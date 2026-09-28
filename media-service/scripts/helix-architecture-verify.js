@@ -17,7 +17,7 @@ const testDirectory = path.join(serviceRoot, 'test', 'helix-architecture');
 const testFiles = fs.readdirSync(testDirectory)
   .filter((name) => name.endsWith('.test.js'))
   .sort()
-  .map((name) => path.join(testDirectory, name));
+  .map((name) => path.relative(serviceRoot, path.join(testDirectory, name)));
 
 // Bound simultaneous SQLite/child-process fixtures so host CPU oversubscription
 // does not consume service startup deadlines before the child can run.

@@ -155,7 +155,7 @@ function createExecutionRegistration() {
       const productFactPorts=createProductFactCapabilityPorts({...options,movieProductionReader,domainCommitCoordinator});
       const productMetadataPorts=createProductMetadataCapabilityPorts({...options,movieProductionReader});
       const artifactPorts=createArtifactProductionCapabilityPorts({...options,movieProductionReader});
-      const sourceScopeResolver=createProductionSourceScopeResolver({movieProductionReader,
+      const sourceScopeResolver=createProductionSourceScopeResolver({movieProductionReader,workResultReader:options.workResultReader,
         productionPort:options.productProductionPort});
       const mediaPorts=createMediaProductionCapabilityPorts({...options,
         resolveProductionSourceScope:sourceScopeResolver.resolve});

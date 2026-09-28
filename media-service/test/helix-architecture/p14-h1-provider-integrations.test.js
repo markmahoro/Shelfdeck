@@ -611,7 +611,7 @@ function selectedCandidateFromSearch(result) {
     result: 'selected',
     selectedCandidate: result.candidates[0],
     selectedCandidateId: result.candidates[0].candidateId,
-    selectionReasonCode: 'selected_compliant_claims',
+    selectionReasonCode: 'selected_processable_claims',
   };
   return Object.freeze({
     ...value,
@@ -1062,6 +1062,18 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
     assert.equal(trapped.result.candidates[0].requirementAssessment,'noncompliant');
     assert.deepEqual(trapped.result.candidates[0].assessmentReasonCodes,
       ['primary_audio_unmet']);
+
+    state.moviepilotSearchRows=[{meta_info:{name:'Movie',year:'2024',resource_pix:'1080p'},
+      media_info:{tmdb_id:100,title:'Movie',year:'2024'},torrent_info:{title:'Movie 2024 1080p AVC TrueHD',
+        description:'法4K修复版',enclosure:'https://tracker.test/restored',size:1024,seeders:4}}];
+    const restored=await opened.services.executeProvider('moviepilot',{operationId:'libra.external_material.search@1',
+      effectClass:'pure_observation',idempotencyKey:'restored-pixels-separated',timeoutMs:5000,input:{acquisitionQuery:acquisitionQuery(),limit:25}});
+    const restoredCandidate=restored.result.candidates[0];
+    assert.equal(restoredCandidate.advertisedMedia.resolution.value,'below_4k');
+    assert.equal(restoredCandidate.advertisedMedia.restoration.value,'restored_4k');
+    assert.deepEqual(restoredCandidate.assessmentReasonCodes,['video_codec_unmet']);
+    assert.equal(require('../../src/helix/contracts/acquisition-feasibility').isProcessableCandidate(restoredCandidate),true);
+    delete state.moviepilotSearchRows;
 
     state.moviepilotSeeders = 0;
     const seedless = await opened.services.executeProvider('moviepilot', {

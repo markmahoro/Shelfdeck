@@ -88,6 +88,24 @@ function buildAcquisitionQuery(value) {
       originalTitle.trim() !== (typeof displayTitle === 'string' ? displayTitle.trim() : '')) {
     terms.push({ termKind:'title', value:originalTitle.trim() });
   }
+  const observation = value.productIdentityEvidenceObservation;
+  if (observation) {
+    const verified = observation.verifiedIdentity;
+    if (observation.libraRunId !== context.libraRunId || observation.result !== 'resolved' ||
+        !['provider_exact','provider_search'].includes(observation.sourceKind) ||
+        observation.observationDigest !== canonicalDigest(without(observation,'observationDigest')) ||
+        !verified || !anchors.some(anchor => anchor.provider === verified.provider &&
+          anchor.namespace === verified.namespace && anchor.providerKey === verified.providerKey)) {
+      fail('P9_EXTERNAL_IDENTITY_ALIAS_EVIDENCE','Acquisition aliases require the resolved Provider identity observation.');
+    }
+    for (const alias of verified.aliases || []) {
+      if (alias.sourceKind !== 'provider' || typeof alias.value !== 'string' ||
+          alias.aliasDigest !== canonicalDigest(without(alias,'aliasDigest'))) {
+        fail('P9_EXTERNAL_IDENTITY_ALIAS_EVIDENCE','Acquisition alias provenance is invalid.');
+      }
+      if (alias.value.trim()) terms.push({termKind:'title',value:alias.value.trim()});
+    }
+  }
   const releaseYear = identity.releaseYear || identity.year || identity.displayIdentity?.entries
     ?.find((item) => item.key === 'year')?.value || null;
   if (/^[0-9]{4}$/.test(String(releaseYear || '').trim())) {
@@ -95,7 +113,10 @@ function buildAcquisitionQuery(value) {
   }
   if (structure.structureKind === 'season') terms.push({ termKind:'season', value:String(anchors[0].seasonNumber) });
   const dedup=[]; for (const item of terms) if (!dedup.some((existing) => existing.termKind === item.termKind && existing.value === item.value)) dedup.push(item);
-  const queryTerms=dedup.slice(0,32).map((item,ordinal)=>freeze({ ordinal,...item,
+  // Reserve the bounded query for the identity anchor, year, and provider aliases.
+  const boundedTerms = dedup.filter(item=>item.termKind!=='title');
+  boundedTerms.push(...dedup.filter(item=>item.termKind==='title').slice(0,32-boundedTerms.length));
+  const queryTerms=boundedTerms.map((item,ordinal)=>freeze({ ordinal,...item,
     termDigest:canonicalDigest({schema:'libra.external-acquisition-query-term@1',termKind:item.termKind,value:item.value}) }));
   const hardConstraints={requiredStructureKind:structure.structureKind,requiredEpisodeKeys:episodes,
     mediaRequirementDigest:requirement.requirementDigest};
@@ -136,18 +157,18 @@ function assertCandidates(value) {
 
 function buildSelectionCriteria(value) {
   const body={contractId:'',revision:integer(value?.revision,'revision',1),schemaRef:'SelectionCriteria@1',queryDigest:digest(value?.queryDigest,'queryDigest'),
-    strategy:'single_requirement_compliant_seeder_strength'};
+    strategy:'single_processable_candidate_seeder_strength'};
   body.contractId=canonicalDigest({schema:'libra.external-selection-criteria-id@1',queryDigest:body.queryDigest,revision:body.revision});
   body.criteriaDigest=canonicalDigest(body); return bounded(body,16*1024,'P9_EXTERNAL_SELECTION_SIZE');
 }
 
 function selectCandidate(value) {
   const candidates=assertCandidates(value?.candidates), criteria=value?.selectionCriteria;
-  if(!criteria||criteria.schemaRef!=='SelectionCriteria@1'||criteria.strategy!=='single_requirement_compliant_seeder_strength'||
+  if(!criteria||criteria.schemaRef!=='SelectionCriteria@1'||criteria.strategy!=='single_processable_candidate_seeder_strength'||
       criteria.queryDigest!==candidates.queryDigest||criteria.criteriaDigest!==canonicalDigest(without(criteria,'criteriaDigest')))
     fail('P9_EXTERNAL_SELECTION_CRITERIA','Selection Criteria continuity is invalid.');
   const available=candidates.candidates.filter((item)=>item.availability==='available'),
-    eligible=available.filter((item)=>item.requirementAssessment==='compliant'),
+    eligible=available.filter(require('../../../contracts/acquisition-feasibility').isProcessableCandidate),
     selected=eligible.slice().sort((left,right)=>
       right.availabilityEvidence.seederCount-left.availabilityEvidence.seederCount ||
       left.providerRank-right.providerRank || compare(left.candidateId,right.candidateId))[0]||null;
@@ -156,7 +177,7 @@ function selectCandidate(value) {
     draftId:canonicalDigest({schema:'libra.external-selected-candidate-id@1',...common}),draftKind:'external-selected-candidate',
     basisDigest:canonicalDigest({schema:'libra.external-candidate-selection-basis@1',...common}),producedAtMs:integer(value.producedAtMs,'producedAtMs'),...common,
     result:selected?'selected':'not_selected',selectedCandidate:selected,selectedCandidateId:selected?.candidateId||null,
-    selectionReasonCode:selected?'selected_compliant_claims':
+    selectionReasonCode:selected?'selected_processable_claims':
       (available.length?'no_requirement_eligible_candidate':'no_available_candidate')};
   result.draftDigest=canonicalDigest(result); return bounded(result,64*1024,'P9_EXTERNAL_SELECTED_SIZE');
 }

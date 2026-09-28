@@ -204,6 +204,59 @@
         },
         "systemUpscaleDetected": {
           "type": "boolean"
+        },
+        "editionEvidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "editionKind": {
+              "const": "restored_4k"
+            },
+            "libraRunId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "candidateDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "identityVerificationDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "packageVerificationDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "claimDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "sourceHandleDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "productContentFingerprint": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "evidenceDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "editionKind",
+            "libraRunId",
+            "candidateDigest",
+            "identityVerificationDigest",
+            "packageVerificationDigest",
+            "claimDigest",
+            "sourceHandleDigest",
+            "productContentFingerprint",
+            "evidenceDigest"
+          ]
         }
       },
       "required": [

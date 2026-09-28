@@ -134,6 +134,12 @@ function buildProductionSourceScopeReference(value) {
     scopeKind,scopeId:text(value.scopeId,'scopeId'),scopeDigest:digest(value.scopeDigest,'scopeDigest'),
     memberSetDigest:digest(value.memberSetDigest,'memberSetDigest'),memberCount,
     selectedPayloadSetDigest:digest(value.selectedPayloadSetDigest,'selectedPayloadSetDigest')};
+  if(value.workspaceMaterialHandle){
+    const handle=value.workspaceMaterialHandle;
+    if(scopeKind!=='stream_file'||handle.ownerDomain!=='libra'||handle.processId!==result.libraRunId)
+      fail('P9_MEDIA_SOURCE_SCOPE_KIND','Workspace Remux source must belong to this Run.');
+    result.workspaceMaterialHandle=handle;
+  }
   result.sourceReferenceDigest=canonicalDigest(result);
   return limited(result,16*1024,'P9_MEDIA_SOURCE_SCOPE_SIZE');
 }
@@ -479,6 +485,11 @@ function buildProductMediaCandidateInput(value) {
   }
   result.candidateId = canonicalDigest({ schema:'libra.product-media-candidate-id@1', candidateNodeId:common.candidateNodeId,
     candidateKind:kind, candidateBasisDigest:common.candidateBasisDigest, mediaRequirementDigest:requirement.requirementDigest });
+  if(value.editionEvidence){
+    if(kind!=='workspace_output'||!require('../../../contracts/media-edition-evidence').validEditionEvidence(value.editionEvidence)||value.editionEvidence.libraRunId!==value.libraRunId||value.editionEvidence.sourceHandleDigest!==value.sourceProbeEvidence.sourceHandleDigest)
+      fail('P9_MEDIA_EDITION_EVIDENCE','Edition evidence must belong to this workspace Run.');
+    result.editionEvidence=value.editionEvidence;
+  }
   result.inputDigest = canonicalDigest(result);
   return limited(result, 64 * 1024, 'P9_MEDIA_CANDIDATE_SIZE');
 }
@@ -611,7 +622,8 @@ function buildProductMediaVerification(value) {
   if (mandatory.container !== 'any' && container !== mandatory.container) reasons.push('container_unmet');
   if (mandatory.fileExtension !== 'any' && extension !== mandatory.fileExtension) reasons.push('file_extension_unmet');
   const outputRaster = rasterClass(outputProbe), sourceRaster = rasterClass(input.sourceProbeEvidence);
-  if (mandatory.minimumRasterClass === '4k' && outputRaster !== '4k') reasons.push('minimum_raster_unmet');
+  const editionEvidence=input.editionEvidence?require('../../../contracts/media-edition-evidence').bindEditionEvidence(input.editionEvidence,handle,input.libraRunId):null;
+  if (mandatory.minimumRasterClass === '4k' && outputRaster !== '4k' && !editionEvidence) reasons.push('minimum_raster_unmet');
   if (mandatory.forbidSystemUpscaleFor4k && outputRaster === '4k' && sourceRaster !== '4k') reasons.push('system_upscale_forbidden');
   const audio = containedAudioClasses(outputProbe), accepted = mandatory.acceptedPrimaryAudioClasses || [];
   if (accepted.length && !audio.some((item) => accepted.includes(item))) reasons.push('primary_audio_unmet');
@@ -647,7 +659,7 @@ function buildProductMediaVerification(value) {
     sourceProbeEvidenceId:input.sourceProbeEvidence.evidenceId,sourceProbeEvidenceDigest,
     outputProbeEvidenceId:outputProbe.evidenceId,outputProbeEvidenceDigest,
     qualitySummary:{videoCodec,container,fileExtension:extension,displayRasterClass:outputRaster,primaryAudioClasses:audio,
-      sourceDisplayRasterClass:sourceRaster,systemUpscaleDetected:outputRaster==='4k'&&sourceRaster!=='4k'},
+      sourceDisplayRasterClass:sourceRaster,systemUpscaleDetected:outputRaster==='4k'&&sourceRaster!=='4k',...(editionEvidence?{editionEvidence}:{})},
     spaceSummary:{unit:requirement.space.unit,actualSizeBytes,maxSizeBytes:maxSizeBytes??null,withinLimit},
     dynamicRangeSummary:{sourceDynamicRangeKind,outputDynamicRangeKind,conversionOperation,outputPixelFormat:outputVideo.pixelFormat||'unknown',
       outputColorProfile,dolbyVisionMetadataPresent},decodeSummary:{samplePointsPercent:Object.freeze([...(playback.samplePointsPercent||[])]),

@@ -352,6 +352,43 @@ test('builds one target-bound workspace result and verifies it without hidden pa
   assert.equal(verification.result,'passed');assert.equal(verification.workspaceMediaHandleId,result.workspaceMediaHandleId);
 });
 
+test('restored edition satisfies the declared alternative without falsifying pixels or waiving codec',()=>{
+  const handle=source(),requirement=media.buildMediaRequirement({...spec(),requirements:{...spec().requirements,mandatoryMedia:{...spec().requirements.mandatoryMedia,minimumRasterClass:'4k'}}}),intent=encodeIntent(handle,requirement),snapshot=device(),workspaceId=D('workspace');
+  const root=rootSnapshot(),target=media.buildWorkspaceMediaOutputTarget({libraRunId:'run-1',executionBasisDigest:D('basis'),workspaceId,
+    expectedWorkspaceRevision:2,expectedWorkspaceStateDigest:D('workspace-state'),rootSnapshot:root,workspaceScopeDigest:D('scope'),
+    targetRelativePath:'products/movie.mkv',productionIntentDigest:intent.intentDigest});
+  const output={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:D('output-handle'),workspaceId,ownerDomain:'libra',processId:'run-1',
+    endpointId:'endpoint-1',materialKey:D('output-material'),physicalIdentity:{mountScopeId:'mount-1',inode:'2',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('bytes')},
+    rootHandleRef:'root-handle',relativePath:'products/movie.mkv',digestAlgorithm:'sha256',digestHex:D('bytes'),sizeBytes:100,referenceRevision:1,
+    accessScope:'workspace_material_read',fenceDigest:D('output-fence')};
+  const result=media.buildWorkspaceMediaHandle({sourceHandle:handle,outputTarget:target,workspaceMaterialHandle:output,productionIntentKind:'encode',productionIntent:intent,
+    deviceSnapshot:snapshot,producingEventId:'event-1',effectReceipt:{effectId:'effect-1',effectReceiptId:'receipt-1',effectReceiptDigest:D('receipt'),effectScopeDigest:target.effectScopeDigest}});
+  valid('helix://contracts/domain-types/WorkspaceMediaOutputTarget/v1',target);
+  valid('helix://contracts/types/WorkspaceMediaHandle/v1',result);
+  assert.equal(result.workspaceMaterialHandle.handleId,output.handleId);assert.equal(result.outputTargetId,target.targetId);
+  const editionBody={editionKind:'restored_4k',libraRunId:'run-1',candidateDigest:D('candidate'),identityVerificationDigest:D('identity'),
+    packageVerificationDigest:D('package'),claimDigest:D('claim'),sourceHandleDigest:canonicalDigest(handle),productContentFingerprint:handle.identity.contentFingerprint};
+  const editionEvidence={...editionBody,evidenceDigest:canonicalDigest(editionBody)};
+  const lowProbe=(h,id)=>probe(h,id,{videoStreams:[{...probe(h).videoStreams[0],codedWidth:1920,codedHeight:1080,
+    displayWidth:1920,displayHeight:1080,longEdge:1920,shortEdge:1080}]});
+  const input=media.buildProductMediaCandidateInput({candidateKind:'workspace_output',candidateNodeId:'node-1',libraRunId:'run-1',mediaRequirement:requirement,
+    workspaceMediaHandle:result,sourceProbeEvidence:lowProbe(handle,'source-probe'),outputProbeEvidence:lowProbe(output,'output-probe'),editionEvidence});
+  const verification=verifyWithPlayback({input,verifiedAtMs:9});
+  valid('helix://contracts/domain-types/ProductMediaCandidateInput/v1',input);
+  valid('helix://contracts/types/ProductMediaVerification/v1',verification);
+  assert.equal(verification.qualitySummary.displayRasterClass,'below_4k');
+  assert.equal(verification.qualitySummary.editionEvidence.productContentFingerprint,output.physicalIdentity.contentFingerprint);
+  const {editionEvidence:omitted,...plain}=input;delete plain.inputDigest;
+  const without=verifyWithPlayback({input:media.buildProductMediaCandidateInput(plain),verifiedAtMs:10});
+  assert.deepEqual(without.reasonCodes,['minimum_raster_unmet']);
+  assert.throws(()=>media.buildProductMediaCandidateInput({...input,editionEvidence:{...editionEvidence,sourceHandleDigest:D('foreign')}}),/Edition evidence/);
+  const bad=lowProbe(output,'bad-codec');bad.videoStreams[0].codec='h264';
+  bad.payloadDigest=canonicalDigest(Object.fromEntries(Object.entries(bad).filter(([key])=>key!=='payloadDigest')));
+  const rejected=verifyWithPlayback({input:media.buildProductMediaCandidateInput({...input,outputProbeEvidence:bad}),verifiedAtMs:11});
+  assert.deepEqual(rejected.reasonCodes,['video_codec_unmet']);
+  assert.equal(verification.result,'passed');assert.equal(verification.workspaceMediaHandleId,result.workspaceMediaHandleId);
+});
+
 test('selects by declared rank and never by caller order or size',()=>{
   const requirement=media.buildMediaRequirement(spec()),handle=source(),inputA=media.buildProductMediaCandidateInput({candidateKind:'direct_input',candidateNodeId:'node-a',
     libraRunId:'run-1',mediaRequirement:requirement,sourceMaterialHandle:handle,sourceProbeEvidence:probe(handle,'probe-a')}),

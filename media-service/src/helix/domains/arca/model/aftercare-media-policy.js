@@ -189,7 +189,8 @@ function evaluateMandatoryMedia(value) {
       reasons.push('file_extension_unmet');
     }
     if (mandatory.minimumRasterClass === '4k' &&
-        (!videos.length || !videos.every(isFourK))) reasons.push('minimum_raster_unmet');
+        (!videos.length || !videos.every(isFourK)) &&
+        !(value.contentFingerprint && require('../../../contracts/media-edition-evidence').validEditionEvidence(value.editionEvidence,value.contentFingerprint))) reasons.push('minimum_raster_unmet');
     const sourceVideos = value?.sourceProbe ? primaryVideoStreams(value.sourceProbe) : null;
     if (mandatory.forbidSystemUpscaleFor4k && videos.length && videos.every(isFourK) &&
         sourceVideos && (!sourceVideos.length || !sourceVideos.every(isFourK))) {

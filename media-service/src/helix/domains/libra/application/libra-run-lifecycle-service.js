@@ -85,13 +85,13 @@ function createLibraRunLifecycleService(options) {
     );
   }
 
-  function commitTerminalFreeze(libraRunId, blockerKind, built) {
+  function commitTerminalFreeze(libraRunId, blockerKind, built, transitionKind = 'freeze') {
     if (built.kind !== 'terminal_evidence') return built;
     const decision = buildRunLifecycleDecision({
       libraRunId,
       expectedStateRevision: built.run.stateRevision,
       expectedStateDigest: built.run.stateDigest,
-      transitionKind: 'freeze',
+      transitionKind,
       transitionEvidence: built.evidence,
       expectedAdmissionHeadRevision: built.admissionHead.headRevision,
       expectedActiveScopeSetDigest: built.admissionHead.activeScopeSetDigest,
@@ -110,7 +110,7 @@ function createLibraRunLifecycleService(options) {
     options.libraRunExecutionProjection?.invalidate(libraRunId);
     options.wake?.();
     return Object.freeze({
-      kind: 'frozen',
+      kind: transitionKind === 'secondary_target' ? 'secondary_target' : 'frozen',
       libraRunId,
       blockerKind,
       terminalEvidence: built.evidence,
@@ -138,7 +138,12 @@ function createLibraRunLifecycleService(options) {
     }));
   }
 
-  return Object.freeze({ reconcile, freezeFailedWork, freezeTerminalResult });
+  function enterSecondaryTarget(libraRunId, workId, terminalResult) {
+    return commitTerminalFreeze(libraRunId,'product_unachievable',store.buildTerminalEvidence({
+      libraRunId,workId,blockerKind:'product_unachievable',assessedAtMs:now(),terminalResult
+    }),'secondary_target');
+  }
+  return Object.freeze({ reconcile, freezeFailedWork, freezeTerminalResult, enterSecondaryTarget });
 }
 
 module.exports = Object.freeze({

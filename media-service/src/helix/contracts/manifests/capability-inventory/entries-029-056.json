@@ -601,21 +601,21 @@
       "sourceLocator": {
         "section": "8.6.8",
         "line": 10002,
-        "lineDigest": "b222e4e898992b82298ccf86a739b6115054f1c9d1026251b7ab75ab7d03fa38"
+        "lineDigest": "aaacb081999d8a29e2b8783b506a65b6922cac3f72bcaa150dc3d62da752d6e2"
       },
       "targetLocator": {
         "path": "capabilities/libra/external_material/query/prepare/v1/manifest.json"
       },
       "contract": {
         "packagePath": "capabilities/libra/external_material/query/prepare/v1",
-        "packageDigest": "e78a77148e76a120a5eeaf18101b10569d63bcd73229493ab159e52da7948c98",
+        "packageDigest": "874aae6ea2f7ddc0c87524daa72132ca4bd574d0637e84429a749a74cb1f8cda",
         "effectClass": "pure_observation",
-        "inputSummary": "ResolvedProductIdentity + ProductStructure + MediaRequirement + AcquisitionPolicy",
+        "inputSummary": "ResolvedProductIdentity + ProductIdentityEvidenceObservation + ProductStructure + MediaRequirement + AcquisitionPolicy",
         "outputFamily": "AcquisitionQuery"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "3bf2cb609273a7fa4229fb337c7a9b6696109ea799ceff0bb3dd18038f93d2b8"
+        "value": "c288e22237c7d67386470fa6fd549c50c7f31d2949219c140758d5ecd351444c"
       }
     },
     {

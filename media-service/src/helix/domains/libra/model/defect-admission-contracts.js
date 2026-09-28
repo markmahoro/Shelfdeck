@@ -1,39 +1,10 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
-const {artifactGapCodes}=require('../../../contracts/artifact-requirement-gaps');
 
 const SCHEMA_REF = 'helix://contracts/application-types/AuthorizedDefectManifest/v1';
 const ACTOR_FAILURE = 'product_metadata_required_cast_missing';
-const EXTERNAL_FAILURES = new Set([
-  'no_available_candidate',
-  'no_requirement_eligible_candidate',
-  'download_attempt_limit_exhausted',
-  'identity_verification_failed',
-  'structure_mismatch',
-  'episode_coverage_mismatch',
-  'package_integrity_failure',
-  'no_passed_candidate',
-  'external_package_rejected',
-  'external_output_rejected',
-]);
-const EXTERNAL_TERMINAL_CAPABILITIES = new Set([
-  'libra.external_material.candidate.select@1',
-  'libra.external_material.package.verify@1',
-  'libra.product_output.select@1',
-]);
-const WAIVABLE_MEDIA_CODES = new Set([
-  'video_codec_unmet',
-  'container_unmet',
-  'file_extension_unmet',
-  'minimum_raster_unmet',
-  'system_upscale_forbidden',
-  'primary_audio_unmet',
-  'max_size_exceeded',
-  'dynamic_range_conversion_unmet',
-  'output_color_profile_unmet',
-  'dolby_vision_metadata_not_removed',
-]);
+const WAIVABLE_MEDIA_CODES = new Set(['max_size_exceeded']);
 const DEFECT_CODES = new Set(['actor_unavailable', 'metadata_fields_unavailable', 'artifacts_unavailable', 'external_source_exhausted', 'media_requirements_unmet', 'size_cap_exceeded']);
 const DIGEST = /^[a-f0-9]{64}$/;
 
@@ -110,10 +81,10 @@ function sizeCapDefect(item, verification, run) {
   });
 }
 function metadataDefect(item, missingFields, productGapPath) {
-  if (productGapPath !== 'metadata' && (![ACTOR_FAILURE,'product_metadata_required_fields_missing'].includes(item.failureCode) ||
-      item.capabilityRef !== 'libra.product_metadata.fetch@1' ||
-      item.failureClass !== 'business_unachievable')) return null;
+  if(item.failureCode!==ACTOR_FAILURE || item.capabilityRef!=='libra.product_metadata.fetch@1' ||
+      item.failureClass!=='business_unachievable')return null;
   const fields=ordered(missingFields || (item.failureCode===ACTOR_FAILURE?['actor']:[]));
+  if(fields.length!==1||fields[0]!=='actor')fail('P9_DEFECT_ADMISSION_NONWAIVABLE','Only unavailable actor relationships may be relaxed.');
   if(!fields.length)fail('P9_DEFECT_ADMISSION_EVIDENCE_PENDING','Exact missing metadata fields are unavailable.');
   if(fields.some(code=>['tmdb_movie_id','tmdb_series_id','jav_code','internal_identity','season_number','episode_number'].includes(code)))
     fail('P9_DEFECT_ADMISSION_NONWAIVABLE','Identity and structure requirements cannot be accepted as metadata defects.');
@@ -126,36 +97,6 @@ function metadataDefect(item, missingFields, productGapPath) {
     waivedRequirementCodes: Object.freeze(['metadata_field_unmet']),
   });
 }
-function externalDefect(item, verification, run, productGapPath) {
-  const exhaustion = EXTERNAL_FAILURES.has(item.failureCode) &&
-      EXTERNAL_TERMINAL_CAPABILITIES.has(item.capabilityRef) &&
-      item.failureClass === 'business_unachievable';
-  if (productGapPath !== 'media' && (!EXTERNAL_FAILURES.has(item.failureCode) ||
-      !EXTERNAL_TERMINAL_CAPABILITIES.has(item.capabilityRef) ||
-      item.failureClass !== 'business_unachievable')) return null;
-  if (!verification || verification.candidateKind !== 'direct_input' ||
-      verification.result !== 'failed' || verification.libraRunId !== run.libraRunId ||
-      !Array.isArray(verification.reasonCodes) || !verification.reasonCodes.length) {
-    fail('P9_DEFECT_ADMISSION_INELIGIBLE',
-      'Media defect admission requires a verified direct product with concrete requirement gaps.');
-  }
-  const reasons = ordered(verification.reasonCodes);
-  if (reasons.some((code) => !WAIVABLE_MEDIA_CODES.has(code))) {
-    fail('P9_DEFECT_ADMISSION_NONWAIVABLE',
-      'Original media has a non-waivable safety or integrity gap.', { reasonCodes: reasons });
-  }
-  digest(verification.verificationId, 'verification.verificationId');
-  return Object.freeze({
-    defectCode: exhaustion ? 'external_source_exhausted' : 'media_requirements_unmet',
-    sourceFailureCode: item.failureCode,
-    sourceWorkId: item.workId,
-    sourceEvidenceDigest: item.terminalEvidenceDigest,
-    originalMediaVerificationId: verification.verificationId,
-    originalMediaVerificationDigest: canonicalDigest(verification),
-    waivedRequirementCodes: Object.freeze(reasons),
-  });
-}
-
 function buildDefectAdmissionCandidate(value) {
   const run = value?.run;
   if (!run || run.state !== 'frozen') {
@@ -164,11 +105,8 @@ function buildDefectAdmissionCandidate(value) {
   const additions=blockers(value.terminalEvidence,value.candidateGapSources).map(item=>{
     const productGapPath = value.productGapPaths?.[item.workId];
     const artifactKinds=value.missingArtifactKindsByWork?.[item.workId];
-    const artifact=artifactKinds?.length?Object.freeze({defectCode:'artifacts_unavailable',artifactKindCodes:Object.freeze(ordered(artifactKinds)),
-      sourceFailureCode:item.failureCode,sourceWorkId:item.workId,sourceEvidenceDigest:item.terminalEvidenceDigest,
-      waivedRequirementCodes:Object.freeze(artifactGapCodes(value.requirements,artifactKinds))}):null;
-    const defect = artifact || metadataDefect(item,value.missingMetadataFields,productGapPath) || sizeCapDefect(item,value.sizeCapVerification,run) ||
-      externalDefect(item, value.directMediaVerification, run,productGapPath);
+    if(artifactKinds?.length)fail('P9_DEFECT_ADMISSION_NONWAIVABLE','Required artifacts cannot be waived.');
+    const defect = metadataDefect(item,value.missingMetadataFields,productGapPath) || sizeCapDefect(item,value.sizeCapVerification,run);
     if (!defect) {
     fail('P9_DEFECT_ADMISSION_INELIGIBLE',
       'The terminal blocker is not an evidenced acceptable product gap.',
@@ -182,7 +120,7 @@ function buildDefectAdmissionCandidate(value) {
       canonicalDigest(itemValue) === canonicalDigest(entry)) === index)
     .sort((left, right) => Buffer.from(canonicalJson(left)).compare(Buffer.from(canonicalJson(right))));
   if (!defects.length ||
-      defects.some((entry) => !DEFECT_CODES.has(entry.defectCode))) {
+      defects.some((entry) => !['actor_unavailable','size_cap_exceeded'].includes(entry.defectCode))) {
     fail('P9_DEFECT_ADMISSION_SCOPE', 'Defect candidate contains an unsupported gap.');
   }
   const body = {
@@ -420,7 +358,6 @@ function resolveProductSelection(results, manifestValue, context = {}) {
 module.exports = Object.freeze({
   ACTOR_FAILURE,
   DEFECT_CODES,
-  EXTERNAL_FAILURES,
   SCHEMA_REF,
   WAIVABLE_MEDIA_CODES,
   DefectAdmissionContractError,

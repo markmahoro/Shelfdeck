@@ -72,7 +72,7 @@ function selectedCandidate() {
       selectionCriteriaDigest })), draftKind: 'external-selected-candidate',
     basisDigest: digest(canonicalJson({ schema: 'libra.external-candidate-selection-basis@1', queryDigest, candidateSetDigest,
       selectionCriteriaDigest })), producedAtMs: NOW, queryDigest, candidateSetDigest, selectionCriteriaDigest, result: 'selected',
-    selectedCandidate: selected, selectedCandidateId: selected.candidateId, selectionReasonCode: 'selected_compliant_claims' };
+    selectedCandidate: selected, selectedCandidateId: selected.candidateId, selectionReasonCode: 'selected_processable_claims' };
   return Object.freeze({ ...value, draftDigest: digest(canonicalJson(value)) });
 }
 
@@ -337,7 +337,7 @@ test('external job receipt must match exact integration, operation, idempotency,
   await assert.rejects(() => f.adapter.execute(request), (error) => error.code === 'P5_PROVIDER_JOB_MISMATCH');
 });
 
-test('external request rejects noncompliant and unknown candidates before transport', async () => {
+test('external request permits repairable codec gaps but rejects unknown claims before transport', async () => {
   const operation = operationCatalog.operations.find((item) =>
     item.operationId === 'libra.external_material.acquire.request@1');
   for (const assessment of ['noncompliant', 'unknown']) {
@@ -367,9 +367,9 @@ test('external request rejects noncompliant and unknown candidates before transp
       operationId:base.operationId, idempotencyKey:base.idempotencyKey, input,
     })) };
     const f = fixture(operation, { request });
-    await assert.rejects(() => f.adapter.execute(request),
-      (error) => error.code === 'P5_PROVIDER_SELECTED_CANDIDATE_ID');
-    assert.equal(f.calls.length, 0);
+    if(assessment==='noncompliant'){await f.adapter.execute(request);assert.equal(f.calls.length,1);}
+    else {await assert.rejects(() => f.adapter.execute(request),
+      (error) => error.code === 'P5_PROVIDER_SELECTED_CANDIDATE_ID');assert.equal(f.calls.length,0);}
   }
 });
 

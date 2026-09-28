@@ -356,3 +356,25 @@ test('UAT-139 adds nullable coverage snapshots without inventing historical revi
     assert.equal(migrateUatIdentitySelectionSchema({ Database, databasePath, schemaManifest }).migrated, false);
   } finally { if (db?.open) db.close(); kernel?.close(); fs.rmSync(root, { recursive:true, force:true }); }
 });
+
+
+test('UAT-251 secondary target constraint upgrade preserves every existing Run revision',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-secondary-target-upgrade-')),databasePath=path.join(root,'shelfdeck.db');
+  let db;
+  try{
+    db=new Database(databasePath);db.exec(schemaDdl.replace("'frozen', 'secondary_target', 'defect_admitted'","'frozen', 'defect_admitted'"));
+    db.prepare("INSERT INTO libra_runs(libra_run_id,state) VALUES('unchanged-run','frozen')").run();
+    db.prepare("INSERT INTO libra_run_revisions(libra_run_id,state_revision,transition_kind,expected_admission_head_revision) VALUES('unchanged-run',1,'frozen',0)").run();
+    const before=db.prepare('SELECT * FROM libra_run_revisions').all();
+    db.prepare('INSERT INTO platform_schema_marker(schema_name,generation,schema_digest,catalog_digest,applied_at_ms) VALUES(?,?,?,?,?)')
+      .run('shelfdeck',TARGET_GENERATION,require('../src/helix/foundation/persistence/uat-identity-selection-migration').PRE_SECONDARY_TARGET_SCHEMA_DIGEST,digest(catalogRows(db)),100);
+    db.close();
+    const upgraded=migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest});assert.equal(upgraded.migrated,true);
+    db=new Database(databasePath);assert.deepEqual(db.prepare('SELECT * FROM libra_run_revisions').all(),before);
+    assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'frozen');
+    assert.deepEqual(db.pragma('foreign_key_check'),[]);
+    assert.match(db.prepare("SELECT sql FROM sqlite_master WHERE name='libra_run_revisions'").get().sql,/'secondary_target'/);
+    db.close();assert.equal(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}).migrated,false);
+    const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest});kernel.close();
+  }finally{if(db?.open)db.close();fs.rmSync(root,{recursive:true,force:true});}
+});

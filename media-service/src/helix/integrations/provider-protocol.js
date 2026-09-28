@@ -142,7 +142,7 @@ function validateCandidate(value, integrationId, configRevision, digest) {
       (value.availability==='available'&&(value.availabilityEvidence.status!=='known'||value.availabilityEvidence.seederCount<1))||
       value.availabilityEvidence.evidenceDigest!==digest(canonicalJson(Object.fromEntries(Object.entries(value.availabilityEvidence).filter(([key])=>key!=='evidenceDigest')))))
     fail('P5_PROVIDER_CANDIDATE_AVAILABILITY','Provider candidate availability evidence is invalid.');
-  exact(value.advertisedMedia,['resolution','videoCodec','primaryAudioClasses','sizeBytes','source','evidenceDigest'],'P5_PROVIDER_CANDIDATE_MEDIA_SHAPE');
+  exact(value.advertisedMedia,['resolution','videoCodec','primaryAudioClasses','sizeBytes','source','evidenceDigest',...(value.advertisedMedia.restoration?['restoration']:[])],'P5_PROVIDER_CANDIDATE_MEDIA_SHAPE');
   for(const field of ['resolution','videoCodec','primaryAudioClasses','sizeBytes']){
     if(!value.advertisedMedia[field]||!['known','unknown'].includes(value.advertisedMedia[field].status))
       fail('P5_PROVIDER_CANDIDATE_MEDIA_CLAIM','Provider media claim status is invalid.');
@@ -160,7 +160,7 @@ function validateSelectedCandidate(value, digest) {
     'queryDigest', 'candidateSetDigest', 'selectionCriteriaDigest', 'result', 'selectedCandidate', 'selectedCandidateId',
     'selectionReasonCode'], 'P5_PROVIDER_SELECTED_CANDIDATE_SHAPE');
   if (value.schemaRef !== 'helix://contracts/types/SelectedCandidate/v1' || value.schemaVersion !== 1 || value.result !== 'selected' ||
-      value.selectionReasonCode!=='selected_compliant_claims') fail('P5_PROVIDER_SELECTED_CANDIDATE_REQUIRED', 'Acquire Request requires one proven compliant candidate.');
+      value.selectionReasonCode!=='selected_processable_claims') fail('P5_PROVIDER_SELECTED_CANDIDATE_REQUIRED', 'Acquire Request requires one proven compliant candidate.');
   validateCandidate(value.selectedCandidate, value.selectedCandidate.integrationId, value.selectedCandidate.configRevision, digest);
   const expectedBasisDigest = digest(canonicalJson({ schema: 'libra.external-candidate-selection-basis@1', queryDigest: value.queryDigest,
     candidateSetDigest: value.candidateSetDigest, selectionCriteriaDigest: value.selectionCriteriaDigest }));
@@ -168,7 +168,7 @@ function validateSelectedCandidate(value, digest) {
     candidateSetDigest: value.candidateSetDigest, selectionCriteriaDigest: value.selectionCriteriaDigest }));
   const { draftDigest, ...draftBasis } = value;
   if (value.selectedCandidateId !== value.selectedCandidate.candidateId || value.selectedCandidate.availability !== 'available' ||
-      value.selectedCandidate.requirementAssessment !== 'compliant' ||
+      !require('../contracts/acquisition-feasibility').isProcessableCandidate(value.selectedCandidate) ||
       value.basisDigest !== expectedBasisDigest || value.draftId !== expectedDraftId || draftDigest !== digest(canonicalJson(draftBasis))) fail('P5_PROVIDER_SELECTED_CANDIDATE_ID', 'Selected candidate identity or Draft digest is invalid.');
   ['basisDigest', 'draftDigest', 'queryDigest', 'candidateSetDigest', 'selectionCriteriaDigest'].forEach((field) => sha(value[field], field));
   return freezeClone(value);

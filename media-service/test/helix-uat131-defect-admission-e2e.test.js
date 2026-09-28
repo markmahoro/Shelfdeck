@@ -579,7 +579,7 @@ function sideEffectSnapshot(database) {
 }
 
 function assertCompletedEvidence(database, expectedCodes, finalManifest, originalSelection) {
-  const selectionRows = resultRows(database, 'libra.product_output.select@1');
+  const selectionRows = resultRows(database, 'libra.product_output.select@1').filter(row=>row.result.libraRunId===finalManifest.libraRunId);
   if (originalSelection) {
     const selections = selectionRows.filter((row) =>
       row.result_id === originalSelection.resultId);
@@ -588,11 +588,11 @@ function assertCompletedEvidence(database, expectedCodes, finalManifest, origina
     assert.equal(selections[0].result_digest, originalSelection.resultDigest);
     assert.equal(selections[0].result.draftDigest, originalSelection.draftDigest);
   } else {
-    assert.equal(selectionRows.length, 1);
+    assert.equal(selectionRows.length, 1,JSON.stringify(selectionRows.map(row=>({eventId:row.event_id,work:row.work_id,result:row.result}))));
     assert.equal(selectionRows[0].result.result, 'selected');
   }
 
-  const conformances = resultRows(database, 'libra.product.conformance.verify@1');
+  const conformances = resultRows(database, 'libra.product.conformance.verify@1').filter(row=>row.result.libraRunId===finalManifest.libraRunId);
   assert.equal(conformances.length, 1);
   assert.equal(conformances[0].state, 'succeeded');
   assert.equal(conformances[0].result.result, 'failed');
@@ -783,6 +783,13 @@ test('UAT-131 real Admin HTTP admits exact defects and reaches one On-deck commi
       120_000);
     const runId = frozen.currentRun.libraRunId;
 
+    if(scenario.mediaGap){
+      const response=await harness.host.inject({method:'GET',url:'/v1/admin/formation/runs/'+runId+'/defect-admission-candidate',headers:{cookie:harness.cookie}});
+      assert.equal(response.statusCode,200,response.body);
+      assert.equal(response.json().eligibility,'ineligible',response.body);
+      const db=new Database(harness.databasePath,{readonly:true});try{assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,0);}finally{db.close();}
+      return;
+    }
     const firstCandidate = await waitDefectCandidate(
       harness.host, harness.cookie, runId);
     let finalCandidate = firstCandidate;
@@ -831,7 +838,7 @@ test('UAT-131 real Admin HTTP admits exact defects and reaches one On-deck commi
       const location = path.join(harness.paths.field, 'UAT131 Movie (2026).nfo');
       fs.writeFileSync(location + '.tmp', '<movie><tmdbid>913100</tmdbid><title><![CDATA[UAT131 Movie]]></title><year>2026</year><dateadded>2026-09-07</dateadded></movie>');
       fs.renameSync(location + '.tmp',location);
-      fs.writeFileSync(path.join(harness.paths.field,'independent-version.mkv'),'outside-candidate-media');
+      fs.writeFileSync(path.join(harness.paths.field,'independent-version.mp4'),'outside-candidate-media');
       fs.mkdirSync(path.join(harness.paths.field,'unrelated-extras'));
       fs.writeFileSync(path.join(harness.paths.field,'unrelated-extras','notes.txt'),'outside-candidate-notes');
       await harness.restart();
@@ -888,7 +895,7 @@ test('UAT-131 real Admin HTTP admits exact defects and reaches one On-deck commi
           'Handoff B must carry the original durable NFO witness across restart');
         assert.equal(fs.existsSync(path.join(harness.paths.field,'UAT131 Movie (2026).nfo')),false,
           'Semantically unchanged rewritten source must be settled before On-deck commit');
-        assert.equal(fs.readFileSync(path.join(harness.paths.field,'independent-version.mkv'),'utf8'),'outside-candidate-media');
+        assert.equal(fs.readFileSync(path.join(harness.paths.field,'independent-version.mp4'),'utf8'),'outside-candidate-media');
         assert.equal(fs.readFileSync(path.join(harness.paths.field,'unrelated-extras','notes.txt'),'utf8'),'outside-candidate-notes');
         assert.equal(fs.existsSync(harness.paths.field),true);
       }
@@ -946,6 +953,16 @@ test('UAT-251 standing authorization automatically admits exact Movie defects an
             assert.equal(db.prepare('SELECT count(*) n FROM libra_run_outcomes').get().n,0);}finally{db.close();}}
       }
     }
+    if(scenario.mediaGap || ['HELIX_UAT251_MISSING_POSTER','HELIX_UAT251_TECHNICAL_FAILURE','HELIX_UAT251_ARTIFACT_NETWORK_FAILURE','HELIX_UAT251_NO_METADATA_PROVIDER'].some(key=>process.env[key]==='1')){
+      const outcome=await waitDatabase(harness.databasePath,db=>db.prepare("SELECT outcome_json FROM libra_run_outcomes WHERE subject_id=? AND outcome='unable_to_on_deck'").get(subject.subjectId),180000);
+      assert.ok(outcome);
+      const db=new Database(harness.databasePath,{readonly:true});try{
+        assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,0);
+        assert.equal(db.prepare("SELECT count(*) n FROM libra_run_revisions WHERE transition_kind='defect_admitted'").get().n,0);
+      }finally{db.close();}
+      assert.equal(fs.readFileSync(path.join(harness.paths.field,'UAT131 Movie (2026).mkv'),'utf8'),'uat-131-disposable-movie');
+      return;
+    }
     if(process.env.HELIX_UAT251_UNSAFE==='1') {
       const first=await waitDatabase(harness.databasePath,db=>{
         const row=db.prepare("SELECT outcome_json,outcome_digest FROM libra_run_outcomes WHERE outcome='unable_to_on_deck'").get();
@@ -999,15 +1016,7 @@ test('UAT-251 standing authorization automatically admits exact Movie defects an
       const value=JSON.parse(row.outcome_json);
       assert.equal(canonicalDigest(value),row.outcome_digest);
       assert.equal(database.prepare('SELECT count(*) count FROM arca_ondeck_commit_receipts WHERE shelf_entry_id=?').get(value.onDeckCommitReceipt.shelfEntryId).count,1);
-      const expectedCodes=process.env.HELIX_UAT251_MISSING_POSTER==='1'
-        ?[...scenario.expectedCodes,'metadata_artifact_unmet','image_undecodable'].sort():scenario.expectedCodes;
-      assert.deepEqual(value.authorizedDefectManifest.waivedRequirementCodes,expectedCodes);
-      if(process.env.HELIX_UAT251_MISSING_POSTER==='1')assert.deepEqual(value.authorizedDefectManifest.gapScope.gaps.filter(gap=>gap.targetKind==='artifact').map(gap=>gap.targetId),['poster']);
-      if(process.env.HELIX_UAT251_TECHNICAL_FAILURE==='1') {
-        const defects=value.authorizedDefectManifest.defects;
-        assert.equal(defects.some(item=>item.defectCode==='external_source_exhausted'),false);
-        assert.equal(defects.some(item=>item.defectCode==='media_requirements_unmet' && /^P5_/.test(item.sourceFailureCode)),true,JSON.stringify(defects));
-      }
+      assert.deepEqual(value.authorizedDefectManifest.waivedRequirementCodes,scenario.expectedCodes);
       assert.equal(value.authorizedDefectManifest.standingAuthorization.authorizationDigest,authorization.authorizationDigest);
       return value;
     },300_000,()=>({runtimeErrors:harness.runtimeErrors.map(e=>({code:e.code,message:e.message}))}));

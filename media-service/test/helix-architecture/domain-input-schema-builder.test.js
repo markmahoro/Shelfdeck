@@ -240,7 +240,7 @@ test('materializes the exact PBF-16 acquisition and one-member import inputs', (
   assert.equal(schemas.EpisodeDeliveryManifest.properties.episodeClaims.maxItems, 256);
   assert.equal(schemas.IdentityRequirement.properties.typedParameters, undefined);
   assert.equal(schemas.IdentityRequirement.properties.strengthClass.const, 'exact_provider_identity');
-  assert.equal(schemas.SelectionCriteria.properties.strategy.const, 'single_requirement_compliant_seeder_strength');
+  assert.equal(schemas.SelectionCriteria.properties.strategy.const, 'single_processable_candidate_seeder_strength');
   assert.equal(schemas.SelectionCriteria.properties.attemptOrdinal, undefined);
   assert.equal(schemas.AcquisitionPolicy.properties.maxDownloadAttempts, undefined);
 

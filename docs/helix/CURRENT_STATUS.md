@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-09-28 UAT-251/274：双标准、外部取得后内部加工及可信别名已实现；Windows完整架构240文件、真实转码/封装上架及授权正反例通过。正进行镜像构建、最新完整生产副本升级/回退门禁，尚未部署、未Reset生产。详见[审计与实施证据](implementation/evidence/UAT-251_DEFECT_ELIGIBILITY_HISTORY_AUDIT_20260928.md)。
+
 2026-09-28 UAT-272/273：已标准发布69a82f2a5d，生产health/normalSupplyAllowed、Admin/挂载/Secret/fnOS通过。最新完整副本候选及回退Host通过，精确镜像Linux56项通过；真实浏览器已验证金都639445的片名/年份/海报预览及取消零身份提交。正式选择及新自动观察业务验收待补，两项保持开放。见[证据](implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md)。
 
 2026-09-28：UAT-269已发布b8cf321d65，荒野猎人原Event/Attempt/Effect完成import/probe/verify/select，无重新下载、源Reality不变；第一批关闭。接续UAT-270资源等待输入准备与单次Aftercare投影去重，Windows专项143项与完整架构240文件通过，固定资源需求分支另经34项回归；本机Docker启动故障阻塞Linux验证及构建，尚未部署。见[第二批证据](implementation/evidence/UAT-270_RESOURCE_WAIT_PREPARATION_20260928.md)。下方未发布描述为第一批历史阶段。

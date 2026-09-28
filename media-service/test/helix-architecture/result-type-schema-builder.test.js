@@ -273,7 +273,7 @@ test('materializes the complete PBF-16 external acquisition Result chain', () =>
   assert.deepEqual(schemas.SelectedCandidate.oneOf.map((branch) => branch.properties.result.const), ['selected', 'not_selected']);
   assert.equal(schemas.SelectedCandidate.oneOf[0].properties.selectedCandidate.additionalProperties, false);
   assert.equal(schemas.SelectedCandidate.oneOf[0].properties.selectionReasonCode.const,
-    'selected_compliant_claims');
+    'selected_processable_claims');
   assert.equal(schemas.AcquisitionObservation.properties.outputRefs, undefined);
   assert.equal(schemas.AcquisitionObservation.properties.outputSnapshot.additionalProperties, false);
   assert.ok(schemas.AcquisitionObservation.required.includes('externalJobReceipt'));

@@ -30,6 +30,12 @@ function referenceFor(snapshot) {
   });
 }
 
+function workspaceReferenceFor(snapshot,handle){
+  return buildProductionSourceScopeReference({libraRunId:snapshot.run.libraRunId,scopeKind:'stream_file',scopeId:handle.workspaceId,
+    scopeDigest:canonicalDigest(handle),memberSetDigest:canonicalDigest([handle]),memberCount:1,
+    selectedPayloadSetDigest:canonicalDigest([handle.materialKey]),workspaceMaterialHandle:handle});
+}
+
 function topologyOrder(snapshot) {
   return new Map((snapshot.candidatePrimaryInputManifest?.members || [])
     .map((item, index) => [item.materialKey, Number.isSafeInteger(item.ordinal) ? item.ordinal : index]));
@@ -58,6 +64,17 @@ function createProductionSourceScopeResolver(options) {
 
   function resolve(reference) {
     const snapshot = options.movieProductionReader.readRun(reference?.libraRunId);
+    if(reference.workspaceMaterialHandle){
+      const handle=reference.workspaceMaterialHandle,expected=workspaceReferenceFor(snapshot,handle),
+        workspace=options.movieProductionReader.readWorkspace(handle.workspaceId),
+        works=options.workResultReader.listWorks({ownerDomain:'libra',processType:'libra_run',processId:reference.libraRunId,workKind:'workspace_media_production'});
+      const imported=works.filter(work=>work.state==='succeeded').flatMap(work=>options.workResultReader.read(work.work_id))
+        .some(item=>item.outcomeKind==='succeeded'&&item.capabilityRef==='libra.workspace.material.import@1'&&canonicalDigest(item.result)===canonicalDigest(handle));
+      if(!workspace||workspace.state!=='active'||!imported||canonicalJson(expected)!==canonicalJson(reference))
+        throw new Error('Workspace Remux input does not match the durable imported material.');
+      const member={materialKey:handle.materialKey,role:'primary_payload',physicalIdentity:handle.physicalIdentity},item={member,readHandle:handle};
+      return Object.freeze({reference:expected,primaryReadHandle:handle,primaryMembers:[item],structuralMembers:[],members:[item],sourceSetDigest:canonicalDigest([handle])});
+    }
     const expected = referenceFor(snapshot);
     if (canonicalJson(reference) !== canonicalJson(expected)) {
       const error = new Error('Production Source Scope reference is stale or forged.');
@@ -93,4 +110,4 @@ function createProductionSourceScopeResolver(options) {
   return Object.freeze({ referenceFor, resolve });
 }
 
-module.exports = Object.freeze({ createProductionSourceScopeResolver, referenceFor, selectedPayloadSetDigest });
+module.exports = Object.freeze({ createProductionSourceScopeResolver, referenceFor, workspaceReferenceFor, selectedPayloadSetDigest });

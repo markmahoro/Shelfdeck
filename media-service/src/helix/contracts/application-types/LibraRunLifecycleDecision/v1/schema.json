@@ -37,6 +37,7 @@
         "freshness_confirmed",
         "recovery_reassessed",
         "defect_admit",
+        "secondary_target",
         "set_priority",
         "complete"
       ]

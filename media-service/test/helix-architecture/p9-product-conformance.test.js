@@ -179,7 +179,7 @@ function authorizedSnapshot() {
   const terminalEvidence={blockedWorks:[terminalWork]};
   terminalEvidence.evidenceDigest=canonicalDigest(terminalEvidence);
   const run={libraRunId:base.libraRunId,state:'frozen',stateRevision:2,stateDigest:D('frozen')};
-  const candidate=buildDefectAdmissionCandidate({run,terminalEvidence,
+  const candidate=historicalCandidate({run,terminalEvidence,
     directMediaVerification:verification});
   const manifest=buildAuthorizedDefectManifest({candidate,actorId:'admin',
     idempotencyKey:'uat-131',acknowledged:true,decidedAtMs:20});
@@ -431,3 +431,17 @@ test('pure Conformance executor has no Repository, Store, Query port, latest rea
   const source=fs.readFileSync(path.resolve(__dirname,'../../src/helix/domains/libra/model/product-conformance.js'),'utf8');
   assert.doesNotMatch(source,/repository|persistence|readLatest|readCurrent|queryPort|legacy|fallback|kairox/i);
 });
+
+function historicalCandidate({run,terminalEvidence,directMediaVerification,priorAuthorizedManifest}) {
+  const blocker=terminalEvidence.blockedWorks[0],defect=directMediaVerification?{
+    defectCode:'external_source_exhausted',sourceFailureCode:blocker.failureCode,sourceWorkId:blocker.workId,
+    sourceEvidenceDigest:blocker.terminalEvidenceDigest,originalMediaVerificationId:directMediaVerification.verificationId,
+    originalMediaVerificationDigest:canonicalDigest(directMediaVerification),waivedRequirementCodes:directMediaVerification.reasonCodes
+  }:{defectCode:'actor_unavailable',metadataFieldCodes:['actor'],sourceFailureCode:blocker.failureCode,sourceWorkId:blocker.workId,
+    sourceEvidenceDigest:blocker.terminalEvidenceDigest,waivedRequirementCodes:['metadata_field_unmet']};
+  const defects=[...(priorAuthorizedManifest?.defects||[]),defect].sort((a,b)=>Buffer.from(canonicalJson(a)).compare(Buffer.from(canonicalJson(b))));
+  const body={candidateRevision:run.stateRevision,libraRunId:run.libraRunId,frozenRunStateRevision:run.stateRevision,
+    frozenRunStateDigest:run.stateDigest,terminalEvidenceDigest:terminalEvidence.evidenceDigest,defects,
+    waivedRequirementCodes:[...new Set(defects.flatMap(item=>item.waivedRequirementCodes))].sort()};
+  return {...body,candidateDigest:canonicalDigest(body)};
+}

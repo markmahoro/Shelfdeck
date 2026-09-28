@@ -423,8 +423,9 @@ const special = {
   'ProductMediaVerification.candidateKind': enumText('direct_input', 'workspace_output'),
   'ProductMediaVerification.producingEventId': nullable(id()),
   'ProductMediaVerification.workspaceMediaHandleId': nullable(id()),
-  'ProductMediaVerification.qualitySummary': object({ videoCodec: text(), container: text(), fileExtension: text(),
-    displayRasterClass: text(), primaryAudioClasses: arrayOf(text(), 128), sourceDisplayRasterClass: text(), systemUpscaleDetected: bool() }),
+  'ProductMediaVerification.qualitySummary': (()=>{const schema=object({ videoCodec: text(), container: text(), fileExtension: text(),
+    displayRasterClass: text(), primaryAudioClasses: arrayOf(text(), 128), sourceDisplayRasterClass: text(), systemUpscaleDetected: bool() });
+    schema.properties.editionEvidence=require('../../src/helix/contracts/media-edition-evidence').editionEvidenceSchema;return schema;})(),
   'ProductMediaVerification.spaceSummary': object({ unit: enumText('product', 'episode'), actualSizeBytes: nonNegativeInteger(),
     maxSizeBytes: nullable(positiveInteger()), withinLimit: bool() }),
   'ProductMediaVerification.dynamicRangeSummary': object({
@@ -822,7 +823,7 @@ function selectedCandidateSelectedValueSchema(commonFields = null) {
   const common=commonFields||{schemaRef:{const:typeId('SelectedCandidate')},schemaVersion:{const:1},...envelopeFields.DraftEnvelope,
     queryDigest:digest(),candidateSetDigest:digest(),selectionCriteriaDigest:digest()};
   return object({...common,result:{const:'selected'},selectedCandidate:providerAcquisitionCandidateSnapshotSchema(),selectedCandidateId:id(),
-    selectionReasonCode:{const:'selected_compliant_claims'}});
+    selectionReasonCode:{const:'selected_processable_claims'}});
 }
 
 function acquisitionObservationSchema() {

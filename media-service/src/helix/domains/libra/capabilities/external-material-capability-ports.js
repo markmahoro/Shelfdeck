@@ -114,11 +114,12 @@ function createExternalMaterialCapabilityPorts(options) {
   const ports = {
     'libra.external_material.query.prepare@1': {
       validateInputs(context) {
-        requireNamed(context, ['resolvedProductIdentity', 'productStructure','mediaRequirement','acquisitionPolicy']);
+        requireNamed(context, ['resolvedProductIdentity', 'productIdentityEvidenceObservation', 'productStructure','mediaRequirement','acquisitionPolicy']);
       },
       execute(context) {
         const result = contracts.buildAcquisitionQuery({
           resolvedProductIdentity: context.namedInputs.resolvedProductIdentity,
+          productIdentityEvidenceObservation: context.namedInputs.productIdentityEvidenceObservation,
           productStructure: productStructure(context,
             context.namedInputs.productStructure),
           mediaRequirement:context.namedInputs.mediaRequirement,

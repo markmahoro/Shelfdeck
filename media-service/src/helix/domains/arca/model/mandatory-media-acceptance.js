@@ -294,7 +294,7 @@ function validateReadSet(packageValue, requirement) {
     const conversionOperation =
       verification?.dynamicRangeSummary?.conversionOperation;
     if ((item.samePhysicalMaterial &&
-          (verification?.candidateKind !== 'direct_input' ||
+          (!['direct_input','workspace_output'].includes(verification?.candidateKind) ||
            conversionOperation !== 'none')) ||
         (!item.samePhysicalMaterial &&
           (verification?.candidateKind !== 'workspace_output' ||
@@ -358,7 +358,9 @@ function requirementGaps(requirement, item, sourceProbe, productProbe,
     ['none', 0], ['below_720p', 0], ['720p', 1], ['1080p', 2], ['4k', 3],
   ]);
   if ((rasterRank.get(outputRaster) || 0) <
-      (rasterRank.get(requirement.minimumRasterClass) || 0)) {
+      (rasterRank.get(requirement.minimumRasterClass) || 0) &&
+      !require('../../../contracts/media-edition-evidence').validEditionEvidence(
+        item.productMediaVerification?.qualitySummary?.editionEvidence,item.productReadHandle.identity.contentFingerprint)) {
     gaps.push('minimum_raster_unmet');
   }
   const systemUpscale = sourceFactsObserved && outputRaster === '4k' && sourceRaster !== '4k';

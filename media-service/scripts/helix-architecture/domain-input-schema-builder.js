@@ -1374,7 +1374,7 @@ function identityRequirementSchema() {
 
 function selectionCriteriaSchema() {
   return {...exactDomainSchema('SelectionCriteria',{contractId:id(),revision:positiveInteger(),schemaRef:{const:'SelectionCriteria@1'},
-    queryDigest:digest(),strategy:{const:'single_requirement_compliant_seeder_strength'},criteriaDigest:digest()},undefined,
+    queryDigest:digest(),strategy:{const:'single_processable_candidate_seeder_strength'},criteriaDigest:digest()},undefined,
   {'x-helix-role':'bounded-contract'}),'x-helix-maxCanonicalBytes':16*1024};
 }
 
@@ -1505,12 +1505,14 @@ function productInventoryConformanceSnapshotSchema() {
 }
 
 function productionSourceScopeReferenceSchema() {
-  return { ...exactDomainSchema('ProductionSourceScopeReference', {
+  const schema=exactDomainSchema('ProductionSourceScopeReference', {
     schemaRef: { const: 'ProductionSourceScopeReference@1' }, schemaVersion: { const: 1 },
     libraRunId: id(), scopeKind: enumText('stream_file', 'bdmv', 'dvd', 'iso'), scopeId: id(),
     scopeDigest: digest(), memberSetDigest: digest(), memberCount: { type:'integer', minimum:1, maximum:1024 },
     selectedPayloadSetDigest: digest(), sourceReferenceDigest: digest()
-  }, undefined, { 'x-helix-role':'bounded-contract' }), 'x-helix-maxCanonicalBytes': 16 * 1024 };
+  }, undefined, { 'x-helix-role':'bounded-contract' });
+  schema.properties.workspaceMaterialHandle=typeRef('WorkspaceMaterialHandle');
+  return {...schema,'x-helix-maxCanonicalBytes':16*1024};
 }
 
 function mediaExecutionDeviceSnapshotSchema() {
@@ -1671,6 +1673,7 @@ function productMediaCandidateInputSchema() {
     sourceProbeEvidence: typeRef('MediaProbeEvidence') });
   const workspace = object({ ...common, candidateKind: { const: 'workspace_output' }, workspaceMediaHandle: typeRef('WorkspaceMediaHandle'),
     sourceProbeEvidence: typeRef('MediaProbeEvidence'), outputProbeEvidence: typeRef('MediaProbeEvidence') });
+  workspace.properties.editionEvidence = require('../../src/helix/contracts/media-edition-evidence').editionEvidenceSchema;
   return { $schema: DRAFT, $id: domainTypeId('ProductMediaCandidateInput'), title: 'ProductMediaCandidateInput@1',
     'x-helix-ssotRefs': ['8.6.18'], 'x-helix-role': 'accepted-business-dto', 'x-helix-maxCanonicalBytes': 64 * 1024,
     oneOf: [direct, workspace] };

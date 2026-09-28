@@ -265,7 +265,7 @@ function createCleanMediaProductionEffectPort(options) {
   async function isoRemuxArguments(source, temporaryTarget, control = {}) {
     const primaries = source.primaryMembers || [];
     if (primaries.length !== 1) return null;
-    const isoLocation = location(primaries[0].readHandle);
+    const isoLocation = sourceLocation(primaries[0].readHandle);
     let inspection;
     try { inspection = inspectIsoPlaybackPlan(isoLocation); } catch (error) {
       fail('LIBRA_MEDIA_ISO_TOPOLOGY_UNPROVEN', error.message, { causeCode: error.code });
@@ -326,9 +326,9 @@ function createCleanMediaProductionEffectPort(options) {
     const isoInput = await isoRemuxArguments(source, temporaryTarget);
     if (isoInput) return isoInput;
     const primaries = source.primaryMembers || [];
-    if (primaries.length === 1) return Object.freeze({ argv:['-i', location(primaries[0].readHandle)], cleanup:null });
+    if (primaries.length === 1) return Object.freeze({ argv:['-i', sourceLocation(primaries[0].readHandle)], cleanup:null });
     const listPath = temporaryTarget + '.concat.txt';
-    fs.writeFileSync(listPath, primaries.map((item) => "file '" + escapeConcat(location(item.readHandle).replace(/\\/g, '/')) + "'").join('\n') + '\n', 'utf8');
+    fs.writeFileSync(listPath, primaries.map((item) => "file '" + escapeConcat(sourceLocation(item.readHandle).replace(/\\/g, '/')) + "'").join('\n') + '\n', 'utf8');
     return Object.freeze({ argv:['-f', 'concat', '-safe', '0', '-i', listPath], cleanup:() => {
       if (fs.existsSync(listPath)) fs.rmSync(listPath, { force:true });
     } });

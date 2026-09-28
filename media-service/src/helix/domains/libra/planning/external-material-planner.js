@@ -278,7 +278,18 @@ function createExternalMaterialPlanner(options) {
         const mediaRequirement=buildMediaRequirement(snapshot.spec),searchIntegration=integration(options,SEARCH),
           acquisitionPolicy=external.buildAcquisitionPolicy({integrationId:searchIntegration.integrationId,
             configRevision:searchIntegration.configRevision});
+        const identityObservations = options.workResultReader.listWorks({ownerDomain:'libra',
+          processType:'libra_run',processId:snapshot.run.libraRunId,workKind:'product_identity'})
+          .flatMap(work=>options.workResultReader.read(work.work_id))
+          .filter(item=>item.outcomeKind==='succeeded' && item.capabilityRef==='libra.product_identity.evidence.observe@1')
+          .map(item=>item.result).filter(item=>item.result==='resolved' &&
+            ['provider_exact','provider_search'].includes(item.sourceKind) &&
+            identity.providerIdentities.some(anchor=>anchor.providerKey===item.verifiedIdentity?.providerKey &&
+              anchor.namespace===item.verifiedIdentity?.namespace));
+        if(identityObservations.length!==1)throw new Error('External acquisition requires one exact Provider identity observation.');
+        const productIdentityEvidenceObservation=identityObservations[0];
         const expectedQuery = external.buildAcquisitionQuery({
+          productIdentityEvidenceObservation,
           resolvedProductIdentity: identity,
           productStructure: structure,
           executionContext: {
@@ -305,6 +316,7 @@ function createExternalMaterialPlanner(options) {
           node({ ...options, request, nodeId:'external_query',
             eventId:queryEvent, capabilityRef:QUERY,
             inputBindings:[literal('resolvedProductIdentity', identity),
+              literal('productIdentityEvidenceObservation',productIdentityEvidenceObservation),
               literal('productStructure', structure),literal('mediaRequirement',mediaRequirement),
               literal('acquisitionPolicy',acquisitionPolicy)], resourceKinds:['cpu','disk_io','network'] }),
           node({ ...options, request, nodeId:'external_search',
@@ -410,6 +422,12 @@ function createExternalMaterialPlanner(options) {
       if (!stableEvidence || !verified || verified.result !== 'passed') {
         throw new Error('External import requires one passed verified Package.');
       }
+      const selectedCandidate=result(options,searchWork,SELECT)?.selectedCandidate;
+      const editionClaim=selectedCandidate?.advertisedMedia?.restoration;
+      const editionBasis=editionClaim?.status==='known'&&editionClaim.value==='restored_4k'?{editionKind:'restored_4k',
+        libraRunId:snapshot.run.libraRunId,candidateDigest:selectedCandidate.candidateDigest,
+        identityVerificationDigest:verified.identityVerificationDigest,packageVerificationDigest:canonicalDigest(verified),
+        claimDigest:canonicalDigest(editionClaim)}:null;
       const workspace = options.movieProductionReader.readWorkspace(
         workspaceId(snapshot.run.libraRunId));
       if (!workspace || workspace.state !== 'active') {
@@ -479,7 +497,7 @@ function createExternalMaterialPlanner(options) {
             {eventId:probeEvent,resultSchemaRef:
               options.registry.resolve(PROBE, 'libra').manifest.resultSchemaRef},
           ], IMPORTED_CANDIDATE, { workspaceDeliveryContract:contract,
-            importEventId:importEvent, eventExecutionKey, mediaRequirement,
+            importEventId:importEvent, eventExecutionKey, mediaRequirement, editionBasis,
             candidateNodeId, libraRunId:snapshot.run.libraRunId })],
           dependsOn:[{eventId:importEvent,satisfaction:'success'},
             {eventId:probeEvent,satisfaction:'success'}],
@@ -523,7 +541,11 @@ function createExternalMaterialProjections() {
             producingEventId: parameters.importEventId,
             idempotencyKey: parameters.eventExecutionKey,
           });
+          const editionBody=parameters.editionBasis?{...parameters.editionBasis,sourceHandleDigest:canonicalDigest(imported),
+            productContentFingerprint:imported.physicalIdentity.contentFingerprint}:null;
+          const editionEvidence=editionBody?{...editionBody,evidenceDigest:canonicalDigest(editionBody)}:null;
           return buildProductMediaCandidateInput({
+            ...(editionEvidence?{editionEvidence}:{}),
             libraRunId: parameters.libraRunId,
             candidateNodeId: parameters.candidateNodeId,
             candidateKind: 'workspace_output',

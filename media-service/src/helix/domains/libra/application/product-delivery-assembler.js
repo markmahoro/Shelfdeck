@@ -417,7 +417,7 @@ function createProductDeliveryAssembler(options) {
     if (sourceMembers.length !== 1 || productMembers.length !== 1) {
       throw new Error('Movie Shelf Acceptance authority requires one source and one Product Primary.');
     }
-    const sourceMember = sourceMembers[0];
+    let sourceMember = sourceMembers[0];
     const productMember = productMembers[0];
     const verification = value.selected.verification;
     const originalSourceHandle = options.productProductionPort.issuePhysicalReadHandle({
@@ -435,26 +435,21 @@ function createProductDeliveryAssembler(options) {
       originalSourceHandle;
     const originalSourceHandleDigest = canonicalDigest(originalSourceHandle);
     const productHandleDigest = canonicalDigest(productHandle);
-    const sourceProbes = options.workResultReader.listWorks({
+    const mediaRecords = options.workResultReader.listWorks({
       ownerDomain:'libra',
       processType:'libra_run',
       processId:value.snapshot.run.libraRunId,
       workKind:'workspace_media_production',
     }).filter((item) => item.state === 'succeeded').flatMap((item) =>
-      options.workResultReader.read(item.work_id)).filter((item) =>
-      item.outcomeKind === 'succeeded' &&
-      item.capabilityRef === 'shared.material.media.probe@1' &&
-      item.result?.sourceHandleDigest === originalSourceHandleDigest);
+      options.workResultReader.read(item.work_id)).filter(item=>item.outcomeKind==='succeeded');
+    const sourceProbes=mediaRecords.filter(item=>item.capabilityRef==='shared.material.media.probe@1'&&
+      item.result?.sourceHandleDigest===originalSourceHandleDigest);
     if (sourceProbes.length !== 1) {
       throw new Error(
         'Frozen Run Primary source Probe is unavailable or ambiguous.',
       );
     }
     const sourceProbe = sourceProbes[0].result;
-    const verificationEvent = value.selected.results.find((item) =>
-      item.result?.verificationId === verification.verificationId);
-    const candidateBinding = verificationEvent?.inputBindings?.bindings?.find(
-      (item) => item.portName === 'productMediaCandidateInput');
     const productProbe = productHandleDigest === originalSourceHandleDigest
       ? sourceProbe
       : value.selected.results.find((item) =>
@@ -467,8 +462,18 @@ function createProductDeliveryAssembler(options) {
     if (!productProbe) {
       throw new Error('Selected Product output Probe is unavailable or stale.');
     }
-    const candidateSourceProbe = typeof candidateBinding?.parameters?.sourceWorkId === 'string'
-      ? sourceProbe : productProbe;
+    const candidateSourceProbe=mediaRecords.find(item=>item.capabilityRef==='shared.material.media.probe@1'&&
+      item.result?.evidenceId===verification.sourceProbeEvidenceId&&canonicalDigest(item.result)===verification.sourceProbeEvidenceDigest)?.result;
+    if(!candidateSourceProbe)throw new Error('Selected media production source Probe is missing.');
+    if(candidateSourceProbe.sourceHandleDigest!==originalSourceHandleDigest){
+      const inputHandle=mediaRecords.map(item=>item.capabilityRef==='libra.workspace.material.import@1'?item.result:
+        ['libra.media.remux@1','libra.media.transcode@1'].includes(item.capabilityRef)?item.result?.workspaceMaterialHandle:null)
+        .find(handle=>handle&&canonicalDigest(handle)===candidateSourceProbe.sourceHandleDigest);
+      if(!inputHandle)throw new Error('Selected media source Workspace material is unavailable.');
+      sourceMember={materialKey:inputHandle.materialKey,physicalIdentity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:inputHandle.materialKey,...inputHandle.physicalIdentity},sizeBytes:inputHandle.sizeBytes,
+        endpointId:inputHandle.endpointId,location:options.workspaceProductPort.resolveMaterialLocation(inputHandle),
+        bindingRevision:inputHandle.referenceRevision||1};
+    }
     if (candidateSourceProbe.evidenceId !== verification.sourceProbeEvidenceId ||
         canonicalDigest(candidateSourceProbe) !== verification.sourceProbeEvidenceDigest) {
       throw new Error(

@@ -157,7 +157,9 @@ function emptyCheck(kind, value, authorizedManifest, acceptanceAttemptId='attemp
 }
 
 for (const authorized of [false, true]) test(`UAT-131 ${authorized?'defect':'ordinary'} mandatory observation recomputes the same live media Gap`, async () => {
-  const value=fixture({authorized}),runtime=ports(value.identity),result=await observeMandatoryMedia({...value,...runtime,observedAtMs:NOW});
+  const value=fixture({authorized}),runtime=ports(value.identity);
+  if(authorized){await assert.rejects(()=>observeMandatoryMedia({...value,...runtime,observedAtMs:NOW}),{code:'ARCA_MANDATORY_MEDIA_INVALID_CONTRACT'});return;}
+  const result=await observeMandatoryMedia({...value,...runtime,observedAtMs:NOW});
   assert.equal(result.evidenceStatus,'complete');
   assert.deepEqual(result.actualGapCodes,['video_codec_unmet']);
   assert.equal(result.primaryMediaObservations.length,1);
@@ -278,6 +280,7 @@ test('UAT-131 formal mandatory Capability executes independent observation on or
       contextReader:{readOffer(){return Object.freeze({offer:Object.freeze({offerId:'offer-1',onDeckPackageId:value.packageValue.onDeckPackageId,
         packageDigest:value.packageValue.packageDigest}),shelf:Object.freeze({currentStandardRevision:1,currentPlacementRevision:1,
         standard:Object.freeze({digest:D('standard')})}),packageValue:value.packageValue});}}});
+    if(authorized){await assert.rejects(()=>observeMandatoryMedia({...value,...runtime,observedAtMs:NOW}),{code:'ARCA_MANDATORY_MEDIA_INVALID_CONTRACT'});continue;}
     const outcome=await capabilities[CAPABILITY_REFS.mandatory].execute({ownerScope:Object.freeze({processType:'arca_acceptance',processId:'offer-1'}),
       workId:'mandatory-work',namedInputs:Object.freeze({onDeckProductPackage:value.packageValue,mandatoryRequirement:value.requirement})});
     assert.equal(outcome.result.result,authorized?'passed':'failed');
@@ -288,46 +291,11 @@ test('UAT-131 formal mandatory Capability executes independent observation on or
   }
 });
 
-test('UAT-131 Owner final union rejects forged Check evidence and accepts only the exact Manifest union', async () => {
-  const value=fixture({authorized:true}),runtime=ports(value.identity),capabilities=createOnDeckCapabilityPorts({
-    schemaManifest,unitOfWork:{execute(){throw new Error('pure mandatory check must not write');}},now:()=>NOW,
-    workResultReader:{readBindings(){return []; }},inventoryPort:{},...runtime,
-    contextReader:{readOffer(){return Object.freeze({offer:Object.freeze({offerId:'offer-1',onDeckPackageId:value.packageValue.onDeckPackageId,
-      packageDigest:value.packageValue.packageDigest}),shelf:Object.freeze({currentStandardRevision:1,currentPlacementRevision:1,
-      standard:Object.freeze({digest:D('standard')})}),packageValue:value.packageValue});}}});
-  const mandatory=(await capabilities[CAPABILITY_REFS.mandatory].execute({ownerScope:Object.freeze({processType:'arca_acceptance',processId:'offer-1'}),
-    workId:'mandatory-work',namedInputs:Object.freeze({onDeckProductPackage:value.packageValue,mandatoryRequirement:value.requirement})})).result;
-  const manifestValue=value.packageValue.productionAttestation.authorizedDefectManifest,checks=[
-    emptyCheck('identity',value.packageValue,manifestValue,mandatory.acceptanceAttemptId),emptyCheck('structure',value.packageValue,manifestValue,mandatory.acceptanceAttemptId),
-    emptyCheck('metadata',value.packageValue,manifestValue,mandatory.acceptanceAttemptId),mandatory,emptyCheck('space',value.packageValue,manifestValue,mandatory.acceptanceAttemptId)];
-  const decision=finalGapDecision({acceptanceChecks:checks,acceptanceAttemptId:mandatory.acceptanceAttemptId,packageDigest:value.packageValue.packageDigest,standardRevision:1,
-    authorizedDefectManifest:manifestValue});
-  assert.equal(decision.authorizedGapComparison,'exact_match');
-  assert.deepEqual(decision.actualGapUnionCodes,['video_codec_unmet']);
-  assert.throws(()=>finalGapDecision({acceptanceChecks:checks.slice(1),acceptanceAttemptId:mandatory.acceptanceAttemptId,packageDigest:value.packageValue.packageDigest,standardRevision:1,
-    authorizedDefectManifest:manifestValue}),/incomplete/);
-  const duplicate=Object.freeze({...mandatory,actualGapCodes:Object.freeze(['video_codec_unmet','video_codec_unmet'])});
-  assert.throws(()=>finalGapDecision({acceptanceChecks:checks.map((item)=>item.checkKind==='mandatory_media'?duplicate:item),acceptanceAttemptId:mandatory.acceptanceAttemptId,
-    packageDigest:value.packageValue.packageDigest,standardRevision:1,authorizedDefectManifest:manifestValue}),/canonical/);
-  const wrongDigest=Object.freeze({...mandatory,actualGapSetDigest:D('wrong-gap-set')});
-  assert.throws(()=>finalGapDecision({acceptanceChecks:checks.map((item)=>item.checkKind==='mandatory_media'?wrongDigest:item),acceptanceAttemptId:mandatory.acceptanceAttemptId,
-    packageDigest:value.packageValue.packageDigest,standardRevision:1,authorizedDefectManifest:manifestValue}),/canonical/);
-  const wrongObservation=Object.freeze({...mandatory,primaryMediaObservationSetDigest:D('wrong-observation-set')});
-  assert.throws(()=>finalGapDecision({acceptanceChecks:checks.map((item)=>item.checkKind==='mandatory_media'?wrongObservation:item),acceptanceAttemptId:mandatory.acceptanceAttemptId,
-    packageDigest:value.packageValue.packageDigest,standardRevision:1,authorizedDefectManifest:manifestValue}),/observation/);
-});
-
-test('UAT-131 a Manifest-authorized Gap missing from live reality fails its owning Check', async () => {
-  const value=fixture({authorized:true}),runtime=ports(value.identity,'hevc'),capabilities=createOnDeckCapabilityPorts({
-    schemaManifest,unitOfWork:{execute(){throw new Error('pure mandatory check must not write');}},now:()=>NOW,
-    workResultReader:{readBindings(){return []; }},inventoryPort:{},...runtime,
-    contextReader:{readOffer(){return Object.freeze({offer:Object.freeze({offerId:'offer-1',onDeckPackageId:value.packageValue.onDeckPackageId,
-      packageDigest:value.packageValue.packageDigest}),shelf:Object.freeze({currentStandardRevision:1,currentPlacementRevision:1,
-      standard:Object.freeze({digest:D('standard')})}),packageValue:value.packageValue});}}});
-  const result=(await capabilities[CAPABILITY_REFS.mandatory].execute({ownerScope:Object.freeze({processType:'arca_acceptance',processId:'offer-1'}),
-    workId:'mandatory-work',namedInputs:Object.freeze({onDeckProductPackage:value.packageValue,mandatoryRequirement:value.requirement})})).result;
-  assert.deepEqual(result.actualGapCodes,[]);
-  assert.equal(result.result,'failed');
+test('UAT-251 rejects new On-deck admission with historical codec-waiver authorization',async()=>{
+  for(const codec of ['h264','hevc']){const value=fixture({authorized:true});
+    await assert.rejects(()=>observeMandatoryMedia({...value,...ports(value.identity,codec),observedAtMs:NOW}),
+      {code:'ARCA_MANDATORY_MEDIA_INVALID_CONTRACT'});
+  }
 });
 
 test('UAT-132 direct HEVC with unknown dynamic-range labels remains an ordinary pass', async () => {

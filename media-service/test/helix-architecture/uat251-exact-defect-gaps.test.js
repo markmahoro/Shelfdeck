@@ -21,28 +21,15 @@ test('UAT-251 exact metadata grant does not authorize another field with the sam
   }
   assert.equal(coversRequirementGaps(manifest,['metadata_field_unmet'],{...evidence,acceptanceSpecRecordDigest:D('changed')}),false);
 });
-test('UAT-251 preserves mixed hard blockers and admits concrete missing metadata fields',()=>{
-  const candidate=buildDefectAdmissionCandidate({run,terminalEvidence:terminal([blocker('product_metadata_required_fields_missing')]),missingMetadataFields:['plot','actor','director']});
-  assert.deepEqual(candidate.defects[0].metadataFieldCodes,['actor','director','plot']);
-  assert.equal(candidate.defects[0].defectCode,'metadata_fields_unavailable');
-  assert.throws(()=>buildDefectAdmissionCandidate({run,terminalEvidence:terminal([
-    blocker('product_metadata_required_cast_missing'),blocker('playback_decode_failed','libra.product_media.verify@1')])}),e=>e.code==='P9_DEFECT_ADMISSION_INELIGIBLE');
-  assert.throws(()=>buildDefectAdmissionCandidate({run,terminalEvidence:terminal([blocker('product_metadata_required_fields_missing')]),missingMetadataFields:['tmdb_movie_id']}),e=>e.code==='P9_DEFECT_ADMISSION_NONWAIVABLE');
-  assert.throws(()=>buildDefectAdmissionCandidate({run,terminalEvidence:terminal([blocker('product_metadata_required_cast_missing')]),gapScope:{...scope,padding:'x'.repeat(65536)}}),e=>e.code==='P9_DEFECT_ADMISSION_TOO_LARGE');
-});
-
-test('UAT-251 product evidence admits a technical path failure without calling it source exhaustion',()=>{
-  const item={...blocker('P5_PROVIDER_RESPONSE_INVALID','arbitrary.future.operation@1'),failureClass:'integration_failure'};
-  const verification={libraRunId:run.libraRunId,candidateKind:'direct_input',result:'failed',
-    verificationId:D('direct-proof'),productMaterialHandleId:'original',reasonCodes:['container_unmet','video_codec_unmet']};
-  const input={run,terminalEvidence:terminal([item]),productGapPaths:{[item.workId]:'media'},directMediaVerification:verification};
-  const candidate=buildDefectAdmissionCandidate(input);
-  assert.equal(candidate.defects[0].defectCode,'media_requirements_unmet');
-  assert.equal(candidate.defects[0].sourceFailureCode,item.failureCode);
-  assert.deepEqual(candidate.waivedRequirementCodes,verification.reasonCodes);
-  assert.throws(()=>buildDefectAdmissionCandidate({...input,directMediaVerification:{...verification,
-    reasonCodes:['container_unmet','playback_decode_failed']}}),error=>error.code==='P9_DEFECT_ADMISSION_NONWAIVABLE');
-  assert.throws(()=>buildDefectAdmissionCandidate({...input,directMediaVerification:null}),error=>error.code==='P9_DEFECT_ADMISSION_INELIGIBLE');
-  const metadata=buildDefectAdmissionCandidate({...input,productGapPaths:{[item.workId]:'metadata'},missingMetadataFields:['plot']});
-  assert.deepEqual(metadata.defects[0].metadataFieldCodes,['plot']);
+test('UAT-251 rejects non-actor metadata, missing artifacts, and technical-failure bypasses',()=>{
+  for(const fields of [['plot'],['actor','director'],['tmdb_movie_id']])
+    assert.throws(()=>buildDefectAdmissionCandidate({run,terminalEvidence:terminal([blocker('product_metadata_required_cast_missing')]),missingMetadataFields:fields}),{code:'P9_DEFECT_ADMISSION_NONWAIVABLE'});
+  const item=blocker('required_artifact_missing','shared.artifact.manifest.verify@1');
+  for(const kind of ['poster','nfo','fanart'])
+    assert.throws(()=>buildDefectAdmissionCandidate({run,terminalEvidence:terminal([item]),missingArtifactKindsByWork:{[item.workId]:[kind]}}),{code:'P9_DEFECT_ADMISSION_NONWAIVABLE'});
+  for(const path of ['media','metadata']){
+    const failure={...blocker('provider_timeout'),failureClass:'integration_failure'};
+    assert.throws(()=>buildDefectAdmissionCandidate({run,terminalEvidence:terminal([failure]),productGapPaths:{[failure.workId]:path},missingMetadataFields:['actor']}),{code:'P9_DEFECT_ADMISSION_INELIGIBLE'});
+  }
+  assert.throws(()=>buildDefectAdmissionCandidate({run,terminalEvidence:terminal([blocker('product_metadata_required_cast_missing')]),gapScope:{...scope,padding:'x'.repeat(65536)}}),{code:'P9_DEFECT_ADMISSION_TOO_LARGE'});
 });

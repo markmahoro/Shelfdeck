@@ -290,3 +290,5 @@
 
 | UAT-272 | 金都首映年与主上映年不同导致正确身份被丢弃 | IDENTITY_EVIDENCE | 已部署，待新观察业务验收 | 用户确认修复；关联151/217 | 69a82f2a5d | [证据](implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md) | TMDB首映/各地上映年份支持唯一同名匹配；年份不一致保留人工候选，多义/异名不自动接受；正负路径已验证并由本线程发布，待新观察业务验收。 |
 | UAT-273 | 空候选无人工身份入口，缺少手动ID预览确认 | UI / IDENTITY_SELECTION | 已部署，真实预览/取消通过，待正式选择验收 | 用户指定同单元格按钮及浮窗预览 | 69a82f2a5d | [证据](implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md) | GET预览无领域写入；有效ID预览后正式选择，改ID/迟到响应/失败/取消/重复提交/状态漂移及键盘路径验证，生产UI验收后关闭。 |
+
+| UAT-274 | 外部候选缺ID时可信中英文别名未传入匹配，同片被误拒绝 | IDENTITY_MATCHING | 实施中 | 本聊天原记268因旧集成台账滞后冲号，现更正274；关联168/251，保护021历史 | 待提交 | [审计](implementation/evidence/UAT-251_DEFECT_ELIGIBILITY_HISTORY_AUDIT_20260928.md) | 可信别名绑定精确影片ID及来源；同片异名正向、同名异片和ID冲突负向；不得把搜索命中自证同片；独立验收。 |

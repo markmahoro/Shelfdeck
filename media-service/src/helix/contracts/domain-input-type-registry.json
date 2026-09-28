@@ -116,7 +116,7 @@
           "source": {
             "section": "8.6.8",
             "line": 10002,
-            "lineDigest": "b222e4e898992b82298ccf86a739b6115054f1c9d1026251b7ab75ab7d03fa38"
+            "lineDigest": "aaacb081999d8a29e2b8783b506a65b6922cac3f72bcaa150dc3d62da752d6e2"
           },
           "typeExpression": "AcquisitionPolicy"
         }
@@ -1150,7 +1150,7 @@
           "source": {
             "section": "8.6.8",
             "line": 10002,
-            "lineDigest": "b222e4e898992b82298ccf86a739b6115054f1c9d1026251b7ab75ab7d03fa38"
+            "lineDigest": "aaacb081999d8a29e2b8783b506a65b6922cac3f72bcaa150dc3d62da752d6e2"
           },
           "typeExpression": "MediaRequirement"
         },
@@ -1834,7 +1834,7 @@
       "relativePath": "domain-types/ProductMediaCandidateInput/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "e9ad33c01d03a33db63548950bdb40925c4295d5d65528489d2c03d59344246e"
+        "value": "e419616bc7ef844db5dd736d80a92f1bac7fff8c425371a1adfc8075ab4e4279"
       },
       "usedBy": [
         {
@@ -1917,7 +1917,7 @@
           "source": {
             "section": "8.6.8",
             "line": 10002,
-            "lineDigest": "b222e4e898992b82298ccf86a739b6115054f1c9d1026251b7ab75ab7d03fa38"
+            "lineDigest": "aaacb081999d8a29e2b8783b506a65b6922cac3f72bcaa150dc3d62da752d6e2"
           },
           "typeExpression": "ProductStructure"
         },
@@ -1993,7 +1993,7 @@
       "relativePath": "domain-types/ProductionSourceScopeReference/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "458706e967ac273ee37ded17454ead9047ec7b697eb458ea5803135c879dc5c6"
+        "value": "da502cbbfd732e763c42995ea89658ef78c554d0bacf837f1e73bde12943c883"
       },
       "usedBy": [
         {
@@ -2275,7 +2275,7 @@
       "relativePath": "domain-types/SelectedCandidateSelected/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "0267544fb5e769e2bfba8a3bf6388c7728202f3b4b22aaa8c26997d98de47d52"
+        "value": "d612f46b527caa60cff8a16f7f00a7204d5dc4d3e1efbd7eb9d6da903b27b999"
       },
       "usedBy": [
         {
@@ -2328,7 +2328,7 @@
       "relativePath": "domain-types/SelectionCriteria/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "5e964b28b15e36bb400bb910c91acfec5b2b6c6b66caa8757fa39a32889770cb"
+        "value": "3be818b7d04054fb9ba045747d0405f473b99cacd3840e3df1b8de6978798f8f"
       },
       "usedBy": [
         {

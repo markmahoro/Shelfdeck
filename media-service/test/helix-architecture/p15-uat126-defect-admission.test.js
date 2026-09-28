@@ -74,30 +74,13 @@ test('UAT-126 admits an evidenced actor absence but preserves the unmet fact', (
   { state:'active', revision:4, transitionKind:'defect_admitted' });
 });
 
-test('UAT-126 admits exhausted sourcing only for the exact safe original verification', () => {
-  const verification = Object.freeze({ candidateKind:'direct_input', result:'failed',
-    libraRunId:'run-119', verificationId:D('verification'),
-    reasonCodes:Object.freeze(['container_unmet']) });
-  const candidate = buildDefectAdmissionCandidate({ run:frozen(),
-    terminalEvidence:terminal('no_requirement_eligible_candidate',
-      'libra.external_material.candidate.select@1'), directMediaVerification:verification });
-  const manifest = authorize(candidate);
-  assert.equal(manifest.defects[0].defectCode, 'external_source_exhausted');
-  assert.deepEqual(manifest.waivedRequirementCodes, ['container_unmet']);
-  assert.throws(() => buildDefectAdmissionCandidate({ run:frozen(),
-    terminalEvidence:terminal('no_requirement_eligible_candidate',
-      'libra.external_material.candidate.select@1'), directMediaVerification:{ ...verification,
-      reasonCodes:['playback_decode_failed'] } }),
-  (error) => error.code === 'P9_DEFECT_ADMISSION_NONWAIVABLE');
-  assert.throws(() => buildDefectAdmissionCandidate({ run:frozen(),
-    terminalEvidence:terminal('no_requirement_eligible_candidate',
-      'libra.product_metadata.fetch@1'), directMediaVerification:verification }),
-  (error) => error.code === 'P9_DEFECT_ADMISSION_INELIGIBLE');
-  assert.throws(() => buildDefectAdmissionCandidate({ run:frozen(),
-    terminalEvidence:terminal('no_requirement_eligible_candidate',
-      'libra.external_material.candidate.select@1'), directMediaVerification:{
-      ...verification, libraRunId:'another-run' } }),
-  (error) => error.code === 'P9_DEFECT_ADMISSION_INELIGIBLE');
+test('UAT-251 sourcing exhaustion never authorizes media specification gaps', () => {
+  for(const reason of ['container_unmet','video_codec_unmet','minimum_raster_unmet','primary_audio_unmet','playback_decode_failed']) {
+    assert.throws(()=>buildDefectAdmissionCandidate({run:frozen(),
+      terminalEvidence:terminal('no_requirement_eligible_candidate','libra.external_material.candidate.select@1'),
+      directMediaVerification:{candidateKind:'direct_input',result:'failed',libraRunId:'run-119',
+        verificationId:D('verification'),reasonCodes:[reason]}}),{code:'P9_DEFECT_ADMISSION_INELIGIBLE'});
+  }
 });
 
 test('size-cap admission waives only max_size_exceeded after measured workspace verification freeze', () => {

@@ -424,6 +424,27 @@
               "type": "string",
               "minLength": 1,
               "pattern": "^[a-f0-9]{64}$"
+            },
+            "restoration": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "status": {
+                  "const": "known"
+                },
+                "value": {
+                  "const": "restored_4k"
+                },
+                "sourceField": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "status",
+                "value",
+                "sourceField"
+              ]
             }
           },
           "required": [
@@ -489,7 +510,7 @@
       "maxLength": 256
     },
     "selectionReasonCode": {
-      "const": "selected_compliant_claims"
+      "const": "selected_processable_claims"
     }
   },
   "required": [

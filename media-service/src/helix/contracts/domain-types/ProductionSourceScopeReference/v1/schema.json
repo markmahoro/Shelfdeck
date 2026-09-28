@@ -60,6 +60,9 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "workspaceMaterialHandle": {
+      "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
     }
   },
   "required": [

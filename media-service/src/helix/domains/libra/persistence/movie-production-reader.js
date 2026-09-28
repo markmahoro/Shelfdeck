@@ -278,6 +278,10 @@ function createMovieProductionReader(options) {
         libra_run_id: libraRunId,
         state_revision: Number(run.state_revision),
       });
+      const secondaryTargets = repo.invoke('list_run_revisions',{libra_run_id:libraRunId})
+        .filter(item=>item.transition_kind==='secondary_target');
+      if(secondaryTargets.length>1)fail('P14_SECONDARY_TARGET_DUPLICATE','Only one secondary production target is allowed.');
+      const secondaryTarget=secondaryTargets.length?parse(secondaryTargets[0].transition_evidence_json,'P14_SECONDARY_TARGET_CORRUPT'):null;
       const authorizedDefectManifest = repo.invoke('list_run_revisions', {
         libra_run_id: libraRunId,
       }).filter((item) => item.transition_kind === 'defect_admitted')
@@ -575,6 +579,7 @@ function createMovieProductionReader(options) {
           runMaterialManifestId: run.run_material_manifest_id,
           runMaterialManifestDigest: manifest.manifest_digest,
           authorizedDefectManifest,
+          secondaryTarget,
         }),
         spec: Object.freeze(spec),
         decisionBasisId: specRow.decision_basis_id,

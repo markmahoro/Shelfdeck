@@ -238,3 +238,18 @@ test('Aftercare output continuity rejects a lost secondary video or changed defa
   assert.deepEqual(verifyOutputContinuity({ sourceProbe:source, outputProbe:changedDefault }).reasonCodes,
     ['video_stream_set_changed']);
 });
+
+
+test('4K restoration evidence is bound to the exact inventory content and never exempts codec',()=>{
+  const fingerprint='a'.repeat(64),body={editionKind:'restored_4k',libraRunId:'run',candidateDigest:'b'.repeat(64),
+    identityVerificationDigest:'c'.repeat(64),packageVerificationDigest:'d'.repeat(64),claimDigest:'e'.repeat(64),
+    sourceHandleDigest:'f'.repeat(64),productContentFingerprint:fingerprint};
+  const editionEvidence={...body,evidenceDigest:canonicalDigest(body)};
+  const value={mandatoryMedia:{mediaForm:'stream_file',videoCodec:'hevc',container:'matroska',fileExtension:'mkv',
+    minimumRasterClass:'4k',acceptedPrimaryAudioClasses:[]},space:{maxSizeBytes:null},location:'movie.mkv',sizeBytes:10000,
+    probe:probe(),editionEvidence,contentFingerprint:fingerprint};
+  assert.deepEqual(evaluateAftercareConformance(value).reasonCodes,[]);
+  assert.ok(evaluateAftercareConformance({...value,contentFingerprint:'0'.repeat(64)}).reasonCodes.includes('minimum_raster_unmet'));
+  assert.ok(evaluateAftercareConformance({...value,contentFingerprint:undefined}).reasonCodes.includes('minimum_raster_unmet'));
+  assert.deepEqual(evaluateAftercareConformance({...value,probe:probe({videoStreams:[video(0,'h264',true)]})}).reasonCodes,['video_codec_unmet']);
+});

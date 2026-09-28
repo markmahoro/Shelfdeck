@@ -53,6 +53,7 @@ function libraDefinition(schemaManifest) {
     owner: "libra",
     schemaManifest,
     statements: {
+      secondary_targets:{kind:'select-all',tableId:'libra_run_revisions',keyColumns:['libra_run_id','transition_kind'],columns:['state_revision']},
       strategy_observation:{kind:'select-one',tableId:'libra_strategy_availability',keyColumns:['libra_run_id','strategy_kind','condition_digest','check_ordinal'],columns:['evidence_digest']},
       find_run: {
         kind: "select-one",
@@ -1863,6 +1864,9 @@ function createRunLifecycleStore(options) {
             const spec=repo.invoke('find_spec',{acceptance_spec_id:run.acceptance_spec_id});
             terminalRequirements=spec?JSON.parse(spec.spec_json).requirements:null;
           }
+          if(decision.transitionKind==='secondary_target' && repo.invoke('secondary_targets',{
+            libra_run_id:run.libra_run_id,transition_kind:'secondary_target'}).length)
+            fail('P9_RUN_SECONDARY_TARGET_DUPLICATE','Secondary target is already frozen for this Run.');
           const freshness = Boolean(decision.transitionEvidence.assessmentId);
           if (freshness) {
             original = originalSnapshot(repo, run);

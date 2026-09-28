@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
-const { canonicalDigest } = require(
+const { canonicalDigest, canonicalJson } = require(
   '../../src/helix/contracts/canonical-json',
 );
 const {
@@ -109,7 +109,7 @@ function terminalEvidence(failureCode, capabilityRef) {
 }
 
 function authorizedManifests() {
-  const candidateA = buildDefectAdmissionCandidate({
+  const candidateA = historicalCandidate({
     run:Object.freeze({
       libraRunId:RUN_ID,
       state:'frozen',
@@ -129,7 +129,7 @@ function authorizedManifests() {
     acknowledged:true,
     decidedAtMs:131,
   });
-  const candidateB = buildDefectAdmissionCandidate({
+  const candidateB = historicalCandidate({
     run:Object.freeze({
       libraRunId:RUN_ID,
       state:'frozen',
@@ -467,3 +467,17 @@ test('UAT-131 Manifest A to B fences durable Product Delivery identity and resta
     fs.rmSync(root, { recursive:true, force:true });
   }
 });
+
+function historicalCandidate({run,terminalEvidence,directMediaVerification,priorAuthorizedManifest}) {
+  const blocker=terminalEvidence.blockedWorks[0],defect=directMediaVerification?{
+    defectCode:'external_source_exhausted',sourceFailureCode:blocker.failureCode,sourceWorkId:blocker.workId,
+    sourceEvidenceDigest:blocker.terminalEvidenceDigest,originalMediaVerificationId:directMediaVerification.verificationId,
+    originalMediaVerificationDigest:canonicalDigest(directMediaVerification),waivedRequirementCodes:directMediaVerification.reasonCodes
+  }:{defectCode:'actor_unavailable',metadataFieldCodes:['actor'],sourceFailureCode:blocker.failureCode,sourceWorkId:blocker.workId,
+    sourceEvidenceDigest:blocker.terminalEvidenceDigest,waivedRequirementCodes:['metadata_field_unmet']};
+  const defects=[...(priorAuthorizedManifest?.defects||[]),defect].sort((a,b)=>Buffer.from(canonicalJson(a)).compare(Buffer.from(canonicalJson(b))));
+  const body={candidateRevision:run.stateRevision,libraRunId:run.libraRunId,frozenRunStateRevision:run.stateRevision,
+    frozenRunStateDigest:run.stateDigest,terminalEvidenceDigest:terminalEvidence.evidenceDigest,defects,
+    waivedRequirementCodes:[...new Set(defects.flatMap(item=>item.waivedRequirementCodes))].sort()};
+  return {...body,candidateDigest:canonicalDigest(body)};
+}

@@ -98,6 +98,12 @@ function acceptsProductionAttestation(attestation, packageValue = null) {
       attestation.authorizedDefectManifest === null;
   }
   const manifest = attestation.authorizedDefectManifest;
+  if(!manifest?.defects?.every(item=>
+    item.defectCode==='actor_unavailable' && item.waivedRequirementCodes.length===1 &&
+      item.waivedRequirementCodes[0]==='metadata_field_unmet' &&
+      (!item.metadataFieldCodes || canonicalJson(item.metadataFieldCodes)===canonicalJson(['actor'])) ||
+    item.defectCode==='size_cap_exceeded' && canonicalJson(item.waivedRequirementCodes)===canonicalJson(['max_size_exceeded']) &&
+      item.workspaceMediaVerificationId && item.workspaceMediaVerificationDigest))return false;
   if(manifest?.gapScope && (manifest.gapScope.acceptanceSpecId!==attestation.acceptanceSpecId||
     manifest.gapScope.acceptanceSpecRecordDigest!==attestation.acceptanceSpecRecordDigest||
     !acceptsMetadataFields(manifest,attestation.missingMetadataFields)||!acceptsArtifactKinds(manifest,attestation.missingArtifactKinds)))return false;

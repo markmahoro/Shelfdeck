@@ -8,6 +8,9 @@
     "resolvedProductIdentity": {
       "$ref": "#/$defs/resolvedProductIdentity"
     },
+    "productIdentityEvidenceObservation": {
+      "$ref": "#/$defs/productIdentityEvidenceObservation"
+    },
     "productStructure": {
       "$ref": "#/$defs/productStructure"
     },
@@ -20,6 +23,7 @@
   },
   "required": [
     "resolvedProductIdentity",
+    "productIdentityEvidenceObservation",
     "productStructure",
     "mediaRequirement",
     "acquisitionPolicy"
@@ -28,6 +32,10 @@
     "resolvedProductIdentity": {
       "$ref": "helix://contracts/types/ResolvedProductIdentity/v1",
       "x-helix-typeExpression": "ResolvedProductIdentity"
+    },
+    "productIdentityEvidenceObservation": {
+      "$ref": "helix://contracts/types/ProductIdentityEvidenceObservation/v1",
+      "x-helix-typeExpression": "ProductIdentityEvidenceObservation"
     },
     "productStructure": {
       "$ref": "helix://contracts/domain-types/ProductStructure/v1",

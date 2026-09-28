@@ -281,7 +281,7 @@ test('same-Work pagination proves only earlier terminal Attempts and rejects fut
   earlier.workAttempt.ordinal = 3; assert.equal(f.verify(), false);
 });
 
-test('the checked-in witness pins all 87 semantic manifests and full schema dependency closures', () => {
+test('historical witness stays immutable and cannot authorize changed secondary-acceptance contracts', () => {
   const root = path.resolve(__dirname, '../../src/helix/contracts');
   const witness = require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json');
   const schemas = new Map();
@@ -295,12 +295,20 @@ test('the checked-in witness pins all 87 semantic manifests and full schema depe
     }
   }
   walk(root); assert.equal(witness.capabilities.length, 87);
+  assert.equal(canonicalDigest(witness), "801f46a9c04744ab3d69e24fd5f1c8a6bdbd5cfa9d2ea0770883fcefed9bedc5");
+  const changed=[];
   for (const record of witness.capabilities) {
     const file = path.join(root, 'capabilities', ...record.capabilityRef.replace('@1', '').split('.'), 'v1', 'manifest.json');
     const { sourceLocator, ...manifest } = JSON.parse(fs.readFileSync(file, 'utf8'));
-    assert.equal(canonicalDigest(manifest), record.currentContractDigest, record.capabilityRef);
-    assert.equal(canonicalDigest(schemaClosure(manifest, schemas)), record.currentSchemaDigest, record.capabilityRef);
+    if(canonicalDigest(manifest)!==record.currentContractDigest ||
+      canonicalDigest(schemaClosure(manifest,schemas))!==record.currentSchemaDigest) changed.push(record.capabilityRef);
   }
+  assert.deepEqual(changed,[
+    'arca.acceptance.accept.commit@1','arca.acceptance.mandatory_media.verify@1',
+    'libra.external_material.acquire.request@1','libra.external_material.candidate.select@1',
+    'libra.external_material.query.prepare@1','libra.external_material.search@1','libra.media.remux@1',
+    'libra.product.conformance.verify@1','libra.product_media.verify@1','libra.product_output.select@1',
+    'libra.product_package.publish@1']);
   assert.deepEqual(witness.capabilities.filter(record => record.previousSchemaDigest !== record.currentSchemaDigest)
     .map(record => record.capabilityRef), [
       'arca.acceptance.accept.commit@1', 'arca.acceptance.identity.verify@1',

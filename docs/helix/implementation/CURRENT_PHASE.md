@@ -1,5 +1,9 @@
 # 当前活动包：逐项关闭UAT
 
+2026-09-28 UAT-251/274：双标准、外部取得后内部加工及可信别名已实现；Windows完整架构240文件、真实转码/封装上架及授权正反例通过。正进行镜像构建、最新完整生产副本升级/回退门禁，尚未部署、未Reset生产。详见[审计与实施证据](evidence/UAT-251_DEFECT_ELIGIBILITY_HISTORY_AUDIT_20260928.md)。
+
+2026-09-28 用户已授权实施、测试及标准NAS部署：本轮落实UAT-251双标准统一生产与UAT-274可信外部候选别名匹配，并按用户口径区分4K文件与4K修复版本。执行工作区为本聊天附属secondary-acceptance，基于最新已部署69a82f2a5d及其证据提交4bbf498eb；不重置生产或重处理已入库影片。前序“仅设计”是历史阶段，不再构成实施Gate。
+
 2026-09-28：用户授权查清并修复复发的Aftercare恢复漂移，登记UAT-271（关联210/125），与已提交UAT-270合并验证及标准发布。Arca拒绝新旧Basis混用；Foundation只在精确domain_fact_commit确认未发生后记录输入失败，保留原Attempt摘要及全部业务历史，交还Owner重评，不Reset。Docker本机故障仍阻塞构建。
 
 2026-09-28：UAT-269已发布b8cf321d65，荒野猎人原Event/Attempt/Effect完成import/probe/verify/select，无重新下载、源Reality不变；第一批关闭。接续UAT-270资源等待输入准备与单次Aftercare投影去重，Windows专项143项与完整架构240文件通过，固定资源需求分支另经34项回归；本机Docker启动故障阻塞Linux验证及构建，尚未部署。见[第二批证据](evidence/UAT-270_RESOURCE_WAIT_PREPARATION_20260928.md)。下方未发布描述为第一批历史阶段。

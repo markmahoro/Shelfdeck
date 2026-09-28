@@ -278,7 +278,7 @@
       "relativePath": "application-types/LibraRunLifecycleDecision/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "77b2be4dfbe5058cc6af49f237c358f35d8932e32f45806ca039f9b922d37469"
+        "value": "aa32f41a46e7fc8ca25c9d4870593ae08ff2f1c197e9f635a7845800ab1fadaf"
       },
       "ssotRefs": [
         "8.6.21"

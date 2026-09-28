@@ -38,6 +38,11 @@ function fixture() {
     findingKind:'conformance:'+code,findingDigest:d(code),repairability:'attention_required',severity:'warning'}));
   const history={cases:[],findings,assessments:['custody','presentation','conformance'].map(kind=>({assessmentId:kind,assessmentKind:kind,
     careBasisDigest:context.basis.digest,result:kind==='conformance'?'degraded':'healthy',evidenceDigest:d(kind),assessedAtMs:at}))};
+  const manifestBody={schemaRef:'helix://contracts/application-types/AuthorizedDefectManifest/v1',schemaVersion:1,
+    manifestId:d('existing-actor-manifest'),defectDecisionId:d('existing-actor-manifest'),libraRunId:'run',frozenRunRef:{stateRevision:1},
+    defects:[{defectCode:'actor_unavailable',sourceFailureCode:'product_metadata_required_cast_missing',metadataFieldCodes:['actor'],waivedRequirementCodes:['metadata_field_unmet']}],
+    defectCount:1,waivedRequirementCodes:['metadata_field_unmet'],acknowledgement:'accept_listed_defects'};
+  context.authorizedDefectManifest={...manifestBody,manifestDigest:d(manifestBody)};
   const preview=()=>admissionPreview(context,history,store.defectStore.current('entry'),at);
   const request=()=>({...preview(),actorId:'admin',idempotencyKey:'accept',identityRevision:1,standardRevision:1,placementRevision:1,validateReality(){}});
   const care=(value)=>{

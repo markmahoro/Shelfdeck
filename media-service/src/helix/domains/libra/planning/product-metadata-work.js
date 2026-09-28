@@ -160,6 +160,7 @@ function providerSource(options, snapshot, identity, sourcePriority,
 function nextMetadataStage(options, snapshot, identity) {
   const waivedFields=new Set((snapshot.run.authorizedDefectManifest?.defects || []).flatMap(item=>item.metadataFieldCodes||
     (item.defectCode==='actor_unavailable'?['actor']:[])));
+  if(snapshot.run.secondaryTarget)waivedFields.add('actor');
   const requiredFields = Object.freeze(requiredMetadataFields(snapshot).filter(field=>!waivedFields.has(field)));
   const requiredCastRoles = Object.freeze(requiredMediaCastRoles(snapshot)
     .filter((role) => !waivedFields.has(role)));

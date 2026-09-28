@@ -102,7 +102,7 @@ test('Run Lifecycle schemas freeze typed evidence and the bounded recovery polic
   assert.equal(schemas.LibraRunFreshnessAssessment.properties.dimensionResults.minItems, 5);
   assert.equal(schemas.LibraRunFreshnessAssessment.properties.dimensionResults.maxItems, 5);
   assert.deepEqual(schemas.LibraRunLifecycleDecision.properties.transitionKind.enum,
-    ['suspend', 'resume', 'freeze', 'freshness_confirmed', 'recovery_reassessed', 'defect_admit', 'set_priority', 'complete']);
+    ['suspend', 'resume', 'freeze', 'freshness_confirmed', 'recovery_reassessed', 'defect_admit', 'secondary_target', 'set_priority', 'complete']);
   assert.deepEqual(schemas.LibraRunLifecycleDecision.properties.transitionEvidence.oneOf.slice(0, 5).map((item) => item.$ref),
     [typeId('LibraRunFreshnessAssessment'), typeId('LibraRunTerminalDeliveryEvidence'),
       typeId('LibraStrategyAvailability'),typeId('AuthorizedDefectManifest'), typeId('LibraRunPriorityIntent')]);

@@ -61,7 +61,16 @@ function admissionPreview(context,history,authorization,at=Date.now()) {
   if(context.raw.entry.structure_kind!=='single'||context.raw.identity?.identity_kind!=='tmdb_movie')reasons.push('movie_only');
   if(context.raw.shelf.status!=='active'||context.raw.reservations.some(item=>item.state==='active'))reasons.push('modification_fenced');
   if(history.cases.some(item=>['queued','active'].includes(item.state)))reasons.push('maintenance_in_progress');
-  for(const finding of observed.findings){const gap=findingGap(context,finding);if(gap)gaps.push(gap);else reasons.push(finding.findingKind);}
+  for(const finding of observed.findings){
+    const manifest=context.authorizedDefectManifest;
+    const permitted=validManifest(manifest)&&acceptedFinding(context,finding)&&manifest.defects.some(defect=>
+      finding.findingKind==='conformance:metadata_field_missing__actor'&&defect.defectCode==='actor_unavailable'&&
+        defect.sourceFailureCode==='product_metadata_required_cast_missing'||
+      finding.findingKind==='conformance:max_size_exceeded'&&defect.defectCode==='size_cap_exceeded'&&
+        defect.workspaceMediaVerificationId&&defect.workspaceMediaVerificationDigest);
+    const gap=permitted?findingGap(context,finding):null;
+    if(gap)gaps.push(gap);else reasons.push(finding.findingKind);
+  }
   gaps.sort((a,b)=>a.gapDigest.localeCompare(b.gapDigest));
   const missingEvidence=!observed.complete?['current_health_assessment']:observed.assessments.some(item=>at-item.assessedAtMs>24*60*60*1000)?['fresh_health_assessment']:[];
   const base={shelfEntryId:context.shelfEntryId,inventoryRevision:context.basis.inventoryRevision,

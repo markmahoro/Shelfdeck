@@ -59,7 +59,7 @@ test('query and deterministic candidate selection conserve complete frozen basis
   assert.equal(c.selectCandidate({candidates:unavailable,selectionCriteria:criteria,producedAtMs:NOW}).result,'not_selected');
 });
 
-test('candidate selection chooses the strongest proven source once and never downloads unknown or noncompliant claims',()=>{
+test('candidate selection chooses the strongest proven source once and allows processable codecs but never downloads unknown claims',()=>{
   const q=query(),mixed=candidates([
     candidate({providerRank:0,requirementAssessment:'noncompliant'}),
     candidate({providerRank:1,requirementAssessment:'unknown'}),
@@ -69,21 +69,19 @@ test('candidate selection chooses the strongest proven source once and never dow
   first=c.selectCandidate({candidates:mixed,selectionCriteria:criteria,producedAtMs:NOW});
   assert.equal(first.selectedCandidate.providerRank,3);
   assert.equal(first.selectedCandidate.availabilityEvidence.seederCount,28);
-  assert.equal(first.selectionReasonCode,'selected_compliant_claims');
+  assert.equal(first.selectionReasonCode,'selected_processable_claims');
   assert.equal(Object.hasOwn(criteria,'attemptOrdinal'),false);
   const unknownOnly=candidates([candidate({providerRank:0,requirementAssessment:'noncompliant'}),
     candidate({providerRank:1,requirementAssessment:'unknown'})]),notSelected=c.selectCandidate({candidates:unknownOnly,
     selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest}),producedAtMs:NOW});
-  assert.equal(notSelected.result,'not_selected');
-  assert.equal(notSelected.selectedCandidate,null);
-  assert.equal(notSelected.selectionReasonCode,'no_requirement_eligible_candidate');
+  assert.equal(notSelected.result,'selected');
+  assert.equal(notSelected.selectedCandidate.advertisedMedia.videoCodec.value,'h264');
   const onlyUnknown=c.selectCandidate({candidates:candidates([candidate({providerRank:0,requirementAssessment:'unknown'})]),
     selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest}),producedAtMs:NOW});
   assert.equal(onlyUnknown.selectionReasonCode,'no_requirement_eligible_candidate');
   const rejected=c.selectCandidate({candidates:candidates([candidate({providerRank:0,requirementAssessment:'noncompliant'})]),
     selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:q.queryDigest}),producedAtMs:NOW});
-  assert.equal(rejected.result,'not_selected');
-  assert.equal(rejected.selectionReasonCode,'no_requirement_eligible_candidate');
+  assert.equal(rejected.result,'selected');
 });
 
 test('pending external download reports determinate provider progress to the exact Event',async()=>{
@@ -134,4 +132,34 @@ test('ten exact capability registrations reject missing or wrong effect bindings
 test('pure external model has no Store, Repository, latest or current read',()=>{
   const source=require('node:fs').readFileSync(require.resolve('../../src/helix/domains/libra/model/external-material-contracts'),'utf8');
   assert.doesNotMatch(source,/\b(Store|Repository|readLatest|findCurrent|latest row|current row)\b/);
+});
+
+
+test('UAT-274 query carries trusted multilingual aliases without changing Product Identity',()=>{
+  const alias={value:'In the Heat of the Sun',sourceKind:'provider'};
+  alias.aliasDigest=d(alias);
+  const observation={libraRunId:'run-1',result:'resolved',sourceKind:'provider_exact',
+    verifiedIdentity:{provider:'tmdb',namespace:'tmdb_movie',providerKey:'550',aliases:[alias]}};
+  observation.observationDigest=d(observation);
+  const value={resolvedProductIdentity:{...identity,title:'阳光灿烂的日子',year:1994},
+    productIdentityEvidenceObservation:observation,productStructure:structure(),mediaRequirement:mediaRequirement(),
+    acquisitionPolicy:c.buildAcquisitionPolicy({integrationId:'integration-1',configRevision:3}),
+    executionContext:{libraRunId:'run-1',runExecutionBasisDigest:hex('run')},producedAtMs:NOW};
+  const before=JSON.stringify(value.resolvedProductIdentity),actual=c.buildAcquisitionQuery(value);
+  assert(actual.queryTerms.some(term=>term.termKind==='title'&&term.value===alias.value));
+  assert(actual.queryTerms.some(term=>term.termKind==='year'&&term.value==='1994'));
+  assert.equal(JSON.stringify(value.resolvedProductIdentity),before);
+  const wrong={...observation,verifiedIdentity:{...observation.verifiedIdentity,providerKey:'999'}};
+  delete wrong.observationDigest;wrong.observationDigest=d(wrong);
+  assert.throws(()=>c.buildAcquisitionQuery({...value,productIdentityEvidenceObservation:wrong}),{code:'P9_EXTERNAL_IDENTITY_ALIAS_EVIDENCE'});
+  assert.throws(()=>c.buildAcquisitionQuery({...value,productIdentityEvidenceObservation:{...observation,sourceKind:'related_nfo'}}),{code:'P9_EXTERNAL_IDENTITY_ALIAS_EVIDENCE'});
+});
+
+test('UAT-251 processable acquisition rejects hard gaps, unknown evidence, and zero seeders',()=>{
+  const {isProcessableCandidate}=require('../../src/helix/contracts/acquisition-feasibility');
+  const h264=candidate({requirementAssessment:'noncompliant'});
+  assert.equal(isProcessableCandidate(h264),true);
+  for(const gap of ['minimum_raster_unmet','primary_audio_unmet','primary_audio_unknown','resolution_unknown'])
+    assert.equal(isProcessableCandidate({...h264,assessmentReasonCodes:['video_codec_unmet',gap]}),false);
+  assert.equal(isProcessableCandidate({...h264,availabilityEvidence:{status:'known',seederCount:0}}),false);
 });

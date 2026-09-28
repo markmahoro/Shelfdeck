@@ -161,3 +161,15 @@ test('provider result without a required actor remains unresolved', () => {
   assert.equal(unresolved.reasonCode,'product_metadata_required_cast_missing');
   assert.deepEqual(unresolved.missingCastRoles,['actor']);
 });
+
+
+test('UAT-251 secondary target continues production with evidenced actor absence without admission',()=>{
+  const base=snapshot(['actor','title']);
+  const secondary={...base,run:{...base.run,secondaryTarget:{blockedWorks:[]}}};
+  const observations=[result(0,'related_nfo',['title']),result(1,'provider',['title'])];
+  assert.equal(nextMetadataStage(options(observations),base,identity()).kind,'unresolved');
+  assert.equal(nextMetadataStage(options(observations),secondary,identity()).kind,'ready');
+  assert.equal(secondary.run.authorizedDefectManifest,undefined);
+  const missingTitle=[result(0,'related_nfo',[]),result(1,'provider',[])];
+  assert.equal(nextMetadataStage(options(missingTitle),secondary,identity()).kind,'unresolved');
+});

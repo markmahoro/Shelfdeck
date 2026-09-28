@@ -1000,7 +1000,7 @@ function createProtocolTransport(profile, options) {
       if (titles.some((item) => item.toLowerCase() === value.toLowerCase())) continue;
       titles.push(value);
     }
-    return titles;
+    return titles.slice(0,3);
   }
 
   async function moviepilotSearchRows(request, state) {
@@ -1165,8 +1165,15 @@ function createProtocolTransport(profile, options) {
       if(typeof owner?.[key]==='string'&&owner[key].trim())texts.push({field:prefix+'.'+key,value:owner[key].trim()});
     }
     const joined=texts.map((item)=>item.value).join(' ').normalize('NFKC'),claim=(status,value,sourceField)=>Object.freeze({status,value,sourceField});
-    const resolution=/\b(?:2160p|4k|uhd)\b/i.test(joined)?claim('known','4k',texts.find((item)=>/\b(?:2160p|4k|uhd)\b/i.test(item.value))?.field||'release'):
-      /\b(?:1080[pi]|720p|576p|480p)\b/i.test(joined)?claim('known','below_4k',texts.find((item)=>/\b(?:1080[pi]|720p|576p|480p)\b/i.test(item.value))?.field||'release'):claim('unknown',null,null);
+    // Explicit file pixels take precedence over mastering/restoration descriptions.
+    const pixelFields=[{field:'meta.resource_pix',value:row.meta_info?.resource_pix},
+      ...texts.filter(item=>!item.field.endsWith('.description'))].filter(item=>typeof item.value==='string');
+    const pixel=pixelFields.find(item=>/\b(?:2160p|1080[pi]|720p|576p|480p)\b/i.test(item.value));
+    const fourK=pixelFields.find(item=>/\b(?:4k|uhd)\b/i.test(item.value)&&!/4k[\s._-]*(?:修复|restor|remaster)/i.test(item.value));
+    const resolution=pixel?claim('known',/2160p/i.test(pixel.value)?'4k':'below_4k',pixel.field):
+      fourK?claim('known','4k',fourK.field):claim('unknown',null,null);
+    const restored=texts.find(item=>/4k[\s._-]*(?:修复|restor(?:ed|ation)?|remaster(?:ed)?)/i.test(item.value));
+    const restoration=restored?claim('known','restored_4k',restored.field):null;
     const videoCodec=/\b(?:hevc|h[\s._-]?265|x[\s._-]?265)\b/i.test(joined)?claim('known','hevc',texts.find((item)=>/\b(?:hevc|h[\s._-]?265|x[\s._-]?265)\b/i.test(item.value.normalize('NFKC')))?.field||'release'):
       /\b(?:avc|h[\s._-]?264|x[\s._-]?264)\b/i.test(joined)?claim('known','h264',texts.find((item)=>/\b(?:avc|h[\s._-]?264|x[\s._-]?264)\b/i.test(item.value.normalize('NFKC')))?.field||'release'):claim('unknown',null,null);
     const audio=[];
@@ -1176,7 +1183,7 @@ function createProtocolTransport(profile, options) {
     if(/\bdts[\s._-]?x\b/i.test(joined))audio.push('dts_x');else if(/\bdts[\s._-]?hd[\s._-]?ma\b/i.test(joined))audio.push('dts_hd_ma');
     const primaryAudioClasses=audio.length?claim('known',Object.freeze([...new Set(audio)].sort()),'release'):claim('unknown',Object.freeze([]),null),
       rawSize=torrent.size??row.size??null,size=Number(rawSize),sizeBytes=Number.isSafeInteger(size)&&size>=0?claim('known',size,torrent.size!==undefined?'torrent.size':'row.size'):claim('unknown',null,null),
-      mediaBasis={resolution,videoCodec,primaryAudioClasses,sizeBytes,
+      mediaBasis={resolution,videoCodec,primaryAudioClasses,sizeBytes,...(restoration?{restoration}:{}),
         source:Object.freeze({provider:'moviepilot',providerCandidateDigest:rowDigest,claimBasis:texts.length?'structured_and_release_fields':'provider_row'})},
       advertisedMedia=Object.freeze({...mediaBasis,evidenceDigest:digest(canonicalJson(mediaBasis))}),mandatory=query.mediaRequirement.mandatoryMedia,
       reasons=[],unknown=[];
@@ -1184,7 +1191,7 @@ function createProtocolTransport(profile, options) {
       if(videoCodec.status==='unknown')unknown.push('video_codec_unknown');else if(videoCodec.value!==mandatory.videoCodec)reasons.push('video_codec_unmet');
     }
     if(mandatory.minimumRasterClass==='4k'){
-      if(resolution.status==='unknown')unknown.push('resolution_unknown');else if(resolution.value!=='4k')reasons.push('minimum_raster_unmet');
+      if(resolution.status==='unknown')unknown.push('resolution_unknown');else if(resolution.value!=='4k'&&!restoration)reasons.push('minimum_raster_unmet');
     }
     if(mandatory.acceptedPrimaryAudioClasses?.length){
       if(primaryAudioClasses.status==='unknown')unknown.push('primary_audio_unknown');
@@ -1193,7 +1200,7 @@ function createProtocolTransport(profile, options) {
     const maximum=query.mediaRequirement.space.maxSizeBytes;
     if(maximum!==null){if(sizeBytes.status==='unknown')unknown.push('size_unknown');else if(sizeBytes.value>maximum)reasons.push('max_size_exceeded');}
     return Object.freeze({advertisedMedia,requirementAssessment:reasons.length?'noncompliant':unknown.length?'unknown':'compliant',
-      assessmentReasonCodes:Object.freeze(reasons.length?reasons:unknown)});
+      assessmentReasonCodes:Object.freeze([...reasons,...unknown])});
   }
 
   async function moviepilotSearch(request, state) {
@@ -1406,7 +1413,10 @@ function createProtocolTransport(profile, options) {
       request.input.acquisitionQuery,
       digest(canonicalJson(selectedRow)),
     );
-    if (currentAssessment.requirementAssessment !== 'compliant') {
+    if (!require('../contracts/acquisition-feasibility').isProcessableCandidate({
+      ...selected, ...currentAssessment,
+      availabilityEvidence: moviepilotAvailabilityEvidence(selectedRow),
+    })) {
       fail(PROVIDER_ERROR,
         'Selected MoviePilot candidate no longer proves the frozen media requirement.');
     }

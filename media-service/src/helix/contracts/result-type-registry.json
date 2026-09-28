@@ -32,7 +32,7 @@
       "relativePath": "types/AcquisitionCandidates/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "e53b3bc8eea181547a926914bdd58577f2994a8a3ef66daa6b86f342af00f515"
+        "value": "e4b9f46903bd9678d66c30ea6325a02f7cee3c966768c8a715a90c0450199d5e"
       },
       "source": {
         "section": "8.6.19",
@@ -1246,7 +1246,7 @@
       "relativePath": "types/ProductMediaVerification/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "f5099170fc840f7aa5c52ebc414d572f819c30aa947f6880bd6eb8de4c19244e"
+        "value": "f86b92babba860151fc118b4d0c514cd056d9327278f8f0e41805fae56305812"
       },
       "source": {
         "section": "8.6.19",
@@ -1448,7 +1448,7 @@
       "relativePath": "types/SelectedCandidate/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "af9d5b3fd866acad78c5428655d89747e538818923ec28faef3b6d26c720a44d"
+        "value": "506f3c8a5b34d20d8c35ef4f1478992e8c63f1990f037d45726f693de04c7b9b"
       },
       "source": {
         "section": "8.6.19",

@@ -385,6 +385,13 @@ function createLibraRunCoordinator(options){
         item.capabilityRef==='libra.product_output.select@1'),selection=selectedOutput(imported);
       if(selection.result!=='selected'){
         const verifyRecord=mediaVerificationRecord(imported);
+        if(onlyRemuxGapFromVerification(verifyRecord.result)){
+          const remux=remuxMediaSelectionWork(snapshot),submitted=submit(remux),status=options.workResultReader.status(remux.workId);
+          if(!workSucceeded(status))return workFailed(status)?terminalWork(snapshot,remux,status):Object.freeze({kind:'pending',phase:'workspace_media_remux_selection',libraRunId:snapshot.run.libraRunId,workId:remux.workId,replayed:submitted.replayed});
+          attachWorkspaceOutputs(snapshot,workspace,remux);
+          if(selectedOutput(remux).result==='selected')return ensureDelivery(snapshot,workspace,remux);
+          return freezeBusinessTerminal(snapshot,remux,mediaVerificationRecord(remux),'external_output_rejected');
+        }
         if(shouldTranscodeExternalImport(verifyRecord.result)){
           return ensureTranscodeSelection(snapshot,workspace,Object.freeze({
             ...context,
@@ -506,6 +513,12 @@ function createLibraRunCoordinator(options){
     return admitted;
   }
   function ensureDelivery(snapshot,workspace,selectedMediaWork){
+    if(snapshot.run.secondaryTarget && !snapshot.run.authorizedDefectManifest) {
+      const blocker=snapshot.run.secondaryTarget.blockedWorks[0];
+      const record=options.workResultReader.read(blocker.workId).find(item=>item.eventId===blocker.terminalEventId);
+      if(!record||record.resultDigest!==blocker.terminalEvidenceDigest)throw new Error('Secondary actor evidence changed.');
+      return freezeBusinessTerminal(snapshot,{workId:blocker.workId},record,blocker.failureCode);
+    }
     productStaging.ensure(snapshot,Object.freeze({workId:selectedMediaWork.workId,workspaceId:workspace.workspaceId}));
     const conformance=productConformanceWork(snapshot,selectedMediaWork),conformanceSubmitted=submit(conformance),
       conformanceStatus=options.workResultReader.status(conformance.workId);
@@ -635,6 +648,13 @@ function createLibraRunCoordinator(options){
       kind:'waiting_external_integration', phase:'product_metadata_observation',libraRunId,
       reasonCode:metadataStage.reasonCode, missingFields:metadataStage.missingFields,
       missingCastRoles:metadataStage.missingCastRoles});
+    if(metadataStage.kind==='unresolved' && metadataStage.reasonCode==='product_metadata_required_cast_missing' &&
+        !snapshot.run.secondaryTarget && options.libraRunLifecycleService?.enterSecondaryTarget) {
+      const terminal=unresolvedMetadataTerminal(metadataStage);
+      return options.libraRunLifecycleService.enterSecondaryTarget(libraRunId,terminal.work.workId,{
+        eventId:terminal.resultRecord.eventId,resultDigest:terminal.resultRecord.resultDigest,
+        failureCode:terminal.failureCode,failureClass:'business_unachievable'});
+    }
     if(metadataStage.kind==='unresolved'){
       const pending = ensureDefectProductEvidence(snapshot);
       if(pending)return pending;

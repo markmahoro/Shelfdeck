@@ -1169,6 +1169,14 @@ function createOnDeckStore(options) {
             committed_at_ms: context.commitTimeMs,
           });
         });
+        for(const primary of packageValue.productionProvenance?.shelfAcceptancePrimaryReadSet?.primaryInputs||[]){
+          const verification=primary.productMediaVerification;
+          if(!verification?.qualitySummary?.editionEvidence)continue;
+          repo.invoke('insert_fact',{shelf_entry_id:shelfEntryId,inventory_revision:inventoryRevision,
+            fact_kind:'product_media_verification',fact_revision:primary.ordinal+1,fact_schema_ref:verification.schemaRef,
+            fact_json:canonicalJson(verification),fact_digest:canonicalDigest(verification),source_package_id:packageValue.onDeckPackageId,
+            provenance_digest:packageValue.productionProvenance.provenanceDigest,committed_at_ms:context.commitTimeMs});
+        }
         const authorizedDefectManifest =
           packageValue.productionAttestation?.acceptanceKind === 'accepted_with_defects'
             ? packageValue.productionAttestation.authorizedDefectManifest : null;

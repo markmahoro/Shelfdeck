@@ -45,7 +45,7 @@ function response(status, body, responseUrl = '') {
   });
 }
 
-function moviePilotFetch(downloadFiles, calls) {
+function moviePilotFetch(downloadFiles, calls, scenario) {
   let requestedTitle = null;
   return async (input, init = {}) => {
     const url = new URL(String(input));
@@ -58,7 +58,7 @@ function moviePilotFetch(downloadFiles, calls) {
       return response(200, { success:true, data:['bad', 'good'].map((kind) => ({
         meta_info:{ name:'External Upgrade Movie', year:'2024' },
         media_info:{ title:'External Upgrade Movie', year:'2024', tmdb_id:990001 },
-        torrent_info:{ title:`External.Upgrade.Movie.2024.${kind}.2160p.HEVC.TrueHD`,
+        torrent_info:{ title:`External.Upgrade.Movie.2024.${kind}.${scenario ? '1080p.'+(scenario==='transcode'?'H264':'HEVC') : '2160p.HEVC'}.TrueHD`, description:scenario?'4K修复版':'',
           enclosure:`https://tracker.test/external-upgrade-${kind}.torrent`, size:fs.statSync(downloadFiles[kind]).size,
           seeders:kind === 'bad' ? 50 : 5 },
       })) });
@@ -222,7 +222,7 @@ async function waitFrozenRun(dataDir, runtimeError) {
   assert.fail('Libra Run did not freeze after the sole source failed verification: ' + JSON.stringify(current));
 }
 
-test('5-star 4K gap downloads the strongest proven candidate once and never falls back after real-media rejection', async (t) => {
+for (const scenario of [null, 'transcode', 'remux']) test((scenario ? scenario+' restored edition reaches On-deck: ' : '')+'5-star 4K gap downloads the strongest proven candidate once and never falls back after real-media rejection', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-external-handoff-b-'));
   t.after(() => { if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') fs.rmSync(root, { recursive:true, force:true }); });
   const dataDir = path.join(root, 'data');
@@ -241,6 +241,18 @@ test('5-star 4K gap downloads the strongest proven candidate once and never fall
   fs.writeFileSync(downloaded.good, 'verified isolated moviepilot output');
   fs.writeFileSync(path.join(downloads, 'External.Upgrade.Movie.2024.bad.2160p.HEVC.TrueHD.nfo'), '<movie/>');
   fs.writeFileSync(path.join(downloads, 'External.Upgrade.Movie.2024.good.2160p.HEVC.TrueHD.nfo'), '<movie/>');
+  if(scenario){
+    const {spawnSync}=require('node:child_process'), ffmpeg=require('ffmpeg-static');
+    for(const file of [path.join(field,'External Upgrade Movie (2024).mkv'),downloaded.bad,downloaded.good]){
+      const external=file!==path.join(field,'External Upgrade Movie (2024).mkv');
+      const result=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-f','lavfi','-i','color=c=black:s=1920x1080:r=24:d=2',
+        '-f','lavfi','-i','anullsrc=r=48000:cl=stereo','-t','2','-c:v',external&&scenario==='remux'?'libx265':'libx264',
+        '-preset','ultrafast','-threads','2',...(external&&scenario==='remux'?['-x265-params','pools=2']:[]),
+        '-c:a',external?'truehd':'aac','-strict','-2','-f',external&&scenario==='remux'?'mpegts':'matroska',file],
+        {encoding:'utf8',windowsHide:true,timeout:30000,maxBuffer:4*1024*1024});
+      assert.equal(result.status,0,result.stderr);
+    }
+  }
   const old = new Date(Date.now() - 120_000);
   fs.utimesSync(downloaded.bad, old, old);
   fs.utimesSync(downloaded.good, old, old);
@@ -248,7 +260,7 @@ test('5-star 4K gap downloads the strongest proven candidate once and never fall
   const calls = [];
   let runtimeError = null;
   const host = await createCleanServiceHost({ dataDir, adminDistDir:admin, secretRoot:SECRET,
-    mediaProbe:mediaProbe(), integrationFetch:moviePilotFetch(downloaded, calls),
+    ...(scenario?{}:{mediaProbe:mediaProbe()}), integrationFetch:moviePilotFetch(downloaded, calls,scenario),
     ...productOptions(),
     onExecutionRuntimeError(error) {
       runtimeError = error;
@@ -257,6 +269,11 @@ test('5-star 4K gap downloads the strongest proven candidate once and never fall
   try {
     const cookie = await session(host, initialized.adminApiKey);
     const headers = { cookie };
+    if(scenario){
+      const enabled=await host.inject({method:'POST',url:'/v1/admin/settings/automatic-operation/actions/enable-full',
+        headers:{cookie},payload:{idempotencyKey:'external-settlement',expectedRevision:0,coverExclusiveRelatedInput:true}});
+      assert.equal(enabled.statusCode,200,enabled.body);
+    }
     await configureMoviePilot(host, cookie, downloads);
     calls.length = 0;
     let result = await host.inject({ method:'POST', url:'/v1/admin/shelves', headers, payload:{
@@ -312,6 +329,29 @@ test('5-star 4K gap downloads the strongest proven candidate once and never fall
         idempotencyKey:'external-rating-five' } });
     assert.equal(result.statusCode, 202, result.body);
     await waitFormation(host, cookie, (item) => item.acceptanceSpecRevision === 2);
+    if(scenario){
+      const deadline=Date.now()+120000;
+      let entry;
+      while(Date.now()<deadline){
+        assert.ifError(runtimeError);
+        const db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
+        try{entry=db.prepare("SELECT * FROM arca_shelf_entries WHERE status='active'").get();}finally{db.close();}
+        if(entry)break;
+        await pause(100);
+      }
+      assert.ok(entry,'external processing must reach On-deck: '+root);
+      const db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
+      try{
+        const events=db.prepare("SELECT capability_ref,state FROM fx_workflow_events").all();
+        assert.ok(events.some(e=>e.capability_ref==='libra.media.'+scenario+'@1'&&e.state==='succeeded'));
+        assert.equal(events.filter(e=>e.capability_ref==='libra.external_material.acquire.request@1').length,1);
+        assert.equal(db.prepare("SELECT count(*) n FROM libra_run_revisions WHERE transition_kind='defect_admitted'").get().n,0);
+        const proof=db.prepare("SELECT * FROM arca_inventory_product_facts WHERE fact_kind='product_media_verification'").get();
+        assert.ok(proof,'edition provenance survives Arca commit');
+      }finally{db.close();}
+      assert.equal(calls.filter(c=>c.path==='/api/v1/download/add').length,1);
+      return;
+    }
     const frozen = await waitFrozenRun(dataDir, () => runtimeError);
     assert.equal(frozen.state,'frozen');
     assert.ifError(runtimeError);

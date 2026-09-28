@@ -29,7 +29,7 @@
       "pattern": "^[a-f0-9]{64}$"
     },
     "strategy": {
-      "const": "single_requirement_compliant_seeder_strength"
+      "const": "single_processable_candidate_seeder_strength"
     },
     "criteriaDigest": {
       "type": "string",

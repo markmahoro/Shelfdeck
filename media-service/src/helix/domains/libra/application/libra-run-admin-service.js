@@ -246,7 +246,26 @@ function createLibraRunAdminService(options) {
         : null,
       priorAuthorizedManifest:latestDefect,
     };
-    const verification=input.sizeCapVerification||directMediaVerification;
+    // Eligibility is evaluated on the produced media, never an obsolete source gap.
+    const produced = works.filter(work=>work.work_kind==='workspace_media_production')
+      .flatMap(work=>workResultReader.read(work.work_id).map(record=>({...record,sourceWorkId:work.work_id})))
+      .filter(item=>item.outcomeKind==='succeeded'&&item.capabilityRef==='libra.product_media.verify@1'&&item.result?.result==='passed');
+    const verification=input.sizeCapVerification||produced.at(-1)?.result||directMediaVerification;
+    if(produced.length)input.directMediaVerification=verification;
+    const secondaryRow=snapshot.revisions.find(row=>row.transition_kind==='secondary_target');
+    if(secondaryRow){
+      const secondary=JSON.parse(secondaryRow.transition_evidence_json);
+      input.candidateGapSources=[...(terminalEvidence.blockedWorks||[]),...secondary.blockedWorks]
+        .filter((item,index,items)=>items.findIndex(other=>other.workId===item.workId&&other.terminalEvidenceDigest===item.terminalEvidenceDigest)===index);
+    }
+    const artifactResults=works.filter(work=>work.work_kind==='artifact_production')
+      .flatMap(work=>workResultReader.read(work.work_id))
+      .filter(item=>item.outcomeKind==='succeeded'&&item.capabilityRef==='shared.artifact.manifest.verify@1'&&item.result?.result==='passed');
+    const requiredArtifacts=require('../../../contracts/artifact-requirement-gaps').requiredArtifactKinds(snapshot.spec?.requirements||{});
+    if(requiredArtifacts.some(kind=>!artifactResults.some(item=>item.result.requirement?.artifactKind===kind)))
+      fail('P9_DEFECT_ADMISSION_NONWAIVABLE','Every required artifact must be produced before defect authorization.');
+    if(missingMetadataFields.some(field=>field!=='actor'))
+      fail('P9_DEFECT_ADMISSION_NONWAIVABLE','Only actor relationships may be missing.');
     if(!verification || !snapshot.spec) {
       const unfinished = works.some(work => !['succeeded','failed','cancelled','superseded'].includes(work.state));
       fail(unfinished ? 'P9_DEFECT_ADMISSION_EVIDENCE_PENDING' : 'P9_DEFECT_ADMISSION_INELIGIBLE',

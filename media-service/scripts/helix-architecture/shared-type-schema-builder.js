@@ -103,6 +103,7 @@ function providerAcquisitionCandidateSnapshotSchema() {
       claimBasis: enumText('structured_and_release_fields', 'provider_row') }),
     evidenceDigest: digestHex()
   });
+  advertisedMedia.properties.restoration = object({status:{const:'known'},value:{const:'restored_4k'},sourceField:text()});
   const availabilityEvidence = {
     oneOf: [
       object({ status: { const: 'known' }, seederCount: nonNegativeInteger(),

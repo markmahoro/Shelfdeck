@@ -484,7 +484,7 @@ function runLifecycleDecision() {
   return { $schema: DRAFT, $id: typeId('LibraRunLifecycleDecision'), title: 'LibraRunLifecycleDecision@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 1024 * 1024,
     ...object({ decisionId: digest(), libraRunId: digest(), expectedStateRevision: positive(), expectedStateDigest: digest(),
-      transitionKind: { type: 'string', enum: ['suspend', 'resume', 'freeze', 'freshness_confirmed', 'recovery_reassessed', 'defect_admit', 'set_priority', 'complete'] },
+      transitionKind: { type: 'string', enum: ['suspend', 'resume', 'freeze', 'freshness_confirmed', 'recovery_reassessed', 'defect_admit', 'secondary_target', 'set_priority', 'complete'] },
       newPriority: object({ priorityClass: { type: 'string', enum: ['normal', 'expedited'] }, priorityIntentDigest: digest() }),
       transitionEvidence: { oneOf: [{ $ref: typeId('LibraRunFreshnessAssessment') }, { $ref: typeId('LibraRunTerminalDeliveryEvidence') }, { $ref:typeId('LibraStrategyAvailability') },
         { $ref: typeId('AuthorizedDefectManifest') }, { $ref: typeId('LibraRunPriorityIntent') },
