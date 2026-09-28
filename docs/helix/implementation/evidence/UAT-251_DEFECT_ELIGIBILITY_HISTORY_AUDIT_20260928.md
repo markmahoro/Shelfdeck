@@ -335,3 +335,30 @@ Handoff B仍单向、Arca独立验收：同时验证当前Shelf、原Spec、次�
 ### Linux追加发现：配置FFprobe未使用
 
 首轮Linux89项中88通过；真实HEVC/TrueHD MPEGTS输入在依赖包旧FFprobe进程SIGSEGV，系统原实现误报not_media。相同文件用镜像/usr/local/bin/ffprobe正常解析。修正createCleanMediaProbe按explicit binary→FFPROBE_PATH→bundled依次选取，并将信号中止报告为技术执行错误。Linux路径优先级/进程信号2项通过；修正后真实转码、Remux、候选实际拒绝3条E2E均通过。此为本次组合路径验收发现的根因修复，不放宽媒体或播放标准。
+
+
+## 2026-09-28 发布门禁结果与待确认补充
+
+实现提交：0f3b02ea506f65fd5103002ec03cc1b850ddeb8e；FFprobe根因修复：12ac3ec725（最终镜像source）。候选镜像markmahoro/shelfdeck:helix-beta-20260928-12ac3ec725，NAS image ID sha256:c320834549a69a144d98b59cbd53ad0150a48e3ded4c59775d220024705910ea，tar SHA256 02f47d4e31d5317f20e6d442997ce6e3619ca31591a881e98daf387c0f6a7de6。标准build/upload校验及dry run通过；最终精确镜像Linux路径/崩溃2项及真实外部链路3项全部通过，前轮86项合同专项通过。未执行deploy --apply。
+
+完整备份：/vol1/1000/docker/shelfdeck/backups/uat251274-0f3b02ea50-20260928。短暂pause容器取得同一时点data、compose及secret后已unpause；48个data文件，data.sha256自身摘要45bf0a285a76d67ceef1937fc7a21f85599fc2712bc74ca9c1085c404b3373a9，configuration.sha256摘要db6d34376695997cc4b10214ebcd435a0bf6395160d09d8d05cfd902469f0a68。两轮副本逐文件验证通过；无Reset、无生产业务数据修改。
+
+完整Host演练目录：/vol1/1000/docker/shelfdeck/test-runs/uat251274-0f3b02ea50-20260928。网络none，媒体及既有Workspace只读。
+
+- current：现网69a82f2a5d从冻结备份恢复副本，完整Host启动、health200、normalSupplyAllowed=true、65秒正常Owner协调、关闭通过。启动至关闭约8分24秒。首次harness给了不存在的/usr/bin/ffmpeg路径，仅此对照使用；最终候选使用镜像自身/usr/local/bin路径。不能把对照当作真实媒体执行验证。
+- current逐行保护：296条Shelf Entry无缺失，正常维护推进1条current_inventory_revision；材料增加6条、1条active_guard更新；Product Facts增加3条、Representation增加1条；原Deck facts、Product Facts、Representation、Candidate Packages及成员、Run revisions、Product Packages、On-deck Receipts无删改。Run revisions正常追加6条。integrity_check=ok，FK0。
+- final-candidate：05:05:53Z启动，05:09:24Z以P4_EXECUTION_HOST_RECOVERY_BLOCKED拒绝启动；13683条PLAN_CATALOG_DRIFT，含未改动的Arca/Perception/Procurement历史计划。未进入正常供给，不能部署。
+- 根因：新Execution Catalog为5387ff4e766dd8239fdd9a3d094e4d9f5a75c201dbd8ebdff7d83e30556614d8；query.prepare具名输入变化使全局摘要改变，11个Capability传递schema闭包与旧witness不同。现有UAT-261只允许d2f469...→d8d6a...，且witness启动时整体校验，不能因为某条历史Plan未改就跳过完整证明。旧witness字节保持不变；测试确认新合同不会被旧witness放行。
+- rollback-upgraded：旧69a82f2a5d对候选升级后的同一隔离数据库实际启动，明确拒绝UAT_MIGRATION_SOURCE_SCHEMA_UNSUPPORTED。旧镜像直接回退不是可用方案；冻结备份恢复的旧版Host已在current验证，但上线后若新增事实则不能无授权覆盖回旧备份。
+- 最后核验生产仍为69a82f2a5d，paused=false，health正常且normalSupplyAllowed=true。没有重新下载或重跑《阳光灿烂的日子》。
+
+### 建议确认的发布合同边界（仅设计，未实现）
+
+1. Foundation为这次精确旧/新Catalog增加可审计的历史合同证明：冻结旧source commit的语义Manifest及schema传递闭包，终态Plan/Attempt/Event/Result按自身原合同只读核验；保留现有完整DAG、归属、摘要、Effect责任证明。不能把修改旧witness、扩大摘要白名单或跳过Result schema当作修复。
+2. 旧终态只作为历史，不转成新合同结果，不授权旧Executor运行。新Plan、输入及验收全部使用新合同；不为未完成Libra/Formation增加兼容或迁移。若后续发现精确未完成条目必须Reset，另列范围取得生产授权，不能在本合同中隐含授权。
+3. 在实现前明确新schema发布的回退合同：优先提供不丢新事实的有界结构回退；若只能整份备份恢复，必须限定停服窗口、证明期间没有新增业务事实并取得相应数据恢复授权。不得直接改生产schema marker或丢弃新Revision。
+4. 补齐上述后重跑完整新鲜副本Host、正常协调、历史保护与回退，随后标准dry run/apply。当前门禁不通过，不宣告发布或UAT关闭。
+
+审批依据：SSOT UAT-261明确限定两份Catalog及全部schema闭包；Engineering Playbook §3.3要求未确认的新合同边界先确认。此缺口涉及历史合同与发布/回退，不改变本次已经确认的双标准业务模型。
+
+候选失败及回退拒绝后的逐行保护复核完成：296 Shelf Entries/296 Deck revisions/22229 Inventory Materials/9511 Product Facts/2946 Representations/993 Candidate Packages/1385候选成员/1158 Run revisions/297 Product Packages/296 On-deck Receipts均missing=0、changed=0，行数不变；integrity_check=ok、FK0。只有隔离副本schema已升级为14c18e017bfce8b78230d0509be1c46fb11c0da95a240396628173a9e71bed73，业务事实没有被改变。

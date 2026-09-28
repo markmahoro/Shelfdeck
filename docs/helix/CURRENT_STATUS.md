@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-09-28 UAT-251/274最终发布门禁：12ac3ec725已构建/上传，Windows与Linux新增功能验证通过；完整生产副本启动被13683条历史PLAN_CATALOG_DRIFT阻断，旧镜像对升级schema回退也拒绝。生产仍69a82f2a5d且健康，未apply/Reset。历史合同只读证明及结构回退边界待确认，详见同项审计末节；下方“验证中”为此前阶段。
+
 2026-09-28 UAT-251/274：双标准、外部取得后内部加工及可信别名已实现；Windows完整架构240文件、真实转码/封装上架及授权正反例通过。正进行镜像构建、最新完整生产副本升级/回退门禁，尚未部署、未Reset生产。详见[审计与实施证据](implementation/evidence/UAT-251_DEFECT_ELIGIBILITY_HISTORY_AUDIT_20260928.md)。
 
 2026-09-28 UAT-272/273：已标准发布69a82f2a5d，生产health/normalSupplyAllowed、Admin/挂载/Secret/fnOS通过。最新完整副本候选及回退Host通过，精确镜像Linux56项通过；真实浏览器已验证金都639445的片名/年份/海报预览及取消零身份提交。正式选择及新自动观察业务验收待补，两项保持开放。见[证据](implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md)。
