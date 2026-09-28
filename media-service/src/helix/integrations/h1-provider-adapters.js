@@ -4,6 +4,7 @@ const cheerio = require('cheerio');
 const fs = require('node:fs');
 const path = require('node:path');
 const { createHash } = require('node:crypto');
+const { failureDiagnostics } = require('../contracts/failure-diagnostics');
 
 const {
   canonicalJson,
@@ -147,7 +148,10 @@ async function fetchBytes(fetchImpl, url, init, maximum) {
   try {
     response = await fetchImpl(url, init);
   } catch (_error) {
-    fail(PROVIDER_ERROR, 'Provider request failed.');
+    fail(PROVIDER_ERROR, 'Provider request failed.', {
+      ...failureDiagnostics(_error),
+      ...(init.signal?.aborted ? { timeout:true } : {}),
+    });
   }
   const bytes = await readBounded(response, maximum);
   if (!response.ok) {

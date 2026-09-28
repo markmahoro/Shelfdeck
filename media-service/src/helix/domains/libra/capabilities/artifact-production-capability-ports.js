@@ -1,4 +1,5 @@
 'use strict';
+const { failureDiagnostics } = require('../../../contracts/failure-diagnostics');
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { buildArtifactManifestVerification } = require('../model/product-fact-contracts');
@@ -117,6 +118,7 @@ function createArtifactProductionCapabilityPorts(options) {
           return Object.freeze({ kind:'failed', failureClass:'integration',
             code:'LIBRA_ARTIFACT_FETCH_FAILED', message:'Artifact retrieval failed before Workspace write.',
             retryDirective:'never', evidence:Object.freeze({ ...proof,
+              diagnostics:failureDiagnostics(error),
               errorCode:String(error.code || 'PROVIDER_REQUEST_FAILED').slice(0,128) }) });
         }
         return succeeded(ACQUIRE, result, now, effectReceipt(context, result, now));

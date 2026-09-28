@@ -448,6 +448,25 @@ test('transport failures are redacted and secret bytes never enter outputs or er
     (error) => error.code === 'P5_PROVIDER_TRANSPORT_FAILED' && !error.message.includes('synthetic-provider-secret'));
 });
 
+test('UAT-277 transport wrapping preserves only bounded network diagnostics', async () => {
+  const operation = operationCatalog.operations[0];
+  const request = requestFor(operation, 'emby');
+  const f = fixture(operation, { request, transport: { execute: async () => {
+    const error = new Error('https://provider.test/?token=private-secret');
+    error.code = 'ECONNRESET';
+    error.details = { stage:'json_request', timeout:true, token:'private-secret' };
+    throw error;
+  } } });
+  await assert.rejects(() => f.adapter.execute(request), error => {
+    assert.equal(error.code, 'P5_PROVIDER_TRANSPORT_FAILED');
+    assert.equal(error.details.networkCode, 'ECONNRESET');
+    assert.equal(error.details.stage, 'json_request');
+    assert.equal(error.details.timeout, true);
+    assert.equal(JSON.stringify(error).includes('private-secret'), false);
+    return true;
+  });
+});
+
 test('provider protocol implementation has no network, filesystem, Domain Store, legacy adapter, or ambient credential access', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../../src/helix/integrations/provider-protocol.js'), 'utf8').toLowerCase();
   for (const forbidden of [

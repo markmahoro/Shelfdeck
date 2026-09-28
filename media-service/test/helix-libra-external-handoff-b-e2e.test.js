@@ -58,7 +58,7 @@ function moviePilotFetch(downloadFiles, calls, scenario) {
       return response(200, { success:true, data:['bad', 'good'].map((kind) => ({
         meta_info:{ name:'External Upgrade Movie', year:'2024' },
         media_info:{ title:'External Upgrade Movie', year:'2024', tmdb_id:990001 },
-        torrent_info:{ title:`External.Upgrade.Movie.2024.${kind}.${scenario ? '1080p.'+(scenario==='transcode'?'H264':'HEVC') : '2160p.HEVC'}.TrueHD`, description:scenario?'4K修复版':'',
+        torrent_info:{ title:`External.Upgrade.Movie.2024.${kind}.${scenario && scenario!=='native4k' ? '1080p.'+(scenario==='transcode'?'H264':'HEVC') : '2160p.HEVC'}.TrueHD`, description:scenario&&scenario!=='native4k'?'4K修复版':'',
           enclosure:`https://tracker.test/external-upgrade-${kind}.torrent`, size:fs.statSync(downloadFiles[kind]).size,
           seeders:kind === 'bad' ? 50 : 5 },
       })) });
@@ -222,7 +222,7 @@ async function waitFrozenRun(dataDir, runtimeError) {
   assert.fail('Libra Run did not freeze after the sole source failed verification: ' + JSON.stringify(current));
 }
 
-for (const scenario of [null, 'transcode', 'remux']) test((scenario ? scenario+' restored edition reaches On-deck: ' : '')+'5-star 4K gap downloads the strongest proven candidate once and never falls back after real-media rejection', async (t) => {
+for (const scenario of [null, 'transcode', 'remux', 'native4k']) test((scenario ? scenario+' external edition reaches On-deck: ' : '')+'5-star 4K gap downloads the strongest proven candidate once and never falls back after real-media rejection', async (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-external-handoff-b-'));
   t.after(() => { if (process.env.HELIX_KEEP_TEST_ASSETS !== '1') fs.rmSync(root, { recursive:true, force:true }); });
   const dataDir = path.join(root, 'data');
@@ -242,12 +242,14 @@ for (const scenario of [null, 'transcode', 'remux']) test((scenario ? scenario+'
   fs.writeFileSync(path.join(downloads, 'External.Upgrade.Movie.2024.bad.2160p.HEVC.TrueHD.nfo'), '<movie/>');
   fs.writeFileSync(path.join(downloads, 'External.Upgrade.Movie.2024.good.2160p.HEVC.TrueHD.nfo'), '<movie/>');
   if(scenario){
-    const {spawnSync}=require('node:child_process'), ffmpeg=require('ffmpeg-static');
+    const {spawnSync}=require('node:child_process'), ffmpeg=process.env.FFMPEG_PATH||require('ffmpeg-static');
     for(const file of [path.join(field,'External Upgrade Movie (2024).mkv'),downloaded.bad,downloaded.good]){
       const external=file!==path.join(field,'External Upgrade Movie (2024).mkv');
-      const result=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-f','lavfi','-i','color=c=black:s=1920x1080:r=24:d=2',
-        '-f','lavfi','-i','anullsrc=r=48000:cl=stereo','-t','2','-c:v',external&&scenario==='remux'?'libx265':'libx264',
-        '-preset','ultrafast','-threads','2',...(external&&scenario==='remux'?['-x265-params','pools=2']:[]),
+      const hevc=external&&['remux','native4k'].includes(scenario);
+      const raster=external&&scenario==='native4k'?'3840x2160':'1920x1080';
+      const result=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-f','lavfi','-i','color=c=black:s='+raster+':r=24:d=2',
+        '-f','lavfi','-i','anullsrc=r=48000:cl=stereo','-t','2','-c:v',hevc?'libx265':'libx264',
+        '-preset','ultrafast','-threads','2',...(hevc?['-x265-params','pools=2:frame-threads=1']:[]),
         '-c:a',external?'truehd':'aac','-strict','-2','-f',external&&scenario==='remux'?'mpegts':'matroska',file],
         {encoding:'utf8',windowsHide:true,timeout:30000,maxBuffer:4*1024*1024});
       assert.equal(result.status,0,result.stderr);
@@ -335,7 +337,11 @@ for (const scenario of [null, 'transcode', 'remux']) test((scenario ? scenario+'
       while(Date.now()<deadline){
         assert.ifError(runtimeError);
         const db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
-        try{entry=db.prepare("SELECT * FROM arca_shelf_entries WHERE status='active'").get();}finally{db.close();}
+        try{
+          entry=db.prepare("SELECT * FROM arca_shelf_entries WHERE status='active'").get();
+          const failures=db.prepare("SELECT e.capability_ref,a.failure_code,a.evidence_digest FROM fx_event_attempts a JOIN fx_workflow_events e USING(event_id) WHERE e.owner_domain='arca' AND e.state='failed'").all();
+          assert.deepEqual(failures,[],JSON.stringify(failures));
+        }finally{db.close();}
         if(entry)break;
         await pause(100);
       }
@@ -343,11 +349,23 @@ for (const scenario of [null, 'transcode', 'remux']) test((scenario ? scenario+'
       const db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
       try{
         const events=db.prepare("SELECT capability_ref,state FROM fx_workflow_events").all();
-        assert.ok(events.some(e=>e.capability_ref==='libra.media.'+scenario+'@1'&&e.state==='succeeded'));
+        if(scenario==='native4k'){
+          assert.equal(events.filter(e=>['libra.media.remux@1','libra.media.transcode@1'].includes(e.capability_ref)).length,0);
+          const observations=db.prepare("SELECT b.result_json FROM fx_event_result_bindings b JOIN fx_workflow_events e USING(event_id) WHERE e.capability_ref='arca.acceptance.mandatory_media.verify@1'").all();
+          assert.ok(observations.length);
+          for(const row of observations){
+            const check=JSON.parse(row.result_json);
+            assert.equal(check.result,'passed');
+            assert.deepEqual(check.actualGapCodes,[]);
+            assert.equal(check.primaryMediaObservations[0].qualitySummary.sourceDisplayRasterClass,'4k');
+            assert.equal(check.primaryMediaObservations[0].qualitySummary.systemUpscaleDetected,false);
+          }
+        }else assert.ok(events.some(e=>e.capability_ref==='libra.media.'+scenario+'@1'&&e.state==='succeeded'));
         assert.equal(events.filter(e=>e.capability_ref==='libra.external_material.acquire.request@1').length,1);
         assert.equal(db.prepare("SELECT count(*) n FROM libra_run_revisions WHERE transition_kind='defect_admitted'").get().n,0);
         const proof=db.prepare("SELECT * FROM arca_inventory_product_facts WHERE fact_kind='product_media_verification'").get();
-        assert.ok(proof,'edition provenance survives Arca commit');
+        if(scenario==='native4k')assert.equal(proof,undefined,'Native 4K does not invent restored-edition evidence.');
+        else assert.ok(proof,'edition provenance survives Arca commit');
       }finally{db.close();}
       assert.equal(calls.filter(c=>c.path==='/api/v1/download/add').length,1);
       return;

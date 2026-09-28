@@ -21,6 +21,8 @@ const {
 const {
   buildOutputRequirement,
 } = require('../model/run-admission-contracts');
+const { createProductionSourceScopeResolver } =
+  require('../planning/production-source-scope-resolver');
 
 const RECEIPT_CONTRACT = Object.freeze({
   receiptSchemaRef:
@@ -410,27 +412,22 @@ function createProductDeliveryAssembler(options) {
   }
 
   function shelfAcceptancePrimaryReadSet(value, conformance) {
-    const sourceMembers = value.snapshot.members.filter((item) =>
-      item.role === 'primary_payload');
+    const sourceResolver = createProductionSourceScopeResolver({
+      movieProductionReader: { readRun: () => value.snapshot },
+      productionPort: options.productProductionPort,
+    });
+    const sourceScope = sourceResolver.resolve(sourceResolver.referenceFor(value.snapshot));
     const productMembers = value.productMaterialManifest.members.filter((item) =>
       item.role === 'primary_payload');
-    if (sourceMembers.length !== 1 || productMembers.length !== 1) {
-      throw new Error('Movie Shelf Acceptance authority requires one source and one Product Primary.');
+    if (productMembers.length !== 1) {
+      throw new Error('Movie Shelf Acceptance authority requires one Product Primary.');
     }
-    let sourceMember = sourceMembers[0];
+    // A disc title can span multiple payloads. Use the same frozen topology
+    // order and read authority that produced its Source Probe and media.
+    let sourceMember = sourceScope.primaryMembers[0].member;
     const productMember = productMembers[0];
     const verification = value.selected.verification;
-    const originalSourceHandle = options.productProductionPort.issuePhysicalReadHandle({
-      libraRunId: value.snapshot.run.libraRunId,
-      runExecutionBasisDigest: value.snapshot.run.executionBasisDigest,
-      runCreatedAtMs: value.snapshot.run.createdAtMs,
-      physicalIdentity: sourceMember.physicalIdentity,
-      sizeBytes: sourceMember.sizeBytes,
-      endpointId: sourceMember.endpointId,
-      location: sourceMember.location,
-      bindingRevision: sourceMember.bindingRevision,
-      mountScopeRevision: 1,
-    });
+    const originalSourceHandle = sourceScope.primaryReadHandle;
     const productHandle = productMember.workspaceMaterialHandle ||
       originalSourceHandle;
     const originalSourceHandleDigest = canonicalDigest(originalSourceHandle);
@@ -503,6 +500,8 @@ function createProductDeliveryAssembler(options) {
     let productReadHandle;
     const samePhysicalMaterial = sourceMember.materialKey === productMember.materialKey;
     if (samePhysicalMaterial) {
+      // Import and Product Staging share bytes but have different reference
+      // revisions. The combined authority must bind the published Product.
       sourceReadHandle = options.productProductionPort.issueShelfAcceptanceReadHandle({
         ...common,
         readRole: 'source_and_product_primary',
@@ -510,8 +509,9 @@ function createProductDeliveryAssembler(options) {
         sizeBytes: sourceMember.sizeBytes,
         endpointId: sourceMember.endpointId,
         location: sourceMember.location,
-        bindingRevision: sourceMember.bindingRevision,
-        mountScopeRevision: 1,
+        bindingRevision: productMember.bindingRevision,
+        mountScopeRevision: productMember.workspaceMaterialHandle
+          ? options.workspaceProductPort.rootSnapshot().mountScopeRevision : 1,
       });
       productReadHandle = sourceReadHandle;
     } else {

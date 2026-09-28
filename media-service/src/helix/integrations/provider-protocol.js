@@ -1,6 +1,7 @@
 'use strict';
 
 const catalog = require('../contracts/ports/p5-provider-operation-contracts.json');
+const { failureDiagnostics } = require('../contracts/failure-diagnostics');
 
 const SHA256 = /^[0-9a-f]{64}$/;
 const TOKEN = /^[a-zA-Z0-9][a-zA-Z0-9._:@/-]{0,255}$/;
@@ -533,6 +534,7 @@ function createAdapter(effectClass, options) {
         if (error instanceof ProviderProtocolError) throw error;
         fail('P5_PROVIDER_TRANSPORT_FAILED',
           'External Provider invocation failed.', {
+            ...failureDiagnostics(error),
             causeCode: typeof error?.details?.causeCode === 'string' &&
                 error.details.causeCode
               ? error.details.causeCode

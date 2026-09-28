@@ -3119,7 +3119,9 @@ test('UAT-217 formal identity resolves a saved rating and replaces the Run befor
 });
 
 
-for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
+for(const sourceVariant of ['iso','direct','bdmv']) test(sourceVariant==='bdmv'
+  ? 'UAT-275 real two-payload BDMV reaches Arca commit with its frozen source topology'
+  : sourceVariant==='iso'
   ? 'UAT-135 real ISO reaches Arca commit with fresh Source Probe and independent Product decode'
   : 'UAT-132 real Direct HEVC with unknown color labels reaches Arca commit without conversion', {
   skip:process.env.HELIX_UAT135_REAL_MEDIA!=='1'?'Set HELIX_UAT135_REAL_MEDIA=1 for the generated ISO Host scenario.':false,
@@ -3147,6 +3149,15 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
   writeMpls(root,'disc/BDMV/PLAYLIST/00000.mpls',[{clipId:'00000',inTime:0,outTime:90000}]);
   const name='SDT-M01-Standalone-H264 (2008)';
   if(sourceVariant==='iso')createUdfBluRay(disc,path.join(source,name+'.iso'));
+  else if(sourceVariant==='bdmv'){
+    fs.copyFileSync(clip,path.join(disc,'BDMV','STREAM','00001.m2ts'));
+    fs.writeFileSync(path.join(disc,'BDMV','CLIPINF','00001.clpi'),'clip');
+    writeMpls(root,'disc/BDMV/PLAYLIST/00000.mpls',[
+      {clipId:'00000',inTime:0,outTime:90000},
+      {clipId:'00001',inTime:0,outTime:90000},
+    ]);
+    fs.cpSync(disc,path.join(source,name),{recursive:true});
+  }
   else {
     const primary=path.join(source,name+'.mkv');
     const copied=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-i',clip,'-c','copy',primary],{encoding:'utf8',windowsHide:true});
@@ -3227,7 +3238,7 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
       entries:db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n};
   },90_000);
   assert.deepEqual(awaitingAuthorization,{approvals:0,entries:0});
-  assert.ok(fs.existsSync(path.join(source,name+(sourceVariant==='iso'?'.iso':'.mkv'))),'No standing authorization must retain the old input.');
+  assert.ok(fs.existsSync(path.join(source,name+(sourceVariant==='bdmv'?'':sourceVariant==='iso'?'.iso':'.mkv'))),'No standing authorization must retain the old input.');
   if(verifyThumbs)fs.writeFileSync(path.join(source,'later.txt'),'created after frozen Package');
   const granted=await host.inject({method:'POST',url:'/v1/admin/settings/automatic-operation/actions/enable-full',
     headers:{cookie},payload:{idempotencyKey:'uat172-standing-grant',expectedRevision:0,coverExclusiveRelatedInput:sourceVariant!=='iso'||verifyWorkspaceCleanup}});
@@ -3271,6 +3282,13 @@ for(const sourceVariant of ['iso','direct']) test(sourceVariant==='iso'
   assert.equal(terminal.completed,1);
   assert.equal(terminal.checks.length,6,JSON.stringify(terminal.checks));
   assert.ok(terminal.checks.every(check=>check.result==='passed'),JSON.stringify(terminal.checks));
+  if(sourceVariant==='bdmv'){
+    const db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
+    try{
+      assert.equal(db.prepare("SELECT count(*) n FROM libra_run_material_members WHERE role='primary_payload'").get().n,2);
+      assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1);
+    }finally{db.close();}
+  }
   assert.deepEqual(reality(disc),originalDisc);
   if(sourceVariant==='direct'){
     const db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
