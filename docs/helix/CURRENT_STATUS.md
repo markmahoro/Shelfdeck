@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-09-28 UAT-272/273：首映年份核验与手动TMDB ID预览入口已完成本地修复；身份/Projection/API、Web113项、最终交互18项、桌面/窄屏浏览器、build及完整架构240文件通过。UI负责人本地放行，交统一部署；尚未生产验收或关闭。见[证据](implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md)。
+
 2026-09-28：UAT-269已发布b8cf321d65，荒野猎人原Event/Attempt/Effect完成import/probe/verify/select，无重新下载、源Reality不变；第一批关闭。接续UAT-270资源等待输入准备与单次Aftercare投影去重，Windows专项143项与完整架构240文件通过，固定资源需求分支另经34项回归；本机Docker启动故障阻塞Linux验证及构建，尚未部署。见[第二批证据](implementation/evidence/UAT-270_RESOURCE_WAIT_PREPARATION_20260928.md)。下方未发布描述为第一批历史阶段。
 
 2026-09-28 UAT-269：外部导入改用原生异步独占复制，Windows/Linux定向各45项通过；完整架构及生产接续待验，尚未发布。见[证据](implementation/evidence/UAT-269_EXTERNAL_IMPORT_COPY_20260928.md)。

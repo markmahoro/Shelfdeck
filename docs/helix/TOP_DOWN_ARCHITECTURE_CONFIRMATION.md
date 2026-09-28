@@ -15711,3 +15711,12 @@ Arca在创建Case的同一次CareRequirement持久化中冻结创建时有效要
 Movie所有评分及无评分分支均以实际Probe确认Matroska容器，以最终文件名确认`.mkv`扩展名。仅修改后缀不能让真实MP4容器合规；仅有容器或后缀Gap且其他要求已满足时，Libra在自己的Workspace无损Remux并复验，再由Arca正式上架。已上架Entry采用当前Shelf Standard重新评估：Arca Aftercare对同类Gap在自己的Workspace无损Remux，正式提交新的Inventory revision与文件安置，保留同一Shelf Entry。若还存在编码、大小等Gap，须按相应规格规划Transcode或其他既有路径，不把改后缀当作修复。
 
 本次系统推荐Rule Template升级由ShelfDeck自身受控Policy发布，不使用用户模板；用户编辑入口继续只读。已知旧revision与规则digest通过后，Arca在同一Owner事务保存不可变系统Template新revision、全部当前绑定Shelf的effective Standard新revision及Head/routing projection CAS、Command Receipt/Audit和Outbox。旧revision保留，未知旧依据明确拒绝；已上架Entry据新Standard重新评估，历史Spec/Package/Acceptance不倒写。
+
+
+### UAT-272/273 Movie 身份核验与只读预览（2026-09-28）
+
+用户确认修复《金都》首映年份与主上映年份不同造成的误筛选。Provider Adapter仅投影Movie详情的主上映年及有界区域上映记录年份；Libra仍拥有身份关联判断。精确片名/别名加年份证据唯一一致才能自动resolve；年份可由该Movie首映或区域上映记录证明，不以主上映年不等直接丢弃同名候选。年份仍无法证明时产生conflicting及可供人工选择的候选，不降低为自动认片。不同片名和多义候选仍不自动接受。
+
+`GET /v1/admin/formation/runs/:libraRunId/product-identity-preview?tmdbMovieId=...`由LibraFormationFacade提供authenticated只读预览。输入为有界正整数Movie ID；Libra校验未完成Run后，经Platform既有Integration Handle/Secret Lease和Movie exact observation取得片名、原名、主上映年及可选固定TMDB图片域海报URL。查询不创建Selection Intent、Identity、Work、Event或Artifact，不调用协调器。返回字段固定为`tmdbMovieId,displayTitle,originalTitle,releaseYear,posterUrl`。查无Movie与网络/配置错误区分；无效输入在Provider前拒绝。
+
+用户在原身份下拉同一单元格打开手动浮窗，输入ID、查询、预览、确认。改ID立即作废旧预览，迟到响应隔离，取消零命令，提交重试同幂等键。预览不授权身份；确认仍调用既有Selection Intent命令，核验当前Run/Identity revision并重新exact-ID观察后由Libra发布正式事实。无需新的Owner、持久表或旧Runtime兼容层。

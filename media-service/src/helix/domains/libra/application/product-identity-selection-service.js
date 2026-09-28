@@ -11,6 +11,7 @@ class ProductIdentitySelectionError extends Error {
 }
 function fail(code,message,details){throw new ProductIdentitySelectionError(code,message,details);}
 function stable(prefix,value){return prefix+canonicalDigest(value).slice(0,40);}
+function validMovieId(value) { return typeof value === 'string' && /^[1-9]\d{0,14}$/.test(value) && Number.isSafeInteger(Number(value)); }
 
 function createProductIdentitySelectionService(options) {
   if(!options?.schemaManifest||!options.unitOfWork)fail('LIBRA_IDENTITY_SELECTION_DEPENDENCIES','Product Identity selection requires Owner persistence.');
@@ -32,7 +33,7 @@ function createProductIdentitySelectionService(options) {
   function choose(libraRunId, body) {
     if(!body||typeof body.idempotencyKey!=='string'||!body.idempotencyKey||!Number.isSafeInteger(body.expectedRunStateRevision)||
         !(body.expectedIdentityRevision===null||Number.isSafeInteger(body.expectedIdentityRevision))||
-        typeof body.tmdbMovieId!=='string'||!/^\d+$/.test(body.tmdbMovieId))
+        !validMovieId(body.tmdbMovieId))
       fail('LIBRA_IDENTITY_SELECTION_INPUT','Identity selection requires an exact Run/Identity fence, idempotency key, and TMDB Movie ID.');
     const request={libraRunId,idempotencyKey:body.idempotencyKey,expectedRunStateRevision:body.expectedRunStateRevision,
       expectedIdentityRevision:body.expectedIdentityRevision,tmdbMovieId:body.tmdbMovieId,candidateSetDigest:body.candidateSetDigest||null};
@@ -61,7 +62,24 @@ function createProductIdentitySelectionService(options) {
           request_digest:requestDigest,target_type:'product_identity_selection_intent',target_id:result.selectionIntentId,result_schema_ref:RESULT_SCHEMA,result_ref_json:canonicalJson(result),result_digest:resultDigest,committed_at_ms:context.commitTimeMs});return result;
       }}]).identity_selection_receipt;
   }
-  return Object.freeze({choose,readCurrent:read});
+  async function preview(libraRunId, tmdbMovieId) {
+    if (!validMovieId(tmdbMovieId))
+      fail('LIBRA_IDENTITY_SELECTION_INPUT', 'A positive TMDB Movie ID is required.');
+    options.unitOfWork.execute([{ participantId:'identity_preview_read', owner:'libra', repositories:[owner], execute(context) {
+      const run = context.repository(owner.repositoryId).invoke('find_run', {libra_run_id:libraRunId});
+      if (!run) fail('LIBRA_RUN_NOT_FOUND', 'Libra Run was not found.');
+      if (!['active','suspended'].includes(run.state)) fail('LIBRA_IDENTITY_SELECTION_RUN_STATE', 'Only an unfinished Run accepts identity selection.');
+    }}]);
+    const handle = options.resolveRoutingIntegrationHandle?.({providerKind:'tmdb',integrationId:'tmdb-main',operationId:'libra.product_identity.evidence.observe@1'});
+    if (!handle) fail('PLATFORM_INTEGRATION_NOT_CONFIGURED', 'TMDB integration is not configured.');
+    const candidates = await options.observeRoutingProvider({integrationHandle:handle, operationId:'libra.product_identity.evidence.observe@1',
+      intent:{contentProfile:'movie',candidateDisplayTitle:tmdbMovieId,yearHint:null,strongProviderAnchor:{providerKey:tmdbMovieId}}});
+    const movie = candidates.find(candidate => candidate.providerKey === tmdbMovieId);
+    if (!movie) fail('LIBRA_IDENTITY_PREVIEW_NOT_FOUND', 'TMDB Movie was not found.');
+    return Object.freeze({tmdbMovieId,displayTitle:movie.title,originalTitle:movie.originalTitle || null,releaseYear:movie.releaseYear,
+      posterUrl:movie.posterUrl || null});
+  }
+  return Object.freeze({choose,preview,readCurrent:read});
 }
 
 module.exports=Object.freeze({ProductIdentitySelectionError,createProductIdentitySelectionService});

@@ -75,3 +75,6 @@
 ## UAT-265 图片角色修复（2026-09-22）
 
 用户授权修正带电影名前缀图片的角色识别。Procurement两处规则共用精确分类，保持既有归属边界；已于459efebbf2完成统一生产发布及适用验证。旧收藏不因新识别规则自动重分类，局内人恢复须沿用Arca正式瑕疵修复。见[证据](implementation/evidence/UAT-265_PREFIXED_ARTWORK_ROLE_20260922.md)。
+
+
+2026-09-28 UAT-272/273：修复上映年份证据和用户指定的同单元格手动身份浮窗；基线1281d4dd76，隔离分支codex/movie-identity-selection。实现与本地验证后交部署负责人统一集成；不Reset、不改历史事实。

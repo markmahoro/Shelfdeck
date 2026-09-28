@@ -739,3 +739,11 @@ test('Formation shows the active external download after terminal DV strategy re
   assert.equal(steps.find(item=>item.key==='transcode').label,'本地转码不可用，转入外部寻源');
   assert.equal(steps.find(item=>item.key==='acquire').state,'running');
 });
+
+
+test('UAT-273 successful identity observation with unresolved business outcome is not a completed step',()=>{
+  for(const result of ['not_found','ambiguous','conflicting']) {
+    const works=[{workId:'identity',createdAtMs:1,events:[{eventId:'identity-event',capabilityRef:'libra.product_identity.evidence.observe@1',state:'succeeded',result:{outcomeKind:'succeeded',committedAtMs:2,result:{result}}}]}];
+    assert.equal(organizingSteps(works).find(step=>step.key==='identity').state,'blocked');
+  }
+});

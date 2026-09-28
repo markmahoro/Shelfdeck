@@ -25,6 +25,7 @@ function requirementLabel(spec) {
 function eventState(event) {
   if (!event) return 'pending';
   const value = event.result?.result;
+  if (event.capabilityRef === 'libra.product_identity.evidence.observe@1' && ['not_found','ambiguous','conflicting'].includes(value?.result)) return 'blocked';
   if (event.result?.outcomeKind === 'failed' || value?.result === 'failed' ||
       value?.resultKind === 'not_available') return 'blocked';
   if (['succeeded'].includes(event.state) || event.result?.outcomeKind === 'succeeded') return 'done';

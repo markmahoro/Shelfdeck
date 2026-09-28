@@ -9,9 +9,9 @@
     "9.7",
     "9.9.7"
   ],
-  "targetCount": 134,
+  "targetCount": 135,
   "targetSegments": {
-    "admin": 133,
+    "admin": 134,
     "publicHealth": 1
   },
   "entries": [
@@ -1637,6 +1637,35 @@
       "contractDigest": {
         "algorithm": "sha256",
         "value": "5de7fb93d9264de5fc416c6bdee384cb466201af8e30fff2faa11fc8a53aef03"
+      }
+    },
+    {
+      "id": "get:/v1/admin/formation/runs/:libraRunId/product-identity-preview",
+      "version": 1,
+      "owner": "libra",
+      "status": "verified",
+      "ssotRefs": [
+        "9.7"
+      ],
+      "sourceLocator": {
+        "section": "UAT-272/273 Movie 身份核验与只读预览",
+        "line": 15720,
+        "lineDigest": "08e9ea0b03ce7b8dd4ca8ff19778439076edb7cb3d8bf1dd01aa88a127d505e0"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/formation/runs/:libraRunId/product-identity-preview",
+        "facade": "LibraFormationFacade",
+        "facadeMethod": "get_formation_runs_librarunid_product_identity_preview",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "754173d38f12b93ba22cb273c4f6e76f47ff56c3ce994e051596321dac26bae9"
       }
     },
     {

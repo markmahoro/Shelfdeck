@@ -1118,7 +1118,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 134) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 135) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1700,6 +1700,7 @@ async function createCleanServiceHost(options) {
     },
   });
   const productIdentitySelection = Object.freeze({
+    preview(libraRunId, tmdbMovieId) { return procurementExecution.productIdentitySelection.preview(libraRunId, tmdbMovieId); },
     choose(libraRunId, body) {
       const result = procurementExecution.productIdentitySelection.choose(libraRunId, body);
       formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId));

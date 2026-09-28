@@ -168,6 +168,8 @@ function tmdbFetch(state = {}) {
         original_title: 'Fight Club',
         original_language: 'en',
         release_date: '1999-10-15',
+        release_dates:{results:[{iso_3166_1:'HK',release_dates:[{release_date:'1998-11-17T00:00:00.000Z',type:1},{release_date:'1999-10-15T00:00:00.000Z',type:3}]}]},
+        poster_path:'/poster.jpg',
         overview: 'An insomniac meets a soap maker.',
         genres: [{ id: 18, name: 'Drama' }],
         credits: {
@@ -860,6 +862,11 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
       integrationHandle:identityHandle,
     });
     assert.equal(identityCandidates[0].providerKey, '550');
+    assert.deepEqual(identityCandidates[0].releaseYears,[1998,1999]);
+    assert.equal(identityCandidates[0].posterUrl,'https://image.tmdb.org/t/p/w342/poster.jpg');
+    assert.ok(state.calls.some(call=>call.appendToResponse==='alternative_titles,translations,release_dates'));
+    const absent=await runtime.observeRoutingProvider({operationId:'libra.product_identity.evidence.observe@1',integrationHandle:identityHandle,intent:{contentProfile:'movie',candidateDisplayTitle:'999',yearHint:null,strongProviderAnchor:{providerKey:'999'}}});
+    assert.deepEqual(absent,[]);
     assert.ok(identityCandidates[0].aliases.some((item) =>
       item.value === '搏击俱乐部' && item.sourceKind === 'alternative_title'));
     const handle = runtime.integrationHandleResolverPort.resolve({
@@ -1531,8 +1538,8 @@ test('H1.1 source and route inventory prove no production fixture or scope expan
   assert.doesNotMatch(hostSource, /formation\.contentProfile/);
   const guard = require('../../scripts/p14-h1-change-scope-guard');
   assert.deepEqual(guard.routeImplementationStatus().counts, {
-    total:134,
-    real:107,
+    total:135,
+    real:108,
     workerBeta404: 6,
     unavailable503: 21,
   });

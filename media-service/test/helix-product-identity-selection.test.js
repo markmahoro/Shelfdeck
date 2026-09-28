@@ -24,7 +24,7 @@ const observationSchema = JSON.parse(fs.readFileSync(path.resolve(__dirname,
   '../src/helix/contracts/types/ProductIdentityEvidenceObservation/v1/schema.json'), 'utf8'));
 const observationValidator = createCapabilityContractValidator({ schemas: [observationSchema] });
 
-function fixture(run) {
+function fixture(run, options = {}) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-product-identity-selection-'));
   const databasePath = path.join(root, 'shelfdeck.db');
   let clock = 100;
@@ -39,8 +39,12 @@ function fixture(run) {
     hex('state'), 'normal', hex('priority'), 'LibraRunRecoveryPolicy@1', hex('recovery'), 0, 100);
   database.close();
   const unitOfWork = createSqliteUnitOfWork({ kernel });
-  try { return run({ databasePath, service:createProductIdentitySelectionService({ schemaManifest, unitOfWork }) }); }
-  finally { kernel.close(); fs.rmSync(root, { recursive:true, force:true }); }
+  const cleanup = () => { kernel.close(); fs.rmSync(root, { recursive:true, force:true }); };
+  try {
+    const result = run({ databasePath, service:createProductIdentitySelectionService({ schemaManifest, unitOfWork, ...options }) });
+    if (result?.then) return result.finally(cleanup);
+    cleanup(); return result;
+  } catch (error) { cleanup(); throw error; }
 }
 
 test('manual Product Identity choice appends one immutable intent and replays the same command', () => fixture(({ databasePath, service }) => {
@@ -65,6 +69,7 @@ test('manual Product Identity choice appends one immutable intent and replays th
 
 test('manual choice rejects stale Run/Identity fences and idempotency payload reuse', () => fixture(({ service }) => {
   const request = { idempotencyKey:'choose-tmdb-1', expectedRunStateRevision:1, expectedIdentityRevision:null, tmdbMovieId:'278' };
+  for(const tmdbMovieId of ['0','-1','1.2','9'.repeat(1000)])assert.throws(()=>service.choose('run-1',{...request,tmdbMovieId}),{code:'LIBRA_IDENTITY_SELECTION_INPUT'});
   service.choose('run-1', request);
   assert.throws(() => service.choose('run-1', { ...request, tmdbMovieId:'13' }),
     (error) => error?.code === 'LIBRA_IDENTITY_SELECTION_REPLAY_CONFLICT');
@@ -201,4 +206,60 @@ test('UAT-217 established Subject identity is freshly checked and rejects Provid
       assert.equal(result.result,'resolved');assert.equal(result.verifiedIdentity.providerKey,'278');
     }else{assert.notEqual(result.result,'resolved');assert.equal(result.verifiedIdentity,null);}
   }
+});
+
+
+test('UAT-272 premiere year resolves My Prince Edward while retaining the provider primary year', async () => {
+  const intent={...evidenceIntent('nfo_claim'),sourceKind:'provider_search',yearHint:2019,aliases:[{value:'金都 (2019)',sourceKind:'candidate'}]};
+  const raw={providerKey:'639445',title:'金都',originalTitle:'金都',releaseYear:2020,releaseYears:[2019,2020,2021]};
+  const observe=async candidates=>observeProductIdentity({observeRoutingProvider:async()=>candidates},intent,{});
+  const resolved=await observe([raw]);
+  assert.equal(resolved.result,'resolved');assert.equal(resolved.verifiedIdentity.releaseYear,2020);
+  observationValidator.validate(observationSchema.$id,resolved);
+  const conflict=await observe([{...raw,releaseYears:[2020]}]);
+  assert.equal(conflict.result,'conflicting');assert.equal(conflict.candidates[0].providerKey,'639445');assert.equal(conflict.verifiedIdentity,null);
+  observationValidator.validate(observationSchema.$id,conflict);
+  assert.equal((await observe([raw,{...raw,providerKey:'99'}])).result,'ambiguous');
+  assert.equal((await observe([{...raw,title:'Another Movie',originalTitle:'Another Movie'}])).result,'not_found');
+  const exact=await observeProductIdentity({observeRoutingProvider:async()=>[raw]}, {...intent,sourceKind:'provider_exact',providerKey:'639445'},{});
+  assert.equal(exact.result,'resolved');
+});
+
+test('UAT-273 preview is bounded, exact and read-only before formal selection', () => {
+  let calls=0;
+  return fixture(async ({databasePath,service})=>{
+    const db=new Database(databasePath,{readonly:true});
+    const snapshot=()=>JSON.stringify(db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all().map(({name})=>[name,db.prepare('SELECT * FROM '+name).all()]));
+    const before=snapshot();
+    const result=await service.preview('run-1','639445');
+    assert.equal(result.displayTitle,'金都');assert.equal(result.tmdbMovieId,'639445');
+    assert.equal(db.prepare('SELECT count(*) count FROM libra_product_identity_selection_intents').get().count,0);
+    assert.equal(db.prepare('SELECT count(*) count FROM fx_command_receipts').get().count,0);
+    assert.equal(snapshot(),before);db.close();
+    for(const id of ['0','-1','1.5','abc','https://x/123','9'.repeat(1000)])await assert.rejects(service.preview('run-1',id),{code:'LIBRA_IDENTITY_SELECTION_INPUT'});
+    await assert.rejects(service.preview('missing','1'),{code:'LIBRA_RUN_NOT_FOUND'});
+    assert.equal(calls,1);
+    await assert.rejects(service.preview('run-1','99'),{code:'LIBRA_IDENTITY_PREVIEW_NOT_FOUND'});
+  },{resolveRoutingIntegrationHandle:()=>({integrationId:'tmdb-main'}),observeRoutingProvider:async request=>{
+    calls++;assert.equal(request.operationId,'libra.product_identity.evidence.observe@1');assert.equal(request.intent.yearHint,null);
+    return request.intent.strongProviderAnchor.providerKey==='639445'?[{providerKey:'639445',title:'金都',originalTitle:'金都',releaseYear:2020,posterUrl:null}]:[];
+  }});
+});
+
+
+test('UAT-273 Admin preview dispatch preserves authentication and does not invoke choose', async()=>{
+  const {createCleanFacades}=require('../src/helix/composition/create-clean-facades');
+  const {createAdminHttpAdapter}=require('../src/helix/composition/admin-http-adapter');
+  let authenticated=0, previews=0, choices=0;
+  const sessionTokens={authenticate(){authenticated++;return {actorId:'admin'};}};
+  const facades=createCleanFacades({sessionTokens,readiness:{state:'ready'},productIdentitySelection:{
+    async preview(run,id){previews++;assert.equal(run,'run-1');assert.equal(id,'639445');return {tmdbMovieId:id,displayTitle:'金都'};},
+    choose(){choices++;}
+  }});
+  const adapter=createAdminHttpAdapter({facades,sessionTokens});
+  const response=await adapter.dispatch({method:'GET',path:'/v1/admin/formation/runs/run-1/product-identity-preview',query:{tmdbMovieId:'639445'},correlationId:'preview-test'});
+  assert.equal(response.status,200);assert.equal(response.body.tmdbMovieId,'639445');
+  assert.deepEqual([authenticated,previews,choices],[1,1,0]);
+  await assert.rejects(adapter.dispatch({method:'GET',path:'/v1/admin/formation/runs/run-1/product-identity-preview',body:{tmdbMovieId:'1'}}),{code:'GET_SIDE_EFFECT_INPUT_REJECTED'});
+  assert.equal(previews,1);
 });

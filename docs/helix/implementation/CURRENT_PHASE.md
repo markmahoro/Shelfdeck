@@ -108,3 +108,6 @@ UAT-251由本任务连续实施至验收：先完成精确Gap及Libra持续授�
 ## UAT-265 当前交付（2026-09-22）
 
 带前缀海报/背景图分类修复已随459efebbf2标准上线，Windows150、Linux147适用项及发布工作区仓库审计3项通过，候选/19回退Host、生产角色/源码SHA与192收藏保护通过。新Candidate正向与跨片/跨目录负向已有专项覆盖，尚未做生产真实新片入库；局内人旧Inventory revision15和已接受poster_missing保持，正式手动修复未发起。本项保持开放待这些实际验收，不以代码部署关闭事项。见[证据](evidence/UAT-265_PREFIXED_ARTWORK_ROLE_20260922.md)。
+
+
+2026-09-28 UAT-272/273当前：Libra身份候选核验、只读TMDB ID预览及正式Selection Intent交互；按[证据](evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md)已通过本地合同、Web和浏览器验证，UI负责人放行；交统一部署，尚未生产验收和关闭。

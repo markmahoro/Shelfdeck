@@ -222,6 +222,10 @@ function normalizedIdentityAssociationTitle(value) {
   return title.replace(/\s*[（(](?:18|19|20|21)\d{2}[)）]\s*$/u, '').trim();
 }
 
+function providerYearMatches(yearHint, candidate) {
+  return yearHint === null || candidate.releaseYear === yearHint || (candidate.releaseYears || []).includes(yearHint);
+}
+
 function exactProviderAssociationMatches(intent, candidate) {
   if (intent.associationKind === 'manual_selection') return true;
   if (!['nfo_claim', 'subject_identity'].includes(intent.associationKind)) return false;
@@ -229,10 +233,10 @@ function exactProviderAssociationMatches(intent, candidate) {
   const providerTitles = [candidate.title, candidate.originalTitle, ...(candidate.aliases || []).map((item) => item.value)]
     .map(normalizedIdentityAssociationTitle).filter(Boolean);
   return providerTitles.some((title) => expectedTitles.has(title)) &&
-    (intent.yearHint === null || candidate.releaseYear === intent.yearHint);
+    providerYearMatches(intent.yearHint, candidate);
 }
 
-function identityObservation(intent, resultKind, reasonCode, candidates, verifiedCandidate = null) {
+function identityObservation(intent, resultKind, reasonCode, candidates, verifiedCandidate = null, providerEvidence = null) {
   const verifiedIdentity = verifiedCandidate ? Object.freeze({
     ...Object.fromEntries(Object.entries(verifiedCandidate).filter(([key]) => key !== 'candidateDigest')),
     identityDigest:canonicalDigest(Object.fromEntries(Object.entries(verifiedCandidate).filter(([key]) => key !== 'candidateDigest'))),
@@ -243,7 +247,7 @@ function identityObservation(intent, resultKind, reasonCode, candidates, verifie
     result:resultKind, reasonCode, candidates:Object.freeze(candidates), candidateMatchCount:verifiedIdentity ? 1 : candidates.length,
     verifiedIdentity, sourceAssociationDigest:canonicalDigest({ sourceKind:intent.sourceKind, intentDigest:intent.intentDigest }),
     evidenceDigest:canonicalDigest({ schema:'libra.product-identity-source-evidence@1', intentDigest:intent.intentDigest,
-      resultKind, reasonCode, candidateDigests:candidates.map((item) => item.candidateDigest), verifiedIdentity }) };
+      resultKind, reasonCode, providerEvidence, candidateDigests:candidates.map((item) => item.candidateDigest), verifiedIdentity }) };
   return Object.freeze({ ...body, observationDigest:canonicalDigest(body) });
 }
 
@@ -282,13 +286,20 @@ async function observeProductIdentity(options, intent, handle) {
     return identityObservation(intent, 'resolved', null, [], candidate);
   }
   const raw = await options.observeRoutingProvider({ intent:legacy, integrationHandle:handle, operationId:IDENTITY_EVIDENCE_REF });
-  const matches = providerCandidateSelection(legacy, raw).map(identityCandidate);
-  if (matches.length === 0) return identityObservation(intent, 'not_found', 'provider_no_match', []);
-  if (matches.length > 1) return identityObservation(intent, 'ambiguous', 'provider_identity_ambiguous', matches.slice(0, 16));
-  if (intent.sourceKind === 'provider_exact' && !exactProviderAssociationMatches(intent, raw.find((item) => item.providerKey === intent.providerKey))) {
-    return identityObservation(intent, 'conflicting', 'provider_identity_conflicting', matches);
+  const titleMatches = providerCandidateSelection({ ...legacy, yearHint:null }, raw);
+  const providerEvidence = canonicalDigest(raw.map(candidate => ({providerKey:candidate.providerKey,
+    releaseYear:candidate.releaseYear,releaseYears:candidate.releaseYears || []})));
+  const matching = titleMatches.filter(candidate => legacy.strongProviderAnchor || providerYearMatches(intent.yearHint, candidate));
+  const matches = matching.map(identityCandidate);
+  if (matches.length === 0) {
+    if (titleMatches.length) return identityObservation(intent, 'conflicting', 'provider_identity_conflicting', titleMatches.slice(0, 16).map(identityCandidate), null, providerEvidence);
+    return identityObservation(intent, 'not_found', 'provider_no_match', [], null, providerEvidence);
   }
-  return identityObservation(intent, 'resolved', null, [], matches[0]);
+  if (matches.length > 1) return identityObservation(intent, 'ambiguous', 'provider_identity_ambiguous', matches.slice(0, 16), null, providerEvidence);
+  if (intent.sourceKind === 'provider_exact' && !exactProviderAssociationMatches(intent, raw.find((item) => item.providerKey === intent.providerKey))) {
+    return identityObservation(intent, 'conflicting', 'provider_identity_conflicting', matches, null, providerEvidence);
+  }
+  return identityObservation(intent, 'resolved', null, [], matches[0], providerEvidence);
 }
 
 function effectReceipt(context, resultValue, marker, verificationEvidenceDigest, committedAtMs) {

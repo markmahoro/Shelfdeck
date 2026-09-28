@@ -53,6 +53,24 @@ function fail(code, message, details) {
   throw new TmdbProviderAdapterError(code, message, details);
 }
 
+// Keep premiere and theatrical years as provider evidence, not identity decisions.
+function releaseYears(item) {
+  const dates = [item.release_date];
+  if (item.release_dates != null) {
+    if (!Array.isArray(item.release_dates.results) || item.release_dates.results.length > 300) {
+      fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', 'TMDB release dates are invalid.');
+    }
+    for (const region of item.release_dates.results) {
+      if (!Array.isArray(region.release_dates) || region.release_dates.length > 300) {
+        fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', 'TMDB regional release dates are invalid.');
+      }
+      for (const release of region.release_dates) dates.push(release.release_date);
+    }
+  }
+  return Object.freeze([...new Set(dates.filter(value => typeof value === 'string' && /^(?:18|19|20|21)\d{2}-\d{2}-\d{2}(?:T.*)?$/.test(value))
+    .map(value => Number(value.slice(0, 4))))].sort((a, b) => a - b));
+}
+
 function exact(value, fields, code) {
   if (!value || typeof value !== 'object' || Array.isArray(value) ||
       JSON.stringify(Object.keys(value).sort()) !==
@@ -995,11 +1013,18 @@ function createTmdbProviderAdapter(options) {
         }
         let result;
         if (request.input.strongProviderKey !== null) {
-          const item = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/movie/' + request.input.strongProviderKey, {
-            timeoutMs: timeout(request.timeoutMs), query: { language, append_to_response:'alternative_titles,translations' },
-            proxyServer,
-          });
-          validateMetadataResponse(item); result = { results:[item] };
+          let item;
+          try {
+            item = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/movie/' + request.input.strongProviderKey, {
+              timeoutMs: timeout(request.timeoutMs), query: { language, append_to_response:'alternative_titles,translations,release_dates' }, proxyServer,
+            });
+          } catch (error) {
+            if (error.code === 'PLATFORM_INTEGRATION_HTTP_FAILED' && error.details?.statusCode === 404) return Object.freeze([]);
+            throw error;
+          }
+          validateMetadataResponse(item);
+          if (String(item.id) !== request.input.strongProviderKey) fail('PLATFORM_TMDB_IDENTITY_MISMATCH', 'TMDB exact response belongs to a foreign identity.');
+          result = { results:[item] };
         } else {
           result = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/search/movie', {
             timeoutMs: timeout(request.timeoutMs), query: { query: request.input.title.trim(), include_adult: 'false',
@@ -1010,7 +1035,7 @@ function createTmdbProviderAdapter(options) {
           const expanded = [];
           for (const candidate of result.results.slice(0, 10)) {
             const detail = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/movie/' + candidate.id, {
-              timeoutMs: timeout(request.timeoutMs), query: { language, append_to_response:'alternative_titles,translations' },
+              timeoutMs: timeout(request.timeoutMs), query: { language, append_to_response:'alternative_titles,translations,release_dates' },
               proxyServer,
             });
             validateMetadataResponse(detail);
@@ -1022,6 +1047,8 @@ function createTmdbProviderAdapter(options) {
         return Object.freeze(result.results.map((item) => Object.freeze({
           providerKey: String(item.id), title: item.title || '', originalTitle: item.original_title || '',
           aliases: aliasEvidence(item),
+          releaseYears: releaseYears(item),
+          posterUrl: typeof item.poster_path === 'string' && /^\/[A-Za-z0-9_-]+\.(?:jpg|png|webp)$/.test(item.poster_path) ? 'https://image.tmdb.org/t/p/w342' + item.poster_path : null,
           releaseYear: typeof item.release_date === 'string' && /^\d{4}/.test(item.release_date) ? Number(item.release_date.slice(0, 4)) : null,
           regionCodes: Object.freeze(Array.isArray(item.origin_country) ? [...new Set(item.origin_country.filter((value) => typeof value === 'string'))].sort() : []),
           genreCodes: Object.freeze(Array.isArray(item.genre_ids) ? [...new Set(item.genre_ids.filter(Number.isSafeInteger).map(String))].sort() : []),
