@@ -362,3 +362,16 @@ Handoff B仍单向、Arca独立验收：同时验证当前Shelf、原Spec、次�
 审批依据：SSOT UAT-261明确限定两份Catalog及全部schema闭包；Engineering Playbook §3.3要求未确认的新合同边界先确认。此缺口涉及历史合同与发布/回退，不改变本次已经确认的双标准业务模型。
 
 候选失败及回退拒绝后的逐行保护复核完成：296 Shelf Entries/296 Deck revisions/22229 Inventory Materials/9511 Product Facts/2946 Representations/993 Candidate Packages/1385候选成员/1158 Run revisions/297 Product Packages/296 On-deck Receipts均missing=0、changed=0，行数不变；integrity_check=ok、FK0。只有隔离副本schema已升级为14c18e017bfce8b78230d0509be1c46fb11c0da95a240396628173a9e71bed73，业务事实没有被改变。
+
+
+### 用户确认及追加范围
+
+2026-09-28 用户已确认补充发布边界：冻结旧合同只读验证终态历史，原记录与摘要不变，新任务严格使用新合同；补齐不丢事实的有界回退验证后继续标准部署。用户另明确旧的已瑕疵上架条目不再修复：本轮不追溯重加工、不撤销上架、不因新接纳标准触发历史瑕疵修复。该限制不取消发布门禁，也不授权生产Reset或覆盖恢复。
+前节四项建议边界已获确认；此前“待确认/仅设计”为历史阶段，尚不代表实现或部署完成。历史已接受瑕疵仍按原接受事实保护，新接纳只准演员关系及质量下限后的体积两项。
+
+
+### 已确认发布补充的实现
+
+历史合同档案来自精确69a82f2a5d776a0bde3ae1bc34ff5fd97c80dfb0，冻结87份语义Manifest及1124份schema，canonical SHA256为1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6，仅绑定本次5387ff...目标Catalog。原UAT-261 witness不变，按原证明核验d2/d8两份终态历史，所有递归依赖必须终态；档案没有Executor注册或恢复权限。d8终态Result按冻结schema核验，d2历史仍遵守原witness明确证明边界，不伪造旧schema或重算未存储的原始完整Plan hash。61项历史证明专项通过。
+
+离线结构回退只覆盖“结构已升级、全部业务事实仍等于完整升级前基线”的窗口，197表逐行摘要及实际DDL证明后原子恢复CHECK/索引/对应marker，不替换业务行。新增事实后拒绝回退，保留数据向前修复；不声称上线产生新事实后仍能直接退旧镜像。4项真实SQLite正反例通过，完整生产副本及实际旧镜像回退待验证。

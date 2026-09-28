@@ -25,7 +25,7 @@ function payload(json, digest) {
 }
 
 function createBoundedCatalogTransition({ witness, registry, policyRegistry, schemas, contractValidator,
-  bindingProjectionRegistry, proofReader, terminalEffectObserver, onRejected }) {
+  bindingProjectionRegistry, proofReader, terminalEffectObserver, onRejected, terminalOnly = false }) {
   const records = new Map(witness.capabilities.map(record => [record.capabilityRef, record]));
   const affected = new Set(witness.capabilities.filter(record =>
     record.previousContractDigest !== record.currentContractDigest ||
@@ -93,6 +93,7 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
     const previous = plan.catalog_digest === witness.previousCatalogDigest;
     requireProof(previous || plan.catalog_digest === witness.currentCatalogDigest, 'Unknown referenced Catalog.');
     const terminal = TERMINAL.has(workAttempt.state);
+    requireProof(!terminalOnly || terminal, 'Historical contract cannot authorize an active Attempt.');
     requireProof(terminal || ['ready', 'running', 'blocked'].includes(workAttempt.state), 'Unknown Work Attempt state.');
     const unaffected = requireUnaffected || !terminal;
     if (!terminal) requireProof(!witness.excludedActiveProcessTypes.includes(work.process_type), 'Excluded active process.');
@@ -257,7 +258,7 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
           committed.length === 1 && committed[0].output_digest === result.result_digest, 'Result has no exact committed Effect.');
       } else requireProof(result.effect_receipt_id === null, 'Pure Result has an Effect Receipt.');
       // Changed terminal payloads are historical evidence, never executable input.
-      if (unaffected) {
+      if (unaffected || (terminalOnly && !previous)) {
         contractValidator.validate(result.result_schema_ref, resultValue);
         contractValidator.validate(result.evidence_schema_ref, evidenceValue);
       }
@@ -321,7 +322,8 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
   return Object.freeze({
     previousCatalogDigest: witness.previousCatalogDigest,
     verify(snapshot) {
-      if (!witnessValid || snapshot?.plan?.catalog_digest !== witness.previousCatalogDigest) return false;
+      if (!witnessValid || (snapshot?.plan?.catalog_digest !== witness.previousCatalogDigest &&
+          !(terminalOnly && snapshot?.plan?.catalog_digest === witness.currentCatalogDigest))) return false;
       const resolution = { proofs:new Map(), pending:null };
       const verify = () => proofReader.verify(reader => {
         const facts = prove(reader, snapshot.plan.plan_id, false, new Set(), new Map(), resolution);

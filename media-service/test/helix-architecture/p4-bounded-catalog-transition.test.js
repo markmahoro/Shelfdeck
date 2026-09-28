@@ -62,7 +62,7 @@ function fixture(settings = {}) {
     bindingProjectionRegistry: { resolve(ref) { assert.equal(ref, 'projection@1'); return {}; } },
     proofReader: { verify(callback) { return callback({ read: id => graphs.get(id),
       workPlanIds: workId => [...graphs.values()].filter(graph => graph.work.work_id === workId).map(graph => graph.plan.plan_id) }); } },
-    terminalEffectObserver:settings.terminalEffectObserver, onRejected: reason => reasons.push(reason) }); }
+    terminalOnly:settings.terminalOnly, terminalEffectObserver:settings.terminalEffectObserver, onRejected: reason => reasons.push(reason) }); }
   return { facts, witness, schemas, registry, graphs, reasons, verify: () => verifier().verify(facts), prefix };
 }
 
@@ -368,3 +368,54 @@ for (const [name, mutate] of [
   ['fake old schema digest', f => { f.witness.preboundEvidenceSchemas[f.inner].previousSchemaDigest = HASH; }],
   ['corrupt SSOT provenance', f => { f.witness.preboundEvidenceSchemas[f.inner].historicalNominalContract.text = 'changed'; }],
 ]) test('prebound Evidence rejects ' + name, () => { const f = preboundFixture(); mutate(f); assert.equal(f.verify(), false); });
+
+
+test('read-only historical verification covers both frozen Catalogs and never accepts active Attempts', () => {
+  const f = fixture({ terminalOnly: true });
+  for (const catalog of [f.witness.previousCatalogDigest, f.witness.currentCatalogDigest]) {
+    f.facts.plan.catalog_digest = catalog;
+    const before = JSON.stringify(f.facts);
+    assert.equal(f.verify(), true, f.reasons.join('\n'));
+    assert.equal(JSON.stringify(f.facts), before);
+    f.facts.workAttempt.state = 'running';
+    assert.equal(f.verify(), false);
+    f.facts.workAttempt.state = 'succeeded';
+  }
+});
+
+test('read-only historical verification rejects active cross-Work dependencies', () => {
+  const f = fixture({ terminalOnly: true }), source = structuredClone(f.facts);
+  source.plan.plan_id = 'source'; source.plan.attempt_id = source.workAttempt.attempt_id = 'source-attempt';
+  source.work.work_id = source.workAttempt.work_id = 'source-work';
+  source.nodes[0].plan_id = source.events[0].plan_id = 'source';
+  source.events[0].attempt_id = 'source-attempt'; source.events[0].work_id = 'source-work';
+  f.graphs.set('source', source);
+  const input = JSON.parse(f.facts.nodes[0].input_bindings_json);
+  input.bindings[0] = { portName: 'value', bindingKind: 'projected_work_results', sourceWorkId: 'source-work',
+    projectionRef: 'projection@1', parameters: {}, resultSchemaRefs: [f.prefix + 'result'] };
+  f.facts.nodes[0].input_bindings_json = JSON.stringify(input);
+  assert.equal(f.verify(), true, f.reasons.join('\n'));
+  source.workAttempt.state = 'running';
+  assert.equal(f.verify(), false);
+});
+
+test('frozen historical archive reconstructs the original witness without registering an executor', () => {
+  const { createTerminalCatalogHistory } = require('../../src/helix/foundation/execution/terminal-catalog-history');
+  const archive = require('../../src/helix/composition/catalog-transitions/secondary-acceptance-history-20260928.json');
+  const witness = require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json');
+  const archiveDigest = '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6';
+  assert.equal(canonicalDigest(archive), archiveDigest);
+  assert.equal(archive.sourceCommit, '69a82f2a5d776a0bde3ae1bc34ff5fd97c80dfb0');
+  const reasons = [];
+  const options = { archive, archiveDigest, witness, currentCatalogDigest: archive.targetCatalogDigest,
+    policyRegistry: { digest: witness.policyDigest }, onRejected: reason => reasons.push(reason) };
+  const history = createTerminalCatalogHistory(options);
+  assert.deepEqual(reasons, []);
+  assert.deepEqual(Object.keys(history).sort(), ['supports', 'verify']);
+  assert.equal(history.supports(witness.currentCatalogDigest), true);
+  assert.equal(history.supports(witness.previousCatalogDigest), true);
+  assert.equal(history.supports(archive.targetCatalogDigest), false);
+  assert.equal(createTerminalCatalogHistory({ ...options, currentCatalogDigest: HASH }).verify({}), false);
+  const corrupt = structuredClone(archive); corrupt.schemas[0].title = 'corrupt';
+  assert.equal(createTerminalCatalogHistory({ ...options, archive: corrupt }).verify({}), false);
+});

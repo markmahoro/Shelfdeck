@@ -15735,3 +15735,12 @@ Movie所有评分及无评分分支均以实际Probe确认Matroska容器，以�
 `ProductionSourceScopeReference`增加可选`workspaceMaterialHandle`，只允许同Run已成功import的stream_file。Resolver必须重建并验证引用digest、活动Workspace及精确成功import Result；它复用原Remux能力，不能授权任意路径。转码/封装及Handoff B的source Probe/read authority绑定实际外部输入，原采购材料的责任结算仍由既有Arca流程处理。仅容器/后缀差距优先Remux，编码或体积差距使用现有有界Transcode；不可修复音轨/身份/像素差距不因寻源耗尽放宽。
 
 `libra_run_revisions.transition_kind`增加`secondary_target`；从active到active仅能记录一次真实Provider成功缺演员证据。重启从不可变Revision恢复目标，不创建第二Run、不重置策略预算；最终附件/媒体未完成前不得生成接纳授权。结构升级仅扩展该CHECK枚举并原样保留所有行与索引，不迁移旧Run业务语义、不扩充历史Catalog witness。
+
+
+### UAT-251/274：历史终态合同及既有瑕疵保护（2026-09-28，用户确认）
+
+本次发布允许冻结精确旧source commit的Manifest及schema传递闭包，以原合同只读验证终态Plan/Attempt/Event/Result及其跨Work依赖；保留原DAG、Owner、摘要及Effect责任证明。不得改写既有UAT-261 witness，不得用Catalog摘要白名单替代完整证明。旧合同不注册Executor，不授权恢复旧执行，不把旧Result改解释为新合同输入；新Plan与接纳严格使用当前合同。未完成Libra/Formation没有兼容权，生产Reset仍需精确授权。
+
+旧的已瑕疵上架条目保持原接受事实，不追溯修复、不重新加工、不因本次新标准撤销上架或触发瑕疵修复。新接纳资格的收紧不追溯改变这些历史。
+
+结构回退必须有界且不丢新增事实；不允许伪改schema marker或删除secondary_target Revision。整份备份恢复只在明确停服窗口、证明没有新增业务事实及相应恢复授权下成立。发布前须在新鲜完整副本验证完整Host、正常协调、历史保护及实际回退。

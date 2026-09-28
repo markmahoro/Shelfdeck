@@ -27,6 +27,8 @@ const { createStartupRecovery } = require('../foundation/execution/startup-recov
 const { createBoundedCatalogTransition } = require('../foundation/execution/bounded-catalog-transition');
 const { createCatalogPlanProofReader } = require('../foundation/execution/catalog-plan-proof-reader');
 const intakeControlCatalogTransition = require('./catalog-transitions/intake-control-20260912.json');
+const secondaryAcceptanceHistory = require('./catalog-transitions/secondary-acceptance-history-20260928.json');
+const { createTerminalCatalogHistory } = require('../foundation/execution/terminal-catalog-history');
 const { createTimeoutController } = require('../foundation/execution/timeout-controller');
 const { createCooperativeExecutionIsolation } = require('../foundation/execution/cooperative-execution-isolation');
 const { createWorkLifecycle } = require('../foundation/execution/work-lifecycle');
@@ -154,10 +156,11 @@ function verifyFailedPreparationRetryPlan(snapshot) {
   return expectedCapabilities.size === 0;
 }
 
-function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition) {
+function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition, terminalHistory) {
   if (!snapshot || !snapshot.plan) return false;
   if (verifyFailedPreparationRetryPlan(snapshot)) return true;
   if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
+  if (terminalHistory?.supports(snapshot.plan.catalog_digest)) return terminalHistory.verify(snapshot);
   if (snapshot.plan.catalog_digest === boundedTransition?.previousCatalogDigest) return boundedTransition.verify(snapshot);
   const previousCatalog = [PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
     PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
@@ -747,11 +750,15 @@ function createProcurementExecutionRuntime(options) {
     registry, policyRegistry, schemas: new Map(runtimeSchemas.map(schema => [schema.$id, schema])),
     contractValidator, bindingProjectionRegistry,
     proofReader:catalogProofReader, terminalEffectObserver });
+  const terminalHistory = createTerminalCatalogHistory({ archive: secondaryAcceptanceHistory,
+    archiveDigest: '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
+    witness: intakeControlCatalogTransition, currentCatalogDigest: catalogDigest, policyRegistry,
+    bindingProjectionRegistry, proofReader: catalogProofReader, terminalEffectObserver });
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     standaloneEffectClasses:Object.freeze(['libra_workspace_material_reclaim','arca_recycle_move','arca_recycle_restore','arca_recycle_purge']),
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
     catalogVerifier: { verify: (snapshot) => verifyStartupPlanCatalog(
-      snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition,
+      snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition, terminalHistory,
     ) },
     effectReconciler, effectJournal });
   function fillPredeckIntakeSeats() {

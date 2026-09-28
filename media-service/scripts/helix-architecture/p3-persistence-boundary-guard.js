@@ -8,6 +8,7 @@ const RAW_SQL_FILES = new Set([
   'foundation/persistence/owner-repository.js',
   'foundation/persistence/sqlite-kernel.js',
   'foundation/persistence/execution-consistency-repair.js',
+  'foundation/persistence/secondary-target-schema-rollback.js',
   'foundation/persistence/uat-identity-selection-migration.js'
 ]);
 

@@ -240,8 +240,8 @@ async function main() {
     ['Recreate through compose', `cd ${shellQuote(COMPOSE_DIR)} && docker compose up -d --force-recreate`],
     ['Wait for boot', 'sleep 8'],
     ['Verify health', [
-      'for i in $(seq 1 36); do',
-      'body=$(curl -fsS http://127.0.0.1:18080/v1/health) || { sleep 5; continue; };',
+      'for i in $(seq 1 180); do',
+      'body=$(curl --max-time 5 -fsS http://127.0.0.1:18080/v1/health) || { sleep 5; continue; };',
       'echo "$body";',
       'printf "%s" "$body" | grep -q \'"status":"ok"\' && exit 0;',
       'sleep 5;',
