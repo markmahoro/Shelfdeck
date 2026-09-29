@@ -2,7 +2,9 @@
 
 Status: historical implementation packets and closure evidence only; not an active plan.
 
-Last updated: 2026-09-03
+Last updated: 2026-09-30
+
+- [20260930_BETA_MOVIE_CLOSEOUT](20260930_BETA_MOVIE_CLOSEOUT/SNAPSHOT.md)：Movie用户阶段验收收尾前活动文档及补充发布状态快照，后续活动转入Series准备。
 
 ## Phase packets
 

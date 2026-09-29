@@ -1,47 +1,27 @@
 # ShelfDeck / Helix 文档索引
 
-Status: Helix-beta 为 Movie-only 完整旅程 A–I；当前迭代统一使用UAT编号，见CURRENT_PLAN。
+更新：2026-09-30。Helix Beta Movie 全链路已获用户阶段验收；当前为 Series 开发准备。Series 尚未交付，Beta 保持 Movie-only A–I。
 
-Last updated: 2026-09-08
-
-## 权威顺序
-
-1. `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md`：唯一架构 SSOT。
-2. `BETA_FEATURE_ACCEPTANCE_BASELINE.md`：Movie-only Helix-beta Definition of Done。
-3. `CURRENT_STATUS.md`：当前事实、部署身份、Gate、风险与最近验证。
-4. `CURRENT_PLAN.md`：唯一 Master Plan；不保存已结束迭代流水账。
-5. `implementation/CURRENT_PHASE.md`：唯一当前 Phase 指针；当前为用户痛点迭代。
-
-冲突时，SSOT 高于 Helix 派生文档；Helix 文档高于 v3/Kairox、v2 和归档历史。实现库存可以因
-Implementation Contract 增长而高于 SSOT 的历史 machine snapshot，但不能改变 Owner、Handoff、业务状态或授权语义。
-
-## 当前入口
+## 权威与当前入口
 
 | 文档 | 用途 |
 | --- | --- |
-| `TOP_DOWN_ARCHITECTURE_CONFIRMATION.md` | Levels 0–10、PBF amendments 与最终审计 |
-| `BETA_FEATURE_ACCEPTANCE_BASELINE.md` | Movie 全链路验收基线；四 profile Matrix 已作废 |
-| `CURRENT_STATUS.md` | PROD-064 后的当前生产与工程事实 |
-| `CURRENT_PLAN.md` | 当前用户痛点迭代及授权 Gate |
-| `ENGINEERING_PLAYBOOK.md` | 实施治理、Owner/Effect/验证/归档规则 |
-| `LEVEL7_BUSINESS_DECISIONS.md` | 已关闭的非 Canonical 业务决策 Evidence |
-| `ARCHITECTURE_REVIEW.md` | 已关闭的非 Canonical 架构审计记录 |
-| `UAT_ITERATION_REGISTER.md` | 唯一完整迭代总表，涵盖全部历史及当前功能/UI事项，逐项关闭 |
-| `PRODUCTION_DEPLOY_ISSUE_LOG.md` | PROD历史证据；编号已映射到UAT总表 |
-| `USER_ACCEPTANCE_TEST_ISSUE_LOG.md` | 冻结UAT历史证据；不再新增迭代编号 |
-| `ADMIN_WEB_UX_ISSUE_LOG.md` | 冻结UX历史证据；新UI项统一使用UAT |
+| [TOP_DOWN_ARCHITECTURE_CONFIRMATION](TOP_DOWN_ARCHITECTURE_CONFIRMATION.md) | 唯一架构 SSOT；含未来 Series 的 Owner、Season/Episode 与连续性合同 |
+| [BETA_FEATURE_ACCEPTANCE_BASELINE](BETA_FEATURE_ACCEPTANCE_BASELINE.md) | 原 Movie-only Definition of Done 与 Movie 回归 Oracle；不改写技术资格验收方法 |
+| [CURRENT_PLAN](CURRENT_PLAN.md) | 唯一 Master Plan：Movie 收尾、Series 准备及后续顺序 |
+| [implementation/CURRENT_PHASE](implementation/CURRENT_PHASE.md) | 唯一活动执行包：UAT-279 Series 准备 |
+| [CURRENT_STATUS](CURRENT_STATUS.md) | 用户阶段接受、最近已记录生产身份、风险及未完成事实 |
+| [ENGINEERING_PLAYBOOK](ENGINEERING_PLAYBOOK.md) | 实施、验证、授权、UI负责人与变更治理 |
+| [UAT_ITERATION_REGISTER](UAT_ITERATION_REGISTER.md) | 唯一迭代总表；各项状态、证据和关闭条件 |
+| [UAT-278 收尾证据](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md) | Movie阶段接受、基线对齐、残余承接、归档及验证边界 |
 
-当前本地实现机器库存为 113 Capability、99 Result family、187 tables、45 Canonical Transactions、
-127 Admin routes 与 17 UI surfaces。SSOT 顶部记录的 active architecture inventory 是设计/语义快照；两种数字的
-职责不同，不得互相覆盖。
+冲突按 SSOT、Master Plan、Playbook、Phase、Status、Evidence 的工程权威顺序处理；Beta验收结果仍受原基线约束。Helix文档高于历史v3/Kairox、v2架构和归档，历史部署/debug规范按适用范围使用。当前机器库存以仓库manifest为准，不在索引固定历史计数。
 
-## 实施证据与归档
+## 历史与证据
 
-- `implementation/evidence/` 保存 P1–P13 Exit、contract、P14 checkpoint 和测试证据。
-- `implementation/archive/` 保存已结束 Phase/生产稳定化包；其索引见
-  `implementation/archive/README.md`。
-- `archive/` 和 `nexora/archive/` 只保存 Top-down 之前的历史，不再指导当前实现。
+- [Movie 收尾快照](implementation/archive/20260930_BETA_MOVIE_CLOSEOUT/SNAPSHOT.md)冻结旧活动文档，不能继续指导当前实施。
+- [implementation/archive 索引](implementation/archive/README.md)记录已结束Phase与稳定化包；`implementation/evidence/`保存验收及发布证据。
+- `LEVEL7_BUSINESS_DECISIONS.md`、`ARCHITECTURE_REVIEW.md`是非Canonical已关闭审查Evidence。
+- `PRODUCTION_DEPLOY_ISSUE_LOG.md`、`USER_ACCEPTANCE_TEST_ISSUE_LOG.md`、`ADMIN_WEB_UX_ISSUE_LOG.md`及`archive/`为历史，新增项只进入UAT总表。
 
-P1–P13 已完成并冻结 E2E-ready package；Movie P14 资格验收与后续生产稳定化已完成。当前用户痛点迭代见唯一活动包。
-新的实现工作必须先在 `CURRENT_PLAN.md` / `implementation/CURRENT_PHASE.md` 建立唯一指针并取得相应 Gate；
-Production、Formation Reset、真实媒体副作用和 `media-desktop` 仍需各自明确授权。
+阶段接受不批量关闭残余UAT，不新增技术资格总体PASS；未来Series必须独立完成真实链路与Movie回归。生产、Formation Reset和真实媒体副作用继续按明确授权及精确范围执行。

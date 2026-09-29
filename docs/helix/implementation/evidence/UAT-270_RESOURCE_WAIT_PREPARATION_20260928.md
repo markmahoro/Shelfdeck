@@ -24,3 +24,7 @@ Windows Governor/Event Runtime专项65通过；Aftercare/Host/Scheduler专项78�
 本机Docker Desktop启动失败：Inference运行时通信入口`dockerInference`无法访问，后端退出。正常停止后精确重命名该入口失败；精确清理该入口的请求被自动审批策略拒绝，未执行。没有恢复出厂、清理镜像或修改NAS数据。Linux验证和标准镜像构建因此阻塞，须待本机Docker恢复后继续，不能用Windows检查代替Linux或生产验收。
 
 2026-09-28接续：已通过SSH隧道使用NAS Docker完成包含本批的Linux188项回归，0失败/跳过；临时单测容器不挂载生产数据、无网络且限制CPU/内存。随后继续标准镜像脚本；本机Docker本身尚未修复。
+
+## 发布结果
+
+2026-09-28已随1281d4dd76标准发布，备份、SHA256与过程限制见[UAT-271](UAT-271_AFTERCARE_RECOVERY_DRIFT_20260928.md)。正常调度开启，旧转码由Attempt 2继续执行，精确Entry新检查完成三维healthy；等待提示、容量释放及跨次输入新鲜性由Windows/Linux专项覆盖。未在生产制造高并发压力，也未把第一批已解除的复制瓶颈重复计为本批性能收益；本批不追加高并发吞吐量化结论。

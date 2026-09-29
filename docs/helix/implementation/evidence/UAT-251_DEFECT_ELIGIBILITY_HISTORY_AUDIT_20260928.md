@@ -386,3 +386,68 @@ Handoff B仍单向、Arca独立验收：同时验证当前Shelf、原Spec、次�
 其中23条Candidate Publish历史保存的是原Producer明确写入的TriageStructureEvidence引用（schemaRef/schemaVersion/evidenceId/payloadDigest），不是完整观察。原witness已经证明这一prebound Evidence形式；新只读校验应保留原提交链校验，不能按完整观察schema重新解释。已修正这一校验错误；仍验证Result完整schema，direct Evidence仍须满足完整冻结schema，新增正反例后63项历史专项通过。没有重写原证据。
 
 另外2条为新备份时仍在执行的旧合同Libra Run：教父3（248e858a3dd93d9dbb285b8938e5c29feb03fceac534ba728ffe8e905d8aabec）正在转码；长安的荔枝（02ab53cbefabf0398db255efbd19871bc561d311b62cb6a6056278b63f62a006）等待资源。两条不能借历史只读证明获得新版本执行权，也没有清理/放弃授权；保持生产69a82f2a5d运行，未apply。已询问部署时机偏好：等待自然结束，或精确授权正式放弃两条并保留原文件；未收到选择前不终止任务。它们不是本次要求不再修复的旧已瑕疵上架条目。
+
+
+### 最终候选与已完成保护证据
+
+候选07172d4c150114d3082aae812a4dd01080d8a61a，tag `helix-beta-20260928-07172d4c15`，tar SHA256 ad2598953c822db4157dd1da2d42318e5fcd3039ed06e491b63d8a92779036bc，NAS image ID sha256:10336dd9847f7f34ac537953875191b42e89e3701a5419cea889004bf8bcd13a。标准构建/上传校验/dry run通过；Windows完整架构240文件及全部组件通过；精确镜像Linux70项全部通过（历史63、真实外部链路3、结构回退4）。
+
+在同一新鲜副本上，用真实composition提供的Policy、Proof Reader和Owner观察器进行定向只读复验，23条Candidate Publish终态全部通过，2条非终态仍拒绝；06:05:10Z至06:08:37Z。该harness在Execution Host启动前结束，明确不是完整Host发布门禁替代物。
+
+完整新鲜副本结构升级、dry run、实际回退于05:50:33Z至06:02:57Z通过；197表事实逐行一致，原CHECK/索引与匹配marker原子还原，未用基线覆盖任何业务行。随后实际旧镜像Host验证另记，不能以结构成功代替服务成功。
+
+候选失败及定向只读复验后的保护：299 Shelf Entries/299 Deck revisions/22399 Inventory Materials/9542 Product Facts/2955 Representations/993 Candidate Packages/1385候选成员/1169 Run revisions/300 Product Packages/299 On-deck Receipts均missing=0、changed=0，行数不变；integrity_check=ok，FK0。旧已瑕疵上架事实保持，生产未apply。
+
+
+### 实际旧镜像回退Host与最终停止点
+
+实际69a82f2a5d旧镜像在完成结构回退的同一新鲜副本上，06:05:12Z启动至06:13:00Z关闭。完整Host启动、health200、normalSupplyAllowed=true、65秒协调后仍ready、关闭均完成；但运行中记录5个隔离物理操作错误（3个EROFS临时文件unlink、2个ENOENT暂存目录mkdir），所以严格harness的ok=false/exit1。这是“结构回退和旧服务启动通过，完整正常协调门禁未过”，不能以健康接口代替通过，也不为测试开放生产媒体写权限。生产五个挂载的实际源路径与harness一致；保留原始错误，不将ENOENT擅自归为已证实的单一原因。
+
+最后只读核验：教父3/长安的荔枝仍active revision2，旧Catalog非终态Attempt共2个。生产仍69a82f2a5d，paused=false，health正常，normalSupplyAllowed=true。用户未选择放弃，两任务未终止；不将部署授权扩大为生产Reset/放弃授权。5个本轮隔离测试容器均在退出后保存日志并删除；备份、数据副本和报告保留，未留下任务服务。
+
+继续条件：两条在途任务自然结束（或获得精确正式放弃授权并完成责任收尾）后，重新取得一致新鲜备份，补跑候选完整Host与正常协调、结构回退及旧Host正常协调、历史保护；这些门禁通过后才标准apply。当前实现与测试镜像已备妥，但未部署、未关闭UAT-251/274。
+
+### 必要 Reset 授权及副本演练（2026-09-28，继续发布）
+
+用户最新明确“把新版本推上线吧，必要时授权reset”。本次精确限定两个仍未完成的 Subject：教父3 `libra-subject-5c05f87ecfd59869882cb18b7c6b967a417b0fb7`、长安的荔枝 `libra-subject-5eeadd335ffdbb10e49903b836a7a454277481ed`；不扩大到已 Commit 收藏，不修复旧已瑕疵上架条目。前述未获 Reset 授权是此前历史时点。
+
+fnOS只读preflight通过。新鲜备份 `/vol1/1000/docker/shelfdeck/backups/uat251274-reset-release-20260928`，data.sha256摘要 `061c8a744de12595703f8b398a342967811e051dd3674c1ac472b9ea0f508eab`、config.sha256摘要 `db6d34376695997cc4b10214ebcd435a0bf6395160d09d8d05cfd902469f0a68`。短暂pause取得一致副本后立即unpause，后续副本演练期间生产仍运行69a82f2a5d。
+
+隔离路径 `/vol1/1000/docker/shelfdeck/test-runs/uat251274-reset-release-20260928`。正式 Formation Reset 工具在副本按精确 Subject 范围执行成功：删除2 Subject/2 Run/28 Work、0 Product Package、0 On-deck Run；恢复2 Procurement Control，重新开放2 Handoff A Delivery/Reservation。冻结删除清单摘要 `431fb50993e0e9b2756c5c3c37a1278c9a483c61c6cca78feaeea5d54a1d5f4b`，integrity=ok/FK0。副本未配置transcode-dir，因此未清理物理Workspace；生产步骤须通过正式operator处理精确Workspace，并保留原始媒体。
+
+
+副本完整Host于06:33:21Z至06:42:33Z再次拒绝：仅剩1条旧合同非终态Plan，来自备份前06:18Z已接入的《火烧天堂镇》，Subject libra-subject-3641e414d857c74275c45a2e3f76f4c4f7236454，Run 94bfea4a267abf7651ff5c0c9f66e2e6be33e316ba769a3f65067fe3725c19a0。此前按两条范围预检未覆盖这一新增任务；没有修改历史验证器放行。按用户必要Reset授权，停止旧ShelfDeck冻结入口后，实际活动Run精确为上述3条，范围追加火烧天堂镇；重新取得停服备份并演练。
+
+此前两条Reset副本保护验证通过：300 Shelf Entries/300 Deck revisions/22767 Inventory Materials/9588 Product Facts/2969 Representations/993 Candidate Packages/1385候选成员/301 Product Packages/300 On-deck Receipts均missing0/changed0；仅两条目标Run的4个Revision删除，其他Run Revision不变，integrity=ok/FK0。
+
+
+停服基线备份 /vol1/1000/docker/shelfdeck/backups/uat251274-offline-20260928：data.sha256摘要49843aba5f46c326fd61edaa9bae724cd7f7c5b45c4f27337626dbd48c663652；config.sha256摘要仍db6d34376695997cc4b10214ebcd435a0bf6395160d09d8d05cfd902469f0a68。对应最终副本 /test-runs/uat251274-offline-20260928 的三条精确Reset成功，删除3 Subject/3 Run/41 Work、0 Product Package/On-deck Run，恢复3 Procurement Controls与3 Handoff A，integrity=ok/FK0，manifestDigest=5a4bad8c74272607801321fcba4a7ee783ab464723a387c023698525811a08d3。生产与候选的正式Reset脚本SHA256同为fd6e0015f59709b7351c8b591b60271978292c55516b388c562d9eb09b856eb2。生产operator离线dry run确认ready=true/blockers空，与副本同范围。
+
+回退结构演练在前述两条Reset基线上于06:33:20Z至06:48:29Z完成：实际结构升级、197表dry run与apply均通过。随后同一回退副本用正式工具追加Reset第3条（13 Work、1 Run、0已上架包，integrity=ok/FK0），再启动旧69a82镜像完整Host。该谱系与最终三条Reset候选副本分别保留，不能称为最终停服备份的字节相同副本。
+
+
+最终候选完整Host（07172d4c15）06:51:09Z至06:57:51Z通过：ready、health200、normalSupplyAllowed=true、65秒正常协调后仍ready、close成功，errors=[]、historyRejections={}。实际回退后的旧69a82完整Host于06:51:07Z至06:55:53Z通过，同样65秒协调、errors=[]、close成功；此前隔离EROFS/ENOENT未再出现。
+
+最终三条Reset副本保护通过：300 Shelf/Deck/On-deck Receipts、22775 Materials、9591 Product Facts、2970 Representations、993 Candidate Packages、1385候选成员、301 Product Packages均missing0/changed0；仅3个目标Run的6个Revision删除，其他Run记录不变，integrity=ok/FK0。停服后另记录三条任务19个原文件的路径、inode、大小、mtime与中部256KiB指纹，供生产Reset后比较。
+
+正式operator已执行 scripts/formation-reset-nas.js --apply --confirm FORMATION_RESET_V2 --keep-stopped --subject-ids <上述3个Subject>，自动备份位于 /vol1/1000/docker/shelfdeck/backups/formation-reset-20260928T065625Z/data；部署仍通过既定build/upload/deploy脚本，不直接替换Compose镜像。执行最终结果后记。
+
+
+正式生产Reset完成，保持服务停止直至标准部署；目标活动Run归零、Shelf Entry仍300。19个原文件的inode/大小/mtime/中部指纹全部一致。候选完整Host运行后另作保护复核：上述9组收藏/候选/成品/提交事实仍missing0/changed0；3个已Reset旧Run的6个Revision删除，新版正常协调另追加12个Run Revision，原历史行无修改，integrity=ok/FK0。不能将该已新增事实的Host副本用于无事实变化结构回退。
+
+
+生产Reset实际结果与副本相同，删除清单摘要5a4bad8c74272607801321fcba4a7ee783ab464723a387c023698525811a08d3；正式工具清理3个精确Workspace（2de58d...、945bb3...、da76d5...），不挂载/media，幂等复查目标残留为0，integrity=ok/FK0。另保存实际生产Reset后基线 /vol1/1000/docker/shelfdeck/backups/formation-reset-20260928T065625Z/post-reset-data，post-reset-data.sha256摘要3ed62498977e23cdbc2289892fd838c09a409ae3840a68cc4d2b55e01e285ff8。原Reset前备份保留，回退基线不得误用Reset前旧任务数据。
+
+标准deploy-nas.js带精确tar SHA256的apply已切换容器，StartedAt=2026-09-28T07:04:48.803796042Z；最终健康与管理接口验收后记。测试容器已保存日志并逐一清理，备份与报告保留。
+
+### 本轮正式发布结果
+
+2026-09-28 15:11 CST上线验收完成。生产镜像 `markmahoro/shelfdeck:helix-beta-20260928-07172d4c15`，source `07172d4c150114d3082aae812a4dd01080d8a61a`，tar SHA256 `ad2598953c822db4157dd1da2d42318e5fcd3039ed06e491b63d8a92779036bc`，image ID `sha256:10336dd9847f7f34ac537953875191b42e89e3701a5419cea889004bf8bcd13a`。标准build/upload/checksum/dry-run/apply链路完成，容器StartedAt `2026-09-28T07:04:48.803796042Z`，RestartCount=0，paused=false。
+
+LAN实测 `/v1/health`、`/admin`、`/v1/admin/overview`、`/v1/admin/collection?limit=1`、`/v1/admin/formation`、`/v1/admin/formation/defect-authorization` 均200；health=ok、normalSupplyAllowed=true。原自动授权enabled/revision1保持；改变的是共享接纳标准及规划，不重新创建授权。五个持久挂载、QSV及镜像代码来源通过，Secret与停服前备份字节相同，fnOS5666=200，其他容器未重建。启动日志仅正常listening，复查健康正常。
+
+实际生产Reset后基线的独立逐行验证与最终上线后的只读事务复验均完成。原300 Shelf Entry、300 Deck Revision、22775 Inventory Material、9591 Product Fact、2970 Representation、993 Candidate Package、1385候选成员、301原Product Package、300 On-deck Receipt均missing0/changed0；仅授权3条Run的6个Revision删除，未改其他历史Revision。正常供给已追加12个Run Revision与2个Product Package；此时已不满足“全部事实等于发布前基线”的结构回退条件，不能直接退旧镜像或覆盖旧备份。保留现场向前修复规则继续有效。生产Reset前后19个原文件已独立核对无变化。
+
+本轮最终测试证据：Windows完整架构240文件；精确镜像Linux70项（历史63、真实外部加工上架E2E3、结构回退4）；新鲜副本精确Reset/保护；候选完整Host+正常协调；197表实际结构回退及随后旧Host+正常协调，均通过。没有重新宣称此前7个既有schema-migration夹具失败已消失，也未重跑无关全套服务测试。全部任务测试容器退出后保存日志并清理，NAS备份、谱系副本及报告保留。
+
+本次部署不修复、不撤下、不重加工旧已瑕疵上架影片；没有重跑《阳光灿烂的日子》的真实外部下载或宣布其已达标。UAT-251/274的实现与发布已完成，整项逐景业务验收保持独立开放。

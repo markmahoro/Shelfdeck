@@ -1,17 +1,12 @@
 # ShelfDeck 统一 UAT 迭代总表
 
-2026-09-22：UAT-125/212/250 接续本批整理失败修复，用户已授权；Provider 退避/诊断、当前事实活动过滤和预检执行保护见 [证据](implementation/evidence/UAT-125_212_250_FAILURE_CONVERGENCE_20260922.md)。仅记候选实现与本地验证，不关闭原项；生产发布、Linux/QSV及页面验收待完成。
+更新：2026-09-30。唯一活动迭代台账，编号连续至 UAT-279。UAT-001–277 保留原编号及历史；新增 278 为 Movie 阶段文档收尾，279 为 Series 准备。PROD/UX/AC/BR 只保留历史别名。
 
-更新：2026-09-12。**唯一活动迭代台账；按项验收、按项关闭。** 覆盖全部143个历史UAT、78个PROD、40行UX（含两组重号）、10个AC和2个BR。新编号从UAT-144接续；PROD/UX/AC/BR停止新增。旧编号、文件、提交和测试名不改写。
+用户已接受 Movie 全链路阶段成果；未完成的业务验收仍逐项开放，不以部署或阶段接受批量关闭。旧“待核实”不代表当前已证实缺陷。收尾及交付状态对齐见 [UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)，下一阶段见 [CURRENT_PLAN](CURRENT_PLAN.md) 和 [CURRENT_PHASE](implementation/CURRENT_PHASE.md)。
 
-总表编号连续至UAT-273。历史UAT-011～049从正文/关闭矩阵补入；PROD-033/034从归档补入。相同主题不等于相同缺陷：后续事故或复发保留独立条目；只有明确同结果才合并别名。UX-030/031按标题消歧。
+UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；旧集成区冲号只作历史。UAT-270/271和251/274已补入后续发布Evidence；271按原执行正式收尾和新Basis重检证据恢复已关闭状态，其余保留自身验收条件。旧总体计数冻结在收尾快照，以本表逐行状态为准。
 
-状态说明：历史已关闭保留当时证据，并不宣称本次重测；已实现/已部署不等于已关闭；待核实不是当前已证实缺陷。原表与后续完整关闭证据冲突时采用后者并链接。没有证据的事项不批量关闭。
-
-[全量前后合同审查](implementation/evidence/UAT_FULL_CONTRACT_CONSISTENCY_AUDIT_20260909.md)已完成，三项业务冲突均由用户确认并以`14cf2d9a0`同步合同；用户要求整理文档后继续推进。历史标题不是现行Oracle；下述承接条件与SSOT后续优先条款共同适用。当前73项本轮功能验收关闭、32项开放，206被取代承接已核实；另有153项历史关闭、220文档关闭及1项非缺陷接受。
-
-执行顺序见[CURRENT_PLAN](CURRENT_PLAN.md)。每次完成一项，更新该行的提交、用户结果证据、剩余工作和状态；需要部署的先部署/验收再关闭。编号合并不触发生产操作。
-
+状态说明：历史已关闭保留当时证据，不宣称本次重测；已实现/已部署不等于已关闭；阶段文档关闭不等于功能验收关闭。每次只根据对应项的现行合同及Evidence更新。
 | UAT编号 | 迭代项 | 分类 | 当前状态 | 历史编号 | 实现提交 | 验收/部署证据 | 剩余工作或关闭条件 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | UAT-001 | 豆瓣评分与Libra Subject匹配率明显偏低 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-001逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
@@ -278,21 +273,18 @@
 | UAT-262 | 工程旧备份、镜像包与闲置测试副本累积导致 vol1 满盘 | OPERATIONS | 已关闭（本批清单） | 253关闭后的复发；2026-09-20用户授权清理 | 112a4ac36；98目标清单/逐项删除Receipt及17:15复核 | [现场及处置](implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md) | 冻结清单、挂载及恢复职责核验；精确清理并证明生产数据/必要恢复资料不变、空间恢复。 |
 | UAT-263 | Aftercare 工作盘未跟随用户 Workspace 设置 | CONFIGURATION | 候选验证通过；生产切换待264收尾 | 2026-09-20用户确认统一设置 | 884a154def | [现场及处置](implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md) | 共用 vol2 Workspace 配置，保持领域命名空间隔离、路径冲突和活动引用保护；生产无需第二个配置。 |
 | UAT-264 | Aftercare 与 Libra Workspace 自动回收规则不一致 | RESOURCE_LIFECYCLE | 已部署，新实际GC及黑寡妇partial回收通过；3项历史身份漂移待合同确认 | 2026-09-20用户要求对齐 | 112a4ac36、b048cbf36、7173d33fff、19d13f7b58 | [现场及处置](implementation/evidence/UAT-251_ACCEPTED_DEFECT_RECOVERY_20260912.md) | 逐项覆盖终态、双轮引用安全、未决 Effect、partial/orphan、崩溃恢复及 Receipt；生产真实回收后验收。 |
-
 | UAT-265 | 同stem带前缀海报/背景图被归为普通sidecar | MATERIAL_CLASSIFICATION | 已部署，新片实际入库及旧收藏修复验收待补 | 用户报告局内人；关联076/251 | 22e52724b、459efebbf2 | [根因及验收](implementation/evidence/UAT-265_PREFIXED_ARTWORK_ROLE_20260922.md) | 新Candidate正确识别，跨片/跨目录负向保持；已入库局内人走正式Arca修复，不重写历史。 |
 | UAT-266 | Movie成品统一Matroska/.mkv，新Run和已上架Entry均满足 | MEDIA_STANDARD / AFTERCARE | 生产规则已发布，19片逐项修复与新Run验收中 | 用户确认新片与存量都统一；关联251/263/264 | 44acda5fc、4dd6ba940 | [实施与验收](implementation/evidence/UAT-266_MOVIE_MATROSKA_STANDARD_20260923.md) | Libra容器/后缀单一Gap无损Remux，其他Gap按规格处理；系统Template受控升版后Aftercare逐项评估和修复19个现存`.mp4`，保持Entry身份、Inventory与原片安全；以真实Probe及文件名验收。 |
 | UAT-267 | Shelf Standard 升版后已 Accepted 的三条 On-deck Run 错用当前 revision、执行失败却显示整理中 | RECOVERY_CORRECTNESS / UI_STATUS | 隔离修复及本地验证通过；生产未发布、三片未恢复 | 2026-09-23生产事故；关联266 | 8ec0f3990 | [实施与恢复门禁](implementation/evidence/UAT-267_ONDECK_FROZEN_BASIS_20260923.md) | 冻结 Basis贯穿后续阶段与恢复；当前安全 Fence 不放宽；生产副本完整 Host、负向与正式 Retry 门禁通过后由部署负责人逐条恢复并验证唯一 Commit、Shelf Entry、Deck Fact、Inventory及 Aftercare revision 2 重评；页面与计数恢复真实状态。 |
 | UAT-268 | active整理Run点击“放弃整理”后仍留在需要处理 | UI_RESULT / LIBRA_TERMINAL | 已关闭（2026-09-24生产正式操作验收） | 用户报告《局内人 (2006) 1080p DTS-sample》；2026-09-24明确允许扩展active放弃合同；关联251/155/166 | 08a39571d、da21c642f、cdcab6dbab | [发布与验收](implementation/evidence/UAT-268_ACTIVE_RUN_DISCARD_20260924.md) | 指定sample页面显示已结束，Run discarded/Outcome user_cancelled/唯一Decision和Receipt、Control released；无Workspace Cleanup义务；原sample文件及已入库正片身份和Inventory保持。pending防虚报由定向测试覆盖。 |
 | UAT-269 | 外部寻源导入复制极慢 | PERFORMANCE / RECOVERY | 已关闭（2026-09-28原任务导入验收） | 《荒野猎人》现场；关联210 | 5bb030534c、b8cf321d65 | [修复证据](implementation/evidence/UAT-269_EXTERNAL_IMPORT_COPY_20260928.md) | 复用已下载源完成同任务导入，验证吞吐、原件不变、唯一副本及恢复；后台治理独立实测。 |
-| UAT-270 | 资源等待重复准备输入导致主线程拥堵 | PERFORMANCE / RESOURCE_WAIT | Windows专项与完整架构通过；Docker阻塞Linux/构建，未部署 | UAT-269现场衍生；关联210 | 本分支UAT-270实现提交（见git历史） | [实施证据](implementation/evidence/UAT-270_RESOURCE_WAIT_PREPARATION_20260928.md) | 容量未释放时有界抑制重复准备，释放后重新核验输入及Fence，保持公平与恢复；同次Aftercare投影只读一次上下文，跨次保持新鲜。 |
-
-| UAT-271 | Aftercare评估依据变化后旧提交恢复无限漂移 | RECOVERY_CORRECTNESS | 根因已证实，修复及验证中 | 用户要求查清复发；关联210/125 | 待提交 | [证据](implementation/evidence/UAT-271_AFTERCARE_RECOVERY_DRIFT_20260928.md) | 旧Evidence不重标新Basis；精确证明未提交后正式失败收尾；当前Basis新检查可推进，保护Inventory与其他任务。 |
-
+| UAT-270 | 资源等待重复准备输入导致主线程拥堵 | PERFORMANCE / RESOURCE_WAIT | 已部署，Windows/Linux及生产接续通过；未追加高并发定量结论 | UAT-269现场衍生；关联210 | 244a2d5d9；发布1281d4dd76 | [实施证据](implementation/evidence/UAT-270_RESOURCE_WAIT_PREPARATION_20260928.md) | 容量未释放时有界抑制重复准备，释放后重新核验输入及Fence，保持公平与恢复；同次Aftercare投影只读一次上下文，跨次保持新鲜。 |
+| UAT-271 | Aftercare评估依据变化后旧提交恢复无限漂移 | RECOVERY_CORRECTNESS | 已关闭（2026-09-28原执行收尾与当前Basis重检验收） | 用户要求查清复发；关联210/125 | 1281d4dd76 | [证据](implementation/evidence/UAT-271_AFTERCARE_RECOVERY_DRIFT_20260928.md) | 旧Evidence不重标新Basis；精确证明未提交后正式失败收尾；当前Basis新检查可推进，保护Inventory与其他任务。 |
 | UAT-272 | 金都首映年与主上映年不同导致正确身份被丢弃 | IDENTITY_EVIDENCE | 已部署，待新观察业务验收 | 用户确认修复；关联151/217 | 69a82f2a5d | [证据](implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md) | TMDB首映/各地上映年份支持唯一同名匹配；年份不一致保留人工候选，多义/异名不自动接受；正负路径已验证并由本线程发布，待新观察业务验收。 |
 | UAT-273 | 空候选无人工身份入口，缺少手动ID预览确认 | UI / IDENTITY_SELECTION | 已部署，真实预览/取消通过，待正式选择验收 | 用户指定同单元格按钮及浮窗预览 | 69a82f2a5d | [证据](implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md) | GET预览无领域写入；有效ID预览后正式选择，改ID/迟到响应/失败/取消/重复提交/状态漂移及键盘路径验证，生产UI验收后关闭。 |
-
-| UAT-274 | 外部候选缺ID时可信中英文别名未传入匹配，同片被误拒绝 | IDENTITY_MATCHING | 本地/Linux通过；生产副本Catalog门禁阻断，未部署 | 本聊天原记268因旧集成台账滞后冲号，现更正274；关联168/251，保护021历史 | 0f3b02ea50、12ac3ec725 | [审计](implementation/evidence/UAT-251_DEFECT_ELIGIBILITY_HISTORY_AUDIT_20260928.md) | 可信别名绑定精确影片ID及来源；同片异名正向、同名异片和ID冲突负向；不得把搜索命中自证同片；独立验收。 |
-
+| UAT-274 | 外部候选缺ID时可信中英文别名未传入匹配，同片被误拒绝 | IDENTITY_MATCHING | Windows/Linux及完整Host通过；已部署07172d4c15，指定影片实际验收待补 | 本聊天原记268因旧集成台账滞后冲号，现更正274；关联168/251，保护021历史 | 0f3b02ea50、12ac3ec725、07172d4c15 | [审计](implementation/evidence/UAT-251_DEFECT_ELIGIBILITY_HISTORY_AUDIT_20260928.md) | 可信别名绑定精确影片ID及来源；同片异名正向、同名异片和ID冲突负向；不得把搜索命中自证同片；独立验收。 |
 | UAT-275 | 蓝光多片段源被单文件交付断言拒绝 | LIBRA_DELIVERY | 已部署，原片重处理待验 | 惊爆十三天今日终局 | c147188485 | [证据](implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md) | 双片段真实Host唯一Commit，Source范围和验证依据完整，Linux及生产验证。 |
 | UAT-276 | 外部原生4K的接纳来源及同材料校验 | ACCEPTANCE | 已部署，原片重处理待验 | 荒野猎人今日误判 | c147188485 | [证据](implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md) | 实际外部来源绑定，原生4K/加工正向、真正升频及来源漂移负向、正式Commit。 |
 | UAT-277 | Provider/附件失败网络诊断丢失 | INTEGRATION_DIAGNOSTICS | 诊断修复已部署；网络瞬断原因未确认 | 今日身份/寻源/附件失败 | c147188485 | [证据](implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md) | 白名单详情持久化，Secret不泄露、写入安全保持；区分网络可达性与真实业务成功。 |
+| UAT-278 | Helix Beta Movie 阶段收尾与生产/验收记录对齐 | DOCUMENTATION / STAGE_ACCEPTANCE | 文档关闭（2026-09-30用户阶段接受及收尾记录） | 本聊天用户确认Movie全链路跑通 | 本分支UAT-278交付提交 | [收尾证据](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md) | 用户接受、生产身份、残余项和历史归档可追溯；没有批量关闭功能UAT，没有新增冻结SHA总体PASS或release tag。 |
+| UAT-279 | Series首版范围、实现差距与验收准备 | DESIGN / READINESS | 准备中；初步只读盘点完成，完整差距及验收矩阵待补 | 本聊天用户要求准备剧集大版本 | 未实施功能 | [唯一活动Phase](implementation/CURRENT_PHASE.md) | 完成逐段接线审查、样本manifest、明确首版范围和可独立验收实施项；S00/N:M计量等按SSOT复审；不以已有合同测试宣称真实链路可用。 |
