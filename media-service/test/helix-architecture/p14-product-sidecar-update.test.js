@@ -112,8 +112,9 @@ function render(sourceBytes, overrides = {}) {
     const handle = port.renderProductSidecar({
       productMetadataDraft:overrides.productMetadataDraft || draft(),
       mediaCastDraft:overrides.mediaCastDraft || mediaCastDraft(),
-      sidecarProfile:profile(), libraRunId:'run-1',
-      workspaceId:'workspace-1', relativePath:'product/movie.nfo', contentProfile:'movie',
+      sidecarProfile:overrides.sidecarProfile || profile(), libraRunId:'run-1',
+      workspaceId:'workspace-1', relativePath:overrides.relativePath || 'product/movie.nfo',
+      contentProfile:overrides.contentProfile || 'movie',
       relatedReference:reference,
     });
     return { handle, output:write.bytes.toString('utf8'), before,
@@ -122,6 +123,111 @@ function render(sourceBytes, overrides = {}) {
     fs.rmSync(root, { recursive:true, force:true });
   }
 }
+
+function episodeProfile(parameters) {
+  const { digest:_digest, ...body } = profile();
+  const values = parameters || [
+    { parameter:'episodeNumber', valueType:'integer', value:2 },
+    { parameter:'rootElement', valueType:'string', value:'episodedetails' },
+    { parameter:'seasonNumber', valueType:'integer', value:1 },
+  ];
+  body.profileId = 'series-episode-nfo';
+  body.typedParameters = values.map((item) => ({ ...item, valueDigest:canonicalDigest(item) }));
+  return { ...body, digest:canonicalDigest(body) };
+}
+
+function episodeDraft(overrides = {}) {
+  return draft(Object.entries({ series_title:'Demo & Show', tmdb_series_id:'1399',
+    season_number:1, episode_number:2, episode_title:'Episode <Two>', episode_plot:'Episode & plot',
+    plot:'Whole Series plot', ...overrides }).map(([key,value]) => ({ key, value })));
+}
+
+function renderEpisode(source, overrides = {}) {
+  return render(source, { contentProfile:'series', relativePath:'product/S01E02.nfo',
+    sidecarProfile:episodeProfile(), productMetadataDraft:episodeDraft(), ...overrides });
+}
+
+test('Episode Sidecar uses scoped title/plot and never labels Series TMDB identity as Episode identity', () => {
+  const result = renderEpisode(null);
+  assert.match(result.output, /^<episodedetails>/);
+  assert.match(result.output, /<title>Episode &lt;Two&gt;<\/title>/);
+  assert.match(result.output, /<showtitle>Demo &amp; Show<\/showtitle>/);
+  assert.match(result.output, /<season>1<\/season>/);
+  assert.match(result.output, /<episode>2<\/episode>/);
+  assert.match(result.output, /<plot>Episode &amp; plot<\/plot>/);
+  assert.doesNotMatch(result.output, /Whole Series plot|<tvshow>|<uniqueid|<tmdbid>1399/);
+  assert.equal(result.handle.provenanceRef.objectType, 'product_metadata_draft_create');
+});
+
+test('Episode Related NFO preserves unmanaged fields, updates direct fields, and leaves the source untouched', () => {
+  const source = '<episodedetails><title>Old</title><showtitle>Demo &amp; Show</showtitle>' +
+    '<season>1</season><episode>2</episode><plot>Old plot</plot><watched>true</watched></episodedetails>';
+  const result = renderEpisode(source);
+  assert.equal(result.handle.provenanceRef.objectType, 'related_nfo_update');
+  assert.match(result.output, /<watched>true<\/watched>/);
+  assert.match(result.output, /<title>Episode &lt;Two&gt;<\/title>/);
+  assert.match(result.output, /<plot>Episode &amp; plot<\/plot>/);
+  assert.deepEqual(result.after, result.before);
+});
+
+for (const [label, source] of [
+  ['wrong Season', '<episodedetails><season>2</season><episode>2</episode><note>foreign</note></episodedetails>'],
+  ['wrong Episode', '<episodedetails><season>1</season><episode>3</episode><note>foreign</note></episodedetails>'],
+  ['wrong Series', '<episodedetails><showtitle>Another Show</showtitle><season>1</season><episode>2</episode><note>foreign</note></episodedetails>'],
+  ['no Episode scope', '<episodedetails><title>Unknown</title><note>foreign</note></episodedetails>'],
+  ['Season root', '<tvshow><title>Demo</title><note>foreign</note></tvshow>'],
+]) {
+  test(`Episode NFO rebuilds ${label} without borrowing unrelated fields or changing its source`, () => {
+    const result = renderEpisode(source);
+    assert.equal(result.handle.provenanceRef.objectType, 'product_metadata_draft_rebuild');
+    assert.doesNotMatch(result.output, /foreign/);
+    assert.match(result.output, /<episode>2<\/episode>/);
+    assert.deepEqual(result.after, result.before);
+  });
+}
+
+for (const [label, fields] of [
+  ['wrong Episode', { episode_number:3 }], ['wrong Season', { season_number:2 }],
+  ['missing Episode title', { episode_title:'' }], ['missing Episode plot', { episode_plot:' ' }],
+  ['missing Series title', { series_title:'' }], ['boolean Episode number', { episode_number:true }],
+]) {
+  test(`Episode Sidecar rejects ${label} rather than writing an incomplete Artifact`, () => {
+    assert.throws(() => renderEpisode(null, { productMetadataDraft:episodeDraft(fields) }),
+      { code:'CLEAN_PRODUCT_SIDECAR_INPUT_INVALID' });
+  });
+}
+
+test('Episode Sidecar accepts source NFO integer strings against the frozen numeric scope', () => {
+  assert.match(renderEpisode(null, { productMetadataDraft:episodeDraft({ season_number:'01', episode_number:'002' }) }).output,
+    /<episode>002<\/episode>/);
+});
+
+for (const [label, parameters] of [
+  ['missing root', [{ parameter:'episodeNumber', valueType:'integer', value:2 }]],
+  ['missing scope', [{ parameter:'rootElement', valueType:'string', value:'episodedetails' }]],
+  ['unknown root', [
+    { parameter:'episodeNumber', valueType:'integer', value:2 },
+    { parameter:'rootElement', valueType:'string', value:'unknown' },
+    { parameter:'seasonNumber', valueType:'integer', value:1 },
+  ]],
+]) {
+  test(`Episode Sidecar rejects ${label} in its frozen Profile`, () => {
+    assert.throws(() => renderEpisode(null, { sidecarProfile:episodeProfile(parameters) }),
+      { code:'CLEAN_PRODUCT_SIDECAR_INPUT_INVALID' });
+  });
+}
+
+test('Episode Sidecar checks parameter digests independently of the outer Profile digest', () => {
+  const { digest:_digest, ...body } = episodeProfile();
+  body.typedParameters[0].valueDigest = '0'.repeat(64);
+  assert.throws(() => renderEpisode(null, { sidecarProfile:{ ...body, digest:canonicalDigest(body) } }),
+    { code:'CLEAN_PRODUCT_SIDECAR_INPUT_INVALID' });
+});
+
+test('Movie cannot execute an Episode Sidecar Profile', () => {
+  assert.throws(() => renderEpisode(null, { contentProfile:'movie' }),
+    { code:'CLEAN_PRODUCT_SIDECAR_INPUT_INVALID' });
+});
 
 test('movie identity ignores actor tmdb ids and reads only the root-level movie identity', () => {
   const identity = parseRelatedNfoMovieIdentity(`<movie>

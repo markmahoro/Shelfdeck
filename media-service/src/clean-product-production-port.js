@@ -272,23 +272,25 @@ function replaceDirectList(xml, rootName, tag, values) {
   return replaceRanges(xml, replacements);
 }
 
-function updateNfoDocument(xml, rootName, entries, relations) {
-  let output = String(xml).replace(/^\uFEFF/, '');
-  const managed = [
+function nfoManagedFields(rootName) {
+  if (rootName === 'episodedetails') return [
+    ['episode_title', 'title'], ['series_title', 'showtitle'],
+    ['season_number', 'season'], ['episode_number', 'episode'],
+    ['episode_plot', 'plot'],
+  ];
+  return [
     [rootName === 'tvshow' ? 'series_title' : 'title', 'title'],
     [rootName === 'tvshow' ? 'tmdb_series_id' : 'tmdb_movie_id', 'tmdbid'],
-    ['jav_code', 'id'],
-    ['season_number', 'season'],
-    ['episode_number', 'episode'],
-    ['episode_title', 'episodetitle'],
-    ['episode_plot', 'episodeplot'],
-    ['year_or_release_date', 'year'],
-    ['release_date', 'releasedate'],
-    ['studio', 'studio'],
-    ['plot', 'plot'],
-    ['genre', 'genre'],
-    ['director', 'director'],
+    ['jav_code', 'id'], ['season_number', 'season'], ['episode_number', 'episode'],
+    ['episode_title', 'episodetitle'], ['episode_plot', 'episodeplot'],
+    ['year_or_release_date', 'year'], ['release_date', 'releasedate'],
+    ['studio', 'studio'], ['plot', 'plot'], ['genre', 'genre'], ['director', 'director'],
   ];
+}
+
+function updateNfoDocument(xml, rootName, entries, relations) {
+  let output = String(xml).replace(/^\uFEFF/, '');
+  const managed = nfoManagedFields(rootName);
   for (const [key, tag] of managed) {
     if (!entries.has(key)) continue;
     output = tag === 'genre'
@@ -296,7 +298,7 @@ function updateNfoDocument(xml, rootName, entries, relations) {
       : replaceDirectScalar(output, rootName, tag, entries.get(key));
   }
   const tmdbKey = rootName === 'tvshow' ? 'tmdb_series_id' : 'tmdb_movie_id';
-  if (entries.has(tmdbKey)) {
+  if (rootName !== 'episodedetails' && entries.has(tmdbKey)) {
     const value = entries.get(tmdbKey);
     output = replaceDirectScalar(output, rootName, 'uniqueid', value,
       (item) => /\btype\s*=\s*["']tmdb["']/i.test(item.attributes),
@@ -307,20 +309,13 @@ function updateNfoDocument(xml, rootName, entries, relations) {
 }
 
 function createNfoDocument(rootName, entries, relations) {
-  const tags = [
-    [rootName === 'tvshow' ? 'series_title' : 'title', 'title'],
-    [rootName === 'tvshow' ? 'tmdb_series_id' : 'tmdb_movie_id', 'tmdbid'],
-    ['jav_code', 'id'], ['season_number', 'season'], ['episode_number', 'episode'],
-    ['episode_title', 'episodetitle'], ['episode_plot', 'episodeplot'],
-    ['year_or_release_date', 'year'], ['release_date', 'releasedate'],
-    ['studio', 'studio'], ['plot', 'plot'], ['genre', 'genre'], ['director', 'director'],
-  ];
+  const tags = nfoManagedFields(rootName);
   const lines = ['<' + rootName + '>'];
   for (const [key, tag] of tags) if (entries.has(key)) {
     lines.push('  <' + tag + '>' + escapeXml(entries.get(key)) + '</' + tag + '>');
   }
   const tmdbKey = rootName === 'tvshow' ? 'tmdb_series_id' : 'tmdb_movie_id';
-  if (entries.has(tmdbKey)) lines.push(
+  if (rootName !== 'episodedetails' && entries.has(tmdbKey)) lines.push(
     '  <uniqueid type="tmdb">' + escapeXml(entries.get(tmdbKey)) + '</uniqueid>',
   );
   for (const relation of relations) lines.push(actorBlock(relation));
@@ -329,10 +324,53 @@ function createNfoDocument(rootName, entries, relations) {
 }
 
 function nfoIdentityConsistent(observedEntries, desiredEntries, rootName) {
+  if (rootName === 'episodedetails') {
+    return ['season_number', 'episode_number'].every((key) =>
+      Number(observedEntries.get(key)) === Number(desiredEntries.get(key))) &&
+      (!observedEntries.has('series_title') ||
+        observedEntries.get('series_title') === desiredEntries.get('series_title'));
+  }
   const key = rootName === 'tvshow' ? 'tmdb_series_id' : 'tmdb_movie_id';
   const observed = observedEntries.get(key);
   const desired = desiredEntries.get(key);
   return !observed || !desired || observed === desired;
+}
+
+function sidecarRootName(request, entries) {
+  const parameters = request.sidecarProfile.typedParameters;
+  if (!Array.isArray(parameters) || parameters.some((item) => !item || typeof item !== 'object')) {
+    fail('CLEAN_PRODUCT_SIDECAR_INPUT_INVALID', 'Sidecar profile parameters are invalid.');
+  }
+  const rootParameters = parameters.filter((item) => item.parameter === 'rootElement');
+  if (!rootParameters.length) {
+    if (parameters.some((item) => ['seasonNumber', 'episodeNumber'].includes(item.parameter))) {
+      fail('CLEAN_PRODUCT_SIDECAR_INPUT_INVALID', 'Episode Sidecar root is not frozen.');
+    }
+    return request.contentProfile === 'series' ? 'tvshow' : 'movie';
+  }
+  const expectedNames = ['episodeNumber', 'rootElement', 'seasonNumber'];
+  if (request.contentProfile !== 'series' || parameters.length !== 3 ||
+      canonicalJson(parameters.map((item) => item.parameter)) !== canonicalJson(expectedNames) ||
+      parameters.some((item) =>
+        canonicalJson(Object.keys(item).sort()) !== canonicalJson(['parameter', 'value', 'valueDigest', 'valueType']) ||
+        item.valueDigest !== canonicalDigest({ parameter:item.parameter, valueType:item.valueType, value:item.value })) ||
+      rootParameters[0].valueType !== 'string' || rootParameters[0].value !== 'episodedetails') {
+    fail('CLEAN_PRODUCT_SIDECAR_INPUT_INVALID', 'Episode Sidecar requires an exact frozen Episode profile.');
+  }
+  for (const [parameter, key] of [['seasonNumber', 'season_number'], ['episodeNumber', 'episode_number']]) {
+    const frozen = parameters.find((item) => item.parameter === parameter);
+    const actual = entries.get(key);
+    if (frozen.valueType !== 'integer' || !Number.isSafeInteger(frozen.value) || frozen.value < 1 ||
+        !(typeof actual === 'number' || typeof actual === 'string' && /^[0-9]+$/.test(actual)) ||
+        Number(actual) !== frozen.value) {
+      fail('CLEAN_PRODUCT_SIDECAR_INPUT_INVALID', 'Episode Sidecar scope does not match its metadata Draft.');
+    }
+  }
+  if (['series_title', 'episode_title', 'episode_plot'].some((key) =>
+    typeof entries.get(key) !== 'string' || !entries.get(key).trim())) {
+    fail('CLEAN_PRODUCT_SIDECAR_INPUT_INVALID', 'Episode Sidecar requires complete Episode metadata.');
+  }
+  return 'episodedetails';
 }
 
 function createCleanProductProductionPort(options = {}) {
@@ -610,6 +648,9 @@ function createCleanProductProductionPort(options = {}) {
     }
     if (rootName === 'episodedetails' && tagValue('title')) {
       entries.push({ key: 'episode_title', value: tagValue('title') });
+    }
+    if (rootName === 'episodedetails' && tagValue('showtitle')) {
+      entries.push({ key: 'series_title', value: tagValue('showtitle') });
     }
     entries.sort((left, right) => Buffer.compare(Buffer.from(left.key), Buffer.from(right.key)));
     const peopleHints = parseRelatedNfoPeopleHints(xml);
@@ -940,8 +981,7 @@ function createCleanProductProductionPort(options = {}) {
       draft.descriptiveFacts.entries.map((item) => [item.key, item.value]),
     );
     const actors = actorRelations(mediaCastDraft);
-    const series = request.contentProfile === 'series';
-    const rootName = series ? 'tvshow' : 'movie';
+    const rootName = sidecarRootName(request, values);
     let bytes;
     let provenanceRef = {
       objectType: 'product_metadata_draft_create',

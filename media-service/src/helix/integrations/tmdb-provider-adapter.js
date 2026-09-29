@@ -33,6 +33,8 @@ const REQUESTED_FIELDS = new Set([
   'genre',
   'plot',
   'release_date',
+  'season_number',
+  'series_title',
   'title',
   'tmdb_movie_id',
   'tmdb_series_id',
@@ -1082,6 +1084,16 @@ function createTmdbProviderAdapter(options) {
           );
         }
         const series = namespace === 'tmdb_series';
+        if ((series && (!Number.isSafeInteger(resolved.seasonNumber) ||
+            resolved.seasonNumber < 1 || resolved.identityAnchorDigest !== canonicalDigest({
+              provider: resolved.provider, namespace, providerKey: resolved.providerKey,
+              seasonNumber: resolved.seasonNumber,
+            }))) || (!series &&
+            request.input.requestedFields.some((field) =>
+              field === 'series_title' || field === 'season_number'))) {
+          fail('PLATFORM_TMDB_IDENTITY_INVALID',
+            'Series metadata requires an explicit positive Season identity.');
+        }
         const body = await fetchJson(
           snapshot.endpoint,
           snapshot.secretKind,
@@ -1111,6 +1123,25 @@ function createTmdbProviderAdapter(options) {
           ? body.first_air_date
           : body.release_date;
         if (title) values.set('title', String(title));
+        if (series) {
+          if (title) values.set('series_title', String(title));
+          // The endpoint is anchored by the immutable Series/Season tuple.
+          // Its Episode catalogue does not expand the Run delivery scope.
+          const season = await fetchJson(
+            snapshot.endpoint, snapshot.secretKind, secretBytes,
+            '/tv/' + resolved.providerKey + '/season/' + resolved.seasonNumber,
+            { timeoutMs: timeout(request.timeoutMs), query: { language }, proxyServer },
+          );
+          requireFields(season, ['id', 'season_number'],
+            'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+          if (!Number.isSafeInteger(season.id) || season.id < 1 ||
+              !Number.isSafeInteger(season.season_number) ||
+              season.season_number !== resolved.seasonNumber) {
+            fail('PLATFORM_TMDB_IDENTITY_MISMATCH',
+              'TMDB Season metadata does not match the resolved Season identity.');
+          }
+          values.set('season_number', season.season_number);
+        }
         if (releaseDate) {
           values.set('release_date', String(releaseDate));
           values.set(
@@ -1162,7 +1193,7 @@ function createTmdbProviderAdapter(options) {
           integrationId: snapshot.integrationId,
           configRevision: snapshot.configRevision,
           sourceRef: 'tmdb:' + (series ? 'tv' : 'movie') +
-            ':' + resolved.providerKey,
+            ':' + resolved.providerKey + (series ? ':season:' + resolved.seasonNumber : ''),
           descriptiveEntries: Object.freeze(descriptiveEntries),
           providerIdentities: Object.freeze([
             Object.freeze({ ...resolved }),
