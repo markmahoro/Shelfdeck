@@ -1,6 +1,6 @@
 # ShelfDeck / Helix 文档索引
 
-更新：2026-09-30。Helix Beta Movie 全链路已获用户阶段验收；当前为 Series 开发准备。Series 尚未交付，Beta 保持 Movie-only A–I。
+更新：2026-09-30。Helix Beta Movie全链路已获用户阶段验收；当前进入Series开发，首批元数据基础已本地验证。Series完整功能尚未交付，Beta保持Movie-only A–I。
 
 ## 权威与当前入口
 
@@ -9,7 +9,7 @@
 | [TOP_DOWN_ARCHITECTURE_CONFIRMATION](TOP_DOWN_ARCHITECTURE_CONFIRMATION.md) | 唯一架构 SSOT；含未来 Series 的 Owner、Season/Episode 与连续性合同 |
 | [BETA_FEATURE_ACCEPTANCE_BASELINE](BETA_FEATURE_ACCEPTANCE_BASELINE.md) | 原 Movie-only Definition of Done 与 Movie 回归 Oracle；不改写技术资格验收方法 |
 | [CURRENT_PLAN](CURRENT_PLAN.md) | 唯一 Master Plan：Movie 收尾、Series 准备及后续顺序 |
-| [implementation/CURRENT_PHASE](implementation/CURRENT_PHASE.md) | 唯一活动执行包：Series 开发准备及 Phase 工作项 |
+| [implementation/CURRENT_PHASE](implementation/CURRENT_PHASE.md) | 唯一活动执行包：Series开发及Phase工作项 |
 | [CURRENT_STATUS](CURRENT_STATUS.md) | 用户阶段接受、最近已记录生产身份、风险及未完成事实 |
 | [ENGINEERING_PLAYBOOK](ENGINEERING_PLAYBOOK.md) | 实施、验证、授权、UI负责人与变更治理 |
 | [UAT_ITERATION_REGISTER](UAT_ITERATION_REGISTER.md) | 上线后测试、验收问题台账；保留已有编号和历史记录 |

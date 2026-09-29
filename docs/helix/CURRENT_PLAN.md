@@ -1,6 +1,6 @@
 # ShelfDeck 当前计划
 
-更新：2026-09-30。用户已接受 Helix Beta Movie 全链路阶段成果，当前进入支持剧集的大版本准备。阶段收尾证据为 [UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)；唯一活动执行包为 [CURRENT_PHASE](implementation/CURRENT_PHASE.md)。不分配新版本名称或 Git release tag。
+更新：2026-09-30。用户已接受Helix Beta Movie全链路阶段成果，并明确开始Series大版本开发。阶段收尾证据为[UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)；唯一活动执行包为[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。不分配新版本名称或Git release tag。
 
 ## 范围与顺序
 
@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 已完成 | Movie 阶段文档收尾、用户验收记录、生产基线与历史归档 | UAT-278；保留未关闭 UAT，不新增技术资格总体 PASS |
 | 已完成 | Beta 工程工作区和废弃副本清理 | UAT-280；选定本地/NAS目标完成，源码、用户修改及必要恢复资料保留 |
-| 当前 | Series 首版合同与实现差距审查、样本及验收准备 | 当前 Phase；核对真实接线，形成有名称、独立验收的开发工作项 |
+| 当前 | Series 元数据基础及本地Season纵向开发 | 当前Phase；元数据基础已本地验证，接续逐Episode Observation/Artifact及Run链；未决合同按工作项DoR处理 |
 | 后续 | Series 完整纵向交付 | 按 Phase 里程碑推进本地纵向、持续追加、多对多映射、维护/退出、恢复和 UI，不使用 UAT 编号 |
 | 发布前 | Movie 回归与 Series 资格验收、受控升级/回退验证 | 精确 SHA/镜像与当前数据保护；沿用标准发布入口和适用授权 |
 
@@ -26,7 +26,7 @@ Series 范围从 SSOT §3.2.6、§3.4.2–3.4.5、§4.4–4.5、§5.3.5、§5.5.
 
 ## 授权、工作区与交付
 
-本聊天已授权阶段收尾、Beta工程清理与Series开发准备。当前交付含文档、只读代码审查及已完成的工程清理，未新增Series生产部署、生产数据迁移或真实媒体处置授权。既有各UAT的精确授权持续有效，不扩张为任意操作。
+本聊天已授权阶段收尾、Beta工程清理、Series准备及本地开发/隔离测试/必要构建。2026-09-30首批代码为Series元数据基础，不新增Series生产部署、生产数据迁移或真实媒体处置授权。既有各UAT的精确授权持续有效，不扩张为任意操作。
 
 当前隔离交付区：`C:/Users/markm/.codex/worktrees/beta-closeout-series/emby_third_party-helix`，分支 `codex/beta-closeout-series`，基于 `ecccf7ba9b`。主工作区、原集成区及其他 worktree 的未提交内容受保护；归档文档不等于删除工作区。后续代码开工前核对最新交付与修改归属。
 
