@@ -1,8 +1,8 @@
-# 当前活动包：Series 开发准备（UAT-279）
+# 当前活动包：Series 开发准备
 
-更新：2026-09-30。ACTIVE / PREPARATION。上个 Movie 阶段已按用户接受完成文档收尾；[旧包快照](archive/20260930_BETA_MOVIE_CLOSEOUT/CURRENT_PHASE.md)只用于追溯。唯一计划为[CURRENT_PLAN](../CURRENT_PLAN.md)，所有后续实施项进入[UAT 总表](../UAT_ITERATION_REGISTER.md)。
+更新：2026-09-30。ACTIVE / PREPARATION。上个 Movie 阶段已按用户接受完成文档收尾；[旧包快照](archive/20260930_BETA_MOVIE_CLOSEOUT/CURRENT_PHASE.md)只用于追溯。唯一计划为[CURRENT_PLAN](../CURRENT_PLAN.md)，Series准备和开发由本Phase工作项、里程碑及Evidence管理，不使用UAT编号；UAT只记录上线后的测试、验收问题。原UAT-279保留误登记与转移历史。
 
-用户追加的UAT-280工程工作区清理已完成；[执行结果](evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md)包含本地/NAS精确清理、源码/证据/用户修改保护及工作区退役复验。接续279准备，不另建清理活动Phase；279尚未追加功能实施。
+用户追加的工程工作区清理已完成；[历史UAT-280执行结果](evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md)包含本地/NAS精确清理、源码/证据/用户修改保护及工作区退役复验。当前继续Series准备，尚未实施功能。
 
 ## 目标、Owner 与边界
 
@@ -26,23 +26,36 @@
 
 不把 JAV/Western Adult、多用户、AI Upscale、Remote Worker、Desktop、理论全集/自动追更作为本次默认范围；改变这些范围需独立登记。新版本的名字和正式 tag 尚未分配。
 
-## 初步实现库存（只读审查，未执行测试）
+## 当前实现审查与测试事实
 
 | 已看到的实现/测试 | 证据路径 | 仍需核验 |
 | --- | --- | --- |
 | Candidate冻结Season claims及成员输入 | `media-service/src/helix/domains/procurement/application/movie-run-coordinator.js` | 真实目录识别、分组跨页/批次、新集Observation、Related范围，不能因文件名Movie就推断不支持Series |
 | Season Subject/Run与Episode范围 | `media-service/src/helix/domains/libra/application/movie-formation-coordinator.js` | 从正式Field到Run的自动接线、并发零重叠/冲突、重复材料、历史重建 |
-| Intake/布局/生命周期测试 | `media-service/test/helix-architecture/p14-series-handoff-a.test.js`、`p14-series-run-layout.test.js`、`p14-series-run-lifecycle-continuity.test.js` | 测试主要是合同与fixture；不能代替真实Provider/媒体/浏览器纵向验证 |
+| Intake/布局/生命周期测试 | `media-service/test/helix-architecture/p14-series-handoff-a.test.js`、`p14-series-run-layout.test.js`、`p14-series-run-lifecycle-continuity.test.js` | Windows专项12通过、1跳过；Series Handoff A纵向fixture明确skip，需恢复真实执行，不把skip计为通过 |
 | Arca Episode Claim Set | `media-service/src/helix/domains/arca/model/material-episode-claims.js`、`media-service/test/helix-architecture/p14-pbf20-episode-claims.test.js` | 真实多批Commit扩充同一Entry、完整Inventory、共享Artifact、退出/恢复 |
-| Provider已有tv/Season分支，Artifact已有season.nfo | `media-service/src/helix/integrations/h1-provider-adapters.js`、`media-service/src/helix/domains/libra/capabilities/artifact-production-capability-ports.js` | 真实TMDB逐集元数据、NFO/字幕/图片命名与Placement冲突、失败路径；目前协议Season Number为positive，S00需先复审合同，不擅自开放 |
+| TMDB有Series整剧详情/图片分支，Artifact有season.nfo分支 | `media-service/src/helix/integrations/tmdb-provider-adapter.js`、`media-service/src/clean-product-production-port.js` | TMDB字段白名单未含series_title/season_number/episode_*；Sidecar仍按series生成tvshow根且协调器只生成season.nfo，需补本批逐Episode元数据及NFO |
+| 外部寻源/导入存在Series身份分支 | `media-service/src/helix/integrations/h1-provider-adapters.js` | MoviePilot落地快照要求恰好一条视频且Episode claims为空；搜索Episode keys取自请求而非候选实证，不能据此宣称真实剧集覆盖 |
 
-这里只能得出“已有部分基础”，尚未得出“可以直接启用”或“必须重写”。完整差距审查需覆盖观察→Triage→Intake→Routing/Spec→各成员生产→Handoff B→Commit→Projection→Aftercare/退出。
+逐入口事实、测试命令及未覆盖项见[准备审查Evidence](evidence/SERIES_READINESS_AUDIT_20260930.md)。已有部分合同基础，但不能直接启用Series。完整差距审查仍需覆盖观察→Triage→Intake→Routing/Spec→各成员生产→Handoff B→Commit→Projection→Aftercare/退出。
+
+## 开发工作项与里程碑草案
+
+以下是Phase内工作名称，不建立全局编号体系；排程按依赖推进，不承诺日期。
+
+| 顺序 | 工作项 / Owner | 验收门槛 | 当前状态 |
+| --- | --- | --- | --- |
+| 先行 | 合同与接线核查 / 各Domain Owner | 明确S00、N:M空间计量、Episode级恢复及所有主链入口；冻结隔离样本矩阵与各工作项DoR | 初审及专项测试完成；上述合同/纵向核查待补 |
+| 首个交付 | 本地Season最小纵向 / Procurement、Libra、Arca | E01/E02从Field到唯一Season Entry；每集身份/元数据/NFO/Primary覆盖、正式Handoff及Commit；恢复Handoff A测试；真实媒体验收 | 待准备Exit；优先补Metadata与Sidecar缺口 |
+| 接续 | Episode追加与复杂映射 / Libra、Arca | E03新增Run扩充同一Entry，旧Run/集事实不改写；重叠/并发/重复及N:M、逐集空间验收通过 | 依赖首个交付 |
+| 扩展 | 外部寻源、生命周期与界面 / Procurement、Libra、Arca、UI负责人 | 外部候选/落地实际Episode覆盖；缺元数据、失败/重启、Aftercare及共享材料退出；Season用户旅程走查 | 依赖对应纵向能力与UI协调 |
+| 发布资格 | Movie回归与Series完整资格 / 实施与发布责任方 | 冻结SHA的Windows及Linux适用验证、真实媒体/浏览器场景、受控升级/回退及数据保护 | 前述工作项完成后执行 |
 
 ## 下一步与准备完成条件
 
 1. 在上述入口及直接依赖中核对每段真实接线，逐段记录已实现、需补接线、合同缺口和验证缺口；复核S00、身份纠正、N:M大小计量及Episode级失败/重试范围。已有决定按SSOT执行，真正新合同分叉才向用户提交具体方案。
 2. 准备隔离测试manifest和样本：首批E01/E02、再到E03、多Season同名、重叠/重复、无claim/多义、缺元数据、E01–E02合并、多part、单集失败、进程退出、空间不足、共享Artifact与退出。真实媒体只用获授权副本；不把生产素材当可破坏fixture。
-3. 固定首版验收矩阵及Owner/输入输出/revision/幂等/Effect/Fence/恢复条件；将实施分成可独立验收的UAT，顺序为最小纵向、追加/并发、复杂映射、生命周期/UI、Movie回归及发布资格。具体编号在开工时接续最高登记值。
-4. 每个新增UAT满足Playbook Definition of Ready后实施。保持恰好一个活动Phase；本准备包Exit后冻结到archive再切换，不另建Series活动计划。
+3. 固定首版验收矩阵及Owner/输入输出/revision/幂等/Effect/Fence/恢复条件，补齐上表工作项DoR与验证入口；版本开发全过程不分配UAT编号。
+4. 每个开发工作项满足Playbook Definition of Ready后实施。保持恰好一个活动Phase；本准备包Exit后冻结到archive再切换，不另建Series活动计划。
 
-UAT-279关闭须完成上述逐段差距、首版范围、验收矩阵与可执行实施排程；目前只完成初步盘点，保持开放。本轮不声称UI/UAT PASS或生产剧集支持。
+准备Phase Exit须完成上述逐段差距、首版范围、验收矩阵与可执行实施排程；当前仍在准备阶段。原UAT-279仅保留转移记录，Phase进度不在该行更新。本轮不声称UI验收或生产剧集支持。

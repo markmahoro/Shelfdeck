@@ -1,13 +1,13 @@
-# ShelfDeck 统一 UAT 迭代总表
+# ShelfDeck 上线后测试与验收问题 UAT 总表
 
-更新：2026-09-30。唯一活动迭代台账，编号连续至 UAT-280。UAT-001–277 保留原编号及历史；新增 278 为 Movie 阶段文档收尾，279 为 Series 准备，280 为 Beta 工作区及废弃工程副本清理。PROD/UX/AC/BR 只保留历史别名。
+更新：2026-09-30。用户明确UAT只用于上线后的测试、验收问题；大版本准备与开发由Master Plan及唯一Phase管理，不在本表分配编号。已有UAT-001–280保留编号与历史，不重排或复用。278/280保留历史阶段收尾/工程清理事实；279为Series准备误登记，已转入Phase，不再作为UAT开发任务推进。PROD/UX/AC/BR只保留历史别名。
 
 用户已接受 Movie 全链路阶段成果；未完成的业务验收仍逐项开放，不以部署或阶段接受批量关闭。旧“待核实”不代表当前已证实缺陷。收尾及交付状态对齐见 [UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)，下一阶段见 [CURRENT_PLAN](CURRENT_PLAN.md) 和 [CURRENT_PHASE](implementation/CURRENT_PHASE.md)。
 
 UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；旧集成区冲号只作历史。UAT-270/271和251/274已补入后续发布Evidence；271按原执行正式收尾和新Basis重检证据恢复已关闭状态，其余保留自身验收条件。旧总体计数冻结在收尾快照，以本表逐行状态为准。
 
 状态说明：历史已关闭保留当时证据，不宣称本次重测；已实现/已部署不等于已关闭；阶段文档关闭不等于功能验收关闭。每次只根据对应项的现行合同及Evidence更新。
-| UAT编号 | 迭代项 | 分类 | 当前状态 | 历史编号 | 实现提交 | 验收/部署证据 | 剩余工作或关闭条件 |
+| UAT编号 | 问题 / 历史事项 | 分类 | 当前状态 | 历史编号 | 实现提交 | 验收/部署证据 | 剩余工作或关闭条件 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | UAT-001 | 豆瓣评分与Libra Subject匹配率明显偏低 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-001逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
 | UAT-002 | Handoff A Intake接收Subject吞吐异常偏低 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-002逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
@@ -287,5 +287,5 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 | UAT-276 | 外部原生4K的接纳来源及同材料校验 | ACCEPTANCE | 已部署，原片重处理待验 | 荒野猎人今日误判 | c147188485 | [证据](implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md) | 实际外部来源绑定，原生4K/加工正向、真正升频及来源漂移负向、正式Commit。 |
 | UAT-277 | Provider/附件失败网络诊断丢失 | INTEGRATION_DIAGNOSTICS | 诊断修复已部署；网络瞬断原因未确认 | 今日身份/寻源/附件失败 | c147188485 | [证据](implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md) | 白名单详情持久化，Secret不泄露、写入安全保持；区分网络可达性与真实业务成功。 |
 | UAT-278 | Helix Beta Movie 阶段收尾与生产/验收记录对齐 | DOCUMENTATION / STAGE_ACCEPTANCE | 文档关闭（2026-09-30用户阶段接受及收尾记录） | 本聊天用户确认Movie全链路跑通 | 本分支UAT-278交付提交 | [收尾证据](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md) | 用户接受、生产身份、残余项和历史归档可追溯；没有批量关闭功能UAT，没有新增冻结SHA总体PASS或release tag。 |
-| UAT-279 | Series首版范围、实现差距与验收准备 | DESIGN / READINESS | 准备中；初步只读盘点完成，完整差距及验收矩阵待补 | 本聊天用户要求准备剧集大版本 | 未实施功能 | [唯一活动Phase](implementation/CURRENT_PHASE.md) | 完成逐段接线审查、样本manifest、明确首版范围和可独立验收实施项；S00/N:M计量等按SSOT复审；不以已有合同测试宣称真实链路可用。 |
+| UAT-279 | Series首版范围、实现差距与验收准备（开发事项误登记） | HISTORICAL / TRANSFERRED | 已转入Series Phase（2026-09-30）；不再作为UAT推进，非功能验收关闭 | 本聊天用户纠正UAT仅用于上线后测试问题 | 未实施功能 | [转入唯一Phase](implementation/CURRENT_PHASE.md) | 保留历史编号，不复用；后续开发进度、工作项与验收由Phase管理，不在本行更新。 |
 | UAT-280 | Beta Movie工作区、无用副本及NAS废弃工程资料清理 | OPERATIONS / WORKSPACE_RETIREMENT | 已关闭（2026-09-30选定清理目标完成及保护复验） | 本聊天用户明确本地及生产无用副本/备份范围并要求继续；关联262 | a8478ff01首轮记录及本分支UAT-280关闭提交；逐目标Receipt | [结果与Receipt](implementation/evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md) | NAS60项资料/142旧镜像标签；本地34tar/40测试副本/2旧数据库/5残余清除，27工作区退役、10必要工作区保留。源码/证据/用户修改/共享依赖复验通过，生产媒体/业务数据未操作，无剩余选定待删项。 |

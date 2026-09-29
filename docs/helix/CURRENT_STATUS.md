@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-更新：2026-09-30。Helix Beta Movie全链路获用户阶段验收，Movie阶段文档收尾及Beta工程清理（UAT-280）完成；当前活动阶段为Series开发准备（UAT-279）。记录与证据边界见 [UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)。Series尚未交付，未声明新的技术资格总体PASS或正式release tag。
+更新：2026-09-30。Helix Beta Movie全链路获用户阶段验收，Movie阶段文档收尾及Beta工程清理完成；当前活动阶段为Series开发准备，以Phase工作项管理。UAT只用于上线后的测试、验收问题；原279保留误登记及转移记录，278/280保留历史收尾/清理事实。记录与证据边界见 [UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)。Series尚未交付，未声明新的技术资格总体PASS或正式release tag。
 
 ## 最近已记录生产身份
 
@@ -25,7 +25,7 @@
 
 ## 当前准备与归档
 
-已有 Series Handoff A、Run layout/lifecycle、PBF-20 Episode Claim 合同测试，以及 TMDB tv/Season Artifact 接线；本轮仅检查源码与测试内容，没有执行 Series E2E 或宣称支持可用。UAT-279 的差距、范围草案和下一步验证均在[唯一 Phase](implementation/CURRENT_PHASE.md)。
+Series初审及Windows专项测试见[审查Evidence](implementation/evidence/SERIES_READINESS_AUDIT_20260930.md)：13项中12通过、1跳过；跳过项正是Series Handoff A纵向fixture。已有Episode Claim/Run合同基础；TMDB字段、逐Episode NFO及外部落地快照仍有明确缺口，不能直接启用。未执行真实Series E2E或浏览器验收；范围、开发工作项和准备Exit均在[唯一 Phase](implementation/CURRENT_PHASE.md)。
 
 原活动文档及残余队列已冻结到[Movie 收尾快照](implementation/archive/20260930_BETA_MOVIE_CLOSEOUT/SNAPSHOT.md)。当前代码/文档交付基线 `ecccf7ba9b`，隔离分支 `codex/beta-closeout-series`。主工作区、集成区及其他有未提交修改的工作区保留，修改状态未变化。
 
@@ -33,4 +33,4 @@ UAT-280已完成：[清理证据](implementation/evidence/UAT-280_BETA_WORKSPACE
 
 同日追加只读复查发现首轮Git沿junction清理还影响了主Service及主/集成Web依赖，前次仅恢复SSH工具依赖不完整；续作的metadata保护比较基于首轮之后，不能证明首轮依赖未受影响。现已在三处按各自锁文件`npm ci`补齐，SQLite/Sharp及两处esbuild原生绑定smoke通过，用户修改及锁文件无新增变更；修复后本地净可用空间较原快照增加约98.7GiB。未新增文件删除。另有约0.94GB的UAT-125旧诊断库、约32MB测试包及约1.6MB忽略的构建输出；诊断库仍关联开放项，暂保留，不扩大已关闭280的精确清理范围。
 
-本轮未构建或部署新版本、未改动生产业务数据/媒体、未重启服务；没有新增功能测试或技术资格PASS。部署集中负责人职责已按用户2026-09-28决定取消，UI负责人职责保留。
+清理阶段未构建或部署新版本、未改动生产业务数据/媒体、未重启服务；未新增功能测试或技术资格PASS。后续Series准备专项测试事实见上文，不改写清理阶段结论。部署集中负责人职责已按用户2026-09-28决定取消，UI负责人职责保留。
