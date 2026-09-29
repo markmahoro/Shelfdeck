@@ -2,7 +2,7 @@
 
 更新：2026-09-30。ACTIVE / PREPARATION。上个 Movie 阶段已按用户接受完成文档收尾；[旧包快照](archive/20260930_BETA_MOVIE_CLOSEOUT/CURRENT_PHASE.md)只用于追溯。唯一计划为[CURRENT_PLAN](../CURRENT_PLAN.md)，所有后续实施项进入[UAT 总表](../UAT_ITERATION_REGISTER.md)。
 
-用户追加优先完成UAT-280工程工作区清理；[执行结果](evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md)为NAS清理完成、本地副本删除被自动审批阻断，整体保持部分完成。279准备尚未追加实施，不另建清理活动Phase。
+用户追加的UAT-280工程工作区清理已完成；[执行结果](evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md)包含本地/NAS精确清理、源码/证据/用户修改保护及工作区退役复验。接续279准备，不另建清理活动Phase；279尚未追加功能实施。
 
 ## 目标、Owner 与边界
 

@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-更新：2026-09-30。Helix Beta Movie 全链路获用户阶段验收，Movie 打通阶段已收尾；当前优先清理Beta工程工作区（UAT-280），唯一活动Phase仍为Series开发准备（UAT-279）。记录与证据边界见 [UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)。Series 尚未交付，未声明新的技术资格总体 PASS 或正式 release tag。
+更新：2026-09-30。Helix Beta Movie全链路获用户阶段验收，Movie阶段文档收尾及Beta工程清理（UAT-280）完成；当前活动阶段为Series开发准备（UAT-279）。记录与证据边界见 [UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)。Series尚未交付，未声明新的技术资格总体PASS或正式release tag。
 
 ## 最近已记录生产身份
 
@@ -29,6 +29,6 @@
 
 原活动文档及残余队列已冻结到[Movie 收尾快照](implementation/archive/20260930_BETA_MOVIE_CLOSEOUT/SNAPSHOT.md)。当前代码/文档交付基线 `ecccf7ba9b`，隔离分支 `codex/beta-closeout-series`。主工作区、集成区及其他有未提交修改的工作区保留，修改状态未变化。
 
-UAT-280部分完成：[清理证据](implementation/evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md)。NAS删除60项废弃工程资料（20个tar、21个测试目录、19个备份）及142个旧镜像标签；全部29个容器身份/启动状态未变，保留当前/回退及必要验收镜像、含原媒体和事故恢复备份。本地37个Git worktree退役14个，余23个保留；34个旧镜像包、40个运行副本约72.7GiB及5处junction残余被自动审批阻断，尚未清除。必要源码和Evidence已在项目外保留并校验。
+UAT-280已完成：[清理证据](implementation/evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md)。NAS删除60项废弃工程资料（20个tar、21个测试目录、19个备份）及142个旧镜像标签；全部29个容器身份/启动状态未变，保留当前/回退及必要验收镜像、含原媒体和事故恢复备份。本地37个Git worktree退役27个，保留10个；34个旧镜像包、40个测试副本、另2份过时测试数据库及5处退役残余全部清除，本地可用空间较原快照增加约99.7GiB。首次审批拦截已通过明确文件及空目录操作安全完成。37个源码snapshot ref/恢复bundle及1670份必要文件复验通过，三处共享依赖和三个有用户修改的工作区状态保持；无剩余选定待删项。
 
 本轮未构建或部署新版本、未改动生产业务数据/媒体、未重启服务；没有新增功能测试或技术资格PASS。部署集中负责人职责已按用户2026-09-28决定取消，UI负责人职责保留。
