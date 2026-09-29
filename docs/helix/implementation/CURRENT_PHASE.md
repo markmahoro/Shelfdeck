@@ -2,6 +2,8 @@
 
 更新：2026-09-30。ACTIVE / PREPARATION。上个 Movie 阶段已按用户接受完成文档收尾；[旧包快照](archive/20260930_BETA_MOVIE_CLOSEOUT/CURRENT_PHASE.md)只用于追溯。唯一计划为[CURRENT_PLAN](../CURRENT_PLAN.md)，所有后续实施项进入[UAT 总表](../UAT_ITERATION_REGISTER.md)。
 
+用户追加优先完成UAT-280工程工作区清理；[执行结果](evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md)为NAS清理完成、本地副本删除被自动审批阻断，整体保持部分完成。279准备尚未追加实施，不另建清理活动Phase。
+
 ## 目标、Owner 与边界
 
 准备一个能交付真实剧集完整链路的大版本，继续使用现有五域模块化单体。Procurement 识别 Season 输入与不可变 Candidate；Libra 拥有 Subject、Routing、Run、Acceptance Spec 与生产 Workspace；Arca 拥有正式 Season Shelf Entry、Episode/Inventory、维护及退出。保持 Handoff A/B 单向、只由 On-deck Commit 建立收藏事实。Emby 仍是可选 External Provider。

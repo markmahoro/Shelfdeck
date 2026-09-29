@@ -1,6 +1,6 @@
 # ShelfDeck 统一 UAT 迭代总表
 
-更新：2026-09-30。唯一活动迭代台账，编号连续至 UAT-279。UAT-001–277 保留原编号及历史；新增 278 为 Movie 阶段文档收尾，279 为 Series 准备。PROD/UX/AC/BR 只保留历史别名。
+更新：2026-09-30。唯一活动迭代台账，编号连续至 UAT-280。UAT-001–277 保留原编号及历史；新增 278 为 Movie 阶段文档收尾，279 为 Series 准备，280 为 Beta 工作区及废弃工程副本清理。PROD/UX/AC/BR 只保留历史别名。
 
 用户已接受 Movie 全链路阶段成果；未完成的业务验收仍逐项开放，不以部署或阶段接受批量关闭。旧“待核实”不代表当前已证实缺陷。收尾及交付状态对齐见 [UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)，下一阶段见 [CURRENT_PLAN](CURRENT_PLAN.md) 和 [CURRENT_PHASE](implementation/CURRENT_PHASE.md)。
 
@@ -288,3 +288,4 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 | UAT-277 | Provider/附件失败网络诊断丢失 | INTEGRATION_DIAGNOSTICS | 诊断修复已部署；网络瞬断原因未确认 | 今日身份/寻源/附件失败 | c147188485 | [证据](implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md) | 白名单详情持久化，Secret不泄露、写入安全保持；区分网络可达性与真实业务成功。 |
 | UAT-278 | Helix Beta Movie 阶段收尾与生产/验收记录对齐 | DOCUMENTATION / STAGE_ACCEPTANCE | 文档关闭（2026-09-30用户阶段接受及收尾记录） | 本聊天用户确认Movie全链路跑通 | 本分支UAT-278交付提交 | [收尾证据](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md) | 用户接受、生产身份、残余项和历史归档可追溯；没有批量关闭功能UAT，没有新增冻结SHA总体PASS或release tag。 |
 | UAT-279 | Series首版范围、实现差距与验收准备 | DESIGN / READINESS | 准备中；初步只读盘点完成，完整差距及验收矩阵待补 | 本聊天用户要求准备剧集大版本 | 未实施功能 | [唯一活动Phase](implementation/CURRENT_PHASE.md) | 完成逐段接线审查、样本manifest、明确首版范围和可独立验收实施项；S00/N:M计量等按SSOT复审；不以已有合同测试宣称真实链路可用。 |
+| UAT-280 | Beta Movie工作区、无用副本及NAS废弃工程资料清理 | OPERATIONS / WORKSPACE_RETIREMENT | 部分完成；NAS清理及14工作区退役完成，本地独立副本删除被自动审批阻断 | 本聊天用户明确本地及生产无用副本/备份范围；关联262 | 本分支UAT-280文档提交及逐目标Receipt | [结果与Receipt](implementation/evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md) | NAS60项资料/142旧镜像标签删除、29容器未变；余34本地tar/40测试副本/5处junction残余未删。修改/媒体/业务数据/必要回退保护；剩余精确清理及复验完成后关闭。 |
