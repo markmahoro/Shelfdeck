@@ -64,6 +64,16 @@ Docker保留当前c147、回退07172d4c15、未完成267基线3fff5f7dc3、历�
 
 ## Receipt与验证范围
 
+### 同日追加复查：依赖恢复遗漏与剩余候选
+
+用户询问还有什么可清理后，仅做剩余库存盘点。发现首轮14个worktree退役时沿junction删除不只影响工具依赖：主工作区`media-service/node_modules`、主Web及集成Web的`node_modules`均为空。之前恢复只覆盖SSH工具依赖；续作三处metadata保护比较虽通过，其比较起点已在首轮删除之后，不能据此证明首轮没影响依赖。该遗漏已向用户说明，并完成恢复。
+
+三个实际目录分别在其Service/Web锁文件下执行`npm ci`，分别新增161/205/205 packages并成功退出。主Service实际创建/查询/关闭memory SQLite及Sharp生成PNG通过，主/集成Web esbuild实际transform通过；主/集成工作区用户修改状态及锁文件无新增变更。无服务启动、代码调整或生产操作，未重跑全量Service/Desktop/真实媒体E2E。恢复后的本地可用空间较原首轮快照增加约98.7GiB；先前99.7GiB是恢复前的历史净快照，受其他进程影响。
+
+剩余只读盘点：8个测试代码tar共31,641,088 bytes，主集成及UI区忽略的构建产物共1,600,184 bytes；这些是需核验用途的低收益清理候选，未删除。`uat125-input-diagnostic.db`为940,773,376 bytes，由保留的input-drift proof脚本复制旧部署DB产生；UAT-125仍开放，不能仅按旧或大直接删。UAT-267两处已安装依赖约0.4GB可重建，但保留可减少后续验收重装；UI依赖还受当前链接引用，继续保留。剩余10个工作区职责与NAS保留边界不变。Git worktree prune dry run无可退役metadata；当前活动收尾区的refs空目录警告不视为可删Git根。
+
+本次盘点未新增删除或清理项。`remaining-inventory.json`为恢复前库存；`local-space-after-dependency-repair.json`记录恢复后磁盘快照。清理目标已完成，必要本地依赖也已补齐，不新增功能资格PASS。
+
 原始清单、核验脚本和逐目标Receipt保存在本任务ignored `.codex/cleanup-uat280-20260930/`；JSON/JSONL结果另存上述保留位置`cleanup-records/`。主要文件：`nas-plan.json`、`nas-receipt-final.jsonl`、`nas-images-receipt.jsonl`、`local-frozen-plan.json`、`continue-*-receipt.json`、`runtime-leaf-plan.json`、`runtime-leaf-*-receipt.json`、`final-worktrees-receipt.json`、`final-verification.json`和`cleanup-summary.json`。当前可阅读结果为保留位置根下`FINAL_CLEANUP_RESULT.md`；原`PENDING_LOCAL_CLEANUP.md`已更新为完成指针，`pending-local-cleanup.json`中待办为空。首轮结果保留为`cleanup-summary.initial.json`，不能覆盖最终结果。历史Evidence中的已删除副本路径仅供追溯，不能继续当作现存恢复副本使用。
 
 本轮验证精确清理结果、保护目标、源码/证据恢复能力、用户修改状态、服务身份/持续运行与磁盘空间，选定范围及保护复验满足本项关闭条件。无服务/UI源码改动，未构建、部署新版本或跑Service/Desktop/真实媒体E2E；不新增功能资格PASS，不关闭未完成业务UAT。
