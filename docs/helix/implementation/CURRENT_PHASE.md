@@ -34,6 +34,8 @@
 
 节点1当前批次DoR（逐Primary源探测）：沿SSOT §3.4.4–§3.4.6、§8.6.7及PBF-20，Libra从正式Reader重建同一冻结Run的Primary集合，为每个物理Primary分配独立只读Probe Event；共文件或多个part仍按物理成员探测一次，不把Episode数组展开为重复材料。Plan冻结materialKey及完整member digest，Owner projection拒绝跨成员、旧Binding或Manifest变更；Coordinator按完整Handle digest验证持久Result精确覆盖，缺失、重复、foreign及payload改写全部拒绝。保持现有Capability I/O、Material Control、Movie单源/原盘拓扑合同及无写源副作用，不放宽stream_file Source Scope的恰好一成员约束。本批验收为Planner/Projection/Result negative与受影响Movie回归；后续逐Primary加工、Package组装及完整Host执行仍是节点1未完成条件，不以此批关闭节点。
 
+本批结果`51d8ab8d0`：[逐Primary源探测Evidence](evidence/SERIES_SOURCE_MEDIA_20261001.md)。2/24集实际Host的Source Work及成员/Result digest通过，13文件100项通过，最终22项重叠专项通过；另3文件25通过、2项明确skip，P2通过。下一段处理产品验证、加工和Package关联；单源Direct/Package假设与Series小数GiB要求仍有实现缺口，不作为本批已完成能力。节点1保持开放，无UI交付/生产部署。
+
 | 合同 | 引用 | 应有用户结果及验证 |
 | --- | --- | --- |
 | 收藏主体为 Season，Episode 是直接 child entity | SSOT §3.2.6、§3.5.4 | 不按单集创建独立 Season 收藏；Season/集数统计分开 |
@@ -67,7 +69,7 @@
 
 | 顺序 | 工作项 / Owner | 验收门槛 | 当前状态 |
 | --- | --- | --- | --- |
-| 节点1 | 剧集资料与生产基础 / Platform、Libra | 明确Season/Episode身份，逐集Observation/Draft/NFO/Artifact按冻结Run范围生产，完整Result与Provenance链 | 实际Field→Routing/Spec→身份/逐集资料/Workspace/Fact调度及24集容量已验证；逐Primary媒体与交付关联待贯通，节点未关闭 |
+| 节点1 | 剧集资料与生产基础 / Platform、Libra | 明确Season/Episode身份，逐集Observation/Draft/NFO/Artifact按冻结Run范围生产，完整Result与Provenance链 | 实际资料/Artifact/Fact调度、24集容量及逐Primary源探测已验证；产品验证/加工与交付关联待贯通，节点未关闭 |
 | 节点2 | 首批剧集完整上架 / Procurement、Libra、Arca | E01/E02从Field到唯一Season Entry；正式Handoff/Commit、真实媒体及相应用户路径；UI负责人验收可见变化 | 依赖节点1及适用合同/fixture门禁 |
 | 节点3 | 持续追加与复杂文件映射 / Libra、Arca | E03扩充同Entry，旧Run/集事实不改写；重叠/并发/重复及N:M、逐集空间验收；可见变化交UI负责人验收 | 依赖节点2 |
 | 节点4 | 完整运营与用户体验 / Procurement、Libra、Arca、UI负责人 | 外部实际Episode覆盖、失败/重启、Aftercare/共享材料退出；Season用户旅程、适用状态及UI负责人验收 | 依赖对应纵向能力 |
