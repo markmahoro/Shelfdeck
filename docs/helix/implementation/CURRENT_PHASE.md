@@ -28,6 +28,8 @@
 
 本批Series Product Identity交付`215af03f5261029410c2d8e8041778ba1396a8dd`：[身份与continuity Evidence](evidence/SERIES_PRODUCT_IDENTITY_20261001.md)。正式Planner在两个Owner input绑定冻结Season，Provider search/exact验证TV+Season，Related NFO只形成claim；原生Fact事务同时发布Subject身份、continuity relation/set digest/head，支持exact replay与最后CAS失败全回滚。未来Intake查询及E03的既有身份projection通过，但不等于实际追加准入/上架。最终15文件302项回归及生成manifest后的44项重叠复验通过，P2无findings。追加`f61beacb1`实际Identity Capability经原生Work Reader和fenced Commit发布通过，专项最终31项通过。节点1继续Routing、完整调度及长Season容量验证；无Series页面交付、无生产部署。
 
+追加实际调度交付`4831a923b`：[Routing与调度Evidence](evidence/SERIES_ROUTING_SCHEDULING_20261001.md)。修复Routing固定Movie、Spec空Episode范围及Artifact目标数量判断；2/24集由实际Host从Field执行到身份、逐集资料、NFO/海报及原生Metadata Fact，源字节及空Shelf保持。Series来源容量128，Movie/JAV仍16，512 KiB/64 KiB字节合同不放宽；25份NFO与25条资料来源完整保存。最终15文件181项及4文件17项通过、0失败/跳过，P2通过。节点1继续逐Primary媒体验证/加工及Product Package交付关联；多批非重叠Spec/Run仍在节点3验证，无UI PASS或生产部署。
+
 ## 已确认合同与首版验收方向
 
 | 合同 | 引用 | 应有用户结果及验证 |
@@ -63,7 +65,7 @@
 
 | 顺序 | 工作项 / Owner | 验收门槛 | 当前状态 |
 | --- | --- | --- | --- |
-| 节点1 | 剧集资料与生产基础 / Platform、Libra | 明确Season/Episode身份，逐集Observation/Draft/NFO/Artifact按冻结Run范围生产，完整Result与Provenance链 | 逐集生产、Series Product Identity及原生Workspace/Fact事务已验证；Routing、完整调度及长Season容量待贯通，节点未关闭 |
+| 节点1 | 剧集资料与生产基础 / Platform、Libra | 明确Season/Episode身份，逐集Observation/Draft/NFO/Artifact按冻结Run范围生产，完整Result与Provenance链 | 实际Field→Routing/Spec→身份/逐集资料/Workspace/Fact调度及24集容量已验证；逐Primary媒体与交付关联待贯通，节点未关闭 |
 | 节点2 | 首批剧集完整上架 / Procurement、Libra、Arca | E01/E02从Field到唯一Season Entry；正式Handoff/Commit、真实媒体及相应用户路径；UI负责人验收可见变化 | 依赖节点1及适用合同/fixture门禁 |
 | 节点3 | 持续追加与复杂文件映射 / Libra、Arca | E03扩充同Entry，旧Run/集事实不改写；重叠/并发/重复及N:M、逐集空间验收；可见变化交UI负责人验收 | 依赖节点2 |
 | 节点4 | 完整运营与用户体验 / Procurement、Libra、Arca、UI负责人 | 外部实际Episode覆盖、失败/重启、Aftercare/共享材料退出；Season用户旅程、适用状态及UI负责人验收 | 依赖对应纵向能力 |

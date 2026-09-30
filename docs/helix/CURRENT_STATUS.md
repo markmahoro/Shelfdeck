@@ -37,6 +37,8 @@ Series初审及Windows专项测试见[审查Evidence](implementation/evidence/SE
 
 2026-10-01节点1增量`215af03f5261029410c2d8e8041778ba1396a8dd`：[Series身份与continuity发布](implementation/evidence/SERIES_PRODUCT_IDENTITY_20261001.md)。Series Product Identity的Plan/Owner projection、TV+Season search/exact、closed Intent/Observation和正式Subject identity/continuity事务已接通；native commit/replay、最后head CAS失败回滚、跨Season拒绝及未来Intake匹配查询通过。15文件302项回归通过，生成manifest后44项重叠复验通过，P2通过；追加`f61beacb1`实际Identity Capability入口的原生发布通过，专项最终31项通过。仍未验证从Field经Routing/Scheduler到完整Series Run、实际E03追加、长Season容量或Arca正式落位；节点1未关闭，无UI PASS和新部署。
 
+实际调度本批交付`4831a923b`：[Routing与调度Evidence](implementation/evidence/SERIES_ROUTING_SCHEDULING_20261001.md)。2/24集从正式Field经Intake、Routing、Spec、身份及逐集生产执行到原生Metadata Fact；24集生成Season加逐集25份NFO、海报及25条资料来源。Series来源上限128，Movie/JAV16，字节界保持。最终181项基础/Series及17项Movie/集成回归通过，无失败/跳过，P2通过。节点1继续逐Primary媒体与交付关联；没有Arca上架、Series UI验收、真实媒体/Linux或生产部署结论。两处测试Temp递归清理被自动审批拒绝，目录暂保留，Host均已关闭。
+
 原活动文档及残余队列已冻结到[Movie 收尾快照](implementation/archive/20260930_BETA_MOVIE_CLOSEOUT/SNAPSHOT.md)。隔离分支 `codex/beta-closeout-series` 基于 `ecccf7ba9b`继续开发，最新代码见上述实现提交。主工作区、集成区及其他有未提交修改的工作区保留，修改状态未变化。
 
 UAT-280已完成：[清理证据](implementation/evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md)。NAS删除60项废弃工程资料（20个tar、21个测试目录、19个备份）及142个旧镜像标签；全部29个容器身份/启动状态未变，保留当前/回退及必要验收镜像、含原媒体和事故恢复备份。本地37个Git worktree退役27个，保留10个；34个旧镜像包、40个测试副本、另2份过时测试数据库及5处退役残余全部清除，本地可用空间较原快照增加约99.7GiB。首次审批拦截已通过明确文件及空目录操作安全完成。37个源码snapshot ref/恢复bundle及1670份必要文件复验通过，三处共享依赖和三个有用户修改的工作区状态保持；无剩余选定待删项。
