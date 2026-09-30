@@ -46,3 +46,7 @@ git diff --check
 节点1继续接通Routing与完整Series Run调度，并验证普通长Season的有界Source Basis和Fact容量。当前16 Observation、512 KiB Observation Set、64 KiB Fact仍是明确边界，不能凭E01/E02声称任意全集交付。节点2接续Arca正式Season/Episode命名与首次完整上架；默认NFO命名碰撞仍未修复。Artifact只有Primary携带Episode relation的Owner合同保持。
 
 没有Series页面/后端展示文案交付，未声明UI PASS。可见变化仍交UI负责人按准确版本验收。未运行真实Series媒体E2E、完整Host调度、真实TMDB凭据请求、浏览器、Linux/Docker、Desktop或生产验证；未创建release tag，未分配开发UAT编号。
+
+## 追加：正式Identity Capability入口
+
+验证提交：`f61beacb18d2d5cadb55d1a91cff4a40452f51d1`，无生产代码增量。实际调用`libra.product_identity.resolve@1` Capability，使用原生Work Result Reader从同Run找到唯一Source Work，经实际identityCommitFence/Handle验证进入native Domain Commit，保存Series identity/Source refs/continuity head并返回EffectReceipt；Output digest与marker逐项相等。专项最终31项通过、0失败、0跳过。该追加补足直接Commit Coordinator之外的Capability入口，仍不替代完整Scheduler/Host旅程，不与302/44重复相加。
