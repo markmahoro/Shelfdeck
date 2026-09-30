@@ -7,6 +7,7 @@ const { buildSpaceAdmissionRequest, buildWorkspaceAdmissionDecision, requiredFre
   require('../model/workspace-admission-contracts');
 const { directMediaSelectionWork, remuxMediaSelectionWork, sourceMediaObservationWork,
   transcodeMediaSelectionWork,transcodeStrategyAssessmentWork } = require('../planning/media-production-work');
+const { readSourceMediaObservations } = require('../planning/source-media-observations');
 const { createProductStagingService } = require('./product-staging-service');
 const { productConformanceWork, deliverablePromotionWork } =
   require('../planning/product-delivery-work');
@@ -722,15 +723,13 @@ function createLibraRunCoordinator(options){
         workId:sourceMedia.workId,replayed:sourceSubmitted.replayed,workspaceId:workspace.workspaceId,
         workspaceRevision:workspace.currentRevision});
     }
-    const sourceResults=options.workResultReader.read(sourceMedia.workId).filter((item)=>item.outcomeKind==='succeeded'&&
-      item.capabilityRef==='shared.material.media.probe@1');
-    if(sourceResults.length!==1)throw new Error('Terminal source media Observation Work lacks one durable Probe Result.');
+    const sourceObservations=readSourceMediaObservations(options,snapshot);
     if(snapshot.materialInputForm==='stream_file' && snapshot.run.authorizedDefectManifest?.defects?.some(item=>Boolean(item.originalMediaVerificationId))) {
       const direct=directMediaSelectionWork(snapshot);
       if(!workSucceeded(options.workResultReader.status(direct.workId)))throw new Error('Authorized direct product lost its completed verification Work.');
       return ensureDelivery(snapshot,workspace,direct);
     }
-    if(sourceRequiresExternalSearch(sourceResults[0].result,snapshot.spec?.requirements?.mandatoryMedia)){
+    if(sourceObservations.some(item=>sourceRequiresExternalSearch(item.record.result,snapshot.spec?.requirements?.mandatoryMedia))){
       return ensureOriginalMediaThenExternal(snapshot,workspace);
     }
     if(snapshot.materialInputForm!=='stream_file'){

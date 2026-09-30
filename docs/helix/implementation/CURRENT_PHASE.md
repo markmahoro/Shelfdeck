@@ -32,6 +32,8 @@
 
 ## 已确认合同与首版验收方向
 
+节点1当前批次DoR（逐Primary源探测）：沿SSOT §3.4.4–§3.4.6、§8.6.7及PBF-20，Libra从正式Reader重建同一冻结Run的Primary集合，为每个物理Primary分配独立只读Probe Event；共文件或多个part仍按物理成员探测一次，不把Episode数组展开为重复材料。Plan冻结materialKey及完整member digest，Owner projection拒绝跨成员、旧Binding或Manifest变更；Coordinator按完整Handle digest验证持久Result精确覆盖，缺失、重复、foreign及payload改写全部拒绝。保持现有Capability I/O、Material Control、Movie单源/原盘拓扑合同及无写源副作用，不放宽stream_file Source Scope的恰好一成员约束。本批验收为Planner/Projection/Result negative与受影响Movie回归；后续逐Primary加工、Package组装及完整Host执行仍是节点1未完成条件，不以此批关闭节点。
+
 | 合同 | 引用 | 应有用户结果及验证 |
 | --- | --- | --- |
 | 收藏主体为 Season，Episode 是直接 child entity | SSOT §3.2.6、§3.5.4 | 不按单集创建独立 Season 收藏；Season/集数统计分开 |

@@ -260,11 +260,19 @@ function createWorkspaceMediaProductionPlanner(options) {
     if(snapshot.run.executionBasisDigest!==request.executionBasisDigest)throw new Error('Workspace Media planning basis changed.');
     const sourceWork=sourceMediaObservationWork(snapshot),directWork=directMediaSelectionWork(snapshot),remuxWork=remuxMediaSelectionWork(snapshot);
     if(request.workId===sourceWork.workId){
-      const eventId=stable('libra-source-media-probe-event-',{attempt:request.workAttemptId});
-      const node=planNode({...options,request,nodeId:'source_media_probe',eventId,capabilityRef:PROBE,
-        inputBindings:[owner('physicalMaterialReadHandleOrWorkspaceMaterialHandle',request,SOURCE_HANDLE)],
-        resourceKinds:['cpu','disk_io']});
-      return planEnvelope({plannerContractRef,catalogDigest},request,sourceWork,[node]);
+      const isSeries=snapshot.spec.contentProfile==='series';
+      const resolver=createProductionSourceScopeResolver({movieProductionReader:options.movieProductionReader,
+        productionPort:options.productProductionPort});
+      const nodes=resolver.primarySources(snapshot).map((item,index)=>{
+        const parameters=isSeries?{materialKey:item.member.materialKey,memberDigest:canonicalDigest(item.member)}:{};
+        const eventId=stable('libra-source-media-probe-event-',isSeries
+          ?{attempt:request.workAttemptId,...parameters}:{attempt:request.workAttemptId});
+        return planNode({...options,request,nodeId:isSeries?'source_media_probe_'+index:'source_media_probe',
+          eventId,capabilityRef:PROBE,
+          inputBindings:[owner('physicalMaterialReadHandleOrWorkspaceMaterialHandle',request,SOURCE_HANDLE,parameters)],
+          resourceKinds:['cpu','disk_io']});
+      });
+      return planEnvelope({plannerContractRef,catalogDigest},request,sourceWork,nodes);
     }
     if(request.workId===directWork.workId){
       if(snapshot.materialInputForm!=='stream_file')throw new Error('Direct media selection only accepts stream-file input.');
@@ -411,7 +419,14 @@ function createWorkspaceMediaProductionProjections(options) {
       targetRelativePath:'media/remux-' + snapshotValue.run.libraRunId + '.mkv',productionIntentDigest:intent.intentDigest});
   }
   return Object.freeze([
-    Object.freeze({projectionRef:SOURCE_HANDLE,projection:Object.freeze({project:({ownerScope})=>source(snapshot(ownerScope)).primaryReadHandle})}),
+    Object.freeze({projectionRef:SOURCE_HANDLE,projection:Object.freeze({project:({ownerScope,parameters={}})=>{
+      const value=snapshot(ownerScope);
+      if(value.spec.contentProfile!=='series') {
+        if(Object.keys(parameters).length)throw new Error('Single source Probe cannot carry Series member parameters.');
+        return source(value).primaryReadHandle;
+      }
+      return sourceScopeResolver.primarySource(value,parameters).readHandle;
+    }})}),
     Object.freeze({projectionRef:DIRECT_CANDIDATE,projection:Object.freeze({project:({ownerScope,parameters})=>{
       const value=snapshot(ownerScope),handle=source(value).primaryReadHandle,probe=sourceProbe(value,parameters.sourceWorkId);
       return buildProductMediaCandidateInput({libraRunId:value.run.libraRunId,candidateNodeId:'direct_input',candidateKind:'direct_input',

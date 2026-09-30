@@ -107,7 +107,49 @@ function createProductionSourceScopeResolver(options) {
     });
   }
 
-  return Object.freeze({ referenceFor, resolve });
+  function seriesPrimaryMembers(snapshot) {
+    const current = options.movieProductionReader.readRun(snapshot.run.libraRunId);
+    if (current.run.executionBasisDigest !== snapshot.run.executionBasisDigest ||
+        current.run.runMaterialManifestDigest !== snapshot.run.runMaterialManifestDigest ||
+        current.spec.recordDigest !== snapshot.spec.recordDigest ||
+        current.materialInputForm !== snapshot.materialInputForm ||
+        canonicalJson(current.members) !== canonicalJson(snapshot.members)) {
+      const error = new Error('Source Primary snapshot differs from the frozen Run.');
+      error.code = 'LIBRA_PRODUCTION_SOURCE_MEMBER_STALE';
+      throw error;
+    }
+    const primary = [...current.members].filter(item => item.role === 'primary_payload').sort(utf8);
+    if (current.spec.contentProfile !== 'series' || current.spec.structureKind !== 'season' ||
+        current.materialInputForm !== 'stream_file' || primary.length < 1 || primary.length > 1024 ||
+        new Set(primary.map(item => item.materialKey)).size !== primary.length) {
+      throw new Error('Series source probing requires a bounded frozen stream-file Primary set.');
+    }
+    // The exact Reader has already verified each bounded Claim Set against
+    // Handoff A and the Run Manifest. Probe physical members, not claim rows.
+    return Object.freeze(primary);
+  }
+
+  function primarySources(snapshot) {
+    if (snapshot.spec.contentProfile !== 'series') {
+      // Disc probing keeps the frozen title/topology behavior of single products.
+      return Object.freeze([resolve(referenceFor(snapshot)).primaryMembers[0]]);
+    }
+    return Object.freeze(seriesPrimaryMembers(snapshot).map(member =>
+      Object.freeze({member, readHandle:readHandle(snapshot, member)})));
+  }
+
+  function primarySource(snapshot, parameters) {
+    const member = seriesPrimaryMembers(snapshot).find(item => item.materialKey === parameters.materialKey);
+    if (Object.keys(parameters).length !== 2 || !Object.hasOwn(parameters, 'memberDigest') ||
+        !member || canonicalDigest(member) !== parameters.memberDigest) {
+      const error = new Error('Source Probe does not bind an exact frozen Series Primary.');
+      error.code = 'LIBRA_PRODUCTION_SOURCE_MEMBER_STALE';
+      throw error;
+    }
+    return Object.freeze({member, readHandle:readHandle(snapshot, member)});
+  }
+
+  return Object.freeze({ referenceFor, resolve, primarySources, primarySource });
 }
 
 module.exports = Object.freeze({ createProductionSourceScopeResolver, referenceFor, workspaceReferenceFor, selectedPayloadSetDigest });

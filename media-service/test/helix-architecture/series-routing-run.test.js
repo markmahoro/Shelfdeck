@@ -16,6 +16,8 @@ const { createMaterialFieldStore } = require('../../src/helix/domains/procuremen
 const { createFieldObservationAdminService } = require('../../src/helix/domains/procurement/application/field-observation-admin-service');
 const { initializeCleanData } = require('../../scripts/helix-operational-safety');
 const { createCleanServiceHost } = require('../../src/clean-service-host');
+const { assertProbeEvidence } = require('../../src/helix/domains/libra/model/media-production-contracts');
+const { createMovieProductionReader } = require('../../src/helix/domains/libra/persistence/movie-production-reader');
 
 const D = value => canonicalDigest({ value });
 const generated = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
@@ -178,7 +180,7 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+' Episodes through Routing, Spec, identity, metadata and Workspace artifacts', {timeout:60000},async t=>{
+for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata, artifacts and every source Primary Probe', {timeout:60000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source','Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
@@ -240,12 +242,15 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
   db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
   let state;const deadline=Date.now()+45000;
   do {
-    assert.ifError(runtimeError);
     state={subjects:db.prepare('SELECT * FROM libra_subjects').all(),routes:db.prepare('SELECT * FROM libra_routing_decisions').all(),
       specs:db.prepare('SELECT * FROM libra_acceptance_specs').all(),runs:db.prepare('SELECT * FROM libra_runs').all(),
-      works:db.prepare('SELECT work_kind,state FROM fx_supporting_works').all(),
+      works:db.prepare('SELECT work_id,work_kind,state FROM fx_supporting_works').all(),
       facts:db.prepare('SELECT fact_kind,fact_json FROM libra_product_fact_revisions').all()};
-    if(state.facts.some(fact=>fact.fact_kind==='product_metadata')||state.works.some(work=>work.state==='failed'))break;
+    // Stop at the bounded source Work. Downstream multi-Primary media selection
+    // and Package assembly are subsequent development work.
+    if(state.works.some(work=>work.work_id.startsWith('libra-workspace-media-source_observation-work-')&&work.state==='succeeded')||
+        state.works.some(work=>work.state==='failed'))break;
+    assert.ifError(runtimeError);
     await new Promise(resolve=>setTimeout(resolve,25));
   } while(Date.now()<deadline);
   assert.equal(state.runs.length,1,JSON.stringify(state));
@@ -253,7 +258,27 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
     works:state.works,attempts:db.prepare('SELECT * FROM fx_work_attempts').all(),
     incidents:db.prepare('SELECT * FROM fx_executor_incidents').all(),events:db.prepare(
       'SELECT event_id,failure_class,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
+  const sourceWork=state.works.find(work=>work.work_id.startsWith('libra-workspace-media-source_observation-work-'));
+  assert.equal(sourceWork?.state,'succeeded',JSON.stringify(state.works));
+  const sourceSnapshot=createMovieProductionReader({schemaManifest,unitOfWork}).readRunSnapshot(state.runs[0].libra_run_id);
   await host.close();
+  const sourceProbes=db.prepare("SELECT event_id,result_json,result_digest FROM fx_event_result_bindings WHERE event_id LIKE 'libra-source-media-probe-event-%'").all();
+  assert.equal(sourceProbes.length,episodeCount);
+  for(const item of sourceProbes) {
+    const value=JSON.parse(item.result_json);assertProbeEvidence(value);
+    assert.equal(item.result_digest,canonicalDigest(value));
+  }
+  assert.equal(db.prepare("SELECT count(*) n FROM fx_event_attempts WHERE event_id LIKE 'libra-source-media-probe-event-%' AND failure_code IS NOT NULL").get().n,0);
+  assert.equal(new Set(sourceProbes.map(item=>JSON.parse(item.result_json).sourceHandleDigest)).size,episodeCount);
+  const sourceNodes=db.prepare("SELECT input_bindings_json FROM fx_plan_nodes WHERE node_id LIKE 'source_media_probe_%'").all();
+  const probeKeys=sourceNodes.map(node=>JSON.parse(node.input_bindings_json).bindings[0].parameters.materialKey).sort();
+  const primaryKeys=db.prepare("SELECT material_key FROM libra_run_material_members WHERE role='primary_payload' ORDER BY material_key").all();
+  assert.deepEqual(probeKeys,primaryKeys.map(item=>item.material_key));
+  for(const node of sourceNodes) {
+    const parameters=JSON.parse(node.input_bindings_json).bindings[0].parameters;
+    const member=sourceSnapshot.members.find(item=>item.materialKey===parameters.materialKey);
+    assert.equal(parameters.memberDigest,canonicalDigest(member));
+  }
   assert.equal(state.subjects.length,1);assert.equal(state.subjects[0].content_profile,'series');
   assert.equal(state.subjects[0].structure_kind,'season');
   assert.equal(state.routes.at(-1).decision,'resolved');assert.equal(state.routes.at(-1).shelf_id,'series-shelf');
