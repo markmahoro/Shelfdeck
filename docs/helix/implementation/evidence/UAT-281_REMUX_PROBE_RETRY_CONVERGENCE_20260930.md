@@ -24,6 +24,12 @@ Foundation 在明确 abandon 未提交 Effect 后，将安全重试判据交给�
 
 ## 发布及业务验收
 
+旧精确生产镜像的完整一致副本已经启动、运行正常 Owner/Intake reconciliation 并关闭：启动 766348ms，全程 788862ms，health200/normalSupplyAllowed=true。365 Entry/Commit、27217 Inventory Material、3554 Representation、11399 Product Fact、437 Acceptance Spec、1466 Run revision、3122 Material Binding、20004既有Plan和1013 Candidate Package逐行摘要保持；正常新增6 Plan。只读 Workspace 对两个既有 partial 清理产生 EROFS，已定位为隔离保护造成的写拒绝；无媒体/真实 Workspace 写入。首次240秒预算演练未得到完整启动结果，已停止测试容器；第二次900秒预算完成，不把首次当PASS。
+
+5秒冷启动 CPU profile 的主要样本在 Catalog Plan proof reader，逐个 Event Attempt 查 Effect、逐个 Effect 查 marker，约两万次失败导致大量全表扫描。后续修复复用已有 P3 `select-in` primitive，每批最多500 ID、同一 read transaction 内读取全部 scoped Effect/marker，未加索引、未改schema或Catalog、未删/改历史，也未缓存或省略proof。真实SQLite1003 Attempt正向完整保留多Effect/多marker供既有否决器判断，foreign scope排除、空集不查询；Windows相关138项通过。官方架构及最终精确Linux、最新副本候选与同库回退仍待后续版本验证。
+
+中间镜像 `8f72a0b47a` Linux媒体/Runtime 102项：101通过、1真实BDAV/HEVC canary缺失跳过；真实源前缀的默认FFprobe无尺寸，修复后的Probe→remux→Probe成功且源字节不变。第一批选择了两个生产镜像不包含的历史runtime测试及未复制的生成fixture helper，出现3个MODULE_NOT_FOUND；补充纯测试生成helper、移除不在当前生产runtime的历史测试后复测。没有替换镜像产品源码。中间镜像尚未发布，不代替后续性能修复版本的精确Linux验收。
+
 发布准备发现生产旧镜像逐文件 COPY 层数积累，原 runtime reuse 在 `max depth exceeded` 失败。本次将 canonical recipe 内同目标目录、同文件名的 COPY 合并；所有源和目标逐项等价，目录及改名 COPY 保留。两项构建工具验证通过，旧身份/锁文件/Git 差异门禁保持。完整构建的依赖下载耗时较长，转回已验证的相同 runtime；没有重新选择运行依赖或 Web 版本。本机 Docker engine 不能启动，实际构建入口仍为本机 `build-image.js`，经统一 SSH 配置和 loopback 临时转发使用 NAS daemon。
 
 未执行完整 Service/Desktop/全库整理 E2E。没有 UI 修改。当前尚未发布，指定影片尚未完成；以精确镜像 Linux 测试、最新完整一致副本候选/回退 Host、标准上传 checksum/dry-run/apply 及真实 Run 结果分别补充，不用代码或健康接口代替业务验收。
