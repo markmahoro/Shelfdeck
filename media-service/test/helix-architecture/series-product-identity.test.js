@@ -12,6 +12,8 @@ const {observeProductIdentity}=require('../../src/helix/domains/libra/capabiliti
 const {createProductIdentityPlanner,createProductIdentityProjections,IDENTITY_EVIDENCE_INTENT,decisionEvidence,productStructure}=
   require('../../src/helix/domains/libra/planning/libra-production-planners');
 const {buildProductIdentityCommitBundle}=require('../../src/helix/domains/libra/model/product-identity-commit-contracts');
+const {createProductFactCapabilityPorts}=require('../../src/helix/domains/libra/capabilities/product-fact-capability-ports');
+const {identityCommitFence}=require('../../src/helix/domains/libra/model/product-fact-execution-fences');
 const {buildProductFactHandle,buildResolvedProductIdentity}=require('../../src/helix/domains/libra/model/product-fact-contracts');
 const {establishedSubjectIdentity,identityObservationWork}=require('../../src/helix/domains/libra/planning/product-identity-work');
 const {CONTINUITY_HEAD_ID,continuityHeadDigest,subjectContinuitySetDigest,subjectEpisodeScopeDigest}=
@@ -295,6 +297,27 @@ test('A continuity head CAS failure rolls back all preceding real Owner writes, 
   assert.throws(()=>coordinator(crashing).execute(request(value.bundle)),{code:'P9_RESOLVED_IDENTITY_CONTINUITY_CAS'});
   const db=new Database(databasePath,{readonly:true});try{assertEmpty(db);}finally{db.close();}
   assert.equal(coordinator(unitOfWork).execute(request(value.bundle)).replayed,false);
+}));
+
+test('The actual Series identity Capability resolves the durable source Work and publishes through its fenced native commit',async()=>database(async({kernel,unitOfWork,databasePath})=>{
+  const value=await fixture();seed(kernel,value);
+  const reader=createWorkResultReader({kernel,schemaManifest,unitOfWork});
+  const decision=decisionEvidence(value.result,value.snapshot),structure=productStructure(value.snapshot);
+  const bundle=buildProductIdentityCommitBundle({snapshot:value.snapshot,identityClaim:value.snapshot.candidateIdentityClaim,
+    decisionEvidence:decision,productStructure:structure,sourceResultItem:reader.read('work-source')[0],libraRunId:'run-1',
+    eventFenceDigest:identityCommitFence('work-commit','event-commit')});
+  const port=createProductFactCapabilityPorts({workResultReader:reader,movieProductionReader:{
+    readRun:()=>value.snapshot,readRunSnapshot:()=>value.snapshot,readFact:()=>null},domainCommitCoordinator:coordinator(unitOfWork),now:()=>100})['libra.product_identity.resolve@1'];
+  const context={ownerScope:{processId:'run-1'},workId:'work-commit',eventId:'event-commit',idempotencyKey:'fixture-identity-commit',
+    namedInputs:{identityClaim:value.snapshot.candidateIdentityClaim,decisionEvidence:decision,productStructure:structure,domainFactCommitHandle:bundle.handle}};
+  port.validateInputs(context);const outcome=port.execute(context);port.validateResult(context,outcome);
+  assert.equal(outcome.kind,'succeeded');assert.equal(outcome.result.identityKind,'tmdb_series_season');
+  assert.equal(outcome.effectReceipt.outputDigest,canonicalDigest(outcome.result));
+  const db=new Database(databasePath,{readonly:true});try{
+    assert.equal(db.prepare('SELECT COUNT(*) count FROM libra_product_fact_source_refs').get().count,1);
+    assert.equal(db.prepare('SELECT current_revision FROM libra_subject_continuity_heads').get().current_revision,1);
+    assert.equal(db.prepare('SELECT commit_marker FROM fx_commit_markers').get().commit_marker,outcome.effectReceipt.commitMarker);
+  }finally{db.close();}
 }));
 
 for(const mutation of ['foreign-source-season','foreign-run-season','invalid-fact-digest'])test('Native identity rejects '+mutation+' with zero publication',async()=>database(async({kernel,unitOfWork,databasePath})=>{
