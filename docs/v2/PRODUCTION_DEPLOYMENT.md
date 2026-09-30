@@ -64,6 +64,11 @@ node scripts/build-image.js <tag>
 
 输出文件为 `dist-image/shelfdeck-<tag>.tar`。
 
+仅 Service 源码变化时可使用 `build-image.js <tag> --reuse-runtime <exact-image> <source-commit> <image-id>`。
+脚本核对镜像身份、依赖锁文件、Git 差异及完整 canonical COPY；依赖、Web、Dockerfile变化或删除 Service文件均拒绝复用。
+相同目录内未改名的文件 COPY 合并为单层，目录 COPY 保留原目标，避免逐文件层数累积导致 `max depth exceeded`；不改变源文件覆盖范围。
+本机 Docker engine 不可用时，可由本机脚本通过统一 SSH 配置建立仅 loopback 的临时 Docker socket 转发，使用 NAS daemon 构建和本机导出 tar；结束后关闭转发，不向 LAN 暴露 Docker API，不跳过后续上传、checksum、副本门禁与标准 deploy。
+
 `scripts/build-image.sh` 仅为 Linux/Git Bash 兼容包装，内部调用同一个 Node 实现；Windows 不需要 WSL 或 Git Bash。
 
 2. 计算本地 tarball 的 SHA-256，用于上传后校验：

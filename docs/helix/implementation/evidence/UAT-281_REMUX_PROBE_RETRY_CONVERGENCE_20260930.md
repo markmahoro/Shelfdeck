@@ -24,4 +24,6 @@ Foundation 在明确 abandon 未提交 Effect 后，将安全重试判据交给�
 
 ## 发布及业务验收
 
+发布准备发现生产旧镜像逐文件 COPY 层数积累，原 runtime reuse 在 `max depth exceeded` 失败。本次将 canonical recipe 内同目标目录、同文件名的 COPY 合并；所有源和目标逐项等价，目录及改名 COPY 保留。两项构建工具验证通过，旧身份/锁文件/Git 差异门禁保持。完整构建的依赖下载耗时较长，转回已验证的相同 runtime；没有重新选择运行依赖或 Web 版本。本机 Docker engine 不能启动，实际构建入口仍为本机 `build-image.js`，经统一 SSH 配置和 loopback 临时转发使用 NAS daemon。
+
 未执行完整 Service/Desktop/全库整理 E2E。没有 UI 修改。当前尚未发布，指定影片尚未完成；以精确镜像 Linux 测试、最新完整一致副本候选/回退 Host、标准上传 checksum/dry-run/apply 及真实 Run 结果分别补充，不用代码或健康接口代替业务验收。

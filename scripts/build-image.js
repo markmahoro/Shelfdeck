@@ -48,6 +48,28 @@ function humanBytes(bytes) {
   return `${value.toFixed(unit === 0 ? 0 : 1)} ${units[unit]}`;
 }
 
+function consolidateRuntimeCopies(root, copies) {
+  const groups = new Map();
+  const output = [];
+  for (const line of copies) {
+    const parts = line.trim().split(/\s+/);
+    if (parts.length !== 3 || parts[0] !== 'COPY' ||
+        !fs.statSync(path.join(root, parts[1])).isFile() ||
+        path.posix.basename(parts[1]) !== path.posix.basename(parts[2])) {
+      output.push(line);
+      continue;
+    }
+    const parent = path.posix.dirname(parts[2]);
+    if (!groups.has(parent)) {
+      groups.set(parent, []);
+      output.push({ parent });
+    }
+    groups.get(parent).push(parts[1]);
+  }
+  return output.map(item => typeof item === 'string' ? item :
+    `COPY ${groups.get(item.parent).join(' ')} ${item.parent}/`);
+}
+
 async function main(argv = process.argv.slice(2)) {
   const tag = String(argv[0] || '').trim();
   if (!tag || ![1,5].includes(argv.length) || (argv.length===5 && argv[1]!=='--reuse-runtime') || !/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(tag)) {
@@ -102,7 +124,10 @@ async function main(argv = process.argv.slice(2)) {
     if(!recipe)throw new Error('Canonical runtime stage is missing.');
     const copies=recipe.split(/\r?\n/).filter(line=>line.startsWith('COPY ')&&!line.startsWith('COPY --from='));
     dockerfile=path.join(outputDir,'runtime-reuse.Dockerfile');
-    fs.writeFileSync(dockerfile,[`FROM ${image}`,'WORKDIR /app',...copies,
+    // Preserve every canonical destination while avoiding a new layer for each
+    // source file on an already layered, identity-verified runtime image.
+    const consolidatedCopies=consolidateRuntimeCopies(root,copies);
+    fs.writeFileSync(dockerfile,[`FROM ${image}`,'WORKDIR /app',...consolidatedCopies,
       `LABEL org.opencontainers.image.revision="${execFileSync('git',['rev-parse','HEAD'],{cwd:root,encoding:'utf8'}).trim()}"`,
       'ENTRYPOINT []','CMD ["node", "src/server.js"]',''].join('\n'));
     console.log(`==> Verified unchanged runtime ${image} (${imageId}); rebuilding all canonical service sources`);
@@ -140,7 +165,11 @@ async function main(argv = process.argv.slice(2)) {
   console.log(`    Next: node scripts/upload-nas-image.js ${tarPath}`);
 }
 
-main().catch((error) => {
-  console.error(`\nBUILD FAILED: ${error.message}`);
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(`\nBUILD FAILED: ${error.message}`);
+    process.exit(1);
+  });
+}
+
+module.exports = { consolidateRuntimeCopies };
