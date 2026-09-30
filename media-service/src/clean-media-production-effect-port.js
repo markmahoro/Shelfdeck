@@ -7,6 +7,7 @@ const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { compileFfmpegPipeline, compileFfmpegPassArgs } = require('./helix/integrations/ffmpeg-pipeline');
 const { createFfmpegProcessRegistry } = require('./clean-ffmpeg-process-registry');
 const { inspectIsoPlaybackPlan } = require('./helix/integrations/disc-topology');
+const { MEDIA_PROBE_INPUT_ARGS } = require('./helix/integrations/media-probe-budget');
 const { computeBoundedMaterialFingerprint } =
   require('./helix/integrations/bounded-material-fingerprint');
 
@@ -512,13 +513,13 @@ function createCleanMediaProductionEffectPort(options) {
         try {
           let identify = '';
           try {
-            await run(['-hide_banner', '-nostdin', ...input.argv], 60_000);
+            await run(['-hide_banner', '-nostdin', ...MEDIA_PROBE_INPUT_ARGS, ...input.argv], 60_000);
           } catch (error) {
             identify = String(error?.details?.stderr || '');
           }
           const maps = matroskaCopyMapsFromProbe(identify);
           await run([
-            '-hide_banner', '-nostdin', '-y', '-fflags', '+genpts', ...input.argv,
+            '-hide_banner', '-nostdin', '-y', '-fflags', '+genpts', ...MEDIA_PROBE_INPUT_ARGS, ...input.argv,
             ...maps, '-c', 'copy', '-bsf:v', VIDEO_TIMESTAMP_FILL_BSF, '-f', 'matroska', temporaryTarget,
           ], timeoutMs, progress?progressPhase(progress,'remux'):null);
         } finally { await input.cleanup?.(); }

@@ -797,7 +797,7 @@ function createEventRuntime(options) {
           capabilityRef:snapshot.event.capability_ref,effectClass:snapshot.node.effect_class,
           retryPolicyRef:policyBinding.retryPolicyRef,timeoutPolicyRef:policyBinding.timeoutPolicyRef,
           failureAttemptCount:snapshot.attempts.filter((item)=>item.outcome_kind === 'failed').length + 1,
-          outcome,recoveryDecision:request.decision,
+          outcome,recoveryDecision:abandonedUncommitted ? 'safe_retry' : request.decision,
         }));
         // Match normal dispatch: a retired intent and explicit no-retry Outcome
         // cannot retain an executing Event, including recovery before intent.
@@ -1037,7 +1037,10 @@ function createEventRuntime(options) {
             capabilityRef: snapshot.event.capability_ref, effectClass: snapshot.node.effect_class,
             retryPolicyRef: policyBinding.retryPolicyRef, timeoutPolicyRef: policyBinding.timeoutPolicyRef,
             failureAttemptCount: snapshot.attempts.filter((attempt) => attempt.outcome_kind === 'failed').length + 1,
-            outcome, recoveryDecision: null
+            // A failed Capability has explicitly ended its uncommitted Effect.
+            // Apply the frozen retry budget instead of waiting for a reconcile
+            // that cannot resume this terminal journal row.
+            outcome, recoveryDecision: abandonedUncommitted ? 'safe_retry' : null
           }));
           // Capability returned failed before any durable Effect and forbade
           // retry.  The uncommitted journal row is already abandoned, so the

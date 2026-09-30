@@ -6,6 +6,7 @@ const { collectFormatTags, normalizeAudioClass } =
   require('./helix/contracts/normalized-audio-class');
 const { createBdmvTopologyReader } = require('./helix/integrations/bdmv-topology');
 const { createDiscTopologyReader } = require('./helix/integrations/disc-topology');
+const { MEDIA_PROBE_INPUT_ARGS } = require('./helix/integrations/media-probe-budget');
 
 const MAX_RAW_STDOUT_BYTES = 256 * 1024;
 const MAX_RAW_STDERR_BYTES = 16 * 1024;
@@ -44,7 +45,7 @@ function run(binary, location, inputArgv = null) {
         'stream=index,codec_type,codec_name,profile,pix_fmt,bits_per_raw_sample,bit_rate,chroma_location,color_range,color_space,color_transfer,color_primaries,width,height,channels,channel_layout,disposition',
         'stream_tags',
         'stream_side_data',
-      ].join(':'), ...(inputArgv || [location]),
+      ].join(':'), ...MEDIA_PROBE_INPUT_ARGS, ...(inputArgv || [location]),
     ], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const stdout = [];
     const stderr = [];
@@ -205,6 +206,13 @@ function parseProbeResult(readHandle, result, discTopology) {
       throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_CONTRACT',
         'ffprobe output does not match the bounded typed projection.');
     }
+    if (parsed.streams.some((stream) => stream.codec_type === 'video' &&
+        (!Number.isSafeInteger(stream.width) || stream.width <= 0 ||
+         !Number.isSafeInteger(stream.height) || stream.height <= 0))) {
+      throw new CleanMediaProbeError('CLEAN_MEDIA_PROBE_INCOMPLETE',
+        'FFprobe did not observe the video dimensions within its bounded discovery budget.',
+        { reasonCode:'video_dimensions_unavailable' });
+    }
     return evidence(readHandle, parsed, discTopology);
   } catch (error) {
     if (error instanceof CleanMediaProbeError) throw error;
@@ -298,4 +306,4 @@ function createCleanMediaProbe(options = {}) {
 }
 
 module.exports = Object.freeze({ CleanMediaProbeError, createCleanMediaProbe,
-  MAX_RAW_STDOUT_BYTES, MAX_RAW_STDERR_BYTES, normalizeVideoTechnicalFacts });
+  MAX_RAW_STDOUT_BYTES, MAX_RAW_STDERR_BYTES, normalizeVideoTechnicalFacts, parseProbeResult });
