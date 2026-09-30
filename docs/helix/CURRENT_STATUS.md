@@ -29,9 +29,11 @@
 
 Series初审及Windows专项测试见[审查Evidence](implementation/evidence/SERIES_READINESS_AUDIT_20260930.md)：13项中12通过、1跳过；跳过项正是Series Handoff A纵向fixture。已有Episode Claim/Run合同基础；TMDB字段、逐Episode NFO及外部落地快照仍有明确缺口，不能直接启用。未执行真实Series E2E或浏览器验收；范围、开发工作项和准备Exit均在[唯一 Phase](implementation/CURRENT_PHASE.md)。
 
-首批Series元数据基础已交付`ea3d33d16d1bb19949f379e36ea648cfafd003a6`：[实现与验证Evidence](implementation/evidence/SERIES_METADATA_FOUNDATIONS_20260930.md)。TMDB显式验证Series/Season tuple与Season响应，支持series_title/season_number；Renderer新增冻结到Season/Episode的episodedetails NFO并保护Related源。Windows两批共103项通过，无失败/跳过，含Movie相关回归。逐Episode Observation/Draft、Artifact调度及完整Run/Commit仍未接通，Series入口保持阶段限制；初审里的TMDB字段与Renderer缺口已部分解决，不能把旧初审或新叶子验证当完整链路结论。
+首批Series元数据基础已交付`ea3d33d16d1bb19949f379e36ea648cfafd003a6`：[实现与验证Evidence](implementation/evidence/SERIES_METADATA_FOUNDATIONS_20260930.md)。TMDB显式验证Series/Season tuple与Season响应，支持series_title/season_number；Renderer新增冻结到Season/Episode的episodedetails NFO并保护Related源。Windows两批共103项通过，无失败/跳过，含Movie相关回归。当时尚未接入逐Episode Observation/Draft、Artifact调度；后续进展见下文。Series入口保持阶段限制，不能把旧初审或叶子验证当完整链路结论。
 
 逐集接线已交付`cca63288607aab127edd8e000221c00b373bca7a`：[接线Evidence](implementation/evidence/SERIES_EPISODE_METADATA_WIRING_20260930.md)。Intent/Observation按冻结集范围取资料；Draft/Fact保留typed逐集资料，Artifact Planner及Owner projection生成Season/各集NFO，Verification核验目标覆盖。172项受影响回归及最终12项重叠专项通过，P2通过；不能将两批计数相加。节点1仍未关闭：真实Foundation/Workspace/原生Fact commit、Artifact正式交付关联及普通长Season容量需继续贯通。没有Series UI交付或新生产部署。
+
+原生验证追加`a36b22dab`：实际Workspace文件/Handle、3条Artifact verification、E01/E02 Product Metadata Fact及来源引用保存与重放，Owner写入失败原子回滚和Source Result改写拒绝均通过；相关48项测试通过，最终16文件受影响回归176项通过、0失败/跳过，P2再次通过。计数有重叠，不相加。上游Series身份和完整调度仍未接通，普通长Season容量待验证；节点2还需补Arca Season/Episode正式命名，当前默认NFO映射会碰撞。上述补充取代前段原生Fact commit未覆盖的状态，证据及未测边界见同一Evidence追加。
 
 原活动文档及残余队列已冻结到[Movie 收尾快照](implementation/archive/20260930_BETA_MOVIE_CLOSEOUT/SNAPSHOT.md)。隔离分支 `codex/beta-closeout-series` 基于 `ecccf7ba9b`继续开发，最新代码见上述实现提交。主工作区、集成区及其他有未提交修改的工作区保留，修改状态未变化。
 

@@ -12,13 +12,15 @@
 
 ## 当前工作项：逐集资料与生产接线
 
-- Outcome：TMDB以已解析的Series/Season tuple取得Series title及Season Number；受控Sidecar Renderer可按显式冻结Profile生成单集NFO，保护Related源文件。它是本地纵向的组成部分，尚不开放Series产品入口。
+- Outcome：以已解析Series/Season tuple和冻结Run交付集形成各集Observation/Draft/Fact，正式Artifact Planner与Sidecar Renderer生成Season及逐集NFO，保持独立Provenance和Related源保护；贯通实际Workspace与Fact事务后接续上游身份和完整调度。尚不开放Series产品入口。
 - Owner与合同：Platform Integration Adapter只观察外部资料；Libra决定来源、Episode交付范围与Profile，并仅写Workspace。沿用SSOT §5.5.3/§5.5.5、§6.4.7.1及既有MetadataFetchIntent/SidecarProfile/ArtifactHandle，不新增Domain或跨域Store。
-- DoR：输入为已有精确resolvedProviderIdentity与有界requestedFields；Sidecar以typedParameters冻结rootElement、Season Number、Episode Number，必须与本集Draft相等。普通Season沿当前positive-number合同；S00、N:M计量及Episode集合的Canonical表示不属于此叶子工作项，不以本实现默默定案。
+- DoR：输入为已有精确resolvedProviderIdentity与有界requestedFields；Sidecar以typedParameters冻结rootElement、Season Number、Episode Number，必须与本集Draft相等。普通Season沿当前positive-number合同；Episode scope使用closed canonical key/数字tuple并与Spec/Manifest逐项相等。S00、N:M计量不以本实现默默定案。
 - Effect/Fence：Provider使用既有IntegrationHandle/Secret Lease、timeout与响应字节上限；Renderer沿用Workspace effect authority、Artifact provenance与受控物理写入。Movie路径保持原冻结输入与行为，不做存量迁移。
 - 验证：真实Adapter逻辑配隔离HTTP fixture，正向Series/Season及负向身份/响应/字段/Fence；Episode NFO生成、更新、错误集号与不完整Profile拒绝、源字节保护；现有Movie TMDB/NFO回归。完整Run/Commit、真实媒体及Linux验证在后续纵向Gate执行。
 
 结果：元数据基础叶子已实现，提交`ea3d33d16d1bb19949f379e36ea648cfafd003a6`；两批Windows103项通过，见[原Evidence](evidence/SERIES_METADATA_FOUNDATIONS_20260930.md)。后续逐集接线提交`cca63288607aab127edd8e000221c00b373bca7a`：Intent/Observation按冻结Episode scope隔离，Draft/Fact保留逐集typed集合，Planner/Owner projection/Renderer生成Season及各集NFO，Verification拒绝重复目标代替缺集；172项受影响回归及最终12项重叠专项通过，P2合同通过，见[接线Evidence](evidence/SERIES_EPISODE_METADATA_WIRING_20260930.md)。节点1仍需真实Foundation/Workspace链、原生Series Fact commit及Artifact正式交付关联验证；Source Basis现有16 Observation及字节容量需覆盖普通长Season。本批未改变用户界面或部署生产。
+
+追加原生验证`a36b22dab`：真实SQLite/Work Result Reader/Workspace写入/Artifact Registry/Fact事务的3条Artifact与E01/E02资料重放、失败回滚、Source Result改写Fence通过；相关48项及最终受影响回归176项通过、0失败/跳过，P2再次通过。Source Work/Plan/Event仍为固定边界种子，ResolvedIdentity仍为注入fixture，不能替代正式身份解析和Scheduler完整Run。节点1当前继续补上游Series身份链及长Season容量；节点2已确认默认NFO命名碰撞，按Arca正式布局处理，不能更改“只有Primary携带Episode relation”合同。详见同一[接线Evidence追加](evidence/SERIES_EPISODE_METADATA_WIRING_20260930.md)。
 
 ## 已确认合同与首版验收方向
 
@@ -55,7 +57,7 @@
 
 | 顺序 | 工作项 / Owner | 验收门槛 | 当前状态 |
 | --- | --- | --- | --- |
-| 节点1 | 剧集资料与生产基础 / Platform、Libra | 明确Season/Episode身份，逐集Observation/Draft/NFO/Artifact按冻结Run范围生产，完整Result与Provenance链 | 逐集接线已专项验证；真实调度/Workspace/Fact及正式Artifact关联待贯通，节点未关闭 |
+| 节点1 | 剧集资料与生产基础 / Platform、Libra | 明确Season/Episode身份，逐集Observation/Draft/NFO/Artifact按冻结Run范围生产，完整Result与Provenance链 | 逐集接线及原生Workspace/Fact事务已验证；上游身份、完整调度及长Season容量待贯通，节点未关闭 |
 | 节点2 | 首批剧集完整上架 / Procurement、Libra、Arca | E01/E02从Field到唯一Season Entry；正式Handoff/Commit、真实媒体及相应用户路径；UI负责人验收可见变化 | 依赖节点1及适用合同/fixture门禁 |
 | 节点3 | 持续追加与复杂文件映射 / Libra、Arca | E03扩充同Entry，旧Run/集事实不改写；重叠/并发/重复及N:M、逐集空间验收；可见变化交UI负责人验收 | 依赖节点2 |
 | 节点4 | 完整运营与用户体验 / Procurement、Libra、Arca、UI负责人 | 外部实际Episode覆盖、失败/重启、Aftercare/共享材料退出；Season用户旅程、适用状态及UI负责人验收 | 依赖对应纵向能力 |

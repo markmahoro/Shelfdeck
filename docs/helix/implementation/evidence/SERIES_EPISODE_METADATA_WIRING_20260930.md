@@ -34,3 +34,18 @@ P2最终通过：113 Capability、99 Result family、197 Table、45 Transaction�
 当前 Source Basis Observation 上限16、Observation Set 512 KiB、Fact 64 KiB；普通较长 Season 的批次容量必须明确验证并在既有 Owner 合同内处理，不能用本批 E01/E02 测试声称任意全集可交付。Episode Artifact 正式 staging/placement/交付关联尚需贯通核验。S00、N:M计量及Episode恢复依然按所属节点 DoR 审查。
 
 未运行真实 Series 媒体 E2E、浏览器、Linux/Docker、Desktop 或生产验证。本批无页面/展示文案变更，无适用 UI 交付验收，不声明 UI PASS；后续可见变化仍提交 UI负责人按精确版本验收。
+
+## 追加：原生 Workspace / Fact 事务验证
+
+追加测试提交：`a36b22dab`。新 fixture 使用真实 clean SQLite schema、Work Result Reader、Artifact Planner/Owner projection/Capability、Renderer、Workspace physical port、Artifact Registry 和 Domain Fact Commit Coordinator。3个Source Work及其Plan/Event/成功Attempt/Result为固定边界种子；并非真实Scheduler从Field创建这些Work。Workspace写入绑定其种子Event Attempt的intended effect authority，测试没有模拟Runtime完成整个Effect lifecycle。
+
+新增3项验证：Season/E01/E02三份实际NFO、Handle、3条Artifact verification与逐集Fact/Source refs保存和精确重放；Owner post-marker写入中途崩溃后Fact/source refs/Result/marker全回滚而既有Workspace产物保留，修复故障后正常commit；Source Basis冻结后修改并重哈希单集Result仍被source-reference digest Fence拒绝，零Fact/marker残留。新逐集专项与原生Fact Store、Workspace相关回归共48项通过、0失败、0跳过。首次负向case将拒绝码预期写成SOURCE_CHAIN，实际在更精确SOURCE_DIGEST Fence拒绝；按该确定拒绝位置修正断言后通过，未放松生产校验。
+
+本追加证明原生Product Metadata Fact commit和实际Workspace持久化，不替代完整Series Run/Arca Commit。原上文“未覆盖原生Series Fact commit”是前一代码批次的历史边界，现由此追加证据补齐；Scheduler/Host/真实媒体边界仍未覆盖。
+
+最终代码`a36b22dab`重跑上文同一16文件命令：176项通过、0失败、0跳过（约28.8秒）；P2合同再次通过，counts不变且findings为空。176为本批最终受影响回归结果，不与先前172/12/48重复相加。`git diff --check`通过。
+
+贯通审查已确认两点：
+
+- SSOT §8.6.21及`libra_product_package_materials`只允许Primary携带Episode relation；Artifact staging使用空Episode claims符合合同，不能为补播放器关联而更改成员关系Owner。正式关联/落位需由既有产品Artifact与Arca Inventory合同处理。
+- `clean-arca-inventory-port.js::finalMemberName`使用同一影片标题stem映射全部metadata_sidecar，默认`{stem}.nfo`将Season/Episode三个产物映射到相同名字，`buildPlan`按collisionPolicy拒绝；节点2必须实现并验证Season/Episode正式布局。上游`createProductIdentityProjections`、Routing Identity observation、TMDB Routing adapter、`buildProductIdentityCommitBundle`也有Movie专属约束，节点1需先补齐完整Series身份链，不能用当前已注入ResolvedIdentity的fixture绕过这段后宣布完整Run通过。
