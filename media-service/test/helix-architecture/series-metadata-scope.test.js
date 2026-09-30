@@ -5,12 +5,22 @@ const test = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
+const os = require('node:os');
+const Database = require('better-sqlite3');
+const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
+const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const { createWorkResultReader } = require('../../src/helix/foundation/execution/work-result-reader');
+const { createCleanWorkspaceProductPort } = require('../../src/clean-workspace-product-port');
+const { createDomainCommitCoordinator, createDomainCommitRegistry, createCanonicalTransactionRegistry } =
+  require('../../src/helix/foundation/persistence/domain-commit-registry');
+const { createProductFactRegistrations } = require('../../src/helix/domains/libra/persistence/product-fact-store');
+const factTransaction = require('../../src/helix/contracts/transaction-contracts/helix.transaction.domain-fact-commit/v1/contract.json');
 const { createCleanProductProductionPort } = require('../../src/clean-product-production-port');
 const { createCapabilityContractValidator } = require('../../src/helix/foundation/capability/contract-validator');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { buildEpisodeMetadataScope } = require('../../src/helix/contracts/episode-metadata-scope');
 const { buildMetadataFetchIntent, buildMetadataObservation, buildMetadataObservationBasis,
-  buildProductMetadataDraft, buildProductMetadataFact, buildArtifactManifestVerification } = require('../../src/helix/domains/libra/model/product-fact-contracts');
+  buildProductMetadataDraft, buildProductMetadataFact, buildArtifactManifestVerification, buildProductFactHandle } = require('../../src/helix/domains/libra/model/product-fact-contracts');
 const { createProductMetadataCapabilityPorts } = require('../../src/helix/domains/libra/capabilities/product-metadata-capability-ports');
 const { metadataObservationWork, nextMetadataStage } = require('../../src/helix/domains/libra/planning/product-metadata-work');
 const { productMetadataContext, createArtifactProductionPlanner, createArtifactProductionProjections, artifactVerificationContext } =
@@ -171,7 +181,7 @@ function productionFixture() {
       parametersSchemaRef:'helix://contracts/capabilities/'+ref.replace('@1','/v1/parameters'),
       resultSchemaRef:'helix://contracts/capabilities/'+ref.replace('@1','/v1/result')}})},
     policyRegistry:{digest:D('policy'),bindingFor:()=>({retryPolicyRef:'fixture-retry',timeoutPolicyRef:'fixture-timeout'})}};
-  return {options,snapshot};
+  return {options,snapshot,records};
 }
 
 test('Formal Artifact Planner projects separate Season/Episode Drafts and distinct immutable events', () => {
@@ -218,6 +228,154 @@ test('Formal Artifact Planner projects separate Season/Episode Drafts and distin
   const draftProjection=projections.get(producers[0].inputBindings.bindings.find(binding=>binding.portName==='productMetadataDraft').projectionRef);
   assert.throws(()=>draftProjection.project({ownerScope:{processId:'series-run'},parameters:{episodeKey:'E003'}}),/outside the frozen Run/);
 });
+
+// These are exact durable boundary fixtures, not a scheduler or Host journey.
+function seedNativeEvent(database, record, executing = false) {
+  const state = executing ? 'running' : 'succeeded';
+  database.prepare('INSERT OR IGNORE INTO fx_supporting_works (work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(record.workId,'libra','libra_run','series-run',record.workKind,D('basis'),'normal',state,record.workId,1,1);
+  database.prepare('INSERT OR IGNORE INTO fx_work_attempts (attempt_id,work_id,ordinal,basis_digest,state,started_at_ms,finished_at_ms) VALUES(?,?,?,?,?,?,?)')
+    .run(record.attemptId,record.workId,0,D('basis'),state,1,executing?null:2);
+  database.prepare('INSERT OR IGNORE INTO fx_workflow_plans (plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
+    .run(record.planId,record.attemptId,'libra.planner',1,D('catalog'),D('basis'),D(record.planId),'planned',1);
+  database.prepare('INSERT INTO fx_plan_nodes (plan_id,node_id,capability_ref,contract_version,input_binding_schema_ref,input_bindings_json,parameters_json,when_json,fence_basis_json,resource_demand_json) VALUES(?,?,?,?,?,?,?,?,?,?)')
+    .run(record.planId,record.eventId,record.capabilityRef,1,'helix://test/native-series-input/v1',JSON.stringify(record.inputBindings),'{}','{}','{}','{}');
+  database.prepare('INSERT INTO fx_workflow_events (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,state,priority_class,ready_at_ms,result_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run(record.eventId,record.planId,record.eventId,record.workId,record.attemptId,'libra',record.capabilityRef,1,executing?'executing':'succeeded','normal',1,executing?null:record.resultId);
+  database.prepare('INSERT INTO fx_event_attempts (event_attempt_id,event_id,ordinal,executor_ref,executor_version,input_snapshot_schema_ref,input_snapshot_digest,fence_snapshot_digest,state,outcome_kind,started_at_ms,finished_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)')
+    .run('execution-'+record.eventId,record.eventId,1,record.capabilityRef,1,'helix://test/native-series-input/v1',record.inputSnapshotDigest||D('input'),D('fence'),executing?'executing':'completed',executing?null:'succeeded',1,executing?null:2);
+  if (!executing) persistNativeResult(database,record);
+}
+
+function persistNativeResult(database, record) {
+  database.prepare('INSERT INTO fx_event_result_bindings (result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,evidence_schema_ref,evidence_json,evidence_digest,committed_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)')
+    .run(record.resultId,record.eventId,'succeeded',record.resultSchemaRef,JSON.stringify(record.result),canonicalDigest(record.result),
+      record.evidenceSchemaRef||record.resultSchemaRef,JSON.stringify(record.evidence),canonicalDigest(record.evidence),2);
+  database.prepare('UPDATE fx_workflow_events SET state=?,result_id=? WHERE event_id=?').run('succeeded',record.resultId,record.eventId);
+  database.prepare('UPDATE fx_event_attempts SET state=?,outcome_kind=?,finished_at_ms=? WHERE event_id=?').run('completed','succeeded',2,record.eventId);
+  database.prepare('UPDATE fx_work_attempts SET state=?,finished_at_ms=? WHERE attempt_id=?').run('succeeded',2,record.attemptId);
+  database.prepare('UPDATE fx_supporting_works SET state=? WHERE work_id=?').run('succeeded',record.workId);
+}
+
+function withNativeSeriesProduct(run) {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-native-product-'));
+  const databasePath=path.join(root,'shelfdeck.db'),workspaceRoot=path.join(root,'workspace');
+  const schemaManifest=require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+  const schemaDdl=fs.readFileSync(path.resolve(__dirname,'../../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
+  const kernel=openSqliteKernel({Database,databasePath,schemaManifest,schemaDdl});
+  const unitOfWork=createSqliteUnitOfWork({kernel});
+  const database=new Database(databasePath);
+  database.pragma('foreign_keys = ON');
+  try {
+    const {options,records}=productionFixture();
+    const workspaceId=canonicalDigest({schema:'libra.workspace-id@1',libraRunId:'series-run'});
+    database.prepare('INSERT INTO libra_subjects (subject_id,structure_kind,content_profile,status,intake_revision,current_continuity_set_digest,current_episode_scope_digest,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
+      .run('series-subject','season','series','active',1,D('continuity'),D('episodes'),1,1);
+    database.prepare('INSERT INTO libra_runs (libra_run_id,subject_id,admission_revision,state,state_revision,state_digest,priority_class,priority_intent_digest,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
+      .run('series-run','series-subject',1,'active',1,D('state'),'normal',D('priority'),1);
+    database.prepare('INSERT INTO fx_workspace_registry (workspace_id,owner_domain,process_type,process_id,root_handle_ref,state,created_at_ms) VALUES(?,?,?,?,?,?,?)')
+      .run(workspaceId,'libra','libra_run','series-run',D('root'),'active',1);
+    for(const record of records)seedNativeEvent(database,{...record,workKind:'product_metadata_observation'});
+    options.workResultReader=createWorkResultReader({schemaManifest,unitOfWork});
+    const workspace=createCleanWorkspaceProductPort({schemaManifest,unitOfWork,rootPath:workspaceRoot});
+    const renderer=createCleanProductProductionPort({mediaProbe:{probe(){}},workspaceProductPort:workspace});
+    const ports=createArtifactProductionCapabilityPorts({...options,productProductionPort:renderer});
+    const projections=new Map(createArtifactProductionProjections(options).map(item=>[item.projectionRef,item.projection]));
+    const plan=createArtifactProductionPlanner(options).plan({processId:'series-run',ownerDomain:'libra',processType:'libra_run',
+      executionBasisDigest:D('basis'),workId:'artifact-work',workAttemptId:'artifact-attempt'});
+    for(const node of plan.nodes.filter(item=>item.capabilityRef==='libra.product_sidecar.render@1')) {
+      const namedInputs=Object.fromEntries(node.inputBindings.bindings.map(binding=>[binding.portName,
+        projections.get(binding.projectionRef).project({ownerScope:{processId:'series-run'},parameters:binding.parameters})]));
+      const record={workId:'artifact-work',workKind:'artifact_production',attemptId:'artifact-attempt',planId:plan.planId,
+        eventId:node.eventId,capabilityRef:node.capabilityRef,inputBindings:node.inputBindings,inputSnapshotDigest:canonicalDigest(namedInputs)};
+      seedNativeEvent(database,record,true);
+      const idempotencyKey='native-'+node.eventId,eventAttemptId='execution-'+node.eventId;
+      database.prepare('INSERT INTO fx_effect_journal (effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,updated_at_ms) VALUES(?,?,?,?,?,?,?)')
+        .run(canonicalDigest(['workspace_write',idempotencyKey]),eventAttemptId,'workspace_write',idempotencyKey,D(node.eventId),'intended',1);
+      const context={ownerScope:{processId:'series-run'},namedInputs,eventId:node.eventId,eventAttemptId,idempotencyKey};
+      const outcome=ports[node.capabilityRef].execute(context);
+      assert.equal(outcome.kind,'succeeded');
+      assert.deepEqual(ports[node.capabilityRef].execute(context).result,outcome.result,'Exact Workspace replay must keep the Artifact handle');
+      persistNativeResult(database,{...record,resultId:'result-'+node.eventId,...outcome});
+      const verifyNode=plan.nodes.find(item=>item.capabilityRef==='shared.artifact.manifest.verify@1'&&
+        item.inputBindings.bindings.some(binding=>binding.portName==='artifactHandleList'&&binding.eventId===node.eventId));
+      const requirement=productMetadataContext(options,'series-run').requirements[0];
+      const verifyInputs={artifactHandleList:[outcome.result],artifactRequirement:requirement};
+      const verified=ports[verifyNode.capabilityRef].execute({namedInputs:verifyInputs});
+      seedNativeEvent(database,{...record,eventId:verifyNode.eventId,capabilityRef:verifyNode.capabilityRef,
+        inputBindings:verifyNode.inputBindings,inputSnapshotDigest:canonicalDigest(verifyInputs),resultId:'result-'+verifyNode.eventId,...verified});
+    }
+    const metadata=productMetadataContext(options,'series-run');
+    const artifacts=artifactVerificationContext(options,'series-run');
+    const payload={sourceBasis:metadata.basis,productMetadataDraft:metadata.draft,
+      verifiedArtifactManifest:artifacts.verifiedArtifactManifest,mediaCastFactRef:null};
+    const handle=buildProductFactHandle({libraRunId:'series-run',factKind:'product_metadata',expectedRevision:0,
+      payloadDigest:canonicalDigest(payload),eventFenceDigest:D('commit-fence')});
+    seedNativeEvent(database,{workId:'metadata-commit-work',workKind:'product_metadata_commit',attemptId:'metadata-commit-attempt',
+      planId:'metadata-commit-plan',eventId:'metadata-commit-event',capabilityRef:'libra.product_metadata.commit@1',inputBindings:{}},true);
+    const request={transactionId:'helix.transaction.domain-fact-commit',handle,payload,supportingWorkId:'metadata-commit-work',outboxMessages:[],
+      commitMarker:{commitMarker:'series-metadata-marker',commitDigest:D('commit')},
+      resultBinding:{resultId:'series-metadata-result',eventId:'metadata-commit-event',
+        evidenceSchemaRef:'helix://contracts/types/LibraProductFactEvidence/v1',evidence:{schemaRef:'helix://contracts/types/LibraProductFactEvidence/v1',
+          schemaVersion:1,evidenceId:'series-metadata-evidence',evidenceDigest:D('evidence')}}};
+    const coordinator=work=>createDomainCommitCoordinator({schemaManifest,unitOfWork:work,
+      registry:createDomainCommitRegistry({registrations:createProductFactRegistrations({schemaManifest})}),
+      transactionRegistry:createCanonicalTransactionRegistry({contracts:[factTransaction]})});
+    return run({database,kernel,unitOfWork,workspaceRoot,workspaceId,request,coordinator,options});
+  } finally {
+    database.close();kernel.close();
+    fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});
+  }
+}
+
+test('Native Series Workspace and Product Fact preserve three Artifact chains and both Episode scopes on replay',()=>
+  withNativeSeriesProduct(({database,unitOfWork,workspaceRoot,workspaceId,request,coordinator})=>{
+    const committed=coordinator(unitOfWork).execute(request);
+    assert.equal(committed.replayed,false);
+    assert.equal(coordinator(unitOfWork).execute(request).replayed,true);
+    const row=database.prepare('SELECT * FROM libra_product_fact_revisions').get(),fact=JSON.parse(row.fact_json);
+    assert.deepEqual(fact.episodeMetadata.map(item=>item.episodeScope.episodeKey),['E001','E002']);
+    assert.deepEqual(fact.episodeMetadata.map(item=>item.descriptiveFacts.entries.find(entry=>entry.key==='episode_title').value),['Title 1','Title 2']);
+    assert.equal(row.source_ref_count,3);assert.equal(row.artifact_verification_result_count,3);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_fact_source_refs').get().n,3);
+    assert.equal(database.prepare('SELECT count(*) n FROM fx_artifact_registry').get().n,3);
+    assert.equal(database.prepare('SELECT count(*) n FROM fx_workspace_materials').get().n,3);
+    assert.equal(database.prepare('SELECT count(*) n FROM fx_commit_markers').get().n,1);
+    assert.equal(canonicalDigest(fact),row.result_digest);
+    assert.match(fs.readFileSync(path.join(workspaceRoot,workspaceId,'product','season.nfo'),'utf8'),/<tvshow>/);
+    for(const number of [1,2])assert.match(fs.readFileSync(path.join(workspaceRoot,workspaceId,'product',scope(number).episodeKey+'.nfo'),'utf8'),
+      new RegExp('<episode>'+number+'</episode>'));
+    for(const source of database.prepare('SELECT * FROM libra_product_fact_source_refs ORDER BY ordinal').all()) {
+      const result=database.prepare('SELECT * FROM fx_event_result_bindings WHERE result_id=?').get(source.result_id);
+      assert.equal(source.result_digest,result.result_digest);
+      assert.equal(source.evidence_digest,JSON.parse(result.result_json).payloadDigest);
+    }
+  }));
+
+test('Native Series Fact owner-write crash rolls back Fact, source refs, Result and marker without losing rendered Artifacts',()=>
+  withNativeSeriesProduct(({database,unitOfWork,request,coordinator})=>{
+    const crashing={execute:participants=>unitOfWork.execute(participants.map(participant=>
+      participant.participantId!=='libra_product_fact_owner_write'?participant:
+        {...participant,execute(){throw new Error('native-series-owner-crash');}}))};
+    assert.throws(()=>coordinator(crashing).execute(request),/native-series-owner-crash/);
+    for(const table of ['libra_product_fact_revisions','libra_product_fact_source_refs','fx_commit_markers'])
+      assert.equal(database.prepare('SELECT count(*) n FROM '+table).get().n,0);
+    assert.equal(database.prepare("SELECT count(*) n FROM fx_event_result_bindings WHERE result_id='series-metadata-result'").get().n,0);
+    assert.equal(database.prepare('SELECT count(*) n FROM fx_workspace_materials').get().n,3);
+    assert.equal(coordinator(unitOfWork).execute(request).replayed,false);
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_fact_revisions').get().n,1);
+  }));
+
+test('Native Series Fact rejects a durable Episode Result changed after its exact source basis was frozen',()=>
+  withNativeSeriesProduct(({database,unitOfWork,request,coordinator})=>{
+    const row=database.prepare("SELECT * FROM fx_event_result_bindings WHERE result_id='result-1'").get();
+    const changed={...JSON.parse(row.result_json),episodeScope:scope(2)};
+    database.prepare('UPDATE fx_event_result_bindings SET result_json=?,result_digest=? WHERE result_id=?')
+      .run(JSON.stringify(changed),canonicalDigest(changed),row.result_id);
+    assert.throws(()=>coordinator(unitOfWork).execute(request),{code:'P9_PRODUCT_FACT_SOURCE_DIGEST'});
+    assert.equal(database.prepare('SELECT count(*) n FROM libra_product_fact_revisions').get().n,0);
+    assert.equal(database.prepare('SELECT count(*) n FROM fx_commit_markers').get().n,0);
+  }));
 
 test('Scoped Intent, Observation and Season Draft pass the actual closed runtime schema graph', () => {
   const contracts=path.resolve(__dirname,'../../src/helix/contracts');
