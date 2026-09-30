@@ -337,6 +337,31 @@
         ]
       },
       "maxItems": 0
+    },
+    "episodeScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "episodeKey": {
+          "type": "string",
+          "pattern": "^E[0-9]{3,16}$"
+        },
+        "episodeNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "seasonNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "episodeKey",
+        "episodeNumber",
+        "seasonNumber"
+      ]
     }
   },
   "required": [

@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { productSidecarRelativePath } = require('../../../contracts/episode-metadata-scope');
 const { executionCatalogDigest } = require('../../../foundation/execution/workflow-plan');
 const {
   executionInputUnavailable,
@@ -17,6 +18,7 @@ const {
   nextMetadataStage,
   requiredMetadataFields,
   requiredArtifactKinds,
+  seriesMetadataScopes,
 } = require('./product-metadata-work');
 
 const IDENTITY_EVIDENCE = 'libra.product_identity.evidence.observe@1';
@@ -466,12 +468,23 @@ function productMetadataContext(options, libraRunId) {
     .sort((left,right)=>Buffer.from(left.artifactKind).compare(Buffer.from(right.artifactKind))||
       Buffer.from(left.requirementId).compare(Buffer.from(right.requirementId)));
   const requiredFields=requiredMetadataFields(snapshot);
+  const episodeScopes=snapshot.spec.contentProfile==='series'?seriesMetadataScopes(snapshot,identity):[];
   const draftResult=buildProductMetadataDraft({sourceBasis:basis,requiredFields,
+    ...(episodeScopes.length?{episodeScopes}:{}),
     producedAtMs:Math.max(...basis.observationSet.observations.map((item)=>item.observedAtMs)),
     providerIdentities:identity.factValue.providerIdentities,artifactRequirements:requirements});
   if(!draftResult.ready)throw new Error('Product Metadata remains unresolved: '+draftResult.missingFields.join(','));
+  const episodeDrafts=episodeScopes.map(episodeScope=>{
+    const result=buildProductMetadataDraft({sourceBasis:basis,episodeScope,
+      requiredFields:[...new Set(['season_number','episode_number','series_title',
+        ...requiredFields.filter(field=>field.startsWith('episode_'))])].sort(),
+      producedAtMs:draftResult.draft.producedAtMs,providerIdentities:identity.factValue.providerIdentities,
+      artifactRequirements:requirements});
+    if(!result.ready)throw new Error('Episode Product Metadata remains unresolved: '+episodeScope.episodeKey);
+    return result.draft;
+  });
   return Object.freeze({snapshot,identity,sources:Object.freeze(sources),workIds:Object.freeze(works.map((item)=>item.work_id)),
-    results:Object.freeze(results),basis,draft:draftResult.draft,
+    results:Object.freeze(results),basis,draft:draftResult.draft,episodeDrafts:Object.freeze(episodeDrafts),
     requirements:Object.freeze(requirements)});
 }
 
@@ -480,12 +493,24 @@ function artifactVerificationContext(options, libraRunId) {
   const works=options.workResultReader.listWorks({ownerDomain:'libra',processType:'libra_run',processId:libraRunId,
     workKind:'artifact_production'}).filter((item)=>item.state==='succeeded')
     .sort((left,right)=>Buffer.from(left.work_id).compare(Buffer.from(right.work_id)));
-  const expectedKinds=metadata.requirements.map(item=>item.artifactKind).sort();
+  const expectedKinds=metadata.requirements.flatMap(item=>
+    Array(item.artifactKind==='nfo'?1+metadata.episodeDrafts.length:1).fill(item.artifactKind)).sort();
+  const expectedTargets=metadata.requirements.flatMap(item=>[item.artifactKind+'|',
+    ...(item.artifactKind==='nfo'?metadata.episodeDrafts.map(draft=>'nfo|'+draft.episodeScope.episodeKey):[])]).sort();
   const work=expectedKinds.length ? works.find(candidate=>{
-    const records=options.workResultReader.read(candidate.work_id).filter(item=>
+    const all=options.workResultReader.read(candidate.work_id);
+    const records=all.filter(item=>
       item.outcomeKind==='succeeded'&&item.capabilityRef===ARTIFACT_VERIFY);
+    const targets=records.map(item=>{
+      const binding=(item.inputBindings?.bindings||[]).find(port=>port.portName==='artifactHandleList');
+      const producer=binding&&all.find(event=>event.eventId===binding.eventId&&event.outcomeKind==='succeeded');
+      if(!producer)return 'missing-producer';
+      const draftBinding=(producer.inputBindings?.bindings||[]).find(port=>port.portName==='productMetadataDraft');
+      return item.result.requirement.artifactKind+'|'+(draftBinding?.parameters?.episodeKey||'');
+    }).sort();
     return records.every(item=>item.result?.result==='passed') &&
-      canonicalJson(records.map(item=>item.result.requirement.artifactKind).sort())===canonicalJson(expectedKinds);
+      canonicalJson(records.map(item=>item.result.requirement.artifactKind).sort())===canonicalJson(expectedKinds) &&
+      canonicalJson(targets)===canonicalJson(expectedTargets);
   }) : null;
   if(!work&&metadata.requirements.length)throw new Error('Artifact Production Work is not terminal.');
   const all=work?options.workResultReader.read(work.work_id):[];
@@ -520,7 +545,7 @@ function artifactVerificationContext(options, libraRunId) {
   const manifest={manifestId:canonicalDigest({schema:'libra.verified-artifact-manifest-id@1',libraRunId,artifactSetDigest}),
     libraRunId,items:Object.freeze(canonicalItems),artifactSetDigest};
   manifest.manifestDigest=canonicalDigest(manifest);
-  if(canonicalItems.length!==metadata.requirements.length)throw new Error('Verified Artifact Manifest is incomplete.');
+  if(canonicalItems.length!==expectedKinds.length)throw new Error('Verified Artifact Manifest is incomplete.');
   const artifactMaterials=canonicalItems.map((verifiedManifestItem)=>{
     const verificationItem=all.find((item)=>item.resultId===verifiedManifestItem.verificationResultRef.resultId);
     const binding=(verificationItem?.inputBindings?.bindings||[]).find((candidate)=>candidate.portName==='artifactHandleList');
@@ -658,13 +683,17 @@ function artifactProviderIntent(options, context, artifactKind) {
   });
 }
 
-function sidecarProfile(context) {
+function sidecarProfile(context, episodeScope) {
   const contentProfile=context.snapshot.spec.contentProfile;
-  const relativePath=contentProfile==='series'?'product/season.nfo':'product/movie.nfo';
+  const relativePath=productSidecarRelativePath(contentProfile,episodeScope);
+  const typedParameters=episodeScope?[['episodeNumber','integer',episodeScope.episodeNumber],
+    ['rootElement','string','episodedetails'],['seasonNumber','integer',episodeScope.seasonNumber]]
+    .map(([parameter,valueType,value])=>Object.freeze({parameter,valueType,value,
+      valueDigest:canonicalDigest({parameter,valueType,value})})):[];
   const body={schemaRef:'helix://contracts/domain-types/SidecarProfile/v1',schemaVersion:1,
     profileId:'helix-sidecar-'+(contentProfile==='series'?'series':contentProfile)+'-nfo',revision:1,format:'nfo_xml',
     fileNamePolicyDigest:canonicalDigest({schema:'libra.product-sidecar-filename-policy@1',contentProfile,relativePath}),
-    contentSchemaRef:'helix://contracts/records/descriptive-facts/v1',typedParameters:Object.freeze([])};
+    contentSchemaRef:'helix://contracts/records/descriptive-facts/v1',typedParameters:Object.freeze(typedParameters)};
   return Object.freeze({...body,digest:canonicalDigest(body)});
 }
 
@@ -674,19 +703,24 @@ function createArtifactProductionPlanner(options) {
     const context=productMetadataContext(options,request.processId);
     if(context.snapshot.run.executionBasisDigest!==request.executionBasisDigest)throw new Error('Artifact planning basis changed.');
     const nodes=[];
-    for(const [ordinal,requirement] of context.requirements.entries()){
+    const targets=context.requirements.flatMap(requirement=>
+      [{requirement},...(requirement.artifactKind==='nfo'?context.episodeDrafts.map(draft=>({requirement,episodeScope:draft.episodeScope})):[])]);
+    for(const [ordinal,{requirement,episodeScope}] of targets.entries()){
       const producerRef=requirement.artifactKind==='nfo'?SIDECAR_RENDER:ARTIFACT_ACQUIRE;
-      const producerEventId=stable('libra-artifact-producer-event-',{attempt:request.workAttemptId,requirementDigest:requirement.requirementDigest});
-      const inputBindings=[owner('productMetadataDraft',request,METADATA_DRAFT)];
+      const targetBasis={attempt:request.workAttemptId,requirementDigest:requirement.requirementDigest,
+        ...(episodeScope?{episodeScope}:{})};
+      const projectionParameters=episodeScope?{episodeKey:episodeScope.episodeKey}:{};
+      const producerEventId=stable('libra-artifact-producer-event-',targetBasis);
+      const inputBindings=[owner('productMetadataDraft',request,METADATA_DRAFT,projectionParameters)];
       if(producerRef===SIDECAR_RENDER)inputBindings.push(
         owner('mediaCastDraft',request,SIDECAR_MEDIA_CAST_DRAFT),
-        owner('sidecarProfile',request,SIDECAR_PROFILE),
+        owner('sidecarProfile',request,SIDECAR_PROFILE,projectionParameters),
       );
       else inputBindings.push(owner('integrationHandle',request,ARTIFACT_INTEGRATION,{artifactKind:requirement.artifactKind}));
       nodes.push(planNode({...options,request,nodeId:'artifact_'+ordinal,eventId:producerEventId,capabilityRef:producerRef,
         inputBindings,parameters:producerRef===ARTIFACT_ACQUIRE?{artifactKind:requirement.artifactKind}:{},
         resourceKinds:producerRef===ARTIFACT_ACQUIRE?['disk_io','network']:['cpu','disk_io']}));
-      const verifyEventId=stable('libra-artifact-verify-event-',{attempt:request.workAttemptId,requirementDigest:requirement.requirementDigest});
+      const verifyEventId=stable('libra-artifact-verify-event-',targetBasis);
       nodes.push(planNode({...options,request,nodeId:'artifact_verify_'+ordinal,eventId:verifyEventId,capabilityRef:ARTIFACT_VERIFY,
         inputBindings:[projected('artifactHandleList',producerEventId,options.registry.resolve(producerRef,'libra').manifest.resultSchemaRef,
           ARTIFACT_HANDLE_LIST,{artifactKind:requirement.artifactKind}),
@@ -704,16 +738,24 @@ function createArtifactProductionPlanner(options) {
 
 function createArtifactProductionProjections(options) {
   const context=(ownerScope)=>productMetadataContext(options,ownerScope.processId);
+  const draft=(ownerScope,parameters)=>{
+    const value=context(ownerScope);
+    if(!parameters?.episodeKey)return value.draft;
+    const selected=value.episodeDrafts.find(item=>item.episodeScope.episodeKey===parameters.episodeKey);
+    if(!selected)throw new Error('Episode Artifact projection is outside the frozen Run delivery scope.');
+    return selected;
+  };
   const requirement=(ownerScope,parameters)=>{
     const item=context(ownerScope).requirements.find((candidate)=>candidate.artifactKind===parameters.artifactKind);
     if(!item)throw new Error('Artifact Requirement is absent.');
     return item;
   };
   return Object.freeze([
-    Object.freeze({projectionRef:METADATA_DRAFT,projection:Object.freeze({project:({ownerScope})=>context(ownerScope).draft})}),
+    Object.freeze({projectionRef:METADATA_DRAFT,projection:Object.freeze({project:({ownerScope,parameters})=>draft(ownerScope,parameters)})}),
     Object.freeze({projectionRef:SIDECAR_MEDIA_CAST_DRAFT,projection:Object.freeze({project:({ownerScope})=>
       sidecarMediaCastDraft(context(ownerScope))})}),
-    Object.freeze({projectionRef:SIDECAR_PROFILE,projection:Object.freeze({project:({ownerScope})=>sidecarProfile(context(ownerScope))})}),
+    Object.freeze({projectionRef:SIDECAR_PROFILE,projection:Object.freeze({project:({ownerScope,parameters})=>
+      sidecarProfile(context(ownerScope),draft(ownerScope,parameters).episodeScope)})}),
     Object.freeze({projectionRef:ARTIFACT_REQUIREMENT,projection:Object.freeze({project:({ownerScope,parameters})=>requirement(ownerScope,parameters)})}),
     Object.freeze({projectionRef:ARTIFACT_INTEGRATION,projection:Object.freeze({project:({ownerScope,parameters})=>{
       const value=context(ownerScope);

@@ -1,0 +1,313 @@
+'use strict';
+
+const assert = require('node:assert/strict');
+const test = require('node:test');
+const fs = require('node:fs');
+const path = require('node:path');
+const crypto = require('node:crypto');
+const { createCleanProductProductionPort } = require('../../src/clean-product-production-port');
+const { createCapabilityContractValidator } = require('../../src/helix/foundation/capability/contract-validator');
+const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
+const { buildEpisodeMetadataScope } = require('../../src/helix/contracts/episode-metadata-scope');
+const { buildMetadataFetchIntent, buildMetadataObservation, buildMetadataObservationBasis,
+  buildProductMetadataDraft, buildProductMetadataFact, buildArtifactManifestVerification } = require('../../src/helix/domains/libra/model/product-fact-contracts');
+const { createProductMetadataCapabilityPorts } = require('../../src/helix/domains/libra/capabilities/product-metadata-capability-ports');
+const { metadataObservationWork, nextMetadataStage } = require('../../src/helix/domains/libra/planning/product-metadata-work');
+const { productMetadataContext, createArtifactProductionPlanner, createArtifactProductionProjections, artifactVerificationContext } =
+  require('../../src/helix/domains/libra/planning/libra-production-planners');
+const { createArtifactProductionCapabilityPorts } = require('../../src/helix/domains/libra/capabilities/artifact-production-capability-ports');
+const { buildProductConformanceFactSnapshot, episodeMetadataFieldPresent } = require('../../src/helix/domains/libra/model/product-conformance');
+
+const D = value => canonicalDigest({ value });
+const identityBody = { provider:'tmdb', namespace:'tmdb_series', providerKey:'1399', seasonNumber:1 };
+const identity = { ...identityBody, identityAnchorDigest:canonicalDigest(identityBody) };
+const scope = number => buildEpisodeMetadataScope({ episodeKey:'E'+String(number).padStart(3,'0'), episodeNumber:number, seasonNumber:1 });
+function intent(number, sourcePriority = number) {
+  return buildMetadataFetchIntent({ libraRunId:'series-run', runExecutionBasisDigest:D('basis'),
+    sourceKind:'provider', sourcePriority, contentProfile:'series', resolvedIdentityDigest:D('identity'),
+    requestedFields:['episode_number', 'episode_plot', 'episode_title', 'season_number', 'series_title'],
+    providerKind:'tmdb', resolvedProviderIdentity:identity, integrationId:'tmdb-main', configRevision:2,
+    episodeScope:scope(number) });
+}
+function chain(input, entries) {
+  const result = buildMetadataObservation({ intent:input, descriptiveEntries:entries,
+    providerIdentities:[identity], observedAtMs:10 });
+  return { ownerDomain:'libra', processType:'libra_run', processId:input.libraRunId,
+    workKind:'product_metadata_observation', workState:'succeeded', capabilityRef:'libra.product_metadata.fetch@1',
+    resultSchemaRef:'helix://contracts/capabilities/libra.product_metadata.fetch/v1/result', result,
+    resultId:'result-'+input.sourcePriority, resultDigest:canonicalDigest(result), evidence:result,
+    evidenceDigest:canonicalDigest(result), inputBindings:input, inputBindingDigest:canonicalDigest(input),
+    workId:'work-'+input.sourcePriority, attemptId:'attempt-'+input.sourcePriority,
+    planId:'plan-'+input.sourcePriority, eventId:'event-'+input.sourcePriority };
+}
+function episodeEntries(number, overrides = {}) {
+  return Object.entries({ series_title:'Show', season_number:1, episode_number:number,
+    episode_title:'Title '+number, episode_plot:'Plot '+number, ...overrides }).map(([key,value])=>({key,value}));
+}
+
+test('Episode scope changes Intent, Work identity and Evidence without changing Season identity', () => {
+  const first=intent(1,0), second=intent(2,0);
+  assert.notEqual(first.intentDigest, second.intentDigest);
+  const snapshot={run:{libraRunId:'series-run',executionBasisDigest:D('basis')}};
+  assert.notEqual(metadataObservationWork(snapshot,{intent:first}).workId,
+    metadataObservationWork(snapshot,{intent:second}).workId);
+  assert.deepEqual(first.resolvedProviderIdentity,second.resolvedProviderIdentity);
+  assert.notEqual(chain(first,episodeEntries(1)).result.evidenceId,chain(second,episodeEntries(2)).result.evidenceId);
+  assert.throws(()=>buildMetadataFetchIntent({...first,episodeScope:scope(2)}),{code:'P9_METADATA_INTENT_IDENTITY'});
+});
+
+test('Draft projection preserves E01/E02 independently and cannot flatten Episode metadata into Season', () => {
+  const inputs=[intent(1,0),intent(2,1)], results=inputs.map((input,index)=>chain(input,episodeEntries(index+1)));
+  const basis=buildMetadataObservationBasis({intents:inputs,results,factKind:'product_metadata',expectedRevision:0});
+  for(const number of [1,2]) {
+    const projected=buildProductMetadataDraft({sourceBasis:basis,requiredFields:inputs[0].requestedFields,
+      episodeScope:scope(number),producedAtMs:10,providerIdentities:[identity]});
+    assert.equal(projected.ready,true);
+    assert.equal(projected.draft.descriptiveFacts.entries.find(item=>item.key==='episode_title').value,'Title '+number);
+    assert.deepEqual(projected.draft.episodeScope,scope(number));
+    assert.equal(projected.draft.fieldProvenance.every(item=>item.evidenceDigest===results[number-1].result.payloadDigest),true);
+    assert.throws(()=>buildProductMetadataFact({productMetadataDraft:projected.draft}),{code:'P9_METADATA_EPISODE_FACT_SCOPE'});
+  }
+  const flat=buildProductMetadataDraft({sourceBasis:basis,requiredFields:['episode_title'],producedAtMs:10});
+  assert.equal(flat.ready,false);
+  assert.deepEqual(flat.missingFields,['episode_title']);
+});
+
+test('A foreign Episode in a rehashed durable Result is still rejected against its frozen Intent', () => {
+  const input=intent(1,0), exact=chain(input,episodeEntries(1));
+  const result={...exact.result,episodeScope:scope(2)};
+  assert.throws(()=>buildMetadataObservationBasis({intents:[input],results:[{...exact,result,
+    resultDigest:canonicalDigest(result),evidence:result,evidenceDigest:canonicalDigest(result)}],
+    factKind:'product_metadata',expectedRevision:0}),{code:'P9_METADATA_OBSERVATION_CHAIN'});
+});
+
+test('Scoped Draft refuses contradictory observed Episode number', () => {
+  const input=intent(1,0), result=chain(input,episodeEntries(2));
+  const basis=buildMetadataObservationBasis({intents:[input],results:[result],factKind:'product_metadata',expectedRevision:0});
+  assert.throws(()=>buildProductMetadataDraft({sourceBasis:basis,requiredFields:input.requestedFields,
+    episodeScope:scope(1),producedAtMs:10}),{code:'P9_METADATA_EPISODE_SCOPE'});
+});
+
+test('Capability refuses an Episode outside the Run Spec or frozen manifest before provider I/O', async () => {
+  let calls=0;
+  const input=intent(3,0);
+  const snapshot={run:{executionBasisDigest:D('basis')},spec:{contentProfile:'series',productScope:{episodeKeys:['E001','E002']}},
+    episodeClaims:[{episodeKey:'E001'},{episodeKey:'E002'}]};
+  const port=createProductMetadataCapabilityPorts({productProductionPort:{readRelatedNfo(){},fetchProvider(){calls++;}},
+    movieProductionReader:{readRunSnapshot:()=>snapshot}})['libra.product_metadata.fetch@1'];
+  const request={ownerScope:{processId:'series-run'},namedInputs:{metadataFetchIntent:input,physicalMaterialReadHandleOrIntegrationHandle:{}}};
+  await assert.rejects(port.execute(request),/outside the frozen Run/);
+  assert.equal(calls,0);
+  snapshot.spec.productScope.episodeKeys.push('E003');
+  await assert.rejects(port.execute(request),/outside the frozen Run/);
+  assert.equal(calls,0);
+});
+
+test('Capability returns a scoped Observation only after the exact frozen Run membership matches', async () => {
+  const input=intent(1,0);
+  const port=createProductMetadataCapabilityPorts({productProductionPort:{readRelatedNfo(){},
+    fetchProvider:async()=>({descriptiveEntries:episodeEntries(1),providerIdentities:[identity],peopleHints:[]})},
+    movieProductionReader:{readRunSnapshot:()=>({run:{executionBasisDigest:D('basis')},
+      spec:{contentProfile:'series',productScope:{episodeKeys:['E001']}},episodeClaims:[{episodeKey:'E001'}]})},now:()=>10})['libra.product_metadata.fetch@1'];
+  const outcome=await port.execute({ownerScope:{processId:'series-run'},namedInputs:{metadataFetchIntent:input,physicalMaterialReadHandleOrIntegrationHandle:{}}});
+  assert.equal(outcome.kind,'succeeded');
+  assert.deepEqual(outcome.result.episodeScope,scope(1));
+});
+
+test('Reconcile selects E01 then E02 from frozen delivery and cannot let E01 close E02 gaps', () => {
+  const records=[];
+  const snapshot={run:{libraRunId:'series-run',executionBasisDigest:D('basis')},
+    spec:{contentProfile:'series',productScope:{episodeKeys:['E001','E002']},
+      requirements:{metadata:{requiredFieldCodes:['series_title','season_number','episode_number','episode_title','episode_plot']}}},
+    episodeClaims:[{episodeKey:'E001'},{episodeKey:'E002'}],members:[],relatedReferences:[]};
+  const options={workResultReader:{listWorks:()=>records.map((_,index)=>({work_id:String(index)})),
+    read:id=>[{outcomeKind:'succeeded',capabilityRef:'libra.product_metadata.fetch@1',result:records[Number(id)]}]},
+    productProductionPort:{resolveCurrentIntegrationHandle:()=>({integrationId:'tmdb-main',configRevision:2})}};
+  const resolved={factValue:{identityDigest:D('identity'),providerIdentities:[identity]}};
+  const first=nextMetadataStage(options,snapshot,resolved);
+  assert.equal(first.kind,'source');
+  assert.equal(first.source.intent.episodeScope,undefined);
+  assert.deepEqual(first.source.intent.requestedFields,['season_number','series_title']);
+  records.push(buildMetadataObservation({intent:first.source.intent,descriptiveEntries:[
+    {key:'series_title',value:'Show'},{key:'season_number',value:1}],providerIdentities:[identity],observedAtMs:10}));
+  const second=nextMetadataStage(options,snapshot,resolved);
+  assert.deepEqual(second.source.intent.episodeScope,scope(1));
+  records.push(buildMetadataObservation({intent:second.source.intent,descriptiveEntries:episodeEntries(1),providerIdentities:[identity],observedAtMs:10}));
+  const third=nextMetadataStage(options,snapshot,resolved);
+  assert.deepEqual(third.source.intent.episodeScope,scope(2));
+  assert.equal(third.source.intent.sourcePriority,2);
+  records.push(buildMetadataObservation({intent:third.source.intent,descriptiveEntries:episodeEntries(2,{episode_plot:''}),providerIdentities:[identity],observedAtMs:10}));
+  const unresolved=nextMetadataStage(options,snapshot,resolved);
+  assert.equal(unresolved.kind,'unresolved');
+  assert.deepEqual(unresolved.missingFields,['episode_plot']);
+  records[2]=buildMetadataObservation({intent:third.source.intent,descriptiveEntries:episodeEntries(2),providerIdentities:[identity],observedAtMs:10});
+  assert.equal(nextMetadataStage(options,snapshot,resolved).kind,'ready');
+  snapshot.spec.productScope.episodeKeys.push('E003');
+  assert.throws(()=>nextMetadataStage(options,snapshot,resolved),/differs from the frozen Run/);
+});
+
+function productionFixture() {
+  const global=buildMetadataFetchIntent({libraRunId:'series-run',runExecutionBasisDigest:D('basis'),sourceKind:'provider',
+    sourcePriority:0,contentProfile:'series',resolvedIdentityDigest:D('identity'),requestedFields:['season_number','series_title'],
+    providerKind:'tmdb',resolvedProviderIdentity:identity,integrationId:'tmdb-main',configRevision:2});
+  const inputs=[global,intent(1,1),intent(2,2)];
+  const integrationHandle={integrationId:'tmdb-main',configRevision:2};
+  const records=inputs.map((input,index)=>{
+    const original=chain(input,index?episodeEntries(index):[{key:'season_number',value:1},{key:'series_title',value:'Show'}]);
+    const inputBindings={bindings:[{portName:'metadataFetchIntent',parameters:{intent:input}}]};
+    return {...original,state:'succeeded',outcomeKind:'succeeded',inputBindings,
+      inputBindingDigest:canonicalDigest(inputBindings),inputSnapshotDigest:canonicalDigest({metadataFetchIntent:input,
+        physicalMaterialReadHandleOrIntegrationHandle:integrationHandle})};
+  });
+  const snapshot={run:{libraRunId:'series-run',subjectId:'series-subject',executionBasisDigest:D('basis')},
+    spec:{contentProfile:'series',productScope:{episodeKeys:['E001','E002']},requirements:{metadata:{
+      requiredFieldCodes:['series_title','season_number','episode_number','episode_title','episode_plot'],requiredArtifactKinds:['nfo']}}},
+    episodeClaims:[{episodeKey:'E001'},{episodeKey:'E002'}],relatedReferences:[]};
+  const options={movieProductionReader:{readRunSnapshot:()=>snapshot,
+    readFact:()=>({factValue:{identityDigest:D('identity'),providerIdentities:[identity]}})},
+    workResultReader:{listWorks:()=>records.map(item=>({work_id:item.workId,state:'succeeded'})),
+      read:id=>records.filter(item=>item.workId===id)},productProductionPort:{resolveIntegrationHandle:()=>integrationHandle},
+    registry:{snapshot:[],resolve:ref=>({manifest:{effectClass:ref==='libra.product_sidecar.render@1'?'workspace_write':'pure_observation',
+      parametersSchemaRef:'helix://contracts/capabilities/'+ref.replace('@1','/v1/parameters'),
+      resultSchemaRef:'helix://contracts/capabilities/'+ref.replace('@1','/v1/result')}})},
+    policyRegistry:{digest:D('policy'),bindingFor:()=>({retryPolicyRef:'fixture-retry',timeoutPolicyRef:'fixture-timeout'})}};
+  return {options,snapshot};
+}
+
+test('Formal Artifact Planner projects separate Season/Episode Drafts and distinct immutable events', () => {
+  const {options}=productionFixture();
+  const metadata=productMetadataContext(options,'series-run');
+  assert.equal(metadata.draft.descriptiveFacts.entries.some(item=>item.key.startsWith('episode_')),false);
+  assert.deepEqual(metadata.episodeDrafts.map(item=>item.episodeScope.episodeKey),['E001','E002']);
+  assert.deepEqual(metadata.draft.episodeMetadata.map(item=>item.episodeScope.episodeKey),['E001','E002']);
+  const request={processId:'series-run',ownerDomain:'libra',processType:'libra_run',executionBasisDigest:D('basis'),
+    workId:'artifact-work',workAttemptId:'artifact-attempt'};
+  const plan=createArtifactProductionPlanner(options).plan(request);
+  const producers=plan.nodes.filter(item=>item.capabilityRef==='libra.product_sidecar.render@1');
+  assert.equal(producers.length,3);
+  assert.equal(plan.nodes.length,6);
+  assert.equal(new Set(plan.nodes.map(item=>item.eventId)).size,6);
+  const projections=new Map(createArtifactProductionProjections(options).map(item=>[item.projectionRef,item.projection]));
+  const requests=[];
+  const artifacts=[];
+  const actualRenderer=createCleanProductProductionPort({mediaProbe:{probe(){}},workspaceProductPort:{acquireArtifact(){},
+    materializeArtifact:request=>{artifacts.push(request);return{artifactHandle:{schemaRef:'helix://contracts/types/ArtifactHandle/v1',
+      schemaVersion:1,artifactHandleId:'artifact-'+artifacts.length,artifactKind:'nfo',ownerDomain:'libra',
+      ownerScope:{scopeType:'libra_run',scopeId:'series-run'},storageRef:'workspace://'+request.relativePath,
+      digestAlgorithm:'sha256',digestHex:crypto.createHash('sha256').update(request.bytes).digest('hex'),sizeBytes:request.bytes.length,
+      mediaType:'application/xml',provenanceRef:request.provenanceRef,referenceRevision:1}};}}});
+  const port=createArtifactProductionCapabilityPorts({...options,productProductionPort:{renderProductSidecar:request=>{
+    requests.push(request);return actualRenderer.renderProductSidecar(request);}}})['libra.product_sidecar.render@1'];
+  for(const producer of producers) {
+    const namedInputs=Object.fromEntries(producer.inputBindings.bindings.map(binding=>[binding.portName,
+      projections.get(binding.projectionRef).project({ownerScope:{processId:'series-run'},parameters:binding.parameters})]));
+    assert.equal(port.execute({ownerScope:{processId:'series-run'},namedInputs,eventId:producer.eventId,
+      eventAttemptId:'attempt-'+producer.nodeId,idempotencyKey:producer.nodeId}).kind,'succeeded');
+  }
+  assert.deepEqual(requests.map(request=>request.relativePath),['product/season.nfo','product/E001.nfo','product/E002.nfo']);
+  assert.deepEqual(requests.slice(1).map(request=>request.sidecarProfile.typedParameters.find(item=>item.parameter==='episodeNumber').value),[1,2]);
+  assert.deepEqual(requests.slice(1).map(request=>request.productMetadataDraft.descriptiveFacts.entries.find(item=>item.key==='episode_title').value),['Title 1','Title 2']);
+  assert.match(artifacts[0].bytes.toString(),/<tvshow>/);
+  for(const [index,artifact] of artifacts.slice(1).entries()){
+    const xml=artifact.bytes.toString();
+    assert.match(xml,/<episodedetails>/);
+    assert.ok(xml.includes('<title>Title '+(index+1)+'</title>'));
+    assert.ok(xml.includes('<plot>Plot '+(index+1)+'</plot>'));
+    assert.ok(xml.includes('<episode>'+(index+1)+'</episode>'));
+  }
+  const draftProjection=projections.get(producers[0].inputBindings.bindings.find(binding=>binding.portName==='productMetadataDraft').projectionRef);
+  assert.throws(()=>draftProjection.project({ownerScope:{processId:'series-run'},parameters:{episodeKey:'E003'}}),/outside the frozen Run/);
+});
+
+test('Scoped Intent, Observation and Season Draft pass the actual closed runtime schema graph', () => {
+  const contracts=path.resolve(__dirname,'../../src/helix/contracts');
+  const schemas=['types','domain-types','application-types'].flatMap(group=>fs.readdirSync(path.join(contracts,group)).map(name=>{
+    const root=path.join(contracts,group,name),version=fs.readdirSync(root).find(entry=>/^v[0-9]+$/.test(entry));
+    return JSON.parse(fs.readFileSync(path.join(root,version,'schema.json'),'utf8'));
+  }));
+  const validator=createCapabilityContractValidator({schemas});
+  const input=intent(1,0);
+  validator.validate('helix://contracts/domain-types/MetadataFetchIntent/v1',input);
+  validator.validate('helix://contracts/types/MetadataObservation/v1',chain(input,episodeEntries(1)).result);
+  const {options}=productionFixture(),metadata=productMetadataContext(options,'series-run');
+  validator.validate('helix://contracts/types/ProductMetadataDraft/v1',metadata.draft);
+  for(const draft of metadata.episodeDrafts)validator.validate('helix://contracts/types/ProductMetadataDraft/v1',draft);
+  const fact=buildProductMetadataFact({productMetadataDraft:metadata.draft,sourceBasis:metadata.basis,
+    verifiedArtifactManifest:{libraRunId:'series-run',manifestDigest:D('verified-manifest')},
+    libraRunId:'series-run',subjectId:'series-subject',expectedRevision:0,commitMarker:'schema-fact',committedAtMs:11});
+  validator.validate('helix://contracts/types/ProductMetadataFact/v1',fact);
+  assert.throws(()=>validator.validate('helix://contracts/domain-types/MetadataFetchIntent/v1',
+    {...input,episodeScope:{...input.episodeScope,foreign:true}}),{code:'P4_CAPABILITY_SCHEMA_REJECTED'});
+});
+
+test('Season Product Fact retains all scoped Episode Metadata and conformance cannot accept one flat winner', () => {
+  const {options}=productionFixture();
+  const metadata=productMetadataContext(options,'series-run');
+  const manifest={libraRunId:'series-run',manifestDigest:D('verified-manifest')};
+  const fact=buildProductMetadataFact({productMetadataDraft:metadata.draft,sourceBasis:metadata.basis,
+    verifiedArtifactManifest:manifest,libraRunId:'series-run',subjectId:'series-subject',expectedRevision:0,
+    commitMarker:'commit-series-metadata',committedAtMs:11});
+  assert.deepEqual(fact.episodeMetadata.map(item=>item.episodeScope.episodeKey),['E001','E002']);
+  const snapshot=buildProductConformanceFactSnapshot({productFactId:fact.factId,factKind:'product_metadata',factRevision:1,
+    schemaRef:fact.schemaRef,factValue:fact,factDigest:fact.factDigest,evidenceDigest:D('evidence')});
+  assert.equal(snapshot.factDigest,fact.factDigest);
+  assert.equal(episodeMetadataFieldPresent(fact,['E001','E002'],'episode_title'),true);
+  assert.equal(episodeMetadataFieldPresent({...fact,episodeMetadata:fact.episodeMetadata.slice(0,1)},['E001','E002'],'episode_title'),false);
+  assert.equal(episodeMetadataFieldPresent({descriptiveFacts:{entries:[{key:'episode_title',value:'flat title'}]}},['E001','E002'],'episode_title'),false);
+  assert.throws(()=>buildProductConformanceFactSnapshot({productFactId:fact.factId,factKind:'product_metadata',factRevision:1,
+    schemaRef:fact.schemaRef,factValue:{...fact,episodeMetadata:fact.episodeMetadata.slice(0,1)},factDigest:fact.factDigest,evidenceDigest:D('evidence')}),
+    {code:'P9_CONFORMANCE_FACT_VALUE'});
+});
+
+test('Artifact Manifest requires separate Season, E01 and E02 producer chains; duplicate E01 cannot replace E02', () => {
+  const {options}=productionFixture();
+  const metadata=productMetadataContext(options,'series-run'),requirement=metadata.requirements[0];
+  const originalList=options.workResultReader.listWorks,originalRead=options.workResultReader.read;
+  const records=[];
+  for(const [index,episodeKey] of ['', 'E001', 'E002'].entries()){
+    const artifact={artifactHandleId:'nfo-'+index,artifactKind:'nfo',referenceRevision:1,digestHex:D('nfo-'+index)};
+    const eventId='producer-'+index;
+    const producer={eventId,capabilityRef:'libra.product_sidecar.render@1',outcomeKind:'succeeded',result:artifact,
+      inputBindings:{bindings:[{portName:'productMetadataDraft',parameters:episodeKey?{episodeKey}:{}}]}};
+    const verification=buildArtifactManifestVerification({requirement,artifactHandles:[artifact],verifiedAtMs:10});
+    const inputBindings={bindings:[{portName:'artifactHandleList',eventId}]};
+    records.push(producer,{capabilityRef:'shared.artifact.manifest.verify@1',outcomeKind:'succeeded',result:verification,
+      workId:'artifact-work',attemptId:'artifact-attempt',planId:'artifact-plan',eventId:'verify-'+index,resultId:'verify-result-'+index,
+      resultDigest:canonicalDigest(verification),inputBindings,inputBindingDigest:canonicalDigest(inputBindings),
+      inputSnapshotDigest:canonicalDigest({artifactHandleList:[artifact],artifactRequirement:requirement})});
+  }
+  options.workResultReader={listWorks:query=>query.workKind==='artifact_production'?[{work_id:'artifact-work',state:'succeeded'}]:originalList(query),
+    read:id=>id==='artifact-work'?records:originalRead(id)};
+  const verified=artifactVerificationContext(options,'series-run');
+  assert.equal(verified.verifiedArtifactManifest.items.length,3);
+  assert.equal(new Set(verified.verifiedArtifactManifest.items.map(item=>item.verificationResultRef.resultId)).size,3);
+  records[4].inputBindings.bindings[0].parameters.episodeKey='E001';
+  assert.throws(()=>artifactVerificationContext(options,'series-run'),/not terminal/);
+});
+
+test('Scoped Related NFO conserves physical association and treats another Episode document as a gap', async () => {
+  const physical={mountScopeId:'fixture-mount',inode:'1',sizeBytes:10,fingerprintAlgorithm:'middle-256k-sha256',
+    fingerprintVersion:1,contentFingerprint:D('nfo-bytes')};
+  physical.materialKey=canonicalDigest({schema:'physical-material-identity@2',...physical});
+  const reference={role:'nfo',referenceId:'nfo-1',referenceDigest:D('reference'),primaryMaterialKey:'primary-1',identity:physical};
+  const input=buildMetadataFetchIntent({libraRunId:'series-run',runExecutionBasisDigest:D('basis'),
+    sourceKind:'related_nfo',sourcePriority:0,contentProfile:'series',resolvedIdentityDigest:D('identity'),
+    requestedFields:['episode_number','episode_plot','episode_title','season_number'],episodeScope:scope(1),
+    relatedReferenceId:reference.referenceId,relatedReferenceDigest:reference.referenceDigest,expectedChecksum:physical.contentFingerprint});
+  let number=1,reads=0;
+  const member={materialKey:'primary-1',episodeClaims:[{episodeKey:'E001'}]};
+  const snapshot={run:{executionBasisDigest:D('basis')},spec:{contentProfile:'series',productScope:{episodeKeys:['E001']}},
+    episodeClaims:[{episodeKey:'E001'}],members:[member],relatedReferences:[reference]};
+  const port=createProductMetadataCapabilityPorts({movieProductionReader:{readRunSnapshot:()=>snapshot},
+    productProductionPort:{fetchProvider(){},readRelatedNfo(){reads++;return{documentRoot:'episodedetails',
+      entries:episodeEntries(number,{season_number:'1',episode_number:String(number)}),peopleHints:[]};}},now:()=>10})['libra.product_metadata.fetch@1'];
+  const request={ownerScope:{processId:'series-run'},namedInputs:{metadataFetchIntent:input,
+    physicalMaterialReadHandleOrIntegrationHandle:{identity:physical}}};
+  const matching=await port.execute(request);
+  assert.equal(matching.result.descriptiveFacts.entries.find(item=>item.key==='episode_number').value,1);
+  number=2;
+  assert.deepEqual((await port.execute(request)).result.descriptiveFacts.entries,[]);
+  member.episodeClaims=[{episodeKey:'E002'}];
+  await assert.rejects(port.execute(request),/association is outside/);
+  assert.equal(reads,2);
+});

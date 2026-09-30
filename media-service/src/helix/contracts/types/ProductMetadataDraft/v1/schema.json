@@ -182,6 +182,165 @@
         "$ref": "helix://contracts/domain-types/ArtifactRequirement/v1"
       },
       "maxItems": 256
+    },
+    "episodeScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "episodeKey": {
+          "type": "string",
+          "pattern": "^E[0-9]{3,16}$"
+        },
+        "episodeNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "seasonNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "episodeKey",
+        "episodeNumber",
+        "seasonNumber"
+      ]
+    },
+    "episodeMetadata": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "episodeScope": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "episodeKey": {
+                "type": "string",
+                "pattern": "^E[0-9]{3,16}$"
+              },
+              "episodeNumber": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "seasonNumber": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "episodeKey",
+              "episodeNumber",
+              "seasonNumber"
+            ]
+          },
+          "descriptiveFacts": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaRef": {
+                "type": "string",
+                "minLength": 1
+              },
+              "schemaVersion": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "recordKind": {
+                "const": "descriptive-facts"
+              },
+              "recordDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "entries": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "value": {
+                      "type": [
+                        "string",
+                        "number",
+                        "integer",
+                        "boolean",
+                        "null"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "value"
+                  ]
+                },
+                "maxItems": 256
+              }
+            },
+            "required": [
+              "schemaRef",
+              "schemaVersion",
+              "recordKind",
+              "recordDigest",
+              "entries"
+            ]
+          },
+          "fieldProvenance": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "fieldPath": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "sourceKind": {
+                  "type": "string",
+                  "enum": [
+                    "related_nfo",
+                    "provider",
+                    "western_analysis"
+                  ]
+                },
+                "sourceRef": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "evidenceDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "fieldPath",
+                "sourceKind",
+                "sourceRef",
+                "evidenceDigest"
+              ]
+            },
+            "maxItems": 1024
+          }
+        },
+        "required": [
+          "episodeScope",
+          "descriptiveFacts",
+          "fieldProvenance"
+        ]
+      },
+      "maxItems": 256,
+      "minItems": 1
     }
   },
   "required": [

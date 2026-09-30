@@ -3,6 +3,7 @@ const { failureDiagnostics } = require('../contracts/failure-diagnostics');
 
 const { ProxyAgent } = require('undici');
 const { canonicalDigest } = require('../contracts/canonical-json');
+const { buildEpisodeMetadataScope } = require('../contracts/episode-metadata-scope');
 const {
   ExternalProviderArtifactPort,
   ExternalProviderObservationPort,
@@ -30,6 +31,9 @@ const PERSON_AVATAR_MEDIA_TYPES = new Set([
 ]);
 const REQUESTED_FIELDS = new Set([
   'director',
+  'episode_number',
+  'episode_plot',
+  'episode_title',
   'genre',
   'plot',
   'release_date',
@@ -1060,7 +1064,7 @@ function createTmdbProviderAdapter(options) {
       if (request.operationId === 'libra.product_metadata.fetch@1') {
         exact(
           request.input,
-          ['resolvedProviderIdentity', 'requestedFields'],
+          ['resolvedProviderIdentity', 'requestedFields', ...(Object.hasOwn(request.input || {}, 'episodeScope') ? ['episodeScope'] : [])],
           'PLATFORM_TMDB_METADATA_SHAPE',
         );
         const resolved = request.input.resolvedProviderIdentity;
@@ -1084,6 +1088,15 @@ function createTmdbProviderAdapter(options) {
           );
         }
         const series = namespace === 'tmdb_series';
+        let episodeScope;
+        if (Object.hasOwn(request.input, 'episodeScope')) {
+          try { episodeScope = buildEpisodeMetadataScope(request.input.episodeScope); }
+          catch { fail('PLATFORM_TMDB_IDENTITY_INVALID', 'TMDB metadata Episode scope is invalid.'); }
+          if (!series || episodeScope.seasonNumber !== resolved.seasonNumber)
+            fail('PLATFORM_TMDB_IDENTITY_INVALID', 'TMDB metadata Episode scope belongs to a foreign Season.');
+        }
+        if (request.input.requestedFields.some(field => field.startsWith('episode_')) && !episodeScope)
+          fail('PLATFORM_TMDB_IDENTITY_INVALID', 'Episode metadata requires an explicit Episode scope.');
         if ((series && (!Number.isSafeInteger(resolved.seasonNumber) ||
             resolved.seasonNumber < 1 || resolved.identityAnchorDigest !== canonicalDigest({
               provider: resolved.provider, namespace, providerKey: resolved.providerKey,
@@ -1141,6 +1154,19 @@ function createTmdbProviderAdapter(options) {
               'TMDB Season metadata does not match the resolved Season identity.');
           }
           values.set('season_number', season.season_number);
+          if (episodeScope) {
+            const episode = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes,
+              '/tv/' + resolved.providerKey + '/season/' + resolved.seasonNumber + '/episode/' + episodeScope.episodeNumber,
+              { timeoutMs:timeout(request.timeoutMs), query:{ language }, proxyServer });
+            requireFields(episode, ['id', 'season_number', 'episode_number'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+            validateMetadataResponse(episode);
+            if (!Number.isSafeInteger(episode.id) || episode.id < 1 ||
+                episode.season_number !== episodeScope.seasonNumber || episode.episode_number !== episodeScope.episodeNumber)
+              fail('PLATFORM_TMDB_IDENTITY_MISMATCH', 'TMDB Episode response does not match the frozen Episode scope.');
+            values.set('episode_number', episode.episode_number);
+            if (episode.name) values.set('episode_title', episode.name);
+            if (episode.overview) values.set('episode_plot', episode.overview);
+          }
         }
         if (releaseDate) {
           values.set('release_date', String(releaseDate));
@@ -1193,7 +1219,9 @@ function createTmdbProviderAdapter(options) {
           integrationId: snapshot.integrationId,
           configRevision: snapshot.configRevision,
           sourceRef: 'tmdb:' + (series ? 'tv' : 'movie') +
-            ':' + resolved.providerKey + (series ? ':season:' + resolved.seasonNumber : ''),
+            ':' + resolved.providerKey + (series ? ':season:' + resolved.seasonNumber : '') +
+            (episodeScope ? ':episode:' + episodeScope.episodeNumber : ''),
+          ...(episodeScope ? { episodeScope } : {}),
           descriptiveEntries: Object.freeze(descriptiveEntries),
           providerIdentities: Object.freeze([
             Object.freeze({ ...resolved }),

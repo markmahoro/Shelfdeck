@@ -654,7 +654,7 @@ function createCleanProductProductionPort(options = {}) {
     }
     entries.sort((left, right) => Buffer.compare(Buffer.from(left.key), Buffer.from(right.key)));
     const peopleHints = parseRelatedNfoPeopleHints(xml);
-    return Object.freeze({ bytes, sourceNfoSnapshotDigest:canonicalDigest({schema:'libra.nfo-source-snapshot@1',location,
+    return Object.freeze({ bytes, documentRoot:rootName, sourceNfoSnapshotDigest:canonicalDigest({schema:'libra.nfo-source-snapshot@1',location,
       inode:String(bounded.stat.ino),sizeBytes:Number(bounded.stat.size),mtimeNs:String(bounded.stat.mtimeNs),
       ctimeNs:String(bounded.stat.ctimeNs),contentFingerprint:bounded.contentFingerprint}), sourceNfoSemantics:observeNfoReferenceSemantics(bytes), entries: Object.freeze(entries), peopleHints: Object.freeze(peopleHints) });
   }
@@ -692,6 +692,7 @@ function createCleanProductProductionPort(options = {}) {
         !Array.isArray(response.descriptiveEntries) ||
         !Array.isArray(response.providerIdentities) ||
         !Array.isArray(response.peopleHints) ||
+        canonicalJson(response.episodeScope || null) !== canonicalJson(intent.episodeScope || null) ||
         containsInlineBytes(response) ||
         Object.hasOwn(response, 'posterBytes') ||
         Object.hasOwn(response, 'fanartBytes') ||

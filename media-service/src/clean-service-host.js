@@ -789,6 +789,7 @@ function createPlatformIntegrationServices(options) {
             request.metadataFetchIntent.resolvedProviderIdentity,
           requestedFields:
             request.metadataFetchIntent.requestedFields,
+          ...(request.metadataFetchIntent.episodeScope ? { episodeScope:request.metadataFetchIntent.episodeScope } : {}),
         },
         timeoutMs: 10_000,
       });

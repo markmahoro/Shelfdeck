@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { buildEpisodeMetadataScope } = require('../../../contracts/episode-metadata-scope');
 
 class ProductFactContractError extends Error {
   constructor(code, message) { super(message); this.name = 'ProductFactContractError'; this.code = code; }
@@ -137,6 +138,14 @@ function buildMetadataFetchIntent(value) {
       fail('P9_METADATA_SOURCE_ORDER', 'Provider does not match the content profile.');
     }
   } else fail('P9_METADATA_SOURCE_KIND', 'Metadata source kind is invalid.');
+  if (value.episodeScope !== undefined) {
+    if (common.contentProfile !== 'series') fail('P9_METADATA_EPISODE_SCOPE', 'Only Series metadata can carry Episode scope.');
+    common.episodeScope = buildEpisodeMetadataScope(value.episodeScope);
+    if (common.sourceKind === 'provider' && common.episodeScope.seasonNumber !== common.resolvedProviderIdentity.seasonNumber)
+      fail('P9_METADATA_EPISODE_SCOPE', 'Episode scope must match the resolved Season.');
+  }
+  if (common.requestedFields.some(field => field.startsWith('episode_')) && !common.episodeScope)
+    fail('P9_METADATA_EPISODE_SCOPE', 'Episode fields require an explicit Episode scope.');
   common.intentDigest = canonicalDigest(Object.fromEntries(Object.entries(common).filter(([key]) => key !== 'intentId')));
   common.intentId = canonicalDigest({ schema:'libra.metadata-fetch-intent-id@1', libraRunId:common.libraRunId,
     runExecutionBasisDigest:common.runExecutionBasisDigest, sourcePriority:common.sourcePriority, intentDigest:common.intentDigest });
@@ -182,6 +191,7 @@ function buildMetadataObservation(value) {
     sourceNfoSemantics:value?.sourceNfoSemantics || null,sourceNfoSnapshotDigest:value?.sourceNfoSnapshotDigest || null,
     descriptiveFacts:Object.freeze(descriptiveFacts), providerIdentitySet:Object.freeze(providerIdentitySet),
     peopleHints:Object.freeze([...(value?.peopleHints || [])].slice(0, 64)), artifactHints:Object.freeze([]) };
+  if (intent.episodeScope) result.episodeScope = intent.episodeScope;
   result.evidenceId = canonicalDigest({ schema:'libra.metadata-observation-evidence-id@1',
     fetchIntentDigest:result.fetchIntentDigest, sourceNfoSemanticsDigest:result.sourceNfoSemantics?.recordDigest || null, descriptiveFactsDigest:descriptiveFacts.recordDigest,
     providerIdentitySetDigest:providerIdentitySet.recordDigest });
@@ -207,6 +217,7 @@ function selectMetadataObservations(value) {
         candidate.result.identityDigest !== intent.resolvedIdentityDigest || candidate.result.contentProfile !== intent.contentProfile ||
         candidate.result.sourceKind !== intent.sourceKind || candidate.result.sourceRef !== metadataSourceRef(intent) ||
         candidate.result.sourcePriority !== intent.sourcePriority ||
+        canonicalJson(candidate.result.episodeScope || null) !== canonicalJson(intent.episodeScope || null) ||
         candidate.evidence?.payloadDigest !== candidate.result.payloadDigest ||
         canonicalDigest(candidate.evidence) !== candidate.evidenceDigest ||
         canonicalDigest(candidate.result) !== candidate.resultDigest ||
@@ -482,10 +493,23 @@ function buildProductMetadataDraft(value) {
   const basis = value?.sourceBasis;
   if (!basis || basis.sourceBasisKind !== 'metadata_observation') fail('P9_METADATA_DRAFT_BASIS', 'Observation basis is required.');
   const required = [...(value.requiredFields || [])];
+  if(value.episodeScopes!==undefined&&!Array.isArray(value.episodeScopes))
+    fail('P9_METADATA_EPISODE_SCOPE','Season Draft requires a typed Episode scope array.');
+  const episodeScopes = value.episodeScopes === undefined ? null : value.episodeScopes.map(buildEpisodeMetadataScope);
+  if (episodeScopes && (!episodeScopes.length || episodeScopes.length > 256 || value.episodeScope ||
+      basis.observationSet.contentProfile !== 'series' ||
+      new Set(episodeScopes.map(scope => scope.episodeKey)).size !== episodeScopes.length ||
+      canonicalJson(episodeScopes) !== canonicalJson([...episodeScopes].sort((a,b)=>compare(a.episodeKey,b.episodeKey)))))
+    fail('P9_METADATA_EPISODE_SCOPE', 'Season Draft requires a unique frozen ordered Episode scope.');
   if (required.length > 256 || required.some((item) => typeof item !== 'string' || !item)) fail('P9_METADATA_REQUIREMENTS', 'Required fields are invalid.');
+  const episodeScope = value.episodeScope === undefined ? null : buildEpisodeMetadataScope(value.episodeScope);
   const winners = new Map(), provenance = [];
   for (const observation of basis.observationSet.observations) {
+    if (observation.episodeScope && (!episodeScope ||
+        canonicalJson(observation.episodeScope) !== canonicalJson(episodeScope))) continue;
     for (const entry of descriptiveEntries(observation)) {
+      if (observation.contentProfile === 'series' && entry.key.startsWith('episode_') && !observation.episodeScope) continue;
+      if (episodeScope && entry.key === 'season_number' && !observation.episodeScope) continue;
       if (!winners.has(entry.key) && entry.value !== null && entry.value !== '') {
         winners.set(entry.key, entry.value);
         provenance.push({ fieldPath:entry.key, sourceKind:observation.sourceKind, sourceRef:observation.sourceRef,
@@ -493,7 +517,7 @@ function buildProductMetadataDraft(value) {
       }
     }
   }
-  const missingFields = required.filter((field) => !winners.has(field));
+  const missingFields = required.filter((field) => (!episodeScopes || !field.startsWith('episode_')) && !winners.has(field));
   if (missingFields.length) return Object.freeze({ ready:false, missingFields:Object.freeze(missingFields) });
   const artifactRequirements = (value.artifactRequirements || []).map(validateArtifactRequirement);
   const sortedRequirements = [...artifactRequirements].sort((left, right) => compare(left.artifactKind, right.artifactKind) ||
@@ -508,6 +532,23 @@ function buildProductMetadataDraft(value) {
     fieldProvenance:provenance, descriptiveFacts:{ schemaRef:'helix://contracts/records/descriptive-facts/v1', schemaVersion:1,
       recordKind:'descriptive-facts', recordDigest:'', entries:[...winners].map(([key, itemValue]) => ({ key, value:itemValue })).sort((a,b)=>compare(a.key,b.key)) },
     providerIdentities:[...(value.providerIdentities || [])], artifactRequirements };
+  if (episodeScope) {
+    const numbers = new Map(draft.descriptiveFacts.entries.map(item => [item.key, item.value]));
+    if (numbers.get('season_number') !== episodeScope.seasonNumber || numbers.get('episode_number') !== episodeScope.episodeNumber)
+      fail('P9_METADATA_EPISODE_SCOPE', 'Episode Draft must conserve its exact observed Season/Episode numbers.');
+    draft.episodeScope = episodeScope;
+  }
+  if (episodeScopes) {
+    const episodeMetadata=[];
+    for (const scope of episodeScopes) {
+      const projected=buildProductMetadataDraft({ ...value, episodeScopes:undefined, episodeScope:scope,
+        requiredFields:[...new Set(['season_number','episode_number','series_title',...required.filter(field=>field.startsWith('episode_'))])].sort(compare) });
+      if(!projected.ready)return Object.freeze({ready:false,missingFields:projected.missingFields,episodeKey:scope.episodeKey});
+      episodeMetadata.push(Object.freeze({episodeScope:scope,descriptiveFacts:projected.draft.descriptiveFacts,
+        fieldProvenance:projected.draft.fieldProvenance}));
+    }
+    draft.episodeMetadata=Object.freeze(episodeMetadata);
+  }
   draft.descriptiveFacts.recordDigest = canonicalDigest(Object.fromEntries(Object.entries(draft.descriptiveFacts).filter(([key]) => key !== 'recordDigest')));
   draft.draftId = canonicalDigest({ schema:'libra.product-metadata-draft-id@1', resolvedIdentityDigest:draft.resolvedIdentityDigest,
     sourceBasisDigest:basis.sourceBasisDigest, descriptiveFactsDigest:draft.descriptiveFacts.recordDigest });
@@ -883,6 +924,7 @@ function buildMediaCastFact(value) {
 
 function buildProductMetadataFact(value) {
   const draft = value?.productMetadataDraft, basis = value?.sourceBasis, manifest = value?.verifiedArtifactManifest;
+  if (draft?.episodeScope) fail('P9_METADATA_EPISODE_FACT_SCOPE', 'A scoped Episode Draft cannot be committed as a flat Season Fact.');
   if (!draft || draft.schemaRef !== 'helix://contracts/types/ProductMetadataDraft/v1' || !basis || !manifest ||
       manifest.libraRunId !== value.libraRunId || draft.sourceBasisKind !== basis.sourceBasisKind ||
       draft.draftDigest!==canonicalDigest(Object.fromEntries(Object.entries(draft).filter(([key])=>key!=='draftDigest')))||
@@ -906,10 +948,34 @@ function buildProductMetadataFact(value) {
     fieldProvenance:[...draft.fieldProvenance], descriptiveFacts:draft.descriptiveFacts,
     providerIdentities:[...draft.providerIdentities], mediaCastFactRef,
     verifiedArtifactManifestDigest:digest(manifest.manifestDigest, 'verifiedArtifactManifestDigest') };
+  if(draft.episodeMetadata){
+    if(basis.sourceBasisKind!=='metadata_observation'||basis.observationSet.contentProfile!=='series')
+      fail('P9_METADATA_EPISODE_FACT_SCOPE','Episode Metadata requires a Series Observation basis.');
+    validateEpisodeMetadata(draft.episodeMetadata,draft.providerIdentities);
+    body.episodeMetadata=draft.episodeMetadata;
+  }
   body.productMetadataDigest = canonicalDigest({ schema:'libra.product-metadata@1', ...body });
   return Object.freeze(bytes({ schemaRef:'helix://contracts/types/ProductMetadataFact/v1', schemaVersion:1,
     ...productFactEnvelope(value, 'product_metadata', body.productMetadataDigest), ...body },
   64 * 1024, 'P9_PRODUCT_METADATA_FACT_SIZE'));
+}
+
+function validateEpisodeMetadata(items, identities) {
+  if(!Array.isArray(items)||!items.length||items.length>256)
+    fail('P9_METADATA_EPISODE_FACT_SCOPE','Episode Metadata must contain 1..256 scoped records.');
+  const season=identities.find(item=>item.namespace==='tmdb_series')?.seasonNumber;
+  let previous='';
+  for(const item of items){
+    const scope=buildEpisodeMetadataScope(item.episodeScope),record=item.descriptiveFacts;
+    if(scope.seasonNumber!==season||(previous&&compare(previous,scope.episodeKey)>=0)||!record||
+        record.recordDigest!==canonicalDigest(Object.fromEntries(Object.entries(record).filter(([key])=>key!=='recordDigest'))))
+      fail('P9_METADATA_EPISODE_FACT_SCOPE','Episode Metadata identity, ordering or record digest is invalid.');
+    const values=new Map(record.entries.map(entry=>[entry.key,entry.value]));
+    if(values.get('season_number')!==scope.seasonNumber||values.get('episode_number')!==scope.episodeNumber)
+      fail('P9_METADATA_EPISODE_FACT_SCOPE','Episode Metadata numbers do not conserve scope.');
+    previous=scope.episodeKey;
+  }
+  return items;
 }
 
 function buildProductFactEvidence(value) {
@@ -923,4 +989,4 @@ function buildProductFactEvidence(value) {
 module.exports = Object.freeze({ ProductFactContractError, buildArtifactManifestVerification, buildMediaCastDraft, buildMetadataMediaCastRelations, buildMediaCastFact, buildMetadataFetchIntent,
   buildMetadataObservation, buildMetadataObservationBasis, buildProductFactHandle, buildProductFactSourceRefs, buildProductMetadataDraft, metadataObservationWorkIdempotencyKey,
   buildProductMetadataFact, buildProductFactEvidence, buildResolvedProductIdentity, buildWesternProductMetadataDraft, metadataSourceRef, selectMetadataObservations,
-  validateArtifactRequirement, validateVerifiedArtifactManifest });
+  validateArtifactRequirement, validateVerifiedArtifactManifest, validateEpisodeMetadata });

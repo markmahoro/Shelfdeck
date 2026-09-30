@@ -742,12 +742,12 @@
       "relativePath": "types/MetadataObservation/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "7e5dbadd3e40ff2bce57e8ab37034e663a1ddf52250c884d5c25fe553c5f3f6c"
+        "value": "ffd1f35e1fa358741c095e627156342f6fd632238cc3ce62012bc508544cf1a3"
       },
       "source": {
         "section": "8.6.19",
         "line": 11063,
-        "lineDigest": "7ef64efe921f1865ec5a0694bc2c429294dc5a099330179194981d24d13f489a"
+        "lineDigest": "6b531eba2e1455fc3cd8d776effb2d8952df1c7c150ccaf0312e78091f78219e"
       }
     },
     {
@@ -1219,7 +1219,7 @@
       "source": {
         "section": "8.6.19",
         "line": 11080,
-        "lineDigest": "216a26360a03614fbe99c1d718970f8fec3ff3c2b602b05fd43b4a54f7db8f7f"
+        "lineDigest": "0cd8e00f63c9a38cc5b5f7ba8ad8c5b7696dd705233a38f981eb4913e45a94c6"
       }
     },
     {
@@ -1262,12 +1262,12 @@
       "relativePath": "types/ProductMetadataDraft/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "f7eb7dc9fb03a9c135e912f8d5bb9c19ceb1e172503ee58766ce2c480a40e277"
+        "value": "792c1152e0913c252307ca15f7352c4c5fc5f815e0dad34d65f7b1c7b0025693"
       },
       "source": {
         "section": "8.6.19",
         "line": 11068,
-        "lineDigest": "b7d969b78d192123e0f38a5ff47e9f42b861b61f0bf38723bd2b450843682c29"
+        "lineDigest": "7c5fa918c425d1076c1a61ca53d56eaf627ccf8b8337dbdfee8a1ad911bba0fa"
       }
     },
     {
@@ -1278,12 +1278,12 @@
       "relativePath": "types/ProductMetadataFact/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "caa916dd58b68d0e8318f16c932d83de2ae7367f173f8f7e881ae4c9a46b8741"
+        "value": "85444865de4c7062f4769d9e9fde131e60331fd8e2c6795d75ea7dcb668d110c"
       },
       "source": {
         "section": "8.6.19",
         "line": 11072,
-        "lineDigest": "0f0b2bcb61549e00253acb6c8c14034fcc7572d3481f2b1e982ae0e156ba2114"
+        "lineDigest": "633ab66ac58759f55963808d36609fec219397dcdf0af325d889060c5d022067"
       }
     },
     {

@@ -4,6 +4,7 @@ const {missingArtifactKinds,artifactGapCodes}=require('../../../contracts/artifa
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { buildMediaRequirement } = require('./media-production-contracts');
 const { assertAuthorizedDefectManifest } = require('./defect-admission-contracts');
+const { validateEpisodeMetadata } = require('./product-fact-contracts');
 
 class ProductConformanceError extends Error {
   constructor(code, message) { super(message); this.name = 'ProductConformanceError'; this.code = code; }
@@ -69,6 +70,10 @@ function validateFactValue(kind, value) {
       westernAnalysisVariantDigest:value.westernAnalysisVariantDigest,fieldProvenance:value.fieldProvenance,
       descriptiveFacts:value.descriptiveFacts,providerIdentities:value.providerIdentities,mediaCastFactRef:value.mediaCastFactRef,
       verifiedArtifactManifestDigest:value.verifiedArtifactManifestDigest};
+    if(value.episodeMetadata){
+      validateEpisodeMetadata(value.episodeMetadata,value.providerIdentities);
+      body.episodeMetadata=value.episodeMetadata;
+    }
     if(canonicalDigest({schema:'libra.product-metadata@1',...body})!==value.productMetadataDigest||value.factDigest!==value.productMetadataDigest)
       fail('P9_CONFORMANCE_FACT_VALUE','Product Metadata Fact digest closure failed.');
   } else {
@@ -341,6 +346,7 @@ function evaluateProductConformance(value) {
     else if (code === 'actor') present = Boolean(cast?.relations?.length);
     else if (code === 'season_number') present = identities.some((item) => item.namespace === 'tmdb_series' && item.seasonNumber);
     else if (code === 'episode_number') present = claimedEpisodes.size > 0;
+    else if (code === 'episode_title' || code === 'episode_plot') present = episodeMetadataFieldPresent(metadata,requiredEpisodes,code);
     else present = nonEmpty(descriptive.get(code));
     if (!present) {unmet.add('metadata_field_unmet');missingMetadataFields.push(code);}
   }
@@ -369,6 +375,12 @@ function evaluateProductConformance(value) {
   return buildEvidence(input, value.verifiedAtMs, [...unmet],[],missingMetadataFields,missingArtifacts);
 }
 
+function episodeMetadataFieldPresent(metadata, episodeKeys, fieldCode) {
+  const byKey=new Map((metadata?.episodeMetadata||[]).map(item=>[item.episodeScope.episodeKey,
+    new Map(item.descriptiveFacts.entries.map(entry=>[entry.key,entry.value]))]));
+  return episodeKeys.length>0 && episodeKeys.every(key=>nonEmpty(byKey.get(key)?.get(fieldCode)));
+}
+
 function integrityFailure(input, verifiedAtMs) { return buildEvidence(input, verifiedAtMs, [], ['snapshot_integrity_failure']); }
 function buildEvidence(input, verifiedAtMs, unmetValues, reasons = [],missingMetadataFields=[],missingArtifactKinds=[]) {
   const unmetRequirementCodes = UNMET_ORDER.filter((code) => unmetValues.includes(code)), acceptanceSpec = input?.acceptanceSpec || {};
@@ -386,4 +398,4 @@ function buildEvidence(input, verifiedAtMs, unmetValues, reasons = [],missingMet
 }
 
 module.exports = Object.freeze({ ProductConformanceError, UNMET_ORDER, buildProductConformanceFactSnapshot,
-  buildProductConformanceInputSnapshot, evaluateProductConformance });
+  buildProductConformanceInputSnapshot, evaluateProductConformance, episodeMetadataFieldPresent });

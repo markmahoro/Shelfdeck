@@ -2,6 +2,7 @@
 const { failureDiagnostics } = require('../../../contracts/failure-diagnostics');
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { productSidecarRelativePath } = require('../../../contracts/episode-metadata-scope');
 const { buildArtifactManifestVerification } = require('../model/product-fact-contracts');
 const { workspaceId } = require('../model/workspace-admission-contracts');
 
@@ -135,15 +136,22 @@ function createArtifactProductionCapabilityPorts(options) {
         const snapshot = typeof options.movieProductionReader.readRunSnapshot === 'function'
           ? options.movieProductionReader.readRunSnapshot(context.ownerScope.processId)
           : options.movieProductionReader.readRun(context.ownerScope.processId);
-        const relatedNfo = snapshot?.relatedReferences?.find((item) => item.role === 'nfo') || null;
+        const draft = context.namedInputs.productMetadataDraft;
         const contentProfile = snapshot?.spec?.contentProfile || 'movie';
+        if (draft.episodeScope && (contentProfile !== 'series' ||
+            !snapshot.spec.productScope.episodeKeys.includes(draft.episodeScope.episodeKey) ||
+            !snapshot.episodeClaims.some(item=>item.episodeKey===draft.episodeScope.episodeKey)))
+          throw new TypeError('Episode sidecar is outside the frozen Run delivery scope.');
+        const sourceRefs = new Set(draft.fieldProvenance.filter(item=>item.sourceKind==='related_nfo').map(item=>item.sourceRef));
+        const relatedNfo = snapshot?.relatedReferences?.find((item) => item.role === 'nfo' &&
+          (contentProfile !== 'series' || sourceRefs.has(item.referenceId))) || null;
         const result = options.productProductionPort.renderProductSidecar({
           productMetadataDraft: context.namedInputs.productMetadataDraft,
           mediaCastDraft: context.namedInputs.mediaCastDraft,
           sidecarProfile: context.namedInputs.sidecarProfile,
           libraRunId: context.ownerScope.processId,
           workspaceId: workspaceId(context.ownerScope.processId),
-          relativePath: contentProfile === 'series' ? 'product/season.nfo' : 'product/movie.nfo',
+          relativePath: productSidecarRelativePath(contentProfile,draft.episodeScope),
           contentProfile,
           relatedReference: relatedNfo,
           runtimeEffectAuthority: Object.freeze({

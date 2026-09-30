@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { buildEpisodeMetadataScope } = require('../../../contracts/episode-metadata-scope');
 const {
   buildMetadataFetchIntent,
 } = require('../model/product-fact-contracts');
@@ -95,7 +96,7 @@ function metadataResultItems(options, libraRunId) {
 }
 
 function nfoSource(snapshot, identity, reference, sourcePriority,
-  requestedFields) {
+  requestedFields, episodeScope) {
   return Object.freeze({
     kind: 'related_nfo',
     reference,
@@ -107,6 +108,7 @@ function nfoSource(snapshot, identity, reference, sourcePriority,
       contentProfile: snapshot.spec.contentProfile,
       resolvedIdentityDigest: identity.factValue.identityDigest,
       requestedFields,
+      ...(episodeScope ? { episodeScope } : {}),
       relatedReferenceId: reference.referenceId,
       relatedReferenceDigest: reference.referenceDigest,
       expectedChecksum: reference.identity.contentFingerprint,
@@ -115,7 +117,7 @@ function nfoSource(snapshot, identity, reference, sourcePriority,
 }
 
 function providerSource(options, snapshot, identity, sourcePriority,
-  requestedFields) {
+  requestedFields, episodeScope) {
   const providerIdentity = identity.factValue.providerIdentities[0];
   if (!providerIdentity) {
     return Object.freeze({ kind:'unavailable',
@@ -130,6 +132,7 @@ function providerSource(options, snapshot, identity, sourcePriority,
     resolvedIdentityDigest: identity.factValue.identityDigest,
     resolvedProviderIdentity: providerIdentity,
     requestedFields,
+    ...(episodeScope ? { episodeScope } : {}),
     providerKind: providerIdentity.provider,
   };
   let handle;
@@ -165,6 +168,38 @@ function nextMetadataStage(options, snapshot, identity) {
   const requiredCastRoles = Object.freeze(requiredMediaCastRoles(snapshot)
     .filter((role) => !waivedFields.has(role)));
   const results = metadataResultItems(options, snapshot.run.libraRunId);
+  const series = snapshot.spec.contentProfile === 'series';
+  const scopes = series ? seriesMetadataScopes(snapshot, identity) : [];
+  const globalRequiredFields = requiredFields.filter(field => !series || !field.startsWith('episode_'));
+  const globalResults = results.filter(item => !item.result.episodeScope);
+  const globalStage = metadataScopeStage(options, snapshot, identity, results, globalResults,
+    globalRequiredFields, requiredCastRoles);
+  if (globalStage.kind !== 'ready') return globalStage;
+  for (const episodeScope of scopes) {
+    const scopedResults = results.filter(item => item.result.episodeScope &&
+      canonicalDigest(item.result.episodeScope) === canonicalDigest(episodeScope));
+    const episodeRequiredFields = [...new Set(['episode_number', 'season_number',
+      ...requiredFields.filter(field => field.startsWith('episode_'))])].sort(compare);
+    const stage = metadataScopeStage(options, snapshot, identity, results, scopedResults,
+      episodeRequiredFields, [], episodeScope);
+    if (stage.kind !== 'ready') return stage;
+  }
+  return Object.freeze({ kind:'ready', requiredFields, missingFields:[], requiredCastRoles, missingCastRoles:[], results });
+}
+
+function seriesMetadataScopes(snapshot, identity) {
+  const provider = identity.factValue.providerIdentities.find(item => item.namespace === 'tmdb_series');
+  if (!provider) throw new Error('Series metadata requires the resolved Season identity.');
+  const keys = snapshot.spec.productScope.episodeKeys;
+  const claims = snapshot.episodeClaims.map(item => item.episodeKey);
+  if (!keys.length || canonicalDigest(keys) !== canonicalDigest(claims))
+    throw new Error('Series metadata delivery scope differs from the frozen Run manifest.');
+  return Object.freeze(keys.map(episodeKey => buildEpisodeMetadataScope({ episodeKey,
+    seasonNumber:provider.seasonNumber, episodeNumber:Number(episodeKey.slice(1)) })));
+}
+
+function metadataScopeStage(options, snapshot, identity, allResults, results, requiredFields,
+  requiredCastRoles, episodeScope) {
   const observed = observedFieldKeys(results);
   const observedCastRoles = observedMediaCastRoles(results);
   const missingFields = requiredFields.filter((field) => !observed.has(field));
@@ -175,14 +210,16 @@ function nextMetadataStage(options, snapshot, identity) {
     return Object.freeze({ kind:'ready', requiredFields, missingFields,
       requiredCastRoles, missingCastRoles, results });
   }
-  const references = nfoReferences(snapshot);
+  const references = nfoReferences(snapshot).filter(reference => !episodeScope ||
+    snapshot.members.some(member => member.materialKey === reference.primaryMaterialKey &&
+      member.episodeClaims?.some(claim => claim.episodeKey === episodeScope.episodeKey)));
   const usedNfoRefs = new Set(results
     .filter((item) => item.result.sourceKind === 'related_nfo')
     .map((item) => item.result.sourceRef));
   const nextReference = references.find((item) => !usedNfoRefs.has(item.referenceId));
   if (nextReference) {
     const source = nfoSource(snapshot, identity, nextReference,
-      results.length, missingFields);
+      allResults.length, missingFields, episodeScope);
     return Object.freeze({ kind:'source', source, requiredFields,
       missingFields, requiredCastRoles, missingCastRoles, results });
   }
@@ -194,8 +231,8 @@ function nextMetadataStage(options, snapshot, identity) {
       requiredFields, missingFields, requiredCastRoles, missingCastRoles,
       results });
   }
-  const source = providerSource(options, snapshot, identity, results.length,
-    missingFields);
+  const source = providerSource(options, snapshot, identity, allResults.length,
+    missingFields, episodeScope);
   if (source.kind === 'unavailable') {
     return Object.freeze({ ...source, requiredFields, missingFields,
       requiredCastRoles, missingCastRoles, results });
@@ -249,4 +286,5 @@ module.exports = Object.freeze({
   requiredArtifactKinds,
   observedFieldKeys,
   observedMediaCastRoles,
+  seriesMetadataScopes,
 });

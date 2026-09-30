@@ -1,7 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
-const { buildMetadataObservation } = require('../model/product-fact-contracts');
+const { buildMetadataFetchIntent, buildMetadataObservation } = require('../model/product-fact-contracts');
 
 const CAPABILITY = 'libra.product_metadata.fetch@1';
 const RESULT_SCHEMA = 'helix://contracts/capabilities/libra.product_metadata.fetch/v1/result';
@@ -88,10 +88,18 @@ function createProductMetadataCapabilityPorts(options) {
       requireNamed(context, ['metadataFetchIntent', 'physicalMaterialReadHandleOrIntegrationHandle']);
     },
     async execute(context) {
-      const intent = context.namedInputs.metadataFetchIntent;
+      const intent = buildMetadataFetchIntent(context.namedInputs.metadataFetchIntent);
       const handle = context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle;
       let source;
       try {
+      if (intent.episodeScope) {
+        const snapshot = options.movieProductionReader.readRunSnapshot(context.ownerScope.processId);
+        if (intent.libraRunId !== context.ownerScope.processId || snapshot?.spec?.contentProfile !== 'series' ||
+            snapshot.run.executionBasisDigest !== intent.runExecutionBasisDigest ||
+            !snapshot.spec.productScope.episodeKeys.includes(intent.episodeScope.episodeKey) ||
+            !snapshot.episodeClaims.some(claim => claim.episodeKey === intent.episodeScope.episodeKey))
+          throw new TypeError('Episode metadata is outside the frozen Run delivery scope.');
+      }
       if (intent.sourceKind === 'related_nfo') {
         const snapshot = typeof options.movieProductionReader.readRunSnapshot === 'function'
           ? options.movieProductionReader.readRunSnapshot(context.ownerScope.processId)
@@ -102,15 +110,26 @@ function createProductMetadataCapabilityPorts(options) {
             !samePhysicalMaterialIdentity(handle.identity, reference.identity)) {
           throw new TypeError('Related NFO projection no longer matches the immutable Run input.');
         }
+        if(intent.episodeScope&&!snapshot.members.some(member=>member.materialKey===reference.primaryMaterialKey&&
+            member.episodeClaims.some(claim=>claim.episodeKey===intent.episodeScope.episodeKey)))
+          throw new TypeError('Related NFO association is outside the frozen Episode material scope.');
         const nfo = options.productProductionPort.readRelatedNfo({
           primaryMaterialKey: reference.primaryMaterialKey,
           reference,
         });
+        const scopedNumbers = new Map(nfo.entries.map(item => [item.key, item.value]));
+        const matchesScope = !intent.episodeScope ||
+          (nfo.documentRoot === 'episodedetails' && Number(scopedNumbers.get('season_number')) === intent.episodeScope.seasonNumber &&
+           Number(scopedNumbers.get('episode_number')) === intent.episodeScope.episodeNumber);
+        const entries = nfo.entries.filter(item=>intent.contentProfile!=='series'||intent.episodeScope||
+          nfo.documentRoot!=='episodedetails'||!['title','plot','release_date','year_or_release_date'].includes(item.key));
         source = Object.freeze({
-          descriptiveEntries: nfo.entries,
+          descriptiveEntries: matchesScope ? entries.map(item =>
+            intent.episodeScope && ['season_number', 'episode_number'].includes(item.key)
+              ? Object.freeze({ ...item, value:Number(item.value) }) : item) : [],
           sourceNfoSemantics:nfo.sourceNfoSemantics,sourceNfoSnapshotDigest:nfo.sourceNfoSnapshotDigest,
           providerIdentities: Object.freeze([]),
-          peopleHints: Object.freeze(nfo.peopleHints || []),
+          peopleHints: Object.freeze(matchesScope ? (nfo.peopleHints || []) : []),
           artifactHints: Object.freeze([]),
         });
       } else if (intent.sourceKind === 'provider') {

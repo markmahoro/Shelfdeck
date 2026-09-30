@@ -954,6 +954,7 @@ function personReferenceProjectionSchema() {
 }
 
 function metadataFetchIntentSchema() {
+  const episodeScope = require('../../src/helix/contracts/episode-metadata-scope').episodeMetadataScopeSchema();
   const common = { intentId: id(), libraRunId: id(), runExecutionBasisDigest: digest(),
     sourceKind: enumText('related_nfo', 'provider'), sourcePriority: nonNegativeInteger(),
     contentProfile: enumText('movie', 'series', 'jav'), resolvedIdentityDigest: digest(),
@@ -961,9 +962,9 @@ function metadataFetchIntentSchema() {
   return { $schema: DRAFT, $id: domainTypeId('MetadataFetchIntent'), title: 'MetadataFetchIntent@1',
     'x-helix-ssotRefs': ['6.4.7.1', '8.6.18', '8.6.20'], 'x-helix-role': 'accepted-business-dto',
     'x-helix-maxCanonicalBytes': 16 * 1024, oneOf: [
-      object({ ...common, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(), relatedReferenceDigest: digest(), expectedChecksum: digest() },
+      object({ ...common, episodeScope, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(), relatedReferenceDigest: digest(), expectedChecksum: digest() },
         [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedChecksum']),
-      object({ ...common, sourceKind: { const: 'provider' }, providerKind: enumText('tmdb', 'jav'),
+      object({ ...common, episodeScope, sourceKind: { const: 'provider' }, providerKind: enumText('tmdb', 'jav'),
         resolvedProviderIdentity: domainRef('ResolvedProviderIdentity'), integrationId: id(), configRevision: positiveInteger() },
         [...Object.keys(common), 'providerKind', 'resolvedProviderIdentity', 'integrationId', 'configRevision'])
     ] };

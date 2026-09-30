@@ -989,13 +989,15 @@ function acceptanceCheckSchema() {
 }
 
 function metadataObservationSchema() {
-  return resultSchema('MetadataObservation', 'EvidenceEnvelope', {
+  const schema = resultSchema('MetadataObservation', 'EvidenceEnvelope', {
     fetchIntentDigest: digest(), sourceKind: enumText('related_nfo', 'provider'), sourceRef: text(),
     sourcePriority: nonNegativeInteger(), identityDigest: digest(), contentProfile: enumText('movie', 'series', 'jav'),
     descriptiveFacts: boundedRecord('descriptive-facts'), providerIdentitySet: providerIdentitySetRecord(),
     sourceNfoSemantics:nullable(boundedRecord('source-nfo-semantics')),sourceNfoSnapshotDigest:nullable(digest()),
     peopleHints: metadataPeopleHints(), artifactHints: emptyArtifactHints()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+  schema.properties.episodeScope = require('../../src/helix/contracts/episode-metadata-scope').episodeMetadataScopeSchema();
+  return schema;
 }
 
 function productIdentityEvidenceObservationSchema() {
@@ -1140,13 +1142,21 @@ function mediaCastRelationSchema() {
 }
 
 function productMetadataDraftSchema() {
-  return resultSchema('ProductMetadataDraft', 'DraftEnvelope', {
+  const schema = resultSchema('ProductMetadataDraft', 'DraftEnvelope', {
     resolvedIdentityDigest: digest(), sourceBasisKind: enumText('metadata_observation', 'western_analysis'),
     metadataObservationSetDigest: nullable(digest()), westernAnalysisVariantDigest: nullable(digest()),
     fieldProvenance: arrayOf(fieldProvenanceSchema(), 1024), descriptiveFacts: boundedRecord('descriptive-facts'),
     providerIdentities: arrayOf(domainRef('ResolvedProviderIdentity'), 16),
     artifactRequirements: arrayOf(domainRef('ArtifactRequirement'), 256)
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+  schema.properties.episodeScope = require('../../src/helix/contracts/episode-metadata-scope').episodeMetadataScopeSchema();
+  schema.properties.episodeMetadata = episodeMetadataSchema();
+  return schema;
+}
+
+function episodeMetadataSchema() {
+  return {...arrayOf(object({episodeScope:require('../../src/helix/contracts/episode-metadata-scope').episodeMetadataScopeSchema(),
+    descriptiveFacts:boundedRecord('descriptive-facts'),fieldProvenance:arrayOf(fieldProvenanceSchema(),1024)}),256),minItems:1};
 }
 
 function mediaCastDraftSchema() {
@@ -1166,13 +1176,15 @@ function mediaCastFactSchema() {
 
 function productMetadataFactSchema() {
   const mediaCastFactRef = object({ productFactId: id(), factRevision: positiveInteger(), factDigest: digest() });
-  return resultSchema('ProductMetadataFact', 'DomainFactEnvelope', {
+  const schema = resultSchema('ProductMetadataFact', 'DomainFactEnvelope', {
     subjectId: id(), resolvedIdentityDigest: digest(), sourceBasisKind: enumText('metadata_observation', 'western_analysis'),
     sourceBasisDigest: digest(), metadataObservationSetDigest: nullable(digest()), westernAnalysisVariantDigest: nullable(digest()),
     fieldProvenance: arrayOf(fieldProvenanceSchema(), 1024), descriptiveFacts: boundedRecord('descriptive-facts'),
     providerIdentities: arrayOf(domainRef('ResolvedProviderIdentity'), 16), mediaCastFactRef: nullable(mediaCastFactRef),
     verifiedArtifactManifestDigest: digest(), productMetadataDigest: digest()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+  schema.properties.episodeMetadata=episodeMetadataSchema();
+  return schema;
 }
 
 function productFactSnapshotSchema(kind, schemaName, includeReferenceDigest = true) {
