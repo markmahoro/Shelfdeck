@@ -989,19 +989,20 @@ function productIdentityEvidenceIntentSchema() {
     'x-helix-ssotRefs': ['5.1.3', '5.4.3', '8.6.5', '8.6.19'],
     'x-helix-role': 'accepted-business-dto',
     'x-helix-maxCanonicalBytes': 16 * 1024,
-    oneOf: [
-      object({ ...common, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(),
-        relatedReferenceDigest: digest(), expectedPhysicalIdentityDigest: digest() },
-      [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedPhysicalIdentityDigest']),
-      object({ ...common, sourceKind: { const: 'provider_exact' }, integrationId: id(), configRevision: positiveInteger(),
-        provider: { const: 'tmdb' }, namespace: { const: 'tmdb_movie' }, providerKey: text({ maxLength: 128 }),
-        associationKind: enumText('nfo_claim', 'manual_selection', 'subject_identity'), associationEvidenceDigest: digest() },
-      [...Object.keys(common), 'integrationId', 'configRevision', 'provider', 'namespace', 'providerKey', 'associationKind',
-        'associationEvidenceDigest']),
-      object({ ...common, sourceKind: { const: 'provider_search' }, integrationId: id(), configRevision: positiveInteger(),
-        provider: { const: 'tmdb' }, namespace: { const: 'tmdb_movie' } },
-      [...Object.keys(common), 'integrationId', 'configRevision', 'provider', 'namespace']),
-    ],
+    oneOf: ['movie','series'].flatMap(profile => {
+      const scopedCommon={...common,contentProfile:{const:profile},
+        ...(profile==='series'?{seasonNumber:{type:'integer',minimum:1,maximum:Number.MAX_SAFE_INTEGER}}:{})};
+      const namespace=profile==='series'?'tmdb_series':'tmdb_movie';
+      return [
+        object({ ...scopedCommon, sourceKind:{const:'related_nfo'},relatedReferenceId:id(),
+          relatedReferenceDigest:digest(),expectedPhysicalIdentityDigest:digest() }),
+        object({ ...scopedCommon, sourceKind:{const:'provider_exact'},integrationId:id(),configRevision:positiveInteger(),
+          provider:{const:'tmdb'},namespace:{const:namespace},providerKey:text({maxLength:128}),
+          associationKind:enumText('nfo_claim','manual_selection','subject_identity'),associationEvidenceDigest:digest() }),
+        object({ ...scopedCommon, sourceKind:{const:'provider_search'},integrationId:id(),configRevision:positiveInteger(),
+          provider:{const:'tmdb'},namespace:{const:namespace} }),
+      ];
+    }),
   };
 }
 

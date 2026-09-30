@@ -13,7 +13,7 @@
       "sourceLocator": {
         "section": "8.6.19",
         "line": 11072,
-        "lineDigest": "0f0b2bcb61549e00253acb6c8c14034fcc7572d3481f2b1e982ae0e156ba2114"
+        "lineDigest": "633ab66ac58759f55963808d36609fec219397dcdf0af325d889060c5d022067"
       },
       "targetLocator": {
         "path": "types/ProductMetadataFact/v1/schema.json"

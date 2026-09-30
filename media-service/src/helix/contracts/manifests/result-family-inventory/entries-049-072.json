@@ -613,7 +613,7 @@
       "sourceLocator": {
         "section": "8.6.19",
         "line": 11080,
-        "lineDigest": "216a26360a03614fbe99c1d718970f8fec3ff3c2b602b05fd43b4a54f7db8f7f"
+        "lineDigest": "0cd8e00f63c9a38cc5b5f7ba8ad8c5b7696dd705233a38f981eb4913e45a94c6"
       },
       "targetLocator": {
         "path": "types/ProductConformanceEvidence/v1/schema.json"
@@ -643,7 +643,7 @@
       "sourceLocator": {
         "section": "8.6.18",
         "line": 10700,
-        "lineDigest": "58bb39e38874de8ef4444b48507d92870a3674417d9c78c03f5602fad8edddcf"
+        "lineDigest": "31ccf9b6457c8e9953db0b99f1f3eec7bc96fd28149b086caceada6f5e99ab0b"
       },
       "targetLocator": {
         "path": "types/ProductIdentityEvidenceObservation/v1/schema.json"
@@ -703,7 +703,7 @@
       "sourceLocator": {
         "section": "8.6.19",
         "line": 11068,
-        "lineDigest": "b7d969b78d192123e0f38a5ff47e9f42b861b61f0bf38723bd2b450843682c29"
+        "lineDigest": "7c5fa918c425d1076c1a61ca53d56eaf627ccf8b8337dbdfee8a1ad911bba0fa"
       },
       "targetLocator": {
         "path": "types/ProductMetadataDraft/v1/schema.json"

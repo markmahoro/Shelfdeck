@@ -77,97 +77,201 @@
           "maxItems": 0
         },
         "verifiedIdentity": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "provider": {
-              "const": "tmdb"
-            },
-            "namespace": {
-              "const": "tmdb_movie"
-            },
-            "providerKey": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 128
-            },
-            "displayTitle": {
-              "type": "string",
-              "minLength": 1,
-              "maxLength": 1024
-            },
-            "originalTitle": {
-              "anyOf": [
-                {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "provider": {
+                  "const": "tmdb"
+                },
+                "namespace": {
+                  "const": "tmdb_movie"
+                },
+                "providerKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "displayTitle": {
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 1024
                 },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "releaseYear": {
-              "anyOf": [
-                {
-                  "type": "integer",
-                  "minimum": 1870,
-                  "maximum": 3000
+                "originalTitle": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
                 },
-                {
-                  "type": "null"
-                }
-              ]
-            },
-            "aliases": {
-              "type": "array",
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "value": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 1024
-                  },
-                  "sourceKind": {
-                    "type": "string",
-                    "enum": [
-                      "candidate",
-                      "related_nfo",
-                      "provider"
+                "releaseYear": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1870,
+                      "maximum": 3000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "aliases": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      },
+                      "sourceKind": {
+                        "type": "string",
+                        "enum": [
+                          "candidate",
+                          "related_nfo",
+                          "provider"
+                        ]
+                      },
+                      "aliasDigest": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "sourceKind",
+                      "aliasDigest"
                     ]
                   },
-                  "aliasDigest": {
-                    "type": "string",
-                    "minLength": 1,
-                    "pattern": "^[a-f0-9]{64}$"
-                  }
+                  "maxItems": 32
                 },
-                "required": [
-                  "value",
-                  "sourceKind",
-                  "aliasDigest"
-                ]
+                "identityDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
               },
-              "maxItems": 32
+              "required": [
+                "provider",
+                "namespace",
+                "providerKey",
+                "displayTitle",
+                "originalTitle",
+                "releaseYear",
+                "aliases",
+                "identityDigest"
+              ]
             },
-            "identityDigest": {
-              "type": "string",
-              "minLength": 1,
-              "pattern": "^[a-f0-9]{64}$"
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "provider": {
+                  "const": "tmdb"
+                },
+                "namespace": {
+                  "const": "tmdb_series"
+                },
+                "providerKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 128
+                },
+                "seasonNumber": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "displayTitle": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1024
+                },
+                "originalTitle": {
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1024
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "releaseYear": {
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1870,
+                      "maximum": 3000
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "aliases": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      },
+                      "sourceKind": {
+                        "type": "string",
+                        "enum": [
+                          "candidate",
+                          "related_nfo",
+                          "provider"
+                        ]
+                      },
+                      "aliasDigest": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "sourceKind",
+                      "aliasDigest"
+                    ]
+                  },
+                  "maxItems": 32
+                },
+                "identityDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "provider",
+                "namespace",
+                "providerKey",
+                "seasonNumber",
+                "displayTitle",
+                "originalTitle",
+                "releaseYear",
+                "aliases",
+                "identityDigest"
+              ]
             }
-          },
-          "required": [
-            "provider",
-            "namespace",
-            "providerKey",
-            "displayTitle",
-            "originalTitle",
-            "releaseYear",
-            "aliases",
-            "identityDigest"
           ]
         }
       },
@@ -348,97 +452,201 @@
         "candidates": {
           "type": "array",
           "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "provider": {
-                "const": "tmdb"
-              },
-              "namespace": {
-                "const": "tmdb_movie"
-              },
-              "providerKey": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              "displayTitle": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 1024
-              },
-              "originalTitle": {
-                "anyOf": [
-                  {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "provider": {
+                    "const": "tmdb"
+                  },
+                  "namespace": {
+                    "const": "tmdb_movie"
+                  },
+                  "providerKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "displayTitle": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 1024
                   },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "releaseYear": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": 1870,
-                    "maximum": 3000
+                  "originalTitle": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "aliases": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "value": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 1024
-                    },
-                    "sourceKind": {
-                      "type": "string",
-                      "enum": [
-                        "candidate",
-                        "related_nfo",
-                        "provider"
+                  "releaseYear": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1870,
+                        "maximum": 3000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "aliases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1024
+                        },
+                        "sourceKind": {
+                          "type": "string",
+                          "enum": [
+                            "candidate",
+                            "related_nfo",
+                            "provider"
+                          ]
+                        },
+                        "aliasDigest": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "sourceKind",
+                        "aliasDigest"
                       ]
                     },
-                    "aliasDigest": {
-                      "type": "string",
-                      "minLength": 1,
-                      "pattern": "^[a-f0-9]{64}$"
-                    }
+                    "maxItems": 32
                   },
-                  "required": [
-                    "value",
-                    "sourceKind",
-                    "aliasDigest"
-                  ]
+                  "candidateDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
                 },
-                "maxItems": 32
+                "required": [
+                  "provider",
+                  "namespace",
+                  "providerKey",
+                  "displayTitle",
+                  "originalTitle",
+                  "releaseYear",
+                  "aliases",
+                  "candidateDigest"
+                ]
               },
-              "candidateDigest": {
-                "type": "string",
-                "minLength": 1,
-                "pattern": "^[a-f0-9]{64}$"
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "provider": {
+                    "const": "tmdb"
+                  },
+                  "namespace": {
+                    "const": "tmdb_series"
+                  },
+                  "providerKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "seasonNumber": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "displayTitle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "originalTitle": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "releaseYear": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1870,
+                        "maximum": 3000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "aliases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1024
+                        },
+                        "sourceKind": {
+                          "type": "string",
+                          "enum": [
+                            "candidate",
+                            "related_nfo",
+                            "provider"
+                          ]
+                        },
+                        "aliasDigest": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "sourceKind",
+                        "aliasDigest"
+                      ]
+                    },
+                    "maxItems": 32
+                  },
+                  "candidateDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "provider",
+                  "namespace",
+                  "providerKey",
+                  "seasonNumber",
+                  "displayTitle",
+                  "originalTitle",
+                  "releaseYear",
+                  "aliases",
+                  "candidateDigest"
+                ]
               }
-            },
-            "required": [
-              "provider",
-              "namespace",
-              "providerKey",
-              "displayTitle",
-              "originalTitle",
-              "releaseYear",
-              "aliases",
-              "candidateDigest"
             ]
           },
           "maxItems": 16,
@@ -536,97 +744,201 @@
         "candidates": {
           "type": "array",
           "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "provider": {
-                "const": "tmdb"
-              },
-              "namespace": {
-                "const": "tmdb_movie"
-              },
-              "providerKey": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 128
-              },
-              "displayTitle": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 1024
-              },
-              "originalTitle": {
-                "anyOf": [
-                  {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "provider": {
+                    "const": "tmdb"
+                  },
+                  "namespace": {
+                    "const": "tmdb_movie"
+                  },
+                  "providerKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "displayTitle": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 1024
                   },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "releaseYear": {
-                "anyOf": [
-                  {
-                    "type": "integer",
-                    "minimum": 1870,
-                    "maximum": 3000
+                  "originalTitle": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
-                  {
-                    "type": "null"
-                  }
-                ]
-              },
-              "aliases": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "value": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 1024
-                    },
-                    "sourceKind": {
-                      "type": "string",
-                      "enum": [
-                        "candidate",
-                        "related_nfo",
-                        "provider"
+                  "releaseYear": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1870,
+                        "maximum": 3000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "aliases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1024
+                        },
+                        "sourceKind": {
+                          "type": "string",
+                          "enum": [
+                            "candidate",
+                            "related_nfo",
+                            "provider"
+                          ]
+                        },
+                        "aliasDigest": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "sourceKind",
+                        "aliasDigest"
                       ]
                     },
-                    "aliasDigest": {
-                      "type": "string",
-                      "minLength": 1,
-                      "pattern": "^[a-f0-9]{64}$"
-                    }
+                    "maxItems": 32
                   },
-                  "required": [
-                    "value",
-                    "sourceKind",
-                    "aliasDigest"
-                  ]
+                  "candidateDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
                 },
-                "maxItems": 32
+                "required": [
+                  "provider",
+                  "namespace",
+                  "providerKey",
+                  "displayTitle",
+                  "originalTitle",
+                  "releaseYear",
+                  "aliases",
+                  "candidateDigest"
+                ]
               },
-              "candidateDigest": {
-                "type": "string",
-                "minLength": 1,
-                "pattern": "^[a-f0-9]{64}$"
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "provider": {
+                    "const": "tmdb"
+                  },
+                  "namespace": {
+                    "const": "tmdb_series"
+                  },
+                  "providerKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "seasonNumber": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "displayTitle": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "originalTitle": {
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1024
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "releaseYear": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1870,
+                        "maximum": 3000
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "aliases": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "value": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 1024
+                        },
+                        "sourceKind": {
+                          "type": "string",
+                          "enum": [
+                            "candidate",
+                            "related_nfo",
+                            "provider"
+                          ]
+                        },
+                        "aliasDigest": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "value",
+                        "sourceKind",
+                        "aliasDigest"
+                      ]
+                    },
+                    "maxItems": 32
+                  },
+                  "candidateDigest": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "provider",
+                  "namespace",
+                  "providerKey",
+                  "seasonNumber",
+                  "displayTitle",
+                  "originalTitle",
+                  "releaseYear",
+                  "aliases",
+                  "candidateDigest"
+                ]
               }
-            },
-            "required": [
-              "provider",
-              "namespace",
-              "providerKey",
-              "displayTitle",
-              "originalTitle",
-              "releaseYear",
-              "aliases",
-              "candidateDigest"
             ]
           },
           "maxItems": 16

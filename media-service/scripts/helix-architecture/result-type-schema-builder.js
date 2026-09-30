@@ -1002,18 +1002,13 @@ function metadataObservationSchema() {
 
 function productIdentityEvidenceObservationSchema() {
   const alias = object({ value: text({ maxLength: 1024 }), sourceKind: enumText('candidate', 'related_nfo', 'provider'), aliasDigest: digest() });
-  const candidate = object({
-    provider: { const: 'tmdb' }, namespace: { const: 'tmdb_movie' }, providerKey: text({ maxLength: 128 }),
-    displayTitle: text({ maxLength: 1024 }), originalTitle: nullable(text({ maxLength: 1024 })),
-    releaseYear: nullable({ type: 'integer', minimum: 1870, maximum: 3000 }), aliases: arrayOf(alias, 32),
-    candidateDigest: digest(),
-  });
-  const verifiedIdentity = object({
-    provider: { const: 'tmdb' }, namespace: { const: 'tmdb_movie' }, providerKey: text({ maxLength: 128 }),
-    displayTitle: text({ maxLength: 1024 }), originalTitle: nullable(text({ maxLength: 1024 })),
-    releaseYear: nullable({ type: 'integer', minimum: 1870, maximum: 3000 }), aliases: arrayOf(alias, 32),
-    identityDigest: digest(),
-  });
+  const identity = digestField => ({oneOf:['tmdb_movie','tmdb_series'].map(namespace=>object({
+    provider:{const:'tmdb'},namespace:{const:namespace},providerKey:text({maxLength:128}),
+    ...(namespace==='tmdb_series'?{seasonNumber:{type:'integer',minimum:1,maximum:Number.MAX_SAFE_INTEGER}}:{}),
+    displayTitle:text({maxLength:1024}),originalTitle:nullable(text({maxLength:1024})),
+    releaseYear:nullable({type:'integer',minimum:1870,maximum:3000}),aliases:arrayOf(alias,32),[digestField]:digest(),
+  }))});
+  const candidate=identity('candidateDigest'),verifiedIdentity=identity('identityDigest');
   const common = {
     schemaRef: { const: typeId('ProductIdentityEvidenceObservation') }, schemaVersion: { const: 1 },
     observationId: id(), intentId: id(), libraRunId: id(), subjectId: id(),

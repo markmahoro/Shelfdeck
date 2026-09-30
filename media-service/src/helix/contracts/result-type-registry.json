@@ -1230,12 +1230,12 @@
       "relativePath": "types/ProductIdentityEvidenceObservation/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "13458ba04f0b2de67a24f34020f462d1dad1bf9b6e8729df6669256106faa845"
+        "value": "22831dcf01eae4d5b60155d6faa1750401b764299f31ad5365abeed1ce68c672"
       },
       "source": {
         "section": "8.6.18",
         "line": 10700,
-        "lineDigest": "58bb39e38874de8ef4444b48507d92870a3674417d9c78c03f5602fad8edddcf"
+        "lineDigest": "31ccf9b6457c8e9953db0b99f1f3eec7bc96fd28149b086caceada6f5e99ab0b"
       }
     },
     {

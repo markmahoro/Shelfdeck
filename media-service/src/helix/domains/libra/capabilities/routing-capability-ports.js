@@ -191,7 +191,7 @@ function identityObservationFailed(error) {
   throw error;
 }
 
-function identityCandidate(candidate) {
+function identityCandidate(candidate, intent = null) {
   const providerAliases = Array.isArray(candidate.aliases) ? candidate.aliases : [];
   const aliases = unique([candidate.title, candidate.originalTitle, ...providerAliases.map((item) => item.value)]
     .map((value) => String(value || '').normalize('NFKC').trim()))
@@ -202,7 +202,9 @@ function identityCandidate(candidate) {
     // CJK fullwidth punctuation cannot inflate the 32-alias contract bound.
     .slice(0, 32)
     .map((value) => identityAlias(value, 'provider'));
-  const value = { provider:'tmdb', namespace:'tmdb_movie', providerKey:String(candidate.providerKey),
+  const series=intent?.contentProfile==='series';
+  const value = { provider:'tmdb', namespace:series?'tmdb_series':'tmdb_movie', providerKey:String(candidate.providerKey),
+    ...(series?{seasonNumber:intent.seasonNumber}:{}),
     displayTitle:String(candidate.title || candidate.originalTitle), originalTitle:candidate.originalTitle ? String(candidate.originalTitle) : null,
     releaseYear:Number.isSafeInteger(candidate.releaseYear) ? candidate.releaseYear : null, aliases:Object.freeze(aliases) };
   return Object.freeze({ ...value, candidateDigest:canonicalDigest(value) });
@@ -252,14 +254,37 @@ function identityObservation(intent, resultKind, reasonCode, candidates, verifie
 }
 
 async function observeProductIdentity(options, intent, handle) {
+  const series=intent.contentProfile==='series';
+  if(series&&(!Number.isSafeInteger(intent.seasonNumber)||intent.seasonNumber<1||
+      canonicalDigest(Object.fromEntries(Object.entries(intent).filter(([key])=>!['intentId','intentDigest'].includes(key))))!==intent.intentDigest))
+    throw new TypeError('Series identity Observation requires its exact frozen Season intent.');
   const providerSearchTitle = normalizedIdentityAssociationTitle(intent.aliases[0].value);
   const legacy = { intentId:intent.intentId, subjectId:intent.subjectId, contentProfile:intent.contentProfile,
     requestedFactKinds:['resolved_provider_identity'], sourceKind:intent.sourceKind === 'related_nfo' ? 'related_nfo' : 'provider',
     relatedReferenceId:intent.relatedReferenceId, candidateDisplayTitle:providerSearchTitle, yearHint:intent.yearHint,
-    strongProviderAnchor:intent.sourceKind === 'provider_exact' ? { provider:'tmdb', namespace:'tmdb_movie', providerKey:intent.providerKey } : null,
+    ...(series?{seasonNumber:intent.seasonNumber}:{}),
+    strongProviderAnchor:intent.sourceKind === 'provider_exact' ? { provider:'tmdb', namespace:series?'tmdb_series':'tmdb_movie', providerKey:intent.providerKey } : null,
     intentDigest:intent.intentDigest };
   if (intent.sourceKind === 'related_nfo') {
     const xml = await options.readRelatedNfo(handle);
+    if(series) {
+      if(typeof xml!=='string'||Buffer.byteLength(xml,'utf8')>256*1024) {
+        const error=new Error('Series identity NFO exceeds its bounded transport.');error.code='LIBRA_ROUTING_NFO_BOUND';throw error;
+      }
+      const root=!/<!DOCTYPE/i.test(xml)&&xml.match(/<tvshow(?:\s[^>]*)?>([\s\S]*)<\/tvshow\s*>/i);
+      if(!root)return identityObservation(intent,'not_found','nfo_identity_absent',[]);
+      const body=root[1].replace(NON_MOVIE_IDENTITY_BLOCKS,'')
+        .replace(/<(episodedetails|episode|seasons)(?:\s[^>]*)?>[\s\S]*?<\/\1\s*>/gi,'');
+      const ids=unique([...tagValues(body,'tmdbid'),...tagValues(body,'uniqueid','(?=[^>]*\\btype\\s*=\\s*["\\\']tmdb["\\\'])')].filter(value=>/^\d+$/.test(value)));
+      const numbers=tagValues(body,'season');
+      if(numbers.some(number=>Number(number)!==intent.seasonNumber))return identityObservation(intent,'conflicting','nfo_association_conflicting',[]);
+      if(ids.length>1)return identityObservation(intent,'conflicting','nfo_association_conflicting',
+        ids.slice(0,16).map(providerKey=>identityCandidate({providerKey,title:intent.aliases[0].value,releaseYear:intent.yearHint},intent)));
+      if(!ids.length)return identityObservation(intent,'not_found','nfo_identity_absent',[]);
+      const candidate=identityCandidate({providerKey:ids[0],title:tagValues(body,'title')[0]||intent.aliases[0].value,
+        originalTitle:tagValues(body,'originaltitle')[0]||null,releaseYear:intent.yearHint},intent);
+      return identityObservation(intent,'resolved',null,[],candidate);
+    }
     const parsed = parseNfo(legacy, xml, handle);
     if (parsed.result === 'not_found') return identityObservation(intent, 'not_found', 'nfo_identity_absent', []);
     if (parsed.result === 'ambiguous') {
@@ -286,13 +311,16 @@ async function observeProductIdentity(options, intent, handle) {
     return identityObservation(intent, 'resolved', null, [], candidate);
   }
   const raw = await options.observeRoutingProvider({ intent:legacy, integrationHandle:handle, operationId:IDENTITY_EVIDENCE_REF });
+  if(series&&(!Array.isArray(raw)||raw.some(candidate=>candidate?.namespace!=='tmdb_series'||candidate.seasonNumber!==intent.seasonNumber))) {
+    const error=new Error('Series Provider candidate does not conserve the requested Season.');error.code='LIBRA_ROUTING_PROVIDER_PROTOCOL';throw error;
+  }
   const titleMatches = providerCandidateSelection({ ...legacy, yearHint:null }, raw);
   const providerEvidence = canonicalDigest(raw.map(candidate => ({providerKey:candidate.providerKey,
     releaseYear:candidate.releaseYear,releaseYears:candidate.releaseYears || []})));
   const matching = titleMatches.filter(candidate => legacy.strongProviderAnchor || providerYearMatches(intent.yearHint, candidate));
-  const matches = matching.map(identityCandidate);
+  const matches = matching.map(candidate=>identityCandidate(candidate,intent));
   if (matches.length === 0) {
-    if (titleMatches.length) return identityObservation(intent, 'conflicting', 'provider_identity_conflicting', titleMatches.slice(0, 16).map(identityCandidate), null, providerEvidence);
+    if (titleMatches.length) return identityObservation(intent, 'conflicting', 'provider_identity_conflicting', titleMatches.slice(0, 16).map(candidate=>identityCandidate(candidate,intent)), null, providerEvidence);
     return identityObservation(intent, 'not_found', 'provider_no_match', [], null, providerEvidence);
   }
   if (matches.length > 1) return identityObservation(intent, 'ambiguous', 'provider_identity_ambiguous', matches.slice(0, 16), null, providerEvidence);

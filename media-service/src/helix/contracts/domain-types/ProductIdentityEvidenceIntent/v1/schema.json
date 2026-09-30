@@ -372,6 +372,386 @@
         "provider",
         "namespace"
       ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contentProfile": {
+          "const": "series"
+        },
+        "sourceKind": {
+          "const": "related_nfo"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "sourceKind": {
+                "type": "string",
+                "enum": [
+                  "candidate",
+                  "related_nfo",
+                  "manual_selection",
+                  "subject_identity"
+                ]
+              },
+              "aliasDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "value",
+              "sourceKind",
+              "aliasDigest"
+            ]
+          },
+          "maxItems": 32,
+          "minItems": 1
+        },
+        "yearHint": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1870,
+              "maximum": 3000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "intentDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "seasonNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "relatedReferenceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "relatedReferenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "expectedPhysicalIdentityDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "runExecutionBasisDigest",
+        "contentProfile",
+        "sourceKind",
+        "aliases",
+        "yearHint",
+        "intentDigest",
+        "seasonNumber",
+        "relatedReferenceId",
+        "relatedReferenceDigest",
+        "expectedPhysicalIdentityDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contentProfile": {
+          "const": "series"
+        },
+        "sourceKind": {
+          "const": "provider_exact"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "sourceKind": {
+                "type": "string",
+                "enum": [
+                  "candidate",
+                  "related_nfo",
+                  "manual_selection",
+                  "subject_identity"
+                ]
+              },
+              "aliasDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "value",
+              "sourceKind",
+              "aliasDigest"
+            ]
+          },
+          "maxItems": 32,
+          "minItems": 1
+        },
+        "yearHint": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1870,
+              "maximum": 3000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "intentDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "seasonNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "integrationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "provider": {
+          "const": "tmdb"
+        },
+        "namespace": {
+          "const": "tmdb_series"
+        },
+        "providerKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "associationKind": {
+          "type": "string",
+          "enum": [
+            "nfo_claim",
+            "manual_selection",
+            "subject_identity"
+          ]
+        },
+        "associationEvidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "runExecutionBasisDigest",
+        "contentProfile",
+        "sourceKind",
+        "aliases",
+        "yearHint",
+        "intentDigest",
+        "seasonNumber",
+        "integrationId",
+        "configRevision",
+        "provider",
+        "namespace",
+        "providerKey",
+        "associationKind",
+        "associationEvidenceDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contentProfile": {
+          "const": "series"
+        },
+        "sourceKind": {
+          "const": "provider_search"
+        },
+        "aliases": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1024
+              },
+              "sourceKind": {
+                "type": "string",
+                "enum": [
+                  "candidate",
+                  "related_nfo",
+                  "manual_selection",
+                  "subject_identity"
+                ]
+              },
+              "aliasDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "value",
+              "sourceKind",
+              "aliasDigest"
+            ]
+          },
+          "maxItems": 32,
+          "minItems": 1
+        },
+        "yearHint": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1870,
+              "maximum": 3000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "intentDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "seasonNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "integrationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "provider": {
+          "const": "tmdb"
+        },
+        "namespace": {
+          "const": "tmdb_series"
+        }
+      },
+      "required": [
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "runExecutionBasisDigest",
+        "contentProfile",
+        "sourceKind",
+        "aliases",
+        "yearHint",
+        "intentDigest",
+        "seasonNumber",
+        "integrationId",
+        "configRevision",
+        "provider",
+        "namespace"
+      ]
     }
   ]
 }

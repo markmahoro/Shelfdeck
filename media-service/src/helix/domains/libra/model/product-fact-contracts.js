@@ -371,9 +371,28 @@ function buildProductFactSourceRefs(value) {
       typedResultSchemaRef:'helix://contracts/types/ProductIdentityEvidenceObservation/v1'});
     const providerIdentity=result.verifiedIdentity;
     const identities=value.resolvedProductIdentity?.providerIdentities||[];
+    if(providerIdentity?.namespace==='tmdb_series') {
+      const binding=chain.inputBindings?.bindings?.find(item=>item.portName==='productIdentityEvidenceIntent');
+      const claim=value.resolvedProductIdentity.exactSeasonContinuityClaims?.find(item=>item.claimKind==='provider_season_identity');
+      const display=new Map((value.resolvedProductIdentity.displayIdentity?.entries||[]).map(item=>[item.key,item.value]));
+      if(!binding||binding.bindingKind!=='projected_owner_facts'||binding.ownerDomain!=='libra'||
+          binding.processType!=='libra_run'||binding.processId!==basis.libraRunId||
+          binding.projectionRef!=='helix://libra/input-projections/ProductIdentityEvidenceIntent/v1'||
+          binding.parameters?.sourceKind!==result.sourceKind||binding.parameters?.seasonNumber!==providerIdentity.seasonNumber||
+          display.get('title')!==providerIdentity.displayTitle||display.get('tmdb_series_id')!==providerIdentity.providerKey||
+          display.get('season_number')!==providerIdentity.seasonNumber||
+          value.resolvedProductIdentity.exactSeasonContinuityClaims.length!==1||
+          result.observationDigest!==canonicalDigest(Object.fromEntries(Object.entries(result).filter(([key])=>key!=='observationDigest')))||
+          providerIdentity.identityDigest!==canonicalDigest(Object.fromEntries(Object.entries(providerIdentity).filter(([key])=>key!=='identityDigest')))||
+          claim?.evidenceDigest!==result.observationDigest)
+        fail('P9_RESOLVED_IDENTITY_SOURCE_CHAIN','Series identity does not conserve its exact frozen Provider intent and Evidence.');
+    }
     if(result.subjectId!==value.resolvedProductIdentity.subjectId||result.result!=='resolved'||!providerIdentity||
         identities.length!==1||identities[0].provider!==providerIdentity.provider||
         identities[0].namespace!==providerIdentity.namespace||identities[0].providerKey!==providerIdentity.providerKey||
+        (providerIdentity.namespace==='tmdb_series'&&(result.sourceKind==='related_nfo'||
+          identities[0].seasonNumber!==providerIdentity.seasonNumber||
+          result.libraRunId!==basis.libraRunId))||
         result.observationId!==ref.observationId||chain.evidence?.evidenceId!==ref.evidenceId||
         chain.evidence?.payloadDigest!==ref.evidenceDigest||ref.decisionEvidenceId!==basis.decisionEvidenceId||
         ref.decisionEvidenceDigest!==basis.decisionEvidenceDigest)
@@ -823,6 +842,16 @@ function buildResolvedProductIdentity(value) {
   const exactSeasonContinuityClaims = Object.freeze([
     ...(value.exactSeasonContinuityClaims || []),
   ]);
+  if(value.contentProfile==='series'||value.identityKind==='tmdb_series_season') {
+    const anchors=providerIdentities.filter(item=>item.provider==='tmdb'&&item.namespace==='tmdb_series');
+    const anchor=anchors[0],claims=exactSeasonContinuityClaims.filter(item=>item.claimKind==='provider_season_identity');
+    if(value.contentProfile!=='series'||value.structureKind!=='season'||value.identityKind!=='tmdb_series_season'||
+        anchors.length!==1||!/^\d+$/.test(anchor.providerKey)||!Number.isSafeInteger(anchor.seasonNumber)||anchor.seasonNumber<1||
+        claims.length!==1||claims[0].claimNamespace!=='tmdb'||claims[0].claimKey!=='series:'+anchor.providerKey+':season:'+anchor.seasonNumber||
+        claims[0].claimDigest!==canonicalDigest({schema:'season-continuity-claim@1',claimKind:claims[0].claimKind,
+          claimNamespace:claims[0].claimNamespace,claimKey:claims[0].claimKey})||!DIGEST.test(claims[0].evidenceDigest||''))
+      fail('P9_RESOLVED_IDENTITY_SEASON','Series identity and its exact Provider Season continuity claim disagree.');
+  } else if(exactSeasonContinuityClaims.length)fail('P9_RESOLVED_IDENTITY_SEASON','Only Series may publish Season continuity claims.');
   const displayEntries = [...(value?.displayEntries || [])]
     .map((item) => ({ key:text(item?.key, 'displayIdentity.key'), value:item?.value }))
     .sort((left, right) => compare(left.key, right.key));

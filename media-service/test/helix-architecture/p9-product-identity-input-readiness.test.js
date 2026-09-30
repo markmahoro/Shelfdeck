@@ -12,7 +12,7 @@ const {
 function projection(resolveRoutingIntegrationHandle){
   const registrations=createProductIdentityProjections({
     now:()=>1_000,
-    movieProductionReader:{readRunSnapshot(){return {run:{libraRunId:'run-1',subjectId:'subject-1',executionBasisDigest:'a'.repeat(64)},candidateIdentityClaim:{claimedDisplayIdentity:'Movie',claimedYear:2020},relatedReferences:[],relatedBindings:[]};}},
+    movieProductionReader:{readRunSnapshot(){return {spec:{contentProfile:'movie'},run:{libraRunId:'run-1',subjectId:'subject-1',executionBasisDigest:'a'.repeat(64)},candidateIdentityClaim:{claimedDisplayIdentity:'Movie',claimedYear:2020},relatedReferences:[],relatedBindings:[]};}},
     routingContextReader:{
       read(){return {subjectId:'subject-1'};},
       factObservationIntent(){return {integrationId:'tmdb-main',sourceKind:'provider'};},

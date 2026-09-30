@@ -24,11 +24,11 @@
         "transactionId": "helix.transaction.domain-fact-commit",
         "ownerScope": "polymorphic-domain-owner",
         "contractRef": "helix://contracts/transactions/helix.transaction.domain-fact-commit/v1",
-        "contractDigest": "6f376fe843f72f98e1adf325e0184796bdfa7fae24d55b463d49294e011559d6"
+        "contractDigest": "c4b9b98b20680c8ef4dba4e2909fc1ed8c67e7b47126e7b4d13b30bebea43234"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "a50ce08dd9415da9f21b1182891179ec53cdb1cba2aef69202cbd3f1d9d3ae36"
+        "value": "b87e16fe0592d13bcd1920a978b9ea0f628145d71fc191dc2b1fc312ea3afce4"
       }
     },
     {

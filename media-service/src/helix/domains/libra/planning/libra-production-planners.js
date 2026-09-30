@@ -7,6 +7,7 @@ const {
   executionInputUnavailable,
 } = require('../../../foundation/execution/execution-input-readiness');
 const { buildProductIdentityCommitBundle } = require('../model/product-identity-commit-contracts');
+const { frozenSeriesSeasonNumber } = require('../model/series-identity-contracts');
 const { buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductMetadataDraft } =
   require('../model/product-fact-contracts');
 const { buildMediaCastDraft, buildMetadataMediaCastRelations, buildProductFactHandle } = require('../model/product-fact-contracts');
@@ -135,8 +136,8 @@ function createProductIdentityPlanner(options) {
       work=observationWork;
       nodes=[planNode({...options,request,nodeId:'provider_identity_observation',eventId:factEventId,
         capabilityRef:IDENTITY_EVIDENCE,inputBindings:[
-          owner('productIdentityEvidenceIntent',request,IDENTITY_EVIDENCE_INTENT,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||established||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null,establishedIdentityDigest:established?.resultDigest||null}),
-          owner('physicalMaterialReadHandleOrIntegrationHandle',request,IDENTITY_EVIDENCE_SOURCE,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||established||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null,establishedIdentityDigest:established?.resultDigest||null}),
+          owner('productIdentityEvidenceIntent',request,IDENTITY_EVIDENCE_INTENT,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||established||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null,establishedIdentityDigest:established?.resultDigest||null,...(snapshot.spec.contentProfile==='series'?{seasonNumber:frozenSeriesSeasonNumber(snapshot)}:{})}),
+          owner('physicalMaterialReadHandleOrIntegrationHandle',request,IDENTITY_EVIDENCE_SOURCE,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||established||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null,establishedIdentityDigest:established?.resultDigest||null,...(snapshot.spec.contentProfile==='series'?{seasonNumber:frozenSeriesSeasonNumber(snapshot)}:{})}),
         ],resourceKinds:['disk_io','network']})];
     }else{
       const source=options.workResultReader.read(observationWork.workId).find((item)=>
@@ -173,6 +174,12 @@ function createProductIdentityProjections(options) {
     return value;
   }
   function identityIntent(value,parameters={}) {
+    const contentProfile=value.spec?.contentProfile;
+    if(!['movie','series'].includes(contentProfile))throw new Error('Product Identity profile is unavailable.');
+    const series=contentProfile==='series';
+    const seasonNumber=series?frozenSeriesSeasonNumber(value):null;
+    if(series&&parameters.seasonNumber!==seasonNumber)
+      throw new Error('Product Identity projection does not conserve the planned Season.');
     const claim=value.candidateIdentityClaim,aliases=[claim.displayIdentity,claim.claimedTitle]
       .filter(Boolean).filter((item,index,values)=>values.indexOf(item)===index).map((item)=>{
         const alias={value:String(item).normalize('NFKC').trim(),sourceKind:'candidate'};
@@ -181,7 +188,8 @@ function createProductIdentityProjections(options) {
     const aliasYears=[...new Set(aliases.map((item)=>String(item.value).match(/(?:18|19|20|21)\d{2}/)?.[0])
       .filter(Boolean).map(Number))];
     const common={libraRunId:value.run.libraRunId,subjectId:value.run.subjectId,
-      runExecutionBasisDigest:value.run.executionBasisDigest,contentProfile:'movie',sourceKind:parameters.sourceKind,
+      runExecutionBasisDigest:value.run.executionBasisDigest,contentProfile,sourceKind:parameters.sourceKind,
+      ...(series?{seasonNumber}:{}),
       aliases:Object.freeze(aliases),yearHint:Number.isSafeInteger(claim.claimedYear)?claim.claimedYear:
         aliasYears.length===1?aliasYears[0]:null};
     let source={};
@@ -195,7 +203,7 @@ function createProductIdentityProjections(options) {
         operationId:IDENTITY_EVIDENCE});
       if(!handle)throw executionInputUnavailable('Configured Provider input is not currently available for Product Identity.',{
         dependencyKind:'integration',dependencyRef:'tmdb-main',retryAtMs:now()+30_000});
-      source={integrationId:handle.integrationId,configRevision:handle.configRevision,provider:'tmdb',namespace:'tmdb_movie'};
+      source={integrationId:handle.integrationId,configRevision:handle.configRevision,provider:'tmdb',namespace:series?'tmdb_series':'tmdb_movie'};
       if(parameters.sourceKind==='provider_exact'){
         const manual=parameters.selectionIntentId&&options.productIdentitySelection?.readCurrent(value.run.libraRunId);
         if(manual&&manual.selection_intent_id===parameters.selectionIntentId){source={...source,providerKey:manual.provider_key,
@@ -211,7 +219,8 @@ function createProductIdentityProjections(options) {
         } else {
         const observed=options.workResultReader.read(parameters.sourceWorkId).find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===IDENTITY_EVIDENCE),
           identity=observed?.result?.verifiedIdentity;
-        if(!identity)throw new Error('Exact Product Identity verification requires one NFO provider identity.');
+        if(!identity||identity.namespace!==(series?'tmdb_series':'tmdb_movie')||
+          (series&&identity.seasonNumber!==seasonNumber))throw new Error('Exact Product Identity verification requires the same NFO Provider scope.');
         source={...source,providerKey:identity.providerKey,associationKind:'nfo_claim',
           associationEvidenceDigest:observed.result.observationDigest};
         }

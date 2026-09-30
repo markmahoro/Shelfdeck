@@ -328,7 +328,7 @@ const PERSON_FIELDS = Object.freeze([
   'profile_path',
 ]);
 
-function validateMetadataResponse(value) {
+function validateMetadataResponse(value, profile = 'movie') {
   requireFields(
     value,
     ['id'],
@@ -431,11 +431,12 @@ function validateMetadataResponse(value) {
     }
   }
   if (value.alternative_titles !== undefined) {
-    requireFields(value.alternative_titles, ['titles'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
-    if (!Array.isArray(value.alternative_titles.titles) || value.alternative_titles.titles.length > 256) {
+    const field=profile==='series'?'results':'titles';
+    requireFields(value.alternative_titles, [field], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
+    if (!Array.isArray(value.alternative_titles[field]) || value.alternative_titles[field].length > 256) {
       fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', 'TMDB alternative title set exceeds its bound.');
     }
-    for (const item of value.alternative_titles.titles) {
+    for (const item of value.alternative_titles[field]) {
       requireFields(item, ['title'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
       boundedString(item.title, 1024, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
       boundedString(item.iso_3166_1, 16, 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', true);
@@ -460,7 +461,7 @@ function validateMetadataResponse(value) {
   }
 }
 
-function aliasEvidence(item) {
+function aliasEvidence(item, profile = 'movie') {
   const aliases = [];
   const seen = new Set();
   function add(value, sourceKind, language = null, region = null) {
@@ -473,7 +474,7 @@ function aliasEvidence(item) {
   }
   add(item.title || item.name, 'localized', item.original_language || null);
   add(item.original_title || item.original_name, 'original', item.original_language || null);
-  for (const alternate of item.alternative_titles?.titles || []) {
+  for (const alternate of item.alternative_titles?.[profile==='series'?'results':'titles'] || []) {
     add(alternate.title, 'alternative_title', null, alternate.iso_3166_1 || null);
   }
   for (const translation of item.translations?.translations || []) {
@@ -1008,6 +1009,51 @@ function createTmdbProviderAdapter(options) {
         });
       }
 
+      if (request.operationId === 'libra.product_identity.evidence.observe@1' && request.input?.contentProfile === 'series') {
+        const input=request.input;
+        exact(input,['contentProfile','title','yearHint','strongProviderKey','seasonNumber'],'PLATFORM_TMDB_ROUTING_SHAPE');
+        if(typeof input.title!=='string'||!input.title.trim()||input.title.length>512||
+            !Number.isSafeInteger(input.seasonNumber)||input.seasonNumber<1||
+            (input.yearHint!==null&&(!Number.isSafeInteger(input.yearHint)||input.yearHint<1800||input.yearHint>9999))||
+            (input.strongProviderKey!==null&&(typeof input.strongProviderKey!=='string'||!/^\d+$/.test(input.strongProviderKey))))
+          fail('PLATFORM_TMDB_ROUTING_INVALID','TMDB Series identity requires a frozen positive Season.');
+        let candidates;
+        if(input.strongProviderKey!==null)candidates=[{id:input.strongProviderKey}];
+        else {
+          const search=await fetchJson(snapshot.endpoint,snapshot.secretKind,secretBytes,'/search/tv',{
+            timeoutMs:timeout(request.timeoutMs),query:{query:input.title.trim(),include_adult:'false',language,page:1,
+              ...(input.yearHint===null?{}:{first_air_date_year:input.yearHint})},proxyServer});
+          validateSearchResponse(search,true);
+          candidates=search.results.slice(0,10);
+        }
+        const observed=[];
+        for(const candidate of candidates) {
+          let show,season;
+          try {
+            show=await fetchJson(snapshot.endpoint,snapshot.secretKind,secretBytes,'/tv/'+candidate.id,{
+              timeoutMs:timeout(request.timeoutMs),query:{language,append_to_response:'alternative_titles,translations'},proxyServer});
+            validateMetadataResponse(show,'series');
+            if(String(show.id)!==String(candidate.id))fail('PLATFORM_TMDB_IDENTITY_MISMATCH','TMDB Series response belongs to a foreign identity.');
+            if(typeof show.name!=='string'||!show.name.trim())fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID','TMDB identity response is not a TV object.');
+            season=await fetchJson(snapshot.endpoint,snapshot.secretKind,secretBytes,'/tv/'+candidate.id+'/season/'+input.seasonNumber,{
+              timeoutMs:timeout(request.timeoutMs),query:{language},proxyServer});
+          } catch(error) {
+            if(error.code==='PLATFORM_INTEGRATION_HTTP_FAILED'&&error.details?.statusCode===404)continue;
+            throw error;
+          }
+          validateMetadataResponse(season);
+          if(season.season_number!==input.seasonNumber)fail('PLATFORM_TMDB_IDENTITY_MISMATCH','TMDB identity response belongs to a foreign Season.');
+          const year=typeof show.first_air_date==='string'&&/^\d{4}/.test(show.first_air_date)?Number(show.first_air_date.slice(0,4)):null;
+          observed.push(Object.freeze({providerKey:String(show.id),namespace:'tmdb_series',seasonNumber:input.seasonNumber,
+            title:show.name,originalTitle:show.original_name||'',aliases:aliasEvidence(show,'series'),releaseYear:year,
+            releaseYears:Object.freeze(year===null?[]:[year]),
+            posterUrl:typeof show.poster_path==='string'&&/^\/[A-Za-z0-9_-]+\.(?:jpg|png|webp)$/.test(show.poster_path)?'https://image.tmdb.org/t/p/w342'+show.poster_path:null,
+            regionCodes:Object.freeze(Array.isArray(show.origin_country)?[...new Set(show.origin_country.filter(value=>typeof value==='string'))].sort():[]),
+            genreCodes:Object.freeze(Array.isArray(show.genres)?show.genres.map(item=>String(item.id)).sort():[])}));
+        }
+        return Object.freeze(observed);
+      }
+
       if (request.operationId === 'libra.routing.fact.observe@1' ||
           request.operationId === 'libra.product_identity.evidence.observe@1') {
         exact(request.input, ['contentProfile', 'title', 'yearHint', 'strongProviderKey'], 'PLATFORM_TMDB_ROUTING_SHAPE');
@@ -1122,7 +1168,7 @@ function createTmdbProviderAdapter(options) {
             proxyServer,
           },
         );
-        validateMetadataResponse(body);
+        validateMetadataResponse(body,series?'series':'movie');
         if (String(body.id) !== resolved.providerKey) {
           fail(
             'PLATFORM_TMDB_IDENTITY_MISMATCH',

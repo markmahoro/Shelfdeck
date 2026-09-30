@@ -180,6 +180,7 @@
               "libra_subjects",
               "libra_product_identity_revisions",
               "libra_subject_season_continuity_claims",
+              "libra_subject_continuity_heads",
               "libra_product_fact_revisions",
               "libra_product_fact_source_refs"
             ]
@@ -198,6 +199,7 @@
           "libra_subjects",
           "libra_product_identity_revisions",
           "libra_subject_season_continuity_claims",
+          "libra_subject_continuity_heads",
           "libra_product_fact_revisions",
           "libra_product_fact_source_refs",
           "fx_event_result_bindings",
@@ -205,9 +207,11 @@
         ],
         "readTables": [
           "libra_runs",
+          "libra_run_material_episode_claims",
           "libra_subjects",
           "libra_product_identity_revisions",
           "libra_subject_season_continuity_claims",
+          "libra_subject_continuity_heads",
           "libra_product_fact_revisions",
           "libra_product_fact_source_refs",
           "fx_supporting_works",
@@ -232,7 +236,7 @@
           "commitMarkerRequired": true,
           "outboxRequired": false
         },
-        "rollbackInvariant": "Run Product Fact, Subject Identity revision/current pointer, complete exact continuity claims, Source refs, durable typed Result, and commit marker are all present or all absent; selector, Run, Subject, revision, source-basis, Result, schema, digest, or fence failure leaves zero writes and no Outbox row.",
+        "rollbackInvariant": "Run Product Fact, Subject Identity revision/current pointer, complete exact continuity claims, Subject continuity digest, global continuity head CAS, Source refs, durable typed Result, and commit marker are all present or all absent; selector, Run, Subject, revision, source-basis, Result, schema, digest, or fence failure leaves zero writes and no Outbox row.",
         "crashFixtures": [
           {
             "fixtureId": "libra-product-fact-variants",

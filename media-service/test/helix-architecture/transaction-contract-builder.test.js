@@ -151,7 +151,7 @@ test('models polymorphic Domain Fact ownership without generic SQL authority', (
     .readTables.includes('fx_artifact_registry'));
   const identity = contract.variants.find((variant) => variant.variantId === 'libra_resolved_identity_fact@1');
   assert.deepEqual(identity.writeTables, [
-    'libra_subjects', 'libra_product_identity_revisions', 'libra_subject_season_continuity_claims',
+    'libra_subjects', 'libra_product_identity_revisions', 'libra_subject_season_continuity_claims', 'libra_subject_continuity_heads',
     'libra_product_fact_revisions', 'libra_product_fact_source_refs',
     'fx_event_result_bindings', 'fx_commit_markers',
   ]);

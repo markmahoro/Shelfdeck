@@ -70,6 +70,10 @@ test('Series cast-only lookup still verifies Season without returning unrequeste
   assert.deepEqual(result.descriptiveEntries, [{ key:'tmdb_series_id', value:'1399' }]);
   assert.equal(fixture.calls.length, 2);
 });
+test('Series metadata accepts the documented TV alternative_titles results shape', async () => {
+  const fixture=harness({show:{id:1399,name:'Demo Show',alternative_titles:{id:1399,results:[{title:'Alternate Show',iso_3166_1:'US',type:''}]}}});
+  assert.equal((await fixture.fetch()).descriptiveEntries.find(item=>item.key==='series_title').value,'Demo Show');
+});
 
 for (const seasonNumber of [null, 0, -1, 1.5, '1', Number.MAX_SAFE_INTEGER + 1]) {
   test(`Series rejects invalid Season ${String(seasonNumber)} before HTTP`, async () => {

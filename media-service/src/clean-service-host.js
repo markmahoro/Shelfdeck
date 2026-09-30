@@ -748,6 +748,7 @@ function createPlatformIntegrationServices(options) {
     async observeRoutingProvider({ intent, integrationHandle, operationId = 'libra.routing.fact.observe@1' }) {
       return tmdbAdapter.observationPort.execute({ operationId, integrationHandle,
         input: { contentProfile: intent.contentProfile, title: intent.candidateDisplayTitle, yearHint: intent.yearHint,
+          ...(intent.contentProfile==='series'?{seasonNumber:intent.seasonNumber}:{}),
           strongProviderKey: intent.strongProviderAnchor?.providerKey || null }, timeoutMs: 10_000 });
     },
     async searchProviderIdentity(request) {

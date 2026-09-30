@@ -3,7 +3,8 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { buildMediaCastFact, buildProductFactEvidence, buildProductFactHandle, buildProductFactSourceRefs,
-  buildProductMetadataFact, validateVerifiedArtifactManifest } = require('../model/product-fact-contracts');
+  buildProductMetadataFact, buildResolvedProductIdentity, validateVerifiedArtifactManifest } = require('../model/product-fact-contracts');
+const {CONTINUITY_HEAD_ID,continuityHeadDigest,subjectContinuitySetDigest} = require('../model/libra-intake-contracts');
 
 class ProductFactStoreError extends Error {
   constructor(code,message){super(message);this.name='ProductFactStoreError';this.code=code;}
@@ -19,8 +20,12 @@ function ownerReadRepository(schemaManifest,factKind){const statements={
 };
   if(factKind==='product_metadata')statements.find_fact_by_id={kind:'select-one',tableId:'libra_product_fact_revisions',columns:['product_fact_id','libra_run_id','fact_kind','fact_revision','schema_ref','fact_json','fact_digest','commit_marker','result_digest'],keyColumns:['product_fact_id']};
   if(factKind==='resolved_identity'){
-    statements.find_subject={kind:'select-one',tableId:'libra_subjects',columns:['subject_id','structure_kind','content_profile','status','current_identity_revision'],keyColumns:['subject_id']};
+    statements.find_run.columns.push('run_material_manifest_id');
+    statements.list_run_episode_claims={kind:'select-all',tableId:'libra_run_material_episode_claims',columns:['season_claim_digest'],keyColumns:['run_material_manifest_id']};
+    statements.find_subject={kind:'select-one',tableId:'libra_subjects',columns:['subject_id','structure_kind','content_profile','status','current_identity_revision','current_continuity_set_digest'],keyColumns:['subject_id']};
     statements.find_identity={kind:'select-one',tableId:'libra_product_identity_revisions',columns:['subject_id','revision','identity_digest'],keyColumns:['subject_id','revision']};
+    statements.find_continuity_head={kind:'select-one',tableId:'libra_subject_continuity_heads',columns:['head_id','current_revision','head_digest'],keyColumns:['head_id'],safeIntegers:true};
+    statements.list_continuity_claims={kind:'select-all',tableId:'libra_subject_season_continuity_claims',columns:['claim_kind','claim_namespace','claim_key','claim_digest','provenance_kind','provenance_ref'],keyColumns:['subject_id']};
   }
   return createRepositoryDefinition({repositoryId:'libra_product_fact_'+factKind+'_reads',owner:'libra',schemaManifest,statements});
 }
@@ -33,6 +38,10 @@ function ownerWriteRepository(schemaManifest,factKind){const statements={
     statements.insert_identity={kind:'insert',tableId:'libra_product_identity_revisions',columns:['subject_id','revision','structure_kind','content_profile','identity_kind','provider_identity_set_digest','exact_season_continuity_set_digest','display_identity','identity_digest','evidence_digest','committed_at_ms']};
     statements.advance_subject_identity={kind:'update',tableId:'libra_subjects',setColumns:['current_identity_revision','updated_at_ms'],keyColumns:['subject_id'],compareColumns:[{column:'current_identity_revision',parameter:'expected_identity_revision',nullSafe:true},{column:'status',parameter:'expected_status'}]};
     statements.insert_continuity_claim={kind:'insert',tableId:'libra_subject_season_continuity_claims',columns:['subject_id','claim_kind','claim_namespace','claim_key','claim_digest','provenance_kind','provenance_ref','accepted_at_ms']};
+    statements.advance_continuity_head={kind:'update',tableId:'libra_subject_continuity_heads',setColumns:['current_revision','head_digest','updated_at_ms'],keyColumns:['head_id'],
+      compareColumns:[{column:'current_revision',parameter:'expected_revision'},{column:'head_digest',parameter:'expected_digest'}]};
+    statements.advance_subject_continuity={kind:'update',tableId:'libra_subjects',setColumns:['current_continuity_set_digest'],keyColumns:['subject_id'],
+      compareColumns:[{column:'current_continuity_set_digest',parameter:'expected_digest'},{column:'status',parameter:'expected_status'}]};
   }
   return createRepositoryDefinition({repositoryId:'libra_product_fact_'+factKind+'_writes',owner:'libra',schemaManifest,statements});
 }
@@ -111,7 +120,8 @@ function sourceResultRefs(sourceBasis){
 
 function registration(options,factKind,factSchemaRef){const ownerRead=options.ownerRead,ownerWrite=options.ownerWrite,foundation=options.foundation;
   return {ownerDomain:'libra',aggregateType:'libra_product_fact',factType:factKind,factSchemaRef,effectClass:'domain_fact_commit',revisionFence:true,
-    createParticipant({handle,payload,commitMarker}){let sourceChains=[],verificationBindings=[],artifactSnapshots=[],fact,productFactId,sourceRefs,subjectIdentityRevision=null,expectedSubjectIdentityRevision=null,subjectSnapshot=null;
+    createParticipant({handle,payload,commitMarker}){let sourceChains=[],verificationBindings=[],artifactSnapshots=[],fact,productFactId,sourceRefs,subjectIdentityRevision=null,expectedSubjectIdentityRevision=null,subjectSnapshot=null,
+      continuityHead=null,nextContinuityDigest=null;
       if(factKind==='product_metadata'&&!Object.hasOwn(payload,'mediaCastFactRef'))
         fail('P9_PRODUCT_METADATA_CAST_REF','Product Metadata commit must explicitly carry nullable mediaCastFactRef.');
       const refs=sourceResultRefs(payload.sourceBasis),verificationRefs=factKind==='product_metadata'
@@ -153,6 +163,9 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
               'Resolved Product Identity must bind the exact same-Run Source Basis.');
           }
           fact = payload.resolvedProductIdentity;
+          if(fact.contentProfile==='series'&&canonicalDigest(fact)!==canonicalDigest(
+              buildResolvedProductIdentity({...fact,displayEntries:fact.displayIdentity?.entries})))
+            fail('P9_RESOLVED_IDENTITY_INPUT','Series Product Identity does not match its canonical typed Fact.');
           subjectSnapshot=repo.invoke('find_subject',{subject_id:run.subject_id});
           if(!subjectSnapshot||subjectSnapshot.status!=='active'||subjectSnapshot.structure_kind!==fact.structureKind||
               subjectSnapshot.content_profile!==fact.contentProfile)
@@ -161,6 +174,25 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
           subjectIdentityRevision=(expectedSubjectIdentityRevision||0)+1;
           if(repo.invoke('find_identity',{subject_id:run.subject_id,revision:subjectIdentityRevision}))
             fail('P9_RESOLVED_IDENTITY_REVISION_FENCE','Subject Product Identity revision already exists.');
+          if(fact.exactSeasonContinuityClaims.length) {
+            const seasonNumber=fact.providerIdentities[0].seasonNumber;
+            const seasonClaimDigest=canonicalDigest({claimKind:'explicit_number',seasonNumber});
+            const episodeClaims=repo.invoke('list_run_episode_claims',{run_material_manifest_id:run.run_material_manifest_id});
+            if(!episodeClaims.length||episodeClaims.some(row=>row.season_claim_digest!==seasonClaimDigest))
+              fail('P9_RESOLVED_IDENTITY_SEASON_FENCE','Series identity is outside the frozen Run Season claims.');
+            continuityHead=repo.invoke('find_continuity_head',{head_id:CONTINUITY_HEAD_ID});
+            if(continuityHead)continuityHead={...continuityHead,current_revision:Number(continuityHead.current_revision)};
+            if(!continuityHead||continuityHead.head_digest!==continuityHeadDigest(continuityHead.current_revision))
+              fail('P9_RESOLVED_IDENTITY_CONTINUITY_HEAD','Series identity requires the exact active continuity head.');
+            const claims=repo.invoke('list_continuity_claims',{subject_id:fact.subjectId}).map(row=>({
+              claimKind:row.claim_kind,claimNamespace:row.claim_namespace,claimKey:row.claim_key,claimDigest:row.claim_digest,
+              provenanceKind:row.provenance_kind,provenanceRef:row.provenance_ref}));
+            if(subjectContinuitySetDigest(fact.subjectId,claims)!==subjectSnapshot.current_continuity_set_digest)
+              fail('P9_RESOLVED_IDENTITY_CONTINUITY_SET','Series Subject continuity relations do not match their frozen head.');
+            nextContinuityDigest=subjectContinuitySetDigest(fact.subjectId,[...claims,...fact.exactSeasonContinuityClaims.map(claim=>({
+              claimKind:claim.claimKind,claimNamespace:claim.claimNamespace,claimKey:claim.claimKey,claimDigest:claim.claimDigest,
+              provenanceKind:'resolved_identity',provenanceRef:fact.subjectId+':'+subjectIdentityRevision}))]);
+          }
         }
         return fact;
       },
@@ -191,6 +223,14 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
           if(repo.invoke('advance_subject_identity',{current_identity_revision:subjectIdentityRevision,updated_at_ms:context.commitTimeMs,
             subject_id:fact.subjectId,expected_identity_revision:expectedSubjectIdentityRevision,expected_status:'active'}).changes!==1)
             fail('P9_RESOLVED_IDENTITY_SUBJECT_CAS','Subject Product Identity pointer CAS failed.');
+          if(continuityHead) {
+            if(repo.invoke('advance_subject_continuity',{subject_id:fact.subjectId,current_continuity_set_digest:nextContinuityDigest,
+                expected_digest:subjectSnapshot.current_continuity_set_digest,expected_status:'active'}).changes!==1||
+                repo.invoke('advance_continuity_head',{head_id:CONTINUITY_HEAD_ID,current_revision:continuityHead.current_revision+1,
+                  head_digest:continuityHeadDigest(continuityHead.current_revision+1),updated_at_ms:context.commitTimeMs,
+                  expected_revision:continuityHead.current_revision,expected_digest:continuityHead.head_digest}).changes!==1)
+              fail('P9_RESOLVED_IDENTITY_CONTINUITY_CAS','Series identity continuity publication lost its exact head fence.');
+          }
         }
         for(const item of sourceRefs)repo.invoke('insert_source',{product_fact_id:item.productFactId,ordinal:item.ordinal,source_basis_kind:item.sourceBasisKind,work_id:item.workId,
           attempt_id:item.attemptId,plan_id:item.planId,event_id:item.eventId,result_id:item.resultId,capability_ref:item.capabilityRef,result_schema_ref:item.resultSchemaRef,

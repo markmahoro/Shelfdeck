@@ -79,16 +79,16 @@ const definitions = Object.freeze({
         selector: { selectorKind: 'domain_fact_handle_exact', factType: 'resolved_identity',
           factSchemaRef: 'helix://contracts/types/ResolvedProductIdentity/v1',
           resultSchemaRef: 'helix://contracts/types/ResolvedProductIdentity/v1' },
-        writeTables: ['libra_subjects', 'libra_product_identity_revisions', 'libra_subject_season_continuity_claims',
+        writeTables: ['libra_subjects', 'libra_product_identity_revisions', 'libra_subject_season_continuity_claims', 'libra_subject_continuity_heads',
           'libra_product_fact_revisions', 'libra_product_fact_source_refs',
           'fx_event_result_bindings', 'fx_commit_markers'],
-        readTables: ['libra_runs', 'libra_subjects', 'libra_product_identity_revisions',
-          'libra_subject_season_continuity_claims', 'libra_product_fact_revisions', 'libra_product_fact_source_refs',
+        readTables: ['libra_runs', 'libra_run_material_episode_claims', 'libra_subjects', 'libra_product_identity_revisions',
+          'libra_subject_season_continuity_claims', 'libra_subject_continuity_heads', 'libra_product_fact_revisions', 'libra_product_fact_source_refs',
           'fx_supporting_works', 'fx_work_attempts', 'fx_workflow_plans', 'fx_plan_nodes',
           'fx_workflow_events', 'fx_event_attempts', 'fx_event_result_bindings', 'fx_commit_markers'],
         dynamicTableRequirements: [], hasOutbox: false,
         fixtureRefs: ['libra-product-fact-variants'],
-        rollbackInvariant: 'Run Product Fact, Subject Identity revision/current pointer, complete exact continuity claims, Source refs, durable typed Result, and commit marker are all present or all absent; selector, Run, Subject, revision, source-basis, Result, schema, digest, or fence failure leaves zero writes and no Outbox row.'
+        rollbackInvariant: 'Run Product Fact, Subject Identity revision/current pointer, complete exact continuity claims, Subject continuity digest, global continuity head CAS, Source refs, durable typed Result, and commit marker are all present or all absent; selector, Run, Subject, revision, source-basis, Result, schema, digest, or fence failure leaves zero writes and no Outbox row.'
       }
     ]
   },

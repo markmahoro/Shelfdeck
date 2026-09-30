@@ -2,6 +2,7 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { subjectRatingTarget } = require('../model/subject-rating-target');
+const { frozenSeriesSeasonNumber } = require('../model/series-identity-contracts');
 
 const IDENTITY_EVIDENCE_RESULT =
   'helix://contracts/capabilities/libra.product_identity.evidence.observe/v1/result';
@@ -49,6 +50,20 @@ function definition(snapshot, stage, outputContractRef, dependencyRefs = [], sou
 function establishedSubjectIdentity(options, snapshot) {
   const context = options.routingContextReader?.read(snapshot.run.subjectId);
   if (!context?.rows?.identity) return null;
+  if(snapshot.spec?.contentProfile==='series'||context.subject?.contentProfile==='series') {
+    const identity=context.rows.identity,display=JSON.parse(identity.display_identity);
+    const values=new Map((display.entries||[]).map(item=>[item.key,item.value]));
+    if(context.subject.subjectId!==snapshot.run.subjectId||identity.identity_kind!=='tmdb_series_season'||
+        identity.identity_digest!==context.subject.currentIdentityDigest||
+        display.recordDigest!==canonicalDigest(Object.fromEntries(Object.entries(display).filter(([key])=>key!=='recordDigest')))||
+        values.get('season_number')!==frozenSeriesSeasonNumber(snapshot)||
+        typeof values.get('tmdb_series_id')!=='string'||!/^\d+$/.test(values.get('tmdb_series_id'))||
+        typeof values.get('title')!=='string'||!values.get('title').trim())
+      throw new Error('Established Series identity does not conserve the frozen Subject and Season.');
+    return Object.freeze({workId:stable('libra-established-subject-identity-',{subjectId:snapshot.run.subjectId,revision:Number(identity.revision)}),
+      resultDigest:identity.identity_digest,providerKey:values.get('tmdb_series_id'),title:values.get('title'),
+      year:values.has('year')?Number(values.get('year')):null});
+  }
   const target = subjectRatingTarget(context);
   if (!target?.providerIdentity?.startsWith('tmdb:')) return null;
   const identity = context.rows.identity;
