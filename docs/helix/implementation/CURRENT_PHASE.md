@@ -12,6 +12,8 @@
 
 ## 当前工作项：Series身份与逐集生产接线
 
+2026-10-01接续「Series Routing 与 Run 调度」DoR：Routing只补Policy实际缺失的事实，沿正式Subject及routing-anchor accepted Candidate冻结contentProfile；Series另冻结同一IdentityClaim的explicit positive Season Number。Related只读取所指有界tvshow NFO的Series层事实，不把Episode/actor子节点身份当Series；Provider沿既有Routing Capability查询TV及相同Season，typed Intent/Observation拒绝错误Profile、Season和namespace。Routing得到的Provider Fact不替代正式Product Identity或发布continuity。验证包括实际Owner Context Reader、Integration Adapter、typed schema、排序优先级及原生Work调度至Spec/Run；Series Admin观察入口保持关闭，测试通过Owner观察命令驱动隔离Host。不新增Owner/Handoff/Capability或存量兼容；无用户界面交付、无生产数据动作。
+
 2026-10-01接续「Series身份解析与continuity发布」：沿SSOT §3.4.2、§5.5.3及ResolvedProductIdentity合同，以冻结IdentityClaim的显式positive Season Number、Run execution basis和已有Related/Provider source Work形成closed Series身份Observation；TMDB search/exact必须验证TV对象及对应Season存在。Libra正式Fact保留相同Series/Season tuple，并在同一Domain Fact Commit发布provider_season_identity relation、Subject continuity set及head，不能追溯改写旧Intake或猜测合并。验证覆盖HTTP/typed schema、错误Season/对象/关联、完整Result引用、原生commit/replay/crash rollback与未来Intake匹配。无新Owner、Capability、Handoff或生产副作用；本工作项仍不开放Series页面，manual disambiguation界面后续交UI负责人验收。
 
 - Outcome：以已解析Series/Season tuple和冻结Run交付集形成各集Observation/Draft/Fact，正式Artifact Planner与Sidecar Renderer生成Season及逐集NFO，保持独立Provenance和Related源保护；贯通实际Workspace与Fact事务后接续上游身份和完整调度。尚不开放Series产品入口。

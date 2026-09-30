@@ -1009,7 +1009,8 @@ function createTmdbProviderAdapter(options) {
         });
       }
 
-      if (request.operationId === 'libra.product_identity.evidence.observe@1' && request.input?.contentProfile === 'series') {
+      if (['libra.product_identity.evidence.observe@1', 'libra.routing.fact.observe@1'].includes(request.operationId) &&
+          request.input?.contentProfile === 'series') {
         const input=request.input;
         exact(input,['contentProfile','title','yearHint','strongProviderKey','seasonNumber'],'PLATFORM_TMDB_ROUTING_SHAPE');
         if(typeof input.title!=='string'||!input.title.trim()||input.title.length>512||

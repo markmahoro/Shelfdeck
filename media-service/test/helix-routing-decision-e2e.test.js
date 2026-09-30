@@ -129,7 +129,11 @@ test('direct and sorting Routing Decisions continue through Acceptance Spec and 
   const providerCalls = [];
   let runtimeError = null;
   const hostOptions = { dataDir, adminDistDir, secretRoot: SECRET_ROOT, mediaProbe: mediaProbe(),
-    onExecutionRuntimeError(error) { runtimeError = error; }, routingIntegrationHandleResolver: () => routingHandle(),
+    onExecutionRuntimeError(error) { runtimeError = error; },
+    // This fixture ends at Run admission. A Routing-only handle must never be
+    // supplied to Product Identity and accidentally start production on replay.
+    routingIntegrationHandleResolver: ({ operationId }) =>
+      !operationId || operationId === 'libra.routing.fact.observe@1' ? routingHandle() : null,
     routingProviderObservation: async ({ intent, integrationHandle }) => {
       assert.equal(integrationHandle.allowedOperation, 'libra.routing.fact.observe@1');
       providerCalls.push(Object.freeze({ title:intent.candidateDisplayTitle,

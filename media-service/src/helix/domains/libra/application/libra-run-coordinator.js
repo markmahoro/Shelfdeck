@@ -696,9 +696,10 @@ function createLibraRunCoordinator(options){
       item.result.reasonCodes?.includes('required_artifact_missing'));
     if(absentArtifact)return ensureDefectProductEvidence(snapshot)||
       freezeBusinessTerminal(snapshot,artifact,absentArtifact,'required_artifact_missing');
-    const expected=requiredArtifactKinds(snapshot).length;
-    if(artifactResults.length!==expected||artifactResults.some((item)=>item.result?.result!=='passed'))
+    if(artifactResults.some((item)=>item.result?.result!=='passed'))
       throw new Error('Terminal Artifact Work does not cover every mandatory Artifact Requirement.');
+    // Attachment validates the exact Season/Episode target set and producer
+    // bindings. A kind count cannot represent multiple Series NFO targets.
     attachArtifactOutputs(snapshot,workspace);
     }
     const facts=productFactWork(snapshot,workspace,artifact),factsSubmitted=submit(facts),factsStatus=options.workResultReader.status(facts.workId);

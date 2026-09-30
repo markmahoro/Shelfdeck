@@ -1401,7 +1401,7 @@
       "relativePath": "types/RoutingFactObservation/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "a955ae4248dd8f5b4675ed2843cd5b4334138ee63cd5a30d57b09494e581a61e"
+        "value": "9712c098def3f14ee4fe2e3270902e70029be983057b3c886cf07200f6d4c182"
       },
       "source": {
         "section": "8.6.18",

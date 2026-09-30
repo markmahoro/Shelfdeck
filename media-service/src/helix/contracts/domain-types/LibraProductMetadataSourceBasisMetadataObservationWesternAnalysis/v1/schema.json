@@ -133,7 +133,7 @@
                   "sourceReferenceDigest"
                 ]
               },
-              "maxItems": 16,
+              "maxItems": 128,
               "minItems": 1
             },
             "selectionDigest": {
@@ -179,7 +179,7 @@
               "items": {
                 "$ref": "helix://contracts/types/MetadataObservation/v1"
               },
-              "maxItems": 16,
+              "maxItems": 128,
               "minItems": 1
             },
             "sourcePrecedence": {
@@ -203,7 +203,7 @@
                   "sourcePriority"
                 ]
               },
-              "maxItems": 16,
+              "maxItems": 128,
               "minItems": 1
             },
             "setDigest": {
@@ -219,6 +219,65 @@
             "observations",
             "sourcePrecedence",
             "setDigest"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "contentProfile": {
+                    "const": "movie"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "observations": {
+                    "maxItems": 16
+                  },
+                  "sourcePrecedence": {
+                    "maxItems": 16
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "contentProfile": {
+                    "const": "series"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "observations": {
+                    "maxItems": 128
+                  },
+                  "sourcePrecedence": {
+                    "maxItems": 128
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "contentProfile": {
+                    "const": "jav"
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "observations": {
+                    "maxItems": 16
+                  },
+                  "sourcePrecedence": {
+                    "maxItems": 16
+                  }
+                }
+              }
+            }
           ]
         },
         "sourceBasisDigest": {

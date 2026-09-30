@@ -1048,7 +1048,7 @@ function routingFactObservationSchema() {
         'x-helix-canonicalOrder': 'UTF-8(value)',
       } }),
       object({ ...common, factKind: { const: 'resolved_provider_identity' }, provider: { const: 'tmdb' },
-        namespace: { const: 'tmdb_movie' }, providerKey: text({ maxLength: 128 }),
+        namespace: enumText('tmdb_movie', 'tmdb_series'), providerKey: text({ maxLength: 128 }),
         identityRevision: positiveInteger(), identityDigest: digest() }),
     ],
   };

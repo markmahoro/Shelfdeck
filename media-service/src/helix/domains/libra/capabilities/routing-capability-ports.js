@@ -92,14 +92,29 @@ function movieLevelYear(xml) {
   return values.length === 1 ? Number(values[0]) : null;
 }
 
+function seriesLevelXml(xml) {
+  const match = String(xml || '').match(/<tvshow(?:\s[^>]*)?>([\s\S]*)<\/tvshow\s*>/i);
+  return match ? match[1].replace(NON_MOVIE_IDENTITY_BLOCKS, '')
+    .replace(/<(episodedetails|episode|seasons)(?:\s[^>]*)?>[\s\S]*?<\/\1\s*>/gi, '') : '';
+}
+
 function parseNfo(intent, xml, handle) {
   if (typeof xml !== 'string' || Buffer.byteLength(xml, 'utf8') > 256 * 1024) {
     const error = new Error('Routing NFO exceeds its bounded transport.'); error.code = 'LIBRA_ROUTING_NFO_BOUND'; throw error;
   }
-  if (!/<movie(?:\s|>)/i.test(xml) || !/<\/movie\s*>/i.test(xml) || /<!DOCTYPE/i.test(xml)) {
+  const series = intent.contentProfile === 'series';
+  if (series && (!Number.isSafeInteger(intent.seasonNumber) || intent.seasonNumber < 1))
+    throw new TypeError('Series Routing requires a frozen positive Season.');
+  if (series && (/<!DOCTYPE/i.test(xml) || !seriesLevelXml(xml))) {
+    return result(intent, handle.location, 'not_found', 'requested_fact_absent', [], 0);
+  }
+  if (!series && (!/<movie(?:\s|>)/i.test(xml) || !/<\/movie\s*>/i.test(xml) || /<!DOCTYPE/i.test(xml))) {
     return result(intent, handle.location, 'not_found', 'source_nfo_damaged', [], 0);
   }
-  const movieXml = movieLevelXml(xml);
+  const movieXml = series ? seriesLevelXml(xml) : movieLevelXml(xml);
+  if (series && tagValues(movieXml, 'season').some(value => Number(value) !== intent.seasonNumber)) {
+    return result(intent, handle.location, 'not_found', 'requested_fact_absent', [], 0);
+  }
   const facts = [], sourceObjectId = intent.relatedReferenceId, sourceRevision = handle.bindingRevision;
   for (const factKind of intent.requestedFactKinds) {
     if (factKind === 'release_year') {
@@ -114,10 +129,12 @@ function parseNfo(intent, xml, handle) {
       const values = tagValues(movieXml, 'genre').map(normalize);
       if (values.length) facts.push(routingFact(intent, factKind, { genreCodes: Object.freeze(values) }, sourceObjectId, sourceRevision));
     } else if (factKind === 'resolved_provider_identity') {
-      const values = movieLevelTmdbIds(xml);
+      const values = series ? unique([...tagValues(movieXml, 'tmdbid'),
+        ...tagValues(movieXml, 'uniqueid', '(?=[^>]*\\btype\\s*=\\s*["\\\']tmdb["\\\'])')]
+        .filter(value => /^\d+$/.test(value))) : movieLevelTmdbIds(xml);
       if (values.length > 1) return result(intent, handle.location, 'ambiguous', 'source_fact_conflicting', [], values.length);
       if (values.length === 1) {
-        const identity = { provider: 'tmdb', namespace: 'tmdb_movie', providerKey: values[0], identityRevision: 1 };
+        const identity = { provider: 'tmdb', namespace: series ? 'tmdb_series' : 'tmdb_movie', providerKey: values[0], identityRevision: 1 };
         facts.push(routingFact(intent, factKind, { ...identity, identityDigest: canonicalDigest(identity) }, sourceObjectId, sourceRevision));
       }
     }
@@ -144,6 +161,13 @@ function providerCandidateSelection(intent, candidates) {
 }
 
 function parseProvider(intent, candidates, handle) {
+  const series = intent.contentProfile === 'series';
+  if (series && (!Number.isSafeInteger(intent.seasonNumber) || intent.seasonNumber < 1 ||
+      !Array.isArray(candidates) || candidates.some(candidate => candidate?.namespace !== 'tmdb_series' ||
+        candidate.seasonNumber !== intent.seasonNumber))) {
+    const error = new Error('Series Routing Provider does not conserve the frozen Season.');
+    error.code = 'LIBRA_ROUTING_PROVIDER_PROTOCOL'; throw error;
+  }
   const matches = providerCandidateSelection(intent, candidates);
   if (!matches.length) return result(intent, handle.integrationId, 'not_found', 'provider_no_match', [], 0);
   if (matches.length > 1) return result(intent, handle.integrationId, 'ambiguous', 'provider_identity_ambiguous', [], matches.length);
@@ -156,7 +180,7 @@ function parseProvider(intent, candidates, handle) {
     if (factKind === 'genre' && Array.isArray(candidate.genreCodes) && candidate.genreCodes.length)
       facts.push(routingFact(intent, factKind, { genreCodes: Object.freeze(unique(candidate.genreCodes)) }, candidate.providerKey, sourceRevision));
     if (factKind === 'resolved_provider_identity') {
-      const identity = { provider: 'tmdb', namespace: 'tmdb_movie', providerKey: candidate.providerKey, identityRevision: 1 };
+      const identity = { provider: 'tmdb', namespace: series ? 'tmdb_series' : 'tmdb_movie', providerKey: candidate.providerKey, identityRevision: 1 };
       facts.push(routingFact(intent, factKind, { ...identity, identityDigest: canonicalDigest(identity) }, candidate.providerKey, sourceRevision));
     }
   }

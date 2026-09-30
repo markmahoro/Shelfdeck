@@ -1005,7 +1005,7 @@
       "relativePath": "domain-types/LibraMediaCastSourceBasisMetadataObservationWesternMatch/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "64dea98da3d40648cb077848e9fe92fd62e02c96aebb9a8721193f80bae30a15"
+        "value": "e57b2756f8f05ec3bd961154a57db0c6f5c2052a04d212b94708289770180f43"
       },
       "usedBy": [
         {
@@ -1036,7 +1036,7 @@
       "relativePath": "domain-types/LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "92573779792f7713649f742f793339ab8fe203be851f6d3e66d472a104f7d144"
+        "value": "8292d269f1ed34e971fd3406b1001283a87d4b7c060202c14f3381bbee5874a5"
       },
       "usedBy": [
         {
@@ -2209,7 +2209,7 @@
       "relativePath": "domain-types/RoutingFactObservationIntent/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "fed09846dcd954c9984bdb013d20c322440cad9d08c5bf9c4e4a3365f0dd1d6f"
+        "value": "740e28dee60d1a9c6bc7f2be3a57f74c18678a8b53cf7eb31d180874a5ff4412"
       },
       "usedBy": [
         {

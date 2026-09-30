@@ -5,6 +5,7 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { buildDecisionInputSet, decisionHeadDigest } = require('../model/decision-front-half-contracts');
 const { deriveTitleYear } = require('../model/decision-identity-evidence-contracts');
+const { frozenSeriesSeasonNumber } = require('../model/series-identity-contracts');
 const { createFieldRoutingPolicyStore } = require('../persistence/field-routing-policy-store');
 
 function stable(prefix, value) { return prefix + canonicalDigest(value).slice(0, 40); }
@@ -173,7 +174,12 @@ function createRoutingContextReader(options) {
     const common = { subjectId: context.subject.subjectId,
       routingAnchorIntakeDecisionId: context.subject.routingAnchorIntakeDecisionId,
       routingAnchorDigest: context.subject.routingProvenance.decisionIdentityEvidenceDigest || context.deliverySnapshot.deliverySnapshotDigest,
-      contentProfile: 'movie', identityClaim, requestedFactKinds: Object.freeze([...requestedFactKinds]), sourceKind };
+      contentProfile: context.subject.contentProfile, identityClaim,
+      ...(context.subject.contentProfile === 'series' ? { seasonNumber: frozenSeriesSeasonNumber({
+        spec: { contentProfile: context.subject.contentProfile, structureKind: context.subject.structureKind },
+        candidateIdentityClaim: identityClaim,
+      }) } : {}),
+      requestedFactKinds: Object.freeze([...requestedFactKinds]), sourceKind };
     let source;
     if (sourceKind === 'related_nfo') {
       const reference = nfoReference(context);

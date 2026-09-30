@@ -2,6 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { buildEpisodeMetadataScope } = require('../../../contracts/episode-metadata-scope');
+const { metadataObservationLimit } = require('../../../contracts/metadata-observation-limits');
 
 class ProductFactContractError extends Error {
   constructor(code, message) { super(message); this.name = 'ProductFactContractError'; this.code = code; }
@@ -201,7 +202,8 @@ function buildMetadataObservation(value) {
 
 function selectMetadataObservations(value) {
   const intents = (value?.intents || []).map(buildMetadataFetchIntent);
-  if (intents.length < 1 || intents.length > 16 || intents.some((item, ordinal) => item.sourcePriority !== ordinal)) {
+  if (intents.length < 1 || intents.length > metadataObservationLimit(intents[0].contentProfile) ||
+      intents.some((item, ordinal) => item.sourcePriority !== ordinal)) {
     fail('P9_METADATA_INTENT_ORDER', 'Metadata priorities must be unique and contiguous from zero.');
   }
   const byDigest = new Map(intents.map((item) => [item.intentDigest, item]));
@@ -409,7 +411,8 @@ function buildProductFactSourceRefs(value) {
   }
   if(basis.sourceBasisKind==='metadata_observation'){
     const productFactId=text(value?.productFactId,'productFactId');
-    if(!Array.isArray(basis.selection?.items)||basis.selection.items.length<1||basis.selection.items.length>16)
+    if(!Array.isArray(basis.selection?.items)||basis.selection.items.length<1||
+        basis.selection.items.length>metadataObservationLimit(basis.observationSet?.contentProfile))
       fail('P9_PRODUCT_FACT_SOURCE_BASIS','A bounded Metadata Observation basis is required.');
     return Object.freeze(basis.selection.items.map((selection,ordinal)=>{
     const chain=chains.get(selection.resultId),result=chain?.result,inputBindings=chain?.inputBindings;

@@ -1016,12 +1016,9 @@ function routingFactObservationIntentSchema() {
   const identityClaim = typeRef('IdentityClaim');
   const common = {
     intentId: id(), subjectId: id(), routingAnchorIntakeDecisionId: id(), routingAnchorDigest: digest(),
-    contentProfile: { const: 'movie' }, identityClaim, requestedFactKinds,
+    identityClaim, requestedFactKinds,
     sourceKind: enumText('related_nfo', 'provider'), intentDigest: digest(),
   };
-  const providerAnchor = object({
-    provider: { const: 'tmdb' }, namespace: { const: 'tmdb_movie' }, providerKey: text({ maxLength: 128 }),
-  });
   return {
     $schema: DRAFT,
     $id: domainTypeId('RoutingFactObservationIntent'),
@@ -1029,19 +1026,27 @@ function routingFactObservationIntentSchema() {
     'x-helix-ssotRefs': ['5.1.3', '5.4.3', '8.6.5', '8.6.18'],
     'x-helix-role': 'accepted-business-dto',
     'x-helix-maxCanonicalBytes': 16 * 1024,
-    oneOf: [
+    oneOf: ['movie', 'series'].flatMap(profile => {
+      const profileCommon = { ...common, contentProfile: { const: profile },
+        identityClaim: { allOf: [identityClaim, { properties: { contentProfile: { const: profile } } }] },
+        ...(profile === 'series' ? { seasonNumber: { type: 'integer', minimum: 1, maximum: Number.MAX_SAFE_INTEGER } } : {}) };
+      const providerAnchor = object({
+        provider: { const: 'tmdb' }, namespace: { const: profile === 'series' ? 'tmdb_series' : 'tmdb_movie' },
+        providerKey: text({ maxLength: 128 }),
+      });
+      return [
       object({
-        ...common, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(),
+        ...profileCommon, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(),
         relatedReferenceDigest: digest(), expectedPhysicalIdentityDigest: digest(),
-      }, [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedPhysicalIdentityDigest']),
+      }),
       object({
-        ...common, sourceKind: { const: 'provider' }, integrationId: id(), configRevision: positiveInteger(),
+        ...profileCommon, sourceKind: { const: 'provider' }, integrationId: id(), configRevision: positiveInteger(),
         providerKind: { const: 'tmdb' }, candidateDisplayTitle: text({ maxLength: 1024 }),
         yearHint: nullable({ type: 'integer', minimum: 1870, maximum: 3000 }),
         strongProviderAnchor: nullable(providerAnchor),
-      }, [...Object.keys(common), 'integrationId', 'configRevision', 'providerKind', 'candidateDisplayTitle',
-        'yearHint', 'strongProviderAnchor']),
-    ],
+      }),
+      ];
+    }),
   };
 }
 
@@ -1055,10 +1060,16 @@ function westernAnalysisVariantSchema() {
 }
 
 function metadataObservationSetValue() {
-  return object({ setId: id(), contentProfile: enumText('movie', 'series', 'jav'), resolvedIdentityDigest: digest(),
-    observations: { ...arrayOf(typeRef('MetadataObservation'), 16), minItems: 1 },
-    sourcePrecedence: { ...arrayOf(object({ fetchIntentDigest: digest(), sourcePriority: nonNegativeInteger() }), 16), minItems: 1 },
-    setDigest: digest() });
+  const { METADATA_OBSERVATION_LIMITS } = require('../../src/helix/contracts/metadata-observation-limits');
+  const max = Math.max(...Object.values(METADATA_OBSERVATION_LIMITS));
+  return { ...object({ setId: id(), contentProfile: enumText(...Object.keys(METADATA_OBSERVATION_LIMITS)), resolvedIdentityDigest: digest(),
+    observations: { ...arrayOf(typeRef('MetadataObservation'), max), minItems: 1 },
+    sourcePrecedence: { ...arrayOf(object({ fetchIntentDigest: digest(), sourcePriority: nonNegativeInteger() }), max), minItems: 1 },
+    setDigest: digest() }),
+    allOf: Object.entries(METADATA_OBSERVATION_LIMITS).map(([profile, limit]) => ({
+      if: { properties: { contentProfile: { const: profile } } },
+      then: { properties: { observations: { maxItems: limit }, sourcePrecedence: { maxItems: limit } } },
+    })) };
 }
 
 function metadataObservationSelectionValue() {
@@ -1066,7 +1077,7 @@ function metadataObservationSelectionValue() {
     fetchIntentDigest: digest(), sourceKind: enumText('related_nfo', 'provider'), sourceRef: text(), sourcePriority: nonNegativeInteger(),
     evidenceId: id(), observationDigest: digest(), sourceReferenceDigest: digest() });
   return object({ selectionId: id(), libraRunId: id(), runExecutionBasisDigest: digest(), setId: id(), setDigest: digest(),
-    items: { ...arrayOf(item, 16), minItems: 1 }, selectionDigest: digest() });
+    items: { ...arrayOf(item, 128), minItems: 1 }, selectionDigest: digest() });
 }
 
 function westernProductMetadataBasisValue() {

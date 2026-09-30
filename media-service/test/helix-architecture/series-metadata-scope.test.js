@@ -55,6 +55,31 @@ function episodeEntries(number, overrides = {}) {
     episode_title:'Title '+number, episode_plot:'Plot '+number, ...overrides }).map(([key,value])=>({key,value}));
 }
 
+test('Series Observation capacity is bounded at 128 sources while Movie retains 16', () => {
+  const inputs=Array.from({length:128},(_,index)=>intent(index+1,index));
+  const results=inputs.map((input,index)=>chain(input,episodeEntries(index+1)));
+  const basis=buildMetadataObservationBasis({intents:inputs,results,factKind:'product_metadata',expectedRevision:0});
+  assert.equal(basis.observationSet.observations.length,128);
+  assert.equal(basis.selection.items.length,128);
+  assert.throws(()=>buildMetadataObservationBasis({intents:[...inputs,intent(129,128)],results,
+    factKind:'product_metadata',expectedRevision:0}),{code:'P9_METADATA_INTENT_ORDER'});
+  const movieIdentity={provider:'tmdb',namespace:'tmdb_movie',providerKey:'42',seasonNumber:null};
+  movieIdentity.identityAnchorDigest=canonicalDigest(movieIdentity);
+  const movie=Array.from({length:17},(_,sourcePriority)=>buildMetadataFetchIntent({
+    libraRunId:'movie-run',runExecutionBasisDigest:D('basis'),sourceKind:'provider',sourcePriority,
+    contentProfile:'movie',resolvedIdentityDigest:D('identity'),requestedFields:['title'],
+    providerKind:'tmdb',resolvedProviderIdentity:movieIdentity,integrationId:'tmdb-main',configRevision:2}));
+  assert.throws(()=>buildMetadataObservationBasis({intents:movie,results:[],
+    factKind:'product_metadata',expectedRevision:0}),{code:'P9_METADATA_INTENT_ORDER'});
+});
+
+test('Larger Series source count never relaxes the 512 KiB Observation Set byte bound', () => {
+  const inputs=Array.from({length:64},(_,index)=>intent(index+1,index));
+  const results=inputs.map((input,index)=>chain(input,episodeEntries(index+1,{episode_plot:'p'.repeat(12*1024)})));
+  assert.throws(()=>buildMetadataObservationBasis({intents:inputs,results,
+    factKind:'product_metadata',expectedRevision:0}),{code:'P9_METADATA_SET_SIZE'});
+});
+
 test('Episode scope changes Intent, Work identity and Evidence without changing Season identity', () => {
   const first=intent(1,0), second=intent(2,0);
   assert.notEqual(first.intentDigest, second.intentDigest);
@@ -384,6 +409,17 @@ test('Scoped Intent, Observation and Season Draft pass the actual closed runtime
     return JSON.parse(fs.readFileSync(path.join(root,version,'schema.json'),'utf8'));
   }));
   const validator=createCapabilityContractValidator({schemas});
+  const inputs=Array.from({length:128},(_,index)=>intent(index+1,index));
+  const largeBasis=buildMetadataObservationBasis({intents:inputs,
+    results:inputs.map((input,index)=>chain(input,episodeEntries(index+1))),factKind:'product_metadata',expectedRevision:0});
+  const basisRef='helix://contracts/domain-types/LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis/v1';
+  validator.validate(basisRef,largeBasis);
+  assert.throws(()=>validator.validate(basisRef,{...largeBasis,
+    observationSet:{...largeBasis.observationSet,contentProfile:'movie'}}),{code:'P4_CAPABILITY_SCHEMA_REJECTED'});
+  assert.throws(()=>validator.validate(basisRef,{...largeBasis,
+    observationSet:{...largeBasis.observationSet,observations:[
+      ...largeBasis.observationSet.observations,largeBasis.observationSet.observations[0]]}}),
+  {code:'P4_CAPABILITY_SCHEMA_REJECTED'});
   const input=intent(1,0);
   validator.validate('helix://contracts/domain-types/MetadataFetchIntent/v1',input);
   validator.validate('helix://contracts/types/MetadataObservation/v1',chain(input,episodeEntries(1)).result);
