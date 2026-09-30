@@ -49,17 +49,23 @@
 
 逐入口事实、测试命令及未覆盖项见[准备审查Evidence](evidence/SERIES_READINESS_AUDIT_20260930.md)。已有部分合同基础，但不能直接启用Series。完整差距审查仍需覆盖观察→Triage→Intake→Routing/Spec→各成员生产→Handoff B→Commit→Projection→Aftercare/退出。
 
-## 开发工作项与里程碑草案
+## 用户确认的5个节点与验收职责
 
-以下是Phase内工作名称，不建立全局编号体系；排程按依赖推进，不承诺日期。
+2026-09-30用户确认按5个节点推进，并明确UI由UI负责人负责验收。以下是Phase内顺序，不建立全局编号体系；逐节点交付、逐节点验收，不承诺日期。
 
 | 顺序 | 工作项 / Owner | 验收门槛 | 当前状态 |
 | --- | --- | --- | --- |
-| 先行 | 合同与接线核查 / 各Domain Owner | 明确S00、N:M空间计量、Episode级恢复及所有主链入口；冻结隔离样本矩阵与各工作项DoR | 初审及专项测试完成；上述合同/纵向核查待补 |
-| 首个交付 | 本地Season最小纵向 / Procurement、Libra、Arca | E01/E02从Field到唯一Season Entry；每集身份/元数据/NFO/Primary覆盖、正式Handoff及Commit；恢复Handoff A测试；真实媒体验收 | 元数据基础已本地验证；接续逐集Observation/Artifact与真实Run接线，各工作项先满足DoR |
-| 接续 | Episode追加与复杂映射 / Libra、Arca | E03新增Run扩充同一Entry，旧Run/集事实不改写；重叠/并发/重复及N:M、逐集空间验收通过 | 依赖首个交付 |
-| 扩展 | 外部寻源、生命周期与界面 / Procurement、Libra、Arca、UI负责人 | 外部候选/落地实际Episode覆盖；缺元数据、失败/重启、Aftercare及共享材料退出；Season用户旅程走查 | 依赖对应纵向能力与UI协调 |
-| 发布资格 | Movie回归与Series完整资格 / 实施与发布责任方 | 冻结SHA的Windows及Linux适用验证、真实媒体/浏览器场景、受控升级/回退及数据保护 | 前述工作项完成后执行 |
+| 节点1 | 剧集资料与生产基础 / Platform、Libra | 明确Season/Episode身份，逐集Observation/Draft/NFO/Artifact按冻结Run范围生产，完整Result与Provenance链 | 元数据基础叶子已本地验证；逐集正式接线待补，节点未关闭 |
+| 节点2 | 首批剧集完整上架 / Procurement、Libra、Arca | E01/E02从Field到唯一Season Entry；正式Handoff/Commit、真实媒体及相应用户路径；UI负责人验收可见变化 | 依赖节点1及适用合同/fixture门禁 |
+| 节点3 | 持续追加与复杂文件映射 / Libra、Arca | E03扩充同Entry，旧Run/集事实不改写；重叠/并发/重复及N:M、逐集空间验收；可见变化交UI负责人验收 | 依赖节点2 |
+| 节点4 | 完整运营与用户体验 / Procurement、Libra、Arca、UI负责人 | 外部实际Episode覆盖、失败/重启、Aftercare/共享材料退出；Season用户旅程、适用状态及UI负责人验收 | 依赖对应纵向能力 |
+| 节点5 | Movie回归与Series发布资格 / 实施、UI与发布责任方 | 冻结SHA的Windows/Linux、真实媒体/浏览器、升级/回退及数据保护；UI验收结论绑定最终受影响版本 | 前述节点完成后执行 |
+
+S00、身份纠正、N:M计量及Episode级恢复在所属节点开工前核对SSOT并满足DoR，不把未知合同藏进实现，也不以节点编号另建全局台账。
+
+UI门禁适用于每个节点，包括后端生成的用户可见文案：实施前与任务“UI负责人”（`01a0912a-0086-74e2-88ab-536c59d3862a`）协调范围及设计；按Playbook §11.1/§12.3与Movie baseline §7.1的通用UI验收方法实现。沿用现有页面、组件/token和已确认设计规则；Series业务Oracle来自SSOT，不把Series追认进Movie Beta。
+
+实施任务提供对应commit、页面/状态、操作与结果、截图或轨迹、浏览器/键盘/窄屏测试和未测项；UI负责人执行适用任务走查并记录通过/不通过及范围。UI代码或自动化测试通过不能替代负责人验收，后续影响用户表面的diff须重验受影响路径。没有适用UI变化时如实记录范围；当前叶子实现尚无Series页面交付，不宣称UI PASS。2026-09-30 UI负责人已确认职责并回传[逐节点适用矩阵](evidence/SERIES_UI_ACCEPTANCE_SCOPE_20260930.md)；具体页面验收仍待同版本实现与实际走查。
 
 ## 下一步与Phase完成条件
 

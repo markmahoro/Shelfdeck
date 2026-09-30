@@ -79,7 +79,7 @@ Do not block the turn with a foreground development server. When needed, use a m
 
 ## Change Discipline
 
-- All UI changes, including backend-generated display text, are coordinated by the user-appointed UI owner; follow docs/helix/ENGINEERING_PLAYBOOK.md §12.3 for ownership, confirmed design rules, and current polish boundaries.
+- All UI changes, including backend-generated display text, are coordinated and accepted by the user-appointed UI owner. A milestone with UI changes cannot close without that owner's acceptance evidence for the exact version. Follow docs/helix/ENGINEERING_PLAYBOOK.md §11.1/§12.3 and BETA_FEATURE_ACCEPTANCE_BASELINE.md §7.1 for design, walkthrough, and evidence requirements.
 - Read the code before changing it. Prefer existing patterns and helpers.
 - During the current Helix iteration stage, unfinished Libra/Formation entries have no compatibility entitlement. Unless the user explicitly identifies an exact entry that must survive an iteration, do not add migration, dual-read/write, fallback, resume, repair, or other compatibility code for existing entries; clear them with the authorized Formation Reset tooling instead. Reset may retire stale runtime data, but it must never conceal a defect that still reproduces for newly created entries.
 - A user challenge is a review trigger, not evidence that the current conclusion is wrong. Re-check the active SSOT and historical record, distinguish an already-decided duplicate from a genuine open contract gap, and then state the evidence-backed result. Do not concede, downgrade, close, or reopen an architecture issue merely to agree with the challenge; if a real gap remains, keep it open and discuss it explicitly.

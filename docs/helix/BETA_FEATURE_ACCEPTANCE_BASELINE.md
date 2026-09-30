@@ -298,6 +298,14 @@ Helix-beta 的真实来源验收车辆是 Movie Canary：
 
 沿用既有代码：`UI` `API` `E2E` `MEDIA-S` `MEDIA-F` `PROVIDER` `FS` `PROBE` `RECOVERY` `NEG` `VISUAL` `AUDIT`，以及对应 `EV-*`。Helix-beta 的 `full_length` 代表执行仍适用于 5 星体积、4K raster、盘片 Remux/Transcode 与真实 Off-deck。
 
+### 7.1 UI引导验收（2026-09-11）
+
+所有涉及用户表面的`HB-*`同时执行[Engineering Playbook §11.1](ENGINEERING_PLAYBOOK.md#111-ui引导优先设计实现与uat共同门禁)。
+验收必须证明用户可凭布局、标签、状态、就地操作和反馈完成任务；依赖常驻解释或工程师提示才能完成的路径不能`PASS`。
+诚实呈现等待原因可用简短状态和真实数量，不要求叙述调度机制；必要的错误原因、无障碍标签和危险后果确认必须保留。
+UAT后任何影响页面的修改（含后端展示文案）都须重验受影响路径，并将Evidence绑定到相应版本；不追认旧UAT覆盖新改动。
+本次只更新验收方法，不改`HB-*`业务结果、不重写历史验收结论，也不声明本次UI/UAT通过。
+
 ## 8. 作废声明
 
 自 2026-08-22 起：
