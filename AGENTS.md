@@ -33,7 +33,7 @@ Do not add generated `media-service/dist/`, root debug dumps, runtime JSON, expo
 
 ## Production Safety
 
-- The user-appointed deployment owner manages code integration, workspace cleanup, and production release order and cadence; follow docs/helix/ENGINEERING_PLAYBOOK.md §3.5. Appointment announcements are unnecessary; technical coordination remains allowed.
+- Deployment coordination follows docs/helix/ENGINEERING_PLAYBOOK.md §3.5; the centralized deployment-owner role was cancelled by the user. UI ownership and version-specific acceptance remain required.
 - NAS ShelfDeck Docker at `192.168.12.230:18080` is production.
 - Do not delete, park, reset, migrate, or directly edit production data unless the user explicitly asks for that production action.
 - A direct user request to deploy, release, publish, or upgrade NAS production authorizes the standard deploy flow, including `deploy-nas.js --apply` after dry run and checksum validation pass.

@@ -1,6 +1,6 @@
 # ShelfDeck 当前计划
 
-更新：2026-09-30。用户已接受Helix Beta Movie全链路阶段成果，并明确开始Series大版本开发。阶段收尾证据为[UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)；唯一活动执行包为[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。不分配新版本名称或Git release tag。
+更新：2026-10-01。用户已接受Helix Beta Movie全链路阶段成果，并明确开始Series大版本开发。阶段收尾证据为[UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)；唯一活动执行包为[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。不分配新版本名称或Git release tag。
 
 ## 范围与顺序
 
@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 已完成 | Movie 阶段文档收尾、用户验收记录、生产基线与历史归档 | UAT-278；保留未关闭 UAT，不新增技术资格总体 PASS |
 | 已完成 | Beta 工程工作区和废弃副本清理 | UAT-280；选定本地/NAS目标完成，源码、用户修改及必要恢复资料保留 |
-| 节点1 / 当前 | 剧集资料与生产基础 | 逐Episode资料/Artifact及原生Workspace/Fact事务已验证；继续上游Series身份、完整调度与长Season容量验证；节点未关闭 |
+| 节点1 / 当前 | 剧集资料与生产基础 | 逐Episode资料/Artifact、Series Product Identity及原生Workspace/Fact事务已验证；继续Routing、完整调度与长Season容量验证；节点未关闭 |
 | 节点2 | 首批剧集完整上架 | 本地E01/E02从Field到唯一Season Entry，真实媒体、正式Handoff/Commit及用户场景验收 |
 | 节点3 | 持续追加与复杂文件映射 | E03追加同Season，旧集保护；重复/重叠/并发、N:M及逐集空间验收 |
 | 节点4 | 完整运营与用户体验 | 外部寻源、恢复、Aftercare/退出及剧集用户旅程；UI负责人验收 |
