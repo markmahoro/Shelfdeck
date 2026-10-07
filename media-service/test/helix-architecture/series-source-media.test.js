@@ -6,8 +6,8 @@ const path = require('node:path');
 const test = require('node:test');
 const {canonicalDigest} = require('../../src/helix/contracts/canonical-json');
 const {createProductionSourceScopeResolver} = require('../../src/helix/domains/libra/planning/production-source-scope-resolver');
-const {sourceMediaObservationWork} = require('../../src/helix/domains/libra/planning/media-production-work');
-const {createWorkspaceMediaProductionPlanner,createWorkspaceMediaProductionProjections,SOURCE_HANDLE} =
+const {sourceMediaObservationWork,directMediaSelectionWork} = require('../../src/helix/domains/libra/planning/media-production-work');
+const {createWorkspaceMediaProductionPlanner,createWorkspaceMediaProductionProjections,SOURCE_HANDLE,DIRECT_CANDIDATE} =
   require('../../src/helix/domains/libra/planning/media-production-planner');
 const {readSourceMediaObservations} = require('../../src/helix/domains/libra/planning/source-media-observations');
 
@@ -21,12 +21,17 @@ function fixture(count=2,profile='series') {
     episodeClaims:profile==='series'?[{episodeKey:'E'+String(index+1).padStart(3,'0'),seasonClaimDigest:D('season'),claimDigest:D(index)}]:[]}));
   const snapshot={run:{libraRunId:'run',executionBasisDigest:D('basis'),acceptanceSpecId:'spec',createdAtMs:1,
     runMaterialManifestId:'manifest',runMaterialManifestDigest:D('manifest'),runScopeDigest:D('scope'),priorityClass:'normal'},
-    spec:{contentProfile:profile,structureKind:profile==='series'?'season':'single',recordDigest:D('spec')},
+    spec:{schemaRef:'libra.acceptance-spec@1',schemaVersion:1,acceptanceSpecId:'spec',specRevision:1,
+      contentProfile:profile,structureKind:profile==='series'?'season':'single',recordDigest:D('spec'),
+      requirements:{mandatoryMedia:{mediaForm:'stream_file',videoCodec:'hevc',container:'any',fileExtension:'any',
+        minimumRasterClass:'none',acceptedPrimaryAudioClasses:[],forbidSystemUpscaleFor4k:true},
+      space:{unit:profile==='series'?'episode':'product',maxSizeGiB:null,maxSizeBytes:null}}},
     materialInputForm:'stream_file',members};
   let current=snapshot,records=[];
   const options={movieProductionReader:{readRun:()=>current,readRunSnapshot:()=>current},
     productProductionPort:{issuePhysicalReadHandle:input=>({handleId:D(input),materialKey:'material-'+input.physicalIdentity.inode,
-      physicalIdentity:input.physicalIdentity,location:input.location,bindingRevision:input.bindingRevision})},
+      physicalIdentity:input.physicalIdentity,location:input.location,bindingRevision:input.bindingRevision,
+      expectedSizeBytes:input.physicalIdentity.sizeBytes,fenceDigest:D(input)})},
     registry:{snapshot:[],resolve:()=>({manifest})},
     policyRegistry:{digest:D('policy'),bindingFor:()=>({retryPolicyRef:'fixture-retry',timeoutPolicyRef:'fixture-timeout'})},
     workResultReader:{read:workId=>{assert.equal(workId,sourceMediaObservationWork(snapshot).workId);return records;}}};
@@ -146,4 +151,81 @@ test('Not-media remains an explicit observation for its exact source member',()=
   const selected=readSourceMediaObservations(value.options,value.snapshot);
   assert.equal(selected[1].record.result.resultKind,'not_media');
   assert.equal(selected[0].record.result.resultKind,'probed');
+});
+
+function directPlan(value) {
+  return createWorkspaceMediaProductionPlanner(value.options).plan({...directMediaSelectionWork(value.snapshot),
+    workAttemptId:'direct-attempt',processId:'run'});
+}
+function directProject(value,parameters) {
+  return createWorkspaceMediaProductionProjections(value.options).find(item=>item.projectionRef===DIRECT_CANDIDATE)
+    .projection.project({ownerScope:{processId:'run'},parameters});
+}
+for(const count of [2,24]) test('Direct verification and selection bind each of '+count+' Series Primaries independently',()=>{
+  const value=fixture(count);value.setRecords(records(value).reverse());
+  const nodes=directPlan(value).nodes;
+  assert.equal(nodes.length,count*2);assert.equal(new Set(nodes.map(node=>node.eventId)).size,count*2);
+  for(let index=0;index<count;index++) {
+    const [verify,select]=nodes.slice(index*2,index*2+2),parameters=verify.inputBindings.bindings[0].parameters;
+    const input=directProject(value,parameters),source=value.resolver.primarySources(value.snapshot)[index];
+    assert.equal(input.sourceProbeEvidence.sourceHandleDigest,canonicalDigest(source.readHandle));
+    assert.equal(input.candidateBasisDigest,canonicalDigest(source.readHandle));
+    const selection=select.inputBindings.bindings[0];
+    assert.deepEqual(select.dependsOn,[{eventId:verify.eventId,satisfaction:'success'}]);
+    assert.equal(selection.eventResults.length,1);assert.equal(selection.eventResults[0].eventId,verify.eventId);
+    assert.equal(selection.parameters.rankedCandidates[0].candidateId,input.candidateId);
+  }
+});
+for(const mutation of ['foreign_work','member_digest','missing_probe','duplicate_probe','foreign_probe','payload','extra_parameter'])
+test('Direct candidate rejects '+mutation+' without choosing the first available Probe',()=>{
+  const value=fixture(),items=records(value),parameters={...directPlan(value).nodes[0].inputBindings.bindings[0].parameters};
+  if(mutation==='foreign_work')parameters.sourceWorkId='foreign-work';
+  if(mutation==='member_digest')parameters.memberDigest=D('stale');
+  if(mutation==='missing_probe')items.pop();
+  if(mutation==='duplicate_probe')items[1]=items[0];
+  if(mutation==='foreign_probe')items[1]={...items[1],result:probe({handleId:'foreign'})};
+  if(mutation==='payload')items[1].result.durationMs=2000;
+  if(mutation==='extra_parameter')parameters.extra=true;
+  value.setRecords(items);assert.throws(()=>directProject(value,parameters));
+});
+test('Direct candidate rejects an old member binding after Owner state changes',()=>{
+  const value=fixture(),parameters=directPlan(value).nodes[0].inputBindings.bindings[0].parameters;
+  value.setRecords(records(value));value.setCurrent({...value.snapshot,members:value.snapshot.members.map(m=>({...m,bindingRevision:2}))});
+  assert.throws(()=>directProject(value,parameters),{code:'LIBRA_PRODUCTION_SOURCE_MEMBER_STALE'});
+});
+test('Movie Direct retains its node names and single candidate identity',()=>{
+  const value=fixture(1,'movie');value.setRecords(records(value));
+  const nodes=directPlan(value).nodes;
+  assert.deepEqual(nodes.map(node=>node.nodeId),['direct_media_verification','direct_output_selection']);
+  const parameters=nodes[0].inputBindings.bindings[0].parameters;
+  assert.deepEqual(Object.keys(parameters),['sourceWorkId']);
+  assert.equal(directProject(value,parameters).candidateNodeId,'direct_input');
+});
+test('N:M Direct verifies each physical member once without inventing bounded aggregate evidence',()=>{
+  const value=fixture();value.snapshot.members[0].episodeClaims.push(value.snapshot.members[1].episodeClaims[0]);
+  value.setRecords(records(value));assert.equal(directPlan(value).nodes.length,4);
+  value.snapshot.spec.requirements.space={unit:'episode',maxSizeGiB:0.75,maxSizeBytes:805306368};
+  assert.throws(()=>directPlan(value),{code:'LIBRA_SERIES_SPACE_AGGREGATION_REQUIRED'});
+});
+test('A failing Episode cannot borrow the passed verification of another Primary',()=>{
+  const {buildProductMediaVerification,selectProductOutput}=require('../../src/helix/domains/libra/model/media-production-contracts');
+  const value=fixture(),items=records(value);
+  items[1].result.videoStreams[0].codec='h264';
+  items[1].result.payloadDigest=canonicalDigest(Object.fromEntries(Object.entries(items[1].result).filter(([key])=>key!=='payloadDigest')));
+  value.setRecords(items);
+  const nodes=directPlan(value).nodes,projections=createWorkspaceMediaProductionProjections(value.options);
+  const selectProjection=projections.find(item=>item.projectionRef.endsWith('/ProductOutputSelectionInput/v1')).projection;
+  const results=[];
+  for(let index=0;index<2;index++) {
+    const [verify,select]=nodes.slice(index*2,index*2+2),input=directProject(value,verify.inputBindings.bindings[0].parameters);
+    const result=buildProductMediaVerification({input,verifiedAtMs:1,playbackVerification:{
+      samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('decode')}});
+    results.push(result);
+    const selected=selectProductOutput({input:selectProjection.project({sourceResults:[{result}],
+      parameters:select.inputBindings.bindings[0].parameters}),producedAtMs:1});
+    assert.equal(result.result,index===0?'passed':'failed');
+    assert.equal(selected.result,index===0?'selected':'not_selected');
+  }
+  assert.throws(()=>selectProjection.project({sourceResults:[{result:results[0]}],
+    parameters:nodes[3].inputBindings.bindings[0].parameters}));
 });

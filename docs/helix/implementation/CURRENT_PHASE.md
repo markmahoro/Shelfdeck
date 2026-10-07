@@ -6,7 +6,9 @@
 
 ## 当前执行位置
 
-2026-10-08工作区整合后，从主工作区 main 接续节点1；已完成身份、逐集资料/Artifact/Fact调度、24集容量和逐Primary源探测。下一段为逐Primary产品验证/加工、Conformance及Product Package关联；节点1未关闭，节点2完整上架尚未完成。既有逐批记录保留为历史，不能将较早的待办描述覆盖后续已完成证据。Movie阶段已收尾，UAT残余独立维护；本次未推进Series功能或生产发布。
+2026-10-08工作区整合后，从主工作区 main 接续节点1；已完成身份、逐集资料/Artifact/Fact调度、24集容量和逐Primary源探测。本批已补逐Primary Direct验证/Selection及小数GiB要求；下一段为Run消费多Selection、逐Primary加工、Conformance及Product Package关联。节点1未关闭，节点2完整上架尚未完成；既有逐批记录保留为历史。Movie阶段已收尾，UAT残余独立维护；本批未生产发布。
+
+2026-10-08节点1增量：[逐Primary Direct验证](evidence/SERIES_DIRECT_MEDIA_20261008.md)。2/24成员独立Verification与Selection已接通，小数GiB及用户确认的共文件均分/多part累加计算核心已实现。Run多Selection消费、加工、Package及N:M最终证据接线仍待完成，节点1保持开放；无生产发布。
 
 ## 目标、Owner 与边界
 
@@ -16,13 +18,15 @@
 
 ## 当前工作项：Series身份与逐集生产接线
 
+2026-10-08接续「逐Primary Direct产品验证」DoR：在既有Libra WorkspaceMediaProduction Planner内，为冻结Run的每个物理Primary形成独立ProductMediaCandidateInput、Verification和Selection；Plan绑定完整member digest，Owner projection重建精确成员与完整Source Probe覆盖，拒绝旧Binding、跨Run Work、缺失/重复/foreign Result。沿SSOT §3.4.4–3.4.6、§5.5.8、§8.6.7及PBF-20，不新增Owner/Capability/全局Store，不改来源、不生产兼容层。先覆盖一集一文件的0.75/1.5 GiB精确上限及2/24个成员调度；用户已确认N:M按文件覆盖集数均分、同集多个part份额相加，写入SSOT §5.5.8并实现精确有理数计算核心；尚未接入typed聚合验收证据，因此有上限的N:M在Direct入口显式返回LIBRA_SERIES_SPACE_AGGREGATION_REQUIRED，不能伪造单集通过。无上限的N:M保持物理成员不重复验证。验证含同一Event Result闭包、负向成员/Probe Fence、Movie单源回归及隔离Host的Direct Work终结；完整Run多Selection消费、Remux/Transcode、Package与Arca Commit另需贯通，不能用本批Direct Work通过关闭节点1或首批上架。没有Series页面/文案交付或生产动作。
+
 2026-10-01接续「Series Routing 与 Run 调度」DoR：Routing只补Policy实际缺失的事实，沿正式Subject及routing-anchor accepted Candidate冻结contentProfile；Series另冻结同一IdentityClaim的explicit positive Season Number。Related只读取所指有界tvshow NFO的Series层事实，不把Episode/actor子节点身份当Series；Provider沿既有Routing Capability查询TV及相同Season，typed Intent/Observation拒绝错误Profile、Season和namespace。Routing得到的Provider Fact不替代正式Product Identity或发布continuity。验证包括实际Owner Context Reader、Integration Adapter、typed schema、排序优先级及原生Work调度至Spec/Run；Series Admin观察入口保持关闭，测试通过Owner观察命令驱动隔离Host。不新增Owner/Handoff/Capability或存量兼容；无用户界面交付、无生产数据动作。
 
 2026-10-01接续「Series身份解析与continuity发布」：沿SSOT §3.4.2、§5.5.3及ResolvedProductIdentity合同，以冻结IdentityClaim的显式positive Season Number、Run execution basis和已有Related/Provider source Work形成closed Series身份Observation；TMDB search/exact必须验证TV对象及对应Season存在。Libra正式Fact保留相同Series/Season tuple，并在同一Domain Fact Commit发布provider_season_identity relation、Subject continuity set及head，不能追溯改写旧Intake或猜测合并。验证覆盖HTTP/typed schema、错误Season/对象/关联、完整Result引用、原生commit/replay/crash rollback与未来Intake匹配。无新Owner、Capability、Handoff或生产副作用；本工作项仍不开放Series页面，manual disambiguation界面后续交UI负责人验收。
 
 - Outcome：以已解析Series/Season tuple和冻结Run交付集形成各集Observation/Draft/Fact，正式Artifact Planner与Sidecar Renderer生成Season及逐集NFO，保持独立Provenance和Related源保护；贯通实际Workspace与Fact事务后接续上游身份和完整调度。尚不开放Series产品入口。
 - Owner与合同：Platform Integration Adapter只观察外部资料；Libra决定来源、Episode交付范围与Profile，并仅写Workspace。沿用SSOT §5.5.3/§5.5.5、§6.4.7.1及既有MetadataFetchIntent/SidecarProfile/ArtifactHandle，不新增Domain或跨域Store。
-- DoR：输入为已有精确resolvedProviderIdentity与有界requestedFields；Sidecar以typedParameters冻结rootElement、Season Number、Episode Number，必须与本集Draft相等。普通Season沿当前positive-number合同；Episode scope使用closed canonical key/数字tuple并与Spec/Manifest逐项相等。S00、N:M计量不以本实现默默定案。
+- DoR：输入为已有精确resolvedProviderIdentity与有界requestedFields；Sidecar以typedParameters冻结rootElement、Season Number、Episode Number，必须与本集Draft相等。普通Season沿当前positive-number合同；Episode scope使用closed canonical key/数字tuple并与Spec/Manifest逐项相等。S00不以本实现默默定案；N:M计量沿2026-10-08用户确认的SSOT规则。
 - Effect/Fence：Provider使用既有IntegrationHandle/Secret Lease、timeout与响应字节上限；Renderer沿用Workspace effect authority、Artifact provenance与受控物理写入。Movie路径保持原冻结输入与行为，不做存量迁移。
 - 验证：真实Adapter逻辑配隔离HTTP fixture，正向Series/Season及负向身份/响应/字段/Fence；Episode NFO生成、更新、错误集号与不完整Profile拒绝、源字节保护；现有Movie TMDB/NFO回归。完整Run/Commit、真实媒体及Linux验证在后续纵向Gate执行。
 
@@ -79,7 +83,7 @@
 | 节点4 | 完整运营与用户体验 / Procurement、Libra、Arca、UI负责人 | 外部实际Episode覆盖、失败/重启、Aftercare/共享材料退出；Season用户旅程、适用状态及UI负责人验收 | 依赖对应纵向能力 |
 | 节点5 | Movie回归与Series发布资格 / 实施、UI与发布责任方 | 冻结SHA的Windows/Linux、真实媒体/浏览器、升级/回退及数据保护；UI验收结论绑定最终受影响版本 | 前述节点完成后执行 |
 
-S00、身份纠正、N:M计量及Episode级恢复在所属节点开工前核对SSOT并满足DoR，不把未知合同藏进实现，也不以节点编号另建全局台账。
+N:M计量规则已确认，完整证据接线仍待节点3验证；S00、身份纠正及Episode级恢复在所属节点开工前核对SSOT并满足DoR，不把未知合同藏进实现，也不以节点编号另建全局台账。
 
 UI门禁适用于每个节点，包括后端生成的用户可见文案：实施前与任务“UI负责人”（`01a0912a-0086-74e2-88ab-536c59d3862a`）协调范围及设计；按Playbook §11.1/§12.3与Movie baseline §7.1的通用UI验收方法实现。沿用现有页面、组件/token和已确认设计规则；Series业务Oracle来自SSOT，不把Series追认进Movie Beta。
 

@@ -30,6 +30,7 @@ const {
   transcodeMediaSelectionWork,
 } = require('./media-production-work');
 const { createProductionSourceScopeResolver } = require('./production-source-scope-resolver');
+const { readSourceMediaObservations } = require('./source-media-observations');
 const { workspaceId } = require('../model/workspace-admission-contracts');
 
 const PROBE = 'shared.material.media.probe@1';
@@ -99,6 +100,25 @@ function planEnvelope(options, request, work, nodes, resolution='planned', diagn
 function transcodeWorkIdentity(workId) {
   const match=/^libra-workspace-media-transcode_(\d+)_(assessment|selection)-work-/.exec(workId);
   return match ? Object.freeze({ordinal:Number(match[1]),kind:match[2]}) : null;
+}
+
+function directCandidateNodeId(snapshot, member) {
+  return snapshot.spec.contentProfile === 'series'
+    ? stable('direct_input_', {materialKey:member.materialKey,memberDigest:canonicalDigest(member)})
+    : 'direct_input';
+}
+
+function directRequirement(snapshot, sources) {
+  const requirement = buildMediaRequirement(snapshot.spec);
+  if (snapshot.spec.contentProfile === 'series' && requirement.space.maxSizeBytes !== null) {
+    const keys = sources.flatMap(item => item.member.episodeClaims.map(claim => claim.episodeKey));
+    if (sources.some(item => item.member.episodeClaims.length !== 1) || new Set(keys).size !== keys.length) {
+      const error = new Error('Bounded N:M Series verification requires complete Episode allocation evidence before per-member selection.');
+      error.code = 'LIBRA_SERIES_SPACE_AGGREGATION_REQUIRED';
+      throw error;
+    }
+  }
+  return requirement;
 }
 
 function literalInput(item, portName) {
@@ -278,20 +298,25 @@ function createWorkspaceMediaProductionPlanner(options) {
       if(snapshot.materialInputForm!=='stream_file')throw new Error('Direct media selection only accepts stream-file input.');
       const sourceScopeResolver=createProductionSourceScopeResolver({movieProductionReader:options.movieProductionReader,
         productionPort:options.productProductionPort});
-      const sourceHandle=sourceScopeResolver.resolve(sourceScopeResolver.referenceFor(snapshot)).primaryReadHandle;
-      const requirement=buildMediaRequirement(snapshot.spec);
+      const sources=sourceScopeResolver.primarySources(snapshot);
+      const requirement=directRequirement(snapshot,sources),isSeries=snapshot.spec.contentProfile==='series';
+      const nodes=sources.flatMap((source,index)=>{
+      const sourceHandle=source.readHandle,candidateNodeId=directCandidateNodeId(snapshot,source.member);
+      const memberParameters=isSeries?{materialKey:source.member.materialKey,memberDigest:canonicalDigest(source.member)}:{};
       const candidateRef=buildPlannedProductCandidateReference({rank:1,candidateKind:'direct_input',
-        candidateNodeId:'direct_input',mediaRequirementDigest:requirement.requirementDigest,
+        candidateNodeId,mediaRequirementDigest:requirement.requirementDigest,
         sourceMaterialHandle:sourceHandle});
-      const verifyEventId=stable('libra-direct-media-verify-event-',{attempt:request.workAttemptId});
-      const selectEventId=stable('libra-direct-media-select-event-',{attempt:request.workAttemptId});
-      const verify=planNode({...options,request,nodeId:'direct_media_verification',eventId:verifyEventId,capabilityRef:VERIFY,
-        inputBindings:[owner('productMediaCandidateInput',request,DIRECT_CANDIDATE,{sourceWorkId:sourceWork.workId})],
+      const verifyEventId=stable('libra-direct-media-verify-event-',{attempt:request.workAttemptId,...memberParameters});
+      const selectEventId=stable('libra-direct-media-select-event-',{attempt:request.workAttemptId,...memberParameters});
+      const verify=planNode({...options,request,nodeId:isSeries?'direct_media_verification_'+index:'direct_media_verification',eventId:verifyEventId,capabilityRef:VERIFY,
+        inputBindings:[owner('productMediaCandidateInput',request,DIRECT_CANDIDATE,{sourceWorkId:sourceWork.workId,...memberParameters})],
         resourceKinds:['cpu','disk_io']});
-      const select=planNode({...options,request,nodeId:'direct_output_selection',eventId:selectEventId,capabilityRef:SELECT,
+      const select=planNode({...options,request,nodeId:isSeries?'direct_output_selection_'+index:'direct_output_selection',eventId:selectEventId,capabilityRef:SELECT,
         inputBindings:[selectionBinding(options,[verifyEventId],[candidateRef])],
         dependsOn:[{eventId:verifyEventId,satisfaction:'success'}],resourceKinds:['cpu']});
-      return planEnvelope({plannerContractRef,catalogDigest},request,directWork,[verify,select]);
+      return [verify,select];
+      });
+      return planEnvelope({plannerContractRef,catalogDigest},request,directWork,nodes);
     }
     if(request.workId===remuxWork.workId){
       const sourceScopeResolver=createProductionSourceScopeResolver({movieProductionReader:options.movieProductionReader,
@@ -428,9 +453,22 @@ function createWorkspaceMediaProductionProjections(options) {
       return sourceScopeResolver.primarySource(value,parameters).readHandle;
     }})}),
     Object.freeze({projectionRef:DIRECT_CANDIDATE,projection:Object.freeze({project:({ownerScope,parameters})=>{
-      const value=snapshot(ownerScope),handle=source(value).primaryReadHandle,probe=sourceProbe(value,parameters.sourceWorkId);
-      return buildProductMediaCandidateInput({libraRunId:value.run.libraRunId,candidateNodeId:'direct_input',candidateKind:'direct_input',
-        mediaRequirement:buildMediaRequirement(value.spec),sourceMaterialHandle:handle,sourceProbeEvidence:probe});
+      const value=snapshot(ownerScope);
+      if(parameters.sourceWorkId!==sourceMediaObservationWork(value).workId)
+        throw new Error('Direct Candidate must reference the exact frozen Run Source Work.');
+      const {sourceWorkId,...memberParameters}=parameters;
+      const frozen=value.spec.contentProfile==='series'?sourceScopeResolver.primarySource(value,memberParameters):null;
+      const sources=readSourceMediaObservations(options,value);
+      let selected;
+      if(value.spec.contentProfile==='series') {
+        selected=sources.find(item=>item.member.materialKey===frozen.member.materialKey);
+      } else {
+        if(Object.keys(memberParameters).length)throw new Error('Single Direct Candidate cannot carry Series member parameters.');
+        selected=sources[0];
+      }
+      return buildProductMediaCandidateInput({libraRunId:value.run.libraRunId,
+        candidateNodeId:directCandidateNodeId(value,selected.member),candidateKind:'direct_input',
+        mediaRequirement:directRequirement(value,sources),sourceMaterialHandle:selected.readHandle,sourceProbeEvidence:selected.record.result});
     }})}),
     Object.freeze({projectionRef:SOURCE_SCOPE,projection:Object.freeze({project:({ownerScope})=>sourceReference(snapshot(ownerScope))})}),
     Object.freeze({projectionRef:REMUX_INTENT,projection:Object.freeze({project:({ownerScope})=>remuxIntent(snapshot(ownerScope))})}),

@@ -63,8 +63,11 @@ function buildMediaRequirement(spec) {
   const mandatoryMedia=JSON.parse(canonicalJson(requirements.mandatoryMedia)),space=JSON.parse(canonicalJson(requirements.space));
   sortedUnique(mandatoryMedia.acceptedPrimaryAudioClasses, 'acceptedPrimaryAudioClasses');
   const hasLimit=space.maxSizeGiB!==null||space.maxSizeBytes!==null;
+  const validGiB=spec.contentProfile==='series'
+    ?Number.isFinite(space.maxSizeGiB)&&space.maxSizeGiB>0
+    :Number.isSafeInteger(space.maxSizeGiB)&&space.maxSizeGiB>=1;
   if((space.maxSizeGiB===null)!==(space.maxSizeBytes===null)||
-      (hasLimit&&(!Number.isSafeInteger(space.maxSizeGiB)||space.maxSizeGiB<1||space.maxSizeBytes!==space.maxSizeGiB*1073741824)))
+      (hasLimit&&(!validGiB||!Number.isSafeInteger(space.maxSizeBytes)||space.maxSizeBytes!==space.maxSizeGiB*1073741824)))
     fail('P9_MEDIA_REQUIREMENT_SPACE','Media Requirement space limit is not exact.');
   const result = { requirementId:'', revision:integer(spec.specRevision, 'specRevision', 1), schemaRef:'MediaRequirement@1',
     acceptanceSpecId:text(spec.acceptanceSpecId, 'acceptanceSpecId'), acceptanceSpecRecordDigest:digest(spec.recordDigest, 'recordDigest'),

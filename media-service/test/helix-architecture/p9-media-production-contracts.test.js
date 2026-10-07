@@ -44,6 +44,17 @@ function spec(){return {schemaRef:'libra.acceptance-spec@1',schemaVersion:1,acce
   contentProfile:'movie',structureKind:'single',requirements:{mandatoryMedia:{mediaForm:'stream_file',videoCodec:'hevc',container:'matroska',
     fileExtension:'mkv',minimumRasterClass:'none',acceptedPrimaryAudioClasses:['truehd'],forbidSystemUpscaleFor4k:true},
   space:{unit:'product',maxSizeGiB:1,maxSizeBytes:1073741824}}};}
+for(const limit of [0.75,1.5])test('Series fractional GiB limit remains exact in the typed MediaRequirement: '+limit,()=>{
+  const value=spec();value.contentProfile='series';value.structureKind='season';
+  value.requirements.space={unit:'episode',maxSizeGiB:limit,maxSizeBytes:limit*1073741824};
+  valid('helix://contracts/domain-types/MediaRequirement/v1',media.buildMediaRequirement(value));
+  value.requirements.space.maxSizeBytes++;
+  assert.throws(()=>media.buildMediaRequirement(value),{code:'P9_MEDIA_REQUIREMENT_SPACE'});
+});
+test('Movie media requirement retains its integer GiB contract',()=>{
+  const value=spec();value.requirements.space={unit:'product',maxSizeGiB:0.75,maxSizeBytes:805306368};
+  assert.throws(()=>media.buildMediaRequirement(value),{code:'P9_MEDIA_REQUIREMENT_SPACE'});
+});
 function source(){return valid('helix://contracts/types/PhysicalMaterialReadHandle/v1',{schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,handleId:D('source-handle'),
   identity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:D('material'),mountScopeId:'mount-1',inode:'1',
     sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('source-bytes')},ownerDomain:'libra',ownerScope:{scopeType:'libra_run',scopeId:'run-1'},

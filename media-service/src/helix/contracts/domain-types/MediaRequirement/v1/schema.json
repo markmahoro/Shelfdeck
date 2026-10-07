@@ -130,8 +130,8 @@
         "maxSizeGiB": {
           "anyOf": [
             {
-              "type": "integer",
-              "minimum": 1
+              "type": "number",
+              "exclusiveMinimum": 0
             },
             {
               "type": "null"

@@ -180,7 +180,7 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata, artifacts and every source Primary Probe', {timeout:60000},async t=>{
+for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and independent Direct verification and selection', {timeout:60000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source','Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
@@ -194,6 +194,12 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
   const adapter=harness(),providerCalls=[];let unitOfWork,runtimeError,db;
   const poster=await sharp({create:{width:4,height:6,channels:3,background:'#224466'}}).jpeg().toBuffer();
   const host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,mediaProbe:mediaProbe(),
+    mediaProductionEffectPort:{
+      async verifyPlayback(){return {samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('fixture-decode')};},
+      async executeRemux(){throw new Error('Direct fixture must not Remux.');},
+      async executeTranscode(){throw new Error('Direct fixture must not Transcode.');},
+      async verifyTranscodeInput(){throw new Error('Direct fixture must not assess Transcode.');},
+    },
     unitOfWorkDecorator(value){unitOfWork=value;return value;},
     routingIntegrationHandleResolver:request=>handle(request.operationId),
     routingProviderObservation:request=>{providerCalls.push(request);return adapter.observe(request);},
@@ -246,9 +252,9 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
       specs:db.prepare('SELECT * FROM libra_acceptance_specs').all(),runs:db.prepare('SELECT * FROM libra_runs').all(),
       works:db.prepare('SELECT work_id,work_kind,state FROM fx_supporting_works').all(),
       facts:db.prepare('SELECT fact_kind,fact_json FROM libra_product_fact_revisions').all()};
-    // Stop at the bounded source Work. Downstream multi-Primary media selection
-    // and Package assembly are subsequent development work.
-    if(state.works.some(work=>work.work_id.startsWith('libra-workspace-media-source_observation-work-')&&work.state==='succeeded')||
+    // Stop at Direct Work completion; Run-level selection aggregation and
+    // Package assembly remain independent downstream development gates.
+    if(state.works.some(work=>work.work_id.startsWith('libra-workspace-media-direct_selection-work-')&&work.state==='succeeded')||
         state.works.some(work=>work.state==='failed'))break;
     assert.ifError(runtimeError);
     await new Promise(resolve=>setTimeout(resolve,25));
@@ -261,7 +267,18 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
   const sourceWork=state.works.find(work=>work.work_id.startsWith('libra-workspace-media-source_observation-work-'));
   assert.equal(sourceWork?.state,'succeeded',JSON.stringify(state.works));
   const sourceSnapshot=createMovieProductionReader({schemaManifest,unitOfWork}).readRunSnapshot(state.runs[0].libra_run_id);
+  const directWork=state.works.find(work=>work.work_id.startsWith('libra-workspace-media-direct_selection-work-'));
+  assert.equal(directWork?.state,'succeeded',JSON.stringify({works:state.works,events:db.prepare(
+    'SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
   await host.close();
+  const directResults=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-direct-media-verify-event-%'").all()
+    .map(item=>JSON.parse(item.result_json));
+  const selections=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-direct-media-select-event-%'").all()
+    .map(item=>JSON.parse(item.result_json));
+  assert.equal(directResults.length,episodeCount);assert.equal(selections.length,episodeCount);
+  assert.equal(new Set(directResults.map(item=>item.productMaterialHandleDigest)).size,episodeCount);
+  for(const result of directResults)assert.equal(result.result,'passed',JSON.stringify(result));
+  assert.deepEqual(selections.map(item=>item.selectedVerificationId).sort(),directResults.map(item=>item.verificationId).sort());
   const sourceProbes=db.prepare("SELECT event_id,result_json,result_digest FROM fx_event_result_bindings WHERE event_id LIKE 'libra-source-media-probe-event-%'").all();
   assert.equal(sourceProbes.length,episodeCount);
   for(const item of sourceProbes) {

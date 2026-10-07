@@ -1284,7 +1284,7 @@ function acceptanceRequirementSetSchema() {
     container: enumText('any', 'matroska'), fileExtension: enumText('any', 'mkv'), minimumRasterClass: enumText('none', '4k'),
     acceptedPrimaryAudioClasses: arrayOf(enumText('eac3_atmos', 'truehd', 'truehd_atmos', 'dts_hd_ma', 'dts_x'), 5),
     forbidSystemUpscaleFor4k: bool() });
-  const space = object({ unit: enumText('product', 'episode'), maxSizeGiB: nullablePositiveInteger(), maxSizeBytes: nullablePositiveInteger() });
+  const space = object({ unit: enumText('product', 'episode'), maxSizeGiB: nullable({type:'number',exclusiveMinimum:0}), maxSizeBytes: nullablePositiveInteger() });
   const inventory = object({ requireDomainBinding: bool(), requireChecksum: bool(),
     requiredMaterializedArtifactKinds: arrayOf(enumText('nfo', 'poster', 'fanart'), 3), layoutModel: enumText('single', 'season_episode') });
   return object({ identity, structure, metadata, mandatoryMedia, space, inventory });

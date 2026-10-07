@@ -3800,6 +3800,14 @@ Series不能使用整个Season的总空间上限作为Acceptance阻断条件。�
 Manifest不重叠的Libra Run持续扩充；每个Run只验收自己Manifest内Episode的空间要求。Season aggregate
 size可以作为统计、容量预测或用户展示，但不能使新增Episode反向改变已经Accepted Episode的空间结论。
 
+2026-10-08用户确认Series N:M空间归属：每个最终Primary物理文件的字节数按其完整Episode Claim Set的
+distinct Episode数量均分；同一Episode由多个part或其他Primary承载时，将各文件分配给该Episode的份额相加。
+即`episodeBytes(e)=Σ(sizeBytes(m)/|episodeClaims(m)|)`，求和只取本Run最终Product Manifest中覆盖该Episode的
+不同物理Primary；不可重复计入同一材料，不以整个Season总量或单个part大小替代逐集结论。
+比较使用精确有理数字节数，不逐文件向下取整、不按时长猜测分摊；任何份额之和严格超过该Episode上限即不通过。
+Source/候选阶段可据冻结成员估算，但最终验收必须从本次最终Product成员及完整Claim Set重建，不能沿用加工前大小。
+此规则不要求拆分共文件，不改变Episode relation、Physical Material identity、Owner或Handoff。
+
 JAV Beta推荐Template按每个single验收`maxSizeGB=2 GiB`，Western Adult推荐Template按每个single验收
 `maxSizeGB=1 GiB`。两项初始规则都不受User Perception评分影响；已经更小且满足其余Requirement的文件
 不得为贴近上限而扩大。
