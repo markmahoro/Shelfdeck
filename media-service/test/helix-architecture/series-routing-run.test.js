@@ -182,14 +182,14 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts} of [{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:180000},async t=>{
+for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed} of [{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:180000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
   fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
   const episodeNumbers=Array.from({length:episodeCount},(_,index)=>index+1);
   const episodeKeys=episodeNumbers.map(number=>'E'+String(number).padStart(3,'0'));
-  const sources=parts?[1,2].map(part=>path.join(source,'Demo Show.S01E01.part'+part+'.mkv')):shared?[path.join(source,'Demo Show.S01E01-02.mkv')]:episodeNumbers.map(number=>path.join(source,'Demo Show.S01E'+String(number).padStart(2,'0')+'.mkv'));
+  const sources=parts?[1,2].map(part=>path.join(source,'Demo Show.S01E01.part'+part+'.mkv')):shared?[path.join(source,'Demo Show.S01E01-02.mkv')]:episodeNumbers.map(number=>path.join(source,'Demo Show.S01E'+String(number).padStart(2,'0')+(mixed&&number===2?'.mp4':'.mkv')));
   const physicalCount=sources.length,perEpisodeCap=parts?48:shared?12:24;
   sources.forEach(file=>fs.writeFileSync(file,'read-only-series-fixture'));
   if(concurrent){
@@ -203,7 +203,18 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts} of [{ep
   const host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,mediaProbe:mediaProbe(),
     mediaProductionEffectPort:{
       async verifyPlayback(){return {samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('fixture-decode')};},
-      async executeRemux(){throw new Error('Direct fixture must not Remux.');},
+      async executeRemux(request){
+        assert.ok(mixed,'Direct fixture must not Remux.');
+        assert.equal(request.source.primaryMembers.length,1);
+        assert.ok(request.source.primaryReadHandle.location.endsWith('S01E02.mp4'));
+        const port=require('../../src/clean-workspace-product-port').createCleanWorkspaceProductPort({schemaManifest,unitOfWork,
+          rootPath:path.join(dataDir,'workspaces','libra')});
+        const target=request.outputTarget;
+        return port.materializeMedia({libraRunId:target.libraRunId,workspaceId:target.workspaceId,relativePath:target.targetRelativePath,
+          intentDigest:request.productionIntent.intentDigest,idempotencyKey:request.idempotencyKey,effectScopeDigest:target.effectScopeDigest,
+          outputTargetId:target.targetId,outputTargetDigest:target.targetDigest,runtimeEffectAuthority:request.runtimeEffectAuthority,
+          async produce(temporaryTarget){fs.copyFileSync(request.source.primaryReadHandle.location,temporaryTarget);}});
+      },
       async executeTranscode(){throw new Error('Direct fixture must not Transcode.');},
       async verifyTranscodeInput(){throw new Error('Direct fixture must not assess Transcode.');},
     },
@@ -270,7 +281,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts} of [{ep
   }
   await request('POST','/v1/admin/settings/automatic-operation/actions/enable-full', {
     idempotencyKey:'series-settlement',expectedRevision:0,coverExclusiveRelatedInput:true});
-  const policyValue={includedDirectories:[],excludedDirectories:[],allowedExtensions:['.mkv'],minimumSizeBytes:0,excludedMaterialKeys:[]};
+  const policyValue={includedDirectories:[],excludedDirectories:[],allowedExtensions:mixed?['.mkv','.mp4']:['.mkv'],minimumSizeBytes:0,excludedMaterialKeys:[]};
   const access={fieldId:'series-field',revision:1,endpointId:'series-endpoint',rootLocation:path.join(root,'source'),
     mountScopeId:'series-mount',mountScopeRevision:1,accessSchemaRef:'helix://fixtures/series-field-access/v1'};
   await request('POST','/v1/admin/material-fields',{idempotencyKey:'series-register',fieldId:'series-field',name:'Series fixture',
@@ -279,7 +290,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts} of [{ep
       policyDigest:canonicalDigest({extractionPolicyId:'series-policy',revision:1,...policyValue})},
     access:{...access,accessDigest:canonicalDigest(access)}});
   let ruleTemplateId='system-beta-recommended',expectedTemplateRevision=1;
-  if(bounded){
+  if(bounded||mixed){
     ruleTemplateId='series-bounded-template';expectedTemplateRevision=2;
     await request('POST','/v1/admin/rule-templates/system-beta-recommended/actions/copy',{
       idempotencyKey:'bounded-copy',sourceTemplateId:'system-beta-recommended',newTemplateId:ruleTemplateId,
@@ -287,7 +298,8 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts} of [{ep
     const draft=(await request('GET','/v1/admin/rule-templates/'+ruleTemplateId+'/draft')).json().draft;
     const rules=structuredClone(draft.rules),profile=rules.profileRuleSets.find(item=>item.contentProfile==='series');
     for(const requirements of [profile.baseRequirements,...profile.decisionBranches.map(item=>item.requirements)]){
-      requirements.space={unit:'episode',maxSizeGiB:perEpisodeCap/1073741824,maxSizeBytes:perEpisodeCap};
+      if(bounded)requirements.space={unit:'episode',maxSizeGiB:perEpisodeCap/1073741824,maxSizeBytes:perEpisodeCap};
+      if(mixed)requirements.mandatoryMedia.fileExtension='mkv';
     }
     profile.profileRuleSetDigest=canonicalDigest(Object.fromEntries(Object.entries(profile).filter(([key])=>key!=='profileRuleSetDigest')));
     const rulesDigest=canonicalDigest(rules);
@@ -400,9 +412,10 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts} of [{ep
   for(const item of readSet.primaryInputs) {
     const member=primary.find(row=>row.material_key===item.materialKey);
     assert.ok(member);assert.equal(item.productMemberDigest,member.member_digest);
-    assert.equal(item.productMediaVerification.result,'passed');assert.equal(item.samePhysicalMaterial,true);
+    assert.equal(item.productMediaVerification.result,'passed');assert.equal(item.samePhysicalMaterial,!item.sourceReadHandle.location.endsWith('.mp4'));
     assert.equal(item.productReadHandleDigest,canonicalDigest(item.productReadHandle));
-    assert.equal(item.sourceReadHandleDigest,item.productReadHandleDigest);
+    if(item.samePhysicalMaterial)assert.equal(item.sourceReadHandleDigest,item.productReadHandleDigest);
+    else assert.notEqual(item.sourceReadHandleDigest,item.productReadHandleDigest);
   }
   const conformance=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-product-conformance-event-%'").all();
   assert.equal(conformance.length,1);assert.equal(JSON.parse(conformance[0].result_json).result,'passed');
@@ -412,8 +425,26 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts} of [{ep
     .map(item=>JSON.parse(item.result_json));
   assert.equal(directResults.length,physicalCount);assert.equal(selections.length,physicalCount);
   assert.equal(new Set(directResults.map(item=>item.productMaterialHandleDigest)).size,physicalCount);
-  for(const result of directResults)assert.equal(result.result,'passed',JSON.stringify(result));
-  assert.deepEqual(selections.map(item=>item.selectedVerificationId).sort(),directResults.map(item=>item.verificationId).sort());
+  if(mixed) {
+    assert.equal(directResults.filter(item=>item.result==='failed').length,1);
+    assert.equal(selections.filter(item=>item.result==='selected').length,1);
+    const final=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-series-final-verify-event-%'").all();
+    assert.equal(final.length,2);assert.ok(final.every(item=>JSON.parse(item.result_json).result==='passed'));
+    assert.equal(readSet.primaryInputs.filter(item=>!item.samePhysicalMaterial).length,1);
+    const offload=db.prepare("SELECT * FROM libra_offload_context_materials WHERE context_role='original_input'").all();
+    assert.equal(offload.length,2);
+    for(const item of offload) {
+      const processed=item.location.endsWith('.mp4');
+      assert.equal(item.disposition_kind,processed?'replaced_and_settled':'carried_forward');
+      assert.equal(item.settlement_expectation,processed?'remove_after_place':'replace_or_move');
+      assert.ok(primary.some(member=>member.material_key===item.final_product_material_key));
+      if(processed)assert.notEqual(item.final_product_material_key,item.material_key);
+      else assert.equal(item.final_product_material_key,item.material_key);
+    }
+  } else {
+    for(const result of directResults)assert.equal(result.result,'passed',JSON.stringify(result));
+    assert.deepEqual(selections.map(item=>item.selectedVerificationId).sort(),directResults.map(item=>item.verificationId).sort());
+  }
   const sourceProbes=db.prepare("SELECT event_id,result_json,result_digest FROM fx_event_result_bindings WHERE event_id LIKE 'libra-source-media-probe-event-%'").all();
   assert.equal(sourceProbes.length,physicalCount);
   for(const item of sourceProbes) {

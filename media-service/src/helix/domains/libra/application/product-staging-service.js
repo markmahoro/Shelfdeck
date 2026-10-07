@@ -1,6 +1,6 @@
 'use strict';
 
-const { readDirectMediaSelections } = require('../planning/direct-media-selections');
+const { readSeriesMediaSelections } = require('../planning/series-production-candidates');
 
 const { canonicalDigest, canonicalJson } =
   require('../../../contracts/canonical-json');
@@ -215,10 +215,15 @@ function createProductStagingService(options) {
     }
 
     if(snapshot.spec.contentProfile==='series') {
-      const members=readDirectMediaSelections(options,snapshot,selectedWork.workId);
+      const members=readSeriesMediaSelections(options,snapshot,selectedWork.workId);
       if(members.some(item=>item.selection.result!=='selected')) throw new Error('Every Series Primary requires a selected output before staging.');
+      for(const item of members.filter(item=>item.media)) {
+        const verification=mediaVerificationSnapshot(snapshot.run.libraRunId,item.media,item.verification,null);
+        const result=ensureReference(snapshot,workspaceId,item.media.workspaceMaterialHandle,item.member.episodeClaims,verification);
+        workspace=result.workspace;staged.push(result.reference);
+      }
       return Object.freeze({workspace,productStagingReferences:Object.freeze(staged),artifactContext,
-        selectedWorkResults:Object.freeze(members.flatMap(item=>[item.verificationRecord,item.selectionRecord]))});
+        selectedWorkResults:Object.freeze(members.flatMap(item=>item.results))});
     }
 
     const results = options.workResultReader.read(selectedWork.workId)

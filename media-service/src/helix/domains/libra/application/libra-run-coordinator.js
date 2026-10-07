@@ -2,6 +2,7 @@
 const { candidateSeriesAnchor } = require('../model/series-identity-contracts');
 
 const { readDirectMediaSelections } = require('../planning/direct-media-selections');
+const {readSeriesProductionCandidates,readSeriesMediaSelections,candidateSetDigest}=require('../planning/series-production-candidates');
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
@@ -9,7 +10,7 @@ const { createWorkspaceAdmissionStore } = require('../persistence/workspace-admi
 const { buildSpaceAdmissionRequest, buildWorkspaceAdmissionDecision, requiredFreeBytes, workspaceId } =
   require('../model/workspace-admission-contracts');
 const { directMediaSelectionWork, remuxMediaSelectionWork, sourceMediaObservationWork,
-  transcodeMediaSelectionWork,transcodeStrategyAssessmentWork } = require('../planning/media-production-work');
+  transcodeMediaSelectionWork,transcodeStrategyAssessmentWork,seriesFinalSelectionWork } = require('../planning/media-production-work');
 const { readSourceMediaObservations } = require('../planning/source-media-observations');
 const { createProductStagingService } = require('./product-staging-service');
 const { productConformanceWork, deliverablePromotionWork } =
@@ -123,18 +124,18 @@ function createLibraRunCoordinator(options){
     const replayDefinition=definitionForReplay(work,existing);
     return admission.replay(replayDefinition)||admission.submit(work);
   }
-  function attachWorkingHandle(snapshot, workspace, handle) {
+  function attachWorkingHandle(snapshot, workspace, handle, claims = snapshot.episodeClaims) {
     if (!handle?.handleId) return;
     productStaging.ensureWorking(snapshot, workspace.workspaceId, handle,
-      Object.freeze(snapshot.episodeClaims || []));
+      Object.freeze(claims || []));
   }
-  function attachWorkspaceOutputs(snapshot, workspace, work) {
+  function attachWorkspaceOutputs(snapshot, workspace, work, member) {
     const results = options.workResultReader.read(work.workId)
       .filter((item) => item.outcomeKind === 'succeeded');
     for (const item of results) {
       attachWorkingHandle(snapshot, workspace,
         item.result?.workspaceMaterialHandle ||
-        item.result?.workspaceMediaHandle?.workspaceMaterialHandle);
+        item.result?.workspaceMediaHandle?.workspaceMaterialHandle,member?.episodeClaims || snapshot.episodeClaims);
     }
   }
   function attachArtifactOutputs(snapshot, workspace) {
@@ -486,6 +487,48 @@ function createLibraRunCoordinator(options){
     }
     return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
   }
+  function ensureSeriesSelection(snapshot,workspace) {
+    const pending=(work,phase,submitted)=>Object.freeze({kind:'pending',phase,libraRunId:snapshot.run.libraRunId,
+      workId:work.workId,replayed:submitted.replayed,workspaceId:workspace.workspaceId});
+    let candidates=readSeriesProductionCandidates(options,snapshot);
+    for(const candidate of candidates) {
+      if(candidate.eligible)continue;
+      const member=candidate.member;
+      if(onlyRemuxGapFromVerification(candidate.verification)) {
+        const work=remuxMediaSelectionWork(snapshot,member),submitted=submit(work),status=options.workResultReader.status(work.workId);
+        if(!workSucceeded(status))return workFailed(status)?terminalWork(snapshot,work,status):pending(work,'workspace_media_remux_selection',submitted);
+        attachWorkspaceOutputs(snapshot,workspace,work,member);
+        if(readSeriesProductionCandidates(options,snapshot).find(item=>item.member.materialKey===member.materialKey).eligible)continue;
+      }
+      let eligible=false,lastWork=null,lastRecord=null;
+      for(let ordinal=1;ordinal<=64;ordinal++) {
+        const assessment=transcodeStrategyAssessmentWork(snapshot,ordinal,member),submitted=submit(assessment),
+          status=options.workResultReader.status(assessment.workId);
+        if(!workSucceeded(status)) {
+          if(!workFailed(status))return pending(assessment,'transcode_strategy_assessment',submitted);
+          return terminalWork(snapshot,assessment,status);
+        }
+        const record=externalResultRecord(assessment,'libra.transcode.input.verify@1');lastWork=assessment;lastRecord=record;
+        if(record.result.disposition==='integrity_rejected')return freezeBusinessTerminal(snapshot,assessment,record,'source_integrity_rejected');
+        if(record.result.disposition==='strategy_rejected')continue;
+        if(record.result.disposition!=='compatible')throw new Error('Series Assessment has an invalid disposition.');
+        const work=transcodeMediaSelectionWork(snapshot,ordinal,member),workSubmitted=submit(work),workStatus=options.workResultReader.status(work.workId);
+        if(!workSucceeded(workStatus))return workFailed(workStatus)?terminalWork(snapshot,work,workStatus):pending(work,'workspace_media_transcode_selection',workSubmitted);
+        attachWorkspaceOutputs(snapshot,workspace,work,member);
+        if(readSeriesProductionCandidates(options,snapshot).find(item=>item.member.materialKey===member.materialKey).eligible){eligible=true;break;}
+        lastWork=work;lastRecord=mediaVerificationRecord(work);
+      }
+      if(!eligible)return freezeBusinessTerminal(snapshot,lastWork,lastRecord,'media_device_strategies_exhausted');
+    }
+    candidates=readSeriesProductionCandidates(options,snapshot);
+    for(const candidate of candidates.filter(item=>item.media))attachWorkspaceOutputs(snapshot,workspace,candidate.work,candidate.member);
+    const work=seriesFinalSelectionWork(snapshot,candidateSetDigest(candidates),candidates.map(item=>item.work)),
+      submitted=submit(work),status=options.workResultReader.status(work.workId);
+    if(!workSucceeded(status))return workFailed(status)?terminalWork(snapshot,work,status):pending(work,'workspace_media_final_selection',submitted);
+    const rejected=readSeriesMediaSelections(options,snapshot,work.workId).find(item=>item.selection.result!=='selected');
+    if(rejected)return freezeBusinessTerminal(snapshot,work,rejected.verificationRecord,rejected.verification.reasonCodes[0]||'product_output_rejected');
+    return ensureDelivery(snapshot,workspace,work);
+  }
   function ensureWorkspace(snapshot) {
     const id=workspaceId(snapshot.run.libraRunId),existing=options.movieProductionReader.readWorkspace(id);
     if(existing)return existing;
@@ -768,6 +811,7 @@ function createLibraRunCoordinator(options){
     if(snapshot.spec.contentProfile==='series') {
       const members=readDirectMediaSelections(options,snapshot,direct.workId);
       if(members.every(item=>item.selection.result==='selected')) return ensureDelivery(snapshot,workspace,direct);
+      return ensureSeriesSelection(snapshot,workspace);
     }
     const selection=selectedOutput(direct);
     if(selection.result!=='selected' && onlyRemuxGapFromVerification(mediaVerification(direct))){

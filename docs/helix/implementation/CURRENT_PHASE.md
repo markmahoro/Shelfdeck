@@ -143,3 +143,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08成员Transcode DoR：Planner按成员Work精确选择Source Handle/Probe、同成员Assessment/Selection历史和独立输出；Selection逐字节复用已通过Assessment的Intent/Device/输入证据，拒绝跨成员历史。Series有界文件预算由完整冻结源集合按各集当前字节份额比例分配，取该文件所覆盖各集的最紧约束并向下取整；此为Libra生产规划预算，不修改逐集Acceptance Spec，质量下限仍按原单集Policy，最终完整混合成品必须独立逐集复验。沿既有typed Intent/Plan binding、Workspace fence与一Event一策略，不新建Owner或业务对象。验证N:M预算守恒/精度/零输入不可规划、策略历史隔离、source/Intent/Device错误拒绝与Movie回归；Run自动调度及完整交付后续接通。
 
 2026-10-08成员Transcode Planner结果：[规划Evidence](evidence/SERIES_MEMBER_TRANSCODE_PLANNING_20261008.md)。成员源与策略历史、精确Assessment复用、共享/part物理预算及原单集质量下限通过专项和全架构验证。下一段为Coordinator成员Work提交/恢复和完整混合成品选择、Staging、Conformance/Promotion汇合；尚未真实Series加工实链或发布，节点保持开放。
+
+2026-10-08混合成品汇合DoR：Coordinator沿完整冻结Primary集合逐成员调度Remux/Transcode，Working Reference只携带该源成员Episode Claims。新增同类Supporting Work的最终集合验证阶段，identity/dependencies绑定完整候选集合及持久Result digest；复用既有Verify/Select Capability，所有候选在完整实际混合集合上重算份额后才允许Staging/Conformance/Promotion。中间Workspace候选若仅受其他待处理part导致的聚合超限影响，只有实际文件已满足自身保守预算且其他质量/解码均通过时可作为待终检材料，不伪造passed Selection。交付逐成员建立源→成品关联与源结算，禁止首结果借用/整Run统一carried-forward或replaced。验证混合链路、缺集/foreign/重复/改写集合、正确Episode映射、重放和源保护；不改变Owner/Handoff或NAS数据。
+
+2026-10-08混合候选终检/交付增量见[Evidence](evidence/SERIES_MIXED_FINAL_SELECTION_20261008.md)：逐成员调度、完整实际集合Verify/Select及Staging/Conformance/Promotion已接通；隔离Direct+Remux两集到唯一Season上架与逐源结算通过。受控Effect不等于真实FFmpeg；完整Transcode Host、逐成员外部寻源、恢复/运营、UI/Linux和发布资格继续，节点保持开放。

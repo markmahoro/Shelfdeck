@@ -33,13 +33,14 @@ function memberBasis(snapshot, member) {
   return Object.freeze({materialKey:member.materialKey,memberDigest:canonicalDigest(member)});
 }
 
-function definition(snapshot, stage, outputContractRef, dependencies = [], member) {
+function definition(snapshot, stage, outputContractRef, dependencies = [], member, extraBasis = {}) {
   const primary=memberBasis(snapshot,member);
   const basis = {
     libraRunId: snapshot.run.libraRunId,
     executionBasisDigest: snapshot.run.executionBasisDigest,
     acceptanceSpecId: snapshot.run.acceptanceSpecId,
     stage,
+    ...extraBasis,
     ...(primary?{primary}:{}),
   };
   return Object.freeze({
@@ -102,7 +103,17 @@ function transcodeStrategyAssessmentWork(snapshot,strategyOrdinal,member){
   return definition(snapshot,'transcode_'+strategyOrdinal+'_assessment',TRANSCODE_INPUT_VERIFICATION_RESULT,dependencies,member);
 }
 
+function seriesFinalSelectionWork(snapshot,candidateSetDigest,sourceWorks) {
+  if(snapshot.spec.contentProfile!=='series'||!/^[a-f0-9]{64}$/.test(candidateSetDigest)||!sourceWorks.length||
+      sourceWorks.some(work=>work.processId!==snapshot.run.libraRunId||work.ownerDomain!=='libra'))
+    throw new TypeError('Final Series Work requires the complete same-Run candidate basis.');
+  const dependencies=[...new Map(sourceWorks.map(work=>[work.workId,work])).values()]
+    .sort((a,b)=>Buffer.from(a.workId).compare(Buffer.from(b.workId)));
+  return definition(snapshot,'series_final_selection',SELECTED_OUTPUT_RESULT,dependencies,undefined,{candidateSetDigest});
+}
+
 module.exports = Object.freeze({
+  seriesFinalSelectionWork,
   PROBE_RESULT,
   SELECTED_OUTPUT_RESULT,
   TRANSCODE_INPUT_VERIFICATION_RESULT,

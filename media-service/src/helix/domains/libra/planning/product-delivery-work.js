@@ -100,6 +100,19 @@ function deliverablePromotionWork(
 }
 
 function findSelectedMediaWork(options, snapshot) {
+  if(snapshot.spec?.contentProfile==='series') {
+    const {readSeriesProductionCandidates,candidateSetDigest,readSeriesMediaSelections}=require('./series-production-candidates');
+    const {directMediaSelectionWork,seriesFinalSelectionWork}=require('./media-production-work');
+    const candidates=readSeriesProductionCandidates(options,snapshot);
+    const work=candidates.every(item=>item.eligible&&!item.media)?directMediaSelectionWork(snapshot):
+      seriesFinalSelectionWork(snapshot,candidateSetDigest(candidates),candidates.map(item=>item.work));
+    const completed=options.workResultReader.listWorks({ownerDomain:'libra',processType:'libra_run',
+      processId:snapshot.run.libraRunId,workKind:'workspace_media_production'})
+      .some(item=>item.work_id===work.workId&&item.state==='succeeded');
+    if(!completed||readSeriesMediaSelections(options,snapshot,work.workId).some(item=>item.selection.result!=='selected'))
+      throw new Error('Series delivery requires the complete terminal selected media Work.');
+    return work;
+  }
   const candidates = options.workResultReader.listWorks({
     ownerDomain: 'libra',
     processType: 'libra_run',

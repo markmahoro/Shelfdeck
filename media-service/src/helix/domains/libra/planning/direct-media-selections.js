@@ -15,17 +15,18 @@ function directCandidateNodeId(snapshot, member) {
 
 function directRequirement(snapshot) { return buildMediaRequirement(snapshot.spec); }
 
-function seriesSpaceBasisFor(snapshot,sources,replacement=null) {
+function seriesSpaceBasisFor(snapshot,sources,replacements=[]) {
   if(snapshot.spec.contentProfile!=='series')return null;
-  if(replacement && sources.filter(item=>item.member.materialKey===replacement.materialKey&&
-      canonicalDigest(item.readHandle)===replacement.media.sourceMaterialHandleDigest).length!==1)
+  if(!Array.isArray(replacements)||new Set(replacements.map(item=>item.materialKey)).size!==replacements.length||
+      replacements.some(replacement=>sources.filter(item=>item.member.materialKey===replacement.materialKey&&
+        canonicalDigest(item.readHandle)===replacement.media.sourceMaterialHandleDigest).length!==1))
     throw new Error('Series output space basis does not replace its exact frozen source Primary.');
   return require('../model/series-media-space').buildSeriesMediaSpaceBasis({libraRunId:snapshot.run.libraRunId,
     runExecutionBasisDigest:snapshot.run.executionBasisDigest,episodeKeys:snapshot.spec.productScope.episodeKeys,
     members:sources.map(item=>{
-      const replaced=replacement?.materialKey===item.member.materialKey,
-        handle=replaced?replacement.media.workspaceMaterialHandle:item.readHandle,
-        probe=replaced?replacement.probe:item.record.result;
+      const replacement=replacements.find(candidate=>candidate.materialKey===item.member.materialKey),
+        handle=replacement?replacement.media.workspaceMaterialHandle:item.readHandle,
+        probe=replacement?replacement.probe:item.record.result;
       return {materialKey:item.member.materialKey,memberDigest:canonicalDigest(item.member),
         handleDigest:canonicalDigest(handle),probeDigest:canonicalDigest(probe),sizeBytes:handle.sizeBytes??handle.expectedSizeBytes,
         episodeKeys:item.member.episodeClaims.map(claim=>claim.episodeKey)};

@@ -1,6 +1,6 @@
 'use strict';
 
-const { readDirectMediaSelections } = require('../planning/direct-media-selections');
+const { readSeriesMediaSelections } = require('../planning/series-production-candidates');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { coversRequirementGaps, resolveProductSelection } =
@@ -429,7 +429,7 @@ function createProductDeliveryAssembler(options) {
     const expiresAtMs = issuedAtMs + 24 * 60 * 60 * 1000;
     if (!Number.isSafeInteger(expiresAtMs)) throw new Error('Shelf Acceptance read authority expiry is outside the safe range.');
     const primaryInputs=Object.freeze(productMembers.map((productMember,ordinal)=>{
-    const selected=isSeries ? value.selectedContexts.find(item=>item.source.member.materialKey===productMember.materialKey) : value.selected;
+    const selected=isSeries ? value.selectedContexts.find(item=>(item.workspaceMediaHandle?.workspaceMaterialHandle.materialKey||item.source.member.materialKey)===productMember.materialKey) : value.selected;
     if(!selected) throw new Error('Product Primary lacks its exact selected member.');
     // Movie disc titles retain the frozen topology order used by the Source Probe.
     let sourceMember=isSeries ? selected.source.member : sourceScope.primaryMembers[0].member;
@@ -605,10 +605,10 @@ function createProductDeliveryAssembler(options) {
 
   function context(libraRunId, selectedWorkId) {
     const snapshot = options.movieProductionReader.readRunSnapshot(libraRunId);
-    const directMembers = snapshot.spec.contentProfile==='series'
-      ? readDirectMediaSelections(options,snapshot,selectedWorkId) : null;
-    const selectedContexts = directMembers ? directMembers.map(item=>Object.freeze({
-      ...selectedContext(options,snapshot,selectedWorkId,[item.verificationRecord,item.selectionRecord]),source:item}))
+    const seriesMembers = snapshot.spec.contentProfile==='series'
+      ? readSeriesMediaSelections(options,snapshot,selectedWorkId) : null;
+    const selectedContexts = seriesMembers ? seriesMembers.map(item=>Object.freeze({
+      ...selectedContext(options,snapshot,selectedWorkId,item.results),source:item}))
       : [selectedContext(options,snapshot,selectedWorkId)];
     const selected = selectedContexts[0];
     const artifacts = artifactVerificationContext(options, libraRunId);
@@ -635,14 +635,25 @@ function createProductDeliveryAssembler(options) {
     const origin = snapshot.members.find((item) =>
       item.role === 'primary_payload')?.originCandidateDeliveryRef || null;
     const productMembers = [];
-    if (selected.selected.selectedCandidateKind === 'direct_input') {
+    if(seriesMembers) {
+      for(const item of selectedContexts) {
+        if(item.selected.selectedCandidateKind==='direct_input') {
+          productMembers.push(directPrimaryMember(item.source.member,item.verification));
+          continue;
+        }
+        const reference=staging.find(reference=>reference.materialHandleId===item.workspaceMediaHandle?.workspaceMaterialHandle.handleId);
+        if(!reference)throw new Error('Every selected Series output must be in Product Staging.');
+        const projected=projectMaterialControlRow(reference.materialKey,{control_revision:1,state:'controlled',
+          owner_domain:'libra',owner_scope_type:'on_deck_package',owner_scope_id:onDeckPackageId});
+        productMembers.push(workspaceMember(reference,'primary_payload',item.verification.mediaRequirementDigest,null,projected));
+      }
+    } else if (selected.selected.selectedCandidateKind === 'direct_input') {
       const primary = snapshot.members.filter((item) =>
         item.role === 'primary_payload');
-      if (!directMembers && primary.length !== 1) {
+      if (primary.length !== 1) {
         throw new Error('Direct Movie Product requires exactly one Primary input.');
       }
-      if(directMembers) for(const item of directMembers) productMembers.push(directPrimaryMember(item.member,item.verification));
-      else productMembers.push(directPrimaryMember(primary[0], selected.verification));
+      productMembers.push(directPrimaryMember(primary[0], selected.verification));
     } else {
       const projected = projectMaterialControlRow(
         mediaReference.materialKey,
@@ -847,14 +858,19 @@ function createProductDeliveryAssembler(options) {
     const originalDisposition = value.selected.selected.selectedCandidateKind ===
       'direct_input' ? 'carried_forward' : 'replaced_and_settled';
     const offloadItems = snapshot.members.map((member) => {
+      const memberSelection=snapshot.spec.contentProfile==='series'
+        ?value.selectedContexts.find(item=>item.source.member.materialKey===member.materialKey):null;
+      if(snapshot.spec.contentProfile==='series'&&!memberSelection)throw new Error('Series source has no exact final product binding.');
+      const disposition=memberSelection?(memberSelection.workspaceMediaHandle?'replaced_and_settled':'carried_forward'):originalDisposition;
+      const finalKey=memberSelection?(memberSelection.workspaceMediaHandle?.workspaceMaterialHandle.materialKey||member.materialKey):selectedFinalKey;
       const body = {
         ordinal: 0,
         materialKey: member.materialKey,
         contextRole: member.role === 'structural_dependency'
           ? 'structural_dependency' : 'original_input',
         sourceRelatedReferenceId: null,
-        finalProductMaterialKey: snapshot.spec.contentProfile==='series' ? member.materialKey : selectedFinalKey,
-        dispositionKind: originalDisposition,
+        finalProductMaterialKey: finalKey,
+        dispositionKind: disposition,
         physicalIdentity: member.physicalIdentity,
         endpointId: member.endpointId,
         location: member.location,
@@ -863,7 +879,7 @@ function createProductDeliveryAssembler(options) {
         admittedControlRevision: member.admittedControlRevision,
         admittedControlProjectionDigest: member.admittedControlProjectionDigest,
         derivedAuthorityDigest: null,
-        settlementExpectation: originalDisposition === 'carried_forward'
+        settlementExpectation: disposition === 'carried_forward'
           ? 'replace_or_move' : 'remove_after_place',
       };
       return body;

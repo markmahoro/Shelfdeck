@@ -25,6 +25,7 @@ const {
 } = require('./external-material-work');
 const { classifyVerifyGap } = require('../model/media-production-routing');
 const {
+  seriesFinalSelectionWork,
   directMediaSelectionWork,
   remuxMediaSelectionWork,
   sourceMediaObservationWork,
@@ -44,6 +45,7 @@ const TRANSCODE_INPUT_VERIFY = 'libra.transcode.input.verify@1';
 const TRANSCODE = 'libra.media.transcode@1';
 const IMPORT = 'libra.workspace.material.import@1';
 const SOURCE_HANDLE = 'helix://libra/input-projections/ProductionSourcePrimaryReadHandle/v1';
+const SERIES_FINAL_CANDIDATE='helix://libra/input-projections/SeriesFinalProductMediaCandidateInput/v1';
 const DIRECT_CANDIDATE = 'helix://libra/input-projections/DirectProductMediaCandidateInput/v1';
 const OUTPUT_SELECTION = 'helix://libra/input-projections/ProductOutputSelectionInput/v1';
 const SOURCE_SCOPE = 'helix://libra/input-projections/ProductionSourceScopeReference/v1';
@@ -291,6 +293,24 @@ function createWorkspaceMediaProductionPlanner(options) {
       .find(member=>remuxMediaSelectionWork(snapshot,member).workId===request.workId):undefined;
     const sourceWork=sourceMediaObservationWork(snapshot),directWork=directMediaSelectionWork(snapshot),
       remuxWork=remuxMediaSelectionWork(snapshot,remuxMember);
+    if(request.workId.startsWith('libra-workspace-media-series_final_selection-work-')) {
+      const {readSeriesProductionCandidates,candidateSetDigest,finalCandidateInput}=require('./series-production-candidates'),
+        candidates=readSeriesProductionCandidates(options,snapshot),basis=candidateSetDigest(candidates),
+        work=seriesFinalSelectionWork(snapshot,basis,candidates.map(item=>item.work));
+      if(request.workId!==work.workId)throw new Error('Final Series Work differs from the complete candidate basis.');
+      const nodes=candidates.flatMap((candidate,index)=>{
+        const input=finalCandidateInput(snapshot,candidates,candidate),parameters={materialKey:candidate.member.materialKey,
+          memberDigest:canonicalDigest(candidate.member),candidateSetDigest:basis},
+          verifyEventId=stable('libra-series-final-verify-event-',{attempt:request.workAttemptId,...parameters}),
+          selectEventId=stable('libra-series-final-select-event-',{attempt:request.workAttemptId,...parameters});
+        return [planNode({...options,request,nodeId:'series_final_verify_'+index,eventId:verifyEventId,capabilityRef:VERIFY,
+          inputBindings:[owner('productMediaCandidateInput',request,SERIES_FINAL_CANDIDATE,parameters)],resourceKinds:['cpu','disk_io']}),
+          planNode({...options,request,nodeId:'series_final_select_'+index,eventId:selectEventId,capabilityRef:SELECT,
+            inputBindings:[selectionBinding(options,[verifyEventId],[{rank:1,candidateId:input.candidateId,candidateNodeId:input.candidateNodeId}])],
+            dependsOn:[{eventId:verifyEventId,satisfaction:'success'}],resourceKinds:['cpu']})];
+      });
+      return planEnvelope({plannerContractRef,catalogDigest},request,work,nodes);
+    }
     if(request.workId===sourceWork.workId){
       const isSeries=snapshot.spec.contentProfile==='series';
       const resolver=createProductionSourceScopeResolver({movieProductionReader:options.movieProductionReader,
@@ -465,6 +485,14 @@ function createWorkspaceMediaProductionProjections(options) {
       targetRelativePath:'media/remux-' + snapshotValue.run.libraRunId + '.mkv',productionIntentDigest:intent.intentDigest});
   }
   return Object.freeze([
+    Object.freeze({projectionRef:SERIES_FINAL_CANDIDATE,projection:Object.freeze({project:({ownerScope,parameters})=>{
+      const value=snapshot(ownerScope),{readSeriesProductionCandidates,candidateSetDigest,finalCandidateInput}=require('./series-production-candidates'),
+        candidates=readSeriesProductionCandidates(options,value),candidate=candidates.find(item=>item.member.materialKey===parameters.materialKey);
+      if(Object.keys(parameters).length!==3||!candidate||canonicalDigest(candidate.member)!==parameters.memberDigest||
+          candidateSetDigest(candidates)!==parameters.candidateSetDigest)
+        throw new Error('Final Series projection differs from its immutable candidate set.');
+      return finalCandidateInput(value,candidates,candidate);
+    }})}),
     Object.freeze({projectionRef:SOURCE_HANDLE,projection:Object.freeze({project:({ownerScope,parameters={}})=>{
       const value=snapshot(ownerScope);
       if(value.spec.contentProfile!=='series') {
@@ -507,7 +535,7 @@ function createWorkspaceMediaProductionProjections(options) {
         if(media.sourceMaterialHandleDigest!==canonicalDigest(selected.readHandle)||
             media.workspaceMaterialHandle.processId!==value.run.libraRunId)
           throw new Error('Series output does not derive from the declared Primary.');
-        const seriesSpaceBasis=seriesSpaceBasisFor(value,sources,{materialKey:selected.member.materialKey,media,probe:outputProbe});
+        const seriesSpaceBasis=seriesSpaceBasisFor(value,sources,[{materialKey:selected.member.materialKey,media,probe:outputProbe}]);
         return buildProductMediaCandidateInput({libraRunId:value.run.libraRunId,candidateNodeId,candidateKind:'workspace_output',
           mediaRequirement:buildMediaRequirement(value.spec),workspaceMediaHandle:media,
           sourceProbeEvidence:selected.record.result,outputProbeEvidence:outputProbe,seriesSpaceBasis});
