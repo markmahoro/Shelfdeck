@@ -161,3 +161,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08Series逐集资料健康检查DoR：沿SSOT §3.4.4/§6.5的Arca Inventory/Fact权威，修正Aftercare把episode_title/episode_plot当第一份Metadata顶层字段的错误；以当前Inventory真实Claims限定范围，读取所有已接纳Product Metadata Facts，校验同Canonical Season与逐集唯一记录。缺集/错季/重复/空值须识别，已有完整补集不得误报。保持既有Finding代码/Owner与Movie路径，不新增UI控件或文案；用户仍在现有健康状态/资料缺失提示查看结果，后续Series UI负责人需对冻结版本状态显示验收，本批不声明UI通过。验证模型负向、真实两批上架后的Owner context及Movie回归；不碰外部替换待确认合同。
 
 2026-10-08逐集资料缺失检查已接通：[Evidence](evidence/SERIES_INVENTORY_METADATA_20261008.md)。Aftercare按当前Inventory Claims检查全部批次的逐集Metadata，原完整E01/E02/E03不再因顶层查找而误报；14项专项、两批正式Host Owner context与全架构2,135通过/9既有skip。完整Aftercare其他维度、浏览器/版本UI验收及发布资格继续。
+
+2026-10-08当前DoR：Series Aftercare媒体评估由Arca读取当前完整Inventory，依据SSOT §5.5.8逐集均分/累加实际Primary字节，逐物理成员Probe与播放抽样，并保留读取前后Physical Identity Fence。范围为纯评估与既有Finding输出；不增加Owner或自动维修权限。现有维修策略只描述单一Primary，Series缺陷必须显式保留attention_required，逐成员修复仍为本Phase后续必做项，不能以此关闭运营能力。验证普通多集、N:M边界/小数、后续成员异常、内容漂移及Movie回归；健康投影的具体版本UI验收仍待负责人执行。
+
+2026-10-08本批结果：[Aftercare媒体Evidence](evidence/SERIES_AFTERCARE_MEDIA_ASSESSMENT_20261008.md)。全Primary媒体评估与N:M逐集计量接通，15项专项及正式Capability/schema通过；全架构复验2,150通过、9既有skip、0失败（首次目录变化Fence偶发失败已保留证据）。未实现Series逐成员维修、展示维护及完整运营，UI/Linux与发布Gate保持开放。无生产动作。

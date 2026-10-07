@@ -13,6 +13,7 @@ const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const sharp = require('sharp');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { evaluateSeriesEpisodeSpace } = require('../../../contracts/episode-byte-allocation');
 const { createMaterialControlParticipant, createMaterialControlProjectionPort,
   controlScopeDigest } = require('../../../foundation/persistence/material-control');
 const { CAPABILITY_REFS:C,
@@ -329,7 +330,7 @@ function aftercareMediaProbeEvidence(raw,handle,sizeBytes,observedAtMs){
   base.payloadDigest=canonicalDigest(Object.fromEntries(Object.entries(base).filter(([key])=>key!=='payloadDigest')));
   return Object.freeze(base);
 }
-function probeConformance(context,probe){const requirements=effectiveRequirements(context),mandatory=requirements?.mandatoryMedia||{},space=requirements?.space||{},primary=context.raw.materials.find(isPrimaryMaterial),findings=[];
+function probeConformance(context,probe,primary=context.raw.materials.find(isPrimaryMaterial)){const requirements=effectiveRequirements(context),mandatory=requirements?.mandatoryMedia||{},series=context.raw.entry.structure_kind==='season',space=series?{maxSizeBytes:null}:requirements?.space||{},findings=[];
   if(!primary)return [finding('conformance','primary_missing','critical','attention_required',context.shelfEntryId)];
   const editionEvidence=(context.raw.facts||[]).filter(item=>item.fact_kind==='product_media_verification')
     .map(item=>item.value?.qualitySummary?.editionEvidence).find(item=>require('../../../contracts/media-edition-evidence')
@@ -337,7 +338,7 @@ function probeConformance(context,probe){const requirements=effectiveRequirement
   const result=evaluateAftercareConformance({mandatoryMedia:mandatory,space,probe,location:primary.location,sizeBytes:Number(primary.size_bytes),
     editionEvidence,contentFingerprint:primary.content_fingerprint}),
     autoRepair=new Set(['video_codec_unmet','file_extension_unmet','container_unmet','max_size_exceeded']);
-  for(const code of result.reasonCodes)findings.push(finding('conformance',code,'critical',autoRepair.has(code)?'auto_repair':'attention_required',canonicalDigest({materialKey:primary.material_key,requiredValueDigest:requirementGapValueDigest(requirements,code)})));
+  for(const code of result.reasonCodes)findings.push(finding('conformance',code,'critical',!series&&autoRepair.has(code)?'auto_repair':'attention_required',canonicalDigest({materialKey:primary.material_key,requiredValueDigest:requirementGapValueDigest(requirements,code)})));
   return findings;}
 
 const AFTERCARE_DEVICE_ORDER=Object.freeze(['nvidia_nvenc','intel_qsv','amd_vaapi','remote_worker','software_cpu']);
@@ -429,6 +430,60 @@ async function verifyInventoryPlayback(options,context,material,probe) {
     decodeDigest:canonicalDigest({schema:'arca.inventory-playback-evidence@1',handleDigest:canonicalDigest(handle),points,passed})});
 }
 
+async function assessInventoryMediaConformance(options,context,at) {
+  const series=context.raw.entry.structure_kind==='season',all=context.raw.materials.filter(isPrimaryMaterial),
+    primaries=series?all:all.slice(0,1),fingerprint=options.computeBoundedMaterialFingerprintSync;
+  if(!primaries.length)return {findings:[finding('conformance','primary_missing','critical','attention_required',context.shelfEntryId)],mediaRepairStrategy:null};
+  const assertCurrent=material=>{
+    if(!exactInventoryMaterial(material.location,material,material.mount_scope_id,fingerprint))
+      throw Object.assign(new Error('Inventory changed during media assessment.'),{code:'ARCA_AFTERCARE_INPUT_STALE'});
+  };
+  let findings=[],mediaRepairStrategy=null;
+  let episodeSpace=null;
+  if(series) {
+    const members=primaries.map(material=>({materialKey:material.material_key,role:material.role,
+      sizeBytes:Number(material.size_bytes),episodeClaims:JSON.parse(material.episode_claims_json).items}));
+    episodeSpace=evaluateSeriesEpisodeSpace({members,
+      episodeKeys:[...new Set(members.flatMap(member=>member.episodeClaims.map(claim=>claim.episodeKey)))],
+      maxSizeBytes:effectiveRequirements(context)?.space?.maxSizeBytes??null});
+    primaries.forEach(assertCurrent);
+  }
+  for(const primary of primaries) {
+    const readHandle=primaryReadHandle(context,primary),probe=await options.mediaProbe.probe(readHandle);
+    let memberFindings=probeConformance(context,probe,primary);
+    if(!series) {
+      const needsTranscode=memberFindings.some(item=>/\/(video_codec_unmet|max_size_exceeded)\//.test(item.schemaRef));
+      mediaRepairStrategy=needsTranscode&&probe.resultKind==='probed'
+        ?await assessMediaRepairStrategy(options,context,probe,aftercareMediaProbeEvidence(probe,readHandle,primary.size_bytes,at)):null;
+      if(needsTranscode&&!mediaRepairStrategy)memberFindings=memberFindings.map(item=>/\/(video_codec_unmet|max_size_exceeded)\//.test(item.schemaRef)
+        ?Object.freeze({...item,schemaRef:item.schemaRef.replace('/auto_repair/','/attention_required/')}):item);
+    }
+    findings.push(...memberFindings);
+    if(probe.resultKind==='probed') {
+      const playback=await verifyInventoryPlayback(options,context,primary,probe);
+      assertCurrent(primary);
+      if(playback.passedSamplePointsPercent.length!==3)findings.push(finding('conformance','playback_decode_failed',
+        'critical','attention_required',playback.decodeDigest));
+    }
+  }
+  if(series) {
+    // The existing repair strategy has one source handle. Never apply it to a Season set.
+    // Group equal conditions while retaining every affected member in the finding digest.
+    const groups=new Map();
+    for(const item of findings) {
+      const code=decodeFinding(item).findingKind.split(':')[1];
+      if(!groups.has(code))groups.set(code,[]);
+      groups.get(code).push(item.snapshotDigest);
+    }
+    findings=[...groups].sort(([a],[b])=>a.localeCompare(b)).map(([code,digests])=>
+      finding('conformance',code,'critical','attention_required',canonicalDigest(digests.sort())));
+    const exceeded=episodeSpace.filter(item=>!item.withinLimit);
+    if(exceeded.length)findings.push(finding('conformance','max_size_exceeded','critical','attention_required',canonicalDigest(exceeded)));
+    primaries.forEach(assertCurrent);
+  }
+  return {findings,mediaRepairStrategy};
+}
+
 function createAftercareCapabilityPorts(options){const now=options.now||Date.now,contextReader=options.contextReader,store=contextReader.store,controls=createMaterialControlProjectionPort(options),fingerprint=options.computeBoundedMaterialFingerprintSync,readSnapshot=options.readBoundedFileSnapshotSync,compileFfmpegPipeline=options.compileFfmpegPipeline,compileFfmpegPassArgs=options.compileFfmpegPassArgs;
   if(typeof fingerprint!=='function')throw new TypeError('Arca Aftercare requires the bounded Physical Material fingerprint port.');
   function context(execution){const value=contextReader.read(execution.ownerScope.processId);if(!value)throw new Error('Arca Aftercare Shelf Entry is unavailable.');return value;}
@@ -493,19 +548,8 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     return outcome(C.presentation,assessment('presentation',c,findings,at,undefined,execution.workId),at);},validateResult(_c,o){if(!o?.result)throw new TypeError('Presentation Assessment Result is absent.');}});
   ports[C.conformance]=Object.freeze({validateInputs(c){requireNamed(c,['careBasis','inventoryRevision','knownBindings','standard','placement']);},async execute(execution){const c=context(execution),at=now(),custody=resultFor(execution,C.custody);
     if(custodyBlocksDependentAssessment(custody))return outcome(C.conformance,assessment('conformance',c,[],at,'not_assessable',execution.workId,custody.incidentKey),at);
-    const primary=c.raw.materials.find(isPrimaryMaterial);if(!primary)return outcome(C.conformance,assessment('conformance',c,[finding('conformance','primary_missing','critical','attention_required',c.shelfEntryId)],at,undefined,execution.workId),at);
-    const readHandle=primaryReadHandle(c,primary),probe=await options.mediaProbe.probe(readHandle),sourceProbeEvidence=aftercareMediaProbeEvidence(probe,readHandle,primary.size_bytes,now());let findings=probeConformance(c,probe);const needsTranscode=findings.some((item)=>
-      /\/(video_codec_unmet|max_size_exceeded)\//.test(item.schemaRef)),mediaRepairStrategy=needsTranscode&&probe.resultKind==='probed'
-        ?await assessMediaRepairStrategy(options,c,probe,sourceProbeEvidence):null;
-    if(needsTranscode&&!mediaRepairStrategy)findings=findings.map(item=>/\/(video_codec_unmet|max_size_exceeded)\//.test(item.schemaRef)
-      ?Object.freeze({...item,schemaRef:item.schemaRef.replace('/auto_repair/','/attention_required/')}):item);
-    if(probe.resultKind==='probed') {
-      const playback=await verifyInventoryPlayback(options,c,primary,probe);
-      if(!exactInventoryMaterial(primary.location,primary,primary.mount_scope_id,fingerprint))
-        throw Object.assign(new Error('Inventory changed during playback assessment.'),{code:'ARCA_AFTERCARE_INPUT_STALE'});
-      if(playback.passedSamplePointsPercent.length!==3)findings.push(finding('conformance','playback_decode_failed',
-        'critical','attention_required',playback.decodeDigest));
-    }
+    if(!c.raw.materials.some(isPrimaryMaterial))return outcome(C.conformance,assessment('conformance',c,[finding('conformance','primary_missing','critical','attention_required',c.shelfEntryId)],at,undefined,execution.workId),at);
+    const {findings,mediaRepairStrategy}=await assessInventoryMediaConformance(options,c,at);
     for(const field of missingFields(c))findings.push(finding('conformance','metadata_field_missing__'+field,'warning','attention_required',canonicalDigest({field,requiredValueDigest:requirementGapValueDigest(effectiveRequirements(c),'metadata_field_unmet',field)})));
     const placementState=classifyAcceptedPlacement(c),placementRequest=placementState.state==='recompute'?buildAftercareInventoryRequest(c,options.inventoryPort,at,stable('arca-care-assessment-placement-',{entry:c.shelfEntryId,basis:c.basis.digest})):null,desired=placementRequest?options.inventoryPort.resolveTargetLocation(placementRequest):null,placementUnmet=Boolean(desired)&&c.raw.materials.some((item)=>item.endpoint_id!==c.raw.shelf.target_endpoint_id||path.resolve(path.dirname(item.location))!==path.resolve(desired.targetDirectory));
     if(placementState.state==='not_assessable')findings.push(finding('conformance','placement_basis_unavailable','critical','attention_required',canonicalDigest({shelfEntryId:c.shelfEntryId,placementRevision:c.basis.placementRevision,reasonCode:placementState.reasonCode})));
@@ -810,4 +854,4 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   return Object.freeze(ports);
 }
 
-module.exports=Object.freeze({probeConformance,assessMediaRepairStrategy,AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareInventoryNoChangeOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,verifyInventoryPlayback,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});
+module.exports=Object.freeze({assessInventoryMediaConformance,probeConformance,assessMediaRepairStrategy,AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareInventoryNoChangeOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,verifyInventoryPlayback,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});
