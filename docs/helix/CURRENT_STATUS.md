@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08真实Series加工：[真实媒体Evidence](implementation/evidence/SERIES_REAL_MIXED_MEDIA_20261008.md)。Windows正式Host的三集Direct/Remux/NVENC Transcode和共享文件＋同集part的N:M完整上架通过；最终实际字节数在Libra/Arca两端逐集复核通过。105项成员/预算回归通过。本批为短SDR无音轨/无上限样本；有界加工重试、逐成员外部寻源/恢复、运营、UI/Linux及发布资格继续，未部署NAS。
+
 2026-10-08混合成品接线：[终检与交付Evidence](implementation/evidence/SERIES_MIXED_FINAL_SELECTION_20261008.md)。完整实际候选集合终检及逐成员Staging/交付/源结算已接通，受控Direct+Remux两集隔离Host完整上架通过；100项专项通过。全架构复验2,121通过、9既有skip、0失败。真实Series转码Host、逐成员外部寻源/运营、UI/Linux及发布资格仍未完成，未部署NAS。
 
 2026-10-08逐成员Transcode Planner：[规划Evidence](implementation/evidence/SERIES_MEMBER_TRANSCODE_PLANNING_20261008.md)。源/策略历史/输出按成员隔离，完整Assessment连续性和N:M物理预算接通，质量下限保持原单集Policy；全架构2,106通过、9既有skip、0失败。Coordinator、混合成品Staging/终检/交付仍需接线，真实Series转码、UI/Linux及发布资格未完成。

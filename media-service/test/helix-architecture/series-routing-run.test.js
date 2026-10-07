@@ -182,16 +182,24 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed} of [{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:180000},async t=>{
+for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm} of [...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:real?300000:180000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
   fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
   const episodeNumbers=Array.from({length:episodeCount},(_,index)=>index+1);
   const episodeKeys=episodeNumbers.map(number=>'E'+String(number).padStart(3,'0'));
-  const sources=parts?[1,2].map(part=>path.join(source,'Demo Show.S01E01.part'+part+'.mkv')):shared?[path.join(source,'Demo Show.S01E01-02.mkv')]:episodeNumbers.map(number=>path.join(source,'Demo Show.S01E'+String(number).padStart(2,'0')+(mixed&&number===2?'.mp4':'.mkv')));
+  const sources=nm?[path.join(source,'Demo Show.S01E01-02.part1.mp4'),path.join(source,'Demo Show.S01E01.part2.mkv')]:parts?[1,2].map(part=>path.join(source,'Demo Show.S01E01.part'+part+'.mkv')):shared?[path.join(source,'Demo Show.S01E01-02.mkv')]:episodeNumbers.map(number=>path.join(source,'Demo Show.S01E'+String(number).padStart(2,'0')+(mixed&&number===2?'.mp4':'.mkv')));
   const physicalCount=sources.length,perEpisodeCap=parts?48:shared?12:24;
-  sources.forEach(file=>fs.writeFileSync(file,'read-only-series-fixture'));
+  if(real) {
+    const {spawnSync}=require('node:child_process'),ffmpeg=process.env.FFMPEG_PATH||require('ffmpeg-static');
+    for(const [index,file] of sources.entries()) {
+      const codec=(nm?index===1:index===2)?['-c:v','libx264']:['-c:v','libx265','-x265-params','pools=1:frame-threads=1'];
+      const result=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-f','lavfi','-i','color=c=black:s=1920x1080:r=24:d=3',
+        ...codec,'-preset','ultrafast','-pix_fmt','yuv420p',file],{encoding:'utf8',windowsHide:true,timeout:30000});
+      assert.equal(result.status,0,result.stderr);
+    }
+  } else sources.forEach(file=>fs.writeFileSync(file,'read-only-series-fixture'));
   if(concurrent){
     const batch=path.join(root,'source2','Batch B {tmdb-series-1399}','Season 01');
     fs.mkdirSync(batch,{recursive:true});fs.writeFileSync(path.join(batch,'Demo Show.S01E03.mkv'),'concurrent-third-series-fixture');
@@ -200,7 +208,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed} o
     dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot});
   const adapter=harness(),providerCalls=[],appendCommitAudits=[];let unitOfWork,runtimeError,db;
   const poster=await sharp({create:{width:4,height:6,channels:3,background:'#224466'}}).jpeg().toBuffer();
-  const host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,mediaProbe:mediaProbe(),
+  const host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,...(real?{}:{mediaProbe:mediaProbe(),
     mediaProductionEffectPort:{
       async verifyPlayback(){return {samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('fixture-decode')};},
       async executeRemux(request){
@@ -217,7 +225,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed} o
       },
       async executeTranscode(){throw new Error('Direct fixture must not Transcode.');},
       async verifyTranscodeInput(){throw new Error('Direct fixture must not assess Transcode.');},
-    },
+    }}),
     unitOfWorkDecorator(value){
       unitOfWork=Object.freeze({...value,execute(participants,...args){
         if(!append||!participants.some(item=>item.participantId==='arca_ondeck_domain')||
@@ -364,7 +372,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed} o
     assert.deepEqual(scopes.sort(),['E001,E002','E003']);
     return;
   }
-  let state;const deadline=Date.now()+100000;
+  let state;const deadline=Date.now()+(real?220000:100000);
   do {
     state={subjects:db.prepare('SELECT * FROM libra_subjects').all(),routes:db.prepare('SELECT * FROM libra_routing_decisions').all(),
       specs:db.prepare('SELECT * FROM libra_acceptance_specs').all(),runs:db.prepare('SELECT * FROM libra_runs').all(),
@@ -408,11 +416,11 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed} o
   const primary=packaged.filter(item=>item.role==='primary_payload');
   assert.equal(primary.length,physicalCount);
   assert.equal(packaged.filter(item=>item.role==='metadata_sidecar').length,episodeCount+1);
-  assert.equal(db.prepare('SELECT count(*) n FROM libra_product_package_material_episode_claims').get().n,parts?2:episodeCount);
+  assert.equal(db.prepare('SELECT count(*) n FROM libra_product_package_material_episode_claims').get().n,nm?3:parts?2:episodeCount);
   for(const item of readSet.primaryInputs) {
     const member=primary.find(row=>row.material_key===item.materialKey);
     assert.ok(member);assert.equal(item.productMemberDigest,member.member_digest);
-    assert.equal(item.productMediaVerification.result,'passed');assert.equal(item.samePhysicalMaterial,!item.sourceReadHandle.location.endsWith('.mp4'));
+    assert.equal(item.productMediaVerification.result,'passed');assert.equal(item.samePhysicalMaterial,!(nm||item.sourceReadHandle.location.endsWith('.mp4')||(real&&item.sourceReadHandle.location.endsWith('S01E03.mkv'))));
     assert.equal(item.productReadHandleDigest,canonicalDigest(item.productReadHandle));
     if(item.samePhysicalMaterial)assert.equal(item.sourceReadHandleDigest,item.productReadHandleDigest);
     else assert.notEqual(item.sourceReadHandleDigest,item.productReadHandleDigest);
@@ -426,15 +434,15 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed} o
   assert.equal(directResults.length,physicalCount);assert.equal(selections.length,physicalCount);
   assert.equal(new Set(directResults.map(item=>item.productMaterialHandleDigest)).size,physicalCount);
   if(mixed) {
-    assert.equal(directResults.filter(item=>item.result==='failed').length,1);
-    assert.equal(selections.filter(item=>item.result==='selected').length,1);
+    assert.equal(directResults.filter(item=>item.result==='failed').length,real?2:1);
+    assert.equal(selections.filter(item=>item.result==='selected').length,nm?0:1);
     const final=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-series-final-verify-event-%'").all();
-    assert.equal(final.length,2);assert.ok(final.every(item=>JSON.parse(item.result_json).result==='passed'));
-    assert.equal(readSet.primaryInputs.filter(item=>!item.samePhysicalMaterial).length,1);
+    assert.equal(final.length,physicalCount);assert.ok(final.every(item=>JSON.parse(item.result_json).result==='passed'));
+    assert.equal(readSet.primaryInputs.filter(item=>!item.samePhysicalMaterial).length,real?2:1);
     const offload=db.prepare("SELECT * FROM libra_offload_context_materials WHERE context_role='original_input'").all();
-    assert.equal(offload.length,2);
+    assert.equal(offload.length,physicalCount);
     for(const item of offload) {
-      const processed=item.location.endsWith('.mp4');
+      const processed=nm||item.location.endsWith('.mp4')||(real&&item.location.endsWith('S01E03.mkv'));
       assert.equal(item.disposition_kind,processed?'replaced_and_settled':'carried_forward');
       assert.equal(item.settlement_expectation,processed?'remove_after_place':'replace_or_move');
       assert.ok(primary.some(member=>member.material_key===item.final_product_material_key));
@@ -444,6 +452,17 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed} o
   } else {
     for(const result of directResults)assert.equal(result.result,'passed',JSON.stringify(result));
     assert.deepEqual(selections.map(item=>item.selectedVerificationId).sort(),directResults.map(item=>item.verificationId).sort());
+  }
+  if(real) {
+    const produced=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-remux-media-event-%' OR event_id LIKE 'libra-transcode-media-event-%'").all().map(item=>JSON.parse(item.result_json));
+    assert.deepEqual(produced.map(item=>item.productionIntentKind).sort(),['encode','remux']);
+    assert.equal(new Set(produced.map(item=>item.sourceMaterialHandleDigest)).size,2);
+    const encoded=produced.find(item=>item.productionIntentKind==='encode');
+    assert.ok(encoded.executionDeviceRef?.deviceSnapshotDigest);
+    const assessment=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-transcode-input-verify-event-%'").all().map(item=>JSON.parse(item.result_json));
+    assert.ok(assessment.some(item=>item.disposition==='compatible'&&item.passedSampleCount===24));
+    t.diagnostic(JSON.stringify({realMedia:true,nm:Boolean(nm),episodes:episodeCount,processed:produced.map(item=>({kind:item.productionIntentKind,
+      device:item.executionDeviceRef?.deviceClass||null})),assessmentResults:assessment.length}));
   }
   const sourceProbes=db.prepare("SELECT event_id,result_json,result_digest FROM fx_event_result_bindings WHERE event_id LIKE 'libra-source-media-probe-event-%'").all();
   assert.equal(sourceProbes.length,physicalCount);
@@ -508,11 +527,37 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed} o
   const inventoryPrimary=inventory.filter(item=>item.role==='primary_payload');
   assert.equal(inventoryPrimary.length,physicalCount);
   for(const item of inventoryPrimary) {
-    assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
+    if(real) {
+      const inspected=require('node:child_process').spawnSync(process.env.FFPROBE_PATH||require('@ffprobe-installer/ffprobe').path,
+        ['-v','error','-select_streams','v:0','-show_entries','stream=codec_name','-of','json',item.location],{encoding:'utf8',windowsHide:true});
+      assert.equal(inspected.status,0,inspected.stderr);assert.equal(JSON.parse(inspected.stdout).streams[0].codec_name,'hevc');
+    } else assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
     assert.equal(path.basename(path.dirname(item.location)),'Season 01');
     assert.ok(path.relative(target,item.location)&&!path.relative(target,item.location).startsWith('..'));
   }
   assert.deepEqual([...new Set(inventoryPrimary.flatMap(item=>JSON.parse(item.episode_claims_json).items.map(claim=>claim.episodeKey)))].sort(),episodeKeys);
+  if(nm) {
+    const sharedProduct=inventoryPrimary.find(item=>JSON.parse(item.episode_claims_json).items.length===2),
+      part=inventoryPrimary.find(item=>JSON.parse(item.episode_claims_json).items.length===1);
+    assert.ok(sharedProduct&&part);
+    const fraction=numerator=>numerator%2n===0n?{numerator:String(numerator/2n),denominator:'1'}:{numerator:String(numerator),denominator:'2'};
+    const expected=[{episodeKey:'E001',allocatedBytes:fraction(BigInt(sharedProduct.size_bytes)+2n*BigInt(part.size_bytes))},
+      {episodeKey:'E002',allocatedBytes:fraction(BigInt(sharedProduct.size_bytes))}];
+    const space=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(item=>JSON.parse(item.result_json))
+      .find(item=>item.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'&&item.checkKind==='space');
+    assert.equal(space.result,'passed');
+    assert.deepEqual(space.episodeSpaceEvidence.allocations.map(({episodeKey,allocatedBytes})=>({episodeKey,allocatedBytes})),expected);
+    const final=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-series-final-verify-event-%'").all();
+    for(const row of final) {
+      const verification=JSON.parse(row.result_json),read=readSet.primaryInputs.find(item=>item.productMediaVerification.verificationId===verification.verificationId),
+        member=primary.find(item=>item.material_key===read?.materialKey);
+      assert.ok(member);
+      const covered=db.prepare('SELECT episode_key FROM libra_product_package_material_episode_claims WHERE on_deck_package_id=? AND member_ordinal=?')
+        .all(packages[0].on_deck_package_id,member.ordinal).map(item=>item.episode_key);
+      assert.deepEqual(verification.spaceSummary.episodeAllocation.allocations.map(({episodeKey,allocatedBytes})=>({episodeKey,allocatedBytes})),
+        expected.filter(item=>covered.includes(item.episodeKey)));
+    }
+  }
   const finalNfos=inventory.filter(item=>item.role==='metadata_sidecar');
   assert.equal(finalNfos.length,episodeCount+1);
   for(const number of episodeNumbers) {

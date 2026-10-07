@@ -147,3 +147,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08混合成品汇合DoR：Coordinator沿完整冻结Primary集合逐成员调度Remux/Transcode，Working Reference只携带该源成员Episode Claims。新增同类Supporting Work的最终集合验证阶段，identity/dependencies绑定完整候选集合及持久Result digest；复用既有Verify/Select Capability，所有候选在完整实际混合集合上重算份额后才允许Staging/Conformance/Promotion。中间Workspace候选若仅受其他待处理part导致的聚合超限影响，只有实际文件已满足自身保守预算且其他质量/解码均通过时可作为待终检材料，不伪造passed Selection。交付逐成员建立源→成品关联与源结算，禁止首结果借用/整Run统一carried-forward或replaced。验证混合链路、缺集/foreign/重复/改写集合、正确Episode映射、重放和源保护；不改变Owner/Handoff或NAS数据。
 
 2026-10-08混合候选终检/交付增量见[Evidence](evidence/SERIES_MIXED_FINAL_SELECTION_20261008.md)：逐成员调度、完整实际集合Verify/Select及Staging/Conformance/Promotion已接通；隔离Direct+Remux两集到唯一Season上架与逐源结算通过。受控Effect不等于真实FFmpeg；完整Transcode Host、逐成员外部寻源、恢复/运营、UI/Linux和发布资格继续，节点保持开放。
+
+2026-10-08真实混合媒体Host DoR：沿用上述成员生产与终检合同，以临时生成的三集媒体分别触发Direct/Remux/Transcode，启用正式FFmpeg/Probe/Device探测及Workspace Effect，Provider资料保持隔离fixture；验收同Season完整上架、实际HEVC输出、各成员Claims/源结算与真实加工Result。不得借助旧Kairox runtime或NAS数据；失败按实际Owner根因修复。
+
+2026-10-08真实混合媒体增量见[Evidence](evidence/SERIES_REAL_MIXED_MEDIA_20261008.md)：正式Windows Host三集Direct/Remux/NVENC Transcode、两文件跨两集且含同集part的N:M上架均通过；最终Inventory实际字节数独立重算与Libra/Arca逐集份额一致。短SDR无音轨无上限样本不覆盖有界重试、长片、多设备、外部寻源/恢复、Linux/UI和完整发布资格。

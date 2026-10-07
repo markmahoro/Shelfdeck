@@ -8,9 +8,9 @@
 | --- | --- | --- |
 | 已完成 | Movie 阶段文档收尾、用户验收记录、生产基线与历史归档 | UAT-278；保留未关闭 UAT，不新增技术资格总体 PASS |
 | 已完成 | Beta 工程工作区和废弃副本清理 | UAT-280；选定本地/NAS目标完成，源码、用户修改及必要恢复资料保留 |
-| 节点1 / 当前 | 剧集资料与生产基础 | 实际Field→Routing/Spec→身份/逐集资料/Workspace/Fact、多成员Direct/Package及隔离Arca Commit已贯通；逐成员调度/完整终检与受控Direct+Remux混合上架已验证，真实Transcode等仍待完成，节点未关闭 |
-| 节点2 | 首批剧集完整上架 | 隔离E01/E02从Field到唯一Season Entry已通过；真实Series媒体及用户场景验收待完成 |
-| 节点3 | 持续追加与复杂文件映射 | 隔离E03追加/并发、旧集保护及Direct N:M逐集空间已验证；加工映射与完整恢复/运营待验证 |
+| 节点1 / 当前 | 剧集资料与生产基础 | 实际Field→Routing/Spec→身份/逐集资料/Workspace/Fact、多成员Direct/Package及隔离Arca Commit已贯通；逐成员调度/完整终检与真实Direct/Remux/Transcode、N:M混合上架已验证，外部寻源/恢复等仍待完成，节点未关闭 |
+| 节点2 | 首批剧集完整上架 | 隔离E01/E02从Field到唯一Season Entry已通过；真实短SDR混合媒体已通过，完整用户场景验收待完成 |
+| 节点3 | 持续追加与复杂文件映射 | 隔离E03追加/并发、旧集保护及Direct N:M逐集空间已验证；真实混合加工N:M映射已通过，完整恢复/运营待验证 |
 | 节点4 | 完整运营与用户体验 | 外部寻源、恢复、Aftercare/退出及剧集用户旅程；UI负责人验收 |
 | 节点5 | Movie回归与Series发布资格 | 冻结SHA的Windows/Linux、真实媒体/浏览器、升级/回退及数据保护，沿用正式发布入口 |
 
