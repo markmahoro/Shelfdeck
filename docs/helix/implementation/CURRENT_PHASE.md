@@ -173,3 +173,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08逐集NFO评估DoR：当前Presentation只检查任意一个NFO可读，Series应检查当前Inventory登记的全部NFO（沿已确认存在/非空/可读口径，不把外部XML或内容差异当损坏）。每个缺失/不可读文件纳入Finding摘要。现有TextRender/Materialize按单NFO选择且缺少Episode目标，不能授权其修复Series；在尚未接通逐Artifact scope前，Series NFO缺陷明确attention_required，TextRender执行入口在写入前拒绝。此为实现中间门禁，后续逐集生成/落位/提交必须完成，不能以拒绝维修满足节点4。验证后集缺失/空、无NFO、外部文本、顺序稳定、Movie回归及正式Capability无写副作用。
 
 2026-10-08 NFO评估增量：[Evidence](evidence/SERIES_AFTERCARE_NFO_ASSESSMENT_20261008.md)。全部已登记NFO评估与错误单NFO维修的写入前门禁已实现，Aftercare回归225通过。后续必须打通Arca接受Artifact Requirement到Inventory成员的精确关联、逐Artifact Planner/Result、NFO生成/落位/原子提交；不得以文件名猜集或NFO的伪Primary Claim替代。此批不关闭维护能力或节点4，无生产动作。
+
+2026-10-08 NFO scope基础DoR：从交付包的完整Metadata Episode scopes、NFO Artifact Requirement digest和Workspace材料digest建立Arca内部确定性关联，供当前Series落位和后续正式Inventory Artifact关系持久化使用。以原有Owner/SSOT §5.5.5/§6.5为界，不猜文件名、不赋予NFO Primary Claim；拒绝错季、重复Episode、歧义Artifact或同scope重复物理NFO。先验证真实落位调用及负向数据，再接入Commit关系保存和逐Artifact维修，不能仅凭内部映射宣称Aftercare已完成。
+
+2026-10-08 NFO scope基础结果：[Evidence](evidence/SERIES_ARTIFACT_TARGETS_20261008.md)。按Requirement与材料digest建立内部映射并接入Series落位；17项专项、共文件两集完整隔离Host通过，全架构2,190通过/9既有skip/0失败。后续必须将该正式关联写入Arca Inventory revision及原子Commit，再连接逐Artifact维修；本批未持久化映射，不关闭节点4或发布Gate。
