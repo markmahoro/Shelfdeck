@@ -64,3 +64,11 @@ git worktree add E:/my_project/helix-restored-series codex/restored-series
 - UAT-281未发布的中间`8f72a0b47a`镜像tar删除命令被自动审批以`blocked by policy`拒绝，未实际删除，保留为待清理项，没有绕过拦截。已发布`8e197b3c36`恢复镜像、真实Probe前缀fixture及仍关联开放问题的UAT-125诊断库继续保留。
 - 最终Git恢复包为`recovery-final.bundle`，包含整合提交、原分支archive refs与保护stash。原9份完整归档目录路径仅用于历史追溯，现存用户修改恢复入口为`preserved/`。
 - 删除后主工作区SQLite、Sharp和Web esbuild绑定smoke通过；Git仍保留2个工作区/2个分支，原未跟踪诊断文档保持。未触碰NAS或生产备份。
+
+## 最终收口：退役 UAT-267 工作区
+
+2026-10-08用户确认不再保留UAT-267独立工作区。删除前再次核验该工作区无modified、untracked或ignored文件，递归检查无ReparsePoint；分支、archive ref及已验证恢复bundle中的tip均为`ab1db18446b786adfb55a0b000d9f3b1ce9f769f`。
+
+已用`git worktree remove`移除精确db87工作区，并删除本地分支`codex/uat267-physical-gate-db87`。最终仅有`E:/my_project/emby_third_party-helix`的`main`：累计退役10个附属工作区、24个旧本地分支。恢复引用`refs/archive/20261008/heads/codex/uat267-physical-gate-db87`及恢复包保留，没有删除远程分支或新增完整源码备份。
+
+UAT-267原问题与未验收条件不变；工具未因清理合入main，亦未声称三片恢复。后续处理须从当前代码和最新生产事实重新核查，不能复用旧Run/克隆检查作为当前恢复授权。此次仅文档及Git工作区操作，`git diff --check`和工作区/分支登记复核通过，未重复运行功能测试或操作生产。

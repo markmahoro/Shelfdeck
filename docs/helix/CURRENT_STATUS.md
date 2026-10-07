@@ -29,7 +29,7 @@
 
 ## 当前开发与归档
 
-2026-10-08 Git整合：当前开发回到主工作区 main，已合入Series 1d998a43c及维护eb0bd08a3，合并提交2c2998827。23个旧本地分支名退役到archive refs，9个工作区整体移至可恢复归档；保留主工作区及UAT-267独立预检工具工作区。未提交修改、ignored数据和原HEAD均保留，不表示所有历史独有改动已合入。验证与恢复见[整合Evidence](implementation/evidence/GIT_WORKSPACE_CONSOLIDATION_20261008.md)。以下日期段落为各次实现时点，旧工作区描述不再表示当前归属。
+2026-10-08 Git整合：当前开发回到主工作区 main，已合入Series 1d998a43c及维护eb0bd08a3，合并提交2c2998827。24个旧本地分支名已退役，10个附属工作区已移除，现在只保留main。原提交保存在archive refs与恢复包，未提交修改及必要非重建资料保存在preserved目录，重复完整副本已清理。UAT-267工作区经用户确认退役，问题本身仍开放；不表示所有历史独有改动已合入。验证与恢复见[整合Evidence](implementation/evidence/GIT_WORKSPACE_CONSOLIDATION_20261008.md)。以下日期段落为各次实现时点，旧工作区描述不再表示当前归属。
 
 2026-09-30用户确认Series按5节点推进，UI遵循现行规范并由UI负责人验收。Master Plan/Phase及AGENTS已记录逐节点门禁；隔离分支补齐主工作区已确认的Playbook §11.1和Beta baseline §7.1，主工作区既有其他用户修改保持。UI负责人已确认职责并回传[验收范围矩阵](implementation/evidence/SERIES_UI_ACCEPTANCE_SCOPE_20260930.md)；具体页面结论仍需同版本实际走查，当前没有Series页面交付或UI PASS。
 
