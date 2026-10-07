@@ -226,9 +226,9 @@ function artifactHandle(context,caseId,kind,location,at,mediaType=null,provenanc
 function isPrimaryMaterial(item){return String(item.role||'').toLowerCase().includes('primary');}
 function isNfoMaterial(item){return isAftercareArtifactMaterial(item,'nfo');}
 function isPosterMaterial(item){return isAftercareArtifactMaterial(item,'poster');}
-function custodyIdentityChangedFinding(item){const nfo=isNfoMaterial(item);
+function custodyIdentityChangedFinding(item,series=false){const nfo=isNfoMaterial(item);
   if(nfo)return validNfo(item.location)?finding('custody','nfo_identity_changed','warning','observe',item.material_key):
-    finding('custody','nfo_corrupt','warning','auto_repair',item.material_key);
+    finding('custody','nfo_corrupt','warning',series?'attention_required':'auto_repair',item.material_key);
   return finding('custody',isPrimaryMaterial(item)?'primary_identity_changed':'material_identity_changed','critical','attention_required',item.material_key);}
 function nfoSourceGuard(contextValue,current,fingerprint){const sourceMaterialIdentity=current&&fs.existsSync(current.location)?physicalIdentity(current.location,current.mount_scope_id,fingerprint):null;return Object.freeze({sourceMaterialIdentity,digest:canonicalDigest({schema:'arca.aftercare-nfo-source-guard@1',careBasisDigest:contextValue.basis.digest,sourceMaterialIdentity})});}
 function inventoryRowForIdentity(template,identity){return Object.freeze({...template,material_key:identity.materialKey,mount_scope_id:identity.mountScopeId,inode:identity.inode,size_bytes:identity.sizeBytes,fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:identity.fingerprintVersion,content_fingerprint:identity.contentFingerprint});}
@@ -256,7 +256,7 @@ function isAftercareSettlementPreconditionFailureOutcome(value){
 }
 function existingMaterials(items,predicate){return [...items].filter(predicate).filter((item)=>{try{return fs.statSync(item.location).isFile();}catch{return false;}}).sort((left,right)=>Number(left.ordinal||0)-Number(right.ordinal||0)||String(left.location).localeCompare(String(right.location)));}
 function selectedNfoMaterial(items){const existing=existingMaterials(items,isNfoMaterial);return existing.find((item)=>validNfo(item.location))||existing[0]||null;}
-function isRepairablePresentationArtifact(item){const role=String(item.role||'').toLowerCase(),extension=path.extname(item.location||'').toLowerCase();return role.includes('poster')||role.includes('fanart')||role.includes('nfo')||role==='metadata_sidecar'||extension==='.nfo';}
+function isRepairablePresentationArtifact(item,series=false){if(series&&isNfoMaterial(item))return false;const role=String(item.role||'').toLowerCase(),extension=path.extname(item.location||'').toLowerCase();return role.includes('poster')||role.includes('fanart')||role.includes('nfo')||role==='metadata_sidecar'||extension==='.nfo';}
 function custodyBlocksDependentAssessment(custody){return custody?.assessmentState==='not_assessable'||custody?.findingDrafts?.some((item)=>/\/(primary_|binding_)/.test(item.schemaRef));}
 function boundedBytes(location,maxBytes=16*1024*1024){const stat=fs.statSync(location);if(!stat.isFile()||stat.size>maxBytes)return null;return fs.readFileSync(location);}
 function validNfo(location){
@@ -270,6 +270,20 @@ function validNfo(location){
     return fs.readSync(descriptor,Buffer.alloc(1),0,1,0)===1;
   }catch{return false;}
   finally{if(descriptor!==undefined)fs.closeSync(descriptor);}
+}
+function nfoInventoryFindings(context) {
+  const rows=context.raw.materials.filter(isNfoMaterial),series=context.raw.entry.structure_kind==='season';
+  const existing=existingMaterials(rows,isNfoMaterial);
+  if(!series) {
+    if(!existing.length)return [finding('presentation','nfo_missing','warning','auto_repair',context.shelfEntryId)];
+    return existing.some(item=>validNfo(item.location))?[]:[finding('presentation','nfo_corrupt','warning','auto_repair',context.shelfEntryId)];
+  }
+  if(!rows.length)return [finding('presentation','nfo_missing','warning','attention_required',context.shelfEntryId)];
+  const present=new Set(existing),missing=rows.filter(item=>!present.has(item)),corrupt=existing.filter(item=>!validNfo(item.location));
+  return [['nfo_missing',missing],['nfo_corrupt',corrupt]].filter(([,items])=>items.length).map(([code,items])=>
+    finding('presentation',code,'warning','attention_required',canonicalDigest(items.map(item=>({materialKey:item.material_key,
+      endpointId:item.endpoint_id,location:item.location,bindingRevision:Number(item.binding_revision)}))
+      .sort((a,b)=>a.materialKey.localeCompare(b.materialKey)))));
 }
 async function inspectImageBytes(bytes){try{if(!Buffer.isBuffer(bytes)||bytes.length<12||bytes.length>16*1024*1024)return null;const image=sharp(bytes,{failOn:'error',limitInputPixels:100_000_000,sequentialRead:true}),metadata=await image.metadata();if(!['jpeg','png','webp'].includes(metadata.format)||Number(metadata.width)<=0||Number(metadata.height)<=0)return null;await sharp(bytes,{failOn:'error',limitInputPixels:100_000_000,sequentialRead:true}).stats();return Object.freeze({format:metadata.format,width:Number(metadata.width),height:Number(metadata.height),mediaType:'image/'+metadata.format});}catch{return null;}}
 async function validImageBytes(bytes){return Boolean(await inspectImageBytes(bytes));}
@@ -523,24 +537,22 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   ports[C.custody]=pure(C.custody,['careBasis','inventoryRevision','knownBindings'],(_n,c,at,execution)=>{
     const findings=[];let endpointUnavailable=false;
     for(const item of c.raw.materials){const location=item.location;
-      try{const stat=fs.statSync(location,{bigint:true});if(!stat.isFile()){findings.push(finding('custody',isPrimaryMaterial(item)?'primary_not_regular':'artifact_not_regular','critical',!isPrimaryMaterial(item)&&isRepairablePresentationArtifact(item)?'auto_repair':'attention_required',item.material_key));continue;}
+      try{const stat=fs.statSync(location,{bigint:true});if(!stat.isFile()){findings.push(finding('custody',isPrimaryMaterial(item)?'primary_not_regular':'artifact_not_regular','critical',!isPrimaryMaterial(item)&&isRepairablePresentationArtifact(item,c.raw.entry.structure_kind==='season')?'auto_repair':'attention_required',item.material_key));continue;}
         const observed=fingerprint(location),identityChanged=
           String(observed.stat.ino)!==String(item.inode)||Number(observed.stat.size)!==Number(item.size_bytes)||
           observed.fingerprintAlgorithm!==item.fingerprint_algorithm||Number(observed.fingerprintVersion)!==Number(item.fingerprint_version)||
           observed.contentFingerprint!==item.content_fingerprint;
-        if(identityChanged){findings.push(custodyIdentityChangedFinding(item));continue;}
-      }catch(error){const causeCode=error?.details?.causeCode||error?.code;if(['ENOENT'].includes(causeCode)){findings.push(finding('custody',isPrimaryMaterial(item)?'primary_missing':'artifact_missing','critical',!isPrimaryMaterial(item)&&isRepairablePresentationArtifact(item)?'auto_repair':'attention_required',item.material_key));}
+        if(identityChanged){findings.push(custodyIdentityChangedFinding(item,c.raw.entry.structure_kind==='season'));continue;}
+      }catch(error){const causeCode=error?.details?.causeCode||error?.code;if(['ENOENT'].includes(causeCode)){findings.push(finding('custody',isPrimaryMaterial(item)?'primary_missing':'artifact_missing','critical',!isPrimaryMaterial(item)&&isRepairablePresentationArtifact(item,c.raw.entry.structure_kind==='season')?'auto_repair':'attention_required',item.material_key));}
         else if(['EACCES','EPERM','ENOTCONN','EHOSTDOWN','ENODEV','EIO'].includes(causeCode)){endpointUnavailable=true;break;}
-        else findings.push(finding('custody',isPrimaryMaterial(item)?'primary_unreadable':'artifact_unreadable','critical',!isPrimaryMaterial(item)&&isRepairablePresentationArtifact(item)?'auto_repair':'attention_required',item.material_key));}
+        else findings.push(finding('custody',isPrimaryMaterial(item)?'primary_unreadable':'artifact_unreadable','critical',!isPrimaryMaterial(item)&&isRepairablePresentationArtifact(item,c.raw.entry.structure_kind==='season')?'auto_repair':'attention_required',item.material_key));}
     }
     if(endpointUnavailable){const incidentKey='endpoint:'+canonicalDigest({endpointId:c.raw.shelf.target_endpoint_id,incidentKind:'unavailable'});return assessment('custody',c,[finding('custody','endpoint_unavailable','warning','observe',incidentKey)],at,'not_assessable',execution.workId,incidentKey);}
     return assessment('custody',c,findings,at,undefined,execution.workId);
   });
   ports[C.presentation]=Object.freeze({validateInputs(c){requireNamed(c,['careBasis','inventoryMetadataArtifactRefs','standard']);},async execute(execution){const c=context(execution),at=now(),custody=resultFor(execution,C.custody);
     if(custodyBlocksDependentAssessment(custody))return outcome(C.presentation,assessment('presentation',c,[],at,'not_assessable',execution.workId,custody.incidentKey),at);
-    const nfoRows=c.raw.materials.filter(isNfoMaterial),posterRows=c.raw.materials.filter(isPosterMaterial),nfos=existingMaterials(c.raw.materials,isNfoMaterial),posters=existingMaterials(c.raw.materials,isPosterMaterial),findings=[];
-    if(nfos.length===0)findings.push(finding('presentation','nfo_missing','warning','auto_repair',c.shelfEntryId));
-    else if(!nfos.some((item)=>validNfo(item.location)))findings.push(finding('presentation','nfo_corrupt','warning','auto_repair',c.shelfEntryId));
+    const posters=existingMaterials(c.raw.materials,isPosterMaterial),findings=nfoInventoryFindings(c);
     let hasValidPoster=false;for(const poster of posters){if(await validImage(poster.location)){hasValidPoster=true;break;}}
     if(posters.length===0)findings.push(finding('presentation','poster_missing','warning',
       c.raw.identity.provider&&c.raw.identity.provider_key&&providerHandle(c)?'auto_repair':'attention_required',c.shelfEntryId));
@@ -562,12 +574,12 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
       else findings.push(finding('conformance','old_binding_'+observed.kind,'critical','attention_required',basis));
     }
     return outcome(C.conformance,assessment('conformance',c,findings,at,undefined,execution.workId,null,{mediaRepairStrategy}),at);},validateResult(_c,o){if(!o?.result)throw new TypeError('Conformance Assessment Result is absent.');}});
-  ports[C.textRender]=Object.freeze({validateInputs(c){requireNamed(c,['acceptedProductFacts','artifactProfile']);},execute(execution){const c=context(execution),admission=workspaceAdmission(c,execution);if(admission.failure)return admission.failure;const care=admission.care,at=now(),root=workspaceRoot(options,store,care.aftercareCaseId),metadata=c.raw.facts.find((item)=>item.fact_kind==='product_metadata')?.value,cast=c.raw.facts.find((item)=>item.fact_kind==='media_cast')?.value,current=selectedNfoMaterial(c.raw.materials),guard=nfoSourceGuard(c,current,fingerprint),existingBytes=current&&fs.existsSync(current.location)?boundedBytes(current.location,256*1024):null,
+  ports[C.textRender]=Object.freeze({validateInputs(c){requireNamed(c,['acceptedProductFacts','artifactProfile']);},execute(execution){const c=context(execution),admission=workspaceAdmission(c,execution);if(admission.failure)return admission.failure;if(c.raw.entry.structure_kind==='season')return Object.freeze({kind:'failed',failureClass:'executor',code:'ARCA_AFTERCARE_SERIES_NFO_SCOPE_REQUIRED',message:'Series NFO repair requires an exact Artifact target.',retryDirective:'never',evidence:Object.freeze({shelfEntryId:c.shelfEntryId,writeStarted:false})});const care=admission.care,at=now(),root=workspaceRoot(options,store,care.aftercareCaseId),metadata=c.raw.facts.find((item)=>item.fact_kind==='product_metadata')?.value,cast=c.raw.facts.find((item)=>item.fact_kind==='media_cast')?.value,current=selectedNfoMaterial(c.raw.materials),guard=nfoSourceGuard(c,current,fingerprint),existingBytes=current&&fs.existsSync(current.location)?boundedBytes(current.location,256*1024):null,
     presentation={metadata,cast,identity:{provider:c.raw.identity.provider,providerKey:c.raw.identity.provider_key}},readable=Boolean(current&&validNfo(current.location)),
     bytes=readable?null:renderAftercareMovieNfo({existingBytes,...presentation}).bytes;
     if(readable)throw Object.assign(new Error('Aftercare NFO finding no longer matches current reality.'),{code:'ARCA_AFTERCARE_INPUT_STALE'});
     const digest=crypto.createHash('sha256').update(bytes).digest('hex'),location=path.join(root,'artifacts','movie.nfo');
-    fs.mkdirSync(path.dirname(location),{recursive:true});if(fs.existsSync(location)){if(!fs.readFileSync(location).equals(bytes))throw new Error('Aftercare NFO Workspace replay conflicts with existing bytes.');}else fs.writeFileSync(location,bytes,{flag:'wx'});const result=artifactHandle(c,care.aftercareCaseId,'nfo',location,at,null,guard.digest,'aftercare_case'),member=buildWorkspaceMaterialHandle(c,store,care.aftercareCaseId,'nfo',location,'sha256',result.digestHex,fingerprint);store.registerAftercareWorkspaceMaterial(member,result);return committed(execution,C.textRender,result,at,'workspace_write');},validateResult(_c,o){if(o?.result?.artifactKind!=='nfo')throw new TypeError('Aftercare rendered NFO Artifact is invalid.');}});
+    fs.mkdirSync(path.dirname(location),{recursive:true});if(fs.existsSync(location)){if(!fs.readFileSync(location).equals(bytes))throw new Error('Aftercare NFO Workspace replay conflicts with existing bytes.');}else fs.writeFileSync(location,bytes,{flag:'wx'});const result=artifactHandle(c,care.aftercareCaseId,'nfo',location,at,null,guard.digest,'aftercare_case'),member=buildWorkspaceMaterialHandle(c,store,care.aftercareCaseId,'nfo',location,'sha256',result.digestHex,fingerprint);store.registerAftercareWorkspaceMaterial(member,result);return committed(execution,C.textRender,result,at,'workspace_write');},validateResult(_c,o){if(o?.kind==='failed'&&o.code==='ARCA_AFTERCARE_SERIES_NFO_SCOPE_REQUIRED')return;if(o?.result?.artifactKind!=='nfo')throw new TypeError('Aftercare rendered NFO Artifact is invalid.');}});
   ports[C.binaryAcquire]=Object.freeze({
     validateInputs(c){requireNamed(c,['stableProviderIdentity','integrationHandle']);},
     async execute(execution){
@@ -852,4 +864,4 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   return Object.freeze(ports);
 }
 
-module.exports=Object.freeze({assessInventoryMediaConformance,probeConformance,assessMediaRepairStrategy,AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareInventoryNoChangeOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,verifyInventoryPlayback,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});
+module.exports=Object.freeze({nfoInventoryFindings,assessInventoryMediaConformance,probeConformance,assessMediaRepairStrategy,AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareInventoryNoChangeOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,verifyInventoryPlayback,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});

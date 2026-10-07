@@ -58,7 +58,10 @@ test('Aftercare assessment and rendering share the same existing NFO and poster 
     source.indexOf('ports[C.conformance]'));
   const render = source.slice(source.indexOf('ports[C.textRender]'),
     source.indexOf('ports[C.binaryAcquire]'));
-  assert.match(presentation, /existingMaterials\(c\.raw\.materials,isNfoMaterial\)/);
+  assert.match(presentation, /nfoInventoryFindings\(c\)/);
+  const nfoAssessment=source.slice(source.indexOf('function nfoInventoryFindings('),source.indexOf('async function inspectImageBytes('));
+  assert.match(nfoAssessment, /context\.raw\.materials\.filter\(isNfoMaterial\)/);
+  assert.match(nfoAssessment, /existingMaterials\(rows,isNfoMaterial\)/);
   assert.match(presentation, /existingMaterials\(c\.raw\.materials,isPosterMaterial\)/);
   assert.match(render, /selectedNfoMaterial\(c\.raw\.materials\)/);
   assert.doesNotMatch(render, /role===['"]metadata_sidecar['"]/);
@@ -67,7 +70,7 @@ test('Aftercare assessment and rendering share the same existing NFO and poster 
   assert.doesNotMatch(presentation, /compareMovieNfoPresentation/);
   assert.doesNotMatch(presentation, /existingBytes\.equals/);
   assert.doesNotMatch(presentation, /renderAftercareMovieNfo/);
-  assert.match(source, /if\(identityChanged\)\{findings\.push\(custodyIdentityChangedFinding\(item\)\)/);
+  assert.match(source, /if\(identityChanged\)\{findings\.push\(custodyIdentityChangedFinding\(item,c\.raw\.entry\.structure_kind==='season'\)\)/);
   assert.doesNotMatch(render, /aftercare_nfo_reconcile/);
   assert.match(render, /if\(readable\)throw/);
   assert.match(source, /materialEffectKind:isMedia\?'primary_replace':reconcileNfo\?'artifact_reconcile'/);

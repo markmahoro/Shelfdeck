@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 NFO完整性：[NFO评估Evidence](implementation/evidence/SERIES_AFTERCARE_NFO_ASSESSMENT_20261008.md)。Series现检查全部已登记NFO，后集缺失/空文件不再被Season NFO掩盖；现有单NFO写入路径在Series上明确拒绝，防止误修其他集。Aftercare回归225项通过。精确Artifact目标到逐集维修提交尚未接通，不能视为完整维护交付；UI/Linux与发布门槛仍开放，未部署NAS。
+
 2026-10-08海报维护身份：[Provider Identity Evidence](implementation/evidence/SERIES_AFTERCARE_PROVIDER_IDENTITY_20261008.md)。修正Series Aftercare请求被固定成TMDB Movie的问题，以全部已接受批次验证Series/Season后调用原Artifact Adapter；错季/身份不一致拒绝。95项相关测试及边界/语义检查通过。完整展示维护、逐集NFO、逐成员维修、UI/Linux及发布资格仍待完成；无NAS部署。
 
 2026-10-08全成员健康评估：[Aftercare媒体Evidence](implementation/evidence/SERIES_AFTERCARE_MEDIA_ASSESSMENT_20261008.md)。Series当前Inventory全部Primary现执行Probe/播放抽样，空间按完整N:M集合精确逐集计算；15项专项通过，正式Capability/schema验证通过。全架构复验2,150通过、9既有skip、0失败；首次曾有1项目录变化Fence失败，独立复验通过，原始记录保留。Series媒体维修策略仍未接通，缺陷明确保留attention_required；UI/Linux、完整运营与发布资格继续，未部署NAS。

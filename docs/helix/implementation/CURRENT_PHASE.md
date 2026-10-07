@@ -169,3 +169,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08展示维护DoR：Arca海报获取原固定tmdb_movie，Series必须从当前Inventory的全部已接受resolved_identity重建精确TMDB Series/Season anchor，校验Canonical Identity后传给现有Integration Adapter；不同批次必须指向同一Season，冲突/缺失在网络或Workspace写入前拒绝。沿用SSOT §3.2.6/§5.5.5/§8.6.19既有Owner及Artifact路径，不改变NFO/维修范围或生产权限。专项验证Series/Movie路由、跨批/错季/错Provider拒绝及正式Capability边界；后续完整展示维护与UI版本验收继续。
 
 2026-10-08展示维护增量：[Provider Identity Evidence](evidence/SERIES_AFTERCARE_PROVIDER_IDENTITY_20261008.md)。Series海报获取按正式Series/Season身份接入既有TMDB Artifact端口，不再请求同编号Movie；跨批Canonical身份与网络/Workspace前Fence验证通过。95项相关测试通过；未完成逐集NFO、完整维修Host和对应版本UI验收，节点4及首版发布资格仍开放。
+
+2026-10-08逐集NFO评估DoR：当前Presentation只检查任意一个NFO可读，Series应检查当前Inventory登记的全部NFO（沿已确认存在/非空/可读口径，不把外部XML或内容差异当损坏）。每个缺失/不可读文件纳入Finding摘要。现有TextRender/Materialize按单NFO选择且缺少Episode目标，不能授权其修复Series；在尚未接通逐Artifact scope前，Series NFO缺陷明确attention_required，TextRender执行入口在写入前拒绝。此为实现中间门禁，后续逐集生成/落位/提交必须完成，不能以拒绝维修满足节点4。验证后集缺失/空、无NFO、外部文本、顺序稳定、Movie回归及正式Capability无写副作用。
+
+2026-10-08 NFO评估增量：[Evidence](evidence/SERIES_AFTERCARE_NFO_ASSESSMENT_20261008.md)。全部已登记NFO评估与错误单NFO维修的写入前门禁已实现，Aftercare回归225通过。后续必须打通Arca接受Artifact Requirement到Inventory成员的精确关联、逐Artifact Planner/Result、NFO生成/落位/原子提交；不得以文件名猜集或NFO的伪Primary Claim替代。此批不关闭维护能力或节点4，无生产动作。
