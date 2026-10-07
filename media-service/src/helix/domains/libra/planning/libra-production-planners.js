@@ -8,7 +8,7 @@ const {
   executionInputUnavailable,
 } = require('../../../foundation/execution/execution-input-readiness');
 const { buildProductIdentityCommitBundle } = require('../model/product-identity-commit-contracts');
-const { frozenSeriesSeasonNumber } = require('../model/series-identity-contracts');
+const { frozenSeriesSeasonNumber,candidateSeriesAnchor } = require('../model/series-identity-contracts');
 const { buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductMetadataDraft } =
   require('../model/product-fact-contracts');
 const { buildMediaCastDraft, buildMetadataMediaCastRelations, buildProductFactHandle } = require('../model/product-fact-contracts');
@@ -124,11 +124,13 @@ function createProductIdentityPlanner(options) {
     const nfo=snapshot.relatedReferences.filter((item)=>item.role==='nfo').sort((a,b)=>a.referenceId.localeCompare(b.referenceId));
     const manualSelection=options.productIdentitySelection?.readCurrent(snapshot.run.libraRunId)||null;
     const established=!manualSelection?establishedSubjectIdentity(options,snapshot):null;
-    const nfoWork=!manualSelection&&!established&&nfo.length===1?identityObservationWork(snapshot,'related_nfo'):null;
+    const candidateAnchor=!manualSelection&&!established?candidateSeriesAnchor(snapshot):null;
+    const nfoWork=!manualSelection&&!established&&!candidateAnchor&&nfo.length===1?identityObservationWork(snapshot,'related_nfo'):null;
     const nfoResult=nfoWork?options.workResultReader.read(nfoWork.workId).find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===IDENTITY_EVIDENCE):null;
     const strongFact=nfoResult?.result?.result==='resolved'?nfoResult.result.verifiedIdentity:null;
     const observationWork=manualSelection?identityObservationWork(snapshot,'provider_exact',{workId:manualSelection.selection_intent_id,resultDigest:manualSelection.intent_digest}):
       established?identityObservationWork(snapshot,'provider_exact',established):
+      candidateAnchor?identityObservationWork(snapshot,'provider_exact',candidateAnchor):
       strongFact?identityObservationWork(snapshot,'provider_exact',{workId:nfoWork.workId,resultDigest:nfoResult.resultDigest}):
       nfoWork&&!nfoResult?nfoWork:identityObservationWork(snapshot,'provider_search');
     let work,nodes;
@@ -137,8 +139,8 @@ function createProductIdentityPlanner(options) {
       work=observationWork;
       nodes=[planNode({...options,request,nodeId:'provider_identity_observation',eventId:factEventId,
         capabilityRef:IDENTITY_EVIDENCE,inputBindings:[
-          owner('productIdentityEvidenceIntent',request,IDENTITY_EVIDENCE_INTENT,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||established||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null,establishedIdentityDigest:established?.resultDigest||null,...(snapshot.spec.contentProfile==='series'?{seasonNumber:frozenSeriesSeasonNumber(snapshot)}:{})}),
-          owner('physicalMaterialReadHandleOrIntegrationHandle',request,IDENTITY_EVIDENCE_SOURCE,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||established||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null,establishedIdentityDigest:established?.resultDigest||null,...(snapshot.spec.contentProfile==='series'?{seasonNumber:frozenSeriesSeasonNumber(snapshot)}:{})}),
+          owner('productIdentityEvidenceIntent',request,IDENTITY_EVIDENCE_INTENT,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||established||candidateAnchor||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null,establishedIdentityDigest:established?.resultDigest||null,candidateAnchorDigest:candidateAnchor?.resultDigest||null,...(snapshot.spec.contentProfile==='series'?{seasonNumber:frozenSeriesSeasonNumber(snapshot)}:{})}),
+          owner('physicalMaterialReadHandleOrIntegrationHandle',request,IDENTITY_EVIDENCE_SOURCE,{sourceKind:observationWork===nfoWork?'related_nfo':manualSelection||established||candidateAnchor||strongFact?'provider_exact':'provider_search',sourceWorkId:nfoWork?.workId||null,selectionIntentId:manualSelection?.selection_intent_id||null,establishedIdentityDigest:established?.resultDigest||null,candidateAnchorDigest:candidateAnchor?.resultDigest||null,...(snapshot.spec.contentProfile==='series'?{seasonNumber:frozenSeriesSeasonNumber(snapshot)}:{})}),
         ],resourceKinds:['disk_io','network']})];
     }else{
       const source=options.workResultReader.read(observationWork.workId).find((item)=>
@@ -217,6 +219,11 @@ function createProductIdentityProjections(options) {
           common.aliases=Object.freeze([Object.freeze({...alias,aliasDigest:canonicalDigest(alias)})]);
           common.yearHint=established.year;
           source={...source,providerKey:established.providerKey,associationKind:'subject_identity',associationEvidenceDigest:established.resultDigest};
+        } else if(parameters.candidateAnchorDigest){
+          const anchor=candidateSeriesAnchor(value);
+          if(!anchor||anchor.resultDigest!==parameters.candidateAnchorDigest)
+            throw new Error('Candidate Series anchor changed before exact Provider verification.');
+          source={...source,providerKey:anchor.providerKey,associationKind:'candidate_season_claim',associationEvidenceDigest:anchor.resultDigest};
         } else {
         const observed=options.workResultReader.read(parameters.sourceWorkId).find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===IDENTITY_EVIDENCE),
           identity=observed?.result?.verifiedIdentity;

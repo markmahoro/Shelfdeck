@@ -998,7 +998,7 @@ function productIdentityEvidenceIntentSchema() {
           relatedReferenceDigest:digest(),expectedPhysicalIdentityDigest:digest() }),
         object({ ...scopedCommon, sourceKind:{const:'provider_exact'},integrationId:id(),configRevision:positiveInteger(),
           provider:{const:'tmdb'},namespace:{const:namespace},providerKey:text({maxLength:128}),
-          associationKind:enumText('nfo_claim','manual_selection','subject_identity'),associationEvidenceDigest:digest() }),
+          associationKind:enumText('nfo_claim','manual_selection','subject_identity',...(profile==='series'?['candidate_season_claim']:[])),associationEvidenceDigest:digest() }),
         object({ ...scopedCommon, sourceKind:{const:'provider_search'},integrationId:id(),configRevision:positiveInteger(),
           provider:{const:'tmdb'},namespace:{const:namespace} }),
       ];

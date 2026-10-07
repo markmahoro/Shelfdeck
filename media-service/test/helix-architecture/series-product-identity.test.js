@@ -338,3 +338,22 @@ for(const mutation of ['foreign-source-season','foreign-run-season','invalid-fac
   assert.throws(()=>coordinator(unitOfWork).execute(request(bundle)),error=>['P9_RESOLVED_IDENTITY_SOURCE_CHAIN','P9_RESOLVED_IDENTITY_SEASON_FENCE','P9_RESOLVED_IDENTITY_INPUT'].includes(error.code));
   const db=new Database(databasePath,{readonly:true});try{assertEmpty(db);}finally{db.close();}
 }));
+
+
+test('Explicit Candidate Series anchor requires exact Provider verification and preserves association checks',async()=>{
+  const {candidateSeriesAnchor,buildProviderSeasonContinuityClaim}=require('../../src/helix/domains/libra/model/series-identity-contracts');
+  const value=snapshot();
+  value.candidatePackage={candidatePackageId:'candidate-1',seasonContinuityClaims:[buildProviderSeasonContinuityClaim({
+    provider:'tmdb',namespace:'tmdb_series',providerKey:'1399',seasonNumber:1},D('explicit-marker'))]};
+  const anchor=candidateSeriesAnchor(value);
+  const intent=project(value,{sourceKind:'provider_exact',seasonNumber:1,candidateAnchorDigest:anchor.resultDigest});
+  assert.equal(intent.providerKey,'1399');assert.equal(intent.associationKind,'candidate_season_claim');
+  const adapter=harness();
+  assert.equal((await observeProductIdentity(adapter.options,intent,handle)).result,'resolved');
+  assert.ok(adapter.calls.every(url=>!url.pathname.includes('/search/')));
+  const conflict=harness({show:{id:1399,name:'Foreign title',first_air_date:'2020-01-01'}});
+  assert.notEqual((await observeProductIdentity(conflict.options,intent,handle)).result,'resolved');
+  assert.throws(()=>project(value,{sourceKind:'provider_exact',seasonNumber:1,candidateAnchorDigest:D('stale')}),/anchor changed/);
+  value.candidatePackage.seasonContinuityClaims[0]={...value.candidatePackage.seasonContinuityClaims[0],claimKey:'series:1399:season:2'};
+  assert.throws(()=>candidateSeriesAnchor(value),/frozen Season/);
+});

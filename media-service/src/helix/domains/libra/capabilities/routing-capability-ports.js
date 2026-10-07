@@ -254,7 +254,7 @@ function providerYearMatches(yearHint, candidate) {
 
 function exactProviderAssociationMatches(intent, candidate) {
   if (intent.associationKind === 'manual_selection') return true;
-  if (!['nfo_claim', 'subject_identity'].includes(intent.associationKind)) return false;
+  if (!['nfo_claim', 'subject_identity', 'candidate_season_claim'].includes(intent.associationKind)) return false;
   const expectedTitles = new Set((intent.aliases || []).map((item) => normalizedIdentityAssociationTitle(item.value)).filter(Boolean));
   const providerTitles = [candidate.title, candidate.originalTitle, ...(candidate.aliases || []).map((item) => item.value)]
     .map(normalizedIdentityAssociationTitle).filter(Boolean);

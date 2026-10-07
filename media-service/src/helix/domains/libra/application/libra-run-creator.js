@@ -65,7 +65,9 @@ function createLibraRunCreator(options){
     return Object.freeze({relatedReferenceSetDigest,relatedDispositionScopeDigest,items:Object.freeze(related)});
   }
   function reconcileInternal(subjectId,forceReplacementOf=null){const context=options.contextReader.read(subjectId);if(context.kind!=='ready')return context;
-    const eligible=context.runs.filter((run)=>['active','suspended','frozen'].includes(run.state));
+    const eligible=context.runs.filter((run)=>['active','suspended','frozen'].includes(run.state)&&
+      (context.subject.structure_kind!=='season'||context.deliveryScopes?.find(scope=>scope.runId===run.libra_run_id)?.materialKeys.some(key=>
+        context.bindings.some(binding=>binding.authority_kind==='primary_control'&&binding.material_key===key))));
     if(eligible.length>1)throw new Error('Subject has more than one commit-eligible Libra Run.');
     const current=eligible[0]||null;
     const completed=context.runs.filter((run)=>run.state==='completed');

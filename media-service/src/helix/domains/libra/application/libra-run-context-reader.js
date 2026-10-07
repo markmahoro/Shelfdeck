@@ -1,5 +1,7 @@
 'use strict';
 
+const { deliveryScopeStatements,readDeliveryScopes } = require('../persistence/series-delivery-scope-reader');
+const { bindingsForEpisodeScope } = require('../model/series-delivery-scope');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { activeRunScopeSetDigest } = require('../model/run-admission-contracts');
@@ -8,6 +10,7 @@ function createLibraRunContextReader(options) {
   if (!options?.schemaManifest || !options.unitOfWork) throw new TypeError('Libra Run Context Reader requires Libra persistence.');
   const repository = createRepositoryDefinition({
     repositoryId:'libra_run_context_reader', owner:'libra', schemaManifest:options.schemaManifest, statements:{
+      ...deliveryScopeStatements,
       find_subject:{kind:'select-one',tableId:'libra_subjects',safeIntegers:true,columns:['subject_id','structure_kind','content_profile','status',
         'intake_revision','current_continuity_set_digest','current_episode_scope_digest'],keyColumns:['subject_id']},
       find_decision_head:{kind:'select-one',tableId:'libra_subject_decision_heads',safeIntegers:true,columns:['subject_id','head_revision','head_digest',
@@ -26,10 +29,6 @@ function createLibraRunContextReader(options) {
         'active_scope_set_digest'],keyColumns:['subject_id']},
       list_runs:{kind:'select-all',tableId:'libra_runs',safeIntegers:true,columns:['libra_run_id','subject_id','acceptance_spec_id','state',
         'state_revision','state_digest','execution_basis_digest','run_scope_digest','priority_class','priority_intent_digest'],keyColumns:['subject_id']},
-      list_run_packages:{kind:'select-all',tableId:'libra_product_packages',safeIntegers:true,columns:['libra_run_id','offer_id'],
-        keyColumns:['libra_run_id']},
-      find_delivery_receipt:{kind:'select-one',tableId:'libra_delivery_receipts',safeIntegers:true,columns:['offer_id','result'],
-        keyColumns:['offer_id']},
       page_active_subjects:{kind:'select-page-after',tableId:'libra_subjects',keyColumn:'subject_id',fixedKeyColumns:['status'],maxItems:100,
         columns:['subject_id','status']},
       page_active_runs:{kind:'select-page-after',tableId:'libra_runs',keyColumn:'libra_run_id',fixedKeyColumns:['state'],maxItems:100,
@@ -48,22 +47,25 @@ function createLibraRunContextReader(options) {
     let spec;try{spec=JSON.parse(specRow.spec_json);}catch{throw new Error('Libra Acceptance Spec JSON is corrupt.');}
     if(spec.acceptanceSpecId!==specRow.acceptance_spec_id||spec.recordDigest!==specRow.record_digest||spec.specDigest!==specRow.spec_digest||
       spec.productScope?.scopeDigest!==specRow.product_scope_digest)throw new Error('Libra Acceptance Spec record is corrupt.');
-    const bindings=repo.invoke('list_bindings',{subject_id:subjectId}).filter((row)=>Number(row.current)===1&&row.health_state==='active')
+    let bindings=repo.invoke('list_bindings',{subject_id:subjectId}).filter((row)=>Number(row.current)===1&&row.health_state==='active')
       .sort((a,b)=>Buffer.from(a.material_key).compare(Buffer.from(b.material_key)));
     const claims=repo.invoke('list_binding_claims',{subject_id:subjectId});
     const runHead=repo.invoke('find_run_head',{subject_id:subjectId}),runs=repo.invoke('list_runs',{subject_id:subjectId});
-    const acceptedDeliveryRunIds=[];
-    for(const run of runs.filter((item)=>['active','suspended','frozen'].includes(item.state))){
-      const accepted=repo.invoke('list_run_packages',{libra_run_id:run.libra_run_id}).some((pkg)=>
-        repo.invoke('find_delivery_receipt',{offer_id:pkg.offer_id})?.result==='accepted');
-      if(accepted)acceptedDeliveryRunIds.push(run.libra_run_id);
+    const deliveryScopes=readDeliveryScopes(repo,subjectId);
+    const acceptedDeliveryRunIds=deliveryScopes.filter(scope=>scope.accepted).map(scope=>scope.runId);
+    if(subject.structure_kind==='season'){
+      bindings=bindingsForEpisodeScope(bindings,claims,spec.productScope.episodeKeys);
+      const delivered=new Set(deliveryScopes.filter(scope=>scope.accepted).flatMap(scope=>scope.materialKeys));
+      const primary=bindings.filter(row=>row.authority_kind==='primary_control');
+      if(primary.length&&primary.every(row=>delivered.has(row.material_key)))
+        return Object.freeze({kind:'delivered',subjectId,acceptanceSpecId:spec.acceptanceSpecId});
     }
     return Object.freeze({kind:'ready',subject:Object.freeze(subject),decisionHead:Object.freeze(head),spec:Object.freeze({...spec,
       shelfId:specRow.shelf_id,productScopeDigest:specRow.product_scope_digest}),shelfProjection:Object.freeze({
         routingProjectionRevision:Number(specRow.shelf_routing_projection_revision),projectionDigest:specRow.shelf_projection_digest,
         standardRevision:Number(specRow.shelf_standard_revision),standardDigest:specRow.shelf_standard_digest}),bindings:Object.freeze(bindings),
       claims:Object.freeze(claims),runHead:runHead?Object.freeze(runHead):null,runs:Object.freeze(runs),
-      acceptedDeliveryRunIds:Object.freeze(acceptedDeliveryRunIds)});
+      deliveryScopes:Object.freeze(deliveryScopes),acceptedDeliveryRunIds:Object.freeze(acceptedDeliveryRunIds)});
   });}
   function headSnapshot(subjectId,row){return row?Object.freeze({headState:'present',headRevision:Number(row.head_revision),
     activeScopeSetDigest:row.active_scope_set_digest}):Object.freeze({headState:'absent',headRevision:0,
@@ -86,7 +88,7 @@ function createLibraRunContextReader(options) {
       const context=read(row.subject_id);
       if(context.kind!=='ready')continue;
       const eligible=context.runs.filter((run)=>['active','suspended','frozen'].includes(run.state));
-      if(eligible.length>0)continue;
+      if(eligible.length>0&&context.subject.structure_kind!=='season')continue;
       items.push(Object.freeze({subjectId:row.subject_id}));
     }
     return Object.freeze({items:Object.freeze(items),nextCursor:items.length?items.at(-1).subjectId:null});}

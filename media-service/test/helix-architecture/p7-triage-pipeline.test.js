@@ -798,8 +798,13 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
   assert.equal(oversizedResult.unassignedMaterials.length, 0);
 });
 
-test('Triage module has no Store, Provider, Runtime, or legacy fallback dependency', () => {
-  const source = require('node:fs').readFileSync(require('node:path').resolve(__dirname,
-    '../../src/helix/domains/procurement/model/triage-contracts.js'), 'utf8');
-  for (const token of ['../persistence', 'provider', 'fallback', 'legacy', 'runtime']) assert.equal(source.toLowerCase().includes(token), false);
+test('Triage module and explicit continuity parser depend only on declared pure models and canonical JSON', () => {
+  const fs=require('node:fs'),path=require('node:path');
+  const dependencies=file=>[...fs.readFileSync(path.resolve(__dirname,
+    '../../src/helix/domains/procurement/model/',file),'utf8').matchAll(/require\(['"]([^'"]+)['"]\)/g)].map(match=>match[1]).sort();
+  assert.deepEqual(dependencies('triage-contracts.js'),[
+    '../../../contracts/canonical-json','./bdmv-scope','./field-profile-hint-contracts',
+    './procurement-run-contracts','./related-artwork-role','./series-continuity-claims',
+  ].sort());
+  assert.deepEqual(dependencies('series-continuity-claims.js'),['../../../contracts/canonical-json']);
 });

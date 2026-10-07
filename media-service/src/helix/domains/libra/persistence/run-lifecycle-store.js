@@ -1,5 +1,7 @@
 "use strict";
 
+const { bindingsForEpisodeScope } = require('../model/series-delivery-scope');
+
 const { createDefectAuthorizationStore } = require('./defect-authorization-store');
 
 const {
@@ -957,7 +959,7 @@ function currentSkeleton(repo, run) {
       integrity: "Current Acceptance Spec is inconsistent with Decision Basis.",
       head,
     };
-  const bindings = repo
+  let bindings = repo
     .invoke("list_bindings", { subject_id: run.subject_id })
     .filter(
       (row) => number(row.current) === 1 && row.health_state === "active" &&
@@ -974,6 +976,8 @@ function currentSkeleton(repo, run) {
   const claims = repo.invoke("list_binding_claims", {
     subject_id: run.subject_id,
   });
+  if(subject.structure_kind==='season')
+    bindings=bindingsForEpisodeScope(bindings,claims,JSON.parse(spec.spec_json).productScope.episodeKeys);
   return {
     subject,
     head,

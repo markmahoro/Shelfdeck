@@ -1,4 +1,5 @@
 'use strict';
+const { candidateSeriesAnchor } = require('../model/series-identity-contracts');
 
 const { readDirectMediaSelections } = require('../planning/direct-media-selections');
 
@@ -602,12 +603,14 @@ function createLibraRunCoordinator(options){
       const nfoReferences=snapshot.relatedReferences.filter((item)=>item.role==='nfo').sort((a,b)=>a.referenceId.localeCompare(b.referenceId));
       const manualSelection=options.productIdentitySelection?.readCurrent(libraRunId)||null;
       const established=!manualSelection?establishedSubjectIdentity(options,snapshot):null;
-      const nfoWork=!manualSelection&&!established&&nfoReferences.length===1?identityObservationWork(snapshot,'related_nfo'):null;
+      const candidateAnchor=!manualSelection&&!established?candidateSeriesAnchor(snapshot):null;
+    const nfoWork=!manualSelection&&!established&&!candidateAnchor&&nfoReferences.length===1?identityObservationWork(snapshot,'related_nfo'):null;
       let nfoResult=null;
       if(nfoWork){const submitted=submit(nfoWork),status=options.workResultReader.status(nfoWork.workId);if(!workSucceeded(status)){if(workFailed(status))return terminalWork(snapshot,nfoWork,status,'product_unachievable');return Object.freeze({kind:'pending',phase:'product_identity_nfo',libraRunId,workId:nfoWork.workId,replayed:submitted.replayed});}nfoResult=options.workResultReader.read(nfoWork.workId).find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef==='libra.product_identity.evidence.observe@1');}
       const strongFact=nfoResult?.result?.result==='resolved'?nfoResult.result.verifiedIdentity:null;
       const observationWork=manualSelection?identityObservationWork(snapshot,'provider_exact',{workId:manualSelection.selection_intent_id,resultDigest:manualSelection.intent_digest}):
         established?identityObservationWork(snapshot,'provider_exact',established):
+      candidateAnchor?identityObservationWork(snapshot,'provider_exact',candidateAnchor):
         strongFact?identityObservationWork(snapshot,'provider_exact',{workId:nfoWork.workId,resultDigest:nfoResult.resultDigest}):identityObservationWork(snapshot,'provider_search'),observationSubmitted=submit(observationWork),observationStatus=options.workResultReader.status(observationWork.workId);
       if(!workSucceeded(observationStatus)){
         if(workFailed(observationStatus))return terminalWork(snapshot,observationWork,observationStatus,'integration_exhausted');

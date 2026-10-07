@@ -28,4 +28,18 @@ function buildProviderSeasonContinuityClaim(identity, evidenceDigest) {
   return Object.freeze({...body,claimDigest:canonicalDigest({schema:'season-continuity-claim@1',...body}),evidenceDigest});
 }
 
-module.exports = Object.freeze({buildProviderSeasonContinuityClaim,frozenSeriesSeasonNumber});
+function candidateSeriesAnchor(snapshot) {
+  if(snapshot.spec?.contentProfile!=='series')return null;
+  const seasonNumber=frozenSeriesSeasonNumber(snapshot);
+  const claims=(snapshot.candidatePackage?.seasonContinuityClaims||[]).filter(claim=>
+    claim.claimKind==='provider_season_identity'&&claim.claimNamespace==='tmdb');
+  if(!claims.length)return null;
+  if(claims.length!==1)throw new Error('Candidate Series Provider anchor is ambiguous.');
+  const claim=claims[0],match=/^series:([1-9][0-9]*):season:([1-9][0-9]*)$/.exec(claim.claimKey);
+  if(!match||Number(match[2])!==seasonNumber||claim.claimDigest!==canonicalDigest({schema:'season-continuity-claim@1',
+      claimKind:claim.claimKind,claimNamespace:claim.claimNamespace,claimKey:claim.claimKey}))
+    throw new Error('Candidate Series Provider anchor conflicts with the frozen Season.');
+  return Object.freeze({workId:snapshot.candidatePackage.candidatePackageId,resultDigest:canonicalDigest(claim),providerKey:match[1]});
+}
+
+module.exports = Object.freeze({buildProviderSeasonContinuityClaim,frozenSeriesSeasonNumber,candidateSeriesAnchor});

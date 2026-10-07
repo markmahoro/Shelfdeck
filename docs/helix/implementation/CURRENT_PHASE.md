@@ -22,6 +22,8 @@
 
 ## 当前工作项：Series身份与逐集生产接线
 
+2026-10-08显式连续性入口DoR：依据SSOT §3.4.2，Procurement只从冻结路径中的显式 `{tmdb-series-N}` namespace标记与positive Season形成weak provider_season_identity Claim，保留材料/位置/季号Evidence digest；每个同Candidate成员必须一致声明，冲突/缺失不继承。普通目录/标题及无namespace或Movie marker不推断Series。Libra仍独立确认正式Provider identity，Intake严格执行0/1/2 witness及Episode零重叠；不追溯合并已存在Subject。沿已有typed claim集合接线，不新建对象/Capability或跨Owner读；NFO读取尚未接入，不能宣称普通命名已具有精确连续性。验证单集/合并Claim、错误namespace/冲突/季号、实际Host同Subject两个Run及唯一Season扩充。 本批同Subject顺序追加、正式Provider exact及按交付范围准入/Freshness已通过实际Host，旧集与历史不改写。完整验证及后续多Run并发缺口见[连续性Evidence](evidence/SERIES_SUBJECT_CONTINUITY_20261008.md)。
+
 2026-10-08提交历史与冲突DoR：扩充完成后按原Receipt冻结Inventory/Deck revision验证旧Run，不将新current head作为旧提交的重放basis；原Package/custody/decision/digest仍须精确相等，历史读无副作用。验证实际Host两次Commit后逐包回执读取、错误摘要与foreign custody拒绝；提交事务重放、Reservation/并发冲突单独验证。不得为旧未完成Formation增加兼容或替代原领域授权。 本批结果：历史回执修复及双批Host通过；原生事务Reservation/head drift/末尾故障注入均回滚，18表快照不变，原Owner事务重放不重复写。相关5文件38通过、1既有skip，详见[扩充Evidence追加](evidence/SERIES_SEASON_EXTENSION_20261008.md)。同Subject精确连续性、跨批Fact消费者和其他发布门槛仍开放。
 
 2026-10-08追加当前事实：[Season扩充Evidence](evidence/SERIES_SEASON_EXTENSION_20261008.md)。E01/E02首次Commit后，E03从实际Host完成第二次On-deck Commit，扩充唯一Season Entry；原Inventory/Deck Fact历史和旧文件保留，最新Inventory包含三集，两批元数据和来源分别保留。此无claim样本按SSOT保持两个Subject，不能算同Subject精确连续性已完成。254文件全量仅固定摘要断言陈旧，更新后该文件复验通过；9项既有skip未计为验收。还须原生Commit重放/并发/Reservation负向、所有多Package Fact消费者、精确连续性入口、逐成员加工和UI/平台发布门槛，节点未关闭，未生产发布。

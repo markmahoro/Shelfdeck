@@ -182,9 +182,9 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append} of [{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(append?' and appends E03 from an unanchored Candidate':''), {timeout:180000},async t=>{
+for(const {episodeCount,append,anchored} of [{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:180000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
-  const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source','Demo Show (2020)','Season 01');
+  const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
   fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
   const episodeNumbers=Array.from({length:episodeCount},(_,index)=>index+1);
@@ -360,6 +360,10 @@ for(const {episodeCount,append} of [{episodeCount:2},{episodeCount:24},{episodeC
     const member=sourceSnapshot.members.find(item=>item.materialKey===parameters.materialKey);
     assert.equal(parameters.memberDigest,canonicalDigest(member));
   }
+  if(anchored){
+    assert.ok(state.works.some(work=>work.work_id.startsWith('libra-product-identity-observation_provider_exact-work-')));
+    assert.ok(!state.works.some(work=>work.work_id.startsWith('libra-product-identity-observation_provider_search-work-')));
+  }
   assert.equal(state.subjects.length,1);assert.equal(state.subjects[0].content_profile,'series');
   assert.equal(state.subjects[0].structure_kind,'season');
   assert.equal(state.routes.at(-1).decision,'resolved');assert.equal(state.routes.at(-1).shelf_id,'series-shelf');
@@ -430,10 +434,16 @@ for(const {episodeCount,append} of [{episodeCount:2},{episodeCount:24},{episodeC
       assert.ifError(runtimeError);
       await new Promise(resolve=>setTimeout(resolve,50));
     } while(Date.now()<appendDeadline);
-    // Automatic filename Triage has no exact continuity claim: preserve two Subjects.
+    // Ordinary filenames preserve separate Subjects; explicit anchors reuse the Season Subject.
     // Arca independently resolves both Products to the same canonical Season Entry.
-    assert.equal(db.prepare('SELECT count(*) n FROM libra_subjects').get().n,2);
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_subjects').get().n,anchored?1:2);
     const runs=db.prepare('SELECT * FROM libra_runs').all();
+    if(anchored){
+      assert.ok(runs.every(run=>run.subject_id===firstRun.subject_id));
+      const second=runs.find(run=>run.libra_run_id!==firstRun.libra_run_id);
+      assert.deepEqual(db.prepare('SELECT episode_key FROM libra_run_material_episode_claims WHERE run_material_manifest_id=? ORDER BY episode_key').all(second.run_material_manifest_id).map(row=>row.episode_key),['E003']);
+      assert.deepEqual(db.prepare('SELECT episode_key FROM libra_run_material_episode_claims WHERE run_material_manifest_id=? ORDER BY episode_key').all(firstRun.run_material_manifest_id).map(row=>row.episode_key),['E001','E002']);
+    }
     assert.equal(runs.length,2,JSON.stringify({runs,works:db.prepare('SELECT work_id,work_kind,state FROM fx_supporting_works').all()}));
     assert.deepEqual(runs.find(item=>item.libra_run_id===firstRun.libra_run_id),firstRun);
     assert.equal(db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n,2,JSON.stringify({

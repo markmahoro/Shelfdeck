@@ -1,5 +1,7 @@
 "use strict";
 
+const { bindingsForEpisodeScope } = require('../model/series-delivery-scope');
+
 const {
   canonicalDigest,
   canonicalJson,
@@ -603,15 +605,12 @@ function assertOwnerRows(repo, decision, controls) {
       "P9_RUN_SPEC_STALE",
       "Acceptance Spec or Shelf Projection differs from immutable Owner row.",
     );
-  const bindings = repo
-      .invoke("list_bindings", { subject_id: decision.subjectId })
-      .filter((row) => number(row.current) === 1),
-    controlledBindings=bindings.filter((row)=>row.authority_kind==='primary_control'),
-    relatedBindings=bindings.filter((row)=>row.authority_kind==='related_derived'),
-    byKey = new Map(controlledBindings.map((row) => [row.material_key, row])),
-    claims = repo.invoke("list_binding_claims", {
-      subject_id: decision.subjectId,
-    });
+  const claims = repo.invoke("list_binding_claims", {subject_id:decision.subjectId});
+  const currentBindings=repo.invoke("list_bindings", {subject_id:decision.subjectId}).filter(row=>number(row.current)===1);
+  const bindings=spec.structureKind==='season'?bindingsForEpisodeScope(currentBindings,claims,spec.productScope.episodeKeys):currentBindings;
+  const controlledBindings=bindings.filter(row=>row.authority_kind==='primary_control'),
+    relatedBindings=bindings.filter(row=>row.authority_kind==='related_derived'),
+    byKey=new Map(controlledBindings.map(row=>[row.material_key,row]));
   const controlByKey = new Map(
     controls.map((item) => [item.materialKey, item]),
   );

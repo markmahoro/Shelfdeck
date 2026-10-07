@@ -604,7 +604,8 @@
           "enum": [
             "nfo_claim",
             "manual_selection",
-            "subject_identity"
+            "subject_identity",
+            "candidate_season_claim"
           ]
         },
         "associationEvidenceDigest": {

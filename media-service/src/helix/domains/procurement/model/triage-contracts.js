@@ -1,4 +1,5 @@
 'use strict';
+const {explicitSeriesContinuityClaims,mergeExplicitSeriesContinuityClaims}=require('./series-continuity-claims');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { validateTriageRuleSnapshot } = require('./procurement-run-contracts');
@@ -477,11 +478,12 @@ function unitFor(
     admittedControlRevision:member.admittedControlRevision, admittedControlProjectionDigest:member.admittedControlProjectionDigest,
     role:'primary_payload', episodeClaims:claims };
   unitMember.memberClaimDigest = digest(unitMember);
+  const seasonContinuityClaims=profileName==='series'?explicitSeriesContinuityClaims({materialKey:member.materialKey,context,seasonNumber:season}):[];
   const value = { unitId:'', mediaType:mediaTypeName, contentProfile:profileName, structureKind:profileName === 'series' ? 'season' : 'single',
     displayIdentity:profileName === 'jav'
       ? normalizedJavCode || metadata.claimedTitle
       : metadata.claimedTitle, identityMetadata:metadata,
-    seasonContinuityClaims:[], seasonContinuityClaimSetDigest:digest({ schema:'season-continuity-claim-set@1', items:[] }),
+    seasonContinuityClaims, seasonContinuityClaimSetDigest:digest({ schema:'season-continuity-claim-set@1', items:seasonContinuityClaims }),
     members:[unitMember], relatedScope, materialInputForm, unitDigest:'' };
   value.unitId = digest({ schema:'procurement.triage-unit-id@1', mediaType:value.mediaType, contentProfile:value.contentProfile,
     structureKind:value.structureKind, materialInputForm:value.materialInputForm, relatedScope:value.relatedScope,
@@ -666,6 +668,7 @@ function mergeSeriesUnits(groups, unassigned) {
       sourceHints,
     };
     identityMetadata.metadataDigest = digest(identityMetadata);
+    const seasonContinuityClaims=mergeExplicitSeriesContinuityClaims(group);
     const value = {
       unitId:'',
       mediaType:'group',
@@ -673,10 +676,9 @@ function mergeSeriesUnits(groups, unassigned) {
       structureKind:'season',
       displayIdentity:identityMetadata.claimedTitle,
       identityMetadata,
-      // A filename/path grouping is valid Triage evidence inside this Candidate,
-      // but SSOT forbids upgrading it into an exact cross-Candidate continuity claim.
-      seasonContinuityClaims:[],
-      seasonContinuityClaimSetDigest:digest({ schema:'season-continuity-claim-set@1', items:[] }),
+      // Only an explicit Provider marker may survive grouping as a weak continuity claim.
+      seasonContinuityClaims,
+      seasonContinuityClaimSetDigest:digest({ schema:'season-continuity-claim-set@1', items:seasonContinuityClaims }),
       members,
       relatedScope,
       materialInputForm:first.materialInputForm,

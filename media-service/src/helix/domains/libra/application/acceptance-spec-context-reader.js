@@ -1,5 +1,7 @@
 'use strict';
 
+const { deliveryScopeStatements,readDeliveryScopes } = require('../persistence/series-delivery-scope-reader');
+const { pendingSeriesBatch } = require('../model/series-delivery-scope');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { buildDecisionInputSet } = require('../model/decision-front-half-contracts');
 const { buildProductScope } = require('../model/acceptance-spec-contracts');
@@ -11,10 +13,11 @@ function createAcceptanceSpecContextReader(options){
   const basisStore=createDecisionBasisStore(options);
   const repository=createRepositoryDefinition({repositoryId:'libra_spec_episode_scope_reader',owner:'libra',
     schemaManifest:options.schemaManifest,statements:{
+      ...deliveryScopeStatements,
       find_subject:{kind:'select-one',tableId:'libra_subjects',columns:['subject_id','intake_revision','current_episode_scope_digest'],
         keyColumns:['subject_id']},
       list_bindings:{kind:'select-all',tableId:'libra_material_bindings',columns:['subject_id','material_key',
-        'binding_revision','authority_kind','health_state','current'],keyColumns:['subject_id']},
+        'binding_revision','authority_kind','health_state','current','origin_candidate_package_id'],keyColumns:['subject_id']},
       list_claims:{kind:'select-all',tableId:'libra_material_binding_episode_claims',columns:['subject_id','material_key',
         'binding_revision','episode_key'],keyColumns:['subject_id']},
     }});
@@ -26,8 +29,8 @@ function createAcceptanceSpecContextReader(options){
         const current=repo.invoke('find_subject',key);
         if(!current||Number(current.intake_revision)!==subject.intakeRevision||
             current.current_episode_scope_digest!==subject.episodeScopeDigest)throw new Error('Spec Subject Episode scope is stale.');
-        const bindings=repo.invoke('list_bindings',key).filter(row=>Number(row.current)===1&&
-          row.health_state==='active'&&row.authority_kind==='primary_control');
+        const bindings=pendingSeriesBatch(repo.invoke('list_bindings',key).filter(row=>Number(row.current)===1&&
+          row.health_state==='active'),readDeliveryScopes(repo,subject.subjectId));
         const claims=repo.invoke('list_claims',key).filter(claim=>bindings.some(binding=>
           binding.material_key===claim.material_key&&Number(binding.binding_revision)===Number(claim.binding_revision)));
         if(bindings.some(binding=>!claims.some(claim=>claim.material_key===binding.material_key)))
@@ -40,9 +43,12 @@ function createAcceptanceSpecContextReader(options){
     const standardResult=options.readArcaShelfStandard(routingDecision.targetShelfId);if(!standardResult||standardResult.resultKind!=='found')return Object.freeze({kind:'unresolved',reasonCode:'shelf_standard_unavailable'});
     const perception=options.resolvePerceptionRating(subjectId);if(!perception||perception.kind==='pending')return Object.freeze({kind:'pending_perception',workId:perception?.workId||null});
     if(!['found','not_found'].includes(perception.kind)||!perception.resolution||!perception.queryResult)throw new Error('Perception Resolution public result is invalid.');
+    const episodeKeys=deliveryEpisodeKeys(routingContext.subject);
+    if(routingContext.subject.contentProfile==='series'&&!episodeKeys.length)
+      return Object.freeze({kind:'unresolved',reasonCode:'no_pending_episode_delivery'});
     const inputSet=buildDecisionInputSet({basisKind:'acceptance_spec',subjectSnapshot:routingContext.subject,expectedDecisionHead:routingContext.expectedHead,readiness:{result:'ready'},
       routingAuthoritySnapshot:null,shelfRoutingTargets:[],routingDecision,shelfStandardProjection:standardResult.projection,
-      productScope:buildProductScope(routingContext.subject,deliveryEpisodeKeys(routingContext.subject)),decisionFacts:[perception.resolution],queryResults:[perception.queryResult]});
+      productScope:buildProductScope(routingContext.subject,episodeKeys),decisionFacts:[perception.resolution],queryResults:[perception.queryResult]});
     if(routingContext.expectedHead.currentDecisionBasisId){
       const current=basisStore.readInputSet(routingContext.expectedHead.currentDecisionBasisId);
       if(current?.basis?.basisKind==='acceptance_spec'&&current.inputSet.specInputDigest===inputSet.specInputDigest){
