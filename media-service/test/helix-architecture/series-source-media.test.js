@@ -463,3 +463,107 @@ test('Member Remux Plan reaches the formal Capability with only its declared rea
   await assert.rejects(()=>ports['libra.media.remux@1'].execute(forged),{code:'LIBRA_PRODUCTION_SOURCE_SCOPE_STALE'});
   assert.equal(captured.length,1);
 });
+
+function memberTranscodeFixture() {
+  const value=fixture(),media=require('../../src/helix/domains/libra/model/media-production-contracts');
+  value.setRecords(records(value));memberRemuxPlan(value,value.snapshot.members[0]);
+  const sourceRead=value.options.workResultReader.read,stored=new Map();
+  value.options.workResultReader.read=workId=>stored.has(workId)?stored.get(workId):
+    workId===sourceMediaObservationWork(value.snapshot).workId?sourceRead(workId):[];
+  const device={deviceId:'device',deviceClass:'nvidia_nvenc',probeRevision:1,capabilitySchemaRef:'platform.compute-device-capability@1',
+    capabilityPayload:{supportedVideoCodecs:['hevc'],supportedRateControlModes:['quality_bound','target_size','strict_abr'],validatedConcurrentSlots:1,
+      validatedVideoPipelines:[{pipelineProfileId:'ordinary_to_hevc@1',inputDynamicRangeKinds:['sdr'],inputPixelFormats:['yuv420p'],
+        outputCodec:'hevc',outputDynamicRangeKind:'unknown',outputPixelFormat:'encoder_selected',
+        outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'},selfTestDigest:D('device-self-test')}]},
+    capabilityDigest:'',enabled:true,state:'ready'};
+  device.capabilityDigest=canonicalDigest(device.capabilityPayload);device.snapshotDigest=canonicalDigest(device);
+  value.options.platformComputeRuntime={listReadyDeviceRefs:()=>({resultKind:'available',items:[device]}),
+    readDeviceSnapshot:()=>({resultKind:'found',snapshot:device})};
+  const workModule=require('../../src/helix/domains/libra/planning/media-production-work');
+  function work(kind,member,ordinal=1) {return (kind==='assessment'?workModule.transcodeStrategyAssessmentWork:
+    workModule.transcodeMediaSelectionWork)(value.snapshot,ordinal,member);}
+  function plan(kind,member,ordinal=1) {return createWorkspaceMediaProductionPlanner(value.options).plan({...work(kind,member,ordinal),
+    workAttemptId:kind+'-'+ordinal+'-'+member.materialKey});}
+  function record(member,ordinal=1,reasonCode=null) {
+    const node=plan('assessment',member,ordinal).nodes[0],inputs=Object.fromEntries(node.inputBindings.bindings.map(item=>[item.portName,item.value]));
+    const result=media.buildTranscodeInputVerification({sourceHandle:inputs.physicalMaterialReadHandleOrWorkspaceMaterialHandle,
+      probeEvidence:inputs.mediaProbeEvidence,encodeIntent:inputs.encodeIntent,deviceSnapshot:inputs.mediaExecutionDeviceSnapshot,
+      verifiedAtMs:1,preflight:{sampleCount:24,passedSampleCount:reasonCode?0:24,reasonCode,preflightDigest:D('preflight')}});
+    const item={outcomeKind:'succeeded',capabilityRef:'libra.transcode.input.verify@1',inputBindings:node.inputBindings,result};
+    stored.set(work('assessment',member,ordinal).workId,[item]);return item;
+  }
+  return {...value,plan,work,record,stored};
+}
+test('Member Transcode Assessment and Selection bind exact source, Intent, Device and output scope',()=>{
+  const value=memberTranscodeFixture(),plans=[];
+  for(const member of value.snapshot.members) {
+    const record=value.record(member),plan=value.plan('selection',member);plans.push(plan);
+    assert.equal(plan.nodes.length,4);
+    const inputs=Object.fromEntries(plan.nodes[0].inputBindings.bindings.map(item=>[item.portName,item.value]));
+    assert.equal(inputs.materialHandle.location,member.location);
+    assert.equal(inputs.encodeIntent.intentDigest,record.result.encodeIntentDigest);
+    assert.equal(inputs.mediaExecutionDeviceSnapshot.snapshotDigest,record.result.deviceSnapshotDigest);
+    assert.equal(inputs.transcodeInputVerification.verificationId,record.result.verificationId);
+    assert.equal(plan.nodes[2].inputBindings.bindings[0].parameters.materialKey,member.materialKey);
+  }
+  const target=plan=>plan.nodes[0].inputBindings.bindings.find(item=>item.portName==='workspaceMediaOutputTarget').value;
+  assert.notEqual(target(plans[0]).targetId,target(plans[1]).targetId);
+});
+for(const mutation of ['foreign_member','probe','device','result','duplicate'])
+test('Member Transcode Selection rejects '+mutation+' Assessment',()=>{
+  const value=memberTranscodeFixture(),[a,b]=value.snapshot.members;
+  const original=value.record(a),other=value.record(b),altered=structuredClone(original);
+  if(mutation==='foreign_member')value.stored.set(value.work('assessment',a).workId,[other]);
+  else {
+    if(mutation==='probe')altered.inputBindings.bindings.find(item=>item.portName==='mediaProbeEvidence').value=other.inputBindings.bindings.find(item=>item.portName==='mediaProbeEvidence').value;
+    if(mutation==='device')altered.inputBindings.bindings.find(item=>item.portName==='mediaExecutionDeviceSnapshot').value.snapshotDigest=D('foreign');
+    if(mutation==='result')altered.result.sampleCount=0;
+    value.stored.set(value.work('assessment',a).workId,mutation==='duplicate'?[altered,altered]:[altered]);
+  }
+  assert.throws(()=>value.plan('selection',a));
+});
+test('A rejected member strategy never consumes another member strategy history',()=>{
+  const value=memberTranscodeFixture(),[a,b]=value.snapshot.members;
+  value.record(a,1,'encoder_rejected_source_pipeline');
+  const plan=value.plan('assessment',b);
+  assert.equal(plan.resolution,'planned');
+  assert.equal(plan.nodes[0].inputBindings.bindings.find(item=>item.portName==='encodeIntent').value.strategyOrdinal,1);
+  assert.throws(()=>value.plan('selection',a),/incompatible Assessment/);
+});
+
+test('Bounded shared-file Transcode uses physical capacity while retaining the per-Episode quality floor',()=>{
+  const value=memberTranscodeFixture(),media=require('../../src/helix/domains/libra/model/media-production-contracts'),GiB=1073741824;
+  const first=value.snapshot.members[0];first.episodeClaims.push({...value.snapshot.members[1].episodeClaims[0]});
+  value.snapshot.members=[first];first.sizeBytes=64*GiB;first.physicalIdentity.sizeBytes=64*GiB;
+  value.snapshot.spec.requirements.space={unit:'episode',maxSizeBytes:14*GiB,maxSizeGiB:14};
+  value.setRecords(records(value));const before=canonicalDigest(value.snapshot.spec);
+  const plan=value.plan('assessment',first),intent=plan.nodes[0].inputBindings.bindings.find(item=>item.portName==='encodeIntent').value;
+  const floor=media.videoBitrateFloorBps(14*GiB,'below_4k');
+  assert.equal(intent.video.qualityFloorVideoBitrateBps,floor);
+  const expected=media.selectCopyAudioStreamsForSizeBudget({maxSizeBytes:28*GiB,durationMs:1000,audioStreams:[],subtitleStreams:[],
+    rasterClass:'below_4k',videoBitrateFloorBps:floor,sourceProbe:records(value)[0].result,acceptedPrimaryAudioClasses:[]});
+  assert.equal(intent.video.targetVideoBitrateBps,expected.budget.targetVideoBitrateBps);
+  assert.equal(canonicalDigest(value.snapshot.spec),before);
+  value.record(first);
+  assert.equal(value.plan('selection',first).resolution,'planned');
+  const next=value.plan('assessment',first,2);
+  assert.equal(next.resolution,'planned');
+  const nextIntent=next.nodes[0].inputBindings.bindings.find(item=>item.portName==='encodeIntent').value;
+  assert.equal(nextIntent.video.rateControlMode,'strict_abr');assert.equal(nextIntent.previousIntentDigest,intent.intentDigest);
+});
+test('A zero-byte Series member has no bounded Transcode budget',()=>{
+  const value=memberTranscodeFixture(),member=value.snapshot.members[0];member.sizeBytes=member.physicalIdentity.sizeBytes=0;
+  value.snapshot.spec.requirements.space={unit:'episode',maxSizeBytes:1073741824,maxSizeGiB:1};value.setRecords(records(value));
+  const plan=value.plan('assessment',member);assert.equal(plan.resolution,'contract_unplannable');
+  assert.equal(plan.diagnosticClassification,'media_size_budget_infeasible');assert.equal(plan.nodes.length,0);
+});
+
+test('Transcode retry rejects a measured output belonging to another source member',()=>{
+  const value=memberTranscodeFixture(),member=value.snapshot.members[0];
+  value.snapshot.spec.requirements.space={unit:'episode',maxSizeBytes:1073741824,maxSizeGiB:1};
+  value.record(member);
+  value.stored.set(value.work('selection',member).workId,[{outcomeKind:'succeeded',capabilityRef:'libra.product_media.verify@1',
+    result:{libraRunId:'run',mediaRequirementDigest:require('../../src/helix/domains/libra/model/media-production-contracts')
+      .buildMediaRequirement(value.snapshot.spec).requirementDigest,sourceProbeEvidenceDigest:D('other-member')}}]);
+  assert.throws(()=>value.plan('assessment',member,2),/retry measurement differs/);
+});

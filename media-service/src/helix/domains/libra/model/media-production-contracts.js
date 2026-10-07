@@ -267,6 +267,7 @@ function selectCopyAudioStreamsForSizeBudget(value) {
     const sourceVideoBitrateBps=observedSourceVideoBitrateBps(value?.sourceProbe||null);
     return {audioStreams:Object.freeze(selected),budget:deriveTargetSizeBudget({maxSizeBytes,durationMs,audioStreams:selected,subtitleStreams,
       rasterClass:value?.rasterClass,
+      ...(value?.videoBitrateFloorBps?{videoBitrateFloorBps:value.videoBitrateFloorBps}:{}),
       ...(sourceVideoBitrateBps?{sourceVideoBitrateBps}:{}),
       ...(Number.isSafeInteger(value?.sourceSizeBytes)&&value.sourceSizeBytes>0?{sourceSizeBytes:value.sourceSizeBytes}:{})})};
   };

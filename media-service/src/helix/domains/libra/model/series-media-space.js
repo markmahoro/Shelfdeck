@@ -38,4 +38,25 @@ function evaluateSeriesMediaSpace({basis,libraRunId,handle,probe,maxSizeBytes}) 
     withinLimit:allocations.every(item=>item.withinLimit)});
 }
 
-module.exports=Object.freeze({buildSeriesMediaSpaceBasis,evaluateSeriesMediaSpace});
+// Allocate a conservative physical-file budget without changing the Episode
+// Acceptance Spec. For each covered Episode: B_i <= cap * size_i / total_e.
+// Summing B_i / claimCount_i therefore cannot exceed that Episode's cap.
+function deriveSeriesMemberSizeBudget({basis,materialKey,maxSizeBytes}) {
+  if(!basis||canonicalJson(buildSeriesMediaSpaceBasis(basis))!==canonicalJson(basis))
+    throw new TypeError('Series size planning requires a complete canonical space basis.');
+  const member=basis.members.find(item=>item.materialKey===materialKey);
+  if(!member)throw new TypeError('Series size planning member is outside the frozen basis.');
+  const totals=evaluateSeriesEpisodeSpace({members:basis.members.map(item=>({...item,role:'primary_payload',
+    episodeClaims:item.episodeKeys.map(episodeKey=>({episodeKey}))})),episodeKeys:basis.episodeKeys,maxSizeBytes});
+  if(maxSizeBytes===null)return null;
+  if(member.sizeBytes===0)return 0;
+  let budget=BigInt(Number.MAX_SAFE_INTEGER);
+  for(const item of totals.filter(item=>member.episodeKeys.includes(item.episodeKey))) {
+    const numerator=BigInt(item.allocatedBytes.numerator),denominator=BigInt(item.allocatedBytes.denominator);
+    const bound=BigInt(maxSizeBytes)*BigInt(member.sizeBytes)*denominator/numerator;
+    if(bound<budget)budget=bound;
+  }
+  return Number(budget);
+}
+
+module.exports=Object.freeze({buildSeriesMediaSpaceBasis,evaluateSeriesMediaSpace,deriveSeriesMemberSizeBudget});

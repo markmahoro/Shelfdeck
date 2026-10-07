@@ -9982,7 +9982,7 @@ Workspace临时范围有界解包；不得OS级持久mount、写源ISO或在Work
 Intent、Device和passed `TranscodeInputVerification`，并冻结Workspace Output Target。Executor只能执行该
 Device/Intent/Target声明的closed施工链。它不能读取current Device/Workspace、隐藏replan、失败后换Device、改为External
 Upgrade、追加Remux、提交Product或修改Acceptance Spec。`libra.media.remux`遵守同一Target合同，但不接受或选择
-Compute Device。两个workspace-write Capability都只能由Effect Journal以Target stable identity恢复相同效果。
+Compute Device。两个workspace-write Capability都只能由Effect Journal以Target stable identity恢复相同效果。Series的Transcode Assessment/Selection按冻结Primary成员Work读取源Probe及策略历史；Selection必须重建输入Handle/Probe、同Run/Spec/ordinal的Intent和Device对应的完整Verification，拒绝多Result、跨成员、改写或未通过Assessment。物理文件规划预算不改写每集Acceptance Spec：以完整冻结源集合按§5.5.8计算各集源字节总份额`T_e`，成员源大小为`S_i`，每集上限为`C`时，成员上限为其覆盖集中的`min(floor(C*S_i/T_e))`（受safe integer上界限制）；这样各文件预算均分后对每集的总和不超过`C`。无上限返回无预算，零字节成员不形成可执行的有界转码计划。此预算为保守生产规划，最终实际成品仍必须按完整混合集合逐集复验，不能用预算替代测量。源质量保护和档位质量下限仍以原单集Policy决定，不把共享文件扩大的物理预算误解释为更高评分档位。
 
 `libra.product_output.select`不把调用数组顺序当成Policy：Planner必须把Acceptance Spec派生的显式rank冻结进
 `ProductOutputSelectionCriteria@1`，Capability只按closed passed-filter、rank和verification ID tie-break执行。

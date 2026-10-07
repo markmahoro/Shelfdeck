@@ -1,10 +1,11 @@
 'use strict';
 
-const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { executionCatalogDigest } = require('../../../foundation/execution/workflow-plan');
 const {
   buildMediaRequirement,
   buildEncodeIntent,
+  buildTranscodeInputVerification,
   buildProductMediaCandidateInput,
   buildPlannedProductCandidateReference,
   buildProductOutputSelectionInput,
@@ -15,6 +16,7 @@ const {
   observedSourceVideoBitrateBps,
   selectCopyAudioStreamsForSizeBudget,
   rasterClass,
+  videoBitrateFloorBps,
   buildWorkspaceMediaOutputTarget,
   LIBRA_MEDIA_PLANNING_POLICY,
 } = require('../model/media-production-contracts');
@@ -107,17 +109,29 @@ function literalInput(item, portName) {
   return item?.inputBindings?.bindings?.find((binding)=>binding.portName===portName&&binding.bindingKind==='literal')?.value||null;
 }
 
-function priorTranscodeAssessments(options,snapshot,ordinal) {
+function readExactTranscodeAssessment(options,snapshot,ordinal,member,source) {
+  const work=transcodeStrategyAssessmentWork(snapshot,ordinal,member),results=options.workResultReader.read(work.workId),
+    matches=results.filter(item=>item.outcomeKind==='succeeded'&&item.capabilityRef===TRANSCODE_INPUT_VERIFY);
+  if(matches.length!==1)throw new Error('Transcode Assessment requires one exact durable Result.');
+  const execution=matches[0],intent=literalInput(execution,'encodeIntent'),device=literalInput(execution,'mediaExecutionDeviceSnapshot'),
+    handle=literalInput(execution,'physicalMaterialReadHandleOrWorkspaceMaterialHandle'),probe=literalInput(execution,'mediaProbeEvidence'),
+    verification=execution.result;
+  if(!intent||!device||!handle||!probe||!verification||canonicalJson(handle)!==canonicalJson(source.handle)||
+      canonicalJson(probe)!==canonicalJson(source.inputProbe)||intent.libraRunId!==snapshot.run.libraRunId||
+      intent.strategyOrdinal!==ordinal||intent.mediaRequirementDigest!==buildMediaRequirement(snapshot.spec).requirementDigest)
+    throw new Error('Transcode Assessment differs from its frozen member, Probe, strategy, or Requirement.');
+  const expected=buildTranscodeInputVerification({sourceHandle:handle,probeEvidence:probe,encodeIntent:intent,
+    deviceSnapshot:device,verifiedAtMs:verification.verifiedAtMs,preflight:{sampleCount:verification.sampleCount,
+      passedSampleCount:verification.passedSampleCount,preflightDigest:verification.preflightDigest,
+      reasonCode:verification.reasonCodes.includes('encoder_rejected_source_pipeline')?'encoder_rejected_source_pipeline':null}});
+  if(canonicalJson(expected)!==canonicalJson(verification))throw new Error('Transcode Assessment Result continuity is invalid.');
+  return Object.freeze({work,results,intent,device,verification,
+    key:device.deviceId+'\0'+device.probeRevision+'\0'+intent.video.pipelineProfileId+'\0'+intent.video.rateControlMode});
+}
+
+function priorTranscodeAssessments(options,snapshot,ordinal,member,source) {
   const items=[];
-  for(let current=1;current<ordinal;current+=1){
-    const work=transcodeStrategyAssessmentWork(snapshot,current),results=options.workResultReader.read(work.workId);
-    const execution=results.find((item)=>item.capabilityRef===TRANSCODE_INPUT_VERIFY);
-    if(!execution)throw new Error('Prior Transcode Assessment has no immutable Compatibility Result.');
-    const intent=literalInput(execution,'encodeIntent'),device=literalInput(execution,'mediaExecutionDeviceSnapshot');
-    if(!intent||!device||!execution.result)throw new Error('Prior Assessment does not freeze its Intent, Device, and Result.');
-    items.push(Object.freeze({work,results,intent,device,verification:execution.result,
-      key:device.deviceId+'\0'+device.probeRevision+'\0'+intent.video.pipelineProfileId+'\0'+intent.video.rateControlMode}));
-  }
+  for(let current=1;current<ordinal;current+=1)items.push(readExactTranscodeAssessment(options,snapshot,current,member,source));
   return Object.freeze(items);
 }
 
@@ -169,7 +183,15 @@ function transcodeSourceFromExternalImport(options,snapshot) {
   return null;
 }
 
-function transcodeSource(options,snapshot) {
+function transcodeSource(options,snapshot,member) {
+  if(snapshot.spec.contentProfile==='series') {
+    if(!member)throw new Error('Series Transcode requires an exact frozen Primary Work.');
+    const sources=readSourceMediaObservations(options,snapshot),selected=sources.find(item=>
+      item.member.materialKey===member.materialKey&&canonicalDigest(item.member)===canonicalDigest(member));
+    if(!selected)throw new Error('Series Transcode source differs from its frozen Primary.');
+    return Object.freeze({handle:selected.readHandle,inputProbe:selected.record.result,originalProbe:selected.record.result,
+      seriesSpaceBasis:seriesSpaceBasisFor(snapshot,sources)});
+  }
   const external=transcodeSourceFromExternalImport(options,snapshot);
   if(external)return external;
   const sourceScopeResolver=createProductionSourceScopeResolver({movieProductionReader:options.movieProductionReader,
@@ -186,8 +208,8 @@ function transcodeSource(options,snapshot) {
   return Object.freeze({handle:media.workspaceMaterialHandle,inputProbe:probe,originalProbe:sourceResults[0].result});
 }
 
-function transcodePlanning(options,snapshot,ordinal) {
-  const source=transcodeSource(options,snapshot),requirement=buildMediaRequirement(snapshot.spec),prior=priorTranscodeAssessments(options,snapshot,ordinal),
+function transcodePlanning(options,snapshot,ordinal,member) {
+  const source=transcodeSource(options,snapshot,member),requirement=buildMediaRequirement(snapshot.spec),prior=priorTranscodeAssessments(options,snapshot,ordinal,member,source),
     primary=(source.inputProbe.videoStreams||[]).filter((item)=>item.dispositionDefault===true),streams=primary.length?primary:(source.inputProbe.videoStreams||[]).slice(0,1),
     hasDolbyVision=streams.some((item)=>item.dynamicRangeKind==='dolby_vision'),pipelineProfileId=hasDolbyVision
       ?'pq_bt2020_base_to_sdr_bt709_hevc@1':'ordinary_to_hevc@1';
@@ -196,22 +218,31 @@ function transcodePlanning(options,snapshot,ordinal) {
   if(!strategy)return prior.length
     ?Object.freeze({kind:'contract_unplannable',diagnosticClassification:'media_device_strategies_exhausted'})
     :Object.freeze({kind:'temporarily_unplannable',diagnosticClassification:'media_device_strategies_unavailable'});
+  const maxSizeBytes=member?require('../model/series-media-space').deriveSeriesMemberSizeBudget({basis:source.seriesSpaceBasis,
+    materialKey:member.materialKey,maxSizeBytes:requirement.space.maxSizeBytes}):requirement.space.maxSizeBytes;
+  if(maxSizeBytes===0)return Object.freeze({kind:'contract_unplannable',diagnosticClassification:'media_size_budget_infeasible'});
   const audioStreams=source.inputProbe.audioStreams||[];
   const displayRaster=rasterClass(source.inputProbe);
-  const selectedAudio=requirement.space.maxSizeBytes===null
+  const selectedAudio=maxSizeBytes===null
     ?Object.freeze({audioStreams,budget:null,feasible:true})
-    :selectCopyAudioStreamsForSizeBudget({maxSizeBytes:requirement.space.maxSizeBytes,durationMs:source.inputProbe.durationMs,
+    :selectCopyAudioStreamsForSizeBudget({maxSizeBytes,durationMs:source.inputProbe.durationMs,
       audioStreams,subtitleStreams:source.inputProbe.subtitleStreams,
       acceptedPrimaryAudioClasses:requirement.mandatoryMedia.acceptedPrimaryAudioClasses,
       rasterClass:displayRaster,sourceProbe:source.inputProbe,
+      ...(member?{videoBitrateFloorBps:videoBitrateFloorBps(requirement.space.maxSizeBytes,displayRaster)}:{}),
       ...(Number.isSafeInteger(source.inputProbe.sizeBytes)&&source.inputProbe.sizeBytes>0?{sourceSizeBytes:source.inputProbe.sizeBytes}:{})});
   const budget=selectedAudio.budget;
   const previous=prior.at(-1)||null,previousSelection=previous?options.workResultReader.read(
-    transcodeMediaSelectionWork(snapshot,ordinal-1).workId):[],previousVerification=previousSelection.find((item)=>item.capabilityRef===VERIFY)?.result||null;
+    transcodeMediaSelectionWork(snapshot,ordinal-1,member).workId):[],previousVerifications=previousSelection.filter(item=>
+      item.outcomeKind==='succeeded'&&item.capabilityRef===VERIFY),previousVerification=previousVerifications[0]?.result||null;
+  if(previousVerifications.length>1||previousVerification&&(previousVerification.libraRunId!==snapshot.run.libraRunId||
+      previousVerification.mediaRequirementDigest!==requirement.requirementDigest||
+      previousVerification.sourceProbeEvidenceDigest!==canonicalDigest(source.originalProbe)))
+    throw new Error('Transcode retry measurement differs from the exact member source and Requirement.');
   let targetVideoBitrateBps=budget?.targetVideoBitrateBps||null;
   if(previous&&previousVerification?.reasonCodes?.includes('max_size_exceeded')&&previous.intent.video.targetVideoBitrateBps){
     const retried=deriveRetryTargetVideoBitrate({previousTargetVideoBitrateBps:previous.intent.video.targetVideoBitrateBps,
-      maxSizeBytes:requirement.space.maxSizeBytes,actualSizeBytes:previousVerification.spaceSummary.actualSizeBytes});
+      maxSizeBytes,actualSizeBytes:previousVerification.spaceSummary.actualSizeBytes});
     targetVideoBitrateBps=retried;
   }
   const qualityFloorVideoBitrateBps=budget?.videoBitrateFloorBps||
@@ -237,14 +268,10 @@ function transcodePlanning(options,snapshot,ordinal) {
   return Object.freeze({kind:'ready',source,requirement,intent,device:strategy.device,target});
 }
 
-function assessedTranscodePlanning(options,snapshot,ordinal){
-  const work=transcodeStrategyAssessmentWork(snapshot,ordinal),results=options.workResultReader.read(work.workId),
-    execution=results.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===TRANSCODE_INPUT_VERIFY);
-  if(!execution)throw new Error('Transcode Selection requires one terminal Assessment Result.');
-  const intent=literalInput(execution,'encodeIntent'),device=literalInput(execution,'mediaExecutionDeviceSnapshot'),verification=execution.result,
-    source=transcodeSource(options,snapshot),requirement=buildMediaRequirement(snapshot.spec);
-  if(!intent||!device||verification?.disposition!=='compatible'||verification.encodeIntentDigest!==intent.intentDigest||
-      verification.deviceSnapshotDigest!==device.snapshotDigest)throw new Error('Transcode Selection cannot reuse an incompatible or stale Assessment.');
+function assessedTranscodePlanning(options,snapshot,ordinal,member){
+  const source=transcodeSource(options,snapshot,member),requirement=buildMediaRequirement(snapshot.spec),
+    {intent,device,verification}=readExactTranscodeAssessment(options,snapshot,ordinal,member,source);
+  if(verification.disposition!=='compatible')throw new Error('Transcode Selection cannot reuse an incompatible Assessment.');
   const workspace=options.movieProductionReader.readWorkspace(workspaceId(snapshot.run.libraRunId));
   if(!workspace||workspace.state!=='active')throw new Error('Active Libra Workspace is unavailable for Transcode planning.');
   const root=options.workspaceProductPort.rootSnapshot(),target=buildWorkspaceMediaOutputTarget({libraRunId:snapshot.run.libraRunId,
@@ -353,10 +380,16 @@ function createWorkspaceMediaProductionPlanner(options) {
     const transcodeIdentity=transcodeWorkIdentity(request.workId);
     if(transcodeIdentity!==null){
       const {ordinal,kind}=transcodeIdentity;
+      const member=snapshot.spec.contentProfile==='series'?snapshot.members.filter(item=>item.role==='primary_payload')
+        .find(item=>(kind==='assessment'?transcodeStrategyAssessmentWork(snapshot,ordinal,item):
+          transcodeMediaSelectionWork(snapshot,ordinal,item)).workId===request.workId):undefined;
+      if(snapshot.spec.contentProfile==='series'&&!member)throw new Error('Series Transcode Work does not bind a frozen Primary.');
+      const memberParameters=member?{materialKey:member.materialKey,memberDigest:canonicalDigest(member)}:{};
+      const candidateNodeId=member?stable('transcode_output_'+ordinal+'_',memberParameters):'transcode_output_'+ordinal;
       if(kind==='assessment'){
-        const assessmentWork=transcodeStrategyAssessmentWork(snapshot,ordinal);
+        const assessmentWork=transcodeStrategyAssessmentWork(snapshot,ordinal,member);
         if(request.workId!==assessmentWork.workId)throw new Error('Transcode Assessment Work identity does not match its strategy ordinal.');
-        const planning=transcodePlanning(options,snapshot,ordinal);
+        const planning=transcodePlanning(options,snapshot,ordinal,member);
         if(planning.kind!=='ready')return planEnvelope({plannerContractRef,catalogDigest},request,assessmentWork,[],planning.kind,
           planning.diagnosticClassification);
         const inputVerifyEventId=stable('libra-transcode-input-verify-event-',{attempt:request.workAttemptId});
@@ -366,15 +399,15 @@ function createWorkspaceMediaProductionPlanner(options) {
             literal('mediaExecutionDeviceSnapshot',planning.device)],resourceKinds:['compute_device','cpu','disk_io']});
         return planEnvelope({plannerContractRef,catalogDigest},request,assessmentWork,[inputVerify]);
       }
-      const transcodeWork=transcodeMediaSelectionWork(snapshot,ordinal);
+      const transcodeWork=transcodeMediaSelectionWork(snapshot,ordinal,member);
       if(request.workId!==transcodeWork.workId)throw new Error('Transcode Selection Work identity does not match its strategy ordinal.');
-      const planning=assessedTranscodePlanning(options,snapshot,ordinal);
+      const planning=assessedTranscodePlanning(options,snapshot,ordinal,member);
       const transcodeEventId=stable('libra-transcode-media-event-',{attempt:request.workAttemptId});
       const probeEventId=stable('libra-transcode-output-probe-event-',{attempt:request.workAttemptId});
       const verifyEventId=stable('libra-transcode-output-verify-event-',{attempt:request.workAttemptId});
       const selectEventId=stable('libra-transcode-output-select-event-',{attempt:request.workAttemptId});
       const candidateRef=buildPlannedProductCandidateReference({rank:1,candidateKind:'workspace_output',
-        candidateNodeId:'transcode_output_'+ordinal,mediaRequirementDigest:planning.requirement.requirementDigest,
+        candidateNodeId,mediaRequirementDigest:planning.requirement.requirementDigest,
         outputTargetId:planning.target.targetId,outputTargetDigest:planning.target.targetDigest,
         productionIntentDigest:planning.intent.intentDigest});
       const transcode=planNode({...options,request,nodeId:'transcode_media',eventId:transcodeEventId,capabilityRef:TRANSCODE,
@@ -390,7 +423,7 @@ function createWorkspaceMediaProductionPlanner(options) {
         inputBindings:[projectedResults('productMediaCandidateInput',[
           {eventId:transcodeEventId,resultSchemaRef:options.registry.resolve(TRANSCODE,'libra').manifest.resultSchemaRef},
           {eventId:probeEventId,resultSchemaRef:options.registry.resolve(PROBE,'libra').manifest.resultSchemaRef},
-        ],WORKSPACE_CANDIDATE,{sourceWorkId:sourceWork.workId,candidateNodeId:'transcode_output_'+ordinal})],
+        ],WORKSPACE_CANDIDATE,{sourceWorkId:sourceWork.workId,candidateNodeId,...memberParameters})],
         dependsOn:[{eventId:transcodeEventId,satisfaction:'success'},{eventId:probeEventId,satisfaction:'success'}],
         resourceKinds:['cpu','disk_io']});
       const select=planNode({...options,request,nodeId:'transcode_output_selection',eventId:selectEventId,capabilityRef:SELECT,

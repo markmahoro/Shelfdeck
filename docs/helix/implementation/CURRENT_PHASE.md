@@ -139,3 +139,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08逐成员加工DoR：沿SSOT §8.6.7/§8.6.18的一Event一物理stream_file，先使Remux/Transcode Supporting Work身份绑定冻结Primary member digest，策略依赖不跨成员；紧凑ProductionSourceScopeReference从完整Run重建精确单成员，不裁剪或替换Run/Spec，也不放宽stream_file memberCount=1。Planner/Resolver只授予该成员只读Handle；成员、Run、Manifest或引用digest变更拒绝，Movie/原盘定义保持。随后接Coordinator逐成员策略与完整混合成品终检/交付，Workspace归属、空间预算、claim映射和最终N:M分摊一并验证；单个成员Work通过不得视为整个Season可交付。
 
 2026-10-08逐成员加工增量结果：[成员范围与Remux Planner](evidence/SERIES_MEMBER_MEDIA_SCOPE_20261008.md)。成员Work身份/策略依赖、单文件Source Scope/读取Fence、Remux Planner及Workspace候选完整空间Basis通过专项与全架构回归。当前尚未接Coordinator混合成品提交/汇合、成员Transcode Planner与真实媒体；本批不关闭节点，继续既定首版全部门槛。
+
+2026-10-08成员Transcode DoR：Planner按成员Work精确选择Source Handle/Probe、同成员Assessment/Selection历史和独立输出；Selection逐字节复用已通过Assessment的Intent/Device/输入证据，拒绝跨成员历史。Series有界文件预算由完整冻结源集合按各集当前字节份额比例分配，取该文件所覆盖各集的最紧约束并向下取整；此为Libra生产规划预算，不修改逐集Acceptance Spec，质量下限仍按原单集Policy，最终完整混合成品必须独立逐集复验。沿既有typed Intent/Plan binding、Workspace fence与一Event一策略，不新建Owner或业务对象。验证N:M预算守恒/精度/零输入不可规划、策略历史隔离、source/Intent/Device错误拒绝与Movie回归；Run自动调度及完整交付后续接通。
+
+2026-10-08成员Transcode Planner结果：[规划Evidence](evidence/SERIES_MEMBER_TRANSCODE_PLANNING_20261008.md)。成员源与策略历史、精确Assessment复用、共享/part物理预算及原单集质量下限通过专项和全架构验证。下一段为Coordinator成员Work提交/恢复和完整混合成品选择、Staging、Conformance/Promotion汇合；尚未真实Series加工实链或发布，节点保持开放。
