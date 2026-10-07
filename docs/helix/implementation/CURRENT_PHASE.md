@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08最新增量：[Direct On-deck Evidence](evidence/SERIES_DIRECT_ONDECK_20261008.md)。2/24集实际隔离Host已完成Arca接纳、Season/逐集落位、正式授权源结算及唯一Season Entry/Deck Fact提交；正式Inventory/Claim/文件/NFO与Provenance核验通过。完整架构251文件及边界/语义/合同通过。仍未满足首版部署门槛：逐成员加工、N:M聚合、追加/运营、真实媒体/Linux和UI验收继续，未发布生产。
+
 更新：2026-10-08。ACTIVE / DEVELOPMENT。用户追加“开始开发吧”，授权Series本地开发、隔离测试及必要构建。上个Movie阶段已按用户接受完成文档收尾；[旧包快照](archive/20260930_BETA_MOVIE_CLOSEOUT/CURRENT_PHASE.md)只用于追溯。唯一计划为[CURRENT_PLAN](../CURRENT_PLAN.md)，本Phase以有名称的工作项、里程碑及Evidence管理开发，不使用UAT编号；UAT只记录上线后的测试、验收问题。原UAT-279保留误登记与转移历史。
 
 用户追加的工程工作区清理已完成；[历史UAT-280执行结果](evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md)包含本地/NAS精确清理、源码/证据/用户修改保护及工作区退役复验。当前先实施Series元数据基础；整体纵向准备仍有未决项，不能因本工作项开工宣称准备全部Exit。
@@ -19,6 +21,8 @@
 首版范围沿用SSOT：普通Season文件集、明确的Season/Episode身份、按本批交付范围生产/验收、首次上架及后续非重叠Episode追加；恢复、多集共文件/一集多part、维护和退出也须进入验收，不能用只支持单文件单集掩盖模型边界。当前开发不修改Owner/Handoff/授权边界，不部署生产。
 
 ## 当前工作项：Series身份与逐集生产接线
+
+当前Arca落位增量DoR：依据正式Series/Season identity及本批Episode Metadata/Primary Claim Set生成Season目录和逐文件名称；Libra逐集NFO使用带closed episodeScope的Artifact Requirement，完整scope进入既有Requirement digest、验证和Package引用，Arca只从本Package精确scope重建匹配digest，禁止从来源名或Workspace路径猜集号。保持只有Primary携带Episode relation、碰撞拒绝、读取Fence与正式On-deck Commit边界。覆盖2/24集纵向、N:M/part命名、跨scope/重复NFO目标拒绝和Movie回归；Related NFO、追加及Aftercare需逐项实测，不能因首批fixture通过就关闭发布门槛。
 
 2026-10-08用户要求持续推进至首个可部署Series版本。当前增量DoR：Libra按冻结Run逐Primary重建完整Direct Selection/Verification集合，精确绑定成员Handle、Probe及Spec，禁止first-result消费；沿现有Staging、Conformance、Product Manifest及ShelfAcceptancePrimaryReadSet的集合合同交付，Related/NFO按明确目标区分，不能给Related添加Episode relation。验证2/24集、乱序/重复/缺失/跨Run结果、单集失败不交付、Movie回归，然后推进Arca正式上架及真实媒体。后续加工、N:M最终计量、追加/恢复与适用UI验收仍是可部署门槛。无新Owner、Handoff或存量兼容；所有效果只在本地隔离样本及Workspace，尚未授权NAS生产发布。
 

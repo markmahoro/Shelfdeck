@@ -1,4 +1,5 @@
 'use strict';
+const {seriesMetadataFieldMissing}=require('../model/series-metadata');
 const {acceptsMetadataFields,missingMetadataFields,acceptsArtifactKinds,packageMissingArtifactKinds}=require('../model/authorized-defect-manifest');
 
 const {
@@ -148,6 +149,7 @@ function metadataGaps(packageValue, requirement) {
   const descriptive = new Map((metadata.descriptiveFacts?.entries || [])
     .map((item) => [item.key, item.value]));
   const missingField = requirement.requiredFieldCodes.some((code) => {
+    const seriesMissing=seriesMetadataFieldMissing(packageValue,code);if(seriesMissing!==null)return seriesMissing;
     if (code === 'actor') return relations.length === 0;
     if (code === 'internal_identity') {
       return !identities.some((item) => item.namespace === 'internal_identity');

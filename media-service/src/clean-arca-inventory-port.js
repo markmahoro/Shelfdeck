@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const {seriesPlacementContext,seriesMemberStem}=require('./helix/domains/arca/model/series-placement');
 const path = require('node:path');
 const { observeEmptyStageSlot } = require('./helix/integrations/empty-stage-slot-observer');
 const { observeNfoReferenceSemantics, preservesNfoReferenceSemantics } = require('./helix/contracts/nfo-reference-semantics');
@@ -247,11 +248,12 @@ function subtitleQualifiers(fileName) {
   });
 }
 
-function finalMemberName(member, source, identity, placement) {
+function finalMemberName(member, source, identity, placement, series = null) {
   const extension = path.extname(source).toLowerCase();
-  const stem = safeSegment(identity.year === null
+  const baseStem = safeSegment(identity.year === null
     ? identity.title
     : `${identity.title} (${identity.year})`);
+  const stem=series ? safeSegment(seriesMemberStem(series,member,baseStem)) : baseStem;
   const common = Object.freeze({ stem, ext:extension });
   if (member.role === 'primary_payload') {
     return safeSegment(renderTemplate(placement.primaryTemplate, common));
@@ -494,16 +496,17 @@ function createCleanArcaInventoryPort(options) {
     const folder = safeSegment(identity.edition
       ? renderedFolder + ' - ' + identity.edition
       : renderedFolder);
-    const targetDirectory = path.resolve(targetRoot, folder);
+    const series=seriesPlacementContext(packageValue);
+    const targetDirectory = series ? path.resolve(targetRoot,folder,'Season '+String(series.seasonNumber).padStart(2,'0')) : path.resolve(targetRoot, folder);
     if (!contained(targetRoot, targetDirectory)) {
       fail('CLEAN_ARCA_TARGET_ESCAPE',
         'Final Inventory directory escaped the Shelf Target.');
     }
-    return Object.freeze({ targetRoot, targetDirectory, identity, placement });
+    return Object.freeze({ targetRoot, targetDirectory, identity, placement, series });
   }
 
   function buildPlan(request) {
-    const { targetRoot, targetDirectory, identity, placement } = resolveTargetLocation(request);
+    const { targetRoot, targetDirectory, identity, placement, series } = resolveTargetLocation(request);
     const shelf = request.shelf;
     const packageValue = request.onDeckProductPackage;
     const primary = packageValue.productMaterialManifest.members
@@ -518,7 +521,7 @@ function createCleanArcaInventoryPort(options) {
         : 'movie';
     const draftPlans = packageValue.productMaterialManifest.members.map((member) => {
       const source = sourcePath(member);
-      const name = finalMemberName(member, source, identity, placement);
+      const name = finalMemberName(member, source, identity, placement, series);
       return Object.freeze({ member, source, name });
     });
     const uniquified = draftPlans.map((item) => {
@@ -573,7 +576,7 @@ function createCleanArcaInventoryPort(options) {
   }
 
   async function buildPlanAsync(request) {
-    const { targetRoot, targetDirectory, identity, placement } = resolveTargetLocation(request);
+    const { targetRoot, targetDirectory, identity, placement, series } = resolveTargetLocation(request);
     const packageValue = request.onDeckProductPackage;
     const primary = packageValue.productMaterialManifest.members
       .find((member) => member.role === 'primary_payload');
@@ -587,7 +590,7 @@ function createCleanArcaInventoryPort(options) {
         : 'movie';
     const draftPlans = packageValue.productMaterialManifest.members.map((member) => {
       const source = sourcePath(member);
-      const name = finalMemberName(member, source, identity, placement);
+      const name = finalMemberName(member, source, identity, placement, series);
       return Object.freeze({ member, source, name });
     });
     const uniquified = draftPlans.map((item) => {

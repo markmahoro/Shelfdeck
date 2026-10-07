@@ -1,4 +1,5 @@
 'use strict';
+const { artifactRequirement } = require('../../../contracts/product-artifact-requirement');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { productSidecarRelativePath } = require('../../../contracts/episode-metadata-scope');
@@ -412,17 +413,6 @@ function createProductMetadataObservationProjections(options) {
   ]);
 }
 
-function artifactRequirement(kind) {
-  const value={requirementId:'',revision:1,
-    schemaRef:kind==='nfo'?'shelfdeck.product-artifact.nfo-renderable@1':'shelfdeck.product-artifact.image-decodable@1',
-    artifactKind:kind,requirementPayload:Object.freeze({mediaType:kind==='nfo'?'application/xml':'image/jpeg'}),
-    requirementDigest:''};
-  value.requirementDigest=canonicalDigest({schema:'shared.artifact-requirement@1',revision:value.revision,
-    schemaRef:value.schemaRef,artifactKind:value.artifactKind,requirementPayload:value.requirementPayload});
-  value.requirementId=canonicalDigest({schema:'shared.artifact-requirement-id@1',requirementDigest:value.requirementDigest});
-  return Object.freeze(value);
-}
-
 function resolvedMetadataInputs(options, source, snapshot) {
   if(source.kind==='provider')return Object.freeze({metadataFetchIntent:source.intent,
     physicalMaterialReadHandleOrIntegrationHandle:options.productProductionPort.resolveIntegrationHandle({
@@ -473,7 +463,7 @@ function productMetadataContext(options, libraRunId) {
   sources.sort((left,right)=>left.intent.sourcePriority-right.intent.sourcePriority);
   const basis=buildMetadataObservationBasis({intents:sources.map((item)=>item.intent),results,
     factKind:'product_metadata',expectedRevision:0});
-  const requirements=[...requiredArtifactKinds(snapshot)].map(artifactRequirement)
+  const requirements=[...requiredArtifactKinds(snapshot)].map(kind=>artifactRequirement(kind))
     .sort((left,right)=>Buffer.from(left.artifactKind).compare(Buffer.from(right.artifactKind))||
       Buffer.from(left.requirementId).compare(Buffer.from(right.requirementId)));
   const requiredFields=requiredMetadataFields(snapshot);
@@ -481,7 +471,8 @@ function productMetadataContext(options, libraRunId) {
   const draftResult=buildProductMetadataDraft({sourceBasis:basis,requiredFields,
     ...(episodeScopes.length?{episodeScopes}:{}),
     producedAtMs:Math.max(...basis.observationSet.observations.map((item)=>item.observedAtMs)),
-    providerIdentities:identity.factValue.providerIdentities,artifactRequirements:requirements});
+    providerIdentities:identity.factValue.providerIdentities,artifactRequirements:[...requirements,
+      ...episodeScopes.map(scope=>artifactRequirement('nfo',scope))].sort((a,b)=>Buffer.from(a.artifactKind).compare(Buffer.from(b.artifactKind))||Buffer.from(a.requirementId).compare(Buffer.from(b.requirementId)))});
   if(!draftResult.ready)throw new Error('Product Metadata remains unresolved: '+draftResult.missingFields.join(','));
   const episodeDrafts=episodeScopes.map(episodeScope=>{
     const result=buildProductMetadataDraft({sourceBasis:basis,episodeScope,
@@ -714,7 +705,7 @@ function createArtifactProductionPlanner(options) {
     if(context.snapshot.run.executionBasisDigest!==request.executionBasisDigest)throw new Error('Artifact planning basis changed.');
     const nodes=[];
     const targets=context.requirements.flatMap(requirement=>
-      [{requirement},...(requirement.artifactKind==='nfo'?context.episodeDrafts.map(draft=>({requirement,episodeScope:draft.episodeScope})):[])]);
+      [{requirement},...(requirement.artifactKind==='nfo'?context.episodeDrafts.map(draft=>({requirement:artifactRequirement('nfo',draft.episodeScope),episodeScope:draft.episodeScope})):[])]);
     for(const [ordinal,{requirement,episodeScope}] of targets.entries()){
       const producerRef=requirement.artifactKind==='nfo'?SIDECAR_RENDER:ARTIFACT_ACQUIRE;
       const targetBasis={attempt:request.workAttemptId,requirementDigest:requirement.requirementDigest,
@@ -734,7 +725,7 @@ function createArtifactProductionPlanner(options) {
       nodes.push(planNode({...options,request,nodeId:'artifact_verify_'+ordinal,eventId:verifyEventId,capabilityRef:ARTIFACT_VERIFY,
         inputBindings:[projected('artifactHandleList',producerEventId,options.registry.resolve(producerRef,'libra').manifest.resultSchemaRef,
           ARTIFACT_HANDLE_LIST,{artifactKind:requirement.artifactKind}),
-        owner('artifactRequirement',request,ARTIFACT_REQUIREMENT,{artifactKind:requirement.artifactKind})],
+        owner('artifactRequirement',request,ARTIFACT_REQUIREMENT,{artifactKind:requirement.artifactKind,...projectionParameters})],
         dependsOn:[{eventId:producerEventId,satisfaction:'success'}],resourceKinds:['cpu','disk_io']}));
     }
     return Object.freeze({schemaRef:'helix://foundation/types/WorkflowPlanDefinition/v1',schemaVersion:1,
@@ -758,6 +749,7 @@ function createArtifactProductionProjections(options) {
   const requirement=(ownerScope,parameters)=>{
     const item=context(ownerScope).requirements.find((candidate)=>candidate.artifactKind===parameters.artifactKind);
     if(!item)throw new Error('Artifact Requirement is absent.');
+    if(parameters.episodeKey) return artifactRequirement(parameters.artifactKind,draft(ownerScope,parameters).episodeScope);
     return item;
   };
   return Object.freeze([

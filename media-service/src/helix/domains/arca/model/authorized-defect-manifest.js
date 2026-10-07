@@ -1,5 +1,6 @@
 'use strict';
 
+const {seriesMetadataFieldMissing}=require('./series-metadata');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 
 const SCHEMA_REF = 'helix://contracts/application-types/AuthorizedDefectManifest/v1';
@@ -134,6 +135,8 @@ function missingMetadataFields(packageValue,requirement) {
   const providers=identity.providerIdentities||[],cast=packageValue.mediaCastSnapshot?.relations||[];
   const descriptive=new Map((metadata.descriptiveFacts?.entries||[]).map(item=>[item.key,item.value]));
   return Object.freeze((requirement.requiredFieldCodes||[]).filter(code=>{
+    const seriesMissing=seriesMetadataFieldMissing(packageValue,code);
+    if(seriesMissing!==null)return seriesMissing;
     if(code==='actor')return cast.length===0;
     const namespace={tmdb_movie_id:'tmdb_movie',tmdb_series_id:'tmdb_series',jav_code:'jav_code',internal_identity:'internal_identity'}[code];
     if(namespace)return !providers.some(item=>item.namespace===namespace);

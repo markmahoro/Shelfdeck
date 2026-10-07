@@ -180,7 +180,7 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and complete Direct Product Package', {timeout:60000},async t=>{
+for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit', {timeout:120000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source','Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
@@ -222,6 +222,8 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
     const response=await host.inject({method,url,headers:{cookie},payload});
     assert.ok(response.statusCode>=200&&response.statusCode<300,response.body);return response;
   }
+  await request('POST','/v1/admin/settings/automatic-operation/actions/enable-full', {
+    idempotencyKey:'series-settlement',expectedRevision:0,coverExclusiveRelatedInput:true});
   const policyValue={includedDirectories:[],excludedDirectories:[],allowedExtensions:['.mkv'],minimumSizeBytes:0,excludedMaterialKeys:[]};
   const access={fieldId:'series-field',revision:1,endpointId:'series-endpoint',rootLocation:path.join(root,'source'),
     mountScopeId:'series-mount',mountScopeRevision:1,accessSchemaRef:'helix://fixtures/series-field-access/v1'};
@@ -246,14 +248,14 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
   observation.observe({idempotencyKey:'series-observe',fieldId:'series-field',
     expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
   db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
-  let state;const deadline=Date.now()+45000;
+  let state;const deadline=Date.now()+100000;
   do {
     state={subjects:db.prepare('SELECT * FROM libra_subjects').all(),routes:db.prepare('SELECT * FROM libra_routing_decisions').all(),
       specs:db.prepare('SELECT * FROM libra_acceptance_specs').all(),runs:db.prepare('SELECT * FROM libra_runs').all(),
       works:db.prepare('SELECT work_id,work_kind,state FROM fx_supporting_works').all(),
       facts:db.prepare('SELECT fact_kind,fact_json FROM libra_product_fact_revisions').all()};
-    // Observe complete member and authority sets at Handoff B publication.
-    if(state.works.some(work=>work.work_kind==='deliverable_promotion'&&work.state==='succeeded')||
+    // Observe the complete Arca transaction, including authorized source settlement.
+    if(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n===1||db.prepare("SELECT count(*) n FROM arca_acceptance_decisions WHERE result='rejected'").get().n>0||
         state.works.some(work=>work.state==='failed'))break;
     assert.ifError(runtimeError);
     await new Promise(resolve=>setTimeout(resolve,25));
@@ -270,7 +272,8 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
   assert.equal(directWork?.state,'succeeded',JSON.stringify({works:state.works,events:db.prepare(
     'SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
   assert.ok(state.works.some(work=>work.work_kind==='product_conformance'&&work.state==='succeeded'),JSON.stringify({works:state.works,incidents:db.prepare('SELECT * FROM fx_executor_incidents').all(),events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
-  assert.ok(state.works.some(work=>work.work_kind==='deliverable_promotion'&&work.state==='succeeded'),JSON.stringify({works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
+  assert.ok(state.works.some(work=>work.work_kind==='deliverable_promotion'&&work.state==='succeeded'),JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
+  assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1,JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   await host.close();
   const packages=db.prepare('SELECT * FROM libra_product_packages').all();
   assert.equal(packages.length,1);
@@ -351,7 +354,25 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
     assert.equal(ref.input_binding_digest,canonicalDigest(JSON.parse(node.input_bindings_json)));
   }
   assert.ok(state.works.some(work=>work.work_kind==='routing_provider_facts'&&work.state==='succeeded'));
-  assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,0);
-  assert.deepEqual(fs.readdirSync(target),[]);
-  sources.forEach(file=>assert.equal(fs.readFileSync(file,'utf8'),'read-only-series-fixture'));
+  assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1);
+  const inventory=db.prepare('SELECT * FROM arca_inventory_materials').all();
+  assert.equal(inventory.length,episodeCount*2+2);
+  assert.equal(db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n,1);
+  assert.equal(new Set(inventory.map(item=>item.location)).size,inventory.length);
+  const inventoryPrimary=inventory.filter(item=>item.role==='primary_payload');
+  assert.equal(inventoryPrimary.length,episodeCount);
+  for(const item of inventoryPrimary) {
+    assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
+    assert.equal(path.basename(path.dirname(item.location)),'Season 01');
+    assert.ok(path.relative(target,item.location)&&!path.relative(target,item.location).startsWith('..'));
+  }
+  assert.deepEqual(inventoryPrimary.flatMap(item=>JSON.parse(item.episode_claims_json).items.map(claim=>claim.episodeKey)).sort(),episodeKeys);
+  const finalNfos=inventory.filter(item=>item.role==='metadata_sidecar');
+  assert.equal(finalNfos.length,episodeCount+1);
+  for(const number of episodeNumbers) {
+    const item=finalNfos.find(item=>path.basename(item.location).endsWith('S01E'+String(number).padStart(2,'0')+'.nfo'));
+    assert.ok(item);
+    assert.match(fs.readFileSync(item.location,'utf8'),new RegExp('<episode>'+number+'</episode>'));
+  }
+  sources.forEach(file=>assert.equal(fs.existsSync(file),false));
 });

@@ -1,4 +1,5 @@
 'use strict';
+const {seriesMetadataFieldMissing}=require('../model/series-metadata');
 
 const path=require('node:path');
 const {settlementHandles}=require('../model/input-settlement-scope');
@@ -86,6 +87,7 @@ function metadataGaps(c,requirement){const facts=c.packageValue.productFactManif
   identity=c.packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||c.packageValue.resolvedIdentitySnapshot?.factValue||{},
   descriptive=new Map((metadata.descriptiveFacts?.entries||[]).map((item)=>[item.key,item.value])),cast=c.packageValue.mediaCastSnapshot?.relations||[],
   artifacts=c.packageValue.artifactManifest?.items||[],identities=identity.providerIdentities||[],missingField=requirement.requiredFieldCodes.some((code)=>{
+    const seriesMissing=seriesMetadataFieldMissing(c.packageValue,code);if(seriesMissing!==null)return seriesMissing;
     if(code==='actor')return cast.length===0;if(code==='tmdb_movie_id')return !(identity.providerIdentities||[]).some((item)=>item.namespace==='tmdb_movie');
     if(code==='tmdb_series_id')return !(identity.providerIdentities||[]).some((item)=>item.namespace==='tmdb_series');
     if(code==='jav_code')return !identities.some((item)=>item.namespace==='jav_code');
