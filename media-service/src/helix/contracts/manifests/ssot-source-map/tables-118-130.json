@@ -9,11 +9,11 @@
       "id": "arca_inventory_product_facts",
       "owner": "arca",
       "columnsContract": "`shelf_entry_id FK, inventory_revision, fact_kind, fact_revision, fact_schema_ref, fact_json, fact_digest, source_package_id, provenance_digest, committed_at_ms`",
-      "constraintsContract": "Fact JSON上限`64 KiB`；`PK(shelf_entry_id,inventory_revision,fact_kind,fact_revision)`；Arca保存Accepted Product Fact snapshot，不运行时回读Libra Store",
+      "constraintsContract": "Fact JSON上限`64 KiB`；`PK(shelf_entry_id,inventory_revision,source_package_id,fact_kind,fact_revision)`；Series追加的每批Accepted Fact保留原始fact_revision/JSON/digest及source_package_id，禁止覆盖旧集资料或将不同Package的同revision误判同Fact；Arca保存Accepted Product Fact snapshot，不运行时回读Libra Store",
       "source": {
         "section": "8.5.12",
         "line": 9473,
-        "lineDigest": "e26fbd4876a2b956d2690a4c2e5b9524753384bf8fc061c9671188d38fef5268"
+        "lineDigest": "b9ed17f1bd2143a29fe2ad93b017d4f1765936abd75e4e8ce0b5791d155ffd12"
       }
     },
     {

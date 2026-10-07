@@ -22,6 +22,10 @@
 
 ## 当前工作项：Series身份与逐集生产接线
 
+2026-10-08追加当前事实：[Season扩充Evidence](evidence/SERIES_SEASON_EXTENSION_20261008.md)。E01/E02首次Commit后，E03从实际Host完成第二次On-deck Commit，扩充唯一Season Entry；原Inventory/Deck Fact历史和旧文件保留，最新Inventory包含三集，两批元数据和来源分别保留。此无claim样本按SSOT保持两个Subject，不能算同Subject精确连续性已完成。254文件全量仅固定摘要断言陈旧，更新后该文件复验通过；9项既有skip未计为验收。还须原生Commit重放/并发/Reservation负向、所有多Package Fact消费者、精确连续性入口、逐成员加工和UI/平台发布门槛，节点未关闭，未生产发布。
+
+2026-10-08后续追加DoR：依据SSOT §3.4.2、§4.5.4–4.5.6、§6.5，在首批正式Commit后观察E03，以exact continuity延伸同一Subject、独立冻结Run，并由Arca串行扩充同一Season Entry的Inventory/Deck Fact revision。旧Run、历史Inventory和旧集物理字节保持；新增零重叠集只使用本次Package成员，不以目录相同猜identity，不覆盖旧Season共享Artifact。先用实际隔离Host定位当前链路缺口，再补拥有该事实的领域逻辑及冲突/重放回归；不变更Owner/Handoff或生产数据。
+
 当前Arca落位增量DoR：依据正式Series/Season identity及本批Episode Metadata/Primary Claim Set生成Season目录和逐文件名称；Libra逐集NFO使用带closed episodeScope的Artifact Requirement，完整scope进入既有Requirement digest、验证和Package引用，Arca只从本Package精确scope重建匹配digest，禁止从来源名或Workspace路径猜集号。保持只有Primary携带Episode relation、碰撞拒绝、读取Fence与正式On-deck Commit边界。覆盖2/24集纵向、N:M/part命名、跨scope/重复NFO目标拒绝和Movie回归；Related NFO、追加及Aftercare需逐项实测，不能因首批fixture通过就关闭发布门槛。
 
 2026-10-08用户要求持续推进至首个可部署Series版本。当前增量DoR：Libra按冻结Run逐Primary重建完整Direct Selection/Verification集合，精确绑定成员Handle、Probe及Spec，禁止first-result消费；沿现有Staging、Conformance、Product Manifest及ShelfAcceptancePrimaryReadSet的集合合同交付，Related/NFO按明确目标区分，不能给Related添加Episode relation。验证2/24集、乱序/重复/缺失/跨Run结果、单集失败不交付、Movie回归，然后推进Arca正式上架及真实媒体。后续加工、N:M最终计量、追加/恢复与适用UI验收仍是可部署门槛。无新Owner、Handoff或存量兼容；所有效果只在本地隔离样本及Workspace，尚未授权NAS生产发布。

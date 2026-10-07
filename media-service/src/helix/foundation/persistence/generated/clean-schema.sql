@@ -422,7 +422,7 @@ CREATE TABLE "arca_inventory_product_facts" (
   "source_package_id" TEXT,
   "provenance_digest" TEXT CHECK (length("provenance_digest") = 64 AND "provenance_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
-  PRIMARY KEY ("shelf_entry_id", "inventory_revision", "fact_kind", "fact_revision"),
+  PRIMARY KEY ("shelf_entry_id", "inventory_revision", "source_package_id", "fact_kind", "fact_revision"),
   CHECK (json_valid("fact_json")),
   CHECK (length(CAST("fact_json" AS BLOB)) <= 65536),
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT

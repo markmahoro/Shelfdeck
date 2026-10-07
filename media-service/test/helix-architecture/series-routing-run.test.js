@@ -180,7 +180,7 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit', {timeout:120000},async t=>{
+for(const {episodeCount,append} of [{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(append?' and appends E03 from an unanchored Candidate':''), {timeout:180000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source','Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
@@ -274,7 +274,6 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
   assert.ok(state.works.some(work=>work.work_kind==='product_conformance'&&work.state==='succeeded'),JSON.stringify({works:state.works,incidents:db.prepare('SELECT * FROM fx_executor_incidents').all(),events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   assert.ok(state.works.some(work=>work.work_kind==='deliverable_promotion'&&work.state==='succeeded'),JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1,JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
-  await host.close();
   const packages=db.prepare('SELECT * FROM libra_product_packages').all();
   assert.equal(packages.length,1);
   const provenance=JSON.parse(packages[0].production_provenance_json);
@@ -375,4 +374,47 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
     assert.match(fs.readFileSync(item.location,'utf8'),new RegExp('<episode>'+number+'</episode>'));
   }
   sources.forEach(file=>assert.equal(fs.existsSync(file),false));
+  if(append) {
+    const firstRun=state.runs[0],firstEntry=db.prepare('SELECT * FROM arca_shelf_entries').get();
+    const immutableInventory=rows=>rows.map(({active_guard,...row})=>row);
+    const oldInventory=JSON.stringify(immutableInventory(inventory)),oldFacts=JSON.stringify(db.prepare('SELECT * FROM arca_deck_fact_revisions').all());
+    fs.writeFileSync(path.join(source,'Demo Show.S01E03.mkv'),'third-series-fixture');
+    const field=createMaterialFieldStore(deps).getMaterialField('series-field');
+    observation.observe({idempotencyKey:'series-observe-e03',fieldId:'series-field',expectedAccessRevision:1,
+      expectedObservationRevision:field.currentObservationRevision,pageBudget:8});
+    const appendDeadline=Date.now()+70000;
+    do {
+      if(db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n===2||
+          db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE state='failed'").get().n)break;
+      assert.ifError(runtimeError);
+      await new Promise(resolve=>setTimeout(resolve,50));
+    } while(Date.now()<appendDeadline);
+    // Automatic filename Triage has no exact continuity claim: preserve two Subjects.
+    // Arca independently resolves both Products to the same canonical Season Entry.
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_subjects').get().n,2);
+    const runs=db.prepare('SELECT * FROM libra_runs').all();
+    assert.equal(runs.length,2,JSON.stringify({runs,works:db.prepare('SELECT work_id,work_kind,state FROM fx_supporting_works').all()}));
+    assert.deepEqual(runs.find(item=>item.libra_run_id===firstRun.libra_run_id),firstRun);
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n,2,JSON.stringify({
+      works:db.prepare('SELECT work_id,work_kind,state FROM fx_supporting_works').all(),
+      failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1);
+    assert.equal(db.prepare('SELECT shelf_entry_id FROM arca_shelf_entries').get().shelf_entry_id,firstEntry.shelf_entry_id);
+    assert.equal(JSON.stringify(immutableInventory(db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=1').all())),oldInventory);
+    assert.equal(JSON.stringify(db.prepare('SELECT * FROM arca_deck_fact_revisions WHERE revision=1').all()),oldFacts);
+    const currentEntry=db.prepare('SELECT * FROM arca_shelf_entries').get();
+    assert.ok(currentEntry.current_inventory_revision>firstEntry.current_inventory_revision);
+    const latestInventory=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=?').all(currentEntry.current_inventory_revision);
+    const latestPrimary=latestInventory.filter(row=>row.role==='primary_payload');
+    assert.deepEqual(latestPrimary.flatMap(row=>JSON.parse(row.episode_claims_json).items.map(claim=>claim.episodeKey)).sort(),['E001','E002','E003'],JSON.stringify({currentEntry,inventory:db.prepare('SELECT inventory_revision,role,episode_claims_json FROM arca_inventory_materials').all(),receipts:db.prepare('SELECT * FROM arca_ondeck_commit_receipts').all()}));
+    assert.ok(latestPrimary.every(row=>row.active_guard===1));
+    assert.ok(db.prepare('SELECT active_guard FROM arca_inventory_materials WHERE inventory_revision=1').all().every(row=>row.active_guard===0));
+    const latestFacts=db.prepare("SELECT * FROM arca_inventory_product_facts WHERE inventory_revision=? AND fact_kind='product_metadata'").all(currentEntry.current_inventory_revision);
+    assert.equal(latestFacts.length,2);
+    assert.equal(new Set(latestFacts.map(row=>row.source_package_id)).size,2);
+    assert.deepEqual(latestFacts.flatMap(row=>JSON.parse(row.fact_json).episodeMetadata.map(item=>item.episodeScope.episodeKey)).sort(),['E001','E002','E003']);
+    for(const item of inventoryPrimary)assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
+    const third=latestPrimary.find(row=>JSON.parse(row.episode_claims_json).items.some(claim=>claim.episodeKey==='E003'));
+    assert.equal(fs.readFileSync(third.location,'utf8'),'third-series-fixture');
+  }
 });

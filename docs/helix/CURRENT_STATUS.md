@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08最新追加：[Season扩充Evidence](implementation/evidence/SERIES_SEASON_EXTENSION_20261008.md)。实际隔离Host E03扩充唯一Season收藏，原文件/历史及两批元数据保留；该无claim样本为两个Subject，同Subject连续性入口仍待接通。254文件回归仅旧固定摘要断言失败，已更新并专项复验通过，9项既有skip。Series发布资格仍未达到，无新部署。
+
 2026-10-08最新增量：[Direct On-deck Evidence](implementation/evidence/SERIES_DIRECT_ONDECK_20261008.md)。2/24集实际隔离Host已完成Arca接纳、Season/逐集落位、正式授权源结算及唯一Season Entry/Deck Fact提交；正式Inventory/Claim/文件/NFO与Provenance核验通过。完整架构251文件及边界/语义/合同通过。仍未满足首版部署门槛：逐成员加工、N:M聚合、追加/运营、真实媒体/Linux和UI验收继续，未发布生产。
 
 更新：2026-10-08。Helix Beta Movie全链路获用户阶段验收，Movie阶段文档收尾及Beta工程清理完成；用户已要求开始Series开发，以Phase工作项管理。UAT只用于上线后的测试、验收问题；原279保留误登记及转移记录，278/280保留历史收尾/清理事实。记录与证据边界见[UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)。Series完整功能尚未交付，未声明新的技术资格总体PASS或正式release tag。

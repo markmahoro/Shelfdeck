@@ -336,7 +336,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     if(aftercare)readAftercarePlacementAuthority(options,execution,aftercare.aftercareCaseId);
     else onDeck.acquireStagedCustody({
       onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,
-      stagedInventoryManifest:staged});
+      shelfId:c.shelf.shelfId,package:c.packageValue,stagedInventoryManifest:staged});
     return committedOutcome(execution,C.stage,staged,at,'material_commit');
     }catch(error){const failed=stagePreconditionFailureOutcome(error);if(failed)return failed;throw error;}},
     validateResult(_c,o){if(!o?.result?.manifestDigest)throw new TypeError('Staged Inventory Manifest is invalid.');}});

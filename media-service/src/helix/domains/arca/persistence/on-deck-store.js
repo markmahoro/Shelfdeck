@@ -1,6 +1,8 @@
 'use strict';
 
 const path = require('node:path');
+const {canonicalContentIdentity}=require('../model/canonical-content-identity');
+const {validateSeriesExtension,isRetainedSeriesMaterial,extendInventory}=require('../model/series-inventory-extension');
 const {
   canonicalDigest,
   canonicalJson,
@@ -11,6 +13,7 @@ const {
 const {
   controlScopeDigest,
   createMaterialControlParticipant,
+  createMaterialControlAdmissionReadParticipant,
   createMaterialControlProjectionPort,
 } = require('../../../foundation/persistence/material-control');
 const {
@@ -160,6 +163,8 @@ function deriveOnDeckControlChanges(options) {
       }));
       continue;
     }
+    if(options.previous&&isRetainedSeriesMaterial(options.previous,member)&&control.controlState==='controlled'&&
+        control.ownerDomain==='arca'&&control.ownerScopeType==='shelf_entry'&&control.ownerScopeId===options.shelfEntryId)continue;
     if (control.controlState !== 'uncontrolled') {
       fail('P14_ONDECK_TARGET_CONTROL_CONFLICT',
         'Final Inventory target Material is already controlled.');
@@ -256,6 +261,14 @@ function arcaDefinition(schemaManifest) {
         keyColumns: ['shelf_entry_id'],
         safeIntegers: true,
       },
+      advance_entry:{kind:'update',tableId:'arca_shelf_entries',setColumns:['current_inventory_revision','current_deck_fact_revision'],
+        keyColumns:['shelf_entry_id'],compareColumns:[{column:'status',parameter:'expected_status'},
+          {column:'current_inventory_revision',parameter:'expected_inventory_revision'},{column:'current_deck_fact_revision',parameter:'expected_deck_fact_revision'}]},
+      clear_active_guards:{kind:'update',tableId:'arca_inventory_materials',setColumns:['active_guard'],keyColumns:['shelf_entry_id','inventory_revision']},
+      list_reservations:{kind:'select-all',tableId:'arca_offdeck_reservations',columns:['reservation_id','shelf_entry_id','state'],keyColumns:['shelf_entry_id']},
+      list_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_schema_ref','fact_json','fact_digest','source_package_id','provenance_digest','committed_at_ms'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
+      list_people:{kind:'select-all',tableId:'arca_inventory_person_relations',columns:['relation_id','shelf_entry_id','inventory_revision','person_id','display_name','display_name_normalized','role','relation_source','provider_identity_schema_ref','provider_identity_json','provider_identity_digest','origin_evidence_digest','confidence_class','relation_digest'],keyColumns:['shelf_entry_id','inventory_revision']},
+      list_related:{kind:'select-all',tableId:'arca_inventory_related_references',columns:['shelf_entry_id','inventory_revision','reference_id','primary_ordinal','role','reference_kind','material_identity_hint','endpoint_id','location','checksum_hex'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
       insert_entry: {
         kind: 'insert',
         tableId: 'arca_shelf_entries',
@@ -323,7 +336,7 @@ function arcaDefinition(schemaManifest) {
         tableId: 'arca_inventory_related_references',
         columns: [
           'shelf_entry_id', 'inventory_revision', 'reference_id',
-          'primary_ordinal', 'role', 'material_identity_hint', 'endpoint_id',
+          'primary_ordinal', 'role', 'reference_kind', 'material_identity_hint', 'endpoint_id',
           'location', 'checksum_hex',
         ],
       },
@@ -789,21 +802,10 @@ function createOnDeckStore(options) {
         'On-deck Commit requires the exact resolved Product Identity.');
     }
     const providerIdentity = identityValue.providerIdentities?.[0] || {};
-    const canonicalIdentityKey = canonicalDigest({
-      schema: 'arca.canonical-content-identity-key@1',
-      shelfId: request.shelf.shelfId,
-      structureKind: identityValue.structureKind,
-      identityKind: identityValue.identityKind,
-      provider: providerIdentity.provider || null,
-      providerKey: providerIdentity.providerKey || null,
-      identityDigest: identityValue.identityDigest,
-    });
-    const shelfEntryId = stable('arca.shelf-entry-id@1', {
-      shelfId: request.shelf.shelfId,
-      canonicalIdentityKey,
-    });
-    const inventoryRevision = 1;
-    const deckFactRevision = 1;
+    const {canonicalIdentityKey,shelfEntryId}=canonicalContentIdentity(request.shelf.shelfId,identityValue);
+    const previous=readSeasonInventory(request.shelf.shelfId,packageValue);
+    const inventoryRevision=previous?Number(previous.entry.current_inventory_revision)+1:1;
+    const deckFactRevision=previous?Number(previous.entry.current_deck_fact_revision)+1:1;
     const stagedMembers = [...request.staged.members].sort((left, right) =>
       Buffer.compare(Buffer.from(left.sourceMaterialKey),
         Buffer.from(right.sourceMaterialKey)) ||
@@ -871,7 +873,7 @@ function createOnDeckStore(options) {
       fail('P14_ONDECK_STAGED_MANIFEST_DRIFT',
         'Staged Inventory Manifest does not conserve its exact members.');
     }
-    const inventoryMembers = Object.freeze(stagedMembers.map(
+    const inventoryMembers = extendInventory(previous,Object.freeze(stagedMembers.map(
       (item, ordinal) => Object.freeze({
         ordinal,
         materialKey: item.materialKey,
@@ -884,7 +886,7 @@ function createOnDeckStore(options) {
         digestHex: item.digestHex,
         sizeBytes: item.sizeBytes,
       }),
-    ));
+    )));
     const oldMaterials = new Map();
     const controlledProductMembers =
       packageValue.productMaterialManifest.members.filter((member) =>
@@ -917,6 +919,7 @@ function createOnDeckStore(options) {
       oldMaterials.set(key, member);
     }
     const changes = deriveOnDeckControlChanges({
+      previous,
       oldMaterials,
       stagedMembers,
       custodyControls: request.custodyControls,
@@ -924,6 +927,17 @@ function createOnDeckStore(options) {
       custodyId: request.custodyId,
       shelfEntryId,
     });
+    const retainedControlChecks=previous?[createMaterialControlAdmissionReadParticipant({schemaManifest:options.schemaManifest,
+      participantId:'arca_series_retained_controls',boundBusinessOwner:'arca',materialKeys:previous.materials.map(row=>row.material_key).sort(),
+      accept(projections){
+        for(const projection of projections){
+          const expected=request.targetControls.find(item=>item.materialKey===projection.materialKey);
+          if(projection.resultKind!=='available'||projection.controlState!=='controlled'||projection.ownerDomain!=='arca'||
+              projection.ownerScopeType!=='shelf_entry'||projection.ownerScopeId!==shelfEntryId||
+              (expected&&expected.projectionDigest!==projection.projectionDigest))
+            fail('ARCA_SERIES_RETAINED_CONTROL_STALE','Existing Season Inventory Control changed before Commit.');
+        }
+      }})]:[];
     const authorizedControlScopeDigest = controlScopeDigest(changes);
     const representationDigest = canonicalDigest({
       schema: 'arca.inventory-representation@1',
@@ -1052,13 +1066,18 @@ function createOnDeckStore(options) {
         const decision = repo.invoke('find_decision', {
           on_deck_run_id: request.onDeckRunId,
         });
+        if(previous) {
+          const current=readSeriesInventoryFromRepo(repo,request.shelf.shelfId,packageValue);
+          if(canonicalJson(current)!==canonicalJson(previous))fail('ARCA_SERIES_EXTENSION_STALE','Series Inventory changed before Commit.');
+        }
+
         if (!run || run.custody_id !== request.custodyId ||
             run.state !== 'offloading' ||
             run.final_inventory_decision_digest !==
               request.finalInventoryDecision.decisionDigest ||
             canonicalJson(parseDecision(decision)) !==
               canonicalJson(request.finalInventoryDecision) ||
-            repo.invoke('find_entry', { shelf_entry_id: shelfEntryId })) {
+            (!previous && repo.invoke('find_entry', { shelf_entry_id: shelfEntryId }))) {
           fail('P14_ONDECK_COMMIT_FENCE',
             'On-deck Commit Owner fence is stale or conflicts with an Entry.');
         }
@@ -1097,7 +1116,13 @@ function createOnDeckStore(options) {
             Buffer.compare(Buffer.from(left.materialKey),
               Buffer.from(right.materialKey))),
         });
-        repo.invoke('insert_entry', {
+        if(previous) {
+          if(repo.invoke('advance_entry',{shelf_entry_id:shelfEntryId,current_inventory_revision:inventoryRevision,current_deck_fact_revision:deckFactRevision,
+              expected_status:'active',expected_inventory_revision:previous.entry.current_inventory_revision,
+              expected_deck_fact_revision:previous.entry.current_deck_fact_revision}).changes!==1)
+            fail('ARCA_SERIES_EXTENSION_CAS','Series extension lost the Entry revision fence.');
+          repo.invoke('clear_active_guards',{shelf_entry_id:shelfEntryId,inventory_revision:previous.entry.current_inventory_revision,active_guard:0});
+        } else repo.invoke('insert_entry', {
           shelf_entry_id: shelfEntryId,
           shelf_id: request.shelf.shelfId,
           structure_kind: identityValue.structureKind,
@@ -1114,7 +1139,7 @@ function createOnDeckStore(options) {
           check_revision:1,checks_schema_ref:'helix://contracts/application-types/SourceCleanupChecks/v1',checks_json:'[]',created_at_ms:context.commitTimeMs,
           updated_at_ms:context.commitTimeMs,next_check_at_ms:context.commitTimeMs,
         });
-        repo.invoke('insert_identity', {
+        if(!previous)repo.invoke('insert_identity', {
           shelf_entry_id: shelfEntryId,
           revision: 1,
           structure_kind: identityValue.structureKind,
@@ -1155,6 +1180,11 @@ function createOnDeckStore(options) {
             active_guard: item.role === 'primary_payload' ? 1 : 0,
           });
         });
+        if(previous) {
+          for(const row of previous.facts)repo.invoke('insert_fact',{...row,inventory_revision:inventoryRevision});
+          for(const row of previous.people)repo.invoke('insert_person',{...row,inventory_revision:inventoryRevision});
+          for(const row of previous.related)repo.invoke('insert_related',{...row,inventory_revision:inventoryRevision});
+        }
         packageValue.productFactManifest.items.forEach((item) => {
           repo.invoke('insert_fact', {
             shelf_entry_id: shelfEntryId,
@@ -1195,6 +1225,7 @@ function createOnDeckStore(options) {
           });
         }
         for (const item of packageValue.mediaCastSnapshot.relations || []) {
+          if(previous?.people.some(row=>row.relation_id===item.relationId||row.relation_digest===canonicalDigest(item)))continue;
           const providerIdentities = item.providerIdentities || [];
           repo.invoke('insert_person', {
             relation_id: item.relationId,
@@ -1386,7 +1417,7 @@ function createOnDeckStore(options) {
     };
     try {
       options.unitOfWork.execute([
-        replay, verify, control, domain, foundationWrite,
+        replay, verify, ...retainedControlChecks, control, domain, foundationWrite,
       ]);
       return Object.freeze({ replayed: false, result, commitDigest });
     } catch (error) {
@@ -1550,7 +1581,37 @@ function createOnDeckStore(options) {
     }]).arca_ondeck_package_committed_read;
   }
 
+  function jsonRow(row) {
+    return Object.fromEntries(Object.entries(row).map(([key,value])=>{
+      if(typeof value!=='bigint')return [key,value];
+      const number=Number(value);
+      if(!Number.isSafeInteger(number))fail('ARCA_SERIES_INTEGER_RANGE','Inventory snapshot integer exceeds the exact JSON range.');
+      return [key,number];
+    }));
+  }
+  function readSeriesInventoryFromRepo(repo,shelfId,packageValue) {
+    if(packageValue?.productStructureSnapshot?.structureKind!=='season')return null;
+    const identity=packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||packageValue.resolvedIdentitySnapshot?.factValue;
+    const {shelfEntryId}=canonicalContentIdentity(shelfId,identity),storedEntry=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId});
+    if(!storedEntry)return null;
+    const entry=jsonRow(storedEntry);
+    if(repo.invoke('list_reservations',{shelf_entry_id:shelfEntryId}).some(row=>row.state==='active'))
+      fail('ARCA_SERIES_EXTENSION_RESERVED','Off-deck Reservation prevents Series extension.');
+    const params={shelf_entry_id:shelfEntryId,inventory_revision:entry.current_inventory_revision};
+    const materials=repo.invoke('list_materials',params).map(jsonRow).sort((a,b)=>Number(a.ordinal)-Number(b.ordinal));
+    validateSeriesExtension({entry,materials,packageValue});
+    return Object.freeze({entry:Object.freeze(entry),materials:Object.freeze(materials),
+      facts:repo.invoke('list_facts',params).map(jsonRow),people:repo.invoke('list_people',params).map(jsonRow),related:repo.invoke('list_related',params).map(jsonRow)});
+  }
+  function readSeasonInventory(shelfId,packageValue) {
+    if(packageValue?.productStructureSnapshot?.structureKind!=='season')return null;
+    return options.unitOfWork.execute([{participantId:'arca_series_inventory',owner:'arca',repositories:[arca],execute(context){
+      return readSeriesInventoryFromRepo(context.repository(arca.repositoryId),shelfId,packageValue);
+    }}]).arca_series_inventory;
+  }
+
   function acquireStagedCustody(request) {
+    const previous=readSeasonInventory(request.shelfId,request.package);
     const members = request.stagedInventoryManifest?.stagedMembers || [];
     const keys = [...new Set(members.map((item) =>
       item.physicalIdentity.materialKey))].sort();
@@ -1570,6 +1631,12 @@ function createOnDeckStore(options) {
           control.ownerDomain === 'arca' &&
           control.ownerScopeType === 'on_deck_custody' &&
           control.ownerScopeId === request.custodyId) {
+        continue;
+      }
+      if(previous&&isRetainedSeriesMaterial(previous,member)) {
+        if(control?.resultKind!=='available'||control.controlState!=='controlled'||control.ownerDomain!=='arca'||
+            control.ownerScopeType!=='shelf_entry'||control.ownerScopeId!==previous.entry.shelf_entry_id)
+          fail('P14_ONDECK_RETAINED_CONTROL_CONFLICT','Retained Season Material lost its exact Shelf Entry Control.');
         continue;
       }
       if (!control || control.resultKind !== 'available' ||
