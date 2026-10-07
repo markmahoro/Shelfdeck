@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08并发增量：[并发Run与目标预约](implementation/evidence/SERIES_CONCURRENT_TARGET_20261008.md)。两批非重叠Run保持各自范围，Arca以持久化目标预约避免共享文件接管冲突；并发Host已通过。预约/恢复/精确旧schema升级与拒绝未完成责任专项通过；历史迁移测试9项失败已在修改前基线复现，保留为发布资格缺口。尚未完成逐成员加工、N:M完整验收、UI及真实媒体/Linux，不宣称可部署。用户已要求每批验证后提交并推送，保持GitHub与本地一致。
+
 2026-10-08连续性增量：[同Subject分批补集](implementation/evidence/SERIES_SUBJECT_CONTINUITY_20261008.md)。显式Series Claim经过正式Provider查证后，E03沿用原Subject并独立Run扩充同一Season，旧集/Run/历史保持；顺序Host通过。并发Run及完整首版发布资格仍未完成，无新部署。
 
 2026-10-08最新追加：[Season扩充Evidence](implementation/evidence/SERIES_SEASON_EXTENSION_20261008.md)。实际隔离Host E03扩充唯一Season收藏，原文件/历史及两批元数据保留；该无claim样本为两个Subject，同Subject连续性入口仍待接通。254文件回归仅旧固定摘要断言失败，已更新并专项复验通过，9项既有skip。Series发布资格仍未达到，无新部署。

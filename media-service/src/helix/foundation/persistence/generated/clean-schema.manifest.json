@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 197,
-  "tableContractAggregateDigest": "7305707bdbdd2102b7b861612af6758cbacab1000413438a48ddcfe9bec0442a",
-  "ddlDigest": "46893c3ce29b664d4eb5af009108756ec5ba19851b082f32e1af0d13157f3beb",
+  "tableContractAggregateDigest": "215e14176954a8b1605a984b462992ab3647d90d9f2aa68a17fc088af5f2f055",
+  "ddlDigest": "f1016a2c9f4a314554c7a9863a487e4874ec77f93e6010c51fbb281b4204c2cb",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -1190,15 +1190,16 @@
       "tableId": "arca_ondeck_runs",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_ondeck_runs/v1",
-      "contractDigest": "4a9b7226ea345e5654163eac1bcc10d992f227e31092d50e4a7eff536d3e6942",
-      "sqlDigest": "106873649d8f094eef562df0b023540d13126f0eccd7b39784e1b67f7577bbfc",
+      "contractDigest": "8b2a4d780fc45e07c704234d164121097d7d49af8cd91c784e6f3dd0fec17529",
+      "sqlDigest": "1a9c43906852086c004a6569b34dbe592450b832c770193f32b389658e002f3f",
       "columns": [
         "on_deck_run_id",
         "custody_id",
         "final_inventory_decision_digest",
         "state",
         "created_at_ms",
-        "terminal_at_ms"
+        "terminal_at_ms",
+        "target_reserved_at_ms"
       ],
       "immutable": false,
       "supportColumns": [],

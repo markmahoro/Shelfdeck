@@ -197,6 +197,7 @@ function arcaDefinition(schemaManifest) {
         columns: [
           'on_deck_run_id', 'custody_id', 'final_inventory_decision_digest',
           'state', 'created_at_ms', 'terminal_at_ms',
+          'target_reserved_at_ms',
         ],
         keyColumns: ['on_deck_run_id'],
         safeIntegers: true,
@@ -236,6 +237,11 @@ function arcaDefinition(schemaManifest) {
           },
         ],
       },
+      reserve_target: {
+        kind:'update', tableId:'arca_ondeck_runs', setColumns:['target_reserved_at_ms'],
+        keyColumns:['on_deck_run_id'],
+        compareColumns:[{column:'state',parameter:'expected_state'}],
+      },
       find_decision: {
         kind: 'select-one',
         tableId: 'arca_final_inventory_decisions',
@@ -248,6 +254,11 @@ function arcaDefinition(schemaManifest) {
         ],
         keyColumns: ['on_deck_run_id'],
         safeIntegers: true,
+      },
+      list_target_candidates: {
+        kind: 'select-all', tableId: 'arca_ondeck_runs',
+        columns: ['on_deck_run_id', 'state', 'created_at_ms', 'target_reserved_at_ms'],
+        keyColumns: ['state'], safeIntegers:true,
       },
       find_entry: {
         kind: 'select-one',
@@ -653,6 +664,38 @@ function createOnDeckStore(options) {
     }]).arca_ondeck_accepted_responsibility_read;
   }
 
+  function targetAvailability(repo, onDeckRunId, decisionDigest) {
+    const run = repo.invoke('find_run', { on_deck_run_id:onDeckRunId });
+    const decision = repo.invoke('find_decision', { on_deck_run_id:onDeckRunId });
+    if (!run || !decision || run.final_inventory_decision_digest !== decisionDigest ||
+        decision.decision_digest !== decisionDigest) {
+      fail('P14_ONDECK_RUN_MISSING', 'On-deck Run does not match its immutable Decision.');
+    }
+    if (run.state === 'committed') return Object.freeze({ available:true });
+    const contenders = ['ready','offloading','blocked'].flatMap(state =>
+      repo.invoke('list_target_candidates', {state})).filter(row => {
+      const target = repo.invoke('find_decision', {on_deck_run_id:row.on_deck_run_id});
+      return target?.target_endpoint_id === decision.target_endpoint_id &&
+        target.target_location === decision.target_location;
+    });
+    // An interrupted physical transaction keeps its reservation until Commit.
+    const holders = contenders.filter(row => row.target_reserved_at_ms !== null);
+    const ordered = (holders.length ? holders : contenders.filter(row=>row.state==='ready'||row.on_deck_run_id===onDeckRunId)).sort((a,b) =>
+      Number(a.created_at_ms)-Number(b.created_at_ms) ||
+      Buffer.compare(Buffer.from(a.on_deck_run_id),Buffer.from(b.on_deck_run_id)));
+    const blocker = ordered.find(row => row.on_deck_run_id !== onDeckRunId);
+    const available = holders.length ? !blocker : ordered[0]?.on_deck_run_id === onDeckRunId;
+    return Object.freeze({ available, blockingRunId:available ? null :
+      (holders.length ? blocker?.on_deck_run_id : ordered[0]?.on_deck_run_id) });
+  }
+
+  function readTargetAvailability(onDeckRunId, decisionDigest) {
+    return options.unitOfWork.execute([{
+      participantId:'arca_ondeck_target_availability', owner:'arca', repositories:[arca],
+      execute(context) { return targetAvailability(context.repository(arca.repositoryId),onDeckRunId,decisionDigest); },
+    }]).arca_ondeck_target_availability;
+  }
+
   function setOffloading(onDeckRunId, decisionDigest) {
     return options.unitOfWork.execute([{
       participantId: 'arca_ondeck_start',
@@ -660,6 +703,9 @@ function createOnDeckStore(options) {
       repositories: [arca],
       execute(context) {
         const repo = context.repository(arca.repositoryId);
+        const availability = targetAvailability(repo,onDeckRunId,decisionDigest);
+        if (!availability.available) fail('P14_ONDECK_TARGET_RESERVED',
+          'Final Inventory target is reserved by another On-deck Run.',availability);
         const run = repo.invoke('find_run', { on_deck_run_id: onDeckRunId });
         if (!run || run.final_inventory_decision_digest !== decisionDigest) {
           fail('P14_ONDECK_RUN_MISSING',
@@ -678,6 +724,9 @@ function createOnDeckStore(options) {
           fail('P14_ONDECK_RUN_CAS',
             'On-deck Run lost its readiness CAS.');
         }
+        if(repo.invoke('reserve_target',{on_deck_run_id:onDeckRunId,
+          target_reserved_at_ms:context.commitTimeMs,expected_state:'offloading'}).changes!==1)
+          fail('P14_ONDECK_TARGET_RESERVATION_CAS','On-deck target reservation lost its state fence.');
         return 'offloading';
       },
     }]).arca_ondeck_start;
@@ -693,6 +742,8 @@ function createOnDeckStore(options) {
         const custody=repo.invoke('find_custody',{custody_id:run.custody_id});
         if(!custody||custody.state!=='active')return Object.freeze({eligible:false,reasonCode:'custody_not_active'});
         if(run.state!=='blocked')return Object.freeze({eligible:false,reasonCode:'on_deck_run_not_blocked',state:run.state});
+        if(!targetAvailability(repo,onDeckRunId,run.final_inventory_decision_digest).available)
+          return Object.freeze({eligible:false,reasonCode:'on_deck_target_reserved',state:run.state});
         return Object.freeze({eligible:true,reasonCode:null,state:run.state,custodyId:run.custody_id,
           decisionDigest:run.final_inventory_decision_digest});
       },
@@ -708,6 +759,8 @@ function createOnDeckStore(options) {
         const custody=repo.invoke('find_custody',{custody_id:run.custody_id});
         if(!custody||custody.state!=='active')return Object.freeze({eligible:false,reasonCode:'custody_not_active'});
         if(run.state!=='blocked')return Object.freeze({eligible:false,reasonCode:'on_deck_run_not_blocked',state:run.state});
+        if(!targetAvailability(repo,onDeckRunId,run.final_inventory_decision_digest).available)
+          return Object.freeze({eligible:false,reasonCode:'on_deck_target_reserved',state:run.state});
         return Object.freeze({eligible:true,reasonCode:null,state:run.state,custodyId:run.custody_id,
           decisionDigest:run.final_inventory_decision_digest});
       },
@@ -765,6 +818,9 @@ function createOnDeckStore(options) {
       participantId: 'arca_ondeck_resume', owner: 'arca', repositories: [arca],
       execute(context) {
         const repo = context.repository(arca.repositoryId);
+        const availability=targetAvailability(repo,onDeckRunId,decisionDigest);
+        if(!availability.available)fail('P14_ONDECK_TARGET_RESERVED',
+          'Final Inventory target is reserved by another On-deck Run.',availability);
         const run = repo.invoke('find_run', { on_deck_run_id:onDeckRunId });
         if (!run || run.final_inventory_decision_digest !== decisionDigest) {
           fail('P14_ONDECK_RUN_MISSING', 'On-deck Run does not match its immutable Decision.');
@@ -776,6 +832,9 @@ function createOnDeckStore(options) {
         }).changes !== 1) {
           fail('P14_ONDECK_RESUME_CAS', 'On-deck Run lost its recovery CAS.');
         }
+        if(run.target_reserved_at_ms===null&&repo.invoke('reserve_target',{
+          on_deck_run_id:onDeckRunId,target_reserved_at_ms:context.commitTimeMs,expected_state:'offloading'}).changes!==1)
+          fail('P14_ONDECK_TARGET_RESERVATION_CAS','On-deck target reservation lost its recovery fence.');
         return Object.freeze({ state:'offloading', replayed:false });
       },
     }]).arca_ondeck_resume;
@@ -1709,6 +1768,7 @@ function createOnDeckStore(options) {
 
   return Object.freeze({
     verifyAcceptedResponsibility,
+    readTargetAvailability,
     setOffloading,
     recoveryEligibility,
     attentionRetryEligibility,

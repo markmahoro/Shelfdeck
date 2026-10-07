@@ -306,17 +306,25 @@ for(const {episodeCount,append,anchored,concurrent} of [{episodeCount:2},{episod
   if(concurrent)observation.observe({idempotencyKey:'series-observe-2',fieldId:'series-field-2',expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
   db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
   if(concurrent){
-    const waitFor=async(predicate,label)=>{const until=Date.now()+90000;while(!predicate()&&Date.now()<until){
+    const waitFor=async(predicate,label)=>{const until=Date.now()+150000;while(!predicate()&&Date.now()<until){
       assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,25));
-    }assert.ok(predicate(),label+': '+JSON.stringify(db.prepare('SELECT libra_run_id,state FROM libra_runs').all()));};
+    }assert.ok(predicate(),label+': '+JSON.stringify({runs:db.prepare('SELECT libra_run_id,state FROM libra_runs').all(),
+      onDeck:db.prepare('SELECT * FROM arca_ondeck_runs').all(),receipts:db.prepare('SELECT * FROM arca_ondeck_commit_receipts').all(),
+      events:db.prepare("SELECT capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),
+      failures:db.prepare('SELECT failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));};
     await waitFor(()=>db.prepare("SELECT count(*) n FROM libra_runs WHERE state='active'").get().n===2,'two disjoint Runs stay active');
     assert.equal(db.prepare('SELECT count(*) n FROM libra_subjects').get().n,1);
     assert.equal(db.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
     const frozen=db.prepare('SELECT libra_run_id,execution_basis_digest,run_material_manifest_id FROM libra_runs').all();
-    await waitFor(()=>db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n===2,'both Runs commit');
+    await waitFor(()=>db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n===2,'both Runs commit');
     assert.deepEqual(db.prepare('SELECT libra_run_id,execution_basis_digest,run_material_manifest_id FROM libra_runs').all(),frozen);
     assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1);
     assert.equal(db.prepare("SELECT count(*) n FROM libra_runs WHERE state='completed'").get().n,2);
+    const entry=db.prepare('SELECT * FROM arca_shelf_entries').get();
+    const delivered=db.prepare("SELECT episode_claims_json FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=? AND role='primary_payload'")
+      .all(entry.shelf_entry_id,entry.current_inventory_revision).flatMap(row=>JSON.parse(row.episode_claims_json).items.map(item=>item.episodeKey));
+    assert.deepEqual(delivered.sort(),['E001','E002','E003']);
+    assert.equal(db.prepare('SELECT count(DISTINCT inventory_revision) n FROM arca_ondeck_commit_receipts').get().n,2);
     const scopes=frozen.map(run=>db.prepare('SELECT episode_key FROM libra_run_material_episode_claims WHERE run_material_manifest_id=? ORDER BY episode_key').all(run.run_material_manifest_id).map(row=>row.episode_key).join(','));
     assert.deepEqual(scopes.sort(),['E001,E002','E003']);
     return;

@@ -98,7 +98,7 @@
       "sourceLocator": {
         "section": "8.5.12",
         "line": 9463,
-        "lineDigest": "9c4a3d87b0a9abf9d81b28663148133c8358bbfe72268603f8e394e5c7a0d2ea"
+        "lineDigest": "b2d3a8034aafd509edbbb4485a4c3a3ad573df3ea0c6f7f6daa46b4f41f6b0af"
       },
       "targetLocator": {
         "path": "table-contracts/arca_ondeck_runs/v1/contract.json"
@@ -107,11 +107,11 @@
         "tableId": "arca_ondeck_runs",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_ondeck_runs/v1",
-        "contractDigest": "4a9b7226ea345e5654163eac1bcc10d992f227e31092d50e4a7eff536d3e6942"
+        "contractDigest": "8b2a4d780fc45e07c704234d164121097d7d49af8cd91c784e6f3dd0fec17529"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "a1955cfec523225a30c472a91f1eee0046728714e61b4e6799d1aad5414e8f24"
+        "value": "51f0567c94cf04683d1cda1f7a43fe830e0272b0a7e2b8da761ec676e1fdf48e"
       }
     },
     {

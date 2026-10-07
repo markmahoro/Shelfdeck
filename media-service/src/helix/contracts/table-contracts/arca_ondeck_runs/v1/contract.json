@@ -71,6 +71,16 @@
         "foreignKeyMarker": false,
         "inlineUnique": false,
         "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "target_reserved_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
       }
     ],
     "primaryKey": [
@@ -120,17 +130,20 @@
       "同一Custody一个non-terminal Run",
       "`blocked`在自动预算未耗尽时可恢复，耗尽后是零资源且投影为`attention_required`的稳定业务暂停态，只有显式用户Retry可把同一Run恢复为`offloading`",
       "只有`committed`为terminal且写`terminal_at_ms`",
+      "`target_reserved_at_ms`只在Arca同事务重验Final Decision目标无其他未Commit持有者后、首次进入offloading时写入，blocked保留",
+      "未取得预约的blocked不得阻塞其他Run，恢复须重新竞争",
+      "committed后预约失效但保留历史时间",
       "Supporting Work通过Foundation反向关联",
       "`INDEX(state,created_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`on_deck_run_id PK, custody_id FK, final_inventory_decision_digest, state(ready|offloading|blocked|committed), created_at_ms, terminal_at_ms`",
-      "constraints": "只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立；同一Custody一个non-terminal Run；`blocked`在自动预算未耗尽时可恢复，耗尽后是零资源且投影为`attention_required`的稳定业务暂停态，只有显式用户Retry可把同一Run恢复为`offloading`；只有`committed`为terminal且写`terminal_at_ms`；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`"
+      "columns": "`on_deck_run_id PK, custody_id FK, final_inventory_decision_digest, state(ready|offloading|blocked|committed), created_at_ms, terminal_at_ms, target_reserved_at_ms NULL`",
+      "constraints": "只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立；同一Custody一个non-terminal Run；`blocked`在自动预算未耗尽时可恢复，耗尽后是零资源且投影为`attention_required`的稳定业务暂停态，只有显式用户Retry可把同一Run恢复为`offloading`；只有`committed`为terminal且写`terminal_at_ms`；`target_reserved_at_ms`只在Arca同事务重验Final Decision目标无其他未Commit持有者后、首次进入offloading时写入，blocked保留；未取得预约的blocked不得阻塞其他Run，恢复须重新竞争；committed后预约失效但保留历史时间；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`"
     },
     "source": {
       "section": "8.5.12",
       "line": 9463,
-      "lineDigest": "9c4a3d87b0a9abf9d81b28663148133c8358bbfe72268603f8e394e5c7a0d2ea"
+      "lineDigest": "b2d3a8034aafd509edbbb4485a4c3a3ad573df3ea0c6f7f6daa46b4f41f6b0af"
     },
     "foreignKeys": [
       {

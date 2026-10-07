@@ -194,9 +194,13 @@ function createOnDeckProjections(options) { const definitions=[
   [P.spaceRequirement,(c)=>spaceRequirement(c)],[P.offload,(c)=>offload(c)],[P.placementPolicy,(c)=>placement(c)],[P.targetEndpoint,(c)=>targetEndpoint(c)],
   [P.acceptedPayload,(c)=>acceptedPayload(options,c)],[P.acceptanceControl,(c,_s,p)=>controlHandle(c,'arca_acceptance',c.offer.offerId,p.eventId)],
   [P.rejectionDecision,(c)=>rejectionDecision(options,c)],[P.rejectionCommit,(c,_s,p)=>rejectionCommitHandle(options,c,p.eventId)],
-  [P.finalDecision,(c)=>finalDecision(c)],[P.targetHandle,(c,source)=>source||options.inventoryPort.slotHandle({onDeckRunId:c.responsibility.onDeckRunId,
+  [P.finalDecision,(c)=>finalDecision(c)],[P.targetHandle,(c,source)=>{if(source)return source;
+    const availability=options.contextReader.onDeck.readTargetAvailability(c.responsibility.onDeckRunId,c.finalInventoryDecision.decisionDigest);
+    if(!availability.available)throw executionInputUnavailable('Final Inventory target is reserved by another On-deck Run.',
+      {dependencyKind:'owner_reservation',dependencyRef:availability.blockingRunId});
+    return options.inventoryPort.slotHandle({onDeckRunId:c.responsibility.onDeckRunId,
     custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,observedAtMs:0,
-    replayCommitted:false,replaySettledSources:true})],
+    replayCommitted:false,replaySettledSources:true});}],
   [P.productHandles,(c)=>productHandles(c)],[P.finalBindings,(c,source)=>finalBindings(c,source)],[P.disposition,(c)=>disposition(c)],
   [P.targetBindings,(c,source)=>targetBindings(c,source)],[P.settlementHandles,(c,source,p)=>settlementHandles(c,p.materialKey,source,options.contextReader.settlementAuthorizations.current())],
   [P.settlementApproval,(c,source,p)=>{const authorization=options.contextReader.settlementAuthorizations.current();

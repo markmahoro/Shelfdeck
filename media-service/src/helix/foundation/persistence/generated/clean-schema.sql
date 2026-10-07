@@ -781,6 +781,7 @@ CREATE TABLE "arca_ondeck_runs" (
   "state" TEXT CHECK ("state" IN ('ready', 'offloading', 'blocked', 'committed')),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  "target_reserved_at_ms" INTEGER CHECK ("target_reserved_at_ms" >= 0),
   FOREIGN KEY ("custody_id") REFERENCES "arca_ondeck_custodies" ("custody_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_arca_ondeck_runs_hot_01" ON "arca_ondeck_runs" ("state", "created_at_ms");
