@@ -13,7 +13,7 @@ const { createTimeoutController } = require('../../src/helix/foundation/executio
 const { createCooperativeExecutionIsolation } = require('../../src/helix/foundation/execution/cooperative-execution-isolation');
 const { createAttemptPolicyController } = require('../../src/helix/foundation/execution/execution-policy');
 const {
-  executionInputUnavailable,
+  executionInputUnavailable, executionInputSuperseded,
 } = require('../../src/helix/foundation/execution/execution-input-readiness');
 const { createRepositoryDefinition } = require('../../src/helix/foundation/persistence/owner-repository');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
@@ -1203,4 +1203,17 @@ test('abandoned commit settles after restart even if owner projection now fails'
     assert.equal((await runtime.recover({eventId:'event',effectId:'effect',decision:'already_failed'})).kind,'failed');
     assert.equal(databaseFacts(databasePath).event.state,'failed');assert.equal(state().dispatchContext,undefined);
   },settings);
+});
+
+
+test('superseded input basis closes an auditable Attempt without dispatching stale Capability input',async()=>{
+  await fixture(async({runtime,lease,databasePath})=>{
+    const outcome=await runtime.run({schedulerLease:lease});
+    assert.equal(outcome.kind,'input_superseded');
+    assert.equal(outcome.failureCode,'P4_EXECUTION_INPUT_BASIS_SUPERSEDED');
+    const facts=databaseFacts(databasePath);
+    assert.equal(facts.event.state,'failed');assert.equal(facts.attempts,1);assert.equal(facts.results,0);
+    assert.equal(facts.attempt.failure_class,'input_projection');
+    assert.equal(facts.attempt.failure_code,'P4_EXECUTION_INPUT_BASIS_SUPERSEDED');
+  },{inputError:executionInputSuperseded('Owner basis advanced before dispatch.')});
 });

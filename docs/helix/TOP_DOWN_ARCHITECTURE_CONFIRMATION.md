@@ -11404,7 +11404,7 @@ ID按exact UTF-8 bytes升序，禁止locale/case-fold；所有digest均为小写
   完整JCS≤`1 MiB`。原始Snapshot
   必须从Run immutable Execution Basis/Manifest及其admitted Control historical revisions重建；current Snapshot必须从
   current ready Acceptance Spec、同一Product Scope的current Binding/Episode relation和Libra-owned current Control形成。
-  它排除runId/admission revision等生产批次字段，只比较会改变产品要求或初始生产资料的事实。
+  它排除runId/admission revision等生产批次字段，只比较会改变产品要求或初始生产资料的事实。Series以上语义公式中的productScopeDigest改用SHA-256(JCS({schema:"libra.series-delivery-scope-semantic@1",subjectId,memberClaims:[{materialKey,episodeClaimSetDigest}]}))，memberClaims按materialKey UTF-8排序；Snapshot仍保存真实productScopeDigest。仅其他批次接纳导致Subject intakeRevision增加不得改变原Run交付语义。当前Spec必须按该Run冻结Episode范围重新Query当前Routing/Standard/Perception；Spec Work通过libra_run typed dependencyRef冻结scopeRunId，Planner经Foundation readDefinition和Libra原始Spec重建范围，沿Subject Decision Head CAS发布，禁止直接回用旧Spec冒充当前要求。Owner在输入准备时发现Basis已被替代，可抛出Foundation通用ExecutionInputSupersededError；Foundation以既有input_projection failed Attempt记录P4_EXECUTION_INPUT_BASIS_SUPERSEDED、取消旧依赖Event且不派发Capability，返回input_superseded供Owner启动新Basis重评，不把正常竞争报告为未分类内部故障。
 - `LibraRunRecoveryPolicySnapshot@1`是Libra-owned、随binary immutable的Beta合同：
   `{policyRef:"libra.run-recovery.beta@1",policyRevision:1,assessmentOffsetsMs:[60000,300000,900000,
   1800000,3600000],maxRecoveryAssessments:5,heavyPermitAllowed:false,frozenAutoResumeAllowed:false,policyDigest}`；

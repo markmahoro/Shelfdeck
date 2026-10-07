@@ -493,3 +493,37 @@ test('changed Series Episode relation or Binding revision fails closed', () => {
     });
   }
 });
+
+
+test('Series Comparable scope ignores another intake revision but still detects changed Episode bindings and requirements',()=>fixture(input=>{
+  const original=input.basisSnapshot;
+  const refreshed=comparable({...original,productScopeDigest:D('later-intake-same-episodes')});
+  assert.equal(refreshed.comparableBasisDigest,original.comparableBasisDigest);
+  assert.notEqual(refreshed.productScopeDigest,original.productScopeDigest);
+  const changedClaims=comparable({...original,members:original.members.map(member=>({...member,episodeClaimSetDigest:D('other-episodes')}))});
+  assert.notEqual(changedClaims.comparableBasisDigest,original.comparableBasisDigest);
+  const changedSpec=comparable({...original,acceptanceSpecRef:{...original.acceptanceSpecRef,specDigest:D('new-requirements')}});
+  assert.notEqual(changedSpec.comparableBasisDigest,original.comparableBasisDigest);
+}));
+
+
+test('Series pipeline seat remains while another delivery responsibility is pending',()=>fixture(input=>{
+  const {createPredeckPipelineAdmissionStore}=require('../../src/helix/domains/libra/persistence/predeck-pipeline-admission-store');
+  const store=createPredeckPipelineAdmissionStore({schemaManifest,unitOfWork:input.unitOfWork,now:()=>2000});
+  const subjectId=input.basisSnapshot.subjectId;
+  store.acquire({fieldId:'series-field',subjectId,sourceProcessId:'series-process'});
+  assert.equal(store.release(subjectId).released,false);
+  const db=new Database(input.databasePath);
+  try{
+    db.prepare("UPDATE libra_runs SET state='completed' WHERE libra_run_id=?").run(input.libraRunId);
+    const binding=db.prepare('SELECT * FROM libra_material_bindings WHERE subject_id=?').get(subjectId);
+    binding.material_key=D('pending-new-batch');binding.origin_candidate_package_id='pending-candidate';
+    const keys=Object.keys(binding);
+    db.prepare('INSERT INTO libra_material_bindings ('+keys.join(',')+') VALUES ('+keys.map(()=>'?').join(',')+')').run(...keys.map(key=>binding[key]));
+    assert.equal(store.release(subjectId).released,false);
+    assert.equal(store.hasToken(subjectId),true);
+    db.prepare('DELETE FROM libra_material_bindings WHERE material_key=?').run(binding.material_key);
+    assert.equal(store.release(subjectId).released,true);
+    assert.equal(store.hasToken(subjectId),false);
+  }finally{db.close();}
+}));

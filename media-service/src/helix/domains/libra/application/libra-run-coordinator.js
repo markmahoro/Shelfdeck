@@ -585,6 +585,11 @@ function createLibraRunCoordinator(options){
       return Object.freeze({kind:'terminal',libraRunId,state:snapshot.run.state});
     const persistedConformanceFailure = freezePersistedConformanceFailure(snapshot);
     if (persistedConformanceFailure) return persistedConformanceFailure;
+    if(snapshot.spec.contentProfile==='series'){
+      const scoped=options.resolveCurrentAcceptanceSpec(snapshot.run.subjectId,libraRunId);
+      if(scoped.kind!=='ready')return Object.freeze({kind:'pending',phase:'run_scope_requirements',libraRunId,
+        workId:scoped.workId||null,reasonCode:scoped.reasonCode||null});
+    }
     const lifecycle = options.libraRunLifecycleService?.reconcile(libraRunId);
     if (lifecycle && lifecycle.kind !== 'ready') {
       if (['freshness_confirmed', 'resume'].includes(lifecycle.kind)) {
@@ -637,7 +642,7 @@ function createLibraRunCoordinator(options){
       if(!result||!committed||result.result.identityDigest!==committed.factValue.identityDigest)
         throw new Error('Terminal Product Identity Work did not atomically publish its Product Fact.');
     }
-    const currentRequirements=options.resolveCurrentAcceptanceSpec(snapshot.run.subjectId);
+    const currentRequirements=options.resolveCurrentAcceptanceSpec(snapshot.run.subjectId,snapshot.spec.contentProfile==='series'?libraRunId:null);
     if(currentRequirements.kind!=='ready')return Object.freeze({kind:'pending',phase:'formal_identity_rating_resolution',libraRunId,
       workId:currentRequirements.workId||null,reasonCode:currentRequirements.reasonCode||null});
     if(currentRequirements.spec.specDigest!==snapshot.spec.specDigest){

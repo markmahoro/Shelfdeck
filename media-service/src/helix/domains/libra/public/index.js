@@ -242,8 +242,8 @@ function createExecutionRegistration() {
         resolveFrozenRun:libraRunAdminService.reconcileFrozen,
         resolveRejectedRun:libraRunAdminService.reconcileRejected,
         waitUnavailableStrategy:libraRunAdminService.waitUnavailableStrategy,
-        resolveCurrentAcceptanceSpec(subjectId){
-          const resolution=acceptanceSpecCoordinator.reconcile(subjectId);
+        resolveCurrentAcceptanceSpec(subjectId,scopeRunId=null){
+          const resolution=acceptanceSpecCoordinator.reconcile(subjectId,scopeRunId);
           if(resolution.kind!=='terminal')return resolution;
           const context=libraRunContextReader.read(subjectId);
           return context.kind==='ready'?Object.freeze({kind:'ready',spec:context.spec}):context;

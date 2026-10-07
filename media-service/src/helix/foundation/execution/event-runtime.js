@@ -4,7 +4,7 @@ const { failureDiagnostics } = require('../../contracts/failure-diagnostics');
 const { digest } = require('../persistence/ddl-compiler');
 const { createRepositoryDefinition } = require('../persistence/owner-repository');
 const {
-  isExecutionInputUnavailable,
+  isExecutionInputUnavailable, isExecutionInputSuperseded,
 } = require('./execution-input-readiness');
 const { createProgressReporter } = require('./progress-reporter');
 
@@ -384,7 +384,7 @@ function createEventRuntime(options) {
     }]);
     if(!unavailable&&typeof options.governor.abandon==='function')options.governor.abandon(snapshot.event.event_id);
     return Object.freeze({
-      kind: unavailable ? 'input_waiting' : 'input_failed',
+      kind: unavailable ? 'input_waiting' : isExecutionInputSuperseded(error) ? 'input_superseded' : 'input_failed',
       eventId: snapshot.event.event_id,
       eventState: unavailable ? 'waiting_for_external' : 'failed',
       eventAttemptId: failedAttemptId,

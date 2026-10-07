@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08云端接续交接：用户要求将本地现有代码同步到GitHub并转云端开发；本次保存并发Run未完成增量为开发检查点，不作为完成或发布声明。交接复验 `node --test test/helix-architecture/p14-series-run-lifecycle-continuity.test.js test/helix-architecture/p4-event-runtime.test.js test/helix-architecture/p8-acceptance-spec-planner-stale.test.js`：Windows 71项通过、0失败/跳过。未重跑完整Host/并发、全量回归、Linux、Docker/Desktop或UI验收；既有 `P14_ONDECK_STAGED_CONTROL_CONFLICT` 阻断保持开放。下文“未提交”指检查点保存前的历史记录；云端应先从GitHub最新main取得本检查点，按本Phase接续同Season落位/Commit协调。运行数据、凭据、依赖及本地外部日志不随Git同步，无生产动作。
+
 2026-10-08最新增量：[Direct On-deck Evidence](evidence/SERIES_DIRECT_ONDECK_20261008.md)。2/24集实际隔离Host已完成Arca接纳、Season/逐集落位、正式授权源结算及唯一Season Entry/Deck Fact提交；正式Inventory/Claim/文件/NFO与Provenance核验通过。完整架构251文件及边界/语义/合同通过。仍未满足首版部署门槛：逐成员加工、N:M聚合、追加/运营、真实媒体/Linux和UI验收继续，未发布生产。
 
 更新：2026-10-08。ACTIVE / DEVELOPMENT。用户追加“开始开发吧”，授权Series本地开发、隔离测试及必要构建。上个Movie阶段已按用户接受完成文档收尾；[旧包快照](archive/20260930_BETA_MOVIE_CLOSEOUT/CURRENT_PHASE.md)只用于追溯。唯一计划为[CURRENT_PLAN](../CURRENT_PLAN.md)，本Phase以有名称的工作项、里程碑及Evidence管理开发，不使用UAT编号；UAT只记录上线后的测试、验收问题。原UAT-279保留误登记与转移历史。
@@ -115,3 +117,7 @@ UI门禁适用于每个节点，包括后端生成的用户可见文案：实施
 4. 每个开发工作项满足Playbook Definition of Ready后实施。保持恰好一个活动Phase；本包Exit后冻结到archive再切换，不另建Series活动计划。
 
 Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向工作项的完整验收；不能用首批叶子能力测试通过关闭完整Phase。原UAT-279仅保留转移记录，Phase进度不在该行更新。本轮不声称UI验收或生产剧集支持。
+
+2026-10-08并发Run接线DoR：按SSOT §6.2.5/6.4.6/8.6.21，各Run以冻结Episode范围重新读取当前Routing/Standard/Perception，不借用另批Spec。Acceptance Spec Work通过已有typed dependencyRef绑定Libra Run，Planner和Owner projection从Foundation公开readDefinition及Libra不可变Run/Spec验证该范围；仍由Subject Decision Head CAS串行发布，不新增Store/对象/跨Owner读取。Series Comparable语义比较忽略纯Intake revision变化，以冻结成员Episode claim集合比较交付范围，Binding/Control及当前要求变化仍触发替换。验证两批同时active、原Run不supersede、policy变化仍检测、stale/foreign依赖拒绝，并跑顺序补集/Movie回归；当前未完成。
+
+2026-10-08并发推进事实（未提交）：已接入按Run冻结范围的Spec准备、不可变Execution Basis dependencyRef、纯Intake revision语义归一及Series未完责任席位保留。基础范围/Lifecycle26项、补充scope6项、pipeline8项、Foundation Event Runtime64项通过（集合有重叠）；顺序同Subject补集Host仍通过93.6秒。新增两独立Field并发fixture已验证一个Subject下两个Run同时active、冻结范围不supersede，随后在Arca共享poster接管失败`P14_ONDECK_STAGED_CONTROL_CONFLICT`；完整并发尚未通过，不能关闭。Spec发布竞争已改为Owner显式抛出Foundation通用superseded-input分类，保留失败Attempt与旧Work，唤醒正常新Basis重评；不派发旧输入、也不在Foundation增加Series业务判定。下一步按SSOT §6.2.5补同Season落位/Commit串行协调，核验Target Slot现有持有/释放合同，禁止放松Material Control或借故重置。最新失败日志`E:/my_project/helix-git-consolidation-20261008/series-concurrent-host.txt`；测试Host均已停止，无生产动作。

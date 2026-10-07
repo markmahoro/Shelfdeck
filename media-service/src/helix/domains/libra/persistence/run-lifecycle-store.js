@@ -775,6 +775,13 @@ function assertHistoricalControls(repo, original, run) {
   }
 }
 
+function comparableProductScope(value) {
+  if(value.structureKind!=='season')return value.productScopeDigest;
+  return canonicalDigest({schema:'libra.series-delivery-scope-semantic@1',subjectId:value.subjectId,
+    memberClaims:value.members.map(member=>({materialKey:member.materialKey,episodeClaimSetDigest:member.episodeClaimSetDigest}))
+      .sort((a,b)=>utf8(a.materialKey,b.materialKey))});
+}
+
 function comparable(value) {
   const members = [...value.members]
     .sort((a, b) => utf8(a.materialKey, b.materialKey))
@@ -805,7 +812,7 @@ function comparable(value) {
         outputRequirementSemanticDigest: canonicalDigest({
           schema: "libra.output-requirement-semantic@1",
           acceptanceSpecDigest: value.acceptanceSpecRef.specDigest,
-          productScopeDigest: value.productScopeDigest,
+          productScopeDigest: comparableProductScope(value),
           materialKey: member.materialKey,
           materialRole: member.role,
           episodeClaimSetDigest: member.episodeClaimSetDigest,
@@ -834,7 +841,7 @@ function comparable(value) {
     structureKind: result.structureKind,
     contentProfile: result.contentProfile,
     acceptanceSpecDigest: result.acceptanceSpecRef.specDigest,
-    productScopeDigest: result.productScopeDigest,
+    productScopeDigest: comparableProductScope(result),
     memberSetDigest: result.memberSetDigest,
   });
   return result;
@@ -1156,7 +1163,7 @@ function dimensionProjection(value, dimension) {
   if (dimension === "acceptance_spec") return {
     specDigest: value.acceptanceSpecRef.specDigest,
   };
-  if (dimension === "product_scope") return value.productScopeDigest;
+  if (dimension === "product_scope") return comparableProductScope(value);
   if (dimension === "material_binding") return value.members.map((item) => ({
     materialKey: item.materialKey,
     role: item.role,
@@ -1176,7 +1183,7 @@ function dimensionProjection(value, dimension) {
     outputRequirementSemanticDigest: canonicalDigest({
       schema: "libra.output-requirement-semantic@1",
       acceptanceSpecDigest: value.acceptanceSpecRef.specDigest,
-      productScopeDigest: value.productScopeDigest,
+      productScopeDigest: comparableProductScope(value),
       materialKey: item.materialKey,
       materialRole: item.role,
       episodeClaimSetDigest: item.episodeClaimSetDigest,

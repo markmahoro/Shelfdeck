@@ -182,7 +182,7 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append,anchored} of [{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:180000},async t=>{
+for(const {episodeCount,append,anchored,concurrent} of [{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:180000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
@@ -191,6 +191,10 @@ for(const {episodeCount,append,anchored} of [{episodeCount:2},{episodeCount:24},
   const episodeKeys=episodeNumbers.map(number=>'E'+String(number).padStart(3,'0'));
   const sources=episodeNumbers.map(number=>path.join(source,'Demo Show.S01E'+String(number).padStart(2,'0')+'.mkv'));
   sources.forEach(file=>fs.writeFileSync(file,'read-only-series-fixture'));
+  if(concurrent){
+    const batch=path.join(root,'source2','Batch B {tmdb-series-1399}','Season 01');
+    fs.mkdirSync(batch,{recursive:true});fs.writeFileSync(path.join(batch,'Demo Show.S01E03.mkv'),'concurrent-third-series-fixture');
+  }
   const secretRoot='disposable-series-routing-secret',initialized=initializeCleanData({
     dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot});
   const adapter=harness(),providerCalls=[],appendCommitAudits=[];let unitOfWork,runtimeError,db;
@@ -281,6 +285,17 @@ for(const {episodeCount,append,anchored} of [{episodeCount:2},{episodeCount:24},
   await request('PATCH','/v1/admin/routing/material-fields/series-field',{idempotencyKey:'series-routing',fieldId:'series-field',
     expectedPolicyId:null,expectedRevision:0,policy:{routingPolicyId:'series-routing',mode:'sorting',targets:[
       {shelfId:'series-shelf',rank:1,matchExpression:{nodeKind:'predicate',factKind:'release_year',operator:'gte',expectedValue:2020}}]}});
+  if(concurrent){
+    const secondAccess={...access,fieldId:'series-field-2',endpointId:'series-endpoint-2',rootLocation:path.join(root,'source2'),mountScopeId:'series-mount-2'};
+    await request('POST','/v1/admin/material-fields',{idempotencyKey:'series-register-2',fieldId:'series-field-2',name:'Second batch fixture',
+      contentProfileHint:'series',policy:{extractionPolicyId:'series-policy-2',revision:1,
+        policySchemaRef:'helix://contracts/domain-types/ExtractionPolicy/v1',policy:policyValue,
+        policyDigest:canonicalDigest({extractionPolicyId:'series-policy-2',revision:1,...policyValue})},
+      access:{...secondAccess,accessDigest:canonicalDigest(secondAccess)}});
+    await request('PATCH','/v1/admin/routing/material-fields/series-field-2',{idempotencyKey:'series-routing-2',fieldId:'series-field-2',
+      expectedPolicyId:null,expectedRevision:0,policy:{routingPolicyId:'series-routing-2',mode:'sorting',targets:[
+        {shelfId:'series-shelf',rank:1,matchExpression:{nodeKind:'predicate',factKind:'release_year',operator:'gte',expectedValue:2020}}]}});
+  }
   // The product entry remains Movie-only. Exercise the owning observation command;
   // Host fallback reconciliation supplies the real Work, Planner and Event runtime.
   const deps={schemaManifest,unitOfWork};
@@ -288,7 +303,24 @@ for(const {episodeCount,append,anchored} of [{episodeCount:2},{episodeCount:24},
     executionRuntimeHost:{wake(){}}});
   observation.observe({idempotencyKey:'series-observe',fieldId:'series-field',
     expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
+  if(concurrent)observation.observe({idempotencyKey:'series-observe-2',fieldId:'series-field-2',expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
   db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
+  if(concurrent){
+    const waitFor=async(predicate,label)=>{const until=Date.now()+90000;while(!predicate()&&Date.now()<until){
+      assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,25));
+    }assert.ok(predicate(),label+': '+JSON.stringify(db.prepare('SELECT libra_run_id,state FROM libra_runs').all()));};
+    await waitFor(()=>db.prepare("SELECT count(*) n FROM libra_runs WHERE state='active'").get().n===2,'two disjoint Runs stay active');
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_subjects').get().n,1);
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
+    const frozen=db.prepare('SELECT libra_run_id,execution_basis_digest,run_material_manifest_id FROM libra_runs').all();
+    await waitFor(()=>db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n===2,'both Runs commit');
+    assert.deepEqual(db.prepare('SELECT libra_run_id,execution_basis_digest,run_material_manifest_id FROM libra_runs').all(),frozen);
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1);
+    assert.equal(db.prepare("SELECT count(*) n FROM libra_runs WHERE state='completed'").get().n,2);
+    const scopes=frozen.map(run=>db.prepare('SELECT episode_key FROM libra_run_material_episode_claims WHERE run_material_manifest_id=? ORDER BY episode_key').all(run.run_material_manifest_id).map(row=>row.episode_key).join(','));
+    assert.deepEqual(scopes.sort(),['E001,E002','E003']);
+    return;
+  }
   let state;const deadline=Date.now()+100000;
   do {
     state={subjects:db.prepare('SELECT * FROM libra_subjects').all(),routes:db.prepare('SELECT * FROM libra_routing_decisions').all(),

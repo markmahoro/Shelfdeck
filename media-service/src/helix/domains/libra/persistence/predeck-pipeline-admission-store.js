@@ -1,4 +1,5 @@
 'use strict';
+const { deliveryScopeStatements,readDeliveryScopes } = require('./series-delivery-scope-reader');
 
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 
@@ -25,6 +26,9 @@ function createPredeckPipelineAdmissionStore(options) {
     owner: 'libra',
     schemaManifest: options.schemaManifest,
     statements: {
+      ...deliveryScopeStatements,
+      scope_subject:{kind:'select-one',tableId:'libra_subjects',columns:['structure_kind'],keyColumns:['subject_id']},
+      pending_bindings:{kind:'select-all',tableId:'libra_material_bindings',columns:['material_key','authority_kind','current'],keyColumns:['subject_id']},
       find_policy: {
         kind: 'select-one',
         tableId: 'libra_field_intake_admission_policies',
@@ -216,6 +220,13 @@ function createPredeckPipelineAdmissionStore(options) {
         const repo = context.repository(repository.repositoryId);
         const existing = repo.invoke('find_token', { subject_id: subjectId });
         if (!existing) return Object.freeze({ released: false, subjectId });
+        if(repo.invoke('scope_subject',{subject_id:subjectId})?.structure_kind==='season'){
+          const scopes=readDeliveryScopes(repo,subjectId),assigned=new Set(scopes.flatMap(scope=>scope.materialKeys));
+          const active=scopes.some(scope=>!scope.accepted&&['active','suspended'].includes(scope.state));
+          const pending=repo.invoke('pending_bindings',{subject_id:subjectId}).some(row=>
+            Number(row.current)===1&&row.authority_kind==='primary_control'&&!assigned.has(row.material_key));
+          if(active||pending)return Object.freeze({released:false,subjectId,reasonCode:'series_delivery_responsibility_remaining'});
+        }
         repo.invoke('delete_token', { subject_id: subjectId });
         return Object.freeze({ released: true, subjectId, fieldId: existing.source_field_id });
       });

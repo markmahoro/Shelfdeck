@@ -22,7 +22,18 @@ function isExecutionInputUnavailable(error) {
     error?.code === 'P4_EXECUTION_INPUT_TEMPORARILY_UNAVAILABLE';
 }
 
+class ExecutionInputSupersededError extends Error {
+  constructor(message) {
+    super(message);
+    this.name='ExecutionInputSupersededError';
+    this.code='P4_EXECUTION_INPUT_BASIS_SUPERSEDED';
+  }
+}
+function executionInputSuperseded(message) { return new ExecutionInputSupersededError(message); }
+function isExecutionInputSuperseded(error) { return error instanceof ExecutionInputSupersededError; }
+
 module.exports = Object.freeze({
+  ExecutionInputSupersededError, executionInputSuperseded, isExecutionInputSuperseded,
   ExecutionInputUnavailableError,
   executionInputUnavailable,
   isExecutionInputUnavailable,
