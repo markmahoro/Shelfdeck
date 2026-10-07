@@ -28,7 +28,7 @@ function evaluateSeriesMediaSpace({basis,libraRunId,handle,probe,maxSizeBytes}) 
   if(!basis||canonicalJson(buildSeriesMediaSpaceBasis(basis))!==canonicalJson(basis)||basis.libraRunId!==libraRunId)
     throw new TypeError('Series media space basis is not a canonical exact Run snapshot.');
   const selected=basis.members.filter(item=>item.handleDigest===canonicalDigest(handle));
-  if(selected.length!==1||selected[0].probeDigest!==canonicalDigest(probe)||
+  if(selected.length!==1||probe.sourceHandleDigest!==canonicalDigest(handle)||selected[0].probeDigest!==canonicalDigest(probe)||
       selected[0].sizeBytes!==(handle.sizeBytes??handle.expectedSizeBytes))
     throw new TypeError('Series media space basis does not bind the actual Candidate Handle and Probe.');
   const all=evaluateSeriesEpisodeSpace({members:basis.members.map(item=>({...item,role:'primary_payload',

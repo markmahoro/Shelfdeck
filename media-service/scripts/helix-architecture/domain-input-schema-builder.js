@@ -1689,6 +1689,8 @@ function productMediaCandidateInputSchema() {
   direct.properties.seriesSpaceBasis = require('./series-media-space-schema').basis;
   direct.allOf=[{if:{properties:{mediaRequirement:{properties:{contentProfile:{const:'series'}}}}},
     then:{required:['seriesSpaceBasis']},else:{not:{required:['seriesSpaceBasis']}}}];
+  workspace.properties.seriesSpaceBasis=direct.properties.seriesSpaceBasis;
+  workspace.allOf=direct.allOf;
   workspace.properties.editionEvidence = require('../../src/helix/contracts/media-edition-evidence').editionEvidenceSchema;
   return { $schema: DRAFT, $id: domainTypeId('ProductMediaCandidateInput'), title: 'ProductMediaCandidateInput@1',
     'x-helix-ssotRefs': ['8.6.18'], 'x-helix-role': 'accepted-business-dto', 'x-helix-maxCanonicalBytes': 64 * 1024,

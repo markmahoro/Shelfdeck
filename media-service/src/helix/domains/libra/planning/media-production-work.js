@@ -24,12 +24,23 @@ function dependency(work) {
   });
 }
 
-function definition(snapshot, stage, outputContractRef, dependencies = []) {
+function memberBasis(snapshot, member) {
+  if(member===undefined)return null;
+  const matches=snapshot.members.filter(item=>item.materialKey===member?.materialKey);
+  if(snapshot.spec.contentProfile!=='series'||snapshot.materialInputForm!=='stream_file'||matches.length!==1||
+      member.role!=='primary_payload'||canonicalDigest(matches[0])!==canonicalDigest(member))
+    throw new TypeError('Member production Work requires an exact frozen Series Primary.');
+  return Object.freeze({materialKey:member.materialKey,memberDigest:canonicalDigest(member)});
+}
+
+function definition(snapshot, stage, outputContractRef, dependencies = [], member) {
+  const primary=memberBasis(snapshot,member);
   const basis = {
     libraRunId: snapshot.run.libraRunId,
     executionBasisDigest: snapshot.run.executionBasisDigest,
     acceptanceSpecId: snapshot.run.acceptanceSpecId,
     stage,
+    ...(primary?{primary}:{}),
   };
   return Object.freeze({
     schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1',
@@ -49,7 +60,7 @@ function definition(snapshot, stage, outputContractRef, dependencies = []) {
     capabilityCatalogScope: 'libra',
     workspaceMaterialScope: Object.freeze([]),
     idempotencyKey: stable('libra-workspace-media-' + stage + '-key-', basis),
-    concurrencyScope: snapshot.run.libraRunId + '/workspace-media/' + stage,
+    concurrencyScope: snapshot.run.libraRunId + '/workspace-media/' + stage + (primary?'/'+canonicalDigest(primary):''),
     outputContractRef,
   });
 }
@@ -63,32 +74,32 @@ function directMediaSelectionWork(snapshot) {
   return definition(snapshot, 'direct_selection', SELECTED_OUTPUT_RESULT, [source]);
 }
 
-function remuxMediaSelectionWork(snapshot) {
+function remuxMediaSelectionWork(snapshot, member) {
   const source = sourceMediaObservationWork(snapshot);
-  return definition(snapshot, 'remux_selection', SELECTED_OUTPUT_RESULT, [source]);
+  return definition(snapshot, 'remux_selection', SELECTED_OUTPUT_RESULT, [source], member);
 }
 
-function transcodeMediaSelectionWork(snapshot, strategyOrdinal) {
+function transcodeMediaSelectionWork(snapshot, strategyOrdinal, member) {
   if (!Number.isSafeInteger(strategyOrdinal) || strategyOrdinal < 1 || strategyOrdinal > 64) {
     throw new TypeError('Transcode strategy ordinal must be 1..64.');
   }
   const prior = snapshot.materialInputForm === 'stream_file'
-    ? directMediaSelectionWork(snapshot) : remuxMediaSelectionWork(snapshot);
-  const assessment=transcodeStrategyAssessmentWork(snapshot,strategyOrdinal);
+    ? directMediaSelectionWork(snapshot) : remuxMediaSelectionWork(snapshot,member);
+  const assessment=transcodeStrategyAssessmentWork(snapshot,strategyOrdinal,member);
   return definition(snapshot, 'transcode_' + strategyOrdinal + '_selection', SELECTED_OUTPUT_RESULT,
-    [sourceMediaObservationWork(snapshot),prior,assessment]);
+    [sourceMediaObservationWork(snapshot),prior,assessment],member);
 }
 
-function transcodeStrategyAssessmentWork(snapshot,strategyOrdinal){
+function transcodeStrategyAssessmentWork(snapshot,strategyOrdinal,member){
   if (!Number.isSafeInteger(strategyOrdinal) || strategyOrdinal < 1 || strategyOrdinal > 64) {
     throw new TypeError('Transcode strategy ordinal must be 1..64.');
   }
   const prior = snapshot.materialInputForm === 'stream_file'
-    ? directMediaSelectionWork(snapshot) : remuxMediaSelectionWork(snapshot);
+    ? directMediaSelectionWork(snapshot) : remuxMediaSelectionWork(snapshot,member);
   const dependencies=[sourceMediaObservationWork(snapshot),prior];
   if(strategyOrdinal>1)dependencies.push(definition(snapshot,'transcode_'+(strategyOrdinal-1)+'_assessment',
-    TRANSCODE_INPUT_VERIFICATION_RESULT));
-  return definition(snapshot,'transcode_'+strategyOrdinal+'_assessment',TRANSCODE_INPUT_VERIFICATION_RESULT,dependencies);
+    TRANSCODE_INPUT_VERIFICATION_RESULT,[],member));
+  return definition(snapshot,'transcode_'+strategyOrdinal+'_assessment',TRANSCODE_INPUT_VERIFICATION_RESULT,dependencies,member);
 }
 
 module.exports = Object.freeze({

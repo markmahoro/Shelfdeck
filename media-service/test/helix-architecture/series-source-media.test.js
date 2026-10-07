@@ -349,3 +349,117 @@ test('Series media space typed bounds reject oversized sets, unknown fields and 
     assert.equal(validateAllocation(value),false,mutation);
   }
 });
+
+for(const count of [2,24,32])test('Production Scope reconstructs exactly one of '+count+' Series physical Primaries',()=>{
+  const value=fixture(count),member=value.snapshot.members.at(-1),issued=[];
+  const original=value.options.productProductionPort.issuePhysicalReadHandle;
+  value.options.productProductionPort.issuePhysicalReadHandle=input=>{issued.push(input);return original(input);};
+  const reference=value.resolver.primaryReferenceFor(value.snapshot,{materialKey:member.materialKey,memberDigest:canonicalDigest(member)});
+  assert.equal(reference.memberCount,1);assert.equal(issued.length,0);
+  const resolved=value.resolver.resolve(reference);
+  assert.equal(resolved.members.length,1);assert.equal(resolved.primaryMembers.length,1);assert.equal(resolved.structuralMembers.length,0);
+  assert.equal(resolved.members[0].member.materialKey,member.materialKey);
+  assert.equal(resolved.primaryReadHandle.location,member.location);assert.equal(issued.length,1);
+  const reordered={...value.snapshot,members:[...value.snapshot.members].reverse()};value.setCurrent(reordered);
+  assert.deepEqual(value.resolver.primaryReferenceFor(reordered,
+    {materialKey:member.materialKey,memberDigest:canonicalDigest(member)}),reference);
+});
+for(const mutation of ['scope_id','scope_digest','set_digest','count','payload_digest','manifest','member'])
+test('Series production scope rejects '+mutation+' before issuing any read Handle',()=>{
+  const value=fixture(),member=value.snapshot.members[0],reference=structuredClone(value.resolver.primaryReferenceFor(value.snapshot,
+    {materialKey:member.materialKey,memberDigest:canonicalDigest(member)}));
+  if(mutation==='scope_id')reference.scopeId='foreign';
+  if(mutation==='scope_digest')reference.scopeDigest=D('foreign');
+  if(mutation==='set_digest')reference.memberSetDigest=D('foreign');
+  if(mutation==='count')reference.memberCount=2;
+  if(mutation==='payload_digest')reference.selectedPayloadSetDigest=D('foreign');
+  if(mutation==='manifest')value.snapshot.run.runMaterialManifestDigest=D('new-manifest');
+  if(mutation==='member')member.bindingRevision=2;
+  reference.sourceReferenceDigest=canonicalDigest(Object.fromEntries(Object.entries(reference).filter(([key])=>key!=='sourceReferenceDigest')));
+  value.options.productProductionPort.issuePhysicalReadHandle=()=>{throw new Error('Read authority must not be issued');};
+  assert.throws(()=>value.resolver.resolve(reference),{code:'LIBRA_PRODUCTION_SOURCE_SCOPE_STALE'});
+});
+test('Series member Work identities and retry dependencies never cross physical Primaries',()=>{
+  const {remuxMediaSelectionWork:remux,transcodeMediaSelectionWork:transcode,transcodeStrategyAssessmentWork:assessment}=
+    require('../../src/helix/domains/libra/planning/media-production-work');
+  const {snapshot}=fixture(),[first,second]=snapshot.members;
+  for(const work of [member=>remux(snapshot,member),member=>assessment(snapshot,1,member),member=>transcode(snapshot,1,member)]) {
+    const a=work(first),b=work(second);assert.notEqual(a.workId,b.workId);assert.notEqual(a.idempotencyKey,b.idempotencyKey);
+    assert.deepEqual(a,work(first));assert.equal(a.executionBasisDigest,snapshot.run.executionBasisDigest);
+  }
+  assert.ok(transcode(snapshot,2,first).dependencyRefs.some(ref=>ref.objectId===assessment(snapshot,2,first).workId));
+  assert.ok(assessment(snapshot,2,first).dependencyRefs.some(ref=>ref.objectId===assessment(snapshot,1,first).workId));
+  assert.ok(!assessment(snapshot,2,first).dependencyRefs.some(ref=>ref.objectId===assessment(snapshot,1,second).workId));
+  for(const member of [{...first,bindingRevision:2},{...first,materialKey:'foreign'},{...first,role:'structural_dependency'}])
+    assert.throws(()=>remux(snapshot,member),/exact frozen Series Primary/);
+  const movie=fixture(1,'movie');assert.throws(()=>remux(movie.snapshot,movie.snapshot.members[0]),/exact frozen Series Primary/);
+});
+
+function memberRemuxPlan(value,member) {
+  const {remuxMediaSelectionWork}=require('../../src/helix/domains/libra/planning/media-production-work');
+  value.options.movieProductionReader.readWorkspace=()=>({workspaceId:D('workspace'),state:'active',currentRevision:1,
+    stateDigest:D('workspace-state'),workspaceScopeDigest:D('workspace-scope')});
+  value.options.workspaceProductPort={rootSnapshot:()=>({snapshotDigest:D('root')})};
+  const work=remuxMediaSelectionWork(value.snapshot,member);
+  return createWorkspaceMediaProductionPlanner(value.options).plan({...work,workAttemptId:'attempt-'+member.materialKey});
+}
+test('Series Remux Planner binds one member and distinct output targets without narrowing the Run',()=>{
+  const value=fixture(),before=canonicalDigest(value.snapshot),plans=value.snapshot.members.map(member=>memberRemuxPlan(value,member));
+  for(const [index,plan] of plans.entries()) {
+    assert.equal(plan.nodes.length,4);
+    const reference=plan.nodes[0].inputBindings.bindings.find(binding=>binding.portName==='productionSourceScopeReference').value;
+    assert.equal(value.resolver.resolve(reference).primaryMembers[0].member.materialKey,value.snapshot.members[index].materialKey);
+    const parameters=plan.nodes[2].inputBindings.bindings[0].parameters;
+    assert.equal(parameters.materialKey,value.snapshot.members[index].materialKey);
+    assert.equal(parameters.memberDigest,canonicalDigest(value.snapshot.members[index]));
+    assert.equal(plan.executionBasisDigest,value.snapshot.run.executionBasisDigest);
+  }
+  const target=plan=>plan.nodes[0].inputBindings.bindings.find(binding=>binding.portName==='workspaceMediaOutputTarget').value;
+  assert.notEqual(target(plans[0]).targetId,target(plans[1]).targetId);
+  assert.notEqual(target(plans[0]).targetRelativePath,target(plans[1]).targetRelativePath);
+  assert.equal(canonicalDigest(value.snapshot),before);
+});
+test('Series Workspace Candidate replaces only its source member in the complete Episode basis',()=>{
+  const {value}=aggregateFixture(8),member=value.snapshot.members[0],plan=memberRemuxPlan(value,member),
+    parameters=plan.nodes[2].inputBindings.bindings[0].parameters,source=value.resolver.primarySources(value.snapshot)[0],
+    handle={handleId:D('output'),processId:'run',workspaceId:D('workspace'),relativePath:'media/output.mkv',
+      sizeBytes:8,fenceDigest:D('output-fence')},outputProbe=probe(handle),
+    media={sourceMaterialHandleDigest:canonicalDigest(source.readHandle),workspaceMaterialHandle:handle,
+      workspaceMediaHandleId:D('output-media'),outputTargetId:D('target'),outputTargetDigest:D('target-digest'),
+      productionIntentDigest:D('intent'),producingEventId:'remux-event'};
+  const projection=createWorkspaceMediaProductionProjections(value.options).find(item=>item.projectionRef.endsWith('/WorkspaceProductMediaCandidateInput/v1')).projection;
+  const input=projection.project({sourceResults:[{result:media},{result:outputProbe}],parameters});
+  assert.equal(input.seriesSpaceBasis.members.length,2);
+  assert.equal(input.sourceProbeEvidence.sourceHandleDigest,canonicalDigest(source.readHandle));
+  assert.equal(input.seriesSpaceBasis.members[0].handleDigest,canonicalDigest(handle));
+  const verification=verifyDirectInput(input);
+  assert.equal(verification.result,'passed');
+  assert.deepEqual(verification.spaceSummary.episodeAllocation.allocations.map(item=>item.allocatedBytes),[
+    {numerator:'7',denominator:'1'},{numerator:'4',denominator:'1'}]);
+  for(const mutation of ['source','member','work','output_probe']) {
+    const altered=structuredClone({sourceResults:[{result:media},{result:outputProbe}],parameters});
+    if(mutation==='source')altered.sourceResults[0].result.sourceMaterialHandleDigest=D('foreign');
+    if(mutation==='member')altered.parameters.materialKey=value.snapshot.members[1].materialKey;
+    if(mutation==='work')altered.parameters.sourceWorkId='foreign-work';
+    if(mutation==='output_probe')altered.sourceResults[1].result=probe({...handle,handleId:D('foreign')});
+    assert.throws(()=>projection.project(altered),mutation);
+  }
+});
+
+test('Member Remux Plan reaches the formal Capability with only its declared read scope',async()=>{
+  const {createMediaProductionCapabilityPorts}=require('../../src/helix/domains/libra/capabilities/media-production-capability-ports');
+  const value=fixture(2),member=value.snapshot.members[1],plan=memberRemuxPlan(value,member),node=plan.nodes[0];
+  const captured=[],sentinel=Object.assign(new Error('Captured exact member Effect boundary'),{code:'TEST_MEMBER_BOUNDARY'});
+  const ports=createMediaProductionCapabilityPorts({resolveProductionSourceScope:ref=>value.resolver.resolve(ref),
+    mediaEffectPort:{executeRemux:async request=>{captured.push(request);throw sentinel;},executeTranscode:async()=>{},
+      verifyTranscodeInput:async()=>{},verifyPlayback:async()=>{}}});
+  const context={eventId:node.eventId,eventAttemptId:'attempt',idempotencyKey:'member-remux',
+    namedInputs:Object.fromEntries(node.inputBindings.bindings.map(binding=>[binding.portName,binding.value]))};
+  await assert.rejects(()=>ports['libra.media.remux@1'].execute(context),error=>error===sentinel);
+  assert.equal(captured.length,1);assert.equal(captured[0].source.members.length,1);
+  assert.equal(captured[0].source.primaryReadHandle.location,member.location);
+  assert.equal(captured[0].source.primaryMembers[0].member.materialKey,member.materialKey);
+  const forged=structuredClone(context);forged.namedInputs.productionSourceScopeReference.scopeId=value.snapshot.members[0].materialKey;
+  await assert.rejects(()=>ports['libra.media.remux@1'].execute(forged),{code:'LIBRA_PRODUCTION_SOURCE_SCOPE_STALE'});
+  assert.equal(captured.length,1);
+});

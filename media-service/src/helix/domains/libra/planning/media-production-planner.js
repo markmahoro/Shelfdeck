@@ -31,7 +31,7 @@ const {
 } = require('./media-production-work');
 const { createProductionSourceScopeResolver } = require('./production-source-scope-resolver');
 const { readSourceMediaObservations } = require('./source-media-observations');
-const { directCandidateNodeId, directRequirement, buildDirectMediaInput } = require('./direct-media-selections');
+const { directCandidateNodeId, directRequirement, buildDirectMediaInput, seriesSpaceBasisFor } = require('./direct-media-selections');
 const { workspaceId } = require('../model/workspace-admission-contracts');
 
 const PROBE = 'shared.material.media.probe@1';
@@ -260,7 +260,10 @@ function createWorkspaceMediaProductionPlanner(options) {
   return Object.freeze({plannerContractRef,plannerVersion:1,plan(request) {
     const snapshot=options.movieProductionReader.readRunSnapshot(request.processId);
     if(snapshot.run.executionBasisDigest!==request.executionBasisDigest)throw new Error('Workspace Media planning basis changed.');
-    const sourceWork=sourceMediaObservationWork(snapshot),directWork=directMediaSelectionWork(snapshot),remuxWork=remuxMediaSelectionWork(snapshot);
+    const remuxMember=snapshot.spec.contentProfile==='series'?snapshot.members.filter(item=>item.role==='primary_payload')
+      .find(member=>remuxMediaSelectionWork(snapshot,member).workId===request.workId):undefined;
+    const sourceWork=sourceMediaObservationWork(snapshot),directWork=directMediaSelectionWork(snapshot),
+      remuxWork=remuxMediaSelectionWork(snapshot,remuxMember);
     if(request.workId===sourceWork.workId){
       const isSeries=snapshot.spec.contentProfile==='series';
       const resolver=createProductionSourceScopeResolver({movieProductionReader:options.movieProductionReader,
@@ -303,8 +306,11 @@ function createWorkspaceMediaProductionPlanner(options) {
     if(request.workId===remuxWork.workId){
       const sourceScopeResolver=createProductionSourceScopeResolver({movieProductionReader:options.movieProductionReader,
         productionPort:options.productProductionPort});
-      const importedSource=transcodeSourceFromExternalImport(options,snapshot);
-      const reference=importedSource?require('./production-source-scope-resolver').workspaceReferenceFor(snapshot,importedSource.handle)
+      if(snapshot.spec.contentProfile==='series'&&!remuxMember)throw new Error('Series Remux requires one frozen Primary Work.');
+      const memberParameters=remuxMember?{materialKey:remuxMember.materialKey,memberDigest:canonicalDigest(remuxMember)}:{};
+      const candidateNodeId=remuxMember?stable('remux_output_',memberParameters):'remux_output';
+      const importedSource=remuxMember?null:transcodeSourceFromExternalImport(options,snapshot);
+      const reference=remuxMember?sourceScopeResolver.primaryReferenceFor(snapshot,memberParameters):importedSource?require('./production-source-scope-resolver').workspaceReferenceFor(snapshot,importedSource.handle)
         :buildProductionSourceScopeReference(sourceScopeResolver.referenceFor(snapshot));
       const requirement=buildMediaRequirement(snapshot.spec);
       const intent=buildRemuxIntent({revision:1,libraRunId:snapshot.run.libraRunId,
@@ -316,9 +322,9 @@ function createWorkspaceMediaProductionPlanner(options) {
         executionBasisDigest:snapshot.run.executionBasisDigest,workspaceId:workspace.workspaceId,
         expectedWorkspaceRevision:workspace.currentRevision,expectedWorkspaceStateDigest:workspace.stateDigest,
         rootSnapshot:root,workspaceScopeDigest:workspace.workspaceScopeDigest,
-        targetRelativePath:'media/remux-'+snapshot.run.libraRunId+'.mkv',productionIntentDigest:intent.intentDigest});
+        targetRelativePath:'media/remux-'+(remuxMember?canonicalDigest(memberParameters):snapshot.run.libraRunId)+'.mkv',productionIntentDigest:intent.intentDigest});
       const candidateRef=buildPlannedProductCandidateReference({rank:1,candidateKind:'workspace_output',
-        candidateNodeId:'remux_output',mediaRequirementDigest:requirement.requirementDigest,
+        candidateNodeId,mediaRequirementDigest:requirement.requirementDigest,
         outputTargetId:target.targetId,outputTargetDigest:target.targetDigest,
         productionIntentDigest:intent.intentDigest});
       const remuxEventId=stable('libra-remux-media-event-',{attempt:request.workAttemptId});
@@ -336,7 +342,7 @@ function createWorkspaceMediaProductionPlanner(options) {
         inputBindings:[projectedResults('productMediaCandidateInput',[
           {eventId:remuxEventId,resultSchemaRef:options.registry.resolve(REMUX,'libra').manifest.resultSchemaRef},
           {eventId:probeEventId,resultSchemaRef:options.registry.resolve(PROBE,'libra').manifest.resultSchemaRef},
-        ],WORKSPACE_CANDIDATE,{sourceWorkId:sourceWork.workId,candidateNodeId:'remux_output'})],
+        ],WORKSPACE_CANDIDATE,{sourceWorkId:sourceWork.workId,candidateNodeId,...memberParameters})],
         dependsOn:[{eventId:remuxEventId,satisfaction:'success'},{eventId:probeEventId,satisfaction:'success'}],
         resourceKinds:['cpu','disk_io']});
       const select=planNode({...options,request,nodeId:'remux_output_selection',eventId:selectEventId,capabilityRef:SELECT,
@@ -459,6 +465,20 @@ function createWorkspaceMediaProductionProjections(options) {
       const outputProbe=sourceResults.find((item)=>item.result?.schemaRef==='helix://contracts/types/MediaProbeEvidence/v1')?.result;
       if(!media||!outputProbe)throw new Error('Workspace media Candidate requires durable media and Probe Results.');
       const value=options.movieProductionReader.readRunSnapshot(media.workspaceMaterialHandle.processId);
+      if(value.spec.contentProfile==='series') {
+        if(parameters.sourceWorkId!==sourceMediaObservationWork(value).workId)
+          throw new Error('Series output must reference the exact Run Source Work.');
+        const {sourceWorkId,candidateNodeId,...memberParameters}=parameters;
+        const frozen=sourceScopeResolver.primarySource(value,memberParameters),sources=readSourceMediaObservations(options,value),
+          selected=sources.find(item=>item.member.materialKey===frozen.member.materialKey);
+        if(media.sourceMaterialHandleDigest!==canonicalDigest(selected.readHandle)||
+            media.workspaceMaterialHandle.processId!==value.run.libraRunId)
+          throw new Error('Series output does not derive from the declared Primary.');
+        const seriesSpaceBasis=seriesSpaceBasisFor(value,sources,{materialKey:selected.member.materialKey,media,probe:outputProbe});
+        return buildProductMediaCandidateInput({libraRunId:value.run.libraRunId,candidateNodeId,candidateKind:'workspace_output',
+          mediaRequirement:buildMediaRequirement(value.spec),workspaceMediaHandle:media,
+          sourceProbeEvidence:selected.record.result,outputProbeEvidence:outputProbe,seriesSpaceBasis});
+      }
       const externalSource=transcodeSourceFromExternalImport(options,value);
       const probe=externalSource && canonicalDigest(externalSource.handle)===media.sourceMaterialHandleDigest
         ? externalSource.inputProbe : sourceProbe(value,parameters.sourceWorkId);

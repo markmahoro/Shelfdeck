@@ -135,3 +135,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 N:M上游根因修正DoR：实际两part样本在Procurement被`structure_ambiguous`拒绝，尚未创建Run；SSOT §3.2.6/§3.4.2已明确同Candidate内部multipart为Libra生产范围，不能视为Procurement边界错误。删除Triage对不同物理成员重复Episode key的全局拒绝，保留完整各成员typed Claim Set、物理唯一与容量限制；不推断分段命名、不变更后续Candidate零重叠准入。修正与SSOT冲突的旧单测并复验实际part Host和Series Intake连续性负向；不是通过放宽Libra/Arca最终验收绕过缺陷。
 
 2026-10-08 bounded N:M Direct结果：[空间Basis Evidence](evidence/SERIES_DIRECT_SPACE_BASIS_20261008.md)。共享文件及多part实际隔离Host经正式Handoff B/Commit完成，完整成员Basis、精确分摊、typed闭包、跨Basis拒绝及Movie回归通过。Procurement同Candidate重复Episode拒绝已按既有SSOT纠正，跨批Intake保持；节点尚未关闭，继续逐成员加工/混合选择和其余首版门槛。
+
+2026-10-08逐成员加工DoR：沿SSOT §8.6.7/§8.6.18的一Event一物理stream_file，先使Remux/Transcode Supporting Work身份绑定冻结Primary member digest，策略依赖不跨成员；紧凑ProductionSourceScopeReference从完整Run重建精确单成员，不裁剪或替换Run/Spec，也不放宽stream_file memberCount=1。Planner/Resolver只授予该成员只读Handle；成员、Run、Manifest或引用digest变更拒绝，Movie/原盘定义保持。随后接Coordinator逐成员策略与完整混合成品终检/交付，Workspace归属、空间预算、claim映射和最终N:M分摊一并验证；单个成员Work通过不得视为整个Season可交付。
+
+2026-10-08逐成员加工增量结果：[成员范围与Remux Planner](evidence/SERIES_MEMBER_MEDIA_SCOPE_20261008.md)。成员Work身份/策略依赖、单文件Source Scope/读取Fence、Remux Planner及Workspace候选完整空间Basis通过专项与全架构回归。当前尚未接Coordinator混合成品提交/汇合、成员Transcode Planner与真实媒体；本批不关闭节点，继续既定首版全部门槛。

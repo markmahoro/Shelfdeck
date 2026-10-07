@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08逐成员加工增量：[成员范围与Remux Planner](implementation/evidence/SERIES_MEMBER_MEDIA_SCOPE_20261008.md)。成员Work身份/策略依赖、单文件读取Fence、Remux四节点及输出完整空间Basis已实现；全架构2,091通过、9既有skip、0失败，Direct共享文件完整Host保持通过。Coordinator混合成品调度及逐成员Transcode仍未接通，不构成完整加工交付或可部署版本。
+
 2026-10-08 Direct N:M接通：[空间Basis Evidence](implementation/evidence/SERIES_DIRECT_SPACE_BASIS_20261008.md)。完整冻结成员集合进入Direct验证，支持共文件均分与多part累加；共享文件12字节/集、两part合计48字节/集的正式隔离Host上架通过。修正Procurement错误拒绝同Candidate内部Episode重叠，保留跨批Intake约束；电影真实媒体回归通过。逐成员加工/混合成品、UI及真实Series/Linux和发布资格仍未完成。
 
 2026-10-08逐集空间接纳：[最终空间Evidence](implementation/evidence/SERIES_FINAL_SPACE_ACCEPTANCE_20261008.md)。Arca已修正整季总量误判，保存逐集精确份额；Libra最终Conformance独立重算，支持共文件/多part最终数学验收。两集各24字节、每集上限24字节的正式Host上架及24集回归通过；bounded N:M的Libra入口保护仍在，逐成员加工与完整首版发布资格继续。无UI交付或生产动作。

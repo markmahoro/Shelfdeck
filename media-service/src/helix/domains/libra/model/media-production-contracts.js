@@ -494,13 +494,14 @@ function buildProductMediaCandidateInput(value) {
     result.editionEvidence=value.editionEvidence;
   }
   if(value.seriesSpaceBasis) {
-    if(kind!=='direct_input'||requirement.contentProfile!=='series'||requirement.space.unit!=='episode')
-      fail('P9_MEDIA_SERIES_SPACE','Series space basis requires a Series Direct Candidate.');
+    if(requirement.contentProfile!=='series'||requirement.space.unit!=='episode')
+      fail('P9_MEDIA_SERIES_SPACE','Series space basis requires a Series Candidate.');
     require('./series-media-space').evaluateSeriesMediaSpace({basis:value.seriesSpaceBasis,libraRunId:value.libraRunId,
-      handle:value.sourceMaterialHandle,probe:value.sourceProbeEvidence,maxSizeBytes:requirement.space.maxSizeBytes});
+      handle:kind==='direct_input'?value.sourceMaterialHandle:value.workspaceMediaHandle.workspaceMaterialHandle,
+      probe:kind==='direct_input'?value.sourceProbeEvidence:value.outputProbeEvidence,maxSizeBytes:requirement.space.maxSizeBytes});
     result.seriesSpaceBasis=value.seriesSpaceBasis;
-  } else if(kind==='direct_input'&&requirement.contentProfile==='series')
-    fail('P9_MEDIA_SERIES_SPACE','Series Direct Candidate requires a complete Episode space basis.');
+  } else if(requirement.contentProfile==='series')
+    fail('P9_MEDIA_SERIES_SPACE','Series Candidate requires a complete Episode space basis.');
   result.inputDigest = canonicalDigest(result);
   return limited(result, 64 * 1024, 'P9_MEDIA_CANDIDATE_SIZE');
 }
@@ -642,13 +643,13 @@ function buildProductMediaVerification(value) {
   let episodeAllocation=null,withinLimit=maxSizeBytes===null||maxSizeBytes===undefined||actualSizeBytes<=maxSizeBytes;
   if(input.seriesSpaceBasis) {
     try {
-      if(input.candidateKind!=='direct_input'||requirement.contentProfile!=='series'||requirement.space.unit!=='episode')
+      if(requirement.contentProfile!=='series'||requirement.space.unit!=='episode')
         throw new TypeError('Series space basis is not applicable to this Candidate.');
       episodeAllocation=require('./series-media-space').evaluateSeriesMediaSpace({basis:input.seriesSpaceBasis,
         libraRunId:input.libraRunId,handle,probe:outputProbe,maxSizeBytes});
       withinLimit=episodeAllocation.withinLimit;
     } catch { reasons.push('requirement_integrity_failure'); withinLimit=false; }
-  } else if(input.candidateKind==='direct_input'&&requirement.contentProfile==='series') {
+  } else if(requirement.contentProfile==='series') {
     reasons.push('requirement_integrity_failure');withinLimit=false;
   }
   if (!withinLimit) reasons.push('max_size_exceeded');

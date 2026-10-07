@@ -15,14 +15,25 @@ function directCandidateNodeId(snapshot, member) {
 
 function directRequirement(snapshot) { return buildMediaRequirement(snapshot.spec); }
 
+function seriesSpaceBasisFor(snapshot,sources,replacement=null) {
+  if(snapshot.spec.contentProfile!=='series')return null;
+  if(replacement && sources.filter(item=>item.member.materialKey===replacement.materialKey&&
+      canonicalDigest(item.readHandle)===replacement.media.sourceMaterialHandleDigest).length!==1)
+    throw new Error('Series output space basis does not replace its exact frozen source Primary.');
+  return require('../model/series-media-space').buildSeriesMediaSpaceBasis({libraRunId:snapshot.run.libraRunId,
+    runExecutionBasisDigest:snapshot.run.executionBasisDigest,episodeKeys:snapshot.spec.productScope.episodeKeys,
+    members:sources.map(item=>{
+      const replaced=replacement?.materialKey===item.member.materialKey,
+        handle=replaced?replacement.media.workspaceMaterialHandle:item.readHandle,
+        probe=replaced?replacement.probe:item.record.result;
+      return {materialKey:item.member.materialKey,memberDigest:canonicalDigest(item.member),
+        handleDigest:canonicalDigest(handle),probeDigest:canonicalDigest(probe),sizeBytes:handle.sizeBytes??handle.expectedSizeBytes,
+        episodeKeys:item.member.episodeClaims.map(claim=>claim.episodeKey)};
+    })});
+}
+
 function buildDirectMediaInput(snapshot, sources, source) {
-  const seriesSpaceBasis=snapshot.spec.contentProfile==='series'
-    ? require('../model/series-media-space').buildSeriesMediaSpaceBasis({libraRunId:snapshot.run.libraRunId,
-      runExecutionBasisDigest:snapshot.run.executionBasisDigest,episodeKeys:snapshot.spec.productScope.episodeKeys,
-      members:sources.map(item=>({materialKey:item.member.materialKey,memberDigest:canonicalDigest(item.member),
-        handleDigest:canonicalDigest(item.readHandle),probeDigest:canonicalDigest(item.record.result),
-        sizeBytes:item.readHandle.sizeBytes??item.readHandle.expectedSizeBytes,
-        episodeKeys:item.member.episodeClaims.map(claim=>claim.episodeKey)}))}) : null;
+  const seriesSpaceBasis=seriesSpaceBasisFor(snapshot,sources);
   return buildProductMediaCandidateInput({libraRunId:snapshot.run.libraRunId,
     candidateNodeId:directCandidateNodeId(snapshot,source.member),candidateKind:'direct_input',
     mediaRequirement:directRequirement(snapshot),sourceMaterialHandle:source.readHandle,sourceProbeEvidence:source.record.result,
@@ -74,4 +85,4 @@ function readDirectMediaSelections(options, snapshot, workId) {
   }));
 }
 
-module.exports = Object.freeze({directCandidateNodeId, directRequirement, buildDirectMediaInput, readDirectMediaSelections});
+module.exports = Object.freeze({directCandidateNodeId, directRequirement, buildDirectMediaInput, seriesSpaceBasisFor, readDirectMediaSelections});

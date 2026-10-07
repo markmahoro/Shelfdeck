@@ -36,6 +36,14 @@ function workspaceReferenceFor(snapshot,handle){
     selectedPayloadSetDigest:canonicalDigest([handle.materialKey]),workspaceMaterialHandle:handle});
 }
 
+function memberReference(snapshot, member) {
+  return buildProductionSourceScopeReference({libraRunId:snapshot.run.libraRunId,scopeKind:'stream_file',
+    scopeId:member.materialKey,scopeDigest:canonicalDigest({schema:'libra.production-primary-scope@1',
+      runExecutionBasisDigest:snapshot.run.executionBasisDigest,runMaterialManifestDigest:snapshot.run.runMaterialManifestDigest,
+      memberDigest:canonicalDigest(member)}),memberSetDigest:canonicalDigest([member]),memberCount:1,
+    selectedPayloadSetDigest:selectedPayloadSetDigest([member])});
+}
+
 function topologyOrder(snapshot) {
   return new Map((snapshot.candidatePrimaryInputManifest?.members || [])
     .map((item, index) => [item.materialKey, Number.isSafeInteger(item.ordinal) ? item.ordinal : index]));
@@ -74,6 +82,18 @@ function createProductionSourceScopeResolver(options) {
         throw new Error('Workspace Remux input does not match the durable imported material.');
       const member={materialKey:handle.materialKey,role:'primary_payload',physicalIdentity:handle.physicalIdentity},item={member,readHandle:handle};
       return Object.freeze({reference:expected,primaryReadHandle:handle,primaryMembers:[item],structuralMembers:[],members:[item],sourceSetDigest:canonicalDigest([handle])});
+    }
+    if(snapshot.spec.contentProfile==='series') {
+      const matches=seriesPrimaryMembers(snapshot).filter(member=>canonicalJson(memberReference(snapshot,member))===canonicalJson(reference));
+      if(matches.length!==1) {
+        const error=new Error('Production Source Scope does not bind one exact frozen Series Primary.');
+        error.code='LIBRA_PRODUCTION_SOURCE_SCOPE_STALE';throw error;
+      }
+      const item=Object.freeze({member:matches[0],readHandle:readHandle(snapshot,matches[0])});
+      return Object.freeze({reference:memberReference(snapshot,matches[0]),primaryReadHandle:item.readHandle,
+        primaryMembers:Object.freeze([item]),structuralMembers:Object.freeze([]),members:Object.freeze([item]),
+        sourceSetDigest:canonicalDigest({schema:'libra.production-source-handle-set@1',items:[{
+          materialKey:item.member.materialKey,role:item.member.role,handleDigest:canonicalDigest(item.readHandle)}]})});
     }
     const expected = referenceFor(snapshot);
     if (canonicalJson(reference) !== canonicalJson(expected)) {
@@ -138,7 +158,7 @@ function createProductionSourceScopeResolver(options) {
       Object.freeze({member, readHandle:readHandle(snapshot, member)})));
   }
 
-  function primarySource(snapshot, parameters) {
+  function primaryMember(snapshot, parameters) {
     const member = seriesPrimaryMembers(snapshot).find(item => item.materialKey === parameters.materialKey);
     if (Object.keys(parameters).length !== 2 || !Object.hasOwn(parameters, 'memberDigest') ||
         !member || canonicalDigest(member) !== parameters.memberDigest) {
@@ -146,10 +166,20 @@ function createProductionSourceScopeResolver(options) {
       error.code = 'LIBRA_PRODUCTION_SOURCE_MEMBER_STALE';
       throw error;
     }
-    return Object.freeze({member, readHandle:readHandle(snapshot, member)});
+    return member;
   }
 
-  return Object.freeze({ referenceFor, resolve, primarySources, primarySource });
+  function primarySource(snapshot, parameters) {
+    const member=primaryMember(snapshot,parameters);
+    return Object.freeze({member,readHandle:readHandle(snapshot,member)});
+  }
+
+  function primaryReferenceFor(snapshot,parameters) {
+    const member=primaryMember(snapshot,parameters);
+    return memberReference(snapshot,member);
+  }
+
+  return Object.freeze({ referenceFor, resolve, primarySources, primarySource, primaryReferenceFor });
 }
 
 module.exports = Object.freeze({ createProductionSourceScopeResolver, referenceFor, workspaceReferenceFor, selectedPayloadSetDigest });
