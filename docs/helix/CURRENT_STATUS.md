@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08补集资料检查：[Inventory Metadata Evidence](implementation/evidence/SERIES_INVENTORY_METADATA_20261008.md)。Aftercare修正逐集标题/剧情误查第一份Metadata顶层字段的问题，改为当前Inventory范围内全部批次的精确Episode资料；两批正式Host Owner context验证通过。全架构2,135通过、9既有skip、0失败。完整Aftercare、Series UI/浏览器/Linux和发布资格继续；外部N:M替换合同仍待此前用户确认。未部署NAS。
+
 2026-10-08升级测试债修复：[历史schema Evidence](implementation/evidence/SERIES_HISTORICAL_UPGRADE_FIXTURES_20261008.md)。原9项失败来自伪旧DDL和过时自动retire预期，现改为8份可校验Git来源的真实历史DDL及current schema不改写运行记录的断言；联合升级门禁20项通过。本轮不改生产迁移，不构成同库发布/回退验收。外部Series N:M替换的多值源→成品映射方案已写入Phase并等待用户确认，其余独立工作继续。
 
 2026-10-08真实Series加工：[真实媒体Evidence](implementation/evidence/SERIES_REAL_MIXED_MEDIA_20261008.md)。Windows正式Host的三集Direct/Remux/NVENC Transcode和共享文件＋同集part的N:M完整上架通过；最终实际字节数在Libra/Arca两端逐集复核通过。105项成员/预算回归通过。本批为短SDR无音轨/无上限样本；有界加工重试、逐成员外部寻源/恢复、运营、UI/Linux及发布资格继续，未部署NAS。

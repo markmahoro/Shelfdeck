@@ -157,3 +157,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08升级验证DoR：修复既有9项历史迁移测试债。使用Git已提交且原DDL SHA256匹配的真实旧schema隔离fixture，验证既有正式升级入口、事实保护、FK/integrity及幂等；将过时自动retire运行数据预期改为现行clean-cut不自动修改的验证。不新增旧Formation兼容、迁移或生产数据动作。
 
 2026-10-08历史升级测试债完成：[Evidence](evidence/SERIES_HISTORICAL_UPGRADE_FIXTURES_20261008.md)。真实历史DDL替换伪旧fixture，current schema旧Plan保持不自动改写；历史升级与Series相关schema/reservation联合20项通过。解决原9项测试失败，不替代完整生产同库升级/回退证据。
+
+2026-10-08Series逐集资料健康检查DoR：沿SSOT §3.4.4/§6.5的Arca Inventory/Fact权威，修正Aftercare把episode_title/episode_plot当第一份Metadata顶层字段的错误；以当前Inventory真实Claims限定范围，读取所有已接纳Product Metadata Facts，校验同Canonical Season与逐集唯一记录。缺集/错季/重复/空值须识别，已有完整补集不得误报。保持既有Finding代码/Owner与Movie路径，不新增UI控件或文案；用户仍在现有健康状态/资料缺失提示查看结果，后续Series UI负责人需对冻结版本状态显示验收，本批不声明UI通过。验证模型负向、真实两批上架后的Owner context及Movie回归；不碰外部替换待确认合同。
+
+2026-10-08逐集资料缺失检查已接通：[Evidence](evidence/SERIES_INVENTORY_METADATA_20261008.md)。Aftercare按当前Inventory Claims检查全部批次的逐集Metadata，原完整E01/E02/E03不再因顶层查找而误报；14项专项、两批正式Host Owner context与全架构2,135通过/9既有skip。完整Aftercare其他维度、浏览器/版本UI验收及发布资格继续。

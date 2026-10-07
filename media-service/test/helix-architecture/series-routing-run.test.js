@@ -610,6 +610,16 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const latestFacts=db.prepare("SELECT * FROM arca_inventory_product_facts WHERE inventory_revision=? AND fact_kind='product_metadata'").all(currentEntry.current_inventory_revision);
     assert.equal(latestFacts.length,2);
     assert.equal(new Set(latestFacts.map(row=>row.source_package_id)).size,2);
+    const rawCare=require('../../src/helix/domains/arca/persistence/aftercare-store').createAftercareStore({schemaManifest,unitOfWork})
+      .currentContext(currentEntry.shelf_entry_id);
+    const metadataCheck=require('../../src/helix/domains/arca/model/series-metadata').seriesInventoryMetadataFieldMissing;
+    assert.equal(metadataCheck(rawCare,'episode_title'),false);
+    assert.equal(metadataCheck(rawCare,'episode_plot'),false);
+    const alteredCare=structuredClone(rawCare),thirdMetadata=alteredCare.facts.filter(item=>item.fact_kind==='product_metadata')
+      .flatMap(item=>item.value.episodeMetadata).find(item=>item.episodeScope.episodeKey==='E003');
+    thirdMetadata.descriptiveFacts.entries=thirdMetadata.descriptiveFacts.entries.filter(item=>item.key!=='episode_title');
+    assert.equal(metadataCheck(alteredCare,'episode_title'),true);
+    assert.equal(metadataCheck(rawCare,'episode_title'),false);
     assert.deepEqual(latestFacts.flatMap(row=>JSON.parse(row.fact_json).episodeMetadata.map(item=>item.episodeScope.episodeKey)).sort(),['E001','E002','E003']);
     for(const item of inventoryPrimary)assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
     const third=latestPrimary.find(row=>JSON.parse(row.episode_claims_json).items.some(claim=>claim.episodeKey==='E003'));

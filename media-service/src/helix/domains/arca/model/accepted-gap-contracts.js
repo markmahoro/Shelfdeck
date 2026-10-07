@@ -2,6 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { requirementGapValue, requirementGapValueDigest } = require('../../../contracts/requirement-gap-values');
+const {seriesInventoryMetadataFieldMissing}=require('./series-metadata');
 const { effectiveRequirements } = require('./care-objective');
 const { validManifest } = require('./authorized-defect-manifest');
 
@@ -18,6 +19,8 @@ function missingFields(context) {
   const cast=context.raw.facts.find(item=>item.fact_kind==='media_cast')?.value;
   const relations=cast?.relations || context.raw.people || [];
   return fields.filter(field=>{
+    const seriesMissing=seriesInventoryMetadataFieldMissing(context.raw,field);
+    if(seriesMissing!==null)return seriesMissing;
     if(IDENTITY_FIELDS.has(field))return false; // Canonical Identity has its independent safety assessment.
     if(field==='actor')return !relations.some(item=>item.role==='actor');
     const value=descriptive.get(field);
