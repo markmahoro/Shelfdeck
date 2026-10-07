@@ -229,3 +229,42 @@ test('A failing Episode cannot borrow the passed verification of another Primary
   assert.throws(()=>selectProjection.project({sourceResults:[{result:results[0]}],
     parameters:nodes[3].inputBindings.bindings[0].parameters}));
 });
+
+function directResultsFixture(count=2) {
+  const {buildProductMediaVerification,selectProductOutput}=require('../../src/helix/domains/libra/model/media-production-contracts');
+  const value=fixture(count),sourceRecords=records(value);value.setRecords(sourceRecords);
+  const nodes=directPlan(value).nodes,output=[];
+  const projection=createWorkspaceMediaProductionProjections(value.options)
+    .find(item=>item.projectionRef.endsWith('/ProductOutputSelectionInput/v1')).projection;
+  for(let index=0;index<count;index++) {
+    const [verify,select]=nodes.slice(index*2,index*2+2);
+    const input=directProject(value,verify.inputBindings.bindings[0].parameters);
+    const verification=buildProductMediaVerification({input,verifiedAtMs:1,playbackVerification:{
+      samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('decode')}});
+    const selection=selectProductOutput({input:projection.project({sourceResults:[{result:verification}],
+      parameters:select.inputBindings.bindings[0].parameters}),producedAtMs:1});
+    output.push({outcomeKind:'succeeded',capabilityRef:'libra.product_media.verify@1',result:{...verification}},
+      {outcomeKind:'succeeded',capabilityRef:'libra.product_output.select@1',result:{...selection}});
+  }
+  const workId=directMediaSelectionWork(value.snapshot).workId;
+  value.options.workResultReader.read=id=>id===workId?output:sourceRecords;
+  return {...value,output,workId};
+}
+const {readDirectMediaSelections}=require('../../src/helix/domains/libra/planning/direct-media-selections');
+for(const count of [2,24]) test('Direct durable set reconstructs every frozen Primary for '+count+' members',()=>{
+  const value=directResultsFixture(count);value.output.reverse();
+  const result=readDirectMediaSelections(value.options,value.snapshot,value.workId);
+  assert.equal(result.length,count);assert.equal(new Set(result.map(item=>item.selection.selectedHandleId)).size,count);
+  assert.ok(result.every(item=>item.selection.result==='selected'));
+});
+for(const mutation of ['missing','duplicate','foreign_run','handle','selection_digest','borrowed_selection'])
+test('Direct durable set rejects '+mutation+' before delivery',()=>{
+  const value=directResultsFixture();
+  if(mutation==='missing')value.output.pop();
+  if(mutation==='duplicate')value.output[2]=value.output[0];
+  if(mutation==='foreign_run')value.output[0].result.libraRunId='other';
+  if(mutation==='handle')value.output[0].result.productMaterialHandleDigest=D('foreign');
+  if(mutation==='selection_digest')value.output[1].result.draftDigest=D('forged');
+  if(mutation==='borrowed_selection')value.output[3]=value.output[1];
+  assert.throws(()=>readDirectMediaSelections(value.options,value.snapshot,value.workId));
+});

@@ -1,5 +1,7 @@
 'use strict';
 
+const { readDirectMediaSelections } = require('../planning/direct-media-selections');
+
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const { createWorkspaceAdmissionStore } = require('../persistence/workspace-admission-store');
@@ -754,6 +756,10 @@ function createLibraRunCoordinator(options){
       return Object.freeze({kind:'pending',phase:'workspace_media_direct_selection',libraRunId,
         workId:direct.workId,replayed:directSubmitted.replayed,workspaceId:workspace.workspaceId,
         workspaceRevision:workspace.currentRevision});
+    }
+    if(snapshot.spec.contentProfile==='series') {
+      const members=readDirectMediaSelections(options,snapshot,direct.workId);
+      if(members.every(item=>item.selection.result==='selected')) return ensureDelivery(snapshot,workspace,direct);
     }
     const selection=selectedOutput(direct);
     if(selection.result!=='selected' && onlyRemuxGapFromVerification(mediaVerification(direct))){

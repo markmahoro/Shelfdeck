@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 197,
-  "tableContractAggregateDigest": "f445b42a9efe72175fcc7220fd029ee76f2ae0eec9e73754374d54546dd23044",
-  "ddlDigest": "14c18e017bfce8b78230d0509be1c46fb11c0da95a240396628173a9e71bed73",
+  "tableContractAggregateDigest": "cf7461819ca4557389cfd86839df55890448d24b6e1886d403beb44331563ad6",
+  "ddlDigest": "218993d8f7574475a22f26b85b96de4f57ebee913ac5893c47a6255d3fb15431",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -3051,8 +3051,8 @@
       "tableId": "libra_product_packages",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_packages/v1",
-      "contractDigest": "dd031833d763758b7a541f28b550c13508bd3a37dbc3ba8ef17a0e3b604a6af2",
-      "sqlDigest": "109567069d8de77bd37a6393d637bd6147f740ad9fe322871f8376f29fbfc95d",
+      "contractDigest": "4e2e9041fad8b36da298f36b81a4d9b5b5fee7af455bbda602ee20bd9512d9bf",
+      "sqlDigest": "6f53a14ed953ad21ffac6147d05b7ee9f304d0735e2eff57206df15f33496cbd",
       "columns": [
         "on_deck_package_id",
         "offer_id",

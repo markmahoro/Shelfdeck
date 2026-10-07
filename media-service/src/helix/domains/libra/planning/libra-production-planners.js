@@ -562,7 +562,8 @@ function artifactVerificationContext(options, libraRunId) {
     const artifactHandle=producer?.result?.schemaRef==='helix://contracts/types/ArtifactAcquisitionResult/v1'
       ?producer.result.artifactHandle:producer?.result;
     if(!artifactHandle||!verificationItem?.result)throw new Error('Verified Artifact material cannot be reconstructed.');
-    return Object.freeze({artifactHandle,requirement:verificationItem.result.requirement,
+    const draftBinding=(producer.inputBindings?.bindings||[]).find(port=>port.portName==='productMetadataDraft');
+    return Object.freeze({artifactHandle,episodeKey:draftBinding?.parameters?.episodeKey||null,requirement:verificationItem.result.requirement,
       verification:verificationItem.result,verifiedManifestItem});
   });
   return Object.freeze({...metadata,artifactWorkId:work?.work_id||null,verifiedArtifactManifest:Object.freeze(manifest),

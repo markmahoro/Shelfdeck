@@ -1,5 +1,7 @@
 'use strict';
 
+const { readDirectMediaSelections } = require('../planning/direct-media-selections');
+
 const { canonicalDigest, canonicalJson } =
   require('../../../contracts/canonical-json');
 const { resolveProductSelection } = require('../model/defect-admission-contracts');
@@ -210,6 +212,13 @@ function createProductStagingService(options) {
       );
       workspace = result.workspace;
       staged.push(result.reference);
+    }
+
+    if(snapshot.spec.contentProfile==='series') {
+      const members=readDirectMediaSelections(options,snapshot,selectedWork.workId);
+      if(members.some(item=>item.selection.result!=='selected')) throw new Error('Every Series Primary requires a selected output before staging.');
+      return Object.freeze({workspace,productStagingReferences:Object.freeze(staged),artifactContext,
+        selectedWorkResults:Object.freeze(members.flatMap(item=>[item.verificationRecord,item.selectionRecord]))});
     }
 
     const results = options.workResultReader.read(selectedWork.workId)

@@ -31,6 +31,7 @@ const {
 } = require('./media-production-work');
 const { createProductionSourceScopeResolver } = require('./production-source-scope-resolver');
 const { readSourceMediaObservations } = require('./source-media-observations');
+const { directCandidateNodeId, directRequirement } = require('./direct-media-selections');
 const { workspaceId } = require('../model/workspace-admission-contracts');
 
 const PROBE = 'shared.material.media.probe@1';
@@ -100,25 +101,6 @@ function planEnvelope(options, request, work, nodes, resolution='planned', diagn
 function transcodeWorkIdentity(workId) {
   const match=/^libra-workspace-media-transcode_(\d+)_(assessment|selection)-work-/.exec(workId);
   return match ? Object.freeze({ordinal:Number(match[1]),kind:match[2]}) : null;
-}
-
-function directCandidateNodeId(snapshot, member) {
-  return snapshot.spec.contentProfile === 'series'
-    ? stable('direct_input_', {materialKey:member.materialKey,memberDigest:canonicalDigest(member)})
-    : 'direct_input';
-}
-
-function directRequirement(snapshot, sources) {
-  const requirement = buildMediaRequirement(snapshot.spec);
-  if (snapshot.spec.contentProfile === 'series' && requirement.space.maxSizeBytes !== null) {
-    const keys = sources.flatMap(item => item.member.episodeClaims.map(claim => claim.episodeKey));
-    if (sources.some(item => item.member.episodeClaims.length !== 1) || new Set(keys).size !== keys.length) {
-      const error = new Error('Bounded N:M Series verification requires complete Episode allocation evidence before per-member selection.');
-      error.code = 'LIBRA_SERIES_SPACE_AGGREGATION_REQUIRED';
-      throw error;
-    }
-  }
-  return requirement;
 }
 
 function literalInput(item, portName) {

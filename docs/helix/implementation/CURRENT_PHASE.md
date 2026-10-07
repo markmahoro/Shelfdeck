@@ -10,6 +10,8 @@
 
 2026-10-08节点1增量：[逐Primary Direct验证](evidence/SERIES_DIRECT_MEDIA_20261008.md)。2/24成员独立Verification与Selection已接通，小数GiB及用户确认的共文件均分/多part累加计算核心已实现。Run多Selection消费、加工、Package及N:M最终证据接线仍待完成，节点1保持开放；无生产发布。
 
+2026-10-08继续推进：[多成员Direct交付Evidence](evidence/SERIES_DIRECT_PACKAGE_20261008.md)。2/24集完整集合已进入Conformance及Product Package，逐文件读取权限与claim绑定验证通过；24集触发的Provenance容量合同矛盾已对齐，schema原子升级专项通过。当前仍未Arca正式上架，下一段接正式Season/Episode落位和逐成员加工；完整架构复验250文件通过。
+
 ## 目标、Owner 与边界
 
 准备一个能交付真实剧集完整链路的大版本，继续使用现有五域模块化单体。Procurement 识别 Season 输入与不可变 Candidate；Libra 拥有 Subject、Routing、Run、Acceptance Spec 与生产 Workspace；Arca 拥有正式 Season Shelf Entry、Episode/Inventory、维护及退出。保持 Handoff A/B 单向、只由 On-deck Commit 建立收藏事实。Emby 仍是可选 External Provider。
@@ -17,6 +19,8 @@
 首版范围沿用SSOT：普通Season文件集、明确的Season/Episode身份、按本批交付范围生产/验收、首次上架及后续非重叠Episode追加；恢复、多集共文件/一集多part、维护和退出也须进入验收，不能用只支持单文件单集掩盖模型边界。当前开发不修改Owner/Handoff/授权边界，不部署生产。
 
 ## 当前工作项：Series身份与逐集生产接线
+
+2026-10-08用户要求持续推进至首个可部署Series版本。当前增量DoR：Libra按冻结Run逐Primary重建完整Direct Selection/Verification集合，精确绑定成员Handle、Probe及Spec，禁止first-result消费；沿现有Staging、Conformance、Product Manifest及ShelfAcceptancePrimaryReadSet的集合合同交付，Related/NFO按明确目标区分，不能给Related添加Episode relation。验证2/24集、乱序/重复/缺失/跨Run结果、单集失败不交付、Movie回归，然后推进Arca正式上架及真实媒体。后续加工、N:M最终计量、追加/恢复与适用UI验收仍是可部署门槛。无新Owner、Handoff或存量兼容；所有效果只在本地隔离样本及Workspace，尚未授权NAS生产发布。
 
 2026-10-08接续「逐Primary Direct产品验证」DoR：在既有Libra WorkspaceMediaProduction Planner内，为冻结Run的每个物理Primary形成独立ProductMediaCandidateInput、Verification和Selection；Plan绑定完整member digest，Owner projection重建精确成员与完整Source Probe覆盖，拒绝旧Binding、跨Run Work、缺失/重复/foreign Result。沿SSOT §3.4.4–3.4.6、§5.5.8、§8.6.7及PBF-20，不新增Owner/Capability/全局Store，不改来源、不生产兼容层。先覆盖一集一文件的0.75/1.5 GiB精确上限及2/24个成员调度；用户已确认N:M按文件覆盖集数均分、同集多个part份额相加，写入SSOT §5.5.8并实现精确有理数计算核心；尚未接入typed聚合验收证据，因此有上限的N:M在Direct入口显式返回LIBRA_SERIES_SPACE_AGGREGATION_REQUIRED，不能伪造单集通过。无上限的N:M保持物理成员不重复验证。验证含同一Event Result闭包、负向成员/Probe Fence、Movie单源回归及隔离Host的Direct Work终结；完整Run多Selection消费、Remux/Transcode、Package与Arca Commit另需贯通，不能用本批Direct Work通过关闭节点1或首批上架。没有Series页面/文案交付或生产动作。
 
@@ -88,6 +92,8 @@ N:M计量规则已确认，完整证据接线仍待节点3验证；S00、身份�
 UI门禁适用于每个节点，包括后端生成的用户可见文案：实施前与任务“UI负责人”（`01a0912a-0086-74e2-88ab-536c59d3862a`）协调范围及设计；按Playbook §11.1/§12.3与Movie baseline §7.1的通用UI验收方法实现。沿用现有页面、组件/token和已确认设计规则；Series业务Oracle来自SSOT，不把Series追认进Movie Beta。
 
 实施任务提供对应commit、页面/状态、操作与结果、截图或轨迹、浏览器/键盘/窄屏测试和未测项；UI负责人执行适用任务走查并记录通过/不通过及范围。UI代码或自动化测试通过不能替代负责人验收，后续影响用户表面的diff须重验受影响路径。没有适用UI变化时如实记录范围；当前叶子实现尚无Series页面交付，不宣称UI PASS。2026-09-30 UI负责人已确认职责并回传[逐节点适用矩阵](evidence/SERIES_UI_ACCEPTANCE_SCOPE_20260930.md)；具体页面验收仍待同版本实现与实际走查。
+
+2026-10-08 UI负责人只读设计衔接意见（任务01a0912a-0086-74e2-88ab-536c59d3862a，turn01a117bd-5062-76a1-b73d-70e5b2986e77）：来源现有表单选择电影/剧集并保持统计/席位；收藏架按模板Profile编辑、剧集支持每集小数GiB且不改Movie标准；整理保留九列/筛选/分页，在名称单元格呈现季及本批范围、过程内看逐集；收藏海报按Season一项、详情增加实际集列表，不声称理论全集完成。需补正式来源准入、Series身份命令及Season/Episode Projection，前端不得猜文件名。尚无UI PASS，最终冻结版本需实际走查。
 
 ## 下一步与Phase完成条件
 

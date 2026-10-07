@@ -300,6 +300,7 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'libra_product_packages.production_provenance_json': 1024 * 1024,
   'fx_supporting_works.definition_json': 256 * 1024,
   'fx_event_result_bindings.result_json': 64 * 1024,
   'fx_event_result_bindings.evidence_json': 64 * 1024,

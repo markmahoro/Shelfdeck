@@ -2060,7 +2060,7 @@ CREATE TABLE "libra_product_packages" (
   CHECK (json_valid("product_structure_json")),
   CHECK (length(CAST("product_structure_json" AS BLOB)) <= 65536),
   CHECK (json_valid("production_provenance_json")),
-  CHECK (length(CAST("production_provenance_json" AS BLOB)) <= 65536),
+  CHECK (length(CAST("production_provenance_json" AS BLOB)) <= 1048576),
   CHECK (json_valid("attestation_json")),
   CHECK (length(CAST("attestation_json" AS BLOB)) <= 65536),
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,

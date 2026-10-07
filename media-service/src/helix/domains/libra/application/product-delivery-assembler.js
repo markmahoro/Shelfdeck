@@ -1,5 +1,7 @@
 'use strict';
 
+const { readDirectMediaSelections } = require('../planning/direct-media-selections');
+
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { coversRequirementGaps, resolveProductSelection } =
   require('../model/defect-admission-contracts');
@@ -112,8 +114,8 @@ function productFactSnapshots(options, runId) {
   return Object.freeze(facts);
 }
 
-function selectedContext(options, snapshot, selectedWorkId) {
-  const results = options.workResultReader.read(selectedWorkId)
+function selectedContext(options, snapshot, selectedWorkId, memberResults = null) {
+  const results = (memberResults || options.workResultReader.read(selectedWorkId))
     .filter((item) => item.outcomeKind === 'succeeded');
   const resolvedSelection = resolveProductSelection(results,
     snapshot.run.authorizedDefectManifest,{workId:selectedWorkId});
@@ -416,18 +418,23 @@ function createProductDeliveryAssembler(options) {
       movieProductionReader: { readRun: () => value.snapshot },
       productionPort: options.productProductionPort,
     });
-    const sourceScope = sourceResolver.resolve(sourceResolver.referenceFor(value.snapshot));
+    const isSeries=value.snapshot.spec.contentProfile==='series';
+    const sourceScope = isSeries ? null : sourceResolver.resolve(sourceResolver.referenceFor(value.snapshot));
     const productMembers = value.productMaterialManifest.members.filter((item) =>
       item.role === 'primary_payload');
-    if (productMembers.length !== 1) {
+    if (!isSeries && productMembers.length !== 1) {
       throw new Error('Movie Shelf Acceptance authority requires one Product Primary.');
     }
-    // A disc title can span multiple payloads. Use the same frozen topology
-    // order and read authority that produced its Source Probe and media.
-    let sourceMember = sourceScope.primaryMembers[0].member;
-    const productMember = productMembers[0];
-    const verification = value.selected.verification;
-    const originalSourceHandle = sourceScope.primaryReadHandle;
+    const issuedAtMs = conformance.verifiedAtMs;
+    const expiresAtMs = issuedAtMs + 24 * 60 * 60 * 1000;
+    if (!Number.isSafeInteger(expiresAtMs)) throw new Error('Shelf Acceptance read authority expiry is outside the safe range.');
+    const primaryInputs=Object.freeze(productMembers.map((productMember,ordinal)=>{
+    const selected=isSeries ? value.selectedContexts.find(item=>item.source.member.materialKey===productMember.materialKey) : value.selected;
+    if(!selected) throw new Error('Product Primary lacks its exact selected member.');
+    // Movie disc titles retain the frozen topology order used by the Source Probe.
+    let sourceMember=isSeries ? selected.source.member : sourceScope.primaryMembers[0].member;
+    const verification=selected.verification;
+    const originalSourceHandle=isSeries ? selected.source.readHandle : sourceScope.primaryReadHandle;
     const productHandle = productMember.workspaceMaterialHandle ||
       originalSourceHandle;
     const originalSourceHandleDigest = canonicalDigest(originalSourceHandle);
@@ -449,7 +456,7 @@ function createProductDeliveryAssembler(options) {
     const sourceProbe = sourceProbes[0].result;
     const productProbe = productHandleDigest === originalSourceHandleDigest
       ? sourceProbe
-      : value.selected.results.find((item) =>
+      : selected.results.find((item) =>
         item.outcomeKind === 'succeeded' &&
         item.capabilityRef === 'shared.material.media.probe@1' &&
         item.result?.sourceHandleDigest === productHandleDigest &&
@@ -480,11 +487,6 @@ function createProductDeliveryAssembler(options) {
     if (verification.productMaterialHandleId !== productHandle.handleId ||
         verification.productMaterialHandleDigest !== productHandleDigest) {
       throw new Error('Selected Product verification does not bind the final Product Primary.');
-    }
-    const issuedAtMs = conformance.verifiedAtMs;
-    const expiresAtMs = issuedAtMs + 24 * 60 * 60 * 1000;
-    if (!Number.isSafeInteger(expiresAtMs)) {
-      throw new Error('Shelf Acceptance read authority expiry is outside the safe range.');
     }
     const common = {
       libraRunId: value.snapshot.run.libraRunId,
@@ -539,7 +541,7 @@ function createProductDeliveryAssembler(options) {
       });
     }
     const itemBody = {
-      ordinal: 0,
+      ordinal,
       materialKey: productMember.materialKey,
       productMemberDigest: productMember.memberDigest,
       productMediaVerification: verification,
@@ -550,10 +552,8 @@ function createProductDeliveryAssembler(options) {
       productReadHandleDigest: canonicalDigest(productReadHandle),
       samePhysicalMaterial,
     };
-    const primaryInputs = Object.freeze([Object.freeze({
-      ...itemBody,
-      itemDigest: canonicalDigest(itemBody),
-    })]);
+    return Object.freeze({...itemBody,itemDigest:canonicalDigest(itemBody)});
+    }));
     const body = {
       schemaRef: 'helix://contracts/domain-types/ShelfAcceptancePrimaryReadSet/v1',
       schemaVersion: 1,
@@ -605,7 +605,12 @@ function createProductDeliveryAssembler(options) {
 
   function context(libraRunId, selectedWorkId) {
     const snapshot = options.movieProductionReader.readRunSnapshot(libraRunId);
-    const selected = selectedContext(options, snapshot, selectedWorkId);
+    const directMembers = snapshot.spec.contentProfile==='series'
+      ? readDirectMediaSelections(options,snapshot,selectedWorkId) : null;
+    const selectedContexts = directMembers ? directMembers.map(item=>Object.freeze({
+      ...selectedContext(options,snapshot,selectedWorkId,[item.verificationRecord,item.selectionRecord]),source:item}))
+      : [selectedContext(options,snapshot,selectedWorkId)];
+    const selected = selectedContexts[0];
     const artifacts = artifactVerificationContext(options, libraRunId);
     const facts = productFactSnapshots(options, libraRunId);
     const packageRevision = snapshot.run.packageRevisionHead + 1;
@@ -633,10 +638,11 @@ function createProductDeliveryAssembler(options) {
     if (selected.selected.selectedCandidateKind === 'direct_input') {
       const primary = snapshot.members.filter((item) =>
         item.role === 'primary_payload');
-      if (primary.length !== 1) {
+      if (!directMembers && primary.length !== 1) {
         throw new Error('Direct Movie Product requires exactly one Primary input.');
       }
-      productMembers.push(directPrimaryMember(primary[0], selected.verification));
+      if(directMembers) for(const item of directMembers) productMembers.push(directPrimaryMember(item.member,item.verification));
+      else productMembers.push(directPrimaryMember(primary[0], selected.verification));
     } else {
       const projected = projectMaterialControlRow(
         mediaReference.materialKey,
@@ -679,15 +685,16 @@ function createProductDeliveryAssembler(options) {
         null,
         projected,
       );
-      if (artifactProductsByRole.has(productMember.role)) {
+      const artifactKey=productMember.role+'|'+(item.episodeKey||'');
+      if (artifactProductsByRole.has(artifactKey)) {
         throw new Error('Product Delivery has multiple verified Artifact replacements for one role.');
       }
-      artifactProductsByRole.set(productMember.role, productMember);
+      artifactProductsByRole.set(artifactKey, productMember);
       productMembers.push(productMember);
     }
     const related = snapshot.relatedBindings.map((binding) =>
       relatedAuthority(snapshot, binding,
-        artifactProductsByRole.get(productRole(binding.role)) || null));
+        artifactProductsByRole.get(productRole(binding.role)+'|') || null));
     for (const item of related) {
       if (item.assertion.dispositionKind === 'carried_forward') {
         productMembers.push(relatedProductMember(item, origin));
@@ -756,13 +763,14 @@ function createProductDeliveryAssembler(options) {
         };
         return Object.freeze({ ...body, snapshotDigest:canonicalDigest(body) });
       }).sort((left, right) => left.ordinal - right.ordinal);
-    const selectedProducts = Object.freeze([Object.freeze({
+    const selectedProducts = Object.freeze(selectedContexts.map(selected=>Object.freeze({
       selectionKind: selected.selected.selectionKind,
       selectedProduct: selected.selectedProduct,
       verification: selected.verification,
       workspaceHandleDigest: selected.workspaceMediaHandle
         ? canonicalDigest(selected.workspaceMediaHandle) : null,
-    })]);
+    })).sort((a,b)=>utf8(a.selectionKind,b.selectionKind)||
+      utf8(a.verification.verificationId,b.verification.verificationId)));
     const conformanceInput = buildProductConformanceInputSnapshot({
       libraRunId,
       runExecutionBasisDigest: snapshot.run.executionBasisDigest,
@@ -781,6 +789,7 @@ function createProductDeliveryAssembler(options) {
     return Object.freeze({
       snapshot,
       selected,
+      selectedContexts: Object.freeze(selectedContexts),
       artifacts,
       facts,
       packageRevision,
@@ -844,7 +853,7 @@ function createProductDeliveryAssembler(options) {
         contextRole: member.role === 'structural_dependency'
           ? 'structural_dependency' : 'original_input',
         sourceRelatedReferenceId: null,
-        finalProductMaterialKey: selectedFinalKey,
+        finalProductMaterialKey: snapshot.spec.contentProfile==='series' ? member.materialKey : selectedFinalKey,
         dispositionKind: originalDisposition,
         physicalIdentity: member.physicalIdentity,
         endpointId: member.endpointId,
@@ -964,6 +973,8 @@ function createProductDeliveryAssembler(options) {
       ...provenanceBody,
       provenanceDigest: canonicalDigest(provenanceBody),
     });
+    if(Buffer.byteLength(canonicalJson(productionProvenance),'utf8')>1024*1024)
+      throw new Error('Production Provenance exceeds its canonical size bound.');
     const attestedUnmetRequirementCodes = Object.freeze([
       ...(conformance.unmetRequirementCodes || []),
     ].sort(utf8));

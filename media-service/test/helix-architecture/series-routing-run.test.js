@@ -180,7 +180,7 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and independent Direct verification and selection', {timeout:60000},async t=>{
+for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and complete Direct Product Package', {timeout:60000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source','Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
@@ -252,9 +252,8 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
       specs:db.prepare('SELECT * FROM libra_acceptance_specs').all(),runs:db.prepare('SELECT * FROM libra_runs').all(),
       works:db.prepare('SELECT work_id,work_kind,state FROM fx_supporting_works').all(),
       facts:db.prepare('SELECT fact_kind,fact_json FROM libra_product_fact_revisions').all()};
-    // Stop at Direct Work completion; Run-level selection aggregation and
-    // Package assembly remain independent downstream development gates.
-    if(state.works.some(work=>work.work_id.startsWith('libra-workspace-media-direct_selection-work-')&&work.state==='succeeded')||
+    // Observe complete member and authority sets at Handoff B publication.
+    if(state.works.some(work=>work.work_kind==='deliverable_promotion'&&work.state==='succeeded')||
         state.works.some(work=>work.state==='failed'))break;
     assert.ifError(runtimeError);
     await new Promise(resolve=>setTimeout(resolve,25));
@@ -270,7 +269,29 @@ for(const episodeCount of [2,24]) test('Isolated Host schedules '+episodeCount+'
   const directWork=state.works.find(work=>work.work_id.startsWith('libra-workspace-media-direct_selection-work-'));
   assert.equal(directWork?.state,'succeeded',JSON.stringify({works:state.works,events:db.prepare(
     'SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
+  assert.ok(state.works.some(work=>work.work_kind==='product_conformance'&&work.state==='succeeded'),JSON.stringify({works:state.works,incidents:db.prepare('SELECT * FROM fx_executor_incidents').all(),events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
+  assert.ok(state.works.some(work=>work.work_kind==='deliverable_promotion'&&work.state==='succeeded'),JSON.stringify({works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   await host.close();
+  const packages=db.prepare('SELECT * FROM libra_product_packages').all();
+  assert.equal(packages.length,1);
+  const provenance=JSON.parse(packages[0].production_provenance_json);
+  const readSet=provenance.shelfAcceptancePrimaryReadSet;
+  assert.equal(readSet.primaryInputs.length,episodeCount);
+  assert.equal(new Set(readSet.primaryInputs.map(item=>item.materialKey)).size,episodeCount);
+  const packaged=db.prepare('SELECT * FROM libra_product_package_materials WHERE on_deck_package_id=?').all(packages[0].on_deck_package_id);
+  const primary=packaged.filter(item=>item.role==='primary_payload');
+  assert.equal(primary.length,episodeCount);
+  assert.equal(packaged.filter(item=>item.role==='metadata_sidecar').length,episodeCount+1);
+  assert.equal(db.prepare('SELECT count(*) n FROM libra_product_package_material_episode_claims').get().n,episodeCount);
+  for(const item of readSet.primaryInputs) {
+    const member=primary.find(row=>row.material_key===item.materialKey);
+    assert.ok(member);assert.equal(item.productMemberDigest,member.member_digest);
+    assert.equal(item.productMediaVerification.result,'passed');assert.equal(item.samePhysicalMaterial,true);
+    assert.equal(item.productReadHandleDigest,canonicalDigest(item.productReadHandle));
+    assert.equal(item.sourceReadHandleDigest,item.productReadHandleDigest);
+  }
+  const conformance=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-product-conformance-event-%'").all();
+  assert.equal(conformance.length,1);assert.equal(JSON.parse(conformance[0].result_json).result,'passed');
   const directResults=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-direct-media-verify-event-%'").all()
     .map(item=>JSON.parse(item.result_json));
   const selections=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-direct-media-select-event-%'").all()
