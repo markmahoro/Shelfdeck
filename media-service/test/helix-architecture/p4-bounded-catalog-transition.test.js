@@ -281,7 +281,7 @@ test('same-Work pagination proves only earlier terminal Attempts and rejects fut
   earlier.workAttempt.ordinal = 3; assert.equal(f.verify(), false);
 });
 
-test('historical witness stays immutable and cannot authorize changed secondary-acceptance contracts', () => {
+test('historical witness stays immutable and cannot authorize changed secondary-acceptance or Series contracts', () => {
   const root = path.resolve(__dirname, '../../src/helix/contracts');
   const witness = require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json');
   const schemas = new Map();
@@ -307,8 +307,11 @@ test('historical witness stays immutable and cannot authorize changed secondary-
     'arca.acceptance.accept.commit@1','arca.acceptance.mandatory_media.verify@1',
     'libra.external_material.acquire.request@1','libra.external_material.candidate.select@1',
     'libra.external_material.query.prepare@1','libra.external_material.search@1','libra.media.remux@1',
-    'libra.product.conformance.verify@1','libra.product_media.verify@1','libra.product_output.select@1',
-    'libra.product_package.publish@1']);
+    'libra.media_cast.commit@1','libra.media_cast.resolve@1',
+    'libra.product.conformance.verify@1','libra.product_artifact.acquire@1',
+    'libra.product_identity.evidence.observe@1','libra.product_media.verify@1',
+    'libra.product_metadata.commit@1','libra.product_metadata.fetch@1','libra.product_output.select@1',
+    'libra.product_package.publish@1','libra.product_sidecar.render@1','libra.routing.fact.observe@1']);
   assert.deepEqual(witness.capabilities.filter(record => record.previousSchemaDigest !== record.currentSchemaDigest)
     .map(record => record.capabilityRef), [
       'arca.acceptance.accept.commit@1', 'arca.acceptance.identity.verify@1',

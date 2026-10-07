@@ -1,6 +1,6 @@
 # ShelfDeck / Helix 文档索引
 
-更新：2026-09-30。Helix Beta Movie全链路已获用户阶段验收；当前进入Series开发，首批元数据基础已本地验证。Series完整功能尚未交付，Beta保持Movie-only A–I。
+更新：2026-10-08。Movie Beta阶段收尾已完成；当前在主工作区`main`继续Series节点1开发。Movie收尾、Series已有实现及生产UAT-281修复已整合；Series尚未完整上架、未发布生产。工作区归属见CURRENT_PLAN，整合与恢复路径见[Evidence](implementation/evidence/GIT_WORKSPACE_CONSOLIDATION_20261008.md)。
 
 ## 权威与当前入口
 

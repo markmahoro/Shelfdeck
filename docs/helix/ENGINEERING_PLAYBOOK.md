@@ -148,6 +148,7 @@ Work Package完成必须满足：
 - 没有未登记旧函数复制或whole-executor reuse；
 - Secret、Artifact和大Payload没有进入禁止的Store/Result/日志；
 - 文档、manifest和测试与实现同步；
+- 用户可见变更满足§11.1的UI引导验收；功能通过不能代替交互可用；
 - diff无无关文件、生成物、runtime数据或用户修改；
 - review没有未关闭的blocking finding；
 - Current Status和Evidence能够从commit复验结论。
@@ -229,7 +230,7 @@ resolver、Signal驱动后效和Admin页面业务模型。
 | File/Material effect | realpath/mount/identity/Fence、stage/switch/verify、pre/post-crash、forward recovery |
 | Projection | rebuild、duplicate/out-of-order Outbox、bounded SQL、lag/health、GET no side effect |
 | API/Auth | method/path manifest、schema、correlationId、Session/credential revision、idempotency |
-| Admin Web | journey、Projection-only、intent confirmation、Activity Ledger、responsive/a11y |
+| Admin Web / 用户可见Projection文案 | journey、Projection-only、intent confirmation、Activity Ledger、responsive/a11y、§11.1 UI引导验收 |
 | Operator tooling | temp directory、digest drift、external backup、hash/fsync、mixed generation、no media-root access |
 | Runtime lifecycle | startup/recovering/ready/degraded/faulted/shutdown、unknown Effect、safe checkpoint |
 

@@ -1,8 +1,12 @@
 # 当前活动包：Series 开发
 
-更新：2026-10-01。ACTIVE / DEVELOPMENT。用户追加“开始开发吧”，授权Series本地开发、隔离测试及必要构建。上个Movie阶段已按用户接受完成文档收尾；[旧包快照](archive/20260930_BETA_MOVIE_CLOSEOUT/CURRENT_PHASE.md)只用于追溯。唯一计划为[CURRENT_PLAN](../CURRENT_PLAN.md)，本Phase以有名称的工作项、里程碑及Evidence管理开发，不使用UAT编号；UAT只记录上线后的测试、验收问题。原UAT-279保留误登记与转移历史。
+更新：2026-10-08。ACTIVE / DEVELOPMENT。用户追加“开始开发吧”，授权Series本地开发、隔离测试及必要构建。上个Movie阶段已按用户接受完成文档收尾；[旧包快照](archive/20260930_BETA_MOVIE_CLOSEOUT/CURRENT_PHASE.md)只用于追溯。唯一计划为[CURRENT_PLAN](../CURRENT_PLAN.md)，本Phase以有名称的工作项、里程碑及Evidence管理开发，不使用UAT编号；UAT只记录上线后的测试、验收问题。原UAT-279保留误登记与转移历史。
 
 用户追加的工程工作区清理已完成；[历史UAT-280执行结果](evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md)包含本地/NAS精确清理、源码/证据/用户修改保护及工作区退役复验。当前先实施Series元数据基础；整体纵向准备仍有未决项，不能因本工作项开工宣称准备全部Exit。
+
+## 当前执行位置
+
+2026-10-08工作区整合后，从主工作区 main 接续节点1；已完成身份、逐集资料/Artifact/Fact调度、24集容量和逐Primary源探测。下一段为逐Primary产品验证/加工、Conformance及Product Package关联；节点1未关闭，节点2完整上架尚未完成。既有逐批记录保留为历史，不能将较早的待办描述覆盖后续已完成证据。Movie阶段已收尾，UAT残余独立维护；本次未推进Series功能或生产发布。
 
 ## 目标、Owner 与边界
 

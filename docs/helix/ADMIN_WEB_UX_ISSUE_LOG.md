@@ -6,7 +6,9 @@
 > 2026-09-08：本文件冻结为历史问题与验收证据，不再新增迭代编号；全部功能及UI迭代使用[统一PROD台账](PRODUCTION_DEPLOY_ISSUE_LOG.md)。旧状态是原验收时点，当前待核实项目由PROD-077对账；历史关闭不因改编号而重开。
 
 
-状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UAT-005/050–058 IMPLEMENTED / UX-006, UX-033–038 FIXED / UX-023 REMAIN OPEN`
+状态：`ADMIN WEB UX OVERHAUL IMPLEMENTED / UAT-005/050–058 IMPLEMENTED / UX-006, UX-033–038 FIXED / UX-023, UX-039 REMAIN OPEN`
+
+> 合并说明（2026-09-11）：UX-039是主工作区合并前尚未提交的本地审查记录，保留原始证据；其OPEN标记不替代唯一UAT总表，也不代表已核实合并后版本仍存在该问题。
 
 建立日期：2026-08-22
 
@@ -78,6 +80,7 @@
 | UX-036 | 指标附注同义反复；收藏导语与「历史」冲突；未做的合并能力被画出 | `COPY_CONFLICT` | 概览 / 收藏 / 人物 / 配置 | Medium | **FIXED** |
 | UX-037 | 仍泄漏 Owner、Workspace、Libra Intake；自动运营控件出现两次 | `COPY_INTERNAL` | 设置 / 收藏架 / 整理 | Medium | **FIXED**（用户可见标签；收藏架仍有自动运营控件，见 PROD-029） |
 | UX-038 | 退出收藏把 UAT-139 整库多选做成常驻主表面，审阅失焦 | `LAYOUT` | 退出收藏 | High | **FIXED**（本地；未部署；未改 SSOT） |
+| UX-039 | 接收状态再次依赖常驻说明，测试把说明句固化为验收条件 | `COPY_REDUNDANT / COPY_INTERNAL` | 文件来源 | High | **OPEN**（工程规则已更新；页面与测试尚未整改） |
 
 ## 3. `COPY_REDUNDANT`：冗余或非用户友好文案
 
@@ -502,3 +505,34 @@ Helix 壳层（`web/src/helix/helix.css`、`chrome.tsx`、`session.tsx`、`App.t
 当前滚动顺序：页头导语 → 折叠规则 → **整库勾选清单（UAT-139）** → 建议退出 → 当前审阅（有 `?review=` 才出现）→ 正在退出。`.offdeck-bulk-list` 最高 420px，已选数量在标题、工具条、主按钮上写三遍。「审阅」同时表示选片和真正核对文件。从收藏详情进来时，要决断的那一单被压在整库清单下面。
 
 Product Owner 确认方向（未授权实现）：规则进系统设置 Tab；退出页只留系统建议退出（列表）和手动退出（搜索）；将删文件与授权用弹出详情卡片；不用「审阅」。`UAT-139` 全选仍须在手动退出里可达。落地前 SSOT §9.4.8 表面行需 Architecture 改到设置。
+
+## 14. 2026-09-11 UX-039：说明性文案复发与验收习惯
+
+用户反馈：「当前整理数量已达上限，其余材料继续等待」这一类说明再次出现；要求前端简单易用，靠UI引导。
+本地HEAD `d486947c8` 未检出该逐字原句；检出了文件来源页的同类实际实现，本项不推断生产页面与本地逐字一致。
+
+证据：
+
+- `media-service/web/src/helix/MaterialFieldsPage.tsx` 接收区域已有占用/额度、等待数量和调整入口，仍常驻
+  「席位已满，新媒体包继续留在 Procurement 等待」；零额度时显示「当前不接收这个来源的新媒体包；已经接收的媒体会继续整理」。
+- 同页`procurementFollowUp()`再次将已生成、已接收、等待数量写成长句，并直接使用Procurement/Libra。
+- `media-service/web/test/helix-copy.test.tsx` 的`keeps pending packages on the File Sources handoff ledger and explains zero seats`
+  用例明确断言零额度说明句必须存在；该断言没有证明用户能找到调整入口并完成操作。
+- `UAT-142`记录2026-08-30清理标题导语与重复说明；随后`0b5f07f0c`（2026-08-31，
+  `Align per-field intake and formation semantics`）新增上述接收说明和文本断言。该时间顺序证明本地后续修改重新引入同类问题，
+  不声称已经复查过生产部署或全部历史UAT。
+
+工程根因：此前清理针对已发现句子和页面位置，后续功能修改仍以“解释业务语义”满足验收；测试进一步固化解释句，
+没有把UI可发现性、状态表达和操作结果作为共同完成条件。旧UAT结论也不能证明后续diff的体验。
+
+整改验收方向：
+
+- 保留真实接收账本、占用数、额度、等待数和现有调整能力；用相邻短标签、数字和控件完成表达，删除重复叙述。
+- 分别覆盖有空位、额度已满、额度为0但仍有既有占用、保存失败和已注销；0额度不能显示为暂停既有整理，
+  占用额度不能标成正在转码数量。普通标签不要求用户理解Procurement/Libra。
+- 从页面找到并完成额度调整，核对保存结果与失败恢复；测试以真实状态和交互结果为Oracle，不再要求解释段落存在。
+- 走查按`ENGINEERING_PLAYBOOK.md` §11.1执行，记录对应版本的UI Evidence；不能只删文案便宣称易用性已验收。
+
+2026-09-11处理事实：已将用户偏好写入`AGENTS.md`、Engineering Playbook的DoD/§11.1、Beta验收方法和
+真实用户UAT清单HG-04。本次为工程规范修改与源码/历史只读审查，没有修改页面或测试，没有执行UI/UAT或部署。
+UX-039保持OPEN；规则落盘不等于现有界面已经修复。本节为问题Evidence，不建立活动Phase或改变架构/实施Gate。
