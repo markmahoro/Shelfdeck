@@ -168,7 +168,8 @@ function validateMediaVerification(value, handle, libraRunId) {
     candidateNodeId:verification.candidateNodeId,candidateBasisDigest:verification.candidateBasisDigest,
     candidateKind:verification.candidateKind,libraRunId,productMaterialHandleId:handle.handleId,
     productMaterialFenceDigest:handle.fenceDigest,mediaRequirementDigest:verification.mediaRequirementDigest,
-    sourceProbeEvidenceDigest:verification.sourceProbeEvidenceDigest,outputProbeEvidenceDigest:verification.outputProbeEvidenceDigest });
+    sourceProbeEvidenceDigest:verification.sourceProbeEvidenceDigest,outputProbeEvidenceDigest:verification.outputProbeEvidenceDigest,
+    ...(verification.spaceSummary?.episodeAllocation?{episodeSpaceBasisDigest:verification.spaceSummary.episodeAllocation.basisDigest}:{}) });
   if (verification.verificationId !== verificationId) fail('P9_REFERENCE_VERIFICATION', 'Media Verification identity is invalid.');
   return Object.freeze({ verificationId, authorizedDefectManifest:
     exactAuthorizedSizeDefect ? authorizedDefectManifest : null });

@@ -129,3 +129,9 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08逐集最终空间接纳DoR：按SSOT §5.5.8及§8.6.20，Arca以本批完整Product Manifest计算每集精确有理数份额，替换当前整批Primary求和；共文件均分、多part累加，不累计已上架旧集。Space AcceptanceCheck保存绑定Manifest/scope的typed逐集Evidence，沿既有max_size_exceeded Gap与完整Acceptance union；共用纯数学合同helper，不导入另一Owner模型。验证上限相等、单集超限、总量超过单集但各集合格、分数不可向下取整、Movie回归及实际Host。Libra bounded N:M入口仍需后续接线，不以Arca修复宣称全链已支持。
 
 2026-10-08逐集最终空间实现见[Evidence](evidence/SERIES_FINAL_SPACE_ACCEPTANCE_20261008.md)：Arca按完整Product Manifest均分/累加并保存typed Evidence；多part Structure覆盖与Libra最终Conformance独立聚合已验证。正式模板每集24字节、两集合计48字节的Host上架通过；24集回归通过。全架构2068项执行，2058通过/9既有skip/1历史见证拒绝范围断言更新后，相关86项复验通过。bounded N:M入口和逐成员加工仍待贯通，不关闭完整Series节点。
+
+2026-10-08 bounded N:M Direct DoR：依据SSOT §5.5.8，Libra Owner projection从冻结Run完整Primary/Probe集合生成closed Series空间Basis，绑定Run execution digest、成员digest、Handle/Probe digest及Episode范围。Capability只对该typed输入做精确分摊，返回当前成员所覆盖集的份额与Basis digest；Direct Reader逐字节重建输入/证据，Verification identity绑定Basis，Conformance和Arca仍从最终成品独立重算。保持64 KiB输入/16 KiB结果上限、物理成员只验证一次、无副作用或UI变化；验证共享文件、多part、分数边界、缺失/重复/foreign/改写Basis、实际Host N:M及Movie回归。逐成员加工和混合成品选择仍为独立未完成条件。
+
+2026-10-08 N:M上游根因修正DoR：实际两part样本在Procurement被`structure_ambiguous`拒绝，尚未创建Run；SSOT §3.2.6/§3.4.2已明确同Candidate内部multipart为Libra生产范围，不能视为Procurement边界错误。删除Triage对不同物理成员重复Episode key的全局拒绝，保留完整各成员typed Claim Set、物理唯一与容量限制；不推断分段命名、不变更后续Candidate零重叠准入。修正与SSOT冲突的旧单测并复验实际part Host和Series Intake连续性负向；不是通过放宽Libra/Arca最终验收绕过缺陷。
+
+2026-10-08 bounded N:M Direct结果：[空间Basis Evidence](evidence/SERIES_DIRECT_SPACE_BASIS_20261008.md)。共享文件及多part实际隔离Host经正式Handoff B/Commit完成，完整成员Basis、精确分摊、typed闭包、跨Basis拒绝及Movie回归通过。Procurement同Candidate重复Episode拒绝已按既有SSOT纠正，跨批Intake保持；节点尚未关闭，继续逐成员加工/混合选择和其余首版门槛。

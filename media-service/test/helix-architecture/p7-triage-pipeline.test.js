@@ -493,7 +493,7 @@ test('Series Triage aggregates N:M Episode members into one Season unit without 
   assert.equal(structure.units[0].identityMetadata.claimedTitle, 'Demo.Show');
 });
 
-test('Series Triage rejects overlapping Episode claims inside one Candidate unit', () => {
+test('Series Triage preserves overlapping Episode claims inside one Candidate unit', () => {
   const first = probeMember(0, 'Demo.Show.S01E01-02');
   const second = probeMember(1, 'Demo.Show.S01E02-03');
   const probeBatch = batch([first, second]);
@@ -558,13 +558,13 @@ test('Series Triage rejects overlapping Episode claims inside one Candidate unit
     },
     procurementTriageRuleSnapshot: rule,
   });
-  assert.equal(structure.resultKind, 'not_ready');
-  assert.equal(structure.units.length, 0);
-  assert.equal(structure.unassignedMaterials.length, 2);
-  assert.deepEqual(
-    [...new Set(structure.unassignedMaterials.map((item) => item.reasonCode))],
-    ['structure_ambiguous'],
-  );
+  assert.equal(structure.resultKind, 'resolved');
+  assert.equal(structure.units.length, 1);
+  assert.equal(structure.units[0].members.length, 2);
+  assert.equal(new Set(structure.units[0].members.map(item=>item.materialKey)).size,2);
+  assert.deepEqual(structure.units[0].members.flatMap(item=>item.episodeClaims.map(claim=>claim.episodeKey)).sort(),
+    ['E001','E002','E002','E003']);
+  assert.equal(structure.unassignedMaterials.length, 0);
 });
 
 test('Movie Triage associates only the exact NFO sidecar and conserves its canonical Related Reference', () => {

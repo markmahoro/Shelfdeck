@@ -493,6 +493,14 @@ function buildProductMediaCandidateInput(value) {
       fail('P9_MEDIA_EDITION_EVIDENCE','Edition evidence must belong to this workspace Run.');
     result.editionEvidence=value.editionEvidence;
   }
+  if(value.seriesSpaceBasis) {
+    if(kind!=='direct_input'||requirement.contentProfile!=='series'||requirement.space.unit!=='episode')
+      fail('P9_MEDIA_SERIES_SPACE','Series space basis requires a Series Direct Candidate.');
+    require('./series-media-space').evaluateSeriesMediaSpace({basis:value.seriesSpaceBasis,libraRunId:value.libraRunId,
+      handle:value.sourceMaterialHandle,probe:value.sourceProbeEvidence,maxSizeBytes:requirement.space.maxSizeBytes});
+    result.seriesSpaceBasis=value.seriesSpaceBasis;
+  } else if(kind==='direct_input'&&requirement.contentProfile==='series')
+    fail('P9_MEDIA_SERIES_SPACE','Series Direct Candidate requires a complete Episode space basis.');
   result.inputDigest = canonicalDigest(result);
   return limited(result, 64 * 1024, 'P9_MEDIA_CANDIDATE_SIZE');
 }
@@ -630,8 +638,19 @@ function buildProductMediaVerification(value) {
   if (mandatory.forbidSystemUpscaleFor4k && outputRaster === '4k' && sourceRaster !== '4k') reasons.push('system_upscale_forbidden');
   const audio = containedAudioClasses(outputProbe), accepted = mandatory.acceptedPrimaryAudioClasses || [];
   if (accepted.length && !audio.some((item) => accepted.includes(item))) reasons.push('primary_audio_unmet');
-  const actualSizeBytes=handle.sizeBytes??handle.expectedSizeBytes,maxSizeBytes = requirement.space.maxSizeBytes,
-    withinLimit = maxSizeBytes === null || maxSizeBytes === undefined || actualSizeBytes <= maxSizeBytes;
+  const actualSizeBytes=handle.sizeBytes??handle.expectedSizeBytes,maxSizeBytes = requirement.space.maxSizeBytes;
+  let episodeAllocation=null,withinLimit=maxSizeBytes===null||maxSizeBytes===undefined||actualSizeBytes<=maxSizeBytes;
+  if(input.seriesSpaceBasis) {
+    try {
+      if(input.candidateKind!=='direct_input'||requirement.contentProfile!=='series'||requirement.space.unit!=='episode')
+        throw new TypeError('Series space basis is not applicable to this Candidate.');
+      episodeAllocation=require('./series-media-space').evaluateSeriesMediaSpace({basis:input.seriesSpaceBasis,
+        libraRunId:input.libraRunId,handle,probe:outputProbe,maxSizeBytes});
+      withinLimit=episodeAllocation.withinLimit;
+    } catch { reasons.push('requirement_integrity_failure'); withinLimit=false; }
+  } else if(input.candidateKind==='direct_input'&&requirement.contentProfile==='series') {
+    reasons.push('requirement_integrity_failure');withinLimit=false;
+  }
   if (!withinLimit) reasons.push('max_size_exceeded');
   const sourceDynamicRangeKind=primaryDynamicRangeKind(input.sourceProbeEvidence),outputDynamicRangeKind=primaryDynamicRangeKind(outputProbe),
     outputVideo=primaryStreams(outputProbe?.videoStreams)[0]||{},profile=input.candidateKind==='workspace_output'
@@ -663,14 +682,15 @@ function buildProductMediaVerification(value) {
     outputProbeEvidenceId:outputProbe.evidenceId,outputProbeEvidenceDigest,
     qualitySummary:{videoCodec,container,fileExtension:extension,displayRasterClass:outputRaster,primaryAudioClasses:audio,
       sourceDisplayRasterClass:sourceRaster,systemUpscaleDetected:outputRaster==='4k'&&sourceRaster!=='4k',...(editionEvidence?{editionEvidence}:{})},
-    spaceSummary:{unit:requirement.space.unit,actualSizeBytes,maxSizeBytes:maxSizeBytes??null,withinLimit},
+    spaceSummary:{unit:requirement.space.unit,actualSizeBytes,maxSizeBytes:maxSizeBytes??null,withinLimit,...(episodeAllocation?{episodeAllocation}:{})},
     dynamicRangeSummary:{sourceDynamicRangeKind,outputDynamicRangeKind,conversionOperation,outputPixelFormat:outputVideo.pixelFormat||'unknown',
       outputColorProfile,dolbyVisionMetadataPresent},decodeSummary:{samplePointsPercent:Object.freeze([...(playback.samplePointsPercent||[])]),
       passedSamplePointsPercent:Object.freeze([...(playback.passedSamplePointsPercent||[])]),decodeDigest:digest(playback.decodeDigest,'decodeDigest')} };
   result.verificationId=canonicalDigest({schema:'libra.product-media-verification-id@1',candidateId:result.candidateId,candidateNodeId:result.candidateNodeId,
     candidateBasisDigest:result.candidateBasisDigest,candidateKind:result.candidateKind,libraRunId:result.libraRunId,
     productMaterialHandleId:result.productMaterialHandleId,productMaterialFenceDigest,mediaRequirementDigest:result.mediaRequirementDigest,
-    sourceProbeEvidenceDigest,outputProbeEvidenceDigest});
+    sourceProbeEvidenceDigest,outputProbeEvidenceDigest,
+    ...(episodeAllocation?{episodeSpaceBasisDigest:episodeAllocation.basisDigest}:{})});
   return limited(result,16*1024,'P9_PRODUCT_MEDIA_VERIFICATION_SIZE');
 }
 

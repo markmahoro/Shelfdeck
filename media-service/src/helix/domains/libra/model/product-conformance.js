@@ -288,7 +288,8 @@ function buildProductConformanceInputSnapshot(value) {
       candidateNodeId:verification.candidateNodeId,candidateBasisDigest:verification.candidateBasisDigest,candidateKind:verification.candidateKind,
       libraRunId:verification.libraRunId,productMaterialHandleId:verification.productMaterialHandleId,
       productMaterialFenceDigest:verification.productMaterialFenceDigest,mediaRequirementDigest:verification.mediaRequirementDigest,
-      sourceProbeEvidenceDigest:verification.sourceProbeEvidenceDigest,outputProbeEvidenceDigest:verification.outputProbeEvidenceDigest});
+      sourceProbeEvidenceDigest:verification.sourceProbeEvidenceDigest,outputProbeEvidenceDigest:verification.outputProbeEvidenceDigest,
+      ...(verification.spaceSummary?.episodeAllocation?{episodeSpaceBasisDigest:verification.spaceSummary.episodeAllocation.basisDigest}:{})});
     if(verification.verificationId!==expectedVerificationId)fail('P9_CONFORMANCE_SELECTED_CONTINUITY','Product Media Verification identity is invalid.');
   }
   const productFactSetDigest = canonicalDigest({ schema:'libra.product-conformance-fact-set@1', items:facts });

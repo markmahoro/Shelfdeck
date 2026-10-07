@@ -13,17 +13,20 @@ function directCandidateNodeId(snapshot, member) {
     : 'direct_input';
 }
 
-function directRequirement(snapshot, sources) {
-  const requirement = buildMediaRequirement(snapshot.spec);
-  if (snapshot.spec.contentProfile === 'series' && requirement.space.maxSizeBytes !== null) {
-    const keys = sources.flatMap(item => item.member.episodeClaims.map(claim => claim.episodeKey));
-    if (sources.some(item => item.member.episodeClaims.length !== 1) || new Set(keys).size !== keys.length) {
-      const error = new Error('Bounded N:M Series verification requires complete Episode allocation evidence before per-member selection.');
-      error.code = 'LIBRA_SERIES_SPACE_AGGREGATION_REQUIRED';
-      throw error;
-    }
-  }
-  return requirement;
+function directRequirement(snapshot) { return buildMediaRequirement(snapshot.spec); }
+
+function buildDirectMediaInput(snapshot, sources, source) {
+  const seriesSpaceBasis=snapshot.spec.contentProfile==='series'
+    ? require('../model/series-media-space').buildSeriesMediaSpaceBasis({libraRunId:snapshot.run.libraRunId,
+      runExecutionBasisDigest:snapshot.run.executionBasisDigest,episodeKeys:snapshot.spec.productScope.episodeKeys,
+      members:sources.map(item=>({materialKey:item.member.materialKey,memberDigest:canonicalDigest(item.member),
+        handleDigest:canonicalDigest(item.readHandle),probeDigest:canonicalDigest(item.record.result),
+        sizeBytes:item.readHandle.sizeBytes??item.readHandle.expectedSizeBytes,
+        episodeKeys:item.member.episodeClaims.map(claim=>claim.episodeKey)}))}) : null;
+  return buildProductMediaCandidateInput({libraRunId:snapshot.run.libraRunId,
+    candidateNodeId:directCandidateNodeId(snapshot,source.member),candidateKind:'direct_input',
+    mediaRequirement:directRequirement(snapshot),sourceMaterialHandle:source.readHandle,sourceProbeEvidence:source.record.result,
+    ...(seriesSpaceBasis?{seriesSpaceBasis}:{})});
 }
 
 // Reconstruct the whole frozen set before any caller consumes a selected member.
@@ -38,13 +41,11 @@ function readDirectMediaSelections(options, snapshot, workId) {
     throw new Error('Direct Results do not cover the complete frozen Primary set.');
   const used = new Set();
   return Object.freeze(sources.map(source => {
-    const input = buildProductMediaCandidateInput({libraRunId:snapshot.run.libraRunId,
-      candidateNodeId:directCandidateNodeId(snapshot, source.member),candidateKind:'direct_input',
-      mediaRequirement:requirement,sourceMaterialHandle:source.readHandle,sourceProbeEvidence:source.record.result});
+    const input = buildDirectMediaInput(snapshot,sources,source);
     const matches = verifications.filter(item => item.result.candidateId === input.candidateId);
     if (matches.length !== 1) throw new Error('Direct Verification is missing or ambiguous for a Primary.');
     const verification = matches[0].result;
-    if (verification.libraRunId !== snapshot.run.libraRunId || verification.candidateKind !== 'direct_input' ||
+    if (verification.basisDigest !== input.inputDigest || verification.libraRunId !== snapshot.run.libraRunId || verification.candidateKind !== 'direct_input' ||
         verification.candidateNodeId !== input.candidateNodeId || verification.candidateBasisDigest !== input.candidateBasisDigest ||
         verification.productMaterialHandleId !== source.readHandle.handleId ||
         verification.productMaterialHandleDigest !== canonicalDigest(source.readHandle) ||
@@ -52,6 +53,13 @@ function readDirectMediaSelections(options, snapshot, workId) {
         verification.mediaRequirementDigest !== requirement.requirementDigest ||
         verification.sourceProbeEvidenceDigest !== canonicalDigest(source.record.result))
       throw new Error('Direct Verification differs from its frozen Primary basis.');
+    if (input.seriesSpaceBasis) {
+      const expected=require('../model/series-media-space').evaluateSeriesMediaSpace({basis:input.seriesSpaceBasis,
+        libraRunId:input.libraRunId,handle:source.readHandle,probe:source.record.result,maxSizeBytes:requirement.space.maxSizeBytes});
+      if(canonicalJson(verification.spaceSummary.episodeAllocation)!==canonicalJson(expected)||
+          verification.spaceSummary.withinLimit!==expected.withinLimit)
+        throw new Error('Direct Verification differs from the complete Episode allocation basis.');
+    }
     const selectionInput = buildProductOutputSelectionInput({libraRunId:snapshot.run.libraRunId,
       acceptanceSpecId:snapshot.spec.acceptanceSpecId,acceptanceSpecRecordDigest:snapshot.spec.recordDigest,
       mediaRequirementDigest:requirement.requirementDigest,
@@ -66,4 +74,4 @@ function readDirectMediaSelections(options, snapshot, workId) {
   }));
 }
 
-module.exports = Object.freeze({directCandidateNodeId, directRequirement, readDirectMediaSelections});
+module.exports = Object.freeze({directCandidateNodeId, directRequirement, buildDirectMediaInput, readDirectMediaSelections});

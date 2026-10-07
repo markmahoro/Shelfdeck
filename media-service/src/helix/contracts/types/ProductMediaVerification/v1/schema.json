@@ -297,6 +297,81 @@
         },
         "withinLimit": {
           "type": "boolean"
+        },
+        "episodeAllocation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "basisDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "allocations": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 32,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "episodeKey": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "allocatedBytes": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "numerator": {
+                        "type": "string",
+                        "pattern": "^(0|[1-9][0-9]*)$",
+                        "maxLength": 64
+                      },
+                      "denominator": {
+                        "type": "string",
+                        "pattern": "^[1-9][0-9]*$",
+                        "maxLength": 64
+                      }
+                    },
+                    "required": [
+                      "numerator",
+                      "denominator"
+                    ]
+                  },
+                  "maxSizeBytes": {
+                    "anyOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 9007199254740991
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "withinLimit": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "episodeKey",
+                  "allocatedBytes",
+                  "maxSizeBytes",
+                  "withinLimit"
+                ]
+              }
+            },
+            "withinLimit": {
+              "type": "boolean"
+            }
+          },
+          "required": [
+            "basisDigest",
+            "allocations",
+            "withinLimit"
+          ]
         }
       },
       "required": [
@@ -304,6 +379,24 @@
         "actualSizeBytes",
         "maxSizeBytes",
         "withinLimit"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "unit": {
+                "const": "product"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "episodeAllocation"
+              ]
+            }
+          }
+        }
       ]
     },
     "dynamicRangeSummary": {

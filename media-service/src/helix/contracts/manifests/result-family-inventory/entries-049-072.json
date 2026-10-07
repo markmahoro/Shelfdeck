@@ -673,7 +673,7 @@
       "sourceLocator": {
         "section": "8.6.19",
         "line": 11086,
-        "lineDigest": "8b14af73f3666b8600d82622f629d02ac7d84e64cb10d1b3c308ed7d69a5f765"
+        "lineDigest": "d314fbc04c0945d82267d5b5f2bebb09aa909ffc6be07d9352f09060d0a393f3"
       },
       "targetLocator": {
         "path": "types/ProductMediaVerification/v1/schema.json"

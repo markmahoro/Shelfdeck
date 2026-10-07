@@ -22,6 +22,7 @@ function fixture(count=2,profile='series') {
   const snapshot={run:{libraRunId:'run',executionBasisDigest:D('basis'),acceptanceSpecId:'spec',createdAtMs:1,
     runMaterialManifestId:'manifest',runMaterialManifestDigest:D('manifest'),runScopeDigest:D('scope'),priorityClass:'normal'},
     spec:{schemaRef:'libra.acceptance-spec@1',schemaVersion:1,acceptanceSpecId:'spec',specRevision:1,
+      productScope:{episodeKeys:members.flatMap(item=>item.episodeClaims.map(claim=>claim.episodeKey))},
       contentProfile:profile,structureKind:profile==='series'?'season':'single',recordDigest:D('spec'),
       requirements:{mandatoryMedia:{mediaForm:'stream_file',videoCodec:'hevc',container:'any',fileExtension:'any',
         minimumRasterClass:'none',acceptedPrimaryAudioClasses:[],forbidSystemUpscaleFor4k:true},
@@ -60,7 +61,7 @@ function records(value) {
     capabilityRef:'shared.material.media.probe@1',result:probe(item.readHandle)}));
 }
 
-for(const count of [2,24]) test('Series source Plan freezes one independent read-only Probe for each of '+count+' physical Primaries',()=>{
+for(const count of [2,24,32]) test('Series source Plan freezes one independent read-only Probe for each of '+count+' physical Primaries',()=>{
   const value=fixture(count),definition=plan(value);
   assert.equal(definition.nodes.length,count);
   assert.equal(new Set(definition.nodes.map(node=>node.eventId)).size,count);
@@ -161,7 +162,7 @@ function directProject(value,parameters) {
   return createWorkspaceMediaProductionProjections(value.options).find(item=>item.projectionRef===DIRECT_CANDIDATE)
     .projection.project({ownerScope:{processId:'run'},parameters});
 }
-for(const count of [2,24]) test('Direct verification and selection bind each of '+count+' Series Primaries independently',()=>{
+for(const count of [2,24,32]) test('Direct verification and selection bind each of '+count+' Series Primaries independently',()=>{
   const value=fixture(count);value.setRecords(records(value).reverse());
   const nodes=directPlan(value).nodes;
   assert.equal(nodes.length,count*2);assert.equal(new Set(nodes.map(node=>node.eventId)).size,count*2);
@@ -201,11 +202,14 @@ test('Movie Direct retains its node names and single candidate identity',()=>{
   assert.deepEqual(Object.keys(parameters),['sourceWorkId']);
   assert.equal(directProject(value,parameters).candidateNodeId,'direct_input');
 });
-test('N:M Direct verifies each physical member once without inventing bounded aggregate evidence',()=>{
+test('N:M Direct verifies each physical member once with complete bounded aggregate evidence',()=>{
   const value=fixture();value.snapshot.members[0].episodeClaims.push(value.snapshot.members[1].episodeClaims[0]);
   value.setRecords(records(value));assert.equal(directPlan(value).nodes.length,4);
   value.snapshot.spec.requirements.space={unit:'episode',maxSizeGiB:0.75,maxSizeBytes:805306368};
-  assert.throws(()=>directPlan(value),{code:'LIBRA_SERIES_SPACE_AGGREGATION_REQUIRED'});
+  const nodes=directPlan(value).nodes;assert.equal(nodes.length,4);
+  const input=directProject(value,nodes[0].inputBindings.bindings[0].parameters);
+  assert.equal(input.seriesSpaceBasis.members.length,2);
+  assert.deepEqual(input.seriesSpaceBasis.episodeKeys,['E001','E002']);
 });
 test('A failing Episode cannot borrow the passed verification of another Primary',()=>{
   const {buildProductMediaVerification,selectProductOutput}=require('../../src/helix/domains/libra/model/media-production-contracts');
@@ -251,13 +255,13 @@ function directResultsFixture(count=2) {
   return {...value,output,workId};
 }
 const {readDirectMediaSelections}=require('../../src/helix/domains/libra/planning/direct-media-selections');
-for(const count of [2,24]) test('Direct durable set reconstructs every frozen Primary for '+count+' members',()=>{
+for(const count of [2,24,32]) test('Direct durable set reconstructs every frozen Primary for '+count+' members',()=>{
   const value=directResultsFixture(count);value.output.reverse();
   const result=readDirectMediaSelections(value.options,value.snapshot,value.workId);
   assert.equal(result.length,count);assert.equal(new Set(result.map(item=>item.selection.selectedHandleId)).size,count);
   assert.ok(result.every(item=>item.selection.result==='selected'));
 });
-for(const mutation of ['missing','duplicate','foreign_run','handle','selection_digest','borrowed_selection'])
+for(const mutation of ['missing','duplicate','foreign_run','handle','selection_digest','borrowed_selection','allocation','input_basis'])
 test('Direct durable set rejects '+mutation+' before delivery',()=>{
   const value=directResultsFixture();
   if(mutation==='missing')value.output.pop();
@@ -266,5 +270,82 @@ test('Direct durable set rejects '+mutation+' before delivery',()=>{
   if(mutation==='handle')value.output[0].result.productMaterialHandleDigest=D('foreign');
   if(mutation==='selection_digest')value.output[1].result.draftDigest=D('forged');
   if(mutation==='borrowed_selection')value.output[3]=value.output[1];
+  if(mutation==='allocation'){value.output[0].result=structuredClone(value.output[0].result);
+    value.output[0].result.spaceSummary.episodeAllocation.allocations[0].allocatedBytes.numerator='1';}
+  if(mutation==='input_basis')value.output[0].result.basisDigest=D('foreign-input');
   assert.throws(()=>readDirectMediaSelections(value.options,value.snapshot,value.workId));
+});
+
+function verifyDirectInput(input) {
+  return require('../../src/helix/domains/libra/model/media-production-contracts').buildProductMediaVerification({input,
+    verifiedAtMs:1,playbackVerification:{samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('decode')}});
+}
+function aggregateFixture(cap) {
+  const value=fixture();
+  value.snapshot.members[0].episodeClaims.push({...value.snapshot.members[1].episodeClaims[0]});
+  value.snapshot.members[1].episodeClaims=[{...value.snapshot.members[0].episodeClaims[0]}];
+  for(const [index,size] of [9,3].entries()) {
+    value.snapshot.members[index].sizeBytes=size;value.snapshot.members[index].physicalIdentity.sizeBytes=size;
+  }
+  value.snapshot.spec.requirements.space={unit:'episode',maxSizeBytes:cap,maxSizeGiB:cap/1073741824};
+  value.setRecords(records(value));
+  return {value,input:directProject(value,directPlan(value).nodes[0].inputBindings.bindings[0].parameters)};
+}
+for(const cap of [7,8]) test('Direct complete N:M basis compares fractional shares against '+cap+' bytes',()=>{
+  const {input}=aggregateFixture(cap),result=verifyDirectInput(input);
+  assert.deepEqual(result.spaceSummary.episodeAllocation.allocations.map(item=>[item.episodeKey,item.allocatedBytes]),[
+    ['E001',{numerator:'15',denominator:'2'}],['E002',{numerator:'9',denominator:'2'}]]);
+  assert.equal(result.spaceSummary.actualSizeBytes,9);
+  assert.equal(result.result,cap===7?'failed':'passed');
+  assert.deepEqual(result.reasonCodes,cap===7?['max_size_exceeded']:[]);
+});
+for(const mutation of ['missing','foreign_run','digest','duplicate_handle','probe','size','incomplete_scope','unsorted','extra'])
+test('Direct verification rejects corrupted Series space basis: '+mutation,()=>{
+  const input=structuredClone(aggregateFixture(8).input),basis=input.seriesSpaceBasis;
+  if(mutation==='missing')delete input.seriesSpaceBasis;
+  if(mutation==='foreign_run')basis.libraRunId='other';
+  if(mutation==='digest')basis.basisDigest=D('false');
+  if(mutation==='duplicate_handle')basis.members[1].handleDigest=basis.members[0].handleDigest;
+  if(mutation==='probe')basis.members[0].probeDigest=D('foreign');
+  if(mutation==='size')basis.members[0].sizeBytes=8;
+  if(mutation==='incomplete_scope')basis.episodeKeys.pop();
+  if(mutation==='unsorted')basis.members.reverse();
+  if(mutation==='extra')basis.extra=true;
+  // Rehash to distinguish semantic/canonical failure from a stale outer digest.
+  if(mutation!=='digest'&&mutation!=='missing')basis.basisDigest=canonicalDigest(Object.fromEntries(
+    Object.entries(basis).filter(([key])=>key!=='basisDigest')));
+  input.inputDigest=canonicalDigest(Object.fromEntries(Object.entries(input).filter(([key])=>key!=='inputDigest')));
+  const result=verifyDirectInput(input);
+  assert.equal(result.result,'failed');assert.ok(result.reasonCodes.includes('requirement_integrity_failure'));
+});
+test('Series verification identity binds the entire allocation basis, including another part',()=>{
+  const first=aggregateFixture(8),second=aggregateFixture(8);
+  second.value.snapshot.members[1].physicalIdentity.sizeBytes=4;second.value.snapshot.members[1].sizeBytes=4;
+  second.value.setRecords(records(second.value));
+  const changed=directProject(second.value,directPlan(second.value).nodes[0].inputBindings.bindings[0].parameters);
+  assert.equal(first.input.candidateId,changed.candidateId);
+  assert.notEqual(verifyDirectInput(first.input).verificationId,verifyDirectInput(changed).verificationId);
+});
+
+test('Series media space typed bounds reject oversized sets, unknown fields and fractional byte truncation',()=>{
+  const Ajv=require('ajv/dist/2020'),schemas=require('../../scripts/helix-architecture/series-media-space-schema');
+  const ajv=new Ajv({strict:false,allErrors:true}),validateBasis=ajv.compile(schemas.basis),validateAllocation=ajv.compile(schemas.allocation);
+  const input=aggregateFixture(8).input,allocation=verifyDirectInput(input).spaceSummary.episodeAllocation;
+  assert.equal(validateBasis(input.seriesSpaceBasis),true,JSON.stringify(validateBasis.errors));
+  assert.equal(validateAllocation(allocation),true,JSON.stringify(validateAllocation.errors));
+  for(const mutation of ['member_count','claims','extra','unsafe_size']) {
+    const value=structuredClone(input.seriesSpaceBasis);
+    if(mutation==='member_count')value.members=Array(33).fill(value.members[0]);
+    if(mutation==='claims')value.members[0].episodeKeys=Array.from({length:33},(_,i)=>'E'+i);
+    if(mutation==='extra')value.members[0].hidden=true;
+    if(mutation==='unsafe_size')value.members[0].sizeBytes=Number.MAX_SAFE_INTEGER+1;
+    assert.equal(validateBasis(value),false,mutation);
+  }
+  for(const mutation of ['fraction','zero_denominator','oversized_numerator']) {
+    const value=structuredClone(allocation);
+    if(mutation==='fraction')value.allocations[0].allocatedBytes.numerator=7.5;
+    if(mutation==='zero_denominator')value.allocations[0].allocatedBytes.denominator='0';
+    if(mutation==='oversized_numerator')value.allocations[0].allocatedBytes.numerator='9'.repeat(65);
+    assert.equal(validateAllocation(value),false,mutation);
+  }
 });

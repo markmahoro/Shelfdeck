@@ -182,14 +182,15 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append,anchored,concurrent,bounded} of [{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:180000},async t=>{
+for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts} of [{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:180000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
   fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
   const episodeNumbers=Array.from({length:episodeCount},(_,index)=>index+1);
   const episodeKeys=episodeNumbers.map(number=>'E'+String(number).padStart(3,'0'));
-  const sources=episodeNumbers.map(number=>path.join(source,'Demo Show.S01E'+String(number).padStart(2,'0')+'.mkv'));
+  const sources=parts?[1,2].map(part=>path.join(source,'Demo Show.S01E01.part'+part+'.mkv')):shared?[path.join(source,'Demo Show.S01E01-02.mkv')]:episodeNumbers.map(number=>path.join(source,'Demo Show.S01E'+String(number).padStart(2,'0')+'.mkv'));
+  const physicalCount=sources.length,perEpisodeCap=parts?48:shared?12:24;
   sources.forEach(file=>fs.writeFileSync(file,'read-only-series-fixture'));
   if(concurrent){
     const batch=path.join(root,'source2','Batch B {tmdb-series-1399}','Season 01');
@@ -286,7 +287,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded} of [{episodeCount:2,
     const draft=(await request('GET','/v1/admin/rule-templates/'+ruleTemplateId+'/draft')).json().draft;
     const rules=structuredClone(draft.rules),profile=rules.profileRuleSets.find(item=>item.contentProfile==='series');
     for(const requirements of [profile.baseRequirements,...profile.decisionBranches.map(item=>item.requirements)]){
-      requirements.space={unit:'episode',maxSizeGiB:24/1073741824,maxSizeBytes:24};
+      requirements.space={unit:'episode',maxSizeGiB:perEpisodeCap/1073741824,maxSizeBytes:perEpisodeCap};
     }
     profile.profileRuleSetDigest=canonicalDigest(Object.fromEntries(Object.entries(profile).filter(([key])=>key!=='profileRuleSetDigest')));
     const rulesDigest=canonicalDigest(rules);
@@ -382,20 +383,20 @@ for(const {episodeCount,append,anchored,concurrent,bounded} of [{episodeCount:2,
       .filter(result=>result.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'&&result.checkKind==='space');
     assert.equal(checks.length,1);assert.equal(checks[0].result,'passed');
     assert.deepEqual(checks[0].episodeSpaceEvidence.allocations.map(item=>({key:item.episodeKey,...item.allocatedBytes,withinLimit:item.withinLimit})),
-      [{key:'E001',numerator:'24',denominator:'1',withinLimit:true},{key:'E002',numerator:'24',denominator:'1',withinLimit:true}]);
-    assert.equal(checks[0].episodeSpaceEvidence.maxSizeBytes,24);
+      episodeKeys.map(key=>({key,numerator:String(perEpisodeCap),denominator:'1',withinLimit:true})));
+    assert.equal(checks[0].episodeSpaceEvidence.maxSizeBytes,perEpisodeCap);
   }
   const packages=db.prepare('SELECT * FROM libra_product_packages').all();
   assert.equal(packages.length,1);
   const provenance=JSON.parse(packages[0].production_provenance_json);
   const readSet=provenance.shelfAcceptancePrimaryReadSet;
-  assert.equal(readSet.primaryInputs.length,episodeCount);
-  assert.equal(new Set(readSet.primaryInputs.map(item=>item.materialKey)).size,episodeCount);
+  assert.equal(readSet.primaryInputs.length,physicalCount);
+  assert.equal(new Set(readSet.primaryInputs.map(item=>item.materialKey)).size,physicalCount);
   const packaged=db.prepare('SELECT * FROM libra_product_package_materials WHERE on_deck_package_id=?').all(packages[0].on_deck_package_id);
   const primary=packaged.filter(item=>item.role==='primary_payload');
-  assert.equal(primary.length,episodeCount);
+  assert.equal(primary.length,physicalCount);
   assert.equal(packaged.filter(item=>item.role==='metadata_sidecar').length,episodeCount+1);
-  assert.equal(db.prepare('SELECT count(*) n FROM libra_product_package_material_episode_claims').get().n,episodeCount);
+  assert.equal(db.prepare('SELECT count(*) n FROM libra_product_package_material_episode_claims').get().n,parts?2:episodeCount);
   for(const item of readSet.primaryInputs) {
     const member=primary.find(row=>row.material_key===item.materialKey);
     assert.ok(member);assert.equal(item.productMemberDigest,member.member_digest);
@@ -409,18 +410,18 @@ for(const {episodeCount,append,anchored,concurrent,bounded} of [{episodeCount:2,
     .map(item=>JSON.parse(item.result_json));
   const selections=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-direct-media-select-event-%'").all()
     .map(item=>JSON.parse(item.result_json));
-  assert.equal(directResults.length,episodeCount);assert.equal(selections.length,episodeCount);
-  assert.equal(new Set(directResults.map(item=>item.productMaterialHandleDigest)).size,episodeCount);
+  assert.equal(directResults.length,physicalCount);assert.equal(selections.length,physicalCount);
+  assert.equal(new Set(directResults.map(item=>item.productMaterialHandleDigest)).size,physicalCount);
   for(const result of directResults)assert.equal(result.result,'passed',JSON.stringify(result));
   assert.deepEqual(selections.map(item=>item.selectedVerificationId).sort(),directResults.map(item=>item.verificationId).sort());
   const sourceProbes=db.prepare("SELECT event_id,result_json,result_digest FROM fx_event_result_bindings WHERE event_id LIKE 'libra-source-media-probe-event-%'").all();
-  assert.equal(sourceProbes.length,episodeCount);
+  assert.equal(sourceProbes.length,physicalCount);
   for(const item of sourceProbes) {
     const value=JSON.parse(item.result_json);assertProbeEvidence(value);
     assert.equal(item.result_digest,canonicalDigest(value));
   }
   assert.equal(db.prepare("SELECT count(*) n FROM fx_event_attempts WHERE event_id LIKE 'libra-source-media-probe-event-%' AND failure_code IS NOT NULL").get().n,0);
-  assert.equal(new Set(sourceProbes.map(item=>JSON.parse(item.result_json).sourceHandleDigest)).size,episodeCount);
+  assert.equal(new Set(sourceProbes.map(item=>JSON.parse(item.result_json).sourceHandleDigest)).size,physicalCount);
   const sourceNodes=db.prepare("SELECT input_bindings_json FROM fx_plan_nodes WHERE node_id LIKE 'source_media_probe_%'").all();
   const probeKeys=sourceNodes.map(node=>JSON.parse(node.input_bindings_json).bindings[0].parameters.materialKey).sort();
   const primaryKeys=db.prepare("SELECT material_key FROM libra_run_material_members WHERE role='primary_payload' ORDER BY material_key").all();
@@ -444,7 +445,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded} of [{episodeCount:2,
   }
   assert.ok(providerCalls.some(call=>call.operationId===undefined&&call.intent.contentProfile==='series'&&call.intent.seasonNumber===1));
   const claims=db.prepare('SELECT episode_key FROM libra_run_material_episode_claims ORDER BY episode_key').all();
-  assert.deepEqual(claims.map(claim=>claim.episode_key),episodeKeys);
+  assert.deepEqual([...new Set(claims.map(claim=>claim.episode_key))],episodeKeys);
   const metadata=JSON.parse(state.facts.find(fact=>fact.fact_kind==='product_metadata').fact_json);
   assert.deepEqual(metadata.episodeMetadata.map(item=>item.episodeScope.episodeKey),episodeKeys);
   const artifacts=db.prepare("SELECT artifact_kind FROM fx_artifact_registry WHERE owner_domain='libra' AND state='active'").all();
@@ -470,17 +471,17 @@ for(const {episodeCount,append,anchored,concurrent,bounded} of [{episodeCount:2,
   assert.ok(state.works.some(work=>work.work_kind==='routing_provider_facts'&&work.state==='succeeded'));
   assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1);
   const inventory=db.prepare('SELECT * FROM arca_inventory_materials').all();
-  assert.equal(inventory.length,episodeCount*2+2);
+  assert.equal(inventory.length,episodeCount+physicalCount+2);
   assert.equal(db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n,1);
   assert.equal(new Set(inventory.map(item=>item.location)).size,inventory.length);
   const inventoryPrimary=inventory.filter(item=>item.role==='primary_payload');
-  assert.equal(inventoryPrimary.length,episodeCount);
+  assert.equal(inventoryPrimary.length,physicalCount);
   for(const item of inventoryPrimary) {
     assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
     assert.equal(path.basename(path.dirname(item.location)),'Season 01');
     assert.ok(path.relative(target,item.location)&&!path.relative(target,item.location).startsWith('..'));
   }
-  assert.deepEqual(inventoryPrimary.flatMap(item=>JSON.parse(item.episode_claims_json).items.map(claim=>claim.episodeKey)).sort(),episodeKeys);
+  assert.deepEqual([...new Set(inventoryPrimary.flatMap(item=>JSON.parse(item.episode_claims_json).items.map(claim=>claim.episodeKey)))].sort(),episodeKeys);
   const finalNfos=inventory.filter(item=>item.role==='metadata_sidecar');
   assert.equal(finalNfos.length,episodeCount+1);
   for(const number of episodeNumbers) {

@@ -31,7 +31,7 @@ const {
 } = require('./media-production-work');
 const { createProductionSourceScopeResolver } = require('./production-source-scope-resolver');
 const { readSourceMediaObservations } = require('./source-media-observations');
-const { directCandidateNodeId, directRequirement } = require('./direct-media-selections');
+const { directCandidateNodeId, directRequirement, buildDirectMediaInput } = require('./direct-media-selections');
 const { workspaceId } = require('../model/workspace-admission-contracts');
 
 const PROBE = 'shared.material.media.probe@1';
@@ -448,9 +448,7 @@ function createWorkspaceMediaProductionProjections(options) {
         if(Object.keys(memberParameters).length)throw new Error('Single Direct Candidate cannot carry Series member parameters.');
         selected=sources[0];
       }
-      return buildProductMediaCandidateInput({libraRunId:value.run.libraRunId,
-        candidateNodeId:directCandidateNodeId(value,selected.member),candidateKind:'direct_input',
-        mediaRequirement:directRequirement(value,sources),sourceMaterialHandle:selected.readHandle,sourceProbeEvidence:selected.record.result});
+      return buildDirectMediaInput(value,sources,selected);
     }})}),
     Object.freeze({projectionRef:SOURCE_SCOPE,projection:Object.freeze({project:({ownerScope})=>sourceReference(snapshot(ownerScope))})}),
     Object.freeze({projectionRef:REMUX_INTENT,projection:Object.freeze({project:({ownerScope})=>remuxIntent(snapshot(ownerScope))})}),

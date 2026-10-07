@@ -1246,12 +1246,12 @@
       "relativePath": "types/ProductMediaVerification/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "f86b92babba860151fc118b4d0c514cd056d9327278f8f0e41805fae56305812"
+        "value": "d314bf4eb669f8568fafcb48a70eaff5220743c701f9fa76aed4003528346aa3"
       },
       "source": {
         "section": "8.6.19",
         "line": 11086,
-        "lineDigest": "8b14af73f3666b8600d82622f629d02ac7d84e64cb10d1b3c308ed7d69a5f765"
+        "lineDigest": "d314fbc04c0945d82267d5b5f2bebb09aa909ffc6be07d9352f09060d0a393f3"
       }
     },
     {

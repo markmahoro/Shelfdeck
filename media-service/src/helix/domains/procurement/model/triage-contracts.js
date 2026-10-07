@@ -615,27 +615,8 @@ function conserveUnitBound(unit, unassigned) {
 function mergeSeriesUnits(groups, unassigned) {
   const merged = [];
   for (const group of groups.values()) {
-    const episodeOwners = new Map();
-    let duplicate = false;
-    for (const unit of group) {
-      for (const member of unit.members) {
-        for (const claim of member.episodeClaims) {
-          if (episodeOwners.has(claim.episodeKey)) duplicate = true;
-          episodeOwners.set(claim.episodeKey, member.materialKey);
-        }
-      }
-    }
-    if (duplicate) {
-      for (const unit of group) {
-        for (const member of unit.members) unassigned.push({
-          materialKey:member.materialKey,
-          reasonCode:'structure_ambiguous',
-          evidenceDigest:digest({ schema:'procurement.series-episode-overlap@1',
-            materialKey:member.materialKey, episodeClaims:member.episodeClaims }),
-        });
-      }
-      continue;
-    }
+    // One Candidate preserves N:M Episode claims. Overlap between later
+    // Candidates is an Intake continuity decision, not a Triage structure gap.
     const members = group.flatMap((unit) => unit.members)
       .sort((a,b) => compareUtf8(a.materialKey,b.materialKey));
     const first = [...group].sort((a,b) => compareUtf8(a.unitId,b.unitId))[0];

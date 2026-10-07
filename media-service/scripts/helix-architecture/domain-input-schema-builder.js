@@ -1686,6 +1686,9 @@ function productMediaCandidateInputSchema() {
     sourceProbeEvidence: typeRef('MediaProbeEvidence') });
   const workspace = object({ ...common, candidateKind: { const: 'workspace_output' }, workspaceMediaHandle: typeRef('WorkspaceMediaHandle'),
     sourceProbeEvidence: typeRef('MediaProbeEvidence'), outputProbeEvidence: typeRef('MediaProbeEvidence') });
+  direct.properties.seriesSpaceBasis = require('./series-media-space-schema').basis;
+  direct.allOf=[{if:{properties:{mediaRequirement:{properties:{contentProfile:{const:'series'}}}}},
+    then:{required:['seriesSpaceBasis']},else:{not:{required:['seriesSpaceBasis']}}}];
   workspace.properties.editionEvidence = require('../../src/helix/contracts/media-edition-evidence').editionEvidenceSchema;
   return { $schema: DRAFT, $id: domainTypeId('ProductMediaCandidateInput'), title: 'ProductMediaCandidateInput@1',
     'x-helix-ssotRefs': ['8.6.18'], 'x-helix-role': 'accepted-business-dto', 'x-helix-maxCanonicalBytes': 64 * 1024,

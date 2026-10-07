@@ -426,8 +426,10 @@ const special = {
   'ProductMediaVerification.qualitySummary': (()=>{const schema=object({ videoCodec: text(), container: text(), fileExtension: text(),
     displayRasterClass: text(), primaryAudioClasses: arrayOf(text(), 128), sourceDisplayRasterClass: text(), systemUpscaleDetected: bool() });
     schema.properties.editionEvidence=require('../../src/helix/contracts/media-edition-evidence').editionEvidenceSchema;return schema;})(),
-  'ProductMediaVerification.spaceSummary': object({ unit: enumText('product', 'episode'), actualSizeBytes: nonNegativeInteger(),
-    maxSizeBytes: nullable(positiveInteger()), withinLimit: bool() }),
+  'ProductMediaVerification.spaceSummary': (()=>{const schema=object({ unit: enumText('product', 'episode'), actualSizeBytes: nonNegativeInteger(),
+    maxSizeBytes: nullable(positiveInteger()), withinLimit: bool() });
+    schema.properties.episodeAllocation=require('./series-media-space-schema').allocation;
+    schema.allOf=[{if:{properties:{unit:{const:'product'}}},then:{not:{required:['episodeAllocation']}}}];return schema;})(),
   'ProductMediaVerification.dynamicRangeSummary': object({
     sourceDynamicRangeKind: enumText('sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'),
     outputDynamicRangeKind: enumText('sdr', 'hdr10_compatible', 'hlg', 'dolby_vision', 'unknown'),
