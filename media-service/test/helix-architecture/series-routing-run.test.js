@@ -17,6 +17,8 @@ const { createFieldObservationAdminService } = require('../../src/helix/domains/
 const { initializeCleanData } = require('../../scripts/helix-operational-safety');
 const { createCleanServiceHost } = require('../../src/clean-service-host');
 const { assertProbeEvidence } = require('../../src/helix/domains/libra/model/media-production-contracts');
+const {createRepositoryDefinition}=require('../../src/helix/foundation/persistence/owner-repository');
+const {createOnDeckStore}=require('../../src/helix/domains/arca/persistence/on-deck-store');
 const { createMovieProductionReader } = require('../../src/helix/domains/libra/persistence/movie-production-reader');
 
 const D = value => canonicalDigest({ value });
@@ -191,7 +193,7 @@ for(const {episodeCount,append} of [{episodeCount:2},{episodeCount:24},{episodeC
   sources.forEach(file=>fs.writeFileSync(file,'read-only-series-fixture'));
   const secretRoot='disposable-series-routing-secret',initialized=initializeCleanData({
     dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot});
-  const adapter=harness(),providerCalls=[];let unitOfWork,runtimeError,db;
+  const adapter=harness(),providerCalls=[],appendCommitAudits=[];let unitOfWork,runtimeError,db;
   const poster=await sharp({create:{width:4,height:6,channels:3,background:'#224466'}}).jpeg().toBuffer();
   const host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,mediaProbe:mediaProbe(),
     mediaProductionEffectPort:{
@@ -200,7 +202,46 @@ for(const {episodeCount,append} of [{episodeCount:2},{episodeCount:24},{episodeC
       async executeTranscode(){throw new Error('Direct fixture must not Transcode.');},
       async verifyTranscodeInput(){throw new Error('Direct fixture must not assess Transcode.');},
     },
-    unitOfWorkDecorator(value){unitOfWork=value;return value;},
+    unitOfWorkDecorator(value){
+      unitOfWork=Object.freeze({...value,execute(participants,...args){
+        if(!append||!participants.some(item=>item.participantId==='arca_ondeck_domain')||
+            db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n!==1)return value.execute(participants,...args);
+        const tables=['arca_shelf_entries','arca_inventory_materials','arca_inventory_product_facts','arca_deck_fact_revisions',
+          'arca_ondeck_commit_receipts','arca_offload_completions','arca_source_cleanup_checks','arca_offdeck_reservations',
+          'arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_person_relations','arca_inventory_related_references',
+          'fx_material_controls','fx_material_control_revisions','fx_commit_markers','fx_event_result_bindings','fx_outbox','fx_outbox_deliveries'];
+        const snapshot=()=>JSON.stringify(tables.map(table=>[table,db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all()]));
+        const before=snapshot();
+        const reservationRepo=createRepositoryDefinition({repositoryId:'fixture_series_reservation',owner:'arca',schemaManifest,
+          statements:{insert:{kind:'insert',tableId:'arca_offdeck_reservations',columns:['reservation_id','shelf_entry_id','state']},
+            insert_deck:{kind:'insert',tableId:'arca_deck_fact_revisions',columns:['shelf_entry_id','revision','state','inventory_revision','standard_revision','fact_digest','committed_at_ms']},
+            advance:{kind:'update',tableId:'arca_shelf_entries',setColumns:['current_deck_fact_revision'],keyColumns:['shelf_entry_id']}}});
+        const entry=db.prepare('SELECT * FROM arca_shelf_entries').get();
+        const reserve={participantId:'fixture_series_reserve',owner:'arca',repositories:[reservationRepo],execute(context){
+          context.repository(reservationRepo.repositoryId).invoke('insert',{reservation_id:'fixture-reservation',shelf_entry_id:entry.shelf_entry_id,state:'active'});}};
+        assert.throws(()=>value.execute([reserve,...participants],...args),{code:'ARCA_SERIES_EXTENSION_RESERVED'});
+        assert.equal(snapshot(),before);
+        const drift={participantId:'fixture_series_drift',owner:'arca',repositories:[reservationRepo],execute(context){
+          const repo=context.repository(reservationRepo.repositoryId);
+          repo.invoke('insert_deck',{shelf_entry_id:entry.shelf_entry_id,revision:entry.current_deck_fact_revision+1,state:'active',
+            inventory_revision:entry.current_inventory_revision,standard_revision:1,fact_digest:D('concurrent-deck'),committed_at_ms:Date.now()});
+          repo.invoke('advance',{shelf_entry_id:entry.shelf_entry_id,current_deck_fact_revision:entry.current_deck_fact_revision+1});
+        }};
+        assert.throws(()=>value.execute([drift,...participants],...args),{code:'ARCA_SERIES_EXTENSION_STALE'});
+        assert.equal(snapshot(),before);
+        const crash={participantId:'fixture_series_crash',owner:'arca',repositories:[reservationRepo],execute(){throw new Error('Injected post-write Series crash');}};
+        assert.throws(()=>value.execute([...participants,crash],...args),/Injected post-write Series crash/);
+        assert.equal(snapshot(),before);
+        const result=value.execute(participants,...args),committed=snapshot();
+        let replay;
+        try{value.execute(participants,...args);}catch(error){replay=error;}
+        assert.equal(replay?.result?.onDeckCommitReceipt?.shelfEntryId,entry.shelf_entry_id);
+        assert.equal(snapshot(),committed);
+        appendCommitAudits.push({reservationRejected:true,headDriftRejected:true,rollbackVerified:true,replayVerified:true});
+        return result;
+      }});
+      return unitOfWork;
+    },
     routingIntegrationHandleResolver:request=>handle(request.operationId),
     routingProviderObservation:request=>{providerCalls.push(request);return adapter.observe(request);},
     productIntegrationHandleResolver:request=>handle(request.operationId),
@@ -416,5 +457,24 @@ for(const {episodeCount,append} of [{episodeCount:2},{episodeCount:24},{episodeC
     for(const item of inventoryPrimary)assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
     const third=latestPrimary.find(row=>JSON.parse(row.episode_claims_json).items.some(claim=>claim.episodeKey==='E003'));
     assert.equal(fs.readFileSync(third.location,'utf8'),'third-series-fixture');
+    assert.equal(appendCommitAudits.length,1);
+    const onDeck=createOnDeckStore(deps);
+    const receipts=db.prepare('SELECT * FROM arca_ondeck_commit_receipts').all();
+    assert.equal(receipts.length,2);
+    for(const receipt of receipts) {
+      const completion=db.prepare('SELECT * FROM arca_offload_completions WHERE on_deck_run_id=?').get(receipt.on_deck_run_id);
+      const run=db.prepare('SELECT * FROM arca_ondeck_runs WHERE on_deck_run_id=?').get(receipt.on_deck_run_id);
+      const pkg=db.prepare('SELECT * FROM libra_product_packages WHERE on_deck_package_id=?').get(completion.package_id);
+      const input={onDeckRunId:run.on_deck_run_id,custodyId:run.custody_id,finalInventoryDecisionDigest:run.final_inventory_decision_digest,
+        onDeckPackageId:pkg.on_deck_package_id,packageDigest:pkg.package_digest,shelfId:'series-shelf'};
+      const historical=onDeck.readHistoricalCommitted(input),byPackage=onDeck.readCommittedByPackage(input);
+      assert.equal(historical.replayed,true);assert.equal(byPackage.replayed,true);
+      assert.equal(historical.commitDigest,receipt.commit_digest);assert.equal(byPackage.commitDigest,receipt.commit_digest);
+      assert.equal(historical.result.onDeckCommitReceipt.inventoryRevision,receipt.inventory_revision);
+      assert.throws(()=>onDeck.readHistoricalCommitted({...input,packageDigest:D('foreign')}));
+      assert.throws(()=>onDeck.readCommittedByPackage({...input,custodyId:'foreign'}));
+    }
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n,2);
+
   }
 });

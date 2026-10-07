@@ -423,7 +423,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       all=[...c.packageValue.productMaterialManifest.members,...c.packageValue.offloadContextManifest.members],
       keys=[...new Set([...all.map(m=>m.materialKey),...stagedCustodyManifests.flatMap(manifest=>manifest.stagedMembers.map(member=>member.physicalIdentity.materialKey))])].sort(),
     custodyControls=controls.getMaterialControlProjections(keys),targetControls=controls.getMaterialControlProjections(staged.members.map(m=>m.materialKey).sort()),
-    committed=onDeck.readCommitted({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,finalInventoryDecisionDigest:c.finalInventoryDecision.decisionDigest,
+    committed=onDeck.readHistoricalCommitted({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,finalInventoryDecisionDigest:c.finalInventoryDecision.decisionDigest,
       onDeckPackageId:c.packageValue.onDeckPackageId,packageDigest:c.packageValue.packageDigest,shelfId:c.shelf.shelfId})||onDeck.commit({onDeckRunId:c.responsibility.onDeckRunId,
       custodyId:c.responsibility.custodyId,shelf:c.shelf,package:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,staged,
       stagedVerification:options.workResultReader.read(execution.workId).find((item)=>item.capabilityRef===C.stagedVerify)?.result,

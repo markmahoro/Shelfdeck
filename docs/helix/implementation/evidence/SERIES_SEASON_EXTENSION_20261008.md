@@ -21,3 +21,11 @@ Arca库存Fact主键纳入source_package_id，保留不同Package同一fact_revi
 此Host样本只有文件名Triage、没有exact Season continuity claim，因此按SSOT建立两个Subject，最终由Arca正式Provider identity归入同一Season Entry。自动Triage目前始终发布空continuity claim；同Subject的明确身份线索/追加路径仍需真实入口接线和单独验收，不能将本样本计为该能力完成。
 
 本批还需原生Commit重放、并发/Reservation/失败回滚的负向验证，及消费者对多Package Fact的完整读取审查。Related变更NFO、共享文件后续修改、N:M最终空间、逐成员加工、UI/真实媒体/Linux/构建均未由本批证明。当前未部署生产，未宣称UI PASS。
+
+## 提交历史与原生事务追加验证
+
+2026-10-08：修复Commit重放调用与按Package读回执使用当前Entry head的问题，改为原Receipt冻结的Inventory/Deck revision；原custody/decision/Package摘要继续精确验证。双批Host完成后，两份原回执均可读，foreign custody和错误Package摘要均拒绝，没有改写当前Inventory。此为已完成Owner事实的历史查询，不是旧Formation兼容层。
+
+同一实际Host第二次Owner事务内注入三类故障：active Off-deck Reservation、竞争Deck head、全部Domain/Control/Foundation写入后抛错。分别触发Reservation保护、stale revision保护和原子回滚。18张相关表（含Inventory/事实/关系/Entry/Deck/Control/revision/Result/Marker/Outbox/delivery）前后逐字节对照不变；正常执行后重放原Owner事务参与者，不增加记录，不改写提交快照。没有绕过正式材料落位、结算或领域事务。
+
+最终专项Host通过（68秒）；5文件39项回归中38通过、1个既有Series Handoff fixture skip。日志series-extension-atomic-final.txt、series-history-regression-final.txt位于工作区外证据目录。该验证覆盖原Owner事务参与者重放及正式Capability历史回读，不声明用任意重建request直接调用Store.commit已完成所有幂等验证；多进程真实竞争、精确Claim的同Subject追加与跨批Fact消费者仍待后续验收。

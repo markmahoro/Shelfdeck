@@ -22,6 +22,8 @@
 
 ## 当前工作项：Series身份与逐集生产接线
 
+2026-10-08提交历史与冲突DoR：扩充完成后按原Receipt冻结Inventory/Deck revision验证旧Run，不将新current head作为旧提交的重放basis；原Package/custody/decision/digest仍须精确相等，历史读无副作用。验证实际Host两次Commit后逐包回执读取、错误摘要与foreign custody拒绝；提交事务重放、Reservation/并发冲突单独验证。不得为旧未完成Formation增加兼容或替代原领域授权。 本批结果：历史回执修复及双批Host通过；原生事务Reservation/head drift/末尾故障注入均回滚，18表快照不变，原Owner事务重放不重复写。相关5文件38通过、1既有skip，详见[扩充Evidence追加](evidence/SERIES_SEASON_EXTENSION_20261008.md)。同Subject精确连续性、跨批Fact消费者和其他发布门槛仍开放。
+
 2026-10-08追加当前事实：[Season扩充Evidence](evidence/SERIES_SEASON_EXTENSION_20261008.md)。E01/E02首次Commit后，E03从实际Host完成第二次On-deck Commit，扩充唯一Season Entry；原Inventory/Deck Fact历史和旧文件保留，最新Inventory包含三集，两批元数据和来源分别保留。此无claim样本按SSOT保持两个Subject，不能算同Subject精确连续性已完成。254文件全量仅固定摘要断言陈旧，更新后该文件复验通过；9项既有skip未计为验收。还须原生Commit重放/并发/Reservation负向、所有多Package Fact消费者、精确连续性入口、逐成员加工和UI/平台发布门槛，节点未关闭，未生产发布。
 
 2026-10-08后续追加DoR：依据SSOT §3.4.2、§4.5.4–4.5.6、§6.5，在首批正式Commit后观察E03，以exact continuity延伸同一Subject、独立冻结Run，并由Arca串行扩充同一Season Entry的Inventory/Deck Fact revision。旧Run、历史Inventory和旧集物理字节保持；新增零重叠集只使用本次Package成员，不以目录相同猜identity，不覆盖旧Season共享Artifact。先用实际隔离Host定位当前链路缺口，再补拥有该事实的领域逻辑及冲突/重放回归；不变更Owner/Handoff或生产数据。

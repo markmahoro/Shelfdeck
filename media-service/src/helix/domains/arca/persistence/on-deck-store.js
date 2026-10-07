@@ -1537,12 +1537,12 @@ function createOnDeckStore(options) {
         const entry = repo.invoke('find_entry', {
           shelf_entry_id: completion.shelf_entry_id,
         });
-        const inventoryHistory = entry &&
+        const inventoryHistory = entry && receipt &&
           verifyInventoryHistory(
             repo,
             entry.shelf_entry_id,
-            Number(entry.current_inventory_revision),
-            Number(entry.current_deck_fact_revision),
+            Number(receipt.inventory_revision),
+            Number(receipt.deck_fact_revision),
             request.packageDigest,
           );
         let finalInventoryDecision;

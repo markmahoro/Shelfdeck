@@ -742,7 +742,7 @@ function createMovieOnDeckCoordinator(options) {
       Object.freeze(fulfillmentBase);
     const fulfillmentVerificationDigest =
       canonicalDigest(fulfillmentVerification);
-    let committed = onDeck.readCommitted({
+    let committed = onDeck.readHistoricalCommitted({
       onDeckRunId,
       custodyId: accepted.custody.custodyId,
       finalInventoryDecisionDigest: finalInventoryDecision.decisionDigest,
