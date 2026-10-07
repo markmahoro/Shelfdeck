@@ -2,6 +2,7 @@
 const { automaticCaseTargetsAcceptedDefect } = require('../model/accepted-defect-maintenance');
 const { careFindingCodes } = require('../model/care-objective');
 const { missingFields } = require('../model/accepted-gap-contracts');
+const { aftercareProviderIdentity } = require('../model/aftercare-provider-identity');
 const { verifiedDefectRepair } = require('../model/defect-repair-verification');
 const { requirementGapValueDigest } = require('../../../contracts/requirement-gap-values');
 const { effectiveRequirements } = require('../model/care-objective');
@@ -571,18 +572,15 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     validateInputs(c){requireNamed(c,['stableProviderIdentity','integrationHandle']);},
     async execute(execution){
       const c=context(execution),admission=workspaceAdmission(c,execution);if(admission.failure)return admission.failure;
-      const care=admission.care,at=now(),n=execution.namedInputs,basis=canonicalDigest(n),
-        resolvedProviderIdentity=Object.freeze({provider:n.stableProviderIdentity.providerId,
-          providerKey:n.stableProviderIdentity.providerObjectId,
-          namespace:n.stableProviderIdentity.providerId==='tmdb'?'tmdb_movie':n.stableProviderIdentity.providerId,
-          seasonNumber:null,identityAnchorDigest:n.stableProviderIdentity.identityDigest});
+      const care=admission.care,at=now(),n=execution.namedInputs,basis=canonicalDigest(n);
       if(n.integrationHandle.allowedOperation!==C.binaryAcquire||
           n.stableProviderIdentity.providerId!==c.raw.identity.provider||
           String(n.stableProviderIdentity.providerObjectId)!==String(c.raw.identity.provider_key)||
           n.stableProviderIdentity.identityDigest!==c.raw.identity.identity_digest)
         return Object.freeze({kind:'failed',failureClass:'executor',code:'ARCA_AFTERCARE_PROVIDER_INPUT_STALE',message:'Aftercare Provider input does not match the current Case identity and operation.',retryDirective:'contract_policy',evidence:Object.freeze({errorName:'AftercareProviderInputError',errorCode:'ARCA_AFTERCARE_PROVIDER_INPUT_STALE'})});
-      let response,image;
+      let response,image,resolvedProviderIdentity;
       try {
+      resolvedProviderIdentity=aftercareProviderIdentity(c,n.stableProviderIdentity);
       if(typeof options.fetchAftercareArtifact!=='function')
         throw Object.assign(new Error('Aftercare Provider Artifact adapter is unavailable.'),{code:'ARCA_AFTERCARE_PROVIDER_UNAVAILABLE'});
       response=await options.fetchAftercareArtifact({operationId:C.binaryAcquire,artifactKind:'poster',

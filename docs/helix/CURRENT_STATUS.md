@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08海报维护身份：[Provider Identity Evidence](implementation/evidence/SERIES_AFTERCARE_PROVIDER_IDENTITY_20261008.md)。修正Series Aftercare请求被固定成TMDB Movie的问题，以全部已接受批次验证Series/Season后调用原Artifact Adapter；错季/身份不一致拒绝。95项相关测试及边界/语义检查通过。完整展示维护、逐集NFO、逐成员维修、UI/Linux及发布资格仍待完成；无NAS部署。
+
 2026-10-08全成员健康评估：[Aftercare媒体Evidence](implementation/evidence/SERIES_AFTERCARE_MEDIA_ASSESSMENT_20261008.md)。Series当前Inventory全部Primary现执行Probe/播放抽样，空间按完整N:M集合精确逐集计算；15项专项通过，正式Capability/schema验证通过。全架构复验2,150通过、9既有skip、0失败；首次曾有1项目录变化Fence失败，独立复验通过，原始记录保留。Series媒体维修策略仍未接通，缺陷明确保留attention_required；UI/Linux、完整运营与发布资格继续，未部署NAS。
 
 2026-10-08补集资料检查：[Inventory Metadata Evidence](implementation/evidence/SERIES_INVENTORY_METADATA_20261008.md)。Aftercare修正逐集标题/剧情误查第一份Metadata顶层字段的问题，改为当前Inventory范围内全部批次的精确Episode资料；两批正式Host Owner context验证通过。全架构2,135通过、9既有skip、0失败。完整Aftercare、Series UI/浏览器/Linux和发布资格继续；外部N:M替换合同仍待此前用户确认。未部署NAS。

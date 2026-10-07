@@ -165,3 +165,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08当前DoR：Series Aftercare媒体评估由Arca读取当前完整Inventory，依据SSOT §5.5.8逐集均分/累加实际Primary字节，逐物理成员Probe与播放抽样，并保留读取前后Physical Identity Fence。范围为纯评估与既有Finding输出；不增加Owner或自动维修权限。现有维修策略只描述单一Primary，Series缺陷必须显式保留attention_required，逐成员修复仍为本Phase后续必做项，不能以此关闭运营能力。验证普通多集、N:M边界/小数、后续成员异常、内容漂移及Movie回归；健康投影的具体版本UI验收仍待负责人执行。
 
 2026-10-08本批结果：[Aftercare媒体Evidence](evidence/SERIES_AFTERCARE_MEDIA_ASSESSMENT_20261008.md)。全Primary媒体评估与N:M逐集计量接通，15项专项及正式Capability/schema通过；全架构复验2,150通过、9既有skip、0失败（首次目录变化Fence偶发失败已保留证据）。未实现Series逐成员维修、展示维护及完整运营，UI/Linux与发布Gate保持开放。无生产动作。
+
+2026-10-08展示维护DoR：Arca海报获取原固定tmdb_movie，Series必须从当前Inventory的全部已接受resolved_identity重建精确TMDB Series/Season anchor，校验Canonical Identity后传给现有Integration Adapter；不同批次必须指向同一Season，冲突/缺失在网络或Workspace写入前拒绝。沿用SSOT §3.2.6/§5.5.5/§8.6.19既有Owner及Artifact路径，不改变NFO/维修范围或生产权限。专项验证Series/Movie路由、跨批/错季/错Provider拒绝及正式Capability边界；后续完整展示维护与UI版本验收继续。
+
+2026-10-08展示维护增量：[Provider Identity Evidence](evidence/SERIES_AFTERCARE_PROVIDER_IDENTITY_20261008.md)。Series海报获取按正式Series/Season身份接入既有TMDB Artifact端口，不再请求同编号Movie；跨批Canonical身份与网络/Workspace前Fence验证通过。95项相关测试通过；未完成逐集NFO、完整维修Host和对应版本UI验收，节点4及首版发布资格仍开放。
