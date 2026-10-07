@@ -6,6 +6,9 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
   const select = (tableId, columns, keyColumns, one = false) => ({
     kind: one ? 'select-one' : 'select-all', tableId, columns, keyColumns,
   });
+  const selectMany = (tableId, columns, keyColumn) => ({
+    kind:'select-in', tableId, columns, keyColumn, maxItems:500,
+  });
   const repository = createRepositoryDefinition({
     repositoryId: 'catalog_plan_proof', owner: 'execution-foundation', schemaManifest,
     statements: {
@@ -22,11 +25,11 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
       work_events: select('fx_workflow_events', ['event_id', 'plan_id', 'work_id'], ['work_id']),
       attempts: select('fx_event_attempts', ['event_attempt_id', 'event_id', 'ordinal', 'state', 'outcome_kind',
         'input_snapshot_digest', 'fence_snapshot_digest', 'evidence_digest', 'started_at_ms', 'finished_at_ms'], ['event_id']),
-      effects: select('fx_effect_journal', ['effect_id', 'event_attempt_id', 'effect_class', 'state', 'output_digest',
-        'intent_digest', 'idempotency_key', 'external_receipt_ref'], ['event_attempt_id']),
+      effects: selectMany('fx_effect_journal', ['effect_id', 'event_attempt_id', 'effect_class', 'state', 'output_digest',
+        'intent_digest', 'idempotency_key', 'external_receipt_ref'], 'event_attempt_id'),
       result: select('fx_event_result_bindings', ['result_id', 'event_id', 'outcome_kind', 'result_schema_ref',
         'result_json', 'result_digest', 'evidence_schema_ref', 'evidence_json', 'evidence_digest', 'effect_receipt_id'], ['event_id'], true),
-      markers: select('fx_commit_markers', ['commit_marker', 'commit_digest', 'effect_id', 'result_id', 'result_schema_ref', 'result_digest', 'owner_domain'], ['effect_id']),
+      markers: selectMany('fx_commit_markers', ['commit_marker', 'commit_digest', 'effect_id', 'result_id', 'result_schema_ref', 'result_digest', 'owner_domain'], 'effect_id'),
     },
   });
   return Object.freeze({
@@ -37,6 +40,13 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
         participantId: 'catalog_plan_proof_read', owner: 'execution-foundation', repositories: [repository],
         execute(context) {
           const repo = context.repository(repository.repositoryId);
+          function readMany(statement, identities) {
+            const unique = [...new Set(identities)], rows = [];
+            for (let offset = 0; offset < unique.length; offset += 500) {
+              rows.push(...repo.invoke(statement, { values:unique.slice(offset, offset + 500) }));
+            }
+            return rows;
+          }
           return callback({
             workPlanIds(workId) {
               const rows = repo.invoke('work_events', { work_id: workId });
@@ -52,9 +62,11 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
               const edges = repo.invoke('edges', { plan_id: planId });
               const events = repo.invoke('events', { plan_id: planId });
               const attempts = events.flatMap(event => repo.invoke('attempts', { event_id: event.event_id }));
-              const effects = attempts.flatMap(attempt => repo.invoke('effects', { event_attempt_id: attempt.event_attempt_id }));
+              // Retain all history in this transaction. Bounded set reads avoid
+              // a journal/marker table scan for every failed Event Attempt.
+              const effects = readMany('effects', attempts.map(attempt => attempt.event_attempt_id));
               const results = events.map(event => repo.invoke('result', { event_id: event.event_id })).filter(Boolean);
-              const markers = effects.flatMap(effect => repo.invoke('markers', { effect_id: effect.effect_id }));
+              const markers = readMany('markers', effects.map(effect => effect.effect_id));
               return { plan, workAttempt, work, nodes, edges, events, attempts, effects, results, markers };
             },
           });

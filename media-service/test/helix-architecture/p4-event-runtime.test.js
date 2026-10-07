@@ -11,6 +11,7 @@ const { createWorkLifecycle } = require('../../src/helix/foundation/execution/wo
 const { createExecutionRuntimeHost } = require('../../src/helix/foundation/execution/execution-runtime-host');
 const { createTimeoutController } = require('../../src/helix/foundation/execution/timeout-controller');
 const { createCooperativeExecutionIsolation } = require('../../src/helix/foundation/execution/cooperative-execution-isolation');
+const { createAttemptPolicyController } = require('../../src/helix/foundation/execution/execution-policy');
 const {
   executionInputUnavailable,
 } = require('../../src/helix/foundation/execution/execution-input-readiness');
@@ -94,6 +95,16 @@ function fixture(run, settings = {}) {
       state: settings.initialEventState || 'ready', ready_at_ms: 1,
       retry_at_ms: settings.initialEventState === 'waiting_for_external' ? 999 : null,
       result_id: null, current_progress_revision:null });
+    for (let ordinal = 1; ordinal <= (settings.seedFailureAttempts || 0); ordinal += 1) {
+      repository.invoke('event_attempt', {
+        event_attempt_id:'prior-failure-' + ordinal, event_id:'event', ordinal,
+        executor_ref:'libra.test.observe@1', executor_version:1,
+        input_snapshot_schema_ref:'helix://test/inputs', input_snapshot_digest:EMPTY_INPUT_DIGEST,
+        fence_snapshot_digest:HASH_A, state:'completed', outcome_kind:'failed', retry_after_ms:null,
+        failure_class:'integration', failure_code:'FIXTURE_NETWORK_FAILED', evidence_digest:HASH_B,
+        started_at_ms:ordinal, finished_at_ms:ordinal + 1,
+      });
+    }
     if (settings.seedDeferredAttempt) {
       repository.invoke('event_attempt', {
         event_attempt_id: 'event-attempt-1', event_id: 'event', ordinal: 1,
@@ -243,11 +254,11 @@ function fixture(run, settings = {}) {
       return {decision:'safe_retry',action:effectClass === 'workspace_write'
         ? 'rebuild_workspace_output':'submit_once_after_proven_absent',evidenceDigest:HASH_B,effectState:effect.state};
     }},
-    attemptPolicy: {
+    attemptPolicy: settings.attemptPolicy || {
       bindingFor: () => ({ retryPolicyRef: 'helix://foundation/retry-policies/pure_observation/v1',
         timeoutPolicyRef: 'helix://foundation/timeout-policies/test/v1' }),
       prepare: (request) => { settings.onAttemptPrepare?.(request);return { deadlineAtMs: 2000 }; },
-      decideFailure: () => settings.failurePolicyDecision || ({ decision: settings.effectClass && settings.effectClass !== 'pure_observation'
+      decideFailure: (request) => settings.failurePolicyDecision || ({ decision: settings.effectClass && settings.effectClass !== 'pure_observation' && request.recoveryDecision !== 'safe_retry'
         ? 'reconcile_required' : 'terminal_failure' }),
       decideDeferred: () => settings.deferredPolicyDecision || ({ decision: 'observe', retryAtMs: 1700000031700 })
     },
@@ -777,7 +788,7 @@ test('non-pure Capability failed Outcome completes the Attempt and abandons the 
   await fixture(async ({ runtime, lease, databasePath, state }) => {
     const result = await runtime.run({ schedulerLease: lease });
     assert.equal(result.kind, 'failed');
-    assert.equal(result.eventState, 'waiting_for_external');
+    assert.equal(result.eventState, 'failed');
     const facts = databaseFacts(databasePath);
     assert.equal(facts.attempt.state, 'completed');
     assert.equal(facts.attempt.outcome_kind, 'failed');
@@ -788,6 +799,57 @@ test('non-pure Capability failed Outcome completes the Attempt and abandons the 
     message:'FFmpeg failed.', retryDirective:'contract_policy',
     evidence:{ errorCode:'LIBRA_MEDIA_FFMPEG_FAILED' },
   } });
+});
+
+function boundedWorkspaceFailurePolicy() {
+  return createAttemptPolicyController({ now:() => 1000, registry:{
+    bindingFor:() => ({ retryPolicyRef:'helix://foundation/retry-policies/pure_observation/v1',
+      timeoutPolicyRef:'helix://foundation/timeout-policies/test/v1' }),
+    retryFor:() => ({ maxFailureAttempts:2, backoffMs:[250], retryableFailureClasses:['integration'] }),
+    timeoutFor:() => ({ timeoutMs:1000 }),
+  } });
+}
+
+test('abandoned Workspace failure preserves backoff and exhausts the real retry policy', async () => {
+  for (const priorFailures of [0, 1]) {
+    await fixture(async ({ runtime, lease, databasePath, state }) => {
+      const result = await runtime.run({ schedulerLease:lease });
+      assert.equal(result.eventState, priorFailures === 0 ? 'ready' : 'failed');
+      assert.equal(result.retryAtMs, priorFailures === 0 ? 1250 : null);
+      assert.equal(databaseFacts(databasePath).attempts, priorFailures + 1);
+      assert.deepEqual(state().journalCalls, ['intend', 'abandon']);
+    }, { effectClass:'workspace_write', seedFailureAttempts:priorFailures,
+      attemptPolicy:boundedWorkspaceFailurePolicy(), outcome:{
+        kind:'failed', failureClass:'integration', code:'FIXTURE_NETWORK_FAILED',
+        message:'Transport failed before publishing an output.', retryDirective:'contract_policy', evidence:{},
+      } });
+  }
+});
+
+test('FFmpeg executor failure terminates under the real policy instead of becoming an external wait', async () => {
+  await fixture(async ({ runtime, lease, databasePath }) => {
+    const result = await runtime.run({ schedulerLease:lease });
+    assert.equal(result.eventState, 'failed');
+    assert.equal(databaseFacts(databasePath).attempt.failure_code, 'LIBRA_MEDIA_FFMPEG_FAILED');
+    await assert.rejects(() => runtime.run({ schedulerLease:lease }), { code:'P4_EVENT_NOT_READY' });
+    assert.equal(databaseFacts(databasePath).attempts, 1);
+  }, { effectClass:'workspace_write', attemptPolicy:boundedWorkspaceFailurePolicy(), outcome:{
+    kind:'failed', failureClass:'executor', code:'LIBRA_MEDIA_FFMPEG_FAILED',
+    message:'Video dimensions are unavailable.', retryDirective:'contract_policy', evidence:{},
+  } });
+});
+
+test('recovery before intent applies the same bounded policy to a retired Workspace Effect', async () => {
+  await fixture(async ({ runtime, databasePath, state }) => {
+    const result = await runtime.recover({ eventId:'event', decision:'safe_retry_before_intent' });
+    assert.equal(result.eventState, 'failed');
+    assert.equal(databaseFacts(databasePath).attempt.state, 'completed');
+    assert.deepEqual(state().journalCalls, ['intend', 'abandon']);
+  }, { effectClass:'workspace_write', initialEventState:'executing', seedExecutingAttempt:true,
+    attemptPolicy:boundedWorkspaceFailurePolicy(), outcome:{
+      kind:'failed', failureClass:'executor', code:'LIBRA_MEDIA_FFMPEG_FAILED',
+      message:'Video dimensions are unavailable.', retryDirective:'contract_policy', evidence:{},
+    } });
 });
 
 test('already-failed recovery completes the executing Attempt without re-dispatch', async () => {

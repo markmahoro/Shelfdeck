@@ -1,7 +1,8 @@
 # ShelfDeck v3 / Kairox Historical Status
 
-2026-09-28 23:24 CST：UAT-275/276/277修复已标准发布 `helix-beta-20260928-c147188485`，git `c14718848597063dcd28fed002ae8e5e5897a7e5`，tar SHA256 `df9a74befe6ac9bd5ac3014222598c2ff7bd57f1958079decb6aaa4c14400ffa`，NAS Image ID `sha256:a928dc2cb13a03e6e379f3f88420a104dbf83d06fe658b0192a6d9de6a4e9fb0`。修复多片段BDMV交付、原生外部4K读取授权revision和网络诊断丢失。Windows架构241文件、真实媒体链、精确Linux镜像正负向、完整生产副本候选及同库回退、生产health/Admin/挂载与8类事实摘要保护均通过；全量Service/Desktop/全库整理E2E未执行，历史失败片未重跑、网络瞬断根因未确认，UAT保留实际影片验收项。[证据](../helix/implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md)。
+2026-09-30 UAT-281标准apply已切换 `helix-beta-20260930-8e197b3c36`，git `8e197b3c3685d21d87c581bae1016ed70896e2c3`，tar SHA256 `c6b84d0de15b92a38a5ecbe58003f2dc2fdafb2f42c41d66408f3b16e3711d02`，Image ID `sha256:168be0bb2101b79424f7f978c32d3724852eb5267b2234a4c981c22fe075ac2b`。243架构文件及完整检查、最终Linux165通过/1跳过；最新完整副本候选及同库旧镜像回退通过。生产health/normalSupplyAllowed、Admin/挂载/QSV/Secret及十一类历史事实保护通过；《网诱惊魂》原任务16:45:49 CST完成真实封装、输出验证、来源处置和唯一On-deck Commit，active Entry revision1，UAT-281关闭。全量Service/Desktop/全库整理E2E未执行，无UI修改或生产Reset；不发布Series开发。[证据](../helix/implementation/evidence/UAT-281_REMUX_PROBE_RETRY_CONVERGENCE_20260930.md)。
 
+紧邻本次修复前的实际生产为 `helix-beta-20260928-c147188485`，git `c14718848597063dcd28fed002ae8e5e5897a7e5`，tar SHA256 `df9a74befe6ac9bd5ac3014222598c2ff7bd57f1958079decb6aaa4c14400ffa`，Image ID `sha256:a928dc2cb13a03e6e379f3f88420a104dbf83d06fe658b0192a6d9de6a4e9fb0`；UAT-275/276/277已发布，各自业务验收仍按原记录。[原证据](../helix/implementation/evidence/UAT-275_276_277_ONDECK_FAILURES_20260928.md)。以下为更早历史时点。
 
 2026-09-28 UAT-272/273已标准发布 `helix-beta-20260928-69a82f2a5d`，git `69a82f2a5d776a0bde3ae1bc34ff5fd97c80dfb0`，tar SHA256 `21b241d5713f432e10413c7a08f3893bcec3cadbee9c5a313b97694b91ee5ca2`。Linux56/56、最新完整副本候选/回退Host、生产健康/挂载及真实浏览器身份预览/取消通过；完整媒体整理E2E未执行，用户正式身份确认待验，UAT保持开放。[证据](../helix/implementation/evidence/UAT-272_273_MOVIE_IDENTITY_20260928.md)。
 

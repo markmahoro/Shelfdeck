@@ -4,6 +4,10 @@
 
 ## 最近已记录生产身份
 
+标准apply已切换 `helix-beta-20260930-8e197b3c36`，git `8e197b3c3685d21d87c581bae1016ed70896e2c3`，tar SHA256 `c6b84d0de15b92a38a5ecbe58003f2dc2fdafb2f42c41d66408f3b16e3711d02`，Image ID `sha256:168be0bb2101b79424f7f978c32d3724852eb5267b2234a4c981c22fe075ac2b`。243架构文件及完整检查、Windows相关138项、最终Linux165通过/1canary跳过；最新完整副本候选及同库旧镜像回退均完整启动、正常调度、关闭且保护十一类历史事实。生产health/normalSupplyAllowed、Admin、挂载/QSV/Secret及十一类发布前事实保护通过。16:45:49 CST《网诱惊魂》原Run自动完成封装、输出验证、来源处置及唯一On-deck Commit，页面“已进入收藏架”，Shelf Entry active、Inventory/Deck Fact revision1；UAT-281关闭。见[UAT-281证据](implementation/evidence/UAT-281_REMUX_PROBE_RETRY_CONVERGENCE_20260930.md)。全量Service/Desktop/全库整理E2E未执行，没有UI修改、Reset或直接SQL改写。本次整合仅核对既有证据，未查询生产实时状态。
+
+### 前一生产版本（历史）
+
 | 项目 | 值 |
 | --- | --- |
 | 镜像 | `markmahoro/shelfdeck:helix-beta-20260928-c147188485` |
