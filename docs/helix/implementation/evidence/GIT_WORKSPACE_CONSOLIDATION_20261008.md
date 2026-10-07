@@ -54,3 +54,13 @@ git worktree add E:/my_project/helix-restored-series codex/restored-series
 - 媒体Probe/构建定向4项：3通过、1跳过；跳过原因为缺少`HELIX_DELAYED_HEADER_FIXTURE`，不声称重跑真实蓝光回归。
 - `git diff --check`通过；两个Git bundle验证通过，9个归档路径核验通过。主Service及Web依赖为本地普通目录，未通过删除工作区沿junction破坏依赖。
 - 未运行完整Service/Desktop、Linux/Docker、浏览器或真实Series E2E；没有新增UI交付、生产部署、Reset或媒体操作。此检查只支持本地分支整合，不关闭Series节点或遗留UAT。
+
+## 用户追加：移除无效备份
+
+同日用户明确允许去除无效备份。上文整体目录归档是删除前保护阶段；最终不再保留9份完整工作区副本。
+
+- 未提交修改和非重建资料已提取到备份根目录的`preserved/<原目录名>/`，逐文件核验SHA256，清单为`compact-preservation.json`。原11个未提交代码文件、iteration文档修改、诊断及验收证据保留；恢复时用archive ref创建源码工作区，再按清单取回对应文件。
+- 9份完整归档中的Git可恢复源码、node_modules及生成dist已删除；先逐个移除junction本身并核验树内无ReparsePoint，再对已校验的精确归档路径删除，未遍历链接目标。删除Receipt为`archive-deletion-receipt.json`。
+- UAT-281未发布的中间`8f72a0b47a`镜像tar删除命令被自动审批以`blocked by policy`拒绝，未实际删除，保留为待清理项，没有绕过拦截。已发布`8e197b3c36`恢复镜像、真实Probe前缀fixture及仍关联开放问题的UAT-125诊断库继续保留。
+- 最终Git恢复包为`recovery-final.bundle`，包含整合提交、原分支archive refs与保护stash。原9份完整归档目录路径仅用于历史追溯，现存用户修改恢复入口为`preserved/`。
+- 删除后主工作区SQLite、Sharp和Web esbuild绑定smoke通过；Git仍保留2个工作区/2个分支，原未跟踪诊断文档保持。未触碰NAS或生产备份。
