@@ -304,7 +304,8 @@ test('historical witness stays immutable and cannot authorize changed secondary-
       canonicalDigest(schemaClosure(manifest,schemas))!==record.currentSchemaDigest) changed.push(record.capabilityRef);
   }
   assert.deepEqual(changed,[
-    'arca.acceptance.accept.commit@1','arca.acceptance.mandatory_media.verify@1',
+    'arca.acceptance.accept.commit@1','arca.acceptance.identity.verify@1','arca.acceptance.mandatory_media.verify@1',
+    'arca.acceptance.metadata.verify@1','arca.acceptance.space.verify@1','arca.acceptance.structure.verify@1',
     'libra.external_material.acquire.request@1','libra.external_material.candidate.select@1',
     'libra.external_material.query.prepare@1','libra.external_material.search@1','libra.media.remux@1',
     'libra.media_cast.commit@1','libra.media_cast.resolve@1',

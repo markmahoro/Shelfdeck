@@ -502,6 +502,107 @@
         "not_applicable",
         "pending_final_union"
       ]
+    },
+    "episodeSpaceEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "arca.episode-space-evidence@1"
+        },
+        "productManifestDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "episodeScopeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "maxSizeBytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "allocations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "episodeKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "allocatedBytes": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "numerator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^(0|[1-9][0-9]*)$",
+                    "maxLength": 64
+                  },
+                  "denominator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[1-9][0-9]*$",
+                    "maxLength": 64
+                  }
+                },
+                "required": [
+                  "numerator",
+                  "denominator"
+                ]
+              },
+              "maxSizeBytes": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "withinLimit": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "episodeKey",
+              "allocatedBytes",
+              "maxSizeBytes",
+              "withinLimit"
+            ]
+          },
+          "maxItems": 1024,
+          "minItems": 1
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "productManifestDigest",
+        "episodeScopeDigest",
+        "maxSizeBytes",
+        "allocations",
+        "evidenceDigest"
+      ]
     }
   },
   "required": [
@@ -530,6 +631,20 @@
     "authorizedGapComparison"
   ],
   "allOf": [
+    {
+      "if": {
+        "required": [
+          "episodeSpaceEvidence"
+        ]
+      },
+      "then": {
+        "properties": {
+          "checkKind": {
+            "const": "space"
+          }
+        }
+      }
+    },
     {
       "if": {
         "properties": {

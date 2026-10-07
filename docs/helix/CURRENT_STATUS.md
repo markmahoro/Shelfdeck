@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08逐集空间接纳：[最终空间Evidence](implementation/evidence/SERIES_FINAL_SPACE_ACCEPTANCE_20261008.md)。Arca已修正整季总量误判，保存逐集精确份额；Libra最终Conformance独立重算，支持共文件/多part最终数学验收。两集各24字节、每集上限24字节的正式Host上架及24集回归通过；bounded N:M的Libra入口保护仍在，逐成员加工与完整首版发布资格继续。无UI交付或生产动作。
+
 2026-10-08并发增量：[并发Run与目标预约](implementation/evidence/SERIES_CONCURRENT_TARGET_20261008.md)。两批非重叠Run保持各自范围，Arca以持久化目标预约避免共享文件接管冲突；并发Host已通过。预约/恢复/精确旧schema升级与拒绝未完成责任专项通过；历史迁移测试9项失败已在修改前基线复现，保留为发布资格缺口。尚未完成逐成员加工、N:M完整验收、UI及真实媒体/Linux，不宣称可部署。用户已要求每批验证后提交并推送，保持GitHub与本地一致。
 
 2026-10-08连续性增量：[同Subject分批补集](implementation/evidence/SERIES_SUBJECT_CONTINUITY_20261008.md)。显式Series Claim经过正式Provider查证后，E03沿用原Subject并独立Run扩充同一Season，旧集/Run/历史保持；顺序Host通过。并发Run及完整首版发布资格仍未完成，无新部署。

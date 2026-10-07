@@ -5,7 +5,7 @@ function gcd(left, right) {
   return left;
 }
 
-// The caller supplies the complete final Primary set, never a Season byte total.
+// Each Owner supplies its complete Primary set and decides how to use the evidence.
 // Keep fractional bytes exact so multiple parts cannot pass by rounding down.
 function evaluateSeriesEpisodeSpace({members, episodeKeys, maxSizeBytes}) {
   if (!Array.isArray(members) || !members.length || members.length > 1024 ||

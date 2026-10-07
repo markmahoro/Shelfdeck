@@ -1,7 +1,7 @@
 'use strict';
 const assert=require('node:assert/strict');
 const test=require('node:test');
-const {evaluateSeriesEpisodeSpace}=require('../../src/helix/domains/libra/model/series-episode-space');
+const {evaluateSeriesEpisodeSpace}=require('../../src/helix/contracts/episode-byte-allocation');
 const member=(materialKey,sizeBytes,keys)=>({materialKey,role:'primary_payload',sizeBytes,episodeClaims:keys.map(episodeKey=>({episodeKey}))});
 const evaluate=(members,limit,keys=['E001','E002'])=>evaluateSeriesEpisodeSpace({members,episodeKeys:keys,maxSizeBytes:limit});
 test('A shared Primary is split equally and each Episode adds all of its parts',()=>{

@@ -73,7 +73,9 @@ function facts() {
   return { resolved, items:[metadata,resolved] };
 }
 
-function productMaterialManifest() {
+function productMaterialManifest(episodeKeys=[]) {
+  const episodeClaims=episodeKeys.map(episodeKey=>complete({episodeKey,seasonClaimDigest:D('season')},'claimDigest'));
+  for(const claim of episodeClaims)claim.claimDigest=canonicalDigest({schema:'libra.production-material-episode-claim@1',episodeKey:claim.episodeKey,seasonClaimDigest:claim.seasonClaimDigest});
   const member = complete({ordinal:0,materialKey:D('material'),role:'primary_payload',
     physicalIdentity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:D('material'),mountScopeId:'mount-1',
       inode:'1',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('bytes')},sizeBytes:100,
@@ -82,13 +84,13 @@ function productMaterialManifest() {
       offerId:'offer-1',candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('candidate'),candidateDeliverySnapshotDigest:D('delivery'),
       relatedReferenceSetDigest:D('related')},workspaceReferenceId:null,workspaceMaterialHandle:null,admittedControlRevision:1,
     admittedControlProjectionDigest:D('admitted-control'),sourceRelatedReferenceId:null,derivedAuthorityDigest:null,
-    outputRequirementDigest:D('output-requirement'),episodeClaims:[],
-    episodeClaimSetDigest:canonicalDigest({schema:'libra.production-material-episode-claims@1',items:[]}),controlOperation:'assert_existing_input',
+    outputRequirementDigest:D('output-requirement'),episodeClaims,
+    episodeClaimSetDigest:canonicalDigest({schema:'libra.production-material-episode-claims@1',items:episodeClaims}),controlOperation:'assert_existing_input',
     expectedControlRevision:1,expectedControlProjectionDigest:D('expected-control'),committedControlRevision:2,
     committedControlProjectionDigest:D('committed-control')}, 'memberDigest');
-  return complete({manifestId:'material-manifest-1',manifestRole:'product_delivery',manifestRevision:1,libraRunId:'run-1',scopeKind:'single',members:[member],
+  return complete({manifestId:'material-manifest-1',manifestRole:'product_delivery',manifestRevision:1,libraRunId:'run-1',scopeKind:episodeKeys.length?'episode_delivery':'single',members:[member],
     memberSetDigest:canonicalDigest({schema:'libra.production-material-members@1',items:[member]}),
-    episodeScopeDigest:canonicalDigest({schema:'libra.production-episode-scope@1',items:[]})}, 'manifestDigest');
+    episodeScopeDigest:canonicalDigest({schema:'libra.production-episode-scope@1',items:episodeClaims})}, 'manifestDigest');
 }
 
 function directMaterial(){return {schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,handleId:'handle-1',
@@ -129,10 +131,19 @@ function artifactContinuityFixture(manifestRequirement,verificationRequirement){
   return {verification,verificationResultRef,verifiedItem,inventoryItem};
 }
 
-function snapshot() {
-  const spec=acceptanceSpec(),requirement=buildMediaRequirement(spec),materialHandle=directMaterial(),factSet = facts(), structure = complete({structureKind:'single',contentProfile:'movie',productScopeDigest:D('scope'),
-    episodeScopeDigest:canonicalDigest({schema:'libra.production-episode-scope@1',items:[]}),primaryMaterialCount:1,structuralDependencyCount:0},
-  'productStructureDigest'), material = productMaterialManifest(), artifact = complete({manifestId:'artifact-manifest-1',manifestRevision:1,
+function snapshot({series=false,maxSizeBytes=null}={}) {
+  const spec=acceptanceSpec();
+  if(series){
+    spec.contentProfile='series';spec.structureKind='season';spec.productScope.scopeKind='episode_delivery';
+    spec.productScope.episodeKeys=['E001','E002'];
+    spec.requirements.structure={structureKind:'season',primaryModel:'episode_primary',requireOnePrimaryPerEpisode:true};
+    spec.requirements.space={unit:'episode',maxSizeGiB:maxSizeBytes===null?null:maxSizeBytes/1073741824,maxSizeBytes};
+    spec.requirements.inventory.layoutModel='season_episode';
+  }
+  const material=productMaterialManifest(spec.productScope.episodeKeys),requirement=buildMediaRequirement(spec),materialHandle=directMaterial(),factSet = facts(),
+    structure = complete({structureKind:spec.structureKind,contentProfile:spec.contentProfile,productScopeDigest:D('scope'),
+    episodeScopeDigest:material.episodeScopeDigest,primaryMaterialCount:1,structuralDependencyCount:0},
+  'productStructureDigest'), artifact = complete({manifestId:'artifact-manifest-1',manifestRevision:1,
     libraRunId:'run-1',items:[],artifactSetDigest:canonicalDigest({schema:'libra.product-artifact-set@1',items:[]})},'manifestDigest'),
     inventory = complete({productStructureSnapshot:structure,productMaterialManifest:material,artifactManifest:artifact},'inventoryDigest'),
     verifiedSet=canonicalDigest({schema:'libra.verified-artifact-set@1',items:[]}),
@@ -445,3 +456,12 @@ function historicalCandidate({run,terminalEvidence,directMediaVerification,prior
     waivedRequirementCodes:[...new Set(defects.flatMap(item=>item.waivedRequirementCodes))].sort()};
   return {...body,candidateDigest:canonicalDigest(body)};
 }
+
+for(const maximum of [49,50,51])test('Series Conformance independently allocates a shared final Primary at cap '+maximum,()=>{
+  const input=snapshot({series:true,maxSizeBytes:maximum});
+  assert.equal(input.selectedProducts[0].verification.result,'passed');
+  const result=evaluateProductConformance({input,verifiedAtMs:20});
+  assert.deepEqual(result.reasonCodes,[]);
+  assert.deepEqual(result.unmetRequirementCodes,maximum<50?['max_size_exceeded']:[]);
+  assert.equal(result.result,maximum<50?'failed':'passed');
+});

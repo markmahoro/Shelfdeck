@@ -941,14 +941,21 @@ function acceptanceCheckSchema() {
     primaryMediaObservationSetDigest: digest(),
     authorizedDefectManifestDigestOrNull: nullable(digest()),
     authorizedGapComparison: enumText('not_applicable', 'pending_final_union'),
+    episodeSpaceEvidence: object({schema:{const:'arca.episode-space-evidence@1'},
+      productManifestDigest:digest(),episodeScopeDigest:digest(),maxSizeBytes:nullable(positiveInteger()),
+      allocations:{...arrayOf(object({episodeKey:id(),
+        allocatedBytes:object({numerator:text({pattern:'^(0|[1-9][0-9]*)$',maxLength:64}),
+          denominator:text({pattern:'^[1-9][0-9]*$',maxLength:64})}),
+        maxSizeBytes:nullable(positiveInteger()),withinLimit:bool()}),1024),minItems:1},evidenceDigest:digest()}),
   };
   return {
     $schema: DRAFT, $id: typeId('AcceptanceCheck'), title: 'AcceptanceCheck@1',
     'x-helix-ssotRefs': ['5.7.1', '8.6.9', '8.6.19', '8.6.20'],
     'x-helix-envelopeRef': typeId('VerificationEnvelope'),
     'x-helix-maxCanonicalBytes': 2 * 1024 * 1024,
-    ...object(properties),
+    ...object(properties,Object.keys(properties).filter(key=>key!=='episodeSpaceEvidence')),
     allOf: [
+      {if:{required:['episodeSpaceEvidence']},then:{properties:{checkKind:{const:'space'}}}},
       {
         if: { properties: { checkKind: { const: 'identity' } }, required: ['checkKind'] },
         then: { properties: { actualGapCodes: arrayOf(enumText(

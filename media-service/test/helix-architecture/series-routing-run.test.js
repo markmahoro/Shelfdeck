@@ -182,7 +182,7 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append,anchored,concurrent} of [{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:180000},async t=>{
+for(const {episodeCount,append,anchored,concurrent,bounded} of [{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:180000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
@@ -277,9 +277,31 @@ for(const {episodeCount,append,anchored,concurrent} of [{episodeCount:2},{episod
       policySchemaRef:'helix://contracts/domain-types/ExtractionPolicy/v1',policy:policyValue,
       policyDigest:canonicalDigest({extractionPolicyId:'series-policy',revision:1,...policyValue})},
     access:{...access,accessDigest:canonicalDigest(access)}});
+  let ruleTemplateId='system-beta-recommended',expectedTemplateRevision=1;
+  if(bounded){
+    ruleTemplateId='series-bounded-template';expectedTemplateRevision=2;
+    await request('POST','/v1/admin/rule-templates/system-beta-recommended/actions/copy',{
+      idempotencyKey:'bounded-copy',sourceTemplateId:'system-beta-recommended',newTemplateId:ruleTemplateId,
+      name:'Bounded Series fixture',expectedSourceRevision:1});
+    const draft=(await request('GET','/v1/admin/rule-templates/'+ruleTemplateId+'/draft')).json().draft;
+    const rules=structuredClone(draft.rules),profile=rules.profileRuleSets.find(item=>item.contentProfile==='series');
+    for(const requirements of [profile.baseRequirements,...profile.decisionBranches.map(item=>item.requirements)]){
+      requirements.space={unit:'episode',maxSizeGiB:24/1073741824,maxSizeBytes:24};
+    }
+    profile.profileRuleSetDigest=canonicalDigest(Object.fromEntries(Object.entries(profile).filter(([key])=>key!=='profileRuleSetDigest')));
+    const rulesDigest=canonicalDigest(rules);
+    await request('PATCH','/v1/admin/rule-templates/'+ruleTemplateId+'/draft',{
+      idempotencyKey:'bounded-draft',templateId:ruleTemplateId,expectedDraftRevision:1,basePublishedRevision:1,
+      rulesSchemaRef:draft.rulesSchemaRef,rules,rulesDigest});
+    const basis={templateId:ruleTemplateId,expectedCurrentRevision:1,expectedDraftRevision:2,expectedDraftDigest:rulesDigest};
+    const preview=(await request('POST','/v1/admin/rule-templates/'+ruleTemplateId+'/actions/preview',{
+      idempotencyKey:'bounded-preview',...basis})).json();
+    await request('POST','/v1/admin/rule-templates/'+ruleTemplateId+'/actions/publish',{
+      idempotencyKey:'bounded-publish',...basis,previewId:preview.previewId,previewDigest:preview.previewDigest});
+  }
   const target=path.join(root,'shelf');fs.mkdirSync(target);
   await request('POST','/v1/admin/shelves',{idempotencyKey:'series-shelf',shelfId:'series-shelf',name:'Series fixture',
-    targetRootLocation:target,ruleTemplateId:'system-beta-recommended',expectedTemplateRevision:1,
+    targetRootLocation:target,ruleTemplateId,expectedTemplateRevision,
     placementPolicy:{folderTemplate:'{title}',primaryTemplate:'{stem}{ext}',nfoTemplate:'{stem}.nfo',
       subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}',posterTemplate:'poster{ext}',fanartTemplate:'fanart{ext}',collisionPolicy:'reject'}});
   await request('PATCH','/v1/admin/routing/material-fields/series-field',{idempotencyKey:'series-routing',fieldId:'series-field',
@@ -355,6 +377,14 @@ for(const {episodeCount,append,anchored,concurrent} of [{episodeCount:2},{episod
   assert.ok(state.works.some(work=>work.work_kind==='product_conformance'&&work.state==='succeeded'),JSON.stringify({works:state.works,incidents:db.prepare('SELECT * FROM fx_executor_incidents').all(),events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   assert.ok(state.works.some(work=>work.work_kind==='deliverable_promotion'&&work.state==='succeeded'),JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1,JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
+  if(bounded){
+    const checks=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>JSON.parse(row.result_json))
+      .filter(result=>result.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'&&result.checkKind==='space');
+    assert.equal(checks.length,1);assert.equal(checks[0].result,'passed');
+    assert.deepEqual(checks[0].episodeSpaceEvidence.allocations.map(item=>({key:item.episodeKey,...item.allocatedBytes,withinLimit:item.withinLimit})),
+      [{key:'E001',numerator:'24',denominator:'1',withinLimit:true},{key:'E002',numerator:'24',denominator:'1',withinLimit:true}]);
+    assert.equal(checks[0].episodeSpaceEvidence.maxSizeBytes,24);
+  }
   const packages=db.prepare('SELECT * FROM libra_product_packages').all();
   assert.equal(packages.length,1);
   const provenance=JSON.parse(packages[0].production_provenance_json);

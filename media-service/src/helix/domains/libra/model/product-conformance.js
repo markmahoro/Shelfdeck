@@ -1,4 +1,5 @@
 'use strict';
+const {evaluateSeriesEpisodeSpace}=require('../../../contracts/episode-byte-allocation');
 const {missingArtifactKinds,artifactGapCodes}=require('../../../contracts/artifact-requirement-gaps');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
@@ -336,6 +337,13 @@ function evaluateProductConformance(value) {
   const requiredEpisodes = input.acceptanceSpec.productScope.episodeKeys || [], claimedEpisodes = new Set(primaries.flatMap((item) =>
     (item.episodeClaims || []).map((claim) => claim.episodeKey)));
   if (requirements.structure.requireOnePrimaryPerEpisode && requiredEpisodes.some((key) => !claimedEpisodes.has(key))) unmet.add('episode_coverage_unmet');
+  if(input.acceptanceSpec.contentProfile==='series') {
+    const complete=requiredEpisodes.length>0&&requiredEpisodes.length===claimedEpisodes.size&&
+      requiredEpisodes.every(key=>claimedEpisodes.has(key))&&primaries.every(member=>member.episodeClaims.length>0);
+    if(!complete)unmet.add('episode_coverage_unmet');
+    else if(!evaluateSeriesEpisodeSpace({members:primaries,episodeKeys:requiredEpisodes,
+      maxSizeBytes:requirements.space.maxSizeBytes}).every(item=>item.withinLimit))unmet.add('max_size_exceeded');
+  }
   const descriptive = new Map((metadata?.descriptiveFacts?.entries || []).map((item) => [item.key, item.value]));
   for (const code of requirements.metadata.requiredFieldCodes || []) {
     let present;

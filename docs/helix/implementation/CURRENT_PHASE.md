@@ -125,3 +125,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08目标预约DoR：按SSOT §6.5.3 Target Commit Slot及§6.2.5，Arca以Final Decision的精确Endpoint/location协调物理落位；Owner投影只读等待，首次offloading同事务竞争并持久化预约时间，副作用前再验，blocked持有者保留预约直至Commit。未占用目标的失败不能阻塞其他Run；恢复重新验证预约。验证并发Host、同/异目标、重开数据库、失败前后差异及顺序/Movie回归；无新增Owner或生产动作。
 
 2026-10-08并发落位实现与专项验证见[Evidence](evidence/SERIES_CONCURRENT_TARGET_20261008.md)：Arca持久化目标预约、Owner输入等待、恢复竞争及旧已提交schema保护已接通；并发Host两批形成唯一Season Entry与E01–E03。大范围架构2057项执行，唯一固定摘要断言更新后专项通过，9项既有skip；历史迁移9项失败在修改前基线同样复现，保留为节点5验证缺口。继续逐成员加工、N:M最终空间证据及运营/UI/发布资格；用户要求本地与GitHub同步，验证后提交推送。
+
+2026-10-08逐集最终空间接纳DoR：按SSOT §5.5.8及§8.6.20，Arca以本批完整Product Manifest计算每集精确有理数份额，替换当前整批Primary求和；共文件均分、多part累加，不累计已上架旧集。Space AcceptanceCheck保存绑定Manifest/scope的typed逐集Evidence，沿既有max_size_exceeded Gap与完整Acceptance union；共用纯数学合同helper，不导入另一Owner模型。验证上限相等、单集超限、总量超过单集但各集合格、分数不可向下取整、Movie回归及实际Host。Libra bounded N:M入口仍需后续接线，不以Arca修复宣称全链已支持。
+
+2026-10-08逐集最终空间实现见[Evidence](evidence/SERIES_FINAL_SPACE_ACCEPTANCE_20261008.md)：Arca按完整Product Manifest均分/累加并保存typed Evidence；多part Structure覆盖与Libra最终Conformance独立聚合已验证。正式模板每集24字节、两集合计48字节的Host上架通过；24集回归通过。全架构2068项执行，2058通过/9既有skip/1历史见证拒绝范围断言更新后，相关86项复验通过。bounded N:M入口和逐成员加工仍待贯通，不关闭完整Series节点。

@@ -1,5 +1,6 @@
 'use strict';
 const {seriesMetadataFieldMissing}=require('../model/series-metadata');
+const {evaluatePackageSpace}=require('../model/package-space-acceptance');
 
 const path=require('node:path');
 const {settlementHandles}=require('../model/input-settlement-scope');
@@ -47,7 +48,8 @@ function check(ref,kind,input,passed,reason,at,details={}){const basisDigest=can
   missingArtifactKinds:Object.freeze(details.missingArtifactKinds||[]),
   primaryMediaObservations:observations,primaryMediaObservationSetDigest:details.primaryMediaObservationSetDigest||emptyObservationDigest(),
   authorizedDefectManifestDigestOrNull:manifest?.manifestDigest||null,
-  authorizedGapComparison:manifest?'pending_final_union':'not_applicable'});return result;}
+  authorizedGapComparison:manifest?'pending_final_union':'not_applicable',
+  ...(details.episodeSpaceEvidence?{episodeSpaceEvidence:details.episodeSpaceEvidence}:{})});return result;}
 function packageRequirementSnapshot(c){const value=c.packageValue?.productionProvenance?.acceptanceRequirementSnapshot,
   body=value&&Object.fromEntries(Object.entries(value).filter(([key])=>key!=='snapshotDigest')),
   structure=c.packageValue?.productStructureSnapshot?.structureKind==='season'?'season':'single';
@@ -63,9 +65,9 @@ function dimensionDisposition(c,kind,gaps){const manifest=c.packageValue.product
   return manifest?canonicalJson(gaps)===canonicalJson(GAP_CODES_BY_CHECK[kind].filter((item)=>manifest.waivedRequirementCodes.includes(item))):gaps.length===0;}
 function gapReason(kind){return {identity:'identity_requirement_unmet',structure:'structure_requirement_unmet',metadata:'metadata_requirement_unmet',
   mandatory_media:'mandatory_requirement_unmet',space:'space_requirement_unmet'}[kind];}
-function dimensionCheck(ref,kind,input,c,at,gaps,requirementDigest){const snapshot=packageRequirementSnapshot(c),authorizedDefectManifest=c.packageValue.productionAttestation?.authorizedDefectManifest||null;
+function dimensionCheck(ref,kind,input,c,at,gaps,requirementDigest,details={}){const snapshot=packageRequirementSnapshot(c),authorizedDefectManifest=c.packageValue.productionAttestation?.authorizedDefectManifest||null;
   if(snapshot.stale)return check(ref,kind,input,false,'stale_decision_basis',at,{requirementDigest,evidenceStatus:'stale_basis',authorizedDefectManifest});
-  return check(ref,kind,input,dimensionDisposition(c,kind,gaps),gapReason(kind),at,{actualGapCodes:gaps,requirementDigest,authorizedDefectManifest,
+  return check(ref,kind,input,dimensionDisposition(c,kind,gaps),gapReason(kind),at,{...details,actualGapCodes:gaps,requirementDigest,authorizedDefectManifest,
     missingMetadataFields:kind==='metadata'?missingMetadataFields(c.packageValue,snapshot.value.requirements.metadata):[],
     missingArtifactKinds:kind==='metadata'?packageMissingArtifactKinds(c.packageValue,snapshot.value.requirements):[]});}
 function identityGaps(c,requirement){const identity=c.packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||
@@ -78,8 +80,7 @@ function structureGaps(c,requirement){const structure=c.packageValue.productStru
   primaries=(manifest?.members||[]).filter((item)=>item.role==='primary_payload'),gaps=[];
   if(structure?.structureKind!==requirement.structureKind||manifest?.scopeKind!==(requirement.structureKind==='season'?'episode_delivery':'single')||!primaries.length)
     gaps.push('structure_unmet');
-  if(requirement.requireOnePrimaryPerEpisode&&(primaries.some((item)=>!item.episodeClaims?.length)||
-      new Set(primaries.flatMap((item)=>item.episodeClaims.map((claim)=>claim.episodeKey))).size<primaries.length))gaps.push('episode_coverage_unmet');
+  if(requirement.requireOnePrimaryPerEpisode&&primaries.some((item)=>!item.episodeClaims?.length))gaps.push('episode_coverage_unmet');
   return Object.freeze(gaps);}
 function nonempty(value){return value!==null&&value!==undefined&&(!Array.isArray(value)||value.length>0)&&
   (typeof value!=='string'||value.trim().length>0);}
@@ -131,9 +132,6 @@ function priorOnDeckPlacementReceipt(options,execution,targetCommitSlotId=null){
   return null;
 }
 function finalMemberEvidence(reality){return Object.freeze(reality.memberEvidence.map((item)=>Object.freeze({...item})));}
-function spaceGaps(c,requirement){const maximum=requirement.maxSizeBytes,total=(c.packageValue.productMaterialManifest?.members||[])
-  .filter((item)=>item.role==='primary_payload').reduce((sum,item)=>sum+Number(item.sizeBytes||0),0);
-  return Object.freeze(Number.isSafeInteger(maximum)&&total>maximum?['max_size_exceeded']:[]);}
 function context(options,execution,refs){
   if(execution.ownerScope.processType==='arca_shelf_entry')
     return options.aftercareContextReader.read(execution.ownerScope.processId);
@@ -253,9 +251,9 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
         result=check(C.mandatory,'mandatory_media',input,passed,reason,at,{...observed,requirementDigest:n.mandatoryRequirement.digest,
           authorizedDefectManifest:manifest});return outcome(C.mandatory,result,at);},
     validateResult(_c,o){if(o?.result?.checkKind!=='mandatory_media')throw new TypeError('Mandatory Acceptance Check is invalid.');}});
-  ports[C.space]=pure(C.space,['productManifest','spaceRequirement'],(n,c,at)=>{const snapshot=packageRequirementSnapshot(c);return dimensionCheck(C.space,'space',{
+  ports[C.space]=pure(C.space,['productManifest','spaceRequirement'],(n,c,at)=>{const snapshot=packageRequirementSnapshot(c),space=evaluatePackageSpace(c.packageValue,snapshot.value.requirements.space);return dimensionCheck(C.space,'space',{
     acceptanceAttemptId:acceptanceAttemptId(c),standardRevision:c.shelf.currentStandardRevision,packageDigest:c.packageValue.packageDigest,
-    productManifest:n.productManifest,spaceRequirement:n.spaceRequirement},c,at,spaceGaps(c,snapshot.value.requirements.space),n.spaceRequirement.digest);});
+    productManifest:n.productManifest,spaceRequirement:n.spaceRequirement},c,at,space.actualGapCodes,n.spaceRequirement.digest,space);});
   ports[C.feasibility]=pure(C.feasibility,['offLoadContext','placementPolicy','targetEndpoint'],(_n,c,at)=>options.inventoryPort.assess({
     onDeckRunId:stable('arca-ondeck-preview-',{offer:c.offer.offerId}),custodyId:stable('arca-custody-preview-',{offer:c.offer.offerId}),shelf:c.shelf,
     onDeckProductPackage:c.packageValue,observedAtMs:at,replayCommitted:false}));
