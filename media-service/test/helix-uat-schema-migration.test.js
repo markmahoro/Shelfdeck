@@ -19,8 +19,6 @@ const {
   PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
   PRE_FORMATION_THREE_STATE_SCHEMA_DIGEST,
   PRE_CASE_ADMISSION_SCHEMA_DIGEST,
-  INTAKE_BINDING_REPLAN_CODE,
-  PRE_PROJECTION_PLAN_REPLAN_CODE,
   migrateUatIdentitySelectionSchema,
 } = require('../src/helix/foundation/persistence/uat-identity-selection-migration');
 
@@ -28,11 +26,33 @@ const generatedRoot = path.resolve(__dirname, '../src/helix/foundation/persisten
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 
+
+const historicalRoot=path.join(__dirname,'fixtures/helix-historical-ddl');
+const historicalManifest=JSON.parse(fs.readFileSync(path.join(historicalRoot,'manifest.json'),'utf8'));
+function historicalDdl(ddlDigest) {
+  const snapshot=historicalManifest.snapshots.find(item=>item.ddlDigest===ddlDigest);
+  assert.ok(snapshot,'An exact historical DDL snapshot is required.');
+  const bytes=require('node:zlib').gunzipSync(fs.readFileSync(path.join(historicalRoot,snapshot.file)));
+  assert.equal(bytes.length,snapshot.uncompressedBytes);
+  const ddl=bytes.toString('utf8');assert.equal(digest(ddl),ddlDigest);
+  return ddl;
+}
+function historicalDatabase(databasePath,ddlDigest,generation) {
+  const db=new Database(databasePath);db.exec(historicalDdl(ddlDigest));
+  db.prepare('INSERT INTO platform_schema_marker(schema_name,generation,schema_digest,catalog_digest,applied_at_ms) VALUES(?,?,?,?,?)')
+    .run('shelfdeck',generation,ddlDigest,digest(catalogRows(db)),100);
+  return db;
+}
+function executionSnapshot(db) {
+  return ['platform_schema_marker','fx_supporting_works','fx_work_attempts','fx_workflow_plans','fx_plan_nodes','fx_workflow_events','fx_event_attempts']
+    .map(table=>[table,db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all()]);
+}
+
 test('UAT-215 adds only an empty cleanup responsibility table to the exact production schema',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-cleanup-upgrade-')),databasePath=path.join(root,'shelfdeck.db');
   let db,check,kernel;
   try{
-    const oldDdl=schemaDdl.replace(/CREATE TABLE "arca_source_cleanup_checks" \([\s\S]*?\n\);\nCREATE INDEX "idx_arca_source_cleanup_checks_hot_01"[^\n]*\n/,'');
+    const oldDdl=historicalDdl(require('../src/helix/foundation/persistence/uat-identity-selection-migration').PRE_SOURCE_CLEANUP_SCHEMA_DIGEST);
     assert.notEqual(oldDdl,schemaDdl);
     db=new Database(databasePath);db.exec(oldDdl);
     db.prepare("INSERT INTO arca_shelf_entries(shelf_entry_id,status) VALUES('keep-entry','active')").run();
@@ -57,7 +77,7 @@ test('UAT-213 adds empty Target Binding history without inventing prior targets'
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-target-binding-upgrade-')),databasePath=path.join(root,'shelfdeck.db');
   let db,check,kernel;
   try{
-    const oldDdl=schemaDdl.replace(/CREATE TABLE "arca_shelf_target_bindings" \([\s\S]*?\n\);\nCREATE INDEX "idx_arca_shelf_target_bindings_hot_01"[^\n]*\n/,'');
+    const oldDdl=historicalDdl(require('../src/helix/foundation/persistence/uat-identity-selection-migration').PRE_TARGET_BINDING_SCHEMA_DIGEST);
     assert.notEqual(oldDdl,schemaDdl);
     db=new Database(databasePath);db.exec(oldDdl);
     db.prepare("INSERT INTO arca_shelf_entries(shelf_entry_id,status) VALUES('keep-entry','active')").run();
@@ -87,13 +107,10 @@ function catalogRows(database) {
 test('Case admission upgrades the prior constraint, preserves rows and references, and replays safely', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-case-admission-upgrade-'));
   const databasePath=path.join(root,'shelfdeck.db');
-  const oldDdl=schemaDdl.replace("'queued', 'active', 'resolved', 'invalidated', 'unresolved'", "'active', 'resolved', 'invalidated', 'unresolved'");
+  const oldDdl=historicalDdl(PRE_CASE_ADMISSION_SCHEMA_DIGEST);
   try {
     const db=new Database(databasePath);
     db.exec(oldDdl);
-    db.exec('DROP INDEX uidx_fx_event_result_bindings_partial_01; CREATE UNIQUE INDEX uidx_fx_event_result_bindings_partial_01 ON fx_event_result_bindings(event_id) WHERE 1 = 1');
-    db.exec('DROP TABLE arca_recycle_entries');
-    for(const name of ['idx_fx_supporting_works_hot_02','idx_fx_supporting_works_hot_03','idx_fx_workflow_events_hot_02','idx_proc_run_materials_hot_01'])db.exec('DROP INDEX '+name);
     db.prepare('INSERT INTO arca_aftercare_cases(aftercare_case_id,state) VALUES(?,?)').run('preserved-case','active');
     db.prepare('INSERT INTO fx_audit_records(audit_id,occurred_at_ms) VALUES(?,?)').run('preserved-fact',100);
     db.prepare('INSERT INTO platform_schema_marker(schema_name,generation,schema_digest,catalog_digest,applied_at_ms) VALUES(?,?,?,?,?)')
@@ -119,13 +136,7 @@ test('Case admission upgrades the prior constraint, preserves rows and reference
 function sourceFixture(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-uat-schema-migration-'));
   const databasePath = path.join(root, 'shelfdeck.db');
-  const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 100 });
-  kernel.close();
-  const database = new Database(databasePath);
-  database.exec('DROP TABLE arca_acceptance_recovery_cases');
-  database.exec('DROP TABLE fx_executor_incidents');
-  database.exec('DROP TABLE libra_product_identity_selection_intents');
-  database.exec('DROP TABLE libra_formation_projections');
+  const database=historicalDatabase(databasePath,SOURCE_SCHEMA_DIGEST,SOURCE_GENERATION);
   database.prepare('INSERT INTO fx_audit_records(audit_id,occurred_at_ms) VALUES(?,?)').run('preserved-audit', 101);
   const sourceCatalogDigest = digest(catalogRows(database));
   database.prepare(
@@ -162,7 +173,7 @@ test('the exact live v1 catalog upgrades once to v3 without changing durable bus
 test('the prior four-state Formation projection is rebuilt without changing Owner facts', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-three-state-formation-migration-'));
   const databasePath=path.join(root,'shelfdeck.db');
-  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});kernel.close();
+  historicalDatabase(databasePath,PRE_FORMATION_THREE_STATE_SCHEMA_DIGEST,TARGET_GENERATION).close();
   try{
     const database=new Database(databasePath);
     database.prepare('INSERT INTO fx_audit_records(audit_id,occurred_at_ms) VALUES(?,?)').run('owner-fact',101);
@@ -187,12 +198,9 @@ test('the prior four-state Formation projection is rebuilt without changing Owne
 test('the exact live v2 catalog adds the empty formation projection and executor closure stores before advancing to v3', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-schema-migration-'));
   const databasePath=path.join(root,'shelfdeck.db');
-  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});kernel.close();
+  historicalDatabase(databasePath,INTERMEDIATE_SCHEMA_DIGEST,INTERMEDIATE_GENERATION).close();
   try{
     const database=new Database(databasePath);
-    database.exec('DROP TABLE arca_acceptance_recovery_cases');
-    database.exec('DROP TABLE fx_executor_incidents');
-    database.exec('DROP TABLE libra_formation_projections');
     const sourceCatalogDigest=digest(catalogRows(database));
     database.prepare('UPDATE platform_schema_marker SET generation=?,schema_digest=?,catalog_digest=?,applied_at_ms=? WHERE schema_name=?')
       .run(INTERMEDIATE_GENERATION,INTERMEDIATE_SCHEMA_DIGEST,sourceCatalogDigest,101,'shelfdeck');
@@ -227,7 +235,7 @@ test('an unapproved source digest is rejected before schema mutation', () => sou
   check.close();
 }));
 
-test('an exact executing pre-correction Intake Binding attempt is retired once for Owner replan', () => {
+test('Current schema does not auto-retire a pre-correction Intake Binding attempt', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-uat-intake-replan-'));
   const databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});kernel.close();
@@ -257,23 +265,19 @@ test('an exact executing pre-correction Intake Binding attempt is retired once f
     database.prepare(`INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,executor_ref,executor_version,
       input_snapshot_schema_ref,input_snapshot_digest,fence_snapshot_digest,state,started_at_ms)
       VALUES(?,?,?,?,?,?,?,?,?,?)`).run('event-attempt-1','event-binding',1,'libra.intake.binding.resolve@1',1,'inputs',hex,hex,'executing',103);
-    database.close();
+    const before=executionSnapshot(database);database.close();
     assert.deepEqual(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest,now:()=>200}),
-      {migrated:false,reason:'already_current',retiredIntakeBindingAttempts:1});
+      {migrated:false,reason:'already_current'});
     const check=new Database(databasePath,{readonly:true});
-    assert.deepEqual(check.prepare('SELECT state,outcome_kind,failure_class,failure_code,finished_at_ms FROM fx_event_attempts WHERE event_attempt_id=?')
-      .get('event-attempt-1'),{state:'completed',outcome_kind:'failed',failure_class:'contract_upgrade',failure_code:INTAKE_BINDING_REPLAN_CODE,finished_at_ms:200});
-    assert.equal(check.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get('event-binding').state,'failed');
-    assert.equal(check.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get('event-accept').state,'cancelled');
-    assert.deepEqual(check.prepare('SELECT state,failure_code FROM fx_work_attempts WHERE attempt_id=?').get('work-attempt-1'),
-      {state:'failed',failure_code:INTAKE_BINDING_REPLAN_CODE});
+    assert.deepEqual(executionSnapshot(check),before);
+    assert.equal(check.pragma('integrity_check',{simple:true}),'ok');
     check.close();
     assert.deepEqual(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest,now:()=>201}),
       {migrated:false,reason:'already_current'});
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
-test('pre-projection active Works retire atomically without deleting immutable execution history', () => {
+test('Current schema leaves pre-projection active Works unchanged for explicit Formation handling', () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-pre-projection-retirement-'));
   const databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});kernel.close();
@@ -308,22 +312,11 @@ test('pre-projection active Works retire atomically without deleting immutable e
     insertNode.run('retire-perception-plan','commit','perception.resolution.commit@1',1,'inputs','{}','parameters','{}',null,'null','domain_fact_commit','fence','{}','demand','{}');
     insertEvent.run('retire-perception-dedup','retire-perception-plan','dedup','retire-perception','retire-perception:attempt:1','perception','perception.dedup.resolve@1',1,'ready','normal_foreground',102);
     insertEvent.run('retire-perception-commit','retire-perception-plan','commit','retire-perception','retire-perception:attempt:1','perception','perception.resolution.commit@1',1,'pending','normal_foreground',null);
-    database.close();
-    assert.deepEqual(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest,now:()=>200}),{
-      migrated:false,reason:'already_current',retiredPreProjectionWorks:2,retiredPreProjectionEvents:4,
-      retiredPreProjectionExecutingEvents:1,
-    });
+    const before=executionSnapshot(database);database.close();
+    assert.deepEqual(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest,now:()=>200}),
+      {migrated:false,reason:'already_current'});
     const check=new Database(databasePath,{readonly:true});
-    assert.deepEqual(check.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get('retire-intake'),{state:'running'});
-    assert.deepEqual(check.prepare('SELECT state,failure_code FROM fx_work_attempts WHERE attempt_id=?').get('retire-intake:attempt:1'),
-      {state:'failed',failure_code:PRE_PROJECTION_PLAN_REPLAN_CODE});
-    assert.deepEqual(check.prepare('SELECT state,outcome_kind,failure_class,failure_code FROM fx_event_attempts WHERE event_attempt_id=?')
-      .get('retire-intake-event-attempt'),{state:'completed',outcome_kind:'failed',failure_class:'contract_upgrade',failure_code:PRE_PROJECTION_PLAN_REPLAN_CODE});
-    assert.equal(check.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get('retire-intake-binding').state,'failed');
-    assert.equal(check.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get('retire-intake-commit').state,'cancelled');
-    assert.equal(check.prepare('SELECT COUNT(*) count FROM fx_workflow_events WHERE plan_id=? AND state IN (?,?,?,?,?,?)')
-      .get('retire-perception-plan','pending','ready','waiting_for_resource','waiting_for_external','waiting_for_approval','executing').count,0);
-    assert.equal(check.prepare('SELECT COUNT(*) count FROM fx_workflow_plans WHERE catalog_digest=?').get(PRE_PROJECTION_EXECUTION_CATALOG_DIGEST).count,2);
+    assert.deepEqual(executionSnapshot(check),before);
     assert.equal(check.pragma('integrity_check',{simple:true}),'ok');
     check.close();
     assert.deepEqual(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest,now:()=>201}),
@@ -337,7 +330,7 @@ test('UAT-139 adds nullable coverage snapshots without inventing historical revi
   const databasePath = path.join(root, 'shelfdeck.db');
   let db, kernel;
   try {
-    const oldDdl = schemaDdl.split('\n').filter((line) => !line.includes('"shelf_coverage_json"') && !line.includes('"shelf_coverage_schema_ref"')).join('\n');
+    const oldDdl=historicalDdl('42281705d35e3aa6d5103525544ce7d9a199bd2660c93e2faf2729d333475066');
     db = new Database(databasePath); db.exec(oldDdl);
     db.prepare("INSERT INTO arca_offdeck_reviews(review_id,state) VALUES('review-keep','selection_confirmed')").run();
     db.prepare("INSERT INTO arca_offdeck_selection_receipts(selection_receipt_id,review_id,shelf_coverage_digest,entry_count) VALUES('selection-keep','review-keep',?,5)").run('a'.repeat(64));
@@ -362,7 +355,7 @@ test('UAT-251 secondary target constraint upgrade preserves every existing Run r
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-secondary-target-upgrade-')),databasePath=path.join(root,'shelfdeck.db');
   let db;
   try{
-    db=new Database(databasePath);db.exec(schemaDdl.replace("'frozen', 'secondary_target', 'defect_admitted'","'frozen', 'defect_admitted'"));
+    db=new Database(databasePath);db.exec(historicalDdl(require('../src/helix/foundation/persistence/uat-identity-selection-migration').PRE_SECONDARY_TARGET_SCHEMA_DIGEST));
     db.prepare("INSERT INTO libra_runs(libra_run_id,state) VALUES('unchanged-run','frozen')").run();
     db.prepare("INSERT INTO libra_run_revisions(libra_run_id,state_revision,transition_kind,expected_admission_head_revision) VALUES('unchanged-run',1,'frozen',0)").run();
     const before=db.prepare('SELECT * FROM libra_run_revisions').all();
@@ -378,3 +371,18 @@ test('UAT-251 secondary target constraint upgrade preserves every existing Run r
     const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest});kernel.close();
   }finally{if(db?.open)db.close();fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('Historical catalog drift is rejected before migration writes or marker advancement',()=>sourceFixture(({databasePath})=>{
+  let db=new Database(databasePath);
+  db.exec('ALTER TABLE fx_audit_records ADD COLUMN fixture_drift TEXT');
+  const beforeCatalog=catalogRows(db),beforeMarker=db.prepare('SELECT * FROM platform_schema_marker').all(),
+    beforeAudit=db.prepare('SELECT * FROM fx_audit_records').all();db.close();
+  assert.throws(()=>migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}),
+    {code:'UAT_MIGRATION_SOURCE_CATALOG_DRIFT'});
+  db=new Database(databasePath,{readonly:true});
+  try {
+    assert.deepEqual(catalogRows(db),beforeCatalog);
+    assert.deepEqual(db.prepare('SELECT * FROM platform_schema_marker').all(),beforeMarker);
+    assert.deepEqual(db.prepare('SELECT * FROM fx_audit_records').all(),beforeAudit);
+  } finally {db.close();}
+}));

@@ -151,3 +151,9 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08真实混合媒体Host DoR：沿用上述成员生产与终检合同，以临时生成的三集媒体分别触发Direct/Remux/Transcode，启用正式FFmpeg/Probe/Device探测及Workspace Effect，Provider资料保持隔离fixture；验收同Season完整上架、实际HEVC输出、各成员Claims/源结算与真实加工Result。不得借助旧Kairox runtime或NAS数据；失败按实际Owner根因修复。
 
 2026-10-08真实混合媒体增量见[Evidence](evidence/SERIES_REAL_MIXED_MEDIA_20261008.md)：正式Windows Host三集Direct/Remux/NVENC Transcode、两文件跨两集且含同集part的N:M上架均通过；最终Inventory实际字节数独立重算与Libra/Arca逐集份额一致。短SDR无音轨无上限样本不覆盖有界重试、长片、多设备、外部寻源/恢复、Linux/UI和完整发布资格。
+
+2026-10-08外部寻源合同复核（待用户确认，相关写入暂不实施）：SSOT §3.2.6允许最终N:M，但§8.6.21 OffloadContextManifest的finalProductMaterialKey仅为单值。外部提供E01/E02分集文件替换原E01-E02共文件时，无法逐项表达完整source-to-final mapping；按原物理成员单独寻源还会使E01多part与完整外部E01重复覆盖。建议在Libra既有Owner内按冻结Episode Claims二部图求受影响连通范围，以范围完整Episode Set寻源/验证，替换范围内所有原Primary，保留范围外已合格候选；各原Primary记录与自身Claims相交的全部最终Primary keys，要求其并集覆盖原Claims。Series交接使用精确有序多值映射，Movie仍为单成品；完整成品终检、Handoff B和Arca逐源结算继续保持原职责，Landing只读且只复制到Workspace。不增Domain/Store/第三次Handoff；正式schema/事务/验收必须在用户确认后传播，不能随意挑一个成品引用或删掉原part掩盖缺口。
+
+2026-10-08升级验证DoR：修复既有9项历史迁移测试债。使用Git已提交且原DDL SHA256匹配的真实旧schema隔离fixture，验证既有正式升级入口、事实保护、FK/integrity及幂等；将过时自动retire运行数据预期改为现行clean-cut不自动修改的验证。不新增旧Formation兼容、迁移或生产数据动作。
+
+2026-10-08历史升级测试债完成：[Evidence](evidence/SERIES_HISTORICAL_UPGRADE_FIXTURES_20261008.md)。真实历史DDL替换伪旧fixture，current schema旧Plan保持不自动改写；历史升级与Series相关schema/reservation联合20项通过。解决原9项测试失败，不替代完整生产同库升级/回退证据。

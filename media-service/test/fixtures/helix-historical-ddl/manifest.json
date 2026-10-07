@@ -1,0 +1,62 @@
+{
+  "schemaVersion": 1,
+  "sourcePath": "media-service/src/helix/foundation/persistence/generated/clean-schema.sql",
+  "snapshots": [
+    {
+      "ddlDigest": "78075366b3409916b8f8c6fcd3c0786daa5e45bab82f59ba83d91a2663689119",
+      "sourceCommit": "cfc49a8ac43b2d4dca45ac21053393103eb3b197",
+      "file": "78075366b3409916b8f8c6fcd3c0786daa5e45bab82f59ba83d91a2663689119.sql.gz",
+      "tableCount": 180,
+      "uncompressedBytes": 202804
+    },
+    {
+      "ddlDigest": "fee80cf21719481a83274c3b9021918571ed8e5a510239b1d82995758a4cbcd4",
+      "sourceCommit": "41ce433bc9bc6b89248672d09dab87d3122ed67f",
+      "file": "fee80cf21719481a83274c3b9021918571ed8e5a510239b1d82995758a4cbcd4.sql.gz",
+      "tableCount": 181,
+      "uncompressedBytes": 203795
+    },
+    {
+      "ddlDigest": "3be2dad9b3615053681dfc2721974657fc3995ccf60a044e17dfb5131f0f8199",
+      "sourceCommit": "7b6857890980b15b7787879e6c25e8f496b0f3ec",
+      "file": "3be2dad9b3615053681dfc2721974657fc3995ccf60a044e17dfb5131f0f8199.sql.gz",
+      "tableCount": 186,
+      "uncompressedBytes": 211485
+    },
+    {
+      "ddlDigest": "6a2246c39bebcd1f6f80264bac793c7a3119636a791683e426e4c30aa6fdc651",
+      "sourceCommit": "e1b0b7993d972f091acc01c1933fe7cff00f014e",
+      "file": "6a2246c39bebcd1f6f80264bac793c7a3119636a791683e426e4c30aa6fdc651.sql.gz",
+      "tableCount": 186,
+      "uncompressedBytes": 211474
+    },
+    {
+      "ddlDigest": "642c62d6d55e95ce31a097435ae7052c26d0ea5b65d049d90c724522db204784",
+      "sourceCommit": "7c712fc58137c8b1f7f83373396cd2e07842d2b6",
+      "file": "642c62d6d55e95ce31a097435ae7052c26d0ea5b65d049d90c724522db204784.sql.gz",
+      "tableCount": 187,
+      "uncompressedBytes": 212964
+    },
+    {
+      "ddlDigest": "3ce7180fe6b3ba843b2b85669dca5dd852792f979770c908ef2b17560d473d49",
+      "sourceCommit": "bd8947f7d4f355d44878cf70c6fc890b72dfcfda",
+      "file": "3ce7180fe6b3ba843b2b85669dca5dd852792f979770c908ef2b17560d473d49.sql.gz",
+      "tableCount": 188,
+      "uncompressedBytes": 213902
+    },
+    {
+      "ddlDigest": "42281705d35e3aa6d5103525544ce7d9a199bd2660c93e2faf2729d333475066",
+      "sourceCommit": "204e532e684e8ae4c2230d5981acc26682bd5d3c",
+      "file": "42281705d35e3aa6d5103525544ce7d9a199bd2660c93e2faf2729d333475066.sql.gz",
+      "tableCount": 189,
+      "uncompressedBytes": 214573
+    },
+    {
+      "ddlDigest": "854c22240e01915f777958ec490bf1ebad6dcc4a92f4bd6f2f032d32ac2d1312",
+      "sourceCommit": "eae6bb3da39ade22f2e001b6913c0ce487986c1a",
+      "file": "854c22240e01915f777958ec490bf1ebad6dcc4a92f4bd6f2f032d32ac2d1312.sql.gz",
+      "tableCount": 197,
+      "uncompressedBytes": 220934
+    }
+  ]
+}
