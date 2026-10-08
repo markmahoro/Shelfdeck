@@ -181,3 +181,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Inventory Artifact scope持久化DoR：在Arca Inventory成员增加nullable的artifact_scope_json；仅Series NFO存储closed且自带摘要的整季/Episode Requirement与已接受Artifact来源关联，Movie/其他角色为空。On-deck从既有正式映射及已验证Staged成员建立关系，与Inventory/Deck摘要及事务一同提交；追加保留旧成员关系，Aftercare新revision复制关系。Owner/Handoff不变，不读取Libra内部Store，不替NFO创建Primary Claim。精确旧schema只做新增nullable列，不回填/猜测历史Series关系；旧Series收藏缺关系需显式拒绝升级，Movie事实不改写。以模型负向、真实SQLite事务/历史保护、Host首次/追加验证；本批无生产升级授权。
 
 2026-10-08 Inventory Artifact scope结果：[Evidence](evidence/SERIES_INVENTORY_ARTIFACT_SCOPE_20261008.md)。独立schema_ref与closed scope JSON已进入Arca正式成员、首次/追加Commit、历史摘要重建及维护revision复制。显式连续性Host E01/E02→E03通过；全架构2,202通过/9既有skip/0失败，最后维护/Scope239通过。旧Movie schema保护升级与旧Series缺证据拒绝通过。下一段将scope贯穿逐Artifact维修Planner/Projection/Result、NFO生成与精确物化提交；当前TextRender门禁仍在，不关闭节点4/发布Gate。无生产动作。
+
+2026-10-08 Series NFO重建DoR：依据SSOT §5.5.5及Arca Aftercare/Inventory合同，从当前正式NFO成员的Artifact scope选择其sourcePackageId对应的已接受Identity、Metadata和Cast；Episode目标只使用精确匹配的逐集资料，整季不混入Episode字段。生成tvshow/episodedetails受控XML，校验Series/Season、当前成员范围、必需字段和输出字节上限；不从文件名推断、不回读Libra Store或重新抓取Provider。先以负向模型及实际两批Host Owner context验证，再贯穿Planner/Result/物化与原子提交；完整链路通过前保持Series自动维修门禁，不以纯Renderer通过关闭运营工作项。
+
+2026-10-08 Series NFO重建增量：[Evidence](evidence/SERIES_AFTERCARE_NFO_RENDER_20261008.md)。正式Artifact来源批次到tvshow/episodedetails渲染已通过实际两批Host Owner context，Commit输出按精确Event绑定，拒绝多结果歧义。专项39项、全架构2,233通过/9既有skip/0失败。下一段接通缺陷目标冻结、逐Artifact Workspace生成/正式物化/Inventory与Control原子Commit和恢复；当前Series自动维修门禁保留，完整运营及发布资格未完成。

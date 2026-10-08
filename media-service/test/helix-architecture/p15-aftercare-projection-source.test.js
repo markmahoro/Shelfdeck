@@ -82,6 +82,54 @@ test('Aftercare prepared output fails closed without either source authority', (
     (error) => error?.code === 'ARCA_AFTERCARE_PREPARED_OUTPUT_SOURCE_MISSING');
 });
 
+test('Aftercare multi-NFO preparation resolves the exact Event and refuses ambiguous or foreign outputs',()=>{
+  const rows=[1,2,3].map(number=>({eventId:'render-'+number,outcomeKind:'succeeded',capabilityRef:C.textRender,
+    result:{artifactHandleId:'episode-'+number}}));
+  rows.push({eventId:'poster',outcomeKind:'succeeded',capabilityRef:C.binaryAcquire,
+    result:{resultKind:'acquired',artifactHandle:{artifactHandleId:'poster'}}});
+  const reader={read:workId=>workId==='prepare'?rows:[]};
+  for(const number of [1,2,3])assert.equal(resolvePreparedOutput(null,
+    {sourceWorkId:'prepare',outputKind:'nfo',sourceEventId:'render-'+number},reader).artifactHandleId,'episode-'+number);
+  for(const parameters of [
+    {sourceWorkId:'prepare',outputKind:'nfo'},
+    {sourceWorkId:'foreign',outputKind:'nfo',sourceEventId:'render-3'},
+    {sourceWorkId:'prepare',outputKind:'nfo',sourceEventId:'missing'},
+    {sourceWorkId:'prepare',outputKind:'nfo',sourceEventId:'poster'},
+  ])assert.throws(()=>resolvePreparedOutput(null,parameters,reader),/absent or ambiguous/);
+  rows.push({...rows[2]});
+  assert.throws(()=>resolvePreparedOutput(null,{sourceWorkId:'prepare',outputKind:'nfo',sourceEventId:'render-3'},reader),/ambiguous/);
+});
+
+test('Aftercare commit Planner binds each NFO to its own prepared Event Result',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const {createCareRepairCommitPlanner}=require('../../src/helix/domains/arca/planning/aftercare-planners');
+  const {validateWorkflowPlan}=require('../../src/helix/foundation/execution/workflow-plan');
+  const {createCapabilityContractValidator}=require('../../src/helix/foundation/capability/contract-validator');
+  const refs=[C.artifactMaterialize,C.inventoryCommit,C.settlement];
+  const manifests=new Map(refs.map(ref=>[ref,JSON.parse(fs.readFileSync(path.join(__dirname,
+    '../../src/helix/contracts/capabilities',...ref.replace('@1','').split('.'),'v1/manifest.json'),'utf8'))]));
+  const registry={snapshot:refs.map(capabilityRef=>({capabilityRef,contractVersion:1})),
+    resolve:capabilityRef=>({manifest:manifests.get(capabilityRef)})};
+  const policyRegistry={digest:canonicalDigest('policy'),bindingFor:()=>({retryPolicyRef:'retry@1',timeoutPolicyRef:'timeout@1'})};
+  const rows=[1,2,3].map(number=>({eventId:'render-'+number,outcomeKind:'succeeded',capabilityRef:C.textRender,
+    result:{artifactHandleId:'episode-'+number}})),reader={read:()=>rows};
+  const plan=createCareRepairCommitPlanner({registry,policyRegistry,workResultReader:reader,
+    contextReader:{read:()=>({raw:{materials:[{role:'metadata_sidecar'}]}})}}).plan({
+      workAttemptId:'commit-attempt',workId:'commit',ownerDomain:'arca',processType:'arca_shelf_entry',processId:'entry',
+      executionBasisDigest:canonicalDigest('basis'),dependencyRefs:[{objectType:'repair_prepare_work',objectId:'prepare'}]});
+  const schemas=refs.flatMap(ref=>['parameters','resource-demand','fence'].map(kind=>JSON.parse(fs.readFileSync(path.join(__dirname,
+    '../../src/helix/contracts/capabilities',...ref.replace('@1','').split('.'),'v1',kind+'.schema.json'),'utf8'))));
+  validateWorkflowPlan(plan,{registry,policyRegistry,contractValidator:createCapabilityContractValidator({schemas})});
+  const materializers=plan.nodes.filter(node=>node.capabilityRef===C.artifactMaterialize);
+  assert.equal(materializers.length,3);
+  for(const [index,node] of materializers.entries()) {
+    const parameters=node.inputBindings.bindings.find(binding=>binding.portName==='verifiedArtifactOrWorkspaceMediaHandle').parameters;
+    assert.equal(parameters.sourceEventId,'render-'+(index+1));
+    assert.equal(resolvePreparedOutput(null,parameters,reader).artifactHandleId,'episode-'+(index+1));
+  }
+  assert.deepEqual(plan.nodes.find(node=>node.capabilityRef===C.inventoryCommit).dependsOn.map(item=>item.eventId),materializers.map(node=>node.eventId));
+});
+
 test('Aftercare progress is scoped to the current preparation Work and clamps executing media below terminal', () => {
   const progress = projectActiveRepairProgress([
     { workId:'orphan-work', events:[{

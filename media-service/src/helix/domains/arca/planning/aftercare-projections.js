@@ -17,12 +17,13 @@ function resolvePreparedOutput(sourceResult,parameters,workResultReader){
   if(sourceResult)return resultOutput(sourceResult);
   if(typeof parameters?.sourceWorkId!=='string'||!parameters.sourceWorkId)
     throw Object.assign(new Error('Aftercare prepared output has neither a projected source Result nor a source Work.'),{code:'ARCA_AFTERCARE_PREPARED_OUTPUT_SOURCE_MISSING'});
-  const rows=workResultReader.read(parameters.sourceWorkId).filter((item)=>item.outcomeKind==='succeeded');let row;
-  if(parameters.outputKind==='nfo')row=rows.find((item)=>item.capabilityRef===C.textRender);
-  else if(parameters.outputKind==='poster')row=rows.find((item)=>item.capabilityRef===C.binaryAcquire&&item.result?.resultKind==='acquired');
-  else row=rows.find((item)=>[C.remux,C.transcode].includes(item.capabilityRef));
-  if(!row)throw new Error('Aftercare prepared output is absent.');
-  return resultOutput(row.result);
+  const rows=workResultReader.read(parameters.sourceWorkId).filter((item)=>item.outcomeKind==='succeeded'&&
+    (parameters.sourceEventId===undefined||item.eventId===parameters.sourceEventId));
+  const matches=rows.filter(item=>parameters.outputKind==='nfo'?item.capabilityRef===C.textRender:
+    parameters.outputKind==='poster'?item.capabilityRef===C.binaryAcquire&&item.result?.resultKind==='acquired':
+      [C.remux,C.transcode].includes(item.capabilityRef));
+  if(matches.length!==1)throw new Error('Aftercare prepared output is absent or ambiguous.');
+  return resultOutput(matches[0].result);
 }
 function requiredCase(reader,shelfEntryId){const value=reader.store.history(shelfEntryId).cases.find((item)=>item.state==='active');if(!value)throw new Error('Aftercare projection requires an active Case.');return value;}
 function referencedCase(reader,c,parameters){const caseId=(parameters.dependencyRefs||[]).find((item)=>item.objectType==='aftercare_case')?.objectId;const value=caseId?reader.store.getCase(caseId):null;return value||requiredCase(reader,c.shelfEntryId);}

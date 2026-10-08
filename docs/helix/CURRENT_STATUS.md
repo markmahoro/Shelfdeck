@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 NFO重建增量：[Series NFO Render Evidence](implementation/evidence/SERIES_AFTERCARE_NFO_RENDER_20261008.md)。已按正式Artifact scope及原批次资料重建整季/单集NFO，实际两批Host全部四份目标通过；Commit Planner修正多NFO重复取首个结果。专项39项、全架构2,233通过/9既有skip/0失败。尚未启用Series NFO实际维修，目标冻结/副作用/原子提交及恢复继续；完整UI/Linux/发布Gate保持开放，未部署NAS。
+
 2026-10-08 NFO关联持久化：[Inventory Artifact Scope Evidence](implementation/evidence/SERIES_INVENTORY_ARTIFACT_SCOPE_20261008.md)。Series NFO目标与已接受来源已纳入Inventory/Deck摘要及Commit，追加保留旧关联、历史回执可重建。E01/E02→E03完整隔离Host通过；全架构2,202通过、9既有skip、0失败；最终维护/Scope回归239通过。Movie精确旧schema新增空列并保持事实，旧Series缺关联拒绝升级。逐Artifact维修/UI/Linux及完整发布资格仍待完成，未部署NAS。
 
 2026-10-08 NFO目标映射：[Artifact Targets Evidence](implementation/evidence/SERIES_ARTIFACT_TARGETS_20261008.md)。Arca按完整Metadata scopes及Artifact Requirement/材料摘要确定整季与逐集NFO目标，正式落位复用同一映射，拒绝重复/错季/歧义目标。共文件两集隔离Host上架通过；全架构2,190通过、9既有skip、0失败。Inventory关系持久化和逐集维修尚未接通，UI/Linux及发布资格仍开放，未部署NAS。

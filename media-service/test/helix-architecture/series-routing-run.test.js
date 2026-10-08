@@ -621,6 +621,18 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.equal(new Set(latestFacts.map(row=>row.source_package_id)).size,2);
     const rawCare=require('../../src/helix/domains/arca/persistence/aftercare-store').createAftercareStore({schemaManifest,unitOfWork})
       .currentContext(currentEntry.shelf_entry_id);
+    const renderCareNfo=require('../../src/helix/domains/arca/model/aftercare-series-nfo').renderSeriesAftercareNfo;
+    for(const material of rawCare.materials.filter(item=>item.role==='metadata_sidecar')) {
+      const rendered=renderCareNfo({raw:rawCare},material.material_key),xml=rendered.bytes.toString('utf8');
+      if(rendered.scope.episodeScope) {
+        const number=rendered.scope.episodeScope.episodeNumber;
+        assert.match(xml,/^<episodedetails>/);assert.ok(xml.includes('<episode>'+number+'</episode>'));
+        const record=rawCare.facts.find(item=>item.fact_kind==='product_metadata'&&item.source_package_id===rendered.scope.sourcePackageId)
+          .value.episodeMetadata.find(item=>item.episodeScope.episodeNumber===number);
+        const title=record.descriptiveFacts.entries.find(item=>item.key==='episode_title').value;
+        assert.ok(xml.includes('<title>'+title+'</title>'));
+      } else {assert.match(xml,/^<tvshow>/);assert.doesNotMatch(xml,/<episode>/);}
+    }
     const metadataCheck=require('../../src/helix/domains/arca/model/series-metadata').seriesInventoryMetadataFieldMissing;
     assert.equal(metadataCheck(rawCare,'episode_title'),false);
     assert.equal(metadataCheck(rawCare,'episode_plot'),false);
