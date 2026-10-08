@@ -84,3 +84,25 @@ Windows111.34秒通过，Linux118.70秒通过（32项仅名称过滤skip）；Sc
 日志：仓库外 `E:/my_project/helix-git-consolidation-20261008/series-external-transcode-` 前缀，最终 `host-final.log` / `host-linux-final.log`、`contracts-final.log` / `contracts-linux-final.log`、`remux-regression.log`、`movie.log`、`p2.log`、`guards.log`。不将Linux名称过滤跳过的32个其他Host计为本次执行覆盖。
 
 无UI变更、无NAS操作。网络为受控Provider，外部多part体积、真正进程中断恢复和最终冻结版本发布验证仍开放；不外推真实下载器或长时编码画质资格。
+
+
+## 外部多 part 体积与跨进程 Commit 恢复（2026-10-08）
+
+在 `ee3ff3d55` 上仅扩展测试，无产品代码或UI变化。
+
+多part Host开启 `HELIX_SERIES_EXTERNAL=1 HELIX_SERIES_EXTERNAL_REAL=1 HELIX_SERIES_EXTERNAL_TRANSCODE=1 HELIX_SERIES_EXTERNAL_MULTIPART=1`，过滤 `with external shared-file replacement`。原E01–E02共文件对应外部E01.part1/E01.part2/E02三个4K H.264/AAC MKV；FFmpeg `reserve_index_space=6 MiB`产生合法Matroska预留空间，使每个实际文件超过4 MiB/集上限。该fixture验证真实文件体积/份额，不代表真实高复杂度画面或编码压缩率。
+
+三个文件均转码为HEVC/AAC后最终上架。E01两个part的单独Workspace Verification都保留唯一`max_size_exceeded`（其余part仍以原Import字节参与当次basis）；只有满足各自分配预算才能进入候选，完整成品集合再次逐集验收。断言最终正式AcceptanceCheck的有理数字节份额逐项等于实际Inventory文件计量，E01相加、E02独立，均不超过4 MiB。三个实际生产成品到Package/Stage/Inventory映射一致，一次外部获取、一个原source结算、Provider SHA256不变。
+
+- Windows首次123.59秒，新增两个part失败Evidence断言后124.69秒通过。
+- Linux Node20 CPU同一最终用例147.79秒通过；名称过滤skip的其他32项不计覆盖。
+
+进程恢复入口：`HELIX_SERIES_EXTERNAL_RESTART=1 node --test test/helix-architecture/series-external-process-recovery.test.js`。子进程执行真实两集外部Transcode，在全部成品落位、原source结算完成而`arca_ondeck_domain`事务尚未提交时主动exit 73；此时On-deck Commit Receipt为0。新Node进程启用普通Host，外部调用端口设为拒绝，要求恢复为一个active Entry及唯一Commit Receipt。再次启动第三个进程，Entry/Inventory/Commit/原Offload/生产Result完全相同。全部最终文件、Provider文件及范围外哨兵逐字节保护，Episode Claims仍E001/E002，外键及SQLite integrity通过。
+
+- Windows完整崩溃/恢复/重开135.59秒通过。
+- Linux Node20完整崩溃/恢复/重开174.19秒通过。
+- 21项外部Scope专项、P2和diff检查通过。仅测试增量，本轮不重复产品全量/构建或UI验收。
+
+日志位于 `E:/my_project/helix-git-consolidation-20261008/`：`series-external-multipart-host-final.log`、`series-external-multipart-host-linux.log`、`series-external-restart-host.log`、`series-external-restart-host-linux.log`、`series-external-multipart-scope.log`、`series-external-multipart-p2.log`。
+
+边界：上述恢复是完整Host在**结算完成/Commit前**的真正进程边界，不宣称覆盖下载进行中、转码写入中或全部故障排列。共享Workspace Effect已有partial/safe_retry/continue_forward专项，但最终发布前仍须按Phase矩阵核对适用覆盖。真实Provider网络/环境冷启动、最终冻结回归/构建及联合回退Gate继续；未部署或修改NAS。

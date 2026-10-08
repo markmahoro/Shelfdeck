@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 外部多part与进程恢复：三个真实4K文件经转码后按E01两part/E02一文件逐集验收，Windows124.69秒/Linux147.79秒通过；两个part各自整集超限Evidence保持，最终完整集合通过。加工/结算完成、On-deck Commit前退出进程后，新Host唯一提交及再次重开一致，Windows135.59秒/Linux174.19秒通过；恢复零外部调用，成品/Provider/范围外字节保护保持。21专项/P2/diff通过，仅测试增量，剩余失败矩阵审查与最终发布Gate继续，无NAS动作。
+
 2026-10-08 外部Series转码接续：精确Import成员进入既有设备Assessment/有界策略，沿完整Scope预算生产，全部合格后重建实际成品映射；保留质量下限终结与禁止再次获取。真实H.264→HEVC两集Host Windows119.16秒/Linux130.84秒通过，映射/一次获取/Provider字节保护保持；双平台各147专项、Movie外部4项、外部Remux回归及P2/边界/语义通过。外部多part体积与进程恢复、最终冻结发布Gate仍开放，无UI或NAS动作。
 
 2026-10-08 外部Remux已贯通：精确Import Work/Handle/Probe/Claims绑定加工源，两分集MP4封装MKV后重建全部替换目标，经全Run验收/Arca结算。真实4K HEVC/AAC Host Windows112.66秒/Linux120.66秒通过，逐段核对Remux→Package→Stage→Inventory、一次获取及Provider字节保护；双平台各145专项、Movie外部4项、普通Series混合Host及P2/边界/语义通过。外部Transcode/恢复及最终发布Gate继续，无UI变更或NAS动作。
@@ -94,7 +96,7 @@
 
 当前不能宣称首版可部署，剩余门槛按证据范围保持：
 
-- EpisodeDelivery完整Requirement集合合同已获确认并落地；共文件到分集外部上架Windows/Linux完整Host通过。外部真实Remux/Transcode首批上架已通过；外部多part体积与进程恢复仍需验证，受控Provider证据不外推为真实下载。
+- EpisodeDelivery完整Requirement集合合同已获确认并落地；共文件到分集外部上架Windows/Linux完整Host通过。外部真实Remux/Transcode、多part逐集体积及结算后/Commit前跨进程恢复已通过；其余失败/恢复矩阵继续审查，受控Provider证据不外推为真实下载。
 - 历史数据库副本的定向Reset、升级与备份恢复已通过；当前生产准备、应用/容器/媒体联合回退未覆盖，不获授权不修改生产。
 - 同名多Season独立上架及只退出S02、保留S01的API/浏览器路径已通过并获bfefd19ae验收；剩余失败/恢复矩阵需逐项审查。
 - 当前首次业务配置仍使用受控Provider/媒体端口，真实集成凭据及完整环境冷启动未覆盖。
@@ -189,10 +191,10 @@
 
 | 顺序 | 工作项 / Owner | 验收门槛 | 当前状态 |
 | --- | --- | --- | --- |
-| 节点1 | 剧集资料与生产基础 / Platform、Libra | 明确Season/Episode身份，逐集Observation/Draft/NFO/Artifact按冻结Run范围生产，完整Result与Provenance链 | 资料/Artifact/Fact、逐成员Direct/Remux/Transcode及交付已通过隔离Host；24集已验证。基本外部上架及已验证UI路径已补齐；外部后加工/恢复与最终验收仍开放，现行32物理成员上限不外推为1024，节点未关闭 |
+| 节点1 | 剧集资料与生产基础 / Platform、Libra | 明确Season/Episode身份，逐集Observation/Draft/NFO/Artifact按冻结Run范围生产，完整Result与Provenance链 | 资料/Artifact/Fact、逐成员Direct/Remux/Transcode及交付已通过隔离Host；24集已验证。基本外部上架及已验证UI路径已补齐；外部后加工、多part及结算后/Commit前恢复已验证，剩余矩阵及最终验收仍开放，现行32物理成员上限不外推为1024，节点未关闭 |
 | 节点2 | 首批剧集完整上架 / Procurement、Libra、Arca | E01/E02从Field到唯一Season Entry；正式Handoff/Commit、真实媒体及相应用户路径；UI负责人验收可见变化 | 首批唯一Season Entry完整隔离Host、真实短SDR及PQ N:M媒体已通过；实际浏览器从来源/规则/身份确认到首批上架已通过，首次业务配置31b1df37b获负责人接受；真实集成初配及最终候选资格继续 |
 | 节点3 | 持续追加与复杂文件映射 / Libra、Arca | E03扩充同Entry，旧Run/集事实不改写；重叠/并发/重复及N:M、逐集空间验收；可见变化交UI负责人验收 | E03追加、并发非重叠、旧集保护、真实N:M及Linux跨设备已验证；实际浏览器追加及维护已获精确版本接受；同名多Season旧季保护通过，剩余故障恢复继续 |
-| 节点4 | 完整运营与用户体验 / Procurement、Libra、Arca、UI负责人 | 外部实际Episode覆盖、失败/重启、Aftercare/共享材料退出；Season用户旅程、适用状态及UI负责人验收 | NFO/Placement/媒体维修、Off-deck及部分进程恢复已验证；完整基本外部获取/替换双平台通过；来源至维护/退出的已验证UI路径获接受，外部后加工/恢复及剩余路径继续 |
+| 节点4 | 完整运营与用户体验 / Procurement、Libra、Arca、UI负责人 | 外部实际Episode覆盖、失败/重启、Aftercare/共享材料退出；Season用户旅程、适用状态及UI负责人验收 | NFO/Placement/媒体维修、Off-deck及部分进程恢复已验证；完整基本外部获取/替换双平台通过；来源至维护/退出的已验证UI路径获接受，外部Remux/Transcode、多part及结算后/Commit前进程恢复已通过，剩余路径继续 |
 | 节点5 | Movie回归与Series发布资格 / 实施、UI与发布责任方 | 冻结SHA的Windows/Linux、真实媒体/浏览器、升级/回退及数据保护；UI验收结论绑定最终受影响版本 | Windows架构/原生及Linux专项、PQ真实媒体、精确版本局部UI接受已有证据；20分钟合成长媒体及历史副本定向Reset/升级/恢复已通过；最终冻结全量、真实集成初配、其余故障及应用/容器/媒体联合回退证据尚未闭合，禁止据此宣称可部署 |
 
 N:M计量规则已确认，完整证据接线仍待节点3验证；S00、身份纠正及Episode级恢复在所属节点开工前核对SSOT并满足DoR，不把未知合同藏进实现，也不以节点编号另建全局台账。

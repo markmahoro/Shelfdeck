@@ -193,10 +193,11 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   let systemTemplateBefore;
   let browserFlow;
   if(browserJourney)assert.ok([append,repair,offdeck].filter(Boolean).length<=1,'Browser append, repair, and exit journeys use separate frozen inventories.');
-  const crashRoot=offdeck?process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT:mediaRepair?process.env.HELIX_SERIES_AFTERCARE_CRASH_ROOT:null;
+  const crashRoot=external?process.env.HELIX_SERIES_EXTERNAL_CRASH_ROOT:offdeck?process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT:mediaRepair?process.env.HELIX_SERIES_AFTERCARE_CRASH_ROOT:null;
   const root=crashRoot?fs.realpathSync(crashRoot):
     fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
-  const externalProvider=external?require('../fixtures/series-external-host-provider').fixture(root,{rejectSearch:typeof external==='string',real,remux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1',transcode:process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1'}):null;
+  const externalMultipart=external&&process.env.HELIX_SERIES_EXTERNAL_MULTIPART==='1',externalEpisodeCap=4*1024*1024;
+  const externalProvider=external?require('../fixtures/series-external-host-provider').fixture(root,{rejectSearch:typeof external==='string',real,remux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1',transcode:process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1',multipart:externalMultipart}):null;
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
   if(browserJourney) {
@@ -279,6 +280,18 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     }}),
     unitOfWorkDecorator(value){
       unitOfWork=Object.freeze({...value,execute(participants,...args){
+        if(external&&crashRoot&&participants.some(item=>item.participantId==='arca_ondeck_domain')) {
+          const decision=JSON.parse(db.prepare('SELECT decision_json FROM arca_final_inventory_decisions').get().decision_json);
+          const files=decision.members.map(member=>({member,sha256:require('node:crypto').createHash('sha256').update(fs.readFileSync(member.targetLocation)).digest('hex')}));
+          assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,0);
+          assert.ok(sources.every(file=>!fs.existsSync(file)));
+          fs.writeFileSync(path.join(root,'external-crash-boundary.json'),JSON.stringify({files,sources,
+            providerFiles:externalProvider.files.map((file,index)=>({...file,sha256:externalProvider.fingerprints[index]})),
+            downloadCalls:externalProvider.calls.filter(item=>item.method==='POST'&&item.path==='/api/v1/download/add').length,
+            offload:db.prepare('SELECT * FROM libra_offload_context_materials').all(),
+            produced:db.prepare("SELECT r.result_json FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref='libra.media.transcode@1' ORDER BY e.event_id").all()}));
+          process.exit(73);
+        }
         if(offdeck&&participants.some(item=>item.participantId==='arca_offdeck_terminal')) {
           if(process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT&&path.resolve(process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT)===root) {
             const entry=db.prepare('SELECT * FROM arca_shelf_entries').get(),materials=db.prepare('SELECT material_key,location,episode_claims_json FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=?').all(entry.shelf_entry_id,entry.current_inventory_revision);
@@ -420,6 +433,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const draft=(await request('GET','/v1/admin/rule-templates/'+ruleTemplateId+'/draft')).json().draft;
     const rules=structuredClone(draft.rules),profile=rules.profileRuleSets.find(item=>item.contentProfile==='series');
     for(const requirements of [profile.baseRequirements,...profile.decisionBranches.map(item=>item.requirements)]){
+      if(externalMultipart)requirements.space={unit:'episode',maxSizeGiB:externalEpisodeCap/1073741824,maxSizeBytes:externalEpisodeCap};
       if(bounded)requirements.space={unit:'episode',maxSizeGiB:perEpisodeCap/1073741824,maxSizeBytes:perEpisodeCap};
       if(external&&!['exhausted','technical'].includes(external))Object.assign(requirements.mandatoryMedia,{minimumRasterClass:'4k',forbidSystemUpscaleFor4k:true});
       if(mixed||(external&&process.env.HELIX_SERIES_EXTERNAL_REMUX==='1'))requirements.mandatoryMedia.fileExtension='mkv';
@@ -585,10 +599,11 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1,JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   if(external){
     const offload=db.prepare('SELECT * FROM libra_offload_context_materials').all();
-    assert.equal(offload.length,1);assert.equal(JSON.parse(offload[0].final_product_material_keys_json).length,2);
+    const expectedFinalCount=externalMultipart?3:2;
+    assert.equal(offload.length,1);assert.equal(JSON.parse(offload[0].final_product_material_keys_json).length,expectedFinalCount);
     const entry=db.prepare('SELECT * FROM arca_shelf_entries').get();
     const final=db.prepare("SELECT * FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=? AND role='primary_payload'").all(entry.shelf_entry_id,entry.current_inventory_revision);
-    assert.equal(final.length,2);assert.ok(final.every(item=>fs.existsSync(item.location)));
+    assert.equal(final.length,expectedFinalCount);assert.ok(final.every(item=>fs.existsSync(item.location)));
     const packageKeys=db.prepare("SELECT material_key FROM libra_product_package_materials WHERE role='primary_payload'").all().map(item=>item.material_key).sort();
     assert.deepEqual(JSON.parse(offload[0].final_product_material_keys_json).sort(),packageKeys);
     const results=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>JSON.parse(row.result_json));
@@ -600,10 +615,10 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     if(process.env.HELIX_SERIES_EXTERNAL_REMUX==='1'||process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1') {
       const capability=process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1'?'libra.media.transcode@1':'libra.media.remux@1';
       const processed=db.prepare('SELECT r.result_json FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref=?').all(capability);
-      assert.equal(processed.length,2);
+      assert.equal(processed.length,expectedFinalCount);
       assert.deepEqual(processed.map(row=>JSON.parse(row.result_json).workspaceMaterialHandle.materialKey).sort(),packageKeys);
     }
-    assert.deepEqual(final.flatMap(item=>JSON.parse(item.episode_claims_json).items.map(claim=>claim.episodeKey)).sort(),['E001','E002']);
+    assert.deepEqual(final.flatMap(item=>JSON.parse(item.episode_claims_json).items.map(claim=>claim.episodeKey)).sort(),externalMultipart?['E001','E001','E002']:['E001','E002']);
     assert.equal(externalProvider.calls.filter(item=>item.method==='POST'&&item.path==='/api/v1/download/add').length,1);
     assert.ok(sources.every(file=>!fs.existsSync(file)));assert.ok(externalProvider.files.every(file=>fs.existsSync(file.location)));
     assert.deepEqual(externalProvider.files.map(item=>require('node:crypto').createHash('sha256').update(fs.readFileSync(item.location)).digest('hex')),
@@ -619,9 +634,25 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
         assert.ok(Number(result.format.duration)>=3);
       }
       assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='libra.media.remux@1'").get().n,process.env.HELIX_SERIES_EXTERNAL_REMUX==='1'?2:0);
-      assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='libra.media.transcode@1'").get().n,process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1'?2:0);
+      assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='libra.media.transcode@1'").get().n,process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1'?expectedFinalCount:0);
+      if(externalMultipart) {
+        const allocate=require('../../src/helix/contracts/episode-byte-allocation').evaluateSeriesEpisodeSpace;
+        const allocations=allocate({episodeKeys:['E001','E002'],maxSizeBytes:externalEpisodeCap,members:final.map(item=>({
+          materialKey:item.material_key,role:item.role,sizeBytes:fs.statSync(item.location).size,episodeClaims:JSON.parse(item.episode_claims_json).items}))});
+        assert.ok(allocations.every(item=>item.withinLimit));
+        const originalVerify=results.filter(item=>item.schemaRef==='helix://contracts/types/ProductMediaVerification/v1'&&item.result==='failed');
+        assert.ok(originalVerify.some(item=>item.reasonCodes.includes('max_size_exceeded')));
+        const waitingParts=originalVerify.filter(item=>item.candidateNodeId.startsWith('transcode_output_')&&
+          item.reasonCodes.length===1&&item.reasonCodes[0]==='max_size_exceeded');
+        assert.equal(waitingParts.length,2,'Both Episode 1 parts must retain their failed single-output aggregate Verification.');
+        const checks=results.filter(item=>item.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'&&item.checkKind==='space');
+        assert.equal(checks.length,1);assert.equal(checks[0].result,'passed');
+        assert.equal(checks[0].episodeSpaceEvidence.maxSizeBytes,externalEpisodeCap);
+        assert.deepEqual(checks[0].episodeSpaceEvidence.allocations.map(item=>({key:item.episodeKey,bytes:item.allocatedBytes})),
+          allocations.map(item=>({key:item.episodeKey,bytes:item.allocatedBytes})));
+      }
       if(process.env.HELIX_SERIES_EXTERNAL_REMUX==='1')assert.ok(final.every(item=>path.extname(item.location)==='.mkv'));
-      t.diagnostic(JSON.stringify({externalTranscode:process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1',externalRemux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1',realExternal:true,finalPrimaries:final.length,episodeKeys:['E001','E002'],codec:'hevc',raster:'3840x2160',audio:'aac',singleAcquisition:true}));
+      t.diagnostic(JSON.stringify({externalMultipart,externalTranscode:process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1',externalRemux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1',realExternal:true,finalPrimaries:final.length,episodeKeys:['E001','E002'],codec:'hevc',raster:'3840x2160',audio:'aac',singleAcquisition:true}));
     }
     return;
   }

@@ -1,17 +1,20 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-function fixture(root,{rejectSearch=false,real=false,remux=false,transcode=false}={}){
+function fixture(root,{rejectSearch=false,real=false,remux=false,transcode=false,multipart=false}={}){
   const landing=path.join(root,'landing'),directory=path.join(landing,'Demo Show','Season 01');
   fs.mkdirSync(directory,{recursive:true});
-  const files=[1,2].map(n=>{const name='Demo.Show.S01E0'+n+'.2160p.HEVC.'+(remux?'mp4':'mkv'),location=path.join(directory,name);fs.writeFileSync(location,'external-episode-'+n);return {name,location};});
+  const descriptors=multipart?[{episode:1,part:1},{episode:1,part:2},{episode:2}]:[{episode:1},{episode:2}];
+  const files=descriptors.map(({episode,part})=>{const name='Demo.Show.S01E0'+episode+(part?'.part'+part:'')+'.2160p.HEVC.'+(remux?'mp4':'mkv'),
+    location=path.join(directory,name);fs.writeFileSync(location,'external-episode-'+episode);return {name,location,episode};});
   if(real) {
     const {spawnSync}=require('node:child_process'),ffmpeg=process.env.FFMPEG_PATH||require('ffmpeg-static');
     const result=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-f','lavfi','-i','color=c=black:s=3840x2160:r=24:d=3',
       '-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=3','-c:v',transcode?'libx264':'libx265','-preset','ultrafast',
-      ...(transcode?['-threads','1']:['-x265-params','pools=1:frame-threads=1']),'-pix_fmt','yuv420p','-c:a','aac','-b:a','128k',files[0].location],
+      ...(transcode?['-threads','1']:['-x265-params','pools=1:frame-threads=1']),'-pix_fmt','yuv420p','-c:a','aac','-b:a','128k',...(multipart?['-reserve_index_space',String(6*1024*1024)]:[]),files[0].location],
       {encoding:'utf8',windowsHide:true,timeout:120000});
     assert.equal(result.status,0,result.stderr);
-    fs.copyFileSync(files[0].location,files[1].location);
+    for(const file of files.slice(1))fs.copyFileSync(files[0].location,file.location);
+    if(multipart)assert.ok(files.every(file=>fs.statSync(file.location).size>6*1024*1024));
   }
   const fingerprints=files.map(item=>require('node:crypto').createHash('sha256').update(fs.readFileSync(item.location)).digest('hex'));
   let requested=false;const calls=[];
@@ -29,7 +32,7 @@ function fixture(root,{rejectSearch=false,real=false,remux=false,transcode=false
       title:'Demo.Show.S01E01-E02.2160p.HEVC',media:{title:'Demo Show',tmdbid:1399,type:'电视剧',seasons:'S01'}}]:[]);
     if(url.pathname==='/api/v1/history/download')return response([]);
     if(url.pathname==='/api/v1/history/transfer')return response({success:true,data:{list:requested?files.map((item,index)=>({download_hash:'series-job',status:true,
-      dest:'/provider/organized/Demo Show/Season 01/'+item.name,type:'电视剧',tmdbid:1399,seasons:'S01',episodes:'E0'+(index+1),title:'Demo Show',year:'2020'})):[],total:requested?2:0}});
+      dest:'/provider/organized/Demo Show/Season 01/'+item.name,type:'电视剧',tmdbid:1399,seasons:'S01',episodes:'E0'+item.episode,title:'Demo Show',year:'2020'})):[],total:requested?files.length:0}});
     throw new Error('Unexpected fixture Provider route: '+url.pathname);
   }
   async function configure(request){

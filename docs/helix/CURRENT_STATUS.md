@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 外部多part与进程恢复：三个真实4K文件经转码后按E01两part/E02一文件逐集验收，Windows124.69秒/Linux147.79秒通过；两个part各自整集超限Evidence保持，最终完整集合通过。加工/结算完成、On-deck Commit前退出进程后，新Host唯一提交及再次重开一致，Windows135.59秒/Linux174.19秒通过；恢复零外部调用，成品/Provider/范围外字节保护保持。21专项/P2/diff通过，仅测试增量，剩余失败矩阵审查与最终发布Gate继续，无NAS动作。
+
 2026-10-08 外部Series转码接续：精确Import成员进入既有设备Assessment/有界策略，沿完整Scope预算生产，全部合格后重建实际成品映射；保留质量下限终结与禁止再次获取。真实H.264→HEVC两集Host Windows119.16秒/Linux130.84秒通过，映射/一次获取/Provider字节保护保持；双平台各147专项、Movie外部4项、外部Remux回归及P2/边界/语义通过。外部多part体积与进程恢复、最终冻结发布Gate仍开放，无UI或NAS动作。
 
 2026-10-08 外部Remux已贯通：精确Import Work/Handle/Probe/Claims绑定加工源，两分集MP4封装MKV后重建全部替换目标，经全Run验收/Arca结算。真实4K HEVC/AAC Host Windows112.66秒/Linux120.66秒通过，逐段核对Remux→Package→Stage→Inventory、一次获取及Provider字节保护；双平台各145专项、Movie外部4项、普通Series混合Host及P2/边界/语义通过。外部Transcode/恢复及最终发布Gate继续，无UI变更或NAS动作。
