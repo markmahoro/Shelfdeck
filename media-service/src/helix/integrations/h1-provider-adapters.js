@@ -1046,6 +1046,23 @@ function createProtocolTransport(profile, options) {
     return Object.freeze(rows);
   }
 
+  function moviepilotSeriesCoverage(row) {
+    const meta = row?.meta_info || {}, media = row?.media_info || {};
+    const isTv = value => value === '电视剧' || ['tv', 'series'].includes(String(value || '').toLowerCase());
+    const positive = value => Number.isSafeInteger(value) && value > 0 && value <= 9999;
+    const season = meta.begin_season, endSeason = meta.end_season ?? season;
+    const first = meta.begin_episode, last = meta.end_episode ?? first;
+    const empty = Object.freeze({ seasonNumber:null, episodeKeys:Object.freeze([]) });
+    // Provider metadata is evidence; the requested scope cannot fill missing fields.
+    if (!isTv(media.type ?? meta.type) || (meta.type != null && !isTv(meta.type)) ||
+        !positive(season) || endSeason !== season || (meta.total_season != null && meta.total_season !== 1)) return empty;
+    if (!positive(first) || !positive(last) || last < first || last - first + 1 > 256 ||
+        (meta.total_episode != null && meta.total_episode !== last - first + 1))
+      return Object.freeze({ seasonNumber:season, episodeKeys:Object.freeze([]) });
+    return Object.freeze({ seasonNumber:season, episodeKeys:Object.freeze(
+      Array.from({length:last - first + 1}, (_, index) => 'E' + String(first + index).padStart(3, '0')).sort()) });
+  }
+
   function moviepilotCandidateIdentityAnchors(row, query) {
     const media = row?.media_info && typeof row.media_info === 'object'
       ? row.media_info : {};
@@ -1053,17 +1070,15 @@ function createProtocolTransport(profile, options) {
       media.tmdbId ?? null;
     if (providerKey === null || providerKey === undefined ||
         !String(providerKey).trim()) return Object.freeze([]);
-    const expected = query.providerIdentityAnchors.find((item) =>
-      item.provider === 'tmdb' &&
-      item.namespace === (query.contentProfile === 'series'
-        ? 'tmdb_series' : 'tmdb_movie')) || null;
+    const coverage = moviepilotSeriesCoverage(row);
+    if (query.contentProfile === 'series' && coverage.seasonNumber === null) return Object.freeze([]);
     const basis = {
       provider: 'tmdb',
       namespace: query.contentProfile === 'series'
         ? 'tmdb_series' : 'tmdb_movie',
       providerKey: String(providerKey),
       seasonNumber: query.contentProfile === 'series'
-        ? expected?.seasonNumber || null : null,
+        ? coverage.seasonNumber : null,
     };
     return Object.freeze([Object.freeze({
       ...basis,
@@ -1134,6 +1149,8 @@ function createProtocolTransport(profile, options) {
   }
 
   function moviepilotCandidateAvailable(row, identityAnchors, query) {
+    if (query.contentProfile === 'series' &&
+        (identityAnchors.length === 0 || canonicalJson(moviepilotSeriesCoverage(row).episodeKeys) !== canonicalJson(query.requestedEpisodeKeys))) return false;
     if (moviepilotSeederCount(row) <= 0) return false;
     if (identityAnchors.length === 0) {
       return moviepilotCandidateTitleYearMatches(row, query);
@@ -1226,7 +1243,7 @@ function createProtocolTransport(profile, options) {
           structureKind:
             query.structureKind,
           episodeKeys:
-            query.requestedEpisodeKeys,
+            query.contentProfile === 'series' ? moviepilotSeriesCoverage(row).episodeKeys : Object.freeze([]),
           availability: moviepilotCandidateAvailable(row, identityAnchors, query)
             ? 'available' : 'unavailable',
           availabilityEvidence: moviepilotAvailabilityEvidence(row),
@@ -1411,6 +1428,11 @@ function createProtocolTransport(profile, options) {
       request.input.acquisitionQuery)) {
       fail(PROVIDER_ERROR,
         'Selected MoviePilot candidate is no longer positively available.');
+    }
+    if (request.input.acquisitionQuery.contentProfile === 'series' &&
+        (canonicalJson(currentAnchors) !== canonicalJson(selected.identityAnchors) ||
+         canonicalJson(moviepilotSeriesCoverage(selectedRow).episodeKeys) !== canonicalJson(selected.episodeKeys))) {
+      fail(PROVIDER_ERROR, 'Selected MoviePilot candidate Episode coverage or identity changed.');
     }
     const currentAssessment = moviepilotAdvertisedMedia(
       selectedRow,

@@ -502,12 +502,12 @@ function ref(type, id) {
   });
 }
 
-function acquisitionQuery() {
+function acquisitionQuery(series = false) {
   const identity = Object.freeze({
     provider: 'tmdb',
-    namespace: 'tmdb_movie',
+    namespace: series ? 'tmdb_series' : 'tmdb_movie',
     providerKey: '100',
-    seasonNumber: null,
+    seasonNumber: series ? 1 : null,
     identityAnchorDigest: canonicalDigest({ identity: '100' }),
   });
   const terms = [{
@@ -535,9 +535,9 @@ function acquisitionQuery() {
     return term;
   });
   const mediaRequirement={requirementId:'requirement-1',revision:1,schemaRef:'MediaRequirement@1',
-    acceptanceSpecId:'spec-1',acceptanceSpecRecordDigest:canonicalDigest({spec:1}),contentProfile:'movie',structureKind:'single',
+    acceptanceSpecId:'spec-1',acceptanceSpecRecordDigest:canonicalDigest({spec:1}),contentProfile:series?'series':'movie',structureKind:series?'season':'single',
     mandatoryMedia:{mediaForm:'stream_file',videoCodec:'hevc',container:'matroska',fileExtension:'mkv',minimumRasterClass:'4k',
-      acceptedPrimaryAudioClasses:['truehd'],forbidSystemUpscaleFor4k:true},space:{unit:'product',maxSizeGiB:null,maxSizeBytes:null}};
+      acceptedPrimaryAudioClasses:['truehd'],forbidSystemUpscaleFor4k:true},space:{unit:series?'episode':'product',maxSizeGiB:null,maxSizeBytes:null}};
   mediaRequirement.requirementDigest=canonicalDigest(mediaRequirement);
   const query = {
     schemaRef: 'helix://contracts/types/AcquisitionQuery/v1',
@@ -550,17 +550,17 @@ function acquisitionQuery() {
     runExecutionBasisDigest: canonicalDigest({ run: 1 }),
     resolvedIdentityDigest: canonicalDigest({ identity: 1 }),
     productStructureDigest: canonicalDigest({ structure: 1 }),
-    structureKind: 'single',
-    contentProfile: 'movie',
+    structureKind: series ? 'season' : 'single',
+    contentProfile: series ? 'series' : 'movie',
     providerIdentityAnchors: [identity],
-    requestedEpisodeKeys: [],
+    requestedEpisodeKeys: series ? ['E001','E002'] : [],
     mediaRequirement,
     mediaRequirementDigest:mediaRequirement.requirementDigest,
     acquisitionPolicyDigest:canonicalDigest({ policy: 'moviepilot', revision: 1 }),
     queryTerms: terms,
     hardConstraints: {
-      requiredStructureKind: 'single',
-      requiredEpisodeKeys: [],
+      requiredStructureKind: series ? 'season' : 'single',
+      requiredEpisodeKeys: series ? ['E001','E002'] : [],
       mediaRequirementDigest:mediaRequirement.requirementDigest,
     },
   };
@@ -2154,4 +2154,41 @@ test('H1.2 official response projections accept bounded documented extras and so
     'utf8',
   );
   assert.match(providerSource, /response\.bytes\.fill\(0\)/);
+});
+
+test('Series MoviePilot search and submit use observed coverage instead of requested Episodes',async()=>{
+  const value=fixture(),state={calls:[]},fetchImpl=providerFetch(state);
+  const host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,secretRoot,
+    integrationFetch:fetchImpl,now:()=>1_900_000_000_000});
+  try{await configure(host,await session(host,value.initialized.adminApiKey),'moviepilot','-series-coverage');}finally{await host.close();}
+  const row={media_info:{title:'Movie',year:'2024',tmdb_id:100,type:'电视剧'},
+    meta_info:{type:'电视剧',begin_season:1,end_season:null,begin_episode:1,end_episode:2,total_episode:2},
+    torrent_info:{title:'Movie.S01E01-E02.2160p.HEVC.TrueHD',enclosure:'https://tracker.test/series',size:1024,seeders:4}};
+  state.moviepilotSearchRows=[row];
+  const opened=openServices(value,fetchImpl),query=acquisitionQuery(true);
+  let ordinal=0;
+  const search=()=>opened.services.executeProvider('moviepilot',{operationId:'libra.external_material.search@1',
+    effectClass:'pure_observation',idempotencyKey:'series-search-'+ordinal++,timeoutMs:5000,input:{acquisitionQuery:query,limit:25}});
+  try{
+    const response=await search(),candidate=response.result.candidates[0];
+    assert.deepEqual(candidate.episodeKeys,['E001','E002']);assert.equal(candidate.availability,'available');
+    assert.equal(candidate.identityAnchors[0].seasonNumber,1);
+    const selectedCandidate=selectedCandidateFromSearch(response.result);
+    for(const change of [{begin_episode:2,total_episode:1},{begin_episode:null,end_episode:null,total_episode:2},
+      {begin_season:2},{end_season:2},{end_episode:257,total_episode:257},{total_episode:3},{total_season:2},{type:'电影'}]){
+      state.moviepilotSearchRows=[{...row,meta_info:{...row.meta_info,...change}}];
+      const altered=(await search()).result.candidates[0];assert.equal(altered.availability,'unavailable');
+      if(change.begin_episode===2)assert.deepEqual(altered.episodeKeys,['E002']);
+      if(change.begin_season===2)assert.equal(altered.identityAnchors[0].seasonNumber,2);
+      await assert.rejects(()=>opened.services.executeProvider('moviepilot',{
+        operationId:'libra.external_material.acquire.request@1',effectClass:'external_request',
+        idempotencyKey:'series-request-'+ordinal++,timeoutMs:5000,input:{acquisitionQuery:query,selectedCandidate}}));
+      assert.equal(state.moviepilotDownloadAdds||0,0);
+    }
+    state.moviepilotSearchRows=[row];
+    const acquired=await opened.services.executeProvider('moviepilot',{
+      operationId:'libra.external_material.acquire.request@1',effectClass:'external_request',
+      idempotencyKey:'series-request-valid',timeoutMs:5000,input:{acquisitionQuery:query,selectedCandidate}});
+    assert.equal(acquired.result.externalJobReceipt.externalJobId,'job-1');assert.equal(state.moviepilotDownloadAdds,1);
+  }finally{opened.kernel.close();}
 });

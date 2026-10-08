@@ -291,3 +291,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08外部候选合并DoR：正式Series候选读取消费已成功且完整验证的外部Scope Import Set，以整关联分量移除原候选并加入实际Workspace成员，范围外保持原候选对象；不得把外部成员伪装成原Run Binding。全Run最终空间Basis同时包含保留候选和外部成员，并验证每个外部集合完整及映射摘要。先闭合候选读取/终检，Coordinator触发和多值Promotion/Arca结算仍为后续门禁，不启用不完整交付。
 
 2026-10-08外部候选合并：完整Scope Import集合接入正式Series候选Reader，整分量替换、范围外保留；最终空间Basis覆盖全Run并重建映射/Claims/Handle。110项专项、37.2秒普通Direct/Remux混合上架Host及P2/架构/语义通过。Coordinator触发、外部不合格媒体后处理和多值交接/Arca结算仍待闭环，未声明外部端到端可用或部署NAS。[Evidence](evidence/SERIES_EXTERNAL_CANDIDATE_MERGE_20261008.md)。
+
+2026-10-08 Provider搜索覆盖DoR：MoviePilot适配器从返回meta_info明确begin/end季集投影实际候选Claims，不从Query复制季号或Episode集合；缺失、跨季、越界或不完整覆盖不可提交。下载前重读同一候选并复验身份/覆盖，防止Provider元数据变化后仍按旧Selection提交。参照上游MetaBase.to_dict字段；此切片不替代Landing逐文件Claims和多值结算。
+
+2026-10-08 Provider搜索覆盖：MoviePilot季号与Episode集合改为读取实际meta_info明确范围，禁止从Query复制；下载前复验同候选身份/覆盖，缺集/错季/跨季/矛盾字段在POST前拒绝。21项Provider回归及P2/架构/语义通过，使用受控网络响应；Landing逐文件Claims、Coordinator和多值交接/结算继续，未部署NAS。[Evidence](evidence/SERIES_PROVIDER_SEARCH_COVERAGE_20261008.md)。
