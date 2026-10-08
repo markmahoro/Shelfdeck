@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 跨文件系统恢复：Workspace tmpfs设备106、Inventory设备93，正式Materialize在三个rename边界退出后由新进程恢复/重放一致，外部写入冲突拒绝；Linux专项通过、Windows默认28项通过。完整Host其他崩溃矩阵及发布Gate继续，未操作NAS。[Evidence](implementation/evidence/SERIES_CROSS_DEVICE_RECOVERY_20261008.md)。
+
 2026-10-08 跨文件系统真实Host：Linux来源/Workspace设备93、Shelf tmpfs设备106，96.91秒完成N:M上架及Remux/CPU Aftercare，Claims/原子回滚/结算断言通过；显式测试开关已保存。277文件Windows全量回归仍在执行，已见正式入口1失败但隔离复验通过，未宣称全量PASS。其他发布Gate继续，未操作NAS。[Evidence](implementation/evidence/SERIES_CROSS_DEVICE_HOST_20261008.md)。
 
 2026-10-08 Linux Docker验证：本机Engine恢复，372768b68原Dockerfile构建通过；438项Series专项、E03追加、真实CPU N:M加工、99.70秒跨进程退出恢复及4条Movie外部场景通过。原生/投影专项缺测试挂载已补齐复验，1个live BDMV素材skip保留。其他发布Gate继续，未操作NAS。[Evidence](implementation/evidence/SERIES_LINUX_DOCKER_20261008.md)。

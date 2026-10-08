@@ -428,10 +428,20 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
     const v=structuredClone({context:c,care,history,rows});mutate(v);
     assert.throws(()=>seriesMediaRepairTargets(v.context,v.care,v.history,{read:id=>id==='work'?v.rows:[]}));
   }
+  const crossDevice=process.env.HELIX_SERIES_CROSS_DEVICE==='1';
+  if(crossDevice)assert.equal(process.platform,'linux','Cross-device recovery fixture requires Linux tmpfs.');
   const {seriesMediaOutputTarget}=require('../../src/helix/domains/arca/model/series-care-assessment-set'),
     {deriveInventoryMaterialChanges}=require('../../src/helix/domains/arca/model/aftercare-contract'),
-    workspaceRoot=path.join(path.dirname(f.materials[0].location),'workspace'),receipts=[],preparedRows=[],untouched=fs.readFileSync(f.materials[0].location);
-  fs.mkdirSync(workspaceRoot);
+    workspaceRoot=crossDevice?fs.mkdtempSync('/dev/shm/series-care-workspace-'):path.join(path.dirname(f.materials[0].location),'workspace'),receipts=[],preparedRows=[],untouched=fs.readFileSync(f.materials[0].location);
+  if(crossDevice){
+    t.after(()=>{
+      assert.equal(path.dirname(fs.realpathSync(workspaceRoot)),'/dev/shm');
+      assert.ok(path.basename(workspaceRoot).startsWith('series-care-workspace-'));
+      fs.rmSync(workspaceRoot,{recursive:true,force:true});
+    });
+    assert.notEqual(fs.statSync(workspaceRoot).dev,fs.statSync(f.materials[0].location).dev);
+    t.diagnostic(JSON.stringify({crossDevice:true,workspaceDevice:fs.statSync(workspaceRoot).dev,inventoryDevice:fs.statSync(f.materials[0].location).dev}));
+  }else fs.mkdirSync(workspaceRoot);
   Object.assign(contextReader.store,{aftercareWorkspaceRootSnapshot:{rootHandleRef:'workspace-root',endpointId:'workspace-endpoint',mountScopeId:'workspace-mount'},
     aftercareWorkspaceLocation:(_caseId,relative)=>path.join(workspaceRoot,relative)});
   for(const target of targets) {
