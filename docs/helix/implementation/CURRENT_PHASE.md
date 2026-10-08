@@ -341,3 +341,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series结算Evidence接线DoR：Capability传完整目标及Final Decision集合；PostDeleteReality使用有界typed final_targets列表并保留scalar变体。Commit逐一比对当前落位key/位置/实测摘要及回执完整列表，一source恰一成功Evidence，拒绝截断/重复/旧映射。历史恢复与真正审批/外部Host仍独立验证。
 
 2026-10-08 Series结算完成Evidence：Capability传全部目标及Final Decision，typed final_targets进入回执摘要；Commit逐一匹配当前落位key/位置/观察摘要，拒绝缺失/重复/截断/旧证据。20项专项、35.8秒普通Host及P2/架构/语义通过。历史恢复与完整外部Host继续，未操作NAS。[Evidence](evidence/SERIES_SETTLEMENT_COMPLETION_20261008.md)。
+
+2026-10-08 Series完成绑定恢复DoR：审查确认terminal-effect-history-observer及historical-on-deck-effect-inputs是UAT-261旧未授权版本见证，不应用于新Series运行或为其扩展兼容。当前Aftercare completed-settlement-bindings仍只认scalar；补齐多目标typed回执资格，严格校验完整排序列表/集合摘要及互斥字段，再退休该原source的已完成offload监控。保留当前Inventory及未完成绑定，进程级恢复仍需独立Host证据。
+
+2026-10-08 Series完成绑定：Aftercare识别完整多目标结算回执，严格列表/摘要/时间资格后仅移除已完成旧source监控；16项历史回归通过。原生新Node进程重开保留完整证据，成品变更拒绝；P2/架构/语义通过。旧UAT-261见证不扩展为新Series兼容，完整Host恢复继续，未操作NAS。[Evidence](evidence/SERIES_COMPLETED_BINDINGS_20261008.md)。

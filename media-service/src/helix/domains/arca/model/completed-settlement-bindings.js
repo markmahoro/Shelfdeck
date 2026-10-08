@@ -15,10 +15,20 @@ function validCompletion(result, committedAtMs) {
   const { recordDigest, ...record } = reality;
   if (recordDigest !== canonicalDigest(record)) return false;
   const entries = new Map(reality.entries.map(item => [item.key, item.value]));
-  return entries.size === reality.entries.length && entries.get('absent') === true &&
-    entries.get('disposition') === 'settled_to_final' && entries.get('final_verified') === true &&
-    ['source_to_final_mapping_digest', 'final_material_key', 'final_target_location', 'final_reality_digest']
-      .every(key => typeof entries.get(key) === 'string' && entries.get(key).length > 0);
+  if(entries.size!==reality.entries.length||entries.get('absent')!==true||
+      entries.get('disposition')!=='settled_to_final'||entries.get('final_verified')!==true)return false;
+  if(entries.has('final_targets')){
+    const targets=entries.get('final_targets'),hash=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
+    return !entries.has('final_material_key')&&!entries.has('final_target_location')&&
+      hash(entries.get('source_to_final_mapping_digest'))&&Array.isArray(targets)&&targets.length>=2&&targets.length<=1024&&
+      targets.every((item,index)=>item&&Object.keys(item).sort().join(',')==='finalRealityDigest,materialKey,targetLocation'&&
+        hash(item.materialKey)&&hash(item.finalRealityDigest)&&typeof item.targetLocation==='string'&&
+        item.targetLocation.length>0&&item.targetLocation.length<=4096&&
+        (index===0||Buffer.compare(Buffer.from(targets[index-1].materialKey),Buffer.from(item.materialKey))<0))&&
+      entries.get('final_reality_digest')===canonicalDigest({schema:'arca.settlement-final-targets@1',members:targets});
+  }
+  return ['source_to_final_mapping_digest','final_material_key','final_target_location','final_reality_digest']
+    .every(key=>typeof entries.get(key)==='string'&&entries.get(key).length>0);
 }
 
 function excludeCompletedSettlementBindings(raw, reader) {

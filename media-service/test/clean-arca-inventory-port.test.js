@@ -1764,7 +1764,16 @@ test('Series native settlement verifies all targets, deletes one source and repl
     assert.equal(result.finalTargets.length,2);assert.equal(Object.hasOwn(result,'finalMaterialKey'),false);
     const replay=await f.port.settleInputAsync(f.command);assert.equal(replay.finalRealityDigest,result.finalRealityDigest);
     assert.equal(replay.preDeleteIdentityDigest,null);assert.ok(fs.existsSync(path.join(f.sourceDirectory,'notes.txt')));
+    const reopen=()=>require('node:child_process').spawnSync(process.execPath,['-e',
+      "const {createCleanArcaInventoryPort}=require(process.argv[1]);const schemaManifest=require(process.argv[2]);const port=createCleanArcaInventoryPort({schemaManifest,unitOfWork:{},workspaceRoot:process.argv[3]});port.settleInputAsync(JSON.parse(process.argv[4])).then(value=>process.stdout.write(JSON.stringify(value))).catch(error=>{process.stderr.write(error.code||error.message);process.exitCode=1;});",
+      path.resolve(__dirname,'../src/clean-arca-inventory-port.js'),path.resolve(__dirname,'../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
+      path.join(f.root,'.workspace'),JSON.stringify(f.command)],{encoding:'utf8',timeout:10000,windowsHide:true});
+    const fresh=reopen();assert.equal(fresh.status,0,fresh.stderr);
+    const recovered=JSON.parse(fresh.stdout);assert.equal(recovered.preDeleteIdentityDigest,null);
+    assert.deepEqual(recovered.finalTargets,result.finalTargets);assert.equal(recovered.finalRealityDigest,result.finalRealityDigest);
+
     fs.writeFileSync(f.command.finalTargets[1].targetLocation,'changed');
+    assert.equal(reopen().status,1);
     await assert.rejects(f.port.settleInputAsync(f.command));
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });

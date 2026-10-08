@@ -63,3 +63,35 @@ test('UAT-211 current Inventory and non-offload Bindings are never removed by hi
   assert.equal(filtered.materials.length, 1);
   assert.equal(filtered.oldBindings.length, 2);
 });
+
+function seriesEvidence(mutate=()=>{}){
+  const keys=[canonicalDigest('first'),canonicalDigest('second')].sort(),targets=keys.map((materialKey,index)=>
+    ({materialKey,targetLocation:'/season/'+index+'.mkv',finalRealityDigest:canonicalDigest('observed'+index)}));
+  const record={schemaRef:'arca://types/PostDeleteReality/v1',schemaVersion:1,recordKind:'post-delete-reality',entries:[
+    {key:'absent',value:true},{key:'disposition',value:'settled_to_final'},{key:'final_verified',value:true},
+    {key:'source_to_final_mapping_digest',value:canonicalDigest('mapping')},{key:'final_targets',value:targets},
+    {key:'final_reality_digest',value:canonicalDigest({schema:'arca.settlement-final-targets@1',members:targets})}]};
+  mutate(record);
+  const body={schemaRef:'helix://contracts/types/SettlementDeletionEvidence/v1',schemaVersion:1,producerRef:capabilityRef,
+    evidenceKind:'input_settlement',materialKey:'old',observedAtMs:10,postDeleteReality:{...record,recordDigest:canonicalDigest(record)}};
+  return {...body,payloadDigest:canonicalDigest(body)};
+}
+test('Series completed source bindings retire only after complete target evidence and preserve current Inventory',()=>{
+  const f=fixture(seriesEvidence());f.raw.oldBindings[0].role='offload:original_input';
+  const filtered=excludeCompletedSettlementBindings(f.raw,f.reader);
+  assert.deepEqual(filtered.oldBindings.map(row=>row.material_key),['unfinished']);assert.equal(filtered.materials,f.raw.materials);
+  const paths=[];observeKnownOldBindings(filtered,location=>{paths.push(location);throw Object.assign(new Error('missing'),{code:'ENOENT'});});
+  assert.deepEqual(paths,['/source/unfinished.mkv']);
+});
+test('Series history rejects truncated, reordered, duplicated or scalar-mixed target evidence even with fresh envelope digests',()=>{
+  const changes=[record=>record.entries.find(row=>row.key==='final_targets').value.pop(),
+    record=>record.entries.find(row=>row.key==='final_targets').value.reverse(),
+    record=>{const rows=record.entries.find(row=>row.key==='final_targets').value;rows[1]=rows[0];},
+    record=>record.entries.push({key:'final_material_key',value:canonicalDigest('first')}),
+    record=>record.entries.find(row=>row.key==='final_reality_digest').value=canonicalDigest('stale'),
+    record=>record.entries.find(row=>row.key==='final_targets').value[1].targetLocation='',
+    record=>record.entries.push(record.entries[0])];
+  for(const change of changes){const f=fixture(seriesEvidence(change));assert.equal(excludeCompletedSettlementBindings(f.raw,f.reader).oldBindings.length,2);}
+  const f=fixture(seriesEvidence());f.raw.onDeckCommit.committed_at_ms=9;
+  assert.equal(excludeCompletedSettlementBindings(f.raw,f.reader).oldBindings.length,2);
+});
