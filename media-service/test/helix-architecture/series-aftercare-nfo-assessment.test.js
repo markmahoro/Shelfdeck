@@ -32,9 +32,12 @@ test('missing and empty Episode files remain independent conditions',t=>{
   const f=fixture(t);fs.unlinkSync(f.materials[1].location);fs.writeFileSync(f.materials[2].location,'');
   assert.deepEqual(codes(nfoInventoryFindings(f.context)),['nfo_missing','nfo_corrupt']);
 });
-test('finding digest changes when another registered Episode is missing',t=>{
+test('each missing Episode has a stable independent finding instead of replacing another target',t=>{
   const f=fixture(t);fs.unlinkSync(f.materials[1].location);const first=nfoInventoryFindings(f.context);
-  fs.unlinkSync(f.materials[2].location);assert.notEqual(nfoInventoryFindings(f.context)[0].snapshotDigest,first[0].snapshotDigest);
+  fs.unlinkSync(f.materials[2].location);const both=nfoInventoryFindings(f.context);
+  assert.equal(both.length,2);assert.ok(both.some(item=>item.snapshotDigest===first[0].snapshotDigest));
+  assert.equal(new Set(both.map(item=>item.snapshotDigest)).size,2);
+  f.materials.reverse();assert.deepEqual(nfoInventoryFindings(f.context),both);
 });
 test('a Season with no registered NFO cannot pass presentation',t=>{
   const f=fixture(t);f.context.raw.materials=[];assert.deepEqual(codes(nfoInventoryFindings(f.context)),['nfo_missing']);

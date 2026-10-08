@@ -3,6 +3,7 @@ const { automaticCaseTargetsAcceptedDefect } = require('../model/accepted-defect
 const { careFindingCodes } = require('../model/care-objective');
 const { missingFields } = require('../model/accepted-gap-contracts');
 const {readInventoryArtifactScope}=require('../model/inventory-artifact-scope');
+const {seriesNfoFindingDraft}=require('../model/aftercare-series-nfo-targets');
 const { aftercareProviderIdentity } = require('../model/aftercare-provider-identity');
 const { verifiedDefectRepair } = require('../model/defect-repair-verification');
 const { requirementGapValueDigest } = require('../../../contracts/requirement-gap-values');
@@ -281,10 +282,8 @@ function nfoInventoryFindings(context) {
   }
   if(!rows.length)return [finding('presentation','nfo_missing','warning','attention_required',context.shelfEntryId)];
   const present=new Set(existing),missing=rows.filter(item=>!present.has(item)),corrupt=existing.filter(item=>!validNfo(item.location));
-  return [['nfo_missing',missing],['nfo_corrupt',corrupt]].filter(([,items])=>items.length).map(([code,items])=>
-    finding('presentation',code,'warning','attention_required',canonicalDigest(items.map(item=>({materialKey:item.material_key,
-      endpointId:item.endpoint_id,location:item.location,bindingRevision:Number(item.binding_revision)}))
-      .sort((a,b)=>a.materialKey.localeCompare(b.materialKey)))));
+  return [['nfo_missing',missing],['nfo_corrupt',corrupt]].flatMap(([code,items])=>
+    [...items].sort((a,b)=>a.material_key.localeCompare(b.material_key)).map(item=>seriesNfoFindingDraft(code,item)));
 }
 async function inspectImageBytes(bytes){try{if(!Buffer.isBuffer(bytes)||bytes.length<12||bytes.length>16*1024*1024)return null;const image=sharp(bytes,{failOn:'error',limitInputPixels:100_000_000,sequentialRead:true}),metadata=await image.metadata();if(!['jpeg','png','webp'].includes(metadata.format)||Number(metadata.width)<=0||Number(metadata.height)<=0)return null;await sharp(bytes,{failOn:'error',limitInputPixels:100_000_000,sequentialRead:true}).stats();return Object.freeze({format:metadata.format,width:Number(metadata.width),height:Number(metadata.height),mediaType:'image/'+metadata.format});}catch{return null;}}
 async function validImageBytes(bytes){return Boolean(await inspectImageBytes(bytes));}

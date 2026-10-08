@@ -185,3 +185,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series NFO重建DoR：依据SSOT §5.5.5及Arca Aftercare/Inventory合同，从当前正式NFO成员的Artifact scope选择其sourcePackageId对应的已接受Identity、Metadata和Cast；Episode目标只使用精确匹配的逐集资料，整季不混入Episode字段。生成tvshow/episodedetails受控XML，校验Series/Season、当前成员范围、必需字段和输出字节上限；不从文件名推断、不回读Libra Store或重新抓取Provider。先以负向模型及实际两批Host Owner context验证，再贯穿Planner/Result/物化与原子提交；完整链路通过前保持Series自动维修门禁，不以纯Renderer通过关闭运营工作项。
 
 2026-10-08 Series NFO重建增量：[Evidence](evidence/SERIES_AFTERCARE_NFO_RENDER_20261008.md)。正式Artifact来源批次到tvshow/episodedetails渲染已通过实际两批Host Owner context，Commit输出按精确Event绑定，拒绝多结果歧义。专项39项、全架构2,233通过/9既有skip/0失败。下一段接通缺陷目标冻结、逐Artifact Workspace生成/正式物化/Inventory与Control原子Commit和恢复；当前Series自动维修门禁保留，完整运营及发布资格未完成。
+
+2026-10-08 NFO维修目标冻结DoR：按SSOT §6.5、§8.5.11及既有Aftercare Finding/CareRequirement合同，将Series NFO展示缺陷按正式成员分别产生稳定Finding；摘要覆盖Material、Binding和Artifact关联。Planner从Case requiredEffects与同Care Basis专业Assessment历史重建精确成员集合，拒绝未匹配/歧义/过期证据；为每个目标建立独立TextRender Event，并经ArtifactProfile冻结材料key、scope摘要和Case requirement摘要。Coordinator不读文件、不新增Store；真正物化闭环完成前保留attention_required与TextRender写入门禁。验证多集缺失、顺序稳定、错来源/绑定/Case拒绝、正式Planner/Projection及Movie回归。
+
+2026-10-08 NFO维修目标冻结结果：[Evidence](evidence/SERIES_AFTERCARE_NFO_TARGET_FREEZE_20261008.md)。逐NFO Finding绑定正式材料/Artifact关系，Case与同Basis专业历史解析精确目标，独立TextRender Event/Profile以及同类参数去重已实现；299项维护回归通过。保留Series实际写入门禁；下一段贯穿Profile、生成Artifact、精确物化、未受影响材料保护、原子提交与恢复。UI版本验收与完整发布资格仍开放。

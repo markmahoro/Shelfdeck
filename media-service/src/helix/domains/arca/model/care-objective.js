@@ -8,6 +8,10 @@ function careFindingCodes(requirement) {
   return (requirement?.typedParameters || []).filter(item =>
     !/^(target|basis|source|trigger)\./.test(item.parameter)).map(item => String(item.value));
 }
+function careFindingParameters(findings) {
+  return Object.freeze([...new Set(findings.map(item=>item.findingKind))].sort().map(value=>Object.freeze({
+    parameter:'finding.'+canonicalDigest(value).slice(0,16),valueType:'string',value,valueDigest:canonicalDigest(value)})));
+}
 function freezeCareObjective(context) {
   const requirements = effectiveRequirements(context);
   if (!requirements) throw Object.assign(new Error('Maintenance has no effective requirements.'), {code:'ARCA_CARE_OBJECTIVE_MISSING'});
@@ -57,4 +61,4 @@ function readCareObjective(requirement) {
   }
   return Object.freeze({requirements:value,requirementsDigest:digest.value,placement});
 }
-module.exports = Object.freeze({acceptedRating,effectiveRequirements,careFindingCodes,freezeCareObjective,readCareObjective});
+module.exports = Object.freeze({acceptedRating,effectiveRequirements,careFindingCodes,careFindingParameters,freezeCareObjective,readCareObjective});

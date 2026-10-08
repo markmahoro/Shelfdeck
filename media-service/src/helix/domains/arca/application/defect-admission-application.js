@@ -4,7 +4,7 @@ const path=require('node:path');
 const { canonicalDigest, canonicalJson }=require('../../../contracts/canonical-json');
 const { createMaterialControlAdmissionReadParticipant }=require('../../../foundation/persistence/material-control');
 const { admissionPreview, acceptedFinding, currentFindings, findingGap }=require('../model/accepted-gap-contracts');
-const { freezeCareObjective }=require('../model/care-objective');
+const { freezeCareObjective, careFindingParameters }=require('../model/care-objective');
 const { assertProcessingRequirement }=require('../model/aftercare-contract');
 const fail=(code,message)=>{throw Object.assign(new Error(message),{code});};
 const SUPPORTED=new Set(['presentation:nfo_missing','presentation:poster_missing','conformance:container_unmet',
@@ -79,7 +79,7 @@ function createDefectAdmissionApplication(options) {
       gaps=s.acceptedGaps,gapSetDigest=canonicalDigest(gaps),serialized=canonicalJson(gaps);
     if(Buffer.byteLength(serialized)>16384)fail('ARCA_DEFECT_REPAIR_SCOPE_TOO_LARGE','Exact repair objective exceeds 16 KiB and cannot be truncated.');
     const effects=s.repairable.map(finding=>({objectId:finding.findingId,revision:1,schemaRef:'helix://arca/types/RequiredCareEffect/v1',digest:finding.findingDigest,objectKind:'required-effect'}));
-    const typedParameters=s.repairable.map(finding=>({parameter:'finding.'+canonicalDigest(finding.findingKind).slice(0,16),valueType:'string',value:finding.findingKind,valueDigest:canonicalDigest(finding.findingKind)}));
+    const typedParameters=[...careFindingParameters(s.repairable)];
     for(const [parameter,text] of Object.entries({'trigger.kind':'repair_accepted_defects','trigger.intentId':intentId,'target.acceptedGaps':serialized}))
       typedParameters.push({parameter,valueType:'string',value:text,valueDigest:canonicalDigest(text)});
     const base={schemaRef:'helix://contracts/domain-types/CareRequirement/v1',schemaVersion:1,requirementId:intentId+':requirement',revision:1,

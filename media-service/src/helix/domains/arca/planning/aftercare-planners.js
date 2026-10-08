@@ -1,5 +1,6 @@
 'use strict';
 const { careFindingCodes } = require('../model/care-objective');
+const {seriesNfoRepairTargets}=require('../model/aftercare-series-nfo-targets');
 const { canonicalDigest }=require('../../../contracts/canonical-json');
 const { executionCatalogDigest }=require('../../../foundation/execution/workflow-plan');
 const { CAPABILITY_REFS:C,aftercareSettlementEventId,isAftercareArtifactMaterial }=require('../model/aftercare-contract');
@@ -18,8 +19,14 @@ function createHealthAssessmentPlanner(options){return assessmentPlanner(options
 function createCustodyAssessmentPlanner(options){return assessmentPlanner(options,{deep:false,plannerContractRef:'helix://arca/planners/AftercareCustodyAssessment/v1',objective:'custody_assessment'});}
 function workflow(request,plannerContractRef,catalogDigest,objective,nodes){return Object.freeze({schemaRef:'helix://foundation/types/WorkflowPlanDefinition/v1',schemaVersion:1,planId:stable('arca-aftercare-plan-',{attempt:request.workAttemptId,objective}),workAttemptId:request.workAttemptId,ownerDomain:'arca',plannerContractRef,plannerVersion:1,workObjectiveTypeRef:'helix://arca/work/'+objective+'/v1',workObjectiveVersion:1,executionBasisDigest:request.executionBasisDigest,capabilityCatalogDigest:catalogDigest,resolution:'planned',diagnosticClassification:null,nodes:Object.freeze(nodes)});}
 function schema(options,ref){return options.registry.resolve(ref,'arca').manifest.resultSchemaRef;}
-function createCareRepairPreparationPlanner(options){const catalogDigest=executionCatalogDigest(options.registry,options.policyRegistry),plannerContractRef='helix://arca/planners/AftercareRepairPreparation/v1';return Object.freeze({plannerContractRef,plannerVersion:1,plan(request){const c=options.contextReader.read(request.processId),active=c&&c.raw?options.contextReader.store.history(request.processId).cases.find((item)=>item.state==='active'):null;if(!active||active.careBasisDigest!==request.executionBasisDigest)throw new Error('Aftercare Repair Preparation has no current active Case.');const codes=careFindingCodes(active.careRequirement),s=canonicalDigest(request.workAttemptId).slice(0,18),o={...options,request},nodes=[];
-    if(codes.some((x)=>['custody:nfo_corrupt','presentation:nfo_missing','presentation:nfo_corrupt'].includes(x)))nodes.push(node(o,C.textRender,'render_nfo','care-render-nfo-'+s,[owner('acceptedProductFacts',request,P.acceptedFacts),owner('artifactProfile',request,P.artifactProfile,{artifactKind:'nfo'})],[]));
+function createCareRepairPreparationPlanner(options){const catalogDigest=executionCatalogDigest(options.registry,options.policyRegistry),plannerContractRef='helix://arca/planners/AftercareRepairPreparation/v1';return Object.freeze({plannerContractRef,plannerVersion:1,plan(request){const c=options.contextReader.read(request.processId),history=c&&c.raw?options.contextReader.store.history(request.processId):null,active=history?.cases.find((item)=>item.state==='active');if(!active||active.careBasisDigest!==request.executionBasisDigest)throw new Error('Aftercare Repair Preparation has no current active Case.');const codes=careFindingCodes(active.careRequirement),s=canonicalDigest(request.workAttemptId).slice(0,18),o={...options,request},nodes=[];
+    if(codes.some((x)=>['custody:nfo_corrupt','presentation:nfo_missing','presentation:nfo_corrupt'].includes(x))) {
+      if(c.raw.entry?.structure_kind==='season')for(const target of seriesNfoRepairTargets(c,active,history)) {
+        const key=canonicalDigest(target.material.material_key).slice(0,18);
+        nodes.push(node(o,C.textRender,'render_nfo_'+key,'care-render-nfo-'+s+'-'+key,[owner('acceptedProductFacts',request,P.acceptedFacts),
+          owner('artifactProfile',request,P.artifactProfile,{artifactKind:'nfo',materialKey:target.material.material_key,artifactScopeDigest:target.scope.scopeDigest})],[]));
+      } else nodes.push(node(o,C.textRender,'render_nfo','care-render-nfo-'+s,[owner('acceptedProductFacts',request,P.acceptedFacts),owner('artifactProfile',request,P.artifactProfile,{artifactKind:'nfo'})],[]));
+    }
     if(codes.some((x)=>x.includes('presentation:poster_missing')||x.includes('presentation:poster_corrupt')))nodes.push(node(o,C.binaryAcquire,'acquire_poster','care-acquire-poster-'+s,[owner('stableProviderIdentity',request,P.providerIdentity),owner('integrationHandle',request,P.integration)],[],{artifactKind:'poster'}));
     const remuxCodes=codes.filter((x)=>['conformance:container_unmet','conformance:file_extension_unmet'].some((code)=>x.includes(code))),
       transcodeCodes=codes.filter((x)=>['conformance:video_codec_unmet','conformance:max_size_exceeded'].some((code)=>x.includes(code))),

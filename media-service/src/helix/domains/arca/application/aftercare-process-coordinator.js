@@ -1,6 +1,6 @@
 'use strict';
 const { automaticCaseTargetsAcceptedDefect } = require('../model/accepted-defect-maintenance');
-const { careFindingCodes, freezeCareObjective } = require('../model/care-objective');
+const { careFindingCodes, careFindingParameters, freezeCareObjective } = require('../model/care-objective');
 const { maintenanceRecoveryConditions } = require('../model/maintenance-recovery-conditions');
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
@@ -208,7 +208,7 @@ function createAftercareProcessCoordinator(options){
     if(modificationBlocked(c))return Object.freeze({kind:'modification_fenced',shelfEntryId,workId:assessment.work.workId,health:currentHealth});
     const findingSetDigest=canonicalDigest(findings.map((item)=>item.findingDigest).sort());
     const effects=findings.map((item)=>Object.freeze({objectId:item.findingId,revision:1,schemaRef:'helix://arca/types/RequiredCareEffect/v1',digest:item.findingDigest,objectKind:'required-effect'}));
-    const typedParameters=findings.map((item)=>{const value=String(item.findingKind);return Object.freeze({parameter:'finding.'+canonicalDigest(value).slice(0,16),valueType:'string',value,valueDigest:canonicalDigest(value)});});
+    const typedParameters=careFindingParameters(findings);
     const recovery=maintenanceRecoveryConditions(findings,options.readFailureRecoveryConditions);
     const base={schemaRef:'helix://contracts/domain-types/CareRequirement/v1',schemaVersion:1,requirementId:stable('arca-care-requirement-',{shelfEntryId,basis:c.basis.digest,findingSetDigest,recoveryConditions:recovery.conditions}),revision:1,careBasisDigest:c.basis.digest,requiredEffects:Object.freeze(effects),acceptanceDigest:canonicalDigest(effects),typedParameters:Object.freeze([...typedParameters,...freezeCareObjective(c),recovery.parameter])};
     const requirement=Object.freeze({...base,digest:canonicalDigest(base)});
