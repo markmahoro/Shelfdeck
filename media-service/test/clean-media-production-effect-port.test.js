@@ -259,9 +259,10 @@ test('FFmpeg times out after a stall even when the hard deadline is still far aw
 
 test('FFmpeg stall watchdog stays quiet while the process still emits output', async () => {
   const result = await runProcess(process.execPath, ['-e',
-    "const t=setInterval(()=>process.stderr.write('x'),40);setTimeout(()=>{clearInterval(t);process.exit(0);},500);"],
-    10_000, null, { stallTimeoutMs: 200 });
+    "process.stderr.write('ready');const t=setInterval(()=>process.stderr.write('x'),40);setTimeout(()=>{clearInterval(t);process.exit(0);},4500);"],
+    15_000, null, { stallTimeoutMs: 2000 });
   assert.equal(result.exitCode, 0);
+  assert.ok(result.stderrBytes >= 10, 'Activity must continue across more than two stall budgets.');
 });
 
 test('UAT-169 the hard Event deadline stops a child even while output keeps the stall watchdog alive', async () => {
@@ -270,15 +271,15 @@ test('UAT-169 the hard Event deadline stops a child even while output keeps the 
   let lastOutputAt = 0;
   await assert.rejects(runProcess(process.execPath, ['-e',
     "setInterval(()=>process.stderr.write('progress\\n'),20)"], 10_000, null, {
-    deadlineAtMs: Date.now() + 500,
-    stallTimeoutMs: 300,
+    deadlineAtMs: Date.now() + 3000,
+    stallTimeoutMs: 2000,
     processRegistry: { ...registry, register(child) {
       child.stderr.on('data', () => { samples += 1; lastOutputAt = Date.now(); });
       registry.register(child);
     } },
   }), error => error.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT');
   assert.ok(samples >= 3, 'The actual child must emit continuing output before the deadline.');
-  assert.ok(Date.now() - lastOutputAt < 300, 'The child was still active within its stall budget.');
+  assert.ok(Date.now() - lastOutputAt < 2000, 'The child was still active within its stall budget.');
   assert.equal(registry.size(), 0);
 });
 

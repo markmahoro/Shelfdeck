@@ -47,3 +47,20 @@ node --test --test-concurrency=4 --test-name-pattern="formal node entrypoint sta
 另收取较早启动的`series-architecture-bfefd19ae.log`：2416项、2405通过、0失败、11skip，1091.16秒；期间进行了EpisodeDelivery源码修改及派生合同重建，不能视为bfefd19ae或本批最终冻结SHA的全架构发布Gate。
 
 本批只改测试、历史事故工具及文档，未改Admin产品UI，不新增UI验收请求；Linux脚本/测试已验证，未重新构建服务镜像或Desktop。此前精确版本UI接受不自动扩张到未验证路径。外部后加工/进程恢复及最终发布资格仍开放，未部署生产。
+
+
+## 候选36100db30：冻结回归、构建与时序诊断
+
+2026-10-08从干净的`36100db30ecc0a65a5b4225aabed507c7a7e1584`启动Windows完整架构、服务总测试及Web构建。Web成功；标准`node scripts/build-image.js 36100db30e`构建成功，镜像`markmahoro/shelfdeck:36100db30e`，image ID `sha256:16cfa5b0b68c4846d1dda9b41f1b19827d907f1bc1a810fc7f4429b1b557b119`，本地tar `dist-image/shelfdeck-36100db30e.tar`（536.0 MiB），SHA256 `e7dffbae86a9c338c06fb3a014599a571d1d21731a9abe6c7c96de458ad35d90`。提交号仅作候选构建身份，不是新发布版本或Git tag；未上传NAS。
+
+按Docker runtime stage的COPY输入及构建Web枚举2121文件，本地与镜像逐文件hash集合摘要均为`32054b0745702079537ab7c51058c4f737c2ad0b4e6f7512d91f362262d9507a`。最初检查脚本误纳入web-builder输入，因runtime无`/app/web/package.json`明确失败；修正为runtime stage输入后完成一致性验证，没有修改镜像或产品输入。
+
+服务总测试619项：591通过、1失败、27skip（167.05秒）。失败为`clean-media-production-effect-port.test.js`活跃输出看门狗：子Node进程只有200ms静默窗口，500ms运行期；并行负载下365.80ms报告超时，单独复验556ms通过。生产`runProcess`在启动后即统计静默，这是既有正确规则，不能为测试放宽。修正测试为2秒静默预算、4.5秒持续输出（超过两预算），并断言实际输出；同组硬截止验证改3秒硬截止/2秒静默，仍要求持续输出及进程Registry释放。无输出200ms拒绝用例保留。三项专项通过；完整服务复验尚未计PASS。
+
+这次时序编辑只影响服务根测试，不在正在运行的architecture/Series测试集合内；runtime源码、契约、运行时脚本、Web及Docker输入保持36100db30相同，架构及镜像运行证据仍绑定该源码候选，不能称后续未完成测试通过。
+
+只读生产准备核对：统一SSH配置读取`docker inspect`及只读SQLite查询，NAS仍running `markmahoro/shelfdeck:helix-beta-20260930-8e197b3c36` / `sha256:168be0bb2101b79424f7f978c32d3724852eb5267b2234a4c981c22fe075ac2b`；442个active Shelf Entry及442份Commit Receipt，3个active Run，数据库2359721984字节。未复制当前数据库、未新建远端文件、未重启或修改生产。此前365条历史副本升级/恢复不代表当前442条现场；生产迁移/Reset仍需对应精确授权。
+
+合同审查：SSOT §8的`ResolvedProviderIdentity`明确只有`tmdb_series`带positive `seasonNumber`，实现及Series identity负向测试拒绝0。原准备文档的S00待复审标记不能扩大首版普通Season合同；当前不新增S00功能或合同更改。缺Episode title/plot、外部身份/错误Season、无claim/多义/重叠和单成员Import失败分别已有明确负向专项，完整结果以正在运行的候选回归为准；真实集成初配/联合回退等尚未关闭。
+
+日志、检查脚本及机器摘要在仓库外`E:/my_project/helix-git-consolidation-20261008/`，前缀`series-candidate-36100db30-`；三项修正专项为`series-watchdog-timing-fixed.log`。当前架构与Linux实际镜像回归仍运行，后续补最终结果；不宣称首版可部署。
