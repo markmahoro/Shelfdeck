@@ -138,3 +138,14 @@ v3实际退出38.46秒、v4焦点40.36秒、v5关闭/回焦及取消字节保护
 精确边界：initializeCleanData仍负责空库、初始管理凭据与系统规则；测试通过正式API登录用于只读结果/断言，但本路径不通过API预置用户规则、来源、收藏架、分拣或清理授权。Provider、身份响应、Probe/媒体及Artifact端口沿既有受控fixture，不包含真实TMDB/外部Provider凭据的首次配置、真实联网或媒体质量验收。不能据此关闭完整环境冷启动/真实集成门槛。原混合加工旅程保持。负责人已确认范围，新增路径待具体SHA验收，无NAS动作。
 
 负责人turn `01a11b55-8bb4-7472-affe-6694225f13f7`正式接受 `31b1df37be4cbf8021277242db61c33ec3506e9c` 的首次业务配置正常路径；独立真实Host38.40秒，1通过/0skip。其确认零用户模板/零收藏架、页面配置至两集上架、系统模板未改写、新模板绑定及0.5GiB/集正式Spec、桌面/窄屏可读。初始化/凭据和Provider/媒体fixture边界保留，不关闭完整环境或真实外部集成冷启动及整体Gate；其未修改源码或操作NAS。
+
+
+## 同名多Season收藏与无障碍区分
+
+2026-10-08：基于 `5e44f749a203d0087f64ff81e26588919513f02d` 追加同名Series跨季Host场景。S01 E01/E02上架后，在同一来源加入S02E01并再次观察；使用真实TMDB Adapter和按请求Season返回的受控Provider。必须形成两个Subject、两个Season Entry和两份Commit Receipt，S02只有E001，第一季的Inventory/Product Facts/Deck Fact/Receipt及六个文件字节保持，第二季文件路径不与第一季重合、Artifact季号均为2。比对前等待首季异步People登记完成，以免把合法人物关系Inventory修订当成跨季改写；未放宽跨季保护断言。
+
+Windows API Host 94.71秒通过，Linux Node20 Host 103.27秒通过（1执行通过，28条名称过滤skip不计覆盖）。实际浏览器94.30秒通过；补齐Enter打开详情、Escape关闭回焦后95.11秒通过，0skip。浏览器仍从页面登录/来源登记/建架/分拣/扫描开始，二次扫描也走页面；对两个Season分别检查桌面1920与窄屏390、季号/集数/文件、无横向溢出以及准确回焦。Provider、Probe/媒体和Artifact仍为受控端口，不代表真实外部或媒体质量。
+
+发现并修复海报卡可访问名称遗漏季号：可见副标题原已有第N季，aria-label现加入正式Projection季号，使同名Season可独立选择；Movie名称保持。没有新增说明文案或业务规则。前端137项、Admin构建通过；同名双季可访问名称及选择正确详情有组件回归。负责人turn `01a11b6c-2782-7322-b862-6fb8ea0e05c8`已确认设计与验收范围，精确版本验收待跟进。
+
+日志位于统一仓库外证据根：`series-multi-season-windows-v2.log`、`series-multi-season-linux.log`、`series-multi-season-browser-keyboard.log`、`series-multi-season-web-v2.log`、`series-multi-season-build.log`。截图 `series-browser-multi-season-keyboard/season-{1,2}-collection-{page-,filter-,}{desktop,narrow}.png`；前轮桌面/窄屏双季墙与第二季详情已视觉复核。完整路由Host文件的额外回归仍运行，不提前记为通过。多季运营/破坏性操作隔离、完整冷启动和外部合同及最终发布门槛保持开放，未操作NAS。

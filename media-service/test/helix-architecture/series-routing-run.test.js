@@ -65,10 +65,11 @@ function harness(overrides = {}) {
       if(overrides.error)throw overrides.error;
       const search=url.pathname.endsWith('/search/tv'),season=url.pathname.includes('/season/'),episode=url.pathname.includes('/episode/');
       const episodeNumber=Number(url.pathname.split('/').at(-1));
+      const seasonNumber=Number(url.pathname.match(/\/season\/(\d+)/)?.[1]??1);
       const result=search?(overrides.search??{results:[{id:1399,name:'Demo Show'}]}):episode?
-        {id:63055+episodeNumber,season_number:1,episode_number:episodeNumber,name:'Episode '+episodeNumber,
+        {id:63055+seasonNumber*100+episodeNumber,season_number:seasonNumber,episode_number:episodeNumber,name:'Episode '+episodeNumber,
           overview:'Episode '+episodeNumber+' plot',air_date:'2020-01-01'}:season?
-        (overrides.season??{id:3624,season_number:1}):(overrides.show??{
+        (overrides.season??{id:3623+seasonNumber,season_number:seasonNumber}):(overrides.show??{
           id:1399,name:'Demo Show',original_name:'Demo Show',first_air_date:'2020-01-01',
           origin_country:['US'],genres:[{id:18,name:'Drama'}],overview:'Series plot',
           credits:{cast:[{id:1001,name:'Fixture Actor'}],crew:[]}});
@@ -186,8 +187,8 @@ function mediaProbe(external=false) {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck,external,manualIdentity} of [...(process.env.HELIX_SERIES_MANUAL_IDENTITY==='1'?[{episodeCount:2,mixed:process.env.HELIX_SERIES_BROWSER_COLD!=='1',manualIdentity:true,append:process.env.HELIX_SERIES_BROWSER_APPEND==='1',repair:process.env.HELIX_SERIES_BROWSER_CARE==='1',offdeck:process.env.HELIX_SERIES_BROWSER_OFFDECK==='1'}]:[]),...(process.env.HELIX_SERIES_EXTERNAL==='1'?[{episodeCount:2,shared:true,external:true},{episodeCount:2,shared:true,external:'rejected'},{episodeCount:2,shared:true,external:'exhausted'},{episodeCount:2,shared:true,external:'technical'}]:[]),...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true},{episodeCount:2,real:true,mediaRepair:true,mediaBound:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(manualIdentity?' with manual Series identity':external?(external==='technical'?' with technical failure before external search':external==='exhausted'?' with exhausted local strategies then external search':external==='rejected'?' with rejected external shared-file search':' with external shared-file replacement'):offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?(nm?' with bounded real N:M media Aftercare':' with bounded real media Aftercare'):nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {skip:external===true?'Pending EpisodeDelivery Requirement digest contract; user deferred 2026-10-08':false,timeout:real&&process.env.HELIX_SERIES_LONG_MEDIA==='1'?900000:real||repair||migrate?300000:180000},async t=>{
-  const browserJourney=manualIdentity&&process.env.HELIX_SERIES_BROWSER==='1';
+for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck,external,manualIdentity,multiSeason} of [...(process.env.HELIX_SERIES_MANUAL_IDENTITY==='1'?[{episodeCount:2,mixed:process.env.HELIX_SERIES_BROWSER_COLD!=='1',manualIdentity:true,append:process.env.HELIX_SERIES_BROWSER_APPEND==='1',repair:process.env.HELIX_SERIES_BROWSER_CARE==='1',offdeck:process.env.HELIX_SERIES_BROWSER_OFFDECK==='1'}]:[]),...(process.env.HELIX_SERIES_EXTERNAL==='1'?[{episodeCount:2,shared:true,external:true},{episodeCount:2,shared:true,external:'rejected'},{episodeCount:2,shared:true,external:'exhausted'},{episodeCount:2,shared:true,external:'technical'}]:[]),...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true},{episodeCount:2,real:true,mediaRepair:true,mediaBound:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,multiSeason:true},{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(multiSeason?' with separate same-title Seasons':manualIdentity?' with manual Series identity':external?(external==='technical'?' with technical failure before external search':external==='exhausted'?' with exhausted local strategies then external search':external==='rejected'?' with rejected external shared-file search':' with external shared-file replacement'):offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?(nm?' with bounded real N:M media Aftercare':' with bounded real media Aftercare'):nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {skip:external===true?'Pending EpisodeDelivery Requirement digest contract; user deferred 2026-10-08':false,timeout:real&&process.env.HELIX_SERIES_LONG_MEDIA==='1'?900000:real||repair||migrate?300000:180000},async t=>{
+  const browserJourney=(manualIdentity||multiSeason)&&process.env.HELIX_SERIES_BROWSER==='1';
   const coldBrowser=browserJourney&&process.env.HELIX_SERIES_BROWSER_COLD==='1';
   let systemTemplateBefore;
   let browserFlow;
@@ -1260,4 +1261,51 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.equal(db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n,2);
 
   }
+  if(multiSeason) {
+    const peopleDeadline=Date.now()+30000;
+    while(db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n&&Date.now()<peopleDeadline) {
+      assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,50));
+    }
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n,0);
+    const firstEntry=db.prepare('SELECT * FROM arca_shelf_entries').get();
+    const firstTables=['arca_inventory_materials','arca_inventory_product_facts','arca_deck_fact_revisions','arca_ondeck_commit_receipts'];
+    const snapshot=()=>firstTables.map(table=>[table,db.prepare('SELECT * FROM '+table+' WHERE shelf_entry_id=? ORDER BY rowid').all(firstEntry.shelf_entry_id)]);
+    const before=snapshot(),files=inventory.map(item=>({location:item.location,bytes:fs.readFileSync(item.location)}));
+    const secondSource=path.join(path.dirname(source),'Season 02');
+    fs.mkdirSync(secondSource);fs.writeFileSync(path.join(secondSource,'Demo Show.S02E01.mkv'),'second-season-first-episode');
+    const field=createMaterialFieldStore(deps).getMaterialField(sourceFieldId);
+    if(browserFlow)await browserFlow.scanNextBatch();
+    else await request('POST','/v1/admin/material-fields/'+sourceFieldId+'/actions/observe',{
+      idempotencyKey:'series-observe-s02',fieldId:sourceFieldId,expectedAccessRevision:1,
+      expectedObservationRevision:field.currentObservationRevision,pageBudget:8});
+    const deadline=Date.now()+90000;
+    while(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n<2&&Date.now()<deadline) {
+      assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,50));
+    }
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,2,JSON.stringify({
+      runs:db.prepare('SELECT state FROM libra_runs').all(),failures:db.prepare('SELECT failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
+    const entries=(await request('GET','/v1/admin/collection?status=current')).json().items;
+    assert.equal(entries.length,2);
+    assert.deepEqual(entries.map(entry=>entry.series.seasonNumber).sort(),[1,2]);
+    const second=entries.find(entry=>entry.series.seasonNumber===2);
+    assert.notEqual(second.shelfEntryId,firstEntry.shelf_entry_id);
+    assert.deepEqual(second.series.episodes.map(episode=>episode.episodeKey),['E001']);
+    assert.equal(second.series.physicalFileCount,1);
+    assert.deepEqual(entries.find(entry=>entry.series.seasonNumber===1).series,collection[0].series);
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_subjects').get().n,2);
+    assert.deepEqual(snapshot(),before);
+    for(const file of files)assert.deepEqual(fs.readFileSync(file.location),file.bytes);
+    const secondEntry=db.prepare('SELECT * FROM arca_shelf_entries WHERE shelf_entry_id=?').get(second.shelfEntryId);
+    const secondMembers=db.prepare('SELECT * FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=?')
+      .all(second.shelfEntryId,secondEntry.current_inventory_revision);
+    assert.ok(secondMembers.every(member=>!files.some(file=>file.location===member.location)));
+    for(const member of secondMembers.filter(item=>item.role==='metadata_sidecar')) {
+      const scope=readInventoryArtifactScope(member);assert.equal(scope.seasonNumber,2);
+      if(scope.episodeScope)assert.equal(scope.episodeScope.episodeNumber,1);
+    }
+    assert.deepEqual(db.pragma('foreign_key_check'),[]);
+    if(browserFlow)for(const entry of entries)await browserFlow.verifyCollection(entry,'season-'+entry.series.seasonNumber+'-');
+    t.diagnostic(JSON.stringify({seasons:entries.map(entry=>({season:entry.series.seasonNumber,episodes:entry.series.episodeCount})),protectedFirstSeasonFiles:files.length}));
+  }
+
 });

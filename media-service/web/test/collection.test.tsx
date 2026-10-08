@@ -61,6 +61,21 @@ describe('Arca collection poster wall', () => {
     expect(list).toHaveBeenCalledTimes(3);
   });
 
+  it('distinguishes same-title Seasons by accessible name and opens the selected Season', async () => {
+    const seasons = [1, 2].map(seasonNumber => ({ ...entry, shelfEntryId:`season-${seasonNumber}`, structureKind:'season' as const,
+      series:{ seasonNumber, episodeCount:0, physicalFileCount:0, episodes:[] } }));
+    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items:seasons });
+    vi.spyOn(helixAdminApi, 'listPerceptionRecords').mockResolvedValue({ items:[], nextCursor:null, currentRating:null });
+    vi.spyOn(helixAdminApi, 'getCare').mockResolvedValue({ shelfEntryId:'season-2', health:{state:'never_assessed'}, basis:{inventoryRevision:1,standardRevision:1,placementRevision:1,careBasisDigest:'d'},
+      history:{ assessments:[], findings:[], cases:[], commits:[] } });
+    renderCollection();
+    expect(await screen.findByRole('button', { name:'查看 The Shawshank Redemption 详情，第 1 季，收藏健康：健康' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name:'查看 The Shawshank Redemption 详情，第 2 季，收藏健康：健康' }));
+    const dialog=screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name:'第 2 季 · 已收藏 0 集' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('heading', { name:'第 1 季 · 已收藏 0 集' })).not.toBeInTheDocument();
+  });
+
   it('shows a person once across batch relations while preserving distinct people with the same name', async () => {
     const repeated = { ...entry, people: [
       { personId:'person-1', displayName:'Alex', role:'actor' },

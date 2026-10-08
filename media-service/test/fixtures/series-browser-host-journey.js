@@ -15,6 +15,7 @@ async function open({ host, apiKey }) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   page.setDefaultTimeout(15000);
+  const entryLabel = entry => '查看 ' + entry.displayIdentity + ' 详情' + (entry.series ? '，第 ' + entry.series.seasonNumber + ' 季' : '');
   const screenshot = name => page.screenshot({ path: path.join(output, name + '.png'), fullPage: true });
   return {
     async registerSource(rootLocation) {
@@ -114,7 +115,7 @@ async function open({ host, apiKey }) {
       async function openReview() {
         await page.setViewportSize({ width: 1920, height: 1080 });
         await page.goto(address + '/collection');
-        await page.getByRole('button', { name: '查看 ' + entry.displayIdentity + ' 详情', exact: false }).click();
+        await page.getByRole('button', { name: entryLabel(entry), exact: false }).click();
         const responsePromise = page.waitForResponse(response => response.request().method() === 'POST' &&
           new URL(response.url()).pathname === '/v1/admin/offdeck/reviews');
         await page.getByRole('button', { name: '退出收藏', exact: true }).click();
@@ -198,7 +199,7 @@ async function open({ host, apiKey }) {
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
         await page.goto(address + '/collection');
         await expect(page.getByText('还没有正式上架的收藏', { exact: true })).toBeVisible();
-        await expect(page.getByRole('button', { name: '查看 ' + entry.displayIdentity + ' 详情', exact: false })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: entryLabel(entry), exact: false })).toHaveCount(0);
         await screenshot('offdeck-collection-' + name);
       }
       assert.deepEqual(errors, []);
@@ -206,7 +207,7 @@ async function open({ host, apiKey }) {
     async checkHealth(entry, prefix = 'care-') {
       await page.setViewportSize({ width: 1920, height: 1080 });
       await page.goto(address + '/collection');
-      await page.getByRole('button', { name: '查看 ' + entry.displayIdentity + ' 详情', exact: false }).click();
+      await page.getByRole('button', { name: entryLabel(entry), exact: false }).click();
       const dialog = page.getByRole('dialog', { name: entry.displayIdentity, exact: true });
       const responsePromise = page.waitForResponse(response => response.request().method() === 'POST' &&
         new URL(response.url()).pathname === '/v1/admin/care/' + entry.shelfEntryId + '/actions/check');
@@ -220,9 +221,9 @@ async function open({ host, apiKey }) {
       for (const [name, width, height] of [['desktop', 1920, 1080], ['narrow', 390, 844]]) {
         await page.setViewportSize({ width, height });
         await page.goto(address + '/collection');
-        const tile = page.getByRole('button', { name: '查看 ' + entry.displayIdentity + ' 详情', exact: false });
+        const tile = page.getByRole('button', { name: entryLabel(entry), exact: false });
         await expect(tile).toContainText(entry.displayIdentity);
-        await expect(tile).toHaveAccessibleName('查看 ' + entry.displayIdentity + ' 详情，收藏健康：健康');
+        await expect(tile).toHaveAccessibleName(entryLabel(entry) + '，收藏健康：健康');
         await tile.click();
         const dialog = page.getByRole('dialog', { name: entry.displayIdentity, exact: true });
         await expect(dialog.locator('.health-lamp-copy strong')).toHaveText('健康');
@@ -277,7 +278,7 @@ async function open({ host, apiKey }) {
       for (const [name, width, height] of [['desktop', 1920, 1080], ['narrow', 390, 844]]) {
         await page.setViewportSize({ width, height });
         await page.goto(address + '/collection');
-        const tile = page.getByRole('button', { name: '查看 ' + entry.displayIdentity + ' 详情', exact: false });
+        const tile = page.getByRole('button', { name: entryLabel(entry), exact: false });
         await expect(tile).toBeVisible();
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
         await screenshot(prefix + 'collection-page-' + name);
@@ -287,7 +288,8 @@ async function open({ host, apiKey }) {
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
         await screenshot(prefix + 'collection-filter-' + name);
         await filter.click();
-        await tile.click();
+        await tile.focus();
+        await page.keyboard.press('Enter');
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Collection page must fit the viewport.');
         const dialog = page.getByRole('dialog', { name: entry.displayIdentity, exact: true });
         if(entry.people.length)await expect(dialog.locator('.collection-people dd')).toHaveText(
