@@ -381,3 +381,53 @@ test('UAT-255 both review views stay read-only and never cancel or reconcile Aft
   assert.deepEqual(calls, ['detail','progress']);
   assert.throws(() => app.review('review-1',{view:'unknown'}), (error) => error.code==='ARCA_OFFDECK_VIEW_INVALID');
 });
+
+test('Series Related deletion protects current Season and Movie consumers through native SQLite', () => {
+  const Database=require('better-sqlite3'),root=fs.mkdtempSync(path.join(os.tmpdir(),'series-offdeck-references-')),
+    generated=path.resolve(__dirname,'../../src/helix/foundation/persistence/generated'),databasePath=path.join(root,'test.db');
+  const kernel=require('../../src/helix/foundation/persistence/sqlite-kernel').openSqliteKernel({Database,databasePath,schemaManifest,
+    schemaDdl:fs.readFileSync(path.join(generated,'clean-schema.sql'),'utf8')}),seed=new Database(databasePath);
+  try {
+    seed.pragma('foreign_keys = ON');
+    const location=path.join(root,'shared.srt');fs.writeFileSync(location,'shared subtitle protected across collection profiles');
+    const handle=materialHandle(root,'shared.srt'),identity=handle.identity;
+    seed.prepare('INSERT INTO arca_shelves (shelf_id,name) VALUES (?,?)').run('shelf','Fixture');
+    const entry=seed.prepare('INSERT INTO arca_shelf_entries (shelf_entry_id,shelf_id,structure_kind,status,current_inventory_revision) VALUES (?,?,?,?,?)');
+    for(const [id,kind,status,revision] of [['entry-1','season','offdeck_in_progress',1],['other-season','season','offdeck_in_progress',2],
+      ['other-movie','single','active',2],['old-season','season','active',2],['exited-season','season','offdecked',1]])
+      {
+        entry.run(id,'shelf',kind,status,null);
+        seed.prepare('INSERT INTO arca_inventory_representations (shelf_entry_id,revision) VALUES (?,?)').run(id,revision);
+        seed.prepare('UPDATE arca_shelf_entries SET current_inventory_revision=? WHERE shelf_entry_id=?').run(revision,id);
+      }
+    const reference=seed.prepare('INSERT INTO arca_inventory_related_references (shelf_entry_id,inventory_revision,reference_id,primary_ordinal,role,reference_kind,material_identity_hint,endpoint_id,location) VALUES (?,?,?,?,?,?,?,?,?)');
+    for(const [id,revision,ref,ordinal] of [['entry-1',1,'own',0],['other-season',2,'season-part-a',0],['other-season',2,'season-part-b',1],
+      ['other-movie',2,'movie-related',0],['old-season',1,'old-reference',0],['exited-season',1,'exited-reference',0]])
+      reference.run(id,revision,ref,ordinal,'subtitle','shared_external',JSON.stringify(identity),'test-endpoint',location);
+    seed.prepare('INSERT INTO arca_inventory_materials (shelf_entry_id,inventory_revision,ordinal,material_key,role) VALUES (?,?,?,?,?)')
+      .run('other-movie',2,0,identity.materialKey,'subtitle');
+    const unitOfWork=require('../../src/helix/foundation/persistence/sqlite-unit-of-work').createSqliteUnitOfWork({kernel}),
+      store=createOffdeckStore({schemaManifest,unitOfWork}),released=new Set();
+    const remaining={get value(){return store.activeReferenceCount(identity.materialKey,'entry-1',released);}};
+    assert.equal(remaining.value,2,'Multiple parts and Related/Inventory references count each consumer once.');
+    const fixture=deletionCapabilityFixture(root,'shared.srt',remaining);
+    const apply=ordinal=>{
+      const releasedResult=fixture.ports[CAPABILITY_REFS.relatedRelease].execute({eventId:'release-'+ordinal,idempotencyKey:'release-'+ordinal,
+        ownerScope:{processId:'case-1'},namedInputs:{relatedReference:{referenceId:'related-1'},domainFactCommitHandle:{}}}).result;
+      return fixture.ports[CAPABILITY_REFS.relatedDelete].execute({eventId:'delete-'+ordinal,idempotencyKey:'delete-'+ordinal,
+        ownerScope:{processId:'case-1'},namedInputs:{unreferencedRelatedHandle:fixture.handle,
+          referenceReleaseResult:releasedResult,destructiveAuthorization:authorization}}).result;
+    };
+    assert.equal(apply(1).disposition,'retained_due_to_active_reference');
+    released.add('season-part-a');assert.equal(remaining.value,2);
+    released.add('season-part-b');assert.equal(remaining.value,1);
+    released.add('movie-related');assert.equal(remaining.value,1,'A live Inventory consumer remains after its Related release.');
+    assert.equal(apply(2).disposition,'retained_due_to_active_reference');
+    assert.equal(fs.readFileSync(location,'utf8'),'shared subtitle protected across collection profiles');
+    seed.prepare('UPDATE arca_shelf_entries SET status=? WHERE shelf_entry_id=?').run('offdecked','other-movie');
+    assert.equal(remaining.value,0,'Historical revisions and exited Entries do not retain a current consumer.');
+    assert.equal(apply(3).disposition,'deleted');assert.equal(fs.existsSync(location),false);
+    assert.deepEqual(fixture.evidence.map(item=>item.result),['retained_due_to_active_reference','retained_due_to_active_reference','deleted']);
+    assert.deepEqual(seed.pragma('foreign_key_check'),[]);
+  } finally { seed.close();kernel.close();fs.rmSync(root,{recursive:true,force:true}); }
+});

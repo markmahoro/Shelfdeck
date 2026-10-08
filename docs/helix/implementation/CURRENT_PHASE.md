@@ -253,3 +253,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08有界媒体维修DoR：使用20秒1080p SDR动态画面、AAC音轨和超过32 MiB的H264源，经正式Shelf标准修订触发Aftercare，在每集32 MiB要求下验证实际转码、音轨/时长保持、最终实测空间及Inventory-Control/Settlement。沿既有预算、质量保护和Owner合同，不调整16 MiB预留或弱化策略；仅隔离生成媒体，不部署NAS。
 
 2026-10-08真实有界媒体维修：20秒1080p SDR/AAC源68,526,141字节，经NVIDIA target_size转码为14,280,933字节，低于每集32 MiB；939个音频包SHA256原样保持。正式Host 102.9秒通过，含Claims、事务故障回滚/提交、Control及Settlement；43项专项与架构/语义通过。仅测试/证据修改，N:M有界/长片/HDR/进程恢复/Linux/UI及整体发布Gate继续，无NAS部署。[Evidence](evidence/SERIES_MEDIA_AFTERCARE_HOST_20261008.md)。
+
+2026-10-08 Series Off-deck DoR：以真实N:M成品（共文件两集与E01独立part）在隔离正式Host上架后，经Review/Selection/Authorization退出整个Season；核对Scope按物理成员唯一、删除Evidence精确覆盖、范围外文件保护、终态Deck Fact/Control原子回滚与提交。遵守Arca独立退出与精确授权合同，不做单集部分退出，不触碰生产；其他Entry共享引用另作保护验证，不以此单Entry场景替代。
+
+2026-10-08 Series Off-deck：真实N:M成品经正式Review/Selection/Authorization完成整季退出，2个Primary/3条Claims未重复删除，6个材料精确结算，范围外文件保留；11表终态事务故障回滚/正常提交通过，Host 45秒。原生SQLite跨Season/Movie共享引用与实际删除保护、18项专项及架构/语义通过。仅测试/证据，跨收藏完整Host和进程恢复等仍待验证，整体发布Gate继续，无NAS部署。[Evidence](evidence/SERIES_OFFDECK_HOST_20261008.md)。
