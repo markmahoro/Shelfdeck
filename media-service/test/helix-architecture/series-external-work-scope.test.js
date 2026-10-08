@@ -296,3 +296,48 @@ test('Series candidate merge replaces the whole component and retains unrelated 
   assert.throws(()=>final.candidateSetDigest([...merged,original.find(item=>item.member.materialKey==='part')]),/retain a replaced original/);
   assert.throws(()=>merge.mergeSeriesExternalCandidates(f.value,original.slice(1),[set]),/complete original/);
 });
+
+test('Series external coordinator advances one frozen Scope in order and attaches exact imported Claims',()=>{
+  const f=completedImportFixture(),advance=require('../../src/helix/domains/libra/application/series-external-scope-coordinator').advanceSeriesExternalScope,
+    submitted=[],attached=[],ports={reader:f.reader,submit:work=>{submitted.push(work);return {replayed:true};},
+      result:(_work,capability)=>({result:{result:capability.includes('candidate')?'selected':'passed'}}),
+      terminal:()=>{throw new Error('unexpected terminal');},freeze:()=>{throw new Error('unexpected freeze');},
+      attach:(handle,claims)=>attached.push({handle,claims})};
+  assert.equal(advance(f.value,{workspaceId:'workspace'},f.scope,ports).kind,'series_external_ready');
+  assert.deepEqual(submitted.map(item=>item.workId),[work.externalSearchSelectionWork(f.value,f.scope).workId,f.acquire.workId,f.importWork.workId]);
+  assert.equal(attached.length,2);
+  for(const item of attached){const imported=f.rows.find(row=>row.capabilityRef==='libra.workspace.material.import@1'&&row.result.handleId===item.handle.handleId);
+    assert.equal(item.handle,imported.result);assert.ok(item.claims.length>0);assert.ok(item.claims.every(claim=>f.scope.episodeKeys.includes(claim.episodeKey)));}
+  assert.deepEqual(attached.map(item=>item.claims.length).sort(),[1,2]);
+});
+test('Series external coordinator stops at each pending or failed stage without launching successors',()=>{
+  const f=completedImportFixture(),advance=require('../../src/helix/domains/libra/application/series-external-scope-coordinator').advanceSeriesExternalScope,
+    works=[work.externalSearchSelectionWork(f.value,f.scope),f.acquire,f.importWork];
+  for(let index=0;index<3;index++)for(const state of ['running','failed','cancelled']){
+    const submitted=[],ports={reader:{...f.reader,status:id=>id===works[index].workId?{state}:f.reader.status(id)},
+      submit:item=>{submitted.push(item.workId);return {replayed:true};},result:(_w,c)=>({result:{result:c.includes('candidate')?'selected':'passed'}}),
+      terminal:()=>({kind:'terminal'}),freeze:()=>{throw new Error('unexpected freeze');},attach:()=>{throw new Error('premature attachment');}};
+    assert.equal(advance(f.value,{workspaceId:'workspace'},f.scope,ports).kind,state==='running'?'pending':'terminal');
+    assert.equal(submitted.length,index+1);
+  }
+});
+test('Series external coordinator freezes failed imported media without attaching or selecting a partial set',()=>{
+  const f=completedImportFixture(true),advance=require('../../src/helix/domains/libra/application/series-external-scope-coordinator').advanceSeriesExternalScope;
+  let frozen;
+  const result=advance(f.value,{workspaceId:'workspace'},f.scope,{reader:f.reader,submit:()=>({replayed:true}),
+    result:(_w,c)=>({result:{result:c.includes('candidate')?'selected':'passed'}}),terminal:()=>{throw new Error('unexpected terminal');},
+    freeze:(work,row,reason)=>{frozen={work,row,reason};return {kind:'frozen'};},attach:()=>{throw new Error('ineligible attachment');}});
+  assert.equal(result.kind,'frozen');assert.equal(frozen.work.workId,f.importWork.workId);
+  assert.equal(frozen.row.capabilityRef,'libra.product_media.verify@1');assert.equal(frozen.reason,'video_codec_unmet');
+});
+
+test('Series external coordinator does not acquire or import after a rejected predecessor result',()=>{
+  const f=completedImportFixture(),advance=require('../../src/helix/domains/libra/application/series-external-scope-coordinator').advanceSeriesExternalScope;
+  for(const rejected of ['candidate','package']){
+    let count=0;
+    const result=advance(f.value,{workspaceId:'workspace'},f.scope,{reader:f.reader,submit:()=>{count++;return {replayed:true};},
+      result:(_work,capability)=>({result:{result:capability.includes(rejected)?'rejected':capability.includes('candidate')?'selected':'passed',reasonCodes:['rejected_evidence']}}),
+      terminal:()=>{throw new Error('unexpected terminal');},freeze:()=>({kind:'frozen'}),attach:()=>{throw new Error('rejected attachment');}});
+    assert.equal(result.kind,'frozen');assert.equal(count,rejected==='candidate'?1:2);
+  }
+});

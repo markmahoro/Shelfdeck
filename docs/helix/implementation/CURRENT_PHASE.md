@@ -349,3 +349,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 外部Series验收读取DoR：外部Import与最终成品共用Handle时，不能把缺少endpoint/location的候选投影当成原Run Binding；从精确成功生产Result找到同Run Workspace Handle，使用Workspace端口解析实际位置与revision，绑定既有Probe摘要再发Shelf Acceptance读授权。保留原Control/Offload映射，不伪造原Field源；普通Movie/内部路径回归。
 
 2026-10-08 外部Series验收源：共用Import/成品Handle时也从唯一同Run成功Workspace记录重建endpoint/实际位置/revision，拒绝缺失/重复/跨Run，不伪造Field Binding。10项专项、35.4秒普通Host及P2/架构/语义通过。外部Coordinator与完整端到端继续，未操作NAS。[Evidence](evidence/SERIES_ACCEPTANCE_WORKSPACE_SOURCE_20261008.md)。
+
+2026-10-08 Series外部调度DoR：spec_external缺口按冻结完整连通Scope推进Search→Acquire→多成员Import；已开始Scope先恢复同Work，完整consumer通过才按每个实际Handle及Claims附着Workspace并回到全Run终检。未知空间获取仍使用已确认准入，Import不合格明确冻结既有Evidence，不循环重新获取。内部策略耗尽寻源与外部后加工另需闭环验证。
+
+2026-10-08 Series外部调度：spec_external按完整Scope推进Search/Acquire/Import并恢复既有Work，完整consumer通过后按实际文件Claims附着Workspace，再回全Run终检；拒绝前序或失败媒体明确终结。14项专项、35.4秒普通Host及P2/架构/语义通过。内部耗尽/后加工/完整外部Host继续，未操作NAS。[Evidence](evidence/SERIES_EXTERNAL_COORDINATOR_20261008.md)。

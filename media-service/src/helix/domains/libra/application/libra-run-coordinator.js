@@ -1,4 +1,6 @@
 'use strict';
+const {advanceSeriesExternalScope}=require('./series-external-scope-coordinator');
+const {replacementScopes}=require('../planning/external-material-work');
 const { candidateSeriesAnchor } = require('../model/series-identity-contracts');
 
 const { readDirectMediaSelections } = require('../planning/direct-media-selections');
@@ -487,13 +489,34 @@ function createLibraRunCoordinator(options){
     }
     return continueExternalOrAuthorizedDirectInput(snapshot,workspace,context);
   }
+  function ensureSeriesExternalScope(snapshot,workspace,scope) {
+    const integration=options.resolveExternalMaterialIntegrationHandle?.({operationId:'libra.external_material.search@1'});
+    if(!integration||integration.integrationType!=='moviepilot'||integration.allowedOperation!=='libra.external_material.search@1')
+      return Object.freeze({kind:'waiting_external_integration',phase:'external_search_selection',reasonCode:'moviepilot_integration_unavailable',
+        libraRunId:snapshot.run.libraRunId,workspaceId:workspace.workspaceId});
+    return advanceSeriesExternalScope(snapshot,workspace,scope,{reader:options.workResultReader,submit,
+      result:externalResultRecord,terminal:(work,status)=>terminalWork(snapshot,work,status,'integration_exhausted'),
+      freeze:(work,row,reason)=>freezeBusinessTerminal(snapshot,work,row,reason),
+      attach:(handle,claims)=>attachWorkingHandle(snapshot,workspace,handle,claims)});
+  }
   function ensureSeriesSelection(snapshot,workspace) {
     const pending=(work,phase,submitted)=>Object.freeze({kind:'pending',phase,libraRunId:snapshot.run.libraRunId,
       workId:work.workId,replayed:submitted.replayed,workspaceId:workspace.workspaceId});
+    const scopes=replacementScopes(snapshot);
+    for(const scope of scopes)if(options.workResultReader.status(externalSearchSelectionWork(snapshot,scope).workId)){
+      const progress=ensureSeriesExternalScope(snapshot,workspace,scope);
+      if(progress.kind!=='series_external_ready')return progress;
+    }
     let candidates=readSeriesProductionCandidates(options,snapshot);
     for(const candidate of candidates) {
       if(candidate.eligible)continue;
       const member=candidate.member;
+      if(classifyVerifyGap(candidate.verification)==='spec_external'){
+        const scope=scopes.find(item=>item.members.some(source=>source.materialKey===member.materialKey));
+        if(!scope)throw new Error('Series external routing lacks its complete frozen Scope.');
+        const progress=ensureSeriesExternalScope(snapshot,workspace,scope);
+        return progress.kind==='series_external_ready'?ensureSeriesSelection(snapshot,workspace):progress;
+      }
       if(onlyRemuxGapFromVerification(candidate.verification)) {
         const work=remuxMediaSelectionWork(snapshot,member),submitted=submit(work),status=options.workResultReader.status(work.workId);
         if(!workSucceeded(status))return workFailed(status)?terminalWork(snapshot,work,status):pending(work,'workspace_media_remux_selection',submitted);

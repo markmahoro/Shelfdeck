@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Series外部调度：spec_external按完整Scope推进Search/Acquire/Import并恢复既有Work，完整consumer通过后按实际文件Claims附着Workspace，再回全Run终检；拒绝前序或失败媒体明确终结。14项专项、35.4秒普通Host及P2/架构/语义通过。内部耗尽/后加工/完整外部Host继续，未操作NAS。[Evidence](implementation/evidence/SERIES_EXTERNAL_COORDINATOR_20261008.md)。
+
 2026-10-08 外部Series验收源：共用Import/成品Handle时也从唯一同Run成功Workspace记录重建endpoint/实际位置/revision，拒绝缺失/重复/跨Run，不伪造Field Binding。10项专项、35.4秒普通Host及P2/架构/语义通过。外部Coordinator与完整端到端继续，未操作NAS。[Evidence](implementation/evidence/SERIES_ACCEPTANCE_WORKSPACE_SOURCE_20261008.md)。
 
 2026-10-08 Series完成绑定：Aftercare识别完整多目标结算回执，严格列表/摘要/时间资格后仅移除已完成旧source监控；16项历史回归通过。原生新Node进程重开保留完整证据，成品变更拒绝；P2/架构/语义通过。旧UAT-261见证不扩展为新Series兼容，完整Host恢复继续，未操作NAS。[Evidence](implementation/evidence/SERIES_COMPLETED_BINDINGS_20261008.md)。
