@@ -1,5 +1,6 @@
 'use strict';
 
+const {collectionSeriesProjection}=require('../model/collection-series-projection');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { LibraExecutionRegistration } = require('../../libra/public');
@@ -113,9 +114,9 @@ function createArcaCollectionQuery(options) {
       list_identities:{kind:'select-all',tableId:'arca_canonical_identity_revisions',columns:['shelf_entry_id','revision','structure_kind','identity_kind','provider','provider_key','identity_digest','committed_at_ms'],keyColumns:[],safeIntegers:true},
       find_identities:{kind:'select-in',tableId:'arca_canonical_identity_revisions',keyColumn:'shelf_entry_id',fixedKeyColumns:['revision'],maxItems:500,columns:['shelf_entry_id','revision','structure_kind','identity_kind','provider','provider_key','identity_digest','committed_at_ms'],safeIntegers:true},
       find_shelf:{kind:'select-one',tableId:'arca_shelves',columns:['shelf_id','name','status','target_root_location'],keyColumns:['shelf_id']},
-      list_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
-      list_all_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard'],keyColumns:[],safeIntegers:true},
-      find_materials:{kind:'select-in',tableId:'arca_inventory_materials',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard'],safeIntegers:true},
+      list_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard','episode_claims_json'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
+      list_all_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard','episode_claims_json'],keyColumns:[],safeIntegers:true},
+      find_materials:{kind:'select-in',tableId:'arca_inventory_materials',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard','episode_claims_json'],safeIntegers:true},
       list_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
       list_all_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],keyColumns:[],safeIntegers:true},
       find_facts:{kind:'select-in',tableId:'arca_inventory_product_facts',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],safeIntegers:true},
@@ -153,6 +154,7 @@ function createArcaCollectionQuery(options) {
       people=(caches?(caches.people.get(key)||[]):repo.invoke('list_people',{shelf_entry_id:row.shelf_entry_id,inventory_revision:revision}))
         .map((item)=>Object.freeze({personId:item.person_id,displayName:item.display_name,role:item.role}));
     const materials=caches?(caches.materials.get(key)||[]):repo.invoke('list_materials',{shelf_entry_id:row.shelf_entry_id,inventory_revision:revision});
+    const series=collectionSeriesProjection(row,materials,facts);
     const occupancy=occupancyFromMaterials(materials);
     const spec=videoSpecFromFacts(facts);
     const defectManifest=facts.find((item)=>item.factKind==='authorized_defect_manifest')?.factValue||null;
@@ -163,11 +165,11 @@ function createArcaCollectionQuery(options) {
     return Object.freeze({shelfEntryId:row.shelf_entry_id,shelfId:row.shelf_id,shelfName:shelf?.name||row.shelf_id,structureKind:row.structure_kind,status:row.status,
       canonicalIdentityRevision:Number(row.canonical_identity_revision),canonicalIdentityKey:row.canonical_identity_key,
       provider:identity.provider,providerKey:identity.provider_key,identityKind:identity.identity_kind,identityDigest:identity.identity_digest,
-      displayIdentity:descriptive.get('title')||descriptive.get('display_title')||identity.provider_key,year:yearFromDescriptiveFacts(descriptive),
+      displayIdentity:descriptive.get('title')||descriptive.get('display_title')||descriptive.get('series_title')||identity.provider_key,year:yearFromDescriptiveFacts(descriptive),
       overview:descriptive.get('overview')||descriptive.get('plot')||null,genres:Object.freeze(genres),people:Object.freeze(people),
       hasPoster:occupancy.hasPoster,hasNfo:occupancy.hasNfo,occupancyBytes:occupancy.occupancyBytes,
-      primaryVideoBytes:occupancy.primaryVideoBytes,primaryContainer:occupancy.primaryContainer,
-      videoCodec:spec.codec,videoRaster:spec.raster,defectAdmission,
+      primaryVideoBytes:series?materials.filter(item=>item.role==='primary_payload').reduce((sum,item)=>sum+Number(item.size_bytes),0):occupancy.primaryVideoBytes,primaryContainer:series?null:occupancy.primaryContainer,
+      videoCodec:series?null:spec.codec,videoRaster:series?null:spec.raster,defectAdmission,series,
       currentInventoryRevision:revision,currentDeckFactRevision:Number(row.current_deck_fact_revision),
       createdAtMs:Number(row.created_at_ms),terminalAtMs:row.terminal_at_ms===null?null:Number(row.terminal_at_ms)});}
   const emptyHealth=Object.freeze({state:'never_assessed'});

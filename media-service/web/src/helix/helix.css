@@ -637,3 +637,8 @@ button, input, select, textarea { font: inherit; }
 .shelf-standard-dialog .dialog-head, .shelf-standard-dialog .dialog-actions { flex-shrink: 0; }
 
 .dialog:has(.identity-picker) { width: min(560px, calc(100vw - 40px)); }
+
+.collection-episodes { margin: 20px 0; overflow-wrap: anywhere; }
+.collection-episodes h3 { font-size: 16px; }
+.collection-episodes ul { padding-left: 20px; }
+.collection-episodes li { margin: 8px 0; }

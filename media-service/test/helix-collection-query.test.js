@@ -87,3 +87,23 @@ test('Collection index filter stays on the query, including unset-shelf-free cur
   assert.deepEqual(filterCollectionIndex(index, { shelfId: 'shelf-1', status: 'history' }).map((row) => row.shelf_entry_id), ['b']);
   assert.equal(filterCollectionIndex(index, { status: 'current' }).length, 2);
 });
+
+test('Series Collection projects only claimed Episodes, shared files and parts from current Inventory',()=>{
+  const {collectionSeriesProjection}=require('../src/helix/domains/arca/model/collection-series-projection');
+  const {canonicalContentIdentity}=require('../src/helix/domains/arca/model/canonical-content-identity');
+  const identity={structureKind:'season',contentProfile:'series',identityKind:'tmdb_series_season',identityDigest:'a'.repeat(64),providerIdentities:[{provider:'tmdb',namespace:'tmdb_series',providerKey:'42',seasonNumber:2}]};
+  const entry={structure_kind:'season',shelf_id:'shelf',canonical_identity_key:canonicalContentIdentity('shelf',identity).canonicalIdentityKey};
+  const material=(key,episodes)=>({material_key:key,role:'primary_payload',location:'/media/'+key+'.mkv',size_bytes:100,episode_claims_json:JSON.stringify({items:episodes.map(episodeKey=>({episodeKey}))})});
+  const materials=[material('shared',['E001','E003']),material('part',['E001'])];
+  const facts=[{factKind:'resolved_identity',factValue:identity},{factKind:'product_metadata',factValue:{episodeMetadata:[{episodeScope:{seasonNumber:2,episodeNumber:3,episodeKey:'E003'},descriptiveFacts:{entries:[{key:'episode_title',value:'Third'}]}}]}}];
+  const value=collectionSeriesProjection(entry,materials,facts);
+  assert.equal(value.seasonNumber,2);assert.equal(value.episodeCount,2);assert.equal(value.physicalFileCount,2);
+  assert.deepEqual(value.episodes.map(item=>item.episodeNumber),[1,3]);
+  assert.equal(value.episodes[0].files.length,2);assert.equal(value.episodes[1].title,'Third');
+  assert.equal(value.episodes[1].files[0].coveredEpisodeCount,2);
+  assert.throws(()=>collectionSeriesProjection({...entry,canonical_identity_key:'other'},materials,facts),/identity/);
+  assert.throws(()=>collectionSeriesProjection(entry,[...materials,materials[0]],facts),/duplicated/);
+  assert.throws(()=>collectionSeriesProjection(entry,[material('bad',['E001','E001'])],facts),/claims/);
+  assert.throws(()=>collectionSeriesProjection(entry,[material('bad',['E1'])],facts),/key/);
+  assert.equal(collectionSeriesProjection({structure_kind:'single'},[],[]),null);
+});

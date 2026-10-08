@@ -161,7 +161,7 @@ export default function CollectionPage() {
           <option value="">全部收藏</option>
           {shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}
         </select></label>
-        <div><strong>{selectedShelf?.currentCount ?? summary.currentCount} 部珍藏</strong></div>
+        <div><strong>{selectedShelf?.currentCount ?? summary.currentCount} 条收藏</strong></div>
       </div>
       <div className="collection-tools">
         <form className="collection-search" role="search" onSubmit={(event) => { event.preventDefault(); const value = searchDraft.trim(); if (value === search) void load(); else setSearch(value); }}>
@@ -173,14 +173,14 @@ export default function CollectionPage() {
       </div>
     </section>
     <section className="collection-library" aria-label="收藏列表">
-      {loading && items.length === 0 ? <LoadingState>正在打开收藏架…</LoadingState> : items.length === 0 ? <div className="source-empty"><strong>{summary.currentCount === 0 ? '还没有正式上架的电影' : '没有找到符合条件的收藏'}</strong></div> : <div className="poster-wall">{items.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情，收藏健康：${healthLabels[item.health.state]}`}>
+      {loading && items.length === 0 ? <LoadingState>正在打开收藏架…</LoadingState> : items.length === 0 ? <div className="source-empty"><strong>{summary.currentCount === 0 ? '还没有正式上架的收藏' : '没有找到符合条件的收藏'}</strong></div> : <div className="poster-wall">{items.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情，收藏健康：${healthLabels[item.health.state]}`}>
         <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId, item.currentInventoryRevision, 'wall')} alt="" loading="lazy" decoding="async" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}{<span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{item.health.state === 'attention_required' ? '需处理' : healthLabels[item.health.state]}</span>}</span>
-        <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.year || '年份未知'} · {item.shelfName}</small>{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defects.some((defect)=>defect.defectCode==='size_cap_exceeded')?'体积超过档位上限':`${item.defectAdmission.defectCount}项`}</small>}</span>
+        <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.series ? `第 ${item.series.seasonNumber} 季 · ${item.series.episodeCount} 集 · ` : ''}{item.year || '年份未知'} · {item.shelfName}</small>{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defects.some((defect)=>defect.defectCode==='size_cap_exceeded')?'体积超过档位上限':`${item.defectAdmission.defectCount}项`}</small>}</span>
       </button>)}</div>}
       <nav className="collection-more" aria-label="收藏分页">
         <Button type="button" disabled={loading || pageIndex === 0} onClick={() => void load(pageCursors.current[pageIndex - 1], pageIndex - 1)}>上一页</Button>
         {pageCursors.current.map((cursor, index) => <Button key={index} type="button" aria-label={`第${index + 1}页`} aria-current={index === pageIndex ? 'page' : undefined} disabled={loading || index === pageIndex} onClick={() => void load(cursor, index)}>{index + 1}</Button>)}
-        <span>第 {pageIndex + 1} 页 · 共 {resultCount} 部</span>
+        <span>第 {pageIndex + 1} 页 · 共 {resultCount} 条</span>
         <Button type="button" disabled={loading || !nextCursor} onClick={() => nextCursor && void load(nextCursor, pageIndex + 1)}>下一页</Button>
       </nav>
     </section>
@@ -197,12 +197,20 @@ export default function CollectionPage() {
           <dl className="collection-facts">
             <div><dt>收藏架</dt><dd>{selected.shelfName}</dd></div>
             <div><dt>占用空间</dt><dd>{formatBytes(selected.occupancyBytes)}</dd></div>
-            <div><dt>主视频</dt><dd>{selected.primaryVideoBytes == null ? '—' : `${formatBytes(selected.primaryVideoBytes)}${selected.primaryContainer ? ` · ${selected.primaryContainer}` : ''}`}</dd></div>
+            <div><dt>{selected.series ? '全部视频文件' : '主视频'}</dt><dd>{selected.primaryVideoBytes == null ? '—' : `${formatBytes(selected.primaryVideoBytes)}${selected.primaryContainer ? ` · ${selected.primaryContainer}` : ''}`}</dd></div>
             {(selected.videoCodec || selected.videoRaster) && <div><dt>编码与清晰度</dt><dd>{[selected.videoCodec, selected.videoRaster].filter(Boolean).join(' · ')}</dd></div>}
             <div><dt>海报 / NFO</dt><dd>{selected.hasPoster ? '有海报' : '无海报'} · {selected.hasNfo ? '有 NFO' : '无 NFO'}</dd></div>
             <div><dt>资料来源</dt><dd>{selected.provider === 'tmdb' ? 'TMDB' : selected.provider}</dd></div>
             <div><dt>状态</dt><dd>已上架</dd></div>
           </dl>
+          {selected.series && <section className="collection-episodes" aria-label="已收藏剧集">
+            <h3>第 {selected.series.seasonNumber} 季 · 已收藏 {selected.series.episodeCount} 集</h3>
+            <p>{selected.series.physicalFileCount} 个视频文件</p>
+            <ul>{selected.series.episodes.map(episode => <li key={episode.episodeKey}>
+              <strong>第 {episode.episodeNumber} 集{episode.title ? ` · ${episode.title}` : ''}</strong>
+              <ul>{episode.files.map(file => <li key={file.materialKey}>{file.name} · {formatBytes(file.sizeBytes)}{file.coveredEpisodeCount > 1 ? ` · 共用文件（${file.coveredEpisodeCount} 集）` : ''}</li>)}</ul>
+            </li>)}</ul>
+          </section>}
           <div className="collection-rating"><span>我的评分</span><RatingControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
           <section className="collection-health" aria-labelledby="collection-health-heading">
             <div className="collection-health-heading"><div><h3 id="collection-health-heading">收藏健康</h3></div>

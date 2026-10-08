@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Collection Series详情：从当前Inventory及Canonical Season事实输出实际集数/文件关系，支持共文件和多part；不拿首文件规格代表整季。7项查询专项、共文件/part两个Host及E03追加94.2秒通过，124项前端、双视口及构建/P2/架构/语义通过。负责人验收和其他发布Gate仍开放，未部署NAS。[Evidence](implementation/evidence/SERIES_COLLECTION_EPISODES_20261008.md)。
+
 2026-10-08 Series 人工身份UI：Formation区分剧集操作，预览冻结Season且确认不提交季/集；124项前端、Movie/Series双视口4项及构建通过。新增实际Host从无匹配经正式HTTP人工选择到两集Direct/Remux上架36.9秒通过。窄屏弹窗越界修复；Episode范围展示/Collection和负责人验收继续，未部署NAS。[Evidence](implementation/evidence/SERIES_MANUAL_IDENTITY_UI_20261008.md)。
 
 2026-10-08 Series 人工身份命令：经用户确认扩展SSOT，TMDB Series ID绑定Run冻结Season/basis，拒绝改季扩集和跨类型，仍仅记录Intent并由provider_exact复验。49项专项、普通Direct/Remux Host35.9秒及P2/架构/语义通过。前端与人工选择完整Host继续，EpisodeDelivery摘要缺口保留，未部署NAS。[Evidence](implementation/evidence/SERIES_MANUAL_IDENTITY_COMMAND_20261008.md)。

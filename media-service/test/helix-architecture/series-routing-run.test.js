@@ -635,6 +635,14 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   assert.ok(state.works.some(work=>work.work_kind==='routing_provider_facts'&&work.state==='succeeded'));
   assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1);
   const inventory=db.prepare('SELECT * FROM arca_inventory_materials').all();
+  const collection=JSON.parse((await request('GET','/v1/admin/collection?status=current')).body).items;
+  assert.equal(collection.length,1);
+  assert.equal(collection[0].series.seasonNumber,1);
+  assert.equal(collection[0].series.episodeCount,episodeCount);
+  assert.equal(collection[0].series.physicalFileCount,physicalCount);
+  assert.deepEqual(collection[0].series.episodes.map(item=>item.episodeKey),episodeKeys);
+  assert.equal(collection[0].series.episodes.reduce((sum,item)=>sum+item.files.length,0),nm?3:parts?2:episodeCount);
+
   assert.equal(inventory.length,episodeCount+physicalCount+2);
   assert.equal(db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n,1);
   assert.equal(new Set(inventory.map(item=>item.location)).size,inventory.length);
@@ -1078,6 +1086,9 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.equal(metadataCheck(alteredCare,'episode_title'),true);
     assert.equal(metadataCheck(rawCare,'episode_title'),false);
     assert.deepEqual(latestFacts.flatMap(row=>JSON.parse(row.fact_json).episodeMetadata.map(item=>item.episodeScope.episodeKey)).sort(),['E001','E002','E003']);
+    const appendedCollection=JSON.parse((await request('GET','/v1/admin/collection?status=current')).body).items;
+    assert.equal(appendedCollection.length,1);assert.equal(appendedCollection[0].series.episodeCount,3);
+    assert.deepEqual(appendedCollection[0].series.episodes.map(item=>item.episodeKey),['E001','E002','E003']);
     for(const item of inventoryPrimary)assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
     const third=latestPrimary.find(row=>JSON.parse(row.episode_claims_json).items.some(claim=>claim.episodeKey==='E003'));
     assert.equal(fs.readFileSync(third.location,'utf8'),'third-series-fixture');

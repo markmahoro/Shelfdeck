@@ -362,6 +362,7 @@ export type PerceptionSyncState = {
 };
 
 export type CollectionEntry = {
+  series?: { seasonNumber: number; episodeCount: number; physicalFileCount: number; episodes: Array<{episodeKey: string; episodeNumber: number; title: string | null; files: Array<{materialKey: string; name: string; sizeBytes: number; coveredEpisodeCount: number}>}> } | null;
   shelfEntryId: string;
   shelfId: string;
   shelfName: string;
