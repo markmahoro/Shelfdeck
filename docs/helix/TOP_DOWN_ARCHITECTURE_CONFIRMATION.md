@@ -7424,7 +7424,7 @@ Effect Receipt重新调度；不能恢复旧内存waiter或假定旧设备仍被
 
 每个Event对一组resource demand最多注册一个有效waiter。等待时保持`waiting_for_resource`，没有容量或
 Priority变化不得反复退回ready/queued写事件。Governor queue full时，Runtime持久化`resource_deferred +
-retryAt`并指数退避；retryAt之前Scheduler不得重复dispatch。
+retryAt`并指数退避；retryAt之前Scheduler不得重复dispatch，除非Governor按§10.4.5容量释放规则显式提前更新该Event的retryAt。
 
 资源等待不写Capability failure、Policy Gap、Shelf fault或Event retry。只有资源配置长期不可能满足声明时，
 Pressure Guard形成Integration/System诊断并由Process Owner按Level 6收口。
@@ -14561,6 +14561,8 @@ dispatch机会。该规则保证Field observation和周期审计不会永久饥�
 每个Event/Resource bundle最多一个waiter。Resource queue full时持久化resource_deferred，退避使用
 5s、30s、2min、10min封顶；retryAt前Scheduler不重新dispatch。Priority/Profile/Capacity revision变化可以
 显式唤醒并重新排序未执行waiter。
+
+2026-10-08用户确认（UAT-282）：Permit释放后相关资源重新具备容量时，Governor可在global/per-key队列hard cap内，按既有Priority/aging/FIFO选择受影响的durable deferred Event，将其完整bundle的retryAt提前到当前时刻。已到期但尚未dispatch的提前唤醒也占用队列预算，禁止连续release制造无界第二队列；未选中或不相关Event保持原退避。此动作不发放Permit、不改变Event业务状态、不改Owner输入；Scheduler仍按当前Owner Priority排序，正式dispatch重新准备输入并原子校验完整resource bundle。terminal/正在执行Event不得唤醒，不允许据此放宽队列容量或周期性无条件清除退避。
 
 资源不足只形成waiting_for_resource或resource_deferred，不写Capability failure、Policy Gap、Shelf fault或
 Event retry。当前Resource Map永远无法满足一个已规划Demand时，Plan进入稳定typed blocker并返回Owner；

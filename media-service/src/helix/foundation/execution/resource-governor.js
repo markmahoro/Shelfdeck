@@ -331,8 +331,60 @@ function createResourceGovernor(options) {
       if (remaining === 0) inUse.delete(resource.resourceKey); else inUse.set(resource.resourceKey, remaining);
     }
     permits.delete(current.permitId); eventPermits.delete(current.eventId);
+    wakeDeferredForReleasedCapacity(current.resources);
     options.onCapacityChanged?.();
     return Object.freeze({ released: true, permitId: current.permitId });
+  }
+
+  function wakeDeferredForReleasedCapacity(resources) {
+    const atMs = now(), currentMapper = mapper();
+    const releasedKeys = new Set(resources.filter(resource =>
+      (inUse.get(resource.resourceKey) || 0) < currentMapper.capacityFor(resource.resourceKey))
+      .map(resource => resource.resourceKey));
+    if (!releasedKeys.size) return;
+    options.unitOfWork.execute([{
+      participantId: 'resource_governor_capacity_wake', owner: 'execution-foundation',
+      repositories: Object.values(repositories), execute(context) {
+        const defers = context.repository('governor_defers'), events = context.repository('governor_events');
+        const groups = new Map();
+        for (const row of defers.invoke('list')) {
+          if (row.state !== 'waiting' || eventPermits.has(row.event_id)) continue;
+          if (!groups.has(row.event_id)) groups.set(row.event_id, []);
+          groups.get(row.event_id).push(row);
+        }
+        let occupied = waiters.size;
+        const perKey = new Map();
+        const reserve = keys => { for (const key of keys) perKey.set(key, (perKey.get(key) || 0) + 1); };
+        for (const waiter of waiters.values()) reserve(waiter.request.resources.map(resource => resource.resourceKey));
+        const candidates = [];
+        for (const [eventId, rows] of groups) {
+          if (waiters.has(eventId)) continue;
+          const event = events.invoke('find', { event_id: eventId });
+          if (!event || event.state !== 'waiting_for_resource') continue;
+          const keys = rows.map(row => row.resource_key);
+          // Due durable wakes occupy queue space until dispatch registers or consumes them.
+          // This prevents repeated releases from promoting an unbounded second queue.
+          if (event.retry_at_ms === null || event.retry_at_ms <= atMs) {
+            occupied += 1; reserve(keys); continue;
+          }
+          if (keys.some(key => releasedKeys.has(key))) candidates.push({ eventId, rows, keys });
+        }
+        candidates.sort((left, right) => {
+          const a = left.rows[0], b = right.rows[0];
+          return QUEUE_CLASSES.indexOf(a.queue_class) - QUEUE_CLASSES.indexOf(b.queue_class) ||
+            (b.local_priority + Math.floor((atMs - b.enqueued_at_ms) / 60000)) -
+              (a.local_priority + Math.floor((atMs - a.enqueued_at_ms) / 60000)) ||
+            a.enqueued_at_ms - b.enqueued_at_ms || left.eventId.localeCompare(right.eventId);
+        });
+        for (const candidate of candidates) {
+          if (occupied >= queueLimits.globalHard) break;
+          if (candidate.keys.some(key => (perKey.get(key) || 0) >= queueLimits.perKeyHard)) continue;
+          for (const row of candidate.rows) defers.invoke('update', { ...row, retry_at_ms: atMs });
+          events.invoke('defer', { event_id: candidate.eventId, state: 'waiting_for_resource', retry_at_ms: atMs });
+          occupied += 1; reserve(candidate.keys);
+        }
+      },
+    }]);
   }
 
   function updateWaiterPriority(request) {

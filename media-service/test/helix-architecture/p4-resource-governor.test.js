@@ -230,6 +230,56 @@ test('hard-full queue persists stable defer and exact exponential retryAt withou
   });
 });
 
+test('capacity release drains a large deferred batch without advancing its backoff clock', () => {
+  fixture(({ governor, databasePath, seedEvents, setNow, setEventState }) => {
+    const ids = Array.from({ length: 100 }, (_, index) => 'batch-' + String(index).padStart(3, '0'));
+    seedEvents(...ids);
+    const holder = governor.acquire(request(ids[0], [['sqlite_write']]));
+    for (const id of ids.slice(1)) governor.acquire(request(id, [['sqlite_write']]));
+    const db = new Database(databasePath, { readonly: true });
+    try {
+      setEventState(ids[0], 'succeeded');
+      governor.release(holder.permit);
+      assert.equal(db.prepare('SELECT retry_at_ms FROM fx_workflow_events WHERE event_id=?').get(ids[3]).retry_at_ms, 185000);
+      setNow(180100);
+      for (let count = 1; count < ids.length; count++) {
+        const due = db.prepare("SELECT event_id FROM fx_workflow_events WHERE state='waiting_for_resource' AND retry_at_ms<=? ORDER BY event_id").all(180100);
+        assert.ok(due.length > 0, 'released capacity must keep the original batch progressing');
+        assert.ok(due.length <= queueLimits.globalHard, 'early wakes must share the bounded queue budget');
+        const next = governor.acquire(request(due[0].event_id, [['sqlite_write']]));
+        assert.equal(next.kind, 'permitted');
+        setEventState(due[0].event_id, 'succeeded');
+        governor.release(next.permit);
+      }
+      assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE state='succeeded'").get().n, 100);
+      assert.equal(governor.snapshot().waiterCount, 0);
+      assert.equal(governor.snapshot().permitCount, 0);
+    } finally { db.close(); }
+  });
+});
+
+test('capacity wake preserves unrelated defers and terminal events', () => {
+  fixture(({ governor, databasePath, seedEvents, setEventState, setNow }) => {
+    seedEvents('holder', 'cpu-holder', 'wait-one', 'wait-two', 'related', 'terminal', 'unrelated');
+    const holder = governor.acquire(request('holder', [['sqlite_write']]));
+    const cpu = governor.acquire(request('cpu-holder', [['cpu_heavy', profile().capacityFor('cpu_heavy')]]));
+    for (const id of ['wait-one', 'wait-two', 'related', 'terminal']) governor.acquire(request(id, [['sqlite_write']]));
+    governor.acquire(request('unrelated', [['cpu_heavy']]));
+    setEventState('terminal', 'cancelled');
+    governor.release(holder.permit);
+    setNow(180100);
+    const next = governor.acquire(request('wait-one', [['sqlite_write']]));
+    governor.release(next.permit);
+    const db = new Database(databasePath, { readonly: true });
+    try {
+      assert.equal(db.prepare('SELECT retry_at_ms FROM fx_workflow_events WHERE event_id=?').get('related').retry_at_ms, 180100);
+      assert.equal(db.prepare('SELECT retry_at_ms FROM fx_workflow_events WHERE event_id=?').get('unrelated').retry_at_ms, 185000);
+      assert.deepEqual(db.prepare('SELECT state,retry_at_ms FROM fx_workflow_events WHERE event_id=?').get('terminal'), { state:'cancelled', retry_at_ms:185000 });
+    } finally { db.close(); }
+    governor.release(cpu.permit);
+  });
+});
+
 test('unsatisfiable resource is stable blocker and Profile reduction never revokes existing Permit', () => {
   fixture(({ governor, seedEvents, setProfile }) => {
     seedEvents('holder', 'next', 'missing');
