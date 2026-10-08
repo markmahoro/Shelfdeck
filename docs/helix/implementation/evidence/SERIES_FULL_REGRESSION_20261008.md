@@ -126,3 +126,23 @@ UI负责人turn 01a11c00-8e30-7860-9dcb-47c6071b5a1b确认技术失败文案缺�
 ## 最终候选84c2cd926镜像
 
 标准scripts/build-image.js生成markmahoro/shelfdeck:84c2cd9268，tar SHA256 a5c09f6cd69a9193b89453bc8fda9f75b75ff7dabfe3c8ec3945510b981adfdc（536.0 MiB）。本地与镜像2121个runtime文件集合SHA256均为af94e8003cee218e579aba3271728d04792ddfa7e40a73ff8c9f1e71ad477bf6。镜像内失败诊断/Projection/UAT-251及P2/P3合同共46项全部通过；首次有一项静态源码测试因镜像不包含web/src而ENOENT，补挂只读web/src供该测试读取后复验通过，运行时后端源码未挂载或替换。日志series-candidate-84c2cd926-build.log及-linux[-recheck].log。UI负责人正验收相同产品版本，尚无最终接受结论，未上传或部署NAS。
+
+## Phase Exit反向审计（最终UI结论待回填）
+
+此审计从SSOT结果反查，不用历史“下一步”记录推断未完成功能，也不将不同SHA的测试合并冒称一次冻结全量。
+
+| 合同结果 | 证据与当前结论 |
+| --- | --- |
+| §3.2.6 Season为收藏主体、Episode直接子项 | [首次/追加](SERIES_SEASON_EXTENSION_20261008.md)、[实际页面](SERIES_BROWSER_HOST_JOURNEY_20261008.md)：唯一Season Entry追加，另季独立；旧Inventory与文件保持 |
+| §3.4.2精确continuity及零重叠 | [连续性](SERIES_SUBJECT_CONTINUITY_20261008.md)、[并发](SERIES_CONCURRENT_TARGET_20261008.md)：明确claim接原Subject；无claim不猜合并，冲突/重放/Target Reservation按Owner合同 |
+| §3.4.4–3.4.5冻结本批交付、§5.5.3逐集资料 | 正式HTTP首次/追加、2/24集Host及实际TMDB冷配置；不以理论全集阻塞本批，身份/Season/缺title或plot拒绝 |
+| §5.5.4–5.5.8完整N:M、逐集验收 | [空间终检](SERIES_FINAL_SPACE_ACCEPTANCE_20261008.md)、[外部Host](SERIES_EXTERNAL_HOST_GAPS_20261008.md)：共文件均分、多part相加，完整原Primary Requirement集合摘要；真实Direct/Remux/Transcode及多part通过 |
+| §6.2.3/§6.5单向Handoff、仅Arca Commit建收藏 | 正式Host和[跨设备](SERIES_CROSS_DEVICE_HOST_20261008.md)保持Libra Workspace与Arca正式落位分工；外部一次获取、source-to-all-final映射与Provider字节保护已验证 |
+| §5.7–5.8维护/退出及恢复 | [Aftercare Host](SERIES_MEDIA_AFTERCARE_HOST_20261008.md)、[Aftercare重启](SERIES_AFTERCARE_HOST_RECOVERY_20261008.md)、[退出](SERIES_OFFDECK_HOST_20261008.md)、[进程恢复](SERIES_PROCESS_RECOVERY_20261008.md)：具体中断点重放及其他季/范围外文件保护；不声称覆盖任意断电时点 |
+| §9.4及Playbook §11.1/§12.3用户旅程 | 首次配置/追加/NFO/多季退出已被负责人精确版本接受；84c2cd926外部三成功/三失败、详情刷新正在负责人独立复验，当前唯一未关闭的适用UI门禁 |
+| 旧Movie保护、升级与正式回退 | [历史升级与联合回退](SERIES_HISTORICAL_UPGRADE_PREFLIGHT_20261008.md)、本文件完整服务/架构/实际Linux镜像结果；未修改NAS现存442收藏和3个active Run |
+| 可复验构建与代码一致 | 标准84c2cd9268镜像及tar/tree摘要见上；后续仅文档提交不改变运行时。没有新Owner、跨域Store、独立Series Runtime、绕过合同的fallback或存量兼容路径 |
+
+发布适用范围：当前positive Season合同、最多32个物理Primary typed空间basis；24集有完整Host证据，S00及更大输入未扩大合同。长时媒体为合成20分钟SDR，HDR为短PQ样本，不能外推HLG/DV或真实复杂画面画质。真实MoviePilot只读连通/协议通过，完整外部下载网络受控，未声称真实远端媒体下载或生产硬件/挂载压力验收。
+
+部署准备与实施分开：当前目标是可部署候选，NAS尚保持旧Movie镜像；真实部署前按正式入口重新核对备份、生产现态和精确未完成Formation处置范围。当前3个active Run不会被本次开发或本证据自动授权Reset；生产数据迁移/Reset需要对应明确授权。仅本地历史副本和隔离数据演练完成。不得因等待生产部署授权而把已完成开发证据改为失败，也不得以可部署准备取代生产部署后验收。
