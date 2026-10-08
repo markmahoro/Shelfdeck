@@ -6,7 +6,7 @@
     "8.6.18"
   ],
   "x-helix-role": "accepted-business-dto",
-  "x-helix-maxCanonicalBytes": 65536,
+  "x-helix-maxCanonicalBytes": 1048576,
   "oneOf": [
     {
       "type": "object",
@@ -85,7 +85,7 @@
             "members": {
               "type": "array",
               "minItems": 1,
-              "maxItems": 32,
+              "maxItems": 1024,
               "items": {
                 "type": "object",
                 "additionalProperties": false,
@@ -270,7 +270,7 @@
             "members": {
               "type": "array",
               "minItems": 1,
-              "maxItems": 32,
+              "maxItems": 1024,
               "items": {
                 "type": "object",
                 "additionalProperties": false,

@@ -15,6 +15,21 @@ test('A shared file receives the physical budget of all covered Episodes',()=>{
   const value=basis([{sizeBytes:100,episodeKeys:['E001','E002']}]);
   assert.deepEqual(budgets(value,50),[100]);assert.deepEqual(budgets(value,null),[null]);
 });
+
+test('Large Season allocation includes a shared file and a distant part beyond the former 32-member boundary',()=>{
+  const members=Array.from({length:46},(_,index)=>({sizeBytes:10,episodeKeys:['E'+String(index+1).padStart(3,'0')]}));
+  members[0]={sizeBytes:20,episodeKeys:['E001','E002']};
+  members[1]={sizeBytes:1,episodeKeys:['E001']};
+  members.push({sizeBytes:5,episodeKeys:['E001']});
+  const value=basis(members);
+  const allocations=evaluateSeriesEpisodeSpace({members:value.members.map(item=>({...item,role:'primary_payload',episodeClaims:item.episodeKeys.map(episodeKey=>({episodeKey}))})),episodeKeys:value.episodeKeys,maxSizeBytes:15});
+  assert.deepEqual(allocations[0].allocatedBytes,{numerator:'16',denominator:'1'});
+  assert.equal(allocations[0].withinLimit,false);
+  assert.equal(allocations[1].withinLimit,true);
+  const bounded=basis(Array.from({length:1024},(_,index)=>({sizeBytes:1,episodeKeys:['E'+index]})));
+  assert.equal(bounded.members.length,1024);
+  assert.throws(()=>basis(Array.from({length:1025},(_,index)=>({sizeBytes:1,episodeKeys:['E'+index]}))));
+});
 test('Multiple parts use exact proportions and the tightest covered Episode constraint',()=>{
   const value=basis([{sizeBytes:9,episodeKeys:['E001','E002']},{sizeBytes:3,episodeKeys:['E001']}]);
   assert.deepEqual(budgets(value,7),[8,2]);

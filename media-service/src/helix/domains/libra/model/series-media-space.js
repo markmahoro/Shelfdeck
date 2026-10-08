@@ -9,7 +9,7 @@ const digest=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 // physical access and does not replace final Product or Arca space acceptance.
 function buildSeriesMediaSpaceBasis({libraRunId,runExecutionBasisDigest,episodeKeys,members}) {
   if(typeof libraRunId!=='string'||!libraRunId||!digest(runExecutionBasisDigest)||
-      !Array.isArray(members)||!members.length||members.length>32)
+      !Array.isArray(members)||!members.length||members.length>1024)
     throw new TypeError('Series media space requires one bounded frozen Run member set.');
   const items=members.map(member=>({materialKey:member.materialKey,memberDigest:member.memberDigest,
     handleDigest:member.handleDigest,probeDigest:member.probeDigest,sizeBytes:member.sizeBytes,

@@ -1834,7 +1834,7 @@
       "relativePath": "domain-types/ProductMediaCandidateInput/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "662fcc83f165176ef12d129e772bd715497e87e2c52f786a99b886155118e058"
+        "value": "ddf1e9b0087642d65e7e671604f21c7110606dba6db6148497390d536966bdbd"
       },
       "usedBy": [
         {

@@ -1,0 +1,7 @@
+# UAT-287 Series整批成品与Arca验收容量
+
+UAT-286修复后的全新47集Host通过全部Direct verify/select，下一步Product Conformance输入因selectedProducts超过32触发P9_CONFORMANCE_SELECTED_SET。现行SSOT ProductConformanceInputSnapshot明确selectedProducts[1..32]、完整输入8 MiB。交付后的ShelfAcceptancePrimaryReadSet同样明确primaryInputs[1..32]、完整输入1 MiB；AcceptanceCheck机器schema的primaryMediaObservations也限制32项，完整Check虽然声明2 MiB，Foundation Result行仍64 KiB。
+
+已提出统一方案，等待确认：完整Primary集合对齐Production Manifest的1024；Arca按acceptanceAttemptId + checkKind + revision持有完整不可变验收Evidence，Foundation记录只含有界引用及完整摘要；最终Decision逐项重建校验完整值与摘要。保持Owner边界、各Owner已有完整输入字节上限、Foundation64 KiB及实际质量/集数/空间条件，不截断数据。单文件最多覆盖32 Episode的Claim合同不属于本次整批成员扩容。
+
+当前只实施并验证UAT-286，不提前修改本项合同。现场原失败Run未Reset或改写；新47集E2E明确未通过，原始日志在仓库外本地运行目录保留。

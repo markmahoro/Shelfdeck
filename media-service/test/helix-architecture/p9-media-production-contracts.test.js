@@ -69,6 +69,29 @@ function probe(handle,id='probe-1',overrides={}){const value={schemaRef:'helix:/
   audioStreams:[{streamIndex:1,dispositionDefault:true,codec:'truehd',profile:'truehd',channels:8,channelLayout:'7.1',formatTags:[],normalizedAudioClass:'truehd',language:'eng'}],subtitleStreams:[],...overrides};
   value.payloadDigest=canonicalDigest(Object.fromEntries(Object.entries(value).filter(([key])=>key!=='payloadDigest')));
   return valid('helix://contracts/types/MediaProbeEvidence/v1',value);}
+for(const count of [46,47,1024])test('Series Candidate preserves complete '+count+'-member space basis within the Owner input bound',()=>{
+  const handle=source(),evidence=probe(handle),value=spec();value.contentProfile='series';value.structureKind='season';value.requirements.space.unit='episode';
+  const members=Array.from({length:count},(_,index)=>({materialKey:D('member-'+index),memberDigest:D('member-digest-'+index),
+    handleDigest:index?D('handle-'+index):canonicalDigest(handle),probeDigest:index?D('probe-'+index):canonicalDigest(evidence),
+    sizeBytes:100,episodeKeys:['E'+String(index+1).padStart(4,'0')]}));
+  const basis=require('../../src/helix/domains/libra/model/series-media-space').buildSeriesMediaSpaceBasis({libraRunId:'run-1',
+    runExecutionBasisDigest:D('basis'),episodeKeys:members.flatMap(item=>item.episodeKeys),members});
+  const input={candidateKind:'direct_input',candidateNodeId:'direct',libraRunId:'run-1',mediaRequirement:media.buildMediaRequirement(value),
+    sourceMaterialHandle:handle,sourceProbeEvidence:evidence,seriesSpaceBasis:basis};
+  const candidate=media.buildProductMediaCandidateInput(input);
+  valid('helix://contracts/domain-types/ProductMediaCandidateInput/v1',candidate);
+  assert.equal(candidate.seriesSpaceBasis.members.length,count);
+  assert.ok(Buffer.byteLength(JSON.stringify(candidate))<=1024*1024);
+  if(count===1024)assert.ok(Buffer.byteLength(JSON.stringify(candidate))>65536);
+  assert.throws(()=>media.buildProductMediaCandidateInput({...input,seriesSpaceBasis:{...basis,members:basis.members.slice(1)}}));
+  assert.throws(()=>media.buildProductMediaCandidateInput({...input,candidateNodeId:'x'.repeat(1024*1024)}),{code:'P9_MEDIA_CANDIDATE_SIZE'});
+});
+
+test('Movie Candidate retains the 64 KiB Owner input bound',()=>{
+  const handle=source();assert.throws(()=>media.buildProductMediaCandidateInput({candidateKind:'direct_input',candidateNodeId:'x'.repeat(65536),
+    libraRunId:'run-1',mediaRequirement:media.buildMediaRequirement(spec()),sourceMaterialHandle:handle,sourceProbeEvidence:probe(handle)}),{code:'P9_MEDIA_CANDIDATE_SIZE'});
+});
+
 function rootSnapshot(label='root'){return {rootId:'workspace-root-1',ownerScope:'libra',rootKind:'production-workspace',
   endpointId:'endpoint-1',mountScopeId:'mount-1',mountScopeRevision:1,configRevision:1,capabilityDigest:D(label+'-capability'),
   state:'active',rootHandleRef:D(label+'-handle'),snapshotDigest:D(label)};}

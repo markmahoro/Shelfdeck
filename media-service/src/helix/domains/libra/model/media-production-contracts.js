@@ -504,7 +504,7 @@ function buildProductMediaCandidateInput(value) {
   } else if(requirement.contentProfile==='series')
     fail('P9_MEDIA_SERIES_SPACE','Series Candidate requires a complete Episode space basis.');
   result.inputDigest = canonicalDigest(result);
-  return limited(result, 64 * 1024, 'P9_MEDIA_CANDIDATE_SIZE');
+  return limited(result, requirement.contentProfile === 'series' ? 1024 * 1024 : 64 * 1024, 'P9_MEDIA_CANDIDATE_SIZE');
 }
 
 function buildPlannedProductCandidateReference(value) {

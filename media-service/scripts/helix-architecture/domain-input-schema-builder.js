@@ -1700,7 +1700,7 @@ function productMediaCandidateInputSchema() {
   workspace.allOf=direct.allOf;
   workspace.properties.editionEvidence = require('../../src/helix/contracts/media-edition-evidence').editionEvidenceSchema;
   return { $schema: DRAFT, $id: domainTypeId('ProductMediaCandidateInput'), title: 'ProductMediaCandidateInput@1',
-    'x-helix-ssotRefs': ['8.6.18'], 'x-helix-role': 'accepted-business-dto', 'x-helix-maxCanonicalBytes': 64 * 1024,
+    'x-helix-ssotRefs': ['8.6.18'], 'x-helix-role': 'accepted-business-dto', 'x-helix-maxCanonicalBytes': 1024 * 1024,
     oneOf: [direct, workspace] };
 }
 
