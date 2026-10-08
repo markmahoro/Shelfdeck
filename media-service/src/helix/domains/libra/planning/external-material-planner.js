@@ -10,6 +10,7 @@ const {
   buildProductOutputSelectionInput,
 } = require('../model/media-production-contracts');
 const {
+  replacementScopes,
   externalAcquireVerificationWork,
   externalImportSelectionWork,
   externalSearchSelectionWork,
@@ -159,8 +160,15 @@ function resolvedIdentity(options, snapshot) {
   return fact.factValue;
 }
 
-function productStructure(snapshot) {
-  const claims = Object.freeze((snapshot.episodeClaims || []).map((item) =>
+function scopedEpisodeClaims(snapshot,scope) {
+  externalSearchSelectionWork(snapshot,scope);
+  const claims=(snapshot.episodeClaims||[]).filter(item=>!scope||scope.episodeKeys.includes(item.episodeKey));
+  if(scope&&(claims.length!==scope.episodeKeys.length||new Set(claims.map(item=>item.episodeKey)).size!==claims.length))
+    throw new Error('External scope lacks exact frozen Episode delivery claims.');
+  return claims;
+}
+function productStructure(snapshot, scope = null) {
+  const claims = Object.freeze(scopedEpisodeClaims(snapshot,scope).map((item) =>
     Object.freeze({
       episodeKey: item.episodeKey,
       seasonClaimDigest: item.seasonClaimDigest,
@@ -170,6 +178,7 @@ function productStructure(snapshot) {
     objectId: stable('libra-product-structure-', {
       libraRunId: snapshot.run.libraRunId,
       executionBasisDigest: snapshot.run.executionBasisDigest,
+      ...(scope?{replacementScopeDigest:scope.scopeDigest}:{}),
     }),
     revision: 1,
     subjectId: snapshot.run.subjectId,
@@ -185,8 +194,8 @@ function productStructure(snapshot) {
   return Object.freeze({ ...body, digest:structureDigest, structureDigest });
 }
 
-function episodeDelivery(snapshot) {
-  const claims = Object.freeze((snapshot.episodeClaims || []).map((item) =>
+function episodeDelivery(snapshot, scope = null) {
+  const claims = Object.freeze(scopedEpisodeClaims(snapshot,scope).map((item) =>
     Object.freeze({
       episodeKey: item.episodeKey,
       seasonClaimDigest: item.seasonClaimDigest,
@@ -197,6 +206,7 @@ function episodeDelivery(snapshot) {
     objectId: stable('libra-episode-delivery-', {
       libraRunId: snapshot.run.libraRunId,
       executionBasisDigest: snapshot.run.executionBasisDigest,
+      ...(scope?{replacementScopeDigest:scope.scopeDigest}:{}),
     }),
     revision: 1,
     libraRunId: snapshot.run.libraRunId,
@@ -255,10 +265,9 @@ function createExternalMaterialPlanner(options) {
   function handles(request) {
     const snapshot = options.movieProductionReader.readRunSnapshot(
       request.processId);
-    return [externalSearchSelectionWork(snapshot),
-      externalAcquireVerificationWork(snapshot),
-      externalImportSelectionWork(snapshot)]
-      .some((work) => work.workId === request.workId);
+    return replacementScopes(snapshot).some(scope=>[externalSearchSelectionWork(snapshot,scope),
+      externalAcquireVerificationWork(snapshot,scope),externalImportSelectionWork(snapshot,scope)]
+      .some(work=>work.workId===request.workId));
   }
   return Object.freeze({
     plannerContractRef,
@@ -267,12 +276,13 @@ function createExternalMaterialPlanner(options) {
     plan(request) {
       const snapshot = options.movieProductionReader.readRunSnapshot(
         request.processId);
-      const identity = resolvedIdentity(options, snapshot);
-      const structure = productStructure(snapshot);
-      const knownWorks=[externalSearchSelectionWork(snapshot),externalAcquireVerificationWork(snapshot),
-        externalImportSelectionWork(snapshot)];
-      if(!knownWorks.some((work)=>work.workId===request.workId))throw new Error('External acquisition Work is unknown.');
-      const searchWork = externalSearchSelectionWork(snapshot);
+      const matches=replacementScopes(snapshot).filter(scope=>[externalSearchSelectionWork(snapshot,scope),
+        externalAcquireVerificationWork(snapshot,scope),externalImportSelectionWork(snapshot,scope)]
+        .some(work=>work.workId===request.workId));
+      if(matches.length!==1)throw new Error('External acquisition Work is unknown.');
+      const scope=matches[0],identity=resolvedIdentity(options,snapshot);
+      const structure=productStructure(snapshot,scope);
+      const searchWork = externalSearchSelectionWork(snapshot,scope);
       if (request.workId === searchWork.workId) {
         exactWork(request, searchWork);
         const mediaRequirement=buildMediaRequirement(snapshot.spec),searchIntegration=integration(options,SEARCH),
@@ -337,14 +347,17 @@ function createExternalMaterialPlanner(options) {
         return envelope(configured, request, searchWork, nodes);
       }
 
-      const acquireWork = externalAcquireVerificationWork(snapshot);
+      const acquireWork = externalAcquireVerificationWork(snapshot,scope);
       if (request.workId === acquireWork.workId) {
         exactWork(request, acquireWork);
         const selected = result(options, searchWork, SELECT);
-        const query = result(options, externalSearchSelectionWork(snapshot), QUERY);
+        const query = result(options, externalSearchSelectionWork(snapshot,scope), QUERY);
         if (!selected || selected.result !== 'selected' || !query) {
           throw new Error('External acquisition Work requires one selected Provider Candidate.');
         }
+        if(scope&&(query.libraRunId!==snapshot.run.libraRunId||query.productStructureDigest!==structure.structureDigest||
+            canonicalDigest(query.requestedEpisodeKeys)!==canonicalDigest(scope.episodeKeys)))
+          throw new Error('External acquisition Query does not cover this exact replacement scope.');
         const requestEvent = stable('libra-external-request-event-', {
           attempt: request.workAttemptId,
         });
@@ -406,7 +419,7 @@ function createExternalMaterialPlanner(options) {
               options.registry.resolve(STABILITY, 'libra').manifest.resultSchemaRef),
             eventResult('identityVerification', identityEvent,
               options.registry.resolve(IDENTITY, 'libra').manifest.resultSchemaRef),
-            literal('episodeDeliveryManifest', episodeDelivery(snapshot)),
+            literal('episodeDeliveryManifest', episodeDelivery(snapshot,scope)),
             literal('identityRequirement', identityRequirement(identity, snapshot))],
             dependsOn:[{eventId:stabilityEvent,satisfaction:'success'},
               {eventId:identityEvent,satisfaction:'success'}],
@@ -415,7 +428,7 @@ function createExternalMaterialPlanner(options) {
         return envelope(configured, request, acquireWork, nodes);
       }
 
-      const importWork = externalImportSelectionWork(snapshot);
+      const importWork = externalImportSelectionWork(snapshot,scope);
       exactWork(request, importWork);
       const stableEvidence = result(options, acquireWork, STABILITY);
       const verified = result(options, acquireWork, PACKAGE);

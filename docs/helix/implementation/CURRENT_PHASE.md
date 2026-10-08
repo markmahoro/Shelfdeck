@@ -275,3 +275,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08外部替换范围DoR：按用户已确认方案补SSOT §3.2.6，并在Libra model计算冻结完整Primary/Episode关联分量及source-to-all-final映射。验证多跳part闭包、独立分量、输入顺序确定性、Run/Spec/成员变化Fence、缺集/越界/重复/伪造范围拒绝。该纯计算不授予副作用或改写现有单值交接；后续继续精确schema/持久化/Owner交接与真实外部Provider闭环，不据此宣称外部寻源已启用。
 
 2026-10-08外部替换范围模型：用户确认已写入SSOT §3.2.6；Libra完整冻结关联分量与source-to-all-final映射纯校验完成，17项专项及架构/语义通过。尚无生产调用方，外部Work/Provider Evidence、多值schema/持久化/Promotion/Arca结算与完整Host继续，不声明寻源已启用或可部署。[Evidence](evidence/SERIES_EXTERNAL_REPLACEMENT_SCOPE_20261008.md)。
+
+2026-10-08外部范围Work接线：沿已确认Scope合同，在既有external search/acquire/import Supporting Work身份、execution basis、并发范围和依赖中绑定Scope digest；Planner从完整Run重新计算唯一匹配Scope，query ProductStructure与package EpisodeDelivery按同范围投影。验证跨范围/Run/Spec漂移拒绝、缺Claims拒绝及Movie身份保持。只推进规划和输入隔离，多文件Import/终检/交接/结算仍需后续闭环，不新增生产动作。
+
+2026-10-08外部Scope Work接线：Series三个阶段Work及依赖/并发/幂等身份绑定完整Scope，正式Planner按范围构造查询和Package EpisodeDelivery并拒绝跨范围Query，Movie身份保持。34项专项、36秒正式Series上架Host及完整P2基线通过；SSOT源行号/摘要410个生成文件已同步，无字段语义变化。多文件Import、Coordinator/Provider和多值交接/Arca结算仍待闭环，未部署NAS。[Evidence](evidence/SERIES_EXTERNAL_WORK_SCOPE_20261008.md)。

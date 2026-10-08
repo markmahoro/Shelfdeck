@@ -1430,6 +1430,9 @@ Primary覆盖，每个Series Primary必须绑定`1..32`个同一Season Delivery 
 并集必须覆盖原Claims。映射绑定完整范围及完整最终集合，不能为满足单值字段随意挑一个成品。此关系属于既有
 Libra生产交接和Arca结算，不增加Owner、全局Store或第三次Handoff；Landing仍只读且只复制到Workspace。
 完整混合集合的成品验收及Arca对所有映射成品的现场/结算验证继续必需，范围或映射摘要本身不授予删除权限。
+Series外部Search/Acquire/Import Supporting Work的身份、幂等键、execution basis、并发范围和逐阶段依赖
+必须绑定上述完整Scope摘要。Planner从冻结Run重建Scope，不能消费其他范围的Work Result；查询的
+Product Structure和获取后Package Verification使用同一范围的原始Episode Delivery Claims。Movie保留单成品Work身份。
 
 
 Material Field可以提供versioned contentProfile Hint；create未提供Hint时必须先规范化并持久化为显式`mixed`，

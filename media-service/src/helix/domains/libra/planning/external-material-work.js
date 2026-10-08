@@ -1,6 +1,22 @@
 'use strict';
 
-const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+
+const {buildSeriesReplacementBasis,buildSeriesReplacementScopes}=require('../model/series-external-replacement');
+
+function replacementScopes(snapshot) {
+  if(snapshot.spec?.contentProfile!=='series')return Object.freeze([null]);
+  const primary=snapshot.members.filter(item=>item.role==='primary_payload');
+  const basis=buildSeriesReplacementBasis({libraRunId:snapshot.run.libraRunId,
+    runExecutionBasisDigest:snapshot.run.executionBasisDigest,acceptanceSpecRecordDigest:snapshot.spec.recordDigest,
+    episodeKeys:snapshot.spec.productScope.episodeKeys,members:primary.map(item=>({materialKey:item.materialKey,
+      memberDigest:canonicalDigest(item),episodeKeys:item.episodeClaims.map(claim=>claim.episodeKey)}))});
+  return buildSeriesReplacementScopes({basis,materialKeys:primary.map(item=>item.materialKey)});
+}
+function assertReplacementScope(snapshot,scope) {
+  if(!replacementScopes(snapshot).some(item=>canonicalJson(item)===canonicalJson(scope)))
+    throw new Error('External Work requires one exact complete replacement scope for this Run.');
+}
 
 const SELECTED_CANDIDATE_RESULT =
   'helix://contracts/capabilities/libra.external_material.candidate.select/v1/result';
@@ -28,12 +44,14 @@ function dependency(work) {
   });
 }
 
-function definition(snapshot, stage, outputContractRef, dependencies = []) {
+function definition(snapshot, stage, outputContractRef, dependencies = [], scope = null) {
+  assertReplacementScope(snapshot,scope);
   const basis = {
     libraRunId: snapshot.run.libraRunId,
     executionBasisDigest: snapshot.run.executionBasisDigest,
     acceptanceSpecId: snapshot.run.acceptanceSpecId,
     stage,
+    ...(scope?{replacementScopeDigest:scope.scopeDigest}:{}),
   };
   return Object.freeze({
     schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1',
@@ -47,33 +65,35 @@ function definition(snapshot, stage, outputContractRef, dependencies = []) {
       stage.replaceAll('_', '-') + '/v1',
     workObjectiveVersion: 1,
     executionBasisId: stable('libra-external-material-' + stage + '-basis-', basis),
-    executionBasisDigest: snapshot.run.executionBasisDigest,
+    executionBasisDigest: scope?canonicalDigest({schema:'libra.external-scope-execution-basis@1',
+      runExecutionBasisDigest:snapshot.run.executionBasisDigest,replacementScopeDigest:scope.scopeDigest}):snapshot.run.executionBasisDigest,
     dependencyRefs: Object.freeze(dependencies.map(dependency)),
     priorityClass: priority(snapshot),
     priorityRevision: 1,
     capabilityCatalogScope: 'libra',
     workspaceMaterialScope: Object.freeze([]),
     idempotencyKey: stable('libra-external-material-' + stage + '-key-', basis),
-    concurrencyScope: snapshot.run.libraRunId + '/external-material/' + stage,
+    concurrencyScope: snapshot.run.libraRunId + '/external-material/' + stage+(scope?'/'+scope.scopeDigest:''),
     outputContractRef,
   });
 }
 
-function externalSearchSelectionWork(snapshot) {
-  return definition(snapshot, 'search_selection', SELECTED_CANDIDATE_RESULT);
+function externalSearchSelectionWork(snapshot, scope = null) {
+  return definition(snapshot, 'search_selection', SELECTED_CANDIDATE_RESULT, [], scope);
 }
 
-function externalAcquireVerificationWork(snapshot) {
+function externalAcquireVerificationWork(snapshot, scope = null) {
   return definition(snapshot, 'acquire_verification', VERIFIED_PACKAGE_RESULT,
-    [externalSearchSelectionWork(snapshot)]);
+    [externalSearchSelectionWork(snapshot,scope)],scope);
 }
 
-function externalImportSelectionWork(snapshot) {
+function externalImportSelectionWork(snapshot, scope = null) {
   return definition(snapshot, 'import_selection', SELECTED_OUTPUT_RESULT,
-    [externalAcquireVerificationWork(snapshot)]);
+    [externalAcquireVerificationWork(snapshot,scope)],scope);
 }
 
 module.exports = Object.freeze({
+  replacementScopes,
   SELECTED_CANDIDATE_RESULT,
   SELECTED_OUTPUT_RESULT,
   VERIFIED_PACKAGE_RESULT,
