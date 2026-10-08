@@ -5,7 +5,8 @@ const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const {
   activeRunScopeSetDigest, buildOutputRequirement, buildProductionMaterialManifest, buildRunAdmissionDecision,
-  buildRunExecutionBasis, buildRunExecutionBasisRecord, runScopeDigest
+  buildRunExecutionBasis, buildRunExecutionBasisRecord, runScopeDigest,
+  buildRunAdmissionDecisionRecord, reconstructRunAdmissionDecision
 } = require('../../src/helix/domains/libra/model/run-admission-contracts');
 
 const D = (value) => canonicalDigest({ value });
@@ -96,6 +97,28 @@ test('initial admission derives stable Run identity and fixed normal priority', 
   assert.equal(first.admissionRevision, 1);
   assert.equal(first.libraRunId, basis.productionMaterialManifest.libraRunId);
   assert.equal(first.replacementOfRunRef, undefined);
+});
+
+test('large Series admission retains a bounded record and verifies full reconstruction', () => {
+  const claim = { episodeKey:'S01E01', seasonClaimDigest:D('season') };
+  claim.claimDigest = canonicalDigest({ schema:'libra.production-material-episode-claim@1', ...claim });
+  const members = Array.from({ length:95 }, (_, index) => member(identity(String(index + 100), String(index)), [claim]))
+    .sort((a, b) => Buffer.from(a.materialKey).compare(Buffer.from(b.materialKey)));
+  const basis = basisFor({ structureKind:'season', members });
+  const decision = buildRunAdmissionDecision({ admissionKind:'initial', subjectId:'subject-1',
+    expectedRunAdmissionHead:{ headState:'absent', headRevision:0, activeScopeSetDigest:activeRunScopeSetDigest('subject-1', []) },
+    runExecutionBasis:basis, initialPriority:{ priorityClass:'normal',
+      priorityIntentDigest:canonicalDigest({ schema:'libra.priority-intent-empty@1' }) } });
+  assert.ok(Buffer.byteLength(JSON.stringify(decision)) > 65536);
+  const record = buildRunAdmissionDecisionRecord(decision);
+  assert.ok(Buffer.byteLength(JSON.stringify(record)) < 4096);
+  assert.equal(record.runExecutionBasis, undefined);
+  assert.deepEqual(reconstructRunAdmissionDecision(record, basis), decision);
+  assert.throws(() => reconstructRunAdmissionDecision({ ...record, decisionDigest:D('forged') }, basis));
+  assert.throws(() => reconstructRunAdmissionDecision({ ...record, runExecutionBasisRef:{
+    ...record.runExecutionBasisRef, libraRunId:D('other-run') } }, basis));
+  assert.throws(() => reconstructRunAdmissionDecision(record, { ...basis, executionBasisDigest:D('other-basis') }));
+  assert.throws(() => reconstructRunAdmissionDecision({ ...record, unexpected:true }, basis));
 });
 
 test('season Manifest preserves N:M Episode claims and rejects conflicting duplicates', () => {

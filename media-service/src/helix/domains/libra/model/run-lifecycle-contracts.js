@@ -57,4 +57,23 @@ function applyRunLifecycleDecision(current,decisionValue){const decision=decisio
 
 function buildRunLifecycleResult(value){const result={decisionId:digest(value.decisionId,'decisionId'),libraRunId:text(value.libraRunId,'libraRunId'),previousStateRevision:positive(value.previousStateRevision,'previousStateRevision'),previousStateDigest:digest(value.previousStateDigest,'previousStateDigest'),committedState:text(value.committedState,'committedState'),committedStateRevision:positive(value.committedStateRevision,'committedStateRevision'),committedStateDigest:digest(value.committedStateDigest,'committedStateDigest'),committedAdmissionHeadRevision:positive(value.committedAdmissionHeadRevision,'committedAdmissionHeadRevision'),activeScopeSetDigest:digest(value.activeScopeSetDigest,'activeScopeSetDigest')};if(value.deliveryReceiptId!==undefined&&value.deliveryReceiptId!==null)result.deliveryReceiptId=text(value.deliveryReceiptId,'deliveryReceiptId');if(value.terminalAtMs!==undefined&&value.terminalAtMs!==null)result.terminalAtMs=nonNegative(value.terminalAtMs,'terminalAtMs');result.resultDigest=canonicalDigest(result);return Object.freeze(result);}
 
-module.exports=Object.freeze({LibraRunLifecycleContractError,RECOVERY_OFFSETS,SCHEMAS,applyRunLifecycleDecision,buildRunLifecycleDecision,buildRunLifecycleResult,evidenceMeta,runStateDigest});
+
+function buildRunLifecycleDecisionRecord(value) {
+  const decision = buildRunLifecycleDecision(value);
+  if (canonicalJson(value) !== canonicalJson(decision)) fail('P9_RUN_LIFECYCLE_RECORD', 'Lifecycle Decision is not canonical.');
+  const meta = evidenceMeta(decision.transitionEvidence);
+  const { transitionEvidence, ...rest } = decision;
+  const record = { ...rest, transitionEvidenceRef:{ libraRunId:decision.libraRunId,
+    committedStateRevision:decision.expectedStateRevision + 1, evidenceSchemaRef:meta.schemaRef, evidenceDigest:meta.evidenceDigest } };
+  if (Buffer.byteLength(canonicalJson(record)) > 65536) fail('P9_RUN_LIFECYCLE_RECORD', 'Lifecycle Record exceeds its byte limit.');
+  return Object.freeze(record);
+}
+function reconstructRunLifecycleDecision(record, evidence) {
+  const { transitionEvidenceRef, ...rest } = record;
+  const decision = buildRunLifecycleDecision({ ...rest, transitionEvidence:evidence });
+  if (canonicalJson(buildRunLifecycleDecisionRecord(decision)) !== canonicalJson(record))
+    fail('P9_RUN_LIFECYCLE_RECORD', 'Lifecycle Evidence reference or Decision digest does not match.');
+  return decision;
+}
+
+module.exports=Object.freeze({buildRunLifecycleDecisionRecord,reconstructRunLifecycleDecision,LibraRunLifecycleContractError,RECOVERY_OFFSETS,SCHEMAS,applyRunLifecycleDecision,buildRunLifecycleDecision,buildRunLifecycleResult,evidenceMeta,runStateDigest});

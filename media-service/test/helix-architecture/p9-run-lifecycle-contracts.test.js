@@ -28,3 +28,20 @@ test('allows direct active freeze only with terminal delivery evidence',()=>{con
 test('completes active or suspended Run with accepted message and forms durable Result digest',()=>{for(const run of [current(),current('suspended')]){const evidence={messageId:D(`accepted-${run.state}`),libraRunId:run.libraRunId,receiptId:'receipt-1'},completed=applyRunLifecycleDecision(run,decision(run,'complete',evidence)),result=buildRunLifecycleResult({decisionId:decision(run,'complete',evidence).decisionId,libraRunId:run.libraRunId,previousStateRevision:run.stateRevision,previousStateDigest:run.stateDigest,committedState:completed.state,committedStateRevision:completed.stateRevision,committedStateDigest:completed.stateDigest,committedAdmissionHeadRevision:4,activeScopeSetDigest:D('empty-set'),deliveryReceiptId:'receipt-1',terminalAtMs:100});assert.equal(completed.state,'completed');assert.equal(result.resultDigest,canonicalDigest(Object.fromEntries(Object.entries(result).filter(([key])=>key!=='resultDigest'))));}});
 
 test('rejects stale fences, arbitrary evidence refs, early recovery, and digest tampering',()=>{const run=current();assert.throws(()=>decision(run,'suspend',{schemaRef:'legacy',evidenceId:'e',evidenceDigest:D('e')}),(error)=>error.code==='P9_RUN_LIFECYCLE_EVIDENCE');const stale=buildRunLifecycleDecision({libraRunId:run.libraRunId,expectedStateRevision:2,expectedStateDigest:run.stateDigest,transitionKind:'suspend',transitionEvidence:freshness(run,{readiness:'unresolved'}),expectedAdmissionHeadRevision:1,expectedActiveScopeSetDigest:D('set')});assert.throws(()=>applyRunLifecycleDecision(run,stale),(error)=>error.code==='P9_RUN_LIFECYCLE_STALE');const suspended=applyRunLifecycleDecision(run,decision(run,'suspend',freshness(run,{readiness:'unresolved'}))),early=freshness(suspended,{readiness:'unresolved',attempt:1,assessedAtMs:suspended.suspensionStartedAtMs});assert.throws(()=>decision(suspended,'recovery_reassessed',early),(error)=>error.code==='P9_RUN_FRESHNESS_EARLY');const broken=freshness(run);broken.assessmentDigest=D('broken');assert.throws(()=>decision(run,'freshness_confirmed',broken),(error)=>error.code==='P9_RUN_LIFECYCLE_EVIDENCE_DIGEST');});
+
+test('large lifecycle Evidence is referenced with exact immutable revision and digest',()=>{
+  const {buildRunLifecycleDecisionRecord,reconstructRunLifecycleDecision}=require('../../src/helix/domains/libra/model/run-lifecycle-contracts');
+  const run=current(),evidence=freshness(run);
+  evidence.originalBasis.members=Array.from({length:100},(_,i)=>({materialKey:D(i),physicalIdentity:{contentFingerprint:D(i)},outputRequirementDigest:D('requirement'),bindingEvidenceDigest:D('binding'),controlProjectionDigest:D('control')}));
+  evidence.currentBasis.members=evidence.originalBasis.members;
+  delete evidence.assessmentDigest;evidence.assessmentDigest=canonicalDigest(evidence);
+  const full=decision(run,'freshness_confirmed',evidence);
+  assert.ok(Buffer.byteLength(JSON.stringify(full))>65536);
+  const record=buildRunLifecycleDecisionRecord(full);
+  assert.ok(Buffer.byteLength(JSON.stringify(record))<4096);
+  assert.deepEqual(reconstructRunLifecycleDecision(record,evidence),full);
+  assert.equal(record.transitionEvidenceRef.committedStateRevision,run.stateRevision+1);
+  for(const change of [{committedStateRevision:99},{libraRunId:D('other')},{evidenceSchemaRef:'wrong'},{evidenceDigest:D('forged')}])
+    assert.throws(()=>reconstructRunLifecycleDecision({...record,transitionEvidenceRef:{...record.transitionEvidenceRef,...change}},evidence));
+  assert.throws(()=>reconstructRunLifecycleDecision({...record,decisionDigest:D('tampered')},evidence));
+});

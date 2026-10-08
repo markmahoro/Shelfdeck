@@ -317,5 +317,28 @@ function buildRunAdmissionDecision(value) {
   return Object.freeze(decision);
 }
 
-module.exports = Object.freeze({ LibraRunAdmissionContractError, activeRunScopeSetDigest, buildProductionMaterialManifest,
+function buildRunAdmissionDecisionRecord(value) {
+  const decision = buildRunAdmissionDecision(value);
+  if (canonicalJson(decision) !== canonicalJson(value))
+    fail('P9_RUN_ADMISSION_RECORD_DIGEST', 'Admission Decision is not canonical.');
+  const record = { ...without(decision, 'runExecutionBasis'), runExecutionBasisRef: {
+    libraRunId:decision.libraRunId, executionBasisDigest:decision.runExecutionBasis.executionBasisDigest
+  } };
+  bytes(record, 65536, 'P9_RUN_ADMISSION_RECORD_LIMIT');
+  return Object.freeze(record);
+}
+
+function reconstructRunAdmissionDecision(record, basis) {
+  object(record, 'P9_RUN_ADMISSION_RECORD');
+  if (record.runExecutionBasisRef?.libraRunId !== record.libraRunId ||
+      record.runExecutionBasisRef?.executionBasisDigest !== basis?.executionBasisDigest)
+    fail('P9_RUN_ADMISSION_RECORD_DIGEST', 'Admission Basis reference is inconsistent.');
+  const decision = buildRunAdmissionDecision({ ...without(record, 'runExecutionBasisRef'), runExecutionBasis:basis });
+  if (canonicalJson(buildRunAdmissionDecisionRecord(decision)) !== canonicalJson(record))
+    fail('P9_RUN_ADMISSION_RECORD_DIGEST', 'Reconstructed Admission Decision does not match its record.');
+  return decision;
+}
+
+module.exports = Object.freeze({ buildRunAdmissionDecisionRecord, reconstructRunAdmissionDecision,
+  LibraRunAdmissionContractError, activeRunScopeSetDigest, buildProductionMaterialManifest,
   buildOutputRequirement, buildRunAdmissionDecision, buildRunExecutionBasis, buildRunExecutionBasisRecord, runScopeDigest });

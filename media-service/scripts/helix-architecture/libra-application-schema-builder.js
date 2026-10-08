@@ -346,6 +346,17 @@ function runAdmissionDecision() {
       'runExecutionBasis', 'initialPriority', 'runScopeDigest', 'decisionDigest']) };
 }
 
+function runAdmissionDecisionRecord() {
+  const schema = runAdmissionDecision();
+  schema.$id = typeId('LibraRunAdmissionDecisionRecord');
+  schema.title = 'LibraRunAdmissionDecisionRecord@1';
+  schema['x-helix-maxCanonicalBytes'] = 64 * 1024;
+  delete schema.properties.runExecutionBasis;
+  schema.properties.runExecutionBasisRef = object({ libraRunId:digest(), executionBasisDigest:digest() });
+  schema.required = schema.required.map((key) => key === 'runExecutionBasis' ? 'runExecutionBasisRef' : key);
+  return schema;
+}
+
 function runAdmissionResult() {
   return { $schema: DRAFT, $id: typeId('LibraRunAdmissionResult'), title: 'LibraRunAdmissionResult@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 64 * 1024,
@@ -492,6 +503,20 @@ function runLifecycleDecision() {
       expectedAdmissionHeadRevision: positive(), expectedActiveScopeSetDigest: digest(), decisionDigest: digest()
     }, ['decisionId', 'libraRunId', 'expectedStateRevision', 'expectedStateDigest', 'transitionKind', 'transitionEvidence',
       'expectedAdmissionHeadRevision', 'expectedActiveScopeSetDigest', 'decisionDigest']) };
+}
+
+function runLifecycleDecisionRecord() {
+  const schema = runLifecycleDecision();
+  schema.$id = typeId('LibraRunLifecycleDecisionRecord');
+  schema.title = 'LibraRunLifecycleDecisionRecord@1';
+  schema['x-helix-maxCanonicalBytes'] = 64 * 1024;
+  delete schema.properties.transitionEvidence;
+  schema.properties.transitionEvidenceRef = object({ libraRunId:digest(), committedStateRevision:positive(),
+    evidenceSchemaRef:{ type:'string', enum:[typeId('LibraRunFreshnessAssessment'),typeId('LibraRunTerminalDeliveryEvidence'),
+      typeId('LibraStrategyAvailability'),typeId('AuthorizedDefectManifest'),typeId('LibraRunPriorityIntent'),
+      'helix://contracts/messages/ArcaProductAcceptedMessage/v1'] }, evidenceDigest:digest() });
+  schema.required = schema.required.map((key) => key === 'transitionEvidence' ? 'transitionEvidenceRef' : key);
+  return schema;
 }
 
 function runLifecycleResult() {
@@ -878,6 +903,7 @@ function buildLibraApplicationSchemas() {
     LibraRunExecutionBasis: runExecutionBasis(),
     LibraRunExecutionBasisRecord: runExecutionBasisRecord(),
     LibraRunAdmissionDecision: runAdmissionDecision(),
+    LibraRunAdmissionDecisionRecord: runAdmissionDecisionRecord(),
     LibraRunAdmissionResult: runAdmissionResult(),
     LibraRunComparableBasisSnapshot: runComparableBasisSnapshot(),
     LibraRunRecoveryPolicySnapshot: runRecoveryPolicySnapshot(),
@@ -886,6 +912,7 @@ function buildLibraApplicationSchemas() {
     LibraRunTerminalDeliveryEvidence: runTerminalDeliveryEvidence(),
     AuthorizedDefectManifest: authorizedDefectManifest(),
     LibraRunLifecycleDecision: runLifecycleDecision(),
+    LibraRunLifecycleDecisionRecord: runLifecycleDecisionRecord(),
     LibraRunLifecycleResult: runLifecycleResult(),
     LibraWorkspaceAdmissionDecision: workspaceAdmissionDecision(),
     LibraWorkspaceAdmissionResult: workspaceAdmissionResult(),

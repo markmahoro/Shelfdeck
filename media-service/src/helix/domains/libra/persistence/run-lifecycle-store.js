@@ -18,6 +18,8 @@ const {
 const {
   applyRunLifecycleDecision,
   buildRunLifecycleDecision,
+  buildRunLifecycleDecisionRecord,
+  reconstructRunLifecycleDecision,
   buildRunLifecycleResult,
   evidenceMeta,
   RECOVERY_OFFSETS,
@@ -26,7 +28,7 @@ const {
 const RESULT_SCHEMA =
   "helix://contracts/application-types/LibraRunLifecycleResult/v1";
 const DECISION_SCHEMA =
-  "helix://contracts/application-types/LibraRunLifecycleDecision/v1";
+  "helix://contracts/application-types/LibraRunLifecycleDecisionRecord/v1";
 const ACCEPTED_SCHEMA =
   "helix://contracts/messages/ArcaProductAcceptedMessage/v1";
 class RunLifecycleStoreError extends Error {
@@ -449,7 +451,7 @@ function foundationDefinition(schemaManifest) {
       find_result: {
         kind: "select-one",
         tableId: "fx_event_result_bindings",
-        columns: ["result_id", "result_json", "result_digest"],
+        columns: ["result_id", "result_json", "result_digest", "evidence_schema_ref", "evidence_json", "evidence_digest"],
         keyColumns: ["result_id"],
       },
       insert_result: {
@@ -1850,6 +1852,10 @@ function createRunLifecycleStore(options) {
           });
           if (!stored || stored.result_digest !== found.result_digest)
             fail("P9_RUN_LIFECYCLE_REPLAY", "Lifecycle Result is absent.");
+          const record = JSON.parse(stored.evidence_json);
+          if (stored.evidence_schema_ref !== DECISION_SCHEMA || canonicalDigest(record) !== stored.evidence_digest ||
+              reconstructRunLifecycleDecision(record, decision.transitionEvidence).decisionDigest !== decision.decisionDigest)
+            fail("P9_RUN_LIFECYCLE_REPLAY", "Lifecycle Evidence is corrupt.");
           const value = JSON.parse(stored.result_json);
           if (canonicalDigest(value) !== stored.result_digest)
             fail("P9_RUN_LIFECYCLE_REPLAY", "Lifecycle Result is corrupt.");
@@ -2239,8 +2245,8 @@ function createRunLifecycleStore(options) {
             result_json: canonicalJson(result),
             result_digest: canonicalDigest(result),
             evidence_schema_ref: DECISION_SCHEMA,
-            evidence_json: canonicalJson(decision),
-            evidence_digest: decision.decisionDigest,
+            evidence_json: canonicalJson(buildRunLifecycleDecisionRecord(decision)),
+            evidence_digest: canonicalDigest(buildRunLifecycleDecisionRecord(decision)),
             effect_receipt_id: receiptId,
             committed_at_ms: context.commitTimeMs,
           });

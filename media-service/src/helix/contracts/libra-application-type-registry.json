@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 39,
+  "targetCount": 41,
   "entries": [
     {
       "id": "AuthorizedDefectManifest",
@@ -164,6 +164,21 @@
       ]
     },
     {
+      "id": "LibraRunAdmissionDecisionRecord",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunAdmissionDecisionRecord/v1",
+      "relativePath": "application-types/LibraRunAdmissionDecisionRecord/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "825a91c69a9d1bde8521adbe5555a26d4ad240443f67ea226f8fa42b99060548"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
       "id": "LibraRunAdmissionResult",
       "version": 1,
       "owner": "libra",
@@ -294,6 +309,21 @@
       "digest": {
         "algorithm": "sha256",
         "value": "aa32f41a46e7fc8ca25c9d4870593ae08ff2f1c197e9f635a7845800ab1fadaf"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunLifecycleDecisionRecord",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunLifecycleDecisionRecord/v1",
+      "relativePath": "application-types/LibraRunLifecycleDecisionRecord/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "16686908ff9e50a53bdd4a606d1e706b26cb4fcb14918be9d4476395a5d64691"
       },
       "ssotRefs": [
         "8.6.21"

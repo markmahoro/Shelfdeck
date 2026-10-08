@@ -15776,3 +15776,20 @@ Movie所有评分及无评分分支均以实际Probe确认Matroska容器，以�
 旧的已瑕疵上架条目保持原接受事实，不追溯修复、不重新加工、不因本次新标准撤销上架或触发瑕疵修复。新接纳资格的收紧不追溯改变这些历史。
 
 结构回退必须有界且不丢新增事实；不允许伪改schema marker或删除secondary_target Revision。整份备份恢复只在明确停服窗口、证明没有新增业务事实及相应恢复授权下成立。发布前须在新鲜完整副本验证完整Host、正常协调、历史保护及实际回退。
+
+### UAT-283：8.6.21 Run Admission 有界Evidence补充（2026-10-09）
+
+- `LibraRunAdmissionDecisionRecord@1`（2026-10-09用户确认，UAT-283）保留完整Admission Decision的其余字段，
+  仅将`runExecutionBasis`替换为`runExecutionBasisRef{libraRunId,executionBasisDigest}`；完整JCS≤`64 KiB`。
+  Foundation Admission Result的Evidence使用该Record，`evidence_digest`为完整Record的JCS摘要；
+  Record中的`decisionDigest`仍是原完整Decision摘要，不是Record摘要。Libra以该Run不可变Basis Record、Manifest
+  及member/Episode relations重建完整Basis，再重建Decision并校验Run ID、Basis摘要和完整Decision摘要；
+  禁止读取current Subject/Head/Shelf补历史。缺字段、未知字段、引用或摘要不符均拒绝。准入事务保持原全有或全无，
+  重放校验有界Evidence及完整Decision摘要；不扩大Foundation列上限、不复制完整Manifest入Evidence。
+
+同日用户确认Lifecycle使用相同有界原则：`LibraRunLifecycleDecisionRecord@1`保留Decision其余字段，
+将完整`transitionEvidence`替换为`transitionEvidenceRef{libraRunId,committedStateRevision,evidenceSchemaRef,evidenceDigest}`，
+其中committedStateRevision恒为expectedStateRevision+1，schema/digest按8.6.21原nominal Evidence映射。
+完整Evidence仍写入该Run immutable revision，与Result/marker/current revision同事务提交。Record完整JCS≤64 KiB，
+Foundation evidence_digest为Record完整JCS摘要；原decisionDigest保持。历史读取从精确Run revision取Evidence，
+验证其schema/领域摘要并重建完整Decision摘要；重放同样验证，禁止current替代、截断或提高Foundation上限。

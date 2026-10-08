@@ -15,12 +15,15 @@ const {
 const {
   activeRunScopeSetDigest,
   buildRunAdmissionDecision,
+  buildRunAdmissionDecisionRecord,
+  reconstructRunAdmissionDecision,
   buildRunExecutionBasisRecord,
 } = require("../model/run-admission-contracts");
 
 const RESULT_SCHEMA = "helix://contracts/types/LibraRunAdmissionResult/v1";
 const BASIS_SCHEMA = "helix://contracts/types/LibraRunExecutionBasisRecord/v1";
 const DECISION_SCHEMA = "helix://contracts/types/LibraRunAdmissionDecision/v1";
+const DECISION_RECORD_SCHEMA = "helix://contracts/types/LibraRunAdmissionDecisionRecord/v1";
 class RunAdmissionStoreError extends Error {
   constructor(code, message, details = {}) {
     super(message);
@@ -427,7 +430,7 @@ function foundationDefinition(schemaManifest) {
       find_result: {
         kind: "select-one",
         tableId: "fx_event_result_bindings",
-        columns: ["result_id", "result_json", "result_digest"],
+        columns: ["result_id", "result_json", "result_digest", "evidence_schema_ref", "evidence_json", "evidence_digest"],
         keyColumns: ["result_id"],
       },
       insert_result: {
@@ -760,6 +763,11 @@ function createRunAdmissionStore(options) {
           });
           if (!stored || stored.result_digest !== found.result_digest)
             fail("P9_RUN_REPLAY_CORRUPT", "Run admission Result is absent.");
+          const evidence = JSON.parse(stored.evidence_json);
+          if (stored.evidence_schema_ref !== DECISION_RECORD_SCHEMA ||
+              canonicalDigest(evidence) !== stored.evidence_digest ||
+              reconstructRunAdmissionDecision(evidence, decision.runExecutionBasis).decisionDigest !== commitDigest)
+            fail("P9_RUN_REPLAY_CORRUPT", "Run admission Evidence is corrupt.");
           result = JSON.parse(stored.result_json);
           if (
             canonicalDigest(result) !== stored.result_digest ||
@@ -1136,6 +1144,7 @@ function createRunAdmissionStore(options) {
         repositories: [foundation],
         execute(context) {
           const repo = context.repository(foundation.repositoryId);
+          const evidence = buildRunAdmissionDecisionRecord(decision);
           repo.invoke("insert_result", {
             result_id: resultId,
             event_id: null,
@@ -1143,9 +1152,9 @@ function createRunAdmissionStore(options) {
             result_schema_ref: RESULT_SCHEMA,
             result_json: canonicalJson(result),
             result_digest: canonicalDigest(result),
-            evidence_schema_ref: DECISION_SCHEMA,
-            evidence_json: canonicalJson(decision),
-            evidence_digest: decision.decisionDigest,
+            evidence_schema_ref: DECISION_RECORD_SCHEMA,
+            evidence_json: canonicalJson(evidence),
+            evidence_digest: canonicalDigest(evidence),
             effect_receipt_id: null,
             committed_at_ms: context.commitTimeMs,
           });

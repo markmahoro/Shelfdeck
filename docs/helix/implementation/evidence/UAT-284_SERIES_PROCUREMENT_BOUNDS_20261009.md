@@ -1,0 +1,7 @@
+# UAT-284 大季Procurement有界结果
+
+状态：开放。2026-10-09真实Series扫描：39包发布，另4个primary_manifest.build在00:02:18后无法提交成功。精确诊断为EventRuntime complete写入result_json超过65536，而非EvidenceEnvelope。能力已输出六字段小Evidence；PrimaryInputManifestDraft完整members重复内联到Foundation Result导致超限。
+
+另第一Run的三国 (2010)/Season 1共95成员，Structure正式Result记录triage_unit_contract_too_large，全部released/triage_failed，Run sealed/partial_failure。这符合当前Unit 64 KiB上限，不能直接提高限制或拆季声称修复。
+
+提出Manifest Draft Record方案待用户确认：Procurement仍从不可变Run member与Structure Evidence重建完整Draft，Record绑定精确Run/Structure/Unit与成员摘要；纯Capability不新增领域写入；Publication原子边界与全部物理身份/Claim/摘要校验保持。95成员Unit的问题未包含在该提案，须另审设计。验收需大集合正负、重放/摘要篡改保护、原4 Event正式完成封包；长季失败项按独立条件验收。无媒体写入、Reset或生产操作。

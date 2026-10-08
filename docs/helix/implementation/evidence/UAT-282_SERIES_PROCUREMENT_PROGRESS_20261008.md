@@ -1,6 +1,6 @@
 # UAT-282 Series采购大批次进展
 
-状态：开放。用户于2026-10-08本地验收反馈持续没有候选包，要求按观察、定位、修复、原链路验证的loop推进E2E，并明确用UAT记录修正。
+状态：2026-10-09按本项原链路验收关闭。用户于2026-10-08本地验收反馈持续没有候选包，要求按观察、定位、修复、原链路验证的loop推进E2E，并明确用UAT记录修正。
 
 环境为Windows本地18081、产品84c2cd926，源Z:/chn_series；不是NAS生产部署。只读现场：扫描19页4796文件，1777符合扩展名/3019排除，采购分951成员23scope与826成员19scope两个Run。首Plan探测204成功、747等待资源，11后继pending，0候选包，0执行中Attempt/失败/incident。最后完成2026-10-08 23:37:38.957 CST。
 
@@ -11,3 +11,5 @@
 用户已明确确认Permit释放时有界提前唤醒方案，并要求参考Movie处理思路。修复共用Foundation Resource Governor，不新增Series调度；持久化完整bundle的提前retryAt，按global/per-key队列预算计入内存waiter和已经到期的durable等待，terminal/无关资源不改动。正式Scheduler排序、输入重建和原子Permit校验保持。100成员共享单容量资源回归在固定时钟下全部推进，不等待5秒/10分钟；队列预算、无关/terminal保护及既有Scheduler/Host共51项通过。原现场随后270成功/681等待又进入十分钟，佐证吞吐空窗而非永久死锁；修复后原链路验收尚未完成。
 
 实现提交ff4617995已推送。Windows51资源/Scheduler/Host及76EventRuntime/Supply通过，Linux容器挂载修复后的只读源码运行相同127项通过（不是旧84c2cd9268镜像原样已含修复的声明）；语义检查通过。23:54前确认本地0 executing后保存SQLite一致备份uat282-before-reload.db，停止精确预览进程并加载新代码，健康正常，原Run/完成记录保持。既有681条deferred的首次retryAt保留至约23:57，不伪造capacity release；待原链路实际恢复并封包后继续验收。
+
+原现场验证：23:57:40成功331，23:58:28成功681，00:02:32全部1777探测成功、0等待；39个Candidate已发布、3个已被Libra接受。未改Run/Selection或重扫，原资源重复退避问题已恢复；后继Run准入Evidence超限另登记UAT-283，不能并入本项假称完整上架成功。
