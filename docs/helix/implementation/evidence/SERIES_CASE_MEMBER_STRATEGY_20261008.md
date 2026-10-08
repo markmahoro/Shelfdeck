@@ -27,3 +27,15 @@ Case必须active且Care Basis、CareRequirement摘要一致，basisInputs只允�
 15项Projection/Planner专项通过，包含三个Remux/Transcode输出乱序解析、正式Plan schema验证及17种损坏/跨执行变体。分组全架构2,296通过/9既有skip/0失败（并行2,280，95.8秒；串行stage 16，0.2秒）；架构448文件/1402依赖、语义2066文件和P2合同通过。日志：`series-verified-media-output-full.log`、`series-verified-media-output-stage.log`、`series-verified-media-output-contract.log`，位于既有外部日志目录。本批是有界后端输出绑定修复，没有新增真实FFmpeg/Host、UI、Linux或部署证据。
 
 仍需逐目标准备Planner/Effect、完整混合输出逐集验收、精确物化和原子提交/结算/恢复；Series自动媒体维修保持关闭。
+
+## 追加：逐目标准备计划与执行输入
+
+基线`63b64422bbf7c19860a1082a7a562608cf70e4c1`。准备Planner从冻结Case证据获取排序后的维修目标，每个成员独立调度Remux或Transcode及其Verification；Strategy Projection和三个现有媒体Capability参数显式绑定materialKey。Movie省略参数保持单源行为，没有新增Capability、Owner或DDL。
+
+执行入口重建精确Case目标，核对维修方式、Strategy、CareRequirement及现场Inventory Identity，拒绝默认取首个成员。Series Workspace媒体Handle的来源摘要绑定该Primary Read Handle；Remux路径、Workspace Handle与outputTarget身份加入成员键，Transcode保留成员Strategy路径，避免相同字节或同种加工互相占用。Verification选择对应原文件、复核来源Handle并检查冻结文件预算；这仍不能替代完整混合成品集合的逐集空间验收。Workspace部分输出清理从实际Remux Event所属Plan node参数重建路径，不再假设共用remux.mkv。
+
+验证：106项评估/策略/Plan/Workspace/合同专项通过；新增Remux清理后Workspace 14项通过。混合Case fixture含1个健康文件、2个转码目标、1个Remux目标，六节点通过正式Plan schema，乱序证据不改变Plan；实际Capability入口捕获的Probe Handle逐一匹配目标，缺成员、健康成员、foreign成员或错误维修方式在Probe/FFmpeg/Workspace写入前拒绝。此捕获测试未执行真实FFmpeg，不能当作媒体加工完成。原生SQLite加实际临时文件验证两个Remux遗留输出经过终态双审计后分别回收。
+
+最终分组全架构2,297通过/9既有skip/0失败（并行2,281，95.2秒；串行stage 16，0.2秒）。架构448文件/1403依赖、语义2066文件与P2合同通过；生成的三个参数schema及registry已同步，P2 aggregate为`fdd2ec6d9660f95b93f618ad869376b0fa20a764ec94fe41b853472e478a02c0`，历史catalog witness本体未改。外部日志前缀`series-member-repair-`，包括targeted/workspace/full/stage/contract。
+
+尚未完成：精确成员物化、完整混合输出验收、Inventory-Control原子Commit/Settlement/恢复及真实媒体Host。自动媒体维修保持关闭；UI/Linux与首版可部署条件不因此关闭，无NAS动作。

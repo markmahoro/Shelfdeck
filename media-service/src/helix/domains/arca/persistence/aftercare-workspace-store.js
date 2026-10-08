@@ -74,7 +74,8 @@ function createDefinitions(schemaManifest) {
         update_artifact:{kind:'update',tableId:'fx_artifact_registry',setColumns:['reference_revision','state'],keyColumns:['artifact_handle_id'],compareColumns:[{column:'reference_revision',parameter:'expected_reference_revision'},{column:'state',parameter:'expected_state'}]},
         list_artifact_references:{kind:'select-all',tableId:'fx_artifact_references',columns:['artifact_handle_id','consumer_domain','consumer_scope_type','consumer_scope_id','reference_kind','reference_revision','state','created_at_ms','released_at_ms'],keyColumns:['artifact_handle_id'],safeIntegers:true},
         list_process_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','state','definition_json','updated_at_ms'],keyColumns:['owner_domain','process_type','process_id'],safeIntegers:true},
-        work_events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','capability_ref'],keyColumns:['work_id']},
+        event_node:{kind:'select-one',tableId:'fx_plan_nodes',columns:['capability_ref','parameters_json'],keyColumns:['plan_id','node_id']},
+        work_events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','capability_ref','plan_id','node_id'],keyColumns:['work_id']},
         event_attempts:{kind:'select-all',tableId:'fx_event_attempts',columns:['event_attempt_id','state'],keyColumns:['event_id']},
         attempt_effects:{kind:'select-all',tableId:'fx_effect_journal',columns:['effect_id','state'],keyColumns:['event_attempt_id']},
         event_results:{kind:'select-all',tableId:'fx_event_result_bindings',columns:['result_json','result_digest'],keyColumns:['event_id']},
@@ -258,7 +259,15 @@ function createAftercareWorkspaceStore(options) {
             for(const effect of repo.invoke('attempt_effects',{event_attempt_id:attempt.event_attempt_id}))
               if(['intended','effect_observed','reconcile_required'].includes(effect.state))pendingEffects.push(effect.effect_id);
           }
-          if(event.capability_ref==='arca.aftercare.media.remux@1') producerPaths.add('media/remux.mkv');
+          if(event.capability_ref==='arca.aftercare.media.remux@1') {
+            const node=repo.invoke('event_node',{plan_id:event.plan_id,node_id:event.node_id});
+            if(!node||node.capability_ref!==event.capability_ref)
+              fail('ARCA_AFTERCARE_PARTIAL_BASIS_INVALID','Partial reclaim requires the exact producer Plan node.');
+            const parameters=JSON.parse(node.parameters_json),key=parameters.materialKey;
+            if(key!==undefined&&!/^[a-f0-9]{64}$/.test(key))
+              fail('ARCA_AFTERCARE_PARTIAL_BASIS_INVALID','Partial reclaim producer member is invalid.');
+            producerPaths.add('media/remux'+(key?'-'+key:'')+'.mkv');
+          }
         }
       }
       for(const input of caseInputs||[])if(input.input_kind==='health_assessment_work') {

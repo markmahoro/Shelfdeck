@@ -211,6 +211,31 @@ test('only frozen producer leftovers are enrolled after two unchanged terminal a
   }finally{value.close();}
 });
 
+test('Series Remux partial reclaim uses each persisted member Plan node',async()=>{
+  const value=fixture();try {
+    value.store.ensureAftercareWorkspace('case-1');
+    value.database.prepare('INSERT INTO fx_supporting_works (work_id,owner_domain,process_type,process_id,state,definition_json) VALUES (?,?,?,?,?,?)')
+      .run('prepare','arca','arca_shelf_entry','entry-1','failed',JSON.stringify({dependencyRefs:[{ownerDomain:'arca',objectType:'aftercare_case',objectId:'case-1'}]}));
+    const locations=[];
+    for(const number of [1,2]) {
+      const materialKey=canonicalDigest(number),nodeId='node-'+number;
+      value.database.prepare('INSERT INTO fx_plan_nodes (plan_id,node_id,capability_ref,parameters_json) VALUES (?,?,?,?)')
+        .run('plan',nodeId,'arca.aftercare.media.remux@1',canonicalJson({materialKey}));
+      value.database.prepare('INSERT INTO fx_workflow_events (event_id,work_id,plan_id,node_id,capability_ref,state) VALUES (?,?,?,?,?,?)')
+        .run('event-'+number,'prepare','plan',nodeId,'arca.aftercare.media.remux@1','failed');
+      const location=path.join(value.workspaceRoot,'case-1','media','remux-'+materialKey+'.mkv.tmp');
+      fs.mkdirSync(path.dirname(location),{recursive:true});fs.writeFileSync(location,'partial '+number);locations.push(location);
+    }
+    value.store.terminateCase('case-1','unresolved','test',digest('terminal'));
+    assert.equal(value.store.auditAftercareWorkspaceReferences('case-1').ready,false);
+    value.setTime(70_000);assert.equal(value.store.auditAftercareWorkspaceReferences('case-1').ready,false);
+    assert.equal(value.store.listAftercareWorkspaceHandles('case-1').length,2);
+    value.setTime(130_000);assert.equal(value.store.auditAftercareWorkspaceReferences('case-1').ready,true);
+    assert.equal((await value.store.reconcileAftercareWorkspaceLifecycle('case-1')).kind,'reclaimed');
+    assert.ok(locations.every(location=>!fs.existsSync(location)));
+  }finally{value.close();}
+});
+
 test('restart starts two fresh audits and refuses to switch a root with active registrations', () => {
   const value=fixture();try{
     value.registerMember('member.bin');value.store.terminateCase('case-1','unresolved','test',digest('terminal'));

@@ -20,14 +20,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/media/verify/v1",
-        "packageDigest": "4bbebe4be2c32b04970f6ba21d642b2a0af2bcfe625f929af610b55932bf38cb",
+        "packageDigest": "fb29fc23a27e3f74f2c01d16060f5118442c49d3e6e00563c2b6350cb9d67026",
         "effectClass": "pure_observation",
         "inputSummary": "WorkspaceMediaHandle + Care Requirement",
         "outputFamily": "CareProductVerification"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "380688251bf4b11c60f235afe50157f437eadc646b59c7557c3425197fd82881"
+        "value": "1d435201dcde398e43bddeceb5ef112d883041bcd206dc09bb6f1be3ba3bac51"
       }
     },
     {

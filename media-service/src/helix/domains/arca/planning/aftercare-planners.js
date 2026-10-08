@@ -1,6 +1,7 @@
 'use strict';
 const { careFindingCodes,effectiveRequirements } = require('../model/care-objective');
 const {evaluateSeriesCareMediaSpace,seriesMemberAssessmentEventId}=require('../model/series-care-media-space');
+const {seriesMediaRepairTargets}=require('../model/series-care-assessment-set');
 const {seriesNfoRepairTargets}=require('../model/aftercare-series-nfo-targets');
 const { canonicalDigest }=require('../../../contracts/canonical-json');
 const { executionCatalogDigest }=require('../../../foundation/execution/workflow-plan');
@@ -46,7 +47,20 @@ function createCareRepairPreparationPlanner(options){const catalogDigest=executi
     const remuxCodes=codes.filter((x)=>['conformance:container_unmet','conformance:file_extension_unmet'].some((code)=>x.includes(code))),
       transcodeCodes=codes.filter((x)=>['conformance:video_codec_unmet','conformance:max_size_exceeded'].some((code)=>x.includes(code))),
       needsTranscode=transcodeCodes.length>0,needsMedia=needsTranscode||remuxCodes.length>0;
-    if(needsMedia){const ref=needsTranscode?C.transcode:C.remux,eventId=(needsTranscode?'care-transcode-':'care-remux-')+s,bindings=[owner('knownBindings',request,P.bindings),owner('careRequirement',request,P.requirement)];if(needsTranscode)bindings.push(owner('aftercareMediaRepairStrategy',request,P.mediaStrategy));nodes.push(node(o,ref,needsTranscode?'transcode':'remux',eventId,bindings,[]),node(o,C.mediaVerify,'verify_media','care-verify-media-'+s,[projected('workspaceMediaHandle',eventId,schema(options,ref),P.mediaOutput,request),owner('careRequirement',request,P.requirement)],[{eventId,satisfaction:'success'}]));}
+    if(needsMedia) {
+      const targets=c.raw.entry.structure_kind==='season'?seriesMediaRepairTargets(c,active,history,options.workResultReader):
+        [{repairKind:needsTranscode?'transcode':'remux'}];
+      for(const target of targets) {
+        const kind=target.repairKind,ref=C[kind],key=target.materialKey?'-'+target.materialKey:'',
+          parameters=target.materialKey?{materialKey:target.materialKey}:{},eventId='care-'+kind+'-'+s+key,
+          bindings=[owner('knownBindings',request,P.bindings),owner('careRequirement',request,P.requirement)];
+        if(kind==='transcode')bindings.push(owner('aftercareMediaRepairStrategy',request,P.mediaStrategy,parameters));
+        nodes.push(node(o,ref,kind+key,eventId,bindings,[],parameters),
+          node(o,C.mediaVerify,'verify_media'+key,'care-verify-media-'+s+key,
+            [projected('workspaceMediaHandle',eventId,schema(options,ref),P.mediaOutput,request),owner('careRequirement',request,P.requirement)],
+            [{eventId,satisfaction:'success'}],parameters));
+      }
+    }
     if(codes.some((x)=>x.includes('conformance:placement_unmet'))){const ids={slot:'care-placement-slot-'+s,stage:'care-placement-stage-'+s,
       staged:'care-placement-staged-verify-'+s,final:'care-placement-final-verify-'+s,switch:'care-placement-switch-'+s};
       nodes.push(node(o,O.slot,'placement_target_slot',ids.slot,[owner('finalInventoryDecision',request,P.finalDecision),owner('targetHandle',request,P.target,{placement:true})],[]),

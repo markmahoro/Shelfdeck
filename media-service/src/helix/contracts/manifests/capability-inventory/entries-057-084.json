@@ -748,14 +748,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/media/remux/v1",
-        "packageDigest": "456ef01b0986e7778d8429c12273e075803ed48c79fb295530de8fdc7def37c8",
+        "packageDigest": "d708ed1c45cd0e5107ff96f230c81322300f6b42b254abd9a0a808e0566b0d51",
         "effectClass": "workspace_write",
         "inputSummary": "Known bindings + Care Requirement",
         "outputFamily": "WorkspaceMediaHandle"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "0aa8d3b519b317d2c56fba0e169627d52b26627d0959ae8b3a76dbc9d0b9a221"
+        "value": "9bd705f7286f68e4f890995ce04a609e545fe8161f870220d088176ad052c143"
       }
     },
     {
@@ -776,14 +776,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/media/transcode/v1",
-        "packageDigest": "dcf42b2d28881389bafb4258709fb4d4c568700dd21b0f63a065bd31570fb8c9",
+        "packageDigest": "99a825c1d2468c8ac4c437c24302419eeefd2e6b013b0aa4bd90811a1eb0487e",
         "effectClass": "workspace_write",
         "inputSummary": "Known bindings + Care Requirement + Aftercare Media Repair Strategy",
         "outputFamily": "WorkspaceMediaHandle"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "bb03614d4b05442bfbbb5f62e442426f04fd805994027c9d116dd3832ad860c0"
+        "value": "31937de38b625d891c310a9f2bca3fa4f3c64fcdc39d874dc923f6bfb71ffc16"
       }
     }
   ]

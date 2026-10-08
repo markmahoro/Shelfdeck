@@ -327,15 +327,17 @@ test('Series health Planner schedules every Primary and makes aggregate Conforma
   f.context.raw.entry.structure_kind='single';assert.equal(planner.plan(request).nodes.length,4);
 });
 
-test('Series Case resolves only its frozen failing member Strategy and rejects changed authority or incomplete evidence',async t=>{
-  const f=await fixture(t,[[8,['E01']],[8,['E02']]],null),s=strategyFixture(f),c=f.context;
+test('Series Case plans mixed member repairs and fences exact effect sources against its frozen evidence',async t=>{
+  const f=await fixture(t,[[8,['E01']],[8,['E02']],[8,['E03']],[8,['E04']]],null),s=strategyFixture(f),c=f.context;
   Object.assign(c.basis,{inventoryRevision:1,standardRevision:1,placementRevision:1,decisionFactSetDigest:canonicalDigest([])});
-  c.raw.shelf={target_root_location:path.dirname(f.materials[0].location),target_endpoint_id:'endpoint'};
+  c.raw.reservations=[];c.raw.standard.value.profileRuleSets[0].baseRequirements.mandatoryMedia.container='matroska';
+  c.raw.shelf={status:'active',target_root_location:path.dirname(f.materials[0].location),target_endpoint_id:'endpoint'};
   c.raw.initialPlacementDecision={target_location:c.raw.shelf.target_root_location,target_endpoint_id:'endpoint'};
   c.raw.initialPlacement={value:{}};c.raw.placement={value:{}};
   const rows=[],reader={read:workId=>workId==='work'?rows:[]},ports=createAftercareCapabilityPorts({...f.options,...s.options,now:()=>1000,
-    mediaProbe:{probe:async handle=>handle.identity.materialKey===f.materials[0].material_key?
-      {...s.probe,videoStreams:[{...s.probe.videoStreams[0],codec:'hevc'}]}:s.probe},
+    mediaProbe:{probe:async handle=>[f.materials[0].material_key,f.materials[2].material_key].includes(handle.identity.materialKey)?
+      {...s.probe,container:handle.identity.materialKey===f.materials[2].material_key?'avi':'matroska',
+        videoStreams:[{...s.probe.videoStreams[0],codec:'hevc'}]}:s.probe},
     schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
     unitOfWork:{execute(){throw new Error('No Owner writes during observation.');}},contextReader:{read:()=>c,store:{}},workResultReader:reader}),
     execution={ownerScope:{processId:'entry'},workId:'work',workAttemptId:'attempt',planId:'plan',namedInputs:{}},
@@ -351,28 +353,70 @@ test('Series Case resolves only its frozen failing member Strategy and rejects c
     assessmentId:aggregate.evidenceId,findingKind:'conformance:'+draft.schemaRef.split('/')[5]})),
     effects=findings.map(item=>({objectId:item.findingId,digest:item.findingDigest,revision:1,
       schemaRef:'helix://arca/types/RequiredCareEffect/v1',objectKind:'required-effect'})),
-    requirement={careBasisDigest:c.basis.digest,requiredEffects:effects,acceptanceDigest:canonicalDigest(effects)},
-    care={state:'active',careBasisDigest:c.basis.digest,careRequirement:{...requirement,digest:canonicalDigest(requirement)},
+    requirement={typedParameters:findings.map(item=>({parameter:'finding.'+item.findingId,value:item.findingKind})),careBasisDigest:c.basis.digest,requiredEffects:effects,acceptanceDigest:canonicalDigest(effects)},
+    care={aftercareCaseId:'case',state:'active',careBasisDigest:c.basis.digest,careRequirement:{...requirement,digest:canonicalDigest(requirement)},
       careRequirementDigest:canonicalDigest(requirement),basisInputs:[{inputKind:'health_assessment_work',ownerDomain:'arca',
         aggregateType:'supporting_work',aggregateId:'work',revision:1,inputDigest:c.basis.digest}]},
     history={cases:[care],findings,assessments:[{assessmentId:aggregate.evidenceId,assessmentKind:'conformance',
       careBasisDigest:c.basis.digest,evidenceDigest:aggregate.payloadDigest}]},
     {seriesMediaRepairTargets}=require('../../src/helix/domains/arca/model/series-care-assessment-set');
   const targets=seriesMediaRepairTargets(c,care,history,reader);
-  assert.equal(targets.length,1);assert.equal(targets[0].materialKey,f.materials[1].material_key);assert.equal(targets[0].repairKind,'transcode');
-  assert.equal(targets[0].strategy.sourceHandleDigest,rows[1].result.memberScope.sourceHandleDigest);
+  assert.equal(targets.length,3);
+  const target=targets.find(item=>item.materialKey===f.materials[1].material_key);
+  assert.equal(target.repairKind,'transcode');
+  assert.equal(target.strategy.sourceHandleDigest,rows[1].result.memberScope.sourceHandleDigest);
+  assert.equal(targets.find(item=>item.materialKey===f.materials[2].material_key).repairKind,'remux');
   const {createAftercareProjections}=require('../../src/helix/domains/arca/planning/aftercare-projections'),
     {P}=require('../../src/helix/domains/arca/planning/aftercare-planners'),projection=createAftercareProjections({
       contextReader:{read:()=>c,store:{history:()=>history}},workResultReader:reader,
       materialControlProjectionPort:{getMaterialControlProjections:()=>[]},controlScopeDigest:canonicalDigest})
       .find(item=>item.projectionRef===P.mediaStrategy).projection;
-  assert.deepEqual(projection.project({ownerScope:{processId:'entry'},parameters:{materialKey:targets[0].materialKey}}),targets[0].strategy);
+  assert.deepEqual(projection.project({ownerScope:{processId:'entry'},parameters:{materialKey:target.materialKey}}),target.strategy);
   assert.throws(()=>projection.project({ownerScope:{processId:'entry'},parameters:{materialKey:f.materials[0].material_key}}));
+  const {createCareRepairPreparationPlanner}=require('../../src/helix/domains/arca/planning/aftercare-planners'),
+    {validateWorkflowPlan}=require('../../src/helix/foundation/execution/workflow-plan'),
+    refs=[C.remux,C.transcode,C.mediaVerify],root=path.resolve(__dirname,'../../src/helix/contracts/capabilities'),
+    directory=ref=>path.join(root,...ref.replace('@1','').split('.'),'v1'),
+    manifests=new Map(refs.map(ref=>[ref,JSON.parse(fs.readFileSync(path.join(directory(ref),'manifest.json'),'utf8'))])),
+    registry={snapshot:refs.map(capabilityRef=>({capabilityRef,contractVersion:1})),resolve:capabilityRef=>({manifest:manifests.get(capabilityRef)})},
+    policyRegistry={digest:canonicalDigest('policy'),bindingFor:()=>({retryPolicyRef:'retry@1',timeoutPolicyRef:'timeout@1'})},
+    contextReader={read:()=>c,store:{history:()=>history}},
+    planner=createCareRepairPreparationPlanner({registry,policyRegistry,contextReader,workResultReader:reader}),
+    request={workId:'prepare',workAttemptId:'prepare-attempt',ownerDomain:'arca',processType:'arca_shelf_entry',processId:'entry',executionBasisDigest:c.basis.digest},
+    plan=planner.plan(request),schemas=refs.flatMap(ref=>['parameters','resource-demand','fence'].map(kind=>
+      JSON.parse(fs.readFileSync(path.join(directory(ref),kind+'.schema.json'),'utf8'))));
+  validateWorkflowPlan(plan,{registry,policyRegistry,contractValidator:createCapabilityContractValidator({schemas})});
+  assert.equal(plan.nodes.length,6);assert.equal(new Set(plan.nodes.map(node=>node.eventId)).size,6);
+  for(const target of targets) {
+    const nodes=plan.nodes.filter(node=>node.parameters.materialKey===target.materialKey);
+    assert.equal(nodes.length,2);assert.equal(nodes[0].capabilityRef,C[target.repairKind]);
+    assert.deepEqual(nodes[1].dependsOn,[{eventId:nodes[0].eventId,satisfaction:'success'}]);
+    assert.equal(nodes[1].inputBindings.bindings[0].eventId,nodes[0].eventId);
+    if(target.repairKind==='transcode')assert.equal(nodes[0].inputBindings.bindings.find(binding=>
+      binding.portName==='aftercareMediaRepairStrategy').parameters.materialKey,target.materialKey);
+  }
+  rows.reverse();assert.deepEqual(planner.plan(request),plan);rows.reverse();
+  const sentinel=new Error('Captured exact source before FFmpeg or Workspace writes'),probed=[];
+  const effectPorts=createAftercareCapabilityPorts({...f.options,...s.options,contextReader,workResultReader:reader,
+    schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
+    unitOfWork:{execute(){throw new Error('No persistence before source probe.');}},
+    mediaProbe:{async probe(handle){probed.push(handle.identity.materialKey);throw sentinel;}}});
+  for(const target of targets) {
+    const effect={...execution,parameters:{materialKey:target.materialKey},namedInputs:{knownBindings:{},
+      careRequirement:care.careRequirement,aftercareMediaRepairStrategy:target.strategy}};
+    await assert.rejects(effectPorts[C[target.repairKind]].execute(effect),error=>error===sentinel);
+    assert.equal(probed.at(-1),target.materialKey);
+    const before=probed.length;
+    for(const parameters of [{},{materialKey:f.materials[0].material_key},{materialKey:canonicalDigest('foreign')}])
+      await assert.rejects(effectPorts[C[target.repairKind]].execute({...effect,parameters}),error=>error!==sentinel);
+    await assert.rejects(effectPorts[C[target.repairKind==='remux'?'transcode':'remux']].execute(effect),error=>error!==sentinel);
+    assert.equal(probed.length,before);
+  }
   for(const mutate of [v=>{v.care.state='resolved';},v=>{v.care.basisInputs[0].aggregateId='foreign';},
     v=>{v.care.basisInputs.push(v.care.basisInputs[0]);},v=>{v.care.careRequirement.requiredEffects=[];},
     v=>{v.history.findings[0].assessmentId='foreign';},v=>{v.history.findings[0].findingDigest=canonicalDigest('wrong');},
     v=>{v.rows.splice(0,1);},v=>{v.rows[1].result.mediaRepairStrategy.sourceHandleDigest=canonicalDigest('other');},
-    v=>{v.rows[2].result.memberAssessmentSet.digest=canonicalDigest('wrong');},v=>{v.context.raw.materials[0].binding_revision++;}]) {
+    v=>{v.rows[4].result.memberAssessmentSet.digest=canonicalDigest('wrong');},v=>{v.context.raw.materials[0].binding_revision++;}]) {
     const v=structuredClone({context:c,care,history,rows});mutate(v);
     assert.throws(()=>seriesMediaRepairTargets(v.context,v.care,v.history,{read:id=>id==='work'?v.rows:[]}));
   }

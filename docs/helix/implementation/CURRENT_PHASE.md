@@ -235,3 +235,5 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Case消费结果：[Evidence](evidence/SERIES_CASE_MEMBER_STRATEGY_20261008.md)。目标解析与策略Projection已接通，只选择Case冻结Finding对应成员；纯集合校验移入Arca model，现场Fence仍在Capability。39项专项及分组全架构2,293通过/9既有skip/0失败。下一步逐目标维修Planner与Effect、完整混合输出验收/原子Commit/恢复；自动维修和发布Gate仍未开放。
 
 2026-10-08精确媒体成品绑定：[Evidence](evidence/SERIES_CASE_MEMBER_STRATEGY_20261008.md)。Commit逐项绑定验证Event，经同Work/Attempt/Plan、输入Binding、Handle和Result摘要取唯一生产成品，拒绝错取或歧义。15项专项及分组全架构2,296通过/9既有skip/0失败；逐目标Effect、完整集合终检/原子Commit/恢复仍待完成，自动媒体维修与发布Gate保持开放，未部署NAS。
+
+2026-10-08逐目标维修接线：准备Planner逐成员调度Remux/Transcode与验证，Effect按冻结Case选择原文件，Series输出身份/Remux路径按成员区分，部分输出清理读取精确Plan参数。混合Case计划、入口Fence和真实SQLite/文件清理验证通过；分组全架构2,297通过/9既有skip/0失败。完整物化/集合终检/原子Commit/恢复与真实媒体Host仍待完成，自动媒体维修及发布Gate未开放。[Evidence](evidence/SERIES_CASE_MEMBER_STRATEGY_20261008.md)。

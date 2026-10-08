@@ -320,7 +320,7 @@ function buildCapabilityPackage(capability) {
     'parameters.schema.json': {
       $schema: DRAFT, $id: capabilitySchemaId(capability.id, 'parameters'),
       title: `${capability.id} parameters`,
-      ...object(capability.id==='arca.aftercare.conformance.observe@1'
+      ...object(['arca.aftercare.conformance.observe@1','arca.aftercare.media.remux@1','arca.aftercare.media.transcode@1','arca.aftercare.media.verify@1'].includes(capability.id)
         ?{...parameterProperties,materialKey:{type:'string',pattern:'^[a-f0-9]{64}$'}}:parameterProperties,Object.keys(parameterProperties))
     },
     'result.schema.json': {
