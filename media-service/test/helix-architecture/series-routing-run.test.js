@@ -379,7 +379,18 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     await request('POST','/v1/admin/rule-templates/'+ruleTemplateId+'/actions/publish',{
       idempotencyKey:'bounded-publish',...basis,previewId:preview.previewId,previewDigest:preview.previewDigest});
   }
-  const target=path.join(root,'shelf');fs.mkdirSync(target);
+  const crossDevice=process.env.HELIX_SERIES_CROSS_DEVICE==='1';
+  if(crossDevice)assert.equal(process.platform,'linux','Cross-device Host fixture requires Linux tmpfs.');
+  const target=crossDevice?fs.mkdtempSync('/dev/shm/helix-series-target-'):path.join(root,'shelf');
+  if(crossDevice){
+    t.after(()=>{
+      assert.equal(path.dirname(fs.realpathSync(target)),'/dev/shm');
+      assert.ok(path.basename(target).startsWith('helix-series-target-'));
+      fs.rmSync(target,{recursive:true,force:true});
+    });
+    assert.notEqual(fs.statSync(root).dev,fs.statSync(target).dev,'Source/Workspace and Shelf must be on different filesystems.');
+    t.diagnostic(JSON.stringify({crossDevice:true,sourceDevice:fs.statSync(root).dev,targetDevice:fs.statSync(target).dev}));
+  }else fs.mkdirSync(target);
   await request('POST','/v1/admin/shelves',{idempotencyKey:'series-shelf',shelfId:'series-shelf',name:'Series fixture',
     targetRootLocation:target,ruleTemplateId,expectedTemplateRevision,
     placementPolicy:{folderTemplate:'{title}',primaryTemplate:'{stem}{ext}',nfoTemplate:'{stem}.nfo',

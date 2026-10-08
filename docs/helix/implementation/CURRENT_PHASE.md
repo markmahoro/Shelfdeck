@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 跨文件系统真实Host：Linux来源/Workspace设备93、Shelf tmpfs设备106，96.91秒完成N:M上架及Remux/CPU Aftercare，Claims/原子回滚/结算断言通过；显式测试开关已保存。277文件Windows全量回归仍在执行，已见正式入口1失败但隔离复验通过，未宣称全量PASS。其他发布Gate继续，未操作NAS。[Evidence](evidence/SERIES_CROSS_DEVICE_HOST_20261008.md)。
+
 2026-10-08 Linux Docker验证：本机Engine恢复，372768b68原Dockerfile构建通过；438项Series专项、E03追加、真实CPU N:M加工、99.70秒跨进程退出恢复及4条Movie外部场景通过。原生/投影专项缺测试挂载已补齐复验，1个live BDMV素材skip保留。其他发布Gate继续，未操作NAS。[Evidence](evidence/SERIES_LINUX_DOCKER_20261008.md)。
 
 2026-10-08 Series命名示例与空间展示：收藏架按实际Profile提供单集/共文件/part示例，模板变更即时反馈；Formation明确每集空间上限。55项后端、125项前端、双视口/Axe及构建/P2/架构/语义通过。UI接受与其他发布Gate继续，未部署NAS。[Evidence](evidence/SERIES_NAMING_PREVIEW_20261008.md)。
