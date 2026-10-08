@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 Series 收藏架规则UI：按Movie/Series展示与编辑，支持每集小数GiB，保留其他Profile和未改媒体要求；窄屏弹窗尺寸修复。121项前端全量、双视口规则/来源4项及构建通过；正式Arca规则校验通过，浏览器API受控。负责人接受、真实发布/重评及其他Series页面继续，未部署NAS。[Evidence](evidence/SERIES_SHELF_RULES_UI_20261008.md)。
+
 2026-10-08 Series 文件来源 UI：登记可显式选择电影/剧集，卡片显示正式类型；失败重试与重复提交保护、标题层级修复。前端114项、双视口浏览器/Axe及构建通过；5项后端回归通过、1项缺本地素材skip。浏览器使用受控API，UI负责人同版本接受仍待完成；EpisodeDelivery摘要缺口按用户要求保留，未部署NAS。[Evidence](evidence/SERIES_SOURCE_UI_20261008.md)。
 
 2026-10-08云端接续交接：用户要求将本地现有代码同步到GitHub并转云端开发；本次保存并发Run未完成增量为开发检查点，不作为完成或发布声明。交接复验 `node --test test/helix-architecture/p14-series-run-lifecycle-continuity.test.js test/helix-architecture/p4-event-runtime.test.js test/helix-architecture/p8-acceptance-spec-planner-stale.test.js`：Windows 71项通过、0失败/跳过。未重跑完整Host/并发、全量回归、Linux、Docker/Desktop或UI验收；既有 `P14_ONDECK_STAGED_CONTROL_CONFLICT` 阻断保持开放。下文“未提交”指检查点保存前的历史记录；云端应先从GitHub最新main取得本检查点，按本Phase接续同Season落位/Commit协调。运行数据、凭据、依赖及本地外部日志不随Git同步，无生产动作。

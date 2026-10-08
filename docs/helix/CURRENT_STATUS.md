@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Series 收藏架规则UI：按Movie/Series展示与编辑，支持每集小数GiB，保留其他Profile和未改媒体要求；窄屏弹窗尺寸修复。121项前端全量、双视口规则/来源4项及构建通过；正式Arca规则校验通过，浏览器API受控。负责人接受、真实发布/重评及其他Series页面继续，未部署NAS。[Evidence](implementation/evidence/SERIES_SHELF_RULES_UI_20261008.md)。
+
 2026-10-08 Series 文件来源 UI：登记可显式选择电影/剧集，卡片显示正式类型；失败重试与重复提交保护、标题层级修复。前端114项、双视口浏览器/Axe及构建通过；5项后端回归通过、1项缺本地素材skip。浏览器使用受控API，UI负责人同版本接受仍待完成；EpisodeDelivery摘要缺口按用户要求保留，未部署NAS。[Evidence](implementation/evidence/SERIES_SOURCE_UI_20261008.md)。
 
 2026-10-08 Series正式观察入口：后台现有Admin API允许movie/series，其他Profile保持拒绝；9项真实SQLite准入/幂等/过期拒绝专项通过。首次上架37.1秒、同Season E03追加94.1秒、两个来源并发93.6秒均从正式HTTP入口通过。基线全架构2384通过/7失败/10skip，7项Offload扩展后的陈旧fixture/断言已修复，相关231项复验通过；Web构建及原生126通过/2skip。页面/浏览器及UI负责人同版本接受未完成；未操作NAS。[Evidence](implementation/evidence/SERIES_PUBLIC_OBSERVATION_20261008.md)。

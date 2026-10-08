@@ -20,7 +20,9 @@ import DefectAuthorization from './DefectAuthorization';
 
 const HIGH_QUALITY_AUDIO = ['dts_hd_ma', 'dts_x', 'eac3_atmos', 'truehd', 'truehd_atmos'];
 const SYSTEM_TEMPLATE_ID = 'system-beta-recommended';
-const SYSTEM_TEMPLATE_DISPLAY_NAME = '系统推荐电影标准';
+const SYSTEM_TEMPLATE_DISPLAY_NAME = '系统推荐整理标准';
+const PROFILE_LABELS = { movie: '电影', series: '剧集' } as const;
+type EditableProfile = keyof typeof PROFILE_LABELS;
 const DEFAULT_PLACEMENT: ShelfPlacementPolicy = {
   folderTemplate: '{title} ({year})',
   primaryTemplate: '{stem}{ext}',
@@ -44,7 +46,7 @@ type StandardEditor =
   | { kind: 'shelf'; shelf: Shelf };
 
 function newShelfId() {
-  return newOpaqueId('movie-shelf-');
+  return newOpaqueId('media-shelf-');
 }
 function branchLabel(branch: { conditionKind: MovieRuleBranch['conditionKind']; rating?: number }) {
   return branch.conditionKind === 'no_rating' ? '未评分' : `${branch.rating}星`;
@@ -60,8 +62,20 @@ function mediaLabel(branch: MovieRuleBranch) {
 function spaceLabel(branch: MovieRuleBranch) {
   return branch.requirements.space.maxSizeGiB === null ? '不按评分限制空间' : `最多 ${branch.requirements.space.maxSizeGiB} GiB`;
 }
-function movieRules(value: { profileRuleSets: { contentProfile: string; decisionBranches: MovieRuleBranch[] }[] }) {
-  return value.profileRuleSets.find((item) => item.contentProfile === 'movie')?.decisionBranches || [];
+function profileRules(value: { profileRuleSets: { contentProfile: string; decisionBranches: MovieRuleBranch[] }[] }, profile: EditableProfile) {
+  return value.profileRuleSets.find((item) => item.contentProfile === profile)?.decisionBranches || [];
+}
+function RuleSummary({ rules }: { rules: RuleTemplateRules }) {
+  return <>{(['movie', 'series'] as const).map((profile) => {
+    const branches = profileRules(rules, profile);
+    return branches.length > 0 && <section key={profile} aria-label={`${PROFILE_LABELS[profile]}整理标准`}>
+      <strong>{PROFILE_LABELS[profile]}</strong>
+      <div className="movie-rule-grid">{branches.map((branch) => <div key={`${branch.conditionKind}-${branch.rating || 0}`}>
+        <b>{branchLabel(branch)}</b><span>{mediaLabel(branch)}</span>
+        <small>{profile === 'series' ? '每集 · ' : ''}{spaceLabel(branch)}</small>
+      </div>)}</div>
+    </section>;
+  })}</>;
 }
 function renderPreview(template: string, values: Record<string, string>) {
   return template.replace(/\{([^{}]+)\}/g, (_match, token) => values[token] || '');
@@ -86,17 +100,24 @@ function editsFromBranches(branches: MovieRuleBranch[]): MovieRuleEdit[] {
     maxSizeGiB: branch.requirements.space.maxSizeGiB == null ? '' : String(branch.requirements.space.maxSizeGiB),
   }));
 }
-async function applyMovieEdits(rules: RuleTemplateRules, edits: MovieRuleEdit[]): Promise<RuleTemplateRules> {
+export async function applyProfileEdits(rules: RuleTemplateRules, edits: MovieRuleEdit[], profile: EditableProfile): Promise<RuleTemplateRules> {
   const next = structuredClone(rules);
-  const movie = next.profileRuleSets.find((item) => item.contentProfile === 'movie');
-  if (!movie) throw new Error('当前规则模板没有电影整理标准。');
-  if (movie.decisionBranches.length !== edits.length) throw new Error('电影整理标准与当前草稿不一致，请刷新后重试。');
+  const movie = next.profileRuleSets.find((item) => item.contentProfile === profile);
+  if (!movie) throw new Error(`当前规则模板没有${PROFILE_LABELS[profile]}整理标准。`);
+  if (movie.decisionBranches.length !== edits.length) throw new Error('整理标准与当前草稿不一致，请刷新后重试。');
   movie.decisionBranches = movie.decisionBranches.map((branch, index) => {
     const edit = edits[index];
+    if (edit.conditionKind !== branch.conditionKind || edit.rating !== branch.rating) {
+      throw new Error('评分分支已变化，请刷新后重试。');
+    }
+    const original = branch.requirements.mandatoryMedia;
     const raw = edit.maxSizeGiB.trim();
     const maxSizeGiB = raw === '' ? null : Number(raw);
     if (maxSizeGiB !== null && (!Number.isFinite(maxSizeGiB) || maxSizeGiB <= 0)) {
-      throw new Error(`${branchLabel(edit)} 的空间上限必须为空或不小于 1 GiB。`);
+      throw new Error(`${branchLabel(edit)} 的空间上限必须为空或大于 0 GiB。`);
+    }
+    if (maxSizeGiB !== null && !Number.isSafeInteger(maxSizeGiB * 1073741824)) {
+      throw new Error(`${branchLabel(edit)} 的空间上限精度过高或超出范围，请使用 0.5、0.75 或 1 GiB 等值。`);
     }
     const space = maxSizeGiB === null
       ? { ...branch.requirements.space, maxSizeGiB: null, maxSizeBytes: null }
@@ -107,9 +128,10 @@ async function applyMovieEdits(rules: RuleTemplateRules, edits: MovieRuleEdit[])
         ...branch.requirements,
         mandatoryMedia: {
           ...branch.requirements.mandatoryMedia,
-          videoCodec: edit.hevc ? 'hevc' : 'any',
-          minimumRasterClass: edit.fourK ? '4k' : 'none',
-          acceptedPrimaryAudioClasses: edit.highQualityAudio ? [...HIGH_QUALITY_AUDIO] : [],
+          videoCodec: edit.hevc === (original.videoCodec === 'hevc') ? original.videoCodec : edit.hevc ? 'hevc' : 'any',
+          minimumRasterClass: edit.fourK === (original.minimumRasterClass === '4k') ? original.minimumRasterClass : edit.fourK ? '4k' : 'none',
+          acceptedPrimaryAudioClasses: edit.highQualityAudio === (original.acceptedPrimaryAudioClasses.length > 0)
+            ? original.acceptedPrimaryAudioClasses : edit.highQualityAudio ? [...HIGH_QUALITY_AUDIO] : [],
         },
         space,
       },
@@ -131,12 +153,12 @@ function templateOptionLabel(item: RuleTemplate) {
 }
 function reassessmentCopy(entryCount: number, extraShelves = 0, showCount = true) {
   const titles = entryCount === 0
-    ? '新上架电影将按新规则验收。'
-    : `${showCount ? `${entryCount} 部已上架电影：` : ''}重新评估并自动修复可处理的差异。`;
+    ? '新收藏条目将按新规则验收。'
+    : `${showCount ? `${entryCount} 个已上架条目：` : ''}重新评估并自动修复可处理的差异。`;
   return extraShelves > 0 ? `${titles} 同时影响其他 ${extraShelves} 座收藏架。` : titles;
 }
 
-function MovieRuleEditor({ edits, onChange }: { edits: MovieRuleEdit[]; onChange: (value: MovieRuleEdit[]) => void }) {
+function MovieRuleEditor({ edits, onChange, profile }: { profile: EditableProfile; edits: MovieRuleEdit[]; onChange: (value: MovieRuleEdit[]) => void }) {
   function replace(index: number, value: MovieRuleEdit) {
     onChange(edits.map((item, ordinal) => (ordinal === index ? value : item)));
   }
@@ -145,7 +167,7 @@ function MovieRuleEditor({ edits, onChange }: { edits: MovieRuleEdit[]; onChange
     <label><input type="checkbox" checked={edit.hevc} onChange={(event) => replace(index, { ...edit, hevc: event.target.checked })} /><span>HEVC</span></label>
     <label><input type="checkbox" checked={edit.fourK} onChange={(event) => replace(index, { ...edit, fourK: event.target.checked })} /><span>4K</span></label>
     <label><input type="checkbox" checked={edit.highQualityAudio} onChange={(event) => replace(index, { ...edit, highQualityAudio: event.target.checked })} /><span>高质量主音轨</span></label>
-    <label><span>空间上限 GiB</span><input type="number" min={1} step={1} placeholder="不限制" value={edit.maxSizeGiB} onChange={(event) => replace(index, { ...edit, maxSizeGiB: event.target.value })} /></label>
+    <label><span>{profile === 'series' ? '每集空间上限 GiB' : '空间上限 GiB'}</span><input type="number" min={0} step="any" placeholder="不限制" value={edit.maxSizeGiB} onChange={(event) => replace(index, { ...edit, maxSizeGiB: event.target.value })} /></label>
   </div>)}</div>;
 }
 
@@ -184,7 +206,7 @@ export default function ShelvesPage() {
   const [notice, setNotice] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [shelfId, setShelfId] = useState(newShelfId);
-  const [name, setName] = useState('电影收藏架');
+  const [name, setName] = useState('媒体收藏架');
   const [targetRootLocation, setTargetRootLocation] = useState('');
   const [templateId, setTemplateId] = useState(SYSTEM_TEMPLATE_ID);
   const [placement, setPlacement] = useState<ShelfPlacementPolicy>({ ...DEFAULT_PLACEMENT });
@@ -211,6 +233,8 @@ export default function ShelvesPage() {
   const [bindTemplateId, setBindTemplateId] = useState('');
   const [standardEditor, setStandardEditor] = useState<StandardEditor | null>(null);
   const [copyName, setCopyName] = useState('');
+  const [editingProfile, setEditingProfile] = useState<EditableProfile>('movie');
+  const [seriesEdits, setSeriesEdits] = useState<MovieRuleEdit[]>([]);
   const [movieEdits, setMovieEdits] = useState<MovieRuleEdit[]>([]);
   const [standardPreview, setStandardPreview] = useState<RuleTemplatePreview | null>(null);
   const [preparedDraft, setPreparedDraft] = useState<{ template: RuleTemplate; draft: RuleTemplateDraft } | null>(null);
@@ -268,7 +292,7 @@ export default function ShelvesPage() {
         placementPolicy: Object.fromEntries(Object.entries(placement).map(([key, value]) => [key, value.trim()])),
       });
       setShelfId(newShelfId());
-      setName('电影收藏架');
+      setName('媒体收藏架');
       setTargetRootLocation('');
       setPlacement({ ...DEFAULT_PLACEMENT });
       setShowCreate(false);
@@ -311,7 +335,9 @@ export default function ShelvesPage() {
     const source = templates.find((item) => item.templateId === shelf.standard.ruleTemplateId);
     setStandardEditor({ kind: 'shelf', shelf });
     setCopyName(`${shelf.name} 整理标准`);
-    setMovieEdits(editsFromBranches(movieRules(source?.current.rules || shelf.standard.value)));
+    setMovieEdits(editsFromBranches(profileRules(source?.current.rules || shelf.standard.value, 'movie')));
+    setSeriesEdits(editsFromBranches(profileRules(source?.current.rules || shelf.standard.value, 'series')));
+    setEditingProfile(profileRules(source?.current.rules || shelf.standard.value, 'movie').length ? 'movie' : 'series');
     setStandardPreview(null);
     setPreparedDraft(null);
     setError(''); setNotice('');
@@ -322,8 +348,10 @@ export default function ShelvesPage() {
       return;
     }
     setStandardEditor({ kind: 'create', source: selectedTemplate });
-    setCopyName(`${name.trim() || '电影收藏架'} 整理标准`);
-    setMovieEdits(editsFromBranches(movieRules(selectedTemplate.current.rules)));
+    setCopyName(`${name.trim() || '媒体收藏架'} 整理标准`);
+    setMovieEdits(editsFromBranches(profileRules(selectedTemplate.current.rules, 'movie')));
+    setSeriesEdits(editsFromBranches(profileRules(selectedTemplate.current.rules, 'series')));
+    setEditingProfile(profileRules(selectedTemplate.current.rules, 'movie').length ? 'movie' : 'series');
     setStandardPreview(null);
     setPreparedDraft(null);
     setError(''); setNotice('');
@@ -360,7 +388,7 @@ export default function ShelvesPage() {
     try {
       await helixAdminApi.bindShelfTemplate(bindShelf, template);
       setBindShelf(null);
-      setNotice('电影整理标准已更换');
+      setNotice('整理标准已更换');
       await load();
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
@@ -385,7 +413,9 @@ export default function ShelvesPage() {
       working = { template: copied.template, draft: current.draft };
       setPreparedDraft(working);
     }
-    const rules = await applyMovieEdits(working.draft.rules, movieEdits);
+    let rules = working.draft.rules;
+    if (movieEdits.length) rules = await applyProfileEdits(rules, movieEdits, 'movie');
+    if (seriesEdits.length) rules = await applyProfileEdits(rules, seriesEdits, 'series');
     const revised = await helixAdminApi.reviseRuleTemplateDraft(working.draft, rules);
     const draft: RuleTemplateDraft = { ...working.draft, ...revised, rules };
     const prepared = { template: working.template, draft };
@@ -400,7 +430,7 @@ export default function ShelvesPage() {
       setStandardPreview(await helixAdminApi.previewRuleTemplate(prepared.template, prepared.draft));
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
-      else setError(commandError(cause, '电影整理标准预览失败。'));
+      else setError(commandError(cause, '整理标准预览失败。'));
     } finally { setLoading(false); }
   }
   async function publishStandard() {
@@ -416,16 +446,16 @@ export default function ShelvesPage() {
       if (standardEditor.kind === 'create') setTemplateId(published.template.templateId);
       setStandardEditor(null); setStandardPreview(null); setPreparedDraft(null);
       setNotice(standardEditor.kind === 'create'
-        ? '电影整理标准已发布'
-        : '电影整理标准已发布');
+        ? '整理标准已发布'
+        : '整理标准已发布');
       await load();
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
-      else { setError(commandError(cause, '电影整理标准发布失败。')); setLoading(false); }
+      else { setError(commandError(cause, '整理标准发布失败。')); setLoading(false); }
     }
   }
 
-  if (!shelves.length && loading && !error) return <LoadingState>正在读取收藏架…</LoadingState>;
+  if (!shelves.length && !showCreate && !standardEditor && loading && !error) return <LoadingState>正在读取收藏架…</LoadingState>;
 
   return <section className="source-page shelf-page">
     <PageHeader title="收藏架配置" actions={<>
@@ -435,7 +465,7 @@ export default function ShelvesPage() {
       <Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '新建收藏架'}</Button>
     </>} />
     {showCreate && <form className="source-create" onSubmit={createShelf}>
-      <div className="source-create-heading"><div><h2>创建电影收藏架</h2></div></div>
+      <div className="source-create-heading"><div><h2>创建收藏架</h2></div></div>
       <div className="source-form-grid">
         <label><span>收藏架名称</span><input value={name} onChange={(event) => setName(event.target.value)} required /></label>
         <div className="template-bind-field">
@@ -447,7 +477,7 @@ export default function ShelvesPage() {
       </div>
       <div className="template-preview" aria-label="最终命名保存前预览">{namingPreview(placement)}</div>
       {selectedTemplate && <div className="template-preview">
-        <div className="movie-rule-grid">{movieRules(selectedTemplate.current.rules).map((branch) => <div key={`${branch.conditionKind}-${branch.rating || 0}`}><b>{branchLabel(branch)}</b><span>{mediaLabel(branch)}</span><small>{spaceLabel(branch)}</small></div>)}</div>
+        <RuleSummary rules={selectedTemplate.current.rules} />
       </div>}
       <div className="source-create-footer"><Button variant="primary" type="submit" disabled={loading || activeTemplates.length === 0}>{loading ? '正在验证并保存…' : '创建收藏架'}</Button></div>
     </form>}
@@ -456,7 +486,7 @@ export default function ShelvesPage() {
     <div className="source-registry">
       {managedShelves.length === 0 ? <div className="source-empty"><strong>还没有当前收藏架</strong></div> : managedShelves.map((shelf) => <article className="source-record shelf-record" key={shelf.shelfId}>
         <div className="source-record-main">
-          <div className="source-record-title"><div><h3>{shelf.name}</h3><p>{shelf.target.rootLocation}</p>{shelf.status !== 'active' && <span className="source-state" data-state={shelf.status}>{shelfStatusLabel(shelf.status)}</span>}</div></div>
+          <div className="source-record-title"><div><h2>{shelf.name}</h2><p>{shelf.target.rootLocation}</p>{shelf.status !== 'active' && <span className="source-state" data-state={shelf.status}>{shelfStatusLabel(shelf.status)}</span>}</div></div>
           <dl>
             <div><dt>规则模板</dt><dd>{templateLabel(shelf.standard.ruleTemplateId)}</dd></div>
             <div><dt>目录布局</dt><dd>{shelf.placement.value.folderTemplate}</dd></div>
@@ -464,11 +494,11 @@ export default function ShelvesPage() {
           </dl>
         </div>
         <div className="shelf-standard">
-          <div className="shelf-standard-head"><div><strong>电影整理标准</strong></div></div>
-          <div className="movie-rule-grid">{movieRules(shelf.standard.value).map((branch) => <div key={`${branch.conditionKind}-${branch.rating || 0}`}><b>{branchLabel(branch)}</b><span>{mediaLabel(branch)}</span><small>{spaceLabel(branch)}</small></div>)}</div>
+          <div className="shelf-standard-head"><div><strong>整理标准</strong></div></div>
+          <RuleSummary rules={shelf.standard.value} />
         </div>
         {shelf.status === 'active' && <div className="shelf-card-actions">
-          <Button type="button" onClick={() => openStandard(shelf)}>复制并修改电影整理标准</Button>
+          <Button type="button" onClick={() => openStandard(shelf)}>复制并修改整理标准</Button>
           <Button type="button" onClick={() => openBind(shelf)}>更换规则模板</Button>
           <Button type="button" onClick={() => openPlacement(shelf)}>调整目录布局</Button>
           <Button variant="danger" type="button" onClick={(event) => { deregistrationTrigger.current = event.currentTarget; setConfirmShelf(shelf); setEnteredShelfName(''); setPreserveFilesAcknowledged(false); setReleaseControlAcknowledged(false); }}>注销收藏架</Button>
@@ -495,7 +525,7 @@ export default function ShelvesPage() {
           </div>
           <div className="template-preview" aria-label="最终命名保存前预览">{namingPreview(placementDraft)}</div>
           {placementPreview && <div className="template-preview" role="status">
-            <strong>将影响 {placementPreview.affectedActiveEntryCount} 部已上架电影</strong>
+            <strong>将影响 {placementPreview.affectedActiveEntryCount} 个已上架条目</strong>
             <small>{reassessmentCopy(placementPreview.affectedActiveEntryCount, 0, false)}</small>
           </div>}
         </div>
@@ -520,21 +550,22 @@ export default function ShelvesPage() {
       </div>
     </div>}
     {standardEditor && <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setStandardEditor(null); }}>
-      <div className="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="shelf-standard-title">
-        <div className="dialog-head"><h2 id="shelf-standard-title">{standardEditor.kind === 'create' ? '复制并发布自己的电影整理标准' : `复制并发布“${standardEditor.shelf.name}”的电影整理标准`}</h2></div>
+      <div className="dialog dialog-wide shelf-standard-dialog" role="dialog" aria-modal="true" aria-labelledby="shelf-standard-title">
+        <div className="dialog-head"><h2 id="shelf-standard-title">{standardEditor.kind === 'create' ? '复制并发布自己的整理标准' : `复制并发布“${standardEditor.shelf.name}”的整理标准`}</h2></div>
         <div className="dialog-body">
-          {standardEditor.kind === 'shelf' && !standardPreview && <p>发布后将按新标准重新评估已上架电影。</p>}
+          {standardEditor.kind === 'shelf' && !standardPreview && <p>发布后将按新标准重新评估已上架条目。</p>}
           {editorSource?.ownerKind !== 'user' && !preparedDraft && <label><span>自己的规则模板名称</span><input value={copyName} onChange={(event) => { setCopyName(event.target.value); setStandardPreview(null); }} required /></label>}
-          <MovieRuleEditor edits={movieEdits} onChange={(value) => { setMovieEdits(value); setStandardPreview(null); }} />
+          <label><span>媒体类型</span><select value={editingProfile} onChange={(event) => setEditingProfile(event.target.value as EditableProfile)}>{movieEdits.length > 0 && <option value="movie">电影</option>}{seriesEdits.length > 0 && <option value="series">剧集</option>}</select></label>
+          <MovieRuleEditor profile={editingProfile} edits={editingProfile === 'movie' ? movieEdits : seriesEdits} onChange={(value) => { (editingProfile === 'movie' ? setMovieEdits : setSeriesEdits)(value); setStandardPreview(null); }} />
           {standardPreview && <div className="template-preview" role="status">
-            <strong>将影响 {standardPreview.currentEntryPotentialGapCount || editorShelf?.deregistrationSummary.entryCount || 0} 部已上架电影</strong>
+            <strong>将影响 {standardPreview.currentEntryPotentialGapCount || editorShelf?.deregistrationSummary.entryCount || 0} 个已上架条目</strong>
             <small>{reassessmentCopy(standardPreview.currentEntryPotentialGapCount || editorShelf?.deregistrationSummary.entryCount || 0, Math.max(0, standardPreview.affectedShelfCount - (editorShelf && editorShelf.standard.ruleTemplateId === standardPreview.templateId ? 1 : 0)), false)}</small>
           </div>}
         </div>
         <div className="dialog-actions">
           <Button type="button" onClick={() => setStandardEditor(null)}>返回</Button>
           <Button type="button" disabled={loading} onClick={() => void previewStandard()}>{loading ? '正在预览…' : '预览影响'}</Button>
-          <Button variant="primary" type="button" disabled={loading || !standardPreview} onClick={() => void publishStandard()}>发布电影整理标准</Button>
+          <Button variant="primary" type="button" disabled={loading || !standardPreview} onClick={() => void publishStandard()}>发布整理标准</Button>
         </div>
       </div>
     </div>}

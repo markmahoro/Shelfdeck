@@ -630,3 +630,8 @@ button, input, select, textarea { font: inherit; }
 .identity-picker-input input { min-height:36px; border:1px solid var(--line); border-radius:6px; padding:6px 10px; }
 
 .formation-inline-action .identity-picker-trigger { font-size:14px; min-height:36px; border-radius:6px; max-width:100%; white-space:normal; }
+
+.shelf-standard-dialog { display: flex; flex-direction: column; overflow: hidden; max-width: 100%; }
+.dialog.dialog-wide.shelf-standard-dialog { width: min(840px, calc(100vw - 40px)); }
+.shelf-standard-dialog .dialog-body { min-height: 0; overflow-y: auto; }
+.shelf-standard-dialog .dialog-head, .shelf-standard-dialog .dialog-actions { flex-shrink: 0; }

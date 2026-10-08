@@ -142,7 +142,7 @@ describe('Shelf Standard and Placement publish', () => {
     expect(screen.getByText('发布后将重新评估目录命名，并自动修复可处理的差异。')).toBeInTheDocument();
     expect(screen.queryByText(/Placement revision/)).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '预览影响' }));
-    expect(await screen.findByText('将影响 3 部已上架电影')).toBeInTheDocument();
+    expect(await screen.findByText('将影响 3 个已上架条目')).toBeInTheDocument();
     expect(screen.getByText(/重新评估并自动修复可处理的差异/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: '发布目录布局' }));
     await waitFor(() => {
@@ -155,7 +155,7 @@ describe('Shelf Standard and Placement publish', () => {
     mockCatalog();
     renderShelves();
     fireEvent.click(await screen.findByRole('button', { name: '新建收藏架' }));
-    expect(await screen.findByRole('option', { name: '系统推荐电影标准 · 系统只读' })).toBeInTheDocument();
+    expect(await screen.findByRole('option', { name: '系统推荐整理标准 · 系统只读' })).toBeInTheDocument();
     expect(screen.queryByRole('option', { name: /Beta Recommended/ })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: '复制模板' })).toBeInTheDocument();
   });
@@ -212,8 +212,8 @@ describe('Shelf Standard and Placement publish', () => {
     renderShelves();
     fireEvent.click(await screen.findByRole('button', { name: '复制模板' }));
     fireEvent.click(screen.getByRole('button', { name: '预览影响' }));
-    expect(await screen.findByText(/将影响 0 部已上架电影/)).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '发布电影整理标准' }));
+    expect(await screen.findByText(/将影响 0 个已上架条目/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: '发布整理标准' }));
     await waitFor(() => {
       expect(copy).toHaveBeenCalled();
       expect(revise).toHaveBeenCalled();
@@ -275,11 +275,11 @@ describe('Shelf Standard and Placement publish', () => {
       replayed: false,
     });
     renderShelves();
-    fireEvent.click(await screen.findByRole('button', { name: '复制并修改电影整理标准' }));
+    fireEvent.click(await screen.findByRole('button', { name: '复制并修改整理标准' }));
     fireEvent.click(screen.getByRole('button', { name: '预览影响' }));
-    expect(await screen.findByText(/将影响 3 部已上架电影/)).toBeInTheDocument();
+    expect(await screen.findByText(/将影响 3 个已上架条目/)).toBeInTheDocument();
     expect(screen.getByText('重新评估并自动修复可处理的差异。')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: '发布电影整理标准' }));
+    fireEvent.click(screen.getByRole('button', { name: '发布整理标准' }));
     await waitFor(() => {
       expect(copy).toHaveBeenCalled();
       expect(revise).toHaveBeenCalled();
