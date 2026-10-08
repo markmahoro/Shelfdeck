@@ -297,7 +297,7 @@ function createCleanFacades(options) {
   }
   if (options.productIdentitySelection) {
     facades.LibraFormationFacade.get_formation_runs_librarunid_product_identity_preview = async (input) => ({
-      body: await options.productIdentitySelection.preview(input.params.libraRunId, input.query?.tmdbMovieId),
+      body: await options.productIdentitySelection.preview(input.params.libraRunId, input.query),
     });
     facades.LibraFormationFacade.post_formation_runs_librarunid_actions_choose_product_identity = async (input) => ({
       status: 202,

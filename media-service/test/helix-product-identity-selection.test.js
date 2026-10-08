@@ -253,7 +253,7 @@ test('UAT-273 Admin preview dispatch preserves authentication and does not invok
   let authenticated=0, previews=0, choices=0;
   const sessionTokens={authenticate(){authenticated++;return {actorId:'admin'};}};
   const facades=createCleanFacades({sessionTokens,readiness:{state:'ready'},productIdentitySelection:{
-    async preview(run,id){previews++;assert.equal(run,'run-1');assert.equal(id,'639445');return {tmdbMovieId:id,displayTitle:'金都'};},
+    async preview(run,query){previews++;assert.equal(run,'run-1');assert.deepEqual(query,{tmdbMovieId:'639445'});return {tmdbMovieId:query.tmdbMovieId,displayTitle:'金都'};},
     choose(){choices++;}
   }});
   const adapter=createAdminHttpAdapter({facades,sessionTokens});
@@ -262,4 +262,36 @@ test('UAT-273 Admin preview dispatch preserves authentication and does not invok
   assert.deepEqual([authenticated,previews,choices],[1,1,0]);
   await assert.rejects(adapter.dispatch({method:'GET',path:'/v1/admin/formation/runs/run-1/product-identity-preview',body:{tmdbMovieId:'1'}}),{code:'GET_SIDE_EFFECT_INPUT_REJECTED'});
   assert.equal(previews,1);
+});
+
+test('Series manual selection binds the frozen Season and rejects profile or scope changes', async () => {
+  const season = {claimKind:'explicit_number',seasonNumber:2};
+  const snapshot = {run:{libraRunId:'run-1',executionBasisDigest:hex('basis')},
+    spec:{contentProfile:'series',structureKind:'season'},candidateIdentityClaim:{contentProfile:'series',claimKind:'series_season',seasonClaim:{...season,claimDigest:canonicalDigest(season)}}};
+  let observed;
+  await fixture(async ({databasePath,service}) => {
+    const db = new Database(databasePath);
+    db.prepare("UPDATE libra_subjects SET content_profile='series', structure_kind='season' WHERE subject_id='subject-1'").run();
+    const request = {idempotencyKey:'series-choice',expectedRunStateRevision:1,expectedIdentityRevision:null,tmdbSeriesId:'1399'};
+    for (const extra of [{seasonNumber:3},{episodeNumbers:[1,2]},{episodeScope:{}},{tmdbMovieId:'1399'}])
+      assert.throws(()=>service.choose('run-1',{...request,...extra}),{code:'LIBRA_IDENTITY_SELECTION_INPUT'});
+    assert.throws(()=>service.choose('run-1',{...request,tmdbSeriesId:undefined}),{code:'LIBRA_IDENTITY_SELECTION_INPUT'});
+    const preview = await service.preview('run-1',{tmdbSeriesId:'1399'});
+    assert.equal(preview.seasonNumber,2);assert.equal(preview.tmdbSeriesId,'1399');
+    assert.equal(observed.intent.contentProfile,'series');assert.equal(observed.intent.seasonNumber,2);
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_product_identity_selection_intents').get().n,0);
+    const receipt = service.choose('run-1',request);
+    assert.equal(receipt.namespace,'tmdb_series');assert.equal(receipt.seasonNumber,2);
+    assert.equal(service.choose('run-1',request).replayed,true);
+    assert.equal(service.readCurrent('run-1').namespace,'tmdb_series');
+    assert.throws(()=>service.choose('run-1',{...request,expectedRunStateRevision:2}),{code:'LIBRA_IDENTITY_SELECTION_STALE'});
+    snapshot.run.executionBasisDigest=hex('changed');
+    assert.throws(()=>service.choose('run-1',{...request,idempotencyKey:'changed'}),{code:'LIBRA_IDENTITY_SELECTION_INPUT'});
+    snapshot.run.executionBasisDigest=hex('basis');
+    await assert.rejects(service.preview('run-1',{tmdbMovieId:'1399'}),{code:'LIBRA_IDENTITY_SELECTION_INPUT'});
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_product_identity_selection_intents').get().n,1);
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_product_identity_revisions').get().n,0);
+    db.close();
+  }, {movieProductionReader:{readRunSnapshot:()=>snapshot},resolveRoutingIntegrationHandle:()=>({integrationId:'tmdb-main'}),
+    observeRoutingProvider:async request=>{observed=request;return [{namespace:'tmdb_series',providerKey:'1399',seasonNumber:2,title:'Example Series',releaseYear:2011}];}});
 });

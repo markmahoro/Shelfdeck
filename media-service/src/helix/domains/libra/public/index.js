@@ -151,6 +151,7 @@ function createExecutionRegistration() {
         intakeControlObservationPort:createIntakeControlObservationPort(options)});
       const routingPorts=createRoutingCapabilityPorts(options);
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
+      const productIdentitySelection=createProductIdentitySelectionService({...options,movieProductionReader});
       const domainCommitCoordinator=createProductFactDomainCommitCoordinator(options);
       const productFactPorts=createProductFactCapabilityPorts({...options,movieProductionReader,domainCommitCoordinator});
       const productMetadataPorts=createProductMetadataCapabilityPorts({...options,movieProductionReader});
@@ -234,9 +235,9 @@ function createExecutionRegistration() {
       const libraRunContextReader=createLibraRunContextReader(options);
       const libraRunCreator=createLibraRunCreator({...options,contextReader:libraRunContextReader,pipelineAdmission});
       const libraRunExecutionProjection=createLibraRunExecutionProjection(options);
-      const productIdentitySelection=createProductIdentitySelectionService(options);
       const libraRunLifecycleService=createLibraRunLifecycleService({...options,libraRunExecutionProjection});
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
+      const productIdentitySelection=createProductIdentitySelectionService({...options,movieProductionReader});
       const libraRunAdminService=createLibraRunAdminService({...options,libraRunExecutionProjection,pipelineAdmission});
       const libraRunCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService,productIdentitySelection,routingContextReader,
         resolveFrozenRun:libraRunAdminService.reconcileFrozen,

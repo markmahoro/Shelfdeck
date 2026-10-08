@@ -209,7 +209,9 @@ function createProductIdentityProjections(options) {
       source={integrationId:handle.integrationId,configRevision:handle.configRevision,provider:'tmdb',namespace:series?'tmdb_series':'tmdb_movie'};
       if(parameters.sourceKind==='provider_exact'){
         const manual=parameters.selectionIntentId&&options.productIdentitySelection?.readCurrent(value.run.libraRunId);
-        if(manual&&manual.selection_intent_id===parameters.selectionIntentId){source={...source,providerKey:manual.provider_key,
+        if(manual&&manual.selection_intent_id===parameters.selectionIntentId){
+          if(manual.provider!=='tmdb'||manual.namespace!==source.namespace)throw new Error('Manual identity selection does not match the frozen profile.');
+          source={...source,providerKey:manual.provider_key,
           associationKind:'manual_selection',associationEvidenceDigest:manual.intent_digest};}
         else if(parameters.establishedIdentityDigest){
           const established=establishedSubjectIdentity(options,value);

@@ -18,11 +18,11 @@
     {
       "id": "Libra Product Identity Selection Intent Commit",
       "owner": "libra",
-      "atomicFactSet": "authenticated manual choice + current Libra Run/Subject/Identity head fence + immutable `libra_product_identity_selection_intents` row + Command Receipt；该Admin command不伪造Event Result或commit marker；选择只允许后端给出的candidate或typed TMDB movie ID，不能直接发布Identity；`hasOutbox=false`",
+      "atomicFactSet": "authenticated manual choice + current Libra Run/Subject/Identity head fence + immutable `libra_product_identity_selection_intents` row + Command Receipt；该Admin command不伪造Event Result或commit marker；选择只允许后端给出的candidate或typed TMDB ID：Movie为tmdbMovieId，Series为tmdbSeriesId，两者互斥；Series namespace为tmdb_series，Season只从同Run冻结Candidate Season Claim读取，必须匹配当前Subject Profile及Run execution basis，用户不能改季或扩集；Series请求摘要纳入该Season与executionBasisDigest，后续provider_exact继续核验TV及该Season，不能直接发布Identity；`hasOutbox=false`",
       "source": {
         "section": "8.5.4",
         "line": 8725,
-        "lineDigest": "5f036d990fdb2236dd5d82e6f02db12036774aed35958175dcf4479b17bd159b"
+        "lineDigest": "693376471cb01bfbe370735d0bc6dbcbfc6d139537f991e7464e4b240eba7f67"
       }
     },
     {

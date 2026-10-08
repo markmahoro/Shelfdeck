@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Series 人工身份命令：经用户确认扩展SSOT，TMDB Series ID绑定Run冻结Season/basis，拒绝改季扩集和跨类型，仍仅记录Intent并由provider_exact复验。49项专项、普通Direct/Remux Host35.9秒及P2/架构/语义通过。前端与人工选择完整Host继续，EpisodeDelivery摘要缺口保留，未部署NAS。[Evidence](implementation/evidence/SERIES_MANUAL_IDENTITY_COMMAND_20261008.md)。
+
 2026-10-08 Series 收藏架规则UI：按Movie/Series展示与编辑，支持每集小数GiB，保留其他Profile和未改媒体要求；窄屏弹窗尺寸修复。121项前端全量、双视口规则/来源4项及构建通过；正式Arca规则校验通过，浏览器API受控。负责人接受、真实发布/重评及其他Series页面继续，未部署NAS。[Evidence](implementation/evidence/SERIES_SHELF_RULES_UI_20261008.md)。
 
 2026-10-08 Series 文件来源 UI：登记可显式选择电影/剧集，卡片显示正式类型；失败重试与重复提交保护、标题层级修复。前端114项、双视口浏览器/Axe及构建通过；5项后端回归通过、1项缺本地素材skip。浏览器使用受控API，UI负责人同版本接受仍待完成；EpisodeDelivery摘要缺口按用户要求保留，未部署NAS。[Evidence](implementation/evidence/SERIES_SOURCE_UI_20261008.md)。

@@ -357,3 +357,16 @@ test('Explicit Candidate Series anchor requires exact Provider verification and 
   value.candidatePackage.seasonContinuityClaims[0]={...value.candidatePackage.seasonContinuityClaims[0],claimKey:'series:1399:season:2'};
   assert.throws(()=>candidateSeriesAnchor(value),/frozen Season/);
 });
+
+test('Series manual selection reaches exact TV and frozen Season observation', async()=>{
+  const manual={selection_intent_id:'manual-series',provider:'tmdb',namespace:'tmdb_series',provider_key:'1399',intent_digest:D('manual')};
+  const parameters={sourceKind:'provider_exact',seasonNumber:1,selectionIntentId:manual.selection_intent_id};
+  const intent=project(snapshot(),parameters,{productIdentitySelection:{readCurrent:()=>manual}});
+  assert.equal(intent.namespace,'tmdb_series');assert.equal(intent.seasonNumber,1);
+  assert.equal(intent.associationKind,'manual_selection');assert.equal(intent.associationEvidenceDigest,manual.intent_digest);
+  const provider=harness();const result=await observeProductIdentity(provider.options,intent,handle);
+  assert.equal(result.result,'resolved');assert.equal(result.verifiedIdentity.seasonNumber,1);
+  assert.ok(provider.calls.some(url=>url.pathname.endsWith('/tv/1399/season/1')));
+  assert.equal(provider.calls.some(url=>url.pathname.endsWith('/search/tv')),false);
+  assert.throws(()=>project(snapshot(),parameters,{productIdentitySelection:{readCurrent:()=>({...manual,namespace:'tmdb_movie'})}}),/frozen profile/);
+});
