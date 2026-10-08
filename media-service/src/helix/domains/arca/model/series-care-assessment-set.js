@@ -87,4 +87,23 @@ function seriesMediaRepairTargets(context,care,history,reader) {
   return Object.freeze([...targets.values()].sort((a,b)=>Buffer.from(a.materialKey).compare(Buffer.from(b.materialKey))).map(Object.freeze));
 }
 
-module.exports=Object.freeze({readSeriesMemberAssessmentSet,seriesMediaRepairTargets});
+function seriesMediaOutputTarget(context,care,history,reader,output) {
+  const invalid=()=>{throw Object.assign(new Error('Series media output does not match its frozen repair target.'),
+    {code:'ARCA_AFTERCARE_SERIES_MEDIA_OUTPUT_STALE'});};
+  const targets=seriesMediaRepairTargets(context,care,history,reader),matches=targets.filter(target=>
+    target.memberScope.sourceHandleDigest===output?.sourceMaterialHandleDigest);
+  if(matches.length!==1)invalid();
+  const target=matches[0],workspace=output.workspaceMaterialHandle,
+    unsigned=Object.fromEntries(Object.entries(output).filter(([key])=>key!=='resultDigest')),
+    expectedIntent=target.repairKind==='transcode'?target.strategy.strategyDigest:
+      canonicalDigest({kind:'remux',requirement:care.careRequirementDigest,memberKey:target.materialKey});
+  if(output.resultDigest!==canonicalDigest(unsigned)||!workspace||workspace.workspaceId!==care.aftercareCaseId||
+      workspace.ownerDomain!=='arca'||workspace.processId!==context.shelfEntryId||
+      output.workspaceMaterialHandleDigest!==canonicalDigest(workspace)||
+      output.productionIntentKind!==(target.repairKind==='transcode'?'encode':'remux')||
+      output.productionIntentDigest!==expectedIntent)invalid();
+  const material=context.raw.materials.find(item=>item.material_key===target.materialKey);
+  return Object.freeze({target,material});
+}
+
+module.exports=Object.freeze({readSeriesMemberAssessmentSet,seriesMediaRepairTargets,seriesMediaOutputTarget});

@@ -10,8 +10,7 @@ const {createCapabilityContractValidator}=require('../../src/helix/foundation/ca
 async function fixture(t,specs,maximum=10) {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'series-care-media-'));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
-  const fingerprint=location=>({stat:fs.statSync(location),fingerprintAlgorithm:'sha256',fingerprintVersion:1,
-    contentFingerprint:canonicalDigest(fs.readFileSync(location).toString('hex'))});
+  const {computeBoundedMaterialFingerprintSync:fingerprint}=require('../../src/helix/integrations/bounded-material-fingerprint');
   const materials=specs.map(([size,episodes],i)=>{
     const location=path.join(root,i+'.mkv');fs.writeFileSync(location,Buffer.alloc(size,i));
     const observed=fingerprint(location),identity={mountScopeId:'mount',inode:String(observed.stat.ino),sizeBytes:size,
@@ -331,7 +330,7 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
   const f=await fixture(t,[[8,['E01']],[8,['E02']],[8,['E03']],[8,['E04']]],null),s=strategyFixture(f),c=f.context;
   Object.assign(c.basis,{inventoryRevision:1,standardRevision:1,placementRevision:1,decisionFactSetDigest:canonicalDigest([])});
   c.raw.reservations=[];c.raw.standard.value.profileRuleSets[0].baseRequirements.mandatoryMedia.container='matroska';
-  c.raw.shelf={status:'active',target_root_location:path.dirname(f.materials[0].location),target_endpoint_id:'endpoint'};
+  c.raw.shelf={status:'active',target_mount_scope_id:f.materials[0].mount_scope_id,target_root_location:path.dirname(f.materials[0].location),target_endpoint_id:'endpoint'};
   c.raw.initialPlacementDecision={target_location:c.raw.shelf.target_root_location,target_endpoint_id:'endpoint'};
   c.raw.initialPlacement={value:{}};c.raw.placement={value:{}};
   const rows=[],reader={read:workId=>workId==='work'?rows:[]},ports=createAftercareCapabilityPorts({...f.options,...s.options,now:()=>1000,
@@ -397,7 +396,7 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
   }
   rows.reverse();assert.deepEqual(planner.plan(request),plan);rows.reverse();
   const sentinel=new Error('Captured exact source before FFmpeg or Workspace writes'),probed=[];
-  const effectPorts=createAftercareCapabilityPorts({...f.options,...s.options,contextReader,workResultReader:reader,
+  const effectPorts=createAftercareCapabilityPorts({...f.options,...s.options,now:()=>1000,contextReader,workResultReader:reader,
     schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
     unitOfWork:{execute(){throw new Error('No persistence before source probe.');}},
     mediaProbe:{async probe(handle){probed.push(handle.identity.materialKey);throw sentinel;}}});
@@ -420,10 +419,62 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
     const v=structuredClone({context:c,care,history,rows});mutate(v);
     assert.throws(()=>seriesMediaRepairTargets(v.context,v.care,v.history,{read:id=>id==='work'?v.rows:[]}));
   }
+  const {seriesMediaOutputTarget}=require('../../src/helix/domains/arca/model/series-care-assessment-set'),
+    {deriveInventoryMaterialChanges}=require('../../src/helix/domains/arca/model/aftercare-contract'),
+    workspaceRoot=path.join(path.dirname(f.materials[0].location),'workspace'),receipts=[],untouched=fs.readFileSync(f.materials[0].location);
+  fs.mkdirSync(workspaceRoot);
+  Object.assign(contextReader.store,{aftercareWorkspaceRootSnapshot:{rootHandleRef:'workspace-root',endpointId:'workspace-endpoint',mountScopeId:'workspace-mount'},
+    aftercareWorkspaceLocation:(_caseId,relative)=>path.join(workspaceRoot,relative)});
+  for(const target of targets) {
+    const original=f.materials.find(item=>item.material_key===target.materialKey),originalBytes=fs.readFileSync(original.location),
+      filename=target.materialKey+'.mkv',location=path.join(workspaceRoot,filename),bytes=Buffer.from('new media '+target.materialKey);
+    fs.writeFileSync(location,bytes);
+    const observed=f.options.computeBoundedMaterialFingerprintSync(location),identity={mountScopeId:'workspace-mount',inode:String(observed.stat.ino),
+      sizeBytes:Number(observed.stat.size),fingerprintAlgorithm:observed.fingerprintAlgorithm,fingerprintVersion:observed.fingerprintVersion,
+      contentFingerprint:observed.contentFingerprint},workspace={workspaceId:'case',ownerDomain:'arca',processId:'entry',rootHandleRef:'workspace-root',
+      endpointId:'workspace-endpoint',relativePath:filename,physicalIdentity:identity,sizeBytes:identity.sizeBytes,digestHex:identity.contentFingerprint,
+      materialKey:canonicalDigest({schema:'physical-material-identity@2',...identity})},
+      body={workspaceMediaHandleId:'output-'+target.materialKey,sourceMaterialHandleDigest:target.memberScope.sourceHandleDigest,
+        workspaceMaterialHandle:workspace,workspaceMaterialHandleDigest:canonicalDigest(workspace),
+        productionIntentKind:target.repairKind==='transcode'?'encode':'remux',productionIntentDigest:target.repairKind==='transcode'?
+          target.strategy.strategyDigest:canonicalDigest({kind:'remux',requirement:care.careRequirementDigest,memberKey:target.materialKey})},
+      output={...body,resultDigest:canonicalDigest(body)},
+      commit={...execution,workId:'commit',eventId:'materialize-'+target.materialKey,idempotencyKey:'materialize-'+target.materialKey,
+        namedInputs:{verifiedArtifactOrWorkspaceMediaHandle:output,inventoryTargetHandle:{targetDirectory:c.raw.shelf.target_root_location,
+          slotDirectory:c.raw.shelf.target_root_location}}};
+    assert.equal(seriesMediaOutputTarget(c,care,history,reader,output).material,original);
+    for(const mutate of [v=>{v.sourceMaterialHandleDigest=rows[0].result.memberScope.sourceHandleDigest;},
+      v=>{v.productionIntentDigest=canonicalDigest('foreign');},v=>{v.workspaceMaterialHandle.workspaceId='foreign';},
+      v=>{v.workspaceMaterialHandleDigest=canonicalDigest('foreign');}]) {
+      const changed=structuredClone(output);mutate(changed);
+      changed.resultDigest=canonicalDigest(Object.fromEntries(Object.entries(changed).filter(([key])=>key!=='resultDigest')));
+      await assert.rejects(effectPorts[C.artifactMaterialize].execute({...commit,namedInputs:{...commit.namedInputs,
+        verifiedArtifactOrWorkspaceMediaHandle:changed}}),error=>error.code==='ARCA_AFTERCARE_SERIES_MEDIA_OUTPUT_STALE');
+      assert.deepEqual(fs.readFileSync(original.location),originalBytes);
+    }
+    fs.appendFileSync(location,'changed');
+    await assert.rejects(effectPorts[C.artifactMaterialize].execute(commit),error=>error.code==='ARCA_AFTERCARE_SERIES_MEDIA_OUTPUT_STALE');
+    fs.writeFileSync(location,bytes);
+    const result=await effectPorts[C.artifactMaterialize].execute(commit),receipt=result.result;
+    validateConformanceResult(receipt,'MaterialEffectReceipt');receipts.push(receipt);
+    assert.equal(receipt.targetLocation,original.location.replaceAll('\\','/'));
+    assert.deepEqual(receipt.retiredMaterials.map(item=>item.identity.materialKey),[target.materialKey]);
+    assert.equal(receipt.supersededMaterialIdentity.materialKey,target.materialKey);
+    assert.deepEqual(fs.readFileSync(original.location),bytes);
+    assert.deepEqual(fs.readFileSync(receipt.supersededLocation),originalBytes);
+    const replay=await effectPorts[C.artifactMaterialize].execute({...commit,recoveryDecision:'continue_forward'});
+    assert.deepEqual(replay.result,receipt);
+  }
+  assert.deepEqual(fs.readFileSync(f.materials[0].location),untouched);
+  const changes=deriveInventoryMaterialChanges(c.raw.materials,receipts);
+  assert.deepEqual(changes.filter(item=>item.action==='release').map(item=>item.identity.materialKey).sort(),
+    targets.map(item=>item.materialKey).sort());
+  assert.equal(changes.filter(item=>item.action==='acquire').length,3);
+
 });
 
-function validateConformanceResult(result) {
-  const schema=require('../../src/helix/contracts/types/ConformanceAssessmentEvidence/v1/schema.json');
+function validateConformanceResult(result,family='ConformanceAssessmentEvidence') {
+  const schema=require('../../src/helix/contracts/types/'+family+'/v1/schema.json');
   const schemas=new Map(),contractsRoot=path.resolve(__dirname,'../../src/helix/contracts');
   function loadSchema(value) {
     if(schemas.has(value.$id))return;

@@ -39,3 +39,13 @@ Case必须active且Care Basis、CareRequirement摘要一致，basisInputs只允�
 最终分组全架构2,297通过/9既有skip/0失败（并行2,281，95.2秒；串行stage 16，0.2秒）。架构448文件/1403依赖、语义2066文件与P2合同通过；生成的三个参数schema及registry已同步，P2 aggregate为`fdd2ec6d9660f95b93f618ad869376b0fa20a764ec94fe41b853472e478a02c0`，历史catalog witness本体未改。外部日志前缀`series-member-repair-`，包括targeted/workspace/full/stage/contract。
 
 尚未完成：精确成员物化、完整混合输出验收、Inventory-Control原子Commit/Settlement/恢复及真实媒体Host。自动媒体维修保持关闭；UI/Linux与首版可部署条件不因此关闭，无NAS动作。
+
+## 追加：精确媒体成员物化
+
+基线`1868bc1ece3fe1ab931f3daf121881ad19fe84a0`。物化入口不再默认选择Series首个Primary，而是由WorkspaceMediaHandle的sourceMaterialHandleDigest反查冻结Case唯一目标，并校验生产Intent/Strategy、Result摘要、Workspace所属Case/Entry及Handle摘要。写入前重新检查Workspace实际Physical Identity和内容。Series媒体回执显式列出精确原成员，旧文件的删除仍由独立superseded证据与Settlement授权负责；既有Inventory组装可从此原成员继续取得Episode Claims，不用文件名推断。
+
+实际文件专项：四个Inventory Primary中三个维修目标分别写入对应原位置，独立保存各自旧文件；正常成员字节保持。forward恢复复用相同成品与回执身份，Material Control计算恰好释放三个原成员、取得三个新成员。错source摘要、错Intent、foreign Workspace/摘要及实际成品改写均在替换前拒绝。fixture改用正式bounded fingerprint集成，MaterialEffectReceipt通过正式schema。媒体字节为合成文件，本批没有FFmpeg、正式Case调度或Inventory事务的新增证据。
+
+27项增强专项通过；分组全架构2,297通过/9既有skip/0失败（并行2,281，94.7秒；stage 16，0.2秒）。架构448文件/1403依赖、语义2066文件及diff通过；无schema/DDL修改。外部日志前缀`series-media-materialization-`（targeted/full/stage）。
+
+后续仍须完整混合输出逐集验收、正式Inventory-Control原子提交/Claims持久化、Settlement及崩溃恢复和真实媒体Host；本批没有解除自动媒体维修或整体发布门禁，无生产动作。
