@@ -503,6 +503,12 @@ function createLibraRunCoordinator(options){
     const pending=(work,phase,submitted)=>Object.freeze({kind:'pending',phase,libraRunId:snapshot.run.libraRunId,
       workId:work.workId,replayed:submitted.replayed,workspaceId:workspace.workspaceId});
     const scopes=replacementScopes(snapshot);
+    const externalFor=member=>{
+      const scope=scopes.find(item=>item.members.some(source=>source.materialKey===member.materialKey));
+      if(!scope)throw new Error('Series external routing lacks its complete frozen Scope.');
+      const progress=ensureSeriesExternalScope(snapshot,workspace,scope);
+      return progress.kind==='series_external_ready'?ensureSeriesSelection(snapshot,workspace):progress;
+    };
     for(const scope of scopes)if(options.workResultReader.status(externalSearchSelectionWork(snapshot,scope).workId)){
       const progress=ensureSeriesExternalScope(snapshot,workspace,scope);
       if(progress.kind!=='series_external_ready')return progress;
@@ -511,37 +517,52 @@ function createLibraRunCoordinator(options){
     for(const candidate of candidates) {
       if(candidate.eligible)continue;
       const member=candidate.member;
-      if(classifyVerifyGap(candidate.verification)==='spec_external'){
-        const scope=scopes.find(item=>item.members.some(source=>source.materialKey===member.materialKey));
-        if(!scope)throw new Error('Series external routing lacks its complete frozen Scope.');
-        const progress=ensureSeriesExternalScope(snapshot,workspace,scope);
-        return progress.kind==='series_external_ready'?ensureSeriesSelection(snapshot,workspace):progress;
-      }
+      if(classifyVerifyGap(candidate.verification)==='spec_external')return externalFor(member);
       if(onlyRemuxGapFromVerification(candidate.verification)) {
         const work=remuxMediaSelectionWork(snapshot,member),submitted=submit(work),status=options.workResultReader.status(work.workId);
         if(!workSucceeded(status))return workFailed(status)?terminalWork(snapshot,work,status):pending(work,'workspace_media_remux_selection',submitted);
         attachWorkspaceOutputs(snapshot,workspace,work,member);
         if(readSeriesProductionCandidates(options,snapshot).find(item=>item.member.materialKey===member.materialKey).eligible)continue;
       }
-      let eligible=false,lastWork=null,lastRecord=null;
+      let eligible=false,measured=null;
       for(let ordinal=1;ordinal<=64;ordinal++) {
         const assessment=transcodeStrategyAssessmentWork(snapshot,ordinal,member),submitted=submit(assessment),
           status=options.workResultReader.status(assessment.workId);
         if(!workSucceeded(status)) {
           if(!workFailed(status))return pending(assessment,'transcode_strategy_assessment',submitted);
+          if(status.state==='failed'){
+            const reason=status.latestAttempt?.failure_code;
+            if(reason==='media_device_strategies_exhausted')break;
+            if(reason==='media_size_budget_infeasible')continue;
+          }
           return terminalWork(snapshot,assessment,status);
         }
-        const record=externalResultRecord(assessment,'libra.transcode.input.verify@1');lastWork=assessment;lastRecord=record;
+        const record=externalResultRecord(assessment,'libra.transcode.input.verify@1');
         if(record.result.disposition==='integrity_rejected')return freezeBusinessTerminal(snapshot,assessment,record,'source_integrity_rejected');
         if(record.result.disposition==='strategy_rejected')continue;
         if(record.result.disposition!=='compatible')throw new Error('Series Assessment has an invalid disposition.');
         const work=transcodeMediaSelectionWork(snapshot,ordinal,member),workSubmitted=submit(work),workStatus=options.workResultReader.status(work.workId);
-        if(!workSucceeded(workStatus))return workFailed(workStatus)?terminalWork(snapshot,work,workStatus):pending(work,'workspace_media_transcode_selection',workSubmitted);
+        if(!workSucceeded(workStatus)){
+          if(!workFailed(workStatus))return pending(work,'workspace_media_transcode_selection',workSubmitted);
+          if(workStatus.state==='failed'){
+            const reason=workStatus.latestAttempt?.failure_code;
+            if(reason==='media_device_strategies_exhausted')break;
+            if(reason==='media_size_budget_infeasible')continue;
+          }
+          return terminalWork(snapshot,work,workStatus);
+        }
         attachWorkspaceOutputs(snapshot,workspace,work,member);
         if(readSeriesProductionCandidates(options,snapshot).find(item=>item.member.materialKey===member.materialKey).eligible){eligible=true;break;}
-        lastWork=work;lastRecord=mediaVerificationRecord(work);
+        const verified=mediaVerificationRecord(work);
+        if(classifyVerifyGap(verified.result)==='volume_only'&&!measured)measured={work,record:verified};
+        if(shouldFreezeMeasuredSizeCap(work,verified)){
+          const frozen=tryFreezeMeasuredSizeCap(snapshot,work,verified);if(frozen)return frozen;
+        }
       }
-      if(!eligible)return freezeBusinessTerminal(snapshot,lastWork,lastRecord,'media_device_strategies_exhausted');
+      if(!eligible){
+        if(measured){const frozen=tryFreezeMeasuredSizeCap(snapshot,measured.work,measured.record);if(frozen)return frozen;}
+        return externalFor(member);
+      }
     }
     candidates=readSeriesProductionCandidates(options,snapshot);
     for(const candidate of candidates.filter(item=>item.media))attachWorkspaceOutputs(snapshot,workspace,candidate.work,candidate.member);

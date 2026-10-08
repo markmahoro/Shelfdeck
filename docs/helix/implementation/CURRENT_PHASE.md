@@ -359,3 +359,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08完整外部Host发现并保留的合同缺口：正式Run的Episode Claim只有seasonClaimDigest/claimDigest，EpisodeDeliveryManifest却要求逐集outputRequirementDigest；同集多个part有各自的Material Requirement，不能复制测试fixture的虚构单值。用户明确选择“先保留此缺口，推进其他工作”，未确认聚合摘要方案，因此不修改SSOT、不补造值。完整外部替换Host显式skip并保留复现入口；不以此关闭外部上架Gate。独立修复Series源像素缺口误走Movie路径、Query误用Scope Work basis，以及Movie后加工残留多次候选参数；内部耗尽寻源仍待后续验证。
 
 2026-10-08外部Host本批结果：修复Series源观察分流、Query Run basis和Movie后加工单次Import调用。Series搜索拒绝及普通上架Host通过，Movie外部Transcode/Remux真实媒体上架通过；57项专项及P2/架构/语义通过。完整外部替换仍受用户暂保留的EpisodeDelivery合同缺口阻断，不计为通过，内部耗尽/后加工和发布Gate继续。详见[Evidence](evidence/SERIES_EXTERNAL_HOST_GAPS_20261008.md)。
+
+2026-10-08 Series内部耗尽DoR：复用Movie既有有界策略语义，仅真实media_device_strategies_exhausted或完成有界策略后仍未达成可加工规格时进入同成员完整关联Scope寻源；完整性拒绝与其他技术失败保留终止，实测仅体积差距保持质量保护终态。用受控H.264不支持的像素格式/设备快照在正式Host验证本地Assessment耗尽后搜索拒绝与源保护，不依赖尚未确认的EpisodeDelivery合同。
+
+2026-10-08 Series本地策略耗尽：完整Scope寻源已接线，明确策略耗尽与其他技术失败分开处理，质量保护保留首个实测仅体积成品。隔离正式Host耗尽→搜索拒绝、技术失败不寻源及普通上架回归通过，46项专项/P2/架构/语义通过。完整外部替换仍等待EpisodeDelivery合同决定；不关闭后加工/恢复/发布Gate，无NAS操作。[Evidence](evidence/SERIES_LOCAL_EXHAUSTION_ROUTING_20261008.md)。

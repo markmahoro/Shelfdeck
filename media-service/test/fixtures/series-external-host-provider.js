@@ -30,4 +30,20 @@ function fixture(root,{rejectSearch=false}={}){
   }
   return {landing,files,calls,fetch,configure};
 }
-module.exports=Object.freeze({fixture});
+function exhaustedComputeRuntime(){
+  const {canonicalDigest:d}=require('../../src/helix/contracts/canonical-json');
+  const pipeline={pipelineProfileId:'ordinary_to_hevc@1',inputDynamicRangeKinds:['sdr'],
+    inputPixelFormats:['yuv420p10le'],outputCodec:'hevc',outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',
+    outputColorProfile:{range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'},selfTestDigest:d('fixture-pipeline')};
+  const capabilityPayload={supportedVideoCodecs:['hevc'],supportedRateControlModes:['quality_bound'],
+    validatedConcurrentSlots:1,validatedVideoPipelines:[pipeline]},capabilityDigest=d(capabilityPayload);
+  const body={deviceId:'series-fixture-cpu',deviceClass:'software_cpu',probeRevision:1,
+    capabilitySchemaRef:'platform.compute-device-capability@1',capabilityPayload,capabilityDigest,enabled:true,state:'ready',workerRef:null};
+  const snapshot={...body,snapshotDigest:d(body)},ref={deviceId:body.deviceId,deviceClass:body.deviceClass,probeRevision:1,capabilityDigest};
+  return {listReadyDeviceRefs(query){const result={queryDigest:query.queryDigest,resultKind:'available',items:[{...ref,refDigest:d(ref)}]};
+    return {...result,resultDigest:d(result)};},readDeviceSnapshot(query){
+    assert.equal(query.deviceId,body.deviceId);assert.equal(query.expectedProbeRevision,1);assert.equal(query.expectedCapabilityDigest,capabilityDigest);
+    const result={queryDigest:query.queryDigest,resultKind:'found',snapshot};return {...result,resultDigest:d(result)};
+  }};
+}
+module.exports=Object.freeze({fixture,exhaustedComputeRuntime});

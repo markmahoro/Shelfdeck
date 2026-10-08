@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Series本地耗尽寻源：真实策略耗尽后进入完整关联Scope，其他技术失败保持终止；首个实测仅体积成品仍走既有质量保护。耗尽→搜索拒绝、技术失败不寻源、普通Direct/Remux Host及46项专项/P2/架构/语义通过。EpisodeDelivery合同缺口及整体发布Gate仍开放，未操作NAS。[Evidence](implementation/evidence/SERIES_LOCAL_EXHAUSTION_ROUTING_20261008.md)。
+
 2026-10-08 外部Host修复：Series源像素缺口不再误走Movie路径，Query读取正式Run basis；搜索拒绝Host3.7秒、普通Host36.7秒、57项专项通过。Movie后加工残留候选次数调用修复，真实Transcode/Remux上架45.1/38.4秒通过。用户暂保留EpisodeDelivery逐集Requirement摘要合同缺口，完整外部替换Host显式skip，尚不可部署；未操作NAS。[Evidence](implementation/evidence/SERIES_EXTERNAL_HOST_GAPS_20261008.md)。
 
 2026-10-08 Series外部调度：spec_external按完整Scope推进Search/Acquire/Import并恢复既有Work，完整consumer通过后按实际文件Claims附着Workspace，再回全Run终检；拒绝前序或失败媒体明确终结。14项专项、35.4秒普通Host及P2/架构/语义通过。内部耗尽/后加工/完整外部Host继续，未操作NAS。[Evidence](implementation/evidence/SERIES_EXTERNAL_COORDINATOR_20261008.md)。
