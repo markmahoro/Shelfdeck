@@ -1833,11 +1833,18 @@ function productDispositionManifestSchema() {
     sourceMaterialKey: digest(),
     sourceRelatedReferenceId: nullable(id()),
     finalMaterialKey: digest(),
+    finalMaterialKeys: { ...arrayOf(digest(),1024), minItems:2, uniqueItems:true },
     finalRole: enumText('primary_payload', 'structural_dependency', 'related', 'artifact'),
     dispositionKind: enumText('direct_carried', 'carried_forward', 'replaced_and_settled'),
     sourceToFinalMappingDigest: digest(),
     memberDigest: digest(),
   });
+  dispositionMember.required=dispositionMember.required.filter(key=>key!=='finalMaterialKey'&&key!=='finalMaterialKeys');
+  dispositionMember.oneOf=[
+    {required:['finalMaterialKey'],not:{required:['finalMaterialKeys']}},
+    {required:['finalMaterialKeys'],not:{required:['finalMaterialKey']},properties:{
+      finalRole:{const:'primary_payload'},dispositionKind:{const:'replaced_and_settled'},sourceRelatedReferenceId:{type:'null'}}},
+  ];
   return {
     ...exactDomainSchema('ProductDispositionManifest', {
       schemaRef: { const: domainTypeId('ProductDispositionManifest') },

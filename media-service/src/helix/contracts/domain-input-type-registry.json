@@ -1737,7 +1737,7 @@
       "relativePath": "domain-types/ProductDispositionManifest/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "9fe2b3593b1124ee0215e9236a0725922a7f4ba27a14f9bfd84b9975b908d0ab"
+        "value": "861c1f63abe9c1e606604624e210cce2bd82e2f8e70215dfec322031a8bf52a9"
       },
       "usedBy": [
         {

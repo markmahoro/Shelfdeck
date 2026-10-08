@@ -83,6 +83,17 @@
             "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
           },
+          "finalMaterialKeys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "maxItems": 1024,
+            "minItems": 2,
+            "uniqueItems": true
+          },
           "finalRole": {
             "type": "string",
             "enum": [
@@ -115,11 +126,43 @@
           "ordinal",
           "sourceMaterialKey",
           "sourceRelatedReferenceId",
-          "finalMaterialKey",
           "finalRole",
           "dispositionKind",
           "sourceToFinalMappingDigest",
           "memberDigest"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "finalMaterialKey"
+            ],
+            "not": {
+              "required": [
+                "finalMaterialKeys"
+              ]
+            }
+          },
+          {
+            "required": [
+              "finalMaterialKeys"
+            ],
+            "not": {
+              "required": [
+                "finalMaterialKey"
+              ]
+            },
+            "properties": {
+              "finalRole": {
+                "const": "primary_payload"
+              },
+              "dispositionKind": {
+                "const": "replaced_and_settled"
+              },
+              "sourceRelatedReferenceId": {
+                "type": "null"
+              }
+            }
+          }
         ]
       },
       "maxItems": 4096,

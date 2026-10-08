@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Arca多目标处置：ProductDispositionManifest传播完整互斥目标集合，一source一member；投影逐目标核对Package，Final Product Verification对全部落位成员检查缺失/重复。12项专项、35.8秒普通混合上架Host及P2/架构/语义通过。源结算/恢复与完整外部Host继续，未部署NAS。[Evidence](implementation/evidence/SERIES_ARCA_DISPOSITION_20261008.md)。
+
 2026-10-08 Series Offload装配：Promotion重建完整外部候选映射，原文件携带全部成品且仅一row，保留原物理/Control；单目标scalar、缺失/篡改拒绝。30项专项、36.6秒普通混合上架Host及P2/架构/语义通过。外部Read Set、Arca/Coordinator和真实外部Host继续，未部署NAS。[Evidence](implementation/evidence/SERIES_OFFLOAD_ASSEMBLY_20261008.md)。
 
 2026-10-08 Offload旧表升级：精确旧DDL/hash经既有事务扩展多目标列，保持已完成Movie原列、Package摘要及Arca/Custody/Shelf记录；未完成或错关联拒绝，复制后异常完整回滚并可重试。28项回归及P2/架构/语义通过。生产副本升级/回退仍未验收，Assembler/Arca/Coordinator继续，未部署NAS。[Evidence](implementation/evidence/SERIES_OFFLOAD_SCHEMA_UPGRADE_20261008.md)。

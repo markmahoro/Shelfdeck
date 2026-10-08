@@ -1,5 +1,6 @@
 'use strict';
 
+const {productDispositionMembers}=require('../model/product-disposition');
 const {executionInputUnavailable}=require('../../../foundation/execution/execution-input-readiness');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { finalGapDecision } = require('../model/acceptance-gap-decision');
@@ -165,18 +166,7 @@ function targetBindings(c,staged) { const bindings=(staged?.stagedMembers||[]).m
   revision:1,schemaRef:'helix://contracts/domain-types/TargetMaterialBinding/v1',objectKind:'target-material-binding'};return Object.freeze({...body,digest:canonicalDigest({...body,member})});});
   return withDigest({schemaRef:'helix://contracts/domain-types/TargetBindings/v1',schemaVersion:1,objectId:c.responsibility.onDeckRunId+':target-bindings',revision:1,
     targetCommitSlotId:staged.targetCommitSlotId,bindings:Object.freeze(bindings),bindingSetDigest:canonicalDigest({schema:'arca.target-bindings@1',items:bindings})}); }
-function dispositionRole(member) {
-  if (member.controlOperation === 'assert_related_input') return 'related';
-  if (member.role === 'primary_payload' || member.role === 'structural_dependency') return member.role;
-  return 'artifact';
-}
-function disposition(c) { const product=new Map(c.packageValue.productMaterialManifest.members.map((item)=>[item.materialKey,item]));
-  const members=(c.packageValue.offloadContextManifest?.members||[]).map((source,ordinal)=>{const target=product.get(source.finalProductMaterialKey);
-    if(!target)throw new Error('Off-load Context does not resolve to a Product member.');const body={ordinal,sourceMaterialKey:source.materialKey,
-      sourceRelatedReferenceId:source.sourceRelatedReferenceId,finalMaterialKey:source.finalProductMaterialKey,finalRole:dispositionRole(target),
-      dispositionKind:source.dispositionKind,sourceToFinalMappingDigest:source.derivedAuthorityDigest||canonicalDigest(source)};
-    return Object.freeze({...body,memberDigest:canonicalDigest(body)});});
-  if(!members.length)throw new Error('Product Disposition Manifest cannot be empty.');
+function disposition(c) { const members=productDispositionMembers(c.packageValue);
   const body={schemaRef:'helix://contracts/domain-types/ProductDispositionManifest/v1',schemaVersion:1,
     objectId:c.packageValue.onDeckPackageId+':disposition',revision:1,manifestId:c.packageValue.onDeckPackageId+':disposition',onDeckRunId:c.responsibility.onDeckRunId,
     productManifestDigest:c.packageValue.productMaterialManifest.manifestDigest,relatedDispositionSetDigest:c.offer.relatedDispositionSetDigest||

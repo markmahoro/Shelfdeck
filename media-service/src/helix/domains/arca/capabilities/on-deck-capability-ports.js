@@ -1,4 +1,5 @@
 'use strict';
+const {assertDispositionFinalReality}=require('../model/product-disposition');
 const {seriesMetadataFieldMissing}=require('../model/series-metadata');
 const {evaluatePackageSpace}=require('../model/package-space-acceptance');
 
@@ -357,6 +358,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       finalBindingSetDigest:n.finalBindings.bindingSetDigest,productManifestDigest,
       relatedDispositionSetDigest:n.productDispositionManifest.relatedDispositionSetDigest,verifiedMaterialKeys:Object.freeze(keys),targetContainmentDigest:containment,
       finalRealityDigest:reality.realityDigest,memberEvidence:finalMemberEvidence(reality)});
+    assertDispositionFinalReality(n.productDispositionManifest,reality);
     return outcome(C.finalVerify,result,at);},validateResult(_c,o){if(o?.result?.result!=='passed'||!o.result.finalRealityDigest)throw new TypeError('Final Product Verification is invalid.');}});
   ports[C.placement]=Object.freeze({validateInputs(c){requireNamed(c,['verifiedStagedManifest','targetBindings']);},async execute(execution){try{const c=ctx(execution),n=execution.namedInputs,
     at=effectAt(execution),aftercare=aftercareRequest(execution,c,at);if(aftercare){readAftercarePlacementAuthority(options,execution,aftercare.aftercareCaseId);const body=await options.inventoryPort.switchPlacement({...aftercare,
