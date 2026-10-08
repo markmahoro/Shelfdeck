@@ -189,9 +189,12 @@ function mediaProbe(external=false) {
 }
 for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck,external,manualIdentity,multiSeason} of [...(process.env.HELIX_SERIES_MANUAL_IDENTITY==='1'?[{episodeCount:2,mixed:process.env.HELIX_SERIES_BROWSER_COLD!=='1',manualIdentity:true,append:process.env.HELIX_SERIES_BROWSER_APPEND==='1',repair:process.env.HELIX_SERIES_BROWSER_CARE==='1',offdeck:process.env.HELIX_SERIES_BROWSER_OFFDECK==='1'}]:[]),...(process.env.HELIX_SERIES_EXTERNAL==='1'?[{episodeCount:2,shared:true,external:true,real:process.env.HELIX_SERIES_EXTERNAL_REAL==='1'},{episodeCount:2,shared:true,external:'rejected'},{episodeCount:2,shared:true,external:'exhausted'},{episodeCount:2,shared:true,external:'technical'}]:[]),...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true},{episodeCount:2,real:true,mediaRepair:true,mediaBound:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,multiSeason:true},{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(multiSeason?' with separate same-title Seasons':manualIdentity?' with manual Series identity':external?(external==='technical'?' with technical failure before external search':external==='exhausted'?' with exhausted local strategies then external search':external==='rejected'?' with rejected external shared-file search':' with external shared-file replacement'):offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?(nm?' with bounded real N:M media Aftercare':' with bounded real media Aftercare'):nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:real&&process.env.HELIX_SERIES_LONG_MEDIA==='1'?900000:real||repair||migrate?300000:180000},async t=>{
   const browserJourney=(manualIdentity||multiSeason)&&process.env.HELIX_SERIES_BROWSER==='1';
+  const externalBrowser=external&&process.env.HELIX_SERIES_EXTERNAL_BROWSER==='1';
   const coldBrowser=browserJourney&&process.env.HELIX_SERIES_BROWSER_COLD==='1';
   let systemTemplateBefore;
   let browserFlow;
+  let externalBrowserFlow;
+  const observedProviderStages=new Set();
   if(browserJourney)assert.ok([append,repair,offdeck].filter(Boolean).length<=1,'Browser append, repair, and exit journeys use separate frozen inventories.');
   const crashRoot=external?process.env.HELIX_SERIES_EXTERNAL_CRASH_ROOT:offdeck?process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT:mediaRepair?process.env.HELIX_SERIES_AFTERCARE_CRASH_ROOT:null;
   const root=crashRoot?fs.realpathSync(crashRoot):
@@ -200,7 +203,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   const externalProvider=external?require('../fixtures/series-external-host-provider').fixture(root,{rejectSearch:typeof external==='string',real,remux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1',transcode:process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1',multipart:externalMultipart}):null;
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
-  if(browserJourney) {
+  if(browserJourney||externalBrowser) {
     const builtAdmin=path.resolve(__dirname,'../../dist/admin');
     assert.ok(fs.existsSync(path.join(builtAdmin,'index.html')),'Build Admin Web before the browser Host journey.');
     fs.cpSync(builtAdmin,adminDistDir,{recursive:true});
@@ -252,15 +255,37 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   const adapter=harness(),providerCalls=[],artifactCalls=[],appendCommitAudits=[],repairCommitAudits=[],offdeckCommitAudits=[];let unitOfWork,runtimeError,db;
   const poster=await sharp({create:{width:4,height:6,channels:3,background:'#224466'}}).jpeg().toBuffer();
   let injectedDeleteFailures=0;
+  let browserMediaPort;
+  const nativeBrowserMedia=()=>{
+    if(!browserMediaPort){
+      const workspaceProductPort=require('../../src/clean-workspace-product-port').createCleanWorkspaceProductPort({
+        schemaManifest,unitOfWork,rootPath:path.join(dataDir,'workspaces','libra')});
+      const probe=require('../../src/clean-media-probe').createCleanMediaProbe({workspaceMaterialLocationResolver:workspaceProductPort.resolveMaterialLocation});
+      browserMediaPort=require('../../src/clean-media-production-effect-port').createCleanMediaProductionEffectPort({
+        workspaceProductPort,mediaProbe:probe,acceptanceScratchRoot:path.join(dataDir,'runtime','arca-acceptance-observation')});
+    }
+    return browserMediaPort;
+  };
+  const browserMedia=externalBrowser&&real?Object.fromEntries(['executeRemux','executeTranscode','verifyTranscodeInput','verifyPlayback','observeDiscPlayback'].map(method=>[method,async request=>{
+    if(method==='executeRemux'||method==='executeTranscode')await new Promise(resolve=>setTimeout(resolve,12000));
+    return nativeBrowserMedia()[method](request);
+  }])):null;
+  if(browserMedia)browserMedia.close=async()=>{await browserMediaPort?.close();};
   const deletionPort=require('../../src/clean-offdeck-deletion-port').createCleanOffdeckDeletionPort();
-  const hostOptions={dataDir,adminDistDir,secretRoot,...(external?{integrationFetch:externalProvider.fetch,...(['exhausted','technical'].includes(external)?{platformComputeRuntime:require('../fixtures/series-external-host-provider').exhaustedComputeRuntime()}: {})}:{}),...(offdeck&&process.env.HELIX_SERIES_OFFDECK_DELETE_FAILURE==='1'?{
+  const hostOptions={dataDir,adminDistDir,secretRoot,...(external?{integrationFetch:async(input,init)=>{
+    const pathname=new URL(input).pathname;
+    if(externalBrowserFlow&&['/api/v1/search/title','/api/v1/download/add'].includes(pathname)&&!observedProviderStages.has(pathname)){
+      observedProviderStages.add(pathname);await new Promise(resolve=>setTimeout(resolve,15000));
+    }
+    return externalProvider.fetch(input,init);
+  },...(['exhausted','technical'].includes(external)?{platformComputeRuntime:require('../fixtures/series-external-host-provider').exhaustedComputeRuntime()}: {})}:{}),...(offdeck&&process.env.HELIX_SERIES_OFFDECK_DELETE_FAILURE==='1'?{
     offdeckDeletionPort:{inspect:deletionPort.inspect,execute(request){
       if(injectedDeleteFailures===0&&request.materialHandle.location.endsWith('.mkv')){
         injectedDeleteFailures++;throw Object.assign(new Error('Injected temporary Series deletion permission failure'),{code:'EPERM'});
       }
       return deletionPort.execute(request);
     }},
-  }:{}),...((repair||migrate)?{aftercarePlaybackRunner:async()=>{}}:{}),...(real?{}:{mediaProbe:mediaProbe(external),
+  }:{}),...((repair||migrate)?{aftercarePlaybackRunner:async()=>{}}:{}),...(browserMedia?{mediaProductionEffectPort:browserMedia}:{}),...(real?{}:{mediaProbe:mediaProbe(external),
     mediaProductionEffectPort:{
       async verifyPlayback(){return {samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('fixture-decode')};},
       async executeRemux(request){
@@ -388,6 +413,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     onExecutionRuntimeError(error){runtimeError=error;}};
   let host=await createCleanServiceHost(hostOptions);
   t.after(async()=>{
+    await externalBrowserFlow?.close();
     await browserFlow?.close();
     await host.close();db?.close();
     assert.equal(path.dirname(root),fs.realpathSync(os.tmpdir()));
@@ -410,6 +436,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     }finally{initial.close();}
   }
   if(external){await externalProvider.configure(request);externalProvider.calls.length=0;}
+  if(externalBrowser)externalBrowserFlow=await require('../fixtures/series-external-browser-observer').open({host,apiKey:initialized.adminApiKey,scenario:typeof external==='string'?external:undefined});
   if(!browserJourney)await request('POST','/v1/admin/settings/automatic-operation/actions/enable-full', {
     idempotencyKey:'series-settlement',expectedRevision:0,coverExclusiveRelatedInput:true});
   const policyValue={includedDirectories:[],excludedDirectories:[],allowedExtensions:(mixed||mediaRepair)?['.mkv','.mp4']:['.mkv'],minimumSizeBytes:0,excludedMaterialKeys:[]};
@@ -567,6 +594,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   assert.equal(directWork?.state,'succeeded',JSON.stringify({works:state.works,events:db.prepare(
     'SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
   if(typeof external==='string'){
+    if(externalBrowserFlow)await externalBrowserFlow.finish({failed:true});
     assert.equal(state.runs[0].state,'frozen',JSON.stringify(state.works));
     if(external==='technical'){
       assert.equal(externalProvider.calls.filter(item=>item.path==='/api/v1/search/title'||item.method==='POST').length,0);
@@ -653,6 +681,11 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       }
       if(process.env.HELIX_SERIES_EXTERNAL_REMUX==='1')assert.ok(final.every(item=>path.extname(item.location)==='.mkv'));
       t.diagnostic(JSON.stringify({externalMultipart,externalTranscode:process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1',externalRemux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1',realExternal:true,finalPrimaries:final.length,episodeKeys:['E001','E002'],codec:'hevc',raster:'3840x2160',audio:'aac',singleAcquisition:true}));
+    }
+    if(externalBrowserFlow){
+      const collection=(await request('GET','/v1/admin/collection?status=current')).json().items;
+      assert.equal(collection.length,1);
+      await externalBrowserFlow.finish({failed:false,entry:collection[0]});
     }
     return;
   }

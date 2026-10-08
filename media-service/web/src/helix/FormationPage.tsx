@@ -109,6 +109,7 @@ export default function FormationPage() {
   const [filter,setFilter]=useState<Filter>('all'),[q,setQ]=useState(''),[shelfFilter,setShelfFilter]=useState(''),[loading,setLoading]=useState(true),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const [selected,setSelected]=useState<FormationSubject|null>(null),triggerRef=useRef<HTMLButtonElement|null>(null),loadGeneration=useRef(0);
   const [detailLoading,setDetailLoading]=useState(false),[detailError,setDetailError]=useState(''),detailGeneration=useRef(0);
+  const selectedFormationId=useRef<string|null>(null);
   const [identityDialog,setIdentityDialog]=useState<{item:FormationSubject;trigger:HTMLButtonElement}|null>(null);
   const [defectDialog,setDefectDialog]=useState<{item:FormationSubject;candidate:DefectAdmissionCandidate}|null>(null);
   const [careItems,setCareItems]=useState<CareWorkItem[]>([]),[selectedCare,setSelectedCare]=useState<CareWorkItem|null>(null);
@@ -186,6 +187,13 @@ export default function FormationPage() {
       applyRows(result.items);currentPage.current=targetPage;setPageIndex(targetPage);setHasNext(Boolean(result.nextCursor));
       positions.current=positions.current.slice(0,targetPage+1);
       if(result.nextCursor)positions.current.push(result.nextCursor);
+      if(selectedFormationId.current){
+        const id=selectedFormationId.current,detailRequest=++detailGeneration.current;
+        const currentDetail=()=>live()&&detailRequest===detailGeneration.current&&selectedFormationId.current===id;
+        try{const detail=await helixAdminApi.getFormation(id);
+          if(currentDetail()){setSelected(detail);setDetailError('');setDetailLoading(false);}}
+        catch(cause){if(currentDetail()){setDetailLoading(false);if(isUnauthorized(cause))expire();else setDetailError('整理过程读取失败，请关闭后重试。');}}
+      }
       if(selectedCareId.current){const id=selectedCareId.current,result=await helixAdminApi.listCareWork(undefined,id);
         if(live())setSelectedCare(current=>current?.aftercareCaseId===id?result.items[0]||null:current);}
     }catch(cause){if(live()){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'媒体整理读取失败。');}}
@@ -210,9 +218,10 @@ export default function FormationPage() {
     if(filter==='ended')return row.kind==='ended'||row.item.classification==='completed'||row.item.classification==='ended';
     return row.kind!=='ended'&&row.item.classification===filter;
   }),[pageRows,q,shelfFilter,filter]);
-  const close=()=>{detailGeneration.current+=1;setSelected(null);setDetailLoading(false);window.setTimeout(()=>triggerRef.current?.focus(),0);};
+  const close=()=>{detailGeneration.current+=1;selectedFormationId.current=null;setSelected(null);setDetailLoading(false);window.setTimeout(()=>triggerRef.current?.focus(),0);};
   const open=async(item:FormationSubject,button:HTMLButtonElement)=>{
     triggerRef.current=button;const generation=++detailGeneration.current;
+    selectedFormationId.current=item.formationViewId;
     setSelected(item);setDetailLoading(true);setDetailError('');
     try{const detail=await helixAdminApi.getFormation(item.formationViewId);if(generation===detailGeneration.current)setSelected(detail);}
     catch(cause){if(generation===detailGeneration.current){if(isUnauthorized(cause))expire();else setDetailError('整理过程读取失败，请关闭后重试。');}}

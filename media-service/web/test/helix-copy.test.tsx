@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
@@ -60,6 +60,58 @@ function completedSubject(): FormationSubject {
 
 describe('Helix primary copy and workbench structure', () => {
   afterEach(() => vi.restoreAllMocks());
+
+  it('refreshes an open Formation detail and ignores a response after closing', async () => {
+    let poll!:()=>void;
+    vi.spyOn(window,'setInterval').mockImplementation((callback,delay)=>{if(delay===10000)poll=callback as ()=>void;return 1;});
+    const item=completedSubject(),second={...completedSubject(),subjectId:'subject-2',formationViewId:'subject-2',displayIdentity:'Second Movie'},summary={totalCount:2,inProgressCount:0,attentionRequiredCount:0,completedCount:2},projection={status:'ready' as const,asOfMs:1};
+    vi.spyOn(helixAdminApi,'listFormation').mockImplementation(async section=>({items:section==='completed'?[item,second]:[],summary,nextCursor:null,projection}));
+    vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+    vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+    vi.spyOn(helixAdminApi,'getPerceptionSyncState').mockRejectedValue(new Error('not configured'));
+    const detail=vi.spyOn(helixAdminApi,'getFormation').mockResolvedValue(item);
+    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
+    const [trigger,secondTrigger]=await screen.findAllByRole('button',{name:'查看过程'});
+    fireEvent.click(trigger);
+    await waitFor(()=>expect(detail).toHaveBeenCalledTimes(1));
+    detail.mockResolvedValue({...item,organizingRequirement:'Updated formal requirement'});
+    fireEvent.click(screen.getByRole('button',{name:'刷新',exact:true}));
+    await waitFor(()=>expect(screen.getByRole('dialog')).toHaveTextContent('Updated formal requirement'));
+    detail.mockRejectedValueOnce(new Error('private transport failure'));
+    await act(async()=>poll());
+    expect(await screen.findByRole('alert')).toHaveTextContent('整理过程读取失败');
+    detail.mockResolvedValue({...item,organizingRequirement:'Recovered formal requirement'});
+    await act(async()=>poll());
+    await waitFor(()=>expect(screen.getByRole('dialog')).toHaveTextContent('Recovered formal requirement'));
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+    let resolve!:(value:FormationSubject)=>void;
+    detail.mockImplementation(()=>new Promise(done=>{resolve=done;}));
+    await act(async()=>poll());
+    await waitFor(()=>expect(detail).toHaveBeenCalledTimes(5));
+    const oldResponse=resolve;
+    detail.mockResolvedValue({...item,organizingRequirement:'Latest formal requirement'});
+    await act(async()=>poll());
+    await waitFor(()=>expect(screen.getByRole('dialog')).toHaveTextContent('Latest formal requirement'));
+    await act(async()=>oldResponse({...item,organizingRequirement:'Outdated response'}));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Latest formal requirement');
+    detail.mockImplementation(()=>new Promise(done=>{resolve=done;}));
+    await act(async()=>poll());
+    await waitFor(()=>expect(detail).toHaveBeenCalledTimes(7));
+    fireEvent.keyDown(document,{key:'Escape'});
+    await act(async()=>resolve({...item,organizingRequirement:'Late old detail'}));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    await waitFor(()=>expect(trigger).toHaveFocus());
+    let staleOpen!:(value:FormationSubject)=>void;
+    detail.mockImplementationOnce(()=>new Promise(done=>{staleOpen=done;}));
+    fireEvent.click(trigger);
+    fireEvent.keyDown(document,{key:'Escape'});
+    detail.mockResolvedValue(second);
+    fireEvent.click(secondTrigger);
+    await waitFor(()=>expect(screen.getByRole('dialog')).toHaveTextContent('Second Movie'));
+    await act(async()=>staleOpen({...item,organizingRequirement:'Old object response'}));
+    expect(screen.getByRole('dialog')).toHaveTextContent('Second Movie');
+    expect(screen.getByRole('dialog')).not.toHaveTextContent('Old object response');
+  });
 
   it('shows package counts once per Field, including rejection and paused reception', async () => {
     vi.spyOn(helixAdminApi, 'listMaterialFields').mockResolvedValue({ items: [{

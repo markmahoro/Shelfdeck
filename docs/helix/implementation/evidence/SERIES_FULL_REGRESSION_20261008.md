@@ -100,3 +100,15 @@ Windows完整架构280文件：2424项、2410通过、2失败、12skip，1103.27
 | 并发追加/同名多季/共享Artifact退出 | 完整Series Host及已接受浏览器旅程，Target Reservation/跨revision/重放与其他季文件保持分别有负向断言 |
 
 当前固定的样本和核心拒绝条件均有对应验证入口；剩余用户表面门禁需要最终UI影响审查。已授权发送给UI负责人0f78f4240具体候选，负责人正在审查外部Remux/Transcode新增阶段/进度/失败状态，未把后端Host通过当成UI接受。最终Windows全架构运行仍保留原session，不因空日志重启。
+
+## 0f78f4240完整架构终态及外部页面复核
+
+修正后的280文件Windows完整architecture gate已正常退出0，fixture、依赖边界、语义、manifest、P2等总体ok=true；日志series-candidate-final-architecture.log。运行中未改产品运行时源码；其末段新增的外部浏览器fixture是显式opt-in测试，不能将本次全量视为该新增浏览器路径覆盖。
+
+UI负责人在turn 01a11beb-c837-7f60-ae7e-dc6ae95dbf53复验原候选四条实际浏览器旅程通过（首次配置/追加/NFO维护/仅退出第二季），但明确外部Direct/Remux/Transcode过程状态及失败反馈仍需页面证据。追加实际Host浏览器观察发现列表已到“处理原有输入”，打开的过程弹窗仍停“等待文件稳定”；实际原因是Formation load仅刷新列表和selectedCare，selected只在打开时读取一次。
+
+负责人turn 01a11bf4-6f8e-7482-a29d-d73e40588e14确认沿原10秒循环按精确formationViewId刷新详情，保留关闭/切换/请求乱序fence、焦点/滚动，失败明确显示且恢复清错。本批按此修复，无新轮询周期或业务判断；Movie共用测试验证更新、失败恢复、乱序、关闭后迟到、切换对象及回焦。前端全26文件139项通过，构建通过，强化单文件复验通过。
+
+新增浏览器只连接实际Host、不拦截前端API；真实Direct/Remux/Transcode与Provider网络fixture分开标注。使用15秒Provider响应暂停（正式30秒超时内）及12秒真实加工前暂停抓取瞬时阶段，实际FFmpeg/Probe/全链交付不替换。搜索拒绝/策略耗尽/技术失败三终态页面42.58秒通过；初次失败仅审计强求快速失败也必有运行截图，改为失败必须检查真实终态、成功必须检查运行与完成，保存最初失败日志。
+
+外部Direct113.71秒、Remux116.67秒、多part Transcode128.06秒及延时Transcode161.87秒证明实际Host和运行页面；审查发现外部Host成功分支提前return，使初版通用collection浏览器hook未执行，因此以上结果不能称完成反馈已验收。已将finish放到精确外部成功分支，并加正式Collection的季/集/物理文件数及逐集文件名检查；修正后的三条成功浏览器旅程继续运行，待最终证据和UI负责人接受。此前候选镜像尚不含本次页面刷新修复，仍须构建新的最终版本；未操作NAS。
