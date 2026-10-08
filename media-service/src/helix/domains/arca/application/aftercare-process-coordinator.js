@@ -1,4 +1,5 @@
 'use strict';
+const {stagedResultReader}=require('../persistence/staged-manifest-store');
 const { automaticCaseTargetsAcceptedDefect } = require('../model/accepted-defect-maintenance');
 const { careFindingCodes, careFindingParameters, freezeCareObjective } = require('../model/care-objective');
 const { maintenanceRecoveryConditions } = require('../model/maintenance-recovery-conditions');
@@ -99,7 +100,7 @@ function createAftercareProcessCoordinator(options){
     if(!settlement)return null;
     const frozenMaterials=reader.inventoryMaterials(c.shelfEntryId,care.careBasis.inventoryRevision),receipts=[
       ...options.workResultReader.read(commit.work.workId).filter((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===C.artifactMaterialize).map((item)=>item.result),
-      ...placementMaterialReceipts(c,options.workResultReader,prepare.work.workId,care,frozenMaterials),
+      ...placementMaterialReceipts(c,stagedResultReader(options),prepare.work.workId,care,frozenMaterials),
     ],handles=buildAftercareSettlementHandles({context:c,aftercareCaseId:care.aftercareCaseId,receipts,frozenMaterials,
       sourceTargetBinding:material=>reader.sourceTargetBinding(c.shelfEntryId,material),
       observedOldBindings:observeKnownOldBindings(c.raw,options.computeBoundedMaterialFingerprintSync),observedAtMs:inventoryCommit.committedAtMs});

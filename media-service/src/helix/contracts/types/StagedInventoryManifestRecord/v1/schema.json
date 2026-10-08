@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/StagedInventoryManifestRecord/v1",
+  "title": "StagedInventoryManifestRecord@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/StagedInventoryManifestRecord/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "recordId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "manifestId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "manifestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "completeValueDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1024
+    },
+    "recordDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "recordId",
+    "manifestId",
+    "manifestDigest",
+    "completeValueDigest",
+    "memberCount",
+    "recordDigest"
+  ]
+}

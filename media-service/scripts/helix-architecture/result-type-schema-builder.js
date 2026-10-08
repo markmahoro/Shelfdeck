@@ -498,7 +498,7 @@ const special = {
     location: text({ maxLength: 4096 }),
     bindingRevision: positiveInteger(),
     episodeClaims: applicationRef('ArcaMaterialEpisodeClaims'),
-  }), 4096),
+  }), 1024),
   'SettlementDeletionEvidence.preDeleteIdentityDigest': nullable(digest()),
   'SettlementDeletionEvidence.postDeleteReality': settlementRealityRecord(),
   'DeletionEvidence.postDeleteReality': boundedRecord('post-delete-reality'),
@@ -676,6 +676,7 @@ const contracts = {
   AcceptanceCheck: ['VerificationEnvelope', 'acceptanceAttemptId,checkKind,standardRevision,packageDigest,requirementDigest,evidenceStatus,actualGapCodes,actualGapSetDigest,primaryMediaObservations,primaryMediaObservationSetDigest,authorizedDefectManifestDigestOrNull,authorizedGapComparison'],
   InventoryFeasibilityEvidence: ['EvidenceEnvelope', 'shelfId,placementRevision,targetEndpointId,requiredBytes,availableBytes,finalInventoryDecisionDraftDigest'],
   CustodyAndTransferReceipt: ['ReceiptEnvelope', 'acceptanceDecisionId,custodyId,arcaBindingSetDigest,controlRevisionSetDigest,receiptDigest'],
+  StagedInventoryManifestRecord: [null, ''],
   StagedInventoryManifest: ['ManifestEnvelope', 'targetCommitSlotId,stagedMembers,sourceProductManifestDigest'],
   StagedInventoryVerification: ['VerificationEnvelope', 'stagedInventoryManifestDigest,finalInventoryDecisionDigest'],
   PlacementSwitchReceipt: ['ReceiptEnvelope', 'targetCommitSlotId,finalBindingSetDigest,replacedInputSetDigest,transactionRevision'],
@@ -734,6 +735,9 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 }), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if (name === 'StagedInventoryManifestRecord') return { $schema:DRAFT,$id:typeId(name),title:name+'@1',
+    'x-helix-ssotRefs':['8.6.19'],'x-helix-maxCanonicalBytes':64*1024,...object({schemaRef:{const:typeId(name)},schemaVersion:{const:1},
+      recordId:id(),manifestId:id(),manifestDigest:digest(),completeValueDigest:digest(),memberCount:{type:'integer',minimum:1,maximum:1024},recordDigest:digest()})};
   if (name === 'AcceptanceCheckRecord') return { $schema:DRAFT, $id:typeId(name), title:name+'@1',
     'x-helix-ssotRefs':['8.6.19'], 'x-helix-maxCanonicalBytes':64*1024,
     ...object({schemaRef:{const:typeId(name)},schemaVersion:{const:1},acceptanceAttemptId:id(),
@@ -798,7 +802,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   };
   if (name === 'ObservationPageCommitResult' || name === 'ObservationPageCommitReceipt') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
   if (name === 'BdmvAssessmentEvidence') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
-  if (name === 'StagedInventoryManifest') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
+  if (name === 'StagedInventoryManifest') result['x-helix-maxCanonicalBytes'] = 8 * 1024 * 1024;
   if (name === 'LibraCandidateAcceptedMessage' || name === 'LibraCandidateRejectedMessage') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
   if (name === 'ProcurementCandidateRejectionClosureResult') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
   if (name === 'ProcurementCandidateAcceptanceClosureResult') result['x-helix-maxCanonicalBytes'] = 64 * 1024;

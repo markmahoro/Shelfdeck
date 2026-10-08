@@ -1,4 +1,5 @@
 'use strict';
+const {resolveStagedResult}=require('../persistence/staged-manifest-store');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createHandoffBAcceptanceStore } = require('../persistence/handoff-b-acceptance-store');
@@ -132,7 +133,8 @@ function createTerminalEffectHistoryObserver(options) {
         entries.get('source_to_final_mapping_digest') === input.handles.members[0].sourceToFinalMappingDigest &&
         entries.get('final_material_key') === final.sourceMaterialKey && entries.get('final_target_location') === final.targetLocation &&
         HASH.test(entries.get('final_reality_digest')), 'successor member completion does not match old responsibility');
-      const stage = resultFor(next, 'arca.inventory.product.stage@1');
+      const rawStage = resultFor(next, 'arca.inventory.product.stage@1');
+      const stage={...rawStage,value:resolveStagedResult(options,rawStage.value)};
       const placement = resultFor(next, 'arca.inventory.placement.switch@1');
       const verification = resultFor(next, 'arca.inventory.final_product.verify@1');
       const fulfillment = resultFor(next, 'arca.ondeck.fulfillment.verify@1');

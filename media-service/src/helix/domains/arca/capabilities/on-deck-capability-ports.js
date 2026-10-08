@@ -1,4 +1,5 @@
 'use strict';
+const {createStagedManifestStore,resolveStagedResult}=require('../persistence/staged-manifest-store');
 const {createAcceptanceCheckEvidenceStore,resolveAcceptanceResult,RECORD:CHECK_RECORD}=require('../persistence/acceptance-check-evidence-store');
 const {settlementTargetEntries,dispositionCompletions:buildDispositionCompletions}=require('../model/settlement-completion');
 const {assertDispositionFinalReality}=require('../model/product-disposition');
@@ -338,9 +339,10 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     else onDeck.acquireStagedCustody({
       onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,
       shelfId:c.shelf.shelfId,package:c.packageValue,stagedInventoryManifest:staged});
-    return committedOutcome(execution,C.stage,staged,at,'material_commit');
+    const record=createStagedManifestStore(options).save(execution,staged);
+    return committedOutcome(execution,C.stage,record,at,'material_commit');
     }catch(error){const failed=stagePreconditionFailureOutcome(error);if(failed)return failed;throw error;}},
-    validateResult(_c,o){if(!o?.result?.manifestDigest)throw new TypeError('Staged Inventory Manifest is invalid.');}});
+    validateResult(_c,o){if(o?.result?.schemaRef!=='helix://contracts/types/StagedInventoryManifestRecord/v1')throw new TypeError('Staged Inventory Manifest Record is invalid.');}});
   ports[C.stagedVerify]=Object.freeze({validateInputs(c){requireNamed(c,['stagedManifest','finalInventoryDecision']);},async execute(execution){
     const c=ctx(execution),n=execution.namedInputs,request=aftercareRequest(execution,c)||{onDeckRunId:c.responsibility.onDeckRunId,
       custodyId:c.responsibility.custodyId,shelf:c.shelf,onDeckProductPackage:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,
@@ -412,7 +414,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     relatedDispositionCompletionDigest=canonicalDigest({schema:'arca.related-disposition-completion@1',onDeckRunId:c.responsibility.onDeckRunId,
       dispositionMemberSetDigest:c.packageValue.offloadContextManifest.memberSetDigest,finalRealityDigest:staged.realityDigest,
       completions:dispositionCompletions}),stagedCustodyManifests=options.workResultReader.read(execution.workId)
-        .filter(item=>item.capabilityRef===C.stage&&item.outcomeKind==='succeeded').map(item=>item.result),
+        .filter(item=>item.capabilityRef===C.stage&&item.outcomeKind==='succeeded').map(item=>resolveStagedResult(options,item.result)),
       all=[...c.packageValue.productMaterialManifest.members,...c.packageValue.offloadContextManifest.members],
       keys=[...new Set([...all.map(m=>m.materialKey),...stagedCustodyManifests.flatMap(manifest=>manifest.stagedMembers.map(member=>member.physicalIdentity.materialKey))])].sort(),
     custodyControls=controls.getMaterialControlProjections(keys),targetControls=controls.getMaterialControlProjections(staged.members.map(m=>m.materialKey).sort()),

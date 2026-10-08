@@ -107,7 +107,7 @@
           "episodeClaims"
         ]
       },
-      "maxItems": 4096
+      "maxItems": 1024
     },
     "sourceProductManifestDigest": {
       "type": "string",
@@ -129,5 +129,5 @@
     "stagedMembers",
     "sourceProductManifestDigest"
   ],
-  "x-helix-maxCanonicalBytes": 65536
+  "x-helix-maxCanonicalBytes": 8388608
 }

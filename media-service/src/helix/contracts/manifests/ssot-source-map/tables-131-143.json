@@ -6,13 +6,24 @@
   "endOrdinal": 143,
   "entries": [
     {
+      "id": "arca_offdeck_policy_heads",
+      "owner": "arca",
+      "columnsContract": "`policy_id PK, current_revision, status, updated_at_ms`",
+      "constraintsContract": "current revision显式FK；Automation只读head，不使用`MAX(revision)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 9500,
+        "lineDigest": "535fe763445393a3f6da2bb862caf3f6fd6ba0558dc091cce994de67691f040b"
+      }
+    },
+    {
       "id": "arca_offdeck_policy_revisions",
       "owner": "arca",
       "columnsContract": "`policy_id, revision, condition_group_schema_ref, condition_group_json, policy_digest, effective_at_ms`",
       "constraintsContract": "Policy JSON上限`64 KiB`；`PK(policy_id,revision)`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 9500,
+        "line": 9501,
         "lineDigest": "bb4435c564a9cbcf01820993a914b28644e31f066e085d2e56bfdd4563b63a25"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "target是closed union：entry恰有`shelf_entry_id`，duplicate group恰有`duplicate_group_id`，另一列必须NULL；Condition Evidence JSON上限`16 KiB`；相同`target+policy revision+reason`至多一个open Candidate；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9501,
+        "line": 9502,
         "lineDigest": "374b650105d8da6b200797bada923eef2075d3c2d8b1dc3d2c73934d59b31ba1"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "Suppression精确绑定Entry、Policy revision与reason digest；Policy或reason变化后旧Suppression不遮蔽新Candidate；`INDEX(shelf_entry_id,candidate_kind,state,expires_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9502,
+        "line": 9503,
         "lineDigest": "06f2b7d8f0f1b8e1c2d52e791ed6e38b3da1583c5f9f5f4eaff008b578343620"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "`UNIQUE(canonical_identity_digest,member_set_digest)`；Group是Off-deck Evidence aggregate，不选择保留成员",
       "source": {
         "section": "8.5.12",
-        "line": 9503,
+        "line": 9504,
         "lineDigest": "2ea29ec1242d920e488cfa644865edf2eadbfd2c9a47f89520e5b3c52995081d"
       }
     },
@@ -56,7 +67,7 @@
       "constraintsContract": "`PK(duplicate_group_id,shelf_entry_id)`",
       "source": {
         "section": "8.5.12",
-        "line": 9504,
+        "line": 9505,
         "lineDigest": "ecc853bb09c6cec484bca73f98a35dd59f67b481466ce9bb51300fd99d5b5955"
       }
     },
@@ -67,7 +78,7 @@
       "constraintsContract": "当前Group/member set至多一份active；成员或Identity变化后旧Whitelist为stale",
       "source": {
         "section": "8.5.12",
-        "line": 9505,
+        "line": 9506,
         "lineDigest": "756bfc233aee57e11d4135953ceea853fc9063ba4681f6cd400ab61cced3829f"
       }
     },
@@ -78,7 +89,7 @@
       "constraintsContract": "创建时先原子建立Review与每Entry Reservation；只有已有Aftercare Case在安全边界停下后才进入open并冻结Scope；Authorization前取消只终结Review并释放Reservation；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9506,
+        "line": 9507,
         "lineDigest": "31bbedcaa13d47f99b41dd816871d4ae3953bfa797abda46c8cbbb4a063c0ee4"
       }
     },
@@ -89,7 +100,7 @@
       "constraintsContract": "同一Shelf Entry至多一个active Off-deck Reservation；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9507,
+        "line": 9508,
         "lineDigest": "d9ec380f97236575796baeeb3e5ebdce5a3a60d11c825419eb07e7327a4b87c6"
       }
     },
@@ -100,7 +111,7 @@
       "constraintsContract": "`member_count=1..1024`且逐字节等于material rows；`UNIQUE(reservation_id,scope_digest)`；pre-authorization immutable Scope由Reservation拥有，不依赖Case，准备Scope期间不占Resource Permit",
       "source": {
         "section": "8.5.12",
-        "line": 9508,
+        "line": 9509,
         "lineDigest": "38bfcadff57970b766e542947b984c55415df931c7d580ae736d8265d7de9f28"
       }
     },
@@ -111,7 +122,7 @@
       "constraintsContract": "`PK(destruction_scope_id,ordinal)`及`UNIQUE(destruction_scope_id,material_key,material_role)`；逐项冻结完整`PhysicalMaterialIdentity@2`、Endpoint-relative location、Binding/Control fence及Related reference；JSON上限`4 KiB`；只允许删除该授权Identity，路径出现替代Identity时必须保留",
       "source": {
         "section": "8.5.12",
-        "line": 9509,
+        "line": 9510,
         "lineDigest": "d19eef8428db6bd39e5189af5d617a98bd282494c9f7b0db6b419fdf938280f8"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；服务端按当前Scope集合计算，不信任客户端阈值；shelf_coverage_json为确认时各Shelf覆盖率的immutable快照，与shelf_coverage_digest一致，最多64 KiB；旧记录缺证保留NULL，禁止按当前数量倒填",
       "source": {
         "section": "8.5.12",
-        "line": 9510,
+        "line": 9511,
         "lineDigest": "b914c7167571f17229012ceb422ff08330e936bef5e14821dfb3ea626020f8db"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "`UNIQUE(selection_receipt_id)`；只在high-volume时生成且必须来自独立第二次操作",
       "source": {
         "section": "8.5.12",
-        "line": 9511,
-        "lineDigest": "63661ab1e465cec55b486f8361793d31c5f38bf14b10b4f541dd19f3fae16945"
-      }
-    },
-    {
-      "id": "arca_offdeck_authorization_batches",
-      "owner": "arca",
-      "columnsContract": "`batch_id PK, review_id FK, selection_receipt_id FK, escalation_receipt_id, scope_set_digest, actor_id, authorized_at_ms`",
-      "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；high-volume时escalation receipt必填；Batch只是一份Envelope",
-      "source": {
-        "section": "8.5.12",
         "line": 9512,
-        "lineDigest": "6f6a4f74e1e04cf563db3b897b459abc2d5c4cf59729dc0719c36067a4db059a"
+        "lineDigest": "63661ab1e465cec55b486f8361793d31c5f38bf14b10b4f541dd19f3fae16945"
       }
     }
   ]

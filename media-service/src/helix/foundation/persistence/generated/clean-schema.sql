@@ -997,6 +997,28 @@ CREATE TABLE "arca_source_cleanup_checks" (
 );
 CREATE INDEX "idx_arca_source_cleanup_checks_hot_01" ON "arca_source_cleanup_checks" ("next_check_at_ms", "on_deck_run_id");
 
+CREATE TABLE "arca_staged_manifest_records" (
+  "record_id" TEXT PRIMARY KEY,
+  "work_id" TEXT,
+  "event_id" TEXT,
+  "process_type" TEXT,
+  "process_id" TEXT,
+  "target_commit_slot_id" TEXT,
+  "manifest_schema_ref" TEXT,
+  "manifest_json" TEXT,
+  "manifest_digest" TEXT CHECK (length("manifest_digest") = 64 AND "manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "complete_value_digest" TEXT CHECK (length("complete_value_digest") = 64 AND "complete_value_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT,
+  "record_json" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("event_id"),
+  CHECK (json_valid("manifest_json")),
+  CHECK (length(CAST("manifest_json" AS BLOB)) <= 8388608),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 65536)
+);
+
 CREATE TABLE "fx_artifact_references" (
   "artifact_handle_id" TEXT,
   "consumer_domain" TEXT,

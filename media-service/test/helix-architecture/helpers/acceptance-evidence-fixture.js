@@ -10,12 +10,12 @@ const {createCapabilityContractValidator}=require('../../../src/helix/foundation
 const {createAcceptanceCheckEvidenceStore}=require('../../../src/helix/domains/arca/persistence/acceptance-check-evidence-store');
 const schemaManifest=require('../../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
 const schemaDdl=fs.readFileSync(path.resolve(__dirname,'../../../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
-function fixture(capabilityRef,processId='offer'){
+function fixture(capabilityRef,processId='offer',processType='arca_acceptance'){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'arca-check-evidence-')),databasePath=path.join(root,'test.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
   const db=new Database(databasePath);
   db.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
-    .run('work','arca','arca_acceptance',processId,'acceptance_assessment',D('basis'),'normal','running','work-key',1,1);
+    .run('work','arca',processType,processId,'acceptance_assessment',D('basis'),'normal','running','work-key',1,1);
   db.prepare('INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,basis_digest,state,started_at_ms) VALUES(?,?,?,?,?,?)')
     .run('work-attempt','work',1,D('basis'),'running',1);
   db.prepare('INSERT INTO fx_workflow_plans(plan_id,attempt_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
@@ -26,9 +26,13 @@ function fixture(capabilityRef,processId='offer'){
     .run('event-attempt','event',1,capabilityRef,1,'helix://test/input/v1',D('input'),D('fence'),'executing',1);
   const options={schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel}),contractValidator:createCapabilityContractValidator({schemas:[
     require('../../../src/helix/contracts/types/AcceptanceCheck/v1/schema.json'),
-    require('../../../src/helix/contracts/types/AcceptanceCheckRecord/v1/schema.json')]})};
+    require('../../../src/helix/contracts/types/AcceptanceCheckRecord/v1/schema.json'),
+    require('../../../src/helix/contracts/types/StagedInventoryManifest/v1/schema.json'),
+    require('../../../src/helix/contracts/types/StagedInventoryManifestRecord/v1/schema.json'),
+    require('../../../src/helix/contracts/types/PhysicalMaterialIdentity/v2/schema.json'),
+    require('../../../src/helix/contracts/application-types/ArcaMaterialEpisodeClaims/v1/schema.json')]})};
   const store=createAcceptanceCheckEvidenceStore(options);
-  return {options,store,db,execution:{ownerScope:{processType:'arca_acceptance',processId},workId:'work',eventId:'event',
+  return {options,store,db,execution:{ownerScope:{processType,processId},workId:'work',eventId:'event',
     eventAttemptId:'event-attempt',capabilityRef,idempotencyKey:'check-key'},close(){db.close();kernel.close();fs.rmSync(root,{recursive:true,force:true});}};
 }
 module.exports={fixture};

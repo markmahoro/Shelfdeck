@@ -5,6 +5,7 @@ const path = require('path');
 const { buildResultTypeSchemas, schemaDigest, typeId } = require('./result-type-schema-builder');
 
 const HELPER_SOURCES = {
+  StagedInventoryManifest: { section:'8.6.19',line:15825 },
   AcceptanceCheck: { section: '8.6.19', line: 11122 },
   EpisodeMetadataRecordSet: { section: '8.6.19', line: 11102 },
   PrimaryInputManifestDraft: { section: '8.6.19', line: 11081 },
