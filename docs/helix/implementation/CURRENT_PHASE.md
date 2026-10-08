@@ -353,3 +353,9 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series外部调度DoR：spec_external缺口按冻结完整连通Scope推进Search→Acquire→多成员Import；已开始Scope先恢复同Work，完整consumer通过才按每个实际Handle及Claims附着Workspace并回到全Run终检。未知空间获取仍使用已确认准入，Import不合格明确冻结既有Evidence，不循环重新获取。内部策略耗尽寻源与外部后加工另需闭环验证。
 
 2026-10-08 Series外部调度：spec_external按完整Scope推进Search/Acquire/Import并恢复既有Work，完整consumer通过后按实际文件Claims附着Workspace，再回全Run终检；拒绝前序或失败媒体明确终结。14项专项、35.4秒普通Host及P2/架构/语义通过。内部耗尽/后加工/完整外部Host继续，未操作NAS。[Evidence](evidence/SERIES_EXTERNAL_COORDINATOR_20261008.md)。
+
+2026-10-08 Series完整外部Host DoR：在现有隔离Series Host增加一个E01-E02共文件→两个分集文件场景，正式配置受控MoviePilot集成，经实际搜索/下载请求协议、Landing真实临时文件/Import、全Run终检、Promotion、Arca审批/一次source结算及Season Commit。Probe受控，验证真实文件与事务链路，不冒充真实Provider下载或真实视频质量；不操作NAS。
+
+2026-10-08完整外部Host发现并保留的合同缺口：正式Run的Episode Claim只有seasonClaimDigest/claimDigest，EpisodeDeliveryManifest却要求逐集outputRequirementDigest；同集多个part有各自的Material Requirement，不能复制测试fixture的虚构单值。用户明确选择“先保留此缺口，推进其他工作”，未确认聚合摘要方案，因此不修改SSOT、不补造值。完整外部替换Host显式skip并保留复现入口；不以此关闭外部上架Gate。独立修复Series源像素缺口误走Movie路径、Query误用Scope Work basis，以及Movie后加工残留多次候选参数；内部耗尽寻源仍待后续验证。
+
+2026-10-08外部Host本批结果：修复Series源观察分流、Query Run basis和Movie后加工单次Import调用。Series搜索拒绝及普通上架Host通过，Movie外部Transcode/Remux真实媒体上架通过；57项专项及P2/架构/语义通过。完整外部替换仍受用户暂保留的EpisodeDelivery合同缺口阻断，不计为通过，内部耗尽/后加工和发布Gate继续。详见[Evidence](evidence/SERIES_EXTERNAL_HOST_GAPS_20261008.md)。

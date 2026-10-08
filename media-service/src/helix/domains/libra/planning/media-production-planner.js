@@ -167,20 +167,18 @@ function readyDeviceStrategies(options,requirement,attempted,pipelineProfileId) 
 }
 
 function transcodeSourceFromExternalImport(options,snapshot) {
-  for(let attempt=5;attempt>=1;attempt-=1){
-    const importWork=externalImportSelectionWork(snapshot,attempt);
-    const status=options.workResultReader.status?.(importWork.workId);
-    if(status?.state!=='succeeded')continue;
-    const results=options.workResultReader.read(importWork.workId);
-    const media=results.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===IMPORT)?.result;
-    const probe=results.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===PROBE)?.result;
-    const verify=results.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===VERIFY)?.result;
-    const handle=media?.schemaRef==='helix://contracts/types/WorkspaceMaterialHandle/v1'?media:null;
-    if(!handle||!probe||!verify)continue;
-    const gap=classifyVerifyGap(verify);
-    if(gap==='volume_only'||gap==='transcode_fixable'){
-      return Object.freeze({handle,inputProbe:probe,originalProbe:probe,sourceKind:'external_workspace',editionEvidence:verify.qualitySummary?.editionEvidence||null});
-    }
+  const importWork=externalImportSelectionWork(snapshot);
+  const status=options.workResultReader.status?.(importWork.workId);
+  if(status?.state!=='succeeded')return null;
+  const results=options.workResultReader.read(importWork.workId);
+  const media=results.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===IMPORT)?.result;
+  const probe=results.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===PROBE)?.result;
+  const verify=results.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===VERIFY)?.result;
+  const handle=media?.schemaRef==='helix://contracts/types/WorkspaceMaterialHandle/v1'?media:null;
+  if(!handle||!probe||!verify)return null;
+  const gap=classifyVerifyGap(verify);
+  if(gap==='volume_only'||gap==='transcode_fixable'){
+    return Object.freeze({handle,inputProbe:probe,originalProbe:probe,sourceKind:'external_workspace',editionEvidence:verify.qualitySummary?.editionEvidence||null});
   }
   return null;
 }

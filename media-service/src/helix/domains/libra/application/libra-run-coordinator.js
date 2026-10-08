@@ -805,7 +805,7 @@ function createLibraRunCoordinator(options){
       if(!workSucceeded(options.workResultReader.status(direct.workId)))throw new Error('Authorized direct product lost its completed verification Work.');
       return ensureDelivery(snapshot,workspace,direct);
     }
-    if(sourceObservations.some(item=>sourceRequiresExternalSearch(item.record.result,snapshot.spec?.requirements?.mandatoryMedia))){
+    if(snapshot.spec.contentProfile!=='series'&&sourceObservations.some(item=>sourceRequiresExternalSearch(item.record.result,snapshot.spec?.requirements?.mandatoryMedia))){
       return ensureOriginalMediaThenExternal(snapshot,workspace);
     }
     if(snapshot.materialInputForm!=='stream_file'){

@@ -163,3 +163,20 @@ test('UAT-251 processable acquisition rejects hard gaps, unknown evidence, and z
     assert.equal(isProcessableCandidate({...h264,assessmentReasonCodes:['video_codec_unmet',gap]}),false);
   assert.equal(isProcessableCandidate({...h264,availabilityEvidence:{status:'known',seederCount:0}}),false);
 });
+
+
+test('query capability reads the owning Run basis instead of a scoped Work basis',()=>{
+  const capabilityRef='libra.external_material.query.prepare@1';
+  const context={capabilityRef,ownerScope:{processId:'run-1'},basisRefs:[{digest:hex('scope-work')}],
+    namedInputs:{resolvedProductIdentity:identity,productStructure:structure(),mediaRequirement:mediaRequirement(),
+      acquisitionPolicy:c.buildAcquisitionPolicy({integrationId:'integration-1',configRevision:3})}};
+  const ports=createExternalMaterialCapabilityPorts({now:()=>NOW,movieProductionReader:{readRunSnapshot(id){
+    assert.equal(id,'run-1');return {run:{libraRunId:id,executionBasisDigest:hex('run')}};
+  }}});
+  const outcome=ports[capabilityRef].execute(context);
+  assert.deepEqual(outcome.result,query());
+  const wrong=createExternalMaterialCapabilityPorts({movieProductionReader:{readRunSnapshot(){
+    return {run:{libraRunId:'other',executionBasisDigest:hex('run')}};
+  }}});
+  assert.throws(()=>wrong[capabilityRef].execute(context),/escaped its Run/);
+});

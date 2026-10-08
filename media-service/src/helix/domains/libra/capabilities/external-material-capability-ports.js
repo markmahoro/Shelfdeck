@@ -117,6 +117,8 @@ function createExternalMaterialCapabilityPorts(options) {
         requireNamed(context, ['resolvedProductIdentity', 'productIdentityEvidenceObservation', 'productStructure','mediaRequirement','acquisitionPolicy']);
       },
       execute(context) {
+        const snapshot=options.movieProductionReader.readRunSnapshot(context.ownerScope.processId);
+        if(snapshot.run.libraRunId!==context.ownerScope.processId)throw new Error('Acquisition Query escaped its Run.');
         const result = contracts.buildAcquisitionQuery({
           resolvedProductIdentity: context.namedInputs.resolvedProductIdentity,
           productIdentityEvidenceObservation: context.namedInputs.productIdentityEvidenceObservation,
@@ -126,7 +128,7 @@ function createExternalMaterialCapabilityPorts(options) {
           acquisitionPolicy:context.namedInputs.acquisitionPolicy,
           executionContext: {
             libraRunId: context.ownerScope.processId,
-            runExecutionBasisDigest: context.basisRefs[0].digest,
+            runExecutionBasisDigest: snapshot.run.executionBasisDigest,
           },
           producedAtMs: now(),
         });
