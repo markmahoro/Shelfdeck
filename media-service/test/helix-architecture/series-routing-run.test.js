@@ -186,7 +186,7 @@ function mediaProbe(external=false) {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck,external,manualIdentity} of [...(process.env.HELIX_SERIES_MANUAL_IDENTITY==='1'?[{episodeCount:2,mixed:true,manualIdentity:true}]:[]),...(process.env.HELIX_SERIES_EXTERNAL==='1'?[{episodeCount:2,shared:true,external:true},{episodeCount:2,shared:true,external:'rejected'},{episodeCount:2,shared:true,external:'exhausted'},{episodeCount:2,shared:true,external:'technical'}]:[]),...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true},{episodeCount:2,real:true,mediaRepair:true,mediaBound:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(manualIdentity?' with manual Series identity':external?(external==='technical'?' with technical failure before external search':external==='exhausted'?' with exhausted local strategies then external search':external==='rejected'?' with rejected external shared-file search':' with external shared-file replacement'):offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?(nm?' with bounded real N:M media Aftercare':' with bounded real media Aftercare'):nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {skip:external===true?'Pending EpisodeDelivery Requirement digest contract; user deferred 2026-10-08':false,timeout:real&&process.env.HELIX_SERIES_LONG_MEDIA==='1'?900000:real||repair||migrate?300000:180000},async t=>{
+for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck,external,manualIdentity} of [...(process.env.HELIX_SERIES_MANUAL_IDENTITY==='1'?[{episodeCount:2,mixed:true,manualIdentity:true,append:process.env.HELIX_SERIES_BROWSER_APPEND==='1'}]:[]),...(process.env.HELIX_SERIES_EXTERNAL==='1'?[{episodeCount:2,shared:true,external:true},{episodeCount:2,shared:true,external:'rejected'},{episodeCount:2,shared:true,external:'exhausted'},{episodeCount:2,shared:true,external:'technical'}]:[]),...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true},{episodeCount:2,real:true,mediaRepair:true,mediaBound:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(manualIdentity?' with manual Series identity':external?(external==='technical'?' with technical failure before external search':external==='exhausted'?' with exhausted local strategies then external search':external==='rejected'?' with rejected external shared-file search':' with external shared-file replacement'):offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?(nm?' with bounded real N:M media Aftercare':' with bounded real media Aftercare'):nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {skip:external===true?'Pending EpisodeDelivery Requirement digest contract; user deferred 2026-10-08':false,timeout:real&&process.env.HELIX_SERIES_LONG_MEDIA==='1'?900000:real||repair||migrate?300000:180000},async t=>{
   const browserJourney=manualIdentity&&process.env.HELIX_SERIES_BROWSER==='1';
   let browserFlow;
   const crashRoot=offdeck?process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT:mediaRepair?process.env.HELIX_SERIES_AFTERCARE_CRASH_ROOT:null;
@@ -1103,8 +1103,20 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const immutableInventory=rows=>rows.map(({active_guard,...row})=>row);
     const oldInventory=JSON.stringify(immutableInventory(inventory)),oldFacts=JSON.stringify(db.prepare('SELECT * FROM arca_deck_fact_revisions').all());
     fs.writeFileSync(path.join(source,'Demo Show.S01E03.mkv'),'third-series-fixture');
-    const field=createMaterialFieldStore(deps).getMaterialField('series-field');
-    await request('POST','/v1/admin/material-fields/series-field/actions/observe',{idempotencyKey:'series-observe-e03',fieldId:'series-field',expectedAccessRevision:1,
+    const field=createMaterialFieldStore(deps).getMaterialField(sourceFieldId);
+    if(browserFlow) {
+      await browserFlow.scanNextBatch();
+      const until=Date.now()+60000;
+      let pending;
+      do {
+        pending=(await request('GET','/v1/admin/formation?section=active')).json().items.find(item=>item.productIdentityIssue);
+        if(pending)break;
+        assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,100));
+      } while(Date.now()<until);
+      assert.ok(pending,'Appended batch identity must be available to the user.');
+      assert.deepEqual(pending.seriesDelivery.episodeKeys,['E003']);
+      await browserFlow.chooseIdentity('append-');
+    } else await request('POST','/v1/admin/material-fields/series-field/actions/observe',{idempotencyKey:'series-observe-e03',fieldId:'series-field',expectedAccessRevision:1,
       expectedObservationRevision:field.currentObservationRevision,pageBudget:8});
     const appendDeadline=Date.now()+70000;
     do {
@@ -1192,6 +1204,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       assert.deepEqual(completedFormation.items.find(item=>item.subjectId===firstRun.subject_id).seriesDelivery,appendedFormation.seriesDelivery);
     }
     assert.equal(appendedCollection.length,1);assert.equal(appendedCollection[0].series.episodeCount,3);
+    if(browserFlow)await browserFlow.verifyCollection(appendedCollection[0],'append-');
     assert.deepEqual(appendedCollection[0].series.episodes.map(item=>item.episodeKey),['E001','E002','E003']);
     for(const item of inventoryPrimary)assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
     const third=latestPrimary.find(row=>JSON.parse(row.episode_claims_json).items.some(claim=>claim.episodeKey==='E003'));
@@ -1205,7 +1218,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       const run=db.prepare('SELECT * FROM arca_ondeck_runs WHERE on_deck_run_id=?').get(receipt.on_deck_run_id);
       const pkg=db.prepare('SELECT * FROM libra_product_packages WHERE on_deck_package_id=?').get(completion.package_id);
       const input={onDeckRunId:run.on_deck_run_id,custodyId:run.custody_id,finalInventoryDecisionDigest:run.final_inventory_decision_digest,
-        onDeckPackageId:pkg.on_deck_package_id,packageDigest:pkg.package_digest,shelfId:'series-shelf'};
+        onDeckPackageId:pkg.on_deck_package_id,packageDigest:pkg.package_digest,shelfId:sourceShelfId};
       const historical=onDeck.readHistoricalCommitted(input),byPackage=onDeck.readCommittedByPackage(input);
       assert.equal(historical.replayed,true);assert.equal(byPackage.replayed,true);
       assert.equal(historical.commitDigest,receipt.commit_digest);assert.equal(byPackage.commitDigest,receipt.commit_digest);

@@ -96,11 +96,21 @@ async function open({ host, apiKey }) {
       const response = await observation;
       assert.ok(response.ok(), await response.text());
     },
-    async chooseIdentity() {
+    async scanNextBatch() {
+      await page.setViewportSize({ width: 1920, height: 1080 });
+      await page.goto(address + '/material-fields');
+      const observation = page.waitForResponse(response => response.request().method() === 'POST' &&
+        response.url().endsWith('/actions/observe'));
+      await page.getByRole('button', { name: '扫描新文件', exact: true }).click();
+      const response = await observation;
+      assert.ok(response.ok(), await response.text());
+      await screenshot('append-source-scan');
+    },
+    async chooseIdentity(prefix = '') {
       await page.goto(address + '/formation');
       const button = page.getByRole('button', { name: '手动选取剧集身份', exact: true });
       await expect(button).toBeVisible();
-      await screenshot('formation-attention');
+      await screenshot(prefix + 'formation-attention');
       await button.click();
       const dialog = page.getByRole('dialog', { name: '手动选取剧集身份' });
       await expect(dialog.getByLabel('TMDB 剧集 ID')).toBeFocused();
@@ -108,11 +118,11 @@ async function open({ host, apiKey }) {
       await dialog.getByRole('button', { name: '查询', exact: true }).click();
       await expect(dialog.getByText('第 1 季', { exact: true })).toBeVisible();
       await expect(dialog.getByRole('button', { name: '确认选取' })).toBeEnabled();
-      await screenshot('identity-preview-desktop');
+      await screenshot(prefix + 'identity-preview-desktop');
       await page.setViewportSize({ width: 390, height: 844 });
       const bounds = await dialog.boundingBox();
       assert.ok(bounds.x >= 0 && bounds.x + bounds.width <= 390);
-      await screenshot('identity-preview-narrow');
+      await screenshot(prefix + 'identity-preview-narrow');
       const responsePromise = page.waitForResponse(response => response.request().method() === 'POST' &&
         response.url().endsWith('/actions/choose-product-identity'));
       await dialog.getByRole('button', { name: '确认选取' }).click();
@@ -123,32 +133,32 @@ async function open({ host, apiKey }) {
       assert.equal(receipt.seasonNumber, 1);
       await expect(dialog).toHaveCount(0);
     },
-    async verifyCollection(entry) {
+    async verifyCollection(entry, prefix = '') {
       for (const [name, width, height] of [['desktop', 1920, 1080], ['narrow', 390, 844]]) {
         await page.setViewportSize({ width, height });
         await page.goto(address + '/collection');
         const tile = page.getByRole('button', { name: '查看 ' + entry.displayIdentity + ' 详情', exact: false });
         await expect(tile).toBeVisible();
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
-        await screenshot('collection-page-' + name);
+        await screenshot(prefix + 'collection-page-' + name);
         const filter = page.locator('.collection-filter summary');
         await filter.click();
         await expect(page.getByRole('navigation', { name: '收藏健康筛选' })).toBeVisible();
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
-        await screenshot('collection-filter-' + name);
+        await screenshot(prefix + 'collection-filter-' + name);
         await filter.click();
         await tile.click();
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Collection page must fit the viewport.');
         const dialog = page.getByRole('dialog', { name: entry.displayIdentity, exact: true });
         const episodes = dialog.getByRole('region', { name: '已收藏剧集' });
-        await expect(episodes.getByRole('heading', { name: '第 1 季 · 已收藏 2 集' })).toBeVisible();
-        await expect(episodes.getByText('2 个视频文件', { exact: true })).toBeVisible();
+        await expect(episodes.getByRole('heading', { name: '第 ' + entry.series.seasonNumber + ' 季 · 已收藏 ' + entry.series.episodeCount + ' 集' })).toBeVisible();
+        await expect(episodes.getByText(entry.series.physicalFileCount + ' 个视频文件', { exact: true })).toBeVisible();
         for (const episode of entry.series.episodes) {
           for (const file of episode.files) await expect(episodes.getByText(file.name, { exact: true })).toBeVisible();
         }
         assert.ok(await episodes.evaluate(element => element.scrollWidth <= element.clientWidth));
         await episodes.scrollIntoViewIfNeeded();
-        await screenshot('collection-' + name);
+        await screenshot(prefix + 'collection-' + name);
         await page.keyboard.press('Escape');
         await expect(dialog).toHaveCount(0);
         await expect(tile).toBeFocused();

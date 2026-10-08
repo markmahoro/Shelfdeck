@@ -69,3 +69,15 @@ UI负责人turn `01a11b1b-9672-72b2-a52f-4bb67d38e3e4`已接受 `c7354defd82ab8d
 - Admin构建、P2、JS/diff检查通过；未改变服务实现，不重复全架构或Linux媒体回归。
 
 本轮初始失败日志 `series-browser-rules{,-v2,-v3}.log` 保留，未以测试桩替代真实失败。仍从正式API预置的现有用户模板开始编辑（预置保留混合Remux的fileExtension要求）；首次从系统模板复制已有受控测试，尚不宣称全配置冷启动。新增修复版本待负责人验收，运营/外部交付/升级回退等整体门槛不关闭，未操作NAS。
+
+## 页面追加E03与累计收藏
+
+UI负责人turn `01a11b26-3f0a-7712-aaf5-e52229dbd0ad`正式接受 `2aaa423ceab08a979d0561310d24e09a1f2c27b9` 规则修复：其亲自复跑131前端、8浏览器、5正式HTTP、构建以及38.59秒真实Host通过，接受范围仍不含全配置冷启动或后续追加增量。
+
+新增 `HELIX_SERIES_BROWSER_APPEND=1` 与已有MANUAL_IDENTITY/BROWSER开关配合。首批两集经页面配置、身份选择和上架后，在同一临时来源增加E03，通过来源页再次“扫描新文件”；正式Formation投影仅有本批E003，页面再次人工确认同一Series/Season。Arca独立把新Product追加到原Canonical Season Entry。浏览器核对桌面/窄屏累计3集、3个实际文件且文件名与正式Projection一致，保留前后两批独立截图。
+
+原追加Host的断言保留：两批Run与非锚定Subject范围、唯一Entry、历史Inventory/Deck Fact不可变、旧文件字节不变、E03新文件与Claims、追加Commit的Reservation/Head漂移拒绝/事务回滚/重放、两份正式Commit Receipt及历史查询一致。页面生成的Field/Shelf ID贯穿，不依赖原固定Fixture ID。
+
+Windows Chromium真实旅程1项通过/0skip，73.15秒；日志 `series-browser-append.log`，截图目录 `series-browser-append/`（仓库外统一证据根）含 append-source-scan、append-formation-attention、append-identity-preview-*、append-collection-*。人工截图确认“本批1集E03”与“已收藏3集”区分清楚，窄屏文件完整可读。JS语法/diff检查通过。仅测试/文档增量，未重复产品构建或全架构/Linux媒体回归；临时Host与浏览器已关闭。
+
+新增追加段待负责人验收。素材与Provider沿既有可控Fixture，不扩充为真实长媒体质量证据。首次规则模板仍API预置；运营、外部交付合同缺口及升级回退门槛继续开放，未操作NAS。
