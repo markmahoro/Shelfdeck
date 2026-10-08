@@ -22,3 +22,6 @@
 本地升级副本：正式 additive migration 通过，196张原表内容摘要与行数完全一致、foreign_key_check/integrity_check通过。用户已授权直接更新本地18081；以 SIGINT 优雅停机，原服务日志确认 clean service stopped，没有强杀 FFmpeg。加载与现场复验结果后补。
 
 UAT仍开放：已上架《棋士》遗漏的旧文件不会由本次代码自动追认，不手改 Inventory、不手动移动现场残留；新批次链路与存量处置需分别验收。
+
+
+04:10–04:13 本地加载结果：实现提交 af5fe3901 已推送 origin/main。新版本的正式恢复检查报 PLAN_CATALOG_DRIFT，未开放 HTTP 或执行新业务；升级仅数据库结构校验成功不等于运行时恢复成功，登记 UAT-293。保留升级后诊断副本，逐字节恢复 SIGINT 停机前备份，使用 a45d7b13f 冻结源码恢复18081（PID54596）；health.status=ok、normalSupplyAllowed=true。main保持新代码，未Reset、未NAS部署。本次不能宣称新版本已经加载成功。

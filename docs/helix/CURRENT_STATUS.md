@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-09 04:13：UAT-291 sidecar/逐集NFO映射与命名已提交af5fe3901并推送，双平台入藏/旧空季目录清理、Windows迁移及改名回归通过。用户授权更新本地18081；SIGINT完整排空后新版本被PLAN_CATALOG_DRIFT阻断（UAT-293），已逐字节恢复停机备份并以a45d7b13f冻结源码回退，health正常，未Reset/NAS部署。新代码尚未现场生效；棋士历史遗漏关联文件未处置。存放规则更新与旧健康检查Basis竞争另记UAT-292。见[Evidence](implementation/evidence/UAT-291_SERIES_RELATED_SIDECARS_20261009.md)。
+
 2026-10-09 UAT-290：最终校验/Fulfillment及最终Commit Evidence均已改为Arca完整不可变记录与Foundation有界引用，Windows/Linux 47集完整Host均通过；Movie上架、Series迁移/NFO维护及合同/升级回归通过，见[Evidence](implementation/evidence/UAT-290_SERIES_FINAL_VERIFICATION_20261009.md)。现场18081仍a45d7b13f，保护大宅门2真实转码，未重启/Reset/部署NAS；上海女子图鉴仍等待来源结算授权，未执行删除。各容量UAT仍待现场验收，不因隔离测试通过关单。
 
 2026-10-09后续：UAT-287及生产追溯列表扩容已获确认并实现；Windows核心74/Linux50、升级24、边界60通过，两集完整Host通过。47集已通过成品验收/交付/Arca验收，Stage Manifest94041字节命中Foundation64 KiB，UAT-288已实现，Windows三类Host回归及Linux存储升级通过；47集越过Stage/Placement后最终校验74939字节超限，UAT-290已获确认待实施；尚无47集完整E2E通过。现场副本196表摘要保持，18081仍a45d7b13f，保护真实转码，未Reset。上海女子图鉴进入offloading但缺来源结算授权，20项delete均未执行，提示缺口UAT-289。

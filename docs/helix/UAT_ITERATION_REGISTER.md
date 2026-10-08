@@ -308,3 +308,5 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 | UAT-291 | Series 逐集 thumb/NFO 漏交付，旧 Season 目录残留 | PROCUREMENT / ARCA_RELATED | 修复已验证，待现场验收 | 棋士旧目录22 thumb及22 NFO未进入交付 | 双平台入藏/空季清理、Windows迁移/改名及定向回归通过 | [Evidence](implementation/evidence/UAT-291_SERIES_RELATED_SIDECARS_20261009.md) | 已确认精确Primary映射与命名、仅清理旧空季目录；不操作现场存量。 |
 
 | UAT-292 | 存放规则更新与旧健康检查规划竞争，Series Care Basis 过期 | ARCA / AFTERCARE_STALE_BASIS | 开放：待修复 | UAT-291 Host等待后台清理后修改Placement，旧health_assessment规划报obsolete Care Basis | 安全拒绝旧Basis；未验证完整自动收敛 | UAT-291 Evidence及外部uat291-migration-final.log | 不放宽Basis校验；Owner应按原失效合同收敛旧Work，需独立回归。 |
+
+| UAT-293 | 本地更新时既有Plan全局执行合同摘要漂移，Startup Recovery拒绝启动 | FOUNDATION / CATALOG_UPGRADE | 开放：已回退，升级承接待确认 | a45d7b13f→af5fe3901实际启动报PLAN_CATALOG_DRIFT | 数据库196原表保留通过，但实际Host未启动；原备份回退后health正常 | UAT-291 Evidence | 不绕过摘要校验、不改旧证据、不Reset；保留Run的精确有界升级承接需用户确认。 |
