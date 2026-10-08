@@ -231,7 +231,7 @@ function isNfoMaterial(item){return isAftercareArtifactMaterial(item,'nfo');}
 function isPosterMaterial(item){return isAftercareArtifactMaterial(item,'poster');}
 function custodyIdentityChangedFinding(item,series=false){const nfo=isNfoMaterial(item);
   if(nfo)return validNfo(item.location)?finding('custody','nfo_identity_changed','warning','observe',item.material_key):
-    finding('custody','nfo_corrupt','warning',series?'attention_required':'auto_repair',item.material_key);
+    finding('custody','nfo_corrupt','warning',series&&!seriesNfoMemberRepairable(item)?'attention_required':'auto_repair',item.material_key);
   return finding('custody',isPrimaryMaterial(item)?'primary_identity_changed':'material_identity_changed','critical','attention_required',item.material_key);}
 function nfoSourceGuard(contextValue,current,fingerprint){const sourceMaterialIdentity=current&&fs.existsSync(current.location)?physicalIdentity(current.location,current.mount_scope_id,fingerprint):null;return Object.freeze({sourceMaterialIdentity,digest:canonicalDigest({schema:'arca.aftercare-nfo-source-guard@1',careBasisDigest:contextValue.basis.digest,sourceMaterialIdentity})});}
 function seriesNfoSourceGuardDigest(contextValue,target,sourceMaterialIdentity) {
@@ -279,7 +279,15 @@ function isAftercareSettlementPreconditionFailureOutcome(value){
 }
 function existingMaterials(items,predicate){return [...items].filter(predicate).filter((item)=>{try{return fs.statSync(item.location).isFile();}catch{return false;}}).sort((left,right)=>Number(left.ordinal||0)-Number(right.ordinal||0)||String(left.location).localeCompare(String(right.location)));}
 function selectedNfoMaterial(items){const existing=existingMaterials(items,isNfoMaterial);return existing.find((item)=>validNfo(item.location))||existing[0]||null;}
-function isRepairablePresentationArtifact(item,series=false){if(series&&isNfoMaterial(item))return false;const role=String(item.role||'').toLowerCase(),extension=path.extname(item.location||'').toLowerCase();return role.includes('poster')||role.includes('fanart')||role.includes('nfo')||role==='metadata_sidecar'||extension==='.nfo';}
+function seriesNfoMemberRepairable(item) {
+  try {
+    if(!readInventoryArtifactScope(item))return false;
+    try {if(!fs.lstatSync(item.location).isFile())return false;fs.accessSync(item.location,fs.constants.R_OK);}
+    catch(error){if(error.code!=='ENOENT')return false;}
+    return true;
+  }catch{return false;}
+}
+function isRepairablePresentationArtifact(item,series=false){if(series&&isNfoMaterial(item))return seriesNfoMemberRepairable(item);const role=String(item.role||'').toLowerCase(),extension=path.extname(item.location||'').toLowerCase();return role.includes('poster')||role.includes('fanart')||role.includes('nfo')||role==='metadata_sidecar'||extension==='.nfo';}
 function custodyBlocksDependentAssessment(custody){return custody?.assessmentState==='not_assessable'||custody?.findingDrafts?.some((item)=>/\/(primary_|binding_)/.test(item.schemaRef));}
 function boundedBytes(location,maxBytes=16*1024*1024){const stat=fs.statSync(location);if(!stat.isFile()||stat.size>maxBytes)return null;return fs.readFileSync(location);}
 function validNfo(location){
@@ -304,7 +312,11 @@ function nfoInventoryFindings(context) {
   if(!rows.length)return [finding('presentation','nfo_missing','warning','attention_required',context.shelfEntryId)];
   const present=new Set(existing),missing=rows.filter(item=>!present.has(item)),corrupt=existing.filter(item=>!validNfo(item.location));
   return [['nfo_missing',missing],['nfo_corrupt',corrupt]].flatMap(([code,items])=>
-    [...items].sort((a,b)=>a.material_key.localeCompare(b.material_key)).map(item=>seriesNfoFindingDraft(code,item)));
+    [...items].sort((a,b)=>a.material_key.localeCompare(b.material_key)).map(item=>{
+      let ready=seriesNfoMemberRepairable(item);
+      if(ready)try{renderSeriesAftercareNfo(context,item.material_key);}catch{ready=false;}
+      return seriesNfoFindingDraft(code,item,ready?'auto_repair':'attention_required');
+    }));
 }
 async function inspectImageBytes(bytes){try{if(!Buffer.isBuffer(bytes)||bytes.length<12||bytes.length>16*1024*1024)return null;const image=sharp(bytes,{failOn:'error',limitInputPixels:100_000_000,sequentialRead:true}),metadata=await image.metadata();if(!['jpeg','png','webp'].includes(metadata.format)||Number(metadata.width)<=0||Number(metadata.height)<=0)return null;await sharp(bytes,{failOn:'error',limitInputPixels:100_000_000,sequentialRead:true}).stats();return Object.freeze({format:metadata.format,width:Number(metadata.width),height:Number(metadata.height),mediaType:'image/'+metadata.format});}catch{return null;}}
 async function validImageBytes(bytes){return Boolean(await inspectImageBytes(bytes));}

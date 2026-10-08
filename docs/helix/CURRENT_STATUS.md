@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 NFO完整Case：[Evidence](implementation/evidence/SERIES_AFTERCARE_NFO_CASE_20261008.md)。已登记且scope/资料齐全的缺失或空Series NFO启用自动维修；正式隔离Host同时修复两集，Inventory-Control原子回滚/提交、Settlement、正常成员及旧revision保护通过。People关联收敛后Host/SQLite关闭重开保持事实及健康状态；全架构2,271通过/9既有skip/0失败。真正进程崩溃恢复、其余运营/UI/Linux和完整发布资格仍开放，未部署NAS。
+
 2026-10-08 NFO维修副作用：[Evidence](implementation/evidence/SERIES_AFTERCARE_NFO_EFFECTS_20261008.md)。精确Profile到独立Workspace NFO、来源Fence、只替换目标成员的物化及forward恢复已接通；12项真实文件Capability专项及全架构2,269通过/9既有skip/0失败。尚缺正式Host的Case/Inventory-Control事务、结算与重启验证，自动维修仍关闭；UI/Linux与完整发布资格继续，未部署NAS。
 
 2026-10-08 NFO维修目标冻结：[Evidence](implementation/evidence/SERIES_AFTERCARE_NFO_TARGET_FREEZE_20261008.md)。Series逐成员Finding、Case历史证据到精确目标、独立TextRender Planner/Profile已接通，错Binding/Scope/Basis拒绝；299项维护相关回归通过。Series实际维修写入仍关闭，下一段接副作用、物化、原子提交与恢复；UI/Linux及完整发布资格继续，无NAS部署。

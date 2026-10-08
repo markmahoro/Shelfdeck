@@ -182,7 +182,7 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm} of [...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:real?300000:180000},async t=>{
+for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair} of [...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,repair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(repair?' with scoped NFO repair':real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:real||repair?300000:180000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
@@ -206,9 +206,9 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   }
   const secretRoot='disposable-series-routing-secret',initialized=initializeCleanData({
     dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot});
-  const adapter=harness(),providerCalls=[],appendCommitAudits=[];let unitOfWork,runtimeError,db;
+  const adapter=harness(),providerCalls=[],appendCommitAudits=[],repairCommitAudits=[];let unitOfWork,runtimeError,db;
   const poster=await sharp({create:{width:4,height:6,channels:3,background:'#224466'}}).jpeg().toBuffer();
-  const host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,...(real?{}:{mediaProbe:mediaProbe(),
+  const hostOptions={dataDir,adminDistDir,secretRoot,...(repair?{aftercarePlaybackRunner:async()=>{}}:{}),...(real?{}:{mediaProbe:mediaProbe(),
     mediaProductionEffectPort:{
       async verifyPlayback(){return {samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('fixture-decode')};},
       async executeRemux(request){
@@ -228,6 +228,18 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     }}),
     unitOfWorkDecorator(value){
       unitOfWork=Object.freeze({...value,execute(participants,...args){
+        if(repair&&participants.some(item=>item.participantId==='arca_aftercare_inventory_domain')) {
+          const tables=['arca_shelf_entries','arca_inventory_materials','arca_inventory_product_facts','arca_inventory_representations',
+            'arca_inventory_person_relations','arca_inventory_related_references','arca_aftercare_inventory_commits',
+            'arca_aftercare_settlement_approvals','fx_material_controls','fx_material_control_revisions','fx_commit_markers','fx_event_result_bindings'];
+          const snapshot=()=>JSON.stringify(tables.map(table=>[table,db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all()]));
+          const before=snapshot(),domain=participants.find(item=>item.participantId==='arca_aftercare_inventory_domain'),
+            crash={participantId:'fixture_series_care_crash',owner:'arca',repositories:domain.repositories,
+              execute(){throw new Error('Injected aftercare transaction interruption');}};
+          assert.throws(()=>value.execute([...participants,crash],...args),/Injected aftercare transaction interruption/);
+          assert.equal(snapshot(),before);
+          const result=value.execute(participants,...args);repairCommitAudits.push({rollbackVerified:true});return result;
+        }
         if(!append||!participants.some(item=>item.participantId==='arca_ondeck_domain')||
             db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n!==1)return value.execute(participants,...args);
         const tables=['arca_shelf_entries','arca_inventory_materials','arca_inventory_product_facts','arca_deck_fact_revisions',
@@ -274,7 +286,8 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     productProviderArtifactFetch:async request=>({resultKind:'acquired',bytes:poster,artifactKind:request.artifactKind,
       integrationId:request.integrationHandle.integrationId,configRevision:request.integrationHandle.configRevision,
       mediaType:'image/jpeg',resolvedProviderIdentity:request.resolvedProviderIdentity}),
-    onExecutionRuntimeError(error){runtimeError=error;}});
+    onExecutionRuntimeError(error){runtimeError=error;}};
+  let host=await createCleanServiceHost(hostOptions);
   t.after(async()=>{
     await host.close();db?.close();
     assert.equal(path.dirname(root),fs.realpathSync(os.tmpdir()));
@@ -282,7 +295,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});
   });
   const login=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}});
-  assert.equal(login.statusCode,204,login.body);const cookie=login.headers['set-cookie'];
+  assert.equal(login.statusCode,204,login.body);let cookie=login.headers['set-cookie'];
   async function request(method,url,payload) {
     const response=await host.inject({method,url,headers:{cookie},payload});
     assert.ok(response.statusCode>=200&&response.statusCode<300,response.body);return response;
@@ -572,6 +585,75 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.match(fs.readFileSync(item.location,'utf8'),new RegExp('<episode>'+number+'</episode>'));
   }
   sources.forEach(file=>assert.equal(fs.existsSync(file),false));
+  if(repair) {
+    const entry=db.prepare('SELECT * FROM arca_shelf_entries').get(),damaged=finalNfos.find(item=>readInventoryArtifactScope(item).episodeScope?.episodeNumber===2),
+      missing=finalNfos.find(item=>readInventoryArtifactScope(item).episodeScope?.episodeNumber===1),
+      repaired=[missing,damaged],protectedFiles=inventory.filter(item=>!repaired.includes(item)).map(item=>({item,bytes:fs.readFileSync(item.location)}));
+    fs.writeFileSync(damaged.location,'');fs.unlinkSync(missing.location);
+    await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',{idempotencyKey:'series-nfo-repair'});
+    const until=Date.now()+120000;let care;
+    do {
+      assert.ifError(runtimeError);
+      care=db.prepare('SELECT * FROM arca_aftercare_cases WHERE shelf_entry_id=? ORDER BY created_at_ms DESC').get(entry.shelf_entry_id);
+      if(care&&['resolved','unresolved','invalidated'].includes(care.state))break;
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }while(Date.now()<until);
+    const detail=await request('GET','/v1/admin/care/'+entry.shelf_entry_id);
+    assert.equal(care?.state,'resolved',detail.body);assert.equal(repairCommitAudits.length,1);
+    assert.equal(JSON.parse(detail.body).health.state,'healthy');
+    const current=db.prepare('SELECT * FROM arca_shelf_entries').get();assert.equal(current.current_inventory_revision,2);
+    const materials=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=2').all();
+    assert.equal(materials.length,inventory.length);
+    for(const original of repaired) {
+      const replacement=materials.find(item=>path.resolve(item.location)===path.resolve(original.location)),number=readInventoryArtifactScope(original).episodeScope.episodeNumber;
+      assert.ok(replacement,JSON.stringify(materials));
+      assert.equal(replacement.artifact_scope_json,original.artifact_scope_json);
+      assert.notEqual(replacement.material_key,original.material_key);
+      assert.ok(fs.readFileSync(replacement.location,'utf8').includes('<episode>'+number+'</episode>'));
+      assert.equal(fs.existsSync(original.location+'.superseded-'+care.aftercare_case_id),false);
+    }
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_aftercare_inventory_commits').get().n,1);
+    assert.equal(db.prepare("SELECT count(*) n FROM arca_aftercare_settlement_approvals WHERE state='consumed'").get().n,1);
+    const controlPort=require('../../src/helix/foundation/persistence/material-control').createMaterialControlProjectionPort({schemaManifest,unitOfWork}),
+      controls=controlPort.getMaterialControlProjections([...materials,...repaired].map(item=>item.material_key).sort());
+    for(const original of repaired)assert.equal(controls.find(item=>item.materialKey===original.material_key).controlState,'uncontrolled');
+    for(const material of materials) {
+      const control=controls.find(item=>item.materialKey===material.material_key);
+      assert.equal(control.controlState,'controlled');assert.equal(control.ownerDomain,'arca');assert.equal(control.ownerScopeId,entry.shelf_entry_id);
+    }
+    const historical=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=1 ORDER BY ordinal').all(),
+      withoutGuard=({active_guard,...row})=>row;
+    assert.deepEqual(historical.map(withoutGuard),[...inventory].sort((a,b)=>a.ordinal-b.ordinal).map(withoutGuard));
+    assert.deepEqual(db.pragma('foreign_key_check'),[]);assert.equal(db.pragma('integrity_check')[0].integrity_check,'ok');
+    for(const {item,bytes} of protectedFiles) {
+      assert.deepEqual(fs.readFileSync(item.location),bytes);
+      const retained=materials.find(row=>row.material_key===item.material_key);assert.ok(retained);
+      assert.equal(retained.artifact_scope_json,item.artifact_scope_json);
+    }
+    // People registration is asynchronous; allow its legitimate relation revision to settle first.
+    await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',{idempotencyKey:'series-nfo-post-repair-check'});
+    const settleUntil=Date.now()+120000;let settled,pendingPeople;
+    do {
+      assert.ifError(runtimeError);
+      settled=JSON.parse((await request('GET','/v1/admin/care/'+entry.shelf_entry_id)).body);
+      pendingPeople=db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n;
+      if(!pendingPeople&&settled.health.state==='healthy')break;
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }while(Date.now()<settleUntil);
+    assert.equal(settled.health.state,'healthy');assert.equal(pendingPeople,0);
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_aftercare_inventory_commits').get().n,1);
+    const settledTables=['arca_shelf_entries','arca_inventory_materials','arca_inventory_product_facts','arca_aftercare_cases',
+      'arca_aftercare_inventory_commits','arca_aftercare_settlement_approvals','fx_material_controls'],
+      settledSnapshot=()=>JSON.stringify(settledTables.map(table=>[table,db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all()])),
+      beforeRestart=settledSnapshot();
+    await host.close();host=await createCleanServiceHost(hostOptions);
+    const restartedLogin=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}});
+    assert.equal(restartedLogin.statusCode,204,restartedLogin.body);cookie=restartedLogin.headers['set-cookie'];
+    const restarted=JSON.parse((await request('GET','/v1/admin/care/'+entry.shelf_entry_id)).body);
+    assert.equal(settledSnapshot(),beforeRestart);
+    assert.equal(restarted.health.state,'healthy');assert.equal(restarted.history.cases.length,1);
+    assert.equal(restarted.history.cases[0].state,'resolved');assert.equal(settledSnapshot(),beforeRestart);
+  }
   if(append) {
     const firstRun=state.runs[0],firstEntry=db.prepare('SELECT * FROM arca_shelf_entries').get();
     const immutableInventory=rows=>rows.map(({active_guard,...row})=>row);

@@ -49,7 +49,7 @@ function fixture(t) {
   const missing=context.raw.materials.find(row=>row.name==='two'),damaged=context.raw.materials.find(row=>row.name==='three');
   fs.unlinkSync(missing.location);fs.writeFileSync(damaged.location,'');
   const findings=nfoInventoryFindings(context).map((draft,index)=>({findingId:'finding-'+index,assessmentId:'presentation',
-    findingKind:'presentation:'+draft.schemaRef.split('/')[5],findingDigest:draft.snapshotDigest,severity:'warning',repairability:'attention_required'}));
+    findingKind:'presentation:'+draft.schemaRef.split('/')[5],findingDigest:draft.snapshotDigest,severity:'warning',repairability:draft.schemaRef.split('/')[7]}));
   findings.push({findingId:'custody-missing',assessmentId:'custody',findingKind:'custody:artifact_missing',severity:'critical',repairability:'attention_required',
     findingDigest:canonicalDigest({kind:'custody',code:'artifact_missing',severity:'critical',repairability:'attention_required',basis:missing.material_key})});
   const requirement={careBasisDigest:context.basis.digest,requiredEffects:findings.map(row=>({objectId:row.findingId,digest:row.findingDigest})),
@@ -166,4 +166,22 @@ test('an already written Series NFO cannot be adopted without the explicit recov
   fs.copyFileSync(prepared.result.storageRef,f.missing.location);
   const result=await f.ports[C.artifactMaterialize].execute(f.materializeExecution(prepared.result));
   assert.equal(result.kind,'failed');assert.equal(result.code,'ARCA_AFTERCARE_NFO_SOURCE_STALE');
+});
+
+test('automatic Series NFO repair is offered only for registered targets with complete accepted facts',t=>{
+  const f=fixture(t);
+  assert.ok(nfoInventoryFindings(f.context).every(item=>item.schemaRef.includes('/auto_repair/')));
+  const metadata=f.context.raw.facts.find(row=>row.fact_kind==='product_metadata'&&row.source_package_id==='second');
+  metadata.value.episodeMetadata[0].descriptiveFacts.entries=metadata.value.episodeMetadata[0].descriptiveFacts.entries.filter(item=>item.key!=='episode_plot');
+  let findings=nfoInventoryFindings(f.context);
+  assert.equal(findings.filter(item=>item.schemaRef.includes('/auto_repair/')).length,1);
+  assert.equal(findings.filter(item=>item.schemaRef.includes('/attention_required/')).length,1);
+  f.missing.artifact_scope_json=null;f.missing.artifact_scope_schema_ref=null;
+  assert.ok(nfoInventoryFindings(f.context).every(item=>item.schemaRef.includes('/attention_required/')));
+});
+test('a directory in place of a registered Series NFO is never authorized for automatic replacement',t=>{
+  const f=fixture(t);fs.unlinkSync(f.damaged.location);fs.mkdirSync(f.damaged.location);
+  const findings=nfoInventoryFindings(f.context);
+  assert.equal(findings.filter(item=>item.schemaRef.includes('/attention_required/')).length,1);
+  assert.ok(fs.statSync(f.damaged.location).isDirectory());
 });
