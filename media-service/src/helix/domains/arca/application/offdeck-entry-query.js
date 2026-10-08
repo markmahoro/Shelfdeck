@@ -32,7 +32,7 @@ function createOffdeckEntryQuery(options){
           {column:'inventory_revision',otherAlias:'base',otherColumn:'current_inventory_revision'}]}],
         filters:[{column:'status',kind:'equals',parameter:'status'},
           {alias:'metadata',column:'fact_kind',kind:'equals',parameter:'fact_kind',optional:true},
-          {alias:'metadata',column:'fact_json',kind:'json_entry_text',path:'$.descriptiveFacts.entries',keys:['title','display_title'],parameter:'query',optional:true}],
+          {alias:'metadata',column:'fact_json',kind:'json_entry_text',path:'$.descriptiveFacts.entries',keys:['title','display_title','series_title'],parameter:'query',optional:true}],
         orderBy:[{column:'shelf_entry_id',direction:'asc'}],maxItems:101,safeIntegers:true}
     }});
   function read(body){return options.unitOfWork.execute([{participantId:'arca_offdeck_entry_read',owner:'arca',repositories:[repository],
@@ -45,7 +45,7 @@ function createOffdeckEntryQuery(options){
       const facts=repo.invoke('metadata',{...key,fact_kind:'product_metadata'});
       const metadata=facts.length?JSON.parse(facts[0].fact_json):{};
       const descriptive=new Map((metadata.descriptiveFacts?.entries||[]).map(fact=>[fact.key,fact.value]));
-      return Object.freeze({shelfEntryId:row.shelf_entry_id,displayIdentity:descriptive.get('title')||descriptive.get('display_title')||'未命名收藏',
+      return Object.freeze({shelfEntryId:row.shelf_entry_id,displayIdentity:descriptive.get('title')||descriptive.get('display_title')||descriptive.get('series_title')||'未命名收藏',
         shelfName:shelves.get(row.shelf_id)||'原收藏架',occupancyBytes:repo.invoke('materials',key).reduce((sum,item)=>sum+Number(item.size_bytes||0),0)});
     });
   }

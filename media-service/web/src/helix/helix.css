@@ -552,6 +552,7 @@ button, input, select, textarea { font: inherit; }
 .offdeck-history-task .source-card-heading p { margin: 4px 0 0; color: var(--muted); font-size: 13px; }
 .offdeck-history-list { margin-top: 16px; border-top: 1px solid var(--line); }
 .offdeck-history-list .source-row { margin: 0; border: 0; border-bottom: 1px solid var(--line); background: transparent; }
+.offdeck-history-list .source-row > div { display: grid; gap: 4px; }
 .offdeck-history-list time { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .shelf-history { margin-top: 24px; padding: 18px 22px; border: 1px solid var(--line); }
 .shelf-history > summary { display: flex; justify-content: space-between; cursor: pointer; }

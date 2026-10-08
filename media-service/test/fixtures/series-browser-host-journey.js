@@ -96,6 +96,99 @@ async function open({ host, apiKey }) {
       const response = await observation;
       assert.ok(response.ok(), await response.text());
     },
+    async prepareOffdeck(entry, materials, onCancelled) {
+      async function openReview() {
+        await page.setViewportSize({ width: 1920, height: 1080 });
+        await page.goto(address + '/collection');
+        await page.getByRole('button', { name: '查看 ' + entry.displayIdentity + ' 详情', exact: false }).click();
+        const responsePromise = page.waitForResponse(response => response.request().method() === 'POST' &&
+          new URL(response.url()).pathname === '/v1/admin/offdeck/reviews');
+        await page.getByRole('button', { name: '退出收藏', exact: true }).click();
+        const response = await responsePromise;
+        assert.ok(response.ok(), 'Off-deck review creation must succeed.');
+        await page.waitForURL('**/offdeck?review=*');
+        await expect(page.getByRole('dialog', { name: '将删除的文件', exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: '核对将删除的文件', exact: true })).toBeVisible();
+        const dialog = page.getByRole('dialog', { name: '将删除的文件', exact: true });
+        await expect(dialog.getByRole('button', { name: '关闭', exact: true })).toBeFocused();
+        await page.keyboard.press('Shift+Tab');
+        await expect(dialog.getByRole('button', { name: '取消这次退出', exact: true })).toBeFocused();
+        await page.keyboard.press('Tab');
+        await expect(dialog.getByRole('button', { name: '关闭', exact: true })).toBeFocused();
+        const reviewId = new URL(page.url()).searchParams.get('review');
+        const current = await page.request.get(address + '/v1/admin/offdeck/reviews/' + encodeURIComponent(reviewId));
+        assert.ok(current.ok(), await current.text());
+        return current.json();
+      }
+      const cancelled = await openReview();
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: '退出收藏', exact: true })).toBeFocused();
+      const unchanged = await page.request.get(address + '/v1/admin/offdeck/reviews/' + cancelled.reviewId);
+      assert.equal((await unchanged.json()).state, 'open');
+      await page.goto(address + '/offdeck?review=' + encodeURIComponent(cancelled.reviewId));
+      await expect(page.getByRole('dialog', { name: '将删除的文件', exact: true })).toBeVisible();
+
+      const cancellation = page.waitForResponse(response => response.request().method() === 'DELETE' &&
+        response.url().endsWith('/offdeck/reviews/' + cancelled.reviewId));
+      await page.getByRole('button', { name: '取消这次退出', exact: true }).click();
+      const cancelledResponse = await cancellation;
+      assert.ok(cancelledResponse.ok(), await cancelledResponse.text());
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await onCancelled(cancelled.reviewId);
+      await screenshot('offdeck-cancelled');
+      const review = await openReview();
+      assert.deepEqual(review.scopes.flatMap(scope => scope.materials.map(item => item.materialKey)).sort(), materials.map(item => item.material_key).sort());
+      for (const [name, width, height] of [['desktop', 1920, 1080], ['narrow', 390, 844]]) {
+        await page.setViewportSize({ width, height });
+        const dialog = page.getByRole('dialog', { name: '将删除的文件', exact: true });
+        await expect(dialog.getByText(entry.displayIdentity, { exact: true })).toBeVisible();
+        for (const material of review.scopes.flatMap(scope => scope.materials)) await expect(dialog.getByText(material.location, { exact: false })).toBeVisible();
+        await screenshot('offdeck-scope-' + name);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+        assert.ok(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth));
+      }
+      return review;
+    },
+    async confirmOffdeck(reviewId) {
+      const confirmation = page.waitForResponse(response => response.request().method() === 'POST' &&
+        response.url().endsWith('/offdeck/reviews/' + reviewId + '/actions/confirm-selection'));
+      await page.getByRole('button', { name: '核对将删除的文件', exact: true }).click();
+      const response = await confirmation;
+      assert.ok(response.ok(), await response.text());
+      await expect(page.getByRole('alert').filter({ hasText: '确认后将删除下列文件，不能反悔。' })).toBeVisible();
+      await screenshot('offdeck-confirmation');
+      return response.json();
+    },
+    async authorizeOffdeck() {
+      const authorization = page.waitForResponse(response => response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === '/v1/admin/offdeck/authorizations');
+      await page.getByRole('button', { name: '确认删除', exact: true }).click();
+      const response = await authorization;
+      assert.ok(response.ok(), await response.text());
+      const receipt = await response.json();
+      const close = page.getByRole('dialog').getByRole('button', { name: '关闭', exact: true });
+      await expect(close).toBeEnabled();
+      await close.click();
+      await expect(page.getByRole('dialog')).toHaveCount(0);
+      await expect(page.getByRole('heading', { name: '退出收藏', exact: true })).toBeFocused();
+      return receipt;
+    },
+    async verifyOffdeck(entry) {
+      for (const [name, width, height] of [['desktop', 1920, 1080], ['narrow', 390, 844]]) {
+        await page.setViewportSize({ width, height });
+        await page.goto(address + '/offdeck');
+        const history = page.getByRole('listitem').filter({ hasText: entry.displayIdentity });
+        await expect(history).toContainText('已完成退出');
+        await screenshot('offdeck-completed-' + name);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+        await page.goto(address + '/collection');
+        await expect(page.getByText('还没有正式上架的收藏', { exact: true })).toBeVisible();
+        await expect(page.getByRole('button', { name: '查看 ' + entry.displayIdentity + ' 详情', exact: false })).toHaveCount(0);
+        await screenshot('offdeck-collection-' + name);
+      }
+      assert.deepEqual(errors, []);
+    },
     async checkHealth(entry, prefix = 'care-') {
       await page.setViewportSize({ width: 1920, height: 1080 });
       await page.goto(address + '/collection');

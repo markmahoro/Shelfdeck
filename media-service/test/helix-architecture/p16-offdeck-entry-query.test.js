@@ -73,5 +73,15 @@ test('Off-deck search hydrates one page, while explicit selection captures every
     assert.equal(query.cases({classification:'completed',limit:5,cursor:completed.nextCursor}).items[0].offdeckCaseId,'case-15');
     assert.throws(()=>query.cases({classification:'active',cursor:completed.nextCursor}),/Invalid/);
     assert.equal(query.cases().items.length,10);
+    seed.prepare('UPDATE arca_inventory_product_facts SET fact_json=? WHERE shelf_entry_id=? AND inventory_revision=2').run(
+      JSON.stringify({descriptiveFacts:{entries:[{key:'series_title',value:'Demo Show'}]}}),'entry-0000');
+    seed.prepare('UPDATE arca_shelf_entries SET structure_kind=? WHERE shelf_entry_id=?').run('season','entry-0000');
+    assert.deepEqual(query.search({q:'Demo Show'}).items.map(item=>item.displayIdentity),['Demo Show']);
+    assert.equal(query.display(['entry-0000'])[0].displayIdentity,'Demo Show');
+    assert.equal(query.candidates().entries.find(item=>item.shelfEntryId==='entry-0000').displayIdentity,'Demo Show');
+    seed.prepare('UPDATE arca_shelf_entries SET status=? WHERE shelf_entry_id=?').run('offdecked','entry-0000');
+    assert.deepEqual(query.search({q:'Demo Show'}).items,[]);
+    assert.equal(query.display(['entry-0000'])[0].displayIdentity,'Demo Show');
+
   }finally{seed.close();kernel.close();fs.rmSync(root,{recursive:true,force:true});}
 });

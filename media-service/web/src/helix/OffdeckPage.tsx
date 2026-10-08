@@ -5,6 +5,7 @@ import { Button, LoadingState, PageHeader } from './chrome';
 import { caseStateLabels, labelOf, reviewStateLabels } from './labels';
 import { isUnauthorized, useSession } from './session';
 import './collection.css';
+import { useModalFocus } from './useModalFocus';
 
 function formatGiB(bytes: number) {
   if (!Number.isFinite(bytes) || bytes <= 0) return '—';
@@ -36,6 +37,16 @@ export default function OffdeckPage() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const reviewDialog = useModalFocus<HTMLElement>(Boolean(review), () => void closeReview(), busy);
+  const pageRoot = useRef<HTMLElement>(null), hadReview = useRef(false);
+  useEffect(() => {
+    if (hadReview.current && !review && (!document.activeElement || document.activeElement === document.body)) {
+      const heading = pageRoot.current?.querySelector('h1');
+      heading?.setAttribute('tabindex', '-1');
+      heading?.focus();
+    }
+    hadReview.current = Boolean(review);
+  }, [review]);
 
   const fail = useCallback((cause: unknown, fallback: string) => {
     if (isUnauthorized(cause)) expire();
@@ -189,6 +200,7 @@ export default function OffdeckPage() {
     history.replaceState(null, '', `/offdeck?review=${encodeURIComponent(value.reviewId)}`);
   }
   async function closeReview() {
+    if (busy) return;
     history.replaceState(null, '', '/offdeck');
     setReview(null);
   }
@@ -221,7 +233,7 @@ export default function OffdeckPage() {
     : null;
 
   if (!loaded && busy) return <LoadingState>正在读取退出收藏…</LoadingState>;
-  return <section className="source-page offdeck-page">
+  return <section ref={pageRoot} className="source-page offdeck-page">
     <PageHeader title="退出收藏" actions={<Button type="button" onClick={() => void load()} disabled={busy}>刷新</Button>} />
     {error && <p className="form-error" role="alert">{error}</p>}
     <section className="offdeck-task">
@@ -298,8 +310,8 @@ export default function OffdeckPage() {
       {caseCursors.completed&&<Button type="button" disabled={busy} onClick={()=>void action(()=>moreCases('completed'))}>更多已退出记录</Button>}
     </section>
     {review && <div className="collection-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget && !['preparing', 'open', 'selection_confirmed', 'awaiting_escalation'].includes(review.state)) void closeReview(); }}>
-      <section className="collection-dialog offdeck-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="offdeck-confirm-title">
-        <button className="collection-dialog-close" type="button" onClick={() => void closeReview()} aria-label="关闭">×</button>
+      <section ref={reviewDialog} tabIndex={-1} className="collection-dialog offdeck-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="offdeck-confirm-title">
+        <button className="collection-dialog-close" type="button" disabled={busy} onClick={() => void closeReview()} aria-label="关闭">×</button>
         <div className="collection-dialog-copy">
           <h2 id="offdeck-confirm-title">{cancelledReview?'已取消的退出审阅':review.state==='awaiting_escalation'?'再次核对大批量退出':'将删除的文件'}</h2>
           <p className="collection-dialog-meta">{labelOf(reviewStateLabels, review.state)}</p>
@@ -320,10 +332,10 @@ export default function OffdeckPage() {
             {scope.materials.map((material) => <p key={material.materialKey}>{material.role === 'primary_payload' ? '主视频' : material.role === 'structural_dependency' ? '光盘结构文件' : '附属文件'} · {material.location}{material.deleteCondition==='release_related_then_delete_if_unreferenced'?' · 仍被引用时保留':''}</p>)}
           </article>)}
           <div className="button-row">
-            {review.state === 'open' && <Button variant="primary" type="button" onClick={() => void action(async () => setReview(await helixAdminApi.confirmOffdeckSelection(review.reviewId, { actorId: 'admin' })))}>核对将删除的文件</Button>}
-            {review.state === 'awaiting_escalation' && <Button variant="danger" type="button" onClick={() => void action(async () => setReview(await helixAdminApi.confirmOffdeckHighVolume(review.reviewId, { actorId: 'admin' })))}>再次确认大批量</Button>}
-            {review.state === 'selection_confirmed' && <Button variant="danger" type="button" onClick={() => void action(() => helixAdminApi.authorizeOffdeck(review.reviewId), true)}>确认删除</Button>}
-            {['preparing', 'open', 'selection_confirmed', 'awaiting_escalation'].includes(review.state) && <Button type="button" onClick={() => void action(cancelReview, true)}>取消这次退出</Button>}
+            {review.state === 'open' && <Button variant="primary" type="button" disabled={busy} onClick={() => void action(async () => setReview(await helixAdminApi.confirmOffdeckSelection(review.reviewId, { actorId: 'admin' })))}>核对将删除的文件</Button>}
+            {review.state === 'awaiting_escalation' && <Button variant="danger" type="button" disabled={busy} onClick={() => void action(async () => setReview(await helixAdminApi.confirmOffdeckHighVolume(review.reviewId, { actorId: 'admin' })))}>再次确认大批量</Button>}
+            {review.state === 'selection_confirmed' && <Button variant="danger" type="button" disabled={busy} onClick={() => void action(() => helixAdminApi.authorizeOffdeck(review.reviewId), true)}>确认删除</Button>}
+            {['preparing', 'open', 'selection_confirmed', 'awaiting_escalation'].includes(review.state) && <Button type="button" disabled={busy} onClick={() => void action(cancelReview, true)}>取消这次退出</Button>}
           </div>
           {nextReviewAction && review.state === 'preparing' && <p>{nextReviewAction}</p>}
         </div>

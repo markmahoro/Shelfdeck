@@ -101,3 +101,20 @@ Windows Chromium真实旅程1项通过/0skip，73.15秒；日志 `series-browser
 UI负责人turn `01a11b3d-4af8-7fb3-b0a7-8e7253bdbef6`正式接受冻结提交 `a5dc10fac99194e4214a11912fa06a4fcebad92f` 的适用范围：E03累计三集/三个文件且演员一次，缺失ID/同名不同ID及底层关系保留；页面检查与NFO修复后，列表/详情健康投影一致，桌面/窄屏健康；电影限定瑕疵提示准确且Series资格不变。前次演员重复拒绝项解除。
 
 负责人独立复跑133前端、8浏览器、构建通过；真实追加76.02秒、维护91.80秒均通过且无skip。其未修改源码或操作NAS。仅上述路径通过，完整冷配置、其他运营、外部交付、升级回退和整体发布门槛仍开放。
+
+## Series页面退出收藏
+
+新增 `HELIX_SERIES_BROWSER_OFFDECK=1`，与MANUAL_IDENTITY/BROWSER组合使用；APPEND/CARE/OFFDECK三个旅程互斥。来源配置至两集上架后，从详情发起真实退出审阅，确认Review材料键集合等于正式Inventory全部成员；页面列出2个主视频和4个附属文件。Escape只关闭展示并回焦标题，正式GET确认审阅仍open；重开同一审阅后明确取消，断言cancelled、无Authorization/Case、收藏active、每个文件字节不变。随后再次进入新审阅，核对范围及不可撤销警示，再点击最终确认删除。
+
+保留Arca后端完整断言：目标6个成员删除、范围外sentinel保持、控制和active guard释放、唯一终结Receipt、事务回滚核验、数据库外键及integrity通过；退出列表正确显示已完成，当前收藏消失，桌面/窄屏均验证。素材仍沿可控Probe/Remux fixture，不把本轮外推为真实N:M媒体质量或崩溃恢复证据（该类已有独立专项）。
+
+本轮发现并修正：
+
+- v1浏览器测试在跳转后读取旧POST响应体失败，改为检查POST成功，跳转后从正式GET读取同一Review，不绕过页面动作。
+- v2真实退出显示未命名收藏：OffdeckEntryQuery未投影或搜索series_title。补同一Arca事实字段，新增搜索当前Season、建议/名称查询及已退出仍保留剧名的回归。
+- 键盘专项复现旧dialog未接管焦点（1失败/10通过）。复用useModalFocus，初始焦点与Tab循环、Escape关闭展示；busy时关闭/取消/确认禁用。无存活原触发元素时回焦页面标题，保留关闭展示与业务取消的不同语义。负责人turn `01a11b45-b534-7bd0-961e-e9add3b0a7e9`同意方向并要求焦点回到可用入口。
+- 最终截图发现退出记录的剧名/收藏架粘连，使用既有行内分组的grid及4px间距分行，不增加说明文案。
+
+v3实际退出38.46秒、v4焦点40.36秒、v5关闭/回焦及取消字节保护38.46秒通过；早期失败日志保留。134前端、构建通过，Windows/Linux各1项有界Offdeck查询集成回归、P2/包边界/禁用语义及diff检查通过。日志在仓库外统一证据根，前缀series-browser-offdeck、series-offdeck-query、series-offdeck-final-web-v2、series-offdeck-final-build-v3、series-offdeck-p2/guards。Linux以本地测试镜像只读挂载当前src/test，不是发布镜像。精确版本UI验收与其他发布Gate仍开放，未操作NAS。
+
+最终分行布局构建后v6真实浏览器39.13秒通过/0skip；截图 `series-browser-offdeck-v6/` 内 offdeck-scope-*、offdeck-confirmation、offdeck-completed-*、offdeck-collection-* 已复核，窄屏退出记录剧名与收藏架分行。临时Host与浏览器已关闭。

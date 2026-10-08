@@ -60,6 +60,29 @@ function mockWorkbench(entries: CollectionEntry[] = [], cases: OffdeckCase[] = [
 }
 
 describe('Off-deck progress', () => {
+  it('contains Review keyboard focus and preserves the dialog while confirmation is pending', async()=>{
+    mockWorkbench();
+    history.replaceState(null,'','/offdeck?review=review-keyboard');
+    const review={...highVolumeReview,reviewId:'review-keyboard',state:'open' as const};
+    vi.spyOn(helixAdminApi,'getOffdeckReview').mockResolvedValue(review);
+    let finish!:(value:OffdeckReview)=>void;
+    vi.spyOn(helixAdminApi,'confirmOffdeckSelection').mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
+    render(<SessionProvider><OffdeckPage/></SessionProvider>);
+    const dialog=await screen.findByRole('dialog',{name:'将删除的文件'});
+    const close=within(dialog).getByRole('button',{name:'关闭'});
+    await waitFor(()=>expect(close).toHaveFocus());
+    fireEvent.keyDown(close,{key:'Tab',shiftKey:true});
+    expect(within(dialog).getByRole('button',{name:'取消这次退出'})).toHaveFocus();
+    fireEvent.click(within(dialog).getByRole('button',{name:'核对将删除的文件'}));
+    expect(close).toBeDisabled();
+    fireEvent.keyDown(dialog,{key:'Escape'});
+    expect(dialog).toBeInTheDocument();
+    await act(async()=>finish({...review,state:'selection_confirmed'}));
+    fireEvent.keyDown(dialog,{key:'Escape'});
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByRole('heading',{name:'退出收藏',exact:true})).toHaveFocus();
+  });
+
   afterEach(() => { history.replaceState(null, '', '/'); vi.useRealTimers(); vi.restoreAllMocks(); });
 
   it('keeps all 1000 selected IDs in one Review while rendering at most 25 selection rows', async()=>{
