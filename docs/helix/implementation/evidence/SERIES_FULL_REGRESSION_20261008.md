@@ -70,3 +70,9 @@ node --test --test-concurrency=4 --test-name-pattern="formal node entrypoint sta
 Windows完整架构280文件：2424项、2410通过、2失败、12skip，1103.27秒。失败仅为P2固定aggregateDigest仍指向旧合同，以及P3生成manifest未同步b78e48d9f重新物化的8个表合同摘要；DDL文本及ddlDigest没有变化。使用正式p3-ddl-materializer重新生成，并更新P2固定摘要，保留逐表追踪和完整重现断言，相关12项复验全部通过。修改包含运行时manifest，故36100db30镜像不是修正后的最终镜像；需重建候选及最终全架构复验。
 
 服务完整复验619项：592通过、0失败、27skip，137.64秒。实际36100db30镜像内Series及受影响加工/Workspace集合549项：545通过、0失败、4skip，994.29秒；仅挂载测试/scripts/docs，没有挂载源码。长媒体、外部真实加工等opt-in专项仍按各自已有独立证据，不将skip计为通过。日志series-candidate-36100db30-architecture.log、series-candidate-36100db30-linux-image.log、series-contract-generated-recheck.log及服务复验日志保留于同一仓库外审计目录。
+
+## 修正后候选0f78f4240
+
+冻结0f78f42400c132dfd8be1a2f822ef19ca7b55f5e并推送后，标准build-image.js生成markmahoro/shelfdeck:0f78f42400，tar SHA256 08df85d24eee8f41d6f4212b24f2f9c87601e3bef7e48727aa874df4cc676e12（536.0 MiB）。2121个runtime输入本地/镜像hash集合均为0eed624f0a06fa6822dc29e27c407df221a0bd66c6207ddf7c07f31a4e14923f。镜像内P2/P3全部12项通过：首次CLI负向测试因镜像/app布局缺少测试假定的/media-service路径而失败，临时容器增加/media-service→/app链接后原断言通过，未挂载或改动产品源码。
+
+修正后Windows280文件完整architecture gate正在运行，日志series-candidate-final-architecture.log；未将未完成运行计为通过。候选构建/合同日志series-candidate-0f78f4240-*保留在相同仓库外目录。未上传或部署NAS，尚未关闭真实集成初配及最终发布资格。
