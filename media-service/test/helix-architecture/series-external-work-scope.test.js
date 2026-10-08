@@ -244,6 +244,26 @@ test('Series candidate merge replaces the whole component and retains unrelated 
   assert.equal(merged.length,3);assert.equal(merged.find(item=>item.member.materialKey==='other'),retained);
   assert.ok(!merged.some(item=>['shared','part'].includes(item.member.materialKey)));
   const space=merge.completeSeriesCandidateSpace(f.value,merged);assert.deepEqual(space.episodeKeys,['E1','E2','E3']);
+  const targets=merge.seriesExternalOffloadTargets(f.value,merged);
+  const keys=set.mapping.finalMembers.map(item=>item.materialKey);
+  assert.deepEqual(Object.keys(targets).sort(),['part','shared']);
+  assert.deepEqual(targets.shared,{finalProductMaterialKeys:keys});
+  assert.deepEqual(targets.part,{finalProductMaterialKeys:keys});
+  assert.equal(targets.other,undefined);
+  const singleMember=set.members.find(item=>item.externalMember.episodeClaims.length===2);
+  const singleMapping=require('../../src/helix/domains/libra/model/series-external-replacement').buildSeriesReplacementMapping({
+    basis:work.replacementBasis(f.value),scope:set.scope,finalMembers:[{materialKey:singleMember.importRecord.result.materialKey,
+      memberDigest:d({externalMember:singleMember.externalMember,workspaceMediaHandle:singleMember.workspaceMediaHandle}),
+      episodeKeys:singleMember.externalMember.episodeClaims.map(claim=>claim.episodeKey)}]});
+  const singleCandidates=merge.mergeSeriesExternalCandidates(f.value,original,[{...set,members:[singleMember],mapping:singleMapping}]);
+  assert.deepEqual(merge.seriesExternalOffloadTargets(f.value,singleCandidates).shared,
+    {finalProductMaterialKey:singleMember.importRecord.result.materialKey});
+
+  assert.ok(Object.isFrozen(targets.shared.finalProductMaterialKeys));
+  assert.throws(()=>merge.seriesExternalOffloadTargets(f.value,merged.slice(1)));
+  const changedMapping=merged.map(item=>item.externalReplacement?{...item,externalReplacement:{...item.externalReplacement,
+    mapping:{...item.externalReplacement.mapping,members:item.externalReplacement.mapping.members.map(row=>({...row,finalProductMaterialKeys:keys.slice(0,1)}))}}}:item);
+  assert.throws(()=>merge.seriesExternalOffloadTargets(f.value,changedMapping),/frozen replacement mapping/);
   const candidate=merged.find(item=>item.externalReplacement),input=final.finalCandidateInput(f.value,merged,candidate);
   assert.equal(input.seriesSpaceBasis.members.length,3);
   assert.deepEqual(input.seriesSpaceBasis,space);

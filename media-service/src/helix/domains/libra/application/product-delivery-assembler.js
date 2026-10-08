@@ -1,5 +1,6 @@
 'use strict';
 
+const { seriesExternalOffloadTargets } = require('../planning/series-external-candidate-merge');
 const { readSeriesMediaSelections } = require('../planning/series-production-candidates');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
@@ -857,11 +858,14 @@ function createProductDeliveryAssembler(options) {
       : snapshot.members.find((item) => item.role === 'primary_payload').materialKey;
     const originalDisposition = value.selected.selected.selectedCandidateKind ===
       'direct_input' ? 'carried_forward' : 'replaced_and_settled';
+    const externalTargets = snapshot.spec.contentProfile === 'series'
+      ? seriesExternalOffloadTargets(snapshot,value.selectedContexts.map(item=>item.source)) : {};
     const offloadItems = snapshot.members.map((member) => {
+      const replacement=externalTargets[member.materialKey];
       const memberSelection=snapshot.spec.contentProfile==='series'
         ?value.selectedContexts.find(item=>item.source.member.materialKey===member.materialKey):null;
-      if(snapshot.spec.contentProfile==='series'&&!memberSelection)throw new Error('Series source has no exact final product binding.');
-      const disposition=memberSelection?(memberSelection.workspaceMediaHandle?'replaced_and_settled':'carried_forward'):originalDisposition;
+      if(snapshot.spec.contentProfile==='series'&&!memberSelection&&!replacement)throw new Error('Series source has no exact final product binding.');
+      const disposition=replacement?'replaced_and_settled':memberSelection?(memberSelection.workspaceMediaHandle?'replaced_and_settled':'carried_forward'):originalDisposition;
       const finalKey=memberSelection?(memberSelection.workspaceMediaHandle?.workspaceMaterialHandle.materialKey||member.materialKey):selectedFinalKey;
       const body = {
         ordinal: 0,
@@ -869,7 +873,7 @@ function createProductDeliveryAssembler(options) {
         contextRole: member.role === 'structural_dependency'
           ? 'structural_dependency' : 'original_input',
         sourceRelatedReferenceId: null,
-        finalProductMaterialKey: finalKey,
+        ...(replacement||{finalProductMaterialKey: finalKey}),
         dispositionKind: disposition,
         physicalIdentity: member.physicalIdentity,
         endpointId: member.endpointId,

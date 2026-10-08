@@ -84,4 +84,22 @@ function completeSeriesCandidateSpace(snapshot,candidates) {
         sizeBytes:handle.sizeBytes??handle.expectedSizeBytes,episodeKeys:item.member.episodeClaims.map(claim=>claim.episodeKey)};
     })});
 }
-module.exports=Object.freeze({mergeSeriesExternalCandidates,assertExternalCandidateSets,completeSeriesCandidateSpace});
+function seriesExternalOffloadTargets(snapshot,candidates) {
+  if(!candidates.some(item=>item.externalReplacement))return Object.freeze({});
+  // Rebuild the complete mapping against the current frozen Run, including
+  // every imported part and every retained candidate, before projecting targets.
+  completeSeriesCandidateSpace(snapshot,candidates);
+  const targets=new Map();
+  for(const candidate of candidates.filter(item=>item.externalReplacement)){
+    for(const member of candidate.externalReplacement.mapping.members){
+      const keys=member.finalProductMaterialKeys;
+      const value=keys.length===1?{finalProductMaterialKey:keys[0]}:
+        {finalProductMaterialKeys:Object.freeze([...keys])};
+      if(targets.has(member.sourceMaterialKey)&&d(targets.get(member.sourceMaterialKey))!==d(value))
+        throw new Error('External Off-load source has conflicting complete targets.');
+      targets.set(member.sourceMaterialKey,Object.freeze(value));
+    }
+  }
+  return Object.freeze(Object.fromEntries(targets));
+}
+module.exports=Object.freeze({mergeSeriesExternalCandidates,assertExternalCandidateSets,completeSeriesCandidateSpace,seriesExternalOffloadTargets});

@@ -317,3 +317,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Offload旧库升级DoR：冻结旧DDL/hash并沿既有事务schema升级入口重建该表，仅扩展nullable多目标列和CHECK；旧列逐字节/摘要保持，索引触发器及FK保留。未完成Run或未Commit Package明确要求已授权Formation Reset，不推测填补旧空映射。验证真实旧DDL、历史row保持、失败回滚和重放；生产副本升级/回退仍独立验收，不执行NAS。
 
 2026-10-08 Offload旧表升级：精确旧DDL/hash经既有事务扩展多目标列，保持已完成Movie原列、Package摘要及Arca/Custody/Shelf记录；未完成或错关联拒绝，复制后异常完整回滚并可重试。28项回归及P2/架构/语义通过。生产副本升级/回退仍未验收，Assembler/Arca/Coordinator继续，未部署NAS。[Evidence](evidence/SERIES_OFFLOAD_SCHEMA_UPGRADE_20261008.md)。
+
+2026-10-08 Series Offload装配DoR：Promotion从完整终检候选重建已确认的外部连通范围映射，逐原文件生成互斥单/多目标字段，保留原物理身份与Control；范围外Direct/内部加工维持原映射。缺失目标、保留旧part或篡改映射必须拒绝；不从Workspace候选伪造原Run Binding。Arca消费及完整外部Host仍需后续闭环。
+
+2026-10-08 Series Offload装配：Promotion重建完整外部候选映射，原文件携带全部成品且仅一row，保留原物理/Control；单目标scalar、缺失/篡改拒绝。30项专项、36.6秒普通混合上架Host及P2/架构/语义通过。外部Read Set、Arca/Coordinator和真实外部Host继续，未部署NAS。[Evidence](evidence/SERIES_OFFLOAD_ASSEMBLY_20261008.md)。
