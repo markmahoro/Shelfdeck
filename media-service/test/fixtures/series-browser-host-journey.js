@@ -96,6 +96,39 @@ async function open({ host, apiKey }) {
       const response = await observation;
       assert.ok(response.ok(), await response.text());
     },
+    async checkHealth(entry, prefix = 'care-') {
+      await page.setViewportSize({ width: 1920, height: 1080 });
+      await page.goto(address + '/collection');
+      await page.getByRole('button', { name: '查看 ' + entry.displayIdentity + ' 详情', exact: false }).click();
+      const dialog = page.getByRole('dialog', { name: entry.displayIdentity, exact: true });
+      const responsePromise = page.waitForResponse(response => response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === '/v1/admin/care/' + entry.shelfEntryId + '/actions/check');
+      await dialog.getByRole('button', { name: '立即检查健康', exact: true }).click();
+      const response = await responsePromise;
+      assert.ok(response.ok(), await response.text());
+      await dialog.getByRole('region', { name: '收藏健康', exact: true }).scrollIntoViewIfNeeded();
+      await screenshot(prefix + 'requested');
+    },
+    async verifyHealthy(entry) {
+      for (const [name, width, height] of [['desktop', 1920, 1080], ['narrow', 390, 844]]) {
+        await page.setViewportSize({ width, height });
+        await page.goto(address + '/collection');
+        const tile = page.getByRole('button', { name: '查看 ' + entry.displayIdentity + ' 详情', exact: false });
+        await expect(tile).toContainText(entry.displayIdentity);
+        await expect(tile).toHaveAccessibleName('查看 ' + entry.displayIdentity + ' 详情，收藏健康：健康');
+        await tile.click();
+        const dialog = page.getByRole('dialog', { name: entry.displayIdentity, exact: true });
+        await expect(dialog.locator('.health-lamp-copy strong')).toHaveText('健康');
+        await expect(dialog.getByText('当前仅支持为电影接受瑕疵。', { exact: true })).toBeVisible();
+        await dialog.getByRole('region', { name: '收藏健康', exact: true }).scrollIntoViewIfNeeded();
+        await screenshot('care-healthy-' + name);
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+        await page.keyboard.press('Escape');
+        await expect(dialog).toHaveCount(0);
+        await expect(tile).toBeFocused();
+      }
+      assert.deepEqual(errors, []);
+    },
     async scanNextBatch() {
       await page.setViewportSize({ width: 1920, height: 1080 });
       await page.goto(address + '/material-fields');
@@ -150,6 +183,8 @@ async function open({ host, apiKey }) {
         await tile.click();
         assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), 'Collection page must fit the viewport.');
         const dialog = page.getByRole('dialog', { name: entry.displayIdentity, exact: true });
+        if(entry.people.length)await expect(dialog.locator('.collection-people dd')).toHaveText(
+          [...new Map(entry.people.map(person=>[person.personId,person.displayName])).values()].slice(0,12).join('、'));
         const episodes = dialog.getByRole('region', { name: '已收藏剧集' });
         await expect(episodes.getByRole('heading', { name: '第 ' + entry.series.seasonNumber + ' 季 · 已收藏 ' + entry.series.episodeCount + ' 集' })).toBeVisible();
         await expect(episodes.getByText(entry.series.physicalFileCount + ' 个视频文件', { exact: true })).toBeVisible();

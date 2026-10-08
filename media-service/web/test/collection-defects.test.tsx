@@ -50,3 +50,11 @@ it('manual repair confirms only currently executable gaps and leaves unsupported
   expect(screen.getByText(/演员资料缺失/)).toHaveTextContent('暂不可修复');
   expect(screen.getByText(/海报缺失/)).not.toHaveTextContent('暂不可修复');
 });
+
+it('identifies the Movie-only eligibility boundary without claiming file damage',async()=>{
+  vi.spyOn(helixAdminApi,'previewCollectionDefects').mockResolvedValue({...preview(),gaps:[],eligibility:'ineligible',ineligibleReasons:['movie_only']});
+  render(<CollectionDefects shelfEntryId="entry" revision="1" onChanged={()=>{}}/>);
+  expect(await screen.findByText('当前仅支持为电影接受瑕疵。')).toBeInTheDocument();
+  expect(screen.queryByText(/文件安全或完整性问题/)).toBeNull();
+  expect(screen.queryByRole('button',{name:'接受当前瑕疵'})).toBeNull();
+});

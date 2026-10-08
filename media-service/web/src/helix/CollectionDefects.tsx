@@ -13,7 +13,7 @@ export function gapLabel(gap:AcceptedGap) {
     Array.isArray(value)?value.join(' / '):typeof value==='string'?value:'';
   return `${labels[gap.requirementCode] || '媒体要求'}未达标${target?`（目标 ${target}）`:''}`;
 }
-const blockers:Record<string,string>={maintenance_in_progress:'当前维护结束后可重新检查瑕疵处理条件。',modification_fenced:'收藏正在退出或收藏架不可用。',no_current_gaps:'当前没有需要接受的瑕疵。'};
+const blockers:Record<string,string>={movie_only:'当前仅支持为电影接受瑕疵。',maintenance_in_progress:'当前维护结束后可重新检查瑕疵处理条件。',modification_fenced:'收藏正在退出或收藏架不可用。',no_current_gaps:'当前没有需要接受的瑕疵。'};
 
 export default function CollectionDefects({shelfEntryId,revision,onChanged}:{shelfEntryId:string;revision:string;onChanged:()=>void}) {
   const {expire}=useSession();

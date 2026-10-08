@@ -81,3 +81,17 @@ UI负责人turn `01a11b26-3f0a-7712-aaf5-e52229dbd0ad`正式接受 `2aaa423ceab0
 Windows Chromium真实旅程1项通过/0skip，73.15秒；日志 `series-browser-append.log`，截图目录 `series-browser-append/`（仓库外统一证据根）含 append-source-scan、append-formation-attention、append-identity-preview-*、append-collection-*。人工截图确认“本批1集E03”与“已收藏3集”区分清楚，窄屏文件完整可读。JS语法/diff检查通过。仅测试/文档增量，未重复产品构建或全架构/Linux媒体回归；临时Host与浏览器已关闭。
 
 新增追加段待负责人验收。素材与Provider沿既有可控Fixture，不扩充为真实长媒体质量证据。首次规则模板仍API预置；运营、外部交付合同缺口及升级回退门槛继续开放，未操作NAS。
+
+## 浏览器维护、健康投影与追加人物展示修复
+
+负责人复查24e995e8e追加截图发现同一演员跨批次重复展示，未据旧验收关闭追加门槛。按其turn `01a11b2b-fac0-7c50-9f08-d09c842b421c`要求，仅Collection展示按非空正式personId去重，再取前12人；保留底层关系、同名不同ID以及未解析人物。前端回归覆盖上述情形；最终演员实现的实际E03追加72.26秒通过，截图 `series-browser-append-people-v2/append-collection-desktop.png` 确认三集与一次Fixture Actor。此次追加截图早于后续独立的movie_only提示修正。
+
+新增 `HELIX_SERIES_BROWSER_CARE=1`：隔离fixture对E01 NFO缺失/E02 NFO损坏后，由详情按钮发起真实检查，Arca正式Aftercare修复后再次检查；保留原Host对唯一Inventory Commit、历史事实、未改文件、控制结算、外键/完整性及重启不变断言。页面桌面/窄屏核对健康结果和键盘返回。
+
+初轮 `series-browser-care.log` 是health选择器匹配两个区域，已改为精确语义区域。v2–v4复现真实服务缺陷：列表never_assessed而详情healthy；新增正式API相等断言后证实CareBasis不同。根因批量healthProjectionInputs评分目标遗漏series_title，单条Collection目标已有该字段。只补相同标题取值顺序，不逐项读取、不更改判定/Owner/持久事实。新增批量501项回归含Season标题，保持有界SQL读取。v5完整浏览器91.73秒通过，详情与列表完整健康投影相同。
+
+截图另发现健康状态下瑕疵区错误提示文件安全问题：Series资格返回movie_only，UI缺少该原因映射。仅补准确的电影适用范围提示，不开放Series接受瑕疵。负责人turn `01a11b39-ffe9-71b2-8a2e-c1667cb78fd3`同意此方向；本轮最终版本尚待验收。
+
+验证：Windows/Linux各61项健康投影、合同及accepted-requirements回归通过；Linux使用既有本地测试镜像只读挂载当前src/test，不是发布镜像构建。最终133前端、8项Series双视口/Axe、Admin构建、P2、包边界/禁用语义及diff检查通过。日志分别为 `series-care-health-{windows,linux,p2,guards}.log`、`series-care-final-{web,ui,build}.log`；全部在仓库外统一证据根。真实媒体质量、完整冷配置、外部交付缺口、升级回退等门槛仍开放，无NAS动作。
+
+最终movie_only提示构建的真实浏览器维护 `series-browser-care-v6.log` 91.66秒通过/0skip，截图 `series-browser-care-v6/care-healthy-{desktop,narrow}.png` 已视觉检查；健康与资格提示一致，列表/详情投影完全相等。临时Host与浏览器已退出。

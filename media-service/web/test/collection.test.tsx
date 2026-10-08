@@ -61,6 +61,23 @@ describe('Arca collection poster wall', () => {
     expect(list).toHaveBeenCalledTimes(3);
   });
 
+  it('shows a person once across batch relations while preserving distinct people with the same name', async () => {
+    const repeated = { ...entry, people: [
+      { personId:'person-1', displayName:'Alex', role:'actor' },
+      { personId:'person-1', displayName:'Alex', role:'actor' },
+      { personId:'person-1', displayName:'Alex', role:'director' },
+      { personId:'person-2', displayName:'Alex', role:'actor' },
+      { personId:'', displayName:'Unknown', role:'actor' },
+      { personId:'', displayName:'Unknown', role:'actor' },
+    ] };
+    vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items:[repeated] });
+    renderCollection();
+    fireEvent.click(await screen.findByRole('button', { name:/查看 The Shawshank Redemption 详情/ }));
+    const dialog = screen.getByRole('dialog', { name:entry.displayIdentity });
+    expect(within(dialog).getByText('Alex、Alex、Unknown、Unknown', { exact:true })).toBeInTheDocument();
+    expect(repeated.people).toHaveLength(6);
+  });
+
   it('keeps an empty collection concise with its existing controls', async () => {
     vi.spyOn(helixAdminApi, 'listCollection').mockResolvedValue({ items:[] });
     renderCollection();

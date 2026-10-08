@@ -210,7 +210,7 @@ export default function CollectionPage() {
           <p className="collection-dialog-meta">{selected.year || '年份未知'} · {selected.genres.length ? selected.genres.join(' / ') : '类型未记录'}</p>
           <p className="collection-dialog-overview">{selected.overview || '暂无剧情简介。'}</p>
 
-          {selected.people.length > 0 && <dl className="collection-people"><dt>演职人员</dt><dd>{selected.people.slice(0, 12).map((person) => person.displayName).join('、')}</dd></dl>}
+          {selected.people.length > 0 && <dl className="collection-people"><dt>演职人员</dt><dd>{selected.people.filter((person, index, people) => !person.personId || people.findIndex(item => item.personId === person.personId) === index).slice(0, 12).map((person) => person.displayName).join('、')}</dd></dl>}
           <dl className="collection-facts">
             <div><dt>收藏架</dt><dd>{selected.shelfName}</dd></div>
             <div><dt>占用空间</dt><dd>{formatBytes(selected.occupancyBytes)}</dd></div>

@@ -116,10 +116,17 @@ test('Aftercare health projection preserves and scopes every requested Shelf Ent
   sqliteFixture('uat103-aftercare-501-', ({ root, unitOfWork, seed, sqlTrace }) => {
     insertShelf(seed);
     const ids = insertEntries(seed, 501);
+    seed.prepare('UPDATE arca_shelf_entries SET structure_kind=? WHERE shelf_entry_id=?').run('season',ids[0]);
+    seed.prepare(`INSERT INTO arca_inventory_product_facts
+      (shelf_entry_id,inventory_revision,fact_kind,fact_revision,fact_schema_ref,fact_json,fact_digest,source_package_id,provenance_digest,committed_at_ms)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`).run(ids[0],1,'product_metadata',1,'helix://test/metadata',
+        JSON.stringify({descriptiveFacts:{entries:[{key:'series_title',value:'Demo Show'}]}}),digest('series-metadata'),'package-'+ids[0],digest('provenance'),1);
+
     const store = createAftercareStore({ schemaManifest, unitOfWork, now:() => 10_000,
       aftercareWorkspaceRoot:path.join(root, 'aftercare-workspaces') });
     const projected = store.healthProjectionInputs(ids);
     assert.equal(projected.length, ids.length);
+    assert.equal(projected.find(item=>item.shelfEntryId===ids[0]).ratingTarget.title,'Demo Show');
     assert.deepEqual(projected.map((item) => item.shelfEntryId).sort(), [...ids].sort());
     for(const table of ['arca_shelf_entries','arca_canonical_identity_revisions','arca_inventory_representations',
       'arca_inventory_product_facts','arca_aftercare_assessments','arca_aftercare_cases']){
