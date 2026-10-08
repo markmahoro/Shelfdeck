@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 浏览器来源到上架：真实页面登记Series来源、发布年份分拣并扫描，接续人工身份/Arca上架/收藏双视口38.41秒通过；仅测试增量。负责人已接受573444125登录至收藏段，新增来源段待复验。收藏架/规则仍由API配置，完整运营/外部及发布Gate继续。[Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
+
 2026-10-08 真实浏览器Host：页面登录→人工Series身份确认→实际两集上架→Collection详情37.26秒通过，无API拦截；修复截图发现的窄屏五列工具栏溢出，128前端/双视口收藏/原Host/构建及P2通过。待UI负责人精确版本复验；预配置仍经API，完整旅程与发布Gate不关闭，未操作NAS。[Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
 
 2026-10-08 真实浏览器Host旅程DoR：沿已接受UI，从管理凭据登录、Formation需处理/身份预览/确认到实际Collection完成结果，使用构建后的Admin与隔离正式Host，不拦截业务API。上游Provider和媒体沿既有隔离fixture；验证桌面/窄屏及结果与Owner Projection一致，证据需提交负责人复验。该增量不替代来源配置、完整运营及外部交付门槛，无生产动作。

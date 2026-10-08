@@ -29,3 +29,13 @@ UI负责人任务 `01a0912a-0086-74e2-88ab-536c59d3862a` 于turn `01a11b0f-4add-
 ## 验收范围
 
 待UI负责人对本次精确提交复验。浏览器运行Windows Chromium，媒体Probe/加工与上游Provider沿既有可控fixture，不宣称该测试覆盖真实媒体质量。来源/规则/收藏架/路由配置仍由正式API预置，不是全程由用户界面配置；追加、完整运营和外部交付浏览器旅程仍未覆盖。Linux真实媒体证据沿既有专项，本次未重跑Linux/全架构，未关闭Series整体部署门槛。
+
+## 负责人接受与来源页面追加
+
+UI负责人在turn `01a11b12-a149-70b3-8bdf-6423d7e2f591`正式接受精确提交 `573444125e727c5ef988b0d96c673b4bda607a51` 的登录→人工身份确认→实际上架→收藏查看；其亲自复跑构建、双视口2项及真实Host37.23秒通过。仅覆盖该段，不覆盖全配置/追加/运营/外部交付。
+
+随后沿同一隔离Host扩展浏览器：来源页登录，选择剧集、填写临时目录并登记；通过真实POST生成Field ID，公开Projection确认Profile；收藏架分拣页发布年份>=2020策略并点击扫描新文件，然后接续人工身份与实际上架。没有页面API拦截、没有用固定Field ID替换页面结果。收藏架/规则及自动结算许可暂仍由原Fixture正式API配置。
+
+该追加最终1项通过/0skip，38.41秒，`series-browser-source-v3.log`；截图目录 `series-browser-source-v3/` 新增 `source-registered.png` 与 `source-routing.png`。前两次新增断言错误读取Profile顶层字段，改按正式Projection的 `currentProfileHintSnapshot.contentProfileHint` 验证；未修改产品字段或弱化断言。JS语法/diff检查通过。本次仅测试与文档，不重复产品构建或全架构回归；待负责人接受新增来源/策略/扫描段。
+
+截图中的“年份未知”已核对：当前Series标准的requiredFieldCodes不含year_or_release_date，Adapter仅返回请求字段，Collection没有已有年份事实可显示。此处不补造年份、不改资料采集合同；后续按实际标准展示。

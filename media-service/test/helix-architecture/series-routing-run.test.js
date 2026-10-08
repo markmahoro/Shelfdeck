@@ -389,7 +389,11 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   const policyValue={includedDirectories:[],excludedDirectories:[],allowedExtensions:(mixed||mediaRepair)?['.mkv','.mp4']:['.mkv'],minimumSizeBytes:0,excludedMaterialKeys:[]};
   const access={fieldId:'series-field',revision:1,endpointId:'series-endpoint',rootLocation:path.join(root,'source'),
     mountScopeId:'series-mount',mountScopeRevision:1,accessSchemaRef:'helix://fixtures/series-field-access/v1'};
-  await request('POST','/v1/admin/material-fields',{idempotencyKey:'series-register',fieldId:'series-field',name:'Series fixture',
+  let sourceFieldId='series-field';
+  if(browserJourney) {
+    browserFlow=await require('../fixtures/series-browser-host-journey').open({host,apiKey:initialized.adminApiKey});
+    sourceFieldId=await browserFlow.registerSource(path.join(root,'source'));
+  } else await request('POST','/v1/admin/material-fields',{idempotencyKey:'series-register',fieldId:'series-field',name:'Series fixture',
     contentProfileHint:'series',policy:{extractionPolicyId:'series-policy',revision:1,
       policySchemaRef:'helix://contracts/domain-types/ExtractionPolicy/v1',policy:policyValue,
       policyDigest:canonicalDigest({extractionPolicyId:'series-policy',revision:1,...policyValue})},
@@ -435,7 +439,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     targetRootLocation:target,ruleTemplateId,expectedTemplateRevision,
     placementPolicy:{folderTemplate:'{title}',primaryTemplate:'{stem}{ext}',nfoTemplate:'{stem}.nfo',
       subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}',posterTemplate:'poster{ext}',fanartTemplate:'fanart{ext}',collisionPolicy:'reject'}});
-  await request('PATCH','/v1/admin/routing/material-fields/series-field',{idempotencyKey:'series-routing',fieldId:'series-field',
+  if(!browserJourney)await request('PATCH','/v1/admin/routing/material-fields/series-field',{idempotencyKey:'series-routing',fieldId:'series-field',
     expectedPolicyId:null,expectedRevision:0,policy:{routingPolicyId:'series-routing',mode:'sorting',targets:[
       {shelfId:'series-shelf',rank:1,matchExpression:{nodeKind:'predicate',factKind:'release_year',operator:'gte',expectedValue:2020}}]}});
   if(concurrent){
@@ -450,7 +454,10 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
         {shelfId:'series-shelf',rank:1,matchExpression:{nodeKind:'predicate',factKind:'release_year',operator:'gte',expectedValue:2020}}]}});
   }
   const deps={schemaManifest,unitOfWork};
-  await request('POST','/v1/admin/material-fields/series-field/actions/observe',{
+  if(browserJourney) {
+    await browserFlow.routeAndScan();
+    assert.equal((await request('GET','/v1/admin/material-fields')).json().items.find(item=>item.fieldId===sourceFieldId).currentProfileHintSnapshot.contentProfileHint,'series');
+  } else await request('POST','/v1/admin/material-fields/series-field/actions/observe',{
     idempotencyKey:'series-observe',fieldId:'series-field',expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
   if(concurrent)await request('POST','/v1/admin/material-fields/series-field-2/actions/observe',{
     idempotencyKey:'series-observe-2',fieldId:'series-field-2',expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
@@ -491,7 +498,6 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const run=pending.currentRun;
     const before=db.prepare('SELECT execution_basis_digest,run_material_manifest_id FROM libra_runs WHERE libra_run_id=?').get(run.libraRunId);
     if(browserJourney) {
-      browserFlow=await require('../fixtures/series-browser-host-journey').open({host,apiKey:initialized.adminApiKey});
       await browserFlow.chooseIdentity();
     } else {
     const preview=JSON.parse((await request('GET','/v1/admin/formation/runs/'+run.libraRunId+'/product-identity-preview?tmdbSeriesId=1399')).body);

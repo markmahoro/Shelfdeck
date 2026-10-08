@@ -17,10 +17,42 @@ async function open({ host, apiKey }) {
   page.setDefaultTimeout(15000);
   const screenshot = name => page.screenshot({ path: path.join(output, name + '.png'), fullPage: true });
   return {
-    async chooseIdentity() {
-      await page.goto(address + '/formation');
+    async registerSource(rootLocation) {
+      await page.goto(address + '/material-fields');
       await page.getByLabel('管理凭据', { exact: true }).fill(apiKey);
       await page.getByRole('button', { name: '进入管理台', exact: true }).click();
+      await page.getByLabel('媒体类型').selectOption('series');
+      await page.getByLabel('来源名称').fill('Series fixture');
+      await page.getByLabel('媒体目录').fill(rootLocation);
+      const registration = page.waitForResponse(response => response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === '/v1/admin/material-fields');
+      await page.getByRole('button', { name: '保存文件来源' }).click();
+      const response = await registration;
+      assert.ok(response.ok(), await response.text());
+      const input = response.request().postDataJSON();
+      assert.equal(input.contentProfileHint, 'series');
+      await expect(page.getByRole('heading', { name: 'Series fixture', exact: true })).toBeVisible();
+      await screenshot('source-registered');
+      return input.fieldId;
+    },
+    async routeAndScan() {
+      await page.goto(address + '/material-fields');
+      await page.getByText('收藏架分拣策略', { exact: true }).click();
+      await page.getByRole('combobox', { name: '模式', exact: true }).selectOption('sorting');
+      await page.getByLabel('事实类型').selectOption('release_year');
+      await page.getByLabel('比较方式').selectOption('gte');
+      await page.getByLabel('年份', { exact: true }).fill('2020');
+      await page.getByRole('button', { name: '发布策略', exact: true }).click();
+      await expect(page.locator('.routing-policy-panel').getByRole('status')).toContainText('分拣策略已发布');
+      await screenshot('source-routing');
+      const observation = page.waitForResponse(response => response.request().method() === 'POST' &&
+        response.url().endsWith('/actions/observe'));
+      await page.getByRole('button', { name: '扫描新文件', exact: true }).click();
+      const response = await observation;
+      assert.ok(response.ok(), await response.text());
+    },
+    async chooseIdentity() {
+      await page.goto(address + '/formation');
       const button = page.getByRole('button', { name: '手动选取剧集身份', exact: true });
       await expect(button).toBeVisible();
       await screenshot('formation-attention');
