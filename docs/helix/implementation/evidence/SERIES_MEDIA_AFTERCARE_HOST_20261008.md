@@ -23,3 +23,13 @@ UnitOfWork decorator在真实Aftercare Inventory事务最后追加故障参与�
 最初Host测试在首次Direct上架后被旧Libra混合加工断言阻止；改为显式验证初次没有Libra加工后通过，不是产品链路缺陷。按临时目录CreationTime读取的中间诊断无法可靠绑定该次进程，已撤回相关判断，不作为本证据来源。
 
 本批将“自动媒体维修关闭”的历史状态更新为已按安全成员证据开放，并验证上述短SDR普通一集一文件链路。N:M维修、长片压缩/音轨/HDR与更多设备、真正进程崩溃/跨设备恢复、Off-deck、外部寻源、UI/Linux/升级回退及整体首版发布门槛仍开放；不声明Series已可部署。
+
+## N:M 真实媒体维修追加
+
+基线 `55b75442b0d70e4ea3ae336b64b6cc392ca73c81`，仅增加隔离Host测试与证据，未改产品代码。新增 `with real N:M media Aftercare$`：E01–E02共用HEVC/MP4，E01另有H264/MKV part；先按宽松标准Direct入库，再经正式模板/Shelf API要求HEVC/MKV，以无空间上限完成Aftercare Remux与NVIDIA NVENC Transcode。
+
+最终 `series-nm-media-aftercare-host-v3.log` 98.5秒通过。按最终磁盘字节与持久Claims独立重建，E001为13,493字节，E002为5,927字节，与正式Arca空间模型精确有理数结果一致；1 MiB仅为事后计量比较值，不能声称维修按该上限执行。全部Artifact字节保持、两个Primary Claims原样保留；12表事务故障注入完整回滚后单次Commit、旧Control释放、新Control归属、Settlement和SQLite完整性均通过。
+
+初次 `series-nm-media-aftercare-host.log` 使用1 MiB维修上限，短片不足既有策略至少16 MiB预留，编码Finding保持attention_required且没有Case；未放宽预算策略。第二次 `series-nm-media-aftercare-host-v2.log` 已完成Case，但复用的普通E01字节保持断言误用于N:M独立part；按映射修正测试后第三次完整通过。此前失败日志保留。
+
+相关评估/完整成品集合专项30项通过，架构449文件/1412依赖、语义2067文件及diff检查通过。本批未重复全架构2,300项历史回归，没有产品实现修改。真实有界压缩仍需合适大小的源文件；长片/音轨/HDR、进程中断恢复、跨设备、运营/UI/Linux及首版发布Gate继续开放，无NAS动作。

@@ -247,3 +247,5 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08媒体维修真实Host DoR：沿冻结完整成员Evidence仅把容器/扩展名及具备有效成员Strategy的编码/空间缺陷纳入现有自动维修准入，其余缺陷保持需处理。以隔离正式Host、真实短SDR文件验证一集保持、一集Remux、一集Transcode、原子Inventory-Control回滚/提交与Settlement。用户入口沿既有维护检查、短状态/真实进度和健康结果，不新增解释文案；状态可见变化的精确版本UI负责人走查仍为发布Gate。本批不部署NAS。
 
 2026-10-08真实Series媒体维修：正式隔离Host经规则/Shelf标准API触发一集保持、一集Remux、一集NVIDIA NVENC Transcode，Case健康终结；实际Inventory-Control事务末尾故障注入全回滚后正常提交，Claims保持、旧Control释放及Settlement通过，增强复验约100秒。安全成员策略对应缺陷已开放自动维修，缺策略仍需处理；全架构2,300通过/9既有skip/0失败。N:M/长片/进程恢复/UI/Linux与整体发布Gate继续，无NAS部署。[Evidence](evidence/SERIES_MEDIA_AFTERCARE_HOST_20261008.md)。
+
+2026-10-08 N:M真实媒体维修追加：共文件E01–E02与E01独立part经正式Host完成Remux/NVIDIA转码、Claims保持、Inventory-Control故障回滚/提交及Settlement，98.5秒通过；最终逐集实测13,493/5,927字节。该维修无空间上限，1 MiB仅作事后计量比较；真实有界压缩仍待合适尺寸源验证。仅测试/证据修改，30项专项及架构/语义检查通过；进程恢复/UI/Linux与整体发布Gate继续，未部署NAS。[Evidence](evidence/SERIES_MEDIA_AFTERCARE_HOST_20261008.md)。

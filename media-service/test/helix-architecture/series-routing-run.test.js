@@ -182,7 +182,7 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair} of [...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(mediaRepair?' with real media Aftercare':migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:real||repair||migrate?300000:180000},async t=>{
+for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair} of [...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(mediaRepair?(nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:real||repair||migrate?300000:180000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
@@ -544,7 +544,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     if(real) {
       const inspected=require('node:child_process').spawnSync(process.env.FFPROBE_PATH||require('@ffprobe-installer/ffprobe').path,
         ['-v','error','-select_streams','v:0','-show_entries','stream=codec_name','-of','json',item.location],{encoding:'utf8',windowsHide:true});
-      assert.equal(inspected.status,0,inspected.stderr);assert.equal(JSON.parse(inspected.stdout).streams[0].codec_name,mediaRepair&&item.location.endsWith('S01E03.mkv')?'h264':'hevc');
+      assert.equal(inspected.status,0,inspected.stderr);assert.equal(JSON.parse(inspected.stdout).streams[0].codec_name,mediaRepair&&(nm?JSON.parse(item.episode_claims_json).items.length===1:item.location.endsWith('S01E03.mkv'))?'h264':'hevc');
     } else assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
     assert.equal(path.basename(path.dirname(item.location)),'Season 01');
     assert.ok(path.relative(target,item.location)&&!path.relative(target,item.location).startsWith('..'));
@@ -608,8 +608,11 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       name:'Bounded Series fixture',expectedSourceRevision:1});
     const draft=(await request('GET','/v1/admin/rule-templates/'+repairTemplateId+'/draft')).json().draft;
     const rules=structuredClone(draft.rules),profile=rules.profileRuleSets.find(item=>item.contentProfile==='series');
-    for(const requirements of [profile.baseRequirements,...profile.decisionBranches.map(item=>item.requirements)])
+    const allocationCheckCap=1048576;
+    for(const requirements of [profile.baseRequirements,...profile.decisionBranches.map(item=>item.requirements)]) {
       Object.assign(requirements.mandatoryMedia,{videoCodec:'hevc',container:'matroska',fileExtension:'mkv'});
+      if(nm)requirements.space={unit:'episode',maxSizeGiB:null,maxSizeBytes:null};
+    }
     profile.profileRuleSetDigest=canonicalDigest(Object.fromEntries(Object.entries(profile).filter(([key])=>key!=='profileRuleSetDigest')));
     const rulesDigest=canonicalDigest(rules);
     await request('PATCH','/v1/admin/rule-templates/'+repairTemplateId+'/draft',{
@@ -638,7 +641,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const current=db.prepare('SELECT * FROM arca_shelf_entries').get(),materials=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=?').all(current.current_inventory_revision);
     assert.equal(materials.length,inventory.length);
     for(const {item,bytes} of original) {
-      if(item.role!=='primary_payload'||item.location.endsWith('S01E01.mkv')) {
+      if(item.role!=='primary_payload'||(!nm&&item.location.endsWith('S01E01.mkv'))) {
         assert.deepEqual(fs.readFileSync(item.location),bytes);assert.ok(materials.some(row=>row.material_key===item.material_key));continue;
       }
       const expected=path.join(path.dirname(item.location),path.parse(item.location).name+'.mkv'),replacement=materials.find(row=>path.resolve(row.location)===path.resolve(expected));
@@ -648,6 +651,25 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       const probe=require('node:child_process').spawnSync(process.env.FFPROBE_PATH||require('@ffprobe-installer/ffprobe').path,
         ['-v','error','-select_streams','v:0','-show_entries','stream=codec_name','-of','json',replacement.location],{encoding:'utf8',windowsHide:true});
       assert.equal(probe.status,0,probe.stderr);assert.equal(JSON.parse(probe.stdout).streams[0].codec_name,'hevc');
+    }
+    if(nm) {
+      const finalContext=require('../../src/helix/domains/arca/application/aftercare-context-reader')
+        .createAftercareContextReader({schemaManifest,unitOfWork,workResultReader:
+          require('../../src/helix/foundation/execution/work-result-reader').createWorkResultReader({schemaManifest,unitOfWork})})
+        .read(entry.shelf_entry_id);
+      const finalSpace=require('../../src/helix/domains/arca/model/series-care-media-space')
+        .evaluateSeriesCareMediaSpace(finalContext,allocationCheckCap);
+      const primaries=materials.filter(item=>item.role==='primary_payload'),
+        shared=primaries.find(item=>JSON.parse(item.episode_claims_json).items.length===2),
+        part=primaries.find(item=>JSON.parse(item.episode_claims_json).items.length===1);
+      assert.ok(shared&&part);
+      for(const material of primaries)assert.equal(fs.statSync(material.location).size,Number(material.size_bytes));
+      const fraction=n=>n%2n===0n?{numerator:String(n/2n),denominator:'1'}:{numerator:String(n),denominator:'2'};
+      const expected=[{episodeKey:'E001',allocatedBytes:fraction(BigInt(shared.size_bytes)+2n*BigInt(part.size_bytes))},
+        {episodeKey:'E002',allocatedBytes:fraction(BigInt(shared.size_bytes))}];
+      assert.deepEqual(finalSpace.episodeAllocations.map(({episodeKey,allocatedBytes})=>({episodeKey,allocatedBytes})),expected);
+      assert.ok(finalSpace.episodeAllocations.every(item=>item.withinLimit));
+      t.diagnostic(JSON.stringify({finalEpisodeAllocations:expected,allocationCheckCap,repairSpaceLimit:null}));
     }
     const controlPort=require('../../src/helix/foundation/persistence/material-control').createMaterialControlProjectionPort({schemaManifest,unitOfWork}),
       controls=controlPort.getMaterialControlProjections([...new Set([...materials,...inventory].map(item=>item.material_key))].sort());
