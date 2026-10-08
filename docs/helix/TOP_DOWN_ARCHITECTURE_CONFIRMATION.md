@@ -1421,6 +1421,17 @@ Inventory revision中仍只出现一次，Episode关系只作为该成员的有�
 Episode Material业务对象、全局N:M Store或跨Domain关系表。每个本次Delivery Episode必须至少由一个
 Primary覆盖，每个Series Primary必须绑定`1..32`个同一Season Delivery Episode。
 
+2026-10-08用户确认Series外部替换范围：Libra从当前Run冻结的完整Primary↔Episode Claim二部图出发，
+对需要外部替换的成员取完整连通分量；同Episode的所有part及经共文件关联的其他Episode必须一起进入范围。
+互不关联的分量分别规划，范围外已合格候选保留。范围身份绑定Run execution basis、Acceptance Spec及完整
+源成员摘要；不能从文件名猜范围、只扩展一跳、只替换原part之一，或用Provider查询请求冒充实际Episode覆盖。
+外部最终成员必须由实际取得/验证的Evidence绑定，Episode集合精确覆盖该范围，不得带入其他集或遗漏任何集。
+每个原Primary的交接映射保存与其Claims有交集的全部最终Primary keys，按UTF-8排序且唯一；对应最终Claims的
+并集必须覆盖原Claims。映射绑定完整范围及完整最终集合，不能为满足单值字段随意挑一个成品。此关系属于既有
+Libra生产交接和Arca结算，不增加Owner、全局Store或第三次Handoff；Landing仍只读且只复制到Workspace。
+完整混合集合的成品验收及Arca对所有映射成品的现场/结算验证继续必需，范围或映射摘要本身不授予删除权限。
+
+
 Material Field可以提供versioned contentProfile Hint；create未提供Hint时必须先规范化并持久化为显式`mixed`，
 不能以NULL或调用者默认值表达。具体Profile准召与Shelf Standard属于Level 5。
 

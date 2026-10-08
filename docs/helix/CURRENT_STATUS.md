@@ -140,3 +140,5 @@ UAT-280已完成：[清理证据](implementation/evidence/UAT-280_BETA_WORKSPACE
 清理阶段未构建或部署新版本、未改动生产业务数据/媒体、未重启服务；未新增功能测试或技术资格PASS。后续Series准备专项测试事实见上文，不改写清理阶段结论。部署集中负责人职责已按用户2026-09-28决定取消，UI负责人职责保留。
 
 2026-10-08 N:M有界维修：两个20秒大文件正式Host通过111.4秒，E01/E02按均分加part分别41,778,237.5/15,218,166.5字节，均低于每集64 MiB；独立part 939音频包保持，Claims/事务回滚/Control/Settlement通过。修复MP4→MKV未指定语言und/缺省等价误报，42项专项及架构/语义通过；小共文件比例预算限制仍开放。外部寻源完整范围替换方案已获用户确认，合同传播待实施；UI授权及Linux等发布Gate继续。未部署NAS。[Evidence](implementation/evidence/SERIES_MEDIA_AFTERCARE_HOST_20261008.md)。
+
+2026-10-08外部替换范围模型：用户确认已写入SSOT §3.2.6；Libra完整冻结关联分量与source-to-all-final映射纯校验完成，17项专项及架构/语义通过。尚无生产调用方，外部Work/Provider Evidence、多值schema/持久化/Promotion/Arca结算与完整Host继续，不声明寻源已启用或可部署。[Evidence](implementation/evidence/SERIES_EXTERNAL_REPLACEMENT_SCOPE_20261008.md)。

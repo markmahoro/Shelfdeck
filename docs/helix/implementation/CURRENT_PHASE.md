@@ -271,3 +271,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 N:M有界维修发现开放问题：短小共文件加68,526,141字节独立part、每集64 MiB时，比例预算将共文件也判为需压缩，低于既有16 MiB预留而无Strategy，整季attention_required且无Case（series-nm-bounded-repair-v2.log）。不能以改用大文件样本关闭此问题；后续在Arca策略合同内审查可保持成员及联合预算，完整实测逐集验收不得放宽。当前另测两个大文件均可行的执行链路。
 
 2026-10-08 N:M有界维修：两个20秒大文件正式Host通过111.4秒，E01/E02按均分加part分别41,778,237.5/15,218,166.5字节，均低于每集64 MiB；独立part 939音频包保持，Claims/事务回滚/Control/Settlement通过。修复MP4→MKV未指定语言und/缺省等价误报，42项专项及架构/语义通过；小共文件比例预算限制仍开放。外部寻源完整范围替换方案已获用户确认，合同传播待实施；UI授权及Linux等发布Gate继续。未部署NAS。[Evidence](evidence/SERIES_MEDIA_AFTERCARE_HOST_20261008.md)。
+
+2026-10-08外部替换范围DoR：按用户已确认方案补SSOT §3.2.6，并在Libra model计算冻结完整Primary/Episode关联分量及source-to-all-final映射。验证多跳part闭包、独立分量、输入顺序确定性、Run/Spec/成员变化Fence、缺集/越界/重复/伪造范围拒绝。该纯计算不授予副作用或改写现有单值交接；后续继续精确schema/持久化/Owner交接与真实外部Provider闭环，不据此宣称外部寻源已启用。
+
+2026-10-08外部替换范围模型：用户确认已写入SSOT §3.2.6；Libra完整冻结关联分量与source-to-all-final映射纯校验完成，17项专项及架构/语义通过。尚无生产调用方，外部Work/Provider Evidence、多值schema/持久化/Promotion/Arca结算与完整Host继续，不声明寻源已启用或可部署。[Evidence](evidence/SERIES_EXTERNAL_REPLACEMENT_SCOPE_20261008.md)。
