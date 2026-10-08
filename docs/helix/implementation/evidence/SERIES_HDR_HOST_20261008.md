@@ -11,7 +11,7 @@
 ## 结果
 
 - Linux：原本地测试镜像`shelfdeck-series-test:372768b68`、Node20，只读挂载当前test目录；1个目标Host通过/29个名称过滤skip，42.23秒。实际Remux及software_cpu encode，24样本Assessment通过。E001/E002共文件及E001 part两成品颜色/位深断言通过。
-- Windows：当前本地Runtime，1个目标Host通过/0skip，44.08秒，同样确认全部实际成品与Claims。
+- Windows：当前本地Runtime，1个目标Host通过/0skip，44.08秒，同样确认全部实际成品与Claims。日志确认实际编码设备是nvidia_nvenc；Linux为software_cpu，不能把Windows结果记成CPU验证。
 - 初次Linux测试失败保留：FFmpeg仅设置输出色彩参数时，合成源缺失PQ/BT.2020字段，正式Probe因此正确返回unknown；并非业务HDR分类错误。改为生成帧使用setparams色彩属性，加启动前源探测断言，并使用正式Probe归一化后的pq值，复验通过。未弱化最终FFprobe断言。
 - 日志在仓库外`E:/my_project/helix-git-consolidation-20261008/`：初次`series-hdr-host.log`、成功`series-hdr-host-frame.log`和`series-hdr-host-windows.log`。临时容器自动删除，未触及NAS。
 
