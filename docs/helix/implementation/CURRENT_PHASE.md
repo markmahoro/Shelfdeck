@@ -333,3 +333,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series结算Handle DoR：一个原source的授权scope绑定全部有序{materialKey,targetLocation}，逐项验证已通过Final Product Verification且与完整bounded Final Decision相同；任意位置/证据变化失效旧审批。单目标原shape保持，多目标finalTargets与scalar pair互斥。原生删除仍须单独接线验证，禁止重复调用单目标删除实现冒充N:M。
 
 2026-10-08 Series结算Handle：完整有序目标key/位置与Final Verification证据进入一个原source审批摘要，缺目标/重复/乱序拒绝，任一位置变化使旧scope失效。16项回归、36.7秒普通上架Host及P2/架构/语义通过。原生多目标现场复核、结算完成证据与恢复继续，未操作NAS。[Evidence](evidence/SERIES_SETTLEMENT_HANDLES_20261008.md)。
+
+2026-10-08 Series原生多目标结算DoR：异步Inventory端口从完整finalTargets及唯一原Offload source重建映射，逐目标校验Final Decision/Package、Season落位范围和真实指纹；全部通过再复核授权并仅删除该源文件。输出完整目标证据与集合摘要，重放重新验证全部目标；任意失败保留源及其他文件。Capability/完成证据和重启恢复后续接线，不重复单目标删除调用。
+
+2026-10-08 Series原生源结算：异步端口逐目标匹配Package/Final Decision并核验真实落位指纹，全部通过后复核审批、仅删除唯一source；完整目标证据与重放核验，junction/缺目标/变更拒绝。81项原生回归及P2/架构/语义通过。Capability完成证据/恢复和端到端继续，未操作NAS。[Evidence](evidence/SERIES_NATIVE_SETTLEMENT_20261008.md)。

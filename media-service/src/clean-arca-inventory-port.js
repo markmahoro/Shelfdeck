@@ -1,6 +1,7 @@
 'use strict';
 
 const fs = require('node:fs');
+const {offloadProductKeys}=require('./helix/contracts/offload-product-targets');
 const {seriesPlacementContext,seriesMemberStem}=require('./helix/domains/arca/model/series-placement');
 const path = require('node:path');
 const { observeEmptyStageSlot } = require('./helix/integrations/empty-stage-slot-observer');
@@ -1613,6 +1614,7 @@ function createCleanArcaInventoryPort(options) {
   }
 
   function settleInput(request) {
+    if(request&&Object.hasOwn(request,'finalTargets'))fail('CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID','Multiple targets require the asynchronous complete-set settlement path.');
     const handle = request?.materialHandle;
     if (!handle || handle.schemaRef !==
         'helix://contracts/types/PhysicalMaterialReadHandle/v1' ||
@@ -1683,6 +1685,57 @@ function createCleanArcaInventoryPort(options) {
       oldDirectoryDisposition });
   }
 
+  async function settleMultipleInputTargets(request,source) {
+    const finalRequest=request.finalInventoryRequest,targets=request.finalTargets,handle=request.materialHandle;
+    const reject=()=>fail('CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID','Multiple-target settlement requires its exact complete source-to-final mapping.');
+    if(Object.hasOwn(request,'finalMaterialKey')||Object.hasOwn(request,'finalTargetLocation')||
+        !Array.isArray(targets)||targets.length<2||targets.length>1024||request.settlementExpectation!=='remove_after_place'||
+        finalRequest?.onDeckProductPackage?.productStructureSnapshot?.structureKind!=='season')reject();
+    const packageValue=finalRequest.onDeckProductPackage;
+    const sources=(packageValue.offloadContextManifest?.members||[]).filter(item=>item.materialKey===handle.identity.materialKey);
+    if(sources.length!==1)reject();
+    const sourceMember=sources[0],keys=offloadProductKeys(sourceMember);
+    if(keys.length!==targets.length||request.sourceToFinalMappingDigest!==canonicalDigest(sourceMember)||
+        path.resolve(sourceMember.location)!==source||canonicalDigest(sourceMember.physicalIdentity)!==canonicalDigest(handle.identity)||
+        targets.some((item,index)=>item?.materialKey!==keys[index]||typeof item.targetLocation!=='string'||!item.targetLocation||item.targetLocation.length>4096))reject();
+    const built=resolveTargetLocation(finalRequest),finals=finalRequest.finalInventoryMembers,seenPaths=new Set(),evidence=[];
+    if(!Array.isArray(finals)||finals.length!==targets.length)reject();
+    const realRoot=await fs.promises.realpath(built.targetDirectory);
+    const realSource=await fs.promises.realpath(source).catch(error=>{if(error?.code==='ENOENT')return null;throw error;});
+    const pathKey=value=>process.platform==='win32'?value.toLowerCase():value;
+
+    for(const target of targets){
+      const matches=finals.filter(item=>item.sourceMaterialKey===target.materialKey),
+        products=packageValue.productMaterialManifest.members.filter(item=>item.materialKey===target.materialKey),
+        location=path.resolve(target.targetLocation);
+      if(matches.length!==1||products.length!==1||path.resolve(matches[0].targetLocation)!==location||
+          !contained(built.targetDirectory,location)||location===source||seenPaths.has(location)||
+          products[0].role!=='primary_payload'||products[0].controlOperation!=='acquire_workspace_product'||!products[0].episodeClaims?.length)
+        fail('CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT','A multiple-target successor drifted from the accepted final mapping.');
+      const realTarget=await fs.promises.realpath(location);
+      if(!contained(realRoot,realTarget)||(realSource&&pathKey(realSource)===pathKey(realTarget))||seenPaths.has(pathKey(realTarget)))
+        fail('CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT','A successor aliases the source or escapes the final target directory.');
+      seenPaths.add(pathKey(realTarget));
+
+      const plan={member:products[0],target:location,sizeBytes:Number(products[0].sizeBytes),contentFingerprint:products[0].physicalIdentity.contentFingerprint};
+      const observed=await computeFingerprint(location);verifyFinalObservation(finalRequest,plan,observed);
+      evidence.push(Object.freeze({materialKey:target.materialKey,targetLocation:location,finalRealityDigest:observationDigest(observed)}));
+    }
+    const exists=async location=>{try{await fs.promises.access(location);return true;}catch(error){if(error?.code==='ENOENT')return false;throw error;}};
+    let absent=!await exists(source),preDeleteIdentityDigest=null;
+    if(!absent){
+      const observed=await computeFingerprint(source);verifySettlementSource(request,observed,null);
+      preDeleteIdentityDigest=currentSettlementIdentityDigest(handle,observed);
+      request.assertCurrentApproval?.(source);
+      await fs.promises.rm(source,{force:false});absent=!await exists(source);
+      if(!absent)fail('CLEAN_ARCA_SETTLEMENT_DELETE_FAILED','Approved settlement source still exists after deletion.');
+    }
+    return Object.freeze({materialKey:handle.identity.materialKey,preDeleteIdentityDigest,absent,disposition:'settled_to_final',
+      sourceToFinalMappingDigest:request.sourceToFinalMappingDigest,finalTargets:Object.freeze(evidence),
+      finalRealityDigest:canonicalDigest({schema:'arca.settlement-final-targets@1',members:evidence}),finalVerified:true,
+      oldDirectoryDisposition:await exists(path.dirname(source))?'retained_directory':'not_present'});
+  }
+
   async function settleInputAsync(request) {
     const handle = request?.materialHandle;
     if (!handle || handle.schemaRef !==
@@ -1694,6 +1747,7 @@ function createCleanArcaInventoryPort(options) {
     }
     const source = path.resolve(handle.location);
     request.assertCurrentApproval?.(source);
+    if(Object.hasOwn(request,'finalTargets'))return settleMultipleInputTargets(request,source);
     const finalRequest = request?.finalInventoryRequest;
     if (!finalRequest || !request.finalMaterialKey || !request.finalTargetLocation ||
         !request.sourceToFinalMappingDigest ||

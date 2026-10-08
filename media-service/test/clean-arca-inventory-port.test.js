@@ -1732,3 +1732,77 @@ test('Stage target preflight produces a typed terminal outcome before any copy o
     await assert.rejects(uncertainPorts[CAPABILITY_REFS.stage].execute(execution), error => error === unknown);
   } finally { fs.rmSync(fixture.root, {recursive:true,force:true}); }
 });
+
+function seriesMultipleSettlementFixture(){
+  const f=settlementFixture({unknownMember:true}),directory=path.join(path.dirname(f.finalMember.targetLocation),'Season 01');
+  fs.mkdirSync(directory,{recursive:true});
+  const products=[1,2].map(number=>{
+    const location=path.join(directory,'E'+number+'.mkv');fs.writeFileSync(location,'episode-'+number);
+    return {...member(location,'primary_payload','canary-mount'),controlOperation:'acquire_workspace_product',episodeClaims:[{episodeKey:'E'+String(number).padStart(3,'0')}]};
+  }).sort((a,b)=>a.materialKey.localeCompare(b.materialKey));
+  const finalTargets=products.map(item=>({materialKey:item.materialKey,targetLocation:item.location.location}));
+  const source={materialKey:f.materialHandle.identity.materialKey,physicalIdentity:f.materialHandle.identity,
+    location:f.source,contextRole:'original_input',sourceRelatedReferenceId:null,dispositionKind:'replaced_and_settled',
+    settlementExpectation:'remove_after_place',finalProductMaterialKeys:finalTargets.map(item=>item.materialKey)};
+  const old=f.finalInventoryRequest.onDeckProductPackage,packageValue={...old,
+    resolvedIdentitySnapshot:{factValue:{...old.resolvedIdentitySnapshot.factValue,providerIdentities:[{namespace:'tmdb_series',seasonNumber:1}]}},
+    productStructureSnapshot:{structureKind:'season'},productFactManifest:{items:[{factKind:'product_metadata',factValue:{episodeMetadata:[1,2].map(n=>({episodeScope:{episodeKey:'E'+String(n).padStart(3,'0'),seasonNumber:1,episodeNumber:n}}))}}]},
+    productMaterialManifest:{...old.productMaterialManifest,members:products},offloadContextManifest:{members:[source]}};
+  const command={materialHandle:f.materialHandle,approval:{approvalId:'approval'},finalTargets,
+    settlementExpectation:'remove_after_place',sourceToFinalMappingDigest:canonicalDigest(source),
+    finalInventoryRequest:{...f.finalInventoryRequest,onDeckProductPackage:packageValue,
+      finalInventoryMembers:finalTargets.map(item=>({sourceMaterialKey:item.materialKey,targetLocation:item.targetLocation}))}};
+  return {...f,command};
+}
+test('Series native settlement verifies all targets, deletes one source and replays the complete evidence',async()=>{
+  const f=seriesMultipleSettlementFixture();
+  try{
+    let checks=0;f.command.assertCurrentApproval=()=>{checks++;};
+    const result=await f.port.settleInputAsync(f.command);
+    assert.equal(result.absent,true);assert.equal(checks,2);assert.equal(fs.existsSync(f.source),false);
+    assert.deepEqual(result.finalTargets.map(item=>item.materialKey),f.command.finalTargets.map(item=>item.materialKey));
+    assert.equal(result.finalTargets.length,2);assert.equal(Object.hasOwn(result,'finalMaterialKey'),false);
+    const replay=await f.port.settleInputAsync(f.command);assert.equal(replay.finalRealityDigest,result.finalRealityDigest);
+    assert.equal(replay.preDeleteIdentityDigest,null);assert.ok(fs.existsSync(path.join(f.sourceDirectory,'notes.txt')));
+    fs.writeFileSync(f.command.finalTargets[1].targetLocation,'changed');
+    await assert.rejects(f.port.settleInputAsync(f.command));
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+for(const targetIndex of [0,1])for(const change of ['missing','changed','decision-missing','decision-duplicate'])test('Series native settlement preserves source on '+change+' target '+targetIndex,async()=>{
+  const f=seriesMultipleSettlementFixture();
+  try{
+    const before=fs.readFileSync(f.source),target=f.command.finalTargets[targetIndex];
+    if(change==='missing')fs.rmSync(target.targetLocation);
+    if(change==='changed')fs.writeFileSync(target.targetLocation,'wrong episode bytes');
+    if(change==='decision-missing')f.command.finalInventoryRequest.finalInventoryMembers.splice(targetIndex,1);
+    if(change==='decision-duplicate')f.command.finalInventoryRequest.finalInventoryMembers.push(f.command.finalInventoryRequest.finalInventoryMembers[targetIndex]);
+    await assert.rejects(f.port.settleInputAsync(f.command));assert.deepEqual(fs.readFileSync(f.source),before);
+    assert.ok(fs.existsSync(path.join(f.sourceDirectory,'notes.txt')));
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+test('Series native settlement rejects revoked approval and mixed target cardinality before deletion',async()=>{
+  const f=seriesMultipleSettlementFixture();
+  try{
+    const before=fs.readFileSync(f.source);let checks=0;
+    f.command.assertCurrentApproval=()=>{if(++checks===2)throw new Error('revoked');};
+    await assert.rejects(f.port.settleInputAsync(f.command),/revoked/);assert.deepEqual(fs.readFileSync(f.source),before);
+    f.command.finalMaterialKey=f.command.finalTargets[0].materialKey;
+    await assert.rejects(f.port.settleInputAsync(f.command),{code:'CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID'});
+    assert.throws(()=>f.port.settleInput(f.command),{code:'CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID'});
+    assert.deepEqual(fs.readFileSync(f.source),before);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('Series native settlement rejects a directory junction escaping final placement',async()=>{
+  const f=seriesMultipleSettlementFixture();
+  try{
+    const target=f.command.finalTargets[0],outside=path.join(f.root,'outside'),link=path.join(path.dirname(target.targetLocation),'alias');
+    fs.mkdirSync(outside);fs.copyFileSync(target.targetLocation,path.join(outside,'copy.mkv'));
+    fs.symlinkSync(outside,link,'junction');
+    target.targetLocation=path.join(link,'copy.mkv');
+    f.command.finalInventoryRequest.finalInventoryMembers[0].targetLocation=target.targetLocation;
+    const before=fs.readFileSync(f.source);
+    await assert.rejects(f.port.settleInputAsync(f.command),{code:'CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT'});
+    assert.deepEqual(fs.readFileSync(f.source),before);assert.ok(fs.existsSync(path.join(outside,'copy.mkv')));
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});

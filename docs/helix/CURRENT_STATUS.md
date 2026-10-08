@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Series原生源结算：异步端口逐目标匹配Package/Final Decision并核验真实落位指纹，全部通过后复核审批、仅删除唯一source；完整目标证据与重放核验，junction/缺目标/变更拒绝。81项原生回归及P2/架构/语义通过。Capability完成证据/恢复和端到端继续，未操作NAS。[Evidence](implementation/evidence/SERIES_NATIVE_SETTLEMENT_20261008.md)。
+
 2026-10-08 Series结算Handle：完整有序目标key/位置与Final Verification证据进入一个原source审批摘要，缺目标/重复/乱序拒绝，任一位置变化使旧scope失效。16项回归、36.7秒普通上架Host及P2/架构/语义通过。原生多目标现场复核、结算完成证据与恢复继续，未操作NAS。[Evidence](implementation/evidence/SERIES_SETTLEMENT_HANDLES_20261008.md)。
 
 2026-10-08 Series结算上下文：一个原source携带全部唯一Product/Final Decision目标，全管理路径及摘要保持；任一目标缺失/重复拒绝。14项回归、36.6秒普通混合上架Host及P2/架构/语义通过。多目标Handle/审批/原生结算与恢复仍待接通，未操作NAS。[Evidence](implementation/evidence/SERIES_SETTLEMENT_CONTEXT_20261008.md)。
