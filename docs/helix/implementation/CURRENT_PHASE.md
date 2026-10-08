@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 Formation本批范围：从当前展示Run的冻结Claims投影Season/实际集号/物理文件数，列表及过程详情保持一致。55项后端、124项前端、双视口及构建通过；94.15秒真实E03追加Host确认Formation仅E03、Collection累计三集。P2/架构/语义通过，负责人验收及其他发布Gate继续，未部署NAS。[Evidence](evidence/SERIES_FORMATION_SCOPE_20261008.md)。
+
 2026-10-08 Collection Series详情：从当前Inventory及Canonical Season事实输出实际集数/文件关系，支持共文件和多part；不拿首文件规格代表整季。7项查询专项、共文件/part两个Host及E03追加94.2秒通过，124项前端、双视口及构建/P2/架构/语义通过。负责人验收和其他发布Gate仍开放，未部署NAS。[Evidence](evidence/SERIES_COLLECTION_EPISODES_20261008.md)。
 
 2026-10-08 Series 人工身份UI：Formation区分剧集操作，预览冻结Season且确认不提交季/集；124项前端、Movie/Series双视口4项及构建通过。新增实际Host从无匹配经正式HTTP人工选择到两集Direct/Remux上架36.9秒通过。窄屏弹窗越界修复；Episode范围展示/Collection和负责人验收继续，未部署NAS。[Evidence](evidence/SERIES_MANUAL_IDENTITY_UI_20261008.md)。

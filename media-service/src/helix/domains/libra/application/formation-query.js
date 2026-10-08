@@ -5,6 +5,9 @@ const { createRepositoryDefinition } = require('../../../foundation/persistence/
 const { formationProjectionDigest } = require('../model/formation-projection-contract');
 const { buildFormationProcessDetail, currentPlanSummary } = require('./formation-process-projection');
 
+const { createMovieProductionReader } = require('../persistence/movie-production-reader');
+const { frozenSeriesSeasonNumber } = require('../model/series-identity-contracts');
+
 const PAGE_SIZE = 100;
 function parse(value) { try { return value ? JSON.parse(value) : null; } catch { return null; } }
 function unique(values) { return [...new Set(values.filter(Boolean))]; }
@@ -456,6 +459,15 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
 }
 
 function createFormationProjectionSource(options) {
+  let productionReader = options.movieProductionReader;
+  function seriesDelivery(subject, run) {
+    if (subject.content_profile !== 'series' || !run) return null;
+    productionReader ||= createMovieProductionReader(options);
+    const snapshot = productionReader.readRunSnapshot(run.libra_run_id);
+    return Object.freeze({ libraRunId:run.libra_run_id, seasonNumber:frozenSeriesSeasonNumber(snapshot),
+      episodeKeys:Object.freeze(snapshot.episodeClaims.map(claim=>claim.episodeKey)),
+      physicalFileCount:snapshot.members.filter(member=>member.role === 'primary_payload').length });
+  }
   const repository = createRepositoryDefinition({ repositoryId: 'libra_formation_query', owner: 'libra', schemaManifest: options.schemaManifest, statements: {
     page_subjects: { kind: 'select-page-after', tableId: 'libra_subjects', keyColumn: 'subject_id', maxItems: PAGE_SIZE, columns: ['subject_id', 'structure_kind', 'content_profile', 'routing_anchor_intake_decision_id', 'status', 'intake_revision', 'current_identity_revision', 'created_at_ms', 'updated_at_ms'], safeIntegers: true },
     find_subject: { kind: 'select-one', tableId: 'libra_subjects', keyColumns: ['subject_id'], columns: ['subject_id', 'structure_kind', 'content_profile', 'routing_anchor_intake_decision_id', 'status', 'intake_revision', 'current_identity_revision', 'created_at_ms', 'updated_at_ms'], safeIntegers: true },
@@ -605,6 +617,7 @@ function createFormationProjectionSource(options) {
         ],
       }) : undefined;
       return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus,
+        seriesDelivery:includeActualPlans ? seriesDelivery(subject, packageRun) : undefined,
         processDetail:buildOptions.includeProcessDetail === true ? detail : undefined,
         currentPlan:detail ? currentPlanSummary(detail) : undefined,
         targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence, spec, onDeckWorks), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
@@ -798,9 +811,9 @@ function createFormationQuery(options) {
     const missing = items.filter((item)=>!Object.hasOwn(item,'currentPlan'));
     if (!missing.length) return items;
     const fresh = new Map(options.detailSource.getManyWithProcessSummary(missing.map((item)=>item.subjectId))
-      .map((item)=>[item.subjectId,item.currentPlan || null]));
+      .map((item)=>[item.subjectId,{ currentPlan:item.currentPlan || null, seriesDelivery:item.seriesDelivery }]));
     return items.map((item)=>fresh.has(item.subjectId)
-      ? Object.freeze({ ...item, currentPlan:fresh.get(item.subjectId) }) : item);
+      ? Object.freeze({ ...item, ...fresh.get(item.subjectId) }) : item);
   }
   function countHiddenActive() {
     const hidden = { in_progress:0, attention_required:0, total:0 };

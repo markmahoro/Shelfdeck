@@ -636,6 +636,9 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1);
   const inventory=db.prepare('SELECT * FROM arca_inventory_materials').all();
   const collection=JSON.parse((await request('GET','/v1/admin/collection?status=current')).body).items;
+  const formationSubject=db.prepare('SELECT subject_id FROM libra_runs WHERE libra_run_id=?').get(state.runs[0].libra_run_id).subject_id;
+  const formationDetail=JSON.parse((await request('GET','/v1/admin/formation/'+formationSubject)).body);
+  assert.deepEqual(formationDetail.seriesDelivery,{libraRunId:state.runs[0].libra_run_id,seasonNumber:1,episodeKeys,physicalFileCount:physicalCount});
   assert.equal(collection.length,1);
   assert.equal(collection[0].series.seasonNumber,1);
   assert.equal(collection[0].series.episodeCount,episodeCount);
@@ -1087,6 +1090,13 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.equal(metadataCheck(rawCare,'episode_title'),false);
     assert.deepEqual(latestFacts.flatMap(row=>JSON.parse(row.fact_json).episodeMetadata.map(item=>item.episodeScope.episodeKey)).sort(),['E001','E002','E003']);
     const appendedCollection=JSON.parse((await request('GET','/v1/admin/collection?status=current')).body).items;
+    if(anchored){
+      const appendedFormation=JSON.parse((await request('GET','/v1/admin/formation/'+firstRun.subject_id)).body);
+      assert.deepEqual(appendedFormation.seriesDelivery.episodeKeys,['E003']);
+      assert.equal(appendedFormation.seriesDelivery.physicalFileCount,1);
+      const completedFormation=JSON.parse((await request('GET','/v1/admin/formation?section=completed')).body);
+      assert.deepEqual(completedFormation.items.find(item=>item.subjectId===firstRun.subject_id).seriesDelivery,appendedFormation.seriesDelivery);
+    }
     assert.equal(appendedCollection.length,1);assert.equal(appendedCollection[0].series.episodeCount,3);
     assert.deepEqual(appendedCollection[0].series.episodes.map(item=>item.episodeKey),['E001','E002','E003']);
     for(const item of inventoryPrimary)assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');

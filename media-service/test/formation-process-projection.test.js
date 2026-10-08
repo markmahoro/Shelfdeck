@@ -505,3 +505,25 @@ test('Waiting and ready actions never describe execution before resources or app
     }
   }
 });
+
+
+test('Formation Series delivery follows the selected frozen Run instead of the routing anchor',()=>{
+  const subject={subject_id:'subject-series',status:'active',structure_kind:'season',content_profile:'series',routing_anchor_intake_decision_id:'old-intake',created_at_ms:1};
+  const rows={find_runs:[{subject_id:subject.subject_id,libra_run_id:'old-run',state:'completed',created_at_ms:1},
+    {subject_id:subject.subject_id,libra_run_id:'append-run',state:'active',created_at_ms:2}]};
+  const unitOfWork={execute(participants){return Object.fromEntries(participants.map(p=>[p.participantId,
+    p.execute({repository:()=>({invoke:name=>rows[name]||[]})})]));}};
+  const reads=[];
+  const season={claimKind:'explicit_number',seasonNumber:2};
+  const snapshot={spec:{contentProfile:'series',structureKind:'season'},candidateIdentityClaim:{contentProfile:'series',claimKind:'series_season',seasonClaim:{...season,claimDigest:canonicalDigest(season)}},
+    episodeClaims:[{episodeKey:'E003'},{episodeKey:'E005'}],members:[{role:'primary_payload'},{role:'primary_payload'},{role:'structural_dependency'}]};
+  const source=createFormationProjectionSource({schemaManifest,unitOfWork,movieProductionReader:{readRunSnapshot(id){reads.push(id);return snapshot;}}});
+  const item=source.buildBatch([subject],{includeProcessSummary:true})[0];
+  assert.deepEqual(item.seriesDelivery,{libraRunId:'append-run',seasonNumber:2,episodeKeys:['E003','E005'],physicalFileCount:2});
+  assert.deepEqual(reads,['append-run']);
+  rows.find_runs[1].state='completed';
+  assert.deepEqual(source.buildBatch([subject],{includeProcessDetail:true})[0].seriesDelivery,item.seriesDelivery);
+  snapshot.candidateIdentityClaim.seasonClaim.seasonNumber=3;
+  assert.throws(()=>source.buildBatch([subject],{includeProcessDetail:true}),/exact frozen/);
+  assert.equal(source.buildBatch([{...subject,content_profile:'movie'}],{includeProcessDetail:true})[0].seriesDelivery,null);
+});

@@ -241,6 +241,7 @@ export type Shelf = {
 };
 
 export type FormationSubject = {
+  seriesDelivery?: { libraRunId:string; seasonNumber:number; episodeKeys:string[]; physicalFileCount:number } | null;
   formationViewId: string;
   subjectId: string;
   displayIdentity: string;
