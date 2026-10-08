@@ -25,6 +25,37 @@ function mount(current: {value:MaterialField}) {
 const accepted={observation:{observationWorkId:'scan-new',fieldId:'field-1',state:'admitted',replayed:false,
   operationRef:{operationType:'field_observation',operationId:'scan-new'}}} as ProcurementJourneyResult;
 
+it('registers Series with retry state and duplicate submission protection', async()=>{
+  vi.spyOn(helixAdminApi,'listMaterialFields').mockResolvedValue({items:[]});
+  vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+  const register=vi.spyOn(helixAdminApi,'registerMaterialField').mockRejectedValueOnce(new Error('目录不可访问'));
+  render(<MaterialFieldsPage/>);
+  const profile=await screen.findByLabelText('媒体类型');
+  expect(profile).toHaveValue('movie');
+  fireEvent.change(profile,{target:{value:'series'}});
+  fireEvent.change(screen.getByLabelText('来源名称'),{target:{value:'我的剧集'}});
+  fireEvent.change(screen.getByLabelText('媒体目录'),{target:{value:'/media/Series'}});
+  fireEvent.click(screen.getByRole('button',{name:'保存文件来源'}));
+  expect(await screen.findByRole('alert')).toHaveTextContent('目录不可访问');
+  expect(profile).toHaveValue('series');
+  expect(screen.getByLabelText('来源名称')).toHaveValue('我的剧集');
+  let resolve!:(value:any)=>void;
+  register.mockImplementation(()=>new Promise(r=>{resolve=r;}));
+  const submit=screen.getByRole('button',{name:'保存文件来源'});
+  act(()=>{fireEvent.click(submit);fireEvent.click(submit);});
+  await waitFor(()=>expect(register).toHaveBeenCalledTimes(2));
+  expect(screen.getByRole('button',{name:'正在保存…'})).toBeDisabled();
+  expect(profile).toBeDisabled();
+  expect(register.mock.calls[1][0]).toMatchObject({name:'我的剧集',contentProfileHint:'series',access:{rootLocation:'/media/Series'}});
+  expect(register.mock.calls[1][0]).toEqual(register.mock.calls[0][0]);
+  const saved=field();saved.name='我的剧集';saved.currentProfileHintSnapshot.contentProfileHint='series';
+  vi.mocked(helixAdminApi.listMaterialFields).mockResolvedValue({items:[saved]});
+  await act(async()=>resolve({}));
+  expect(await screen.findByRole('heading',{name:'我的剧集'})).toBeVisible();
+  expect(screen.getByText('剧集',{exact:true})).toBeVisible();
+  expect(screen.queryByLabelText('媒体类型')).not.toBeInTheDocument();
+});
+
 it('keeps one failed state and the rescan action when no specific reason is available',async()=>{
   const value=field();
   value.procurementStatus.observationScan!.failureMessage=undefined;

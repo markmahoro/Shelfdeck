@@ -981,6 +981,7 @@ export const helixAdminApi = {
 
 export async function materialFieldRegistration(input: {
   fieldId: string;
+  contentProfileHint: 'movie' | 'series';
   name: string;
   rootLocation: string;
   includedDirectories: string[];
@@ -998,7 +999,7 @@ export async function materialFieldRegistration(input: {
     minimumSizeBytes: 0,
     excludedMaterialKeys: [],
   };
-  const extractionPolicyId = `movie-policy-${input.fieldId}`;
+  const extractionPolicyId = `${input.contentProfileHint}-policy-${input.fieldId}`;
   const access = {
     fieldId: input.fieldId,
     revision: 1,
@@ -1009,7 +1010,7 @@ export async function materialFieldRegistration(input: {
     idempotencyKey: `material-field:${input.fieldId}:register:v1`,
     fieldId: input.fieldId,
     name: input.name,
-    contentProfileHint: 'movie',
+    contentProfileHint: input.contentProfileHint,
     policy: {
       extractionPolicyId,
       revision: 1,

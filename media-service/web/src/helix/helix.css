@@ -178,7 +178,7 @@ button, input, select, textarea { font: inherit; }
 .people-card dd { margin: 3px 0 0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .source-record { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 24px; padding: 20px 0; border-bottom: 1px solid var(--line); }
 .source-record-title { display: flex; align-items: flex-start; gap: 12px; }
-.source-record-title h3 { margin: 0; font-size: 18px; font-weight: 650; }
+.source-record-title h2, .source-record-title h3 { margin: 0; font-size: 18px; font-weight: 650; }
 .source-record-title p { margin: 5px 0 0; color: var(--muted); font-size: 13px; overflow-wrap: anywhere; }
 .status-dot { width: 9px; height: 9px; margin-top: 7px; border-radius: 50%; background: #82918e; }
 .status-dot.active { background: #4a8b76; box-shadow: 0 0 0 4px #dcebe5; }

@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 Series 文件来源 UI：登记可显式选择电影/剧集，卡片显示正式类型；失败重试与重复提交保护、标题层级修复。前端114项、双视口浏览器/Axe及构建通过；5项后端回归通过、1项缺本地素材skip。浏览器使用受控API，UI负责人同版本接受仍待完成；EpisodeDelivery摘要缺口按用户要求保留，未部署NAS。[Evidence](evidence/SERIES_SOURCE_UI_20261008.md)。
+
 2026-10-08云端接续交接：用户要求将本地现有代码同步到GitHub并转云端开发；本次保存并发Run未完成增量为开发检查点，不作为完成或发布声明。交接复验 `node --test test/helix-architecture/p14-series-run-lifecycle-continuity.test.js test/helix-architecture/p4-event-runtime.test.js test/helix-architecture/p8-acceptance-spec-planner-stale.test.js`：Windows 71项通过、0失败/跳过。未重跑完整Host/并发、全量回归、Linux、Docker/Desktop或UI验收；既有 `P14_ONDECK_STAGED_CONTROL_CONFLICT` 阻断保持开放。下文“未提交”指检查点保存前的历史记录；云端应先从GitHub最新main取得本检查点，按本Phase接续同Season落位/Commit协调。运行数据、凭据、依赖及本地外部日志不随Git同步，无生产动作。
 
 2026-10-08最新增量：[Direct On-deck Evidence](evidence/SERIES_DIRECT_ONDECK_20261008.md)。2/24集实际隔离Host已完成Arca接纳、Season/逐集落位、正式授权源结算及唯一Season Entry/Deck Fact提交；正式Inventory/Claim/文件/NFO与Provenance核验通过。完整架构251文件及边界/语义/合同通过。仍未满足首版部署门槛：逐成员加工、N:M聚合、追加/运营、真实媒体/Linux和UI验收继续，未发布生产。

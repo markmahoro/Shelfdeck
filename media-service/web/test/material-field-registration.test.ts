@@ -3,9 +3,9 @@ import { materialFieldRegistration } from '../src/helix/api';
 
 describe('Material Field physical access identity', () => {
   it('leaves physical identity resolution to the Platform registration boundary', async () => {
-    const first:any = await materialFieldRegistration({ fieldId:'field-a', name:'A',
+    const first:any = await materialFieldRegistration({ fieldId:'field-a', name:'A', contentProfileHint:'movie',
       rootLocation:'F:\\shelfdeck_test_zone\\canary', includedDirectories:[], excludedDirectories:[] });
-    const second:any = await materialFieldRegistration({ fieldId:'field-b', name:'B',
+    const second:any = await materialFieldRegistration({ fieldId:'field-b', name:'B', contentProfileHint:'movie',
       rootLocation:'f:/shelfdeck_test_zone/canary/', includedDirectories:[], excludedDirectories:[] });
     expect(first.fieldId).not.toBe(second.fieldId);
     expect(first.access.rootLocation).toBe('F:\\shelfdeck_test_zone\\canary');

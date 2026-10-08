@@ -7,7 +7,7 @@ import RoutingPolicyPanel from './RoutingPolicyPanel';
 import { isUnauthorized, useSession } from './session';
 
 function newFieldId() {
-  return newOpaqueId('movie-field-');
+  return newOpaqueId('media-field-');
 }
 function directorySet(value: string) {
   return [...new Set(value.split(/[\n,]/).map((item) => item.trim().replace(/\\/g, '/')).filter(Boolean))].sort();
@@ -26,11 +26,13 @@ export default function MaterialFieldsPage() {
   const [error, setError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [fieldId, setFieldId] = useState(newFieldId);
-  const [name, setName] = useState('电影文件来源');
+  const [name, setName] = useState('媒体文件来源');
+  const [contentProfileHint, setContentProfileHint] = useState<'movie' | 'series'>('movie');
   const [rootLocation, setRootLocation] = useState('');
   const [includedDirectories, setIncludedDirectories] = useState('');
   const [excludedDirectories, setExcludedDirectories] = useState('');
   const [observingFieldId, setObservingFieldId] = useState('');
+  const registrationInFlight = useRef(false);
   const observationInFlight = useRef(false);
   const observationRequests = useRef(new Map<string, { field: MaterialField; key: string }>());
   const [deregisteringFieldId, setDeregisteringFieldId] = useState('');
@@ -87,15 +89,18 @@ export default function MaterialFieldsPage() {
 
   async function createField(event: FormEvent) {
     event.preventDefault();
+    if (registrationInFlight.current) return;
     if (!name.trim() || !rootLocation.trim()) {
-      setError('请填写来源名称和本机可访问的电影目录。');
+      setError('请填写来源名称和本机可访问的媒体目录。');
       return;
     }
+    registrationInFlight.current = true;
     setLoading(true);
     setError('');
     try {
       const body = await materialFieldRegistration({
         fieldId,
+        contentProfileHint,
         name: name.trim(),
         rootLocation: rootLocation.trim(),
         includedDirectories: directorySet(includedDirectories),
@@ -103,7 +108,8 @@ export default function MaterialFieldsPage() {
       });
       await helixAdminApi.registerMaterialField(body);
       setFieldId(newFieldId());
-      setName('电影文件来源');
+      setName('媒体文件来源');
+      setContentProfileHint('movie');
       setRootLocation('');
       setIncludedDirectories('');
       setExcludedDirectories('');
@@ -113,6 +119,8 @@ export default function MaterialFieldsPage() {
       if (isUnauthorized(cause)) expire();
       else setError(cause instanceof Error ? cause.message : '文件来源创建失败。');
       setLoading(false);
+    } finally {
+      registrationInFlight.current = false;
     }
   }
 
@@ -176,15 +184,16 @@ export default function MaterialFieldsPage() {
     }
   }
 
-  if (!fields.length && loading && !error) return <LoadingState>正在读取文件来源…</LoadingState>;
+  if (!fields.length && !showCreate && loading && !error) return <LoadingState>正在读取文件来源…</LoadingState>;
 
   return <section className="source-page material-fields-page">
-    <PageHeader title="文件来源" actions={<><Button type="button" onClick={() => void loadFields()} disabled={loading}>刷新</Button><Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '添加电影来源'}</Button></>} />
+    <PageHeader title="文件来源" actions={<><Button type="button" onClick={() => void loadFields()} disabled={loading}>刷新</Button><Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '添加文件来源'}</Button></>} />
     {showCreate && <form className="source-create" onSubmit={createField}>
-      <div className="source-create-heading"><div><h2>添加电影文件来源</h2></div></div>
+      <div className="source-create-heading"><div><h2>添加文件来源</h2></div></div>
       <div className="source-form-grid">
+        <label><span>媒体类型</span><select value={contentProfileHint} onChange={(event) => setContentProfileHint(event.target.value as 'movie' | 'series')} disabled={loading}><option value="movie">电影</option><option value="series">剧集</option></select></label>
         <label><span>来源名称</span><input value={name} onChange={(event) => setName(event.target.value)} required /></label>
-        <label className="wide"><span>电影目录</span><input value={rootLocation} onChange={(event) => setRootLocation(event.target.value)} placeholder="例如 E:\\Movies 或 /media/Film" required /></label>
+        <label className="wide"><span>媒体目录</span><input value={rootLocation} onChange={(event) => setRootLocation(event.target.value)} placeholder="例如 E:\\Movies 或 /media/Film" required /></label>
         <label><span>只包含这些子目录</span><textarea value={includedDirectories} onChange={(event) => setIncludedDirectories(event.target.value)} placeholder="留空表示整个来源；每行一个相对目录" /></label>
         <label><span>排除这些子目录</span><textarea value={excludedDirectories} onChange={(event) => setExcludedDirectories(event.target.value)} placeholder="例如 Extras 或临时下载" /></label>
       </div>
@@ -202,7 +211,8 @@ export default function MaterialFieldsPage() {
         return <article className="source-record" key={field.fieldId}>
         <header className="source-record-head">
           <div className="source-record-title"><div>
-            <h3>{field.name}</h3><p>{field.access.rootLocation}</p>
+            <h2>{field.name}</h2><p>{field.access.rootLocation}</p>
+            <span className="source-state">{{ movie: '电影', series: '剧集', mixed: '混合媒体', jav: 'JAV', western_adult: '欧美成人' }[field.currentProfileHintSnapshot.contentProfileHint]}</span>
             {field.status !== 'active' && <span className="source-state" data-state={field.status}>已注销</span>}
             {field.status === 'active' && <div className="source-scan-state" role={scan.state === 'failed' ? 'alert' : 'status'}><span className="ui-state" data-state={scan.state}>{scanText}</span></div>}
           </div></div>
@@ -213,7 +223,7 @@ export default function MaterialFieldsPage() {
           </>}
           {field.status === 'active' && confirmDeregisterFieldId === field.fieldId && <div className="source-stop-confirm" role="alert">
             <strong>注销这个文件来源？</strong>
-            <small>停止新的扫描；已发现的电影仍会继续整理。不会删除、移动或重命名任何媒体文件。</small>
+            <small>停止新的扫描；已发现的媒体仍会继续整理。不会删除、移动或重命名任何媒体文件。</small>
             <div><Button type="button" onClick={() => setConfirmDeregisterFieldId('')}>取消</Button><Button variant="danger" type="button" disabled={deregisteringFieldId.length > 0} onClick={() => void deregisterField(field)}>{deregisteringFieldId === field.fieldId ? '正在注销…' : '确认注销'}</Button></div>
           </div>}
           </div>
