@@ -131,6 +131,44 @@
           "type": "null"
         }
       ]
+    },
+    "memberScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "materialKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "spaceBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceHandleDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "maxOutputBytes": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "materialKey",
+        "spaceBasisDigest",
+        "sourceHandleDigest",
+        "maxOutputBytes"
+      ]
     }
   },
   "required": [

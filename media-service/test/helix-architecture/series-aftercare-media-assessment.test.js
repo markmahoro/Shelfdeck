@@ -101,24 +101,7 @@ test('formal Conformance Capability evaluates the complete Series set and emits 
   ports[C.conformance].validateInputs(execution);
   const result=await ports[C.conformance].execute(execution);
   ports[C.conformance].validateResult(execution,result);
-  const schema=require('../../src/helix/contracts/types/ConformanceAssessmentEvidence/v1/schema.json');
-  const schemas=new Map(),contractsRoot=path.resolve(__dirname,'../../src/helix/contracts');
-  function loadSchema(value) {
-    if(schemas.has(value.$id))return;
-    schemas.set(value.$id,value);
-    function visit(node) {
-      if(!node||typeof node!=='object')return;
-      if(node.$ref?.startsWith('helix://contracts/')) {
-        const ref=node.$ref.split('#')[0];
-        loadSchema(JSON.parse(fs.readFileSync(path.join(contractsRoot,ref.slice('helix://contracts/'.length),'schema.json'),'utf8')));
-      }
-      Object.values(node).forEach(visit);
-    }
-    visit(value);
-  }
-  loadSchema(schema);
-  const validator=createCapabilityContractValidator({schemas:[...schemas.values()]});
-  validator.validate(schema.$id,result.result);
+  validateConformanceResult(result.result);
   assert.equal(result.kind,'succeeded');assert.equal(result.result.assessmentState,'degraded');
   assert.deepEqual(codes({findings:result.result.findingDrafts}),['max_size_exceeded']);
   assert.equal(f.probed.length,2);assert.equal(f.played.length,6);
@@ -167,6 +150,12 @@ function strategyFixture(f) {
   const device={deviceId:'gpu',deviceClass:'intel_qsv',snapshotDigest:canonicalDigest('gpu'),
     capabilityPayload:{supportedVideoCodecs:['hevc'],supportedRateControlModes:['target_size','quality_bound'],
       validatedVideoPipelines:[{pipelineProfileId:'ordinary_to_hevc@1',inputDynamicRangeKinds:['sdr'],inputPixelFormats:['yuv420p']}]}};
+  Object.assign(device,{probeRevision:1,capabilitySchemaRef:'platform.compute-capability@1',enabled:true,state:'ready',workerRef:null});
+  device.capabilityPayload.validatedConcurrentSlots=1;
+  Object.assign(device.capabilityPayload.validatedVideoPipelines[0],{outputCodec:'hevc',outputDynamicRangeKind:'sdr',outputPixelFormat:'yuv420p',
+    outputColorProfile:{range:'source',primaries:'source',transfer:'source',matrix:'source'},selfTestDigest:canonicalDigest('self-test')});
+  device.capabilityDigest=canonicalDigest(device.capabilityPayload);
+  device.snapshotDigest=canonicalDigest(Object.fromEntries(Object.entries(device).filter(([key])=>key!=='snapshotDigest')));
   const probe={resultKind:'probed',container:'matroska',durationMs:6000,
     videoStreams:[{streamIndex:0,codec:'h264',width:1920,height:1080,dispositionDefault:true,dynamicRangeKind:'sdr',pixelFormat:'yuv420p'}],
     audioStreams:[],subtitleStreams:[]};
@@ -248,3 +237,71 @@ test('Series zero-byte or rounded-zero physical budgets never become unbounded s
     assert.equal(await s.run(key),null);
   }
 });
+
+test('formal member Conformance Results retain independent strategies within the 64 KiB persistence boundary',async t=>{
+  const f=await fixture(t,[[8,['E01']],[8,['E02']]],null),s=strategyFixture(f),c=f.context;
+  Object.assign(c.basis,{inventoryRevision:1,standardRevision:1,placementRevision:1,decisionFactSetDigest:canonicalDigest([])});
+  let custody={assessmentState:'healthy',findingDrafts:[]};
+  const ports=createAftercareCapabilityPorts({...f.options,...s.options,now:()=>1000,
+    mediaProbe:{probe:async handle=>{f.probed.push(handle.identity.materialKey);return s.probe;}},
+    schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
+    unitOfWork:{execute(){throw new Error('Member observations must not write Owner data.');}},
+    contextReader:{read:()=>c,store:{}},workResultReader:{read:()=>[{outcomeKind:'succeeded',capabilityRef:C.custody,result:custody}]}});
+  const execute=key=>ports[C.conformance].execute({ownerScope:{processId:c.shelfEntryId},workId:'work',parameters:{materialKey:key},
+    namedInputs:{careBasis:{},inventoryRevision:{},knownBindings:{},standard:{},placement:{}}});
+  const results=[];
+  for(const member of f.materials) {
+    const result=(await execute(member.material_key)).result;validateConformanceResult(result);
+    assert.equal(result.memberScope.materialKey,member.material_key);
+    assert.equal(result.mediaRepairStrategy.sourceHandleDigest,result.memberScope.sourceHandleDigest);
+    assert.equal(result.memberScope.maxOutputBytes,null);
+    assert.equal(result.assessmentState,'degraded');assert.ok(result.findingDrafts.every(item=>item.schemaRef.includes('attention_required')));
+    assert.ok(Buffer.byteLength(canonicalJson(result))<65536);results.push(result);
+  }
+  assert.notEqual(results[0].evidenceId,results[1].evidenceId);
+  assert.deepEqual(f.probed,f.materials.map(item=>item.material_key));assert.equal(f.played.length,6);
+  const invalid=structuredClone(results[0]);invalid.memberScope.extra='not-declared';assert.throws(()=>validateConformanceResult(invalid));
+  custody={assessmentState:'not_assessable',incidentKey:'incident'};
+  const blocked=(await execute(f.materials[1].material_key)).result;validateConformanceResult(blocked);
+  assert.equal(blocked.assessmentState,'not_assessable');assert.equal(blocked.mediaRepairStrategy,null);
+  assert.equal(blocked.memberScope.materialKey,f.materials[1].material_key);assert.equal(f.probed.length,2);
+  c.raw.entry.structure_kind='single';await assert.rejects(execute(f.materials[0].material_key),TypeError);
+});
+
+test('professional Assessment commit excludes member evidence rather than persisting extra health dimensions',()=>{
+  const basis={digest:canonicalDigest('basis'),inventoryRevision:1,standardRevision:1,placementRevision:1,decisionFactSetDigest:canonicalDigest([])},
+    context={shelfEntryId:'entry',basis},sentinel=new Error('Captured Owner commit input');
+  let captured;
+  const rows=['custody','presentation','conformance'].map(kind=>({outcomeKind:'succeeded',capabilityRef:C[kind],result:{
+    evidenceId:kind,careBasisDigest:basis.digest,evidenceKind:'arca_aftercare_'+kind,assessmentState:'healthy',incidentKey:null,
+    payloadDigest:canonicalDigest(kind),findingDrafts:[]}}));
+  rows.push({...rows[2],result:{...rows[2].result,evidenceId:'member',memberScope:{materialKey:canonicalDigest('member')}}});
+  const ports=createAftercareCapabilityPorts({computeBoundedMaterialFingerprintSync(){throw new Error('Assessment commit must not probe files.');},
+    schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
+    unitOfWork:{execute(){throw new Error('No persistence expected before the Owner capture.');}},
+    contextReader:{read:()=>context,store:{commitAssessmentSet(value){captured=value;throw sentinel;}}},workResultReader:{read:()=>rows}});
+  assert.throws(()=>ports[C.assessmentCommit].execute({ownerScope:{processId:'entry'},workId:'work',namedInputs:{
+    professionalAssessmentsSharingOneCareBasis:{careBasisDigest:basis.digest,assessments:[{},{},{}]},domainFactCommitHandle:{}}}),error=>error===sentinel);
+  assert.deepEqual(captured.assessments.map(item=>item.assessmentId),['custody','presentation','conformance']);
+});
+
+function validateConformanceResult(result) {
+  const schema=require('../../src/helix/contracts/types/ConformanceAssessmentEvidence/v1/schema.json');
+  const schemas=new Map(),contractsRoot=path.resolve(__dirname,'../../src/helix/contracts');
+  function loadSchema(value) {
+    if(schemas.has(value.$id))return;
+    schemas.set(value.$id,value);
+    function visit(node) {
+      if(!node||typeof node!=='object')return;
+      if(node.$ref?.startsWith('helix://contracts/')) {
+        const ref=node.$ref.split('#')[0];
+        loadSchema(JSON.parse(fs.readFileSync(path.join(contractsRoot,ref.slice('helix://contracts/'.length),'schema.json'),'utf8')));
+      }
+      Object.values(node).forEach(visit);
+    }
+    visit(value);
+  }
+  loadSchema(schema);
+  const validator=createCapabilityContractValidator({schemas:[...schemas.values()]});
+  validator.validate(schema.$id,result);
+}

@@ -608,14 +608,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/aftercare/conformance/observe/v1",
-        "packageDigest": "d02d0f895fdc17f0cd1bc36bc040e8ae7c253cc4d865287f6f7c169191de94c5",
+        "packageDigest": "184e402616dbf5955de55414cde30c32bc929055f5affeb4695badb41ebd8ca1",
         "effectClass": "pure_observation",
         "inputSummary": "Care Basis + Inventory revision + Known bindings + Standard + Placement",
         "outputFamily": "ConformanceAssessmentEvidence"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "ad0fd67c16ab3719ecb58a19d35f0be0c699304eccefe33075c32330b73da61f"
+        "value": "2cd599b3de09925b9fbad54472e28391d5a2f81d1997af3f2af198876e6ac71a"
       }
     },
     {

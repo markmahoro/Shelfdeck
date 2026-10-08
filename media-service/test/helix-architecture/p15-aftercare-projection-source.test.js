@@ -23,11 +23,13 @@ for (const projectionRef of [P.assessmentSet, P.commit]) {
       controlScopeDigest:canonicalDigest,
       workResultReader:{ read(workId) {
         assert.equal(workId, 'assessment-work');
-        return ['custody','presentation','conformance'].map(kind => ({
+        const rows=['custody','presentation','conformance'].map(kind => ({
           outcomeKind:'succeeded', capabilityRef:C[kind],
           result:{ careBasisDigest:canonicalDigest(reads), evidenceKind:'arca_aftercare_' + kind, evidenceId:kind,
             schemaRef:'helix://test/' + kind, payloadDigest:canonicalDigest(kind) },
         }));
+        rows.push({...rows[2],result:{...rows[2].result,evidenceId:'member-only',memberScope:{materialKey:canonicalDigest('member')}}});
+        return rows;
       } },
     });
     const projection = projections.find(item => item.projectionRef === projectionRef).projection;
@@ -40,6 +42,7 @@ for (const projectionRef of [P.assessmentSet, P.commit]) {
     if (projectionRef === P.assessmentSet) {
       assert.equal(first.careBasisDigest, canonicalDigest(1));
       assert.equal(second.careBasisDigest, canonicalDigest(2));
+      assert.deepEqual(first.assessments.map(item=>item.objectId).sort(),['conformance','custody','presentation']);
     } else {
       assert.equal(first.eventFenceDigest, canonicalDigest({
         schema:'arca.aftercare-assessment-fence@1', eventId:'event', basis:canonicalDigest(1),

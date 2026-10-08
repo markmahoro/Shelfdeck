@@ -72,7 +72,8 @@ function assessment(kind,context,findings,at,state=findings.length?'degraded':'h
     shelfEntryId:context.shelfEntryId,inventoryRevision:basis.inventoryRevision,standardRevision:basis.standardRevision,
     placementRevision:basis.placementRevision,decisionFactSetDigest:basis.decisionFactSetDigest,careBasisDigest:basis.digest,
     assessmentState:state,findingDrafts:Object.freeze(scopedFindings),incidentKey,
-    ...(kind==='conformance'?{mediaRepairStrategy:extras.mediaRepairStrategy||null}:{})};
+    ...(kind==='conformance'?{mediaRepairStrategy:extras.mediaRepairStrategy||null,
+      ...(extras.memberScope?{memberScope:extras.memberScope}:{})}:{})};
   return Object.freeze({...base,payloadDigest:canonicalDigest(base)});
 }
 function inside(root,location){const resolvedRoot=path.resolve(root),resolved=path.resolve(location);return resolved===resolvedRoot||resolved.startsWith(resolvedRoot+path.sep);}
@@ -505,6 +506,38 @@ async function verifyInventoryPlayback(options,context,material,probe) {
     decodeDigest:canonicalDigest({schema:'arca.inventory-playback-evidence@1',handleDigest:canonicalDigest(handle),points,passed})});
 }
 
+async function assessSeriesMediaMember(options,context,materialKey,at,cycleId,custody) {
+  if(context.raw.entry.structure_kind!=='season')throw new TypeError('Member media assessment requires a Series Inventory.');
+  const source=mediaRepairSource(context,materialKey),primary=source.primary,
+    space=evaluateSeriesCareMediaSpace(context,effectiveRequirements(context)?.space?.maxSizeBytes??null),
+    memberScope=Object.freeze({materialKey,spaceBasisDigest:space.basisDigest,sourceHandleDigest:canonicalDigest(source.readHandle),
+      maxOutputBytes:source.requirements.space.maxSizeBytes}),
+    cycle=cycleId+':member:'+materialKey;
+  if(custodyBlocksDependentAssessment(custody))return assessment('conformance',context,[],at,'not_assessable',cycle,custody.incidentKey,{memberScope});
+  const assertCurrent=()=>{
+    if(!exactInventoryMaterial(primary.location,primary,primary.mount_scope_id,options.computeBoundedMaterialFingerprintSync))
+      throw Object.assign(new Error('Inventory changed during member assessment.'),{code:'ARCA_AFTERCARE_INPUT_STALE'});
+  };
+  assertCurrent();
+  const probe=await options.mediaProbe.probe(source.readHandle),findings=probeConformance(context,probe,primary),
+    scoped=space.members.find(item=>item.materialKey===materialKey),exceeded=space.episodeAllocations.filter(item=>!item.withinLimit&&
+      scoped.episodeClaims.some(claim=>claim.episodeKey===item.episodeKey));
+  if(exceeded.length&&Number(primary.size_bytes)>memberScope.maxOutputBytes)findings.push(
+    finding('conformance','max_size_exceeded','critical','attention_required',canonicalDigest({memberScope,exceeded})));
+  let mediaRepairStrategy=null;
+  if(probe.resultKind==='probed') {
+    const playback=await verifyInventoryPlayback(options,context,primary,probe);
+    if(playback.passedSamplePointsPercent.length!==3)findings.push(finding('conformance','playback_decode_failed','critical','attention_required',playback.decodeDigest));
+    if(findings.some(item=>/\/(video_codec_unmet|max_size_exceeded)\//.test(item.schemaRef)))
+      mediaRepairStrategy=await assessMediaRepairStrategy(options,context,probe,
+        aftercareMediaProbeEvidence(probe,source.readHandle,primary.size_bytes,at),materialKey);
+  }
+  assertCurrent();
+  const result=assessment('conformance',context,findings,at,undefined,cycle,null,{memberScope,mediaRepairStrategy});
+  if(Buffer.byteLength(canonicalJson(result))>65536)throw Object.assign(new Error('Member Assessment exceeds the bounded Result contract.'),{code:'ARCA_MEMBER_ASSESSMENT_TOO_LARGE'});
+  return result;
+}
+
 async function assessInventoryMediaConformance(options,context,at) {
   const series=context.raw.entry.structure_kind==='season',all=context.raw.materials.filter(isPrimaryMaterial),
     primaries=series?all:all.slice(0,1),fingerprint=options.computeBoundedMaterialFingerprintSync;
@@ -616,6 +649,8 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
       c.raw.identity.provider&&c.raw.identity.provider_key&&providerHandle(c)?'auto_repair':'attention_required',c.shelfEntryId));
     return outcome(C.presentation,assessment('presentation',c,findings,at,undefined,execution.workId),at);},validateResult(_c,o){if(!o?.result)throw new TypeError('Presentation Assessment Result is absent.');}});
   ports[C.conformance]=Object.freeze({validateInputs(c){requireNamed(c,['careBasis','inventoryRevision','knownBindings','standard','placement']);},async execute(execution){const c=context(execution),at=now(),custody=resultFor(execution,C.custody);
+    if(execution.parameters?.materialKey!==undefined)return outcome(C.conformance,
+      await assessSeriesMediaMember(options,c,execution.parameters.materialKey,at,execution.workId,custody),at);
     if(custodyBlocksDependentAssessment(custody))return outcome(C.conformance,assessment('conformance',c,[],at,'not_assessable',execution.workId,custody.incidentKey),at);
     if(!c.raw.materials.some(isPrimaryMaterial))return outcome(C.conformance,assessment('conformance',c,[finding('conformance','primary_missing','critical','attention_required',c.shelfEntryId)],at,undefined,execution.workId),at);
     const {findings,mediaRepairStrategy}=await assessInventoryMediaConformance(options,c,at);
@@ -799,7 +834,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     const stale=()=>Object.freeze({kind:'failed',failureClass:'stale_input',code:'ARCA_AFTERCARE_ASSESSMENT_BASIS_STALE',message:'Aftercare Assessment evidence belongs to an obsolete Care Basis.',retryDirective:'never',evidence:Object.freeze({expectedBasisDigest:set.careBasisDigest,currentBasisDigest:c.basis.digest})});
     if(set.careBasisDigest!==c.basis.digest||set.assessments.length!==3)return stale();
     const rows=options.workResultReader.read(execution.workId).filter((item)=>item.outcomeKind==='succeeded'&&
-      [C.custody,C.presentation,C.conformance].includes(item.capabilityRef)).map((item)=>item.result);
+      [C.custody,C.presentation,C.conformance].includes(item.capabilityRef)&&!item.result?.memberScope).map((item)=>item.result);
     if(![1,3].includes(rows.length)||rows.some((item)=>item.careBasisDigest!==c.basis.digest))return stale();
     const committedSet=store.commitAssessmentSet({shelfEntryId:c.shelfEntryId,inventoryRevision:c.basis.inventoryRevision,standardRevision:c.basis.standardRevision,
       placementRevision:c.basis.placementRevision,decisionFactSetDigest:c.basis.decisionFactSetDigest,careBasisDigest:c.basis.digest,

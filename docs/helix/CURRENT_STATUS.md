@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 成员Conformance Result：[Evidence](implementation/evidence/SERIES_MEMBER_CONFORMANCE_RESULT_20261008.md)。现有Capability增加显式成员参数和closed memberScope，生成独立有界策略Evidence；专业Assessment投影/Commit排除成员结果，保持三维整季健康事实。37项成员/投影专项、合同生成及分组全架构2,291通过/9既有skip/0失败，Result仍限64 KiB。尚未调度完整成员集合或接通维修闭环，Series可部署Gate继续，未部署NAS。
+
 2026-10-08 逐成员媒体策略：[Evidence](implementation/evidence/SERIES_CARE_MEMBER_STRATEGY_20261008.md)。Series策略引擎显式选择当前Inventory成员并校验对应Probe Evidence，Intent/preflight绑定完整空间Basis和文件预算；质量下限保持原单集档位，零预算不退成无上限模式。26项专项及全架构2,289通过/9既有skip/0失败。多策略正式Assessment、Planner/Effect和完整维修闭环仍待完成，未启用自动媒体维修或部署NAS。
 
 2026-10-08 媒体维修空间基础：[Evidence](implementation/evidence/SERIES_CARE_MEDIA_SPACE_20261008.md)。Arca以自身完整Inventory的Physical Identity/正式Claims/Binding、revision与Care Basis建立逐成员保守预算；Libra仅复用纯字节算术，Owner边界保持。23项专项及共文件两集正式Host通过；最终全架构2,284通过/9既有skip/0失败。逐成员媒体Strategy/Effect/完整成品验收与Commit仍待完成，Series自动媒体维修尚未开放，未部署NAS。
