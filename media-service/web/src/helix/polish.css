@@ -265,6 +265,14 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .collection-page .collection-search { order: 1; margin: 0; }
 .collection-page .collection-sort { order: 2; }
 .collection-page .collection-filter { order: 3; }
+@media (max-width: 1100px) {
+  .collection-page .collection-shelf-stage { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .collection-page .collection-search { grid-column: 1 / -1; min-width: 0; }
+  .collection-page .collection-search input { min-width: 0; width: 100%; }
+  .collection-page .collection-shelf-primary > label { grid-column: 1 / -1; }
+  .collection-page .collection-sort select { width: 100%; }
+  .collection-page .collection-shelf-primary > div { grid-column: 1 / -1; text-align: left; }
+}
 .collection-page .poster-wall { padding-top: 0; }
 .collection-page .health-seal { width: auto; height: auto; min-height: 28px; padding: 4px 8px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 600; box-shadow: none; }
 

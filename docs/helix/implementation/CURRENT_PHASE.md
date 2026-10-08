@@ -1,5 +1,9 @@
 # 当前活动包：Series 开发
 
+2026-10-08 真实浏览器Host：页面登录→人工Series身份确认→实际两集上架→Collection详情37.26秒通过，无API拦截；修复截图发现的窄屏五列工具栏溢出，128前端/双视口收藏/原Host/构建及P2通过。待UI负责人精确版本复验；预配置仍经API，完整旅程与发布Gate不关闭，未操作NAS。[Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
+
+2026-10-08 真实浏览器Host旅程DoR：沿已接受UI，从管理凭据登录、Formation需处理/身份预览/确认到实际Collection完成结果，使用构建后的Admin与隔离正式Host，不拦截业务API。上游Provider和媒体沿既有隔离fixture；验证桌面/窄屏及结果与Owner Projection一致，证据需提交负责人复验。该增量不替代来源配置、完整运营及外部交付门槛，无生产动作。
+
 2026-10-08 历史生产副本预检：只读下载9月30日既有备份并核验SHA256，正式升级因未完成Formation拒绝，拒绝后副本字节不变；Reset预检因14条保留路由锚点和10条非目标控制事实拒绝，未执行清理。仅安全拒绝证据，成功升级/回退仍开放，未修改NAS。[Evidence](evidence/SERIES_HISTORICAL_UPGRADE_PREFLIGHT_20261008.md)。
 
 2026-10-08 完整Aftercare重启：真实N:M成品落位后、Inventory Commit前退出进程，新Host完成同Case唯一提交，第三次启动结果不变；Windows108.19秒/Linux100.67秒通过，成品字节/Claims/未改成员与范围外文件保护通过。06a8ce7c0冻结278文件全量2402通过/0失败/10skip；新增重启专项单独通过。尚非完整发布资格。[Evidence](evidence/SERIES_AFTERCARE_HOST_RECOVERY_20261008.md)。

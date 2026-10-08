@@ -21,6 +21,7 @@ test('shows only collected Episodes and their shared files and parts',async({pag
   });
   await page.goto('/collection');
   await expect(page.getByText('第 2 季 · 2 集 · 2020 · 剧集')).toBeVisible();
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   const tile=page.getByRole('button',{name:/查看 示例剧集 详情/});await tile.click();
   const dialog=page.getByRole('dialog',{name:'示例剧集'});
   await expect(dialog.getByRole('button',{name:'关闭详情'})).toBeFocused();
