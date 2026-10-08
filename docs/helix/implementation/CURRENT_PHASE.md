@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 Linux Docker验证：本机Engine恢复，372768b68原Dockerfile构建通过；438项Series专项、E03追加、真实CPU N:M加工、99.70秒跨进程退出恢复及4条Movie外部场景通过。原生/投影专项缺测试挂载已补齐复验，1个live BDMV素材skip保留。其他发布Gate继续，未操作NAS。[Evidence](evidence/SERIES_LINUX_DOCKER_20261008.md)。
+
 2026-10-08 Series命名示例与空间展示：收藏架按实际Profile提供单集/共文件/part示例，模板变更即时反馈；Formation明确每集空间上限。55项后端、125项前端、双视口/Axe及构建/P2/架构/语义通过。UI接受与其他发布Gate继续，未部署NAS。[Evidence](evidence/SERIES_NAMING_PREVIEW_20261008.md)。
 
 2026-10-08 Formation本批范围：从当前展示Run的冻结Claims投影Season/实际集号/物理文件数，列表及过程详情保持一致。55项后端、124项前端、双视口及构建通过；94.15秒真实E03追加Host确认Formation仅E03、Collection累计三集。P2/架构/语义通过，负责人验收及其他发布Gate继续，未部署NAS。[Evidence](evidence/SERIES_FORMATION_SCOPE_20261008.md)。
