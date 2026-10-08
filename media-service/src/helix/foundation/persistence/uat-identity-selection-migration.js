@@ -22,6 +22,7 @@ const PRE_SERIES_FACT_KEY_SCHEMA_DIGEST = '218993d8f7574475a22f26b85b96de4f57ebe
 const PRE_SERIES_PROVENANCE_SCHEMA_DIGEST = '14c18e017bfce8b78230d0509be1c46fb11c0da95a240396628173a9e71bed73';
 const PRE_TARGET_RESERVATION_SCHEMA_DIGEST = '46893c3ce29b664d4eb5af009108756ec5ba19851b082f32e1af0d13157f3beb';
 const PRE_ARTIFACT_SCOPE_SCHEMA_DIGEST = 'f1016a2c9f4a314554c7a9863a487e4874ec77f93e6010c51fbb281b4204c2cb';
+const PRE_OFFLOAD_TARGETS_SCHEMA_DIGEST = 'efa5340869a40216e3b2750293cbcb65fa3c7bc1c6950eb01eaf012b9f496a90';
 const TARGET_SCHEMA_DIGEST = '800afbadcc429b86aa8812cb6eea480ef4ccfa89be2213d7688c060aaa4b075a';
 
 // Frozen additive DDL for the exact UAT-251 schema target.
@@ -575,6 +576,33 @@ function extendSeriesFactKey(database) {
   database.exec('DROP TABLE temp.series_fact_backup');
 }
 
+// Schema-only expansion of completed history. No runtime or business evidence is translated.
+const OFFLOAD_SOURCE_SQL = "CREATE TABLE \"libra_offload_context_materials\" (\n  \"on_deck_package_id\" TEXT,\n  \"ordinal\" INTEGER CHECK (\"ordinal\" >= 0),\n  \"material_key\" TEXT,\n  \"context_role\" TEXT CHECK (\"context_role\" IN ('original_input', 'structural_dependency', 'related_input')),\n  \"source_related_reference_id\" TEXT,\n  \"final_product_material_key\" TEXT,\n  \"disposition_kind\" TEXT CHECK (\"disposition_kind\" IN ('carried_forward', 'replaced_and_settled')),\n  \"mount_scope_id\" TEXT,\n  \"inode\" TEXT,\n  \"size_bytes\" INTEGER CHECK (\"size_bytes\" >= 0),\n  \"fingerprint_algorithm\" TEXT,\n  \"fingerprint_version\" TEXT,\n  \"content_fingerprint\" TEXT,\n  \"endpoint_id\" TEXT,\n  \"location\" TEXT,\n  \"binding_revision\" INTEGER CHECK (\"binding_revision\" >= 1),\n  \"binding_evidence_digest\" TEXT CHECK (length(\"binding_evidence_digest\") = 64 AND \"binding_evidence_digest\" NOT GLOB '*[^0-9a-f]*'),\n  \"admitted_control_revision\" INTEGER CHECK (\"admitted_control_revision\" >= 1),\n  \"admitted_control_projection_digest\" TEXT CHECK (length(\"admitted_control_projection_digest\") = 64 AND \"admitted_control_projection_digest\" NOT GLOB '*[^0-9a-f]*'),\n  \"derived_authority_digest\" TEXT CHECK (length(\"derived_authority_digest\") = 64 AND \"derived_authority_digest\" NOT GLOB '*[^0-9a-f]*'),\n  \"settlement_expectation\" TEXT CHECK (\"settlement_expectation\" IN ('retain', 'replace_or_move', 'remove_after_place')),\n  \"context_member_digest\" TEXT CHECK (length(\"context_member_digest\") = 64 AND \"context_member_digest\" NOT GLOB '*[^0-9a-f]*'),\n  PRIMARY KEY (\"on_deck_package_id\", \"ordinal\"),\n  UNIQUE (\"on_deck_package_id\", \"material_key\", \"context_role\"),\n  FOREIGN KEY (\"on_deck_package_id\") REFERENCES \"libra_product_packages\" (\"on_deck_package_id\") ON DELETE RESTRICT\n)";
+const OFFLOAD_TARGET_SQL = "CREATE TABLE \"libra_offload_context_materials\" (\n  \"on_deck_package_id\" TEXT,\n  \"ordinal\" INTEGER CHECK (\"ordinal\" >= 0),\n  \"material_key\" TEXT,\n  \"context_role\" TEXT CHECK (\"context_role\" IN ('original_input', 'structural_dependency', 'related_input')),\n  \"source_related_reference_id\" TEXT,\n  \"final_product_material_key\" TEXT,\n  \"final_product_material_keys_schema_ref\" TEXT,\n  \"final_product_material_keys_json\" TEXT,\n  \"disposition_kind\" TEXT CHECK (\"disposition_kind\" IN ('carried_forward', 'replaced_and_settled')),\n  \"mount_scope_id\" TEXT,\n  \"inode\" TEXT,\n  \"size_bytes\" INTEGER CHECK (\"size_bytes\" >= 0),\n  \"fingerprint_algorithm\" TEXT,\n  \"fingerprint_version\" TEXT,\n  \"content_fingerprint\" TEXT,\n  \"endpoint_id\" TEXT,\n  \"location\" TEXT,\n  \"binding_revision\" INTEGER CHECK (\"binding_revision\" >= 1),\n  \"binding_evidence_digest\" TEXT CHECK (length(\"binding_evidence_digest\") = 64 AND \"binding_evidence_digest\" NOT GLOB '*[^0-9a-f]*'),\n  \"admitted_control_revision\" INTEGER CHECK (\"admitted_control_revision\" >= 1),\n  \"admitted_control_projection_digest\" TEXT CHECK (length(\"admitted_control_projection_digest\") = 64 AND \"admitted_control_projection_digest\" NOT GLOB '*[^0-9a-f]*'),\n  \"derived_authority_digest\" TEXT CHECK (length(\"derived_authority_digest\") = 64 AND \"derived_authority_digest\" NOT GLOB '*[^0-9a-f]*'),\n  \"settlement_expectation\" TEXT CHECK (\"settlement_expectation\" IN ('retain', 'replace_or_move', 'remove_after_place')),\n  \"context_member_digest\" TEXT CHECK (length(\"context_member_digest\") = 64 AND \"context_member_digest\" NOT GLOB '*[^0-9a-f]*'),\n  PRIMARY KEY (\"on_deck_package_id\", \"ordinal\"),\n  UNIQUE (\"on_deck_package_id\", \"material_key\", \"context_role\"),\n  CHECK (\"final_product_material_keys_json\" IS NULL OR json_valid(\"final_product_material_keys_json\")),\n  CHECK (\"final_product_material_keys_json\" IS NULL OR length(CAST(\"final_product_material_keys_json\" AS BLOB)) <= 131072),\n  CHECK ((\"final_product_material_key\" IS NOT NULL AND \"final_product_material_keys_json\" IS NULL AND \"final_product_material_keys_schema_ref\" IS NULL) OR\n     (\"final_product_material_key\" IS NULL AND \"final_product_material_keys_json\" IS NOT NULL AND\n      \"final_product_material_keys_schema_ref\" IS NOT NULL AND \"final_product_material_keys_schema_ref\" = 'helix://contracts/application-types/LibraOffloadProductMaterialKeys/v1' AND\n      json_type(\"final_product_material_keys_json\") = 'array' AND json_array_length(\"final_product_material_keys_json\") BETWEEN 2 AND 1024 AND\n      \"context_role\" = 'original_input' AND \"disposition_kind\" = 'replaced_and_settled' AND \"settlement_expectation\" = 'remove_after_place')),\n  FOREIGN KEY (\"on_deck_package_id\") REFERENCES \"libra_product_packages\" (\"on_deck_package_id\") ON DELETE RESTRICT\n);";
+function extendOffloadTargetStorage(database) {
+  const table='libra_offload_context_materials';
+  if(database.pragma('table_info('+table+')').some(column=>column.name==='final_product_material_keys_json'))return;
+  if(database.prepare("SELECT 1 FROM libra_runs WHERE state IS NULL OR state NOT IN ('completed','discarded','superseded') LIMIT 1").get()||
+      database.prepare("SELECT 1 FROM libra_product_packages p WHERE NOT EXISTS (SELECT 1 FROM arca_ondeck_runs r JOIN arca_ondeck_custodies c ON c.custody_id=r.custody_id WHERE c.on_deck_package_id=p.on_deck_package_id AND c.package_digest=p.package_digest AND c.state='committed' AND r.state='committed') LIMIT 1").get())
+    throw new UatIdentitySelectionMigrationError('SERIES_OFFLOAD_FORMATION_RESET_REQUIRED',
+      'Unfinished Formation requires an explicitly authorized Reset before this schema upgrade.');
+  const row=database.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table);
+  if(row?.sql.replaceAll('\r\n','\n')!==OFFLOAD_SOURCE_SQL)
+    throw new UatIdentitySelectionMigrationError('SERIES_OFFLOAD_SOURCE_SCHEMA_DRIFT','Off-load table differs from the frozen prior schema.');
+  const columns=database.pragma('table_info('+table+')').map(column=>'"'+column.name+'"').join(','),
+    readSql='SELECT '+columns+' FROM "'+table+'" ORDER BY on_deck_package_id,ordinal',
+    before=digest(database.prepare(readSql).all()),
+    dependent=database.prepare("SELECT sql FROM sqlite_master WHERE tbl_name=? AND type IN ('index','trigger') AND sql IS NOT NULL ORDER BY type,name").all(table);
+  database.exec('CREATE TEMP TABLE series_offload_backup AS SELECT * FROM "libra_offload_context_materials"');
+  database.exec('DROP TABLE "libra_offload_context_materials"');
+  database.exec(OFFLOAD_TARGET_SQL);
+  database.exec('INSERT INTO "libra_offload_context_materials" ('+columns+') SELECT '+columns+' FROM temp.series_offload_backup');
+  for(const object of dependent)database.exec(object.sql);
+  if(digest(database.prepare(readSql).all())!==before)
+    throw new UatIdentitySelectionMigrationError('SERIES_OFFLOAD_HISTORY_DRIFT','Off-load history changed during schema expansion.');
+  database.exec('DROP TABLE temp.series_offload_backup');
+}
+
 function migrateUatIdentitySelectionSchema(options) {
   if (!options || typeof options.Database !== 'function' || typeof options.databasePath !== 'string' || !options.schemaManifest) {
     throw new TypeError('The UAT identity-selection migration requires a database driver, path, and target manifest.');
@@ -596,6 +624,7 @@ function migrateUatIdentitySelectionSchema(options) {
       throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_SOURCE_MARKER_INVALID',
         'The source database does not contain the expected ShelfDeck schema marker.');
     }
+    const offloadTargetsSource=marker.generation===TARGET_GENERATION&&marker.schema_digest===PRE_OFFLOAD_TARGETS_SCHEMA_DIGEST;
     const artifactScopeSource=marker.generation===TARGET_GENERATION&&marker.schema_digest===PRE_ARTIFACT_SCOPE_SCHEMA_DIGEST;
     const targetReservationSource=marker.generation===TARGET_GENERATION&&marker.schema_digest===PRE_TARGET_RESERVATION_SCHEMA_DIGEST;
     const seriesFactKeySource=marker.generation===TARGET_GENERATION&&marker.schema_digest===PRE_SERIES_FACT_KEY_SCHEMA_DIGEST;
@@ -619,15 +648,11 @@ function migrateUatIdentitySelectionSchema(options) {
       marker.schema_digest === PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST;
     const legacySource = marker.generation === SOURCE_GENERATION && marker.schema_digest === SOURCE_SCHEMA_DIGEST;
     const v2Source = marker.generation === INTERMEDIATE_GENERATION && marker.schema_digest === INTERMEDIATE_SCHEMA_DIGEST;
-    if (!alreadyCurrent && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource && !offdeckCoverageSource && !targetBindingSource && !sourceCleanupSource && !caseAdmissionSource && !formationThreeStateSource && !predeckPipelineSource && !defectAdmissionSource && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
+    if (!alreadyCurrent && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource && !offdeckCoverageSource && !targetBindingSource && !sourceCleanupSource && !caseAdmissionSource && !formationThreeStateSource && !predeckPipelineSource && !defectAdmissionSource && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
       throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_SOURCE_SCHEMA_UNSUPPORTED',
         'Only the exact pre-UAT live schema can be upgraded in place.', {
           generation: marker.generation, schemaDigest: marker.schema_digest,
         });
-    }
-    if (!alreadyCurrent && !database.pragma('table_info(libra_offload_context_materials)').some(column=>column.name==='final_product_material_keys_json')) {
-      throw new UatIdentitySelectionMigrationError('SERIES_OFFLOAD_UPGRADE_REQUIRED',
-        'This prior Off-load schema requires a separately verified history-preserving schema upgrade.');
     }
     const sourceCatalogDigest = digest(catalogRows(database));
     if (!alreadyCurrent && marker.catalog_digest !== sourceCatalogDigest) {
@@ -659,11 +684,11 @@ function migrateUatIdentitySelectionSchema(options) {
       )`);
       if (legacySource || v2Source) database.exec(FORMATION_PROJECTION_DDL);
       if (legacySource || v2Source || executorClosureSource) database.exec(EXECUTOR_CLOSURE_DDL);
-      if (!alreadyCurrent && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource) ensureAftercareCaseTerminalEvidence(database);
+      if (!alreadyCurrent && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource) ensureAftercareCaseTerminalEvidence(database);
       if (defectAdmissionSource) migrateDefectAdmissionRevisionKind(database);
-      if (!alreadyCurrent && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource) migratePredeckPipelineTables(database);
+      if (!alreadyCurrent && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource) migratePredeckPipelineTables(database);
       if (formationThreeStateSource) migrateFormationThreeStateProjection(database);
-      if (!alreadyCurrent && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource) {
+      if (!alreadyCurrent && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource) {
         const coverageColumns = database.pragma('table_info(arca_offdeck_selection_receipts)').map((column) => column.name);
         if (!coverageColumns.includes('shelf_coverage_schema_ref')) database.exec('ALTER TABLE "arca_offdeck_selection_receipts" ADD COLUMN "shelf_coverage_schema_ref" TEXT');
         if (!coverageColumns.includes('shelf_coverage_json')) database.exec('ALTER TABLE "arca_offdeck_selection_receipts" ADD COLUMN "shelf_coverage_json" TEXT CHECK ("shelf_coverage_json" IS NULL OR json_valid("shelf_coverage_json")) CHECK ("shelf_coverage_json" IS NULL OR length(CAST("shelf_coverage_json" AS BLOB)) <= 65536)');
@@ -684,8 +709,8 @@ function migrateUatIdentitySelectionSchema(options) {
           }
         }
       }
-      if (!alreadyCurrent && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource) addTerminalOutcomeTables(database);
-      if (!alreadyCurrent && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource) addSecondaryTargetRevision(database);
+      if (!alreadyCurrent && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource) addTerminalOutcomeTables(database);
+      if (!alreadyCurrent && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource) addSecondaryTargetRevision(database);
       if (!alreadyCurrent) {
         if (database.prepare("SELECT 1 FROM arca_ondeck_runs WHERE state <> 'committed' LIMIT 1").get()) {
           throw new UatIdentitySelectionMigrationError('ARCA_TARGET_RESERVATION_FORMATION_RESET_REQUIRED',
@@ -704,6 +729,7 @@ function migrateUatIdentitySelectionSchema(options) {
       }
       if (!alreadyCurrent) expandProductionProvenanceBound(database);
       if (!alreadyCurrent) extendSeriesFactKey(database);
+      if (!alreadyCurrent) extendOffloadTargetStorage(database);
       if (!alreadyCurrent && database.pragma('foreign_key_check').length) {
         throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_FOREIGN_KEY_VIOLATION',
           'Migration would leave invalid references; all schema changes were rolled back.');
@@ -718,8 +744,8 @@ function migrateUatIdentitySelectionSchema(options) {
           'UPDATE platform_schema_marker SET generation=?,schema_digest=?,catalog_digest=?,applied_at_ms=? WHERE schema_name=?',
         ).run(TARGET_GENERATION, TARGET_SCHEMA_DIGEST, targetCatalogDigest, appliedAtMs, 'shelfdeck');
       }
-      const retiredIntakeBindingAttempts = (alreadyCurrent || artifactScopeSource || targetReservationSource || seriesFactKeySource || seriesProvenanceSource || terminalOutcomeSource || secondaryTargetSource) ? 0 : retirePreCorrectionIntakeBindingAttempts(database, appliedAtMs);
-      const retiredPreProjection = (alreadyCurrent || artifactScopeSource || targetReservationSource || seriesFactKeySource || seriesProvenanceSource || terminalOutcomeSource || secondaryTargetSource) ? {} : retirePreProjectionExecutionWorks(database, appliedAtMs);
+      const retiredIntakeBindingAttempts = (alreadyCurrent || offloadTargetsSource || artifactScopeSource || targetReservationSource || seriesFactKeySource || seriesProvenanceSource || terminalOutcomeSource || secondaryTargetSource) ? 0 : retirePreCorrectionIntakeBindingAttempts(database, appliedAtMs);
+      const retiredPreProjection = (alreadyCurrent || offloadTargetsSource || artifactScopeSource || targetReservationSource || seriesFactKeySource || seriesProvenanceSource || terminalOutcomeSource || secondaryTargetSource) ? {} : retirePreProjectionExecutionWorks(database, appliedAtMs);
       database.exec('COMMIT');
       const retirement = Object.freeze({
         ...(retiredIntakeBindingAttempts ? {retiredIntakeBindingAttempts} : {}),
@@ -739,6 +765,7 @@ function migrateUatIdentitySelectionSchema(options) {
 }
 
 module.exports = Object.freeze({
+  PRE_OFFLOAD_TARGETS_SCHEMA_DIGEST,
   SOURCE_GENERATION,
   SOURCE_SCHEMA_DIGEST,
   PRE_SERIES_PROVENANCE_SCHEMA_DIGEST,

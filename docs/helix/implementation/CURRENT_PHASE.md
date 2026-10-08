@@ -313,3 +313,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08多目标持久化DoR：Offload relation每个原source仍一row；单目标列与128 KiB有界JSON列表列互斥，库约束验证基数/处置，Owner写读验证排序唯一及完整摘要。沿现有Promotion事务写入和历史Package重建，禁止取首项或双写；隔离新库验证，生产历史升级保护另有发布Gate，不迁移未完成运行。
 
 2026-10-08多目标Offload存储：互斥单目标与固定schemaRef/128 KiB完整JSON列表、Promotion事务写入和Reader重建已接通。14项专项、35.8秒普通混合上架Host、6项既有回归及P2/架构/语义通过。新库启动摘要已对齐；旧Offload表升级尚未验证并明确拒绝，必须完成历史保护升级后才可发布。Assembler/Arca/Coordinator继续，未部署NAS。[Evidence](evidence/SERIES_OFFLOAD_TARGET_STORAGE_20261008.md)。
+
+2026-10-08 Offload旧库升级DoR：冻结旧DDL/hash并沿既有事务schema升级入口重建该表，仅扩展nullable多目标列和CHECK；旧列逐字节/摘要保持，索引触发器及FK保留。未完成Run或未Commit Package明确要求已授权Formation Reset，不推测填补旧空映射。验证真实旧DDL、历史row保持、失败回滚和重放；生产副本升级/回退仍独立验收，不执行NAS。
+
+2026-10-08 Offload旧表升级：精确旧DDL/hash经既有事务扩展多目标列，保持已完成Movie原列、Package摘要及Arca/Custody/Shelf记录；未完成或错关联拒绝，复制后异常完整回滚并可重试。28项回归及P2/架构/语义通过。生产副本升级/回退仍未验收，Assembler/Arca/Coordinator继续，未部署NAS。[Evidence](evidence/SERIES_OFFLOAD_SCHEMA_UPGRADE_20261008.md)。
