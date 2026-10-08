@@ -863,6 +863,8 @@ function buildLibraApplicationSchemas() {
             actualSizeBytes:positive(),withinLimit:{type:'boolean'}})},[...Object.keys(previewCommon),'eligibility','candidateRevision',
           'frozenRunStateRevision','frozenRunStateDigest','terminalEvidenceDigest','defects','waivedRequirementCodes','gapScope','candidateDigest'])]},
     ...require('./defect-outcome-schema-builder').libraSchemas(),
+    LibraOffloadProductMaterialKeys: {$schema:DRAFT,$id:typeId('LibraOffloadProductMaterialKeys'),title:'LibraOffloadProductMaterialKeys@1',
+      'x-helix-ssotRefs':['8.6.21'],'x-helix-maxCanonicalBytes':131072,type:'array',items:digest(),minItems:2,maxItems:1024,uniqueItems:true},
     ProductDeliveryQuery: productDeliveryQuery(),
     ProductDeliveryReadResult: productDeliveryReadResult(),
     WorkspaceCleanupScopeQuery: workspaceCleanupScopeQuery(),

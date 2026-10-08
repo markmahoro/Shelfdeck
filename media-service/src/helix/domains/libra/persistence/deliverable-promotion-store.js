@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const {writeOffloadTargets}=require('./offload-target-storage');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const {
   createMaterialControlParticipant,
@@ -226,7 +227,7 @@ function libraDefinition(schemaManifest) {
         tableId: 'libra_offload_context_materials',
         columns: [
           'on_deck_package_id', 'ordinal', 'material_key', 'context_role',
-          'source_related_reference_id', 'final_product_material_key', 'disposition_kind',
+          'source_related_reference_id', 'final_product_material_key', 'final_product_material_keys_schema_ref', 'final_product_material_keys_json', 'disposition_kind',
           'mount_scope_id', 'inode', 'size_bytes', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
           'endpoint_id', 'location', 'binding_revision', 'binding_evidence_digest',
           'admitted_control_revision', 'admitted_control_projection_digest',
@@ -599,7 +600,7 @@ function writePackage(repo, commit, decision, snapshot) {
     material_key: item.materialKey,
     context_role: item.contextRole,
     source_related_reference_id: item.sourceRelatedReferenceId ?? null,
-    final_product_material_key: item.finalProductMaterialKey ?? null,
+    ...writeOffloadTargets(item),
     disposition_kind: item.dispositionKind ?? null,
     mount_scope_id: item.physicalIdentity.mountScopeId,
     inode: item.physicalIdentity.inode,

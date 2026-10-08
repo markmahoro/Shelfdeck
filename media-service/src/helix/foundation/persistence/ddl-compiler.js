@@ -112,6 +112,13 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
 });
 
 const TABLE_CHECKS = Object.freeze({
+  libra_offload_context_materials: [
+    `("final_product_material_key" IS NOT NULL AND "final_product_material_keys_json" IS NULL AND "final_product_material_keys_schema_ref" IS NULL) OR
+     ("final_product_material_key" IS NULL AND "final_product_material_keys_json" IS NOT NULL AND
+      "final_product_material_keys_schema_ref" IS NOT NULL AND "final_product_material_keys_schema_ref" = 'helix://contracts/application-types/LibraOffloadProductMaterialKeys/v1' AND
+      json_type("final_product_material_keys_json") = 'array' AND json_array_length("final_product_material_keys_json") BETWEEN 2 AND 1024 AND
+      "context_role" = 'original_input' AND "disposition_kind" = 'replaced_and_settled' AND "settlement_expectation" = 'remove_after_place')`
+  ],
   proc_candidate_related_references: [
     '"disposition_required" = 1'
   ],

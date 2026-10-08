@@ -257,8 +257,8 @@ function fixtureValue() {
     materialKey: physical.materialKey,
     contextRole: 'original_input',
     sourceRelatedReferenceId: null,
-    finalProductMaterialKey: null,
-    dispositionKind: null,
+    finalProductMaterialKey: physical.materialKey,
+    dispositionKind: 'carried_forward',
     physicalIdentity: physical,
     endpointId: 'endpoint-1',
     location: 'movie.mkv',
@@ -267,7 +267,7 @@ function fixtureValue() {
     admittedControlRevision: 1,
     admittedControlProjectionDigest: control.projectionDigest,
     derivedAuthorityDigest: null,
-    settlementExpectation: 'retain',
+    settlementExpectation: 'replace_or_move',
   };
   offloadMember.memberDigest = canonicalDigest(offloadMember);
   const offloadContextManifest = {
@@ -888,3 +888,34 @@ test('Series Promotion refuses any absent or non-Primary target in a multiple Of
     assert.throws(()=>assertPromotionDecision(decision),error=>error.code==='P9_PROMOTION_MULTIPLE_TARGETS');
   }
 });
+
+
+test('Off-load target persistence round-trips the full canonical list and rolls back one source row atomically',()=>withDatabase(value=>{
+  const {writeOffloadTargets,readOffloadTargets}=require('../../src/helix/domains/libra/persistence/offload-target-storage');
+  createDeliverablePromotionStore({schemaManifest,unitOfWork:value.unitOfWork}).publish(request(value));
+  const db=new Database(value.databasePath);
+  try{
+    const original=db.prepare('SELECT * FROM libra_offload_context_materials').get();
+    assert.deepEqual(readOffloadTargets(original),{finalProductMaterialKey:value.physical.materialKey});
+    const keys=[D('new-one'),D('new-two')].sort(),source={materialKey:D('replaced'),contextRole:'original_input',
+      dispositionKind:'replaced_and_settled',settlementExpectation:'remove_after_place',finalProductMaterialKeys:keys};
+    const row={...original,ordinal:1,material_key:source.materialKey,disposition_kind:source.dispositionKind,
+      settlement_expectation:source.settlementExpectation,...writeOffloadTargets(source)};
+    const columns=Object.keys(row),insert=db.prepare('INSERT INTO libra_offload_context_materials ('+columns.join(',')+') VALUES ('+columns.map(key=>'@'+key).join(',')+')');
+    assert.throws(()=>db.transaction(()=>{insert.run(row);throw new Error('injected after full target insert');})(),/injected/);
+    assert.equal(db.prepare('SELECT count(*) AS count FROM libra_offload_context_materials').get().count,1);
+    insert.run(row);
+    const stored=db.prepare('SELECT * FROM libra_offload_context_materials WHERE ordinal=1').get();
+    assert.deepEqual(readOffloadTargets(stored),{finalProductMaterialKeys:keys});
+    assert.equal(stored.final_product_material_key,null);
+    for(const changes of [{final_product_material_key:keys[0]},
+      {final_product_material_keys_json:null},{final_product_material_keys_json:'[]'},
+      {final_product_material_keys_json:JSON.stringify([keys[0]])},{final_product_material_keys_json:'{}'},
+      {final_product_material_keys_schema_ref:null},{final_product_material_keys_schema_ref:'wrong'},
+      {context_role:'related_input'},{disposition_kind:'carried_forward'},{settlement_expectation:'replace_or_move'}])
+      assert.throws(()=>insert.run({...row,ordinal:2,material_key:D('invalid-source'),...changes}),/CHECK constraint failed/);
+    for(const json of [JSON.stringify([...keys].reverse()),JSON.stringify([keys[0],keys[0]]),JSON.stringify(keys,null,2)])
+      assert.throws(()=>readOffloadTargets({...stored,final_product_material_keys_json:json}));
+    assert.equal(db.prepare('SELECT count(*) AS count FROM libra_offload_context_materials').get().count,2);
+  }finally{db.close();}
+}));

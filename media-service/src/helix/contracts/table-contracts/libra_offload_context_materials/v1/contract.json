@@ -69,10 +69,30 @@
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
         "inlineUnique": false,
-        "nullable": false
+        "nullable": true
       },
       {
         "ordinal": 7,
+        "name": "final_product_material_keys_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
+        "name": "final_product_material_keys_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 9,
         "name": "disposition_kind",
         "logicalType": "TEXT",
         "enumValues": [
@@ -85,7 +105,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "mount_scope_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -95,7 +115,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "inode",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -105,7 +125,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "size_bytes",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -115,7 +135,7 @@
         "nullable": false
       },
       {
-        "ordinal": 11,
+        "ordinal": 13,
         "name": "fingerprint_algorithm",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -125,7 +145,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 14,
         "name": "fingerprint_version",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -135,7 +155,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 15,
         "name": "content_fingerprint",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -145,7 +165,7 @@
         "nullable": false
       },
       {
-        "ordinal": 14,
+        "ordinal": 16,
         "name": "endpoint_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -155,7 +175,7 @@
         "nullable": false
       },
       {
-        "ordinal": 15,
+        "ordinal": 17,
         "name": "location",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -165,7 +185,7 @@
         "nullable": false
       },
       {
-        "ordinal": 16,
+        "ordinal": 18,
         "name": "binding_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -175,7 +195,7 @@
         "nullable": false
       },
       {
-        "ordinal": 17,
+        "ordinal": 19,
         "name": "binding_evidence_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -185,7 +205,7 @@
         "nullable": false
       },
       {
-        "ordinal": 18,
+        "ordinal": 20,
         "name": "admitted_control_revision",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -195,7 +215,7 @@
         "nullable": true
       },
       {
-        "ordinal": 19,
+        "ordinal": 21,
         "name": "admitted_control_projection_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -205,7 +225,7 @@
         "nullable": true
       },
       {
-        "ordinal": 20,
+        "ordinal": 22,
         "name": "derived_authority_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -215,7 +235,7 @@
         "nullable": true
       },
       {
-        "ordinal": 21,
+        "ordinal": 23,
         "name": "settlement_expectation",
         "logicalType": "TEXT",
         "enumValues": [
@@ -229,7 +249,7 @@
         "nullable": false
       },
       {
-        "ordinal": 22,
+        "ordinal": 24,
         "name": "context_member_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -289,7 +309,15 @@
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "final_product_material_keys_json",
+        "schemaRefColumn": "final_product_material_keys_schema_ref",
+        "maxBytes": 131072,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": false,
       "rules": []
@@ -302,16 +330,18 @@
       "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`",
       "Primary/structural variant要求Control pair并禁止Related fields",
       "related variant要求source reference/derived authority且Control pair为NULL。每个Run Basis Related必须恰有一row并映射到同Package Product member：carried要求source/final materialKey相同且`replace_or_move`，replaced要求不同且`remove_after_place`",
-      "按materialKey/contextRole排序并进入offload及Related disposition set digest，不构成Arca动作选择或删除授权"
+      "按materialKey/contextRole排序并进入offload及Related disposition set digest，单目标列与多目标JSON列必须恰好一者非NULL",
+      "JSON固定schemaRef为`helix://contracts/application-types/LibraOffloadProductMaterialKeys/v1`（仅该array），为2..1024个UTF-8排序唯一materialKey、≤128 KiB，只允许original_input/replaced_and_settled/remove_after_place，原source仍恰好一row",
+      "完整目标集合进入member/set/manifest摘要，不构成Arca动作选择或删除授权"
     ],
     "rawContract": {
-      "columns": "`on_deck_package_id FK, ordinal, material_key, context_role(original_input|structural_dependency|related_input), source_related_reference_id NULL, final_product_material_key, disposition_kind(carried_forward|replaced_and_settled), mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, location, binding_revision, binding_evidence_digest, admitted_control_revision NULL, admitted_control_projection_digest NULL, derived_authority_digest NULL, settlement_expectation(retain|replace_or_move|remove_after_place), context_member_digest`",
-      "constraints": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`；Primary/structural variant要求Control pair并禁止Related fields；related variant要求source reference/derived authority且Control pair为NULL。每个Run Basis Related必须恰有一row并映射到同Package Product member：carried要求source/final materialKey相同且`replace_or_move`，replaced要求不同且`remove_after_place`；按materialKey/contextRole排序并进入offload及Related disposition set digest，不构成Arca动作选择或删除授权"
+      "columns": "`on_deck_package_id FK, ordinal, material_key, context_role(original_input|structural_dependency|related_input), source_related_reference_id NULL, final_product_material_key NULL, final_product_material_keys_schema_ref NULL, final_product_material_keys_json NULL, disposition_kind(carried_forward|replaced_and_settled), mount_scope_id, inode, size_bytes, fingerprint_algorithm, fingerprint_version, content_fingerprint, endpoint_id, location, binding_revision, binding_evidence_digest, admitted_control_revision NULL, admitted_control_projection_digest NULL, derived_authority_digest NULL, settlement_expectation(retain|replace_or_move|remove_after_place), context_member_digest`",
+      "constraints": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`；Primary/structural variant要求Control pair并禁止Related fields；related variant要求source reference/derived authority且Control pair为NULL。每个Run Basis Related必须恰有一row并映射到同Package Product member：carried要求source/final materialKey相同且`replace_or_move`，replaced要求不同且`remove_after_place`；按materialKey/contextRole排序并进入offload及Related disposition set digest，单目标列与多目标JSON列必须恰好一者非NULL；JSON固定schemaRef为`helix://contracts/application-types/LibraOffloadProductMaterialKeys/v1`（仅该array），为2..1024个UTF-8排序唯一materialKey、≤128 KiB，只允许original_input/replaced_and_settled/remove_after_place，原source仍恰好一row；完整目标集合进入member/set/manifest摘要，不构成Arca动作选择或删除授权"
     },
     "source": {
       "section": "8.5.11",
       "line": 9456,
-      "lineDigest": "4043652219b77c83f755f07ef00564f4bc5e62bed9e64a54fa852d593e54da0f"
+      "lineDigest": "20dc09a6c609e1b8ab89a9efbb89247eccbdaad912e859b07fe8cac56597b39c"
     },
     "foreignKeys": [
       {

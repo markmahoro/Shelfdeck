@@ -1800,6 +1800,8 @@ CREATE TABLE "libra_offload_context_materials" (
   "context_role" TEXT CHECK ("context_role" IN ('original_input', 'structural_dependency', 'related_input')),
   "source_related_reference_id" TEXT,
   "final_product_material_key" TEXT,
+  "final_product_material_keys_schema_ref" TEXT,
+  "final_product_material_keys_json" TEXT,
   "disposition_kind" TEXT CHECK ("disposition_kind" IN ('carried_forward', 'replaced_and_settled')),
   "mount_scope_id" TEXT,
   "inode" TEXT,
@@ -1818,6 +1820,13 @@ CREATE TABLE "libra_offload_context_materials" (
   "context_member_digest" TEXT CHECK (length("context_member_digest") = 64 AND "context_member_digest" NOT GLOB '*[^0-9a-f]*'),
   PRIMARY KEY ("on_deck_package_id", "ordinal"),
   UNIQUE ("on_deck_package_id", "material_key", "context_role"),
+  CHECK ("final_product_material_keys_json" IS NULL OR json_valid("final_product_material_keys_json")),
+  CHECK ("final_product_material_keys_json" IS NULL OR length(CAST("final_product_material_keys_json" AS BLOB)) <= 131072),
+  CHECK (("final_product_material_key" IS NOT NULL AND "final_product_material_keys_json" IS NULL AND "final_product_material_keys_schema_ref" IS NULL) OR
+     ("final_product_material_key" IS NULL AND "final_product_material_keys_json" IS NOT NULL AND
+      "final_product_material_keys_schema_ref" IS NOT NULL AND "final_product_material_keys_schema_ref" = 'helix://contracts/application-types/LibraOffloadProductMaterialKeys/v1' AND
+      json_type("final_product_material_keys_json") = 'array' AND json_array_length("final_product_material_keys_json") BETWEEN 2 AND 1024 AND
+      "context_role" = 'original_input' AND "disposition_kind" = 'replaced_and_settled' AND "settlement_expectation" = 'remove_after_place')),
   FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT
 );
 

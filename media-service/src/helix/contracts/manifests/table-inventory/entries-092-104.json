@@ -14,7 +14,7 @@
       "sourceLocator": {
         "section": "8.5.11",
         "line": 9456,
-        "lineDigest": "4043652219b77c83f755f07ef00564f4bc5e62bed9e64a54fa852d593e54da0f"
+        "lineDigest": "20dc09a6c609e1b8ab89a9efbb89247eccbdaad912e859b07fe8cac56597b39c"
       },
       "targetLocator": {
         "path": "table-contracts/libra_offload_context_materials/v1/contract.json"
@@ -23,11 +23,11 @@
         "tableId": "libra_offload_context_materials",
         "owner": "libra",
         "contractRef": "helix://contracts/tables/libra_offload_context_materials/v1",
-        "contractDigest": "916bd8b3921c50c2630dae002974526d0a7a98a1747f658f4a4fa14fe8e821b8"
+        "contractDigest": "b0a5e674ee21eec4a4c8748f8fd4853193e6112422dcd396a28636caeca7edaf"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "c832dfe85d447597249955871ec04f7dc2cc60e1d2473ceab20e1dace5f57c81"
+        "value": "801f7fa8068878acfa303010131d9c3c4000edaad814d4543d48f727847e1fe9"
       }
     },
     {

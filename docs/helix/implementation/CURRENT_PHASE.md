@@ -309,3 +309,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08多成品Offload合同DoR：落实已确认source-to-all-final语义，以互斥的单目标finalProductMaterialKey与多目标finalProductMaterialKeys表达实际映射基数；多目标仅original_input/replaced_and_settled/remove_after_place，不能用于Related或carried。先传播Package/Promotion schema及完整目标校验，后续持久化/Assembler/Arca全部目标现场验证和一次源结算完成前不启用外部交付。不是旧运行迁移或双写。
 
 2026-10-08多成品Offload合同：SSOT/Package/Promotion支持互斥单目标及2..1024多目标，后者仅原Primary替换；Promotion校验所有目标为具备Claims的同Package Workspace Primary。15项专项、生成合同/P2/架构/语义通过。持久化、Reader/Assembler及Arca多目标验证/一次结算待接通，未启用多目标交付或部署NAS。[Evidence](evidence/SERIES_OFFLOAD_TARGET_CONTRACT_20261008.md)。
+
+2026-10-08多目标持久化DoR：Offload relation每个原source仍一row；单目标列与128 KiB有界JSON列表列互斥，库约束验证基数/处置，Owner写读验证排序唯一及完整摘要。沿现有Promotion事务写入和历史Package重建，禁止取首项或双写；隔离新库验证，生产历史升级保护另有发布Gate，不迁移未完成运行。
+
+2026-10-08多目标Offload存储：互斥单目标与固定schemaRef/128 KiB完整JSON列表、Promotion事务写入和Reader重建已接通。14项专项、35.8秒普通混合上架Host、6项既有回归及P2/架构/语义通过。新库启动摘要已对齐；旧Offload表升级尚未验证并明确拒绝，必须完成历史保护升级后才可发布。Assembler/Arca/Coordinator继续，未部署NAS。[Evidence](evidence/SERIES_OFFLOAD_TARGET_STORAGE_20261008.md)。

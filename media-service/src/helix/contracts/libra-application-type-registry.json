@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 38,
+  "targetCount": 39,
   "entries": [
     {
       "id": "AuthorizedDefectManifest",
@@ -76,6 +76,21 @@
       },
       "ssotRefs": [
         "5.6.7",
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraOffloadProductMaterialKeys",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraOffloadProductMaterialKeys/v1",
+      "relativePath": "application-types/LibraOffloadProductMaterialKeys/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "6a785fd9badc3e51f6c823b92d88bdb76d6db5b2aefb98d31bd736acedad79d2"
+      },
+      "ssotRefs": [
         "8.6.21"
       ]
     },

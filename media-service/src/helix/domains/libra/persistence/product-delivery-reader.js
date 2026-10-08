@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const {readOffloadTargets}=require('./offload-target-storage');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const {
   verifyOnDeckProductPackageDigest,
@@ -159,7 +160,7 @@ function definition(schemaManifest) {
         tableId: 'libra_offload_context_materials',
         columns: [
           'on_deck_package_id', 'ordinal', 'material_key', 'context_role',
-          'source_related_reference_id','final_product_material_key','disposition_kind',
+          'source_related_reference_id','final_product_material_key','final_product_material_keys_schema_ref', 'final_product_material_keys_json','disposition_kind',
           'mount_scope_id', 'inode', 'size_bytes', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
           'endpoint_id', 'location', 'binding_revision', 'binding_evidence_digest',
           'admitted_control_revision', 'admitted_control_projection_digest',
@@ -447,7 +448,7 @@ function reconstruct(repo, row) {
       materialKey: item.material_key,
       contextRole: item.context_role,
       sourceRelatedReferenceId:item.source_related_reference_id,
-      finalProductMaterialKey:item.final_product_material_key,
+      ...readOffloadTargets(item),
       dispositionKind:item.disposition_kind,
       physicalIdentity: physical(item),
       endpointId: item.endpoint_id,

@@ -22,7 +22,7 @@ const PRE_SERIES_FACT_KEY_SCHEMA_DIGEST = '218993d8f7574475a22f26b85b96de4f57ebe
 const PRE_SERIES_PROVENANCE_SCHEMA_DIGEST = '14c18e017bfce8b78230d0509be1c46fb11c0da95a240396628173a9e71bed73';
 const PRE_TARGET_RESERVATION_SCHEMA_DIGEST = '46893c3ce29b664d4eb5af009108756ec5ba19851b082f32e1af0d13157f3beb';
 const PRE_ARTIFACT_SCOPE_SCHEMA_DIGEST = 'f1016a2c9f4a314554c7a9863a487e4874ec77f93e6010c51fbb281b4204c2cb';
-const TARGET_SCHEMA_DIGEST = 'efa5340869a40216e3b2750293cbcb65fa3c7bc1c6950eb01eaf012b9f496a90';
+const TARGET_SCHEMA_DIGEST = '800afbadcc429b86aa8812cb6eea480ef4ccfa89be2213d7688c060aaa4b075a';
 
 // Frozen additive DDL for the exact UAT-251 schema target.
 const TERMINAL_OUTCOME_DDL = `CREATE TABLE "arca_defect_admission_heads" (
@@ -624,6 +624,10 @@ function migrateUatIdentitySelectionSchema(options) {
         'Only the exact pre-UAT live schema can be upgraded in place.', {
           generation: marker.generation, schemaDigest: marker.schema_digest,
         });
+    }
+    if (!alreadyCurrent && !database.pragma('table_info(libra_offload_context_materials)').some(column=>column.name==='final_product_material_keys_json')) {
+      throw new UatIdentitySelectionMigrationError('SERIES_OFFLOAD_UPGRADE_REQUIRED',
+        'This prior Off-load schema requires a separately verified history-preserving schema upgrade.');
     }
     const sourceCatalogDigest = digest(catalogRows(database));
     if (!alreadyCurrent && marker.catalog_digest !== sourceCatalogDigest) {
