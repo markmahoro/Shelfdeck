@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 服务总回归13项失败已修复：过期UI/Readiness断言、旧列数及缺正式映射/摘要的fixture、事故工具Inventory写入、评分Host授权/等待窗口。Windows619项592通过/0失败/27skip，Linux相关58项通过，P2通过；无产品UI变更或NAS动作。外部后加工/恢复及最终冻结发布Gate继续。见[全量Evidence](implementation/evidence/SERIES_FULL_REGRESSION_20261008.md)。
+
 2026-10-08 已确认的EpisodeDelivery Requirement集合摘要落地，正式Event状态误用修复；共文件→两个分集的完整外部Host Windows97.67秒/Linux116.86秒通过，一次请求、Claims/结算/Provider文件保护保持。合同58/35项、外部失败路由3项、Movie外部4项及P2/架构通过。外部后加工/恢复、服务总回归13项失败及其他发布Gate继续；旧全架构因运行中变更仅作诊断，无NAS动作。
 
 2026-10-08 多季退出：Arca正式身份投影季号，搜索/已选/审阅/记录可区分同名季；实际页面只退出S02四成员，S01六文件/事实/Control保持，Windows98.45秒/Linux103.84秒通过，单季40.74秒回归通过。138前端/构建/查询与架构检查通过；UI负责人已接受bfefd19ae此路径（独立Host99.13秒）。前轮完整路由Host29项通过，仍非最终发布Gate。[Evidence](implementation/evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。

@@ -397,7 +397,8 @@ test('Formation frontend renders backend Plans without an organizingSteps Plan f
   assert.match(processDetail,/ProcessStages stages=\{detail.stages\}/);
   assert.match(shared,/stages\.map/);
   assert.doesNotMatch(processDetail,/organizingSteps|mediaOrganization\.steps|ChecklistSteps/);
-  assert.match(processDetail,/页面不会根据状态推测或补造计划/);
+  assert.match(processDetail,/detail\?\.contract==='formation_process_actual_plans@1'/);
+  assert.match(processDetail,/整理计划暂不可用/);
   assert.match(mediaRow,/currentProgressLabel\(item\)/);
   assert.match(source,/progressDetail\(item\.currentPlan\.progress\)/);
   assert.match(shared,/MiB\/s/);

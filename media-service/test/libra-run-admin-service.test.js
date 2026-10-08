@@ -84,6 +84,7 @@ test('size-cap preview decoration is excluded from the admitted candidate identi
                 if (statementId === 'find_spec') return Object.freeze({
                   acceptance_spec_id:run.acceptance_spec_id,
                   spec_json:JSON.stringify({
+                    recordDigest:D('spec-record'),
                     requirements:{ space:{ maxSizeBytes:14 } },
                   }),
                 });

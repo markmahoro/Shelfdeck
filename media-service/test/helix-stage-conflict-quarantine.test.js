@@ -70,7 +70,9 @@ for(const table of ['arca_inventory_materials','arca_material_bindings','libra_m
   test('quarantine protects referenced files in '+table,t=>{
     const f=fixture(t),file=f.manifest.targets[0].path;
     const guard=table==='arca_inventory_materials'?'active_guard':table.endsWith('bindings')?'current':null;
-    f.database.prepare(`INSERT INTO ${table}(location${guard?','+guard:''}) VALUES(?${guard?',1':''})`).run(file);
+    if(table==='libra_offload_context_materials') {
+      f.database.prepare('INSERT INTO libra_offload_context_materials(location,final_product_material_key) VALUES(?,?)').run(file,'final-primary');
+    } else f.database.prepare(`INSERT INTO ${table}(location${guard?','+guard:''}) VALUES(?${guard?',1':''})`).run(file);
     assert.throws(()=>applyQuarantine(f),{code:'QUARANTINE_REFERENCED_FILE'});
     assert.ok(fs.existsSync(file));
   });

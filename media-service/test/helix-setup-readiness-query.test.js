@@ -17,20 +17,20 @@ function readers(overrides = {}) {
   };
 }
 
-test('Setup Readiness defaults to 关键步骤确认 and never claims Off-deck destruction', () => {
+test('Setup Readiness reports standing settlement authorization without an operating mode', () => {
   const query = createSetupReadinessQuery(readers());
   const value = query.get();
-  assert.equal(value.data.productChoice, 'key_step_confirmation');
-  assert.equal(value.data.productChoiceLabel, '关键步骤确认');
+  assert.equal(Object.hasOwn(value.data, 'productChoice'), false);
+  assert.equal(value.data.standingInputSettlement, null);
   assert.equal(value.data.fullAutoReady, false);
   assert.equal(value.data.offdeckDestruction.independentlyDisabled, true);
   assert.equal(value.data.offdeckDestruction.grantedByFullAuto, false);
-  assert.ok(value.data.consequences.some((item) => item.topic === 'input_settlement' && item.text.includes('每次上架处理旧输入')));
+  assert.ok(value.data.consequences.some((item) => item.topic === 'input_settlement' && item.text.includes('等待授权')));
   assert.ok(value.data.consequences.some((item) => item.topic === 'offdeck_destruction' && item.text.includes('独立关闭')));
-  assert.ok(value.availableActions.some((item) => item.actionCode === 'enable_full_automatic_operation'));
+  assert.ok(value.availableActions.some((item) => item.actionCode === 'enable_input_settlement_authorization'));
 });
 
-test('全自动已就绪 only when Field, Shelf, Routing, Workspace, Provider and standing Authorization are all ready', () => {
+test('Readiness is complete only when Field, Shelf, Routing, Workspace, Provider and standing Authorization are all ready', () => {
   const missingTmdb = createSetupReadinessQuery(readers({
     readStandingAuthorization: () => ({
       state: 'enabled',
@@ -42,9 +42,10 @@ test('全自动已就绪 only when Field, Shelf, Routing, Workspace, Provider an
     readIntegration: () => ({ configured: false }),
   }));
   const blocked = missingTmdb.get();
-  assert.equal(blocked.data.productChoice, 'full_auto');
+  assert.equal(Object.hasOwn(blocked.data, 'productChoice'), false);
+  assert.equal(blocked.data.standingInputSettlement.enabled, true);
   assert.equal(blocked.data.fullAutoReady, false);
-  assert.equal(blocked.data.fullAutoReadyLabel, '全自动尚未就绪');
+  assert.equal(blocked.data.fullAutoReadyLabel, '自动整理配置尚未就绪');
   assert.ok(blocked.data.items.some((item) => item.key === 'provider' && item.ready === false));
 
   const ready = createSetupReadinessQuery(readers({
@@ -57,7 +58,7 @@ test('全自动已就绪 only when Field, Shelf, Routing, Workspace, Provider an
     }),
   })).get();
   assert.equal(ready.data.fullAutoReady, true);
-  assert.equal(ready.data.fullAutoReadyLabel, '全自动已就绪');
-  assert.ok(ready.data.consequences.some((item) => item.text.includes('独占附属文件')));
+  assert.equal(ready.data.fullAutoReadyLabel, '自动整理配置已就绪');
+  assert.ok(ready.data.consequences.some((item) => item.text.includes('独占关联文件')));
   assert.ok(ready.data.consequences.every((item) => !item.text.includes('销毁授权')));
 });
