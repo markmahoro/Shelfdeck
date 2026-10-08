@@ -122,3 +122,7 @@ UI负责人turn 01a11c00-8e30-7860-9dcb-47c6071b5a1b确认技术失败文案缺�
 实际浏览器搜索拒绝20.17秒、策略耗尽19.07秒、技术失败3.93秒（3项合计43.72秒）验证失败详情、无虚构重试、放弃确认取消及正式放弃；Run分别保持frozen/转为discarded，未产生Shelf Entry，原媒体bytes/inode/mtime/ctime逐项保持。该三项运行时技术文案尚为中性版本；随后明确技术文案版本单独复验通过5.46秒，日志series-external-browser-technical-copy.log及technical目录截图。没有用取消/Reset隐藏新输入缺陷，没有生产数据操作。负责人尚需接受具体最终提交，发布资格继续开放。
 
 最终截图/键盘专项：真实多part Transcode完整Host再次通过161.86秒，过程弹窗Enter打开、Escape关闭及返回原按钮焦点断言通过；每个viewport滚至已收藏剧集后截图，窄屏明确显示第1集两个part、第2集一个文件及总计3视频文件。日志series-external-browser-transcode-final-framing.log、截图同名目录09-narrow.png；已人工查看，未将测试截图修正描述为产品布局变更。
+
+## 最终候选84c2cd926镜像
+
+标准scripts/build-image.js生成markmahoro/shelfdeck:84c2cd9268，tar SHA256 a5c09f6cd69a9193b89453bc8fda9f75b75ff7dabfe3c8ec3945510b981adfdc（536.0 MiB）。本地与镜像2121个runtime文件集合SHA256均为af94e8003cee218e579aba3271728d04792ddfa7e40a73ff8c9f1e71ad477bf6。镜像内失败诊断/Projection/UAT-251及P2/P3合同共46项全部通过；首次有一项静态源码测试因镜像不包含web/src而ENOENT，补挂只读web/src供该测试读取后复验通过，运行时后端源码未挂载或替换。日志series-candidate-84c2cd926-build.log及-linux[-recheck].log。UI负责人正验收相同产品版本，尚无最终接受结论，未上传或部署NAS。
