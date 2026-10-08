@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 完整Aftercare重启：真实N:M成品落位后、Inventory Commit前退出进程，新Host完成同Case唯一提交，第三次启动结果不变；Windows108.19秒/Linux100.67秒通过，成品字节/Claims/未改成员与范围外文件保护通过。06a8ce7c0冻结278文件全量2402通过/0失败/10skip；新增重启专项单独通过。尚非完整发布资格。[Evidence](evidence/SERIES_AFTERCARE_HOST_RECOVERY_20261008.md)。
+
 2026-10-08 Series长时媒体：20分钟带AAC的N:M正式Host在Linux CPU181.85秒、Windows NVENC183.57秒通过，成品时长/音轨/Claims/上架验证完整；素材为循环合成，不外推真实复杂画面质量。278文件冻结全量仍运行，未操作NAS。[Evidence](evidence/SERIES_LONG_MEDIA_HOST_20261008.md)。
 
 2026-10-08 Series HDR专项：Windows44.08秒/Linux42.23秒真实N:M Host通过，Remux/CPU转码后两成品保留10-bit PQ/BT.2020及完整Episode Claims。仅3秒合成素材，长片/HLG/DV/画质等未覆盖。上一轮全量2396通过/1个已修复Stage误报/10skip，后续冻结全量仍需完成；无NAS操作。[Evidence](evidence/SERIES_HDR_HOST_20261008.md)。

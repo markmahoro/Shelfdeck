@@ -24,3 +24,9 @@ node --test --test-concurrency=4 --test-name-pattern="formal node entrypoint sta
 ## UI验收衔接
 
 用户本轮明确授权发送并跟进UI负责人验收，已提交冻结SHA`76ed35e32ed5eb404791dd268d46b540cb225485`及7份UI证据。负责人任务`01a0912a-0086-74e2-88ab-536c59d3862a`、验收turn`01a11ac3-56f4-7d73-b690-a9b9995c7319`仍在审查；8项双视口自动测试通过，但补充走查已报告Series TMDB分拣仍提交Movie类型、规则/收藏弹窗焦点与Escape缺口，尚未给UI通过。接续修复必须遵循其正式结论并重新交验受影响版本。
+
+## 修复冻结版本全量通过
+
+2026-10-08，冻结源码`06a8ce7c04f18f22ab30a2433283cf2be2a10392`，Windows Node25完整278文件：2412项、2402通过、0失败、10既有skip，893.98秒，终态exit 0。日志`E:/my_project/helix-git-consolidation-20261008/series-architecture-06a8ce7c0.log`。入口30秒墙钟/单请求1秒上限修复与Stage目录范围修复在完整负载下通过。
+
+该运行已在后续long-media/Aftercare-restart测试编辑前加载对应测试文件；没有运行时业务代码变更，后续新增的显式专项分别记录，不把本次全量覆盖外推到尚未完成的新测试。10skip保持原可选场景语义，并非新失败；Series完整外部替换的合同缺口与生产副本升级/回退、完整用户旅程等门槛仍开放。
