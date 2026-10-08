@@ -1,5 +1,9 @@
 # ShelfDeck 当前状态
 
+2026-10-08 最终状态：Series首个可部署候选开发Exit，标准镜像`markmahoro/shelfdeck:84c2cd9268`，产品SHA `84c2cd92687ad55851cd1d0984e94c1d14334031`。负责人已接受最终受影响UI；全架构/服务/Linux/真实媒体及升级回退证据和各自版本边界见[最终Evidence](implementation/evidence/SERIES_FULL_REGRESSION_20261008.md)。tar SHA256 `a5c09f6cd69a9193b89453bc8fda9f75b75ff7dabfe3c8ec3945510b981adfdc`。NAS仍是旧Movie生产版本，未上传、部署或Reset；当前442收藏/3个active Run的现场处置需精确授权。
+
+以下为历史过程记录，保留旧失败和中间状态；最新结论以上述最终Evidence为准。
+
 2026-10-08 当前收尾：0f78f4240修正后Windows 280文件完整架构Gate已通过；真实集成冷配置和本地旧Movie镜像升级/正式恢复演练已通过。33dd11627外部Direct/Remux/Transcode实际浏览器运行至收藏分别通过116.11/141.46/162.71秒；打开的Formation详情刷新已修复。当前追加失败原因文案及放弃源保护验证，待UI负责人接受具体提交和重建最终镜像。以下逐批记录是历史进展，不代表当前仍存在对应旧缺口；尚未部署NAS。
 
 2026-10-08 候选终态：服务592通过/0失败/27skip，实际镜像Linux545通过/0失败/4skip；Windows全架构2410通过/2个过期摘要或生成清单失败/12skip。正式重建P3 manifest并同步P2固定摘要，12项复验通过，DDL不变；最终全量/镜像须重新冻结。本地精确旧Movie镜像→候选→正式备份恢复→旧镜像联合演练通过，1收藏/3文件及历史事实保持；未部署或修改NAS。

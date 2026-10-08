@@ -148,3 +148,9 @@ UI负责人turn 01a11c00-8e30-7860-9dcb-47c6071b5a1b确认技术失败文案缺�
 部署准备与实施分开：当前目标是可部署候选，NAS尚保持旧Movie镜像；真实部署前按正式入口重新核对备份、生产现态和精确未完成Formation处置范围。当前3个active Run不会被本次开发或本证据自动授权Reset；生产数据迁移/Reset需要对应明确授权。仅本地历史副本和隔离数据演练完成。不得因等待生产部署授权而把已完成开发证据改为失败，也不得以可部署准备取代生产部署后验收。
 
 最终UI独立复核发现新增Movie详情测试完整运行138通过/1回焦失败，单文件通过。先修正setInterval mock固定ID（避免共享timer ID池的clearInterval误取消其他timer）仍失败，保留series-final-focus-timer-fix.log。进一步确认fireEvent.click没有浏览器默认聚焦，ProcessDialog把body记录为原焦点，cleanup与延迟回焦竞争；按实际键盘/Chromium交互在打开前显式聚焦触发按钮后，完整26文件139项连续两次通过（series-final-focus-input-fix.log、series-final-focus-input-recheck.log）。仅测试前置条件变更，不改产品/镜像，不以单文件通过忽略全量失败。UI负责人收到根因和复验，最终结论仍待其回填。
+
+## 最终结论：首个Series可部署候选
+
+UI负责人turn 01a11c0c-8388-72d0-9bc0-33937da6dbeb明确接受产品84c2cd92687ad55851cd1d0984e94c1d14334031。其独立实际浏览器Direct120.60秒、Remux147.65秒、多part Transcode169.71秒及三失败/取消/放弃全部通过；详情跨阶段更新、键盘回焦、桌面/窄屏、2集3文件与源保护确认。28项相关测试及构建通过，测试提交6e8871ea4后负责人独立完整前端139项通过，之前四条实际旅程接受继续有效。边界为Windows/Chromium、受控Provider与短真实媒体，不等于生产外部下载或任意故障覆盖。
+
+反向审计与最终UI门禁均已完成，当前5节点按本文件及各专项明确的范围完成，首个Series可部署候选为84c2cd9268。最后产品变更后运行相关Windows30项、Linux实际镜像46项、前端139项和真实浏览器；较早全架构/服务/大范围Linux回归绑定其各自SHA，没有伪称最终SHA重跑全部集合。后续提交仅测试及文档；标准镜像运行时摘要与本地一致。Phase开发Exit，不等于用户生产上线验收，不创建Git release tag；既有UAT独立保留。

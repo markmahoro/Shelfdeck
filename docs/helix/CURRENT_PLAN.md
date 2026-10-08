@@ -1,6 +1,6 @@
 # ShelfDeck 当前计划
 
-更新：2026-10-08。用户已接受Helix Beta Movie全链路阶段成果，并明确开始Series大版本开发。阶段收尾证据为[UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)；唯一活动执行包为[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。不分配新版本名称或Git release tag。
+更新：2026-10-08。用户已接受Helix Beta Movie全链路阶段成果，并明确开始Series大版本开发。阶段收尾证据为[UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)；Series开发已Exit，冻结包及结论入口为[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。不分配新版本名称或Git release tag。
 
 ## 范围与顺序
 
@@ -8,11 +8,11 @@
 | --- | --- | --- |
 | 已完成 | Movie 阶段文档收尾、用户验收记录、生产基线与历史归档 | UAT-278；保留未关闭 UAT，不新增技术资格总体 PASS |
 | 已完成 | Beta 工程工作区和废弃副本清理 | UAT-280；选定本地/NAS目标完成，源码、用户修改及必要恢复资料保留 |
-| 节点1 | 剧集资料与生产基础 | Field至逐集资料、真实Direct/Remux/Transcode、N:M交付已实现并验证；适用页面已有分批负责人接受，最终影响复核中 |
-| 节点2 | 首批剧集完整上架 | 首次配置、来源登记至唯一Season Entry实际浏览器通过并获负责人接受；外部三条成功路径最终复核中 |
-| 节点3 | 持续追加与复杂文件映射 | 追加/并发/旧集保护、共文件与多part份额、内部和外部真实加工及进程恢复已验证；追加页面已获接受 |
-| 节点4 / 收尾 | 完整运营与用户体验 | Aftercare/NFO/多季退出页面已获接受；外部Direct/Remux/Transcode、详情刷新和失败放弃交84c2cd926最终UI验收 |
-| 节点5 / 收尾 | Movie回归与Series发布资格 | Windows全架构、服务回归、Linux实际镜像、真实集成冷配置及旧Movie升级/恢复已有证据；84c2cd926标准最终镜像已构建，相关Linux46项通过，待最终Exit审计 |
+| 节点1 / 完成 | 剧集资料与生产基础 | Field至逐集资料、真实Direct/Remux/Transcode、N:M交付已实现并验证；适用页面已有分批负责人接受，最终影响已获84c2cd926负责人接受 |
+| 节点2 / 完成 | 首批剧集完整上架 | 首次配置、来源登记至唯一Season Entry实际浏览器通过并获负责人接受；外部三条成功路径最终复核通过 |
+| 节点3 / 完成 | 持续追加与复杂文件映射 | 追加/并发/旧集保护、共文件与多part份额、内部和外部真实加工及进程恢复已验证；追加页面已获接受 |
+| 节点4 / 完成 | 完整运营与用户体验 | Aftercare/NFO/多季退出页面已获接受；外部Direct/Remux/Transcode、详情刷新和失败放弃已获84c2cd926最终UI接受 |
+| 节点5 / 完成 | Movie回归与Series发布资格 | Windows全架构、服务回归、Linux实际镜像、真实集成冷配置及旧Movie升级/恢复已有证据；84c2cd926标准最终镜像已构建，相关Linux46项通过，最终Exit审计通过 |
 
 Series 范围从 SSOT §3.2.6、§3.4.2–3.4.5、§4.4–4.5、§5.3.5、§5.5.3–5.5.8、§6.2.3、§6.5 及 §9.4 派生。首版范围草案及尚需审查的细节见 Phase；没有新 Owner、全局媒体 ID 或独立 Series Runtime。Movie-only Beta 基线继续作为 Movie 回归 Oracle。
 

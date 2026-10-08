@@ -1,6 +1,6 @@
 # ShelfDeck / Helix 文档索引
 
-更新：2026-10-08。Movie Beta阶段收尾已完成；当前在主工作区`main`继续Series节点1开发。Movie收尾、Series已有实现及生产UAT-281修复已整合；Series已有隔离上架及运营旅程证据，完整发布门槛未关闭、未发布生产。工作区归属见CURRENT_PLAN，整合与恢复路径见[Evidence](implementation/evidence/GIT_WORKSPACE_CONSOLIDATION_20261008.md)。
+更新：2026-10-08。Movie Beta阶段收尾已完成；Series首个可部署候选已完成，主工作区为`main`。Movie收尾、Series已有实现及生产UAT-281修复已整合；Series开发、适用UI验收及部署候选准备已完成，未发布生产。工作区归属见CURRENT_PLAN，整合与恢复路径见[Evidence](implementation/evidence/GIT_WORKSPACE_CONSOLIDATION_20261008.md)。
 
 ## 权威与当前入口
 
