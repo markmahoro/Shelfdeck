@@ -76,12 +76,23 @@ test('Off-deck search hydrates one page, while explicit selection captures every
     seed.prepare('UPDATE arca_inventory_product_facts SET fact_json=? WHERE shelf_entry_id=? AND inventory_revision=2').run(
       JSON.stringify({descriptiveFacts:{entries:[{key:'series_title',value:'Demo Show'}]}}),'entry-0000');
     seed.prepare('UPDATE arca_shelf_entries SET structure_kind=? WHERE shelf_entry_id=?').run('season','entry-0000');
+    const identity=seasonNumber=>({identityDigest:'a'.repeat(64),structureKind:'season',contentProfile:'series',identityKind:'tmdb_series_season',
+      providerIdentities:[{provider:'tmdb',namespace:'tmdb_series',providerKey:'1399',seasonNumber}]});
+    const canonical=require('../../src/helix/domains/arca/model/canonical-content-identity').canonicalContentIdentity;
+    seed.prepare('UPDATE arca_shelf_entries SET canonical_identity_key=? WHERE shelf_entry_id=?').run(canonical('shelf',identity(1)).canonicalIdentityKey,'entry-0000');
+    fact.run('entry-0000',2,'resolved_identity',JSON.stringify(identity(1)));
     assert.deepEqual(query.search({q:'Demo Show'}).items.map(item=>item.displayIdentity),['Demo Show']);
     assert.equal(query.display(['entry-0000'])[0].displayIdentity,'Demo Show');
+    assert.equal(query.display(['entry-0000'])[0].seasonNumber,1);
     assert.equal(query.candidates().entries.find(item=>item.shelfEntryId==='entry-0000').displayIdentity,'Demo Show');
     seed.prepare('UPDATE arca_shelf_entries SET status=? WHERE shelf_entry_id=?').run('offdecked','entry-0000');
     assert.deepEqual(query.search({q:'Demo Show'}).items,[]);
     assert.equal(query.display(['entry-0000'])[0].displayIdentity,'Demo Show');
+
+    assert.equal(query.display(['entry-0000'])[0].seasonNumber,1,'Off-decked history retains its Season');
+    assert.equal(query.display(['entry-0001'])[0].seasonNumber,null,'Movie display has no Season');
+    seed.prepare('UPDATE arca_inventory_product_facts SET fact_json=? WHERE shelf_entry_id=? AND fact_kind=?').run(JSON.stringify(identity(2)),'entry-0000','resolved_identity');
+    assert.throws(()=>query.display(['entry-0000']),/Season identity/);
 
   }finally{seed.close();kernel.close();fs.rmSync(root,{recursive:true,force:true});}
 });

@@ -1305,6 +1305,43 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     }
     assert.deepEqual(db.pragma('foreign_key_check'),[]);
     if(browserFlow)for(const entry of entries)await browserFlow.verifyCollection(entry,'season-'+entry.series.seasonNumber+'-');
+    if(process.env.HELIX_SERIES_MULTI_SEASON_OFFDECK==='1') {
+      const untilPeople=Date.now()+30000;
+      const pendingPeople=()=>db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n;
+      while(pendingPeople()&&Date.now()<untilPeople)await new Promise(resolve=>setTimeout(resolve,50));
+      assert.equal(pendingPeople(),0);
+      const exitEntry=db.prepare('SELECT * FROM arca_shelf_entries WHERE shelf_entry_id=?').get(second.shelfEntryId);
+      const exitMaterials=db.prepare('SELECT * FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=?').all(second.shelfEntryId,exitEntry.current_inventory_revision);
+      const protectedControls=()=>db.prepare('SELECT * FROM fx_material_controls WHERE owner_scope_id=? ORDER BY material_key').all(firstEntry.shelf_entry_id);
+      const controlsBefore=protectedControls(),exitBytes=exitMaterials.map(item=>fs.readFileSync(item.location));
+      const review=browserFlow?await browserFlow.prepareOffdeck(second,exitMaterials,async()=>{
+        assert.equal(db.prepare('SELECT count(*) n FROM arca_offdeck_authorizations').get().n,0);
+        for(const file of files)assert.deepEqual(fs.readFileSync(file.location),file.bytes);
+        exitMaterials.forEach((item,index)=>assert.deepEqual(fs.readFileSync(item.location),exitBytes[index]));
+      },entries.find(entry=>entry.series.seasonNumber===1)):(await request('POST','/v1/admin/offdeck/reviews',{
+        shelfEntryId:second.shelfEntryId,originKind:'direct_intent',actorId:'series-fixture',idempotencyKey:'season-exit-review'})).json();
+      assert.equal(review.scopes.length,1);assert.equal(review.scopes[0].shelfEntryId,second.shelfEntryId);
+      assert.deepEqual(review.scopes[0].materials.map(item=>item.materialKey).sort(),exitMaterials.map(item=>item.material_key).sort());
+      if(browserFlow)await browserFlow.confirmOffdeck(review.reviewId);
+      else await request('POST','/v1/admin/offdeck/reviews/'+review.reviewId+'/actions/confirm-selection',{actorId:'series-fixture',idempotencyKey:'season-exit-confirm'});
+      const authorization=browserFlow?await browserFlow.authorizeOffdeck():(await request('POST','/v1/admin/offdeck/authorizations',{
+        reviewId:review.reviewId,actorId:'series-fixture',idempotencyKey:'season-exit-authorize'})).json();
+      assert.equal(authorization.cases.length,1);
+      const deadline=Date.now()+60000;let exitCase;
+      do {assert.ifError(runtimeError);exitCase=db.prepare('SELECT state FROM arca_offdeck_cases WHERE offdeck_case_id=?').get(authorization.cases[0]);
+        if(exitCase?.state==='completed')break;await new Promise(resolve=>setTimeout(resolve,50));
+      }while(Date.now()<deadline);
+      assert.equal(exitCase?.state,'completed');
+      assert.equal(db.prepare('SELECT status FROM arca_shelf_entries WHERE shelf_entry_id=?').get(second.shelfEntryId).status,'offdecked');
+      assert.equal(db.prepare('SELECT status FROM arca_shelf_entries WHERE shelf_entry_id=?').get(firstEntry.shelf_entry_id).status,'active');
+      for(const item of exitMaterials)assert.equal(fs.existsSync(item.location),false);
+      for(const file of files)assert.deepEqual(fs.readFileSync(file.location),file.bytes);
+      assert.deepEqual(snapshot(),before);assert.deepEqual(protectedControls(),controlsBefore);
+      assert.equal(db.prepare('SELECT count(*) n FROM arca_offdeck_terminal_receipts').get().n,1);
+      assert.deepEqual(db.pragma('foreign_key_check'),[]);
+      if(browserFlow){await browserFlow.verifyOffdeck(second,entries.find(entry=>entry.series.seasonNumber===1));await browserFlow.verifyCollection(entries.find(entry=>entry.series.seasonNumber===1),'protected-season-');}
+      t.diagnostic(JSON.stringify({offdeckSeason:2,deletedMaterials:exitMaterials.length,protectedSeason:1,protectedFiles:files.length}));
+    }
     t.diagnostic(JSON.stringify({seasons:entries.map(entry=>({season:entry.series.seasonNumber,episodes:entry.series.episodeCount})),protectedFirstSeasonFiles:files.length}));
   }
 

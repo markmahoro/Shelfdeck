@@ -416,7 +416,7 @@ export type OffdeckCandidate={candidate_id:string;candidate_kind:'entry'|'duplic
 export type OffdeckDuplicateGroup={duplicate_group_id:string;canonical_identity_digest:string;member_set_digest:string;state:string;members:Array<{shelf_entry_id:string;inventory_revision:number;member_digest:string}>};
 export type OffdeckReview={reviewId:string;originKind:string;originRef:string;state:string;createdAtMs:number;reservations:Array<{reservationId:string;shelfEntryId:string;inventoryRevision:number;state:string}>;scopes:Array<{destructionScopeId:string;shelfEntryId:string;memberCount:number;totalBytes:number;scopeDigest:string;state:string;materials:Array<{ordinal:number;materialKey:string;role:string;location:string;sizeBytes:number;deleteCondition:string}>}>;selection:{selectionReceiptId:string;scopeSetDigest:string;entryCount:number;primaryCount:number;totalBytes:number;deckCoverageRatio:number;shelfCoverageRatios?:Record<string,number>|null;highVolume:boolean}|null;escalation:{escalationReceiptId:string}|null};
 export type OffdeckCase={offdeckCaseId:string;shelfEntryId:string;state:'executing'|'blocked'|'awaiting_reauthorization'|'completed';recoveryRevision:number;retryAtMs:number|null;blockedReason:string|null;createdAtMs:number;terminalAtMs:number|null};
-export type OffdeckEntry=Pick<CollectionEntry,'shelfEntryId'|'displayIdentity'|'shelfName'|'occupancyBytes'>;
+export type OffdeckEntry=Pick<CollectionEntry,'shelfEntryId'|'displayIdentity'|'shelfName'|'occupancyBytes'>&{seasonNumber:number|null};
 
 export type IntegrationState = {
   kind: string;

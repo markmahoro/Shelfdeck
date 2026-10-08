@@ -115,6 +115,20 @@ describe('Off-deck progress', () => {
     expect(collection).not.toHaveBeenCalled();
   });
 
+  it('distinguishes same-title Seasons in search and selected previews', async () => {
+    const entries=[1,2].map(seasonNumber=>({...collectionEntry('season-'+seasonNumber,'Demo Show',1000),seasonNumber}));
+    mockWorkbench(entries);
+    render(<SessionProvider><OffdeckPage/></SessionProvider>);
+    const input=await screen.findByRole('searchbox');
+    fireEvent.change(input,{target:{value:'Demo Show'}});
+    const first=await screen.findByRole('checkbox',{name:/Demo Show · 第 1 季/});
+    const second=screen.getByRole('checkbox',{name:/Demo Show · 第 2 季/});
+    fireEvent.click(second);expect(first).not.toBeChecked();expect(second).toBeChecked();
+    fireEvent.change(input,{target:{value:''}});
+    expect(await screen.findByRole('checkbox',{name:/Demo Show · 第 2 季/})).toBeChecked();
+    expect(screen.queryByRole('checkbox',{name:/Demo Show · 第 1 季/})).not.toBeInTheDocument();
+  });
+
   it('discards an older search response and supports explicit retry after failure',async()=>{
     vi.useFakeTimers();mockWorkbench([collectionEntry('entry','Initial',1)]);
     let resolveOld!:(value:{items:CollectionEntry[];nextCursor:null})=>void;

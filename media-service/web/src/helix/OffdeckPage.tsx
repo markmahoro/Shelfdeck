@@ -12,6 +12,10 @@ function formatGiB(bytes: number) {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(2)} GiB`;
 }
 
+function entryTitle(item:OffdeckEntry) {
+  return item.seasonNumber == null ? item.displayIdentity : `${item.displayIdentity} · 第 ${item.seasonNumber} 季`;
+}
+
 export default function OffdeckPage() {
   const { expire } = useSession();
   const [candidates, setCandidates] = useState<OffdeckCandidate[]>([]);
@@ -70,7 +74,7 @@ export default function OffdeckPage() {
       setCaseCounts(active.counts);
       setCaseCursors({active:active.nextCursor,completed:completed.nextCursor});
       setBulkSelection([]);
-      setTitles(Object.fromEntries([...candidateResult.entries, ...active.entries,...completed.entries].map((item) => [item.shelfEntryId, { title: item.displayIdentity, occupancyBytes: item.occupancyBytes ?? null, shelfName: item.shelfName }])));
+      setTitles(Object.fromEntries([...candidateResult.entries, ...active.entries,...completed.entries].map((item) => [item.shelfEntryId, { title: entryTitle(item), occupancyBytes: item.occupancyBytes ?? null, shelfName: item.shelfName }])));
       const id = new URLSearchParams(location.search).get('review');
       if (id) setReview(await helixAdminApi.getOffdeckReview(id));
       else setReview(null);
@@ -79,7 +83,7 @@ export default function OffdeckPage() {
     finally { setBusy(false); }
   }, [fail]);
   useEffect(() => { void load(); }, [load]);
-  const remember = useCallback((items:OffdeckEntry[]) => setTitles(current=>({...current,...Object.fromEntries(items.map(item=>[item.shelfEntryId,{title:item.displayIdentity,occupancyBytes:item.occupancyBytes??null,shelfName:item.shelfName}]))})),[]);
+  const remember = useCallback((items:OffdeckEntry[]) => setTitles(current=>({...current,...Object.fromEntries(items.map(item=>[item.shelfEntryId,{title:entryTitle(item),occupancyBytes:item.occupancyBytes??null,shelfName:item.shelfName}]))})),[]);
   useEffect(()=>{
     const generation=++searchGeneration.current;
     setSearchHits([]);setSearchCursor(null);setSearchFailed(false);
@@ -269,7 +273,7 @@ export default function OffdeckPage() {
           {searchFailed&&<div className="button-row" style={{gridColumn:'1 / -1'}}><Button type="button" disabled={searchBusy} onClick={()=>setSearchRetry(current=>current+1)}>重新搜索</Button></div>}
           {searchHits.length === 0 ? <p>{searchBusy?'正在搜索…':'没有匹配的收藏。'}</p> : searchHits.map((item) => <label key={item.shelfEntryId}>
             <input type="checkbox" checked={bulkSelection.includes(item.shelfEntryId)} onChange={() => toggleBulkEntry(item.shelfEntryId)} />
-            <span><strong>{item.displayIdentity}</strong><small>{item.shelfName} · {formatGiB(item.occupancyBytes)}</small></span>
+            <span><strong>{entryTitle(item)}</strong><small>{item.shelfName} · {formatGiB(item.occupancyBytes)}</small></span>
           </label>)}
           {searchCursor&&<Button type="button" disabled={searchBusy} onClick={()=>void moreSearch()}>更多搜索结果</Button>}
         </fieldset> : selectedEntries.length > 0 ? <fieldset className="offdeck-bulk-list">

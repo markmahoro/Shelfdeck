@@ -1,6 +1,10 @@
 # 当前活动包：Series 开发
 
-2026-10-08 同名双Season：S01两集后S02E01独立上架，首季六文件/历史事实保护通过；Windows94.71秒、Linux103.27秒、实际浏览器键盘/双视口95.11秒通过。修复收藏卡aria-label缺少季号，137前端/构建通过；待UI负责人精确版本验收，多季运营及其他发布Gate继续。[Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
+2026-10-08 多季退出：Arca正式身份投影季号，搜索/已选/审阅/记录可区分同名季；实际页面只退出S02四成员，S01六文件/事实/Control保持，Windows98.45秒/Linux103.84秒通过，单季40.74秒回归通过。138前端/构建/查询与架构检查通过；待精确版本UI验收。前轮完整路由Host29项通过，仍非最终发布Gate。[Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
+
+2026-10-08 多Season退出DoR：Arca从当前Inventory的正式resolved_identity投影Season，校验canonical key一致；退出搜索/已选/审阅/历史均显示“剧名 · 第N季”，Movie保持原样。实际Host同名S01/S02中仅选择S02，取消不删除，授权范围精确等于S02当前成员，终结后S01文件/事实/Control保持；双视口及键盘证据交UI负责人精确版本验收。仅临时媒体fixture，不改变退出授权合同或操作NAS。
+
+2026-10-08 同名双Season：S01两集后S02E01独立上架，首季六文件/历史事实保护通过；Windows94.71秒、Linux103.27秒、实际浏览器键盘/双视口95.11秒通过。修复收藏卡aria-label缺少季号，137前端/构建通过；UI负责人已接受b490aad36已验证收藏路径，多季运营及其他发布Gate继续。[Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
 
 2026-10-08 多Season DoR：同名Series在S01已上架后观察S02E01，沿正式Field/身份/生产/Arca链路建立独立Season Entry；重复E001不得跨季合并，S01 Inventory/Deck Fact/回执及文件字节保持。先补隔离Host证据，Provider/媒体仍受控；不以此替代多Season页面及运营验收。
 

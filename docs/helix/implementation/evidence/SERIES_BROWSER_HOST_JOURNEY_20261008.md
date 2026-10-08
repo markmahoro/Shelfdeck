@@ -149,3 +149,21 @@ Windows API Host 94.71秒通过，Linux Node20 Host 103.27秒通过（1执行通
 发现并修复海报卡可访问名称遗漏季号：可见副标题原已有第N季，aria-label现加入正式Projection季号，使同名Season可独立选择；Movie名称保持。没有新增说明文案或业务规则。前端137项、Admin构建通过；同名双季可访问名称及选择正确详情有组件回归。负责人turn `01a11b6c-2782-7322-b862-6fb8ea0e05c8`已确认设计与验收范围，精确版本验收待跟进。
 
 日志位于统一仓库外证据根：`series-multi-season-windows-v2.log`、`series-multi-season-linux.log`、`series-multi-season-browser-keyboard.log`、`series-multi-season-web-v2.log`、`series-multi-season-build.log`。截图 `series-browser-multi-season-keyboard/season-{1,2}-collection-{page-,filter-,}{desktop,narrow}.png`；前轮桌面/窄屏双季墙与第二季详情已视觉复核。完整路由Host文件的额外回归仍运行，不提前记为通过。多季运营/破坏性操作隔离、完整冷启动和外部合同及最终发布门槛保持开放，未操作NAS。
+
+
+负责人turn `01a11b72-e353-7e70-823a-4bb127d6ec31`接受 `b490aad3633229907802034b4b9bdba40b6d736c` 同名多季收藏UI：独立实际Host95.93秒、137前端、8浏览器及构建通过；季号可访问名称、详情范围、Enter/Escape/回焦和双视口已确认，首季六文件/事实不变。不包含后续退出增量或仍在运行的完整路由文件回归。负责人同时同意退出搜索/已选/审阅/历史使用正式季号统一显示，要求实现后独立验收。
+
+
+## 同名多Season退出与首季保护
+
+2026-10-08：OffdeckEntry增量投影 `seasonNumber:number|null`。Arca从当前Inventory的resolved_identity读取，逐份校验Season canonical key与Entry一致；缺失或不一致拒绝，不猜测标题/文件名。Movie为null。仅在已有有界页/精确ID读取中加载Season身份，不构造Collection完整详情。搜索、已选缓存、建议/执行中、审阅与历史共用“剧名 · 第N季”；危险授权与Material范围合同不变。
+
+API查询与UI测试先复现缺季号，再修复；Windows/Linux查询各1项通过（包含1000条分页、Movie不变、已退出季号保留及错误Season拒绝），138前端、Admin构建、P2/边界/禁用语义检查通过。
+
+实际双Season旅程通过 `HELIX_SERIES_MULTI_SEASON_OFFDECK=1` 扩展同名双季场景。浏览器从退出页搜索同名两季，仅勾选S02；关闭/重新打开和取消无授权、两季字节不变；再次搜索选择S02，审阅范围精确等于该季当前Inventory四成员，核对/授权后全部删除。唯一终结回执、S02 offdecked、S01 active，首季六文件字节、Inventory/Product Facts/Deck Fact/Commit Receipt及Material Control完整保持；返回收藏仍能打开S01两集。桌面/390窄屏审阅和退出记录季号正确，保留确认后果与键盘焦点约束。
+
+Windows真实浏览器v2 98.45秒通过/0skip，Linux实际Host103.84秒通过（1执行通过、28名称过滤skip不计覆盖）。首轮浏览器已完成物理和保护断言，但旧辅助函数错误要求收藏为空；改为对剩余首季可见及其详情的显式检查后复跑通过。原单季实际退出40.74秒回归通过，六成员删除/唯一终结/原子回滚与范围外文件保护保持。Provider/媒体fixture边界不变，未触及NAS。
+
+日志：`series-multi-season-offdeck-browser-v2.log`、`series-multi-season-offdeck-linux.log`、`series-single-season-offdeck-regression.log`、`series-offdeck-season-{query,query-linux,web,build,p2}.log`，位于仓库外统一证据根。截图 `series-browser-multi-season-offdeck-v2/` 包含offdeck-season-search、offdeck-scope-*、offdeck-confirmation、offdeck-completed-*及protected-season-collection-*；搜索与窄屏审阅已视觉核对，具体版本待负责人验收。
+
+前轮启动的完整 `series-routing-run.test.js` 回归已结束：29通过、0失败、0skip，951.67秒（日志 `series-multi-season-routing-unit.log`，命令名虽为unit，实际包含完整Host场景）。覆盖当时b490aad36的同名双季、24集、位置迁移/改名、NFO/poster维修、Direct/Remux、逐集空间/共享Primary/parts、追加/并发。它不替代本轮退出增量的上述专项或最终候选全量。

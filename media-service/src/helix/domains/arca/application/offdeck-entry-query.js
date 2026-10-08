@@ -1,10 +1,11 @@
 'use strict';
 
+const {canonicalContentIdentity}=require('../model/canonical-content-identity');
 const {createRepositoryDefinition}=require('../../../foundation/persistence/owner-repository');
 
 // Off-deck selection reads Arca facts without constructing Collection detail DTOs.
 function createOffdeckEntryQuery(options){
-  const entryColumns=['shelf_entry_id','shelf_id','current_inventory_revision'];
+  const entryColumns=['shelf_entry_id','shelf_id','current_inventory_revision','structure_kind','canonical_identity_key'];
   const casePage={kind:'select-joined-page',tableId:'arca_offdeck_cases',
     columns:['offdeck_case_id','shelf_entry_id','state','recovery_revision','retry_at_ms','blocked_reason','created_at_ms','terminal_at_ms'],joins:[],
     orderBy:[{column:'created_at_ms',direction:'desc'},{column:'offdeck_case_id',direction:'asc'}],maxItems:101,safeIntegers:true};
@@ -45,7 +46,21 @@ function createOffdeckEntryQuery(options){
       const facts=repo.invoke('metadata',{...key,fact_kind:'product_metadata'});
       const metadata=facts.length?JSON.parse(facts[0].fact_json):{};
       const descriptive=new Map((metadata.descriptiveFacts?.entries||[]).map(fact=>[fact.key,fact.value]));
-      return Object.freeze({shelfEntryId:row.shelf_entry_id,displayIdentity:descriptive.get('title')||descriptive.get('display_title')||descriptive.get('series_title')||'未命名收藏',
+      let seasonNumber=null;
+      if(row.structure_kind==='season') {
+        const identities=repo.invoke('metadata',{...key,fact_kind:'resolved_identity'}).map(item=>{
+          const value=JSON.parse(item.fact_json);return value.resolvedProductIdentity||value;
+        });
+        if(!identities.length)throw new Error('Off-deck Season identity is absent.');
+        const seasons=identities.map(identity=>{
+          if(identity.structureKind!=='season'||canonicalContentIdentity(row.shelf_id,identity).canonicalIdentityKey!==row.canonical_identity_key)
+            throw new Error('Off-deck Season identity does not match the Entry.');
+          return identity.providerIdentities.find(item=>item.provider==='tmdb'&&item.namespace==='tmdb_series').seasonNumber;
+        });
+        if(new Set(seasons).size!==1)throw new Error('Off-deck Season identity is ambiguous.');
+        seasonNumber=seasons[0];
+      }
+      return Object.freeze({shelfEntryId:row.shelf_entry_id,seasonNumber,displayIdentity:descriptive.get('title')||descriptive.get('display_title')||descriptive.get('series_title')||'未命名收藏',
         shelfName:shelves.get(row.shelf_id)||'原收藏架',occupancyBytes:repo.invoke('materials',key).reduce((sum,item)=>sum+Number(item.size_bytes||0),0)});
     });
   }

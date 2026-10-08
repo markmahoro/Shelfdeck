@@ -1,6 +1,8 @@
 # ShelfDeck 当前状态
 
-2026-10-08 同名双Season：S01两集后S02E01独立上架，首季六文件/历史事实保护通过；Windows94.71秒、Linux103.27秒、实际浏览器键盘/双视口95.11秒通过。修复收藏卡aria-label缺少季号，137前端/构建通过；待UI负责人精确版本验收，多季运营及其他发布Gate继续。[Evidence](implementation/evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
+2026-10-08 多季退出：Arca正式身份投影季号，搜索/已选/审阅/记录可区分同名季；实际页面只退出S02四成员，S01六文件/事实/Control保持，Windows98.45秒/Linux103.84秒通过，单季40.74秒回归通过。138前端/构建/查询与架构检查通过；待精确版本UI验收。前轮完整路由Host29项通过，仍非最终发布Gate。[Evidence](implementation/evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
+
+2026-10-08 同名双Season：S01两集后S02E01独立上架，首季六文件/历史事实保护通过；Windows94.71秒、Linux103.27秒、实际浏览器键盘/双视口95.11秒通过。修复收藏卡aria-label缺少季号，137前端/构建通过；UI负责人已接受b490aad36已验证收藏路径，多季运营及其他发布Gate继续。[Evidence](implementation/evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
 
 2026-10-08 历史副本升级/恢复：修复迁移误用Custody状态、Reset遗漏Run Outcome；正式定向清理4个未完成Subject后升级成功，61张Arca表的保留记录不变，365个收藏受保护。原备份覆盖恢复后SHA256逐字节一致，双平台54项相关回归及架构检查通过。仅本地历史数据库演练，不代表当前生产/应用联合回退资格，无NAS动作。[Evidence](implementation/evidence/SERIES_HISTORICAL_UPGRADE_PREFLIGHT_20261008.md)。
 
