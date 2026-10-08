@@ -186,7 +186,7 @@ function mediaProbe(external=false) {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck,external,manualIdentity} of [...(process.env.HELIX_SERIES_MANUAL_IDENTITY==='1'?[{episodeCount:2,mixed:true,manualIdentity:true}]:[]),...(process.env.HELIX_SERIES_EXTERNAL==='1'?[{episodeCount:2,shared:true,external:true},{episodeCount:2,shared:true,external:'rejected'},{episodeCount:2,shared:true,external:'exhausted'},{episodeCount:2,shared:true,external:'technical'}]:[]),...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true},{episodeCount:2,real:true,mediaRepair:true,mediaBound:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(manualIdentity?' with manual Series identity':external?(external==='technical'?' with technical failure before external search':external==='exhausted'?' with exhausted local strategies then external search':external==='rejected'?' with rejected external shared-file search':' with external shared-file replacement'):offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?(nm?' with bounded real N:M media Aftercare':' with bounded real media Aftercare'):nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {skip:external===true?'Pending EpisodeDelivery Requirement digest contract; user deferred 2026-10-08':false,timeout:real||repair||migrate?300000:180000},async t=>{
+for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck,external,manualIdentity} of [...(process.env.HELIX_SERIES_MANUAL_IDENTITY==='1'?[{episodeCount:2,mixed:true,manualIdentity:true}]:[]),...(process.env.HELIX_SERIES_EXTERNAL==='1'?[{episodeCount:2,shared:true,external:true},{episodeCount:2,shared:true,external:'rejected'},{episodeCount:2,shared:true,external:'exhausted'},{episodeCount:2,shared:true,external:'technical'}]:[]),...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true},{episodeCount:2,real:true,mediaRepair:true,mediaBound:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(manualIdentity?' with manual Series identity':external?(external==='technical'?' with technical failure before external search':external==='exhausted'?' with exhausted local strategies then external search':external==='rejected'?' with rejected external shared-file search':' with external shared-file replacement'):offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?(nm?' with bounded real N:M media Aftercare':' with bounded real media Aftercare'):nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {skip:external===true?'Pending EpisodeDelivery Requirement digest contract; user deferred 2026-10-08':false,timeout:real&&process.env.HELIX_SERIES_LONG_MEDIA==='1'?900000:real||repair||migrate?300000:180000},async t=>{
   const root=offdeck&&process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT?fs.realpathSync(process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT):
     fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const externalProvider=external?require('../fixtures/series-external-host-provider').fixture(root,{rejectSearch:typeof external==='string'}):null;
@@ -198,6 +198,8 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   const sources=nm?[path.join(source,'Demo Show.S01E01-02.part1.mp4'),path.join(source,'Demo Show.S01E01.part2.mkv')]:parts?[1,2].map(part=>path.join(source,'Demo Show.S01E01.part'+part+'.mkv')):shared?[path.join(source,'Demo Show.S01E01-02.mkv')]:episodeNumbers.map(number=>path.join(source,'Demo Show.S01E'+String(number).padStart(2,'0')+((mixed||mediaRepair)&&number===2?'.mp4':'.mkv')));
   const physicalCount=sources.length,perEpisodeCap=parts?48:shared?12:24;
   const hdr=real&&process.env.HELIX_SERIES_HDR_MEDIA==='1';
+  const longMedia=real&&process.env.HELIX_SERIES_LONG_MEDIA==='1';
+  if(longMedia)assert.ok(!mediaBound&&!mediaRepair,'Long production fixture must not replace bounded Aftercare timing.');
   if(real) {
     const {spawnSync}=require('node:child_process'),ffmpeg=process.env.FFMPEG_PATH||require('ffmpeg-static');
     for(const [index,file] of sources.entries()) {
@@ -205,11 +207,18 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       const boundedSource=mediaBound&&(nm||index===2);
       const result=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-f','lavfi','-i',
         boundedSource?'testsrc2=s=1920x1080:r=24:d=20':'color=c=black:s=1920x1080:r=24:d=3',
-        ...(boundedSource?['-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=20']:[]),
-        ...codec,'-preset','ultrafast',...(boundedSource?['-crf','0','-c:a','aac','-b:a','128k']:[]),
+        ...(boundedSource||longMedia?['-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration='+(boundedSource?20:3)]:[]),
+        ...codec,'-preset','ultrafast',...(boundedSource?['-crf','0']:[]),...(boundedSource||longMedia?['-c:a','aac','-b:a','128k']:[]),
         '-pix_fmt',hdr?'yuv420p10le':'yuv420p',
         ...(hdr?['-vf','setparams=range=limited:color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc']:[]),file],{encoding:'utf8',windowsHide:true,timeout:60000});
       assert.equal(result.status,0,result.stderr);
+      if(longMedia) {
+        const extended=file+'.extended'+path.extname(file);
+        const copied=spawnSync(ffmpeg,['-v','error','-nostdin','-y','-stream_loop','399','-i',file,'-t','1200','-map','0','-c','copy',extended],
+          {encoding:'utf8',windowsHide:true,timeout:60000});
+        assert.equal(copied.status,0,copied.stderr);
+        fs.renameSync(extended,file);
+      }
       if(hdr) {
         const inspected=spawnSync(process.env.FFPROBE_PATH||require('@ffprobe-installer/ffprobe').path,
           ['-v','error','-select_streams','v:0','-show_streams','-of','json',file],{encoding:'utf8',windowsHide:true});
@@ -469,7 +478,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.equal(receipt.namespace,'tmdb_series');assert.equal(receipt.seasonNumber,1);
     assert.deepEqual(db.prepare('SELECT execution_basis_digest,run_material_manifest_id FROM libra_runs WHERE libra_run_id=?').get(run.libraRunId),before);
   }
-  let state;const deadline=Date.now()+(real?220000:100000);
+  let state;const deadline=Date.now()+(longMedia?800000:real?220000:100000);
   do {
     state={subjects:db.prepare('SELECT * FROM libra_subjects').all(),routes:db.prepare('SELECT * FROM libra_routing_decisions').all(),
       specs:db.prepare('SELECT * FROM libra_acceptance_specs').all(),runs:db.prepare('SELECT * FROM libra_runs').all(),
@@ -609,6 +618,11 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       assert.equal(value.videoStreams[0].bitDepth,10);
       assert.equal(value.videoStreams[0].colorTransfer,'pq');
     }
+    if(longMedia) {
+      assert.ok(Math.abs(value.durationMs-1200000)<500,JSON.stringify(value));
+      assert.equal(value.audioStreams.length,1);
+      assert.equal(value.audioStreams[0].codec,'aac');
+    }
     assert.equal(item.result_digest,canonicalDigest(value));
   }
   assert.equal(db.prepare("SELECT count(*) n FROM fx_event_attempts WHERE event_id LIKE 'libra-source-media-probe-event-%' AND failure_code IS NOT NULL").get().n,0);
@@ -683,6 +697,16 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       const inspected=require('node:child_process').spawnSync(process.env.FFPROBE_PATH||require('@ffprobe-installer/ffprobe').path,
         ['-v','error','-select_streams','v:0','-show_entries','stream=codec_name,pix_fmt,color_range,color_primaries,color_transfer,color_space','-of','json',item.location],{encoding:'utf8',windowsHide:true});
       assert.equal(inspected.status,0,inspected.stderr);assert.equal(JSON.parse(inspected.stdout).streams[0].codec_name,mediaRepair&&(nm?(mediaBound||JSON.parse(item.episode_claims_json).items.length===1):item.location.endsWith('S01E03.mkv'))?'h264':'hevc');
+      if(longMedia) {
+        const timed=require('node:child_process').spawnSync(process.env.FFPROBE_PATH||require('@ffprobe-installer/ffprobe').path,
+          ['-v','error','-show_streams','-show_format','-of','json',item.location],{encoding:'utf8',windowsHide:true});
+        assert.equal(timed.status,0,timed.stderr);
+        const probe=JSON.parse(timed.stdout),audio=probe.streams.filter(stream=>stream.codec_type==='audio');
+        assert.ok(Math.abs(Number(probe.format.duration)-1200)<0.5);
+        assert.equal(audio.length,1);assert.equal(audio[0].codec_name,'aac');assert.equal(Number(audio[0].sample_rate),48000);
+        t.diagnostic(JSON.stringify({longMedia:true,durationSeconds:Number(probe.format.duration),audioCodec:audio[0].codec_name,
+          episodes:JSON.parse(item.episode_claims_json).items.map(claim=>claim.episodeKey)}));
+      }
       if(hdr) {
         const stream=JSON.parse(inspected.stdout).streams[0];
         assert.equal(stream.pix_fmt,'yuv420p10le');

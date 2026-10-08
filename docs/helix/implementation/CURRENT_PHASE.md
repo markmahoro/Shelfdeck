@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 Series长时媒体：20分钟带AAC的N:M正式Host在Linux CPU181.85秒、Windows NVENC183.57秒通过，成品时长/音轨/Claims/上架验证完整；素材为循环合成，不外推真实复杂画面质量。278文件冻结全量仍运行，未操作NAS。[Evidence](evidence/SERIES_LONG_MEDIA_HOST_20261008.md)。
+
 2026-10-08 Series HDR专项：Windows44.08秒/Linux42.23秒真实N:M Host通过，Remux/CPU转码后两成品保留10-bit PQ/BT.2020及完整Episode Claims。仅3秒合成素材，长片/HLG/DV/画质等未覆盖。上一轮全量2396通过/1个已修复Stage误报/10skip，后续冻结全量仍需完成；无NAS操作。[Evidence](evidence/SERIES_HDR_HOST_20261008.md)。
 
 2026-10-08 Stage并发误报修复：全部祖先保留身份/权限/链接校验，仅精确slot比较内容时间戳，避免兄弟目录活动被当作slot变化。Windows84项、Linux21项、并发10次及P2/边界/语义通过；原全量仍运行，最终冻结全量尚未通过。无UI变更或NAS操作。[Evidence](evidence/SERIES_STAGE_OBSERVATION_CONCURRENCY_20261008.md)。
@@ -126,10 +128,10 @@
 | 顺序 | 工作项 / Owner | 验收门槛 | 当前状态 |
 | --- | --- | --- | --- |
 | 节点1 | 剧集资料与生产基础 / Platform、Libra | 明确Season/Episode身份，逐集Observation/Draft/NFO/Artifact按冻结Run范围生产，完整Result与Provenance链 | 资料/Artifact/Fact、逐成员Direct/Remux/Transcode及交付已通过隔离Host；24集已验证。完整外部链路及适用UI门禁仍开放；现行32物理成员上限不外推为1024，节点未关闭 |
-| 节点2 | 首批剧集完整上架 / Procurement、Libra、Arca | E01/E02从Field到唯一Season Entry；正式Handoff/Commit、真实媒体及相应用户路径；UI负责人验收可见变化 | 首批唯一Season Entry完整隔离Host及真实短媒体已通过；真实用户路径与UI验收未完成 |
-| 节点3 | 持续追加与复杂文件映射 / Libra、Arca | E03扩充同Entry，旧Run/集事实不改写；重叠/并发/重复及N:M、逐集空间验收；可见变化交UI负责人验收 | E03追加、并发非重叠、旧集保护及真实N:M已验证；其他故障/平台及适用UI验收仍开放 |
+| 节点2 | 首批剧集完整上架 / Procurement、Libra、Arca | E01/E02从Field到唯一Season Entry；正式Handoff/Commit、真实媒体及相应用户路径；UI负责人验收可见变化 | 首批唯一Season Entry完整隔离Host、真实短SDR及PQ N:M媒体已通过；d4d86d234来源/收藏架/整理详情/收藏详情适用状态获UI负责人接受，完整Host浏览器用户旅程仍未完成 |
+| 节点3 | 持续追加与复杂文件映射 / Libra、Arca | E03扩充同Entry，旧Run/集事实不改写；重叠/并发/重复及N:M、逐集空间验收；可见变化交UI负责人验收 | E03追加、并发非重叠、旧集保护、真实N:M及Linux跨设备已验证；本批范围/收藏关系UI已获局部接受，完整追加用户旅程与剩余故障恢复仍开放 |
 | 节点4 | 完整运营与用户体验 / Procurement、Libra、Arca、UI负责人 | 外部实际Episode覆盖、失败/重启、Aftercare/共享材料退出；Season用户旅程、适用状态及UI负责人验收 | NFO/Placement/媒体维修、Off-deck及部分进程恢复已验证；完整外部获取受EpisodeDelivery合同缺口阻断，后加工/恢复及UI用户旅程仍开放 |
-| 节点5 | Movie回归与Series发布资格 / 实施、UI与发布责任方 | 冻结SHA的Windows/Linux、真实媒体/浏览器、升级/回退及数据保护；UI验收结论绑定最终受影响版本 | Windows架构/原生回归及Web构建持续验证；Linux、UI精确版本、生产副本升级/回退与其他真实媒体矩阵未完成，禁止据此宣称可部署 |
+| 节点5 | Movie回归与Series发布资格 / 实施、UI与发布责任方 | 冻结SHA的Windows/Linux、真实媒体/浏览器、升级/回退及数据保护；UI验收结论绑定最终受影响版本 | Windows架构/原生及Linux专项、PQ真实媒体、精确版本局部UI接受已有证据；修复冻结SHA全量正在复验，完整旅程、长媒体/其余故障、生产副本升级回退尚未闭合，禁止据此宣称可部署 |
 
 N:M计量规则已确认，完整证据接线仍待节点3验证；S00、身份纠正及Episode级恢复在所属节点开工前核对SSOT并满足DoR，不把未知合同藏进实现，也不以节点编号另建全局台账。
 
