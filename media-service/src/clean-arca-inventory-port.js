@@ -496,7 +496,9 @@ function createCleanArcaInventoryPort(options) {
     const folder = safeSegment(identity.edition
       ? renderedFolder + ' - ' + identity.edition
       : renderedFolder);
-    const series=seriesPlacementContext(packageValue);
+    if(request.inventoryArtifactScopes!==undefined&&!request.aftercareCaseId)
+      fail('CLEAN_ARCA_INVENTORY_INPUT','Registered Inventory Artifact scopes require an Aftercare Case.');
+    const series=seriesPlacementContext(packageValue,request.inventoryArtifactScopes);
     const targetDirectory = series ? path.resolve(targetRoot,folder,'Season '+String(series.seasonNumber).padStart(2,'0')) : path.resolve(targetRoot, folder);
     if (!contained(targetRoot, targetDirectory)) {
       fail('CLEAN_ARCA_TARGET_ESCAPE',

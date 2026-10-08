@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Placement输入：[Evidence](implementation/evidence/SERIES_AFTERCARE_PLACEMENT_INPUT_20261008.md)。Aftercare已携带完整Series/Season身份、各批Episode资料及当前Inventory NFO scope，真实两批Host可精确复原原位置并规划新目录；评估修正同目录改名漏检。全架构2,279通过/9既有skip/0失败。实际迁移Case/恢复、其余运营/UI/Linux发布条件继续，未部署NAS。
+
 2026-10-08 联合展示维护：[Evidence](implementation/evidence/SERIES_PRESENTATION_CASE_20261008.md)。正式隔离Host同一Case恢复缺失poster和两集NFO，验证精确TMDB Series/Season请求、三份Artifact物化、原子事务、Settlement、正常/历史成员保护及收敛后Host重开，92秒通过。本批仅新增验证；完整运营/恢复/UI/Linux发布门槛仍开放，无NAS部署。
 
 2026-10-08 NFO完整Case：[Evidence](implementation/evidence/SERIES_AFTERCARE_NFO_CASE_20261008.md)。已登记且scope/资料齐全的缺失或空Series NFO启用自动维修；正式隔离Host同时修复两集，Inventory-Control原子回滚/提交、Settlement、正常成员及旧revision保护通过。People关联收敛后Host/SQLite关闭重开保持事实及健康状态；全架构2,271通过/9既有skip/0失败。真正进程崩溃恢复、其余运营/UI/Linux和完整发布资格仍开放，未部署NAS。

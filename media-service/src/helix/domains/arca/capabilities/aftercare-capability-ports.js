@@ -28,7 +28,7 @@ const { CAPABILITY_REFS:C,
   projectHealth, isAftercareArtifactMaterial } = require('../model/aftercare-contract');
 const { buildAftercareInventoryRequest,
   classifyAcceptedPlacement,
-  placementMaterialReceipts } = require('../model/aftercare-placement');
+  placementMaterialReceipts, placementMatchesInventory } = require('../model/aftercare-placement');
 const { SCHEMA_REF:EPISODE_CLAIMS_SCHEMA,
   emptyArcaMaterialEpisodeClaims } = require('../model/material-episode-claims');
 const { isKnownOldOffloadBinding, observeKnownOldBindings } = require('../model/known-old-binding');
@@ -599,7 +599,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     if(!c.raw.materials.some(isPrimaryMaterial))return outcome(C.conformance,assessment('conformance',c,[finding('conformance','primary_missing','critical','attention_required',c.shelfEntryId)],at,undefined,execution.workId),at);
     const {findings,mediaRepairStrategy}=await assessInventoryMediaConformance(options,c,at);
     for(const field of missingFields(c))findings.push(finding('conformance','metadata_field_missing__'+field,'warning','attention_required',canonicalDigest({field,requiredValueDigest:requirementGapValueDigest(effectiveRequirements(c),'metadata_field_unmet',field)})));
-    const placementState=classifyAcceptedPlacement(c),placementRequest=placementState.state==='recompute'?buildAftercareInventoryRequest(c,options.inventoryPort,at,stable('arca-care-assessment-placement-',{entry:c.shelfEntryId,basis:c.basis.digest})):null,desired=placementRequest?options.inventoryPort.resolveTargetLocation(placementRequest):null,placementUnmet=Boolean(desired)&&c.raw.materials.some((item)=>item.endpoint_id!==c.raw.shelf.target_endpoint_id||path.resolve(path.dirname(item.location))!==path.resolve(desired.targetDirectory));
+    const placementState=classifyAcceptedPlacement(c),placementRequest=placementState.state==='recompute'?buildAftercareInventoryRequest(c,options.inventoryPort,at,stable('arca-care-assessment-placement-',{entry:c.shelfEntryId,basis:c.basis.digest})):null,desired=placementRequest?options.inventoryPort.resolveTargetLocation(placementRequest):null,placementUnmet=Boolean(placementRequest)&&!placementMatchesInventory(c,placementRequest);
     if(placementState.state==='not_assessable')findings.push(finding('conformance','placement_basis_unavailable','critical','attention_required',canonicalDigest({shelfEntryId:c.shelfEntryId,placementRevision:c.basis.placementRevision,reasonCode:placementState.reasonCode})));
     if(placementUnmet)findings.push(finding('conformance','placement_unmet','critical','auto_repair',canonicalDigest({endpointId:c.raw.shelf.target_endpoint_id,targetDirectory:desired.targetDirectory,placementRevision:c.basis.placementRevision})));
     for(const observed of observeKnownOldBindings(c.raw,fingerprint)){

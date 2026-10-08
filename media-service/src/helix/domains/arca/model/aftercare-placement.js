@@ -3,6 +3,8 @@
 const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { physicalIdentityFromInventoryRow } = require('./aftercare-contract');
+const {readInventoryArtifactScope}=require('./inventory-artifact-scope');
+const {aftercareProviderIdentity}=require('./aftercare-provider-identity');
 
 const PLACEMENT_LAYOUT_FIELDS = Object.freeze([
   'folderTemplate',
@@ -38,8 +40,9 @@ function classifyAcceptedPlacement(context) {
 }
 
 function metadataIdentity(context) {
-  const resolvedIdentity = context.raw.facts.find((item) =>
+  const resolvedFact = context.raw.facts.find((item) =>
     item.fact_kind === 'resolved_identity')?.value || {};
+  const resolvedIdentity=resolvedFact.resolvedProductIdentity||resolvedFact;
   const displayEntries = new Map((resolvedIdentity.displayIdentity?.entries || [])
     .map((item) => [item.key, item.value]));
   const metadata = context.raw.facts.find((item) =>
@@ -47,8 +50,10 @@ function metadataIdentity(context) {
   const entries = new Map((metadata.descriptiveFacts?.entries || [])
     .map((item) => [item.key, item.value]));
   const title = displayEntries.get('title') || entries.get('title') ||
+    (context.raw.entry.structure_kind==='season'?entries.get('series_title'):null) ||
     entries.get('display_title') ||
-    context.raw.identity.provider_key || context.shelfEntryId;
+    (context.raw.entry.structure_kind==='season'?null:context.raw.identity.provider_key || context.shelfEntryId);
+  if(typeof title!=='string'||!title.trim())throw new TypeError('Aftercare placement requires an accepted display title.');
   const rawYear = displayEntries.get('year') || entries.get('year') ||
     entries.get('year_or_release_date') || entries.get('release_year') ||
     entries.get('release_date') || null;
@@ -83,6 +88,14 @@ function buildAftercareInventoryRequest(context, inventoryPort, at, caseId) {
   const members = context.raw.materials.map(inventoryMember)
     .sort((left, right) => left.materialKey.localeCompare(right.materialKey));
   const identity = metadataIdentity(context);
+  const series=context.raw.entry.structure_kind==='season';
+  let seriesIdentity;
+  if(series) {
+    aftercareProviderIdentity(context,{providerId:context.raw.identity.provider,
+      providerObjectId:context.raw.identity.provider_key,identityDigest:context.raw.identity.identity_digest});
+    const fact=context.raw.facts.find(item=>item.fact_kind==='resolved_identity').value;
+    seriesIdentity=fact.resolvedProductIdentity||fact;
+  }
   const manifestBase = {
     manifestId: caseId + ':placement-product-manifest',
     manifestRevision: 1,
@@ -108,7 +121,9 @@ function buildAftercareInventoryRequest(context, inventoryPort, at, caseId) {
     productStructureSnapshot: Object.freeze({
       structureKind: context.raw.entry.structure_kind === 'season' ? 'season' : 'single',
     }),
-    resolvedIdentitySnapshot: Object.freeze({ factValue:identity }),
+    resolvedIdentitySnapshot: Object.freeze({ factValue:series?Object.freeze({...seriesIdentity,...identity}):identity }),
+    ...(series?{productFactManifest:Object.freeze({items:Object.freeze(context.raw.facts.map(item=>
+      Object.freeze({factKind:item.fact_kind,factValue:item.value,sourcePackageId:item.source_package_id})))})}:{}),
     productMaterialManifest,
     offloadContextManifest,
   };
@@ -141,9 +156,23 @@ function buildAftercareInventoryRequest(context, inventoryPort, at, caseId) {
     onDeckProductPackage,
     observedAtMs: at,
     replayCommitted: false,
+    ...(series?{inventoryArtifactScopes:Object.freeze(context.raw.materials.filter(item=>item.role==='metadata_sidecar')
+      .map(item=>Object.freeze({materialKey:item.material_key,scope:readInventoryArtifactScope(item)})))}:{}),
   };
   const finalInventoryDecision = inventoryPort.prepare(base);
   return Object.freeze({ ...base, finalInventoryDecision });
+}
+
+function placementMatchesInventory(context,request) {
+  const members=request.finalInventoryDecision.members,materials=context.raw.materials;
+  if(!Array.isArray(members)||members.length!==materials.length||
+      new Set(members.map(item=>item.sourceMaterialKey)).size!==members.length||
+      members.some(item=>!materials.some(row=>row.material_key===item.sourceMaterialKey)))
+    throw new TypeError('Aftercare placement decision does not cover the exact current Inventory.');
+  return members.every(item=>{
+    const row=materials.find(row=>row.material_key===item.sourceMaterialKey);
+    return item.targetEndpointId===row.endpoint_id&&path.resolve(item.targetLocation)===path.resolve(row.location);
+  });
 }
 
 function placementMaterialReceipts(context, workResultReader, sourceWorkId,
@@ -209,4 +238,4 @@ function placementMaterialReceipts(context, workResultReader, sourceWorkId,
 }
 
 module.exports = Object.freeze({ buildAftercareInventoryRequest, classifyAcceptedPlacement,
-  metadataIdentity, placementMaterialReceipts });
+  metadataIdentity, placementMaterialReceipts, placementMatchesInventory });

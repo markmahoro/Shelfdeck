@@ -707,6 +707,21 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.equal(new Set(latestFacts.map(row=>row.source_package_id)).size,2);
     const rawCare=require('../../src/helix/domains/arca/persistence/aftercare-store').createAftercareStore({schemaManifest,unitOfWork})
       .currentContext(currentEntry.shelf_entry_id);
+    const carePlacement=require('../../src/helix/domains/arca/model/aftercare-placement'),
+      careInventoryPort=require('../../src/clean-arca-inventory-port').createCleanArcaInventoryPort({schemaManifest,unitOfWork,
+        workspaceRoot:path.join(dataDir,'workspaces','libra')}),careContext={shelfEntryId:currentEntry.shelf_entry_id,raw:rawCare},
+      currentPlacement=carePlacement.buildAftercareInventoryRequest(careContext,careInventoryPort,Date.now(),'fixture-care-current');
+    assert.equal(carePlacement.placementMatchesInventory(careContext,currentPlacement),true);
+    const movedContext=structuredClone(careContext);
+    movedContext.raw.placement.value.folderTemplate='Relocated {title}';
+    const movedPlacement=carePlacement.buildAftercareInventoryRequest(movedContext,careInventoryPort,Date.now(),'fixture-care-move');
+    assert.equal(carePlacement.placementMatchesInventory(movedContext,movedPlacement),false);
+    for(const member of movedPlacement.finalInventoryDecision.members) {
+      const original=rawCare.materials.find(item=>item.material_key===member.sourceMaterialKey);
+      assert.equal(member.finalName,path.basename(original.location));
+      assert.ok(member.targetLocation.includes('Relocated Demo Show'));
+      assert.equal(fs.existsSync(member.targetLocation),false);
+    }
     const renderCareNfo=require('../../src/helix/domains/arca/model/aftercare-series-nfo').renderSeriesAftercareNfo;
     for(const material of rawCare.materials.filter(item=>item.role==='metadata_sidecar')) {
       const rendered=renderCareNfo({raw:rawCare},material.material_key),xml=rendered.bytes.toString('utf8');

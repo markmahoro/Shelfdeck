@@ -201,3 +201,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series展示联合维修DoR：依SSOT §5.5.5至少一张poster及既有Aftercare Owner合同，在正式隔离Host同时制造两集NFO缺陷和已登记poster缺失，验证TMDB Series/Season精确身份获取、独立Artifact物化、同一Inventory/Control事务和Settlement、正常材料保护及终结/重开。沿用前批真实SQLite回滚验证；不修改生产数据、不绕过Provider身份Fence，不把fixture网络/媒体结论扩展为真实网络验收。
 
 2026-10-08 联合展示维护结果：[Evidence](evidence/SERIES_PRESENTATION_CASE_20261008.md)。正式Host在同一Case恢复登记poster和两个Episode NFO，Series/Season Provider身份、三Artifact、原子回滚/Commit、Settlement、正常及旧成员保护、收敛后重开通过，92秒无失败。本批只有测试/文档变更，不覆盖真实网络、所有图像损坏、进程崩溃、Placement迁移或整体Series发布；上述工作继续。
+
+2026-10-08 Series Placement请求DoR：当前Aftercare仅构造title/year的单体投影，Series命名所需Season身份、全部Episode Metadata与已登记NFO scope缺失。沿Arca内部Inventory端口建立显式Aftercare Artifact scope输入，使用当前Inventory的完整Claims、全部已接受批次Facts及持久化scope；不伪造Workspace Artifact、回读Libra或猜测文件名。On-deck继续使用其Accepted Artifact合同，Aftercare入口单独验证精确材料覆盖、Season/Episode与重复scope。先验证真实Inventory端口命名及拒绝路径，再补完整迁移Host；本批基础不等同于迁移闭环通过。
+
+2026-10-08 Placement输入结果：[Evidence](evidence/SERIES_AFTERCARE_PLACEMENT_INPUT_20261008.md)。Series跨批Facts/Claims与持久化NFO scope进入显式Aftercare命名，拒绝错批/缺scope等输入；评估逐成员比较路径，覆盖同目录改名。8项新增专项、全架构2,279通过/9既有skip/0失败；两批实际Host Owner context原位复原和新目录规划94秒通过。下一段必须验证实际迁移物化、Commit、Settlement及恢复，不能以prepare通过关闭迁移或发布Gate。
