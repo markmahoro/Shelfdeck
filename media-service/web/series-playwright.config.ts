@@ -1,7 +1,7 @@
 import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
-  testDir: './e2e', testMatch: /series-(material-field|shelf-rules)\.spec\.ts/, timeout: 30000,
+  testDir: './e2e', testMatch: /series-(material-field|shelf-rules|identity)\.spec\.ts/, timeout: 30000,
   outputDir: '../../.codex/series-browser',
   use: { baseURL: 'http://127.0.0.1:18193', trace: 'retain-on-failure' },
   webServer: { command: 'npm run dev -- --host 127.0.0.1 --port 18193 --strictPort',

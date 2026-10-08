@@ -635,3 +635,5 @@ button, input, select, textarea { font: inherit; }
 .dialog.dialog-wide.shelf-standard-dialog { width: min(840px, calc(100vw - 40px)); }
 .shelf-standard-dialog .dialog-body { min-height: 0; overflow-y: auto; }
 .shelf-standard-dialog .dialog-head, .shelf-standard-dialog .dialog-actions { flex-shrink: 0; }
+
+.dialog:has(.identity-picker) { width: min(560px, calc(100vw - 40px)); }

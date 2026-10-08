@@ -798,11 +798,11 @@ export const helixAdminApi = {
   readRunOutcome(libraRunId:string){return request<{outcome:LibraRunOutcome|null}>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/outcome`);},
   reprocessRun(outcome:LibraRunOutcome,idempotencyKey:string){return request<{intentId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(outcome.libraRunId)}/actions/reprocess`,{method:'POST',body:JSON.stringify({expectedOutcomeDigest:outcome.outcomeDigest,idempotencyKey})});},
   admitWithDefects(subject:FormationSubject,candidate:DefectAdmissionCandidate){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');const run=subject.currentRun;return request<{resultKind:string;libraRunId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/admit-with-defects`,{method:'POST',body:JSON.stringify({expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest,expectedDefectCandidateDigest:candidate.candidateDigest,acknowledged:true,idempotencyKey:`admit-with-defects:${run.libraRunId}:${run.stateRevision}:${newOpaqueId()}`})});},
-  previewProductIdentity(subject:FormationSubject,tmdbMovieId:string) {
+  previewProductIdentity(subject:FormationSubject,providerId:string) {
     if(!subject.currentRun)throw new Error('当前整理已变化，请刷新。');
-    return request<MovieIdentityPreview>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/product-identity-preview?tmdbMovieId=${encodeURIComponent(tmdbMovieId)}`);
+    return request<ProductIdentityPreview>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/product-identity-preview?${subject.contentProfile === 'series' ? 'tmdbSeriesId' : 'tmdbMovieId'}=${encodeURIComponent(providerId)}`);
   },
-  chooseProductIdentity(subject:FormationSubject,tmdbMovieId:string,idempotencyKey?:string){if(!subject.currentRun)throw new Error('当前媒体没有可恢复的整理任务。');const run=subject.currentRun;return request<{selectionIntentId:string;libraRunId:string;providerKey:string;intentRevision:number;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/choose-product-identity`,{method:'POST',body:JSON.stringify({tmdbMovieId,expectedRunStateRevision:run.stateRevision,expectedIdentityRevision:run.currentIdentityRevision,candidateSetDigest:subject.productIdentityIssue?.candidateSetDigest||null,idempotencyKey:idempotencyKey||`choose-product-identity:${run.libraRunId}:${run.stateRevision}:${tmdbMovieId}:${newOpaqueId()}`})});},
+  chooseProductIdentity(subject:FormationSubject,providerId:string,idempotencyKey?:string){if(!subject.currentRun)throw new Error('当前媒体没有可恢复的整理任务。');const run=subject.currentRun;return request<{selectionIntentId:string;libraRunId:string;providerKey:string;intentRevision:number;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/choose-product-identity`,{method:'POST',body:JSON.stringify({... (subject.contentProfile === 'series' ? {tmdbSeriesId:providerId} : {tmdbMovieId:providerId}),expectedRunStateRevision:run.stateRevision,expectedIdentityRevision:run.currentIdentityRevision,candidateSetDigest:subject.productIdentityIssue?.candidateSetDigest||null,idempotencyKey:idempotencyKey||`choose-product-identity:${run.libraRunId}:${run.stateRevision}:${providerId}:${newOpaqueId()}`})});},
   retryAcceptance(subject:FormationSubject){if(!subject.executorIssue?.canRetry)throw new Error('当前接纳或上架故障不能重试。');const offerId=subject.executorIssue.offerId;return request(`/v1/admin/formation/acceptance/${encodeURIComponent(offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({idempotencyKey:`acceptance-retry:${offerId}:${newOpaqueId()}`})});},
   createShelf(body: JsonValue) {
     return request<{ shelf: Shelf; replayed: boolean }>('/v1/admin/shelves', {
@@ -1023,3 +1023,6 @@ export async function materialFieldRegistration(input: {
 }
 
 export type MovieIdentityPreview = {tmdbMovieId:string;displayTitle:string;originalTitle:string|null;releaseYear:number|null;posterUrl:string|null};
+
+export type SeriesIdentityPreview = Omit<MovieIdentityPreview, 'tmdbMovieId'> & { tmdbSeriesId: string; seasonNumber: number };
+export type ProductIdentityPreview = MovieIdentityPreview | SeriesIdentityPreview;

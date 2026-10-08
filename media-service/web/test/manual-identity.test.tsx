@@ -56,3 +56,50 @@ it('clears an already visible preview when the ID changes',async()=>{
   fireEvent.change(screen.getByLabelText('TMDB 影片 ID'),{target:{value:'550'}});
   expect(screen.queryByLabelText('影片身份预览')).not.toBeInTheDocument();expect(screen.getByRole('button',{name:'确认选取'})).toBeDisabled();
 });
+
+it('previews the frozen Series Season and submits only its Series ID',async()=>{
+  const series={...item,contentProfile:'series'} as FormationSubject;
+  const cb={onClose:vi.fn(),onSelected:vi.fn(),onRefresh:vi.fn()};
+  vi.spyOn(helixAdminApi,'previewProductIdentity').mockResolvedValue({tmdbSeriesId:'1399',seasonNumber:2,displayTitle:'示例剧集',originalTitle:null,releaseYear:2011,posterUrl:null});
+  const choose=vi.spyOn(helixAdminApi,'chooseProductIdentity').mockResolvedValue({} as never);
+  render(<ManualIdentityDialog item={series} {...cb}/>);
+  expect(screen.getByRole('dialog',{name:'手动选取剧集身份'})).toBeVisible();
+  fireEvent.change(screen.getByLabelText('TMDB 剧集 ID'),{target:{value:'1399'}});
+  fireEvent.click(screen.getByRole('button',{name:'查询'}));
+  expect(await screen.findByLabelText('剧集身份预览')).toHaveTextContent('第 2 季');
+  fireEvent.click(screen.getByRole('button',{name:'确认选取'}));
+  await waitFor(()=>expect(cb.onSelected).toHaveBeenCalledTimes(1));
+  expect(choose.mock.calls[0][1]).toBe('1399');
+});
+
+it('rejects a Movie response or an invalid Season in a Series preview',async()=>{
+  const preview=vi.spyOn(helixAdminApi,'previewProductIdentity').mockResolvedValueOnce(movie).mockResolvedValueOnce({tmdbSeriesId:'639445',seasonNumber:0,displayTitle:'Invalid',originalTitle:null,releaseYear:null,posterUrl:null});
+  render(<ManualIdentityDialog item={{...item,contentProfile:'series'}} onClose={()=>{}} onSelected={()=>{}} onRefresh={()=>{}}/>);
+  fireEvent.change(screen.getByLabelText('TMDB 剧集 ID'),{target:{value:'639445'}});
+  for(let attempt=1;attempt<=2;attempt++){
+    fireEvent.click(screen.getByRole('button',{name:'查询'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('媒体信息读取失败');
+    expect(screen.getByRole('button',{name:'确认选取'})).toBeDisabled();
+    expect(preview).toHaveBeenCalledTimes(attempt);
+  }
+});
+
+it('encodes mutually exclusive identity IDs in preview and choice HTTP requests',async()=>{
+  const requests:Array<{url:string;body:any}>=[];
+  vi.spyOn(globalThis,'fetch').mockImplementation(async(url,init)=>{
+    requests.push({url:String(url),body:init?.body?JSON.parse(String(init.body)):null});
+    return new Response('{}');
+  });
+  for(const contentProfile of ['movie','series']){
+    const subject={...item,contentProfile} as FormationSubject;
+    await helixAdminApi.previewProductIdentity(subject,'1399');
+    await helixAdminApi.chooseProductIdentity(subject,'1399','stable-key');
+  }
+  expect(requests[0].url).toContain('tmdbMovieId=1399');
+  expect(requests[1].body.tmdbMovieId).toBe('1399');
+  expect(requests[2].url).toContain('tmdbSeriesId=1399');
+  expect(requests[3].body).toMatchObject({tmdbSeriesId:'1399',idempotencyKey:'stable-key',expectedRunStateRevision:2});
+  expect(requests[3].body).not.toHaveProperty('tmdbMovieId');
+  expect(requests[3].body).not.toHaveProperty('seasonNumber');
+  expect(requests[3].body).not.toHaveProperty('episodeNumbers');
+});
