@@ -45,3 +45,34 @@ test('UAT-172 new authorization or Final Verification invalidates the old exact 
   f.verification={...f.verification,finalRealityDigest:d('new-final')};
   assert.notEqual(scope(f).memberSetDigest,original.memberSetDigest);
 });
+
+function multipleTargets(){
+  const f=fixture(),source=f.c.packageValue.offloadContextManifest.members[0],keys=[d('new-one'),d('new-two')].sort();
+  delete source.finalProductMaterialKey;source.finalProductMaterialKeys=keys;source.dispositionKind='replaced_and_settled';
+  delete f.c.settlementFinalMember;
+  f.c.settlementFinalMembers=keys.map((sourceMaterialKey,index)=>({sourceMaterialKey,targetLocation:'/shelf/new-'+index+'.mkv'}));
+  f.verification.verifiedMaterialKeys=keys;
+  return f;
+}
+test('Series Settlement binds all target locations and final verification into one source approval',()=>{
+  const f=multipleTargets(),original=scope(f),member=original.members[0];
+  assert.equal(original.members.length,1);assert.equal(member.materialKey,d('old'));
+  assert.equal(Object.hasOwn(member,'finalMaterialKey'),false);assert.equal(Object.hasOwn(member,'finalTargetLocation'),false);
+  assert.deepEqual(member.finalTargets,f.c.settlementFinalMembers.map(row=>({materialKey:row.sourceMaterialKey,targetLocation:row.targetLocation})));
+  assert.ok(Object.isFrozen(member.finalTargets));
+  for(const index of [0,1]){
+    const changed=multipleTargets();changed.c.settlementFinalMembers[index].targetLocation+='.changed';
+    assert.notEqual(scope(changed).approvalScopeDigest,original.approvalScopeDigest);
+    assert.notEqual(scope(changed).memberSetDigest,original.memberSetDigest);
+  }
+  f.verification.finalRealityDigest=d('changed-final');assert.notEqual(scope(f).approvalScopeDigest,original.approvalScopeDigest);
+});
+test('Series Settlement cannot approve partial, duplicated, reordered or malformed final targets',()=>{
+  for(const change of [f=>f.c.settlementFinalMembers.pop(),f=>f.c.settlementFinalMembers.reverse(),
+    f=>f.c.settlementFinalMembers.push(f.c.settlementFinalMembers[0]),f=>f.c.settlementFinalMembers[1].targetLocation='',
+    f=>f.verification.verifiedMaterialKeys=f.verification.verifiedMaterialKeys.slice(0,1),
+    f=>f.verification.verifiedMaterialKeys=[...f.verification.verifiedMaterialKeys,f.verification.verifiedMaterialKeys[0]],
+    f=>f.c.packageValue.offloadContextManifest.members[0].sourceRelatedReferenceId='related']){
+    const f=multipleTargets();change(f);assert.throws(()=>scope(f));
+  }
+});

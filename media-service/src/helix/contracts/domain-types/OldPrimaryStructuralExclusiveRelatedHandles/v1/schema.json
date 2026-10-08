@@ -89,6 +89,32 @@
             "minLength": 1,
             "maxLength": 4096
           },
+          "finalTargets": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "materialKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "targetLocation": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                }
+              },
+              "required": [
+                "materialKey",
+                "targetLocation"
+              ]
+            },
+            "maxItems": 1024,
+            "minItems": 2,
+            "uniqueItems": true
+          },
           "settlementExpectation": {
             "type": "string",
             "enum": [
@@ -123,13 +149,54 @@
           "role",
           "sourceRelatedReferenceId",
           "materialHandle",
-          "finalMaterialKey",
-          "finalTargetLocation",
           "settlementExpectation",
           "dispositionMemberRef",
           "sourceToFinalMappingDigest",
           "finalProductVerificationDigest",
           "memberDigest"
+        ],
+        "oneOf": [
+          {
+            "required": [
+              "finalMaterialKey",
+              "finalTargetLocation"
+            ],
+            "not": {
+              "required": [
+                "finalTargets"
+              ]
+            }
+          },
+          {
+            "required": [
+              "finalTargets"
+            ],
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "finalMaterialKey"
+                  ]
+                },
+                {
+                  "required": [
+                    "finalTargetLocation"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "role": {
+                "const": "primary_payload"
+              },
+              "settlementExpectation": {
+                "const": "remove_after_place"
+              },
+              "sourceRelatedReferenceId": {
+                "type": "null"
+              }
+            }
+          }
         ]
       },
       "maxItems": 4096,

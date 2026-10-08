@@ -1239,7 +1239,7 @@
       "relativePath": "domain-types/OldPrimaryStructuralExclusiveRelatedHandles/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "a2be2c6902a8c618f117ec1d94992be3ba818801644fb8a104ead4f934818b48"
+        "value": "5e51f74132630c7da22782a5eb8b70ebb6c9804fd00fe36ecb8b510fe885eaf5"
       },
       "usedBy": [
         {

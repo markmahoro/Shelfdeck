@@ -1873,12 +1873,19 @@ function oldPrimaryStructuralExclusiveRelatedHandlesSchema() {
     materialHandle: typeRef('PhysicalMaterialReadHandle'),
     finalMaterialKey: digest(),
     finalTargetLocation: text({ maxLength: 4096 }),
+    finalTargets: { ...arrayOf(object({materialKey:digest(),targetLocation:text({maxLength:4096})}),1024),minItems:2,uniqueItems:true },
     settlementExpectation: enumText('replace_or_move', 'remove_after_place'),
     dispositionMemberRef: id(),
     sourceToFinalMappingDigest: digest(),
     finalProductVerificationDigest: digest(),
     memberDigest: digest(),
   });
+  member.required=member.required.filter(key=>!['finalMaterialKey','finalTargetLocation','finalTargets'].includes(key));
+  member.oneOf=[
+    {required:['finalMaterialKey','finalTargetLocation'],not:{required:['finalTargets']}},
+    {required:['finalTargets'],not:{anyOf:[{required:['finalMaterialKey']},{required:['finalTargetLocation']}]},properties:{
+      role:{const:'primary_payload'},settlementExpectation:{const:'remove_after_place'},sourceRelatedReferenceId:{type:'null'}}},
+  ];
   return {
     ...exactDomainSchema('OldPrimaryStructuralExclusiveRelatedHandles', {
       schemaRef: { const: domainTypeId('OldPrimaryStructuralExclusiveRelatedHandles') },
