@@ -189,3 +189,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 NFO维修目标冻结DoR：按SSOT §6.5、§8.5.11及既有Aftercare Finding/CareRequirement合同，将Series NFO展示缺陷按正式成员分别产生稳定Finding；摘要覆盖Material、Binding和Artifact关联。Planner从Case requiredEffects与同Care Basis专业Assessment历史重建精确成员集合，拒绝未匹配/歧义/过期证据；为每个目标建立独立TextRender Event，并经ArtifactProfile冻结材料key、scope摘要和Case requirement摘要。Coordinator不读文件、不新增Store；真正物化闭环完成前保留attention_required与TextRender写入门禁。验证多集缺失、顺序稳定、错来源/绑定/Case拒绝、正式Planner/Projection及Movie回归。
 
 2026-10-08 NFO维修目标冻结结果：[Evidence](evidence/SERIES_AFTERCARE_NFO_TARGET_FREEZE_20261008.md)。逐NFO Finding绑定正式材料/Artifact关系，Case与同Basis专业历史解析精确目标，独立TextRender Event/Profile以及同类参数去重已实现；299项维护回归通过。保留Series实际写入门禁；下一段贯穿Profile、生成Artifact、精确物化、未受影响材料保护、原子提交与恢复。UI版本验收与完整发布资格仍开放。
+
+2026-10-08 NFO维修副作用DoR：在既有Aftercare Owner/Workspace/Material Effect合同内，TextRender消费精确ArtifactProfile，验证Case/已接受Fact/Basis后为每个目标写独立Workspace NFO；Artifact provenance绑定原材料、scope和读取时Physical Identity。正式物化只替换该目标，重验已生成字节与来源Fence，Receipt仅retire该成员，Inventory新revision保留其Artifact scope及其他成员。continue_forward须以冻结Source Guard、精确新文件或superseded原文件证据重建，禁止凭路径存在认领；缺失恢复与外部写入分别验证。自动维修评估保持关闭，待实际完整Case/事务和恢复通过后再启用。
+
+2026-10-08 NFO维修副作用结果：[Evidence](evidence/SERIES_AFTERCARE_NFO_EFFECTS_20261008.md)。TextRender/ArtifactHandle、逐目标落位、原成员scope复制和显式forward恢复已实现，12项真实文件Effect专项及全架构2,269通过/9既有skip/0失败。该Evidence使用内存Workspace登记fixture，不替代正式SQLite Case/Inventory/Control事务、Settlement或进程重启验证；下一段补完整Host后再启用自动维修。未关闭运营或发布Gate，无生产动作。

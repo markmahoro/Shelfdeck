@@ -309,7 +309,7 @@ test('Aftercare permits an absent frozen Artifact only for the matching missing 
   assert.equal(permitsMissingArtifactReplacement(care(['custody:artifact_missing','presentation:poster_missing']),'media'),false);
   const source=fs.readFileSync(path.join(sourceRoot,'domains/arca/capabilities/aftercare-capability-ports.js'),'utf8'),
     materialize=source.slice(source.indexOf('ports[C.artifactMaterialize]'),source.indexOf('async function mediaEffect'));
-  assert.match(materialize,/allowMissingOld:permitsMissingArtifactReplacement\(care,kind\)/);
+  assert.match(materialize,/allowMissingOld:\(!seriesTarget\|\|sourceGuard.allowMissingOld\)&&permitsMissingArtifactReplacement\(care,kind\)/);
 });
 
 test('Aftercare materializes and replays a frozen missing Artifact without fabricating retired state', () => {

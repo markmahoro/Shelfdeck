@@ -64,4 +64,17 @@ function seriesNfoProfileParameters(context,care,history,parameters) {
   }));
 }
 
-module.exports=Object.freeze({seriesNfoFindingDraft,seriesNfoRepairTargets,seriesNfoProfileParameters});
+function resolveSeriesNfoProfile(context,care,history,profile) {
+  if(!profile||profile.schemaRef!=='helix://contracts/domain-types/ArtifactProfile/v1'||profile.schemaVersion!==1||
+      canonicalDigest(profile.artifactKinds)!==canonicalDigest(['nfo'])||profile.revision!==context.raw.shelf.current_standard_revision||
+      profile.qualityPolicyDigest!==context.raw.standard.standard_digest)invalid();
+  const {digest,...body}=profile;if(digest!==canonicalDigest(body))invalid();
+  const values=profile.typedParameters;
+  if(!Array.isArray(values)||values.length!==3||new Set(values.map(item=>item.parameter)).size!==3)invalid();
+  const parameters=Object.fromEntries(values.map(item=>[item.parameter,item.value]));
+  const expected=seriesNfoProfileParameters(context,care,history,parameters);
+  if(canonicalDigest(values)!==canonicalDigest(expected))invalid();
+  return seriesNfoRepairTargets(context,care,history).find(item=>item.material.material_key===parameters.materialKey);
+}
+
+module.exports=Object.freeze({seriesNfoFindingDraft,seriesNfoRepairTargets,seriesNfoProfileParameters,resolveSeriesNfoProfile});
