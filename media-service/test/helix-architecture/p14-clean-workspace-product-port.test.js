@@ -90,38 +90,38 @@ function frameRequest() {
   });
 }
 
-function seedRuntimeWorkspaceEffect(databasePath, state = 'reconcile_required', capabilityRef = 'libra.product_artifact.acquire@1') {
+function seedRuntimeWorkspaceEffect(databasePath, state = 'reconcile_required', capabilityRef = 'libra.product_artifact.acquire@1', suffix = '') {
   const database = new Database(databasePath);
-  const eventAttemptId = 'runtime-event-attempt';
-  const idempotencyKey = 'runtime-workspace-effect';
+  const eventAttemptId = 'runtime-event-attempt'+suffix;
+  const idempotencyKey = 'runtime-workspace-effect'+suffix;
   try {
     database.prepare(`INSERT INTO fx_supporting_works
       (work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key)
-      VALUES(?,?,?,?,?,?,?,?,?)`).run('runtime-work','libra','libra_run','run-1','artifact_production',
-        'a'.repeat(64),'normal_foreground','running','runtime-work');
+      VALUES(?,?,?,?,?,?,?,?,?)`).run('runtime-work'+suffix,'libra','libra_run','run-1','artifact_production',
+        'a'.repeat(64),'normal_foreground','running','runtime-work'+suffix);
     database.prepare(`INSERT INTO fx_work_attempts
       (attempt_id,work_id,basis_digest,state) VALUES(?,?,?,?)`)
-      .run('runtime-work-attempt','runtime-work','a'.repeat(64),'running');
+      .run('runtime-work-attempt'+suffix,'runtime-work'+suffix,'a'.repeat(64),'running');
     database.prepare(`INSERT INTO fx_workflow_plans
       (plan_id,attempt_id,basis_digest,state) VALUES(?,?,?,?)`)
-      .run('runtime-plan','runtime-work-attempt','a'.repeat(64),'planned');
+      .run('runtime-plan'+suffix,'runtime-work-attempt'+suffix,'a'.repeat(64),'planned');
     database.prepare(`INSERT INTO fx_plan_nodes
       (plan_id,node_id,capability_ref,contract_version,input_binding_schema_ref,input_bindings_json,
        parameter_schema_ref,parameters_json,when_schema_ref,when_json,effect_class,fence_schema_ref,
        fence_basis_json,resource_demand_schema_ref,resource_demand_json)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('runtime-plan','runtime-node',capabilityRef,1,
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('runtime-plan'+suffix,'runtime-node'+suffix,capabilityRef,1,
         'helix://test/inputs','{}','helix://test/parameters','{"artifactKind":"poster"}',null,null,'workspace_write',
         'helix://test/fence','{}','helix://test/resources','{}');
     database.prepare(`INSERT INTO fx_workflow_events
       (event_id,plan_id,node_id,work_id,attempt_id,owner_domain,capability_ref,contract_version,
        priority_class,state,ready_at_ms,retry_at_ms,result_id,current_progress_revision)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('runtime-event','runtime-plan','runtime-node','runtime-work',
-        'runtime-work-attempt','libra',capabilityRef,1,'normal_foreground','executing',1,null,null,null);
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('runtime-event'+suffix,'runtime-plan'+suffix,'runtime-node'+suffix,'runtime-work'+suffix,
+        'runtime-work-attempt'+suffix,'libra',capabilityRef,1,'normal_foreground','executing',1,null,null,null);
     database.prepare(`INSERT INTO fx_event_attempts
       (event_attempt_id,event_id,ordinal,executor_ref,executor_version,input_snapshot_schema_ref,
        input_snapshot_digest,fence_snapshot_digest,state,outcome_kind,retry_after_ms,failure_class,failure_code,
        evidence_digest,started_at_ms,finished_at_ms)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(eventAttemptId,'runtime-event',1,
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(eventAttemptId,'runtime-event'+suffix,1,
         capabilityRef,1,'helix://test/inputs','b'.repeat(64),'c'.repeat(64),
         'executing',null,null,null,null,null,1,null);
     database.prepare(`INSERT INTO fx_effect_journal
@@ -145,6 +145,46 @@ function mediaRequest(authority, produce) {
     runtimeEffectAuthority:authority, produce,
   };
 }
+
+test('Series multi-member import retries one failed copy without rewriting its completed peer or Landing',()=>
+  fixture(async({databasePath,workspaceRoot,dependencies})=>{
+    const landing=path.join(path.dirname(workspaceRoot),'series-landing');fs.mkdirSync(landing);
+    const members=[{externalMemberId:'shared',relativePath:'shared.mkv',sizeBytes:128,episodeClaims:[{episodeKey:'E1'},{episodeKey:'E2'}]},
+      {externalMemberId:'part',relativePath:'part.mkv',sizeBytes:64,episodeClaims:[{episodeKey:'E1'}]}];
+    const bytes=members.map((member,index)=>Buffer.alloc(member.sizeBytes,index+1));
+    members.forEach((member,index)=>fs.writeFileSync(path.join(landing,member.relativePath),bytes[index]));
+    const originals=members.map(member=>fs.statSync(path.join(landing,member.relativePath),{bigint:true}));
+    const port=createCleanWorkspaceProductPort({...dependencies,rootPath:workspaceRoot,externalLandingResolver:()=>({absolutePath:landing})});
+    const verified={result:'passed',verifiedMemberIds:members.map(item=>item.externalMemberId)};
+    const commands=members.map((member,index)=>{
+      const authority=seedRuntimeWorkspaceEffect(databasePath,'reconcile_required','libra.workspace.material.import@1','-'+index);
+      return {stableEvidence:{stableExternalMaterialHandle:{handleId:'series-external',landingBinding:{},outputSnapshot:{members}}},
+        verifiedExternalPackage:verified,workspaceDeliveryContract:{contractId:'series-import-'+index,digest:canonicalDigest(member),
+          libraRunId:request().libraRunId,workspaceId:request().workspaceId,targetRelativePath:'external/scope/'+member.relativePath,
+          stableExternalMaterialHandleId:'series-external',verifiedPackageDigest:canonicalDigest(verified),externalMemberId:member.externalMemberId},
+        runtimeEffectAuthority:authority,idempotencyKey:authority.idempotencyKey};
+    });
+    const first=await port.importExternalMaterial(commands[0]),firstPath=path.join(workspaceRoot,request().workspaceId,first.relativePath),
+      firstStat=fs.statSync(firstPath,{bigint:true}),copy=fs.promises.copyFile;
+    fs.promises.copyFile=async()=>{throw Object.assign(new Error('Injected second member failure'),{code:'ENOSPC'});};
+    try{await assert.rejects(port.importExternalMaterial(commands[1]),{code:'ENOSPC'});}
+    finally{fs.promises.copyFile=copy;}
+    assert.deepEqual(await port.importExternalMaterial(commands[0]),first);
+    const second=await port.importExternalMaterial(commands[1]);assert.notEqual(second.materialKey,first.materialKey);
+    assert.deepEqual(await port.importExternalMaterial(commands[1]),second);
+    const afterFirst=fs.statSync(firstPath,{bigint:true});assert.equal(afterFirst.ino,firstStat.ino);assert.equal(afterFirst.mtimeNs,firstStat.mtimeNs);
+    for(const [index,handle] of [first,second].entries()){
+      const source=path.join(landing,members[index].relativePath),target=path.join(workspaceRoot,request().workspaceId,handle.relativePath),
+        stat=fs.statSync(source,{bigint:true});
+      assert.deepEqual(fs.readFileSync(source),bytes[index]);assert.deepEqual(fs.readFileSync(target),bytes[index]);
+      assert.equal(stat.ino,originals[index].ino);assert.equal(stat.mtimeNs,originals[index].mtimeNs);assert.equal(stat.ctimeNs,originals[index].ctimeNs);
+      assert.notEqual(fs.statSync(target,{bigint:true}).ino,stat.ino);
+    }
+    const database=new Database(databasePath,{readonly:true});
+    try{assert.equal(database.prepare('SELECT count(*) n FROM fx_workspace_materials').get().n,2);
+      assert.equal(database.prepare('SELECT count(*) n FROM fx_effect_journal').get().n,2);}
+    finally{database.close();}
+  }));
 
 for (const scenario of ['partial-recovery', 'copy-failure', 'source-change']) {
   test(`external native copy preserves import fences and original Effect: ${scenario}`, () =>

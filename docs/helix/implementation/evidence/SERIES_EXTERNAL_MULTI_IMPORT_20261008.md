@@ -1,0 +1,13 @@
+# Series外部多文件Import规划与原生复制验证
+
+日期：2026-10-08；基线 `e2999da43e4f171283653dcb63f16f81a4dfe9cf`。按用户确认的完整替换范围继续既有Libra Workspace生产，不新增Owner、Handoff或副作用类别。
+
+正式External Planner针对Series为每个经Package验证的成员生成独立Import/Probe/Verify/Select节点，Event身份绑定Work Attempt和成员Delivery Contract。规划前用同范围EpisodeDelivery、Identity Requirement、实际稳定Evidence及原Identity Verification重建Package Verification，拒绝跨范围或改写Package。Workspace目标在`external/<scopeDigest>/`下保留唯一成员相对路径，独立范围出现同名文件也不能碰撞。
+
+每个成员的Verify依赖当前范围全部Import和Probe完成；投影按精确Event ID和Result Schema逐项配对，要求Probe绑定对应Workspace Handle，拒绝漏项、重复来源、其他Event、错误Probe、重复材料或路径。完整集合从实际导入Handle大小和冻结外部成员Episode Claims构造Series空间Basis，进入原ProductMediaCandidate/Verification，不以请求Episode键代替实际成员Claims。例：80字节共文件覆盖E1/E2，E1另有30字节part；正式Verification对60字节上限失败，对70字节上限通过。Movie保留原单成品规划。
+
+验证：模型/Work/Planner/既有外部pipeline共23项通过，`series-external-import-contracts.log`。另原生Workspace端口全部30项通过，`series-external-import-native.log`：新增两成员真实临时文件/SQLite测试，在第二次copy注入ENOSPC后重试，仅补完第二成员，第一成员Handle/inode/mtime保持；两个Landing源字节及inode/mtime/ctime保持，目标为独立文件，只有两个Workspace materials和两个原Effect。该测试采用生成字节文件与受控Runtime authority，不是实际影片/Provider端到端验收。Planner测试使用受控Reader和registry；首次扩展实际Verification时fixture缺evidenceId，补齐后通过，未修改验收规则。
+
+完整P2合同基线、包边界450文件/1415依赖和语义2068文件检查通过，diff检查通过。外部日志目录为 `E:/my_project/helix-git-consolidation-20261008/`。本批未重复完整架构/跨平台/完整Host发布资格验证，未部署NAS。
+
+剩余必需工作：Run Coordinator触发/恢复外部Scope、Provider实际Episode覆盖证据、多文件导入结果到完整Run候选集合的消费、已合格范围保留、后续加工/全Run终检、多值Offload映射及Arca最终现场/逐原文件结算。当前Import Planner通过不表示端到端外部Series已可用；UI/Linux/升级回退等Phase Gate继续开放。

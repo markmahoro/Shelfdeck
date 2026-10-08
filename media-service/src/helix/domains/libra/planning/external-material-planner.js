@@ -454,7 +454,20 @@ function createExternalMaterialPlanner(options) {
         expectedWorkspaceRevision: workspace.currentRevision,
         expectedWorkspaceStateDigest: workspace.stateDigest,
         rootSnapshot: options.workspaceProductPort.rootSnapshot(),
+        ...(scope?{targetRelativePaths:Object.fromEntries(verified.verifiedMemberIds.map((id,index)=>{
+          const source=stableEvidence.stableExternalMaterialHandle.outputSnapshot.members.find(item=>item.externalMemberId===id);
+          if(!source)throw new Error('Series import target lacks its verified external member.');
+          return [id,'external/'+scope.scopeDigest+'/'+String(index).padStart(3,'0')+'-'+source.relativePath];
+        }))}:{}),
       });
+      if(scope) {
+        const expected=external.verifyPackage({stableEvidence,identityVerification:result(options,acquireWork,IDENTITY),
+          episodeDeliveryManifest:episodeDelivery(snapshot,scope),identityRequirement:identityRequirement(identity,snapshot),
+          verifiedAtMs:verified.verifiedAtMs});
+        if(canonicalDigest(expected)!==canonicalDigest(verified)||expected.result!=='passed')
+          throw new Error('Series import requires the exact verified replacement Package.');
+        return seriesImportPlan(options,configured,request,importWork,snapshot,scope,contracts,stableEvidence,verified);
+      }
       if (contracts.length !== 1) {
         throw new Error('Movie external import requires exactly one verified media member.');
       }
@@ -533,12 +546,84 @@ function createExternalMaterialPlanner(options) {
   });
 }
 
+function seriesImportPlan(options,configured,request,work,snapshot,scope,contracts,stableEvidence,verified) {
+  const members=contracts.map(contract=>{
+    const source=stableEvidence.stableExternalMaterialHandle.outputSnapshot.members.find(item=>item.externalMemberId===contract.externalMemberId),
+      basis={attempt:request.workAttemptId,contractDigest:contract.digest},
+      importEventId=stable('libra-external-import-event-',basis),probeEventId=stable('libra-external-import-probe-event-',basis);
+    return {contract,source,importEventId,probeEventId,eventExecutionKey:canonicalDigest({schema:'helix.event-execution-key@1',
+      eventId:importEventId,workAttemptId:request.workAttemptId,planId:planId(request)})};
+  });
+  const mediaRequirement=buildMediaRequirement(snapshot.spec),nodes=[],sources=members.flatMap(item=>[
+    {eventId:item.importEventId,resultSchemaRef:options.registry.resolve(IMPORT,'libra').manifest.resultSchemaRef},
+    {eventId:item.probeEventId,resultSchemaRef:options.registry.resolve(PROBE,'libra').manifest.resultSchemaRef}]);
+  for(const item of members) {
+    const basis={attempt:request.workAttemptId,contractDigest:item.contract.digest},
+      verifyEvent=stable('libra-external-import-verify-event-',basis),selectEvent=stable('libra-external-import-select-event-',basis),
+      suffix=item.contract.contractId,candidateNodeId='external_import_output_'+suffix,
+      candidateRef=buildPlannedProductCandidateReference({rank:1,candidateKind:'workspace_output',candidateNodeId,
+        mediaRequirementDigest:mediaRequirement.requirementDigest,outputTargetId:item.contract.contractId,
+        outputTargetDigest:item.contract.digest,productionIntentDigest:item.contract.digest});
+    nodes.push(node({...options,request,nodeId:'external_workspace_import_'+suffix,eventId:item.importEventId,capabilityRef:IMPORT,
+      inputBindings:[literal('stableEvidence',stableEvidence),literal('verifiedExternalPackage',verified),literal('workspaceDeliveryContract',item.contract)],
+      resourceKinds:['disk_io','network']}));
+    nodes.push(node({...options,request,nodeId:'external_import_probe_'+suffix,eventId:item.probeEventId,capabilityRef:PROBE,
+      inputBindings:[eventResult('physicalMaterialReadHandleOrWorkspaceMaterialHandle',item.importEventId,
+        options.registry.resolve(IMPORT,'libra').manifest.resultSchemaRef)],dependsOn:[{eventId:item.importEventId,satisfaction:'success'}],resourceKinds:['cpu','disk_io']}));
+    nodes.push(node({...options,request,nodeId:'external_import_verification_'+suffix,eventId:verifyEvent,capabilityRef:VERIFY,
+      inputBindings:[projectedResults('productMediaCandidateInput',sources,IMPORTED_CANDIDATE,{seriesImportMembers:members,
+        replacementScope:scope,runExecutionBasisDigest:snapshot.run.executionBasisDigest,externalMemberId:item.contract.externalMemberId,
+        candidateNodeId,libraRunId:snapshot.run.libraRunId,mediaRequirement})],
+      dependsOn:sources.map(source=>({eventId:source.eventId,satisfaction:'success'})),resourceKinds:['cpu','disk_io']}));
+    nodes.push(node({...options,request,nodeId:'external_import_selection_'+suffix,eventId:selectEvent,capabilityRef:OUTPUT,
+      inputBindings:[projected('productOutputSelectionInput',verifyEvent,options.registry.resolve(VERIFY,'libra').manifest.resultSchemaRef,
+        EXTERNAL_SELECTION,{candidateNodeId,libraRunId:snapshot.run.libraRunId,acceptanceSpecId:snapshot.spec.acceptanceSpecId,
+          acceptanceSpecRecordDigest:snapshot.spec.recordDigest,mediaRequirementDigest:mediaRequirement.requirementDigest,rankedCandidates:[candidateRef]})],
+      dependsOn:[{eventId:verifyEvent,satisfaction:'success'}],resourceKinds:['cpu']}));
+  }
+  return envelope(configured,request,work,nodes);
+}
+
+function seriesImportedCandidate(sourceResults,parameters) {
+  const descriptors=parameters.seriesImportMembers;
+  if(!Array.isArray(descriptors)||!descriptors.length||sourceResults.length!==descriptors.length*2||
+      new Set(sourceResults.map(item=>item.eventId)).size!==sourceResults.length)
+    throw new Error('Series import projection requires the complete unique predecessor set.');
+  const exact=(eventId,schema)=>{
+    const rows=sourceResults.filter(item=>item.eventId===eventId&&item.resultSchemaRef===schema);
+    if(rows.length!==1)throw new Error('Series import projection has a missing or wrong predecessor.');
+    return rows[0].result;
+  };
+  const members=descriptors.map(item=>{
+    const imported=exact(item.importEventId,'helix://contracts/capabilities/libra.workspace.material.import/v1/result'),
+      probe=exact(item.probeEventId,'helix://contracts/capabilities/shared.material.media.probe/v1/result'),
+      media=external.buildImportedWorkspaceMediaHandle({workspaceDeliveryContract:item.contract,workspaceMaterialHandle:imported,
+        producingEventId:item.importEventId,idempotencyKey:item.eventExecutionKey});
+    if(probe.sourceHandleDigest!==canonicalDigest(imported))throw new Error('Series import Probe does not bind its exact Workspace Handle.');
+    return {descriptor:item,imported,probe,media};
+  });
+  if(new Set(members.map(item=>item.imported.materialKey)).size!==members.length||
+      new Set(members.map(item=>item.imported.relativePath)).size!==members.length)
+    throw new Error('Series imports reuse a physical member or Workspace path.');
+  const selected=members.filter(item=>item.descriptor.contract.externalMemberId===parameters.externalMemberId);
+  if(selected.length!==1)throw new Error('Series import target is absent or duplicated.');
+  const basis=require('../model/series-media-space').buildSeriesMediaSpaceBasis({libraRunId:parameters.libraRunId,
+    runExecutionBasisDigest:parameters.runExecutionBasisDigest,episodeKeys:parameters.replacementScope.episodeKeys,
+    members:members.map(item=>({materialKey:item.imported.materialKey,memberDigest:canonicalDigest(item.descriptor.source),
+      handleDigest:canonicalDigest(item.imported),probeDigest:canonicalDigest(item.probe),sizeBytes:item.imported.sizeBytes,
+      episodeKeys:item.descriptor.source.episodeClaims.map(claim=>claim.episodeKey)}))});
+  return buildProductMediaCandidateInput({libraRunId:parameters.libraRunId,candidateNodeId:parameters.candidateNodeId,
+    candidateKind:'workspace_output',mediaRequirement:parameters.mediaRequirement,workspaceMediaHandle:selected[0].media,
+    sourceProbeEvidence:selected[0].probe,outputProbeEvidence:selected[0].probe,seriesSpaceBasis:basis});
+}
+
 function createExternalMaterialProjections() {
   return Object.freeze([
     Object.freeze({
       projectionRef: IMPORTED_CANDIDATE,
       projection: Object.freeze({
         project({ sourceResults, parameters }) {
+          if(parameters.seriesImportMembers)return seriesImportedCandidate(sourceResults,parameters);
           const imported = sourceResults.find((item) =>
             item.resultSchemaRef ===
               'helix://contracts/capabilities/libra.workspace.material.import/v1/result')?.result;

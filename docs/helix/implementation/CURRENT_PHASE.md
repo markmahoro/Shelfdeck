@@ -279,3 +279,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08外部范围Work接线：沿已确认Scope合同，在既有external search/acquire/import Supporting Work身份、execution basis、并发范围和依赖中绑定Scope digest；Planner从完整Run重新计算唯一匹配Scope，query ProductStructure与package EpisodeDelivery按同范围投影。验证跨范围/Run/Spec漂移拒绝、缺Claims拒绝及Movie身份保持。只推进规划和输入隔离，多文件Import/终检/交接/结算仍需后续闭环，不新增生产动作。
 
 2026-10-08外部Scope Work接线：Series三个阶段Work及依赖/并发/幂等身份绑定完整Scope，正式Planner按范围构造查询和Package EpisodeDelivery并拒绝跨范围Query，Movie身份保持。34项专项、36秒正式Series上架Host及完整P2基线通过；SSOT源行号/摘要410个生成文件已同步，无字段语义变化。多文件Import、Coordinator/Provider和多值交接/Arca结算仍待闭环，未部署NAS。[Evidence](evidence/SERIES_EXTERNAL_WORK_SCOPE_20261008.md)。
+
+2026-10-08外部Series多成员Import DoR：沿已冻结Scope，在正式Planner逐个构造Workspace import/probe节点；每个成员验证依赖完整范围的全部import/probe结果，以实际Handle大小及冻结外部Claims建立完整Episode份额，禁止只验单文件。重新验证获取Package与Scope的EpisodeDelivery一致、Event来源精确、材料/路径唯一；Movie单成品路径保持。之后继续Coordinator、全Run混合终检及多值交接/Arca结算，未完成前不声明端到端可用。
+
+2026-10-08 Series外部多成员Import：正式Planner逐成员导入/Probe，每个Verify依赖完整范围结果，以实际Handle及冻结Claims进行均分+part验收；不同Scope目标路径隔离，跨范围Package和错Event/Probe拒绝。23项合同/Planner及30项原生端口测试、完整P2/架构/语义通过；原生第二成员ENOSPC重试保留第一成员和全部Landing。Coordinator/Provider/完整候选终检及多值交接/Arca结算继续，未声明端到端可用或部署NAS。[Evidence](evidence/SERIES_EXTERNAL_MULTI_IMPORT_20261008.md)。
