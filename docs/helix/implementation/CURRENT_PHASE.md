@@ -217,3 +217,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series媒体维修计量DoR：沿SSOT §5.5.8与现有保守物理预算公式，将纯N:M字节预算算法从Libra模型提取到共享合同工具，Owner仍各自提供完整源集合。Arca以自身当前Inventory完整Physical Identity/Claims、Binding、Care Basis和revision建立维修空间快照，给出逐成员预算并继续实测逐集验收；拒绝错误摘要和不完整Claims，不跨读Libra。先接现有媒体评估并验证边界，自动维修门禁在逐成员策略/完整输出验证与Commit闭环完成前保留。
 
 2026-10-08媒体维修空间基础结果：[Evidence](evidence/SERIES_CARE_MEDIA_SPACE_20261008.md)。Arca当前Inventory快照与共享纯算术已接通，23项专项及共文件两集真实SQLite/Host通过；预算仍与实际逐集验收分离。下一段贯通逐成员冻结策略/目标、Planner/Effect和完整混合输出验证，再连接原子Commit与恢复；本批不开放自动媒体维修，不关闭运营或发布Gate。
+
+2026-10-08逐成员媒体策略DoR：沿SSOT §8.6.11既有Arca Strategy/结构preflight合同，消除策略构造中隐式读取第一Primary的行为。Series必须显式选择当前Inventory成员，以完整空间快照派生该物理文件预算并核对该成员Probe Evidence；Intent/preflight摘要绑定完整空间Basis、目标Handle及预算，设备选择和质量下限保持原规则。先完成单成员策略引擎及错成员/错Evidence/不可行预算验证，再将多个策略纳入正式Assessment及Planner/Effect；完整链路前保持自动维修门禁，不跨读Libra或执行预试编码。
+
+2026-10-08逐成员策略引擎结果：[Evidence](evidence/SERIES_CARE_MEMBER_STRATEGY_20261008.md)。显式Primary选择/Probe Evidence校验、完整空间Basis摘要和独立物理预算已接通，质量下限按原单集Policy决定；26项专项及全架构2,289通过/9既有skip/0失败。下一段将多个策略冻结进正式Assessment并贯穿逐目标Planner/Effect、完整混合输出终检与原子提交/恢复；尚未启用Series自动媒体维修或完成可部署Gate。

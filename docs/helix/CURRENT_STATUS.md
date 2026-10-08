@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 逐成员媒体策略：[Evidence](implementation/evidence/SERIES_CARE_MEMBER_STRATEGY_20261008.md)。Series策略引擎显式选择当前Inventory成员并校验对应Probe Evidence，Intent/preflight绑定完整空间Basis和文件预算；质量下限保持原单集档位，零预算不退成无上限模式。26项专项及全架构2,289通过/9既有skip/0失败。多策略正式Assessment、Planner/Effect和完整维修闭环仍待完成，未启用自动媒体维修或部署NAS。
+
 2026-10-08 媒体维修空间基础：[Evidence](implementation/evidence/SERIES_CARE_MEDIA_SPACE_20261008.md)。Arca以自身完整Inventory的Physical Identity/正式Claims/Binding、revision与Care Basis建立逐成员保守预算；Libra仅复用纯字节算术，Owner边界保持。23项专项及共文件两集正式Host通过；最终全架构2,284通过/9既有skip/0失败。逐成员媒体Strategy/Effect/完整成品验收与Commit仍待完成，Series自动媒体维修尚未开放，未部署NAS。
 
 2026-10-08 实际Placement：[Evidence](implementation/evidence/SERIES_PLACEMENT_CASE_20261008.md)。正式Host整季换目录和同目录Primary改名均完成迁移、Inventory/Control事务、旧位置结算及健康终结；修复旧评估Basis失效分类，以及未变化NFO/poster被错误结算的缺陷，并在删除入口保护当前Inventory位置。最终全架构2,281通过/9既有skip/0失败。进程崩溃/跨设备恢复、其余运营/UI/Linux及Series发布资格继续，未部署NAS。

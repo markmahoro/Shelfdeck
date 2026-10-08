@@ -421,15 +421,31 @@ function buildProductionVideoProfile(video){
     outputPixelFormat:video.outputPixelFormat,outputColorProfile:video.outputColorProfile});
   return Object.freeze({...profile,profileDigest:canonicalDigest(profile)});
 }
-function aftercareBitrate(requirements,probe,sourceSizeBytes){const maximum=requirements?.space?.maxSizeBytes;if(!Number.isSafeInteger(maximum)||maximum<=0)return null;
-  return deriveAftercareSizeBudget({maxSizeBytes:maximum,sourceSizeBytes:Number(sourceSizeBytes),durationMs:Number(probe.durationMs),
+function aftercareBitrate(requirements,probe,sourceSizeBytes,qualityPolicyMaxSizeBytes){const maximum=requirements?.space?.maxSizeBytes;if(!Number.isSafeInteger(maximum)||maximum<=0)return null;
+  return deriveAftercareSizeBudget({maxSizeBytes:maximum,qualityPolicyMaxSizeBytes,sourceSizeBytes:Number(sourceSizeBytes),durationMs:Number(probe.durationMs),
     videoStreams:probe.videoStreams,audioStreams:probe.audioStreams,subtitleStreams:probe.subtitleStreams}).targetVideoBitrateBps;
 }
-function strategyIntent(context,probe,device,mode,ordinal,profile){const requirements=effectiveRequirements(context),primary=context.raw.materials.find(isPrimaryMaterial),target=aftercareBitrate(requirements,probe,primary?.size_bytes),
+function mediaRepairSource(context,materialKey) {
+  const series=context.raw.entry.structure_kind==='season',primaries=context.raw.materials.filter(isPrimaryMaterial),
+    requirements=effectiveRequirements(context);
+  if(series&&(typeof materialKey!=='string'||!materialKey))throw new TypeError('Series media strategy requires an explicit Inventory member.');
+  const selected=materialKey===undefined?primaries.slice(0,1):primaries.filter(item=>item.material_key===materialKey);
+  if(selected.length!==1)throw new TypeError('Media strategy source must identify one current Inventory Primary.');
+  const primary=selected[0],readHandle=primaryReadHandle(context,primary);
+  if(!series)return Object.freeze({primary,readHandle,requirements,scopeDigest:null});
+  const space=evaluateSeriesCareMediaSpace(context,requirements?.space?.maxSizeBytes??null),
+    budget=space.memberBudgets.find(item=>item.materialKey===materialKey).maxOutputBytes,
+    scopeDigest=canonicalDigest({schema:'arca.series-care-media-source@1',spaceBasisDigest:space.basisDigest,
+      sourceHandleDigest:canonicalDigest(readHandle),materialKey,maxOutputBytes:budget});
+  return Object.freeze({primary,readHandle,scopeDigest,qualityPolicyMaxSizeBytes:requirements?.space?.maxSizeBytes??null,
+    requirements:Object.freeze({...requirements,space:Object.freeze({...requirements?.space,maxSizeBytes:budget})})});
+}
+function strategyIntent(context,probe,device,mode,ordinal,profile,source){const target=aftercareBitrate(source.requirements,probe,source.primary.size_bytes,source.qualityPolicyMaxSizeBytes),
   video=Object.freeze({codec:'hevc',rateControlMode:mode,targetVideoBitrateBps:mode==='quality_bound'?null:target,
     qualityBound:mode==='quality_bound'?23:null,...profile}),base={schemaRef:'AftercareMediaRepairIntent@1',schemaVersion:1,
-    intentId:stable('arca-care-media-intent-',{entry:context.shelfEntryId,basis:context.basis.digest,device:device.deviceId,mode,ordinal}),
-    revision:1,careBasisDigest:context.basis.digest,sourceHandleDigest:canonicalDigest(primaryReadHandle(context,context.raw.materials.find(isPrimaryMaterial))),
+    intentId:stable('arca-care-media-intent-',{entry:context.shelfEntryId,basis:context.basis.digest,device:device.deviceId,mode,ordinal,
+      ...(source.scopeDigest?{sourceScopeDigest:source.scopeDigest}:{})}),
+    revision:1,careBasisDigest:context.basis.digest,sourceHandleDigest:canonicalDigest(source.readHandle),
     strategyOrdinal:ordinal,deviceClass:device.deviceClass,video,audio:Object.freeze({mode:'copy'}),subtitle:Object.freeze({mode:'copy'}),
     outputContainer:'matroska',outputExtension:'mkv'};return Object.freeze({...base,intentDigest:canonicalDigest(base)});}
 function structuralStrategyRejection(probe,device,intent){const pipeline=(device.capabilityPayload?.validatedVideoPipelines||[]).find((item)=>
@@ -441,18 +457,24 @@ function structuralStrategyRejection(probe,device,intent){const pipeline=(device
   if(pipeline&&stream&&!pipeline.inputPixelFormats.includes(stream.pixelFormat))reasons.push('source_pixel_format_unsupported');
   return Object.freeze(reasons);
 }
-async function assessMediaRepairStrategy(options,context,probe,sourceProbeEvidence){const profile=repairVideoProfile(probe);if(!profile)return null;
-  const requirements=effectiveRequirements(context),hasLimit=Number.isSafeInteger(requirements?.space?.maxSizeBytes),devices=readyDeviceSnapshots(options.platformComputeRuntime),
+async function assessMediaRepairStrategy(options,context,probe,sourceProbeEvidence,materialKey){
+  const source=mediaRepairSource(context,materialKey);
+  if(source.scopeDigest&&(!sourceProbeEvidence||sourceProbeEvidence.resultKind!=='probed'||
+      canonicalDigest(aftercareMediaProbeEvidence(probe,source.readHandle,source.primary.size_bytes,sourceProbeEvidence.observedAtMs))!==canonicalDigest(sourceProbeEvidence)))
+    throw new TypeError('Series media strategy Probe Evidence must bind the selected Inventory member and actual Probe.');
+  const profile=repairVideoProfile(probe);if(!profile)return null;
+  const requirements=source.requirements,hasLimit=Number.isSafeInteger(requirements?.space?.maxSizeBytes),devices=readyDeviceSnapshots(options.platformComputeRuntime),
     ordinary=devices.filter((item)=>item.deviceClass!=='software_cpu'),cpu=devices.filter((item)=>item.deviceClass==='software_cpu'),rejected=[];
   let ordinal=0;for(const device of [...ordinary,...cpu]){if(device.deviceClass==='remote_worker')continue;const modes=device.deviceClass==='software_cpu'
       ?(hasLimit?['two_pass_abr','strict_abr']:['quality_bound']):(hasLimit?['target_size','strict_abr']:['quality_bound']);
-    for(const mode of modes){ordinal+=1;const intent=strategyIntent(context,probe,device,mode,ordinal,profile);
+    for(const mode of modes){ordinal+=1;const intent=strategyIntent(context,probe,device,mode,ordinal,profile,source);
       if(mode!=='quality_bound'&&!intent.video.targetVideoBitrateBps){rejected.push(Object.freeze({deviceId:device.deviceId,deviceClass:device.deviceClass,
         deviceSnapshotDigest:device.snapshotDigest,disposition:'strategy_rejected',rejectionScope:'rate_control_strategy',
         reasonCodes:Object.freeze(['media_size_budget_infeasible']),preflightDigest:canonicalDigest({intent:intent.intentDigest,reason:'media_size_budget_infeasible'})}));continue;}
       const reasons=structuralStrategyRejection(probe,device,intent),preflightDigest=canonicalDigest({
         schema:'arca.aftercare-structural-preflight@1',careBasisDigest:context.basis.digest,
-        sourceProbeEvidenceDigest:canonicalDigest(sourceProbeEvidence),deviceSnapshotDigest:device.snapshotDigest,intentDigest:intent.intentDigest,reasons});
+        sourceProbeEvidenceDigest:canonicalDigest(sourceProbeEvidence),deviceSnapshotDigest:device.snapshotDigest,intentDigest:intent.intentDigest,reasons,
+        ...(source.scopeDigest?{sourceScopeDigest:source.scopeDigest}:{})});
       if(reasons.length){rejected.push(Object.freeze({deviceId:device.deviceId,
         deviceClass:device.deviceClass,deviceSnapshotDigest:device.snapshotDigest,disposition:'strategy_rejected',
         rejectionScope:reasons.includes('rate_control_unsupported')?'rate_control_strategy':'device_pipeline',reasonCodes:Object.freeze(reasons),
@@ -933,4 +955,4 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   return Object.freeze(ports);
 }
 
-module.exports=Object.freeze({nfoInventoryFindings,assessInventoryMediaConformance,probeConformance,assessMediaRepairStrategy,AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareInventoryNoChangeOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,verifyInventoryPlayback,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});
+module.exports=Object.freeze({mediaRepairSource,nfoInventoryFindings,assessInventoryMediaConformance,probeConformance,assessMediaRepairStrategy,AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareInventoryNoChangeOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,verifyInventoryPlayback,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});

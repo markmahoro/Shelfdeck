@@ -84,8 +84,10 @@ function sizeBudgetFor(fillBytes, durationSeconds, nonVideoBitrateBps) {
 
 function deriveAftercareSizeBudget(value) {
   const maxSizeBytes = Number(value?.maxSizeBytes);
+  const qualityPolicyMaxSizeBytes = Number(value?.qualityPolicyMaxSizeBytes ?? maxSizeBytes);
   const durationMs = Number(value?.durationMs);
   if (!Number.isSafeInteger(maxSizeBytes) || maxSizeBytes < 1 ||
+      !Number.isSafeInteger(qualityPolicyMaxSizeBytes) || qualityPolicyMaxSizeBytes < 1 ||
       !Number.isFinite(durationMs) || durationMs <= 0) {
     throw new TypeError('Aftercare size budget requires a positive max size and duration.');
   }
@@ -109,7 +111,7 @@ function deriveAftercareSizeBudget(value) {
   );
   const capFeasible = cap.videoBitrateBps >= MIN_VIDEO_BITRATE_BPS;
   const sourceBoundFeasible = target.videoBitrateBps >= MIN_VIDEO_BITRATE_BPS;
-  const policyIndex=AFTERCARE_QUALITY_POLICY.sizeGiB.findIndex(size=>Math.abs(size-maxSizeBytes/1024**3)<1e-9);
+  const policyIndex=AFTERCARE_QUALITY_POLICY.sizeGiB.findIndex(size=>Math.abs(size-qualityPolicyMaxSizeBytes/1024**3)<1e-9);
   const primary=primaryVideoStreams(value);
   const is4k=primary.length>0&&primary.every(stream=>Number(stream.longEdge)>=3800&&Number(stream.shortEdge)>=1600);
   const policyVideoBitrateFloorBps=(is4k?AFTERCARE_QUALITY_POLICY.fourK:AFTERCARE_QUALITY_POLICY.below4k)[policyIndex<0?2:policyIndex];

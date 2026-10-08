@@ -135,6 +135,9 @@ test('Movie retains its physical size check and single-source assessment behavio
 });
 
 const {evaluateSeriesCareMediaSpace}=require('../../src/helix/domains/arca/model/series-care-media-space');
+const {mediaRepairSource,assessMediaRepairStrategy,aftercareMediaProbeEvidence}=
+  require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
+const {deriveAftercareSizeBudget}=require('../../src/helix/domains/arca/model/aftercare-media-policy');
 test('Arca derives conservative physical budgets from its own complete Inventory and keeps byte acceptance separate',async t=>{
   const f=await fixture(t,[[12,['E01','E02']],[4,['E01']]]),value=evaluateSeriesCareMediaSpace(f.context,9),
     budget=key=>value.memberBudgets.find(item=>item.materialKey===key).maxOutputBytes;
@@ -157,5 +160,91 @@ test('Arca media space refuses corrupted formal identity or Claims before planni
   for(const mutate of [c=>{c.raw.materials[0].size_bytes++;},c=>{c.raw.materials[0].episode_claim_set_digest=canonicalDigest('wrong');},
     c=>{c.raw.materials[0].episode_claims_json=' '+c.raw.materials[0].episode_claims_json;},c=>{c.raw.entry.current_inventory_revision=0;}]) {
     const c=structuredClone(f.context);mutate(c);assert.throws(()=>evaluateSeriesCareMediaSpace(c,9));
+  }
+});
+
+function strategyFixture(f) {
+  const device={deviceId:'gpu',deviceClass:'intel_qsv',snapshotDigest:canonicalDigest('gpu'),
+    capabilityPayload:{supportedVideoCodecs:['hevc'],supportedRateControlModes:['target_size','quality_bound'],
+      validatedVideoPipelines:[{pipelineProfileId:'ordinary_to_hevc@1',inputDynamicRangeKinds:['sdr'],inputPixelFormats:['yuv420p']}]}};
+  const probe={resultKind:'probed',container:'matroska',durationMs:6000,
+    videoStreams:[{streamIndex:0,codec:'h264',width:1920,height:1080,dispositionDefault:true,dynamicRangeKind:'sdr',pixelFormat:'yuv420p'}],
+    audioStreams:[],subtitleStreams:[]};
+  let reads=0;
+  const options={mediaEffectPort:{verifyTranscodeInput(){throw new Error('Strategy assessment cannot execute an encoder.');}},
+    platformComputeRuntime:{listReadyDeviceRefs(){reads++;return {resultKind:'available',items:[{deviceId:'gpu',probeRevision:1,capabilityDigest:device.snapshotDigest}]};},
+      readDeviceSnapshot:()=>({resultKind:'found',snapshot:device})}};
+  const evidence=(key,context=f.context,raw=probe)=>{const source=mediaRepairSource(context,key);
+    return aftercareMediaProbeEvidence(raw,source.readHandle,source.primary.size_bytes,1000);};
+  return {probe,options,evidence,reads:()=>reads,
+    run:(key,context=f.context)=>assessMediaRepairStrategy(options,context,probe,evidence(key,context),key)};
+}
+
+test('Series strategy binds each explicit member and uses its physical budget without rewriting Episode requirements',async t=>{
+  const MiB=1024**2,f=await fixture(t,[[12,['E01','E02']],[4,['E01']]],90*MiB);
+  // Structural planning consumes formal snapshots, not file bytes or encoders.
+  for(const member of f.materials)setStrategySourceSize(member,member.size_bytes*10*MiB);
+  const s=strategyFixture(f),before=canonicalJson(f.context);
+  const strategies=[];
+  for(const member of f.materials) {
+    const source=mediaRepairSource(f.context,member.material_key),strategy=await s.run(member.material_key),
+      expected=deriveAftercareSizeBudget({maxSizeBytes:source.requirements.space.maxSizeBytes,qualityPolicyMaxSizeBytes:90*MiB,sourceSizeBytes:member.size_bytes,
+        durationMs:s.probe.durationMs,videoStreams:s.probe.videoStreams,audioStreams:[],subtitleStreams:[]});
+    assert.equal(strategy.sourceHandleDigest,canonicalDigest(source.readHandle));
+    assert.equal(strategy.sourceProbeEvidenceDigest,canonicalDigest(s.evidence(member.material_key)));
+    assert.equal(strategy.video.targetVideoBitrateBps,expected.targetVideoBitrateBps);
+    assert.equal(strategy.video.rateControlMode,'target_size');strategies.push(strategy);
+  }
+  assert.notEqual(strategies[0].strategyDigest,strategies[1].strategyDigest);
+  assert.equal(canonicalJson(f.context),before);
+  f.materials.reverse();assert.deepEqual(await s.run(f.materials[0].material_key),strategies[1]);
+});
+
+function setStrategySourceSize(member,sizeBytes) {
+  member.size_bytes=sizeBytes;
+  member.material_key=canonicalDigest({schema:'physical-material-identity@2',mountScopeId:member.mount_scope_id,inode:member.inode,
+    sizeBytes,fingerprintAlgorithm:member.fingerprint_algorithm,fingerprintVersion:member.fingerprint_version,contentFingerprint:member.content_fingerprint});
+}
+
+test('Series shared-file budgets retain the original per-Episode quality policy floor',async t=>{
+  const GiB=1024**3,f=await fixture(t,[[8,['E01','E02']]],2*GiB),member=f.materials[0];
+  setStrategySourceSize(member,8*GiB);
+  const s=strategyFixture(f);s.probe.durationMs=30_000_000;s.probe.videoStreams[0].bitRateBps=8_000_000;
+  const source=mediaRepairSource(f.context,member.material_key),strategy=await s.run(member.material_key);
+  assert.equal(source.requirements.space.maxSizeBytes,4*GiB);
+  assert.equal(source.qualityPolicyMaxSizeBytes,2*GiB);
+  assert.equal(strategy.video.targetVideoBitrateBps,1_500_000);
+  assert.equal(f.context.raw.standard.value.profileRuleSets[0].baseRequirements.space.maxSizeBytes,2*GiB);
+});
+
+test('Series strategy rejects implicit, foreign and non-primary sources and mismatched Probe Evidence before reading devices',async t=>{
+  const f=await fixture(t,[[8,['E01']],[8,['E02']]]),s=strategyFixture(f),key=f.materials[1].material_key;
+  for(const selected of [undefined,'missing'])await assert.rejects(
+    assessMediaRepairStrategy(s.options,f.context,s.probe,s.evidence(key),selected),TypeError);
+  f.materials.push({...f.materials[0],material_key:'poster',role:'poster'});
+  await assert.rejects(assessMediaRepairStrategy(s.options,f.context,s.probe,s.evidence(key),'poster'),TypeError);
+  await assert.rejects(assessMediaRepairStrategy(s.options,f.context,s.probe,s.evidence(f.materials[0].material_key),key),TypeError);
+  const changed={...s.evidence(key),durationMs:999};
+  await assert.rejects(assessMediaRepairStrategy(s.options,f.context,s.probe,changed,key),TypeError);
+  await assert.rejects(assessMediaRepairStrategy(s.options,f.context,{...s.probe,durationMs:9000},s.evidence(key),key),TypeError);
+  assert.equal(s.reads(),0);
+});
+
+test('Series strategy digest binds other members even when the selected physical budget is unchanged',async t=>{
+  const f=await fixture(t,[[8*1024**2,['E01']],[8*1024**2,['E02']]],null),s=strategyFixture(f),key=f.materials[1].material_key,
+    baseline=await s.run(key),changed=structuredClone(f.context);
+  changed.raw.materials[0].binding_revision++;
+  const next=await s.run(key,changed);
+  assert.deepEqual(next.video,baseline.video);
+  assert.equal(next.sourceHandleDigest,baseline.sourceHandleDigest);
+  assert.notEqual(next.selectedPreflightDigest,baseline.selectedPreflightDigest);
+  assert.notEqual(next.strategyDigest,baseline.strategyDigest);
+});
+
+test('Series zero-byte or rounded-zero physical budgets never become unbounded strategies',async t=>{
+  for(const specs of [[[0,['E01']]],[[1,['E01']],[100,['E01']]]]) {
+    const f=await fixture(t,specs,1),s=strategyFixture(f),key=f.materials[0].material_key;
+    assert.equal(mediaRepairSource(f.context,key).requirements.space.maxSizeBytes,0);
+    assert.equal(await s.run(key),null);
   }
 });
