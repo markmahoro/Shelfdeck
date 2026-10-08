@@ -243,3 +243,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08完整成品集合门禁：Commit Planner和媒体Projection要求全部冻结目标的唯一同Work/Attempt/Plan成品与验证，维修输出和未替换文件共同按N:M规则逐集计量；集合摘要进入VerifiedCareInventoryChange。45项专项及全架构2,300通过/9既有skip/0失败。正式提交前现场复核、事务/Claims/Settlement/崩溃恢复与真实媒体Host继续，自动维修及发布Gate未开放。[Evidence](evidence/SERIES_CASE_MEMBER_STRATEGY_20261008.md)。
 
 2026-10-08提交前现场复核：Series Inventory入口检查完整维修回执、最终落位文件、暂存原文件及未替换Primary，再按原Claims重建逐集空间；文件漂移在Control查询/事务写入前拒绝。57项专项及全架构2,300通过/9既有skip/0失败。真实原子事务、Claims持久化、Settlement/崩溃恢复及媒体Host继续，自动维修与发布Gate保留。[Evidence](evidence/SERIES_CASE_MEMBER_STRATEGY_20261008.md)。
+
+2026-10-08媒体维修真实Host DoR：沿冻结完整成员Evidence仅把容器/扩展名及具备有效成员Strategy的编码/空间缺陷纳入现有自动维修准入，其余缺陷保持需处理。以隔离正式Host、真实短SDR文件验证一集保持、一集Remux、一集Transcode、原子Inventory-Control回滚/提交与Settlement。用户入口沿既有维护检查、短状态/真实进度和健康结果，不新增解释文案；状态可见变化的精确版本UI负责人走查仍为发布Gate。本批不部署NAS。
+
+2026-10-08真实Series媒体维修：正式隔离Host经规则/Shelf标准API触发一集保持、一集Remux、一集NVIDIA NVENC Transcode，Case健康终结；实际Inventory-Control事务末尾故障注入全回滚后正常提交，Claims保持、旧Control释放及Settlement通过，增强复验约100秒。安全成员策略对应缺陷已开放自动维修，缺策略仍需处理；全架构2,300通过/9既有skip/0失败。N:M/长片/进程恢复/UI/Linux与整体发布Gate继续，无NAS部署。[Evidence](evidence/SERIES_MEDIA_AFTERCARE_HOST_20261008.md)。

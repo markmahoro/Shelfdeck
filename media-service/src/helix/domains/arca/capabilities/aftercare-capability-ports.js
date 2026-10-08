@@ -584,7 +584,7 @@ async function assessSeriesMediaMember(options,context,materialKey,at,cycleId,cu
 }
 
 function aggregateSeriesMediaConformance(options,context,execution) {
-  const {findings,memberAssessmentSet}=readSeriesMemberAssessmentSet(context,execution,options.workResultReader.read(execution.workId));
+  const {findings,members,memberAssessmentSet}=readSeriesMemberAssessmentSet(context,execution,options.workResultReader.read(execution.workId));
   for(const material of context.raw.materials.filter(item=>item.role==='primary_payload')) {
     if(!exactInventoryMaterial(material.location,material,material.mount_scope_id,options.computeBoundedMaterialFingerprintSync))
       throw Object.assign(new Error('Inventory changed before member Assessment aggregation.'),{code:'ARCA_AFTERCARE_INPUT_STALE'});
@@ -596,8 +596,19 @@ function aggregateSeriesMediaConformance(options,context,execution) {
     if(!groups.has(code))groups.set(code,[]);
     groups.get(code).push(item.snapshotDigest);
   }
+  const repairability=code=>{
+    if(['container_unmet','file_extension_unmet'].includes(code))return 'auto_repair';
+    if(!['video_codec_unmet','max_size_exceeded'].includes(code))return 'attention_required';
+    const affected=members.filter(row=>row.result.findingDrafts.some(item=>decodeFinding(item)?.findingKind==='conformance:'+code));
+    return affected.length&&affected.every(row=>{
+      const strategy=row.result.mediaRepairStrategy;
+      return strategy&&strategy.careBasisDigest===context.basis.digest&&strategy.sourceHandleDigest===row.result.memberScope.sourceHandleDigest&&
+        strategy.digest===strategy.strategyDigest&&strategy.strategyDigest===canonicalDigest(Object.fromEntries(
+          Object.entries(strategy).filter(([key])=>!['strategyDigest','digest'].includes(key))));
+    })?'auto_repair':'attention_required';
+  };
   return {findings:[...groups].sort(([a],[b])=>a.localeCompare(b)).map(([code,digests])=>
-    finding('conformance',code,'critical','attention_required',canonicalDigest(digests.sort()))),mediaRepairStrategy:null,
+    finding('conformance',code,'critical',repairability(code),canonicalDigest(digests.sort()))),mediaRepairStrategy:null,
     memberAssessmentSet};
 }
 

@@ -347,7 +347,14 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
     const eventId=seriesMemberAssessmentEventId('attempt',member.material_key);
     append(eventId,(await ports[C.conformance].execute({...execution,eventId,parameters:{materialKey:member.material_key}})).result);
   }
-  const aggregate=(await ports[C.conformance].execute(execution)).result;append('aggregate',aggregate);
+  const aggregate=(await ports[C.conformance].execute(execution)).result;
+  assert.ok(aggregate.findingDrafts.every(item=>item.schemaRef.includes('/auto_repair/')));
+  const saved=rows[1],withoutStrategy=structuredClone(saved);withoutStrategy.result.mediaRepairStrategy=null;
+  withoutStrategy.result.payloadDigest=canonicalDigest(Object.fromEntries(Object.entries(withoutStrategy.result).filter(([key])=>key!=='payloadDigest')));
+  withoutStrategy.resultDigest=canonicalDigest(withoutStrategy.result);rows[1]=withoutStrategy;
+  const unsupported=(await ports[C.conformance].execute(execution)).result;
+  assert.ok(unsupported.findingDrafts.some(item=>item.schemaRef.includes('/video_codec_unmet/')&&item.schemaRef.includes('/attention_required/')));
+  rows[1]=saved;append('aggregate',aggregate);
   const findings=aggregate.findingDrafts.map(draft=>({findingId:draft.objectId,findingDigest:draft.snapshotDigest,
     assessmentId:aggregate.evidenceId,findingKind:'conformance:'+draft.schemaRef.split('/')[5]})),
     effects=findings.map(item=>({objectId:item.findingId,digest:item.findingDigest,revision:1,
