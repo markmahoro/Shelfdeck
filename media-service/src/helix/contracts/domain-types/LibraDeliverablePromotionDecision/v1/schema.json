@@ -851,6 +851,17 @@
                 "type": "string",
                 "minLength": 1,
                 "pattern": "^[a-f0-9]{64}$"
+              },
+              "finalProductMaterialKeys": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "maxItems": 1024,
+                "minItems": 2,
+                "uniqueItems": true
               }
             },
             "required": [
@@ -858,7 +869,6 @@
               "materialKey",
               "contextRole",
               "sourceRelatedReferenceId",
-              "finalProductMaterialKey",
               "dispositionKind",
               "physicalIdentity",
               "endpointId",
@@ -870,6 +880,39 @@
               "derivedAuthorityDigest",
               "settlementExpectation",
               "memberDigest"
+            ],
+            "oneOf": [
+              {
+                "required": [
+                  "finalProductMaterialKey"
+                ],
+                "not": {
+                  "required": [
+                    "finalProductMaterialKeys"
+                  ]
+                }
+              },
+              {
+                "required": [
+                  "finalProductMaterialKeys"
+                ],
+                "not": {
+                  "required": [
+                    "finalProductMaterialKey"
+                  ]
+                },
+                "properties": {
+                  "contextRole": {
+                    "const": "original_input"
+                  },
+                  "dispositionKind": {
+                    "const": "replaced_and_settled"
+                  },
+                  "settlementExpectation": {
+                    "const": "remove_after_place"
+                  }
+                }
+              }
             ]
           },
           "maxItems": 1024

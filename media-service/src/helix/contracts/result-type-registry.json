@@ -852,7 +852,7 @@
       "relativePath": "types/OnDeckProductPackage/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "58ed03417a5d1a924ea5f28031d4c72f3aa996085b0d659346bf82ac8d32baca"
+        "value": "c35ef719edf80fa6b472825a041b5d00a9e2785429793233c1fa52f6dbcdbc15"
       },
       "source": {
         "section": "8.6.19",

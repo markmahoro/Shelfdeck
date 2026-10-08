@@ -872,3 +872,19 @@ test('rolls every participant back when package write fails after Control assert
       db.close();
     }
   }));
+
+
+test('Series Promotion refuses any absent or non-Primary target in a multiple Off-load mapping',()=>{
+  for(const kind of ['missing','artifact','movie']){
+    const decision=structuredClone(fixtureValue().decision),target=decision.productMaterialManifest.members[0];
+    decision.productStructureSnapshot.structureKind=kind==='movie'?'single':'season';
+    const second={...target,materialKey:D('second-target'),role:kind==='artifact'?'metadata_sidecar':'primary_payload',
+      controlOperation:'acquire_workspace_product',episodeClaims:[{episodeKey:'E002'}]};
+    target.role='primary_payload';target.controlOperation='acquire_workspace_product';target.episodeClaims=[{episodeKey:'E001'}];
+    if(kind!=='missing')decision.productMaterialManifest.members.push(second);
+    const source=decision.offloadContextManifest.members[0];delete source.finalProductMaterialKey;
+    Object.assign(source,{finalProductMaterialKeys:[target.materialKey,second.materialKey].sort(),
+      materialKey:D('original-source'),contextRole:'original_input',dispositionKind:'replaced_and_settled',settlementExpectation:'remove_after_place'});
+    assert.throws(()=>assertPromotionDecision(decision),error=>error.code==='P9_PROMOTION_MULTIPLE_TARGETS');
+  }
+});

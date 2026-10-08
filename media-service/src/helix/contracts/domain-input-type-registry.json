@@ -983,7 +983,7 @@
       "relativePath": "domain-types/LibraDeliverablePromotionDecision/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "0dee932235c16488687612ec7eaefdc7b24c7de955c5ad8ccf265f7cd59a62ae"
+        "value": "580d51e63cae011c8a7ca0480bcd26eb1e83f567a929c9a83993dc394563de5c"
       },
       "usedBy": [
         {

@@ -1169,6 +1169,13 @@ function libraDeliverablePromotionDecisionSchema() {
     admittedControlRevision: nullable(positiveInteger()), admittedControlProjectionDigest: nullable(digest()),
     derivedAuthorityDigest:nullable(digest()),
     settlementExpectation: enumText('retain', 'replace_or_move', 'remove_after_place'), memberDigest: digest() });
+  offloadMember.properties.finalProductMaterialKeys = { ...arrayOf(digest(),1024),minItems:2,uniqueItems:true };
+  offloadMember.required = offloadMember.required.filter(name => name !== 'finalProductMaterialKey');
+  offloadMember.oneOf = [
+    {required:['finalProductMaterialKey'],not:{required:['finalProductMaterialKeys']}},
+    {required:['finalProductMaterialKeys'],not:{required:['finalProductMaterialKey']},properties:{
+      contextRole:{const:'original_input'},dispositionKind:{const:'replaced_and_settled'},settlementExpectation:{const:'remove_after_place'}}}
+  ];
   const offloadManifest = object({ manifestId: id(), manifestRevision: positiveInteger(), libraRunId: id(),
     members: arrayOf(offloadMember, 1024), memberSetDigest: digest(), manifestDigest: digest() });
   const workspaceReference = object({ referenceId: id(), workspaceId: id(), libraRunId: id(), materialHandleId: id(), materialKey: digest(),

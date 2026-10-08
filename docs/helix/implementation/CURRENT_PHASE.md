@@ -305,3 +305,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08用户确认仅逐集分配未知的Series外部获取例外，已回写SSOT：已知整包大小及完整身份/覆盖匹配，其他要求无缺口的多集候选可进入一次唯一获取；仍禁止缺大小或其他unknown/gap。接入共享准入解释与下载前复验，实际逐集最终验收不变。
 
 2026-10-08 Series获取空间：修复总包误判逐集超限和缺大小被转为0；按本轮用户确认将仅逐集分配unknown、其余合格且总大小已知的多集候选准入写入SSOT，正式Select与P5提交前复验已消费。33项回归及强化Select专项、P2/架构/语义通过。实际逐集终检不变，Coordinator/多值交接与结算继续，未部署NAS。[Evidence](evidence/SERIES_ACQUISITION_SPACE_20261008.md)。
+
+2026-10-08多成品Offload合同DoR：落实已确认source-to-all-final语义，以互斥的单目标finalProductMaterialKey与多目标finalProductMaterialKeys表达实际映射基数；多目标仅original_input/replaced_and_settled/remove_after_place，不能用于Related或carried。先传播Package/Promotion schema及完整目标校验，后续持久化/Assembler/Arca全部目标现场验证和一次源结算完成前不启用外部交付。不是旧运行迁移或双写。
+
+2026-10-08多成品Offload合同：SSOT/Package/Promotion支持互斥单目标及2..1024多目标，后者仅原Primary替换；Promotion校验所有目标为具备Claims的同Package Workspace Primary。15项专项、生成合同/P2/架构/语义通过。持久化、Reader/Assembler及Arca多目标验证/一次结算待接通，未启用多目标交付或部署NAS。[Evidence](evidence/SERIES_OFFLOAD_TARGET_CONTRACT_20261008.md)。

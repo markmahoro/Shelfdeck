@@ -2,6 +2,7 @@
 
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
 const {acceptsProductionAttestation}=require('./defect-admission-contracts');
+const {offloadProductKeys}=require('../../../contracts/offload-product-targets');
 
 class DeliveryLifecycleContractError extends Error{constructor(code,message){super(message);this.name='DeliveryLifecycleContractError';this.code=code;}}
 const fail=(code,message)=>{throw new DeliveryLifecycleContractError(code,message);};
@@ -75,6 +76,14 @@ function assertPromotionDecision(value){
   const members=value.productMaterialManifest?.members;
   if(!Array.isArray(members)||new Set(members.map((item)=>item.materialKey)).size!==members.length)
     fail('P9_PROMOTION_DUPLICATE','Promotion Product members must have unique material keys.');
+  for(const source of value.offloadContextManifest?.members||[]){
+    if(!Object.hasOwn(source,'finalProductMaterialKeys'))continue;
+    const keys=offloadProductKeys(source);
+    if(value.productStructureSnapshot?.structureKind!=='season'||keys.some(key=>{
+      const target=members.find(item=>item.materialKey===key);
+      return !target||target.role!=='primary_payload'||target.controlOperation!=='acquire_workspace_product'||!target.episodeClaims?.length;
+    }))fail('P9_PROMOTION_MULTIPLE_TARGETS','Multiple Off-load targets require every mapped Series Workspace Primary.');
+  }
   const assertions=value.relatedAuthorityAssertions;
   if(!Array.isArray(assertions)||assertions.length>1024||
       assertions.some((item,index)=>index>0&&Buffer.compare(Buffer.from(assertions[index-1].sourceRelatedReferenceId),

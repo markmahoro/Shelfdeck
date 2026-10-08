@@ -11650,7 +11650,7 @@ ID按exact UTF-8 bytes升序，禁止locale/case-fold；所有digest均为小写
   derived authority且Control pair为NULL。每个Related恰好一row：同一materialKey direct carry使用
   `carried_forward+replace_or_move`，新successor使用`replaced_and_settled+remove_after_place`；不得遗漏、重复或以
   generic artifact替代。`settlementExpectation`只是`retain|replace_or_move|remove_after_place`的生产交接预期，
-  不构成Arca Final Inventory Decision或删除授权。
+  不构成Arca Final Inventory Decision或删除授权。2026-10-08按已确认Series N:M规则，目标字段为互斥基数union：一个目标仍用`finalProductMaterialKey`；两个以上使用`finalProductMaterialKeys[2..1024]`，UTF-8排序且唯一，不带单目标字段。多目标仅允许Series原Primary的`original_input+replaced_and_settled+remove_after_place`，每个key必须对应同Package携带Episode Claims的Workspace Primary；完整关联分量及Claims映射依§3.2.6验证。Related/structural/carried保留单目标语义。Arca必须核验全部映射目标，原材料在Manifest及结算中仍只出现一次；不得选择首个目标代替完整映射。
   上述Product Fact、Artifact、Off-load Context与Product Material四个Manifest的`manifestRevision=packageRevision`；
   前三者的`manifestId=SHA-256(JCS({schema:"libra.product-submanifest-id@1",manifestKind(product_fact|artifact|offload_context),
   libraRunId,packageRevision}))`，Product Material沿用本节既有ID公式。四个ID/digest均写入Package row，不能只以
