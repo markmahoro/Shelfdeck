@@ -19,7 +19,14 @@ function observeEmptyStageSlot({ targetRoot, targetCommitSlotHandle:slot }) {
       // Missing/inaccessible directories deliberately throw, including ENOENT.
       const stat = fs.lstatSync(current, {bigint:true});
       if (!stat.isDirectory() || stat.isSymbolicLink() || normalize(fs.realpathSync(current)) !== normalize(path.resolve(current))) fail('Stage path contains a link or non-directory.');
-      rows.push({path:current,device:String(stat.dev),inode:String(stat.ino),mode:String(stat.mode),mtimeNs:String(stat.mtimeNs),ctimeNs:String(stat.ctimeNs)});
+      const identity = {path:current,device:String(stat.dev),inode:String(stat.ino),mode:String(stat.mode)};
+      // Ancestor directory timestamps include unrelated sibling activity. Fence
+      // their identity and permissions, but content timestamps only for this slot.
+      if (normalize(current) === normalize(directory)) {
+        identity.mtimeNs = String(stat.mtimeNs);
+        identity.ctimeNs = String(stat.ctimeNs);
+      }
+      rows.push(identity);
     }
     return rows;
   }

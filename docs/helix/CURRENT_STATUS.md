@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Stage并发误报修复：全部祖先保留身份/权限/链接校验，仅精确slot比较内容时间戳，避免兄弟目录活动被当作slot变化。Windows84项、Linux21项、并发10次及P2/边界/语义通过；原全量仍运行，最终冻结全量尚未通过。无UI变更或NAS操作。[Evidence](implementation/evidence/SERIES_STAGE_OBSERVATION_CONCURRENCY_20261008.md)。
+
 2026-10-08 UI负责人接受冻结SHA `d4d86d234`：四项原缺陷及详情空槽修复通过；仅覆盖已复验来源/收藏架/整理详情/收藏详情状态，完整旅程与发布Gate仍开放。全架构仍执行，历史Stage测试的共享祖先目录时间戳并发失败已复现，尚未修复；未操作NAS。[Evidence](implementation/evidence/SERIES_UI_REVIEW_FIXES_20261008.md)。
 
 2026-10-08 UI负责人四项拒绝已修复：Series分拣身份类型/摘要、弹窗键盘与忙碌关闭保护、收藏共文件去重分组、Formation进度去重。128项前端、8项Series双视口及2项Movie浏览器、构建通过；待新提交负责人复验，整体发布门槛不关闭，未部署NAS。[Evidence](implementation/evidence/SERIES_UI_REVIEW_FIXES_20261008.md)。
