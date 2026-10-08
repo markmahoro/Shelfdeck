@@ -299,3 +299,9 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series Landing DoR：从同job成功Transfer History逐条绑定明确dest文件、同Season身份和明确episodes，构建完整多成员输出，禁止把目录级记录或整季下载Claims分配给每个文件。实际文件校验和/字节绑定成员；稳定性观察重读同job整理记录与文件，让变化进入既有静默窗口/范围及后续Package验收。仅只读Landing，Movie单文件路径保持，验证共文件+part与缺失/冲突/越界记录。
 
 2026-10-08 Series Landing：同job逐文件Transfer History绑定真实文件和明确Season/Episode Claims，支持共文件+part；稳定性端口重读记录与SHA256，拒绝目录/重复/错季/越界/junction，不纳入同目录无关文件。45项Provider/协议/外部流水线及P2/架构/语义通过；受控网络与真实临时字节，未验证真实Provider下载。Coordinator、多值交接/结算及发布Gate继续，未部署NAS。[Evidence](evidence/SERIES_PROVIDER_LANDING_20261008.md)。
+
+2026-10-08 Series搜索空间DoR：修复整包大小超过单集上限被断言逐集超限、缺大小被Number(null)转换为0的缺陷。多集包只有总量且总量超过单集上限时，空间分布保持unknown；整包不超过上限仅作为保守充分条件。既有unknown不可下载规则不变，允许仅逐集空间未知候选获取的合同提案已单独询问用户，确认前不实施准入放宽。
+
+2026-10-08用户确认仅逐集分配未知的Series外部获取例外，已回写SSOT：已知整包大小及完整身份/覆盖匹配，其他要求无缺口的多集候选可进入一次唯一获取；仍禁止缺大小或其他unknown/gap。接入共享准入解释与下载前复验，实际逐集最终验收不变。
+
+2026-10-08 Series获取空间：修复总包误判逐集超限和缺大小被转为0；按本轮用户确认将仅逐集分配unknown、其余合格且总大小已知的多集候选准入写入SSOT，正式Select与P5提交前复验已消费。33项回归及强化Select专项、P2/架构/语义通过。实际逐集终检不变，Coordinator/多值交接与结算继续，未部署NAS。[Evidence](evidence/SERIES_ACQUISITION_SPACE_20261008.md)。

@@ -502,7 +502,7 @@ function ref(type, id) {
   });
 }
 
-function acquisitionQuery(series = false) {
+function acquisitionQuery(series = false, maximum = null) {
   const identity = Object.freeze({
     provider: 'tmdb',
     namespace: series ? 'tmdb_series' : 'tmdb_movie',
@@ -537,7 +537,7 @@ function acquisitionQuery(series = false) {
   const mediaRequirement={requirementId:'requirement-1',revision:1,schemaRef:'MediaRequirement@1',
     acceptanceSpecId:'spec-1',acceptanceSpecRecordDigest:canonicalDigest({spec:1}),contentProfile:series?'series':'movie',structureKind:series?'season':'single',
     mandatoryMedia:{mediaForm:'stream_file',videoCodec:'hevc',container:'matroska',fileExtension:'mkv',minimumRasterClass:'4k',
-      acceptedPrimaryAudioClasses:['truehd'],forbidSystemUpscaleFor4k:true},space:{unit:series?'episode':'product',maxSizeGiB:null,maxSizeBytes:null}};
+      acceptedPrimaryAudioClasses:['truehd'],forbidSystemUpscaleFor4k:true},space:{unit:series?'episode':'product',maxSizeGiB:maximum===null?null:maximum/(1024**3),maxSizeBytes:maximum}};
   mediaRequirement.requirementDigest=canonicalDigest(mediaRequirement);
   const query = {
     schemaRef: 'helix://contracts/types/AcquisitionQuery/v1',
@@ -2242,5 +2242,45 @@ test('Series MoviePilot Landing binds shared files and parts to exact transfer C
     assert.equal(fs.readFileSync(path.join(directory,'unrelated.mkv'),'utf8'),'not this download');
     assert.equal(fs.readFileSync(path.join(directory,'shared.mkv'),'utf8'),'shared episodes');
     assert.equal(state.moviepilotDownloadAdds||0,0);
+  }finally{opened.kernel.close();}
+});
+
+
+test('Series advertised package totals do not fabricate per-Episode size or missing bytes',async()=>{
+  const value=fixture(),state={calls:[]},fetchImpl=providerFetch(state);
+  const host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,secretRoot,
+    integrationFetch:fetchImpl,now:()=>1_900_000_000_000});
+  try{await configure(host,await session(host,value.initialized.adminApiKey),'moviepilot','-series-size');}finally{await host.close();}
+  const row={media_info:{title:'Movie',year:'2024',tmdb_id:100,type:'电视剧'},
+    meta_info:{type:'电视剧',begin_season:1,begin_episode:1,end_episode:2,total_episode:2},
+    torrent_info:{title:'Movie.S01E01-E02.2160p.HEVC.TrueHD',enclosure:'https://tracker.test/series-size',size:150,seeders:4}};
+  const opened=openServices(value,fetchImpl),query=acquisitionQuery(true,100),processable=require('../../src/helix/contracts/acquisition-feasibility').isProcessableCandidate;
+  let ordinal=0,latestSearch;
+  const search=async()=> { latestSearch=(await opened.services.executeProvider('moviepilot',{
+    operationId:'libra.external_material.search@1',effectClass:'pure_observation',idempotencyKey:'size-search-'+ordinal++,
+    timeoutMs:5000,input:{acquisitionQuery:query,limit:25}})).result;return latestSearch.candidates[0];};
+  try{
+    state.moviepilotSearchRows=[row];let candidate=await search();
+    assert.equal(candidate.advertisedMedia.sizeBytes.value,150);assert.equal(candidate.requirementAssessment,'unknown');
+    assert.deepEqual(candidate.assessmentReasonCodes,['size_unknown']);assert.equal(processable(candidate),true);
+    const contracts=require('../../src/helix/domains/libra/model/external-material-contracts');
+    const select=()=>contracts.selectCandidate({candidates:{schemaRef:'helix://contracts/types/AcquisitionCandidates/v1',schemaVersion:1,...latestSearch},
+      selectionCriteria:contracts.buildSelectionCriteria({queryDigest:query.queryDigest,revision:1}),producedAtMs:1_900_000_000_000});
+    const selectedCandidate=select();assert.equal(selectedCandidate.result,'selected');
+    const acquired=await opened.services.executeProvider('moviepilot',{
+      operationId:'libra.external_material.acquire.request@1',effectClass:'external_request',idempotencyKey:'series-size-acquire',
+      timeoutMs:5000,input:{acquisitionQuery:query,selectedCandidate}});
+    assert.equal(acquired.result.externalJobReceipt.externalJobId,'job-1');
+    for(const change of [{structureKind:'single'},{episodeKeys:['E001']},{identityAnchors:[]},
+      {assessmentReasonCodes:['size_unknown','primary_audio_unknown']},{assessmentReasonCodes:['size_unknown','video_codec_unmet']}])
+      assert.equal(processable({...candidate,...change}),false);
+    row.torrent_info.size=100;candidate=await search();
+    assert.equal(candidate.requirementAssessment,'compliant');assert.equal(processable(candidate),true);
+    for(const missing of [null,undefined,'',false]){
+      row.torrent_info.size=missing;candidate=await search();
+      assert.equal(candidate.advertisedMedia.sizeBytes.status,'unknown');assert.equal(candidate.advertisedMedia.sizeBytes.value,null);
+      assert.equal(processable(candidate),false);assert.equal(select().result,'not_selected');
+    }
+    assert.equal(state.moviepilotDownloadAdds,1);
   }finally{opened.kernel.close();}
 });

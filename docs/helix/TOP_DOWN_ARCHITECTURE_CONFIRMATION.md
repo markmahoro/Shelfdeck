@@ -10100,7 +10100,7 @@ Handoff或Catalog Capability：
 - `SelectionCriteria@1`在本链路固定为`{contractId,revision,schemaRef:"SelectionCriteria@1",queryDigest,
   strategy:"single_processable_candidate_seeder_strength",criteriaDigest}`；它不是用户Means Policy。
   Candidate Select先丢弃`unavailable`、availability Evidence unknown、媒体声明`unknown`和明确`noncompliant`，只按`seederCount DESC,providerRank,candidateId`从完整
-  `compliant`集合选择唯一首项；没有该项即为`not_selected`，不得建立External Job。
+  `compliant`集合选择唯一首项；没有该项即为`not_selected`，不得建立External Job。2026-10-08用户确认Series例外：已知整包sizeBytes、实际单Season身份及完整Episode覆盖匹配，其他要求无缺口，仅因缺少逐文件分配而有`requirementAssessment=unknown,assessmentReasonCodes=[size_unknown]`的多集候选可进入同一次唯一候选获取；缺整包大小或其他unknown/gap不能由此放行。总包大小不超过单集上限是保守充分条件；超过时不能伪造逐集超限或假定平均。导入后必须用全部实际文件及Claims均分加part逐集验收，超限继续既有加工或明确失败，不增加下载轮换、不放宽最终Spec。
   `SelectedCandidate@1`为closed `selected|not_selected` union，公共部分为
   `DraftEnvelope + queryDigest + candidateSetDigest + selectionCriteriaDigest + result + selectionReasonCode`；
   selected恰含完整`selectedCandidate`及同值`selectedCandidateId`，reason固定为`selected_processable_claims`；

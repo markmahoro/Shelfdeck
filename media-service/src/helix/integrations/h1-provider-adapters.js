@@ -1196,7 +1196,8 @@ function createProtocolTransport(profile, options) {
     if(eac3.test(joined)&&atmos.test(joined))audio.push('eac3_atmos');else if(eac3.test(joined))audio.push('other');
     if(/\bdts[\s._-]?x\b/i.test(joined))audio.push('dts_x');else if(/\bdts[\s._-]?hd[\s._-]?ma\b/i.test(joined))audio.push('dts_hd_ma');
     const primaryAudioClasses=audio.length?claim('known',Object.freeze([...new Set(audio)].sort()),'release'):claim('unknown',Object.freeze([]),null),
-      rawSize=torrent.size??row.size??null,size=Number(rawSize),sizeBytes=Number.isSafeInteger(size)&&size>=0?claim('known',size,torrent.size!==undefined?'torrent.size':'row.size'):claim('unknown',null,null),
+      rawSize=torrent.size??row.size??null,size=(typeof rawSize==='number'||typeof rawSize==='string'&&rawSize.trim())?Number(rawSize):NaN,
+      sizeBytes=Number.isSafeInteger(size)&&size>=0?claim('known',size,torrent.size!=null?'torrent.size':'row.size'):claim('unknown',null,null),
       mediaBasis={resolution,videoCodec,primaryAudioClasses,sizeBytes,...(restoration?{restoration}:{}),
         source:Object.freeze({provider:'moviepilot',providerCandidateDigest:rowDigest,claimBasis:texts.length?'structured_and_release_fields':'provider_row'})},
       advertisedMedia=Object.freeze({...mediaBasis,evidenceDigest:digest(canonicalJson(mediaBasis))}),mandatory=query.mediaRequirement.mandatoryMedia,
@@ -1212,7 +1213,14 @@ function createProtocolTransport(profile, options) {
       else if(!primaryAudioClasses.value.some((item)=>mandatory.acceptedPrimaryAudioClasses.includes(item)))reasons.push('primary_audio_unmet');
     }
     const maximum=query.mediaRequirement.space.maxSizeBytes;
-    if(maximum!==null){if(sizeBytes.status==='unknown')unknown.push('size_unknown');else if(sizeBytes.value>maximum)reasons.push('max_size_exceeded');}
+    if(maximum!==null){
+      if(sizeBytes.status==='unknown')unknown.push('size_unknown');
+      else if(sizeBytes.value>maximum){
+        // A package total cannot establish the largest Episode allocation.
+        if(query.contentProfile==='series'&&query.requestedEpisodeKeys.length>1)unknown.push('size_unknown');
+        else reasons.push('max_size_exceeded');
+      }
+    }
     return Object.freeze({advertisedMedia,requirementAssessment:reasons.length?'noncompliant':unknown.length?'unknown':'compliant',
       assessmentReasonCodes:Object.freeze([...reasons,...unknown])});
   }
