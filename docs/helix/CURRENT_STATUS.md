@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-2026-10-08 首次业务配置：无用户模板/收藏架起步，页面复制系统模板至两集实际上架38.12秒通过，系统revision不变、实际Spec每集0.5GiB；原混合加工37.36秒回归通过。新增路径待UI负责人验收，真实集成凭据/完整冷启动及其他发布Gate继续，无NAS动作。[Evidence](implementation/evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
+2026-10-08 首次业务配置：无用户模板/收藏架起步，页面复制系统模板至两集实际上架38.12秒通过，系统revision不变、实际Spec每集0.5GiB；原混合加工37.36秒回归通过。负责人已接受31b1df37b本路径（独立38.40秒），真实集成凭据/完整冷启动及其他发布Gate继续，无NAS动作。[Evidence](implementation/evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
 
 2026-10-08 页面退出：实际Series审阅/关闭/取消/最终授权至6成员删除39.13秒通过，范围外文件及取消字节保护/唯一终结保持。修复退出剧名搜索投影、弹窗焦点和busy保护、历史记录粘连；136前端/Windows及Linux查询/构建/架构检查通过；警示去重后38.36秒复验，负责人已接受51ed1bb6e已验证退出路径。其他发布Gate继续，无NAS动作。[Evidence](implementation/evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
 
