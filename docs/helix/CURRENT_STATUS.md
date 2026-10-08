@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 历史生产副本预检：只读下载9月30日既有备份并核验SHA256，正式升级因未完成Formation拒绝，拒绝后副本字节不变；Reset预检因14条保留路由锚点和10条非目标控制事实拒绝，未执行清理。仅安全拒绝证据，成功升级/回退仍开放，未修改NAS。[Evidence](implementation/evidence/SERIES_HISTORICAL_UPGRADE_PREFLIGHT_20261008.md)。
+
 2026-10-08 部署准备只读核验：NAS容器shelfdeck仍running，镜像`markmahoro/shelfdeck:helix-beta-20260930-8e197b3c36`/`sha256:168be0bb2101b79424f7f978c32d3724852eb5267b2234a4c981c22fe075ac2b`，原五个数据/媒体挂载保持。只读数据库元数据为2359238656字节、197表；未获取副本、未创建远端文件、未部署/重启/修改生产数据。生产副本升级回退门槛仍开放。
 
 2026-10-08 完整Aftercare重启：真实N:M成品落位后、Inventory Commit前退出进程，新Host完成同Case唯一提交，第三次启动结果不变；Windows108.19秒/Linux100.67秒通过，成品字节/Claims/未改成员与范围外文件保护通过。06a8ce7c0冻结278文件全量2402通过/0失败/10skip；新增重启专项单独通过。尚非完整发布资格。[Evidence](implementation/evidence/SERIES_AFTERCARE_HOST_RECOVERY_20261008.md)。

@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 历史生产副本预检：只读下载9月30日既有备份并核验SHA256，正式升级因未完成Formation拒绝，拒绝后副本字节不变；Reset预检因14条保留路由锚点和10条非目标控制事实拒绝，未执行清理。仅安全拒绝证据，成功升级/回退仍开放，未修改NAS。[Evidence](evidence/SERIES_HISTORICAL_UPGRADE_PREFLIGHT_20261008.md)。
+
 2026-10-08 完整Aftercare重启：真实N:M成品落位后、Inventory Commit前退出进程，新Host完成同Case唯一提交，第三次启动结果不变；Windows108.19秒/Linux100.67秒通过，成品字节/Claims/未改成员与范围外文件保护通过。06a8ce7c0冻结278文件全量2402通过/0失败/10skip；新增重启专项单独通过。尚非完整发布资格。[Evidence](evidence/SERIES_AFTERCARE_HOST_RECOVERY_20261008.md)。
 
 2026-10-08 Series长时媒体：20分钟带AAC的N:M正式Host在Linux CPU181.85秒、Windows NVENC183.57秒通过，成品时长/音轨/Claims/上架验证完整；素材为循环合成，不外推真实复杂画面质量。278文件冻结全量仍运行，未操作NAS。[Evidence](evidence/SERIES_LONG_MEDIA_HOST_20261008.md)。
