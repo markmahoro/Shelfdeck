@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 本地真实Series UAT：新增[UAT-282](implementation/evidence/UAT-282_SERIES_PROCUREMENT_PROGRESS_20261008.md)，大来源Probe队列硬上限导致重复十分钟退避空窗。用户确认容量释放有界唤醒合同，共用Governor修复ff4617995已加载本地Windows18081，双平台相关127项各通过；原两个Run保持，实际封包/E2E验收继续，UAT未关闭。该修复未包含在原可部署镜像84c2cd9268内，未部署NAS。
+
 2026-10-08 最终状态：Series首个可部署候选开发Exit，标准镜像`markmahoro/shelfdeck:84c2cd9268`，产品SHA `84c2cd92687ad55851cd1d0984e94c1d14334031`。负责人已接受最终受影响UI；全架构/服务/Linux/真实媒体及升级回退证据和各自版本边界见[最终Evidence](implementation/evidence/SERIES_FULL_REGRESSION_20261008.md)。tar SHA256 `a5c09f6cd69a9193b89453bc8fda9f75b75ff7dabfe3c8ec3945510b981adfdc`。NAS仍是旧Movie生产版本，未上传、部署或Reset；当前442收藏/3个active Run的现场处置需精确授权。
 
 以下为历史过程记录，保留旧失败和中间状态；最新结论以上述最终Evidence为准。

@@ -9,3 +9,5 @@
 验收条件：大样本正/负向回归，原Run有实际进展至候选封包与正式交接；材料集合、Season/Episode映射与原文件保护不变，失败不得伪装成功。完整E2E后继缺陷另按独立证据登记，不用本项批量关闭。若涉及UI则交负责人精确版本验收；若需合同变更先取得确认。当前未改代码、未重启/Reset/重扫、未操作生产。
 
 用户已明确确认Permit释放时有界提前唤醒方案，并要求参考Movie处理思路。修复共用Foundation Resource Governor，不新增Series调度；持久化完整bundle的提前retryAt，按global/per-key队列预算计入内存waiter和已经到期的durable等待，terminal/无关资源不改动。正式Scheduler排序、输入重建和原子Permit校验保持。100成员共享单容量资源回归在固定时钟下全部推进，不等待5秒/10分钟；队列预算、无关/terminal保护及既有Scheduler/Host共51项通过。原现场随后270成功/681等待又进入十分钟，佐证吞吐空窗而非永久死锁；修复后原链路验收尚未完成。
+
+实现提交ff4617995已推送。Windows51资源/Scheduler/Host及76EventRuntime/Supply通过，Linux容器挂载修复后的只读源码运行相同127项通过（不是旧84c2cd9268镜像原样已含修复的声明）；语义检查通过。23:54前确认本地0 executing后保存SQLite一致备份uat282-before-reload.db，停止精确预览进程并加载新代码，健康正常，原Run/完成记录保持。既有681条deferred的首次retryAt保留至约23:57，不伪造capacity release；待原链路实际恢复并封包后继续验收。
