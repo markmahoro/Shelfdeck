@@ -384,7 +384,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.ok(response.statusCode>=200&&response.statusCode<300,response.body);return response;
   }
   if(external){await externalProvider.configure(request);externalProvider.calls.length=0;}
-  await request('POST','/v1/admin/settings/automatic-operation/actions/enable-full', {
+  if(!browserJourney)await request('POST','/v1/admin/settings/automatic-operation/actions/enable-full', {
     idempotencyKey:'series-settlement',expectedRevision:0,coverExclusiveRelatedInput:true});
   const policyValue={includedDirectories:[],excludedDirectories:[],allowedExtensions:(mixed||mediaRepair)?['.mkv','.mp4']:['.mkv'],minimumSizeBytes:0,excludedMaterialKeys:[]};
   const access={fieldId:'series-field',revision:1,endpointId:'series-endpoint',rootLocation:path.join(root,'source'),
@@ -435,7 +435,8 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.notEqual(fs.statSync(root).dev,fs.statSync(target).dev,'Source/Workspace and Shelf must be on different filesystems.');
     t.diagnostic(JSON.stringify({crossDevice:true,sourceDevice:fs.statSync(root).dev,targetDevice:fs.statSync(target).dev}));
   }else fs.mkdirSync(target);
-  await request('POST','/v1/admin/shelves',{idempotencyKey:'series-shelf',shelfId:'series-shelf',name:'Series fixture',
+  const sourceShelfId=browserJourney?await browserFlow.createShelf(target,ruleTemplateId):'series-shelf';
+  if(!browserJourney)await request('POST','/v1/admin/shelves',{idempotencyKey:'series-shelf',shelfId:'series-shelf',name:'Series fixture',
     targetRootLocation:target,ruleTemplateId,expectedTemplateRevision,
     placementPolicy:{folderTemplate:'{title}',primaryTemplate:'{stem}{ext}',nfoTemplate:'{stem}.nfo',
       subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}',posterTemplate:'poster{ext}',fanartTemplate:'fanart{ext}',collisionPolicy:'reject'}});
@@ -673,7 +674,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   }
   assert.equal(state.subjects.length,1);assert.equal(state.subjects[0].content_profile,'series');
   assert.equal(state.subjects[0].structure_kind,'season');
-  assert.equal(state.routes.at(-1).decision,'resolved');assert.equal(state.routes.at(-1).shelf_id,'series-shelf');
+  assert.equal(state.routes.at(-1).decision,'resolved');assert.equal(state.routes.at(-1).shelf_id,sourceShelfId);
   assert.ok(state.specs.length>=1);
   for(const spec of state.specs) {
     assert.equal(spec.content_profile,'series');

@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 浏览器收藏架与授权：页面创建收藏架/选择模板/命名预览及自动清理确认接入来源至上架旅程，动态Shelf ID及实际结算断言38.35秒通过。负责人已接受a2910cc08来源段，新增创建/授权待验收；规则模板仍API预置，完整发布Gate继续，未操作NAS。[Evidence](implementation/evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
+
 2026-10-08 浏览器来源到上架：真实页面登记Series来源、发布年份分拣并扫描，接续人工身份/Arca上架/收藏双视口38.41秒通过；仅测试增量。负责人已接受573444125登录至收藏段，新增来源段待复验。收藏架/规则仍由API配置，完整运营/外部及发布Gate继续。[Evidence](implementation/evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
 
 2026-10-08 真实浏览器Host：页面登录→人工Series身份确认→实际两集上架→Collection详情37.26秒通过，无API拦截；修复截图发现的窄屏五列工具栏溢出，128前端/双视口收藏/原Host/构建及P2通过。待UI负责人精确版本复验；预配置仍经API，完整旅程与发布Gate不关闭，未操作NAS。[Evidence](implementation/evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。

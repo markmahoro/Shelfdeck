@@ -39,3 +39,13 @@ UI负责人在turn `01a11b12-a149-70b3-8bdf-6423d7e2f591`正式接受精确提�
 该追加最终1项通过/0skip，38.41秒，`series-browser-source-v3.log`；截图目录 `series-browser-source-v3/` 新增 `source-registered.png` 与 `source-routing.png`。前两次新增断言错误读取Profile顶层字段，改按正式Projection的 `currentProfileHintSnapshot.contentProfileHint` 验证；未修改产品字段或弱化断言。JS语法/diff检查通过。本次仅测试与文档，不重复产品构建或全架构回归；待负责人接受新增来源/策略/扫描段。
 
 截图中的“年份未知”已核对：当前Series标准的requiredFieldCodes不含year_or_release_date，Adapter仅返回请求字段，Collection没有已有年份事实可显示。此处不补造年份、不改资料采集合同；后续按实际标准展示。
+
+## 收藏架创建与结算授权追加
+
+负责人turn `01a11b16-d57e-7eb3-8bea-95577499aa94`接受精确 `a2910cc084155f6adb4ac6c759f2b4a5ae4ce9e7` 的桌面来源登记/分拣/扫描正常路径，亲自复跑38.27秒通过；不包含随后未提交增量。
+
+继续将收藏架创建和自动结算授权移入真实页面：空态直接进入创建表单，选择已发布模板、填写临时收藏目录、调整目录命名并核验Season命名预览，再提交真实创建请求。页面生成的Shelf ID进入后续分拣目标断言，不使用固定Fixture ID替代。自动清理通过原确认弹窗授权，保留共享/未知/范围外文件以及不包含退出收藏销毁的后果提示均检查；原Host的正式源结算/文件结果断言仍执行。
+
+最终无API拦截旅程1项通过/0skip，38.35秒，`series-browser-shelf-v4.log`；截图 `series-browser-shelf-v4/` 新增 settlement-authorization、shelf-empty-form、shelf-create、shelf-created。首次新增脚本错误等待空态不存在的“新建收藏架”按钮，第二次标签查询未匹配模板控件，按实际空态和combobox名称修正；产品未变更。前一轮创建专项38.39秒通过，最终轮另去除授权API预置后复验成功。JS语法与diff检查通过。
+
+仅测试/文档增量，未重复构建或全量测试。待负责人对新增桌面创建及授权段验收。规则模板本身仍通过正式API预置（使混合Direct/Remux要求精确），规则编辑/发布的真实页面路径、追加/运营、外部交付和升级回退仍开放。所有媒体和文件清理限定临时测试目录，未操作NAS。

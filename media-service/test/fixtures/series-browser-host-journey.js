@@ -35,6 +35,36 @@ async function open({ host, apiKey }) {
       await screenshot('source-registered');
       return input.fieldId;
     },
+    async createShelf(targetRootLocation, ruleTemplateId) {
+      await page.goto(address + '/shelves');
+      await page.getByRole('button', { name: /自动清理残留文件/ }).click();
+      const authorization = page.getByRole('dialog', { name: '自动清理残留文件', exact: true });
+      await expect(authorization.getByText('共享、未知及范围外文件', { exact: true })).toBeVisible();
+      await expect(authorization.getByText('此授权不包含退出收藏时销毁文件。', { exact: true })).toBeVisible();
+      await screenshot('settlement-authorization');
+      await authorization.getByRole('button', { name: '授权自动清理', exact: true }).click();
+      await expect(authorization).toHaveCount(0);
+      await expect(page.getByRole('button', { name: /自动清理残留文件/ })).toContainText('已授权');
+      await expect(page.getByRole('heading', { name: '创建收藏架', exact: true })).toBeVisible();
+      await page.getByLabel('收藏架名称', { exact: true }).fill('Series fixture');
+      await screenshot('shelf-empty-form');
+      await page.getByRole('combobox', { name: '规则模板', exact: true }).selectOption(ruleTemplateId);
+      await page.getByLabel('收藏最终目录', { exact: true }).fill(targetRootLocation);
+      await page.getByLabel('目录命名', { exact: true }).fill('{title}');
+      await page.getByLabel('命名示例').selectOption('series_shared');
+      await expect(page.getByLabel('最终命名保存前预览')).toContainText('Season 01');
+      await screenshot('shelf-create');
+      const creation = page.waitForResponse(response => response.request().method() === 'POST' &&
+        new URL(response.url()).pathname === '/v1/admin/shelves');
+      await page.getByRole('button', { name: '创建收藏架', exact: true }).click();
+      const response = await creation;
+      assert.ok(response.ok(), await response.text());
+      const input = response.request().postDataJSON();
+      assert.equal(input.ruleTemplateId, ruleTemplateId);
+      await expect(page.getByRole('heading', { name: 'Series fixture', exact: true })).toBeVisible();
+      await screenshot('shelf-created');
+      return input.shelfId;
+    },
     async routeAndScan() {
       await page.goto(address + '/material-fields');
       await page.getByText('收藏架分拣策略', { exact: true }).click();
