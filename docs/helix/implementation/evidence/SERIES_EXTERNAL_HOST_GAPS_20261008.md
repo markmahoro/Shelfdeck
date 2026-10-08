@@ -39,3 +39,11 @@ Movie外部回归初跑4项中2项失败：后加工仍循环调用已取消的1
 - 失败过程日志保留：v1 fixture季字段错误，v2正式Event状态错误；不能把失败运行改记为通过。Linux初次验证同样失败于旧Event状态，v2才通过。
 - 日志：外部证据目录`series-delivery-external-host-v3.log`、`series-delivery-external-host-linux-v2.log`、`series-delivery-contracts-final.log`、`series-delivery-contracts-linux-final.log`、`series-delivery-external-failures.log`、`series-delivery-movie-regression.log`、`series-delivery-p2-v4.log`、`series-delivery-guards.log`。
 - 此次关闭原EpisodeDelivery合同阻断和基本共文件到分集外部上架验证；外部后加工/恢复、服务13个失败及其他Phase门槛继续。无NAS操作。
+
+## 真实外部媒体基线
+
+2026-10-08在`2a9be056b`上扩展同一正式Host fixture：设置`HELIX_SERIES_EXTERNAL=1`和`HELIX_SERIES_EXTERNAL_REAL=1`，执行名称过滤`with external shared-file replacement`。原共文件为真实1080p媒体，外部两集为FFmpeg生成的3秒3840×2160 HEVC/AAC合成视频；取消Host的媒体Probe与Playback替身，沿正式FFprobe/播放验证/Import/全Run验收/Arca结算执行。最终另经FFprobe检查两个实际Inventory文件的HEVC、3840×2160、AAC及时长，验证不需要Remux/Transcode，Provider文件前后SHA256相同。
+
+Windows111.34秒通过，Linux118.70秒通过（32项仅名称过滤skip）；Scope/Consumer17项回归通过，diff检查通过。日志`series-real-external-host.log`、`series-real-external-host-linux.log`、`series-real-external-contract-regression.log`位于同一仓库外证据目录。Provider网络仍受控，短合成片不代表真实长片质量、真实MoviePilot集成或后加工能力；不改产品代码，无NAS动作。
+
+后加工审查确认当前Series直接终结未达标Import，原成员加工Work不能代表导入Workspace成员。下一实现需绑定精确Import/Handle/Probe/Claims与逐集预算，并用加工后的实际文件重建完整替换映射；现有Movie后加工不得拿原Run成员伪装Series导入源。该缺口保持开放，见当前Phase DoR。

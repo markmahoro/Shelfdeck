@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 真实外部媒体Host：3秒4K HEVC/AAC分集素材经正式Probe/Playback/Import/验收/结算，Windows111.34秒/Linux118.70秒通过；Provider字节保护、两集覆盖及一次请求保持。仅网络仍受控，后加工/恢复及最终发布Gate继续，未改产品代码或操作NAS。见外部Host Evidence。
+
 2026-10-08 服务总回归13项失败已修复：过期UI/Readiness断言、旧列数及缺正式映射/摘要的fixture、事故工具Inventory写入、评分Host授权/等待窗口。Windows619项592通过/0失败/27skip，Linux相关58项通过，P2通过；无产品UI变更或NAS动作。外部后加工/恢复及最终冻结发布Gate继续。见[全量Evidence](implementation/evidence/SERIES_FULL_REGRESSION_20261008.md)。
 
 2026-10-08 已确认的EpisodeDelivery Requirement集合摘要落地，正式Event状态误用修复；共文件→两个分集的完整外部Host Windows97.67秒/Linux116.86秒通过，一次请求、Claims/结算/Provider文件保护保持。合同58/35项、外部失败路由3项、Movie外部4项及P2/架构通过。外部后加工/恢复、服务总回归13项失败及其他发布Gate继续；旧全架构因运行中变更仅作诊断，无NAS动作。
