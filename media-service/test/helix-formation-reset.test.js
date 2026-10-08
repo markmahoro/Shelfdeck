@@ -1180,3 +1180,23 @@ test('orphan cleanup refuses any material already recorded in Shelf Inventory',(
     assert.throws(()=>inspectPlan(value.database,{orphanCustodyIds:['gone-custody']}),/FORMATION_RESET_ORPHAN_CUSTODY_INVENTORY_PROTECTED/);
   } finally {close(value);}
 });
+
+
+test('scoped Reset removes selected Run outcomes and preserves outcomes outside its scope', () => {
+  const value=fixture('reset-run-outcomes');
+  try {
+    const target=seedSubjectRun(value.database,'outcome-selected','completed');
+    const other=seedSubjectRun(value.database,'outcome-protected','completed');
+    for(const run of [target,other])value.database.prepare(
+      "INSERT INTO libra_run_outcomes(libra_run_id,subject_id,outcome,outcome_json) VALUES (?,?,'unable_to_on_deck','{}')"
+    ).run(run.runId,run.subjectId);
+    const before=value.database.prepare('SELECT * FROM libra_run_outcomes WHERE libra_run_id=?').get(other.runId);
+    const subjectIds=[target.subjectId];
+    assert.equal(inspectPlan(value.database,{subjectIds}).ready,true);
+    applyReset({...value,subjectIds,transcodeDir:null,nowMs:7000});
+    assert.deepEqual(value.database.prepare('SELECT * FROM libra_run_outcomes').all(),[before]);
+    assert.deepEqual(value.database.pragma('foreign_key_check'),[]);
+    applyReset({...value,subjectIds,transcodeDir:null,nowMs:7001});
+    assert.deepEqual(value.database.prepare('SELECT * FROM libra_run_outcomes').all(),[before]);
+  }finally{close(value);}
+});

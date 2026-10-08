@@ -582,8 +582,9 @@ const OFFLOAD_TARGET_SQL = "CREATE TABLE \"libra_offload_context_materials\" (\n
 function extendOffloadTargetStorage(database) {
   const table='libra_offload_context_materials';
   if(database.pragma('table_info('+table+')').some(column=>column.name==='final_product_material_keys_json'))return;
+  // Commit receipts establish collection ownership; Custody can remain active after Commit.
   if(database.prepare("SELECT 1 FROM libra_runs WHERE state IS NULL OR state NOT IN ('completed','discarded','superseded') LIMIT 1").get()||
-      database.prepare("SELECT 1 FROM libra_product_packages p WHERE NOT EXISTS (SELECT 1 FROM arca_ondeck_runs r JOIN arca_ondeck_custodies c ON c.custody_id=r.custody_id WHERE c.on_deck_package_id=p.on_deck_package_id AND c.package_digest=p.package_digest AND c.state='committed' AND r.state='committed') LIMIT 1").get())
+      database.prepare("SELECT 1 FROM libra_product_packages p WHERE NOT EXISTS (SELECT 1 FROM arca_ondeck_runs r JOIN arca_ondeck_custodies c ON c.custody_id=r.custody_id JOIN arca_ondeck_commit_receipts receipt ON receipt.on_deck_run_id=r.on_deck_run_id WHERE c.on_deck_package_id=p.on_deck_package_id AND c.package_digest=p.package_digest AND r.state='committed') LIMIT 1").get())
     throw new UatIdentitySelectionMigrationError('SERIES_OFFLOAD_FORMATION_RESET_REQUIRED',
       'Unfinished Formation requires an explicitly authorized Reset before this schema upgrade.');
   const row=database.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table);

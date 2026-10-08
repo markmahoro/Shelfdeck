@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 历史副本升级/恢复：修复迁移误用Custody状态、Reset遗漏Run Outcome；正式定向清理4个未完成Subject后升级成功，61张Arca表的保留记录不变，365个收藏受保护。原备份覆盖恢复后SHA256逐字节一致，双平台54项相关回归及架构检查通过。仅本地历史数据库演练，不代表当前生产/应用联合回退资格，无NAS动作。[Evidence](implementation/evidence/SERIES_HISTORICAL_UPGRADE_PREFLIGHT_20261008.md)。
+
 2026-10-08 首次业务配置：无用户模板/收藏架起步，页面复制系统模板至两集实际上架38.12秒通过，系统revision不变、实际Spec每集0.5GiB；原混合加工37.36秒回归通过。负责人已接受31b1df37b本路径（独立38.40秒），真实集成凭据/完整冷启动及其他发布Gate继续，无NAS动作。[Evidence](implementation/evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
 
 2026-10-08 页面退出：实际Series审阅/关闭/取消/最终授权至6成员删除39.13秒通过，范围外文件及取消字节保护/唯一终结保持。修复退出剧名搜索投影、弹窗焦点和busy保护、历史记录粘连；136前端/Windows及Linux查询/构建/架构检查通过；警示去重后38.36秒复验，负责人已接受51ed1bb6e已验证退出路径。其他发布Gate继续，无NAS动作。[Evidence](implementation/evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。

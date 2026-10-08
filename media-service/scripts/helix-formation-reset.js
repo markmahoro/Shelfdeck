@@ -131,7 +131,7 @@ function assertRequiredSchema(database) {
     'libra_product_packages', 'libra_routing_assessments', 'libra_routing_decisions',
     'libra_run_admission_heads', 'libra_run_discard_decisions', 'libra_run_discard_receipts',
     'libra_run_material_episode_claims', 'libra_run_material_manifests', 'libra_run_material_members',
-    'libra_run_revisions', 'libra_runs', 'libra_subject_abandon_decisions',
+    'libra_run_outcomes', 'libra_run_revisions', 'libra_runs', 'libra_subject_abandon_decisions',
     'libra_subject_abandon_receipts', 'libra_subject_decision_heads', 'libra_subject_episode_scopes',
     'libra_subject_season_continuity_claims', 'libra_subjects', 'libra_workspace_cleanup_members',
     'libra_workspace_cleanup_scopes', 'libra_workspace_material_refs', 'libra_workspace_revisions',
@@ -980,6 +980,7 @@ function deleteFormationBusinessGraph(database, scope, nowMs) {
   executeByIds(database, 'UPDATE libra_runs SET superseded_by_run_id=NULL WHERE superseded_by_run_id IN', scope.runIds);
   executeByIds(database, 'UPDATE libra_runs SET run_material_manifest_id=NULL,supersedes_run_id=NULL,superseded_by_run_id=NULL WHERE libra_run_id IN', scope.runIds);
   executeByIds(database, 'DELETE FROM libra_run_material_manifests WHERE run_material_manifest_id IN', manifestIds);
+  executeByIds(database, 'DELETE FROM libra_run_outcomes WHERE libra_run_id IN', scope.runIds);
   executeByIds(database, 'DELETE FROM libra_run_revisions WHERE libra_run_id IN', scope.runIds);
   executeByIds(database, 'DELETE FROM libra_runs WHERE libra_run_id IN', scope.runIds);
 
@@ -1130,6 +1131,7 @@ function verifyFrozenManifest(database, manifest) {
   const residual = {};
   assertIdsAbsent(database, 'libra_subjects', 'subject_id', scope.disposableSubjectIds, residual);
   assertIdsAbsent(database, 'libra_intake_decisions', 'intake_decision_id', scope.intakeDecisionIds, residual);
+  assertIdsAbsent(database, 'libra_run_outcomes', 'libra_run_id', scope.runIds, residual);
   assertIdsAbsent(database, 'libra_runs', 'libra_run_id', scope.runIds, residual);
   assertIdsAbsent(database, 'libra_workspaces', 'workspace_id', scope.workspaceIds, residual);
   assertIdsAbsent(database, 'libra_product_packages', 'on_deck_package_id', scope.packageIds, residual);

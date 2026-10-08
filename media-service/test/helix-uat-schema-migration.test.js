@@ -58,7 +58,7 @@ test('UAT-215 adds only an empty cleanup responsibility table to the exact produ
     db.prepare("INSERT INTO arca_shelf_entries(shelf_entry_id,status) VALUES('keep-entry','active')").run();
     db.prepare("INSERT INTO arca_inventory_representations(shelf_entry_id,revision) VALUES('keep-entry',7)").run();
     db.prepare("UPDATE arca_shelf_entries SET current_inventory_revision=7 WHERE shelf_entry_id='keep-entry'").run();
-    db.prepare("INSERT INTO libra_runs(libra_run_id,state) VALUES('keep-in-flight','active')").run();
+    db.prepare("INSERT INTO libra_runs(libra_run_id,state) VALUES('keep-completed','completed')").run();
     db.prepare('INSERT INTO platform_schema_marker(schema_name,generation,schema_digest,catalog_digest,applied_at_ms) VALUES(?,?,?,?,?)')
       .run('shelfdeck',TARGET_GENERATION,require('../src/helix/foundation/persistence/uat-identity-selection-migration').PRE_SOURCE_CLEANUP_SCHEMA_DIGEST,digest(catalogRows(db)),100);
     const beforeEntry=db.prepare('SELECT * FROM arca_shelf_entries').all(),beforeRuns=db.prepare('SELECT * FROM libra_runs').all();db.close();
@@ -83,7 +83,7 @@ test('UAT-213 adds empty Target Binding history without inventing prior targets'
     db.prepare("INSERT INTO arca_shelf_entries(shelf_entry_id,status) VALUES('keep-entry','active')").run();
     db.prepare("INSERT INTO arca_inventory_representations(shelf_entry_id,revision) VALUES('keep-entry',7)").run();
     db.prepare("UPDATE arca_shelf_entries SET current_inventory_revision=7 WHERE shelf_entry_id='keep-entry'").run();
-    db.prepare("INSERT INTO libra_runs(libra_run_id,state) VALUES('keep-in-flight','active')").run();
+    db.prepare("INSERT INTO libra_runs(libra_run_id,state) VALUES('keep-completed','completed')").run();
     db.prepare('INSERT INTO platform_schema_marker(schema_name,generation,schema_digest,catalog_digest,applied_at_ms) VALUES(?,?,?,?,?)')
       .run('shelfdeck',TARGET_GENERATION,require('../src/helix/foundation/persistence/uat-identity-selection-migration').PRE_TARGET_BINDING_SCHEMA_DIGEST,digest(catalogRows(db)),100);
     const beforeEntry=db.prepare('SELECT * FROM arca_shelf_entries').all(),beforeRuns=db.prepare('SELECT * FROM libra_runs').all();db.close();
@@ -334,7 +334,7 @@ test('UAT-139 adds nullable coverage snapshots without inventing historical revi
     db = new Database(databasePath); db.exec(oldDdl);
     db.prepare("INSERT INTO arca_offdeck_reviews(review_id,state) VALUES('review-keep','selection_confirmed')").run();
     db.prepare("INSERT INTO arca_offdeck_selection_receipts(selection_receipt_id,review_id,shelf_coverage_digest,entry_count) VALUES('selection-keep','review-keep',?,5)").run('a'.repeat(64));
-    db.prepare("INSERT INTO libra_runs(libra_run_id,state) VALUES('keep-in-flight','active')").run();
+    db.prepare("INSERT INTO libra_runs(libra_run_id,state) VALUES('keep-completed','completed')").run();
     db.prepare('INSERT INTO platform_schema_marker(schema_name,generation,schema_digest,catalog_digest,applied_at_ms) VALUES(?,?,?,?,?)')
       .run('shelfdeck', TARGET_GENERATION, '42281705d35e3aa6d5103525544ce7d9a199bd2660c93e2faf2729d333475066', digest(catalogRows(db)), 1);
     const before = db.prepare('SELECT * FROM arca_offdeck_selection_receipts').get(); db.close();
@@ -342,7 +342,7 @@ test('UAT-139 adds nullable coverage snapshots without inventing historical revi
     db = new Database(databasePath);
     assert.deepEqual(db.prepare('SELECT * FROM arca_offdeck_selection_receipts').get(),
       { ...before, shelf_coverage_schema_ref:null, shelf_coverage_json:null });
-    assert.equal(db.prepare("SELECT state FROM libra_runs WHERE libra_run_id='keep-in-flight'").get().state, 'active');
+    assert.equal(db.prepare("SELECT state FROM libra_runs WHERE libra_run_id='keep-completed'").get().state, 'completed');
     assert.throws(() => db.prepare("UPDATE arca_offdeck_selection_receipts SET shelf_coverage_json='not-json'").run(), /CHECK/);
     db.close();
     kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest }); kernel.close();
@@ -356,7 +356,7 @@ test('UAT-251 secondary target constraint upgrade preserves every existing Run r
   let db;
   try{
     db=new Database(databasePath);db.exec(historicalDdl(require('../src/helix/foundation/persistence/uat-identity-selection-migration').PRE_SECONDARY_TARGET_SCHEMA_DIGEST));
-    db.prepare("INSERT INTO libra_runs(libra_run_id,state) VALUES('unchanged-run','frozen')").run();
+    db.prepare("INSERT INTO libra_runs(libra_run_id,state) VALUES('unchanged-run','discarded')").run();
     db.prepare("INSERT INTO libra_run_revisions(libra_run_id,state_revision,transition_kind,expected_admission_head_revision) VALUES('unchanged-run',1,'frozen',0)").run();
     const before=db.prepare('SELECT * FROM libra_run_revisions').all();
     db.prepare('INSERT INTO platform_schema_marker(schema_name,generation,schema_digest,catalog_digest,applied_at_ms) VALUES(?,?,?,?,?)')
@@ -364,7 +364,7 @@ test('UAT-251 secondary target constraint upgrade preserves every existing Run r
     db.close();
     const upgraded=migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest});assert.equal(upgraded.migrated,true);
     db=new Database(databasePath);assert.deepEqual(db.prepare('SELECT * FROM libra_run_revisions').all(),before);
-    assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'frozen');
+    assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'discarded');
     assert.deepEqual(db.pragma('foreign_key_check'),[]);
     assert.match(db.prepare("SELECT sql FROM sqlite_master WHERE name='libra_run_revisions'").get().sql,/'secondary_target'/);
     db.close();assert.equal(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}).migrated,false);
