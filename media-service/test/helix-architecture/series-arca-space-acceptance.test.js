@@ -9,6 +9,7 @@ const {evaluatePackageSpace}=require('../../src/helix/domains/arca/model/package
 const schemaManifest=require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
 const schema=require('../../src/helix/contracts/types/AcceptanceCheck/v1/schema.json');
 const validate=new Ajv({strict:false,allErrors:true}).compile(schema);
+const {fixture}=require('./helpers/acceptance-evidence-fixture');
 const D=value=>canonicalDigest({value});
 const member=(key,sizeBytes,keys)=>({materialKey:D(key),role:'primary_payload',sizeBytes,
   episodeClaims:keys.map(episodeKey=>({episodeKey}))});
@@ -26,14 +27,18 @@ async function execute(members,maxSizeBytes,{series=true,stale=false,capability=
   const packageValue={onDeckPackageId:'package',packageDigest:D('package'),shelfId:'shelf',
     acceptanceSpecRef:{id:'spec',recordDigest:D('spec')},productStructureSnapshot:{structureKind:series?'season':'single'},
     productMaterialManifest:manifest,productionProvenance:{acceptanceRequirementSnapshot:snapshot}};
-  const ports=createOnDeckCapabilityPorts({schemaManifest,unitOfWork:{execute(){throw new Error('Pure space check must not write');}},
+  const native=fixture(capability);
+  try {
+  const ports=createOnDeckCapabilityPorts({...native.options,
     now:()=>100,workResultReader:{readBindings:()=>[]},inventoryPort:{},contextReader:{readOffer:()=>({
       offer:{offerId:'offer',onDeckPackageId:'package',packageDigest:D('package')},
       shelf:{shelfId:'shelf',currentStandardRevision:stale?2:1,currentPlacementRevision:1,standard:{digest:D('standard')}},packageValue})}});
-  const result=(await ports[capability].execute({ownerScope:{processType:'arca_acceptance',processId:'offer'},workId:'space-work',
+  const record=(await ports[capability].execute({...native.execution,
     namedInputs:{productManifest:manifest,spaceRequirement:{digest:D('requirement')},structureRequirement:{digest:D('structure')}}})).result;
+  const result=native.store.resolve(record);
   assert.equal(validate(result),true,JSON.stringify(validate.errors));
   return {result,packageValue,requirements};
+  } finally { native.close(); }
 }
 
 for(const {name,members,maximum,passed} of [

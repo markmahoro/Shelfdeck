@@ -1,4 +1,5 @@
 'use strict';
+const {resolveAcceptanceResult}=require('../persistence/acceptance-check-evidence-store');
 
 const {productDispositionMembers}=require('../model/product-disposition');
 const {executionInputUnavailable}=require('../../../foundation/execution/execution-input-readiness');
@@ -110,7 +111,7 @@ function acceptedPayload(options,c) { const assessment=options.contextReader.acc
     acceptanceDecisionId:responsibility.acceptanceDecisionId,custodyDigest:canonicalDigest(responsibility)}); }
 function assessmentFacts(options,c) { const rows=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',
   processId:c.offer.offerId,workKind:'acceptance_assessment'});if(rows.length!==1)throw new Error('Arca Acceptance Assessment Work is not unique.');
-  const values=options.workResultReader.read(rows[0].work_id).filter((item)=>item.outcomeKind==='succeeded').map((item)=>item.result),checks=values.map((value)=>
+  const values=options.workResultReader.read(rows[0].work_id).filter((item)=>item.outcomeKind==='succeeded').map((item)=>resolveAcceptanceResult(options,item.result)),checks=values.map((value)=>
     value.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'?Object.freeze({kind:value.checkKind,outcome:value.result,evidenceDigest:canonicalDigest(value),reasonCode:value.reasonCodes[0]||null}):
       value.schemaRef==='helix://contracts/types/InventoryFeasibilityEvidence/v1'?Object.freeze({kind:'inventory_feasibility',
         outcome:value.availableBytes>=value.requiredBytes?'passed':'failed',evidenceDigest:value.payloadDigest,reasonCode:'inventory_feasibility_unmet'}):null).filter(Boolean)

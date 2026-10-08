@@ -1211,9 +1211,9 @@ function libraDeliverablePromotionDecisionSchema() {
       relationsDigest: digest() }),
     productMaterialManifest:domainRef('ProductionMaterialManifest'), offloadContextManifest: offloadManifest,
     productionProvenance: object({ libraRunId: id(), runExecutionBasisDigest: digest(), acceptanceSpecRecordDigest: digest(),
-      workflowPlanRefs: arrayOf(object({ planId: id(), planRevision: positiveInteger(), planDigest: digest() }), 256),
-      productVerificationRefs: arrayOf(object({ verificationId: id(), verificationDigest: digest() }), 256),
-      externalRealityObservationRefs: arrayOf(object({ evidenceId: id(), evidenceDigest: digest() }), 256),
+      workflowPlanRefs: arrayOf(object({ planId: id(), planRevision: positiveInteger(), planDigest: digest() }), 16384),
+      productVerificationRefs: arrayOf(object({ verificationId: id(), verificationDigest: digest() }), 16384),
+      externalRealityObservationRefs: arrayOf(object({ evidenceId: id(), evidenceDigest: digest() }), 16384),
       sourceNfoObservations:arrayOf(typeRef('MetadataObservation'),16),
       acceptanceRequirementSnapshot:domainRef('AcceptanceRequirementSnapshot'),
       shelfAcceptancePrimaryReadSet:domainRef('ShelfAcceptancePrimaryReadSet'), provenanceDigest: digest() }),
@@ -1729,7 +1729,7 @@ function productConformanceInputSnapshotSchema() {
     inventorySnapshot: domainRef('ProductInventoryConformanceSnapshot'),
     selectedProducts: { ...arrayOf({ oneOf:[selected('ordinary_selected'),
       selected('authorized_defect_direct_input'),
-      selected('authorized_defect_workspace_output')] }, 32), minItems: 1 }, productFactSetDigest: digest(),
+      selected('authorized_defect_workspace_output')] }, 1024), minItems: 1 }, productFactSetDigest: digest(),
     artifactVerificationSetDigest: digest(), selectedProductSetDigest: digest(), productSnapshotDigest: digest(), snapshotDigest: digest()
   }), 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024 };
 }
@@ -1759,7 +1759,7 @@ function shelfAcceptancePrimaryReadSetSchema() {
       acceptanceSpecRecordDigest: digest(),
       issuedAtMs: nonNegativeInteger(),
       expiresAtMs: nonNegativeInteger(),
-      primaryInputs: { ...arrayOf(item, 32), minItems: 1 },
+      primaryInputs: { ...arrayOf(item, 1024), minItems: 1 },
       primaryInputSetDigest: digest(),
       readAuthorityDigest: digest(),
     }),

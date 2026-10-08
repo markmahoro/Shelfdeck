@@ -10,15 +10,15 @@ const { readTableSourceEntries } = require('../../scripts/helix-architecture/tab
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = buildTableContracts(readTableSourceEntries(contractsRoot));
 
-test('builds all 197 sole-Owner table contracts with accepted owner counts', () => {
-  assert.equal(contracts.length, 197);
-  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 197);
+test('builds all 198 sole-Owner table contracts with accepted owner counts', () => {
+  assert.equal(contracts.length, 198);
+  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 198);
   const counts = Object.fromEntries([...new Set(contracts.map((contract) => contract.owner))].map((owner) => [
     owner, contracts.filter((contract) => contract.owner === owner).length
   ]));
   assert.deepEqual(counts, {
     'execution-foundation': 25, 'material-control-authority': 2, procurement: 17, libra: 54,
-    arca: 61, perception: 9, people: 13, 'platform-settings': 16
+    arca: 62, perception: 9, people: 13, 'platform-settings': 16
   });
 });
 
@@ -92,6 +92,8 @@ test('closes every PK, declared FK, JSON contract, and current revision pointer'
     }
     for (const json of contract.jsonContracts) {
       assert.ok(json.schemaRefColumn, `${contract.tableId}.${json.column}`);
+      if(contract.tableId==='arca_acceptance_check_evidence'&&json.column==='evidence_json') { assert.equal(json.maxBytes,2*1024*1024); continue; }
+      if(['arca_inventory_product_facts','libra_product_fact_revisions'].includes(contract.tableId)&&json.column==='episode_metadata_json') { assert.equal(json.maxBytes,16*1024*1024); continue; }
       assert.ok([4 * 1024, 16 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 1024 * 1024].includes(json.maxBytes));
     }
     const covered = new Set(contract.revisionContract.pointerTargets.flatMap((target) => [...target.sourceColumns, ...target.consistencyColumns]));

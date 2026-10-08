@@ -1,4 +1,5 @@
 'use strict';
+const {resolveAcceptanceResult}=require('../persistence/acceptance-check-evidence-store');
 
 const {settlementHandles,isSettlementAuthorityUnavailable}=require('../model/input-settlement-scope');
 const {requiresInputSettlement}=require('../model/offload-settlement');
@@ -43,7 +44,7 @@ function workDefinition({ processType, processId, workKind, basisDigest,
     idempotencyKey:stable('arca-' + workKind + '-key-', identity),
     concurrencyScope:processType + '/' + processId + '/' + workKind,
     outputContractRef:workKind === 'acceptance_assessment'
-      ? 'helix://contracts/types/AcceptanceCheck/v1'
+      ? 'helix://contracts/types/AcceptanceCheckRecord/v1'
       : workKind === 'acceptance_commit'
         ? 'helix://contracts/types/CustodyAndTransferReceipt/v1'
         : workKind === 'acceptance_rejection'
@@ -104,7 +105,7 @@ function createOnDeckProcessCoordinator(options) {
   }
   function commitWork(processId, dependencyRefs, assessment) {
     const results = options.workResultReader.read(assessment.workId)
-      .filter((item)=>item.outcomeKind === 'succeeded').map((item)=>item.result);
+      .filter((item)=>item.outcomeKind === 'succeeded').map((item)=>resolveAcceptanceResult(options,item.result));
     const basisDigest = canonicalDigest({ schema:'arca.acceptance-commit-basis@1',
       dependencyRefs, acceptanceChecks:results.map((item)=>canonicalDigest(item)).sort() });
     return workDefinition({ processType:'arca_acceptance', processId,
@@ -115,7 +116,7 @@ function createOnDeckProcessCoordinator(options) {
   }
   function rejectionWork(processId, dependencyRefs, assessment) {
     const results = options.workResultReader.read(assessment.workId)
-      .filter((item)=>item.outcomeKind === 'succeeded').map((item)=>item.result);
+      .filter((item)=>item.outcomeKind === 'succeeded').map((item)=>resolveAcceptanceResult(options,item.result));
     const basisDigest = canonicalDigest({ schema:'arca.acceptance-rejection-basis@1',
       dependencyRefs, acceptanceChecks:results.map((item)=>canonicalDigest(item)).sort() });
     return workDefinition({ processType:'arca_acceptance', processId,
@@ -126,7 +127,7 @@ function createOnDeckProcessCoordinator(options) {
   }
   function assessmentDisposition(assessment) {
     const results=options.workResultReader.read(assessment.workId)
-      .filter((item)=>item.outcomeKind==='succeeded').map((item)=>item.result);
+      .filter((item)=>item.outcomeKind==='succeeded').map((item)=>resolveAcceptanceResult(options,item.result));
     const checks=results.filter((item)=>item?.schemaRef==='helix://contracts/types/AcceptanceCheck/v1');
     const feasibility=results.filter((item)=>item?.schemaRef==='helix://contracts/types/InventoryFeasibilityEvidence/v1');
     if(checks.length!==5||feasibility.length!==1)throw new Error('Arca Acceptance Assessment terminal Result set is incomplete.');

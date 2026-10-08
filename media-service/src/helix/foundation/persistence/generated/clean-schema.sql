@@ -18,6 +18,32 @@ CREATE TABLE "arca_acceptance_attempts" (
 CREATE INDEX "idx_arca_acceptance_attempts_hot_01" ON "arca_acceptance_attempts" ("state", "created_at_ms");
 CREATE UNIQUE INDEX "uidx_arca_acceptance_attempts_partial_01" ON "arca_acceptance_attempts" ("package_digest", "standard_revision", "placement_revision") WHERE "finished_at_ms" IS NULL;
 
+CREATE TABLE "arca_acceptance_check_evidence" (
+  "acceptance_attempt_id" TEXT,
+  "check_kind" TEXT,
+  "check_revision" INTEGER CHECK ("check_revision" >= 1),
+  "offer_id" TEXT,
+  "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
+  "work_id" TEXT,
+  "event_id" TEXT,
+  "evidence_schema_ref" TEXT,
+  "evidence_json" TEXT,
+  "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT,
+  "record_json" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "commit_marker" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("acceptance_attempt_id", "check_kind", "check_revision"),
+  UNIQUE ("event_id"),
+  UNIQUE ("commit_marker"),
+  CHECK (json_valid("evidence_json")),
+  CHECK (length(CAST("evidence_json" AS BLOB)) <= 2097152),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT
+);
+
 CREATE TABLE "arca_acceptance_checks" (
   "acceptance_attempt_id" TEXT,
   "check_kind" TEXT,

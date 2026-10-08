@@ -138,14 +138,14 @@
       }
     },
     {
-      "id": "arca_acceptance_decisions",
+      "id": "arca_acceptance_check_evidence",
       "owner": "arca",
-      "columnsContract": "`acceptance_decision_id PK, acceptance_attempt_id FK, result(accepted|rejected), offer_id, on_deck_package_id, package_digest, related_disposition_set_digest, shelf_id FK, standard_revision, placement_revision, acceptance_evidence_set_digest, rejection_schema_ref NULL, rejection_code NULL, rejection_digest NULL, decision_digest, decided_at_ms`",
-      "constraintsContract": "`acceptance_decision_id=SHA-256(JCS({schema:\"arca.acceptance-decision-id@1\",acceptanceAttemptId}))`且`UNIQUE(acceptance_attempt_id)`；Offer/Package/Related disposition set逐字节等于Attempt；accepted要求rejection列全NULL且证明完整处置义务可履行；rejected固定`rejection_schema_ref=StructuredRejection@1`且code/digest非NULL，并逐项重建`ArcaAcceptanceRejectionDecision@1`；immutable",
+      "columnsContract": "`acceptance_attempt_id, check_kind, check_revision, offer_id, package_digest, work_id, event_id UNIQUE, evidence_schema_ref, evidence_json, evidence_digest, record_schema_ref, record_json, record_digest, commit_marker FK UNIQUE, committed_at_ms`",
+      "constraintsContract": "`PK(acceptance_attempt_id,check_kind,check_revision)`；immutable完整AcceptanceCheck Evidence≤2 MiB；有界Record≤64 KiB；同事务Evidence/Record/Result/marker全有或全无；Evidence产生在Acceptance Attempt最终汇总之前，不建立Custody或集合所有权",
       "source": {
         "section": "8.5.12",
         "line": 9473,
-        "lineDigest": "fdb2ce5541da67e64dd26bfd5bb41324df96693b8ca3ce9fe1504c73b057fd4b"
+        "lineDigest": "8f65dd227fc172caddb22556315ec4fd25f2c06470810b5eaffa977b3f5f1e51"
       }
     }
   ]

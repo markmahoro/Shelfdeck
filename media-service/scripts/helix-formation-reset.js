@@ -945,6 +945,8 @@ function deleteFormationBusinessGraph(database, scope, nowMs) {
   executeByIds(database, 'DELETE FROM arca_ondeck_runs WHERE on_deck_run_id IN', scope.onDeckRunIds);
   executeByIds(database, 'DELETE FROM arca_ondeck_custodies WHERE custody_id IN', scope.custodyIds);
   executeByIds(database, 'DELETE FROM arca_handoff_b_receipts WHERE acceptance_decision_id IN', scope.acceptanceDecisionIds);
+  if(tableExists(database,'arca_acceptance_check_evidence'))
+    executeByIds(database, 'DELETE FROM arca_acceptance_check_evidence WHERE offer_id IN', scope.offerIds);
   executeByIds(database, 'DELETE FROM arca_acceptance_recovery_cases WHERE offer_id IN', scope.offerIds);
   executeByIds(database, 'DELETE FROM arca_acceptance_checks WHERE acceptance_attempt_id IN', scope.acceptanceAttemptIds);
   executeByIds(database, 'DELETE FROM arca_acceptance_decisions WHERE acceptance_decision_id IN', scope.acceptanceDecisionIds);

@@ -1,0 +1,248 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_acceptance_check_evidence/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_acceptance_check_evidence",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "acceptance_attempt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "check_kind",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "check_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "offer_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "package_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "work_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "event_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "evidence_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "evidence_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "record_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "record_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "record_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "commit_marker",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 15,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "acceptance_attempt_id",
+      "check_kind",
+      "check_revision"
+    ],
+    "declaredForeignKeyColumns": [
+      "commit_marker"
+    ],
+    "uniqueConstraints": [
+      [
+        "event_id"
+      ],
+      [
+        "commit_marker"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "rule": "`PK(acceptance_attempt_id,check_kind,check_revision)`"
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "check_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "evidence_json",
+        "schemaRefColumn": "evidence_schema_ref",
+        "maxBytes": 2097152,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "record_json",
+        "schemaRefColumn": "record_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable完整AcceptanceCheck Evidence≤2 MiB"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(acceptance_attempt_id,check_kind,check_revision)`",
+      "immutable完整AcceptanceCheck Evidence≤2 MiB",
+      "有界Record≤64 KiB",
+      "同事务Evidence/Record/Result/marker全有或全无",
+      "Evidence产生在Acceptance Attempt最终汇总之前，不建立Custody或集合所有权"
+    ],
+    "rawContract": {
+      "columns": "`acceptance_attempt_id, check_kind, check_revision, offer_id, package_digest, work_id, event_id UNIQUE, evidence_schema_ref, evidence_json, evidence_digest, record_schema_ref, record_json, record_digest, commit_marker FK UNIQUE, committed_at_ms`",
+      "constraints": "`PK(acceptance_attempt_id,check_kind,check_revision)`；immutable完整AcceptanceCheck Evidence≤2 MiB；有界Record≤64 KiB；同事务Evidence/Record/Result/marker全有或全无；Evidence产生在Acceptance Attempt最终汇总之前，不建立Custody或集合所有权"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9473,
+      "lineDigest": "8f65dd227fc172caddb22556315ec4fd25f2c06470810b5eaffa977b3f5f1e51"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "commit_marker"
+        ],
+        "targetTable": "fx_commit_markers",
+        "targetColumns": [
+          "commit_marker"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

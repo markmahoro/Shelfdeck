@@ -5,7 +5,7 @@ const crypto = require('crypto');
 const EXPECTED_COUNTS = Object.freeze({
   capabilities: 113,
   resultFamilies: 99,
-  tables: 197,
+  tables: 198,
   transactions: 45
 });
 

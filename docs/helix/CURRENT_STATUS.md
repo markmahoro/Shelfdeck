@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-2026-10-09后续：UAT-286已获确认并实现，Win39/Linux33通过，全新47集Host全部Direct verify/select成功；下一关Product Conformance的32成员合同失败，连同Arca完整验收容量登记UAT-287并请求统一确认。18081为保护正在执行的真实转码尚未加载UAT-286；旧失败Run保持，不Reset。完整E2E未通过。
+2026-10-09后续：UAT-287及生产追溯列表扩容已获确认并实现；Windows核心74/Linux50、升级24、边界60通过，两集完整Host通过。47集已通过成品验收/交付/Arca验收，Stage Manifest94041字节命中Foundation64 KiB，UAT-288已获确认待实施；尚无47集完整E2E通过。现场副本196表摘要保持，18081仍a45d7b13f，保护真实转码，未Reset。上海女子图鉴进入offloading但缺来源结算授权，20项delete均未执行，提示缺口UAT-289。
 
 2026-10-09 02:02：UAT-285代码a45d7b13f已推送origin/main。后续46/47集93次媒体输入失败Evidence均精确命中完整空间集合32成员上限，登记[UAT-286](implementation/evidence/UAT-286_SERIES_MEDIA_SPACE_CAPACITY_20261009.md)，合同扩容待用户确认；未修改失败Run或Reset。
 

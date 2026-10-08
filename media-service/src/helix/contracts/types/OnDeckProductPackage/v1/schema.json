@@ -773,7 +773,7 @@
               "planDigest"
             ]
           },
-          "maxItems": 256
+          "maxItems": 16384
         },
         "productVerificationRefs": {
           "type": "array",
@@ -797,7 +797,7 @@
               "verificationDigest"
             ]
           },
-          "maxItems": 256
+          "maxItems": 16384
         },
         "externalRealityObservationRefs": {
           "type": "array",
@@ -821,7 +821,7 @@
               "evidenceDigest"
             ]
           },
-          "maxItems": 256
+          "maxItems": 16384
         },
         "sourceNfoObservations": {
           "type": "array",

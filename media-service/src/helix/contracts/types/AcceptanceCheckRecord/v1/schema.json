@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/AcceptanceCheckRecord/v1",
+  "title": "AcceptanceCheckRecord@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/AcceptanceCheckRecord/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "acceptanceAttemptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "checkKind": {
+      "type": "string",
+      "enum": [
+        "identity",
+        "structure",
+        "metadata",
+        "mandatory_media",
+        "space"
+      ]
+    },
+    "checkRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "checkDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "recordDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "acceptanceAttemptId",
+    "checkKind",
+    "checkRevision",
+    "checkDigest",
+    "recordDigest"
+  ]
+}

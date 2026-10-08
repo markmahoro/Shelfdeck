@@ -1,7 +1,15 @@
 # UAT-287 Series整批成品与Arca验收容量
 
-UAT-286修复后的全新47集Host通过全部Direct verify/select，下一步Product Conformance输入因selectedProducts超过32触发P9_CONFORMANCE_SELECTED_SET。现行SSOT ProductConformanceInputSnapshot明确selectedProducts[1..32]、完整输入8 MiB。交付后的ShelfAcceptancePrimaryReadSet同样明确primaryInputs[1..32]、完整输入1 MiB；AcceptanceCheck机器schema的primaryMediaObservations也限制32项，完整Check虽然声明2 MiB，Foundation Result行仍64 KiB。
+2026-10-09用户确认统一补齐：ProductConformanceInputSnapshot.selectedProducts、ShelfAcceptancePrimaryReadSet.primaryInputs及完整AcceptanceCheck的观察集合对齐1024。Owner原完整输入8 MiB/1 MiB及完整Check 2 MiB不变，Foundation Result仍64 KiB。单文件最多覆盖32 Episode的Claim不在此次扩容范围。
 
-已提出统一方案，等待确认：完整Primary集合对齐Production Manifest的1024；Arca按acceptanceAttemptId + checkKind + revision持有完整不可变验收Evidence，Foundation记录只含有界引用及完整摘要；最终Decision逐项重建校验完整值与摘要。保持Owner边界、各Owner已有完整输入字节上限、Foundation64 KiB及实际质量/集数/空间条件，不截断数据。单文件最多覆盖32 Episode的Claim合同不属于本次整批成员扩容。
+Arca新增不可变arca_acceptance_check_evidence，以acceptanceAttemptId/checkKind/revision定位完整Evidence。五类验收Capability使用Domain Fact Commit精确variant，原子提交完整Check、AcceptanceCheckRecord、Foundation Result和marker；无Outbox、Custody或Control变更。执行前精确Event重放读取已提交证据；最终接受/拒绝均由Arca重建校验全部Evidence及摘要。记录缺失、引用/完整摘要篡改、Scope或执行fence不符均拒绝，不支持旧未完成Result兼容。
 
-当前只实施并验证UAT-286，不提前修改本项合同。现场原失败Run未Reset或改写；新47集E2E明确未通过，原始日志在仓库外本地运行目录保留。
+第二次用户确认：ProductionProvenance的workflowPlanRefs、productVerificationRefs、externalRealityObservationRefs从256扩至16384，完整Provenance仍1 MiB。真实47集隔离Host先后复现256引用限制和后续Stage Result超限，日志保留在仓库外运行目录；不能截断引用或放宽Foundation上限。
+
+验证：Windows核心74通过/3既有skip，Linux核心50通过/3既有skip；Windows升级24项通过，边界/成品/Source Map及记录专项60项通过。原契约测试中的计数/JSON边界断言同步新表与UAT-285既有Episode存储。完整2集Host Windows36.81秒/Linux55.63秒通过至On-deck Commit；P2/Kernel/Operational/Persistence最终18项通过。大Evidence超过64 KiB仍完整保存、Foundation有界；Owner写入异常回滚Evidence/Result/marker，精确Event重放不增revision；篡改、过期执行fence和SQL 2 MiB边界拒绝。
+
+原09d5991d…数据库升级仅增加空Evidence表，不重写旧事实。现场只读备份副本演练保留196张原业务表全部行摘要，外键与完整性通过，3 active/1 completed/9 discarded Run不变。18081仍运行a45d7b13f，保护真实转码与来源结算，未加载UAT-286/287，未Reset、未操作NAS。
+
+47集已通过Product Conformance、交付和Arca验收，下一关arca.inventory.product.stage的完整StagedInventoryManifest为94041字节，触发Foundation Result64 KiB约束。该独立缺口登记UAT-288；本项已修复部分有隔离证据，但完整47集E2E与现场复验仍未通过，不关闭。
+
+用户已确认UAT-288完整Stage Manifest由Arca不可变保存、1024成员/8 MiB、Foundation有界引用；待独立实现。

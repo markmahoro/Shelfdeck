@@ -1,4 +1,5 @@
 'use strict';
+const {fixture: evidenceFixture}=require('./helpers/acceptance-evidence-fixture');
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
@@ -272,17 +273,17 @@ test('workspace Product playback Gap ignores Source decode samples', async () =>
   assert.deepEqual(observed.primaryMediaObservations[0].sourceDecodeSummary.passedSamplePointsPercent,[]);
 });
 
-test('UAT-131 formal mandatory Capability executes independent observation on ordinary and defect Packages', async () => {
+test('UAT-131 formal mandatory Capability executes independent observation on ordinary and defect Packages', async (t) => {
   for (const authorized of [false, true]) {
-    const value=fixture({authorized}),runtime=ports(value.identity),capabilities=createOnDeckCapabilityPorts({
-      schemaManifest,unitOfWork:{execute(){throw new Error('pure mandatory check must not write');}},now:()=>NOW,
+    const native=evidenceFixture(CAPABILITY_REFS.mandatory,'offer-1');t.after(()=>native.close());
+    const value=fixture({authorized}),runtime=ports(value.identity),capabilities=createOnDeckCapabilityPorts({...native.options,now:()=>NOW,
       workResultReader:{readBindings(){return []; }},inventoryPort:{},...runtime,
       contextReader:{readOffer(){return Object.freeze({offer:Object.freeze({offerId:'offer-1',onDeckPackageId:value.packageValue.onDeckPackageId,
         packageDigest:value.packageValue.packageDigest}),shelf:Object.freeze({currentStandardRevision:1,currentPlacementRevision:1,
         standard:Object.freeze({digest:D('standard')})}),packageValue:value.packageValue});}}});
     if(authorized){await assert.rejects(()=>observeMandatoryMedia({...value,...runtime,observedAtMs:NOW}),{code:'ARCA_MANDATORY_MEDIA_INVALID_CONTRACT'});continue;}
-    const outcome=await capabilities[CAPABILITY_REFS.mandatory].execute({ownerScope:Object.freeze({processType:'arca_acceptance',processId:'offer-1'}),
-      workId:'mandatory-work',namedInputs:Object.freeze({onDeckProductPackage:value.packageValue,mandatoryRequirement:value.requirement})});
+    const outcome={...(await capabilities[CAPABILITY_REFS.mandatory].execute({...native.execution,namedInputs:Object.freeze({onDeckProductPackage:value.packageValue,mandatoryRequirement:value.requirement})}))};
+    outcome.result=native.store.resolve(outcome.result);
     assert.equal(outcome.result.result,authorized?'passed':'failed');
     assert.deepEqual(outcome.result.actualGapCodes,['video_codec_unmet']);
     assert.equal(outcome.result.primaryMediaObservations.length,1);
@@ -298,19 +299,19 @@ test('UAT-251 rejects new On-deck admission with historical codec-waiver authori
   }
 });
 
-test('UAT-132 direct HEVC with unknown dynamic-range labels remains an ordinary pass', async () => {
+test('UAT-132 direct HEVC with unknown dynamic-range labels remains an ordinary pass', async (t) => {
+  const native=evidenceFixture(CAPABILITY_REFS.mandatory,'offer-1');t.after(()=>native.close());
   const value=fixture({sourceDynamicRangeKind:'unknown',outputDynamicRangeKind:'unknown'}),
     runtime=ports(value.identity,'hevc','unknown','unknown'),
     observed=await observeMandatoryMedia({...value,...runtime,observedAtMs:NOW});
   assert.deepEqual(observed.actualGapCodes,[]);
-  const capabilities=createOnDeckCapabilityPorts({schemaManifest,
-    unitOfWork:{execute(){throw new Error('pure mandatory check must not write');}},now:()=>NOW,
+  const capabilities=createOnDeckCapabilityPorts({...native.options,now:()=>NOW,
     workResultReader:{readBindings(){return []; }},inventoryPort:{},...runtime,
     contextReader:{readOffer(){return Object.freeze({offer:Object.freeze({offerId:'offer-1',onDeckPackageId:value.packageValue.onDeckPackageId,
       packageDigest:value.packageValue.packageDigest}),shelf:Object.freeze({currentStandardRevision:1,currentPlacementRevision:1,
       standard:Object.freeze({digest:D('standard')})}),packageValue:value.packageValue});}}});
-  const result=(await capabilities[CAPABILITY_REFS.mandatory].execute({ownerScope:Object.freeze({processType:'arca_acceptance',processId:'offer-1'}),
-    workId:'mandatory-work',namedInputs:Object.freeze({onDeckProductPackage:value.packageValue,mandatoryRequirement:value.requirement})})).result;
+  const record=(await capabilities[CAPABILITY_REFS.mandatory].execute({...native.execution,namedInputs:Object.freeze({onDeckProductPackage:value.packageValue,mandatoryRequirement:value.requirement})})).result;
+  const result=native.store.resolve(record);
   assert.equal(result.result,'passed');
   assert.deepEqual(result.actualGapCodes,[]);
   assert.equal(result.primaryMediaObservations[0].dynamicRangeSummary.outputDynamicRangeKind,'unknown');

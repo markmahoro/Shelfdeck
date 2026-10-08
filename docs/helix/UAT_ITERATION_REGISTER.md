@@ -299,4 +299,7 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 
 | UAT-285 | 整季Product Metadata Draft汇总超过64 KiB，整理停在资料汇总 | LIBRA / METADATA_CAPACITY | 关闭：原3 Run资料正式提交通过 | 用户反馈Formation再次卡住；现场原72 fetch成功 | 有界逐集Owner记录；双平台专项/大剧情Host、Win追加Host通过 | [现场与设计](implementation/evidence/UAT-285_SERIES_METADATA_CAPACITY_20261009.md) | 完整32/46/47集资料与来源保留；只关闭资料容量关卡，后续媒体验收异常与完整上架独立。 |
 | UAT-286 | Series媒体验收完整空间集合限制32成员，46/47集输入失败 | LIBRA / MEDIA_SPACE_CAPACITY | 修复已验证，待本地加载与现场复验 | UAT-285后原任务继续，93失败Evidence摘要精确匹配 | Win39/Linux33；全新47集全部verify/select成功 | [根因与方案](implementation/evidence/UAT-286_SERIES_MEDIA_SPACE_CAPACITY_20261009.md) | 不漏同集part；保护进行中的真实转码，旧失败Run未Reset；下游UAT-287独立开放。 |
-| UAT-287 | 整批Product Conformance/Arca验收仍有32成员及大Evidence限制 | LIBRA / ARCA_ACCEPTANCE_CAPACITY | 开放：统一合同方案待确认 | 新47集Host通过单文件验收后P9_CONFORMANCE_SELECTED_SET | 未实施 | [合同与复现](implementation/evidence/UAT-287_SERIES_AGGREGATE_ACCEPTANCE_CAPACITY_20261009.md) | 完整Primary集合与Owner Evidence不能截断；尚无47集完整E2E通过结论。 |
+| UAT-287 | 整批Product Conformance/Arca验收仍有32成员及大Evidence限制 | LIBRA / ARCA_ACCEPTANCE_CAPACITY | 修复已验证，待现场复验 | 47集逐关复现完整集合及追溯引用限制 | Win核心74/Linux50、升级24、边界60；2集完整Host通过 | [合同与复现](implementation/evidence/UAT-287_SERIES_AGGREGATE_ACCEPTANCE_CAPACITY_20261009.md) | 完整Primary集合与Owner Evidence不能截断；尚无47集完整E2E通过结论。 |
+
+| UAT-288 | 整季Stage Manifest超过64 KiB | ARCA / STAGED_MANIFEST_CAPACITY | 已确认：待实现 | 47集已通过交付与Arca验收，Stage Result94041字节 | 尚未实施 | [复现](implementation/evidence/UAT-287_SERIES_AGGREGATE_ACCEPTANCE_CAPACITY_20261009.md) | 不扩大Foundation Result上限；完整Owner Manifest拟有界保存。 |
+| UAT-289 | 来源结算未授权仅显示等待外部服务 | ARCA / FORMATION_FEEDBACK | 开放：待UI负责人确认 | 上海女子图鉴20个delete等待且零Attempt，授权head/记录均空 | 只读监控证据 | 监控聊天2026-10-09 02:33 CST | 不代用户批准来源删除；真实等待不是Provider耗时。 |

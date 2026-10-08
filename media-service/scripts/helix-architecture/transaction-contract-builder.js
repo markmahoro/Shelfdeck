@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 
 const crashFixtures = Object.freeze({
+  'arca-acceptance-evidence': ['Event/Attempt与Owner revision fence、完整Evidence/Result/marker写入及重放', '完整Evidence、有界引用、Result与marker全有或全无；精确Event重放不重新观察；摘要/范围篡改拒绝；无Custody/Control/Outbox变更', 15813],
   'field-observation-page': ['Page DTO/Access/Request digest验证前后、Field observation head CAS前后、immutable revision与Material current-row逐项写入前后、typed Result/marker前后、响应前崩溃', '任一DTO、顺序、continuity、digest、supporting-work或CAS验证失败整页rollback；Field head、immutable page revision、全部Material current rows、typed Result和marker全有或全无；新Material仅初始化unknown/unknown；同marker重放返回原typed Result且不推进revision；terminal page以前不得形成缺失结论', 7497],
   'field-eligibility-reconcile': ['Policy schema/path/precedence边界、terminal coverage形成前后、Selection与Control snapshot读取前后、Batch提交前、逐项basis/revision重验、事务提交前后、响应前崩溃', '只按ExtractionPolicy@1和固定reason precedence计算；无隐藏duplicate suppression；未terminal/Access变化/不可用basis只投影unknown；stale Material row不被覆盖并进入summary；同basis no-op；一个Batch的applied rows全有或全无；无Event Result/marker/Outbox；重启由current facts与rows重新收敛', 9013],
   'procurement-run-admission': ['Execution Basis验证前后、active Triage Rule解析前后、逐成员Selection/Control fence重验、Run/Basis rows写入、Control acquire/assert、Command Receipt/marker前后、响应前崩溃', '完整Basis、Run、全部run_selection、同Field Procurement Control、ProcurementControlReceipt与Command Receipt全有或全无；Rule只能来自注入的Procurement Registry；任一成员stale或冲突整体rollback；不建立Event且不写Outbox', 7621],
@@ -52,6 +53,15 @@ const definitions = Object.freeze({
     dynamicTableRequirements: [{ participant: 'domain', selector: 'DomainFactCommitHandle.factSchemaRef', ownerConstraint: 'execution_owner' }],
     readTables: [], fixtureRefs: ['command-idempotency', 'effect-outbox-recovery'], hasOutbox: true,
     variants: [
+      {
+        variantId: 'arca_acceptance_check_evidence@1', exactOverride: true,
+        selector: { selectorKind:'domain_fact_handle_exact', factType:'acceptance_check_evidence',
+          factSchemaRef:'helix://contracts/types/AcceptanceCheck/v1', resultSchemaRef:'helix://contracts/types/AcceptanceCheckRecord/v1' },
+        writeTables:['arca_acceptance_check_evidence','fx_event_result_bindings','fx_commit_markers'],
+        readTables:['arca_acceptance_check_evidence','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_event_result_bindings','fx_commit_markers'],
+        dynamicTableRequirements:[],hasOutbox:false,fixtureRefs:['arca-acceptance-evidence'],
+        rollbackInvariant:'Complete Arca evidence, bounded record, Result and marker are atomic; exact Event replay cannot replace observed evidence.'
+      },
       {
         variantId: 'libra_media_cast_fact@1', exactOverride: true,
         selector: { selectorKind: 'domain_fact_handle_exact', factType: 'media_cast',

@@ -1,4 +1,5 @@
 'use strict';
+const {createAcceptanceCheckEvidenceStore,resolveAcceptanceResult,RECORD:CHECK_RECORD}=require('../persistence/acceptance-check-evidence-store');
 const {settlementTargetEntries,dispositionCompletions:buildDispositionCompletions}=require('../model/settlement-completion');
 const {assertDispositionFinalReality}=require('../model/product-disposition');
 const {seriesMetadataFieldMissing}=require('../model/series-metadata');
@@ -263,7 +264,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     assessmentWork=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:c.offer.offerId,workKind:'acceptance_assessment'})
       .find((item)=>options.workResultReader.status(item.work_id)?.state==='succeeded');
     if(!assessmentWork)throw new Error('Arca Acceptance assessment Work is absent.');const values=options.workResultReader.read(assessmentWork.work_id)
-      .filter(i=>i.outcomeKind==='succeeded').map(i=>i.result),checks=values.map(v=>v.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'
+      .filter(i=>i.outcomeKind==='succeeded').map(i=>resolveAcceptanceResult(options,i.result)),checks=values.map(v=>v.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'
         ?{kind:v.checkKind,outcome:v.result,evidenceDigest:canonicalDigest(v)}:{kind:'inventory_feasibility',outcome:v.availableBytes>=v.requiredBytes?'passed':'failed',evidenceDigest:v.payloadDigest})
       .sort((a,b)=>a.kind.localeCompare(b.kind));
     const assessmentId=canonicalDigest({schema:'arca.acceptance-attempt-id@1',offerId:c.offer.offerId,onDeckPackageId:c.offer.onDeckPackageId,
@@ -299,7 +300,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       assessmentWork=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:c.offer.offerId,workKind:'acceptance_assessment'})
       .find((item)=>options.workResultReader.status(item.work_id)?.state==='succeeded');
     if(!assessmentWork)throw new Error('Arca Acceptance assessment Work is absent.');const values=options.workResultReader.read(assessmentWork.work_id)
-      .filter(i=>i.outcomeKind==='succeeded').map(i=>i.result),checks=values.map(v=>v.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'
+      .filter(i=>i.outcomeKind==='succeeded').map(i=>resolveAcceptanceResult(options,i.result)),checks=values.map(v=>v.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'
         ?{kind:v.checkKind,outcome:v.result,evidenceDigest:canonicalDigest(v)}:{kind:'inventory_feasibility',outcome:v.availableBytes>=v.requiredBytes?'passed':'failed',evidenceDigest:v.payloadDigest})
       .sort((a,b)=>a.kind.localeCompare(b.kind)),gapDecision=finalGapDecision({acceptanceAttemptId:acceptanceAttemptId(c),
         acceptanceChecks:values.filter((value)=>value.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'),
@@ -425,6 +426,23 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       onDeckRunId:c.responsibility.onDeckRunId,shelfEntryId:committed.result.onDeckCommitReceipt.shelfEntryId}));
     return committedOutcome(execution,C.commit,committed.result,effectAt(execution),'responsibility_control_commit');},
     validateResult(_c,o){if(o?.result?.onDeckCommitReceipt?.receiptKind!=='on_deck_committed')throw new TypeError('On-deck Commit Result is invalid.');}});
+  const checkStore=createAcceptanceCheckEvidenceStore(options);
+  for(const ref of [C.identity,C.structure,C.metadata,C.mandatory,C.space]){
+    const observer=ports[ref];
+    ports[ref]=Object.freeze({...observer,async execute(execution){
+      const c=ctx(execution),prior=checkStore.readEvent(execution.eventId);
+      let saved=prior;
+      if(prior){
+        if(prior.check.packageDigest!==c.packageValue.packageDigest||prior.check.acceptanceAttemptId!==acceptanceAttemptId(c))
+          throw new Error('Acceptance Evidence replay scope drifted.');
+      }else{
+        const observed=await observer.execute(execution);
+        observer.validateResult(execution,observed);
+        saved=checkStore.commit(execution,c.offer,observed.result);
+      }
+      return committedOutcome(execution,ref,saved.record,saved.committedAtMs,'domain_fact_commit');
+    },validateResult(_execution,result){if(result?.result?.schemaRef!==CHECK_RECORD)throw new TypeError('Acceptance Check Record is absent.');}});
+  }
   return Object.freeze(ports);
 }
 

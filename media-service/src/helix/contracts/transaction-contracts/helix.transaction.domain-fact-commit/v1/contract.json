@@ -35,6 +35,66 @@
     "readTables": [],
     "variants": [
       {
+        "variantId": "arca_acceptance_check_evidence@1",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "arca",
+            "access": "write",
+            "tables": [
+              "arca_acceptance_check_evidence"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_event_result_bindings",
+              "fx_commit_markers"
+            ]
+          }
+        ],
+        "writeTables": [
+          "arca_acceptance_check_evidence",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "readTables": [
+          "arca_acceptance_check_evidence",
+          "fx_supporting_works",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "selector": {
+          "selectorKind": "domain_fact_handle_exact",
+          "factType": "acceptance_check_evidence",
+          "factSchemaRef": "helix://contracts/types/AcceptanceCheck/v1",
+          "resultSchemaRef": "helix://contracts/types/AcceptanceCheckRecord/v1"
+        },
+        "dynamicTableRequirements": [],
+        "fenceContract": {
+          "domainRevisionFenceRequired": true,
+          "materialControlCasRequired": false,
+          "commitMarkerRequired": true,
+          "outboxRequired": false
+        },
+        "rollbackInvariant": "Complete Arca evidence, bounded record, Result and marker are atomic; exact Event replay cannot replace observed evidence.",
+        "crashFixtures": [
+          {
+            "fixtureId": "arca-acceptance-evidence",
+            "faultInjectionPoints": "Event/Attempt与Owner revision fence、完整Evidence/Result/marker写入及重放",
+            "requiredInvariant": "完整Evidence、有界引用、Result与marker全有或全无；精确Event重放不重新观察；摘要/范围篡改拒绝；无Custody/Control/Outbox变更",
+            "source": {
+              "section": "8.9.7",
+              "line": 15813
+            }
+          }
+        ]
+      },
+      {
         "variantId": "libra_media_cast_fact@1",
         "participants": [
           {

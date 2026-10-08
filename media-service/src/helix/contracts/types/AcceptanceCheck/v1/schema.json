@@ -477,7 +477,7 @@
           "observationDigest"
         ]
       },
-      "maxItems": 32
+      "maxItems": 1024
     },
     "primaryMediaObservationSetDigest": {
       "type": "string",
@@ -1090,7 +1090,7 @@
                 "observationDigest"
               ]
             },
-            "maxItems": 32,
+            "maxItems": 1024,
             "minItems": 1
           }
         }

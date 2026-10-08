@@ -3,8 +3,19 @@
   "mapId": "helix.ssot-contract-source-map",
   "category": "tables",
   "startOrdinal": 196,
-  "endOrdinal": 197,
+  "endOrdinal": 198,
   "entries": [
+    {
+      "id": "arca_defect_admissions",
+      "owner": "arca",
+      "columnsContract": "`shelf_entry_id FK, revision, inventory_revision, care_basis_digest, gap_set_digest, authorization_schema_ref, authorization_json, authorization_digest, actor_id, idempotency_key, decided_at_ms`",
+      "constraintsContract": "`PK(shelf_entry_id,revision)`；`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；immutable；typed JSON上限`64 KiB`",
+      "source": {
+        "section": "8.9.9",
+        "line": 15713,
+        "lineDigest": "88ec71a2d280751908ce94814f60ebb63cd00aa089e7f015bfa82ed65fb99f69"
+      }
+    },
     {
       "id": "arca_defect_admission_heads",
       "owner": "arca",
@@ -12,7 +23,7 @@
       "constraintsContract": "current pointer显式复合FK；CAS revision",
       "source": {
         "section": "8.9.9",
-        "line": 15713,
+        "line": 15714,
         "lineDigest": "c2993d2fdd186a34ad68f9000cd181f0ab8502959b2bf8c033cf96d16b1c24e5"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；`UNIQUE(aftercare_case_id)`；immutable",
       "source": {
         "section": "8.9.9",
-        "line": 15714,
+        "line": 15715,
         "lineDigest": "6b01388fbace394628b73d88d23d73a671f05497789ee6e897a75ee25bdad4d2"
       }
     }

@@ -117,7 +117,7 @@
           "itemDigest"
         ]
       },
-      "maxItems": 32,
+      "maxItems": 1024,
       "minItems": 1
     },
     "primaryInputSetDigest": {

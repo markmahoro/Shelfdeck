@@ -3,7 +3,7 @@
   "capabilityRef": "arca.acceptance.space.verify@1",
   "contractVersion": 1,
   "ownerScope": "arca",
-  "effectClass": "pure_observation",
+  "effectClass": "domain_fact_commit",
   "inputPorts": {
     "productManifest": {
       "schemaRef": "helix://contracts/capabilities/arca.acceptance.space.verify/v1/inputs#/$defs/productManifest",
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.9",
-    "line": 10261,
-    "lineDigest": "40d5e97c13f59851e29f7b5f7580bd58be75cc031049119cbd947b4223beec8e"
+    "line": 10262,
+    "lineDigest": "c7d5314145540603d0b6d661caf678c4bf34c78687806fef7d45cf2d0ebe3e1b"
   }
 }

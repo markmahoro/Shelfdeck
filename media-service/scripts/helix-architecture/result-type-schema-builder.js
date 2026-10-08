@@ -608,6 +608,7 @@ function inferredField(resultName, fieldName) {
 }
 
 const contracts = {
+  AcceptanceCheckRecord: ['VerificationEnvelope', ''],
   EpisodeMetadataRecordSet: ['EvidenceEnvelope', ''],
   PrimaryInputManifestDraftRecord: ['DraftEnvelope', ''],
   FilesystemIdentityEvidence: ['EvidenceEnvelope', 'identity,endpointId,location,statSizeBytes,statMtimeMs'],
@@ -733,6 +734,10 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 }), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if (name === 'AcceptanceCheckRecord') return { $schema:DRAFT, $id:typeId(name), title:name+'@1',
+    'x-helix-ssotRefs':['8.6.19'], 'x-helix-maxCanonicalBytes':64*1024,
+    ...object({schemaRef:{const:typeId(name)},schemaVersion:{const:1},acceptanceAttemptId:id(),
+      checkKind:enumText('identity','structure','metadata','mandatory_media','space'),checkRevision:positiveInteger(),checkDigest:digest(),recordDigest:digest()}) };
   if (name === 'EpisodeMetadataRecordSet') return { $schema:DRAFT, $id:typeId(name), title:name+'@1',
     'x-helix-ssotRefs':['8.6.19'], 'x-helix-maxCanonicalBytes':16*1024*1024, ...episodeMetadataSchema() };
   if (name === 'PrimaryInputManifestDraftRecord') {
@@ -965,7 +970,7 @@ function acceptanceCheckSchema() {
     actualGapCodes: gapSet, actualGapSetDigest: digest(),
     missingMetadataFields:arrayOf(id(),64),
     missingArtifactKinds:arrayOf(id(),3),
-    primaryMediaObservations: arrayOf(observation, 32),
+    primaryMediaObservations: arrayOf(observation, 1024),
     primaryMediaObservationSetDigest: digest(),
     authorizedDefectManifestDigestOrNull: nullable(digest()),
     authorizedGapComparison: enumText('not_applicable', 'pending_final_union'),
@@ -1011,7 +1016,7 @@ function acceptanceCheckSchema() {
           'system_upscale_forbidden', 'primary_audio_unmet',
           'dynamic_range_conversion_unmet', 'output_color_profile_unmet',
           'dolby_vision_metadata_not_removed', 'playback_decode_failed'), 11),
-        primaryMediaObservations: { ...arrayOf(observation, 32), minItems: 1 } } },
+        primaryMediaObservations: { ...arrayOf(observation, 1024), minItems: 1 } } },
       },
       {
         if: { properties: { checkKind: { const: 'space' } }, required: ['checkKind'] },
@@ -1270,13 +1275,13 @@ function onDeckProductPackageSchema() {
     libraRunId: id(), runExecutionBasisDigest: digest(), acceptanceSpecRecordDigest: digest(),
     workflowPlanRefs: arrayOf(object({
       planId: id(), planRevision: positiveInteger(), planDigest: digest()
-    }), 256),
+    }), 16384),
     productVerificationRefs: arrayOf(object({
       verificationId: id(), verificationDigest: digest()
-    }), 256),
+    }), 16384),
     externalRealityObservationRefs: arrayOf(object({
       evidenceId: id(), evidenceDigest: digest()
-    }), 256),
+    }), 16384),
     sourceNfoObservations:arrayOf(ref('MetadataObservation'),16),
     acceptanceRequirementSnapshot: domainRef('AcceptanceRequirementSnapshot'),
     shelfAcceptancePrimaryReadSet: domainRef('ShelfAcceptancePrimaryReadSet'),

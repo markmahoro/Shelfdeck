@@ -328,7 +328,8 @@ function compileTable(contract, allContracts) {
   for (const json of contract.jsonContracts) {
     requireColumns(contract, [json.column], contract.tableId + ':json');
     const episodeRecordSet = ['libra_product_fact_revisions','arca_inventory_product_facts'].includes(contract.tableId) &&
-      json.column === 'episode_metadata_json' && json.maxBytes === 16 * 1024 * 1024;
+      json.column === 'episode_metadata_json' && json.maxBytes === 16 * 1024 * 1024 ||
+      contract.tableId === 'arca_acceptance_check_evidence' && json.column === 'evidence_json' && json.maxBytes === 2 * 1024 * 1024;
     if (!json.requiresJsonValidCheck || (!episodeRecordSet && ![4096, 16384, 65536, 131072, 262144, 1048576].includes(json.maxBytes))) {
       throw new Error('P3_DDL_UNSUPPORTED_JSON_CONTRACT:' + contract.tableId + '.' + json.column);
     }

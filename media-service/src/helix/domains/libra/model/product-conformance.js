@@ -230,7 +230,7 @@ function buildProductConformanceInputSnapshot(value) {
   const mediaRequirement=buildMediaRequirement(acceptanceSpec),selectedProducts = value.selectedProducts.map((item) => clone(item));
   assertSorted(selectedProducts, (a, b) => utf8(a.selectionKind, b.selectionKind) ||
     utf8(a.verification.verificationId, b.verification.verificationId), 'P9_CONFORMANCE_SELECTED_ORDER');
-  if (!selectedProducts.length || selectedProducts.length > 32 || new Set(selectedProducts.map((item) =>
+  if (!selectedProducts.length || selectedProducts.length > 1024 || new Set(selectedProducts.map((item) =>
     item.selectionKind + '\0' + item.verification.verificationId)).size !== selectedProducts.length)
     fail('P9_CONFORMANCE_SELECTED_SET', 'Selected Product set cardinality or identity is invalid.');
   for (const item of selectedProducts) {

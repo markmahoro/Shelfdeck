@@ -1,9 +1,9 @@
 'use strict';
 
 const EFFECTS=Object.freeze({
-  'arca.acceptance.identity.verify@1':'pure_observation','arca.acceptance.metadata.verify@1':'pure_observation',
-  'arca.acceptance.structure.verify@1':'pure_observation','arca.acceptance.mandatory_media.verify@1':'pure_observation',
-  'arca.acceptance.space.verify@1':'pure_observation','arca.acceptance.inventory_feasibility.observe@1':'pure_observation',
+  'arca.acceptance.identity.verify@1':'domain_fact_commit','arca.acceptance.metadata.verify@1':'domain_fact_commit',
+  'arca.acceptance.structure.verify@1':'domain_fact_commit','arca.acceptance.mandatory_media.verify@1':'domain_fact_commit',
+  'arca.acceptance.space.verify@1':'domain_fact_commit','arca.acceptance.inventory_feasibility.observe@1':'pure_observation',
   'arca.acceptance.accept.commit@1':'responsibility_control_commit','arca.acceptance.rejection.commit@1':'domain_fact_commit',
   'arca.inventory.target_slot.prepare@1':'material_commit','arca.inventory.product.stage@1':'material_commit',
   'arca.inventory.staged.verify@1':'pure_observation','arca.inventory.final_product.verify@1':'pure_observation',

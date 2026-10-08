@@ -3,7 +3,7 @@
   "capabilityRef": "arca.acceptance.identity.verify@1",
   "contractVersion": 1,
   "ownerScope": "arca",
-  "effectClass": "pure_observation",
+  "effectClass": "domain_fact_commit",
   "inputPorts": {
     "packageIdentity": {
       "schemaRef": "helix://contracts/capabilities/arca.acceptance.identity.verify/v1/inputs#/$defs/packageIdentity",
@@ -29,7 +29,7 @@
   },
   "sourceLocator": {
     "section": "8.6.9",
-    "line": 10257,
-    "lineDigest": "e1692014887797cd5aa80890c62a849dc352f89fc6d123a576e7bb7b28db378b"
+    "line": 10258,
+    "lineDigest": "ae8fd636af7e54629f9fd7249f3f925624a416f4893aeaa9fa5359bf7a8bff84"
   }
 }

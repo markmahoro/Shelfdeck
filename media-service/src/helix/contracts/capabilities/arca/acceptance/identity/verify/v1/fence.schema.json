@@ -28,6 +28,8 @@
   },
   "required": [
     "basisDigest",
-    "inputSetDigest"
+    "inputSetDigest",
+    "eventFenceDigest",
+    "effectScopeDigest"
   ]
 }
