@@ -19,3 +19,11 @@ Case必须active且Care Basis、CareRequirement摘要一致，basisInputs只允�
 ## 后续门禁
 
 本批接通目标解析和策略Projection，不开放Series自动媒体维修。后续必须让维修Planner为每个目标生成独立节点，Effect精确绑定同一原成员及输出，再完成混合成品逐集验收、Inventory-Control原子提交/Settlement与恢复。真实媒体、UI精确版本/Linux及整体可部署资格仍未完成。
+
+## 追加：精确验证成品消费
+
+基线`13fb55e8b3e720d166c1d7281770b8af3f1ef04b`。Commit Planner为每个媒体物化节点冻结其验证Event。Projection从同一准备Work读取唯一通过的CareProductVerification，沿持久输入Binding找到生产Event，要求Handle ID、producingEventId、Result schema、Work/Attempt/Plan及Result摘要均一致。缺失、重复、失败或跨执行结果拒绝；同Work的执行期投影仍直接使用Foundation已经解析的Result。没有新增schema或修改Owner边界。
+
+15项Projection/Planner专项通过，包含三个Remux/Transcode输出乱序解析、正式Plan schema验证及17种损坏/跨执行变体。分组全架构2,296通过/9既有skip/0失败（并行2,280，95.8秒；串行stage 16，0.2秒）；架构448文件/1402依赖、语义2066文件和P2合同通过。日志：`series-verified-media-output-full.log`、`series-verified-media-output-stage.log`、`series-verified-media-output-contract.log`，位于既有外部日志目录。本批是有界后端输出绑定修复，没有新增真实FFmpeg/Host、UI、Linux或部署证据。
+
+仍需逐目标准备Planner/Effect、完整混合输出逐集验收、精确物化和原子提交/结算/恢复；Series自动媒体维修保持关闭。

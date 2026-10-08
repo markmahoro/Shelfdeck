@@ -103,6 +103,55 @@ test('Aftercare multi-NFO preparation resolves the exact Event and refuses ambig
   assert.throws(()=>resolvePreparedOutput(null,{sourceWorkId:'prepare',outputKind:'nfo',sourceEventId:'render-3'},reader),/ambiguous/);
 });
 
+function verifiedMediaRows() {
+  return [1,2,3].flatMap(number=>{
+    const common={workId:'prepare',attemptId:'prepare-attempt',planId:'prepare-plan',outcomeKind:'succeeded'};
+    const result={schemaRef:'helix://contracts/types/WorkspaceMediaHandle/v1',workspaceMediaHandleId:'media-'+number,
+      producingEventId:'produce-'+number};
+    const verification={verificationKind:'aftercare_media',result:'passed',workspaceMediaHandleId:result.workspaceMediaHandleId};
+    return [{...common,eventId:result.producingEventId,capabilityRef:number===2?C.transcode:C.remux,
+      resultSchemaRef:result.schemaRef,result,resultDigest:canonicalDigest(result)},
+    {...common,eventId:'verify-'+number,capabilityRef:C.mediaVerify,result:verification,resultDigest:canonicalDigest(verification),
+      inputBindings:{bindings:[{portName:'workspaceMediaHandle',bindingKind:'projected_event_result',
+        eventId:result.producingEventId,resultSchemaRef:result.schemaRef}]}}];
+  });
+}
+
+test('Aftercare media materialization follows the exact persisted verification and producing Event',()=>{
+  const rows=verifiedMediaRows().reverse(),reader={read:()=>rows};
+  for(const number of [1,2,3])assert.equal(resolvePreparedOutput(null,
+    {sourceWorkId:'prepare',outputKind:'media',sourceEventId:'verify-'+number},reader).workspaceMediaHandleId,'media-'+number);
+});
+
+test('Aftercare media materialization rejects missing, failed, ambiguous and cross-execution verification',()=>{
+  const mutations=[
+    rows=>rows.splice(1,1),
+    rows=>rows.push(structuredClone(rows[1])),
+    rows=>rows.push(structuredClone(rows[0])),
+    rows=>{rows[1].result.result='failed';rows[1].resultDigest=canonicalDigest(rows[1].result);},
+    rows=>{rows[1].result.workspaceMediaHandleId='missing';rows[1].resultDigest=canonicalDigest(rows[1].result);},
+    rows=>{rows[1].resultDigest=canonicalDigest('corrupt');},
+    rows=>{rows[0].resultDigest=canonicalDigest('corrupt');},
+    rows=>{rows[0].outcomeKind='failed';},
+    rows=>{rows[1].workId='foreign';},
+    rows=>{rows[0].workId='foreign';},
+    rows=>{rows[0].attemptId='foreign';},
+    rows=>{rows[0].planId='foreign';},
+    rows=>{rows[1].inputBindings.bindings[0].eventId='produce-2';},
+    rows=>{rows[1].inputBindings.bindings[0].resultSchemaRef='foreign';},
+    rows=>{rows[1].inputBindings.bindings[0].bindingKind='projected_owner_facts';},
+    rows=>{rows[1].inputBindings.bindings.push({...rows[1].inputBindings.bindings[0]});},
+    rows=>{rows[0].result.producingEventId='foreign';rows[0].resultDigest=canonicalDigest(rows[0].result);},
+  ];
+  for(const [index,mutate] of mutations.entries()) {
+    const rows=verifiedMediaRows();mutate(rows);
+    assert.throws(()=>resolvePreparedOutput(null,{sourceWorkId:'prepare',outputKind:'media',sourceEventId:'verify-1'},
+      {read:()=>rows}),/verified media output is absent or ambiguous/,String(index));
+  }
+  for(const sourceEventId of [undefined,'produce-1','missing'])assert.throws(()=>resolvePreparedOutput(null,
+    {sourceWorkId:'prepare',outputKind:'media',sourceEventId},{read:verifiedMediaRows}),/absent or ambiguous/);
+});
+
 test('Aftercare commit Planner binds each NFO to its own prepared Event Result',()=>{
   const fs=require('node:fs'),path=require('node:path');
   const {createCareRepairCommitPlanner}=require('../../src/helix/domains/arca/planning/aftercare-planners');
@@ -129,6 +178,35 @@ test('Aftercare commit Planner binds each NFO to its own prepared Event Result',
     const parameters=node.inputBindings.bindings.find(binding=>binding.portName==='verifiedArtifactOrWorkspaceMediaHandle').parameters;
     assert.equal(parameters.sourceEventId,'render-'+(index+1));
     assert.equal(resolvePreparedOutput(null,parameters,reader).artifactHandleId,'episode-'+(index+1));
+  }
+  assert.deepEqual(plan.nodes.find(node=>node.capabilityRef===C.inventoryCommit).dependsOn.map(item=>item.eventId),materializers.map(node=>node.eventId));
+});
+
+test('Aftercare commit Planner binds each media output to its own verification Event',()=>{
+  const fs=require('node:fs'),path=require('node:path');
+  const {createCareRepairCommitPlanner}=require('../../src/helix/domains/arca/planning/aftercare-planners');
+  const {validateWorkflowPlan}=require('../../src/helix/foundation/execution/workflow-plan');
+  const {createCapabilityContractValidator}=require('../../src/helix/foundation/capability/contract-validator');
+  const refs=[C.artifactMaterialize,C.inventoryCommit,C.settlement];
+  const manifests=new Map(refs.map(ref=>[ref,JSON.parse(fs.readFileSync(path.join(__dirname,
+    '../../src/helix/contracts/capabilities',...ref.replace('@1','').split('.'),'v1/manifest.json'),'utf8'))]));
+  const registry={snapshot:refs.map(capabilityRef=>({capabilityRef,contractVersion:1})),
+    resolve:capabilityRef=>({manifest:manifests.get(capabilityRef)})};
+  const policyRegistry={digest:canonicalDigest('policy'),bindingFor:()=>({retryPolicyRef:'retry@1',timeoutPolicyRef:'timeout@1'})};
+  const rows=verifiedMediaRows(),reader={read:()=>rows};
+  const plan=createCareRepairCommitPlanner({registry,policyRegistry,workResultReader:reader,
+    contextReader:{read:()=>({raw:{materials:[{role:'primary_payload'}]}})}}).plan({
+      workAttemptId:'commit-attempt',workId:'commit',ownerDomain:'arca',processType:'arca_shelf_entry',processId:'entry',
+      executionBasisDigest:canonicalDigest('basis'),dependencyRefs:[{objectType:'repair_prepare_work',objectId:'prepare'}]});
+  const schemas=refs.flatMap(ref=>['parameters','resource-demand','fence'].map(kind=>JSON.parse(fs.readFileSync(path.join(__dirname,
+    '../../src/helix/contracts/capabilities',...ref.replace('@1','').split('.'),'v1',kind+'.schema.json'),'utf8'))));
+  validateWorkflowPlan(plan,{registry,policyRegistry,contractValidator:createCapabilityContractValidator({schemas})});
+  const materializers=plan.nodes.filter(node=>node.capabilityRef===C.artifactMaterialize);
+  assert.equal(materializers.length,3);
+  for(const [index,node] of materializers.entries()) {
+    const parameters=node.inputBindings.bindings.find(binding=>binding.portName==='verifiedArtifactOrWorkspaceMediaHandle').parameters;
+    assert.equal(parameters.sourceEventId,'verify-'+(index+1));
+    assert.equal(resolvePreparedOutput(null,parameters,reader).workspaceMediaHandleId,'media-'+(index+1));
   }
   assert.deepEqual(plan.nodes.find(node=>node.capabilityRef===C.inventoryCommit).dependsOn.map(item=>item.eventId),materializers.map(node=>node.eventId));
 });

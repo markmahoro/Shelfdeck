@@ -233,3 +233,5 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Case成员策略消费DoR：将同Owner完整成员证据的纯校验提取为Arca model供观察汇总与规划共用，文件现场Fence继续留在Capability。Case只消费basisInputs冻结的唯一健康Work、正式专业Assessment及requiredEffects对应Finding，重建完整成员集合摘要后按materialKey选择策略；拒绝其他Work/Basis、篡改Requirement、漏成员、错Finding和错策略。先连接策略Projection和负向测试，再生成逐目标维修Plan与Effect；不执行新副作用、不解除自动维修门禁、不读取Libra或把文件I/O放入Planner。
 
 2026-10-08 Case消费结果：[Evidence](evidence/SERIES_CASE_MEMBER_STRATEGY_20261008.md)。目标解析与策略Projection已接通，只选择Case冻结Finding对应成员；纯集合校验移入Arca model，现场Fence仍在Capability。39项专项及分组全架构2,293通过/9既有skip/0失败。下一步逐目标维修Planner与Effect、完整混合输出验收/原子Commit/恢复；自动维修和发布Gate仍未开放。
+
+2026-10-08精确媒体成品绑定：[Evidence](evidence/SERIES_CASE_MEMBER_STRATEGY_20261008.md)。Commit逐项绑定验证Event，经同Work/Attempt/Plan、输入Binding、Handle和Result摘要取唯一生产成品，拒绝错取或歧义。15项专项及分组全架构2,296通过/9既有skip/0失败；逐目标Effect、完整集合终检/原子Commit/恢复仍待完成，自动媒体维修与发布Gate保持开放，未部署NAS。

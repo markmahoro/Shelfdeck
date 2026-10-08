@@ -20,7 +20,29 @@ function resolvePreparedOutput(sourceResult,parameters,workResultReader){
   if(sourceResult)return resultOutput(sourceResult);
   if(typeof parameters?.sourceWorkId!=='string'||!parameters.sourceWorkId)
     throw Object.assign(new Error('Aftercare prepared output has neither a projected source Result nor a source Work.'),{code:'ARCA_AFTERCARE_PREPARED_OUTPUT_SOURCE_MISSING'});
-  const rows=workResultReader.read(parameters.sourceWorkId).filter((item)=>item.outcomeKind==='succeeded'&&
+  const sourceRows=workResultReader.read(parameters.sourceWorkId);
+  if(parameters.outputKind==='media') {
+    const fail=()=>{throw new Error('Aftercare verified media output is absent or ambiguous.');};
+    const valid=row=>row.workId===parameters.sourceWorkId&&row.outcomeKind==='succeeded'&&
+      typeof row.attemptId==='string'&&row.attemptId.length>0&&typeof row.planId==='string'&&row.planId.length>0&&
+      row.resultDigest===canonicalDigest(row.result);
+    const verifications=sourceRows.filter(row=>row.eventId===parameters.sourceEventId&&row.capabilityRef===C.mediaVerify);
+    if(verifications.length!==1)fail();
+    const verification=verifications[0],result=verification.result;
+    if(!valid(verification)||result?.verificationKind!=='aftercare_media'||result.result!=='passed'||
+      !result.workspaceMediaHandleId)fail();
+    const bindings=verification.inputBindings?.bindings?.filter(binding=>binding.portName==='workspaceMediaHandle')||[];
+    if(bindings.length!==1||bindings[0].bindingKind!=='projected_event_result')fail();
+    const producers=sourceRows.filter(row=>[C.remux,C.transcode].includes(row.capabilityRef)&&
+      row.result?.workspaceMediaHandleId===result.workspaceMediaHandleId);
+    if(producers.length!==1)fail();
+    const producer=producers[0];
+    if(!valid(producer)||producer.attemptId!==verification.attemptId||producer.planId!==verification.planId||
+      producer.eventId!==bindings[0].eventId||producer.result.producingEventId!==producer.eventId||
+      producer.resultSchemaRef!==bindings[0].resultSchemaRef)fail();
+    return producer.result;
+  }
+  const rows=sourceRows.filter((item)=>item.outcomeKind==='succeeded'&&
     (parameters.sourceEventId===undefined||item.eventId===parameters.sourceEventId));
   const matches=rows.filter(item=>parameters.outputKind==='nfo'?item.capabilityRef===C.textRender:
     parameters.outputKind==='poster'?item.capabilityRef===C.binaryAcquire&&item.result?.resultKind==='acquired':

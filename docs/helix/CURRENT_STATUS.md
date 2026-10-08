@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08精确媒体成品绑定：[Evidence](implementation/evidence/SERIES_CASE_MEMBER_STRATEGY_20261008.md)。Commit逐项绑定验证Event，经同Work/Attempt/Plan、输入Binding、Handle和Result摘要取唯一生产成品，拒绝错取或歧义。15项专项及分组全架构2,296通过/9既有skip/0失败；逐目标Effect、完整集合终检/原子Commit/恢复仍待完成，自动媒体维修与发布Gate保持开放，未部署NAS。
+
 2026-10-08 Case成员策略消费：[Evidence](implementation/evidence/SERIES_CASE_MEMBER_STRATEGY_20261008.md)。完整成员集合纯校验由Arca观察与规划共用；Case从冻结健康Work及正式Assessment/Finding重建精确目标，Projection按materialKey取对应策略，拒绝错来源、缺成员及改写证据。39项专项、分组全架构2,293通过/9既有skip/0失败。逐目标维修Plan/Effect与完整媒体维修仍待完成，自动维修门禁保留，未部署NAS。
 
 2026-10-08 完整成员调度：[Evidence](implementation/evidence/SERIES_MEMBER_ASSESSMENT_SCHEDULING_20261008.md)。健康Planner调度完整Series Primary集合，整季Conformance消费同Work/Attempt/Plan的精确成员证据并绑定集合摘要；缺失/重复/错scope拒绝，不重复Probe。26项专项及24集Plan通过，正式两集NFO维修Host验证成员结果持久化、摘要重建、专业Commit与最终健康（约92秒）；分组全架构2,292通过/9既有skip/0失败。媒体Case消费/逐目标Effect和完整维修仍待完成，未部署NAS。
