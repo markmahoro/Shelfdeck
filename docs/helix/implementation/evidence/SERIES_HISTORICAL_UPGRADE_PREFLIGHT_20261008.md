@@ -55,3 +55,15 @@
 成功升级且所有连接关闭后，对同一本地工作副本执行原始备份覆盖恢复。升级文件 SHA256 为 `78d27b5877fa3658db495b61682bf6737d6eef9ea98cd67eb5bebfe918b16ee5`；恢复后为原始 `b0d8455ab87312a49f7e59dffd342d206432975584131040c95cb25e33ce7be9`，逐字节恢复原 schema/catalog、365个收藏条目、365份 Commit Receipt及3个 active Run。恢复后完整 integrity_check=ok、foreign_key_check=0。证据 `receipt-upgrade-rollback-result.json`、父目录 `series-receipt-rollback.log`。
 
 本次关闭的是“此历史数据库副本的正式清理、升级、幂等及备份恢复验证”，不是应用/容器/媒体联合回退或当前生产升级。未启动历史版本 Host、未操作物理 Workspace/媒体、未升级 NAS；真实部署仍需最终候选构建、当前生产准备与明确部署授权。外部交付合同缺口和其余 Phase Gate保持开放。
+
+## 本地实际镜像、应用、数据及媒体联合回退
+
+只读从NAS流式导出正在运行的精确旧镜像markmahoro/shelfdeck:helix-beta-20260930-8e197b3c36，未写远端文件。旧镜像tar 1814789632字节，SHA256 861e0af8cecfec91da2814e939a7bb52c8f83ee7b43fbbe25d4e6a5a6cb11e16；tar manifest的Config为168be0bb2101b79424f7f978c32d3724852eb5267b2234a4c981c22fe075ac2b，与NAS容器Image相同。Docker Desktop导入后的index/image显示ID不同，不能把该ID混称NAS配置摘要。
+
+全部后续操作在本地隔离/audit挂载及--network none容器内。使用旧提交8e197b3c36的native4k Movie Host fixture生成真实上架条目：1通过、0失败、3其他场景skip，52.24秒；无active Run。正式createBackup备份9个数据文件，aggregateDigest 5000e219d40d6af5576390efce1691b914a1945d557f829808f8f7db571e0f10。旧Host、候选36100db30e Host依次启动，均健康、normalSupplyAllowed=true、Admin页面正常、认证后收藏1项。候选schema升级至800afbadcc429b86aa8812cb6eea480ef4ccfa89be2213d7688c060aaa4b075a。
+
+停止连接后保留data-upgraded，正式restoreBackup恢复原data，恢复前后快照精确相同，9文件aggregateDigest匹配原备份。再由精确旧镜像启动，旧schema 14c18e017bfce8b78230d0509be1c46fb11c0da95a240396628173a9e71bed73、健康/正常供给、登录及收藏读取通过。三个媒体/附属文件SHA256始终一致，历史Inventory/Product Fact/Deck Fact及唯一Commit保留，无新收藏、无active Run，SQLite integrity=ok、foreign keys=0。
+
+初版检查把后台正常Inventory observation新增revision也当损坏：旧镜像首次重启即从revision1更新至2、旧行active_guard转0。检查保留原失败，修正为允许仅该历史guard退休及新增revision，仍逐字段验证其他历史记录、当前完整三成员、全部文件字节和唯一Commit；恢复尚未启动Host时仍要求完整快照精确相同。这是核对正常生命周期，不放宽产品迁移或删除保护。
+
+脚本/输出位于仓库外helix-git-consolidation-20261008/series-rollback-runtime及series-rollback-*.log；生成的隔离凭据未输出或提交。此证据覆盖精确旧镜像→候选→恢复备份→旧镜像的一条实际Movie收藏，结合前述365条历史库保护；不代表当前NAS442条收藏已执行迁移，不修改3个生产active Run，不构成生产部署授权。后续生成manifest修正的最终镜像仍须校验身份。

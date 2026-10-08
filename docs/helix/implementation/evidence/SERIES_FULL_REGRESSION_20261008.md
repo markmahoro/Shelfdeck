@@ -64,3 +64,9 @@ node --test --test-concurrency=4 --test-name-pattern="formal node entrypoint sta
 合同审查：SSOT §8的`ResolvedProviderIdentity`明确只有`tmdb_series`带positive `seasonNumber`，实现及Series identity负向测试拒绝0。原准备文档的S00待复审标记不能扩大首版普通Season合同；当前不新增S00功能或合同更改。缺Episode title/plot、外部身份/错误Season、无claim/多义/重叠和单成员Import失败分别已有明确负向专项，完整结果以正在运行的候选回归为准；真实集成初配/联合回退等尚未关闭。
 
 日志、检查脚本及机器摘要在仓库外`E:/my_project/helix-git-consolidation-20261008/`，前缀`series-candidate-36100db30-`；三项修正专项为`series-watchdog-timing-fixed.log`。当前架构与Linux实际镜像回归仍运行，后续补最终结果；不宣称首版可部署。
+
+## 候选36100db30终态与生成清单修正
+
+Windows完整架构280文件：2424项、2410通过、2失败、12skip，1103.27秒。失败仅为P2固定aggregateDigest仍指向旧合同，以及P3生成manifest未同步b78e48d9f重新物化的8个表合同摘要；DDL文本及ddlDigest没有变化。使用正式p3-ddl-materializer重新生成，并更新P2固定摘要，保留逐表追踪和完整重现断言，相关12项复验全部通过。修改包含运行时manifest，故36100db30镜像不是修正后的最终镜像；需重建候选及最终全架构复验。
+
+服务完整复验619项：592通过、0失败、27skip，137.64秒。实际36100db30镜像内Series及受影响加工/Workspace集合549项：545通过、0失败、4skip，994.29秒；仅挂载测试/scripts/docs，没有挂载源码。长媒体、外部真实加工等opt-in专项仍按各自已有独立证据，不将skip计为通过。日志series-candidate-36100db30-architecture.log、series-candidate-36100db30-linux-image.log、series-contract-generated-recheck.log及服务复验日志保留于同一仓库外审计目录。
