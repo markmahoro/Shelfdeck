@@ -327,6 +327,57 @@ test('Series health Planner schedules every Primary and makes aggregate Conforma
   f.context.raw.entry.structure_kind='single';assert.equal(planner.plan(request).nodes.length,4);
 });
 
+test('Series Case resolves only its frozen failing member Strategy and rejects changed authority or incomplete evidence',async t=>{
+  const f=await fixture(t,[[8,['E01']],[8,['E02']]],null),s=strategyFixture(f),c=f.context;
+  Object.assign(c.basis,{inventoryRevision:1,standardRevision:1,placementRevision:1,decisionFactSetDigest:canonicalDigest([])});
+  c.raw.shelf={target_root_location:path.dirname(f.materials[0].location),target_endpoint_id:'endpoint'};
+  c.raw.initialPlacementDecision={target_location:c.raw.shelf.target_root_location,target_endpoint_id:'endpoint'};
+  c.raw.initialPlacement={value:{}};c.raw.placement={value:{}};
+  const rows=[],reader={read:workId=>workId==='work'?rows:[]},ports=createAftercareCapabilityPorts({...f.options,...s.options,now:()=>1000,
+    mediaProbe:{probe:async handle=>handle.identity.materialKey===f.materials[0].material_key?
+      {...s.probe,videoStreams:[{...s.probe.videoStreams[0],codec:'hevc'}]}:s.probe},
+    schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
+    unitOfWork:{execute(){throw new Error('No Owner writes during observation.');}},contextReader:{read:()=>c,store:{}},workResultReader:reader}),
+    execution={ownerScope:{processId:'entry'},workId:'work',workAttemptId:'attempt',planId:'plan',namedInputs:{}},
+    {seriesMemberAssessmentEventId}=require('../../src/helix/domains/arca/model/series-care-media-space');
+  const append=(eventId,result)=>rows.push({workId:'work',attemptId:'attempt',planId:'plan',eventId,resultId:'result-'+eventId,
+    inputBindingDigest:canonicalDigest(eventId),capabilityRef:C.conformance,outcomeKind:'succeeded',result,resultDigest:canonicalDigest(result)});
+  for(const member of f.materials) {
+    const eventId=seriesMemberAssessmentEventId('attempt',member.material_key);
+    append(eventId,(await ports[C.conformance].execute({...execution,eventId,parameters:{materialKey:member.material_key}})).result);
+  }
+  const aggregate=(await ports[C.conformance].execute(execution)).result;append('aggregate',aggregate);
+  const findings=aggregate.findingDrafts.map(draft=>({findingId:draft.objectId,findingDigest:draft.snapshotDigest,
+    assessmentId:aggregate.evidenceId,findingKind:'conformance:'+draft.schemaRef.split('/')[5]})),
+    effects=findings.map(item=>({objectId:item.findingId,digest:item.findingDigest,revision:1,
+      schemaRef:'helix://arca/types/RequiredCareEffect/v1',objectKind:'required-effect'})),
+    requirement={careBasisDigest:c.basis.digest,requiredEffects:effects,acceptanceDigest:canonicalDigest(effects)},
+    care={state:'active',careBasisDigest:c.basis.digest,careRequirement:{...requirement,digest:canonicalDigest(requirement)},
+      careRequirementDigest:canonicalDigest(requirement),basisInputs:[{inputKind:'health_assessment_work',ownerDomain:'arca',
+        aggregateType:'supporting_work',aggregateId:'work',revision:1,inputDigest:c.basis.digest}]},
+    history={cases:[care],findings,assessments:[{assessmentId:aggregate.evidenceId,assessmentKind:'conformance',
+      careBasisDigest:c.basis.digest,evidenceDigest:aggregate.payloadDigest}]},
+    {seriesMediaRepairTargets}=require('../../src/helix/domains/arca/model/series-care-assessment-set');
+  const targets=seriesMediaRepairTargets(c,care,history,reader);
+  assert.equal(targets.length,1);assert.equal(targets[0].materialKey,f.materials[1].material_key);assert.equal(targets[0].repairKind,'transcode');
+  assert.equal(targets[0].strategy.sourceHandleDigest,rows[1].result.memberScope.sourceHandleDigest);
+  const {createAftercareProjections}=require('../../src/helix/domains/arca/planning/aftercare-projections'),
+    {P}=require('../../src/helix/domains/arca/planning/aftercare-planners'),projection=createAftercareProjections({
+      contextReader:{read:()=>c,store:{history:()=>history}},workResultReader:reader,
+      materialControlProjectionPort:{getMaterialControlProjections:()=>[]},controlScopeDigest:canonicalDigest})
+      .find(item=>item.projectionRef===P.mediaStrategy).projection;
+  assert.deepEqual(projection.project({ownerScope:{processId:'entry'},parameters:{materialKey:targets[0].materialKey}}),targets[0].strategy);
+  assert.throws(()=>projection.project({ownerScope:{processId:'entry'},parameters:{materialKey:f.materials[0].material_key}}));
+  for(const mutate of [v=>{v.care.state='resolved';},v=>{v.care.basisInputs[0].aggregateId='foreign';},
+    v=>{v.care.basisInputs.push(v.care.basisInputs[0]);},v=>{v.care.careRequirement.requiredEffects=[];},
+    v=>{v.history.findings[0].assessmentId='foreign';},v=>{v.history.findings[0].findingDigest=canonicalDigest('wrong');},
+    v=>{v.rows.splice(0,1);},v=>{v.rows[1].result.mediaRepairStrategy.sourceHandleDigest=canonicalDigest('other');},
+    v=>{v.rows[2].result.memberAssessmentSet.digest=canonicalDigest('wrong');},v=>{v.context.raw.materials[0].binding_revision++;}]) {
+    const v=structuredClone({context:c,care,history,rows});mutate(v);
+    assert.throws(()=>seriesMediaRepairTargets(v.context,v.care,v.history,{read:id=>id==='work'?v.rows:[]}));
+  }
+});
+
 function validateConformanceResult(result) {
   const schema=require('../../src/helix/contracts/types/ConformanceAssessmentEvidence/v1/schema.json');
   const schemas=new Map(),contractsRoot=path.resolve(__dirname,'../../src/helix/contracts');

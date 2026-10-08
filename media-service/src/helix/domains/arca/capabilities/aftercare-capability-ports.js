@@ -17,11 +17,12 @@ const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const sharp = require('sharp');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
-const {evaluateSeriesCareMediaSpace,seriesMemberAssessmentEventId}=require('../model/series-care-media-space');
+const {evaluateSeriesCareMediaSpace}=require('../model/series-care-media-space');
+const {readSeriesMemberAssessmentSet}=require('../model/series-care-assessment-set');
 const { createMaterialControlParticipant, createMaterialControlProjectionPort,
   controlScopeDigest } = require('../../../foundation/persistence/material-control');
 const { CAPABILITY_REFS:C,
-  deriveInventoryMaterialChanges, settlementScopeDigest,
+  primaryReadHandle, deriveInventoryMaterialChanges, settlementScopeDigest,
   aftercareSettlementEventId, aftercareServiceCatalogRevision, aftercareSettlementApprovalId, aftercareInventoryCommitId,
   aftercareInventoryCommitDigest,
   buildAftercareSettlementHandles, physicalIdentityFromInventoryRow,
@@ -352,11 +353,6 @@ function representationMember(item, ordinal) {
     sizeBytes: Number(item.size_bytes),
   });
 }
-function primaryReadHandle(context,item){return Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,
-  handleId:stable('arca-aftercare-primary-handle-',{shelfEntryId:context.shelfEntryId,materialKey:item.material_key,revision:Number(item.binding_revision||1)}),
-  identity:Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:item.material_key}),
-  endpointId:item.endpoint_id,location:item.location,accessMode:'read_only',bindingRevision:Number(item.binding_revision||1),
-  handleDigest:canonicalDigest({materialKey:item.material_key,endpointId:item.endpoint_id,location:item.location,bindingRevision:Number(item.binding_revision||1)})});}
 function aftercareMediaProbeEvidence(raw,handle,sizeBytes,observedAtMs){
   const base={schemaRef:'helix://contracts/types/MediaProbeEvidence/v1',schemaVersion:1,
     evidenceId:stable('arca-care-media-probe-',{handle,raw}),evidenceKind:'media_probe',producerRef:'shared.material.media.probe@1',
@@ -540,30 +536,10 @@ async function assessSeriesMediaMember(options,context,materialKey,at,cycleId,cu
 }
 
 function aggregateSeriesMediaConformance(options,context,execution) {
-  const space=evaluateSeriesCareMediaSpace(context,effectiveRequirements(context)?.space?.maxSizeBytes??null),
-    rows=options.workResultReader.read(execution.workId).filter(row=>row.capabilityRef===C.conformance&&row.result?.memberScope),
-    currentRows=rows.filter(row=>row.attemptId===execution.workAttemptId&&row.planId===execution.planId),refs=[],findings=[];
-  if(currentRows.length!==space.members.length)throw new Error('Series member Assessment set is incomplete or ambiguous.');
-  for(const member of space.members) {
-    const material=context.raw.materials.find(item=>item.material_key===member.materialKey),
-      expectedScope={materialKey:member.materialKey,spaceBasisDigest:space.basisDigest,
-        sourceHandleDigest:canonicalDigest(primaryReadHandle(context,material)),
-        maxOutputBytes:space.memberBudgets.find(item=>item.materialKey===member.materialKey).maxOutputBytes},
-      selected=currentRows.filter(row=>row.result.memberScope.materialKey===member.materialKey),
-      row=selected[0],result=row?.result;
-    if(selected.length!==1||row.workId!==execution.workId||row.outcomeKind!=='succeeded'||
-        row.eventId!==seriesMemberAssessmentEventId(execution.workAttemptId,member.materialKey)||
-        typeof row.resultId!=='string'||!row.resultId||!/^[a-f0-9]{64}$/.test(row.inputBindingDigest||'')||
-        row.resultDigest!==canonicalDigest(result)||result.careBasisDigest!==context.basis.digest||
-        result.inventoryRevision!==context.basis.inventoryRevision||result.shelfEntryId!==context.shelfEntryId||
-        !['healthy','degraded'].includes(result.assessmentState)||
-        canonicalDigest(result.memberScope)!==canonicalDigest(expectedScope)||
-        result.payloadDigest!==canonicalDigest(Object.fromEntries(Object.entries(result).filter(([key])=>key!=='payloadDigest'))))
-      throw new Error('Series member Assessment does not match the current scope and exact Event Result.');
+  const {findings,memberAssessmentSet}=readSeriesMemberAssessmentSet(context,execution,options.workResultReader.read(execution.workId));
+  for(const material of context.raw.materials.filter(item=>item.role==='primary_payload')) {
     if(!exactInventoryMaterial(material.location,material,material.mount_scope_id,options.computeBoundedMaterialFingerprintSync))
       throw Object.assign(new Error('Inventory changed before member Assessment aggregation.'),{code:'ARCA_AFTERCARE_INPUT_STALE'});
-    findings.push(...result.findingDrafts);
-    refs.push({materialKey:member.materialKey,eventId:row.eventId,resultId:row.resultId,resultDigest:row.resultDigest,inputBindingDigest:row.inputBindingDigest});
   }
   const groups=new Map();
   for(const item of findings) {
@@ -574,8 +550,7 @@ function aggregateSeriesMediaConformance(options,context,execution) {
   }
   return {findings:[...groups].sort(([a],[b])=>a.localeCompare(b)).map(([code,digests])=>
     finding('conformance',code,'critical','attention_required',canonicalDigest(digests.sort()))),mediaRepairStrategy:null,
-    memberAssessmentSet:Object.freeze({memberCount:refs.length,digest:canonicalDigest({schema:'arca.series-member-assessment-set@1',
-      workId:execution.workId,workAttemptId:execution.workAttemptId,planId:execution.planId,spaceBasisDigest:space.basisDigest,members:refs})})};
+    memberAssessmentSet};
 }
 
 async function assessInventoryMediaConformance(options,context,at) {

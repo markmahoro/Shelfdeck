@@ -38,6 +38,12 @@ function isAftercareArtifactMaterial(item, artifactKind) {
     (artifactKind==='poster'&&item?.role==='poster');
 }
 
+function primaryReadHandle(context,item){return Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,
+  handleId:'arca-aftercare-primary-handle-'+canonicalDigest({shelfEntryId:context.shelfEntryId,materialKey:item.material_key,revision:Number(item.binding_revision||1)}).slice(0,40),
+  identity:Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:item.material_key}),
+  endpointId:item.endpoint_id,location:item.location,accessMode:'read_only',bindingRevision:Number(item.binding_revision||1),
+  handleDigest:canonicalDigest({materialKey:item.material_key,endpointId:item.endpoint_id,location:item.location,bindingRevision:Number(item.binding_revision||1)})});}
+
 function physicalIdentityFromInventoryRow(row) {
   const tuple = {
     mountScopeId: row.mount_scope_id,
@@ -363,7 +369,7 @@ module.exports = Object.freeze({ CAPABILITY_REFS, HEALTH_STATES, CASE_STATES, DI
   assertProcessingRequirement,
   ASSESSMENT_KINDS, PERIODS, stableJitterMs, projectHealth, dispositionFromAssessments,
   hasIncompatibleRepairCombination,
-  physicalIdentityFromInventoryRow, deriveInventoryMaterialChanges, settlementScopeDigest,
+  primaryReadHandle, physicalIdentityFromInventoryRow, deriveInventoryMaterialChanges, settlementScopeDigest,
   isAftercareArtifactMaterial, aftercareSettlementEventId, aftercareServiceCatalogRevision, aftercareSettlementApprovalId,
   aftercareInventoryCommitId, aftercareInventoryCommitDigest,
   buildAftercareSettlementHandles });

@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Case成员策略消费：[Evidence](implementation/evidence/SERIES_CASE_MEMBER_STRATEGY_20261008.md)。完整成员集合纯校验由Arca观察与规划共用；Case从冻结健康Work及正式Assessment/Finding重建精确目标，Projection按materialKey取对应策略，拒绝错来源、缺成员及改写证据。39项专项、分组全架构2,293通过/9既有skip/0失败。逐目标维修Plan/Effect与完整媒体维修仍待完成，自动维修门禁保留，未部署NAS。
+
 2026-10-08 完整成员调度：[Evidence](implementation/evidence/SERIES_MEMBER_ASSESSMENT_SCHEDULING_20261008.md)。健康Planner调度完整Series Primary集合，整季Conformance消费同Work/Attempt/Plan的精确成员证据并绑定集合摘要；缺失/重复/错scope拒绝，不重复Probe。26项专项及24集Plan通过，正式两集NFO维修Host验证成员结果持久化、摘要重建、专业Commit与最终健康（约92秒）；分组全架构2,292通过/9既有skip/0失败。媒体Case消费/逐目标Effect和完整维修仍待完成，未部署NAS。
 
 2026-10-08 成员Conformance Result：[Evidence](implementation/evidence/SERIES_MEMBER_CONFORMANCE_RESULT_20261008.md)。现有Capability增加显式成员参数和closed memberScope，生成独立有界策略Evidence；专业Assessment投影/Commit排除成员结果，保持三维整季健康事实。37项成员/投影专项、合同生成及分组全架构2,291通过/9既有skip/0失败，Result仍限64 KiB。尚未调度完整成员集合或接通维修闭环，Series可部署Gate继续，未部署NAS。
