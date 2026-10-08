@@ -43,3 +43,5 @@ UnitOfWork decorator在真实Aftercare Inventory事务最后追加故障参与�
 增强第二次 `series-bounded-media-aftercare-host-v2.log` 已通过音频包比较，但测试读取Strategy未定义的audio字段而失败；删除该错误断言，保留真实包哈希和既有rate-control断言后完整通过。失败日志保留，不是产品修复或合同调整。
 
 相关Series评估/完整成品/Aftercare媒体策略43项通过，日志 `series-bounded-media-aftercare-targeted.log`；架构449文件/1412依赖、语义2067文件及diff检查通过。未重复全架构历史回归。该证据覆盖普通一集一文件的真实有界转码和音频copy，不覆盖N:M有界压缩、长片/HDR/其他设备、进程中断/跨设备恢复或Linux/UI发布验收；首版发布Gate保持开放，无NAS动作。
+
+本机Linux环境预检：Docker Engine原未启动；启动已安装Docker Desktop后，2026-10-08本机backend日志报告Inference manager无法处理dockerInference Unix socket（file cannot be accessed / invalid filename），后端进入错误状态，Linux Engine未就绪。本次启动和查询进程已结束；未清理Docker数据、未执行factory reset、无NAS动作。尚无本批Linux测试结论；其他独立开发继续。

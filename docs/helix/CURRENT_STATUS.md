@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Linux环境预检：本机Docker Desktop启动因Inference socket错误失败，Engine未就绪，Linux验证未执行；失败日志已核对并结束本次启动/查询进程，未重置Docker数据。其他Series工作继续，详见媒体Host Evidence。
+
 2026-10-08真实有界媒体维修：20秒1080p SDR/AAC源68,526,141字节，经NVIDIA target_size转码为14,280,933字节，低于每集32 MiB；939个音频包SHA256原样保持。正式Host 102.9秒通过，含Claims、事务故障回滚/提交、Control及Settlement；43项专项与架构/语义通过。仅测试/证据修改，N:M有界/长片/HDR/进程恢复/Linux/UI及整体发布Gate继续，无NAS部署。[Evidence](implementation/evidence/SERIES_MEDIA_AFTERCARE_HOST_20261008.md)。
 
 2026-10-08 N:M真实媒体维修追加：共文件E01–E02与E01独立part经正式Host完成Remux/NVIDIA转码、Claims保持、Inventory-Control故障回滚/提交及Settlement，98.5秒通过；最终逐集实测13,493/5,927字节。该维修无空间上限，1 MiB仅作事后计量比较；真实有界压缩仍待合适尺寸源验证。仅测试/证据修改，30项专项及架构/语义检查通过；进程恢复/UI/Linux与整体发布Gate继续，未部署NAS。[Evidence](implementation/evidence/SERIES_MEDIA_AFTERCARE_HOST_20261008.md)。
