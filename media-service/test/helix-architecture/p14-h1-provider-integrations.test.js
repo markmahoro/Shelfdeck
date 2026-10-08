@@ -2192,3 +2192,55 @@ test('Series MoviePilot search and submit use observed coverage instead of reque
     assert.equal(acquired.result.externalJobReceipt.externalJobId,'job-1');assert.equal(state.moviepilotDownloadAdds,1);
   }finally{opened.kernel.close();}
 });
+
+
+test('Series MoviePilot Landing binds shared files and parts to exact transfer Claims and reobserves stability',async()=>{
+  const value=fixture(),state={calls:[]},fetchImpl=providerFetch(state),time=1_900_000_000_000;
+  const host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,secretRoot,
+    integrationFetch:fetchImpl,now:()=>time});
+  let landing;
+  try{await configure(host,await session(host,value.initialized.adminApiKey),'moviepilot','-series-landing');landing=roots.at(-1);}finally{await host.close();}
+  const directory=path.join(landing,'show','season1');fs.mkdirSync(directory,{recursive:true});
+  fs.writeFileSync(path.join(directory,'shared.mkv'),'shared episodes');fs.writeFileSync(path.join(directory,'part.mkv'),'episode one part');
+  fs.writeFileSync(path.join(directory,'unrelated.mkv'),'not this download');
+  const observed={download_hash:'series-job',type:'电视剧',tmdbid:100,seasons:'S01',title:'Show',year:'2024'};
+  const rows=[{...observed,dest:'/provider/organized/show/season1/shared.mkv',episodes:'E01-E02',status:true},
+    {...observed,dest:'/provider/organized/show/season1/part.mkv',episodes:'E01',status:true}];
+  state.moviepilotHistory=[observed];state.moviepilotTransferHistory=rows;
+  const receipt={schemaRef:'helix://contracts/types/ExternalJobReceipt/v1',schemaVersion:1,receiptId:'series-receipt',
+    integrationId:'moviepilot-main',externalJobId:'series-job',operationKind:'libra.external_material.acquire.request@1',
+    idempotencyKey:'series-download',requestDigest:canonicalDigest({request:'series'}),configRevision:1,createdAtMs:time};
+  const opened=openServices(value,fetchImpl),external=require('../../src/helix/domains/libra/model/external-material-contracts');
+  let ordinal=0;
+  const observe=()=>opened.services.executeProvider('moviepilot',{operationId:'libra.external_material.acquire.observe@1',
+    effectClass:'pure_observation',idempotencyKey:'series-observe-'+ordinal++,timeoutMs:5000,input:{externalJobReceipt:receipt,phase:'download'}});
+  try{
+    const response=await observe(),snapshot=response.result.outputSnapshot;
+    assert.equal(response.result.state,'ready');assert.equal(snapshot.location,'show/season1');assert.equal(snapshot.members.length,2);
+    assert.deepEqual(snapshot.members.map(item=>[item.relativePath,item.episodeClaims.map(claim=>claim.episodeKey)]),
+      [['part.mkv',['E001']],['shared.mkv',['E001','E002']]]);
+    assert.equal(snapshot.identityAnchors[0].namespace,'tmdb_series');assert.equal(snapshot.identityAnchors[0].seasonNumber,1);
+    const structure={subjectId:'series-subject',structureKind:'season',episodeClaims:[{episodeKey:'E001'},{episodeKey:'E002'}]};
+    structure.digest=structure.structureDigest=canonicalDigest({schema:'libra.product-structure@1',...structure});
+    const handle=external.buildExternalMaterialHandle({acquisitionObservation:response.result,productStructure:structure});
+    const stability=()=>opened.services.executeProvider('moviepilot',{operationId:'libra.external_material.stability.observe@1',
+      effectClass:'pure_observation',idempotencyKey:'series-stability-'+ordinal++,timeoutMs:5000,input:{externalMaterialHandle:handle,quietWindowMs:1000}});
+    assert.equal((await stability()).result.outputSnapshot.manifestDigest,snapshot.manifestDigest);
+    state.moviepilotTransferHistory=[rows[0]];
+    assert.notEqual((await stability()).result.outputSnapshot.manifestDigest,snapshot.manifestDigest,'missing part must change the observed set');
+    state.moviepilotTransferHistory=rows;fs.appendFileSync(path.join(directory,'part.mkv'),'changed');
+    assert.notEqual((await stability()).result.outputSnapshot.manifestDigest,snapshot.manifestDigest,'changed bytes must change the observed set');
+    for(const changed of [[...rows,rows[0]],rows.map((row,index)=>index?row:{...row,episodes:null}),
+      rows.map((row,index)=>index?row:{...row,seasons:'S02'}),rows.map((row,index)=>index?row:{...row,episodes:'E01E01'}),
+      rows.map((row,index)=>index?row:{...row,dest:'/provider/organized/show/season1'}),
+      rows.map((row,index)=>index?row:{...row,dest:'/provider/outside/shared.mkv'})]){
+      state.moviepilotTransferHistory=changed;await assert.rejects(observe);await assert.rejects(stability);
+    }
+    const alias=path.join(landing,'alias');fs.symlinkSync(directory,alias,process.platform==='win32'?'junction':'dir');
+    state.moviepilotTransferHistory=rows.map((row,index)=>index?row:{...row,dest:'/provider/organized/alias/shared.mkv'});
+    await assert.rejects(observe);await assert.rejects(stability);
+    assert.equal(fs.readFileSync(path.join(directory,'unrelated.mkv'),'utf8'),'not this download');
+    assert.equal(fs.readFileSync(path.join(directory,'shared.mkv'),'utf8'),'shared episodes');
+    assert.equal(state.moviepilotDownloadAdds||0,0);
+  }finally{opened.kernel.close();}
+});

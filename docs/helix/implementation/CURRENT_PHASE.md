@@ -295,3 +295,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Provider搜索覆盖DoR：MoviePilot适配器从返回meta_info明确begin/end季集投影实际候选Claims，不从Query复制季号或Episode集合；缺失、跨季、越界或不完整覆盖不可提交。下载前重读同一候选并复验身份/覆盖，防止Provider元数据变化后仍按旧Selection提交。参照上游MetaBase.to_dict字段；此切片不替代Landing逐文件Claims和多值结算。
 
 2026-10-08 Provider搜索覆盖：MoviePilot季号与Episode集合改为读取实际meta_info明确范围，禁止从Query复制；下载前复验同候选身份/覆盖，缺集/错季/跨季/矛盾字段在POST前拒绝。21项Provider回归及P2/架构/语义通过，使用受控网络响应；Landing逐文件Claims、Coordinator和多值交接/结算继续，未部署NAS。[Evidence](evidence/SERIES_PROVIDER_SEARCH_COVERAGE_20261008.md)。
+
+2026-10-08 Series Landing DoR：从同job成功Transfer History逐条绑定明确dest文件、同Season身份和明确episodes，构建完整多成员输出，禁止把目录级记录或整季下载Claims分配给每个文件。实际文件校验和/字节绑定成员；稳定性观察重读同job整理记录与文件，让变化进入既有静默窗口/范围及后续Package验收。仅只读Landing，Movie单文件路径保持，验证共文件+part与缺失/冲突/越界记录。
+
+2026-10-08 Series Landing：同job逐文件Transfer History绑定真实文件和明确Season/Episode Claims，支持共文件+part；稳定性端口重读记录与SHA256，拒绝目录/重复/错季/越界/junction，不纳入同目录无关文件。45项Provider/协议/外部流水线及P2/架构/语义通过；受控网络与真实临时字节，未验证真实Provider下载。Coordinator、多值交接/结算及发布Gate继续，未部署NAS。[Evidence](evidence/SERIES_PROVIDER_LANDING_20261008.md)。

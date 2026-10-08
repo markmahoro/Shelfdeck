@@ -549,15 +549,15 @@ function createProtocolTransport(profile, options) {
         !String(providerKey).trim()) return Object.freeze([]);
     const basis = {
       provider: 'tmdb',
-      namespace: String(raw.type || '').toLowerCase().includes('tv')
+      namespace: (raw.type === '电视剧' || String(raw.type || '').toLowerCase().includes('tv'))
         ? 'tmdb_series' : 'tmdb_movie',
       providerKey: String(providerKey),
       seasonNumber: null,
     };
     if (basis.namespace === 'tmdb_series') {
-      const match = String(raw.seasons || '').match(/[0-9]+/);
-      if (!match || Number(match[0]) < 1) return Object.freeze([]);
-      basis.seasonNumber = Number(match[0]);
+      const match = String(raw.seasons ?? '').match(/^(?:S)?([0-9]{1,4})$/i);
+      if (!match || Number(match[1]) < 1) return Object.freeze([]);
+      basis.seasonNumber = Number(match[1]);
     }
     return Object.freeze([Object.freeze({
       ...basis,
@@ -573,39 +573,32 @@ function createProtocolTransport(profile, options) {
         causeCode: 'MOVIEPILOT_OUTPUT_NOT_VISIBLE',
       });
     }
-    const found = moviePilotMediaFiles(local);
-    if (found.length !== 1) {
-      fail(PROVIDER_ERROR,
-        'MoviePilot movie output must resolve to exactly one primary video.', {
-          causeCode: 'MOVIEPILOT_OUTPUT_PRIMARY_CARDINALITY',
-        });
-    }
-    const selected = found[0];
-    const checksumHex = await fileSha256(selected.location);
-    const memberLocation = path.relative(
-      binding.shelfDeckVisibleRoot, selected.location,
-    ).split(path.sep).join('/');
-    const memberBasis = {
-      ordinal: 0,
-      externalMemberId: digest(canonicalJson({
-        schema: 'moviepilot.external-member-id@1',
-        externalObjectRef: value.externalObjectRef,
-        location: memberLocation,
-        sizeBytes: Number(selected.stat.size),
-        checksumHex,
-      })),
-      relativePath: path.basename(selected.location),
-      sizeBytes: Number(selected.stat.size),
-      checksumAlgorithm: 'sha256',
-      checksumHex,
-      episodeClaims: Object.freeze([]),
-    };
-    const member = Object.freeze({
-      ...memberBasis,
-      memberDigest: digest(canonicalJson(memberBasis)),
-    });
-    const members = Object.freeze([member]);
     const identityAnchors = moviePilotIdentityAnchors(value.observed);
+    const series = value.structureKind === 'season';
+    const found = series ? seriesTransferMembers(binding, value.transferRows, identityAnchors).members : moviePilotMediaFiles(local);
+    if (!series && found.length !== 1) {
+      fail(PROVIDER_ERROR, 'MoviePilot movie output must resolve to exactly one primary video.', {
+        causeCode:'MOVIEPILOT_OUTPUT_PRIMARY_CARDINALITY',
+      });
+    }
+    const members = [];
+    for (const [ordinal, selected] of found.entries()) {
+      const checksumHex = await fileSha256(selected.location);
+      const after = fs.lstatSync(selected.location);
+      if (!after.isFile() || after.dev !== selected.stat.dev || after.ino !== selected.stat.ino ||
+          after.size !== selected.stat.size || after.mtimeMs !== selected.stat.mtimeMs || after.ctimeMs !== selected.stat.ctimeMs)
+        fail(PROVIDER_ERROR, 'MoviePilot output changed during checksum observation.');
+      const memberLocation = path.relative(binding.shelfDeckVisibleRoot, selected.location).split(path.sep).join('/');
+      const relativePath = series ? path.relative(local, selected.location).split(path.sep).join('/') : path.basename(selected.location);
+      if (!relativePath || relativePath.split('/').some(part => part === '..' || part === '.'))
+        fail(PROVIDER_ERROR, 'MoviePilot member is outside the observed output scope.');
+      const memberBasis = { ordinal, externalMemberId:digest(canonicalJson({schema:'moviepilot.external-member-id@1',
+        externalObjectRef:value.externalObjectRef,location:memberLocation,sizeBytes:Number(selected.stat.size),checksumHex})),
+        relativePath,sizeBytes:Number(selected.stat.size),checksumAlgorithm:'sha256',checksumHex,
+        episodeClaims:series ? selected.episodeClaims : Object.freeze([]) };
+      members.push(Object.freeze({...memberBasis,memberDigest:digest(canonicalJson(memberBasis))}));
+    }
+    Object.freeze(members);
     const observedAtMs = now();
     const snapshotBasis = {
       integrationId: value.integrationId,
@@ -622,7 +615,7 @@ function createProtocolTransport(profile, options) {
       ...(Number(value.observed?.year) > 0
         ? { releaseYear:Number(value.observed.year) } : {}),
       observedAtMs,
-      newestMutationAtMs: Math.max(0, Math.floor(selected.stat.mtimeMs)),
+      newestMutationAtMs: Math.max(0, ...found.map(item => Math.floor(item.stat.mtimeMs))),
       memberSetDigest: digest(canonicalJson({
         schema: 'provider-external-material-members@1',
         items: members,
@@ -1578,6 +1571,43 @@ function createProtocolTransport(profile, options) {
     });
   }
 
+  function seriesTransferMembers(binding, rows, identityAnchors) {
+    if (!Array.isArray(rows) || !rows.length || rows.length > 256 || identityAnchors.length !== 1 ||
+        identityAnchors[0].namespace !== 'tmdb_series') fail(PROVIDER_ERROR, 'Series output lacks bounded exact transfer evidence.');
+    const seen = new Set(), members = rows.map(row => {
+      if (canonicalJson(moviePilotIdentityAnchors(row)) !== canonicalJson(identityAnchors))
+        fail(PROVIDER_ERROR, 'Series transfer identity or Season differs from its download.');
+      const relative = endpointRelativeLocation(binding, String(row.dest || '').trim());
+      let lexical = binding.shelfDeckVisibleRoot;
+      for (const part of relative.split('/')) {
+        lexical = path.join(lexical,part);
+        if (fs.lstatSync(lexical).isSymbolicLink()) fail(PROVIDER_ERROR, 'Series transfer contains a symbolic link.');
+      }
+      const location = resolveLandingLocation(binding, relative), stat = fs.lstatSync(location);
+      if (!stat.isFile() || stat.isSymbolicLink() || !EXTERNAL_VIDEO_EXTENSIONS.has(path.extname(location).toLowerCase()) || seen.has(location))
+        fail(PROVIDER_ERROR, 'Series transfer must identify one unique actual video file.');
+      seen.add(location);
+      const raw = String(row.episodes || '').toUpperCase(), range = raw.match(/^E([0-9]{1,4})-E([0-9]{1,4})$/);
+      let episodes;
+      if (range) {
+        const first = Number(range[1]), last = Number(range[2]);
+        if (first < 1 || last < first || last - first + 1 > 32) fail(PROVIDER_ERROR, 'Series transfer Episode range is invalid.');
+        episodes = Array.from({length:last - first + 1}, (_, index) => first + index);
+      } else if (/^(?:E[0-9]{1,4}){1,32}$/.test(raw)) episodes = raw.split('E').slice(1).map(Number);
+      else fail(PROVIDER_ERROR, 'Series transfer lacks explicit bounded per-file Episodes.');
+      if (episodes.some(value => value < 1) || new Set(episodes).size !== episodes.length)
+        fail(PROVIDER_ERROR, 'Series transfer Episode claims are duplicated or invalid.');
+      const episodeClaims = episodes.map(value => 'E' + String(value).padStart(3,'0')).sort().map(episodeKey =>
+        Object.freeze({episodeKey,claimDigest:digest(canonicalJson({schema:'provider-external-member-episode-claim@1',episodeKey}))}));
+      return Object.freeze({location,stat,episodeClaims:Object.freeze(episodeClaims)});
+    }).sort((a,b)=>Buffer.compare(Buffer.from(a.location),Buffer.from(b.location)));
+    let root = path.dirname(members[0].location);
+    for (const member of members) while (path.relative(root,member.location).split(path.sep).includes('..')) root = path.dirname(root);
+    const location = path.relative(binding.shelfDeckVisibleRoot,root).split(path.sep).join('/');
+    if (!location || location.split('/').includes('..')) fail(PROVIDER_ERROR, 'Series output requires a contained organized directory.');
+    return Object.freeze({location,members:Object.freeze(members)});
+  }
+
   function transferOutputLocation(binding, rows) {
     const media = new Map();
     for (const row of rows) {
@@ -1754,7 +1784,8 @@ function createProtocolTransport(profile, options) {
     }
       const binding = state.snapshot.integration.config.landingBinding;
       diagnosticStage = 'TRANSFER_OUTPUT_RESOLUTION';
-      const location = transferOutputLocation(binding, successful);
+      const series = moviepilotJobContentProfile(observed) === 'series';
+      const location = series ? seriesTransferMembers(binding,successful,moviePilotIdentityAnchors(observed)).location : transferOutputLocation(binding, successful);
       diagnosticStage = 'OUTPUT_SNAPSHOT';
       const outputSnapshot = await moviePilotOutputSnapshot({
       landingBinding: binding,
@@ -1765,7 +1796,7 @@ function createProtocolTransport(profile, options) {
       structureKind: observed?.type === '电视剧' ||
         String(observed?.type || '').toLowerCase().includes('tv')
         ? 'season' : 'single',
-      observed,
+      observed, transferRows:successful,
     });
       const basis = {
         externalJobReceiptId: receipt.receiptId,
@@ -1793,7 +1824,11 @@ function createProtocolTransport(profile, options) {
         handle.landingBinding.bindingDigest !== binding.bindingDigest) {
       fail(PROVIDER_ERROR, 'MoviePilot External Landing binding is stale.');
     }
+    const transferRows = handle.structureKind === 'season'
+      ? (await moviepilotTransferRows(request,state)).filter(row => moviepilotJobId(row) === handle.externalObjectRef && moviepilotTransferState(row) === 'succeeded')
+      : null;
     const outputSnapshot = await moviePilotOutputSnapshot({
+      transferRows,
       landingBinding: binding,
       location: handle.location,
       externalObjectRef: handle.externalObjectRef,
