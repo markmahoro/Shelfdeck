@@ -76,3 +76,27 @@ Windows完整架构280文件：2424项、2410通过、2失败、12skip，1103.27
 冻结0f78f42400c132dfd8be1a2f822ef19ca7b55f5e并推送后，标准build-image.js生成markmahoro/shelfdeck:0f78f42400，tar SHA256 08df85d24eee8f41d6f4212b24f2f9c87601e3bef7e48727aa874df4cc676e12（536.0 MiB）。2121个runtime输入本地/镜像hash集合均为0eed624f0a06fa6822dc29e27c407df221a0bd66c6207ddf7c07f31a4e14923f。镜像内P2/P3全部12项通过：首次CLI负向测试因镜像/app布局缺少测试假定的/media-service路径而失败，临时容器增加/media-service→/app链接后原断言通过，未挂载或改动产品源码。
 
 修正后Windows280文件完整architecture gate正在运行，日志series-candidate-final-architecture.log；未将未完成运行计为通过。候选构建/合同日志series-candidate-0f78f4240-*保留在相同仓库外目录。未上传或部署NAS，尚未关闭真实集成初配及最终发布资格。
+
+## 候选实际网络集成与冷配置
+
+在实际0f78f42400镜像、全新隔离数据库中执行正式initializeCleanData及Admin Session；初始TMDB未配置，正式test→connectionProof→PATCH保存成功，停止Host后重新打开并登录，TMDB仍active/revision1，公开health正常且normalSupplyAllowed=true。通过正式Platform Secret Lease、Handle和TMDB Adapter请求真实1399/S01及E001/E002，返回的Season身份/逐集scope/sourceRef与非空标题、剧情均核对通过。没有fetch mock；仅使用元数据只读请求，不获取媒体。
+
+现有TMDB凭据由统一SSH读取生产加密Envelope后在内存中交接至本地容器stdin，不出现在参数、日志或仓库；生产配置/数据库不变。新的本地凭据仅由产品正常加密保存，随机Secret Root不持久化。审计脚本初版把readiness.ready当公开字段、且requestedFields未排序，分别被断言和正式输入合同拒绝；修正脚本为实际health字段/排序请求后通过，未改变产品检查。
+
+同一候选的正式MoviePilot connection-test Adapter执行三个真实GET：search/title、download/列表、history/transfer，各响应结构与实例摘要合格。没有POST或下载请求，不修改MoviePilot任务/生产Landing。该证据证明可连通及当前基础协议，不能声称真实Series下载或跨主机Landing全链路已验收；真实外部处理链仍使用可控Provider配真实媒体，绑定/副作用/恢复分别见已有Host证据。
+
+仓库外series-live-tmdb-run.js/worker.js、series-live-tmdb-result.log及series-live-moviepilot-run.js/worker.js/result.log可重放，均不含凭据。TMDB E001/E002元数据摘要分别22f52e15725aa323d07ba35537f1408dc529900f20cf913c583bfb085120daf5、df90ed86fb05dc58c9752175ce1a5ea9fdf1fe698a898a2b8a82fca4471d18df；在线数据会变化，摘要仅标记本次响应。MoviePilot观察摘要fe1ca525859c7b83e33749bc64f28ce97ffeac73a37738f6a8b58d0a99e64cb3。
+
+## 失败矩阵收口审查（尚非最终通过声明）
+
+| 要求 | 当前验收入口与明确边界 |
+| --- | --- |
+| 无Claim、多义、同Season重叠/重复 | series-continuity-claims、p14-series-handoff-a、p14-series-run-lifecycle-continuity；保留零扩集/冻结Binding/不同批次身份合同 |
+| 错误Series/Season、缺单集资料 | series-product-identity、series-tmdb-season-metadata；错误身份/404/缺title或plot明确拒绝，不继承整剧字段，另有上述真实两集读取 |
+| N:M体积、同集多part、分数边界 | series-episode-space、series-arca-space-acceptance、series-member-size-budget、series-aftercare-prepared-media；与实际外部multipart及有界内部Host相互补充 |
+| 单成员Import失败/磁盘空间不足 | p14-clean-workspace-product-port实际第二成员copy注入ENOSPC，首成员inode/mtime不变，重试无重复Workspace/Effect，Landing全部字节/inode/mtime/ctime保持；这是端口恢复证据，不称中途断电Host通过 |
+| 搜索拒绝/本地策略耗尽/技术失败 | series-routing-run三个外部失败Host；series-external-work-scope逐阶段pending/failed不发后继，失败媒体不得交付 |
+| 进程恢复/正式结算保护 | 外部和Aftercare在物理完成后Commit前新进程恢复、Off-deck分段删除恢复；各专项明确崩溃边界，未将其描述为所有时点恢复 |
+| 并发追加/同名多季/共享Artifact退出 | 完整Series Host及已接受浏览器旅程，Target Reservation/跨revision/重放与其他季文件保持分别有负向断言 |
+
+当前固定的样本和核心拒绝条件均有对应验证入口；剩余用户表面门禁需要最终UI影响审查。已授权发送给UI负责人0f78f4240具体候选，负责人正在审查外部Remux/Transcode新增阶段/进度/失败状态，未把后端Host通过当成UI接受。最终Windows全架构运行仍保留原session，不因空日志重启。

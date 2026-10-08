@@ -103,7 +103,7 @@
 - EpisodeDelivery完整Requirement集合合同已获确认并落地；共文件到分集外部上架Windows/Linux完整Host通过。外部真实Remux/Transcode、多part逐集体积及结算后/Commit前跨进程恢复已通过；其余失败/恢复矩阵继续审查，受控Provider证据不外推为真实下载。
 - 历史365条数据库副本定向Reset、升级与恢复，以及本地精确旧镜像→候选→恢复备份→旧镜像的应用/媒体联合回退已通过。只读生产核验442条收藏/3个active Run；现场定向准备仍属部署前动作，不获授权不修改生产。
 - 同名多Season独立上架及只退出S02、保留S01的API/浏览器路径已通过并获bfefd19ae验收；剩余失败/恢复矩阵需逐项审查。
-- 当前首次业务配置仍使用受控Provider/媒体端口，真实集成凭据及完整环境冷启动未覆盖。
+- 首次业务配置浏览器旅程保持已接受证据；实际候选镜像全新库的真实TMDB初配、重启和Season/E01/E02读取现已通过，MoviePilot正式连接测试三个GET通过。真实下载/跨主机Landing未执行，不外推网络全链路；外部处理仍以受控Provider配真实媒体验收。最终候选外部加工阶段/进度/失败展示正在交UI负责人审查。
 - 需最终候选SHA的适用Windows/Linux/Movie回归、构建与发布身份一致性；早期全量通过不自动覆盖后续变更，不创建未验收release tag或部署NAS。
 
 依据：本文件近期事实与[浏览器Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)、[历史副本预检](evidence/SERIES_HISTORICAL_UPGRADE_PREFLIGHT_20261008.md)。本表不缩减SSOT或Phase Exit范围。
