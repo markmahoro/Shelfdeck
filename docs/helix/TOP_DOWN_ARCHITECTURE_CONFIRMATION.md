@@ -10161,7 +10161,15 @@ Handoff或Catalog Capability：
 - 本链路使用的`EpisodeDeliveryManifest@1`固定为`{objectId,revision,digest,libraRunId,subjectId,
   structureKind(single|season),seasonScopeDigest?,episodeClaims[0..256]{episodeKey,seasonClaimDigest,
   outputRequirementDigest,claimDigest},deliveryDigest}`；single的Claim为空且seasonScope为NULL，season按episodeKey排序
-  且key唯一，Claim及set digest沿用Production Material公式。`IdentityRequirement@1`固定为
+  且key唯一，`claimDigest`沿用冻结Production Material Episode Claim公式，不因交付Requirement改变。
+  2026-10-08用户确认：每集`outputRequirementDigest`绑定当前Run覆盖该集的全部原始
+  `primary_payload`成员，不能取首个part或读取Episode Claim上不存在的逐集Requirement。
+  固定公式为`SHA-256(JCS({schema:"libra.episode-delivery-requirements@1",episodeKey,
+  items:[{materialKey,outputRequirementDigest}]}))`；items按materialKey的UTF-8字节序排序，
+  key唯一且集合非空，成员摘要必须是该原始Material的正式outputRequirementDigest（64位小写十六进制）。
+  共文件分别参与其覆盖的每集，同集多个part全部参与；缺失或重复成员及无效摘要必须拒绝。
+  Scope只选择交付Episode，不能裁掉覆盖这些Episode的原Primary；新导入成员不参与原Requirement集合。
+  `IdentityRequirement@1`固定为
   `{requirementId,revision,schemaRef:"IdentityRequirement@1",expectedIdentityDigest,
   strengthClass:"exact_provider_identity",digest}`，删除generic typedParameters；digest覆盖完整value excluding digest。
   Package Verify必须同时消费同一Stable Evidence、passed Identity Verification、上述Episode Manifest和Requirement；

@@ -22,3 +22,20 @@ Movie外部回归初跑4项中2项失败：后加工仍循环调用已取消的1
 - P2基线、包边界458文件/1450依赖、语义2077文件通过，diff检查通过。
 - 本机Windows隔离运行；未操作NAS、未作生产部署；Linux/UI精确版本验收、内部策略耗尽寻源、Series外部后加工及其他Phase Gate继续。
 - 原始日志在 `E:/my_project/helix-git-consolidation-20261008/`：`series-external-host-v2.log`至`v5.log`记录发现；`series-external-search-host.log`、`series-external-host-contracts.log`、`series-external-host-ordinary.log`、`series-query-movie-external-regression.log`、`series-query-movie-postprocess-v2.log`、`series-host-media-regression.log`、`series-host-p2.log`记录本批检查。失败记录保留，不改写为PASS。
+
+## 暂缓决定被新授权替代（2026-10-08）
+
+用户已明确确认按完整原Primary Requirement集合摘要推进，原“先保留”记录仅属历史。SSOT现定义每集摘要为`libra.episode-delivery-requirements@1`、episodeKey及按UTF-8 materialKey排序的正式Requirement集合；原Episode Claim摘要保持。Planner读取正式Run成员，不再依赖单元fixture虚构的逐集Requirement。完整外部Host的skip已去除。
+
+启用后发现两处下游问题：测试Provider把合同字段`seasons`误写成`season`；Libra消费成功Import结果时把Event状态误作Attempt的`completed`，正式Event应为`succeeded`。修正fixture及Consumer，保留所有Scope/摘要/结果重构检查，并新增拒绝错误Event状态的回归。
+
+合同专项Windows58项、Linux35项通过；状态修正后17项Consumer/Scope专项通过。完整外部Host验证仍在运行；尚未把这些局部结果记作端到端通过。变更前服务总测试619项中579通过、13失败、27skip，失败日志保留并待逐项核查。原架构回归运行中发生源码变更，仅作诊断，不计冻结SHA发布Gate。
+
+## 本批端到端复验结果
+
+- Windows完整外部替换97.67秒、Linux116.86秒通过：E01–E02原共文件经一次下载请求，正式获取/稳定性/身份/Package/Import/逐集验收/Promotion/Arca Commit完成，两个新Primary分别覆盖E001/E002，原Primary登记两个终结目标并按授权结算，Provider文件保留。网络与Probe仍受控、文件及SQLite/正式Host真实；不代表真实MoviePilot服务器或真实外部媒体解码。
+- Windows合同及Provider58项、Linux合同35项复验通过；搜索拒绝/策略耗尽/技术失败路由3个Host通过。Movie外部4个Host通过（真实媒体拒绝、Transcode、Remux、native4k）。
+- SSOT source map及派生合同按正式生成器刷新，P2/包边界/语义/diff检查通过；派生文件主要反映SSOT定位行号及索引摘要变化，无DDL变更。
+- 失败过程日志保留：v1 fixture季字段错误，v2正式Event状态错误；不能把失败运行改记为通过。Linux初次验证同样失败于旧Event状态，v2才通过。
+- 日志：外部证据目录`series-delivery-external-host-v3.log`、`series-delivery-external-host-linux-v2.log`、`series-delivery-contracts-final.log`、`series-delivery-contracts-linux-final.log`、`series-delivery-external-failures.log`、`series-delivery-movie-regression.log`、`series-delivery-p2-v4.log`、`series-delivery-guards.log`。
+- 此次关闭原EpisodeDelivery合同阻断和基本共文件到分集外部上架验证；外部后加工/恢复、服务13个失败及其他Phase门槛继续。无NAS操作。

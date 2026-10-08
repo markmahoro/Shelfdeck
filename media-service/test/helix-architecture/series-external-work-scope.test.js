@@ -8,16 +8,16 @@ const {buildMediaRequirement}=require('../../src/helix/domains/libra/model/media
 const digest=value=>d({value});
 function snapshot(){
   const episodeClaims=['E1','E2','E3'].map(episodeKey=>({episodeKey,seasonClaimDigest:digest('season'),
-    claimDigest:digest(episodeKey),outputRequirementDigest:digest('requirement-'+episodeKey)}));
+    claimDigest:digest(episodeKey)}));
   return {run:{libraRunId:'run',subjectId:'subject',executionBasisDigest:digest('run'),acceptanceSpecId:'spec',priorityClass:'normal'},
     spec:{schemaRef:'libra.acceptance-spec@1',schemaVersion:1,specRevision:1,acceptanceSpecId:'spec',recordDigest:digest('spec'),
       contentProfile:'series',structureKind:'season',productScope:{episodeKeys:episodeClaims.map(item=>item.episodeKey)},
       requirements:{mandatoryMedia:{mediaForm:'stream_file',videoCodec:'hevc',container:'matroska',fileExtension:'mkv',
         minimumRasterClass:'none',acceptedPrimaryAudioClasses:[],forbidSystemUpscaleFor4k:true},
       space:{unit:'episode',maxSizeGiB:null,maxSizeBytes:null}}},episodeClaims,
-    members:[{materialKey:'shared',role:'primary_payload',episodeClaims:episodeClaims.slice(0,2)},
-      {materialKey:'part',role:'primary_payload',episodeClaims:episodeClaims.slice(0,1)},
-      {materialKey:'other',role:'primary_payload',episodeClaims:episodeClaims.slice(2)}]};
+    members:[{materialKey:'shared',role:'primary_payload',outputRequirementDigest:digest('requirement-shared'),episodeClaims:episodeClaims.slice(0,2)},
+      {materialKey:'part',role:'primary_payload',outputRequirementDigest:digest('requirement-part'),episodeClaims:episodeClaims.slice(0,1)},
+      {materialKey:'other',role:'primary_payload',outputRequirementDigest:digest('requirement-other'),episodeClaims:episodeClaims.slice(2)}]};
 }
 function fixture(value=snapshot()){
   const identity={contentProfile:'series',title:'Show',identityDigest:digest('identity'),providerIdentities:[{
@@ -64,9 +64,49 @@ test('Scoped structure and delivery preserve original claims and reject omission
   assert.notEqual(structures[0].objectId,structures[1].objectId);
   for(const scope of scopes){
     assert.deepEqual(planner.productStructure(value,scope).episodeClaims.map(item=>item.episodeKey),scope.episodeKeys);
-    assert.deepEqual(planner.episodeDelivery(value,scope).episodeClaims,value.episodeClaims.filter(item=>scope.episodeKeys.includes(item.episodeKey)));
+    assert.deepEqual(planner.episodeDelivery(value,scope).episodeClaims.map(({outputRequirementDigest,...claim})=>claim),
+      value.episodeClaims.filter(item=>scope.episodeKeys.includes(item.episodeKey)));
     assert.throws(()=>planner.episodeDelivery({...value,episodeClaims:[]},scope),/exact frozen Episode/);
   }
+});
+test('Episode delivery binds all original requirements independently of member order',()=>{
+  const value=snapshot();
+  const delivery=value=>planner.episodeDelivery(value,work.replacementScopes(value).find(scope=>scope.episodeKeys.includes('E1')));
+  const actual=delivery(value);
+  assert.equal(actual.episodeClaims[0].outputRequirementDigest,d({schema:'libra.episode-delivery-requirements@1',episodeKey:'E1',
+    items:[{materialKey:'part',outputRequirementDigest:digest('requirement-part')},
+      {materialKey:'shared',outputRequirementDigest:digest('requirement-shared')}]}));
+  assert.equal(actual.episodeClaims[1].outputRequirementDigest,d({schema:'libra.episode-delivery-requirements@1',episodeKey:'E2',
+    items:[{materialKey:'shared',outputRequirementDigest:digest('requirement-shared')}]}));
+  assert.deepEqual(delivery({...value,members:[...value.members].reverse()}),actual);
+  for(const property of ['materialKey','outputRequirementDigest']) {
+    const changed=structuredClone(value);changed.members[1][property]=property==='materialKey'?'renamed-part':digest('changed');
+    const result=delivery(changed);
+    assert.notEqual(result.episodeClaims[0].outputRequirementDigest,actual.episodeClaims[0].outputRequirementDigest);
+    assert.equal(result.episodeClaims[1].outputRequirementDigest,actual.episodeClaims[1].outputRequirementDigest);
+    assert.equal(result.episodeClaims[0].claimDigest,actual.episodeClaims[0].claimDigest);
+  }
+  const unrelated=structuredClone(value);unrelated.members[2].outputRequirementDigest=digest('unrelated');
+  assert.deepEqual(delivery(unrelated).episodeClaims,actual.episodeClaims);
+  const fakeEpisodeRequirement=structuredClone(value);
+  fakeEpisodeRequirement.episodeClaims.forEach(claim=>{claim.outputRequirementDigest=digest('not-formal');});
+  assert.deepEqual(delivery(fakeEpisodeRequirement).episodeClaims,actual.episodeClaims);
+});
+test('Episode delivery refuses invalid original requirements and missing or duplicate coverage',()=>{
+  for(const invalid of [undefined,null,'', 'BAD', 'A'.repeat(64)]) {
+    const value=snapshot();value.members[1].outputRequirementDigest=invalid;
+    if(invalid===undefined)delete value.members[1].outputRequirementDigest;
+    assert.throws(()=>planner.episodeDelivery(value,work.replacementScopes(value).find(scope=>scope.episodeKeys.includes('E1'))),/formal Requirement digests/);
+  }
+  const duplicate=snapshot();duplicate.members.push({...duplicate.members[0]});
+  assert.throws(()=>planner.episodeDelivery(duplicate,work.replacementScopes(duplicate)[0]));
+  const missing=snapshot();missing.members=missing.members.filter(member=>member.materialKey==='other');
+  assert.throws(()=>planner.episodeDelivery(missing,work.replacementScopes(snapshot()).find(scope=>scope.episodeKeys.includes('E1'))));
+});
+test('Movie delivery has no Episode requirements or Season scope',()=>{
+  const value=snapshot();value.spec.contentProfile='movie';value.spec.structureKind='single';value.episodeClaims=[];
+  const result=planner.episodeDelivery(value);
+  assert.deepEqual(result.episodeClaims,[]);assert.equal(result.seasonScopeDigest,null);
 });
 test('External Planner search and acquisition consume only their scope and reject a different query',()=>{
   const f=fixture(),p=planner.createExternalMaterialPlanner(f.options),scopes=work.replacementScopes(f.value);
@@ -186,7 +226,7 @@ function completedImportFixture(unmetCodec=false){
     }
   }
   const rows=f.plan.nodes.map(node=>({workId:f.importWork.workId,attemptId:request(f.importWork).workAttemptId,planId:f.plan.planId,
-    planDigest:d(f.plan),planRevision:1,eventId:node.eventId,capabilityRef:node.capabilityRef,state:'completed',outcomeKind:'succeeded',
+    planDigest:d(f.plan),planRevision:1,eventId:node.eventId,capabilityRef:node.capabilityRef,state:'succeeded',outcomeKind:'succeeded',
     resultSchemaRef:node.outputContractRef,resultId:'result-'+node.eventId,result:results.get(node.eventId),resultDigest:d(results.get(node.eventId)),
     inputBindings:node.inputBindings,inputBindingDigest:d(node.inputBindings)}));
   const reader={status:id=>({state:'succeeded',basis_digest:(id===f.importWork.workId?f.importWork:f.acquire).executionBasisDigest,
@@ -208,7 +248,7 @@ test('Series external consumer reconstructs every result and produces complete s
 });
 test('Series external consumer rejects incomplete, foreign and recomputed but false successful Results',()=>{
   const f=completedImportFixture(),read=require('../../src/helix/domains/libra/planning/series-external-import-results').readSeriesExternalImportSet;
-  const mutations=[rows=>rows.slice(1),rows=>[...rows,rows[0]],rows=>rows.map((row,index)=>index?row:{...row,attemptId:'foreign'}),
+  const mutations=[rows=>rows.map((row,index)=>index?row:{...row,state:'completed'}),rows=>rows.slice(1),rows=>[...rows,rows[0]],rows=>rows.map((row,index)=>index?row:{...row,attemptId:'foreign'}),
     rows=>rows.map((row,index)=>index?row:{...row,planId:'foreign'}),rows=>rows.map((row,index)=>index?row:{...row,workId:'foreign'}),
     rows=>rows.map(row=>row.capabilityRef==='libra.product_media.verify@1'?{...row,result:{...row.result,result:'failed'}}:row),
     rows=>rows.map(row=>{if(row.capabilityRef!=='libra.product_media.verify@1')return row;

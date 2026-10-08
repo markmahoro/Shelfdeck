@@ -25,7 +25,7 @@ function readSeriesExternalImportSet({snapshot,scope,workResultReader:reader}) {
   const planId=stable('libra-external-material-plan-',{workId:work.workId,attempt:attemptId}),
     rows=reader.read(work.workId).filter(row=>row.attemptId===attemptId);
   requireValue(rows.length>0&&rows.every(row=>row.workId===work.workId&&row.planId===planId&&
-    row.outcomeKind==='succeeded'&&row.state==='completed'&&[IMPORT,PROBE,VERIFY,SELECT].includes(row.capabilityRef)&&
+    row.outcomeKind==='succeeded'&&row.state==='succeeded'&&[IMPORT,PROBE,VERIFY,SELECT].includes(row.capabilityRef)&&
     /^[a-f0-9]{64}$/.test(row.planDigest||'')&&row.planRevision===1&&typeof row.resultId==='string'&&row.resultId.length>0&&
     row.resultSchemaRef===schema(row.capabilityRef)&&row.resultDigest===d(row.result)&&row.inputBindingDigest===d(row.inputBindings))&&
     new Set(rows.map(row=>row.eventId)).size===rows.length&&new Set(rows.map(row=>row.planDigest)).size===1);

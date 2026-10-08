@@ -167,3 +167,7 @@ Windows真实浏览器v2 98.45秒通过/0skip，Linux实际Host103.84秒通过�
 日志：`series-multi-season-offdeck-browser-v2.log`、`series-multi-season-offdeck-linux.log`、`series-single-season-offdeck-regression.log`、`series-offdeck-season-{query,query-linux,web,build,p2}.log`，位于仓库外统一证据根。截图 `series-browser-multi-season-offdeck-v2/` 包含offdeck-season-search、offdeck-scope-*、offdeck-confirmation、offdeck-completed-*及protected-season-collection-*；搜索与窄屏审阅已视觉核对，具体版本待负责人验收。
 
 前轮启动的完整 `series-routing-run.test.js` 回归已结束：29通过、0失败、0skip，951.67秒（日志 `series-multi-season-routing-unit.log`，命令名虽为unit，实际包含完整Host场景）。覆盖当时b490aad36的同名双季、24集、位置迁移/改名、NFO/poster维修、Direct/Remux、逐集空间/共享Primary/parts、追加/并发。它不替代本轮退出增量的上述专项或最终候选全量。
+
+## bfefd19ae UI负责人验收补记
+
+UI负责人在任务`01a0912a-0086-74e2-88ab-536c59d3862a`、回合`01a11b80-3be2-7593-ad8b-98701faf8a12`接受`bfefd19ae942da4d3ff64809a410f588b452ba77`的多Season退出路径。搜索、已选、审阅、确认、历史Season一致，双视口及键盘焦点通过；独立Host99.13秒，取消/关闭无删除，仅S02四成员删除，S01六文件/事实/Control保留且详情可打开。138前端/查询/构建通过。此接受不代表最终发布或NAS部署。

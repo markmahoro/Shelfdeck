@@ -194,12 +194,24 @@ function productStructure(snapshot, scope = null) {
   return Object.freeze({ ...body, digest:structureDigest, structureDigest });
 }
 
+function episodeRequirementDigest(snapshot, episodeKey) {
+  const items = snapshot.members.filter(member => member.role === 'primary_payload' &&
+    member.episodeClaims.some(claim => claim.episodeKey === episodeKey))
+    .map(member => ({materialKey:member.materialKey, outputRequirementDigest:member.outputRequirementDigest}))
+    .sort((left, right) => Buffer.compare(Buffer.from(left.materialKey), Buffer.from(right.materialKey)));
+  if (!items.length || new Set(items.map(item => item.materialKey)).size !== items.length ||
+      items.some(item => !/^[a-f0-9]{64}$/.test(item.outputRequirementDigest || ''))) {
+    throw new Error('Episode delivery requires unique original Primary members with formal Requirement digests.');
+  }
+  return canonicalDigest({schema:'libra.episode-delivery-requirements@1', episodeKey, items});
+}
+
 function episodeDelivery(snapshot, scope = null) {
   const claims = Object.freeze(scopedEpisodeClaims(snapshot,scope).map((item) =>
     Object.freeze({
       episodeKey: item.episodeKey,
       seasonClaimDigest: item.seasonClaimDigest,
-      outputRequirementDigest: item.outputRequirementDigest,
+      outputRequirementDigest: episodeRequirementDigest(snapshot, item.episodeKey),
       claimDigest: item.claimDigest,
     })));
   const body = {

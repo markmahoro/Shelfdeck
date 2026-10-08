@@ -16,7 +16,7 @@ function fixture(root,{rejectSearch=false}={}){
         size:files.reduce((sum,item)=>sum+fs.statSync(item.location).size,0),seeders:10}}]});
     if(url.pathname==='/api/v1/download/add'){const body=JSON.parse(init.body);assert.equal(body.tmdbid,1399);requested=true;return response({success:true,data:{download_id:'series-job'}});}
     if(url.pathname==='/api/v1/download/')return response(requested?[{hash:'series-job',progress:100,state:'completed',content_path:'/provider/downloads/series',
-      title:'Demo.Show.S01E01-E02.2160p.HEVC',media:{title:'Demo Show',tmdbid:1399,type:'电视剧',season:1}}]:[]);
+      title:'Demo.Show.S01E01-E02.2160p.HEVC',media:{title:'Demo Show',tmdbid:1399,type:'电视剧',seasons:'S01'}}]:[]);
     if(url.pathname==='/api/v1/history/download')return response([]);
     if(url.pathname==='/api/v1/history/transfer')return response({success:true,data:{list:requested?files.map((item,index)=>({download_hash:'series-job',status:true,
       dest:'/provider/organized/Demo Show/Season 01/'+item.name,type:'电视剧',tmdbid:1399,seasons:'S01',episodes:'E0'+(index+1),title:'Demo Show',year:'2020'})):[],total:requested?2:0}});
