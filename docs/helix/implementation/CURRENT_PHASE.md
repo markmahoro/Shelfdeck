@@ -197,3 +197,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series NFO完整Case DoR：对已登记且Artifact scope/已接受资料齐全的缺失或空NFO，沿现有Aftercare自动维修授权启用完整Case；目录、symlink、不可读、scope或资料不足继续attention_required。隔离Host由正式HTTP健康检查进入Assessment/Case/Workspace/Materialize/Inventory-Control原子Commit/Settlement/终结，核对目标scope和正常文件/旧revision保护；不注入业务结果或改写运行数据库推进。完整Host失败按实际Owner根因修复，UI精确版本及Linux/生产验证仍为独立门禁。
 
 2026-10-08 NFO完整Case增量：[Evidence](evidence/SERIES_AFTERCARE_NFO_CASE_20261008.md)。正式Host已贯通两集缺失/空NFO的自动Case、Workspace、逐成员物化、Inventory/Control事务及Settlement和resolved；最后参与者抛错验证全事务回滚，正常成员/旧revision保护和People关联收敛后的Host重开通过。全架构2,271通过/9既有skip/0失败。当前只启用资料和scope完整的已登记NFO维修；真正进程中断、媒体/其他展示/Placement运营、UI精确版本及Linux发布Gate继续。
+
+2026-10-08 Series展示联合维修DoR：依SSOT §5.5.5至少一张poster及既有Aftercare Owner合同，在正式隔离Host同时制造两集NFO缺陷和已登记poster缺失，验证TMDB Series/Season精确身份获取、独立Artifact物化、同一Inventory/Control事务和Settlement、正常材料保护及终结/重开。沿用前批真实SQLite回滚验证；不修改生产数据、不绕过Provider身份Fence，不把fixture网络/媒体结论扩展为真实网络验收。
+
+2026-10-08 联合展示维护结果：[Evidence](evidence/SERIES_PRESENTATION_CASE_20261008.md)。正式Host在同一Case恢复登记poster和两个Episode NFO，Series/Season Provider身份、三Artifact、原子回滚/Commit、Settlement、正常及旧成员保护、收敛后重开通过，92秒无失败。本批只有测试/文档变更，不覆盖真实网络、所有图像损坏、进程崩溃、Placement迁移或整体Series发布；上述工作继续。

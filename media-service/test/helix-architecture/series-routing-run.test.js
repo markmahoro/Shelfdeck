@@ -182,7 +182,7 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair} of [...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,repair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(repair?' with scoped NFO repair':real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:real||repair?300000:180000},async t=>{
+for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair} of [...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:real||repair?300000:180000},async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
@@ -206,7 +206,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   }
   const secretRoot='disposable-series-routing-secret',initialized=initializeCleanData({
     dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot});
-  const adapter=harness(),providerCalls=[],appendCommitAudits=[],repairCommitAudits=[];let unitOfWork,runtimeError,db;
+  const adapter=harness(),providerCalls=[],artifactCalls=[],appendCommitAudits=[],repairCommitAudits=[];let unitOfWork,runtimeError,db;
   const poster=await sharp({create:{width:4,height:6,channels:3,background:'#224466'}}).jpeg().toBuffer();
   const hostOptions={dataDir,adminDistDir,secretRoot,...(repair?{aftercarePlaybackRunner:async()=>{}}:{}),...(real?{}:{mediaProbe:mediaProbe(),
     mediaProductionEffectPort:{
@@ -283,9 +283,9 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     productIntegrationHandleResolver:request=>handle(request.operationId),
     currentProductIntegrationHandleResolver:request=>handle(request.operationId),
     productProviderMetadataFetch:adapter.fetchMetadata,
-    productProviderArtifactFetch:async request=>({resultKind:'acquired',bytes:poster,artifactKind:request.artifactKind,
+    productProviderArtifactFetch:async request=>{artifactCalls.push(request);return {resultKind:'acquired',bytes:poster,artifactKind:request.artifactKind,
       integrationId:request.integrationHandle.integrationId,configRevision:request.integrationHandle.configRevision,
-      mediaType:'image/jpeg',resolvedProviderIdentity:request.resolvedProviderIdentity}),
+      mediaType:'image/jpeg',resolvedProviderIdentity:request.resolvedProviderIdentity};},
     onExecutionRuntimeError(error){runtimeError=error;}};
   let host=await createCleanServiceHost(hostOptions);
   t.after(async()=>{
@@ -588,8 +588,9 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   if(repair) {
     const entry=db.prepare('SELECT * FROM arca_shelf_entries').get(),damaged=finalNfos.find(item=>readInventoryArtifactScope(item).episodeScope?.episodeNumber===2),
       missing=finalNfos.find(item=>readInventoryArtifactScope(item).episodeScope?.episodeNumber===1),
-      repaired=[missing,damaged],protectedFiles=inventory.filter(item=>!repaired.includes(item)).map(item=>({item,bytes:fs.readFileSync(item.location)}));
-    fs.writeFileSync(damaged.location,'');fs.unlinkSync(missing.location);
+      missingPoster=posterRepair?inventory.find(item=>item.role==='poster'):null,
+      repaired=[missing,damaged,...(missingPoster?[missingPoster]:[])],protectedFiles=inventory.filter(item=>!repaired.includes(item)).map(item=>({item,bytes:fs.readFileSync(item.location)}));
+    fs.writeFileSync(damaged.location,'');fs.unlinkSync(missing.location);if(missingPoster)fs.unlinkSync(missingPoster.location);
     await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',{idempotencyKey:'series-nfo-repair'});
     const until=Date.now()+120000;let care;
     do {
@@ -605,13 +606,16 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const materials=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=2').all();
     assert.equal(materials.length,inventory.length);
     for(const original of repaired) {
-      const replacement=materials.find(item=>path.resolve(item.location)===path.resolve(original.location)),number=readInventoryArtifactScope(original).episodeScope.episodeNumber;
+      const replacement=materials.find(item=>path.resolve(item.location)===path.resolve(original.location)),number=readInventoryArtifactScope(original)?.episodeScope?.episodeNumber;
       assert.ok(replacement,JSON.stringify(materials));
       assert.equal(replacement.artifact_scope_json,original.artifact_scope_json);
       assert.notEqual(replacement.material_key,original.material_key);
-      assert.ok(fs.readFileSync(replacement.location,'utf8').includes('<episode>'+number+'</episode>'));
+      if(number)assert.ok(fs.readFileSync(replacement.location,'utf8').includes('<episode>'+number+'</episode>'));
+      else {assert.equal(replacement.role,'poster');assert.deepEqual(fs.readFileSync(replacement.location),poster);}
       assert.equal(fs.existsSync(original.location+'.superseded-'+care.aftercare_case_id),false);
     }
+    const posterRequests=artifactCalls.filter(item=>item.operationId==='arca.aftercare.binary_artifact.acquire@1');
+    if(posterRepair){assert.equal(posterRequests.length,1);assert.equal(posterRequests[0].resolvedProviderIdentity.namespace,'tmdb_series');assert.equal(posterRequests[0].resolvedProviderIdentity.providerKey,'1399');assert.equal(posterRequests[0].resolvedProviderIdentity.seasonNumber,1);}
     assert.equal(db.prepare('SELECT count(*) n FROM arca_aftercare_inventory_commits').get().n,1);
     assert.equal(db.prepare("SELECT count(*) n FROM arca_aftercare_settlement_approvals WHERE state='consumed'").get().n,1);
     const controlPort=require('../../src/helix/foundation/persistence/material-control').createMaterialControlProjectionPort({schemaManifest,unitOfWork}),
