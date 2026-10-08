@@ -63,7 +63,11 @@ describe('Helix primary copy and workbench structure', () => {
 
   it('refreshes an open Formation detail and ignores a response after closing', async () => {
     let poll!:()=>void;
-    vi.spyOn(window,'setInterval').mockImplementation((callback,delay)=>{if(delay===10000)poll=callback as ()=>void;return 1;});
+    const scheduleInterval=window.setInterval.bind(window);
+    vi.spyOn(window,'setInterval').mockImplementation((callback,delay)=>{
+      if(delay===10000)poll=callback as ()=>void;
+      return scheduleInterval(()=>{},delay);
+    });
     const item=completedSubject(),second={...completedSubject(),subjectId:'subject-2',formationViewId:'subject-2',displayIdentity:'Second Movie'},summary={totalCount:2,inProgressCount:0,attentionRequiredCount:0,completedCount:2},projection={status:'ready' as const,asOfMs:1};
     vi.spyOn(helixAdminApi,'listFormation').mockImplementation(async section=>({items:section==='completed'?[item,second]:[],summary,nextCursor:null,projection}));
     vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});
@@ -72,6 +76,7 @@ describe('Helix primary copy and workbench structure', () => {
     const detail=vi.spyOn(helixAdminApi,'getFormation').mockResolvedValue(item);
     render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
     const [trigger,secondTrigger]=await screen.findAllByRole('button',{name:'查看过程'});
+    trigger.focus();
     fireEvent.click(trigger);
     await waitFor(()=>expect(detail).toHaveBeenCalledTimes(1));
     detail.mockResolvedValue({...item,organizingRequirement:'Updated formal requirement'});
@@ -103,9 +108,11 @@ describe('Helix primary copy and workbench structure', () => {
     await waitFor(()=>expect(trigger).toHaveFocus());
     let staleOpen!:(value:FormationSubject)=>void;
     detail.mockImplementationOnce(()=>new Promise(done=>{staleOpen=done;}));
+    trigger.focus();
     fireEvent.click(trigger);
     fireEvent.keyDown(document,{key:'Escape'});
     detail.mockResolvedValue(second);
+    secondTrigger.focus();
     fireEvent.click(secondTrigger);
     await waitFor(()=>expect(screen.getByRole('dialog')).toHaveTextContent('Second Movie'));
     await act(async()=>staleOpen({...item,organizingRequirement:'Old object response'}));

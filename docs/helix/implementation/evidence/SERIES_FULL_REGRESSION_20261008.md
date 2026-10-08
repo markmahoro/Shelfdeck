@@ -146,3 +146,5 @@ UI负责人turn 01a11c00-8e30-7860-9dcb-47c6071b5a1b确认技术失败文案缺�
 发布适用范围：当前positive Season合同、最多32个物理Primary typed空间basis；24集有完整Host证据，S00及更大输入未扩大合同。长时媒体为合成20分钟SDR，HDR为短PQ样本，不能外推HLG/DV或真实复杂画面画质。真实MoviePilot只读连通/协议通过，完整外部下载网络受控，未声称真实远端媒体下载或生产硬件/挂载压力验收。
 
 部署准备与实施分开：当前目标是可部署候选，NAS尚保持旧Movie镜像；真实部署前按正式入口重新核对备份、生产现态和精确未完成Formation处置范围。当前3个active Run不会被本次开发或本证据自动授权Reset；生产数据迁移/Reset需要对应明确授权。仅本地历史副本和隔离数据演练完成。不得因等待生产部署授权而把已完成开发证据改为失败，也不得以可部署准备取代生产部署后验收。
+
+最终UI独立复核发现新增Movie详情测试完整运行138通过/1回焦失败，单文件通过。先修正setInterval mock固定ID（避免共享timer ID池的clearInterval误取消其他timer）仍失败，保留series-final-focus-timer-fix.log。进一步确认fireEvent.click没有浏览器默认聚焦，ProcessDialog把body记录为原焦点，cleanup与延迟回焦竞争；按实际键盘/Chromium交互在打开前显式聚焦触发按钮后，完整26文件139项连续两次通过（series-final-focus-input-fix.log、series-final-focus-input-recheck.log）。仅测试前置条件变更，不改产品/镜像，不以单文件通过忽略全量失败。UI负责人收到根因和复验，最终结论仍待其回填。
