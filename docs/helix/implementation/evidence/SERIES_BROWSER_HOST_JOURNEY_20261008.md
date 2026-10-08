@@ -95,3 +95,9 @@ Windows Chromium真实旅程1项通过/0skip，73.15秒；日志 `series-browser
 验证：Windows/Linux各61项健康投影、合同及accepted-requirements回归通过；Linux使用既有本地测试镜像只读挂载当前src/test，不是发布镜像构建。最终133前端、8项Series双视口/Axe、Admin构建、P2、包边界/禁用语义及diff检查通过。日志分别为 `series-care-health-{windows,linux,p2,guards}.log`、`series-care-final-{web,ui,build}.log`；全部在仓库外统一证据根。真实媒体质量、完整冷配置、外部交付缺口、升级回退等门槛仍开放，无NAS动作。
 
 最终movie_only提示构建的真实浏览器维护 `series-browser-care-v6.log` 91.66秒通过/0skip，截图 `series-browser-care-v6/care-healthy-{desktop,narrow}.png` 已视觉检查；健康与资格提示一致，列表/详情投影完全相等。临时Host与浏览器已退出。
+
+### 本轮UI验收结果
+
+UI负责人turn `01a11b3d-4af8-7fb3-b0a7-8e7253bdbef6`正式接受冻结提交 `a5dc10fac99194e4214a11912fa06a4fcebad92f` 的适用范围：E03累计三集/三个文件且演员一次，缺失ID/同名不同ID及底层关系保留；页面检查与NFO修复后，列表/详情健康投影一致，桌面/窄屏健康；电影限定瑕疵提示准确且Series资格不变。前次演员重复拒绝项解除。
+
+负责人独立复跑133前端、8浏览器、构建通过；真实追加76.02秒、维护91.80秒均通过且无skip。其未修改源码或操作NAS。仅上述路径通过，完整冷配置、其他运营、外部交付、升级回退和整体发布门槛仍开放。
