@@ -1,5 +1,9 @@
 # 当前活动包：Series 开发
 
+2026-10-08 首次业务配置：无用户模板/收藏架起步，页面复制系统模板至两集实际上架38.12秒通过，系统revision不变、实际Spec每集0.5GiB；原混合加工37.36秒回归通过。新增路径待UI负责人验收，真实集成凭据/完整冷启动及其他发布Gate继续，无NAS动作。[Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
+
+2026-10-08 首次业务配置DoR：干净业务数据中仅有系统推荐规则，由页面复制用户模板、设置每集上限/预览/发布、建架/登记来源/分拣/身份确认至首批上架；验证系统模板不变。独立于原混合Direct/Remux旅程，Provider/媒体仍受控，不声称外部凭据初配或真实Provider测试；完成后提交负责人精确版本验收。
+
 2026-10-08 页面退出：实际Series审阅/关闭/取消/最终授权至6成员删除39.13秒通过，范围外文件及取消字节保护/唯一终结保持。修复退出剧名搜索投影、弹窗焦点和busy保护、历史记录粘连；136前端/Windows及Linux查询/构建/架构检查通过；警示去重后38.36秒复验，负责人已接受51ed1bb6e已验证退出路径。其他发布Gate继续，无NAS动作。[Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
 
 2026-10-08 Series退出浏览器DoR：从收藏详情进入已有退出审阅，以实际文件范围、取消与不可撤销确认引导操作；取消须无授权/无删除，正式执行后查看退出记录及当前收藏移除。桌面/窄屏与范围外文件保护均纳入实际Host验证，提交精确版本由UI负责人验收；仅隔离测试，无NAS动作。
@@ -63,6 +67,20 @@
 用户追加的工程工作区清理已完成；[历史UAT-280执行结果](evidence/UAT-280_BETA_WORKSPACE_CLEANUP_20260930.md)包含本地/NAS精确清理、源码/证据/用户修改保护及工作区退役复验。当前先实施Series元数据基础；整体纵向准备仍有未决项，不能因本工作项开工宣称准备全部Exit。
 
 ## 当前执行位置
+
+截至本轮，Series隔离首批上架、E03追加/并发、Direct/Remux/Transcode、N:M逐集空间、Aftercare及退出已各有专项证据；来源至维护/退出的已验证页面路径已获精确版本UI验收。首次业务配置从系统模板开始的实际旅程已通过，新增验收仍待负责人。以下早期进度只作历史，不能作为当前未实现项。
+
+当前不能宣称首版可部署，剩余门槛按证据范围保持：
+
+- 外部完整Host被用户暂缓的EpisodeDelivery多part Requirement摘要合同阻断；不得以单项寻源/结算测试替代端到端交付。
+- 历史生产备份副本目前只有安全拒绝升级/Reset预检证据，成功升级及回退尚未完成；不获授权不修改生产或强行Reset。
+- 多Season同名及其运营页面、剩余失败/恢复矩阵需逐项审查；单Season旅程不替代这些范围。
+- 当前首次业务配置仍使用受控Provider/媒体端口，真实集成凭据及完整环境冷启动未覆盖。
+- 需最终候选SHA的适用Windows/Linux/Movie回归、构建与发布身份一致性；早期全量通过不自动覆盖后续变更，不创建未验收release tag或部署NAS。
+
+依据：本文件近期事实与[浏览器Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)、[历史副本预检](evidence/SERIES_HISTORICAL_UPGRADE_PREFLIGHT_20261008.md)。本表不缩减SSOT或Phase Exit范围。
+
+### 早期进度快照（历史）
 
 2026-10-08工作区整合后，从主工作区 main 接续节点1；已完成身份、逐集资料/Artifact/Fact调度、24集容量和逐Primary源探测。本批已补逐Primary Direct验证/Selection及小数GiB要求；下一段为Run消费多Selection、逐Primary加工、Conformance及Product Package关联。节点1未关闭，节点2完整上架尚未完成；既有逐批记录保留为历史。Movie阶段已收尾，UAT残余独立维护；本批未生产发布。
 

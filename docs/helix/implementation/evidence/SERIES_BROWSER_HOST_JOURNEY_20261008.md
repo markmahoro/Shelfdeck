@@ -126,3 +126,13 @@ v3实际退出38.46秒、v4焦点40.36秒、v5关闭/回焦及取消字节保护
 仅删除独立重复段，范围摘要保留一次不可撤销后果和共享引用保护；open仍提示后果，selection_confirmed同一段以alert突出。两状态各一次提示的回归加入后136前端及构建通过（series-offdeck-warning-web/build.log）；最终实际退出v7为38.36秒PASS/0skip，截图series-browser-offdeck-v7/offdeck-confirmation.png已视觉确认一次警示，保护断言保持。后端未再变更，不重复Linux/架构全集。新版本待负责人复验，无NAS动作。
 
 负责人turn `01a11b4d-fdba-75b3-8f25-129da02bfdb6`正式接受 `51ed1bb6e89a04d4661382a0c1890c5a69d3178a` 的已验证退出路径：待核对/确认均一次不可撤销提醒，保留共享文件条件，桌面/窄屏可读，前次重复警示拒绝项解除。其亲自复跑退出前端专项13项并审阅38.36秒真实旅程，前次取消/范围/保护/回焦验证保持适用。整体发布门槛仍开放，无源码修改或NAS动作。
+
+## 首次业务配置：系统模板到实际上架
+
+新增 `HELIX_SERIES_BROWSER_COLD=1` 与MANUAL_IDENTITY/BROWSER组合。与原混合加工旅程分别执行；本路径两个MKV成员走Direct，以系统推荐模板原有要求进入生产，不再经API预置用户模板。页面实际登录、登记来源、授权清理、从系统模板复制用户模板、修改未评分Series每集0.5GiB、预览/发布、创建收藏架、发布年份分拣、扫描、人工身份确认、两集上架和双视口Collection验证。
+
+新增只读数据库断言：开始时0用户模板/0收藏架，系统模板恰一已发布revision；结束配置时1用户模板/1收藏架，系统模板完整revision行不变。实际发布响应必须ownerKind=user，系统复制后的ID不同且名称非空，页面选择及建架请求绑定实际新ID。正式Acceptance Spec每份保持 `{unit:episode,maxSizeGiB:0.5,maxSizeBytes:536870912}`，不只校验表单。
+
+最终v3实际Host38.12秒PASS/0skip（series-browser-cold-v3.log）；截图同名目录含series-standard-preview.png、series-standard-preview-narrow.png、shelf-created.png和collection-*。系统复制预览桌面/窄屏与发布选中已检查。v2含完整系统模板保护断言37.05秒通过；原用户模板Direct/Remux混合回归37.36秒通过（series-browser-cold-mixed-regression.log）。仅测试/文档增量，沿既有最终产品构建，不重复前端全集/Linux/服务镜像构建；JS与diff检查通过，临时Host/浏览器已关闭。
+
+精确边界：initializeCleanData仍负责空库、初始管理凭据与系统规则；测试通过正式API登录用于只读结果/断言，但本路径不通过API预置用户规则、来源、收藏架、分拣或清理授权。Provider、身份响应、Probe/媒体及Artifact端口沿既有受控fixture，不包含真实TMDB/外部Provider凭据的首次配置、真实联网或媒体质量验收。不能据此关闭完整环境冷启动/真实集成门槛。原混合加工旅程保持。负责人已确认范围，新增路径待具体SHA验收，无NAS动作。

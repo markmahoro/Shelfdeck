@@ -56,12 +56,26 @@ async function open({ host, apiKey }) {
       await standard.getByRole('button', { name: '预览影响', exact: true }).click();
       await expect(standard.getByRole('button', { name: '发布整理标准', exact: true })).toBeEnabled();
       await screenshot('series-standard-preview');
+      if (ruleTemplateId === 'system-beta-recommended') {
+        await page.setViewportSize({ width: 390, height: 844 });
+        await expect(standard.getByRole('button', { name: '发布整理标准', exact: true })).toBeVisible();
+        assert.ok(await standard.evaluate(element => element.scrollWidth <= element.clientWidth));
+        assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+        await screenshot('series-standard-preview-narrow');
+        await page.setViewportSize({ width: 1920, height: 1080 });
+      }
+
       const publication = page.waitForResponse(response => response.request().method() === 'POST' &&
         response.url().endsWith('/actions/publish'));
       await standard.getByRole('button', { name: '发布整理标准', exact: true }).click();
       const published = await publication;
       assert.ok(published.ok(), await published.text());
+      const publishedTemplate = (await published.json()).template;
+      assert.equal(publishedTemplate.ownerKind, 'user');
+      assert.ok(publishedTemplate.name.trim());
+      if (ruleTemplateId === 'system-beta-recommended') assert.notEqual(publishedTemplate.templateId, ruleTemplateId);
       await expect(standard).toHaveCount(0);
+      await expect(page.getByRole('combobox', { name: '规则模板', exact: true })).toHaveValue(publishedTemplate.templateId);
       await expect(page.getByRole('region', { name: '剧集整理标准' })).toContainText('每集 · 最多 0.5 GiB');
 
       await page.getByLabel('收藏最终目录', { exact: true }).fill(targetRootLocation);
@@ -75,7 +89,7 @@ async function open({ host, apiKey }) {
       const response = await creation;
       assert.ok(response.ok(), await response.text());
       const input = response.request().postDataJSON();
-      assert.equal(input.ruleTemplateId, ruleTemplateId);
+      assert.equal(input.ruleTemplateId, publishedTemplate.templateId);
       await expect(page.getByRole('heading', { name: 'Series fixture', exact: true })).toBeVisible();
       await screenshot('shelf-created');
       return input.shelfId;
