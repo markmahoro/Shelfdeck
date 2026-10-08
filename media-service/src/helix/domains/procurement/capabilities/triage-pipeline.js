@@ -1,6 +1,6 @@
 'use strict';
 
-const { buildPrimaryManifestDraft, inspectPlayability, inspectStructure, resolveIdentity } = require('../model/triage-contracts');
+const { buildPrimaryManifestDraftRecord, inspectPlayability, inspectStructure, resolveIdentity } = require('../model/triage-contracts');
 
 function createTriageCapabilities(options = {}) {
   const now = typeof options.now === 'function' ? options.now : () => 0;
@@ -16,7 +16,7 @@ function createTriageCapabilities(options = {}) {
         resolveIdentity(triageIdentityResolutionInput, procurementTriageRuleSnapshot, { producedAtMs:now() }) }),
     primaryManifestBuild: Object.freeze({ capabilityRef:'procurement.triage.primary_manifest.build@1', effectClass:'pure_observation',
       execute: ({ triageManifestBuildInput, procurementTriageRuleSnapshot }) =>
-        buildPrimaryManifestDraft(triageManifestBuildInput, procurementTriageRuleSnapshot, { producedAtMs:now() }) })
+        buildPrimaryManifestDraftRecord(triageManifestBuildInput, procurementTriageRuleSnapshot, { producedAtMs:now() }) })
   });
 }
 

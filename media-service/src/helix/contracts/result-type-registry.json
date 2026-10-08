@@ -1132,7 +1132,7 @@
     {
       "id": "PrimaryInputManifestDraft",
       "version": 1,
-      "role": "catalog-result",
+      "role": "result-helper",
       "schemaId": "helix://contracts/types/PrimaryInputManifestDraft/v1",
       "relativePath": "types/PrimaryInputManifestDraft/v1/schema.json",
       "digest": {
@@ -1141,8 +1141,23 @@
       },
       "source": {
         "section": "8.6.19",
+        "line": 11081
+      }
+    },
+    {
+      "id": "PrimaryInputManifestDraftRecord",
+      "version": 1,
+      "role": "catalog-result",
+      "schemaId": "helix://contracts/types/PrimaryInputManifestDraftRecord/v1",
+      "relativePath": "types/PrimaryInputManifestDraftRecord/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "833dbaeefa0db351f6f6d488ea503dfff14a408210230f2b6f5144c109af28f8"
+      },
+      "source": {
+        "section": "8.6.19",
         "line": 11081,
-        "lineDigest": "c2c450d37d4a982efacc02b6aff3cbb024d24935dd4f22db17351919b34a1446"
+        "lineDigest": "6289e658e8799f927228ac34a4c75e9bca99be8d0256c3982779716bbc69f300"
       }
     },
     {

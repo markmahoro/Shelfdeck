@@ -1,0 +1,7 @@
+# UAT-285 Series Metadata汇总容量
+
+2026-10-09 00:22，用户报告Formation卡住。实际72个product_metadata.fetch成功（3个Season、69个Episode），无执行中Metadata Event，另2个observation Work admitted/1个artifact_production ready。Host规划器productMetadataContext在buildProductMetadataDraft触发P9_METADATA_DRAFT_SIZE；不是Provider仍等待，也不是已知4个Procurement Manifest Result错误。
+
+只读汇总不含正文：69项Episode plot合计54068 UTF-8字节；3项Season plot合计2539字节。现代码为每集递归构建Draft时还继承Season plot/genre及其provenance，再把全部Episode descriptiveFacts/provenance嵌回Season Draft，形成大量重复。当前SSOT ProductMetadataDraft、ProductMetadataFact及libra_product_fact_revisions.fact_json均限制64 KiB；即使去重公共字段，大季的完整剧情及逐字段provenance仍可能超限。不能只优化小样本后宣称完整容量闭环。
+
+下一步审查有界逐集Owner记录与Season聚合摘要方案：Libra保有完整事实/来源，Arca通过完整Handoff重建；Foundation保持有界typed引用。该项尚未获得新表/Fact/Handoff合同变更授权，未实施元数据修复、未截断正文、未Reset。

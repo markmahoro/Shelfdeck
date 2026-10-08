@@ -4,7 +4,7 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { collectFormatTags, normalizeAudioClass } =
   require('../../../contracts/normalized-audio-class');
 const { inspectPlayability, inspectStructure, resolveIdentity,
-  buildPrimaryManifestDraft } = require('../model/triage-contracts');
+  buildPrimaryManifestDraftRecord } = require('../model/triage-contracts');
 const { createCandidatePublicationStore } = require('../persistence/candidate-publication-store');
 
 const BASE = 'helix://contracts/capabilities/';
@@ -163,7 +163,7 @@ function createTriageCapabilityPorts(options) {
     'procurement.triage.identity_claim.resolve@1':pure('procurement.triage.identity_claim.resolve@1', ({ triageIdentityResolutionInput, procurementTriageRuleSnapshot }) =>
       resolveIdentity(triageIdentityResolutionInput, procurementTriageRuleSnapshot, { producedAtMs:options.now() })),
     'procurement.triage.primary_manifest.build@1':pure('procurement.triage.primary_manifest.build@1', ({ triageManifestBuildInput, procurementTriageRuleSnapshot }) =>
-      buildPrimaryManifestDraft(triageManifestBuildInput, procurementTriageRuleSnapshot, { producedAtMs:options.now() })),
+      buildPrimaryManifestDraftRecord(triageManifestBuildInput, procurementTriageRuleSnapshot, { producedAtMs:options.now() })),
     'procurement.candidate.publish@1':Object.freeze({
       validateInputs(context){if(!context.namedInputs?.candidateDraft||!context.namedInputs?.domainFactCommitHandle)throw new TypeError('Candidate publication inputs are incomplete.');},
       execute(context){const draft=context.namedInputs.candidateDraft,handle=context.namedInputs.domainFactCommitHandle;

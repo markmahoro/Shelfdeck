@@ -966,6 +966,24 @@ function buildPrimaryManifestDraft(input, rule, options = {}) {
   return freeze(value);
 }
 
-module.exports = Object.freeze({ CLAIM_KIND, PLAYABILITY_REASONS, STRUCTURE_REASONS, MATERIAL_INPUT_FORMS, RELATED_RULE_REVISION,
+function buildPrimaryManifestDraftRecord(input, rule, options = {}) {
+  const full = buildPrimaryManifestDraft(input, rule, options);
+  const record = { ...without(full, 'members'),
+    schemaRef:'helix://contracts/types/PrimaryInputManifestDraftRecord/v1',
+    structureEvidenceId:input.structureEvidenceId };
+  if (Buffer.byteLength(canonicalJson(record)) > 65536)
+    fail('P7_TRIAGE_MANIFEST_RECORD_LIMIT', 'Primary Manifest Draft Record exceeds its byte limit.');
+  return freeze(record);
+}
+
+function reconstructPrimaryManifestDraft(record, input, rule) {
+  const expected = buildPrimaryManifestDraftRecord(input, rule, { producedAtMs:record.producedAtMs });
+  if (canonicalJson(expected) !== canonicalJson(record))
+    fail('P7_TRIAGE_MANIFEST_RECORD_DRIFT', 'Primary Manifest Draft Record does not match its immutable source.');
+  return buildPrimaryManifestDraft(input, rule, { producedAtMs:record.producedAtMs });
+}
+
+module.exports = Object.freeze({ buildPrimaryManifestDraftRecord, reconstructPrimaryManifestDraft,
+  CLAIM_KIND, PLAYABILITY_REASONS, STRUCTURE_REASONS, MATERIAL_INPUT_FORMS, RELATED_RULE_REVISION,
   ProcurementTriageError, relatedScopeFor, materialInputFormFromProbe, isProvenIsoTopology,
   buildPrimaryManifestDraft, inspectPlayability, inspectStructure, resolveIdentity });

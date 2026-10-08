@@ -543,7 +543,7 @@
       }
     },
     {
-      "id": "PrimaryInputManifestDraft",
+      "id": "PrimaryInputManifestDraftRecord",
       "version": 1,
       "owner": "contracts",
       "status": "contracted",
@@ -553,15 +553,15 @@
       "sourceLocator": {
         "section": "8.6.19",
         "line": 11081,
-        "lineDigest": "c2c450d37d4a982efacc02b6aff3cbb024d24935dd4f22db17351919b34a1446"
+        "lineDigest": "6289e658e8799f927228ac34a4c75e9bca99be8d0256c3982779716bbc69f300"
       },
       "targetLocator": {
-        "path": "types/PrimaryInputManifestDraft/v1/schema.json"
+        "path": "types/PrimaryInputManifestDraftRecord/v1/schema.json"
       },
       "contract": {
         "resultKind": "nominal-result",
-        "schemaId": "helix://contracts/types/PrimaryInputManifestDraft/v1",
-        "schemaPath": "types/PrimaryInputManifestDraft/v1/schema.json",
+        "schemaId": "helix://contracts/types/PrimaryInputManifestDraftRecord/v1",
+        "schemaPath": "types/PrimaryInputManifestDraftRecord/v1/schema.json",
         "producedBy": [
           "procurement.triage.primary_manifest.build@1"
         ],
@@ -569,7 +569,7 @@
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "c969b133698cf79682f000b325e14f303ee64cde7b3894aaa2e32df398624c29"
+        "value": "0695145e35f92e653754ee28104212f53c798882a5f6b976aaaaf36eb909b9d0"
       }
     },
     {

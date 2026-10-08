@@ -608,6 +608,7 @@ function inferredField(resultName, fieldName) {
 }
 
 const contracts = {
+  PrimaryInputManifestDraftRecord: ['DraftEnvelope', ''],
   FilesystemIdentityEvidence: ['EvidenceEnvelope', 'identity,endpointId,location,statSizeBytes,statMtimeMs'],
   BoundedContentFingerprintEvidence: ['EvidenceEnvelope', 'identity,fingerprintProfileRef,sampleOffset,sampleLength,bytesSampled'],
   MediaProbeEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,resultKind,reasonCode?,container?,durationMs?,sizeBytes,videoStreams,audioStreams,subtitleStreams,discTopology?'],
@@ -731,6 +732,16 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 }), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if (name === 'PrimaryInputManifestDraftRecord') {
+    const schema = buildResultTypeSchema('PrimaryInputManifestDraft', contracts.PrimaryInputManifestDraft);
+    schema.$id = typeId(name); schema.title = name + '@1';
+    schema.properties.schemaRef = { const:typeId(name) };
+    delete schema.properties.members;
+    schema.properties.structureEvidenceId = id();
+    schema.required = schema.required.filter((key) => key !== 'members').concat('structureEvidenceId');
+    schema['x-helix-maxCanonicalBytes'] = 65536;
+    return schema;
+  }
   if (name === 'ArtifactManifestVerification') return artifactManifestVerificationSchema();
   if (name === 'MetadataObservation') return metadataObservationSchema();
   if (name === 'ProductIdentityEvidenceObservation') return productIdentityEvidenceObservationSchema();

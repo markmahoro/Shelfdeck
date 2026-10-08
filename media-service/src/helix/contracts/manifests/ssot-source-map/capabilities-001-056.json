@@ -231,12 +231,12 @@
       "contractVersion": 1,
       "owner": "procurement",
       "inputSummary": "TriageManifestBuildInput + ProcurementTriageRuleSnapshot",
-      "outputFamily": "PrimaryInputManifestDraft",
+      "outputFamily": "PrimaryInputManifestDraftRecord",
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.4",
         "line": 9672,
-        "lineDigest": "7769660722413a2c3675524db721b764897ff74878bd5b8e718725ab1783bf0f"
+        "lineDigest": "46192cc1d43675e0a31159cbaae5302276445f16dfa4a594d77ac2a94656a959"
       }
     },
     {

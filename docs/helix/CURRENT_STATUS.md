@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-09 00:29本地UAT：经用户确认修复UAT-284 Manifest Result，原4个任务恢复封包，总43包；第二采购Run正式completed。Windows44/Linux22及Movie HTTP Host通过。三国95成员Unit限制仍开放；3个整理Run在72项Metadata获取成功后触及整季Draft 64 KiB上限，UAT-285方案待合同确认。未Reset/重扫/部署NAS。
+
 2026-10-09真实Series UAT：UAT-282原1777 Probe全部完成，39包发布/3接受；UAT-283有界Admission/Lifecycle Evidence修复后，原3 Subject建立active Run并通过首次检查，身份已确认、逐集资料获取推进。两项按各自关卡关闭，完整上架未验收；UAT-284另记录4 Manifest Result超限与95成员Unit限制。双平台45相关项通过，P2/Schema13和DDL9项通过，未部署NAS、未Reset。
 
 2026-10-08 本地真实Series UAT：新增[UAT-282](implementation/evidence/UAT-282_SERIES_PROCUREMENT_PROGRESS_20261008.md)，大来源Probe队列硬上限导致重复十分钟退避空窗。用户确认容量释放有界唤醒合同，共用Governor修复ff4617995已加载本地Windows18081，双平台相关127项各通过；原两个Run保持，实际封包/E2E验收继续，UAT未关闭。该修复未包含在原可部署镜像84c2cd9268内，未部署NAS。

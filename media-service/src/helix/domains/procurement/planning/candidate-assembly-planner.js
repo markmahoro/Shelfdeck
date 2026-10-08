@@ -3,6 +3,7 @@
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { executionCatalogDigest } = require('../../../foundation/execution/workflow-plan');
 const { activeTriageRule } = require('../model/procurement-run-contracts');
+const { reconstructPrimaryManifestDraft } = require('../model/triage-contracts');
 
 const IDENTITY='procurement.triage.identity_claim.resolve@1',MANIFEST='procurement.triage.primary_manifest.build@1',PUBLISH='procurement.candidate.publish@1';
 const DRAFT_PROJECTION='helix://procurement/input-projections/CandidateDraft/v1';
@@ -69,8 +70,9 @@ function createCandidateAssemblyPlanner(options){const catalogDigest=executionCa
       capabilityCatalogDigest:catalogDigest,resolution:'planned',diagnosticClassification:null,nodes:Object.freeze(nodes)});}});}
 
 function draft(parameters,sourceResults){const identity=sourceResults.find((source)=>source.resultSchemaRef.includes('identity_claim.resolve')).result;
-  const manifest=sourceResults.find((source)=>source.resultSchemaRef.includes('primary_manifest.build')).result;
+  const manifestRecord=sourceResults.find((source)=>source.resultSchemaRef.includes('primary_manifest.build')).result;
   const {snapshot,structure,unit,candidateMembers,rule,ordinal}=parameters;
+  const manifest=reconstructPrimaryManifestDraft(manifestRecord,manifestInput(parameters),rule);
   const relatedReferences=Object.freeze([...(parameters.relatedReferences || [])].sort((a,b)=>Buffer.compare(Buffer.from(a.referenceId),Buffer.from(b.referenceId))));
   const relatedDispositionItems=Object.freeze(relatedReferences.map((reference)=>Object.freeze({
     referenceId:reference.referenceId,primaryMaterialKey:reference.primaryMaterialKey,role:reference.role,
@@ -109,12 +111,13 @@ function createCandidateIdentityInputProjection(options){return Object.freeze({p
   runBasisDigest:hydrated.snapshot.run.run_basis_digest,triageRuleAuthorityDigest:hydrated.rule.authorityDigest,
   structureEvidenceId:hydrated.structure.evidenceId,structureEvidencePayloadDigest:hydrated.structure.payloadDigest,
   unit:hydrated.unit,inputDigest:hydrated.structure.payloadDigest});}});}
-function createCandidateManifestInputProjection(options){return Object.freeze({project({ownerScope,parameters}){const hydrated=hydrate({
-  runId:ownerScope.processId,unitId:parameters.unitId,workId:parameters.workId},options);return Object.freeze({preallocatedManifestId:stableId('primary-input-manifest-',{
-    runId:ownerScope.processId,unitId:parameters.unitId}),procurementRunId:ownerScope.processId,
+function manifestInput(hydrated){const runId=hydrated.snapshot.run.procurement_run_id;return Object.freeze({preallocatedManifestId:stableId('primary-input-manifest-',{
+    runId,unitId:hydrated.unit.unitId}),procurementRunId:runId,
   runBasisDigest:hydrated.snapshot.run.run_basis_digest,structureEvidencePayloadDigest:hydrated.structure.payloadDigest,
   triageRuleAuthorityDigest:hydrated.rule.authorityDigest,structureEvidenceId:hydrated.structure.evidenceId,unit:hydrated.unit,
-  candidateMembers:hydrated.candidateMembers,inputDigest:hydrated.structure.payloadDigest});}});}
+  candidateMembers:hydrated.candidateMembers,inputDigest:hydrated.structure.payloadDigest});}
+function createCandidateManifestInputProjection(options){return Object.freeze({project({ownerScope,parameters}){return manifestInput(hydrate({
+  runId:ownerScope.processId,unitId:parameters.unitId,workId:parameters.workId},options));}});}
 
 module.exports=Object.freeze({DRAFT_PROJECTION,COMMIT_HANDLE_PROJECTION,IDENTITY_INPUT_PROJECTION,MANIFEST_INPUT_PROJECTION,
   createCandidateAssemblyPlanner,createCandidateDraftProjection,createCandidateCommitHandleProjection,

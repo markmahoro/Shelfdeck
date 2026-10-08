@@ -5,6 +5,7 @@ const path = require('path');
 const { buildResultTypeSchemas, schemaDigest, typeId } = require('./result-type-schema-builder');
 
 const HELPER_SOURCES = {
+  PrimaryInputManifestDraft: { section: '8.6.19', line: 11081 },
   LibraProductFactEvidence: { section: '8.6.19', line: 11075 },
   CandidatePackage: { section: '8.6.19', line: 10297 },
   OnDeckProductPackage: { section: '8.6.19', line: 9440 },

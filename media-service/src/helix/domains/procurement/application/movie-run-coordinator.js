@@ -15,7 +15,8 @@ const {
 const { createCandidatePublicationStore } = require('../persistence/candidate-publication-store');
 const { activeTriageRule } = require('../model/procurement-run-contracts');
 const {
-  buildPrimaryManifestDraft,
+  buildPrimaryManifestDraftRecord,
+  reconstructPrimaryManifestDraft,
   inspectPlayability,
   inspectStructure,
   resolveIdentity,
@@ -1003,10 +1004,10 @@ function createMovieRunCoordinator(options) {
           outputIdentity,
         });
       },
-      execute: async () => buildPrimaryManifestDraft(
+      execute: async () => buildPrimaryManifestDraftRecord(
         manifestInput, rule, { producedAtMs: 0 }),
     });
-    const manifestDraft = manifestPhase.result;
+    const manifestDraft = reconstructPrimaryManifestDraft(manifestPhase.result, manifestInput, rule);
     const manifestRef = manifestPhase.ref;
 
     const draft = draftFor(unit, structure, selected, snapshot, rule, identityClaim, manifestDraft);

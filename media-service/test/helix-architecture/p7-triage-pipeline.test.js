@@ -808,3 +808,18 @@ test('Triage module and explicit continuity parser depend only on declared pure 
   ].sort());
   assert.deepEqual(dependencies('series-continuity-claims.js'),['../../../contracts/canonical-json']);
 });
+
+test('large Primary Manifest Result is bounded and reconstructs only its exact immutable members',()=>{
+  const {buildPrimaryManifestDraft,buildPrimaryManifestDraftRecord,reconstructPrimaryManifestDraft}=require('../../src/helix/domains/procurement/model/triage-contracts');
+  const members=Array.from({length:100},(_,i)=>{const p=probeMember(i,'large-'+i);return {materialKey:p.materialKey,physicalIdentity:p.readHandle.identity,sizeBytes:100,role:'primary_payload',bindingRevision:1,admittedControlRevision:2,admittedControlProjectionDigest:d('control-'+i),episodeClaims:[{episodeKey:'S01E'+String(i+1).padStart(2,'0'),claimDigest:d('claim-'+i)}]};});
+  const input={procurementRunId:'run-large',runBasisDigest:d('run'),structureEvidenceId:'structure-large',structureEvidencePayloadDigest:d('structure'),preallocatedManifestId:'manifest-large',inputDigest:d('input'),unit:{unitId:'unit-large',unitDigest:d('unit'),structureKind:'season'},candidateMembers:members};
+  const full=buildPrimaryManifestDraft(input,rule,{producedAtMs:1000});
+  assert.ok(Buffer.byteLength(JSON.stringify(full))>65536);
+  const record=buildPrimaryManifestDraftRecord(input,rule,{producedAtMs:1000});
+  assert.ok(Buffer.byteLength(JSON.stringify(record))<4096);
+  assert.equal(record.members,undefined);
+  assert.deepEqual(reconstructPrimaryManifestDraft(record,input,rule),full);
+  for(const patch of [{membersDigest:d('forged')},{structureEvidenceId:'other'},{memberCount:99},{extra:true}])
+    assert.throws(()=>reconstructPrimaryManifestDraft({...record,...patch},input,rule));
+  assert.throws(()=>reconstructPrimaryManifestDraft(record,{...input,candidateMembers:members.slice(1)},rule));
+});
