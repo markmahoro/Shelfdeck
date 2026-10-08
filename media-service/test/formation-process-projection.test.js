@@ -187,6 +187,15 @@ test('Formation process projection explains staged and final NFO semantic drift 
   }
 });
 
+test('Formation explains a known media tool failure without inventing a safety or identity diagnosis',()=>{
+  const failed=event('plan-media-failed','assess','libra.media.transcode_input.verify@1','failed',1,[],{
+    failure:{outcomeKind:'failed',failureClass:'permanent',failureCode:'LIBRA_MEDIA_FFMPEG_FAILED',attemptOrdinal:1},
+  });
+  const node=projectPlans([work('libra','libra_run','run-1','workspace_media_production',[failed])])[0].nodes[0];
+  assert.ok(node.results.some(item=>item.label==='失败原因'&&item.value==='视频处理工具执行失败'));
+  assert.doesNotMatch(node.description,/没有保存|安全|身份/);
+});
+
 test('Formation process projection treats a completed compliance check as completed and names each media Plan by its work',()=>{
   const earlier=Array.from({length:10},(_value,index)=>{
     const item=work('libra','libra_run','run-1','product_identity',[

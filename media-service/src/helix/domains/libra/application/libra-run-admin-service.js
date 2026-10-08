@@ -467,9 +467,16 @@ function createLibraRunAdminService(options) {
       try {candidate=defectCandidate(libraRunId,snapshot);}catch(error) {
         if(error.code==='P9_DEFECT_ADMISSION_EVIDENCE_PENDING')return Object.freeze({eligibility:'evidence_pending',libraRunId,
           missingEvidence:['product_safety_and_exact_requirements'],ineligibleReasons:[],pathResults,message:'尚缺少完整的成品安全或差距证据。'});
-        if(['P9_DEFECT_ADMISSION_INELIGIBLE','P9_DEFECT_ADMISSION_NONWAIVABLE'].includes(error.code))return Object.freeze({
+        if(['P9_DEFECT_ADMISSION_INELIGIBLE','P9_DEFECT_ADMISSION_NONWAIVABLE'].includes(error.code)){
+          const reasons=error.details?.productEvidence?.reasonCodes||[];
+          const message=reasons.includes('product_identity_mismatch')?'当前成品身份核对不一致，无法接受瑕疵。':
+            reasons.includes('playback_decode_failed')?'当前成品未通过播放验证，无法接受瑕疵。':
+            pathResults.some(item=>item.failureCode==='LIBRA_MEDIA_FFMPEG_FAILED')?'视频处理失败，无法接受瑕疵。':
+            error.code==='P9_DEFECT_ADMISSION_NONWAIVABLE'?'当前成品仍有必须满足的收藏要求。':'本次处理没有已证实可接受的成品差距。';
+          return Object.freeze({
           eligibility:'ineligible',libraRunId,missingEvidence:[],ineligibleReasons:[error.code],pathResults,
-          message:error.code==='P9_DEFECT_ADMISSION_NONWAIVABLE'?'当前成品有不可豁免的安全或身份问题。':'本次处理没有已证实可接受的成品差距。'});
+          message});
+        }
         throw error;
       }
       const preview=Object.freeze({...candidate,eligibility:'eligible',missingEvidence:[],ineligibleReasons:[],pathResults});

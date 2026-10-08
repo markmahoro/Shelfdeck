@@ -595,6 +595,16 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     'SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
   if(typeof external==='string'){
     if(externalBrowserFlow)await externalBrowserFlow.finish({failed:true});
+    const sourceBefore=sources.map(file=>({bytes:fs.readFileSync(file),stat:fs.statSync(file,{bigint:true})}));
+    const discardFromBrowser=async()=>{
+      if(!externalBrowserFlow)return;
+      await externalBrowserFlow.discard(discarded=>{
+        assert.equal(db.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(state.runs[0].libra_run_id).state,discarded?'discarded':'frozen');
+        assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,0);
+        sources.forEach((file,index)=>{const after=fs.statSync(file,{bigint:true});assert.deepEqual(fs.readFileSync(file),sourceBefore[index].bytes);
+          for(const key of ['ino','mtimeNs','ctimeNs'])assert.equal(after[key],sourceBefore[index].stat[key]);});
+      });
+    };
     assert.equal(state.runs[0].state,'frozen',JSON.stringify(state.works));
     if(external==='technical'){
       assert.equal(externalProvider.calls.filter(item=>item.path==='/api/v1/search/title'||item.method==='POST').length,0);
@@ -602,6 +612,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       const failed=db.prepare("SELECT failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL").all();
       assert.ok(failed.length>0);assert.ok(failed.every(row=>row.failure_code==='LIBRA_MEDIA_FFMPEG_FAILED'));
       assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,0);
+      await discardFromBrowser();
       return;
     }
     const selection=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-external-select-event-%'").all();
@@ -620,6 +631,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.equal(externalProvider.calls.filter(item=>item.method==='POST').length,0);
     assert.ok(sources.every(file=>fs.existsSync(file)));assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,0);
     assert.ok(state.works.some(work=>work.work_id.startsWith('libra-external-material-search_selection-work-')&&work.state==='succeeded'));
+    await discardFromBrowser();
     return;
   }
   assert.ok(state.works.some(work=>work.work_kind==='product_conformance'&&work.state==='succeeded'),JSON.stringify({works:state.works,incidents:db.prepare('SELECT * FROM fx_executor_incidents').all(),events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));

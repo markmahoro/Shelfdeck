@@ -74,6 +74,7 @@ const WORK_TITLES = Object.freeze({
 });
 
 const FAILURE_COPY = Object.freeze({
+  LIBRA_MEDIA_FFMPEG_FAILED:'视频处理工具执行失败',
   CLEAN_ARCA_SETTLEMENT_HANDLE_INVALID:'无法确认这项原文件属于本次上架授权的处理范围',
   CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID:'本次计划没有保存完整的原文件与最终文件对应关系',
   CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT:'原文件与最终文件的对应关系已经发生变化',

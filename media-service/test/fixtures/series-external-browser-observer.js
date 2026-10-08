@@ -24,6 +24,7 @@ async function open({ host, apiKey, scenario }) {
     const index = String(observations.length).padStart(2, '0');
     for (const [name, width, height] of [['desktop', 1920, 1080], ['narrow', 390, 844]]) {
       await page.setViewportSize({ width, height });
+      if (label === 'committed-collection') await page.getByRole('region', { name: '已收藏剧集' }).scrollIntoViewIfNeeded();
       assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
       await page.screenshot({ path: path.join(output, index + '-' + name + '.png'), fullPage: true });
       const active=page.locator('.formation-plan-node[data-state="running"], .formation-plan-node[data-state="failed"]').first();
@@ -47,7 +48,14 @@ async function open({ host, apiKey, scenario }) {
           seen.add(observationKey);
           if (!(await page.getByRole('dialog').count())) {
             const button = page.getByRole('button', { name: '查看过程', exact: true }).first();
-            if (await button.count()) {await button.focus();await page.keyboard.press('Enter');}
+            if (await button.count()) {
+              await button.focus();await page.keyboard.press('Enter');
+              await expect(page.getByRole('dialog')).toBeVisible();
+              await page.keyboard.press('Escape');
+              await expect(page.getByRole('dialog')).toHaveCount(0);
+              await expect(button).toBeFocused();
+              await page.keyboard.press('Enter');
+            }
           }
           await expect(page.getByRole('dialog').getByText(label,{exact:true}).first()).toBeVisible();
           assert.equal(await page.getByRole('columnheader').count(),9);
@@ -67,8 +75,12 @@ async function open({ host, apiKey, scenario }) {
       await page.goto(address + (failed ? '/formation' : '/collection'));
       if (failed) {
         await expect(page.getByRole('button', { name: '放弃整理', exact: true })).toBeVisible();
+        if(scenario==='technical')await expect(page.getByText('视频处理失败，无法接受瑕疵。',{exact:true})).toBeVisible();
+        await expect(page.getByText('当前成品有不可豁免的安全或身份问题。',{exact:true})).toHaveCount(0);
+        await expect(page.getByRole('button',{name:/^重试(?:验收|上架)$/})).toHaveCount(0);
         await page.getByRole('button', { name: '查看过程', exact: true }).first().click();
         await expect(page.getByRole('dialog')).toBeVisible();
+        if(scenario==='technical')await expect(page.getByRole('dialog')).toContainText('视频处理工具执行失败');
       } else {
         const tile = page.getByRole('button', { name: /查看.*详情.*第 1 季/ });
         await expect(tile).toBeVisible();
@@ -83,6 +95,22 @@ async function open({ host, apiKey, scenario }) {
       await capture(failed ? 'terminal-failure' : 'committed-collection');
       assert.ok(observations.length > (failed ? 0 : 1), 'Observe the actual terminal UI and the successful path in progress.');
       assert.deepEqual(errors, []);
+    },
+    async discard(checkSource) {
+      await page.keyboard.press('Escape');
+      const button=page.getByRole('button',{name:'放弃整理',exact:true});
+      await button.click();
+      const dialog=page.getByRole('dialog',{name:'确认放弃整理',exact:true});
+      await expect(dialog).toContainText('原始媒体不会被删除');
+      await dialog.getByRole('button',{name:'取消',exact:true}).click();
+      await expect(dialog).toHaveCount(0);checkSource(false);
+      await button.click();
+      const response=page.waitForResponse(value=>value.request().method()==='POST'&&value.url().includes('/actions/discard'));
+      await dialog.getByRole('button',{name:'确认放弃',exact:true}).click();
+      const result=await response;assert.ok(result.ok());assert.equal((await result.json()).resultKind,'discarded');
+      await expect(dialog).toHaveCount(0);
+      await expect(page.getByText('本次整理已结束。',{exact:true})).toBeVisible();
+      checkSource(true);await capture('discarded-source-preserved');
     },
     async close() {
       stopped = true;

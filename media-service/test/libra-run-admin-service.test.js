@@ -10,14 +10,14 @@ const {
 
 const D = (value) => canonicalDigest({ value });
 
-test('size-cap preview decoration is excluded from the admitted candidate identity', () => {
+for(const scenario of ['size','technical','identity','playback','requirement'])test('Defect preview preserves eligibility and evidence-specific copy: '+scenario, () => {
   const libraRunId = 'run-size-preview';
   const workId = 'work-size-preview';
   const stateDigest = D('frozen-run');
   const terminalBody = {
     blockedWorks:[Object.freeze({
       workId,
-      failureCode:'size_cap_requires_admission',
+      failureCode:scenario==='technical'?'LIBRA_MEDIA_FFMPEG_FAILED':'size_cap_requires_admission',
       capabilityRef:'libra.product_media.verify@1',
       failureClass:'business_unachievable',
       terminalEvidenceDigest:D('terminal-work'),
@@ -29,9 +29,9 @@ test('size-cap preview decoration is excluded from the admitted candidate identi
   });
   const verification = Object.freeze({
     libraRunId,
-    candidateKind:'workspace_output',
+    candidateKind:scenario==='size'?'workspace_output':'direct_input',
     result:'failed',
-    reasonCodes:Object.freeze(['max_size_exceeded']),
+    reasonCodes:Object.freeze([scenario==='size'?'max_size_exceeded':scenario==='identity'?'product_identity_mismatch':scenario==='playback'?'playback_decode_failed':'video_codec_unmet']),
     verificationId:D('verification'),
     candidateBasisDigest:D('candidate'),
     productMaterialHandleId:'workspace-product',
@@ -98,7 +98,7 @@ test('size-cap preview decoration is excluded from the admitted candidate identi
     },
   });
   const workResultReader = Object.freeze({
-    listWorks() { return [Object.freeze({ work_id:workId })]; },
+    listWorks({workKind}) { return workKind==='workspace_media_production'?[Object.freeze({ work_id:workId,work_kind:workKind,state:'succeeded' })]:[]; },
     read(requestedWorkId) {
       assert.equal(requestedWorkId, workId);
       return [Object.freeze({
@@ -117,6 +117,13 @@ test('size-cap preview decoration is excluded from the admitted candidate identi
   });
 
   const preview = service.previewDefects(libraRunId);
+  if(scenario!=='size'){
+    assert.equal(preview.eligibility,'ineligible');
+    assert.deepEqual(preview.ineligibleReasons,['P9_DEFECT_ADMISSION_NONWAIVABLE']);
+    assert.equal(preview.message,{technical:'视频处理失败，无法接受瑕疵。',identity:'当前成品身份核对不一致，无法接受瑕疵。',
+      playback:'当前成品未通过播放验证，无法接受瑕疵。',requirement:'当前成品仍有必须满足的收藏要求。'}[scenario]);
+    assert.equal(lifecycleCalls,0);return;
+  }
   assert.deepEqual(preview.sizeForecast, {
     maxSizeBytes:14,
     predictedBytes:22,

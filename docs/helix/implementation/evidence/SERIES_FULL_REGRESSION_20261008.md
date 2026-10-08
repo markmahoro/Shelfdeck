@@ -111,4 +111,14 @@ UI负责人在turn 01a11beb-c837-7f60-ae7e-dc6ae95dbf53复验原候选四条实�
 
 新增浏览器只连接实际Host、不拦截前端API；真实Direct/Remux/Transcode与Provider网络fixture分开标注。使用15秒Provider响应暂停（正式30秒超时内）及12秒真实加工前暂停抓取瞬时阶段，实际FFmpeg/Probe/全链交付不替换。搜索拒绝/策略耗尽/技术失败三终态页面42.58秒通过；初次失败仅审计强求快速失败也必有运行截图，改为失败必须检查真实终态、成功必须检查运行与完成，保存最初失败日志。
 
-外部Direct113.71秒、Remux116.67秒、多part Transcode128.06秒及延时Transcode161.87秒证明实际Host和运行页面；审查发现外部Host成功分支提前return，使初版通用collection浏览器hook未执行，因此以上结果不能称完成反馈已验收。已将finish放到精确外部成功分支，并加正式Collection的季/集/物理文件数及逐集文件名检查；修正后的三条成功浏览器旅程继续运行，待最终证据和UI负责人接受。此前候选镜像尚不含本次页面刷新修复，仍须构建新的最终版本；未操作NAS。
+外部Direct113.71秒、Remux116.67秒、多part Transcode128.06秒及延时Transcode161.87秒证明实际Host和运行页面；审查发现外部Host成功分支提前return，使初版通用collection浏览器hook未执行，因此以上结果不能称完成反馈已验收。已将finish放到精确外部成功分支，并加正式Collection的季/集/物理文件数及逐集文件名检查；此前候选镜像尚不含本次页面刷新修复，仍须构建新的最终版本；未操作NAS。
+
+## 外部页面完成态、失败与放弃保护
+
+33dd116275b21a7ffc738b984f1abaa51433ff26上的修正后实际Host浏览器：Direct116.11秒、Remux141.46秒、三文件多part Transcode162.71秒均通过，observations末项均为committed-collection；实际Collection的Season、两集、物理文件数及各集文件名断言执行完成。网络Provider受控，真实4K媒体/FFmpeg/Probe/Import/结算保持，且未拦截前端API。日志与双视口截图位于仓库外审计目录series-external-browser-{direct,remux,transcode}-final对应路径。窄屏收藏截图初版未稳定滚至Episode区，DOM断言不等同截图覆盖；后续按每个viewport重新定位Episode区，并追加过程弹窗Enter/Escape/回焦验证。
+
+UI负责人turn 01a11c00-8e30-7860-9dcb-47c6071b5a1b确认技术失败文案缺陷：NONWAIVABLE不能一概诊断为安全或身份问题。Libra沿正式productEvidence原因区分身份/播放失败，沿已保存Path Result区分FFmpeg技术失败，其余保留中性不可豁免要求；不改变瑕疵接纳资格、生命周期或Owner。失败节点将LIBRA_MEDIA_FFMPEG_FAILED呈现为“视频处理工具执行失败”。技术/身份/播放/要求/体积资格及Projection、UAT-251共30项回归通过。
+
+实际浏览器搜索拒绝20.17秒、策略耗尽19.07秒、技术失败3.93秒（3项合计43.72秒）验证失败详情、无虚构重试、放弃确认取消及正式放弃；Run分别保持frozen/转为discarded，未产生Shelf Entry，原媒体bytes/inode/mtime/ctime逐项保持。该三项运行时技术文案尚为中性版本；随后明确技术文案版本单独复验通过5.46秒，日志series-external-browser-technical-copy.log及technical目录截图。没有用取消/Reset隐藏新输入缺陷，没有生产数据操作。负责人尚需接受具体最终提交，发布资格继续开放。
+
+最终截图/键盘专项：真实多part Transcode完整Host再次通过161.86秒，过程弹窗Enter打开、Escape关闭及返回原按钮焦点断言通过；每个viewport滚至已收藏剧集后截图，窄屏明确显示第1集两个part、第2集一个文件及总计3视频文件。日志series-external-browser-transcode-final-framing.log、截图同名目录09-narrow.png；已人工查看，未将测试截图修正描述为产品布局变更。
