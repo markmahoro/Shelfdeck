@@ -45,3 +45,16 @@ UnitOfWork decorator在真实Aftercare Inventory事务最后追加故障参与�
 相关Series评估/完整成品/Aftercare媒体策略43项通过，日志 `series-bounded-media-aftercare-targeted.log`；架构449文件/1412依赖、语义2067文件及diff检查通过。未重复全架构历史回归。该证据覆盖普通一集一文件的真实有界转码和音频copy，不覆盖N:M有界压缩、长片/HDR/其他设备、进程中断/跨设备恢复或Linux/UI发布验收；首版发布Gate保持开放，无NAS动作。
 
 本机Linux环境预检：Docker Engine原未启动；启动已安装Docker Desktop后，2026-10-08本机backend日志报告Inference manager无法处理dockerInference Unix socket（file cannot be accessed / invalid filename），后端进入错误状态，Linux Engine未就绪。本次启动和查询进程已结束；未清理Docker数据、未执行factory reset、无NAS动作。尚无本批Linux测试结论；其他独立开发继续。
+
+
+## N:M有界压缩与未指定语言修复
+
+基线 `d31461cab4b9c04b781648fa8c9702d8aff270e3`。新增可选 `with bounded real N:M media Aftercare$`：E01–E02共文件加E01独立part，两个20秒1080p SDR/H264/AAC源先Direct上架，再发布每集64 MiB、HEVC/MKV要求。完整Host最终111.4秒通过（`series-nm-bounded-repair-v5.log`），两个成员均为NVIDIA NVENC encode。最终共文件30,436,333字节、独立part26,560,071字节；E01实测份额83,556,475/2字节，E02为30,436,333/2字节，均小于67,108,864字节。独立part源68,526,141字节，target_size成品时长20.052秒，939个AAC包SHA256按序保持。Claims、完整空间集合、Inventory-Control事务故障回滚/提交、原Control释放及Settlement均通过。
+
+该场景发现MP4的未指定音轨语言`und`在FFmpeg复制到MKV后省略，原Aftercare流签名按字符串比较误报`audio_stream_set_changed`，阻止提交。额外独立1秒FFmpeg copy实验确认这一容器差异；Arca continuity签名仅等价化`und`与缺省，不忽略已知语言或轨道属性。双向等价、已知语言变化拒绝、丢轨和默认轨变化拒绝均有测试；14项策略和28项Series评估/提交测试通过，架构449文件/1412依赖及语义2067文件检查通过。此前2,311项全架构是进程恢复提交的证据，不能当成本修复的全量结果；本轮误启动的重复全量已停止，不计PASS。
+
+失败轨迹保留于外部日志：v1测试误用原文件名找上架成员，改按Inventory Claims选独立part；v2短小共文件+大part无法形成完整维修策略；v3/v4两个大文件均可规划，但连续性验证因上述语言差异失败，v4明确记录逐成员拒绝原因。未修改影片质量下限、空间预算算法或终检规则。
+
+**开放限制**：v2场景中共文件自身很小，按SSOT §8.6.11附近既有比例预算随超限集一起缩减，所得预算低于16 MiB预留，因而整季attention_required且无Case。两个大文件通过不关闭此限制；后续需审查保留小成员/联合预算方案及其合同影响。长片/HDR/其他设备、Linux/UI、升级回退与整体发布Gate仍开放，未部署NAS。
+
+清理记录：停止重复全量进程后，其临时目录 `C:/Users/markm/AppData/Local/Temp/helix-series-routing-zQptHO` 的删除被自动审批拒绝（blocked by policy），原目录保留；独立语言实验 `series-audio-probe-Jqhw7v` 也保留，均为本地生成fixture，无生产数据。

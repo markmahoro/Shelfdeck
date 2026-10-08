@@ -138,3 +138,5 @@ UAT-280已完成：[清理证据](implementation/evidence/UAT-280_BETA_WORKSPACE
 同日追加只读复查发现首轮Git沿junction清理还影响了主Service及主/集成Web依赖，前次仅恢复SSH工具依赖不完整；续作的metadata保护比较基于首轮之后，不能证明首轮依赖未受影响。现已在三处按各自锁文件`npm ci`补齐，SQLite/Sharp及两处esbuild原生绑定smoke通过，用户修改及锁文件无新增变更；修复后本地净可用空间较原快照增加约98.7GiB。未新增文件删除。另有约0.94GB的UAT-125旧诊断库、约32MB测试包及约1.6MB忽略的构建输出；诊断库仍关联开放项，暂保留，不扩大已关闭280的精确清理范围。
 
 清理阶段未构建或部署新版本、未改动生产业务数据/媒体、未重启服务；未新增功能测试或技术资格PASS。后续Series准备专项测试事实见上文，不改写清理阶段结论。部署集中负责人职责已按用户2026-09-28决定取消，UI负责人职责保留。
+
+2026-10-08 N:M有界维修：两个20秒大文件正式Host通过111.4秒，E01/E02按均分加part分别41,778,237.5/15,218,166.5字节，均低于每集64 MiB；独立part 939音频包保持，Claims/事务回滚/Control/Settlement通过。修复MP4→MKV未指定语言und/缺省等价误报，42项专项及架构/语义通过；小共文件比例预算限制仍开放。外部寻源完整范围替换方案已获用户确认，合同传播待实施；UI授权及Linux等发布Gate继续。未部署NAS。[Evidence](implementation/evidence/SERIES_MEDIA_AFTERCARE_HOST_20261008.md)。

@@ -221,7 +221,7 @@ function evaluateAftercareConformance(value) {
 function streamSignature(kind, stream) {
   const common = [
     kind === 'audio' ? audioCodec(stream) : String(stream?.codecName || stream?.codec || '').toLowerCase(),
-    String(stream?.language || ''),
+    stream?.language === 'und' ? '' : String(stream?.language || ''),
     stream?.dispositionDefault === true ? 'default' : 'nondefault',
   ];
   if (kind === 'audio') {

@@ -263,3 +263,11 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08完整Off-deck Host重启验证前发现删除调用EPERM被抛为执行器异常：在Arca删除Capability内把既有端点不可用与明确文件系统权限/占用/I/O失败转为integration失败，沿现有Foundation policy和同Case blocked恢复，不写成功Evidence、不改变授权或放宽身份检查。新增删除失败/原文件保护/重试发现替换者拒绝测试；继续真实进程退出后的Host重启。
 
 2026-10-08 Series进程恢复：N:M媒体物化三个rename边界退出/新进程恢复及冲突保护通过；真实Off-deck Host在删除完成、terminal提交前退出，新Host完成唯一终态，第三次启动Evidence不变。主动注入EPERM仍沿同Case/同Authorization恢复，增强Host 115.1秒通过。修复删除环境错误分类与退出Entry旧Aftercare纯观察恢复；118项专项、全架构2,311通过/10skip/0失败。跨设备/其他中断点/UI/Linux等发布Gate继续，未部署NAS。[Evidence](evidence/SERIES_PROCESS_RECOVERY_20261008.md)。
+
+2026-10-08 N:M有界维修DoR：将既有真实共文件两集与E01独立part场景施加每集64 MiB要求，独立part使用20秒1080p动态H264/AAC且源超过上限；正式Host维修后按共文件均分加part核对完整Episode集合、实际转码策略、音频包、Claims及原子事务/Settlement。不调整预算预留或质量规则，仅隔离生成媒体。
+
+2026-10-08用户确认外部寻源N:M合同方案：允许按冻结Episode与文件关联的完整连通范围替换，各原文件记录全部对应的新文件，防止漏集或重复part；Libra生产、Arca结算职责不变。此前待确认门禁已解除，下一步正式修订SSOT并传播schema/持久化/交接/终检/结算与负向验收；尚未实现，不将用户确认作为运行验证。UI负责人跨任务协调授权另行等待，不能由本项确认推定。
+
+2026-10-08 N:M有界维修发现开放问题：短小共文件加68,526,141字节独立part、每集64 MiB时，比例预算将共文件也判为需压缩，低于既有16 MiB预留而无Strategy，整季attention_required且无Case（series-nm-bounded-repair-v2.log）。不能以改用大文件样本关闭此问题；后续在Arca策略合同内审查可保持成员及联合预算，完整实测逐集验收不得放宽。当前另测两个大文件均可行的执行链路。
+
+2026-10-08 N:M有界维修：两个20秒大文件正式Host通过111.4秒，E01/E02按均分加part分别41,778,237.5/15,218,166.5字节，均低于每集64 MiB；独立part 939音频包保持，Claims/事务回滚/Control/Settlement通过。修复MP4→MKV未指定语言und/缺省等价误报，42项专项及架构/语义通过；小共文件比例预算限制仍开放。外部寻源完整范围替换方案已获用户确认，合同传播待实施；UI授权及Linux等发布Gate继续。未部署NAS。[Evidence](evidence/SERIES_MEDIA_AFTERCARE_HOST_20261008.md)。

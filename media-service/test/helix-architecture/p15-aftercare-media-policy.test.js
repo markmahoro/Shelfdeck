@@ -253,3 +253,23 @@ test('4K restoration evidence is bound to the exact inventory content and never 
   assert.ok(evaluateAftercareConformance({...value,contentFingerprint:undefined}).reasonCodes.includes('minimum_raster_unmet'));
   assert.deepEqual(evaluateAftercareConformance({...value,probe:probe({videoStreams:[video(0,'h264',true)]})}).reasonCodes,['video_codec_unmet']);
 });
+
+
+test('Aftercare continuity equates omitted and und language while preserving explicit language and track identity', () => {
+  for (const [left, right] of [['und', undefined], [undefined, 'und']]) {
+    const source = probe({audioStreams:[audio(1, 'aac', true, {language:left})],
+      subtitleStreams:[{codec:'subrip', language:left}]});
+    const output = probe({audioStreams:[audio(1, 'aac', true, {language:right})],
+      subtitleStreams:[{codec:'subrip', language:right}]});
+    assert.equal(verifyOutputContinuity({sourceProbe:source, outputProbe:output}).passed, true);
+    for (const language of ['eng', 'zho']) {
+      const changed = {...output, audioStreams:[{...output.audioStreams[0], language}],
+        subtitleStreams:[{...output.subtitleStreams[0], language}]};
+      assert.deepEqual(verifyOutputContinuity({sourceProbe:source, outputProbe:changed}).reasonCodes,
+        ['audio_stream_set_changed', 'subtitle_stream_set_changed']);
+    }
+    for (const audioStreams of [[], [{...output.audioStreams[0], dispositionDefault:false}]])
+      assert.ok(verifyOutputContinuity({sourceProbe:source, outputProbe:{...output, audioStreams}})
+        .reasonCodes.includes('audio_stream_set_changed'));
+  }
+});

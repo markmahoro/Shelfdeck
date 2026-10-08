@@ -182,7 +182,7 @@ function mediaProbe() {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck} of [...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?' with bounded real media Aftercare':nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:real||repair||migrate?300000:180000},async t=>{
+for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck} of [...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true},{episodeCount:2,real:true,mediaRepair:true,mediaBound:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?(nm?' with bounded real N:M media Aftercare':' with bounded real media Aftercare'):nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:real||repair||migrate?300000:180000},async t=>{
   const root=offdeck&&process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT?fs.realpathSync(process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT):
     fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
@@ -195,8 +195,8 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   if(real) {
     const {spawnSync}=require('node:child_process'),ffmpeg=process.env.FFMPEG_PATH||require('ffmpeg-static');
     for(const [index,file] of sources.entries()) {
-      const codec=(nm?index===1:index===2)?['-c:v','libx264']:['-c:v','libx265','-x265-params','pools=1:frame-threads=1'];
-      const boundedSource=mediaBound&&index===2;
+      const codec=(mediaBound&&nm|| (nm?index===1:index===2))?['-c:v','libx264']:['-c:v','libx265','-x265-params','pools=1:frame-threads=1'];
+      const boundedSource=mediaBound&&(nm||index===2);
       const result=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-f','lavfi','-i',
         boundedSource?'testsrc2=s=1920x1080:r=24:d=20':'color=c=black:s=1920x1080:r=24:d=3',
         ...(boundedSource?['-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=20']:[]),
@@ -582,7 +582,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     if(real) {
       const inspected=require('node:child_process').spawnSync(process.env.FFPROBE_PATH||require('@ffprobe-installer/ffprobe').path,
         ['-v','error','-select_streams','v:0','-show_entries','stream=codec_name','-of','json',item.location],{encoding:'utf8',windowsHide:true});
-      assert.equal(inspected.status,0,inspected.stderr);assert.equal(JSON.parse(inspected.stdout).streams[0].codec_name,mediaRepair&&(nm?JSON.parse(item.episode_claims_json).items.length===1:item.location.endsWith('S01E03.mkv'))?'h264':'hevc');
+      assert.equal(inspected.status,0,inspected.stderr);assert.equal(JSON.parse(inspected.stdout).streams[0].codec_name,mediaRepair&&(nm?(mediaBound||JSON.parse(item.episode_claims_json).items.length===1):item.location.endsWith('S01E03.mkv'))?'h264':'hevc');
     } else assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
     assert.equal(path.basename(path.dirname(item.location)),'Season 01');
     assert.ok(path.relative(target,item.location)&&!path.relative(target,item.location).startsWith('..'));
@@ -685,7 +685,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       name:'Bounded Series fixture',expectedSourceRevision:1});
     const draft=(await request('GET','/v1/admin/rule-templates/'+repairTemplateId+'/draft')).json().draft;
     const rules=structuredClone(draft.rules),profile=rules.profileRuleSets.find(item=>item.contentProfile==='series');
-    const allocationCheckCap=1048576,repairEpisodeCap=32*1024*1024;
+    const allocationCheckCap=1048576,repairEpisodeCap=(nm?64:32)*1024*1024;
     for(const requirements of [profile.baseRequirements,...profile.decisionBranches.map(item=>item.requirements)]) {
       Object.assign(requirements.mandatoryMedia,{videoCodec:'hevc',container:'matroska',fileExtension:'mkv'});
       if(nm)requirements.space={unit:'episode',maxSizeGiB:null,maxSizeBytes:null};
@@ -711,7 +711,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       assert.ok(hashes.length>0&&hashes.every(value=>/^SHA256:[a-f0-9]{64}$/.test(value)));
       return hashes;
     };
-    const sourceAudioHashes=mediaBound?audioPacketHashes(inventoryPrimary.find(item=>item.location.endsWith('S01E03.mkv')).location):null;
+    const sourceAudioHashes=mediaBound?audioPacketHashes(inventoryPrimary.find(item=>(nm?JSON.parse(item.episode_claims_json).items.length===1:item.location.endsWith('S01E03.mkv'))).location):null;
     await request('POST','/v1/admin/shelves/series-shelf/actions/bind-template',{
       idempotencyKey:'series-media-care-bind',shelfId:'series-shelf',expectedStandardRevision:1,expectedRoutingProjectionRevision:1,
       ruleTemplateId:repairTemplateId,expectedTemplateRevision:2});
@@ -724,7 +724,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       await new Promise(resolve=>setTimeout(resolve,50));
     }while(Date.now()<until);
     const detail=(await request('GET','/v1/admin/care/'+entry.shelf_entry_id)).json();
-    assert.equal(care?.state,'resolved',JSON.stringify({detail,failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
+    assert.equal(care?.state,'resolved',JSON.stringify({detail,verifications:db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>JSON.parse(row.result_json)).filter(item=>item.verificationKind==='aftercare_media'),failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
     assert.equal(detail.health.state,'healthy');assert.equal(repairCommitAudits.length,1);
     const current=db.prepare('SELECT * FROM arca_shelf_entries').get(),materials=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=?').all(current.current_inventory_revision);
     assert.equal(materials.length,inventory.length);
@@ -741,8 +741,8 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       assert.equal(probe.status,0,probe.stderr);assert.equal(JSON.parse(probe.stdout).streams[0].codec_name,'hevc');
     }
     if(mediaBound) {
-      const source=original.find(({item})=>item.role==='primary_payload'&&item.location.endsWith('S01E03.mkv')).item,
-        final=materials.find(item=>item.role==='primary_payload'&&item.location.endsWith('S01E03.mkv'));
+      const source=original.find(({item})=>item.role==='primary_payload'&&(nm?JSON.parse(item.episode_claims_json).items.length===1:item.location.endsWith('S01E03.mkv'))).item,
+        final=materials.find(item=>item.role==='primary_payload'&&(nm?JSON.parse(item.episode_claims_json).items.length===1:item.location.endsWith('S01E03.mkv')));
       assert.ok(Number(source.size_bytes)>repairEpisodeCap);
       assert.ok(Number(final.size_bytes)<=repairEpisodeCap);
       assert.equal(fs.statSync(final.location).size,Number(final.size_bytes));
@@ -767,7 +767,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
           require('../../src/helix/foundation/execution/work-result-reader').createWorkResultReader({schemaManifest,unitOfWork})})
         .read(entry.shelf_entry_id);
       const finalSpace=require('../../src/helix/domains/arca/model/series-care-media-space')
-        .evaluateSeriesCareMediaSpace(finalContext,allocationCheckCap);
+        .evaluateSeriesCareMediaSpace(finalContext,mediaBound?repairEpisodeCap:allocationCheckCap);
       const primaries=materials.filter(item=>item.role==='primary_payload'),
         shared=primaries.find(item=>JSON.parse(item.episode_claims_json).items.length===2),
         part=primaries.find(item=>JSON.parse(item.episode_claims_json).items.length===1);
@@ -778,7 +778,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
         {episodeKey:'E002',allocatedBytes:fraction(BigInt(shared.size_bytes))}];
       assert.deepEqual(finalSpace.episodeAllocations.map(({episodeKey,allocatedBytes})=>({episodeKey,allocatedBytes})),expected);
       assert.ok(finalSpace.episodeAllocations.every(item=>item.withinLimit));
-      t.diagnostic(JSON.stringify({finalEpisodeAllocations:expected,allocationCheckCap,repairSpaceLimit:null}));
+      t.diagnostic(JSON.stringify({finalEpisodeAllocations:expected,allocationCheckCap:mediaBound?repairEpisodeCap:allocationCheckCap,repairSpaceLimit:mediaBound?repairEpisodeCap:null}));
     }
     const controlPort=require('../../src/helix/foundation/persistence/material-control').createMaterialControlProjectionPort({schemaManifest,unitOfWork}),
       controls=controlPort.getMaterialControlProjections([...new Set([...materials,...inventory].map(item=>item.material_key))].sort());
@@ -791,7 +791,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const resultReader=require('../../src/helix/foundation/execution/work-result-reader').createWorkResultReader({schemaManifest,unitOfWork}),
       works=resultReader.listWorks({ownerDomain:'arca',processType:'arca_shelf_entry',processId:entry.shelf_entry_id,workKind:'care_repair_prepare'}),
       produced=works.flatMap(work=>resultReader.read(work.work_id)).filter(row=>['arca.aftercare.media.remux@1','arca.aftercare.media.transcode@1'].includes(row.capabilityRef));
-    assert.deepEqual(produced.map(row=>row.result.productionIntentKind).sort(),['encode','remux']);
+    assert.deepEqual(produced.map(row=>row.result.productionIntentKind).sort(),mediaBound&&nm?['encode','encode']:['encode','remux']);
     assert.equal(new Set(produced.map(row=>row.result.sourceMaterialHandleDigest)).size,2);
     assert.equal(new Set(produced.map(row=>row.result.workspaceMaterialHandle.relativePath)).size,2);
     t.diagnostic(JSON.stringify({realAftercare:true,processed:produced.map(row=>({kind:row.result.productionIntentKind,
@@ -820,7 +820,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       await new Promise(resolve=>setTimeout(resolve,50));
     }while(Date.now()<until);
     const detail=(await request('GET','/v1/admin/care/'+entry.shelf_entry_id)).json();
-    assert.equal(care?.state,'resolved',JSON.stringify({detail,failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));assert.equal(detail.health.state,'healthy');assert.equal(detail.basis.placementRevision,2);
+    assert.equal(care?.state,'resolved',JSON.stringify({detail,verifications:db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>JSON.parse(row.result_json)).filter(item=>item.verificationKind==='aftercare_media'),failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));assert.equal(detail.health.state,'healthy');assert.equal(detail.basis.placementRevision,2);
     assert.equal(repairCommitAudits.length,1);
     const current=db.prepare('SELECT * FROM arca_shelf_entries').get(),materials=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=?').all(current.current_inventory_revision);
     assert.equal(materials.length,original.length);
