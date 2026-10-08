@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 Series命名示例与空间展示：收藏架按实际Profile提供单集/共文件/part示例，模板变更即时反馈；Formation明确每集空间上限。55项后端、125项前端、双视口/Axe及构建/P2/架构/语义通过。UI接受与其他发布Gate继续，未部署NAS。[Evidence](evidence/SERIES_NAMING_PREVIEW_20261008.md)。
+
 2026-10-08 Formation本批范围：从当前展示Run的冻结Claims投影Season/实际集号/物理文件数，列表及过程详情保持一致。55项后端、124项前端、双视口及构建通过；94.15秒真实E03追加Host确认Formation仅E03、Collection累计三集。P2/架构/语义通过，负责人验收及其他发布Gate继续，未部署NAS。[Evidence](evidence/SERIES_FORMATION_SCOPE_20261008.md)。
 
 2026-10-08 Collection Series详情：从当前Inventory及Canonical Season事实输出实际集数/文件关系，支持共文件和多part；不拿首文件规格代表整季。7项查询专项、共文件/part两个Host及E03追加94.2秒通过，124项前端、双视口及构建/P2/架构/语义通过。负责人验收和其他发布Gate仍开放，未部署NAS。[Evidence](evidence/SERIES_COLLECTION_EPISODES_20261008.md)。

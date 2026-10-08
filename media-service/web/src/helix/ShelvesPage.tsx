@@ -183,18 +183,30 @@ function PlacementFields({ placement, onChange }: { placement: ShelfPlacementPol
   </>;
 }
 
-function namingPreview(placement: ShelfPlacementPolicy) {
-  return <>
-    <strong>命名预览</strong>
-    <span>{renderPreview(placement.folderTemplate, { title: '示例电影', year: '2026' })}</span>
-    <small>{[
-      renderPreview(placement.primaryTemplate, { stem: '示例电影 (2026)', ext: '.mkv' }),
-      renderPreview(placement.nfoTemplate, { stem: '示例电影 (2026)', ext: '.nfo' }),
-      renderPreview(placement.subtitleTemplate, { stem: '示例电影 (2026)', language: '.zh-CN', forced: '.forced', sdh: '.sdh', ext: '.srt' }),
-      renderPreview(placement.posterTemplate, { ext: '.jpg' }),
-      renderPreview(placement.fanartTemplate, { ext: '.jpg' }),
-    ].join(' · ')}</small>
-  </>;
+export function namingExamples(placement: ShelfPlacementPolicy, sample: string) {
+  const series=sample !== 'movie', title=series?'示例剧集':'示例电影', base=title+' (2026)';
+  const primaryStems=sample==='series_shared'?[base+' - S01E01-E02']:sample==='series_parts'?[base+' - S01E01-part01',base+' - S01E01-part02']:[base+(series?' - S01E01':'')];
+  const nfoStems=series?['season',base+' - S01E01',...(sample==='series_shared'?[base+' - S01E02']:[])]:[base];
+  return {
+    directory:renderPreview(placement.folderTemplate,{title,year:'2026'})+(series?'/Season 01':''),
+    names:[...primaryStems.map(stem=>renderPreview(placement.primaryTemplate,{stem,ext:'.mkv'})),
+      ...nfoStems.map(stem=>renderPreview(placement.nfoTemplate,{stem,ext:'.nfo'})),
+      renderPreview(placement.subtitleTemplate,{stem:base,language:'.zh-CN',forced:'.forced',sdh:'.sdh',ext:'.srt'}),
+      renderPreview(placement.posterTemplate,{ext:'.jpg'}),renderPreview(placement.fanartTemplate,{ext:'.jpg'})],
+  };
+}
+function NamingPreview({placement,profiles}:{placement:ShelfPlacementPolicy;profiles:string[]}) {
+  const [selected,setSelected]=useState('movie');
+  const samples=[...(profiles.includes('movie')?[{value:'movie',label:'电影'}]:[]),
+    ...(profiles.includes('series')?[{value:'series',label:'剧集：一集一文件'},{value:'series_shared',label:'剧集：两集共文件'},{value:'series_parts',label:'剧集：一集多个 part'}]:[])];
+  if(!samples.length)return null;
+  const sample=samples.some(item=>item.value===selected)?selected:samples[0].value;
+  const preview=namingExamples(placement,sample);
+  return <div className="template-preview" aria-label="最终命名保存前预览">
+    <label><span>命名示例</span><select value={sample} onChange={event=>setSelected(event.target.value)}>{samples.map(item=><option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+    <span>{preview.directory}</span>
+    <small>{preview.names.join(' · ')}</small>
+  </div>;
 }
 
 export default function ShelvesPage() {
@@ -475,7 +487,7 @@ export default function ShelvesPage() {
         <label className="wide"><span>收藏最终目录</span><input value={targetRootLocation} onChange={(event) => setTargetRootLocation(event.target.value)} placeholder="例如 E:\Movies 或 /media/Film" required /></label>
         <PlacementFields placement={placement} onChange={setPlacement} />
       </div>
-      <div className="template-preview" aria-label="最终命名保存前预览">{namingPreview(placement)}</div>
+      <NamingPreview placement={placement} profiles={selectedTemplate?.current.rules.profileRuleSets.map(item=>item.contentProfile)||[]} />
       {selectedTemplate && <div className="template-preview">
         <RuleSummary rules={selectedTemplate.current.rules} />
       </div>}
@@ -523,7 +535,7 @@ export default function ShelvesPage() {
             <label className="wide"><span>收藏最终目录</span><input value={placementTarget} onChange={(event) => { setPlacementTarget(event.target.value); setPlacementPreview(null); }} required /></label>
             <PlacementFields placement={placementDraft} onChange={(value) => { setPlacementDraft(value); setPlacementPreview(null); }} />
           </div>
-          <div className="template-preview" aria-label="最终命名保存前预览">{namingPreview(placementDraft)}</div>
+          <NamingPreview placement={placementDraft} profiles={placementShelf.standard.value.profileRuleSets.map(item=>item.contentProfile)} />
           {placementPreview && <div className="template-preview" role="status">
             <strong>将影响 {placementPreview.affectedActiveEntryCount} 个已上架条目</strong>
             <small>{reassessmentCopy(placementPreview.affectedActiveEntryCount, 0, false)}</small>

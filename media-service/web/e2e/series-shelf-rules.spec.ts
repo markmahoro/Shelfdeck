@@ -54,5 +54,16 @@ test('edits per-Episode Series limits without changing Movie rules', async ({ pa
   await dialog.getByRole('button', { name: '发布整理标准' }).click();
   await expect(page.getByRole('status')).toContainText('整理标准已发布');
   await expect(page.getByRole('region', { name: '剧集整理标准' })).toContainText('每集 · 最多 0.5 GiB');
+  await page.getByLabel('命名示例').selectOption('series_shared');
+  const naming=page.getByLabel('最终命名保存前预览');
+  await expect(naming).toContainText('示例剧集 (2026)/Season 01');
+  await expect(naming).toContainText('示例剧集 (2026) - S01E01-E02.mkv');
+  await page.getByLabel('主视频命名',{exact:true}).fill('video-{stem}{ext}');
+  await expect(naming).toContainText('video-示例剧集 (2026) - S01E01-E02.mkv');
+  await page.getByLabel('命名示例').selectOption('series_parts');
+  await expect(naming).toContainText('video-示例剧集 (2026) - S01E01-part01.mkv');
+  await expect(naming).toContainText('video-示例剧集 (2026) - S01E01-part02.mkv');
+  await page.screenshot({path:testInfo.outputPath('series-naming.png'),fullPage:true});
+  expect((await new AxeBuilder({page}).include('.source-create').analyze()).violations).toEqual([]);
   expect(errors).toEqual([]);
 });

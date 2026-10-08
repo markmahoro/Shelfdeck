@@ -15,13 +15,13 @@ function chunks(values, size = 500) { const result = []; for (let index = 0; ind
 function latest(rows, revisionKey) { return rows.slice().sort((a, b) => Number(b[revisionKey]) - Number(a[revisionKey]))[0] || null; }
 
 function requirementLabel(spec) {
-  const requirements = parse(spec?.spec_json)?.requirements;
+  const contract = parse(spec?.spec_json), requirements = contract?.requirements;
   if (!requirements) return '正在确认整理要求';
   const media = requirements.mandatoryMedia || {}, space = requirements.space || {};
   const artifacts = requirements.metadata?.requiredArtifactKinds || [], parts = [];
   if (media.videoCodec && media.videoCodec !== 'any') parts.push(String(media.videoCodec).toUpperCase());
   if (media.minimumRasterClass && media.minimumRasterClass !== 'none') parts.push(media.minimumRasterClass);
-  if (space.maxSizeGiB !== null && space.maxSizeGiB !== undefined) parts.push('不超过 ' + space.maxSizeGiB + ' GiB');
+  if (space.maxSizeGiB !== null && space.maxSizeGiB !== undefined) parts.push((contract.contentProfile === 'series' ? '每集不超过 ' : '不超过 ') + space.maxSizeGiB + ' GiB');
   if (artifacts.length) parts.push('补齐 ' + artifacts.join('、'));
   return parts.length ? parts.join(' · ') : '保持原媒体并完成资料';
 }
@@ -75,13 +75,14 @@ function transcodeDeviceClass(event) {
 function transcodeLabel(works, spec) {
   const event = latestEvent(works, (item) => item.capabilityRef === 'libra.media.transcode@1');
   const deviceClass = transcodeDeviceClass(event);
-  const media = parse(spec?.spec_json)?.requirements?.mandatoryMedia || {};
-  const space = parse(spec?.spec_json)?.requirements?.space || {};
+  const contract = parse(spec?.spec_json);
+  const media = contract?.requirements?.mandatoryMedia || {};
+  const space = contract?.requirements?.space || {};
   const parts = [deviceClass === 'gpu' ? 'GPU转码' : deviceClass === 'cpu' ? 'CPU转码' :
     deviceClass === 'remote' ? '远程转码' : '转码'];
   if (media.videoCodec && media.videoCodec !== 'any') parts.push(String(media.videoCodec).toUpperCase());
   if (media.minimumRasterClass && media.minimumRasterClass !== 'none') parts.push(media.minimumRasterClass);
-  if (space.maxSizeGiB !== null && space.maxSizeGiB !== undefined) parts.push('不超过 ' + space.maxSizeGiB + ' GiB');
+  if (space.maxSizeGiB !== null && space.maxSizeGiB !== undefined) parts.push((contract.contentProfile === 'series' ? '每集不超过 ' : '不超过 ') + space.maxSizeGiB + ' GiB');
   return parts.join(' · ');
 }
 function overlayStep(key, defaultLabel, event, labelFromEvent) {

@@ -513,6 +513,9 @@ test('Formation Series delivery follows the selected frozen Run instead of the r
     {subject_id:subject.subject_id,libra_run_id:'append-run',state:'active',created_at_ms:2}]};
   const unitOfWork={execute(participants){return Object.fromEntries(participants.map(p=>[p.participantId,
     p.execute({repository:()=>({invoke:name=>rows[name]||[]})})]));}};
+  rows.find_decision_heads=[{subject_id:subject.subject_id,current_acceptance_spec_id:'spec'}];
+  const specContract={contentProfile:'series',requirements:{space:{maxSizeGiB:0.75}}};
+  rows.find_acceptance_specs=[{subject_id:subject.subject_id,acceptance_spec_id:'spec',spec_json:JSON.stringify(specContract)}];
   const reads=[];
   const season={claimKind:'explicit_number',seasonNumber:2};
   const snapshot={spec:{contentProfile:'series',structureKind:'season'},candidateIdentityClaim:{contentProfile:'series',claimKind:'series_season',seasonClaim:{...season,claimDigest:canonicalDigest(season)}},
@@ -521,6 +524,9 @@ test('Formation Series delivery follows the selected frozen Run instead of the r
   const item=source.buildBatch([subject],{includeProcessSummary:true})[0];
   assert.deepEqual(item.seriesDelivery,{libraRunId:'append-run',seasonNumber:2,episodeKeys:['E003','E005'],physicalFileCount:2});
   assert.deepEqual(reads,['append-run']);
+  assert.equal(item.organizingRequirement,'每集不超过 0.75 GiB');
+  specContract.contentProfile='movie';rows.find_acceptance_specs[0].spec_json=JSON.stringify(specContract);
+  assert.equal(source.buildBatch([subject])[0].organizingRequirement,'不超过 0.75 GiB');
   rows.find_runs[1].state='completed';
   assert.deepEqual(source.buildBatch([subject],{includeProcessDetail:true})[0].seriesDelivery,item.seriesDelivery);
   snapshot.candidateIdentityClaim.seasonClaim.seasonNumber=3;

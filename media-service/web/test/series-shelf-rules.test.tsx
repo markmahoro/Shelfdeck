@@ -1,7 +1,7 @@
 import { createRequire } from 'node:module';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import ShelvesPage, { applyProfileEdits } from '../src/helix/ShelvesPage';
+import ShelvesPage, { applyProfileEdits, namingExamples } from '../src/helix/ShelvesPage';
 import { canonicalDigest, helixAdminApi, type RuleTemplateRules } from '../src/helix/api';
 
 const require = createRequire(import.meta.url);
@@ -73,4 +73,25 @@ it('keeps profile edits while switching and sends both profiles through preview 
   fireEvent.click(dialog.getByRole('button', { name: '发布整理标准' }));
   await waitFor(() => expect(publish).toHaveBeenCalledTimes(1));
   expect(await screen.findByRole('status')).toHaveTextContent('整理标准已发布');
+});
+
+
+it('keeps Series naming examples aligned with Arca shared-file and part stems',()=>{
+  const {seriesMemberStem}=require('../../src/helix/domains/arca/model/series-placement.js');
+  const {DEFAULT_SHELF_PLACEMENT_POLICY}=require('../../src/helix/domains/arca/model/shelf-placement-policy-contracts.js');
+  for(const sample of ['series','series_shared','series_parts']) {
+    const keys=sample==='series_shared'?['E001','E002']:['E001'];
+    const members=Array.from({length:sample==='series_parts'?2:1},(_,i)=>({materialKey:'member-'+i,role:'primary_payload',episodeClaims:keys.map(episodeKey=>({episodeKey}))}));
+    const context={seasonNumber:1,scopes:keys.map(episodeKey=>({episodeKey,episodeNumber:Number(episodeKey.slice(1))})),packageValue:{productMaterialManifest:{members}}};
+    for(const primaryTemplate of ['{stem}{ext}','video-{stem}{ext}']) {
+      const example=namingExamples({...DEFAULT_SHELF_PLACEMENT_POLICY,primaryTemplate},sample);
+      expect(example.directory).toBe('示例剧集 (2026)/Season 01');
+      expect(example.names.slice(0,members.length)).toEqual(members.map(member=>primaryTemplate.replace('{stem}',seriesMemberStem(context,member,'示例剧集 (2026)')).replace('{ext}','.mkv')));
+      expect(example.names).toContain('season.nfo');
+      expect(example.names).toContain('示例剧集 (2026) - S01E01.nfo');
+      expect(example.names.includes('示例剧集 (2026) - S01E02.nfo')).toBe(sample==='series_shared');
+    }
+  }
+  const movie=namingExamples(DEFAULT_SHELF_PLACEMENT_POLICY,'movie');
+  expect(movie.directory).toBe('示例电影 (2026)');expect(movie.names[0]).toBe('示例电影 (2026).mkv');
 });
