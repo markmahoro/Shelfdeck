@@ -34,3 +34,5 @@
 .collection-more{display:flex;justify-content:center;padding:4px 0 34px}
 @media(max-width:800px){.collection-shelf-primary{align-items:stretch;flex-direction:column}.collection-shelf-primary>div{text-align:left}.collection-tools{align-items:stretch;flex-wrap:wrap}.collection-search{flex-basis:100%}.collection-sort{flex:1}.collection-sort select{width:100%}}
 @media(max-width:520px){.collection-search{display:grid;grid-template-columns:1fr auto}.collection-sort{flex-basis:100%}.collection-filter{flex:1}.collection-filter summary{justify-content:center}.collection-filter nav{left:0;right:auto}}
+
+.collection-episodes{margin-top:22px;padding:18px;border:1px solid var(--line);border-radius:6px}.collection-episodes h3,.collection-episodes h4{margin:0 0 12px;font-size:14px}.collection-episodes ul{list-style:none;padding:0;margin:0}.collection-episodes li{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;overflow-wrap:anywhere}.collection-episodes span{color:var(--muted)}.collection-episode-files strong{font-weight:var(--weight-medium)}

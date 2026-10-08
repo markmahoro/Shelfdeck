@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 UI负责人四项拒绝已修复：Series分拣身份类型/摘要、弹窗键盘与忙碌关闭保护、收藏共文件去重分组、Formation进度去重。128项前端、8项Series双视口及2项Movie浏览器、构建通过；待新提交负责人复验，整体发布门槛不关闭，未部署NAS。[Evidence](evidence/SERIES_UI_REVIEW_FIXES_20261008.md)。
+
 2026-10-08 完整架构回归结束：277文件2407项，2396通过/1入口健康等待超时/10skip；入口helper改30秒墙钟预算与1秒请求上限，相关83通过/2skip及重型并发3通过。原失败保留，最终全量PASS尚未建立。UI负责人已开始76ed35e32验收并报告分拣类型/弹窗键盘缺口，待正式结论和修复，未部署NAS。[Evidence](evidence/SERIES_FULL_REGRESSION_20261008.md)。
 
 2026-10-08 跨文件系统恢复：Workspace tmpfs设备106、Inventory设备93，正式Materialize在三个rename边界退出后由新进程恢复/重放一致，外部写入冲突拒绝；Linux专项通过、Windows默认28项通过。完整Host其他崩溃矩阵及发布Gate继续，未操作NAS。[Evidence](evidence/SERIES_CROSS_DEVICE_RECOVERY_20261008.md)。

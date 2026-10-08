@@ -96,8 +96,8 @@ function ProcessDetail({ item, loading=false, error='' }:{ item:FormationSubject
       {f.diagnostics?.networkCode&&!f.diagnostics.timeout&&<p>{networkErrorLabel(f.diagnostics.networkCode)}</p>}
       {f.diagnostics?.timeout&&<p>请求超时</p>}
     </section>)}
-    <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName || '尚未选定'}</dd></div><div><dt>收藏要求</dt><dd>{item.organizingRequirement}</dd></div><div><dt>当前进展</dt><dd>{currentProgressLabel(item)}</dd></div></dl>
-    {loading?<p role="status">正在读取整理计划…</p>:error?<p role="alert">{error}</p>:detail?.contract==='formation_process_actual_plans@1'?<ProcessStages stages={detail.stages} />:<div className="formation-process-unavailable"><strong>暂时无法读取真实计划</strong><p>当前没有可供展示的计划记录。页面不会根据状态推测或补造计划。</p></div>}
+    <dl className="formation-process-facts"><div><dt>目标收藏架</dt><dd>{item.targetShelfName || '尚未选定'}</dd></div><div><dt>收藏要求</dt><dd>{item.organizingRequirement}</dd></div></dl>
+    {loading?<p role="status">正在读取整理计划…</p>:error?<p role="alert">{error}</p>:detail?.contract==='formation_process_actual_plans@1'?<ProcessStages stages={detail.stages} />:<div className="formation-process-unavailable"><strong>整理计划暂不可用</strong></div>}
   </article>;
 }
 

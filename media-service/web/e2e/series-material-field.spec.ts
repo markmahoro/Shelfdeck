@@ -1,9 +1,11 @@
 import { expect, test } from '@playwright/test';
+import { createHash } from 'node:crypto';
 import AxeBuilder from '@axe-core/playwright';
 
 test('registers Series from the source page with failure recovery and keyboard controls', async ({ page }, testInfo) => {
   let saved: any = null;
   const writes: any[] = [];
+  let routing: any = null;
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/v1/**', async route => {
@@ -26,6 +28,11 @@ test('registers Series from the source page with failure recovery and keyboard c
     if (path.endsWith('/intake-admission')) {
       await route.fulfill({ json: { fieldId: saved.fieldId, predeckPipelineSeats: 3, policyRevision: 1, updatedAtMs: 1, pipelineTokensHeld: 0, pipelineSeatsFree: 3 } }); return;
     }
+    if (route.request().method() === 'PATCH' && path.includes('/routing/')) {
+      routing = route.request().postDataJSON().policy;
+      await route.fulfill({ json: { policy: { ...routing, revision: 1 } } }); return;
+    }
+    if (path === '/v1/admin/shelves') { await route.fulfill({json:{items:[{shelfId:'series',name:'剧集架',status:'active'}]}}); return; }
     if (path.startsWith('/v1/admin/routing/material-fields/')) { await route.fulfill({ json: { policy: null, items: [] } }); return; }
     await route.fulfill({ json: { items: [], counts: {}, nextCursor: null, state: 'ready', completionState: 'complete' } });
   });
@@ -52,5 +59,16 @@ test('registers Series from the source page with failure recovery and keyboard c
   await page.screenshot({ path: testInfo.outputPath('series-saved.png'), fullPage: true });
   expect((await new AxeBuilder({ page }).include('.material-fields-page').analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.getByText('收藏架分拣策略', {exact:true}).click();
+  await page.getByRole('combobox', {name:'模式',exact:true}).selectOption('sorting');
+  await page.getByLabel('事实类型').selectOption('resolved_provider_identity');
+  await page.getByLabel('TMDB ID').fill('1399');
+  await expect(page.getByLabel('TMDB ID')).toHaveValue('1399');
+  await page.getByRole('button', {name:'发布策略'}).click();
+  await expect(page.locator('.routing-policy-panel').getByRole('status')).toContainText('分拣策略已发布');
+  const identity = routing.targets[0].matchExpression.expectedValue;
+  expect(identity).toMatchObject({provider:'tmdb',namespace:'tmdb_series',providerKey:'1399',identityRevision:1});
+  const body = {identityRevision:1, namespace:'tmdb_series', provider:'tmdb', providerKey:'1399'};
+  expect(identity.identityDigest).toBe(createHash('sha256').update(JSON.stringify(body)).digest('hex'));
   expect(errors).toEqual([]);
 });

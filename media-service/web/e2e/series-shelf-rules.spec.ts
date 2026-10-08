@@ -11,6 +11,8 @@ test('edits per-Episode Series limits without changing Movie rules', async ({ pa
   const own = { ...system, templateId: 'own', ownerKind: 'user' };
   let draft = { templateId: 'own', draftRevision: 1, basePublishedRevision: 1, rulesSchemaRef: RULES_SCHEMA_REF, rules, rulesDigest: 'initial' };
   let published = false;
+  let releasePublish!: () => void;
+  const publishGate = new Promise<void>(resolve => { releasePublish = resolve; });
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.route('**/v1/**', async route => {
@@ -27,13 +29,23 @@ test('edits per-Episode Series limits without changing Movie rules', async ({ pa
       return;
     }
     if (path.endsWith('/actions/preview')) { await route.fulfill({ json: { templateId: 'own', affectedShelfCount: 0, currentEntryPotentialGapCount: 0, expectedDraftRevision: 2, expectedDraftDigest: draft.rulesDigest } }); return; }
-    if (path.endsWith('/actions/publish')) { published = true; own.current = { ...own.current, rules: draft.rules }; await route.fulfill({ json: { template: own } }); return; }
+    if (path.endsWith('/actions/publish')) { await publishGate; published = true; own.current = { ...own.current, rules: draft.rules }; await route.fulfill({ json: { template: own } }); return; }
     await route.fulfill({ json: { items: [], state: 'ready', completionState: 'complete', counts: {} } });
   });
   await page.goto('/shelves');
   await expect(page.getByRole('region', { name: '剧集整理标准' })).toContainText('每集 · 最多 0.75 GiB');
   await page.getByRole('button', { name: '复制模板' }).click();
   const dialog = page.getByRole('dialog');
+  const first = dialog.getByLabel('自己的规则模板名称');
+  await expect(first).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', {name:'预览影响'})).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(first).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByRole('button', {name:'复制模板'})).toBeFocused();
+  await page.getByRole('button', {name:'复制模板'}).click();
   await dialog.getByLabel('媒体类型').focus();
   await dialog.getByLabel('媒体类型').press('ArrowDown');
   await dialog.getByLabel('媒体类型').press('Tab');
@@ -52,6 +64,10 @@ test('edits per-Episode Series limits without changing Movie rules', async ({ pa
   expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
   expect(draft.rules.profileRuleSets.find((p: any) => p.contentProfile === 'movie')).toEqual(rules.profileRuleSets.find((p: any) => p.contentProfile === 'movie'));
   await dialog.getByRole('button', { name: '发布整理标准' }).click();
+  await expect(dialog.getByRole('button', {name:'返回'})).toBeDisabled();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeVisible();
+  releasePublish();
   await expect(page.getByRole('status')).toContainText('整理标准已发布');
   await expect(page.getByRole('region', { name: '剧集整理标准' })).toContainText('每集 · 最多 0.5 GiB');
   await page.getByLabel('命名示例').selectOption('series_shared');

@@ -4,6 +4,8 @@ import { newOpaqueId } from './id';
 
 type DraftTarget = { shelfId: string; rank: number; matchExpression: RoutingExpression };
 type FactKind = 'content_profile' | 'structure_kind' | 'material_field' | 'release_year' | 'region' | 'genre' | 'resolved_provider_identity';
+type IdentityNamespace = 'tmdb_movie' | 'tmdb_series';
+
 type Operator = 'eq' | 'one_of' | 'gte' | 'lte' | 'exists';
 
 const FACTS: { value: FactKind; label: string }[] = [
@@ -15,18 +17,18 @@ const FACTS: { value: FactKind; label: string }[] = [
 function operators(factKind: FactKind): Operator[] {
   return factKind === 'release_year' ? ['eq', 'one_of', 'gte', 'lte', 'exists'] : ['eq', 'one_of', 'exists'];
 }
-function defaultValue(factKind: FactKind, operator: Operator): JsonValue {
+function defaultValue(factKind: FactKind, operator: Operator, namespace: IdentityNamespace = 'tmdb_movie'): JsonValue {
   if (operator === 'exists') return true;
   if (factKind === 'release_year') return operator === 'one_of' ? [2000] : 2000;
   if (factKind === 'region' || factKind === 'genre') return [''];
   if (factKind === 'resolved_provider_identity') {
-    const identity = { provider: 'tmdb', namespace: 'tmdb_movie', providerKey: '', identityRevision: 1, identityDigest: '' };
+    const identity = { provider: 'tmdb', namespace, providerKey: '', identityRevision: 1, identityDigest: '' };
     return operator === 'one_of' ? [identity] : identity;
   }
   return operator === 'one_of' ? [''] : '';
 }
-function predicate(factKind: FactKind = 'release_year', operator: Operator = 'lte'): RoutingExpression {
-  return { nodeKind: 'predicate', factKind, operator, expectedValue: defaultValue(factKind, operator) };
+function predicate(factKind: FactKind = 'release_year', operator: Operator = 'lte', namespace: IdentityNamespace = 'tmdb_movie'): RoutingExpression {
+  return { nodeKind: 'predicate', factKind, operator, expectedValue: defaultValue(factKind, operator, namespace) };
 }
 function expressionFor(kind: RoutingExpression['nodeKind']): RoutingExpression {
   if (kind === 'always') return { nodeKind: 'always' };
@@ -43,11 +45,11 @@ function defaultSorting(shelves: Shelf[]): DraftTarget[] {
   ].filter(Boolean) as DraftTarget[];
 }
 function csv(value: JsonValue): string {
-  if (!Array.isArray(value)) return typeof value === 'string' || typeof value === 'number' ? String(value) : '';
+  if (!Array.isArray(value)) return value && typeof value === 'object' ? String(value.providerKey || '') : typeof value === 'string' || typeof value === 'number' ? String(value) : '';
   return value.map((item) => typeof item === 'object' && item !== null && !Array.isArray(item) ? String(item.providerKey || '') : String(item)).join(', ');
 }
-function providerIdentity(providerKey: string): Record<string, JsonValue> {
-  return { provider: 'tmdb', namespace: 'tmdb_movie', providerKey: providerKey.trim(), identityRevision: 1, identityDigest: '' };
+function providerIdentity(providerKey: string, namespace: IdentityNamespace): Record<string, JsonValue> {
+  return { provider: 'tmdb', namespace, providerKey: providerKey.trim(), identityRevision: 1, identityDigest: '' };
 }
 
 async function normalizeExpression(expression: RoutingExpression): Promise<RoutingExpression> {
@@ -63,19 +65,23 @@ async function normalizeExpression(expression: RoutingExpression): Promise<Routi
   if (predicateExpression.factKind !== 'resolved_provider_identity' || predicateExpression.operator === 'exists') return predicateExpression;
   const values = predicateExpression.operator === 'one_of' ? predicateExpression.expectedValue as Record<string, JsonValue>[] : [predicateExpression.expectedValue as Record<string, JsonValue>];
   const normalized = await Promise.all(values.map(async (value) => {
-    const body = { provider: 'tmdb', namespace: 'tmdb_movie', providerKey: String(value.providerKey || '').trim(), identityRevision: 1 };
+    const body = { provider: 'tmdb', namespace: value.namespace, providerKey: String(value.providerKey || '').trim(), identityRevision: 1 };
     return { ...body, identityDigest: await canonicalDigest(body) };
   }));
   return { ...predicateExpression, expectedValue: predicateExpression.operator === 'one_of' ? normalized : normalized[0] };
 }
 
-function ExpectedValue({ expression, onChange }: { expression: Extract<RoutingExpression, { nodeKind: 'predicate' }>; onChange: (value: JsonValue) => void }) {
+function ExpectedValue({ expression, namespace, onChange }: { namespace: IdentityNamespace; expression: Extract<RoutingExpression, { nodeKind: 'predicate' }>; onChange: (value: JsonValue) => void }) {
   const factKind = expression.factKind as FactKind;
   if (expression.operator === 'exists') return <select aria-label="是否存在" value={String(expression.expectedValue)} onChange={(event) => onChange(event.target.value === 'true')}><option value="true">存在</option><option value="false">不存在</option></select>;
   if (factKind === 'release_year' && expression.operator !== 'one_of') return <input aria-label="年份" type="number" min={1870} max={3000} value={Number(expression.expectedValue)} onChange={(event) => onChange(Number(event.target.value))} />;
   if (factKind === 'resolved_provider_identity') return <input aria-label="TMDB ID" value={csv(expression.expectedValue)} placeholder={expression.operator === 'one_of' ? '多个TMDB ID，用逗号分隔' : 'TMDB ID'} onChange={(event) => {
-    const values = event.target.value.split(',').map((item) => item.trim()).filter(Boolean).map(providerIdentity);
-    onChange(expression.operator === 'one_of' ? values : (values[0] || providerIdentity('')));
+    const values = event.target.value.split(',').map((item) => item.trim()).filter(Boolean).map((key, index) => {
+      const previous = (Array.isArray(expression.expectedValue) ? expression.expectedValue : [expression.expectedValue]) as Record<string, JsonValue>[];
+      const identity = previous.find(value => value.providerKey === key) || previous[index];
+      return providerIdentity(key, (identity?.namespace as IdentityNamespace) || namespace);
+    });
+    onChange(expression.operator === 'one_of' ? values : (values[0] || providerIdentity('', namespace)));
   }} />;
   return <input aria-label="匹配值" value={csv(expression.expectedValue)} placeholder={expression.operator === 'one_of' || factKind === 'region' || factKind === 'genre' ? '多个值，用逗号分隔' : '匹配值'} onChange={(event) => {
     const values = event.target.value.split(',').map((item) => item.trim());
@@ -85,7 +91,7 @@ function ExpectedValue({ expression, onChange }: { expression: Extract<RoutingEx
   }} />;
 }
 
-function ExpressionEditor({ expression, depth, onChange }: { expression: RoutingExpression; depth: number; onChange: (value: RoutingExpression) => void }) {
+function ExpressionEditor({ expression, namespace, depth, onChange }: { namespace: IdentityNamespace; expression: RoutingExpression; depth: number; onChange: (value: RoutingExpression) => void }) {
   const kinds: RoutingExpression['nodeKind'][] = depth >= 4 ? ['always', 'predicate'] : ['always', 'predicate', 'all', 'any', 'not'];
   return <div className={`routing-expression depth-${depth}`}>
     <select aria-label="规则类型" value={expression.nodeKind} onChange={(event) => onChange(expressionFor(event.target.value as RoutingExpression['nodeKind']))}>
@@ -93,17 +99,22 @@ function ExpressionEditor({ expression, depth, onChange }: { expression: Routing
     </select>
     {expression.nodeKind === 'predicate' && <>
       <select aria-label="事实类型" value={expression.factKind} onChange={(event) => {
-        const factKind = event.target.value as FactKind; const operator = operators(factKind)[0]; onChange(predicate(factKind, operator));
+        const factKind = event.target.value as FactKind; const operator = operators(factKind)[0]; onChange(predicate(factKind, operator, namespace));
       }}>{FACTS.map((fact) => <option key={fact.value} value={fact.value}>{fact.label}</option>)}</select>
       <select aria-label="比较方式" value={expression.operator} onChange={(event) => {
-        const operator = event.target.value as Operator; onChange({ ...expression, operator, expectedValue: defaultValue(expression.factKind as FactKind, operator) });
+        const operator = event.target.value as Operator;
+        const existing = expression.operator === 'one_of' ? expression.expectedValue as JsonValue[] : [expression.expectedValue];
+        const expectedValue = expression.factKind === 'resolved_provider_identity' && expression.operator !== 'exists' && operator !== 'exists'
+          ? (operator === 'one_of' ? existing : existing[0] || providerIdentity('', namespace))
+          : defaultValue(expression.factKind as FactKind, operator, namespace);
+        onChange({ ...expression, operator, expectedValue });
       }}>{operators(expression.factKind as FactKind).map((operator) => <option key={operator} value={operator}>{({ eq: '等于', one_of: '属于任一', gte: '大于等于', lte: '小于等于', exists: '是否存在' })[operator]}</option>)}</select>
-      <ExpectedValue expression={expression} onChange={(expectedValue) => onChange({ ...expression, expectedValue })} />
+      <ExpectedValue namespace={namespace} expression={expression} onChange={(expectedValue) => onChange({ ...expression, expectedValue })} />
     </>}
-    {expression.nodeKind === 'not' && <ExpressionEditor expression={expression.child} depth={depth + 1} onChange={(child) => onChange({ nodeKind: 'not', child })} />}
+    {expression.nodeKind === 'not' && <ExpressionEditor namespace={namespace} expression={expression.child} depth={depth + 1} onChange={(child) => onChange({ nodeKind: 'not', child })} />}
     {(expression.nodeKind === 'all' || expression.nodeKind === 'any') && <div className="routing-expression-children">
       {expression.children.map((child, index) => <div className="routing-expression-child" key={index}>
-        <ExpressionEditor expression={child} depth={depth + 1} onChange={(value) => onChange({ ...expression, children: expression.children.map((item, ordinal) => ordinal === index ? value : item) })} />
+        <ExpressionEditor namespace={namespace} expression={child} depth={depth + 1} onChange={(value) => onChange({ ...expression, children: expression.children.map((item, ordinal) => ordinal === index ? value : item) })} />
         {expression.children.length > 1 && <button type="button" className="btn btn-text danger" onClick={() => onChange({ ...expression, children: expression.children.filter((_item, ordinal) => ordinal !== index) })}>移除条件</button>}
       </div>)}
       <button type="button" className="btn btn-text" onClick={() => onChange({ ...expression, children: [...expression.children, predicate()] })}>添加条件</button>
@@ -117,6 +128,7 @@ export default function RoutingPolicyPanel({ field, shelves }: { field: Material
 }
 
 function RoutingPolicyEditor({field,shelves}:{field:MaterialField;shelves:Shelf[]}) {
+  const namespace: IdentityNamespace = field.currentProfileHintSnapshot?.contentProfileHint === 'series' ? 'tmdb_series' : 'tmdb_movie';
   const activeShelves = useMemo(() => shelves.filter((item) => item.status === 'active'), [shelves]);
   const [current, setCurrent] = useState<RoutingPolicy | null>(null);
   const [mode, setMode] = useState<'direct' | 'sorting'>('direct');
@@ -179,7 +191,7 @@ function RoutingPolicyEditor({field,shelves}:{field:MaterialField;shelves:Shelf[
         <div className="routing-rule-list">{sortingTargets.map((target, index) => <section className="routing-rule" key={`${target.shelfId}-${index}`}>
           <header><span className="routing-rank">优先级 {index + 1}</span><div><button type="button" className="btn btn-text" disabled={index === 0} onClick={() => moveTarget(index, -1)}>上移</button><button type="button" className="btn btn-text" disabled={index === sortingTargets.length - 1} onClick={() => moveTarget(index, 1)}>下移</button><button type="button" className="btn btn-text danger" disabled={sortingTargets.length === 1} onClick={() => setSortingTargets((items) => items.filter((_item, ordinal) => ordinal !== index))}>删除</button></div></header>
           <label><span>目标收藏架</span><select value={target.shelfId} onChange={(event) => replaceTarget(index, { ...target, shelfId: event.target.value })}>{activeShelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label>
-          <ExpressionEditor expression={target.matchExpression} depth={1} onChange={(matchExpression) => replaceTarget(index, { ...target, matchExpression })} />
+          <ExpressionEditor namespace={namespace} expression={target.matchExpression} depth={1} onChange={(matchExpression) => replaceTarget(index, { ...target, matchExpression })} />
         </section>)}</div>
         <button type="button" className="btn btn-secondary routing-add-rule" disabled={sortingTargets.length >= 64 || activeShelves.length === 0} onClick={() => setSortingTargets((items) => [...items, { shelfId: activeShelves.find((shelf) => !items.some((item) => item.shelfId === shelf.shelfId))?.shelfId || activeShelves[0].shelfId, rank: items.length + 1, matchExpression: { nodeKind: 'always' } }])}>添加分拣规则</button>
         <details><summary>预览用的测试条件</summary><textarea value={factsJson} onChange={(event) => setFactsJson(event.target.value)} rows={4} spellCheck={false} /></details>

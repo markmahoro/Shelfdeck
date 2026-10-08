@@ -23,11 +23,17 @@ test('shows only collected Episodes and their shared files and parts',async({pag
   await expect(page.getByText('第 2 季 · 2 集 · 2020 · 剧集')).toBeVisible();
   const tile=page.getByRole('button',{name:/查看 示例剧集 详情/});await tile.click();
   const dialog=page.getByRole('dialog',{name:'示例剧集'});
+  await expect(dialog.getByRole('button',{name:'关闭详情'})).toBeFocused();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button',{name:'退出收藏',exact:true})).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('button',{name:'关闭详情'})).toBeFocused();
   const episodes=dialog.getByRole('region',{name:'已收藏剧集'});
   await expect(episodes.getByRole('heading',{name:'第 2 季 · 已收藏 2 集'})).toBeVisible();
   await expect(episodes.getByText('2 个视频文件')).toBeVisible();
   await expect(episodes.getByText('第 2 集',{exact:true})).toHaveCount(0);
-  await expect(episodes.getByText(/共用文件（2 集）/)).toHaveCount(2);
+  await expect(episodes.getByText(shared.name, {exact:true})).toHaveCount(1);
+  await expect(episodes.getByText(/第 1、3 集共用/)).toHaveCount(1);
   await expect(episodes.getByText(/part2/)).toBeVisible();
   expect((await new AxeBuilder({page}).include('.collection-episodes').analyze()).violations).toEqual([]);
   await episodes.scrollIntoViewIfNeeded();

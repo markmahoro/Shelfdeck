@@ -38,6 +38,9 @@ test('Series manual identity preserves the frozen Season from Formation',async({
   await processButton.click();
   const processDialog=page.getByRole('dialog');
   await expect(processDialog.getByText('第 2 季 · 本批 2 集（E03、E05）· 3 个文件',{exact:true})).toBeVisible();
+  await expect(processDialog.locator('.formation-process-head p')).toHaveCount(1);
+  await expect(processDialog.getByText('当前进展', {exact:true})).toHaveCount(0);
+  await expect(processDialog.getByText('整理计划暂不可用', {exact:true})).toBeVisible();
   await page.screenshot({path:testInfo.outputPath('batch-detail.png')});
   await page.keyboard.press('Escape');await expect(processButton).toBeFocused();
   await button.click();const dialog=page.getByRole('dialog',{name:'手动选取剧集身份'});

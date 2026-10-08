@@ -1,3 +1,4 @@
+import { useModalFocus } from './useModalFocus';
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { newOpaqueId } from './id';
 import {
@@ -250,6 +251,9 @@ export default function ShelvesPage() {
   const [movieEdits, setMovieEdits] = useState<MovieRuleEdit[]>([]);
   const [standardPreview, setStandardPreview] = useState<RuleTemplatePreview | null>(null);
   const [preparedDraft, setPreparedDraft] = useState<{ template: RuleTemplate; draft: RuleTemplateDraft } | null>(null);
+  const standardDialog = useModalFocus(Boolean(standardEditor), () => setStandardEditor(null), loading);
+  const placementDialog = useModalFocus(Boolean(placementShelf), () => setPlacementShelf(null), loading);
+  const bindDialog = useModalFocus(Boolean(bindShelf), () => setBindShelf(null), loading);
 
   const load = useCallback(async () => {
     setLoading(true); setError('');
@@ -526,8 +530,8 @@ export default function ShelvesPage() {
         <div><span>{shelfStatusLabel(shelf.status)}</span><small>{shelf.deregistrationSummary.entryCount} 条原收藏记录</small></div>
       </article>)}
     </details>}
-    {placementShelf && <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setPlacementShelf(null); }}>
-      <div className="dialog dialog-wide" role="dialog" aria-modal="true" aria-labelledby="shelf-placement-title">
+    {placementShelf && <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (!loading && event.target === event.currentTarget) setPlacementShelf(null); }}>
+      <div className="dialog dialog-wide" ref={placementDialog} tabIndex={-1} role="dialog" aria-modal="true" aria-busy={loading} aria-labelledby="shelf-placement-title">
         <div className="dialog-head"><h2 id="shelf-placement-title">调整“{placementShelf.name}”的目录布局</h2></div>
         <div className="dialog-body">
           {!placementPreview && <p>发布后将重新评估目录命名，并自动修复可处理的差异。</p>}
@@ -542,27 +546,27 @@ export default function ShelvesPage() {
           </div>}
         </div>
         <div className="dialog-actions">
-          <Button type="button" onClick={() => setPlacementShelf(null)}>返回</Button>
+          <Button type="button" disabled={loading} onClick={() => setPlacementShelf(null)}>返回</Button>
           <Button type="button" disabled={loading} onClick={() => void previewPlacement()}>{loading ? '正在预览…' : '预览影响'}</Button>
           <Button variant="primary" type="button" disabled={loading || !placementPreview} onClick={() => void publishPlacement()}>发布目录布局</Button>
         </div>
       </div>
     </div>}
-    {bindShelf && <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setBindShelf(null); }}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-labelledby="shelf-bind-title">
+    {bindShelf && <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (!loading && event.target === event.currentTarget) setBindShelf(null); }}>
+      <div className="dialog" ref={bindDialog} tabIndex={-1} role="dialog" aria-modal="true" aria-busy={loading} aria-labelledby="shelf-bind-title">
         <div className="dialog-head"><h2 id="shelf-bind-title">更换“{bindShelf.name}”的规则模板</h2></div>
         <div className="dialog-body">
           <p>{reassessmentCopy(bindShelf.deregistrationSummary.entryCount)}</p>
           <label><span>已发布的规则模板</span><select value={bindTemplateId} onChange={(event) => setBindTemplateId(event.target.value)}>{activeTemplates.map((item) => <option key={item.templateId} value={item.templateId}>{templateOptionLabel(item)}</option>)}</select></label>
         </div>
         <div className="dialog-actions">
-          <Button type="button" onClick={() => setBindShelf(null)}>返回</Button>
+          <Button type="button" disabled={loading} onClick={() => setBindShelf(null)}>返回</Button>
           <Button variant="primary" type="button" disabled={loading || !bindTemplateId} onClick={() => void bindTemplate()}>{loading ? '正在应用…' : '应用到此收藏架'}</Button>
         </div>
       </div>
     </div>}
-    {standardEditor && <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setStandardEditor(null); }}>
-      <div className="dialog dialog-wide shelf-standard-dialog" role="dialog" aria-modal="true" aria-labelledby="shelf-standard-title">
+    {standardEditor && <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (!loading && event.target === event.currentTarget) setStandardEditor(null); }}>
+      <div className="dialog dialog-wide shelf-standard-dialog" ref={standardDialog} tabIndex={-1} role="dialog" aria-modal="true" aria-busy={loading} aria-labelledby="shelf-standard-title">
         <div className="dialog-head"><h2 id="shelf-standard-title">{standardEditor.kind === 'create' ? '复制并发布自己的整理标准' : `复制并发布“${standardEditor.shelf.name}”的整理标准`}</h2></div>
         <div className="dialog-body">
           {standardEditor.kind === 'shelf' && !standardPreview && <p>发布后将按新标准重新评估已上架条目。</p>}
@@ -575,7 +579,7 @@ export default function ShelvesPage() {
           </div>}
         </div>
         <div className="dialog-actions">
-          <Button type="button" onClick={() => setStandardEditor(null)}>返回</Button>
+          <Button type="button" disabled={loading} onClick={() => setStandardEditor(null)}>返回</Button>
           <Button type="button" disabled={loading} onClick={() => void previewStandard()}>{loading ? '正在预览…' : '预览影响'}</Button>
           <Button variant="primary" type="button" disabled={loading || !standardPreview} onClick={() => void publishStandard()}>发布整理标准</Button>
         </div>

@@ -1,3 +1,4 @@
+import { useModalFocus } from './useModalFocus';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { helixAdminApi, type CareDetail, type CollectionEntry, type HealthState } from './api';
@@ -43,6 +44,26 @@ function formatBytes(value: number | null | undefined) {
   return `${value} B`;
 }
 
+function SeriesFiles({ series }: { series: NonNullable<CollectionEntry['series']> }) {
+  const files = new Map<string, { file: typeof series.episodes[number]['files'][number]; episodes: number[] }>();
+  for (const episode of series.episodes) for (const file of episode.files) {
+    const existing = files.get(file.materialKey);
+    if (existing) existing.episodes.push(episode.episodeNumber);
+    else files.set(file.materialKey, { file, episodes: [episode.episodeNumber] });
+  }
+  return <section className="collection-episodes" aria-label="已收藏剧集">
+    <h3>第 {series.seasonNumber} 季 · 已收藏 {series.episodeCount} 集</h3>
+    <ul className="collection-episode-titles">{series.episodes.map(episode => <li key={episode.episodeKey}>
+      <strong>第 {episode.episodeNumber} 集{episode.title ? ` · ${episode.title}` : ''}</strong>
+      {episode.files.length > 1 && <span>{episode.files.length} 个文件</span>}
+    </li>)}</ul>
+    <h4>{series.physicalFileCount} 个视频文件</h4>
+    <ul className="collection-episode-files">{Array.from(files, ([key, { file, episodes }]) => <li key={key}>
+      <strong>{file.name}</strong><span>{formatBytes(file.sizeBytes)} · 第 {episodes.join('、')} 集{episodes.length > 1 ? '共用' : ''}</span>
+    </li>)}</ul>
+  </section>;
+}
+
 export default function CollectionPage() {
   const { expire } = useSession();
   const [items, setItems] = useState<CollectionEntry[]>([]);
@@ -65,7 +86,7 @@ export default function CollectionPage() {
   const pageCursors = useRef<Array<string | undefined>>([undefined]);
   const currentPage = useRef(0);
   const loadVersion = useRef(0);
-  const closeButton = useRef<HTMLButtonElement>(null);
+  const dialog = useModalFocus<HTMLElement>(Boolean(selected), () => setSelected(null), checking || exiting);
   const load = useCallback(async (cursor?: string, targetPage = currentPage.current) => {
     const requestCursor = targetPage === 0 ? undefined : cursor ?? pageCursors.current[targetPage];
     const version = ++loadVersion.current;
@@ -101,12 +122,8 @@ export default function CollectionPage() {
   useEffect(() => { currentPage.current = 0; pageCursors.current = [undefined]; setPageIndex(0); void load(undefined, 0); }, [load]);
   useEffect(() => {
     if (!selected) return;
-    const previous = document.activeElement as HTMLElement | null;
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') setSelected(null); };
-    document.addEventListener('keydown', onKey);
     document.body.classList.add('modal-open');
-    closeButton.current?.focus();
-    return () => { document.removeEventListener('keydown', onKey); document.body.classList.remove('modal-open'); previous?.focus(); };
+    return () => { document.body.classList.remove('modal-open'); };
   }, [selected]);
   useEffect(() => {
     setCare(null);
@@ -184,9 +201,9 @@ export default function CollectionPage() {
         <Button type="button" disabled={loading || !nextCursor} onClick={() => nextCursor && void load(nextCursor, pageIndex + 1)}>下一页</Button>
       </nav>
     </section>
-    {selected && <div className="collection-dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}>
-      <section className="collection-dialog" role="dialog" aria-modal="true" aria-labelledby="collection-dialog-title">
-        <button ref={closeButton} className="collection-dialog-close" onClick={() => setSelected(null)} aria-label="关闭详情">×</button>
+    {selected && <div className="collection-dialog-backdrop" onMouseDown={(event) => { if (!checking && !exiting && event.target === event.currentTarget) setSelected(null); }}>
+      <section ref={dialog} tabIndex={-1} className="collection-dialog" aria-busy={checking || exiting} role="dialog" aria-modal="true" aria-labelledby="collection-dialog-title">
+        <button disabled={checking || exiting} className="collection-dialog-close" onClick={() => setSelected(null)} aria-label="关闭详情">×</button>
         <div className="collection-dialog-poster">{selected.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(selected.shelfEntryId, selected.currentInventoryRevision, 'detail')} alt={`${selected.displayIdentity} 海报`} /> : <span className="poster-fallback"><b>{selected.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}</div>
         <div className="collection-dialog-copy">
           <h2 id="collection-dialog-title">{selected.displayIdentity}</h2>
@@ -203,14 +220,7 @@ export default function CollectionPage() {
             <div><dt>资料来源</dt><dd>{selected.provider === 'tmdb' ? 'TMDB' : selected.provider}</dd></div>
             <div><dt>状态</dt><dd>已上架</dd></div>
           </dl>
-          {selected.series && <section className="collection-episodes" aria-label="已收藏剧集">
-            <h3>第 {selected.series.seasonNumber} 季 · 已收藏 {selected.series.episodeCount} 集</h3>
-            <p>{selected.series.physicalFileCount} 个视频文件</p>
-            <ul>{selected.series.episodes.map(episode => <li key={episode.episodeKey}>
-              <strong>第 {episode.episodeNumber} 集{episode.title ? ` · ${episode.title}` : ''}</strong>
-              <ul>{episode.files.map(file => <li key={file.materialKey}>{file.name} · {formatBytes(file.sizeBytes)}{file.coveredEpisodeCount > 1 ? ` · 共用文件（${file.coveredEpisodeCount} 集）` : ''}</li>)}</ul>
-            </li>)}</ul>
-          </section>}
+          {selected.series && <SeriesFiles series={selected.series} />}
           <div className="collection-rating"><span>我的评分</span><RatingControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
           <section className="collection-health" aria-labelledby="collection-health-heading">
             <div className="collection-health-heading"><div><h3 id="collection-health-heading">收藏健康</h3></div>
