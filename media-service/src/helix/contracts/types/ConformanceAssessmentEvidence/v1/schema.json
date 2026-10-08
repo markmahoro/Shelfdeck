@@ -169,6 +169,25 @@
         "sourceHandleDigest",
         "maxOutputBytes"
       ]
+    },
+    "memberAssessmentSet": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "memberCount": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": [
+        "digest",
+        "memberCount"
+      ]
     }
   },
   "required": [

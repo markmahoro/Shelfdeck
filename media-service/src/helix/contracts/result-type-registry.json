@@ -270,7 +270,7 @@
       "relativePath": "types/ConformanceAssessmentEvidence/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "ab48b8617ef6bcb734fbbefc82a3733c4e2614645c3b2b433aaef9e027e4e4dc"
+        "value": "8038116e8707bf47a69d89d054432308d0ce6100edf462ac008e020796bea160"
       },
       "source": {
         "section": "8.6.19",

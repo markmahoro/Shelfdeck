@@ -656,6 +656,24 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const detail=await request('GET','/v1/admin/care/'+entry.shelf_entry_id);
     assert.equal(care?.state,'resolved',detail.body);assert.equal(repairCommitAudits.length,1);
     assert.equal(JSON.parse(detail.body).health.state,'healthy');
+    const memberReader=require('../../src/helix/foundation/execution/work-result-reader').createWorkResultReader({schemaManifest,unitOfWork}),
+      assessmentWorks=memberReader.listWorks({ownerDomain:'arca',processType:'arca_shelf_entry',processId:entry.shelf_entry_id,workKind:'health_assessment'});
+    let aggregateCount=0;
+    for(const work of assessmentWorks) {
+      const rows=memberReader.read(work.work_id);
+      for(const row of rows.filter(item=>item.result?.memberAssessmentSet)) {
+        const members=rows.filter(item=>item.result?.memberScope&&item.attemptId===row.attemptId&&item.planId===row.planId)
+          .sort((a,b)=>Buffer.from(a.result.memberScope.materialKey).compare(Buffer.from(b.result.memberScope.materialKey))),
+          refs=members.map(item=>({materialKey:item.result.memberScope.materialKey,eventId:item.eventId,resultId:item.resultId,
+            resultDigest:item.resultDigest,inputBindingDigest:item.inputBindingDigest}));
+        assert.equal(members.length,physicalCount);assert.equal(row.result.memberAssessmentSet.memberCount,physicalCount);
+        assert.equal(row.result.memberAssessmentSet.digest,canonicalDigest({schema:'arca.series-member-assessment-set@1',
+          workId:work.work_id,workAttemptId:row.attemptId,planId:row.planId,spaceBasisDigest:members[0].result.memberScope.spaceBasisDigest,members:refs}));
+        assert.ok(members.every(item=>item.outcomeKind==='succeeded'&&Buffer.byteLength(JSON.stringify(item.result))<=65536));
+        aggregateCount++;
+      }
+    }
+    assert.ok(aggregateCount>0,'The actual Runtime must persist complete member observations and their aggregate.');
     const current=db.prepare('SELECT * FROM arca_shelf_entries').get();assert.equal(current.current_inventory_revision,2);
     const materials=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=2').all();
     assert.equal(materials.length,inventory.length);

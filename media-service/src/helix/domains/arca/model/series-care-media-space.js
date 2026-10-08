@@ -24,4 +24,9 @@ function evaluateSeriesCareMediaSpace(context,maxSizeBytes) {
   return Object.freeze({...basis,members:Object.freeze(members),episodeKeys:Object.freeze(episodeKeys),basisDigest:canonicalDigest(basis),
     episodeAllocations:evaluateSeriesEpisodeSpace(input),memberBudgets:deriveSeriesMemberSizeBudgets(input)});
 }
-module.exports=Object.freeze({evaluateSeriesCareMediaSpace});
+function seriesMemberAssessmentEventId(workAttemptId,materialKey) {
+  if(typeof workAttemptId!=='string'||!workAttemptId||typeof materialKey!=='string'||!materialKey)
+    throw new TypeError('Series member Event requires an exact Work Attempt and material key.');
+  return 'care-member-'+canonicalDigest({workAttemptId,materialKey}).slice(0,40);
+}
+module.exports=Object.freeze({evaluateSeriesCareMediaSpace,seriesMemberAssessmentEventId});

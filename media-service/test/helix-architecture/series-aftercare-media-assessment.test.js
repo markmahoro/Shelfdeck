@@ -88,16 +88,24 @@ for(const invalid of ['duplicate_material','empty_claims','duplicate_claims','mi
 
 test('formal Conformance Capability evaluates the complete Series set and emits valid evidence',async t=>{
   const f=await fixture(t,[[13,['E01','E02']],[4,['E01']]]),c=f.context;
-  Object.assign(c.basis,{inventoryRevision:2,standardRevision:1,placementRevision:1,decisionFactSetDigest:canonicalDigest([])});
+  Object.assign(c.basis,{inventoryRevision:1,standardRevision:1,placementRevision:1,decisionFactSetDigest:canonicalDigest([])});
   c.raw.shelf={target_root_location:path.dirname(f.materials[0].location),target_endpoint_id:'endpoint'};
   c.raw.initialPlacementDecision={target_location:c.raw.shelf.target_root_location,target_endpoint_id:'endpoint'};
   c.raw.initialPlacement={value:{}};c.raw.placement={value:{}};
   let custody={assessmentState:'healthy',findingDrafts:[]};
+  let memberRows=[];
   const ports=createAftercareCapabilityPorts({...f.options,now:()=>1000,
     schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
     unitOfWork:{execute(){throw new Error('Assessment must not write to persistence.');}},
-    contextReader:{read:()=>c,store:{}},workResultReader:{read:()=>[{outcomeKind:'succeeded',capabilityRef:C.custody,result:custody}]}});
-  const execution={ownerScope:{processId:c.shelfEntryId},workId:'work',namedInputs:{careBasis:{},inventoryRevision:{},knownBindings:{},standard:{},placement:{}}};
+    contextReader:{read:()=>c,store:{}},workResultReader:{read:()=>[{outcomeKind:'succeeded',capabilityRef:C.custody,result:custody},...memberRows]}});
+  const execution={ownerScope:{processId:c.shelfEntryId},workId:'work',workAttemptId:'attempt',planId:'plan',namedInputs:{careBasis:{},inventoryRevision:{},knownBindings:{},standard:{},placement:{}}};
+  const {seriesMemberAssessmentEventId}=require('../../src/helix/domains/arca/model/series-care-media-space');
+  for(const member of f.materials) {
+    const eventId=seriesMemberAssessmentEventId(execution.workAttemptId,member.material_key),result=
+      (await ports[C.conformance].execute({...execution,eventId,parameters:{materialKey:member.material_key}})).result;
+    memberRows.push({eventId,workId:'work',attemptId:'attempt',planId:'plan',resultId:'result-'+eventId,
+      inputBindingDigest:canonicalDigest(eventId),capabilityRef:C.conformance,outcomeKind:'succeeded',result,resultDigest:canonicalDigest(result)});
+  }
   ports[C.conformance].validateInputs(execution);
   const result=await ports[C.conformance].execute(execution);
   ports[C.conformance].validateResult(execution,result);
@@ -105,6 +113,17 @@ test('formal Conformance Capability evaluates the complete Series set and emits 
   assert.equal(result.kind,'succeeded');assert.equal(result.result.assessmentState,'degraded');
   assert.deepEqual(codes({findings:result.result.findingDrafts}),['max_size_exceeded']);
   assert.equal(f.probed.length,2);assert.equal(f.played.length,6);
+  assert.equal(result.result.memberAssessmentSet.memberCount,2);
+  const original=memberRows;
+  memberRows=[...original].reverse();assert.deepEqual((await ports[C.conformance].execute(execution)).result,result.result);
+  for(const mutate of [rows=>rows.pop(),rows=>rows.push(rows[0]),rows=>{rows[0].workId='foreign';},
+    rows=>{rows[0].attemptId='old';},rows=>{rows[0].planId='old';},rows=>{rows[0].eventId='foreign';},
+    rows=>{rows[0].resultDigest=canonicalDigest('wrong');},rows=>{rows[0].result.memberScope.maxOutputBytes++;rows[0].resultDigest=canonicalDigest(rows[0].result);},
+    rows=>{rows[0].outcomeKind='failed';}]) {
+    memberRows=structuredClone(original);mutate(memberRows);await assert.rejects(ports[C.conformance].execute(execution));
+  }
+  memberRows=original;
+  assert.equal(f.probed.length,2,'Aggregation must consume frozen observations without probing again.');
   custody={assessmentState:'not_assessable',incidentKey:'incident'};
   const blocked=await ports[C.conformance].execute(execution);
   assert.equal(blocked.result.assessmentState,'not_assessable');assert.equal(f.probed.length,2);
@@ -283,6 +302,29 @@ test('professional Assessment commit excludes member evidence rather than persis
   assert.throws(()=>ports[C.assessmentCommit].execute({ownerScope:{processId:'entry'},workId:'work',namedInputs:{
     professionalAssessmentsSharingOneCareBasis:{careBasisDigest:basis.digest,assessments:[{},{},{}]},domainFactCommitHandle:{}}}),error=>error===sentinel);
   assert.deepEqual(captured.assessments.map(item=>item.assessmentId),['custody','presentation','conformance']);
+});
+
+test('Series health Planner schedules every Primary and makes aggregate Conformance depend on the complete set',async t=>{
+  const f=await fixture(t,Array.from({length:24},(_,i)=>[8,['E'+String(i+1).padStart(3,'0')]])),
+    {createHealthAssessmentPlanner}=require('../../src/helix/domains/arca/planning/aftercare-planners'),
+    {validateWorkflowPlan}=require('../../src/helix/foundation/execution/workflow-plan'),
+    refs=[C.custody,C.presentation,C.conformance,C.assessmentCommit],root=path.resolve(__dirname,'../../src/helix/contracts/capabilities'),
+    directory=ref=>path.join(root,...ref.replace('@1','').split('.'),'v1'),
+    manifests=new Map(refs.map(ref=>[ref,JSON.parse(fs.readFileSync(path.join(directory(ref),'manifest.json'),'utf8'))])),
+    registry={snapshot:refs.map(capabilityRef=>({capabilityRef,contractVersion:1})),resolve:capabilityRef=>({manifest:manifests.get(capabilityRef)})},
+    policyRegistry={digest:canonicalDigest('policy'),bindingFor:()=>({retryPolicyRef:'retry@1',timeoutPolicyRef:'timeout@1'})},
+    planner=createHealthAssessmentPlanner({registry,policyRegistry,contextReader:{read:()=>f.context}}),
+    request={workId:'work',workAttemptId:'attempt',ownerDomain:'arca',processType:'arca_shelf_entry',processId:'entry',executionBasisDigest:f.context.basis.digest},
+    plan=planner.plan(request),members=plan.nodes.filter(node=>node.parameters.materialKey),
+    aggregate=plan.nodes.find(node=>node.nodeId==='conformance');
+  const schemas=refs.flatMap(ref=>['parameters','resource-demand','fence'].map(kind=>JSON.parse(fs.readFileSync(path.join(directory(ref),kind+'.schema.json'),'utf8'))));
+  validateWorkflowPlan(plan,{registry,policyRegistry,contractValidator:createCapabilityContractValidator({schemas})});
+  assert.equal(members.length,24);assert.equal(new Set(members.map(node=>node.eventId)).size,24);
+  assert.deepEqual(members.map(node=>node.parameters.materialKey).sort(),f.materials.map(item=>item.material_key).sort());
+  assert.deepEqual(aggregate.dependsOn.map(item=>item.eventId),members.map(node=>node.eventId));
+  f.materials.reverse();assert.deepEqual(planner.plan(request),plan);
+  assert.throws(()=>planner.plan({...request,executionBasisDigest:canonicalDigest('old')}));
+  f.context.raw.entry.structure_kind='single';assert.equal(planner.plan(request).nodes.length,4);
 });
 
 function validateConformanceResult(result) {

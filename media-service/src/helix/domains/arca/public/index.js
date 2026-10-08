@@ -111,7 +111,7 @@ function createArcaExecutionRegistration() {
       return Object.freeze({planners:Object.freeze([createAcceptanceAssessmentPlanner(options),
         createAcceptanceCommitPlanner(options),createAcceptanceRejectionPlanner(options),
         createOnDeckExecutionPlanner({...options,contextReader:options.contextReader}),
-        createHealthAssessmentPlanner(options),createCustodyAssessmentPlanner(options),
+        createHealthAssessmentPlanner({...options,contextReader:aftercareContextReader}),createCustodyAssessmentPlanner(options),
         createCareRepairPreparationPlanner({...options,contextReader:aftercareContextReader}),
         createCareRepairCommitPlanner({...options,contextReader:aftercareContextReader}),
         createCareCaseClosurePlanner({...options,contextReader:aftercareContextReader}),

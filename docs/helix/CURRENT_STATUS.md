@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 完整成员调度：[Evidence](implementation/evidence/SERIES_MEMBER_ASSESSMENT_SCHEDULING_20261008.md)。健康Planner调度完整Series Primary集合，整季Conformance消费同Work/Attempt/Plan的精确成员证据并绑定集合摘要；缺失/重复/错scope拒绝，不重复Probe。26项专项及24集Plan通过，正式两集NFO维修Host验证成员结果持久化、摘要重建、专业Commit与最终健康（约92秒）；分组全架构2,292通过/9既有skip/0失败。媒体Case消费/逐目标Effect和完整维修仍待完成，未部署NAS。
+
 2026-10-08 成员Conformance Result：[Evidence](implementation/evidence/SERIES_MEMBER_CONFORMANCE_RESULT_20261008.md)。现有Capability增加显式成员参数和closed memberScope，生成独立有界策略Evidence；专业Assessment投影/Commit排除成员结果，保持三维整季健康事实。37项成员/投影专项、合同生成及分组全架构2,291通过/9既有skip/0失败，Result仍限64 KiB。尚未调度完整成员集合或接通维修闭环，Series可部署Gate继续，未部署NAS。
 
 2026-10-08 逐成员媒体策略：[Evidence](implementation/evidence/SERIES_CARE_MEMBER_STRATEGY_20261008.md)。Series策略引擎显式选择当前Inventory成员并校验对应Probe Evidence，Intent/preflight绑定完整空间Basis和文件预算；质量下限保持原单集档位，零预算不退成无上限模式。26项专项及全架构2,289通过/9既有skip/0失败。多策略正式Assessment、Planner/Effect和完整维修闭环仍待完成，未启用自动媒体维修或部署NAS。

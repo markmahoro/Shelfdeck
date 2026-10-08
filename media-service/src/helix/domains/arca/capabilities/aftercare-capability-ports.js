@@ -17,7 +17,7 @@ const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const sharp = require('sharp');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
-const {evaluateSeriesCareMediaSpace}=require('../model/series-care-media-space');
+const {evaluateSeriesCareMediaSpace,seriesMemberAssessmentEventId}=require('../model/series-care-media-space');
 const { createMaterialControlParticipant, createMaterialControlProjectionPort,
   controlScopeDigest } = require('../../../foundation/persistence/material-control');
 const { CAPABILITY_REFS:C,
@@ -73,7 +73,8 @@ function assessment(kind,context,findings,at,state=findings.length?'degraded':'h
     placementRevision:basis.placementRevision,decisionFactSetDigest:basis.decisionFactSetDigest,careBasisDigest:basis.digest,
     assessmentState:state,findingDrafts:Object.freeze(scopedFindings),incidentKey,
     ...(kind==='conformance'?{mediaRepairStrategy:extras.mediaRepairStrategy||null,
-      ...(extras.memberScope?{memberScope:extras.memberScope}:{})}:{})};
+      ...(extras.memberScope?{memberScope:extras.memberScope}:{}),
+      ...(extras.memberAssessmentSet?{memberAssessmentSet:extras.memberAssessmentSet}:{})}:{})};
   return Object.freeze({...base,payloadDigest:canonicalDigest(base)});
 }
 function inside(root,location){const resolvedRoot=path.resolve(root),resolved=path.resolve(location);return resolved===resolvedRoot||resolved.startsWith(resolvedRoot+path.sep);}
@@ -538,6 +539,45 @@ async function assessSeriesMediaMember(options,context,materialKey,at,cycleId,cu
   return result;
 }
 
+function aggregateSeriesMediaConformance(options,context,execution) {
+  const space=evaluateSeriesCareMediaSpace(context,effectiveRequirements(context)?.space?.maxSizeBytes??null),
+    rows=options.workResultReader.read(execution.workId).filter(row=>row.capabilityRef===C.conformance&&row.result?.memberScope),
+    currentRows=rows.filter(row=>row.attemptId===execution.workAttemptId&&row.planId===execution.planId),refs=[],findings=[];
+  if(currentRows.length!==space.members.length)throw new Error('Series member Assessment set is incomplete or ambiguous.');
+  for(const member of space.members) {
+    const material=context.raw.materials.find(item=>item.material_key===member.materialKey),
+      expectedScope={materialKey:member.materialKey,spaceBasisDigest:space.basisDigest,
+        sourceHandleDigest:canonicalDigest(primaryReadHandle(context,material)),
+        maxOutputBytes:space.memberBudgets.find(item=>item.materialKey===member.materialKey).maxOutputBytes},
+      selected=currentRows.filter(row=>row.result.memberScope.materialKey===member.materialKey),
+      row=selected[0],result=row?.result;
+    if(selected.length!==1||row.workId!==execution.workId||row.outcomeKind!=='succeeded'||
+        row.eventId!==seriesMemberAssessmentEventId(execution.workAttemptId,member.materialKey)||
+        typeof row.resultId!=='string'||!row.resultId||!/^[a-f0-9]{64}$/.test(row.inputBindingDigest||'')||
+        row.resultDigest!==canonicalDigest(result)||result.careBasisDigest!==context.basis.digest||
+        result.inventoryRevision!==context.basis.inventoryRevision||result.shelfEntryId!==context.shelfEntryId||
+        !['healthy','degraded'].includes(result.assessmentState)||
+        canonicalDigest(result.memberScope)!==canonicalDigest(expectedScope)||
+        result.payloadDigest!==canonicalDigest(Object.fromEntries(Object.entries(result).filter(([key])=>key!=='payloadDigest'))))
+      throw new Error('Series member Assessment does not match the current scope and exact Event Result.');
+    if(!exactInventoryMaterial(material.location,material,material.mount_scope_id,options.computeBoundedMaterialFingerprintSync))
+      throw Object.assign(new Error('Inventory changed before member Assessment aggregation.'),{code:'ARCA_AFTERCARE_INPUT_STALE'});
+    findings.push(...result.findingDrafts);
+    refs.push({materialKey:member.materialKey,eventId:row.eventId,resultId:row.resultId,resultDigest:row.resultDigest,inputBindingDigest:row.inputBindingDigest});
+  }
+  const groups=new Map();
+  for(const item of findings) {
+    const code=decodeFinding(item)?.findingKind.split(':')[1];
+    if(!code)throw new Error('Series member Finding is invalid.');
+    if(!groups.has(code))groups.set(code,[]);
+    groups.get(code).push(item.snapshotDigest);
+  }
+  return {findings:[...groups].sort(([a],[b])=>a.localeCompare(b)).map(([code,digests])=>
+    finding('conformance',code,'critical','attention_required',canonicalDigest(digests.sort()))),mediaRepairStrategy:null,
+    memberAssessmentSet:Object.freeze({memberCount:refs.length,digest:canonicalDigest({schema:'arca.series-member-assessment-set@1',
+      workId:execution.workId,workAttemptId:execution.workAttemptId,planId:execution.planId,spaceBasisDigest:space.basisDigest,members:refs})})};
+}
+
 async function assessInventoryMediaConformance(options,context,at) {
   const series=context.raw.entry.structure_kind==='season',all=context.raw.materials.filter(isPrimaryMaterial),
     primaries=series?all:all.slice(0,1),fingerprint=options.computeBoundedMaterialFingerprintSync;
@@ -653,7 +693,8 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
       await assessSeriesMediaMember(options,c,execution.parameters.materialKey,at,execution.workId,custody),at);
     if(custodyBlocksDependentAssessment(custody))return outcome(C.conformance,assessment('conformance',c,[],at,'not_assessable',execution.workId,custody.incidentKey),at);
     if(!c.raw.materials.some(isPrimaryMaterial))return outcome(C.conformance,assessment('conformance',c,[finding('conformance','primary_missing','critical','attention_required',c.shelfEntryId)],at,undefined,execution.workId),at);
-    const {findings,mediaRepairStrategy}=await assessInventoryMediaConformance(options,c,at);
+    const {findings,mediaRepairStrategy,memberAssessmentSet}=c.raw.entry.structure_kind==='season'
+      ?aggregateSeriesMediaConformance(options,c,execution):await assessInventoryMediaConformance(options,c,at);
     for(const field of missingFields(c))findings.push(finding('conformance','metadata_field_missing__'+field,'warning','attention_required',canonicalDigest({field,requiredValueDigest:requirementGapValueDigest(effectiveRequirements(c),'metadata_field_unmet',field)})));
     const placementState=classifyAcceptedPlacement(c),placementRequest=placementState.state==='recompute'?buildAftercareInventoryRequest(c,options.inventoryPort,at,stable('arca-care-assessment-placement-',{entry:c.shelfEntryId,basis:c.basis.digest})):null,desired=placementRequest?options.inventoryPort.resolveTargetLocation(placementRequest):null,placementUnmet=Boolean(placementRequest)&&!placementMatchesInventory(c,placementRequest);
     if(placementState.state==='not_assessable')findings.push(finding('conformance','placement_basis_unavailable','critical','attention_required',canonicalDigest({shelfEntryId:c.shelfEntryId,placementRevision:c.basis.placementRevision,reasonCode:placementState.reasonCode})));
@@ -664,7 +705,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
       if(observed.kind==='duplicate_of_final')findings.push(finding('conformance','settlement_gap','critical',placementUnmet?'auto_repair':'attention_required',basis));
       else findings.push(finding('conformance','old_binding_'+observed.kind,'critical','attention_required',basis));
     }
-    return outcome(C.conformance,assessment('conformance',c,findings,at,undefined,execution.workId,null,{mediaRepairStrategy}),at);},validateResult(_c,o){if(!o?.result)throw new TypeError('Conformance Assessment Result is absent.');}});
+    return outcome(C.conformance,assessment('conformance',c,findings,at,undefined,execution.workId,null,{mediaRepairStrategy,memberAssessmentSet}),at);},validateResult(_c,o){if(!o?.result)throw new TypeError('Conformance Assessment Result is absent.');}});
   function renderSeriesNfo(execution,c,care) {
     const profile=execution.namedInputs.artifactProfile;
     if(!profile?.typedParameters?.length)return Object.freeze({kind:'failed',failureClass:'executor',
