@@ -1,14 +1,14 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
-function fixture(root,{rejectSearch=false,real=false,remux=false}={}){
+function fixture(root,{rejectSearch=false,real=false,remux=false,transcode=false}={}){
   const landing=path.join(root,'landing'),directory=path.join(landing,'Demo Show','Season 01');
   fs.mkdirSync(directory,{recursive:true});
   const files=[1,2].map(n=>{const name='Demo.Show.S01E0'+n+'.2160p.HEVC.'+(remux?'mp4':'mkv'),location=path.join(directory,name);fs.writeFileSync(location,'external-episode-'+n);return {name,location};});
   if(real) {
     const {spawnSync}=require('node:child_process'),ffmpeg=process.env.FFMPEG_PATH||require('ffmpeg-static');
     const result=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-f','lavfi','-i','color=c=black:s=3840x2160:r=24:d=3',
-      '-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=3','-c:v','libx265','-preset','ultrafast',
-      '-x265-params','pools=1:frame-threads=1','-pix_fmt','yuv420p','-c:a','aac','-b:a','128k',files[0].location],
+      '-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=3','-c:v',transcode?'libx264':'libx265','-preset','ultrafast',
+      ...(transcode?['-threads','1']:['-x265-params','pools=1:frame-threads=1']),'-pix_fmt','yuv420p','-c:a','aac','-b:a','128k',files[0].location],
       {encoding:'utf8',windowsHide:true,timeout:120000});
     assert.equal(result.status,0,result.stderr);
     fs.copyFileSync(files[0].location,files[1].location);

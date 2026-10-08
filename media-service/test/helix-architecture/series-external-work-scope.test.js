@@ -130,8 +130,8 @@ test('External Planner search and acquisition consume only their scope and rejec
   assert.equal(p.handles({...request(work.externalSearchSelectionWork(f.value,scopes[0])),workId:'unrelated'}),false);
 });
 
-function importFixture(scopeSize=2){
-  const f=fixture(),scope=work.replacementScopes(f.value).find(item=>item.episodeKeys.length===scopeSize),
+function importFixture(scopeSize=2,value=snapshot()){
+  const f=fixture(value),scope=work.replacementScopes(f.value).find(item=>item.episodeKeys.length===scopeSize),
     acquire=work.externalAcquireVerificationWork(f.value,scope),importWork=work.externalImportSelectionWork(f.value,scope);
   const outputMembers=[{externalMemberId:'shared-new',relativePath:'shared.mkv',episodeClaims:f.value.episodeClaims.filter(item=>scope.episodeKeys.includes(item.episodeKey))},
     {externalMemberId:'part-new',relativePath:'part.mkv',episodeClaims:f.value.episodeClaims.filter(item=>item.episodeKey===scope.episodeKeys[0])}];
@@ -207,12 +207,14 @@ function importSourceResults(parameters){
 }
 
 function completedImportFixture(unmetCodec=false){
-  const f=importFixture(),binding=f.plan.nodes.find(item=>item.capabilityRef==='libra.product_media.verify@1').inputBindings.bindings[0],
+  const value=snapshot();
+  if(unmetCodec==='resolution')value.spec.requirements.mandatoryMedia.minimumRasterClass='4k';
+  const f=importFixture(2,value),binding=f.plan.nodes.find(item=>item.capabilityRef==='libra.product_media.verify@1').inputBindings.bindings[0],
     sources=importSourceResults(binding.parameters),projections=new Map(planner.createExternalMaterialProjections().map(item=>[item.projectionRef,item.projection])),
     production=require('../../src/helix/domains/libra/model/media-production-contracts'),results=new Map(sources.map(item=>[item.eventId,item.result]));
   if(unmetCodec){
     const probe=sources.find(item=>item.resultSchemaRef.includes('shared.material.media.probe')).result;
-    if(unmetCodec==='remux')probe.container='mp4';else probe.videoStreams[0].codec='h264';delete probe.payloadDigest;probe.payloadDigest=d(probe);
+    if(unmetCodec==='remux')probe.container='mp4';else if(unmetCodec==='resolution'){probe.videoStreams[0].width=640;probe.videoStreams[0].height=360;}else probe.videoStreams[0].codec='h264';delete probe.payloadDigest;probe.payloadDigest=d(probe);
   }
   for(const node of f.plan.nodes){
     const inputBinding=node.inputBindings.bindings[0];
@@ -401,10 +403,11 @@ test('Series external coordinator schedules exact imported Remux without exposin
   const running={...f.reader,status:id=>id===remux.workId?{state:'running'}:f.reader.status(id)};
   assert.deepEqual(advance(f.value,{workspaceId:'workspace'},f.scope,{...ports,reader:running}),result);
 });
-test('Series external coordinator freezes failed imported media without attaching or selecting a partial set',()=>{
+test('Series external coordinator freezes imported media only after bounded transcode strategies are exhausted',()=>{
   const f=completedImportFixture(true),advance=require('../../src/helix/domains/libra/application/series-external-scope-coordinator').advanceSeriesExternalScope;
   let frozen;
-  const result=advance(f.value,{workspaceId:'workspace'},f.scope,{reader:f.reader,submit:()=>({replayed:true}),
+  const reader={...f.reader,status:id=>f.reader.status(id)||{state:'failed',latestAttempt:{failure_code:'media_device_strategies_exhausted'}}};
+  const result=advance(f.value,{workspaceId:'workspace'},f.scope,{reader,submit:()=>({replayed:true}),
     result:(_w,c)=>({result:{result:c.includes('candidate')?'selected':'passed'}}),terminal:()=>{throw new Error('unexpected terminal');},
     freeze:(work,row,reason)=>{frozen={work,row,reason};return {kind:'frozen'};},attach:()=>{throw new Error('ineligible attachment');}});
   assert.equal(result.kind,'frozen');assert.equal(frozen.work.workId,f.importWork.workId);
@@ -420,4 +423,43 @@ test('Series external coordinator does not acquire or import after a rejected pr
       terminal:()=>{throw new Error('unexpected terminal');},freeze:()=>({kind:'frozen'}),attach:()=>{throw new Error('rejected attachment');}});
     assert.equal(result.kind,'frozen');assert.equal(count,rejected==='candidate'?1:2);
   }
+});
+
+
+test('Series external transcode binds Import and remains pending through assessment and production',()=>{
+  const f=completedImportFixture(true),advance=require('../../src/helix/domains/libra/application/series-external-scope-coordinator').advanceSeriesExternalScope;
+  const sources=require('../../src/helix/domains/libra/planning/series-external-processing-source').readProcessingSources({workResultReader:f.reader},f.value);
+  const mediaWork=require('../../src/helix/domains/libra/planning/media-production-work'),
+    assessment=mediaWork.transcodeStrategyAssessmentWork(f.value,1,sources[0].member),
+    selection=mediaWork.transcodeMediaSelectionWork(f.value,1,sources[0].member);
+  assert.deepEqual(assessment.dependencyRefs.map(item=>item.objectId),[f.importWork.workId]);
+  assert.deepEqual(selection.dependencyRefs.map(item=>item.objectId),[f.importWork.workId,assessment.workId]);
+  assert.notEqual(selection.workId,mediaWork.transcodeMediaSelectionWork(f.value,1,sources[1].member).workId);
+  const ports={reader:f.reader,submit:()=>({replayed:true}),
+    result:(_work,c)=>({result:c==='libra.transcode.input.verify@1'?{disposition:'compatible'}:{result:c.includes('candidate')?'selected':'passed'}}),
+    terminal:()=>{throw new Error('unexpected terminal');},freeze:()=>{throw new Error('fixable import must not freeze');},
+    attach:()=>{throw new Error('incomplete production must not attach');}};
+  assert.equal(advance(f.value,{workspaceId:'workspace'},f.scope,ports).workId,assessment.workId);
+  const reader={...f.reader,status:id=>id===assessment.workId?{state:'succeeded'}:f.reader.status(id)};
+  const pending=advance(f.value,{workspaceId:'workspace'},f.scope,{...ports,reader});
+  assert.equal(pending.workId,selection.workId);assert.equal(pending.phase,'workspace_media_transcode_selection');
+  const next=advance(f.value,{workspaceId:'workspace'},f.scope,{...ports,reader,result:(w,c)=>
+    c==='libra.transcode.input.verify@1'?{result:{disposition:'strategy_rejected'}}:ports.result(w,c)});
+  assert.equal(next.workId,mediaWork.transcodeStrategyAssessmentWork(f.value,2,sources[0].member).workId);
+  let frozen;
+  const rejected=advance(f.value,{workspaceId:'workspace'},f.scope,{...ports,reader,
+    result:(w,c)=>c==='libra.transcode.input.verify@1'?{result:{disposition:'integrity_rejected'}}:ports.result(w,c),
+    freeze:(w,row,reason)=>{frozen={w,row,reason};return {kind:'frozen'};}});
+  assert.equal(rejected.kind,'frozen');assert.equal(frozen.w.workId,assessment.workId);assert.equal(frozen.reason,'source_integrity_rejected');
+});
+
+
+test('Series external unresolved resolution freezes without reacquiring or attempting system upscale',()=>{
+  const f=completedImportFixture('resolution'),advance=require('../../src/helix/domains/libra/application/series-external-scope-coordinator').advanceSeriesExternalScope;
+  const submitted=[];
+  const result=advance(f.value,{workspaceId:'workspace'},f.scope,{reader:f.reader,submit:w=>{submitted.push(w);return {replayed:true};},
+    result:(_w,c)=>({result:{result:c.includes('candidate')?'selected':'passed'}}),terminal:()=>{throw new Error('unexpected terminal');},
+    freeze:(_w,row)=>({kind:'frozen',codes:row.result.reasonCodes}),attach:()=>{throw new Error('ineligible attachment');}});
+  assert.equal(result.kind,'frozen');assert.ok(result.codes.includes('minimum_raster_unmet'));
+  assert.deepEqual(submitted.map(w=>w.workId),[work.externalSearchSelectionWork(f.value,f.scope).workId,f.acquire.workId,f.importWork.workId]);
 });

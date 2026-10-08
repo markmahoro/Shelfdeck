@@ -66,3 +66,21 @@ Windows111.34秒通过，Linux118.70秒通过（32项仅名称过滤skip）；Sc
 日志位于仓库外 `E:/my_project/helix-git-consolidation-20261008/`，前缀 `series-external-remux-`：最终Host为 `host-mapping.log` / `host-mapping-linux.log`；专项为 `contracts-final.log` / `contracts-linux-v2.log`；回归为 `movie.log` / `internal.log`；检查为 `p2-final.log` / `guards-final.log`。
 
 边界：Provider网络仍受控，短合成媒体不证明真实下载器/长时画质；外部Transcode、进程恢复和最终冻结发布Gate仍开放。没有产品UI变化、无需新增UI接受；未构建发布镜像、未部署或修改NAS。
+
+
+## 外部 Transcode 接续（2026-10-08）
+
+在 `4a9a4712c` 上扩展既有外部加工Source：Transcode Assessment/Selection绑定同Scope的正式Import和精确成员Handle/Probe/Claims，Planner使用实际导入源和完整逐集空间basis。继续复用既有最多64策略、设备预检、质量下限与正式输入验收；策略不适用可进入下一策略，来源完整性拒绝直接终结，已获取素材不再寻源。仅体积差距沿既有实测质量保护终结。
+
+消费加工结果仍重建Work/Attempt、Result摘要、正式Verification/Selection及完整替换映射。对同集多part保持既有内部路径语义：单个文件满足分配预算可进入候选集合，不伪造其passed Selection；所有加工成品必须再次通过全Run真实逐集终检。外部多part的专门真实Host矩阵仍待补充，不能由内部专项推导已完成。
+
+验证：
+
+- 外部搜索声明满足要求，导入真实3秒4K H.264/AAC素材；实际Probe发现编码不符后两次Transcode、零Remux，最终两集HEVC/AAC经FFprobe验证并上架。Windows最终119.16秒、Linux Node20 CPU最终130.84秒通过。逐段验证生产成品→Package→Stage→Inventory，原共文件完整映射到两成品，只删除原source一次、一次下载POST、Provider文件SHA256不变。首次Windows117.27秒及Linux也通过，最终重跑增加精确Transcode产物key断言。
+- Windows/Linux各147专项通过、零失败/skip：包括Import依赖、两成员Work区分、Assessment/Selection等待、策略拒绝换策略、完整性拒绝、耗尽终结及分辨率仍不合格时不放大/不重复获取。旧“导入编码不符立即冻结”断言随实际接续改为“策略耗尽后冻结”；新增分辨率fixture起初未设置正式4K要求，补齐后通过。
+- 外部真实Remux回归119.22秒通过；Movie外部拒绝、Transcode、Remux、native4k四项分别3.68/45.52/39.77/39.41秒通过。
+- P2、package boundary（461文件/1479依赖/47包）、semantic guard（2080文件）与diff检查通过。
+
+日志：仓库外 `E:/my_project/helix-git-consolidation-20261008/series-external-transcode-` 前缀，最终 `host-final.log` / `host-linux-final.log`、`contracts-final.log` / `contracts-linux-final.log`、`remux-regression.log`、`movie.log`、`p2.log`、`guards.log`。不将Linux名称过滤跳过的32个其他Host计为本次执行覆盖。
+
+无UI变更、无NAS操作。网络为受控Provider，外部多part体积、真正进程中断恢复和最终冻结版本发布验证仍开放；不外推真实下载器或长时编码画质资格。

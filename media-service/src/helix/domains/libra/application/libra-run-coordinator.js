@@ -497,6 +497,7 @@ function createLibraRunCoordinator(options){
     return advanceSeriesExternalScope(snapshot,workspace,scope,{reader:options.workResultReader,submit,
       result:externalResultRecord,terminal:(work,status)=>terminalWork(snapshot,work,status,'integration_exhausted'),
       freeze:(work,row,reason)=>freezeBusinessTerminal(snapshot,work,row,reason),
+      freezeMeasured:(work,row,exhausted)=>(exhausted||shouldFreezeMeasuredSizeCap(work,row))?tryFreezeMeasuredSizeCap(snapshot,work,row):null,
       attach:(handle,claims)=>attachWorkingHandle(snapshot,workspace,handle,claims)});
   }
   function ensureSeriesSelection(snapshot,workspace) {

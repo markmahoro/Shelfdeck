@@ -186,6 +186,13 @@ function transcodeSourceFromExternalImport(options,snapshot) {
 function transcodeSource(options,snapshot,member) {
   if(snapshot.spec.contentProfile==='series') {
     if(!member)throw new Error('Series Transcode requires an exact frozen Primary Work.');
+    if(member.externalSource) {
+      const {exactProcessingSource,processingSpaceBasis}=require('./series-external-processing-source');
+      const source=exactProcessingSource(options,snapshot,{materialKey:member.materialKey,memberDigest:canonicalDigest(member),
+        sourceWorkId:member.externalSource.importWorkId});
+      return Object.freeze({handle:source.handle,inputProbe:source.probe,originalProbe:source.probe,
+        seriesSpaceBasis:processingSpaceBasis(snapshot,source)});
+    }
     const sources=readSourceMediaObservations(options,snapshot),selected=sources.find(item=>
       item.member.materialKey===member.materialKey&&canonicalDigest(item.member)===canonicalDigest(member));
     if(!selected)throw new Error('Series Transcode source differs from its frozen Primary.');
@@ -404,9 +411,12 @@ function createWorkspaceMediaProductionPlanner(options) {
     const transcodeIdentity=transcodeWorkIdentity(request.workId);
     if(transcodeIdentity!==null){
       const {ordinal,kind}=transcodeIdentity;
-      const member=snapshot.spec.contentProfile==='series'?snapshot.members.filter(item=>item.role==='primary_payload')
+      let member=snapshot.spec.contentProfile==='series'?snapshot.members.filter(item=>item.role==='primary_payload')
         .find(item=>(kind==='assessment'?transcodeStrategyAssessmentWork(snapshot,ordinal,item):
           transcodeMediaSelectionWork(snapshot,ordinal,item)).workId===request.workId):undefined;
+      if(snapshot.spec.contentProfile==='series'&&!member)member=require('./series-external-processing-source').readProcessingSources(options,snapshot)
+        .map(source=>source.member).find(item=>(kind==='assessment'?transcodeStrategyAssessmentWork(snapshot,ordinal,item):
+          transcodeMediaSelectionWork(snapshot,ordinal,item)).workId===request.workId);
       if(snapshot.spec.contentProfile==='series'&&!member)throw new Error('Series Transcode Work does not bind a frozen Primary.');
       const memberParameters=member?{materialKey:member.materialKey,memberDigest:canonicalDigest(member)}:{};
       const candidateNodeId=member?stable('transcode_output_'+ordinal+'_',memberParameters):'transcode_output_'+ordinal;
@@ -447,7 +457,7 @@ function createWorkspaceMediaProductionPlanner(options) {
         inputBindings:[projectedResults('productMediaCandidateInput',[
           {eventId:transcodeEventId,resultSchemaRef:options.registry.resolve(TRANSCODE,'libra').manifest.resultSchemaRef},
           {eventId:probeEventId,resultSchemaRef:options.registry.resolve(PROBE,'libra').manifest.resultSchemaRef},
-        ],WORKSPACE_CANDIDATE,{sourceWorkId:sourceWork.workId,candidateNodeId,...memberParameters})],
+        ],WORKSPACE_CANDIDATE,{sourceWorkId:member?.externalSource?.importWorkId||sourceWork.workId,candidateNodeId,...memberParameters})],
         dependsOn:[{eventId:transcodeEventId,satisfaction:'success'},{eventId:probeEventId,satisfaction:'success'}],
         resourceKinds:['cpu','disk_io']});
       const select=planNode({...options,request,nodeId:'transcode_output_selection',eventId:selectEventId,capabilityRef:SELECT,
@@ -535,8 +545,10 @@ function createWorkspaceMediaProductionProjections(options) {
           const {exactProcessingSource,processingSpaceBasis}=require('./series-external-processing-source');
           const source=exactProcessingSource(options,value,parameters);
           if(Object.keys(parameters).sort().join(',')!=='candidateNodeId,materialKey,memberDigest,sourceWorkId'||
-              parameters.candidateNodeId!==stable('remux_output_',{materialKey:source.member.materialKey,memberDigest:canonicalDigest(source.member)}))
-            throw new Error('External Remux candidate identity differs from its frozen member.');
+              ![stable('remux_output_',{materialKey:source.member.materialKey,memberDigest:canonicalDigest(source.member)}),
+                ...Array.from({length:64},(_,index)=>stable('transcode_output_'+(index+1)+'_',
+                  {materialKey:source.member.materialKey,memberDigest:canonicalDigest(source.member)}))].includes(parameters.candidateNodeId))
+            throw new Error('External processing candidate identity differs from its frozen member.');
           if(media.sourceMaterialHandleDigest!==canonicalDigest(source.handle))throw new Error('External output source Handle drifted.');
           return buildProductMediaCandidateInput({libraRunId:value.run.libraRunId,candidateNodeId:parameters.candidateNodeId,
             candidateKind:'workspace_output',mediaRequirement:buildMediaRequirement(value.spec),workspaceMediaHandle:media,

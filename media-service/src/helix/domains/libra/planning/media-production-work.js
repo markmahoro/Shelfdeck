@@ -105,7 +105,7 @@ function transcodeMediaSelectionWork(snapshot, strategyOrdinal, member) {
     ? directMediaSelectionWork(snapshot) : remuxMediaSelectionWork(snapshot,member);
   const assessment=transcodeStrategyAssessmentWork(snapshot,strategyOrdinal,member);
   return definition(snapshot, 'transcode_' + strategyOrdinal + '_selection', SELECTED_OUTPUT_RESULT,
-    [sourceMediaObservationWork(snapshot),prior,assessment],member);
+    [...(externalSourceWork(snapshot,member)?[externalSourceWork(snapshot,member)]:[sourceMediaObservationWork(snapshot),prior]),assessment],member);
 }
 
 function transcodeStrategyAssessmentWork(snapshot,strategyOrdinal,member){
@@ -114,7 +114,7 @@ function transcodeStrategyAssessmentWork(snapshot,strategyOrdinal,member){
   }
   const prior = snapshot.materialInputForm === 'stream_file'
     ? directMediaSelectionWork(snapshot) : remuxMediaSelectionWork(snapshot,member);
-  const dependencies=[sourceMediaObservationWork(snapshot),prior];
+  const external=externalSourceWork(snapshot,member),dependencies=external?[external]:[sourceMediaObservationWork(snapshot),prior];
   if(strategyOrdinal>1)dependencies.push(definition(snapshot,'transcode_'+(strategyOrdinal-1)+'_assessment',
     TRANSCODE_INPUT_VERIFICATION_RESULT,[],member));
   return definition(snapshot,'transcode_'+strategyOrdinal+'_assessment',TRANSCODE_INPUT_VERIFICATION_RESULT,dependencies,member);

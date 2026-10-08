@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 外部Series转码接续：精确Import成员进入既有设备Assessment/有界策略，沿完整Scope预算生产，全部合格后重建实际成品映射；保留质量下限终结与禁止再次获取。真实H.264→HEVC两集Host Windows119.16秒/Linux130.84秒通过，映射/一次获取/Provider字节保护保持；双平台各147专项、Movie外部4项、外部Remux回归及P2/边界/语义通过。外部多part体积与进程恢复、最终冻结发布Gate仍开放，无UI或NAS动作。
+
 2026-10-08 外部Remux已贯通：精确Import Work/Handle/Probe/Claims绑定加工源，两分集MP4封装MKV后重建全部替换目标，经全Run验收/Arca结算。真实4K HEVC/AAC Host Windows112.66秒/Linux120.66秒通过，逐段核对Remux→Package→Stage→Inventory、一次获取及Provider字节保护；双平台各145专项、Movie外部4项、普通Series混合Host及P2/边界/语义通过。外部Transcode/恢复及最终发布Gate继续，无UI变更或NAS动作。
 
 2026-10-08 真实外部媒体Host：3秒4K HEVC/AAC分集素材经正式Probe/Playback/Import/验收/结算，Windows111.34秒/Linux118.70秒通过；Provider字节保护、两集覆盖及一次请求保持。仅网络仍受控，后加工/恢复及最终发布Gate继续，未改产品代码或操作NAS。见外部Host Evidence。

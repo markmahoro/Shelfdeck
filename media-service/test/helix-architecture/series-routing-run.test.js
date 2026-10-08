@@ -196,7 +196,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   const crashRoot=offdeck?process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT:mediaRepair?process.env.HELIX_SERIES_AFTERCARE_CRASH_ROOT:null;
   const root=crashRoot?fs.realpathSync(crashRoot):
     fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
-  const externalProvider=external?require('../fixtures/series-external-host-provider').fixture(root,{rejectSearch:typeof external==='string',real,remux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1'}):null;
+  const externalProvider=external?require('../fixtures/series-external-host-provider').fixture(root,{rejectSearch:typeof external==='string',real,remux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1',transcode:process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1'}):null;
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
   if(browserJourney) {
@@ -597,10 +597,11 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const stagedPrimary=staged[0].stagedMembers.filter(item=>item.role==='primary_payload');
     assert.deepEqual(stagedPrimary.map(item=>item.sourceMaterialKey).sort(),packageKeys);
     assert.deepEqual(stagedPrimary.map(item=>item.physicalIdentity.materialKey).sort(),final.map(item=>item.material_key).sort());
-    if(process.env.HELIX_SERIES_EXTERNAL_REMUX==='1') {
-      const remuxed=db.prepare("SELECT r.result_json FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref='libra.media.remux@1'").all();
-      assert.equal(remuxed.length,2);
-      assert.deepEqual(remuxed.map(row=>JSON.parse(row.result_json).workspaceMaterialHandle.materialKey).sort(),packageKeys);
+    if(process.env.HELIX_SERIES_EXTERNAL_REMUX==='1'||process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1') {
+      const capability=process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1'?'libra.media.transcode@1':'libra.media.remux@1';
+      const processed=db.prepare('SELECT r.result_json FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref=?').all(capability);
+      assert.equal(processed.length,2);
+      assert.deepEqual(processed.map(row=>JSON.parse(row.result_json).workspaceMaterialHandle.materialKey).sort(),packageKeys);
     }
     assert.deepEqual(final.flatMap(item=>JSON.parse(item.episode_claims_json).items.map(claim=>claim.episodeKey)).sort(),['E001','E002']);
     assert.equal(externalProvider.calls.filter(item=>item.method==='POST'&&item.path==='/api/v1/download/add').length,1);
@@ -618,9 +619,9 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
         assert.ok(Number(result.format.duration)>=3);
       }
       assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='libra.media.remux@1'").get().n,process.env.HELIX_SERIES_EXTERNAL_REMUX==='1'?2:0);
-      assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='libra.media.transcode@1'").get().n,0);
+      assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='libra.media.transcode@1'").get().n,process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1'?2:0);
       if(process.env.HELIX_SERIES_EXTERNAL_REMUX==='1')assert.ok(final.every(item=>path.extname(item.location)==='.mkv'));
-      t.diagnostic(JSON.stringify({externalRemux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1',realExternal:true,finalPrimaries:final.length,episodeKeys:['E001','E002'],codec:'hevc',raster:'3840x2160',audio:'aac',singleAcquisition:true}));
+      t.diagnostic(JSON.stringify({externalTranscode:process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1',externalRemux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1',realExternal:true,finalPrimaries:final.length,episodeKeys:['E001','E002'],codec:'hevc',raster:'3840x2160',audio:'aac',singleAcquisition:true}));
     }
     return;
   }
