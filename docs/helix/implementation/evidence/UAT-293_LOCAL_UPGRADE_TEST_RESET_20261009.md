@@ -1,0 +1,13 @@
+# UAT-293：本地测试升级与旧执行历史
+
+用户先确认保留旧 Run 的有界升级，随后明确本地仅用于测试、不需顾虑既有 Run，主要目的是排查问题。以最新指示为准，不实施旧未完成 Run 的兼容承接。
+
+正式 Formation Reset 副本演练：ready=true、blockers为空，清理21个测试Subject/Run和1057个Supporting Work，4个Arca On-deck Commit及收藏保留。原实例未执行 Reset。Reset后仍有391个历史Plan：Arca20、Libra151、Perception133、Procurement87，均为terminal Work。
+
+旧Catalog为5387ff4e766dd8239fdd9a3d094e4d9f5a75c201dbd8ebdff7d83e30556614d8，新Catalog为aa2c1e6a52b29504b7c4a675d12bce9805442f161c19a7c850fc48e01dfcd8fb。仅在副本上以冻结源码合同作诊断，完整历史证明剩39个Candidate Plan拒绝；它们依赖的 primary_manifest.build 历史payload为PrimaryInputManifestDraft，而a45源码结果合同已是PrimaryInputManifestDraftRecord。不同Schema迭代没有进入executionCatalogDigest，不能仅按Catalog值假定载荷一致。没有改写旧Plan/Result、没有放宽Startup校验，没有将诊断兼容代码提交或加载现场。
+
+已向用户明确新建干净测试实例会让新页面记录从零开始、旧数据库4收藏留在完整可恢复快照，真实媒体不动；该范围选择待回复，主18081暂保持旧实例。
+
+独立旁路测试：preview-next新目录经正式initializeCleanData创建，200表，当前源码在18082 health=ok/normalSupplyAllowed=true。从旧本地加密Secret Store读取，仅在内存经正式integration test/PATCH迁入配置：TMDB与MoviePilot成功；豆瓣两次P5_PROVIDER_TRANSPORT_FAILED，未强行保存。没有注册真实媒体来源、触发扫描或文件副作用。旧18081 HTTP200、4收藏保持、0 in_progress。
+
+《大宅门2》停机时间附近的第18项转码失败另待根因：隔离12秒FFmpeg调用相同runProcess，父进程收到Windows CTRL_C/SIGINT后子进程仍正常exit0；该实验未复现现场失败，不能宣称停机信号导致，也不能宣称该次转码成功。

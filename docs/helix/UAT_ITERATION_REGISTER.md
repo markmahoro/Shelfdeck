@@ -307,6 +307,8 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 | UAT-290 | FinalProductVerification/Fulfillment完整证据超过Foundation64 KiB | ARCA / FINAL_VERIFICATION_CAPACITY | 已修复：待现场验收 | 47集最终校验74939字节，Commit重复内嵌Fulfillment | 双平台47集完整Host通过，现场尚未加载 | [Evidence](implementation/evidence/UAT-290_SERIES_FINAL_VERIFICATION_20261009.md) | Owner完整值1024成员/8 MiB，Result及Commit Evidence保存精确引用；结算授权不变。 |
 | UAT-291 | Series 逐集 thumb/NFO 漏交付，旧 Season 目录残留 | PROCUREMENT / ARCA_RELATED | 修复已验证，待现场验收 | 棋士旧目录22 thumb及22 NFO未进入交付 | 双平台入藏/空季清理、Windows迁移/改名及定向回归通过 | [Evidence](implementation/evidence/UAT-291_SERIES_RELATED_SIDECARS_20261009.md) | 已确认精确Primary映射与命名、仅清理旧空季目录；不操作现场存量。 |
 
-| UAT-292 | 存放规则更新与旧健康检查规划竞争，Series Care Basis 过期 | ARCA / AFTERCARE_STALE_BASIS | 开放：待修复 | UAT-291 Host等待后台清理后修改Placement，旧health_assessment规划报obsolete Care Basis | 安全拒绝旧Basis；未验证完整自动收敛 | UAT-291 Evidence及外部uat291-migration-final.log | 不放宽Basis校验；Owner应按原失效合同收敛旧Work，需独立回归。 |
+| UAT-292 | 存放规则更新与旧健康检查规划竞争，Series Care Basis 过期 | ARCA / AFTERCARE_STALE_BASIS | 修复已验证，待现场验收 | UAT-291 Host等待后台清理后修改Placement，旧health_assessment规划报obsolete Care Basis | 28项定向及原时序完整迁移Host通过 | [Evidence](implementation/evidence/UAT-292_SERIES_STALE_ASSESSMENT_20261009.md) | 不放宽Basis校验；Owner应按原失效合同收敛旧Work，需独立回归。 |
 
 | UAT-293 | 本地更新时既有Plan全局执行合同摘要漂移，Startup Recovery拒绝启动 | FOUNDATION / CATALOG_UPGRADE | 开放：已回退，升级承接待确认 | a45d7b13f→af5fe3901实际启动报PLAN_CATALOG_DRIFT | 数据库196原表保留通过，但实际Host未启动；原备份回退后health正常 | UAT-291 Evidence | 不绕过摘要校验、不改旧证据、不Reset；保留Run的精确有界升级承接需用户确认。 |
+
+| UAT-294 | 77集最终落位决策超过Arca独立64 KiB存储限制 | ARCA / FINAL_DECISION_CAPACITY | 开放：合同扩容待确认 | 全新77集完整Host271.77秒复现decision_json CHECK失败 | 显式77集容量回归已加入，当前FAIL | [Evidence](implementation/evidence/UAT-294_SERIES_FINAL_DECISION_CAPACITY_20261009.md) | 拟补齐Arca完整决策8 MiB，Foundation限额保持；不以47集通过推断77集通过。 |

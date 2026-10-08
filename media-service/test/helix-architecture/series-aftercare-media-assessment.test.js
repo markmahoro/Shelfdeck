@@ -322,7 +322,12 @@ test('Series health Planner schedules every Primary and makes aggregate Conforma
   assert.deepEqual(members.map(node=>node.parameters.materialKey).sort(),f.materials.map(item=>item.material_key).sort());
   assert.deepEqual(aggregate.dependsOn.map(item=>item.eventId),members.map(node=>node.eventId));
   f.materials.reverse();assert.deepEqual(planner.plan(request),plan);
-  assert.throws(()=>planner.plan({...request,executionBasisDigest:canonicalDigest('old')}));
+  const stale=planner.plan({...request,executionBasisDigest:canonicalDigest('old')});
+  validateWorkflowPlan(stale,{registry,policyRegistry,contractValidator:createCapabilityContractValidator({schemas})});
+  assert.equal(stale.resolution,'contract_unplannable');
+  assert.equal(stale.diagnosticClassification,'ARCA_AFTERCARE_BASIS_STALE');
+  assert.equal(stale.executionBasisDigest,canonicalDigest('old'));
+  assert.deepEqual(stale.nodes,[]);
   f.context.raw.entry.structure_kind='single';assert.equal(planner.plan(request).nodes.length,4);
 });
 

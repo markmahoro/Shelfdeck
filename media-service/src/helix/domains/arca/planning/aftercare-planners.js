@@ -20,7 +20,10 @@ function assessmentPlanner(options,{deep,plannerContractRef,objective}){const ca
       const c=options.contextReader.read(request.processId),bindings=[owner('careBasis',request,P.basis),owner('inventoryRevision',request,P.inventory),
         owner('knownBindings',request,P.bindings),owner('standard',request,P.standard),owner('placement',request,P.placement)],memberDependencies=[];
       if(c?.raw?.entry?.structure_kind==='season'&&c.raw.materials.some(item=>item.role==='primary_payload')) {
-        if(c.basis.digest!==request.executionBasisDigest)throw new Error('Series assessment planning has an obsolete Care Basis.');
+        if(c.basis.digest!==request.executionBasisDigest)return Object.freeze({
+          ...workflow(request,plannerContractRef,catalogDigest,objective,[]),
+          resolution:'contract_unplannable',diagnosticClassification:'ARCA_AFTERCARE_BASIS_STALE',
+        });
         const space=evaluateSeriesCareMediaSpace(c,effectiveRequirements(c)?.space?.maxSizeBytes??null);
         for(const member of space.members) {
           const eventId=seriesMemberAssessmentEventId(request.workAttemptId,member.materialKey);
