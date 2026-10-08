@@ -395,10 +395,10 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
       binding.portName==='aftercareMediaRepairStrategy').parameters.materialKey,target.materialKey);
   }
   rows.reverse();assert.deepEqual(planner.plan(request),plan);rows.reverse();
-  const sentinel=new Error('Captured exact source before FFmpeg or Workspace writes'),probed=[];
+  const sentinel=new Error('Captured exact source before FFmpeg or Workspace writes'),probed=[];let persistenceReads=0;
   const effectPorts=createAftercareCapabilityPorts({...f.options,...s.options,now:()=>1000,contextReader,workResultReader:reader,
     schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
-    unitOfWork:{execute(){throw new Error('No persistence before source probe.');}},
+    unitOfWork:{execute(){persistenceReads++;throw new Error('No persistence before source probe.');}},
     mediaProbe:{async probe(handle){probed.push(handle.identity.materialKey);throw sentinel;}}});
   for(const target of targets) {
     const effect={...execution,parameters:{materialKey:target.materialKey},namedInputs:{knownBindings:{},
@@ -504,6 +504,40 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
   }
   reader.read=id=>id==='work'?rows:id==='prepare'?preparedRows:[];
 
+
+  const {verifySeriesMaterializedMedia}=require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports'),
+    finalSpace=verifySeriesMaterializedMedia(c,care,preparedSet,receipts,f.options.computeBoundedMaterialFingerprintSync);
+  assert.deepEqual(finalSpace.episodeAllocations,preparedSet.episodeAllocations);
+  for(const receipt of receipts) {
+    const source=f.materials.find(row=>row.material_key===receipt.retiredMaterials[0].identity.materialKey),
+      finalMember=finalSpace.members.find(member=>member.materialKey===receipt.finalMaterialIdentity.materialKey);
+    assert.deepEqual(finalMember.episodeClaims,JSON.parse(source.episode_claims_json).items);
+  }
+  for(const mutate of [v=>v.pop(),v=>v.push(v[0]),v=>{v[0].scopeId='foreign';},
+    v=>{v[0].retiredMaterials[0].identity.materialKey=f.materials[0].material_key;},
+    v=>{v[0].targetLocation=f.materials[0].location;},v=>{v[0].finalMaterialIdentity.sizeBytes++;},
+    v=>{v[0].finalRealityDigest=canonicalDigest('changed');},v=>{v[0].targetBindingDigest=canonicalDigest('changed');},
+    v=>{delete v[0].supersededMaterialIdentity;},v=>{v[0].supersededLocation=f.materials[0].location;}]) {
+    const changed=structuredClone(receipts);mutate(changed);
+    assert.throws(()=>verifySeriesMaterializedMedia(c,care,preparedSet,changed,f.options.computeBoundedMaterialFingerprintSync),
+      error=>error.code==='ARCA_AFTERCARE_SERIES_FINAL_REALITY_STALE');
+  }
+  // Exercise the actual Inventory Capability up to its first persistence read.
+  history.commits=[];care.careBasis=c.basis;contextReader.inventoryMaterials=()=>c.raw.materials;
+  reader.readBindings=()=>[{capabilityRef:C.inventoryCommit,inputBindings:{bindings:[{parameters:{sourceWorkId:'prepare'}}]}}];
+  reader.read=id=>id==='work'?rows:id==='prepare'?preparedRows:id==='commit'?receipts.map(result=>({
+    capabilityRef:C.artifactMaterialize,outcomeKind:'succeeded',result})):[];
+  const inventoryExecution={...execution,workId:'commit',eventId:'inventory',workAttemptId:'commit-attempt',namedInputs:{
+    verifiedCareInventoryChange:{aftercareCaseId:care.aftercareCaseId},responsibilityControlCommitHandle:{}}};
+  assert.throws(()=>effectPorts[C.inventoryCommit].execute(inventoryExecution),/Control Handle does not cover/);
+  assert.equal(persistenceReads,1);
+  for(const location of [receipts[0].targetLocation,receipts[0].supersededLocation,f.materials[0].location]) {
+    const bytes=fs.readFileSync(location);fs.appendFileSync(location,'external edit');
+    assert.throws(()=>effectPorts[C.inventoryCommit].execute(inventoryExecution),error=>error.code==='ARCA_AFTERCARE_SERIES_FINAL_REALITY_STALE');
+    fs.writeFileSync(location,bytes);
+    assert.equal(persistenceReads,1,'physical drift must fail before Control queries or transaction writes');
+  }
+  assert.deepEqual(fs.readFileSync(f.materials[0].location),untouched);
 
 });
 

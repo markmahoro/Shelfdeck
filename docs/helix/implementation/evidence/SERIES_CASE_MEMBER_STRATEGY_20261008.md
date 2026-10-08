@@ -59,3 +59,11 @@ Commit Planner在生成任何物化节点前执行集合门禁，媒体成品Own
 45项专项通过：混合Case正式Commit Plan schema及Projection消费，缺目标/零输出/重复生产、失败验证、错Case/Basis/Requirement及跨Attempt/Plan均拒绝。独立空间测试含共文件与保留part相加、半字节超限拒绝、未替换成员超限、重复物理输出和改写size。正式物理复核/最终Inventory事务尚未增加证据，不能把本批纯集合验证视为完整媒体维修闭环。
 
 最终分组全架构2,300通过/9既有skip/0失败（并行2,284，100.2秒；stage 16，0.1秒）。架构449文件/1411依赖、语义2067文件及diff通过；无Capability schema或DDL修改。外部日志前缀`series-prepared-set-`（targeted/full/stage）。后续继续提交前现场复核、原子事务/Claims持久化、Settlement/崩溃恢复及真实媒体Host；自动媒体维修和发布门禁保留，无NAS动作。
+
+## 追加：Inventory提交前现场复核
+
+基线`ee11f998a66d29a18daadb6ff7b8407c5bb52de2`。Series媒体Inventory Commit在Control查询及事务构造前重建完整准备集合，并要求物化回执恰好覆盖目标。核对Case/Requirement、原成员Identity、目标路径/endpoint/mount、最终内容与成品一致、回执Reality/Binding摘要；现场检查最终文件、暂存原文件和未替换Primary的Physical Identity。由实际最终Identity及原成员Claims再次重建完整逐集空间结论，任何漂移均拒绝。新Inventory组装的来源改为Case冻结Inventory集合，继续从精确原成员继承Claims。
+
+57项专项通过：最终集合与准备集合的逐集结果一致、原成员Claims保持；十种缺失/重复/错Scope/错路径/改写Identity或回执拒绝。实际Inventory Capability在正常样本进入Control查询，fixture于Control门禁停止；分别改写最终文件、暂存旧文件、未替换Primary后均以`ARCA_AFTERCARE_SERIES_FINAL_REALITY_STALE`在Control查询前拒绝，未发生事务写入。这里验证入口及拒绝顺序，不声称真实数据库原子Commit或Claims持久化完成。
+
+最终分组全架构2,300通过/9既有skip/0失败（并行2,284，108.5秒；stage 16，0.1秒）。架构449文件/1412依赖、语义2067文件及diff通过；无schema/DDL修改。外部日志前缀`series-final-reality-`（targeted/full/stage）。真实Inventory-Control事务、Settlement、进程崩溃恢复及媒体Host仍待完成，自动媒体维修和发布门禁保留，无NAS动作。

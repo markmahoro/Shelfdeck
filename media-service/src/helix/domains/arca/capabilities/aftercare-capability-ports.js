@@ -17,6 +17,7 @@ const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const sharp = require('sharp');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const {readSeriesPreparedMediaSet}=require('../model/aftercare-verified-media');
 const {evaluateSeriesCareMediaSpace}=require('../model/series-care-media-space');
 const {readSeriesMemberAssessmentSet,seriesMediaRepairTargets,seriesMediaOutputTarget}=require('../model/series-care-assessment-set');
 const { createMaterialControlParticipant, createMaterialControlProjectionPort,
@@ -94,6 +95,53 @@ async function atomicCopyMedia(source,target,mountScopeId,fingerprint){await fs.
 function exactInventoryMaterial(location,material,mountScopeId,fingerprint){
   if(!material||!fs.existsSync(location))return false;
   try{return physicalIdentity(location,mountScopeId,fingerprint).materialKey===material.material_key;}catch{return false;}
+}
+function verifySeriesMaterializedMedia(context,care,preparedSet,receipts,fingerprint) {
+  const fail=()=>{throw Object.assign(new Error('Series final media set no longer matches its verified outputs and Inventory.'),
+    {code:'ARCA_AFTERCARE_SERIES_FINAL_REALITY_STALE'});};
+  const mediaReceipts=receipts.filter(receipt=>receipt.materialEffectKind==='primary_replace'),
+    outputs=preparedSet.outputs,bySource=new Map(outputs.map(item=>[item.target.materialKey,item])),finalRows=[];
+  if(mediaReceipts.length!==outputs.length||bySource.size!==outputs.length)fail();
+  const used=new Set();
+  for(const original of context.raw.materials.filter(item=>item.role==='primary_payload')) {
+    const prepared=bySource.get(original.material_key);
+    if(!prepared) {
+      if(!exactInventoryMaterial(original.location,original,original.mount_scope_id,fingerprint))fail();
+      finalRows.push(original);continue;
+    }
+    const matches=mediaReceipts.filter(receipt=>receipt.retiredMaterials?.length===1&&
+      receipt.retiredMaterials[0].identity.materialKey===original.material_key);
+    if(matches.length!==1)fail();
+    const receipt=matches[0],identity=receipt.finalMaterialIdentity,workspace=prepared.output.workspaceMaterialHandle,
+      expectedLocation=path.join(path.dirname(original.location),path.parse(original.location).name+path.extname(workspace.relativePath));
+    if(receipt.ownerDomain!=='arca'||receipt.scopeType!=='aftercare_case'||receipt.scopeId!==care.aftercareCaseId||
+        receipt.scopeDigest!==care.careRequirementDigest||receipt.targetEndpointId!==context.raw.shelf.target_endpoint_id||
+        !samePhysicalLocation(receipt.targetLocation,expectedLocation)||!inside(context.raw.shelf.target_root_location,receipt.targetLocation)||
+        canonicalDigest(receipt.retiredMaterials[0].identity)!==canonicalDigest(physicalIdentityFromInventoryRow(original))||
+        identity.mountScopeId!==context.raw.shelf.target_mount_scope_id||identity.sizeBytes!==workspace.sizeBytes||
+        identity.contentFingerprint!==workspace.physicalIdentity.contentFingerprint||
+        identity.fingerprintAlgorithm!==workspace.physicalIdentity.fingerprintAlgorithm||
+        identity.fingerprintVersion!==workspace.physicalIdentity.fingerprintVersion||used.has(identity.materialKey))fail();
+    if(receipt.finalRealityDigest!==canonicalDigest({identity,location:receipt.targetLocation})||
+        receipt.targetBindingDigest!==canonicalDigest({endpointId:receipt.targetEndpointId,location:receipt.targetLocation,identity}))fail();
+    const originalIdentity=physicalIdentityFromInventoryRow(original),retired=receipt.retiredMaterials[0];
+    if(retired.requiresSettlement!==false)fail();
+    if(receipt.supersededMaterialIdentity) {
+      if(canonicalDigest(receipt.supersededMaterialIdentity)!==canonicalDigest(originalIdentity)||
+          !samePhysicalLocation(receipt.supersededLocation,original.location+'.superseded-'+care.aftercareCaseId)||
+          !samePhysicalLocation(retired.location,receipt.supersededLocation)||
+          !exactInventoryMaterial(receipt.supersededLocation,original,original.mount_scope_id,fingerprint))fail();
+    } else if(canonicalDigest(identity)!==canonicalDigest(originalIdentity)||!samePhysicalLocation(retired.location,original.location))fail();
+    let actual;try{actual=physicalIdentity(receipt.targetLocation,identity.mountScopeId,fingerprint);}catch{fail();}
+    if(canonicalDigest(actual)!==canonicalDigest(identity))fail();
+    used.add(identity.materialKey);
+    finalRows.push({...inventoryRowForIdentity(original,identity),location:receipt.targetLocation,endpoint_id:receipt.targetEndpointId});
+  }
+  if(used.size!==outputs.length)fail();
+  const finalSpace=evaluateSeriesCareMediaSpace({...context,raw:{...context.raw,materials:finalRows}},
+    effectiveRequirements(context)?.space?.maxSizeBytes??null);
+  if(finalSpace.episodeAllocations.some(item=>!item.withinLimit))fail();
+  return finalSpace;
 }
 function exactArtifactBytes(location,source){try{return fs.existsSync(location)&&fullSha(location)===fullSha(source);}catch{return false;}}
 function samePhysicalLocation(left,right){const a=path.resolve(left),b=path.resolve(right);return process.platform==='win32'?a.toLowerCase()===b.toLowerCase():a===b;}
@@ -887,8 +935,13 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     const result=Object.freeze({...base,factDigest:canonicalDigest(base)});return committed(execution,C.assessmentCommit,result,now(),'domain_fact_commit');},validateResult(_c,o){if(!o?.result?.professionalAssessmentSetDigest)throw new TypeError('Aftercare Assessment Revision is invalid.');}});
   ports[C.inventoryCommit]=Object.freeze({validateInputs(c){requireNamed(c,['verifiedCareInventoryChange','responsibilityControlCommitHandle']);},execute(execution){const c=context(execution),n=execution.namedInputs,caseId=n.verifiedCareInventoryChange.aftercareCaseId,history=store.history(c.shelfEntryId),prior=history.commits.find((item)=>item.aftercareCaseId===caseId),care=prior?store.getCase(caseId):activeCase(c);if(!care||care.state!=='active'||caseId!==care.aftercareCaseId)throw new Error('Aftercare Inventory change belongs to another or terminal Case.');const sourceWorkId=preparationWorkId(execution),frozenMaterials=contextReader.inventoryMaterials(c.shelfEntryId,care.careBasis.inventoryRevision),receipts=[...options.workResultReader.read(execution.workId).filter((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===C.artifactMaterialize).map((item)=>item.result),...placementMaterialReceipts(c,options.workResultReader,sourceWorkId,care,frozenMaterials)];if(!receipts.length)throw new Error('Aftercare Inventory commit lacks durable Material Effect receipts.');const settlementEventId=aftercareSettlementEventId(execution.workAttemptId),hasSettlementEvent=options.workResultReader.readBindings(execution.workId).some((item)=>item.capabilityRef===C.settlement),settlementApprovalFor=(targetContext,observedAtMs)=>{const handles=buildAftercareSettlementHandles({sourceTargetBinding:material=>contextReader.sourceTargetBinding(c.shelfEntryId,material),context:targetContext,aftercareCaseId:care.aftercareCaseId,receipts,frozenMaterials,observedOldBindings:observeKnownOldBindings(targetContext.raw,fingerprint),observedAtMs});return Object.freeze({aftercareCaseId:care.aftercareCaseId,settlementScopeDigest:settlementScopeDigest(handles),serviceCatalogRevision:aftercareServiceCatalogRevision(options.registry),shelfStandardRevision:care.careBasis.standardRevision,careBasisDigest:care.careBasisDigest,settlementEventId});};let record;
     if(prior)throw Object.assign(new Error('Aftercare Inventory exists without Foundation completing its atomic Event Result.'),{code:'ARCA_AFTERCARE_ATOMIC_RESULT_REQUIRED'});
+    if(c.raw.entry.structure_kind==='season'&&(receipts.some(receipt=>receipt.materialEffectKind==='primary_replace')||
+      careFindingCodes(care.careRequirement).some(code=>/^conformance:(video_codec_unmet|max_size_exceeded|file_extension_unmet|container_unmet)$/.test(code)))) {
+      const preparedSet=readSeriesPreparedMediaSet(c,care,history,options.workResultReader,sourceWorkId);
+      verifySeriesMaterializedMedia(c,care,preparedSet,receipts,fingerprint);
+    }
     {const planned=deriveInventoryMaterialChanges(frozenMaterials,receipts);if(planned.length===0)return aftercareInventoryNoChangeOutcome();const releasedKeys=new Set(planned.filter((item)=>item.action==='release').map((item)=>item.identity.materialKey)),materials=frozenMaterials.filter((item)=>!releasedKeys.has(item.material_key)).map((item)=>({...item}));
-      for(const receipt of receipts){const identity=receipt.finalMaterialIdentity,existing=materials.find((item)=>item.material_key===identity.materialKey);if(existing)continue;const extension=path.extname(receipt.targetLocation).toLowerCase(),retiredKey=receipt.retiredMaterials?.[0]?.identity?.materialKey||receipt.supersededMaterialIdentity?.materialKey,sourceRow=retiredKey?c.raw.materials.find((item)=>item.material_key===retiredKey):null,role=receipt.materialEffectKind==='placement_migrate'&&sourceRow?sourceRow.role:receipt.materialEffectKind==='primary_replace'?'primary_payload':extension==='.nfo'?'metadata_sidecar':/(jpg|jpeg|png|webp)$/.test(extension.slice(1))?'poster':'sidecar',episodeClaims=sourceRow?JSON.parse(sourceRow.episode_claims_json):emptyArcaMaterialEpisodeClaims();materials.push({shelf_entry_id:c.shelfEntryId,inventory_revision:c.raw.entry.current_inventory_revision+1,ordinal:materials.length,material_key:identity.materialKey,role,episode_claims_schema_ref:EPISODE_CLAIMS_SCHEMA,episode_claims_json:canonicalJson(episodeClaims),episode_claim_set_digest:sourceRow?.episode_claim_set_digest||episodeClaims.episodeClaimSetDigest,artifact_scope_schema_ref:sourceRow?.artifact_scope_schema_ref??null,artifact_scope_json:sourceRow?.artifact_scope_json??null,endpoint_id:receipt.targetEndpointId,location:receipt.targetLocation,binding_revision:1,mount_scope_id:identity.mountScopeId,inode:identity.inode,fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:String(identity.fingerprintVersion),content_fingerprint:identity.contentFingerprint,digest_hex:identity.contentFingerprint,size_bytes:identity.sizeBytes,active_guard:role==='primary_payload'?1:0});}
+      for(const receipt of receipts){const identity=receipt.finalMaterialIdentity,existing=materials.find((item)=>item.material_key===identity.materialKey);if(existing)continue;const extension=path.extname(receipt.targetLocation).toLowerCase(),retiredKey=receipt.retiredMaterials?.[0]?.identity?.materialKey||receipt.supersededMaterialIdentity?.materialKey,sourceRow=retiredKey?frozenMaterials.find((item)=>item.material_key===retiredKey):null,role=receipt.materialEffectKind==='placement_migrate'&&sourceRow?sourceRow.role:receipt.materialEffectKind==='primary_replace'?'primary_payload':extension==='.nfo'?'metadata_sidecar':/(jpg|jpeg|png|webp)$/.test(extension.slice(1))?'poster':'sidecar',episodeClaims=sourceRow?JSON.parse(sourceRow.episode_claims_json):emptyArcaMaterialEpisodeClaims();materials.push({shelf_entry_id:c.shelfEntryId,inventory_revision:c.raw.entry.current_inventory_revision+1,ordinal:materials.length,material_key:identity.materialKey,role,episode_claims_schema_ref:EPISODE_CLAIMS_SCHEMA,episode_claims_json:canonicalJson(episodeClaims),episode_claim_set_digest:sourceRow?.episode_claim_set_digest||episodeClaims.episodeClaimSetDigest,artifact_scope_schema_ref:sourceRow?.artifact_scope_schema_ref??null,artifact_scope_json:sourceRow?.artifact_scope_json??null,endpoint_id:receipt.targetEndpointId,location:receipt.targetLocation,binding_revision:1,mount_scope_id:identity.mountScopeId,inode:identity.inode,fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:String(identity.fingerprintVersion),content_fingerprint:identity.contentFingerprint,digest_hex:identity.contentFingerprint,size_bytes:identity.sizeBytes,active_guard:role==='primary_payload'?1:0});}
       const scope=Object.freeze({ownerDomain:'arca',scopeType:'shelf_entry',scopeId:c.shelfEntryId}),projections=controls.getMaterialControlProjections(planned.map((item)=>item.identity.materialKey)),byKey=new Map(projections.map((item)=>[item.materialKey,item])),changes=planned.map((item)=>{const projection=byKey.get(item.identity.materialKey);return Object.freeze({identity:item.identity,action:item.action,expectedRevision:Number(projection.controlRevision),expectedProjectionDigest:projection.projectionDigest,...(item.action==='release'?{fromScope:scope}:{toScope:scope})});});
       if(n.responsibilityControlCommitHandle.controlScopeDigest!==controlScopeDigest(changes))throw new Error('Aftercare Control Handle does not cover the exact Inventory change.');
       const nextRevision=Number(c.raw.entry.current_inventory_revision)+1,
@@ -1030,4 +1083,4 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   return Object.freeze(ports);
 }
 
-module.exports=Object.freeze({mediaRepairSource,nfoInventoryFindings,assessInventoryMediaConformance,probeConformance,assessMediaRepairStrategy,AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareInventoryNoChangeOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,verifyInventoryPlayback,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});
+module.exports=Object.freeze({verifySeriesMaterializedMedia,mediaRepairSource,nfoInventoryFindings,assessInventoryMediaConformance,probeConformance,assessMediaRepairStrategy,AFTERCARE_LONG_MEDIA_TIMEOUT_MS,createAftercareCapabilityPorts,decodeFinding,validNfo,validImageBytes,progressSample,remainingDeadlineMs,aftercareMediaProbeEvidence,resolveAftercareFfmpegPath,materializeArtifactWithRollback,materializeMediaWithRollback,nfoCommitSource,externalWriterConflictOutcome,aftercareInventoryNoChangeOutcome,aftercareSettlementPreconditionFailureOutcome,observeSemanticNfoReconciliation,custodyIdentityChangedFinding,permitsMissingArtifactReplacement,buildProductionVideoProfile,verifyPlaybackBounded,verifyInventoryPlayback,resolveAftercareSettlementTarget,assertAftercareSettlementHandle,assertSettlementTargetReality});
