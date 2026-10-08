@@ -4,14 +4,17 @@ const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical
 
 const {buildSeriesReplacementBasis,buildSeriesReplacementScopes}=require('../model/series-external-replacement');
 
-function replacementScopes(snapshot) {
-  if(snapshot.spec?.contentProfile!=='series')return Object.freeze([null]);
+function replacementBasis(snapshot) {
   const primary=snapshot.members.filter(item=>item.role==='primary_payload');
-  const basis=buildSeriesReplacementBasis({libraRunId:snapshot.run.libraRunId,
+  return buildSeriesReplacementBasis({libraRunId:snapshot.run.libraRunId,
     runExecutionBasisDigest:snapshot.run.executionBasisDigest,acceptanceSpecRecordDigest:snapshot.spec.recordDigest,
     episodeKeys:snapshot.spec.productScope.episodeKeys,members:primary.map(item=>({materialKey:item.materialKey,
       memberDigest:canonicalDigest(item),episodeKeys:item.episodeClaims.map(claim=>claim.episodeKey)}))});
-  return buildSeriesReplacementScopes({basis,materialKeys:primary.map(item=>item.materialKey)});
+}
+function replacementScopes(snapshot) {
+  if(snapshot.spec?.contentProfile!=='series')return Object.freeze([null]);
+  const basis=replacementBasis(snapshot);
+  return buildSeriesReplacementScopes({basis,materialKeys:basis.members.map(item=>item.materialKey)});
 }
 function assertReplacementScope(snapshot,scope) {
   if(!replacementScopes(snapshot).some(item=>canonicalJson(item)===canonicalJson(scope)))
@@ -93,7 +96,7 @@ function externalImportSelectionWork(snapshot, scope = null) {
 }
 
 module.exports = Object.freeze({
-  replacementScopes,
+  replacementBasis,replacementScopes,
   SELECTED_CANDIDATE_RESULT,
   SELECTED_OUTPUT_RESULT,
   VERIFIED_PACKAGE_RESULT,

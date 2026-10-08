@@ -283,3 +283,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08外部Series多成员Import DoR：沿已冻结Scope，在正式Planner逐个构造Workspace import/probe节点；每个成员验证依赖完整范围的全部import/probe结果，以实际Handle大小及冻结外部Claims建立完整Episode份额，禁止只验单文件。重新验证获取Package与Scope的EpisodeDelivery一致、Event来源精确、材料/路径唯一；Movie单成品路径保持。之后继续Coordinator、全Run混合终检及多值交接/Arca结算，未完成前不声明端到端可用。
 
 2026-10-08 Series外部多成员Import：正式Planner逐成员导入/Probe，每个Verify依赖完整范围结果，以实际Handle及冻结Claims进行均分+part验收；不同Scope目标路径隔离，跨范围Package和错Event/Probe拒绝。23项合同/Planner及30项原生端口测试、完整P2/架构/语义通过；原生第二成员ENOSPC重试保留第一成员和全部Landing。Coordinator/Provider/完整候选终检及多值交接/Arca结算继续，未声明端到端可用或部署NAS。[Evidence](evidence/SERIES_EXTERNAL_MULTI_IMPORT_20261008.md)。
+
+2026-10-08外部Import结果消费DoR：从正式Work Reader精确重建成功Scope Work的最新Attempt/Plan，逐项校验Import/Probe/Verification/Selection及输入绑定摘要；重新执行既有Projection和纯验收/Selection，形成完整外部成员集合及source-to-all-final映射。未完成Work不可消费，拒绝跨Attempt/Plan、篡改Claims/Handle、缺少或重复成员及伪造成功。随后接入全Run候选替换与正式交接，不能从任意首条Result推断完整范围完成。
+
+2026-10-08外部Import Result消费：校验成功Scope Work最新Attempt/Plan、全部Import/Probe/Verify/Select及原Acquire Evidence，重算完整范围验收/Selection和source-to-all-final映射；不合格媒体保持ineligible。26项专项和P2/架构/语义通过。consumer待接入Coordinator/全Run候选替换，后续多值交接及Arca结算仍待闭环，未部署NAS。[Evidence](evidence/SERIES_EXTERNAL_IMPORT_RESULTS_20261008.md)。

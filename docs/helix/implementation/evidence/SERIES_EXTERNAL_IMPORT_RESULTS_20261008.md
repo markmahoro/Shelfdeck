@@ -1,0 +1,11 @@
+# Series外部Import完整Result消费
+
+日期：2026-10-08；基线 `70f80c60ed3a6276004b5cc221750faabf0c9cfc`。沿已确认Scope/多成品映射方案推进Libra内部Result读取，未新增Provider请求或生产动作。
+
+新增`readSeriesExternalImportSet`消费正式Work Reader接口：只读取已成功且Definition精确匹配的Scope Import Work最新Attempt，要求全部Import/Probe/Verification/Selection来自同一Work、Attempt、Plan及graph digest，检查结果/输入绑定摘要与精确Event身份。未完成Work返回不可消费；缺项、重复、其他Work/Attempt/Plan和错误名义Schema拒绝。原始Stable Evidence/Verified Package还必须逐字节命中同Scope Acquire Work最新成功Attempt的实际Result，不能用任意内联副本代替来源。
+
+每个Probe必须由精确Import Event绑定；每个Verification的完整前置集合、冻结Scope、成员Contract/Claims和Spec必须与重建参数一致。通过既有Projection、ProductMediaVerification和ProductOutputSelection纯规则重算实际结果，重算摘要后伪造passed/failed或改写范围同样拒绝。返回完整成员集合、逐项资格及source-to-all-final映射；执行Outcome成功但媒体要求失败仍为ineligible，不因为文件已经导入就授予最终选择或删除权限。
+
+验证：同一正式Planner生成两成员计划，用受控Work Reader Result fixture覆盖正向重建、无序读取稳定、运行中不可消费、跨Work/Attempt/Plan、重复/缺少、重算摘要伪造验证、改写范围/Work Definition/Acquire来源拒绝及编码不合格保持不可选。原共文件与原part均准确映射至相交的新共文件和新part。与既有Scope/Planner及外部pipeline共26项通过，日志 `E:/my_project/helix-git-consolidation-20261008/series-external-import-results.log`；完整P2合同基线通过（同目录`series-external-import-results-baseline.log`），包边界451文件/1421依赖与语义2069文件通过。
+
+此批Result consumer尚未接入Run Coordinator/全Run候选替换；fixture没有执行真实Provider或数据库Work消费，不宣称完整外部旅程通过。后续必须以此精确集合替换关联原成员、保护范围外合格候选，衔接后续加工、全Run终检、多值Offload及Arca现场/逐原文件结算；UI/Linux/升级回退等整体发布Gate仍开放，未部署NAS。

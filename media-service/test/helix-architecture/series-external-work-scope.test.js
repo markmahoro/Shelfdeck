@@ -131,18 +131,7 @@ test('Series Import Plan schedules every file and verifies only after all import
 test('Series import projection binds exact Events and evaluates shared files plus parts as one set',()=>{
   const f=importFixture(),binding=f.plan.nodes.find(item=>item.capabilityRef==='libra.product_media.verify@1').inputBindings.bindings[0],
     parameters=binding.parameters,projection=planner.createExternalMaterialProjections().find(item=>item.projectionRef===planner.IMPORTED_CANDIDATE).projection;
-  const sourceResults=parameters.seriesImportMembers.flatMap((item,index)=>{
-    const handle={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:digest('handle'+index),
-      workspaceId:'workspace',ownerDomain:'libra',processId:'run',endpointId:'endpoint',materialKey:digest('material'+index),
-      physicalIdentity:{mountScopeId:'mount',inode:String(index),fingerprintAlgorithm:'middle-256k-sha256',contentFingerprint:digest(index)},
-      rootHandleRef:digest('root'),relativePath:item.contract.targetRelativePath,digestAlgorithm:'sha256',digestHex:digest(index),
-      sizeBytes:item.source.episodeClaims.length===2?80:30,referenceRevision:1,accessScope:'workspace_material_read',fenceDigest:digest('fence'+index)};
-    const body={schemaRef:'helix://contracts/types/MediaProbeEvidence/v1',schemaVersion:1,evidenceId:digest('probe'+index),resultKind:'probed',container:'matroska',durationMs:1000,
-      sourceHandleDigest:d(handle),videoStreams:[{streamIndex:0,codec:'hevc',dispositionDefault:true,width:1920,height:1080,
-        dynamicRangeKind:'sdr',bitDepth:8,pixelFormat:'yuv420p'}],audioStreams:[],subtitleStreams:[]},probe={...body,payloadDigest:d(body)};
-    return [{eventId:item.importEventId,resultSchemaRef:'helix://contracts/capabilities/libra.workspace.material.import/v1/result',result:handle},
-      {eventId:item.probeEventId,resultSchemaRef:'helix://contracts/capabilities/shared.material.media.probe/v1/result',result:probe}];
-  });
+  const sourceResults=importSourceResults(parameters);
   const input=projection.project({sourceResults,parameters});assert.equal(input.seriesSpaceBasis.members.length,2);
   const allocations=require('../../src/helix/contracts/episode-byte-allocation').evaluateSeriesEpisodeSpace({episodeKeys:f.scope.episodeKeys,maxSizeBytes:60,
     members:input.seriesSpaceBasis.members.map(item=>({...item,role:'primary_payload',episodeClaims:item.episodeKeys.map(episodeKey=>({episodeKey}))}))});
@@ -160,4 +149,83 @@ test('Series import projection binds exact Events and evaluates shared files plu
     sourceResults.map((item,index)=>index===1?{...item,eventId:'foreign-event'}:item),
     sourceResults.map((item,index)=>index===1?{...item,result:{...item.result,sourceHandleDigest:digest('other')}}:item)])
     assert.throws(()=>projection.project({sourceResults:sources,parameters}));
+});
+
+function importSourceResults(parameters){
+  return parameters.seriesImportMembers.flatMap((item,index)=>{
+    const handle={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:digest('handle'+index),
+      workspaceId:'workspace',ownerDomain:'libra',processId:'run',endpointId:'endpoint',materialKey:digest('material'+index),
+      physicalIdentity:{mountScopeId:'mount',inode:String(index),fingerprintAlgorithm:'middle-256k-sha256',contentFingerprint:digest(index)},
+      rootHandleRef:digest('root'),relativePath:item.contract.targetRelativePath,digestAlgorithm:'sha256',digestHex:digest(index),
+      sizeBytes:item.source.episodeClaims.length===2?80:30,referenceRevision:1,accessScope:'workspace_material_read',fenceDigest:digest('fence'+index)};
+    const body={schemaRef:'helix://contracts/types/MediaProbeEvidence/v1',schemaVersion:1,evidenceId:digest('probe'+index),resultKind:'probed',container:'matroska',durationMs:1000,
+      sourceHandleDigest:d(handle),videoStreams:[{streamIndex:0,codec:'hevc',dispositionDefault:true,width:1920,height:1080,
+        dynamicRangeKind:'sdr',bitDepth:8,pixelFormat:'yuv420p'}],audioStreams:[],subtitleStreams:[]},probe={...body,payloadDigest:d(body)};
+    return [{eventId:item.importEventId,resultSchemaRef:'helix://contracts/capabilities/libra.workspace.material.import/v1/result',result:handle},
+      {eventId:item.probeEventId,resultSchemaRef:'helix://contracts/capabilities/shared.material.media.probe/v1/result',result:probe}];
+  });
+}
+
+function completedImportFixture(unmetCodec=false){
+  const f=importFixture(),binding=f.plan.nodes.find(item=>item.capabilityRef==='libra.product_media.verify@1').inputBindings.bindings[0],
+    sources=importSourceResults(binding.parameters),projections=new Map(planner.createExternalMaterialProjections().map(item=>[item.projectionRef,item.projection])),
+    production=require('../../src/helix/domains/libra/model/media-production-contracts'),results=new Map(sources.map(item=>[item.eventId,item.result]));
+  if(unmetCodec){
+    const probe=sources.find(item=>item.resultSchemaRef.includes('shared.material.media.probe')).result;
+    probe.videoStreams[0].codec='h264';delete probe.payloadDigest;probe.payloadDigest=d(probe);
+  }
+  for(const node of f.plan.nodes){
+    const inputBinding=node.inputBindings.bindings[0];
+    if(node.capabilityRef==='libra.product_media.verify@1'){
+      const input=projections.get(inputBinding.projectionRef).project({sourceResults:sources,parameters:inputBinding.parameters});
+      results.set(node.eventId,production.buildProductMediaVerification({input,verifiedAtMs:0,
+        playbackVerification:{samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:digest('decode')}}));
+    }else if(node.capabilityRef==='libra.product_output.select@1'){
+      const input=projections.get(inputBinding.projectionRef).project({sourceResult:results.get(inputBinding.eventId),parameters:inputBinding.parameters});
+      results.set(node.eventId,production.selectProductOutput({input,producedAtMs:0}));
+    }
+  }
+  const rows=f.plan.nodes.map(node=>({workId:f.importWork.workId,attemptId:request(f.importWork).workAttemptId,planId:f.plan.planId,
+    planDigest:d(f.plan),planRevision:1,eventId:node.eventId,capabilityRef:node.capabilityRef,state:'completed',outcomeKind:'succeeded',
+    resultSchemaRef:node.outputContractRef,resultId:'result-'+node.eventId,result:results.get(node.eventId),resultDigest:d(results.get(node.eventId)),
+    inputBindings:node.inputBindings,inputBindingDigest:d(node.inputBindings)}));
+  const reader={status:id=>({state:'succeeded',basis_digest:(id===f.importWork.workId?f.importWork:f.acquire).executionBasisDigest,
+    latestAttempt:{attempt_id:request(id===f.importWork.workId?f.importWork:f.acquire).workAttemptId}}),
+    readDefinition:()=>({definition:f.importWork,definitionDigest:d(f.importWork)}),
+    read:id=>id===f.importWork.workId?rows:f.records.get(id).map(row=>({...row,workId:id,
+      attemptId:request(f.acquire).workAttemptId,resultDigest:d(row.result)}))};
+  return {...f,rows,reader};
+}
+test('Series external consumer reconstructs every result and produces complete source-to-final mappings',()=>{
+  const f=completedImportFixture(),read=require('../../src/helix/domains/libra/planning/series-external-import-results').readSeriesExternalImportSet;
+  const result=read({snapshot:f.value,scope:f.scope,workResultReader:f.reader});
+  assert.equal(result.eligible,true);assert.equal(result.members.length,2);
+  const materialKeys=result.members.map(item=>item.importRecord.result.materialKey).sort();
+  assert.deepEqual(result.mapping.members.map(item=>item.finalProductMaterialKeys),[materialKeys,materialKeys]);
+  const shuffled={...f.reader,read:id=>id===f.importWork.workId?[...f.rows].reverse():f.reader.read(id)};
+  assert.deepEqual(read({snapshot:f.value,scope:f.scope,workResultReader:shuffled}),result);
+  assert.equal(read({snapshot:f.value,scope:f.scope,workResultReader:{...f.reader,status:()=>({state:'running'})}}),null);
+});
+test('Series external consumer rejects incomplete, foreign and recomputed but false successful Results',()=>{
+  const f=completedImportFixture(),read=require('../../src/helix/domains/libra/planning/series-external-import-results').readSeriesExternalImportSet;
+  const mutations=[rows=>rows.slice(1),rows=>[...rows,rows[0]],rows=>rows.map((row,index)=>index?row:{...row,attemptId:'foreign'}),
+    rows=>rows.map((row,index)=>index?row:{...row,planId:'foreign'}),rows=>rows.map((row,index)=>index?row:{...row,workId:'foreign'}),
+    rows=>rows.map(row=>row.capabilityRef==='libra.product_media.verify@1'?{...row,result:{...row.result,result:'failed'}}:row),
+    rows=>rows.map(row=>{if(row.capabilityRef!=='libra.product_media.verify@1')return row;
+      const result={...row.result,result:'failed',reasonCodes:['max_size_exceeded']};return {...row,result,resultDigest:d(result)};}),
+    rows=>rows.map(row=>{if(row.capabilityRef!=='libra.product_media.verify@1')return row;
+      const inputBindings=structuredClone(row.inputBindings);inputBindings.bindings[0].parameters.replacementScope.episodeKeys=['E3'];
+      return {...row,inputBindings,inputBindingDigest:d(inputBindings)};})];
+  for(const mutate of mutations)assert.throws(()=>read({snapshot:f.value,scope:f.scope,workResultReader:{...f.reader,read:id=>id===f.importWork.workId?mutate(f.rows):f.reader.read(id)}}));
+  assert.throws(()=>read({snapshot:f.value,scope:f.scope,workResultReader:{...f.reader,
+    readDefinition:()=>({definition:{...f.importWork,idempotencyKey:'wrong'},definitionDigest:d({...f.importWork,idempotencyKey:'wrong'})})}}));
+  assert.throws(()=>read({snapshot:f.value,scope:f.scope,workResultReader:{...f.reader,
+    read:id=>id===f.importWork.workId?f.rows:f.reader.read(id).map(row=>({...row,workId:'other-scope'}))}}));
+});
+
+test('Completed external execution with a failed media requirement remains ineligible',()=>{
+  const f=completedImportFixture(true),read=require('../../src/helix/domains/libra/planning/series-external-import-results').readSeriesExternalImportSet;
+  const result=read({snapshot:f.value,scope:f.scope,workResultReader:f.reader});
+  assert.equal(result.eligible,false);assert.equal(result.members.filter(item=>!item.eligible).length,1);
+  assert.ok(result.members.some(item=>item.verificationRecord.result.reasonCodes.includes('video_codec_unmet')));
 });
