@@ -1,4 +1,5 @@
 'use strict';
+const {workspaceAcceptanceSourceMember}=require('../planning/shelf-acceptance-workspace-source');
 
 const { seriesExternalOffloadTargets } = require('../planning/series-external-candidate-merge');
 const { readSeriesMediaSelections } = require('../planning/series-production-candidates');
@@ -470,14 +471,8 @@ function createProductDeliveryAssembler(options) {
     const candidateSourceProbe=mediaRecords.find(item=>item.capabilityRef==='shared.material.media.probe@1'&&
       item.result?.evidenceId===verification.sourceProbeEvidenceId&&canonicalDigest(item.result)===verification.sourceProbeEvidenceDigest)?.result;
     if(!candidateSourceProbe)throw new Error('Selected media production source Probe is missing.');
-    if(candidateSourceProbe.sourceHandleDigest!==originalSourceHandleDigest){
-      const inputHandle=mediaRecords.map(item=>item.capabilityRef==='libra.workspace.material.import@1'?item.result:
-        ['libra.media.remux@1','libra.media.transcode@1'].includes(item.capabilityRef)?item.result?.workspaceMaterialHandle:null)
-        .find(handle=>handle&&canonicalDigest(handle)===candidateSourceProbe.sourceHandleDigest);
-      if(!inputHandle)throw new Error('Selected media source Workspace material is unavailable.');
-      sourceMember={materialKey:inputHandle.materialKey,physicalIdentity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:inputHandle.materialKey,...inputHandle.physicalIdentity},sizeBytes:inputHandle.sizeBytes,
-        endpointId:inputHandle.endpointId,location:options.workspaceProductPort.resolveMaterialLocation(inputHandle),
-        bindingRevision:inputHandle.referenceRevision||1};
+    if(candidateSourceProbe.sourceHandleDigest!==originalSourceHandleDigest||selected.source?.externalReplacement){
+      sourceMember=workspaceAcceptanceSourceMember(value.snapshot,mediaRecords,candidateSourceProbe,options.workspaceProductPort);
     }
     if (candidateSourceProbe.evidenceId !== verification.sourceProbeEvidenceId ||
         canonicalDigest(candidateSourceProbe) !== verification.sourceProbeEvidenceDigest) {

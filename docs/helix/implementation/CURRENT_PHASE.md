@@ -345,3 +345,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series完成绑定恢复DoR：审查确认terminal-effect-history-observer及historical-on-deck-effect-inputs是UAT-261旧未授权版本见证，不应用于新Series运行或为其扩展兼容。当前Aftercare completed-settlement-bindings仍只认scalar；补齐多目标typed回执资格，严格校验完整排序列表/集合摘要及互斥字段，再退休该原source的已完成offload监控。保留当前Inventory及未完成绑定，进程级恢复仍需独立Host证据。
 
 2026-10-08 Series完成绑定：Aftercare识别完整多目标结算回执，严格列表/摘要/时间资格后仅移除已完成旧source监控；16项历史回归通过。原生新Node进程重开保留完整证据，成品变更拒绝；P2/架构/语义通过。旧UAT-261见证不扩展为新Series兼容，完整Host恢复继续，未操作NAS。[Evidence](evidence/SERIES_COMPLETED_BINDINGS_20261008.md)。
+
+2026-10-08 外部Series验收读取DoR：外部Import与最终成品共用Handle时，不能把缺少endpoint/location的候选投影当成原Run Binding；从精确成功生产Result找到同Run Workspace Handle，使用Workspace端口解析实际位置与revision，绑定既有Probe摘要再发Shelf Acceptance读授权。保留原Control/Offload映射，不伪造原Field源；普通Movie/内部路径回归。
+
+2026-10-08 外部Series验收源：共用Import/成品Handle时也从唯一同Run成功Workspace记录重建endpoint/实际位置/revision，拒绝缺失/重复/跨Run，不伪造Field Binding。10项专项、35.4秒普通Host及P2/架构/语义通过。外部Coordinator与完整端到端继续，未操作NAS。[Evidence](evidence/SERIES_ACCEPTANCE_WORKSPACE_SOURCE_20261008.md)。

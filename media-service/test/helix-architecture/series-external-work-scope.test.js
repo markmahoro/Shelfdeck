@@ -155,7 +155,7 @@ function importSourceResults(parameters){
   return parameters.seriesImportMembers.flatMap((item,index)=>{
     const handle={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:digest('handle'+index),
       workspaceId:'workspace',ownerDomain:'libra',processId:'run',endpointId:'endpoint',materialKey:digest('material'+index),
-      physicalIdentity:{mountScopeId:'mount',inode:String(index),fingerprintAlgorithm:'middle-256k-sha256',contentFingerprint:digest(index)},
+      physicalIdentity:{mountScopeId:'mount',inode:String(index),sizeBytes:item.source.episodeClaims.length===2?80:30,fingerprintVersion:1,fingerprintAlgorithm:'middle-256k-sha256',contentFingerprint:digest(index)},
       rootHandleRef:digest('root'),relativePath:item.contract.targetRelativePath,digestAlgorithm:'sha256',digestHex:digest(index),
       sizeBytes:item.source.episodeClaims.length===2?80:30,referenceRevision:1,accessScope:'workspace_material_read',fenceDigest:digest('fence'+index)};
     const body={schemaRef:'helix://contracts/types/MediaProbeEvidence/v1',schemaVersion:1,evidenceId:digest('probe'+index),resultKind:'probed',container:'matroska',durationMs:1000,
@@ -268,6 +268,21 @@ test('Series candidate merge replaces the whole component and retains unrelated 
   assert.equal(input.seriesSpaceBasis.members.length,3);
   assert.deepEqual(input.seriesSpaceBasis,space);
   assert.equal(input.workspaceMediaHandle,candidate.media);
+  {
+  const resolve=require('../../src/helix/domains/libra/planning/shelf-acceptance-workspace-source').workspaceAcceptanceSourceMember;
+  const port={resolveMaterialLocation:handle=>'/workspace/'+handle.materialKey},records=set.members.map(item=>item.importRecord),probe=candidate.probeRecord.result;
+  const source=resolve(f.value,records,probe,port);
+  assert.equal(source.location,'/workspace/'+candidate.member.materialKey);assert.equal(source.endpointId,candidate.readHandle.endpointId);
+  assert.equal(source.bindingRevision,candidate.readHandle.referenceRevision);assert.equal(source.materialKey,candidate.member.materialKey);
+  assert.equal(source.physicalIdentity.materialKey,candidate.member.materialKey);
+  assert.throws(()=>resolve(f.value,[...records,candidate.mediaRecord],probe,port),/one exact/);
+  assert.throws(()=>resolve(f.value,[],probe,port),/one exact/);
+  const foreign={...candidate.readHandle,processId:'other-run'},foreignRow={...candidate.mediaRecord,result:foreign};
+  assert.throws(()=>resolve(f.value,[foreignRow],{...probe,sourceHandleDigest:d(foreign)},port),/selected Run/);
+  const noRevision={...candidate.readHandle,referenceRevision:undefined};delete noRevision.referenceRevision;
+  assert.throws(()=>resolve(f.value,[{...candidate.mediaRecord,result:noRevision}],{...probe,sourceHandleDigest:d(noRevision)},port),/selected Run/);
+
+  }
   assert.throws(()=>merge.completeSeriesCandidateSpace(f.value,merged.filter(item=>item!==retained)),/complete frozen Run/);
   const drifted=merged.map(item=>item===candidate?{...item,media:{...item.media,sourceMaterialHandleDigest:digest('changed')}}:item);
   assert.throws(()=>merge.completeSeriesCandidateSpace(f.value,drifted),/frozen replacement mapping/);
