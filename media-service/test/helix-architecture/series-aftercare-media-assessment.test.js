@@ -327,7 +327,9 @@ test('Series health Planner schedules every Primary and makes aggregate Conforma
 });
 
 test('Series Case plans mixed member repairs and fences exact effect sources against its frozen evidence',async t=>{
-  const f=await fixture(t,[[8,['E01']],[8,['E02']],[8,['E03']],[8,['E04']]],null),s=strategyFixture(f),c=f.context;
+  const f=await fixture(t,[[8,['E01']],[8,['E02','E03']],[8,['E02']],[8,['E04']]],null),s=strategyFixture(f),c=f.context;
+  const remuxSource=f.materials[2],remuxLocation=remuxSource.location.replace(/\.mkv$/,'.mp4');
+  fs.renameSync(remuxSource.location,remuxLocation);remuxSource.location=remuxLocation;
   Object.assign(c.basis,{inventoryRevision:1,standardRevision:1,placementRevision:1,decisionFactSetDigest:canonicalDigest([])});
   c.raw.reservations=[];c.raw.standard.value.profileRuleSets[0].baseRequirements.mandatoryMedia.container='matroska';
   c.raw.shelf={status:'active',target_mount_scope_id:f.materials[0].mount_scope_id,target_root_location:path.dirname(f.materials[0].location),target_endpoint_id:'endpoint'};
@@ -469,12 +471,41 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
     fs.appendFileSync(location,'changed');
     await assert.rejects(effectPorts[C.artifactMaterialize].execute(commit),error=>error.code==='ARCA_AFTERCARE_SERIES_MEDIA_OUTPUT_STALE');
     fs.writeFileSync(location,bytes);
-    const result=await effectPorts[C.artifactMaterialize].execute(commit),receipt=result.result;
+    const phase=receipts.length,finalLocation=path.join(path.dirname(original.location),path.parse(original.location).name+'.mkv'),
+      stagedLocation=finalLocation+'.staged-'+care.aftercareCaseId,
+      retiredLocation=original.location+'.superseded-'+care.aftercareCaseId,
+      crashLocation=[stagedLocation,retiredLocation,finalLocation][phase],
+      payloadPath=path.join(workspaceRoot,'restart-'+phase+'.json');
+    fs.writeFileSync(payloadPath,JSON.stringify({context:c,history,rows,preparedRows,execution:commit,workspaceRoot,
+      workspaceRootSnapshot:contextReader.store.aftercareWorkspaceRootSnapshot,crashLocation}));
+    const run=mode=>require('node:child_process').spawnSync(process.execPath,[
+      path.resolve(__dirname,'../fixtures/series-aftercare-material-crash-worker.js'),payloadPath,mode],
+      {encoding:'utf8',windowsHide:true,timeout:30000});
+    const crashed=run('crash');assert.equal(crashed.status,73,crashed.stdout+crashed.stderr);
+    assert.equal(fs.existsSync(stagedLocation),phase<2);
+    assert.equal(fs.existsSync(retiredLocation),phase>0);
+    if(phase===0)assert.deepEqual(fs.readFileSync(original.location),originalBytes);
+    if(phase===1)assert.equal(fs.existsSync(finalLocation),false);
+    if(phase===2)assert.deepEqual(fs.readFileSync(finalLocation),bytes);
+    const conflictLocation=phase===0?stagedLocation:phase===1?finalLocation:retiredLocation,
+      previous=fs.existsSync(conflictLocation)?fs.readFileSync(conflictLocation):null;
+    fs.writeFileSync(conflictLocation,'unrelated external writer bytes');
+    const rejected=run('recover');assert.equal(rejected.status,1,rejected.stdout+rejected.stderr);
+    assert.equal(JSON.parse(rejected.stdout).error,'ARCA_AFTERCARE_TARGET_CONFLICT');
+    assert.equal(fs.readFileSync(conflictLocation,'utf8'),'unrelated external writer bytes');
+    if(previous===null)fs.unlinkSync(conflictLocation);else fs.writeFileSync(conflictLocation,previous);
+    const recovered=run('recover');assert.equal(recovered.status,0,recovered.stdout+recovered.stderr);
+    const result=JSON.parse(recovered.stdout),receipt=result.result;
+    const restarted=run('recover');assert.equal(restarted.status,0,restarted.stdout+restarted.stderr);
+    assert.deepEqual(JSON.parse(restarted.stdout).result,receipt);
+    assert.equal(fs.existsSync(stagedLocation),false);
+    t.diagnostic('Actual process exit/recovery at '+['staged copy','old retirement','final placement'][phase]+' preserved foreign files and replayed the same receipt.');
     validateConformanceResult(receipt,'MaterialEffectReceipt');receipts.push(receipt);
-    assert.equal(receipt.targetLocation,original.location.replaceAll('\\','/'));
+    assert.equal(receipt.targetLocation,finalLocation.replaceAll('\\','/'));
     assert.deepEqual(receipt.retiredMaterials.map(item=>item.identity.materialKey),[target.materialKey]);
     assert.equal(receipt.supersededMaterialIdentity.materialKey,target.materialKey);
-    assert.deepEqual(fs.readFileSync(original.location),bytes);
+    assert.deepEqual(fs.readFileSync(finalLocation),bytes);
+    if(finalLocation!==original.location)assert.equal(fs.existsSync(original.location),false);
     assert.deepEqual(fs.readFileSync(receipt.supersededLocation),originalBytes);
     const replay=await effectPorts[C.artifactMaterialize].execute({...commit,recoveryDecision:'continue_forward'});
     assert.deepEqual(replay.result,receipt);
@@ -568,3 +599,19 @@ function validateConformanceResult(result,family='ConformanceAssessmentEvidence'
   const validator=createCapabilityContractValidator({schemas:[...schemas.values()]});
   validator.validate(schema.$id,result);
 }
+
+test('Aftercare projection marks a known retired Entry superseded but preserves missing or broken context errors',()=>{
+  const {createAftercareProjections}=require('../../src/helix/domains/arca/planning/aftercare-projections'),
+    {P}=require('../../src/helix/domains/arca/planning/aftercare-planners');
+  let current;
+  const projection=createAftercareProjections({contextReader:{read:()=>null,store:{currentContext:()=>current}},
+    materialControlProjectionPort:{getMaterialControlProjections:()=>[]},controlScopeDigest:canonicalDigest})
+    .find(item=>item.projectionRef===P.basis).projection;
+  const project=()=>projection.project({ownerScope:{processId:'entry'}});
+  for(const status of ['offdeck_in_progress','offdecked','deregistered']){
+    current={entry:{status}};assert.throws(project,{code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'});
+  }
+  for(const value of [null,{entry:{status:'active'}}]){
+    current=value;assert.throws(project,error=>error.code!=='P4_EXECUTION_INPUT_BASIS_SUPERSEDED');
+  }
+});

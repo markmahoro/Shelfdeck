@@ -1217,3 +1217,23 @@ test('superseded input basis closes an auditable Attempt without dispatching sta
     assert.equal(facts.attempt.failure_code,'P4_EXECUTION_INPUT_BASIS_SUPERSEDED');
   },{inputError:executionInputSuperseded('Owner basis advanced before dispatch.')});
 });
+
+test('pure observation recovery terminates an explicitly superseded input without dispatch or Effect writes',async()=>{
+  await fixture(async({runtime,databasePath,state})=>{
+    const result=await runtime.recover({eventId:'event',decision:'safe_retry'});
+    assert.equal(result.eventState,'failed');
+    const facts=databaseFacts(databasePath);assert.equal(facts.attempt.state,'completed');
+    assert.equal(facts.attempt.failure_code,'P4_EXECUTION_INPUT_BASIS_SUPERSEDED');assert.equal(facts.results,0);
+    assert.equal(state().dispatchContext,undefined);assert.deepEqual(state().journalCalls,[]);
+  },{initialEventState:'executing',seedExecutingAttempt:true,inputError:executionInputSuperseded('Owner retired the input.')});
+});
+
+for(const [effectClass,error] of [['workspace_write',executionInputSuperseded('Old input with an unknown file effect.')],
+  ['pure_observation',executionInputUnavailable('Owner temporarily unavailable.')],['pure_observation',new Error('Corrupt input.')]])
+  test('recovery preserves unresolved '+effectClass+' input '+error.message,async()=>{
+    await fixture(async({runtime,databasePath,state})=>{
+      await assert.rejects(runtime.recover({eventId:'event',decision:'safe_retry'}),value=>value===error);
+      assert.equal(databaseFacts(databasePath).attempt.state,'executing');
+      assert.equal(state().dispatchContext,undefined);assert.deepEqual(state().journalCalls,[]);
+    },{effectClass,initialEventState:'executing',seedExecutingAttempt:true,inputError:error});
+  });

@@ -431,3 +431,26 @@ test('Series Related deletion protects current Season and Movie consumers throug
     assert.deepEqual(seed.pragma('foreign_key_check'),[]);
   } finally { seed.close();kernel.close();fs.rmSync(root,{recursive:true,force:true}); }
 });
+
+for(const code of ['EPERM','EACCES','EBUSY','ENOTCONN','EIO'])test('Off-deck reports '+code+' at deletion without evidence and rechecks identity on retry',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'offdeck-delete-unavailable-')),remove=fs.rmSync;
+  try {
+    const location=path.join(root,'shared.srt');fs.writeFileSync(location,'authorized subtitle');
+    const fixture=deletionCapabilityFixture(root,'shared.srt',{value:0}),execution={eventId:'delete',idempotencyKey:'delete',
+      ownerScope:{processId:'case-1'},namedInputs:{unreferencedRelatedHandle:fixture.handle,
+        referenceReleaseResult:{referenceId:'related-1',shelfEntryId:'entry-1',remainingReferenceCount:0,factDigest:canonicalDigest('release')},
+        destructiveAuthorization:authorization}};
+    fs.rmSync=(target,options)=>{if(path.resolve(target)===location)throw Object.assign(new Error('Injected deletion outage'),{code});return remove(target,options);};
+    const failed=fixture.ports[CAPABILITY_REFS.relatedDelete].execute(execution);
+    assert.equal(failed.kind,'failed');assert.equal(failed.failureClass,'integration');
+    assert.equal(failed.code,'ARCA_OFFDECK_ENDPOINT_UNAVAILABLE');assert.equal(failed.retryDirective,'contract_policy');
+    assert.equal(failed.evidence.errorCode,code);assert.equal(fixture.evidence.length,0);
+    assert.equal(fs.readFileSync(location,'utf8'),'authorized subtitle');
+    fs.rmSync=remove;fs.writeFileSync(location,'different writer');
+    assert.throws(()=>fixture.ports[CAPABILITY_REFS.relatedDelete].execute(execution),{code:'ARCA_OFFDECK_AUTHORIZED_IDENTITY_REPLACED'});
+    assert.equal(fs.readFileSync(location,'utf8'),'different writer');assert.equal(fixture.evidence.length,0);
+    fs.writeFileSync(location,'authorized subtitle');
+    assert.equal(fixture.ports[CAPABILITY_REFS.relatedDelete].execute(execution).result.disposition,'deleted');
+    assert.equal(fixture.evidence.length,1);assert.equal(fs.existsSync(location),false);
+  } finally {fs.rmSync=remove;fs.rmSync(root,{recursive:true,force:true});}
+});

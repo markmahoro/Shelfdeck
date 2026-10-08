@@ -49,7 +49,15 @@ function createOffdeckCapabilityPorts(options){const now=options.now||Date.now,r
     const releaseResult=related?n.referenceReleaseResult:null;if(related&&(!releaseResult||releaseResult.referenceId!==material.relatedReferenceId||releaseResult.shelfEntryId!==c.case.shelf_entry_id))throw new Error('Related deletion lacks its exact durable Reference Release Result.');
     const remaining=related?Number(releaseResult.remainingReferenceCount):store.activeReferenceCount(material.materialKey,c.case.shelf_entry_id,reader.releasedRelatedReferenceIds());if(!related&&remaining>0)throw Object.assign(new Error('Primary material is referenced by another active Shelf Entry.'),{code:'ARCA_OFFDECK_PRIMARY_SHARED_INVARIANT'});
     let disposed;if(related&&remaining>0)disposed={disposition:'retained_due_to_active_reference',preDeleteIdentityDigest:canonicalDigest(handle.identity),postDeleteReality:{absent:false,replacementIdentityPresent:false,location:handle.location}};
-    else disposed=deletionPort.execute({materialHandle:handle,authorization:n.destructiveAuthorization,shelfTargetRoot:c.snapshot.shelf.target_root_location});
+    else {
+      try { disposed=deletionPort.execute({materialHandle:handle,authorization:n.destructiveAuthorization,shelfTargetRoot:c.snapshot.shelf.target_root_location}); }
+      catch(error) {
+        if(!['ARCA_OFFDECK_ENDPOINT_UNAVAILABLE','EACCES','EPERM','EBUSY','ENOTCONN','EIO'].includes(error?.code))throw error;
+        return Object.freeze({kind:'failed',failureClass:'integration',code:'ARCA_OFFDECK_ENDPOINT_UNAVAILABLE',
+          message:'The authorized Shelf Target is temporarily unavailable.',retryDirective:'contract_policy',
+          evidence:Object.freeze({errorName:String(error.name||'Error'),errorCode:error.code})});
+      }
+    }
     const at=now(),base={schemaRef:'helix://contracts/types/DeletionEvidence/v1',schemaVersion:1,evidenceId:stable('arca-offdeck-deletion-evidence-',{scope:c.scope.scope_digest,materialKey:material.materialKey}),
       evidenceKind:'offdeck_deletion',producerRef:ref,basisDigest:c.basisDigest,observedAtMs:at,authorizationOrApprovalRef:c.authorization.authorizationId,
       materialKey:material.materialKey,preDeleteIdentityDigest:disposed.preDeleteIdentityDigest,disposition:disposed.disposition,

@@ -620,6 +620,17 @@ function createEventRuntime(options) {
         'P4_EVENT_RECOVERY_INPUT_DRIFT', 'Recovery inputs differ from the durable Event Attempt snapshot.'
       );
     } catch (error) {
+      if(entry.manifest.effectClass==='pure_observation'&&request.decision==='safe_retry'&&isExecutionInputSuperseded(error)) {
+        const outcome=Object.freeze({kind:'failed',failureClass:'input_projection',code:error.code,
+          message:error.message,retryDirective:'never',evidence:Object.freeze({
+            originalInputDigest:attempt.input_snapshot_digest,dispatchStarted:false})});
+        const policyDecision=options.attemptPolicy.decideFailure(Object.freeze({
+          capabilityRef:snapshot.event.capability_ref,effectClass:snapshot.node.effect_class,
+          retryPolicyRef:policyBinding.retryPolicyRef,timeoutPolicyRef:policyBinding.timeoutPolicyRef,
+          failureAttemptCount:snapshot.attempts.filter(item=>item.outcome_kind==='failed').length+1,
+          outcome,recoveryDecision:request.decision}));
+        return complete(snapshot,attempt.event_attempt_id,outcome,policyDecision);
+      }
       // Only an exact, freshly proven absent atomic fact commit can end here.
       // Never infer absence for file effects or requests, or rebind old inputs.
       if (entry.manifest.effectClass !== 'domain_fact_commit' || request.decision !== 'safe_retry' ||

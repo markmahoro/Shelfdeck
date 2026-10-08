@@ -257,3 +257,9 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series Off-deck DoR：以真实N:M成品（共文件两集与E01独立part）在隔离正式Host上架后，经Review/Selection/Authorization退出整个Season；核对Scope按物理成员唯一、删除Evidence精确覆盖、范围外文件保护、终态Deck Fact/Control原子回滚与提交。遵守Arca独立退出与精确授权合同，不做单集部分退出，不触碰生产；其他Entry共享引用另作保护验证，不以此单Entry场景替代。
 
 2026-10-08 Series Off-deck：真实N:M成品经正式Review/Selection/Authorization完成整季退出，2个Primary/3条Claims未重复删除，6个材料精确结算，范围外文件保留；11表终态事务故障回滚/正常提交通过，Host 45秒。原生SQLite跨Season/Movie共享引用与实际删除保护、18项专项及架构/语义通过。仅测试/证据，跨收藏完整Host和进程恢复等仍待验证，整体发布Gate继续，无NAS部署。[Evidence](evidence/SERIES_OFFDECK_HOST_20261008.md)。
+
+2026-10-08 Series媒体物化进程恢复DoR：在既有混合成员Case冻结Evidence测试中，把正式Materialize Capability移入独立Node进程，分别在staged完成、原文件暂存和最终落位后退出；新进程用同一冻结输入恢复并复验Receipt稳定，冲突文件保持且拒绝覆盖。沿既有Arca恢复合同；此切片验证实际进程边界的文件效果，不冒充完整Service Host/数据库启动恢复或跨设备Gate。
+
+2026-10-08完整Off-deck Host重启验证前发现删除调用EPERM被抛为执行器异常：在Arca删除Capability内把既有端点不可用与明确文件系统权限/占用/I/O失败转为integration失败，沿现有Foundation policy和同Case blocked恢复，不写成功Evidence、不改变授权或放宽身份检查。新增删除失败/原文件保护/重试发现替换者拒绝测试；继续真实进程退出后的Host重启。
+
+2026-10-08 Series进程恢复：N:M媒体物化三个rename边界退出/新进程恢复及冲突保护通过；真实Off-deck Host在删除完成、terminal提交前退出，新Host完成唯一终态，第三次启动Evidence不变。主动注入EPERM仍沿同Case/同Authorization恢复，增强Host 115.1秒通过。修复删除环境错误分类与退出Entry旧Aftercare纯观察恢复；118项专项、全架构2,311通过/10skip/0失败。跨设备/其他中断点/UI/Linux等发布Gate继续，未部署NAS。[Evidence](evidence/SERIES_PROCESS_RECOVERY_20261008.md)。

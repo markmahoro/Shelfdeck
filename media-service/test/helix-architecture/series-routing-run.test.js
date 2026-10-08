@@ -183,7 +183,8 @@ function mediaProbe() {
   }};
 }
 for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck} of [...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test('Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit'+(offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?' with bounded real media Aftercare':nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:real||repair||migrate?300000:180000},async t=>{
-  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
+  const root=offdeck&&process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT?fs.realpathSync(process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT):
+    fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
   fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
@@ -213,7 +214,16 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot});
   const adapter=harness(),providerCalls=[],artifactCalls=[],appendCommitAudits=[],repairCommitAudits=[],offdeckCommitAudits=[];let unitOfWork,runtimeError,db;
   const poster=await sharp({create:{width:4,height:6,channels:3,background:'#224466'}}).jpeg().toBuffer();
-  const hostOptions={dataDir,adminDistDir,secretRoot,...((repair||migrate)?{aftercarePlaybackRunner:async()=>{}}:{}),...(real?{}:{mediaProbe:mediaProbe(),
+  let injectedDeleteFailures=0;
+  const deletionPort=require('../../src/clean-offdeck-deletion-port').createCleanOffdeckDeletionPort();
+  const hostOptions={dataDir,adminDistDir,secretRoot,...(offdeck&&process.env.HELIX_SERIES_OFFDECK_DELETE_FAILURE==='1'?{
+    offdeckDeletionPort:{inspect:deletionPort.inspect,execute(request){
+      if(injectedDeleteFailures===0&&request.materialHandle.location.endsWith('.mkv')){
+        injectedDeleteFailures++;throw Object.assign(new Error('Injected temporary Series deletion permission failure'),{code:'EPERM'});
+      }
+      return deletionPort.execute(request);
+    }},
+  }:{}),...((repair||migrate)?{aftercarePlaybackRunner:async()=>{}}:{}),...(real?{}:{mediaProbe:mediaProbe(),
     mediaProductionEffectPort:{
       async verifyPlayback(){return {samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('fixture-decode')};},
       async executeRemux(request){
@@ -234,6 +244,17 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     unitOfWorkDecorator(value){
       unitOfWork=Object.freeze({...value,execute(participants,...args){
         if(offdeck&&participants.some(item=>item.participantId==='arca_offdeck_terminal')) {
+          if(process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT&&path.resolve(process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT)===root) {
+            const entry=db.prepare('SELECT * FROM arca_shelf_entries').get(),materials=db.prepare('SELECT material_key,location,episode_claims_json FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=?').all(entry.shelf_entry_id,entry.current_inventory_revision);
+            assert.equal(entry.status,'offdeck_in_progress');assert.ok(materials.every(item=>!fs.existsSync(item.location)));
+            fs.writeFileSync(path.join(root,'crash-boundary.json'),JSON.stringify({entry,materials,
+              deletionEvidence:db.prepare('SELECT * FROM arca_offdeck_deletion_evidence').all(),
+              terminalReceipts:db.prepare('SELECT count(*) n FROM arca_offdeck_terminal_receipts').get().n,
+              injectedDeleteFailures,caseCount:db.prepare('SELECT count(*) n FROM arca_offdeck_cases').get().n,
+              authorizationCount:db.prepare('SELECT count(*) n FROM arca_offdeck_authorizations').get().n,
+              unavailableAttempts:db.prepare("SELECT event_id,failure_class,failure_code FROM fx_event_attempts WHERE failure_code='ARCA_OFFDECK_ENDPOINT_UNAVAILABLE'").all()}));
+            process.exit(73);
+          }
           const tables=['arca_shelf_entries','arca_inventory_materials','arca_deck_fact_revisions','arca_offdeck_scopes',
             'arca_offdeck_authorizations','arca_offdeck_cases','arca_offdeck_terminal_receipts','fx_material_controls',
             'fx_material_control_revisions','fx_commit_markers','fx_event_result_bindings'];
@@ -638,7 +659,8 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     do {
       assert.ifError(runtimeError);
       currentCase=db.prepare('SELECT * FROM arca_offdeck_cases WHERE offdeck_case_id=?').get(authorized.cases[0]);
-      if(currentCase&&['completed','blocked','awaiting_reauthorization'].includes(currentCase.state))break;
+      if(currentCase&&(currentCase.state==='completed'||currentCase.state==='awaiting_reauthorization'||
+          (currentCase.state==='blocked'&&!process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT)))break;
       await new Promise(resolve=>setTimeout(resolve,50));
     }while(Date.now()<until);
     assert.equal(currentCase?.state,'completed',JSON.stringify(currentCase));
