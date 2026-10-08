@@ -13,7 +13,8 @@ const root = path.resolve(__dirname, '../../src/helix/contracts');
 test('materializes the SSOT-exact Libra production application contracts reproducibly', () => {
   const schemas = buildLibraApplicationSchemas();
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'libra-application-type-registry.json'), 'utf8'));
-  assert.equal(registry.targetCount, 38);
+  assert.equal(registry.targetCount, 39);
+  assert.ok(schemas.LibraOffloadProductMaterialKeys);
   for (const [name, schema] of Object.entries(schemas)) {
     const stored = JSON.parse(fs.readFileSync(path.join(root, 'application-types', name, 'v1/schema.json'), 'utf8'));
     assert.deepEqual(stored, schema);

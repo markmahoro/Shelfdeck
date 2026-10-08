@@ -306,7 +306,8 @@ test('historical witness stays immutable and cannot authorize changed secondary-
   assert.deepEqual(changed,[
     'arca.acceptance.accept.commit@1','arca.acceptance.identity.verify@1','arca.acceptance.mandatory_media.verify@1',
     'arca.acceptance.metadata.verify@1','arca.acceptance.space.verify@1','arca.acceptance.structure.verify@1',
-    'arca.aftercare.conformance.observe@1','arca.aftercare.media.remux@1','arca.aftercare.media.transcode@1','arca.aftercare.media.verify@1',
+    'arca.aftercare.conformance.observe@1','arca.aftercare.input_settlement.delete@1','arca.aftercare.media.remux@1','arca.aftercare.media.transcode@1','arca.aftercare.media.verify@1',
+    'arca.inventory.final_product.verify@1','arca.ondeck.input_settlement.delete@1',
     'libra.external_material.acquire.request@1','libra.external_material.candidate.select@1',
     'libra.external_material.query.prepare@1','libra.external_material.search@1','libra.media.remux@1',
     'libra.media_cast.commit@1','libra.media_cast.resolve@1',

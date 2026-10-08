@@ -76,7 +76,7 @@
 
 不把 JAV/Western Adult、多用户、AI Upscale、Remote Worker、Desktop、理论全集/自动追更作为本次默认范围；改变这些范围需独立登记。新版本的名字和正式 tag 尚未分配。
 
-## 当前实现审查与测试事实
+## 起始准备审查（历史快照）
 
 | 已看到的实现/测试 | 证据路径 | 仍需核验 |
 | --- | --- | --- |
@@ -87,7 +87,7 @@
 | TMDB按显式Episode scope取单集，Planner生成Season和逐集NFO，Draft/Fact隔离单集资料 | `media-service/src/helix/integrations/tmdb-provider-adapter.js`、`media-service/src/helix/domains/libra/application/libra-production-planners.js` | 真实Foundation/Workspace/Fact commit和Artifact交付关联待贯通；普通长Season容量待覆盖，未传显式Episode范围的Provider查询仍拒绝episode_* |
 | 外部寻源/导入存在Series身份分支 | `media-service/src/helix/integrations/h1-provider-adapters.js` | MoviePilot落地快照要求恰好一条视频且Episode claims为空；搜索Episode keys取自请求而非候选实证，不能据此宣称真实剧集覆盖 |
 
-逐入口事实、测试命令及未覆盖项见[准备审查Evidence](evidence/SERIES_READINESS_AUDIT_20260930.md)。已有部分合同基础，但不能直接启用Series。完整差距审查仍需覆盖观察→Triage→Intake→Routing/Spec→各成员生产→Handoff B→Commit→Projection→Aftercare/退出。
+本表保留2026-09-30起始事实，不代表最新实现；当前节点状态见下表，交付明细见后续Evidence。逐入口事实、测试命令及未覆盖项见[准备审查Evidence](evidence/SERIES_READINESS_AUDIT_20260930.md)。已有部分合同基础，但不能直接启用Series。完整差距审查仍需覆盖观察→Triage→Intake→Routing/Spec→各成员生产→Handoff B→Commit→Projection→Aftercare/退出。
 
 ## 用户确认的5个节点与验收职责
 
@@ -95,11 +95,11 @@
 
 | 顺序 | 工作项 / Owner | 验收门槛 | 当前状态 |
 | --- | --- | --- | --- |
-| 节点1 | 剧集资料与生产基础 / Platform、Libra | 明确Season/Episode身份，逐集Observation/Draft/NFO/Artifact按冻结Run范围生产，完整Result与Provenance链 | 实际资料/Artifact/Fact调度、24集容量及逐Primary源探测已验证；产品验证/加工与交付关联待贯通，节点未关闭 |
-| 节点2 | 首批剧集完整上架 / Procurement、Libra、Arca | E01/E02从Field到唯一Season Entry；正式Handoff/Commit、真实媒体及相应用户路径；UI负责人验收可见变化 | 依赖节点1及适用合同/fixture门禁 |
-| 节点3 | 持续追加与复杂文件映射 / Libra、Arca | E03扩充同Entry，旧Run/集事实不改写；重叠/并发/重复及N:M、逐集空间验收；可见变化交UI负责人验收 | 依赖节点2 |
-| 节点4 | 完整运营与用户体验 / Procurement、Libra、Arca、UI负责人 | 外部实际Episode覆盖、失败/重启、Aftercare/共享材料退出；Season用户旅程、适用状态及UI负责人验收 | 依赖对应纵向能力 |
-| 节点5 | Movie回归与Series发布资格 / 实施、UI与发布责任方 | 冻结SHA的Windows/Linux、真实媒体/浏览器、升级/回退及数据保护；UI验收结论绑定最终受影响版本 | 前述节点完成后执行 |
+| 节点1 | 剧集资料与生产基础 / Platform、Libra | 明确Season/Episode身份，逐集Observation/Draft/NFO/Artifact按冻结Run范围生产，完整Result与Provenance链 | 资料/Artifact/Fact、逐成员Direct/Remux/Transcode及交付已通过隔离Host；24集已验证。完整外部链路及适用UI门禁仍开放；现行32物理成员上限不外推为1024，节点未关闭 |
+| 节点2 | 首批剧集完整上架 / Procurement、Libra、Arca | E01/E02从Field到唯一Season Entry；正式Handoff/Commit、真实媒体及相应用户路径；UI负责人验收可见变化 | 首批唯一Season Entry完整隔离Host及真实短媒体已通过；真实用户路径与UI验收未完成 |
+| 节点3 | 持续追加与复杂文件映射 / Libra、Arca | E03扩充同Entry，旧Run/集事实不改写；重叠/并发/重复及N:M、逐集空间验收；可见变化交UI负责人验收 | E03追加、并发非重叠、旧集保护及真实N:M已验证；其他故障/平台及适用UI验收仍开放 |
+| 节点4 | 完整运营与用户体验 / Procurement、Libra、Arca、UI负责人 | 外部实际Episode覆盖、失败/重启、Aftercare/共享材料退出；Season用户旅程、适用状态及UI负责人验收 | NFO/Placement/媒体维修、Off-deck及部分进程恢复已验证；完整外部获取受EpisodeDelivery合同缺口阻断，后加工/恢复及UI用户旅程仍开放 |
+| 节点5 | Movie回归与Series发布资格 / 实施、UI与发布责任方 | 冻结SHA的Windows/Linux、真实媒体/浏览器、升级/回退及数据保护；UI验收结论绑定最终受影响版本 | Windows架构/原生回归及Web构建持续验证；Linux、UI精确版本、生产副本升级/回退与其他真实媒体矩阵未完成，禁止据此宣称可部署 |
 
 N:M计量规则已确认，完整证据接线仍待节点3验证；S00、身份纠正及Episode级恢复在所属节点开工前核对SSOT并满足DoR，不把未知合同藏进实现，也不以节点编号另建全局台账。
 
@@ -363,3 +363,11 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series内部耗尽DoR：复用Movie既有有界策略语义，仅真实media_device_strategies_exhausted或完成有界策略后仍未达成可加工规格时进入同成员完整关联Scope寻源；完整性拒绝与其他技术失败保留终止，实测仅体积差距保持质量保护终态。用受控H.264不支持的像素格式/设备快照在正式Host验证本地Assessment耗尽后搜索拒绝与源保护，不依赖尚未确认的EpisodeDelivery合同。
 
 2026-10-08 Series本地策略耗尽：完整Scope寻源已接线，明确策略耗尽与其他技术失败分开处理，质量保护保留首个实测仅体积成品。隔离正式Host耗尽→搜索拒绝、技术失败不寻源及普通上架回归通过，46项专项/P2/架构/语义通过。完整外部替换仍等待EpisodeDelivery合同决定；不关闭后加工/恢复/发布Gate，无NAS操作。[Evidence](evidence/SERIES_LOCAL_EXHAUSTION_ROUTING_20261008.md)。
+
+2026-10-08容量合同审查：seriesSpaceBasis.members[1..32]与完整ProductMediaCandidateInput≤64 KiB明确写在SSOT §8.6.18，对应实现/schema一致；上游Run/通用计量的1024成员并不自动授权扩大该typed输入。最多32个物理Primary是当前合同适用边界；超过此范围需要另行合同决定，本轮不擅自扩大合同、裁剪成员或另增“首版必须支持1024”的发布条件。24集既有Host通过不能推导长Season通过。
+
+2026-10-08正式Series观察入口DoR：沿UI负责人2026-10-08已给出的来源类型衔接设计及SSOT既有Series Field合同，Procurement Admin现有observe接口允许movie/series，其余Profile继续明确拒绝；身份/revision/幂等及Owner observation不变。Series纵向Host改经正式HTTP命令而非内部绕行；验证正常上架和不支持Profile零Work。页面类型选择、浏览器走查及UI负责人同版本接受仍未完成，不宣称UI PASS。
+
+2026-10-08正式Series观察入口：公开Admin HTTP已完成首次上架及E03追加，不再直接调用内部observation；Movie/Series幂等准入、stale拒绝、其他Profile零Work共9项专项及P2/架构/语义通过。当前节点表按实际交付刷新，起始审查明确标为历史。UI页面与同版本接受、完整外部链路及发布Gate仍开放，未操作NAS。[Evidence](evidence/SERIES_PUBLIC_OBSERVATION_20261008.md)。
+
+2026-10-08基线全架构277文件：2384通过/7失败/10既有skip，边界/语义/manifest/P2均通过；失败为既有Offload扩展的固定摘要/计数、历史witness差异清单及事务fixture双variant数据。保留合同与witness，修正后5文件231项复验通过。正式Admin入口首次上架/追加/并发三个Host通过；Web构建成功，原生126通过/2skip。最终完整发布SHA仍须独立验收，详见同一[Evidence](evidence/SERIES_PUBLIC_OBSERVATION_20261008.md)。

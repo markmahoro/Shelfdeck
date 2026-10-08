@@ -337,10 +337,10 @@ function createProcurementAdminApplication(options) {
             { fieldId },
           );
         }
-        if (field.currentProfileHintSnapshot?.contentProfileHint !== 'movie') {
+        if (!['movie','series'].includes(field.currentProfileHintSnapshot?.contentProfileHint)) {
           throw new ProcurementAdminApplicationError(
             'ADMIN_MEDIA_PROFILE_UNSUPPORTED',
-            '当前Milestone只支持Movie Material Field。',
+            '暂不支持该媒体类型。',
             { contentProfileHint: field.currentProfileHintSnapshot?.contentProfileHint },
           );
         }

@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Series正式观察入口：后台现有Admin API允许movie/series，其他Profile保持拒绝；9项真实SQLite准入/幂等/过期拒绝专项通过。首次上架37.1秒、同Season E03追加94.1秒、两个来源并发93.6秒均从正式HTTP入口通过。基线全架构2384通过/7失败/10skip，7项Offload扩展后的陈旧fixture/断言已修复，相关231项复验通过；Web构建及原生126通过/2skip。页面/浏览器及UI负责人同版本接受未完成；未操作NAS。[Evidence](implementation/evidence/SERIES_PUBLIC_OBSERVATION_20261008.md)。
+
 2026-10-08 Series本地耗尽寻源：真实策略耗尽后进入完整关联Scope，其他技术失败保持终止；首个实测仅体积成品仍走既有质量保护。耗尽→搜索拒绝、技术失败不寻源、普通Direct/Remux Host及46项专项/P2/架构/语义通过。EpisodeDelivery合同缺口及整体发布Gate仍开放，未操作NAS。[Evidence](implementation/evidence/SERIES_LOCAL_EXHAUSTION_ROUTING_20261008.md)。
 
 2026-10-08 外部Host修复：Series源像素缺口不再误走Movie路径，Query读取正式Run basis；搜索拒绝Host3.7秒、普通Host36.7秒、57项专项通过。Movie后加工残留候选次数调用修复，真实Transcode/Remux上架45.1/38.4秒通过。用户暂保留EpisodeDelivery逐集Requirement摘要合同缺口，完整外部替换Host显式skip，尚不可部署；未操作NAS。[Evidence](implementation/evidence/SERIES_EXTERNAL_HOST_GAPS_20261008.md)。

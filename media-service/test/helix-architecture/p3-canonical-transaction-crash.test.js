@@ -128,6 +128,11 @@ function domainRows(contract, owner) {
       }
       row[column] = valueFor(tableId, column, definition, owner, sequence);
     }
+    if (tableId === 'libra_offload_context_materials') {
+      // This atomicity fixture uses the scalar target variant.
+      row.final_product_material_keys_json = null;
+      row.final_product_material_keys_schema_ref = null;
+    }
     if (tableId === 'people_registration_candidates') {
       row.candidate_json = JSON.stringify({ proposedName: row.proposed_name });
     }

@@ -180,3 +180,31 @@ test('Field Observation Planner fail-closes a missing root as contract_unplannab
   assert.equal(plan.diagnosticClassification, 'FIELD_OBSERVATION_ROOT_UNAVAILABLE');
   assert.deepEqual(plan.nodes, []);
 });
+
+
+for(const profile of ['movie','series','jav','western_adult','mixed'])test('Admin observation preserves the exact '+profile+' admission boundary',async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-profile-admission-'));
+  const databasePath=path.join(root,'shelfdeck.db'),kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest});
+  const db=new Database(databasePath,{readonly:true});
+  t.after(()=>{db.close();kernel.close();fs.rmSync(root,{recursive:true,force:true});});
+  let wakes=0;
+  const admin=createProcurementAdminApplication({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel}),
+    executionRuntimeHost:{wake(){wakes++;}}});
+  admin.registerMaterialField({...registration(root),contentProfileHint:profile},{credentialRevision:1});
+  const command={fieldId:'field-1',idempotencyKey:'observe',expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8};
+  if(['movie','series'].includes(profile)){
+    const first=await admin.requestFieldObservation('field-1',command);
+    const repeated=await admin.requestFieldObservation('field-1',command);
+    assert.match(first.observation.observationWorkId,/^field-observation-work-/);
+    assert.equal(first.observation.observationWorkId,repeated.observation.observationWorkId);
+    assert.equal(repeated.observation.replayed,true);
+    assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works').get().n,1);
+    await assert.rejects(()=>admin.requestFieldObservation('field-1',{...command,idempotencyKey:'stale',expectedAccessRevision:2}),
+      error=>error.code==='ADMIN_FIELD_CONFLICT'&&error.details.reasonCode==='FIELD_OBSERVATION_ADMIN_FENCE_CONFLICT');
+    assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works').get().n,1);
+    assert.ok(wakes>0);
+  }else{
+    await assert.rejects(()=>admin.requestFieldObservation('field-1',command),error=>error.code==='ADMIN_MEDIA_PROFILE_UNSUPPORTED');
+    assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works').get().n,0);assert.equal(wakes,0);
+  }
+});

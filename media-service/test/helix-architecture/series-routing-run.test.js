@@ -398,14 +398,11 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       expectedPolicyId:null,expectedRevision:0,policy:{routingPolicyId:'series-routing-2',mode:'sorting',targets:[
         {shelfId:'series-shelf',rank:1,matchExpression:{nodeKind:'predicate',factKind:'release_year',operator:'gte',expectedValue:2020}}]}});
   }
-  // The product entry remains Movie-only. Exercise the owning observation command;
-  // Host fallback reconciliation supplies the real Work, Planner and Event runtime.
   const deps={schemaManifest,unitOfWork};
-  const observation=createFieldObservationAdminService({...deps,materialFieldStore:createMaterialFieldStore(deps),
-    executionRuntimeHost:{wake(){}}});
-  observation.observe({idempotencyKey:'series-observe',fieldId:'series-field',
-    expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
-  if(concurrent)observation.observe({idempotencyKey:'series-observe-2',fieldId:'series-field-2',expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
+  await request('POST','/v1/admin/material-fields/series-field/actions/observe',{
+    idempotencyKey:'series-observe',fieldId:'series-field',expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
+  if(concurrent)await request('POST','/v1/admin/material-fields/series-field-2/actions/observe',{
+    idempotencyKey:'series-observe-2',fieldId:'series-field-2',expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
   db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
   if(concurrent){
     const waitFor=async(predicate,label)=>{const until=Date.now()+150000;while(!predicate()&&Date.now()<until){
@@ -983,7 +980,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const oldInventory=JSON.stringify(immutableInventory(inventory)),oldFacts=JSON.stringify(db.prepare('SELECT * FROM arca_deck_fact_revisions').all());
     fs.writeFileSync(path.join(source,'Demo Show.S01E03.mkv'),'third-series-fixture');
     const field=createMaterialFieldStore(deps).getMaterialField('series-field');
-    observation.observe({idempotencyKey:'series-observe-e03',fieldId:'series-field',expectedAccessRevision:1,
+    await request('POST','/v1/admin/material-fields/series-field/actions/observe',{idempotencyKey:'series-observe-e03',fieldId:'series-field',expectedAccessRevision:1,
       expectedObservationRevision:field.currentObservationRevision,pageBudget:8});
     const appendDeadline=Date.now()+70000;
     do {
