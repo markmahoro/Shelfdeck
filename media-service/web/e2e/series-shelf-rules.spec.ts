@@ -11,6 +11,7 @@ test('edits per-Episode Series limits without changing Movie rules', async ({ pa
   const own = { ...system, templateId: 'own', ownerKind: 'user' };
   let draft = { templateId: 'own', draftRevision: 1, basePublishedRevision: 1, rulesSchemaRef: RULES_SCHEMA_REF, rules, rulesDigest: 'initial' };
   let published = false;
+  let conflict = true;
   let releasePublish!: () => void;
   const publishGate = new Promise<void>(resolve => { releasePublish = resolve; });
   const errors: string[] = [];
@@ -21,10 +22,11 @@ test('edits per-Episode Series limits without changing Movie rules', async ({ pa
     if (path.endsWith('/actions/copy')) { await route.fulfill({ json: { template: own, draft, replayed: false } }); return; }
     if (path.endsWith('/draft')) {
       if (route.request().method() === 'PATCH') {
+        if (conflict) { conflict = false; await route.fulfill({status:409,json:{error:{code:'ADMIN_RULE_TEMPLATE_CONFLICT',message:'Internal conflict',details:{reasonCode:'P14_RULE_TEMPLATE_HEAD_CAS'},correlationId:'test'}}}); return; }
         const body = route.request().postDataJSON();
         validateRuleTemplateRules(body.rulesSchemaRef, body.rules, body.rulesDigest);
         draft = { ...draft, rules: body.rules, rulesDigest: body.rulesDigest, draftRevision: 2 };
-        await route.fulfill({ json: draft });
+        await route.fulfill({ json: { draft, replayed: false } });
       } else await route.fulfill({ json: { templateId: 'own', writable: true, draft } });
       return;
     }
@@ -56,6 +58,14 @@ test('edits per-Episode Series limits without changing Movie rules', async ({ pa
   await dialog.getByLabel('媒体类型').selectOption('series');
   await expect(dialog.getByLabel('每集空间上限 GiB').nth(1)).toHaveValue('0.5');
   await dialog.getByRole('button', { name: '预览影响' }).click();
+  await expect(dialog.getByRole('alert')).toContainText('规则版本已变化，当前修改尚未发布。');
+  await expect(dialog.getByRole('alert')).not.toContainText('P14_');
+  await expect(dialog.getByLabel('每集空间上限 GiB').nth(1)).toHaveValue('0.5');
+  await expect(dialog.getByRole('button', { name: '返回查看最新规则' })).toBeEnabled();
+  await expect(dialog.getByRole('button', { name: '发布整理标准' })).toBeDisabled();
+  await page.screenshot({path:testInfo.outputPath('series-standard-conflict.png'),fullPage:true});
+  await dialog.getByRole('button', { name: '预览影响' }).click();
+
   await expect(dialog.getByRole('button', { name: '发布整理标准' })).toBeEnabled();
   expect((await new AxeBuilder({ page }).include('[role="dialog"]').analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath('series-standard.png'), fullPage: true });

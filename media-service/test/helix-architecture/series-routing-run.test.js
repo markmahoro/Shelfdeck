@@ -679,6 +679,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   for(const spec of state.specs) {
     assert.equal(spec.content_profile,'series');
     assert.deepEqual(JSON.parse(spec.spec_json).productScope.episodeKeys,episodeKeys);
+    if(browserJourney)assert.deepEqual(JSON.parse(spec.spec_json).requirements.space,{unit:'episode',maxSizeGiB:0.5,maxSizeBytes:536870912});
   }
   assert.ok(providerCalls.some(call=>call.operationId===undefined&&call.intent.contentProfile==='series'&&call.intent.seasonNumber===1));
   const claims=db.prepare('SELECT episode_key FROM libra_run_material_episode_claims ORDER BY episode_key').all();

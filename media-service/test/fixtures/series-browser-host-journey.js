@@ -49,6 +49,21 @@ async function open({ host, apiKey }) {
       await page.getByLabel('收藏架名称', { exact: true }).fill('Series fixture');
       await screenshot('shelf-empty-form');
       await page.getByRole('combobox', { name: '规则模板', exact: true }).selectOption(ruleTemplateId);
+      await page.getByRole('button', { name: '复制模板', exact: true }).click();
+      const standard = page.getByRole('dialog', { name: '复制并发布自己的整理标准', exact: true });
+      await standard.getByLabel('媒体类型').selectOption('series');
+      await standard.getByLabel('每集空间上限 GiB', { exact: true }).first().fill('0.5');
+      await standard.getByRole('button', { name: '预览影响', exact: true }).click();
+      await expect(standard.getByRole('button', { name: '发布整理标准', exact: true })).toBeEnabled();
+      await screenshot('series-standard-preview');
+      const publication = page.waitForResponse(response => response.request().method() === 'POST' &&
+        response.url().endsWith('/actions/publish'));
+      await standard.getByRole('button', { name: '发布整理标准', exact: true }).click();
+      const published = await publication;
+      assert.ok(published.ok(), await published.text());
+      await expect(standard).toHaveCount(0);
+      await expect(page.getByRole('region', { name: '剧集整理标准' })).toContainText('每集 · 最多 0.5 GiB');
+
       await page.getByLabel('收藏最终目录', { exact: true }).fill(targetRootLocation);
       await page.getByLabel('目录命名', { exact: true }).fill('{title}');
       await page.getByLabel('命名示例').selectOption('series_shared');
@@ -146,7 +161,9 @@ async function open({ host, apiKey }) {
       }
       assert.deepEqual(errors, []);
     },
-    async close() { await browser.close(); },
+    async close() {
+      try { await screenshot('last-state'); } finally { await browser.close(); }
+    },
   };
 }
 

@@ -1,5 +1,7 @@
 # 当前活动包：Series 开发
 
+2026-10-08 真实规则发布修复：已发布用户模板的旧Draft基线/响应解包错误修复，保留双CAS；冲突固定在弹窗操作区并保留输入。页面0.5GiB/集进入正式Spec且实际上架38.35秒通过，131前端/8浏览器/5正式HTTP及构建/P2通过。c7354defd创建授权段已获接受，新修复待负责人复验；其他发布Gate继续，无NAS动作。[Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
+
 2026-10-08 浏览器收藏架与授权：页面创建收藏架/选择模板/命名预览及自动清理确认接入来源至上架旅程，动态Shelf ID及实际结算断言38.35秒通过。负责人已接受a2910cc08来源段，新增创建/授权待验收；规则模板仍API预置，完整发布Gate继续，未操作NAS。[Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。
 
 2026-10-08 浏览器来源到上架：真实页面登记Series来源、发布年份分拣并扫描，接续人工身份/Arca上架/收藏双视口38.41秒通过；仅测试增量。负责人已接受573444125登录至收藏段，新增来源段待复验。收藏架/规则仍由API配置，完整运营/外部及发布Gate继续。[Evidence](evidence/SERIES_BROWSER_HOST_JOURNEY_20261008.md)。

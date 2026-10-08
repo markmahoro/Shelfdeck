@@ -216,6 +216,7 @@ export default function ShelvesPage() {
   const [templates, setTemplates] = useState<RuleTemplate[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [standardConflict, setStandardConflict] = useState(false);
   const [notice, setNotice] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [shelfId, setShelfId] = useState(newShelfId);
@@ -418,7 +419,10 @@ export default function ShelvesPage() {
     if (!working && source.ownerKind === 'user') {
       const current = await helixAdminApi.getRuleTemplateDraft(source.templateId);
       if (!current.writable || !current.draft) throw new Error('系统推荐模板不可改写，请复制后再发布。');
-      working = { template: source, draft: current.draft };
+      // Edits are initialized from the displayed published revision, not an older saved draft.
+      working = { template: source, draft: { ...current.draft,
+        basePublishedRevision: source.currentRevision,
+        rules: current.draft.basePublishedRevision === source.currentRevision ? current.draft.rules : source.current.rules } };
       setPreparedDraft(working);
     }
     if (!working) {
@@ -446,7 +450,12 @@ export default function ShelvesPage() {
       setStandardPreview(await helixAdminApi.previewRuleTemplate(prepared.template, prepared.draft));
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
-      else setError(commandError(cause, '整理标准预览失败。'));
+      else {
+        const conflict = cause instanceof AdminApiError && cause.code === 'ADMIN_RULE_TEMPLATE_CONFLICT';
+        setStandardConflict(conflict);
+        setError(conflict ? '规则版本已变化，当前修改尚未发布。' : commandError(cause, '整理标准预览失败。'));
+        setLoading(false);
+      }
     } finally { setLoading(false); }
   }
   async function publishStandard() {
@@ -467,7 +476,12 @@ export default function ShelvesPage() {
       await load();
     } catch (cause) {
       if (isUnauthorized(cause)) expire();
-      else { setError(commandError(cause, '整理标准发布失败。')); setLoading(false); }
+      else {
+        const conflict = cause instanceof AdminApiError && cause.code === 'ADMIN_RULE_TEMPLATE_CONFLICT';
+        setStandardConflict(conflict);
+        setError(conflict ? '规则版本已变化，当前修改尚未发布。' : commandError(cause, '整理标准发布失败。'));
+        setLoading(false);
+      }
     }
   }
 
@@ -498,7 +512,7 @@ export default function ShelvesPage() {
       <div className="source-create-footer"><Button variant="primary" type="submit" disabled={loading || activeTemplates.length === 0}>{loading ? '正在验证并保存…' : '创建收藏架'}</Button></div>
     </form>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
-    {error && <p className="form-error" role="alert">{error}</p>}
+    {error && !standardEditor && <p className="form-error" role="alert">{error}</p>}
     <div className="source-registry">
       {managedShelves.length === 0 ? <div className="source-empty"><strong>还没有当前收藏架</strong></div> : managedShelves.map((shelf) => <article className="source-record shelf-record" key={shelf.shelfId}>
         <div className="source-record-main">
@@ -579,7 +593,9 @@ export default function ShelvesPage() {
           </div>}
         </div>
         <div className="dialog-actions">
+          {error && <p className="form-error standard-editor-error" role="alert">{error}</p>}
           <Button type="button" disabled={loading} onClick={() => setStandardEditor(null)}>返回</Button>
+          {error && standardConflict && <Button type="button" disabled={loading} onClick={() => { setStandardEditor(null); void load(); }}>返回查看最新规则</Button>}
           <Button type="button" disabled={loading} onClick={() => void previewStandard()}>{loading ? '正在预览…' : '预览影响'}</Button>
           <Button variant="primary" type="button" disabled={loading || !standardPreview} onClick={() => void publishStandard()}>发布整理标准</Button>
         </div>

@@ -49,3 +49,23 @@ UI负责人在turn `01a11b12-a149-70b3-8bdf-6423d7e2f591`正式接受精确提�
 最终无API拦截旅程1项通过/0skip，38.35秒，`series-browser-shelf-v4.log`；截图 `series-browser-shelf-v4/` 新增 settlement-authorization、shelf-empty-form、shelf-create、shelf-created。首次新增脚本错误等待空态不存在的“新建收藏架”按钮，第二次标签查询未匹配模板控件，按实际空态和combobox名称修正；产品未变更。前一轮创建专项38.39秒通过，最终轮另去除授权API预置后复验成功。JS语法与diff检查通过。
 
 仅测试/文档增量，未重复构建或全量测试。待负责人对新增桌面创建及授权段验收。规则模板本身仍通过正式API预置（使混合Direct/Remux要求精确），规则编辑/发布的真实页面路径、追加/运营、外部交付和升级回退仍开放。所有媒体和文件清理限定临时测试目录，未操作NAS。
+
+## 规则再次编辑与真实发布修复
+
+UI负责人turn `01a11b1b-9672-72b2-a52f-4bb67d38e3e4`已接受 `c7354defd82ab8d6ee7cd34c94339649bc062e80` 的桌面收藏架创建/自动清理授权路径，亲自复跑38.16秒通过。
+
+本轮真实规则编辑复现两处前端缺陷：已发布revision2后继续沿用Draft的旧basePublishedRevision1，触发HEAD_CAS；PATCH实际返回 `{draft,replayed}`，前端误当草稿本体而未消费新draftRevision，触发PREVIEW_CAS。旧浏览器测试桩也错误返回裸draft，未覆盖此差异。
+
+按SSOT §9.6.3，发布后继续从用户看到的current revision编辑。页面以该已显示版本作为base，保留最新读取Draft的expectedDraftRevision；仅当草稿基线已经过期时，内容从显示版本重新建立，当前基线的可恢复Draft继续保留。请求幂等键加入basePublishedRevision，接口严格解包正式draft响应，随后Preview/Publish消费实际新revision/digest。未修改Arca双CAS或Domain边界，不自动采用现场新head，不自动覆盖或重试发布。
+
+负责人turn `01a11b1e-3420-72b1-9148-4b906c4b5f55`确认修复方向并要求冲突在弹窗内可见。冲突现以短提示显示在固定操作区，保留输入，提供“返回查看最新规则”；此动作明确退出编辑并刷新供用户核对，不自动重新提交。窄屏操作按钮换行，避免挤成竖排。初次将提示置于滚动体末尾仍不可见，截图检查后移到固定区。
+
+验证：
+
+- 真实页面修改未评分Series每集上限0.5GiB，预览/发布/建架/扫描/身份确认/实际上架全部通过；每份正式Acceptance Spec断言 `{unit:episode,maxSizeGiB:0.5,maxSizeBytes:536870912}`。最终功能轮38.35秒，`series-browser-rules-v5.log`，截图同名目录。随后仅调整错误操作区布局，双视口走查覆盖最终布局。
+- 前端26文件131项通过，包含用户模板旧Draft基线、未编辑Movie字段保持、head/draft冲突保留输入且不自动重试；`series-rules-head-web-v4.log`。
+- Series双视口8项通过，测试桩按真实draft响应，冲突就地反馈/输入保留/键盘和Axe复验；`series-rules-head-browser-v4.log`。冲突截图在仓库忽略目录 `.codex/series-browser/series-shelf-rules-*/series-standard-conflict.png`，已视觉检查。
+- 正式Rule Template HTTP5项通过，追加head/draft双CAS拒绝后Draft内容与revision不变；`series-rules-head-http-v2.log`。
+- Admin构建、P2、JS/diff检查通过；未改变服务实现，不重复全架构或Linux媒体回归。
+
+本轮初始失败日志 `series-browser-rules{,-v2,-v3}.log` 保留，未以测试桩替代真实失败。仍从正式API预置的现有用户模板开始编辑（预置保留混合Remux的fileExtension要求）；首次从系统模板复制已有受控测试，尚不宣称全配置冷启动。新增修复版本待负责人验收，运营/外部交付/升级回退等整体门槛不关闭，未操作NAS。

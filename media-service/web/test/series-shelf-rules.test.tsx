@@ -2,7 +2,7 @@ import { createRequire } from 'node:module';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import ShelvesPage, { applyProfileEdits, namingExamples } from '../src/helix/ShelvesPage';
-import { canonicalDigest, helixAdminApi, type RuleTemplateRules } from '../src/helix/api';
+import { AdminApiError, canonicalDigest, helixAdminApi, type RuleTemplateRules } from '../src/helix/api';
 
 const require = createRequire(import.meta.url);
 const { BETA_RECOMMENDED_RULES, RULES_SCHEMA_REF, validateRuleTemplateRules } = require('../../src/helix/domains/arca/model/rule-template-contracts.js');
@@ -94,4 +94,45 @@ it('keeps Series naming examples aligned with Arca shared-file and part stems',(
   }
   const movie=namingExamples(DEFAULT_SHELF_PLACEMENT_POLICY,'movie');
   expect(movie.directory).toBe('示例电影 (2026)');expect(movie.names[0]).toBe('示例电影 (2026).mkv');
+});
+
+it.each(['success', 'head_conflict', 'draft_conflict'])('edits a published template while retaining draft CAS: %s', async outcome => {
+  const rules = structuredClone(BETA_RECOMMENDED_RULES);
+  const oldRules = structuredClone(rules);
+  oldRules.profileRuleSets.find((p: any) => p.contentProfile === 'movie').baseRequirements.requiredFieldCodes = ['title'];
+  const template: any = { templateId: 'own', name: 'Own', ownerKind: 'user', status: 'active', currentRevision: 2,
+    current: { revision: 2, rules, rulesDigest: 'published' } };
+  const draft: any = { templateId: 'own', draftRevision: 7, basePublishedRevision: 1,
+    rulesSchemaRef: RULES_SCHEMA_REF, rules: oldRules, rulesDigest: 'old' };
+  vi.spyOn(helixAdminApi, 'listShelves').mockResolvedValue({ items: [] });
+  vi.spyOn(helixAdminApi, 'listRuleTemplates').mockResolvedValue({ items: [template] });
+  vi.spyOn(helixAdminApi, 'getRuleTemplateDraft').mockResolvedValue({ templateId: 'own', writable: true, reasonCode: null, draft });
+  const revise = vi.spyOn(helixAdminApi, 'reviseRuleTemplateDraft').mockImplementation(async (basis, next) => {
+    if (outcome !== 'success') throw new AdminApiError(409, 'ADMIN_RULE_TEMPLATE_CONFLICT', 'Internal conflict',
+      { reasonCode: outcome === 'head_conflict' ? 'P14_RULE_TEMPLATE_HEAD_CAS' : 'P14_RULE_TEMPLATE_DRAFT_CAS' });
+    return { ...basis, draftRevision: 8, rules: next };
+  });
+  const preview = vi.spyOn(helixAdminApi, 'previewRuleTemplate').mockResolvedValue({ templateId: 'own', affectedShelfCount: 0, currentEntryPotentialGapCount: 0 } as any);
+  render(<ShelvesPage />);
+  fireEvent.change(await screen.findByRole('combobox', { name: '规则模板' }), { target: { value: 'own' } });
+  fireEvent.click(await screen.findByRole('button', { name: '复制模板' }));
+  const dialog = within(screen.getByRole('dialog'));
+  fireEvent.change(dialog.getByLabelText('媒体类型'), { target: { value: 'series' } });
+  fireEvent.change(dialog.getAllByLabelText('每集空间上限 GiB')[0], { target: { value: '0.5' } });
+  fireEvent.click(dialog.getByRole('button', { name: '预览影响' }));
+  if (outcome !== 'success') {
+    expect(await dialog.findByRole('alert')).toHaveTextContent('规则版本已变化，当前修改尚未发布。');
+    expect(dialog.getByRole('alert')).not.toHaveTextContent('P14_');
+    expect(dialog.getAllByLabelText('每集空间上限 GiB')[0]).toHaveValue(0.5);
+    expect(dialog.getByRole('button', { name: '返回查看最新规则' })).toBeEnabled();
+    expect(dialog.getByRole('button', { name: '发布整理标准' })).toBeDisabled();
+    expect(revise).toHaveBeenCalledTimes(1);
+    expect(preview).not.toHaveBeenCalled();
+    return;
+  }
+  await waitFor(() => expect(dialog.getByRole('button', { name: '发布整理标准' })).toBeEnabled());
+  expect(revise.mock.calls[0][0]).toMatchObject({ basePublishedRevision: 2, draftRevision: 7 });
+  expect(revise.mock.calls[0][1].profileRuleSets.find(p => p.contentProfile === 'movie')).toEqual(rules.profileRuleSets.find((p: any) => p.contentProfile === 'movie'));
+  expect(preview.mock.calls[0][0]).toMatchObject({ currentRevision: 2 });
+  expect(preview.mock.calls[0][1]).toMatchObject({ draftRevision: 8, basePublishedRevision: 2 });
 });

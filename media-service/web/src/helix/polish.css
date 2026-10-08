@@ -288,3 +288,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .overview-page .background-status-popup .background-status-detail { padding: 0; }
 .overview-page .background-status-detail > div { grid-template-columns: minmax(100px, 1fr) max-content 160px minmax(100px, 1fr); }
 .overview-page .background-status-detail .ui-state { white-space: nowrap; }
+
+.shelf-standard-dialog .dialog-actions { flex-wrap: wrap; }
+.shelf-standard-dialog .dialog-actions .btn { flex-shrink: 0; }
+.shelf-standard-dialog .standard-editor-error { flex-basis: 100%; margin: 0; }

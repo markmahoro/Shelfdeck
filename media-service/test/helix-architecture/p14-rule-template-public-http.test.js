@@ -423,6 +423,20 @@ test('Arca Rule Template public HTTP preserves immutable system defaults and clo
     });
     assert.equal(revisedReplay.statusCode, 200);
     assert.equal(revisedReplay.json().replayed, true);
+    for (const [kind, basis, reason] of [
+      ['head', { basePublishedRevision: 2, expectedDraftRevision: 2 }, 'P14_RULE_TEMPLATE_HEAD_CAS'],
+      ['draft', { basePublishedRevision: 1, expectedDraftRevision: 1 }, 'P14_RULE_TEMPLATE_DRAFT_CAS'],
+    ]) {
+      const conflict = await host.inject({ method: 'PATCH',
+        url: '/v1/admin/rule-templates/user-template-1/draft', headers,
+        payload: { ...draftBody, ...basis, idempotencyKey: 'concurrent-' + kind } });
+      assert.equal(conflict.statusCode, 409, conflict.body);
+      assert.equal(conflict.json().error.details.reasonCode, reason);
+      const unchanged = await host.inject({ method: 'GET',
+        url: '/v1/admin/rule-templates/user-template-1/draft', headers });
+      assert.equal(unchanged.json().draft.draftRevision, 2);
+      assert.deepEqual(unchanged.json().draft.rules, changedRules);
+    }
     const wrongDigest = await host.inject({
       method: 'PATCH',
       url: '/v1/admin/rule-templates/user-template-1/draft',

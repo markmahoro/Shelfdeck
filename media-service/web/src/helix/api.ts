@@ -894,12 +894,12 @@ export const helixAdminApi = {
   },
   async reviseRuleTemplateDraft(draft: RuleTemplateDraft, rules: RuleTemplateRules) {
     const rulesDigest = await canonicalDigest(rules as unknown as JsonValue);
-    return request<RuleTemplateDraft>(
+    const response = await request<{ draft: RuleTemplateDraft; replayed: boolean }>(
       `/v1/admin/rule-templates/${encodeURIComponent(draft.templateId)}/draft`,
       {
         method: 'PATCH',
         body: JSON.stringify({
-          idempotencyKey: `rule-template:draft:${draft.templateId}:${draft.draftRevision}:${rulesDigest}`,
+          idempotencyKey: `rule-template:draft:${draft.templateId}:${draft.basePublishedRevision}:${draft.draftRevision}:${rulesDigest}`,
           templateId: draft.templateId,
           expectedDraftRevision: draft.draftRevision,
           basePublishedRevision: draft.basePublishedRevision,
@@ -909,6 +909,7 @@ export const helixAdminApi = {
         }),
       },
     );
+    return response.draft;
   },
   previewRuleTemplate(template: Pick<RuleTemplate, 'templateId' | 'currentRevision'>, draft: Pick<RuleTemplateDraft, 'draftRevision' | 'rulesDigest'>) {
     return request<RuleTemplatePreview>(
