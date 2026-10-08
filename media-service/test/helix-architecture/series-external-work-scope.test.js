@@ -229,3 +229,35 @@ test('Completed external execution with a failed media requirement remains ineli
   assert.equal(result.eligible,false);assert.equal(result.members.filter(item=>!item.eligible).length,1);
   assert.ok(result.members.some(item=>item.verificationRecord.result.reasonCodes.includes('video_codec_unmet')));
 });
+
+test('Series candidate merge replaces the whole component and retains unrelated qualified files',()=>{
+  const f=completedImportFixture(),set=require('../../src/helix/domains/libra/planning/series-external-import-results')
+    .readSeriesExternalImportSet({snapshot:f.value,scope:f.scope,workResultReader:f.reader}),
+    merge=require('../../src/helix/domains/libra/planning/series-external-candidate-merge'),
+    final=require('../../src/helix/domains/libra/planning/series-production-candidates');
+  const handle={...set.members[0].importRecord.result,materialKey:'retained',handleId:digest('retained-handle'),sizeBytes:20},
+    probeBody={...set.members[0].probeRecord.result,sourceHandleDigest:d(handle)};delete probeBody.payloadDigest;
+  const probe={...probeBody,payloadDigest:d(probeBody)};
+  const original=f.value.members.map(member=>({member,readHandle:handle,record:{result:probe},probeRecord:{result:probe},
+    media:null,work:{workId:'internal'},verification:{result:'passed'},selection:{result:'selected'},eligible:true}));
+  const retained=original.find(item=>item.member.materialKey==='other'),merged=merge.mergeSeriesExternalCandidates(f.value,original,[set]);
+  assert.equal(merged.length,3);assert.equal(merged.find(item=>item.member.materialKey==='other'),retained);
+  assert.ok(!merged.some(item=>['shared','part'].includes(item.member.materialKey)));
+  const space=merge.completeSeriesCandidateSpace(f.value,merged);assert.deepEqual(space.episodeKeys,['E1','E2','E3']);
+  const candidate=merged.find(item=>item.externalReplacement),input=final.finalCandidateInput(f.value,merged,candidate);
+  assert.equal(input.seriesSpaceBasis.members.length,3);
+  assert.deepEqual(input.seriesSpaceBasis,space);
+  assert.equal(input.workspaceMediaHandle,candidate.media);
+  assert.throws(()=>merge.completeSeriesCandidateSpace(f.value,merged.filter(item=>item!==retained)),/complete frozen Run/);
+  const drifted=merged.map(item=>item===candidate?{...item,media:{...item.media,sourceMaterialHandleDigest:digest('changed')}}:item);
+  assert.throws(()=>merge.completeSeriesCandidateSpace(f.value,drifted),/frozen replacement mapping/);
+  const changedRun={...f.value,run:{...f.value.run,executionBasisDigest:digest('changed-run')}};
+  assert.throws(()=>merge.completeSeriesCandidateSpace(changedRun,merged),/frozen connected component/);
+
+  assert.throws(()=>merge.mergeSeriesExternalCandidates(f.value,original,[set,set]),/overlap/);
+  assert.throws(()=>merge.mergeSeriesExternalCandidates(f.value,original,[{...set,eligible:false}]),/ineligible/);
+  const missing=merged.filter(item=>item!==candidate);
+  assert.throws(()=>final.candidateSetDigest(missing),/omit an external member/);
+  assert.throws(()=>final.candidateSetDigest([...merged,original.find(item=>item.member.materialKey==='part')]),/retain a replaced original/);
+  assert.throws(()=>merge.mergeSeriesExternalCandidates(f.value,original.slice(1),[set]),/complete original/);
+});

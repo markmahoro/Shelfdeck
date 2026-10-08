@@ -287,3 +287,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08外部Import结果消费DoR：从正式Work Reader精确重建成功Scope Work的最新Attempt/Plan，逐项校验Import/Probe/Verification/Selection及输入绑定摘要；重新执行既有Projection和纯验收/Selection，形成完整外部成员集合及source-to-all-final映射。未完成Work不可消费，拒绝跨Attempt/Plan、篡改Claims/Handle、缺少或重复成员及伪造成功。随后接入全Run候选替换与正式交接，不能从任意首条Result推断完整范围完成。
 
 2026-10-08外部Import Result消费：校验成功Scope Work最新Attempt/Plan、全部Import/Probe/Verify/Select及原Acquire Evidence，重算完整范围验收/Selection和source-to-all-final映射；不合格媒体保持ineligible。26项专项和P2/架构/语义通过。consumer待接入Coordinator/全Run候选替换，后续多值交接及Arca结算仍待闭环，未部署NAS。[Evidence](evidence/SERIES_EXTERNAL_IMPORT_RESULTS_20261008.md)。
+
+2026-10-08外部候选合并DoR：正式Series候选读取消费已成功且完整验证的外部Scope Import Set，以整关联分量移除原候选并加入实际Workspace成员，范围外保持原候选对象；不得把外部成员伪装成原Run Binding。全Run最终空间Basis同时包含保留候选和外部成员，并验证每个外部集合完整及映射摘要。先闭合候选读取/终检，Coordinator触发和多值Promotion/Arca结算仍为后续门禁，不启用不完整交付。
+
+2026-10-08外部候选合并：完整Scope Import集合接入正式Series候选Reader，整分量替换、范围外保留；最终空间Basis覆盖全Run并重建映射/Claims/Handle。110项专项、37.2秒普通Direct/Remux混合上架Host及P2/架构/语义通过。Coordinator触发、外部不合格媒体后处理和多值交接/Arca结算仍待闭环，未声明外部端到端可用或部署NAS。[Evidence](evidence/SERIES_EXTERNAL_CANDIDATE_MERGE_20261008.md)。
