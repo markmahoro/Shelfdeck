@@ -608,6 +608,7 @@ function inferredField(resultName, fieldName) {
 }
 
 const contracts = {
+  EpisodeMetadataRecordSet: ['EvidenceEnvelope', ''],
   PrimaryInputManifestDraftRecord: ['DraftEnvelope', ''],
   FilesystemIdentityEvidence: ['EvidenceEnvelope', 'identity,endpointId,location,statSizeBytes,statMtimeMs'],
   BoundedContentFingerprintEvidence: ['EvidenceEnvelope', 'identity,fingerprintProfileRef,sampleOffset,sampleLength,bytesSampled'],
@@ -732,6 +733,8 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 }), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if (name === 'EpisodeMetadataRecordSet') return { $schema:DRAFT, $id:typeId(name), title:name+'@1',
+    'x-helix-ssotRefs':['8.6.19'], 'x-helix-maxCanonicalBytes':16*1024*1024, ...episodeMetadataSchema() };
   if (name === 'PrimaryInputManifestDraftRecord') {
     const schema = buildResultTypeSchema('PrimaryInputManifestDraft', contracts.PrimaryInputManifestDraft);
     schema.$id = typeId(name); schema.title = name + '@1';
@@ -1178,6 +1181,7 @@ function productMetadataDraftSchema() {
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
   schema.properties.episodeScope = require('../../src/helix/contracts/episode-metadata-scope').episodeMetadataScopeSchema();
   schema.properties.episodeMetadata = episodeMetadataSchema();
+  schema['x-helix-maxCanonicalBytes'] = 16 * 1024 * 1024;
   return schema;
 }
 
@@ -1211,6 +1215,9 @@ function productMetadataFactSchema() {
     verifiedArtifactManifestDigest: digest(), productMetadataDigest: digest()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
   schema.properties.episodeMetadata=episodeMetadataSchema();
+  schema.properties.episodeMetadataRef=object({recordCount:{type:'integer',minimum:1,maximum:256},recordsDigest:digest()});
+  schema.not={required:['episodeMetadata','episodeMetadataRef']};
+  schema['x-helix-maxCanonicalBytes'] = 16 * 1024 * 1024;
   return schema;
 }
 

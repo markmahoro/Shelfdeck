@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { splitEpisodeMetadata } = require('../../../contracts/episode-metadata-records');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { buildMediaCastFact, buildProductFactEvidence, buildProductFactHandle, buildProductFactSourceRefs,
   buildProductMetadataFact, buildResolvedProductIdentity, validateVerifiedArtifactManifest } = require('../model/product-fact-contracts');
@@ -31,7 +32,7 @@ function ownerReadRepository(schemaManifest,factKind){const statements={
 }
 
 function ownerWriteRepository(schemaManifest,factKind){const statements={
-  insert_fact:{kind:'insert',tableId:'libra_product_fact_revisions',columns:['product_fact_id','libra_run_id','fact_kind','fact_revision','aggregate_id','schema_ref','fact_json','fact_digest','evidence_digest','source_basis_kind','source_basis_id','source_basis_digest','source_ref_count','verified_artifact_manifest_schema_ref','verified_artifact_manifest_json','verified_artifact_manifest_digest','artifact_verification_result_count','commit_payload_schema_ref','commit_payload_digest','event_fence_digest','commit_marker','result_digest','committed_at_ms']},
+  insert_fact:{kind:'insert',tableId:'libra_product_fact_revisions',columns:['product_fact_id','libra_run_id','fact_kind','fact_revision','aggregate_id','schema_ref','fact_json','episode_metadata_schema_ref','episode_metadata_json','fact_digest','evidence_digest','source_basis_kind','source_basis_id','source_basis_digest','source_ref_count','verified_artifact_manifest_schema_ref','verified_artifact_manifest_json','verified_artifact_manifest_digest','artifact_verification_result_count','commit_payload_schema_ref','commit_payload_digest','event_fence_digest','commit_marker','result_digest','committed_at_ms']},
   insert_source:{kind:'insert',tableId:'libra_product_fact_source_refs',columns:['product_fact_id','ordinal','source_basis_kind','work_id','attempt_id','plan_id','event_id','result_id','capability_ref','result_schema_ref','result_digest','source_ref','source_order','evidence_id','evidence_digest','input_binding_digest','reference_digest']}
 };
   if(factKind==='resolved_identity'){
@@ -194,14 +195,17 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
               provenanceKind:'resolved_identity',provenanceRef:fact.subjectId+':'+subjectIdentityRevision}))]);
           }
         }
-        return fact;
+        return splitEpisodeMetadata(fact).value;
       },
     };
       prepare.readParticipants=[readParticipant];prepare.postMarkerParticipants=[{participantId:'libra_product_fact_owner_write',owner:'libra',boundBusinessOwner:'libra',repositories:[ownerWrite],execute(context){const repo=context.repository(ownerWrite.repositoryId),manifest=factKind==='product_metadata'?payload.verifiedArtifactManifest:null;
+        const stored=splitEpisodeMetadata(fact);
         const libraRunId=basisRunId(payload),factRevision=handle.expectedRevision+1,evidenceDigest=buildProductFactEvidence({libraRunId,factKind,factRevision,
           sourceBasisKind:payload.sourceBasis.sourceBasisKind,sourceBasisDigest:payload.sourceBasis.sourceBasisDigest,commitPayloadDigest:handle.payloadDigest,eventFenceDigest:handle.eventFenceDigest});
         repo.invoke('insert_fact',{product_fact_id:productFactId,libra_run_id:libraRunId,fact_kind:factKind,
-          fact_revision:factRevision,aggregate_id:handle.aggregateId,schema_ref:fact.schemaRef,fact_json:canonicalJson(fact),
+          fact_revision:factRevision,aggregate_id:handle.aggregateId,schema_ref:fact.schemaRef,fact_json:canonicalJson(stored.value),
+          episode_metadata_schema_ref:stored.recordsJson?'helix://contracts/types/EpisodeMetadataRecordSet/v1':null,
+          episode_metadata_json:stored.recordsJson,
           fact_digest:factKind==='resolved_identity'?fact.identityDigest:fact.factDigest,evidence_digest:evidenceDigest,
           source_basis_kind:payload.sourceBasis.sourceBasisKind,source_basis_id:basisId(payload.sourceBasis),source_basis_digest:payload.sourceBasis.sourceBasisDigest,
           source_ref_count:sourceRefs.length,verified_artifact_manifest_schema_ref:manifest?'helix://contracts/domain-types/VerifiedArtifactManifest/v1':null,
@@ -210,7 +214,7 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
           commit_payload_schema_ref:factKind==='media_cast'?'libra.media-cast-fact-commit-payload@1':
             factKind==='product_metadata'?'libra.product-metadata-fact-commit-payload@1':
               'libra.resolved-product-identity-commit-payload@1',
-          commit_payload_digest:handle.payloadDigest,event_fence_digest:handle.eventFenceDigest,commit_marker:commitMarker,result_digest:canonicalDigest(fact),committed_at_ms:context.commitTimeMs});
+          commit_payload_digest:handle.payloadDigest,event_fence_digest:handle.eventFenceDigest,commit_marker:commitMarker,result_digest:canonicalDigest(stored.value),committed_at_ms:context.commitTimeMs});
         if(factKind==='resolved_identity'){
           repo.invoke('insert_identity',{subject_id:fact.subjectId,revision:subjectIdentityRevision,structure_kind:fact.structureKind,
             content_profile:fact.contentProfile,identity_kind:fact.identityKind,provider_identity_set_digest:fact.providerIdentitySetDigest,

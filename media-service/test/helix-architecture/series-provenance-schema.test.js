@@ -12,9 +12,17 @@ const catalog=db=>db.prepare("SELECT type,name,tbl_name,sql FROM sqlite_master W
 
 test('Series provenance capacity upgrade preserves Package bytes, indexes and incoming refs atomically',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'series-provenance-schema-')),dataDir=path.join(root,'data'),databasePath=path.join(dataDir,'shelfdeck.db');
+  let db;
   try {
     initializeCleanData({dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot:'disposable-series-schema-secret-0123456789'});
-    let db=new Database(databasePath);
+    db=new Database(databasePath);
+    for (const table of ['libra_product_fact_revisions','arca_inventory_product_facts']) {
+      const definition=db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name=?").get(table).sql;
+      const indexes=db.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL").all(table);
+      db.exec('DROP TABLE '+table);
+      db.exec(definition.split('\n').filter(line=>!line.includes('episode_metadata')).join('\n'));
+      indexes.forEach(index=>db.exec(index.sql));
+    }
     const row=db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='libra_product_packages'").get();
     const indexes=db.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name='libra_product_packages' AND sql IS NOT NULL").all();
     db.exec('DROP TABLE libra_product_packages');

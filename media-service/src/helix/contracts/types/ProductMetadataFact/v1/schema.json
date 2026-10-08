@@ -7,7 +7,7 @@
     "8.6.19"
   ],
   "x-helix-envelopeRef": "helix://contracts/types/DomainFactEnvelope/v1",
-  "x-helix-maxCanonicalBytes": 65536,
+  "x-helix-maxCanonicalBytes": 16777216,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -378,6 +378,26 @@
       },
       "maxItems": 256,
       "minItems": 1
+    },
+    "episodeMetadataRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "recordCount": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 256
+        },
+        "recordsDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "recordCount",
+        "recordsDigest"
+      ]
     }
   },
   "required": [
@@ -404,5 +424,11 @@
     "mediaCastFactRef",
     "verifiedArtifactManifestDigest",
     "productMetadataDigest"
-  ]
+  ],
+  "not": {
+    "required": [
+      "episodeMetadata",
+      "episodeMetadataRef"
+    ]
+  }
 }

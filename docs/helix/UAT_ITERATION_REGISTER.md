@@ -297,4 +297,4 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 
 | UAT-284 | 大季Procurement Unit / Primary Manifest Draft超过有界合同 | PROCUREMENT / BOUNDED_RESULT | 部分通过：4个Manifest已恢复发布；95成员Unit限制待设计 | UAT-282恢复后真实扫描发现 | 待修复 | [现场与边界](implementation/evidence/UAT-284_SERIES_PROCUREMENT_BOUNDS_20261009.md) | 4 Manifest Event result_json超限；三国95成员Unit明确triage_failed；不扩大列、不拆季、不Reset掩盖。 |
 
-| UAT-285 | 整季Product Metadata Draft汇总超过64 KiB，整理停在资料汇总 | LIBRA / METADATA_CAPACITY | 开放：合同与字段归属审查中 | 用户反馈Formation再次卡住；现场72 fetch成功 | 待修复 | [现场与设计](implementation/evidence/UAT-285_SERIES_METADATA_CAPACITY_20261009.md) | 保留完整逐集剧情及Source provenance，不能截断、拆季或提高Foundation上限。 |
+| UAT-285 | 整季Product Metadata Draft汇总超过64 KiB，整理停在资料汇总 | LIBRA / METADATA_CAPACITY | 关闭：原3 Run资料正式提交通过 | 用户反馈Formation再次卡住；现场原72 fetch成功 | 有界逐集Owner记录；双平台专项/大剧情Host、Win追加Host通过 | [现场与设计](implementation/evidence/UAT-285_SERIES_METADATA_CAPACITY_20261009.md) | 完整32/46/47集资料与来源保留；只关闭资料容量关卡，后续媒体验收异常与完整上架独立。 |

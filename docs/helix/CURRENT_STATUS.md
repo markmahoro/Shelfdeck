@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-09 01:57本地UAT：用户确认UAT-285有界逐集Owner记录，原3 Run完整32/46/47集资料及NFO正式提交通过，按自身关卡关闭；双平台大剧情Host与Windows追加Host通过。未Reset/重扫/部署NAS。下一关《情满四合院》46 Primary媒体verify输入准备失败，独立排查中；《大宅门2》32项verify/select通过并转码。真实E2E仍开放，见[UAT-285 Evidence](implementation/evidence/UAT-285_SERIES_METADATA_CAPACITY_20261009.md)。
+
 2026-10-09 00:29本地UAT：经用户确认修复UAT-284 Manifest Result，原4个任务恢复封包，总43包；第二采购Run正式completed。Windows44/Linux22及Movie HTTP Host通过。三国95成员Unit限制仍开放；3个整理Run在72项Metadata获取成功后触及整季Draft 64 KiB上限，UAT-285方案待合同确认。未Reset/重扫/部署NAS。
 
 2026-10-09真实Series UAT：UAT-282原1777 Probe全部完成，39包发布/3接受；UAT-283有界Admission/Lifecycle Evidence修复后，原3 Subject建立active Run并通过首次检查，身份已确认、逐集资料获取推进。两项按各自关卡关闭，完整上架未验收；UAT-284另记录4 Manifest Result超限与95成员Unit限制。双平台45相关项通过，P2/Schema13和DDL9项通过，未部署NAS、未Reset。

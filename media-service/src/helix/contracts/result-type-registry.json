@@ -407,6 +407,21 @@
       }
     },
     {
+      "id": "EpisodeMetadataRecordSet",
+      "version": 1,
+      "role": "result-helper",
+      "schemaId": "helix://contracts/types/EpisodeMetadataRecordSet/v1",
+      "relativePath": "types/EpisodeMetadataRecordSet/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "7939c40876fc48d5df836863cdc51df879387cbbb15295e694b6681a6bb01c46"
+      },
+      "source": {
+        "section": "8.6.19",
+        "line": 11102
+      }
+    },
+    {
       "id": "FilesystemIdentityEvidence",
       "version": 1,
       "role": "catalog-result",
@@ -1277,7 +1292,7 @@
       "relativePath": "types/ProductMetadataDraft/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "792c1152e0913c252307ca15f7352c4c5fc5f815e0dad34d65f7b1c7b0025693"
+        "value": "fbd120ec87b22eedd4f2f7ec95441018815b54c6a0362ae0117c52df9f64ced2"
       },
       "source": {
         "section": "8.6.19",
@@ -1293,7 +1308,7 @@
       "relativePath": "types/ProductMetadataFact/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "85444865de4c7062f4769d9e9fde131e60331fd8e2c6795d75ea7dcb668d110c"
+        "value": "bf37879fb1cd28c48b230f43b7c785e9ee8088dead9a5dcf9d0299a92d204c84"
       },
       "source": {
         "section": "8.6.19",

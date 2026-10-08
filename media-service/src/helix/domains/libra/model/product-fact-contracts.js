@@ -3,6 +3,7 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { buildEpisodeMetadataScope } = require('../../../contracts/episode-metadata-scope');
 const { metadataObservationLimit } = require('../../../contracts/metadata-observation-limits');
+const { metadataSetRef, SET_LIMIT } = require('../../../contracts/episode-metadata-records');
 
 class ProductFactContractError extends Error {
   constructor(code, message) { super(message); this.name = 'ProductFactContractError'; this.code = code; }
@@ -530,6 +531,7 @@ function buildProductMetadataDraft(value) {
     if (observation.episodeScope && (!episodeScope ||
         canonicalJson(observation.episodeScope) !== canonicalJson(episodeScope))) continue;
     for (const entry of descriptiveEntries(observation)) {
+      if (episodeScope && !observation.episodeScope && !required.includes(entry.key)) continue;
       if (observation.contentProfile === 'series' && entry.key.startsWith('episode_') && !observation.episodeScope) continue;
       if (episodeScope && entry.key === 'season_number' && !observation.episodeScope) continue;
       if (!winners.has(entry.key) && entry.value !== null && entry.value !== '') {
@@ -575,7 +577,8 @@ function buildProductMetadataDraft(value) {
   draft.draftId = canonicalDigest({ schema:'libra.product-metadata-draft-id@1', resolvedIdentityDigest:draft.resolvedIdentityDigest,
     sourceBasisDigest:basis.sourceBasisDigest, descriptiveFactsDigest:draft.descriptiveFacts.recordDigest });
   draft.draftDigest = canonicalDigest(Object.fromEntries(Object.entries(draft).filter(([key]) => key !== 'draftDigest')));
-  return Object.freeze({ ready:true, draft:Object.freeze(bytes(draft, 64 * 1024, 'P9_METADATA_DRAFT_SIZE')) });
+  if (draft.episodeMetadata) metadataSetRef(draft.episodeMetadata);
+  return Object.freeze({ ready:true, draft:Object.freeze(bytes(draft, draft.episodeMetadata ? SET_LIMIT : 64 * 1024, 'P9_METADATA_DRAFT_SIZE')) });
 }
 
 function buildWesternProductMetadataDraft(value) {
@@ -989,7 +992,7 @@ function buildProductMetadataFact(value) {
   body.productMetadataDigest = canonicalDigest({ schema:'libra.product-metadata@1', ...body });
   return Object.freeze(bytes({ schemaRef:'helix://contracts/types/ProductMetadataFact/v1', schemaVersion:1,
     ...productFactEnvelope(value, 'product_metadata', body.productMetadataDigest), ...body },
-  64 * 1024, 'P9_PRODUCT_METADATA_FACT_SIZE'));
+  body.episodeMetadata ? SET_LIMIT : 64 * 1024, 'P9_PRODUCT_METADATA_FACT_SIZE'));
 }
 
 function validateEpisodeMetadata(items, identities) {

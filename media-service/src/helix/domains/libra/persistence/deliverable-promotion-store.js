@@ -1,4 +1,5 @@
 'use strict';
+const { readStoredMetadataValue } = require('../../../contracts/episode-metadata-records');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const {writeOffloadTargets}=require('./offload-target-storage');
@@ -144,7 +145,7 @@ function libraDefinition(schemaManifest) {
         tableId: 'libra_product_fact_revisions',
         columns: [
           'product_fact_id', 'libra_run_id', 'fact_kind', 'fact_revision',
-          'schema_ref', 'fact_json', 'fact_digest', 'evidence_digest',
+          'schema_ref', 'fact_json', 'episode_metadata_schema_ref', 'episode_metadata_json', 'fact_digest', 'evidence_digest',
         ],
         keyColumns: ['product_fact_id', 'fact_revision'],
         safeIntegers: true,
@@ -444,7 +445,7 @@ function assertLibraSnapshot(repo, decision) {
     if (!row || row.libra_run_id !== run.libra_run_id || row.fact_kind !== item.factKind ||
         row.schema_ref !== item.schemaRef || row.fact_digest !== item.factDigest ||
         row.evidence_digest !== item.evidenceDigest ||
-        canonicalJson(parse(row.fact_json, 'P9_PROMOTION_FACT_CORRUPT')) !== canonicalJson(item.factValue)) {
+        canonicalJson(readStoredMetadataValue(row)) !== canonicalJson(item.factValue)) {
       fail('P9_PROMOTION_FACT_STALE', 'Product Fact differs from the immutable Package input.', {
         productFactId: item.productFactId,
       });

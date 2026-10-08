@@ -1,4 +1,5 @@
 'use strict';
+const { readStoredMetadataValue } = require('../../../contracts/episode-metadata-records');
 
 const {collectionSeriesProjection}=require('../model/collection-series-projection');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
@@ -117,9 +118,9 @@ function createArcaCollectionQuery(options) {
       list_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard','episode_claims_json'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
       list_all_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard','episode_claims_json'],keyColumns:[],safeIntegers:true},
       find_materials:{kind:'select-in',tableId:'arca_inventory_materials',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard','episode_claims_json'],safeIntegers:true},
-      list_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
-      list_all_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],keyColumns:[],safeIntegers:true},
-      find_facts:{kind:'select-in',tableId:'arca_inventory_product_facts',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','fact_digest'],safeIntegers:true},
+      list_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','episode_metadata_schema_ref','episode_metadata_json','fact_digest'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
+      list_all_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','episode_metadata_schema_ref','episode_metadata_json','fact_digest'],keyColumns:[],safeIntegers:true},
+      find_facts:{kind:'select-in',tableId:'arca_inventory_product_facts',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','episode_metadata_schema_ref','episode_metadata_json','fact_digest'],safeIntegers:true},
       list_people:{kind:'select-all',tableId:'arca_inventory_person_relations',columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
       list_all_people:{kind:'select-all',tableId:'arca_inventory_person_relations',columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],keyColumns:[],safeIntegers:true},
       find_people:{kind:'select-in',tableId:'arca_inventory_person_relations',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','person_id','display_name','role','relation_digest'],safeIntegers:true},
@@ -148,7 +149,7 @@ function createArcaCollectionQuery(options) {
     if(!identity)throw new Error('Shelf Entry current Canonical Identity is absent.');
     const shelf=caches?caches.shelves.get(row.shelf_id):repo.invoke('find_shelf',{shelf_id:row.shelf_id});
     const revision=Number(row.current_inventory_revision),key=row.shelf_entry_id+':'+revision,facts=(caches?(caches.facts.get(key)||[]):repo.invoke('list_facts',{shelf_entry_id:row.shelf_entry_id,inventory_revision:revision})).map((item)=>{
-      try{return Object.freeze({factKind:item.fact_kind,factValue:JSON.parse(item.fact_json),factDigest:item.fact_digest});}catch{throw new Error('Shelf Entry Product Fact is corrupt.');}}),
+      try{return Object.freeze({factKind:item.fact_kind,factValue:readStoredMetadataValue(item),factDigest:item.fact_digest});}catch{throw new Error('Shelf Entry Product Fact is corrupt.');}}),
       metadata=facts.find((item)=>item.factKind==='product_metadata')?.factValue||{},descriptive=new Map((metadata.descriptiveFacts?.entries||[]).map((item)=>[item.key,item.value])),
       genresValue=descriptive.get('genres')??descriptive.get('genre')??[],genres=Array.isArray(genresValue)?genresValue:(typeof genresValue==='string'?genresValue.split(/[,/|]/).map((item)=>item.trim()).filter(Boolean):[]),
       people=(caches?(caches.people.get(key)||[]):repo.invoke('list_people',{shelf_entry_id:row.shelf_entry_id,inventory_revision:revision}))

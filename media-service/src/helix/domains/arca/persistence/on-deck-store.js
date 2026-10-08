@@ -1,4 +1,5 @@
 'use strict';
+const { splitEpisodeMetadata } = require('../../../contracts/episode-metadata-records');
 const {acceptedInventoryArtifactScopes,readInventoryArtifactScope}=require('../model/inventory-artifact-scope');
 
 const path = require('node:path');
@@ -278,7 +279,7 @@ function arcaDefinition(schemaManifest) {
           {column:'current_inventory_revision',parameter:'expected_inventory_revision'},{column:'current_deck_fact_revision',parameter:'expected_deck_fact_revision'}]},
       clear_active_guards:{kind:'update',tableId:'arca_inventory_materials',setColumns:['active_guard'],keyColumns:['shelf_entry_id','inventory_revision']},
       list_reservations:{kind:'select-all',tableId:'arca_offdeck_reservations',columns:['reservation_id','shelf_entry_id','state'],keyColumns:['shelf_entry_id']},
-      list_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_schema_ref','fact_json','fact_digest','source_package_id','provenance_digest','committed_at_ms'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
+      list_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_schema_ref','fact_json','episode_metadata_schema_ref','episode_metadata_json','fact_digest','source_package_id','provenance_digest','committed_at_ms'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
       list_people:{kind:'select-all',tableId:'arca_inventory_person_relations',columns:['relation_id','shelf_entry_id','inventory_revision','person_id','display_name','display_name_normalized','role','relation_source','provider_identity_schema_ref','provider_identity_json','provider_identity_digest','origin_evidence_digest','confidence_class','relation_digest'],keyColumns:['shelf_entry_id','inventory_revision']},
       list_related:{kind:'select-all',tableId:'arca_inventory_related_references',columns:['shelf_entry_id','inventory_revision','reference_id','primary_ordinal','role','reference_kind','material_identity_hint','endpoint_id','location','checksum_hex'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
       insert_entry: {
@@ -357,7 +358,7 @@ function arcaDefinition(schemaManifest) {
         tableId: 'arca_inventory_product_facts',
         columns: [
           'shelf_entry_id', 'inventory_revision', 'fact_kind',
-          'fact_revision', 'fact_schema_ref', 'fact_json', 'fact_digest',
+          'fact_revision', 'fact_schema_ref', 'fact_json','episode_metadata_schema_ref','episode_metadata_json', 'fact_digest',
           'source_package_id', 'provenance_digest', 'committed_at_ms',
         ],
       },
@@ -1252,13 +1253,16 @@ function createOnDeckStore(options) {
           for(const row of previous.related)repo.invoke('insert_related',{...row,inventory_revision:inventoryRevision});
         }
         packageValue.productFactManifest.items.forEach((item) => {
+          const stored = splitEpisodeMetadata(item.factValue);
           repo.invoke('insert_fact', {
             shelf_entry_id: shelfEntryId,
             inventory_revision: inventoryRevision,
             fact_kind: item.factKind,
             fact_revision: item.factRevision,
             fact_schema_ref: item.schemaRef,
-            fact_json: canonicalJson(item.factValue),
+            fact_json: canonicalJson(stored.value),
+            episode_metadata_schema_ref:stored.recordsJson?'helix://contracts/types/EpisodeMetadataRecordSet/v1':null,
+            episode_metadata_json:stored.recordsJson,
             fact_digest: item.factDigest,
             source_package_id: packageValue.onDeckPackageId,
             provenance_digest: item.evidenceDigest,
@@ -1270,7 +1274,7 @@ function createOnDeckStore(options) {
           if(!verification?.qualitySummary?.editionEvidence)continue;
           repo.invoke('insert_fact',{shelf_entry_id:shelfEntryId,inventory_revision:inventoryRevision,
             fact_kind:'product_media_verification',fact_revision:primary.ordinal+1,fact_schema_ref:verification.schemaRef,
-            fact_json:canonicalJson(verification),fact_digest:canonicalDigest(verification),source_package_id:packageValue.onDeckPackageId,
+            episode_metadata_schema_ref:null,episode_metadata_json:null,fact_json:canonicalJson(verification),fact_digest:canonicalDigest(verification),source_package_id:packageValue.onDeckPackageId,
             provenance_digest:packageValue.productionProvenance.provenanceDigest,committed_at_ms:context.commitTimeMs});
         }
         const authorizedDefectManifest =
@@ -1283,7 +1287,7 @@ function createOnDeckStore(options) {
             fact_kind: 'authorized_defect_manifest',
             fact_revision: 1,
             fact_schema_ref: authorizedDefectManifest.schemaRef,
-            fact_json: canonicalJson(authorizedDefectManifest),
+            episode_metadata_schema_ref:null,episode_metadata_json:null,fact_json: canonicalJson(authorizedDefectManifest),
             fact_digest: authorizedDefectManifest.manifestDigest,
             source_package_id: packageValue.onDeckPackageId,
             provenance_digest: packageValue.productionAttestation.attestationDigest,

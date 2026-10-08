@@ -358,7 +358,9 @@ test('Native Series Workspace and Product Fact preserve three Artifact chains an
     const committed=coordinator(unitOfWork).execute(request);
     assert.equal(committed.replayed,false);
     assert.equal(coordinator(unitOfWork).execute(request).replayed,true);
-    const row=database.prepare('SELECT * FROM libra_product_fact_revisions').get(),fact=JSON.parse(row.fact_json);
+    const row=database.prepare('SELECT * FROM libra_product_fact_revisions').get(),fact=require('../../src/helix/contracts/episode-metadata-records').readStoredMetadataValue(row);
+    assert.equal(JSON.parse(row.fact_json).episodeMetadata,undefined);
+    assert.equal(JSON.parse(row.fact_json).episodeMetadataRef.recordCount,2);
     assert.deepEqual(fact.episodeMetadata.map(item=>item.episodeScope.episodeKey),['E001','E002']);
     assert.deepEqual(fact.episodeMetadata.map(item=>item.descriptiveFacts.entries.find(entry=>entry.key==='episode_title').value),['Title 1','Title 2']);
     assert.equal(row.source_ref_count,3);assert.equal(row.artifact_verification_result_count,3);
@@ -366,7 +368,7 @@ test('Native Series Workspace and Product Fact preserve three Artifact chains an
     assert.equal(database.prepare('SELECT count(*) n FROM fx_artifact_registry').get().n,3);
     assert.equal(database.prepare('SELECT count(*) n FROM fx_workspace_materials').get().n,3);
     assert.equal(database.prepare('SELECT count(*) n FROM fx_commit_markers').get().n,1);
-    assert.equal(canonicalDigest(fact),row.result_digest);
+    assert.equal(canonicalDigest(JSON.parse(row.fact_json)),row.result_digest);
     assert.match(fs.readFileSync(path.join(workspaceRoot,workspaceId,'product','season.nfo'),'utf8'),/<tvshow>/);
     for(const number of [1,2])assert.match(fs.readFileSync(path.join(workspaceRoot,workspaceId,'product',scope(number).episodeKey+'.nfo'),'utf8'),
       new RegExp('<episode>'+number+'</episode>'));
@@ -504,4 +506,25 @@ test('Scoped Related NFO conserves physical association and treats another Episo
   member.episodeClaims=[{episodeKey:'E002'}];
   await assert.rejects(port.execute(request),/association is outside/);
   assert.equal(reads,2);
+});
+
+test('large Season keeps complete Episode plots in bounded immutable records',()=>{
+  const {splitEpisodeMetadata,restoreEpisodeMetadata}=require('../../src/helix/contracts/episode-metadata-records');
+  const inputs=Array.from({length:32},(_,index)=>intent(index+1,index));
+  const plot='完整剧情'.repeat(400);
+  const results=inputs.map((input,index)=>chain(input,episodeEntries(index+1,{episode_plot:plot})));
+  const basis=buildMetadataObservationBasis({intents:inputs,results,factKind:'product_metadata',expectedRevision:0});
+  const projected=buildProductMetadataDraft({sourceBasis:basis,requiredFields:['episode_plot','episode_title'],episodeScopes:inputs.map(x=>x.episodeScope),producedAtMs:10,providerIdentities:[identity],artifactRequirements:[]});
+  assert.equal(projected.ready,true);
+  assert.ok(Buffer.byteLength(JSON.stringify(projected.draft))>65536);
+  const stored=splitEpisodeMetadata(projected.draft);
+  assert.ok(Buffer.byteLength(JSON.stringify(stored.value))<65536);
+  assert.deepEqual(restoreEpisodeMetadata(stored.value,stored.recordsJson),projected.draft);
+  assert.ok(projected.draft.episodeMetadata.every(record=>record.descriptiveFacts.entries.find(x=>x.key==='episode_plot').value===plot));
+  const records=JSON.parse(stored.recordsJson);
+  assert.throws(()=>restoreEpisodeMetadata(stored.value,JSON.stringify(records.slice(1))));
+  assert.throws(()=>restoreEpisodeMetadata(stored.value,JSON.stringify([...records].reverse())));
+  assert.throws(()=>restoreEpisodeMetadata(stored.value,null));
+  records[0].descriptiveFacts.entries[0].value='tampered';
+  assert.throws(()=>restoreEpisodeMetadata(stored.value,JSON.stringify(records)));
 });

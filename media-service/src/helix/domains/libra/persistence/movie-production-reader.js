@@ -1,4 +1,5 @@
 'use strict';
+const { readStoredMetadataValue } = require('../../../contracts/episode-metadata-records');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
@@ -146,7 +147,7 @@ function definition(schemaManifest) {
         tableId: 'libra_product_fact_revisions',
         columns: [
           'product_fact_id', 'libra_run_id', 'fact_kind', 'fact_revision',
-          'schema_ref', 'fact_json', 'fact_digest', 'evidence_digest',
+          'schema_ref', 'fact_json', 'episode_metadata_schema_ref', 'episode_metadata_json', 'fact_digest', 'evidence_digest',
           'result_digest',
         ],
         keyColumns: ['libra_run_id', 'fact_kind', 'fact_revision'],
@@ -611,8 +612,8 @@ function createMovieProductionReader(options) {
         fact_revision: factRevision,
       });
       if (!row) return null;
-      const value = parse(row.fact_json, 'P14_MOVIE_PRODUCTION_FACT_JSON');
-      if (canonicalDigest(value) !== row.result_digest) {
+      const value = readStoredMetadataValue(row);
+      if (canonicalDigest(JSON.parse(row.fact_json)) !== row.result_digest) {
         fail('P14_MOVIE_PRODUCTION_FACT_DRIFT',
           'Product Fact result digest drifted.');
       }

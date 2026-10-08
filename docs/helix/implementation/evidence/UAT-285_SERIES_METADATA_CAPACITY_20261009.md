@@ -4,4 +4,14 @@
 
 只读汇总不含正文：69项Episode plot合计54068 UTF-8字节；3项Season plot合计2539字节。现代码为每集递归构建Draft时还继承Season plot/genre及其provenance，再把全部Episode descriptiveFacts/provenance嵌回Season Draft，形成大量重复。当前SSOT ProductMetadataDraft、ProductMetadataFact及libra_product_fact_revisions.fact_json均限制64 KiB；即使去重公共字段，大季的完整剧情及逐字段provenance仍可能超限。不能只优化小样本后宣称完整容量闭环。
 
-下一步审查有界逐集Owner记录与Season聚合摘要方案：Libra保有完整事实/来源，Arca通过完整Handoff重建；Foundation保持有界typed引用。该项尚未获得新表/Fact/Handoff合同变更授权，未实施元数据修复、未截断正文、未Reset。
+用户已确认有界逐集Owner记录与Season聚合摘要方案：Libra保有完整事实/来源，Arca通过完整Handoff重建；Foundation保持有界typed引用。实际实现没有新增表，在两端已有不可变Fact版本行增加成对schema/逐集记录列；公共记录及Foundation Result保持64 KiB，单集记录保持64 KiB，完整集合与展开值各不超过现有Handoff的16 MiB。Movie值和完整Fact摘要公式保持；读取校验完整集集合摘要，缺失/乱序/篡改拒绝。逐集Draft只继承其明确要求的公共字段，不重复Season剧情与genre。
+
+验证：Windows核心57项、新增精确前序schema升级1项、Movie/交付/边界回归52项通过；Linux相关38项通过。初次合同回归仅固定aggregate摘要过期，更新后通过；新增升级fixture初次列名错误已修正。原Series provenance升级fixture须真实去掉新增列再标记旧schema，修正后通过。
+
+Windows完整Host：24集大剧情（展开Fact超过64 KiB）64.28秒完成On-deck Commit，Arca重建内容与Libra完整相等、存储公共记录低于64 KiB；追加E03 Host 69.60秒通过，旧集资料保留。Linux同一大剧情Host83.09秒通过。实际源码边界与语义检查均通过。
+
+真实本地数据库副本升级演练：196张业务表逐表全值摘要一致，三个active Run保留，外键与integrity检查通过。额外故障注入验证DDL回滚/重试与重复升级。备份保存在仓库外本地运行目录，未复制凭据或业务正文到仓库。
+
+本地18081已加载修复（PID14444）。01:57现场原三个Run全部通过Artifact production和Product Fact assembly：128项Metadata fetch成功；32/46/47集对应公共Fact记录3372/3799/4179字节，逐集完整记录集合77867/93234/112740字节，三个ProductMetadata commit成功。UAT-285按自身资料容量与完整性关卡关闭，完整真实上架仍未验收。
+
+下一关独立异常：《情满四合院》46项product_media.verify输入准备失败，Run frozen/processing_failed；《大宅门2》32项通过并开始转码。另行核查Series媒体验收容量合同，不据此重开已经通过的资料容量关卡。未Reset、重扫或部署NAS；UAT-284的95成员Unit限制仍独立开放。

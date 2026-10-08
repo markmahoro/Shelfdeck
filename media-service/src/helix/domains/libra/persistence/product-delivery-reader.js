@@ -1,4 +1,5 @@
 'use strict';
+const { readStoredMetadataValue } = require('../../../contracts/episode-metadata-records');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const {readOffloadTargets}=require('./offload-target-storage');
@@ -138,7 +139,7 @@ function definition(schemaManifest) {
         kind: 'select-one',
         tableId: 'libra_product_fact_revisions',
         columns: [
-          'product_fact_id', 'fact_revision', 'schema_ref', 'fact_json',
+          'product_fact_id', 'fact_revision', 'schema_ref', 'fact_json', 'episode_metadata_schema_ref', 'episode_metadata_json',
           'fact_digest', 'evidence_digest',
         ],
         keyColumns: ['product_fact_id', 'fact_revision'],
@@ -348,7 +349,7 @@ function reconstruct(repo, row) {
           factKind: ref.fact_kind,
           factRevision: number(ref.fact_revision),
           schemaRef: ref.schema_ref,
-          factValue: parse(fact.fact_json, 'P9_PRODUCT_DELIVERY_FACT_JSON'),
+          factValue: readStoredMetadataValue(fact),
           factDigest: ref.fact_digest,
           evidenceDigest: ref.evidence_digest,
           referenceDigest: ref.reference_digest,
@@ -360,7 +361,7 @@ function reconstruct(repo, row) {
       factKind: ref.fact_kind,
       factRevision: number(ref.fact_revision),
       schemaRef: ref.schema_ref,
-      factValue: parse(fact.fact_json, 'P9_PRODUCT_DELIVERY_FACT_JSON'),
+      factValue: readStoredMetadataValue(fact),
       factDigest: ref.fact_digest,
       evidenceDigest: ref.evidence_digest,
       referenceDigest: ref.reference_digest,

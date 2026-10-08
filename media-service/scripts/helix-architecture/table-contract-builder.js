@@ -292,6 +292,8 @@ const DEFERRED_FOREIGN_KEY_PAIRS = new Set([
   'people_merge_candidate_revisions>people_merge_candidates'
 ]);
 const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
+  'libra_product_fact_revisions.episode_metadata_json': 'episode_metadata_schema_ref',
+  'arca_inventory_product_facts.episode_metadata_json': 'episode_metadata_schema_ref',
   'fx_command_receipts.result_ref_json': 'result_schema_ref',
   'fx_plan_nodes.input_bindings_json': 'input_binding_schema_ref',
   'fx_plan_nodes.parameters_json': 'parameter_schema_ref',
@@ -306,6 +308,8 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
   'fx_supporting_works.definition_json': 256 * 1024,
   'fx_event_result_bindings.result_json': 64 * 1024,
   'fx_event_result_bindings.evidence_json': 64 * 1024,
+  'libra_product_fact_revisions.episode_metadata_json': 16 * 1024 * 1024,
+  'arca_inventory_product_facts.episode_metadata_json': 16 * 1024 * 1024,
   'people_registration_candidates.candidate_json': 16 * 1024,
   'people_merge_candidates.candidate_json': 16 * 1024,
   'libra_runs.execution_basis_record_json': 1024 * 1024,

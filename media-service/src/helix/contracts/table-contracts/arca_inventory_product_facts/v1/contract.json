@@ -69,6 +69,26 @@
       },
       {
         "ordinal": 7,
+        "name": "episode_metadata_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
+        "name": "episode_metadata_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 9,
         "name": "fact_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -78,7 +98,7 @@
         "nullable": false
       },
       {
-        "ordinal": 8,
+        "ordinal": 10,
         "name": "source_package_id",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -88,7 +108,7 @@
         "nullable": false
       },
       {
-        "ordinal": 9,
+        "ordinal": 11,
         "name": "provenance_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -98,7 +118,7 @@
         "nullable": false
       },
       {
-        "ordinal": 10,
+        "ordinal": 12,
         "name": "committed_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -138,6 +158,13 @@
         "maxBytes": 65536,
         "source": "table-row",
         "requiresJsonValidCheck": true
+      },
+      {
+        "column": "episode_metadata_json",
+        "schemaRefColumn": "episode_metadata_schema_ref",
+        "maxBytes": 16777216,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
       }
     ],
     "immutability": {
@@ -155,13 +182,13 @@
       "Arca保存Accepted Product Fact snapshot，不运行时回读Libra Store"
     ],
     "rawContract": {
-      "columns": "`shelf_entry_id FK, inventory_revision, fact_kind, fact_revision, fact_schema_ref, fact_json, fact_digest, source_package_id, provenance_digest, committed_at_ms`",
+      "columns": "`shelf_entry_id FK, inventory_revision, fact_kind, fact_revision, fact_schema_ref, fact_json, episode_metadata_schema_ref NULL, episode_metadata_json NULL, fact_digest, source_package_id, provenance_digest, committed_at_ms`",
       "constraints": "Fact JSON上限`64 KiB`；`PK(shelf_entry_id,inventory_revision,source_package_id,fact_kind,fact_revision)`；Series追加的每批Accepted Fact保留原始fact_revision/JSON/digest及source_package_id，禁止覆盖旧集资料或将不同Package的同revision误判同Fact；Arca保存Accepted Product Fact snapshot，不运行时回读Libra Store"
     },
     "source": {
       "section": "8.5.12",
       "line": 9487,
-      "lineDigest": "b9ed17f1bd2143a29fe2ad93b017d4f1765936abd75e4e8ce0b5791d155ffd12"
+      "lineDigest": "bc8bee31041cf988c883ac7c8e019787ad2d88cffedc81bf586dbc0987e8f5c2"
     },
     "foreignKeys": [
       {

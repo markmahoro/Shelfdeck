@@ -422,6 +422,8 @@ CREATE TABLE "arca_inventory_product_facts" (
   "fact_revision" INTEGER CHECK ("fact_revision" >= 1),
   "fact_schema_ref" TEXT,
   "fact_json" TEXT,
+  "episode_metadata_schema_ref" TEXT,
+  "episode_metadata_json" TEXT,
   "fact_digest" TEXT CHECK (length("fact_digest") = 64 AND "fact_digest" NOT GLOB '*[^0-9a-f]*'),
   "source_package_id" TEXT,
   "provenance_digest" TEXT CHECK (length("provenance_digest") = 64 AND "provenance_digest" NOT GLOB '*[^0-9a-f]*'),
@@ -429,6 +431,8 @@ CREATE TABLE "arca_inventory_product_facts" (
   PRIMARY KEY ("shelf_entry_id", "inventory_revision", "source_package_id", "fact_kind", "fact_revision"),
   CHECK (json_valid("fact_json")),
   CHECK (length(CAST("fact_json" AS BLOB)) <= 65536),
+  CHECK ("episode_metadata_json" IS NULL OR json_valid("episode_metadata_json")),
+  CHECK ("episode_metadata_json" IS NULL OR length(CAST("episode_metadata_json" AS BLOB)) <= 16777216),
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
 );
 
@@ -1846,6 +1850,8 @@ CREATE TABLE "libra_product_fact_revisions" (
   "aggregate_id" TEXT,
   "schema_ref" TEXT,
   "fact_json" TEXT,
+  "episode_metadata_schema_ref" TEXT,
+  "episode_metadata_json" TEXT,
   "fact_digest" TEXT CHECK (length("fact_digest") = 64 AND "fact_digest" NOT GLOB '*[^0-9a-f]*'),
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "source_basis_kind" TEXT CHECK ("source_basis_kind" IN ('decision_evidence', 'metadata_observation', 'western_analysis', 'western_match')),
@@ -1866,6 +1872,8 @@ CREATE TABLE "libra_product_fact_revisions" (
   UNIQUE ("libra_run_id", "fact_kind", "fact_revision"),
   CHECK (json_valid("fact_json")),
   CHECK (length(CAST("fact_json" AS BLOB)) <= 65536),
+  CHECK ("episode_metadata_json" IS NULL OR json_valid("episode_metadata_json")),
+  CHECK ("episode_metadata_json" IS NULL OR length(CAST("episode_metadata_json" AS BLOB)) <= 16777216),
   CHECK ("verified_artifact_manifest_json" IS NULL OR json_valid("verified_artifact_manifest_json")),
   CHECK ("verified_artifact_manifest_json" IS NULL OR length(CAST("verified_artifact_manifest_json" AS BLOB)) <= 262144),
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,

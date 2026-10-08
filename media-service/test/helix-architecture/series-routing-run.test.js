@@ -68,7 +68,7 @@ function harness(overrides = {}) {
       const seasonNumber=Number(url.pathname.match(/\/season\/(\d+)/)?.[1]??1);
       const result=search?(overrides.search??{results:[{id:1399,name:'Demo Show'}]}):episode?
         {id:63055+seasonNumber*100+episodeNumber,season_number:seasonNumber,episode_number:episodeNumber,name:'Episode '+episodeNumber,
-          overview:'Episode '+episodeNumber+' plot',air_date:'2020-01-01'}:season?
+          overview:overrides.episodePlot??('Episode '+episodeNumber+' plot'),air_date:'2020-01-01'}:season?
         (overrides.season??{id:3623+seasonNumber,season_number:seasonNumber}):(overrides.show??{
           id:1399,name:'Demo Show',original_name:'Demo Show',first_air_date:'2020-01-01',
           origin_country:['US'],genres:[{id:18,name:'Drama'}],overview:'Series plot',
@@ -252,7 +252,8 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   }
   const secretRoot='disposable-series-routing-secret',initialized=initializeCleanData({
     dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot});
-  const adapter=harness(),providerCalls=[],artifactCalls=[],appendCommitAudits=[],repairCommitAudits=[],offdeckCommitAudits=[];let unitOfWork,runtimeError,db;
+  const largePlot=episodeCount===24?'Complete episode narrative. '.repeat(200):undefined;
+  const adapter=harness({episodePlot:largePlot}),providerCalls=[],artifactCalls=[],appendCommitAudits=[],repairCommitAudits=[],offdeckCommitAudits=[];let unitOfWork,runtimeError,db;
   const poster=await sharp({create:{width:4,height:6,channels:3,background:'#224466'}}).jpeg().toBuffer();
   let injectedDeleteFailures=0;
   let browserMediaPort;
@@ -575,7 +576,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     state={subjects:db.prepare('SELECT * FROM libra_subjects').all(),routes:db.prepare('SELECT * FROM libra_routing_decisions').all(),
       specs:db.prepare('SELECT * FROM libra_acceptance_specs').all(),runs:db.prepare('SELECT * FROM libra_runs').all(),
       works:db.prepare('SELECT work_id,work_kind,state FROM fx_supporting_works').all(),
-      facts:db.prepare('SELECT fact_kind,fact_json FROM libra_product_fact_revisions').all()};
+      facts:db.prepare('SELECT * FROM libra_product_fact_revisions').all()};
     // Observe the complete Arca transaction, including authorized source settlement.
     if(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n===1||db.prepare("SELECT count(*) n FROM arca_acceptance_decisions WHERE result='rejected'").get().n>0||
         (!['exhausted','technical'].includes(external)&&state.works.some(work=>work.state==='failed'))||(typeof external==='string'&&state.runs.some(run=>run.state==='frozen')))break;
@@ -810,7 +811,14 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   assert.ok(providerCalls.some(call=>call.operationId===undefined&&call.intent.contentProfile==='series'&&call.intent.seasonNumber===1));
   const claims=db.prepare('SELECT episode_key FROM libra_run_material_episode_claims ORDER BY episode_key').all();
   assert.deepEqual([...new Set(claims.map(claim=>claim.episode_key))],episodeKeys);
-  const metadata=JSON.parse(state.facts.find(fact=>fact.fact_kind==='product_metadata').fact_json);
+  const metadata=require('../../src/helix/contracts/episode-metadata-records').readStoredMetadataValue(state.facts.find(fact=>fact.fact_kind==='product_metadata'));
+  if(largePlot) {
+    assert.ok(Buffer.byteLength(JSON.stringify(metadata))>65536);
+    assert.ok(metadata.episodeMetadata.every(item=>item.descriptiveFacts.entries.find(entry=>entry.key==='episode_plot').value===largePlot));
+    const inventoryFact=db.prepare("SELECT * FROM arca_inventory_product_facts WHERE fact_kind='product_metadata'").get();
+    assert.deepEqual(require('../../src/helix/contracts/episode-metadata-records').readStoredMetadataValue(inventoryFact),metadata);
+    assert.ok(Buffer.byteLength(inventoryFact.fact_json)<65536);
+  }
   assert.deepEqual(metadata.episodeMetadata.map(item=>item.episodeScope.episodeKey),episodeKeys);
   const artifacts=db.prepare("SELECT artifact_kind FROM fx_artifact_registry WHERE owner_domain='libra' AND state='active'").all();
   assert.equal(artifacts.length,episodeCount+2);
@@ -1333,7 +1341,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     thirdMetadata.descriptiveFacts.entries=thirdMetadata.descriptiveFacts.entries.filter(item=>item.key!=='episode_title');
     assert.equal(metadataCheck(alteredCare,'episode_title'),true);
     assert.equal(metadataCheck(rawCare,'episode_title'),false);
-    assert.deepEqual(latestFacts.flatMap(row=>JSON.parse(row.fact_json).episodeMetadata.map(item=>item.episodeScope.episodeKey)).sort(),['E001','E002','E003']);
+    assert.deepEqual(latestFacts.flatMap(row=>require('../../src/helix/contracts/episode-metadata-records').readStoredMetadataValue(row).episodeMetadata.map(item=>item.episodeScope.episodeKey)).sort(),['E001','E002','E003']);
     const appendedCollection=JSON.parse((await request('GET','/v1/admin/collection?status=current')).body).items;
     if(anchored){
       const appendedFormation=JSON.parse((await request('GET','/v1/admin/formation/'+firstRun.subject_id)).body);
