@@ -23,7 +23,7 @@ const schemaManifest = require('../../src/helix/foundation/persistence/generated
 function fixture(count = 61) {
   const productMembers = Object.freeze(Array.from({ length:count }, (_, ordinal) =>
     Object.freeze({
-      materialKey:`product-${ordinal}`,
+      materialKey:canonicalDigest(`product-${ordinal}`),
       role:ordinal === 0 ? 'primary_payload' : 'artifact',
       physicalIdentity:Object.freeze({
         materialKey:`product-identity-${ordinal}`,
@@ -104,7 +104,7 @@ test('UAT-111 Settlement handle and approval projections use the bounded reader 
     Object.freeze({ state:'offloading' }), 'source-12');
   const calls = [];
   const authorization={state:'enabled',revision:1,authorizationScopeKind:'old_primary_and_exclusive_related',authorizationDigest:canonicalDigest('grant')};
-  const sourceResult={schemaRef:'helix://contracts/types/FinalProductVerification/v1',result:'passed',productManifestDigest:'product-manifest-1',verifiedMaterialKeys:['product-12']};
+  const sourceResult={schemaRef:'helix://contracts/types/FinalProductVerification/v1',result:'passed',productManifestDigest:'product-manifest-1',verifiedMaterialKeys:[canonicalDigest('product-12')]};
   let approvalReads=0;
   const projections = createOnDeckProjections({
     contextReader:{
@@ -236,4 +236,40 @@ test('UAT-111 Settlement executor passes only the bounded member context to asyn
     value.finalMembers[8]);
   assert.equal(capturedRequest.finalInventoryRequest.finalInventoryDecision, undefined);
   assert.equal(capturedRequest.managedLocations.length, 122);
+});
+
+function multipleTargetFixture(){
+  const value=fixture(3),keys=value.productMembers.slice(0,2).map(item=>item.materialKey).sort();
+  const source={...value.offloadMembers[0],sourceRelatedReferenceId:null,derivedAuthorityDigest:null,
+    dispositionKind:'replaced_and_settled',finalProductMaterialKeys:keys};delete source.finalProductMaterialKey;
+  const context={...value.context,packageValue:{...value.context.packageValue,
+    offloadContextManifest:{...value.context.packageValue.offloadContextManifest,members:[source,...value.offloadMembers.slice(1)]}}};
+  return {...value,context,keys,source};
+}
+test('Series bounded Settlement retains every mapped final member and all protected locations for one source',()=>{
+  const f=multipleTargetFixture(),bounded=boundedSettlementContext(f.context,f.responsibility,{},f.source.materialKey);
+  assert.deepEqual(bounded.packageValue.productMaterialManifest.members.map(item=>item.materialKey),f.keys);
+  assert.deepEqual(bounded.settlementFinalMembers.map(item=>item.sourceMaterialKey),f.keys);
+  assert.equal(Object.hasOwn(bounded,'settlementFinalMember'),false);
+  assert.deepEqual(bounded.packageValue.offloadContextManifest.members,[f.source]);
+  assert.equal(bounded.settlementManagedLocations.length,6);
+  assert.equal(bounded.packageValue.productMaterialManifest.manifestDigest,f.context.packageValue.productMaterialManifest.manifestDigest);
+  assert.ok(Object.isFrozen(bounded.settlementFinalMembers));
+});
+test('Series bounded Settlement rejects any missing or ambiguous target instead of selecting a first match',()=>{
+  for(const location of ['product','final'])for(const mode of ['missing','duplicate'])for(const index of [0,1]){
+    const f=multipleTargetFixture(),key=f.keys[index];
+    if(location==='product'){
+      const rows=f.context.packageValue.productMaterialManifest.members;
+      f.context.packageValue.productMaterialManifest={...f.context.packageValue.productMaterialManifest,
+        members:mode==='missing'?rows.filter(item=>item.materialKey!==key):[...rows,rows.find(item=>item.materialKey===key)]};
+    }else{
+      const rows=f.responsibility.finalInventoryDecision.members;
+      f.responsibility={...f.responsibility,finalInventoryDecision:{...f.responsibility.finalInventoryDecision,
+        members:mode==='missing'?rows.filter(item=>item.sourceMaterialKey!==key):[...rows,rows.find(item=>item.sourceMaterialKey===key)]}};
+    }
+    assert.throws(()=>boundedSettlementContext(f.context,f.responsibility,{},f.source.materialKey),/missing or ambiguous/);
+  }
+  const f=multipleTargetFixture();f.source.finalProductMaterialKey=f.keys[0];
+  assert.throws(()=>boundedSettlementContext(f.context,f.responsibility,{},f.source.materialKey),/exactly one/);
 });

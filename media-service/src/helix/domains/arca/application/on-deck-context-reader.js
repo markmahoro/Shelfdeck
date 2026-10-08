@@ -1,6 +1,7 @@
 'use strict';
 
 const path = require('node:path');
+const {offloadProductKeys}=require('../../../contracts/offload-product-targets');
 const {createInputSettlementAuthorizationStore}=require('../persistence/input-settlement-authorization-store');
 const {createOnDeckSettlementApprovalStore}=require('../persistence/on-deck-settlement-approval-store');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
@@ -64,17 +65,16 @@ function assessAcceptedInventory(inventoryPort, onDeckRunId, responsibility, con
 
 function boundedSettlementContext(context, responsibility, verified, materialKey) {
   const finalInventoryDecision = responsibility.finalInventoryDecision;
-  const source = (context.packageValue.offloadContextManifest?.members || [])
-    .find((item) => item.materialKey === materialKey && requiresInputSettlement(item));
-  if (!source || !source.finalProductMaterialKey) {
-    throw new Error('Settlement Material is outside the accepted Off-load Context.');
-  }
-  const productMember = context.packageValue.productMaterialManifest.members
-    .find((item) => item.materialKey === source.finalProductMaterialKey);
-  const finalMember = finalInventoryDecision.members
-    .find((item) => item.sourceMaterialKey === source.finalProductMaterialKey);
-  if (!productMember || !finalMember) {
-    throw new Error('Settlement source-to-final mapping is absent from the accepted Final Inventory Decision.');
+  const sources=(context.packageValue.offloadContextManifest?.members||[])
+    .filter(item=>item.materialKey===materialKey&&requiresInputSettlement(item));
+  if(sources.length!==1)throw new Error('Settlement Material is outside the accepted Off-load Context or ambiguous.');
+  const source=sources[0],keys=offloadProductKeys(source),productMembers=[],finalMembers=[];
+  for(const key of keys){
+    const products=context.packageValue.productMaterialManifest.members.filter(item=>item.materialKey===key);
+    const finals=finalInventoryDecision.members.filter(item=>item.sourceMaterialKey===key);
+    if(products.length!==1||finals.length!==1)
+      throw new Error('Settlement source-to-final mapping is missing or ambiguous in the accepted Final Inventory Decision.');
+    productMembers.push(products[0]);finalMembers.push(finals[0]);
   }
   const managedLocations = Object.freeze([
     ...(context.packageValue.offloadContextManifest?.members || [])
@@ -85,7 +85,7 @@ function boundedSettlementContext(context, responsibility, verified, materialKey
     ...context.packageValue,
     productMaterialManifest:Object.freeze({
       ...context.packageValue.productMaterialManifest,
-      members:Object.freeze([productMember]),
+      members:Object.freeze(productMembers),
     }),
     offloadContextManifest:Object.freeze({
       ...context.packageValue.offloadContextManifest,
@@ -106,7 +106,7 @@ function boundedSettlementContext(context, responsibility, verified, materialKey
       revision:finalInventoryDecision.revision,
       decisionDigest:finalInventoryDecision.decisionDigest,
     }),
-    settlementFinalMember:finalMember,
+    ...(keys.length===1?{settlementFinalMember:finalMembers[0]}:{settlementFinalMembers:Object.freeze(finalMembers)}),
     settlementManagedLocations:managedLocations,
   });
 }

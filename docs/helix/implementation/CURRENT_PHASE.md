@@ -325,3 +325,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Arca多目标终检DoR：ProductDispositionManifest按已确认Offload基数传播互斥单/多目标，仍一source一member；多目标仅Series原Primary替换。投影逐目标核对Package，Final Product Verification逐目标匹配落位事实后才能通过。源结算Handle/原生删除及恢复仍后续实施，不扩大删除权限。
 
 2026-10-08 Arca多目标处置：ProductDispositionManifest传播完整互斥目标集合，一source一member；投影逐目标核对Package，Final Product Verification对全部落位成员检查缺失/重复。12项专项、35.8秒普通混合上架Host及P2/架构/语义通过。源结算/恢复与完整外部Host继续，未部署NAS。[Evidence](evidence/SERIES_ARCA_DISPOSITION_20261008.md)。
+
+2026-10-08 Series结算上下文DoR：沿已确认完整映射，把boundedSettlementContext从单成品裁剪改为一个原source及其全部唯一Product/Final Inventory目标，保留全管理路径保护；scalar保持原形，多目标使用完整settlementFinalMembers。缺目标/重复目标/非法基数在读取阶段拒绝。此批不启用尚未完成的多目标物理删除；Handle/审批摘要与原生结算后续接通。
+
+2026-10-08 Series结算上下文：一个原source携带全部唯一Product/Final Decision目标，全管理路径及摘要保持；任一目标缺失/重复拒绝。14项回归、36.6秒普通混合上架Host及P2/架构/语义通过。多目标Handle/审批/原生结算与恢复仍待接通，未操作NAS。[Evidence](evidence/SERIES_SETTLEMENT_CONTEXT_20261008.md)。
