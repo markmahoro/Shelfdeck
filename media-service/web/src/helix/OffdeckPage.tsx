@@ -316,13 +316,12 @@ export default function OffdeckPage() {
           <h2 id="offdeck-confirm-title">{cancelledReview?'已取消的退出审阅':review.state==='awaiting_escalation'?'再次核对大批量退出':'将删除的文件'}</h2>
           <p className="collection-dialog-meta">{labelOf(reviewStateLabels, review.state)}</p>
           {review.state === 'awaiting_escalation' && <p className="form-error" role="alert">这次数量或体积较大，请再次核对后再确认删除。没有授权不会删除文件。</p>}
-          {review.state === 'selection_confirmed' && <p className="form-error" role="alert">确认后将删除下列文件，不能反悔。</p>}
           {cancelledReview && <p>本次退出已取消，不会依据这次审阅删除文件。</p>}
           {review.state!=='preparing'&&!cancelledReview&&<section className="offdeck-review-summary" aria-label="本次退出范围">
             <p><strong>{reviewEntries} 部收藏 · {reviewPrimary} 个主视频或光盘结构文件 · {reviewRelated} 个附属文件</strong></p>
             <p>文件总空间：{formatGiB(reviewBytes)}{review.selection?` · 占全部当前收藏 ${(review.selection.deckCoverageRatio*100).toFixed(1)}%`:''}</p>
             {review.selection && (review.selection.shelfCoverageRatios ? Object.entries(review.selection.shelfCoverageRatios).map(([shelfId, ratio]) => <p key={shelfId}>收藏架覆盖率：{shelfNames[shelfId] || '原收藏架'} {(ratio * 100).toFixed(1)}%（确认选择时）</p>) : <p>此历史审阅未保存收藏架覆盖率，不能由当前收藏数量还原。</p>)}
-            <p>最终授权后将执行删除，不能撤销。仍被其他收藏引用的共享附属文件会保留，实际释放空间可能较小。</p>
+            <p role={review.state==='selection_confirmed'?'alert':undefined} className={review.state==='selection_confirmed'?'form-error':undefined}>最终授权后将执行删除，不能撤销。仍被其他收藏引用的共享附属文件会保留，实际释放空间可能较小。</p>
           </section>}
           {staleScopes.length > 0 && <p role="status">{staleScopes.length} 部范围已排除或失效，不会按本次范围删除。</p>}
           {reviewScopes.map((scope) => <article className="offdeck-scope" key={scope.destructionScopeId}>

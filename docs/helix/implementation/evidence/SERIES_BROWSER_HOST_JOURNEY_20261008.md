@@ -118,3 +118,9 @@ UI负责人turn `01a11b3d-4af8-7fb3-b0a7-8e7253bdbef6`正式接受冻结提交 `
 v3实际退出38.46秒、v4焦点40.36秒、v5关闭/回焦及取消字节保护38.46秒通过；早期失败日志保留。134前端、构建通过，Windows/Linux各1项有界Offdeck查询集成回归、P2/包边界/禁用语义及diff检查通过。日志在仓库外统一证据根，前缀series-browser-offdeck、series-offdeck-query、series-offdeck-final-web-v2、series-offdeck-final-build-v3、series-offdeck-p2/guards。Linux以本地测试镜像只读挂载当前src/test，不是发布镜像。精确版本UI验收与其他发布Gate仍开放，未操作NAS。
 
 最终分行布局构建后v6真实浏览器39.13秒通过/0skip；截图 `series-browser-offdeck-v6/` 内 offdeck-scope-*、offdeck-confirmation、offdeck-completed-*、offdeck-collection-* 已复核，窄屏退出记录剧名与收藏架分行。临时Host与浏览器已关闭。
+
+### 退出确认文案复验
+
+负责人turn `01a11b4a-17f9-7412-8d21-8626ca63ba03`对1014b1411独立复跑134前端、查询/构建及38.31秒实际退出通过，范围保护/取消/回焦认可，但因确认阶段“不能反悔/不能撤销”重复，未关闭本段UI门槛。
+
+仅删除独立重复段，范围摘要保留一次不可撤销后果和共享引用保护；open仍提示后果，selection_confirmed同一段以alert突出。两状态各一次提示的回归加入后136前端及构建通过（series-offdeck-warning-web/build.log）；最终实际退出v7为38.36秒PASS/0skip，截图series-browser-offdeck-v7/offdeck-confirmation.png已视觉确认一次警示，保护断言保持。后端未再变更，不重复Linux/架构全集。新版本待负责人复验，无NAS动作。

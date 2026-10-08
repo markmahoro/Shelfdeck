@@ -60,6 +60,17 @@ function mockWorkbench(entries: CollectionEntry[] = [], cases: OffdeckCase[] = [
 }
 
 describe('Off-deck progress', () => {
+  it.each(['open','selection_confirmed'] as const)('shows one irreversible consequence in %s while retaining shared-file protection',async state=>{
+    mockWorkbench();
+    history.replaceState(null,'','/offdeck?review=review-bulk');
+    vi.spyOn(helixAdminApi,'getOffdeckReview').mockResolvedValue({...highVolumeReview,state});
+    render(<SessionProvider><OffdeckPage/></SessionProvider>);
+    const dialog=await screen.findByRole('dialog',{name:'将删除的文件'});
+    expect(within(dialog).getAllByText(/不能反悔|不能撤销/)).toHaveLength(1);
+    expect(dialog).toHaveTextContent('仍被其他收藏引用的共享附属文件会保留');
+    if(state==='selection_confirmed')expect(within(dialog).getByRole('alert')).toHaveTextContent('不能撤销');
+  });
+
   it('contains Review keyboard focus and preserves the dialog while confirmation is pending', async()=>{
     mockWorkbench();
     history.replaceState(null,'','/offdeck?review=review-keyboard');

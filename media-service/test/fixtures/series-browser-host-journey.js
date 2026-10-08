@@ -156,7 +156,7 @@ async function open({ host, apiKey }) {
       await page.getByRole('button', { name: '核对将删除的文件', exact: true }).click();
       const response = await confirmation;
       assert.ok(response.ok(), await response.text());
-      await expect(page.getByRole('alert').filter({ hasText: '确认后将删除下列文件，不能反悔。' })).toBeVisible();
+      await expect(page.getByRole('alert').filter({ hasText: '最终授权后将执行删除，不能撤销。' })).toBeVisible();
       await screenshot('offdeck-confirmation');
       return response.json();
     },
