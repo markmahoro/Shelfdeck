@@ -549,6 +549,20 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.ok(path.relative(target,item.location)&&!path.relative(target,item.location).startsWith('..'));
   }
   assert.deepEqual([...new Set(inventoryPrimary.flatMap(item=>JSON.parse(item.episode_claims_json).items.map(claim=>claim.episodeKey)))].sort(),episodeKeys);
+  const careSpaceContext=require('../../src/helix/domains/arca/application/aftercare-context-reader')
+    .createAftercareContextReader({schemaManifest,unitOfWork,workResultReader:
+      require('../../src/helix/foundation/execution/work-result-reader').createWorkResultReader({schemaManifest,unitOfWork})})
+    .read(inventoryPrimary[0].shelf_entry_id);
+  const careSpace=require('../../src/helix/domains/arca/model/series-care-media-space')
+    .evaluateSeriesCareMediaSpace(careSpaceContext,24);
+  assert.equal(careSpace.inventoryRevision,careSpaceContext.basis.inventoryRevision);
+  assert.equal(careSpace.careBasisDigest,careSpaceContext.basis.digest);
+  assert.equal(careSpace.memberBudgets.length,physicalCount);
+  assert.deepEqual(careSpace.episodeKeys,episodeKeys);
+  const plannedSpace=require('../../src/helix/contracts/episode-byte-allocation').evaluateSeriesEpisodeSpace({
+    members:careSpace.members.map(member=>({...member,sizeBytes:careSpace.memberBudgets.find(item=>item.materialKey===member.materialKey).maxOutputBytes})),
+    episodeKeys,maxSizeBytes:24});
+  assert.ok(plannedSpace.every(item=>item.withinLimit));
   if(nm) {
     const sharedProduct=inventoryPrimary.find(item=>JSON.parse(item.episode_claims_json).items.length===2),
       part=inventoryPrimary.find(item=>JSON.parse(item.episode_claims_json).items.length===1);

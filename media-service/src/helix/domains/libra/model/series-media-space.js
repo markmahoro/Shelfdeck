@@ -1,7 +1,7 @@
 'use strict';
 
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
-const {evaluateSeriesEpisodeSpace}=require('../../../contracts/episode-byte-allocation');
+const {evaluateSeriesEpisodeSpace,deriveSeriesMemberSizeBudgets}=require('../../../contracts/episode-byte-allocation');
 const sorted=values=>[...values].sort((a,b)=>Buffer.from(a).compare(Buffer.from(b)));
 const digest=value=>typeof value==='string'&&/^[a-f0-9]{64}$/.test(value);
 
@@ -46,17 +46,9 @@ function deriveSeriesMemberSizeBudget({basis,materialKey,maxSizeBytes}) {
     throw new TypeError('Series size planning requires a complete canonical space basis.');
   const member=basis.members.find(item=>item.materialKey===materialKey);
   if(!member)throw new TypeError('Series size planning member is outside the frozen basis.');
-  const totals=evaluateSeriesEpisodeSpace({members:basis.members.map(item=>({...item,role:'primary_payload',
+  const budgets=deriveSeriesMemberSizeBudgets({members:basis.members.map(item=>({...item,role:'primary_payload',
     episodeClaims:item.episodeKeys.map(episodeKey=>({episodeKey}))})),episodeKeys:basis.episodeKeys,maxSizeBytes});
-  if(maxSizeBytes===null)return null;
-  if(member.sizeBytes===0)return 0;
-  let budget=BigInt(Number.MAX_SAFE_INTEGER);
-  for(const item of totals.filter(item=>member.episodeKeys.includes(item.episodeKey))) {
-    const numerator=BigInt(item.allocatedBytes.numerator),denominator=BigInt(item.allocatedBytes.denominator);
-    const bound=BigInt(maxSizeBytes)*BigInt(member.sizeBytes)*denominator/numerator;
-    if(bound<budget)budget=bound;
-  }
-  return Number(budget);
+  return budgets.find(item=>item.materialKey===materialKey).maxOutputBytes;
 }
 
 module.exports=Object.freeze({buildSeriesMediaSpaceBasis,evaluateSeriesMediaSpace,deriveSeriesMemberSizeBudget});

@@ -17,7 +17,7 @@ const crypto = require('node:crypto');
 const { spawn } = require('node:child_process');
 const sharp = require('sharp');
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
-const { evaluateSeriesEpisodeSpace } = require('../../../contracts/episode-byte-allocation');
+const {evaluateSeriesCareMediaSpace}=require('../model/series-care-media-space');
 const { createMaterialControlParticipant, createMaterialControlProjectionPort,
   controlScopeDigest } = require('../../../foundation/persistence/material-control');
 const { CAPABILITY_REFS:C,
@@ -494,11 +494,7 @@ async function assessInventoryMediaConformance(options,context,at) {
   let findings=[],mediaRepairStrategy=null;
   let episodeSpace=null;
   if(series) {
-    const members=primaries.map(material=>({materialKey:material.material_key,role:material.role,
-      sizeBytes:Number(material.size_bytes),episodeClaims:JSON.parse(material.episode_claims_json).items}));
-    episodeSpace=evaluateSeriesEpisodeSpace({members,
-      episodeKeys:[...new Set(members.flatMap(member=>member.episodeClaims.map(claim=>claim.episodeKey)))],
-      maxSizeBytes:effectiveRequirements(context)?.space?.maxSizeBytes??null});
+    episodeSpace=evaluateSeriesCareMediaSpace(context,effectiveRequirements(context)?.space?.maxSizeBytes??null).episodeAllocations;
     primaries.forEach(assertCurrent);
   }
   for(const primary of primaries) {

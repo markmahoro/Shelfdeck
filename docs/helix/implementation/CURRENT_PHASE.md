@@ -213,3 +213,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08同目录改名Host暴露实际数据保护缺陷：Placement Material Receipt将未变化成员也标为requiresSettlement，删除了仍作为当前Inventory的NFO/poster。修复在Arca Receipt投影排除位置/身份均未变成员，同位置替换不结算当前路径，并在实际Settlement入口拒绝当前Inventory位置。保留原失败证据；必须重跑真实Host和相关完整回归，不能以增加等待或重置掩盖。
 
 2026-10-08实际Placement结果：[Evidence](evidence/SERIES_PLACEMENT_CASE_20261008.md)。整季换目录与同目录Primary改名的正式API/Host实际文件闭环分别91.9/92.0秒通过，含事务回滚/Commit、Control和Settlement。旧Assessment改为显式输入失效；Receipt排除未变化材料，Settlement拒绝当前Inventory位置，修复首次同目录场景删除NFO/poster的问题。36项专项和全架构2,281通过/9既有skip/0失败。真实进程中断、跨设备、媒体维修及UI/Linux发布Gate仍开放。
+
+2026-10-08 Series媒体维修计量DoR：沿SSOT §5.5.8与现有保守物理预算公式，将纯N:M字节预算算法从Libra模型提取到共享合同工具，Owner仍各自提供完整源集合。Arca以自身当前Inventory完整Physical Identity/Claims、Binding、Care Basis和revision建立维修空间快照，给出逐成员预算并继续实测逐集验收；拒绝错误摘要和不完整Claims，不跨读Libra。先接现有媒体评估并验证边界，自动维修门禁在逐成员策略/完整输出验证与Commit闭环完成前保留。
+
+2026-10-08媒体维修空间基础结果：[Evidence](evidence/SERIES_CARE_MEDIA_SPACE_20261008.md)。Arca当前Inventory快照与共享纯算术已接通，23项专项及共文件两集真实SQLite/Host通过；预算仍与实际逐集验收分离。下一段贯通逐成员冻结策略/目标、Planner/Effect和完整混合输出验证，再连接原子Commit与恢复；本批不开放自动媒体维修，不关闭运营或发布Gate。

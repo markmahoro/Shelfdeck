@@ -1,7 +1,7 @@
 'use strict';
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
-const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
+const {canonicalDigest,canonicalJson}=require('../../src/helix/contracts/canonical-json');
 const {assessInventoryMediaConformance}=require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
 const {createAftercareCapabilityPorts}=require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
 const {CAPABILITY_REFS:C}=require('../../src/helix/domains/arca/model/aftercare-contract');
@@ -16,11 +16,14 @@ async function fixture(t,specs,maximum=10) {
     const location=path.join(root,i+'.mkv');fs.writeFileSync(location,Buffer.alloc(size,i));
     const observed=fingerprint(location),identity={mountScopeId:'mount',inode:String(observed.stat.ino),sizeBytes:size,
       fingerprintAlgorithm:observed.fingerprintAlgorithm,fingerprintVersion:1,contentFingerprint:observed.contentFingerprint};
-    return {role:'primary_payload',location,size_bytes:size,material_key:canonicalDigest({schema:'physical-material-identity@2',...identity}),
+    const claims=episodes.map(episodeKey=>{const value={episodeKey,seasonClaimDigest:canonicalDigest('season')};return {...value,claimDigest:canonicalDigest({schema:'libra.production-material-episode-claim@1',...value})};}).sort((a,b)=>Buffer.from(a.episodeKey).compare(Buffer.from(b.episodeKey))),
+      episodeClaimSetDigest=canonicalDigest({schema:'libra.production-material-episode-claims@1',items:claims});
+    return {inode:identity.inode,fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:1,role:'primary_payload',location,size_bytes:size,material_key:canonicalDigest({schema:'physical-material-identity@2',...identity}),
       mount_scope_id:'mount',endpoint_id:'endpoint',binding_revision:1,content_fingerprint:identity.contentFingerprint,
-      episode_claims_json:JSON.stringify({items:episodes.map(episodeKey=>({episodeKey}))})};
+      episode_claims_schema_ref:'helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1',episode_claim_set_digest:episodeClaimSetDigest,
+      episode_claims_json:canonicalJson({items:claims,episodeClaimSetDigest})};
   });
-  const context={shelfEntryId:'entry',basis:{digest:canonicalDigest('basis')},raw:{entry:{structure_kind:'season'},materials,facts:[],
+  const context={shelfEntryId:'entry',basis:{digest:canonicalDigest('basis')},raw:{entry:{structure_kind:'season',current_inventory_revision:1},materials,facts:[],
     standard:{value:{profileRuleSets:[{contentProfile:'series',baseRequirements:{mandatoryMedia:{videoCodec:'hevc'},space:{maxSizeBytes:maximum}}}]}}}};
   const probed=[],played=[],options={computeBoundedMaterialFingerprintSync:fingerprint,
     mediaProbe:{async probe(handle){probed.push(handle.identity.materialKey);return {resultKind:'probed',durationMs:1000,
@@ -80,7 +83,7 @@ for(const invalid of ['duplicate_material','empty_claims','duplicate_claims','mi
   if(invalid==='empty_claims')f.materials[1].episode_claims_json='{"items":[]}';
   if(invalid==='duplicate_claims')f.materials[1].episode_claims_json='{"items":[{"episodeKey":"E02"},{"episodeKey":"E02"}]}';
   if(invalid==='missing_claims')f.materials[1].episode_claims_json='{}';
-  await assert.rejects(f.run(),TypeError);assert.equal(f.probed.length,0);
+  await assert.rejects(f.run(),invalid==='duplicate_material'?TypeError:{code:'ARCA_EPISODE_CLAIMS_PERSISTENCE'});assert.equal(f.probed.length,0);
 });
 
 test('formal Conformance Capability evaluates the complete Series set and emits valid evidence',async t=>{
@@ -129,4 +132,30 @@ test('Movie retains its physical size check and single-source assessment behavio
   f.context.raw.entry.structure_kind='single';
   f.context.raw.standard.value.profileRuleSets[0].contentProfile='movie';
   assert.deepEqual(codes(await f.run()),['max_size_exceeded']);assert.equal(f.played.length,3);
+});
+
+const {evaluateSeriesCareMediaSpace}=require('../../src/helix/domains/arca/model/series-care-media-space');
+test('Arca derives conservative physical budgets from its own complete Inventory and keeps byte acceptance separate',async t=>{
+  const f=await fixture(t,[[12,['E01','E02']],[4,['E01']]]),value=evaluateSeriesCareMediaSpace(f.context,9),
+    budget=key=>value.memberBudgets.find(item=>item.materialKey===key).maxOutputBytes;
+  assert.equal(budget(f.materials[0].material_key),10);assert.equal(budget(f.materials[1].material_key),3);
+  assert.equal(value.episodeAllocations.find(item=>item.episodeKey==='E01').withinLimit,false);
+  assert.equal(value.inventoryRevision,1);assert.equal(value.careBasisDigest,f.context.basis.digest);
+  f.materials.reverse();assert.deepEqual(evaluateSeriesCareMediaSpace(f.context,9),value);
+  assert.ok(evaluateSeriesCareMediaSpace(f.context,null).memberBudgets.every(item=>item.maxOutputBytes===null));
+});
+test('Arca media space basis binds current Inventory, binding, Care Basis and limit',async t=>{
+  const f=await fixture(t,[[12,['E01','E02']]]),baseline=evaluateSeriesCareMediaSpace(f.context,9).basisDigest;
+  for(const mutate of [c=>{c.raw.entry.current_inventory_revision++;},c=>{c.basis.digest=canonicalDigest('new');},
+    c=>{c.raw.materials[0].binding_revision++;},c=>{c.raw.materials[0].location+='-moved';}]) {
+    const c=structuredClone(f.context);mutate(c);assert.notEqual(evaluateSeriesCareMediaSpace(c,9).basisDigest,baseline);
+  }
+  assert.notEqual(evaluateSeriesCareMediaSpace(f.context,10).basisDigest,baseline);
+});
+test('Arca media space refuses corrupted formal identity or Claims before planning any budget',async t=>{
+  const f=await fixture(t,[[8,['E01']]]);
+  for(const mutate of [c=>{c.raw.materials[0].size_bytes++;},c=>{c.raw.materials[0].episode_claim_set_digest=canonicalDigest('wrong');},
+    c=>{c.raw.materials[0].episode_claims_json=' '+c.raw.materials[0].episode_claims_json;},c=>{c.raw.entry.current_inventory_revision=0;}]) {
+    const c=structuredClone(f.context);mutate(c);assert.throws(()=>evaluateSeriesCareMediaSpace(c,9));
+  }
 });

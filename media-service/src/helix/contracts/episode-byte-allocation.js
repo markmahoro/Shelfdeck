@@ -42,4 +42,22 @@ function evaluateSeriesEpisodeSpace({members, episodeKeys, maxSizeBytes}) {
       maxSizeBytes,withinLimit:maxSizeBytes === null || total.numerator <= BigInt(maxSizeBytes) * total.denominator})));
 }
 
-module.exports = Object.freeze({evaluateSeriesEpisodeSpace});
+// Conservative physical budgets preserve the Episode cap after equal splitting.
+// This is planning arithmetic, never a substitute for measured final acceptance.
+function deriveSeriesMemberSizeBudgets(input) {
+  const totals=new Map(evaluateSeriesEpisodeSpace(input).map(item=>[item.episodeKey,item.allocatedBytes]));
+  return Object.freeze([...input.members].sort((a,b)=>Buffer.from(a.materialKey).compare(Buffer.from(b.materialKey))).map(member=>{
+    let budget=input.maxSizeBytes===null?null:BigInt(Number.MAX_SAFE_INTEGER);
+    if(budget!==null) {
+      if(member.sizeBytes===0)budget=0n;
+      else for(const claim of member.episodeClaims) {
+        const total=totals.get(claim.episodeKey),bound=BigInt(input.maxSizeBytes)*BigInt(member.sizeBytes)*
+          BigInt(total.denominator)/BigInt(total.numerator);
+        if(bound<budget)budget=bound;
+      }
+    }
+    return Object.freeze({materialKey:member.materialKey,maxOutputBytes:budget===null?null:Number(budget)});
+  }));
+}
+
+module.exports = Object.freeze({evaluateSeriesEpisodeSpace,deriveSeriesMemberSizeBudgets});
