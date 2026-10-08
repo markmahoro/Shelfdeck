@@ -123,19 +123,26 @@ async function reservePort() {
 }
 
 async function waitForHealth(url, child, stderr) {
-  for (let attempt = 0; attempt < 400; attempt += 1) {
+  // Full-suite child startup competes with native SQLite and contract checks.
+  // Bound wall-clock time as well as each HTTP attempt, rather than counting polls.
+  const startedAt = performance.now(), startupBudgetMs = 30000;
+  let lastStatus = null, lastError = null;
+  while (performance.now() - startedAt < startupBudgetMs) {
     if (child.exitCode !== null) {
-      throw new Error(`service exited before health: ${stderr()}`);
+      throw new Error(`service exited before health (${child.exitCode}): ${stderr()}`);
     }
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: AbortSignal.timeout(1000) });
+      lastStatus = response.status;
       if (response.status === 200) return response;
-    } catch (_error) {
-      // Startup is bounded by the loop.
+      await response.body?.cancel();
+    } catch (error) {
+      lastError = error.code || error.name;
     }
     await new Promise((resolve) => setTimeout(resolve, 25));
   }
-  throw new Error(`service health timeout: ${stderr()}`);
+  throw new Error(`service health timeout after ${Math.round(performance.now() - startedAt)}ms ` +
+    `(status=${lastStatus}, transport=${lastError}): ${stderr()}`);
 }
 
 test.after(() => roots.forEach((root) => fs.rmSync(root, { recursive: true, force: true })));
