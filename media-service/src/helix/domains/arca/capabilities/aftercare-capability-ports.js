@@ -2,6 +2,7 @@
 const { automaticCaseTargetsAcceptedDefect } = require('../model/accepted-defect-maintenance');
 const { careFindingCodes } = require('../model/care-objective');
 const { missingFields } = require('../model/accepted-gap-contracts');
+const {readInventoryArtifactScope}=require('../model/inventory-artifact-scope');
 const { aftercareProviderIdentity } = require('../model/aftercare-provider-identity');
 const { verifiedDefectRepair } = require('../model/defect-repair-verification');
 const { requirementGapValueDigest } = require('../../../contracts/requirement-gap-values');
@@ -289,7 +290,9 @@ async function inspectImageBytes(bytes){try{if(!Buffer.isBuffer(bytes)||bytes.le
 async function validImageBytes(bytes){return Boolean(await inspectImageBytes(bytes));}
 async function validImage(location){try{const bytes=boundedBytes(location);return Boolean(bytes&&await validImageBytes(bytes));}catch{return false;}}
 function representationMember(item, ordinal) {
+  const artifactScope=readInventoryArtifactScope(item);
   return Object.freeze({
+    ...(artifactScope?{artifactScope}:{}),
     ordinal,
     materialKey: item.material_key,
     role: item.role,

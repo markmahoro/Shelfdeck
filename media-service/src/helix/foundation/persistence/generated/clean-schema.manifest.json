@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 197,
-  "tableContractAggregateDigest": "215e14176954a8b1605a984b462992ab3647d90d9f2aa68a17fc088af5f2f055",
-  "ddlDigest": "f1016a2c9f4a314554c7a9863a487e4874ec77f93e6010c51fbb281b4204c2cb",
+  "tableContractAggregateDigest": "df8ee7c23a025485b64e4a6cc0ef17662ef53dfed5686dc718b0d974c85c3cc0",
+  "ddlDigest": "efa5340869a40216e3b2750293cbcb65fa3c7bc1c6950eb01eaf012b9f496a90",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -561,8 +561,8 @@
       "tableId": "arca_inventory_materials",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_inventory_materials/v1",
-      "contractDigest": "e95eb16dc8884c7aee32fb99107aa92381522bf354d37dcc4c782cd4e3907ee6",
-      "sqlDigest": "de49e91ff66d190934c9eb5e52bc149516a34771e67b195cef1b3290c4f7e365",
+      "contractDigest": "defa8106feb14f12198615a396da851f3bd73ebc2ffd5a295e2ee229ac959230",
+      "sqlDigest": "7feb938e107962004f4d4334a645d3ca6ac1a56d357893342a48b196f40a5b4a",
       "columns": [
         "shelf_entry_id",
         "inventory_revision",
@@ -582,6 +582,8 @@
         "content_fingerprint",
         "digest_hex",
         "size_bytes",
+        "artifact_scope_schema_ref",
+        "artifact_scope_json",
         "active_guard"
       ],
       "immutable": false,

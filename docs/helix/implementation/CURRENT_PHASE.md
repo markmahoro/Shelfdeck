@@ -177,3 +177,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 NFO scope基础DoR：从交付包的完整Metadata Episode scopes、NFO Artifact Requirement digest和Workspace材料digest建立Arca内部确定性关联，供当前Series落位和后续正式Inventory Artifact关系持久化使用。以原有Owner/SSOT §5.5.5/§6.5为界，不猜文件名、不赋予NFO Primary Claim；拒绝错季、重复Episode、歧义Artifact或同scope重复物理NFO。先验证真实落位调用及负向数据，再接入Commit关系保存和逐Artifact维修，不能仅凭内部映射宣称Aftercare已完成。
 
 2026-10-08 NFO scope基础结果：[Evidence](evidence/SERIES_ARTIFACT_TARGETS_20261008.md)。按Requirement与材料digest建立内部映射并接入Series落位；17项专项、共文件两集完整隔离Host通过，全架构2,190通过/9既有skip/0失败。后续必须将该正式关联写入Arca Inventory revision及原子Commit，再连接逐Artifact维修；本批未持久化映射，不关闭节点4或发布Gate。
+
+2026-10-08 Inventory Artifact scope持久化DoR：在Arca Inventory成员增加nullable的artifact_scope_json；仅Series NFO存储closed且自带摘要的整季/Episode Requirement与已接受Artifact来源关联，Movie/其他角色为空。On-deck从既有正式映射及已验证Staged成员建立关系，与Inventory/Deck摘要及事务一同提交；追加保留旧成员关系，Aftercare新revision复制关系。Owner/Handoff不变，不读取Libra内部Store，不替NFO创建Primary Claim。精确旧schema只做新增nullable列，不回填/猜测历史Series关系；旧Series收藏缺关系需显式拒绝升级，Movie事实不改写。以模型负向、真实SQLite事务/历史保护、Host首次/追加验证；本批无生产升级授权。
+
+2026-10-08 Inventory Artifact scope结果：[Evidence](evidence/SERIES_INVENTORY_ARTIFACT_SCOPE_20261008.md)。独立schema_ref与closed scope JSON已进入Arca正式成员、首次/追加Commit、历史摘要重建及维护revision复制。显式连续性Host E01/E02→E03通过；全架构2,202通过/9既有skip/0失败，最后维护/Scope239通过。旧Movie schema保护升级与旧Series缺证据拒绝通过。下一段将scope贯穿逐Artifact维修Planner/Projection/Result、NFO生成与精确物化提交；当前TextRender门禁仍在，不关闭节点4/发布Gate。无生产动作。

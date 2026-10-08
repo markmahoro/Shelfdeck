@@ -1,4 +1,5 @@
 'use strict';
+const {readInventoryArtifactScope}=require('./inventory-artifact-scope');
 const {canonicalJson}=require('../../../contracts/canonical-json');
 
 function validateSeriesExtension({entry,materials,packageValue}) {
@@ -22,7 +23,8 @@ function isRetainedSeriesMaterial(previous,member) {
   return true;
 }
 function inventoryMemberFromRow(row) {
-  return {ordinal:Number(row.ordinal),materialKey:row.material_key,role:row.role,episodeClaims:JSON.parse(row.episode_claims_json),
+  const artifactScope=readInventoryArtifactScope(row);
+  return {...(artifactScope?{artifactScope}:{}),ordinal:Number(row.ordinal),materialKey:row.material_key,role:row.role,episodeClaims:JSON.parse(row.episode_claims_json),
     endpointId:row.endpoint_id,location:row.location,bindingRevision:Number(row.binding_revision),digestHex:row.digest_hex,sizeBytes:Number(row.size_bytes),
     physicalIdentity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:row.material_key,
       mountScopeId:row.mount_scope_id,inode:row.inode,sizeBytes:Number(row.size_bytes),fingerprintAlgorithm:row.fingerprint_algorithm,

@@ -380,10 +380,14 @@ CREATE TABLE "arca_inventory_materials" (
   "content_fingerprint" TEXT,
   "digest_hex" TEXT CHECK (length("digest_hex") = 64 AND "digest_hex" NOT GLOB '*[^0-9a-f]*'),
   "size_bytes" INTEGER CHECK ("size_bytes" >= 0),
+  "artifact_scope_schema_ref" TEXT,
+  "artifact_scope_json" TEXT,
   "active_guard" INTEGER NOT NULL DEFAULT 0 CHECK ("active_guard" IN (0, 1)),
   PRIMARY KEY ("shelf_entry_id", "inventory_revision", "ordinal"),
   CHECK (json_valid("episode_claims_json")),
   CHECK (length(CAST("episode_claims_json" AS BLOB)) <= 16384),
+  CHECK ("artifact_scope_json" IS NULL OR json_valid("artifact_scope_json")),
+  CHECK ("artifact_scope_json" IS NULL OR length(CAST("artifact_scope_json" AS BLOB)) <= 4096),
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX "uidx_arca_inventory_materials_partial_01" ON "arca_inventory_materials" ("material_key") WHERE "role" = 'primary_payload' AND "active_guard" = 1;

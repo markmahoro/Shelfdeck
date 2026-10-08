@@ -322,7 +322,7 @@
       "sourceLocator": {
         "section": "8.5.12",
         "line": 9471,
-        "lineDigest": "952a6716ae1f82c80b9e275f630ba1b4b819462a85a59c29e67248bed42262c9"
+        "lineDigest": "105bf69596315694c0d58518146028365288092e5b9ae37dae74481464a89475"
       },
       "targetLocator": {
         "path": "table-contracts/arca_inventory_materials/v1/contract.json"
@@ -331,11 +331,11 @@
         "tableId": "arca_inventory_materials",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_inventory_materials/v1",
-        "contractDigest": "e95eb16dc8884c7aee32fb99107aa92381522bf354d37dcc4c782cd4e3907ee6"
+        "contractDigest": "defa8106feb14f12198615a396da851f3bd73ebc2ffd5a295e2ee229ac959230"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "a83d82251ce1a53e7c77b563ab19748bf1aefb617f84cfdb4538aa8dba7b1ab8"
+        "value": "c7f8014d0173163135510fa05bb96aa4a3cb997f595260540e72fe5500705e27"
       }
     },
     {

@@ -80,7 +80,7 @@ for(const state of ['committed','ready','blocked'])test('Reservation schema upgr
   const schemaDdl=fs.readFileSync(path.join(generated,'clean-schema.sql'),'utf8');
   const schemaManifest=JSON.parse(fs.readFileSync(path.join(generated,'clean-schema.manifest.json'),'utf8'));
   const databasePath=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'series-target-upgrade-')),'test.sqlite');
-  const oldDdl=schemaDdl.split('\n').filter(line=>!line.includes('"target_reserved_at_ms"')).join('\n');
+  const oldDdl=require('node:zlib').gunzipSync(fs.readFileSync(path.resolve(__dirname,'../fixtures/helix-historical-ddl',PRE_TARGET_RESERVATION_SCHEMA_DIGEST+'.sql.gz'))).toString('utf8');
   assert.equal(digest(oldDdl),PRE_TARGET_RESERVATION_SCHEMA_DIGEST);
   const db=new Database(databasePath);t.after(()=>db.close());db.exec(oldDdl);
   db.prepare('INSERT INTO arca_ondeck_runs(on_deck_run_id,state) VALUES (?,?)').run('historical',state);

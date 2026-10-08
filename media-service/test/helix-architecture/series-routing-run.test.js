@@ -560,6 +560,12 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   }
   const finalNfos=inventory.filter(item=>item.role==='metadata_sidecar');
   assert.equal(finalNfos.length,episodeCount+1);
+  const {readInventoryArtifactScope}=require('../../src/helix/domains/arca/model/inventory-artifact-scope');
+  const nfoScopes=finalNfos.map(readInventoryArtifactScope);
+  assert.ok(nfoScopes.every(scope=>scope&&scope.seasonNumber===1));
+  assert.equal(nfoScopes.filter(scope=>scope.episodeScope===null).length,1);
+  assert.deepEqual(nfoScopes.filter(scope=>scope.episodeScope).map(scope=>scope.episodeScope.episodeNumber).sort((a,b)=>a-b),episodeNumbers);
+  assert.ok(inventory.filter(item=>item.role!=='metadata_sidecar').every(item=>item.artifact_scope_json===null));
   for(const number of episodeNumbers) {
     const item=finalNfos.find(item=>path.basename(item.location).endsWith('S01E'+String(number).padStart(2,'0')+'.nfo'));
     assert.ok(item);
@@ -603,6 +609,9 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const currentEntry=db.prepare('SELECT * FROM arca_shelf_entries').get();
     assert.ok(currentEntry.current_inventory_revision>firstEntry.current_inventory_revision);
     const latestInventory=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=?').all(currentEntry.current_inventory_revision);
+    const latestNfoScopes=latestInventory.filter(item=>item.role==='metadata_sidecar').map(readInventoryArtifactScope);
+    assert.deepEqual(latestNfoScopes.filter(scope=>scope.episodeScope).map(scope=>scope.episodeScope.episodeNumber).sort((a,b)=>a-b),[1,2,3]);
+    for(const old of finalNfos)assert.equal(latestInventory.find(item=>item.material_key===old.material_key).artifact_scope_json,old.artifact_scope_json);
     const latestPrimary=latestInventory.filter(row=>row.role==='primary_payload');
     assert.deepEqual(latestPrimary.flatMap(row=>JSON.parse(row.episode_claims_json).items.map(claim=>claim.episodeKey)).sort(),['E001','E002','E003'],JSON.stringify({currentEntry,inventory:db.prepare('SELECT inventory_revision,role,episode_claims_json FROM arca_inventory_materials').all(),receipts:db.prepare('SELECT * FROM arca_ondeck_commit_receipts').all()}));
     assert.ok(latestPrimary.every(row=>row.active_guard===1));

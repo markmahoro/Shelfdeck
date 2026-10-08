@@ -1,4 +1,5 @@
 'use strict';
+const {acceptedInventoryArtifactScopes,readInventoryArtifactScope}=require('../model/inventory-artifact-scope');
 
 const path = require('node:path');
 const {canonicalContentIdentity}=require('../model/canonical-content-identity');
@@ -325,7 +326,7 @@ function arcaDefinition(schemaManifest) {
           'episode_claim_set_digest', 'endpoint_id', 'location',
           'binding_revision', 'mount_scope_id', 'inode',
           'fingerprint_algorithm', 'fingerprint_version',
-          'content_fingerprint', 'digest_hex', 'size_bytes', 'active_guard',
+          'content_fingerprint', 'digest_hex', 'size_bytes', 'artifact_scope_schema_ref','artifact_scope_json', 'active_guard',
         ],
       },
       list_materials: {
@@ -337,7 +338,7 @@ function arcaDefinition(schemaManifest) {
           'episode_claim_set_digest', 'endpoint_id', 'location',
           'binding_revision', 'mount_scope_id', 'inode',
           'fingerprint_algorithm', 'fingerprint_version',
-          'content_fingerprint', 'digest_hex', 'size_bytes', 'active_guard',
+          'content_fingerprint', 'digest_hex', 'size_bytes', 'artifact_scope_schema_ref','artifact_scope_json', 'active_guard',
         ],
         keyColumns: ['shelf_entry_id', 'inventory_revision'],
         safeIntegers: true,
@@ -571,7 +572,9 @@ function createOnDeckStore(options) {
         fail('P14_ONDECK_INVENTORY_HISTORY',
           'Inventory Material Physical Identity cannot be reconstructed.');
       }
+      const artifactScope=readInventoryArtifactScope(row);
       return Object.freeze({
+        ...(artifactScope?{artifactScope}:{}),
         ordinal,
         materialKey: row.material_key,
         role: row.role,
@@ -932,6 +935,7 @@ function createOnDeckStore(options) {
       fail('P14_ONDECK_STAGED_MANIFEST_DRIFT',
         'Staged Inventory Manifest does not conserve its exact members.');
     }
+    const artifactScopes=acceptedInventoryArtifactScopes(packageValue);
     const inventoryMembers = extendInventory(previous,Object.freeze(stagedMembers.map(
       (item, ordinal) => Object.freeze({
         ordinal,
@@ -944,6 +948,7 @@ function createOnDeckStore(options) {
         physicalIdentity: item.physicalIdentity,
         digestHex: item.digestHex,
         sizeBytes: item.sizeBytes,
+        ...(artifactScopes.has(item.sourceMaterialKey)?{artifactScope:artifactScopes.get(item.sourceMaterialKey)}:{}),
       }),
     )));
     const oldMaterials = new Map();
@@ -1236,6 +1241,8 @@ function createOnDeckStore(options) {
             content_fingerprint: item.physicalIdentity.contentFingerprint,
             digest_hex: item.digestHex,
             size_bytes: item.sizeBytes,
+            artifact_scope_schema_ref: item.artifactScope?.schemaRef??null,
+            artifact_scope_json: item.artifactScope?canonicalJson(item.artifactScope):null,
             active_guard: item.role === 'primary_payload' ? 1 : 0,
           });
         });

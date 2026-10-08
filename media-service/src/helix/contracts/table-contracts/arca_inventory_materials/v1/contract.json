@@ -196,6 +196,26 @@
         "foreignKeyMarker": false,
         "inlineUnique": false,
         "nullable": false
+      },
+      {
+        "ordinal": 19,
+        "name": "artifact_scope_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 20,
+        "name": "artifact_scope_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
       }
     ],
     "primaryKey": [
@@ -243,6 +263,13 @@
         "maxBytes": 16384,
         "source": "table-row",
         "requiresJsonValidCheck": true
+      },
+      {
+        "column": "artifact_scope_json",
+        "schemaRefColumn": "artifact_scope_schema_ref",
+        "maxBytes": 4096,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
       }
     ],
     "immutability": {
@@ -257,16 +284,18 @@
       "`PK(shelf_entry_id,inventory_revision,ordinal)`",
       "每个物理Material在一版Inventory中只有一row，active representation中Primary Material全局exclusive partial unique",
       "每row必须逐字保存完整`PhysicalMaterialIdentity@2` tuple，且`material_key`必须等于该tuple的canonical digest，使文件已经missing时Aftercare仍能签发精确Control release。最终物化的Related/Artifact与Primary一样必须作为Target-contained Inventory Material row，不能只保留外部Reference。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`且三列均非NULL，由同一On-deck Run verified `StagedInventoryManifest@1` member逐字节复制",
-      "Inventory Representation与Deck Fact digest覆盖完整typed Set，历史revision从本row独立重建，不得复制多条Material row表达多个Episode"
+      "Inventory Representation与Deck Fact digest覆盖完整typed Set，历史revision从本row独立重建，不得复制多条Material row表达多个Episode",
+      "`artifact_scope_json`仅Series NFO保存Arca内部`helix://arca/inventory-artifact-scope/v1` closed JCS（≤4 KiB）：schemaVersion=1、artifactKind=nfo、seasonNumber、episodeScope（整季为NULL）、requirementDigest、sourcePackageId、sourceArtifactHandleId、sourceArtifactReferenceDigest与scopeDigest。其scopeDigest覆盖除自身外完整值，Requirement由冻结Episode scope重建",
+      "On-deck从Accepted Artifact与verified Staged成员关联生成，随Inventory/Deck摘要和原子事务提交，追加/维修revision逐字保留未变目标。其他角色/非Series为NULL，不得用NFO Episode Claim或文件名猜测替代此关系"
     ],
     "rawContract": {
-      "columns": "`shelf_entry_id FK, inventory_revision, ordinal, material_key, role(primary_payload|structural_dependency|metadata_sidecar|poster|fanart|subtitle|external_audio|chapter|sidecar), episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, binding_revision, mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, digest_hex, size_bytes`",
-      "constraints": "`PK(shelf_entry_id,inventory_revision,ordinal)`；每个物理Material在一版Inventory中只有一row，active representation中Primary Material全局exclusive partial unique；每row必须逐字保存完整`PhysicalMaterialIdentity@2` tuple，且`material_key`必须等于该tuple的canonical digest，使文件已经missing时Aftercare仍能签发精确Control release。最终物化的Related/Artifact与Primary一样必须作为Target-contained Inventory Material row，不能只保留外部Reference。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`且三列均非NULL，由同一On-deck Run verified `StagedInventoryManifest@1` member逐字节复制；Inventory Representation与Deck Fact digest覆盖完整typed Set，历史revision从本row独立重建，不得复制多条Material row表达多个Episode"
+      "columns": "`shelf_entry_id FK, inventory_revision, ordinal, material_key, role(primary_payload|structural_dependency|metadata_sidecar|poster|fanart|subtitle|external_audio|chapter|sidecar), episode_claims_schema_ref, episode_claims_json, episode_claim_set_digest, endpoint_id, location, binding_revision, mount_scope_id, inode, fingerprint_algorithm, fingerprint_version, content_fingerprint, digest_hex, size_bytes, artifact_scope_schema_ref NULL, artifact_scope_json NULL`",
+      "constraints": "`PK(shelf_entry_id,inventory_revision,ordinal)`；每个物理Material在一版Inventory中只有一row，active representation中Primary Material全局exclusive partial unique；每row必须逐字保存完整`PhysicalMaterialIdentity@2` tuple，且`material_key`必须等于该tuple的canonical digest，使文件已经missing时Aftercare仍能签发精确Control release。最终物化的Related/Artifact与Primary一样必须作为Target-contained Inventory Material row，不能只保留外部Reference。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`且三列均非NULL，由同一On-deck Run verified `StagedInventoryManifest@1` member逐字节复制；Inventory Representation与Deck Fact digest覆盖完整typed Set，历史revision从本row独立重建，不得复制多条Material row表达多个Episode；`artifact_scope_json`仅Series NFO保存Arca内部`helix://arca/inventory-artifact-scope/v1` closed JCS（≤4 KiB）：schemaVersion=1、artifactKind=nfo、seasonNumber、episodeScope（整季为NULL）、requirementDigest、sourcePackageId、sourceArtifactHandleId、sourceArtifactReferenceDigest与scopeDigest。其scopeDigest覆盖除自身外完整值，Requirement由冻结Episode scope重建；On-deck从Accepted Artifact与verified Staged成员关联生成，随Inventory/Deck摘要和原子事务提交，追加/维修revision逐字保留未变目标。其他角色/非Series为NULL，不得用NFO Episode Claim或文件名猜测替代此关系"
     },
     "source": {
       "section": "8.5.12",
       "line": 9471,
-      "lineDigest": "952a6716ae1f82c80b9e275f630ba1b4b819462a85a59c29e67248bed42262c9"
+      "lineDigest": "105bf69596315694c0d58518146028365288092e5b9ae37dae74481464a89475"
     },
     "foreignKeys": [
       {
