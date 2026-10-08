@@ -374,7 +374,7 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
   assert.throws(()=>projection.project({ownerScope:{processId:'entry'},parameters:{materialKey:f.materials[0].material_key}}));
   const {createCareRepairPreparationPlanner}=require('../../src/helix/domains/arca/planning/aftercare-planners'),
     {validateWorkflowPlan}=require('../../src/helix/foundation/execution/workflow-plan'),
-    refs=[C.remux,C.transcode,C.mediaVerify],root=path.resolve(__dirname,'../../src/helix/contracts/capabilities'),
+    refs=[C.remux,C.transcode,C.mediaVerify,C.artifactMaterialize,C.inventoryCommit,C.settlement],root=path.resolve(__dirname,'../../src/helix/contracts/capabilities'),
     directory=ref=>path.join(root,...ref.replace('@1','').split('.'),'v1'),
     manifests=new Map(refs.map(ref=>[ref,JSON.parse(fs.readFileSync(path.join(directory(ref),'manifest.json'),'utf8'))])),
     registry={snapshot:refs.map(capabilityRef=>({capabilityRef,contractVersion:1})),resolve:capabilityRef=>({manifest:manifests.get(capabilityRef)})},
@@ -421,7 +421,7 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
   }
   const {seriesMediaOutputTarget}=require('../../src/helix/domains/arca/model/series-care-assessment-set'),
     {deriveInventoryMaterialChanges}=require('../../src/helix/domains/arca/model/aftercare-contract'),
-    workspaceRoot=path.join(path.dirname(f.materials[0].location),'workspace'),receipts=[],untouched=fs.readFileSync(f.materials[0].location);
+    workspaceRoot=path.join(path.dirname(f.materials[0].location),'workspace'),receipts=[],preparedRows=[],untouched=fs.readFileSync(f.materials[0].location);
   fs.mkdirSync(workspaceRoot);
   Object.assign(contextReader.store,{aftercareWorkspaceRootSnapshot:{rootHandleRef:'workspace-root',endpointId:'workspace-endpoint',mountScopeId:'workspace-mount'},
     aftercareWorkspaceLocation:(_caseId,relative)=>path.join(workspaceRoot,relative)});
@@ -434,7 +434,7 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
       contentFingerprint:observed.contentFingerprint},workspace={workspaceId:'case',ownerDomain:'arca',processId:'entry',rootHandleRef:'workspace-root',
       endpointId:'workspace-endpoint',relativePath:filename,physicalIdentity:identity,sizeBytes:identity.sizeBytes,digestHex:identity.contentFingerprint,
       materialKey:canonicalDigest({schema:'physical-material-identity@2',...identity})},
-      body={workspaceMediaHandleId:'output-'+target.materialKey,sourceMaterialHandleDigest:target.memberScope.sourceHandleDigest,
+      body={schemaRef:'helix://contracts/types/WorkspaceMediaHandle/v1',producingEventId:'produce-'+target.materialKey,workspaceMediaHandleId:'output-'+target.materialKey,sourceMaterialHandleDigest:target.memberScope.sourceHandleDigest,
         workspaceMaterialHandle:workspace,workspaceMaterialHandleDigest:canonicalDigest(workspace),
         productionIntentKind:target.repairKind==='transcode'?'encode':'remux',productionIntentDigest:target.repairKind==='transcode'?
           target.strategy.strategyDigest:canonicalDigest({kind:'remux',requirement:care.careRequirementDigest,memberKey:target.materialKey})},
@@ -442,6 +442,13 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
       commit={...execution,workId:'commit',eventId:'materialize-'+target.materialKey,idempotencyKey:'materialize-'+target.materialKey,
         namedInputs:{verifiedArtifactOrWorkspaceMediaHandle:output,inventoryTargetHandle:{targetDirectory:c.raw.shelf.target_root_location,
           slotDirectory:c.raw.shelf.target_root_location}}};
+    const verification={verificationKind:'aftercare_media',result:'passed',workspaceMediaHandleId:output.workspaceMediaHandleId,
+      basisDigest:c.basis.digest,aftercareCaseId:care.aftercareCaseId,careRequirementDigest:care.careRequirementDigest},
+      common={workId:'prepare',attemptId:'prepare-attempt',planId:'prepare-plan',outcomeKind:'succeeded'};
+    preparedRows.push({...common,eventId:output.producingEventId,capabilityRef:C[target.repairKind],resultSchemaRef:output.schemaRef,
+      result:output,resultDigest:canonicalDigest(output)},
+      {...common,eventId:'verify-'+target.materialKey,capabilityRef:C.mediaVerify,result:verification,resultDigest:canonicalDigest(verification),
+        inputBindings:{bindings:[{portName:'workspaceMediaHandle',bindingKind:'projected_event_result',eventId:output.producingEventId,resultSchemaRef:output.schemaRef}]}});
     assert.equal(seriesMediaOutputTarget(c,care,history,reader,output).material,original);
     for(const mutate of [v=>{v.sourceMaterialHandleDigest=rows[0].result.memberScope.sourceHandleDigest;},
       v=>{v.productionIntentDigest=canonicalDigest('foreign');},v=>{v.workspaceMaterialHandle.workspaceId='foreign';},
@@ -470,6 +477,33 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
   assert.deepEqual(changes.filter(item=>item.action==='release').map(item=>item.identity.materialKey).sort(),
     targets.map(item=>item.materialKey).sort());
   assert.equal(changes.filter(item=>item.action==='acquire').length,3);
+  reader.read=id=>id==='work'?rows:id==='prepare'?preparedRows:[];
+  const {readSeriesPreparedMediaSet}=require('../../src/helix/domains/arca/model/aftercare-verified-media'),
+    preparedSet=readSeriesPreparedMediaSet(c,care,history,reader,'prepare'),
+    {createCareRepairCommitPlanner}=require('../../src/helix/domains/arca/planning/aftercare-planners'),
+    commitPlanner=createCareRepairCommitPlanner({registry,policyRegistry,contextReader,workResultReader:reader}),
+    commitRequest={...request,workId:'commit',workAttemptId:'commit-attempt',dependencyRefs:[{objectType:'repair_prepare_work',objectId:'prepare'}]},
+    commitPlan=commitPlanner.plan(commitRequest),mediaProjection=createAftercareProjections({contextReader,workResultReader:reader,
+      materialControlProjectionPort:{getMaterialControlProjections:()=>[]},controlScopeDigest:canonicalDigest})
+      .find(item=>item.projectionRef===P.mediaOutput).projection;
+  assert.equal(preparedSet.outputs.length,3);assert.equal(preparedSet.episodeAllocations.length,4);
+  validateWorkflowPlan(commitPlan,{registry,policyRegistry,contractValidator:createCapabilityContractValidator({schemas})});
+  assert.equal(commitPlan.nodes.filter(node=>node.capabilityRef===C.artifactMaterialize).length,3);
+  const project=()=>mediaProjection.project({ownerScope:{processId:'entry'},parameters:{sourceWorkId:'prepare',outputKind:'media',sourceEventId:preparedRows[1].eventId}});
+  assert.deepEqual(project(),preparedRows[0].result);
+  preparedRows.reverse();assert.equal(readSeriesPreparedMediaSet(c,care,history,reader,'prepare').setDigest,preparedSet.setDigest);preparedRows.reverse();
+  for(const mutate of [v=>v.splice(0,2),v=>v.splice(0),v=>v.push(structuredClone(v[0])),
+    v=>{v[1].result.result='failed';},v=>{v[1].result.aftercareCaseId='foreign';},
+    v=>{v[1].result.basisDigest=canonicalDigest('old');},v=>{v[1].result.careRequirementDigest=canonicalDigest('old');},
+    v=>{v[0].attemptId=v[1].attemptId='other';},v=>{v[0].planId=v[1].planId='other';}]) {
+    const damaged=structuredClone(preparedRows);mutate(damaged);damaged.forEach(row=>{row.resultDigest=canonicalDigest(row.result);});
+    reader.read=id=>id==='work'?rows:id==='prepare'?damaged:[];
+    assert.throws(()=>readSeriesPreparedMediaSet(c,care,history,reader,'prepare'));
+    assert.throws(()=>commitPlanner.plan(commitRequest));
+    assert.throws(project);
+  }
+  reader.read=id=>id==='work'?rows:id==='prepare'?preparedRows:[];
+
 
 });
 

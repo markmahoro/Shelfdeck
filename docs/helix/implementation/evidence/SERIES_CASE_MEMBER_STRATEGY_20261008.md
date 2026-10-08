@@ -49,3 +49,13 @@ Case必须active且Care Basis、CareRequirement摘要一致，basisInputs只允�
 27项增强专项通过；分组全架构2,297通过/9既有skip/0失败（并行2,281，94.7秒；stage 16，0.2秒）。架构448文件/1403依赖、语义2066文件及diff通过；无schema/DDL修改。外部日志前缀`series-media-materialization-`（targeted/full/stage）。
 
 后续仍须完整混合输出逐集验收、正式Inventory-Control原子提交/Claims持久化、Settlement及崩溃恢复和真实媒体Host；本批没有解除自动媒体维修或整体发布门禁，无生产动作。
+
+## 追加：完整准备成品集合门禁
+
+基线`2e765eff9be98bccaad5a4f96371199a0066875b`。Arca model共用精确验证Event→生产Event解析，完整准备集合要求冻结Case每个目标恰好一份生产与通过验证的成品，全部来自相同Work/Attempt/Plan，Case、CareBasis和Requirement一致。原成员/施工意图及Workspace身份继续逐一校验。以完整原Inventory的Episode Claims构建“已维修成品 + 未替换成员”的混合集合，按成品Handle中记录的测量字节精确计算逐集份额；拒绝缺目标、重复源或输出物理成员、foreign来源及超限。集合摘要绑定空间Basis、各成品与验证Result，并纳入VerifiedCareInventoryChange摘要。
+
+Commit Planner在生成任何物化节点前执行集合门禁，媒体成品Owner Projection再次重建集合后选择精确验证Event；没有把文件I/O放入Planner/Projection。零成品不能借同Case的Artifact结果绕过媒体目标完整性要求。现有同Work执行期投影及Movie单源消费维持原路径。
+
+45项专项通过：混合Case正式Commit Plan schema及Projection消费，缺目标/零输出/重复生产、失败验证、错Case/Basis/Requirement及跨Attempt/Plan均拒绝。独立空间测试含共文件与保留part相加、半字节超限拒绝、未替换成员超限、重复物理输出和改写size。正式物理复核/最终Inventory事务尚未增加证据，不能把本批纯集合验证视为完整媒体维修闭环。
+
+最终分组全架构2,300通过/9既有skip/0失败（并行2,284，100.2秒；stage 16，0.1秒）。架构449文件/1411依赖、语义2067文件及diff通过；无Capability schema或DDL修改。外部日志前缀`series-prepared-set-`（targeted/full/stage）。后续继续提交前现场复核、原子事务/Claims持久化、Settlement/崩溃恢复及真实媒体Host；自动媒体维修和发布门禁保留，无NAS动作。
