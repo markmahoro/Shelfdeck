@@ -71,6 +71,15 @@ function boundedRecord(kind) {
   });
 }
 
+function settlementRealityRecord() {
+  const record=boundedRecord('post-delete-reality');
+  record.properties.entries.items={oneOf:[
+    object({key:{...text(),not:{const:'final_targets'}},value:{type:['string','number','integer','boolean','null']}}),
+    object({key:{const:'final_targets'},value:{...arrayOf(object({materialKey:digest(),targetLocation:text({maxLength:4096}),finalRealityDigest:digest()}),1024),minItems:2,uniqueItems:true}}),
+  ]};
+  return record;
+}
+
 function providerIdentitySetRecord() {
   return object({
     schemaRef: { const: 'helix://contracts/records/provider-identity-set/v1' },
@@ -491,7 +500,7 @@ const special = {
     episodeClaims: applicationRef('ArcaMaterialEpisodeClaims'),
   }), 4096),
   'SettlementDeletionEvidence.preDeleteIdentityDigest': nullable(digest()),
-  'SettlementDeletionEvidence.postDeleteReality': boundedRecord('post-delete-reality'),
+  'SettlementDeletionEvidence.postDeleteReality': settlementRealityRecord(),
   'DeletionEvidence.postDeleteReality': boundedRecord('post-delete-reality'),
   'DeletionEvidence.disposition': enumText('deleted', 'authorized_identity_already_absent', 'retained_due_to_active_reference'),
   'DeletionEvidence.referenceReleaseResultDigest': nullable(digest()),

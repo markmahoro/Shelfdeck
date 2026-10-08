@@ -87,26 +87,78 @@
         "entries": {
           "type": "array",
           "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "key": {
-                "type": "string",
-                "minLength": 1
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "not": {
+                      "const": "final_targets"
+                    }
+                  },
+                  "value": {
+                    "type": [
+                      "string",
+                      "number",
+                      "integer",
+                      "boolean",
+                      "null"
+                    ]
+                  }
+                },
+                "required": [
+                  "key",
+                  "value"
+                ]
               },
-              "value": {
-                "type": [
-                  "string",
-                  "number",
-                  "integer",
-                  "boolean",
-                  "null"
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "key": {
+                    "const": "final_targets"
+                  },
+                  "value": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "materialKey": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "targetLocation": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 4096
+                        },
+                        "finalRealityDigest": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "materialKey",
+                        "targetLocation",
+                        "finalRealityDigest"
+                      ]
+                    },
+                    "maxItems": 1024,
+                    "minItems": 2,
+                    "uniqueItems": true
+                  }
+                },
+                "required": [
+                  "key",
+                  "value"
                 ]
               }
-            },
-            "required": [
-              "key",
-              "value"
             ]
           },
           "maxItems": 256

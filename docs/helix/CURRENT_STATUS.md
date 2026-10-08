@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Series结算完成Evidence：Capability传全部目标及Final Decision，typed final_targets进入回执摘要；Commit逐一匹配当前落位key/位置/观察摘要，拒绝缺失/重复/截断/旧证据。20项专项、35.8秒普通Host及P2/架构/语义通过。历史恢复与完整外部Host继续，未操作NAS。[Evidence](implementation/evidence/SERIES_SETTLEMENT_COMPLETION_20261008.md)。
+
 2026-10-08 Series原生源结算：异步端口逐目标匹配Package/Final Decision并核验真实落位指纹，全部通过后复核审批、仅删除唯一source；完整目标证据与重放核验，junction/缺目标/变更拒绝。81项原生回归及P2/架构/语义通过。Capability完成证据/恢复和端到端继续，未操作NAS。[Evidence](implementation/evidence/SERIES_NATIVE_SETTLEMENT_20261008.md)。
 
 2026-10-08 Series结算Handle：完整有序目标key/位置与Final Verification证据进入一个原source审批摘要，缺目标/重复/乱序拒绝，任一位置变化使旧scope失效。16项回归、36.7秒普通上架Host及P2/架构/语义通过。原生多目标现场复核、结算完成证据与恢复继续，未操作NAS。[Evidence](implementation/evidence/SERIES_SETTLEMENT_HANDLES_20261008.md)。

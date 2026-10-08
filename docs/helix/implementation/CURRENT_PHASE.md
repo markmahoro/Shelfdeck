@@ -337,3 +337,7 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series原生多目标结算DoR：异步Inventory端口从完整finalTargets及唯一原Offload source重建映射，逐目标校验Final Decision/Package、Season落位范围和真实指纹；全部通过再复核授权并仅删除该源文件。输出完整目标证据与集合摘要，重放重新验证全部目标；任意失败保留源及其他文件。Capability/完成证据和重启恢复后续接线，不重复单目标删除调用。
 
 2026-10-08 Series原生源结算：异步端口逐目标匹配Package/Final Decision并核验真实落位指纹，全部通过后复核审批、仅删除唯一source；完整目标证据与重放核验，junction/缺目标/变更拒绝。81项原生回归及P2/架构/语义通过。Capability完成证据/恢复和端到端继续，未操作NAS。[Evidence](evidence/SERIES_NATIVE_SETTLEMENT_20261008.md)。
+
+2026-10-08 Series结算Evidence接线DoR：Capability传完整目标及Final Decision集合；PostDeleteReality使用有界typed final_targets列表并保留scalar变体。Commit逐一比对当前落位key/位置/实测摘要及回执完整列表，一source恰一成功Evidence，拒绝截断/重复/旧映射。历史恢复与真正审批/外部Host仍独立验证。
+
+2026-10-08 Series结算完成Evidence：Capability传全部目标及Final Decision，typed final_targets进入回执摘要；Commit逐一匹配当前落位key/位置/观察摘要，拒绝缺失/重复/截断/旧证据。20项专项、35.8秒普通Host及P2/架构/语义通过。历史恢复与完整外部Host继续，未操作NAS。[Evidence](evidence/SERIES_SETTLEMENT_COMPLETION_20261008.md)。

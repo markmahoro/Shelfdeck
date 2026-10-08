@@ -1480,7 +1480,7 @@
       "relativePath": "types/SettlementDeletionEvidence/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "1b29f652958b1b7facaee6f3b08da2cae7d21cfd067b5381b4d731bfffba2986"
+        "value": "4004fb5e53112e3697d44a4cbfe4b489f9748e525a074cb1e92d797cc2482431"
       },
       "source": {
         "section": "8.6.19",

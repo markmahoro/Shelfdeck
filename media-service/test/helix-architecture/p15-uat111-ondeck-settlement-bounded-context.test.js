@@ -273,3 +273,26 @@ test('Series bounded Settlement rejects any missing or ambiguous target instead 
   const f=multipleTargetFixture();f.source.finalProductMaterialKey=f.keys[0];
   assert.throws(()=>boundedSettlementContext(f.context,f.responsibility,{},f.source.materialKey),/exactly one/);
 });
+
+test('Series Settlement Capability transmits all targets and records complete typed target evidence',async()=>{
+  const f=multipleTargetFixture(),c=boundedSettlementContext(f.context,f.responsibility,{},f.source.materialKey),
+    finalTargets=c.settlementFinalMembers.map(item=>({materialKey:item.sourceMaterialKey,targetLocation:item.targetLocation})),
+    observed=finalTargets.map(item=>({...item,finalRealityDigest:canonicalDigest(item)})),mapping=canonicalDigest(f.source);
+  let captured;
+  const ports=createOnDeckCapabilityPorts({schemaManifest,unitOfWork:{execute(){throw new Error('unexpected Store write');}},now:()=>100,
+    workResultReader:{readBindings:()=>[{inputBindings:{bindings:[{bindingKind:'projected_owner_facts',parameters:{dependencyRefs:[]}}]}}]},
+    contextReader:{readSettlement:()=>c},inventoryPort:{async settleInputAsync(request){captured=request;return {
+      preDeleteIdentityDigest:canonicalDigest('source'),absent:true,disposition:'settled_to_final',sourceToFinalMappingDigest:mapping,
+      finalTargets:observed,finalRealityDigest:canonicalDigest({schema:'arca.settlement-final-targets@1',members:observed}),
+      finalVerified:true,oldDirectoryDisposition:'retained_directory'};}}});
+  const outcome=await ports[CAPABILITY_REFS.settlement].execute({ownerScope:{processType:'arca_ondeck_run',processId:'run-1'},
+    workId:'work',eventId:'event',idempotencyKey:'key',effectOccurredAtMs:100,namedInputs:{
+      oldPrimaryStructuralExclusiveRelatedHandleList:{digest:canonicalDigest('scope'),members:[{materialKey:f.source.materialKey,
+        materialHandle:{location:f.source.location},finalTargets,sourceToFinalMappingDigest:mapping,settlementExpectation:'remove_after_place'}]},
+      inputSettlementApproval:{approvalId:'approval'}}});
+  assert.equal(outcome.kind,'succeeded');assert.deepEqual(captured.finalTargets,finalTargets);
+  assert.equal(Object.hasOwn(captured,'finalMaterialKey'),false);
+  assert.equal(captured.finalInventoryRequest.finalInventoryMembers,c.settlementFinalMembers);
+  const entries=new Map(outcome.result.postDeleteReality.entries.map(item=>[item.key,item.value]));
+  assert.deepEqual(entries.get('final_targets'),observed);assert.equal(entries.has('final_material_key'),false);
+});

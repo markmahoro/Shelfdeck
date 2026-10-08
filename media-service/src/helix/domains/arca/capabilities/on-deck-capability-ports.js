@@ -1,4 +1,5 @@
 'use strict';
+const {settlementTargetEntries,dispositionCompletions:buildDispositionCompletions}=require('../model/settlement-completion');
 const {assertDispositionFinalReality}=require('../model/product-disposition');
 const {seriesMetadataFieldMissing}=require('../model/series-metadata');
 const {evaluatePackageSpace}=require('../model/package-space-acceptance');
@@ -377,12 +378,12 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   ports[C.settlement]=Object.freeze({validateInputs(c){requireNamed(c,['oldPrimaryStructuralExclusiveRelatedHandleList','inputSettlementApproval']);},async execute(execution){try{const n=execution.namedInputs,m=n.oldPrimaryStructuralExclusiveRelatedHandleList.members[0],at=effectAt(execution),c=settlementCtx(execution,m.materialKey),
     settled=await options.inventoryPort.settleInputAsync({materialHandle:m.materialHandle,approval:n.inputSettlementApproval,
       assertCurrentApproval:location=>assertSettlementApproval(execution,m,location),
-      finalMaterialKey:m.finalMaterialKey,finalTargetLocation:m.finalTargetLocation,
+      ...(Object.hasOwn(m,'finalTargets')?{finalTargets:m.finalTargets}:{finalMaterialKey:m.finalMaterialKey,finalTargetLocation:m.finalTargetLocation}),
       settlementExpectation:m.settlementExpectation,sourceToFinalMappingDigest:m.sourceToFinalMappingDigest,
       managedLocations:c.settlementManagedLocations,
       finalInventoryRequest:{onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,shelf:c.shelf,
         onDeckProductPackage:c.packageValue,finalInventoryDecisionRef:c.finalInventoryDecisionRef,
-        finalInventoryMember:c.settlementFinalMember,observedAtMs:at,verificationContext:'on_deck',nfoPresentationBasis:nfoPresentationBasis(c)}}),
+        ...(Object.hasOwn(m,'finalTargets')?{finalInventoryMembers:c.settlementFinalMembers}:{finalInventoryMember:c.settlementFinalMember}),observedAtMs:at,verificationContext:'on_deck',nfoPresentationBasis:nfoPresentationBasis(c)}}),
     base={schemaRef:'helix://contracts/types/SettlementDeletionEvidence/v1',schemaVersion:1,evidenceId:stable('arca-settlement-evidence-',{eventId:execution.eventId}),
       evidenceKind:'input_settlement',producerRef:C.settlement,basisDigest:n.oldPrimaryStructuralExclusiveRelatedHandleList.digest,observedAtMs:at,
       authorizationOrApprovalRef:n.inputSettlementApproval.approvalId,materialKey:m.materialKey,preDeleteIdentityDigest:settled.preDeleteIdentityDigest,
@@ -390,7 +391,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       effectReceiptId:stable('arca-effect-receipt-',{eventId:execution.eventId})};const result=Object.freeze({...base,payloadDigest:canonicalDigest(base)});
     const entries=Object.freeze([{key:'absent',value:settled.absent},{key:'disposition',value:settled.disposition},
       {key:'source_to_final_mapping_digest',value:settled.sourceToFinalMappingDigest},
-      {key:'final_material_key',value:settled.finalMaterialKey},{key:'final_target_location',value:settled.finalTargetLocation},
+      ...settlementTargetEntries(m,settled),
       {key:'final_reality_digest',value:settled.finalRealityDigest},{key:'final_verified',value:settled.finalVerified},
       {key:'old_directory_disposition',value:settled.oldDirectoryDisposition}]),postBase={schemaRef:'arca://types/PostDeleteReality/v1',schemaVersion:1,
       recordKind:'post-delete-reality',entries},postDeleteReality=Object.freeze({...postBase,recordDigest:canonicalDigest(postBase)}),
@@ -406,16 +407,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   ports[C.commit]=Object.freeze({validateInputs(c){requireNamed(c,['fulfillmentResult','responsibilityControlCommitHandle']);},async execute(execution){const c=ctx(execution),fulfillment=execution.namedInputs.fulfillmentResult,
     staged=await options.inventoryPort.readFinalAsync(finalReadRequest(execution,c,effectAt(execution))),settlementOutcomes=options.workResultReader.read(execution.workId)
         .filter((item)=>item.capabilityRef===C.settlement&&item.outcomeKind==='succeeded').map((item)=>item.result),
-    dispositionCompletions=c.packageValue.offloadContextManifest.members.map((member)=>{const mappingDigest=member.derivedAuthorityDigest||canonicalDigest(member),
-      finalPresent=staged.members.some((item)=>item.sourceMaterialKey===member.finalProductMaterialKey);if(!finalPresent)throw Object.assign(new Error('Final Inventory is missing an Off-load mapping target.'),{code:'ARCA_ONDECK_DISPOSITION_FINAL_MISSING'});
-      if(!requiresInputSettlement(member))return Object.freeze({materialKey:member.materialKey,finalMaterialKey:member.finalProductMaterialKey,
-        sourceToFinalMappingDigest:mappingDigest,completionKind:'retained_in_final_reality',evidenceDigest:staged.realityDigest});
-      const evidence=settlementOutcomes.find((item)=>item.materialKey===member.materialKey),entries=new Map(evidence?.postDeleteReality?.entries?.map((item)=>[item.key,item.value])||[]);
-      if(!evidence||entries.get('source_to_final_mapping_digest')!==mappingDigest||entries.get('final_material_key')!==member.finalProductMaterialKey||
-        entries.get('final_verified')!==true||!['retained_as_final','settled_to_final'].includes(entries.get('disposition')))
-        throw Object.assign(new Error('Off-load input settlement completion is missing or stale.'),{code:'ARCA_ONDECK_SETTLEMENT_INCOMPLETE'});
-      return Object.freeze({materialKey:member.materialKey,finalMaterialKey:member.finalProductMaterialKey,sourceToFinalMappingDigest:mappingDigest,
-        completionKind:entries.get('disposition'),evidenceDigest:evidence.payloadDigest});}),
+    dispositionCompletions=buildDispositionCompletions(c.packageValue,staged,settlementOutcomes),
     relatedDispositionCompletionDigest=canonicalDigest({schema:'arca.related-disposition-completion@1',onDeckRunId:c.responsibility.onDeckRunId,
       dispositionMemberSetDigest:c.packageValue.offloadContextManifest.memberSetDigest,finalRealityDigest:staged.realityDigest,
       completions:dispositionCompletions}),stagedCustodyManifests=options.workResultReader.read(execution.workId)
