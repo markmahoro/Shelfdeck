@@ -11,7 +11,7 @@ function mergeSeriesExternalCandidates(snapshot,original,externalSets) {
   for(const set of externalSets){
     if(!set.eligible||set.members.some(item=>!item.eligible))throw new Error('External replacement cannot select an ineligible import set.');
     const mapping=buildSeriesReplacementMapping({basis,scope:set.scope,finalMembers:set.members.map(item=>({
-      materialKey:item.importRecord.result.materialKey,memberDigest:d({externalMember:item.externalMember,workspaceMediaHandle:item.workspaceMediaHandle}),
+      materialKey:item.workspaceMediaHandle.workspaceMaterialHandle.materialKey,memberDigest:d({externalMember:item.externalMember,workspaceMediaHandle:item.workspaceMediaHandle}),
       episodeKeys:item.externalMember.episodeClaims.map(claim=>claim.episodeKey)}))});
     if(d(mapping)!==d(set.mapping))throw new Error('External replacement mapping differs from the complete imported set.');
     for(const source of set.scope.members){
@@ -19,15 +19,15 @@ function mergeSeriesExternalCandidates(snapshot,original,externalSets) {
       removed.add(source.materialKey);
     }
     for(const item of set.members){
-      const handle=item.importRecord.result,keys=item.externalMember.episodeClaims.map(claim=>claim.episodeKey),
+      const handle=item.workspaceMediaHandle.workspaceMaterialHandle,keys=item.externalMember.episodeClaims.map(claim=>claim.episodeKey),
         claims=snapshot.episodeClaims.filter(claim=>keys.includes(claim.episodeKey));
       if(claims.length!==keys.length)throw new Error('Imported candidate lacks exact accepted Episode Claims.');
       // This is a Workspace candidate projection, never a fabricated original
       // Run Binding. Its predecessor set is carried separately by the mapping.
       const member=Object.freeze({materialKey:handle.materialKey,role:'primary_payload',physicalIdentity:handle.physicalIdentity,
         sizeBytes:handle.sizeBytes,episodeClaims:Object.freeze(claims)});
-      added.push(Object.freeze({member,readHandle:handle,record:item.probeRecord,work:set.work,media:item.workspaceMediaHandle,
-        mediaRecord:item.importRecord,probeRecord:item.probeRecord,verification:item.verificationRecord.result,selection:item.selectionRecord.result,
+      added.push(Object.freeze({member,readHandle:handle,record:item.sourceProbeRecord||item.probeRecord,work:item.productionWork||set.work,media:item.workspaceMediaHandle,
+        mediaRecord:item.mediaRecord||item.importRecord,probeRecord:item.probeRecord,verification:item.verificationRecord.result,selection:item.selectionRecord.result,
         verificationRecord:item.verificationRecord,selectionRecord:item.selectionRecord,eligible:true,
         externalReplacement:Object.freeze({scope:set.scope,mapping,externalMember:item.externalMember})}));
     }

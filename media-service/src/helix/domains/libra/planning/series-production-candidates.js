@@ -76,7 +76,8 @@ function readSeriesProductionCandidates(options,snapshot) {
     return Object.freeze({...source,work:null,media:null,eligible:false});
   }));
   const sets=replacementScopes(snapshot).filter(scope=>done.has(externalImportSelectionWork(snapshot,scope).workId))
-    .map(scope=>readSeriesExternalImportSet({snapshot,scope,workResultReader:options.workResultReader}));
+    .map(scope=>require('./series-external-processed-results').readProcessedSet(options,snapshot,
+      readSeriesExternalImportSet({snapshot,scope,workResultReader:options.workResultReader})));
   return sets.length?mergeSeriesExternalCandidates(snapshot,original,sets):original;
 }
 

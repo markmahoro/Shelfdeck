@@ -287,8 +287,14 @@ function createWorkspaceMediaProductionPlanner(options) {
   return Object.freeze({plannerContractRef,plannerVersion:1,plan(request) {
     const snapshot=options.movieProductionReader.readRunSnapshot(request.processId);
     if(snapshot.run.executionBasisDigest!==request.executionBasisDigest)throw new Error('Workspace Media planning basis changed.');
-    const remuxMember=snapshot.spec.contentProfile==='series'?snapshot.members.filter(item=>item.role==='primary_payload')
+    let remuxMember=snapshot.spec.contentProfile==='series'?snapshot.members.filter(item=>item.role==='primary_payload')
       .find(member=>remuxMediaSelectionWork(snapshot,member).workId===request.workId):undefined;
+    let externalRemuxSource=null;
+    if(snapshot.spec.contentProfile==='series'&&!remuxMember&&request.workId.startsWith('libra-workspace-media-remux_selection-work-')) {
+      externalRemuxSource=require('./series-external-processing-source').readProcessingSources(options,snapshot)
+        .find(source=>remuxMediaSelectionWork(snapshot,source.member).workId===request.workId)||null;
+      remuxMember=externalRemuxSource?.member;
+    }
     const sourceWork=sourceMediaObservationWork(snapshot),directWork=directMediaSelectionWork(snapshot),
       remuxWork=remuxMediaSelectionWork(snapshot,remuxMember);
     if(request.workId.startsWith('libra-workspace-media-series_final_selection-work-')) {
@@ -354,8 +360,8 @@ function createWorkspaceMediaProductionPlanner(options) {
       if(snapshot.spec.contentProfile==='series'&&!remuxMember)throw new Error('Series Remux requires one frozen Primary Work.');
       const memberParameters=remuxMember?{materialKey:remuxMember.materialKey,memberDigest:canonicalDigest(remuxMember)}:{};
       const candidateNodeId=remuxMember?stable('remux_output_',memberParameters):'remux_output';
-      const importedSource=remuxMember?null:transcodeSourceFromExternalImport(options,snapshot);
-      const reference=remuxMember?sourceScopeResolver.primaryReferenceFor(snapshot,memberParameters):importedSource?require('./production-source-scope-resolver').workspaceReferenceFor(snapshot,importedSource.handle)
+      const importedSource=externalRemuxSource||(remuxMember?null:transcodeSourceFromExternalImport(options,snapshot));
+      const reference=importedSource?require('./production-source-scope-resolver').workspaceReferenceFor(snapshot,importedSource.handle):remuxMember?sourceScopeResolver.primaryReferenceFor(snapshot,memberParameters)
         :buildProductionSourceScopeReference(sourceScopeResolver.referenceFor(snapshot));
       const requirement=buildMediaRequirement(snapshot.spec);
       const intent=buildRemuxIntent({revision:1,libraRunId:snapshot.run.libraRunId,
@@ -387,7 +393,7 @@ function createWorkspaceMediaProductionPlanner(options) {
         inputBindings:[projectedResults('productMediaCandidateInput',[
           {eventId:remuxEventId,resultSchemaRef:options.registry.resolve(REMUX,'libra').manifest.resultSchemaRef},
           {eventId:probeEventId,resultSchemaRef:options.registry.resolve(PROBE,'libra').manifest.resultSchemaRef},
-        ],WORKSPACE_CANDIDATE,{sourceWorkId:sourceWork.workId,candidateNodeId,...memberParameters})],
+        ],WORKSPACE_CANDIDATE,{sourceWorkId:externalRemuxSource?externalRemuxSource.set.work.workId:sourceWork.workId,candidateNodeId,...memberParameters})],
         dependsOn:[{eventId:remuxEventId,satisfaction:'success'},{eventId:probeEventId,satisfaction:'success'}],
         resourceKinds:['cpu','disk_io']});
       const select=planNode({...options,request,nodeId:'remux_output_selection',eventId:selectEventId,capabilityRef:SELECT,
@@ -525,8 +531,17 @@ function createWorkspaceMediaProductionProjections(options) {
       if(!media||!outputProbe)throw new Error('Workspace media Candidate requires durable media and Probe Results.');
       const value=options.movieProductionReader.readRunSnapshot(media.workspaceMaterialHandle.processId);
       if(value.spec.contentProfile==='series') {
-        if(parameters.sourceWorkId!==sourceMediaObservationWork(value).workId)
-          throw new Error('Series output must reference the exact Run Source Work.');
+        if(parameters.sourceWorkId!==sourceMediaObservationWork(value).workId) {
+          const {exactProcessingSource,processingSpaceBasis}=require('./series-external-processing-source');
+          const source=exactProcessingSource(options,value,parameters);
+          if(Object.keys(parameters).sort().join(',')!=='candidateNodeId,materialKey,memberDigest,sourceWorkId'||
+              parameters.candidateNodeId!==stable('remux_output_',{materialKey:source.member.materialKey,memberDigest:canonicalDigest(source.member)}))
+            throw new Error('External Remux candidate identity differs from its frozen member.');
+          if(media.sourceMaterialHandleDigest!==canonicalDigest(source.handle))throw new Error('External output source Handle drifted.');
+          return buildProductMediaCandidateInput({libraRunId:value.run.libraRunId,candidateNodeId:parameters.candidateNodeId,
+            candidateKind:'workspace_output',mediaRequirement:buildMediaRequirement(value.spec),workspaceMediaHandle:media,
+            sourceProbeEvidence:source.probe,outputProbeEvidence:outputProbe,seriesSpaceBasis:processingSpaceBasis(value,source,media,outputProbe)});
+        }
         const {sourceWorkId,candidateNodeId,...memberParameters}=parameters;
         const frozen=sourceScopeResolver.primarySource(value,memberParameters),sources=readSourceMediaObservations(options,value),
           selected=sources.find(item=>item.member.materialKey===frozen.member.materialKey);

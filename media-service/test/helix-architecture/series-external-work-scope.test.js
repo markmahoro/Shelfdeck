@@ -212,7 +212,7 @@ function completedImportFixture(unmetCodec=false){
     production=require('../../src/helix/domains/libra/model/media-production-contracts'),results=new Map(sources.map(item=>[item.eventId,item.result]));
   if(unmetCodec){
     const probe=sources.find(item=>item.resultSchemaRef.includes('shared.material.media.probe')).result;
-    probe.videoStreams[0].codec='h264';delete probe.payloadDigest;probe.payloadDigest=d(probe);
+    if(unmetCodec==='remux')probe.container='mp4';else probe.videoStreams[0].codec='h264';delete probe.payloadDigest;probe.payloadDigest=d(probe);
   }
   for(const node of f.plan.nodes){
     const inputBinding=node.inputBindings.bindings[0];
@@ -229,13 +229,38 @@ function completedImportFixture(unmetCodec=false){
     planDigest:d(f.plan),planRevision:1,eventId:node.eventId,capabilityRef:node.capabilityRef,state:'succeeded',outcomeKind:'succeeded',
     resultSchemaRef:node.outputContractRef,resultId:'result-'+node.eventId,result:results.get(node.eventId),resultDigest:d(results.get(node.eventId)),
     inputBindings:node.inputBindings,inputBindingDigest:d(node.inputBindings)}));
-  const reader={status:id=>({state:'succeeded',basis_digest:(id===f.importWork.workId?f.importWork:f.acquire).executionBasisDigest,
-    latestAttempt:{attempt_id:request(id===f.importWork.workId?f.importWork:f.acquire).workAttemptId}}),
+  const knownWorks=[f.importWork,f.acquire,work.externalSearchSelectionWork(f.value,f.scope)];
+  const reader={status:id=>{const known=knownWorks.find(item=>item.workId===id);return known?{state:'succeeded',basis_digest:known.executionBasisDigest,
+    latestAttempt:{attempt_id:request(known).workAttemptId}}:null;},
     readDefinition:()=>({definition:f.importWork,definitionDigest:d(f.importWork)}),
     read:id=>id===f.importWork.workId?rows:f.records.get(id).map(row=>({...row,workId:id,
       attemptId:request(f.acquire).workAttemptId,resultDigest:d(row.result)}))};
   return {...f,rows,reader};
 }
+test('External processing binds the exact Import member and preserves every part in its size basis',()=>{
+  const f=completedImportFixture('remux'),options={workResultReader:f.reader};
+  const processing=require('../../src/helix/domains/libra/planning/series-external-processing-source');
+  const factories=require('../../src/helix/domains/libra/planning/media-production-work');
+  const sources=processing.readProcessingSources(options,f.value);
+  assert.equal(sources.length,2);
+  const source=sources[0],parameters={materialKey:source.member.materialKey,memberDigest:d(source.member),sourceWorkId:f.importWork.workId};
+  assert.deepEqual(processing.exactProcessingSource(options,f.value,parameters),source);
+  const remux=factories.remuxMediaSelectionWork(f.value,source.member);
+  assert.equal(remux.dependencyRefs[0].objectId,f.importWork.workId);
+  assert.notEqual(remux.workId,factories.remuxMediaSelectionWork(f.value,sources[1].member).workId);
+  const basis=processing.processingSpaceBasis(f.value,source);
+  assert.equal(basis.members.length,2);assert.deepEqual(basis.episodeKeys,f.scope.episodeKeys);
+  for(const drift of [{materialKey:'foreign'},{memberDigest:digest('foreign')},{sourceWorkId:'foreign'}])
+    assert.throws(()=>processing.exactProcessingSource(options,f.value,{...parameters,...drift}),/exact durable Import/);
+  assert.throws(()=>factories.remuxMediaSelectionWork(f.value,{...source.member,
+    externalSource:{...source.member.externalSource,scopeDigest:digest('foreign')}}),/exact replacement scope/);
+  const read=require('../../src/helix/domains/libra/planning/series-external-processed-results').readProcessedSet;
+  const imported=require('../../src/helix/domains/libra/planning/series-external-import-results').readSeriesExternalImportSet({snapshot:f.value,scope:f.scope,workResultReader:f.reader});
+  assert.equal(read(options,f.value,imported).eligible,false);
+  const forged={...f.reader,status:id=>id===remux.workId?{state:'succeeded',basis_digest:f.value.run.executionBasisDigest,
+    latestAttempt:{attempt_id:'forged'}}:f.reader.status(id)};
+  assert.throws(()=>read({workResultReader:forged},f.value,imported),/exact Import source and Work/);
+});
 test('Series external consumer reconstructs every result and produces complete source-to-final mappings',()=>{
   const f=completedImportFixture(),read=require('../../src/helix/domains/libra/planning/series-external-import-results').readSeriesExternalImportSet;
   const result=read({snapshot:f.value,scope:f.scope,workResultReader:f.reader});
@@ -360,6 +385,21 @@ test('Series external coordinator stops at each pending or failed stage without 
     assert.equal(advance(f.value,{workspaceId:'workspace'},f.scope,ports).kind,state==='running'?'pending':'terminal');
     assert.equal(submitted.length,index+1);
   }
+});
+test('Series external coordinator schedules exact imported Remux without exposing a partial candidate set',()=>{
+  const f=completedImportFixture('remux'),advance=require('../../src/helix/domains/libra/application/series-external-scope-coordinator').advanceSeriesExternalScope;
+  const sources=require('../../src/helix/domains/libra/planning/series-external-processing-source').readProcessingSources({workResultReader:f.reader},f.value);
+  const remux=require('../../src/helix/domains/libra/planning/media-production-work').remuxMediaSelectionWork(f.value,sources[0].member);
+  const submitted=[],ports={reader:f.reader,submit:work=>{submitted.push(work);return {replayed:true};},
+    result:(_w,c)=>({result:{result:c.includes('candidate')?'selected':'passed'}}),
+    terminal:()=>{throw new Error('unexpected terminal');},freeze:()=>{throw new Error('remuxable import must not freeze');},
+    attach:()=>{throw new Error('pending set must not attach partial outputs');}};
+  const result=advance(f.value,{workspaceId:'workspace'},f.scope,ports);
+  assert.equal(result.kind,'pending');assert.equal(result.phase,'workspace_media_remux_selection');
+  assert.equal(result.workId,remux.workId);assert.deepEqual(submitted.at(-1),remux);
+  assert.equal(submitted.filter(item=>item.workId===f.acquire.workId).length,1);
+  const running={...f.reader,status:id=>id===remux.workId?{state:'running'}:f.reader.status(id)};
+  assert.deepEqual(advance(f.value,{workspaceId:'workspace'},f.scope,{...ports,reader:running}),result);
 });
 test('Series external coordinator freezes failed imported media without attaching or selecting a partial set',()=>{
   const f=completedImportFixture(true),advance=require('../../src/helix/domains/libra/application/series-external-scope-coordinator').advanceSeriesExternalScope;

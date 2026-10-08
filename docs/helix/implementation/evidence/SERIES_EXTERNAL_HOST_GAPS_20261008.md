@@ -47,3 +47,22 @@ Movie外部回归初跑4项中2项失败：后加工仍循环调用已取消的1
 Windows111.34秒通过，Linux118.70秒通过（32项仅名称过滤skip）；Scope/Consumer17项回归通过，diff检查通过。日志`series-real-external-host.log`、`series-real-external-host-linux.log`、`series-real-external-contract-regression.log`位于同一仓库外证据目录。Provider网络仍受控，短合成片不代表真实长片质量、真实MoviePilot集成或后加工能力；不改产品代码，无NAS动作。
 
 后加工审查确认当前Series直接终结未达标Import，原成员加工Work不能代表导入Workspace成员。下一实现需绑定精确Import/Handle/Probe/Claims与逐集预算，并用加工后的实际文件重建完整替换映射；现有Movie后加工不得拿原Run成员伪装Series导入源。该缺口保持开放，见当前Phase DoR。
+
+
+## 外部 Remux 接续与实际终结目标（2026-10-08）
+
+在 `040cfc02e` 上补齐Series外部容器加工。Source来自完整重构的成功Import set，并冻结同Scope的Import Work、Handle/Probe摘要与原Run接受的Episode Claims；加工Work依赖该Import，不伪造原Primary Binding。空间basis包含Scope内全部共文件/part份额。Remux结果按精确Work/Attempt、正式事件状态与结果摘要重建验收和选择；只有完整set合格才附着成品，并用实际Workspace成品重建source-to-all-final映射及全Run终检。
+
+真实Host以3秒4K HEVC/AAC MP4作为外部两集，正式规则要求MKV；两次Remux、零Transcode，最终两集MKV落位，原共文件只结算一次，下载POST仅一次，Provider文件前后SHA256相同。测试逐段核对Remux产物、Package Primary、Stage的sourceMaterialKey与目标physicalIdentity、当前Inventory。SSOT §8的StagedInventoryManifest明确区分Package源标识和Stage后物理标识，不能直接要求Offload目标等于Inventory目标key。
+
+验证：
+
+- Windows真实外部Remux Host112.66秒；Linux Docker/Node20为120.66秒，均通过。
+- Windows/Linux各145项范围、原始成员加工、媒体合同专项通过，零失败/skip。
+- Movie外部4项通过：拒绝3.67秒、Transcode45.70秒、Remux37.24秒、native4k39.23秒。普通Series Direct/Remux Host36.36秒通过。
+- P2、package boundary（461文件/1475依赖/47包）、semantic guard（2080文件）及diff检查通过。
+- 首次Host未触发Remux，因为测试规则允许任意扩展名；明确要求MKV后通过。新增直接比较Offload与Inventory key的断言双平台失败，经上述正式合同核对改为完整映射断言后复验通过。首次Linux专项漏挂scripts导致1失败，补齐挂载后145通过。失败日志保留，不作为产品失败或PASS证据删除。
+
+日志位于仓库外 `E:/my_project/helix-git-consolidation-20261008/`，前缀 `series-external-remux-`：最终Host为 `host-mapping.log` / `host-mapping-linux.log`；专项为 `contracts-final.log` / `contracts-linux-v2.log`；回归为 `movie.log` / `internal.log`；检查为 `p2-final.log` / `guards-final.log`。
+
+边界：Provider网络仍受控，短合成媒体不证明真实下载器/长时画质；外部Transcode、进程恢复和最终冻结发布Gate仍开放。没有产品UI变化、无需新增UI接受；未构建发布镜像、未部署或修改NAS。

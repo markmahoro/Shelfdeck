@@ -24,8 +24,25 @@ function dependency(work) {
   });
 }
 
+function externalSourceWork(snapshot, member) {
+  if(!member?.externalSource)return null;
+  const {replacementScopes,externalImportSelectionWork}=require('./external-material-work');
+  const source=member.externalSource,scope=replacementScopes(snapshot).find(item=>item?.scopeDigest===source.scopeDigest);
+  if(!scope)throw new TypeError('External member Work requires its exact replacement scope.');
+  const work=externalImportSelectionWork(snapshot,scope);
+  if(source.importWorkId!==work.workId||source.importWorkDigest!==canonicalDigest(work)||
+      ![source.sourceHandleDigest,source.sourceProbeDigest].every(value=>/^[a-f0-9]{64}$/.test(value)))
+    throw new TypeError('External member Work requires exact Import and source evidence.');
+  return work;
+}
+
 function memberBasis(snapshot, member) {
   if(member===undefined)return null;
+  if(member.externalSource) {
+    externalSourceWork(snapshot,member);
+    if(snapshot.spec.contentProfile!=='series'||member.role!=='primary_payload')throw new TypeError('External member must be a Series Primary.');
+    return Object.freeze({materialKey:member.materialKey,memberDigest:canonicalDigest(member)});
+  }
   const matches=snapshot.members.filter(item=>item.materialKey===member?.materialKey);
   if(snapshot.spec.contentProfile!=='series'||snapshot.materialInputForm!=='stream_file'||matches.length!==1||
       member.role!=='primary_payload'||canonicalDigest(matches[0])!==canonicalDigest(member))
@@ -76,7 +93,7 @@ function directMediaSelectionWork(snapshot) {
 }
 
 function remuxMediaSelectionWork(snapshot, member) {
-  const source = sourceMediaObservationWork(snapshot);
+  const source = externalSourceWork(snapshot,member)||sourceMediaObservationWork(snapshot);
   return definition(snapshot, 'remux_selection', SELECTED_OUTPUT_RESULT, [source], member);
 }
 
