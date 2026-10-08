@@ -1349,7 +1349,8 @@ function onDeckProductPackageSchema() {
     title: 'OnDeckProductPackage@1', 'x-helix-ssotRefs': ['8.6.19', '8.6.21'],
     'x-helix-envelopeRef': typeId('ManifestEnvelope'),
     'x-helix-maxCanonicalBytes': 16 * 1024 * 1024,
-    ...object(properties)
+    ...object({...properties,relatedPrimaryMappings:{...arrayOf(object({sourceRelatedReferenceId:id(),relatedMaterialKey:digest(),
+      sourcePrimaryMaterialKey:digest(),finalPrimaryMaterialKey:digest(),namingKind:{const:'episode_thumb'}}),1024),minItems:1}},Object.keys(properties))
   };
 }
 

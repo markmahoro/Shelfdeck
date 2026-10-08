@@ -1,4 +1,5 @@
 'use strict';
+const {readInventoryMapping}=require('../../../contracts/related-primary-mappings');
 
 const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
@@ -115,6 +116,8 @@ function buildAftercareInventoryRequest(context, inventoryPort, at, caseId) {
     manifestDigest: canonicalDigest(offloadBase),
   });
   const packageBase = {
+    ...(context.raw.facts.some(item=>item.fact_kind==='related_primary_mapping')?{relatedPrimaryMappings:context.raw.facts
+      .filter(item=>item.fact_kind==='related_primary_mapping').map(item=>{const {schemaRef,schemaVersion,mappingDigest,...mapping}=readInventoryMapping(item);return mapping;})}:{}),
     onDeckPackageId: caseId + ':placement-package',
     packageRevision: 1,
     shelfId: context.raw.shelf.shelf_id,

@@ -1,4 +1,5 @@
 'use strict';
+const {buildRelatedPrimaryMappings}=require('../../../contracts/related-primary-mappings');
 const { readStoredMetadataValue } = require('../../../contracts/episode-metadata-records');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
@@ -317,6 +318,7 @@ function assertRelatedDisposition(row, run, members, offloadMembers) {
     fail('P9_PRODUCT_DELIVERY_RELATED_SET',
       'Product Delivery Related disposition set is incomplete or corrupt.');
   }
+  return assertions;
 }
 
 function reconstruct(repo, row) {
@@ -471,7 +473,8 @@ function reconstruct(repo, row) {
   };
   offloadContextManifest.manifestDigest = canonicalDigest(offloadContextManifest);
   const run = repo.invoke('find_run', { libra_run_id: row.libra_run_id });
-  assertRelatedDisposition(row, run, members, offloadMembers);
+  const assertions=assertRelatedDisposition(row, run, members, offloadMembers);
+  const relatedPrimaryMappings=structure.structureKind==='season'?buildRelatedPrimaryMappings(assertions,offloadMembers,members):[];
   const resolvedIdentitySnapshot = resolved ? Object.fromEntries(
     Object.entries(resolved).filter(([name]) =>
       !['factKind', 'referenceDigest'].includes(name)),
@@ -523,6 +526,7 @@ function reconstruct(repo, row) {
       relationsDigest: cast.factValue.relationsDigest,
     },
     offloadContextManifest,
+    ...(relatedPrimaryMappings.length?{relatedPrimaryMappings}:{}),
     productionProvenance,
     productionAttestation,
     packageDigest: row.package_digest,

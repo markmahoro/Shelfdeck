@@ -1,4 +1,5 @@
 'use strict';
+const {relatedPrimaryName}=require('./helix/contracts/related-primary-mappings');
 
 const fs = require('node:fs');
 const {offloadProductKeys}=require('./helix/contracts/offload-product-targets');
@@ -250,6 +251,11 @@ function subtitleQualifiers(fileName) {
 }
 
 function finalMemberName(member, source, identity, placement, series = null) {
+  if(series&&member.role==='sidecar'){
+    const relatedName=relatedPrimaryName(series.packageValue,member,primary=>
+      finalMemberName(primary,primary.location?.location||primary.workspaceMaterialHandle?.relativePath||'video.mkv',identity,placement,series));
+    if(relatedName)return safeSegment(relatedName);
+  }
   const extension = path.extname(source).toLowerCase();
   const baseStem = safeSegment(identity.year === null
     ? identity.title

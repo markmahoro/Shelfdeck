@@ -140,7 +140,13 @@ function reconstructRelatedReferences({ basis, scope, candidateMembers, observed
       ? stemMatches || standard
       : stemMatches;
     if (mediaPayload || !allowed) continue;
-    const primaryContext = primaryContexts.find((value) => value.parent === parentOf(relative)) || primaryContexts[0];
+    const matchingContexts = primaryContexts.filter(value => value.parent === parentOf(relative) &&
+      (stem === value.stem || stem.startsWith(value.stem + '.') || stem.startsWith(value.stem + '-') || stem.startsWith(value.stem + '_')));
+    // An exclusive reference must retain its exact Primary, not the first
+    // member in a Season. Ambiguous shared names cannot grant disposition.
+    const primaryContext = matchingContexts.length === 1 ? matchingContexts[0]
+      : primaryContexts.length === 1 ? primaryContexts[0] : null;
+    if (!primaryContext) continue;
     const artworkRole = relatedArtworkRole(lower, stems);
     const role = extension === '.nfo' ? 'nfo' : artworkRole ? artworkRole
       : /\.(srt|ass|ssa|vtt)$/.test(extension) ? 'subtitle' : /\.(aac|ac3|dts|flac|mka)$/.test(extension) ? 'external_audio'
@@ -228,16 +234,20 @@ function createProcurementCandidateContextReader(options) {
         associationMode:relatedScope.associationMode, observationProjectionRevision:relatedScope.observationProjectionRevision,
         relatedRuleRevision:relatedScope.relatedRuleRevision,
       })) fail('P7_CANDIDATE_CONTEXT_RELATED_SCOPE', 'Candidate Unit Related Scope digest is invalid.');
-      const observedScopeKey = request.runId + ':' + relatedScope.parentRelativeLocation;
+      const relatedParents = relatedScope.parentRelativeLocation === '@candidate'
+        ? [...new Set(candidateMembers.filter(member => member.role === 'primary_payload').map(member =>
+          parentOf(basis.members.find(source => source.material_key === member.materialKey).field_relative_location)))].sort()
+        : [relatedScope.parentRelativeLocation];
+      const observedScopeKey = canonicalDigest({runId:request.runId,relatedParents});
       let observed = observedCache.get(observedScopeKey);
       if (!observed && typeof options.triageReader.listObservedMaterialsInScope === 'function') {
-        observed = Object.freeze(options.triageReader.listObservedMaterialsInScope(request.runId, relatedScope.parentRelativeLocation));
+        observed = Object.freeze(relatedParents.flatMap(parent => options.triageReader.listObservedMaterialsInScope(request.runId, parent)));
         observedCache.set(observedScopeKey, observed);
       } else if (!observed && typeof options.triageReader.listObservedMaterials === 'function') {
         // Test and migration fixtures may only expose the older reader port.  The
         // production composition root always provides the bounded scope query.
         observed = Object.freeze(options.triageReader.listObservedMaterials(request.runId)
-          .filter((item) => parentOf(item.relativeLocation || item.location) === normalizedLocation(relatedScope.parentRelativeLocation)));
+          .filter((item) => relatedParents.includes(parentOf(item.relativeLocation || item.location))));
         observedCache.set(observedScopeKey, observed);
       }
       const relatedReferences = reconstructRelatedReferences({ basis, scope:relatedScope, candidateMembers,

@@ -1,4 +1,5 @@
 'use strict';
+const {buildRelatedPrimaryMappings}=require('../../../contracts/related-primary-mappings');
 
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
 const {acceptsProductionAttestation}=require('./defect-admission-contracts');
@@ -20,6 +21,8 @@ const productRole=(role)=>role==='nfo'?'metadata_sidecar':role;
 
 function packageContentValue(decision,subjectId,shelfId){
   const members=decision.productMaterialManifest.members;
+  const relatedPrimaryMappings=decision.productStructureSnapshot.structureKind==='season'
+    ?buildRelatedPrimaryMappings(decision.relatedAuthorityAssertions||[],decision.offloadContextManifest.members,members):[];
   const identity=decision.resolvedIdentitySnapshot;
   return {
     schemaRef:'helix://contracts/types/OnDeckProductPackage/v1',schemaVersion:1,
@@ -40,7 +43,8 @@ function packageContentValue(decision,subjectId,shelfId){
     productMaterialManifest:clone(decision.productMaterialManifest),productFactManifest:clone(decision.productFactManifest),
     artifactManifest:clone(decision.artifactManifest),mediaCastSnapshot:clone(decision.mediaCastSnapshot),
     offloadContextManifest:clone(decision.offloadContextManifest),productionProvenance:clone(decision.productionProvenance),
-    productionAttestation:clone(decision.productionAttestation)
+    productionAttestation:clone(decision.productionAttestation),
+    ...(relatedPrimaryMappings.length?{relatedPrimaryMappings}:{})
   };
 }
 

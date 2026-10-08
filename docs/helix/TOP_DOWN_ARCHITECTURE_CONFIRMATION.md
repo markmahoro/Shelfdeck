@@ -15830,3 +15830,15 @@ Stage沿用material_commit及原物理副作用恢复协议。物理Stage完成�
 | `FulfillmentVerification` | `VerificationEnvelope + finalInventoryDecisionDigest + shelfStandardRevision + finalRealityDigest + relatedDispositionCompletionDigest + unresolvedDispositionCount(0)`；passed要求全部Candidate Material Disposition成员均终态且不存在指向Material Field中exclusive Related的active Inventory reference；Arca完整值最多1024成员、完整JCS≤8 MiB，Foundation Result为同名Record。 |
 
 两类Capability以Domain Fact Commit精确无Outbox variant原子写入Arca完整Verification、typed Record、Foundation Result与marker；观察在事务外完成，精确Event重放不重新观察。完整值由Arca按不可变Record/精确Event/Work/Owner scope保存，结算、Fulfillment与最终Commit重建全部Evidence校验；不改变质量、来源删除授权、Material Control或收藏所有权。新增两类domain_fact_handle_exact selector分别绑定原完整schema与同名Record，固定写arca_inventory_verification_records/fx_event_result_bindings/fx_commit_markers，读取精确Owner记录及执行Work/Event/Attempt fence，不得落入generic variant。
+
+### UAT-291：Series关联文件绑定与空季目录收尾（2026-10-09用户确认）
+
+整季Candidate的`@candidate` Related scope必须展开为冻结Primary实际父目录，禁止按字面量查目录或跨目录借用文件。唯一stem关联必须绑定对应Primary；多Primary歧义不能取首项授予exclusive disposition。逐集NFO替换绑定原Primary的唯一Episode与同scope正式NFO Artifact，不能统一替换到Season NFO。
+
+`OnDeckProductPackage@1`对于逐集thumb携带可选非空`relatedPrimaryMappings[1..1024]`，每项为closed `{sourceRelatedReferenceId,relatedMaterialKey,sourcePrimaryMaterialKey,finalPrimaryMaterialKey,namingKind:episode_thumb}`；集合按relatedMaterialKey排序唯一，纳入Package完整digest。映射从Libra正式Related assertion与Off-load Context的原Primary→最终Primary关系派生并重建校验；最终Primary必须唯一，N:M的一对多或歧义不猜测、不重复分配，明确拒绝当前交付。thumb保持sidecar角色，Arca以最终Primary命名stem加`-thumb`及原图片扩展名决定目标。
+
+Arca On-deck Commit以`arca_inventory_product_facts`的`related_primary_mapping`逐关联记录持久化实际Inventory两端Physical Material key。每份closed值schemaRef为`helix://arca/inventory-related-primary-mapping/v1`，schemaVersion=1，含上述五字段及mappingDigest（除自身外JCS摘要），完整值≤4 KiB；其fact digest及两端绑定参与Inventory revision证据。Aftercare迁移/替换必须沿精确Material Receipt映射重写两端、校验完整摘要，再纳入新revision；不得用文件名重新猜关联或回读Libra旧Run。
+
+该记录区分不变的accepted关联与可迁移的Inventory物理绑定：Care Basis的acceptedProductFactSetDigest对本kind使用`SHA256(JCS({schema:arca.accepted-related-primary-association@1,sourceRelatedReferenceId,sourcePrimaryMaterialKey,namingKind}))`，读取前仍校验完整fact/mapping摘要。移动造成的实际两端key变化由Inventory revision/representation完整digest及精确Receipt覆盖，不视为已接受内容Facts变化；缺失关联、换原Primary或换命名用途仍使Care Basis变化。
+
+旧季目录收尾复用Arca入藏后source cleanup/recycle机制：仅已记录的旧Season目录、全部文件交付结算完成且为空、非最终目录、非来源root时可收尾；不递归清理，不删除母目录，未知残留保持并提示。单文件Settlement不取得额外目录删除权。

@@ -1,4 +1,5 @@
 'use strict';
+const {remapInventoryMappingFacts}=require('../../../contracts/related-primary-mappings');
 const {stagedResultReader}=require('../persistence/staged-manifest-store');
 const { automaticCaseTargetsAcceptedDefect } = require('../model/accepted-defect-maintenance');
 const { careFindingCodes } = require('../model/care-objective');
@@ -956,9 +957,10 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
       for(const receipt of receipts){const identity=receipt.finalMaterialIdentity,existing=materials.find((item)=>item.material_key===identity.materialKey);if(existing)continue;const extension=path.extname(receipt.targetLocation).toLowerCase(),retiredKey=receipt.retiredMaterials?.[0]?.identity?.materialKey||receipt.supersededMaterialIdentity?.materialKey,sourceRow=retiredKey?frozenMaterials.find((item)=>item.material_key===retiredKey):null,role=receipt.materialEffectKind==='placement_migrate'&&sourceRow?sourceRow.role:receipt.materialEffectKind==='primary_replace'?'primary_payload':extension==='.nfo'?'metadata_sidecar':/(jpg|jpeg|png|webp)$/.test(extension.slice(1))?'poster':'sidecar',episodeClaims=sourceRow?JSON.parse(sourceRow.episode_claims_json):emptyArcaMaterialEpisodeClaims();materials.push({shelf_entry_id:c.shelfEntryId,inventory_revision:c.raw.entry.current_inventory_revision+1,ordinal:materials.length,material_key:identity.materialKey,role,episode_claims_schema_ref:EPISODE_CLAIMS_SCHEMA,episode_claims_json:canonicalJson(episodeClaims),episode_claim_set_digest:sourceRow?.episode_claim_set_digest||episodeClaims.episodeClaimSetDigest,artifact_scope_schema_ref:sourceRow?.artifact_scope_schema_ref??null,artifact_scope_json:sourceRow?.artifact_scope_json??null,endpoint_id:receipt.targetEndpointId,location:receipt.targetLocation,binding_revision:1,mount_scope_id:identity.mountScopeId,inode:identity.inode,fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:String(identity.fingerprintVersion),content_fingerprint:identity.contentFingerprint,digest_hex:identity.contentFingerprint,size_bytes:identity.sizeBytes,active_guard:role==='primary_payload'?1:0});}
       const scope=Object.freeze({ownerDomain:'arca',scopeType:'shelf_entry',scopeId:c.shelfEntryId}),projections=controls.getMaterialControlProjections(planned.map((item)=>item.identity.materialKey)),byKey=new Map(projections.map((item)=>[item.materialKey,item])),changes=planned.map((item)=>{const projection=byKey.get(item.identity.materialKey);return Object.freeze({identity:item.identity,action:item.action,expectedRevision:Number(projection.controlRevision),expectedProjectionDigest:projection.projectionDigest,...(item.action==='release'?{fromScope:scope}:{toScope:scope})});});
       if(n.responsibilityControlCommitHandle.controlScopeDigest!==controlScopeDigest(changes))throw new Error('Aftercare Control Handle does not cover the exact Inventory change.');
-      const nextRevision=Number(c.raw.entry.current_inventory_revision)+1,
+      const updatedFacts=remapInventoryMappingFacts(c.raw.facts,receipts),nextRevision=Number(c.raw.entry.current_inventory_revision)+1,
         representationDigest=canonicalDigest({schema:'arca.inventory-representation@1',shelfEntryId:c.shelfEntryId,
-          inventoryRevision:nextRevision,sourcePackageId:c.raw.inventory.source_package_id,members:materials.map(representationMember)}),
+          inventoryRevision:nextRevision,sourcePackageId:c.raw.inventory.source_package_id,members:materials.map(representationMember),
+          ...(updatedFacts.some(item=>item.fact_kind==='related_primary_mapping')?{relatedPrimaryMappingDigests:updatedFacts.filter(item=>item.fact_kind==='related_primary_mapping').map(item=>item.fact_digest)}:{})}),
         committedAtMs=now(),inventoryRequest={aftercareCaseId:care.aftercareCaseId,shelfEntryId:c.shelfEntryId,
           previousInventoryRevision:c.raw.entry.current_inventory_revision,representationDigest,
           controlChangeDigest:n.responsibilityControlCommitHandle.controlScopeDigest},
@@ -978,9 +980,9 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
           authorizedScopeDigest:n.responsibilityControlCommitHandle.controlScopeDigest,
           commitMarker:atomicOutcome.effectReceipt.commitMarker}),
         projectedPostCommitContext=Object.freeze({...c,raw:Object.freeze({...c.raw,
-          entry:Object.freeze({...c.raw.entry,current_inventory_revision:nextRevision}),materials:Object.freeze(materials)})}),
+          entry:Object.freeze({...c.raw.entry,current_inventory_revision:nextRevision}),materials:Object.freeze(materials),facts:Object.freeze(updatedFacts)})}),
         settlementApproval=hasSettlementEvent?settlementApprovalFor(projectedPostCommitContext,committedAtMs):null,
-        written=store.commitInventory({...inventoryRequest,materials,related:c.raw.related,facts:c.raw.facts,people:c.raw.people,
+        written=store.commitInventory({...inventoryRequest,materials,related:c.raw.related,facts:updatedFacts,people:c.raw.people,
           committedAtMs,settlementApproval,defectRepair:verifiedDefectRepair(care,receipts,options.workResultReader.read(sourceWorkId).filter(row=>row.outcomeKind==='succeeded')),resultBinding:Object.freeze({
             resultId:stable('arca-care-inventory-result-',{eventId:execution.eventId}),eventId:execution.eventId,
             outcomeKind:atomicOutcome.kind,resultSchemaRef:atomicOutcome.resultSchemaRef,result:atomicOutcome.result,

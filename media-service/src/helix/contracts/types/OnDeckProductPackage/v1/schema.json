@@ -1000,6 +1000,47 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "relatedPrimaryMappings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceRelatedReferenceId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "relatedMaterialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "sourcePrimaryMaterialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "finalPrimaryMaterialKey": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "namingKind": {
+            "const": "episode_thumb"
+          }
+        },
+        "required": [
+          "sourceRelatedReferenceId",
+          "relatedMaterialKey",
+          "sourcePrimaryMaterialKey",
+          "finalPrimaryMaterialKey",
+          "namingKind"
+        ]
+      },
+      "maxItems": 1024,
+      "minItems": 1
     }
   },
   "required": [

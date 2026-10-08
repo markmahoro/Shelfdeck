@@ -11,3 +11,5 @@
 全新47集Host第一次在旧100秒观察窗口结束时仍正常运行、无失败Event；按新增大季场景调整测试时间窗口后，105.90秒推进到全部47个Direct verify/select及Work成功，随后在Product Conformance触发独立P9_CONFORMANCE_SELECTED_SET（现行selectedProducts[1..32]合同）。因此仅证明本项输入准备关卡修复，不能宣称47集完整E2E成功。opt-in HELIX_SERIES_LARGE_SCOPE=1保留后续失败回归，不改为预期成功或弱化断言。
 
 本地18081仍加载UAT-285版本，正在保护《大宅门2》实际转码，未为本修复中断媒体副作用。原失败Run未Reset或改写状态；修复后的新任务重现验证及旧任务处置分别记录，不以恢复代码掩盖缺陷。未操作NAS。
+
+2026-10-09后续只读核验：用户反馈《白鹿原》失败，Run `97ba824ca689cb7d2ca8957be020e0215ba62a93facc71005f28e3580d8bcfd9` 已 frozen；77 次 `libra.product_media.verify@1` 输入准备失败，全部摘要 `b02dce8cabedb9673ff3018b14faf8e1b7da6f38470058e2e39209cb3c8408f1`，与上述32成员限制的 failureCode/message canonical 摘要精确一致。现场PID仍14444，修复尚未加载；没有Reset或改写该Run。

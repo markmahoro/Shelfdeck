@@ -214,7 +214,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const externalMultipart=external&&process.env.HELIX_SERIES_EXTERNAL_MULTIPART==='1',externalEpisodeCap=4*1024*1024;
   const externalProvider=external?require('../fixtures/series-external-host-provider').fixture(root,{rejectSearch:typeof external==='string',real,remux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1',transcode:process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1',multipart:externalMultipart}):null;
-  const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)','Season 01');
+  const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)',process.env.HELIX_SERIES_RELATED==='1'?'Season 1':'Season 01');
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
   if(browserJourney||externalBrowser) {
     const builtAdmin=path.resolve(__dirname,'../../dist/admin');
@@ -225,6 +225,8 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   const episodeKeys=episodeNumbers.map(number=>'E'+String(number).padStart(3,'0'));
   const sources=nm?[path.join(source,'Demo Show.S01E01-02.part1.mp4'),path.join(source,'Demo Show.S01E01.part2.mkv')]:parts?[1,2].map(part=>path.join(source,'Demo Show.S01E01.part'+part+'.mkv')):shared?[path.join(source,'Demo Show.S01E01-02.mkv')]:episodeNumbers.map(number=>path.join(source,'Demo Show.S01E'+String(number).padStart(2,'0')+((mixed||mediaRepair)&&number===2?'.mp4':'.mkv')));
   const physicalCount=sources.length,perEpisodeCap=parts?48:shared?12:24;
+  const relatedFixture=process.env.HELIX_SERIES_RELATED==='1';
+  const thumbnailSources=relatedFixture?sources.map(file=>file.replace(/\.[^.]+$/,'-thumb.jpg')):[];
   const hdr=real&&process.env.HELIX_SERIES_HDR_MEDIA==='1';
   const longMedia=real&&process.env.HELIX_SERIES_LONG_MEDIA==='1';
   if(longMedia)assert.ok(!mediaBound&&!mediaRepair,'Long production fixture must not replace bounded Aftercare timing.');
@@ -259,6 +261,12 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       if(boundedSource)assert.ok(fs.statSync(file).size>32*1024*1024,'Bounded repair source must exceed the actual Episode cap.');
     }
   } else sources.forEach(file=>fs.writeFileSync(file,'read-only-series-fixture'));
+  if(relatedFixture){
+    sources.forEach((file,index)=>{
+      fs.writeFileSync(thumbnailSources[index],Buffer.from('unique-episode-thumbnail-'+index));
+      fs.writeFileSync(file.replace(/\.[^.]+$/,'.nfo'),'<episodedetails><title>Episode '+(index+1)+'</title><season>1</season><episode>'+(index+1)+'</episode><plot>Source episode plot.</plot></episodedetails>');
+    });
+  }
   if(concurrent){
     const batch=path.join(root,'source2','Batch B {tmdb-series-1399}','Season 01');
     fs.mkdirSync(batch,{recursive:true});fs.writeFileSync(path.join(batch,'Demo Show.S01E03.mkv'),'concurrent-third-series-fixture');
@@ -773,7 +781,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.equal(final.length,physicalCount);assert.ok(final.every(item=>JSON.parse(item.result_json).result==='passed'));
     assert.equal(readSet.primaryInputs.filter(item=>!item.samePhysicalMaterial).length,real?2:1);
     const offload=db.prepare("SELECT * FROM libra_offload_context_materials WHERE context_role='original_input'").all();
-    assert.equal(offload.length,physicalCount);
+    assert.equal(offload.length,physicalCount+(relatedFixture?physicalCount*2:0));
     for(const item of offload) {
       const processed=nm||item.location.endsWith('.mp4')||(real&&item.location.endsWith('S01E03.mkv'));
       assert.equal(item.disposition_kind,processed?'replaced_and_settled':'carried_forward');
@@ -860,7 +868,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.match(xml,new RegExp('<title>Episode '+number+'</title>'));
   }
   const refs=db.prepare('SELECT * FROM libra_product_fact_source_refs WHERE product_fact_id=? ORDER BY ordinal').all(metadata.factId);
-  assert.equal(refs.length,episodeCount+1);
+  assert.equal(refs.length,episodeCount+1+(relatedFixture?physicalCount:0));
   for(const ref of refs) {
     const result=db.prepare('SELECT * FROM fx_event_result_bindings WHERE result_id=?').get(ref.result_id);
     const node=db.prepare('SELECT node.input_bindings_json FROM fx_plan_nodes node JOIN fx_workflow_events event '+
@@ -884,7 +892,18 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   assert.deepEqual(collection[0].series.episodes.map(item=>item.episodeKey),episodeKeys);
   assert.equal(collection[0].series.episodes.reduce((sum,item)=>sum+item.files.length,0),nm?3:parts?2:episodeCount);
 
-  assert.equal(inventory.length,episodeCount+physicalCount+2);
+  assert.equal(inventory.length,episodeCount+physicalCount+2+thumbnailSources.length);
+  if(relatedFixture){
+    const thumbs=inventory.filter(item=>item.role==='sidecar');assert.equal(thumbs.length,physicalCount);
+    const mappings=db.prepare("SELECT fact_json FROM arca_inventory_product_facts WHERE fact_kind='related_primary_mapping'").all();assert.equal(mappings.length,physicalCount);
+    for(const {fact_json} of mappings){const mapping=JSON.parse(fact_json),thumb=thumbs.find(item=>item.material_key===mapping.relatedMaterialKey),primary=inventory.find(item=>item.material_key===mapping.finalPrimaryMaterialKey);
+      assert.ok(thumb&&primary);assert.equal(thumb.location,primary.location.replace(/\.[^.]+$/,'-thumb.jpg'));
+      const ordinal=JSON.parse(primary.episode_claims_json).items[0].episodeKey;const index=episodeKeys.indexOf(ordinal);
+      assert.equal(fs.readFileSync(thumb.location,'utf8'),'unique-episode-thumbnail-'+index);
+    }
+    assert.ok(thumbnailSources.every(file=>!fs.existsSync(file)));
+    assert.ok(sources.every(file=>!fs.existsSync(file.replace(/\.[^.]+$/,'.nfo'))));
+  }
   assert.equal(db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n,1);
   assert.equal(new Set(inventory.map(item=>item.location)).size,inventory.length);
   const inventoryPrimary=inventory.filter(item=>item.role==='primary_payload');
@@ -1163,7 +1182,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const current=db.prepare('SELECT * FROM arca_shelf_entries').get(),materials=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=?').all(current.current_inventory_revision);
     assert.equal(materials.length,original.length);
     for(const {item,bytes} of original) {
-      const expectedName=(migrate==='rename'&&item.role==='primary_payload'?'renamed-':'')+path.basename(item.location),
+      const expectedName=(migrate==='rename'&&(item.role==='primary_payload'||relatedFixture&&item.role==='sidecar')?'renamed-':'')+path.basename(item.location),
         moved=materials.find(row=>path.basename(row.location)===expectedName);assert.ok(moved);
       if(migrate==='rename')assert.equal(path.dirname(moved.location),path.dirname(item.location));
       else assert.ok(moved.location.includes('Relocated Demo Show'));assert.deepEqual(fs.readFileSync(moved.location),bytes);
@@ -1171,6 +1190,13 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       if(path.resolve(moved.location)!==path.resolve(item.location))assert.equal(fs.existsSync(item.location),false);
     }
     assert.equal(db.prepare('SELECT count(*) n FROM arca_aftercare_inventory_commits').get().n,1);
+    if(relatedFixture){
+      const mappings=db.prepare("SELECT * FROM arca_inventory_product_facts WHERE inventory_revision=? AND fact_kind='related_primary_mapping'").all(current.current_inventory_revision);
+      assert.equal(mappings.length,physicalCount);
+      const {readInventoryMapping}=require('../../src/helix/contracts/related-primary-mappings');
+      for(const row of mappings){const mapping=readInventoryMapping(row),thumb=materials.find(item=>item.material_key===mapping.relatedMaterialKey),primary=materials.find(item=>item.material_key===mapping.finalPrimaryMaterialKey);
+        assert.ok(thumb&&primary);assert.equal(thumb.location,primary.location.replace(/\.[^.]+$/,'-thumb.jpg'));}
+    }
     assert.equal(db.prepare("SELECT count(*) n FROM arca_aftercare_settlement_approvals WHERE state='consumed'").get().n,1);
     const controls=require('../../src/helix/foundation/persistence/material-control').createMaterialControlProjectionPort({schemaManifest,unitOfWork})
       .getMaterialControlProjections([...new Set([...inventory,...materials].map(item=>item.material_key))].sort());
@@ -1489,4 +1515,11 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     t.diagnostic(JSON.stringify({seasons:entries.map(entry=>({season:entry.series.seasonNumber,episodes:entry.series.episodeCount})),protectedFirstSeasonFiles:files.length}));
   }
 
+  if(relatedFixture){
+    // Cleanup inspection and the recorded recycle effect use separate 30s sweeps.
+    const cleanupDeadline=Date.now()+90000;
+    while(fs.existsSync(source)&&Date.now()<cleanupDeadline)await new Promise(resolve=>setTimeout(resolve,100));
+    assert.equal(fs.existsSync(source),false,'An empty old Season directory must finish the existing Arca cleanup flow. '+JSON.stringify({files:fs.existsSync(source)?fs.readdirSync(source):[],checks:db.prepare('SELECT * FROM arca_source_cleanup_checks').all()}));
+    assert.ok(fs.existsSync(path.dirname(source)),'Source show parent must remain.');
+  }
 });

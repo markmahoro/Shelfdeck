@@ -1,4 +1,5 @@
 'use strict';
+const {inventoryMappingFact,FACT_SCHEMA}=require('../../../contracts/related-primary-mappings');
 const {createInventoryVerificationStore}=require('./inventory-verification-store');
 const { splitEpisodeMetadata } = require('../../../contracts/episode-metadata-records');
 const {acceptedInventoryArtifactScopes,readInventoryArtifactScope}=require('../model/inventory-artifact-scope');
@@ -1017,6 +1018,7 @@ function createOnDeckStore(options) {
       inventoryRevision,
       sourcePackageId: packageValue.onDeckPackageId,
       members: inventoryMembers,
+      ...(packageValue.relatedPrimaryMappings?.length?{relatedPrimaryMappings:packageValue.relatedPrimaryMappings}:{}),
     });
     const deckFactBase = {
       schema: 'arca.deck-fact@1',
@@ -1258,6 +1260,16 @@ function createOnDeckStore(options) {
           for(const row of previous.facts)repo.invoke('insert_fact',{...row,inventory_revision:inventoryRevision});
           for(const row of previous.people)repo.invoke('insert_person',{...row,inventory_revision:inventoryRevision});
           for(const row of previous.related)repo.invoke('insert_related',{...row,inventory_revision:inventoryRevision});
+        }
+        for(const [index,mapping] of (packageValue.relatedPrimaryMappings||[]).entries()){
+          const related=stagedMembers.find(item=>item.sourceMaterialKey===mapping.relatedMaterialKey),
+            primary=stagedMembers.find(item=>item.sourceMaterialKey===mapping.finalPrimaryMaterialKey);
+          if(!related||!primary)fail('ARCA_RELATED_PRIMARY_MAPPING_MISSING','Inventory mapping must bind both exact staged members.');
+          const fact=inventoryMappingFact(mapping,related.materialKey,primary.materialKey);
+          repo.invoke('insert_fact',{shelf_entry_id:shelfEntryId,inventory_revision:inventoryRevision,fact_kind:'related_primary_mapping',
+            fact_revision:(previous?.facts.filter(row=>row.fact_kind==='related_primary_mapping').reduce((max,row)=>Math.max(max,Number(row.fact_revision)),0)||0)+index+1,
+            fact_schema_ref:FACT_SCHEMA,fact_json:canonicalJson(fact),episode_metadata_schema_ref:null,episode_metadata_json:null,
+            fact_digest:canonicalDigest(fact),source_package_id:packageValue.onDeckPackageId,provenance_digest:packageValue.packageDigest,committed_at_ms:context.commitTimeMs});
         }
         packageValue.productFactManifest.items.forEach((item) => {
           const stored = splitEpisodeMetadata(item.factValue);

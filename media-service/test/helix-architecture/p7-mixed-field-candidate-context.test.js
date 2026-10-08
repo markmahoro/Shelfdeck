@@ -35,7 +35,7 @@ function relatedScope(parentRelativeLocation, stemKey, associationMode, relatedR
   return { ...value, scopeDigest:canonicalDigest({ schema:'procurement.related-scope@1', ...value }) };
 }
 
-function fixture({ primaryLocation, scopeRoot, scopeKind, associationMode, observed, relatedRuleRevision = 2, relatedScopeKind = 'ordinary_parent', relatedParentLocation = null }) {
+function fixture({ primaryLocation, scopeRoot, scopeKind, associationMode, observed, relatedRuleRevision = 2, relatedScopeKind = 'ordinary_parent', relatedParentLocation = null, extraPrimaryLocation = null }) {
   const primaryIdentity = identity('primary', 1);
   const scopeKey = scopeKind === 'standalone_file'
     ? `standalone-file:${primaryLocation}`
@@ -152,17 +152,23 @@ function fixture({ primaryLocation, scopeRoot, scopeKind, associationMode, obser
     evidenceId:'structure-1',
     payloadDigest:D('structure-payload'),
   };
+  const allMembers=[member],allContexts=[materialContext];
+  if(extraPrimaryLocation){const secondIdentity=identity('second-primary',20),second={...member,material_key:secondIdentity.materialKey,
+    inode:secondIdentity.inode,content_fingerprint:secondIdentity.contentFingerprint,field_relative_location:extraPrimaryLocation};
+    allMembers.push(second);allContexts.push({member:second,identity:secondIdentity,current:null});
+    entry.unit.members.push({...entry.unit.members[0],materialKey:secondIdentity.materialKey});
+  }
   const reader = createProcurementCandidateContextReader({
     triageRuleRegistry:createDefaultTriageRuleRegistry(),
     evidenceIndex:{ find:() => entry },
     triageReader:{
-      readRunBasis:() => ({ run, access, selectionScopes:[scope], members:[member] }),
+      readRunBasis:() => ({ run, access, selectionScopes:[scope], members:allMembers }),
       readCandidate:() => ({
         run,
         access,
         selectionScopes:[scope],
-        materials:[materialContext],
-        candidateMaterials:[materialContext],
+        materials:allContexts,
+        candidateMaterials:allContexts,
       }),
       listObservedMaterialsInScope(runId, requestedScope) {
         queriedScopes.push([runId, requestedScope]);
@@ -192,6 +198,25 @@ function observed(location, label, inode) {
     entryDigest:D(`entry:${label}`),
   };
 }
+
+test('merged Candidate parent scope resolves physical directories and carries Episode thumb and NFO', () => {
+  const stem='Show S01E01 - HEVC';
+  const value=fixture({primaryLocation:'Show/Season 1/'+stem+'.mkv',scopeRoot:'Show/Season 1',
+    scopeKind:'ordinary_directory',associationMode:'multi_movie_directory',relatedParentLocation:'@candidate',
+    observed:[observed('Show/Season 1/'+stem+'-thumb.jpg','thumb',2),observed('Show/Season 1/'+stem+'.nfo','nfo',3),
+      observed('Other/Season 1/'+stem+'-thumb.jpg','foreign',4)]});
+  assert.deepEqual(value.queriedScopes,[['run-1','Show/Season 1']]);
+  assert.deepEqual(value.context.relatedReferences.map(item=>item.role).sort(),['nfo','sidecar']);
+});
+test('Episode sidecars bind their matching Primary rather than the first file in the Season',()=>{
+  const result=fixture({primaryLocation:'Show/Season 1/Show.S01E01.mkv',extraPrimaryLocation:'Show/Season 1/Show.S01E02.mkv',
+    scopeRoot:'Show/Season 1',scopeKind:'ordinary_directory',associationMode:'multi_movie_directory',relatedParentLocation:'@candidate',
+    observed:[observed('Show/Season 1/Show.S01E01-thumb.jpg','one',2),observed('Show/Season 1/Show.S01E02-thumb.jpg','two',3),
+      observed('Show/Season 1/Show.S01E02.nfo','nfo-two',4),observed('Show/Season 1/unrelated-thumb.jpg','unknown',5)]});
+  assert.equal(result.context.relatedReferences.length,3);
+  for(const reference of result.context.relatedReferences)assert.equal(reference.primaryMaterialKey,
+    identity(reference.location.includes('S01E02')?'second-primary':'primary',reference.location.includes('S01E02')?20:1).materialKey);
+});
 
 test('Candidate Context preserves artwork roles for movie-prefixed files without borrowing other movies', () => {
   const stem = '局内人 (2006) 1080p DTS';

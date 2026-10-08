@@ -42,9 +42,13 @@ function sourceNfoObservation(options, libraRunId, referenceId) {
     .filter((item) => item.capabilityRef === 'libra.product_metadata.fetch@1' &&
       item.result?.sourceKind === 'related_nfo' && item.result.sourceRef === referenceId)
     .map((item) => item.result);
-  if (new Set(observations.map((item) => item.payloadDigest)).size > 1)
+  // A Season and an Episode may observe the same immutable NFO with different
+  // requested fields. Settlement binds the complete source snapshot, not that
+  // scope-specific metadata projection.
+  if (new Set(observations.map((item) => canonicalDigest({semantics:item.sourceNfoSemantics,
+    snapshotDigest:item.sourceNfoSnapshotDigest}))).size > 1)
     throw new Error('NFO reference has conflicting immutable observations.');
-  return observations[0] || null;
+  return observations.sort((a,b)=>utf8(a.payloadDigest,b.payloadDigest))[0] || null;
 }
 
 function utf8(left, right) {
@@ -699,9 +703,17 @@ function createProductDeliveryAssembler(options) {
       artifactProductsByRole.set(artifactKey, productMember);
       productMembers.push(productMember);
     }
-    const related = snapshot.relatedBindings.map((binding) =>
-      relatedAuthority(snapshot, binding,
-        artifactProductsByRole.get(productRole(binding.role)+'|') || null));
+    const related = snapshot.relatedBindings.map((binding) => {
+      let scopeKey='';
+      if(snapshot.spec.contentProfile==='series'&&binding.role==='nfo'&&
+          !/^(tvshow|season)\.nfo$/i.test(String(binding.location).replace(/\\/g,'/').split('/').at(-1))){
+        const primary=snapshot.members.find(item=>item.materialKey===binding.primaryMaterialKey);
+        const claims=primary?.episodeClaims||[];
+        if(claims.length!==1)throw Object.assign(new Error('Episode NFO replacement requires one exact Episode scope.'),{code:'SERIES_RELATED_NFO_SCOPE_AMBIGUOUS'});
+        scopeKey=claims[0].episodeKey;
+      }
+      return relatedAuthority(snapshot,binding,artifactProductsByRole.get(productRole(binding.role)+'|'+scopeKey)||null);
+    });
     for (const item of related) {
       if (item.assertion.dispositionKind === 'carried_forward') {
         productMembers.push(relatedProductMember(item, origin));
