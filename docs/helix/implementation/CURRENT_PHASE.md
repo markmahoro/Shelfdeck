@@ -205,3 +205,11 @@ Phase Exit须完成适用逐段差距/合同、样本矩阵及本地Season纵向
 2026-10-08 Series Placement请求DoR：当前Aftercare仅构造title/year的单体投影，Series命名所需Season身份、全部Episode Metadata与已登记NFO scope缺失。沿Arca内部Inventory端口建立显式Aftercare Artifact scope输入，使用当前Inventory的完整Claims、全部已接受批次Facts及持久化scope；不伪造Workspace Artifact、回读Libra或猜测文件名。On-deck继续使用其Accepted Artifact合同，Aftercare入口单独验证精确材料覆盖、Season/Episode与重复scope。先验证真实Inventory端口命名及拒绝路径，再补完整迁移Host；本批基础不等同于迁移闭环通过。
 
 2026-10-08 Placement输入结果：[Evidence](evidence/SERIES_AFTERCARE_PLACEMENT_INPUT_20261008.md)。Series跨批Facts/Claims与持久化NFO scope进入显式Aftercare命名，拒绝错批/缺scope等输入；评估逐成员比较路径，覆盖同目录改名。8项新增专项、全架构2,279通过/9既有skip/0失败；两批实际Host Owner context原位复原和新目录规划94秒通过。下一段必须验证实际迁移物化、Commit、Settlement及恢复，不能以prepare通过关闭迁移或发布Gate。
+
+2026-10-08 Series实际Placement Case DoR：在正式隔离Host上架E01/E02后，通过Shelf Placement preview/PATCH发布新folderTemplate，以原Target root执行整Entry迁移。验证全部Primary/NFO/poster字节和Episode/Artifact关系、Inventory-Control原子回滚/提交、旧位置Settlement及Case重评估终结；保持正式API/Owner路径，不直接改写业务数据库推进。失败按当前合同定位根因，后续仍须同目录改名、异常恢复与发布平台验证。
+
+2026-10-08迁移Host发现旧健康评估与新Placement发布并发，Owner projection正确拒绝旧Basis但用普通Error使Host记录执行器故障。按既有Foundation executionInputSuperseded合同改为明确输入失效：仍使旧Event/Work失败、保留证据、禁止旧Assessment Commit；由Arca当前Basis重新评估，不增加Foundation业务判断，不屏蔽fixture错误。
+
+2026-10-08同目录改名Host暴露实际数据保护缺陷：Placement Material Receipt将未变化成员也标为requiresSettlement，删除了仍作为当前Inventory的NFO/poster。修复在Arca Receipt投影排除位置/身份均未变成员，同位置替换不结算当前路径，并在实际Settlement入口拒绝当前Inventory位置。保留原失败证据；必须重跑真实Host和相关完整回归，不能以增加等待或重置掩盖。
+
+2026-10-08实际Placement结果：[Evidence](evidence/SERIES_PLACEMENT_CASE_20261008.md)。整季换目录与同目录Primary改名的正式API/Host实际文件闭环分别91.9/92.0秒通过，含事务回滚/Commit、Control和Settlement。旧Assessment改为显式输入失效；Receipt排除未变化材料，Settlement拒绝当前Inventory位置，修复首次同目录场景删除NFO/poster的问题。36项专项和全架构2,281通过/9既有skip/0失败。真实进程中断、跨设备、媒体维修及UI/Linux发布Gate仍开放。

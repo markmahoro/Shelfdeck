@@ -95,6 +95,9 @@ function exactInventoryMaterial(location,material,mountScopeId,fingerprint){
 function exactArtifactBytes(location,source){try{return fs.existsSync(location)&&fullSha(location)===fullSha(source);}catch{return false;}}
 function samePhysicalLocation(left,right){const a=path.resolve(left),b=path.resolve(right);return process.platform==='win32'?a.toLowerCase()===b.toLowerCase():a===b;}
 function assertAftercareSettlementHandle(c,care,handle,sourceAuthority={}){
+  if(c.raw.materials.some(item=>samePhysicalLocation(item.location,handle?.location||'')&&
+      (item.endpoint_id===handle?.endpointId||item.material_key===handle?.identity?.materialKey)))
+    throw Object.assign(new Error('Aftercare Settlement cannot delete a current Inventory location.'),{code:'ARCA_AFTERCARE_SETTLEMENT_CURRENT_INVENTORY'});
   let sourceTarget={rootLocation:c.raw.shelf.target_root_location,mountScopeId:c.raw.shelf.target_mount_scope_id,
     mountScopeRevision:Number(c.raw.shelf.target_mount_scope_revision)};
   if(handle?.readScope==='exact_aftercare_settlement'&&typeof sourceAuthority.sourceTargetBinding==='function'){

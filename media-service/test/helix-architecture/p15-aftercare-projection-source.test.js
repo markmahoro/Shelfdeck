@@ -181,6 +181,6 @@ for(const projectionRef of [P.assessmentSet,P.commit]) {
    materialControlProjectionPort:{getMaterialControlProjections:()=>[]},controlScopeDigest:canonicalDigest,
    workResultReader:{read:()=>['custody','presentation','conformance'].map(kind=>({outcomeKind:'succeeded',capabilityRef:C[kind],
     result:{careBasisDigest:canonicalDigest('old'),evidenceKind:'arca_aftercare_'+kind,evidenceId:kind,payloadDigest:canonicalDigest(kind)}}))}});
-  assert.throws(()=>projections.find(x=>x.projectionRef===projectionRef).projection.project({ownerScope:{processId:'entry'},parameters:{workId:'work',eventId:'event',deep:true}}),e=>e.code==='ARCA_AFTERCARE_ASSESSMENT_BASIS_STALE');
+  assert.throws(()=>projections.find(x=>x.projectionRef===projectionRef).projection.project({ownerScope:{processId:'entry'},parameters:{workId:'work',eventId:'event',deep:true}}),e=>e.code==='P4_EXECUTION_INPUT_BASIS_SUPERSEDED'&&require('../../src/helix/foundation/execution/execution-input-readiness').isExecutionInputSuperseded(e));
  });
 }

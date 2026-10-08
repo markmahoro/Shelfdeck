@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 实际Placement：[Evidence](implementation/evidence/SERIES_PLACEMENT_CASE_20261008.md)。正式Host整季换目录和同目录Primary改名均完成迁移、Inventory/Control事务、旧位置结算及健康终结；修复旧评估Basis失效分类，以及未变化NFO/poster被错误结算的缺陷，并在删除入口保护当前Inventory位置。最终全架构2,281通过/9既有skip/0失败。进程崩溃/跨设备恢复、其余运营/UI/Linux及Series发布资格继续，未部署NAS。
+
 2026-10-08 Placement输入：[Evidence](implementation/evidence/SERIES_AFTERCARE_PLACEMENT_INPUT_20261008.md)。Aftercare已携带完整Series/Season身份、各批Episode资料及当前Inventory NFO scope，真实两批Host可精确复原原位置并规划新目录；评估修正同目录改名漏检。全架构2,279通过/9既有skip/0失败。实际迁移Case/恢复、其余运营/UI/Linux发布条件继续，未部署NAS。
 
 2026-10-08 联合展示维护：[Evidence](implementation/evidence/SERIES_PRESENTATION_CASE_20261008.md)。正式隔离Host同一Case恢复缺失poster和两集NFO，验证精确TMDB Series/Season请求、三份Artifact物化、原子事务、Settlement、正常/历史成员保护及收敛后Host重开，92秒通过。本批仅新增验证；完整运营/恢复/UI/Linux发布门槛仍开放，无NAS部署。

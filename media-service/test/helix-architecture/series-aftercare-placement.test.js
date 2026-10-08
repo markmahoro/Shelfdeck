@@ -63,3 +63,12 @@ test('Placement assessment compares exact member names even within the same dire
   assert.equal(placementMatchesInventory(c,r),false);
   assert.throws(()=>placementMatchesInventory(c,{finalInventoryDecision:{members:r.finalInventoryDecision.members.slice(1)}}));
 });
+
+test('Placement receipts exclude unchanged Inventory members from retirement and settlement',t=>{
+  const f=fixture(t),row=f.c.raw.materials[0],identity=require('../../src/helix/domains/arca/model/aftercare-contract').physicalIdentityFromInventoryRow(row),
+    receipts=require('../../src/helix/domains/arca/model/aftercare-placement').placementMaterialReceipts,
+    stage={schemaRef:'helix://contracts/types/StagedInventoryManifest/v1',stagedMembers:[{
+      sourceMaterialKey:row.material_key,endpointId:row.endpoint_id,location:row.location,physicalIdentity:identity}]},
+    reader={read:()=>[{outcomeKind:'succeeded',result:stage},{outcomeKind:'succeeded',result:{receiptKind:'placement_switched',receiptId:'switch',committedAtMs:1}}]};
+  assert.deepEqual(receipts(f.c,reader,'work',{aftercareCaseId:'case',careRequirementDigest:D('requirement')}),[]);
+});

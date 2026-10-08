@@ -188,12 +188,16 @@ function placementMaterialReceipts(context, workResultReader, sourceWorkId,
   if (!manifest || !placement) return Object.freeze([]);
   const previous = new Map(frozenMaterials.map((item) =>
     [item.material_key, item]));
-  return Object.freeze(manifest.stagedMembers.map((member) => {
+  return Object.freeze(manifest.stagedMembers.flatMap((member) => {
     const source = previous.get(member.sourceMaterialKey);
     if (!source) {
       throw new Error('Aftercare staged member has no current Inventory source.');
     }
     const retiredIdentity = physicalIdentityFromInventoryRow(source);
+    const sourcePath=path.resolve(source.location),targetPath=path.resolve(member.location),
+      sameLocation=process.platform==='win32'?sourcePath.toLowerCase()===targetPath.toLowerCase():sourcePath===targetPath;
+    if(source.endpoint_id===member.endpointId&&sameLocation&&retiredIdentity.materialKey===member.physicalIdentity.materialKey)
+      return [];
     const targetBindingDigest = canonicalDigest({
       endpointId: member.endpointId,
       location: member.location,
@@ -229,10 +233,10 @@ function placementMaterialReceipts(context, workResultReader, sourceWorkId,
       retiredMaterials: Object.freeze([Object.freeze({
         identity: retiredIdentity,
         location: source.location,
-        requiresSettlement: true,
+        requiresSettlement: !sameLocation,
       })]),
     };
-    return Object.freeze(base);
+    return [Object.freeze(base)];
   }).sort((left, right) => left.finalMaterialIdentity.materialKey.localeCompare(
     right.finalMaterialIdentity.materialKey)));
 }

@@ -677,3 +677,15 @@ test('Assessment commit rejects Basis changes after preparation without writing 
   assert.equal(result.retryDirective,'never');assert.equal(writes,0);
  }finally{value.close();}
 });
+
+test('Settlement never deletes a current Inventory location even with an otherwise valid Handle',()=>{
+  const value=fixture();
+  try {
+    const x=settlementCapabilityFixture(value,['current.nfo']),handle=x.handles[0];
+    x.context.raw.materials.push({material_key:handle.identity.materialKey,endpoint_id:handle.endpointId,location:handle.location});
+    const before=fs.readFileSync(handle.location);
+    assert.throws(()=>assertAftercareSettlementHandle(x.context,x.care,handle),
+      error=>error.code==='ARCA_AFTERCARE_SETTLEMENT_CURRENT_INVENTORY');
+    assert.deepEqual(fs.readFileSync(handle.location),before);
+  }finally{value.close();}
+});
