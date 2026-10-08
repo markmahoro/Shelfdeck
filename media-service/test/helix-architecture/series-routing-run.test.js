@@ -197,6 +197,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   const episodeKeys=episodeNumbers.map(number=>'E'+String(number).padStart(3,'0'));
   const sources=nm?[path.join(source,'Demo Show.S01E01-02.part1.mp4'),path.join(source,'Demo Show.S01E01.part2.mkv')]:parts?[1,2].map(part=>path.join(source,'Demo Show.S01E01.part'+part+'.mkv')):shared?[path.join(source,'Demo Show.S01E01-02.mkv')]:episodeNumbers.map(number=>path.join(source,'Demo Show.S01E'+String(number).padStart(2,'0')+((mixed||mediaRepair)&&number===2?'.mp4':'.mkv')));
   const physicalCount=sources.length,perEpisodeCap=parts?48:shared?12:24;
+  const hdr=real&&process.env.HELIX_SERIES_HDR_MEDIA==='1';
   if(real) {
     const {spawnSync}=require('node:child_process'),ffmpeg=process.env.FFMPEG_PATH||require('ffmpeg-static');
     for(const [index,file] of sources.entries()) {
@@ -206,8 +207,18 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
         boundedSource?'testsrc2=s=1920x1080:r=24:d=20':'color=c=black:s=1920x1080:r=24:d=3',
         ...(boundedSource?['-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=20']:[]),
         ...codec,'-preset','ultrafast',...(boundedSource?['-crf','0','-c:a','aac','-b:a','128k']:[]),
-        '-pix_fmt','yuv420p',file],{encoding:'utf8',windowsHide:true,timeout:60000});
+        '-pix_fmt',hdr?'yuv420p10le':'yuv420p',
+        ...(hdr?['-vf','setparams=range=limited:color_primaries=bt2020:color_trc=smpte2084:colorspace=bt2020nc']:[]),file],{encoding:'utf8',windowsHide:true,timeout:60000});
       assert.equal(result.status,0,result.stderr);
+      if(hdr) {
+        const inspected=spawnSync(process.env.FFPROBE_PATH||require('@ffprobe-installer/ffprobe').path,
+          ['-v','error','-select_streams','v:0','-show_streams','-of','json',file],{encoding:'utf8',windowsHide:true});
+        assert.equal(inspected.status,0,inspected.stderr);
+        const stream=JSON.parse(inspected.stdout).streams[0];
+        assert.equal(stream.pix_fmt,'yuv420p10le');
+        assert.equal(stream.color_primaries,'bt2020');
+        assert.equal(stream.color_transfer,'smpte2084');
+      }
       if(boundedSource)assert.ok(fs.statSync(file).size>32*1024*1024,'Bounded repair source must exceed the actual Episode cap.');
     }
   } else sources.forEach(file=>fs.writeFileSync(file,'read-only-series-fixture'));
@@ -593,6 +604,11 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   assert.equal(sourceProbes.length,physicalCount);
   for(const item of sourceProbes) {
     const value=JSON.parse(item.result_json);assertProbeEvidence(value);
+    if(hdr) {
+      assert.equal(value.videoStreams[0].dynamicRangeKind,'hdr10_compatible');
+      assert.equal(value.videoStreams[0].bitDepth,10);
+      assert.equal(value.videoStreams[0].colorTransfer,'pq');
+    }
     assert.equal(item.result_digest,canonicalDigest(value));
   }
   assert.equal(db.prepare("SELECT count(*) n FROM fx_event_attempts WHERE event_id LIKE 'libra-source-media-probe-event-%' AND failure_code IS NOT NULL").get().n,0);
@@ -665,8 +681,17 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   for(const item of inventoryPrimary) {
     if(real) {
       const inspected=require('node:child_process').spawnSync(process.env.FFPROBE_PATH||require('@ffprobe-installer/ffprobe').path,
-        ['-v','error','-select_streams','v:0','-show_entries','stream=codec_name','-of','json',item.location],{encoding:'utf8',windowsHide:true});
+        ['-v','error','-select_streams','v:0','-show_entries','stream=codec_name,pix_fmt,color_range,color_primaries,color_transfer,color_space','-of','json',item.location],{encoding:'utf8',windowsHide:true});
       assert.equal(inspected.status,0,inspected.stderr);assert.equal(JSON.parse(inspected.stdout).streams[0].codec_name,mediaRepair&&(nm?(mediaBound||JSON.parse(item.episode_claims_json).items.length===1):item.location.endsWith('S01E03.mkv'))?'h264':'hevc');
+      if(hdr) {
+        const stream=JSON.parse(inspected.stdout).streams[0];
+        assert.equal(stream.pix_fmt,'yuv420p10le');
+        assert.equal(stream.color_range,'tv');
+        assert.equal(stream.color_primaries,'bt2020');
+        assert.equal(stream.color_transfer,'smpte2084');
+        assert.equal(stream.color_space,'bt2020nc');
+        t.diagnostic(JSON.stringify({hdrMedia:true,episodes:JSON.parse(item.episode_claims_json).items.map(claim=>claim.episodeKey),stream}));
+      }
     } else assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
     assert.equal(path.basename(path.dirname(item.location)),'Season 01');
     assert.ok(path.relative(target,item.location)&&!path.relative(target,item.location).startsWith('..'));

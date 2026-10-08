@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-08 Series HDR专项：Windows44.08秒/Linux42.23秒真实N:M Host通过，Remux/CPU转码后两成品保留10-bit PQ/BT.2020及完整Episode Claims。仅3秒合成素材，长片/HLG/DV/画质等未覆盖。上一轮全量2396通过/1个已修复Stage误报/10skip，后续冻结全量仍需完成；无NAS操作。[Evidence](implementation/evidence/SERIES_HDR_HOST_20261008.md)。
+
 2026-10-08 Stage并发误报修复：全部祖先保留身份/权限/链接校验，仅精确slot比较内容时间戳，避免兄弟目录活动被当作slot变化。Windows84项、Linux21项、并发10次及P2/边界/语义通过；原全量仍运行，最终冻结全量尚未通过。无UI变更或NAS操作。[Evidence](implementation/evidence/SERIES_STAGE_OBSERVATION_CONCURRENCY_20261008.md)。
 
 2026-10-08 UI负责人接受冻结SHA `d4d86d234`：四项原缺陷及详情空槽修复通过；仅覆盖已复验来源/收藏架/整理详情/收藏详情状态，完整旅程与发布Gate仍开放。全架构仍执行，历史Stage测试的共享祖先目录时间戳并发失败已复现，尚未修复；未操作NAS。[Evidence](implementation/evidence/SERIES_UI_REVIEW_FIXES_20261008.md)。
