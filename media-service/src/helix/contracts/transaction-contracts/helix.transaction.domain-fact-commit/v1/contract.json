@@ -35,6 +35,126 @@
     "readTables": [],
     "variants": [
       {
+        "variantId": "arca_final_product_verification@1",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "arca",
+            "access": "write",
+            "tables": [
+              "arca_inventory_verification_records"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_event_result_bindings",
+              "fx_commit_markers"
+            ]
+          }
+        ],
+        "writeTables": [
+          "arca_inventory_verification_records",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "readTables": [
+          "arca_inventory_verification_records",
+          "fx_supporting_works",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "selector": {
+          "selectorKind": "domain_fact_handle_exact",
+          "factType": "inventory_verification",
+          "factSchemaRef": "helix://contracts/types/FinalProductVerification/v1",
+          "resultSchemaRef": "helix://contracts/types/FinalProductVerificationRecord/v1"
+        },
+        "dynamicTableRequirements": [],
+        "fenceContract": {
+          "domainRevisionFenceRequired": true,
+          "materialControlCasRequired": false,
+          "commitMarkerRequired": true,
+          "outboxRequired": false
+        },
+        "rollbackInvariant": "Complete verification, bounded record, Result and marker are atomic; exact Event replay preserves the same observation.",
+        "crashFixtures": [
+          {
+            "fixtureId": "arca-inventory-verification",
+            "faultInjectionPoints": "观察完成、执行fence、Owner Evidence/Result/marker、重放",
+            "requiredInvariant": "完整Verification与有界Record/Result/marker原子；缺失、篡改、Scope漂移拒绝，Event重放不重做观察，无Control/Outbox写入",
+            "source": {
+              "section": "8.9.7",
+              "line": 15833
+            }
+          }
+        ]
+      },
+      {
+        "variantId": "arca_fulfillment_verification@1",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "arca",
+            "access": "write",
+            "tables": [
+              "arca_inventory_verification_records"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_event_result_bindings",
+              "fx_commit_markers"
+            ]
+          }
+        ],
+        "writeTables": [
+          "arca_inventory_verification_records",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "readTables": [
+          "arca_inventory_verification_records",
+          "fx_supporting_works",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "selector": {
+          "selectorKind": "domain_fact_handle_exact",
+          "factType": "inventory_verification",
+          "factSchemaRef": "helix://contracts/types/FulfillmentVerification/v1",
+          "resultSchemaRef": "helix://contracts/types/FulfillmentVerificationRecord/v1"
+        },
+        "dynamicTableRequirements": [],
+        "fenceContract": {
+          "domainRevisionFenceRequired": true,
+          "materialControlCasRequired": false,
+          "commitMarkerRequired": true,
+          "outboxRequired": false
+        },
+        "rollbackInvariant": "Complete verification, bounded record, Result and marker are atomic; exact Event replay preserves the same observation.",
+        "crashFixtures": [
+          {
+            "fixtureId": "arca-inventory-verification",
+            "faultInjectionPoints": "观察完成、执行fence、Owner Evidence/Result/marker、重放",
+            "requiredInvariant": "完整Verification与有界Record/Result/marker原子；缺失、篡改、Scope漂移拒绝，Event重放不重做观察，无Control/Outbox写入",
+            "source": {
+              "section": "8.9.7",
+              "line": 15833
+            }
+          }
+        ]
+      },
+      {
         "variantId": "arca_acceptance_check_evidence@1",
         "participants": [
           {

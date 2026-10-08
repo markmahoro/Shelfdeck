@@ -86,6 +86,19 @@ function harness(overrides = {}) {
       ...(value.episodeScope?{episodeScope:value.episodeScope}:{})}});
   return {calls,observe,fetchMetadata};
 }
+function restoreArcaResult(db,value){
+  let row,full,expected;
+  if(value.schemaRef==='helix://contracts/types/AcceptanceCheckRecord/v1'){
+    row=db.prepare('SELECT evidence_json AS full_json FROM arca_acceptance_check_evidence WHERE acceptance_attempt_id=? AND check_kind=? AND check_revision=?')
+      .get(value.acceptanceAttemptId,value.checkKind,value.checkRevision);expected=value.checkDigest;
+  }else if(value.schemaRef==='helix://contracts/types/StagedInventoryManifestRecord/v1'){
+    row=db.prepare('SELECT manifest_json AS full_json FROM arca_staged_manifest_records WHERE record_id=?').get(value.recordId);expected=value.completeValueDigest;
+  }else if(['helix://contracts/types/FinalProductVerificationRecord/v1','helix://contracts/types/FulfillmentVerificationRecord/v1'].includes(value.schemaRef)){
+    row=db.prepare('SELECT verification_json AS full_json FROM arca_inventory_verification_records WHERE record_id=?').get(value.recordId);expected=value.verificationDigest;
+  }else return value;
+  assert.ok(row,'Owner must retain the complete referenced result');full=JSON.parse(row.full_json);assert.equal(canonicalDigest(full),expected);return full;
+}
+
 function validator() {
   const contracts = path.resolve(__dirname, '../../src/helix/contracts');
   const schemas = ['types','domain-types','application-types'].flatMap(group=>
@@ -345,7 +358,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
           if(mediaRepair&&process.env.HELIX_SERIES_AFTERCARE_CRASH_ROOT&&path.resolve(process.env.HELIX_SERIES_AFTERCARE_CRASH_ROOT)===root) {
             const entry=db.prepare('SELECT * FROM arca_shelf_entries').get();
             const materials=db.prepare('SELECT * FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=?').all(entry.shelf_entry_id,entry.current_inventory_revision);
-            const receipts=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>JSON.parse(row.result_json))
+            const receipts=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>restoreArcaResult(db,JSON.parse(row.result_json)))
               .filter(result=>result.receiptKind==='aftercare_output_materialized'&&result.materialEffectKind==='primary_replace');
             assert.equal(receipts.length,2);
             assert.ok(receipts.every(receipt=>fs.existsSync(receipt.targetLocation)));
@@ -619,7 +632,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const selection=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-external-select-event-%'").all();
     assert.equal(selection.length,1);assert.equal(JSON.parse(selection[0].result_json).result,'not_selected');
     if(external==='exhausted'){
-      const verificationRows=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>JSON.parse(row.result_json))
+      const verificationRows=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>restoreArcaResult(db,JSON.parse(row.result_json)))
         .filter(row=>row.schemaRef==='helix://contracts/types/TranscodeInputVerification/v1');
       assert.equal(verificationRows.length,1);assert.equal(verificationRows[0].disposition,'strategy_rejected');
       assert.ok(verificationRows[0].reasonCodes.includes('source_pixel_format_unsupported'));
@@ -638,6 +651,22 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   assert.ok(state.works.some(work=>work.work_kind==='product_conformance'&&work.state==='succeeded'),JSON.stringify({works:state.works,incidents:db.prepare('SELECT * FROM fx_executor_incidents').all(),events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   assert.ok(state.works.some(work=>work.work_kind==='deliverable_promotion'&&work.state==='succeeded'),JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1,JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
+  if(episodeCount>32){
+    const ownerStage=db.prepare('SELECT manifest_json,record_json FROM arca_staged_manifest_records').all();
+    const ownerFinal=db.prepare('SELECT verification_json,record_json FROM arca_inventory_verification_records').all();
+    assert.equal(ownerStage.length,1);assert.equal(ownerFinal.length,2);
+    assert.ok(Buffer.byteLength(ownerStage[0].manifest_json)>65536);
+    assert.ok(ownerFinal.every(row=>Buffer.byteLength(row.verification_json)>65536));
+    assert.ok([...ownerStage,...ownerFinal].every(row=>Buffer.byteLength(row.record_json)<65536));
+    assert.equal(db.prepare('SELECT max(length(CAST(result_json AS BLOB))) n FROM fx_event_result_bindings').get().n<=65536,true);
+    assert.equal(db.prepare('SELECT max(length(CAST(evidence_json AS BLOB))) n FROM fx_event_result_bindings').get().n<=65536,true);
+    const commitEvidence=db.prepare("SELECT evidence_json,evidence_digest FROM fx_event_result_bindings WHERE result_schema_ref='helix://contracts/types/OnDeckCommitResult/v1'").get();
+    const fulfillmentRecord=JSON.parse(ownerFinal.find(row=>JSON.parse(row.verification_json).verificationKind==='on_deck_fulfillment').record_json);
+    assert.deepEqual(JSON.parse(commitEvidence.evidence_json),fulfillmentRecord);
+    assert.equal(commitEvidence.evidence_digest,canonicalDigest(fulfillmentRecord));
+    t.diagnostic(JSON.stringify({episodes:episodeCount,stageBytes:Buffer.byteLength(ownerStage[0].manifest_json),
+      finalEvidenceBytes:ownerFinal.map(row=>Buffer.byteLength(row.verification_json)),boundedFoundationResults:true}));
+  }
   if(external){
     const offload=db.prepare('SELECT * FROM libra_offload_context_materials').all();
     const expectedFinalCount=externalMultipart?3:2;
@@ -647,7 +676,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.equal(final.length,expectedFinalCount);assert.ok(final.every(item=>fs.existsSync(item.location)));
     const packageKeys=db.prepare("SELECT material_key FROM libra_product_package_materials WHERE role='primary_payload'").all().map(item=>item.material_key).sort();
     assert.deepEqual(JSON.parse(offload[0].final_product_material_keys_json).sort(),packageKeys);
-    const results=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>JSON.parse(row.result_json));
+    const results=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>restoreArcaResult(db,JSON.parse(row.result_json)));
     const staged=results.filter(result=>Array.isArray(result.stagedMembers));
     assert.equal(staged.length,1);
     const stagedPrimary=staged[0].stagedMembers.filter(item=>item.role==='primary_payload');
@@ -703,7 +732,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     return;
   }
   if(bounded){
-    const checks=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>JSON.parse(row.result_json))
+    const checks=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>restoreArcaResult(db,JSON.parse(row.result_json)))
       .filter(result=>result.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'&&result.checkKind==='space');
     assert.equal(checks.length,1);assert.equal(checks[0].result,'passed');
     assert.deepEqual(checks[0].episodeSpaceEvidence.allocations.map(item=>({key:item.episodeKey,...item.allocatedBytes,withinLimit:item.withinLimit})),
@@ -732,9 +761,9 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   const conformance=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-product-conformance-event-%'").all();
   assert.equal(conformance.length,1);assert.equal(JSON.parse(conformance[0].result_json).result,'passed');
   const directResults=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-direct-media-verify-event-%'").all()
-    .map(item=>JSON.parse(item.result_json));
+    .map(item=>restoreArcaResult(db,JSON.parse(item.result_json)));
   const selections=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-direct-media-select-event-%'").all()
-    .map(item=>JSON.parse(item.result_json));
+    .map(item=>restoreArcaResult(db,JSON.parse(item.result_json)));
   assert.equal(directResults.length,physicalCount);assert.equal(selections.length,physicalCount);
   assert.equal(new Set(directResults.map(item=>item.productMaterialHandleDigest)).size,physicalCount);
   if(mixed) {
@@ -758,12 +787,12 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     assert.deepEqual(selections.map(item=>item.selectedVerificationId).sort(),directResults.map(item=>item.verificationId).sort());
   }
   if(real&&!mediaRepair) {
-    const produced=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-remux-media-event-%' OR event_id LIKE 'libra-transcode-media-event-%'").all().map(item=>JSON.parse(item.result_json));
+    const produced=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-remux-media-event-%' OR event_id LIKE 'libra-transcode-media-event-%'").all().map(item=>restoreArcaResult(db,JSON.parse(item.result_json)));
     assert.deepEqual(produced.map(item=>item.productionIntentKind).sort(),['encode','remux']);
     assert.equal(new Set(produced.map(item=>item.sourceMaterialHandleDigest)).size,2);
     const encoded=produced.find(item=>item.productionIntentKind==='encode');
     assert.ok(encoded.executionDeviceRef?.deviceSnapshotDigest);
-    const assessment=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-transcode-input-verify-event-%'").all().map(item=>JSON.parse(item.result_json));
+    const assessment=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'libra-transcode-input-verify-event-%'").all().map(item=>restoreArcaResult(db,JSON.parse(item.result_json)));
     assert.ok(assessment.some(item=>item.disposition==='compatible'&&item.passedSampleCount===24));
     t.diagnostic(JSON.stringify({realMedia:true,nm:Boolean(nm),episodes:episodeCount,processed:produced.map(item=>({kind:item.productionIntentKind,
       device:item.executionDeviceRef?.deviceClass||null})),assessmentResults:assessment.length}));
@@ -910,7 +939,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
     const fraction=numerator=>numerator%2n===0n?{numerator:String(numerator/2n),denominator:'1'}:{numerator:String(numerator),denominator:'2'};
     const expected=[{episodeKey:'E001',allocatedBytes:fraction(BigInt(sharedProduct.size_bytes)+2n*BigInt(part.size_bytes))},
       {episodeKey:'E002',allocatedBytes:fraction(BigInt(sharedProduct.size_bytes))}];
-    const space=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(item=>JSON.parse(item.result_json))
+    const space=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(item=>restoreArcaResult(db,JSON.parse(item.result_json)))
       .find(item=>item.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'&&item.checkKind==='space');
     assert.equal(space.result,'passed');
     assert.deepEqual(space.episodeSpaceEvidence.allocations.map(({episodeKey,allocatedBytes})=>({episodeKey,allocatedBytes})),expected);
@@ -1033,7 +1062,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       await new Promise(resolve=>setTimeout(resolve,50));
     }while(Date.now()<until);
     const detail=(await request('GET','/v1/admin/care/'+entry.shelf_entry_id)).json();
-    assert.equal(care?.state,'resolved',JSON.stringify({detail,verifications:db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>JSON.parse(row.result_json)).filter(item=>item.verificationKind==='aftercare_media'),failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
+    assert.equal(care?.state,'resolved',JSON.stringify({detail,verifications:db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>restoreArcaResult(db,JSON.parse(row.result_json))).filter(item=>item.verificationKind==='aftercare_media'),failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
     assert.equal(detail.health.state,'healthy');assert.equal(repairCommitAudits.length,1);
     const current=db.prepare('SELECT * FROM arca_shelf_entries').get(),materials=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=?').all(current.current_inventory_revision);
     assert.equal(materials.length,inventory.length);
@@ -1062,7 +1091,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       assert.equal(audio.length,1);assert.equal(audio[0].codec_name,'aac');assert.equal(Number(audio[0].sample_rate),48000);
       assert.ok(Math.abs(Number(probe.format.duration)-20)<0.25);
       assert.deepEqual(audioPacketHashes(final.location),sourceAudioHashes);
-      const strategy=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>JSON.parse(row.result_json))
+      const strategy=db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>restoreArcaResult(db,JSON.parse(row.result_json)))
         .find(result=>result.memberScope?.materialKey===source.material_key&&result.mediaRepairStrategy)?.mediaRepairStrategy;
       assert.ok(strategy);assert.notEqual(strategy.video.rateControlMode,'quality_bound');
       assert.ok(strategy.video.targetVideoBitrateBps>0);
@@ -1129,7 +1158,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
       await new Promise(resolve=>setTimeout(resolve,50));
     }while(Date.now()<until);
     const detail=(await request('GET','/v1/admin/care/'+entry.shelf_entry_id)).json();
-    assert.equal(care?.state,'resolved',JSON.stringify({detail,verifications:db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>JSON.parse(row.result_json)).filter(item=>item.verificationKind==='aftercare_media'),failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));assert.equal(detail.health.state,'healthy');assert.equal(detail.basis.placementRevision,2);
+    assert.equal(care?.state,'resolved',JSON.stringify({detail,verifications:db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>restoreArcaResult(db,JSON.parse(row.result_json))).filter(item=>item.verificationKind==='aftercare_media'),failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));assert.equal(detail.health.state,'healthy');assert.equal(detail.basis.placementRevision,2);
     assert.equal(repairCommitAudits.length,1);
     const current=db.prepare('SELECT * FROM arca_shelf_entries').get(),materials=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=?').all(current.current_inventory_revision);
     assert.equal(materials.length,original.length);

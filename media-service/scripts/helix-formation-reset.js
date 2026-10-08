@@ -883,6 +883,8 @@ function captureExecutionGraph(database, workIds, processScopes, factScopes, com
 }
 
 function deleteExecutionGraph(database, graph) {
+  if(tableExists(database,'arca_inventory_verification_records'))
+    executeByIds(database,'DELETE FROM arca_inventory_verification_records WHERE event_id IN',graph.eventIds);
   if(tableExists(database,'arca_staged_manifest_records'))
     executeByIds(database,'DELETE FROM arca_staged_manifest_records WHERE event_id IN',graph.eventIds);
   executeByIds(database, 'DELETE FROM fx_inbox WHERE message_id IN', graph.messageIds);

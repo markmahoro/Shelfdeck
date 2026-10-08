@@ -136,7 +136,7 @@ test('models polymorphic Domain Fact ownership without generic SQL authority', (
   assert.equal(dynamic.owner, 'execution_owner');
   assert.deepEqual(contract.writeTables, ['fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox']);
   assert.deepEqual(contract.variants.map((variant) => variant.variantId), [
-    'arca_acceptance_check_evidence@1', 'libra_media_cast_fact@1', 'libra_product_metadata_fact@1',
+    'arca_final_product_verification@1', 'arca_fulfillment_verification@1', 'arca_acceptance_check_evidence@1', 'libra_media_cast_fact@1', 'libra_product_metadata_fact@1',
     'libra_resolved_identity_fact@1',
   ]);
   for (const variant of contract.variants) {
@@ -144,8 +144,8 @@ test('models polymorphic Domain Fact ownership without generic SQL authority', (
     assert.deepEqual(variant.dynamicTableRequirements, []);
     assert.equal(variant.fenceContract.outboxRequired, false);
     assert.equal(variant.writeTables.includes('fx_outbox'), false);
-    assert.deepEqual(variant.crashFixtures.map((fixture) => fixture.fixtureId), [variant.variantId==='arca_acceptance_check_evidence@1'?'arca-acceptance-evidence':'libra-product-fact-variants']);
-    assert.deepEqual(variant.participants.map((participant) => participant.owner), [variant.variantId==='arca_acceptance_check_evidence@1'?'arca':'libra', 'execution-foundation']);
+    assert.deepEqual(variant.crashFixtures.map((fixture) => fixture.fixtureId), [variant.variantId==='arca_acceptance_check_evidence@1'?'arca-acceptance-evidence':variant.variantId.startsWith('arca_')?'arca-inventory-verification':'libra-product-fact-variants']);
+    assert.deepEqual(variant.participants.map((participant) => participant.owner), [variant.variantId.startsWith('arca_')?'arca':'libra', 'execution-foundation']);
   }
   assert.ok(contract.variants.find((variant) => variant.variantId === 'libra_product_metadata_fact@1')
     .readTables.includes('fx_artifact_registry'));

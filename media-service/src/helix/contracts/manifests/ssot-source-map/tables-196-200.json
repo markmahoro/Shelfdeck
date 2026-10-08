@@ -3,8 +3,19 @@
   "mapId": "helix.ssot-contract-source-map",
   "category": "tables",
   "startOrdinal": 196,
-  "endOrdinal": 199,
+  "endOrdinal": 200,
   "entries": [
+    {
+      "id": "libra_reprocess_intents",
+      "owner": "libra",
+      "columnsContract": "`intent_id PK, stable_input_digest, previous_outcome_digest, actor_id, idempotency_key, intent_digest, issued_at_ms`",
+      "constraintsContract": "`UNIQUE(actor_id,idempotency_key)`；`INDEX(stable_input_digest,issued_at_ms)`；immutable",
+      "source": {
+        "section": "8.9.9",
+        "line": 15713,
+        "lineDigest": "c47fabd82f60de2f5c222d73758c9a24a15dc351d5576935e7070c49c87c1d96"
+      }
+    },
     {
       "id": "libra_strategy_availability",
       "owner": "libra",
@@ -12,7 +23,7 @@
       "constraintsContract": "`PK(libra_run_id,strategy_kind,condition_digest,check_ordinal)`；immutable；check_ordinal为0至5；typed JSON上限`4 KiB`",
       "source": {
         "section": "8.9.9",
-        "line": 15713,
+        "line": 15714,
         "lineDigest": "efdec0f21af0d8ca4cf71e5a40de13d93b4aacfbb24fb0ea743ed7ea824789fc"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "`PK(shelf_entry_id,revision)`；`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；immutable；typed JSON上限`64 KiB`",
       "source": {
         "section": "8.9.9",
-        "line": 15714,
+        "line": 15715,
         "lineDigest": "88ec71a2d280751908ce94814f60ebb63cd00aa089e7f015bfa82ed65fb99f69"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "current pointer显式复合FK；CAS revision",
       "source": {
         "section": "8.9.9",
-        "line": 15715,
+        "line": 15716,
         "lineDigest": "c2993d2fdd186a34ad68f9000cd181f0ab8502959b2bf8c033cf96d16b1c24e5"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；`UNIQUE(aftercare_case_id)`；immutable",
       "source": {
         "section": "8.9.9",
-        "line": 15716,
+        "line": 15717,
         "lineDigest": "6b01388fbace394628b73d88d23d73a671f05497789ee6e897a75ee25bdad4d2"
       }
     }

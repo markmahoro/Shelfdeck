@@ -1,4 +1,5 @@
 'use strict';
+const {createInventoryVerificationStore}=require('./inventory-verification-store');
 const { splitEpisodeMetadata } = require('../../../contracts/episode-metadata-records');
 const {acceptedInventoryArtifactScopes,readInventoryArtifactScope}=require('../model/inventory-artifact-scope');
 
@@ -846,6 +847,12 @@ function createOnDeckStore(options) {
 
   function commit(request) {
     const packageValue = request.package;
+    const verificationRecord = request.fulfillmentVerificationRecord;
+    if (verificationRecord?.schemaRef !== 'helix://contracts/types/FulfillmentVerificationRecord/v1' ||
+        verificationRecord.processType !== 'arca_ondeck_run' || verificationRecord.processId !== request.onDeckRunId ||
+        canonicalDigest(createInventoryVerificationStore(options).resolve(verificationRecord)) !== request.fulfillmentVerificationDigest) {
+      fail('P14_ONDECK_FULFILLMENT_RECORD', 'On-deck Commit requires its exact immutable Fulfillment Verification Record.');
+    }
     if (request.fulfillmentVerificationDigest !==
         canonicalDigest(request.fulfillmentVerification)) {
       fail('P14_ONDECK_FULFILLMENT_DIGEST',
@@ -1427,11 +1434,9 @@ function createOnDeckStore(options) {
           result_schema_ref: RESULT_SCHEMA,
           result_json: canonicalJson(result),
           result_digest: resultDigest,
-          evidence_schema_ref:
-            request.fulfillmentVerification.schemaRef,
-          evidence_json: canonicalJson(request.fulfillmentVerification),
-          evidence_digest:
-            request.fulfillmentVerificationDigest,
+          evidence_schema_ref: verificationRecord.schemaRef,
+          evidence_json: canonicalJson(verificationRecord),
+          evidence_digest: canonicalDigest(verificationRecord),
           effect_receipt_id: null,
           committed_at_ms: context.commitTimeMs,
         });

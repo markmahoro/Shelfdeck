@@ -487,6 +487,30 @@ CREATE TABLE "arca_inventory_representations" (
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "arca_inventory_verification_records" (
+  "record_id" TEXT PRIMARY KEY,
+  "work_id" TEXT,
+  "event_id" TEXT,
+  "process_type" TEXT,
+  "process_id" TEXT,
+  "verification_kind" TEXT,
+  "verification_schema_ref" TEXT,
+  "verification_json" TEXT,
+  "verification_digest" TEXT CHECK (length("verification_digest") = 64 AND "verification_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT,
+  "record_json" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "commit_marker" TEXT,
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("event_id"),
+  UNIQUE ("commit_marker"),
+  CHECK (json_valid("verification_json")),
+  CHECK (length(CAST("verification_json" AS BLOB)) <= 8388608),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT
+);
+
 CREATE TABLE "arca_material_bindings" (
   "owner_object_type" TEXT,
   "owner_object_id" TEXT,

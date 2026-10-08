@@ -1,4 +1,5 @@
 'use strict';
+const {resolveInventoryVerification}=require('../persistence/inventory-verification-store');
 const {resolveStagedResult}=require('../persistence/staged-manifest-store');
 const {resolveAcceptanceResult}=require('../persistence/acceptance-check-evidence-store');
 
@@ -202,7 +203,7 @@ function createOnDeckProjections(options) { const definitions=[
   [P.onDeckControl,(c,_s,p)=>controlHandle(c,'arca_ondeck_run',c.responsibility.onDeckRunId,p.eventId,'replace_control_set')],
   ];
   return Object.freeze(definitions.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,sourceResult,parameters}){
-    try{return build(contextFor(options,ownerScope,parameters,projectionRef),resolveStagedResult(options,sourceResult),parameters||{});}
+    try{return build(contextFor(options,ownerScope,parameters,projectionRef),resolveInventoryVerification(options,resolveStagedResult(options,sourceResult)),parameters||{});}
     catch(error){if(isSettlementAuthorityUnavailable(error))throw executionInputUnavailable(error.message,{dependencyKind:'owner_approval',dependencyRef:ownerScope.processId});throw error;}}})})));
 }
 

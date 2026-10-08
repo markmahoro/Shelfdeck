@@ -28,6 +28,7 @@ function fixture(capabilityRef,processId='offer',processType='arca_acceptance'){
     require('../../../src/helix/contracts/types/AcceptanceCheck/v1/schema.json'),
     require('../../../src/helix/contracts/types/AcceptanceCheckRecord/v1/schema.json'),
     require('../../../src/helix/contracts/types/StagedInventoryManifest/v1/schema.json'),
+    ...['FinalProductVerification','FulfillmentVerification','FinalProductVerificationRecord','FulfillmentVerificationRecord'].map(name=>require('../../../src/helix/contracts/types/'+name+'/v1/schema.json')),
     require('../../../src/helix/contracts/types/StagedInventoryManifestRecord/v1/schema.json'),
     require('../../../src/helix/contracts/types/PhysicalMaterialIdentity/v2/schema.json'),
     require('../../../src/helix/contracts/application-types/ArcaMaterialEpisodeClaims/v1/schema.json')]})};

@@ -1,4 +1,5 @@
 'use strict';
+const {createInventoryVerificationStore,resolveInventoryVerification}=require('../persistence/inventory-verification-store');
 const {createStagedManifestStore,resolveStagedResult}=require('../persistence/staged-manifest-store');
 const {createAcceptanceCheckEvidenceStore,resolveAcceptanceResult,RECORD:CHECK_RECORD}=require('../persistence/acceptance-check-evidence-store');
 const {settlementTargetEntries,dispositionCompletions:buildDispositionCompletions}=require('../model/settlement-completion');
@@ -206,8 +207,8 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     try{
       const c=settlementCtx(execution,member.materialKey);
       if(path.resolve(location)!==path.resolve(member.materialHandle.location))throw new Error('Deletion exceeds the exact approved member.');
-      const verification=options.workResultReader.read(execution.workId)
-        .find(row=>row.capabilityRef===C.finalVerify&&row.outcomeKind==='succeeded')?.result;
+      const verification=resolveInventoryVerification(options,options.workResultReader.read(execution.workId)
+        .find(row=>row.capabilityRef===C.finalVerify&&row.outcomeKind==='succeeded')?.result);
       const authorization=options.contextReader.settlementAuthorizations.current();
       const scope=settlementHandles(c,member.materialKey,verification,authorization);
       const handle=options.contextReader.settlementApprovals.readHandle(scope,authorization,execution.eventId);
@@ -423,11 +424,27 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       custodyId:c.responsibility.custodyId,shelf:c.shelf,package:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,staged,
       stagedVerification:options.workResultReader.read(execution.workId).find((item)=>item.capabilityRef===C.stagedVerify)?.result,
       fulfillmentVerification:fulfillment,
+      fulfillmentVerificationRecord:options.workResultReader.read(execution.workId)
+        .find(item=>item.capabilityRef===C.fulfillment&&item.outcomeKind==='succeeded')?.result,
       fulfillmentVerificationDigest:canonicalDigest(fulfillment),relatedDispositionCompletionDigest,custodyControls,targetControls,stagedCustodyManifests});
     options.afterOnDeckCommit?.(Object.freeze({offerId:c.offer.offerId,subjectId:c.offer.subjectId,
       onDeckRunId:c.responsibility.onDeckRunId,shelfEntryId:committed.result.onDeckCommitReceipt.shelfEntryId}));
     return committedOutcome(execution,C.commit,committed.result,effectAt(execution),'responsibility_control_commit');},
     validateResult(_c,o){if(o?.result?.onDeckCommitReceipt?.receiptKind!=='on_deck_committed')throw new TypeError('On-deck Commit Result is invalid.');}});
+  const verificationStore=createInventoryVerificationStore(options);
+  for(const ref of [C.finalVerify,C.fulfillment]){
+    const observer=ports[ref];
+    ports[ref]=Object.freeze({...observer,async execute(execution){
+      const prior=verificationStore.readEvent(execution.eventId);
+      let saved=prior;
+      if(prior){if(prior.record.processType!==execution.ownerScope.processType||prior.record.processId!==execution.ownerScope.processId)
+        throw new Error('Inventory Verification replay scope drifted.');}
+      else {const observed=await observer.execute(execution);observer.validateResult(execution,observed);
+        saved=verificationStore.commit(execution,observed.result);}
+      return Object.freeze({...committedOutcome(execution,ref,saved.record,saved.committedAtMs,'domain_fact_commit'),
+        resultSchemaRef:saved.record.schemaRef});
+    },validateResult(_execution,outcome){if(!outcome?.result?.verificationDigest)throw new TypeError('Inventory Verification Record is absent.');}});
+  }
   const checkStore=createAcceptanceCheckEvidenceStore(options);
   for(const ref of [C.identity,C.structure,C.metadata,C.mandatory,C.space]){
     const observer=ports[ref];

@@ -304,4 +304,4 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 | UAT-288 | 整季Stage Manifest超过64 KiB | ARCA / STAGED_MANIFEST_CAPACITY | 修复已验证，待现场复验 | 47集Stage Result94041字节 | 两集Host通过，47集通过Stage/Placement | [证据](implementation/evidence/UAT-288_SERIES_STAGE_MANIFEST_20261009.md) | 不扩大Foundation Result上限；完整Owner Manifest拟有界保存。 |
 | UAT-289 | 来源结算未授权仅显示等待外部服务 | ARCA / FORMATION_FEEDBACK | 开放：待UI负责人确认 | 上海女子图鉴20个delete等待且零Attempt，授权head/记录均空 | 只读监控证据 | 监控聊天2026-10-09 02:33 CST | 不代用户批准来源删除；真实等待不是Provider耗时。 |
 
-| UAT-290 | FinalProductVerification/Fulfillment完整证据超过Foundation64 KiB | ARCA / FINAL_VERIFICATION_CAPACITY | 已确认：待实现 | 47集最终校验74939字节 | 尚未实施 | [前序复现](implementation/evidence/UAT-288_SERIES_STAGE_MANIFEST_20261009.md) | Owner完整值1024成员/8 MiB，有界引用；不放宽结算授权。 |
+| UAT-290 | FinalProductVerification/Fulfillment完整证据超过Foundation64 KiB | ARCA / FINAL_VERIFICATION_CAPACITY | 已修复：待现场验收 | 47集最终校验74939字节，Commit重复内嵌Fulfillment | 双平台47集完整Host通过，现场尚未加载 | [Evidence](implementation/evidence/UAT-290_SERIES_FINAL_VERIFICATION_20261009.md) | Owner完整值1024成员/8 MiB，Result及Commit Evidence保存精确引用；结算授权不变。 |

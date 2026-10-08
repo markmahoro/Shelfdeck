@@ -1,4 +1,5 @@
 'use strict';
+const {resolveInventoryVerification}=require('../persistence/inventory-verification-store');
 const {resolveStagedResult}=require('../persistence/staged-manifest-store');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
@@ -136,8 +137,10 @@ function createTerminalEffectHistoryObserver(options) {
       const rawStage = resultFor(next, 'arca.inventory.product.stage@1');
       const stage={...rawStage,value:resolveStagedResult(options,rawStage.value)};
       const placement = resultFor(next, 'arca.inventory.placement.switch@1');
-      const verification = resultFor(next, 'arca.inventory.final_product.verify@1');
-      const fulfillment = resultFor(next, 'arca.ondeck.fulfillment.verify@1');
+      const rawVerification=resultFor(next,'arca.inventory.final_product.verify@1');
+      const verification={...rawVerification,value:resolveInventoryVerification(options,rawVerification.value)};
+      const rawFulfillment=resultFor(next,'arca.ondeck.fulfillment.verify@1');
+      const fulfillment={...rawFulfillment,value:resolveInventoryVerification(options,rawFulfillment.value)};
       const commit = resultFor(next, 'arca.ondeck.commit@1');
       const staged = exactOne(stage.value.stagedMembers, m => m.sourceMaterialKey === final.sourceMaterialKey);
       const verified = exactOne(verification.value.memberEvidence, m => m.sourceProductMaterialKey === final.sourceMaterialKey);

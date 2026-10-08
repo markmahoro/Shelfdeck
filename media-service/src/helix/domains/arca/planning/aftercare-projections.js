@@ -1,4 +1,5 @@
 'use strict';
+const {resolveInventoryVerification}=require('../persistence/inventory-verification-store');
 const {resolveStagedResult,stagedResultReader}=require('../persistence/staged-manifest-store');
 
 const path = require('node:path');
@@ -93,7 +94,7 @@ function createAftercareProjections(options){const reader=options.contextReader,
     [P.finalDecision,(c)=>placementRequest(c).finalInventoryDecision],[P.productHandles,(c)=>productHandles(c)],[P.stagedManifest,(_c,source)=>source],[P.finalBindings,(c,source)=>bindingSnapshot('final',c,source)],[P.targetBindings,(c,source)=>bindingSnapshot('target',c,source)],[P.disposition,(c)=>disposition(c)],
     [P.artifactOutput,(c,s,p)=>preparedOutput(c,s,p)],[P.mediaOutput,(c,s,p)=>preparedOutput(c,s,p)],[P.verifiedChange,(c,_s,p)=>verifiedChange(c,p)],[P.control,(c,_s,p)=>controlHandle(c,p)],[P.settlementHandles,(c,_s,p)=>settlementHandles(c,p)],[P.settlementApproval,(c,_s,p)=>settlementApproval(c,p)],[P.reassessed,(c,_s,p)=>reassessed(c,p)],[P.caseCommit,(c,_s,p)=>caseCommit(c,p)],[P.workspaceHandles,(c,_s,p)=>workspaceHandles(c,p)],[P.referenceEvidence,(c,_s,p)=>referenceEvidence(c,p)],
   ];
-  return Object.freeze(defs.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,sourceResult,parameters}){const c=ctx(ownerScope);return build(c,resolveStagedResult(options,sourceResult),parameters||{},ownerScope);}})})));
+  return Object.freeze(defs.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,sourceResult,parameters}){const c=ctx(ownerScope);return build(c,resolveInventoryVerification(options,resolveStagedResult(options,sourceResult)),parameters||{},ownerScope);}})})));
 }
 
 module.exports=Object.freeze({createAftercareProjections,resolvePreparedOutput});

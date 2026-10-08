@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/FulfillmentVerificationRecord/v1",
+  "title": "FulfillmentVerificationRecord@1",
+  "x-helix-ssotRefs": [
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/FulfillmentVerificationRecord/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "recordId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "processType": {
+      "type": "string",
+      "enum": [
+        "arca_ondeck_run",
+        "arca_shelf_entry"
+      ]
+    },
+    "processId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "verificationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "verificationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "memberCount": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1024
+    },
+    "recordDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "recordId",
+    "processType",
+    "processId",
+    "verificationId",
+    "verificationDigest",
+    "memberCount",
+    "recordDigest"
+  ]
+}

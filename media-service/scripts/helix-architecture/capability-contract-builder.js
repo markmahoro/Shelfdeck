@@ -372,7 +372,8 @@ function buildCapabilityPackage(capability) {
     effectClass: capability.effectClass,
     inputPorts,
     parametersSchemaRef: schemas['parameters.schema.json'].$id,
-    resultSchemaRef: schemas['result.schema.json'].$id,
+    resultSchemaRef: ['arca.inventory.final_product.verify@1','arca.ondeck.fulfillment.verify@1'].includes(capability.id)
+      ? schemas['result.schema.json'].$ref : schemas['result.schema.json'].$id,
     evidenceSchemaRef: schemas['evidence.schema.json'].$id,
     failureSchemaRef: schemas['failure.schema.json'].$id,
     fenceSchemaRef: schemas['fence.schema.json'].$id,

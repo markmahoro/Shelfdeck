@@ -1,4 +1,5 @@
 'use strict';
+const {resolveInventoryVerification}=require('../persistence/inventory-verification-store');
 const {resolveAcceptanceResult}=require('../persistence/acceptance-check-evidence-store');
 
 const {settlementHandles,isSettlementAuthorityUnavailable}=require('../model/input-settlement-scope');
@@ -302,7 +303,7 @@ function createOnDeckProcessCoordinator(options) {
   }
   function reconcileSettlementApprovals({workId,onDeckRunId}){
     const results=options.workResultReader.read(workId);
-    const verification=results.find(row=>row.capabilityRef==='arca.inventory.final_product.verify@1'&&row.outcomeKind==='succeeded')?.result;
+    const verification=resolveInventoryVerification(options,results.find(row=>row.capabilityRef==='arca.inventory.final_product.verify@1'&&row.outcomeKind==='succeeded')?.result);
     if(!verification)return {kind:'awaiting_final_verification'};
     const refs=refsFromWorkDefinition(workId),context=options.contextReader.readAccepted(onDeckRunId,refs);
     const authorization=options.contextReader.settlementAuthorizations.current();

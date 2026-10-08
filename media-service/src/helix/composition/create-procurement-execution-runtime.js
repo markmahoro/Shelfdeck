@@ -671,7 +671,10 @@ function createProcurementExecutionRuntime(options) {
             ...(arcaContext.packageValue.offloadContextManifest?.members||[])].map((item)=>item.physicalIdentity?.mountScopeId).filter(Boolean))];
           sourceMounts.forEach((item)=>{validatedVolumeKeys.add(item);resources.push({resourceKey:'volume_mutation:'+item,units:1});});
         }
-        if(['arca.acceptance.accept.commit@1','arca.acceptance.rejection.commit@1','arca.ondeck.commit@1'].includes(capability))
+        if(['arca.acceptance.identity.verify@1','arca.acceptance.structure.verify@1','arca.acceptance.metadata.verify@1',
+          'arca.acceptance.mandatory_media.verify@1','arca.acceptance.space.verify@1','arca.inventory.product.stage@1',
+          'arca.inventory.final_product.verify@1','arca.ondeck.fulfillment.verify@1',
+          'arca.acceptance.accept.commit@1','arca.acceptance.rejection.commit@1','arca.ondeck.commit@1'].includes(capability))
           resources.push({resourceKey:'sqlite_write',units:1});
         if(['arca.aftercare.custody.observe@1','arca.aftercare.presentation.observe@1',
           'arca.aftercare.conformance.observe@1'].includes(capability))resources.push({resourceKey:'volume_read:'+targetMount,units:1});

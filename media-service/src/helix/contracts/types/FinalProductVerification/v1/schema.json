@@ -143,7 +143,7 @@
           "semanticEvidenceDigest"
         ]
       },
-      "maxItems": 4096
+      "maxItems": 1024
     }
   },
   "required": [
@@ -163,5 +163,6 @@
     "targetContainmentDigest",
     "finalRealityDigest",
     "memberEvidence"
-  ]
+  ],
+  "x-helix-maxCanonicalBytes": 8388608
 }

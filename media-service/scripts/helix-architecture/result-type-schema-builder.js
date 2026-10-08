@@ -680,9 +680,11 @@ const contracts = {
   StagedInventoryManifest: ['ManifestEnvelope', 'targetCommitSlotId,stagedMembers,sourceProductManifestDigest'],
   StagedInventoryVerification: ['VerificationEnvelope', 'stagedInventoryManifestDigest,finalInventoryDecisionDigest'],
   PlacementSwitchReceipt: ['ReceiptEnvelope', 'targetCommitSlotId,finalBindingSetDigest,replacedInputSetDigest,transactionRevision'],
+  FinalProductVerificationRecord: [null, ''],
   FinalProductVerification: ['VerificationEnvelope', 'finalBindingSetDigest,productManifestDigest,relatedDispositionSetDigest,verifiedMaterialKeys,targetContainmentDigest,finalRealityDigest,memberEvidence'],
   SettlementDeletionEvidence: ['EvidenceEnvelope', 'authorizationOrApprovalRef,materialKey,preDeleteIdentityDigest,postDeleteReality,effectReceiptId'],
   DeletionEvidence: ['EvidenceEnvelope', 'authorizationOrApprovalRef,materialKey,preDeleteIdentityDigest,disposition,postDeleteReality,referenceReleaseResultDigest,effectReceiptId'],
+  FulfillmentVerificationRecord: [null, ''],
   FulfillmentVerification: ['VerificationEnvelope', 'finalInventoryDecisionDigest,shelfStandardRevision,finalRealityDigest,memberEvidence'],
   OnDeckCommitResult: [null, 'onDeckCommitReceipt,offloadCompletionFact'],
   OnDeckCommitReceipt: ['ReceiptEnvelope', 'shelfEntryId,inventoryRevision,deckFactRevision,controlRevisionSetDigest,relatedDispositionCompletionDigest'],
@@ -721,8 +723,8 @@ const contracts = {
 
 special['OnDeckCommitResult.onDeckCommitReceipt'] = ref('OnDeckCommitReceipt');
 special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact');
-special['FinalProductVerification.memberEvidence'] = arrayOf(finalMaterialEvidence(),4096);
-special['FulfillmentVerification.memberEvidence'] = arrayOf(finalMaterialEvidence(),4096);
+special['FinalProductVerification.memberEvidence'] = arrayOf(finalMaterialEvidence(),1024);
+special['FulfillmentVerification.memberEvidence'] = arrayOf(finalMaterialEvidence(),1024);
 special['MaterialEffectReceipt.finalMaterialIdentity'] = ref('PhysicalMaterialIdentity');
 special['MaterialEffectReceipt.targetEndpointId'] = id();
 special['MaterialEffectReceipt.targetLocation'] = text();
@@ -735,6 +737,10 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 }), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if (['FinalProductVerificationRecord','FulfillmentVerificationRecord'].includes(name)) return {$schema:DRAFT,$id:typeId(name),title:name+'@1',
+    'x-helix-ssotRefs':['8.6.19'],'x-helix-maxCanonicalBytes':64*1024,...object({schemaRef:{const:typeId(name)},schemaVersion:{const:1},
+    recordId:id(),processType:enumText('arca_ondeck_run','arca_shelf_entry'),processId:id(),verificationId:id(),verificationDigest:digest(),
+    memberCount:{type:'integer',minimum:1,maximum:1024},recordDigest:digest()})};
   if (name === 'StagedInventoryManifestRecord') return { $schema:DRAFT,$id:typeId(name),title:name+'@1',
     'x-helix-ssotRefs':['8.6.19'],'x-helix-maxCanonicalBytes':64*1024,...object({schemaRef:{const:typeId(name)},schemaVersion:{const:1},
       recordId:id(),manifestId:id(),manifestDigest:digest(),completeValueDigest:digest(),memberCount:{type:'integer',minimum:1,maximum:1024},recordDigest:digest()})};
@@ -802,6 +808,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   };
   if (name === 'ObservationPageCommitResult' || name === 'ObservationPageCommitReceipt') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
   if (name === 'BdmvAssessmentEvidence') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
+  if (['FinalProductVerification','FulfillmentVerification'].includes(name)) result['x-helix-maxCanonicalBytes']=8*1024*1024;
   if (name === 'StagedInventoryManifest') result['x-helix-maxCanonicalBytes'] = 8 * 1024 * 1024;
   if (name === 'LibraCandidateAcceptedMessage' || name === 'LibraCandidateRejectedMessage') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
   if (name === 'ProcurementCandidateRejectionClosureResult') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
