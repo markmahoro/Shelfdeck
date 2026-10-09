@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-09后续：现场白鹿原新Run资料232项均成功，但汇总超过Series128项合同，artifact Planner反复P9_METADATA_INTENT_ORDER，登记UAT-297待容量确认。人世间59项资料已通过，目前workspace_media_production admitted；两部剧均未上架，先前资料阶段推进不能代表整体正常。
+
 2026-10-09：UAT-295 TMDB按季响应复用已加载本地18081；真实人世间58集/白鹿原77集各仅2次HTTP且标题剧情完整，双平台69项相关测试及Windows77集完整Host通过。UAT-296修复Series重新处理入口遗留Movie-only限制，原两条意图通过公开API重放均202，新来源Observation已建立两条active Run，资料获取成功推进且暂未新增失败。旧失败记录保留，完整新Run上架仍待验，NAS未动。
 
 2026-10-09 12:25：UAT-295两条新Run已自动结束：正式Lifecycle先以integration_exhausted frozen，再由actorId=system的Discard Decision终结，非人工放弃。Formation ended2、无非终态Event、Arca/Commit/收藏0；没有新增错误。原TMDB逐集超时及恢复验收保持开放。
