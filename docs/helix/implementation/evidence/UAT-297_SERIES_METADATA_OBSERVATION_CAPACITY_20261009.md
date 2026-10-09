@@ -13,3 +13,5 @@
 本地原进程在本轮主动更新前已退出，日志无正常停止记录，原因未确认；新进程15316以原数据目录正常恢复并加载修复，未Reset。白鹿原原artifact Work由ready进入running，人世间workspace_media_production恢复running。Windows测试进程也中断而没有完成结果，已重跑；不能计先前空日志为PASS。双平台77集NFO缺剧情+TMDB补齐、thumb交付完整Host回归继续。
 
 双平台领域合同/持久化32项均通过，与专项19项合计各51项；Linux初跑缺少测试约定的仓库根目录挂载，补齐/media-service/src及/docs后通过。原始失败日志不计产品失败或PASS。
+
+77集带全部NFO/thumb的Host工作量显著高于原仅Provider样例，后续该精确fixture的测试总预算设40分钟、业务完成轮询预算2300秒；不改变生产超时、退避或验收条件。本次先启动的进程仍沿原20分钟预算执行，按实际结果记录。
