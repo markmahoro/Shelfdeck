@@ -322,3 +322,5 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 | UAT-298 | Series交付NFO来源证据仍限16条 | LIBRA / HANDOFF_B_NFO_PROVENANCE | 已修复：待完整回归及本地加载 | 77集混合来源双平台publish输入Schema失败，精确错误摘要匹配 | metadata至conformance通过，完整Commit失败 | [Evidence](implementation/evidence/UAT-298_SERIES_NFO_PROVENANCE_CAPACITY_20261009.md) | 已确认Series1024条、双平台41项及Windows17集完整Host PASS，77集待验，不跳过来源清理证据。 |
 
 | UAT-299 | 大Run自动discard完整Evidence超过Foundation64 KiB | LIBRA / DISCARD_EVIDENCE | 关闭：两条真实Run自动退出通过 | 人世间中断转码后69942字节Decision、60清理成员，Foundation CHECK失败 | 双平台各43项，真实副本原子回滚/提交/重放通过 | [Evidence](implementation/evidence/UAT-299_RUN_DISCARD_EVIDENCE_CAPACITY_20261009.md) | 不放宽Foundation、不Reset；已按Owner不可变Run revision重建。 |
+
+| UAT-300 | On-deck Commit准备Control Query超过500项 | ARCA / CONTROL_QUERY_BATCHES | 已修复：待完整Host及现场验收 | 77集结算231项与Fulfillment已成功，最终Commit查询失败 | 双平台各21项专项通过，77集重跑中 | [Evidence](implementation/evidence/UAT-300_ARCA_CONTROL_QUERY_BATCHES_20261009.md) | 普通查询仍每批500，完整Control转移仍原子提交；不提高限额、不Reset。 |

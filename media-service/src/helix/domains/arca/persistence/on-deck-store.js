@@ -1,4 +1,5 @@
 'use strict';
+const { readControlProjections } = require('../application/read-control-projections');
 const {inventoryMappingFact,FACT_SCHEMA}=require('../../../contracts/related-primary-mappings');
 const {createInventoryVerificationStore}=require('./inventory-verification-store');
 const { splitEpisodeMetadata } = require('../../../contracts/episode-metadata-records');
@@ -1703,8 +1704,7 @@ function createOnDeckStore(options) {
     const keys = [...new Set(members.map((item) =>
       item.physicalIdentity.materialKey))].sort();
     if (keys.length === 0) return Object.freeze({ acquired: 0 });
-    const projections = createMaterialControlProjectionPort(options)
-      .getMaterialControlProjections(keys);
+    const projections = readControlProjections(createMaterialControlProjectionPort(options),keys);
     const byKey = new Map(projections.map((item) => [item.materialKey, item]));
     const custodyScope = Object.freeze({
       ownerDomain: 'arca',

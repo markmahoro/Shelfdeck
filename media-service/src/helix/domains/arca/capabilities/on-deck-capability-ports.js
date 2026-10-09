@@ -1,4 +1,5 @@
 'use strict';
+const { readControlProjections } = require('../application/read-control-projections');
 const {createInventoryVerificationStore,resolveInventoryVerification}=require('../persistence/inventory-verification-store');
 const {createStagedManifestStore,resolveStagedResult}=require('../persistence/staged-manifest-store');
 const {createAcceptanceCheckEvidenceStore,resolveAcceptanceResult,RECORD:CHECK_RECORD}=require('../persistence/acceptance-check-evidence-store');
@@ -283,7 +284,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
         onDeckProductPackage:c.packageValue,observedAtMs:now(),replayCommitted:false}),targetLocation=options.inventoryPort.resolveTargetLocation({
         shelf:c.shelf,onDeckProductPackage:c.packageValue}).targetDirectory;
     const controlled=handoffBControlMembers(c.packageValue),byKey=new Map(controlled.map(m=>[m.materialKey,m])),
-      keys=[...byKey.keys()].sort(),projections=controls.getMaterialControlProjections(keys),
+      keys=[...byKey.keys()].sort(),projections=readControlProjections(controls,keys),
       contentProfile=c.packageValue.productStructureSnapshot?.structureKind==='season'?'series':'movie';
     for(const p of projections){const member=byKey.get(p.materialKey),expectedRevision=member.committedControlRevision??member.admittedControlRevision,
       expectedDigest=member.committedControlProjectionDigest??member.admittedControlProjectionDigest;
@@ -418,7 +419,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
         .filter(item=>item.capabilityRef===C.stage&&item.outcomeKind==='succeeded').map(item=>resolveStagedResult(options,item.result)),
       all=[...c.packageValue.productMaterialManifest.members,...c.packageValue.offloadContextManifest.members],
       keys=[...new Set([...all.map(m=>m.materialKey),...stagedCustodyManifests.flatMap(manifest=>manifest.stagedMembers.map(member=>member.physicalIdentity.materialKey))])].sort(),
-    custodyControls=controls.getMaterialControlProjections(keys),targetControls=controls.getMaterialControlProjections(staged.members.map(m=>m.materialKey).sort()),
+    custodyControls=readControlProjections(controls,keys),targetControls=readControlProjections(controls,staged.members.map(m=>m.materialKey)),
     committed=onDeck.readHistoricalCommitted({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,finalInventoryDecisionDigest:c.finalInventoryDecision.decisionDigest,
       onDeckPackageId:c.packageValue.onDeckPackageId,packageDigest:c.packageValue.packageDigest,shelfId:c.shelf.shelfId})||onDeck.commit({onDeckRunId:c.responsibility.onDeckRunId,
       custodyId:c.responsibility.custodyId,shelf:c.shelf,package:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,staged,

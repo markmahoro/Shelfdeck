@@ -1,4 +1,5 @@
 'use strict';
+const { readControlProjections } = require('./read-control-projections');
 const {seriesMetadataFieldMissing}=require('../model/series-metadata');
 const {acceptsMetadataFields,missingMetadataFields,acceptsArtifactKinds,packageMissingArtifactKinds}=require('../model/authorized-defect-manifest');
 
@@ -580,7 +581,7 @@ function createMovieOnDeckCoordinator(options) {
               acceptanceFence?.reasonCode || 'delivery_unavailable',
           });
       }
-      const projections = controls.getMaterialControlProjections(keys);
+      const projections = readControlProjections(controls,keys);
       for (const projection of projections) {
         const member = byKey.get(projection.materialKey);
         const expectedRevision = member.committedControlRevision ??
@@ -751,12 +752,12 @@ function createMovieOnDeckCoordinator(options) {
       shelfId: shelf.shelfId,
     });
     if (!committed) {
-      const custodyControls = controls.getMaterialControlProjections(keys);
+      const custodyControls = readControlProjections(controls,keys);
       const targetKeys = staged.members.map((item) => item.materialKey)
         .sort((left, right) =>
           Buffer.compare(Buffer.from(left), Buffer.from(right)));
       const targetControls =
-        controls.getMaterialControlProjections(targetKeys);
+        readControlProjections(controls,targetKeys);
       committed = onDeck.commit({
         onDeckRunId,
         custodyId: accepted.custody.custodyId,

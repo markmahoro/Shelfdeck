@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-09 22:41后：77集混合来源诊断最终231项结算和Fulfillment均成功，On-deck Commit准备查询超过500项，登记UAT-300。Arca有界分批只读装配已修复，双平台各21项通过，完整77集容器重跑中；未将UAT-298或整体E2E计PASS，本地新Run未中断。
+
 2026-10-09 UAT-299现场通过：e6a6a201d已加载18081 PID52284，健康正常。人世间/白鹿原旧Run均自动discarded，69942/91640字节完整Decision归Libra，Foundation引用各383字节；工作区清理推进。两条正式重新处理请求均202，等待新Run完整验收。UAT-299自身关闭，Series整体上架和77集诊断仍开放。用户授权无需安全窗口重启，失败历史保留，NAS未动。
 
 2026-10-09后续：用户要求不等待窗口，18081已正常停机备份并以PID51504重启加载UAT-298，health200/normalSupplyAllowed=true。人世间被中断转码记录失败后frozen，自动discard又遇69942字节Evidence超64 KiB，UAT-299已确认并修复，双平台各43项通过，真实副本69942字节Decision/383字节Record原子回滚及重放通过，待本地加载；白鹿原仍active。未Reset/NAS部署，结算诊断容器继续。
