@@ -327,7 +327,7 @@ function compileTable(contract, allContracts) {
   }
   for (const json of contract.jsonContracts) {
     requireColumns(contract, [json.column], contract.tableId + ':json');
-    const episodeRecordSet = ['libra_product_fact_revisions','arca_inventory_product_facts'].includes(contract.tableId) &&
+    const episodeRecordSet = contract.tableId === 'arca_final_inventory_decisions' && json.column === 'decision_json' && json.maxBytes === 8 * 1024 * 1024 || ['libra_product_fact_revisions','arca_inventory_product_facts'].includes(contract.tableId) &&
       json.column === 'episode_metadata_json' && json.maxBytes === 16 * 1024 * 1024 ||
       contract.tableId === 'arca_acceptance_check_evidence' && json.column === 'evidence_json' && json.maxBytes === 2 * 1024 * 1024 ||
         contract.tableId === 'arca_staged_manifest_records' && json.column === 'manifest_json' && json.maxBytes === 8 * 1024 * 1024 ||

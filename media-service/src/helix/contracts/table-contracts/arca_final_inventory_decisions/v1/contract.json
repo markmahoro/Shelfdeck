@@ -165,8 +165,8 @@
       {
         "column": "decision_json",
         "schemaRefColumn": "decision_schema_ref",
-        "maxBytes": 65536,
-        "source": "table-row",
+        "maxBytes": 8388608,
+        "source": "8.6.19-typed-payload",
         "requiresJsonValidCheck": true
       }
     ],
@@ -181,7 +181,8 @@
       "rules": []
     },
     "semanticRules": [
-      "Decision JSON上限`64 KiB`",
+      "Decision JSON上限`8 MiB`（最多1024成员，完整映射及摘要保留",
+      "Foundation Result仍为64 KiB）",
       "`UNIQUE(on_deck_run_id)`",
       "immutable",
       "必须逐项覆盖Package Product member及全部Related source-to-final mapping，不允许active Shelf Entry依赖Field中的exclusive Related",
@@ -189,12 +190,12 @@
     ],
     "rawContract": {
       "columns": "`final_inventory_decision_id PK, on_deck_run_id FK, shelf_id FK, placement_revision, target_endpoint_id, target_location, product_manifest_digest, offload_context_digest, related_disposition_set_digest, decision_schema_ref, decision_json, decision_digest, decided_at_ms`",
-      "constraints": "Decision JSON上限`64 KiB`；`UNIQUE(on_deck_run_id)`；immutable；必须逐项覆盖Package Product member及全部Related source-to-final mapping，不允许active Shelf Entry依赖Field中的exclusive Related；不保存adopt/replace/relocate动作类型"
+      "constraints": "Decision JSON上限`8 MiB`（最多1024成员，完整映射及摘要保留；Foundation Result仍为64 KiB）；`UNIQUE(on_deck_run_id)`；immutable；必须逐项覆盖Package Product member及全部Related source-to-final mapping，不允许active Shelf Entry依赖Field中的exclusive Related；不保存adopt/replace/relocate动作类型"
     },
     "source": {
       "section": "8.5.12",
       "line": 9481,
-      "lineDigest": "26b58a349d22e931c184abb065928bd8c38b55e5665fa6b1e4da052b510429a8"
+      "lineDigest": "de1eef682f0d1943176fbfebe9aa361be995282d92cc27d4ff05835ff000282b"
     },
     "foreignKeys": [
       {

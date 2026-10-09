@@ -11,3 +11,7 @@
 独立旁路测试：preview-next新目录经正式initializeCleanData创建，200表，当前源码在18082 health=ok/normalSupplyAllowed=true。从旧本地加密Secret Store读取，仅在内存经正式integration test/PATCH迁入配置：TMDB与MoviePilot成功；豆瓣两次P5_PROVIDER_TRANSPORT_FAILED，未强行保存。没有注册真实媒体来源、触发扫描或文件副作用。旧18081 HTTP200、4收藏保持、0 in_progress。
 
 《大宅门2》停机时间附近的第18项转码失败另待根因：隔离12秒FFmpeg调用相同runProcess，父进程收到Windows CTRL_C/SIGINT后子进程仍正常exit0；该实验未复现现场失败，不能宣称停机信号导致，也不能宣称该次转码成功。
+
+2026-10-09用户确认新建干净测试数据目录并切换18081，旧完整数据库及4收藏保留作可恢复快照。preview-uat294新实例200表；TMDB、豆瓣、MoviePilot三项均已通过正式连接测试并保存，来源、Shelf、原direct Routing与旧输入自动处理授权已复制。切换前保持未主动扫描，旧实例零executing Event/零intended Effect；最终切换及新批验收继续。此操作不证明历史Plan兼容升级通过。
+
+11:57本地切换完成：旧18081与旁路18082均先确认零执行Event/零intended Effect，SIGINT干净停止。旧data整个目录原样保留；额外pre-uat294-stopped.db SHA256=74b29560a33f8bbbd877097b433e9796a0f1caf18730bae9a906bed3766e8296。新18081数据为preview-uat294/data，PID14520，HTTP200/normalSupplyAllowed=true；浏览器重新登录验证。原国产剧Field不扫描，新增两个临时Field精确指向人世间/白鹿原目录，两次Observation返回202，各生成并接纳1包，58/77集均进入全新active Run。没有直接编辑媒体或NAS动作，后续物理处理沿已复制的正式授权执行。

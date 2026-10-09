@@ -386,3 +386,25 @@ test('Historical catalog drift is rejected before migration writes or marker adv
     assert.deepEqual(db.prepare('SELECT * FROM fx_audit_records').all(),beforeAudit);
   } finally {db.close();}
 }));
+
+test('UAT-294 expands only immutable Arca Decision storage and preserves exact history',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-final-decision-upgrade-')),databasePath=path.join(root,'shelfdeck.db');
+  let db,check,kernel;
+  try {
+    const prior=require('../src/helix/foundation/persistence/uat-identity-selection-migration').PRE_FINAL_DECISION_SCHEMA_DIGEST;
+    db=historicalDatabase(databasePath,prior,TARGET_GENERATION);
+    const original=JSON.stringify({evidence:'unchanged'});
+    db.prepare('INSERT INTO arca_final_inventory_decisions(final_inventory_decision_id,decision_json) VALUES(?,?)').run('keep-decision',original);
+    db.close();
+    assert.equal(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}).migrated,true);
+    check=new Database(databasePath);
+    assert.equal(check.prepare('SELECT decision_json FROM arca_final_inventory_decisions WHERE final_inventory_decision_id=?').get('keep-decision').decision_json,original);
+    const insert=check.prepare('INSERT INTO arca_final_inventory_decisions(final_inventory_decision_id,decision_json) VALUES(?,?)');
+    insert.run('at-bound',JSON.stringify('x'.repeat(8*1024*1024-2)));
+    assert.throws(()=>insert.run('over-bound',JSON.stringify('x'.repeat(8*1024*1024-1))),/CHECK/);
+    assert.throws(()=>check.prepare('INSERT INTO fx_event_result_bindings(result_id,result_json) VALUES(?,?)').run('too-large',JSON.stringify('x'.repeat(65535))),/CHECK/);
+    assert.deepEqual(check.pragma('foreign_key_check'),[]);check.close();
+    kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest});kernel.close();
+    assert.equal(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}).migrated,false);
+  } finally {if(db?.open)db.close();if(check?.open)check.close();kernel?.close();fs.rmSync(root,{recursive:true,force:true});}
+});

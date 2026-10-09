@@ -309,6 +309,8 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 
 | UAT-292 | 存放规则更新与旧健康检查规划竞争，Series Care Basis 过期 | ARCA / AFTERCARE_STALE_BASIS | 修复已验证，待现场验收 | UAT-291 Host等待后台清理后修改Placement，旧health_assessment规划报obsolete Care Basis | 28项定向及原时序完整迁移Host通过 | [Evidence](implementation/evidence/UAT-292_SERIES_STALE_ASSESSMENT_20261009.md) | 不放宽Basis校验；Owner应按原失效合同收敛旧Work，需独立回归。 |
 
-| UAT-293 | 本地更新时既有Plan全局执行合同摘要漂移，Startup Recovery拒绝启动 | FOUNDATION / CATALOG_UPGRADE | 开放：已回退，升级承接待确认 | a45d7b13f→af5fe3901实际启动报PLAN_CATALOG_DRIFT | 数据库196原表保留通过，但实际Host未启动；原备份回退后health正常 | UAT-291 Evidence | 不绕过摘要校验、不改旧证据、不Reset；保留Run的精确有界升级承接需用户确认。 |
+| UAT-293 | 本地更新时既有Plan全局执行合同摘要漂移，Startup Recovery拒绝启动 | FOUNDATION / CATALOG_UPGRADE | 已切换干净本地测试实例；历史升级仍开放 | 旧执行历史被精确校验拒绝 | 用户确认保留旧完整快照，新目录启动健康并迁入配置 | [Evidence](implementation/evidence/UAT-293_LOCAL_UPGRADE_TEST_RESET_20261009.md) | 不新增旧Run兼容、不放宽Startup校验；新测试记录从零开始。 |
 
-| UAT-294 | 77集最终落位决策超过Arca独立64 KiB存储限制 | ARCA / FINAL_DECISION_CAPACITY | 开放：合同扩容待确认 | 全新77集完整Host271.77秒复现decision_json CHECK失败 | 显式77集容量回归已加入，当前FAIL | [Evidence](implementation/evidence/UAT-294_SERIES_FINAL_DECISION_CAPACITY_20261009.md) | 拟补齐Arca完整决策8 MiB，Foundation限额保持；不以47集通过推断77集通过。 |
+| UAT-294 | 77集最终落位决策超过Arca独立64 KiB存储限制 | ARCA / FINAL_DECISION_CAPACITY | 修复已部署本地，双平台容量回归通过 | 全新77集97,662字节决策触发旧CHECK | Windows25项合同/DDL/Schema、Linux22项及双平台77集完整Commit通过 | [Evidence](implementation/evidence/UAT-294_SERIES_FINAL_DECISION_CAPACITY_20261009.md) | 用户确认Arca完整决策8 MiB，Foundation保持64 KiB；现场新批次另受UAT-295影响，未宣称整体上架通过。 |
+
+| UAT-295 | 全新Series逐集TMDB超时且Run先收集失败处置媒体证据 | LIBRA / METADATA_TIMEOUT | 开放：精确超时及终态收敛待验 | 人世间E23、白鹿原E19各3次timeout后Event失败，Run仍active | 已核对新旧代理配置一致、Owner现有终态前置媒体证据流程 | [Evidence](implementation/evidence/UAT-295_SERIES_METADATA_TIMEOUT_20261009.md) | 不以连接测试/HTTP健康推断全链路通过，不Reset掩盖新失败。 |

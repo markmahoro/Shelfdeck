@@ -1,5 +1,9 @@
 # ShelfDeck 当前状态
 
+2026-10-09 12:13：UAT-294已获用户确认并修复，Windows/Linux 77集完整Host最终On-deck Commit分别640.05/658.09秒通过，完整Stage/Final/Fulfillment证据及Foundation64 KiB保护均通过；定向Windows25项、Linux22项、表合同/边界40项通过。新18081现场两Run各有一集TMDB三次超时，登记UAT-295；精确端点复测6项均200，但原失败未消除，Run仍在正式失败前置媒体证据流程，未上架。旧数据/4收藏快照保留，NAS未动。
+
+2026-10-09 11:58：用户确认干净测试目录切换及UAT-294 Arca最终决策8 MiB。新18081已健康启动，三集成/收藏架/路由/旧输入自动处理授权迁入；旧完整data与4收藏保留快照，实际文件不手工处置。人世间58集、白鹿原77集通过定向扫描各接纳1包，均为全新active Run。UAT-294定向25项通过，77集越过原决策限制及Stage/Placement/最终校验，完整Commit复验继续；未发布NAS。
+
 2026-10-09 04:31：用户明确以本地测试排查为主、不保留旧Run；Reset仅在副本完成，4收藏保留但391历史Plan仍阻断升级，见[UAT-293](implementation/evidence/UAT-293_LOCAL_UPGRADE_TEST_RESET_20261009.md)。18081旧实例健康，独立18082新实例200表启动正常，TMDB/MoviePilot迁入通过、豆瓣传输失败；主实例是否切换干净数据目录待范围回复。UAT-292修复28+53定向及原时序完整迁移Host通过。新增77集实测发现UAT-294最终落位决策64 KiB限制，尚未通过、扩容待确认。
 
 2026-10-09 04:13：UAT-291 sidecar/逐集NFO映射与命名已提交af5fe3901并推送，双平台入藏/旧空季目录清理、Windows迁移及改名回归通过。用户授权更新本地18081；SIGINT完整排空后新版本被PLAN_CATALOG_DRIFT阻断（UAT-293），已逐字节恢复停机备份并以a45d7b13f冻结源码回退，health正常，未Reset/NAS部署。新代码尚未现场生效；棋士历史遗漏关联文件未处置。存放规则更新与旧健康检查Basis竞争另记UAT-292。见[Evidence](implementation/evidence/UAT-291_SERIES_RELATED_SIDECARS_20261009.md)。

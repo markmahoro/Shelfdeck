@@ -1,0 +1,11 @@
+# UAT-295：全新Series批次逐集TMDB资料超时与终态收敛
+
+2026-10-09 12:05，新干净18081中人世间58集与白鹿原77集各1个Run保持active，但两项libra.product_metadata.fetch@1已连续3次PLATFORM_INTEGRATION_TIMEOUT并终态failed：人世间S01E23（TMDB156568），白鹿原S01E19（TMDB72312）。Event分别为libra-product-metadata-event-95ca2d156f25cb130ceab70d36ff4aa29286e1b3、libra-product-metadata-event-68dc0fe2f0d2bc1804d5fb9bfa9249f7642e3a8a；共同失败Evidence摘要e46095b7d0bd2e0eea7a92e5eeec4a080051d608425d738cc906241dee599dfb。初始身份查询的2次超时已重试成功，与这2项终态失败区分。
+
+新旧TMDB配置均含language/proxyServer，代理配置已迁入，正式连接测试通过；不能据连接测试通过推断所有逐集请求可用，也不能仅凭timeout判定Provider故障或程序缺陷。Adapter默认单请求10秒，超时为正式timeout Outcome，沿原合同重试；未放宽时间或绕过校验。
+
+代码定位：Libra Run coordinator在metadata Work失败后先ensureDefectProductEvidence，依次运行完整sourceMediaObservation与directMediaSelection，再提交terminalWork(integration_exhausted)。因此页面尚未展示Run失败时可能仍有大量媒体probe；当前观测确有两个workspace_media_production运行中。是否为合同预期、最终是否正确收敛，继续核对；不能只依据active视图宣称运行正常，也不直接Reset掩盖本次新失败。
+
+验收条件：查明精确超时链路；验证失败Run的业务终态与可操作状态一致；按既有Owner恢复流程建立新尝试并完成必需逐集资料及上架，保留原失败证据。当前开放，未修复、未闭环。与UAT-294容量扩容独立，不混计PASS。
+
+12:09只读传输复测：复用新实例加密凭据及同一代理/语言，对两个精确Provider ID分别请求show、Season1和原失败Episode，六项均HTTP200；耗时人世间1233/2742/443ms、白鹿原772/382/305ms。日志uat295-transport-check.log仅含状态与耗时，不含Secret/URL。说明当前链路可访问，不能据此消除原三次超时或判定根因已修复；未改配置或重试历史Work。

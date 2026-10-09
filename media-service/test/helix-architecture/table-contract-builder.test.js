@@ -94,6 +94,7 @@ test('closes every PK, declared FK, JSON contract, and current revision pointer'
       assert.ok(json.schemaRefColumn, `${contract.tableId}.${json.column}`);
       if(contract.tableId==='arca_acceptance_check_evidence'&&json.column==='evidence_json') { assert.equal(json.maxBytes,2*1024*1024); continue; }
       if(['arca_inventory_product_facts','libra_product_fact_revisions'].includes(contract.tableId)&&json.column==='episode_metadata_json') { assert.equal(json.maxBytes,16*1024*1024); continue; }
+      if(contract.tableId==='arca_final_inventory_decisions'&&json.column==='decision_json') { assert.equal(json.maxBytes,8*1024*1024); continue; }
       if(contract.tableId==='arca_staged_manifest_records'&&json.column==='manifest_json') { assert.equal(json.maxBytes,8*1024*1024); continue; }
       if(contract.tableId==='arca_inventory_verification_records'&&json.column==='verification_json') { assert.equal(json.maxBytes,8*1024*1024); continue; }
       assert.ok([4 * 1024, 16 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 1024 * 1024].includes(json.maxBytes));

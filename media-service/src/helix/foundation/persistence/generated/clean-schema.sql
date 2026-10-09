@@ -341,7 +341,7 @@ CREATE TABLE "arca_final_inventory_decisions" (
   "decided_at_ms" INTEGER CHECK ("decided_at_ms" >= 0),
   UNIQUE ("on_deck_run_id"),
   CHECK (json_valid("decision_json")),
-  CHECK (length(CAST("decision_json" AS BLOB)) <= 65536),
+  CHECK (length(CAST("decision_json" AS BLOB)) <= 8388608),
   FOREIGN KEY ("on_deck_run_id") REFERENCES "arca_ondeck_runs" ("on_deck_run_id") ON DELETE RESTRICT,
   FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
 );
