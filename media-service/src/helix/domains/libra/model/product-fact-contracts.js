@@ -2,7 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { buildEpisodeMetadataScope } = require('../../../contracts/episode-metadata-scope');
-const { metadataObservationLimit } = require('../../../contracts/metadata-observation-limits');
+const { metadataObservationLimit, metadataObservationSetByteLimit } = require('../../../contracts/metadata-observation-limits');
 const { metadataSetRef, SET_LIMIT } = require('../../../contracts/episode-metadata-records');
 
 class ProductFactContractError extends Error {
@@ -203,8 +203,10 @@ function buildMetadataObservation(value) {
 
 function selectMetadataObservations(value) {
   const intents = (value?.intents || []).map(buildMetadataFetchIntent);
-  if (intents.length < 1 || intents.length > metadataObservationLimit(intents[0].contentProfile) ||
-      intents.some((item, ordinal) => item.sourcePriority !== ordinal)) {
+  if (intents.length < 1 || intents.length > metadataObservationLimit(intents[0].contentProfile)) {
+    fail('P9_METADATA_SOURCE_CAPACITY', 'Metadata source count exceeds its profile capacity.');
+  }
+  if (intents.some((item, ordinal) => item.sourcePriority !== ordinal)) {
     fail('P9_METADATA_INTENT_ORDER', 'Metadata priorities must be unique and contiguous from zero.');
   }
   const byDigest = new Map(intents.map((item) => [item.intentDigest, item]));
@@ -286,7 +288,7 @@ function buildMetadataObservationBasis(value) {
     runExecutionBasisDigest:selected.intents[0].runExecutionBasisDigest, setId:set.setId, setDigest:set.setDigest,
     items:relationItems };
   selection.selectionDigest = canonicalDigest(selection);
-  bytes(set, 512 * 1024, 'P9_METADATA_SET_SIZE');
+  bytes(set, metadataObservationSetByteLimit(contentProfile), 'P9_METADATA_SET_SIZE');
   return Object.freeze({ sourceBasisKind:'metadata_observation', selection:Object.freeze(selection),
     observationSet:Object.freeze(set), sourceBasisDigest:selection.selectionDigest });
 }

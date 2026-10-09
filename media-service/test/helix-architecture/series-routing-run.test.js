@@ -267,7 +267,7 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   if(relatedFixture){
     sources.forEach((file,index)=>{
       fs.writeFileSync(thumbnailSources[index],Buffer.from('unique-episode-thumbnail-'+index));
-      fs.writeFileSync(file.replace(/\.[^.]+$/,'.nfo'),'<episodedetails><title>Episode '+(index+1)+'</title><season>1</season><episode>'+(index+1)+'</episode><plot>Source episode plot.</plot></episodedetails>');
+      fs.writeFileSync(file.replace(/\.[^.]+$/,'.nfo'),'<episodedetails><title>Episode '+(index+1)+'</title><season>1</season><episode>'+(index+1)+'</episode>'+ (process.env.HELIX_SERIES_NFO_GAP==='1'?'':'<plot>Source episode plot.</plot>')+'</episodedetails>');
     });
   }
   if(concurrent){
@@ -663,6 +663,14 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   assert.ok(state.works.some(work=>work.work_kind==='deliverable_promotion'&&work.state==='succeeded'),JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1,JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   if(episodeCount===77) {
+    if(relatedFixture && process.env.HELIX_SERIES_NFO_GAP==='1') {
+      const observations=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE result_schema_ref='helix://contracts/capabilities/libra.product_metadata.fetch/v1/result' AND outcome_kind='succeeded'").all().map(row=>JSON.parse(row.result_json));
+      assert.equal(observations.length,232);
+      assert.equal(observations.filter(item=>item.sourceKind==='related_nfo').length,154);
+      assert.equal(observations.filter(item=>item.sourceKind==='provider').length,78);
+      t.diagnostic(JSON.stringify({mixedMetadataObservations:observations.length}));
+    }
+
     assert.equal(adapter.calls.filter(url=>url.pathname.includes('/episode/')).length,0,
       'Complete Season metadata must serve every frozen Episode without per-Episode HTTP.');
     t.diagnostic(JSON.stringify({metadataShowRequests:adapter.calls.filter(url=>

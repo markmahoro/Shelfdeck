@@ -1,6 +1,6 @@
 'use strict';
 
-const METADATA_OBSERVATION_LIMITS = Object.freeze({movie:16, series:128, jav:16});
+const METADATA_OBSERVATION_LIMITS = Object.freeze({movie:16, series:1024, jav:16});
 
 function metadataObservationLimit(contentProfile) {
   const limit = METADATA_OBSERVATION_LIMITS[contentProfile];
@@ -8,4 +8,9 @@ function metadataObservationLimit(contentProfile) {
   return limit;
 }
 
-module.exports = Object.freeze({METADATA_OBSERVATION_LIMITS, metadataObservationLimit});
+function metadataObservationSetByteLimit(contentProfile) {
+  metadataObservationLimit(contentProfile);
+  return contentProfile === 'series' ? 8 * 1024 * 1024 : 512 * 1024;
+}
+
+module.exports = Object.freeze({METADATA_OBSERVATION_LIMITS, metadataObservationLimit, metadataObservationSetByteLimit});

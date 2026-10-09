@@ -317,4 +317,4 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 
 | UAT-296 | Series重新处理入口残留Movie-only准入 | PROCUREMENT / REPROCESS_ADMISSION | 关闭：入口及新Run建立已验证 | 两条有效Series Field返回404，Libra意图已保存 | 双平台14项；原意图重放均202并建立新Run | [Evidence](implementation/evidence/UAT-296_SERIES_REPROCESS_ADMISSION_20261009.md) | 不重建意图、不修改历史证据；后续上架归UAT-295。 |
 
-| UAT-297 | Series多来源Metadata集合超过128项，Planner反复失败 | LIBRA / METADATA_OBSERVATION_CAPACITY | 开放：待合同确认 | 白鹿原232成功记录、priority连续，artifact Planner报P9_METADATA_INTENT_ORDER | 已精确核对现场来源组成与SSOT128项/512 KiB | [Evidence](implementation/evidence/UAT-297_SERIES_METADATA_OBSERVATION_CAPACITY_20261009.md) | 不截断NFO/Provider来源；需增加真实多来源容量回归。 |
+| UAT-297 | Series多来源Metadata集合超过128项，Planner反复失败 | LIBRA / METADATA_OBSERVATION_CAPACITY | 修复已加载，待完整多来源验收 | 白鹿原232成功记录、priority连续，artifact Planner报P9_METADATA_INTENT_ORDER | 双平台51项通过，现场artifact已恢复running | [Evidence](implementation/evidence/UAT-297_SERIES_METADATA_OBSERVATION_CAPACITY_20261009.md) | 用户确认1024项/Series Set8 MiB；完整77集混合来源回归进行中。 |

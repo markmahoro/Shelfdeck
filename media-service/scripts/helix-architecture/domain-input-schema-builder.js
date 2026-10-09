@@ -1077,7 +1077,7 @@ function metadataObservationSelectionValue() {
     fetchIntentDigest: digest(), sourceKind: enumText('related_nfo', 'provider'), sourceRef: text(), sourcePriority: nonNegativeInteger(),
     evidenceId: id(), observationDigest: digest(), sourceReferenceDigest: digest() });
   return object({ selectionId: id(), libraRunId: id(), runExecutionBasisDigest: digest(), setId: id(), setDigest: digest(),
-    items: { ...arrayOf(item, 128), minItems: 1 }, selectionDigest: digest() });
+    items: { ...arrayOf(item, 1024), minItems: 1 }, selectionDigest: digest() });
 }
 
 function westernProductMetadataBasisValue() {
@@ -1110,7 +1110,7 @@ function libraProductMetadataSourceBasisSchema(name) {
     object({ sourceBasisKind: { const: 'metadata_observation' }, selection: metadataObservationSelectionValue(),
       observationSet: metadataObservationSetValue(), sourceBasisDigest: digest() }),
     object({ sourceBasisKind: { const: 'western_analysis' }, westernBasis: westernProductMetadataBasisValue(), sourceBasisDigest: digest() })
-  ], 512 * 1024);
+  ], 8 * 1024 * 1024);
 }
 
 function libraMediaCastSourceBasisSchema(name) {
@@ -1118,7 +1118,7 @@ function libraMediaCastSourceBasisSchema(name) {
     object({ sourceBasisKind: { const: 'metadata_observation' }, selection: metadataObservationSelectionValue(),
       observationSet: metadataObservationSetValue(), sourceBasisDigest: digest() }),
     object({ sourceBasisKind: { const: 'western_match' }, westernBasis: westernMediaCastBasisValue(), sourceBasisDigest: digest() })
-  ], 512 * 1024);
+  ], 8 * 1024 * 1024);
 }
 
 function verifiedArtifactManifestSchema() {

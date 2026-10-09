@@ -7,3 +7,9 @@
 人世间新Run68f242d6d6ec1532931d791c255ffde3ad048f23e6957fd798031bb5e7649bf8为59条Provider资料，数组282474字节，已通过资料及artifact阶段，当前workspace_media_production admitted。两部剧尚无On-deck，不能把HTTP健康或资料fetch成功作为整体运行正常。
 
 拟方案：保持Libra完整来源证据、冻结priority与摘要重建，将Series Set及Selection数量统一有界扩至1024，Series完整Set扩至8 MiB；Movie/JAV及Foundation64 KiB不变。另拆分容量/顺序诊断，增加77集本地NFO+Provider完整Host回归。需依Playbook§3.3先获容量合同确认；当前未改运行代码、未Reset或重写历史记录。此问题独立于UAT-295请求复用，登记开放。
+
+用户确认后：Series Set/Selection扩至1024项，完整Set8 MiB；Movie/JAV保持16项及512 KiB，Foundation64 KiB不变。模型校验、闭合Schema、生成器与Registry同步，容量错误单独P9_METADATA_SOURCE_CAPACITY，优先级连续校验保持。Windows/Linux专项各19项通过，覆盖1024/1025项、8 MiB拒绝、232条大资料、乱序拒绝及真实Schema；Windows领域合同/持久化回归通过。另修复领域Schema测试仍将UAT-287已批准PrimaryReadSet1024写成32的过期断言。
+
+本地原进程在本轮主动更新前已退出，日志无正常停止记录，原因未确认；新进程15316以原数据目录正常恢复并加载修复，未Reset。白鹿原原artifact Work由ready进入running，人世间workspace_media_production恢复running。Windows测试进程也中断而没有完成结果，已重跑；不能计先前空日志为PASS。双平台77集NFO缺剧情+TMDB补齐、thumb交付完整Host回归继续。
+
+双平台领域合同/持久化32项均通过，与专项19项合计各51项；Linux初跑缺少测试约定的仓库根目录挂载，补齐/media-service/src及/docs后通过。原始失败日志不计产品失败或PASS。

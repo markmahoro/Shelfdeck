@@ -17,7 +17,7 @@ test('freezes bounded Shelf Acceptance source and Product read authority', () =>
   const item = readSet.properties.primaryInputs.items;
   assert.equal(readSet.additionalProperties, false);
   assert.equal(readSet.properties.primaryInputs.minItems, 1);
-  assert.equal(readSet.properties.primaryInputs.maxItems, 32);
+  assert.equal(readSet.properties.primaryInputs.maxItems, 1024);
   assert.deepEqual(item.properties.sourceReadHandle,
     { $ref: 'helix://contracts/types/PhysicalMaterialReadHandle/v1' });
   assert.deepEqual(item.properties.productReadHandle,

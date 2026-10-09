@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-09 18:42后：UAT-297用户确认后已实现Series资料集合1024项/8 MiB，生成器、Schema/Registry同步，双平台51项专项/领域回归通过。本地原进程退出原因未明；已用原data恢复18081 PID15316，白鹿原artifact Work恢复running、人世间media Work恢复running，未Reset。77集NFO+TMDB混合来源完整回归进行中，未关闭UAT或宣称现场上架。
+
 2026-10-09后续：现场白鹿原新Run资料232项均成功，但汇总超过Series128项合同，artifact Planner反复P9_METADATA_INTENT_ORDER，登记UAT-297待容量确认。人世间59项资料已通过，目前workspace_media_production admitted；两部剧均未上架，先前资料阶段推进不能代表整体正常。
 
 2026-10-09：UAT-295 TMDB按季响应复用已加载本地18081；真实人世间58集/白鹿原77集各仅2次HTTP且标题剧情完整，双平台69项相关测试及Windows77集完整Host通过。UAT-296修复Series重新处理入口遗留Movie-only限制，原两条意图通过公开API重放均202，新来源Observation已建立两条active Run，资料获取成功推进且暂未新增失败。旧失败记录保留，完整新Run上架仍待验，NAS未动。

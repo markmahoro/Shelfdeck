@@ -8,7 +8,7 @@
     "8.6.20"
   ],
   "x-helix-role": "accepted-business-dto",
-  "x-helix-maxCanonicalBytes": 524288,
+  "x-helix-maxCanonicalBytes": 8388608,
   "oneOf": [
     {
       "type": "object",
@@ -133,7 +133,7 @@
                   "sourceReferenceDigest"
                 ]
               },
-              "maxItems": 128,
+              "maxItems": 1024,
               "minItems": 1
             },
             "selectionDigest": {
@@ -179,7 +179,7 @@
               "items": {
                 "$ref": "helix://contracts/types/MetadataObservation/v1"
               },
-              "maxItems": 128,
+              "maxItems": 1024,
               "minItems": 1
             },
             "sourcePrecedence": {
@@ -203,7 +203,7 @@
                   "sourcePriority"
                 ]
               },
-              "maxItems": 128,
+              "maxItems": 1024,
               "minItems": 1
             },
             "setDigest": {
@@ -251,10 +251,10 @@
               "then": {
                 "properties": {
                   "observations": {
-                    "maxItems": 128
+                    "maxItems": 1024
                   },
                   "sourcePrecedence": {
-                    "maxItems": 128
+                    "maxItems": 1024
                   }
                 }
               }

@@ -55,14 +55,14 @@ function episodeEntries(number, overrides = {}) {
     episode_title:'Title '+number, episode_plot:'Plot '+number, ...overrides }).map(([key,value])=>({key,value}));
 }
 
-test('Series Observation capacity is bounded at 128 sources while Movie retains 16', () => {
-  const inputs=Array.from({length:128},(_,index)=>intent(index+1,index));
+test('Series Observation capacity is bounded at 1024 sources while Movie retains 16', () => {
+  const inputs=Array.from({length:1024},(_,index)=>intent(index+1,index));
   const results=inputs.map((input,index)=>chain(input,episodeEntries(index+1)));
   const basis=buildMetadataObservationBasis({intents:inputs,results,factKind:'product_metadata',expectedRevision:0});
-  assert.equal(basis.observationSet.observations.length,128);
-  assert.equal(basis.selection.items.length,128);
-  assert.throws(()=>buildMetadataObservationBasis({intents:[...inputs,intent(129,128)],results,
-    factKind:'product_metadata',expectedRevision:0}),{code:'P9_METADATA_INTENT_ORDER'});
+  assert.equal(basis.observationSet.observations.length,1024);
+  assert.equal(basis.selection.items.length,1024);
+  assert.throws(()=>buildMetadataObservationBasis({intents:[...inputs,intent(1025,1024)],results,
+    factKind:'product_metadata',expectedRevision:0}),{code:'P9_METADATA_SOURCE_CAPACITY'});
   const movieIdentity={provider:'tmdb',namespace:'tmdb_movie',providerKey:'42',seasonNumber:null};
   movieIdentity.identityAnchorDigest=canonicalDigest(movieIdentity);
   const movie=Array.from({length:17},(_,sourcePriority)=>buildMetadataFetchIntent({
@@ -70,11 +70,11 @@ test('Series Observation capacity is bounded at 128 sources while Movie retains 
     contentProfile:'movie',resolvedIdentityDigest:D('identity'),requestedFields:['title'],
     providerKind:'tmdb',resolvedProviderIdentity:movieIdentity,integrationId:'tmdb-main',configRevision:2}));
   assert.throws(()=>buildMetadataObservationBasis({intents:movie,results:[],
-    factKind:'product_metadata',expectedRevision:0}),{code:'P9_METADATA_INTENT_ORDER'});
+    factKind:'product_metadata',expectedRevision:0}),{code:'P9_METADATA_SOURCE_CAPACITY'});
 });
 
-test('Larger Series source count never relaxes the 512 KiB Observation Set byte bound', () => {
-  const inputs=Array.from({length:64},(_,index)=>intent(index+1,index));
+test('Series Observation Set preserves its 8 MiB byte bound', () => {
+  const inputs=Array.from({length:768},(_,index)=>intent(index+1,index));
   const results=inputs.map((input,index)=>chain(input,episodeEntries(index+1,{episode_plot:'p'.repeat(12*1024)})));
   assert.throws(()=>buildMetadataObservationBasis({intents:inputs,results,
     factKind:'product_metadata',expectedRevision:0}),{code:'P9_METADATA_SET_SIZE'});
@@ -411,7 +411,7 @@ test('Scoped Intent, Observation and Season Draft pass the actual closed runtime
     return JSON.parse(fs.readFileSync(path.join(root,version,'schema.json'),'utf8'));
   }));
   const validator=createCapabilityContractValidator({schemas});
-  const inputs=Array.from({length:128},(_,index)=>intent(index+1,index));
+  const inputs=Array.from({length:1024},(_,index)=>intent(index+1,index));
   const largeBasis=buildMetadataObservationBasis({intents:inputs,
     results:inputs.map((input,index)=>chain(input,episodeEntries(index+1))),factKind:'product_metadata',expectedRevision:0});
   const basisRef='helix://contracts/domain-types/LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis/v1';
@@ -511,7 +511,7 @@ test('Scoped Related NFO conserves physical association and treats another Episo
 test('large Season keeps complete Episode plots in bounded immutable records',()=>{
   const {splitEpisodeMetadata,restoreEpisodeMetadata}=require('../../src/helix/contracts/episode-metadata-records');
   const inputs=Array.from({length:32},(_,index)=>intent(index+1,index));
-  const plot='完整剧情'.repeat(400);
+  const plot='瀹屾暣鍓ф儏'.repeat(400);
   const results=inputs.map((input,index)=>chain(input,episodeEntries(index+1,{episode_plot:plot})));
   const basis=buildMetadataObservationBasis({intents:inputs,results,factKind:'product_metadata',expectedRevision:0});
   const projected=buildProductMetadataDraft({sourceBasis:basis,requiredFields:['episode_plot','episode_title'],episodeScopes:inputs.map(x=>x.episodeScope),producedAtMs:10,providerIdentities:[identity],artifactRequirements:[]});
@@ -527,4 +527,15 @@ test('large Season keeps complete Episode plots in bounded immutable records',()
   assert.throws(()=>restoreEpisodeMetadata(stored.value,null));
   records[0].descriptiveFacts.entries[0].value='tampered';
   assert.throws(()=>restoreEpisodeMetadata(stored.value,JSON.stringify(records)));
+});
+
+
+test('Series mixed-source-sized evidence exceeds the old byte limit without weakening priority order', () => {
+  const inputs = Array.from({length:232}, (_, index) => intent(index+1,index));
+  const results = inputs.map((input,index) => chain(input,episodeEntries(index+1,{episode_plot:'p'.repeat(2500)})));
+  const basis = buildMetadataObservationBasis({intents:inputs,results,factKind:'product_metadata',expectedRevision:0});
+  assert.ok(Buffer.byteLength(JSON.stringify(basis.observationSet)) > 512*1024);
+  assert.equal(basis.selection.items.length,232);
+  assert.throws(() => buildMetadataObservationBasis({intents:[inputs[1],inputs[0],...inputs.slice(2)],results,
+    factKind:'product_metadata',expectedRevision:0}), {code:'P9_METADATA_INTENT_ORDER'});
 });

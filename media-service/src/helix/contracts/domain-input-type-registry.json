@@ -1005,7 +1005,7 @@
       "relativePath": "domain-types/LibraMediaCastSourceBasisMetadataObservationWesternMatch/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "e57b2756f8f05ec3bd961154a57db0c6f5c2052a04d212b94708289770180f43"
+        "value": "38b3b14c1490d4c14c3341eb7f92612c694e9ba79075e28075bacf0c0ba5adad"
       },
       "usedBy": [
         {
@@ -1036,7 +1036,7 @@
       "relativePath": "domain-types/LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "8292d269f1ed34e971fd3406b1001283a87d4b7c060202c14f3381bbee5874a5"
+        "value": "ffa86257187bbc783f498d6e3baaf27995421047e71341d1f04b5f2a47930001"
       },
       "usedBy": [
         {
