@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-09 21:36后：UAT-298 Linux77集已通过发布、Arca验收/落位/最终校验，旧NFO上限消除；但40分钟测试终点来源结算160/231完成、71待处理，零失败Event，尚无Commit。带30秒进度/耗时和保留数据库的诊断复验已启动，不能仅延长预算就计PASS；现场转码仍执行，本次Schema尚未加载。
+
 2026-10-09后续：UAT-298用户确认后，Series NFO来源交付证据1024条已实现，其他Profile16条、完整Provenance1 MiB保持；双平台41项边界/Schema/交付回归通过。Windows17集混合Host完整Commit通过（90.73秒），Linux77集原场景仍在跑。现场两Run均进入媒体处理且transcode执行中，暂未重启加载本次Schema，未关闭UAT。
 
 2026-10-09 19:21后：UAT-297长预算混合来源Host双平台已越过metadata/artifact/fact/media/conformance，随后publish因ProductionProvenance.sourceNfoObservations仍最多16条失败；精确输入失败摘要匹配，登记UAT-298待独立合同确认。未完成Commit，不计完整PASS；现场18081仍在媒体处理，本轮未重启。

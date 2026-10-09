@@ -15,3 +15,7 @@ UAT-297加长预算77集NFO+Provider Host双平台失败。Windows1000.04秒，�
 当前现场两Run均workspace_media_production running且一项transcode executing，未为加载Schema主动重启，现服务仍为UAT-297版本；待安全窗口加载。长Host和现场交付仍待验，不关闭UAT-298。
 
 Windows17集NFO缺剧情+TMDB补齐完整Host已PASS，90.73秒，完成On-deck Commit、关联thumb交付及来源结算；外部uat298-windows-17.log。该样例明确跨越原16条NFO来源上限，但不替代仍在进行的77集原场景复验。
+
+21:36监控回报：Linux77集修复后长Host仍未完成Commit，2321.35秒后断言收藏数expected1/actual0。精确快照显示所有Arca acceptance、target/stage/staged/placement/final成功；input_settlement.delete共231项，160成功、70waiting_for_resource、1executing，Fulfillment/Commit pending，失败Event/Attempt均0。这证明旧NFO Schema阻塞已越过，但不能据此宣称完整流程成功，也不能仅凭终点快照确认资源调度无缺陷。
+
+此前fixture退出清理数据库，缺少逐段时间线；已追加显式诊断模式（默认行为不变）：每30秒输出按capability/state计数和Attempt总耗时/最近结束时间，保留外部临时fixture供只读分析，77集诊断最大80分钟/4700秒业务轮询。该预算只用于一次完整收敛与性能定位，不改生产超时、资源配置或验收条件。新保留容器shelfdeck-uat298-settlement-diagnostic已启动；原失败容器和导出日志uat298-linux-77-final.log保留。结算是否异常缓慢仍待证据。现场仍一项转码执行，未重启加载UAT-298。
