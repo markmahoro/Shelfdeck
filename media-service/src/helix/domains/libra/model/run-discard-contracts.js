@@ -377,7 +377,30 @@ function buildCleanupRequestedMessage(decision, cleanupScopeId) {
   return Object.freeze(message);
 }
 
+const DISCARD_RECORD_SCHEMA = 'helix://contracts/application-types/LibraRunDiscardDecisionRecord/v1';
+function buildRunDiscardDecisionRecord(decision) {
+  const { decisionDigest, ...body } = decision || {};
+  if (canonicalDigest(body) !== decisionDigest)
+    fail('P9_DISCARD_RECORD_INTEGRITY', 'Discard Decision digest does not match its complete value.');
+  const record = { schemaRef:DISCARD_RECORD_SCHEMA, schemaVersion:1,
+    discardDecisionId:digest(decision.discardDecisionId,'discardDecisionId'),
+    libraRunId:text(decision.libraRunId,'libraRunId'),
+    committedRunStateRevision:revision(decision.expectedRunStateRevision,'expectedRunStateRevision')+1,
+    decisionDigest:digest(decisionDigest,'decisionDigest') };
+  if(Buffer.byteLength(canonicalJson(record))>65536)
+    fail('P9_DISCARD_RECORD_INTEGRITY','Discard Decision Record exceeds its byte limit.');
+  return Object.freeze(record);
+}
+function reconstructRunDiscardDecision(record, decision) {
+  if(canonicalJson(record)!==canonicalJson(buildRunDiscardDecisionRecord(decision)))
+    fail('P9_DISCARD_RECORD_INTEGRITY','Discard Decision Record differs from its exact immutable revision.');
+  return Object.freeze(decision);
+}
+
 module.exports = Object.freeze({
+  DISCARD_RECORD_SCHEMA,
+  buildRunDiscardDecisionRecord,
+  reconstructRunDiscardDecision,
   CLEANUP_RECORD_SCHEMA,
   COMMAND_RESULT_SCHEMA,
   LibraRunDiscardContractError,

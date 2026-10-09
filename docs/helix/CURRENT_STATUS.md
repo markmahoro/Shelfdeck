@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-09后续：用户要求不等待窗口，18081已正常停机备份并以PID51504重启加载UAT-298，health200/normalSupplyAllowed=true。人世间被中断转码记录失败后frozen，自动discard又遇69942字节Evidence超64 KiB，UAT-299已确认并修复，双平台各43项通过，真实副本69942字节Decision/383字节Record原子回滚及重放通过，待本地加载；白鹿原仍active。未Reset/NAS部署，结算诊断容器继续。
+
 2026-10-09 21:36后：UAT-298 Linux77集已通过发布、Arca验收/落位/最终校验，旧NFO上限消除；但40分钟测试终点来源结算160/231完成、71待处理，零失败Event，尚无Commit。带30秒进度/耗时和保留数据库的诊断复验已启动，不能仅延长预算就计PASS；现场转码仍执行，本次Schema尚未加载。
 
 2026-10-09后续：UAT-298用户确认后，Series NFO来源交付证据1024条已实现，其他Profile16条、完整Provenance1 MiB保持；双平台41项边界/Schema/交付回归通过。Windows17集混合Host完整Commit通过（90.73秒），Linux77集原场景仍在跑。现场两Run均进入媒体处理且transcode执行中，暂未重启加载本次Schema，未关闭UAT。

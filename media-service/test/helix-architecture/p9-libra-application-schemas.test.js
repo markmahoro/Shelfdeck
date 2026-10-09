@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '../../src/helix/contracts');
 test('materializes the SSOT-exact Libra production application contracts reproducibly', () => {
   const schemas = buildLibraApplicationSchemas();
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'libra-application-type-registry.json'), 'utf8'));
-  assert.equal(registry.targetCount, 41);
+  assert.equal(registry.targetCount, 42);
   assert.ok(schemas.LibraOffloadProductMaterialKeys);
   for (const [name, schema] of Object.entries(schemas)) {
     const stored = JSON.parse(fs.readFileSync(path.join(root, 'application-types', name, 'v1/schema.json'), 'utf8'));
@@ -185,4 +185,22 @@ test('Product Delivery query and read variants close history and acceptance fenc
   assert.equal(found.properties.onDeckProductPackage.$ref, 'helix://contracts/types/OnDeckProductPackage/v1');
   assert.equal(found.properties.deliveryFence.oneOf[1].type, 'null');
   assert.equal(notFound.properties.reasonCode.const, 'package_missing');
+});
+
+
+test('Discard Decision Record is closed and references one immutable Run revision', () => {
+  const {buildRunDiscardDecisionRecord,reconstructRunDiscardDecision} = require('../../src/helix/domains/libra/model/run-discard-contracts');
+  const {canonicalDigest} = require('../../src/helix/contracts/canonical-json');
+  const body = {discardDecisionId:'a'.repeat(64),libraRunId:'run-1',expectedRunStateRevision:3,
+    originalInputControlScope:{items:Array.from({length:100},(_,i)=>({materialKey:String(i),proof:'x'.repeat(800)}))}};
+  const decision={...body,decisionDigest:canonicalDigest(body)},record=buildRunDiscardDecisionRecord(decision);
+  assert.ok(Buffer.byteLength(JSON.stringify(decision))>65536);
+  assert.ok(Buffer.byteLength(JSON.stringify(record))<1024);
+  assert.deepEqual(reconstructRunDiscardDecision(record,decision),decision);
+  assert.throws(()=>reconstructRunDiscardDecision({...record,unexpected:true},decision),{code:'P9_DISCARD_RECORD_INTEGRITY'});
+  assert.throws(()=>reconstructRunDiscardDecision(record,{...decision,libraRunId:'other'}),{code:'P9_DISCARD_RECORD_INTEGRITY'});
+  const Ajv=require('ajv/dist/2020'),validate=new Ajv({strict:false}).compile(buildLibraApplicationSchemas().LibraRunDiscardDecisionRecord);
+  assert.equal(validate(record),true);
+  assert.equal(validate({...record,committedRunStateRevision:0}),false);
+  assert.equal(validate({...record,originalInputControlScope:body.originalInputControlScope}),false);
 });

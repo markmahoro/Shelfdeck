@@ -357,3 +357,33 @@ test('discard accepts an active Run whose Handoff B Delivery Receipt is already 
   assert.deepEqual(outcome.terminalReasons.map(x=>x.failureCode),['handoff_b_rejected']);
   check.close();
 }));
+
+
+test('Discard replay rejects a changed bounded Record, immutable Decision, or marker',()=>fixture(input=>{
+  const store=createRunDiscardStore({schemaManifest,unitOfWork:input.unitOfWork});
+  const command=buildRunDiscardCommand({libraRunId:input.libraRunId,expectedRunStateRevision:input.admitted.stateRevision,
+    expectedRunStateDigest:input.admitted.stateDigest,actorId:'admin',idempotencyKey:'bounded-discard'});
+  const result=store.commit(store.inspect(command));
+  assert.deepEqual(store.inspect(command),result);
+  const db=new Database(input.databasePath);
+  try {
+    const row=db.prepare("SELECT * FROM fx_event_result_bindings WHERE evidence_schema_ref LIKE '%LibraRunDiscardDecisionRecord%'").get();
+    assert.ok(Buffer.byteLength(row.evidence_json)<65536);
+    const record=JSON.parse(row.evidence_json),changed={...record,committedRunStateRevision:record.committedRunStateRevision+1};
+    db.prepare('UPDATE fx_event_result_bindings SET evidence_json=?,evidence_digest=? WHERE result_id=?')
+      .run(canonicalJson(changed),canonicalDigest(changed),row.result_id);
+    assert.throws(()=>store.inspect(command),{code:'P9_DISCARD_RECORD_INTEGRITY'});
+    db.prepare('UPDATE fx_event_result_bindings SET evidence_json=?,evidence_digest=? WHERE result_id=?')
+      .run(row.evidence_json,row.evidence_digest,row.result_id);
+    const revision=db.prepare('SELECT * FROM libra_run_revisions WHERE libra_run_id=? AND state_revision=?')
+      .get(input.libraRunId,record.committedRunStateRevision);
+    const decision=JSON.parse(revision.transition_evidence_json);decision.actorId='foreign';
+    db.prepare('UPDATE libra_run_revisions SET transition_evidence_json=? WHERE libra_run_id=? AND state_revision=?')
+      .run(canonicalJson(decision),input.libraRunId,record.committedRunStateRevision);
+    assert.throws(()=>store.inspect(command),{code:'P9_DISCARD_RECORD_INTEGRITY'});
+    db.prepare('UPDATE libra_run_revisions SET transition_evidence_json=? WHERE libra_run_id=? AND state_revision=?')
+      .run(revision.transition_evidence_json,input.libraRunId,record.committedRunStateRevision);
+    db.prepare('UPDATE fx_commit_markers SET commit_digest=? WHERE result_id=?').run(D('foreign'),row.result_id);
+    assert.throws(()=>store.inspect(command),{code:'P9_DISCARD_RECORD_INTEGRITY'});
+  } finally {db.close();}
+}));

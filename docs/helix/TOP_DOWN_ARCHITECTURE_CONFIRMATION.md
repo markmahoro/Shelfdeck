@@ -15842,3 +15842,10 @@ Arca On-deck Commit以`arca_inventory_product_facts`的`related_primary_mapping`
 该记录区分不变的accepted关联与可迁移的Inventory物理绑定：Care Basis的acceptedProductFactSetDigest对本kind使用`SHA256(JCS({schema:arca.accepted-related-primary-association@1,sourceRelatedReferenceId,sourcePrimaryMaterialKey,namingKind}))`，读取前仍校验完整fact/mapping摘要。移动造成的实际两端key变化由Inventory revision/representation完整digest及精确Receipt覆盖，不视为已接受内容Facts变化；缺失关联、换原Primary或换命名用途仍使Care Basis变化。
 
 旧季目录收尾复用Arca入藏后source cleanup/recycle机制：仅已记录的旧Season目录、全部文件交付结算完成且为空、非最终目录、非来源root时可收尾；不递归清理，不删除母目录，未知残留保持并提示。单文件Settlement不取得额外目录删除权。
+
+
+### UAT-299：Run Discard有界Evidence（2026-10-09用户确认）
+
+`LibraRunDiscardDecisionRecord@1`为闭合记录，字段恰为`{schemaRef:"helix://contracts/application-types/LibraRunDiscardDecisionRecord/v1",schemaVersion:1,discardDecisionId,libraRunId,committedRunStateRevision,decisionDigest}`。committedRunStateRevision恒等于完整Decision.expectedRunStateRevision+1；decisionDigest保持原完整Decision领域摘要。Record完整JCS≤64 KiB，Foundation evidence_digest为Record的完整JCS摘要，Result/marker仍按原合同绑定完整Decision/Receipt。
+
+完整Discard Decision继续写入Libra同一Run immutable revision的transition_evidence_json（原Owner字节限制不变），schema为LibraRunDiscardDecision@1；与Run状态、Control释放、Cleanup Scope/成员、Outcome、Result、marker及Outbox同一原子事务提交。Foundation不再重复内嵌完整控制及Workspace清理集合。精确重放按Record.libraRunId+committedRunStateRevision取Owner revision，校验schema/Decision ID/完整Decision摘要、记录闭合字段、Receipt、Result及commit marker；缺失、跨Run、错revision、摘要漂移一律拒绝。禁止从current Workspace重建旧Decision、不截断成员、不提升Foundation64 KiB、不扩大清理或删除授权。

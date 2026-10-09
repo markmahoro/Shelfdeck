@@ -1,0 +1,11 @@
+# UAT-299：整季Run处置Decision重复写入Foundation超过64 KiB
+
+用户明确不等待安全窗口，已向本地PID15316发送SIGINT，日志完整service stopped；保存停机DB pre-uat298-stopped.db，SHA256 01ade3c22f7c339b673837a89a03ee48f5eaf81c43e0b034417c174a6c9ec266。新PID51504加载当前源码，18081健康200、normalSupplyAllowed=true。未Reset、未修改媒体源或NAS。
+
+重启中断人世间68f242d6正在执行的转码，记录LIBRA_MEDIA_FFMPEG_FAILED并frozen revision3；自动discard在run-discard-store.js Foundation insert_result失败，CHECK length(CAST(evidence_json AS BLOB))<=65536。白鹿原23e6f861保持active。
+
+对只读备份运行正式store.inspect，不提交：Decision69942字节、cleanup成员60，kind=ready。完整Decision同时作为Libra Run immutable revision transition_evidence保存，又完整内嵌Foundation Evidence；因Foundation失败事务回滚，尚未完成discard。与此前Admission/Lifecycle有界记录属不同正式Decision类型，原LifecycleRecord仅替换transitionEvidence，不覆盖此Discard Decision。
+
+用户已确认并实现有界方案：完整Discard Decision继续归Libra不可变Run revision保存；Foundation使用typed LibraRunDiscardDecisionRecord，以libraRunId、committedStateRevision及完整Decision摘要精确引用，读取/重放由Owner重建并校验schema、scope及摘要，保持同事务Result/marker/Control释放/cleanup授权，Foundation仍64 KiB。不新增删除权限，不Reset掩盖超限。已按Playbook§3.3取得该正式Evidence合同确认。另行保留转码中断的原失败证据，不把本次启动健康解释为Run已恢复成功。
+
+验证：Windows/Linux 各43项生命周期、Discard与Schema回归通过；篡改Record、Owner Decision、Commit marker均拒绝重放。真实数据库只读备份演练完整Decision 69942字节压为383字节Record，60个cleanup成员完整保留，Foundation写入后故障注入原子回滚、正式提交及精确重放均通过。仅操作副本且未启动Host，无外部文件副作用。待本地加载及现场自动退出验收。

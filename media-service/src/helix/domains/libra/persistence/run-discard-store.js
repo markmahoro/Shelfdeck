@@ -9,6 +9,9 @@ const {
 const { activeRunScopeSetDigest } = require('../model/run-admission-contracts');
 const { runStateDigest } = require('../model/run-lifecycle-contracts');
 const {
+  DISCARD_RECORD_SCHEMA,
+  buildRunDiscardDecisionRecord,
+  reconstructRunDiscardDecision,
   CLEANUP_RECORD_SCHEMA,
   COMMAND_RESULT_SCHEMA,
   RECEIPT_SCHEMA,
@@ -187,6 +190,8 @@ function controlDefinition(schemaManifest) {
 function foundationDefinition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId:'libra_run_discard_foundation', owner:'execution-foundation',
     schemaManifest, statements:{
+      find_marker:{kind:'select-one',tableId:'fx_commit_markers',columns:['commit_marker','owner_domain','scope_type','scope_id','commit_digest','result_id','result_digest'],keyColumns:['commit_marker']},
+      find_result:{kind:'select-one',tableId:'fx_event_result_bindings',columns:['result_id','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest'],keyColumns:['result_id']},
       list_process_works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','state'],keyColumns:['owner_domain','process_type','process_id']},
       list_work_events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id','state'],keyColumns:['work_id']},
       list_event_attempts:{kind:'select-all',tableId:'fx_event_attempts',columns:['event_attempt_id'],keyColumns:['event_id']},
@@ -400,9 +405,36 @@ function createRunDiscardStore(options) {
   }
 
   function reconstructReplay(command, existing) {
-    let replay;
+    let replay, ownerDecision;
     options.unitOfWork.execute([{participantId:'discard_replay',owner:'libra',repositories:[libra],execute(context){
-      replay=reconstructReplayWithRepo(command,existing,context.repository(libra.repositoryId));
+      const repo=context.repository(libra.repositoryId);
+      replay=reconstructReplayWithRepo(command,existing,repo);
+      if(replay.resultKind!=='discarded')return;
+      const revision=repo.invoke('find_run_revision',{libra_run_id:command.libraRunId,
+        state_revision:replay.discardReceipt.committedRunStateRevision});
+      if(!revision||revision.state!=='discarded'||revision.transition_evidence_schema_ref!==DECISION_SCHEMA||
+          revision.transition_evidence_digest!==existing.decision_digest||revision.transition_decision_digest!==existing.decision_digest||
+          revision.transition_evidence_id!==existing.discard_decision_id)
+        fail('P9_DISCARD_RECORD_INTEGRITY','Discard immutable revision does not match its receipt.');
+      ownerDecision=parse(revision.transition_evidence_json,'discard_revision_invalid');
+    }},{participantId:'discard_replay_foundation',owner:'execution-foundation',boundBusinessOwner:'libra',
+      repositories:[foundation],execute(context){
+      if(!ownerDecision)return;
+      const row=context.repository(foundation.repositoryId).invoke('find_result',{
+        result_id:canonicalDigest({schema:'libra.run-discard-command-result-id@1',commandId:command.commandId})});
+      if(!row||row.evidence_schema_ref!==DISCARD_RECORD_SCHEMA)
+        fail('P9_DISCARD_RECORD_INTEGRITY','Discard Decision Record is missing.');
+      const record=parse(row.evidence_json,'discard_record_invalid');
+      if(canonicalDigest(record)!==row.evidence_digest||canonicalJson(replay)!==row.result_json||replay.resultDigest!==row.result_digest||
+          record.discardDecisionId!==existing.discard_decision_id||record.libraRunId!==command.libraRunId||
+          record.committedRunStateRevision!==replay.discardReceipt.committedRunStateRevision||record.decisionDigest!==existing.decision_digest)
+        fail('P9_DISCARD_RECORD_INTEGRITY','Discard Decision Record or Result digest does not match.');
+      const marker=context.repository(foundation.repositoryId).invoke('find_marker',{
+        commit_marker:canonicalDigest({schema:'libra.run-discard-commit-marker@1',discardDecisionId:existing.discard_decision_id})});
+      if(!marker||marker.owner_domain!=='libra'||marker.scope_type!=='libra_run'||marker.scope_id!==command.libraRunId||
+          marker.commit_digest!==existing.decision_digest||marker.result_id!==row.result_id||marker.result_digest!==row.result_digest)
+        fail('P9_DISCARD_RECORD_INTEGRITY','Discard commit marker does not match its bounded Record.');
+      reconstructRunDiscardDecision(record,ownerDecision);
     }}]);
     return replay;
   }
@@ -578,8 +610,8 @@ function createRunDiscardStore(options) {
         resultId=canonicalDigest({schema:'libra.run-discard-command-result-id@1',commandId:command.commandId}),
         marker=canonicalDigest({schema:'libra.run-discard-commit-marker@1',discardDecisionId:decision.discardDecisionId});
       repo.invoke('insert_result',{result_id:resultId,event_id:null,outcome_kind:'succeeded',result_schema_ref:COMMAND_RESULT_SCHEMA,
-        result_json:canonicalJson(result),result_digest:result.resultDigest,evidence_schema_ref:DECISION_SCHEMA,
-        evidence_json:canonicalJson(decision),evidence_digest:decision.decisionDigest,effect_receipt_id:null,
+        result_json:canonicalJson(result),result_digest:result.resultDigest,evidence_schema_ref:DISCARD_RECORD_SCHEMA,
+        evidence_json:canonicalJson(buildRunDiscardDecisionRecord(decision)),evidence_digest:canonicalDigest(buildRunDiscardDecisionRecord(decision)),effect_receipt_id:null,
         committed_at_ms:context.commitTimeMs});
       repo.invoke('insert_marker',{commit_marker:marker,effect_id:null,owner_domain:'libra',scope_type:'libra_run',
         scope_id:decision.libraRunId,commit_digest:decision.decisionDigest,result_id:resultId,
@@ -593,7 +625,7 @@ function createRunDiscardStore(options) {
         attempt_count:0,next_attempt_at_ms:context.commitTimeMs,acked_at_ms:null});return result;
     }}];
     participants.splice(participants.length-1,0,createRunOutcomeStore(options).failureParticipant(ready,()=>receipt,reasonCode,productEvidence));
-    try{options.unitOfWork.execute(participants);return result;}catch(error){if(error instanceof Replay)return error.result;throw error;}
+    try{options.unitOfWork.execute(participants);return result;}catch(error){if(error instanceof Replay)return inspect(command);throw error;}
   }
 
   return Object.freeze({inspect,commit,transactionId:TRANSACTION_ID});

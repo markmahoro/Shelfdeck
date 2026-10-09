@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 41,
+  "targetCount": 42,
   "entries": [
     {
       "id": "AuthorizedDefectManifest",
@@ -234,6 +234,21 @@
       "digest": {
         "algorithm": "sha256",
         "value": "ec056a62581555149827f7c7727561309eed114ecae47576e88fe2ac552a5313"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraRunDiscardDecisionRecord",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraRunDiscardDecisionRecord/v1",
+      "relativePath": "application-types/LibraRunDiscardDecisionRecord/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "67798f06c9f964c73d12ade96249fbea6a83800ed257e864fcf7f0c7df18765d"
       },
       "ssotRefs": [
         "8.6.21"
