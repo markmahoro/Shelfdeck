@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-2026-10-09 18:42后：UAT-297用户确认后已实现Series资料集合1024项/8 MiB，生成器、Schema/Registry同步，双平台51项专项/领域回归通过。本地原进程退出原因未明；已用原data恢复18081 PID15316，白鹿原artifact Work恢复running、人世间media Work恢复running，未Reset。77集NFO+TMDB混合来源完整回归进行中，未关闭UAT或宣称现场上架。
+2026-10-09 18:42后：UAT-297用户确认后已实现Series资料集合1024项/8 MiB，生成器、Schema/Registry同步，双平台51项专项/领域回归通过。本地原进程退出原因未明；已用原data恢复18081 PID15316，白鹿原artifact Work恢复running、人世间media Work恢复running，未Reset。77集混合来源Windows首轮旧预算耗尽（资料与事实提交已成功，无失败Event），Linux首轮退出诊断未保全，均不计完整PASS；40分钟预算的持久日志重跑及监控继续，未关闭UAT或宣称现场上架。
 
 2026-10-09后续：现场白鹿原新Run资料232项均成功，但汇总超过Series128项合同，artifact Planner反复P9_METADATA_INTENT_ORDER，登记UAT-297待容量确认。人世间59项资料已通过，目前workspace_media_production admitted；两部剧均未上架，先前资料阶段推进不能代表整体正常。
 

@@ -15,3 +15,7 @@
 双平台领域合同/持久化32项均通过，与专项19项合计各51项；Linux初跑缺少测试约定的仓库根目录挂载，补齐/media-service/src及/docs后通过。原始失败日志不计产品失败或PASS。
 
 77集带全部NFO/thumb的Host工作量显著高于原仅Provider样例，后续该精确fixture的测试总预算设40分钟、业务完成轮询预算2300秒；不改变生产超时、退避或验收条件。本次先启动的进程仍沿原20分钟预算执行，按实际结果记录。
+
+19:02长Host阶段证据：Windows首轮1107.52秒结束于旧1100秒业务轮询预算，232 Metadata、artifact_production、product_fact_assembly、media source_observation均succeeded，direct_selection仍running且失败Event为空；不是完整PASS。Linux首轮已至deliverable_promotion，但原执行会话stdout停写，容器die exitCode1、无最终诊断可用，不能判断为PASS或直接归因超时。
+
+已用40分钟预算重跑并保留日志：Windows PID31192，外部uat297-windows-77-final.log及stderr；Linux容器shelfdeck-uat297-mixed-host保留完整docker logs和退出状态，短暂暂停让Windows首轮完成后已恢复。既有监控线程已获消息跟踪最终结果并返回本线程。专项51项双平台PASS与完整Host尚未PASS必须分开；UAT-297继续开放。
