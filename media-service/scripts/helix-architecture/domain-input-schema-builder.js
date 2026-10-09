@@ -1,5 +1,7 @@
 'use strict';
 
+const { boundSeriesNfoProvenance } = require('./series-nfo-provenance-schema');
+
 const crypto = require('crypto');
 const { selectedCandidateSelectedValueSchema } = require('./result-type-schema-builder');
 
@@ -1210,13 +1212,13 @@ function libraDeliverablePromotionDecisionSchema() {
         confidenceClass: text(), relationDigest: digest() }), 4096),
       relationsDigest: digest() }),
     productMaterialManifest:domainRef('ProductionMaterialManifest'), offloadContextManifest: offloadManifest,
-    productionProvenance: object({ libraRunId: id(), runExecutionBasisDigest: digest(), acceptanceSpecRecordDigest: digest(),
+    productionProvenance: boundSeriesNfoProvenance(object({ libraRunId: id(), runExecutionBasisDigest: digest(), acceptanceSpecRecordDigest: digest(),
       workflowPlanRefs: arrayOf(object({ planId: id(), planRevision: positiveInteger(), planDigest: digest() }), 16384),
       productVerificationRefs: arrayOf(object({ verificationId: id(), verificationDigest: digest() }), 16384),
       externalRealityObservationRefs: arrayOf(object({ evidenceId: id(), evidenceDigest: digest() }), 16384),
-      sourceNfoObservations:arrayOf(typeRef('MetadataObservation'),16),
+      sourceNfoObservations:arrayOf(typeRef('MetadataObservation'),1024),
       acceptanceRequirementSnapshot:domainRef('AcceptanceRequirementSnapshot'),
-      shelfAcceptancePrimaryReadSet:domainRef('ShelfAcceptancePrimaryReadSet'), provenanceDigest: digest() }),
+      shelfAcceptancePrimaryReadSet:domainRef('ShelfAcceptancePrimaryReadSet'), provenanceDigest: digest() })),
     productionAttestation: object({ attestationId: id(), libraRunId: id(), onDeckPackageId: id(), acceptanceSpecId: id(),
       acceptanceSpecRecordDigest:digest(), productConformanceEvidenceId: id(), productConformanceEvidenceDigest: digest(),
       evaluatedRequirementSetDigest:digest(), productSnapshotDigest:digest(), unmetRequirementCount:nonNegativeInteger(),

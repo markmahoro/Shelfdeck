@@ -7,3 +7,11 @@ UAT-297加长预算77集NFO+Provider Host双平台失败。Windows1000.04秒，�
 有界方案（待确认）：仅Series的sourceNfoObservations最多1024；Movie等原范围保持16；完整ProductionProvenance仍≤1 MiB，既有完整Package限制及Foundation64 KiB不变。不截断、摘要替代或跳过NFO清理语义基线。同步Libra promotion与Handoff B Package Schema及生成器，增加17/77/1024/1025容量和非Series范围测试，再复跑完整Host。此变更独立于UAT-297 MetadataObservationSet，按Playbook§3.3先确认。
 
 现场18081仍运行并转码，监控未发现新失败；本轮未重启、Reset或改写现场数据。测试容器/日志保留，不把此前未知退出或这次失败计PASS。
+
+用户确认后已实现：LibraDeliverablePromotionDecision及OnDeckProductPackage的ProductionProvenance根据冻结acceptanceRequirementSnapshot.contentProfile条件限制sourceNfoObservations：Series≤1024，其余≤16。生成器共用条件片段，两类Schema及Registry同步；未增加字段，不改变Assembler的1 MiB校验、Package上限、Foundation上限或来源删除授权。修正SSOT历史段落的旧64 KiB引用，使之指向已批准的当前1 MiB约束。
+
+双平台各41项PASS（边界3、domain17、result及delivery21），覆盖0/16/17/77/1024/1025、Series与Movie/JAV/Western范围、缺失profile不能获得Series容量以及生成器/落盘Schema一致性。Windows17集完整混合来源Host、Linux77集原场景已启动。补齐NFO缺剧情fixture额外Provider来源的事实追溯计数断言，原完整NFO场景公式不变。
+
+当前现场两Run均workspace_media_production running且一项transcode executing，未为加载Schema主动重启，现服务仍为UAT-297版本；待安全窗口加载。长Host和现场交付仍待验，不关闭UAT-298。
+
+Windows17集NFO缺剧情+TMDB补齐完整Host已PASS，90.73秒，完成On-deck Commit、关联thumb交付及来源结算；外部uat298-windows-17.log。该样例明确跨越原16条NFO来源上限，但不替代仍在进行的77集原场景复验。

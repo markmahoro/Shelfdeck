@@ -319,4 +319,4 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 
 | UAT-297 | Series多来源Metadata集合超过128项，Planner反复失败 | LIBRA / METADATA_OBSERVATION_CAPACITY | 修复已加载，待完整多来源验收 | 白鹿原232成功记录、priority连续，artifact Planner报P9_METADATA_INTENT_ORDER | 双平台51项通过，现场artifact已恢复running | [Evidence](implementation/evidence/UAT-297_SERIES_METADATA_OBSERVATION_CAPACITY_20261009.md) | 用户确认1024项/Series Set8 MiB；完整77集混合来源回归进行中。 |
 
-| UAT-298 | Series交付NFO来源证据仍限16条 | LIBRA / HANDOFF_B_NFO_PROVENANCE | 开放：待合同确认 | 77集混合来源双平台publish输入Schema失败，精确错误摘要匹配 | metadata至conformance通过，完整Commit失败 | [Evidence](implementation/evidence/UAT-298_SERIES_NFO_PROVENANCE_CAPACITY_20261009.md) | 拟Series1024条、完整Provenance1 MiB不变，不跳过来源清理证据。 |
+| UAT-298 | Series交付NFO来源证据仍限16条 | LIBRA / HANDOFF_B_NFO_PROVENANCE | 已修复：待完整回归及本地加载 | 77集混合来源双平台publish输入Schema失败，精确错误摘要匹配 | metadata至conformance通过，完整Commit失败 | [Evidence](implementation/evidence/UAT-298_SERIES_NFO_PROVENANCE_CAPACITY_20261009.md) | 已确认Series1024条、双平台41项及Windows17集完整Host PASS，77集待验，不跳过来源清理证据。 |

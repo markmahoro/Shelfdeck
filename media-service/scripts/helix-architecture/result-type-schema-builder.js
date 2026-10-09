@@ -1,5 +1,7 @@
 'use strict';
 
+const { boundSeriesNfoProvenance } = require('./series-nfo-provenance-schema');
+
 const crypto = require('crypto');
 const { buildSharedTypeSchemas, externalOutputSnapshotSchema,
   providerAcquisitionCandidateSnapshotSchema } = require('./shared-type-schema-builder');
@@ -1282,7 +1284,7 @@ function onDeckProductPackageSchema() {
     manifestId: id(), manifestRevision: positiveInteger(), libraRunId: id(),
     members: arrayOf(offloadMember, 1024), memberSetDigest: digest(), manifestDigest: digest()
   });
-  const provenance = object({
+  const provenance = boundSeriesNfoProvenance(object({
     libraRunId: id(), runExecutionBasisDigest: digest(), acceptanceSpecRecordDigest: digest(),
     workflowPlanRefs: arrayOf(object({
       planId: id(), planRevision: positiveInteger(), planDigest: digest()
@@ -1293,11 +1295,11 @@ function onDeckProductPackageSchema() {
     externalRealityObservationRefs: arrayOf(object({
       evidenceId: id(), evidenceDigest: digest()
     }), 16384),
-    sourceNfoObservations:arrayOf(ref('MetadataObservation'),16),
+    sourceNfoObservations:arrayOf(ref('MetadataObservation'),1024),
     acceptanceRequirementSnapshot: domainRef('AcceptanceRequirementSnapshot'),
     shelfAcceptancePrimaryReadSet: domainRef('ShelfAcceptancePrimaryReadSet'),
     provenanceDigest: digest()
-  });
+  }));
   const attestation = object({
     attestationId: id(), libraRunId: id(), onDeckPackageId: id(),
     acceptanceSpecId: id(), acceptanceSpecRecordDigest: digest(),

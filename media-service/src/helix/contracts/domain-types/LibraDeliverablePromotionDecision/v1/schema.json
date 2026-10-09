@@ -1038,7 +1038,7 @@
           "items": {
             "$ref": "helix://contracts/types/MetadataObservation/v1"
           },
-          "maxItems": 16
+          "maxItems": 1024
         },
         "acceptanceRequirementSnapshot": {
           "$ref": "helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1"
@@ -1063,6 +1063,41 @@
         "acceptanceRequirementSnapshot",
         "shelfAcceptancePrimaryReadSet",
         "provenanceDigest"
+      ],
+      "allOf": [
+        {
+          "if": {
+            "required": [
+              "acceptanceRequirementSnapshot"
+            ],
+            "properties": {
+              "acceptanceRequirementSnapshot": {
+                "required": [
+                  "contentProfile"
+                ],
+                "properties": {
+                  "contentProfile": {
+                    "const": "series"
+                  }
+                }
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "sourceNfoObservations": {
+                "maxItems": 1024
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "sourceNfoObservations": {
+                "maxItems": 16
+              }
+            }
+          }
+        }
       ]
     },
     "productionAttestation": {
