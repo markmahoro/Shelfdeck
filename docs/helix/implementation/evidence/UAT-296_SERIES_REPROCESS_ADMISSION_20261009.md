@@ -1,0 +1,11 @@
+# UAT-296：Series重新处理入口遗留Movie-only限制
+
+UAT-295两条discarded Run的正式actions/reprocess请求已保存Libra Reprocess Intent，但Procurement requestReprocessObservation只接受movie Field，导致有效series Field返回404 ADMIN_FIELD_NOT_FOUND。正常Field Observation早已支持movie/series；这里是遗漏准入条件，不是来源消失。
+
+按现有SSOT重新处理合同，保留Libra意图和Procurement公开Observation边界，仅将该入口准入范围对齐movie/series；jav、western_adult、mixed仍拒绝。无反向Handoff、无Run兼容代码、无Reset或直接数据修改。
+
+Windows14项Field Access/Observation测试通过，其中新增5种profile准入及原意图重放测试；movie/series各只建立一个Supporting Work，其他profile零Work。
+
+本地18081修复后，读取原意图的idempotencyKey及previousOutcomeDigest，通过原公开API重放。人世间原Run78104d2c、白鹿原62ed7948均202，分别接纳field-observation-work-d3a47569d4c1707504a215f79ff5169102d1b5fb和field-observation-work-65b74e758cd84b65ff909b1fff3cc2fb405f2da1，意图ID未变。旧失败证据保留。入口恢复已现场验证；下游正式Run/On-deck结果归UAT-295，不能据202宣称上架。
+
+Linux同组69项回归通过，包含全部14项Field测试。两个Observation均已建立新的active Run，正式重新处理链路完成恢复，按入口验收条件关闭UAT-296；真实文件完整上架继续归UAT-295。

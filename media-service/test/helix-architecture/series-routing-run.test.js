@@ -69,7 +69,10 @@ function harness(overrides = {}) {
       const result=search?(overrides.search??{results:[{id:1399,name:'Demo Show'}]}):episode?
         {id:63055+seasonNumber*100+episodeNumber,season_number:seasonNumber,episode_number:episodeNumber,name:'Episode '+episodeNumber,
           overview:overrides.episodePlot??('Episode '+episodeNumber+' plot'),air_date:'2020-01-01'}:season?
-        (overrides.season??{id:3623+seasonNumber,season_number:seasonNumber}):(overrides.show??{
+        (overrides.season??{id:3623+seasonNumber,season_number:seasonNumber,
+          episodes:Array.from({length:77},(_,index)=>({id:63055+seasonNumber*100+index+1,show_id:1399,
+            season_number:seasonNumber,episode_number:index+1,name:'Episode '+(index+1),
+            overview:overrides.episodePlot??('Episode '+(index+1)+' plot'),air_date:'2020-01-01'}))}):(overrides.show??{
           id:1399,name:'Demo Show',original_name:'Demo Show',first_air_date:'2020-01-01',
           origin_country:['US'],genres:[{id:18,name:'Drama'}],overview:'Series plot',
           credits:{cast:[{id:1001,name:'Fixture Actor'}],crew:[]}});
@@ -659,6 +662,12 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   assert.ok(state.works.some(work=>work.work_kind==='product_conformance'&&work.state==='succeeded'),JSON.stringify({works:state.works,incidents:db.prepare('SELECT * FROM fx_executor_incidents').all(),events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   assert.ok(state.works.some(work=>work.work_kind==='deliverable_promotion'&&work.state==='succeeded'),JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1,JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
+  if(episodeCount===77) {
+    assert.equal(adapter.calls.filter(url=>url.pathname.includes('/episode/')).length,0,
+      'Complete Season metadata must serve every frozen Episode without per-Episode HTTP.');
+    t.diagnostic(JSON.stringify({metadataShowRequests:adapter.calls.filter(url=>
+      url.searchParams.get('append_to_response')==='credits,alternative_titles,translations').length}));
+  }
   if(episodeCount>32){
     const ownerStage=db.prepare('SELECT manifest_json,record_json FROM arca_staged_manifest_records').all();
     const ownerFinal=db.prepare('SELECT verification_json,record_json FROM arca_inventory_verification_records').all();

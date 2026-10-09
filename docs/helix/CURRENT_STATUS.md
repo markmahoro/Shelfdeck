@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-09：UAT-295 TMDB按季响应复用已加载本地18081；真实人世间58集/白鹿原77集各仅2次HTTP且标题剧情完整，双平台69项相关测试及Windows77集完整Host通过。UAT-296修复Series重新处理入口遗留Movie-only限制，原两条意图通过公开API重放均202，新来源Observation已建立两条active Run，资料获取成功推进且暂未新增失败。旧失败记录保留，完整新Run上架仍待验，NAS未动。
+
 2026-10-09 12:25：UAT-295两条新Run已自动结束：正式Lifecycle先以integration_exhausted frozen，再由actorId=system的Discard Decision终结，非人工放弃。Formation ended2、无非终态Event、Arca/Commit/收藏0；没有新增错误。原TMDB逐集超时及恢复验收保持开放。
 
 2026-10-09 12:13：UAT-294已获用户确认并修复，Windows/Linux 77集完整Host最终On-deck Commit分别640.05/658.09秒通过，完整Stage/Final/Fulfillment证据及Foundation64 KiB保护均通过；定向Windows25项、Linux22项、表合同/边界40项通过。新18081现场两Run各有一集TMDB三次超时，登记UAT-295；精确端点复测6项均200，但原失败未消除，Run仍在正式失败前置媒体证据流程，未上架。旧数据/4收藏快照保留，NAS未动。

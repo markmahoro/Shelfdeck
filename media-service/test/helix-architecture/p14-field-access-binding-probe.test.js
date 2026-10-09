@@ -208,3 +208,28 @@ for(const profile of ['movie','series','jav','western_adult','mixed'])test('Admi
     assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works').get().n,0);assert.equal(wakes,0);
   }
 });
+
+for (const profile of ['movie', 'series', 'jav', 'western_adult', 'mixed']) {
+  test('Reprocess observation preserves ' + profile + ' admission and intent replay', async (t) => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-reprocess-admission-'));
+    const databasePath = path.join(root, 'shelfdeck.db');
+    const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest });
+    const db = new Database(databasePath, { readonly: true });
+    t.after(() => { db.close(); kernel.close(); fs.rmSync(root, { recursive: true, force: true }); });
+    const admin = createProcurementAdminApplication({ schemaManifest,
+      unitOfWork: createSqliteUnitOfWork({ kernel }), executionRuntimeHost: { wake() {} } });
+    admin.registerMaterialField({ ...registration(root), contentProfileHint: profile }, { credentialRevision: 1 });
+    if (['movie', 'series'].includes(profile)) {
+      const first = await admin.requestReprocessObservation('field-1', 'a'.repeat(64));
+      const replay = await admin.requestReprocessObservation('field-1', 'a'.repeat(64));
+      assert.match(first.observationWorkId, /^field-observation-work-/);
+      assert.equal(replay.observationWorkId, first.observationWorkId);
+      assert.equal(replay.replayed, true);
+      assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works').get().n, 1);
+    } else {
+      await assert.rejects(() => admin.requestReprocessObservation('field-1', 'a'.repeat(64)),
+        (error) => error.code === 'ADMIN_FIELD_NOT_FOUND');
+      assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works').get().n, 0);
+    }
+  });
+}

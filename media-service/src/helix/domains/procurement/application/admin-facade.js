@@ -367,7 +367,7 @@ function createProcurementAdminApplication(options) {
         return Object.freeze({observationWorkId:workId,fieldId,state:existing.state,replayed:true});
       }
       const field=store.getMaterialField(fieldId);
-      if(!field||field.currentProfileHintSnapshot?.contentProfileHint!=='movie')
+      if(!field||!['movie','series'].includes(field.currentProfileHintSnapshot?.contentProfileHint))
         throw new ProcurementAdminApplicationError('ADMIN_FIELD_NOT_FOUND','原电影目录当前不可用。',{fieldId});
       return observation.observe({fieldId,idempotencyKey,expectedAccessRevision:field.currentAccessRevision,
         expectedObservationRevision:field.currentObservationRevision||0,pageBudget:8});

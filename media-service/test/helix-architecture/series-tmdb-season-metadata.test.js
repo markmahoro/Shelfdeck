@@ -18,18 +18,21 @@ function harness(overrides = {}) {
   const calls = [];
   const show = { id:1399, name:'Demo Show', overview:'Series plot', genres:[{ id:18, name:'Drama' }],
     credits:{ cast:[{ id:1001, name:'Fixture Actor' }], crew:[] } };
-  const season = { id:3624, season_number:1, episodes:[{ episode_number:99, name:'Outside delivery' }] };
+  const season = { id:3624, season_number:1, episodes:[{ id:63999, season_number:1, episode_number:99, name:'Outside delivery' }] };
   const episode = { id:63056, season_number:1, episode_number:1, name:'Episode One', overview:'Episode One plot' };
   const adapter = createTmdbProviderAdapter({
-    integrationQueryPort:{ query:() => ({ state:'active', integrationType:'tmdb', integrationId:handle.integrationId,
-      configRevision:1, endpoint:'https://api.themoviedb.org/3', secretKind:'tmdb_access_token',
-      secretRef:'fixture-secret', settings:{ language:'zh-CN' } }) },
-    integrationHandleResolverPort:{ resolve:() => handle },
+    now:overrides.now,
+    integrationQueryPort:{ query:() => ({ state:overrides.state || 'active', integrationType:'tmdb', integrationId:handle.integrationId,
+      configRevision:overrides.handle?.configRevision || 1, endpoint:'https://api.themoviedb.org/3', secretKind:'tmdb_access_token',
+      secretRef:'fixture-secret', settings:{ language:overrides.language || 'zh-CN' } }) },
+    integrationHandleResolverPort:{ resolve:() => overrides.handle || handle },
     secretLeaseResolverPort:{ resolve:() => ({ leaseId:'fixture-lease' }) },
     secretLeaseConsumer:{ consumeAsync:async (_lease, consume) => consume(Buffer.from('disposable-secret')) },
-    fetchImpl:async (url) => {
+    fetchImpl:async (url, init) => {
       calls.push({ pathname:url.pathname, language:url.searchParams.get('language') });
       if (overrides.error) throw overrides.error;
+      if (overrides.timeout) await new Promise((_resolve, reject) =>
+        init.signal.addEventListener('abort', () => reject(init.signal.reason), {once:true}));
       const isSeason = url.pathname.includes('/season/');
       const isEpisode = url.pathname.includes('/episode/');
       return new Response(JSON.stringify(isEpisode ? (overrides.episode ?? episode) :
@@ -37,7 +40,7 @@ function harness(overrides = {}) {
         { status:isEpisode ? (overrides.episodeStatus ?? 200) : isSeason ? (overrides.seasonStatus ?? 200) : 200 });
     },
   });
-  const fetch = (input = {}, suppliedHandle = handle) => adapter.observationPort.execute({
+  const fetch = (input = {}, suppliedHandle = overrides.handle || handle) => adapter.observationPort.execute({
     operationId, integrationHandle:suppliedHandle, timeoutMs:1000,
     input:{ resolvedProviderIdentity:identity(),
       requestedFields:['genre', 'plot', 'season_number', 'series_title'], ...input },
@@ -171,4 +174,113 @@ test('Missing Episode title or plot remains a gap and never inherits Series plot
   const fixture = harness({ episode:{ id:63056, season_number:1, episode_number:1, name:'', overview:'' } });
   const result = await fixture.fetch({ episodeScope, requestedFields:episodeFields });
   assert.deepEqual(result.descriptiveEntries.map(item => item.key), ['episode_number', 'season_number', 'series_title', 'tmdb_series_id']);
+});
+function seasonWithEpisodes(count = 77) {
+  return { id:3624, season_number:1, episodes:Array.from({length:count}, (_, index) => ({
+    id:63056+index, show_id:1399, season_number:1, episode_number:index+1,
+    name:'Episode '+(index+1), overview:'Plot '+(index+1),
+  })) };
+}
+function episodeInput(number) {
+  return { episodeScope:{episodeKey:'E'+String(number).padStart(3,'0'),episodeNumber:number,seasonNumber:1},
+    requestedFields:episodeFields };
+}
+
+test('77 concurrent Episode observations share exactly two HTTP requests and retain separate scopes', async()=>{
+  const fixture=harness({season:seasonWithEpisodes()});
+  const results=await Promise.all(Array.from({length:77},(_,index)=>fixture.fetch(episodeInput(index+1))));
+  assert.equal(fixture.calls.length,2);
+  for(const [index,result] of results.entries()) {
+    assert.equal(result.episodeScope.episodeNumber,index+1);
+    assert.equal(result.descriptiveEntries.find(x=>x.key==='episode_plot').value,'Plot '+(index+1));
+    assert.equal(result.sourceRef,'tmdb:tv:1399:season:1:episode:'+(index+1));
+    assert.equal(Object.hasOwn(result,'episodes'),false);
+  }
+  await fixture.fetch(episodeInput(1));assert.equal(fixture.calls.length,2);
+});
+
+test('Series response reuse expires and separates language while enforcing the Handle on cache hits',async()=>{
+  let time=1000;const config={season:seasonWithEpisodes(2),now:()=>time};const fixture=harness(config);
+  await fixture.fetch(episodeInput(1));await fixture.fetch(episodeInput(2));assert.equal(fixture.calls.length,2);
+  await assert.rejects(fixture.fetch(episodeInput(1),{...handle,configRevision:2}),{code:'PLATFORM_TMDB_HANDLE_FENCE_MISMATCH'});
+  assert.equal(fixture.calls.length,2);
+  config.language='en-US';await fixture.fetch(episodeInput(1));assert.equal(fixture.calls.length,4);
+  time+=5*60*1000+1;await fixture.fetch(episodeInput(1));assert.equal(fixture.calls.length,6);
+});
+
+test('Failed concurrent requests are evicted so a subsequent contract retry performs HTTP again',async()=>{
+  const config={season:seasonWithEpisodes(2),error:new Error('disposable transport failure')},fixture=harness(config);
+  const failed=await Promise.allSettled([fixture.fetch(episodeInput(1)),fixture.fetch(episodeInput(2))]);
+  assert.ok(failed.every(x=>x.status==='rejected'&&x.reason.code==='PLATFORM_INTEGRATION_NETWORK_FAILED'));
+  assert.equal(fixture.calls.length,1);
+  delete config.error;
+  await Promise.all([fixture.fetch(episodeInput(1)),fixture.fetch(episodeInput(2))]);
+  assert.equal(fixture.calls.length,3);
+});
+
+for(const kind of ['duplicate','foreign','malformed'])test('Invalid Season Episode '+kind+' is rejected and never cached',async()=>{
+  const invalid=seasonWithEpisodes(2);
+  if(kind==='duplicate')invalid.episodes.push({...invalid.episodes[0]});
+  if(kind==='foreign')invalid.episodes[0].show_id=1400;
+  if(kind==='malformed')delete invalid.episodes[0].id;
+  const config={season:invalid},fixture=harness(config);
+  await assert.rejects(fixture.fetch(episodeInput(1)),{code:kind==='malformed'?'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID':'PLATFORM_TMDB_IDENTITY_MISMATCH'});
+  config.season=seasonWithEpisodes(2);await fixture.fetch(episodeInput(1));assert.equal(fixture.calls.length,4);
+});
+
+test('Only a missing requested Episode field triggers exact detail supplementation',async()=>{
+  const season=seasonWithEpisodes(2);season.episodes[0].overview='';
+  const fixture=harness({season});
+  const first=await fixture.fetch(episodeInput(1));await fixture.fetch(episodeInput(2));
+  assert.equal(first.descriptiveEntries.find(x=>x.key==='episode_plot').value,'Episode One plot');
+  assert.deepEqual(fixture.calls.map(x=>x.pathname),['/3/tv/1399','/3/tv/1399/season/1','/3/tv/1399/season/1/episode/1']);
+});
+
+test('Supplemented detail must match the Season member identity',async()=>{
+  const season=seasonWithEpisodes(1);season.episodes[0].overview='';
+  const fixture=harness({season,episode:{...season.episodes[0],id:99999,overview:'Foreign'}});
+  await assert.rejects(fixture.fetch(episodeInput(1)),{code:'PLATFORM_TMDB_IDENTITY_MISMATCH'});
+});
+
+test('Protocol reuse evicts older Seasons at its item bound',async()=>{
+  const config={},fixture=harness(config);
+  for(let seasonNumber=1;seasonNumber<=17;seasonNumber++) {
+    config.season={id:3623+seasonNumber,season_number:seasonNumber,episodes:[]};
+    await fixture.fetch({resolvedProviderIdentity:identity({seasonNumber})});
+  }
+  config.season={id:3624,season_number:1,episodes:[]};
+  await fixture.fetch();assert.equal(fixture.calls.length,36);
+});
+
+
+test('Revoked integration is rejected even with a warm Season response',async()=>{
+  const config={season:seasonWithEpisodes(1)},fixture=harness(config);
+  await fixture.fetch(episodeInput(1));config.state='disabled';
+  await assert.rejects(fixture.fetch(episodeInput(1)),{code:'PLATFORM_INTEGRATION_UNAVAILABLE'});
+  assert.equal(fixture.calls.length,2);
+});
+
+test('Response byte budget evicts successful entries before reaching the item bound',async()=>{
+  const config={show:{id:1399,name:'Show',padding:'s'.repeat(900000)}},fixture=harness(config);
+  for(let seasonNumber=1;seasonNumber<=10;seasonNumber++) {
+    config.season={id:3623+seasonNumber,season_number:seasonNumber,padding:'s'.repeat(900000),episodes:[]};
+    await fixture.fetch({resolvedProviderIdentity:identity({seasonNumber})});
+  }
+  config.season={id:3624,season_number:1,episodes:[]};
+  await fixture.fetch();assert.equal(fixture.calls.length,22);
+});
+
+
+test('A real timeout is not memoized and the next attempt uses the original retry contract',async()=>{
+  const config={timeout:true,season:seasonWithEpisodes(1)},fixture=harness(config);
+  await assert.rejects(fixture.fetch(episodeInput(1)),{code:'PLATFORM_INTEGRATION_TIMEOUT'});
+  config.timeout=false;await fixture.fetch(episodeInput(1));assert.equal(fixture.calls.length,3);
+});
+
+test('An authorized configuration revision cannot reuse the previous revision response',async()=>{
+  const config={season:seasonWithEpisodes(1)},fixture=harness(config);
+  await fixture.fetch(episodeInput(1));
+  config.handle={...handle,configRevision:2,fenceDigest:'a'.repeat(64)};
+  const result=await fixture.fetch(episodeInput(1));
+  assert.equal(result.configRevision,2);assert.equal(fixture.calls.length,4);
 });

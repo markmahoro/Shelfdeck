@@ -11,3 +11,17 @@
 12:09只读传输复测：复用新实例加密凭据及同一代理/语言，对两个精确Provider ID分别请求show、Season1和原失败Episode，六项均HTTP200；耗时人世间1233/2742/443ms、白鹿原772/382/305ms。日志uat295-transport-check.log仅含状态与耗时，不含Secret/URL。说明当前链路可访问，不能据此消除原三次超时或判定根因已修复；未改配置或重试历史Work。
 
 12:25终态复核：人世间12:21:01进入frozen（integration_exhausted），12:21:07进入discarded；白鹿原12:21:32进入frozen（相同blocker），12:21:45进入discarded。两份正式LibraRunDiscardDecision均actorId=system，幂等键terminal:<runId>:3，证明为自动终态处置，非监控或用户手动放弃。无非终态Event、无Arca On-deck/Commit/收藏，Formation ended2；现有失败仍为原metadata timeout，没有新增failure code。终态收敛已证实，但两部剧未上架，传输原因与恢复重跑仍开放。
+
+## 2026-10-09 按季复用修复
+
+用户确认优化TMDB请求。原Adapter对每集重复请求show、season、episode；现仅在Adapter内部复用当前Integration Handle/config/Secret引用、语言、代理、Series/Season及timeout完全一致的成功show+season响应，并合并并发请求。每次调用仍验证当前Handle及Secret Lease；每集继续输出独立正式Observation，不改变Libra资料所有权、冻结集数或Foundation限制。缓存5分钟、16项、成功响应合计16 MiB；失败、超时、非法身份不缓存。Season返回集数不扩展Run范围；仅精确集成员缺失或请求的标题/剧情缺失时补请求该集详情，并核验身份。Movie路径不变。
+
+真实Provider只读复验：人世间58集2次HTTP/0次Episode详情/标题剧情缺失0，1155ms；白鹿原77集2次HTTP/0次Episode详情/缺失0，891ms。外部日志uat295-real-season.log。该结果证明请求复用有效，不能证明网络永不超时或两部剧已上架。
+
+Windows及Linux Adapter专项各44项通过，覆盖77并发两请求、身份/配置隔离、撤销、TTL/容量、超时后重试、缺失字段及非法Season响应。Linux两集完整Host通过；77集Windows完整Host继续。首次Linux整合回归因未挂载scripts而出现MODULE_NOT_FOUND，属于测试环境缺项，补齐挂载后重跑，不计PASS。
+
+本地18081已加载修复，保留原失败记录。重新处理入口的Movie-only遗留限制另记UAT-296；修复后复用两条原幂等意图均返回202并接纳新Observation。UAT-295仍开放，等待新正式Run资料及上架证据。
+
+最终回归：Windows55项TMDB专项/集成加14项Field Access/重新处理全部通过；Linux同组69项全部通过（补齐scripts挂载）。Windows77集完整Host 477.25秒通过On-deck Commit，show请求1次、Episode详情0次，Stage152579字节、Final/Fulfillment121204/110485字节且Foundation结果仍有界；Linux两集完整Host通过。
+
+现场新Run为68f242d6d6ec1532931d791c255ffde3ad048f23e6957fd798031bb5e7649bf8及23e6f861e3f8140024547a128576ed0c7193cf853b207dd469d19d78f6447b31，均active revision2。抽样逐集metadata成功59/141个Event且无失败；Event数量包含资料阶段调用，不能等同Episode数。最后一次失败仍为更新前12:04的timeout，新Run暂未新增失败。尚未取得这两条现场Run的On-deck Commit，不关闭UAT-295。
