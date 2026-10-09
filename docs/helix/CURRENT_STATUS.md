@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-09 12:25：UAT-295两条新Run已自动结束：正式Lifecycle先以integration_exhausted frozen，再由actorId=system的Discard Decision终结，非人工放弃。Formation ended2、无非终态Event、Arca/Commit/收藏0；没有新增错误。原TMDB逐集超时及恢复验收保持开放。
+
 2026-10-09 12:13：UAT-294已获用户确认并修复，Windows/Linux 77集完整Host最终On-deck Commit分别640.05/658.09秒通过，完整Stage/Final/Fulfillment证据及Foundation64 KiB保护均通过；定向Windows25项、Linux22项、表合同/边界40项通过。新18081现场两Run各有一集TMDB三次超时，登记UAT-295；精确端点复测6项均200，但原失败未消除，Run仍在正式失败前置媒体证据流程，未上架。旧数据/4收藏快照保留，NAS未动。
 
 2026-10-09 11:58：用户确认干净测试目录切换及UAT-294 Arca最终决策8 MiB。新18081已健康启动，三集成/收藏架/路由/旧输入自动处理授权迁入；旧完整data与4收藏保留快照，实际文件不手工处置。人世间58集、白鹿原77集通过定向扫描各接纳1包，均为全新active Run。UAT-294定向25项通过，77集越过原决策限制及Stage/Placement/最终校验，完整Commit复验继续；未发布NAS。

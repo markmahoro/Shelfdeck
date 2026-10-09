@@ -9,3 +9,5 @@
 验收条件：查明精确超时链路；验证失败Run的业务终态与可操作状态一致；按既有Owner恢复流程建立新尝试并完成必需逐集资料及上架，保留原失败证据。当前开放，未修复、未闭环。与UAT-294容量扩容独立，不混计PASS。
 
 12:09只读传输复测：复用新实例加密凭据及同一代理/语言，对两个精确Provider ID分别请求show、Season1和原失败Episode，六项均HTTP200；耗时人世间1233/2742/443ms、白鹿原772/382/305ms。日志uat295-transport-check.log仅含状态与耗时，不含Secret/URL。说明当前链路可访问，不能据此消除原三次超时或判定根因已修复；未改配置或重试历史Work。
+
+12:25终态复核：人世间12:21:01进入frozen（integration_exhausted），12:21:07进入discarded；白鹿原12:21:32进入frozen（相同blocker），12:21:45进入discarded。两份正式LibraRunDiscardDecision均actorId=system，幂等键terminal:<runId>:3，证明为自动终态处置，非监控或用户手动放弃。无非终态Event、无Arca On-deck/Commit/收藏，Formation ended2；现有失败仍为原metadata timeout，没有新增failure code。终态收敛已证实，但两部剧未上架，传输原因与恢复重跑仍开放。
