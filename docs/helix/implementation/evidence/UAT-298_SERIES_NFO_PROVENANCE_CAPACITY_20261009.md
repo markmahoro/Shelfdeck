@@ -1,0 +1,9 @@
+# UAT-298：整季NFO来源交付证据仍限16条
+
+UAT-297加长预算77集NFO+Provider Host双平台失败。Windows1000.04秒，所有metadata/artifact/product_fact/workspace_media_production/product_conformance成功；deliverable_promotion的libra.product_package.publish@1输入投影失败P4_CAPABILITY_SCHEMA_REJECTED，Evidence摘要89a5fb4494e06d4d66fcc1decb7f655983cfee9a52ca9f8d9c4d542666d38b2c。Linux保留容器shelfdeck-uat297-mixed-host ExitCode1，完整日志同关卡失败，1275.82秒；均未Commit。
+
+对正式Schema约束生成精确输入失败消息并按Foundation现行公式重算SHA-256，唯一匹配：instancePath=/libraDeliverablePromotionDecision/productionProvenance/sourceNfoObservations，keyword=maxItems，message=must NOT have more than 16 items。对应Source字段由Libra assembler按每个related NFO生成一条完整MetadataObservation，77集77份NFO超过16。生成器domain-input/result-type两处仍arrayOf(MetadataObservation,16)，SSOT§8.6.21也明确sourceNfoObservations[0..16]。不是排序错误，也不是UAT-297扩容未生效。
+
+有界方案（待确认）：仅Series的sourceNfoObservations最多1024；Movie等原范围保持16；完整ProductionProvenance仍≤1 MiB，既有完整Package限制及Foundation64 KiB不变。不截断、摘要替代或跳过NFO清理语义基线。同步Libra promotion与Handoff B Package Schema及生成器，增加17/77/1024/1025容量和非Series范围测试，再复跑完整Host。此变更独立于UAT-297 MetadataObservationSet，按Playbook§3.3先确认。
+
+现场18081仍运行并转码，监控未发现新失败；本轮未重启、Reset或改写现场数据。测试容器/日志保留，不把此前未知退出或这次失败计PASS。
