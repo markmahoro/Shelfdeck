@@ -323,4 +323,12 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 
 | UAT-299 | 大Run自动discard完整Evidence超过Foundation64 KiB | LIBRA / DISCARD_EVIDENCE | 关闭：两条真实Run自动退出通过 | 人世间中断转码后69942字节Decision、60清理成员，Foundation CHECK失败 | 双平台各43项，真实副本原子回滚/提交/重放通过 | [Evidence](implementation/evidence/UAT-299_RUN_DISCARD_EVIDENCE_CAPACITY_20261009.md) | 不放宽Foundation、不Reset；已按Owner不可变Run revision重建。 |
 
-| UAT-300 | On-deck Commit准备Control Query超过500项 | ARCA / CONTROL_QUERY_BATCHES | 已修复：待完整Host及现场验收 | 77集结算231项与Fulfillment已成功，最终Commit查询失败 | 双平台各21项专项通过，77集重跑中 | [Evidence](implementation/evidence/UAT-300_ARCA_CONTROL_QUERY_BATCHES_20261009.md) | 普通查询仍每批500，完整Control转移仍原子提交；不提高限额、不Reset。 |
+| UAT-300 | On-deck Commit准备Control Query超过500项 | ARCA / CONTROL_QUERY_BATCHES | 已修复：双平台完整Host通过，现场待验 | 77集结算231项与Fulfillment已成功，最终Commit查询失败 | 双平台各21项专项及77集混合来源完整Commit通过 | [Evidence](implementation/evidence/UAT-300_ARCA_CONTROL_QUERY_BATCHES_20261009.md) | 普通查询仍每批500，完整Control转移仍原子提交；不提高限额、不Reset。 |
+
+| UAT-301 | Series逐集生产反复解析同一整季Handoff A，读取开销随成员放大 | LIBRA / PERFORMANCE | 已修复：双平台完整Host通过，现场加载待验 | 17集CPU profile与Reader逐成员重复读取证据 | 17集Reader CPU9.01秒至0.84秒、双平台77集Commit及负向通过 | [Evidence](implementation/evidence/UAT-301_SERIES_HANDOFF_READ_COST_20261011.md) | 单次事务复用，所有成员校验保持；Arca结算性能独立核对，不宣称整体提速已完成。 |
+
+| UAT-302 | 整季来源结算审批逐成员重读完整交付包 | ARCA / PERFORMANCE | 已修复：双平台完整Host通过，现场加载待验 | 77集结算CPU profile及同步审批循环重复读取 | 8项精确审批/撤销/Basis专项及双平台77集Commit通过 | [Evidence](implementation/evidence/UAT-302_SETTLEMENT_APPROVAL_READ_COST_20261011.md) | 同轮复用已验证Context，实际删除仍重新核验逐文件授权与Fence；不更改来源删除范围。 |
+
+| UAT-303 | 历史secondary_target回退工具目标Schema随当前版本漂移 | RECOVERY_TOOLING | 关闭：限定历史离线范围双平台验收通过 | Service回归暴露伪旧库fixture及工具动态目标漂移 | 双平台各5项、Service599通过/0失败/27skip、边界27项通过 | [Evidence](implementation/evidence/UAT-303_HISTORICAL_ROLLBACK_SCOPE_20261011.md) | 固定原197表版本，当前Series不得使用此旧回退；不关闭UAT-293，无现场数据操作。 |
+
+| UAT-304 | 正常停机先终止FFmpeg，可能写成正式加工失败 | RUNTIME / RECOVERY_CORRECTNESS | 开放：关闭链及现有进程测试已确认，待实现完整恢复修复 | 加载优化前的停机审查 | SSOT §10.1.5与Registry/Capability/Host关闭顺序冲突 | [Evidence](implementation/evidence/UAT-304_SHUTDOWN_TRANSCODE_OUTCOME_20261011.md) | 先停止供给，最多60秒checkpoint，未决Effect按恢复合同继续；不反推旧失败原因、不伪造终态。 |

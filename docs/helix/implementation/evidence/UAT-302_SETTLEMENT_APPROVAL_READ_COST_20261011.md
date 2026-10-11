@@ -9,3 +9,9 @@
 8项专项通过：231成员、已完成source跳过、230份唯一精确审批、第二轮撤销授权零新增、Basis变化拒绝，以及既有有界执行、N:M完整映射和缺失/歧义拒绝。Windows/Linux77集最终代码完整回归及Service回归继续。此前Windows基线和Linux仅UAT-301中间诊断已主动停止、保留日志，均不计完整PASS；最终独立容器为shelfdeck-uat302-final-77-20261011。
 
 本地18081仍运行81a5a2e41、未加载本次优化，保留真实转码；没有NAS部署或Reset。日志位于仓库外E:/my_project/shelfdeck-series-local-preview-20261008/uat302-*。
+
+2026-10-11最终Windows77集混合NFO/Provider完整Host通过，984.83秒，231项来源结算及On-deck Commit完成。Stage证据220188字节、Final证据177879/162001字节仍由Owner持有，Foundation结果保持有界。日志uat302-windows-final-77.log，fixture保留于测试日志所列临时目录。该场景使用受控Provider/mediaProbe，不能代替现场真实影片/FFmpeg验收。修复提交761c5e98a；完整Service599通过、0失败、27既有skip。
+
+2026-10-11最终组合代码761c5e98a完整77集混合NFO/Provider Host双平台通过：Windows984.83秒，Linux1302.94秒（容器exit0），231项来源结算、Fulfillment及On-deck Commit完成。Linux Stage208536字节、Final175314/159436字节，Foundation结果仍有界；232条metadata observation、show request1次。日志uat302-windows-final-77.log和uat302-linux-final-77.log均在仓库外预览目录，Linux fixture保留于已停止容器/tmp/helix-series-routing-AStqWb。这是实际Host/文件系统加受控Provider/mediaProbe场景，不代表真实77集FFmpeg或现场上架验收；未构建新发布镜像，Linux以现有测试镜像挂载当前src/test/scripts。
+
+现场18081仍为81a5a2e41，已加载UAT-300但未加载UAT-301/302，真实转码继续。UAT-304停机缺口另行开放，未主动重启、Reset或操作NAS；本项不作为整体Series发布关闭依据。无UI变化，无Desktop构建要求。

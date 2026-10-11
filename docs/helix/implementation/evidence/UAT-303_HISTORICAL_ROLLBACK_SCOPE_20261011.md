@@ -11,3 +11,5 @@
 日志位于仓库外E:/my_project/shelfdeck-series-local-preview-20261008/uat303-*及uat287-movie-native4k-fixed.log。未运行任何现场回退、迁移或NAS部署。
 
 最终验证：Windows/Linux各5项全部通过；完整Service复验626项中599通过、0失败、27既有skip，138.58秒；最终27项package/semantic/persistence boundary及结算/Control专项通过。该历史工具自身按限定离线范围验收关闭，不代表UAT-293的历史运行库升级或Series整体发布已通过。
+
+修复提交84534f710；独立Movie测试Oracle提交0c0952cc8。
