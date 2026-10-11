@@ -351,10 +351,11 @@ for (const scenario of [null, 'transcode', 'remux', 'native4k']) test((scenario 
         const events=db.prepare("SELECT capability_ref,state FROM fx_workflow_events").all();
         if(scenario==='native4k'){
           assert.equal(events.filter(e=>['libra.media.remux@1','libra.media.transcode@1'].includes(e.capability_ref)).length,0);
-          const observations=db.prepare("SELECT b.result_json FROM fx_event_result_bindings b JOIN fx_workflow_events e USING(event_id) WHERE e.capability_ref='arca.acceptance.mandatory_media.verify@1'").all();
+          const observations=db.prepare("SELECT b.result_json,c.* FROM fx_event_result_bindings b JOIN fx_workflow_events e USING(event_id) JOIN arca_acceptance_check_evidence c ON c.event_id=e.event_id WHERE e.capability_ref='arca.acceptance.mandatory_media.verify@1'").all();
           assert.ok(observations.length);
           for(const row of observations){
-            const check=JSON.parse(row.result_json);
+            const check=require('../src/helix/domains/arca/persistence/acceptance-check-evidence-store')
+              .unpack(row,JSON.parse(row.result_json)).check;
             assert.equal(check.result,'passed');
             assert.deepEqual(check.actualGapCodes,[]);
             assert.equal(check.primaryMediaObservations[0].qualitySummary.sourceDisplayRasterClass,'4k');
