@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-11 13:24：用户确认UAT-284的Series Unit方案后已提交c60427d93，实现SSOT/typed合同/Owner重建，双平台95文件隔离Host各发布一个Season Candidate，完整Unit67785字节、Foundation Structure2022字节，持久证据重建通过。1024成员及8 MiB边界、缺失/篡改拒绝通过；Windows P7/Schema186项、Service599通过/0失败/27skip，P2合同与语义扫描通过。Linux P7为156通过/1项缺Git的旧Exit审计环境失败，独立95文件Host通过，不计整套PASS。全仓package8项、manifest1项失败与修复前HEAD完全一致，另记UAT-305开放。原三国现场新封包仍待验；18081保持旧81a5a2e41及真实转码，不为加载修复重启，UAT-304仍开放。详见UAT-284 Evidence。
+
 2026-10-11：用户要求拉起本地继续修复。18081以81a5a2e41及原preview-uat294/data启动，health正常；12:49人世间仍转码，历史失败计数未增加，白鹿原上次已discarded，尚无新Commit。UAT-301/302读取优化已提交761c5e98a，最终77集混合NFO/Provider完整Host Windows984.83秒、Linux1302.94秒通过，231项来源结算及On-deck Commit完成，UAT-300完整Host阻塞解除；受控Provider/mediaProbe不代替真实影片验收。Service626项中599通过、0失败、27既有skip；Movie native4k完整Host及相关边界回归通过。UAT-303历史回退工具固定旧Schema，双平台各5项通过并按限定范围关闭，不关闭UAT-293。新增UAT-304：停机终止FFmpeg可能写成加工失败，尚未修复；现场未为加载优化重启，301/302现场加载仍待验。UAT-284的95集Unit合同方案待用户确认。停机数据库备份已核对，不Reset、不操作NAS；不完整Workspace副本清理被自动审批策略拒绝，副本保留。
 
 2026-10-09 22:41后：77集混合来源诊断最终231项结算和Fulfillment均成功，On-deck Commit准备查询超过500项，登记UAT-300。Arca有界分批只读装配已修复，双平台各21项通过，完整77集容器重跑中；未将UAT-298或整体E2E计PASS，本地新Run未中断。

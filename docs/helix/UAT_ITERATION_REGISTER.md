@@ -295,7 +295,7 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 
 | UAT-283 | Series准入及生命周期Evidence超过64 KiB | LIBRA / BOUNDED_EVIDENCE | 已关闭：2026-10-09原3个Run推进至身份/资料获取 | UAT-282恢复后的真实本地E2E发现 | 待修复 | [现场与修复](implementation/evidence/UAT-283_SERIES_RUN_ADMISSION_EVIDENCE_20261009.md) | 已发布39包并接收3个Subject，后台反复SQLITE_CONSTRAINT_CHECK，需确认精确写入点、按bounded合同修复并验证原Subject继续。 |
 
-| UAT-284 | 大季Procurement Unit / Primary Manifest Draft超过有界合同 | PROCUREMENT / BOUNDED_RESULT | 部分通过：4个Manifest已恢复发布；95成员Unit限制待设计 | UAT-282恢复后真实扫描发现 | 待修复 | [现场与边界](implementation/evidence/UAT-284_SERIES_PROCUREMENT_BOUNDS_20261009.md) | 4 Manifest Event result_json超限；三国95成员Unit明确triage_failed；不扩大列、不拆季、不Reset掩盖。 |
+| UAT-284 | 大季Procurement Unit / Primary Manifest Draft超过有界合同 | PROCUREMENT / BOUNDED_RESULT | 已修复：双平台95成员隔离封包通过，原三国现场待验 | UAT-282恢复后真实扫描发现 | 1024成员/8 MiB及漂移负向通过；95文件新建Index重建通过 | [现场与边界](implementation/evidence/UAT-284_SERIES_PROCUREMENT_BOUNDS_20261009.md) | 4 Manifest Event result_json超限；三国95成员Unit明确triage_failed；不扩大列、不拆季、不Reset掩盖。 |
 
 | UAT-285 | 整季Product Metadata Draft汇总超过64 KiB，整理停在资料汇总 | LIBRA / METADATA_CAPACITY | 关闭：原3 Run资料正式提交通过 | 用户反馈Formation再次卡住；现场原72 fetch成功 | 有界逐集Owner记录；双平台专项/大剧情Host、Win追加Host通过 | [现场与设计](implementation/evidence/UAT-285_SERIES_METADATA_CAPACITY_20261009.md) | 完整32/46/47集资料与来源保留；只关闭资料容量关卡，后续媒体验收异常与完整上架独立。 |
 | UAT-286 | Series媒体验收完整空间集合限制32成员，46/47集输入失败 | LIBRA / MEDIA_SPACE_CAPACITY | 修复已验证，待本地加载与现场复验 | UAT-285后原任务继续，93失败Evidence摘要精确匹配 | Win39/Linux33；全新47集全部verify/select成功 | [根因与方案](implementation/evidence/UAT-286_SERIES_MEDIA_SPACE_CAPACITY_20261009.md) | 不漏同集part；保护进行中的真实转码，旧失败Run未Reset；下游UAT-287独立开放。 |
@@ -332,3 +332,5 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 | UAT-303 | 历史secondary_target回退工具目标Schema随当前版本漂移 | RECOVERY_TOOLING | 关闭：限定历史离线范围双平台验收通过 | Service回归暴露伪旧库fixture及工具动态目标漂移 | 双平台各5项、Service599通过/0失败/27skip、边界27项通过 | [Evidence](implementation/evidence/UAT-303_HISTORICAL_ROLLBACK_SCOPE_20261011.md) | 固定原197表版本，当前Series不得使用此旧回退；不关闭UAT-293，无现场数据操作。 |
 
 | UAT-304 | 正常停机先终止FFmpeg，可能写成正式加工失败 | RUNTIME / RECOVERY_CORRECTNESS | 开放：关闭链及现有进程测试已确认，待实现完整恢复修复 | 加载优化前的停机审查 | SSOT §10.1.5与Registry/Capability/Host关闭顺序冲突 | [Evidence](implementation/evidence/UAT-304_SHUTDOWN_TRANSCODE_OUTCOME_20261011.md) | 先停止供给，最多60秒checkpoint，未决Effect按恢复合同继续；不反推旧失败原因、不伪造终态。 |
+
+| UAT-305 | Series既有package与manifest架构扫描未通过 | ENGINEERING / ARCHITECTURE_GATES | 开放：修复前后同样8项导入及1项清单失败 | UAT-284实际仓库扫描，dc2dd653e归档对照 | P2合同通过不替代package/manifest门禁 | [Evidence](implementation/evidence/UAT-305_EXISTING_ARCHITECTURE_GATES_20261011.md) | 不放宽policy，不以Guard单元测试关闭；待实际依赖修复。 |
