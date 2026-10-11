@@ -91,7 +91,7 @@ function triageRuleSnapshot() {
     playabilityRule:object({minimumDurationMs:{const:1},minimumVideoStreamCount:{const:1},
       reasonPrecedence:{const:['probe_not_media','no_video_stream','non_positive_duration']}}),
     profileResolutionRule:object({mixedPrecedence:{const:['series_episode_token','jav_code','movie_fallback']},westernAdultRequiresExplicitHint:{const:true}}),
-    structureRule:object({maxUnitCanonicalBytes:{const:65536}}), identityRule:object({claimKinds:{const:['movie_title','series_season','jav_code','western_temporary']}}),
+    structureRule:object({maxUnitCanonicalBytes:{const:65536},maxSeriesUnitCanonicalBytes:{const:8*1024*1024}}), identityRule:object({claimKinds:{const:['movie_title','series_season','jav_code','western_temporary']}}),
     manifestRule:object({minimumMembers:{const:1},maximumMembers:{const:PROCUREMENT_RUN_MEMBER_LIMIT},firstOrdinal:{const:0}})
   });
   return { $schema:DRAFT, $id:typeId('ProcurementTriageRuleSnapshot'), title:'ProcurementTriageRuleSnapshot@1',

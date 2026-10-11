@@ -281,11 +281,11 @@ function createStructureInputProjection(options) {
         const item = {
           materialKey: material.member.material_key,
           relativeLocation: context.fieldRelativeLocation,
-          location: material.readHandle.location,
+          location: material.member.location,
           identity: material.identity,
-          endpointId: material.readHandle.endpointId,
+          endpointId: material.member.endpoint_id,
           sizeBytes: material.identity.sizeBytes,
-          entryDigest: material.current.last_snapshot_digest || canonicalDigest({
+          entryDigest: material.member.last_snapshot_digest || canonicalDigest({
             schema:'procurement.selected-observation-projection-entry@1',
             procurementRunId:parameters.runId,
             materialKey:material.member.material_key,

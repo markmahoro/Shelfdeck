@@ -560,14 +560,14 @@ function acceptedIntakePayloadSchema() {
       controlScopeDigest: digest() }), payloadDigest: digest()
   });
 }
-const identityMetadata = () => object({
+const identityMetadata = (maxHints = 256) => object({
   claimedTitle: text(), claimedYear: positiveInteger(),
   seasonClaim: object({ claimKind: enumText('explicit_number', 'provisional_group'), seasonNumber: positiveInteger(),
     provisionalGroupKey: digest(), claimDigest: digest() }, ['claimKind', 'claimDigest']),
   javCode: text(), contentProfileHint: enumText('movie', 'series', 'jav', 'western_adult', 'mixed'),
   sourceHints: arrayOf(object({ hintKind: enumText('field_content_profile_hint', 'filename_title', 'directory_title', 'filename_year',
     'directory_year', 'filename_season', 'directory_season', 'filename_episode', 'jav_code', 'disc_structure', 'temporary_label'),
-  hintValue: text(), evidenceDigest: digest() }), 256), metadataDigest: digest()
+  hintValue: text(), evidenceDigest: digest() }), maxHints), metadataDigest: digest()
 }, ['claimedTitle', 'contentProfileHint', 'sourceHints', 'metadataDigest']);
 const triageUnit = () => {
   const common = {
@@ -585,7 +585,10 @@ const triageUnit = () => {
   const memberScope = object({ scopeKind: { const: 'bdmv_container' }, procurementRunId: id(), bdmvGroupKey: id(),
     scopeDigest: digest(), memberSetDigest: digest(), memberCount: positiveInteger(), topologyDigest: digest(),
     selectedPayloadSetDigest: digest() });
-  return { oneOf: [object({ ...common, members }), object({ ...common, memberScope })] };
+  const ordinary = { ...common, contentProfile:enumText('movie','jav','western_adult') };
+  return { oneOf: [object({ ...ordinary, members }), object({ ...ordinary, memberScope }),
+    { ...object({ ...common, contentProfile:{ const:'series' }, identityMetadata:identityMetadata(16384), members }),
+      'x-helix-maxCanonicalBytes':8*1024*1024 }] };
 };
 
 function procurementTriageRuleSnapshotSchema() {
@@ -595,7 +598,7 @@ function procurementTriageRuleSnapshotSchema() {
     probeBatchSize: { const: 100 }, playabilityRule: object({ minimumDurationMs: { const: 1 }, minimumVideoStreamCount: { const: 1 },
       reasonPrecedence: { const: ['probe_not_media', 'no_video_stream', 'non_positive_duration'] } }),
     profileResolutionRule: object({ mixedPrecedence: { const: ['series_episode_token', 'jav_code', 'movie_fallback'] },
-      westernAdultRequiresExplicitHint: { const: true } }), structureRule: object({ maxUnitCanonicalBytes: { const: 65536 } }),
+      westernAdultRequiresExplicitHint: { const: true } }), structureRule: object({ maxUnitCanonicalBytes: { const: 65536 }, maxSeriesUnitCanonicalBytes:{ const:8*1024*1024 } }),
     identityRule: object({ claimKinds: { const: ['movie_title', 'series_season', 'jav_code', 'western_temporary'] } }),
     manifestRule: object({ minimumMembers: { const: 1 }, maximumMembers: { const: PROCUREMENT_RUN_MEMBER_LIMIT }, firstOrdinal: { const: 0 } })
   });
@@ -668,17 +671,20 @@ function triageManifestBuildInputSchema() {
 }
 
 function candidateDraftSchema() {
-  return exactDomainSchema('CandidateDraft', { draftId: id(), draftKind: text(), basisDigest: digest(), draftDigest: digest(),
+  const schema = exactDomainSchema('CandidateDraft', { draftId: id(), draftKind: text(), basisDigest: digest(), draftDigest: digest(),
     producedAtMs: nonNegativeInteger(), candidatePackageId: id(), procurementRunId: id(),
     runBasisDigest: digest(), triageRule: object({ ruleRef: id(), revision: positiveInteger(), authorityDigest: digest() }),
     materialFieldContextRef: object({ fieldId: id(), accessRevision: positiveInteger(), contextDigest: digest() }),
-    mediaType: mediaType(), contentProfile: profile(), displayIdentity: text(), identityMetadata: identityMetadata(),
+    mediaType: mediaType(), contentProfile: profile(), displayIdentity: text(), identityMetadata: identityMetadata(16384),
     identityClaim: typeRef('IdentityClaim'), structureEvidence: object({ evidenceId: id(), payloadDigest: digest(), unit: triageUnit() }),
     primaryInputManifestDraft: typeRef('PrimaryInputManifestDraft'), seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64),
     seasonContinuityClaimSetDigest: digest(), relatedReferences: arrayOf(relatedReference(), 1024), materialInputForm:enumText('stream_file', 'bdmv', 'dvd', 'iso'),
     relatedReferenceSetDigest: digest(), relatedDispositionScopeDigest:digest(),
     memberControlEvidenceSetDigest: digest(), candidateDraftDigest: digest()
   });
+  schema.allOf = [{ if:{ properties:{ contentProfile:{ const:'series' } } }, then:{},
+    else:{ properties:{ identityMetadata:{ properties:{ sourceHints:{ maxItems:256 } } } } } }];
+  return schema;
 }
 
 const identityAnchor = () => object({

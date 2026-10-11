@@ -1,5 +1,7 @@
 'use strict';
 
+const { reconstructStructureUnits } = require('../model/triage-contracts');
+const { activeTriageRule } = require('../model/procurement-run-contracts');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 
 /*
@@ -36,7 +38,19 @@ function createTriageEvidenceIndex(options) {
     const units = [];
     for (const row of rows) {
       const result = row.result;
-      for (const unit of result.units || []) {
+      const records = (result.units || []).filter((unit) => unit.recordKind === 'series_unit');
+      let pageUnits = result.units || [];
+      if (records.length) {
+        if (!options.structureInputProjection || !options.triageRuleRegistry)
+          fail('P7_TRIAGE_INDEX_RECONSTRUCTION_REQUIRED', 'Series Unit Records require frozen Structure input reconstruction.');
+        const input = options.structureInputProjection.project({
+          sourceResults:allRows.filter((item) => item.outcomeKind === 'succeeded'),
+          parameters:{ runId:result.procurementRunId, pageOrdinal:result.pageOrdinal,
+            cursorIn:result.cursorIn, maxUnits:records[0].pageMaxUnits },
+        });
+        pageUnits = reconstructStructureUnits(result, input, activeTriageRule(options.triageRuleRegistry));
+      }
+      for (const unit of pageUnits) {
         if (unitsById.has(unit.unitId)) {
           fail('P7_TRIAGE_INDEX_DUPLICATE_UNIT', 'Structure Evidence contains a duplicate Triage Unit.', { workId, unitId: unit.unitId });
         }

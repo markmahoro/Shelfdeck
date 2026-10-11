@@ -277,7 +277,7 @@
       "relativePath": "application-types/ProcurementTriageRuleSnapshot/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "302213d87bea8a685eaeb0245a126d01721a50b9f29c27d57c487ef465f80753"
+        "value": "67b1fea3cfcb08e6e52aff28aac7479d1369527d9468427c40bcebcf91bf153d"
       },
       "ssotRefs": [
         "5.3.2",

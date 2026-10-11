@@ -423,7 +423,7 @@
       "relativePath": "domain-types/CandidateDraft/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "1884b8bf00db2f462acfdb14453247dc70944cf4840c64f8c3e9ce8c3d36981e"
+        "value": "130c39f9a0a74fbc6962632a1d670b252ea549d8f4f6375682a746f94cc73dc0"
       },
       "usedBy": [
         {
@@ -1644,7 +1644,7 @@
       "relativePath": "domain-types/ProcurementTriageRuleSnapshot/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "6ea7c4438e84aaee29f463e4ef3072642aa29af921a37493816c3e856902159b"
+        "value": "0ceb02052ff6c24a1e43f46ef38723ca3b4d9721e4cfc6711873eecc5b02f210"
       },
       "usedBy": [
         {
@@ -2641,7 +2641,7 @@
       "relativePath": "domain-types/TriageIdentityResolutionInput/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "3bb001dca67d7080c9b6686d90be12a4cb8c69c2ec3cbad8a6cce1be4e556b30"
+        "value": "895191b48432d0739522329ce875f56e5b32646b59df06c5390872b88fe61126"
       },
       "usedBy": [
         {
@@ -2663,7 +2663,7 @@
       "relativePath": "domain-types/TriageManifestBuildInput/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "ffeba7f16495b1f3e3deb2847a146910f471b78f10863a57104a764e773ce3df"
+        "value": "af6564e6eb8895281b3e3788239c305fb40f029d1ee9e6633834ce82d15a6255"
       },
       "usedBy": [
         {

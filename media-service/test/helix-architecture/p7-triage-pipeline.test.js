@@ -10,6 +10,11 @@ const { createSingleScopeSelection } = require('./helpers/procurement-selection-
 const d = (label) => canonicalDigest({ label });
 const rule = createDefaultTriageRuleRegistry().entries[0];
 const capabilities = createTriageCapabilities({ now:() => 1000 });
+const { reconstructStructureUnits } = require('../../src/helix/domains/procurement/model/triage-contracts');
+function inspectFullStructure({ triageStructureInspectionInput:input, procurementTriageRuleSnapshot:rule }) {
+  const record = capabilities.structureInspect.execute({ triageStructureInspectionInput:input, procurementTriageRuleSnapshot:rule });
+  return { ...record, units:reconstructStructureUnits(record,input,rule) };
+}
 function profileHintSnapshot(contentProfileHint) {
   return {
     fieldId:'field-1',
@@ -115,7 +120,7 @@ function movieScopeStructure(locations, scope) {
       pageRequest,
     }),
   };
-  return capabilities.structureInspect.execute({
+  return inspectFullStructure({
     triageStructureInspectionInput:input,
     procurementTriageRuleSnapshot:rule,
   });
@@ -210,7 +215,7 @@ function singleStructureFixture(label, contentProfileHint) {
     }),
   };
   return {
-    structure: capabilities.structureInspect.execute({
+    structure: inspectFullStructure({
       triageStructureInspectionInput: input,
       procurementTriageRuleSnapshot: rule,
     }),
@@ -218,26 +223,32 @@ function singleStructureFixture(label, contentProfileHint) {
   };
 }
 
-function movieStructureInput(count, pageOrdinal=0, cursorIn=null) {
-  const members=Array.from({length:count},(_,index)=>probeMember(index,`movie-${String(index).padStart(3,'0')}-${'x'.repeat(96)}`));
-  const probeBatch=batch(members);const playability=capabilities.playabilityInspect.execute({
-    triageMaterialProbeBatch:probeBatch,procurementTriageRuleSnapshot:rule});
+function movieStructureInput(count, pageOrdinal=0, cursorIn=null, profile='movie', title='Demo.Show') {
+  const members=Array.from({length:count},(_,index)=>probeMember(index,profile === 'series' ? `${title}.S01E${String(index%999+1).padStart(3,'0')}.part${index}` : `movie-${String(index).padStart(3,'0')}-${'x'.repeat(96)}`));
+  const probeBatches=[];
+  for(let offset=0;offset<members.length;offset+=100) {
+    const item=batch(members.slice(offset,offset+100)); item.batchOrdinal=offset/100;
+    item.batchDigest=canonicalDigest(Object.fromEntries(Object.entries(item).filter(([key])=>key!=='batchDigest')));
+    probeBatches.push(item);
+  }
+  const playabilityPages=probeBatches.map(probeBatch=>capabilities.playabilityInspect.execute({
+    triageMaterialProbeBatch:probeBatch,procurementTriageRuleSnapshot:rule}));
   const selected=scopedSelection(members.map((member,ordinal)=>({ordinal,
     materialKey:member.materialKey,selectionRole:'triage_input',physicalIdentity:member.readHandle.identity,sizeBytes:100,bindingRevision:1,
     eligibilityRevision:1,eligibilityBasisDigest:d(`eligibility:${ordinal}`),lastSnapshotDigest:d(`snapshot:${ordinal}`),
     lastObservationId:`observation-${ordinal}`,endpointId:'endpoint-1',location:member.readHandle.location,realityDigest:d(`reality:${ordinal}`),
     provenanceDigest:d(`provenance:${ordinal}`),controlSnapshot:{},admissionControlAction:'acquire',basisMemberDigest:d(`basis:${ordinal}`)})),
-    probeBatch.selectionDigest);
-  const contextValue={fieldId:'field-1',accessRevision:1,accessDigest:d('access'),profileHintSnapshot:profileHintSnapshot('movie'),
+    probeBatches[0].selectionDigest);
+  const contextValue={fieldId:'field-1',accessRevision:1,accessDigest:d('access'),profileHintSnapshot:profileHintSnapshot(profile),
     memberContexts:members.map((member,selectionOrdinal)=>({selectionOrdinal,materialKey:member.materialKey,
-      fieldRelativeLocation:member.readHandle.location,baseName:`movie-${selectionOrdinal}-${'x'.repeat(96)}.mkv`,extension:'.mkv',
+      fieldRelativeLocation:member.readHandle.location,baseName:member.readHandle.location.split('/').at(-1),extension:'.mkv',
       parentSegments:[],layoutEvidenceRefs:[]}))};
   const materialFieldContext={...contextValue,contextDigest:canonicalDigest(contextValue)};
   const requestValue={pageOrdinal,cursorIn,maxUnits:32};const pageRequest={...requestValue,requestDigest:canonicalDigest(requestValue)};
   const basis={schema:'procurement.triage-structure-input@1',selectionDigest:selected.selectionDigest,
-    probeBatchDigests:[probeBatch.batchDigest],playabilityPayloadDigests:[playability.payloadDigest],contextDigest:materialFieldContext.contextDigest,
+    probeBatchDigests:probeBatches.map(item=>item.batchDigest),playabilityPayloadDigests:playabilityPages.map(item=>item.payloadDigest),contextDigest:materialFieldContext.contextDigest,
     layoutPayloadDigests:[],pageRequest};
-  return {selectedFieldMaterialSet:selected,probeBatches:[probeBatch],playabilityPages:[playability],materialFieldContext,
+  return {selectedFieldMaterialSet:selected,probeBatches,playabilityPages,materialFieldContext,
     layoutEvidence:[],pageRequest,inputDigest:canonicalDigest(basis)};
 }
 
@@ -292,7 +303,7 @@ test('Structure applies the persisted mixed-Field Scope title and Related associ
 test('Structure automatically paginates complete Movie Units at the 64 KiB boundary', () => {
   const collected=[];let cursorIn=null,pageOrdinal=0;
   do {
-    const result=capabilities.structureInspect.execute({triageStructureInspectionInput:movieStructureInput(100,pageOrdinal,cursorIn),
+    const result=inspectFullStructure({triageStructureInspectionInput:movieStructureInput(100,pageOrdinal,cursorIn),
       procurementTriageRuleSnapshot:rule});
     assert.ok(Buffer.byteLength(JSON.stringify(result),'utf8')<=65536);
     assert.ok(result.units.length>=1&&result.units.length<=32);
@@ -383,7 +394,7 @@ test('structure preserves Selection mapping and carries series mediaType/content
   structureInput.inputDigest = canonicalDigest({ schema:'procurement.triage-structure-input@1', selectionDigest:selected.selectionDigest,
     probeBatchDigests:[probeBatch.batchDigest], playabilityPayloadDigests:[playability.payloadDigest], contextDigest:context.contextDigest,
     layoutPayloadDigests:[], pageRequest });
-  const structure = capabilities.structureInspect.execute({ triageStructureInspectionInput:structureInput, procurementTriageRuleSnapshot:rule });
+  const structure = inspectFullStructure({ triageStructureInspectionInput:structureInput, procurementTriageRuleSnapshot:rule });
   assert.equal(structure.units.length, 1);
   assert.equal(structure.units[0].mediaType, 'group');
   assert.equal(structure.units[0].contentProfile, 'series');
@@ -472,7 +483,7 @@ test('Series Triage aggregates N:M Episode members into one Season unit without 
       pageRequest,
     }),
   };
-  const structure = capabilities.structureInspect.execute({
+  const structure = inspectFullStructure({
     triageStructureInspectionInput: input,
     procurementTriageRuleSnapshot: rule,
   });
@@ -538,7 +549,7 @@ test('Series Triage preserves overlapping Episode claims inside one Candidate un
   const context = { ...contextBase, contextDigest: canonicalDigest(contextBase) };
   const pageBase = { pageOrdinal: 0, cursorIn: null, maxUnits: 100 };
   const pageRequest = { ...pageBase, requestDigest: canonicalDigest(pageBase) };
-  const structure = capabilities.structureInspect.execute({
+  const structure = inspectFullStructure({
     triageStructureInspectionInput: {
       selectedFieldMaterialSet: selected,
       probeBatches: [probeBatch],
@@ -709,7 +720,7 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
       pageRequest,
     }),
   };
-  const structure = capabilities.structureInspect.execute({
+  const structure = inspectFullStructure({
     triageStructureInspectionInput: structureInput,
     procurementTriageRuleSnapshot: rule,
   });
@@ -772,7 +783,7 @@ test('Movie Triage associates only the exact NFO sidecar and conserves its canon
     ...oversizedContextBase,
     contextDigest: canonicalDigest(oversizedContextBase),
   };
-  const oversizedResult = capabilities.structureInspect.execute({
+  const oversizedResult = inspectFullStructure({
     triageStructureInspectionInput: {
       selectedFieldMaterialSet: selected,
       probeBatches: [probeBatch],
@@ -822,4 +833,65 @@ test('large Primary Manifest Result is bounded and reconstructs only its exact i
   for(const patch of [{membersDigest:d('forged')},{structureEvidenceId:'other'},{memberCount:99},{extra:true}])
     assert.throws(()=>reconstructPrimaryManifestDraft({...record,...patch},input,rule));
   assert.throws(()=>reconstructPrimaryManifestDraft(record,{...input,candidateMembers:members.slice(1)},rule));
+});
+
+for (const count of [95, 1024]) test(`Series Structure reconstructs ${count} complete members from bounded records`, () => {
+  const input=movieStructureInput(count,0,null,'series');
+  const record=capabilities.structureInspect.execute({triageStructureInspectionInput:input,procurementTriageRuleSnapshot:rule});
+  assert.equal(record.units.length,1); assert.equal(record.cursorOut,null);
+  assert.equal(record.units[0].recordKind,'series_unit');
+  assert.equal(record.units[0].memberCount,count);
+  assert.ok(record.units[0].unitCanonicalBytes>65536);
+  assert.ok(Buffer.byteLength(JSON.stringify(record))<4096);
+  assert.equal(Object.hasOwn(record.units[0],'members'),false);
+  assert.equal(Object.hasOwn(record.units[0],'identityMetadata'),false);
+  const [unit]=reconstructStructureUnits(record,input,rule);
+  assert.equal(unit.members.length,count);
+  assert.equal(unit.identityMetadata.sourceHints.filter(h=>h.hintKind==='filename_title').length,count);
+  assert.equal(unit.identityMetadata.sourceHints.filter(h=>h.hintKind==='field_content_profile_hint').length,1);
+  assert.deepEqual(reconstructStructureUnits(record,structuredClone(input),rule),[unit]);
+  const identity=capabilities.identityClaimResolve.execute({triageIdentityResolutionInput:{unit,inputDigest:d('identity')},procurementTriageRuleSnapshot:rule});
+  assert.deepEqual(identity.sourceHints,unit.identityMetadata.sourceHints);
+  for (const [field,value] of Object.entries({memberCount:count-1,memberSetDigest:d('wrong-members'),unitDigest:d('wrong-unit'),
+    structureInputDigest:d('wrong-input'),triageRuleAuthorityDigest:d('wrong-rule'),procurementRunId:'another-run',pageMaxUnits:1,unitCanonicalBytes:1})) {
+    const bad=structuredClone(record);bad.units[0][field]=value;
+    assert.throws(()=>reconstructStructureUnits(bad,input,rule),{code:'P7_TRIAGE_UNIT_RECORD_DRIFT'});
+  }
+  const extra=structuredClone(record);extra.units[0].unknown='forbidden';
+  assert.throws(()=>reconstructStructureUnits(extra,input,rule),{code:'P7_TRIAGE_UNIT_RECORD_DRIFT'});
+  const missing=structuredClone(input);missing.probeBatches[0].members.pop();
+  assert.throws(()=>reconstructStructureUnits(record,missing,rule));
+  const sourceDrift=structuredClone(input);sourceDrift.materialFieldContext.memberContexts[0].baseName='Changed.S01E01.mkv';
+  assert.throws(()=>reconstructStructureUnits(record,sourceDrift,rule));
+  const {createTriageEvidenceIndex}=require('../../src/helix/domains/procurement/persistence/triage-evidence-index');
+  const index=createTriageEvidenceIndex({workResultReader:{read:()=>[{eventId:'structure',outcomeKind:'succeeded',
+    resultSchemaRef:'helix://contracts/capabilities/procurement.triage.structure.inspect/v1/result',result:record}]},
+    structureInputProjection:{project:()=>input},triageRuleRegistry:createDefaultTriageRuleRegistry()});
+  assert.deepEqual(index.find('work',unit.unitId).unit,unit);
+  assert.equal(index.read('work').materialToUnit.size,count);
+  index.clear();assert.deepEqual(index.find('work',unit.unitId).unit,unit);
+});
+
+test('Series Structure rejects 1025 members and an over-8-MiB Unit without truncating a Season',()=>{
+  const tooMany=movieStructureInput(1025,0,null,'series');
+  assert.throws(()=>capabilities.structureInspect.execute({triageStructureInspectionInput:tooMany,procurementTriageRuleSnapshot:rule}),
+    {code:'P7_TRIAGE_STRUCTURE_INPUT_BOUNDS'});
+  const input=movieStructureInput(1,0,null,'series','X'.repeat(3*1024*1024));
+  const result=capabilities.structureInspect.execute({triageStructureInspectionInput:input,procurementTriageRuleSnapshot:rule});
+  assert.equal(result.units.length,0);assert.equal(result.unassignedMaterials.length,1);
+  assert.equal(result.unassignedMaterials[0].reasonCode,'triage_unit_contract_too_large');
+});
+
+test('Series Unit byte ceiling preserves the last fitting title and rejects the next byte step',()=>{
+  const inspect=input=>capabilities.structureInspect.execute({triageStructureInspectionInput:input,procurementTriageRuleSnapshot:rule});
+  const base=inspect(movieStructureInput(1,0,null,'series','X')).units[0].unitCanonicalBytes;
+  // Title appears in displayIdentity, claimedTitle, filename hint, and Related Scope stem.
+  const length=1+Math.floor((8*1024*1024-base)/4);
+  const input=movieStructureInput(1,0,null,'series','X'.repeat(length));
+  const last=inspect(input);assert.equal(last.units.length,1);
+  assert.ok(last.units[0].unitCanonicalBytes<=8*1024*1024);
+  assert.ok(last.units[0].unitCanonicalBytes>=8*1024*1024-3);
+  assert.equal(reconstructStructureUnits(last,input,rule)[0].members.length,1);
+  const next=inspect(movieStructureInput(1,0,null,'series','X'.repeat(length+1)));
+  assert.equal(next.units.length,0);assert.equal(next.unassignedMaterials[0].reasonCode,'triage_unit_contract_too_large');
 });

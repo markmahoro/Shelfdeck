@@ -214,7 +214,7 @@
               "evidenceDigest"
             ]
           },
-          "maxItems": 256
+          "maxItems": 16384
         },
         "metadataDigest": {
           "type": "string",
@@ -268,7 +268,6 @@
                   "type": "string",
                   "enum": [
                     "movie",
-                    "series",
                     "jav",
                     "western_adult"
                   ]
@@ -587,7 +586,6 @@
                   "type": "string",
                   "enum": [
                     "movie",
-                    "series",
                     "jav",
                     "western_adult"
                   ]
@@ -859,6 +857,320 @@
                 "unitDigest",
                 "memberScope"
               ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "unitId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "mediaType": {
+                  "type": "string",
+                  "enum": [
+                    "single",
+                    "group"
+                  ]
+                },
+                "contentProfile": {
+                  "const": "series"
+                },
+                "structureKind": {
+                  "type": "string",
+                  "enum": [
+                    "single",
+                    "season"
+                  ]
+                },
+                "displayIdentity": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "identityMetadata": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "claimedTitle": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "claimedYear": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "seasonClaim": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "claimKind": {
+                          "type": "string",
+                          "enum": [
+                            "explicit_number",
+                            "provisional_group"
+                          ]
+                        },
+                        "seasonNumber": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "provisionalGroupKey": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^[a-f0-9]{64}$"
+                        },
+                        "claimDigest": {
+                          "type": "string",
+                          "minLength": 1,
+                          "pattern": "^[a-f0-9]{64}$"
+                        }
+                      },
+                      "required": [
+                        "claimKind",
+                        "claimDigest"
+                      ]
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "contentProfileHint": {
+                      "type": "string",
+                      "enum": [
+                        "movie",
+                        "series",
+                        "jav",
+                        "western_adult",
+                        "mixed"
+                      ]
+                    },
+                    "sourceHints": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "properties": {
+                          "hintKind": {
+                            "type": "string",
+                            "enum": [
+                              "field_content_profile_hint",
+                              "filename_title",
+                              "directory_title",
+                              "filename_year",
+                              "directory_year",
+                              "filename_season",
+                              "directory_season",
+                              "filename_episode",
+                              "jav_code",
+                              "disc_structure",
+                              "temporary_label"
+                            ]
+                          },
+                          "hintValue": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "evidenceDigest": {
+                            "type": "string",
+                            "minLength": 1,
+                            "pattern": "^[a-f0-9]{64}$"
+                          }
+                        },
+                        "required": [
+                          "hintKind",
+                          "hintValue",
+                          "evidenceDigest"
+                        ]
+                      },
+                      "maxItems": 16384
+                    },
+                    "metadataDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "claimedTitle",
+                    "contentProfileHint",
+                    "sourceHints",
+                    "metadataDigest"
+                  ]
+                },
+                "seasonContinuityClaims": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "helix://contracts/types/SeasonContinuityClaim/v1"
+                  },
+                  "maxItems": 64
+                },
+                "seasonContinuityClaimSetDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "relatedScope": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "scopeKind": {
+                      "type": "string",
+                      "enum": [
+                        "ordinary_parent",
+                        "bdmv_external_parent"
+                      ]
+                    },
+                    "parentRelativeLocation": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "stemKey": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "associationMode": {
+                      "type": "string",
+                      "enum": [
+                        "standalone_same_stem",
+                        "single_movie_directory",
+                        "multi_movie_directory",
+                        "bdmv_external"
+                      ]
+                    },
+                    "observationProjectionRevision": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "relatedRuleRevision": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "scopeDigest": {
+                      "type": "string",
+                      "minLength": 1,
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "scopeKind",
+                    "parentRelativeLocation",
+                    "stemKey",
+                    "associationMode",
+                    "observationProjectionRevision",
+                    "relatedRuleRevision",
+                    "scopeDigest"
+                  ]
+                },
+                "materialInputForm": {
+                  "type": "string",
+                  "enum": [
+                    "stream_file",
+                    "bdmv",
+                    "dvd",
+                    "iso"
+                  ]
+                },
+                "unitDigest": {
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "members": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "materialKey": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "bindingRevision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "admittedControlRevision": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "admittedControlProjectionDigest": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "role": {
+                        "type": "string",
+                        "enum": [
+                          "primary_payload",
+                          "structural_dependency"
+                        ]
+                      },
+                      "episodeClaims": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "properties": {
+                            "episodeKey": {
+                              "type": "string",
+                              "minLength": 1
+                            },
+                            "seasonClaimDigest": {
+                              "type": "string",
+                              "minLength": 1,
+                              "pattern": "^[a-f0-9]{64}$"
+                            },
+                            "claimDigest": {
+                              "type": "string",
+                              "minLength": 1,
+                              "pattern": "^[a-f0-9]{64}$"
+                            }
+                          },
+                          "required": [
+                            "episodeKey",
+                            "seasonClaimDigest",
+                            "claimDigest"
+                          ]
+                        },
+                        "maxItems": 32
+                      },
+                      "memberClaimDigest": {
+                        "type": "string",
+                        "minLength": 1,
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    },
+                    "required": [
+                      "materialKey",
+                      "bindingRevision",
+                      "admittedControlRevision",
+                      "admittedControlProjectionDigest",
+                      "role",
+                      "episodeClaims",
+                      "memberClaimDigest"
+                    ]
+                  },
+                  "maxItems": 1024,
+                  "minItems": 1
+                }
+              },
+              "required": [
+                "unitId",
+                "mediaType",
+                "contentProfile",
+                "structureKind",
+                "displayIdentity",
+                "identityMetadata",
+                "seasonContinuityClaims",
+                "seasonContinuityClaimSetDigest",
+                "relatedScope",
+                "materialInputForm",
+                "unitDigest",
+                "members"
+              ],
+              "x-helix-maxCanonicalBytes": 8388608
             }
           ]
         }
@@ -1032,5 +1344,28 @@
     "relatedDispositionScopeDigest",
     "memberControlEvidenceSetDigest",
     "candidateDraftDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "contentProfile": {
+            "const": "series"
+          }
+        }
+      },
+      "then": {},
+      "else": {
+        "properties": {
+          "identityMetadata": {
+            "properties": {
+              "sourceHints": {
+                "maxItems": 256
+              }
+            }
+          }
+        }
+      }
+    }
   ]
 }

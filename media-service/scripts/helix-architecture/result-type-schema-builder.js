@@ -188,17 +188,17 @@ const triageProfile = () => enumText('movie', 'series', 'jav', 'western_adult');
 const triageMediaType = () => enumText('single', 'group');
 const triageEpisodeClaim = () => object({ episodeKey: text(), seasonClaimDigest: digest(), claimDigest: digest() });
 const seasonContinuityClaim = () => ref('SeasonContinuityClaim');
-const triageIdentityMetadata = () => object({ claimedTitle: text(), claimedYear: positiveInteger(),
+const triageIdentityMetadata = (maxHints = 256) => object({ claimedTitle: text(), claimedYear: positiveInteger(),
   seasonClaim: object({ claimKind: enumText('explicit_number', 'provisional_group'), seasonNumber: positiveInteger(),
     provisionalGroupKey: digest(), claimDigest: digest() }, ['claimKind', 'claimDigest']), javCode: text(),
   contentProfileHint: enumText('movie', 'series', 'jav', 'western_adult', 'mixed'), sourceHints: arrayOf(object({
     hintKind: enumText('field_content_profile_hint', 'filename_title', 'directory_title', 'filename_year', 'directory_year',
       'filename_season', 'directory_season', 'filename_episode', 'jav_code', 'disc_structure', 'temporary_label'),
-    hintValue: text(), evidenceDigest: digest() }), 256), metadataDigest: digest()
+    hintValue: text(), evidenceDigest: digest() }), maxHints), metadataDigest: digest()
 }, ['claimedTitle', 'contentProfileHint', 'sourceHints', 'metadataDigest']);
 const triageRelatedReference = () => ref('RelatedMaterialReference');
 const triageUnit = () => {
-  const common = { unitId: digest(), mediaType: triageMediaType(), contentProfile: triageProfile(),
+  const common = { unitId: digest(), mediaType: triageMediaType(), contentProfile: enumText('movie', 'jav', 'western_adult'),
     structureKind: enumText('single', 'season'), displayIdentity: text(), identityMetadata: triageIdentityMetadata(),
     seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64), seasonContinuityClaimSetDigest: digest(),
     relatedScope: object({ scopeKind: enumText('ordinary_parent', 'bdmv_external_parent'), parentRelativeLocation: text(), stemKey: text(),
@@ -213,7 +213,11 @@ const triageUnit = () => {
     selectedPayloadSetDigest: digest() });
   return { oneOf: [
     object({ ...common, members: { ...arrayOf(member, PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 } }),
-    object({ ...common, memberScope: scope })
+    object({ ...common, memberScope: scope }),
+    object({ recordKind:{ const:'series_unit' }, procurementRunId:id(), runBasisDigest:digest(), selectionDigest:digest(),
+      triageRuleAuthorityDigest:digest(), structureInputDigest:digest(), pageMaxUnits:{ type:'integer', minimum:1, maximum:100 },
+      unitId:digest(), unitDigest:digest(), memberCount:{ type:'integer', minimum:1, maximum:1024 },
+      memberSetDigest:digest(), unitCanonicalBytes:{ type:'integer', minimum:1, maximum:8*1024*1024 } })
   ] };
 };
 
@@ -808,6 +812,13 @@ function buildResultTypeSchema(name, [base, fieldList]) {
     ...(base ? { 'x-helix-envelopeRef': typeId(base) } : {}),
     ...object(properties, required)
   };
+  if (['IdentityClaim','CandidatePackage'].includes(name)) {
+    if (name === 'IdentityClaim') result.properties.sourceHints = triageIdentityMetadata(16384).properties.sourceHints;
+    else result.properties.identityMetadata = triageIdentityMetadata(16384);
+    result.allOf = [{ if:{ properties:{ contentProfile:{ const:'series' } } }, then:{},
+      else:{ properties:name === 'IdentityClaim' ? { sourceHints:{ maxItems:256 } } :
+        { identityMetadata:{ properties:{ sourceHints:{ maxItems:256 } } } } } }];
+  }
   if (name === 'ObservationPageCommitResult' || name === 'ObservationPageCommitReceipt') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
   if (name === 'BdmvAssessmentEvidence') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
   if (['FinalProductVerification','FulfillmentVerification'].includes(name)) result['x-helix-maxCanonicalBytes']=8*1024*1024;

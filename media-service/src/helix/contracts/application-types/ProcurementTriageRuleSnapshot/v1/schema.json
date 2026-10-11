@@ -99,10 +99,14 @@
           "properties": {
             "maxUnitCanonicalBytes": {
               "const": 65536
+            },
+            "maxSeriesUnitCanonicalBytes": {
+              "const": 8388608
             }
           },
           "required": [
-            "maxUnitCanonicalBytes"
+            "maxUnitCanonicalBytes",
+            "maxSeriesUnitCanonicalBytes"
           ]
         },
         "identityRule": {

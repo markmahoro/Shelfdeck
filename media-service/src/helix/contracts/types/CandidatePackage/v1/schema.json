@@ -239,7 +239,7 @@
               "evidenceDigest"
             ]
           },
-          "maxItems": 256
+          "maxItems": 16384
         },
         "metadataDigest": {
           "type": "string",
@@ -385,5 +385,28 @@
     "relatedDispositionScopeDigest",
     "memberControlEvidenceSetDigest",
     "packageDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "contentProfile": {
+            "const": "series"
+          }
+        }
+      },
+      "then": {},
+      "else": {
+        "properties": {
+          "identityMetadata": {
+            "properties": {
+              "sourceHints": {
+                "maxItems": 256
+              }
+            }
+          }
+        }
+      }
+    }
   ]
 }

@@ -30,7 +30,7 @@ const TRIAGE_PAYLOAD = Object.freeze({
     reasonPrecedence:Object.freeze(['probe_not_media','no_video_stream','non_positive_duration']) }),
   profileResolutionRule: Object.freeze({ mixedPrecedence:Object.freeze(['series_episode_token','jav_code','movie_fallback']),
     westernAdultRequiresExplicitHint:true }),
-  structureRule: Object.freeze({ maxUnitCanonicalBytes:65536 }),
+  structureRule: Object.freeze({ maxUnitCanonicalBytes:65536, maxSeriesUnitCanonicalBytes:8*1024*1024 }),
   identityRule: Object.freeze({ claimKinds:Object.freeze(['movie_title','series_season','jav_code','western_temporary']) }),
   manifestRule: Object.freeze({ minimumMembers:1, maximumMembers:MAX_RUN_PHYSICAL_MEMBERS, firstOrdinal:0 })
 });

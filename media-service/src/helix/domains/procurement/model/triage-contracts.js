@@ -595,7 +595,9 @@ function dvdUnitFor(group, topology, contexts, selectionScope, fieldContext, pro
 }
 
 function conserveUnitBound(unit, unassigned) {
-  if (Buffer.byteLength(canonicalJson(unit), 'utf8') <= 65536) return true;
+  const limit = unit.contentProfile === 'series' ? 8 * 1024 * 1024 : 65536;
+  if (Buffer.byteLength(canonicalJson(unit), 'utf8') <= limit &&
+      (!unit.members || unit.members.length <= MAX_RUN_PHYSICAL_MEMBERS)) return true;
   if (!Array.isArray(unit.members)) return false;
   for (const member of unit.members) {
     unassigned.push({
@@ -675,7 +677,7 @@ function mergeSeriesUnits(groups, unassigned) {
   return merged;
 }
 
-function inspectStructure(input, rule, options = {}) {
+function inspectStructureUnits(input, rule) {
   validateTriageRuleSnapshot(rule); validateStructureInput(input);
   const layoutEvidence = observationScopeLayoutEvidence(input);
   const selection = input.selectedFieldMaterialSet;
@@ -865,6 +867,27 @@ function inspectStructure(input, rule, options = {}) {
   }
   units.push(...mergeSeriesUnits(seriesGroups, unassigned));
   units.sort((a,b) => compareUtf8(a.unitId,b.unitId)); unassigned.sort((a,b) => compareUtf8(a.materialKey,b.materialKey));
+  return { units, unassigned };
+}
+
+function seriesUnitRecord(unit, input, rule) {
+  return freeze({ recordKind:'series_unit', procurementRunId:input.selectedFieldMaterialSet.procurementRunId,
+    runBasisDigest:input.probeBatches[0].runBasisDigest, selectionDigest:input.selectedFieldMaterialSet.selectionDigest,
+    triageRuleAuthorityDigest:rule.authorityDigest, structureInputDigest:input.inputDigest,
+    pageMaxUnits:input.pageRequest.maxUnits, unitId:unit.unitId, unitDigest:unit.unitDigest,
+    memberCount:unit.members.length,
+    memberSetDigest:digest({ schema:'procurement.series-unit-members@1', items:unit.members }),
+    unitCanonicalBytes:Buffer.byteLength(canonicalJson(unit)) });
+}
+
+function inspectStructure(input, rule, options = {}) {
+  return structurePage(input, rule, options, inspectStructureUnits(input, rule));
+}
+
+function structurePage(input, rule, options, model) {
+  const selection = input.selectedFieldMaterialSet;
+  const units = model.units.map((unit) => unit.contentProfile === 'series' ? seriesUnitRecord(unit, input, rule) : unit);
+  const unassigned = model.unassigned;
   const cursor = input.pageRequest.cursorIn;
   let cursorKind = 'units'; let offset = 0;
   // If a page has no candidate Units at all, expose the terminal business
@@ -928,6 +951,15 @@ function inspectStructure(input, rule, options = {}) {
   return freeze(value);
 }
 
+function reconstructStructureUnits(structure, input, rule) {
+  const model = inspectStructureUnits(input, rule);
+  const expected = structurePage(input, rule, { observedAtMs:structure.observedAtMs }, model);
+  if (canonicalJson(expected) !== canonicalJson(structure))
+    fail('P7_TRIAGE_UNIT_RECORD_DRIFT', 'Structure Unit Records do not match the complete frozen input and page.');
+  const byId = new Map(model.units.map((unit) => [unit.unitId, unit]));
+  return freeze(structure.units.map((record) => byId.get(record.unitId)));
+}
+
 function resolveIdentity(input, rule, options = {}) {
   validateTriageRuleSnapshot(rule); const unit = input.unit; const metadata = unit.identityMetadata;
   const payload = { claimKind:CLAIM_KIND[unit.contentProfile], mediaType:unit.mediaType, contentProfile:unit.contentProfile,
@@ -983,7 +1015,7 @@ function reconstructPrimaryManifestDraft(record, input, rule) {
   return buildPrimaryManifestDraft(input, rule, { producedAtMs:record.producedAtMs });
 }
 
-module.exports = Object.freeze({ buildPrimaryManifestDraftRecord, reconstructPrimaryManifestDraft,
+module.exports = Object.freeze({ buildPrimaryManifestDraftRecord, reconstructPrimaryManifestDraft, reconstructStructureUnits,
   CLAIM_KIND, PLAYABILITY_REASONS, STRUCTURE_REASONS, MATERIAL_INPUT_FORMS, RELATED_RULE_REVISION,
   ProcurementTriageError, relatedScopeFor, materialInputFormFromProbe, isProvenIsoTopology,
   buildPrimaryManifestDraft, inspectPlayability, inspectStructure, resolveIdentity });

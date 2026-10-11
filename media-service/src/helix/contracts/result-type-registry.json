@@ -238,7 +238,7 @@
       "relativePath": "types/CandidatePackage/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "983496726dce372961260be96ea22eb961ff6eef7c7e12c81c64df6870444cbf"
+        "value": "a31d17bd221d63c4a8d5d0a4ddc63497061b5c7d177b01b9d1f37e269beb12ef"
       },
       "source": {
         "section": "8.6.19",
@@ -538,7 +538,7 @@
       "relativePath": "types/IdentityClaim/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "844eb52be271c89477548adb3aa7b510e557f189f391c3de4cd64c10b85a162b"
+        "value": "876644c0c2e049d71539d7d5ad1f21a178ad1e9d934a249931c0e3784936e923"
       },
       "source": {
         "section": "8.6.19",
@@ -1666,12 +1666,12 @@
       "relativePath": "types/TriageStructureEvidence/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "241145f1fcac8747442149646223c68fbddfd37a212a3737504a780aaf3d3847"
+        "value": "0968a01a0541bd7976cf7c7a4033f542d0028cd8e2f444cff3bd13a96b0b24ba"
       },
       "source": {
         "section": "8.6.19",
         "line": 11082,
-        "lineDigest": "eb94ba2e1e4af524bed1c65d1b79d42c20cdf3ca341a75958dadae3c65dcd5e8"
+        "lineDigest": "c5fe99c3a0be479ddc8ebd6d680105a1592cae9cbf7d2c4cae405d087b1d9e0d"
       }
     },
     {

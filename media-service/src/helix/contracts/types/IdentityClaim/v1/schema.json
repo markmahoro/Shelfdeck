@@ -158,7 +158,7 @@
           "evidenceDigest"
         ]
       },
-      "maxItems": 256
+      "maxItems": 16384
     },
     "claimDigest": {
       "type": "string",
@@ -183,5 +183,24 @@
     "structureUnitDigest",
     "sourceHints",
     "claimDigest"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "contentProfile": {
+            "const": "series"
+          }
+        }
+      },
+      "then": {},
+      "else": {
+        "properties": {
+          "sourceHints": {
+            "maxItems": 256
+          }
+        }
+      }
+    }
   ]
 }

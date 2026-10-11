@@ -75,7 +75,8 @@ function createExecutionRegistration() {
       const triageReader = createProcurementRunTriageReader(options);
       const triageRuleRegistry = options.triageRegistry || createDefaultTriageRuleRegistry();
       const workResultReader = options.workResultReader;
-      const evidenceIndex = options.evidenceIndex || createTriageEvidenceIndex({ workResultReader });
+      const evidenceIndex = options.evidenceIndex || createTriageEvidenceIndex({ workResultReader, triageRuleRegistry,
+        structureInputProjection:createStructureInputProjection({ triageReader }) });
       const candidateContextReader = options.candidateContextReader || createProcurementCandidateContextReader({
         triageReader, evidenceIndex, triageRuleRegistry,
       });
@@ -108,7 +109,8 @@ function createExecutionRegistration() {
     createPlanningRegistration(options) {
       const { registry, policyRegistry, contractValidator, progressReader, triageReader,
         triageRuleRegistry, workResultReader, materialFieldStore, now } = options;
-      const evidenceIndex = options.evidenceIndex || createTriageEvidenceIndex({ workResultReader });
+      const evidenceIndex = options.evidenceIndex || createTriageEvidenceIndex({ workResultReader, triageRuleRegistry,
+        structureInputProjection:createStructureInputProjection({ triageReader }) });
       const candidateContextReader = options.candidateContextReader || createProcurementCandidateContextReader({
         triageReader, evidenceIndex, triageRuleRegistry,
       });
