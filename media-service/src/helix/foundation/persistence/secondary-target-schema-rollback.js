@@ -1,8 +1,11 @@
 'use strict';
 
 const { digest } = require('./ddl-compiler');
-const { TARGET_GENERATION, TARGET_SCHEMA_DIGEST, PRE_SECONDARY_TARGET_SCHEMA_DIGEST } =
+const { TARGET_GENERATION, PRE_SECONDARY_TARGET_SCHEMA_DIGEST } =
   require('./uat-identity-selection-migration');
+// This recovery tool only reverses the historical 197-table enum change.
+// Later migrations must never widen its accepted source schema.
+const SECONDARY_TARGET_SCHEMA_DIGEST = '14c18e017bfce8b78230d0509be1c46fb11c0da95a240396628173a9e71bed73';
 
 function requireProof(value, code) {
   if (!value) throw Object.assign(new Error(code), { code });
@@ -42,7 +45,7 @@ function rollbackSecondaryTargetSchema({ Database, databasePath, baselinePath, a
     const old = oldMarkers[0], current = newMarkers[0];
     requireProof(oldMarkers.length === 1 && newMarkers.length === 1 && old.schema_name === 'shelfdeck' &&
       current.schema_name === old.schema_name && old.generation === TARGET_GENERATION && current.generation === TARGET_GENERATION &&
-      old.schema_digest === PRE_SECONDARY_TARGET_SCHEMA_DIGEST && current.schema_digest === TARGET_SCHEMA_DIGEST,
+      old.schema_digest === PRE_SECONDARY_TARGET_SCHEMA_DIGEST && current.schema_digest === SECONDARY_TARGET_SCHEMA_DIGEST,
     'UAT_ROLLBACK_EXACT_SCHEMA_REQUIRED');
     const before = catalog(baseline), upgraded = catalog(database);
     requireProof(digest(before) === old.catalog_digest && digest(upgraded) === current.catalog_digest,
@@ -81,4 +84,4 @@ function rollbackSecondaryTargetSchema({ Database, databasePath, baselinePath, a
   }
 }
 
-module.exports = Object.freeze({ rollbackSecondaryTargetSchema });
+module.exports = Object.freeze({ rollbackSecondaryTargetSchema, SECONDARY_TARGET_SCHEMA_DIGEST });
