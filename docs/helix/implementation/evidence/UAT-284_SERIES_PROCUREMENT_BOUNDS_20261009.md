@@ -30,3 +30,5 @@
 日志保存在仓库外E:/my_project/shelfdeck-series-local-preview-20261008/uat284-*。最终Windows fixture为临时目录helix-series-routing-F8NtxJ，Linux fixture为容器shelfdeck-uat284-rebuild-20261011中的/tmp/helix-series-routing-zVbfxQ；均保留供核对。未更改UI，无Desktop/Web构建要求。
 
 13:24本地18081仍为81a5a2e41，人世间transcode执行中，Arca Commit仍0；未加载本轮及301/302代码。UAT-304停机缺口尚未修复，未主动重启、Reset、重扫或操作NAS。UAT-284本次合同实现及隔离封包通过，但原三国95成员的新现场封包仍待验，保留开放。
+
+2026-10-11 13:44用户要求加载新代码并明确本地Series无需等待安全退出窗口。精确终止旧服务及子进程后保存停机数据库快照，18081已以5c3effc20/PID41120启动，health正常且normalSupplyAllowed=true；人世间transcode与新FFmpeg进程恢复，历史失败计数未增加。加载前后只读采样为仓库外pre-fast-reload-20261011.log、post-fast-reload-ready-20261011.log，运行日志series-fast-20261011.stdout/stderr.log。未Reset、重扫或操作NAS；正常stop缺口仍由UAT-304独立跟进，不以强制终止方式恢复来关闭它。

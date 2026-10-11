@@ -325,9 +325,9 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 
 | UAT-300 | On-deck Commit准备Control Query超过500项 | ARCA / CONTROL_QUERY_BATCHES | 已修复：双平台完整Host通过，现场待验 | 77集结算231项与Fulfillment已成功，最终Commit查询失败 | 双平台各21项专项及77集混合来源完整Commit通过 | [Evidence](implementation/evidence/UAT-300_ARCA_CONTROL_QUERY_BATCHES_20261009.md) | 普通查询仍每批500，完整Control转移仍原子提交；不提高限额、不Reset。 |
 
-| UAT-301 | Series逐集生产反复解析同一整季Handoff A，读取开销随成员放大 | LIBRA / PERFORMANCE | 已修复：双平台完整Host通过，现场加载待验 | 17集CPU profile与Reader逐成员重复读取证据 | 17集Reader CPU9.01秒至0.84秒、双平台77集Commit及负向通过 | [Evidence](implementation/evidence/UAT-301_SERIES_HANDOFF_READ_COST_20261011.md) | 单次事务复用，所有成员校验保持；Arca结算性能独立核对，不宣称整体提速已完成。 |
+| UAT-301 | Series逐集生产反复解析同一整季Handoff A，读取开销随成员放大 | LIBRA / PERFORMANCE | 已修复：双平台完整Host通过，已加载本地/现场完整入藏待验 | 17集CPU profile与Reader逐成员重复读取证据 | 17集Reader CPU9.01秒至0.84秒、双平台77集Commit及负向通过 | [Evidence](implementation/evidence/UAT-301_SERIES_HANDOFF_READ_COST_20261011.md) | 单次事务复用，所有成员校验保持；Arca结算性能独立核对，不宣称整体提速已完成。 |
 
-| UAT-302 | 整季来源结算审批逐成员重读完整交付包 | ARCA / PERFORMANCE | 已修复：双平台完整Host通过，现场加载待验 | 77集结算CPU profile及同步审批循环重复读取 | 8项精确审批/撤销/Basis专项及双平台77集Commit通过 | [Evidence](implementation/evidence/UAT-302_SETTLEMENT_APPROVAL_READ_COST_20261011.md) | 同轮复用已验证Context，实际删除仍重新核验逐文件授权与Fence；不更改来源删除范围。 |
+| UAT-302 | 整季来源结算审批逐成员重读完整交付包 | ARCA / PERFORMANCE | 已修复：双平台完整Host通过，已加载本地/现场完整入藏待验 | 77集结算CPU profile及同步审批循环重复读取 | 8项精确审批/撤销/Basis专项及双平台77集Commit通过 | [Evidence](implementation/evidence/UAT-302_SETTLEMENT_APPROVAL_READ_COST_20261011.md) | 同轮复用已验证Context，实际删除仍重新核验逐文件授权与Fence；不更改来源删除范围。 |
 
 | UAT-303 | 历史secondary_target回退工具目标Schema随当前版本漂移 | RECOVERY_TOOLING | 关闭：限定历史离线范围双平台验收通过 | Service回归暴露伪旧库fixture及工具动态目标漂移 | 双平台各5项、Service599通过/0失败/27skip、边界27项通过 | [Evidence](implementation/evidence/UAT-303_HISTORICAL_ROLLBACK_SCOPE_20261011.md) | 固定原197表版本，当前Series不得使用此旧回退；不关闭UAT-293，无现场数据操作。 |
 

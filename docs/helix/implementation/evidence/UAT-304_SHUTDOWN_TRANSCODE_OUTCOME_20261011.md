@@ -7,3 +7,5 @@
 这证明当前代码/底层进程行为存在缺口，不足以反推10月9日每一条历史FFmpeg失败的实际原因；历史stderr未持久化，不能补造证据。现场人世间仍在转码，未为加载UAT-301/302主动重启，也未Reset或重写失败历史。
 
 状态开放，尚未实施。修复须在现有Runtime/Effect恢复合同内先停供给并处理safe checkpoint，不能把intentional stop改称另一种业务失败或放宽60秒预算，也不能让子进程成为孤儿。验收应覆盖Windows/Linux实际子进程、期限内排空、超时退出、未决Effect保留和重启幂等，独立于UAT-299的Discard Evidence容量修复。
+
+2026-10-11 13:44用户要求加载新代码并明确本地Series无需等待安全退出窗口。精确终止旧服务及子进程后保存停机数据库快照，18081已以5c3effc20/PID41120启动，health正常且normalSupplyAllowed=true；人世间transcode与新FFmpeg进程恢复，历史失败计数未增加。加载前后只读采样为仓库外pre-fast-reload-20261011.log、post-fast-reload-ready-20261011.log，运行日志series-fast-20261011.stdout/stderr.log。未Reset、重扫或操作NAS；正常stop缺口仍由UAT-304独立跟进，不以强制终止方式恢复来关闭它。

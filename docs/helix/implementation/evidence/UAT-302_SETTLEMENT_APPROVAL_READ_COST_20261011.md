@@ -15,3 +15,5 @@
 2026-10-11最终组合代码761c5e98a完整77集混合NFO/Provider Host双平台通过：Windows984.83秒，Linux1302.94秒（容器exit0），231项来源结算、Fulfillment及On-deck Commit完成。Linux Stage208536字节、Final175314/159436字节，Foundation结果仍有界；232条metadata observation、show request1次。日志uat302-windows-final-77.log和uat302-linux-final-77.log均在仓库外预览目录，Linux fixture保留于已停止容器/tmp/helix-series-routing-AStqWb。这是实际Host/文件系统加受控Provider/mediaProbe场景，不代表真实77集FFmpeg或现场上架验收；未构建新发布镜像，Linux以现有测试镜像挂载当前src/test/scripts。
 
 现场18081仍为81a5a2e41，已加载UAT-300但未加载UAT-301/302，真实转码继续。UAT-304停机缺口另行开放，未主动重启、Reset或操作NAS；本项不作为整体Series发布关闭依据。无UI变化，无Desktop构建要求。
+
+2026-10-11 13:44用户要求加载新代码并明确本地Series无需等待安全退出窗口。精确终止旧服务及子进程后保存停机数据库快照，18081已以5c3effc20/PID41120启动，health正常且normalSupplyAllowed=true；人世间transcode与新FFmpeg进程恢复，历史失败计数未增加。加载前后只读采样为仓库外pre-fast-reload-20261011.log、post-fast-reload-ready-20261011.log，运行日志series-fast-20261011.stdout/stderr.log。未Reset、重扫或操作NAS；正常stop缺口仍由UAT-304独立跟进，不以强制终止方式恢复来关闭它。
