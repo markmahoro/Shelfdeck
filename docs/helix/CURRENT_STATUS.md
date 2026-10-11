@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-11 19:31：UAT-306 Series自动观察修复`525469601`已部署本地18081/PID8704，health正常。Windows相关15项、双平台95集无手动扫描Host通过；国产剧总目录自动扫描成功，发现4955文件，自动建立2个Procurement Run，共1642 Material/40 Scope。后续封包与整理仍运行中，不声明全部上架完成。用户明确无需历史条目兼容或防重复处理；本次无兼容代码、无Reset、无NAS部署。UAT-306按自身条件关闭，UAT-304/305仍开放。详见[Evidence](implementation/evidence/UAT-306_SERIES_AUTO_OBSERVATION_20261011.md)。
+
 2026-10-11 13:44：用户明确Series本地开发快速迭代，无需等待安全退出窗口，已记录CURRENT_PLAN持续授权。核对PID及18081监听后直接终止旧18116及FFmpeg子进程，停机SQLite backup SHA256为35ce7bd9760b70a79c186a4fb88388bf15bdbcdc8c7c497f580e518965bd8483。以5c3effc200b194d5b4a41d67a6dbef01dd612fb8启动PID41120，已加载UAT-284及301/302；health ok/normalSupplyAllowed=true，人世间恢复transcode且新FFmpeg进程34616已启动。失败计数保持FFmpeg3/Provider Transport3/Network1/Timeout15，Run6、Commit0，未Reset/重扫/NAS部署。UAT-304正常停机缺口和UAT-305架构门禁仍开放，强制中断恢复不等于这两项已修复。
 
 2026-10-11 13:24：用户确认UAT-284的Series Unit方案后已提交c60427d93，实现SSOT/typed合同/Owner重建，双平台95文件隔离Host各发布一个Season Candidate，完整Unit67785字节、Foundation Structure2022字节，持久证据重建通过。1024成员及8 MiB边界、缺失/篡改拒绝通过；Windows P7/Schema186项、Service599通过/0失败/27skip，P2合同与语义扫描通过。Linux P7为156通过/1项缺Git的旧Exit审计环境失败，独立95文件Host通过，不计整套PASS。全仓package8项、manifest1项失败与修复前HEAD完全一致，另记UAT-305开放。原三国现场新封包仍待验；18081保持旧81a5a2e41及真实转码，不为加载修复重启，UAT-304仍开放。详见UAT-284 Evidence。
