@@ -65,9 +65,9 @@ function createHarness(overrides = {}) {
   });
 }
 
-test('first sweep issues Observation for active Movie Fields immediately, then waits 12 hours', () => {
+for (const contentProfileHint of ['movie', 'series']) test(`first sweep issues Observation for active ${contentProfileHint} Fields immediately, then waits 12 hours`, () => {
   const harness = createHarness({
-    fields: [field({ currentObservationRevision: 1 })],
+    fields: [field({ currentObservationRevision: 1, contentProfileHint })],
   });
   const first = harness.automation.listPage({ cursor: null, limit: 100 });
   assert.deepEqual(first.map((item) => item.cursor), ['field-a']);
@@ -86,7 +86,7 @@ test('first sweep issues Observation for active Movie Fields immediately, then w
 
 test('never-observed Fields still enter the first sweep while the 12-hour gate is closed', () => {
   const observed = field({ fieldId: 'field-old', currentObservationRevision: 2 });
-  const fresh = field({ fieldId: 'field-new' });
+  const fresh = field({ fieldId: 'field-new', contentProfileHint: 'series' });
   const harness = createHarness({ fields: [observed, fresh] });
   assert.deepEqual(harness.automation.listPage({ cursor: null, limit: 100 }).map((item) => item.cursor), ['field-new', 'field-old']);
   assert.deepEqual(harness.automation.listPage({ cursor: null, limit: 100 }).map((item) => item.cursor), ['field-new']);
@@ -153,15 +153,15 @@ test('a recent failed manual round also prevents automatic restart churn', () =>
   assert.equal(harness.issued.length,0);
 });
 
-test('deregistered and non-movie Fields are skipped', () => {
+test('deregistered and unsupported-profile Fields are skipped', () => {
   const harness = createHarness({
     fields: [
       field({ fieldId: 'gone', status: 'deregistered' }),
-      field({ fieldId: 'series', contentProfileHint: 'series' }),
+      field({ fieldId: 'unsupported', contentProfileHint: 'jav' }),
     ],
   });
   assert.equal(harness.automation.reconcile({ fieldId: 'gone' }).kind, 'not_active');
-  assert.equal(harness.automation.reconcile({ fieldId: 'series' }).kind, 'unsupported_profile');
+  assert.equal(harness.automation.reconcile({ fieldId: 'unsupported' }).kind, 'unsupported_profile');
   assert.equal(harness.issued.length, 0);
 });
 

@@ -334,3 +334,4 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 | UAT-304 | 正常停机先终止FFmpeg，可能写成正式加工失败 | RUNTIME / RECOVERY_CORRECTNESS | 开放：关闭链及现有进程测试已确认，待实现完整恢复修复 | 加载优化前的停机审查 | SSOT §10.1.5与Registry/Capability/Host关闭顺序冲突 | [Evidence](implementation/evidence/UAT-304_SHUTDOWN_TRANSCODE_OUTCOME_20261011.md) | 先停止供给，最多60秒checkpoint，未决Effect按恢复合同继续；不反推旧失败原因、不伪造终态。 |
 
 | UAT-305 | Series既有package与manifest架构扫描未通过 | ENGINEERING / ARCHITECTURE_GATES | 开放：修复前后同样8项导入及1项清单失败 | UAT-284实际仓库扫描，dc2dd653e归档对照 | P2合同通过不替代package/manifest门禁 | [Evidence](implementation/evidence/UAT-305_EXISTING_ARCHITECTURE_GATES_20261011.md) | 不放宽policy，不以Guard单元测试关闭；待实际依赖修复。 |
+| UAT-306 | Series Material Field 未自动扫描 | AUTOMATION | 修复已完成，待本地部署验收 | 国产剧总目录从未 Observation，自动化仍仅接受Movie | 扩展既有观察自动化至Movie/Series；无兼容代码 | [Evidence](implementation/evidence/UAT-306_SERIES_AUTO_OBSERVATION_20261011.md) | 双平台自动扫描封包及本地总目录验证。 |

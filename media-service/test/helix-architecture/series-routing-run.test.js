@@ -538,7 +538,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   if(browserJourney) {
     await browserFlow.routeAndScan();
     assert.equal((await request('GET','/v1/admin/material-fields')).json().items.find(item=>item.fieldId===sourceFieldId).currentProfileHintSnapshot.contentProfileHint,'series');
-  } else await request('POST','/v1/admin/material-fields/series-field/actions/observe',{
+  } else if(!procurementOnly) await request('POST','/v1/admin/material-fields/series-field/actions/observe',{
     idempotencyKey:'series-observe',fieldId:'series-field',expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
   if(concurrent)await request('POST','/v1/admin/material-fields/series-field-2/actions/observe',{
     idempotencyKey:'series-observe-2',fieldId:'series-field-2',expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
