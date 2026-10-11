@@ -82,6 +82,52 @@ function fixture(count = 61) {
   return { context, responsibility, productMembers, offloadMembers, finalMembers };
 }
 
+test('UAT-302 approval reconciliation shares one current basis while preserving exact scopes and revocation', () => {
+  const { createOnDeckProcessCoordinator } = require('../../src/helix/domains/arca/application/on-deck-process-coordinator');
+  const value = fixture(231);
+  const verification = { schemaRef:'helix://contracts/types/FinalProductVerification/v1', result:'passed',
+    productManifestDigest:'product-manifest-1', verifiedMaterialKeys:value.productMembers.map(item => item.materialKey) };
+  let reads = 0, authorized = true, drift = false;
+  const issued = [];
+  const coordinator = createOnDeckProcessCoordinator({ schemaManifest,
+    unitOfWork:{ execute() { throw new Error('This test must not access unrelated persistence.'); } },
+    workResultReader:{
+      read:() => [{ capabilityRef:'arca.inventory.final_product.verify@1', outcomeKind:'succeeded', result:verification },
+        { capabilityRef:'arca.ondeck.input_settlement.delete@1', outcomeKind:'succeeded', result:{ materialKey:'source-0' } }],
+      readDefinition:() => ({ definition:{ dependencyRefs:[] } }),
+    },
+    contextReader:{
+      readAccepted() {
+        reads += 1;
+        if (drift) throw new Error('Accepted basis changed.');
+        return { ...value.context, responsibility:value.responsibility,
+          finalInventoryDecision:value.responsibility.finalInventoryDecision, verified:{ state:'offloading' } };
+      },
+      readSettlement() { throw new Error('Approval preparation must not reconstruct the entire package per member.'); },
+      settlementAuthorizations:{ current:() => ({ state:authorized ? 'enabled' : 'disabled', revision:1,
+        authorizationScopeKind:'old_primary_and_exclusive_related', authorizationDigest:canonicalDigest('grant') }) },
+      settlementApprovals:{ issue(scope) { issued.push(scope); } },
+    },
+  });
+  assert.deepEqual(coordinator.reconcileSettlementApprovals({ workId:'work-1', onDeckRunId:'run-1' }),
+    { kind:'approvals_ready', issued:230 });
+  assert.equal(reads, 1);
+  assert.equal(new Set(issued.map(item => item.approvalScopeDigest)).size, 230);
+  for (let index = 0; index < issued.length; index += 1) {
+    assert.equal(issued[index].members.length, 1);
+    assert.equal(issued[index].members[0].materialKey, 'source-' + (index + 1));
+    assert.equal(issued[index].members[0].finalMaterialKey, value.productMembers[index + 1].materialKey);
+    assert.equal(issued[index].members[0].finalProductVerificationDigest, canonicalDigest(verification));
+  }
+  authorized = false;
+  assert.deepEqual(coordinator.reconcileSettlementApprovals({ workId:'work-1', onDeckRunId:'run-1' }),
+    { kind:'awaiting_authorization', issued:0 });
+  assert.equal(reads, 2);
+  assert.equal(issued.length, 230);
+  drift = true;
+  assert.throws(() => coordinator.reconcileSettlementApprovals({ workId:'work-1', onDeckRunId:'run-1' }), /Accepted basis changed/);
+});
+
 test('UAT-111 bounds each On-deck Settlement context to one approved material without losing managed-path safety', () => {
   const value = fixture();
   const bounded = boundedSettlementContext(value.context, value.responsibility,

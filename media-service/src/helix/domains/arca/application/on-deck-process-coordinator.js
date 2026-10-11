@@ -4,6 +4,7 @@ const {resolveAcceptanceResult}=require('../persistence/acceptance-check-evidenc
 
 const {settlementHandles,isSettlementAuthorityUnavailable}=require('../model/input-settlement-scope');
 const {requiresInputSettlement}=require('../model/offload-settlement');
+const {boundedSettlementContext}=require('./on-deck-context-reader');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const { createAcceptanceRecoveryStore } = require('../persistence/acceptance-recovery-store');
@@ -307,11 +308,15 @@ function createOnDeckProcessCoordinator(options) {
     if(!verification)return {kind:'awaiting_final_verification'};
     const refs=refsFromWorkDefinition(workId),context=options.contextReader.readAccepted(onDeckRunId,refs);
     const authorization=options.contextReader.settlementAuthorizations.current();
+    // Approval reconciliation is synchronous and only writes approval rows.
+    // Reuse this verified basis within the pass; execution still reads a fresh
+    // bounded context and validates authority for each destructive Effect.
+    const responsibility={...context.responsibility,finalInventoryDecision:context.finalInventoryDecision};
     let issued=0;
     for(const member of context.packageValue.offloadContextManifest.members.filter(requiresInputSettlement)){
       if(results.some(row=>row.capabilityRef==='arca.ondeck.input_settlement.delete@1'&&row.outcomeKind==='succeeded'&&row.result?.materialKey===member.materialKey))continue;
       try{
-        const bounded=options.contextReader.readSettlement(onDeckRunId,refs,member.materialKey);
+        const bounded=boundedSettlementContext(context,responsibility,context.verified,member.materialKey);
         const scope=settlementHandles(bounded,member.materialKey,verification,authorization);
         options.contextReader.settlementApprovals.issue(scope,authorization);issued++;
       }catch(error){if(isSettlementAuthorityUnavailable(error))return {kind:'awaiting_authorization',issued};throw error;}

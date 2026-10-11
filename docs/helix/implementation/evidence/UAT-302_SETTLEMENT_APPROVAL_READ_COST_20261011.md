@@ -1,0 +1,11 @@
+# UAT-302：整季来源结算审批重复读取完整交付包
+
+2026-10-11接续UAT-298/300的77集混合来源耗时诊断。Windows基线81a5a2e41运行进入231项来源结算，25.18秒CPU采样中readSettlement占17.45秒，readOffer占16.27秒；其中reconcileSettlementApprovals占5.13秒。该同步循环已先readAccepted验证完整Context，却又为每个尚未结算成员调用readSettlement，重复读取及重建整季Package。
+
+修复只在Arca同轮同步审批准备内从已验证的完整Context逐成员派生boundedSettlementContext；复用已有精确映射函数，不缓存跨轮结果、不改变Libra Product Delivery public port。每个Approval仍绑定单一source、完整final mapping、Final Product Verification和当前Standing Authorization；下一轮重新readAccepted/current authorization。执行输入准备、资源需求和实际删除前的readSettlement及Fence保持。
+
+本轮函数只同步写Approval，不执行媒体Effect；审批写入不改变已冻结Package、接受Basis或Control。未新增所有权、权限或副作用合同。依据SSOT现有Handoff B、On-deck接受依据与Input Settlement Approval合同，属于实现性能修复。
+
+8项专项通过：231成员、已完成source跳过、230份唯一精确审批、第二轮撤销授权零新增、Basis变化拒绝，以及既有有界执行、N:M完整映射和缺失/歧义拒绝。Windows/Linux77集最终代码完整回归及Service回归继续。此前Windows基线和Linux仅UAT-301中间诊断已主动停止、保留日志，均不计完整PASS；最终独立容器为shelfdeck-uat302-final-77-20261011。
+
+本地18081仍运行81a5a2e41、未加载本次优化，保留真实转码；没有NAS部署或Reset。日志位于仓库外E:/my_project/shelfdeck-series-local-preview-20261008/uat302-*。

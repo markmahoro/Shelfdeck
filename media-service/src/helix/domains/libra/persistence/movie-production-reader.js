@@ -354,6 +354,10 @@ function createMovieProductionReader(options) {
       let candidatePackage = null;
       let candidatePrimaryInputManifest = null;
       let materialInputForm = null;
+      // Reuse immutable Handoff A values only within this read transaction.
+      // Every member still validates its own origin and Primary tuple below.
+      const intakesById = new Map();
+      const deliveriesByIntake = new Map();
       const mappedMembers = members.map((member) => {
         const memberClaims = claims
           .filter((claim) =>
@@ -377,9 +381,11 @@ function createMovieProductionReader(options) {
           fail('P14_MOVIE_PRODUCTION_EPISODE_DRIFT',
             'Run member Episode claims do not match the immutable Manifest.');
         }
-        const intake = repo.invoke('find_intake', {
-          intake_decision_id: member.origin_intake_decision_id,
-        });
+        const intakeId = member.origin_intake_decision_id;
+        if (!intakesById.has(intakeId)) intakesById.set(intakeId, repo.invoke('find_intake', {
+          intake_decision_id: intakeId,
+        }));
+        const intake = intakesById.get(intakeId);
         if (!intake || intake.decision_kind !== 'accepted_resolution' ||
             intake.target_subject_id !== run.subject_id ||
             intake.offer_id !== member.origin_offer_id ||
@@ -391,46 +397,50 @@ function createMovieProductionReader(options) {
           fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
             'Run input no longer matches its immutable accepted Handoff A snapshot.');
         }
-        const delivery = parse(
-          intake.candidate_delivery_snapshot_json,
-          'P14_MOVIE_PRODUCTION_HANDOFF_JSON',
-        );
-        if (delivery.deliverySnapshotDigest !==
-            intake.candidate_delivery_snapshot_digest) {
-          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
-            'Accepted Handoff A snapshot digest drifted.');
+        let delivery = deliveriesByIntake.get(intakeId);
+        if (!delivery) {
+          delivery = parse(
+            intake.candidate_delivery_snapshot_json,
+            'P14_MOVIE_PRODUCTION_HANDOFF_JSON',
+          );
+          if (delivery.deliverySnapshotDigest !==
+              intake.candidate_delivery_snapshot_digest) {
+            fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+              'Accepted Handoff A snapshot digest drifted.');
+          }
+          const identityClaim = delivery.candidatePackage?.identityClaim;
+          if (!identityClaim ||
+              delivery.candidatePackage.contentProfile !== spec.contentProfile ||
+              identityClaim.contentProfile !== spec.contentProfile) {
+            fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+              'Accepted Candidate identity is unavailable for Product preparation.');
+          }
+          if (candidateIdentityClaim &&
+              canonicalJson(candidateIdentityClaim) !== canonicalJson(identityClaim)) {
+            fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+              'Run members disagree on the accepted Candidate identity.');
+          }
+          candidateIdentityClaim = identityClaim;
+          if (candidatePackage &&
+              canonicalJson(candidatePackage) !== canonicalJson(delivery.candidatePackage)) {
+            fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+              'Run members disagree on the accepted Candidate Package.');
+          }
+          candidatePackage = delivery.candidatePackage;
+          if (candidatePrimaryInputManifest && canonicalJson(candidatePrimaryInputManifest) !==
+              canonicalJson(delivery.primaryInputManifest)) {
+            fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+              'Run members disagree on the accepted Primary Input Manifest.');
+          }
+          candidatePrimaryInputManifest = delivery.primaryInputManifest;
+          if (materialInputForm !== null &&
+              materialInputForm !== delivery.materialInputForm) {
+            fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
+              'Run members disagree on the accepted material input form.');
+          }
+          materialInputForm = delivery.materialInputForm;
+          deliveriesByIntake.set(intakeId, delivery);
         }
-        const identityClaim = delivery.candidatePackage?.identityClaim;
-        if (!identityClaim ||
-            delivery.candidatePackage.contentProfile !== spec.contentProfile ||
-            identityClaim.contentProfile !== spec.contentProfile) {
-          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
-            'Accepted Candidate identity is unavailable for Product preparation.');
-        }
-        if (candidateIdentityClaim &&
-            canonicalJson(candidateIdentityClaim) !== canonicalJson(identityClaim)) {
-          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
-            'Run members disagree on the accepted Candidate identity.');
-        }
-        candidateIdentityClaim = identityClaim;
-        if (candidatePackage &&
-            canonicalJson(candidatePackage) !== canonicalJson(delivery.candidatePackage)) {
-          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
-            'Run members disagree on the accepted Candidate Package.');
-        }
-        candidatePackage = delivery.candidatePackage;
-        if (candidatePrimaryInputManifest && canonicalJson(candidatePrimaryInputManifest) !==
-            canonicalJson(delivery.primaryInputManifest)) {
-          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
-            'Run members disagree on the accepted Primary Input Manifest.');
-        }
-        candidatePrimaryInputManifest = delivery.primaryInputManifest;
-        if (materialInputForm !== null &&
-            materialInputForm !== delivery.materialInputForm) {
-          fail('P14_MOVIE_PRODUCTION_HANDOFF_DRIFT',
-            'Run members disagree on the accepted material input form.');
-        }
-        materialInputForm = delivery.materialInputForm;
         const primary = delivery.primaryMaterialDeliveries.find((item) =>
           item.materialKey === member.material_key);
         const acceptedEpisodeClaims = (primary?.episodeClaims || [])

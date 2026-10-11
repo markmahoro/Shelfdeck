@@ -623,6 +623,54 @@ for(const {episodeCount,append,anchored,concurrent,bounded,shared,parts,mixed,re
   const sourceWork=state.works.find(work=>work.work_id.startsWith('libra-workspace-media-source_observation-work-'));
   assert.equal(sourceWork?.state,'succeeded',JSON.stringify(state.works));
   const sourceSnapshot=createMovieProductionReader({schemaManifest,unitOfWork}).readRunSnapshot(state.runs[0].libra_run_id);
+  if (episodeCount === 2 && !append && !anchored && !mixed && !bounded && !migrate && !repair && !multiSeason && !external && !real && !manualIdentity) {
+    let intakeReads = 0, mutation = null, firstIntake = null;
+    const observedUnitOfWork = { execute(participants) {
+      return unitOfWork.execute(participants.map(participant => ({ ...participant, execute(context) {
+        return participant.execute({ ...context, repository(id) {
+          const repository = context.repository(id);
+          return { invoke(statement, values) {
+            let result = statement === 'find_intake' && values.intake_decision_id === 'second-intake'
+              ? { ...firstIntake } : repository.invoke(statement, values);
+            if (statement === 'find_intake') {
+              intakeReads += 1;
+              firstIntake = result;
+              if (mutation === 'delivery') result = { ...result, candidate_delivery_snapshot_json:'{}' };
+              if (mutation === 'different-package' && values.intake_decision_id === 'second-intake') {
+                const delivery = JSON.parse(result.candidate_delivery_snapshot_json);
+                delivery.candidatePackage.displayIdentity = 'Different package';
+                result = { ...result, candidate_delivery_snapshot_json:JSON.stringify(delivery) };
+              }
+            }
+            if (statement === 'list_members' && ['different-intake', 'different-package'].includes(mutation)) result = result.map((row, index) =>
+              index === 1 ? { ...row, origin_intake_decision_id:'second-intake' } : row);
+            if (statement === 'list_members' && mutation === 'origin') result = result.map((row, index) =>
+              index === 1 ? { ...row, origin_offer_id:'foreign-offer' } : row);
+            if (statement === 'list_members' && mutation === 'primary') result = result.map((row, index) =>
+              index === 1 ? { ...row, location:'foreign-location' } : row);
+            return result;
+          } };
+        } });
+      } })));
+    } };
+    const reader = createMovieProductionReader({ schemaManifest, unitOfWork:observedUnitOfWork });
+    assert.deepEqual(reader.readRunSnapshot(state.runs[0].libra_run_id), sourceSnapshot);
+    assert.equal(intakeReads, 1, 'A shared accepted Handoff A is read once within one snapshot.');
+    reader.readRunSnapshot(state.runs[0].libra_run_id);
+    assert.equal(intakeReads, 2, 'A later snapshot must read current persisted facts again.');
+    mutation = 'origin';
+    assert.throws(() => reader.readRunSnapshot(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
+    mutation = 'primary';
+    assert.throws(() => reader.readRunSnapshot(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_PRIMARY_DRIFT' });
+    mutation = 'delivery';
+    assert.throws(() => reader.readRunSnapshot(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
+    mutation = 'different-intake';
+    intakeReads = 0;
+    reader.readRunSnapshot(state.runs[0].libra_run_id);
+    assert.equal(intakeReads, 2, 'Distinct Intake decisions must be read and compared independently.');
+    mutation = 'different-package';
+    assert.throws(() => reader.readRunSnapshot(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
+  }
   const directWork=state.works.find(work=>work.work_id.startsWith('libra-workspace-media-direct_selection-work-'));
   assert.equal(directWork?.state,'succeeded',JSON.stringify({works:state.works,events:db.prepare(
     'SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
