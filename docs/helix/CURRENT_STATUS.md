@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-12 17:08升级执行中：用户明确批准限定《万里归途》《周处除三害》《宇宙探索编辑部》《荒野猎人》四项旧未入藏进度Reset。17:00只停止生产ShelfDeck，停机标准plan ready=true且四Subject与授权完全一致，当前504 Entry/504 Commit保护；未Reset或加载新版。精确Workspace备份series-cab3e2d77-stopped完成7文件/7104409698字节逐文件SHA校验（另一Workspace不存在）；data/compose/secret停机备份05完整性及摘要校验运行中。在线只读备份方法在关闭WAL后报CANTOPEN，失败04副本保留，改为停机文件复制；未修补原库或绕过校验。
+
 2026-10-12 16:50：最后的Series UAT-307/310已由原大江大河33集新Run c884204c…正式Media Cast Fact验收关闭：67 Observation保留、63唯一relation、单份S3E001 NFO来源、Fact31550字节，34 NFO/海报及35 Artifact验证成功，失败0；原Run完整上架仍独立进行。UAT-311已按最终输入等价提速、双平台与原Artifact链路关闭，282–311本批Series问题各按自身Evidence收口。cab3e2d77最终镜像完整生产副本启动/退出正常；501 Entry、35946库存及501 Commit全量摘要一致，保留执行历史逐行一致，integrity=ok/FK=0。镜像构建、上传SHA256及dry run通过。生产仍旧镜像，未停服、Reset或升级；下一步仅待当前精确未完成Formation生产Reset授权及停机备份/标准升级。并行新增Movie外部BDMV问题不由此批Series关单代替。
 
 2026-10-12 16:22：UAT-311最终修正cab3e2d77已加载本地18081/PID28364，停机备份integrity=ok/FK=0。相同武林外传冻结NFO事件输入摘要保持，准备耗时1082–1277毫秒降至135–145毫秒；仅是局部测量。Windows34专项、双平台重复NFO/Commit/迁移及Service602通过/0失败/29skip通过。精确镜像已标准构建/上传checksum及dry run通过（SHA256 bfe6769dedae1699d24c5349d6b9077cb364091e1ac8c6f55f9ea98aff4e9aa0），生产副本完整Host验证进行中。原大江大河重试已完成来源观察、进入273成员/6范围封包Run，媒体probe 59成功/214等待资源，尚无原33集新Fact。情满四合院Libra完成但Arca仍在来源结算，不能称入藏完成。307/310/311开放；NAS未停服、Reset或升级。

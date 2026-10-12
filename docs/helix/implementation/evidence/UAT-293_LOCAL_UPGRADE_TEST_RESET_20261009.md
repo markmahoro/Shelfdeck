@@ -1,5 +1,7 @@
 # UAT-293：本地测试升级与旧执行历史
 
+2026-10-12用户对以下四项精确范围明确回复“同意清理这四项并继续升级”，生产Reset已授权。17:00停止ShelfDeck，停机标准plan四Subject一致、ready=true、blockers=[]；4 Run/4 Workspace/1 Package/59 Work。停机期间active Run由3变2，未扩大范围、无On-deck Custody。先完成完整停机备份后才可清理。Workspace备份在/vol2/1000/shelfdeck_transcode/.upgrade-backups/series-cab3e2d77-stopped，7文件/7104409698字节逐文件SHA校验一致，另一选中Workspace本就不存在，记录于receipt；旧失败备份仍保留。
+
 2026-10-12最终升级前范围快照（待生产Reset授权）：最终运行时候选cab3e2d77ac0b6506a268c97ac07af82f4442e49的完整生产副本已健康启动/退出，501 Entry/35946库存/501 Commit及保留执行历史逐行摘要全部一致，integrity=ok/FK=0，见UAT-311最终Evidence。Series 282–311各自验收收口。生产仍旧镜像，当前只读504 Entry/504 Commit；未停服或Reset。
 
 16:52标准formation-reset-nas.js限定Subject dry run ready=true、blockers=[]：4 Subject/4 Run/4 Workspace/1 Package/59 Work、3 active Run，无Custody/On-deck Run。原视频4份均存在、大小及middle-256k-sha256指纹匹配。精确范围如下，超出范围不得顺便清理；停机后若状态或保护条件变化须重新核对，已Commit条目不得Reset。
