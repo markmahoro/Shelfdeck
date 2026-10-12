@@ -1,5 +1,18 @@
 # UAT-293：本地测试升级与旧执行历史
 
+2026-10-12最终升级前范围快照（待生产Reset授权）：最终运行时候选cab3e2d77ac0b6506a268c97ac07af82f4442e49的完整生产副本已健康启动/退出，501 Entry/35946库存/501 Commit及保留执行历史逐行摘要全部一致，integrity=ok/FK=0，见UAT-311最终Evidence。Series 282–311各自验收收口。生产仍旧镜像，当前只读504 Entry/504 Commit；未停服或Reset。
+
+16:52标准formation-reset-nas.js限定Subject dry run ready=true、blockers=[]：4 Subject/4 Run/4 Workspace/1 Package/59 Work、3 active Run，无Custody/On-deck Run。原视频4份均存在、大小及middle-256k-sha256指纹匹配。精确范围如下，超出范围不得顺便清理；停机后若状态或保护条件变化须重新核对，已Commit条目不得Reset。
+
+| 影片 | Subject | Run |
+| --- | --- | --- |
+| 万里归途 (2022) | libra-subject-730a1c447d3611d741eb1f2f5b08d2f1c321e9fa | 75ee492d1683cd5f23310ea656859c7d914757351c99017d2d2becb4199bb637 |
+| 周处除三害 (2023) | libra-subject-5be6f6fa5147fa48aedd75a42510d7a20ee984bd | 8cce3846b118f4478e9d9c4fb3f3ac09e1344757d7e99c565ea423e924fea1fe |
+| 宇宙探索编辑部 (2023) | libra-subject-2fc92f8ec9b373d03b1ecec2c81115dd1f14d43a | ee2dae01eff61468e247e5069c2b8f4f6316005d5086c19a54cbafa165ff1c08 |
+| 荒野猎人 (2015)，discarded后未入藏Package残留 | libra-subject-57388a3c67c37a8a602da0d38dacfbc7708930c3 | a27d58abc2a26ef904f04bbfeca8a75662299c5845dce11dda48acfe13f44af0 |
+
+本次清理会丢弃上述未完成加工进度；保护所有已Commit收藏、原片、范围外流程和外部Landing成果。用户确认后方可执行：停止ShelfDeck、完整data/compose/secret和精确Workspace新备份及校验、限定Reset并keep-stopped、标准deploy-nas.js使用已验SHA的cab3e2d77镜像升级。旧不完整Workspace备份不能用作回退依据；回退必须恢复停机数据及对应Workspace，不能让旧镜像直接读取新版库。当前请求的是生产数据清理授权，既有升级授权持续有效。
+
 2026-10-12收口：精确候选d6097265e以backup03完整副本完成正式限定Reset、Schema迁移、完整Host健康启动及保留历史逐行审计；同一backup03的新隔离副本rollback-original03用原生产镜像8e197b3c36完整Host健康启动，normalSupplyAllowed=true，正常退出（约23分钟）。备份SHA与原receipt一致。原镜像演练因生产物理目录只读挂载记录4项EROFS，故仅证明升级前备份恢复启动，不证明未完成任务恢复或新版数据可被旧镜像直接读取。冻结历史只读兼容缺陷按自身条件关闭；生产尚未升级，当前未完成Formation精确Reset授权、停服完整备份和其他Series UAT仍是发布前置条件。
 
 全量架构第二轮2489通过/2失败/12skip，依赖、语义、manifest扫描通过；两项均为新增SSOT说明插在历史表定义前，导致8个既有表合同来源行定位漂移。将新增说明移至SSOT末尾，保持既有合同定位不动并重新生成Source Map，相关P2/表合同/Source Map共9项通过。未更改表语义、DDL或Schema generation。完整日志保留为`uat293-architecture-v2.log`，定向修复日志`uat293-source-map-final.log`，不将失败的全量命令改记为PASS。
