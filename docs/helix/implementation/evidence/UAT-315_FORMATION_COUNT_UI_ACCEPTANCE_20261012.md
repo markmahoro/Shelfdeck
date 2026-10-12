@@ -33,3 +33,27 @@ Projection Source只读取本视图实际使用的active/frozen/suspended Run或
 未重新运行整个镜像专项或桌面构建；主任务的120通过/1既有live BDMV缺失skip不能替代本页实际性能验收。没有用本地fixture耗时声称生产提速或SLO通过。
 
 部署后由主任务只读复验active/completed/ended及页面刷新、分类数量、已结束历史，并采集完整HTTP/页面响应与health、NAS I/O表现；此前构建期间的I/O等待、health超时仍须独立解释。在这些证据取得前，不宣称生产计数已通过或整页延迟已解决，不重处理用户指定的失败媒体。
+
+## 生产只读复验：计数通过，性能仍开放
+
+2026-10-12 23:13–23:27（Asia/Shanghai），生产已由主任务按标准流程部署 `9478a4fc777f778bdc75ef8d2fa0a014ec852b3f`。UI负责人在真实Edge现有管理台会话执行reload、四个Tab及手动刷新，只操作读取入口；没有配置修改、评分、加急、放弃、重新整理、Reset或媒体动作。本项计数问题的生产UI接受条件通过，可由主任务独立收口UAT-315的计数结论；整页与Tab性能问题继续开放。
+
+浏览器收到的active/completed/ended多个同轮响应summary完全一致：`totalCount=510 / inProgressCount=7 / attentionRequiredCount=0 / completedCount=503 / endedCount=99`，Projection为ready。维护查询counts为completed56、ended31。现有页面合并维护条目后显示“全部696、整理中7、需要处理0、已结束689”，符合 `510+99+56+31=696`、`503+99+56+31=689` 及 `7+0+689=696`。不把维护数量遗漏造成的差额误判为Formation计数故障。
+
+整理中显示7个当前条目，三体、繁花、兰闺喜事未出现在活动行中；已结束列表仍能看到这三项正式历史及其它结果。四个Tab、刷新及reload中未复现旧section口径造成的7/10横跳。此前主任务观测5、随后正常任务进入成为7，与本轮稳定7不是同一事实时点，不据此判缺陷。真实页面保留九列与既有分类入口；需要处理0显示筛选空态，全部/已结束首屏25行、整理中7行；已逐张目检截图。
+
+下表为一次生产样本；“控件反馈”表示选中Tab、状态按钮与搜索输入可用的首次观测，“请求完成及结果观测”要求本次动作触发的formation/care请求均结束且当前分类可见行数匹配。两者包括浏览器控制通讯与采样开销，为观测上界，不是纯渲染性能指标。相同数量的旧行可能先于新响应保持显示，因此不将首次25行可见解释成新的服务器结果已经就绪。
+
+| 动作 | 控件反馈 | 请求完成及结果观测 | 浏览器HTTP请求耗时 |
+| --- | ---: | ---: | --- |
+| 需要处理 | 0.373s | 1.965s | active分类1.659s，care1.661s |
+| 已结束 | 0.305s | 7.604s | completed6.523s、ended7.180s、care7.414s |
+| 全部 | 0.301s | 3.602s | active0.982s、completed1.960s、ended2.520s、care3.350s |
+| 手动刷新全部 | 0.357s | 4.449s | active3.682s、completed4.074s、ended3.021s、care3.100s |
+| 整理中 | 0.309s | 0.986s | active分类0.673s、care0.674s |
+
+CDP还观测到正常后台刷新一轮active16.263s、completed18.924s、ended17.787s、care17.873s；本轮所获Formation请求范围0.641–18.924s，不能用某次低延迟关闭性能问题。证据表明等待包含真实HTTP请求耗时；未同时取NAS/服务端剖析，不能将其进一步武断归因前端、NAS I/O、数据库或单个模块。验收末尾独立公开GET `/v1/health` 为200/status=ok/normalSupplyAllowed=true；这一时点健康不抹去此前超时或长尾。
+
+证据目录为原审计目录下 `production-9478a4fc7/`。`production-browser-evidence.json` 保存5次动作及298条脱敏请求记录，SHA256 `9dbe1cd8e034a04922affab9e3d5efb098fb5162d7458b800e5b3e5f2926f5cd`；只保留path/query、GET、状态、时长、summary/counts/Projection及条目数，没有请求Header、Cookie、API key、响应正文或凭据文件内容。操作记录全部为GET。首次reload附近事件缓冲曾报告truncated，故不宣称捕获浏览器全部资源；其已配对API请求及后续游标连续采集可用于对应样本。
+
+截图 `01-attention.png`、`02-ended.png`、`03-all.png`、`04-refreshed.png`、`05-in-progress.png` 均为真实最大化视口约2552×1261。测量结束恢复进入时的“整理中”Tab并停止本任务的Network观测；没有关闭或更改用户其它浏览器页，也没有改动生产任务。本轮没有重新进行窄屏或性能SLO资格验收，先前隔离窄屏证据保持其原边界。后续查询性能修复若影响用户表面，需针对新版本重新验收，不能继承本版PASS。
