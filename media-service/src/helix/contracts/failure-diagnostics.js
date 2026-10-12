@@ -24,6 +24,13 @@ function failureDiagnostics(error) {
     result.truncated = names.length > 16 || names.some((name) => name.length > 192);
   }
   if (['json_request','image_request'].includes(details.stage)) result.stage = details.stage;
+  if (error?.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT') {
+    if (details.stage === 'playback_decode') result.stage = details.stage;
+    for (const key of ['elapsedMs','timeoutMs','stallTimeoutMs','stderrBytes']) {
+      if (Number.isSafeInteger(details[key]) && details[key] >= 0) result[key] = details[key];
+    }
+    if ([5,50,95].includes(details.samplePointPercent)) result.samplePointPercent = details.samplePointPercent;
+  }
   const code = details.networkCode || error?.cause?.code || error?.code;
   if (NETWORK_CODES.has(code)) result.networkCode = code;
   if (details.timeout === true) result.timeout = true;

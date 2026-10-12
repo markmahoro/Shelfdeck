@@ -128,8 +128,11 @@ function runProcess(executable, argv, timeoutMs, progress = null, control = {}) 
     const child = spawn(executable, progressArgv, { windowsHide:true, stdio:['ignore', progress?'pipe':'ignore', 'pipe'] });
     const chunks = []; let retained = 0; let total = 0; let timedOut = false; let cancelled = false; let settled = false;
     let progressBuffer='',durationBuffer='',lastReportedAt=0,lastOutTime='0',lastActivityAt=Date.now();
-    const boundedTimeout=Number.isSafeInteger(control.deadlineAtMs)
-      ?Math.min(timeoutMs,Math.max(1,control.deadlineAtMs-Date.now())):timeoutMs;
+    const startedAtMs=Date.now();
+    const remainingMs=Number.isSafeInteger(control.deadlineAtMs)
+      ?Math.max(1,control.deadlineAtMs-startedAtMs):timeoutMs;
+    const boundedTimeout=Math.min(timeoutMs,remainingMs);
+    let timeoutReason=remainingMs<timeoutMs?'event_deadline':'process_timeout';
     const stallTimeoutMs=Number.isSafeInteger(control.stallTimeoutMs)&&control.stallTimeoutMs>0
       ?control.stallTimeoutMs:LOCAL_MEDIA_STALL_TIMEOUT_MS;
     const stallEnabled=Boolean(progress)||Number.isSafeInteger(control.stallTimeoutMs);
@@ -137,6 +140,7 @@ function runProcess(executable, argv, timeoutMs, progress = null, control = {}) 
     const timer = setTimeout(() => { timedOut = true; child.kill('SIGKILL'); }, boundedTimeout);
     const stallWatch=stallEnabled?setInterval(()=>{
       if(settled||Date.now()-lastActivityAt<stallTimeoutMs)return;
+      if(!timedOut)timeoutReason='process_stall';
       timedOut=true;child.kill('SIGKILL');
     },Math.max(50,Math.min(5000,Math.floor(stallTimeoutMs/2)))):null;
     const fence=typeof control.shouldContinue==='function'?setInterval(()=>{try{if(control.shouldContinue()===false){cancelled=true;child.kill('SIGKILL');}}catch{cancelled=true;child.kill('SIGKILL');}},1000):null;
@@ -164,7 +168,11 @@ function runProcess(executable, argv, timeoutMs, progress = null, control = {}) 
       cleanup();
       const stderr = Buffer.concat(chunks).toString('utf8');
       if (control.processRegistry?.wasInterrupted(child)) return reject(Object.assign(new Error('Execution interrupted at the service shutdown boundary.'), {code:'P4_EXECUTION_SHUTDOWN_INTERRUPTED'}));
-      if (timedOut) return reject(Object.assign(new Error('FFmpeg timed out.'), { code:'LIBRA_MEDIA_FFMPEG_TIMEOUT' }));
+      if (timedOut) return reject(Object.assign(new Error('FFmpeg timed out.'), {
+        code:'LIBRA_MEDIA_FFMPEG_TIMEOUT', details:{ reasonCode:timeoutReason,
+          elapsedMs:Date.now()-startedAtMs, timeoutMs:boundedTimeout,
+          stallTimeoutMs, stderrBytes:total },
+      }));
       if (cancelled) return reject(Object.assign(new Error('FFmpeg stopped because its execution authority changed.'), { code:'LIBRA_MEDIA_FFMPEG_CANCELLED' }));
       if (code !== 0) return reject(Object.assign(new Error('FFmpeg failed.'), {
         code:'LIBRA_MEDIA_FFMPEG_FAILED', details:{ exitCode:code, stderr:stderr.slice(-8192) },
@@ -375,7 +383,10 @@ function createCleanMediaProductionEffectPort(options) {
       try{await runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-ss',seconds.toFixed(3),'-i',source,
         '-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000,null,
         {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});passed.push(point);}
-      catch(error){if(error?.code==='P4_EXECUTION_SHUTDOWN_INTERRUPTED'||error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT'||error?.code==='ENOENT'||error?.code==='EACCES')throw error;}
+      catch(error){
+        if(error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT')error.details={...error.details,stage:'playback_decode',samplePointPercent:point};
+        if(error?.code==='P4_EXECUTION_SHUTDOWN_INTERRUPTED'||error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT'||error?.code==='ENOENT'||error?.code==='EACCES')throw error;
+      }
     }
     return Object.freeze({samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),
       decodeDigest:canonicalDigest({schema:'libra.product-playback-decode@1',handleDigest:canonicalDigest(handle),points,passed})});

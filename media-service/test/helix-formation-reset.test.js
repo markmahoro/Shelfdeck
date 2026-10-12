@@ -370,6 +370,43 @@ test('explicit Subject scope clears only its pre-Subject Intake token and execut
   } finally { close(value); }
 });
 
+test('scoped Reset relinquishes only selected Work recovery probes without resolving incidents', () => {
+  const value = fixture('helix-reset-recovery-reservation');
+  try {
+    const target = seedSubjectRun(value.database, 'recovery-selected');
+    const other = seedSubjectRun(value.database, 'recovery-protected');
+    const selectedWork = seedExecution(value.database, 'libra', 'libra_run', target.runId, 'recovery-selected');
+    const protectedWork = seedExecution(value.database, 'libra', 'libra_run', other.runId, 'recovery-protected');
+    function seedRecovery(work, suffix) {
+      const circuitKey = 'owner/libra/test/' + suffix, incidentKey = canonicalDigest({incident:suffix});
+      const evidence = canonicalDigest({schema:'foundation.executor-incident-recovery-work@1',circuitKey,workId:work.workId});
+      value.database.prepare(`INSERT INTO fx_circuit_states
+        (circuit_key,state,reason_code,evidence_digest,opened_at_ms,reviewed_at_ms)
+        VALUES (?,'recovering','P5_PROVIDER_TRANSPORT_FAILED',?,1,2)`).run(circuitKey,evidence);
+      value.database.prepare(`INSERT INTO fx_executor_incidents
+        (incident_key,owner_domain,process_type,work_kind,error_code,occurrence_count,circuit_key,
+         incident_state,evidence_digest,first_seen_at_ms,last_seen_at_ms,resolved_at_ms)
+        VALUES (?,'libra','libra_run','test','P5_PROVIDER_TRANSPORT_FAILED',3,?,'recovering',?,1,2,NULL)`)
+        .run(incidentKey,circuitKey,DIGEST);
+      return {circuitKey,incidentKey};
+    }
+    const selected = seedRecovery(selectedWork, 'selected'), protectedScope = seedRecovery(protectedWork, 'protected');
+    const protectedCircuit = value.database.prepare('SELECT * FROM fx_circuit_states WHERE circuit_key=?').get(protectedScope.circuitKey);
+    const protectedIncident = value.database.prepare('SELECT * FROM fx_executor_incidents WHERE incident_key=?').get(protectedScope.incidentKey);
+    const result = applyReset({...value,transcodeDir:null,subjectIds:[target.subjectId],nowMs:5000});
+    assert.equal(result.verification.integrity, 'ok');
+    assert.equal(value.database.prepare('SELECT state FROM fx_circuit_states WHERE circuit_key=?').get(selected.circuitKey).state, 'open');
+    const incident = value.database.prepare('SELECT * FROM fx_executor_incidents WHERE incident_key=?').get(selected.incidentKey);
+    assert.equal(incident.incident_state, 'open');
+    assert.equal(incident.occurrence_count, 3);
+    assert.equal(incident.resolved_at_ms, null);
+    assert.deepEqual(value.database.prepare('SELECT * FROM fx_circuit_states WHERE circuit_key=?').get(protectedScope.circuitKey), protectedCircuit);
+    assert.deepEqual(value.database.prepare('SELECT * FROM fx_executor_incidents WHERE incident_key=?').get(protectedScope.incidentKey), protectedIncident);
+    applyReset({...value,transcodeDir:null,subjectIds:[target.subjectId],nowMs:5001});
+    assert.equal(value.database.prepare('SELECT last_seen_at_ms FROM fx_executor_incidents WHERE incident_key=?').get(selected.incidentKey).last_seen_at_ms, 5000);
+  } finally { close(value); }
+});
+
 test('explicit Subject scope removes its missing-Work admission receipt and preserves other orphan receipts', () => {
   const value = fixture('helix-scoped-phantom-intake');
   try {

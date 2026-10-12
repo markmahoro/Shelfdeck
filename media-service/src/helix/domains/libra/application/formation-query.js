@@ -527,8 +527,17 @@ function createFormationProjectionSource(options) {
     if (subjects.length > PAGE_SIZE) {
       return chunks(subjects, PAGE_SIZE).flatMap((batch) => buildBatch(batch, buildOptions));
     }
-    const value = readBatch(subjects), runIds = unique(value.runs.map((row) => row.libra_run_id));
-    const offerIds = unique(value.packages.map((row) => row.offer_id));
+    const value = readBatch(subjects);
+    // Only the active Run, or the latest completed Run, contributes to the
+    // current Formation view. Older Runs remain available in their history.
+    const currentRuns = new Map(subjects.map((subject) => {
+      const runs = value.runs.filter((row) => row.subject_id === subject.subject_id)
+        .sort((left, right) => Number(right.created_at_ms) - Number(left.created_at_ms));
+      const active = runs.find((row) => ['active', 'suspended', 'frozen'].includes(row.state));
+      return [subject.subject_id, active || (runs[0]?.state === 'completed' ? runs[0] : null)];
+    }));
+    const runIds = unique([...currentRuns.values()].filter(Boolean).map((row) => row.libra_run_id));
+    const offerIds = unique(value.packages.filter((row) => runIds.includes(row.libra_run_id)).map((row) => row.offer_id));
     const arcaStatuses = new Map(offerIds.length ? chunks(offerIds, 100).flatMap((ids) =>
       [...(options.readArcaFormationStatuses?.(ids) || new Map()).entries()]) : []);
     const onDeckRunIds = unique([...arcaStatuses.values()].map((item) => item.onDeckRunId).filter(Boolean));
@@ -801,9 +810,9 @@ function createFormationQuery(options) {
         recoveryState:value.recoveryState, recoveryGeneration:value.recoveryGeneration,
         automaticRecoveryUsed:value.automaticRecoveryUsed, canRetry:true, offerId:value.offerId }) });
   }
-  function currentFacts(items) {
+  function currentFacts(items, includeProcessSummary = true) {
     if (!options.detailSource?.getMany || !items.length) return items;
-    const read = options.detailSource.getManyWithProcessSummary || options.detailSource.getMany;
+    const read = (includeProcessSummary && options.detailSource.getManyWithProcessSummary) || options.detailSource.getMany;
     const fresh = new Map(read(items.map((item)=>item.subjectId)).map((item)=>[item.subjectId,item]));
     return items.map((item)=>{const value=fresh.get(item.subjectId);return value ? Object.freeze({ ...item, ...value }) : item;});
   }
@@ -837,7 +846,7 @@ function createFormationQuery(options) {
     }
     return hidden;
   }
-  function summary(classificationChanges = []) {
+  function summary(changes = [], activeChanges = null) {
     const result = { totalCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0,endedCount:options.historyStore?.count?.()||0 };
     for (const row of options.store.counts()) {
       const count = Number(row.row_count);
@@ -848,7 +857,11 @@ function createFormationQuery(options) {
     const hidden = countHiddenActive();
     result.inProgressCount = Math.max(0, result.inProgressCount - hidden.in_progress);
     result.attentionRequiredCount = Math.max(0, result.attentionRequiredCount - hidden.attention_required);
-    for (const change of classificationChanges) {
+    // Every section reports the same current active population. Page-local
+    // overlays must not resurrect terminal Runs when another section loads.
+    const currentChanges = activeChanges || activeSnapshot([], false).changes;
+    const mergedChanges = new Map([...currentChanges, ...changes].map((change)=>[change.subjectId,change]));
+    for (const change of mergedChanges.values()) {
       if (!change || change.from === change.to) continue;
       if (change.from === 'in_progress') result.inProgressCount -= 1;
       else if (change.from === 'attention_required') result.attentionRequiredCount -= 1;
@@ -865,6 +878,13 @@ function createFormationQuery(options) {
     return fresh.map((item)=>Object.freeze({ subjectId:item.subjectId, from:previous.get(item.subjectId),
       to:admitted && !isVisibleActiveItem(item, admitted) ? 'hidden' : item.classification }))
       .filter((item)=>item.from && item.to && item.from !== item.to);
+  }
+  function activeSnapshot(attention = [], includeProcessSummary = true) {
+    const admitted = options.readPipelineSubjectIds?.() || new Set();
+    const projected = mergeAttention(scanActiveRows(), attention).map(projectionItem)
+      .filter((item)=>isVisibleActiveItem(item, admitted));
+    const items = currentFacts(projected, includeProcessSummary).map(technicalIssue);
+    return { admitted, items, changes:classificationChanges(projected, items, admitted) };
   }
   function truthy(value) { return value === true || value === 1 || value === '1' || value === 'true'; }
   function activeFilters(query) {
@@ -963,10 +983,9 @@ function createFormationQuery(options) {
     let changes = [];
     const requiresFullScan = Boolean(options.readPipelineSubjectIds || options.detailSource?.getMany) || hasActiveFilters(filters) || attention.length > 0;
     if (requiresFullScan) {
-      const projected = mergeAttention(scanActiveRows(), attention).map(projectionItem)
-        .filter((item) => isVisibleActiveItem(item, admitted));
-      items = currentFacts(projected).map(technicalIssue);
-      changes = classificationChanges(projected, items, admitted);
+      const snapshot = activeSnapshot(attention);
+      items = snapshot.items;
+      changes = snapshot.changes;
       items = items.filter((item) => isVisibleActiveItem(item, admitted) && matchesActiveItem(item, filters));
     } else {
       const rows = options.store.listActive(offset, limit + 1);
@@ -975,7 +994,7 @@ function createFormationQuery(options) {
     const windowed = requiresFullScan ? items.slice(offset) : items;
     const hasMore = windowed.length > limit, selected = hasMore ? windowed.slice(0, limit) : windowed;
     const selectedWithCurrentFacts=requiresFullScan ? selected : currentFacts(selected);
-    return Object.freeze({ items: Object.freeze(currentProcessFacts(selectedWithCurrentFacts)), summary: summary(changes),
+    return Object.freeze({ items: Object.freeze(currentProcessFacts(selectedWithCurrentFacts)), summary: summary(changes, requiresFullScan ? changes : null),
       nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
   }
   function get(subjectId) {

@@ -36,6 +36,17 @@ test('failure evidence survives reopening and rejects corruption and path traver
   }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
+test('playback timeout diagnostics retain bounded timing and sample facts without process arguments',()=>{
+  const result=failureDiagnostics({code:'LIBRA_MEDIA_FFMPEG_TIMEOUT',details:{
+    reasonCode:'process_timeout',stage:'playback_decode',samplePointPercent:50,
+    elapsedMs:30021,timeoutMs:30000,stallTimeoutMs:600000,stderrBytes:42,
+    stderr:'SECRET',argv:['https://secret@host'],source:'/private/movie.mp4'}});
+  assert.deepEqual(result,{reasonCode:'process_timeout',stage:'playback_decode',elapsedMs:30021,
+    timeoutMs:30000,stallTimeoutMs:600000,stderrBytes:42,samplePointPercent:50});
+  assert.deepEqual(failureDiagnostics({code:'LIBRA_MEDIA_FFMPEG_TIMEOUT',details:{
+    elapsedMs:Infinity,timeoutMs:-1,stderrBytes:'SECRET',samplePointPercent:101}}),{});
+});
+
 test('TMDB adapter reports sanitized transport cause at its actual request boundary', async()=>{
   const {createTmdbProviderAdapter}=require('../src/helix/integrations/tmdb-provider-adapter');
   const adapter=createTmdbProviderAdapter({integrationQueryPort:{query(){}},integrationHandleResolverPort:{resolve(){}},

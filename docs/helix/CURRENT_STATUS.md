@@ -1,5 +1,17 @@
 # ShelfDeck 当前状态
 
+2026-10-12修复准备：用户要求先完成修复、暂不重处理五项失败媒体。计数/Reset/查询优化双平台各92通过；追加FFmpeg安全超时诊断双平台各28通过/1既有skip，Linux一次时序断言失败后原样复验通过。兰闺喜事原S01E17只读三点解码均通过，历史超时诱因仍未证实；两电影原Run均已discarded。当前盘约26GiB可用。修复尚未发布，UAT-313/315/316/317不关闭，详情见315–317 Evidence。
+
+2026-10-12 MoviePilot恢复：用户授权启动、未授权暂停下载。追加清理UAT-281三份已被最终备份替代的中间DB后Avail约6.2GiB。精确清理满盘遗留网络endpoint，原MoviePilot容器/配置/数据及172.18.0.2:3000连接恢复；NAS本机和LAN页面HTTP200，启动日志Application startup complete，容器running且不重启；ShelfDeck health200/normalSupplyAllowed=true。未暂停或删除任何下载。剩余下载量未核清，6.2GiB不作为不会再次满盘的保证；UAT-313两片业务结果及新代码发布仍未完成。
+
+2026-10-12最新复验：计数/Formation查询开销/Reset闭包相关Windows及Linux各92项通过；Linux先前失败已确定为测试包漏带前端源码，补齐后通过。未发布新产品代码。UAT-313释放后《绿头苍蝇》实际search发出3次请求，均ECONNREFUSED；MoviePilot容器因ENOSPC退出，恢复该容器待用户授权。继续清理已被05-stopped替代的01/02/03预检DB后Avail约6.1GiB；最终停机与Reset备份保留。两套大下载暂停亦待用户选择。生产问题尚未全部解决，不能结束收尾清理验收。
+
+2026-10-12继续处理：用户授权的UAT-313旧Work恢复reservation已通过Foundation abandonExecution释放，保留31次事故及范围外全部Circuit/Incident；两搜索尚未产生Attempt，验收仍开放。当前卷再次满盘，Against.the.Current两套剧集下载近期写入；七份已完成升级测试的数据库副本也已按清理授权删除，正式05-stopped/Reset备份保留。计数统一及减小Formation查询范围仍为本地修正、未发布；Linux92项91通过/1失败，复验受ENOSPC阻断。临时暂停两套下载等待用户选择，详见UAT-313及UAT-315–317 Evidence。
+
+2026-10-12后续：用户授权的两份旧镜像tar已删除，Avail恢复约3.3GiB；《罪恶之城》原正式放弃命令200/discarded，Run revision3且Token=0。投影恢复ready，但active/completed/ended仍为7/10/10，页面延迟仍在；UAT-315/316/313未关闭。按追加授权删除UAT-281四份已结束测试数据库副本，保留日志、正式备份、媒体及当前回退材料；四份逻辑8GiB不等于实际释放空间。容器未重启，cab3e2d77与health正常。用户要求问题解决后再统一清理生产；详见[清理与复验](implementation/evidence/UAT-315_317_PRODUCTION_DIAGNOSIS_20261012.md)。
+
+2026-10-12升级后排查：生产仍cab3e2d77，发现/app/data所在卷Avail=0（100%）；备份约52G、test-runs约23G。三体/繁花/兰闺喜事已自动discarded且无Token，失败分别为资料网络错误、身份查询超时、FFmpeg验证超时；不是三项真实席位残留。Formation跨section summary为6/9，旧投影stale；查询一致性与Reset恢复探针闭包本地修正共65项Windows测试通过，未部署。用户已授权正式放弃罪恶之城，但入口500且Run/Token未改变；两个旧镜像tar限定清理等待明确授权。详见[UAT-315–317排查](implementation/evidence/UAT-315_317_PRODUCTION_DIAGNOSIS_20261012.md)与[UAT-313](implementation/evidence/UAT-313_RESET_ORPHAN_RECOVERY_CIRCUIT_20261012.md)。安全停机/用户Reset尚未设计实施，狂暴女神与sample仍待优化。
+
 2026-10-12 17:34：Series生产升级完成，标准镜像markmahoro/shelfdeck:cab3e2d77，运行时git cab3e2d77ac0b6506a268c97ac07af82f4442e49，tar SHA256 bfe6769dedae1699d24c5349d6b9077cb364091e1ac8c6f55f9ea98aff4e9aa0。获批四项限定Reset完成并幂等，504 Entry/36111 Inventory/504 Commit及保留执行历史迁移后逐行一致，integrity=ok/FK=0；4原视频大小及指纹保留。NAS/LAN health=ok、normalSupplyAllowed=true、Admin HTTP200、挂载/QSV/fnOS及其他容器正常，RestartCount=0。用户可自行配置Series Shelf/来源。最终Windows/Linux两集NFO→Commit→迁移链路与Service602通过/0失败/29skip；未执行生产Series整季E2E或桌面全量。备份、精确身份、首次Reset回滚及最终部署证据见[生产升级记录](implementation/evidence/SERIES_PRODUCTION_UPGRADE_20261012.md)。下文为历史时点，不覆盖本次最终状态。
 
 2026-10-12 17:21：四项获批生产Reset完成，4 Subject/4 Run/1 Package/59 Work清零，重复plan幂等，integrity=ok/FK=0，504收藏保护审计进行中。旧镜像Reset遗漏outcomes导致首次拒绝，DB/Workspace已完整回滚核验后，标准包装显式使用最终候选不可变镜像完成清理；包装专项10+闭包回归1通过。完整停机备份05及精确Workspace备份已核验，追加Reset备份formation-reset-20261012T091753Z保留。最终cab3e2d77标准deploy apply进入readiness，尚未确认服务恢复；不宣称已部署成功。

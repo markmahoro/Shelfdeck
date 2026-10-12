@@ -231,7 +231,8 @@ test('local transcode hard timeout matches the SSOT 48-hour budget', () => {
 test('FFmpeg retains the local process limit when the Event deadline is longer', async () => {
   await assert.rejects(runProcess(process.execPath, ['-e', 'setTimeout(() => process.exit(0), 5000)'], 100, null, {
     deadlineAtMs: Date.now() + 10_000,
-  }), {code:'LIBRA_MEDIA_FFMPEG_TIMEOUT'});
+  }), error => error.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT' &&
+    error.details.reasonCode==='process_timeout' && error.details.timeoutMs===100);
 });
 
 test('FFmpeg abort stops the child and releases its registry entry before rejecting', async () => {
@@ -253,7 +254,7 @@ test('FFmpeg abort stops the child and releases its registry entry before reject
 test('FFmpeg times out after a stall even when the hard deadline is still far away', async () => {
   await assert.rejects(
     runProcess(process.execPath, ['-e', 'setTimeout(() => {}, 30_000)'], 30_000, null, { stallTimeoutMs: 200 }),
-    (error) => error.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT',
+    (error) => error.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT' && error.details.reasonCode === 'process_stall',
   );
 });
 
@@ -277,7 +278,8 @@ test('UAT-169 the hard Event deadline stops a child even while output keeps the 
       child.stderr.on('data', () => { samples += 1; lastOutputAt = Date.now(); });
       registry.register(child);
     } },
-  }), error => error.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT');
+  }), error => error.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT' && error.details.reasonCode === 'event_deadline' &&
+    error.details.stderrBytes > 0 && error.details.elapsedMs >= error.details.timeoutMs);
   assert.ok(samples >= 3, 'The actual child must emit continuing output before the deadline.');
   assert.ok(Date.now() - lastOutputAt < 2000, 'The child was still active within its stall budget.');
   assert.equal(registry.size(), 0);

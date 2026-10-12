@@ -835,6 +835,35 @@ function finalizeWorkspaceDirectories(stage) {
     absent:Object.freeze([...stage.absent]) });
 }
 
+function recoveryReservations(database, workIds) {
+  if (!tableExists(database, 'fx_circuit_states') || !workIds.length) return [];
+  const reservations = [];
+  for (const circuit of database.prepare("SELECT * FROM fx_circuit_states WHERE state='recovering'").all()) {
+    const workId = workIds.find((id)=>canonicalDigest({schema:'foundation.executor-incident-recovery-work@1',
+      circuitKey:circuit.circuit_key,workId:id}) === circuit.evidence_digest);
+    if (!workId) continue;
+    const incidents = database.prepare("SELECT * FROM fx_executor_incidents WHERE circuit_key=? AND incident_state='recovering' ORDER BY incident_key")
+      .all(circuit.circuit_key);
+    if (!incidents.length) throw new Error('Reset recovery reservation has no owning incident.');
+    reservations.push({workId,circuit,incidents});
+  }
+  return reservations;
+}
+
+function releaseRecoveryReservations(database, reservations, nowMs) {
+  for (const {circuit,incidents} of reservations) {
+    // Match Foundation abandonExecution: retire the probe reservation, not the
+    // incident. A later Work must still prove the external resource recovered.
+    const incident = incidents[0];
+    const updated = database.prepare("UPDATE fx_circuit_states SET state='open',reason_code=?,evidence_digest=?,reviewed_at_ms=? WHERE circuit_key=? AND state='recovering' AND evidence_digest=?")
+      .run(incident.error_code,canonicalDigest({schema:'foundation.executor-incident-circuit@1',incidentKey:incident.incident_key}),
+        nowMs,circuit.circuit_key,circuit.evidence_digest);
+    if (updated.changes !== 1) throw new Error('Reset recovery reservation changed after capture.');
+    for (const row of incidents) database.prepare("UPDATE fx_executor_incidents SET incident_state='open',last_seen_at_ms=?,resolved_at_ms=NULL WHERE incident_key=? AND incident_state='recovering'")
+      .run(nowMs,row.incident_key);
+  }
+}
+
 function captureExecutionGraph(database, workIds, processScopes, factScopes, commandTargetScopes, orphanMarkers) {
   const attemptIds = rowsByIds(database, 'SELECT attempt_id FROM fx_work_attempts WHERE work_id IN', workIds).map((row) => row.attempt_id);
   const planIds = rowsByIds(database, 'SELECT plan_id FROM fx_workflow_plans WHERE attempt_id IN', attemptIds).map((row) => row.plan_id);
@@ -879,7 +908,7 @@ function captureExecutionGraph(database, workIds, processScopes, factScopes, com
   `).all(scope.ownerDomain, scope.targetType, scope.targetId).map((row) => row.command_receipt_id)));
   return Object.freeze({ workIds:unique(workIds), attemptIds:unique(attemptIds), planIds:unique(planIds), eventIds,
     eventAttemptIds:unique(eventAttemptIds), resultIds, markerIds, messageIds, auditIds,
-    commandReceiptIds });
+    commandReceiptIds, recoveryReservations:recoveryReservations(database, workIds) });
 }
 
 function deleteExecutionGraph(database, graph) {
@@ -1135,6 +1164,8 @@ function assertIdsAbsent(database, table, column, ids, residual) {
 function verifyFrozenManifest(database, manifest) {
   const { scope, graph } = manifest;
   const residual = {};
+  const reserved = recoveryReservations(database, graph.workIds);
+  if (reserved.length) residual.recoveryReservations = reserved.map(({workId,circuit})=>({workId,circuitKey:circuit.circuit_key}));
   assertIdsAbsent(database, 'libra_subjects', 'subject_id', scope.disposableSubjectIds, residual);
   assertIdsAbsent(database, 'libra_intake_decisions', 'intake_decision_id', scope.intakeDecisionIds, residual);
   assertIdsAbsent(database, 'libra_run_outcomes', 'libra_run_id', scope.runIds, residual);
@@ -1256,6 +1287,7 @@ function applyFormationReset(database, plan, nowMs) {
   const transaction = database.transaction(() => {
     const procurementHandoffA = reopenProcurementHandoffA(database, scope, nowMs);
     deleteFormationBusinessGraph(database, scope, nowMs);
+    releaseRecoveryReservations(database, graph.recoveryReservations, nowMs);
     const deletedWorks = deleteExecutionGraph(database, graph);
     const retiredSupersededOfferMessages = retireSupersededOfferMessages(database, scope.preservedSupersededHandoffAClosures);
     executeByIds(database, 'DELETE FROM fx_command_receipts WHERE command_receipt_id IN', scope.phantomLibraAdmissionReceiptIds);
