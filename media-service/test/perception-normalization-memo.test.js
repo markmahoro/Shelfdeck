@@ -16,6 +16,7 @@ test('bounded normalization memo preserves Unicode, profiles, coercion, invalid 
   assert.equal(store.normalizeAnchor(input,'unicode_nfkc_casefold'),'i\u0307 σος ffi a');
   assert.equal(store.cache.size,2);
   assert.throws(()=>store.normalizeAnchor({toJSON:()=>input},'unicode_nfkc_casefold'),TypeError);
+  assert.throws(()=>store.normalizeAnchor(input,{toJSON:()=> 'unicode_nfkc_casefold'}),error=>error.code==='P6_PERCEPTION_NORMALIZATION_PROFILE_UNKNOWN');
   assert.throws(()=>store.normalizeAnchor(input,'unknown'),error=>error.code==='P6_PERCEPTION_NORMALIZATION_PROFILE_UNKNOWN');
   assert.equal(aliases.normalizeAlias(input),'i\u0307 σος ffi a');
   const mutable={value:'Ａ',toString(){return this.value;}};

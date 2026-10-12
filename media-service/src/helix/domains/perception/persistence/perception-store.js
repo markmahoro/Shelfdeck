@@ -508,7 +508,7 @@ function createRecordWithDigest(value) { return createRecord({ ...value, recordD
 const anchorNormalizationCache=new Map();
 function normalizeAnchor(value, profile) {
   if (!profile || profile === 'identity') return value;
-  const key=typeof value==='string'&&value.length<=512?JSON.stringify([profile,value]):null;
+  const key=typeof profile==='string'&&typeof value==='string'&&value.length<=512?JSON.stringify([profile,value]):null;
   const cached=key===null?undefined:anchorNormalizationCache.get(key);
   if(cached!==undefined)return cached;
   let normalized;
