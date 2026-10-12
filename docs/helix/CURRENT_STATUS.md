@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-12 14:40：最终运行时候选d6097265e已标准构建/上传，生产副本candidate310完整Host健康启动，SQLite integrity=ok/FK=0。501份On-deck Commit及保留的Plan/Node/Edge/Result/Marker逐行摘要一致；一条Entry由Inventory Revision 2→3经正式人物引用刷新凭据解释，未改写旧执行历史。原镜像对backup03完整恢复启动仍运行。全架构2493通过/1旧摘要断言失败/12skip，更新该测试固定值后相关3项通过；Service602通过/0失败/29skip。当前开放293/307/309/310，其他前述已验条目以UAT总表为准。生产仍旧版本，未停服、Reset或升级。
+
 2026-10-12 UAT-310用户最终选用首个非空Episode的单来源演员名单，取消拟议8 MiB扩容。原大江大河33集证据只读重放4166→63条，完整Draft31300字节；Windows32项合同及双平台NFO/入藏/整季迁移Host通过，静态门禁通过。原现场加载及重处理继续，生产未升级。详见UAT-310 Evidence。
 
 2026-10-12 13:24后：用户选择的《大宅门》2001第1季40集已有正式On-deck Commit（Entry `1c1241dc1356fa408b65a89598b45ca1e39f955694358b3d581554c47da4d2ea`）；潜伏、Netflix三体此前外部调用失败，不计通过。三国95成员经正式failed-preparation retry建立新采购Run，大江大河33集复用原幂等键重放202，等待原问题链路验收。UAT-292当前源码原竞态完整Host92.42秒通过并独立关闭；291/284/293/307/308仍开放。
