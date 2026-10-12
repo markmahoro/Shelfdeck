@@ -1,4 +1,5 @@
 # UAT-293：本地测试升级与旧执行历史
+2026-10-12 17:18生产操作补记：标准NAS包装默认调用旧镜像168be0bb的Reset，因其遗漏libra_run_outcomes而由FK校验拒绝。事务与Workspace均完整回滚：当前DB与05-stopped完整备份SHA256同为82db4a85aea53ab200aad4f6e2319f645aa6bade40ac46673d46e5cbc414348b；7个Workspace文件7104409698字节逐文件SHA一致，原4视频指纹一致、504 Entry/Commit保留。最终候选cab3e2d77已有该闭包修复及副本验收，未修改运行时；NAS包装增加显式不可变--reset-image-id，仅允许keep-stopped及非空Subject范围，仍执行完整备份/plan/apply/plan。包装10测试及既有Run outcomes闭包回归1项通过，候选限定plan ready=true、4 Subject/4 Run/59 Work/0 Custody/0 OnDeck，与停机scope一致。再次apply执行中；不是手工SQL或扩大清理范围。日志位于ignored .codex/series-release-20261012/{formation-reset-final-apply.log,reset-rollback-workspace-check.log,reset-wrapper-tests.log,reset-outcomes-regression.log,reset-candidate-dry-run.log,formation-reset-candidate-apply.log}。
 
 2026-10-12用户对以下四项精确范围明确回复“同意清理这四项并继续升级”，生产Reset已授权。17:00停止ShelfDeck，停机标准plan四Subject一致、ready=true、blockers=[]；4 Run/4 Workspace/1 Package/59 Work。停机期间active Run由3变2，未扩大范围、无On-deck Custody。先完成完整停机备份后才可清理。Workspace备份在/vol2/1000/shelfdeck_transcode/.upgrade-backups/series-cab3e2d77-stopped，7文件/7104409698字节逐文件SHA校验一致，另一选中Workspace本就不存在，记录于receipt；旧失败备份仍保留。
 

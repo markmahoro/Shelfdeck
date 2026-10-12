@@ -83,3 +83,14 @@ test('NAS Formation Reset retries transient connection resets during post-reset 
   const source = fs.readFileSync(path.join(__dirname, '../../scripts/formation-reset-nas.js'), 'utf8');
   assert.match(source, /--retry-all-errors/);
 });
+
+test('offline upgrade Reset image override requires an immutable identity and bounded stopped scope', () => {
+  const id='sha256:'+'a'.repeat(64);
+  const scope=['--keep-stopped','--subject-ids','subject-a'];
+  assert.equal(parseArgs([...scope,'--reset-image-id',id]).resetImageId,id);
+  for(const args of [['--reset-image-id',id],['--keep-stopped','--reset-image-id',id],
+    [...scope,'--reset-image-id','markmahoro/shelfdeck:latest'],[...scope,'--reset-image-id'],
+    [...scope,'--reset-image-id','sha256:short']])
+    assert.throws(()=>parseArgs(args),/Reset image override/);
+  assert.throws(()=>parseArgs([...scope,'--reset-image-id',id,'--apply']),/FORMATION_RESET_V2/);
+});

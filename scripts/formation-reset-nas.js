@@ -36,6 +36,7 @@ function parseArgs(argv) {
     const argument = argv[index];
     if (argument === '--apply') parsed.apply = true;
     else if (argument === '--keep-stopped') parsed.keepStopped = true;
+    else if (argument === '--reset-image-id') parsed.resetImageId = argv[++index] || '';
     else if (argument === '--confirm') { parsed.confirm = argv[index + 1] || ''; index += 1; }
     else if (argument.startsWith('--confirm=')) parsed.confirm = argument.slice('--confirm='.length);
     else if (argument === '--orphan-custody-ids') { parsed.orphanCustodyIds = argv[++index]?.split(','); }
@@ -45,6 +46,10 @@ function parseArgs(argv) {
   }
   if (parsed.apply && parsed.confirm !== CONFIRMATION) {
     throw new Error(`Apply requires --confirm ${CONFIRMATION}`);
+  }
+  if ('resetImageId' in parsed && (!/^sha256:[a-f0-9]{64}$/.test(parsed.resetImageId) ||
+      !parsed.keepStopped || !Array.isArray(parsed.subjectIds) || !parsed.subjectIds.length)) {
+    throw new Error('Reset image override requires an immutable image ID, --keep-stopped and explicit Subject scope.');
   }
   if ('subjectIds' in parsed && (!Array.isArray(parsed.subjectIds) || !parsed.subjectIds.length ||
       parsed.subjectIds.some(id => !/^[a-zA-Z0-9_-]+$/.test(id)))) throw new Error('Invalid Subject scope.');
@@ -140,6 +145,13 @@ async function main(argv = process.argv.slice(2)) {
     ].join(' && '));
     image = await step(connection, 'Resolve the exact deployed image', imageCommand(parsed.keepStopped));
     if (!image || /\s/.test(image)) throw new Error('Deployed image identity is invalid.');
+    if (parsed.resetImageId) {
+      const selected = await step(connection, 'Verify the explicit offline Reset image',
+        `docker image inspect --format '{{.Id}}' ${shellQuote(parsed.resetImageId)}`);
+      if (selected !== parsed.resetImageId) throw new Error('Reset image identity mismatch.');
+      process.stdout.write(`\nDeployed image remains ${image}; offline Reset uses ${selected}.\n`);
+      image = selected;
+    }
     process.stdout.write(`\nimage  : ${image}\nbackup : ${backupDir}\n`);
     if (!parsed.apply) {
       await step(connection, 'Inspect live Formation Reset plan', resetCommand(image, false, parsed.subjectIds, parsed.orphanCustodyIds, parsed.supersededOfferIds));
