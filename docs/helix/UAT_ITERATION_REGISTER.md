@@ -9,6 +9,7 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 状态说明：历史已关闭保留当时证据，不宣称本次重测；已实现/已部署不等于已关闭；阶段文档关闭不等于功能验收关闭。每次只根据对应项的现行合同及Evidence更新。
 | UAT编号 | 问题 / 历史事项 | 分类 | 当前状态 | 历史编号 | 实现提交 | 验收/部署证据 | 剩余工作或关闭条件 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| UAT-312 | 狂暴女神寻源已完成，外部BDMV分片被按多个电影主文件拒绝，本轮处理终结 | LIBRA / EXTERNAL_MATERIAL | 开放：生产只读定位，未修复 | 用户现场反馈；关联251/212 | 无 | [现场Evidence](implementation/evidence/UAT-312_EXTERNAL_BDMV_FURIOSA_20261012.md) | 保留已下载成果及Job关联；审查原盘承接合同、精确故障与恢复路径，完成实际加工/上架及适用UI验收。 |
 | UAT-001 | 豆瓣评分与Libra Subject匹配率明显偏低 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-001逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
 | UAT-002 | Handoff A Intake接收Subject吞吐异常偏低 | `DOMAIN_ORCHESTRATION` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-002逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
 | UAT-003 | Libra Run在Product Identity阶段大量等待 | `BUSINESS_CONTRACT` | 历史已关闭 | 原UAT编号 | 0c27c8cf6 | [UAT-003逐项PASS](acceptance/UAT_CLOSURE_BASELINE.md) | 无；保留历史关闭，复发另记关联项 |
@@ -343,4 +344,4 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 
 | UAT-310 | Series完整演员来源关系超过Media Cast容量 | LIBRA / MEDIA_CAST_CAPACITY | 开放：用户已确认单Episode代表演员清单，修复验证中 | 67份Observation产生4166条唯一关系，relations JSON 1678933字节 | 同Evidence重复已去除，完整Draft64 KiB及typed4096条边界仍阻断 | [Evidence](implementation/evidence/UAT-310_SERIES_MEDIA_CAST_CAPACITY_20261012.md) | 最终采用首个演员非空Episode的单来源清单；保留原始证据，替代8 MiB扩容。 |
 
-| UAT-311 | Series Artifact输入投影反复重建整季草稿，资源等待期间占满CPU | LIBRA / ARTIFACT_PROJECTION_COST | 开放：已定位，修复验证中 | 本地15.25秒CPU采样约9.56秒处于productMetadataContext，暂存尚空、来源观察排队 | 同次输入准备有界复用，仅构造所需Episode草稿；下次准备重新验真 | [Evidence](implementation/evidence/UAT-311_SERIES_ARTIFACT_PROJECTION_COST_20261012.md) | 不跨执行缓存业务事实，不放宽来源链或资源准入，不以重启/Reset隐藏开销。 |
+| UAT-311 | Series Artifact输入投影反复重建整季草稿，资源等待期间占满CPU | LIBRA / ARTIFACT_PROJECTION_COST | 已关闭：cab3e2d77相同输入等价提速、双平台及原33集Artifact通过 | 同一冻结NFO输入11481字节摘要一致，1082–1277毫秒降至135–145毫秒 | 同次输入准备有界复用，仅构造所需Episode；下次重新验真；原33集34 NFO和35 Artifact验证通过 | [Evidence](implementation/evidence/UAT-311_SERIES_ARTIFACT_PROJECTION_COST_20261012.md) | 不外推完整入藏提速；307/310的原Fact验收独立开放，不跨执行缓存事实。 |

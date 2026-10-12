@@ -1,5 +1,7 @@
 # UAT-311：Series Artifact输入投影重复重建整季资料
 
+16:43关闭本项：cab3e2d77本地原大江大河33集新Run c884204c…完成67份MetadataObservation、34份NFO生成、海报获取及35项Artifact验证，失败0；人物Draft正式解析31300字节、63条唯一关系、单份来源Evidence。结合相同冻结输入的摘要等价/耗时对照、同次复用与下次重新验真专项、双平台完整Host及精确镜像副本验证，UAT-311按Artifact投影性能范围关闭。此时Media Cast Fact提交仍等sqlite_write，原33集的UAT-307/310继续独立开放，不将Draft或健康检查冒充Fact/完整入藏。现场证据为ignored original-final-artifact-evidence.json。
+
 16:36最终发布候选核对：cab3e2d77标准构建（image d927c546c3d7）、上传SHA256及部署dry run通过，tar 1724112384字节，SHA256 bfe6769dedae1699d24c5349d6b9077cb364091e1ac8c6f55f9ea98aff4e9aa0。backup03新隔离副本candidate311final执行有界Reset、Schema升级后，精确镜像完整Host健康启动并正常退出；实际媒体挂载只读、network none。501 Shelf Entry、35946库存记录及501 Commit全量逐行摘要一致；保留的31049 Plan、70988 Node、44997 Edge、79766 Result及46222 Marker摘要一致，integrity=ok/FK=0。中间镜像不再用于最终发布。日志保存在ignored目录，不导出生产数据入仓库。
 
 本地cab3e2d77已在PID28364正常服务；15.14秒现场采样主要耗时已转移到Arca交付重建/摘要校验。该时刻执行组合与原采样不同，不能用它直接计算整体改善倍数；相同冻结NFO输入的对照测量见下文。原33集新Run c884204c62ad2bdd3032da16a2f522469c9067f1470ffbf67f7f1420bd358586正式接纳并加急，资料获取进行中。本地通过正式API临时3→4席位，确认原候选取得Token后已恢复3；未改变计算资源配额或生产配置。
