@@ -1,5 +1,9 @@
 # ShelfDeck 当前状态
 
+2026-10-12 17:34：Series生产升级完成，标准镜像markmahoro/shelfdeck:cab3e2d77，运行时git cab3e2d77ac0b6506a268c97ac07af82f4442e49，tar SHA256 bfe6769dedae1699d24c5349d6b9077cb364091e1ac8c6f55f9ea98aff4e9aa0。获批四项限定Reset完成并幂等，504 Entry/36111 Inventory/504 Commit及保留执行历史迁移后逐行一致，integrity=ok/FK=0；4原视频大小及指纹保留。NAS/LAN health=ok、normalSupplyAllowed=true、Admin HTTP200、挂载/QSV/fnOS及其他容器正常，RestartCount=0。用户可自行配置Series Shelf/来源。最终Windows/Linux两集NFO→Commit→迁移链路与Service602通过/0失败/29skip；未执行生产Series整季E2E或桌面全量。备份、精确身份、首次Reset回滚及最终部署证据见[生产升级记录](implementation/evidence/SERIES_PRODUCTION_UPGRADE_20261012.md)。下文为历史时点，不覆盖本次最终状态。
+
+2026-10-12 17:21：四项获批生产Reset完成，4 Subject/4 Run/1 Package/59 Work清零，重复plan幂等，integrity=ok/FK=0，504收藏保护审计进行中。旧镜像Reset遗漏outcomes导致首次拒绝，DB/Workspace已完整回滚核验后，标准包装显式使用最终候选不可变镜像完成清理；包装专项10+闭包回归1通过。完整停机备份05及精确Workspace备份已核验，追加Reset备份formation-reset-20261012T091753Z保留。最终cab3e2d77标准deploy apply进入readiness，尚未确认服务恢复；不宣称已部署成功。
+
 2026-10-12 17:08升级执行中：用户明确批准限定《万里归途》《周处除三害》《宇宙探索编辑部》《荒野猎人》四项旧未入藏进度Reset。17:00只停止生产ShelfDeck，停机标准plan ready=true且四Subject与授权完全一致，当前504 Entry/504 Commit保护；未Reset或加载新版。精确Workspace备份series-cab3e2d77-stopped完成7文件/7104409698字节逐文件SHA校验（另一Workspace不存在）；data/compose/secret停机备份05完整性及摘要校验运行中。在线只读备份方法在关闭WAL后报CANTOPEN，失败04副本保留，改为停机文件复制；未修补原库或绕过校验。
 
 2026-10-12 16:50：最后的Series UAT-307/310已由原大江大河33集新Run c884204c…正式Media Cast Fact验收关闭：67 Observation保留、63唯一relation、单份S3E001 NFO来源、Fact31550字节，34 NFO/海报及35 Artifact验证成功，失败0；原Run完整上架仍独立进行。UAT-311已按最终输入等价提速、双平台与原Artifact链路关闭，282–311本批Series问题各按自身Evidence收口。cab3e2d77最终镜像完整生产副本启动/退出正常；501 Entry、35946库存及501 Commit全量摘要一致，保留执行历史逐行一致，integrity=ok/FK=0。镜像构建、上传SHA256及dry run通过。生产仍旧镜像，未停服、Reset或升级；下一步仅待当前精确未完成Formation生产Reset授权及停机备份/标准升级。并行新增Movie外部BDMV问题不由此批Series关单代替。
