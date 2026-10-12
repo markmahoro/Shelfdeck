@@ -66,3 +66,23 @@ ResourceTiming包含浏览器调度、网络及服务端请求阶段，本轮未
 采样缺口明确保留：旧浏览器绑定首次失效；Network事件订阅没有产生可用记录，改用原生ResourceTiming。晚观测的85s/45s等值不是UI加载耗时，已标无效。共享页详情曾在用户导航后消失，不能当作产品关闭失败；随后用同浏览器独立临时页完成详情/返回。首个独立页样本沿用了捕获旧句柄的helper，因此未形成完整计时，不纳入表格；最终独立取证使用固定句柄，记录各自timeOrigin，不混合两个页面的请求时钟。资源缓冲有限，243条共享页及240条独立页记录不是全部生产流量或完整请求分布。
 
 截图01–06已取证并目检关键页面，其中`05-independent-detail.png`显示真实95集完整计划；本次只用实际最大化视口，没有扩展窄屏或SLO资格。临时页已关闭，原用户页保留。依用户最新精确边界，其他层开发涉及UI仍由负责人审核；本项收尾仅属于9a23服务变更，不承接或重复主任务的纯UI空态补丁。
+
+## 第二轮候选6feda0d26：部署前呈现门禁通过
+
+2026-10-13，UI负责人接受 `6feda0d26a3d3ff5994a17d23d83ac1bc3a756ce` 的后端改动在受影响用户表面的呈现，主任务可继续已授权标准部署。纯前端加载空态部分沿用实施任务的14专项及实际Chromium验收，本轮没有重测等待→空态等纯UI场景。此结论不覆盖本候选生产Tab长尾，也不关闭UAT-318性能；之前9a23的约42.9秒请求继续保留。
+
+审查确认：Formation只消费Shelf ID/name，改为Arca既有public facade的`listShelfNames`，仍来自同一`arca_shelves`持久事实，包含活动及历史Shelf，不读Inventory/注销摘要。完整Admin Shelf读取、路由/标准/物理安全校验路径没有改动。名称获取没有变成Libra或前端事实。概览producer原本已await读接口；新async Formation callback在四次读取间让出线程，仍仅在完整bundle生成后原子发布，旧完整快照、失败/停止保护和五秒cadence保持。原子发布不等于多次Owner查询共享数据库事实快照，未扩大这一承诺。
+
+从精确git archive冻结源码验证，未读取共享工作区的其它改动：
+
+- Shelf名称、Formation查询/详情、Overview query/producer及4000条有界汇总共6文件，66通过、0失败、0跳过。覆盖名称无Inventory/注销/物理检查读取、分类/当前动作/历史、概要和详情、概览旧完整快照保留、重建失败与停止保护。
+- TypeScript/Vite构建通过，产物`index-BaNkdIXh.js`。这是包含主任务已验收纯前端补丁的精确候选，不用旧Web bundle冒充本版。
+- 隔离HTTP/Chromium稳定数据走查调用真实Arca facade、FormationQuery、SQLite ProjectionStore、ProcessDetail及OverviewProjectionHost；底层Shelf rows/current-fact/history为受控fixture，不是完整Clean Service Host。Arca名称读取在fixture中禁止Inventory/注销摘要及物理检查，活动“电影·档案架”与已退役“曾用收藏架”均显示正确；下拉、列表与详情的名称一致。
+- 执行从本SHA Host提取的实际async Formation callback，同固定事实下完整bundle与原四个同步查询结果deepEqual；实际Overview producer发布内容与原OverviewQuery生成值deepEqual，页面保持正式收藏、正在整理6部、5个当前标题与最近上架结果。Host接入轻量名称callback同时经过源码检查；没有宣称完整Host接线E2E。
+- 三个section完整fixture输出与父版本deepEqual，计数一致；当前动作“保留原有输入作为最终文件”、4星豆瓣、分类、完整资料与原详情入口保持。键盘打开/展开/返回及焦点恢复通过，九列不变，0浏览器异常、0未预期接口、0写请求。没有新增等待或空态断言来重复审查纯UI部分。
+
+已目检`all-unfiltered-desktop.png`、`full-detail-desktop.png`、`overview-desktop.png`。首轮脚本误写概览原单位为“项”，真实页面为“部”，保留`browser-run-v1.log`；修正测试Oracle后完整稳定路径`browser-run-v2.log`通过，没有修改产品文字。
+
+审计目录：`E:/my_project/helix-git-consolidation-20261008/uat318-6feda0d26-20261013/`。源码ZIP SHA256 `5dd9d85d60747314784db3ab236f9b895ab11c8cd017074f7845411df7fc39f4`；`owner-tests.log`、`web-build.log`、`browser-evidence.json`。脚本`backend-fields-browser.cjs` SHA256 `72b238622a6e0dd982d6b729435c3b6cb45d1dd10f3990373bf0808ec71dad50`；浏览器Evidence SHA256 `6ebcd62dd997ddd4e63e94cb8e100fe270af3ef266e498f33c66dacc5f554bf6`。
+
+本次没有NAS部署/副本对照、生产性能或真实Series生命周期复验，没有改变五项失败媒体或其它任务。主任务的最终镜像资格与本项UI门禁各自保留边界；发布后仍需真实Tab、概览更新、详情与长尾取证，不能以66项或稳定fixture关闭性能。未改产品、流程文档、CURRENT_STATUS或UAT总表，未清理不属于本任务的untracked测试输出。
