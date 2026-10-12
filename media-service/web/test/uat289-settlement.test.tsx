@@ -43,11 +43,11 @@ it('keeps nine Formation columns and exposes the same configuration destination 
   vi.spyOn(helixAdminApi,'getFormation').mockResolvedValue(item);
   const grant=vi.spyOn(helixAdminApi,'setInputSettlementAuthorization');
   render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
-  await screen.findByRole('button',{name:'配置自动清理'});
+  await screen.findByRole('button',{name:'清理设置'});
   expect(screen.getAllByRole('columnheader')).toHaveLength(9);
   expect(screen.getByText('等待自动清理授权')).toBeVisible();
   fireEvent.click(screen.getByRole('button',{name:'查看过程'}));
   await screen.findByRole('dialog');
-  expect(screen.getAllByRole('button',{name:'配置自动清理'})).toHaveLength(2);
+  expect(screen.getAllByRole('button',{name:'清理设置'})).toHaveLength(2);
   expect(grant).not.toHaveBeenCalled();
 });

@@ -138,7 +138,7 @@ test('UAT-289 guides an actual Series settlement wait to explicit authorization 
   await page.screenshot({path:path.join(output,'02-detail-step-narrow.png'),fullPage:true});
   await page.setViewportSize({width:1920,height:1080});
   await page.keyboard.press('Escape');await expect(processButton).toBeFocused();
-  const configuration=page.getByRole('button',{name:'配置自动清理',exact:true});await configuration.focus();await page.keyboard.press('Enter');
+  const configuration=page.getByRole('button',{name:'清理设置',exact:true});await configuration.focus();await page.keyboard.press('Enter');
   const authorization=page.getByRole('dialog',{name:'自动清理残留文件',exact:true});await expect(authorization).toBeVisible();
   await expect(authorization.getByRole('button',{name:'授权自动清理',exact:true})).toBeEnabled();
   ungranted();await page.setViewportSize({width:390,height:844});
@@ -158,7 +158,7 @@ test('UAT-289 guides an actual Series settlement wait to explicit authorization 
   assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1);
   assert.ok(files.every(file=>!fs.existsSync(file)));
   assert.equal(fs.readFileSync(protectedFile,'utf8'),'outside-settlement-scope');
-  await page.reload();await expect(page.getByRole('button',{name:'配置自动清理'})).toHaveCount(0);
+  await page.reload();await expect(page.getByRole('button',{name:'清理设置'})).toHaveCount(0);
   await page.goto(address+'/collection');await page.getByRole('button',{name:/查看.*详情.*第 1 季/}).click();
   await expect(page.getByRole('heading',{name:'第 1 季 · 已收藏 2 集',exact:true})).toBeVisible();
   await page.getByRole('region',{name:'已收藏剧集'}).scrollIntoViewIfNeeded();

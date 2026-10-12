@@ -24,7 +24,7 @@ function currentProgressLabel(item:FormationSubject) { return item.currentPlan?.
 function SettlementConfiguration({item}:{item:FormationSubject}) {
   const navigate=useNavigate();
   return item.currentPlan?.configurationTarget==='input_settlement_authorization'
-    ? <Button type="button" onClick={()=>navigate('/shelves?configure=source-cleanup')}>配置自动清理</Button> : null;
+    ? <Button type="button" onClick={()=>navigate('/shelves?configure=source-cleanup')}>清理设置</Button> : null;
 }
 function currentProgressDetail(item:FormationSubject) {
   if (!item.currentPlan) return null;
