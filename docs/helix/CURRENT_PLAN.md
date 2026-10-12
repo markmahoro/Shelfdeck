@@ -42,4 +42,4 @@ Series 范围从 SSOT §3.2.6、§3.4.2–3.4.5、§4.4–4.5、§5.3.5、§5.5.
 
 当前统一开发区：`E:/my_project/emby_third_party-helix`，分支 `main`。2026-10-08已整合Movie收尾、Series开发及已发布UAT-281维护修复；原Series分支和重复工作区已退役为可恢复备份。同日经用户确认，UAT-267预检工具工作区及本地分支也已退役，现在只保留main工作区。旧分支独有历史提交保存在archive refs与恢复包，未提交/必要ignored内容保留于备份目录preserved；UAT-267仍按原条件开放，不以工作区退役关闭问题。详见[整合Evidence](implementation/evidence/GIT_WORKSPACE_CONSOLIDATION_20261008.md)。
 
-部署职责按2026-09-28用户决定由各线程自行闭环。涉及UI的设计及验收由现任UI负责人负责，遵守Playbook §11.1/§12.3。Series页面已分批交付并验收；最终受影响页面继续逐版本验收。
+部署职责按2026-09-28用户决定由各线程自行闭环。2026-10-13用户调整：纯UI层开发经实施任务完成具体版本核验并记录Evidence后，无需UI负责人重复审核；其他层开发同时涉及UI改动仍由UI负责人审核。遵守Playbook §11.1/§12.3，按实际diff划分，受影响页面继续逐版本验收。此前Series节点的验收安排及已完成记录保留为历史事实。

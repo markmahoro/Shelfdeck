@@ -33,7 +33,7 @@ Do not add generated `media-service/dist/`, root debug dumps, runtime JSON, expo
 
 ## Production Safety
 
-- Deployment coordination follows docs/helix/ENGINEERING_PLAYBOOK.md §3.5; the centralized deployment-owner role was cancelled by the user. UI ownership and version-specific acceptance remain required.
+- Deployment coordination follows docs/helix/ENGINEERING_PLAYBOOK.md §3.5; the centralized deployment-owner role was cancelled by the user. Version-specific UI verification follows §12.3, including its UI-only development exception.
 - NAS ShelfDeck Docker at `192.168.12.230:18080` is production.
 - Do not delete, park, reset, migrate, or directly edit production data unless the user explicitly asks for that production action.
 - A direct user request to deploy, release, publish, or upgrade NAS production authorizes the standard deploy flow, including `deploy-nas.js --apply` after dry run and checksum validation pass.
@@ -79,7 +79,7 @@ Do not block the turn with a foreground development server. When needed, use a m
 
 ## Change Discipline
 
-- All UI changes, including backend-generated display text, are coordinated and accepted by the user-appointed UI owner. A milestone with UI changes cannot close without that owner's acceptance evidence for the exact version. Follow docs/helix/ENGINEERING_PLAYBOOK.md §11.1/§12.3 and BETA_FEATURE_ACCEPTANCE_BASELINE.md §7.1 for design, walkthrough, and evidence requirements.
+- For UI-only development, the implementing task may complete exact-version UI verification and record evidence without duplicate UI-owner review. Development in other layers that also changes UI, including backend-generated display text, still requires the user-appointed UI owner's review of the exact version. Follow docs/helix/ENGINEERING_PLAYBOOK.md §11.1/§12.3 and BETA_FEATURE_ACCEPTANCE_BASELINE.md §7.1; classify by the actual change, not the task label.
 - For Admin Web / UI / UX changes or UAT, including backend-generated display text, read `docs/helix/ENGINEERING_PLAYBOOK.md` §11.1, then `docs/helix/BETA_FEATURE_ACCEPTANCE_BASELINE.md` §7.1.
 - UI must guide through structure, concise state, visible actions, and outcome feedback. Do not patch interaction gaps with explanatory prose. Every user-visible change, including post-UAT fixes, must meet `docs/helix/ENGINEERING_PLAYBOOK.md` §11.1; preserve accessible labels, actionable errors, and required consequence confirmations.
 - Read the code before changing it. Prefer existing patterns and helpers.
