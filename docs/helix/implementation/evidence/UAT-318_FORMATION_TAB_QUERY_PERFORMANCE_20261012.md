@@ -39,3 +39,11 @@ NAS disposable容器CPU1/memory1GiB，以已验证生产备份作只读业务输
 生产10.76秒CPU采样中，概览Formation调用累计约2.85秒，收藏健康汇总约2.19秒；这是含子调用的样本时间，不能相加当作总CPU或解释每个43秒请求。临时Inspector仅容器loopback启用，采样后已关闭并复核连接拒绝，无业务写操作。整理列表为读取架名称经listShelves装配注销摘要，每架遍历当前Inventory Materials；概览一次同步调用四遍Formation，增加主线程等待。候选在现有Arca public facade新增listShelfNames，仅返回同一Shelf持久事实的ID/name；Formation只使用这份姓名投影，不读取注销摘要，完整Shelf Admin入口保持不变。概览四次查询之间setImmediate让出线程，不改变五秒cadence或概览原子发布。没有移转Owner、弱化校验或新增缓存事实。
 
 Windows相关Shelf/Formation27通过，Overview及4000条分页汇总8通过；纯前端补丁实际Chromium桌面延迟走查通过（首轮因fixture误用care-work URL失败，改为实际/v1/admin/care后通过）。覆盖等待→真空态→等待→条目，截图保存在ignored Playwright输出，临时Host由runner关闭。当前候选仍待精确镜像、跨层UI审核及生产复验。
+
+## 第二轮发布准备（6feda0d26）
+
+产品git `6feda0d26a3d3ff5994a17d23d83ac1bc3a756ce`，镜像`markmahoro/shelfdeck:6feda0d26`，Image ID `sha256:88ee3b310b9d07fab4c95914e3936152014a09e601163f9bf38e67b0dc0d9af7`，tar 1724121600 bytes、SHA256 `f7fb047d9ebecefa14a5db8b2b7e0e285900d7c46efb59337bd0ab0e5439f11d`。固定build/upload入口通过，上传SHA一致，fnOS只读preflight及部署dry run完成。最终镜像35/35（相关Shelf/Formation/Overview，测试文件注入临时容器，产品源自完整镜像），未重跑整季加工E2E/desktop全量。Chromium加载截图已目检，结果移至ignored `.codex/series-release-20261012/uat318-second-browser`，不是仓库生成物。
+
+发布前备份 `/vol1/1000/docker/shelfdeck/backups/uat318-6feda0d26-predeploy`：DB2735779840 bytes，SHA256 `13b7bde97fbe41c91327011e0cb9fee25437647add3d570f3c4754daa6466278`，512 Entry/512 Commit/36575 Inventory Materials/647 Run，45份companion稳定复制；Compose/Secret保留原权限，目录700/Secret600。本地下载integrity ok/FK0/完整SHA匹配，verification-local.json已回存备份600。业务继续运行，因此不是部署后DB逐字节保护快照或恢复生产数据的授权；常规回退保留9a23镜像及备份，不直接倒灌业务DB。
+
+前一版9a23在本次备份结束后的四请求并发三轮为6569/2022/1376ms，首轮真实业务从attention转ended期间summary头发生变化，不能判为再次计数横跳；此处保留全部样本，未编造固定DB或SLO资格。第二轮当前尚未apply，跨层具体版本UI审核仍待完成。
