@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-12 16:50：最后的Series UAT-307/310已由原大江大河33集新Run c884204c…正式Media Cast Fact验收关闭：67 Observation保留、63唯一relation、单份S3E001 NFO来源、Fact31550字节，34 NFO/海报及35 Artifact验证成功，失败0；原Run完整上架仍独立进行。UAT-311已按最终输入等价提速、双平台与原Artifact链路关闭，282–311本批Series问题各按自身Evidence收口。cab3e2d77最终镜像完整生产副本启动/退出正常；501 Entry、35946库存及501 Commit全量摘要一致，保留执行历史逐行一致，integrity=ok/FK=0。镜像构建、上传SHA256及dry run通过。生产仍旧镜像，未停服、Reset或升级；下一步仅待当前精确未完成Formation生产Reset授权及停机备份/标准升级。并行新增Movie外部BDMV问题不由此批Series关单代替。
+
 2026-10-12 16:22：UAT-311最终修正cab3e2d77已加载本地18081/PID28364，停机备份integrity=ok/FK=0。相同武林外传冻结NFO事件输入摘要保持，准备耗时1082–1277毫秒降至135–145毫秒；仅是局部测量。Windows34专项、双平台重复NFO/Commit/迁移及Service602通过/0失败/29skip通过。精确镜像已标准构建/上传checksum及dry run通过（SHA256 bfe6769dedae1699d24c5349d6b9077cb364091e1ac8c6f55f9ea98aff4e9aa0），生产副本完整Host验证进行中。原大江大河重试已完成来源观察、进入273成员/6范围封包Run，媒体probe 59成功/214等待资源，尚无原33集新Fact。情满四合院Libra完成但Arca仍在来源结算，不能称入藏完成。307/310/311开放；NAS未停服、Reset或升级。
 
 2026-10-12 15:52：现场CPU剖析定位新UAT-311，Artifact投影反复构建整季所有Episode草稿，15.25秒采样约9.56秒在productMetadataContext；此前不能将全部等待归因于142 GB复制。Libra内部按单次输入准备复用、仅构建所需Episode，34项专项、Windows完整NFO/Commit/迁移91.34秒、Linux同链路及相关专项7通过/0失败/43skip、四项静态门禁通过。已停止本地旧PID28208，停机DB备份375545856字节、integrity=ok/FK=0，准备加载验证。生产未动；d6097265e镜像已被本次运行时修复取代，须重建候选。

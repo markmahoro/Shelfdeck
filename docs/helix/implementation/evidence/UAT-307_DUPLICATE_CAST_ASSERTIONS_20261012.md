@@ -1,5 +1,7 @@
 # UAT-307：重复无身份人物assertion
 
+2026-10-12 16:50原现场验收关闭：cab3e2d77本地大江大河33集新Run c884204c62ad2bdd3032da16a2f522469c9067f1470ffbf67f7f1420bd358586正式完成Media Cast resolve及commit。67份新Observation中66份仍保留重复hint；选中的Season 3/E001 related_nfo含64个原hint、63个精确唯一hint，正式Fact恰63条唯一relation且只有1份来源Evidence，31550字节。34 NFO生成、海报获取及35项Artifact验证全部成功，本Run失败0。结合既有双平台重复NFO→Commit→迁移回归，重复关系缺陷按自身条件关闭。未改写旧失败或来源证据，不将原33集后续整季上架计为已完成。原始核对在ignored original-final-duplicate-proof.json、original-final-artifact-evidence.json与live-cast-c884204c….json。
+
 2026-10-12收口：Linux两集重复NFO完整Host93.39秒通过，Windows90.87秒通过；实际解析保留重复hint而人物Fact保持唯一，最终On-deck Commit及旧空季目录清理通过。日志uat307-host-v3.log与linux-uat307-host-v2.log保留。本项修复及双平台受控完整链路已验证，原现场新Run尚未完成人物事实生成，继续开放，不以只读重放或健康检查代替现场验收。
 
 2026-10-12用户要求清理所有已知Series UAT后再升级生产。只读检查本地preview-uat294数据库：13个Libra Run（3 completed、3 active、7 discarded）、3个active Shelf Entry及3个On-deck Commit；82次P9_MEDIA_CAST_RELATIONS。扫描1022条metadata fetch Result，160条Observation可单独复现重复relation，未修改原证据。

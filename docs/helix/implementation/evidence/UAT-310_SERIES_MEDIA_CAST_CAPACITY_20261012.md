@@ -1,5 +1,7 @@
 # UAT-310：Series完整演员来源关系超过Media Cast边界
 
+2026-10-12 16:50按用户最终单Episode方案关闭：cab3e2d77本地原大江大河33集新Run c884204c62ad2bdd3032da16a2f522469c9067f1470ffbf67f7f1420bd358586的Media Cast Fact已正式提交。67份Observation全部保留；最终选中Season 3/E001 related_nfo，sourcePriority=34，63条唯一relation、1份origin Evidence，完整Fact31550字节（Draft31300字节），未扩容。选中来源的64个原hint仍保留，精确去重后63条；34份季/集NFO、海报及35项Artifact验证通过，Run失败0。结合既有双平台完整入藏/整季迁移及负向/其他Profile回归，本项容量方案和原失败场景通过；原33集后续整季上架仍运行，不以本项关闭声称该Run已完成收藏。生产尚未升级或Reset。
+
 2026-10-12原大江大河33集正式重处理新Run `b33e7b5ff5908c1dae99588762b32ea1bc2311df53996e3ab7c11b2ef38d0c9d`进入metadata后报`P9_MEDIA_CAST_DRAFT_SIZE`。本地实例已加载UAT-307精确同Evidence去重；67份持久MetadataObservation中66份含重复hint，按冻结sourcePriority/evidenceId排序重放后的4166条relationId全部唯一，relations JSON本身1678933字节（尚不含Draft envelope及relationDigest）。这是多来源assertion数，不是不同Person数。
 
 现有`buildMediaCastDraft`要求完整Draft≤64 KiB；`MediaCastDraft`/`MediaCastFact`typed关系集合上限4096，且Libra `libra_product_fact_revisions.fact_json`、Foundation完整Result等仍64 KiB。因此仅修改一个guard或合并跨Evidence同名未知人物均不能成立。原结果、重复hint及失败证据保留；日志与只读核验在ignored `.codex/series-release-20261012/uat310-cast-size.json`和local-uat309.stderr.log。
