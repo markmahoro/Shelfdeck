@@ -32,3 +32,5 @@
 13:24本地18081仍为81a5a2e41，人世间transcode执行中，Arca Commit仍0；未加载本轮及301/302代码。UAT-304停机缺口尚未修复，未主动重启、Reset、重扫或操作NAS。UAT-284本次合同实现及隔离封包通过，但原三国95成员的新现场封包仍待验，保留开放。
 
 2026-10-11 13:44用户要求加载新代码并明确本地Series无需等待安全退出窗口。精确终止旧服务及子进程后保存停机数据库快照，18081已以5c3effc20/PID41120启动，health正常且normalSupplyAllowed=true；人世间transcode与新FFmpeg进程恢复，历史失败计数未增加。加载前后只读采样为仓库外pre-fast-reload-20261011.log、post-fast-reload-ready-20261011.log，运行日志series-fast-20261011.stdout/stderr.log。未Reset、重扫或操作NAS；正常stop缺口仍由UAT-304独立跟进，不以强制终止方式恢复来关闭它。
+
+2026-10-12现场验收关闭：原三国95成员Run procurement-run-b268f7018373c5e11e70859b7ed74e5e19adca34已sealed/completed，95项Probe/Playback、Structure Unit、Manifest和Publication成功，发布candidate-package-bc3854f24fcb92224c17564d098e3c4dd02f8128（packageDigest c138553f0c2c474e49888f1aebc852b9a93a27612539a04f3674ac2cca03df32）。原Unit故障不再复现；后续独立Identity容量问题由UAT-309修复，不据此宣称95集已入藏。只读凭据：ignored uat284-original-retry-evidence.json、uat309-original-publication.json。UAT-284按自身封包及重建条件关闭。

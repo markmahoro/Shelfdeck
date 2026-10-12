@@ -295,7 +295,7 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 
 | UAT-283 | Series准入及生命周期Evidence超过64 KiB | LIBRA / BOUNDED_EVIDENCE | 已关闭：2026-10-09原3个Run推进至身份/资料获取 | UAT-282恢复后的真实本地E2E发现 | 待修复 | [现场与修复](implementation/evidence/UAT-283_SERIES_RUN_ADMISSION_EVIDENCE_20261009.md) | 已发布39包并接收3个Subject，后台反复SQLITE_CONSTRAINT_CHECK，需确认精确写入点、按bounded合同修复并验证原Subject继续。 |
 
-| UAT-284 | 大季Procurement Unit / Primary Manifest Draft超过有界合同 | PROCUREMENT / BOUNDED_RESULT | 已修复：双平台95成员隔离封包通过，原三国现场待验 | UAT-282恢复后真实扫描发现 | 1024成员/8 MiB及漂移负向通过；95文件新建Index重建通过 | [现场与边界](implementation/evidence/UAT-284_SERIES_PROCUREMENT_BOUNDS_20261009.md) | 4 Manifest Event result_json超限；三国95成员Unit明确triage_failed；不扩大列、不拆季、不Reset掩盖。 |
+| UAT-284 | 大季Procurement Unit / Primary Manifest Draft超过有界合同 | PROCUREMENT / BOUNDED_RESULT | 已关闭：双平台有界重建及原三国95成员正式封包通过 | UAT-282恢复后真实扫描发现 | 1024成员/8 MiB及漂移负向通过；95文件新建Index重建通过 | [现场与边界](implementation/evidence/UAT-284_SERIES_PROCUREMENT_BOUNDS_20261009.md) | 4 Manifest Event result_json超限；三国95成员Unit明确triage_failed；不扩大列、不拆季、不Reset掩盖。 |
 
 | UAT-285 | 整季Product Metadata Draft汇总超过64 KiB，整理停在资料汇总 | LIBRA / METADATA_CAPACITY | 关闭：原3 Run资料正式提交通过 | 用户反馈Formation再次卡住；现场原72 fetch成功 | 有界逐集Owner记录；双平台专项/大剧情Host、Win追加Host通过 | [现场与设计](implementation/evidence/UAT-285_SERIES_METADATA_CAPACITY_20261009.md) | 完整32/46/47集资料与来源保留；只关闭资料容量关卡，后续媒体验收异常与完整上架独立。 |
 | UAT-286 | Series媒体验收完整空间集合限制32成员，46/47集输入失败 | LIBRA / MEDIA_SPACE_CAPACITY | 关闭：58集现场完整Commit通过 | UAT-285后原任务继续，93失败Evidence摘要精确匹配 | Win39/Linux33；全新47集全部verify/select成功 | [根因与方案](implementation/evidence/UAT-286_SERIES_MEDIA_SPACE_CAPACITY_20261009.md) | 不漏同集part；保护进行中的真实转码，旧失败Run未Reset；下游UAT-287独立开放。 |
@@ -337,8 +337,8 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 | UAT-306 | Series Material Field 未自动扫描 | AUTOMATION | 已关闭：双平台及本地自动扫描入队通过 | 国产剧总目录从未 Observation，自动化仍仅接受Movie | 扩展既有观察自动化至Movie/Series；无兼容代码 | [Evidence](implementation/evidence/UAT-306_SERIES_AUTO_OBSERVATION_20261011.md) | 双平台自动扫描封包及本地总目录验证。 |
 | UAT-307 | Series人物资料中的重复无身份hint产生重复Media Cast relation | LIBRA / MEDIA_CAST | 开放：双平台重复NFO完整Host通过，原现场新Run待验 | 2026-10-12本地库82次P9_MEDIA_CAST_RELATIONS；1022条fetch Result中160条含重复relation | 精确同Evidence relation去重；跨来源未知人物仍独立 | [Evidence](implementation/evidence/UAT-307_DUPLICATE_CAST_ASSERTIONS_20261012.md) | 不按名字合并Person，不修改旧Result或放宽Draft唯一性；需新链路验收。 |
 
-| UAT-308 | 重新处理遇同来源扫描占用返回泛化500 | PROCUREMENT / REPROCESS_FEEDBACK | 开放：错误映射修复，待具体版本UI验收 | 本地大江大河33集正式重试已存意图但返回500 | Movie/Series占用回归先失败后14项通过 | [Evidence](implementation/evidence/UAT-308_REPROCESS_OBSERVATION_CONFLICT_20261012.md) | 保留意图和单一Observation准入，复用既有409反馈。 |
+| UAT-308 | 重新处理遇同来源扫描占用返回泛化500 | PROCUREMENT / REPROCESS_FEEDBACK | 已关闭：精确版本UI接受、原请求及新现场409→202幂等通过 | 本地大江大河33集正式重试已存意图但返回500 | Movie/Series占用回归先失败后14项通过 | [Evidence](implementation/evidence/UAT-308_REPROCESS_OBSERVATION_CONFLICT_20261012.md) | 保留意图和单一Observation准入，复用既有409反馈。 |
 
-| UAT-309 | Series候选身份声明超过Publication的16 KiB存储上限 | PROCUREMENT / IDENTITY_CAPACITY | 开放：原95集现场复现，容量方案待确认 | 三国IdentityClaim 16562字节，Publication事务拒绝、未封包 | Foundation Result通过，Owner存储按现合同拒绝 | [Evidence](implementation/evidence/UAT-309_SERIES_CANDIDATE_IDENTITY_CAPACITY_20261012.md) | 建议Series各64 KiB，其他Profile各16 KiB；不截断来源证据，不据此关闭UAT-284。 |
+| UAT-309 | Series候选身份声明超过Publication的16 KiB存储上限 | PROCUREMENT / IDENTITY_CAPACITY | 已修复：双平台边界及原95集封包通过，Libra接纳待验 | 三国IdentityClaim 16562字节，Publication事务拒绝、未封包 | Foundation Result通过，Owner存储按现合同拒绝 | [Evidence](implementation/evidence/UAT-309_SERIES_CANDIDATE_IDENTITY_CAPACITY_20261012.md) | 建议Series各64 KiB，其他Profile各16 KiB；不截断来源证据，不据此关闭UAT-284。 |
 
 | UAT-310 | Series完整演员来源关系超过Media Cast容量 | LIBRA / MEDIA_CAST_CAPACITY | 开放：用户已确认单Episode代表演员清单，修复验证中 | 67份Observation产生4166条唯一关系，relations JSON 1678933字节 | 同Evidence重复已去除，完整Draft64 KiB及typed4096条边界仍阻断 | [Evidence](implementation/evidence/UAT-310_SERIES_MEDIA_CAST_CAPACITY_20261012.md) | 最终采用首个演员非空Episode的单来源清单；保留原始证据，替代8 MiB扩容。 |
