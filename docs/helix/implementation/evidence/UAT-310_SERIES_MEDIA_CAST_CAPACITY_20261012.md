@@ -17,3 +17,5 @@
 原33集现场67份持久Observation只读重放：选中Season 3 / E001的related_nfo（sourcePriority=34），演员关系由4166降至63，relations JSON 25388字节，完整Draft 31300字节；旧64 KiB边界通过。未改写现场证据。日志：ignored uat310-selected-cast-size.json。
 
 Windows合同32通过/0失败；覆盖空集跳过、单来源优先级、输入排列不影响选择、无合格Episode为空、无效Scope拒绝、原Movie跨来源规则保持及逐集资料。双平台实际隔离Host完成重复演员NFO解析、完整入藏、整季placement迁移：Windows90.99秒；Linux完整文件94.68秒，5通过/0失败/37按名称过滤skip（含4项演员专项及1项完整Host）。入藏前后逐字节核对Media Cast事实，所有关系来自单份选中Evidence且重复演员恰一条。四项静态架构/语义/manifest/P2门禁通过。耗时属于隔离fixture，不是生产性能基准。原现场加载和重处理仍待完成。
+
+修复提交d6097265e已加载本地18081/PID28208，health=ok。停机完整data备份uat310-before-reload-data共175文件/10137583228字节，逐文件SHA一致，SQLite integrity=ok/FK=0。原失败Run以正式入口重新处理，先409占用，后复用相同幂等键202/replayed=true，intentId 1f97887b353f657ea75057223b6c402b4a5aa805e13177c584e29863b936c165，Observation field-observation-work-12477adea51da4d7193289c5032764750cba4f56。不Reset、不改旧失败结果。Service631项602通过/0失败/29skip；全架构仍运行。标准镜像markmahoro/shelfdeck:d6097265e构建及上传checksum通过，tar SHA256 6395d84a36af51d0044929e523be3d69e7001d99766a41941c9efedbbf10e8d1；精确镜像完整生产副本Host演练仍在运行，未生产apply。
