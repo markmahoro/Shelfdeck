@@ -1,5 +1,7 @@
 # UAT-304：正常停机先终止FFmpeg，可能写成业务加工失败
 
+2026-10-12后续Service回归首次600通过/1失败/28skip：真实Routing Host关闭后重启报RESOURCE_DEFER_CARDINALITY。根因为abandonWaiters调用abandon，持久Defer被标成released，而Event仍waiting_for_resource。修正为关闭时仅移除进程内waiter，保留持久等待事实；专项断言Event/Defer一致、持有者释放后仍可获得Permit。Routing Host关闭/重启与Governor专项15项通过，Service重跑601通过/0失败/28skip。日志`.codex/series-release-20261012/uat293-service-v2.log`；该Service运行早于随后UAT-293批量读取改动，不代表其最终全量验证。
+
 2026-10-12收口：按下述Windows/Linux真实FFmpeg中断、期限内排空、超时未决证据保留及跨进程唯一Commit/再次重启幂等证据关闭本项。Service601通过、0失败、28skip；全量架构2485通过、2个P7测试替身缺方法失败、12skip，补齐abandonWaiters后P7文件14项通过。未改写历史Outcome，未重启生产；本项关闭不代表UAT-293历史升级通过。
 
 2026-10-12修复：Runtime先同步停止新供给/dispatch并撤销未获Permit的waiter；执行、恢复和Owner回调最多60秒checkpoint。超预算不关闭仍被执行使用的SQLite，不伪造Outcome；随后Registry标记并终止自己的FFmpeg，技术中断沿Event Runtime抛出，不转写为业务failed。server按未决状态退出，重启继续使用既有Effect恢复合同。正常预算内仍排空并干净关闭。Compose停止宽限设为75秒，覆盖checkpoint及子进程回收。

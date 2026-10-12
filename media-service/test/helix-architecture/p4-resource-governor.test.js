@@ -319,8 +319,12 @@ test('shutdown removes unpermitted waiters while preserving active Permits and E
     assert.deepEqual(governor.abandonWaiters(),{abandonedWaiters:1});
     assert.equal(governor.snapshot().waiterCount,0);assert.equal(governor.snapshot().permitCount,1);
     const db=new Database(databasePath,{readonly:true});
-    try{assert.ok(!['failed','cancelled','succeeded'].includes(db.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get('waiting').state));}
+    try{
+      assert.equal(db.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get('waiting').state,'waiting_for_resource');
+      assert.equal(db.prepare("SELECT count(*) n FROM fx_resource_defer WHERE event_id=? AND state='waiting'").get('waiting').n,1);
+    }
     finally{db.close();}
     governor.release(holder.permit);assert.equal(governor.snapshot().permitCount,0);
+    assert.equal(governor.acquire(request('waiting',[['cpu_heavy']])).kind,'permitted');
   });
 });

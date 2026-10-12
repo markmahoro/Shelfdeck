@@ -410,7 +410,9 @@ function createResourceGovernor(options) {
 
   function abandonWaiters() {
     const eventIds=[...waiters.keys()].filter(eventId=>!eventPermits.has(eventId));
-    for(const eventId of eventIds)abandon(eventId);
+    // Shutdown drops only process-local queue entries. The durable waiting
+    // rows still justify waiting_for_resource and must survive restart.
+    for(const eventId of eventIds)waiters.delete(eventId);
     return Object.freeze({abandonedWaiters:eventIds.length});
   }
 
