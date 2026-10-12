@@ -1,0 +1,9 @@
+# UAT-309：Series候选身份声明超过Publication存储合同
+
+2026-10-12原三国95集现场正式failed-preparation retry建立`procurement-run-b268f7018373c5e11e70859b7ed74e5e19adca34`。95项真实probe、playability、完整Series Unit、identity resolve及Manifest均成功；Publication反复抛出`P7_CANDIDATE_IDENTITY_TOO_LARGE`，事务回滚，Candidate仍为0。未Reset、未修改原Result或生产数据。
+
+精确证据：`procurement.triage.identity_claim.resolve@1`正式Result为16562字节，digest `f70a55f51f8cbb8a5e3084ea00ba3d0c134849cf37c3b1f5bbfff72a357f1502`；sourceHints数组占15633字节。Foundation 64 KiB Result合同通过，但SSOT `proc_candidate_packages`约束Identity Metadata/Claim各16 KiB，Publication Store与DDL按16384拒绝。不是UAT-284 Unit修复失效；原95文件受控fixture的短名称未覆盖这一实际字节边界。日志及只读Result保存在ignored `.codex/series-release-20261012/uat309-identity-result.json`与local-service.stderr.log。
+
+待确认有界方案：仅Series Candidate的Identity Metadata/Claim存储上限各64 KiB，与既有Foundation Result上限对齐；其他Profile仍16 KiB。完整来源提示、摘要、不可变Publication及Handoff校验保持，不截断、不拆季、不新增Owner或旁路。同步SSOT、Table合同/DDL、生成manifest、正式additive upgrade及正负测试；原三国95集正式封包与Libra接纳独立验收。此方案不声称1024成员在任意长度来源提示下均能端到端入藏，Foundation及完整Delivery已有边界保持。
+
+按ENGINEERING_PLAYBOOK §3.3先确认这一新容量合同再实施；当前仅记录证据和方案，生产升级继续受未关闭UAT阻断。

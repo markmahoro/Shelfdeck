@@ -338,3 +338,5 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 | UAT-307 | Series人物资料中的重复无身份hint产生重复Media Cast relation | LIBRA / MEDIA_CAST | 开放：双平台重复NFO完整Host通过，原现场新Run待验 | 2026-10-12本地库82次P9_MEDIA_CAST_RELATIONS；1022条fetch Result中160条含重复relation | 精确同Evidence relation去重；跨来源未知人物仍独立 | [Evidence](implementation/evidence/UAT-307_DUPLICATE_CAST_ASSERTIONS_20261012.md) | 不按名字合并Person，不修改旧Result或放宽Draft唯一性；需新链路验收。 |
 
 | UAT-308 | 重新处理遇同来源扫描占用返回泛化500 | PROCUREMENT / REPROCESS_FEEDBACK | 开放：错误映射修复，待具体版本UI验收 | 本地大江大河33集正式重试已存意图但返回500 | Movie/Series占用回归先失败后14项通过 | [Evidence](implementation/evidence/UAT-308_REPROCESS_OBSERVATION_CONFLICT_20261012.md) | 保留意图和单一Observation准入，复用既有409反馈。 |
+
+| UAT-309 | Series候选身份声明超过Publication的16 KiB存储上限 | PROCUREMENT / IDENTITY_CAPACITY | 开放：原95集现场复现，容量方案待确认 | 三国IdentityClaim 16562字节，Publication事务拒绝、未封包 | Foundation Result通过，Owner存储按现合同拒绝 | [Evidence](implementation/evidence/UAT-309_SERIES_CANDIDATE_IDENTITY_CAPACITY_20261012.md) | 建议Series各64 KiB，其他Profile各16 KiB；不截断来源证据，不据此关闭UAT-284。 |
