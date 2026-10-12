@@ -236,9 +236,9 @@ test('Artifact bindings share preparation reads but a fresh preparation revalida
   const prepare=ownerScope=>Object.fromEntries(event.inputBindings.bindings.map(binding=>[binding.portName,
     projections.get(binding.projectionRef).project({ownerScope,parameters:binding.parameters})]));
   const first=prepare(Object.freeze({processId:'series-run'}));
-  assert.equal(reads,2,'one Season and one selected Episode context per preparation');
+  assert.equal(reads,1,'all bindings share one verified context per preparation');
   const second=prepare(Object.freeze({processId:'series-run'}));
-  assert.equal(reads,4,'later preparation must not reuse earlier reads');
+  assert.equal(reads,2,'later preparation must not reuse earlier reads');
   assert.deepEqual(second,first);
   records[2].inputSnapshotDigest=D('changed-unselected-episode');
   assert.throws(()=>prepare(Object.freeze({processId:'series-run'})),/execution input snapshot changed/);

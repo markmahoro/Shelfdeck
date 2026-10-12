@@ -1,5 +1,11 @@
 # UAT-311：Series Artifact输入投影重复重建整季资料
 
+最终修正复验（2026-10-12）：c52c6e947中间修正仍通过Season草稿间接重建所有Episode，不能作为性能问题完成证据。进一步将Season聚合延迟到实际请求，并在单次输入准备中共享完整验真来源上下文及按需Episode草稿；完整Planner/assembly仍提前执行完整验收。Windows34项专项、四项静态门禁通过；Windows两集重复NFO→Commit→整季迁移通过（总92.52秒），Linux同Host及相关专项7通过/0失败/43过滤skip（93.43秒）；Service602通过/0失败/29skip（146.42秒）。
+
+使用武林外传原现场冻结E001 NFO事件，在只读内核中交替比较d6097265e与最终修正：完整输入11481字节，SHA256均为17626caf1d924430da80d0420178fb893d161104b6e3199c49f97f3444966da3；旧版1081.56/1276.58毫秒，修正版144.86/135.17毫秒。此为输入准备局部测量，不能推算完整入藏提速倍数。所有媒体/Workspace写接口在诊断中禁止调用。
+
+加载最终修正前已核对并停止本地PID26732，仅conhost子进程、无执行中的FFmpeg；正式SQLite备份402153472字节，SHA256 3c2cf915db8cded4c0a00845808b31b1dfefb01c4c4769376ee10321c6056cd2，integrity=ok、FK=0。原数据未Reset，既有备份保留。现场加载、原33集和最终镜像验证仍待完成，UAT保持开放。
+
 2026-10-12本地18081/PID28208，情满四合院Arca stage进行时，原大江大河重试观察等待sqlite_write；暂存目录仍为空，不能将全部等待归因于142407013464字节原视频复制。只读指纹核对46份源文件均匹配。
 
 通过仅loopback的Node Inspector采集15.25秒CPU profile，随后关闭Inspector：productMetadataContext累计约9.56秒，Event Input prepare约11.51秒，buildProductMetadataDraft约6.48秒。调用栈落在Libra Artifact投影，每个metadata/cast/profile投影重复读取及验真全部观察，并为整季每个Episode构建草稿；资源等待的有界刷新再次执行这些步骤。证据在ignored local-stage-cpu.cpuprofile与summarize-cpu.cjs，不含Secret、请求参数或生产数据。

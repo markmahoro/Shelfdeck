@@ -477,27 +477,43 @@ function productMetadataContext(options, libraRunId, selectedEpisodeKey) {
       Buffer.from(left.requirementId).compare(Buffer.from(right.requirementId)));
   const requiredFields=requiredMetadataFields(snapshot);
   const episodeScopes=snapshot.spec.contentProfile==='series'?seriesMetadataScopes(snapshot,identity):[];
-  const draftResult=buildProductMetadataDraft({sourceBasis:basis,requiredFields,
+  const producedAtMs=Math.max(...basis.observationSet.observations.map((item)=>item.observedAtMs));
+  let seasonDraft;
+  const readSeasonDraft=()=>{
+    if(seasonDraft)return seasonDraft;
+    const draftResult=buildProductMetadataDraft({sourceBasis:basis,requiredFields,
     ...(episodeScopes.length?{episodeScopes}:{}),
-    producedAtMs:Math.max(...basis.observationSet.observations.map((item)=>item.observedAtMs)),
+    producedAtMs,
     providerIdentities:identity.factValue.providerIdentities,artifactRequirements:[...requirements,
       ...episodeScopes.map(scope=>artifactRequirement('nfo',scope))].sort((a,b)=>Buffer.from(a.artifactKind).compare(Buffer.from(b.artifactKind))||Buffer.from(a.requirementId).compare(Buffer.from(b.requirementId)))});
-  if(!draftResult.ready)throw new Error('Product Metadata remains unresolved: '+draftResult.missingFields.join(','));
+    if(!draftResult.ready)throw new Error('Product Metadata remains unresolved: '+draftResult.missingFields.join(','));
+    seasonDraft=draftResult.draft;
+    return seasonDraft;
+  };
+  // Full planning/assembly still validates the complete Season eagerly. A scoped
+  // Artifact input needs the Season aggregate only if that binding requests it.
+  if(selectedEpisodeKey===undefined)readSeasonDraft();
   const selectedScopes=selectedEpisodeKey===undefined?episodeScopes:
     episodeScopes.filter(scope=>scope.episodeKey===selectedEpisodeKey);
   if(selectedEpisodeKey!==undefined&&selectedEpisodeKey!==null&&!selectedScopes.length)
     throw new Error('Episode Artifact projection is outside the frozen Run delivery scope.');
-  const episodeDrafts=selectedScopes.map(episodeScope=>{
+  const projectedEpisodes=new Map();
+  const readEpisodeDraft=episodeKey=>{
+    if(projectedEpisodes.has(episodeKey))return projectedEpisodes.get(episodeKey);
+    const episodeScope=episodeScopes.find(scope=>scope.episodeKey===episodeKey);
+    if(!episodeScope)throw new Error('Episode Artifact projection is outside the frozen Run delivery scope.');
     const result=buildProductMetadataDraft({sourceBasis:basis,episodeScope,
       requiredFields:[...new Set(['season_number','episode_number','series_title',
         ...requiredFields.filter(field=>field.startsWith('episode_'))])].sort(),
-      producedAtMs:draftResult.draft.producedAtMs,providerIdentities:identity.factValue.providerIdentities,
+      producedAtMs,providerIdentities:identity.factValue.providerIdentities,
       artifactRequirements:requirements});
     if(!result.ready)throw new Error('Episode Product Metadata remains unresolved: '+episodeScope.episodeKey);
+    projectedEpisodes.set(episodeKey,result.draft);
     return result.draft;
-  });
+  };
+  const episodeDrafts=selectedScopes.map(scope=>readEpisodeDraft(scope.episodeKey));
   return Object.freeze({snapshot,identity,sources:Object.freeze(sources),workIds:Object.freeze(works.map((item)=>item.work_id)),
-    results:Object.freeze(results),basis,draft:draftResult.draft,episodeDrafts:Object.freeze(episodeDrafts),
+    results:Object.freeze(results),basis,get draft(){return readSeasonDraft();},readEpisodeDraft,episodeDrafts:Object.freeze(episodeDrafts),
     requirements:Object.freeze(requirements)});
 }
 
@@ -754,19 +770,15 @@ function createArtifactProductionProjections(options) {
   // Input resolution gives all bindings one fresh scope object. Reuse only within
   // that synchronous preparation; a later dispatch must re-read and verify facts.
   const contexts=new WeakMap();
-  const context=(ownerScope,episodeKey=null)=>{
-    let scopes=contexts.get(ownerScope);
-    if(!scopes){scopes=new Map();contexts.set(ownerScope,scopes);}
-    if(!scopes.has(episodeKey))scopes.set(episodeKey,
-      productMetadataContext(options,ownerScope.processId,episodeKey));
-    return scopes.get(episodeKey);
+  const context=(ownerScope)=>{
+    if(!contexts.has(ownerScope))contexts.set(ownerScope,
+      productMetadataContext(options,ownerScope.processId,null));
+    return contexts.get(ownerScope);
   };
   const draft=(ownerScope,parameters)=>{
-    const value=context(ownerScope,parameters?.episodeKey||null);
+    const value=context(ownerScope);
     if(!parameters?.episodeKey)return value.draft;
-    const selected=value.episodeDrafts.find(item=>item.episodeScope.episodeKey===parameters.episodeKey);
-    if(!selected)throw new Error('Episode Artifact projection is outside the frozen Run delivery scope.');
-    return selected;
+    return value.readEpisodeDraft(parameters.episodeKey);
   };
   const requirement=(ownerScope,parameters)=>{
     const item=context(ownerScope).requirements.find((candidate)=>candidate.artifactKind===parameters.artifactKind);
