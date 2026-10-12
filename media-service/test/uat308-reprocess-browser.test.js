@@ -168,7 +168,8 @@ test('UAT-308 shows a real reprocess scan conflict and replays the persisted int
   await page.keyboard.press('Escape');await expect(confirmation).toHaveCount(0);await expect(reprocess).toBeFocused();
   sourceIntact();assert.deepEqual(db.prepare('SELECT * FROM libra_reprocess_intents').get(),intent);
   holdScan=false;releaseScan?.();
-  await expect.poll(()=>db.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(occupied.observationWorkId)?.state,
+  assert.ok(occupied.observation.observationWorkId);
+  await expect.poll(()=>db.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(occupied.observation.observationWorkId)?.state,
     {timeout:30000}).toBe('succeeded');
   await reprocess.focus();await page.keyboard.press('Enter');
   const resumed=page.waitForResponse(value=>new URL(value.url()).pathname===endpoint&&value.request().method()==='POST');
