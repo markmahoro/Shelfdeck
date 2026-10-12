@@ -65,3 +65,13 @@ Windows相关Shelf/Formation27通过，Overview及4000条分页汇总8通过；�
 健康/供给/Admin/五挂载/QSV/代码来自镜像通过，RestartCount0。容器启动17:46:55.788 UTC，服务监听17:52:25.327，冷启动329.54秒；前轮733.04秒，负载和现场在变化，不把比值当作严格因果benchmark。生产两轮四Tab误报空态0，整理中请求446/560ms，本次正常认证后请求最长2054ms，完整Tab计时含700ms稳定观察。12轮按10秒间隔共48请求均200，仍有6554ms样本，不是SLO资格；不能关闭318。
 
 第四轮追加10.32秒CPU采样中Libra reconcile约6.12秒，external-material Work定义/Scope重建约3.49秒，主要在readSeriesProductionCandidates对每个Scope构造外部Import定义，即使当前Run没有成功Import。Inspector已在采样helper中关闭。新增同一Owner工厂的确定性external stage前缀；仍先执行完整replacementScopes校验，只在存在成功Import时派生完整Scope Work并走原Result栅栏。候选输出及选择顺序不变，无全局缓存或新路径策略。141项通过；新测试证明无Import仍校验Scope、不构造Import，已成功Import但缺Result仍拒绝。仅后端内部计算，前端/Projection未改；待最终镜像及标准发布，不称性能已解决。
+
+## 第四轮生产与第五轮纯计算修正
+
+2026-10-13第四轮已标准发布24821200d34fe055036c0d11ac5b1dc9afbf6cbd，Docker markmahoro/shelfdeck:24821200d，Image sha256:7f77396fd54c7587969faf588f4a8da718f6585f735319ece6a7e55410028f9a，tar1724123136 bytes/SHA256251935ecf66e3ab26ebb3164d53fa21dd55b31b09d9963ff7189804a57be689b。readiness/health/供给/Admin/五挂载/QSV通过，RestartCount0，最终镜像141通过。前端资产与6feda已验版本一致，纯后端无UI字段或文字变更；实际两轮四Tab空态误报0。十二轮48请求均200，十一轮最长约1.2–2.1秒，另一次6172ms；性能UAT-318仍开放，未重处理五项媒体。追加Perception纯字符串计算缓存28项通过、尚未发布；没有缓存评分、业务事实、候选集合或决策。
+
+本轮备份uat318-24821200d-predeploy DB2798891008 bytes，SHA d5ceec74018f1a4a96a5354afa5aef8d23efaeb85e54928b30e291bd369da50f，513 Entry/513 Commit/36712 Inventory Materials/650 Run，45 companion稳定复制；本地integrity ok/FK0/SHA匹配、verification-local.json回存600。切换76秒，容器18:13:36.216 UTC启动、18:19:28.733监听，冷启动352.52秒；不能据时长单独推断停机是否强杀。保留AbortSignal 11监听器警告，不把警告直接认定为泄漏。
+
+生产浏览器有条目Tab误报空态0、正常需要处理0仍为空；整理中实际852/628ms，其他已认证请求最长2624ms，Tab完整采样含700ms观察等待。12轮48请求按页面10秒cadence全部200，6172ms样本保留。追加10.54秒CPU采样中主要热点切换为Perception候选组装/读评分上下文，约3.84秒在readResolutionCandidates；字符串归一化反复处理相同Corpus是其中一项成本，不声称解释全部SQL/I/O等待。临时Inspector按helper关闭。
+
+第五轮只缓存确定性normalizeAlias和normalizeAnchor的字符串输入/归一化profile输出，单Map8192项上限、超过512字符不缓存；算法仍用原NFKC、大小写/und Locale及原Regex。没有缓存Record、Rule、候选成员、Resolution、评分事实或业务决策：每次读取仍读取当前记录、关系、规则、完整digest及候选溢出栅栏。输入改变使用不同键；类型错误和未知profile保持。新增真实Unicode İ/Greek终结sigma/全角/连字、多profile、可变对象String转换、伪装toJSON输入拒绝与8300项驱逐测试；Windows相关28通过。纯后端，无UI字段改变；最终镜像/发布/性能复验仍待，不关闭318。

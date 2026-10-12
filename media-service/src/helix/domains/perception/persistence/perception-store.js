@@ -505,11 +505,23 @@ function recordDigestFor(value) {
     observedAtMs:value.observedAtMs, committedAtMs:value.committedAtMs, identityAnchors:anchors });
 }
 function createRecordWithDigest(value) { return createRecord({ ...value, recordDigest:recordDigestFor(value) }); }
+const anchorNormalizationCache=new Map();
 function normalizeAnchor(value, profile) {
   if (!profile || profile === 'identity') return value;
-  if (profile === 'unicode_nfkc_casefold') return value.normalize('NFKC').toLocaleLowerCase('und').trim().replace(/\s+/g,' ');
-  if (profile === 'alphanumeric_casefold') return value.normalize('NFKC').toLocaleLowerCase('und').replace(/[^\p{L}\p{N}]+/gu,'');
-  fail('P6_PERCEPTION_NORMALIZATION_PROFILE_UNKNOWN','Rule references an unknown normalization profile.',{profile});
+  const key=typeof value==='string'&&value.length<=512?JSON.stringify([profile,value]):null;
+  const cached=key===null?undefined:anchorNormalizationCache.get(key);
+  if(cached!==undefined)return cached;
+  let normalized;
+  if (profile === 'unicode_nfkc_casefold') normalized=value.normalize('NFKC').toLocaleLowerCase('und').trim().replace(/\s+/g,' ');
+  else if (profile === 'alphanumeric_casefold') normalized=value.normalize('NFKC').toLocaleLowerCase('und').replace(/[^\p{L}\p{N}]+/gu,'');
+  else fail('P6_PERCEPTION_NORMALIZATION_PROFILE_UNKNOWN','Rule references an unknown normalization profile.',{profile});
+  // Memoize only the pure string/profile transform, never live Records,
+  // candidate membership, Rule snapshots, or Resolution decisions.
+  if(key!==null){
+    if(anchorNormalizationCache.size>=8192)anchorNormalizationCache.delete(anchorNormalizationCache.keys().next().value);
+    anchorNormalizationCache.set(key,normalized);
+  }
+  return normalized;
 }
 function similarity(left,right) { const a=[...left],b=[...right]; if(a.length===0&&b.length===0)return 1; const row=Array.from({length:b.length+1},(_,i)=>i); for(let i=1;i<=a.length;i+=1){let diagonal=row[0];row[0]=i;for(let j=1;j<=b.length;j+=1){const prior=row[j];row[j]=Math.min(row[j]+1,row[j-1]+1,diagonal+(a[i-1]===b[j-1]?0:1));diagonal=prior;}} return 1-row[b.length]/Math.max(a.length,b.length,1); }
 function anchorValuesMatch(left,right,mode,profile,threshold) { if(mode==='exact')return left===right; const a=normalizeAnchor(left,profile),b=normalizeAnchor(right,profile); if(mode==='normalized_exact')return a===b; if(mode==='bounded_fuzzy')return similarity(a,b)>=threshold; fail('P6_PERCEPTION_LOOKUP_MODE_UNKNOWN','Rule contains an unknown candidate lookup mode.'); }

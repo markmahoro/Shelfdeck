@@ -3,10 +3,20 @@
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 
 const RULE_REVISION = 3;
+const aliasNormalizationCache = new Map();
+const NORMALIZATION_CACHE_LIMIT = 8192;
 const TECHNICAL_TOKEN = /(?:^|[\s._-])(?:2160p|1080p|720p|480p|4k|uhd|bluray|blu-ray|remux|web[- .]?dl|webrip|hdtv|x26[45]|h\.?26[45]|hevc|avc|hdr10\+?|dolby[ .]?vision|dv|atmos|truehd|dts(?:-hd)?|aac|flac)(?:$|[\s._-])/iu;
 
 function normalizeAlias(value) {
-  return String(value || '').normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+  const input=String(value || '');
+  const cached=aliasNormalizationCache.get(input);
+  if(cached!==undefined)return cached;
+  const normalized=input.normalize('NFKC').trim().replace(/\s+/g, ' ').toLowerCase();
+  if(input.length<=512){
+    if(aliasNormalizationCache.size>=NORMALIZATION_CACHE_LIMIT)aliasNormalizationCache.delete(aliasNormalizationCache.keys().next().value);
+    aliasNormalizationCache.set(input,normalized);
+  }
+  return normalized;
 }
 
 function splitTitleYear(value) {
