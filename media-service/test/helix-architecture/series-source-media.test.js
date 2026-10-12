@@ -587,6 +587,21 @@ function finalSeriesFixture() {
   stored.set(work.workId,output);
   return {...value,reader,candidates,basis,work,plan,output,stored};
 }
+test('Direct Series reads share one frozen space basis while preserving each public input digest',()=>{
+  const value=directResultsFixture(),file=require.resolve('../../src/helix/domains/libra/planning/direct-media-selections');
+  const localRequire=require('node:module').createRequire(file),isolated=new(require('node:module').Module)(file);
+  let basisBuilds=0;
+  isolated.require=function(id){const dependency=localRequire(id);return id==='../model/series-media-space'?{...dependency,
+      buildSeriesMediaSpaceBasis(...args){basisBuilds++;return dependency.buildSeriesMediaSpaceBasis(...args);}
+    }:dependency;};
+  isolated._compile(require('node:fs').readFileSync(file,'utf8'),file);
+  const sources=isolated.exports.readDirectMediaSelections(value.options,value.snapshot,value.workId);
+  assert.equal(basisBuilds,1);
+  assert.equal(sources.length,2);
+  const publicReader=localRequire(file);
+  for(const source of sources)assert.equal(source.verification.basisDigest,
+    publicReader.buildDirectMediaInput(value.snapshot,sources,source).inputDigest);
+});
 test('Final Series Work binds the entire candidate set and independent verification dependencies',()=>{
   const value=finalSeriesFixture();assert.equal(value.plan.nodes.length,4);
   assert.equal(value.work.dependencyRefs.length,1);

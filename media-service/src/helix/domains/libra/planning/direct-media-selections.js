@@ -35,9 +35,13 @@ function seriesSpaceBasisFor(snapshot,sources,replacements=[]) {
 
 function buildDirectMediaInput(snapshot, sources, source) {
   const seriesSpaceBasis=seriesSpaceBasisFor(snapshot,sources);
+  return directMediaInput(snapshot,source,directRequirement(snapshot),seriesSpaceBasis);
+}
+
+function directMediaInput(snapshot, source, requirement, seriesSpaceBasis) {
   return buildProductMediaCandidateInput({libraRunId:snapshot.run.libraRunId,
     candidateNodeId:directCandidateNodeId(snapshot,source.member),candidateKind:'direct_input',
-    mediaRequirement:directRequirement(snapshot),sourceMaterialHandle:source.readHandle,sourceProbeEvidence:source.record.result,
+    mediaRequirement:requirement,sourceMaterialHandle:source.readHandle,sourceProbeEvidence:source.record.result,
     ...(seriesSpaceBasis?{seriesSpaceBasis}:{})});
 }
 
@@ -45,7 +49,7 @@ function buildDirectMediaInput(snapshot, sources, source) {
 function readDirectMediaSelections(options, snapshot, workId) {
   if (workId !== directMediaSelectionWork(snapshot).workId) throw new Error('Direct Selection Work does not match the frozen Run.');
   const sources = readSourceMediaObservations(options, snapshot);
-  const requirement = directRequirement(snapshot, sources);
+  const requirement = directRequirement(snapshot, sources),seriesSpaceBasis=seriesSpaceBasisFor(snapshot,sources);
   const records = options.workResultReader.read(workId).filter(item => item.outcomeKind === 'succeeded');
   const verifications = records.filter(item => item.capabilityRef === 'libra.product_media.verify@1');
   const selections = records.filter(item => item.capabilityRef === 'libra.product_output.select@1');
@@ -53,7 +57,7 @@ function readDirectMediaSelections(options, snapshot, workId) {
     throw new Error('Direct Results do not cover the complete frozen Primary set.');
   const used = new Set();
   return Object.freeze(sources.map(source => {
-    const input = buildDirectMediaInput(snapshot,sources,source);
+    const input = directMediaInput(snapshot,source,requirement,seriesSpaceBasis);
     const matches = verifications.filter(item => item.result.candidateId === input.candidateId);
     if (matches.length !== 1) throw new Error('Direct Verification is missing or ambiguous for a Primary.');
     const verification = matches[0].result;
