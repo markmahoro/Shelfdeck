@@ -434,7 +434,7 @@ function resolvedMetadataInputs(options, source, snapshot) {
       endpointId:reference.endpointId,location:reference.location,bindingRevision:1,mountScopeRevision:1})});
 }
 
-function productMetadataContext(options, libraRunId) {
+function productMetadataContext(options, libraRunId, selectedEpisodeKey) {
   const snapshot=readRunSnapshot(options.movieProductionReader,libraRunId);
   const identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
   if(!snapshot||!identity)throw new Error('Product Metadata requires a resolved Product Identity.');
@@ -483,7 +483,11 @@ function productMetadataContext(options, libraRunId) {
     providerIdentities:identity.factValue.providerIdentities,artifactRequirements:[...requirements,
       ...episodeScopes.map(scope=>artifactRequirement('nfo',scope))].sort((a,b)=>Buffer.from(a.artifactKind).compare(Buffer.from(b.artifactKind))||Buffer.from(a.requirementId).compare(Buffer.from(b.requirementId)))});
   if(!draftResult.ready)throw new Error('Product Metadata remains unresolved: '+draftResult.missingFields.join(','));
-  const episodeDrafts=episodeScopes.map(episodeScope=>{
+  const selectedScopes=selectedEpisodeKey===undefined?episodeScopes:
+    episodeScopes.filter(scope=>scope.episodeKey===selectedEpisodeKey);
+  if(selectedEpisodeKey!==undefined&&selectedEpisodeKey!==null&&!selectedScopes.length)
+    throw new Error('Episode Artifact projection is outside the frozen Run delivery scope.');
+  const episodeDrafts=selectedScopes.map(episodeScope=>{
     const result=buildProductMetadataDraft({sourceBasis:basis,episodeScope,
       requiredFields:[...new Set(['season_number','episode_number','series_title',
         ...requiredFields.filter(field=>field.startsWith('episode_'))])].sort(),
@@ -747,9 +751,18 @@ function createArtifactProductionPlanner(options) {
 }
 
 function createArtifactProductionProjections(options) {
-  const context=(ownerScope)=>productMetadataContext(options,ownerScope.processId);
+  // Input resolution gives all bindings one fresh scope object. Reuse only within
+  // that synchronous preparation; a later dispatch must re-read and verify facts.
+  const contexts=new WeakMap();
+  const context=(ownerScope,episodeKey=null)=>{
+    let scopes=contexts.get(ownerScope);
+    if(!scopes){scopes=new Map();contexts.set(ownerScope,scopes);}
+    if(!scopes.has(episodeKey))scopes.set(episodeKey,
+      productMetadataContext(options,ownerScope.processId,episodeKey));
+    return scopes.get(episodeKey);
+  };
   const draft=(ownerScope,parameters)=>{
-    const value=context(ownerScope);
+    const value=context(ownerScope,parameters?.episodeKey||null);
     if(!parameters?.episodeKey)return value.draft;
     const selected=value.episodeDrafts.find(item=>item.episodeScope.episodeKey===parameters.episodeKey);
     if(!selected)throw new Error('Episode Artifact projection is outside the frozen Run delivery scope.');

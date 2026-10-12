@@ -1,0 +1,13 @@
+# UAT-311：Series Artifact输入投影重复重建整季资料
+
+2026-10-12本地18081/PID28208，情满四合院Arca stage进行时，原大江大河重试观察等待sqlite_write；暂存目录仍为空，不能将全部等待归因于142407013464字节原视频复制。只读指纹核对46份源文件均匹配。
+
+通过仅loopback的Node Inspector采集15.25秒CPU profile，随后关闭Inspector：productMetadataContext累计约9.56秒，Event Input prepare约11.51秒，buildProductMetadataDraft约6.48秒。调用栈落在Libra Artifact投影，每个metadata/cast/profile投影重复读取及验真全部观察，并为整季每个Episode构建草稿；资源等待的有界刷新再次执行这些步骤。证据在ignored local-stage-cpu.cpuprofile与summarize-cpu.cjs，不含Secret、请求参数或生产数据。
+
+修复范围：Libra既有Owner内部的只读投影。Foundation每次resolveBindings创建独立ownerScope对象，同一次同步输入准备按该对象复用有界上下文，下一次准备必须重新读取及验真。Artifact只需要单个Episode草稿时，仅构建该草稿；Planner及完整验收仍构建全部草稿。保持全部Observation来源链验真、冻结Run范围、输入摘要及错误拒绝，不改资源容量、业务事实或SSOT边界。
+
+验收：针对投影值等价、同次复用/下次新读、任意来源篡改拒绝、未知Episode拒绝的专项；双平台完整NFO/入藏链路；加载后相同现场性能采样及原33集验收。运行时变化须重建精确部署镜像并补齐相关发布验证，不能继续部署旧d6097265e候选。
+
+初步验证：Windows34专项全部通过；实际两集重复NFO→Commit→整季迁移91.34秒通过。Linux相同Host与投影/事实专项7通过、0失败、43按名称过滤skip，总94.45秒；四项静态架构/语义/manifest/P2门禁通过。Service全量运行中。
+
+停机快照：核对本地PID28208及命令后停止，仅有conhost子进程，无在执行FFmpeg。第一时间只读打开返回disk I/O error；进程退出稳定后quick_check=ok，随后正式SQLite backup成功，未删除WAL或修补原库。ignored uat311-before-reload.db为375545856字节，SHA256 315626b992c3c8e56abfefa5604f2a7143396fef66cd0d38f3bf30e446d07768，integrity=ok、foreign_key_check=0。其余本地数据与原完整备份保留，无Reset。

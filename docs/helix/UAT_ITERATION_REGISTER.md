@@ -342,3 +342,5 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 | UAT-309 | Series候选身份声明超过Publication的16 KiB存储上限 | PROCUREMENT / IDENTITY_CAPACITY | 关闭：双平台边界、原95文件封包及独立实例正式接纳通过 | 三国IdentityClaim 16562字节，Publication事务拒绝、未封包 | 95个真实原文件、完整16562字节Claim、正式Handoff A Receipt，失败0 | [Evidence](implementation/evidence/UAT-309_SERIES_CANDIDATE_IDENTITY_CAPACITY_20261012.md) | Series各64 KiB、其他Profile各16 KiB；不截断来源证据，不外推95集完整入藏。 |
 
 | UAT-310 | Series完整演员来源关系超过Media Cast容量 | LIBRA / MEDIA_CAST_CAPACITY | 开放：用户已确认单Episode代表演员清单，修复验证中 | 67份Observation产生4166条唯一关系，relations JSON 1678933字节 | 同Evidence重复已去除，完整Draft64 KiB及typed4096条边界仍阻断 | [Evidence](implementation/evidence/UAT-310_SERIES_MEDIA_CAST_CAPACITY_20261012.md) | 最终采用首个演员非空Episode的单来源清单；保留原始证据，替代8 MiB扩容。 |
+
+| UAT-311 | Series Artifact输入投影反复重建整季草稿，资源等待期间占满CPU | LIBRA / ARTIFACT_PROJECTION_COST | 开放：已定位，修复验证中 | 本地15.25秒CPU采样约9.56秒处于productMetadataContext，暂存尚空、来源观察排队 | 同次输入准备有界复用，仅构造所需Episode草稿；下次准备重新验真 | [Evidence](implementation/evidence/UAT-311_SERIES_ARTIFACT_PROJECTION_COST_20261012.md) | 不跨执行缓存业务事实，不放宽来源链或资源准入，不以重启/Reset隐藏开销。 |

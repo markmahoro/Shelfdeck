@@ -209,6 +209,41 @@ function productionFixture() {
   return {options,snapshot,records};
 }
 
+test('Artifact input projection builds only the selected Episode with identical frozen values', () => {
+  const {options}=productionFixture();
+  const all=productMetadataContext(options,'series-run');
+  const season=productMetadataContext(options,'series-run',null);
+  assert.deepEqual(season.draft,all.draft);
+  assert.deepEqual(season.episodeDrafts,[]);
+  for(const expected of all.episodeDrafts){
+    const selected=productMetadataContext(options,'series-run',expected.episodeScope.episodeKey);
+    assert.deepEqual(selected.draft,all.draft);
+    assert.deepEqual(selected.episodeDrafts,[expected]);
+    assert.deepEqual(selected.basis,all.basis);
+  }
+  assert.throws(()=>productMetadataContext(options,'series-run','E003'),/outside the frozen Run/);
+});
+
+test('Artifact bindings share preparation reads but a fresh preparation revalidates every source', () => {
+  const {options,records}=productionFixture();
+  const plan=createArtifactProductionPlanner(options).plan({processId:'series-run',ownerDomain:'libra',
+    processType:'libra_run',executionBasisDigest:D('basis'),workId:'artifact-work',workAttemptId:'artifact-attempt'});
+  const event=plan.nodes.find(node=>node.capabilityRef==='libra.product_sidecar.render@1'&&
+    node.inputBindings.bindings.some(binding=>binding.parameters?.episodeKey==='E001'));
+  const projections=new Map(createArtifactProductionProjections(options).map(item=>[item.projectionRef,item.projection]));
+  const read=options.movieProductionReader.readRunSnapshot;let reads=0;
+  options.movieProductionReader.readRunSnapshot=(...args)=>{reads++;return read(...args);};
+  const prepare=ownerScope=>Object.fromEntries(event.inputBindings.bindings.map(binding=>[binding.portName,
+    projections.get(binding.projectionRef).project({ownerScope,parameters:binding.parameters})]));
+  const first=prepare(Object.freeze({processId:'series-run'}));
+  assert.equal(reads,2,'one Season and one selected Episode context per preparation');
+  const second=prepare(Object.freeze({processId:'series-run'}));
+  assert.equal(reads,4,'later preparation must not reuse earlier reads');
+  assert.deepEqual(second,first);
+  records[2].inputSnapshotDigest=D('changed-unselected-episode');
+  assert.throws(()=>prepare(Object.freeze({processId:'series-run'})),/execution input snapshot changed/);
+});
+
 test('Formal Artifact Planner projects separate Season/Episode Drafts and distinct immutable events', () => {
   const {options}=productionFixture();
   const metadata=productMetadataContext(options,'series-run');
