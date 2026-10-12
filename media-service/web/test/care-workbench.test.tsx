@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
@@ -7,6 +7,38 @@ import { CareWorkDetail } from '../src/helix/CareWorkRow';
 import { helixAdminApi } from '../src/helix/api';
 
 afterEach(()=>vi.restoreAllMocks());
+
+it('distinguishes a delayed filter response from confirmed empty results and request failures',async()=>{
+  const summary={totalCount:1,inProgressCount:1,attentionRequiredCount:0,completedCount:0};
+  const projection={status:'ready' as const,asOfMs:100};
+  vi.spyOn(helixAdminApi,'listFormation').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+  vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+  vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+  vi.spyOn(helixAdminApi,'getPerceptionSyncState').mockRejectedValue(new Error('not configured'));
+  const item={aftercareCaseId:'pending-case',shelfEntryId:'entry',displayIdentity:'Delayed work',state:'active' as const,classification:'in_progress' as const,goals:['video_codec_unmet'],createdAtMs:100,terminalAtMs:null,reasonCode:null,progress:null};
+  const care=vi.spyOn(helixAdminApi,'listCareWork').mockResolvedValue({items:[item],counts:{in_progress:1},nextCursor:null});
+  render(<MemoryRouter initialEntries={['/formation']}><App/></MemoryRouter>);
+  expect(await screen.findByText('Delayed work')).toBeInTheDocument();
+  await waitFor(()=>expect(screen.getByRole('button',{name:'刷新'})).toBeEnabled());
+  let finish!:(value:Awaited<ReturnType<typeof helixAdminApi.listCareWork>>)=>void;
+  care.mockImplementation(()=>new Promise(resolve=>{finish=resolve;}));
+  fireEvent.click(screen.getByRole('button',{name:'需要处理 0'}));
+  expect(screen.queryByText('当前筛选没有条目')).not.toBeInTheDocument();
+  expect(await screen.findByText('正在读取整理条目…')).toBeInTheDocument();
+  expect(screen.queryByText('当前筛选没有条目')).not.toBeInTheDocument();
+  await act(async()=>finish({items:[],counts:{in_progress:1},nextCursor:null}));
+  expect(await screen.findByText('当前筛选没有条目')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'整理中 2'}));
+  expect(screen.queryByText('当前筛选没有条目')).not.toBeInTheDocument();
+  expect(await screen.findByText('正在读取整理条目…')).toBeInTheDocument();
+  await act(async()=>finish({items:[item],counts:{in_progress:1},nextCursor:null}));
+  expect(await screen.findByText('Delayed work')).toBeInTheDocument();
+  care.mockRejectedValue(new Error('Read unavailable'));
+  fireEvent.click(screen.getByRole('button',{name:'需要处理 0'}));
+  expect(await screen.findByRole('alert')).toHaveTextContent('Read unavailable');
+  expect(screen.queryByText('当前筛选没有条目')).not.toBeInTheDocument();
+  expect(screen.queryByText('正在读取整理条目…')).not.toBeInTheDocument();
+});
 
 it('renders current work before slow historical and configuration requests finish',async()=>{
   const summary={totalCount:0,inProgressCount:0,attentionRequiredCount:0,completedCount:0};
