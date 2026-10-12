@@ -1,0 +1,9 @@
+# UAT-310：Series完整演员来源关系超过Media Cast边界
+
+2026-10-12原大江大河33集正式重处理新Run `b33e7b5ff5908c1dae99588762b32ea1bc2311df53996e3ab7c11b2ef38d0c9d`进入metadata后报`P9_MEDIA_CAST_DRAFT_SIZE`。本地实例已加载UAT-307精确同Evidence去重；67份持久MetadataObservation中66份含重复hint，按冻结sourcePriority/evidenceId排序重放后的4166条relationId全部唯一，relations JSON本身1678933字节（尚不含Draft envelope及relationDigest）。这是多来源assertion数，不是不同Person数。
+
+现有`buildMediaCastDraft`要求完整Draft≤64 KiB；`MediaCastDraft`/`MediaCastFact`typed关系集合上限4096，且Libra `libra_product_fact_revisions.fact_json`、Foundation完整Result等仍64 KiB。因此仅修改一个guard或合并跨Evidence同名未知人物均不能成立。原结果、重复hint及失败证据保留；日志与只读核验在ignored `.codex/series-release-20261012/uat310-cast-size.json`和local-uat309.stderr.log。
+
+待用户确认的有界方向：Series完整Media Cast最多16384条关系且完整值≤8 MiB；其他Profile保持原合同。Libra拥有完整Draft/Fact与精确来源，Foundation只持久化≤64 KiB的可验真Record/Receipt；后续消费者从同一Owner冻结来源/精确Fact引用重建并重验完整摘要，禁止latest/current fallback。传播完整链路至Promotion/Handoff、Arca自己的入藏演员事实、NFO与Aftercare读取；不由Arca旁读Libra/People，不截断演员来源，不合并跨来源无身份人物。现有16 MiB On-deck Package上限仍独立执行。
+
+验收需同Evidence去重与跨Evidence保留、4166关系原现场、16384及字节边界/越界拒绝、丢失或篡改拒绝、原子Commit及重放、双平台完整交付及Movie/Western回归。按Playbook §3.3确认后回写SSOT并实施；当前仅调查和记录，不修改容量实现，不关闭UAT-307或整体Series发布资格。
