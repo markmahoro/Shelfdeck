@@ -1,5 +1,7 @@
 # UAT-294：77集 FinalInventoryDecision 超过存储上限
 
+2026-10-12 现场补验：已完成的人世间58集Run c8e9ded983da364c62c5e43c52dd1483beb0b0c0f3c96a1680d0e790bcfd5976，最终Inventory Decision为70347字节；庆余年36集为65733字节，均超过原65536字节限制并形成唯一On-deck Commit。结合既有双平台77集及容量负向测试，关闭本项。只读证据`.codex/series-release-20261012/local-capacity-final.json`，不改历史决策。
+
 以《白鹿原》77集规模新增独立完整Host回归。第一次222.16秒因原47集220秒等待上限结束，当时媒体选择正常running，非业务失败。为77集单独设置500秒旅程/600秒测试上限，保留原47集时限和全部验收断言；第二次271.77秒复现真实失败：CHECK constraint failed: length(CAST("decision_json" AS BLOB)) <= 65536。
 
 代码写入点：Arca Handoff B acceptance store 的 insert_final_inventory_decision，SSOT arca_final_inventory_decisions 明确将完整FinalInventoryDecision限制64 KiB；它逐项覆盖Package成员与关联映射，独立于此前获批的Acceptance、Stage及Final/Fulfillment完整证据容量。2026-10-09用户已确认仅将Arca完整决策值扩至8 MiB，成员1024、摘要与完整映射保持，Foundation64 KiB不变。已同步SSOT、精确表合同、DDL编译/验证及Schema摘要；不新增旧Run兼容。原Schema的字节CHECK升级保持所有行、索引及外键，历史证据不变。

@@ -9,7 +9,7 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
   const selectMany = (tableId, columns, keyColumn) => ({
     kind:'select-in', tableId, columns, keyColumn, maxItems:500,
   });
-  const repository = createRepositoryDefinition({
+  const repositoryDefinition = {
     repositoryId: 'catalog_plan_proof', owner: 'execution-foundation', schemaManifest,
     statements: {
       plan: select('fx_workflow_plans', ['plan_id', 'attempt_id', 'catalog_digest', 'basis_digest', 'graph_digest', 'state'], ['plan_id'], true),
@@ -31,7 +31,12 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
         'result_json', 'result_digest', 'evidence_schema_ref', 'evidence_json', 'evidence_digest', 'effect_receipt_id'], ['event_id'], true),
       markers: selectMany('fx_commit_markers', ['commit_marker', 'commit_digest', 'effect_id', 'result_id', 'result_schema_ref', 'result_digest', 'owner_domain'], 'effect_id'),
     },
-  });
+  };
+  for (const name of ['plan', 'work_attempt', 'work', 'nodes', 'edges', 'events', 'attempts', 'result']) {
+    const statement = repositoryDefinition.statements[name];
+    repositoryDefinition.statements[name + '_batch'] = selectMany(statement.tableId, statement.columns, statement.keyColumns[0]);
+  }
+  const repository = createRepositoryDefinition(repositoryDefinition);
   return Object.freeze({
     verify(callback) {
       // Read each graph and its cross-Work sources inside one read transaction.
@@ -40,6 +45,7 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
         participantId: 'catalog_plan_proof_read', owner: 'execution-foundation', repositories: [repository],
         execute(context) {
           const repo = context.repository(repository.repositoryId);
+          const factsByPlan = new Map(), planIdsByWork = new Map();
           function readMany(statement, identities) {
             const unique = [...new Set(identities)], rows = [];
             for (let offset = 0; offset < unique.length; offset += 500) {
@@ -47,27 +53,49 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
             }
             return rows;
           }
+          const by = (rows, key) => {
+            const map = new Map();
+            for (const row of rows) { if (!map.has(row[key])) map.set(row[key], []); map.get(row[key]).push(row); }
+            return map;
+          };
+          function prefetch(planIds) {
+            const missing = [...new Set(planIds)].filter(id => !factsByPlan.has(id));
+            if (!missing.length) return;
+            const plans = readMany('plan_batch', missing);
+            const workAttempts = new Map(readMany('work_attempt_batch', plans.map(p => p.attempt_id)).map(a => [a.attempt_id, a]));
+            const works = new Map(readMany('work_batch', [...workAttempts.values()].map(a => a.work_id)).map(w => [w.work_id, w]));
+            const nodes = by(readMany('nodes_batch', missing), 'plan_id');
+            const edges = by(readMany('edges_batch', missing), 'plan_id');
+            const allEvents = readMany('events_batch', missing), events = by(allEvents, 'plan_id');
+            const allAttempts = readMany('attempts_batch', allEvents.map(e => e.event_id)), attempts = by(allAttempts, 'event_id');
+            const allEffects = readMany('effects', allAttempts.map(a => a.event_attempt_id)), effects = by(allEffects, 'event_attempt_id');
+            const results = by(readMany('result_batch', allEvents.map(e => e.event_id)), 'event_id');
+            const markers = by(readMany('markers', allEffects.map(e => e.effect_id)), 'effect_id');
+            for (const id of missing) factsByPlan.set(id, null);
+            for (const plan of plans) {
+              const workAttempt = workAttempts.get(plan.attempt_id), planEvents = events.get(plan.plan_id) || [];
+              const planAttempts = planEvents.flatMap(e => attempts.get(e.event_id) || []);
+              const planEffects = planAttempts.flatMap(a => effects.get(a.event_attempt_id) || []);
+              factsByPlan.set(plan.plan_id, { plan, workAttempt, work: works.get(workAttempt?.work_id),
+                nodes: nodes.get(plan.plan_id) || [], edges: edges.get(plan.plan_id) || [], events: planEvents,
+                attempts: planAttempts, effects: planEffects,
+                results: planEvents.flatMap(e => results.get(e.event_id) || []),
+                markers: planEffects.flatMap(e => markers.get(e.effect_id) || []) });
+            }
+          }
           return callback({
+            prefetch,
             workPlanIds(workId) {
+              if (planIdsByWork.has(workId)) return planIdsByWork.get(workId);
               const rows = repo.invoke('work_events', { work_id: workId });
               if (rows.some(row => row.work_id !== workId)) throw new Error('Cross-Work scope mismatch.');
-              return [...new Set(rows.map(row => row.plan_id))];
+              const ids = [...new Set(rows.map(row => row.plan_id))];
+              planIdsByWork.set(workId, ids);
+              return ids;
             },
             read(planId) {
-              const plan = repo.invoke('plan', { plan_id: planId });
-              if (!plan) return null;
-              const workAttempt = repo.invoke('work_attempt', { attempt_id: plan.attempt_id });
-              const work = workAttempt && repo.invoke('work', { work_id: workAttempt.work_id });
-              const nodes = repo.invoke('nodes', { plan_id: planId });
-              const edges = repo.invoke('edges', { plan_id: planId });
-              const events = repo.invoke('events', { plan_id: planId });
-              const attempts = events.flatMap(event => repo.invoke('attempts', { event_id: event.event_id }));
-              // Retain all history in this transaction. Bounded set reads avoid
-              // a journal/marker table scan for every failed Event Attempt.
-              const effects = readMany('effects', attempts.map(attempt => attempt.event_attempt_id));
-              const results = events.map(event => repo.invoke('result', { event_id: event.event_id })).filter(Boolean);
-              const markers = readMany('markers', effects.map(effect => effect.effect_id));
-              return { plan, workAttempt, work, nodes, edges, events, attempts, effects, results, markers };
+              prefetch([planId]);
+              return factsByPlan.get(planId);
             },
           });
         },

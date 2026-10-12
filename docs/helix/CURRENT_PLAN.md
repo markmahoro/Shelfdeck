@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-12后续用户确认：同意已完成历史的只读兼容并继续执行升级，取代此前暂停决定。范围为冻结旧合同、逐条验证历史及跨Plan证据，不恢复旧未完成Formation、不改写历史、不绕过校验。生产仍须完整副本验证和全部Series UAT各自验收；生产Reset另行按当前精确范围授权。
+
 2026-10-12最新用户决定：“暂不扩展历史兼容，保留生产现状”。不实施所提冻结旧合同兼容方案，不执行NAS升级或生产Reset。UAT-293继续阻断发布；既有修复和独立验收保留，不宣称全部Series UAT已清零。
 
 更新：2026-10-08。用户已接受Helix Beta Movie全链路阶段成果，并明确开始Series大版本开发。阶段收尾证据为[UAT-278](implementation/evidence/UAT-278_BETA_MOVIE_CLOSEOUT_20260930.md)；Series开发已Exit，冻结包及结论入口为[CURRENT_PHASE](implementation/CURRENT_PHASE.md)。不分配新版本名称或Git release tag。

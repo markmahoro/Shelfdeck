@@ -1,5 +1,7 @@
 # UAT-295：全新Series批次逐集TMDB资料超时与终态收敛
 
+2026-10-12 新Run现场补验：人世间58集Run c8e9ded983da364c62c5e43c52dd1483beb0b0c0f3c96a1680d0e790bcfd5976已完整Commit，59个product_metadata.fetch全部成功，无该阶段失败；58项真实转码成功。该Run另有2次身份Observation超时，不能宣称所有网络请求零失败。结合既有双平台请求复用、实际Provider整季验证，关闭本项逐集Metadata超时修复验收；不把后续独立网络故障抹为成功。证据`.codex/series-release-20261012/local-committed-evidence.json`。
+
 2026-10-09 12:05，新干净18081中人世间58集与白鹿原77集各1个Run保持active，但两项libra.product_metadata.fetch@1已连续3次PLATFORM_INTEGRATION_TIMEOUT并终态failed：人世间S01E23（TMDB156568），白鹿原S01E19（TMDB72312）。Event分别为libra-product-metadata-event-95ca2d156f25cb130ceab70d36ff4aa29286e1b3、libra-product-metadata-event-68dc0fe2f0d2bc1804d5fb9bfa9249f7642e3a8a；共同失败Evidence摘要e46095b7d0bd2e0eea7a92e5eeec4a080051d608425d738cc906241dee599dfb。初始身份查询的2次超时已重试成功，与这2项终态失败区分。
 
 新旧TMDB配置均含language/proxyServer，代理配置已迁入，正式连接测试通过；不能据连接测试通过推断所有逐集请求可用，也不能仅凭timeout判定Provider故障或程序缺陷。Adapter默认单请求10秒，超时为正式timeout Outcome，沿原合同重试；未放宽时间或绕过校验。

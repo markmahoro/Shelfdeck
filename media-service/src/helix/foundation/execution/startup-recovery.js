@@ -156,17 +156,27 @@ function createStartupRecovery(options) {
       for (const attempt of facts.workAttempts) {
         if (!workIds.has(attempt.work_id)) findings.push('ORPHAN_WORK_ATTEMPT:' + attempt.attempt_id);
       }
+      const catalogSnapshots = [];
       for (const plan of facts.plans) {
         const workAttempt = workAttempts.get(plan.attempt_id);
         const work = workAttempt && works.get(workAttempt.work_id);
         if (!workAttempt || !work) findings.push('ORPHAN_PLAN:' + plan.plan_id);
-        else if (!safeRepairAttemptIds.has(plan.attempt_id) && !options.catalogVerifier.verify(Object.freeze({
+        else if (!safeRepairAttemptIds.has(plan.attempt_id)) catalogSnapshots.push(Object.freeze({
           plan: Object.freeze(plan),
           workAttempt: Object.freeze(workAttempt),
           work: Object.freeze(work),
           nodes: Object.freeze(nodesByPlan.get(plan.plan_id) || []),
           events: Object.freeze(eventsByPlan.get(plan.plan_id) || []),
-        }))) findings.push('PLAN_CATALOG_DRIFT:' + plan.plan_id);
+        }));
+      }
+      const catalogResults = options.catalogVerifier.verifyBatch
+        ? options.catalogVerifier.verifyBatch(catalogSnapshots)
+        : catalogSnapshots.map(snapshot => options.catalogVerifier.verify(snapshot));
+      if (!Array.isArray(catalogResults) || catalogResults.length !== catalogSnapshots.length) {
+        fail('P4_STARTUP_CATALOG_BATCH_INVALID', 'Catalog verification must return one decision per Plan.');
+      }
+      for (let index = 0; index < catalogSnapshots.length; index += 1) {
+        if (catalogResults[index] !== true) findings.push('PLAN_CATALOG_DRIFT:' + catalogSnapshots[index].plan.plan_id);
       }
       for (const effect of facts.effects) {
         const standalone = effect.event_attempt_id === null &&

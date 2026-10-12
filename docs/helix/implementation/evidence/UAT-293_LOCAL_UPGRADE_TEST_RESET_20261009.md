@@ -1,5 +1,11 @@
 # UAT-293：本地测试升级与旧执行历史
 
+2026-10-12第二轮完整生产副本Host已启动：health=ok、normalSupplyAllowed=true，正常关闭。Linux Proof/Startup/Governor专项105项全部通过；最终Service601通过/0失败/28skip。原冻结备份与副本逐行摘要核对：499 Shelf Entry、35915 Inventory Material、499 Commit Receipt全部原样保留；30996条保留Plan、70866 Node、44926 Edge、79611 Result Binding、46129 Commit Marker逐行一致，integrity=ok、FK=0。60条旧Plan属于已演练的4 Subject Reset闭包；Host正常供给另新增10 Plan，不把它们混作历史。日志`.codex/series-release-20261012/uat293-replica-host-v2.log`、`replica-history-invariants.json`。本次仍为精确旧镜像挂当前源码的诊断，尚不替代待发布镜像/回退门禁，生产未改变。
+
+2026-10-12后续用户批准“同意你的兼容方案，继续执行升级”，取代下一段的暂停决定。已实现冻结Movie合同只读验证，archive源码8e197b3c36、SHA256 `369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e`，87个manifest、1124个Schema及原Policy重建Catalog。跨历史引用沿各自冻结合同验证；未知合同、活动Attempt、typed shape错误、环和篡改仍拒绝。不改写生产数据、不恢复旧executor，生产Reset仍需另行授权。
+
+首轮完整副本Host超过15分钟未完成，精确停止该测试容器，不计PASS。重复历史读取改为同事务最多100根Plan、每查询500 ID的批处理；事务结束即丢弃缓存，Owner物理证明仍单独重读。批处理及Proof专项90项通过，补充启动判定数量/非布尔拒绝专项24项通过；完整副本第二轮尚在验证，不能据此关闭本项。Service回归另暴露UAT-304资源等待恢复问题，已修复并独立记录。
+
 2026-10-12最新用户决定：“暂不扩展历史兼容，保留生产现状”。不实施所提冻结旧合同兼容方案，不执行NAS升级或生产Reset。UAT-293继续阻断发布；既有修复和独立验收保留，不宣称全部Series UAT已清零。 下述历史连续性方案未获本次实施授权，仅保留为诊断提案。完整备份保留在`/vol1/1000/docker/shelfdeck/backups/series-preflight-20261012-02`。
 
 2026-10-12生产升级预演（仅隔离副本）：最新完整一致备份记录499入藏/499 Commit、SQLite 2,545,827,840字节及39伴随文件，SHA256 `9366b15b9d48812961b27ec52f7e70e9ad9a9fd67aa2b08e4f6604721c32c638`。原Schema `14c18e017bfce8b78230d0509be1c46fb11c0da95a240396628173a9e71bed73`，直接升级由`SERIES_OFFLOAD_FORMATION_RESET_REQUIRED`正确拒绝，仍存在3 active Run和1无Commit Package。默认Reset同时触及已保留Subject的routing anchor，ready=false，禁止应用。

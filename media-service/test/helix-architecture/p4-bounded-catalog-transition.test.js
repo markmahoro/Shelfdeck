@@ -62,8 +62,9 @@ function fixture(settings = {}) {
     bindingProjectionRegistry: { resolve(ref) { assert.equal(ref, 'projection@1'); return {}; } },
     proofReader: { verify(callback) { return callback({ read: id => graphs.get(id),
       workPlanIds: workId => [...graphs.values()].filter(graph => graph.work.work_id === workId).map(graph => graph.plan.plan_id) }); } },
-    terminalOnly:settings.terminalOnly, terminalEffectObserver:settings.terminalEffectObserver, onRejected: reason => reasons.push(reason) }); }
-  return { facts, witness, schemas, registry, graphs, reasons, verify: () => verifier().verify(facts), prefix };
+    terminalOnly:settings.terminalOnly, terminalEffectObserver:settings.terminalEffectObserver,
+    historicalProofResolver: settings.historicalProofResolver, onRejected: reason => reasons.push(reason) }); }
+  return { facts, witness, schemas, registry, graphs, reasons, verifier, verify: () => verifier().verify(facts), prefix };
 }
 
 function effectHistoryFixture() {
@@ -454,4 +455,89 @@ test('terminal current-Catalog direct Evidence must still satisfy its complete f
     canonicalDigest(schemaClosure(f.registry.resolve(record.capabilityRef, 'libra').manifest, f.schemas));
   assert.equal(f.verify(), false);
   assert.ok(f.reasons.some(reason => reason.includes('completeObservation')));
+});
+
+test('cross-Catalog terminal proof preserves typed validation and detects dependency cycles', () => {
+  const settings = { terminalOnly: true }, otherSettings = { terminalOnly: true };
+  const f = fixture(settings), other = fixture(otherSettings);
+  other.witness.currentCatalogDigest = other.witness.previousCatalogDigest;
+  // A separate, exact frozen contract: both manifests use their previous bytes.
+  other.registry.snapshot.forEach(entry => {
+    const record = other.witness.capabilities.find(row => row.capabilityRef === entry.capabilityRef);
+    if (record.previousManifest) {
+      const oldResolve = other.registry.resolve;
+      other.registry.resolve = (ref, owner) => ref === record.capabilityRef ? { manifest: record.previousManifest } : oldResolve(ref, owner);
+      entry.executionContractDigest = record.previousContractDigest;
+      record.currentContractDigest = record.previousContractDigest;
+    }
+  });
+  // Use a distinct catalog by changing the unrelated capability's executor version.
+  other.registry.snapshot[0].executorVersion = other.witness.capabilities[0].executorVersion = 2;
+  other.witness.currentCatalogDigest = other.witness.previousCatalogDigest = executionCatalogDigest(other.registry, { digest: HASH });
+  const source = structuredClone(other.facts);
+  source.plan.catalog_digest = other.witness.currentCatalogDigest;
+  source.plan.plan_id = 'source-plan'; source.plan.attempt_id = source.workAttempt.attempt_id = 'source-attempt';
+  source.workAttempt.work_id = source.work.work_id = 'source-work';
+  source.nodes[0].plan_id = source.events[0].plan_id = 'source-plan';
+  source.events[0].work_id = 'source-work'; source.events[0].attempt_id = 'source-attempt';
+  f.graphs.set('source-plan', source);
+  const binding = (target, workId) => {
+    const input = JSON.parse(target.nodes[0].input_bindings_json);
+    input.bindings[0] = { portName: 'value', bindingKind: 'projected_work_results', sourceWorkId: workId,
+      projectionRef: 'projection@1', resultSchemaRefs: [f.prefix + 'result'], parameters: {} };
+    target.nodes[0].input_bindings_json = JSON.stringify(input);
+  };
+  binding(f.facts, 'source-work');
+  settings.historicalProofResolver = digest => digest === other.witness.currentCatalogDigest ? other.verifier().proveTerminal : null;
+  otherSettings.historicalProofResolver = digest => digest === f.witness.previousCatalogDigest ? f.verifier().proveTerminal : null;
+  const before = JSON.stringify([...f.graphs]);
+  assert.equal(f.verify(), true, f.reasons.join('\n'));
+  assert.equal(JSON.stringify([...f.graphs]), before);
+  source.results[0].result_digest = HASH; assert.equal(f.verify(), false);
+  source.results[0].result_digest = canonicalDigest({});
+  source.workAttempt.state = 'running'; assert.equal(f.verify(), false);
+  source.workAttempt.state = 'succeeded'; binding(source, 'work'); assert.equal(f.verify(), false);
+  assert.match(f.reasons.at(-1), /Cyclic cross-Work/);
+});
+
+test('production Movie contract archive has exact provenance and cannot authorize active history', () => {
+  const { createFrozenCatalogHistory } = require('../../src/helix/foundation/execution/frozen-catalog-history');
+  const archive = require('../../src/helix/composition/catalog-transitions/movie-terminal-contracts-20260930.json');
+  const reasons = [], f = fixture({ terminalOnly: true });
+  f.facts.plan.catalog_digest = archive.catalogDigest; f.facts.plan.state = 'no_effect_required';
+  for (const key of ['nodes', 'events', 'attempts', 'results']) f.facts[key] = [];
+  const options = { archive, archiveDigest: '369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
+    priorArchive: require('../../src/helix/composition/catalog-transitions/secondary-acceptance-history-20260928.json'),
+    priorArchiveDigest: '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
+    witness: require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json'),
+    onRejected: reason => reasons.push(reason), proofReader: { verify: fn => fn({ prefetch() {}, read: () => f.facts }) } };
+  const history = createFrozenCatalogHistory(options);
+  assert.deepEqual(reasons, []);
+  assert.equal(history.verify(f.facts), true);
+  assert.deepEqual(history.verifyBatch([f.facts,{...f.facts,work:{work_id:'foreign'}}]),[true,false]);
+  assert.throws(()=>history.verifyBatch(Array(101).fill(f.facts)),/bound/);
+  f.facts.workAttempt.state = 'running'; assert.equal(history.verify(f.facts), false);
+  assert.deepEqual(history.verifyBatch([f.facts]),[false],'a previous batch cannot authorize changed history');
+  f.facts.workAttempt.state = 'succeeded'; f.facts.plan.catalog_digest = HASH;
+  assert.equal(history.supports(HASH), false); assert.equal(history.verify(f.facts), false);
+  const corrupt = structuredClone(archive); corrupt.schemas[0].description = 'tampered';
+  assert.throws(() => createFrozenCatalogHistory({ ...options, archive: corrupt }), /provenance/);
+});
+
+test('a single frozen Catalog rejects a different payload shape even with a valid payload digest', () => {
+  const f = fixture({ terminalOnly: true });
+  f.schemas.get(f.prefix + 'result').required = ['frozenField'];
+  for (const record of f.witness.capabilities) {
+    record.previousContractDigest = record.currentContractDigest;
+    delete record.previousManifest;
+    record.previousSchemaDigest = record.currentSchemaDigest = canonicalDigest(
+      schemaClosure(f.registry.resolve(record.capabilityRef, 'libra').manifest, f.schemas));
+  }
+  f.witness.previousCatalogDigest = f.witness.currentCatalogDigest;
+  f.facts.plan.catalog_digest = f.witness.currentCatalogDigest;
+  assert.equal(f.verify(), false);
+  assert.match(f.reasons.at(-1), /frozenField/);
+  f.facts.results[0].result_json = JSON.stringify({ frozenField: true });
+  f.facts.results[0].result_digest = canonicalDigest({ frozenField: true });
+  assert.equal(f.verify(), true, f.reasons.join('\n'));
 });

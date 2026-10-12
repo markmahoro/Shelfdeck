@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(authorization_id,revision)`；immutable；revision为正整数",
       "source": {
         "section": "8.9.9",
-        "line": 15710,
+        "line": 15728,
         "lineDigest": "8508fbbc000e32d4ee694d07ecb38e1ed718c02d1012fca2ddfde1962e7622a5"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "current pointer显式复合FK；CAS revision",
       "source": {
         "section": "8.9.9",
-        "line": 15711,
+        "line": 15729,
         "lineDigest": "bce49ca70aa8369999f80da9113bbbd8fbf4082ab42977bf8732b90ae344fa2e"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`INDEX(subject_id,committed_at_ms)`；`INDEX(stable_input_digest,requirements_digest,conditions_digest)`；immutable；typed JSON上限`64 KiB`",
       "source": {
         "section": "8.9.9",
-        "line": 15712,
+        "line": 15730,
         "lineDigest": "bc588a5a37ac833eae68c9adbbc154aeae0f6b3c878de7c3d9805f5bdbc2c4a8"
       }
     }

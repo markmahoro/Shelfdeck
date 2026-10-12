@@ -25,7 +25,8 @@ function payload(json, digest) {
 }
 
 function createBoundedCatalogTransition({ witness, registry, policyRegistry, schemas, contractValidator,
-  bindingProjectionRegistry, proofReader, terminalEffectObserver, onRejected, terminalOnly = false }) {
+  bindingProjectionRegistry, proofReader, terminalEffectObserver, onRejected, terminalOnly = false,
+  historicalProofResolver }) {
   const records = new Map(witness.capabilities.map(record => [record.capabilityRef, record]));
   const affected = new Set(witness.capabilities.filter(record =>
     record.previousContractDigest !== record.currentContractDigest ||
@@ -85,12 +86,20 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
     visiting.add(planId);
     const facts = reader.read(planId);
     requireProof(facts, 'Missing referenced Plan.');
+    if (terminalOnly && facts.plan.catalog_digest !== witness.previousCatalogDigest &&
+        facts.plan.catalog_digest !== witness.currentCatalogDigest) {
+      const external = historicalProofResolver?.(facts.plan.catalog_digest);
+      requireProof(!requireUnaffected && external, 'Unknown referenced historical Catalog.');
+      visiting.delete(planId);
+      return external(reader, planId, false, visiting, proven, resolution);
+    }
     const { plan, workAttempt, work, nodes, events, edges, attempts, effects, results, markers } = facts;
     requireProof(plan.plan_id === planId && PLAN_RESOLUTIONS.includes(plan.state) && workAttempt && work &&
       plan.attempt_id === workAttempt.attempt_id && workAttempt.work_id === work.work_id &&
       HASH.test(plan.graph_digest) && HASH.test(plan.basis_digest) && plan.basis_digest === workAttempt.basis_digest,
     'Plan/Work/Attempt envelope mismatch.');
-    const previous = plan.catalog_digest === witness.previousCatalogDigest;
+    const previous = plan.catalog_digest === witness.previousCatalogDigest &&
+      witness.previousCatalogDigest !== witness.currentCatalogDigest;
     requireProof(previous || plan.catalog_digest === witness.currentCatalogDigest, 'Unknown referenced Catalog.');
     const terminal = TERMINAL.has(workAttempt.state);
     requireProof(!terminalOnly || terminal, 'Historical contract cannot authorize an active Attempt.');
@@ -324,6 +333,10 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
 
   return Object.freeze({
     previousCatalogDigest: witness.previousCatalogDigest,
+    proveTerminal(reader, planId, requireUnaffected, visiting, proven, resolution) {
+      requireProof(witnessValid && terminalOnly && !requireUnaffected, 'Historical proof is not executable.');
+      return prove(reader, planId, false, visiting, proven, resolution);
+    },
     verify(snapshot) {
       if (!witnessValid || (snapshot?.plan?.catalog_digest !== witness.previousCatalogDigest &&
           !(terminalOnly && snapshot?.plan?.catalog_digest === witness.currentCatalogDigest))) return false;

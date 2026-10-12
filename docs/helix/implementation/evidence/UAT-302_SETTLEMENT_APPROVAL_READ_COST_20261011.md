@@ -1,5 +1,7 @@
 # UAT-302：整季来源结算审批重复读取完整交付包
 
+2026-10-12 现场补验：加载优化后58/33/36集真实任务均完成来源结算及唯一On-deck Commit；结合已有双平台77集231项结算、撤销授权/变Basis拒绝专项，关闭本项。逐文件删除前Fence和授权仍重读，原历史未修改；没有可比的现场整链路耗时，不能推算新的速度倍数。证据`.codex/series-release-20261012/local-committed-evidence.json`。
+
 2026-10-11接续UAT-298/300的77集混合来源耗时诊断。Windows基线81a5a2e41运行进入231项来源结算，25.18秒CPU采样中readSettlement占17.45秒，readOffer占16.27秒；其中reconcileSettlementApprovals占5.13秒。该同步循环已先readAccepted验证完整Context，却又为每个尚未结算成员调用readSettlement，重复读取及重建整季Package。
 
 修复只在Arca同轮同步审批准备内从已验证的完整Context逐成员派生boundedSettlementContext；复用已有精确映射函数，不缓存跨轮结果、不改变Libra Product Delivery public port。每个Approval仍绑定单一source、完整final mapping、Final Product Verification和当前Standing Authorization；下一轮重新readAccepted/current authorization。执行输入准备、资源需求和实际删除前的readSettlement及Fence保持。

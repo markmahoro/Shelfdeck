@@ -8,7 +8,8 @@ const { createBoundedCatalogTransition } = require('./bounded-catalog-transition
 // registry. The original transition proof remains authoritative for its older
 // terminal records, including its explicitly witnessed nominal Evidence.
 function createTerminalCatalogHistory({ archive, archiveDigest, witness, currentCatalogDigest,
-  policyRegistry, bindingProjectionRegistry, proofReader, terminalEffectObserver, onRejected }) {
+  policyRegistry, bindingProjectionRegistry, proofReader, terminalEffectObserver, onRejected,
+  historicalProofResolver, onProofReady }) {
   const catalogs = new Set([witness.previousCatalogDigest, witness.currentCatalogDigest]);
   const rejected = Object.freeze({ supports: digest => catalogs.has(digest), verify: () => false });
   if (canonicalDigest(archive) !== archiveDigest || archive.targetCatalogDigest !== currentCatalogDigest ||
@@ -34,7 +35,9 @@ function createTerminalCatalogHistory({ archive, archiveDigest, witness, current
   const proof = createBoundedCatalogTransition({ witness, registry, policyRegistry,
     schemas: new Map(archive.schemas.map(schema => [schema.$id, schema])),
     contractValidator: createCapabilityContractValidator({ schemas: archive.schemas }),
-    bindingProjectionRegistry, proofReader, terminalEffectObserver, onRejected, terminalOnly: true });
+    bindingProjectionRegistry, proofReader, terminalEffectObserver, onRejected, terminalOnly: true,
+    historicalProofResolver });
+  onProofReady?.(proof.proveTerminal);
   return Object.freeze({ supports: digest => catalogs.has(digest), verify: snapshot => proof.verify(snapshot) });
 }
 

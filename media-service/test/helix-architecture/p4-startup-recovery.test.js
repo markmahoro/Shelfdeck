@@ -73,7 +73,7 @@ function fixture(run, settings = {}) {
     registry: { resolve() { if (settings.unknownContract) throw new Error('unknown'); return {}; } },
     policyRegistry: { bindingFor() { return { retryPolicyRef: 'retry', timeoutPolicyRef: 'timeout' }; } },
     integrityVerifier: { verify: () => ({ ok: settings.integrity !== false }) },
-    catalogVerifier: { verify: (snapshot) => {
+    catalogVerifier: { ...(settings.verifyBatch ? { verifyBatch:settings.verifyBatch } : {}), verify: (snapshot) => {
       if (typeof settings.onCatalogSnapshot === 'function') settings.onCatalogSnapshot(snapshot);
       return settings.catalog !== false;
     } },
@@ -127,6 +127,29 @@ test('catalog verification receives the immutable Plan execution context', async
   assert.equal(observed.work.work_id, 'work');
   assert.equal(observed.nodes[0].capability_ref, null);
   assert.equal(observed.events[0].capability_ref, 'libra.fixture@1');
+});
+
+test('startup batch verification requires an explicit decision for every Plan', async () => {
+  for (const invalid of [[], [true, true], null, {0:true,length:1}]) {
+    await fixture(async recovery => {
+      await assert.rejects(recovery.recover(), {code:'P4_STARTUP_CATALOG_BATCH_INVALID'});
+    }, {verifyBatch:() => invalid});
+  }
+  for (const decision of [false, undefined, 1, 'true']) {
+    await fixture(async recovery => {
+      const result = await recovery.recover();
+      assert.equal(result.state, 'faulted');
+      assert(result.findings.includes('PLAN_CATALOG_DRIFT:plan'));
+    }, {verifyBatch:snapshots => {
+      assert.equal(snapshots.length, 1);
+      assert.equal(snapshots[0].plan.plan_id, 'plan');
+      return [decision];
+    }});
+  }
+  await fixture(async recovery => {
+    assert.equal((await recovery.recover()).state, 'ready');
+  }, {eventState:'succeeded', workState:'succeeded', workAttemptState:'succeeded',
+    catalog:false, verifyBatch:snapshots => snapshots.map(() => true)});
 });
 
 test('the exact UAT source Catalog continues only when every immutable node still resolves exactly', () => {

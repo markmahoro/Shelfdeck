@@ -60,4 +60,16 @@ test('large catalog proof retains every scoped Effect and marker in bounded tran
   const empty=reader.verify(proof=>proof.read('empty'));
   assert.deepEqual(empty.effects,[]);assert.deepEqual(empty.markers,[]);
   assert.ok(!reads.some(read=>['effects','markers'].includes(read.statement)));
+  reads.length=0;
+  reader.verify(proof=>{
+    proof.prefetch(['target','foreign','empty']);
+    const count=reads.length;
+    assert.equal(proof.read('target').effects.length,expectedEffects.length);
+    assert.deepEqual(proof.read('foreign').effects.map(row=>row.effect_id),['foreign-effect']);
+    assert.deepEqual(proof.read('empty').effects,[]);
+    assert.equal(reads.length,count,'prefetched graphs are reused only in this transaction');
+  });
+  const previousCount=reads.length;
+  reader.verify(proof=>proof.read('foreign'));
+  assert.ok(reads.length>previousCount,'a new transaction must re-read its proof');
 });

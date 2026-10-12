@@ -1,5 +1,7 @@
 # UAT-301：Series 逐集生产重复解析整季 Handoff A
 
+2026-10-12 现场补验：本地加载后人世间58集完整完成，174项verify/select成功、58项真实transcode成功并形成唯一Commit；扫毒风暴33集、庆余年36集也已完成。结合双平台77集完整Host、CPU前后对照及完整性负向测试关闭本项。现场未采集可比的端到端前后耗时，不宣称新的整链路提速倍数。证据`.codex/series-release-20261012/local-committed-evidence.json`。
+
 2026-10-11用户要求启动本地服务并继续修复。基线81a5a2e41，现场18081以原preview-uat294/data启动，health正常，未Reset或部署NAS。停机数据库备份SHA256为77bb181ac683558d324fee5b70758b12d2b9d3982496866579326f47709a85fe；备份目录中的Workspace复制中止，不作为完整媒体备份。
 
 17集混合来源完整Host基线PASS，121.81秒；CPU profile中Libra readRunInternal约8.96秒，canonicalJson累计约17.90秒。Reader在每个成员中重复查询同一Intake、解析完整Candidate Delivery，并对整季Package和Manifest重复canonical比较。这里确认的是Libra读取放大，不据此认定Arca结算全部耗时已定位。

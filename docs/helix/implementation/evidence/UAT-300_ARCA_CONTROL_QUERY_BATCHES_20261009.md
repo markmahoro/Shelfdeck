@@ -1,5 +1,7 @@
 # UAT-300：On-deck Commit 准备查询超过500项
 
+2026-10-12 依据本项既定条件收口：public Query原500项拒绝、Arca完整1024项装配/陈旧Control/事务回滚与重放均已双平台验证，最终77集混合来源Host双平台完成Commit（UAT-302最终日志）。现本地已加载并有58/33/36集新Commit。关闭查询分批缺陷；不将现场较小集合伪称超过500项，也不宣称结算性能由本项修复。
+
 77集混合来源诊断容器 `shelfdeck-uat298-settlement-diagnostic` 运行约3572秒后退出1，不是80分钟预算耗尽。保留fixture `/tmp/helix-series-routing-K1Wa7a`，并复制到仓库外供只读核对。数据库最终231项来源结算全部succeeded，Fulfillment也succeeded，唯一未完成Event为 `arca.ondeck.commit@1`。最后一条30秒进度只有220项结算，不代表最终状态。
 
 根因：On-deck Capability将Product、Offload和Stage身份合并后一次调用普通Material Control Query，触发 `P3_CONTROL_QUERY_KEYS_INVALID` 的500项限制。Arca其他入口已有分批只读装配模式；SSOT §8.3.6每批500项仍保持，最终Control Authority按完整变化集在原事务中CAS和提交，不拆分Control提交或扩大权限。

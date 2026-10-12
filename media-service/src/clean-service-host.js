@@ -1498,6 +1498,7 @@ async function createCleanServiceHost(options) {
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
   procurementExecution = createHelixExecutionRuntime({
+    onHistoricalCatalogRejected: options.onHistoricalCatalogRejected,
     recycleTick:()=>arcaRecycle?.tick(),
     failureEvidenceStore:createFailureEvidenceStore(path.join(options.dataDir, 'diagnostics', 'execution-failures')),
     ...constructed.applicationDependencies,

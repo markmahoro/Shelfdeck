@@ -1,5 +1,7 @@
 # UAT-298：整季NFO来源交付证据仍限16条
 
+2026-10-12 最终77集混合来源完整Host双平台已通过，详见UAT-302最终日志，完整NFO来源进入Package且完成Commit。现场扫毒风暴33集与庆余年36集已完成，ProductionProvenance分别保留33、36条sourceNfoObservations（330652/508721字节），超过原16项限制。结合1024/1025和非Series边界测试关闭本项。只读证据`.codex/series-release-20261012/local-capacity-final.json`。
+
 UAT-297加长预算77集NFO+Provider Host双平台失败。Windows1000.04秒，所有metadata/artifact/product_fact/workspace_media_production/product_conformance成功；deliverable_promotion的libra.product_package.publish@1输入投影失败P4_CAPABILITY_SCHEMA_REJECTED，Evidence摘要89a5fb4494e06d4d66fcc1decb7f655983cfee9a52ca9f8d9c4d542666d38b2c。Linux保留容器shelfdeck-uat297-mixed-host ExitCode1，完整日志同关卡失败，1275.82秒；均未Commit。
 
 对正式Schema约束生成精确输入失败消息并按Foundation现行公式重算SHA-256，唯一匹配：instancePath=/libraDeliverablePromotionDecision/productionProvenance/sourceNfoObservations，keyword=maxItems，message=must NOT have more than 16 items。对应Source字段由Libra assembler按每个related NFO生成一条完整MetadataObservation，77集77份NFO超过16。生成器domain-input/result-type两处仍arrayOf(MetadataObservation,16)，SSOT§8.6.21也明确sourceNfoObservations[0..16]。不是排序错误，也不是UAT-297扩容未生效。

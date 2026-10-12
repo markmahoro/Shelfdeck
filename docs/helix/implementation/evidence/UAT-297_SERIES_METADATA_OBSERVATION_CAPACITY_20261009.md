@@ -1,5 +1,7 @@
 # UAT-297：多来源Series资料集合超限使Planner反复失败
 
+2026-10-12 补齐此前长Host终态：最终组合代码761c5e98a的77集混合NFO/Provider场景Windows984.83秒、Linux1302.94秒完整Commit，232条MetadataObservation全部保留，跨越原128项限制。精确日志为仓库外预览目录uat302-windows-final-77.log、uat302-linux-final-77.log；此前失败记录仍保留。结合双平台1024/1025及8 MiB拒绝测试，按本项完整多来源条件关闭；不宣称真实77集FFmpeg质量验收。
+
 2026-10-09用户反馈本地运行仍异常。18081服务仍运行；白鹿原新Run23e6f861e3f8140024547a128576ed0c7193cf853b207dd469d19d78f6447b31停在artifact_production ready，日志反复P9_METADATA_INTENT_ORDER，调用链productMetadataContext → buildMetadataObservationBasis → selectMetadataObservations。
 
 只读现场232条成功MetadataObservation：global related_nfo77、global provider1、episode related_nfo77、episode provider77；sourcePriority精确连续0..231，不是顺序损坏。完整Observation数组512272字节，尚未计入sourcePrecedence及Set包装。Series合同容量128，代码将容量和顺序错误合并报告；SSOT MetadataObservationSet/SelectionSnapshot明确128项、Set512 KiB。此前77集Host仅Provider，未覆盖本地逐集NFO与Provider合并的容量。

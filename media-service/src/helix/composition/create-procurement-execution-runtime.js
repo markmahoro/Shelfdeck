@@ -28,7 +28,8 @@ const { createBoundedCatalogTransition } = require('../foundation/execution/boun
 const { createCatalogPlanProofReader } = require('../foundation/execution/catalog-plan-proof-reader');
 const intakeControlCatalogTransition = require('./catalog-transitions/intake-control-20260912.json');
 const secondaryAcceptanceHistory = require('./catalog-transitions/secondary-acceptance-history-20260928.json');
-const { createTerminalCatalogHistory } = require('../foundation/execution/terminal-catalog-history');
+const { createFrozenCatalogHistory } = require('../foundation/execution/frozen-catalog-history');
+const movieTerminalContracts = require('./catalog-transitions/movie-terminal-contracts-20260930.json');
 const { createTimeoutController } = require('../foundation/execution/timeout-controller');
 const { createCooperativeExecutionIsolation } = require('../foundation/execution/cooperative-execution-isolation');
 const { createWorkLifecycle } = require('../foundation/execution/work-lifecycle');
@@ -753,14 +754,31 @@ function createProcurementExecutionRuntime(options) {
     registry, policyRegistry, schemas: new Map(runtimeSchemas.map(schema => [schema.$id, schema])),
     contractValidator, bindingProjectionRegistry,
     proofReader:catalogProofReader, terminalEffectObserver });
-  const terminalHistory = createTerminalCatalogHistory({ archive: secondaryAcceptanceHistory,
-    archiveDigest: '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
-    witness: intakeControlCatalogTransition, currentCatalogDigest: catalogDigest, policyRegistry,
+  const terminalHistory = createFrozenCatalogHistory({ archive: movieTerminalContracts,
+    archiveDigest: '369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
+    priorArchive: secondaryAcceptanceHistory,
+    priorArchiveDigest: '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
+    onRejected: options.onHistoricalCatalogRejected,
+    witness: intakeControlCatalogTransition,
     bindingProjectionRegistry, proofReader: catalogProofReader, terminalEffectObserver });
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     standaloneEffectClasses:Object.freeze(['libra_workspace_material_reclaim','arca_recycle_move','arca_recycle_restore','arca_recycle_purge']),
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
-    catalogVerifier: { verify: (snapshot) => verifyStartupPlanCatalog(
+    catalogVerifier: { verifyBatch(snapshots) {
+      const results = [], pending = [];
+      for (let index = 0; index < snapshots.length; index += 1) {
+        const snapshot = snapshots[index];
+        if (terminalHistory.supports(snapshot.plan.catalog_digest)) pending.push({ index, snapshot });
+        else results[index] = verifyStartupPlanCatalog(snapshot, catalogDigest, registry, policyRegistry,
+          bindingProjectionRegistry, boundedTransition, terminalHistory);
+      }
+      for (let offset = 0; offset < pending.length; offset += 100) {
+        const batch = pending.slice(offset, offset + 100);
+        const verified = terminalHistory.verifyBatch(batch.map(item => item.snapshot));
+        batch.forEach((item, index) => { results[item.index] = verified[index]; });
+      }
+      return results;
+    }, verify: (snapshot) => verifyStartupPlanCatalog(
       snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition, terminalHistory,
     ) },
     effectReconciler, effectJournal });

@@ -302,32 +302,32 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 | UAT-287 | 整批Product Conformance/Arca验收仍有32成员及大Evidence限制 | LIBRA / ARCA_ACCEPTANCE_CAPACITY | 关闭：58集现场完整验收及Commit通过 | 47集逐关复现完整集合及追溯引用限制 | Win核心74/Linux50、升级24、边界60；2集完整Host通过 | [合同与复现](implementation/evidence/UAT-287_SERIES_AGGREGATE_ACCEPTANCE_CAPACITY_20261009.md) | 完整Primary集合与Owner Evidence不能截断；58集现场完整Commit补齐大季验收。 |
 
 | UAT-288 | 整季Stage Manifest超过64 KiB | ARCA / STAGED_MANIFEST_CAPACITY | 关闭：现场110964字节Stage及Commit通过 | 47集Stage Result94041字节 | 两集Host通过，47集通过Stage/Placement | [证据](implementation/evidence/UAT-288_SERIES_STAGE_MANIFEST_20261009.md) | 不扩大Foundation Result上限；完整Owner Manifest有界保存及现场Commit已验证。 |
-| UAT-289 | 来源结算未授权仅显示等待外部服务 | ARCA / FORMATION_FEEDBACK | 开放：待UI负责人确认 | 上海女子图鉴20个delete等待且零Attempt，授权head/记录均空 | 只读监控证据 | 监控聊天2026-10-09 02:33 CST | 不代用户批准来源删除；真实等待不是Provider耗时。 |
+| UAT-289 | 来源结算未授权仅显示等待外部服务 | ARCA / FORMATION_FEEDBACK | 关闭：指定UI负责人接受b87a61bc8具体版本 | 上海女子图鉴20个delete等待且零Attempt，授权head/记录均空 | 141前端测试；真实Host浏览器取消、明确授权与两集Commit通过 | [Evidence](implementation/evidence/UAT-289_SOURCE_SETTLEMENT_AUTHORIZATION_20261012.md) | 导航不授予删除权限；不扩大为原20成员或生产升级验收。 |
 
 | UAT-290 | FinalProductVerification/Fulfillment完整证据超过Foundation64 KiB | ARCA / FINAL_VERIFICATION_CAPACITY | 关闭：现场大Evidence及唯一Commit通过 | 47集最终校验74939字节，Commit重复内嵌Fulfillment | 双平台47集及现场58集完整Commit通过 | [Evidence](implementation/evidence/UAT-290_SERIES_FINAL_VERIFICATION_20261009.md) | Owner完整值1024成员/8 MiB，Result及Commit Evidence保存精确引用；结算授权不变。 |
 | UAT-291 | Series 逐集 thumb/NFO 漏交付，旧 Season 目录残留 | PROCUREMENT / ARCA_RELATED | 修复已验证，待现场验收 | 棋士旧目录22 thumb及22 NFO未进入交付 | 双平台入藏/空季清理、Windows迁移/改名及定向回归通过 | [Evidence](implementation/evidence/UAT-291_SERIES_RELATED_SIDECARS_20261009.md) | 已确认精确Primary映射与命名、仅清理旧空季目录；不操作现场存量。 |
 
 | UAT-292 | 存放规则更新与旧健康检查规划竞争，Series Care Basis 过期 | ARCA / AFTERCARE_STALE_BASIS | 修复已验证，待现场验收 | UAT-291 Host等待后台清理后修改Placement，旧health_assessment规划报obsolete Care Basis | 28项定向及原时序完整迁移Host通过 | [Evidence](implementation/evidence/UAT-292_SERIES_STALE_ASSESSMENT_20261009.md) | 不放宽Basis校验；Owner应按原失效合同收敛旧Work，需独立回归。 |
 
-| UAT-293 | 本地更新时既有Plan全局执行合同摘要漂移，Startup Recovery拒绝启动 | FOUNDATION / CATALOG_UPGRADE | 开放：生产副本27,592项历史Plan阻断；用户暂不扩展历史兼容 | 旧执行历史被精确校验拒绝 | 用户确认保留旧完整快照，新目录启动健康并迁入配置 | [Evidence](implementation/evidence/UAT-293_LOCAL_UPGRADE_TEST_RESET_20261009.md) | 不新增旧Run兼容、不放宽Startup校验；新测试记录从零开始。 |
+| UAT-293 | 本地更新时既有Plan全局执行合同摘要漂移，Startup Recovery拒绝启动 | FOUNDATION / CATALOG_UPGRADE | 开放：用户批准冻结历史只读兼容，完整副本验收中 | 生产副本27,592项历史Plan阻断 | 冻结合同及跨Plan负向测试通过，完整Host仍待验证 | [Evidence](implementation/evidence/UAT-293_LOCAL_UPGRADE_TEST_RESET_20261009.md) | 不恢复旧Run、不放宽Startup校验；生产Reset单独授权。 |
 
-| UAT-294 | 77集最终落位决策超过Arca独立64 KiB存储限制 | ARCA / FINAL_DECISION_CAPACITY | 修复已部署本地，双平台容量回归通过 | 全新77集97,662字节决策触发旧CHECK | Windows25项合同/DDL/Schema、Linux22项及双平台77集完整Commit通过 | [Evidence](implementation/evidence/UAT-294_SERIES_FINAL_DECISION_CAPACITY_20261009.md) | 用户确认Arca完整决策8 MiB，Foundation保持64 KiB；现场新批次另受UAT-295影响，未宣称整体上架通过。 |
+| UAT-294 | 77集最终落位决策超过Arca独立64 KiB存储限制 | ARCA / FINAL_DECISION_CAPACITY | 关闭：独立容量/完整链路及适用现场证据已补齐 | 全新77集97,662字节决策触发旧CHECK | Windows25项合同/DDL/Schema、Linux22项及双平台77集完整Commit通过 | [Evidence](implementation/evidence/UAT-294_SERIES_FINAL_DECISION_CAPACITY_20261009.md) | 用户确认Arca完整决策8 MiB，Foundation保持64 KiB；现场新批次另受UAT-295影响，未宣称整体上架通过。 |
 
-| UAT-295 | 全新Series逐集TMDB超时且Run先收集失败处置媒体证据 | LIBRA / METADATA_TIMEOUT | 修复已本地加载，等待新Run验收 | 人世间E23、白鹿原E19各3次timeout后Event失败，Run仍active | 已核对新旧代理配置一致、Owner现有终态前置媒体证据流程 | [Evidence](implementation/evidence/UAT-295_SERIES_METADATA_TIMEOUT_20261009.md) | 不以连接测试/HTTP健康推断全链路通过，不Reset掩盖新失败。 |
+| UAT-295 | 全新Series逐集TMDB超时且Run先收集失败处置媒体证据 | LIBRA / METADATA_TIMEOUT | 关闭：独立容量/完整链路及适用现场证据已补齐 | 人世间E23、白鹿原E19各3次timeout后Event失败，Run仍active | 已核对新旧代理配置一致、Owner现有终态前置媒体证据流程 | [Evidence](implementation/evidence/UAT-295_SERIES_METADATA_TIMEOUT_20261009.md) | 不以连接测试/HTTP健康推断全链路通过，不Reset掩盖新失败。 |
 
 | UAT-296 | Series重新处理入口残留Movie-only准入 | PROCUREMENT / REPROCESS_ADMISSION | 关闭：入口及新Run建立已验证 | 两条有效Series Field返回404，Libra意图已保存 | 双平台14项；原意图重放均202并建立新Run | [Evidence](implementation/evidence/UAT-296_SERIES_REPROCESS_ADMISSION_20261009.md) | 不重建意图、不修改历史证据；后续上架归UAT-295。 |
 
-| UAT-297 | Series多来源Metadata集合超过128项，Planner反复失败 | LIBRA / METADATA_OBSERVATION_CAPACITY | 修复已加载，待完整多来源验收 | 白鹿原232成功记录、priority连续，artifact Planner报P9_METADATA_INTENT_ORDER | 双平台51项通过，现场artifact已恢复running | [Evidence](implementation/evidence/UAT-297_SERIES_METADATA_OBSERVATION_CAPACITY_20261009.md) | 用户确认1024项/Series Set8 MiB；完整77集混合来源回归进行中。 |
+| UAT-297 | Series多来源Metadata集合超过128项，Planner反复失败 | LIBRA / METADATA_OBSERVATION_CAPACITY | 关闭：独立容量/完整链路及适用现场证据已补齐 | 白鹿原232成功记录、priority连续，artifact Planner报P9_METADATA_INTENT_ORDER | 双平台51项通过，现场artifact已恢复running | [Evidence](implementation/evidence/UAT-297_SERIES_METADATA_OBSERVATION_CAPACITY_20261009.md) | 用户确认1024项/Series Set8 MiB；完整77集混合来源回归进行中。 |
 
-| UAT-298 | Series交付NFO来源证据仍限16条 | LIBRA / HANDOFF_B_NFO_PROVENANCE | 已修复：待完整回归及本地加载 | 77集混合来源双平台publish输入Schema失败，精确错误摘要匹配 | metadata至conformance通过，完整Commit失败 | [Evidence](implementation/evidence/UAT-298_SERIES_NFO_PROVENANCE_CAPACITY_20261009.md) | 已确认Series1024条、双平台41项及Windows17集完整Host PASS，77集待验，不跳过来源清理证据。 |
+| UAT-298 | Series交付NFO来源证据仍限16条 | LIBRA / HANDOFF_B_NFO_PROVENANCE | 关闭：独立容量/完整链路及适用现场证据已补齐 | 77集混合来源双平台publish输入Schema失败，精确错误摘要匹配 | metadata至conformance通过，完整Commit失败 | [Evidence](implementation/evidence/UAT-298_SERIES_NFO_PROVENANCE_CAPACITY_20261009.md) | 已确认Series1024条、双平台41项及Windows17集完整Host PASS，77集待验，不跳过来源清理证据。 |
 
 | UAT-299 | 大Run自动discard完整Evidence超过Foundation64 KiB | LIBRA / DISCARD_EVIDENCE | 关闭：两条真实Run自动退出通过 | 人世间中断转码后69942字节Decision、60清理成员，Foundation CHECK失败 | 双平台各43项，真实副本原子回滚/提交/重放通过 | [Evidence](implementation/evidence/UAT-299_RUN_DISCARD_EVIDENCE_CAPACITY_20261009.md) | 不放宽Foundation、不Reset；已按Owner不可变Run revision重建。 |
 
-| UAT-300 | On-deck Commit准备Control Query超过500项 | ARCA / CONTROL_QUERY_BATCHES | 已修复：双平台完整Host通过，现场待验 | 77集结算231项与Fulfillment已成功，最终Commit查询失败 | 双平台各21项专项及77集混合来源完整Commit通过 | [Evidence](implementation/evidence/UAT-300_ARCA_CONTROL_QUERY_BATCHES_20261009.md) | 普通查询仍每批500，完整Control转移仍原子提交；不提高限额、不Reset。 |
+| UAT-300 | On-deck Commit准备Control Query超过500项 | ARCA / CONTROL_QUERY_BATCHES | 关闭：独立容量/完整链路及适用现场证据已补齐 | 77集结算231项与Fulfillment已成功，最终Commit查询失败 | 双平台各21项专项及77集混合来源完整Commit通过 | [Evidence](implementation/evidence/UAT-300_ARCA_CONTROL_QUERY_BATCHES_20261009.md) | 普通查询仍每批500，完整Control转移仍原子提交；不提高限额、不Reset。 |
 
-| UAT-301 | Series逐集生产反复解析同一整季Handoff A，读取开销随成员放大 | LIBRA / PERFORMANCE | 已修复：双平台完整Host通过，已加载本地/现场完整入藏待验 | 17集CPU profile与Reader逐成员重复读取证据 | 17集Reader CPU9.01秒至0.84秒、双平台77集Commit及负向通过 | [Evidence](implementation/evidence/UAT-301_SERIES_HANDOFF_READ_COST_20261011.md) | 单次事务复用，所有成员校验保持；Arca结算性能独立核对，不宣称整体提速已完成。 |
+| UAT-301 | Series逐集生产反复解析同一整季Handoff A，读取开销随成员放大 | LIBRA / PERFORMANCE | 关闭：独立容量/完整链路及适用现场证据已补齐 | 17集CPU profile与Reader逐成员重复读取证据 | 17集Reader CPU9.01秒至0.84秒、双平台77集Commit及负向通过 | [Evidence](implementation/evidence/UAT-301_SERIES_HANDOFF_READ_COST_20261011.md) | 单次事务复用，所有成员校验保持；Arca结算性能独立核对，不宣称整体提速已完成。 |
 
-| UAT-302 | 整季来源结算审批逐成员重读完整交付包 | ARCA / PERFORMANCE | 已修复：双平台完整Host通过，已加载本地/现场完整入藏待验 | 77集结算CPU profile及同步审批循环重复读取 | 8项精确审批/撤销/Basis专项及双平台77集Commit通过 | [Evidence](implementation/evidence/UAT-302_SETTLEMENT_APPROVAL_READ_COST_20261011.md) | 同轮复用已验证Context，实际删除仍重新核验逐文件授权与Fence；不更改来源删除范围。 |
+| UAT-302 | 整季来源结算审批逐成员重读完整交付包 | ARCA / PERFORMANCE | 关闭：独立容量/完整链路及适用现场证据已补齐 | 77集结算CPU profile及同步审批循环重复读取 | 8项精确审批/撤销/Basis专项及双平台77集Commit通过 | [Evidence](implementation/evidence/UAT-302_SETTLEMENT_APPROVAL_READ_COST_20261011.md) | 同轮复用已验证Context，实际删除仍重新核验逐文件授权与Fence；不更改来源删除范围。 |
 
 | UAT-303 | 历史secondary_target回退工具目标Schema随当前版本漂移 | RECOVERY_TOOLING | 关闭：限定历史离线范围双平台验收通过 | Service回归暴露伪旧库fixture及工具动态目标漂移 | 双平台各5项、Service599通过/0失败/27skip、边界27项通过 | [Evidence](implementation/evidence/UAT-303_HISTORICAL_ROLLBACK_SCOPE_20261011.md) | 固定原197表版本，当前Series不得使用此旧回退；不关闭UAT-293，无现场数据操作。 |
 
