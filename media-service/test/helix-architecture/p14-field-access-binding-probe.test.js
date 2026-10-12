@@ -226,6 +226,10 @@ for (const profile of ['movie', 'series', 'jav', 'western_adult', 'mixed']) {
       assert.equal(replay.observationWorkId, first.observationWorkId);
       assert.equal(replay.replayed, true);
       assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works').get().n, 1);
+      await assert.rejects(() => admin.requestReprocessObservation('field-1', 'b'.repeat(64)),
+        error => error.code === 'ADMIN_FIELD_CONFLICT' &&
+          error.details.reasonCode === 'FIELD_OBSERVATION_WORK_DEFERRED');
+      assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works').get().n, 1);
     } else {
       await assert.rejects(() => admin.requestReprocessObservation('field-1', 'a'.repeat(64)),
         (error) => error.code === 'ADMIN_FIELD_NOT_FOUND');

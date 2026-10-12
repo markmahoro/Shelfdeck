@@ -369,8 +369,12 @@ function createProcurementAdminApplication(options) {
       const field=store.getMaterialField(fieldId);
       if(!field||!['movie','series'].includes(field.currentProfileHintSnapshot?.contentProfileHint))
         throw new ProcurementAdminApplicationError('ADMIN_FIELD_NOT_FOUND','原电影目录当前不可用。',{fieldId});
-      return observation.observe({fieldId,idempotencyKey,expectedAccessRevision:field.currentAccessRevision,
-        expectedObservationRevision:field.currentObservationRevision||0,pageBudget:8});
+      try {
+        return observation.observe({fieldId,idempotencyKey,expectedAccessRevision:field.currentAccessRevision,
+          expectedObservationRevision:field.currentObservationRevision||0,pageBudget:8});
+      } catch (error) {
+        rejected(error);
+      }
     },
     retryFailedPreparation(fieldId, body, actor) {
       try {

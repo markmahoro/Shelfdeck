@@ -1,0 +1,9 @@
+# UAT-308：重新处理时来源扫描占用被误报500
+
+现场通过正式接口重试大江大河33集旧失败Run 9dd5c699e5fa08b60cd4532e529717903caf57a1ff3945a3505e62c541be38c1，Libra重试意图已持久化，但对应Field另有Observation，HTTP返回CLEAN_SERVICE_INTERNAL_ERROR/500。原始响应与意图只读检查保留在`.codex/series-release-20261012/local-uat307-reprocess.json`，不删除或重建意图。
+
+根因为requestReprocessObservation直接调用Observation准入，缺少普通Field命令已有的rejected映射。相同占用条件的正式Owner错误FIELD_OBSERVATION_WORK_DEFERRED应映射为ADMIN_FIELD_CONFLICT/409，不能伪装内部故障，也不能绕过单一Observation准入。
+
+界面目标：用户从现有重新处理入口获得现有的来源状态冲突反馈；不添加长说明、不新增按钮或业务权限。本次只复用已存在的Owner错误映射与文案。涉及后端可见错误，仍需指定UI负责人对具体版本验收。
+
+补充Movie/Series同来源两个重试意图的准入回归：修复前两项失败，修复后14项全部通过。验证首次准入、原意图重放、另一意图受冲突拒绝、持久Work仅一条及非支持Profile拒绝。未改变Libra已提交意图、Field扫描Scope或幂等语义。HTTP与具体版本UI验收继续，当前不关闭本项。
