@@ -665,10 +665,18 @@ function buildMediaCastDraft(value) {
 
 function buildMetadataMediaCastRelations(value) {
   const subjectId = text(value?.subjectId, 'subjectId');
-  const observations = value?.sourceBasis?.observationSet?.observations;
+  let observations = value?.sourceBasis?.observationSet?.observations;
   if (!Array.isArray(observations)) {
     fail('P9_MEDIA_CAST_BASIS',
       'Metadata Media Cast relations require a closed Observation Set.');
+  }
+  if (value.sourceBasis.observationSet.contentProfile === 'series') {
+    // A Season cast is represented by one Episode source, not a union of all Episodes.
+    const candidates = observations.filter((item) => item.episodeScope && item.peopleHints?.length);
+    for (const item of candidates) buildEpisodeMetadataScope(item.episodeScope);
+    candidates.sort((left, right) => left.episodeScope.episodeNumber - right.episodeScope.episodeNumber ||
+      left.sourcePriority - right.sourcePriority || compare(left.evidenceId, right.evidenceId));
+    observations = candidates.length ? [candidates[0]] : [];
   }
   const relations = [];
   const claimedProviderIdentities = new Set();

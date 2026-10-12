@@ -341,4 +341,4 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 
 | UAT-309 | Series候选身份声明超过Publication的16 KiB存储上限 | PROCUREMENT / IDENTITY_CAPACITY | 开放：原95集现场复现，容量方案待确认 | 三国IdentityClaim 16562字节，Publication事务拒绝、未封包 | Foundation Result通过，Owner存储按现合同拒绝 | [Evidence](implementation/evidence/UAT-309_SERIES_CANDIDATE_IDENTITY_CAPACITY_20261012.md) | 建议Series各64 KiB，其他Profile各16 KiB；不截断来源证据，不据此关闭UAT-284。 |
 
-| UAT-310 | Series完整演员来源关系超过Media Cast容量 | LIBRA / MEDIA_CAST_CAPACITY | 开放：原大江大河33集新Run复现，方案待确认 | 67份Observation产生4166条唯一关系，relations JSON 1678933字节 | 同Evidence重复已去除，完整Draft64 KiB及typed4096条边界仍阻断 | [Evidence](implementation/evidence/UAT-310_SERIES_MEDIA_CAST_CAPACITY_20261012.md) | 拟Series16384条/8 MiB、Owner完整事实与Foundation有界引用；不丢弃或跨来源猜测合并。 |
+| UAT-310 | Series完整演员来源关系超过Media Cast容量 | LIBRA / MEDIA_CAST_CAPACITY | 开放：用户已确认单Episode代表演员清单，修复验证中 | 67份Observation产生4166条唯一关系，relations JSON 1678933字节 | 同Evidence重复已去除，完整Draft64 KiB及typed4096条边界仍阻断 | [Evidence](implementation/evidence/UAT-310_SERIES_MEDIA_CAST_CAPACITY_20261012.md) | 最终采用首个演员非空Episode的单来源清单；保留原始证据，替代8 MiB扩容。 |

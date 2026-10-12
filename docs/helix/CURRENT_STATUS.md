@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-12 UAT-310用户最终选用首个非空Episode的单来源演员名单，取消拟议8 MiB扩容。原大江大河33集证据只读重放4166→63条，完整Draft31300字节；Windows32项合同及双平台NFO/入藏/整季迁移Host通过，静态门禁通过。原现场加载及重处理继续，生产未升级。详见UAT-310 Evidence。
+
 2026-10-12 13:24后：用户选择的《大宅门》2001第1季40集已有正式On-deck Commit（Entry `1c1241dc1356fa408b65a89598b45ca1e39f955694358b3d581554c47da4d2ea`）；潜伏、Netflix三体此前外部调用失败，不计通过。三国95成员经正式failed-preparation retry建立新采购Run，大江大河33集复用原幂等键重放202，等待原问题链路验收。UAT-292当前源码原竞态完整Host92.42秒通过并独立关闭；291/284/293/307/308仍开放。
 
 生产继续原版本正常处理，收藏已增至501。新完整备份`/vol1/1000/docker/shelfdeck/backups/series-preflight-20261012-03`：SQLite 2,545,827,840字节、SHA256 `f41a544d2e7e1e004c724f77b5f99094e73c9b93cb0481f88d68277d59fc0f4b`，39伴随文件一致、integrity=ok/FK=0；501收藏/35946 Material/501 Commit/615 Run。旧4 Subject范围因正常生产推进发生变化，不能复用旧授权范围。仅新增备份，未停服或Reset。5996cef8f8中间镜像已标准构建，tar SHA256 `e446d9acd5fd2e2bf6ee169e5fd03572d66c895289c5aec858db05bdf3bdf61d`；未包含后续308及UI修复，不是最终部署镜像。新快照隔离演练与原镜像冷启动回退验证仍运行。

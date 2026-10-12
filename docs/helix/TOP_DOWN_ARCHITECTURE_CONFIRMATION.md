@@ -15867,3 +15867,8 @@ Effect/Receipt/Commit Marker及引用完整性仍须成立。原Witness对prebou
 为避免重复扫描历史载荷，同一只读事务可预读最多100个根Plan，SQL查询按最多500个精确ID分块。
 已验证引用与原始事实缓存仅在该事务有效，每个根Plan仍须返回独立的严格布尔判定；缺项、额外项或非true均不得放行。
 需要Owner物理观察的Proof在Foundation读事务之外沿原单Plan验证流程重读，不嵌套Owner事务、不跨批复用物理证明。
+
+
+### Series演员清单代表集规则（2026-10-12，UAT-310用户确认）
+
+Series Media Cast由Libra在冻结Metadata Observation Set内选择恰一份Episode来源：过滤无episodeScope或peopleHints为空的Observation，按episodeNumber升序、既有sourcePriority升序、evidenceId UTF-8 bytes升序选择首项。该项演员线索按现有Provider身份及同Evidence精确重复规则去重，作为本次Season交付的演员清单；禁止再累加其他集、其他来源或无Episode scope的Season名单。没有合格来源时生成空演员清单，既有必需演员验收仍正常判定，不补造演员。该选择不改变逐集标题、剧情、Artifact或身份规则，不注册或合并People Person。完整原始Observation、Source Basis及来源摘要保留，只有业务演员清单采用代表集，接受后续集客串及其他演员遗漏。MediaCastDraft/Fact现有4096条及64 KiB容量不变，单份来源仍受既有peopleHints上限约束，越界继续明确拒绝。此规则替代此前拟定的Series 16384条/8 MiB完整演员扩容及Foundation摘要引用方案，其他Profile行为不变。

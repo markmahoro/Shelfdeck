@@ -1007,7 +1007,17 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     assert.ok(repeated.length>=physicalCount,'The real NFO parser must preserve the repeated assertions for the regression.');
     const cast=db.prepare("SELECT fact_json FROM libra_product_fact_revisions WHERE fact_kind='media_cast'").all().map(row=>JSON.parse(row.fact_json));
     assert.ok(cast.length>0);
-    for(const fact of cast)assert.equal(new Set(fact.relations.map(item=>item.relationId)).size,fact.relations.length);
+    for(const fact of cast){
+      assert.equal(new Set(fact.relations.map(item=>item.relationId)).size,fact.relations.length);
+      assert.equal(fact.relations.filter(item=>item.displayName==='Unlinked Fixture Actor').length,1);
+      const selected=observations.filter(item=>item.episodeScope&&item.peopleHints?.length)
+        .sort((a,b)=>a.episodeScope.episodeNumber-b.episodeScope.episodeNumber||a.sourcePriority-b.sourcePriority||
+          Buffer.compare(Buffer.from(a.evidenceId),Buffer.from(b.evidenceId)))[0];
+      assert.ok(fact.relations.every(item=>item.originEvidenceDigest===selected.payloadDigest));
+      const accepted=db.prepare("SELECT fact_json FROM arca_inventory_product_facts WHERE fact_kind='media_cast' AND fact_digest=?").all(fact.factDigest);
+      assert.ok(accepted.length>0);
+      for(const row of accepted)assert.deepEqual(JSON.parse(row.fact_json),fact);
+    }
     assert.equal(db.prepare("SELECT count(*) n FROM fx_event_attempts WHERE failure_code='P9_MEDIA_CAST_RELATIONS'").get().n,0);
   }
   const artifacts=db.prepare("SELECT artifact_kind FROM fx_artifact_registry WHERE owner_domain='libra' AND state='active'").all();

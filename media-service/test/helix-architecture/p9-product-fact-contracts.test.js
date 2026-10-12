@@ -452,3 +452,24 @@ test('duplicate unlinked actor assertions form one relation without guessing cro
   assert.equal(buildMediaCastDraft({subjectId:'subject-1',sourceBasis:basis,relations,producedAtMs:10}).relations.length,3);
   assert.throws(()=>buildMediaCastDraft({subjectId:'subject-1',sourceBasis:basis,relations:[...relations,relations[0]],producedAtMs:10}),{code:'P9_MEDIA_CAST_RELATIONS'});
 });
+
+test('Series cast selects one earliest nonempty Episode source with deterministic precedence',()=>{
+  const hint=name=>({displayName:name,role:'actor',providerIdentities:[]});
+  const source=(episodeNumber,sourcePriority,evidenceId,peopleHints)=>({
+    contentProfile:'series',sourcePriority,evidenceId,sourceRef:evidenceId,payloadDigest:d(evidenceId),peopleHints,
+    ...(episodeNumber?{episodeScope:{seasonNumber:1,episodeNumber,episodeKey:'E'+String(episodeNumber).padStart(3,'0')}}:{})});
+  const observations=[source(10,0,'late',[hint('Later Guest')]),source(2,2,'provider',[hint('Provider Actor')]),
+    source(0,0,'season',[hint('Season Actor')]),source(1,0,'empty',[]),
+    source(2,1,'nfo-b',[hint('Other NFO Actor')]),source(2,1,'nfo-a',[hint('Chosen Actor'),hint('Chosen Actor')])];
+  const before=canonicalDigest(observations);
+  const relations=items=>buildMetadataMediaCastRelations({subjectId:'subject-1',sourceBasis:{
+    observationSet:{contentProfile:'series',observations:items}}});
+  const selected=relations(observations);
+  assert.deepEqual(selected.map(item=>item.displayName),['Chosen Actor']);
+  assert.equal(selected[0].originEvidenceDigest,d('nfo-a'));
+  assert.deepEqual(relations([...observations].reverse()),selected);
+  assert.equal(canonicalDigest(observations),before);
+  assert.deepEqual(relations([observations[2],observations[3]]),[]);
+  assert.throws(()=>relations([ {...observations[0],episodeScope:{seasonNumber:1,episodeNumber:10,episodeKey:'E002'}} ]),
+    {code:'SERIES_METADATA_SCOPE_INVALID'});
+});
