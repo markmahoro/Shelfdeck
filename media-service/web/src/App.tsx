@@ -26,13 +26,18 @@ function createQueryClient() {
 const pageElement: Record<string, ReactElement> = {
   overview: <OverviewPage />,
   'material-fields': <MaterialFieldsPage />,
-  shelves: <ShelvesPage />,
+  shelves: <ShelvesRoute />,
   formation: <FormationRoute />,
   collection: <CollectionPage />,
   offdeck: <OffdeckPage />,
   people: <PeoplePage />,
   settings: <SettingsPage />,
 };
+
+function ShelvesRoute() {
+  const location=useLocation();
+  return <ShelvesPage openSettlementAuthorization={new URLSearchParams(location.search).get('configure')==='source-cleanup'} />;
+}
 
 function FormationRoute() {
   const location = useLocation();

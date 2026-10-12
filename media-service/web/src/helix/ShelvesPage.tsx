@@ -210,7 +210,7 @@ function NamingPreview({placement,profiles}:{placement:ShelfPlacementPolicy;prof
   </div>;
 }
 
-export default function ShelvesPage() {
+export default function ShelvesPage({openSettlementAuthorization=false}:{openSettlementAuthorization?:boolean}={}) {
   const { expire } = useSession();
   const [shelves, setShelves] = useState<Shelf[]>([]);
   const [templates, setTemplates] = useState<RuleTemplate[]>([]);
@@ -490,7 +490,7 @@ export default function ShelvesPage() {
   return <section className="source-page shelf-page">
     <PageHeader title="收藏架配置" actions={<>
       <Button type="button" onClick={() => void load()} disabled={loading}>刷新</Button>
-      <InputSettlementAuthorization />
+      <InputSettlementAuthorization openRequested={openSettlementAuthorization} />
       <DefectAuthorization />
       <Button variant="primary" type="button" onClick={() => setShowCreate((value) => !value)}>{showCreate ? '收起' : '新建收藏架'}</Button>
     </>} />

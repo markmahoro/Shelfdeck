@@ -280,6 +280,7 @@ function nodeStatusText(event, state) {
   if (state==='skipped') return '无需执行';
   if (event.state==='waiting_for_resource') return '等待处理资源';
   if (event.state==='waiting_for_external') {
+    if (event.capabilityRef==='arca.ondeck.input_settlement.delete@1') return '等待自动清理授权';
     if (event.capabilityRef==='libra.external_material.acquire.observe@1' && event.progress?.mode==='determinate') {
       return Number(event.progress.rate)>0 ? '正在下载' : '等待下载数据';
     }
@@ -328,6 +329,7 @@ function description(event, state, copy) {
     if (event.state==='waiting_for_approval') return '正在等待确认，确认后继续这一步。';
     if (event.state==='ready') return '前置条件已满足，正在等待执行这一步。';
     if (event.state==='waiting_for_external' && event.capabilityRef!=='libra.external_material.acquire.observe@1') {
+      if (event.capabilityRef==='arca.ondeck.input_settlement.delete@1') return '';
       return '正在等待外部服务返回结果。';
     }
     if (event.capabilityRef==='libra.media.transcode@1') return '正在生成符合收藏要求的新版本。';
@@ -376,6 +378,8 @@ function projectPlans(works) {
       const label=labelTotals.get(baseLabel)>1 ? baseLabel+'（第 '+ordinal+' 项）' : baseLabel;
       return Object.freeze({ nodeId:event.nodeId, label, description:description(event,state,copy), state,
         statusText:nodeStatusText(event,state),
+        ...(event.capabilityRef==='arca.ondeck.input_settlement.delete@1'&&event.state==='waiting_for_external'
+          ? {configurationTarget:'input_settlement_authorization'} : {}),
         progress:event.progress || null, results:resultFacts(event), technicalDetail:transcodeDetails(event) });
     });
     const state=planState(nodes,group.plan.state);

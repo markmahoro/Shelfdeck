@@ -12,6 +12,7 @@ function currentActionSummary(detail) {
     plan.nodes.find(item=>item.state==='pending')||plan.nodes.at(-1);
   if(!node)return null;
   return Object.freeze({stageKey:stage.key,planId:plan.planId,planNumber:plans.indexOf(plan)+1,title:plan.title,
-    label:node.label,state:plan.state,statusText:node.statusText||null,progress:node.progress||null});
+    label:node.label,state:plan.state,statusText:node.statusText||null,progress:node.progress||null,
+    ...(node.configurationTarget ? {configurationTarget:node.configurationTarget} : {})});
 }
 module.exports=Object.freeze({currentActionSummary});

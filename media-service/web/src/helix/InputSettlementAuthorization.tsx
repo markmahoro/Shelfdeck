@@ -4,19 +4,21 @@ import { Button } from './chrome';
 import { isUnauthorized, useSession } from './session';
 
 type Authorization = SetupReadinessProjection['data']['standingInputSettlement'];
-export default function InputSettlementAuthorization() {
+export default function InputSettlementAuthorization({openRequested=false}:{openRequested?:boolean}={}) {
   const { expire } = useSession();
   const [authorization, setAuthorization] = useState<Authorization>(null);
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(openRequested);
   const dialog = useRef<HTMLDialogElement>(null);
   const trigger = useRef<HTMLButtonElement | null>(null);
   const titleId = useId();
+  useEffect(() => { if (openRequested) setOpen(true); }, [openRequested]);
   useEffect(() => {
     if (!open) return;
     const current = dialog.current;
+    if (!trigger.current) trigger.current=document.getElementById(titleId+'-trigger') as HTMLButtonElement|null;
     current?.showModal();
     return () => {
       current?.close();
@@ -52,7 +54,7 @@ export default function InputSettlementAuthorization() {
   const partial = enabled && !authorization?.coversExclusiveRelatedInput;
   const status = !loaded ? (busy ? '读取中…' : '读取失败') : enabled ? (partial ? '部分授权' : '已授权') : '未授权';
   return <>
-    <Button type="button" aria-haspopup="dialog" onClick={(event) => { trigger.current = event.currentTarget; setOpen(true); }}>
+    <Button id={titleId+'-trigger'} type="button" aria-haspopup="dialog" onClick={(event) => { trigger.current = event.currentTarget; setOpen(true); }}>
       自动清理残留文件 <span className="ui-state" data-state={enabled ? 'complete' : 'unknown'}>{status}</span>
     </Button>
     {open && <dialog ref={dialog} className="dialog input-settlement-dialog" aria-labelledby={titleId} onCancel={(event) => { event.preventDefault(); if (!busy) setOpen(false); }} onKeyDown={(event) => {

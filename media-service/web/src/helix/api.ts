@@ -277,6 +277,7 @@ export type FormationSubject = {
     label:string;
     state:'completed'|'running'|'attention'|'pending';
     statusText:string|null;
+    configurationTarget?:'input_settlement_authorization';
     progress:FormationSubject['organizingSteps'][number]['progress'];
   };
   processDetail?: {
@@ -298,6 +299,7 @@ export type FormationSubject = {
           description:string;
           state:'completed'|'running'|'failed'|'cancelled'|'skipped'|'pending';
           statusText?:string;
+          configurationTarget?:'input_settlement_authorization';
           progress:FormationSubject['organizingSteps'][number]['progress'];
           results:Array<{label:string;value:string}>;
           technicalDetail:null|{
