@@ -1,5 +1,9 @@
 # UAT-291：逐集关联文件交付与旧季目录残留
 
+2026-10-12 独立验收关闭：用户明确选择“保留旧文件，历史修复不纳入本次升级”。只读复核旧本地《棋士》Season 1仍为22张JPG和22份NFO，未移动、删除或追认到Inventory。该历史处置由用户排除，不声称旧文件已经补入收藏。
+
+新链路修复已加载本地18081；Windows/Linux两集真实Host逐集thumb映射、NFO、文件字节、正式Commit及旧空目录保护已有上述独立证据。2026-10-12当前源码再次执行原两集完整Placement迁移及清理竞态，92.42秒通过。实际扫毒风暴33张、庆余年36张generic sidecar已正式入藏，逐张实际大小、bounded fingerprint及Inventory证据摘要一致；generic sidecar不冒充`-thumb`映射验收。结合此前明确thumb双平台与改名验证、新现场generic文件核验，以及本次历史范围决定，按本项条件关闭。日志/只读核验保存在ignored `.codex/series-release-20261012/uat291292-current-migration.log`、`uat291-live-sidecars-v2.json`。
+
 2026-10-09 用户发现《棋士》上架后同时存在 Season 1 与 Season 01，希望逐集 thumb 作为 sidecar 带入新目录。
 
 只读现场：旧 Season 1 有 22 张 `*-thumb.jpg` 和 22 份逐集 NFO；新 Season 01 有 22 个 MKV、23 份 NFO 和 1 张图片。本次 Off-load Context 只有 22 个 carried_forward original_input，遗漏关联文件。未改动现场文件，未 Reset。
