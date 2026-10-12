@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-12 15:07：三国95个原文件在独立临时实例重新封包并正式Libra接纳，Claim16562字节、Handoff A Receipt1、失败0，未配置Shelf/未创建Run；实例已停，UAT-309关闭。用户明确批准放弃本地大宅门2及乔家大院以优先验收：前者已discarded，后者closure_pending；大江大河新33集Run e26c2ffa…经正式入口加急，继续UAT-307/310原场景验收。生产未改变。
+
 2026-10-12 14:52：backup03原镜像完整Host冷启动health=ok/normalSupplyAllowed=true并正常退出，约23分钟；只读挂载的EROFS不代表旧任务恢复通过。UAT-293冻结历史兼容按自身证据关闭，生产仍旧版本。当前剩余307/309/310现场验收。本地来源通过正式API临时3→8席位以推进原问题候选，已接纳大江大河33集Intake进程并恢复策略为3；已占用Token自然完成释放，不改转码资源配置或生产配置。
 
 2026-10-12 14:40：最终运行时候选d6097265e已标准构建/上传，生产副本candidate310完整Host健康启动，SQLite integrity=ok/FK=0。501份On-deck Commit及保留的Plan/Node/Edge/Result/Marker逐行摘要一致；一条Entry由Inventory Revision 2→3经正式人物引用刷新凭据解释，未改写旧执行历史。原镜像对backup03完整恢复启动仍运行。全架构2493通过/1旧摘要断言失败/12skip，更新该测试固定值后相关3项通过；Service602通过/0失败/29skip。当前开放293/307/309/310，其他前述已验条目以UAT总表为准。生产仍旧版本，未停服、Reset或升级。

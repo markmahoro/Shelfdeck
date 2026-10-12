@@ -1,5 +1,9 @@
 # UAT-309：Series候选身份声明超过Publication存储合同
 
+2026-10-12收口：为避免等待普通剧集队列，在独立临时实例重新读取原始三国(2010)/Season 1的95个真实MKV，未替换文件内容或注入mediaProbe。正式Field观察、Procurement封包、Libra候选/材料校验与接纳完成；新Candidate candidate-package-00d138454c60fe56132e441b0b0deb03af72a921，IdentityClaim 16562字节、96条sourceHints（95条filename_title），95个Primary Material、1份正式Handoff A Receipt，decision_kind=accepted_resolution，Event失败记录0。此实例未配置Shelf，libra_runs=0/arca_shelves=0，不进入转码、入藏或来源结算，验收后停止并保留数据。
+
+初始监控误以accepted查询decision_kind，故日志一度仍显示accepted=0；实际合同值为accepted_resolution。只读核对正式Decision/Receipt后纠正监控条件，未改业务数据或重新扫描来通过。当前主实例原Candidate仍排队，本次是相同原文件在新隔离实例的完整接纳验收，不冒称主实例队列已完成。结合双平台边界、迁移、长名称Host与此前原现场封包证据，本项按自身条件关闭；不外推95集完整入藏。证据位于ignored uat309-real-source-intake.log与uat309-real-source-intake-receipt.json。
+
 2026-10-12原三国95集现场正式failed-preparation retry建立`procurement-run-b268f7018373c5e11e70859b7ed74e5e19adca34`。95项真实probe、playability、完整Series Unit、identity resolve及Manifest均成功；Publication反复抛出`P7_CANDIDATE_IDENTITY_TOO_LARGE`，事务回滚，Candidate仍为0。未Reset、未修改原Result或生产数据。
 
 精确证据：`procurement.triage.identity_claim.resolve@1`正式Result为16562字节，digest `f70a55f51f8cbb8a5e3084ea00ba3d0c134849cf37c3b1f5bbfff72a357f1502`；sourceHints数组占15633字节。Foundation 64 KiB Result合同通过，但SSOT `proc_candidate_packages`约束Identity Metadata/Claim各16 KiB，Publication Store与DDL按16384拒绝。不是UAT-284 Unit修复失效；原95文件受控fixture的短名称未覆盖这一实际字节边界。日志及只读Result保存在ignored `.codex/series-release-20261012/uat309-identity-result.json`与local-service.stderr.log。
