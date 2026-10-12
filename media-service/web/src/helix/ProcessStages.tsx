@@ -3,16 +3,16 @@ import type { FormationSubject } from './api';
 import { processFailureLabel } from './error-labels';
 
 export function ProcessDialog({title,onClose,children}:{title:string;onClose:()=>void;children:ReactNode}) {
-  const titleId=useId(),closeRef=useRef<HTMLButtonElement>(null),close=useRef(onClose);
+  const titleId=useId(),closeRef=useRef<HTMLButtonElement>(null),dialogRef=useRef<HTMLElement>(null),close=useRef(onClose);
   close.current=onClose;
   useEffect(()=>{
     const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null;
-    const key=(event:KeyboardEvent)=>{if(event.key==='Escape')close.current();};
+    const key=(event:KeyboardEvent)=>{if(event.key==='Escape'&&!event.defaultPrevented&&!dialogRef.current?.querySelector('dialog[open]'))close.current();};
     document.body.classList.add('formation-process-modal-open');document.addEventListener('keydown',key);closeRef.current?.focus();
     return()=>{document.body.classList.remove('formation-process-modal-open');document.removeEventListener('keydown',key);trigger?.focus();};
   },[]);
   return <div className="formation-process-backdrop" role="presentation" onMouseDown={event=>{if(event.target===event.currentTarget)onClose();}}>
-    <section className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+    <section ref={dialogRef} className="formation-process-dialog" role="dialog" aria-modal="true" aria-labelledby={titleId}>
       <button ref={closeRef} className="formation-process-dialog-close" type="button" aria-label="关闭媒体整理过程卡片" onClick={onClose}>×</button>
       <h2 id={titleId} className="formation-process-dialog-title">{title}</h2>{children}
     </section>

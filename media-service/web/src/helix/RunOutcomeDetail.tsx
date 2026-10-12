@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import {Button} from './chrome';
-import {helixAdminApi,type FormationRunHistory,type LibraRunOutcome} from './api';
+import {AdminApiError,helixAdminApi,type FormationRunHistory,type LibraRunOutcome} from './api';
 import {newOpaqueId} from './id';
 import {isUnauthorized,useSession} from './session';
 
@@ -35,7 +35,10 @@ export default function RunOutcomeDetail({item,onChanged}:{item:FormationRunHist
   async function submit(){
     if(!outcome||busy)return;setBusy(true);setError('');
     try{await helixAdminApi.reprocessRun(outcome,key.current);setConfirming(false);setSubmitted(true);onChanged();}
-    catch(cause){if(isUnauthorized(cause))expire();else setError('重新整理未确认成功，请重试。');}
+    catch(cause){if(isUnauthorized(cause))expire();else setError(
+      cause instanceof AdminApiError&&cause.status===409&&cause.code==='ADMIN_FIELD_CONFLICT'&&
+        cause.details.reasonCode==='FIELD_OBSERVATION_WORK_DEFERRED'
+        ? '来源扫描尚未结束，稍后再试。' : '重新整理未确认成功，请重试。');}
     finally{setBusy(false);}
   }
   return <article className="formation-run-outcome">
@@ -46,7 +49,7 @@ export default function RunOutcomeDetail({item,onChanged}:{item:FormationRunHist
     </>:<Button type="button" onClick={()=>void load()}>重新读取</Button>}
     {error&&!confirming&&<p role="alert">{error}</p>}
     {confirming&&<dialog ref={dialog} className="shelf-deregister-dialog" aria-labelledby="reprocess-confirm-title"
-      onKeyDown={event=>event.stopPropagation()} onCancel={event=>{event.preventDefault();if(!busy)setConfirming(false);}}>
+      onKeyDown={event=>event.stopPropagation()} onCancel={event=>{event.preventDefault();event.stopPropagation();if(!busy)setConfirming(false);}}>
       <div className="dialog"><div className="dialog-head"><h2 id="reprocess-confirm-title">确认重新整理</h2></div>
         <div className="dialog-body"><p>{item.displayIdentity}</p><p>将从原文件来源重新检查并尝试整理一次，原始媒体保留。</p>{error&&<p role="alert">{error}</p>}</div>
         <div className="dialog-actions"><Button type="button" disabled={busy} onClick={()=>setConfirming(false)}>取消</Button>
