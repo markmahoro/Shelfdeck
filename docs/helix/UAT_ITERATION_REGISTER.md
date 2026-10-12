@@ -9,7 +9,7 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 状态说明：历史已关闭保留当时证据，不宣称本次重测；已实现/已部署不等于已关闭；阶段文档关闭不等于功能验收关闭。每次只根据对应项的现行合同及Evidence更新。
 | UAT编号 | 问题 / 历史事项 | 分类 | 当前状态 | 历史编号 | 实现提交 | 验收/部署证据 | 剩余工作或关闭条件 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| UAT-318 | Series上线后媒体整理Tab切换和刷新延迟 | LIBRA / QUERY_PERFORMANCE | 开放：9a23b01c7已发布，长尾及加载空态待完成 | 2026-10-12用户现场反馈 | 9a23b01c7 | [Evidence](implementation/evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md) | 同快照三section完整JSON一致、读取量下降86–87%；最终镜像79通过，实际HTTP改善但长尾未达标；新加载空态补丁未发布，生产UI复验仍待完成。 |
+| UAT-318 | Series上线后媒体整理Tab切换和刷新延迟 | LIBRA / QUERY_PERFORMANCE | 开放：6feda0d26已发布，加载空态已验，长尾仍复现 | 2026-10-12用户现场反馈 | 6feda0d26 | [Evidence](implementation/evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md) | 同快照三section完整JSON一致、读取量下降86–87%；第二轮最终镜像35/跨层UI66通过；实际两轮空态闪现0，仍有15.9秒请求。第三轮候选策略检查139通过，未发布。 |
 | UAT-317 | 生产盘满，Formation投影过期、放弃入口500及页面延迟待关联复核 | RUNTIME / STORAGE | 开放：获授权清理后当前Avail约46GiB；罪恶之城席位释放、MoviePilot恢复 | 2026-10-12生产排查 | 无 | [Evidence](implementation/evidence/UAT-315_317_PRODUCTION_DIAGNOSIS_20261012.md) | 页面延迟仍在；问题解决后统一清理，保护媒体及当前回退/排障证据。 |
 | UAT-316 | 三体/繁花/兰闺喜事升级后无法上架 | LIBRA / EXECUTION_FAILURE | 开放：失败点已定位，具体网络/FFmpeg超时诱因未证实 | 2026-10-12用户现场反馈 | 无 | [Evidence](implementation/evidence/UAT-315_317_PRODUCTION_DIAGNOSIS_20261012.md) | 三项已自动discarded且无Token；不反推为停机故障，恢复需正式Owner路径及实际验收。 |
 | UAT-315 | Formation不同section返回6/9两套整理计数 | LIBRA / FORMATION_QUERY | 已关闭：9478a4fc7已部署，实际生产三query及四Tab计数一致、获UI负责人接受 | 2026-10-12用户现场反馈 | 9478a4fc7 | [Evidence](implementation/evidence/UAT-315_317_PRODUCTION_DIAGNOSIS_20261012.md) | 仅关闭计数不一致；Tab/整页性能独立转UAT-318，不继承计数PASS。 |

@@ -47,3 +47,11 @@ Windows相关Shelf/Formation27通过，Overview及4000条分页汇总8通过；�
 发布前备份 `/vol1/1000/docker/shelfdeck/backups/uat318-6feda0d26-predeploy`：DB2735779840 bytes，SHA256 `13b7bde97fbe41c91327011e0cb9fee25437647add3d570f3c4754daa6466278`，512 Entry/512 Commit/36575 Inventory Materials/647 Run，45份companion稳定复制；Compose/Secret保留原权限，目录700/Secret600。本地下载integrity ok/FK0/完整SHA匹配，verification-local.json已回存备份600。业务继续运行，因此不是部署后DB逐字节保护快照或恢复生产数据的授权；常规回退保留9a23镜像及备份，不直接倒灌业务DB。
 
 前一版9a23在本次备份结束后的四请求并发三轮为6569/2022/1376ms，首轮真实业务从attention转ended期间summary头发生变化，不能判为再次计数横跳；此处保留全部样本，未编造固定DB或SLO资格。第二轮当前尚未apply，跨层具体版本UI审核仍待完成。
+
+## 第二轮生产复验与第三轮热点
+
+2026-10-13第二轮已标准发布 `markmahoro/shelfdeck:6feda0d26`，git `6feda0d26a3d3ff5994a17d23d83ac1bc3a756ce`，Image ID `sha256:88ee3b310b9d07fab4c95914e3936152014a09e601163f9bf38e67b0dc0d9af7`，tar SHA256 `f7fb047d9ebecefa14a5db8b2b7e0e285900d7c46efb59337bd0ab0e5439f11d`。备份integrity ok/FK0/SHA、readiness/health/供给/Admin/五挂载/QSV通过，RestartCount0；最终镜像35通过，跨层UI具体版本66项及实际页面接受。生产Chromium两轮四Tab：有条目Tab误报空态0次；正常空结果保持，未执行媒体写操作。但HTTP仍有15.9秒长尾，UAT-318不关闭；追加采样定位Series候选恢复中反复构造未签发策略Work，局部修正139专项通过、未发布。未执行整季加工E2E/desktop全量，五项失败媒体仍未重处理。
+
+两轮实际桌面Tab/DOM MutationObserver没有出现“有条目Tab”的空态闪现；正常需要处理0项仍显示空结果。样本包含700ms稳定观察等待，不作为精确首绘时间。实际认证后请求范围约0.312–15.856秒，保留全部长尾；初始未登录401属于正常session交换前请求，不作为服务故障。独立三轮四请求并发3269/1382/2004ms，不是P95/完整资格。第二轮切换65.0秒，冷启动比之前更长；追加10.36秒startup采样发现9.54秒落在Libra Run reconcile，readSeriesProductionCandidates及整季依据/策略Work重复构造占主要部分，不能再把全部启动耗时称作数据库校验。临时Inspector仅容器loopback，采样结束服务就绪后已关闭并复核。
+
+第三轮局部修正：用同一Libra Work工厂的确定性stage前缀预筛当前Run已成功Work包含的策略ordinal，只为这些ordinal构造成员的完整Work；仍按原升序、精确Work ID及原Result/Verification/Selection完整性栅栏消费，未签发Work不能产生候选。无新路径算法、状态兼容、跨域事实、全局缓存或资源管理。139项原Series Source/External Scope/Replacement/Episode Space通过，新增缺省不构造任何transcode策略、failed策略跳过、完成ordinal64仍严格读取并拒绝缺失Result的真实fixture测试；其生产表现尚待最终验证，不能称长尾已修复。

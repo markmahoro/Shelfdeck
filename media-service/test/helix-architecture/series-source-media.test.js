@@ -660,6 +660,30 @@ test('Mixed Direct and Workspace final basis preserves original source and actua
     if(candidate.media)assert.notEqual(canonicalDigest(candidate.readHandle),canonicalDigest(candidate.media.workspaceMaterialHandle));
   }
 });
+
+test('Series candidates do not construct unissued transcode strategies and still fence a completed ordinal 64',()=>{
+  const value=processedSeriesFixture(),works=require('../../src/helix/domains/libra/planning/media-production-work');
+  value.stored.clear();
+  const file=require.resolve('../../src/helix/domains/libra/planning/series-production-candidates');
+  const calls=[],isolated={exports:{}},localRequire=require('node:module').createRequire(file);
+  require('node:vm').runInNewContext(require('node:fs').readFileSync(file,'utf8'),{module:isolated,Buffer,
+    require(id){return id==='./media-production-work'?{...works,transcodeMediaSelectionWork(...args){
+      calls.push(args[1]);return works.transcodeMediaSelectionWork(...args);
+    }}:localRequire(id);}}, {filename:file});
+  const reader=isolated.exports;
+  const candidates=reader.readSeriesProductionCandidates(value.options,value.snapshot);
+  assert.equal(candidates.length,value.snapshot.members.filter(member=>member.role==='primary_payload').length);
+  assert.ok(candidates.some(candidate=>!candidate.eligible));
+  assert.deepEqual(calls,[]);
+  const member=candidates.find(candidate=>!candidate.eligible).member;
+  const last=works.transcodeMediaSelectionWork(value.snapshot,64,member);
+  value.options.workResultReader.listWorks=()=>[{work_id:last.workId,state:'failed'}];
+  reader.readSeriesProductionCandidates(value.options,value.snapshot);
+  assert.deepEqual(calls,[]);
+  value.options.workResultReader.listWorks=()=>[{work_id:last.workId,state:'succeeded'}];
+  assert.throws(()=>reader.readSeriesProductionCandidates(value.options,value.snapshot),/requires exactly one/);
+  assert.deepEqual(calls,[64]);
+});
 test('Multipart candidates await full actual allocation without forging individual passed Selection',()=>{
   const value=processedSeriesFixture(true),candidates=value.reader.readSeriesProductionCandidates(value.options,value.snapshot);
   assert.ok(candidates.every(item=>item.eligible&&item.selection.result==='not_selected'));

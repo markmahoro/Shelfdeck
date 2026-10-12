@@ -50,6 +50,10 @@ function memberBasis(snapshot, member) {
   return Object.freeze({materialKey:member.materialKey,memberDigest:canonicalDigest(member)});
 }
 
+function workspaceMediaWorkPrefix(stage) {
+  return 'libra-workspace-media-' + stage + '-work-';
+}
+
 function definition(snapshot, stage, outputContractRef, dependencies = [], member, extraBasis = {}) {
   const primary=memberBasis(snapshot,member);
   const basis = {
@@ -63,7 +67,7 @@ function definition(snapshot, stage, outputContractRef, dependencies = [], membe
   return Object.freeze({
     schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1',
     schemaVersion: 1,
-    workId: stable('libra-workspace-media-' + stage + '-work-', basis),
+    workId: stable(workspaceMediaWorkPrefix(stage), basis),
     ownerDomain: 'libra',
     processType: 'libra_run',
     processId: snapshot.run.libraRunId,
@@ -130,6 +134,7 @@ function seriesFinalSelectionWork(snapshot,candidateSetDigest,sourceWorks) {
 }
 
 module.exports = Object.freeze({
+  workspaceMediaWorkPrefix,
   seriesFinalSelectionWork,
   PROBE_RESULT,
   SELECTED_OUTPUT_RESULT,

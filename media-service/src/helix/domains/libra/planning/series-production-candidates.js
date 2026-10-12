@@ -1,7 +1,7 @@
 'use strict';
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
 const {readDirectMediaSelections,seriesSpaceBasisFor}=require('./direct-media-selections');
-const {seriesFinalSelectionWork,directMediaSelectionWork,remuxMediaSelectionWork,transcodeMediaSelectionWork}=require('./media-production-work');
+const {seriesFinalSelectionWork,directMediaSelectionWork,remuxMediaSelectionWork,transcodeMediaSelectionWork,workspaceMediaWorkPrefix}=require('./media-production-work');
 const {buildMediaRequirement,buildProductMediaCandidateInput,buildProductMediaVerification,
   buildProductOutputSelectionInput,selectProductOutput}=require('../model/media-production-contracts');
 const {replacementScopes,externalImportSelectionWork}=require('./external-material-work');
@@ -59,6 +59,12 @@ function readSeriesProductionCandidates(options,snapshot) {
   const direct=directMediaSelectionWork(snapshot),sources=readDirectMediaSelections(options,snapshot,direct.workId),
     done=new Set(options.workResultReader.listWorks({ownerDomain:'libra',processType:'libra_run',
       processId:snapshot.run.libraRunId,workKind:'workspace_media_production'}).filter(work=>work.state==='succeeded').map(work=>work.work_id));
+  // Work IDs retain the owner's deterministic stage prefix. Only derive a full
+  // definition for a strategy that actually has a succeeded Work in this Run;
+  // its exact member-specific ID and Result fences are still checked below.
+  const completedOrdinals=[];
+  for(let ordinal=1;ordinal<=64;ordinal++)if([...done].some(id=>id.startsWith(workspaceMediaWorkPrefix('transcode_'+ordinal+'_selection'))))
+    completedOrdinals.push(ordinal);
   const original=Object.freeze(sources.map(source=>{
     if(source.selection.result==='selected')return Object.freeze({...source,work:direct,media:null,mediaRecord:null,
       probeRecord:source.record,eligible:true});
@@ -67,7 +73,7 @@ function readSeriesProductionCandidates(options,snapshot) {
       const candidate=workspaceCandidate(options,snapshot,sources,source,remux);
       if(candidate.eligible)return candidate;
     }
-    for(let ordinal=1;ordinal<=64;ordinal++) {
+    for(const ordinal of completedOrdinals) {
       const work=transcodeMediaSelectionWork(snapshot,ordinal,source.member);
       if(!done.has(work.workId))continue;
       const candidate=workspaceCandidate(options,snapshot,sources,source,work,ordinal);
