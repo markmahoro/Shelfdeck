@@ -47,11 +47,11 @@ export default function RunOutcomeDetail({item,onChanged}:{item:FormationRunHist
       <ul>{terminalReasonLabels(outcome.terminalReasons).map(reason=><li key={reason}>{reason}</li>)}</ul>
       {submitted?<p role="status">已提交重新整理</p>:<Button type="button" onClick={()=>{setError('');setConfirming(true);}}>重新整理</Button>}
     </>:<Button type="button" onClick={()=>void load()}>重新读取</Button>}
-    {error&&!confirming&&<p role="alert">{error}</p>}
+    {error&&!confirming&&<p className="form-error" role="alert">{error}</p>}
     {confirming&&<dialog ref={dialog} className="shelf-deregister-dialog" aria-labelledby="reprocess-confirm-title"
       onKeyDown={event=>event.stopPropagation()} onCancel={event=>{event.preventDefault();event.stopPropagation();if(!busy)setConfirming(false);}}>
       <div className="dialog"><div className="dialog-head"><h2 id="reprocess-confirm-title">确认重新整理</h2></div>
-        <div className="dialog-body"><p>{item.displayIdentity}</p><p>将从原文件来源重新检查并尝试整理一次，原始媒体保留。</p>{error&&<p role="alert">{error}</p>}</div>
+        <div className="dialog-body"><p>{item.displayIdentity}</p><p>将从原文件来源重新检查并尝试整理一次，原始媒体保留。</p>{error&&<p className="form-error" role="alert">{error}</p>}</div>
         <div className="dialog-actions"><Button type="button" disabled={busy} onClick={()=>setConfirming(false)}>取消</Button>
           <Button type="button" variant="primary" disabled={busy} onClick={()=>void submit()}>{busy?'正在提交…':'确认重新整理'}</Button></div>
       </div>
