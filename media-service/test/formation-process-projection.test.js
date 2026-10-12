@@ -516,6 +516,44 @@ test('Waiting and ready actions never describe execution before resources or app
   }
 });
 
+test('list Result scope preserves the current action and headers while leaving full payloads to detail',()=>{
+  const settlement='arca.ondeck.input_settlement.delete@1',metadata='libra.product_metadata.fetch@1';
+  const payloads=[{event_id:'event-metadata',value:{plot:'x'.repeat(65536)}},
+    {event_id:'event-settlement',value:{postDeleteReality:{entries:[{key:'disposition',value:'retained_as_final'}]}}}];
+  const results=payloads.map(({event_id,value})=>({event_id,outcome_kind:'succeeded',result_schema_ref:'result',
+    result_json:canonicalJson(value),result_digest:canonicalDigest(value),committed_at_ms:20}));
+  const events=[metadata,settlement].map((capability_ref,index)=>({event_id:payloads[index].event_id,
+    plan_id:'plan',node_id:index===0?'metadata':'settlement',work_id:'work',capability_ref,state:'succeeded'}));
+  const rows={works:[{work_id:'work',owner_domain:'arca',process_type:'arca_ondeck_run',process_id:'run',
+    work_kind:'on_deck_execution',state:'succeeded',created_at_ms:1,updated_at_ms:20}],
+    attempts:[{attempt_id:'attempt',work_id:'work',ordinal:1}],events,plans:[{plan_id:'plan',attempt_id:'attempt',
+      planner_ref:'planner',planner_version:1,state:'planned',created_at_ms:2}],
+    nodes:events.map(event=>({...event,input_bindings_json:'{"bindings":[]}',parameters_json:'{}'})),
+    edges:[{plan_id:'plan',from_node_id:'metadata',to_node_id:'settlement',dependency_kind:'success'}]};
+  const reads=[];
+  const unitOfWork={execute(parts){return Object.fromEntries(parts.map(part=>[part.participantId,part.execute({repository:()=>({invoke(name,parameters){
+    reads.push({name,values:parameters.values});
+    if(name==='results')return results.filter(row=>parameters.values.includes(row.event_id));
+    if(name==='result_headers')return results.map(({result_json,...header})=>header);
+    return rows[name]||[];
+  }})})]));}};
+  const reader=createExecutionProgressProjectionReader({schemaManifest,unitOfWork});
+  const full=reader.read(['run'],{includePlans:true});reads.length=0;
+  const listed=reader.read(['run'],{includePlans:true,resultCapabilityRefs:[settlement]});
+  assert.deepEqual(reads.filter(read=>read.name==='results').map(read=>read.values),[['event-settlement']]);
+  assert.equal(listed[0].events[0].result.result,null);
+  assert.equal(listed[0].events[0].result.resultDigest,full[0].events[0].result.resultDigest);
+  const detail=works=>buildFormationProcessDetail({displayIdentity:'Example',works,
+    businessStageStates:businessStageStates({mediaOrganization:'completed',acceptanceShelving:'completed'}),
+    procurementScopes:[],libraScopes:[],arcaScopes:[{processType:'arca_ondeck_run',processId:'run'}]});
+  assert.deepEqual(currentPlanSummary(detail(listed)),currentPlanSummary(detail(full)));
+  assert.equal(currentPlanSummary(detail(listed)).label,'保留原有输入作为最终文件');
+  results[1].result_digest=hex;
+  assert.throws(()=>reader.read(['run'],{includePlans:true,resultCapabilityRefs:[settlement]}),{code:'EXECUTION_PROGRESS_RESULT_INVALID'});
+  assert.throws(()=>reader.read(['run'],{includePlans:true}),{code:'EXECUTION_PROGRESS_RESULT_INVALID'});
+  assert.throws(()=>reader.read(['run'],{resultCapabilityRefs:'invalid'}),TypeError);
+});
+
 
 test('Formation Series delivery follows the selected frozen Run instead of the routing anchor',()=>{
   const subject={subject_id:'subject-series',status:'active',structure_kind:'season',content_profile:'series',routing_anchor_intake_decision_id:'old-intake',created_at_ms:1};

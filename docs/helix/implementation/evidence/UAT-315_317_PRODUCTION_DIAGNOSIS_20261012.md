@@ -84,3 +84,13 @@ Linux隔离测试不挂生产data/媒体：首次缺少专用/transcode tmpfs，
 新增相关Windows/Linux测试各28通过、1个缺少live BDMV fixture的既有skip。Linux初次遗漏测试fixture脚本，补齐后一次Event deadline时序断言失败；原样复验28通过，未放宽断言，保留该时序稳定性风险。此前计数/Reset等92项双平台通过仍适用。尚无新代码部署、UI接受或三部剧重新上架结果。
 
 最新磁盘Avail约26GiB（86%使用），MoviePilot running；本轮未新增清理或下载处置。空间变化不归因为已证明的单一来源。
+
+## 9478a4fc7正式发布与现场计数接受
+
+用户明确同意既定UI负责人验收后部署，同时明确五项失败媒体暂不重处理。技术提交9478a4fc777f778bdc75ef8d2fa0a014ec852b3f已按build-image.js/upload-nas-image.js/deploy-nas.js发布，Image ID sha256:d3fcc1f839494fb441835c23ac05da49635432af6db85f526e06ca2fcf6d78f7，tar SHA256 e530bdc7f880b12b8be312bc7134e1ead1a4f6baa6d81d6e2389aaf2580ac552，大小1724116992 bytes。最终镜像专项120通过/1既有live BDMV缺失skip，部署前UI56项及真实隔离浏览器通过。标准readiness ready、200表/135 route/17 UI surface、findings为空；Compose旧进程约61秒收尾，新进程约6分钟启动后health ok/normalSupplyAllowed=true、Admin、五挂载及QSV通过，RestartCount0。没有Reset或人工重处理。
+
+发布前在线备份路径backups/uat315-9478a4fc7-predeploy：DB2697338880 bytes，SHA256 745fe71cd2ab3acadb31a7ed0db4302043d2d74621f0c4e40a07fdf55e717911，509 Shelf Entry/509 Commit/36305 Inventory/639 Run。NAS完整性检查因明显I/O等待停止该临时校验容器；下载到本地检查integrity ok/FK0并与NAS文件SHA256一致。原DB只读、伴随文件及compose/secret保留，receipt已保存，目录700/secret600。构建/校验期间有health超时及I/O pressure，不忽略这些操作的生产影响，也不从这一次负载反推三剧历史失败诱因。
+
+首次发布后HTTP200：active1026ms/completed3575ms/ended752ms，三份summary完全相同：total508/inProgress5/attention0/completed503/ended99，Projection ready。随后正常新任务进入，inProgress变7。UI负责人已在真实生产页面验证计数一致、四Tab、刷新和历史入口，独立接受UAT-315计数结论，详见[生产UI接受](UAT-315_FORMATION_COUNT_UI_ACCEPTANCE_20261012.md)。页面性能仍不通过：已结束约7.6秒、刷新约4.4秒，部分后台请求18.9秒；转入UAT-318继续，不把计数关单当作性能关单。
+
+再次只读检查绿头苍蝇、燃情岁月、三体、繁花、兰闺喜事及罪恶之城，原Run均discarded、Tokens均0、superseded_by_run_id均null；未人工重试。最新盘Avail约46GiB、MoviePilot HTTP200。全面收尾清理继续等当前问题完成，不删除必要备份或媒体。

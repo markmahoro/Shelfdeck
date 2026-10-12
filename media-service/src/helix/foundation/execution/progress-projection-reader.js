@@ -85,6 +85,8 @@ function createExecutionProgressProjectionReader(options) {
         columns: ['event_id','revision','mode','current_value','total_value','unit','rate','eta_ms','progress_bucket','sampled_at_ms'], safeIntegers: true },
       results: { kind: 'select-in', tableId: 'fx_event_result_bindings', keyColumn: 'event_id', maxItems: 500,
         columns: ['event_id','outcome_kind','result_schema_ref','result_json','result_digest','committed_at_ms'], safeIntegers: true },
+      result_headers: { kind: 'select-in', tableId: 'fx_event_result_bindings', keyColumn: 'event_id', maxItems: 500,
+        columns: ['event_id','outcome_kind','result_schema_ref','result_digest','committed_at_ms'], safeIntegers: true },
     },
   });
   return Object.freeze({
@@ -92,8 +94,13 @@ function createExecutionProgressProjectionReader(options) {
       const ids = [...new Set(processIds)].filter(Boolean).sort();
       if (!ids.length) return Object.freeze([]);
       const includePlans = readOptions.includePlans === true;
+      if (readOptions.resultCapabilityRefs !== undefined && (!Array.isArray(readOptions.resultCapabilityRefs) ||
+          readOptions.resultCapabilityRefs.length > 256 || readOptions.resultCapabilityRefs.some(ref=>typeof ref!=='string'||!ref))) {
+        throw new TypeError('Result projection capability scope must be a bounded array.');
+      }
+      const resultRefs = readOptions.resultCapabilityRefs === undefined ? null : new Set(readOptions.resultCapabilityRefs);
       return options.unitOfWork.execute([{ participantId: 'execution_progress_projection', owner: 'execution-foundation', repositories: [repository], execute(context) {
-        const r = context.repository(repository.repositoryId), works = [], attempts = [], events = [], eventAttempts = [], plans = [], nodes = [], edges = [], samples = [], results = [];
+        const r = context.repository(repository.repositoryId), works = [], attempts = [], events = [], eventAttempts = [], plans = [], nodes = [], edges = [], samples = [], results = [], resultHeaders = [];
         const workIds=readOptions.workIds===undefined?null:[...new Set(readOptions.workIds)].filter(Boolean).sort();
         const selectedIds=workIds||ids,statement=workIds?'exact_works':'works';
         for (let offset = 0; offset < selectedIds.length; offset += 500) works.push(...r.invoke(statement,
@@ -114,7 +121,12 @@ function createExecutionProgressProjectionReader(options) {
         }
         for (let offset = 0; offset < events.length; offset += 500) {
           const eventIds=events.slice(offset, offset + 500).map((item) => item.event_id);
-          results.push(...r.invoke('results', { values: eventIds }));
+          if (resultRefs === null) results.push(...r.invoke('results', { values: eventIds }));
+          else {
+            resultHeaders.push(...r.invoke('result_headers', { values: eventIds }));
+            const values=events.slice(offset, offset + 500).filter(event=>resultRefs.has(event.capability_ref)).map(event=>event.event_id);
+            if(values.length)results.push(...r.invoke('results', { values }));
+          }
           if (includePlans) eventAttempts.push(...r.invoke('event_attempts', { values: eventIds }));
         }
         const progressHeads=new Map();
@@ -138,7 +150,9 @@ function createExecutionProgressProjectionReader(options) {
         const edgesByPlan = new Map(planIds.map((planId) => [planId, Object.freeze(edges.filter((edge) => edge.plan_id === planId)
           .map((edge) => Object.freeze({ fromNodeId:edge.from_node_id, toNodeId:edge.to_node_id,
             dependencyKind:edge.dependency_kind })))]));
-        const resultByEvent=new Map(results.map((row)=>{let value;try{value=JSON.parse(row.result_json);}catch{throw Object.assign(new Error('Durable execution Result is not valid JSON.'),{code:'EXECUTION_PROGRESS_RESULT_INVALID'});}if(canonicalJson(value)!==row.result_json||canonicalDigest(value)!==row.result_digest)throw Object.assign(new Error('Durable execution Result failed its digest fence.'),{code:'EXECUTION_PROGRESS_RESULT_INVALID'});return [row.event_id,Object.freeze({outcomeKind:row.outcome_kind,resultSchemaRef:row.result_schema_ref,result:value,resultDigest:row.result_digest,committedAtMs:Number(row.committed_at_ms)})];}));
+        const resultByEvent=new Map(resultHeaders.map(row=>[row.event_id,Object.freeze({outcomeKind:row.outcome_kind,
+          resultSchemaRef:row.result_schema_ref,result:null,resultDigest:row.result_digest,committedAtMs:Number(row.committed_at_ms)})]));
+        for(const row of results){let value;try{value=JSON.parse(row.result_json);}catch{throw Object.assign(new Error('Durable execution Result is not valid JSON.'),{code:'EXECUTION_PROGRESS_RESULT_INVALID'});}if(canonicalJson(value)!==row.result_json||canonicalDigest(value)!==row.result_digest)throw Object.assign(new Error('Durable execution Result failed its digest fence.'),{code:'EXECUTION_PROGRESS_RESULT_INVALID'});resultByEvent.set(row.event_id,Object.freeze({outcomeKind:row.outcome_kind,resultSchemaRef:row.result_schema_ref,result:value,resultDigest:row.result_digest,committedAtMs:Number(row.committed_at_ms)}));}
         return Object.freeze(works.map((work) => Object.freeze({
           workId: work.work_id, ownerDomain:work.owner_domain, processType:work.process_type,
           processId: work.process_id, workKind: work.work_kind, state: work.state,

@@ -77,6 +77,39 @@ function count(databasePath, table) {
   finally { database.close(); }
 }
 
+function boundedRatingReads(unitOfWork, calls) {
+  return {execute(parts){return unitOfWork.execute(parts.map(part=>({...part,execute(context){
+    return part.execute({...context,repository(id){const repo=context.repository(id);return {...repo,invoke(name,parameters){
+      assert.ok(!['list_heads','list_resolutions','find_anchors_by_kind','list_relations'].includes(name),'Rating reads must not scan unrelated history.');
+      if(parameters.values){assert.ok(parameters.values.length<=500);calls.push({name,values:parameters.values});}
+      return repo.invoke(name,parameters);
+    }}}});
+  }})));}};
+}
+
+test('batch rating reads retain retractions and missing targets across bounded pages',()=>{
+  fixture(({store,unitOfWork})=>{
+    register(store);start(store);
+    const anchors=[{anchorKind:'subject_id',anchorValue:'subject-rated',confidenceClass:'exact',evidenceDigest:hash('subject-rated')}];
+    page(store,{records:[record('rated',{anchors}),record('unrelated')]});
+    start(store,{perceptionAcquisitionId:'acquisition-2',scope:{collection:'new-page'}});
+    page(store,{acquisitionCommitReceiptId:'commit-2',perceptionAcquisitionId:'acquisition-2',expectedCursorRevision:1,
+      cursorIn:null,cursorOut:'cursor-2',commitMarker:'marker-2',records:[record('retracted',{recordKind:'retraction',
+        sourceRecordKey:'rated',sourceRecordRevision:2,rating:null,anchors})],
+      relations:[{relationId:'retract-rated',relationKind:'retracts',sourcePerceptionId:'retracted',targetPerceptionId:'rated',
+        ruleRevision:1,evidenceDigest:hash('retract-rated')}]});
+    const expected=store.findCurrentTargetRating('subject','subject-rated'),calls=[];
+    const limited=createPerceptionStore({schemaManifest,unitOfWork:boundedRatingReads(unitOfWork,calls)});
+    const ids=['subject-rated',...Array.from({length:600},(_,index)=>'missing-'+index)];
+    const result=limited.findCurrentTargetRatings('subject',ids);
+    assert.deepEqual(result.get('subject-rated'),expected);
+    assert.equal(result.get('subject-rated').rating,null);
+    assert.equal(result.get('missing-599'),null);
+    assert.equal(result.size,ids.length);
+    assert.equal(calls.filter(call=>call.name==='find_anchor_targets').length,2);
+  });
+});
+
 test('binds exactly two Owner repositories to all nine Perception tables', () => {
   fixture(({ store }) => {
     assert.deepEqual(store.repositoryManifest.components, [
@@ -351,6 +384,12 @@ test('assembles, resolves and commits a complete typed Resolution without Facade
     assert.deepEqual(projection.value, { factKind:'rating', value:5 });
     assert.equal(projection.evidence[0].winningPerceptionId, 'perception-a');
     assert.equal(Object.hasOwn(projection, 'records'), false);
+    const calls=[],limited=createPerceptionStore({schemaManifest,unitOfWork:boundedRatingReads(unitOfWork,calls)});
+    const current=limited.readCurrentResolvedRatings([draft.queryInputDigest,...Array.from({length:600},(_,index)=>hash('unused-rating-'+index))]);
+    assert.equal(current.length,1);
+    assert.deepEqual(current[0].resolution,result);
+    assert.equal(current[0].winner.perceptionId,'perception-a');
+    assert.equal(calls.filter(call=>call.name==='find_rating_heads').length,2);
   });
 });
 

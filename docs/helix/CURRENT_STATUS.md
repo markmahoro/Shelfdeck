@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-12 9478a4fc7标准发布完成：Image sha256:d3fcc1f839494fb441835c23ac05da49635432af6db85f526e06ca2fcf6d78f7、tar SHA256 e530bdc7f880b12b8be312bc7134e1ead1a4f6baa6d81d6e2389aaf2580ac552。readiness/health/供给/Admin/挂载通过，RestartCount0；完整镜像120通过/1既有skip。发布前备份本地integrity ok/FK0及NAS SHA一致，509 Entry/509 Commit。生产UI已独立接受UAT-315计数，三query一致；六项原失败/放弃Run无Token，无人工重处理。用户新反馈Tab慢登记UAT-318：局部候选有界Result/评分读取，Linux79通过、同备份12次JSON等价、读取量下降86–87%，尚未发布或整页验收。盘Avail约46GiB。三部剧历史诱因及全面清理保持开放。
+
 2026-10-12修复准备：用户要求先完成修复、暂不重处理五项失败媒体。计数/Reset/查询优化双平台各92通过；追加FFmpeg安全超时诊断双平台各28通过/1既有skip，Linux一次时序断言失败后原样复验通过。兰闺喜事原S01E17只读三点解码均通过，历史超时诱因仍未证实；两电影原Run均已discarded。当前盘约26GiB可用。修复尚未发布，UAT-313/315/316/317不关闭，详情见315–317 Evidence。
 
 2026-10-12 MoviePilot恢复：用户授权启动、未授权暂停下载。追加清理UAT-281三份已被最终备份替代的中间DB后Avail约6.2GiB。精确清理满盘遗留网络endpoint，原MoviePilot容器/配置/数据及172.18.0.2:3000连接恢复；NAS本机和LAN页面HTTP200，启动日志Application startup complete，容器running且不重启；ShelfDeck health200/normalSupplyAllowed=true。未暂停或删除任何下载。剩余下载量未核清，6.2GiB不作为不会再次满盘的保证；UAT-313两片业务结果及新代码发布仍未完成。

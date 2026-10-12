@@ -15,6 +15,11 @@ class PerceptionStoreError extends Error {
 }
 function fail(code, message, details) { throw new PerceptionStoreError(code, message, details); }
 function exact(value, keys, code) { if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== keys.length || keys.some((key) => !Object.hasOwn(value, key))) fail(code, 'Perception Store input does not match its closed contract.'); }
+function readChunks(repo, statement, values, parameters = {}) {
+  const ids=[...new Set(values)],rows=[];
+  for(let offset=0;offset<ids.length;offset+=500)rows.push(...repo.invoke(statement,{...parameters,values:ids.slice(offset,offset+500)}));
+  return rows;
+}
 
 function recordDefinition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId: 'perception_record_repository', owner: 'perception', schemaManifest, statements: {
@@ -40,10 +45,14 @@ function recordDefinition(schemaManifest) {
     insert_anchor: { kind: 'insert', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'] },
     find_anchors: { kind: 'select-all', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'], keyColumns: ['perception_id'] },
     find_anchors_by_kind: { kind: 'select-all', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'], keyColumns: ['anchor_kind'] },
+    find_anchor_targets: { kind:'select-in', tableId:'perception_identity_anchors', keyColumn:'anchor_value', fixedKeyColumns:['anchor_kind'], maxItems:500,
+      columns:['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'] },
     list_anchors: { kind: 'select-all', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'], keyColumns: [] },
     insert_relation: { kind: 'insert', tableId: 'perception_record_relations', columns: ['relation_id','relation_kind','source_perception_id','target_perception_id','rule_revision','evidence_digest','committed_at_ms'] },
     find_relation: { kind: 'select-one', tableId: 'perception_record_relations', columns: ['relation_id','relation_kind','source_perception_id','target_perception_id','rule_revision','evidence_digest','committed_at_ms'], keyColumns: ['relation_kind','source_perception_id','target_perception_id'] },
-    list_relations: { kind: 'select-all', tableId: 'perception_record_relations', columns: ['relation_id','relation_kind','source_perception_id','target_perception_id','rule_revision','evidence_digest','committed_at_ms'], keyColumns: [] }
+    list_relations: { kind: 'select-all', tableId: 'perception_record_relations', columns: ['relation_id','relation_kind','source_perception_id','target_perception_id','rule_revision','evidence_digest','committed_at_ms'], keyColumns: [] },
+    find_target_relations: { kind:'select-in', tableId:'perception_record_relations', keyColumn:'target_perception_id', maxItems:500,
+      columns:['relation_kind','target_perception_id'] }
   }});
 }
 
@@ -55,6 +64,10 @@ function resolutionDefinition(schemaManifest) {
     find_head: { kind: 'select-one', tableId: 'perception_resolution_heads', columns: ['query_contract','query_input_digest','current_resolution_id','current_revision','updated_at_ms'], keyColumns: ['query_contract','query_input_digest'] },
     advance_head: { kind: 'update', tableId: 'perception_resolution_heads', setColumns: ['current_resolution_id','current_revision','updated_at_ms'], keyColumns: ['query_contract','query_input_digest'], compareColumns: [{ column: 'current_revision', parameter: 'expected_current_revision' }] },
     list_heads: { kind: 'select-all', tableId: 'perception_resolution_heads', columns: ['query_contract','query_input_digest','current_resolution_id','current_revision','updated_at_ms'], keyColumns: [] },
+    find_rating_heads: { kind:'select-in', tableId:'perception_resolution_heads', keyColumn:'query_input_digest', fixedKeyColumns:['query_contract'], maxItems:500,
+      columns:['query_contract','query_input_digest','current_resolution_id','current_revision','updated_at_ms'] },
+    find_resolutions: { kind:'select-in', tableId:'perception_resolution_revisions', keyColumn:'resolution_id', maxItems:500,
+      columns:['resolution_id','query_contract','query_schema_ref','query_input_digest','fact_kind','revision','record_set_digest','rule_revision','rule_digest','result_kind','winning_perception_id','reason_code','result_schema_ref','result_json','result_digest','resolved_at_ms'] },
     list_resolutions: { kind: 'select-all', tableId: 'perception_resolution_revisions', columns: ['resolution_id','query_contract','query_schema_ref','query_input_digest','fact_kind','revision','record_set_digest','rule_revision','rule_digest','result_kind','winning_perception_id','reason_code','result_schema_ref','result_json','result_digest','resolved_at_ms'], keyColumns: [] }
   }});
 }
@@ -197,8 +210,9 @@ function createPerceptionStore(options) {
     findCurrentTargetRatings(targetType,targetIds) { return execute([records], (context) => {
       const repo=context.repository(records.repositoryId),anchorKind=targetType==='subject'?'subject_id':targetType==='shelf_entry'?'shelf_entry_id':null;
       const wanted=new Set(targetIds||[]),result=new Map();if(!anchorKind||!wanted.size)return result;
-      const anchors=repo.invoke('find_anchors_by_kind',{anchor_kind:anchorKind}).filter((row)=>wanted.has(row.anchor_value));
-      const terminal=new Set(repo.invoke('list_relations').filter((row)=>['supersedes','retracts'].includes(row.relation_kind)).map((row)=>row.target_perception_id));
+      const anchors=readChunks(repo,'find_anchor_targets',[...wanted],{anchor_kind:anchorKind});
+      const terminal=new Set(readChunks(repo,'find_target_relations',anchors.map(row=>row.perception_id))
+        .filter((row)=>['supersedes','retracts'].includes(row.relation_kind)).map((row)=>row.target_perception_id));
       for(const targetId of wanted){const ids=anchors.filter((row)=>row.anchor_value===targetId&&!terminal.has(row.perception_id)).map((row)=>row.perception_id);
         const current=ids.map((id)=>mapRecord(repo,id))
           .sort((left,right)=>right.committedAtMs-left.committedAtMs||left.perceptionId.localeCompare(right.perceptionId))[0]||null;
@@ -208,9 +222,9 @@ function createPerceptionStore(options) {
     readCurrentResolvedRatings(queryInputDigests) { return execute([records,resolutions], (context) => {
       const wanted=new Set(queryInputDigests),recordRepo=context.repository(records.repositoryId),resolutionRepo=context.repository(resolutions.repositoryId);
       if(!wanted.size)return Object.freeze([]);
-      const heads=resolutionRepo.invoke('list_heads').filter((row)=>row.query_contract==='perception.rating.resolve@1'&&wanted.has(row.query_input_digest));
+      const heads=readChunks(resolutionRepo,'find_rating_heads',[...wanted],{query_contract:'perception.rating.resolve@1'});
       const currentIds=new Set(heads.map((row)=>row.current_resolution_id));
-      const current=resolutionRepo.invoke('list_resolutions').filter((row)=>currentIds.has(row.resolution_id));
+      const current=readChunks(resolutionRepo,'find_resolutions',[...currentIds]);
       return Object.freeze(current.map((row)=>{
         const resolution=mapResolution(row),winner=resolution.resultKind==='found'?mapRecord(recordRepo,resolution.winningPerceptionId):null;
         return Object.freeze({queryInputDigest:resolution.queryInputDigest,resolution,winner});

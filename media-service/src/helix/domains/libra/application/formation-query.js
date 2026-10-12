@@ -9,6 +9,15 @@ const { createMovieProductionReader } = require('../persistence/movie-production
 const { frozenSeriesSeasonNumber } = require('../model/series-identity-contracts');
 
 const PAGE_SIZE = 100;
+// List classification and current-action labels consume these Results. Other
+// immutable payloads, such as full Episode metadata, belong in the opened detail.
+const LIST_RESULT_CAPABILITIES = Object.freeze([
+  'libra.product_identity.evidence.observe@1', 'libra.product_artifact.acquire@1',
+  'libra.product_sidecar.render@1', 'libra.product_media.verify@1',
+  'libra.product_output.select@1', 'libra.product.conformance.verify@1',
+  'libra.external_material.candidate.select@1', 'libra.transcode.input.verify@1',
+  'libra.media.transcode@1', 'arca.ondeck.input_settlement.delete@1',
+]);
 function parse(value) { try { return value ? JSON.parse(value) : null; } catch { return null; } }
 function unique(values) { return [...new Set(values.filter(Boolean))]; }
 function chunks(values, size = 500) { const result = []; for (let index = 0; index < values.length; index += size) result.push(values.slice(index, index + size)); return result; }
@@ -555,6 +564,7 @@ function createFormationProjectionSource(options) {
     const externalIntegrationReady = typeof options.isExternalMaterialIntegrationReady === 'function'
       ? options.isExternalMaterialIntegrationReady() === true : null;
     const includeActualPlans = buildOptions.includeProcessDetail === true || buildOptions.includeProcessSummary === true;
+    const resultReadOptions = buildOptions.includeProcessDetail === true ? {} : { resultCapabilityRefs:LIST_RESULT_CAPABILITIES };
     // Material preparation is already complete for a Subject. Its Procurement
     // history belongs in the opened detail, not the current-plan list summary.
     const actualPlanProcessIds = includeActualPlans ? unique([
@@ -563,13 +573,13 @@ function createFormationProjectionSource(options) {
       ...runIds, ...offerIds, ...onDeckRunIds,
     ]) : [];
     const actualPlanWorks = actualPlanProcessIds.length
-      ? chunks(actualPlanProcessIds).flatMap((ids)=>options.progressProjectionReader?.read(ids, { includePlans:true }) || []) : [];
+      ? chunks(actualPlanProcessIds).flatMap((ids)=>options.progressProjectionReader?.read(ids, { includePlans:true, ...resultReadOptions }) || []) : [];
     // A detail-bearing response already has these exact durable Works and Results.
     // Reuse them within the request instead of reading the same history twice.
     const progress = includeActualPlans ? actualPlanWorks : runIds.length
-      ? chunks(runIds).flatMap((ids) => options.progressProjectionReader?.read(ids) || []) : [];
+      ? chunks(runIds).flatMap((ids) => options.progressProjectionReader?.read(ids, resultReadOptions) || []) : [];
     const onDeckProgress = includeActualPlans ? actualPlanWorks : onDeckRunIds.length
-      ? chunks(onDeckRunIds).flatMap((ids) => options.progressProjectionReader?.read(ids) || []) : [];
+      ? chunks(onDeckRunIds).flatMap((ids) => options.progressProjectionReader?.read(ids, resultReadOptions) || []) : [];
     const progressByRun = new Map(runIds.map((id) => [id, progress.filter((item) => item.processId === id)]));
     const onDeckByRun = new Map(onDeckRunIds.map((id) => [id, onDeckProgress.filter((item) => item.processId === id)]));
     return prepared.map(({ subject, decisions, displayIdentity, snapshot }) => {
