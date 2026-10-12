@@ -1,5 +1,7 @@
 # UAT-293：本地测试升级与旧执行历史
 
+2026-10-12收口：精确候选d6097265e以backup03完整副本完成正式限定Reset、Schema迁移、完整Host健康启动及保留历史逐行审计；同一backup03的新隔离副本rollback-original03用原生产镜像8e197b3c36完整Host健康启动，normalSupplyAllowed=true，正常退出（约23分钟）。备份SHA与原receipt一致。原镜像演练因生产物理目录只读挂载记录4项EROFS，故仅证明升级前备份恢复启动，不证明未完成任务恢复或新版数据可被旧镜像直接读取。冻结历史只读兼容缺陷按自身条件关闭；生产尚未升级，当前未完成Formation精确Reset授权、停服完整备份和其他Series UAT仍是发布前置条件。
+
 全量架构第二轮2489通过/2失败/12skip，依赖、语义、manifest扫描通过；两项均为新增SSOT说明插在历史表定义前，导致8个既有表合同来源行定位漂移。将新增说明移至SSOT末尾，保持既有合同定位不动并重新生成Source Map，相关P2/表合同/Source Map共9项通过。未更改表语义、DDL或Schema generation。完整日志保留为`uat293-architecture-v2.log`，定向修复日志`uat293-source-map-final.log`，不将失败的全量命令改记为PASS。
 
 2026-10-12第二轮完整生产副本Host已启动：health=ok、normalSupplyAllowed=true，正常关闭。Linux Proof/Startup/Governor专项105项全部通过；最终Service601通过/0失败/28skip。原冻结备份与副本逐行摘要核对：499 Shelf Entry、35915 Inventory Material、499 Commit Receipt全部原样保留；30996条保留Plan、70866 Node、44926 Edge、79611 Result Binding、46129 Commit Marker逐行一致，integrity=ok、FK=0。60条旧Plan属于已演练的4 Subject Reset闭包；Host正常供给另新增10 Plan，不把它们混作历史。日志`.codex/series-release-20261012/uat293-replica-host-v2.log`、`replica-history-invariants.json`。本次仍为精确旧镜像挂当前源码的诊断，尚不替代待发布镜像/回退门禁，生产未改变。

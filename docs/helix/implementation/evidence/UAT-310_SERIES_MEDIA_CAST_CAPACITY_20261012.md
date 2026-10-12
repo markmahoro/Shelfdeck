@@ -25,3 +25,5 @@ Windows合同32通过/0失败；覆盖空集跳过、单来源优先级、输入
 全量架构291文件运行结束：2506项中2493通过、1失败、12skip。唯一失败是P2测试保留了UAT-309容量合同调整前的aggregateDigest断言；核对生成合同与7组件验证后，仅更新测试固定值，相关文件3项全部通过（5922.98毫秒）。完整运行原失败日志保留，未宣称重新执行全量全部通过。Service仍为602通过/0失败/29skip；运行时代码未因此改变，候选镜像身份不变。
 
 武林外传身份命令生效后，artifact Work因LIBRA_ARTIFACT_FETCH_FAILED失败，诊断为P5_SECRET_LEASE_INVOCATION_FAILED。身份确认不等于完整入藏验收；原诊断保留，继续排查。
+
+14:44本地新Run凡人歌27863f843a728d886dc141feb2a9fe4039d0708e573d431aabad5e20a3eaff3d已有正式media_cast Fact：75份MetadataObservation，6条唯一关系、1份origin evidence，全部来自Season 1/E001 related_nfo（sourcePriority=38），完整Fact 4204字节。已进入Arca实际stage，尚未Commit；这是新增现场旁证，不替代原大江大河33集独立验收。武林外传原失败Run正式reprocess已202接受，intent 8576278364cefc92bd5a3b1cacab5aea6c870ec9d7549d3138d5f74cea2b2560，旧失败证据保留。
