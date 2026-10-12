@@ -758,6 +758,7 @@ function createEventRuntime(options) {
               context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain });
           } }));
       } catch (error) {
+        if(error?.code==='P4_EXECUTION_SHUTDOWN_INTERRUPTED')throw error;
         outcome=cooperativeDeadlineOutcome(entry,error,attemptContract.deadlineAtMs);
         if (!outcome && error?.code === 'P4_EXECUTION_TIMEOUT' && recoveryBudgetExpiredBeforeDispatch && !dispatchStarted) {
           outcome = Object.freeze({ kind:'failed', failureClass:request.decision === 'continue_forward' ? 'timeout' : 'integration',
@@ -840,6 +841,7 @@ function createEventRuntime(options) {
     classifyRecovery,
     recover,
     retryPendingCompletion,
+    beginShutdown() { return options.governor.abandonWaiters(); },
     async run(request) {
       if (!request || typeof request !== 'object' || Array.isArray(request) ||
           JSON.stringify(Object.keys(request)) !== JSON.stringify(['schedulerLease'])) fail(
@@ -995,6 +997,7 @@ function createEventRuntime(options) {
               context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain }); }
           }));
         } catch (error) {
+          if(error?.code==='P4_EXECUTION_SHUTDOWN_INTERRUPTED')throw error;
           outcome=cooperativeDeadlineOutcome(entry,error,attemptContract.deadlineAtMs);
           if(!outcome){
             if (error?.code === 'P4_EXECUTION_TIMEOUT') {

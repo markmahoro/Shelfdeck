@@ -1,4 +1,5 @@
 'use strict';
+const {createPlanningEvidenceReader}=require('../../src/helix/domains/arca/persistence/planning-evidence-reader');
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path');
 const {canonicalDigest,canonicalJson}=require('../../src/helix/contracts/canonical-json');
@@ -118,7 +119,7 @@ test('Series Preparation Planner and Owner Projection preserve distinct frozen N
   const validator=createCapabilityContractValidator({schemas:[...schemas,profileSchema]});
   validateWorkflowPlan(plan,{registry,policyRegistry,contractValidator:validator});
   assert.equal(plan.nodes.length,2);assert.equal(new Set(plan.nodes.map(node=>node.eventId)).size,2);
-  const projections=createAftercareProjections({contextReader,workResultReader:{read:()=>[]},
+  const projections=createAftercareProjections({ evidenceReader:createPlanningEvidenceReader({}),contextReader,workResultReader:{read:()=>[]},
     materialControlProjectionPort:{getMaterialControlProjections:()=>[]},controlScopeDigest:canonicalDigest});
   const projection=projections.find(item=>item.projectionRef===P.artifactProfile).projection,profiles=[];
   for(const node of plan.nodes) {

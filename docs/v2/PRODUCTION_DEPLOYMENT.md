@@ -2,6 +2,8 @@
 
 本文是 ShelfDeck 当前唯一生产部署入口。当前生产部署方式固定为：本机 build image -> 导出 tar -> `upload-nas-image.js` 上传并校验 -> `deploy-nas.js` dry run -> `deploy-nas.js --apply`。Codex 处理任何“上线、部署、升级 NAS、发布 Docker、生产环境”相关任务时，必须先读本文，再读 `scripts/build-image.js`、`scripts/upload-nas-image.js` 和 `scripts/deploy-nas.js`。
 
+UAT-304：标准Compose的`stop_grace_period`为75秒。Service收到停止信号立即停止供给，最多60秒等待执行checkpoint，再回收自身FFmpeg进程；超预算保留未决执行，按既有Effect合同在重启时恢复，不将技术停机记录成媒体加工失败。
+
 ## 当前生产环境
 
 Helix-beta 已于 2026-08-28 在飞牛 NAS 上线。下列是 **当前生产配置快照**（不含凭据）。升级必须保留这些绑定，禁止 `--helix-clean-init`，除非 Product Owner 明确要求清库。

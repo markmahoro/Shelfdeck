@@ -1,0 +1,11 @@
+# UAT-307：重复无身份人物assertion
+
+2026-10-12收口：Linux两集重复NFO完整Host93.39秒通过，Windows90.87秒通过；实际解析保留重复hint而人物Fact保持唯一，最终On-deck Commit及旧空季目录清理通过。日志uat307-host-v3.log与linux-uat307-host-v2.log保留。本项修复及双平台受控完整链路已验证，原现场新Run尚未完成人物事实生成，继续开放，不以只读重放或健康检查代替现场验收。
+
+2026-10-12用户要求清理所有已知Series UAT后再升级生产。只读检查本地preview-uat294数据库：13个Libra Run（3 completed、3 active、7 discarded）、3个active Shelf Entry及3个On-deck Commit；82次P9_MEDIA_CAST_RELATIONS。扫描1022条metadata fetch Result，160条Observation可单独复现重复relation，未修改原证据。
+
+Libra的buildMetadataMediaCastRelations只按Provider identity去重。无Provider identity的完全相同hint重复出现时，subject/role/name/provider identities/origin evidence组成的seed相同，形成重复relationId，随后buildMediaCastDraft按既有唯一性合同拒绝。修复只对完全相同relationId去重；不同Evidence、role或Provider身份保持独立，不创建或猜测Person identity。
+
+专项12项通过，新增无Provider身份重复、跨来源同名及不同role保留、Draft仍拒绝外部重复输入的回归。Windows完整Host、Linux与现场新Run验收待执行，不因本专项通过关闭。
+
+后续只读重放全部1022条真实MetadataObservation，其中160条包含精确重复hint；生成17006条relation，无重复relationId，原Result未修改。Windows真实NFO解析→MetadataObservation（明确保留重复hint）→人物Fact→On-deck Commit→旧空季目录清理的两集Host91秒通过，Draft唯一性及失败计数断言通过。首轮误选到24集大剧情fixture时，NFO的短剧情使该fixture原大于64KiB前置条件不成立；第二轮额外断言曾错误用type ref查询capability Result，改成精确capability join后通过；失败日志保留，不修改业务合同来通过。Linux专项12项通过，完整Host重跑中。已加载本地18081，原3个active Run均停在已成功的身份Observation后、尚未产出人物新Fact，不以health推定现场验收通过。

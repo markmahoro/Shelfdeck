@@ -1,4 +1,5 @@
 'use strict';
+const {createPlanningEvidenceReader}=require('../../src/helix/domains/arca/persistence/planning-evidence-reader');
 
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -152,7 +153,7 @@ test('UAT-111 Settlement handle and approval projections use the bounded reader 
   const authorization={state:'enabled',revision:1,authorizationScopeKind:'old_primary_and_exclusive_related',authorizationDigest:canonicalDigest('grant')};
   const sourceResult={schemaRef:'helix://contracts/types/FinalProductVerification/v1',result:'passed',productManifestDigest:'product-manifest-1',verifiedMaterialKeys:[canonicalDigest('product-12')]};
   let approvalReads=0;
-  const projections = createOnDeckProjections({
+  const projections = createOnDeckProjections({ evidenceReader:createPlanningEvidenceReader({}),
     contextReader:{
       settlementAuthorizations:{current:()=>authorization},
       settlementApprovals:{readHandle(scope,actual,eventId){approvalReads++;assert.equal(actual,authorization);assert.equal(eventId,'settlement-12');return {approvalId:'persisted-approval',exactEffectScopeDigest:scope.approvalScopeDigest};}},

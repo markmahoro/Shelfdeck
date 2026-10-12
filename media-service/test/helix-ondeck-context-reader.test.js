@@ -1,4 +1,5 @@
 'use strict';
+const {createPlanningEvidenceReader}=require('../src/helix/domains/arca/persistence/planning-evidence-reader');
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
@@ -114,7 +115,7 @@ test('accepted On-deck projections keep the frozen Standard and Placement throug
   for (const stage of ['staged_verify', 'final_product_verify', 'on_deck_commit']) {
     const basis = acceptedRunBasis(current, responsibility.onDeckRunId, acceptance, shelves);
     assert.equal(basis.context.shelf.currentStandardRevision, 1, stage);
-    const projections = new Map(createOnDeckProjections({ contextReader:{ readAccepted:()=>basis.context } })
+    const projections = new Map(createOnDeckProjections({ evidenceReader:createPlanningEvidenceReader({}), contextReader:{ readAccepted:()=>basis.context } })
       .map((item)=>[item.projectionRef,item.projection]));
     const scope = { processType:'arca_ondeck_run', processId:responsibility.onDeckRunId };
     const standard = projections.get(P.shelfStandard).project({ ownerScope:scope, parameters:{} });

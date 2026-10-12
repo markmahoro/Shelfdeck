@@ -35,6 +35,8 @@ async function main(options = runtimeOptions()) {
         .catch((error) => {
           console.error('[shelfdeck] clean shutdown failed', error);
           process.exitCode = 1;
+          // Do not close SQLite under an unresolved Effect or synthesize terminal outcomes.
+          if(error.code==='P4_SHUTDOWN_CHECKPOINT_TIMEOUT')process.exit(1);
         });
     }
     return closing;

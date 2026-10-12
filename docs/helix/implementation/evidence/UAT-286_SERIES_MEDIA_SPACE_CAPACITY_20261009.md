@@ -13,3 +13,5 @@
 本地18081仍加载UAT-285版本，正在保护《大宅门2》实际转码，未为本修复中断媒体副作用。原失败Run未Reset或改写状态；修复后的新任务重现验证及旧任务处置分别记录，不以恢复代码掩盖缺陷。未操作NAS。
 
 2026-10-09后续只读核验：用户反馈《白鹿原》失败，Run `97ba824ca689cb7d2ca8957be020e0215ba62a93facc71005f28e3580d8bcfd9` 已 frozen；77 次 `libra.product_media.verify@1` 输入准备失败，全部摘要 `b02dce8cabedb9673ff3018b14faf8e1b7da6f38470058e2e39209cb3c8408f1`，与上述32成员限制的 failureCode/message canonical 摘要精确一致。现场PID仍14444，修复尚未加载；没有Reset或改写该Run。
+
+2026-10-12现场只读验收：人世间58集Run `c8e9ded983da364c62c5e43c52dd1483beb0b0c0f3c96a1680d0e790bcfd5976`已completed，On-deck `b121f187f98f5a03c6234e295e5a446576d782ec35d84850c633dcac717b5593`已Commit，Shelf Entry `097c720a2bc0a240609a48041fc297b9c3c0c956e340c299b3dfa1870ac8c298` revision1含58 Primary、59 metadata sidecar及1 poster。58个Primary的media verify/select均成功，超过原32成员边界；完整集合进入唯一Commit。 原始只读审计`.codex/series-release-20261012/local-committed-evidence.json`。结合既有双平台正负回归，本项按自身容量验收条件关闭；其他UAT、生产升级与白鹿原77集验收独立。

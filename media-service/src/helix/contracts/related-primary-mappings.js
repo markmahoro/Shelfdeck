@@ -1,5 +1,4 @@
 'use strict';
-const path=require('node:path');
 const {canonicalDigest,canonicalJson}=require('./canonical-json');
 const {offloadProductKeys}=require('./offload-product-targets');
 function fail(){throw Object.assign(new Error('Episode thumbnail requires one exact source and final Primary mapping.'),{code:'SERIES_RELATED_PRIMARY_MAPPING_AMBIGUOUS'});}
@@ -18,15 +17,6 @@ function buildRelatedPrimaryMappings(assertions,offload,members){
   mappings.sort((a,b)=>Buffer.from(a.relatedMaterialKey).compare(Buffer.from(b.relatedMaterialKey)));
   if(mappings.length>1024||new Set(mappings.map(item=>item.relatedMaterialKey)).size!==mappings.length)fail();
   return mappings;
-}
-function relatedPrimaryName(packageValue,member,primaryName){
-  const mapping=packageValue.relatedPrimaryMappings?.find(item=>item.relatedMaterialKey===member.materialKey);
-  if(!mapping)return null;
-  const primary=packageValue.productMaterialManifest.members.find(item=>item.materialKey===mapping.finalPrimaryMaterialKey&&item.role==='primary_payload');
-  if(!primary||member.role!=='sidecar'||mapping.namingKind!=='episode_thumb')fail();
-  const name=primaryName(primary),extension=path.extname(member.location?.location||'').toLowerCase();
-  if(!['.jpg','.jpeg','.png','.webp'].includes(extension))fail();
-  return path.basename(name,path.extname(name))+'-thumb'+extension;
 }
 const FACT_SCHEMA='helix://arca/inventory-related-primary-mapping/v1';
 function inventoryMappingFact(mapping,relatedKey,primaryKey){
@@ -56,4 +46,4 @@ function acceptedFactDigest(row){
   return canonicalDigest({schema:'arca.accepted-related-primary-association@1',sourceRelatedReferenceId:value.sourceRelatedReferenceId,
     sourcePrimaryMaterialKey:value.sourcePrimaryMaterialKey,namingKind:value.namingKind});
 }
-module.exports=Object.freeze({buildRelatedPrimaryMappings,relatedPrimaryName,inventoryMappingFact,readInventoryMapping,remapInventoryMappingFacts,acceptedFactDigest,FACT_SCHEMA});
+module.exports=Object.freeze({buildRelatedPrimaryMappings,inventoryMappingFact,readInventoryMapping,remapInventoryMappingFacts,acceptedFactDigest,FACT_SCHEMA});

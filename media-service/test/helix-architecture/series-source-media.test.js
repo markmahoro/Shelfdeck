@@ -335,7 +335,7 @@ test('Series media space typed bounds reject oversized sets, unknown fields and 
   assert.equal(validateAllocation(allocation),true,JSON.stringify(validateAllocation.errors));
   for(const mutation of ['member_count','claims','extra','unsafe_size']) {
     const value=structuredClone(input.seriesSpaceBasis);
-    if(mutation==='member_count')value.members=Array(33).fill(value.members[0]);
+    if(mutation==='member_count')value.members=Array(1025).fill(value.members[0]);
     if(mutation==='claims')value.members[0].episodeKeys=Array.from({length:33},(_,i)=>'E'+i);
     if(mutation==='extra')value.members[0].hidden=true;
     if(mutation==='unsafe_size')value.members[0].sizeBytes=Number.MAX_SAFE_INTEGER+1;

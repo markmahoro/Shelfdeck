@@ -1,5 +1,5 @@
 'use strict';
-const { readControlProjections } = require('../application/read-control-projections');
+const { readControlProjections } = require('../persistence/read-control-projections');
 const {createInventoryVerificationStore,resolveInventoryVerification}=require('../persistence/inventory-verification-store');
 const {createStagedManifestStore,resolveStagedResult}=require('../persistence/staged-manifest-store');
 const {createAcceptanceCheckEvidenceStore,resolveAcceptanceResult,RECORD:CHECK_RECORD}=require('../persistence/acceptance-check-evidence-store');

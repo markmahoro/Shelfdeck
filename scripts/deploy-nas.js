@@ -123,6 +123,7 @@ function composeYaml(targetImage) {
     '    devices:',
     '      - /dev/dri:/dev/dri',
     '    restart: unless-stopped',
+    '    stop_grace_period: 75s',
     '',
   ].join('\n');
 }

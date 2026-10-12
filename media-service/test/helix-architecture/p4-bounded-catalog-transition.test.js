@@ -307,14 +307,18 @@ test('historical witness stays immutable and cannot authorize changed secondary-
     'arca.acceptance.accept.commit@1','arca.acceptance.identity.verify@1','arca.acceptance.mandatory_media.verify@1',
     'arca.acceptance.metadata.verify@1','arca.acceptance.space.verify@1','arca.acceptance.structure.verify@1',
     'arca.aftercare.conformance.observe@1','arca.aftercare.input_settlement.delete@1','arca.aftercare.media.remux@1','arca.aftercare.media.transcode@1','arca.aftercare.media.verify@1',
-    'arca.inventory.final_product.verify@1','arca.ondeck.input_settlement.delete@1',
+    'arca.inventory.final_product.verify@1','arca.inventory.product.stage@1','arca.inventory.staged.verify@1',
+    'arca.ondeck.commit@1','arca.ondeck.fulfillment.verify@1','arca.ondeck.input_settlement.delete@1',
     'libra.external_material.acquire.request@1','libra.external_material.candidate.select@1',
-    'libra.external_material.query.prepare@1','libra.external_material.search@1','libra.media.remux@1',
+    'libra.external_material.query.prepare@1','libra.external_material.search@1',
+    'libra.intake.binding.resolve@1','libra.intake.candidate.verify@1','libra.intake.material.verify@1','libra.media.remux@1',
     'libra.media_cast.commit@1','libra.media_cast.resolve@1',
     'libra.product.conformance.verify@1','libra.product_artifact.acquire@1',
-    'libra.product_identity.evidence.observe@1','libra.product_media.verify@1',
+    'libra.product_identity.evidence.observe@1','libra.product_identity.resolve@1','libra.product_media.verify@1',
     'libra.product_metadata.commit@1','libra.product_metadata.fetch@1','libra.product_output.select@1',
-    'libra.product_package.publish@1','libra.product_sidecar.render@1','libra.routing.fact.observe@1']);
+    'libra.product_package.publish@1','libra.product_sidecar.render@1','libra.routing.fact.observe@1',
+    'procurement.candidate.publish@1','procurement.triage.identity_claim.resolve@1','procurement.triage.playability.inspect@1',
+    'procurement.triage.primary_manifest.build@1','procurement.triage.structure.inspect@1']);
   assert.deepEqual(witness.capabilities.filter(record => record.previousSchemaDigest !== record.currentSchemaDigest)
     .map(record => record.capabilityRef), [
       'arca.acceptance.accept.commit@1', 'arca.acceptance.identity.verify@1',
@@ -324,9 +328,10 @@ test('historical witness stays immutable and cannot authorize changed secondary-
       'libra.product.conformance.verify@1', 'libra.product_package.publish@1',
       'shared.artifact.manifest.verify@1',
     ]);
-  for (const [schemaRef, record] of Object.entries(witness.preboundEvidenceSchemas)) {
-    assert.equal(canonicalDigest(schemaClosure({ inputPorts: { evidence: { schemaRef } } }, schemas)), record.currentSchemaDigest);
-  }
+  const changedPrebound = Object.entries(witness.preboundEvidenceSchemas).filter(([schemaRef, record]) =>
+    canonicalDigest(schemaClosure({ inputPorts: { evidence: { schemaRef } } }, schemas)) !== record.currentSchemaDigest)
+    .map(([schemaRef]) => schemaRef);
+  assert.deepEqual(changedPrebound, ['helix://contracts/types/TriageStructureEvidence/v1']);
   const nominal = witness.preboundEvidenceSchemas['helix://contracts/types/LibraProductFactEvidence/v1'];
   assert.equal(nominal.previousSchemaDigest, null);
   assert.equal(nominal.historicalNominalContract.kind, 'ssot_only');

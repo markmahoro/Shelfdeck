@@ -1206,7 +1206,7 @@ function createProcurementExecutionRuntime(options) {
     })]});
   host = createExecutionRuntimeHost({ startupRecovery, scheduler, plannerRegistry, planPublisher, workLifecycle,
     eventRuntime, domainReconciler, fallbackReconciler, incidentObserver:executorIncidentObserver,
-    onError: options.onError,maxInFlightEvents:16 });
+    onError: options.onError,maxInFlightEvents:16,shutdownTimeoutMs:options.shutdownTimeoutMs });
   return Object.freeze({ host, registry, policyRegistry, contractValidator, progressReader, procurementAutomation,
     readProcessFailures(scope){return workResultReader.listWorks(scope).slice().sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)).slice(0,3)
       .flatMap(w=>workResultReader.readFailures(w.work_id)).slice(0,16);},triageReader,runCoordinator,

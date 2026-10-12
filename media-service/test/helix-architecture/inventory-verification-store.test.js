@@ -1,4 +1,5 @@
 'use strict';
+const {createPlanningEvidenceReader}=require('../../src/helix/domains/arca/persistence/planning-evidence-reader');
 const test=require('node:test'),assert=require('node:assert/strict');
 const {canonicalDigest:D,canonicalJson}=require('../../src/helix/contracts/canonical-json');
 const {fixture}=require('./helpers/acceptance-evidence-fixture');
@@ -16,7 +17,7 @@ for(const type of types)test(type.name+' retains complete Evidence and atomicall
   const f=fixture(type.capability,'scope','arca_ondeck_run'),store=createInventoryVerificationStore(f.options);try{
     const value=verification(type);assert.ok(Buffer.byteLength(canonicalJson(value))>65536);
     const saved=store.commit(f.execution,value);assert.deepEqual(store.resolve(saved.record),value);
-    assert.deepEqual(resolveInventoryVerification(f.options,saved.record),value);assert.deepEqual(store.commit(f.execution,value),saved);
+    assert.deepEqual(resolveInventoryVerification(f.options,saved.record),value);assert.deepEqual(createPlanningEvidenceReader(f.options).resolveSource(saved.record),value);assert.deepEqual(store.commit(f.execution,value),saved);
     assert.ok(Buffer.byteLength(canonicalJson(saved.record))<65536);
     for(const table of ['arca_inventory_verification_records','fx_event_result_bindings','fx_commit_markers'])
       assert.equal(f.db.prepare('SELECT count(*) n FROM '+table).get().n,1);

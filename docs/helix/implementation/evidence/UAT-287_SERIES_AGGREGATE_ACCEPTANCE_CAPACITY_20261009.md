@@ -13,3 +13,5 @@ Arca新增不可变arca_acceptance_check_evidence，以acceptanceAttemptId/check
 47集已通过Product Conformance、交付和Arca验收，下一关arca.inventory.product.stage的完整StagedInventoryManifest为94041字节，触发Foundation Result64 KiB约束。该独立缺口登记UAT-288；本项已修复部分有隔离证据，但完整47集E2E与现场复验仍未通过，不关闭。
 
 用户已确认UAT-288完整Stage Manifest由Arca不可变保存、1024成员/8 MiB、Foundation有界引用；待独立实现。
+
+2026-10-12现场只读验收：人世间58集Run `c8e9ded983da364c62c5e43c52dd1483beb0b0c0f3c96a1680d0e790bcfd5976`已completed，On-deck `b121f187f98f5a03c6234e295e5a446576d782ec35d84850c633dcac717b5593`已Commit，Shelf Entry `097c720a2bc0a240609a48041fc297b9c3c0c956e340c299b3dfa1870ac8c298` revision1含58 Primary、59 metadata sidecar及1 poster。58个Primary完整通过Conformance及Arca验收并Commit，不再缺少大于47集的完整链路证据。 原始只读审计`.codex/series-release-20261012/local-committed-evidence.json`。结合既有双平台正负回归，本项按自身容量验收条件关闭；其他UAT、生产升级与白鹿原77集验收独立。

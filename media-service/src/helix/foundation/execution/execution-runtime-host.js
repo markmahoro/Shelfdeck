@@ -52,6 +52,10 @@ function createExecutionRuntimeHost(options) {
       !Number.isSafeInteger(recoveryRetryMs) || recoveryRetryMs < 10 || recoveryRetryMs > 300000) {
     fail('P4_EXECUTION_HOST_LIMITS_INVALID', 'Execution Runtime Host tick limits are invalid.');
   }
+  const shutdownTimeoutMs=options.shutdownTimeoutMs===undefined?60000:options.shutdownTimeoutMs;
+  if(!Number.isSafeInteger(shutdownTimeoutMs)||shutdownTimeoutMs<1||shutdownTimeoutMs>60000)
+    fail('P4_SHUTDOWN_BUDGET_INVALID','Shutdown checkpoint budget must be within 60 seconds.');
+  let stopping=null;
   let state = 'created';
   let timer = null;
   let draining = null;
@@ -356,6 +360,7 @@ function createExecutionRuntimeHost(options) {
       if (typeof options.onError === 'function') options.onError(error);
       work = Object.freeze({ kind: 'work_faulted', error });
     }
+    if (!['ready','draining'].includes(state)) return Object.freeze({kind:'inactive',state});
     try { event = drainOneEvent(); }
     catch (error) {
       if (typeof options.onError === 'function') options.onError(error);
@@ -528,18 +533,27 @@ function createExecutionRuntimeHost(options) {
     drainOnce,
     readiness() { return Object.freeze({ state, normalSupplyAllowed: state === 'ready', recovery: lastRecovery }); },
     backgroundOperations(){return options.fallbackReconciler.snapshot();},
-    async stop() {
-      if (state === 'stopped') return Object.freeze({ state, fault:firstFault });
+    stop() {
+      if(stopping)return stopping;
+      if (state === 'stopped') return Promise.resolve(Object.freeze({ state, fault:firstFault }));
       state = 'stopping';
       if (timer) clearTimeout(timer);
       timer = null;
       wakeQueued = false;
-      await options.fallbackReconciler.stop();
-      if (draining) await draining;
-      if(inFlightEvents.size>0)await Promise.all([...inFlightEvents.values()]);
-      if(inFlightRecoveries.size>0)await Promise.all([...inFlightRecoveries.values()]);
-      state = 'stopped';
-      return Object.freeze({ state, fault:firstFault });
+      options.eventRuntime.beginShutdown?.();
+      let deadlineTimer;
+      const drain=(async()=>{
+        await options.fallbackReconciler.stop();
+        if(draining)await draining;
+        await Promise.all([...inFlightEvents.values(),...inFlightRecoveries.values(),...inFlightOwnerReconciliations.values()]);
+        state='stopped';
+        return Object.freeze({state,fault:firstFault});
+      })();
+      const deadline=new Promise((_,reject)=>{deadlineTimer=setTimeout(()=>reject(new ExecutionRuntimeHostError(
+        'P4_SHUTDOWN_CHECKPOINT_TIMEOUT','Shutdown checkpoint budget expired; durable execution remains recoverable.',
+        {shutdownTimeoutMs,inFlightEvents:inFlightEvents.size,inFlightRecoveries:inFlightRecoveries.size})),shutdownTimeoutMs);});
+      stopping=Promise.race([drain,deadline]).finally(()=>clearTimeout(deadlineTimer));
+      return stopping;
     },
     activity(){return Object.freeze({state,inFlightEvents:inFlightEvents.size,inFlightRecoveries:inFlightRecoveries.size,maxInFlightEvents,
       deferredRecoveryActions:deferredRecoveries.size+completionRetries.size,faulted:firstFault!==null});},

@@ -6,6 +6,8 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
+const {historicalDatabase}=require('../fixtures/historical-database');
+
 const { initializeCleanData } = require('../../scripts/helix-operational-safety');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { digest } = require('../../src/helix/foundation/persistence/ddl-compiler');
@@ -152,16 +154,11 @@ test('UAT-126 Aftercare ignores only the authorized conformance gap', () => {
 
 test('UAT-126 upgrades the prior clean schema before defect admission revisions are written', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'uat126-schema-'));
+  let database;
   try {
     const dataDir = path.join(root, 'data');
-    initializeCleanData({ dataDir, confirmation:'INITIALIZE_HELIX_CLEAN_V1',
-      secretRoot:'uat126-schema-secret-root-0123456789abcdef' });
     const databasePath = path.join(dataDir, 'shelfdeck.db');
-    let database = new Database(databasePath);
-    database.pragma('foreign_keys = OFF');
-    for (const table of ['arca_defect_repair_intents','arca_defect_admission_heads','arca_defect_admissions',
-      'libra_reprocess_intents','libra_strategy_availability','libra_run_outcomes','libra_defect_authorization_head','libra_defect_authorizations'])
-      database.exec('DROP TABLE "' + table + '"');
+    database=historicalDatabase(databasePath,PRE_DEFECT_ADMISSION_SCHEMA_DIGEST);
     const catalog = database.prepare(
       "SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name",
     ).all().map((row) => ({ ...row, sql:row.sql && row.sql.replaceAll('\r\n', '\n') }));
@@ -180,6 +177,7 @@ test('UAT-126 upgrades the prior clean schema before defect admission revisions 
     assert.match(table.sql, /'defect_admitted'/);
     database.close();
   } finally {
+    if(database?.open)database.close();
     fs.rmSync(root, { recursive:true, force:true });
   }
 });

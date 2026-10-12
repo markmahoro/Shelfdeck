@@ -1,5 +1,15 @@
 # UAT-293：本地测试升级与旧执行历史
 
+2026-10-12最新用户决定：“暂不扩展历史兼容，保留生产现状”。不实施所提冻结旧合同兼容方案，不执行NAS升级或生产Reset。UAT-293继续阻断发布；既有修复和独立验收保留，不宣称全部Series UAT已清零。 下述历史连续性方案未获本次实施授权，仅保留为诊断提案。完整备份保留在`/vol1/1000/docker/shelfdeck/backups/series-preflight-20261012-02`。
+
+2026-10-12生产升级预演（仅隔离副本）：最新完整一致备份记录499入藏/499 Commit、SQLite 2,545,827,840字节及39伴随文件，SHA256 `9366b15b9d48812961b27ec52f7e70e9ad9a9fd67aa2b08e4f6604721c32c638`。原Schema `14c18e017bfce8b78230d0509be1c46fb11c0da95a240396628173a9e71bed73`，直接升级由`SERIES_OFFLOAD_FORMATION_RESET_REQUIRED`正确拒绝，仍存在3 active Run和1无Commit Package。默认Reset同时触及已保留Subject的routing anchor，ready=false，禁止应用。
+
+仅选4个阻塞Subject重新预检：ready=true，4 Run/4 Workspace/1 Package/1 Acceptance Attempt/60 Work，3 active Work、3 active Attempt；不包含On-deck Run或Custody。完整副本上调用正式Reset实现但不挂载生产Workspace写权限：删除精确逻辑闭包，3 Handoff A重新开放、4 Procurement Control恢复；完整性ok、FK=0。随后Schema迁移到`d25f4a52fc663f57ca55adb3d259e525d5ea88a3a7a31853af369f05dc393610`成功。此结果只证明逻辑预演，不证明历史Plan/完整Host、物理Workspace处置或回退通过，不授权生产Reset。日志`.codex/series-release-20261012/replica-*.log`；生产仍未修改。
+
+完整`createCleanServiceHost`副本启动随后失败：`P4_EXECUTION_HOST_RECOVERY_BLOCKED`，27592项finding全部为`PLAN_CATALOG_DRIFT`，nonterminal Work/Event均0。生产媒体、transcode及upgrade目录只读挂载、network none；原生产数据库没有改变。现有terminal archive把target Catalog固定在9月28日版本，并只覆盖既有两份历史Catalog；Series当前Catalog不在该明确适用范围。另有上文已证明的同Catalog摘要对应不同typed payload问题。因此不能仅扩白名单、改target digest或按terminal状态跳过Proof。
+
+待确认的有界历史连续性方案：保留已入藏收藏及其完整不可变证据；对必要历史Plan用有来源commit及完整Schema/manifest摘要的冻结只读合同逐Plan验真，跨Plan引用仍逐层验证Work/Attempt/Event/Effect/Receipt/Commit Marker、payload digest及typed shape，不注册历史executor、不修改Plan/Result、不恢复旧未完成Formation。未知合同、同digest异shape及缺失Proof必须拒绝，不能选择“能通过”的Schema。未完成Formation依旧按精确范围Reset，生产执行另需授权。实现须先补合同身份及历史适用范围的明确规则和负向测试，再用完整最新副本验证Host、不可变历史及回退；本段不是批准或验收证据。
+
 用户先确认保留旧 Run 的有界升级，随后明确本地仅用于测试、不需顾虑既有 Run，主要目的是排查问题。以最新指示为准，不实施旧未完成 Run 的兼容承接。
 
 正式 Formation Reset 副本演练：ready=true、blockers为空，清理21个测试Subject/Run和1057个Supporting Work，4个Arca On-deck Commit及收藏保留。原实例未执行 Reset。Reset后仍有391个历史Plan：Arca20、Libra151、Perception133、Procurement87，均为terminal Work。

@@ -180,7 +180,7 @@ function fixture(run, settings = {}) {
     }
     return settings.governorDecision || ({ kind: 'permitted', permit });
   };
-  const governor = { acquire, preparationWait:() => settings.preparationWait || null, acquireRecovery: () => {
+  const governor = { abandonWaiters(){return {abandonedWaiters:0};}, acquire, preparationWait:() => settings.preparationWait || null, acquireRecovery: () => {
     recoveryAcquireCount += 1;
     return acquire();
   }, release(value) { assert.equal(value, permit); governorReleased += 1; return { grants: [] }; } };
@@ -1237,3 +1237,17 @@ for(const [effectClass,error] of [['workspace_write',executionInputSuperseded('O
       assert.equal(state().dispatchContext,undefined);assert.deepEqual(state().journalCalls,[]);
     },{effectClass,initialEventState:'executing',seedExecutingAttempt:true,inputError:error});
   });
+
+
+for(const effectClass of ['pure_observation','workspace_write','material_commit','destructive_commit'])test('shutdown interruption preserves nonterminal execution for '+effectClass,async()=>{
+  await fixture(async({runtime,lease,databasePath,state})=>{
+    await assert.rejects(runtime.run({schedulerLease:lease}),{code:'P4_EXECUTION_SHUTDOWN_INTERRUPTED'});
+    const facts=databaseFacts(databasePath);
+    assert.equal(facts.event.state,'executing');
+    assert.equal(facts.attempt.state,'executing');
+    assert.equal(facts.attempt.failure_code,null);
+    assert.equal(facts.results,0);
+    assert.equal(state().journalCalls.includes('abandon'),false);
+    assert.equal(state().journalCalls.includes('settle'),false);
+  },{effectClass,dispatchError:Object.assign(new Error('shutdown'),{code:'P4_EXECUTION_SHUTDOWN_INTERRUPTED'})});
+});

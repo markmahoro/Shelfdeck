@@ -1,7 +1,4 @@
 'use strict';
-const {resolveInventoryVerification}=require('../persistence/inventory-verification-store');
-const {resolveStagedResult}=require('../persistence/staged-manifest-store');
-const {resolveAcceptanceResult}=require('../persistence/acceptance-check-evidence-store');
 
 const {productDispositionMembers}=require('../model/product-disposition');
 const {executionInputUnavailable}=require('../../../foundation/execution/execution-input-readiness');
@@ -113,7 +110,7 @@ function acceptedPayload(options,c) { const assessment=options.contextReader.acc
     acceptanceDecisionId:responsibility.acceptanceDecisionId,custodyDigest:canonicalDigest(responsibility)}); }
 function assessmentFacts(options,c) { const rows=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',
   processId:c.offer.offerId,workKind:'acceptance_assessment'});if(rows.length!==1)throw new Error('Arca Acceptance Assessment Work is not unique.');
-  const values=options.workResultReader.read(rows[0].work_id).filter((item)=>item.outcomeKind==='succeeded').map((item)=>resolveAcceptanceResult(options,item.result)),checks=values.map((value)=>
+  const values=options.workResultReader.read(rows[0].work_id).filter((item)=>item.outcomeKind==='succeeded').map((item)=>options.evidenceReader.resolveAcceptance(item.result)),checks=values.map((value)=>
     value.schemaRef==='helix://contracts/types/AcceptanceCheck/v1'?Object.freeze({kind:value.checkKind,outcome:value.result,evidenceDigest:canonicalDigest(value),reasonCode:value.reasonCodes[0]||null}):
       value.schemaRef==='helix://contracts/types/InventoryFeasibilityEvidence/v1'?Object.freeze({kind:'inventory_feasibility',
         outcome:value.availableBytes>=value.requiredBytes?'passed':'failed',evidenceDigest:value.payloadDigest,reasonCode:'inventory_feasibility_unmet'}):null).filter(Boolean)
@@ -203,7 +200,7 @@ function createOnDeckProjections(options) { const definitions=[
   [P.onDeckControl,(c,_s,p)=>controlHandle(c,'arca_ondeck_run',c.responsibility.onDeckRunId,p.eventId,'replace_control_set')],
   ];
   return Object.freeze(definitions.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,sourceResult,parameters}){
-    try{return build(contextFor(options,ownerScope,parameters,projectionRef),resolveInventoryVerification(options,resolveStagedResult(options,sourceResult)),parameters||{});}
+    try{return build(contextFor(options,ownerScope,parameters,projectionRef),options.evidenceReader.resolveSource(sourceResult),parameters||{});}
     catch(error){if(isSettlementAuthorityUnavailable(error))throw executionInputUnavailable(error.message,{dependencyKind:'owner_approval',dependencyRef:ownerScope.processId});throw error;}}})})));
 }
 

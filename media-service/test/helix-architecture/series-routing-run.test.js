@@ -212,7 +212,8 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   let externalBrowserFlow;
   const observedProviderStages=new Set();
   if(browserJourney)assert.ok([append,repair,offdeck].filter(Boolean).length<=1,'Browser append, repair, and exit journeys use separate frozen inventories.');
-  const crashRoot=external?process.env.HELIX_SERIES_EXTERNAL_CRASH_ROOT:offdeck?process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT:mediaRepair?process.env.HELIX_SERIES_AFTERCARE_CRASH_ROOT:null;
+  const shutdownRoot=real?process.env.HELIX_SERIES_SHUTDOWN_ROOT:null;
+  const crashRoot=shutdownRoot|| (external?process.env.HELIX_SERIES_EXTERNAL_CRASH_ROOT:offdeck?process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT:mediaRepair?process.env.HELIX_SERIES_AFTERCARE_CRASH_ROOT:null);
   const root=crashRoot?fs.realpathSync(crashRoot):
     fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const externalMultipart=external&&process.env.HELIX_SERIES_EXTERNAL_MULTIPART==='1',externalEpisodeCap=4*1024*1024;
@@ -265,9 +266,11 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     }
   } else sources.forEach(file=>fs.writeFileSync(file,'read-only-series-fixture'));
   if(relatedFixture){
+    const duplicateCast=process.env.HELIX_SERIES_DUPLICATE_CAST==='1'
+      ?'<actor><name>Unlinked Fixture Actor</name><role>actor</role></actor>'.repeat(2):'';
     sources.forEach((file,index)=>{
       fs.writeFileSync(thumbnailSources[index],Buffer.from('unique-episode-thumbnail-'+index));
-      fs.writeFileSync(file.replace(/\.[^.]+$/,'.nfo'),'<episodedetails><title>Episode '+(index+1)+'</title><season>1</season><episode>'+(index+1)+'</episode>'+ (process.env.HELIX_SERIES_NFO_GAP==='1'?'':'<plot>Source episode plot.</plot>')+'</episodedetails>');
+      fs.writeFileSync(file.replace(/\.[^.]+$/,'.nfo'),'<episodedetails><title>Episode '+(index+1)+'</title><season>1</season><episode>'+(index+1)+'</episode>'+ (process.env.HELIX_SERIES_NFO_GAP==='1'?'':'<plot>Source episode plot.</plot>')+duplicateCast+'</episodedetails>');
     });
   }
   if(concurrent){
@@ -297,7 +300,26 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   }])):null;
   if(browserMedia)browserMedia.close=async()=>{await browserMediaPort?.close();};
   const deletionPort=require('../../src/clean-offdeck-deletion-port').createCleanOffdeckDeletionPort();
-  const hostOptions={dataDir,adminDistDir,secretRoot,...(external?{integrationFetch:async(input,init)=>{
+  let shutdownTriggered=false;
+  const shutdownRegistry=require('../../src/clean-ffmpeg-process-registry').createFfmpegProcessRegistry();
+  const shutdownOptions=shutdownRoot?{shutdownTimeoutMs:1,ffmpegProcessRegistry:{...shutdownRegistry,register(child){
+    const result=shutdownRegistry.register(child);
+    if(!shutdownTriggered&&child.spawnargs.some(arg=>['libx265','hevc_nvenc','hevc_qsv','hevc_vaapi'].includes(arg))&&child.spawnargs.includes('-progress')){
+      shutdownTriggered=true;
+      setImmediate(async()=>{
+        try{await host.close();throw new Error('Active encode unexpectedly drained before checkpoint deadline');}
+        catch(error){
+          if(error.code!=='P4_SHUTDOWN_CHECKPOINT_TIMEOUT'){console.error(error);process.exit(75);}
+          await new Promise(resolve=>setImmediate(resolve));
+          const events=db.prepare("SELECT e.event_id,e.state,a.failure_code,a.outcome_kind,j.state effect_state FROM fx_workflow_events e JOIN fx_event_attempts a ON a.event_id=e.event_id LEFT JOIN fx_effect_journal j ON j.event_attempt_id=a.event_attempt_id WHERE e.capability_ref='libra.media.transcode@1'").all();
+          fs.writeFileSync(path.join(root,'shutdown-boundary.json'),JSON.stringify({events,children:shutdownRegistry.size(),commits:db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n}));
+          process.exit(74);
+        }
+      });
+    }
+    return result;
+  }}}:{};
+  const hostOptions={dataDir,adminDistDir,secretRoot,...shutdownOptions,...(external?{integrationFetch:async(input,init)=>{
     const pathname=new URL(input).pathname;
     if(externalBrowserFlow&&['/api/v1/search/title','/api/v1/download/add'].includes(pathname)&&!observedProviderStages.has(pathname)){
       observedProviderStages.add(pathname);await new Promise(resolve=>setTimeout(resolve,15000));
@@ -975,6 +997,16 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     assert.ok(Buffer.byteLength(inventoryFact.fact_json)<65536);
   }
   assert.deepEqual(metadata.episodeMetadata.map(item=>item.episodeScope.episodeKey),episodeKeys);
+  if(process.env.HELIX_SERIES_DUPLICATE_CAST==='1') {
+    const observations=db.prepare("SELECT r.result_json FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref='libra.product_metadata.fetch@1'")
+      .all().map(row=>JSON.parse(row.result_json));
+    const repeated=observations.filter(item=>(item.peopleHints||[]).filter(hint=>hint.displayName==='Unlinked Fixture Actor').length===2);
+    assert.ok(repeated.length>=physicalCount,'The real NFO parser must preserve the repeated assertions for the regression.');
+    const cast=db.prepare("SELECT fact_json FROM libra_product_fact_revisions WHERE fact_kind='media_cast'").all().map(row=>JSON.parse(row.fact_json));
+    assert.ok(cast.length>0);
+    for(const fact of cast)assert.equal(new Set(fact.relations.map(item=>item.relationId)).size,fact.relations.length);
+    assert.equal(db.prepare("SELECT count(*) n FROM fx_event_attempts WHERE failure_code='P9_MEDIA_CAST_RELATIONS'").get().n,0);
+  }
   const artifacts=db.prepare("SELECT artifact_kind FROM fx_artifact_registry WHERE owner_domain='libra' AND state='active'").all();
   assert.equal(artifacts.length,episodeCount+2);
   const workspaceId=db.prepare("SELECT workspace_id FROM fx_workspace_registry WHERE owner_domain='libra'").get().workspace_id;

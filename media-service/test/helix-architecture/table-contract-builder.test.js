@@ -197,3 +197,20 @@ test('forbids Foundation and Platform FK ownership inversion', () => {
   assert.equal(allowedForeignKey('libra', 'execution-foundation'), true);
   assert.equal(allowedForeignKey('libra', 'arca'), false);
 });
+
+
+test('table generation keeps the registry target aligned with the actual SSOT inventory', () => {
+  const root=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'helix-table-registry-'));
+  try {
+    fs.mkdirSync(path.join(root,'manifests'),{recursive:true});
+    fs.cpSync(path.join(contractsRoot,'manifests','ssot-source-map'),path.join(root,'manifests','ssot-source-map'),{recursive:true});
+    const registry=JSON.parse(fs.readFileSync(path.join(contractsRoot,'manifests','manifest-registry.json'),'utf8'));
+    registry.manifests.find(item=>item.manifestId==='helix.inventory.tables').targetCount=1;
+    fs.writeFileSync(path.join(root,'manifests','manifest-registry.json'),JSON.stringify(registry));
+    const {manifest,entries}=require('../../scripts/helix-architecture/table-contract-materializer').materializeTableContracts(root);
+    const updated=JSON.parse(fs.readFileSync(path.join(root,'manifests','manifest-registry.json'),'utf8'));
+    assert.equal(updated.manifests.find(item=>item.manifestId===manifest.manifestId).targetCount,entries.length);
+    assert.equal(entries.length,contracts.length);
+    assert.deepEqual(updated.manifests.filter(item=>item.manifestId!==manifest.manifestId),registry.manifests.filter(item=>item.manifestId!==manifest.manifestId));
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});

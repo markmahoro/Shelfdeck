@@ -1,4 +1,5 @@
 'use strict';
+const {createPlanningEvidenceReader}=require('../../src/helix/domains/arca/persistence/planning-evidence-reader');
 const test=require('node:test'),assert=require('node:assert/strict');
 const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
 const {canonicalDigest,canonicalJson}=require('../../src/helix/contracts/canonical-json');
@@ -380,7 +381,7 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
   assert.equal(target.strategy.sourceHandleDigest,rows[1].result.memberScope.sourceHandleDigest);
   assert.equal(targets.find(item=>item.materialKey===f.materials[2].material_key).repairKind,'remux');
   const {createAftercareProjections}=require('../../src/helix/domains/arca/planning/aftercare-projections'),
-    {P}=require('../../src/helix/domains/arca/planning/aftercare-planners'),projection=createAftercareProjections({
+    {P}=require('../../src/helix/domains/arca/planning/aftercare-planners'),projection=createAftercareProjections({ evidenceReader:createPlanningEvidenceReader({}),
       contextReader:{read:()=>c,store:{history:()=>history}},workResultReader:reader,
       materialControlProjectionPort:{getMaterialControlProjections:()=>[]},controlScopeDigest:canonicalDigest})
       .find(item=>item.projectionRef===P.mediaStrategy).projection;
@@ -536,7 +537,7 @@ test('Series Case plans mixed member repairs and fences exact effect sources aga
     {createCareRepairCommitPlanner}=require('../../src/helix/domains/arca/planning/aftercare-planners'),
     commitPlanner=createCareRepairCommitPlanner({registry,policyRegistry,contextReader,workResultReader:reader}),
     commitRequest={...request,workId:'commit',workAttemptId:'commit-attempt',dependencyRefs:[{objectType:'repair_prepare_work',objectId:'prepare'}]},
-    commitPlan=commitPlanner.plan(commitRequest),mediaProjection=createAftercareProjections({contextReader,workResultReader:reader,
+    commitPlan=commitPlanner.plan(commitRequest),mediaProjection=createAftercareProjections({ evidenceReader:createPlanningEvidenceReader({}),contextReader,workResultReader:reader,
       materialControlProjectionPort:{getMaterialControlProjections:()=>[]},controlScopeDigest:canonicalDigest})
       .find(item=>item.projectionRef===P.mediaOutput).projection;
   assert.equal(preparedSet.outputs.length,3);assert.equal(preparedSet.episodeAllocations.length,4);
@@ -619,7 +620,7 @@ test('Aftercare projection marks a known retired Entry superseded but preserves 
   const {createAftercareProjections}=require('../../src/helix/domains/arca/planning/aftercare-projections'),
     {P}=require('../../src/helix/domains/arca/planning/aftercare-planners');
   let current;
-  const projection=createAftercareProjections({contextReader:{read:()=>null,store:{currentContext:()=>current}},
+  const projection=createAftercareProjections({ evidenceReader:createPlanningEvidenceReader({}),contextReader:{read:()=>null,store:{currentContext:()=>current}},
     materialControlProjectionPort:{getMaterialControlProjections:()=>[]},controlScopeDigest:canonicalDigest})
     .find(item=>item.projectionRef===P.basis).projection;
   const project=()=>projection.project({ownerScope:{processId:'entry'}});

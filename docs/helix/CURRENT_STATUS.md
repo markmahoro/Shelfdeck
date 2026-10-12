@@ -1,5 +1,15 @@
 # ShelfDeck 当前状态
 
+2026-10-12最新用户决定：“暂不扩展历史兼容，保留生产现状”。不实施所提冻结旧合同兼容方案，不执行NAS升级或生产Reset。UAT-293继续阻断发布；既有修复和独立验收保留，不宣称全部Series UAT已清零。
+
+生产副本在最小逻辑Reset及Schema升级后，完整Host仍因27,592项PLAN_CATALOG_DRIFT拒绝启动；生产未改变。最新全量架构运行：依赖/语义/manifest/合同扫描通过，2485通过、2失败、12skip；两项失败均为P7测试Governor缺少abandonWaiters，补齐夹具后该文件14项全部通过，未再次执行整个全量suite。Service601通过、0失败、28skip。UAT-307重复NFO完整Host Windows与Linux均通过，原现场新Run仍待验；UAT-289具体版本UI验收由指定负责人继续完成。
+
+2026-10-12后续：按用户要求先逐项处理Series UAT再升级。UI负责人`01a0912a-0086-74e2-88ab-536c59d3862a`负责UAT-289具体版本验收。UAT-304停机/Effect恢复修复已通过Windows与Linux实际FFmpeg中断、重启唯一Commit及再次重启幂等；Service601通过/0失败/28skip。UAT-305实际依赖及manifest扫描已通过，原全量fixture8失败对应179项修复回归通过，全量重跑中。新增UAT-307精确重复人物hint修复，1022条本地Observation只读重放无重复relation，Windows两集NFO完整Commit通过；本地18081/PID33100加载后health正常。未将尚待现场或UI验收的条目批量关闭。
+
+生产仍为`helix-beta-20260930-8e197b3c36`，未停服、升级或Reset。完整data/compose/secret备份在`/vol1/1000/docker/shelfdeck/backups/series-preflight-20261012-02`，receipt校验39伴随文件、2,545,827,840字节SQLite，SHA256 `9366b15b9d48812961b27ec52f7e70e9ad9a9fd67aa2b08e4f6604721c32c638`，integrity=ok/FK=0、499条收藏与499份Commit。副本升级命中`SERIES_OFFLOAD_FORMATION_RESET_REQUIRED`：3 active Run及1未入藏Package；默认全局Reset被保留Subject锚点保护拒绝，限定4 Subject的60 Work逻辑Reset在隔离副本通过，Schema升级至200表通过。未接入实际Workspace写权限；这不是完整发布演练或生产Reset授权，完整Host及最终镜像升级/回退仍须通过。
+
+2026-10-12：用户授权NAS生产升级，剧集Shelf及来源由用户上线后配置。HEAD `eb56ef6f1`发布前实际package/manifest扫描仍失败（8项依赖违规、1项表清单envelope），UAT-305阻断发布，未构建/上传/apply或Reset。NAS只读preflight及health正常，仍运行`helix-beta-20260930-8e197b3c36`、RestartCount0、normalSupplyAllowed=true；备份与完整生产副本升级/回退演练尚未执行。详见[UAT-305复验证据](implementation/evidence/UAT-305_EXISTING_ARCHITECTURE_GATES_20261011.md)。
+
 2026-10-11 19:31：UAT-306 Series自动观察修复`525469601`已部署本地18081/PID8704，health正常。Windows相关15项、双平台95集无手动扫描Host通过；国产剧总目录自动扫描成功，发现4955文件，自动建立2个Procurement Run，共1642 Material/40 Scope。后续封包与整理仍运行中，不声明全部上架完成。用户明确无需历史条目兼容或防重复处理；本次无兼容代码、无Reset、无NAS部署。UAT-306按自身条件关闭，UAT-304/305仍开放。详见[Evidence](implementation/evidence/UAT-306_SERIES_AUTO_OBSERVATION_20261011.md)。
 
 2026-10-11 13:44：用户明确Series本地开发快速迭代，无需等待安全退出窗口，已记录CURRENT_PLAN持续授权。核对PID及18081监听后直接终止旧18116及FFmpeg子进程，停机SQLite backup SHA256为35ce7bd9760b70a79c186a4fb88388bf15bdbcdc8c7c497f580e518965bd8483。以5c3effc200b194d5b4a41d67a6dbef01dd612fb8启动PID41120，已加载UAT-284及301/302；health ok/normalSupplyAllowed=true，人世间恢复transcode且新FFmpeg进程34616已启动。失败计数保持FFmpeg3/Provider Transport3/Network1/Timeout15，Run6、Commit0，未Reset/重扫/NAS部署。UAT-304正常停机缺口和UAT-305架构门禁仍开放，强制中断恢复不等于这两项已修复。

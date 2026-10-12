@@ -1,7 +1,8 @@
 'use strict';
+const {relatedPrimaryName}=require('../../src/helix/domains/arca/model/related-primary-name');
 const test=require('node:test'),assert=require('node:assert/strict');
 const {canonicalDigest:D,canonicalJson}=require('../../src/helix/contracts/canonical-json');
-const {buildRelatedPrimaryMappings,relatedPrimaryName,inventoryMappingFact,readInventoryMapping,remapInventoryMappingFacts,acceptedFactDigest,FACT_SCHEMA}=require('../../src/helix/contracts/related-primary-mappings');
+const {buildRelatedPrimaryMappings,inventoryMappingFact,readInventoryMapping,remapInventoryMappingFacts,acceptedFactDigest,FACT_SCHEMA}=require('../../src/helix/contracts/related-primary-mappings');
 function fixture(){const primary=D('primary'),video=D('video'),thumb=D('thumb');
   const members=[{materialKey:video,role:'primary_payload'},{materialKey:thumb,role:'sidecar',location:{location:'old-thumb.jpg'}}];
   const assertions=[{sourceRelatedReferenceId:'ref',primaryMaterialKey:primary,finalProductMaterialKey:thumb,role:'sidecar'}];

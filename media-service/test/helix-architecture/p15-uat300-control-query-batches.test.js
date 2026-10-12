@@ -3,7 +3,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createMaterialControlProjectionPort } = require('../../src/helix/foundation/persistence/material-control');
-const { readControlProjections } = require('../../src/helix/domains/arca/application/read-control-projections');
+const { readControlProjections } = require('../../src/helix/domains/arca/persistence/read-control-projections');
 const { fixture } = require('./helpers/acceptance-evidence-fixture');
 
 test('Arca assembles complete large Control snapshots through bounded public queries', () => {

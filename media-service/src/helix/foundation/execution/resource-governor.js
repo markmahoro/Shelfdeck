@@ -408,6 +408,12 @@ function createResourceGovernor(options) {
     return Object.freeze({eventId,released:released.released});
   }
 
+  function abandonWaiters() {
+    const eventIds=[...waiters.keys()].filter(eventId=>!eventPermits.has(eventId));
+    for(const eventId of eventIds)abandon(eventId);
+    return Object.freeze({abandonedWaiters:eventIds.length});
+  }
+
   async function withPermit(request, operation) {
     if (typeof operation !== 'function') fail('P4_RESOURCE_OPERATION_REQUIRED', 'Permit operation must be callable.');
     const acquired = acquire(request);
@@ -422,7 +428,7 @@ function createResourceGovernor(options) {
       queueSoftExceeded: waiters.size >= queueLimits.globalSoft });
   }
 
-  return Object.freeze({ abandon, acquire, acquireRecovery, release, snapshot, preparationWait,
+  return Object.freeze({ abandon, abandonWaiters, acquire, acquireRecovery, release, snapshot, preparationWait,
     updateWaiterPriority, withPermit });
 }
 

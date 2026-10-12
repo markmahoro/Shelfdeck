@@ -27,3 +27,5 @@ DDL digest：`ac46cd90031d5d02ac05ed5657ec589117f9763a096c5d19033549c951a8c3fe`�
 ## 验收边界
 
 本地 18081 仍运行 `a45d7b13f`，保护正在进行的真实转码；本修复尚未加载现场。未 Reset、重扫、授权来源删除或部署 NAS。隔离 Host 通过不等于现场 47 集验收完成，UAT-290 保持待现场验收，UAT-286/287/288 不以本次提交批量关闭。未修改 UI，无新增 UI 验收声明。详细测试日志保存在工作区外的本地 UAT 运行目录。
+
+2026-10-12现场只读验收：人世间58集Run `c8e9ded983da364c62c5e43c52dd1483beb0b0c0f3c96a1680d0e790bcfd5976`已completed，On-deck `b121f187f98f5a03c6234e295e5a446576d782ec35d84850c633dcac717b5593`已Commit，Shelf Entry `097c720a2bc0a240609a48041fc297b9c3c0c956e340c299b3dfa1870ac8c298` revision1含58 Primary、59 metadata sidecar及1 poster。FinalProductVerification为91018字节、Fulfillment为82845字节，均形成Owner记录并完成唯一Commit，超过原64KiB限制。 原始只读审计`.codex/series-release-20261012/local-committed-evidence.json`。结合既有双平台正负回归，本项按自身容量验收条件关闭；其他UAT、生产升级与白鹿原77集验收独立。

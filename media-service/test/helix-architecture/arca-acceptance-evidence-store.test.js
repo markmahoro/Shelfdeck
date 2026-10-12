@@ -1,4 +1,5 @@
 'use strict';
+const {createPlanningEvidenceReader}=require('../../src/helix/domains/arca/persistence/planning-evidence-reader');
 const test=require('node:test');
 const assert=require('node:assert/strict');
 const {canonicalDigest:D,canonicalJson}=require('../../src/helix/contracts/canonical-json');
@@ -17,7 +18,7 @@ test('Arca retains complete large Evidence while Foundation binds only an immuta
     const value=check();assert.ok(Buffer.byteLength(canonicalJson(value))>65536);
     const saved=f.store.commit(f.execution,offer,value);
     assert.equal(saved.record.schemaRef,RECORD);assert.deepEqual(f.store.resolve(saved.record),value);
-    assert.deepEqual(resolveAcceptanceResult(f.options,saved.record),value);
+    assert.deepEqual(resolveAcceptanceResult(f.options,saved.record),value);assert.deepEqual(createPlanningEvidenceReader(f.options).resolveAcceptance(saved.record),value);
     assert.deepEqual(f.store.commit(f.execution,offer,value),saved);
     const binding=f.db.prepare('SELECT result_json,evidence_json FROM fx_event_result_bindings').get();
     assert.deepEqual(JSON.parse(binding.result_json),saved.record);

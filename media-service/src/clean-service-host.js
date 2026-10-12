@@ -1564,6 +1564,7 @@ async function createCleanServiceHost(options) {
     onFormationRunChanged: (libraRunId) => formationProjectionHost?.enqueue(formationProjectionSource.findSubjectByRun(libraRunId)),
     afterOnDeckCommit: (value) => { formationProjectionHost?.enqueue(value.subjectId); options.afterOnDeckCommit?.(value); },
     onError: options.onExecutionRuntimeError,
+    shutdownTimeoutMs:options.shutdownTimeoutMs,
   });
   routingExecution = procurementExecution;
   shelfDeregistrationExecution = procurementExecution;
@@ -1640,12 +1641,15 @@ async function createCleanServiceHost(options) {
     },
     wake() { const execution=procurementExecution.host.wake(); outboxDispatcher.wake(); formationProjectionHost.wake(); return execution; },
     async stop() {
-      await ffmpegProcessRegistry.close();
-      await mediaEffectPort.close?.();
-      await formationProjectionHost.stop();
-      await overviewQuery.stop();
-      await outboxDispatcher.stop();
-      return procurementExecution.host.stop();
+      // Stop dispatch synchronously before waiting for observers or child processes.
+      const executionStop=procurementExecution.host.stop();
+      try {
+        const [result]=await Promise.all([executionStop,formationProjectionHost.stop(),overviewQuery.stop(),outboxDispatcher.stop()]);
+        return result;
+      } finally {
+        await ffmpegProcessRegistry.close();
+        await mediaEffectPort.close?.();
+      }
     },
   });
   arcaCare=createArcaCareApplication({contextReader:procurementExecution.arcaAftercareContextReader,

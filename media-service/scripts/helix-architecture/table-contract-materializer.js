@@ -76,6 +76,12 @@ function materializeTableContracts(contractsRoot) {
     entryFiles
   };
   fs.writeFileSync(path.join(contractsRoot, 'manifests', 'table-inventory.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+  const registryPath = path.join(contractsRoot, 'manifests', 'manifest-registry.json');
+  const registry = JSON.parse(fs.readFileSync(registryPath, 'utf8'));
+  const tables = registry.manifests.filter(item => item.manifestId === manifest.manifestId);
+  if (tables.length !== 1) throw new Error('Table inventory requires one exact registry entry.');
+  tables[0].targetCount = entries.length;
+  fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2) + '\n');
   return { manifest, entries };
 }
 

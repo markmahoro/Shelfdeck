@@ -433,7 +433,7 @@ test('restart closes the 68-page partial scan with '+(expiredAccess?'expired acc
     attemptPolicy:{bindingFor:()=>policyRegistry.bindingFor(),prepare:()=>({deadlineAtMs:NOW+3_600_000}),
       decideFailure:()=>({decision:'terminal_failure'}),decideDeferred:()=>({decision:'terminal_failure'})},
     timeoutController:createTimeoutController({now:timers.now,isolation}),scheduler:{},
-    governor:{acquire:()=>{throw new Error('ordinary dispatch is forbidden');},
+    governor:{abandonWaiters:()=>({abandonedWaiters:0}),acquire:()=>{throw new Error('ordinary dispatch is forbidden');},
       acquireRecovery:()=>({kind:'permitted',permit:{permitId:'recovery-permit',resources:[],issuedAtMs:NOW}}),release:()=>({grants:[]})},
     circuitBreaker:{allows:()=>({allowed:true})},whenEvaluator:{evaluate:()=> 'run'},executionInputProvider:{prepare:()=>({ownerScope:{domain:'procurement',processType:'material_field',
       processId:'field-1',objectRefs:[]},basisRefs:[],namedInputs,idempotencyKey,traceContext:{traceId:'trace',spanId:'span'}})},

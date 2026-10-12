@@ -672,6 +672,7 @@ function buildMetadataMediaCastRelations(value) {
   }
   const relations = [];
   const claimedProviderIdentities = new Set();
+  const claimedRelations = new Set();
   for (const observation of observations) {
     for (const hint of observation.peopleHints || []) {
       const identityKeys = (hint.providerIdentities || [])
@@ -696,6 +697,9 @@ function buildMetadataMediaCastRelations(value) {
       };
       const relationId = 'libra-media-cast-relation-' +
         canonicalDigest(seed).slice(0, 40);
+      // Repeated source assertions are one relation, without merging unknown people across observations.
+      if(claimedRelations.has(relationId))continue;
+      claimedRelations.add(relationId);
       relations.push(Object.freeze({
         relationId,
         personId: null,

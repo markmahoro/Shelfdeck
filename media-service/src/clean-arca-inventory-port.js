@@ -1,5 +1,5 @@
 'use strict';
-const {relatedPrimaryName}=require('./helix/contracts/related-primary-mappings');
+const {relatedPrimaryName}=require('./helix/domains/arca/model/related-primary-name');
 
 const fs = require('node:fs');
 const {offloadProductKeys}=require('./helix/contracts/offload-product-targets');

@@ -756,3 +756,25 @@ test('Runtime Host launches up to sixteen Events concurrently and stop leases no
   assert.equal((await stopping).state,'stopped');
   assert.equal(host.activity().inFlightEvents,0);
 });
+
+
+test('shutdown stops dispatch and bounds a pending Event without synthesizing completion',async()=>{
+  let release,leased=false,aggregated=0,waitersRemoved=false;
+  const pending=new Promise(resolve=>{release=resolve;});
+  const host=createExecutionRuntimeHost({shutdownTimeoutMs:20,tickIntervalMs:60000,
+    startupRecovery:{async recover(){return {normalSupplyAllowed:true};}},
+    scheduler:{acquire({targetType}){if(targetType!=='event'||leased)return {kind:'idle'};leased=true;return {kind:'leased',lease:{targetType:'event',targetId:'event',leaseId:'lease'}};},release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){aggregated++;return {};},settleWork(){}},
+    eventRuntime:{run(){return pending;},beginShutdown(){waitersRemoved=true;}},
+    domainReconciler:{reconcile(){}},fallbackReconciler:{async start(){},async stop(){}},
+  });
+  await host.start();await host.drainOnce();
+  try{
+    const stop=host.stop();assert.equal(waitersRemoved,true);
+    assert.equal(host.readiness().normalSupplyAllowed,false);
+    await assert.rejects(stop,{code:'P4_SHUTDOWN_CHECKPOINT_TIMEOUT'});
+    assert.equal(aggregated,0);assert.equal(host.activity().inFlightEvents,1);
+    assert.equal((await host.drainOnce()).kind,'inactive');
+  }finally{release({kind:'succeeded'});await new Promise(resolve=>setImmediate(resolve));}
+});

@@ -1,6 +1,4 @@
 'use strict';
-const {resolveInventoryVerification}=require('../persistence/inventory-verification-store');
-const {resolveStagedResult,stagedResultReader}=require('../persistence/staged-manifest-store');
 
 const path = require('node:path');
 const {executionInputSuperseded}=require('../../../foundation/execution/execution-input-readiness');
@@ -71,7 +69,7 @@ function createAftercareProjections(options){const reader=options.contextReader,
   }
   function allMaterialReceipts(c,parameters){const care=requiredCase(reader,c.shelfEntryId),source=sourceWork(parameters);return Object.freeze([
     ...materializeResults(options,parameters.workId),
-    ...placementMaterialReceipts(c,stagedResultReader(options),source,care,
+    ...placementMaterialReceipts(c,{read:options.evidenceReader.readStagedWork},source,care,
       reader.inventoryMaterials(c.shelfEntryId,care.careBasis.inventoryRevision)),
   ]);}
   function verifiedChange(c,parameters){const care=requiredCase(reader,c.shelfEntryId),receipts=allMaterialReceipts(c,parameters),source=sourceWork(parameters),verifications=source?options.workResultReader.read(source).filter((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===C.mediaVerify&&item.result?.result==='passed').map((item)=>item.result):[],preparedSet=c.raw.entry.structure_kind==='season'&&verifications.length?readSeriesPreparedMediaSet(c,care,reader.store.history(c.shelfEntryId),options.workResultReader,source):null,changeDigest=canonicalDigest({caseId:care.aftercareCaseId,...(preparedSet?{preparedMediaSetDigest:preparedSet.setDigest}:{}),receipts:receipts.map((item)=>item.finalRealityDigest).sort(),verifications:verifications.map((item)=>item.verificationId).sort()}),base={schemaRef:'helix://contracts/domain-types/VerifiedCareInventoryChange/v1',schemaVersion:1,objectId:care.aftercareCaseId+':verified-change',revision:1,aftercareCaseId:care.aftercareCaseId,verifications:Object.freeze(verifications),changeDigest};return withDigest(base);}
@@ -94,7 +92,7 @@ function createAftercareProjections(options){const reader=options.contextReader,
     [P.finalDecision,(c)=>placementRequest(c).finalInventoryDecision],[P.productHandles,(c)=>productHandles(c)],[P.stagedManifest,(_c,source)=>source],[P.finalBindings,(c,source)=>bindingSnapshot('final',c,source)],[P.targetBindings,(c,source)=>bindingSnapshot('target',c,source)],[P.disposition,(c)=>disposition(c)],
     [P.artifactOutput,(c,s,p)=>preparedOutput(c,s,p)],[P.mediaOutput,(c,s,p)=>preparedOutput(c,s,p)],[P.verifiedChange,(c,_s,p)=>verifiedChange(c,p)],[P.control,(c,_s,p)=>controlHandle(c,p)],[P.settlementHandles,(c,_s,p)=>settlementHandles(c,p)],[P.settlementApproval,(c,_s,p)=>settlementApproval(c,p)],[P.reassessed,(c,_s,p)=>reassessed(c,p)],[P.caseCommit,(c,_s,p)=>caseCommit(c,p)],[P.workspaceHandles,(c,_s,p)=>workspaceHandles(c,p)],[P.referenceEvidence,(c,_s,p)=>referenceEvidence(c,p)],
   ];
-  return Object.freeze(defs.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,sourceResult,parameters}){const c=ctx(ownerScope);return build(c,resolveInventoryVerification(options,resolveStagedResult(options,sourceResult)),parameters||{},ownerScope);}})})));
+  return Object.freeze(defs.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,sourceResult,parameters}){const c=ctx(ownerScope);return build(c,options.evidenceReader.resolveSource(sourceResult),parameters||{},ownerScope);}})})));
 }
 
 module.exports=Object.freeze({createAftercareProjections,resolvePreparedOutput});

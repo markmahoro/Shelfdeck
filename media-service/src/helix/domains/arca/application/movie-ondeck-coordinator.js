@@ -1,5 +1,5 @@
 'use strict';
-const { readControlProjections } = require('./read-control-projections');
+const { readControlProjections } = require('../persistence/read-control-projections');
 const {seriesMetadataFieldMissing}=require('../model/series-metadata');
 const {acceptsMetadataFields,missingMetadataFields,acceptsArtifactKinds,packageMissingArtifactKinds}=require('../model/authorized-defect-manifest');
 

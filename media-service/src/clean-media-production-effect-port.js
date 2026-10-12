@@ -163,6 +163,7 @@ function runProcess(executable, argv, timeoutMs, progress = null, control = {}) 
       settled=true;
       cleanup();
       const stderr = Buffer.concat(chunks).toString('utf8');
+      if (control.processRegistry?.wasInterrupted(child)) return reject(Object.assign(new Error('Execution interrupted at the service shutdown boundary.'), {code:'P4_EXECUTION_SHUTDOWN_INTERRUPTED'}));
       if (timedOut) return reject(Object.assign(new Error('FFmpeg timed out.'), { code:'LIBRA_MEDIA_FFMPEG_TIMEOUT' }));
       if (cancelled) return reject(Object.assign(new Error('FFmpeg stopped because its execution authority changed.'), { code:'LIBRA_MEDIA_FFMPEG_CANCELLED' }));
       if (code !== 0) return reject(Object.assign(new Error('FFmpeg failed.'), {
@@ -374,7 +375,7 @@ function createCleanMediaProductionEffectPort(options) {
       try{await runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-ss',seconds.toFixed(3),'-i',source,
         '-map','0:v:0','-frames:v','1','-f','null',process.platform==='win32'?'NUL':'/dev/null'],30_000,null,
         {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});passed.push(point);}
-      catch(error){if(error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT'||error?.code==='ENOENT'||error?.code==='EACCES')throw error;}
+      catch(error){if(error?.code==='P4_EXECUTION_SHUTDOWN_INTERRUPTED'||error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT'||error?.code==='ENOENT'||error?.code==='EACCES')throw error;}
     }
     return Object.freeze({samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),
       decodeDigest:canonicalDigest({schema:'libra.product-playback-decode@1',handleDigest:canonicalDigest(handle),points,passed})});
@@ -471,7 +472,7 @@ function createCleanMediaProductionEffectPort(options) {
             shouldContinue:request.shouldContinue });
           passed.push(point);
         } catch (error) {
-          if (error?.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT' || error?.code === 'ENOENT' ||
+          if (error?.code === 'P4_EXECUTION_SHUTDOWN_INTERRUPTED' || error?.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT' || error?.code === 'ENOENT' ||
               error?.code === 'EACCES' || error?.code === 'LIBRA_MEDIA_FFMPEG_CANCELLED') throw error;
         }
       }

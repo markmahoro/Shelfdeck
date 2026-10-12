@@ -287,7 +287,7 @@ test('service process registry terminates an active FFmpeg child during shutdown
   const registry=createFfmpegProcessRegistry();
   const running=runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-re','-f','lavfi','-i',
     'color=c=black:s=256x256:r=24:d=30','-f','null',process.platform==='win32'?'NUL':'/dev/null'],60_000,null,{processRegistry:registry});
-  const stopped=assert.rejects(running,(error)=>error.code==='LIBRA_MEDIA_FFMPEG_FAILED');
+  const stopped=assert.rejects(running,(error)=>error.code==='P4_EXECUTION_SHUTDOWN_INTERRUPTED');
   await new Promise((resolve)=>setTimeout(resolve,100));
   assert.equal(registry.size(),1);
   await registry.close();

@@ -1,4 +1,5 @@
 'use strict';
+const {createPlanningEvidenceReader}=require('../../src/helix/domains/arca/persistence/planning-evidence-reader');
 
 const assert = require('node:assert/strict');
 const test = require('node:test');
@@ -17,7 +18,7 @@ const {
 for (const projectionRef of [P.assessmentSet, P.commit]) {
   test(`assessment projection reads one consistent fresh context per call: ${projectionRef}`, () => {
     let reads = 0;
-    const projections = createAftercareProjections({
+    const projections = createAftercareProjections({ evidenceReader:createPlanningEvidenceReader({}),
       contextReader:{ read() { return { shelfEntryId:'entry', basis:{ digest:canonicalDigest(++reads) } }; } },
       materialControlProjectionPort:{ getMaterialControlProjections() { return []; } },
       controlScopeDigest:canonicalDigest,
@@ -258,7 +259,7 @@ test('Aftercare exposes resource waiting and does not present stale progress as 
 
 for(const projectionRef of [P.assessmentSet,P.commit]) {
  test('old professional evidence cannot be relabeled with a new Basis: '+projectionRef,()=>{
-  const projections=createAftercareProjections({contextReader:{read:()=>({shelfEntryId:'entry',basis:{digest:canonicalDigest('new')}})},
+  const projections=createAftercareProjections({ evidenceReader:createPlanningEvidenceReader({}),contextReader:{read:()=>({shelfEntryId:'entry',basis:{digest:canonicalDigest('new')}})},
    materialControlProjectionPort:{getMaterialControlProjections:()=>[]},controlScopeDigest:canonicalDigest,
    workResultReader:{read:()=>['custody','presentation','conformance'].map(kind=>({outcomeKind:'succeeded',capabilityRef:C[kind],
     result:{careBasisDigest:canonicalDigest('old'),evidenceKind:'arca_aftercare_'+kind,evidenceId:kind,payloadDigest:canonicalDigest(kind)}}))}});

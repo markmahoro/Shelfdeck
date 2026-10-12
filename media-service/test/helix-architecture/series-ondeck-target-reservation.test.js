@@ -1,4 +1,5 @@
 'use strict';
+const {createPlanningEvidenceReader}=require('../../src/helix/domains/arca/persistence/planning-evidence-reader');
 
 const assert=require('node:assert/strict');
 const test=require('node:test');
@@ -64,7 +65,7 @@ test('Target reservation survives reopen and blocks only the exact final target 
 test('Reserved target remains an Owner input wait and does not prepare a physical slot',()=>{
   let prepared=0;
   const context={responsibility:{onDeckRunId:'b'},finalInventoryDecision:{decisionDigest:'digest'}};
-  const projections=new Map(createOnDeckProjections({contextReader:{readAccepted:()=>context,
+  const projections=new Map(createOnDeckProjections({ evidenceReader:createPlanningEvidenceReader({}),contextReader:{readAccepted:()=>context,
     onDeck:{readTargetAvailability:()=>({available:false,blockingRunId:'a'})}},
     inventoryPort:{slotHandle(){prepared++;}}}).map(item=>[item.projectionRef,item.projection]));
   assert.throws(()=>projections.get(P.targetHandle).project({ownerScope:{processType:'arca_ondeck_run',processId:'b'},parameters:{}}),

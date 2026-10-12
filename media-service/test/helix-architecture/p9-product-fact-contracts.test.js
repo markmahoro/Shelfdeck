@@ -438,3 +438,17 @@ test('builds complete immutable Product Facts and their exact evidence digest', 
     productMetadataDraft:metadataDraft,verifiedArtifactManifest:manifest,expectedRevision:0,commitMarker:'x',committedAtMs:1}),
   (error)=>error.code==='P9_PRODUCT_METADATA_FACT_INPUT');
 });
+
+
+test('duplicate unlinked actor assertions form one relation without guessing cross-source identity',()=>{
+  const sourceIntents=intents(),hint={displayName:'Unlinked Actor',role:'actor',providerIdentities:[]};
+  const nfo=observation(sourceIntents[0],{peopleHints:[hint,hint,{...hint,role:'director'}]}),
+    provider=observation(sourceIntents[1],{peopleHints:[hint]});
+  const basis=buildMetadataObservationBasis({intents:sourceIntents,results:[nfo,provider],factKind:'media_cast',expectedRevision:0});
+  const relations=buildMetadataMediaCastRelations({sourceBasis:basis,subjectId:'subject-1'});
+  assert.equal(relations.length,3);
+  assert.equal(new Set(relations.map(item=>item.relationId)).size,3);
+  assert.equal(relations.filter(item=>item.role==='actor').length,2);
+  assert.equal(buildMediaCastDraft({subjectId:'subject-1',sourceBasis:basis,relations,producedAtMs:10}).relations.length,3);
+  assert.throws(()=>buildMediaCastDraft({subjectId:'subject-1',sourceBasis:basis,relations:[...relations,relations[0]],producedAtMs:10}),{code:'P9_MEDIA_CAST_RELATIONS'});
+});

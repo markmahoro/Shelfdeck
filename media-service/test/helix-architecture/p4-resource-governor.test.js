@@ -309,3 +309,18 @@ test('Governor source has one accounting map and no persisted Permit, business d
     assert.equal(source.includes(forbidden), false, forbidden);
   }
 });
+
+
+test('shutdown removes unpermitted waiters while preserving active Permits and Event facts',()=>{
+  fixture(({governor,seedEvents,databasePath})=>{
+    seedEvents('holder','waiting');
+    const holder=governor.acquire(request('holder',[['cpu_heavy']]));
+    assert.equal(governor.acquire(request('waiting',[['cpu_heavy']])).kind,'waiting');
+    assert.deepEqual(governor.abandonWaiters(),{abandonedWaiters:1});
+    assert.equal(governor.snapshot().waiterCount,0);assert.equal(governor.snapshot().permitCount,1);
+    const db=new Database(databasePath,{readonly:true});
+    try{assert.ok(!['failed','cancelled','succeeded'].includes(db.prepare('SELECT state FROM fx_workflow_events WHERE event_id=?').get('waiting').state));}
+    finally{db.close();}
+    governor.release(holder.permit);assert.equal(governor.snapshot().permitCount,0);
+  });
+});

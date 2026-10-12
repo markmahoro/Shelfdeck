@@ -9,3 +9,5 @@ Windows存储7项（含UAT-287）、升级/Reset47项、P2/DDL/结算28项通过
 47集已通过Stage、暂存校验、Placement Switch，下一关FinalProductVerification为74939字节，触发Foundation64 KiB限制；新增UAT-290，用户已确认最终校验和Fulfillment完整值按Owner证据引用处理。47集完整E2E仍未通过。本项待现场加载与完整链路验收，不关闭。
 
 Windows正式Host追加回归：完整目录迁移93.53秒、同目录重命名93.47秒、Direct/Remux混合36.68秒全部通过。Target Slot输入绑定专项4项复验通过。
+
+2026-10-12现场只读验收：人世间58集Run `c8e9ded983da364c62c5e43c52dd1483beb0b0c0f3c96a1680d0e790bcfd5976`已completed，On-deck `b121f187f98f5a03c6234e295e5a446576d782ec35d84850c633dcac717b5593`已Commit，Shelf Entry `097c720a2bc0a240609a48041fc297b9c3c0c956e340c299b3dfa1870ac8c298` revision1含58 Primary、59 metadata sidecar及1 poster。Stage完整Owner Manifest为110964字节，成功Placement及Commit，超过原Foundation64KiB限制。 原始只读审计`.codex/series-release-20261012/local-committed-evidence.json`。结合既有双平台正负回归，本项按自身容量验收条件关闭；其他UAT、生产升级与白鹿原77集验收独立。

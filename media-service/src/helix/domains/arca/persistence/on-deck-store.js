@@ -1,5 +1,5 @@
 'use strict';
-const { readControlProjections } = require('../application/read-control-projections');
+const { readControlProjections } = require('../persistence/read-control-projections');
 const {inventoryMappingFact,FACT_SCHEMA}=require('../../../contracts/related-primary-mappings');
 const {createInventoryVerificationStore}=require('./inventory-verification-store');
 const { splitEpisodeMetadata } = require('../../../contracts/episode-metadata-records');

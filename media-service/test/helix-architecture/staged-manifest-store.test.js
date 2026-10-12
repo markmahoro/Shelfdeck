@@ -1,4 +1,5 @@
 'use strict';
+const {createPlanningEvidenceReader}=require('../../src/helix/domains/arca/persistence/planning-evidence-reader');
 const test=require('node:test'),assert=require('node:assert/strict');
 const {canonicalDigest:D,canonicalJson}=require('../../src/helix/contracts/canonical-json');
 const {fixture}=require('./helpers/acceptance-evidence-fixture');
@@ -17,7 +18,7 @@ for(const processType of ['arca_ondeck_run','arca_shelf_entry'])test('Stage reta
   const f=fixture('arca.inventory.product.stage@1','scope',processType),store=createStagedManifestStore(f.options);f.execution.namedInputs={targetCommitSlotHandle:{slotId:'slot'}};try{
     const full=manifest();assert.ok(Buffer.byteLength(canonicalJson(full))>65536);
     const record=store.save(f.execution,full);assert.ok(Buffer.byteLength(canonicalJson(record))<65536);
-    assert.deepEqual(store.resolve(record),full);assert.deepEqual(resolveStagedResult(f.options,record),full);
+    assert.deepEqual(store.resolve(record),full);assert.deepEqual(resolveStagedResult(f.options,record),full);assert.deepEqual(createPlanningEvidenceReader(f.options).resolveSource(record),full);
     assert.deepEqual(store.save(f.execution,full),record);
     assert.equal(f.db.prepare('SELECT count(*) n FROM arca_staged_manifest_records').get().n,1);
     assert.equal(f.db.prepare('SELECT count(*) n FROM fx_event_result_bindings').get().n,0);
@@ -28,7 +29,7 @@ for(const processType of ['arca_ondeck_run','arca_shelf_entry'])test('Stage reta
   }finally{f.close();}
 });
 test('Stage storage failure leaves no record, retries once, and preserves the 8 MiB SQL bound',()=>{
-  const f=fixture('arca.inventory.product.stage@1','scope','arca_ondeck_run'),store=createStagedManifestStore(f.options);try{
+  const f=fixture('arca.inventory.product.stage@1','scope','arca_ondeck_run'),store=createStagedManifestStore(f.options);f.execution.namedInputs={targetCommitSlotHandle:{slotId:'slot'}};try{
     f.db.exec("CREATE TRIGGER fail_stage BEFORE INSERT ON arca_staged_manifest_records BEGIN SELECT RAISE(ABORT,'stage-write-fault'); END");
     assert.throws(()=>store.save(f.execution,manifest()),/stage-write-fault/);
     assert.equal(f.db.prepare('SELECT count(*) n FROM arca_staged_manifest_records').get().n,0);
@@ -39,7 +40,7 @@ test('Stage storage failure leaves no record, retries once, and preserves the 8 
   }finally{f.close();}
 });
 test('Stage rejects stale execution and foreign Owner scope',()=>{
-  const f=fixture('arca.inventory.product.stage@1','scope','arca_ondeck_run'),store=createStagedManifestStore(f.options);try{
+  const f=fixture('arca.inventory.product.stage@1','scope','arca_ondeck_run'),store=createStagedManifestStore(f.options);f.execution.namedInputs={targetCommitSlotHandle:{slotId:'slot'}};try{
     assert.throws(()=>store.save({...f.execution,ownerScope:{processType:'arca_ondeck_run',processId:'other'}},manifest()),{code:'ARCA_STAGED_MANIFEST_INTEGRITY'});
     f.db.prepare("UPDATE fx_event_attempts SET state='completed'").run();
     assert.throws(()=>store.save(f.execution,manifest()),{code:'ARCA_STAGED_MANIFEST_INTEGRITY'});

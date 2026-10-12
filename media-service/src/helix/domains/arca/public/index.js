@@ -1,4 +1,5 @@
 'use strict';
+const {createPlanningEvidenceReader}=require('../persistence/planning-evidence-reader');
 
 const { packageId } = require('./package.boundary.json');
 const { createOnDeckContextReader } = require('../application/on-deck-context-reader');
@@ -105,6 +106,7 @@ function createArcaExecutionRegistration() {
         shelfDeregistrationCoordinator:createShelfDeregistrationCoordinator({...options,contextReader:shelfDeregistrationContextReader,aftercareContextReader,aftercareCoordinator})});
     },
     createPlanningRegistration(options) {
+      options={...options,evidenceReader:createPlanningEvidenceReader(options)};
       const aftercareContextReader=options.aftercareContextReader||createAftercareContextReader(options);
       const offdeckContextReader=options.offdeckContextReader||createOffdeckContextReader(options);
       const shelfDeregistrationContextReader=options.shelfDeregistrationContextReader||createShelfDeregistrationContextReader(options);
