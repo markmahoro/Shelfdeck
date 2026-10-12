@@ -171,6 +171,7 @@ function createArcaShelfAdminApplication(options) {
   }
   return Object.freeze({
     listShelves() { return Object.freeze({ items: store.listShelves().map(withSummary) }); },
+    listShelfNames() { return Object.freeze({ items: store.listShelfNames() }); },
     overviewStats:()=>store.overviewStats(),
     getShelf(shelfId) { const shelf = store.getShelf(shelfId); if (!shelf) throw new ArcaShelfAdminApplicationError('ADMIN_SHELF_NOT_FOUND', 'Shelf不存在。', { shelfId }); return Object.freeze({ shelf:withSummary(shelf) }); },
     getStandard(shelfId) { return Object.freeze({ standard: this.getShelf(shelfId).shelf.standard }); },

@@ -1480,7 +1480,7 @@ async function createCleanServiceHost(options) {
     ...constructed.applicationDependencies,
     progressProjectionReader: executionProgressProjectionReader,
     readPerceptionRatings: (targets) => formationRatingReader(targets),
-    readShelfTargets: () => arcaShelfAdmin.listShelves().items,
+    readShelfTargets: () => arcaShelfAdmin.listShelfNames().items,
     isExternalMaterialIntegrationReady: options.externalMaterialIntegrationReadinessReader ||
       (() => platformIntegrations.isActive('moviepilot')),
     readAcceptanceRecoveries: (offerIds) => new Map(offerIds.map((offerId) => [offerId, formationAcceptanceReader(offerId)])),
@@ -1803,13 +1803,19 @@ async function createCleanServiceHost(options) {
     readMaterialFields: () => procurementAdmin.overviewStats(),
     readShelves: () => arcaShelfAdmin.overviewStats(),
     readStandingAuthorization: () => inputSettlementAuthorizationStore.current(),
-    readFormation: () => {
+    readFormation: async () => {
       const summary = formationQuery.list({ section:'active', limit:1 }).summary;
+      await new Promise(resolve=>setImmediate(resolve));
+      const attentionItems = formationQuery.list({ section:'active', classification:'attention_required', limit:5 }).items;
+      await new Promise(resolve=>setImmediate(resolve));
+      const inProgressItems = formationQuery.list({ section:'active', classification:'in_progress', limit:5 }).items;
+      await new Promise(resolve=>setImmediate(resolve));
+      const completedItems = formationQuery.list({ section:'completed', limit:5 }).items;
       return {
         summary,
-        attentionItems: formationQuery.list({ section:'active', classification:'attention_required', limit:5 }).items,
-        inProgressItems: formationQuery.list({ section:'active', classification:'in_progress', limit:5 }).items,
-        completedItems: formationQuery.list({ section:'completed', limit:5 }).items,
+        attentionItems,
+        inProgressItems,
+        completedItems,
       };
     },
     readCollectionStats: (nowMs) => arcaCollectionQuery.overviewStats(nowMs),

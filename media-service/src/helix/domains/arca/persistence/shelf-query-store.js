@@ -424,6 +424,8 @@ function createShelfQueryStore(options) {
     },
     preflightPlacementCommand: (request, operation) => existingPlacementCommand(request, operation),
     listShelves: () => execute((context) => context.repository(repository.repositoryId).invoke('list_shelves').map((row) => readShelf(context.repository(repository.repositoryId), row.shelf_id))),
+    listShelfNames: () => execute((context) => context.repository(repository.repositoryId).invoke('list_shelves')
+      .map((row) => Object.freeze({ shelfId: row.shelf_id, name: row.name }))),
     overviewStats:()=>execute(context=>Object.freeze({activeCount:Number(context.repository(repository.repositoryId)
       .invoke('overview_counts',{}).find(row=>row.group_value==='active')?.row_count||0)})),
     getShelf,

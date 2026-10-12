@@ -33,3 +33,9 @@ NAS disposable容器CPU1/memory1GiB，以已验证生产备份作只读业务输
 2026-10-13生产已标准发布 `markmahoro/shelfdeck:9a23b01c7`，git `9a23b01c7ff8c5d16272898e2efe3296e500cd0c`，Image ID `sha256:23ec509e81511ee9fc84f50ad61f87c633a4ab8ac6d9cc2e4d508fc24f994a7b`，tar SHA256 `e7d95627ebc588c0161e6e109452f5edc5c479744c307558ea69f868695055ff`。标准checksum/readiness/health/Admin/五挂载/QSV通过，RestartCount0；最终镜像专项79/79，发布前备份509 Entry/509 Commit，本地integrity ok/FK0及SHA匹配。未重跑整季加工上架E2E或desktop全量，五项失败媒体未重处理。真实四请求并发样本旧版三轮4891/2530/4762ms，新版3626/1683/1750ms，仍有长尾，UAT-318不关闭；这不是完整SLO资格验收。用户追加整理中加载时误报空态，纯前端补丁专项14项及Web构建通过，尚未发布；服务优化生产UI审核仍进行中。
 
 加载空态根因：切换筛选使用新filter过滤旧pageRows，且onPartial可能先收到空stream，rows.length===0直接呈现真实空态，没有检查pageLoading。纯前端修正：筛选事件即刻进入加载态，空行在全部分页stream完成前显示短加载状态；读取失败保留错误和刷新入口，不再宣称无条目。不改变API、分页或业务分类。延迟测试覆盖空stream先返回、全部完成后真实空结果、回到整理中迟到的真实条目，以及请求失败。Web专项14通过、TypeScript/Vite构建通过；尚未做该补丁实际浏览器走查或生产发布，不把测试通过称为已解决生产闪现。按用户新流程，此纯UI补丁可由实施任务核验，跨层查询优化仍须UI负责人审核。
+
+## 第二轮根因及候选（2026-10-13）
+
+生产10.76秒CPU采样中，概览Formation调用累计约2.85秒，收藏健康汇总约2.19秒；这是含子调用的样本时间，不能相加当作总CPU或解释每个43秒请求。临时Inspector仅容器loopback启用，采样后已关闭并复核连接拒绝，无业务写操作。整理列表为读取架名称经listShelves装配注销摘要，每架遍历当前Inventory Materials；概览一次同步调用四遍Formation，增加主线程等待。候选在现有Arca public facade新增listShelfNames，仅返回同一Shelf持久事实的ID/name；Formation只使用这份姓名投影，不读取注销摘要，完整Shelf Admin入口保持不变。概览四次查询之间setImmediate让出线程，不改变五秒cadence或概览原子发布。没有移转Owner、弱化校验或新增缓存事实。
+
+Windows相关Shelf/Formation27通过，Overview及4000条分页汇总8通过；纯前端补丁实际Chromium桌面延迟走查通过（首轮因fixture误用care-work URL失败，改为实际/v1/admin/care后通过）。覆盖等待→真空态→等待→条目，截图保存在ignored Playwright输出，临时Host由runner关闭。当前候选仍待精确镜像、跨层UI审核及生产复验。
