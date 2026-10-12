@@ -31,3 +31,5 @@ Windows合同32通过/0失败；覆盖空集跳过、单来源优先级、输入
 15:25收尾进展：凡人歌上述Run已completed。原大江大河新Run e26c2ffa0aee9ab9f9ded4a069de7eddbd796f20e04af5eee9499ba7e568a615的67项metadata及34项NFO生成、34项验证成功，但poster acquire失败后discarded，未产生最终Media Cast Fact，不能计完整通过。同配置/身份的只读Provider调用取得867619字节海报；这只证明当前可取得，不补造原失败根因。正式reprocess返回202，intent 227638f0018d81e5988edf94f10b4fe767d99f5b16d340c83a83d48a7fae39ea，继续原现场验收。
 
 用户明确批准放弃本地《大宅门2》和《乔家大院》以释放验收资源。两项分别经正式discard进入discarded；77份原始Primary视频全部存在且大小匹配，证据为ignored local-discard-originals.json及local-acceptance-priority-receipt-*.json。仅处置这两项已授权本地未完成进度，未处置NAS生产或其他测试Run。
+
+15:39等待边界：情满四合院46集mandatory media检查从1791789528698至1791790152151成功，耗时623453毫秒；短时无FFmpeg子进程不能证明卡死。执行重启前复核发现已推进，故未重启。独立只读46份Source指纹均匹配；随后Arca stage占共享sqlite_write，来源重试第一页成功、后续页仍排队。保留真实等待状态，不因容量单测或其他剧集成功关闭本项；原33集新Fact仍待验。
