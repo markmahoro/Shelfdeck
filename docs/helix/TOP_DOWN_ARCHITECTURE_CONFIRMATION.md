@@ -15477,24 +15477,6 @@ authorize active recovery, Plan publication, contract translation or dual reads.
 history survive the switch from full-manifest hashing to the semantic Execution Catalog digest without granting old
 unfinished work compatibility.
 
-### UAT-293：已完成 Movie 执行历史只读验证（2026-10-12）
-
-用户确认保留生产收藏并继续Series升级。Foundation可加载源码8e197b3c36对应的冻结Movie合同数据，
-按完整archive digest、source commit、Capability manifest、Schema闭包及Policy重建精确Catalog
-5387ff4e766dd8239fdd9a3d094e4d9f5a75c201dbd8ebdff7d83e30556614d8。该数据没有Executor，不进入当前Registry或Scheduler。
-已存在的UAT-261两个Catalog继续沿原不可变Witness及Owner责任证明验证；跨Plan引用必须在同一只读事务中
-按被引用Plan自己的冻结Catalog验证，共享环检测，不可凭另一个Plan通过就信任未验证Result。
-
-只读兼容仅接受terminal Attempt及terminal Event；Result/Evidence的canonical digest、冻结typed shape、
-Effect/Receipt/Commit Marker及引用完整性仍须成立。原Witness对prebound nominal Evidence及历史Effect的明确
-证明规则保持不变，不把其扩大为通用豁免。未知Catalog、archive篡改、同Catalog异shape、缺失证据或活动Attempt
-仍阻断启动；不得改写历史、试选能通过的Schema、注册旧Executor或恢复旧Formation。新任务仍仅使用当前合同。
-未完成Formation依Playbook精确Reset纪律单独处置；本次兼容及部署授权不包含生产Reset。
-
-为避免重复扫描历史载荷，同一只读事务可预读最多100个根Plan，SQL查询按最多500个精确ID分块。
-已验证引用与原始事实缓存仅在该事务有效，每个根Plan仍须返回独立的严格布尔判定；缺项、额外项或非true均不得放行。
-需要Owner物理观察的Proof在Foundation读事务之外沿原单Plan验证流程重读，不嵌套Owner事务、不跨批复用物理证明。
-
 ### UAT-261：Intake Control Catalog 的精确历史 retirement（2026-09-12）
 
 本条是既有 Foundation Startup Recovery 历史证明规则的有界实例，不新增业务 Owner、Handoff、
@@ -15867,3 +15849,21 @@ Arca On-deck Commit以`arca_inventory_product_facts`的`related_primary_mapping`
 `LibraRunDiscardDecisionRecord@1`为闭合记录，字段恰为`{schemaRef:"helix://contracts/application-types/LibraRunDiscardDecisionRecord/v1",schemaVersion:1,discardDecisionId,libraRunId,committedRunStateRevision,decisionDigest}`。committedRunStateRevision恒等于完整Decision.expectedRunStateRevision+1；decisionDigest保持原完整Decision领域摘要。Record完整JCS≤64 KiB，Foundation evidence_digest为Record的完整JCS摘要，Result/marker仍按原合同绑定完整Decision/Receipt。
 
 完整Discard Decision继续写入Libra同一Run immutable revision的transition_evidence_json（原Owner字节限制不变），schema为LibraRunDiscardDecision@1；与Run状态、Control释放、Cleanup Scope/成员、Outcome、Result、marker及Outbox同一原子事务提交。Foundation不再重复内嵌完整控制及Workspace清理集合。精确重放按Record.libraRunId+committedRunStateRevision取Owner revision，校验schema/Decision ID/完整Decision摘要、记录闭合字段、Receipt、Result及commit marker；缺失、跨Run、错revision、摘要漂移一律拒绝。禁止从current Workspace重建旧Decision、不截断成员、不提升Foundation64 KiB、不扩大清理或删除授权。
+
+### UAT-293：已完成 Movie 执行历史只读验证（2026-10-12）
+
+用户确认保留生产收藏并继续Series升级。Foundation可加载源码8e197b3c36对应的冻结Movie合同数据，
+按完整archive digest、source commit、Capability manifest、Schema闭包及Policy重建精确Catalog
+5387ff4e766dd8239fdd9a3d094e4d9f5a75c201dbd8ebdff7d83e30556614d8。该数据没有Executor，不进入当前Registry或Scheduler。
+已存在的UAT-261两个Catalog继续沿原不可变Witness及Owner责任证明验证；跨Plan引用必须在同一只读事务中
+按被引用Plan自己的冻结Catalog验证，共享环检测，不可凭另一个Plan通过就信任未验证Result。
+
+只读兼容仅接受terminal Attempt及terminal Event；Result/Evidence的canonical digest、冻结typed shape、
+Effect/Receipt/Commit Marker及引用完整性仍须成立。原Witness对prebound nominal Evidence及历史Effect的明确
+证明规则保持不变，不把其扩大为通用豁免。未知Catalog、archive篡改、同Catalog异shape、缺失证据或活动Attempt
+仍阻断启动；不得改写历史、试选能通过的Schema、注册旧Executor或恢复旧Formation。新任务仍仅使用当前合同。
+未完成Formation依Playbook精确Reset纪律单独处置；本次兼容及部署授权不包含生产Reset。
+
+为避免重复扫描历史载荷，同一只读事务可预读最多100个根Plan，SQL查询按最多500个精确ID分块。
+已验证引用与原始事实缓存仅在该事务有效，每个根Plan仍须返回独立的严格布尔判定；缺项、额外项或非true均不得放行。
+需要Owner物理观察的Proof在Foundation读事务之外沿原单Plan验证流程重读，不嵌套Owner事务、不跨批复用物理证明。
