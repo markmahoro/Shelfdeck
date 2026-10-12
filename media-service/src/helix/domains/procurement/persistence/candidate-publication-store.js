@@ -161,7 +161,8 @@ function createCandidatePublicationStore(options) {
           expected_head:pkg.packageRevision - 1, expected_run_basis_digest:draft.runBasisDigest });
         if (head.changes !== 1) fail('P7_CANDIDATE_RUN_CAS_CONFLICT', 'Run package revision head CAS failed.');
         const metadataJson = canonicalJson(pkg.identityMetadata), claimJson = canonicalJson(pkg.identityClaim);
-        if (Buffer.byteLength(metadataJson) > 16384 || Buffer.byteLength(claimJson) > 16384) fail('P7_CANDIDATE_IDENTITY_TOO_LARGE', 'Candidate Identity JSON exceeds 16 KiB.');
+        const identityLimit = pkg.contentProfile === 'series' ? 65536 : 16384;
+        if (Buffer.byteLength(metadataJson) > identityLimit || Buffer.byteLength(claimJson) > identityLimit) fail('P7_CANDIDATE_IDENTITY_TOO_LARGE', 'Candidate Identity JSON exceeds its Profile byte bound.');
         repo.invoke('insert_package', { candidate_package_id:pkg.candidatePackageId, procurement_run_id:pkg.procurementRunId,
           package_revision:pkg.packageRevision, field_id:pkg.materialFieldContextRef.fieldId, field_access_revision:pkg.materialFieldContextRef.accessRevision,
           field_context_digest:pkg.materialFieldContextRef.contextDigest, media_type:pkg.mediaType, content_profile:pkg.contentProfile,

@@ -227,7 +227,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   } else fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
   const episodeNumbers=Array.from({length:episodeCount},(_,index)=>index+1);
   const episodeKeys=episodeNumbers.map(number=>'E'+String(number).padStart(3,'0'));
-  const sources=nm?[path.join(source,'Demo Show.S01E01-02.part1.mp4'),path.join(source,'Demo Show.S01E01.part2.mkv')]:parts?[1,2].map(part=>path.join(source,'Demo Show.S01E01.part'+part+'.mkv')):shared?[path.join(source,'Demo Show.S01E01-02.mkv')]:episodeNumbers.map(number=>path.join(source,'Demo Show.S01E'+String(number).padStart(2,'0')+((mixed||mediaRepair)&&number===2?'.mp4':'.mkv')));
+  const sources=nm?[path.join(source,'Demo Show.S01E01-02.part1.mp4'),path.join(source,'Demo Show.S01E01.part2.mkv')]:parts?[1,2].map(part=>path.join(source,'Demo Show.S01E01.part'+part+'.mkv')):shared?[path.join(source,'Demo Show.S01E01-02.mkv')]:episodeNumbers.map(number=>path.join(source,(procurementOnly?'Demo Show 完整来源名称完整来源名称完整来源名称':'Demo Show')+'.S01E'+String(number).padStart(2,'0')+((mixed||mediaRepair)&&number===2?'.mp4':'.mkv')));
   const physicalCount=sources.length,perEpisodeCap=parts?48:shared?12:24;
   const relatedFixture=process.env.HELIX_SERIES_RELATED==='1';
   const thumbnailSources=relatedFixture?sources.map(file=>file.replace(/\.[^.]+$/,'-thumb.jpg')):[];
@@ -578,6 +578,9 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     assert.equal(packages[0].structure_kind,'season');
     assert.equal(db.prepare('SELECT count(*) n FROM proc_candidate_primary_materials').get().n,episodeCount);
     const metadata=JSON.parse(packages[0].identity_metadata_json);
+    assert.ok(Buffer.byteLength(packages[0].identity_claim_json)>16384);
+    assert.ok(Buffer.byteLength(packages[0].identity_claim_json)<=65536);
+    assert.equal(JSON.parse(packages[0].identity_claim_json).sourceHints.length,metadata.sourceHints.length);
     assert.equal(metadata.sourceHints.filter(h=>h.hintKind==='filename_title').length,episodeCount);
     const pages=db.prepare("SELECT b.result_json FROM fx_event_result_bindings b JOIN fx_workflow_events e USING(event_id) WHERE e.capability_ref='procurement.triage.structure.inspect@1'").all().map(row=>JSON.parse(row.result_json));
     const records=pages.flatMap(page=>page.units);

@@ -408,3 +408,26 @@ test('UAT-294 expands only immutable Arca Decision storage and preserves exact h
     assert.equal(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}).migrated,false);
   } finally {if(db?.open)db.close();if(check?.open)check.close();kernel?.close();fs.rmSync(root,{recursive:true,force:true});}
 });
+
+test('UAT-309 preserves Candidate history and enforces Profile-specific identity bounds after upgrade',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-candidate-identity-upgrade-')),databasePath=path.join(root,'shelfdeck.db');let db,kernel;
+  try {
+    const prior=require('../src/helix/foundation/persistence/uat-identity-selection-migration').PRE_CANDIDATE_IDENTITY_SCHEMA_DIGEST;
+    db=historicalDatabase(databasePath,prior,TARGET_GENERATION);
+    db.prepare('INSERT INTO proc_candidate_packages(candidate_package_id,content_profile,identity_metadata_json,identity_claim_json) VALUES(?,?,?,?)').run('keep','movie','{"evidence":"原始证据"}','{"claim":"unchanged"}');
+    const rows=db.prepare('SELECT * FROM proc_candidate_packages').all();db.close();
+    assert.equal(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}).migrated,true);
+    db=new Database(databasePath);
+    assert.deepEqual(db.prepare('SELECT * FROM proc_candidate_packages').all(),rows);
+    const insert=db.prepare('INSERT INTO proc_candidate_packages(candidate_package_id,content_profile,identity_metadata_json,identity_claim_json) VALUES(?,?,?,?)');
+    for(const profile of ['series','movie','jav','western_adult',null]) for(const column of [0,1]) {
+      const limit=profile==='series'?65536:16384,id=String(profile)+'-'+column,values=['{}','{}'];values[column]=JSON.stringify('x'.repeat(limit-2));
+      insert.run(id,profile,...values);values[column]=JSON.stringify('x'.repeat(limit-1));
+      assert.throws(()=>insert.run(id+'-overflow',profile,...values),/CHECK/);
+      values[column]='not-json';assert.throws(()=>insert.run(id+'-invalid',profile,...values),/CHECK/);
+    }
+    assert.deepEqual(db.pragma('foreign_key_check'),[]);assert.equal(db.pragma('integrity_check')[0].integrity_check,'ok');db.close();
+    kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest});kernel.close();
+    assert.equal(migrateUatIdentitySelectionSchema({Database,databasePath,schemaManifest}).migrated,false);
+  }finally{if(db?.open)db.close();kernel?.close();fs.rmSync(root,{recursive:true,force:true});}
+});

@@ -112,6 +112,10 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
 });
 
 const TABLE_CHECKS = Object.freeze({
+  proc_candidate_packages: [
+    `COALESCE("content_profile", '') = 'series' OR length(CAST("identity_metadata_json" AS BLOB)) <= 16384`,
+    `COALESCE("content_profile", '') = 'series' OR length(CAST("identity_claim_json" AS BLOB)) <= 16384`
+  ],
   libra_offload_context_materials: [
     `("final_product_material_key" IS NOT NULL AND "final_product_material_keys_json" IS NULL AND "final_product_material_keys_schema_ref" IS NULL) OR
      ("final_product_material_key" IS NULL AND "final_product_material_keys_json" IS NOT NULL AND

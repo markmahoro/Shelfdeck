@@ -28,7 +28,29 @@ const PRE_ACCEPTANCE_EVIDENCE_SCHEMA_DIGEST = '09d5991de1bca441bd02e9fe72b73de88
 const PRE_STAGED_MANIFEST_SCHEMA_DIGEST = 'bf79c16fe2032f54eddb5189b20673c9ecd29178917488e53a8f64eba9c858f7';
 const PRE_INVENTORY_VERIFICATION_SCHEMA_DIGEST = '7c76652ba045b3d24b01696c8dc11c1fe6e4a9b3e076992645b3d31a305c6d53';
 const PRE_FINAL_DECISION_SCHEMA_DIGEST = 'ac46cd90031d5d02ac05ed5657ec589117f9763a096c5d19033549c951a8c3fe';
-const TARGET_SCHEMA_DIGEST = 'd25f4a52fc663f57ca55adb3d259e525d5ea88a3a7a31853af369f05dc393610';
+const PRE_CANDIDATE_IDENTITY_SCHEMA_DIGEST = 'd25f4a52fc663f57ca55adb3d259e525d5ea88a3a7a31853af369f05dc393610';
+const TARGET_SCHEMA_DIGEST = 'c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d';
+
+
+// Preserve immutable Candidate rows while widening only the Series byte contract.
+function expandCandidateIdentityBound(database) {
+  const row=database.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='proc_candidate_packages'").get();
+  const columns=['identity_metadata_json','identity_claim_json'];
+  if(!row || columns.some(column=>!row.sql.includes('length(CAST("'+column+'" AS BLOB)) <= 16384')))
+    throw new UatIdentitySelectionMigrationError('SERIES_CANDIDATE_IDENTITY_SCHEMA_DRIFT','Candidate Identity constraints do not match the approved source.');
+  let sql=row.sql;
+  for(const column of columns) sql=sql.replace('length(CAST("'+column+'" AS BLOB)) <= 16384','length(CAST("'+column+'" AS BLOB)) <= 65536');
+  const last='CHECK (length(CAST("identity_claim_json" AS BLOB)) <= 65536),';
+  if(!sql.includes(last)) throw new UatIdentitySelectionMigrationError('SERIES_CANDIDATE_IDENTITY_SCHEMA_DRIFT','Candidate Identity constraint placement drifted.');
+  sql=sql.replace(last,last+columns.map(column=>'\n  CHECK (COALESCE("content_profile", \'\') = \'series\' OR length(CAST("'+column+'" AS BLOB)) <= 16384),').join(''));
+  const extras=database.prepare("SELECT sql FROM sqlite_master WHERE type IN ('index','trigger') AND tbl_name='proc_candidate_packages' AND sql IS NOT NULL").all();
+  database.exec('CREATE TEMP TABLE candidate_identity_backup AS SELECT * FROM proc_candidate_packages');
+  database.exec('DROP TABLE proc_candidate_packages');
+  database.exec(sql);
+  database.exec('INSERT INTO proc_candidate_packages SELECT * FROM candidate_identity_backup');
+  for(const extra of extras) database.exec(extra.sql);
+  database.exec('DROP TABLE temp.candidate_identity_backup');
+}
 
 // Frozen additive DDL for the exact UAT-251 schema target.
 const TERMINAL_OUTCOME_DDL = `CREATE TABLE "arca_defect_admission_heads" (
@@ -645,6 +667,7 @@ function migrateUatIdentitySelectionSchema(options) {
       throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_SOURCE_MARKER_INVALID',
         'The source database does not contain the expected ShelfDeck schema marker.');
     }
+    const candidateIdentitySource=marker.generation===TARGET_GENERATION&&marker.schema_digest===PRE_CANDIDATE_IDENTITY_SCHEMA_DIGEST;
     const finalDecisionSource=marker.generation===TARGET_GENERATION&&marker.schema_digest===PRE_FINAL_DECISION_SCHEMA_DIGEST;
     const inventoryVerificationSource=marker.generation===TARGET_GENERATION&&marker.schema_digest===PRE_INVENTORY_VERIFICATION_SCHEMA_DIGEST;
     const stagedManifestSource=marker.generation===TARGET_GENERATION&&marker.schema_digest===PRE_STAGED_MANIFEST_SCHEMA_DIGEST;
@@ -674,7 +697,7 @@ function migrateUatIdentitySelectionSchema(options) {
       marker.schema_digest === PRE_EXECUTOR_CLOSURE_SCHEMA_DIGEST;
     const legacySource = marker.generation === SOURCE_GENERATION && marker.schema_digest === SOURCE_SCHEMA_DIGEST;
     const v2Source = marker.generation === INTERMEDIATE_GENERATION && marker.schema_digest === INTERMEDIATE_SCHEMA_DIGEST;
-    if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource && !offdeckCoverageSource && !targetBindingSource && !sourceCleanupSource && !caseAdmissionSource && !formationThreeStateSource && !predeckPipelineSource && !defectAdmissionSource && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
+    if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource && !offdeckCoverageSource && !targetBindingSource && !sourceCleanupSource && !caseAdmissionSource && !formationThreeStateSource && !predeckPipelineSource && !defectAdmissionSource && !aftercareHardeningSource && !executorClosureSource && !legacySource && !v2Source) {
       throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_SOURCE_SCHEMA_UNSUPPORTED',
         'Only the exact pre-UAT live schema can be upgraded in place.', {
           generation: marker.generation, schemaDigest: marker.schema_digest,
@@ -710,11 +733,11 @@ function migrateUatIdentitySelectionSchema(options) {
       )`);
       if (legacySource || v2Source) database.exec(FORMATION_PROJECTION_DDL);
       if (legacySource || v2Source || executorClosureSource) database.exec(EXECUTOR_CLOSURE_DDL);
-      if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource) ensureAftercareCaseTerminalEvidence(database);
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource) ensureAftercareCaseTerminalEvidence(database);
       if (defectAdmissionSource) migrateDefectAdmissionRevisionKind(database);
-      if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource) migratePredeckPipelineTables(database);
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource) migratePredeckPipelineTables(database);
       if (formationThreeStateSource) migrateFormationThreeStateProjection(database);
-      if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource) {
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource && !terminalOutcomeSource) {
         const coverageColumns = database.pragma('table_info(arca_offdeck_selection_receipts)').map((column) => column.name);
         if (!coverageColumns.includes('shelf_coverage_schema_ref')) database.exec('ALTER TABLE "arca_offdeck_selection_receipts" ADD COLUMN "shelf_coverage_schema_ref" TEXT');
         if (!coverageColumns.includes('shelf_coverage_json')) database.exec('ALTER TABLE "arca_offdeck_selection_receipts" ADD COLUMN "shelf_coverage_json" TEXT CHECK ("shelf_coverage_json" IS NULL OR json_valid("shelf_coverage_json")) CHECK ("shelf_coverage_json" IS NULL OR length(CAST("shelf_coverage_json" AS BLOB)) <= 65536)');
@@ -735,9 +758,9 @@ function migrateUatIdentitySelectionSchema(options) {
           }
         }
       }
-      if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource) addTerminalOutcomeTables(database);
-      if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource) addSecondaryTargetRevision(database);
-      if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource) {
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource && !secondaryTargetSource) addTerminalOutcomeTables(database);
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource && !offloadTargetsSource && !artifactScopeSource && !targetReservationSource && !seriesFactKeySource && !seriesProvenanceSource) addSecondaryTargetRevision(database);
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource) {
         if (database.prepare("SELECT 1 FROM arca_ondeck_runs WHERE state <> 'committed' LIMIT 1").get()) {
           throw new UatIdentitySelectionMigrationError('ARCA_TARGET_RESERVATION_FORMATION_RESET_REQUIRED',
             'Unfinished On-deck Runs require an explicitly authorized Formation Reset before this schema upgrade.');
@@ -746,23 +769,23 @@ function migrateUatIdentitySelectionSchema(options) {
           database.exec('ALTER TABLE "arca_ondeck_runs" ADD COLUMN "target_reserved_at_ms" INTEGER CHECK ("target_reserved_at_ms" >= 0)');
         }
       }
-      if (!alreadyCurrent && !finalDecisionSource && !database.pragma('table_info(arca_inventory_materials)').some(column=>column.name==='artifact_scope_json')) {
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !database.pragma('table_info(arca_inventory_materials)').some(column=>column.name==='artifact_scope_json')) {
         if(database.prepare("SELECT 1 FROM arca_shelf_entries WHERE structure_kind='season' LIMIT 1").get())
           throw new UatIdentitySelectionMigrationError('ARCA_SERIES_ARTIFACT_SCOPE_UNPROVEN',
             'Existing Series Inventory requires explicit Artifact target evidence; this upgrade cannot infer it.');
         database.exec('ALTER TABLE "arca_inventory_materials" ADD COLUMN "artifact_scope_schema_ref" TEXT');
         database.exec('ALTER TABLE "arca_inventory_materials" ADD COLUMN "artifact_scope_json" TEXT CHECK ("artifact_scope_json" IS NULL OR json_valid("artifact_scope_json")) CHECK ("artifact_scope_json" IS NULL OR length(CAST("artifact_scope_json" AS BLOB)) <= 4096)');
       }
-      if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource) expandProductionProvenanceBound(database);
-      if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource) extendSeriesFactKey(database);
-      if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource) extendOffloadTargetStorage(database);
-      if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource) {
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource) expandProductionProvenanceBound(database);
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource) extendSeriesFactKey(database);
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource && !episodeMetadataSource) extendOffloadTargetStorage(database);
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource && !acceptanceEvidenceSource) {
         for (const table of ['libra_product_fact_revisions','arca_inventory_product_facts']) {
           database.exec('ALTER TABLE "'+table+'" ADD COLUMN "episode_metadata_schema_ref" TEXT');
           database.exec('ALTER TABLE "'+table+'" ADD COLUMN "episode_metadata_json" TEXT CHECK ("episode_metadata_json" IS NULL OR json_valid("episode_metadata_json")) CHECK ("episode_metadata_json" IS NULL OR length(CAST("episode_metadata_json" AS BLOB)) <= 16777216)');
         }
       }
-      if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource) database.exec(`CREATE TABLE "arca_acceptance_check_evidence" (
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource && !stagedManifestSource) database.exec(`CREATE TABLE "arca_acceptance_check_evidence" (
   "acceptance_attempt_id" TEXT,
   "check_kind" TEXT,
   "check_revision" INTEGER CHECK ("check_revision" >= 1),
@@ -787,7 +810,7 @@ function migrateUatIdentitySelectionSchema(options) {
   CHECK (length(CAST("record_json" AS BLOB)) <= 65536),
   FOREIGN KEY ("commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT
 );`);
-      if (!alreadyCurrent && !finalDecisionSource && !inventoryVerificationSource) database.exec(`CREATE TABLE "arca_staged_manifest_records" (
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource && !inventoryVerificationSource) database.exec(`CREATE TABLE "arca_staged_manifest_records" (
   "record_id" TEXT PRIMARY KEY,
   "work_id" TEXT,
   "event_id" TEXT,
@@ -808,7 +831,7 @@ function migrateUatIdentitySelectionSchema(options) {
   CHECK (json_valid("record_json")),
   CHECK (length(CAST("record_json" AS BLOB)) <= 65536)
 );`);
-      if (!alreadyCurrent && !finalDecisionSource) database.exec(`CREATE TABLE "arca_inventory_verification_records" (
+      if (!alreadyCurrent && !candidateIdentitySource && !finalDecisionSource) database.exec(`CREATE TABLE "arca_inventory_verification_records" (
   "record_id" TEXT PRIMARY KEY,
   "work_id" TEXT,
   "event_id" TEXT,
@@ -832,6 +855,7 @@ function migrateUatIdentitySelectionSchema(options) {
   FOREIGN KEY ("commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT
 );`);
       if (!alreadyCurrent) expandFinalInventoryDecisionBound(database);
+      if (!alreadyCurrent) expandCandidateIdentityBound(database);
       if (!alreadyCurrent && database.pragma('foreign_key_check').length) {
         throw new UatIdentitySelectionMigrationError('UAT_MIGRATION_FOREIGN_KEY_VIOLATION',
           'Migration would leave invalid references; all schema changes were rolled back.');
@@ -867,6 +891,7 @@ function migrateUatIdentitySelectionSchema(options) {
 }
 
 module.exports = Object.freeze({
+  PRE_CANDIDATE_IDENTITY_SCHEMA_DIGEST,
   PRE_OFFLOAD_TARGETS_SCHEMA_DIGEST,
   SOURCE_GENERATION,
   SOURCE_SCHEMA_DIGEST,

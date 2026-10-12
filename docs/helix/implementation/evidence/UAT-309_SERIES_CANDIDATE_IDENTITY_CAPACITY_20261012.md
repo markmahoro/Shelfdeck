@@ -7,3 +7,7 @@
 待确认有界方案：仅Series Candidate的Identity Metadata/Claim存储上限各64 KiB，与既有Foundation Result上限对齐；其他Profile仍16 KiB。完整来源提示、摘要、不可变Publication及Handoff校验保持，不截断、不拆季、不新增Owner或旁路。同步SSOT、Table合同/DDL、生成manifest、正式additive upgrade及正负测试；原三国95集正式封包与Libra接纳独立验收。此方案不声称1024成员在任意长度来源提示下均能端到端入藏，Foundation及完整Delivery已有边界保持。
 
 按ENGINEERING_PLAYBOOK §3.3先确认这一新容量合同再实施；当前仅记录证据和方案，生产升级继续受未关闭UAT阻断。
+
+用户随后明确同意64 KiB方案、修复验证后继续升级。实现已传播SSOT、Table合同、生成DDL、Owner Publication校验及正式additive migration；只重建Candidate表CHECK，原行、摘要、FK和索引保留。旧Schema `d25f4a52fc663f57ca55adb3d259e525d5ea88a3a7a31853af369f05dc393610`冻结为可验证DDL fixture，新Schema `c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d`。
+
+Windows既有Publication/DDL/历史迁移及新增边界共32项：首次31通过、1项重放返回对象断言错误；按既有重放合同核对typedResult/marker而非含replayed标志的完整返回后，Publication9项全部通过。迁移测试验证Series两列65536通过/65537拒绝，Movie/JAV/Western Adult及NULL Profile两列16384通过/16385拒绝、非法JSON拒绝、原Candidate逐字保留、integrity/FK及Kernel精确DDL、重复升级幂等。长中文文件名95集真实Host封包33.69秒通过，Unit73120字节、Foundation Structure2022字节，身份声明明确大于16384且不超过65536，来源提示全部保留；受控mediaProbe不替代原现场。Linux与原现场继续验收，未关闭UAT-309或284。

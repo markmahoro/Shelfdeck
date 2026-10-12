@@ -76,7 +76,7 @@ test('emits JSON validity and byte limits, enum checks, RESTRICT foreign keys, a
   const jsonCount = contracts.reduce((count, contract) => count + contract.jsonContracts.length, 0);
   const foreignKeyCount = contracts.reduce((count, contract) => count + contract.foreignKeys.length + contract.revisionContract.pointerTargets.length, 0);
   assert.equal((ddl.match(/json_valid\(/g) || []).length, jsonCount + 2);
-  assert.equal((ddl.match(/length\(CAST\(/g) || []).length, jsonCount + 2);
+  assert.equal((ddl.match(/length\(CAST\(/g) || []).length, jsonCount + 4);
   assert.ok((ddl.match(/ON DELETE RESTRICT/g) || []).length <= foreignKeyCount);
   assert.ok((ddl.match(/ON DELETE RESTRICT/g) || []).length > 0);
   assert.match(ddl, /CHECK \("state" IN \('open', 'accepted', 'dismissed', 'superseded'\)\)/);

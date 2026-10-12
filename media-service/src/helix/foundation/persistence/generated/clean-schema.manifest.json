@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 200,
-  "tableContractAggregateDigest": "18f9230a7ecee161405c7d584d1de11a283fc05ebad26ae62883d5d97f4cacd8",
-  "ddlDigest": "d25f4a52fc663f57ca55adb3d259e525d5ea88a3a7a31853af369f05dc393610",
+  "tableContractAggregateDigest": "a7834bd4e03e3c4b4c62c37ca6a7578063384592249716ec27da5d0f85e35f81",
+  "ddlDigest": "c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -4828,8 +4828,8 @@
       "tableId": "proc_candidate_packages",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_candidate_packages/v1",
-      "contractDigest": "1f455cd0fe8f3fec428ea52f701ae2e884f2a58ecc3aa3adf24e22106876d4a4",
-      "sqlDigest": "c208d3405b22bf28ebf66642831e4f98825573b6ce45b7dfce86e334de496cb0",
+      "contractDigest": "7e4cef8b8698d63e5d83461a5687ca3d6078f9f9513dec3539c98ca76189e0a4",
+      "sqlDigest": "d47ff938f5e4eb61278d4782c8154b4ceb0a13fa6d14850e7f00bf05d6eb2605",
       "columns": [
         "candidate_package_id",
         "procurement_run_id",

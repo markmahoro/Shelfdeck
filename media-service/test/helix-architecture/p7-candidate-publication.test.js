@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
-const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
+const { canonicalDigest, canonicalJson } = require('../../src/helix/contracts/canonical-json');
 const { createCandidatePublicationCapability } = require('../../src/helix/domains/procurement/capabilities/candidate-publication');
 const { buildPublication } = require('../../src/helix/domains/procurement/model/candidate-publication-contracts');
 const { buildQuery, createCandidateDeliveryService } = require('../../src/helix/domains/procurement/application/candidate-delivery-service');
@@ -35,7 +35,7 @@ function candidateDraft(options = {}) {
     role:'primary_payload', episodeClaims:[episodeBase], memberClaimDigest:'' };
   member.memberClaimDigest = canonicalDigest(without(member, 'memberClaimDigest'));
   const metadata = { claimedTitle:'Series One'+tag, seasonClaim:{ claimKind:'explicit_number', seasonNumber:1, claimDigest:D('season-claim'+tag) },
-    contentProfileHint:'series', sourceHints:[{ hintKind:'filename_title', hintValue:'Series.One'+tag, evidenceDigest:D('hint'+tag) }],
+    contentProfileHint:'series', sourceHints:options.sourceHints || [{ hintKind:'filename_title', hintValue:'Series.One'+tag, evidenceDigest:D('hint'+tag) }],
     metadataDigest:'' };
   metadata.metadataDigest = canonicalDigest(without(metadata, 'metadataDigest'));
   const identityPayload = { claimKind:'series_season', mediaType:'group', contentProfile:'series', claimedTitle:metadata.claimedTitle,
@@ -265,3 +265,22 @@ test('rejects legacy continuity aliases before persistence', () => {
   draft.seasonContinuityClaimSetDigest = canonicalDigest({ schema:'season-continuity-claim-set@1', items:draft.seasonContinuityClaims });
   assert.throws(() => buildPublication(draft, 1), (error) => error.code === 'P7_CANDIDATE_CONTINUITY_INVALID');
 });
+
+for (const bytes of [65536,65537]) test('UAT-309 Series publication enforces the exact '+bytes+' byte identity boundary',()=>fixture(({databasePath,unitOfWork})=>{
+  const hints=Array.from({length:400},(_,i)=>({hintKind:'filename_title',hintValue:'Series.'+String(i).padStart(4,'0'),evidenceDigest:D('source-'+i)}));
+  const remaining=bytes-Buffer.byteLength(canonicalJson(candidateDraft({sourceHints:hints}).identityClaim));
+  assert.ok(remaining>=0);
+  for(let i=0;i<remaining;i++) hints[i%hints.length].hintValue+='x';
+  const draft=candidateDraft({sourceHints:hints});
+  assert.equal(Buffer.byteLength(canonicalJson(draft.identityClaim)),bytes);
+  const database=new Database(databasePath);seed(database,draft);database.close();
+  const store=createCandidatePublicationStore({schemaManifest,unitOfWork});
+  if(bytes===65537) assert.throws(()=>store.publish(request(draft)),{code:'P7_CANDIDATE_IDENTITY_TOO_LARGE'});
+  else {const result=store.publish(request(draft)),replay=store.publish(request(draft));assert.equal(replay.replayed,true);assert.deepEqual(replay.typedResult,result.typedResult);assert.equal(replay.commitMarker,result.commitMarker);}
+  const check=new Database(databasePath,{readonly:true});try {
+    assert.equal(check.prepare('SELECT count(*) n FROM proc_candidate_packages').get().n,bytes===65536?1:0);
+    assert.equal(check.prepare('SELECT count(*) n FROM fx_outbox').get().n,bytes===65536?1:0);
+    if(bytes===65536) assert.equal(check.prepare('SELECT identity_claim_json value FROM proc_candidate_packages').get().value,canonicalJson(draft.identityClaim));
+    else assert.equal(check.prepare('SELECT selection_state FROM proc_run_materials').get().selection_state,'run_selection');
+  }finally{check.close();}
+}));

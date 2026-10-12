@@ -3312,9 +3312,11 @@ CREATE TABLE "proc_candidate_packages" (
   "published_at_ms" INTEGER CHECK ("published_at_ms" >= 0),
   UNIQUE ("procurement_run_id", "package_revision"),
   CHECK (json_valid("identity_metadata_json")),
-  CHECK (length(CAST("identity_metadata_json" AS BLOB)) <= 16384),
+  CHECK (length(CAST("identity_metadata_json" AS BLOB)) <= 65536),
   CHECK (json_valid("identity_claim_json")),
-  CHECK (length(CAST("identity_claim_json" AS BLOB)) <= 16384),
+  CHECK (length(CAST("identity_claim_json" AS BLOB)) <= 65536),
+  CHECK (COALESCE("content_profile", '') = 'series' OR length(CAST("identity_metadata_json" AS BLOB)) <= 16384),
+  CHECK (COALESCE("content_profile", '') = 'series' OR length(CAST("identity_claim_json" AS BLOB)) <= 16384),
   FOREIGN KEY ("procurement_run_id") REFERENCES "proc_procurement_runs" ("procurement_run_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_proc_candidate_packages_hot_01" ON "proc_candidate_packages" ("state", "published_at_ms");
