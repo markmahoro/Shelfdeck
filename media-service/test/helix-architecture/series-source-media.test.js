@@ -699,6 +699,27 @@ test('Series candidates do not construct unissued transcode strategies and still
   assert.throws(()=>reader.readSeriesProductionCandidates(value.options,value.snapshot),/requires exactly one/);
   assert.deepEqual(calls,[64]);
 });
+
+test('Series candidates keep scope validation but do not derive unissued external Imports',()=>{
+  const value=processedSeriesFixture(),external=require('../../src/helix/domains/libra/planning/external-material-work');
+  value.stored.clear();
+  const file=require.resolve('../../src/helix/domains/libra/planning/series-production-candidates'),
+    localRequire=require('node:module').createRequire(file),isolated=new(require('node:module').Module)(file);
+  let scopesRead=0,importsBuilt=0;
+  isolated.require=id=>id==='./external-material-work'?{...external,
+    replacementScopes(...args){scopesRead++;return external.replacementScopes(...args);},
+    externalImportSelectionWork(...args){importsBuilt++;return external.externalImportSelectionWork(...args);}
+  }:localRequire(id);
+  isolated._compile(require('node:fs').readFileSync(file,'utf8'),file);
+  isolated.exports.readSeriesProductionCandidates(value.options,value.snapshot);
+  assert.equal(scopesRead,1);assert.equal(importsBuilt,0);
+  const work=external.externalImportSelectionWork(value.snapshot,external.replacementScopes(value.snapshot)[0]);
+  value.options.workResultReader.listWorks=()=>[{work_id:work.workId,state:'succeeded'}];
+  value.options.workResultReader.status=()=>({state:'succeeded',basis_digest:work.executionBasisDigest,latestAttempt:{attempt_id:'missing-result'}});
+  value.options.workResultReader.readDefinition=()=>({definition:work,definitionDigest:canonicalDigest(work)});
+  assert.throws(()=>isolated.exports.readSeriesProductionCandidates(value.options,value.snapshot),/do not form one exact frozen Scope Work/);
+  assert.ok(importsBuilt>0);
+});
 test('Multipart candidates await full actual allocation without forging individual passed Selection',()=>{
   const value=processedSeriesFixture(true),candidates=value.reader.readSeriesProductionCandidates(value.options,value.snapshot);
   assert.ok(candidates.every(item=>item.eligible&&item.selection.result==='not_selected'));

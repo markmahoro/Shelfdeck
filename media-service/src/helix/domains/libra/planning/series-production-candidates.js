@@ -4,7 +4,7 @@ const {readDirectMediaSelections,seriesSpaceBasisFor}=require('./direct-media-se
 const {seriesFinalSelectionWork,directMediaSelectionWork,remuxMediaSelectionWork,transcodeMediaSelectionWork,workspaceMediaWorkPrefix}=require('./media-production-work');
 const {buildMediaRequirement,buildProductMediaCandidateInput,buildProductMediaVerification,
   buildProductOutputSelectionInput,selectProductOutput}=require('../model/media-production-contracts');
-const {replacementScopes,externalImportSelectionWork}=require('./external-material-work');
+const {replacementScopes,externalImportSelectionWork,externalMaterialWorkPrefix}=require('./external-material-work');
 const {readSeriesExternalImportSet}=require('./series-external-import-results');
 const {mergeSeriesExternalCandidates,assertExternalCandidateSets,completeSeriesCandidateSpace}=require('./series-external-candidate-merge');
 const {deriveSeriesMemberSizeBudget}=require('../model/series-media-space');
@@ -81,9 +81,11 @@ function readSeriesProductionCandidates(options,snapshot) {
     }
     return Object.freeze({...source,work:null,media:null,eligible:false});
   }));
-  const sets=replacementScopes(snapshot).filter(scope=>done.has(externalImportSelectionWork(snapshot,scope).workId))
+  const scopes=replacementScopes(snapshot);
+  const hasCompletedImport=[...done].some(id=>id.startsWith(externalMaterialWorkPrefix('import_selection')));
+  const sets=hasCompletedImport?scopes.filter(scope=>done.has(externalImportSelectionWork(snapshot,scope).workId))
     .map(scope=>require('./series-external-processed-results').readProcessedSet(options,snapshot,
-      readSeriesExternalImportSet({snapshot,scope,workResultReader:options.workResultReader})));
+      readSeriesExternalImportSet({snapshot,scope,workResultReader:options.workResultReader}))):[];
   return sets.length?mergeSeriesExternalCandidates(snapshot,original,sets):original;
 }
 

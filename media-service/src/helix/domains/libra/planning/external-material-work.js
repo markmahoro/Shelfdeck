@@ -47,6 +47,10 @@ function dependency(work) {
   });
 }
 
+function externalMaterialWorkPrefix(stage) {
+  return 'libra-external-material-' + stage + '-work-';
+}
+
 function definition(snapshot, stage, outputContractRef, dependencies = [], scope = null) {
   assertReplacementScope(snapshot,scope);
   const basis = {
@@ -59,7 +63,7 @@ function definition(snapshot, stage, outputContractRef, dependencies = [], scope
   return Object.freeze({
     schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1',
     schemaVersion: 1,
-    workId: stable('libra-external-material-' + stage + '-work-', basis),
+    workId: stable(externalMaterialWorkPrefix(stage), basis),
     ownerDomain: 'libra',
     processType: 'libra_run',
     processId: snapshot.run.libraRunId,
@@ -96,6 +100,7 @@ function externalImportSelectionWork(snapshot, scope = null) {
 }
 
 module.exports = Object.freeze({
+  externalMaterialWorkPrefix,
   replacementBasis,replacementScopes,
   SELECTED_CANDIDATE_RESULT,
   SELECTED_OUTPUT_RESULT,
