@@ -75,3 +75,15 @@ Windows相关Shelf/Formation27通过，Overview及4000条分页汇总8通过；�
 生产浏览器有条目Tab误报空态0、正常需要处理0仍为空；整理中实际852/628ms，其他已认证请求最长2624ms，Tab完整采样含700ms观察等待。12轮48请求按页面10秒cadence全部200，6172ms样本保留。追加10.54秒CPU采样中主要热点切换为Perception候选组装/读评分上下文，约3.84秒在readResolutionCandidates；字符串归一化反复处理相同Corpus是其中一项成本，不声称解释全部SQL/I/O等待。临时Inspector按helper关闭。
 
 第五轮只缓存确定性normalizeAlias和normalizeAnchor的字符串输入/归一化profile输出，单Map8192项上限、超过512字符不缓存；算法仍用原NFKC、大小写/und Locale及原Regex。没有缓存Record、Rule、候选成员、Resolution、评分事实或业务决策：每次读取仍读取当前记录、关系、规则、完整digest及候选溢出栅栏。输入改变使用不同键；类型错误和未知profile保持。新增真实Unicode İ/Greek终结sigma/全角/连字、多profile、可变对象String转换、伪装toJSON输入拒绝与8300项驱逐测试；Windows相关28通过。纯后端，无UI字段改变；最终镜像/发布/性能复验仍待，不关闭318。
+
+## 第五轮最终发布及验收边界
+
+2026-10-13最新生产为markmahoro/shelfdeck:505844a8b，git505844a8bade56e7705ee47e0d578874f9117efa，Image sha256:73484068340fec14df3e66d52d2689a6c586c5dbab21d91807faf58af20de6c4，tar1724124160 bytes/SHA25638362057d5b1f516861800485d3d947931e44fe3b8f3f8214dec61bce920932d。标准build/upload/checksum/dry run/readiness/health/供给/Admin/五挂载/QSV通过，RestartCount0，最终镜像Perception专项28通过。加载空态补丁生产多轮复验0次误报；本轮纯后端无UI字段变化，前端保持已验资产。十二轮48请求全部200，十一轮最长约0.99–1.91秒，一轮5896ms；未复现原数十秒，但性能UAT-318保持开放，非完整SLO窗口。五项失败媒体未人工重处理，狂暴女神/sample及正式安全停机/Reset仍暂缓；问题未全部验收，不执行全面生产清理。Avail约25GiB。
+
+最终包包含505844a8b的profile类型拒绝补充：只允许真实string/string参与缓存键，伪装toJSON的profile仍报原未知profile错误。6d877b6d6中间包未部署；最终Windows及Linux精确镜像相关28/28，Unicode/驱逐/Rule未知profile/对象类型和既有候选/Record/digest/Resolution语义通过。未执行完整Service、Desktop或Series整季加工E2E。既有跨层UI审核及纯UI实施核验见对应Evidence，未把本次后端纯计算优化称作新增UI负责人接受。
+
+备份/uat318-6d877b6d6-predeploy DB2813448192 bytes/SHA256 cf3e5ae50fa79ca548c9d65724d2bf93d39c62572a333b82450e020aff1f218e，514 Entry/514 Commit/36868 Inventory Materials/650 Run，45 companion稳定复制，Compose/Secret按原权限保留；本地integrity ok/FK0/SHA匹配，verification-local.json已回存600。常规回退只更换代码镜像，不恢复旧业务DB。
+
+切换61.3秒，新容器18:42:00.986 UTC启动，18:47:16.345监听，冷启动315.36秒；仍有较大启动开销，没有声称完整解决停机/恢复设计问题。启动日志出现Duplicate Group Evidence page is stale，定位在Arca duplicateCommit输入依据与当前Projection digest不一致，抛错发生在写Group前；仅记录观察，未压制栅栏或改变数据，尚未证明属于新缺陷还是恢复旧Evidence遇到真实事实变更。
+
+生产Chrome两轮四Tab有条目空态误报0、正常需要处理0项仍呈现真空；整理中请求1420/523ms，其他已认证请求最长1883ms；Tab结果时间含700ms稳定等待，不作为首绘或P95。随后按10秒cadence十二轮48请求全部200，本轮5896ms值保留，其他轮最长987–1912ms，业务负载变化中不能简单归因全部改善。实际截图已目检；临时浏览器与测试容器/转发均已关闭。原42.9秒、第二轮15.9秒及后续6秒样本保留，不将“这次没出现”当作所有工况不再出现。正式30分钟活跃/10分钟静默与固定资源profiles未执行，318性能不关闭。下一步关注Perception候选Universe查询/Owner上下文读取及SQL等待，任何优化仍保留Owner/实时候选与完整性边界。
