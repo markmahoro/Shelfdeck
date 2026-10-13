@@ -70,6 +70,7 @@ export default function CollectionPage() {
   const [shelves, setShelves] = useState<Array<{ shelfId: string; name: string; currentCount: number; historyCount: number }>>([]);
   const [summary, setSummary] = useState({ currentCount: 0, historyCount: 0 });
   const [loading, setLoading] = useState(true);
+  const [hasResult, setHasResult] = useState(false);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<CollectionEntry | null>(null);
   const [care, setCare] = useState<CareDetail | null>(null);
@@ -103,6 +104,7 @@ export default function CollectionPage() {
       });
       if (version !== loadVersion.current) return;
       setItems(result.items);
+      setHasResult(true);
       currentPage.current = targetPage;
       setPageIndex(targetPage);
       pageCursors.current = pageCursors.current.slice(0, targetPage + 1);
@@ -178,7 +180,7 @@ export default function CollectionPage() {
           <option value="">全部收藏</option>
           {shelves.map((shelf) => <option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}
         </select></label>
-        <div><strong>{selectedShelf?.currentCount ?? summary.currentCount} 条收藏</strong></div>
+        <div><strong aria-label={hasResult ? undefined : '收藏数量未知'}>{hasResult ? `${selectedShelf?.currentCount ?? summary.currentCount} 条收藏` : '—'}</strong></div>
       </div>
       <div className="collection-tools">
         <form className="collection-search" role="search" onSubmit={(event) => { event.preventDefault(); const value = searchDraft.trim(); if (value === search) void load(); else setSearch(value); }}>
@@ -191,16 +193,16 @@ export default function CollectionPage() {
     </section>
     <section className="collection-library" aria-label="收藏列表" aria-busy={loading}>
       <ReadProgress active={loading}/>
-      {loading && items.length === 0 ? <LoadingState skeleton="posters">正在打开收藏架…</LoadingState> : items.length === 0 ? <div className="source-empty"><strong>{summary.currentCount === 0 ? '还没有正式上架的收藏' : '没有找到符合条件的收藏'}</strong></div> : <div className="poster-wall">{items.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情${item.series ? `，第 ${item.series.seasonNumber} 季` : ''}，收藏健康：${healthLabels[item.health.state]}`}>
+      {loading && items.length === 0 ? <LoadingState skeleton="posters">正在打开收藏架…</LoadingState> : items.length === 0 && error ? null : items.length === 0 ? <div className="source-empty"><strong>{summary.currentCount === 0 ? '还没有正式上架的收藏' : '没有找到符合条件的收藏'}</strong></div> : <div className="poster-wall">{items.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情${item.series ? `，第 ${item.series.seasonNumber} 季` : ''}，收藏健康：${healthLabels[item.health.state]}`}>
         <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId, item.currentInventoryRevision, 'wall')} alt="" loading="lazy" decoding="async" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}{<span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{item.health.state === 'attention_required' ? '需处理' : healthLabels[item.health.state]}</span>}</span>
         <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.series ? `第 ${item.series.seasonNumber} 季 · ${item.series.episodeCount} 集 · ` : ''}{item.year || '年份未知'} · {item.shelfName}</small>{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defects.some((defect)=>defect.defectCode==='size_cap_exceeded')?'体积超过档位上限':`${item.defectAdmission.defectCount}项`}</small>}</span>
       </button>)}</div>}
-      <nav className="collection-more" aria-label="收藏分页">
+      {hasResult && <nav className="collection-more" aria-label="收藏分页">
         <Button type="button" disabled={loading || pageIndex === 0} onClick={() => void load(pageCursors.current[pageIndex - 1], pageIndex - 1)}>上一页</Button>
         {pageCursors.current.map((cursor, index) => <Button key={index} type="button" aria-label={`第${index + 1}页`} aria-current={index === pageIndex ? 'page' : undefined} disabled={loading || index === pageIndex} onClick={() => void load(cursor, index)}>{index + 1}</Button>)}
         <span>第 {pageIndex + 1} 页 · 共 {resultCount} 条</span>
         <Button type="button" disabled={loading || !nextCursor} onClick={() => nextCursor && void load(nextCursor, pageIndex + 1)}>下一页</Button>
-      </nav>
+      </nav>}
     </section>
     {selected && <div className="collection-dialog-backdrop" onMouseDown={(event) => { if (!checking && !exiting && event.target === event.currentTarget) setSelected(null); }}>
       <section ref={dialog} tabIndex={-1} className="collection-dialog" aria-busy={checking || exiting} role="dialog" aria-modal="true" aria-labelledby="collection-dialog-title">

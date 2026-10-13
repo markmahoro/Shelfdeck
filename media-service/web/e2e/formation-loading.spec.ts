@@ -59,3 +59,23 @@ test('Collection keeps readable content during refresh and uses quiet placeholde
   await page.getByRole('button',{name:/查看 测试收藏 详情/}).focus();
   await expect(page.getByRole('button',{name:/查看 测试收藏 详情/})).toBeFocused();
 });
+
+test('an initial Collection failure stays unknown and refresh can establish a real empty result',async({page})=>{
+  let requests=0;
+  await page.route('**/v1/**',async route=>{
+    if(new URL(route.request().url()).pathname==='/v1/admin/collection'){
+      requests++;
+      if(requests===1){await route.fulfill({status:503,json:{error:{code:'UNAVAILABLE',message:'收藏读取失败，请重试'}}});return;}
+      await route.fulfill({json:{items:[],shelves:[],summary:{currentCount:0,historyCount:0},resultCount:0,nextCursor:null}});return;
+    }
+    await route.fulfill({json:{items:[],state:'ready'}});
+  });
+  await page.goto('/collection');
+  await expect(page.getByRole('alert')).toContainText('收藏读取失败，请重试');
+  await expect(page.getByLabel('收藏数量未知')).toBeVisible();
+  await expect(page.getByText('还没有正式上架的收藏')).toHaveCount(0);
+  await expect(page.getByRole('navigation',{name:'收藏分页'})).toHaveCount(0);
+  await page.getByRole('button',{name:'刷新',exact:true}).click();
+  await expect(page.getByText('还没有正式上架的收藏')).toBeVisible();
+  await expect(page.getByText('0 条收藏',{exact:true})).toBeVisible();
+});

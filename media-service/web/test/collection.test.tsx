@@ -42,6 +42,18 @@ function renderCollection() {
 describe('Arca collection poster wall', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('keeps an unread collection unknown when the first request fails', async () => {
+    vi.spyOn(helixAdminApi,'listCollection').mockRejectedValue(new Error('读取失败，请重试'));
+    renderCollection();
+    expect(screen.getByLabelText('收藏数量未知')).toBeInTheDocument();
+    expect(await screen.findByRole('alert')).toHaveTextContent('读取失败，请重试');
+    expect(screen.queryByText('还没有正式上架的收藏')).not.toBeInTheDocument();
+    expect(screen.queryByText('没有找到符合条件的收藏')).not.toBeInTheDocument();
+    expect(screen.queryByText('0 条收藏')).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation',{name:'收藏分页'})).not.toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'刷新',exact:true})).toBeEnabled();
+  });
+
   it('UAT-212 replaces pages and navigates back without prefetching history', async () => {
     const second = { ...entry, shelfEntryId:'entry-2', displayIdentity:'Second movie' };
     const list = vi.spyOn(helixAdminApi, 'listCollection').mockImplementation(async query => ({
