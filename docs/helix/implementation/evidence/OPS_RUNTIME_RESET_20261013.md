@@ -24,3 +24,11 @@
 ## 待完成与适用边界
 
 具体代码SHA、Linux精确镜像测试、打包审查与跨层UI负责人结论待补。本轮未做生产升级/停机/Reset、NAS真实媒体上的长时FFmpeg停稳或断电演练；没有宣称避免所有NAS磁盘/SMB事故。停机不能解决服务外部下载器持续写盘、目录失联或已有语义缺陷，只为升级提供停止新工作、等待收口和保留停机意图的正式边界。
+
+## 81be4df6e平台验证与UI审核补项
+
+代码81be4df6e4f1db3fc3f0fc0e9f39796cbe6a723f标准build-image.js构建通过：tar562239488 bytes/SHA256 82cf1232229c6bd698d59b9163ed9a5b3e28d31e19f9adae3b6fe8f0e734ecbe，Docker manifest sha256:e89135b7046ca20e64a0ea900e69a4d840360627c90c2fd2514719dcc7fe8e58，config sha256:fe6b7465f1d8fb6ace432f6e590a9c73a2a01cf129fa32791dc8f2ad0545261a。Linux/amd64 Node20.20.2精确镜像80项全部通过；临时容器--rm，/transcode与/tmp隔离tmpfs，不挂载生产媒体。Windows包清单包含两项clean adapter及两项Operator worker脚本、既有Reset工具，未构建Electron或Windows完整分发包，客户端接口未改。
+
+浏览器直连本地真实clean Host（fresh独立数据、动态端口）完成登录、安全停机、停机收藏GET200、空Reset禁用、关闭进程后重启保留停机、明确恢复及health.normalSupplyAllowed=true；PASS且productionTouched=false。脚本/截图ignored .codex/ops-runtime-20261013/native-browser*，任务服务、浏览器及临时数据均已清理。Windows与Linux该版JS/CSS SHA256相同。
+
+UI负责人对81be初审提出首次Runtime未知时侧栏提前显示正常、另一会话恢复后弹窗确认未失效两项，实施方复核并修正。后端从未开放非stopped Reset旁路；本轮增加UI未知态、运行mode/revision变化使清单确认失效、重新核对及取消旧checkbox确认。受影响Vitest13通过；desktop/narrow Playwright增加首次延迟与跨会话变化，6项通过。旧版150项全Web结果保留，补项最终版全量及UI结论待补；不沿用81be为最终产品资格。新截图ignored .codex/ops-runtime-20261013/browser-v2/。

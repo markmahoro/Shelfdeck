@@ -49,3 +49,16 @@ it('does not apply a late preview to a reopened confirmation dialog',async()=>{
   fireEvent.click(screen.getByRole('button',{name:'取消'}));fireEvent.click(screen.getByRole('button',{name:'Reset 整理任务'}));
   await screen.findByText('新清单');release(preview);await waitFor(()=>expect(screen.queryByText('测试电影')).not.toBeInTheDocument());
 });
+
+it('invalidates an open confirmation when another session resumes and stops the service',async()=>{
+  const read=vi.spyOn(helixAdminApi,'getRuntimeStatus').mockResolvedValue(stopped);
+  const inspect=vi.spyOn(helixAdminApi,'previewFormationReset').mockResolvedValue(preview);
+  const reset=vi.spyOn(helixAdminApi,'resetFormation');const client=show();await screen.findByText('已安全停机');
+  fireEvent.click(screen.getByRole('button',{name:'Reset 整理任务'}));await screen.findByText('测试电影');fireEvent.click(screen.getByRole('checkbox'));
+  read.mockResolvedValue({...stopped,mode:'running',revision:2,normalSupplyAllowed:true});await client.refetchQueries({queryKey:['runtime-operations']});
+  await waitFor(()=>expect(screen.getByRole('button',{name:'确认 Reset'})).toBeDisabled());expect(screen.getByRole('checkbox')).toBeDisabled();
+  read.mockResolvedValue({...stopped,revision:3});await client.refetchQueries({queryKey:['runtime-operations']});
+  await screen.findByText('运行状态已变化，请重新核对清单。');expect(screen.getByRole('button',{name:'确认 Reset'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button',{name:'重新核对'}));await waitFor(()=>expect(inspect).toHaveBeenCalledTimes(2));
+  await waitFor(()=>expect(screen.getByRole('checkbox')).toBeEnabled());expect(screen.getByRole('checkbox')).not.toBeChecked();expect(reset).not.toHaveBeenCalled();
+});

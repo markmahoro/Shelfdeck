@@ -9,6 +9,17 @@ describe('Helix Overview product semantics', () => {
     activity:{inFlightEvents:0,inFlightRecoveries:0,inFlightOwnerReconciliations:0},operation:null,error:null,recoveryBackup:null});});
   afterEach(() => vi.restoreAllMocks());
 
+  it('keeps rail runtime unknown until the independent operational state is read',async()=>{
+    let release!:(value:Awaited<ReturnType<typeof helixAdminApi.getRuntimeStatus>>)=>void;
+    vi.mocked(helixAdminApi.getRuntimeStatus).mockReturnValue(new Promise(resolve=>{release=resolve;}));
+    vi.spyOn(helixAdminApi,'getOverview').mockResolvedValue({generatedAt:new Date().toISOString(),systemState:{kind:'running',label:'正常运行',href:'/'},
+      metrics:[],todos:[],ledger:[],pipeline:{waitingAcceptanceCount:0,organizingCount:0},setup:{activeMaterialFieldCount:1,activeShelfCount:1},backgroundOperations:null});
+    render(<MemoryRouter><App/></MemoryRouter>);await screen.findByRole('heading',{name:'概览',exact:true});
+    expect(document.querySelector('.rail-status')).toHaveTextContent('正在读取运行状态');expect(screen.queryByText('正常运行')).not.toBeInTheDocument();
+    release({mode:'stopped',desiredMode:'stopped',revision:1,normalSupplyAllowed:false,activity:{inFlightEvents:0,inFlightRecoveries:0,inFlightOwnerReconciliations:0},operation:null,error:null,recoveryBackup:null});
+    await waitFor(()=>expect(document.querySelector('.rail-status')).toHaveTextContent('已安全停机'));
+  });
+
   for (const state of ['failed','stale'] as const) it(`marks a ${state} server snapshot as unknown while retaining dated results`, async () => {
     vi.spyOn(helixAdminApi,'getOverview').mockResolvedValue({generatedAt:new Date(0).toISOString(),
       projection:{state,ageMs:31_000},systemState:{kind:'running',label:'正常运行',href:'/'},
@@ -16,7 +27,7 @@ describe('Helix Overview product semantics', () => {
       pipeline:{waitingAcceptanceCount:0,organizingCount:0},setup:{activeMaterialFieldCount:1,activeShelfCount:1},backgroundOperations:null});
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
     await screen.findByText(/概览更新/);
-    expect(document.querySelector('.rail-status')).toHaveTextContent('状态读取失败');
+    await waitFor(()=>expect(document.querySelector('.rail-status')).toHaveTextContent('状态读取失败'));
     expect(document.querySelector('.overview-status-row')).toHaveAttribute('data-kind','unknown');
     expect(screen.queryByText('正常运行')).not.toBeInTheDocument();
     expect(screen.getByText('82')).toBeInTheDocument();
@@ -44,7 +55,7 @@ describe('Helix Overview product semantics', () => {
     expect(await screen.findByRole('heading', { level: 1, name: '概览' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /尚未配置/ })).toBeInTheDocument();
     expect(document.querySelector('.system-state')).toHaveAttribute('data-kind', 'unconfigured');
-    expect(document.querySelector('.rail-status')).toHaveTextContent('尚未配置');
+    await waitFor(()=>expect(document.querySelector('.rail-status')).toHaveTextContent('尚未配置'));
     expect(screen.getByText('正式收藏')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /还没有文件来源/ })).toBeInTheDocument();
     expect(screen.queryByText('看系统是否就绪、有没有要你处理的事，以及最近上架了什么。')).not.toBeInTheDocument();
@@ -79,7 +90,7 @@ describe('Helix Overview product semantics', () => {
     });
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '概览' })).toBeInTheDocument();
-    expect(document.querySelector('.rail-status')).toHaveAttribute('data-kind', 'attention');
+    await waitFor(()=>expect(document.querySelector('.rail-status')).toHaveAttribute('data-kind', 'attention'));
     expect(document.querySelector('.rail-status')).toHaveTextContent('需要你处理');
     expect(document.querySelector('.system-state')).toHaveAttribute('data-kind', 'attention');
     expect(document.querySelector('.system-state')).toHaveAttribute('href', '/material-fields');
@@ -115,7 +126,7 @@ describe('Helix Overview product semantics', () => {
     });
     render(<MemoryRouter initialEntries={['/']}><App /></MemoryRouter>);
     expect(await screen.findByRole('heading', { level: 1, name: '概览' })).toBeInTheDocument();
-    expect(screen.getAllByText('正常运行')).toHaveLength(1);
+    await screen.findByText('正常运行');expect(screen.getAllByText('正常运行')).toHaveLength(1);
     expect(document.querySelector('.rail-status')).toHaveTextContent('正常运行');
     expect(document.querySelector('.system-state')).toBeNull();
     expect(screen.getByText(/后台检查 · 需要留意/)).toBeInTheDocument();

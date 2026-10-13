@@ -16,11 +16,17 @@ export default function RuntimeControls(){
   const [submitting,setSubmitting]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const [open,setOpen]=useState(false),[preview,setPreview]=useState<FormationResetPreview|null>(null),[checking,setChecking]=useState(false),[confirmed,setConfirmed]=useState(false);
   const previewRequest=useRef(0);
+  const currentStatus=useRef(status.data);currentStatus.current=status.data;
+  const [previewRevision,setPreviewRevision]=useState<number|null>(null);
   function closeDialog(){previewRequest.current++;setOpen(false);}
   useEffect(()=>()=>{previewRequest.current++;},[]);
   const dialog=useModalFocus<HTMLElement>(open,closeDialog,submitting);
   const mode=status.data?.mode;
-  const busy=submitting||Boolean(status.error)||Boolean(mode&&['starting','stopping','resuming','resetting'].includes(mode));
+  const busy=submitting||Boolean(mode&&['starting','stopping','resuming','resetting'].includes(mode));
+  const commandsDisabled=busy||Boolean(status.error);
+  const resetAllowed=mode==='stopped'&&!status.error;
+  const stateChanged=open&&(!resetAllowed||(preview!==null&&previewRevision!==status.data?.revision));
+  useEffect(()=>{if(stateChanged)setConfirmed(false);},[stateChanged]);
   const unauthorized=Boolean(status.error&&isUnauthorized(status.error));
   useEffect(()=>{if(unauthorized)expire();},[expire,unauthorized]);
   function report(cause:unknown){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'运行操作失败，请重试。');}
@@ -30,13 +36,17 @@ export default function RuntimeControls(){
     catch(cause){report(cause);}finally{setSubmitting(false);}
   }
   async function inspectReset(){
+    if(!resetAllowed)return;
     const request=++previewRequest.current;
+    const revision=status.data!.revision;setPreviewRevision(revision);
     setOpen(true);setPreview(null);setChecking(true);setConfirmed(false);setError('');setNotice('');
-    try{const value=await helixAdminApi.previewFormationReset();if(request===previewRequest.current)setPreview(value);}
+    try{const value=await helixAdminApi.previewFormationReset();if(request===previewRequest.current){
+      if(currentStatus.current?.mode!=='stopped'||currentStatus.current.revision!==revision)setError('运行状态已变化，请重新核对清单。');
+      else setPreview(value);}}
     catch(cause){if(request===previewRequest.current)report(cause);}finally{if(request===previewRequest.current)setChecking(false);}
   }
   async function reset(){
-    if(!preview?.ready||!confirmed)return;
+    if(!preview?.ready||!confirmed||!resetAllowed||stateChanged)return;
     setSubmitting(true);setError('');
     try{await helixAdminApi.resetFormation(preview.previewDigest,newOpaqueId('formation-reset-'));setOpen(false);await status.refetch();}
     catch(cause){report(cause);setConfirmed(false);}finally{setSubmitting(false);}
@@ -48,14 +58,14 @@ export default function RuntimeControls(){
   const active=(activity?.inFlightEvents||0)+(activity?.inFlightRecoveries||0)+(activity?.inFlightOwnerReconciliations||0)+(activity?.inFlightAdminCommands||0);
   return <>
     <section className="runtime-controls" aria-label="运行控制" aria-busy={busy}>
-      <div className="runtime-control-state" role="status" aria-live="polite"><strong>{mode?labels[mode]:'正在读取运行状态…'}</strong>
+      <div className="runtime-control-state" role="status" aria-live="polite"><strong>{status.error?'运行状态读取失败':mode?labels[mode]:'正在读取运行状态…'}</strong>
         {mode==='stopping'&&<small>{active?`等待 ${active} 项操作完成`:'正在收尾'}</small>}
       </div>
       <div className="runtime-control-actions">
-        {mode==='running'&&<Button type="button" disabled={busy} onClick={()=>void command('stop')}>安全停机</Button>}
-        {mode==='stopped'&&<Button variant="primary" type="button" disabled={busy} onClick={()=>void command('resume')}>恢复运行</Button>}
-        {mode==='error'&&!status.data?.recoveryBackup&&status.data?.error?.code!=='RUNTIME_RESET_INTERRUPTED'&&<Button type="button" disabled={busy} onClick={()=>void command('stop')}>重新停机</Button>}
-        <Button type="button" disabled={busy||mode!=='stopped'} onClick={()=>void inspectReset()}>Reset 整理任务</Button>
+        {mode==='running'&&<Button type="button" disabled={commandsDisabled} onClick={()=>void command('stop')}>安全停机</Button>}
+        {mode==='stopped'&&<Button variant="primary" type="button" disabled={commandsDisabled} onClick={()=>void command('resume')}>恢复运行</Button>}
+        {mode==='error'&&!status.data?.recoveryBackup&&status.data?.error?.code!=='RUNTIME_RESET_INTERRUPTED'&&<Button type="button" disabled={commandsDisabled} onClick={()=>void command('stop')}>重新停机</Button>}
+        <Button type="button" disabled={commandsDisabled||!resetAllowed} onClick={()=>void inspectReset()}>Reset 整理任务</Button>
         {status.error&&<Button type="button" onClick={()=>void status.refetch()}>重试读取</Button>}
       </div>
     </section>
@@ -70,14 +80,15 @@ export default function RuntimeControls(){
           <p>将清理以下 {preview.counts.subjects} 项上架整理及其工作区。</p>
           <ul className="runtime-reset-items" aria-label="将清理的整理任务">{preview.items.map(item=><li key={item.subjectId}>{item.displayIdentity}</li>)}</ul>
           <p>保留 {preview.protected.collectionCount} 条收藏、已结束历史和文件来源配置。完成后仍保持停机。</p>
-          {preview.ready&&<label className="runtime-reset-confirm"><input type="checkbox" checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>我已核对清单，确认清理以上未完成整理</label>}
+          {preview.ready&&<label className="runtime-reset-confirm"><input type="checkbox" disabled={stateChanged||submitting} checked={confirmed} onChange={e=>setConfirmed(e.target.checked)}/>我已核对清单，确认清理以上未完成整理</label>}
         </>}
         {preview.blockers.map(blocker=><p className="form-error" role="alert" key={blocker.code}>{blocker.message}</p>)}
       </>:null}
       {error&&<p className="form-error" role="alert">{error}</p>}
+      {stateChanged&&<p className="form-error" role="alert">{status.error?'运行状态读取失败，请重试。':resetAllowed?'运行状态已变化，请重新核对清单。':'服务尚未停稳，请先安全停机后重新核对。'}</p>}
       <div className="runtime-reset-actions"><Button type="button" disabled={submitting} onClick={closeDialog}>取消</Button>
-        {!checking&&error&&<Button type="button" disabled={submitting} onClick={()=>void inspectReset()}>重新核对</Button>}
-        <Button variant="danger" type="button" disabled={checking||submitting||!preview?.ready||!confirmed} onClick={()=>void reset()}>{submitting?'正在提交…':'确认 Reset'}</Button>
+        {!checking&&(error||stateChanged)&&<Button type="button" disabled={submitting||!resetAllowed} onClick={()=>void inspectReset()}>重新核对</Button>}
+        <Button variant="danger" type="button" disabled={checking||submitting||!preview?.ready||!confirmed||!resetAllowed||stateChanged} onClick={()=>void reset()}>{submitting?'正在提交…':'确认 Reset'}</Button>
       </div>
     </section></div>}
   </>;

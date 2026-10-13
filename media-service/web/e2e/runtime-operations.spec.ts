@@ -1,6 +1,31 @@
 import {expect,test} from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('unknown runtime and another-session changes cannot enable stale Reset confirmation',async({page})=>{
+  let mode='stopped',revision=1;
+  await page.route('**/v1/**',async route=>{
+    const url=new URL(route.request().url());
+    if(url.pathname==='/v1/admin/runtime'){
+      if(revision===1)await new Promise(resolve=>setTimeout(resolve,1200));
+      return route.fulfill({json:{mode,desiredMode:mode,revision,normalSupplyAllowed:mode==='running',activity:{},operation:null,error:null,recoveryBackup:null}});
+    }
+    if(url.pathname==='/v1/admin/runtime/reset-preview')return route.fulfill({json:{previewDigest:'c'.repeat(64),ready:true,empty:false,
+      items:[{subjectId:'one',displayIdentity:'待清理电影',contentProfile:'movie'}],counts:{subjects:1},protected:{collectionCount:8},blockers:[]}});
+    if(url.pathname==='/v1/admin/overview')return route.fulfill({json:{generatedAt:new Date().toISOString(),systemState:{kind:'running',label:'正常运行',href:'/'},
+      metrics:[],todos:[],ledger:[],pipeline:{waitingAcceptanceCount:0,organizingCount:0},setup:{activeMaterialFieldCount:1,activeShelfCount:1},backgroundOperations:null}});
+    return route.fulfill({json:{items:[],state:'ready'}});
+  });
+  await page.goto('/');await expect(page.locator('.rail-status')).toHaveText('正在读取运行状态…');
+  await expect(page.getByRole('button',{name:'Reset 整理任务'})).toBeDisabled();
+  await expect(page.getByRole('button',{name:'Reset 整理任务'})).toBeEnabled();await page.getByRole('button',{name:'Reset 整理任务'}).click();
+  await page.getByRole('checkbox').check();await expect(page.getByRole('button',{name:'确认 Reset'})).toBeEnabled();
+  mode='running';revision=2;await expect(page.getByRole('button',{name:'确认 Reset'})).toBeDisabled({timeout:7000});
+  await expect(page.getByRole('checkbox')).toBeDisabled();mode='stopped';revision=3;
+  await expect(page.getByText('运行状态已变化，请重新核对清单。')).toBeVisible({timeout:7000});
+  await page.getByRole('button',{name:'重新核对'}).click();await expect(page.getByRole('checkbox')).toBeEnabled();
+  await expect(page.getByRole('checkbox')).not.toBeChecked();await expect(page.getByRole('button',{name:'确认 Reset'})).toBeDisabled();
+});
+
 test('overview guides safe stop, exact Reset confirmation and resume',async({page},testInfo)=>{
   let mode='running',resetCount=0;
   const activity={inFlightEvents:0,inFlightRecoveries:0,inFlightOwnerReconciliations:0};
