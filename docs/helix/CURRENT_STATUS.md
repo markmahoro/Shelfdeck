@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-13用户在已知完整本地副本Host/回退演练未完成后，明确指示直接上生产。标准发布2f9560bcb36a2ef09ef4f538021a88f75c5a9136完成，NAS镜像sha256:48e229fce27309ca1860d73f0cfebb93f9fb34d76ac3cc65ef5536531aa38462，tar SHA256 ac797372cc19715a241f3b25217154127df0161175199890cc0485f6e76204f2。备份integrity ok/FK0、checksum/dry run/readiness/health/normalSupplyAllowed/Admin/五挂载/QSV通过，RestartCount0；CIFS稳定v2证据纠正已正式apply。生产518 Entry/518 Commit/38218 Material/655 Run与冻结备份一致，五项媒体未人工重处理，MoviePilot及其他服务正常。完整镜像57项、部署工具双平台各3项通过；UI资产与aef验收逐字节一致。真实浏览器6轮整理中0.326–0.844秒，收藏10次有效样本0.246–1.779秒，仍未稳定1秒且海报更慢；网络timing发现部分API发送前排队1.2–1.5秒，与同源海报请求并发重叠，UAT-318开放。UAT-319永久修复已上线，真实再次重挂载资格未做，不声称文件来源恢复自愈已实现。盘Avail约20GiB，暂不全面清理。详见318/319 Evidence；原版退出超时及readiness工具缺陷均保留记录，部署工具修复commit2bb44c61d，不改本次产品镜像身份。
+
 2026-10-13用户提供本机Z:\（群晖Media映射）。最终2f9560bcb本地只读Docker探针确认/media/Film可访问，但Docker Desktop实际呈现ext4 /dev/sde、mountRoot=/mnt/host/uC/192.168.12.45/Media，不是生产CIFS证据，不能用于证明原Scope完整Host启动通过。已请求本机SMB凭据文件路径以作Linux只读挂载，不接收聊天密码、不跳过身份合同。最终候选与已验收aef74a3ef的JS/CSS SHA256逐字节一致，无新增前端差异；生产复核health200/status ok/normalSupplyAllowed=true。候选仍未部署，完整Host及生产1秒验收待完成。
 
 2026-10-13最终局部候选2f9560bcb已在本机标准构建：tar562221568 bytes/SHA256 ac797372cc19715a241f3b25217154127df0161175199890cc0485f6e76204f2，Linux精确镜像相关57通过。最新518 Entry快照完整Collection/健康筛选/overview各四次old/new对照输出全部一致；最终最近浏览77–87→50ms、筛选655–726→398–411ms、overview560–604→292–294ms，overview SQL1071→273，事实正文读取约减少90%。这些是本机只读完整查询测量，不是HTTP/浏览器实际内容或生产1秒资格。完整本地Host演练仍缺群晖SMB凭据配置文件路径，问题已向用户提出；不重启NAS副本演练、不跳过发布门禁，候选尚未上传/部署，318/319保持开放。生产仍已恢复的505原版，本机任务查询容器已停止保留后续验证用。

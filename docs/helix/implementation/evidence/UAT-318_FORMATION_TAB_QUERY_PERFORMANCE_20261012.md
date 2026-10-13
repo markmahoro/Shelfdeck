@@ -134,6 +134,14 @@ Windows Node25默认zh-CN的首次完整读取报P6_PERCEPTION_RECORD_DIGEST_MIS
 
 正式纠正apply返回相同receiptDigest/applied=true。第一次标准deploy apply在readiness副本捕获报SQLITE_CANTOPEN，尚未recreate正式容器；已定位关闭后的WAL-mode DB没有辅助文件，来源只读导致SQLite无法创建SHM。修复工作站部署入口注入的create-readiness-snapshot.js：无WAL/SHM时复制独立数据库、核验SHA256及size/mtime/ctime/辅助文件不变；有辅助文件时保留SQLite backup。捕获后仍执行原readiness检查，无跳过合同或修改源数据。Windows及Linux各3项通过（在线未提交隔离、关闭WAL源字节/辅助文件保护、复制期间写入拒绝）。Linux使用精确2f镜像加只读部署工具/测试绑定，属于部署工具验证，未将其记为新产品镜像；再次dry run及标准apply继续。
 
+最终标准apply完成：readiness ready、health200/status ok/normalSupplyAllowed=true、Admin及五挂载/QSV通过。正式容器2026-10-13T05:08:58.52928435Z启动，NAS Image sha256:48e229fce27309ca1860d73f0cfebb93f9fb34d76ac3cc65ef5536531aa38462，RestartCount0/OOMKilled=false；启动校验约5分钟，独立于热页面SLO。MoviePilot200及其他既有服务正常；/media及/adult_media实际smb2。最终生产518 Entry/518 Commit/38218 Material/655 Run与冻结备份相同，未人工重处理五项媒体；Avail约20GiB，保留旧镜像/备份，不全面清理。
+
+真实Chromium1440x900生产测量：第一轮脚本仅等待aria-busy，整理中提前读取加载行得到60–62ms，四项整理中样本作废并保留原记录；该轮收藏等待本次JSON响应完成及48个真实tile，994/746/1463/1779ms有效。修正整理中为等待本次formation+care响应完成、aria-busy=false及两帧绘制，四轮为411/842/844/345ms、均6条真实行且完成时无错误空态；收藏346/1464/780/246ms、均48条。追加两轮网络timing取证：整理中326/477ms，收藏680/347ms。六轮整理中0.326–0.844秒，十次有效收藏0.246–1.779秒，不构成持续SLO窗口通过。
+
+网络取证发现从收藏返回工作区时，active请求1501ms中requestStart=1198ms，responseStart-requestStart约302ms；completed2027ms中发送前1501ms、TTFB523ms；ended/care发送前约1505ms。同时同源海报在途，说明浏览器发送前排队是剩余延迟的一部分，不能归因于所有时间都在SQL，也不能认定它是唯一原因。首轮海报另有1.6–11.6秒长尾；收藏标题/列表完成时间不等于所有海报完成时间。后续需处理海报并发与管理请求竞争，并复核服务TTFB/后台竞争，UAT-318保持开放。本次仅部署既有候选及修复部署工具，不增加资源管理体系。
+
+回退保留原505 tar及完整备份配置。若需代码回退，先停止ShelfDeck，在同一Media Scope上通过显式工具--rollback-legacy-runtime转换到实际设备的runtime-v1证据，再使用标准deploy-nas.js发布原505已校验tar；不把旧DB恢复当成常规代码回退，不回滚媒体副作用。该回退步骤本次未实际演练，用户直接部署覆盖本次前置演练要求，不修改后续一般门禁。
+
 追加Perception局部开发验证：两个批量评分入口使用每批500个Record及完整Anchors，复用scalar reader的typed校验与原recordDigestFor；按SQLite PK排序保留Anchor数组顺序。新501实际Record覆盖多Anchor、重复输入、缺失target、无关坏Record不旁读、选中坏Record仍拒绝；原撤销/更正关系与最新排序通过。Windows相关40项通过。单次调用内临时Map不是持久业务缓存。
 
 本机task-owned b471容器替换该单文件后开发对照（非最终镜像资格）：完整old/new/new/old，最近浏览89/51/49/70ms、健康筛选749/392/394/700ms、overview597/291/301/592ms，全部12份完整输出digest保持前述值。SQL127→64、1037→154、1071→273，事实正文量保持前述减少；不把此计数解释为50/200规模SQL增长资格已经通过。尚待冻结最终产品SHA、精确镜像、完整Host及生产前端实测。
