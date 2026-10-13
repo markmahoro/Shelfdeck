@@ -76,6 +76,7 @@ COPY media-service/scripts/helix-prod047-aftercare-reclaim-residual-correction.j
 COPY media-service/scripts/helix-prod064-aftercare-placement-incident-correction.js ./scripts/helix-prod064-aftercare-placement-incident-correction.js
 COPY media-service/scripts/helix-prod064-aftercare-settlement-residual-correction.js ./scripts/helix-prod064-aftercare-settlement-residual-correction.js
 COPY media-service/scripts/helix-observation-storage-compact.js ./scripts/helix-observation-storage-compact.js
+COPY media-service/scripts/helix-cifs-mount-probe-correction.js ./scripts/helix-cifs-mount-probe-correction.js
 COPY --from=web-builder /build/dist/admin ./dist/admin
 
 RUN mkdir -p /app/data
