@@ -38,7 +38,8 @@ function main(args) {
       repository = { getMountScope: (id) => active.find((r) => r.mountScopeId === id), listMountScopes: () => active };
     }
     const service = createCifsMountProbeCorrection({ repository, probe: createCleanLocalFilesystemMountProbe() });
-    console.log(JSON.stringify(apply ? service.apply(request) : { ...service.inspect(request), applied:false }));
+    const rollback = args.includes('--rollback-legacy-runtime');
+    console.log(JSON.stringify(apply ? service.apply(request, rollback) : { ...service.inspect(request, rollback), applied:false }));
   } finally { kernel?.close(); db?.close(); }
 }
 

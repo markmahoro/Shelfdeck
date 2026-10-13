@@ -95,10 +95,11 @@ function createCleanLocalFilesystemMountProbe(options = {}) {
       filesystemType: linux?.filesystemType || filesystemType,
     };
     if (legacyDeviceIdentity !== undefined) {
-      if (linux?.filesystemType !== 'cifs' || !/^\d+:\d+$/.test(legacyDeviceIdentity)) {
+      if (linux?.filesystemType !== 'cifs' ||
+          (legacyDeviceIdentity !== 'runtime' && !/^\d+:\d+$/.test(legacyDeviceIdentity))) {
         fail('HELIX_CIFS_PROBE_CORRECTION_INVALID', 'Explicit legacy device evidence requires a Linux CIFS root.');
       }
-      evidence.deviceIdentity = legacyDeviceIdentity;
+      evidence.deviceIdentity = legacyDeviceIdentity === 'runtime' ? linux.deviceIdentity : legacyDeviceIdentity;
     } else if (linux?.filesystemType === 'cifs') {
       evidence.schema = 'platform.local-filesystem-mount-evidence@2';
       delete evidence.deviceIdentity;
@@ -134,6 +135,7 @@ function createCleanLocalFilesystemMountProbe(options = {}) {
   return Object.freeze({
     inspectRoot: (rootLocation) => inspect(rootLocation),
     inspectLegacyCifsRoot: (rootLocation, legacyDeviceIdentity) => inspect(rootLocation, legacyDeviceIdentity),
+    inspectRuntimeLegacyCifsRoot: (rootLocation) => inspect(rootLocation, 'runtime'),
   });
 }
 

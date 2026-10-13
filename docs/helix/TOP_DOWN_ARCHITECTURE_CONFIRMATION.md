@@ -7296,6 +7296,9 @@ Physical Material Identity的Beta可执行合同固定为：
   原Registry，同时核验endpoint/boundary/inode能力；全部一致才CAS纠正两个错误digest，保留原Scope ID、
   revision及effective time。该操作修正派生技术证据，不是replacement、业务数据迁移或自动恢复；必须有
   dry run、冻结备份与纠正前后审计，不得扫描猜测旧设备号或在正常启动中自动纠正。
+  代码回退至旧probe版本时，同一显式工具可将已验证的同一CIFS证据转换为当前运行时v1格式；必须保留
+  同一Scope/revision并记录`legacy-runtime-v1`回退目标，不构成正常启动fallback或稳定性修复完成。恢复新probe
+  版本前显式转回`stable-cifs-v2`，不得通过恢复旧业务数据库完成代码回退。
 - 每次Observation统一重新计算bounded fingerprint，不建立“存量/增量”两套执行模式；新增、变化、不变和
   missing只是与上一轮Inventory对账后的结果；
 - 每次采样前后都必须重验`mountScopeId+inode+size+mtimeNs+ctimeNs` stat fence。任一字段在采样期间变化，

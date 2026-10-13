@@ -135,6 +135,15 @@ test('Explicit CIFS correction preserves all Scope references and survives the n
   state.device = '0:121';
   assert.deepEqual(resolver.validateReference(reference), reference);
   assert.deepEqual(resolver.resolveRoot({ rootLocation:'/media/Film' }), reference);
+  const rollback = service.apply(request, true);
+  assert.equal(rollback.targetProfile, 'legacy-runtime-v1');
+  assert.equal(rollback.after.stableMountFingerprint, probe.inspectRuntimeLegacyCifsRoot('/media/Film').stableMountFingerprint);
+  assert.equal(rollback.after.mountScopeId, original.mountScopeId);
+  assert.equal(rollback.after.revision, 1);
+  assert.deepEqual(service.apply(request, true).after, rollback.after);
+  const stableRequest = { ...request, legacyDeviceIdentity:'0:121' };
+  service.apply(stableRequest);
+  assert.deepEqual(service.apply(stableRequest).after, corrected.after);
   state.source = '//nas/Other';
   assert.throws(() => resolver.validateReference(reference), { code:'HELIX_MOUNT_SCOPE_UNSAFE' });
   assert.throws(() => service.apply(request), { code:'HELIX_CIFS_PROBE_CORRECTION_INVALID' });
