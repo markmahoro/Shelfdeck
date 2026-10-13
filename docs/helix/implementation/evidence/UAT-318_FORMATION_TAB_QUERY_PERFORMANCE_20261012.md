@@ -122,6 +122,18 @@ old/new/new/old：最近48项浏览102/52/51/73ms，健康attention筛选760/403
 
 Windows Node25默认zh-CN的首次完整读取报P6_PERCEPTION_RECORD_DIGEST_MISMATCH；相同数据库及ICU78.2在Node20/en-US通过。保留该环境差异失败，不忽略digest或修改历史记录，不能把Windows查询对照算通过。后续前端及最终Linux数据路径继续验证。完整本地Host发布演练仍缺同一群晖共享的Linux登录配置，已向用户询问本机凭据文件路径；既有WindowsDomain凭据不能供Linux只读挂载使用，不请求在聊天发送密码。
 
+用户随后提供Z:\映射。最终精确2f9560bcb镜像以network none、256MiB、1CPU、只读Z:/→/media探针确认Film可读；/proc/self/mountinfo显示ext4 /dev/sde及/mnt/host/uC/192.168.12.45/Media根，设备号2112。Windows映射经Docker Desktop转换，不能等同于生产CIFS Mount Scope，不改写历史Scope、不绕过探针。已继续请求仅本机凭据文件路径；该探针不是完整Host资格。
+
+最终2f9560bcb与已验收aef74a3ef精确镜像的前端资产一致：index-DWXi77Md.js SHA256 da9ade83362f7b2b5ee55d8ea89e28e6db2fea29891ee5aaa0875150eb318f85；index-D6t0BdHs.css SHA256 2741749991f5156a27ba41745eb756ed8dd5d91c50e9dfe29fab75711d5a0ba8。无新增前端差异，不重复执行已有相同资产的交互测试。生产只读复核health200/status ok/normalSupplyAllowed=true；未升级候选，未新增生产前端性能通过结论。
+
+2026-10-13用户明确建议“直接上生产”，在完整本地生产副本Host/回退验证尚未完成的已知背景下，指示执行本次直接生产升级。此次为用户指令覆盖该项演练要求，不修改一般发布规范，不补记演练通过；保留57项最终Linux测试、完整查询等价、前端相同资产验收等已有证据，继续标准build/upload/checksum/dry run/apply及真实生产验证，不重处理五项媒体。
+
+直接升级备份：/vol1/1000/docker/shelfdeck/backups/uat318-2f9560bcb-direct-predeploy，冻结后完整复制数据库/WAL及45项伴随文件、Compose和Secret。旧505服务在docker stop -t 60后ExitCode137、OOMKilled=false，留下4177712-byte WAL；备份副本执行checkpoint后integrity ok/FK0，2026-10-13T04:58:31.925Z数据库2887331840 bytes/SHA256 56111c33f0dd7e8aae0d833acbdb2bea919cb55d6e813ebc9d2d7178c8800bf7，518 Entry/518 Commit/38218 Material/655 Run。原始冻结DB及WAL先一起保留，未修改业务历史或Reset；安全停机缺口保持待优化。
+
+2f9560bcb tar上传及NAS校验一致；Media CIFS Scope revision1纠正预检通过，当前runtime-v1设备0:81对应摘要8a5a37…/1b8205…，目标stable-cifs-v2摘要727ee62…/10d2060…，receiptDigest da36f67cff8ba2c5542c6db293def2742af30d61dd5cdff1691ced42046ec4b0。仅两摘要改变，ID/revision/endpoint/boundary/inode/effectiveAt保持；正式apply及新Host启动状态另续记。
+
+正式纠正apply返回相同receiptDigest/applied=true。第一次标准deploy apply在readiness副本捕获报SQLITE_CANTOPEN，尚未recreate正式容器；已定位关闭后的WAL-mode DB没有辅助文件，来源只读导致SQLite无法创建SHM。修复工作站部署入口注入的create-readiness-snapshot.js：无WAL/SHM时复制独立数据库、核验SHA256及size/mtime/ctime/辅助文件不变；有辅助文件时保留SQLite backup。捕获后仍执行原readiness检查，无跳过合同或修改源数据。Windows及Linux各3项通过（在线未提交隔离、关闭WAL源字节/辅助文件保护、复制期间写入拒绝）。Linux使用精确2f镜像加只读部署工具/测试绑定，属于部署工具验证，未将其记为新产品镜像；再次dry run及标准apply继续。
+
 追加Perception局部开发验证：两个批量评分入口使用每批500个Record及完整Anchors，复用scalar reader的typed校验与原recordDigestFor；按SQLite PK排序保留Anchor数组顺序。新501实际Record覆盖多Anchor、重复输入、缺失target、无关坏Record不旁读、选中坏Record仍拒绝；原撤销/更正关系与最新排序通过。Windows相关40项通过。单次调用内临时Map不是持久业务缓存。
 
 本机task-owned b471容器替换该单文件后开发对照（非最终镜像资格）：完整old/new/new/old，最近浏览89/51/49/70ms、健康筛选749/392/394/700ms、overview597/291/301/592ms，全部12份完整输出digest保持前述值。SQL127→64、1037→154、1071→273，事实正文量保持前述减少；不把此计数解释为50/200规模SQL增长资格已经通过。尚待冻结最终产品SHA、精确镜像、完整Host及生产前端实测。

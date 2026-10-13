@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-13用户提供本机Z:\（群晖Media映射）。最终2f9560bcb本地只读Docker探针确认/media/Film可访问，但Docker Desktop实际呈现ext4 /dev/sde、mountRoot=/mnt/host/uC/192.168.12.45/Media，不是生产CIFS证据，不能用于证明原Scope完整Host启动通过。已请求本机SMB凭据文件路径以作Linux只读挂载，不接收聊天密码、不跳过身份合同。最终候选与已验收aef74a3ef的JS/CSS SHA256逐字节一致，无新增前端差异；生产复核health200/status ok/normalSupplyAllowed=true。候选仍未部署，完整Host及生产1秒验收待完成。
+
 2026-10-13最终局部候选2f9560bcb已在本机标准构建：tar562221568 bytes/SHA256 ac797372cc19715a241f3b25217154127df0161175199890cc0485f6e76204f2，Linux精确镜像相关57通过。最新518 Entry快照完整Collection/健康筛选/overview各四次old/new对照输出全部一致；最终最近浏览77–87→50ms、筛选655–726→398–411ms、overview560–604→292–294ms，overview SQL1071→273，事实正文读取约减少90%。这些是本机只读完整查询测量，不是HTTP/浏览器实际内容或生产1秒资格。完整本地Host演练仍缺群晖SMB凭据配置文件路径，问题已向用户提出；不重启NAS副本演练、不跳过发布门禁，候选尚未上传/部署，318/319保持开放。生产仍已恢复的505原版，本机任务查询容器已停止保留后续验证用。
 
 2026-10-13原版恢复完成：仅以Platform显式工具纠正Media Scope两个错误digest为当前runtime-v1，ID/revision保留；505844a8b于03:57:09.204 UTC启动，04:02 UTC前后health200/status ok/normalSupplyAllowed=true，Admin及MoviePilot页面200，RestartCount0，两个媒体挂载均SMB。不等于CIFS稳定指纹新版已发布。后续转本地性能验证：最新518条完整查询old/new结果一致，最近浏览73–102→51–52ms、健康筛选708–760→393–403ms、overview584–627→303–306ms，overview事实正文139780924→13951089 bytes；仍有1,000多条SQL，定位Perception逐Record读取并在其Owner Store内补批量读取，Windows相关34通过，未构建最终新候选或部署。Windows zh-CN与Linux en-US的历史Record排序摘要差异保留失败证据，Linux完整查询通过，不跳过校验。

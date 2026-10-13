@@ -107,6 +107,8 @@ node scripts/upload-nas-image.js dist-image\shelfdeck-<tag>.tar
 
 完整Host还应覆盖ready之后至少一轮正常Owner/Intake reconciliation，并核对当前未终结业务是否仍读取旧成功Evidence；不能因Supporting Work已经terminal就推断该Result可供新合同继续消费。UAT-125/250上线后旧pre-Subject占位的实际教训与精确副本验证见[286发布记录](../helix/implementation/evidence/UAT_RELEASE_286FE56F1E_20260912.md#上线后存量接收阻碍)。有需清理的旧条目时先冻结当前范围并演练，再按具体生产数据授权处理，不用上线后反复Reset代替这项检查。
 
+readiness副本捕获不得向只读生产来源创建SQLite辅助文件。来源含WAL/SHM时通过SQLite backup读取已提交快照；两者均不存在时，将独立数据库复制到可写检查目录，校验来源/副本SHA256及来源size/mtime/ctime不变，并再次确认没有出现WAL/SHM，漂移报READINESS_SOURCE_CHANGED。该捕获步骤不代替后续readiness内完整性/合同检查，也不构成完整Host演练通过。
+
 上述验证通过后，dry run 检查将要执行的生产步骤：
 
 ```bash

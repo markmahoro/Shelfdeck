@@ -32,3 +32,42 @@ test('readiness snapshot includes committed WAL facts without copying runtime pa
     fs.rmSync(root, { recursive: true, force: true });
   }
 });
+
+test('closed WAL snapshot preserves source bytes and creates no source auxiliaries', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'readiness-closed-wal-'));
+  const source = path.join(root, 'source'), target = path.join(root, 'snapshot');
+  fs.mkdirSync(source);
+  const file = path.join(source, 'shelfdeck.db');
+  const database = new Database(file);
+  database.pragma('journal_mode = WAL');
+  database.exec("CREATE TABLE fact(value TEXT); INSERT INTO fact VALUES ('closed-committed')");
+  database.close();
+  fs.writeFileSync(path.join(source, 'admin-credential-secret.json'), '{"test":true}');
+  const bytes = fs.readFileSync(file);
+  try {
+    assert.equal(fs.existsSync(file + '-wal'), false);
+    await createReadinessSnapshot(source, target);
+    assert.deepEqual(fs.readFileSync(file), bytes);
+    assert.equal(fs.existsSync(file + '-wal'), false);
+    assert.equal(fs.existsSync(file + '-shm'), false);
+    const copy = new Database(path.join(target, 'shelfdeck.db'));
+    try { assert.deepEqual(copy.prepare('SELECT value FROM fact').all(), [{value:'closed-committed'}]); }
+    finally { copy.close(); }
+  } finally { fs.rmSync(root, { recursive:true, force:true }); }
+});
+
+test('standalone copy rejects a source changed during capture', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'readiness-racing-source-'));
+  const source = path.join(root, 'source'), target = path.join(root, 'snapshot');
+  fs.mkdirSync(source);
+  const file = path.join(source, 'shelfdeck.db'), database = new Database(file);
+  database.exec("CREATE TABLE fact(value TEXT); INSERT INTO fact VALUES ('before')");database.close();
+  fs.writeFileSync(path.join(source, 'admin-credential-secret.json'), '{"test":true}');
+  const original = fs.copyFileSync;
+  fs.copyFileSync = function(from, to, ...args) {
+    original(from, to, ...args);
+    if (from === file) { const writer = new Database(file);try { writer.exec("INSERT INTO fact VALUES ('after')"); } finally { writer.close(); } }
+  };
+  try { await assert.rejects(createReadinessSnapshot(source, target), /READINESS_SOURCE_CHANGED/); }
+  finally { fs.copyFileSync = original;fs.rmSync(root,{recursive:true,force:true}); }
+});
