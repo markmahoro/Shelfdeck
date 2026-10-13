@@ -113,3 +113,15 @@ UI负责人指出初次未知数量0及初次失败真空态边界；后续6ce4a
 ## 2026-10-13 用户授权生产重启与挂载启动阻塞
 
 用户因NAS重启时SMB未正确挂载，明确要求先重启ShelfDeck及MoviePilot。重启前宿主两处挂载均为cifs；MoviePilot重启后/media为SMB且HTTP200。ShelfDeck旧容器/media及/adult_media仍为本地ext文件系统，重启后两者均恢复SMB，但启动失败HELIX_MOUNT_SCOPE_UNSAFE，不能宣称服务已恢复。只读核对当前Field/Shelf四个reference：filesystem type、endpoint、mount boundary、inode能力均相同，仅stable_mount_fingerprint及probe_evidence_digest变化。对同一mountRoot/sourceIdentity/filesystemType重算证据，旧deviceIdentity=0:93精确命中已存fingerprint，当前Linux设备号为0:81。现有probe将重启不稳定设备号当成稳定证据，问题尚未修复；没有改写Registry、绕过校验或Reset。版本仍505844a8b，aef候选未部署。任务自建本机shelfdeck-uat318-aef-host已停止并删除，中断演练不计通过，未重处理五项媒体。
+
+## 2026-10-13原版恢复后本机完整查询对照
+
+用户明确先恢复原生产版本、修复在本机验证，再升级及单独生产前端验收。原版505已通过明确的Platform证据纠正恢复，详情319；没有混合为新性能包发布。NAS full Host副本演练已停止，不计通过。最新完整518 Entry/655 Run快照本地SHA/integrity/FK与45 companion通过；本机Docker native copy上以精确b471镜像Node20/en-US执行真实Collection Query、Aftercare Context/Health、Perception rating及Libra Product Delivery读取，冻结相同now与完整输出digest。
+
+old/new/new/old：最近48项浏览102/52/51/73ms，健康attention筛选760/403/393/708ms，overview627/303/306/584ms；12次完整输出全部一致。事实正文最近10851129→2347086 bytes，健康筛选153469343→27639508，overview139780924→13951089 bytes。局部SQL统计127→136、1037→1056、1071→1165，不能宣称全局SQL资格已满足；剩余逐Record读取在Perception的findCurrentTargetRatings/readCurrentResolvedRatings。后续仍在其Owner Store内按500批读取完整Record及Anchors，继续使用原digest校验、supersedes/retracts与最新排序，不新增评分缓存或跨Owner决策。新501真实Record测试与原相关测试Windows34通过，未构建最终新镜像。
+
+Windows Node25默认zh-CN的首次完整读取报P6_PERCEPTION_RECORD_DIGEST_MISMATCH；相同数据库及ICU78.2在Node20/en-US通过。保留该环境差异失败，不忽略digest或修改历史记录，不能把Windows查询对照算通过。后续前端及最终Linux数据路径继续验证。完整本地Host发布演练仍缺同一群晖共享的Linux登录配置，已向用户询问本机凭据文件路径；既有WindowsDomain凭据不能供Linux只读挂载使用，不请求在聊天发送密码。
+
+追加Perception局部开发验证：两个批量评分入口使用每批500个Record及完整Anchors，复用scalar reader的typed校验与原recordDigestFor；按SQLite PK排序保留Anchor数组顺序。新501实际Record覆盖多Anchor、重复输入、缺失target、无关坏Record不旁读、选中坏Record仍拒绝；原撤销/更正关系与最新排序通过。Windows相关40项通过。单次调用内临时Map不是持久业务缓存。
+
+本机task-owned b471容器替换该单文件后开发对照（非最终镜像资格）：完整old/new/new/old，最近浏览89/51/49/70ms、健康筛选749/392/394/700ms、overview597/291/301/592ms，全部12份完整输出digest保持前述值。SQL127→64、1037→154、1071→273，事实正文量保持前述减少；不把此计数解释为50/200规模SQL增长资格已经通过。尚待冻结最终产品SHA、精确镜像、完整Host及生产前端实测。

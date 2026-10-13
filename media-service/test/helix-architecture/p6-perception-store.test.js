@@ -110,6 +110,39 @@ test('batch rating reads retain retractions and missing targets across bounded p
   });
 });
 
+test('batch target ratings read complete Records and Anchors in bounded groups and retain digest validation',()=>{
+  fixture(({store,unitOfWork,databasePath})=>{
+    register(store);start(store);
+    const ids=Array.from({length:501},(_,index)=>'target-'+index);
+    const records=ids.map((id,index)=>record('rating-'+index,{anchors:[
+      {anchorKind:'title',anchorValue:'中文 '+index,confidenceClass:'weak',evidenceDigest:hash('title:'+index)},
+      {anchorKind:'shelf_entry_id',anchorValue:id,confidenceClass:'exact',evidenceDigest:hash(id)},
+      {anchorKind:'title',anchorValue:'English '+index,confidenceClass:'weak',evidenceDigest:hash('alias:'+index)},
+    ]}));
+    page(store,{records:[...records,record('unrelated')]});
+    const expected=new Map(ids.map((id,index)=>[id,store.getRecord('rating-'+index)]));
+    const calls=[],limited=createPerceptionStore({schemaManifest,unitOfWork:{execute(parts){return unitOfWork.execute(parts.map(part=>({
+      ...part,execute(context){return part.execute({...context,repository(id){const repo=context.repository(id);return {...repo,
+        invoke(name,parameters){assert.ok(!['find_record','find_anchors','list_records','list_anchors'].includes(name));
+          if(parameters.values)assert.ok(parameters.values.length<=500);calls.push(name);return repo.invoke(name,parameters);}};}});},
+    })));}}});
+    const result=limited.findCurrentTargetRatings('shelf_entry',[...ids,ids[0],'missing']);
+    for(const id of ids)assert.deepEqual(result.get(id),expected.get(id));
+    assert.equal(result.get('missing'),null);
+    assert.equal(result.size,502);
+    assert.equal(calls.filter(name=>name==='find_records_many').length,2);
+    assert.equal(calls.filter(name=>name==='find_anchors_many').length,2);
+    assert.equal(calls.length,8);
+    const database=new Database(databasePath);
+    try{
+      database.prepare('UPDATE perception_records SET rating=1 WHERE perception_id=?').run('unrelated');
+      assert.deepEqual(limited.findCurrentTargetRatings('shelf_entry',[ids[0]]).get(ids[0]),expected.get(ids[0]));
+      database.prepare('UPDATE perception_records SET rating=1 WHERE perception_id=?').run('rating-0');
+      assert.throws(()=>limited.findCurrentTargetRatings('shelf_entry',[ids[0]]),{code:'P6_PERCEPTION_RECORD_DIGEST_MISMATCH'});
+    }finally{database.close();}
+  });
+});
+
 test('binds exactly two Owner repositories to all nine Perception tables', () => {
   fixture(({ store }) => {
     assert.deepEqual(store.repositoryManifest.components, [

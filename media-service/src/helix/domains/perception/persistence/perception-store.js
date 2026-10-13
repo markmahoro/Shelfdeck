@@ -40,10 +40,14 @@ function recordDefinition(schemaManifest) {
     find_record: { kind: 'select-one', tableId: 'perception_records', columns: ['perception_id','perception_source_id','perception_acquisition_id','acquisition_commit_receipt_id','record_kind','source_kind','source_record_key','source_record_revision','source_record_digest','normalization_rule_ref','rating','watched_state','observed_title','provenance_ref','provenance_digest','record_digest','observed_at_ms','committed_at_ms'], keyColumns: ['perception_id'] },
     find_record_identity: { kind: 'select-one', tableId: 'perception_records', columns: ['perception_id'], keyColumns: ['perception_source_id','source_record_key','source_record_revision','source_record_digest'] },
     find_records_by_source_key: { kind: 'select-all', tableId: 'perception_records', columns: ['perception_id','perception_source_id','perception_acquisition_id','acquisition_commit_receipt_id','record_kind','source_kind','source_record_key','source_record_revision','source_record_digest','normalization_rule_ref','rating','watched_state','observed_title','provenance_ref','provenance_digest','record_digest','observed_at_ms','committed_at_ms'], keyColumns: ['perception_source_id','source_record_key'] },
+    find_records_many: { kind:'select-in', tableId:'perception_records', keyColumn:'perception_id', maxItems:500,
+      columns:['perception_id','perception_source_id','perception_acquisition_id','acquisition_commit_receipt_id','record_kind','source_kind','source_record_key','source_record_revision','source_record_digest','normalization_rule_ref','rating','watched_state','observed_title','provenance_ref','provenance_digest','record_digest','observed_at_ms','committed_at_ms'] },
     list_records: { kind: 'select-all', tableId: 'perception_records', columns: ['perception_id','perception_source_id','perception_acquisition_id','acquisition_commit_receipt_id','record_kind','source_kind','source_record_key','source_record_revision','source_record_digest','normalization_rule_ref','rating','watched_state','observed_title','provenance_ref','provenance_digest','record_digest','observed_at_ms','committed_at_ms'], keyColumns: [] },
     list_acquisitions: { kind: 'select-all', tableId: 'perception_acquisitions', columns: ['perception_acquisition_id','perception_source_id','source_config_revision','scope_schema_ref','scope_json','scope_digest','initial_cursor_revision','initial_cursor_value','state','created_at_ms','terminal_at_ms'], keyColumns: [] },
     insert_anchor: { kind: 'insert', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'] },
     find_anchors: { kind: 'select-all', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'], keyColumns: ['perception_id'] },
+    find_anchors_many: { kind:'select-in', tableId:'perception_identity_anchors', keyColumn:'perception_id', maxItems:500,
+      columns:['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'] },
     find_anchors_by_kind: { kind: 'select-all', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'], keyColumns: ['anchor_kind'] },
     find_anchor_targets: { kind:'select-in', tableId:'perception_identity_anchors', keyColumn:'anchor_value', fixedKeyColumns:['anchor_kind'], maxItems:500,
       columns:['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'] },
@@ -213,8 +217,9 @@ function createPerceptionStore(options) {
       const anchors=readChunks(repo,'find_anchor_targets',[...wanted],{anchor_kind:anchorKind});
       const terminal=new Set(readChunks(repo,'find_target_relations',anchors.map(row=>row.perception_id))
         .filter((row)=>['supersedes','retracts'].includes(row.relation_kind)).map((row)=>row.target_perception_id));
+      const mapped=mapRecords(repo,anchors.filter(row=>!terminal.has(row.perception_id)).map(row=>row.perception_id));
       for(const targetId of wanted){const ids=anchors.filter((row)=>row.anchor_value===targetId&&!terminal.has(row.perception_id)).map((row)=>row.perception_id);
-        const current=ids.map((id)=>mapRecord(repo,id))
+        const current=ids.map((id)=>mapped.get(id))
           .sort((left,right)=>right.committedAtMs-left.committedAtMs||left.perceptionId.localeCompare(right.perceptionId))[0]||null;
         result.set(targetId,current);}
       return result;
@@ -225,8 +230,10 @@ function createPerceptionStore(options) {
       const heads=readChunks(resolutionRepo,'find_rating_heads',[...wanted],{query_contract:'perception.rating.resolve@1'});
       const currentIds=new Set(heads.map((row)=>row.current_resolution_id));
       const current=readChunks(resolutionRepo,'find_resolutions',[...currentIds]);
-      return Object.freeze(current.map((row)=>{
-        const resolution=mapResolution(row),winner=resolution.resultKind==='found'?mapRecord(recordRepo,resolution.winningPerceptionId):null;
+      const mapped=current.map(mapResolution),winners=mapRecords(recordRepo,mapped
+        .filter(resolution=>resolution.resultKind==='found').map(resolution=>resolution.winningPerceptionId));
+      return Object.freeze(mapped.map((resolution)=>{
+        const winner=resolution.resultKind==='found'?winners.get(resolution.winningPerceptionId):null;
         return Object.freeze({queryInputDigest:resolution.queryInputDigest,resolution,winner});
       }));
     }); },
@@ -492,7 +499,23 @@ const cursorRow = (v) => ({ perception_source_id:v.perceptionSourceId,revision:v
 const recordRow = (v) => ({ perception_id:v.perceptionId,perception_source_id:v.perceptionSourceId,perception_acquisition_id:v.perceptionAcquisitionId,acquisition_commit_receipt_id:v.acquisitionCommitReceiptId,record_kind:v.recordKind,source_kind:v.sourceKind,source_record_key:v.sourceRecordKey,source_record_revision:v.sourceRecordRevision,source_record_digest:v.sourceRecordDigest,normalization_rule_ref:v.normalizationRuleRef,rating:v.rating,watched_state:v.watchedState===null?null:(v.watchedState?1:0),observed_title:v.observedTitle,provenance_ref:v.provenanceRef,provenance_digest:v.provenanceDigest,record_digest:v.recordDigest,observed_at_ms:v.observedAtMs,committed_at_ms:v.committedAtMs });
 const anchorRow = (id,v) => ({ perception_id:id,anchor_kind:v.anchorKind,anchor_value:v.anchorValue,confidence_class:v.confidenceClass,evidence_digest:v.evidenceDigest });
 const relationRow = (v) => ({ relation_id:v.relationId,relation_kind:v.relationKind,source_perception_id:v.sourcePerceptionId,target_perception_id:v.targetPerceptionId,rule_revision:v.ruleRevision,evidence_digest:v.evidenceDigest,committed_at_ms:v.committedAtMs });
-function mapRecord(repo,id) { const r=repo.invoke('find_record',{perception_id:id}); if(!r)return undefined; const item=createRecord({perceptionId:r.perception_id,perceptionSourceId:r.perception_source_id,perceptionAcquisitionId:r.perception_acquisition_id,acquisitionCommitReceiptId:r.acquisition_commit_receipt_id,recordKind:r.record_kind,sourceKind:r.source_kind,sourceRecordKey:r.source_record_key,sourceRecordRevision:r.source_record_revision,sourceRecordDigest:r.source_record_digest,normalizationRuleRef:r.normalization_rule_ref,rating:r.rating,watchedState:r.watched_state===null?null:r.watched_state===1,observedTitle:r.observed_title,provenanceRef:r.provenance_ref,provenanceDigest:r.provenance_digest,recordDigest:r.record_digest,observedAtMs:r.observed_at_ms,committedAtMs:r.committed_at_ms,anchors:repo.invoke('find_anchors',{perception_id:id}).map(a=>({anchorKind:a.anchor_kind,anchorValue:a.anchor_value,confidenceClass:a.confidence_class,evidenceDigest:a.evidence_digest}))}); if(recordDigestFor(item)!==item.recordDigest) fail('P6_PERCEPTION_RECORD_DIGEST_MISMATCH','Stored immutable Record digest does not match its scalar and Anchor facts.'); return item; }
+function mapRecord(repo,id) {
+  const row=repo.invoke('find_record',{perception_id:id});
+  return row?mapRecordRow(row,repo.invoke('find_anchors',{perception_id:id})):undefined;
+}
+function mapRecords(repo,ids) {
+  const rows=readChunks(repo,'find_records_many',ids),anchors=new Map();
+  for(const anchor of readChunks(repo,'find_anchors_many',rows.map(row=>row.perception_id))) {
+    const values=anchors.get(anchor.perception_id)||[];values.push(anchor);anchors.set(anchor.perception_id,values);
+  }
+  return new Map(rows.map(row=>{
+    // Preserve the scalar reader's SQLite primary-key order within each Record.
+    const values=(anchors.get(row.perception_id)||[]).sort((left,right)=>Buffer.compare(
+      Buffer.from(left.anchor_kind+'\0'+left.anchor_value),Buffer.from(right.anchor_kind+'\0'+right.anchor_value)));
+    return [row.perception_id,mapRecordRow(row,values)];
+  }));
+}
+function mapRecordRow(r,anchors) { const item=createRecord({perceptionId:r.perception_id,perceptionSourceId:r.perception_source_id,perceptionAcquisitionId:r.perception_acquisition_id,acquisitionCommitReceiptId:r.acquisition_commit_receipt_id,recordKind:r.record_kind,sourceKind:r.source_kind,sourceRecordKey:r.source_record_key,sourceRecordRevision:r.source_record_revision,sourceRecordDigest:r.source_record_digest,normalizationRuleRef:r.normalization_rule_ref,rating:r.rating,watchedState:r.watched_state===null?null:r.watched_state===1,observedTitle:r.observed_title,provenanceRef:r.provenance_ref,provenanceDigest:r.provenance_digest,recordDigest:r.record_digest,observedAtMs:r.observed_at_ms,committedAtMs:r.committed_at_ms,anchors:anchors.map(a=>({anchorKind:a.anchor_kind,anchorValue:a.anchor_value,confidenceClass:a.confidence_class,evidenceDigest:a.evidence_digest}))}); if(recordDigestFor(item)!==item.recordDigest) fail('P6_PERCEPTION_RECORD_DIGEST_MISMATCH','Stored immutable Record digest does not match its scalar and Anchor facts.'); return item; }
 
 function recordDigestFor(value) {
   const anchors = [...value.anchors].sort((left, right) => [left.anchorKind,left.anchorValue,left.confidenceClass,left.evidenceDigest].join('\0').localeCompare([right.anchorKind,right.anchorValue,right.confidenceClass,right.evidenceDigest].join('\0')));
