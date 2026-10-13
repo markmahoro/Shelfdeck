@@ -23,3 +23,5 @@ Last updated: 2026-09-30
 `../CURRENT_PHASE.md` 读取。
 
 - [SERIES_DEVELOPMENT_20261008](SERIES_DEVELOPMENT_20261008.md)：Series五节点开发冻结包；首个可部署候选84c2cd9268，未部署生产，最终证据见包首链接。
+
+- [OPS_RUNTIME_RESET_20261013](OPS_RUNTIME_RESET_20261013.md)：安全停机与用户Formation Reset本地开发/具体版本UI验收冻结包；最终产品0bcaf5a11，未部署生产。

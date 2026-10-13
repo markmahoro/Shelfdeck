@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-2026-10-13安全停机/用户Formation Reset本地实现中：Foundation quiesce/resume、业务写门禁和持久停机意图、隔离Operator备份/精确Reset及概览/确认控件已实现，Windows运行控制/保护路径和desktop/narrow浏览器验证通过。Linux精确镜像及跨层UI具体版本审核待完成；本轮未部署或执行生产停机/Reset，详情见implementation/evidence/OPS_RUNTIME_RESET_20261013.md。
+2026-10-13安全停机/用户Formation Reset本地开发验收完成，最终产品0bcaf5a1128c2aebb38c8507df5c75f7c565a250；标准镜像markmahoro/shelfdeck:0bcaf5a11，tar562240000 bytes/SHA256 1141879eda514155d66a029081af8fb041d5c9173ed95b2271ca3d60d0a2a168。Foundation停机/显式恢复、在线读和业务写门禁、重启保留停机、隔离备份/精确Reset、历史/收藏保护及中断拒恢复已验证；Web152、desktop/narrow8、后台Linux80及最终镜像包装专项6通过（适用继承见Evidence），UI负责人最终接受commit73547f3a4。Phase已Exit；未部署、未执行生产停机/Reset或重处理五项媒体，生产仍为2f9560bcb。未做NAS长时FFmpeg/断电和完整Electron分发，详情见implementation/evidence/OPS_RUNTIME_RESET_20261013.md。
 
 2026-10-13补核文件来源扫描状态：两目录实际可读（Film991项/chn_series45项），但后端仍投影本地10:27的最新扫描失败；12小时失败准入间隔使下一次最早22:27左右到期，重启不提前重试。这不是浏览器缓存或当前再次断挂载。此前服务恢复检查漏覆盖来源扫描状态，319仍开放；即时目录恢复自愈暂缓，未触发扫描或处置生产任务，详见319 Evidence。
 

@@ -75,3 +75,15 @@ f65冻结目录 `E:/my_project/helix-git-consolidation-20261008/ops-ui-f65de6370
 冻结审计目录 `E:/my_project/helix-git-consolidation-20261008/ops-ui-0bcaf5a11-20261013/`：源码ZIP SHA256 `ef43b69c7af5133e871dff4b73cf0eef04f420b82de3a13ad4a4298f4c3afc65`；`reviewer-colors.cjs` SHA256 `044828f7ce8dae9917afc2d567b3739c23510d090031883836df487fde7a5584`；`reviewer-color-evidence.json` SHA256 `7821c4b0534c7822844f7589dc0d121bb1e10396235785d7fbc42fb54c8e74b2`；`reviewer-colors.log`及六张截图。独立Web JS `index-rAg9PJaT.js` SHA256 `4c9b0a7023039e7ac82ae115f18de3f4e51acfe8da8d799a8fb0ec6ec041f523`；CSS `index-BWsa6Lzd.css` SHA256 `a4d47e2cdba83f8c36801f17848e668716793985135c3e95897e2c2382dbe8ea`。
 
 上述接受限于具体版本的UI及已声明本地验证。最终镜像/Linux资格由实施方独立记录；本负责人没有部署、生产停机或Reset，也未把界面fixture当作真实NAS备份、清理或长时媒体收口证明。后续若有用户表面diff，继续按实际变更及Playbook §12.3处理。
+
+## 0bcaf5a11最终镜像与Phase Exit审计
+
+最终产品SHA 0bcaf5a1128c2aebb38c8507df5c75f7c565a250。标准镜像markmahoro/shelfdeck:0bcaf5a11：tar562240000 bytes/SHA256 1141879eda514155d66a029081af8fb041d5c9173ed95b2271ca3d60d0a2a168，manifest sha256:e74efc789bbc5435f364db1f1cf456802f8dd15a0c69712bed54accf4e77a8ab，config sha256:852253ade094cf6122004d50a8602ab9752435b41de107639a152a3eff345064。最终精确镜像的真实HTTP与用户Reset核心包装专项6 pass、32按test-name过滤skip，无失败；日志ignored .codex/ops-runtime-20261013/linux-0bcaf5a11.log。未将过滤skip当作覆盖。其/app/src及/app/scripts共2138文件聚合SHA256 75540a17af222a6fb8f3ddcf3a969205d4305f95d1bc423c685ae84daaab5cf0与f65已验80项镜像逐字节相同，因此继承后台证据，不重跑无变化的全部测试。
+
+最终Windows/Linux资产相同：JS index-rAg9PJaT.js SHA256 4c9b0a7023039e7ac82ae115f18de3f4e51acfe8da8d799a8fb0ec6ec041f523，CSS index-BWsa6Lzd.css SHA256 a4d47e2cdba83f8c36801f17848e668716793985135c3e95897e2c2382dbe8ea。8项desktop/narrow浏览器通过，包含中断恢复门禁及实际语义色；最终颜色补丁只影响呈现，TS/Vite通过。f65的全Web152、真实Node浏览器及后台80证据按无变化范围继承，不追认已失败81be旧UI。
+
+UI负责人任务01a0912a-0086-74e2-88ab-536c59d3862a对0bc明确复验通过：正常绿色，停机/恢复/Reset中性色，异常既有错误色；中断无恢复入口，恢复资料默认折叠；此前两项状态问题与一项配色问题均已修正。负责人具体版本记录见本文“UI负责人最终接受：0bcaf5a11”，commit73547f3a4。
+
+Exit从SSOT §9.7.3/§10.1.6反向审查：停止意图先落盘；新业务写、Event/Recovery/Owner/Outbox供给受既有生命周期约束，当前责任收口；HTTP/认证读在线；restart不重放文件Effect；resume显式并经Recovery；Reset不经业务Repository直删，隔离Operator采用exact typed闭包、已结束/Commit保护、未知Effect及范围外孤儿阻塞、完整备份后再持久标记、失败不假成功/猜测恢复；UI清单/后果确认、真实进度、失效及可达错误路径均有Evidence。没有新增Owner、全局媒体ID、资源管理Store、强制停机或目录恢复自愈。OPS-CONTRACT/RUNTIME/RESET/SURFACE已达到本地开发验收目标。
+
+边界：未部署、未执行生产停机/Reset、未重处理五项媒体；未做NAS长时FFmpeg/断电演练和Electron完整分发构建。外部下载器继续写盘与目录失联、已存在的媒体语义缺陷不会由安全停机自动解决。未来生产升级和真实数据Reset仍分别需要相应精确授权，开发Exit不代替生产验收。
