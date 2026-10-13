@@ -63,3 +63,15 @@ f65冻结目录 `E:/my_project/helix-git-consolidation-20261008/ops-ui-f65de6370
 ### UI配色补项
 
 负责人确认f65功能路径复验通过后，发现Reset中断的侧栏继承绿色正常色。实施改为error使用既有faulted错误色，停机/恢复/Reset过程使用既有中性色；新增desktop/narrow真实computed color、中断无Resume/无重新停机、恢复资料默认折叠检查。此补项仅UI呈现，不改变停机或Reset语义；新具体版本验收及精确镜像身份待补。
+
+### UI负责人最终接受：0bcaf5a11
+
+2026-10-13，UI负责人接受 `0bcaf5a1128c2aebb38c8507df5c75f7c565a250` 的安全停机、恢复及用户Formation Reset受影响表面，**本地开发的具体版本UI门禁通过**。沿用f65已通过的完整功能复验；与f65比较，产品仅改变App的Runtime error语义及polish.css的maintenance配色，RuntimeControls、API、Owner Projection和后台执行代码没有diff。81be的初始未知/旧确认问题及f65配色缺陷保留为历史，不追认旧版本通过。
+
+从0bc精确git archive冻结源码独立TypeScript/Vite构建，通过。隔离Chromium分别在1440×900与390×844读取受控Runtime Projection：每个视口覆盖starting/running/stopping/stopped/resuming/resetting/error，14个状态均通过实际DOM kind和computed color核验。运行正常为既有绿色 `rgb(146, 208, 172)`；启动、停机等待、停稳、恢复与Reset为既有中性色 `rgb(190, 201, 212)`；异常为faulted错误色 `rgb(240, 180, 180)`。均保留可读状态，不仅靠颜色；不新增业务状态、解释段落或新的按钮形制。
+
+中断态同时核验卡片/侧栏及具体错误一致，无恢复运行或重新停机入口、Reset不可用；恢复资料默认折叠，展开后可读。使用实际UUID形状的备份编号，两视口展开前后均无页面横向溢出。已目检desktop-error、narrow-stopping等截图，0页面/HTTP fixture异常；只执行GET及本地折叠交互。隔离浏览器和HTTP服务已关闭。主任务八项desktop/narrow路径是实施方的补充证据，没有冒称本负责人重跑了整套或真实非空Reset链路。
+
+冻结审计目录 `E:/my_project/helix-git-consolidation-20261008/ops-ui-0bcaf5a11-20261013/`：源码ZIP SHA256 `ef43b69c7af5133e871dff4b73cf0eef04f420b82de3a13ad4a4298f4c3afc65`；`reviewer-colors.cjs` SHA256 `044828f7ce8dae9917afc2d567b3739c23510d090031883836df487fde7a5584`；`reviewer-color-evidence.json` SHA256 `7821c4b0534c7822844f7589dc0d121bb1e10396235785d7fbc42fb54c8e74b2`；`reviewer-colors.log`及六张截图。独立Web JS `index-rAg9PJaT.js` SHA256 `4c9b0a7023039e7ac82ae115f18de3f4e51acfe8da8d799a8fb0ec6ec041f523`；CSS `index-BWsa6Lzd.css` SHA256 `a4d47e2cdba83f8c36801f17848e668716793985135c3e95897e2c2382dbe8ea`。
+
+上述接受限于具体版本的UI及已声明本地验证。最终镜像/Linux资格由实施方独立记录；本负责人没有部署、生产停机或Reset，也未把界面fixture当作真实NAS备份、清理或长时媒体收口证明。后续若有用户表面diff，继续按实际变更及Playbook §12.3处理。
