@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-13追加UAT-318：用户明确“整理中”及“我的收藏”点击至实际内容小于1秒、管理响应优先于后台吞吐；原则已补SSOT §10.6，不新增调度器。505生产再次复现27–35秒等待，轻量health同样迟到；采样热点在Arca健康批量读取历史事实。当前本地按当前Inventory Revision提前过滤及克制加载反馈补丁已通过相关68服务/21 Web/4浏览器测试，1服务进程恢复未启用；514收藏同快照完整输出一致、局部428→212ms，不是生产达标。尚未发布、Linux最终镜像/UI负责人及生产1秒验收待完成。NAS SSH连续握手失败；只读隔离对照容器nice_taussig的停止未获确认，须先复核该任务自建容器；不停止生产业务，不重处理五项媒体。
+
 2026-10-13最新生产为markmahoro/shelfdeck:505844a8b，git505844a8bade56e7705ee47e0d578874f9117efa，Image sha256:73484068340fec14df3e66d52d2689a6c586c5dbab21d91807faf58af20de6c4，tar1724124160 bytes/SHA25638362057d5b1f516861800485d3d947931e44fe3b8f3f8214dec61bce920932d。标准build/upload/checksum/dry run/readiness/health/供给/Admin/五挂载/QSV通过，RestartCount0，最终镜像Perception专项28通过。加载空态补丁生产多轮复验0次误报；本轮纯后端无UI字段变化，前端保持已验资产。十二轮48请求全部200，十一轮最长约0.99–1.91秒，一轮5896ms；未复现原数十秒，但性能UAT-318保持开放，非完整SLO窗口。五项失败媒体未人工重处理，狂暴女神/sample及正式安全停机/Reset仍暂缓；问题未全部验收，不执行全面生产清理。Avail约25GiB。
 
 2026-10-13第四轮已标准发布24821200d34fe055036c0d11ac5b1dc9afbf6cbd，Docker markmahoro/shelfdeck:24821200d，Image sha256:7f77396fd54c7587969faf588f4a8da718f6585f735319ece6a7e55410028f9a，tar1724123136 bytes/SHA256251935ecf66e3ab26ebb3164d53fa21dd55b31b09d9963ff7189804a57be689b。readiness/health/供给/Admin/五挂载/QSV通过，RestartCount0，最终镜像141通过。前端资产与6feda已验版本一致，纯后端无UI字段或文字变更；实际两轮四Tab空态误报0。十二轮48请求均200，十一轮最长约1.2–2.1秒，另一次6172ms；性能UAT-318仍开放，未重处理五项媒体。追加Perception纯字符串计算缓存28项通过、尚未发布；没有缓存评分、业务事实、候选集合或决策。

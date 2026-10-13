@@ -28,6 +28,15 @@ export function PageHeader({
   </header>;
 }
 
-export function LoadingState({ children }: { children: ReactNode }) {
-  return <div className="source-page-loading" aria-live="polite">{children}</div>;
+export function LoadingState({ children, skeleton }: { children: ReactNode; skeleton?: 'rows' | 'posters' }) {
+  return <div className={`source-page-loading${skeleton ? ' quiet-loading' : ''}`} role="status" aria-live="polite">
+    <span>{children}</span>
+    {skeleton && <div className={`quiet-loading-${skeleton}`} aria-hidden="true">
+      {Array.from({length:skeleton === 'posters' ? 8 : 3},(_,index)=><div className="quiet-loading-placeholder" key={index}><i/><i/></div>)}
+    </div>}
+  </div>;
+}
+
+export function ReadProgress({ active }: { active: boolean }) {
+  return <div className="quiet-read-track" aria-hidden="true">{active && <span/>}</div>;
 }

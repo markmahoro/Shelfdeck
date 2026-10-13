@@ -162,6 +162,36 @@ test('single-Entry Aftercare history and terminal finding resolution never scan 
   });
 });
 
+test('health projection reads only each active Entry current Inventory facts across mixed revisions and bounded chunks', () => {
+  sqliteFixture('uat318-current-inventory-facts-', ({ root, unitOfWork, seed, sqlTrace }) => {
+    insertShelf(seed);
+    const ids=insertEntries(seed,503),second=ids[501],inactive=ids[502];
+    seed.prepare('INSERT INTO arca_inventory_representations SELECT shelf_entry_id,2,representation_digest,source_package_id,committed_at_ms FROM arca_inventory_representations WHERE shelf_entry_id=?').run(second);
+    seed.prepare('UPDATE arca_shelf_entries SET current_inventory_revision=2 WHERE shelf_entry_id=?').run(second);
+    seed.prepare('UPDATE arca_shelf_entries SET status=? WHERE shelf_entry_id=?').run('offdecked',inactive);
+    const fact=seed.prepare(`INSERT INTO arca_inventory_product_facts
+      (shelf_entry_id,inventory_revision,fact_kind,fact_revision,fact_schema_ref,fact_json,fact_digest,source_package_id,provenance_digest,committed_at_ms)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`);
+    for(const id of ids){
+      fact.run(id,1,'product_metadata',1,'helix://test/metadata',JSON.stringify({descriptiveFacts:{entries:[{key:'title',value:'current:'+id}]}}),digest(id),'package-'+id,digest('provenance'),1);
+      fact.run(id,9,'product_metadata',1,'helix://test/metadata','{}',digest('historical:'+id),'package-'+id,digest('provenance'),1);
+    }
+    fact.run(second,2,'product_metadata',1,'helix://test/metadata',JSON.stringify({descriptiveFacts:{entries:[{key:'title',value:'revision-two'}]}}),digest('revision-two'),'package-'+second,digest('provenance'),1);
+    const store=createAftercareStore({schemaManifest,unitOfWork,now:()=>10_000,aftercareWorkspaceRoot:path.join(root,'aftercare-workspaces')});
+    sqlTrace.length=0;
+    const projected=store.healthProjectionInputs(ids);
+    assert.equal(projected.length,502);
+    assert.equal(projected.find(item=>item.shelfEntryId===second).ratingTarget.title,'revision-two');
+    assert.equal(projected.find(item=>item.shelfEntryId===ids[500]).ratingTarget.title,'current:'+ids[500]);
+    const reads=sqlTrace.filter(sql=>/^SELECT\b/i.test(sql.trim())&&sql.includes('FROM "arca_inventory_product_facts"'));
+    assert.equal(reads.length,3);
+    assert.ok(reads.every(sql=>/"inventory_revision"=/.test(sql)&&/\bIN\s*\(/i.test(sql)));
+    assert.ok(reads.every(sql=>!sql.includes("'"+inactive+"'")));
+    seed.prepare('DELETE FROM arca_inventory_product_facts WHERE shelf_entry_id=? AND inventory_revision=2').run(second);
+    assert.equal(store.healthProjectionInputs([second])[0].ratingTarget.title,'502');
+  });
+});
+
 test('Aftercare batch health passes frozen rating targets instead of triggering per-Entry target projection', () => {
   const items=Array.from({ length:501 },(_,index)=>{
     const shelfEntryId='entry-'+String(index).padStart(5,'0'),targetBase={targetType:'shelf_entry',targetId:shelfEntryId,

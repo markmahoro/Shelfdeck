@@ -20,6 +20,8 @@ test('a delayed Formation filter shows loading before rows or confirmed empty re
   await expect(page.getByRole('button',{name:'刷新',exact:true})).toBeEnabled();
   await page.getByRole('button',{name:'需要处理 0',exact:true}).click();
   await expect(page.getByText('正在读取整理条目…')).toBeVisible();
+  await expect(page.locator('.quiet-loading-rows')).toBeVisible();
+  await expect(page.locator('.formation-ledger')).toHaveAttribute('aria-busy','true');
   await expect(page.getByText('当前筛选没有条目')).toHaveCount(0);
   await page.screenshot({path:testInfo.outputPath('pending-filter.png')});
   await expect(page.getByText('当前筛选没有条目')).toBeVisible();
@@ -27,5 +29,33 @@ test('a delayed Formation filter shows loading before rows or confirmed empty re
   await expect(page.getByText('正在读取整理条目…')).toBeVisible();
   await expect(page.getByText('当前筛选没有条目')).toHaveCount(0);
   await expect(page.getByText(item.displayIdentity)).toBeVisible();
+  await expect(page.locator('.formation-ledger')).toHaveAttribute('aria-busy','false');
   await page.screenshot({path:testInfo.outputPath('loaded-filter.png')});
+});
+
+test('Collection keeps readable content during refresh and uses quiet placeholders only before first content',async({page},testInfo)=>{
+  const item={shelfEntryId:'entry',shelfId:'shelf',shelfName:'电影',displayIdentity:'测试收藏',year:2026,hasPoster:false,health:{state:'healthy'},genres:[],people:[],currentInventoryRevision:1};
+  await page.route('**/v1/**',async route=>{
+    if(new URL(route.request().url()).pathname==='/v1/admin/collection'){
+      await new Promise(resolve=>setTimeout(resolve,1200));
+      await route.fulfill({json:{items:[item],shelves:[],summary:{currentCount:1,historyCount:0},resultCount:1,nextCursor:null}});return;
+    }
+    await route.fulfill({json:{items:[],state:'ready'}});
+  });
+  await page.goto('/collection');
+  await expect(page.getByText('正在打开收藏架…')).toBeVisible();
+  await expect(page.locator('.quiet-loading-posters')).toBeVisible();
+  await expect(page.getByText('还没有正式上架的收藏')).toHaveCount(0);
+  await page.screenshot({path:testInfo.outputPath('collection-first-loading.png')});
+  await expect(page.getByText(item.displayIdentity,{exact:true})).toBeVisible();
+  await page.getByRole('button',{name:'刷新',exact:true}).click();
+  await expect(page.getByRole('region',{name:'收藏列表'})).toHaveAttribute('aria-busy','true');
+  await expect(page.getByText(item.displayIdentity,{exact:true})).toBeVisible();
+  await expect(page.locator('.quiet-loading-posters')).toHaveCount(0);
+  await expect(page.locator('.quiet-read-track span')).toBeVisible();
+  await page.screenshot({path:testInfo.outputPath('collection-refresh-loading.png')});
+  await expect(page.getByRole('region',{name:'收藏列表'})).toHaveAttribute('aria-busy','false');
+  await expect(page.locator('.quiet-read-track span')).toHaveCount(0);
+  await page.getByRole('button',{name:/查看 测试收藏 详情/}).focus();
+  await expect(page.getByRole('button',{name:/查看 测试收藏 详情/})).toBeFocused();
 });

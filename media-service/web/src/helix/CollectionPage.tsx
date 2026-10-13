@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { helixAdminApi, type CareDetail, type CollectionEntry, type HealthState } from './api';
 import { newOpaqueId } from './id';
-import { Button, LoadingState, PageHeader } from './chrome';
+import { Button, LoadingState, PageHeader, ReadProgress } from './chrome';
 import { healthLabels } from './labels';
 import RatingControl from './RatingControl';
 import CollectionDefects from './CollectionDefects';
@@ -69,7 +69,7 @@ export default function CollectionPage() {
   const [items, setItems] = useState<CollectionEntry[]>([]);
   const [shelves, setShelves] = useState<Array<{ shelfId: string; name: string; currentCount: number; historyCount: number }>>([]);
   const [summary, setSummary] = useState({ currentCount: 0, historyCount: 0 });
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<CollectionEntry | null>(null);
   const [care, setCare] = useState<CareDetail | null>(null);
@@ -189,8 +189,9 @@ export default function CollectionPage() {
         <details className="collection-filter"><summary>筛选{healthFilter === 'all' ? '' : ` · ${healthLabels[healthFilter]}`}</summary><nav aria-label="收藏健康筛选">{healthFilters.map(([state, label]) => <button type="button" key={state} aria-pressed={healthFilter === state} onClick={() => setHealthFilter(state)}>{label}</button>)}</nav></details>
       </div>
     </section>
-    <section className="collection-library" aria-label="收藏列表">
-      {loading && items.length === 0 ? <LoadingState>正在打开收藏架…</LoadingState> : items.length === 0 ? <div className="source-empty"><strong>{summary.currentCount === 0 ? '还没有正式上架的收藏' : '没有找到符合条件的收藏'}</strong></div> : <div className="poster-wall">{items.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情${item.series ? `，第 ${item.series.seasonNumber} 季` : ''}，收藏健康：${healthLabels[item.health.state]}`}>
+    <section className="collection-library" aria-label="收藏列表" aria-busy={loading}>
+      <ReadProgress active={loading}/>
+      {loading && items.length === 0 ? <LoadingState skeleton="posters">正在打开收藏架…</LoadingState> : items.length === 0 ? <div className="source-empty"><strong>{summary.currentCount === 0 ? '还没有正式上架的收藏' : '没有找到符合条件的收藏'}</strong></div> : <div className="poster-wall">{items.map((item) => <button className="poster-tile" key={item.shelfEntryId} onClick={() => setSelected(item)} aria-label={`查看 ${item.displayIdentity} 详情${item.series ? `，第 ${item.series.seasonNumber} 季` : ''}，收藏健康：${healthLabels[item.health.state]}`}>
         <span className="poster-frame">{item.hasPoster ? <img src={helixAdminApi.collectionPosterUrl(item.shelfEntryId, item.currentInventoryRevision, 'wall')} alt="" loading="lazy" decoding="async" /> : <span className="poster-fallback" aria-hidden="true"><b>{item.displayIdentity.slice(0, 2)}</b><small>ShelfDeck</small></span>}{<span className={`health-seal ${item.health.state}`} title={healthLabels[item.health.state]} aria-hidden="true">{item.health.state === 'attention_required' ? '需处理' : healthLabels[item.health.state]}</span>}</span>
         <span className="poster-caption"><strong>{item.displayIdentity}</strong><small>{item.series ? `第 ${item.series.seasonNumber} 季 · ${item.series.episodeCount} 集 · ` : ''}{item.year || '年份未知'} · {item.shelfName}</small>{item.defectAdmission&&<small>瑕疵入库 · {item.defectAdmission.defects.some((defect)=>defect.defectCode==='size_cap_exceeded')?'体积超过档位上限':`${item.defectAdmission.defectCount}项`}</small>}</span>
       </button>)}</div>}

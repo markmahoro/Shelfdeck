@@ -87,3 +87,17 @@ Windows相关Shelf/Formation27通过，Overview及4000条分页汇总8通过；�
 切换61.3秒，新容器18:42:00.986 UTC启动，18:47:16.345监听，冷启动315.36秒；仍有较大启动开销，没有声称完整解决停机/恢复设计问题。启动日志出现Duplicate Group Evidence page is stale，定位在Arca duplicateCommit输入依据与当前Projection digest不一致，抛错发生在写Group前；仅记录观察，未压制栅栏或改变数据，尚未证明属于新缺陷还是恢复旧Evidence遇到真实事实变更。
 
 生产Chrome两轮四Tab有条目空态误报0、正常需要处理0项仍呈现真空；整理中请求1420/523ms，其他已认证请求最长1883ms；Tab结果时间含700ms稳定等待，不作为首绘或P95。随后按10秒cadence十二轮48请求全部200，本轮5896ms值保留，其他轮最长987–1912ms，业务负载变化中不能简单归因全部改善。实际截图已目检；临时浏览器与测试容器/转发均已关闭。原42.9秒、第二轮15.9秒及后续6秒样本保留，不将“这次没出现”当作所有工况不再出现。正式30分钟活跃/10分钟静默与固定资源profiles未执行，318性能不关闭。下一步关注Perception候选Universe查询/Owner上下文读取及SQL等待，任何优化仍保留Owner/实时候选与完整性边界。
+
+## 2026-10-13当前追加候选及验证边界
+
+用户确认管理页面响应优先于后台吞吐，不要求新增调度器；具体目标为“整理中”及“我的收藏”，已登录生产LAN后台正常运行时点击至实际内容可见小于1秒，不以动画、旧内容或P95替代。SSOT §10.6已补充。用户追加克制动画，不新增动画开关；既有系统reduced-motion CSS保留。
+
+505生产8轮GET对照首轮Formation/Care/health为26771/34823/35455ms，后续仍有14987/12250/9482/8361ms，全部200。23秒CPU样本overviewStats→Aftercare批量健康约14.76秒，SQL all约17.91秒，其中12.26秒在Aftercare selectMany；包含子调用时间不可相加，不是逐SQL精确计时。Inspector首次连接失败，重试采样成功、复核closed。
+
+生产只读统计15517条Product Facts约136647644字符，当前active Inventory事实1641条约13534593字符；SQLite length(TEXT)计字符，不冒充UTF-8字节。Aftercare旧查询先读所有历史正文再过滤当前revision。补丁在Arca内复用select-in/fixedKeyColumns按当前revision分组、500 ID一批读取，保持当前完整事实、metadata/Basis/Case校验，不缓存健康、不删除历史；不同revision组数会影响SQL条数，未宣称全局SQL数量资格通过。
+
+本地只读同一已核验生产备份514 active Entry完整输出digest四次均c42d75a2dcfea4bbca1587e40081dabbe27af0408ff87a2c7071ab83a3ce3ada；old/new/new/old耗时428/212/227/414ms。Windows Node25局部对照不等于生产浏览器、Linux Node20或1秒验收。相关68通过、1进程恢复未启用。新增fixture覆盖501同revision跨批、混合revision、inactive排除和当前事实缺失不借旧事实兜底；首轮fixture非法retired改合法offdecked，未放宽产品约束。
+
+UI首次读取用轻微明暗骨架，刷新已有内容保留并显示读取标记，aria-busy跟随读取，装饰aria-hidden，无假进度/ETA。Collection初始loading=true。Web相关21通过、build通过；实际Playwright桌面1440/窄屏390共4通过，延迟加载/空结果/迟到条目/保留内容/键盘通过。两份桌面截图已目检，ignored截图uat318-current-loading-browser；runner测试Host关闭。本次实际跨层diff仍须精确UI负责人审核。
+
+NAS只读隔离对照容器nice_taussig在openSqliteKernel整库检查阶段长时间未返回，无最终证据；随后SSH多次握手超时。已尝试docker stop -t 3，但未得到成功确认；本地该客户端PID1908已结束，远端容器是否随断连退出待复核，不能宣称已清理。转本地副本验证，不再增加NAS重型测试；没有停止生产ShelfDeck/其他业务，没有处置媒体。当前未发布，生产仍505844a8b，1秒目标及UAT-318开放，五项媒体不重处理。

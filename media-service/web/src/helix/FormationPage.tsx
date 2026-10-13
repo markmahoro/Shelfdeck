@@ -6,7 +6,7 @@ import { ProcessDialog, ProcessStages, progressDetail } from './ProcessStages';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AdminApiError, helixAdminApi, type DefectAdmissionCandidate, type FormationRunHistory, type FormationSubject, type FormationSummary, type PerceptionSyncState, type Shelf } from './api';
-import { Button, LoadingState, PageHeader } from './chrome';
+import { Button, LoadingState, PageHeader, ReadProgress } from './chrome';
 import { Dialog } from '../components/ui';
 import RatingControl from './RatingControl';
 import { CareWorkRow, CareWorkDetail } from './CareWorkRow';
@@ -146,7 +146,9 @@ export default function FormationPage() {
   const [discardBusy,setDiscardBusy]=useState(false),[discardNeedsRefresh,setDiscardNeedsRefresh]=useState(false);
   const [discardError,setDiscardError]=useState(''),[discardNotice,setDiscardNotice]=useState('');
   const [selectedEnded,setSelectedEnded]=useState<FormationRunHistory|null>(null);
+  const [readPending,setReadPending]=useState(true);
   const load=useCallback(async(background=false,targetPage=currentPage.current)=>{
+    setReadPending(true);
     const generation=++loadGeneration.current,live=()=>generation===loadGeneration.current;
     if(!background){setLoading(true);setPageLoading(true);setError('');}
     const filters={q:q.trim(),shelfId:shelfFilter},empty={items:[],nextCursor:null};
@@ -202,7 +204,7 @@ export default function FormationPage() {
       if(selectedCareId.current){const id=selectedCareId.current,result=await helixAdminApi.listCareWork(undefined,id);
         if(live())setSelectedCare(current=>current?.aftercareCaseId===id?result.items[0]||null:current);}
     }catch(cause){if(live()){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'媒体整理读取失败。');}}
-    finally{if(live()){setLoading(false);setPageLoading(false);}}
+    finally{if(live()){setLoading(false);setPageLoading(false);setReadPending(false);}}
   },[expire,filter,q,shelfFilter]);
   useEffect(()=>{
     loadGeneration.current++;positions.current=[undefined];currentPage.current=0;setPageIndex(0);setHasNext(false);
@@ -250,17 +252,17 @@ export default function FormationPage() {
       await load();
     }catch(cause){setError(cause instanceof Error?cause.message:'操作失败。');setLoading(false);}
   };
-  if(!active.length&&!completed.length&&!ended.length&&!careItems.length&&loading&&!error)return <LoadingState>正在读取媒体整理工作区…</LoadingState>;
+  if(!active.length&&!completed.length&&!ended.length&&!careItems.length&&loading&&!error)return <LoadingState skeleton="rows">正在读取媒体整理工作区…</LoadingState>;
   const counts:Record<Filter,number>={all:summary.totalCount+(summary.endedCount||0)+Object.values(careCounts).reduce((a,b)=>a+b,0),in_progress:summary.inProgressCount+(careCounts.in_progress||0)+(careCounts.queued||0),attention_required:summary.attentionRequiredCount+(careCounts.attention_required||0),ended:summary.completedCount+(careCounts.completed||0)+(summary.endedCount||0)+(careCounts.ended||0)};
   return <section className="source-page workbench formation-page"><PageHeader title="媒体整理工作区" actions={<Button type="button" onClick={()=>void load()} disabled={loading}>{loading?'正在刷新…':'刷新'}</Button>} />
     {error&&<p className="form-error" role="alert">{error}</p>}
     {notice&&<p className="form-notice" role="status">{notice}</p>}
     {perceptionSync?.completionState==='incomplete'&&<p className="form-notice" role="status">豆瓣评分同步尚未完整结束，已保存 {perceptionSync.recordCount} 条；再次同步会从上次成功位置继续。列表中的“暂不能确认”不是影片匹配失败。</p>}
-    <section className="formation-ledger"><div className="formation-toolbar">
+    <section className="formation-ledger" aria-busy={readPending}><ReadProgress active={readPending}/><div className="formation-toolbar">
       <div className="formation-chips" role="group" aria-label="媒体整理状态">{([{id:'all',label:'全部'},{id:'in_progress',label:'整理中'},{id:'attention_required',label:'需要处理'},{id:'ended',label:'已结束'}] as Array<{id:Filter;label:string}>).map((entry)=><Button key={entry.id} type="button" aria-pressed={filter===entry.id} onClick={()=>{if(filter!==entry.id){setPageLoading(true);setError('');setFilter(entry.id);}}}>{entry.label} {counts[entry.id]}</Button>)}</div>
       <div className="formation-secondary"><label>片名<input type="search" aria-label="按片名筛选" value={q} placeholder="搜索片名" onChange={(event)=>{setPageLoading(true);setError('');setQ(event.target.value);}} /></label><label>目标收藏架<select aria-label="按目标收藏架筛选" value={shelfFilter} onChange={(event)=>{setPageLoading(true);setError('');setShelfFilter(event.target.value);}}><option value="">全部收藏架</option>{shelves.map((shelf)=><option key={shelf.shelfId} value={shelf.shelfId}>{shelf.name}</option>)}</select></label></div>
     </div>
-      <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th><th>任务类型</th></tr></thead><tbody>{rows.length===0&&pageLoading?<tr className="formation-stub-media-row"><td colSpan={9}><LoadingState>正在读取整理条目…</LoadingState></td></tr>:rows.length===0&&error?null:rows.length===0?<tr className="formation-stub-media-row"><td colSpan={9}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的媒体':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'开始整理后，媒体会出现在这里；仍在准备或等待的材料请到“文件来源”查看。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='care'?<CareWorkRow key={row.item.aftercareCaseId} item={row.item} onOpen={setSelectedCare}/>:row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>{row.item.outcome==='unable_to_on_deck'?<Button type="button" variant="text" aria-haspopup="dialog" onClick={()=>setSelectedEnded(row.item)}>查看过程</Button>:'—'}</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td><td>上架任务</td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} onManualIdentity={(item,trigger)=>setIdentityDialog({item,trigger})} />)}</tbody></table></div>
+      <div className="formation-table-wrap"><table className="formation-table formation-stub-table"><thead><tr><th>媒体名称</th><th>评分</th><th>目标收藏架</th><th>整理要求</th><th>当前进展</th><th>详情</th><th>用户操作</th><th>加急</th><th>任务类型</th></tr></thead><tbody>{rows.length===0&&pageLoading?<tr className="formation-stub-media-row"><td colSpan={9}><LoadingState skeleton="rows">正在读取整理条目…</LoadingState></td></tr>:rows.length===0&&error?null:rows.length===0?<tr className="formation-stub-media-row"><td colSpan={9}><div className="source-empty"><strong>{summary.totalCount===0?'还没有进入整理的媒体':'当前筛选没有条目'}</strong><p>{summary.totalCount===0?'开始整理后，媒体会出现在这里；仍在准备或等待的材料请到“文件来源”查看。':'试试其他状态或筛选。'}</p></div></td></tr>:rows.map((row)=>row.kind==='care'?<CareWorkRow key={row.item.aftercareCaseId} item={row.item} onOpen={setSelectedCare}/>:row.kind==='ended'?<tr key={row.item.historyId} className="formation-stub-media-row"><td><strong>{row.item.displayIdentity}</strong><small>已结束</small></td><td>—</td><td>—</td><td>—</td><td><strong className="formation-stub-current">{row.item.label}</strong><small>{formatTime(row.item.endedAtMs)}</small></td><td>{row.item.outcome==='unable_to_on_deck'?<Button type="button" variant="text" aria-haspopup="dialog" onClick={()=>setSelectedEnded(row.item)}>查看过程</Button>:'—'}</td><td>—</td><td><button type="button" className="formation-expedite-toggle" disabled>加急</button></td><td>上架任务</td></tr>:<MediaRow key={row.item.subjectId} item={row.item} shelves={shelves} loading={loading} acquisitionIncomplete={perceptionSync?.completionState==='incomplete'} onOpen={open} onAction={action} onManualIdentity={(item,trigger)=>setIdentityDialog({item,trigger})} />)}</tbody></table></div>
     </section>
     <nav className="pagination-controls" aria-label="媒体整理分页">
       <Button type="button" disabled={pageLoading||pageIndex===0} onClick={()=>void load(false,pageIndex-1)}>上一页</Button>
