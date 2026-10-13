@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-13用户明确授权生产部署。预发布完整副本暴露0bc启动竞态，修正由唯一CURRENT_PHASE的OPS-RUNTIME-STARTUP承接；原本地Exit/失败证据保留，0bc不部署。修正后完成精确镜像/完整副本/回退和标准发布，不执行生产Reset或媒体重处理。
+
 2026-10-13“安全停机与用户Formation Reset”本地开发及具体版本UI验收已完成，Phase Exit冻结包见implementation/archive/OPS_RUNTIME_RESET_20261013.md。最终候选0bcaf5a11的SSOT、Foundation quiesce/resume、受保护Reset预检/备份/执行和概览控件均已验证，详见implementation/evidence/OPS_RUNTIME_RESET_20261013.md；当前无活动开发包。本功能未部署，未执行生产停机/Reset或重处理媒体；不包含目录恢复自愈、sample/remux或新增资源管理体系。
 
 2026-10-12后续用户确认：同意已完成历史的只读兼容并继续执行升级，取代此前暂停决定。范围为冻结旧合同、逐条验证历史及跨Plan证据，不恢复旧未完成Formation、不改写历史、不绕过校验。生产仍须完整副本验证和全部Series UAT各自验收；生产Reset另行按当前精确范围授权。

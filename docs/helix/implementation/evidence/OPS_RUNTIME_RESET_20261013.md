@@ -87,3 +87,17 @@ UI负责人任务01a0912a-0086-74e2-88ab-536c59d3862a对0bc明确复验通过：
 Exit从SSOT §9.7.3/§10.1.6反向审查：停止意图先落盘；新业务写、Event/Recovery/Owner/Outbox供给受既有生命周期约束，当前责任收口；HTTP/认证读在线；restart不重放文件Effect；resume显式并经Recovery；Reset不经业务Repository直删，隔离Operator采用exact typed闭包、已结束/Commit保护、未知Effect及范围外孤儿阻塞、完整备份后再持久标记、失败不假成功/猜测恢复；UI清单/后果确认、真实进度、失效及可达错误路径均有Evidence。没有新增Owner、全局媒体ID、资源管理Store、强制停机或目录恢复自愈。OPS-CONTRACT/RUNTIME/RESET/SURFACE已达到本地开发验收目标。
 
 边界：未部署、未执行生产停机/Reset、未重处理五项媒体；未做NAS长时FFmpeg/断电演练和Electron完整分发构建。外部下载器继续写盘与目录失联、已存在的媒体语义缺陷不会由安全停机自动解决。未来生产升级和真实数据Reset仍分别需要相应精确授权，开发Exit不代替生产验收。
+
+## 生产发布授权与预检（2026-10-13，进行中）
+
+用户明确“可以部署生产了”，授权标准build/upload/checksum/dry run/apply流程；不授权Reset、媒体重处理或扩大生产清理。使用已验收不可变0bc镜像和tar，未从含文档追加的HEAD重新标同一产品tag。fnOS技能preflight及边界/权限/空间检查通过，原生产2f9560bcb health ok/normalSupplyAllowed=true、RestartCount0/OOMfalse；SSH经统一nas-ssh-config。上传至/vol1/1000/docker/shelfdeck/shelfdeck-0bcaf5a11.tar，SHA256与本地1141879...相符；标准dry run通过。
+
+完整备份/vol1/1000/docker/shelfdeck/backups/ops-0bcaf5a11-predeploy，2026-10-13T10:16:25.183Z；DB2937737216 bytes/SHA256 1d5b99b8f20e8e3f93300d57da3399e05ad32dd530292e9543c6e0c9c51e9273，45伴随文件逐项SHA校验、compose/secret备份、integrity ok/FK0。冻结事实523 Entry/523 Commit/38363 Material/661 Run；与前次发布518不同是升级前现场自然进展，本次未发起媒体处置。备份工具stdout保留一个旧版本的目录标签，但实际target、挂载、receipt及当次stat均为ops-0bc目录，不能据旧标签误归档备份。
+
+完整Host副本三阶段检查在NAS隔离临时容器进行，网络none、媒体/工作区只读、独立reflink演练目录，不挂源码；生产持续在线。第一尝试旧版在测试Node heap512MiB/容器1GiB额度下OOM退出（未进入候选）；第二尝试日志插入的shell引号错误在Host调用前退出，均保留失败日志，不算通过。第三尝试使用符合现场余量的Node heap2GiB/容器3GiB、CPU1、禁swap/pids128/core0，并从冻结件新建目录；回退阶段使用候选处理后的副本，而非直接重用原件。资源和HTTP在线状态有独立只读复核；结果待补，不绕过完整Host门禁。
+
+### 生产副本发现的发布前启动竞态：OPS-RUNTIME-STARTUP
+
+v3 current精确旧镜像完整Host通过，elapsed546591ms；startup health ok/normalSupplyAllowed=true，7秒正常Owner轮询后关闭，8类存量不可变记录全部changedOrMissing=0。Readonly隔离产生EROFS，20条原destructive_commit reconcile_required保留，workspace_write intended变为reconcile_required而非删除；Replica产生7个Inventory Material注册记录，正式Entry/Commit仍523。AbortSignal MaxListeners warning保留，未屏蔽。
+
+0bc候选完整Host抵达Runtime正常供给阶段却抛P4_STARTUP_INTERRUPTED，未部署、未运行后续rollback。根因是新增start保护在fallbackReconciler.start返回后只接受ready；正常Owner wake已通过Recovery Gate并触发tick，合法状态可能是draining。小型确定性复现先red（同一错误）后green：只接受已有active状态ready/draining，真正stop仍拒绝startup，并保持原供给/退出门禁。不是跳过Recovery Gate、未知Effect或历史校验，也不改Owner/边界/显示文案。Windows Foundation+Runtime控制+真实HTTP37 pass；原0bc本地证据保留，但0bc不得部署。此次修正属发布前开发OPS-RUNTIME-STARTUP，不分配post-release UAT编号；界面资产未改，最终候选身份与重新完整副本资格待补。

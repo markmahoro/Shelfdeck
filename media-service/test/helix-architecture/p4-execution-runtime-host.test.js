@@ -5,6 +5,33 @@ const test = require('node:test');
 const { createExecutionRuntimeHost } = require('../../src/helix/foundation/execution/execution-runtime-host');
 const { createPlannerRegistry } = require('../../src/helix/foundation/execution/planner-registry');
 
+test('Owner startup wake may enter ordinary draining without being mistaken for shutdown',async()=>{
+  let host,releasePlanner,plannerEntered,available=true;
+  const entered=new Promise(resolve=>{plannerEntered=resolve;}),gate=new Promise(resolve=>{releasePlanner=resolve;});
+  host=createExecutionRuntimeHost({tickIntervalMs:60000,
+    startupRecovery:{async recover(){return {normalSupplyAllowed:true};}},
+    scheduler:{acquire({targetType}){if(targetType==='work'&&available){available=false;return {kind:'leased',lease:{targetType:'work',targetId:'startup-work',leaseId:'lease'}};}return {kind:'idle'};},release(){}},
+    plannerRegistry:{resolve(){return {plannerContractRef:'planner@1',plannerVersion:1,planner:{async plan(){plannerEntered();await gate;return {planId:'plan',resolution:'planned'};}}};}},
+    planPublisher:{publish(plan){return plan;}},
+    workLifecycle:{ensurePlanningAttempt(){return {work:withDefinition({work_id:'startup-work',owner_domain:'libra',process_type:'libra_run',process_id:'run',work_kind:'test',basis_digest:'a'.repeat(64),priority_class:'normal'}),attempt:{attempt_id:'attempt'}};},startPlanned(){return {state:'running'};},aggregateEvent(){},settleWork(){}},
+    eventRuntime:{async run(){}},domainReconciler:{async reconcile(){}},
+    fallbackReconciler:{async start(){host.wake();await entered;},async stop(){}},
+  });
+  try{const started=await host.start();assert.equal(started.state,'draining');assert.equal(started.normalSupplyAllowed,true);}
+  finally{releasePlanner();await host.stop();}
+});
+
+test('an actual shutdown during Owner startup still interrupts supply and drains safely',async()=>{
+  let enter,release;const entered=new Promise(resolve=>{enter=resolve;}),gate=new Promise(resolve=>{release=resolve;});
+  const host=createExecutionRuntimeHost({startupRecovery:{async recover(){return {normalSupplyAllowed:true};}},
+    scheduler:{acquire(){return {kind:'idle'};},release(){}},plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){},settleWork(){}},eventRuntime:{async run(){}},domainReconciler:{async reconcile(){}},
+    fallbackReconciler:{async start(){enter();await gate;},async stop(){}},
+  });
+  const starting=host.start();await entered;const rejected=assert.rejects(starting,{code:'P4_STARTUP_INTERRUPTED'});
+  const stopping=host.stop();release();await rejected;await stopping;assert.equal(host.readiness().state,'stopped');
+});
+
 test('maintenance quiesce waits for Event and Owner closure, then resumes through recovery', async () => {
   let eventRelease, ownerRelease, leaseNext=true, ownerEntered=false, recoveryCalls=0, starts=0;
   const eventGate=new Promise(resolve=>{eventRelease=resolve;}),ownerGate=new Promise(resolve=>{ownerRelease=resolve;});

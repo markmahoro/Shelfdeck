@@ -542,7 +542,8 @@ function createExecutionRuntimeHost(options) {
       state = 'ready';
       firstFault = null;
       await options.fallbackReconciler.start();
-      if(state!=='ready')fail('P4_STARTUP_INTERRUPTED','Runtime startup was interrupted by shutdown.');
+      // Owner startup may wake ordinary dispatch after the Recovery Gate opens.
+      if(!['ready','draining'].includes(state))fail('P4_STARTUP_INTERRUPTED','Runtime startup was interrupted by shutdown.');
       wake();
       return Object.freeze({ state, normalSupplyAllowed: true, recovery: lastRecovery });
       })();
