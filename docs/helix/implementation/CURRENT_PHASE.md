@@ -6,8 +6,8 @@
 | --- | --- | --- |
 | OPS-CONTRACT | SSOT登记停机/恢复/受保护Reset；Owner不变、在线停机与进程退出分开 | 已登记，待Exit复核 |
 | OPS-RUNTIME | 停止新供给/派发，等待已开始操作及Owner收口；HTTP可读、业务写关闭；可恢复且重启保留意图 | 已实现，本地验证/最终审核中 |
-| OPS-RESET | 停稳后预检清单/摘要/阻塞；备份验证后精确执行，保护历史/收藏/配置/范围外控制；成功仍停机 | 待实现 |
-| OPS-SURFACE | 概览停机/恢复/Reset，等待反馈和确认；desktop/narrow/键盘/失败路径、具体版本UI负责人审查 | 待实现 |
+| OPS-RESET | 停稳后预检清单/摘要/阻塞；备份验证后精确执行，保护历史/收藏/配置/范围外控制；成功仍停机 | 已实现，本地验证/最终审核中 |
+| OPS-SURFACE | 概览停机/恢复/Reset，等待反馈和确认；desktop/narrow/键盘/失败路径、具体版本UI负责人审查 | 已实现，本地验证/最终审核中 |
 
 安全停机不硬杀Event，不因超时谎报停稳，不提供单任务Pause；已开始的remux/transcode可能较久。Reset不是恢复出厂或全库清空，沿用Operator范围/Control/Workspace保护，用户入口额外拒绝清理已结束历史及未知Effect。文件来源扫描、已入藏维护及外部下载器不纳入上架Formation Reset。
 

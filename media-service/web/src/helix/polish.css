@@ -28,7 +28,7 @@ body { background: var(--neutral-bg); }
 .helix-rail nav a:hover { background: var(--rail-soft); }
 .brand-mark { border-color: #718da5; color: #edf4fd; }
 .rail-status { color: #92d0ac; }
-.rail-status[data-kind="unknown"], .rail-status[data-kind="unconfigured"] { color: #bec9d4; }
+.rail-status[data-kind="unknown"], .rail-status[data-kind="unconfigured"], .rail-status[data-kind="maintenance"] { color: #bec9d4; }
 
 /* Buttons share a shape; selectors below never resize workbench controls. */
 .btn, .formation-expedite-toggle { border-radius: 6px; }

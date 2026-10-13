@@ -1,6 +1,6 @@
 # ShelfDeck / Helix 文档索引
 
-更新：2026-10-08。Movie Beta阶段收尾已完成；Series首个可部署候选已完成，主工作区为`main`。Movie收尾、Series已有实现及生产UAT-281修复已整合；Series开发、适用UI验收及部署候选准备已完成，未发布生产。工作区归属见CURRENT_PLAN，整合与恢复路径见[Evidence](implementation/evidence/GIT_WORKSPACE_CONSOLIDATION_20261008.md)。
+更新：2026-10-13。当前活动Phase为安全停机与用户Formation Reset开发及本地验证，尚未部署该功能；Series已完成开发并上线，生产身份和残余验收见CURRENT_STATUS。主工作区为main。工作区整合与恢复路径见[Evidence](implementation/evidence/GIT_WORKSPACE_CONSOLIDATION_20261008.md)。
 
 ## 权威与当前入口
 
@@ -9,7 +9,7 @@
 | [TOP_DOWN_ARCHITECTURE_CONFIRMATION](TOP_DOWN_ARCHITECTURE_CONFIRMATION.md) | 唯一架构 SSOT；含未来 Series 的 Owner、Season/Episode 与连续性合同 |
 | [BETA_FEATURE_ACCEPTANCE_BASELINE](BETA_FEATURE_ACCEPTANCE_BASELINE.md) | 原 Movie-only Definition of Done 与 Movie 回归 Oracle；不改写技术资格验收方法 |
 | [CURRENT_PLAN](CURRENT_PLAN.md) | 唯一 Master Plan：Movie 收尾、Series 准备及后续顺序 |
-| [implementation/CURRENT_PHASE](implementation/CURRENT_PHASE.md) | 唯一活动执行包：Series开发及Phase工作项 |
+| [implementation/CURRENT_PHASE](implementation/CURRENT_PHASE.md) | 唯一活动执行包：安全停机/Reset工作项；Series包已归档 |
 | [CURRENT_STATUS](CURRENT_STATUS.md) | 用户阶段接受、最近已记录生产身份、风险及未完成事实 |
 | [ENGINEERING_PLAYBOOK](ENGINEERING_PLAYBOOK.md) | 实施、验证、授权、UI负责人与变更治理 |
 | [UAT_ITERATION_REGISTER](UAT_ITERATION_REGISTER.md) | 上线后测试、验收问题台账；保留已有编号和历史记录 |

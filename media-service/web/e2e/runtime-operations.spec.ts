@@ -1,6 +1,26 @@
 import {expect,test} from '@playwright/test';
 import AxeBuilder from '@axe-core/playwright';
 
+test('Reset interruption uses error styling and fences resume while recovery details stay collapsed',async({page},testInfo)=>{
+  await page.route('**/v1/**',async route=>{
+    const url=new URL(route.request().url());
+    if(url.pathname==='/v1/admin/runtime')return route.fulfill({json:{mode:'error',desiredMode:'stopped',revision:2,normalSupplyAllowed:false,activity:{},operation:null,
+      error:{code:'RUNTIME_RESET_INTERRUPTED',message:'Reset被中断，须核查备份和工作区后才能恢复运行。'},recoveryBackup:'formation-reset-test'}});
+    if(url.pathname==='/v1/admin/overview')return route.fulfill({json:{generatedAt:new Date().toISOString(),systemState:{kind:'running',label:'正常运行',href:'/'},
+      metrics:[],todos:[],ledger:[],pipeline:{waitingAcceptanceCount:0,organizingCount:0},setup:{activeMaterialFieldCount:1,activeShelfCount:1},backgroundOperations:null}});
+    return route.fulfill({json:{items:[],state:'ready'}});
+  });
+  await page.goto('/');await expect(page.locator('.rail-status')).toHaveText('运行操作未完成');
+  await expect(page.locator('.rail-status')).toHaveAttribute('data-kind','faulted');
+  await expect(page.locator('.rail-status')).toHaveCSS('color','rgb(240, 180, 180)');
+  await expect(page.getByRole('button',{name:'恢复运行',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'重新停机',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Reset 整理任务'})).toBeDisabled();
+  await expect(page.getByText('备份编号：formation-reset-test')).not.toBeVisible();
+  await page.getByText('查看恢复资料',{exact:true}).click();await expect(page.getByText('备份编号：formation-reset-test')).toBeVisible();
+  await page.screenshot({path:testInfo.outputPath('reset-interrupted.png')});
+});
+
 test('unknown runtime and another-session changes cannot enable stale Reset confirmation',async({page})=>{
   let mode='stopped',revision=1;
   await page.route('**/v1/**',async route=>{
@@ -45,6 +65,7 @@ test('overview guides safe stop, exact Reset confirmation and resume',async({pag
   await page.screenshot({path:testInfo.outputPath('stopping.png')});
   await expect(page.getByRole('region',{name:'运行控制'}).getByText('已安全停机',{exact:true})).toBeVisible();
   await expect(page.locator('.rail-status')).toHaveText('已安全停机');
+  await expect(page.locator('.rail-status')).toHaveCSS('color','rgb(190, 201, 212)');
   await page.getByRole('button',{name:'Reset 整理任务'}).click();await expect(page.getByRole('dialog')).toBeVisible();
   await expect(page.getByText('本地测试电影',{exact:true})).toBeVisible();
   await expect(page.getByRole('button',{name:'确认 Reset'})).toBeDisabled();
