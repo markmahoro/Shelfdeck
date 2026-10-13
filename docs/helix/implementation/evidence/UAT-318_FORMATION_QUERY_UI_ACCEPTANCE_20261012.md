@@ -86,3 +86,34 @@ ResourceTiming包含浏览器调度、网络及服务端请求阶段，本轮未
 审计目录：`E:/my_project/helix-git-consolidation-20261008/uat318-6feda0d26-20261013/`。源码ZIP SHA256 `5dd9d85d60747314784db3ab236f9b895ab11c8cd017074f7845411df7fc39f4`；`owner-tests.log`、`web-build.log`、`browser-evidence.json`。脚本`backend-fields-browser.cjs` SHA256 `72b238622a6e0dd982d6b729435c3b6cb45d1dd10f3990373bf0808ec71dad50`；浏览器Evidence SHA256 `6ebcd62dd997ddd4e63e94cb8e100fe270af3ef266e498f33c66dacc5f554bf6`。
 
 本次没有NAS部署/副本对照、生产性能或真实Series生命周期复验，没有改变五项失败媒体或其它任务。主任务的最终镜像资格与本项UI门禁各自保留边界；发布后仍需真实Tab、概览更新、详情与长尾取证，不能以66项或稳定fixture关闭性能。未改产品、流程文档、CURRENT_STATUS或UAT总表，未清理不属于本任务的untracked测试输出。
+
+## 当前Inventory健康读取与加载反馈：最终候选aef74a3ef通过
+
+2026-10-13，UI负责人接受 `aef74a3eff2d737502c60fb3c18c939fd8bc7936` 的受影响用户表面，部署前UI门禁通过。该候选包含ed8e96b84的健康读取优化及加载反馈、6ce4aedb8的收藏首次失败修正、aef74a3ef的整理刷新保留修正。主任务可继续用户已授权的标准部署流程；本负责人没有部署或改动生产数据。该结论不代表生产性能达标，也不关闭UAT-318。
+
+健康读取仍由Arca生成：按活动Entry的 `current_inventory_revision` 分组，在原读取事务内以固定Revision和每批最多500个Entry读取完整Product Fact。历史Revision正文不进入当前健康投影，原事实映射、Episode metadata、Basis、Case及健康判断保持。没有将业务健康判断或Inventory归属放入前端。旧/新514条生产备份输出等价及本机查询耗时是主任务的查询层证据，本负责人审查记录但没有重跑备份对照，更没有把它算作生产页面验收。
+
+### 审核中发现的问题与修正
+
+初次冻结 `ed8e96b84f7d98db55ea0c1cd6597f5cb2ee42ad` 后，独立真实bundle走查发现：收藏首次读取尚未返回时显示“0 条收藏”和“共0条”；首次读取失败同时出现“还没有正式上架的收藏”；整理中的手动刷新因不参与当前筛选的流先返回空数组，通过Partial发布清空已显示条目，再用骨架替换。保留原截图及失败版本证据，不把这些观察归入修正后的版本。
+
+6ce4aedb8使收藏数量在首次成功读取前保持未知、隐藏未经确认的分页数量，首次失败仅显示错误；aef74a3ef在同一筛选已有完整页面结果时等待完整刷新结果再替换条目。`hasLoadedPage`仅记录UI是否已经完成页面读取，首次读取和切换筛选继续原Partial机制；成功空结果仍替换旧条目，不构成业务事实缓存或吞掉真实空结果。ed8到aef的服务源码无diff，后两次提交只有Web产品及相应测试变化。
+
+### 独立冻结验证
+
+- ed8冻结源码的Aftercare投影性能、投影来源及契约三个测试文件：56通过、0失败、0跳过。覆盖当前Revision、历史Fact排除、完整事实与Episode字段、健康输出及分页边界；服务源码与最终aef相同，明确沿用此结果，不称作在aef重复执行了服务测试。
+- 最终aef git archive冻结源码：Collection与Formation专项两个文件14通过、0失败；TypeScript/Vite构建通过，JS `index-DWXi77Md.js`、CSS `index-D6t0BdHs.css`。主任务另有22项Web、6项桌面/窄屏浏览器及Linux验证，本负责人没有重复这些完整资格检查。
+- 独立Chromium加载最终冻结bundle，1440×900，隔离同源HTTP仅提供受控读取fixture，没有连接生产或共用本机18081。收藏初次等待显示可访问的未知数量“—”，无分页数量、无假零条；首次503错误保留未知数量，没有同时显示空收藏。随后成功返回空结果才显示“0 条收藏”和正式空态。
+- 收藏刷新期间真实卡片保持，无海报骨架替换，`aria-busy=true`，完成后恢复false。整理先完成“整理中”筛选，再挂起维护读取：刷新期间原条目可见、无列表骨架、`aria-busy=true`、九列表头保持；完成后busy恢复false。另一次刷新真实返回空结果，旧条目被正式移除，不永久保留旧列表。
+- 整理首次挂起读取显示“正在读取整理条目…”的status，未提前出现正式空态。装饰骨架为 `aria-hidden=true`；减少动态效果设置下实际计算样式的动画为none。细读取标记无百分比或预计时间，不把动画长度解释为读取进度。
+- 已目检 `01-pending-count-unknown.png`、`02-error-keeps-unknown.png`、`03-refresh-retains-content.png`。没有改变页面数量、整理九列、配置入口或正常业务事实。
+
+最终浏览器首轮在空结果上误期待“当前筛选没有条目”；受控fixture的总数已为零，现有页面使用“还没有进入整理的媒体”。保留 `reviewer-ui-v1.log` / `reviewer-ui-failure-v1.json`，按真实总数对应的既有空态修正测试Oracle后，完整路径 `reviewer-ui-v2.log` 通过。未改产品或放宽条目保留、busy、未知数量断言。
+
+初次审计目录 `E:/my_project/helix-git-consolidation-20261008/uat318-ed8e96b84-20261013/`，ZIP SHA256 `e4de4656083e5747895f75f8ec94fbd79ff5d80c24caac83ffa12c9eb413a77e`，包含 `service-review.log`、初次浏览器记录和截图。中间6ce冻结源码保留在 `uat318-6ce4aedb8-20261013/`，未执行最终验收，不将它当作通过或新的失败复现。
+
+最终审计目录 `E:/my_project/helix-git-consolidation-20261008/uat318-aef74a3ef-20261013/`，ZIP SHA256 `d3ae65e02796fe9afe37493c784e231d11bf5f302807ff4d05795f247ab5737e`；脚本 `reviewer-ui.cjs` SHA256 `b0bdc14035f093d7d2e06eb311f8c04b90cbb7e7b4861b5da20514c7d28c0775`；最终 `reviewer-ui-evidence.json` SHA256 `24ad653149392900014aa5aea57bda7335cb85ff62a0acb53400c2faca32c052`。隔离浏览器和HTTP服务已关闭。
+
+### 性能边界
+
+SSOT §10.6要求在已登录生产LAN且后台运行时，“整理中”和“我的收藏”从点击到实际新内容可用少于一秒。骨架、细读取标记或保留旧内容只改善读取反馈，均不计为本次新结果已就绪。此次受控挂起fixture没有进行生产响应时间资格；此前生产约42.9秒长尾仍有效。最终镜像身份、部署、NAS健康与后台执行、实际结果可用时间及长尾由主任务继续取证。没有借停止业务、Reset、重处理失败媒体或修改生产数据取得通过结论。
