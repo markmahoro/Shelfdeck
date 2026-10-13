@@ -101,3 +101,15 @@ Windows相关Shelf/Formation27通过，Overview及4000条分页汇总8通过；�
 UI首次读取用轻微明暗骨架，刷新已有内容保留并显示读取标记，aria-busy跟随读取，装饰aria-hidden，无假进度/ETA。Collection初始loading=true。Web相关21通过、build通过；实际Playwright桌面1440/窄屏390共4通过，延迟加载/空结果/迟到条目/保留内容/键盘通过。两份桌面截图已目检，ignored截图uat318-current-loading-browser；runner测试Host关闭。本次实际跨层diff仍须精确UI负责人审核。
 
 NAS只读隔离对照容器nice_taussig在openSqliteKernel整库检查阶段长时间未返回，无最终证据；随后SSH多次握手超时。已尝试docker stop -t 3，但未得到成功确认；本地该客户端PID1908已结束，远端容器是否随断连退出待复核，不能宣称已清理。转本地副本验证，不再增加NAS重型测试；没有停止生产ShelfDeck/其他业务，没有处置媒体。当前未发布，生产仍505844a8b，1秒目标及UAT-318开放，五项媒体不重处理。
+
+## 2026-10-13 NAS重启恢复与本机验证
+
+用户重启NAS后SSH恢复，nice_taussig在docker ps -a精确过滤中不存在，隔离对照未获得结果且不再重启。505生产容器初始Exited255、OOMKilled=false，原restart policy unless-stopped；通过docker start仅启动同一已有容器，StartedAt 2026-10-13T02:22:21.27553841Z。02:29:04 UTC前后public health200/status ok/normalSupplyAllowed=true；冷启动约6分多钟，不以container running冒充就绪。磁盘Avail25GiB，刚重启可用内存约5.8GiB/Swap0；生产恢复后台后容器约5.2GiB，进一步拆分主Node RSS约378672KiB、一个FFmpeg RSS约3580724KiB，不把容器总量认定为Node泄漏。旧内核日志因权限未读取，不能证明NAS重启前OOM或断言唯一事故原因；测试共享物理资源是已知风险，后续对照放本地。任务创建的IAB诊断login标签已关闭，没有登录或修改fnOS设置，没有停止媒体加工。
+
+本机Docker Desktop已启动，标准build-image.js ed8e96b84完成，tar562216448 bytes/SHA25608a37a276abfd5d6df393a4da69eb8fa701c4755c87b495454bb95f695f328c2。Linux精确镜像在本机执行相关69项，68通过、1未启用进程恢复skip；测试容器--rm且已确认不在运行。本机build未使用NAS Docker forwarding。
+
+UI负责人指出初次未知数量0及初次失败真空态边界；后续6ce4aedb8f065e9edf81570e19fa41f5ee89c569仅修该UI：hasResult区分未知与成功，未知数量—、不显示分页；首次失败仅错误/刷新，成功0项保留真空态。Web22、build、实际桌面/窄屏6项通过，新增失败→刷新→真空结果与无假0数量。负责人已收到新精确SHA继续审核；旧ed8不是最终候选验收。最新产品未发布，生产仍505；不重处理五项媒体，1秒目标保持开放。
+
+## 2026-10-13 用户授权生产重启与挂载启动阻塞
+
+用户因NAS重启时SMB未正确挂载，明确要求先重启ShelfDeck及MoviePilot。重启前宿主两处挂载均为cifs；MoviePilot重启后/media为SMB且HTTP200。ShelfDeck旧容器/media及/adult_media仍为本地ext文件系统，重启后两者均恢复SMB，但启动失败HELIX_MOUNT_SCOPE_UNSAFE，不能宣称服务已恢复。只读核对当前Field/Shelf四个reference：filesystem type、endpoint、mount boundary、inode能力均相同，仅stable_mount_fingerprint及probe_evidence_digest变化。对同一mountRoot/sourceIdentity/filesystemType重算证据，旧deviceIdentity=0:93精确命中已存fingerprint，当前Linux设备号为0:81。现有probe将重启不稳定设备号当成稳定证据，问题尚未修复；没有改写Registry、绕过校验或Reset。版本仍505844a8b，aef候选未部署。任务自建本机shelfdeck-uat318-aef-host已停止并删除，中断演练不计通过，未重处理五项媒体。

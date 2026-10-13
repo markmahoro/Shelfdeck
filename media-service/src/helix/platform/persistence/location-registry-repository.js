@@ -29,6 +29,10 @@ function createLocationRegistryRepository(options) {
       initialize_mount_head: { kind: 'update', tableId: 'platform_mount_scopes', setColumns: ['current_revision'], keyColumns: ['mount_scope_id'] },
       advance_mount_head: { kind: 'update', tableId: 'platform_mount_scopes', setColumns: ['current_revision'], keyColumns: ['mount_scope_id'],
         compareColumns: [{ column: 'current_revision', parameter: 'expected_current_revision' }] },
+      correct_mount_probe: { kind: 'update', tableId: 'platform_mount_scope_revisions',
+        setColumns: ['stable_mount_fingerprint', 'probe_evidence_digest'], keyColumns: ['mount_scope_id', 'revision'],
+        compareColumns: [{ column: 'stable_mount_fingerprint', parameter: 'expected_stable_mount_fingerprint' },
+          { column: 'probe_evidence_digest', parameter: 'expected_probe_evidence_digest' }] },
       find_mount_head: { kind: 'select-one', tableId: 'platform_mount_scopes',
         columns: ['mount_scope_id', 'status', 'current_revision', 'created_at_ms', 'terminal_at_ms'], keyColumns: ['mount_scope_id'] },
       list_mount_heads: { kind: 'select-all', tableId: 'platform_mount_scopes',
@@ -120,6 +124,48 @@ function createLocationRegistryRepository(options) {
         return mapRevision(repository.invoke('find_mount_revision', {
           mount_scope_id: head.mount_scope_id, revision: head.current_revision
         }));
+      });
+    },
+    listMountScopes() {
+      return execute((context) => {
+        const repository = context.repository(definition.repositoryId);
+        return Object.freeze(repository.invoke('list_mount_heads').filter((head) => head.status === 'active')
+          .map((head) => mapRevision(repository.invoke('find_mount_revision', {
+            mount_scope_id: head.mount_scope_id, revision: head.current_revision,
+          }))));
+      });
+    },
+    correctMountProbeEvidence(request, validateCurrent) {
+      return execute((context) => {
+        const repository = context.repository(definition.repositoryId);
+        const head = repository.invoke('find_mount_head', { mount_scope_id: request.mountScopeId });
+        const current = head && mapRevision(repository.invoke('find_mount_revision', {
+          mount_scope_id: head.mount_scope_id, revision: head.current_revision,
+        }));
+        if (!current || head.status !== 'active' || current.revision !== request.revision) {
+          fail('P5_MOUNT_SCOPE_REVISION_CONFLICT', 'Probe correction requires the exact active revision.');
+        }
+        const active = repository.invoke('list_mount_heads').filter((item) => item.status === 'active')
+          .map((item) => mapRevision(repository.invoke('find_mount_revision', {
+            mount_scope_id: item.mount_scope_id, revision: item.current_revision,
+          })));
+        const corrected = createMountScopeRevision(validateCurrent(current, Object.freeze(active)));
+        if (corrected.mountScopeId !== current.mountScopeId || corrected.revision !== current.revision ||
+            corrected.endpointId !== current.endpointId || corrected.mountBoundary !== current.mountBoundary ||
+            corrected.filesystemType !== current.filesystemType || corrected.inodeCapabilityDigest !== current.inodeCapabilityDigest ||
+            corrected.effectiveAtMs !== current.effectiveAtMs) {
+          fail('HELIX_CIFS_PROBE_CORRECTION_INVALID', 'Probe correction cannot change Mount Scope identity or capabilities.');
+        }
+        if (corrected.stableMountFingerprint === current.stableMountFingerprint &&
+            corrected.probeEvidenceDigest === current.probeEvidenceDigest) return current;
+        const result = repository.invoke('correct_mount_probe', {
+          mount_scope_id: current.mountScopeId, revision: current.revision,
+          stable_mount_fingerprint: corrected.stableMountFingerprint, probe_evidence_digest: corrected.probeEvidenceDigest,
+          expected_stable_mount_fingerprint: current.stableMountFingerprint,
+          expected_probe_evidence_digest: current.probeEvidenceDigest,
+        });
+        if (result.changes !== 1) fail('P5_MOUNT_SCOPE_REVISION_CONFLICT', 'Mount probe evidence changed concurrently.');
+        return corrected;
       });
     },
     publishWorkspaceRoot(root, expectedConfigRevision, validateCurrentSet) {

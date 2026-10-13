@@ -7289,6 +7289,13 @@ Physical Material Identity的Beta可执行合同固定为：
 - Mount Scope由Platform技术Registry分配稳定`mountScopeId`。Registry依据Linux mount boundary、稳定
   filesystem/mount fingerprint和原生inode能力建立revision；Field Access与Shelf Target只引用该技术scope，
   不把它升级为Business Object；
+- Linux CIFS的稳定fingerprint使用filesystem type、server/share source与共享内mount root，不包含重启或
+  remount后会变化的`major:minor`设备号；该设备号只能用于当前进程的瞬时stat fence。共享source/root变化仍
+  是mount replacement，必须拒绝旧Identity资格。旧实现错误纳入设备号的证据，仅允许Platform显式纠正：
+  指定Scope/revision、root及旧设备号，按当前source/root/type重算旧完整fingerprint与probe digest并逐项匹配
+  原Registry，同时核验endpoint/boundary/inode能力；全部一致才CAS纠正两个错误digest，保留原Scope ID、
+  revision及effective time。该操作修正派生技术证据，不是replacement、业务数据迁移或自动恢复；必须有
+  dry run、冻结备份与纠正前后审计，不得扫描猜测旧设备号或在正常启动中自动纠正。
 - 每次Observation统一重新计算bounded fingerprint，不建立“存量/增量”两套执行模式；新增、变化、不变和
   missing只是与上一轮Inventory对账后的结果；
 - 每次采样前后都必须重验`mountScopeId+inode+size+mtimeNs+ctimeNs` stat fence。任一字段在采样期间变化，

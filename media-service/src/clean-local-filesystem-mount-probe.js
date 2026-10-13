@@ -63,7 +63,7 @@ function createCleanLocalFilesystemMountProbe(options = {}) {
   const pathApi = options.pathApi || path;
   const platform = options.platform || process.platform;
 
-  function inspectRoot(rootLocation) {
+  function inspect(rootLocation, legacyDeviceIdentity) {
     if (typeof rootLocation !== 'string' || !rootLocation || !pathApi.isAbsolute(rootLocation)) {
       fail('HELIX_MOUNT_SCOPE_UNSAFE', 'Local filesystem root must be an absolute path.');
     }
@@ -94,6 +94,15 @@ function createCleanLocalFilesystemMountProbe(options = {}) {
       sourceIdentity: linux?.sourceIdentity || null,
       filesystemType: linux?.filesystemType || filesystemType,
     };
+    if (legacyDeviceIdentity !== undefined) {
+      if (linux?.filesystemType !== 'cifs' || !/^\d+:\d+$/.test(legacyDeviceIdentity)) {
+        fail('HELIX_CIFS_PROBE_CORRECTION_INVALID', 'Explicit legacy device evidence requires a Linux CIFS root.');
+      }
+      evidence.deviceIdentity = legacyDeviceIdentity;
+    } else if (linux?.filesystemType === 'cifs') {
+      evidence.schema = 'platform.local-filesystem-mount-evidence@2';
+      delete evidence.deviceIdentity;
+    }
     const stableMountFingerprint = canonicalDigest(evidence);
     const inodeCapabilityDigest = canonicalDigest({
       schema: 'platform.local-filesystem-inode-capability@1',
@@ -122,7 +131,10 @@ function createCleanLocalFilesystemMountProbe(options = {}) {
     });
   }
 
-  return Object.freeze({ inspectRoot });
+  return Object.freeze({
+    inspectRoot: (rootLocation) => inspect(rootLocation),
+    inspectLegacyCifsRoot: (rootLocation, legacyDeviceIdentity) => inspect(rootLocation, legacyDeviceIdentity),
+  });
 }
 
 module.exports = Object.freeze({

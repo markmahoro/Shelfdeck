@@ -15,6 +15,7 @@ const {
 const {
   createCleanLocalFilesystemMountProbe,
 } = require('../../src/clean-local-filesystem-mount-probe');
+const { createCifsMountProbeCorrection } = require('../../src/helix/platform/application/cifs-mount-probe-correction');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
@@ -77,4 +78,68 @@ test('Platform fail-closes an unregistered or mismatched configured Mount Scope'
     ...current,
     mountScopeRevision: 2,
   }), (error) => error.code === 'HELIX_MOUNT_SCOPE_UNSAFE');
+});
+
+function cifsProbe(state) {
+  return createCleanLocalFilesystemMountProbe({ platform:'linux', pathApi:path.posix, fsApi: {
+    realpathSync: (root) => root,
+    statSync: () => ({ isDirectory: () => true, dev:81n, ino:100n, mtimeNs:1n, ctimeNs:1n }),
+    readFileSync: () => `10 9 ${state.device} ${state.mountRoot || '/'} /media rw - ${state.type || 'cifs'} ${state.source || '//nas/Media'} rw,serverino`,
+  } });
+}
+
+test('CIFS remount changes transient device number without changing stable mount identity', () => {
+  const state = { device:'0:93' }, probe = cifsProbe(state);
+  const before = probe.inspectRoot('/media/Film');
+  state.device = '0:81';
+  assert.deepEqual(probe.inspectRoot('/media/Film'), before);
+  for (const replacement of [{ source:'//nas/Other' }, { source:'//other/Media' }, { mountRoot:'/subtree' }, { type:'ext4' }]) {
+    Object.assign(state, replacement);
+    assert.notEqual(probe.inspectRoot('/media/Film').stableMountFingerprint, before.stableMountFingerprint);
+    delete state.source; delete state.mountRoot; delete state.type;
+  }
+});
+
+test('Explicit CIFS correction preserves all Scope references and survives the next remount', (t) => {
+  const value = fixture(t), state = { device:'0:93' }, probe = cifsProbe(state);
+  const legacy = probe.inspectLegacyCifsRoot('/media/Film', '0:93');
+  const mountScopeId = 'local-mount-' + legacy.stableMountFingerprint.slice(0, 32);
+  const original = { mountScopeId, revision:1, endpointId:legacy.endpointId, mountBoundary:legacy.mountBoundary,
+    filesystemType:legacy.filesystemType, stableMountFingerprint:legacy.stableMountFingerprint,
+    inodeCapabilityDigest:legacy.inodeCapabilityDigest, probeEvidenceDigest:legacy.probeEvidenceDigest, effectiveAtMs:1001 };
+  value.repository.publishMountScope(original, () => {});
+  const reference = { endpointId:legacy.endpointId, rootLocation:'/media/Film', mountScopeId, mountScopeRevision:1 };
+  const resolver = createLocalFilesystemMountScopeResolver({ repository:value.repository, inspectRoot:probe.inspectRoot });
+  const service = createCifsMountProbeCorrection({ repository:value.repository, probe });
+  const request = { mountScopeId, revision:1, rootLocation:'/media/Film', legacyDeviceIdentity:'0:93' };
+  state.device = '0:81';
+  assert.throws(() => resolver.validateReference(reference), { code:'HELIX_MOUNT_SCOPE_UNSAFE' });
+  service.inspect(request);
+  assert.deepEqual(value.repository.getMountScope(mountScopeId), original, 'dry run must not write');
+  assert.throws(() => service.apply({ ...request, legacyDeviceIdentity:'0:92' }), { code:'HELIX_CIFS_PROBE_CORRECTION_INVALID' });
+  assert.throws(() => service.apply({ ...request, revision:2 }), { code:'HELIX_CIFS_PROBE_CORRECTION_INVALID' });
+  state.source = '//nas/Other';
+  assert.throws(() => service.apply(request), { code:'HELIX_CIFS_PROBE_CORRECTION_INVALID' });
+  delete state.source;
+  state.mountRoot = '/subtree';
+  assert.throws(() => service.apply(request), { code:'HELIX_CIFS_PROBE_CORRECTION_INVALID' });
+  delete state.mountRoot;
+  assert.deepEqual(value.repository.getMountScope(mountScopeId), original, 'invalid repair must not change evidence');
+  const corrected = service.apply(request);
+  assert.equal(corrected.after.mountScopeId, original.mountScopeId);
+  assert.equal(corrected.after.revision, 1);
+  assert.equal(corrected.after.effectiveAtMs, original.effectiveAtMs);
+  assert.deepEqual(resolver.validateReference(reference), reference);
+  assert.deepEqual(resolver.resolveRoot({ rootLocation:'/media/Film' }), reference);
+  assert.deepEqual(service.apply(request).after, corrected.after, 'explicit repair is idempotent');
+  state.device = '0:121';
+  assert.deepEqual(resolver.validateReference(reference), reference);
+  assert.deepEqual(resolver.resolveRoot({ rootLocation:'/media/Film' }), reference);
+  state.source = '//nas/Other';
+  assert.throws(() => resolver.validateReference(reference), { code:'HELIX_MOUNT_SCOPE_UNSAFE' });
+  assert.throws(() => service.apply(request), { code:'HELIX_CIFS_PROBE_CORRECTION_INVALID' });
+  const db = new Database(value.databasePath, { readonly:true });
+  assert.equal(db.prepare('SELECT COUNT(*) count FROM platform_mount_scopes').get().count, 1);
+  assert.equal(db.prepare('SELECT COUNT(*) count FROM platform_mount_scope_revisions').get().count, 1);
+  db.close();
 });

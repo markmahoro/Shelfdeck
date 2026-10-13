@@ -52,7 +52,10 @@ function createLocalFilesystemMountScopeResolver(options) {
 
   function resolveRoot(request) {
     const root = observed(request.rootLocation);
-    const mountScopeId = 'local-mount-' + root.stableMountFingerprint.slice(0, 32);
+    const matches = options.repository.listMountScopes().filter((item) =>
+      item.stableMountFingerprint === root.stableMountFingerprint);
+    if (matches.length > 1) fail('HELIX_MOUNT_SCOPE_UNSAFE', 'Mount evidence matches multiple registered scopes.');
+    const mountScopeId = matches[0]?.mountScopeId || 'local-mount-' + root.stableMountFingerprint.slice(0, 32);
     let current = options.repository.getMountScope(mountScopeId);
     if (!current) {
       const revision = Object.freeze({

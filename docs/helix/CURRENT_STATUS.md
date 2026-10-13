@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-13 UAT-319：用户授权NAS重启后的两服务重启及挂载缺陷修复。MoviePilot HTTP200；ShelfDeck容器已恢复SMB，但临时设备号0:93→0:81引发HELIX_MOUNT_SCOPE_UNSAFE，服务尚未就绪。Platform稳定CIFS指纹与显式CAS证据纠正工具Windows17项通过，尚未部署/纠正生产。媒体及Scope ID/revision保护，不Reset、不重处理五项媒体。aef性能/UI候选已获具体版本UI接受，但完整Host演练中断未通过，UAT-318仍开放。本机任务演练容器已停止删除；NAS先前nice_taussig在重启后已确认不存在，不再增加NAS重型对照。
+
 2026-10-13追加UAT-318：用户明确“整理中”及“我的收藏”点击至实际内容小于1秒、管理响应优先于后台吞吐；原则已补SSOT §10.6，不新增调度器。505生产再次复现27–35秒等待，轻量health同样迟到；采样热点在Arca健康批量读取历史事实。当前本地按当前Inventory Revision提前过滤及克制加载反馈补丁已通过相关68服务/21 Web/4浏览器测试，1服务进程恢复未启用；514收藏同快照完整输出一致、局部428→212ms，不是生产达标。尚未发布、Linux最终镜像/UI负责人及生产1秒验收待完成。NAS SSH连续握手失败；只读隔离对照容器nice_taussig的停止未获确认，须先复核该任务自建容器；不停止生产业务，不重处理五项媒体。
 
 2026-10-13最新生产为markmahoro/shelfdeck:505844a8b，git505844a8bade56e7705ee47e0d578874f9117efa，Image sha256:73484068340fec14df3e66d52d2689a6c586c5dbab21d91807faf58af20de6c4，tar1724124160 bytes/SHA25638362057d5b1f516861800485d3d947931e44fe3b8f3f8214dec61bce920932d。标准build/upload/checksum/dry run/readiness/health/供给/Admin/五挂载/QSV通过，RestartCount0，最终镜像Perception专项28通过。加载空态补丁生产多轮复验0次误报；本轮纯后端无UI字段变化，前端保持已验资产。十二轮48请求全部200，十一轮最长约0.99–1.91秒，一轮5896ms；未复现原数十秒，但性能UAT-318保持开放，非完整SLO窗口。五项失败媒体未人工重处理，狂暴女神/sample及正式安全停机/Reset仍暂缓；问题未全部验收，不执行全面生产清理。Avail约25GiB。
