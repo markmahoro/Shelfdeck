@@ -125,3 +125,7 @@ Windows Node25默认zh-CN的首次完整读取报P6_PERCEPTION_RECORD_DIGEST_MIS
 追加Perception局部开发验证：两个批量评分入口使用每批500个Record及完整Anchors，复用scalar reader的typed校验与原recordDigestFor；按SQLite PK排序保留Anchor数组顺序。新501实际Record覆盖多Anchor、重复输入、缺失target、无关坏Record不旁读、选中坏Record仍拒绝；原撤销/更正关系与最新排序通过。Windows相关40项通过。单次调用内临时Map不是持久业务缓存。
 
 本机task-owned b471容器替换该单文件后开发对照（非最终镜像资格）：完整old/new/new/old，最近浏览89/51/49/70ms、健康筛选749/392/394/700ms、overview597/291/301/592ms，全部12份完整输出digest保持前述值。SQL127→64、1037→154、1071→273，事实正文量保持前述减少；不把此计数解释为50/200规模SQL增长资格已经通过。尚待冻结最终产品SHA、精确镜像、完整Host及生产前端实测。
+
+最终局部候选source2f9560bcb：标准build-image.js本机构建tar562221568 bytes，SHA256 ac797372cc19715a241f3b25217154127df0161175199890cc0485f6e76204f2；本机Linux精确镜像Perception/Aftercare/挂载相关57项通过。从任务自建local fixture进程的/tmp/shelfdeck.db只读复制至最终--rm容器独立/tmp，未访问或编辑Docker Overlay私有文件；候选代码来自最终镜像，旧Aftercare及Perception模块来自冻结505源，query driver为同一只读公开Owner查询组合。old/new/new/old：最近87/50/50/77ms、筛选726/398/411/655ms、overview560/292/294/604ms，12份完整结果digest保持一致，SQL及读取正文数同前。任务fixture容器已停止，不阻塞前台开发服务器。
+
+发布仍未执行：完整Host缺同一群晖共享Linux登录配置，不能把只读查询结果或既有mock浏览器加载测试冒充完整Host/实际前端1秒验收。按用户要求后续所有修复演练留本机，不再用NAS副本测试替代。待补配置并完成本机完整Host/升级/回退，再标准上传/dry run/apply和真实生产点击到内容测量。原版生产已恢复，两个目标页面的原性能问题仍在，UAT-318不关闭。

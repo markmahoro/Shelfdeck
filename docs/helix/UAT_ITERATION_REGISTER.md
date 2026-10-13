@@ -9,7 +9,7 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 状态说明：历史已关闭保留当时证据，不宣称本次重测；已实现/已部署不等于已关闭；阶段文档关闭不等于功能验收关闭。每次只根据对应项的现行合同及Evidence更新。
 | UAT编号 | 问题 / 历史事项 | 分类 | 当前状态 | 历史编号 | 实现提交 | 验收/部署证据 | 剩余工作或关闭条件 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| UAT-319 | NAS重启后CIFS设备号变化导致ShelfDeck无法启动 | PLATFORM / MOUNT_IDENTITY | 开放：稳定指纹修复及显式证据纠正工具本地验证中 | 2026-10-13生产重启现场 | 无 | [Evidence](implementation/evidence/UAT-319_CIFS_REMOUNT_IDENTITY_20261013.md) | 同一Media共享设备号0:93→0:81；保持Scope ID/revision与媒体事实，错误共享/root仍拒绝，必须完成副本、正式恢复及重挂载验证。 |
+| UAT-319 | NAS重启后CIFS设备号变化导致ShelfDeck无法启动 | PLATFORM / MOUNT_IDENTITY | 开放：原版505已限定纠正恢复；永久稳定指纹候选本地57项通过、未发布 | 2026-10-13生产重启现场 | 505844a8b | [Evidence](implementation/evidence/UAT-319_CIFS_REMOUNT_IDENTITY_20261013.md) | 同一Media共享设备号0:93→0:81；Scope ID/revision与媒体保护、原版health/Admin恢复；永久新版完整本地Host及生产重挂载资格待完成。 |
 | UAT-318 | Series上线后整理中/我的收藏响应延迟 | LIBRA / ARCA / QUERY_PERFORMANCE | 开放：505生产再次复现27–35秒，本地当前事实过滤及加载反馈候选待发布 | 2026-10-12用户现场反馈，10-13追加1秒目标 | 505844a8b | [Evidence](implementation/evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md) | 用户确认管理响应优先，两个页面实际内容小于1秒；514收藏同快照完整输出一致，局部428→212ms；68服务/21 Web/4浏览器通过、1恢复未启用，Linux/UI负责人/生产验收未完成，SSH握手失败待恢复及任务自建容器复核。 |
 | UAT-317 | 生产盘满，Formation投影过期、放弃入口500及页面延迟待关联复核 | RUNTIME / STORAGE | 开放：获授权清理及后续发布后当前Avail约25GiB；罪恶之城席位释放、MoviePilot恢复 | 2026-10-12生产排查 | 无 | [Evidence](implementation/evidence/UAT-315_317_PRODUCTION_DIAGNOSIS_20261012.md) | 页面延迟仍在；问题解决后统一清理，保护媒体及当前回退/排障证据。 |
 | UAT-316 | 三体/繁花/兰闺喜事升级后无法上架 | LIBRA / EXECUTION_FAILURE | 开放：失败点已定位，具体网络/FFmpeg超时诱因未证实 | 2026-10-12用户现场反馈 | 无 | [Evidence](implementation/evidence/UAT-315_317_PRODUCTION_DIAGNOSIS_20261012.md) | 三项已自动discarded且无Token；不反推为停机故障，恢复需正式Owner路径及实际验收。 |
