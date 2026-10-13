@@ -123,6 +123,7 @@ export default function FormationPage() {
   const selectedCareId=useRef<string|null>(null);
   const [pageRows,setPageRows]=useState<LedgerRow[]>([]),[pageIndex,setPageIndex]=useState(0),[hasNext,setHasNext]=useState(false),[pageLoading,setPageLoading]=useState(false);
   const positions=useRef<Array<WorkbenchCursor|undefined>>([undefined]),currentPage=useRef(0);
+  const hasLoadedPage=useRef(false);
   selectedCareId.current=selectedCare?.aftercareCaseId||null;
   useEffect(()=>{
     if(!linkedCaseId)return;
@@ -189,9 +190,9 @@ export default function FormationPage() {
       const timestamp=(row:LedgerRow)=>row.kind==='ended'?row.item.endedAtMs:row.kind==='care'?row.item.terminalAtMs||row.item.createdAtMs:row.item.completedAtMs||row.item.addedAtMs;
       const id=(row:LedgerRow)=>row.kind==='ended'?row.item.historyId:row.kind==='care'?row.item.aftercareCaseId:row.item.subjectId;
       const result=await readWorkbenchPage(readers,positions.current[targetPage],(a,b)=>rank(a)-rank(b)||timestamp(b)-timestamp(a)||id(a).localeCompare(id(b)),
-        !background&&targetPage===0?applyRows:undefined);
+        !background&&targetPage===0&&!hasLoadedPage.current?applyRows:undefined);
       if(!live())return;
-      applyRows(result.items);currentPage.current=targetPage;setPageIndex(targetPage);setHasNext(Boolean(result.nextCursor));
+      applyRows(result.items);hasLoadedPage.current=true;currentPage.current=targetPage;setPageIndex(targetPage);setHasNext(Boolean(result.nextCursor));
       positions.current=positions.current.slice(0,targetPage+1);
       if(result.nextCursor)positions.current.push(result.nextCursor);
       if(selectedFormationId.current){
@@ -207,7 +208,7 @@ export default function FormationPage() {
     finally{if(live()){setLoading(false);setPageLoading(false);setReadPending(false);}}
   },[expire,filter,q,shelfFilter]);
   useEffect(()=>{
-    loadGeneration.current++;positions.current=[undefined];currentPage.current=0;setPageIndex(0);setHasNext(false);
+    loadGeneration.current++;hasLoadedPage.current=false;positions.current=[undefined];currentPage.current=0;setPageIndex(0);setHasNext(false);
     const timer=q.trim()?window.setTimeout(()=>void load(false,0),350):null;
     if(timer===null)void load(false,0);
     return()=>{loadGeneration.current++;if(timer!==null)window.clearTimeout(timer);};

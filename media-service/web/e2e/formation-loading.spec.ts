@@ -31,6 +31,11 @@ test('a delayed Formation filter shows loading before rows or confirmed empty re
   await expect(page.getByText(item.displayIdentity)).toBeVisible();
   await expect(page.locator('.formation-ledger')).toHaveAttribute('aria-busy','false');
   await page.screenshot({path:testInfo.outputPath('loaded-filter.png')});
+  await page.getByRole('button',{name:'刷新',exact:true}).click();
+  await expect(page.locator('.formation-ledger')).toHaveAttribute('aria-busy','true');
+  await expect(page.getByText(item.displayIdentity)).toBeVisible();
+  await expect(page.locator('.quiet-loading-rows')).toHaveCount(0);
+  await expect(page.locator('.formation-ledger')).toHaveAttribute('aria-busy','false');
 });
 
 test('Collection keeps readable content during refresh and uses quiet placeholders only before first content',async({page},testInfo)=>{
