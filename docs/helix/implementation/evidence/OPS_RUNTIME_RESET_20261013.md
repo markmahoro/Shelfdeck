@@ -109,3 +109,19 @@ v3 current精确旧镜像完整Host通过，elapsed546591ms；startup health ok/
 0bc和0db的整个 `media-service/web` Git tree均为 `3a883236f7ec86d5c6c873dfd374e1ca8011df7c`；对应Web源码/测试完全一致。独立读取现有构建产物，JS `index-rAg9PJaT.js` SHA256仍为 `4c9b0a7023039e7ac82ae115f18de3f4e51acfe8da8d799a8fb0ec6ec041f523`，CSS `index-BWsa6Lzd.css`仍为 `a4d47e2cdba83f8c36801f17848e668716793985135c3e95897e2c2382dbe8ea`，与负责人0bc冻结验收资产相同。UI门禁按未变化范围继承通过，没有重复页面走查、重新运行服务测试或将实施方平台测试称为负责人独立验证。
 
 此结论不追认0bc完整Host启动资格，也不替代0db的完整生产副本、镜像、回退及部署后验证。旧0bc启动失败证据继续保留；本负责人未部署或操作生产，未执行Reset或媒体重处理。
+
+### 修正候选0dbd762d2的本地与完整副本证据
+
+0dbd762d296e7d936f11e7647e1c40210d624c6e标准build/upload/checksum/dry run通过，tar562240000 bytes/SHA256 ba1ad12f6be4caf53603e1dd04cdf6309b3e87e0e51bc7aa74b74d45e1bb4a4f；本机Docker manifest sha256:808da93faf9a6ba894f30fb4e70d5ea18d116dfece84cada146e02fcdb7ee841。精确Linux82/82 pass（新增2启动竞态测试），Windows相关37 pass。JS/CSS逐字节与已接受0bc相同，UI负责人继承结论commit6cee7e732，不重复不变页面审核。
+
+NAS完整候选Host于v4 fresh frozen copy启动通过，elapsed512276ms，health ok/normalSupplyAllowed=true，ready后7秒Owner轮询及关闭完成。523 Commit、4881 Inventory representation、15583 Product fact、34122 Plan、82422 node、56745 edge、92228 Result、50313 marker的既有逐行摘要均changedOrMissing=0。正式Entry/Commit523不变，Inventory Material追加7条Owner合法注册；readonly镜像EROFS与未知非pure Effect没有被删除/假成功。旧current同一检查通过。v4 rollback以候选处理后的副本运行精确旧2f镜像，通过elapsed469303ms/health ok/normalSupplyAllowed=true：523 Commit、4882 representation、15587 Product fact、34132 Plan、82439 node、56752 edge、92238 Result、50317 marker既有逐行摘要均changedOrMissing=0，Entry/Commit523及Material38370保持。没有把原始冻结数据直接当候选后回退。资格脚本及全部日志ignored .codex/ops-runtime-20261013/qualification-v*.log，失败0bc仍保留且没有部署。
+
+### 标准生产发布与只读验收完成
+
+2026-10-13标准deploy-nas.js --apply通过；上传checksum、dry run和runtime readiness（140 routes、17 UI、findings空）先行通过。NAS运行markmahoro/shelfdeck:0dbd762d2，config/container Image sha256:1b36d623eb64c1fba474cb638647afb30dea82aa6c03b2f68f5532c47dd02c3a，StartedAt2026-10-13T11:22:43.206436246Z。镜像来自标准build-image.js，既有Compose/secret配置保留，无/app/src bind；data、media、adult_media、upgrade、transcode五挂载及/dev/dri QSV通过。health status ok/normalSupplyAllowed=true，RestartCount0/OOMfalse；MoviePilot及其他服务在线。apply日志ignored .codex/ops-runtime-20261013/deploy-apply-0dbd762d2.log。
+
+生产现场升级前及发布后Entry523/Commit523/Run661保持；Material38463→38477是Owner自然注册，不能声称与备份38363逐表相同。发布后仍有原20条destructive_commit reconcile_required，另有当次domain_fact_commit/workspace_write各1 intended；没有删除或伪造完成。它们可能令受保护Reset预检阻塞，本次不替用户执行Reset。Avail约16GiB，完整备份与旧镜像保留；没有扩大清理或暂停外部下载。
+
+实际Chromium1440×900登录Admin后读取runtime running/normalSupplyAllowed=true；安全停机按钮enabled、Reset整理任务disabled，收藏及整理GET各200，health ok。截图production-overview.png目检通过，JS/CSS名称及SHA与已接受资产一致。只做登录、GET和截图，未点击停机/恢复/Reset，不人工重处理五项媒体。owned browser在finally关闭。初次默认load等待30秒超时、第二次按钮45秒等待超时保留，第三次domcontentloaded验证通过；没有证据将前两次归因于某个确定瓶颈，不以第三次成功关闭UAT-318或证明1秒SLO。日志production-browser*.log及production-facts.log均在ignored审计目录。
+
+OPS-RUNTIME-STARTUP已满足发布Exit，冻结archive/OPS_RUNTIME_STARTUP_RELEASE_20261013.md，CURRENT_PHASE无活动开发包。完整本地/只读副本资格不等于真实NAS长时FFmpeg安全停机、断电或生产Reset试验；这些未执行。目录恢复自愈、sample/remux、性能SLO与其他既有UAT按各自条件保持，不因功能部署批量关闭。原0bc本地Exit、OOM/脚本失败/启动竞态和readonly EROFS/MaxListeners warning均保留，不追认旧候选成功。

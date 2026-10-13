@@ -8,6 +8,8 @@ Last updated: 2026-09-30
 
 ## Phase packets
 
+- [OPS_RUNTIME_STARTUP_RELEASE_20261013](OPS_RUNTIME_STARTUP_RELEASE_20261013.md)：安全停机/用户Reset发布前启动竞态修正、完整生产副本/候选数据回退及生产部署Exit。
+
 - P1–P8 的完整冻结 Phase packet 保存在本目录。
 - P9–P13 的冻结结论由 `../evidence/P9_13_EXIT_AUDIT.md`、`../evidence/P10_EXIT_AUDIT.md`、
   `../evidence/P11_EXIT_AUDIT.md`、`../evidence/P12_EXIT_AUDIT.md`、`../evidence/P13_EXIT_AUDIT.md`、

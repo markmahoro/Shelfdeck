@@ -1,6 +1,6 @@
 # ShelfDeck / Helix 文档索引
 
-更新：2026-10-13。安全停机与用户Formation Reset本地开发及具体版本UI验收已完成，尚未部署该功能；当前无活动开发Phase。Series已完成开发并上线，生产身份和残余验收见CURRENT_STATUS。主工作区为main。工作区整合与恢复路径见[Evidence](implementation/evidence/GIT_WORKSPACE_CONSOLIDATION_20261008.md)。
+更新：2026-10-13。安全停机与用户Formation Reset已标准发布生产0dbd762d2，完整副本/回退及生产只读浏览器核验通过；未执行生产停机或Reset。发布前启动竞态修正已Exit归档，当前无活动开发Phase。Series已完成开发并上线，生产身份和残余验收见CURRENT_STATUS。主工作区为main。工作区整合与恢复路径见[Evidence](implementation/evidence/GIT_WORKSPACE_CONSOLIDATION_20261008.md)。
 
 ## 权威与当前入口
 

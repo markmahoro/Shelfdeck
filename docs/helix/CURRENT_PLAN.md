@@ -1,6 +1,6 @@
 # ShelfDeck 当前计划
 
-2026-10-13用户明确授权生产部署。预发布完整副本暴露0bc启动竞态，修正由唯一CURRENT_PHASE的OPS-RUNTIME-STARTUP承接；原本地Exit/失败证据保留，0bc不部署。修正后完成精确镜像/完整副本/回退和标准发布，不执行生产Reset或媒体重处理。
+2026-10-13用户授权的安全停机与用户Formation Reset生产发布已完成，产品0dbd762d2。发布前完整副本暴露并修正0bc启动竞态；精确Linux82项、完整旧版/候选/候选数据回退、标准部署及生产浏览器核验通过。OPS-RUNTIME-STARTUP已Exit归档，无活动开发Phase；0bc没有部署，失败证据保留。未执行生产停机、Reset或媒体重处理。完整证据见implementation/evidence/OPS_RUNTIME_RESET_20261013.md；既有UAT不因本次发布批量关闭。
 
 2026-10-13“安全停机与用户Formation Reset”本地开发及具体版本UI验收已完成，Phase Exit冻结包见implementation/archive/OPS_RUNTIME_RESET_20261013.md。最终候选0bcaf5a11的SSOT、Foundation quiesce/resume、受保护Reset预检/备份/执行和概览控件均已验证，详见implementation/evidence/OPS_RUNTIME_RESET_20261013.md；当前无活动开发包。本功能未部署，未执行生产停机/Reset或重处理媒体；不包含目录恢复自愈、sample/remux或新增资源管理体系。
 
