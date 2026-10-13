@@ -11,6 +11,79 @@ const { activeRunScopeSetDigest } = require('../src/helix/domains/libra/model/ru
 const { runStateDigest } = require('../src/helix/domains/libra/model/run-lifecycle-contracts');
 const { emptyReferenceSetDigest, workspaceStateDigest } = require('../src/helix/domains/libra/model/workspace-admission-contracts');
 const { applyReset, assertSafeTranscodeRoot, inspectPlan, verifyFrozenManifest } = require('../scripts/helix-formation-reset');
+const {createUserFormationReset}=require('../scripts/user-formation-reset');
+const {createUserFormationResetWorkerPort}=require('../src/clean-formation-reset-port');
+
+test('user Reset refuses protected ended Run overlap and unscoped detached responsibility',()=>{
+  const f=fixture('user-reset-protection');
+  try{
+    const active=seedSubjectRun(f.database,'active'),ended=seedSubjectRun(f.database,'history','discarded');
+    f.database.prepare('UPDATE libra_runs SET subject_id=?,admission_revision=2 WHERE libra_run_id=?').run(active.subjectId,ended.runId);
+    const port=createUserFormationReset({dataDir:f.dataDir,workspaceRoot:f.transcodeDir});
+    assert.ok(port.preview().blockers.some(row=>row.code==='RESET_ENDED_HISTORY_OVERLAP'));
+    const work=seedExecution(f.database,'libra','libra_run','missing-run','detached');
+    f.database.prepare("UPDATE fx_effect_journal SET effect_class='pure' WHERE event_attempt_id=?").run(work.eventAttemptId);
+    const preview=port.preview();assert.equal(preview.ready,false);assert.ok(preview.blockers.some(row=>row.code==='RESET_UNSCOPED_RESPONSIBILITY'));
+    assert.equal(f.database.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
+  }finally{close(f);}
+});
+
+test('user Reset lists and clears pre-Subject Intake occupancy without erasing ended history',async()=>{
+  const f=fixture('user-reset-pre-subject');
+  try{
+    const token=seedOrphanPipelineToken(f.database,'user');
+    // Intake is a pure observation in this fixture; unknown file writes are separately refused.
+    f.database.prepare("UPDATE fx_effect_journal SET effect_class='pure' WHERE event_attempt_id=?").run(token.eventAttemptId);
+    seedSubjectRun(f.database,'ended','discarded');
+    const port=createUserFormationReset({dataDir:f.dataDir,workspaceRoot:f.transcodeDir});
+    const preview=port.preview();assert.equal(preview.ready,true,JSON.stringify(preview));assert.equal(preview.items[0].subjectId,token.subjectId);
+    assert.equal(preview.items[0].displayIdentity,'待识别媒体');
+    await port.apply(preview,()=>{});
+    assert.equal(f.database.prepare('SELECT count(*) n FROM libra_predeck_pipeline_tokens').get().n,0);
+    assert.equal(f.database.prepare('SELECT count(*) n FROM libra_runs').get().n,1);
+  }finally{close(f);}
+});
+
+test('user Reset backs up selected workspaces and preserves ended history and source media',async()=>{
+  const f=fixture('user-reset');
+  try{
+    const active=seedSubjectRun(f.database,'user-active'),ended=seedSubjectRun(f.database,'user-ended','discarded');
+    const history=f.database.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(ended.runId);
+    const dir=path.join(f.transcodeDir,active.workspaceId);fs.mkdirSync(dir);fs.writeFileSync(path.join(dir,'partial.mkv'),'workspace');
+    const original=path.join(f.root,'source-original.mkv');fs.writeFileSync(original,'preserve');
+    const port=createUserFormationReset({dataDir:f.dataDir,workspaceRoot:f.transcodeDir});
+    const preview=port.preview();assert.equal(preview.ready,true);assert.equal(preview.items.length,1);assert.equal(preview.protected.endedRunCount,1);
+    let authorized=false;const result=await port.apply(preview,()=>{authorized=true;});
+    assert.equal(authorized,true);assert.equal(fs.existsSync(dir),false);assert.equal(fs.readFileSync(original,'utf8'),'preserve');
+    assert.deepEqual(f.database.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(ended.runId),history);
+    const backup=path.join(f.dataDir,'operator-backups',result.backupId);
+    assert.equal(fs.readFileSync(path.join(backup,'workspaces',active.workspaceId,'partial.mkv'),'utf8'),'workspace');
+    assert.ok(fs.existsSync(path.join(backup,'receipt.json')));assert.equal(port.preview().empty,true);
+  }finally{close(f);}
+});
+
+test('user Reset refuses a changed preview and any unresolved non-pure Effect',async()=>{
+  const f=fixture('user-reset-stale');
+  try{
+    seedSubjectRun(f.database,'first');const port=createUserFormationReset({dataDir:f.dataDir,workspaceRoot:f.transcodeDir});
+    const preview=port.preview();seedSubjectRun(f.database,'second');
+    await assert.rejects(port.apply(preview,()=>assert.fail('No apply authorization expected')),{code:'RUNTIME_RESET_PREVIEW_STALE'});
+    const graph=seedExecution(f.database,'libra','libra_run','run-first','uncertain');
+    f.database.prepare("INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,updated_at_ms) VALUES(?,?,'workspace_write',?,?,'reconcile_required',1)").run('uncertain-effect',graph.eventAttemptId,'uncertain-key',DIGEST);
+    const blocked=port.preview();assert.equal(blocked.ready,false);assert.ok(blocked.blockers.some(b=>b.code==='RESET_UNRESOLVED_EFFECT'));
+  }finally{close(f);}
+});
+
+test('user Reset executes through the isolated Operator worker and requires parent authorization',async()=>{
+  const f=fixture('user-reset-worker');
+  try{
+    seedSubjectRun(f.database,'worker');let checked=0,authorized=false;
+    const port=createUserFormationResetWorkerPort({dataDir:f.dataDir,workspaceRoot:f.transcodeDir,assertWorkspaceAvailable(){checked++;}});
+    const preview=await port.preview();assert.equal(preview.ready,true);
+    const result=await port.apply(preview,()=>{authorized=true;});
+    assert.equal(authorized,true);assert.equal(checked,2);assert.equal(result.removedSubjects,1);assert.equal((await port.preview()).empty,true);
+  }finally{close(f);}
+});
 
 const schemaDdl = fs.readFileSync(path.join(
   __dirname, '../src/helix/foundation/persistence/generated/clean-schema.sql',

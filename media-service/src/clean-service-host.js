@@ -13,6 +13,8 @@ const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const {providerRecoveryDigest,computeRecoveryDigest}=require('./helix/platform/application/failure-recovery-projection');
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
+const { createRuntimeOperations } = require('./clean-runtime-operations');
+const { createUserFormationResetWorkerPort } = require('./clean-formation-reset-port');
 const { createOverviewProjectionHost } = require('./helix/projections/overview-projection-host');
 const { createSetupReadinessQuery } = require('./helix/projections/setup-readiness-query');
 const { createInputSettlementAuthorizationStore } = require('./helix/domains/arca/persistence/input-settlement-authorization-store');
@@ -1006,6 +1008,8 @@ function clearSessionCookie() {
 function errorResponse(error, correlationId) {
   let status = 500;
   if (AUTH_ERROR_CODES.has(error.code)) status = 401;
+  else if(error.code==='RUNTIME_OPERATION_INPUT_INVALID'||error.code==='RUNTIME_RESET_CONFIRMATION_REQUIRED')status=400;
+  else if(typeof error.code==='string'&&error.code.startsWith('RUNTIME_'))status=error.statusCode||409;
   else if (error.code === 'OVERVIEW_PROJECTION_REBUILDING') status = 503;
   else if (['LIBRA_REPROCESS_INTENT_STALE','LIBRA_REPROCESS_ALREADY_REQUESTED','LIBRA_DEFECT_AUTHORIZATION_STALE',
     'ARCA_DEFECT_AUTHORIZATION_STALE','ARCA_DEFECT_BASIS_STALE','ARCA_DEFECT_PREVIEW_STALE','ARCA_DEFECT_CONTROL_CHANGED',
@@ -1120,7 +1124,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 135) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 140) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1625,14 +1629,21 @@ async function createCleanServiceHost(options) {
     executionRuntimeHost: procurementExecution.host,
     onError: options.onExecutionRuntimeError,
   });
+  let runtimeOperations;
+  let transportClosing=false;
+  const refreshStoppedViews=async()=>{await formationProjectionHost.refreshQuiesced();await overviewQuery.refreshQuiesced();};
   const executionRuntimeHost = Object.freeze({
     async start() {
+      if(runtimeOperations.shouldStartStopped()){
+        const execution=await procurementExecution.host.start({quiesced:true});await refreshStoppedViews();runtimeOperations.started();return execution;
+      }
       await outboxDispatcher.recoverCommittedRetryIntents();
       const execution = await procurementExecution.host.start();
       try {
         await outboxDispatcher.start();
         await formationProjectionHost.start();
         void overviewQuery.start().catch(error=>options.onExecutionRuntimeError?.(error));
+        runtimeOperations.started();
         return execution;
       } catch (error) {
         await outboxDispatcher.stop().catch(() => {});
@@ -1641,6 +1652,22 @@ async function createCleanServiceHost(options) {
       }
     },
     wake() { const execution=procurementExecution.host.wake(); outboxDispatcher.wake(); formationProjectionHost.wake(); return execution; },
+    async quiesce() {
+      const execution=procurementExecution.host.quiesce();
+      await Promise.all([execution,formationProjectionHost.stop(),overviewQuery.stop(),outboxDispatcher.stop(),runtimeOperations.waitForBusinessCommands()]);
+      if(!transportClosing)await refreshStoppedViews();
+    },
+    async resume() {
+      await outboxDispatcher.recoverCommittedRetryIntents();
+      try {
+        await procurementExecution.host.start();await outboxDispatcher.start();await formationProjectionHost.start();
+        void overviewQuery.start().catch(error=>options.onExecutionRuntimeError?.(error));
+      }catch(error){
+        const state=procurementExecution.host.readiness().state;
+        if(['ready','draining','faulted'].includes(state))await procurementExecution.host.quiesce();
+        await Promise.all([formationProjectionHost.stop(),overviewQuery.stop(),outboxDispatcher.stop()]);throw error;
+      }
+    },
     async stop() {
       // Stop dispatch synchronously before waiting for observers or child processes.
       const executionStop=procurementExecution.host.stop();
@@ -1836,7 +1863,22 @@ async function createCleanServiceHost(options) {
       return procurementExecution.people.dismissRegistration(body, actor?.credentialId || 'admin');
     },
   });
+  const userReset=createUserFormationResetWorkerPort({dataDir:options.dataDir,workspaceRoot:libraWorkspaceRoot,
+    assertWorkspaceAvailable(){const root=locationRegistryRepository.getWorkspaceRoot('service-libra-production-workspace');
+      if(!root)throw Object.assign(new Error('生产工作区未注册。'),{code:'RESET_WORKSPACE_UNAVAILABLE'});
+      localMountScopeResolver.validateReference({endpointId:root.endpointId,rootLocation:root.resolvedRoot,
+        mountScopeId:root.mountScopeId,mountScopeRevision:root.mountScopeRevision});
+      fs.accessSync(libraWorkspaceRoot,fs.constants.R_OK|fs.constants.W_OK);
+    }});
+  runtimeOperations=createRuntimeOperations({dataDir:options.dataDir,
+    activity:()=>procurementExecution.host.activity(),quiesce:()=>executionRuntimeHost.quiesce(),resume:()=>executionRuntimeHost.resume(),
+    previewReset:()=>userReset.preview(),reset:async(preview,beforeApply)=>{
+      const result=await userReset.apply(preview,beforeApply);
+      if(!transportClosing){for(const runId of result.removedRunIds||[])procurementExecution.libraRunExecutionProjection.invalidate(runId);
+        await refreshStoppedViews();}return result;
+    },onError:options.onExecutionRuntimeError});
   const facades = createCleanFacades({
+    runtimeOperations,
     sessionTokens,
     readiness,
     credentialMetadata: runtime.readActiveCredential,
@@ -1869,6 +1911,7 @@ async function createCleanServiceHost(options) {
     facades,
     sessionTokens,
     executionRuntimeHost,
+    runtimeOperations,
   });
 
   const server = Fastify({ logger: false, trustProxy: false });
@@ -1956,7 +1999,8 @@ async function createCleanServiceHost(options) {
     async close() {
       if (closed) return;
       closed = true;
-      await application.stop();
+      transportClosing=true;
+      await Promise.all([application.stop(),runtimeOperations.waitForShutdown(options.shutdownTimeoutMs||60000)]);
       try {
         await server.close();
       } finally {

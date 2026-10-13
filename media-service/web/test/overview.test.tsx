@@ -1,10 +1,12 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
 import { helixAdminApi } from '../src/helix/api';
 
 describe('Helix Overview product semantics', () => {
+  beforeEach(()=>{vi.spyOn(helixAdminApi,'getRuntimeStatus').mockResolvedValue({mode:'running',desiredMode:'running',revision:0,normalSupplyAllowed:true,
+    activity:{inFlightEvents:0,inFlightRecoveries:0,inFlightOwnerReconciliations:0},operation:null,error:null,recoveryBackup:null});});
   afterEach(() => vi.restoreAllMocks());
 
   for (const state of ['failed','stale'] as const) it(`marks a ${state} server snapshot as unknown while retaining dated results`, async () => {

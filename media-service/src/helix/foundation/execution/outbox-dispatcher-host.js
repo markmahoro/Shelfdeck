@@ -157,12 +157,13 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     }
     throw new Error('No Outbox consumer is registered for '+item.message.message_kind+' -> '+item.delivery.consumer_domain);
   }
-  async function drainOnce(){if(running)return running;running=(async()=>{let delivered=0;for(const item of due()){
+  async function drainOnce(){if(['stopping','stopped'].includes(state))return {kind:'inactive',delivered:0};if(running)return running;running=(async()=>{let delivered=0;for(const item of due()){
+    if(['stopping','stopped'].includes(state))break;
     try{await deliver(item);delivered+=1;}catch(error){inbox.recordDeliveryAttempt({messageId:item.delivery.message_id,consumerDomain:item.delivery.consumer_domain,
       delivered:false,nextAttemptAtMs:now()+Math.min(60_000,1000*Math.max(1,Number(item.delivery.attempt_count)+1))});options.onError?.(error);}}
     return Object.freeze({kind:delivered?'advanced':'idle',delivered});})().finally(()=>{running=null;});return running;}
   async function recoverCommittedRetryIntents(){
-    if(state!=='created'||running)throw new Error('Retry Intent recovery must precede Outbox startup.');
+    if(!['created','stopped'].includes(state)||running)throw new Error('Retry Intent recovery must precede Outbox startup.');
     // This synchronous Owner command is resumed by its durable message, before
     // the general asynchronous Event runtime inspects nonterminal Plans.
     // Startup deliberately retries failed delivery immediately; errors remain fatal.
@@ -171,7 +172,7 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
       for(const item of items){await deliver(item);delivered+=1;}}
     return Object.freeze({kind:delivered?'advanced':'idle',delivered});
   }
-  return Object.freeze({recoverCommittedRetryIntents,async start(){state='ready';await drainOnce();timer=setInterval(()=>drainOnce(),1000);timer.unref?.();return {state};},
+  return Object.freeze({recoverCommittedRetryIntents,async start(){if(!['created','stopped'].includes(state))throw new Error('Outbox must be inactive before starting.');state='ready';await drainOnce();if(state==='ready'){timer=setInterval(()=>drainOnce(),1000);timer.unref?.();}return {state};},
     wake(){if(state==='ready')queueMicrotask(()=>drainOnce());},drainOnce,async stop(){state='stopping';if(timer)clearInterval(timer);timer=null;if(running)await running;state='stopped';return {state};}});
 }
 module.exports=Object.freeze({createOutboxDispatcherHost});

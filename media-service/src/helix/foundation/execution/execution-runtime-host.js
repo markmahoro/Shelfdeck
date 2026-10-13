@@ -56,6 +56,8 @@ function createExecutionRuntimeHost(options) {
   if(!Number.isSafeInteger(shutdownTimeoutMs)||shutdownTimeoutMs<1||shutdownTimeoutMs>60000)
     fail('P4_SHUTDOWN_BUDGET_INVALID','Shutdown checkpoint budget must be within 60 seconds.');
   let stopping=null;
+  let quiescing=null;
+  let starting=null;
   let state = 'created';
   let timer = null;
   let draining = null;
@@ -454,13 +456,24 @@ function createExecutionRuntimeHost(options) {
   function wake() { return queueTick(true); }
 
   return Object.freeze({
-    async start() {
-      if (state !== 'created') fail('P4_EXECUTION_HOST_LIFECYCLE_CONFLICT', 'Execution Runtime Host can start exactly once.');
+    async start(request = {}) {
+      if (!['created','quiesced'].includes(state)) fail('P4_EXECUTION_HOST_LIFECYCLE_CONFLICT', 'Execution Runtime Host must be created or quiesced before recovery.');
+      quiescing = null;
+      deferredRecoveries.clear();
+      completionRetries.clear();
       state = 'recovering';
+      const requireRecovery=()=>{if(state!=='recovering')fail('P4_STARTUP_INTERRUPTED','Runtime recovery was interrupted by shutdown.');};
+      starting=(async()=>{
       lastRecovery = await options.startupRecovery.recover();
+      requireRecovery();
+      if (request.quiesced === true) {
+        state = 'quiesced';
+        return Object.freeze({ state, normalSupplyAllowed:false, recovery:lastRecovery });
+      }
       let recoveryPass = 0;
       while (lastRecovery && lastRecovery.findings?.length === 0 &&
           ((lastRecovery.actions?.length || 0) > 0 || (lastRecovery.workAttemptRepairs?.length || 0) > 0)) {
+        requireRecovery();
         if (recoveryPass++ >= 100) fail(
           'P4_EXECUTION_HOST_RECOVERY_ACTION_BLOCKED', 'Startup recovery actions did not converge within the bounded recovery sweep.',
           { recovery: lastRecovery, recoveryPass }
@@ -482,6 +495,7 @@ function createExecutionRuntimeHost(options) {
         );
         let deferred = false;
         for (const action of lastRecovery.actions) {
+          requireRecovery();
           // Hours-long workspace writes (remux/transcode) must not run inside
           // start(); HTTP listen waits on start(). Recover them in the ordinary
           // drain lane after readiness.
@@ -524,15 +538,41 @@ function createExecutionRuntimeHost(options) {
           recovery: lastRecovery,
         });
       }
+      requireRecovery();
       state = 'ready';
+      firstFault = null;
       await options.fallbackReconciler.start();
+      if(state!=='ready')fail('P4_STARTUP_INTERRUPTED','Runtime startup was interrupted by shutdown.');
       wake();
       return Object.freeze({ state, normalSupplyAllowed: true, recovery: lastRecovery });
+      })();
+      try{return await starting;}catch(error){if(state==='recovering'||state==='ready')state='faulted';throw error;}finally{starting=null;}
     },
     wake,
     drainOnce,
     readiness() { return Object.freeze({ state, normalSupplyAllowed: state === 'ready', recovery: lastRecovery }); },
     backgroundOperations(){return options.fallbackReconciler.snapshot();},
+    quiesce() {
+      if (quiescing) return quiescing;
+      if (state === 'quiesced') return Promise.resolve(Object.freeze({state}));
+      if (!['ready','draining','faulted'].includes(state)) fail('P4_QUIESCE_STATE_INVALID', 'Execution Runtime must be active before quiescing.');
+      state = 'quiescing';
+      if (timer) clearTimeout(timer);
+      timer = null;
+      wakeQueued = false;
+      options.eventRuntime.beginShutdown?.();
+      quiescing = (async () => {
+        await options.fallbackReconciler.stop();
+        if (draining) await draining;
+        // Event completion may launch its Owner closure. Observe until all lanes are empty.
+        while (inFlightEvents.size || inFlightRecoveries.size || inFlightOwnerReconciliations.size) {
+          await Promise.all([...inFlightEvents.values(), ...inFlightRecoveries.values(), ...inFlightOwnerReconciliations.values()]);
+        }
+        state = 'quiesced';
+        return Object.freeze({state});
+      })().catch((error) => { quiescing=null;state='faulted';throw error; });
+      return quiescing;
+    },
     stop() {
       if(stopping)return stopping;
       if (state === 'stopped') return Promise.resolve(Object.freeze({ state, fault:firstFault }));
@@ -543,6 +583,8 @@ function createExecutionRuntimeHost(options) {
       options.eventRuntime.beginShutdown?.();
       let deadlineTimer;
       const drain=(async()=>{
+        if(starting)await starting.catch(()=>{});
+        if (quiescing) await quiescing;
         await options.fallbackReconciler.stop();
         if(draining)await draining;
         await Promise.all([...inFlightEvents.values(),...inFlightRecoveries.values(),...inFlightOwnerReconciliations.values()]);
@@ -556,6 +598,7 @@ function createExecutionRuntimeHost(options) {
       return stopping;
     },
     activity(){return Object.freeze({state,inFlightEvents:inFlightEvents.size,inFlightRecoveries:inFlightRecoveries.size,maxInFlightEvents,
+      inFlightOwnerReconciliations:inFlightOwnerReconciliations.size,
       deferredRecoveryActions:deferredRecoveries.size+completionRetries.size,faulted:firstFault!==null});},
   });
 }

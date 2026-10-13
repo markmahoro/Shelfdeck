@@ -64,6 +64,11 @@ for (const name of INCLUDE) {
 const CLEAN_RUNTIME_FILES = [
   'src/server.js',
   'src/clean-service-host.js',
+  'src/clean-runtime-operations.js',
+  'src/clean-formation-reset-port.js',
+  'scripts/helix-formation-reset.js',
+  'scripts/user-formation-reset.js',
+  'scripts/user-formation-reset-worker.js',
   'src/admin-credential-secret-store.js',
   'scripts/helix-clean-init.js',
   'scripts/helix-operational-safety.js',

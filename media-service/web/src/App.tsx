@@ -13,7 +13,7 @@ import OffdeckPage from './helix/OffdeckPage';
 import OverviewPage from './helix/OverviewPage';
 import PeoplePage from './helix/PeoplePage';
 import { helixAdminApi } from './helix/api';
-import { SessionProvider } from './helix/session';
+import { isUnauthorized, SessionProvider, useSession } from './helix/session';
 import './helix/helix.css';
 import './helix/polish.css';
 
@@ -50,12 +50,19 @@ function railKind(data: { systemState:{ kind:string }; todos?: Array<{ key:strin
 }
 
 function RailStatus() {
+  const {expire}=useSession();
   const [ready, setReady] = useState(false);
   useEffect(() => {
     const timer = window.setTimeout(() => setReady(true), 300);
     return () => window.clearTimeout(timer);
   }, []);
   const { data, error } = useQuery({ queryKey: ['overview'], queryFn: () => helixAdminApi.getOverview(), enabled: ready });
+  const runtime=useQuery({queryKey:['runtime-operations'],queryFn:()=>helixAdminApi.getRuntimeStatus(),enabled:ready,
+    refetchInterval:query=>['stopping','resuming','resetting'].includes(query.state.data?.mode||'')?1000:5000});
+  useEffect(()=>{if(runtime.error&&isUnauthorized(runtime.error))expire();},[expire,runtime.error]);
+  const runtimeLabels={starting:'正在启动',stopping:'正在安全停机',stopped:'已安全停机',resuming:'正在恢复运行',resetting:'正在 Reset',error:'运行操作未完成'};
+  if(!runtime.error&&runtime.data?.mode&&runtime.data.mode!=='running')return <p className="rail-status" data-kind="maintenance">{runtimeLabels[runtime.data.mode]}</p>;
+  if(runtime.error)return <p className="rail-status" data-kind="unknown">状态读取失败</p>;
   if (error || data?.projection && data.projection.state !== 'ready') return <p className="rail-status" data-kind="unknown">状态读取失败</p>;
   if (!data?.systemState) return null;
   const kind = railKind(data);

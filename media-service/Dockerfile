@@ -48,6 +48,8 @@ COPY --from=service-dependencies /app/node_modules ./node_modules
 COPY media-service/src/server.js ./src/server.js
 COPY media-service/src/admin-credential-secret-store.js ./src/admin-credential-secret-store.js
 COPY media-service/src/clean-service-host.js ./src/clean-service-host.js
+COPY media-service/src/clean-runtime-operations.js ./src/clean-runtime-operations.js
+COPY media-service/src/clean-formation-reset-port.js ./src/clean-formation-reset-port.js
 COPY media-service/src/clean-arca-inventory-port.js ./src/clean-arca-inventory-port.js
 COPY media-service/src/clean-arca-recycle-port.js ./src/clean-arca-recycle-port.js
 COPY media-service/src/clean-arca-target-commit-slot.js ./src/clean-arca-target-commit-slot.js
@@ -70,6 +72,8 @@ COPY media-service/scripts/helix-clean-init.js ./scripts/helix-clean-init.js
 COPY media-service/scripts/helix-operational-safety.js ./scripts/helix-operational-safety.js
 COPY media-service/scripts/helix-predeck-pipeline-migration.js ./scripts/helix-predeck-pipeline-migration.js
 COPY media-service/scripts/helix-formation-reset.js ./scripts/helix-formation-reset.js
+COPY media-service/scripts/user-formation-reset.js ./scripts/user-formation-reset.js
+COPY media-service/scripts/user-formation-reset-worker.js ./scripts/user-formation-reset-worker.js
 COPY media-service/scripts/helix-prod033-execution-residual-repair.js ./scripts/helix-prod033-execution-residual-repair.js
 COPY media-service/scripts/helix-prod034-one-time-correction.js ./scripts/helix-prod034-one-time-correction.js
 COPY media-service/scripts/helix-prod047-aftercare-reclaim-residual-correction.js ./scripts/helix-prod047-aftercare-reclaim-residual-correction.js

@@ -33,6 +33,7 @@ function createDomainReconcileRunner(options){
     }
     let processed=0,nextCursor=head.cursor,error=null,cursorFrozen=false;
     for(const item of page){
+      if(['stopping','stopped'].includes(state))break;
       if(processed>0&&options.now()-started>=budgetMs)break;
       try {
         await registration.reconcile(item.scope);
@@ -67,8 +68,10 @@ function createDomainReconcileRunner(options){
       ...(error?{errorCode:errorCodeOf(error)}:{})});
   }
   async function runOnce(){
+    if(['stopping','stopped'].includes(state))return Object.freeze({kind:'inactive',results:Object.freeze([])});
     if(running)return running;
     running=(async()=>{lastStartedAtMs=options.now();const results=[];for(const registration of options.registrations){
+      if(['stopping','stopped'].includes(state))break;
       try { results.push(await runRegistration(registration)); }
       catch(error){
         const status=statusFor(registration);const errorCode=errorCodeOf(error);
@@ -91,7 +94,7 @@ function createDomainReconcileRunner(options){
       lastCompletedAtMs===null?'waiting_first_check':'normal',cadenceMs,lastStartedAtMs,lastCompletedAtMs,pendingCount,registrations});
   }
   return Object.freeze({
-    async start(){if(state!=='created')fail('P4_DOMAIN_RECONCILE_RUNNER_LIFECYCLE','Domain Reconcile Runner starts exactly once.');
+    async start(){if(!['created','stopped'].includes(state))fail('P4_DOMAIN_RECONCILE_RUNNER_LIFECYCLE','Domain Reconcile Runner must be inactive before starting.');
       state='ready';timer=setInterval(()=>runOnce().catch((error)=>options.onError?.(error)),cadenceMs);timer.unref?.();
       return runOnce();},
     runOnce,

@@ -156,6 +156,8 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
     assert.ok(
         relative === 'src/server.js' ||
         relative === 'src/clean-service-host.js' ||
+        relative === 'src/clean-runtime-operations.js' ||
+        relative === 'src/clean-formation-reset-port.js' ||
         relative === 'src/clean-arca-recycle-port.js' ||
         relative === 'src/clean-local-filesystem-mount-probe.js' ||
         relative === 'src/clean-shelf-target-folder-probe.js' ||
@@ -344,7 +346,7 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     secretRoot,
   });
   try {
-    assert.equal(host.routeCount, 135);
+    assert.equal(host.routeCount, 140);
     const health = await host.inject({ method: 'GET', url: '/v1/health' });
     assert.equal(health.statusCode, 200);
     assert.deepEqual(Object.keys(health.json()).sort(), ['generation', 'normalSupplyAllowed', 'status']);

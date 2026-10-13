@@ -21,6 +21,19 @@ function open(databasePath) {
   return { kernel, cursorStore:createReconcileCursorStore({ schemaManifest, unitOfWork, now:() => 1700000000100 }) };
 }
 
+test('stop finishes the current Owner scope without starting remaining page items, and resume continues its cursor',async()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-reconcile-quiesce-')),opened=open(path.join(root,'shelfdeck.db'));
+  let release;const seen=[];
+  const registration={ownerDomain:'libra',reconcilerKey:'stop-boundary',listPage:({cursor})=>
+    ['a','b'].filter(key=>!cursor||key>cursor).map(key=>({cursor:key,scope:{key}})),
+    async reconcile({key}){seen.push(key);if(key==='a')await new Promise(resolve=>{release=resolve;});}};
+  const runner=createDomainReconcileRunner({cursorStore:opened.cursorStore,registrations:[registration],now:Date.now,cadenceMs:60000,pageLimit:100,budgetMs:5000});
+  try{const starting=runner.start();while(!release)await new Promise(resolve=>setImmediate(resolve));
+    const stopping=runner.stop();release();await Promise.all([starting,stopping]);assert.deepEqual(seen,['a']);
+    assert.equal(opened.cursorStore.read(registration).cursor,'a');await runner.start();assert.deepEqual(seen,['a','b']);
+  }finally{await runner.stop();opened.kernel.close();fs.rmSync(root,{recursive:true,force:true});}
+});
+
 test('205 active Process scopes sweep in three bounded pages and resume from the durable cursor after restart', async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-reconcile-cursor-'));
   const databasePath = path.join(root, 'shelfdeck.db');

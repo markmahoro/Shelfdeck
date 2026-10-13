@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { helixAdminApi } from './api';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { isUnauthorized, useSession } from './session';
+import RuntimeControls from './RuntimeControls';
 
 const ORGANIZING_PREFIX = '正在整理 · ';
 
@@ -52,6 +53,7 @@ export default function OverviewPage() {
           </div>)}</div>
           </div>
         </details>}<Button variant="secondary" type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</Button></>} />
+    <RuntimeControls />
     {error && <p className="form-error" role="alert">{error instanceof Error ? error.message : '概览读取失败。'}</p>}
     {projection && <>
       {projection.projection && projection.projection.state !== 'ready' && <p role="status" className="form-error">

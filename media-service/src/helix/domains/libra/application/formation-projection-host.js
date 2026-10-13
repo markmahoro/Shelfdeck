@@ -17,6 +17,7 @@ function createFormationProjectionHost(options) {
   const cursorStore = createReconcileCursorStore({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork, now });
   const queue = new Set();
   let lifecycle = 'created', timer = null, running = null, asOfMs = null, lastError = null, startupComplete = false;
+  let generation = 0;
 
   function rebuildRows(subjectRows) {
     if (!subjectRows.length) return Object.freeze({ processed: 0, writes: 0, noOps: 0 });
@@ -70,13 +71,13 @@ function createFormationProjectionHost(options) {
     })();
     return running;
   }
-  async function completeStartupSweep() {
-    for (;;) {
+  async function completeStartupSweep(expectedGeneration) {
+    while(lifecycle==='ready'&&generation===expectedGeneration) {
       const result = await run('startup');
       if (result.cursor === null) break;
       await new Promise((resolve) => setImmediate(resolve));
     }
-    startupComplete = true;
+    if(lifecycle==='ready'&&generation===expectedGeneration)startupComplete = true;
   }
   return Object.freeze({
     enqueue(subjectId) {
@@ -86,14 +87,24 @@ function createFormationProjectionHost(options) {
       return true;
     },
     async start() {
-      if (lifecycle !== 'created') throw new Error('Formation projection host starts exactly once.');
+      if (!['created','stopped'].includes(lifecycle)) throw new Error('Formation projection host must be inactive before starting.');
+      startupComplete = false;
+      lastError = null;
       lifecycle = 'ready';
+      const expectedGeneration=++generation;
       timer = setInterval(() => run('fallback').catch((error) => options.onError?.(error)), CADENCE_MS); timer.unref?.();
-      setImmediate(() => completeStartupSweep().catch((error) => options.onError?.(error)));
+      setImmediate(() => completeStartupSweep(expectedGeneration).catch((error) => options.onError?.(error)));
       return Object.freeze({ state: lifecycle });
     },
     wake() { if (lifecycle === 'ready') setImmediate(() => run('exact').catch((error) => options.onError?.(error))); },
-    async stop() { lifecycle = 'stopping'; if (timer) clearInterval(timer); timer = null; if (running) await running; lifecycle = 'stopped'; },
+    async refreshQuiesced() {
+      if(!['created','stopped'].includes(lifecycle))throw new Error('Quiesced projection refresh requires an inactive producer.');
+      let cursor=null;
+      for(;;){const subjects=options.source.readPage(cursor,PAGE_LIMIT);rebuildRows(subjects);
+        if(subjects.length<PAGE_LIMIT)break;cursor=subjects.at(-1).subject_id;await new Promise(resolve=>setImmediate(resolve));}
+      queue.clear();startupComplete=true;lastError=null;
+    },
+    async stop() { generation++;lifecycle = 'stopping'; if (timer) clearInterval(timer); timer = null; if (running) await running; lifecycle = 'stopped'; },
     state() { return Object.freeze({ status: lastError ? 'stale' : startupComplete ? 'ready' : 'rebuilding', asOfMs: asOfMs || now(),
       queued: queue.size, errorCode: lastError?.code || null }); },
     runOnce: () => run('fallback')

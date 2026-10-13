@@ -40,6 +40,7 @@ function createHelixApplication(options = {}) {
   const adapter = createAdminHttpAdapter({
     facades: options.facades,
     sessionTokens: options.sessionTokens,
+    runtimeOperations: options.runtimeOperations,
   });
   const executionRuntimeHost = options.executionRuntimeHost || null;
   if (executionRuntimeHost &&
@@ -75,7 +76,7 @@ function createHelixApplication(options = {}) {
     readiness() {
       return Object.freeze({
         state,
-        normalSupplyAllowed: state === 'ready',
+        normalSupplyAllowed: state === 'ready' && (!options.runtimeOperations||options.runtimeOperations.snapshot().normalSupplyAllowed),
         generation: 'helix-clean-v3',
       });
     },

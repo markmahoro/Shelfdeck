@@ -38,9 +38,17 @@ function createCleanFacades(options) {
     body: {
       status: 'ok',
       generation: options.readiness.generation,
-      normalSupplyAllowed: true,
+      normalSupplyAllowed: options.runtimeOperations?options.runtimeOperations.snapshot().normalSupplyAllowed:true,
     },
   });
+  if(options.runtimeOperations){
+    const runtime=options.runtimeOperations;
+    facades.PlatformAdminFacade.get_runtime=async()=>({body:runtime.snapshot()});
+    facades.PlatformAdminFacade.post_runtime_stop=async input=>({status:202,body:runtime.stop(input.body,input.actor)});
+    facades.PlatformAdminFacade.post_runtime_resume=async input=>({status:202,body:runtime.resume(input.body,input.actor)});
+    facades.PlatformAdminFacade.get_runtime_reset_preview=async()=>({body:await runtime.previewReset()});
+    facades.PlatformAdminFacade.post_runtime_reset=async input=>({status:202,body:await runtime.reset(input.body,input.actor)});
+  }
   facades.PlatformAdminFacade.post_session = async (input) => {
     const ttlMs = input.body?.ttlMs ?? MAX_SESSION_TTL_MS;
     const token = options.sessionTokens.issueAuthenticated({

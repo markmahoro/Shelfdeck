@@ -1,0 +1,13 @@
+.runtime-controls { display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 18px;margin-bottom:20px;border:1px solid var(--line);border-radius:8px;background:var(--paper); }
+.runtime-control-state { display:grid;gap:4px; }
+.runtime-control-state small { color:var(--muted); }
+.runtime-control-actions,.runtime-reset-actions { display:flex;flex-wrap:wrap;gap:8px; }
+.runtime-controls[aria-busy="true"] .runtime-control-state strong { animation:quiet-loading-pulse 1.8s ease-in-out infinite; }
+.runtime-reset-dialog { width:min(580px,calc(100vw - 32px));max-height:calc(100vh - 48px);overflow:auto;background:var(--paper);border-radius:8px;padding:24px; }
+.runtime-reset-dialog h2 { margin:0 0 16px; }
+.runtime-reset-items { max-height:260px;overflow:auto;padding-left:24px; }
+.runtime-reset-items li { padding:5px 0; }
+.runtime-reset-confirm { display:flex;align-items:flex-start;gap:8px;margin:18px 0; }
+.runtime-reset-actions { justify-content:flex-end;margin-top:20px; }
+@media(max-width:600px){.runtime-controls { align-items:stretch;flex-direction:column; }.runtime-control-actions .btn { flex:1; }.runtime-reset-dialog { padding:18px; }}
+@media(prefers-reduced-motion:reduce){.runtime-controls[aria-busy="true"] .runtime-control-state strong { animation:none; }}

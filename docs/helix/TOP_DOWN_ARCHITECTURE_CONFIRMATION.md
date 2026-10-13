@@ -13511,7 +13511,14 @@ GET  /v1/admin/action-center
 GET  /v1/admin/setup-readiness
 POST /v1/admin/session
 DELETE /v1/admin/session
+GET  /v1/admin/runtime
+POST /v1/admin/runtime/actions/stop
+POST /v1/admin/runtime/actions/resume
+GET  /v1/admin/runtime/reset-preview
+POST /v1/admin/runtime/actions/reset
 ~~~
+
+Runtime Operational端点由Platform Admin Facade承接并委托Foundation生命周期/Level10 Operator，不注册为普通生产Event Capability。GET runtime只读运行状态及in-flight Projection，不重建业务事实；POST stop/resume仅接受idempotencyKey，POST reset仅接受idempotencyKey、previewDigest与confirmed=true。均使用Admin Session/非浏览器X-Api-Key、原错误封装、actor-bound幂等操作Receipt；accepted操作返回202，UI通过GET读取进展，重复键不得扩大范围。停机不提供业务写旁路。GET reset-preview只有停稳后开放，返回完整选定条目清单、保护计数及阻塞；其digest冻结内部Operator闭包，客户端不得提交Subject或路径。
 
 Setup Readiness只聚合公开配置Projection，不保存全局Setup状态。Session端点只交换Admin credential与短期
 同源会话，不成为媒体Business Process。
@@ -14279,6 +14286,16 @@ Error必须包含correlationId和可执行说明，但不得回显Secret、Provi
 
 正在进行的material_commit或destructive_commit不能因关闭信号被回写为cancelled。用户界面不提供Pause；
 NAS断电、Docker重启和进程崩溃全部依赖同一durable recovery合同。
+
+#### 10.1.6 全服务安全停机、恢复运行与用户Formation Reset
+
+2026-10-13用户正式注册两项Operational能力。安全停机是全服务Maintenance Gate，不是单任务Pause：HTTP、管理页、认证及只读查询继续在线；Foundation停止普通Work供给、新Event/Recovery派发和新Owner轮询，已受理Admin业务命令、已开始Event、恢复、Owner收口及Outbox delivery须到达既有完成/安全checkpoint边界。未收敛时显示stopping及真实in-flight数量，不能因60秒进程退出预算声称stopped；不得硬杀material_commit/destructive_commit、伪造terminal或释放未完成Effect责任。停稳保留Plan/Result/Control/Workspace；恢复仍通过既有Startup Recovery Gate。
+
+Operational层以原子持久Operator文件保存running/stopped两种desiredMode，不建立业务状态或资源管理Store。停止意图先于停止供给持久化；进程再次启动时不得绕过stopped意图自动供给或重放文件Effect。恢复是明确命令，Recovery Gate完成后才开放业务写与普通供给。stopping、resuming、resetting及Reset中断态禁止业务写；认证和Operational命令单独受已注册Admin鉴权约束。§10.1.5信号退出仍适用，不能替代在线停稳证明。
+
+用户Formation Reset默认选择全部未完成上架整理，不含文件来源采购扫描、已入藏维护、Off-deck或范围外Work。复用既有Operator Reset闭包/Control/Workspace权限，不能把工程“全部未上架”范围直接暴露UI。已结束Run/history、正式Inventory/Commit、配置、范围外引用与Control必须保护，交叠则预检阻塞而不是扩大删除；未决非pure Effect不得清除。仅全服务stopped、无in-flight业务操作且后台生产者停稳时执行；SQLite连接可保留用于认证/只读，但不存在并行业务writer，该quiesced gate是在线Operator的offline证明，不给业务Facade删表权限。
+
+只读预检返回服务端重建的清单、计数、阻塞及previewDigest；客户端仅确认digest和idempotencyKey，不能提交路径、SQL或自行定义范围。执行前创建并逐项验证冻结数据库、Secret/内部Artifact及选定Workspace备份，备份不得处于清理目录；再次证明preview未漂移后才调用精确Operator工具。保存操作Receipt，成功保持stopped，不自动重新接收或恢复供给；中断或结果不能证明时要求Operator检查，拒绝自动Resume及猜测回滚。概览显示运行/停机/恢复/Reset状态、真实等待及错误；Reset须清单与后果确认，无force/skip-backup。此合同不开放clean initialization或灾难恢复为HTTP能力。
 
 ### 10.2 Clean Initialization、备份、导出与恢复
 

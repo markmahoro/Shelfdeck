@@ -41,12 +41,14 @@ function createOverviewProjectionHost(options) {
     start(){if(!stopped)return running||Promise.resolve();stopped=false;return tick();},
     async stop(){stopped=true;clearTimeout(timer);timer=null;if(running)await running;},
     async refresh(){if(stopped)throw new Error('Overview projection producer is stopped.');await rebuild();},
+    async refreshQuiesced(){if(!stopped)throw new Error('Quiesced overview refresh requires an inactive producer.');
+      stopped=false;try{await rebuild();}finally{stopped=true;}},
     get(){
       if(!snapshot)throw Object.assign(new Error('概览正在生成，请稍后刷新。'),{
         code:'OVERVIEW_PROJECTION_REBUILDING',statusCode:503});
       const ageMs=Math.max(0,now()-Date.parse(snapshot.generatedAt));
       return Object.freeze({...snapshot,projection:Object.freeze({
-        state:lastError?'failed':ageMs>30_000?'stale':'ready',ageMs,
+        state:lastError?'failed':!stopped&&ageMs>30_000?'stale':'ready',ageMs,
       })});
     },
   });

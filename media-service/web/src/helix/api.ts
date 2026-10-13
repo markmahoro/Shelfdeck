@@ -472,6 +472,14 @@ export type OverviewProjection = {
   } | null;
 };
 
+export type RuntimeOperation = {operationId:string;kind:'stop'|'resume'|'reset';state:'pending'|'completed'|'failed';
+  result?:{backupId?:string;removedSubjects?:number};error?:{code:string;message:string}};
+export type RuntimeStatus = {mode:'starting'|'running'|'stopping'|'stopped'|'resuming'|'resetting'|'error';desiredMode:'running'|'stopped';
+  revision:number;normalSupplyAllowed:boolean;activity:{inFlightEvents:number;inFlightRecoveries:number;inFlightOwnerReconciliations:number;inFlightAdminCommands?:number};
+  operation:RuntimeOperation|null;error:{code:string;message:string}|null;recoveryBackup:string|null};
+export type FormationResetPreview={previewDigest:string;ready:boolean;empty:boolean;items:Array<{subjectId:string;displayIdentity:string;contentProfile:string}>;
+  counts:{subjects:number;runs:number;works:number;workspaces:number};protected:{collectionCount:number;endedRunCount:number};blockers:Array<{code:string;message:string}>};
+
 export type SetupReadinessItem = {
   key: string;
   owner: string;
@@ -603,6 +611,12 @@ export const helixAdminApi = {
   getOverview() {
     return request<OverviewProjection>('/v1/admin/overview');
   },
+  getRuntimeStatus(){return request<RuntimeStatus>('/v1/admin/runtime');},
+  stopRuntime(idempotencyKey:string){return request<RuntimeOperation>('/v1/admin/runtime/actions/stop',{method:'POST',body:JSON.stringify({idempotencyKey})});},
+  resumeRuntime(idempotencyKey:string){return request<RuntimeOperation>('/v1/admin/runtime/actions/resume',{method:'POST',body:JSON.stringify({idempotencyKey})});},
+  previewFormationReset(){return request<FormationResetPreview>('/v1/admin/runtime/reset-preview');},
+  resetFormation(previewDigest:string,idempotencyKey:string){return request<RuntimeOperation>('/v1/admin/runtime/actions/reset',{
+    method:'POST',body:JSON.stringify({previewDigest,idempotencyKey,confirmed:true})});},
   getSetupReadiness() {
     return request<SetupReadinessProjection>('/v1/admin/setup-readiness');
   },

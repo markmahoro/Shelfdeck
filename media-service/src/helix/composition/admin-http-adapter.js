@@ -44,6 +44,11 @@ function createAdminHttpAdapter(options) {
       if (route.sideEffect === 'none' && request.body !== undefined) {
         fail('GET_SIDE_EFFECT_INPUT_REJECTED');
       }
+      if(options.runtimeOperations&&mutating.has(route.method)&&route.path!=='/v1/admin/session'&&
+          !route.path.startsWith('/v1/admin/runtime/')&&options.runtimeOperations.snapshot().mode!=='running'){
+        throw Object.assign(new Error('服务已停止后台运行，请先在概览恢复运行。'),{
+          code:'RUNTIME_BUSINESS_WRITES_DISABLED',statusCode:409});
+      }
       if (
         mutating.has(route.method) &&
         route.path !== '/v1/admin/session' &&
@@ -55,14 +60,17 @@ function createAdminHttpAdapter(options) {
       if (!facade || typeof facade[route.facadeMethod] !== 'function') {
         fail('FACADE_METHOD_UNAVAILABLE');
       }
-      const result = await facade[route.facadeMethod]({
+      const release=options.runtimeOperations&&mutating.has(route.method)&&route.path!=='/v1/admin/session'&&
+        !route.path.startsWith('/v1/admin/runtime/')?options.runtimeOperations.beginBusinessCommand():null;
+      let result;
+      try{result = await facade[route.facadeMethod]({
         params: route.params || {},
         query: request.query || {},
         body: request.body,
         actor,
         nowMs: request.nowMs,
         correlationId: request.correlationId,
-      });
+      });}finally{release?.();}
       return {
         status: result.status || 200,
         body: result.body,

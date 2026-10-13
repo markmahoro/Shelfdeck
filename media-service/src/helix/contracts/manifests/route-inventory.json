@@ -9,9 +9,9 @@
     "9.7",
     "9.9.7"
   ],
-  "targetCount": 135,
+  "targetCount": 140,
   "targetSegments": {
-    "admin": 134,
+    "admin": 139,
     "publicHealth": 1
   },
   "entries": [
@@ -3928,6 +3928,156 @@
       "contractDigest": {
         "algorithm": "sha256",
         "value": "03494db6b359d756bc7056836e665c31e9d3e44dd353e5ed4de5ccbbc10618d1"
+      }
+    },
+    {
+      "id": "get:/v1/admin/runtime",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "implemented",
+      "ssotRefs": [
+        "9.7.3",
+        "10.1.6"
+      ],
+      "sourceLocator": {
+        "section": "9.7.3",
+        "line": 13514,
+        "lineDigest": "8913b18d49024d791c02a715550ecbc6d5a827f0cdb9e56b7e3f8dcc14191f8b"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/runtime",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_runtime",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "dd7de3fc1a700ecfb32bb9eec582cce8e43264f3e1d2c878fc66e6e607d79934"
+      }
+    },
+    {
+      "id": "post:/v1/admin/runtime/actions/stop",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "implemented",
+      "ssotRefs": [
+        "9.7.3",
+        "10.1.6"
+      ],
+      "sourceLocator": {
+        "section": "9.7.3",
+        "line": 13515,
+        "lineDigest": "2435d47045e2bf2412bb856e7c46e8420c387917bd536832fd9353b40ed0cb4c"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/runtime/actions/stop",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "post_runtime_stop",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "1b5f83da3b2bd69064ecdd694a527ecac6aa9d9e609ae3774df25cec23eef78f"
+      }
+    },
+    {
+      "id": "post:/v1/admin/runtime/actions/resume",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "implemented",
+      "ssotRefs": [
+        "9.7.3",
+        "10.1.6"
+      ],
+      "sourceLocator": {
+        "section": "9.7.3",
+        "line": 13516,
+        "lineDigest": "cf4e07226e1b6003afec7b216211b752f5515d887b99f682de244b8da2a09858"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/runtime/actions/resume",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "post_runtime_resume",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "d47fa9821e81eecf34a03252713334829b160d149b3de82cf40555428685e55c"
+      }
+    },
+    {
+      "id": "get:/v1/admin/runtime/reset-preview",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "implemented",
+      "ssotRefs": [
+        "9.7.3",
+        "10.1.6"
+      ],
+      "sourceLocator": {
+        "section": "9.7.3",
+        "line": 13517,
+        "lineDigest": "ee6b24efc08071de39afebee41cd955fca9246aa996ae2c51b34ce7781212408"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "GET",
+        "path": "/v1/admin/runtime/reset-preview",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "get_runtime_reset_preview",
+        "authentication": "admin_session",
+        "sideEffect": "none"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "1491878a148b2ce228f88a0a013d8c592ea53a13059e7711c07ff8aba08b4998"
+      }
+    },
+    {
+      "id": "post:/v1/admin/runtime/actions/reset",
+      "version": 1,
+      "owner": "platform-settings",
+      "status": "implemented",
+      "ssotRefs": [
+        "9.7.3",
+        "10.1.6"
+      ],
+      "sourceLocator": {
+        "section": "9.7.3",
+        "line": 13518,
+        "lineDigest": "538b87b2b30cdec59d712ccec51d356b816e53024338caee860d950bdceb3b82"
+      },
+      "targetLocator": {
+        "path": "composition/admin-route-registry.js"
+      },
+      "contract": {
+        "method": "POST",
+        "path": "/v1/admin/runtime/actions/reset",
+        "facade": "PlatformAdminFacade",
+        "facadeMethod": "post_runtime_reset",
+        "authentication": "admin_session",
+        "sideEffect": "explicit_command"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f2b5426114bb499a606306c9d0979225a90c982d87f13decd52439cbb9f54b82"
       }
     }
   ]

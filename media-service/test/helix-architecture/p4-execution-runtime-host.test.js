@@ -5,6 +5,40 @@ const test = require('node:test');
 const { createExecutionRuntimeHost } = require('../../src/helix/foundation/execution/execution-runtime-host');
 const { createPlannerRegistry } = require('../../src/helix/foundation/execution/planner-registry');
 
+test('maintenance quiesce waits for Event and Owner closure, then resumes through recovery', async () => {
+  let eventRelease, ownerRelease, leaseNext=true, ownerEntered=false, recoveryCalls=0, starts=0;
+  const eventGate=new Promise(resolve=>{eventRelease=resolve;}),ownerGate=new Promise(resolve=>{ownerRelease=resolve;});
+  const host=createExecutionRuntimeHost({tickIntervalMs:60000,
+    startupRecovery:{async recover(){recoveryCalls++;return {normalSupplyAllowed:true};}},
+    scheduler:{acquire({targetType}){if(targetType==='event'&&leaseNext){leaseNext=false;return {kind:'leased',lease:{targetType:'event',targetId:'maintenance-event',leaseId:'lease'}};}return {kind:'idle'};},release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){return {attemptTerminal:true,replayed:false,attemptId:'attempt',attemptState:'succeeded',work:{work_id:'work',owner_domain:'libra',process_type:'libra_run',process_id:'run',work_kind:'test',state:'running'}};},settleWork(){return {state:'succeeded'};}},
+    eventRuntime:{run(){return eventGate;}},domainReconciler:{async reconcile(r){if(r.reconcilePhase==='attempt_terminal'){ownerEntered=true;await ownerGate;return {disposition:'succeeded'};}return null;}},
+    fallbackReconciler:{async start(){starts++;},async stop(){},snapshot(){return {};}},
+  });
+  try {
+    await host.start();await host.drainOnce();
+    const stopped=host.quiesce();assert.equal(host.readiness().state,'quiescing');assert.equal(host.readiness().normalSupplyAllowed,false);
+    leaseNext=true;assert.equal((await host.drainOnce()).kind,'inactive');assert.equal(leaseNext,true);
+    eventRelease({kind:'succeeded'});for(let i=0;i<10&&!ownerEntered;i++)await new Promise(resolve=>setImmediate(resolve));
+    assert.equal(ownerEntered,true);assert.equal(host.readiness().state,'quiescing');
+    ownerRelease();assert.equal((await stopped).state,'quiesced');assert.equal(host.activity().inFlightEvents,0);
+    leaseNext=false;await host.start();assert.equal(recoveryCalls,2);assert.equal(starts,2);assert.equal(host.readiness().normalSupplyAllowed,true);
+  }finally{eventRelease({kind:'succeeded'});ownerRelease();await host.stop();}
+});
+
+test('persisted stopped intent classifies recovery without running Effects or supply', async () => {
+  let supplies=0,recoveries=0;
+  const host=createExecutionRuntimeHost({startupRecovery:{async recover(){return {normalSupplyAllowed:false,actions:[{eventId:'unknown',effectId:'effect'}]};}},
+    scheduler:{acquire(){supplies++;return {kind:'idle'};},release(){}},plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){},settleWork(){}},
+    eventRuntime:{run(){throw Error('No Event expected');},recover(){recoveries++;}},domainReconciler:{reconcile(){}},
+    fallbackReconciler:{async start(){throw Error('No ordinary reconciliation expected');},async stop(){},snapshot(){return {};}},
+  });
+  await host.start({quiesced:true});await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(host.readiness().state,'quiesced');assert.equal(supplies,0);assert.equal(recoveries,0);await host.stop();
+});
+
 function withDefinition(work) {
   return Object.freeze({ ...work, definition:Object.freeze({
     workObjectiveTypeRef:'helix://test/work/' + work.work_kind + '/v1', workObjectiveVersion:1,
