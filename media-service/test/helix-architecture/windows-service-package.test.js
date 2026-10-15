@@ -11,7 +11,8 @@ test('Windows distribution boots independently with its own native dependencies 
     assert.equal(packaged.status,0,packaged.stdout+packaged.stderr);assert.equal(fs.existsSync(path.join(output,'data')),false);
     const code=String.raw`
       const assert=require('node:assert/strict'),path=require('node:path');
-      (async()=>{const output=process.cwd(),secretRoot=process.env.SHELFDECK_SECRET_ROOT,dataDir=process.env.PACKAGE_TEST_DATA,
+      (async()=>{assert.equal(typeof require('./scripts/helix-architecture/jav-release-schema-copy').inspectJavSchemaSource,'function');
+        const output=process.cwd(),secretRoot=process.env.SHELFDECK_SECRET_ROOT,dataDir=process.env.PACKAGE_TEST_DATA,
         initialized=require('./scripts/helix-operational-safety').initializeCleanData({dataDir,secretRoot,confirmation:'INITIALIZE_HELIX_CLEAN_V1'}),
         host=await require('./src/clean-service-host').createCleanServiceHost({dataDir,secretRoot,adminDistDir:path.join(output,'dist','admin')});
         try{await host.listen({host:'127.0.0.1',port:0});assert.equal((await host.inject({method:'GET',url:'/v1/health'})).statusCode,200);

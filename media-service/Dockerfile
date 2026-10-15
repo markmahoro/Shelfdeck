@@ -75,6 +75,8 @@ COPY media-service/src/helix ./src/helix
 COPY media-service/scripts/helix-clean-init.js ./scripts/helix-clean-init.js
 COPY media-service/scripts/helix-jav-schema-copy.js ./scripts/helix-jav-schema-copy.js
 COPY media-service/scripts/helix-architecture/jav-release-schema-copy.js ./scripts/helix-architecture/jav-release-schema-copy.js
+COPY media-service/scripts/helix-architecture/jav-release-effect-history-proof.js ./scripts/helix-architecture/jav-release-effect-history-proof.js
+COPY media-service/scripts/helix-architecture/readonly-history-projections.js ./scripts/helix-architecture/readonly-history-projections.js
 COPY media-service/scripts/helix-operational-safety.js ./scripts/helix-operational-safety.js
 COPY media-service/scripts/helix-predeck-pipeline-migration.js ./scripts/helix-predeck-pipeline-migration.js
 COPY media-service/scripts/helix-formation-reset.js ./scripts/helix-formation-reset.js

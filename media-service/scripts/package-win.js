@@ -104,6 +104,8 @@ const CLEAN_RUNTIME_FILES = [
   'scripts/helix-clean-init.js',
   'scripts/helix-jav-schema-copy.js',
   'scripts/helix-architecture/jav-release-schema-copy.js',
+  'scripts/helix-architecture/jav-release-effect-history-proof.js',
+  'scripts/helix-architecture/readonly-history-projections.js',
   'scripts/helix-operational-safety.js',
 ];
 for (const name of CLEAN_RUNTIME_FILES) {
