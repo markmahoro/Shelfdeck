@@ -118,3 +118,5 @@ Source commit 455873b3776d434b0fc561bcaf30ebb31b2ae8fb；标准scripts/build-ima
 在最终不可变镜像的本机一次性容器内产生256MiB已知字节与独立SHA256，正常SIGTERM写checkpoint并退出0；停止态通过docker cp stdout流式导出tar，落盘同时完整hash/统计长度。另一个network none/只读归档挂载容器严格检查四个归档成员，提取到自身临时目录，独立核验媒体字节/长度及clean checkpoint。随后原容器以同一ID/image重启，读取原持久文件及checkpoint，再正常停止；任务容器已删除，私有本地证据保留。该演练不用tmpfs保存待备份源（停容器会失去tmpfs），不接入生产、用户媒体或NAS临时测试环境。
 
 实际导出268439552 bytes，SHA256 357eee9bfa081ef5ac66ae6447608c53988480d8d15838063d6c74af0c6c6062；128MiB Node heap下本机流式采集进程peak RSS55744KiB。日志及可复演工具为ignored cold-backup-stream-rehearsal-20261015.log / rehearse-cold-backup-stream.js。此项补强正常停机/停止态传输/独立校验/同容器重启操作路径，不证明真实NAS传输吞吐、旧服务checkpoint或3.17GB完整生产副本已验证。实际生产停机备份仍等待精确授权，候选代码/镜像不变。
+
+第三轮同阻碍复核：实际NAS readonly SQLite/query_only事务仍返回6 active Runs、4 active Works、20未决Effects及556收藏，20项均是failed Work下Arca input_settlement.delete，无mutation。ignored nas-upgrade-blockers-blocked-audit-20261015.json/log为本次记录。没有仍运行的任务演练容器；本地候选/校验/恢复证据保持，整体目标未完成。剩余完整生产副本与实际规模升级/回退资格依赖尚未收到的精确停机备份授权，不能通过重复本地测试、清旧责任或自动apply解除；目标按同一阻碍连续三轮审计记为blocked，等待用户输入后继续。

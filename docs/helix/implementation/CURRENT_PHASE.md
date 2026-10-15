@@ -189,7 +189,9 @@ Synthetic例：文件名ipx00177.mkv提取IPX-00177，但未能确权；用户�
 
 2026-10-14最新Correction实现：Arca独立同Entry预览与持久受理已有typed机器合同/Store及实际入藏Host的Control rollback、Receipt replay、old ownership/视频保留证据；未接正式Work/文件Effect/最终Commit或UI，不宣称已完成身份纠正。后续先闭合竞争门禁与执行/crash恢复，再接People/Perception及用户入口。当前机器库存201 tables/46 transactions；旧200-table迁移target保持冻结，不自动迁移当前Formation。
 
-## 当前实现差距
+## 开发起点差距（历史对照）
+
+本表保留起点核对，不代表当前缺失；当前交付与剩余门禁以顶部最终候选记录、下表及现有Evidence为准。
 
 | Owner / 链路 | 已核对差距 | 工作项 |
 | --- | --- | --- |
@@ -206,12 +208,12 @@ Synthetic例：文件名ipx00177.mkv提取IPX-00177，但未能确权；用户�
 | 节点 | Owner交付 | 必需验收 |
 | --- | --- | --- |
 | 1 / JAV-CONTRACT、JAV-SOURCE、JAV-IDENTITY-RECOVERY（本地已实现；资格收尾） | 单站主备/title+cover及首版已入藏Correction已确认；传播typed identity/selection/Handle/source qualification/Artifact/Template，闭合初次确认/锁定、已入藏Correction及Owner感知连续性 | SSOT/机器合同一致、真实正负fixture；Correction的typed事务/Effect/并发/恢复Ready后才实施，不重复请求已确认范围 |
-| 2 / JAV-IDENTITY-METADATA（本地已实现；具体版本UI待接受） | 公开Handoff A→原生身份→单站资料/NFO/poster/fanart及用户恢复入口 | 缺选填通过、缺title/cover失败下一站不合并；首次错号选择/歧义/CID/revision/重放/登录/图片与确认后异号拒绝矩阵；具体版本UI |
-| 3 / JAV-FORMATION-ONDECK（本地链路已实现；整合复验中） | Direct/Remux/Transcode→Arca Handoff B/落位/结算/Commit | 隔离真实文件、2 GiB、范围外保护、崩溃/重放、旧结果不能错误上架 |
-| 4 / JAV-OPERATIONS-SURFACE（恢复已实现；验证收尾） | 健康/资料修复、布局/标准、重复审阅、授权退出/注销、已入藏Canonical Correction | 同Entry保留视频、资料/命名/评分已看连续性、身份冲突与并发/crash/重放；profile/Inventory revision连续、缺图恢复及全部保留重复；具体版本UI |
+| 2 / JAV-IDENTITY-METADATA（本地已实现；适用具体版本UI已接受） | 公开Handoff A→原生身份→单站资料/NFO/poster/fanart及用户恢复入口 | 缺选填通过、缺title/cover失败下一站不合并；首次错号选择/歧义/CID/revision/重放/登录/图片与确认后异号拒绝矩阵；具体版本UI |
+| 3 / JAV-FORMATION-ONDECK（本地链路与最终镜像场景已验证） | Direct/Remux/Transcode→Arca Handoff B/落位/结算/Commit | 隔离真实文件、2 GiB、范围外保护、崩溃/重放、旧结果不能错误上架 |
+| 4 / JAV-OPERATIONS-SURFACE（恢复已实现；本地场景及适用UI已验证） | 健康/资料修复、布局/标准、重复审阅、授权退出/注销、已入藏Canonical Correction | 同Entry保留视频、资料/命名/评分已看连续性、身份冲突与并发/crash/重放；profile/Inventory revision连续、缺图恢复及全部保留重复；具体版本UI |
 | 5 / JAV-QUALIFICATION（进行中） | Movie/Series回归、真实Provider/媒体、Windows/Linux Service与Admin Web最终版 | 必需链路无skip、历史保护、精确版本UI、旧版/候选/候选数据回退与未测边界；开发Exit与发布分开；Desktop本轮不开发 |
 
-当前实现已覆盖typed identity/单站source attempt/Artifact/推荐标准、初次身份确认/锁定、媒体加工及Arca独立Correction事务/Effect/显式Recovery Intent；真实Host分阶段证据见顶部及既有JAV证据。整体部署Ready仍未满足：本次完整整合和具体版本UI结论、实际混合生产库一致副本及回退/镜像发布资格尚未闭合。CID自动映射没有可信主资料，保持明确未确认与手工完整番号选择旅程；来源样本不等于所有站点长期可用。NAS临时隔离Linux测试由用户skip，不改写为平台PASS。Libra途中换号不在范围；原视频/历史、Formation clean-cut及生产操作授权边界保持。
+当前实现已覆盖typed identity/单站source attempt/Artifact/推荐标准、初次身份确认/锁定、媒体加工及Arca独立Correction事务/Effect/显式Recovery Intent；真实Host分阶段证据见顶部及既有JAV证据。整体部署Ready仍未满足：最终本地镜像/Windows包、适用具体版本UI和既有整合加精确计数复验组合Evidence已记录；实际混合生产库一致副本、旧责任收口及生产规模升级/回退资格仍开放，停机备份授权尚未收到。CID自动映射没有可信主资料，保持明确未确认与手工完整番号选择旅程；来源样本不等于所有站点长期可用。NAS临时隔离Linux测试由用户skip，不改写为平台PASS。Libra途中换号不在范围；原视频/历史、Formation clean-cut及生产操作授权边界保持。
 
 来源基础子合同本地交付：`src/helix/contracts/jav-source-contracts.js`提供完整号码/CID的互斥anchor、grammar digest、单站title/cover要求与有界Source Snapshot；schema与语义校验均限制按类型候选站，连续ordinal/重复配置/篡改摘要/混入Cookie或代理值均拒绝。`shared-type-schema-builder.js`/现有IntegrationHandle schema新增jav_source闭合分支，其他Secret-bound Provider不能附加JAV字段或变匿名。已完成9项源合同negative/positive、P2与dispatcher专项；source helper的Snapshot尚未绑定正式Intent/Result目录，Platform resolver不接受新型Handle，来源资格/首次Fact与功能工作项不因此Ready。此次纯合同实现没有UI或业务投影改动。
 
