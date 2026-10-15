@@ -149,6 +149,26 @@ function createRoutingContextReader(options) {
       expectedHead: headSnapshot(subjectId, rows.head), currentDecision });
   }
 
+  function ratingTarget(subjectId) {
+    // Rating identity uses accepted Subject/Intake and formal Identity facts.
+    // Routing history, policy and Arca targets do not contribute to its digest.
+    const rows = options.unitOfWork.execute([{ participantId: 'libra_rating_identity_read', owner: 'libra',
+      repositories: [repository], execute(context) {
+        const repo = context.repository(repository.repositoryId);
+        const subject = repo.invoke('find_subject', { subject_id:subjectId });
+        if (!subject) return null;
+        return {
+          subject,
+          intake:repo.invoke('find_intake', { intake_decision_id:subject.routing_anchor_intake_decision_id }),
+          identity:subject.current_identity_revision === null ? null : repo.invoke('find_identity', {
+            subject_id:subjectId, revision:number(subject.current_identity_revision),
+          }),
+        };
+      } }]).libra_rating_identity_read;
+    if (!rows) return null;
+    return subjectRatingTarget({ rows, subject:subjectSnapshot(rows), deliverySnapshot:parseSnapshot(rows.intake) });
+  }
+
   function collectFactKinds(expression, target = new Set()) {
     if (!expression) return target;
     if (expression.nodeKind === 'predicate') target.add(expression.factKind);
@@ -287,7 +307,7 @@ function createRoutingContextReader(options) {
     return Object.freeze({ items, nextCursor: start + limit < values.length ? items.at(-1).subjectId : null });
   }
 
-  return Object.freeze({ read, ratingTarget:(subjectId)=>subjectRatingTarget(read(subjectId)), currentState, currentRoutingDecision, requiredExternalFactKinds, factObservationIntent, nfoReadHandle, buildInputSet,
+  return Object.freeze({ read, ratingTarget, currentState, currentRoutingDecision, requiredExternalFactKinds, factObservationIntent, nfoReadHandle, buildInputSet,
     listActiveSubjectPage, normalizeTitle: normalize, policies });
 }
 

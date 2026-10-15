@@ -55,8 +55,8 @@ function repositories(schemaManifest) {
       repositoryId: 'work_admission_works', owner: 'execution-foundation', schemaManifest,
       statements: {
         find: { kind: 'select-one', tableId: 'fx_supporting_works', columns: ['work_id', 'state'], keyColumns: ['work_id'] },
-        list_all: { kind: 'select-all', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'priority_class', 'state'], keyColumns: [] },
-        list_owner: { kind: 'select-all', tableId: 'fx_supporting_works', columns: ['work_id', 'priority_class', 'state'], keyColumns: ['owner_domain'] },
+        list_open: { kind: 'select-in', tableId: 'fx_supporting_works', columns: ['owner_domain', 'state'],
+          keyColumn: 'state', maxItems: OPEN_WORK_STATES.size },
         insert: { kind: 'insert', tableId: 'fx_supporting_works', columns: [
           'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state',
           'definition_schema_ref', 'definition_json', 'definition_digest', 'idempotency_key', 'created_at_ms', 'updated_at_ms'
@@ -83,7 +83,8 @@ function repositories(schemaManifest) {
     }),
     events: createRepositoryDefinition({
       repositoryId: 'work_admission_events', owner: 'execution-foundation', schemaManifest,
-      statements: { list: { kind: 'select-all', tableId: 'fx_workflow_events', columns: ['state'], keyColumns: [] } }
+      statements: { list_open: { kind: 'select-in', tableId: 'fx_workflow_events', columns: ['state'],
+        keyColumn: 'state', maxItems: OPEN_EVENT_STATES.size } }
     })
   });
 }
@@ -172,10 +173,9 @@ function createWorkAdmission(options) {
               const circuit = context.repository('work_admission_circuits').invoke('find', { circuit_key: circuitKey });
               if (circuit && circuit.state !== 'closed') throw new WorkAdmissionDeferred('CIRCUIT_' + circuit.state.toUpperCase());
             }
-            const ownerWorks = works.invoke('list_owner', { owner_domain: definition.ownerDomain });
-            const allOpenWorks = works.invoke('list_all').filter((work) => OPEN_WORK_STATES.has(work.state));
+            const allOpenWorks = works.invoke('list_open', { values:[...OPEN_WORK_STATES] });
             const globalOpen = allOpenWorks.length;
-            const ownerOpen = ownerWorks.filter((work) => OPEN_WORK_STATES.has(work.state)).length;
+            const ownerOpen = allOpenWorks.filter((work) => work.owner_domain === definition.ownerDomain).length;
             if (globalOpen >= options.limits.globalOpenWorks || ownerOpen >= options.limits.ownerOpenWorks) {
               throw new WorkAdmissionDeferred('WORK_HARD_CAP');
             }
@@ -187,7 +187,7 @@ function createWorkAdmission(options) {
                 throw new WorkAdmissionDeferred('WORK_RESERVED_CAPACITY');
               }
             }
-            const openEvents = context.repository('work_admission_events').invoke('list').filter((event) => OPEN_EVENT_STATES.has(event.state)).length;
+            const openEvents = context.repository('work_admission_events').invoke('list_open', { values:[...OPEN_EVENT_STATES] }).length;
             if (openEvents >= options.limits.openEvents) throw new WorkAdmissionDeferred('EVENT_HARD_CAP');
             const scoped = receipts.invoke('list_scope', {
               owner_domain: definition.ownerDomain, command_contract: COMMAND_CONTRACT, caller_scope: callerScope

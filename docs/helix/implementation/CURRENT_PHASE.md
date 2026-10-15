@@ -1,5 +1,7 @@
 # 当前 Phase：JAV 首版发布与用户验收
 
+2026-10-16 UAT-318 独立调查承接既有 [Evidence](evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md)：dc7 静态传输超时复现，当前 profile/SQL explain 已定位主线程竞争与 Owner 历史扫描。四处本地修复保持原 Owner/完整输出与恢复检查；定向跨平台通过，完整验证续记。未部署，仍须处理/复验同步媒体指纹、HTTP/浏览器长尾及 1 秒目标；不另建活动包、不关闭 UAT。
+
 2026-10-16 已按用户最新“跳过NAS演练 升级吧”完成生产标准部署：`markmahoro/shelfdeck:dc7dcddbaf`（source `dc7dcddbaf6714d56aaa453610f862914863578f`）。UTC18:25复核health ok、mode/desiredMode running、normalSupplyAllowed=true、faulted=false、RestartCount0；`/adult`与原`/adult_media`绑定同一宿主目录，QSV/13无关容器/fnOS保持。完整备份及204→210/203旧表2,236,865行逐行保护通过，560原收藏、原Commit、两季精确Run/Workspace保持，54伴随文件与data目录物理身份保持，无Reset/删媒体。二号5席/占1，3来源已有公平记录。新鲜NAS完整Host演练按用户明确决定跳过，非PASS。UAT-318/UAT-320仍开放：两季尚等待资源，首开/静态大文件传输仍超时；不宣称完整媒体E2E或1秒SLO。详见既有双车间公平与UAT-318 Evidence。
 
 历史暂停快照（已被顶部新授权及实际部署覆盖）：双车间/公平具体版本UI已接受，原聊天将性能修复及adult绑定整合为dc7dcddbaf候选并完成标准build/upload与源码/资产校验。用户选择暂不NAS完整副本演练；本机不能保留原CIFS/Workspace物理namespace，完整新鲜副本Host资格及生产发布暂缓，不以原历史结构副本或临时介质Host代替。生产保持037；安全停机收口后原供给已恢复，UTC17:15 health/running/normalSupplyAllowed通过、容器身份及两季原Run保持。UAT-318/UAT-320仍按各自Evidence开放，不因实现交付关闭。

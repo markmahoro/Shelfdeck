@@ -72,6 +72,48 @@ test('Work Result Reader returns the exact verified Admission Definition', () =>
   });
 });
 
+test('scoped Work status reads only its exact Process and preserves latest failure ordering', () => {
+  fixture(({ kernel, unitOfWork }) => {
+    kernel.runPrimitive(transaction => {
+      const insert = transaction.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,state,created_at_ms) VALUES(?,?,?,?,?,?,?)');
+      for (let index=0;index<2000;index++) insert.run('unrelated-'+index,'arca','arca_ondeck_run','other-'+index,'on_deck_execution','succeeded',100);
+      insert.run('foreign-owner','libra','arca_ondeck_run','run','on_deck_execution','running',100);
+      insert.run('foreign-process','arca','other','run','on_deck_execution','running',100);
+      insert.run('foreign-kind','arca','arca_ondeck_run','run','other','running',100);
+      insert.run('work-null','arca','arca_ondeck_run','run','on_deck_execution','cancelled',null);
+      insert.run('work-a','arca','arca_ondeck_run','run','on_deck_execution','succeeded',0);
+      insert.run('work-z','arca','arca_ondeck_run','run','on_deck_execution','failed',0);
+      transaction.prepare("INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,state,failure_code) VALUES('attempt-1','work-z',1,'failed','OLD'),('attempt-2','work-z',2,'failed','EXACT_FAILURE')").run();
+    });
+    const statements=[];
+    const measured=createSqliteUnitOfWork({kernel:{runPrimitive:operation=>kernel.runPrimitive(transaction=>operation({
+      ...transaction,prepare(sql){statements.push(sql);return transaction.prepare(sql);},
+    }))}});
+    let returned=0;
+    const traced = { execute:participants=>measured.execute(participants.map(participant=>({...participant,
+      execute:context=>participant.execute({...context,repository:id=>{
+        const repo=context.repository(id);
+        return {...repo,invoke(name,parameters){const result=repo.invoke(name,parameters);if(Array.isArray(result))returned+=result.length;return result;}};
+      }}),
+    }))) };
+    const reader=createWorkResultReader({schemaManifest,unitOfWork:traced});
+    const scope={ownerDomain:'arca',processType:'arca_ondeck_run',processId:'run',workKind:'on_deck_execution'};
+    assert.deepEqual(reader.scopedWorkStatus(scope),{open:false,latestState:'failed',failureCode:'EXACT_FAILURE'});
+    assert.ok(returned<=4,'Unrelated Owner history must not be materialized.');
+    const plans=kernel.runPrimitive(transaction=>statements.filter(sql=>sql.includes('"fx_supporting_works"')).map(sql=>
+      transaction.prepare('EXPLAIN QUERY PLAN '+sql).all({owner_domain:'arca',process_type:'arca_ondeck_run',process_id:'run',
+        work_kind:'on_deck_execution',state:'',offset:0,limit:1})));
+    assert.ok(plans.length>0);
+    assert.ok(plans.every(plan=>plan.some(row=>row.detail.includes('(process_id=?)'))),
+      'The real SQLite plan must seek the exact Process instead of scanning Owner history.');
+    assert.deepEqual(reader.scopedWorkStatus({...scope,processId:'missing'}),{open:false,latestState:null,failureCode:null});
+    for(const state of ['admitted','ready','running','blocked']) {
+      kernel.runPrimitive(transaction=>transaction.prepare("UPDATE fx_supporting_works SET state=? WHERE work_id='work-a'").run(state));
+      assert.deepEqual(reader.scopedWorkStatus(scope),{open:true,latestState:null,failureCode:null});
+    }
+  });
+});
+
 test('same idempotency key with changed Definition is a stable conflict before writes', () => {
   fixture(({ admission, databasePath }) => {
     admission.submit(definition());
@@ -95,6 +137,30 @@ test('open concurrency scope and authoritative Work hard caps defer without crea
       { kind: 'deferred', reasonCode: 'WORK_HARD_CAP' });
     assert.equal(rows(databasePath, 'fx_command_receipts').length, 1);
   }, { limits: { globalOpenWorks: 1, ownerOpenWorks: 5, openEvents: 20 } });
+});
+
+test('Admission counts current supply without materializing terminal Work and Event history', () => {
+  fixture(({ kernel, unitOfWork }) => {
+    kernel.runPrimitive(transaction => {
+      const work=transaction.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,state) VALUES(?,?,?)');
+      const event=transaction.prepare('INSERT INTO fx_workflow_events(event_id,state) VALUES(?,?)');
+      for(let index=0;index<2000;index++) {
+        work.run('history-'+index,'libra','succeeded');event.run('history-'+index,'succeeded');
+      }
+      work.run('other-open','arca','blocked');event.run('other-open','waiting_for_approval');
+    });
+    let returned=0;
+    const traced={execute:participants=>unitOfWork.execute(participants.map(p=>({...p,execute:context=>p.execute({...context,
+      repository:id=>{const repo=context.repository(id);return {...repo,invoke(name,parameters){
+        const result=repo.invoke(name,parameters);if(Array.isArray(result))returned+=result.length;return result;
+      }};},
+    })}))) };
+    const admission=createWorkAdmission({schemaManifest,unitOfWork:traced,
+      eligibilityProvider:{check:request=>({eligible:true,basisDigest:request.executionBasisDigest})},
+      limits:{globalOpenWorks:10,ownerOpenWorks:5,openEvents:20}});
+    assert.equal(admission.submit(definition()).kind,'admitted');
+    assert.equal(returned,2,'Only the open Work and open Event are needed for current supply counts.');
+  });
 });
 
 test('sixteen reserved slots remain available to Handoff Acceptance after 240 ordinary Works', () => {

@@ -6,9 +6,6 @@ const { createRepositoryDefinition } = require('../persistence/owner-repository'
 
 
 function definition(schemaManifest){return createRepositoryDefinition({repositoryId:'work_result_reader',owner:'execution-foundation',schemaManifest,statements:{
-  latest_scoped_work:{kind:'select-joined-page',tableId:'fx_supporting_works',columns:['work_id','state','created_at_ms'],joins:[],
-    filters:['owner_domain','process_type','process_id','work_kind','state'].map(column=>({column,kind:'equals',parameter:column,optional:column==='state'})),
-    orderBy:[{column:'created_at_ms',direction:'desc'},{column:'work_id',direction:'desc'}],maxItems:1,safeIntegers:true},
   latest_attempt:{kind:'select-filtered-page',tableId:'fx_work_attempts',columns:['failure_code'],fixedKeyColumns:['work_id'],
     orderBy:[{column:'ordinal',direction:'desc'}],maxItems:1},
   find_work:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','process_id','work_kind','basis_digest','state'],keyColumns:['work_id']},
@@ -36,12 +33,18 @@ function createWorkResultReader(options){if(!options?.schemaManifest||!options.u
     readExecutionSummaryPage(...args){return executionSummary().readExecutionSummaryPage(...args);},
     createExecutionStateReadParticipant(...args){return executionSummary().createExecutionStateReadParticipant(...args);},
     scopedWorkStatus(scope){return options.unitOfWork.execute([{participantId:'work_scope_status',owner:'execution-foundation',repositories:[repository],execute(context){
-      const repo=context.repository(repository.repositoryId),parameters={owner_domain:scope.ownerDomain,process_type:scope.processType,
-        process_id:scope.processId,work_kind:scope.workKind,offset:0,limit:1};
-      for(const state of ['admitted','ready','running','blocked']){
-        if(repo.invoke('latest_scoped_work',{...parameters,state}).length)return Object.freeze({open:true,latestState:null,failureCode:null});
-      }
-      const latest=repo.invoke('latest_scoped_work',{...parameters,state:''})[0];
+      const repo=context.repository(repository.repositoryId);
+      // The exact Process index keeps unrelated Owner history out of this read.
+      // Optional state predicates plus DISTINCT/ORDER BY made SQLite scan the
+      // Owner's entire Work history for up to five status probes.
+      const works=repo.invoke('list_process_works',{owner_domain:scope.ownerDomain,process_type:scope.processType,
+        process_id:scope.processId,work_kind:scope.workKind});
+      if(works.some(work=>['admitted','ready','running','blocked'].includes(work.state)))
+        return Object.freeze({open:true,latestState:null,failureCode:null});
+      const latest=works.reduce((selected,work)=>!selected||
+        (work.created_at_ms!==null&&selected.created_at_ms===null)||work.created_at_ms>selected.created_at_ms||
+        (work.created_at_ms===selected.created_at_ms&&Buffer.from(work.work_id).compare(Buffer.from(selected.work_id))>0)
+        ? work : selected,null);
       const attempt=latest?.state==='failed'?repo.invoke('latest_attempt',{work_id:latest.work_id,offset:0,limit:1})[0]:null;
       return Object.freeze({open:false,latestState:latest?.state||null,failureCode:attempt?.failure_code||null});
     }}]).work_scope_status;},

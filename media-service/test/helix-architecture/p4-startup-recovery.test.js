@@ -97,6 +97,29 @@ test('empty durable runtime becomes ready while bootstrapping never supplies nor
   });
 }, { seedEvent: false }));
 
+test('startup Effect membership remains linear in retained Event Attempt history', async () => {
+  const count=1000;
+  let inspected=0;
+  const attempts=new Proxy(Array.from({length:count},(_,index)=>({event_attempt_id:'attempt-'+index,event_id:'event-'+index,
+    ordinal:1,state:'completed',outcome_kind:'succeeded'})),{get(target,key,receiver){
+    if(typeof key==='string'&&/^[0-9]+$/.test(key))inspected++;
+    return Reflect.get(target,key,receiver);
+  }});
+  const facts={works:[{work_id:'work',state:'succeeded'}],workAttempts:[{attempt_id:'work-attempt',work_id:'work',state:'succeeded'}],
+    plans:[{plan_id:'plan',attempt_id:'work-attempt',state:'planned'}],
+    nodes:Array.from({length:count},(_,index)=>({plan_id:'plan',node_id:'node-'+index,effect_class:'workspace_write'})),
+    events:Array.from({length:count},(_,index)=>({event_id:'event-'+index,plan_id:'plan',node_id:'node-'+index,
+      work_id:'work',attempt_id:'work-attempt',state:'succeeded'})),attempts,
+    effects:Array.from({length:count},(_,index)=>({effect_id:'effect-'+index,event_attempt_id:'attempt-'+index,
+      effect_class:'workspace_write',state:'committed'})),defers:[],circuits:[]};
+  const recovery=createStartupRecovery({schemaManifest,unitOfWork:{execute:()=>({startup_snapshot:facts})},
+    registry:{resolve:()=>({})},policyRegistry:{bindingFor:()=>({})},integrityVerifier:{verify:()=>({ok:true})},
+    catalogVerifier:{verify:()=>true},effectReconciler:{reconcile(){throw Error('Terminal history must not be replayed.');}}});
+  const result=await recovery.recover();
+  assert.equal(result.state,'ready');assert.deepEqual(result.findings,[]);assert.deepEqual(result.actions,[]);
+  assert.ok(inspected<=count*4,'Checking each Effect must not rescan all retained Event Attempts.');
+});
+
 test('registered standalone cleanup Effects are owned by fallback recovery, while unknown orphans still block startup', async () => {
   await fixture(async (recovery) => {
     const result = await recovery.recover();

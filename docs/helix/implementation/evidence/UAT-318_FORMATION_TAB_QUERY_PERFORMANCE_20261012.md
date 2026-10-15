@@ -220,3 +220,28 @@ Windows Node25默认zh-CN的首次完整读取报P6_PERCEPTION_RECORD_DIGEST_MIS
 新增明确失败证据：HTTP GET /admin可取得正确新index，但前端大JS请求多次超过15/45秒客户端预算；独立NAS本机curl到127.0.0.1:18080/assets/index-Kbt-DVCt.js，同样在20秒超时，HTTP200只取得131072 bytes，time_starttransfer13.645239s、总20.000548s。这说明不能只归因为Windows客户端或外部LAN/代理；支持后台负载下HTTP响应流推进缓慢的排查方向，尚未定位完整根因，不凭该现象推断唯一独占代码。实际容器文件JS/CSS hash与UI负责人接受版相同，只证明资产版本，不构成HTTP完整传输或首开通过。未加静态缓存/调度绕过来隐去残余。UAT-318保持开放。
 
 私有原始材料：既有.codex/libra-production-upgrade-20261016/release-production-verified.json、release-resume-durable.json、release-live-api-partial.json、release-live-api-paged-partial.json、release-served-container-asset-sha.txt、各probe脚本/运行失败记录；不提交生产数据/凭据。本轮未做Electron或整季媒体E2E，NAS完整Host演练skip不改写PASS。
+
+## 2026-10-16 独立排查：主线程竞争与四处读取修复
+
+沿用 UAT-318；起点 dee0a5a4a、共享 checkout clean，没有新增 UAT 或活动计划。生产仍 dc7dcddbaf，StartedAt/镜像/RestartCount 与前述发布记录相同。本轮只做 GET、只读 SQLite 子进程及一次约 13 秒 CPU 采样，Inspector 随后确认关闭。没有停服、Resume、Reset、部署、媒体/业务数据修改或 NAS 完整 Host 演练。
+
+UTC 18:35 NAS loopback curl 读取 503,927-byte JS，20 秒只收到 311,296 bytes，TTFB 3.818 秒；health 1.104 秒。UTC 18:36:30 容器内 HTTP 子进程完整接收 JS 用 19.380 秒，首块 4.309 秒，后续 16 KiB 块间有约 2 秒停顿；六次 health 3105/458/234/213/294/4 ms。首次文件探针误用 `/app/dist/assets` 得到 ENOENT；纠正为 `/app/dist/admin/assets` 后同文件读取 1.105 ms。保留失败，不能当成磁盘慢或文件不存在。
+
+12.99 秒 CPU profile 中，概览 producer 的 `readFormation → formationQuery.list` inclusive 约 5.429 秒，其中 Arca 状态经 Foundation `scopedWorkStatus` 的 SQL `all` self 累计约 2.195 秒。正常执行 `event input prepare → source media observations → primarySources → issuePhysicalReadHandle → bounded fingerprint` 同步 read/open/lstat self 合计约 1.645 秒。还有收藏健康读取、GC 等竞争，不能把整个 HTTP 延迟归给一个函数。证据支持主线程同步工作延迟静态流回调；API 查询、静态传输、浏览器发送前排队、启动恢复仍独立验收。旧 Metadata profile 不作为当前根因证明。
+
+当前库采样 32,413 Work、93,998 Event、127,536 Event Attempt、74,659 Effect；以下对照均明确其边界。所有修复留在原 Owner，没有 schema、资源限额、优先级、业务结果或 UI 文案变化。
+
+| 卡点 | 根因与修复 | 验证 |
+| --- | --- | --- |
+| Formation 上架状态 | Foundation `scopedWorkStatus` 的 optional state + DISTINCT/ORDER BY 导致按 Owner 索引扫描历史并临时排序。改用已有 exact Process 读取，再按原规则求 open/latest/failure。 | 当前生产同一只读事务运行实际 Reader，old/new/new/old 的 8 个完整输出 digest 一致：1393/2.19/0.94/1491 ms。独立 SQL explain：旧 `(owner_domain,idempotency_key)`，新已有 `process_id` 索引。另一个固定五状态探针 SQL 对照 2054/0.20/0.08/2085 ms，不混为实际 Reader 时间。 |
+| Rating identity | Libra `ratingTarget` 以前读取完整 Routing Context；现在只读 Subject、accepted Intake、formal Identity，仍使用原 Subject/Delivery/formal identity digest fence。 | 当前生产同事务 24 个 Subject 的完整输出 digest 一致：54/43/30/60 ms，SQL/行 216→72。旧/新 Arca target port 均为空只读 stub，聚焦 Owner 读取；不是完整 Rating API 测量。 |
+| Work Admission | 原全 Work/Owner Work/Event 物化终态历史后计数。改用既有 select-in 读取完整 open state 集，同事务推导全局/Owner 计数。 | 当前生产计数 SQL 256/7.79/0.62/240 ms，返回行 137,275→258；globalOpen=13、Libra open=6、openEvents=245 和 digest 一致。没有提交生产 Work；reserved slots、硬限额、并发和幂等不变。 |
+| Startup Recovery | Effect 对全部 Attempt 逐个 `.some/.find`，取消 Work 子闭包也重复扫历史。改用本次完整 snapshot 的 Map/groupBy，保留全部历史 Catalog、孤儿及 Effect 检查。 | 本机保留的历史 210 snapshot，29,772 Work/120,513 Event Attempt/72,096 Effect，分类器 old/new/new/old 为 155.781/0.319/0.339/228.703 秒，完整输出 digest 一致。排除 snapshot I/O、真实 Integrity/Catalog/Effect recovery，输出含该历史 fixture 的 1,689 个既有 findings；绝不是当前生产 readiness 或完整 Host PASS。两次旧耗时有本机负载差异，不推断完整启动固定缩短比例。 |
+
+新增回归：状态读取覆盖 2,000 条无关历史、相同 Process ID 的不同 Owner/type/kind、全部 open state、latest failure、同时间 Work ID 排序及 NULL/0 时间，并检查真实 SQLite plan 必须 seek Process；Rating 覆盖 Movie/Series/JAV 的 formal/weak identity、坏证据和非 active Subject 拒绝；Admission 覆盖 2,000 条终态 Work/Event 不进入热计数。Startup 新规模回归按实际 Attempt 元素访问次数约束线性增长，不用不稳定的墙钟阈值；终态 Effect 不重放。Windows 最后三文件 40 项通过。原 reserved/hard cap、Circuit、并发、回滚与全历史恢复安全测试保留。
+
+Windows 定向 77 项、Event/Input/Series source 187 项通过；加入 Admission 专项后该文件 11 项通过。最终 `npm test` 为 645 pass/29 既有 skip/0 fail；该入口不包含 `test/helix-architecture` 子目录，不能拿 645 替代新增专项。最终本机 Linux disposable 容器以 dc7 基础镜像、只读绑定候选源码/测试，相关八文件 79 项通过。这是开发验证，不是最终镜像或生产升级资格。runtime guard 结果续记。
+
+私有材料在 ignored `.codex/console-response-20261016/`：stream/profile/ancestry、readonly-counts、owner-query-baseline、module-equivalence、admission-counts、startup-equivalence 及验证日志；不提交生产对象、标题、凭据或原始 profile。
+
+当前尚未部署。同步媒体指纹 I/O、概览重复重建、后台负载下静态分块长尾和浏览器首次绘制仍开放；本轮没有删物理 Identity/新鲜度检查或用缓存、停业务、Reset 隐藏问题，也没有宣称 1 秒 SLO 或 UAT-318 关闭。

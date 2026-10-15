@@ -116,7 +116,9 @@ function createStartupRecovery(options) {
       const nodes = new Map(facts.nodes.map((row) => [row.plan_id + '\0' + row.node_id, row]));
       const nodesByPlan = groupBy(facts.nodes, 'plan_id');
       const eventsByPlan = groupBy(facts.events, 'plan_id');
+      const eventsByWorkAttempt = groupBy(facts.events, 'attempt_id');
       const attemptsByEvent = groupBy(facts.attempts, 'event_id');
+      const attemptsById = new Map(facts.attempts.map((row) => [row.event_attempt_id, row]));
       const effectsByAttempt = groupBy(facts.effects, 'event_attempt_id');
       const defersByEvent = groupBy(facts.defers.filter((row) => row.state === 'waiting'), 'event_id');
       const processedEffectIds = new Set();
@@ -131,15 +133,13 @@ function createStartupRecovery(options) {
           }
           continue;
         }
-        const childEvents = facts.events.filter((event) => event.attempt_id === attempt.attempt_id);
-        const childEventIds = new Set(childEvents.map((event) => event.event_id));
-        const childEventAttempts = facts.attempts.filter((eventAttempt) => childEventIds.has(eventAttempt.event_id));
-        const childEventAttemptIds = new Set(childEventAttempts.map((eventAttempt) => eventAttempt.event_attempt_id));
-        const unresolvedEffects = facts.effects.filter((effect) => childEventAttemptIds.has(effect.event_attempt_id) &&
-          NONTERMINAL_EFFECT_STATES.has(effect.state));
+        const childEvents = eventsByWorkAttempt.get(attempt.attempt_id) || [];
+        const childEventAttempts = childEvents.flatMap((event) => attemptsByEvent.get(event.event_id) || []);
+        const unresolvedEffects = childEventAttempts.flatMap((eventAttempt) =>
+          effectsByAttempt.get(eventAttempt.event_attempt_id) || []).filter((effect) => NONTERMINAL_EFFECT_STATES.has(effect.state));
         const unsafe = childEvents.some((event) => !TERMINAL_EVENT_STATES.has(event.state)) ||
           childEventAttempts.some((eventAttempt) => eventAttempt.state !== 'completed') ||
-          facts.defers.some((defer) => childEventIds.has(defer.event_id) && defer.state === 'waiting') ||
+          childEvents.some((event) => defersByEvent.has(event.event_id)) ||
           unresolvedEffects.length > 0;
         if (unsafe) {
           findings.push('CANCELLED_WORK_ACTIVE_ATTEMPT_UNSAFE:' + attempt.attempt_id);
@@ -181,8 +181,7 @@ function createStartupRecovery(options) {
       for (const effect of facts.effects) {
         const standalone = effect.event_attempt_id === null &&
           standaloneEffectClasses.has(effect.effect_class);
-        if (!standalone && !facts.attempts.some((attempt) =>
-          attempt.event_attempt_id === effect.event_attempt_id)) {
+        if (!standalone && !attemptsById.has(effect.event_attempt_id)) {
           findings.push('ORPHAN_EFFECT:' + effect.effect_id);
         }
       }
@@ -297,7 +296,7 @@ function createStartupRecovery(options) {
         if (effect.event_attempt_id === null &&
             standaloneEffectClasses.has(effect.effect_class)) continue;
         if (processedEffectIds.has(effect.effect_id)) continue;
-        const attempt = facts.attempts.find((row) => row.event_attempt_id === effect.event_attempt_id);
+        const attempt = attemptsById.get(effect.event_attempt_id);
         const event = attempt ? events.get(attempt.event_id) : null;
         // Recovery inspects only the latest Attempt of a live Event. Timeout
         // retries leave reconcile_required Effects on superseded completed
