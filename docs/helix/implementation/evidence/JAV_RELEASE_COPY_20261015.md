@@ -88,3 +88,14 @@ Movie、Series 均实际演练无新事实的完整备份恢复窗口：先创�
 从clean提交8c2d8899dcf124cf9b2ecb4326d90ffca590ea06经标准scripts/build-image.js构建markmahoro/shelfdeck:8c2d8899dc，导出536.6MiB tar SHA256 3de3fabfa9614535154477672140fa89c08a098162680372ce3648d743a847c2。该镜像是首轮候选，不是最终合格版本；SQLite/Sharp/FFmpeg及原UI bundle启动检查通过。本机临时容器network none/只读test fixture mounts/容器内tmp数据，无生产/用户测试集挂载。NAS临时测试skip决定保持。
 
 Linux首轮缺少纯测试schema builder时明确失败；不把开发构造器加入生产包，补入只读测试helper挂载后重跑。首轮JAV核心4pass/2因test dependency fail，terminal首轮已停止并保留日志。Movie真实媒体3 fail揭示基础FFprobe8.1同时在show_streams和精确show_entries漏读同一合法HEVC的color_primaries/color_transfer；锁定依赖的探测器对相同字节均读出BT.709，不是选字段或业务归一化问题。仅显式切换FFPROBE_PATH到已锁定探测器后真实3项通过，包括损坏产品独立decode拒绝；原unknown及安全合同未弱化。Docker配方将锁定依赖探测器复制到原/usr/local/bin/ffprobe，ENV与部署Compose路径不变；重新构建和新镜像资格待执行。当前旧镜像Linux恢复/Series运行结果不自动转给新镜像。
+
+
+## Linux候选9f4df61e7b收取及备份内存缺口
+
+标准镜像9f4df61e7b9378f28ce31f5f5eb1bd8b716a9a7c，image ID sha256:baf287e2413aec1e95e03d90576b57fca820d09ecd923e8bc218c552a510a727，565.0MiB导出SHA256 1edd1aca45dab730182ca241621438f358ae15743b970d72a155110f772e8958，另以PowerShell Get-FileHash独立一致。实际镜像2318 src逐文件匹配，sourceDigest74848078...；只读root/no network/tmp-only实际HTTP Host通过health200、无会话401、会话204及5 Admin GET200，203表/147路由。UI负责人从不可变image直接读取JS/CSS并核验66 Web source，继承1qAJmlnq适用UI接受，独立提交6ec75797a，非使用已变化的本地dist。
+
+该镜像选择执行的Linux业务场景全部通过：JAV核心6、终态恢复8、Movie真实媒体3、Series实际进程恢复3，共20；日志linux-candidate-{core-host,terminal-recovery,movie-real,series-recovery}-9f4df61e7b-20261015.log。Node20输出的其余test-name-pattern skip是未选择项，不计为这些20条必需场景的通过或业务skip。旧8c候选恢复9pass/1fail：stage注入错误假定NFO固定ordinal0001，导致未注入而完整完成；按实际Workspace NFO source定位后，9f上Linux/Windows独立stage各1pass，未放宽断言或产品逻辑。当前Docker临时测试容器均自动删除，生产和用户E盘测试集未挂载。NAS临时Linux仍skip by user。
+
+生产read-only范围进一步收取6 active Runs/20 unresolved Effects/4 active Works/556收藏，原数据不改；20项均是Arca ondeck.input_settlement.delete且其Work已failed，不把它们误报为仅6条Libra运行的同类待办。精确IDs在ignored nas-upgrade-blockers-readonly-20261015.json，不自动清除未知材料副作用。标准deploy-nas.js仅在本地生成9f的dry-run计划，没有上传/远程执行；该计划本身不证明source200已升级或readiness通过，必须另行通过完整203表副本与切换资格。
+
+为准备完整生产备份，发现helix-operational-safety.files原用readFileSync整块分配每个文件，实际生产DB约3.17GB，不能依靠小样本证明内存安全。改为单次遍历复用1MiB buffer+完整SHA256，前后fd stat/长度变化明确拒绝，保留同步API、清单字段/顺序/摘要与已有备份语义。新增256MiB稀疏文件实际备份/verify/restore/中段篡改拒绝，在128MiB Node heap及224MiB峰值RSS预算下通过；并核对hash中途同长改写拒绝。Windows P13共6pass。该样本是有界内存证据，不冒称已备份生产3.17GB库。此备份脚本改动需要新标准镜像及受影响验证；9f不作为最终发布镜像。

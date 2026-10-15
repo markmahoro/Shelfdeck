@@ -12,7 +12,7 @@ let injected=false,producerDescriptor=null;
 function save(value){write.call(fs,receiptPath,JSON.stringify({phase,...value}));injected=true;}
 function injectedError(){return Object.assign(new Error('Injected local test file conflict.'),{code:'ARCA_JAV_CORRECTION_TARGET_CONFLICT'});}
 fs.promises.copyFile=async function(source,destination,...args){const result=await copy.call(fs.promises,source,destination,...args);
-  if(phase==='stage'&&!injected&&path.basename(path.dirname(destination))==='.shelfdeck-'+correctionId+'-stage'&&path.basename(destination).startsWith('0001-')){
+  if(phase==='stage'&&!injected&&path.basename(path.dirname(destination))==='.shelfdeck-'+correctionId+'-stage'&&path.resolve(source)===path.resolve(target)){
     const bytes=fs.readFileSync(destination);bytes[0]^=1;write.call(fs,destination,bytes);save({foreignPath:destination,restoreFromPath:source,restoreAction:'copy'});throw injectedError();
   }return result;};
 fs.linkSync=function(source,destination,...args){const result=link.call(fs,source,destination,...args);

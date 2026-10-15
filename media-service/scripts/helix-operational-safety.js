@@ -8,7 +8,19 @@ const {writeAdminCredentialSecret}=require('../src/admin-credential-secret-store
 const {inspectCleanRuntimeReadiness}=require('../src/clean-service-host');
 const generatedRoot=path.join(__dirname,'../src/helix/foundation/persistence/generated');const schemaDdl=fs.readFileSync(path.join(generatedRoot,'clean-schema.sql'),'utf8');const schemaManifest=require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
 const sha=(buffer)=>crypto.createHash('sha256').update(buffer).digest('hex');
-function files(root){const result=[];if(!fs.existsSync(root))return result;function walk(current,relative){for(const entry of fs.readdirSync(current,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name))){if(entry.isSymbolicLink())throw new Error('P13_SYMLINK_REJECTED');const next=path.join(current,entry.name),rel=path.posix.join(relative,entry.name);if(entry.isDirectory())walk(next,rel);else if(entry.isFile()){const value=fs.readFileSync(next);result.push({path:rel,bytes:value.length,digest:sha(value)});}}}walk(root,'');return result;}
+function fileEvidence(location,buffer){
+  const descriptor=fs.openSync(location,fs.constants.O_RDONLY|(process.platform==='linux'?fs.constants.O_NOFOLLOW:0));
+  try{
+    const before=fs.fstatSync(descriptor,{bigint:true}),digest=crypto.createHash('sha256');let bytes=0;
+    if(!before.isFile())throw new Error('P13_BACKUP_FILE_UNSUPPORTED');
+    for(;;){const read=fs.readSync(descriptor,buffer,0,buffer.length,null);if(!read)break;bytes+=read;digest.update(buffer.subarray(0,read));}
+    const after=fs.fstatSync(descriptor,{bigint:true});
+    if(!Number.isSafeInteger(bytes)||BigInt(bytes)!==before.size||['dev','ino','size','mtimeNs','ctimeNs'].some(key=>before[key]!==after[key]))
+      throw new Error('P13_BACKUP_FILE_CHANGED');
+    return {bytes,digest:digest.digest('hex')};
+  }finally{fs.closeSync(descriptor);}
+}
+function files(root){const result=[];if(!fs.existsSync(root))return result;const buffer=Buffer.allocUnsafe(1024*1024);function walk(current,relative){for(const entry of fs.readdirSync(current,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name))){if(entry.isSymbolicLink())throw new Error('P13_SYMLINK_REJECTED');const next=path.join(current,entry.name),rel=path.posix.join(relative,entry.name);if(entry.isDirectory())walk(next,rel);else if(entry.isFile())result.push({path:rel,...fileEvidence(next,buffer)});}}walk(root,'');return result;}
 function copyTree(source,target){fs.mkdirSync(target,{recursive:true});for(const item of files(source)){const to=path.join(target,...item.path.split('/'));fs.mkdirSync(path.dirname(to),{recursive:true});fs.copyFileSync(path.join(source,...item.path.split('/')),to);}}
 function createBackup({sourceDir,backupDir,createdAt}){if(fs.existsSync(backupDir))throw new Error('P13_BACKUP_TARGET_EXISTS');const staging=backupDir+'.staging';if(fs.existsSync(staging))fs.rmSync(staging,{recursive:true,force:true});copyTree(sourceDir,staging);const manifest={schema:'helix-operational-backup@1',generation:GENERATION,createdAt,files:files(staging)};manifest.aggregateDigest=sha(Buffer.from(JSON.stringify(manifest.files)));fs.writeFileSync(path.join(staging,'backup-manifest.json'),JSON.stringify(manifest,null,2)+'\n');fs.renameSync(staging,backupDir);return Object.freeze(manifest);}
 function verifyBackup(backupDir){const manifest=JSON.parse(fs.readFileSync(path.join(backupDir,'backup-manifest.json'),'utf8'));const actual=files(backupDir).filter((item)=>item.path!=='backup-manifest.json');if(JSON.stringify(actual)!==JSON.stringify(manifest.files)||sha(Buffer.from(JSON.stringify(actual)))!==manifest.aggregateDigest)throw new Error('P13_BACKUP_DIGEST_MISMATCH');return Object.freeze(manifest);}
