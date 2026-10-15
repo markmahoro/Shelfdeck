@@ -56,3 +56,27 @@ inspection/copy Receipt增加逐原Journal完整行摘要、原Effect/Event、�
 验证：完整冻结生产副本检查成功证明20条，其余6 active Libra、4 Work/4 WorkAttempt、5 Event/1 EventAttempt、1 Acceptance Recovery及1 Outbox仍全部阻断，eligible=false。一次性完整副本上8类破坏（缺失后继Result、原intent漂移、Owner未Commit、缺失Owner Receipt、活动Work、未知Catalog、后继摘要漂移、缺失Commit Result）逐项拒绝，随后rollback恢复原20条证明；源文件及副本完整SHA256均未变。该显式环境测试10 pass/0 skip，不提交生产数据；最终proofDigest为`9ccdedea4a8de65a72a426e79a1349bc8b795e702efbacab0ff1e7aa13e4f223`。原copy/terminal-history组合86 pass；新增未知孤立Effect的copy拒绝用例后copy文件10 pass，含有界heap大Outbox及回退保护。目标Host实际完整升级运行由主聊天继续，此处证明共用代码路径，不冒充已完成目标Host运行。
 
 Acceptance Recovery/Outbox仍不适用这项证明，上一节关于其精确范围及Ended-history保护的结论保持；没有直接Ack、补Rejected或清除该Case。
+
+## UI负责人差异审核062c0ba7a1 / 2026-10-15
+
+审核具体commit `062c0ba7a17e8ff5e03d478a685968e0bdc929d1`、候选image ID `sha256:5c100fb5a677fceebda31773b4c22fba7a519d2e306e7c5b10bb9894b9c16352`。**不变UI可继承1qAJmlnq接受，但新增超限失败原因的映射不完整，需补后复核该路径。** 这不否定后端有界失败收口，也不追认完整副本、媒体或发布资格。
+
+负责人直接在本机上述不可变镜像中以无网络/只读root的临时Node进程读取资产并调用真实`projectPlans`，未启动Service。JS/CSS仍分别为`5d3bd76bdcd5ee77a914899a96e53c605850f6fd8f44152e112769edb9af34fa`、`82cb8561be6544293d0f6850171d0df02a9a97e53bf60a075ec262ede15df4e2`，与已接受1q一致。event-runtime和Formation过程投影器的实际文件SHA256分别为`be166db5f11be6bde667250347379bd5ce09cb090143565bd14464f95a98f3ae`、`b194c9767bdd7270208f1329b5c8b9d53d241683eaa4c518db617a77a7f216d9`，与062的Git blob逐项相同。
+
+新码`P4_OBSERVATION_RESULT_STORAGE_BOUND_EXCEEDED`来自pure observation的Result/Evidence UTF-8 canonical字节超限，retryDirective=never；非pure不走此转换。独立本地四项Result/Evidence×dispatch/recovery边界测试全部通过：Event failed、Attempt completed/contract、无成功Result、Permit释放且无物理Effect调用。未重跑全部服务或Linux Host资格。
+
+呈现问题已用实际候选投影器及同字节UI在1920×1080和390×844复现。受控failed Event快照保留正式failureCode；实际过程投影返回failed节点/attention计划，但失败原因落入“系统没有保存可展示的文字原因”。现有浏览器过滤技术码后仍原样显示这句，未能向用户解释已经明确知道的超限原因。没有把它显示为executing，也没有泄漏英文内部message或P4技术码；问题是原因缺失，而非状态或重试门禁错误。这是过程呈现的限定实验，不声称正常Libra有界候选Record仍会超限或生产已新触发；列表DTO受控，不冒充完整Host。
+
+建议复用既有失败文案映射，使用短句：**“返回的信息超出处理上限。”** 不重复已显示的失败状态，不显示实现字节数，不附“请重试”或新增恢复操作；正式failureClass/code、never策略及证据保持。单纯UI字节相同不能证明新失败类型已有可读文案；修正后仅需复验受影响失败呈现，无需重复不变26/8组。
+
+仓库外证据`E:/my_project/helix-git-consolidation-20261008/jav-ui-review-062c0ba7a1-20261015/`：`owner-final-review.json` SHA256 `28a6e6eb0271abbfb3b1011d0e96b05920d5a80ee7761fa6a3474740fe8f310b`；真实投影`image-projection.json` SHA256 `bf971cd324dc7ab1965842c8957124188f534e61331a49f5fc5cadf65f668689`；最终宽/窄原因检查0通过/2失败日志SHA256 `0d0e1c357e6192fedfd7c716e0f7c30aff626a9126a8fb3128ff2d08febe6926`；本地四项Runtime日志SHA256 `1295e72616ca15e5ec0b8199dbc09eeed1e41ff1bd6c46140fc5e042c86526f3`。截图、trace及实际文案附件在`observation-failure-reason-check/`，已目检。首轮只排除前端另一种兜底“具体失败原因暂不可用”，漏掉真实后端兜底而通过，保留为不完整Oracle、不计资格；最终改为排除这两种未知原因兜底后，两尺寸均如实失败，未改产品。
+
+任务浏览器/动态端口及临时哈希容器均已结束。负责人只追加Evidence，无产品源码、生产、NAS、停机、Reset或用户材料动作；候选tar校验、20条Linux业务、Windows包与最终Service/副本/回退继续沿实施方各自证据处理。
+
+### UI负责人接受f27035945d的失败呈现修正
+
+2026-10-15，接受具体commit `f27035945ddf75bc4326d63201750f1a6a9d6e8e` 的适用UI变更。与062比较，唯一产品修改为`error-labels.ts`新增新失败码的已知文案“返回的信息超出处理上限”；Foundation、失败Projection、never策略和全部其他UI源码保持。旧062缺口保留为历史，不追认原失败路径通过。
+
+独立冻结并加载构建产物JS `index-CQ6ZHoan.js` SHA256 `c5bbbc11714fadb01f2be4ea3a77ab46b3211358b65f0d99e7462f6cbb869d15`、CSS `index-BYV0LKeb.css` SHA256 `82cb8561be6544293d0f6850171d0df02a9a97e53bf60a075ec262ede15df4e2`。复用062实际镜像投影器产出的相同failed Event过程数据（对应后端源码无diff），只读受控列表DTO，在1920×1080和390×844均通过：失败状态/原短中文原因可见，未知原因兜底消失；没有P4码、英文内部message直出，没有新增重试/继续命令，两尺寸dialog无横向溢出。窄屏截图已目检。其余未变化范围继续沿用原1q的26/8接受，无需整组重跑。
+
+独立证据目录`E:/my_project/helix-git-consolidation-20261008/jav-ui-review-f27035945d-20261015/`，`observation-failure-final.log`为2通过/0失败，SHA256 `e5945f75857f2d4b7552fdf57328d72235f73f3dc925eb27018ece2ff38e10a2`；补充脚本SHA256 `e88e2aeea5666bcba5018bf301e31c785349ecaa085a9383b662ca70fa3cad3f`。任务浏览器与端口已关闭，未改产品或生产。此接受绑定commit/所测bundle；最终镜像字节绑定、原生媒体、整合及生产完整副本/回退仍由主任务记录，不将尚未完成的镜像构建称为已验收。

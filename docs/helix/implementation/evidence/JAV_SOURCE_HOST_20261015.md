@@ -227,3 +227,9 @@ Inventory registration 与 Result registry 中过期计数已跟随严格 SSOT e
 除日志核对外，负责人对上述不可变image ID执行一次自动删除的无网络、只读root、无capability Node哈希进程，仅读取`/app/dist/admin/assets`，没有启动Service或媒体流程。实际JS `index-1qAJmlnq.js` SHA256 `5d3bd76bdcd5ee77a914899a96e53c605850f6fd8f44152e112769edb9af34fa`、CSS `index-BYV0LKeb.css` SHA256 `82cb8561be6544293d0f6850171d0df02a9a97e53bf60a075ec262ede15df4e2`，与已接受资产逐字节相同。当前可变本地dist已出现另一份`index-qNABnIMQ.js`，未用它替代镜像证据，也不由本节予以接受。
 
 独立核对记录位于原仓库外审计目录`jav-ui-review-1qAJmlnq-20261015/linux-candidate-binding.json`，SHA256 `7bad44c31383a54a70249a8a18febf7858f09c9c65e568f72d9df2e16572e1bb`。本补充不验证FFprobe替换的原生媒体正确性、JAV/Series全链、完整整合或生产一致副本/回退；不改变原用户skip的具体测试记录，也不将后来本机Docker资格误写为被跳过的NAS临时测试已执行。无生产部署、停机、Reset或媒体/数据处置。
+
+### 062c0ba7a1新增失败语义的UI复核
+
+062候选的实际JS/CSS与1q接受资产一致，不变表面可继承；新有界观察失败已正确成为failed，但过程原因显示“系统没有保存可展示的文字原因”，宽/窄均复现，不能把这条新路径视为文案完成。建议短句“返回的信息超出处理上限。”，不附重试引导或改变never策略。具体版本、真实镜像投影及4项Runtime/2项浏览器证据见[JAV停滞修复Evidence的负责人审核](JAV_RELEASE_STALLED_EXECUTION_20261015.md#ui负责人差异审核062c0ba7a1--2026-10-15)。本结论不撤销1q原接受，也不覆盖后续修正版或生产资格；负责人未修改产品源码。
+
+2026-10-15后续：负责人已接受`f27035945ddf75bc4326d63201750f1a6a9d6e8e`及`index-CQ6ZHoan.js`（SHA256 `c5bbbc11714fadb01f2be4ea3a77ab46b3211358b65f0d99e7462f6cbb869d15`）的单行失败映射修正。实际相同failed数据在宽/窄均正确显示“返回的信息超出处理上限”，无新增重试或技术码直出；2项独立检查通过，其余不变UI继承原接受。详见上链Evidence的f270接受段，最终镜像与副本/发布资格不由本结论代替。
