@@ -217,3 +217,13 @@ Inventory registration 与 Result registry 中过期计数已跟随严格 SSOT e
 负责人审计目录`E:/my_project/helix-git-consolidation-20261008/jav-ui-review-1qAJmlnq-20261015/`：`owner-final-review.json` SHA256 `3485c4e1f36a8b8e3599a2b477d008d6983459817ddcff88a92346fbc2ae92df`；26项`baseline-final.log` SHA256 `960485b3ab5dc36310fb4eeebe4ad9aab09de944c519f67197e3aef33510b873`；8项`owner-concurrency-final.log` SHA256 `332f86ac2310519666cc359301765f9d7995657e247fe33a51d3c1165e189aab`；独立补充脚本SHA256 `af83914a51b1b14ea435d17529cbaaba2637fbe1edb9ce3680932c3eddf4bdeb`。截图/trace按最终两组独立目录保存。首轮并行runner误共享配置，双方都执行补充8项，未用作最终验收；保留`shared-config-invalid-*`日志，改为独立配置和输出后按正确26/8分组复验通过，没有修改产品或弱化断言。
 
 实施方186项Web及新增stage/publish/verify/commit/短producer、反复恢复后取消Host证明已作为冻结proofs收取，负责人未重复执行，不把旧组合失败日志改写为通过。上述UI接受不代表最终整合、Service/Movie/Series/平台、生产一致副本/回退或整体JAV发布资格通过；Linux用户skip仍非PASS。本负责人只追加本节Evidence，无Desktop、生产部署/停机/Reset或用户测试材料动作。
+
+### UI负责人补充Linux候选镜像字节绑定 / 2026-10-15
+
+候选`markmahoro/shelfdeck:9f4df61e7b`，source commit `9f4df61e7b9378f28ce31f5f5eb1bd8b716a9a7c`，本机实际image ID `sha256:baf287e2413aec1e95e03d90576b57fca820d09ecd923e8bc218c552a510a727`。审核该commit相对父版的产品diff仅Dockerfile：改用package-lock已固定的FFprobe可执行文件；没有UI、DTO、显示文案或源码归一化/fallback变更。可对**该镜像中不变的UI表面**继承1qAJmlnq已接受的适用证据，无需重复26/8浏览器组；这不构成新的媒体或发布资格。
+
+负责人独立核对`linux-candidate-expected-9f4df61e7b.json`的2318份源码记录，与已接受冻结副本及核对时工作区src逐项匹配，聚合digest为`74848078dc41feeb62a163ff53e48c296c88ee787ae64a264bcbd0a897979742`；66份Web src也与冻结清单相同。主任务实际镜像源码/203表/147路由/会话与公开GET资格来自`linux-candidate-package-9f4df61e7b-20261015.log`，不冒称负责人重复启动服务或重验这些后台资格。两份原记录SHA256分别为`616796123ef0b81e4245de72d1339e60d95356eeaf7e3f0f4a0aafba7aa9a398`、`6f66fb415c326d2389f8b9a5213dcf888451c3da16dcab398ad60e36621d0f56`。
+
+除日志核对外，负责人对上述不可变image ID执行一次自动删除的无网络、只读root、无capability Node哈希进程，仅读取`/app/dist/admin/assets`，没有启动Service或媒体流程。实际JS `index-1qAJmlnq.js` SHA256 `5d3bd76bdcd5ee77a914899a96e53c605850f6fd8f44152e112769edb9af34fa`、CSS `index-BYV0LKeb.css` SHA256 `82cb8561be6544293d0f6850171d0df02a9a97e53bf60a075ec262ede15df4e2`，与已接受资产逐字节相同。当前可变本地dist已出现另一份`index-qNABnIMQ.js`，未用它替代镜像证据，也不由本节予以接受。
+
+独立核对记录位于原仓库外审计目录`jav-ui-review-1qAJmlnq-20261015/linux-candidate-binding.json`，SHA256 `7bad44c31383a54a70249a8a18febf7858f09c9c65e568f72d9df2e16572e1bb`。本补充不验证FFprobe替换的原生媒体正确性、JAV/Series全链、完整整合或生产一致副本/回退；不改变原用户skip的具体测试记录，也不将后来本机Docker资格误写为被跳过的NAS临时测试已执行。无生产部署、停机、Reset或媒体/数据处置。
