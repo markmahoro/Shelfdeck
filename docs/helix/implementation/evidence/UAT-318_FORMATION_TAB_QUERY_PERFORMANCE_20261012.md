@@ -297,3 +297,56 @@ UTC 19:01:36（北京时间 10-16 03:01:36）最终只读复核：原 dc7 容器
 UTC 19:22:25（北京时间 10-16 03:22:25）只读收尾：原容器 ID/镜像/StartedAt 保持、RestartCount0、health ok、running/normalSupplyAllowed=true/faulted=false，Inspector 确认关闭。第一轮只等一秒清理时曾得到 `INSPECTOR_OPEN`，随后 timer 已关闭；第二/三轮延长确认及收尾均 closed，保留短等待失败，不称为持续泄漏。没有任务开发服务器或保留测试容器。
 
 本轮 People 修复尚未构建新产品镜像、上传或部署；原 4ba tar 不包含本轮变更。UAT-318 保持开放，不继承旧候选的完整资格，也不把只读局部查询加速当整页 1 秒 PASS。私有材料在 ignored `.codex/console-response-followup-20261016/`：round 1–3 profile/lag/stream/API、store-bench、people-equivalence-first/最终、stack-findings、双平台测试及 final-live；不提交生产 payload/profile/凭据。
+
+## 2026-10-16 再查十轮：当前 Inventory 范围与交付重建
+
+按用户“再查10轮”完成十个独立编号周期，UTC 19:28:35–19:34:18（北京时间 10-16 03:28:35–03:34:18）。生产全程为原 dc7，未部署此前四处读取或 People 补丁。本轮每次依次 GET health、overview、Formation active 25、Collection current/recent 48，再轮换第五个重点；同时一个容器内 loopback JS 请求。第 1/5/8 轮增加约 13 秒 CPU profile、delay monitor 与五次 health。两个只读 Owner bench 与第 5/10 轮静态流的部分时段重叠。请求/采样/子进程均有观察成本，后台工作也在继续；不能将这十轮与前三轮或未部署候选作同负载性能比较。
+
+| 轮 | 追加重点 / 耗时 ms | Formation ms | Collection ms | Overview state / age s | 503,927-byte JS |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Care first page / 1,067 | 2,687 | 3,096 | stale / 45.451 | 30 s 超时，294,912 bytes |
+| 2 | People 25 / 8,294 | 3,534 | 600 | stale / 54.488 | 35 s 超时，376,832 bytes |
+| 3 | Material Fields / 958 | 2,101 | 2,766 | ready / 20.277 | 35 s 超时，425,984 bytes |
+| 4 | Shelves / 1,082 | 4,010 | 2,414 | stale / 37.619 | 35 s 超时，344,064 bytes |
+| 5 | Off-deck candidates empty / 300 | 2,032 | 875 | stale / 44.506 | 完整 25.746 s |
+| 6 | Off-deck cases empty / 2,440 | 3,861 | 2,875 | ready / 24.526 | 35 s 超时，311,296 bytes |
+| 7 | Care next cursor page / 1,229 | 4,066 | 2,287 | stale / 43.757 | 35 s 超时，393,216 bytes |
+| 8 | Collection next cursor page / 383 | 2,920 | 469 | stale / 44.167 | 完整 27.008 s |
+| 9 | People merged empty / 7,983 | 2,565 | 1,141 | stale / 31.106 | 35 s 超时，294,912 bytes |
+| 10 | People unmatched search / 8,851 | 2,955 | 1,158 | stale / 49.327 | 35 s 超时，278,528 bytes |
+
+50 条 API 均完成且没有错误，health 范围 85–3,110 ms；这不等于页面体验通过。十次静态流都取得 HTTP 200 headers，但 **8/10 未取得完整 JS**；不能只据状态码判成功。8/10 overview 已超过 30 秒并如实标记 stale，区别于前三轮未观察到 stale 的事实。现有代码以 producer startedAt 作为快照时间，读请求没有同步重建；本轮不调大阈值或改为结束时间掩盖新鲜度不足。第 1/5/8 轮 event-loop max 为 2,598/2,106/2,136 ms，mean 为 1,090/559/742 ms。
+
+### 新确认并修复：健康投影仍载入旧 Inventory Representation / Material role
+
+实现提交 `f6670f7d52bb33da1a76c3ab193888127a35fc21`，沿用 UAT-318；与此前 People `395560043` 及四处读取 `4ba8f04d9` 分别留证。
+
+已有 current Fact 过滤正确，但 `AftercareStore.healthProjectionInputs` 对 Representation 与 Material role 仍按 Entry 读取所有 revision，之后才查当前 revision。只读拆解：560 active Entry 返回 5,203 份 Representation、40,660 个 Material role；前者约 1.00 MB、后者约 2.98 MB 字符串。另有 18,842 Assessment 和 2,435 Finding，属于健康历史合同，不将它们冒充同一种可直接删除的读取。
+
+修复仅在 Arca Owner 内复用当前 Entry head 的 revision 分组：Representation 加 exact `revision`，Material role 加 exact `inventory_revision`，每批不超过 500；与已存在的 current Fact 查询使用同一 head/事务。历史 Assessment/Finding/Case/Commit、当前 metadata digest、健康 Basis 及异常处理保持，不新增缓存、迁移或 fallback，不修改 schema、Foundation、API 字段或 UI 文字。
+
+当前生产库同一只读事务，实际 Store 的完整 health projection 按 old/new/new/old 对照，三组输出各自完全一致：
+
+| 范围 | old / new / new / old ms | Representation 返回行 | Material role 返回行 |
+| --- | --- | --- | --- |
+| 25 Entry | 97 / 49 / 55 / 70 | 189→25 | 1,363→167 |
+| 48 Entry | 81 / 55 / 73 / 71 | 397→48 | 2,891→327 |
+| 560 Entry | 1,290 / 1,017 / 918 / 1,216 | 5,203→560 | 40,660→4,339 |
+
+560 范围的两类字符串读取合计从 **3,981,268→426,143 bytes**。revision 分组使这两类查询各由 2 次增到 21 次，真实权衡是少物化历史，并非声称 SQL 调用下降。完整范围仍需约一秒，且原 Overview 以 100 Entry 分页调用，还包含其它 Owner/投影成本；以上不是整体概览、HTTP 或浏览器的加速证明。
+
+规模回归扩展现有 503 Entry fixture：跨 500 bound、混合 current revision、历史 revision9、inactive Entry，逐项检查当前 role/metadata、实际 SQL exact revision/IN/无 inactive 及只返回 502 份当前 Representation/role。保留缺失当前 Fact 的既有行为，不借旧 revision 填补。相关六文件 Windows/Linux 各 **63/63** 通过；Linux 只读绑定当前 src/test 到 4ba 基础运行时，不是新精确候选镜像。静态 boundary/semantics/manifest/P2 均通过，121/104/210/51/0 unresolved 保持。
+
+最终修改后的 Windows `npm test` 再次完成：645 pass/29 既有 skip/0 fail，约 158 s；该根入口不包含架构子目录，相关 63 项仍单独验收。未重跑完整架构包装、整季媒体/新鲜副本 Host 或 Electron，不继承上一候选的精确镜像资格。
+
+### 新确认但未修复：上架完整交付包反复重建
+
+第 1/5/8 轮 `product-delivery-reader` inclusive 为 **6.056/1.033/1.081 s**；第一轮的 6 秒是约 13 秒窗口累计，不是单次读取固定耗时。堆栈是 Arca Settlement input preparation → `readSettlement/readOffer` → Libra `readPackage/reconstruct`，包含完整 Package/Fact/Manifest 的 canonical 与 digest 检查。当前 `createOnDeckProjections` 会对每个 binding 分别读取 context；同一次 prepare 的重复获取及跨成员执行的完整包重建仍需专门收口，不能直接缓存跨 Event 的可变责任/许可或删完整性围栏。
+
+独立只读代表性 Season Package 有 145 members、完整返回 1,280,745 bytes。确认每份 Fact 在 reference digest 和返回值处重复调用 `readStoredMetadataValue`；试验仅改为本次重建复用 decoded value，调用 6→3、处理字节 278,170→139,085，完整输出 digest 一致。但 old/experiment/experiment/old 墙钟为 **355/233/201/143 ms**，存在明显热身/负载影响，**不能宣称该微调已证明提速**；试验没有写入 tracked 代码，也没有替代真正的大包重复重建治理。实际生产完整性校验保持。
+
+额外检查没有支持另两条猜测：当前 Perception relation 表为 0 行，故其全量 relation 读取不能作为本次现场主因；抽样事务没有 delivered Outbox（此前的一条已由正常业务推进），没有证据称其落入无 Inbox 黑洞。Outbox 历史轮询和执行摘要重解析仍分别在三轮命中，文件级 inclusive 各约 164–303 ms、370–1,799 ms；这些集合可重叠，不能相加当总占用。
+
+UTC 19:34:43（北京时间 03:34:43）只读收尾确认原容器 ID/镜像/StartedAt 保持，RestartCount0、health ok、running/normalSupplyAllowed=true/faulted=false、Inspector closed。十轮没有生产停机、重启、Reset、数据/媒体处置、上传、部署或新 NAS 完整 Host 演练；本轮当前 Inventory 补丁和此前 People 补丁均未打入新产品镜像，4ba 旧 tar 不能代表它们。UAT-318 和实际整页一秒资格继续开放。
+
+私有材料：ignored `.codex/console-response-ten-20261016/ten-rounds.json`、每轮 api/complete、1/5/8 profile/summary、analysis、owner-bench、health-equivalence、双平台测试、static-guards、final-live。仅提交聚合证据，不提交原始生产对象、profile、密钥或 session。

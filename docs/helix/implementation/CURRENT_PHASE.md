@@ -1,5 +1,7 @@
 # 当前 Phase：JAV 首版发布与用户验收
 
+2026-10-16 UAT-318 再查10轮已完成：50 API无错、JS8/10未在30–35s完整传输、overview8/10 stale。当前Inventory健康读取漏掉的Representation/Material role历史展开已在Arca本地限定head/revision，三范围完整输出相同，双平台各63及静态门禁通过；完整交付Package反复重建新增为未修复热点，微调decode试验不宣称提速。生产身份/供给保持，无新构建或部署；继续原UAT及原[Evidence](evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md)，不另建活动包、不关闭首开/一秒资格。
+
 2026-10-16 UAT-318 追加三轮调查沿用原包：People全量展开后分页的新问题已本地修复395560043，同快照完整输出等价、25项8152/13/8/7485ms，双平台People各52、Service645 pass/29既有skip及静态门禁通过。初版游标前页重扫已通过mandatory cursor修正；完整Unicode姓名搜索729–823ms仍记录。Outbox历史全量轮询与执行摘要完整输入canonical开销新增为未修复热点；生产仍dc7正常供给/RestartCount0，无新部署。People补丁尚未构建新产品镜像，4ba旧候选不包含本轮变更；全部首开/1秒SLO、后续资格及UAT关闭仍待实证，见原[Evidence追加](evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md)。
 
 2026-10-16 UAT-318 独立调查承接既有 [Evidence](evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md)：dc7 静态传输超时复现，当前 profile/SQL explain 定位主线程竞争与 Owner 历史扫描。四处修复4ba8f04d9保持Owner/完整输出/恢复检查；Service645 pass/29既有skip、精确候选Linux79、31跨进程恢复及静态门禁通过；额外332文件全量包装主动中断，不计PASS。4ba候选标准构建及字节/SHA证明完成，未上传部署、新鲜完整副本Host资格未完成。同步媒体指纹、HTTP/浏览器长尾及1秒目标仍开放；不另建活动包、不关闭UAT。
