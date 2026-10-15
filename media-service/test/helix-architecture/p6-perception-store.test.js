@@ -540,6 +540,46 @@ test('fails closed on stale Resolution CAS, non-normalized duplicate pairs and u
   });
 });
 
+test('candidate lookup preserves multilingual title aliases, technical suffixes and exact title years',()=>{
+  fixture(({store})=>{
+    register(store);start(store);
+    const anchor=value=>({anchorKind:'title_year',anchorValue:value,confidenceClass:'medium',evidenceDigest:hash(value)});
+    page(store,{records:[record('fullwidth',{anchors:[anchor('ＡＢＣ / Other title\0'+'2001')]}),
+      record('technical',{anchors:[anchor('The Film - 1080p WEB-DL HEVC\0'+'2002')]}),
+      record('different',{anchors:[anchor('Unrelated\0'+'2001')]})]});
+    const lookup=(anchorKind,anchorValue,maxCandidates=256)=>store.readResolutionCandidates({identityEvidence:[{anchorKind,anchorValue}]},
+      {candidateRetrievalClauses:[{anchorKind,lookupMode:'normalized_exact',normalizationProfileRef:'unicode_nfkc_casefold',maxCandidates}],maxCandidateRecords:256});
+    assert.deepEqual(lookup('title','abc').records.map(r=>r.perceptionId),['fullwidth']);
+    assert.deepEqual(lookup('title','the film').records.map(r=>r.perceptionId),['technical']);
+    assert.deepEqual(lookup('title_year','ABC\0'+'2001').records.map(r=>r.perceptionId),['fullwidth']);
+    assert.deepEqual(lookup('title_year','ABC\0'+'2002').records,[]);
+    const query=queryFor({targetType:'shelf_entry',targetId:'alias-target',targetRevision:1,title:'ABC',year:2001,providerIdentity:null});
+    const assembled=createPerceptionResolutionInputAssembler({store}).assemble({queryHandle:queryHandle(query,1,'arca'),ruleSnapshot:buildRuleSnapshot()});
+    const derived=assembled.recordSet.records[0].identityAnchors.find(a=>a.anchorKind==='title'&&a.anchorValue==='ABC');
+    assert.equal(derived.evidenceDigest,canonicalDigest({schema:'perception-derived-title-alias@3',
+      sourceAnchorValue:'ＡＢＣ / Other title\0'+'2001',alias:'ABC',aliasRuleRevision:3}));
+  });
+});
+
+test('exact candidate lookup avoids loading unrelated anchors and retains candidate overflow checks',()=>{
+  fixture(({store,unitOfWork})=>{
+    register(store);start(store);
+    page(store,{records:Array.from({length:201},(_,i)=>record('exact-'+i))});
+    let returnedRows=0;
+    const measured=createPerceptionStore({schemaManifest,unitOfWork:{execute(parts,...args){return unitOfWork.execute(parts.map(part=>({...part,
+      execute(context){return part.execute({...context,repository(id){const repo=context.repository(id);return {...repo,
+        invoke(name,params){const value=repo.invoke(name,params);if(Array.isArray(value))returnedRows+=value.length;return value;}};}});}})),...args);}}});
+    const query={identityEvidence:[{anchorKind:'provider_id',anchorValue:'douban:exact-7'}]},
+      rule={candidateRetrievalClauses:[{anchorKind:'provider_id',lookupMode:'exact',maxCandidates:256}],maxCandidateRecords:256};
+    assert.deepEqual(measured.readResolutionCandidates(query,rule).records.map(r=>r.perceptionId),['exact-7']);
+    assert.ok(returnedRows<=4,'An exact lookup must not materialize the unrelated anchor corpus.');
+    const two={identityEvidence:[...query.identityEvidence,{anchorKind:'provider_id',anchorValue:'douban:exact-8'}]};
+    assert.throws(()=>store.readResolutionCandidates(two,{...rule,candidateRetrievalClauses:[{...rule.candidateRetrievalClauses[0],maxCandidates:1}]}),
+      {code:'P6_PERCEPTION_CANDIDATE_CLAUSE_OVERFLOW'});
+    assert.throws(()=>store.readResolutionCandidates(two,{...rule,maxCandidateRecords:1}),{code:'P6_PERCEPTION_CANDIDATE_SET_OVERFLOW'});
+  });
+});
+
 function resolutionBasis(anchor){
   const queryBody={queryContract:'perception.rating.resolve@1',queryVersion:1,
     querySchemaRef:'helix://contracts/domain-types/PerceptionResolutionQuery/v1',factKind:'rating',identityEvidence:[anchor]};

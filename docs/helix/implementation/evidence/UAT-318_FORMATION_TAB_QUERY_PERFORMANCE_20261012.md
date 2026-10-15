@@ -1,5 +1,21 @@
 # UAT-318：Series上线后媒体整理Tab切换延迟
 
+## 2026-10-15 Perception候选热路径局部修复
+
+用户追加要求实际排查首开慢。既有约13秒生产profile中Aftercare Context约3.40秒、其内部Perception候选解析约3.02秒；这些是嵌套inclusive值，不能相加。后续生产LAN独立顺序读取health1737ms、Formation active349ms、Care1116ms、Collection48项2455ms，说明服务端仍有波动，不只是浏览器海报排队。
+
+源码定位：Aftercare严格读取当前评分时，`readCurrentRating`为检查Record Set新鲜度重新组装候选。`readResolutionCandidates`对全体title_year锚点调用`deriveTitleEvidence`/`deriveTitleYearEvidence`，筛选只使用anchorValue，却为未入选记录生成完整Evidence摘要；强身份exact查询也先读取整类锚点再JS筛选。同步工作与HTTP共用主线程，是已证实的重复计算热点，不把它宣称为所有首开长尾的唯一原因。
+
+修复只在Perception Owner Store内：筛选阶段用同一`splitTitleYear/titleAssociationAliases/titleAliases`算法比较纯别名值，最终入选Record仍由原Assembler生成完整digest-bound Evidence；exact强锚点及单目标评分查找复用已存在的有界select-in，撤销/更正保持方向；无候选时不读取无关Relation。未增加业务缓存、未改变Resolution新鲜度/Record完整性/候选overflow、未改schema/API/Foundation或UI。
+
+Windows独立冻结`85f0b79fc11f09612e422105412d9e105fc865ec`源码基线＋候选Store及测试，57项通过；避免把并行功能生成schema时的`P3_SQLITE_INVALID_SCHEMA_MANIFEST`暂态当成产品失败，也不忽略它。Linux实际037592bef4镜像RO绑定相同候选Store及测试目录，57项通过。新增多语言/全角、provider-delimited别名、technical suffix、title_year精确年份、入选Evidence digest保持、精确查找不物化无关201条锚点及两个overflow保护；原JAV纠正/评分/已看/撤销更正继续通过。Linux初次未挂完整测试目录导致缺测试文件，补正确只读测试绑定后通过，未改产品镜像伪装成最终镜像资格。
+
+完整输出对照使用此前已保存的生产200表资格快照（3172913152 bytes），DB SHA256 `da8800c643e5a7774544c78a5bebdc3af7716612e263952851a1ca6649c6f8aa`。本机Docker原生磁盘副本hash一致；037 Linux Runtime按旧200表manifest完成正常只读Kernel检查，使用公开Arca目标Projection取12个真实收藏目标，逐个比较完整Resolution Context及scalar Rating。old/new/new/old各24次读取为730/420/424/649ms，SQL调用212→198，返回行173032→135640；全输出摘要始终`90f75e5477164478898edb89f63cb016042f427b02bc091385f5940a167b3de8`。平均耗时下降38.8%、返回行数下降21.6%；计时不含整库启动校验，不是当前204表生产首开SLO或浏览器验收。
+
+Arca目标Projection来自与200表快照配套的冻结发布源码，Perception Store分别为037现有实现与本候选；不把该局部对照称为完整当前Host演练。直接Windows共享挂载的首轮整库校验未完成，已停止该task-owned只读容器，不计通过；随后原生副本完成对照。对照后DB SHA仍与原快照相同，原快照保留，临时容器/3GB原生副本卷清理结果保留ignored记录。未在NAS创建额外Linux测试容器，生产没有热替换源码或重启。
+
+本修复待与席位/公平功能整合成最终候选，按既有授权统一升级后复测实际页面及后台负载。完整Service/最终镜像与生产首次打开资格未由这组57项替代；UAT-318保持开放。
+
 ## 2026-10-15 JAV升级后首开慢追加现场
 
 用户反馈037592bef4升级后第一次打开控制台极慢，随后好转，要求先保留记录。LAN只读复测`/v1/health`200但耗时7738ms、`/admin/`200耗时4797ms；主Node累计CPU约106%、容器即时CPU201%且同时存在FFmpeg，不能由HTTP200或供给正常推定页面性能合格。后续认证6917ms、Runtime读取1109ms、Formation active读取2481ms，说明仍有波动；不是首次打开全过程的浏览器复现。
