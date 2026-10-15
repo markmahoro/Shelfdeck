@@ -7,6 +7,7 @@ const { buildFormationProcessDetail, currentPlanSummary } = require('./formation
 
 const { createMovieProductionReader } = require('../persistence/movie-production-reader');
 const { frozenSeriesSeasonNumber } = require('../model/series-identity-contracts');
+const { routingPreparationReadiness } = require('../model/routing-readiness');
 
 const PAGE_SIZE = 100;
 // List classification and current-action labels consume these Results. Other
@@ -483,7 +484,8 @@ function createFormationProjectionSource(options) {
   const repository = createRepositoryDefinition({ repositoryId: 'libra_formation_query', owner: 'libra', schemaManifest: options.schemaManifest, statements: {
     page_subjects: { kind: 'select-page-after', tableId: 'libra_subjects', keyColumn: 'subject_id', maxItems: PAGE_SIZE, columns: ['subject_id', 'structure_kind', 'content_profile', 'routing_anchor_intake_decision_id', 'status', 'intake_revision', 'current_identity_revision', 'created_at_ms', 'updated_at_ms'], safeIntegers: true },
     find_subject: { kind: 'select-one', tableId: 'libra_subjects', keyColumns: ['subject_id'], columns: ['subject_id', 'structure_kind', 'content_profile', 'routing_anchor_intake_decision_id', 'status', 'intake_revision', 'current_identity_revision', 'created_at_ms', 'updated_at_ms'], safeIntegers: true },
-    find_decisions: { kind: 'select-in', tableId: 'libra_intake_decisions', keyColumn: 'target_subject_id', maxItems: PAGE_SIZE, columns: ['intake_decision_id', 'candidate_delivery_snapshot_json', 'target_subject_id', 'decided_at_ms'], safeIntegers: true },
+    find_decisions: { kind: 'select-in', tableId: 'libra_intake_decisions', keyColumn: 'target_subject_id', maxItems: PAGE_SIZE, columns: ['intake_decision_id', 'source_field_id', 'candidate_delivery_snapshot_json', 'target_subject_id', 'decided_at_ms'], safeIntegers: true },
+    find_field_routing_heads: { kind: 'select-in', tableId: 'libra_field_routing_heads', keyColumn: 'field_id', maxItems: PAGE_SIZE, columns: ['field_id', 'current_routing_policy_id'] },
     find_bindings: { kind: 'select-in', tableId: 'libra_material_bindings', keyColumn: 'subject_id', maxItems: PAGE_SIZE, columns: ['subject_id', 'authority_kind', 'current'], safeIntegers: true },
     find_identities:{kind:'select-in',tableId:'libra_product_identity_revisions',keyColumn:'subject_id',maxItems:PAGE_SIZE,
       columns:['subject_id','revision','display_identity'],safeIntegers:true},
@@ -521,6 +523,9 @@ function createFormationProjectionSource(options) {
     return options.unitOfWork.execute([{ participantId: 'libra_formation_batch', owner: 'libra', repositories: [repository], execute(context) {
       const repo = context.repository(repository.repositoryId);
       const decisions = repo.invoke('find_decisions', { values: subjectIds });
+      const fieldIds = unique(decisions.map(row => row.source_field_id));
+      const routingFields = new Set(chunks(fieldIds, PAGE_SIZE).flatMap(values =>
+        repo.invoke('find_field_routing_heads', { values })).map(row => row.field_id));
       const bindings = repo.invoke('find_bindings', { values: subjectIds });
       const identities=repo.invoke('find_identities',{values:subjectIds});
       const routingDecisions = repo.invoke('find_routing_decisions', { values: subjectIds });
@@ -533,7 +538,7 @@ function createFormationProjectionSource(options) {
       const runRevisions = runIds.length ? chunks(runIds, PAGE_SIZE).flatMap((values) => repo.invoke('find_run_revisions', { values })) : [];
       const packages = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_packages', { values })) : [];
       const identityIntents = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_identity_intents', { values })) : [];
-      return { decisions, bindings, identities, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents };
+      return { decisions, routingFields, bindings, identities, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents };
     } }]).libra_formation_batch;
   }
   function buildBatch(subjects, buildOptions = {}) {
@@ -570,7 +575,7 @@ function createFormationProjectionSource(options) {
           if(title&&code)displayIdentity=title+' ('+code+')';
         }
       }
-      return { subject, decisions, displayIdentity, snapshot };
+      return { subject, decisions, displayIdentity, snapshot, sourceFieldId: anchor?.source_field_id || null };
     });
     const ratings = options.readPerceptionRatings?.(subjects.map((item) => item.subject_id)) || new Map();
     const shelfNames = new Map((options.readShelfTargets?.() || []).map((item) => [item.shelfId, item.name]));
@@ -595,7 +600,7 @@ function createFormationProjectionSource(options) {
       ? chunks(onDeckRunIds).flatMap((ids) => options.progressProjectionReader?.read(ids, resultReadOptions) || []) : [];
     const progressByRun = new Map(runIds.map((id) => [id, progress.filter((item) => item.processId === id)]));
     const onDeckByRun = new Map(onDeckRunIds.map((id) => [id, onDeckProgress.filter((item) => item.processId === id)]));
-    return prepared.map(({ subject, decisions, displayIdentity, snapshot }) => {
+    return prepared.map(({ subject, decisions, displayIdentity, snapshot, sourceFieldId }) => {
       const bindings = value.bindings.filter((item) => item.subject_id === subject.subject_id && Number(item.current) === 1);
       const routing = latest(value.routingDecisions.filter((item) => item.subject_id === subject.subject_id), 'decision_revision');
       const policy = routing ? value.routingPolicies.find((item) => item.routing_policy_id === routing.routing_policy_id && Number(item.revision) === Number(routing.routing_policy_revision)) : null;
@@ -622,8 +627,13 @@ function createFormationProjectionSource(options) {
       const waitingExternalIntegration = waitsForExternalIntegration(works, externalIntegrationReady);
       const recovery = pkg ? recoveries.get(pkg.offer_id) || null : null;
       const arcaStatus = pkg ? arcaStatuses.get(pkg.offer_id) || null : null;
+      // Only unresolved preparation consumes current configuration. Historical
+      // Decisions and completed delivery retain their frozen authority.
+      const routingReadiness = !routing && !latestRun && sourceFieldId
+        ? routingPreparationReadiness(value.routingFields.has(sourceFieldId)) : null;
+      const missingRoutingPolicy = routingReadiness?.result === 'unresolved';
       const classification = classifyFormation({ run, works, issue, recovery, arcaStatus, productPackage: pkg,
-        routingUnresolved: routing?.decision === 'unresolved', waitingExternalIntegration });
+        routingUnresolved: missingRoutingPolicy || routing?.decision === 'unresolved', waitingExternalIntegration });
       const rating = ratings.get(subject.subject_id) || null;
       const stepOptions = Object.freeze({ latestRunState: latestRun?.state || null, waitingExternalIntegration,
         runState: run?.state || null, terminalEvidence });
@@ -657,9 +667,10 @@ function createFormationProjectionSource(options) {
       }) : undefined;
       return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus,
         seriesDelivery:includeActualPlans ? seriesDelivery(subject, packageRun) : undefined,
+        routingConfigurationFieldId: missingRoutingPolicy ? sourceFieldId : null,
         processDetail:buildOptions.includeProcessDetail === true ? detail : undefined,
-        currentPlan:detail ? currentPlanSummary(detail) : undefined,
-        targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || 'preparing', unresolvedReasonCode: routing?.unresolved_reason_code || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence, spec, onDeckWorks), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
+        currentPlan:missingRoutingPolicy ? undefined : detail ? currentPlanSummary(detail) : undefined,
+        targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || (missingRoutingPolicy ? 'unresolved' : 'preparing'), unresolvedReasonCode: routing?.unresolved_reason_code || routingReadiness?.reasonCode || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: missingRoutingPolicy ? Object.freeze({label:'尚未配置收藏去向',state:'attention_required',progress:null}) : nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence, spec, onDeckWorks), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
     });
   }
   function scan(visitor) {

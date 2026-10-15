@@ -1,4 +1,5 @@
 'use strict';
+const { routingPreparationReadiness } = require('../model/routing-readiness');
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
@@ -90,7 +91,8 @@ function createRoutingProcessCoordinator(options) {
     const state = options.contextReader.currentState(subjectId);
     if (!state) return Object.freeze({ kind: 'not_found', subjectId });
     const context = state.context;
-    if (!context.policy) return Object.freeze({ kind: 'unresolved', subjectId, reasonCode: 'routing_policy_unavailable' });
+    const readiness = routingPreparationReadiness(Boolean(context.policy));
+    if (readiness.result === 'unresolved') return Object.freeze({ kind: 'unresolved', subjectId, reasonCode: readiness.reasonCode });
     if (state.decision && state.decision.routingPolicyId === context.policy.routingPolicyId &&
         state.decision.routingPolicyRevision === context.policy.revision) {
       return Object.freeze({ kind: 'terminal', subjectId, decision: state.decision });

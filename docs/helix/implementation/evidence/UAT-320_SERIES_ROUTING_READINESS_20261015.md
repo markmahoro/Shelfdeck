@@ -24,3 +24,29 @@
 本机Docker使用实际037592bef4 Linux镜像，network none/read-only，同一task-owned fixture分别RO绑定`/adult`与`/adult_media`，两个根device/inode及文件内容一致。临时容器已自动退出；未在NAS创建额外Linux测试容器，未把本机fixture记为生产真实挂载验收。部署准备与现场记录提交`0f30e924b`。
 
 缺配置的正式readiness及工作区可达动作由席位功能聊天承接，必须避免从UI Projection反向授权转区；具体代码、实际版本UI及回归证据后补。UAT-320保持开放。
+
+## 2026-10-15 独立本地修复
+
+Libra `routingPreparationReadiness` 统一表达已有 `routing_policy_unavailable`，Routing Coordinator 与
+Formation 只读投影复用；没有生成虚假 Routing Decision/Run、释放 token 或修改 Control。投影从
+冻结 Intake anchor 取得 source_field_id，按批查询 Libra 自有 routing head（每批最多100个来源），
+不逐条读取完整策略，不扫描 Procurement/Foundation。仅没有 Routing Decision 且没有任何 Run 的
+准备态适用这个检查；既有 Run、已交付和历史 Decision 保留原语义。
+
+工作区以 `attention_required / 尚未配置收藏去向` 显示，当前 DTO 增加 optional
+`routingConfigurationFieldId`，它只提供导航、不授予写入权。列表、筛选、计数及详情读取当前
+Owner 事实；按钮跳到对应来源并展开、滚动到分拣策略。用户仍通过原正式 preview/publish API
+配置，发布后缺配置提示消失、恢复正常准备，读取本身不创建 Run。来源页面新增 Router 上下文
+依赖，相应单测已用 MemoryRouter 提供真实路由上下文，没有生产 fallback。
+
+本地验证：
+
+- `node --test test/helix-formation-projection.test.js test/formation-process-projection.test.js test/helix-architecture/p14-formation-truth.test.js`：68 pass，0 fail/skip。含无 Decision/Run、批量查询/只读、发布前后、冻结 Decision 保持及旧投影的列表/筛选/计数修正。
+- Web `npm test -- --run test/routing-policy-loading.test.tsx test/material-field-scan.test.tsx`：12 pass，0 fail；首次补跑暴露测试缺 Router，补足测试上下文后通过。
+- `npx playwright test e2e/routing-readiness.spec.ts --project=desktop --project=narrow`：1440×900 与390×844两项通过，命令内 tsc/Vite build 通过。使用受控 API fixture，覆盖需要处理→对应来源配置→发布成功→返回工作区恢复；不是生产UI、真实API配置旅程或UI负责人接受。首次 locator 精确 label 匹配失败，改用实际 accessible combobox role 后通过；产品行为未放宽。
+- 已查看最终宽/窄配置页截图；文件在 ignored `media-service/web/test-results/routing-readiness-missing--99ff2-nd-clears-after-publication-{desktop,narrow}/routing-configuration.png`，同目录保存恢复后截图。
+- 额外启动完整 `series-routing-run.test.js` 范围过大且初轮工具会话输出未保留 session ID，重复启动一次；确认两组均为本任务进程后停止剩余场景。保存日志的一轮已通过同名多季 Direct Commit、完整Placement migration两条真实隔离Host，不能记整个Series suite PASS。未完成场景不计通过；本修复的必需专项结果以上述68项为准。
+- `git diff --check` 通过；Playwright管理的18181测试服务已停止。没有运行完整Service、Desktop或Linux构建，本次不涉及平台/文件Effect行为。
+
+尚待：具体实现版本的用户指定 UI 负责人审核、统一发布和上线验收；UAT-320保持开放。二号转区及
+来源公平的两个合同选择仍待用户确认，不包含于此修复；不改变两季任务的升级保护要求。

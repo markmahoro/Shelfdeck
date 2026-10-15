@@ -428,6 +428,33 @@ test('Formation position timestamp remains the Subject creation time when mutabl
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
+test('UAT-320 current Owner readiness updates stale list, attention filter and summary without a Run',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-routing-readiness-'));
+  const kernel=openSqliteKernel({Database,databasePath:path.join(root,'shelfdeck.db'),schemaDdl,schemaManifest,now:()=>100});
+  try {
+    kernel.runPrimitive(({prepare})=>prepare(`INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,routing_anchor_intake_decision_id,status,intake_revision,current_identity_revision,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?)`)
+      .run('subject-000','single','movie',null,'active',1,null,1000,1000));
+    const store=createFormationProjectionStore({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel})});
+    const stale={...item(0),currentRun:null,routingState:'preparing',targetShelfId:null,targetShelfName:null};
+    store.upsert(buildFormationProjectionRow(stale,1001));
+    let current={...stale,classification:'attention_required',routingState:'unresolved',
+      unresolvedReasonCode:'routing_policy_unavailable',routingConfigurationFieldId:'field-1',
+      nextAction:{label:'尚未配置收藏去向',state:'attention_required',progress:null}};
+    const query=createFormationQuery({store,readPipelineSubjectIds:()=>new Set(['subject-000']),
+      detailSource:{getMany:()=>[current]},now:()=>2000});
+    const attention=query.list({section:'active',classification:'attention_required'});
+    assert.equal(attention.items.length,1);
+    assert.equal(attention.items[0].routingConfigurationFieldId,'field-1');
+    assert.equal(attention.items[0].currentRun,null);
+    assert.equal(attention.summary.attentionRequiredCount,1);
+    assert.equal(attention.summary.inProgressCount,0);
+    current={...stale,routingConfigurationFieldId:null};
+    assert.equal(query.list({classification:'attention_required'}).items.length,0);
+    assert.equal(query.list().summary.attentionRequiredCount,0);
+    assert.equal(query.list().summary.inProgressCount,1);
+  } finally {kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
+});
+
 test('Formation detail source uses business boundaries while Routing is still preparing',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-stage-boundary-')),databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});

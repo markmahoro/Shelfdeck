@@ -122,9 +122,13 @@ function ExpressionEditor({ expression, namespace, depth, onChange }: { namespac
   </div>;
 }
 
-export default function RoutingPolicyPanel({ field, shelves }: { field: MaterialField; shelves: Shelf[] }) {
-  const [opened,setOpened]=useState(false);
-  return <details className="routing-policy-panel" onToggle={event=>{if(event.currentTarget.open)setOpened(true);}}><summary>收藏架分拣策略</summary>{opened&&<RoutingPolicyEditor key={field.fieldId} field={field} shelves={shelves}/>}</details>;
+export default function RoutingPolicyPanel({ field, shelves, initiallyOpen = false }: { field: MaterialField; shelves: Shelf[]; initiallyOpen?: boolean }) {
+  const [opened,setOpened]=useState(initiallyOpen);
+  const panel=useRef<HTMLDetailsElement>(null);
+  useEffect(()=>{
+    if(initiallyOpen&&panel.current){panel.current.open=true;setOpened(true);panel.current.scrollIntoView?.({block:'center'});}
+  },[initiallyOpen]);
+  return <details ref={panel} className="routing-policy-panel" onToggle={event=>{if(event.currentTarget.open)setOpened(true);}}><summary>收藏架分拣策略</summary>{opened&&<RoutingPolicyEditor key={field.fieldId} field={field} shelves={shelves}/>}</details>;
 }
 
 function RoutingPolicyEditor({field,shelves}:{field:MaterialField;shelves:Shelf[]}) {

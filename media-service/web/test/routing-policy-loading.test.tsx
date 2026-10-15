@@ -75,3 +75,11 @@ it('preserves existing identity namespaces inside nested conditions on a Series 
   const expected={provider:'tmdb',namespace:'tmdb_movie',providerKey:'12',identityRevision:1};
   expect(body.policy.targets[0].matchExpression.child.expectedValue).toEqual([{...expected,identityDigest:await canonicalDigest(expected)}]);
 });
+it('opens the linked source configuration immediately without opening other sources',async()=>{
+  const load=vi.spyOn(helixAdminApi,'getRoutingPolicy').mockResolvedValue({policy:null});
+  const {container}=render(<><RoutingPolicyPanel field={field} shelves={shelves} initiallyOpen/><RoutingPolicyPanel field={{...field,fieldId:'other'}} shelves={shelves}/></>);
+  expect(await screen.findByLabelText('目标收藏架')).toBeVisible();
+  expect(container.querySelectorAll('details[open]')).toHaveLength(1);
+  expect(load).toHaveBeenCalledTimes(1);
+  expect(load).toHaveBeenCalledWith('field-a');
+});

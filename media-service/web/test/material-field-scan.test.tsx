@@ -1,3 +1,4 @@
+import { MemoryRouter } from 'react-router-dom';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import MaterialFieldsPage from '../src/helix/MaterialFieldsPage';
@@ -20,7 +21,7 @@ function mount(current: {value:MaterialField}) {
   vi.spyOn(helixAdminApi,'listMaterialFields').mockImplementation(async()=>({items:[current.value]}));
   vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
   vi.spyOn(helixAdminApi,'getFieldIntakeAdmission').mockResolvedValue({fieldId:'field-1',predeckPipelineSeats:0,policyRevision:1,updatedAtMs:1,pipelineTokensHeld:0,pipelineSeatsFree:0});
-  return render(<MaterialFieldsPage/>);
+  return render(<MemoryRouter><MaterialFieldsPage/></MemoryRouter>);
 }
 const accepted={observation:{observationWorkId:'scan-new',fieldId:'field-1',state:'admitted',replayed:false,
   operationRef:{operationType:'field_observation',operationId:'scan-new'}}} as ProcurementJourneyResult;
@@ -29,7 +30,7 @@ it('registers Series with retry state and duplicate submission protection', asyn
   vi.spyOn(helixAdminApi,'listMaterialFields').mockResolvedValue({items:[]});
   vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
   const register=vi.spyOn(helixAdminApi,'registerMaterialField').mockRejectedValueOnce(new Error('目录不可访问'));
-  render(<MaterialFieldsPage/>);
+  render(<MemoryRouter><MaterialFieldsPage/></MemoryRouter>);
   const profile=await screen.findByLabelText('媒体类型');
   expect(profile).toHaveValue('movie');
   fireEvent.change(profile,{target:{value:'series'}});

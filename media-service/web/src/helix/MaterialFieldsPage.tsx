@@ -5,6 +5,7 @@ import { Button, LoadingState, PageHeader } from './chrome';
 import { observationScanLabels } from './labels';
 import RoutingPolicyPanel from './RoutingPolicyPanel';
 import { isUnauthorized, useSession } from './session';
+import { useSearchParams } from 'react-router-dom';
 
 function newFieldId() {
   return newOpaqueId('media-field-');
@@ -19,6 +20,7 @@ function scanLabel(field: MaterialField) {
   return observationScanLabels[scanOf(field).state] || '等待扫描';
 }
 export default function MaterialFieldsPage() {
+  const [searchParams] = useSearchParams();
   const { expire } = useSession();
   const [fields, setFields] = useState<MaterialField[]>([]);
   const [shelves, setShelves] = useState<Shelf[]>([]);
@@ -251,7 +253,7 @@ export default function MaterialFieldsPage() {
             </> : field.status === 'active' ? <p className="ui-state">席位状态暂不可用</p> : null}
           </section>
         </div>
-        {field.status === 'active' && <RoutingPolicyPanel field={field} shelves={shelves} />}
+        {field.status === 'active' && <RoutingPolicyPanel field={field} shelves={shelves} initiallyOpen={searchParams.get('configureRouting') === field.fieldId} />}
       </article>;
       })}
     </div>

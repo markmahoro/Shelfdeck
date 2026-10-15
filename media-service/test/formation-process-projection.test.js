@@ -18,6 +18,39 @@ const schemaDdl=fs.readFileSync(path.join(generatedRoot,'clean-schema.sql'),'utf
 const schemaManifest=JSON.parse(fs.readFileSync(path.join(generatedRoot,'clean-schema.manifest.json'),'utf8'));
 const hex='a'.repeat(64);
 
+test('UAT-320 missing routing policy is actionable before a Decision or Run exists and clears after publication',()=>{
+  const subject={subject_id:'series-subject',status:'active',structure_kind:'season',content_profile:'series',
+    routing_anchor_intake_decision_id:'intake',current_identity_revision:null,created_at_ms:1};
+  const rows={find_decisions:[{target_subject_id:subject.subject_id,intake_decision_id:'intake',
+    source_field_id:'series-field',decided_at_ms:1,candidate_delivery_snapshot_json:canonicalJson({candidatePackage:{displayIdentity:'Season 2'}})}]};
+  const calls=[];
+  const unitOfWork={execute(participants){return Object.fromEntries(participants.map(participant=>[participant.participantId,
+    participant.execute({repository:()=>({invoke(name,args){calls.push({name,args});return rows[name]||[];}})})]));}};
+  const source=createFormationProjectionSource({schemaManifest,unitOfWork});
+  const missing=source.buildBatch([subject],{includeProcessSummary:true})[0];
+  assert.equal(missing.classification,'attention_required');
+  assert.equal(missing.routingState,'unresolved');
+  assert.equal(missing.unresolvedReasonCode,'routing_policy_unavailable');
+  assert.equal(missing.routingConfigurationFieldId,'series-field');
+  assert.equal(missing.currentRun,null);
+  assert.equal(missing.routingDecisionHeadDigest,null);
+  assert.equal(missing.nextAction.label,'尚未配置收藏去向');
+  assert.equal(missing.currentPlan,undefined);
+  assert.equal(calls.filter(call=>call.name==='find_field_routing_heads').length,1);
+  assert.deepEqual(calls.find(call=>call.name==='find_field_routing_heads').args.values,['series-field']);
+  assert.ok(calls.every(call=>call.name.startsWith('find_')),'Projection must only read');
+  rows.find_field_routing_heads=[{field_id:'series-field',current_routing_policy_id:'policy'}];
+  const ready=source.buildBatch([subject])[0];
+  assert.equal(ready.classification,'in_progress');
+  assert.equal(ready.routingState,'preparing');
+  assert.equal(ready.routingConfigurationFieldId,null);
+  assert.equal(ready.unresolvedReasonCode,null);
+  assert.equal(ready.currentRun,null,'Reading readiness must not create a Run');
+  rows.find_routing_decisions=[{subject_id:subject.subject_id,decision_revision:1,decision:'resolved',shelf_id:'shelf'}];
+  rows.find_field_routing_heads=[];
+  assert.equal(source.buildBatch([subject])[0].classification,'in_progress','Frozen Decision is not reinterpreted');
+});
+
 function event(planId,nodeId,capabilityRef,state,createdAtMs,edges=[],extra={}) {
   return {eventId:`event-${nodeId}`,planId,nodeId,capabilityRef,state,progress:null,result:null,inputBindings:{bindings:[]},parameters:{},
     plan:{planId,plannerRef:'planner',plannerVersion:1,state:'planned',createdAtMs,edges},...extra};
