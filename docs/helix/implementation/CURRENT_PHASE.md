@@ -1,13 +1,13 @@
-# 当前 Phase：JAV 本地开发
+# 当前 Phase：JAV 首版发布与用户验收
 
-2026-10-15 当前发布候选已更新为 markmahoro/shelfdeck:062c0ba7a1（source 062c0ba7a17e8ff5e03d478a685968e0bdc929d1），合入生产搜索结果超限停滞修复及严格历史 fulfilled_by_successor 证明；机器合同为121/104/204/51。实际最终镜像Linux选择场景20 pass，Windows独立Service包与Service回归642 pass/29既有skip/0 fail通过。完整3.17GB冷副本的精确Reset、200→204复制及未使用副本回退检查已通过；本机完整Host因真实NAS Aftercare挂载身份不匹配拒绝启动，不记PASS。用户随后明确允许一次NAS完整副本演练，当前独立副本正在准备，原data/媒体/Workspace只读、network none，原生产容器保持；标准镜像上传与远端checksum已完成，尚未生产Reset/部署。用户另明确授权仅清理罪恶之城既有discarded记录的精确范围，执行前仍复核scope。最终失败Projection的适用UI复核及完整Host正常供给资格待收取，通过后继续已授权标准部署。以下较早推进记录是历史快照，不能覆盖本段当前授权及状态。
+2026-10-15 JAV首版已完成本轮发布资格并标准部署生产：markmahoro/shelfdeck:037592bef4，source 037592bef4441ceda87b3270f6e70cb7857da3a7。11:46:57 UTC复核mode=running、normalSupplyAllowed=true、faulted=false；556条原收藏和原入藏Receipt保持，已观察11条新Libra执行成功。机器合同121/104/204/51、147 routes。完整生产副本200→204/199旧表逐行保护、真实完整Host正常供给/33协调器推进、停止及使用后回退拒绝通过；生产按授权清理6个未结束Subject与精确discarded旧记录，86表范围外保护及49个伴随文件物理身份保持。最终UI变更经负责人宽/窄两项接受，其余继承原接受；Web186、Service642 pass/29既有skip与Linux20条业务的精确backend字节继承范围明确，最终实际镜像Native/API/源码/资产及Windows独立Service包复核通过。生产五挂载/QSV、fnOS及13个无关容器保持。具体原始失败/观察超时、Annex、备份及回退限制见现有JAV_RELEASE_COPY Evidence；不追认为每站长期可用、整季生产E2E或Electron资格，不批量关闭既有UAT。以下较早段落为历史快照，不覆盖当前授权与事实。
 
 2026-10-15 用户明确授权三步推进：另开聊天排查生产任务长期停滞并修复，合并修复后用生产完整副本演练升级/回退，演练通过后标准部署生产。诊断聊天01a13ebb-f373-7670-a207-64797e8c7c31已建立；主聊天统一控制安全停机、备份、精确清场及发布，诊断期间保持生产只读。必要生产停机/标准部署不再以旧“未授权”文字阻塞；Reset仍需冻结可审查范围并通过原保护门禁，不能清掉未决非pure Effects或已入藏事实。
 
 2026-10-15 JAV-RELEASE-CANDIDATE：最终本地候选 markmahoro/shelfdeck:455873b377 已通过标准构建、导出及独立SHA256校验；实际该镜像Linux JAV核心6/终态恢复8/Movie3/Series3共20条选择场景全部通过。固定锁定依赖FFprobe解决HEVC色彩漏读；备份改为有界完整hash，镜像384MiB容器内P13六项通过。当前Windows独立Service包203表/147路由、包内Native/API及256MiB备份恢复/篡改拒绝通过。2318份Service源码及已接受1qAJmlnq UI字节一致，继承具体版本适用UI接受。P2 121/104/203/51与既有完整整合/精确计数复验的组合证据保持，不宣称重跑过一次全绿整合。剩余部署准备为生产完整一致副本、6 active Libra及20未决Arca settlement-delete Effects的明确收口与实际规模升级/回退资格；4 running Work仍须核验。NAS临时隔离Linux仍按用户决定skip，没有上传、部署、停服、Reset或改生产数据。下一步须先取得仅限原容器停机备份后原样重启的精确授权。详见现有JAV_RELEASE_COPY/JAV_CORRECTION_RECOVERY证据。
 
 
-### 下一步：生产一致副本窗口（用户三步流程已授权，待诊断现场收集后执行）
+### 历史窗口方案（已由后续精确授权及本轮实际发布取代）
 
 用户提醒升级过程可复用既有安全停机与Reset：先用已上线安全停机命令关闭供给，等待mode=stopped、in-flight为0及后台收口；不能以直接docker stop/超时硬杀替代该证明。记下原desiredMode，备份后原镜像启动仍须按原Operational合同明确恢复运行，不假设容器重启会清除stopped意图。Reset先在完整本地副本内按冻结精确Subject范围预检/演练；实际生产Reset另以当次清单、后果与明确授权为准。只读现有工具确认六个active Run对应Subject逐项scoped plan均ready；默认用户Reset则因额外历史重叠及未决Effect拒绝。20项Arca未决Effect不因此可清除，不能扩大Reset或删除已入藏责任。
 
@@ -130,7 +130,7 @@ JAV-PARTS（2026-10-14）：Procurement实际同目录同号A/B冻结一包，Li
 - 同一选定站的资料生成NFO/fanart/poster；不要求网站分别提供三项。Artifact完整性、媒体可播放、稳定番号、Control与安全验收保持独立，不用两项网站资料豁免身份/技术失败。
 - 推荐HEVC、实际Matroska、.mkv、single上限2 GiB，无rating/4K/音轨新增要求；Direct/Remux/Transcode沿既有合同。Movie/Series及用户冻结标准保持。
 - FC2 seller与GETCHU/GYUTTO circle可作为可选studio署名，保留角色/来源。特殊类别仍须完成资料至入藏旅程，不退成只识别。
-- Western Adult、AI/人脸识别、显式同目录同号A/B之外的分段格式、新媒体下载/升级来源、独立Runtime/资源体系、全局媒体ID不在范围内。开放UAT、已入藏历史与保护收藏保持，不部署/停机/Reset/重处理生产。
+- Western Adult、AI/人脸识别、显式同目录同号A/B之外的分段格式、新媒体下载/升级来源、独立Runtime/资源体系、全局媒体ID不在范围内。开放UAT、已入藏历史与保护收藏保持；本轮只执行用户明确授权的安全停机、精确Reset、离线升级及标准部署，不追溯重处理保护收藏。
 
 ## 单站主备合同及范围
 
@@ -217,15 +217,15 @@ Synthetic例：文件名ipx00177.mkv提取IPX-00177，但未能确权；用户�
 | 2 / JAV-IDENTITY-METADATA（本地已实现；适用具体版本UI已接受） | 公开Handoff A→原生身份→单站资料/NFO/poster/fanart及用户恢复入口 | 缺选填通过、缺title/cover失败下一站不合并；首次错号选择/歧义/CID/revision/重放/登录/图片与确认后异号拒绝矩阵；具体版本UI |
 | 3 / JAV-FORMATION-ONDECK（本地链路与最终镜像场景已验证） | Direct/Remux/Transcode→Arca Handoff B/落位/结算/Commit | 隔离真实文件、2 GiB、范围外保护、崩溃/重放、旧结果不能错误上架 |
 | 4 / JAV-OPERATIONS-SURFACE（恢复已实现；本地场景及适用UI已验证） | 健康/资料修复、布局/标准、重复审阅、授权退出/注销、已入藏Canonical Correction | 同Entry保留视频、资料/命名/评分已看连续性、身份冲突与并发/crash/重放；profile/Inventory revision连续、缺图恢复及全部保留重复；具体版本UI |
-| 5 / JAV-QUALIFICATION（进行中） | Movie/Series回归、真实Provider/媒体、Windows/Linux Service与Admin Web最终版 | 必需链路无skip、历史保护、精确版本UI、旧版/候选/候选数据回退与未测边界；开发Exit与发布分开；Desktop本轮不开发 |
+| 5 / JAV-QUALIFICATION（本轮发布资格完成，已部署；待用户验收） | Movie/Series回归、真实Provider/媒体、Windows/Linux Service与Admin Web最终版 | 必需链路无skip、历史保护、精确版本UI、旧版/候选/候选数据回退与未测边界；开发Exit与发布分开；Desktop本轮不开发 |
 
-当前实现已覆盖typed identity/单站source attempt/Artifact/推荐标准、初次身份确认/锁定、媒体加工及Arca独立Correction事务/Effect/显式Recovery Intent；真实Host分阶段证据见顶部及既有JAV证据。整体部署Ready仍未满足：最终本地镜像/Windows包、适用具体版本UI和既有整合加精确计数复验组合Evidence已记录；实际混合生产库一致副本、旧责任收口及生产规模升级/回退资格仍开放，停机备份授权尚未收到。CID自动映射没有可信主资料，保持明确未确认与手工完整番号选择旅程；来源样本不等于所有站点长期可用。NAS临时隔离Linux测试由用户skip，不改写为平台PASS。Libra途中换号不在范围；原视频/历史、Formation clean-cut及生产操作授权边界保持。
+当前实现覆盖typed identity/单站source attempt/Artifact/推荐标准、首次确认/锁定、A/B包与媒体加工、Arca独立Correction及显式Recovery Intent。部署资格已按顶部当前记录完成，生产037592bef4正常运行。CID无可信映射时保持明确未确认与手工完整番号选择；代表性来源实测不等于所有站点长期可用。用户原skip仍保留，本次NAS完整副本例外已明确授权并完成；Libra途中换号不在范围。下一步收取实际使用反馈，正式Phase Exit与旧UAT关闭仍按各自验收条件，不新增开发UAT。
 
 来源基础子合同本地交付：`src/helix/contracts/jav-source-contracts.js`提供完整号码/CID的互斥anchor、grammar digest、单站title/cover要求与有界Source Snapshot；schema与语义校验均限制按类型候选站，连续ordinal/重复配置/篡改摘要/混入Cookie或代理值均拒绝。`shared-type-schema-builder.js`/现有IntegrationHandle schema新增jav_source闭合分支，其他Secret-bound Provider不能附加JAV字段或变匿名。已完成9项源合同negative/positive、P2与dispatcher专项；source helper的Snapshot尚未绑定正式Intent/Result目录，Platform resolver不接受新型Handle，来源资格/首次Fact与功能工作项不因此Ready。此次纯合同实现没有UI或业务投影改动。
 
 节点1本轮补齐的工程约束：首次Identity锁定要求合格cover，但现有Metadata Fetch输入要求正式resolvedIdentityDigest，直接复用会形成依赖循环。SSOT末尾已冻结closed未确认query anchor资格variant：source Observation→同站cover Artifact Evidence→qualification→首次Identity原子提交→正式Metadata/Artifact。不全局放松resolvedIdentityDigest、不把浏览器预览cache当Fact、不把下载藏进Commit。机器schema/Capability和对应Effect/Handle证明尚待传播；latest Selection Intent head/revision、自动与人工竞争、旧候选迟到、原Receipt优先重放及核验失败保持未确认纳入negative fixture。当前代码支持的TMDB choose只提交Intent，与首次Fact不是一个动作，JAV UI必须显示受理后的核验状态，不能把Command Receipt当已确认。
 
-## 验证与保护记录
+## 启动阶段验证与保护记录（历史）
 
 Windows准备专项37项：35 pass、0 fail、2 skip，约35.55秒。命令：
 

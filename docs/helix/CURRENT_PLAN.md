@@ -1,6 +1,6 @@
 # ShelfDeck 当前计划
 
-2026-10-15 当前发布候选已更新为 markmahoro/shelfdeck:062c0ba7a1（source 062c0ba7a17e8ff5e03d478a685968e0bdc929d1），合入生产搜索结果超限停滞修复及严格历史 fulfilled_by_successor 证明；机器合同为121/104/204/51。实际最终镜像Linux选择场景20 pass，Windows独立Service包与Service回归642 pass/29既有skip/0 fail通过。完整3.17GB冷副本的精确Reset、200→204复制及未使用副本回退检查已通过；本机完整Host因真实NAS Aftercare挂载身份不匹配拒绝启动，不记PASS。用户随后明确允许一次NAS完整副本演练，当前独立副本正在准备，原data/媒体/Workspace只读、network none，原生产容器保持；标准镜像上传与远端checksum已完成，尚未生产Reset/部署。用户另明确授权仅清理罪恶之城既有discarded记录的精确范围，执行前仍复核scope。最终失败Projection的适用UI复核及完整Host正常供给资格待收取，通过后继续已授权标准部署。以下较早推进记录是历史快照，不能覆盖本段当前授权及状态。
+2026-10-15 JAV首版已完成本轮发布资格并标准部署生产：markmahoro/shelfdeck:037592bef4，source 037592bef4441ceda87b3270f6e70cb7857da3a7。11:46:57 UTC复核mode=running、normalSupplyAllowed=true、faulted=false；556条原收藏和原入藏Receipt保持，已观察11条新Libra执行成功。机器合同121/104/204/51、147 routes。完整生产副本200→204/199旧表逐行保护、真实完整Host正常供给/33协调器推进、停止及使用后回退拒绝通过；生产按授权清理6个未结束Subject与精确discarded旧记录，86表范围外保护及49个伴随文件物理身份保持。最终UI变更经负责人宽/窄两项接受，其余继承原接受；Web186、Service642 pass/29既有skip与Linux20条业务的精确backend字节继承范围明确，最终实际镜像Native/API/源码/资产及Windows独立Service包复核通过。生产五挂载/QSV、fnOS及13个无关容器保持。具体原始失败/观察超时、Annex、备份及回退限制见现有JAV_RELEASE_COPY Evidence；不追认为每站长期可用、整季生产E2E或Electron资格，不批量关闭既有UAT。以下较早段落为历史快照，不覆盖当前授权与事实。
 
 2026-10-15 用户明确授权三步推进：另开聊天排查生产任务长期停滞并修复，合并修复后用生产完整副本演练升级/回退，演练通过后标准部署生产。诊断聊天01a13ebb-f373-7670-a207-64797e8c7c31已建立；主聊天统一控制安全停机、备份、精确清场及发布，诊断期间保持生产只读。必要生产停机/标准部署不再以旧“未授权”文字阻塞；Reset仍需冻结可审查范围并通过原保护门禁，不能清掉未决非pure Effects或已入藏事实。
 
@@ -70,15 +70,15 @@ JAV-PARTS（2026-10-14）：实际同目录同号显式A/B在Procurement合为�
 
 JAV 沿用 Procurement → Libra → Arca 及现有 Platform/Foundation；不新增 Owner、全局媒体 ID、独立 Runtime 或资源管理体系。SSOT保留single、稳定番号、HEVC/Matroska/.mkv、推荐2 GiB且不按评分分档。用户本轮将网站最低资料改为title+可用cover，其他字段可选；NFO/poster/fanart由同站资料与cover在Workspace生成，不要求网站分别提供。Movie/Series标准保持。
 
-2026-10-13用户最终确认第二种单站主备：按番号类型选有序来源，单站取得title和可用cover成功，失败再换站；选填字段缺失不阻断上架，不跨站合并，不为补满字段继续遍历。JAV321不强制，特殊号码与封面参考 [Yuukiy/JavSP](https://github.com/Yuukiy/JavSP)，多分段暂不考虑；FC2 seller/GETCHU-GYUTTO circle作为可选署名保留角色和来源。用户进一步确认首版含尚未确认身份时的号码补填/选择和已上架保留视频的身份纠正：后者由Arca独立Correction拥有，不借Aftercare改身份、不改旧入藏历史、不重复Commit。真实来源样本、旧误匹配/新旧预览、初次确认/锁定及Arca Correction的typed闭合只在唯一Phase维护，证据见[来源核验](implementation/evidence/JAV_SOURCE_READINESS_20261013.md)。
+2026-10-13用户最终确认第二种单站主备：按番号类型选有序来源，单站取得title和可用cover成功，失败再换站；选填字段缺失不阻断上架，不跨站合并，不为补满字段继续遍历。JAV321不强制，特殊号码与封面参考 [Yuukiy/JavSP](https://github.com/Yuukiy/JavSP)，已确认同目录同号显式A/B在Procurement合为一个Candidate Package并在Workspace Remux为一份视频，单独A或B不设缺段门禁；其他分段格式不扩展。FC2 seller/GETCHU-GYUTTO circle作为可选署名保留角色和来源。用户进一步确认首版含尚未确认身份时的号码补填/选择和已上架保留视频的身份纠正：后者由Arca独立Correction拥有，不借Aftercare改身份、不改旧入藏历史、不重复Commit。真实来源样本、旧误匹配/新旧预览、初次确认/锁定及Arca Correction的typed闭合只在唯一Phase维护，证据见[来源核验](implementation/evidence/JAV_SOURCE_READINESS_20261013.md)。
 
 | 顺序 | 目标 | 门禁 |
 | --- | --- | --- |
-| 节点1 / 本地已实现；资格收尾 | 按番号类型的JAV资料来源、身份/封面合同与fixture | 单站资格与范围已确认；typed identity/selection、初次确认/番号锁定、已入藏Correction、匿名Handle、来源预算、派生Artifact及真实来源矩阵Ready |
-| 节点2 / 已实现；UI待接受 | 公开来源至各类型正式身份、资料与图片 | 各类型正式Host的Handoff A、原生Fact/Artifact、单站失败换站/人工恢复/重放证据；适用UI验收 |
-| 节点3 / 本地链路已实现；整合复验中 | 三类媒体加工与完整上架 | Direct/Remux/Transcode 真实隔离链；Arca 独立验收、落位、结算及唯一 Commit |
-| 节点4 / 恢复已实现；验证收尾 | 收藏维护、退出与用户入口 | JAV健康/资料维修、保留视频身份纠正、重复审阅、授权退出/注销；感知Owner连续性及正常/异常交互 |
-| 节点5 / 进行中 | Movie/Series 回归与 JAV 发布资格 | Windows/Linux、真实 Provider/媒体、精确版本 UI、完整副本及候选数据回退，未测边界声明 |
+| 节点1 / 首版已实现并发布 | 按番号类型的JAV资料来源、身份/封面合同与fixture | 单站资格与范围已确认；typed identity/selection、初次确认/番号锁定、已入藏Correction、匿名Handle、来源预算、派生Artifact及真实来源矩阵Ready |
+| 节点2 / 已实现；适用UI已接受 | 公开来源至各类型正式身份、资料与图片 | 各类型正式Host的Handoff A、原生Fact/Artifact、单站失败换站/人工恢复/重放证据；适用UI验收 |
+| 节点3 / 链路及本轮发布资格完成 | 三类媒体加工与完整上架 | Direct/Remux/Transcode 真实隔离链；Arca 独立验收、落位、结算及唯一 Commit |
+| 节点4 / 恢复及适用UI已验证 | 收藏维护、退出与用户入口 | JAV健康/资料维修、保留视频身份纠正、重复审阅、授权退出/注销；感知Owner连续性及正常/异常交互 |
+| 节点5 / 已标准发布；待用户使用验收 | Movie/Series 回归与 JAV 发布资格 | Windows/Linux、真实 Provider/媒体、精确版本 UI、完整副本及候选数据回退，未测边界声明 |
 
 每节点分别记录实现、业务/技术验证和适用 UI 结论；跨层且涉及 UI 的改动由用户任命的 UI 负责人审核具体版本，纯 UI 层按 Playbook §11.1/§12.3由实施任务核验。不能集中到末尾或继承已变化页面的旧 PASS。开发工作及缺口用 Phase 内有名工作项管理，不分配开发 UAT 编号。
 
@@ -99,7 +99,7 @@ JAV 沿用 Procurement → Libra → Arca 及现有 Platform/Foundation；不新
 
 当前统一工作区 `E:/my_project/emby_third_party-helix`、本轮开发分支 `codex/jav-release-preparation`（从原`main`既有JAV工作区变更建立）；工程整合与旧工作区恢复见[2026-10-08 Evidence](implementation/evidence/GIT_WORKSPACE_CONSOLIDATION_20261008.md)。UAT-267原工作区退役不等于问题关闭；保留用户修改、archive refs及必要恢复资料。
 
-当前授权为先更新JAV合同/计划与真实来源验证，达到相依工作项Ready后进入本地开发，无需重复请求已确认范围。新增Canonical Correction的首版范围已确认，其typed状态/事务/Effect/恢复仍须先闭合；独立准备不因其工程门禁停止。本次不包含生产动作。此前 Series 本地快速迭代和精确生产操作授权保留其历史范围，不能推广为任意 NAS 操作。
+用户2026-10-15明确授权另开聊天排查修复、合并后升级演练、演练通过则标准部署；另明确授权discarded旧记录的精确清理和一次NAS完整副本演练。本轮已按这些范围执行并验证恢复运行，不扩大为后续任意NAS Reset、媒体处置或历史改写。下一步承接实际使用反馈，正式Phase Exit按Playbook记录；既有UAT逐项验收，不以本轮部署批量关闭。
 
 未完成 Formation 不享有跨迭代兼容权利；除用户明确指定精确条目外，不加 migration、dual-read/write、fallback、resume 或 repair。需要 Reset 时使用既有正式工具及对应授权；不得通过 Reset 掩盖新条目仍复现的缺陷。已完成历史保护遵守现行合同。
 

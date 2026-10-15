@@ -80,3 +80,7 @@ Acceptance Recovery/Outbox仍不适用这项证明，上一节关于其精确范
 独立冻结并加载构建产物JS `index-CQ6ZHoan.js` SHA256 `c5bbbc11714fadb01f2be4ea3a77ab46b3211358b65f0d99e7462f6cbb869d15`、CSS `index-BYV0LKeb.css` SHA256 `82cb8561be6544293d0f6850171d0df02a9a97e53bf60a075ec262ede15df4e2`。复用062实际镜像投影器产出的相同failed Event过程数据（对应后端源码无diff），只读受控列表DTO，在1920×1080和390×844均通过：失败状态/原短中文原因可见，未知原因兜底消失；没有P4码、英文内部message直出，没有新增重试/继续命令，两尺寸dialog无横向溢出。窄屏截图已目检。其余未变化范围继续沿用原1q的26/8接受，无需整组重跑。
 
 独立证据目录`E:/my_project/helix-git-consolidation-20261008/jav-ui-review-f27035945d-20261015/`，`observation-failure-final.log`为2通过/0失败，SHA256 `e5945f75857f2d4b7552fdf57328d72235f73f3dc925eb27018ece2ff38e10a2`；补充脚本SHA256 `e88e2aeea5666bcba5018bf301e31c785349ecaa085a9383b662ca70fa3cad3f`。任务浏览器与端口已关闭，未改产品或生产。此接受绑定commit/所测bundle；最终镜像字节绑定、原生媒体、整合及生产完整副本/回退仍由主任务记录，不将尚未完成的镜像构建称为已验收。
+
+## 本轮修复已随037592bef4发布（2026-10-15）
+
+用户授权的另开诊断→合并→完整副本演练→标准生产部署已完成。生产11:46:57Z正常供给、无执行基座fault，观察11条新Libra成功；旧未完成6 Subjects及获单独授权discarded记录由标准精确Reset处理，不恢复旧失败Attempt。当前204表已包含Libra完整候选Evidence Store，Foundation结果上限仍64KiB、引用4KiB；20旧Arca settlement Journal及Event/Attempt在副本保持，生产Journal摘要继续保持，只读fulfilled_by_successor证明不改历史、不第二次delete。实际生产首次大搜索尚未自然触发，Evidence表0，不以普通新执行冒充该特定live case验收；原空间等待按既有容量合同。完整日志、授权范围、资产/Owner接受、快照/伴随身份保护、实际升级和回退限制见[JAV发布证据](JAV_RELEASE_COPY_20261015.md#生产发布037592bef4完成2026-10-15)。不批量关闭旧UAT。

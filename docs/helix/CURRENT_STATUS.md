@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-2026-10-15 当前发布候选已更新为 markmahoro/shelfdeck:062c0ba7a1（source 062c0ba7a17e8ff5e03d478a685968e0bdc929d1），合入生产搜索结果超限停滞修复及严格历史 fulfilled_by_successor 证明；机器合同为121/104/204/51。实际最终镜像Linux选择场景20 pass，Windows独立Service包与Service回归642 pass/29既有skip/0 fail通过。完整3.17GB冷副本的精确Reset、200→204复制及未使用副本回退检查已通过；本机完整Host因真实NAS Aftercare挂载身份不匹配拒绝启动，不记PASS。用户随后明确允许一次NAS完整副本演练，当前独立副本正在准备，原data/媒体/Workspace只读、network none，原生产容器保持；标准镜像上传与远端checksum已完成，尚未生产Reset/部署。用户另明确授权仅清理罪恶之城既有discarded记录的精确范围，执行前仍复核scope。最终失败Projection的适用UI复核及完整Host正常供给资格待收取，通过后继续已授权标准部署。以下较早推进记录是历史快照，不能覆盖本段当前授权及状态。
+2026-10-15 JAV首版已完成本轮发布资格并标准部署生产：markmahoro/shelfdeck:037592bef4，source 037592bef4441ceda87b3270f6e70cb7857da3a7。11:46:57 UTC复核mode=running、normalSupplyAllowed=true、faulted=false；556条原收藏和原入藏Receipt保持，已观察11条新Libra执行成功。机器合同121/104/204/51、147 routes。完整生产副本200→204/199旧表逐行保护、真实完整Host正常供给/33协调器推进、停止及使用后回退拒绝通过；生产按授权清理6个未结束Subject与精确discarded旧记录，86表范围外保护及49个伴随文件物理身份保持。最终UI变更经负责人宽/窄两项接受，其余继承原接受；Web186、Service642 pass/29既有skip与Linux20条业务的精确backend字节继承范围明确，最终实际镜像Native/API/源码/资产及Windows独立Service包复核通过。生产五挂载/QSV、fnOS及13个无关容器保持。具体原始失败/观察超时、Annex、备份及回退限制见现有JAV_RELEASE_COPY Evidence；不追认为每站长期可用、整季生产E2E或Electron资格，不批量关闭既有UAT。以下较早段落为历史快照，不覆盖当前授权与事实。
 
 2026-10-15 用户明确授权三步推进：另开聊天排查生产任务长期停滞并修复，合并修复后用生产完整副本演练升级/回退，演练通过后标准部署生产。诊断聊天01a13ebb-f373-7670-a207-64797e8c7c31已建立；主聊天统一控制安全停机、备份、精确清场及发布，诊断期间保持生产只读。必要生产停机/标准部署不再以旧“未授权”文字阻塞；Reset仍需冻结可审查范围并通过原保护门禁，不能清掉未决非pure Effects或已入藏事实。
 
@@ -464,6 +464,10 @@
 
 ## 最近已记录生产身份
 
+2026-10-15已标准发布037592bef4并恢复正常运行，source 037592bef4441ceda87b3270f6e70cb7857da3a7，NAS image config sha256:449e85683e9d9ce10260873baf5bcbf1222f45c234535eb06c9a08bd1b42608c，tar SHA256 9450561ed6b9394e84cdb0baf43f1cda379ed6aebc7d89fd2b4e3121f418543f。556原收藏/Receipt及历史Journal保护，具体资格与备份/回退边界见[JAV发布证据](implementation/evidence/JAV_RELEASE_COPY_20261015.md)。
+
+### 2026-09-30生产版本（历史）
+
 标准apply已切换 `helix-beta-20260930-8e197b3c36`，git `8e197b3c3685d21d87c581bae1016ed70896e2c3`，tar SHA256 `c6b84d0de15b92a38a5ecbe58003f2dc2fdafb2f42c41d66408f3b16e3711d02`，Image ID `sha256:168be0bb2101b79424f7f978c32d3724852eb5267b2234a4c981c22fe075ac2b`。243架构文件及完整检查、Windows相关138项、最终Linux165通过/1canary跳过；最新完整副本候选及同库旧镜像回退均完整启动、正常调度、关闭且保护十一类历史事实。生产health/normalSupplyAllowed、Admin、挂载/QSV/Secret及十一类发布前事实保护通过。16:45:49 CST《网诱惊魂》原Run自动完成封装、输出验证、来源处置及唯一On-deck Commit，页面“已进入收藏架”，Shelf Entry active、Inventory/Deck Fact revision1；UAT-281关闭。见[UAT-281证据](implementation/evidence/UAT-281_REMUX_PROBE_RETRY_CONVERGENCE_20260930.md)。全量Service/Desktop/全库整理E2E未执行，没有UI修改、Reset或直接SQL改写。本次整合仅核对既有证据，未查询生产实时状态。
 
 ### 前一生产版本（历史）
@@ -485,7 +489,7 @@
 - 现有 UAT 逐项状态见[总表](UAT_ITERATION_REGISTER.md)。已部署、待实际影片或完整业务验收的项继续开放；历史待核实记录不能直接视为当前缺陷。
 - 2026-09-29 “检查整体运行状态”聊天只读检查报告：health/Admin 200、无容器重启/OOM，转码仍推进，最近一小时14次成功无新增失败；321上架，保管检查正常。标准符合性63项及呈现5项降级可能重叠，未逐项核验，不据此宣称全部收藏健康。
 - 同次检查保留三项风险：《侏罗纪公园2》记录94.4%但输出增长；73次监听器超限警告；系统盘85%/约28GB可用。关联 UAT-127/170/212、125/152、262。2026-09-30工程副本清理后系统盘60%/约70GiB可用，原85%为空间历史快照；进度与监听器风险本轮未修复。
-- 已上架瑕疵条目不追溯重加工、不撤销上架、不因新接纳标准触发历史瑕疵修复。未完成 Formation 条目仍按 Playbook 的精确授权及 clean-cut 纪律处理，当前没有新增 Reset 授权。
+- 已上架瑕疵条目不追溯重加工、不撤销上架、不因新接纳标准触发历史瑕疵修复。未完成 Formation 条目仍按 Playbook 的精确授权及 clean-cut 纪律处理，本轮新增Reset授权及实际范围以顶部2026-10-15记录为准，不扩大为其他条目或后续任意Reset。
 
 ## 当前开发与归档
 

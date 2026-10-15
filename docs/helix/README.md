@@ -1,6 +1,6 @@
 # ShelfDeck / Helix 文档索引
 
-更新：2026-10-15。唯一活动Phase为JAV发布验证与生产部署准备。最终候选062c0ba7a1已合入生产停滞修复并完成实际镜像/Windows包/Service回归；完整副本离线升级及未使用回退检查通过，本机完整Host的NAS挂载身份冲突保持为真实失败。用户现已明确允许一次NAS隔离完整副本演练，正在准备；原生产仍0dbd762d2，尚未生产Reset或部署。用户三步推进及精确旧discarded记录清理授权已取得；完整Host正常供给与最终适用UI复核通过后标准部署。详见CURRENT_PLAN/CURRENT_STATUS/CURRENT_PHASE及既有Evidence。
+更新：2026-10-15。JAV首版已通过本轮发布资格，标准部署生产037592bef4并恢复正常供给；556条原收藏、入藏Receipt与历史保护通过，已观察新Libra执行成功。完整副本升级/正常Host/受保护回退、Linux/Windows Service及具体版本UI证据见既有JAV_RELEASE_COPY等记录。唯一活动Phase现为本轮发布与用户验收承接；不以部署替代用户验收、Phase正式Exit或既有UAT关闭。原NAS常规临时Linux项保留user skip，仅本次完整副本例外经明确授权执行。
 
 ## 权威与当前入口
 
