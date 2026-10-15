@@ -112,3 +112,9 @@ Source commit 455873b3776d434b0fc561bcaf30ebb31b2ae8fb；标准scripts/build-ima
 当前Windows独立Service包用自带node.exe验证203表/147route、六Admin GET、Native依赖与require cache全包内、2318 src及明确分发的七runtime scripts匹配；包路径记录windows-candidate-package-location-455873b377.json。另在该包实际执行256MiB备份/恢复/篡改拒绝，peak RSS120628KiB，无整文件read；日志windows-packaged-backup-memory-455873b377-20261015.log。未开发Desktop。
 
 标准deploy-nas.js仅本地生成该tar/checksum对应dry-run计划，没有远程执行、上传或apply。生产只读仍6 active Libra/4 running Work/20 reconcile_required Effect；20项均是failed Work下的arca.ondeck.input_settlement.delete@1，不能靠清6条Run或直接改journal解除。原生产0dbd762d2未改变。完整生产一致副本/实际规模升级与回退资格仍未通过。下一步精确冷备份窗口及边界记于唯一CURRENT_PHASE：只停原容器、备份完整data/私密配置、原样重启；未经用户明确授权不执行，且不包含Reset、改旧责任、删媒体或部署新版。
+
+## 冷备份传输路径的本机演练（2026-10-15）
+
+在最终不可变镜像的本机一次性容器内产生256MiB已知字节与独立SHA256，正常SIGTERM写checkpoint并退出0；停止态通过docker cp stdout流式导出tar，落盘同时完整hash/统计长度。另一个network none/只读归档挂载容器严格检查四个归档成员，提取到自身临时目录，独立核验媒体字节/长度及clean checkpoint。随后原容器以同一ID/image重启，读取原持久文件及checkpoint，再正常停止；任务容器已删除，私有本地证据保留。该演练不用tmpfs保存待备份源（停容器会失去tmpfs），不接入生产、用户媒体或NAS临时测试环境。
+
+实际导出268439552 bytes，SHA256 357eee9bfa081ef5ac66ae6447608c53988480d8d15838063d6c74af0c6c6062；128MiB Node heap下本机流式采集进程peak RSS55744KiB。日志及可复演工具为ignored cold-backup-stream-rehearsal-20261015.log / rehearse-cold-backup-stream.js。此项补强正常停机/停止态传输/独立校验/同容器重启操作路径，不证明真实NAS传输吞吐、旧服务checkpoint或3.17GB完整生产副本已验证。实际生产停机备份仍等待精确授权，候选代码/镜像不变。
