@@ -207,3 +207,16 @@ Windows Node25默认zh-CN的首次完整读取报P6_PERCEPTION_RECORD_DIGEST_MIS
 最终局部候选source2f9560bcb：标准build-image.js本机构建tar562221568 bytes，SHA256 ac797372cc19715a241f3b25217154127df0161175199890cc0485f6e76204f2；本机Linux精确镜像Perception/Aftercare/挂载相关57项通过。从任务自建local fixture进程的/tmp/shelfdeck.db只读复制至最终--rm容器独立/tmp，未访问或编辑Docker Overlay私有文件；候选代码来自最终镜像，旧Aftercare及Perception模块来自冻结505源，query driver为同一只读公开Owner查询组合。old/new/new/old：最近87/50/50/77ms、筛选726/398/411/655ms、overview560/292/294/604ms，12份完整结果digest保持一致，SQL及读取正文数同前。任务fixture容器已停止，不阻塞前台开发服务器。
 
 发布仍未执行：完整Host缺同一群晖共享Linux登录配置，不能把只读查询结果或既有mock浏览器加载测试冒充完整Host/实际前端1秒验收。按用户要求后续所有修复演练留本机，不再用NAS副本测试替代。待补配置并完成本机完整Host/升级/回退，再标准上传/dry run/apply和真实生产点击到内容测量。原版生产已恢复，两个目标页面的原性能问题仍在，UAT-318不关闭。
+
+
+## 2026-10-16 dc7dcddbaf已部署，首开及静态传输仍开放
+
+用户明确跳过本轮NAS完整副本Host演练并要求升级；按标准入口发布dc7dcddbaf（source dc7dcddbaf6714d56aaa453610f862914863578f，NAS config92e98da866...，tar SHA25681cd04d16a46e515d9a1aaaf9286881d3d7ac148a841f4a812a6492baf247113）。Perception候选筛选及Foundation终态历史过滤已实际部署；相关输出等价、双平台及精确镜像证据继承上述已有记录，不把上线当作UI性能问题关闭。
+
+实际冷启动：18:07:57.255容器启动、18:12:40.061才listening，约4m43s。Resume于18:12:55.684受理、18:18:41.823完成，5m46.139s；POST在25秒超时，独立SSH核对同一持久receipt442b9781...，没有重复请求。不同数据/负载/缓存下的时长不与旧版8m51s作因果A/B；Startup Recovery、Work Admission及Metadata等此前残余仍需独立定位。生产最终health/running/normalSupplyAllowed通过、faulted=false、RestartCount0，但尚有正常未完恢复与转码，不代表空载或完整收尾。
+
+首轮探针误用无分页的/care和/collection，各返回560项；其中已保存一轮health1023ms、formation1557ms、care5170ms、collection10743ms。这不是当前UI25/48项路径，不用于页面SLO对比。三轮未增量保存的探针最终超时；该次失败保留，不补造已丢失的各请求耗时。随后按web/src/helix/api.ts及实际页面参数纠正，UTC18:22:43一轮：health1436ms，formation?section=active&limit=25为1336ms/12项，care?view=work&limit=25为1193ms/25项，collection?status=current&sort=recent&limit=48为1399ms/48项。仅为正常供给/真实转码期间单轮API样本，未验证浏览器首次绘制、海报和1秒SLO，也非与quiescing同负载对照。
+
+新增明确失败证据：HTTP GET /admin可取得正确新index，但前端大JS请求多次超过15/45秒客户端预算；独立NAS本机curl到127.0.0.1:18080/assets/index-Kbt-DVCt.js，同样在20秒超时，HTTP200只取得131072 bytes，time_starttransfer13.645239s、总20.000548s。这说明不能只归因为Windows客户端或外部LAN/代理；支持后台负载下HTTP响应流推进缓慢的排查方向，尚未定位完整根因，不凭该现象推断唯一独占代码。实际容器文件JS/CSS hash与UI负责人接受版相同，只证明资产版本，不构成HTTP完整传输或首开通过。未加静态缓存/调度绕过来隐去残余。UAT-318保持开放。
+
+私有原始材料：既有.codex/libra-production-upgrade-20261016/release-production-verified.json、release-resume-durable.json、release-live-api-partial.json、release-live-api-paged-partial.json、release-served-container-asset-sha.txt、各probe脚本/运行失败记录；不提交生产数据/凭据。本轮未做Electron或整季媒体E2E，NAS完整Host演练skip不改写PASS。

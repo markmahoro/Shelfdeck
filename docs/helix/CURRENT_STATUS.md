@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-16 已按用户最新“跳过NAS演练 升级吧”完成生产标准部署：`markmahoro/shelfdeck:dc7dcddbaf`（source `dc7dcddbaf6714d56aaa453610f862914863578f`）。UTC18:25复核health ok、mode/desiredMode running、normalSupplyAllowed=true、faulted=false、RestartCount0；`/adult`与原`/adult_media`绑定同一宿主目录，QSV/13无关容器/fnOS保持。完整备份及204→210/203旧表2,236,865行逐行保护通过，560原收藏、原Commit、两季精确Run/Workspace保持，54伴随文件与data目录物理身份保持，无Reset/删媒体。二号5席/占1，3来源已有公平记录。新鲜NAS完整Host演练按用户明确决定跳过，非PASS。UAT-318/UAT-320仍开放：两季尚等待资源，首开/静态大文件传输仍超时；不宣称完整媒体E2E或1秒SLO。详见既有双车间公平与UAT-318 Evidence。
+
 2026-10-16 原聊天合并候选已冻结为`markmahoro/shelfdeck:dc7dcddbaf`（source dc7dcddbaf6714d56aaa453610f862914863578f），标准build/upload/SHA通过；含已接受UI的双车间/公平、UAT-318两批性能修复及`/adult`部署绑定。最终镜像Foundation68及本机临时介质Host2、Windows Service645 pass/29既有skip通过，2356份运行源码与冻结UI资产逐文件匹配。用户明确暂不NAS完整副本演练，真实Scope完整Host资格未完成，未部署/未应用adult新挂载；生产保持037。UTC10-15 17:15:51（北京时间10-16 01:15:51）复核原版本已恢复running/normalSupplyAllowed=true/faulted=false，health ok；容器ID/StartedAt/镜像保持、RestartCount0，S02/S03原Subject/Run仍active等待转码。没有停止/重建容器、迁移、Reset或本次NAS副本Host。细节见既有[双车间审查Evidence](implementation/evidence/LIBRA_WORKSHOP_FAIRNESS_INTERFACE_AUDIT_20261015.md)及UAT-318。
 
 2026-10-16 LIBRA 双车间/来源公平本地实现验证中：Service645 pass/29既有skip、Web190、宽窄UI4、Linux核心36及真实二号Host1通过，Windows实际二号恢复/三来源长转码各1通过。结构为210表/149 routes；3.13GB历史204副本203表逐行保护及未使用回退校验通过，但缺受保护S02/S03，不能替代新鲜生产副本。最终Windows组合Host2/2、独立Service包与Linux受影响范围已复核；实现1f36d9ed8已获UI负责人8项独立浏览器检查接受；新鲜副本资格仍开放，已交付原聊天，未部署。详见 CURRENT_PHASE 与对应审查Evidence。

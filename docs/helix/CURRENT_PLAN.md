@@ -1,6 +1,8 @@
 # ShelfDeck 当前计划
 
-2026-10-16 发布顺序更新：dc7dcddbaf组合候选已构建/上传/校验、具体版本UI接受及受影响回归完成；用户暂不NAS完整副本演练，同物理Scope的新鲜完整Host资格仍开放，因此本轮未部署，adult绑定随正式升级生效。原037经公开Stop/Resume恢复正常供给，容器未重建；已有条件式部署授权保留，不以历史副本/临时介质测试替代本轮发布条件。准确资格与剩余事项见唯一CURRENT_PHASE及既有Evidence。
+2026-10-16 已按用户最新“跳过NAS演练 升级吧”完成生产标准部署：`markmahoro/shelfdeck:dc7dcddbaf`（source `dc7dcddbaf6714d56aaa453610f862914863578f`）。UTC18:25复核health ok、mode/desiredMode running、normalSupplyAllowed=true、faulted=false、RestartCount0；`/adult`与原`/adult_media`绑定同一宿主目录，QSV/13无关容器/fnOS保持。完整备份及204→210/203旧表2,236,865行逐行保护通过，560原收藏、原Commit、两季精确Run/Workspace保持，54伴随文件与data目录物理身份保持，无Reset/删媒体。二号5席/占1，3来源已有公平记录。新鲜NAS完整Host演练按用户明确决定跳过，非PASS。UAT-318/UAT-320仍开放：两季尚等待资源，首开/静态大文件传输仍超时；不宣称完整媒体E2E或1秒SLO。详见既有双车间公平与UAT-318 Evidence。
+
+历史暂停快照（已被顶部新授权及实际部署覆盖）：dc7dcddbaf组合候选已构建/上传/校验、具体版本UI接受及受影响回归完成；用户暂不NAS完整副本演练，同物理Scope的新鲜完整Host资格仍开放，因此本轮未部署，adult绑定随正式升级生效。原037经公开Stop/Resume恢复正常供给，容器未重建；已有条件式部署授权保留，不以历史副本/临时介质测试替代本轮发布条件。准确资格与剩余事项见唯一CURRENT_PHASE及既有Evidence。
 
 ## Libra 双车间与来源公平（2026-10-15 开发承接）
 

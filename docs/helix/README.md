@@ -1,5 +1,9 @@
 # ShelfDeck / Helix 文档索引
 
+2026-10-16 当前生产已标准部署dc7dcddbaf（Libra二号暂存/来源公平、UAT-318查询优化及UAT-320展示修复、/adult别名）。560原收藏/两季原Run及Workspace保持，UTC18:25 health/running/normalSupplyAllowed通过。用户明确跳过本轮NAS完整Host演练；完整备份/203表逐行保护与标准readiness不冒充该项PASS。首开大文件传输超时及整季交付仍开放，生产身份以CURRENT_STATUS和对应Evidence为准。
+
+以下较早快照保留为历史。
+
 更新：2026-10-15。JAV首版已通过本轮发布资格，标准部署生产037592bef4并恢复正常供给；556条原收藏、入藏Receipt与历史保护通过，已观察新Libra执行成功。完整副本升级/正常Host/受保护回退、Linux/Windows Service及具体版本UI证据见既有JAV_RELEASE_COPY等记录。唯一活动Phase现为本轮发布与用户验收承接；不以部署替代用户验收、Phase正式Exit或既有UAT关闭。原NAS常规临时Linux项保留user skip，仅本次完整副本例外经明确授权执行。
 
 ## 权威与当前入口

@@ -111,3 +111,30 @@ Foundation `execution-summary-reader.js` 不含来源或公平业务。分页/�
 最终实际dc镜像补充本机Linux真实Host组合2/2通过，约216秒：二号满背压、原Run就地解决、重启恢复、0与恢复容量；三来源不均匀Run数、阻塞Capability、真实长转码期间其他来源交付，最终四次唯一Commit及单次转码Attempt。首轮我方用768MiB的`/tmp`，低于现有Workspace `1.2×input + 5GiB`预留，故正确停在Workspace admission、等待交付超时；该失败保留。随后改用空间足够的本机Docker native临时卷，产品代码和门禁不变，组合通过；容器退出且精确label核验后的任务卷已删除。此项是新临时介质的业务回归，未改写为新鲜生产副本或真实CIFS连续性。
 
 原供给已恢复：UTC17:15:51公开API复核health ok、mode/desiredMode均running、normalSupplyAllowed=true、faulted=false；原container ID/Image/StartedAt保持、RestartCount0，S02/S03精确两Run仍active等待转码。Stop/Resume Receipt及响应超时后的同Receipt核对见UAT-318；没有重复提交恢复，没有停止/重建生产容器或启动NAS演练。候选仍待真实Scope完整副本资格，部署未发生。
+
+
+## 2026-10-16 用户明确跳过NAS演练，执行本轮升级
+
+用户最新指令“跳过NAS演练 升级吧”覆盖此前暂停发布决定：新鲜生产副本完整Host资格记为用户明确跳过，不记PASS；按标准build/upload/checksum/dry-run/apply入口继续。完整备份、精确204→210复制、203旧表逐行保护、物理Scope保护和上线复核保留，不执行Reset、不删除媒体。
+
+候选依然为dc7dcddbaf，source dc7dcddbaf6714d56aaa453610f862914863578f，tar SHA256 `81cd04d16a46e515d9a1aaaf9286881d3d7ac148a841f4a812a6492baf247113`。本机Docker返回的`54de07e6311167d619113d59970fbccf151b765158f12f597f035682ac0d387a`是OCI index，不能称为classic config ID；tar内linux/amd64 manifest为`70e184439bd6d404cc22e6c68b42ca63e8871b41c6c5729032c8f09ba2886173`，config为`92e98da866a7f3e69e7051dced22c512622dd06a4004da0617623e47893482ef`。加载NAS后，按tar原始JSON重算以上digest，全部RootFS diff IDs和编码Config字段与NAS inspect一致；inspect额外字段仅Entrypoint/OnBuild null及User空串。先前错误地以index比较NAS classic ID被assert拦下，未进行数据切换；不是另一个未验镜像。继承FFmpeg OCI revision仍不作为ShelfDeck版本证明。
+
+公开Stop于UTC17:35:03.611受理，receipt `4a4c23cb67ad4440bbec1c12d974059cb263acc5caba6982cbae2b423a5451ec`。关闭新供给后仍有《疾速追杀2》转码（5.4%、估计尚需数小时），因此使用既有UAT-304标准75秒SIGTERM/60秒checkpoint机制结束进程。UTC17:38:58.209原容器退出1、OOMfalse，日志明确P4_SHUTDOWN_CHECKPOINT_TIMEOUT；保持未决Effect用于正式恢复，不伪称自然安全收口或媒体完成。原容器未删除，后续标准deploy才重建。
+
+完整备份目录`/vol1/1000/docker/shelfdeck/backups/libra-production-upgrade-20261015T173456`，58文件，aggregate `33a662c7ef03f78865931ebaeb66d1bcfa05f02bfcad71da22fefd3e336a3e24`，DB 3,287,502,848 bytes/SHA256 `2b404d21164852f4d0f8cbeecae14f25b0e91741fe1a51d1d918236e6ad66c7d`；包括SQLite辅助文件、原compose与secret备份。当前560条原收藏、S02/S03原Subject/Run已冻结，全部现有责任保持，无数据清理。私有原始证据位于既有`.codex/libra-production-upgrade-20261016/release-*`。切换工具沿用之前只换DB/marker的实现，冻结新210/203门禁；本地验证成功/注入中途rename失败全部逆向恢复/错误schema拒绝3项。
+
+
+本轮实际生产准备已通过：204→210复制保留203表/2,236,865行，逐表row digest一致，S02/S03原Subject与Run完整行相同，unused rollback eligible、原完整备份aggregate保持；`release-final-schema-preparation.json`记录所有表的row digest。先前离线包装缺少镜像内未打包的readiness snapshot helper（MODULE_NOT_FOUND，发生在创建source/candidate之前），改为沿用标准deploy的源码stdin注入方式；没有改镜像、Schema Operator或放宽校验。离线检查较慢期间只调整该helper上限（先2 CPU/2 GiB，确认NAS MemAvailable约5.3 GiB后4 GiB），未调整产品调度或其他容器。
+
+只替换DB和runtime marker已完成，54伴随文件inode/大小/mtime/ctime及data目录dev/inode保持，原DB/WAL/SHM/marker归档于同一备份目录`source-before-upgrade/`。标准deploy --apply已通过checksum、Compose及readiness，重建目标容器；StartedAt UTC2026-10-15T18:07:57.255219968Z、实际config92e98da866...，镜像代码2356文件及UI资产继承此前相同归档。此时完整服务健康和公开Resume仍在等待，不提前认定生产正常。
+
+
+### 本轮生产上线复核（UTC2026-10-15 18:25 / 本地10-16 02:25）
+
+标准deploy完成，container `c9166cb100d36e3583df5a248d8ecd658bbfbca06a21f5768aa6ca4957da1098`，config `92e98da866a7f3e69e7051dced22c512622dd06a4004da0617623e47893482ef`、tag dc7dcddbaf、StartedAt 18:07:57.255219968。18:12:40.061 listening（约4m43s）；公开Resume receipt `442b9781b6677c7d418f3fdf34032d5db835eab0a872f7b5bf2739f0f7bc4131` 于18:12:55.684持久受理，HTTP超时后只核对同receipt，未重复提交；18:18:41.823完成（5m46.139s）。18:25:27公开API复核mode/desiredMode running、normalSupplyAllowed=true、faulted=false、error=null，RestartCount0/OOMfalse。还有1 recovery及1 deferred recovery属于未完执行，不宣称全部历史加工/交付已完成。实际FFmpeg进程已运行，不据此宣布某影片Commit。
+
+实际新容器的6个data/media/workspace挂载与QSV保持，`/adult`和`/adult_media`均来自`/vol02/1000-0-24018892`，stat dev:ino相同。13无关容器ID/Image/StartedAt/RestartCount/running与发布前相同，fnOS200，根路径755和Secret600保持，/vol1剩余68GiB。实容器JS/CSS分别SHA256 `484017837528e53f778648c4b37f05620f97c516901ba32fc72c87112e92584f` / `82cb8561be6544293d0f6850171d0df02a9a97e53bf60a075ec262ede15df4e2`，与已接受UI字节一致；HTTP大资产传输仍超时，不能把文件hash视为首开体验通过。
+
+运行后只读对比：全部560原Shelf Entry ID保持，560 On-deck Commit Receipt、560 Deck Fact Revision、66 Aftercare Inventory Commit原行全部存在；两季原Run稳定执行Basis/Scope、Subject静态身份和2个Workspace根/Scope身份保持。二号公开API为5席/held1/free4；只读观察3来源/6Run/490fairness记录、1secondary placement。此短窗口仅证明功能已激活，不替代持续均匀推进与完整用户验收。UAT-320两季仍active等待处理资源，未整季完成。
+
+完整NAS副本Host按最新用户决定skip，未运行该Host，不伪记PASS；生产Host启动和公开运行状态是实际部署证据。完整离线备份、未用新库回退eligible和旧版本镜像保留；现在已有fairness/workshop及正常推进新事实，禁止用204原库覆盖。需要故障处理时保留当前210现场向前修复；任何基线回退仍必须先通过正式rollback-check，不能因有备份就忽略新事实。

@@ -1,18 +1,20 @@
 # 当前 Phase：JAV 首版发布与用户验收
 
-2026-10-16 发布承接：双车间/公平具体版本UI已接受，原聊天将性能修复及adult绑定整合为dc7dcddbaf候选并完成标准build/upload与源码/资产校验。用户选择暂不NAS完整副本演练；本机不能保留原CIFS/Workspace物理namespace，完整新鲜副本Host资格及生产发布暂缓，不以原历史结构副本或临时介质Host代替。生产保持037；安全停机收口后原供给已恢复，UTC17:15 health/running/normalSupplyAllowed通过、容器身份及两季原Run保持。UAT-318/UAT-320仍按各自Evidence开放，不因实现交付关闭。
+2026-10-16 已按用户最新“跳过NAS演练 升级吧”完成生产标准部署：`markmahoro/shelfdeck:dc7dcddbaf`（source `dc7dcddbaf6714d56aaa453610f862914863578f`）。UTC18:25复核health ok、mode/desiredMode running、normalSupplyAllowed=true、faulted=false、RestartCount0；`/adult`与原`/adult_media`绑定同一宿主目录，QSV/13无关容器/fnOS保持。完整备份及204→210/203旧表2,236,865行逐行保护通过，560原收藏、原Commit、两季精确Run/Workspace保持，54伴随文件与data目录物理身份保持，无Reset/删媒体。二号5席/占1，3来源已有公平记录。新鲜NAS完整Host演练按用户明确决定跳过，非PASS。UAT-318/UAT-320仍开放：两季尚等待资源，首开/静态大文件传输仍超时；不宣称完整媒体E2E或1秒SLO。详见既有双车间公平与UAT-318 Evidence。
+
+历史暂停快照（已被顶部新授权及实际部署覆盖）：双车间/公平具体版本UI已接受，原聊天将性能修复及adult绑定整合为dc7dcddbaf候选并完成标准build/upload与源码/资产校验。用户选择暂不NAS完整副本演练；本机不能保留原CIFS/Workspace物理namespace，完整新鲜副本Host资格及生产发布暂缓，不以原历史结构副本或临时介质Host代替。生产保持037；安全停机收口后原供给已恢复，UTC17:15 health/running/normalSupplyAllowed通过、容器身份及两季原Run保持。UAT-318/UAT-320仍按各自Evidence开放，不因实现交付关闭。
 
 2026-10-15 新合同已获用户确认：Series 按 Subject 整体转入二号；允许 Foundation 最小通用只读分页执行摘要。继续实现与资格验证；不修改 Foundation 调度/执行语义、不接管原聊天 Arca/Perception 性能路径。
 
 ## LIBRA-ATTENTION-WORKSHOP / LIBRA-SOURCE-FAIRNESS（2026-10-15）
 
-状态：本地实现与验证已完成本轮交付，具体实现1f36d9ed8的UI负责人审核8/8已接受；新鲜生产副本资格仍开放并由原聊天承接。两个目标分别验收，不以排序单测宣称生产用户目标通过。
+状态：已随dc7dcddbaf部署，具体实现1f36d9ed8的UI负责人8/8接受；新鲜生产结构副本/原行保护已完成，NAS完整Host演练用户明确跳过。生产二号5席/占1、3来源有公平记录；两个目标的持续用户体验仍各自验收，不以短观察替代长期均匀推进证明。
 
 源码核对及精确接口缺口见[审查 Evidence](evidence/LIBRA_WORKSHOP_FAIRNESS_INTERFACE_AUDIT_20261015.md)。
 
-2026-10-16 本地：Service 645 pass/29 既有 skip，Web190、宽窄 Playwright4、Linux核心36及真实二号Host1通过；Windows二号重启恢复1、三来源真实长转码1已分别通过。204→210结构Operator及3.13 GB/203表/2,138,297行完整结构副本通过，源字节不变；历史副本不含受保护S02/S03，不替代新鲜生产副本资格。机器合同121/104/210/51、149 routes。最终Windows Host组合2/2、独立Service包1及route/TMDB21复验通过；具体实现1f36d9ed8已获UI负责人8项独立浏览器检查接受；新鲜副本门禁保持开放，交付已回传原聊天，未部署。
+2026-10-16 本地：Service 645 pass/29 既有 skip，Web190、宽窄 Playwright4、Linux核心36及真实二号Host1通过；Windows二号重启恢复1、三来源真实长转码1已分别通过。204→210结构Operator及3.13 GB/203表/2,138,297行完整结构副本通过，源字节不变；历史副本不含受保护S02/S03，不替代新鲜生产副本资格。机器合同121/104/210/51、149 routes。最终Windows Host组合2/2、独立Service包1及route/TMDB21复验通过；具体实现1f36d9ed8已获UI负责人8项独立浏览器检查接受；上述为本地交付时点；当前生产已部署，完整Host演练skip与真实保护结果以顶部及Evidence最新记录为准。
 
-独立 UAT-320 readiness 修复已本地实现：后台68项、Web12项及受控宽/窄浏览器2项通过，构建通过；具体版本 UI 负责人审核已随1f36d9ed8完成，发布与上线验收仍开放。证据见既有 UAT-320 Evidence，独立修复原切片不等同双车间/公平验收。
+独立 UAT-320 readiness 修复已本地实现：后台68项、Web12项及受控宽/窄浏览器2项通过，构建通过；具体版本 UI 负责人审核已随1f36d9ed8完成，展示已随dc7dcddbaf发布，整季用户验收仍开放。证据见既有 UAT-320 Evidence，独立修复原切片不等同双车间/公平验收。
 
 - 已确认容量：全 Libra 二号共用默认 5 席，配置 0–32；0 只停止转入，缩容不驱逐；一号每来源原 0–8/默认3及 Procurement→Libra 门禁保持。用户解决后留在二号至 Handoff B 或合法责任终结，不回一号、不重新 Intake、不重复 Run；维护/Arca 席位独立。
 - 已确认公平：Libra 先按来源再按 Run；相同 priorityClass 内 localPriority/priorityRevision，保留用户加急、安全/交接/收口和 aging；新 Work、已排队 Event、资源等待队列均覆盖；阻塞跳过、恢复有限补偿、长执行开始交棒、不抢占；无变化轮询/提交/失败资源请求不记推进。
