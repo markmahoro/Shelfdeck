@@ -1,9 +1,11 @@
 # 当前 Phase：JAV 本地开发
 
+2026-10-15 用户明确授权三步推进：另开聊天排查生产任务长期停滞并修复，合并修复后用生产完整副本演练升级/回退，演练通过后标准部署生产。诊断聊天01a13ebb-f373-7670-a207-64797e8c7c31已建立；主聊天统一控制安全停机、备份、精确清场及发布，诊断期间保持生产只读。必要生产停机/标准部署不再以旧“未授权”文字阻塞；Reset仍需冻结可审查范围并通过原保护门禁，不能清掉未决非pure Effects或已入藏事实。
+
 2026-10-15 JAV-RELEASE-CANDIDATE：最终本地候选 markmahoro/shelfdeck:455873b377 已通过标准构建、导出及独立SHA256校验；实际该镜像Linux JAV核心6/终态恢复8/Movie3/Series3共20条选择场景全部通过。固定锁定依赖FFprobe解决HEVC色彩漏读；备份改为有界完整hash，镜像384MiB容器内P13六项通过。当前Windows独立Service包203表/147路由、包内Native/API及256MiB备份恢复/篡改拒绝通过。2318份Service源码及已接受1qAJmlnq UI字节一致，继承具体版本适用UI接受。P2 121/104/203/51与既有完整整合/精确计数复验的组合证据保持，不宣称重跑过一次全绿整合。剩余部署准备为生产完整一致副本、6 active Libra及20未决Arca settlement-delete Effects的明确收口与实际规模升级/回退资格；4 running Work仍须核验。NAS临时隔离Linux仍按用户决定skip，没有上传、部署、停服、Reset或改生产数据。下一步须先取得仅限原容器停机备份后原样重启的精确授权。详见现有JAV_RELEASE_COPY/JAV_CORRECTION_RECOVERY证据。
 
 
-### 下一步：生产一致副本窗口（待用户精确授权，尚未执行）
+### 下一步：生产一致副本窗口（用户三步流程已授权，待诊断现场收集后执行）
 
 用户提醒升级过程可复用既有安全停机与Reset：先用已上线安全停机命令关闭供给，等待mode=stopped、in-flight为0及后台收口；不能以直接docker stop/超时硬杀替代该证明。记下原desiredMode，备份后原镜像启动仍须按原Operational合同明确恢复运行，不假设容器重启会清除stopped意图。Reset先在完整本地副本内按冻结精确Subject范围预检/演练；实际生产Reset另以当次清单、后果与明确授权为准。只读现有工具确认六个active Run对应Subject逐项scoped plan均ready；默认用户Reset则因额外历史重叠及未决Effect拒绝。20项Arca未决Effect不因此可清除，不能扩大Reset或删除已入藏责任。
 

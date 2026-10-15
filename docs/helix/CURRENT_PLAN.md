@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-15 用户明确授权三步推进：另开聊天排查生产任务长期停滞并修复，合并修复后用生产完整副本演练升级/回退，演练通过后标准部署生产。诊断聊天01a13ebb-f373-7670-a207-64797e8c7c31已建立；主聊天统一控制安全停机、备份、精确清场及发布，诊断期间保持生产只读。必要生产停机/标准部署不再以旧“未授权”文字阻塞；Reset仍需冻结可审查范围并通过原保护门禁，不能清掉未决非pure Effects或已入藏事实。
+
 2026-10-15 JAV-RELEASE-CANDIDATE：最终本地候选 markmahoro/shelfdeck:455873b377 已通过标准构建、导出及独立SHA256校验；实际该镜像Linux JAV核心6/终态恢复8/Movie3/Series3共20条选择场景全部通过。固定锁定依赖FFprobe解决HEVC色彩漏读；备份改为有界完整hash，镜像384MiB容器内P13六项通过。当前Windows独立Service包203表/147路由、包内Native/API及256MiB备份恢复/篡改拒绝通过。2318份Service源码及已接受1qAJmlnq UI字节一致，继承具体版本适用UI接受。P2 121/104/203/51与既有完整整合/精确计数复验的组合证据保持，不宣称重跑过一次全绿整合。剩余部署准备为生产完整一致副本、6 active Libra及20未决Arca settlement-delete Effects的明确收口与实际规模升级/回退资格；4 running Work仍须核验。NAS临时隔离Linux仍按用户决定skip，没有上传、部署、停服、Reset或改生产数据。下一步须先取得仅限原容器停机备份后原样重启的精确授权。详见现有JAV_RELEASE_COPY/JAV_CORRECTION_RECOVERY证据。
 
 2026-10-15 JAV-WORKBENCH-RECOVERY：恢复Intent已原子保存完整Receipt/执行Snapshot/文件现场Observation并追加不可变历史；当前指针不覆盖旧证据。实际Host的Source失败恢复、资料已成功而NFO写入失败恢复均完成同一Correction及清理（2 pass），后一条验证站点选填资料变化不会重写冻结Source Result，原失败Work、视频与原On-deck保持。已接入有界只读现场Preparation；发布/提交后清理的终态恢复、producer temporary及反复恢复后取消、公开API/工作区继续动作和最终版本资格尚未闭合，不宣称恢复功能或生产部署就绪。详见既有JAV_CORRECTION_RECOVERY证据。
