@@ -10,6 +10,10 @@ UTC 2026-10-15 16:39（北京时间10-16 00:39），原037为新鲜备份准备�
 
 用户本轮明确选择暂不进行NAS完整副本演练；未启动该演练、不修改schema、不部署候选，也不将本机临时介质Host冒充真实CIFS/Workspace连续性。原037安全停机请求已受理，当前转码收口后由公开Resume恢复原供给；不重建生产容器。完整新鲜副本及正常供给下的页面验收继续开放。
 
+实际收口：Stop `d16931f6c70d4f8e5ae4184bd8640c969af32374d1218862f6e78356e8494412`于UTC17:03:57完成，in-flight四项为0；Resume `0c58c2946e15df0c44a8e1beb80fbec9a65f252201b369af5b9a0b05e9461a58`于17:04:01受理、17:12:52完成。HTTP响应及后续认证/读取曾超时，恢复跟踪脚本因认证超时退出；主聊天改用同一持久Receipt只读核对，没有重复提交恢复。17:15:51公开API独立确认health ok、running/desired running/normalSupplyAllowed=true、faulted=false，原容器ID/启动时间/镜像及RestartCount0保持，两季原Run均active等待转码。没有NAS副本演练、原容器停止/重建或Reset。
+
+恢复阶段另采13.12秒CPU并短暂核对调用栈；样本集中在Runtime start的recovery调用位置，另一时刻调用栈见Work Admission。不能将异步callsite样本全部等同于某条SQL；源码仍有Startup Recovery历史集合嵌套membership及Work Admission全历史读取，尚未逐项量化或修复。临时Inspector的首次延迟关闭未立即生效，后续独立确认`INSPECTOR_CLOSED`，不存在发布端口。此次约8分51秒的Resume及HTTP阻塞保留为318后续证据，不因最终恢复成功或候选局部提速而关闭。
+
 ## 2026-10-16 通用积压与资源历史读取修复
 
 在`1f36d9ed8`双车间/公平交付之上，Foundation供给统计复用Scheduler既有`select-in(state)`，只返回原规则的open Work、active Attempt及dispatchable Event；阈值、snapshot字段/digest、completion/reserved lane、Circuit和Event排空语义均保持。Resource Governor发Permit前释放等待记录改用已有`list_for_event`，容量释放扫描只返回`waiting`；保持同Event完整历史的需求漂移/退避校验、全体等待者占用预算、优先级及资源原子性。公平任务此前已将`persistSoftWait/persistDeferred`的同Event读取收窄，这部分不重复计为本次修复。没有增加来源策略、缓存、调度队列、schema/API或UI改动。

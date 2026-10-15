@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-16 发布顺序更新：dc7dcddbaf组合候选已构建/上传/校验、具体版本UI接受及受影响回归完成；用户暂不NAS完整副本演练，同物理Scope的新鲜完整Host资格仍开放，因此本轮未部署，adult绑定随正式升级生效。原037经公开Stop/Resume恢复正常供给，容器未重建；已有条件式部署授权保留，不以历史副本/临时介质测试替代本轮发布条件。准确资格与剩余事项见唯一CURRENT_PHASE及既有Evidence。
+
 ## Libra 双车间与来源公平（2026-10-15 开发承接）
 
 本聊天仅承接 LIBRA-ATTENTION-WORKSHOP 与 LIBRA-SOURCE-FAIRNESS 两个独立工作项；沿用本 Master Plan 与唯一 CURRENT_PHASE，不新增 UAT 或平行活动计划。保留每来源 Intake 席位和 Procurement 行为；二号全 Libra 共用，用户已确认默认 5、范围 0–32，0 停止新增转入、缩容不驱逐。需要处理的责任留在 Libra，原位恢复，不能以 release 冒充转区。来源公平由 Libra Owner 先来源后 Run，保留 normal/expedited、等待老化与安全收口；Foundation 通用执行理念保持。精确合同、接口资格、验收与未决项见 CURRENT_PHASE 对应工作项。共享 checkout 保留其他聊天的部署脚本及事故工作；本聊天不执行 NAS 部署/停机/Reset/媒体操作。 2026-10-16 本地实现、跨平台核心及真实Host验证已推进；具体实现1f36d9ed8已获UI负责人8项浏览器检查接受；包含受保护S02/S03的新鲜204副本资格仍开放，交付已回传原聊天，详见对应Evidence。

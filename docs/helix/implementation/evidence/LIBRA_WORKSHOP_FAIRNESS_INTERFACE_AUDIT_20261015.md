@@ -109,3 +109,5 @@ Foundation `execution-summary-reader.js` 不含来源或公平业务。分页/�
 用户明确回答“暂不进行 NAS 演练”。没有启动本次NAS临时Host、没有新鲜完整副本资格、没有切换schema或部署候选，`/adult`新绑定尚未生效。NAS生产仍原037；之前新鲜备份准备已由公开Stop关闭新增供给，等待封神已有转码收口后公开Resume原版本，不停止/重建容器、不Reset或处置媒体。旧一次NAS特许不复用，新候选不继承旧Host资格。具体现场、镜像、测试和运行控制Receipt保留ignored `.codex/libra-production-upgrade-20261016/`。
 
 最终实际dc镜像补充本机Linux真实Host组合2/2通过，约216秒：二号满背压、原Run就地解决、重启恢复、0与恢复容量；三来源不均匀Run数、阻塞Capability、真实长转码期间其他来源交付，最终四次唯一Commit及单次转码Attempt。首轮我方用768MiB的`/tmp`，低于现有Workspace `1.2×input + 5GiB`预留，故正确停在Workspace admission、等待交付超时；该失败保留。随后改用空间足够的本机Docker native临时卷，产品代码和门禁不变，组合通过；容器退出且精确label核验后的任务卷已删除。此项是新临时介质的业务回归，未改写为新鲜生产副本或真实CIFS连续性。
+
+原供给已恢复：UTC17:15:51公开API复核health ok、mode/desiredMode均running、normalSupplyAllowed=true、faulted=false；原container ID/Image/StartedAt保持、RestartCount0，S02/S03精确两Run仍active等待转码。Stop/Resume Receipt及响应超时后的同Receipt核对见UAT-318；没有重复提交恢复，没有停止/重建生产容器或启动NAS演练。候选仍待真实Scope完整副本资格，部署未发生。
