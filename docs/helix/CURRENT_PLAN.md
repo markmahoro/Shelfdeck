@@ -2,7 +2,7 @@
 
 ## Libra 双车间与来源公平（2026-10-15 开发承接）
 
-本聊天仅承接 LIBRA-ATTENTION-WORKSHOP 与 LIBRA-SOURCE-FAIRNESS 两个独立工作项；沿用本 Master Plan 与唯一 CURRENT_PHASE，不新增 UAT 或平行活动计划。保留每来源 Intake 席位和 Procurement 行为；二号全 Libra 共用，用户已确认默认 5、范围 0–32，0 停止新增转入、缩容不驱逐。需要处理的责任留在 Libra，原位恢复，不能以 release 冒充转区。来源公平由 Libra Owner 先来源后 Run，保留 normal/expedited、等待老化与安全收口；Foundation 通用执行理念保持。精确合同、接口资格、验收与未决项见 CURRENT_PHASE 对应工作项。共享 checkout 保留其他聊天的部署脚本及事故工作；本聊天不执行 NAS 部署/停机/Reset/媒体操作。 2026-10-16 本地实现、跨平台核心及真实Host验证已推进；具体版本UI审核与包含受保护S02/S03的新鲜204副本资格仍须闭合，详见对应Evidence。
+本聊天仅承接 LIBRA-ATTENTION-WORKSHOP 与 LIBRA-SOURCE-FAIRNESS 两个独立工作项；沿用本 Master Plan 与唯一 CURRENT_PHASE，不新增 UAT 或平行活动计划。保留每来源 Intake 席位和 Procurement 行为；二号全 Libra 共用，用户已确认默认 5、范围 0–32，0 停止新增转入、缩容不驱逐。需要处理的责任留在 Libra，原位恢复，不能以 release 冒充转区。来源公平由 Libra Owner 先来源后 Run，保留 normal/expedited、等待老化与安全收口；Foundation 通用执行理念保持。精确合同、接口资格、验收与未决项见 CURRENT_PHASE 对应工作项。共享 checkout 保留其他聊天的部署脚本及事故工作；本聊天不执行 NAS 部署/停机/Reset/媒体操作。 2026-10-16 本地实现、跨平台核心及真实Host验证已推进；具体实现1f36d9ed8已获UI负责人8项浏览器检查接受；包含受保护S02/S03的新鲜204副本资格仍开放，交付已回传原聊天，详见对应Evidence。
 
 
 2026-10-15 JAV首版已完成本轮发布资格并标准部署生产：markmahoro/shelfdeck:037592bef4，source 037592bef4441ceda87b3270f6e70cb7857da3a7。11:46:57 UTC复核mode=running、normalSupplyAllowed=true、faulted=false；556条原收藏和原入藏Receipt保持，已观察11条新Libra执行成功。机器合同121/104/204/51、147 routes。完整生产副本200→204/199旧表逐行保护、真实完整Host正常供给/33协调器推进、停止及使用后回退拒绝通过；生产按授权清理6个未结束Subject与精确discarded旧记录，86表范围外保护及49个伴随文件物理身份保持。最终UI变更经负责人宽/窄两项接受，其余继承原接受；Web186、Service642 pass/29既有skip与Linux20条业务的精确backend字节继承范围明确，最终实际镜像Native/API/源码/资产及Windows独立Service包复核通过。生产五挂载/QSV、fnOS及13个无关容器保持。具体原始失败/观察超时、Annex、备份及回退限制见现有JAV_RELEASE_COPY Evidence；不追认为每站长期可用、整季生产E2E或Electron资格，不批量关闭既有UAT。以下较早段落为历史快照，不覆盖当前授权与事实。

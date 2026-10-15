@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-2026-10-16 LIBRA 双车间/来源公平本地实现验证中：Service645 pass/29既有skip、Web190、宽窄UI4、Linux核心36及真实二号Host1通过，Windows实际二号恢复/三来源长转码各1通过。结构为210表/149 routes；3.13GB历史204副本203表逐行保护及未使用回退校验通过，但缺受保护S02/S03，不能替代新鲜生产副本。最终Windows组合Host2/2、独立Service包与Linux受影响范围已复核；具体版本UI负责人及新鲜副本资格仍开放，未部署。详见 CURRENT_PHASE 与对应审查Evidence。
+2026-10-16 LIBRA 双车间/来源公平本地实现验证中：Service645 pass/29既有skip、Web190、宽窄UI4、Linux核心36及真实二号Host1通过，Windows实际二号恢复/三来源长转码各1通过。结构为210表/149 routes；3.13GB历史204副本203表逐行保护及未使用回退校验通过，但缺受保护S02/S03，不能替代新鲜生产副本。最终Windows组合Host2/2、独立Service包与Linux受影响范围已复核；实现1f36d9ed8已获UI负责人8项独立浏览器检查接受；新鲜副本资格仍开放，已交付原聊天，未部署。详见 CURRENT_PHASE 与对应审查Evidence。
 
 2026-10-15 新合同已获用户确认：Series 按 Subject 整体转入二号；允许 Foundation 最小通用只读分页执行摘要。继续实现与资格验证；不修改 Foundation 调度/执行语义、不接管原聊天 Arca/Perception 性能路径。
 
