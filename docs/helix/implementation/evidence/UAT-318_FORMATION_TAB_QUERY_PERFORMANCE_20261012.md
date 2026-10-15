@@ -1,5 +1,15 @@
 # UAT-318：Series上线后媒体整理Tab切换延迟
 
+## 2026-10-16 合并候选与正常供给竞争取证
+
+性能修复`190e9a9f7`/`7a378b20c`已与双车间/公平`1f36d9ed8`合并。候选source `dc7dcddbaf6714d56aaa453610f862914863578f`已标准build/upload及独立SHA校验；最终实际镜像Foundation切片68/68、Windows Service645 pass/29既有skip。2356份canonical运行源码逐文件SHA匹配，UI JS/CSS与负责人已接受版本相同。标签、Image ID、tar和资格缺口见双车间既有Evidence的发布承接，不改写为已部署。
+
+Metadata独立只读诊断：从历史210副本另建task-owned可写隔离件、正常Kernel检查后，通过真实`WorkResultReader`读取117/85/79个来源Work的三组历史Run，完整结果摘要两轮一致，Windows耗时28/20/25及27/19/23ms。117来源产生586次Repository调用，包含完整Bindings/Plan/Attempt/Result及digest验证；本机热读取不能解释或推翻NAS采样中的长尾，不能据此削弱完整性检查或宣称Metadata已修复。首轮直接readonly Kernel因该历史结构副本为非WAL模式而拒绝journal_mode调整，错误保留；改用独立复制件正常打开，没有绕过Kernel或改原副本。临时3GB诊断件已清理，原结构副本保留。
+
+UTC 2026-10-15 16:39（北京时间10-16 00:39），原037为新鲜备份准备进入quiescing、仅1个真实转码仍执行时，顺序三轮GET：health5/5/2ms，Formation473/404/412ms，Care202/128/143ms，Collection48项353/417/370ms，全部成功。停止新增供给后HTTP显著缩短是后台同步工作竞争的现场证据，但取样时间、缓存和后台负载不同，不是严格同负载A/B、完整首次打开或已修复SLO；原profile未被当作新版本数据。
+
+用户本轮明确选择暂不进行NAS完整副本演练；未启动该演练、不修改schema、不部署候选，也不将本机临时介质Host冒充真实CIFS/Workspace连续性。原037安全停机请求已受理，当前转码收口后由公开Resume恢复原供给；不重建生产容器。完整新鲜副本及正常供给下的页面验收继续开放。
+
 ## 2026-10-16 通用积压与资源历史读取修复
 
 在`1f36d9ed8`双车间/公平交付之上，Foundation供给统计复用Scheduler既有`select-in(state)`，只返回原规则的open Work、active Attempt及dispatchable Event；阈值、snapshot字段/digest、completion/reserved lane、Circuit和Event排空语义均保持。Resource Governor发Permit前释放等待记录改用已有`list_for_event`，容量释放扫描只返回`waiting`；保持同Event完整历史的需求漂移/退避校验、全体等待者占用预算、优先级及资源原子性。公平任务此前已将`persistSoftWait/persistDeferred`的同Event读取收窄，这部分不重复计为本次修复。没有增加来源策略、缓存、调度队列、schema/API或UI改动。

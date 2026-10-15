@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-16 原聊天合并候选已冻结为`markmahoro/shelfdeck:dc7dcddbaf`（source dc7dcddbaf6714d56aaa453610f862914863578f），标准build/upload/SHA通过；含已接受UI的双车间/公平、UAT-318两批性能修复及`/adult`部署绑定。最终镜像Foundation68、Windows Service645 pass/29既有skip通过，2356份运行源码与冻结UI资产逐文件匹配。用户明确暂不NAS完整副本演练，真实Scope完整Host资格未完成，未部署/未应用adult新挂载；生产保持037。新鲜备份准备的安全停机正在等待当前转码收口，随后恢复原版本供给，不重建容器。细节见既有[双车间审查Evidence](implementation/evidence/LIBRA_WORKSHOP_FAIRNESS_INTERFACE_AUDIT_20261015.md)及UAT-318。
+
 2026-10-16 LIBRA 双车间/来源公平本地实现验证中：Service645 pass/29既有skip、Web190、宽窄UI4、Linux核心36及真实二号Host1通过，Windows实际二号恢复/三来源长转码各1通过。结构为210表/149 routes；3.13GB历史204副本203表逐行保护及未使用回退校验通过，但缺受保护S02/S03，不能替代新鲜生产副本。最终Windows组合Host2/2、独立Service包与Linux受影响范围已复核；实现1f36d9ed8已获UI负责人8项独立浏览器检查接受；新鲜副本资格仍开放，已交付原聊天，未部署。详见 CURRENT_PHASE 与对应审查Evidence。
 
 2026-10-15 新合同已获用户确认：Series 按 Subject 整体转入二号；允许 Foundation 最小通用只读分页执行摘要。继续实现与资格验证；不修改 Foundation 调度/执行语义、不接管原聊天 Arca/Perception 性能路径。

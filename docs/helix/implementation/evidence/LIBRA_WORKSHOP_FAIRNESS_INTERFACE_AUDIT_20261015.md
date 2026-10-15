@@ -101,3 +101,9 @@ Foundation `execution-summary-reader.js` 不含来源或公平业务。分页/�
 安全顺序为：新鲜一致204冷副本和全 data 文件摘要→冻结 S02/S03 精确责任及其余新增事实清单→只读源生成新210目标并核对203旧表、伴随文件和未使用回退→在目标运行环境用真实 probe 对全部根/Scope/Workspace Handle 预检→预检通过才启动完整 Host。完整 Host 只写独立目标 data；外部媒体及生产 Workspace 只读、网络 none、不映射宿主端口，绝不让验证连接生产服务。若真实 Scope 不符，保留拒绝证据，资格止于结构/读入或守卫拒绝，不能自动重新绑定。
 
 保留清单区分不可变事实和可合法推进的 Run 状态：转化前全部203旧表逐行一致；运行后原 Subject/Run/Control/Workspace/Commit 等身份及既有不可变记录保持，允许同一责任的合法新状态/追加事实并逐项说明，不能 Reset 来简化。只读 Workspace 和断网会阻止需要写材料/联网的后续能力；即使 `normalSupplyAllowed=true` 和协调器有推进，也不证明两季实际转码/交付完成。Host 写入技术观察或新业务事实后，旧204基线回退应拒绝；保留未使用副本的回退窗口，不恢复覆盖已使用副本。
+
+## 原聊天合并候选及发布暂缓（2026-10-16）
+
+候选`markmahoro/shelfdeck:dc7dcddbaf`，source `dc7dcddbaf6714d56aaa453610f862914863578f`，本机Image `sha256:54de07e6311167d619113d59970fbccf151b765158f12f597f035682ac0d387a`；tar592582656 bytes，SHA256 `81cd04d16a46e515d9a1aaaf9286881d3d7ac148a841f4a812a6492baf247113`。已走标准build/upload并经NAS和独立本地SHA校验；2356份canonical运行源码逐文件匹配，JS/CSS保持上述负责人接受字节。镜像继承FFmpeg base的OCI revision标签，该标签不是ShelfDeck源提交；本次commit绑定依据干净构建输入及完整运行字节。初轮脚本误将base标签当ShelfDeck提交而拒绝，发生在生产操作之前；后续完整字节验证通过。Windows source Service645 pass/29既有skip，最终实际镜像Foundation68 pass。纯性能修改及部署挂载没有新增UI资产变化。
+
+用户明确回答“暂不进行 NAS 演练”。没有启动本次NAS临时Host、没有新鲜完整副本资格、没有切换schema或部署候选，`/adult`新绑定尚未生效。NAS生产仍原037；之前新鲜备份准备已由公开Stop关闭新增供给，等待封神已有转码收口后公开Resume原版本，不停止/重建容器、不Reset或处置媒体。旧一次NAS特许不复用，新候选不继承旧Host资格。具体现场、镜像、测试和运行控制Receipt保留ignored `.codex/libra-production-upgrade-20261016/`。
