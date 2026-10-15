@@ -1,5 +1,13 @@
 # UAT-318：Series上线后媒体整理Tab切换延迟
 
+## 2026-10-15 JAV升级后首开慢追加现场
+
+用户反馈037592bef4升级后第一次打开控制台极慢，随后好转，要求先保留记录。LAN只读复测`/v1/health`200但耗时7738ms、`/admin/`200耗时4797ms；主Node累计CPU约106%、容器即时CPU201%且同时存在FFmpeg，不能由HTTP200或供给正常推定页面性能合格。后续认证6917ms、Runtime读取1109ms、Formation active读取2481ms，说明仍有波动；不是首次打开全过程的浏览器复现。
+
+北京时间22:06前后采集约13.04秒生产主Node CPU profile，仅临时启用容器loopback Inspector且结束后独立确认closed。热点包含同步Owner Repository/SQLite读取，Aftercare Context约3.40秒、Perception候选解析约3.02秒、GC约1.56秒；inclusive时间有嵌套，不相加，也不是逐SQL精确计时。它支持后台同步计算/数据库工作会争用服务主线程的判断，但不是首次打开慢的唯一因果证明，也不能直接认定Foundation需要改调度。原始profile保留于ignored事故目录，不提交生产数据。
+
+本轮不以短采样宣布优化或SLO通过，不增加后台缓存/降级/Reset；首开性能与既有UAT-318继续开放，待独立复现及有界Owner内优化。此次合并升级不得将新席位功能验收当作性能问题已经解决。
+
 2026-10-12用户追加现场反馈。生产9478a4fc7计数已通过，但性能独立开放。原API、浏览器样本及I/O边界见[315–317 Evidence](UAT-315_317_PRODUCTION_DIAGNOSIS_20261012.md)和[UAT-315生产走查](UAT-315_FORMATION_COUNT_UI_ACCEPTANCE_20261012.md)。
 
 ## 根因及修正范围

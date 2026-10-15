@@ -23,7 +23,7 @@ Helix-beta 已于 2026-08-28 在飞牛 NAS 上线。下列是 **当前生产配�
 | 普通媒体挂载 | NAS `/vol02/1000-0-c5b736af` -> 容器 `/media` |
 | 洗版/外部落地 | NAS `/vol2/1000/shelfdeck_upgrade` -> 容器 `/upgrade` |
 | Production Workspace / 转码目录 | NAS `/vol2/1000/shelfdeck_transcode` -> 容器 `/transcode`。**`/transcode` 就是本机 Production Workspace 根**，不是额外再挂一个 workspace |
-| 成人库挂载 | NAS `/vol02/1000-0-24018892` -> 容器 `/adult_media` |
+| 成人库挂载 | NAS `/vol02/1000-0-24018892` -> 容器 `/adult_media`；标准部署另提供同目录 `/adult` 挂载，保留现有路径绑定。实际生效版本以当次部署Evidence为准 |
 | QSV 核显 | 宿主机 `/dev/dri` -> 容器 `/dev/dri`，`LIBVA_DRIVER_NAME=iHD` |
 
 ### 当前业务对象（2026-08-28 只读快照）

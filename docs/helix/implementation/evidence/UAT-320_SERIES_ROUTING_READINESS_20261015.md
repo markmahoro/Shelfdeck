@@ -1,0 +1,22 @@
+# UAT-320：剧集路由缺配置与摩登家庭停滞
+
+2026-10-15用户要求排查整理中的两条《摩登家庭》，并授权处理，后续与席位/来源公平功能合并验证升级。
+
+## 现场与根因
+
+- 来源为“剧集”，Field `media-field-f238ed0b-e35b-4198-bd90-6fbf3f571d53`，路径 `/media/Series`。两项分别为S02与S03，各24个主文件，10月13日已经完成Intake Acceptance，保留来源token，但没有Routing Work、Spec或Run。
+- `libra_routing_policy_revisions`中该Field为0行。`routingCoordinator.reconcile`返回`unresolved/routing_policy_unavailable`，没有伪造Routing Decision；缺配置阻止推进本身正确。
+- Formation只凭已生成的Routing Decision判定unresolved，没有Decision时显示`preparing/in_progress`。因此界面看似持续准备、需要处理数量为0，实际却需要配置。
+- 两个Subject分别为`libra-subject-ac441ff7ff8c4ada23d5c150e71725ad7c613d78`（S02）与`libra-subject-543720ec1b961c2df87fd7bf7df41140dd22c26c`（S03）。第三个同源条目“校园之外”有独立Intake失败，不能以修复本项自动宣布其恢复。
+
+## 正式配置修复
+
+只读核对来源与现有active“剧集”Shelf `media-shelf-b9803b56-3b89-4dd7-928b-9900321b70a7`均为`/media/Series`，Shelf具有正式Series标准与Placement。通过正式Routing preview取得resolved及确切Shelf，随后PATCH发布direct策略revision1，幂等键`modern-family-routing-20261015`。策略digest为`3bc1b5bcd7256f99295ef43d29b465b82efb5099ecde56b9a189cc7dc4a15b7d`。没有手工SQL、Reset、Control释放、重建Subject或覆盖视频。
+
+2026-10-15T14:07:03–04Z，两个公开Formation详情均为routing resolved、目标“剧集”，已创建active Run并执行身份核对：S02 `35201b9aca9c898fc5edf993cb02c1a66b09a549562287d4b1f02b4aad552ac7`，S03 `3584095356cef02cdfcdc9b2eded52366807ed4057b23b0bc7e9c12235ec2e00`。这证明原停滞点解除，不等同于整季完成或上架。
+
+## 相关部署准备与边界
+
+用户另要求NAS `/vol02/1000-0-24018892`提供容器`/adult`。已核实宿主是现有Adult CIFS共享；标准`deploy-nas.js`增加该绑定，同时保留`/adult_media`及其余既有绑定，运行后检查两个根的device/inode一致。生产dry-run测试验证实际生成Compose、全部既有绑定及Secret不输出，3项通过。当前尚未recreate生产容器，实际生效留待用户授权的合并升级。
+
+缺配置的正式readiness及工作区可达动作由席位功能聊天承接，必须避免从UI Projection反向授权转区；具体代码、实际版本UI及回归证据后补。UAT-320保持开放。

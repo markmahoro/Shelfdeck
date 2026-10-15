@@ -120,6 +120,7 @@ function composeYaml(targetImage) {
     `      - ${UPGRADE_HOST}:/upgrade`,
     `      - ${MEDIA_HOST}:/media`,
     `      - ${ADULT_HOST}:/adult_media`,
+    `      - ${ADULT_HOST}:/adult`,
     '    devices:',
     '      - /dev/dri:/dev/dri',
     '    restart: unless-stopped',
@@ -250,10 +251,12 @@ async function main() {
       'exit 1',
     ].join(' ')],
     ['Verify Admin Web', 'curl -fsS http://127.0.0.1:18080/admin | grep -q \'<div id="root"></div>\''],
-    ['Verify media mount', `docker exec shelfdeck sh -lc 'test -d /media && test -d /upgrade && test -e /dev/dri/renderD128'`],
+    ['Verify media mount', `docker exec shelfdeck sh -lc 'test -d /media && test -d /upgrade && test -d /adult_media && test -d /adult && test "$(stat -c %d:%i /adult)" = "$(stat -c %d:%i /adult_media)" && test -e /dev/dri/renderD128'`],
     ['Verify compose still binds required hosts', [
       `grep -F ${shellQuote(`${MEDIA_HOST}:/media`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -F ${shellQuote(`${UPGRADE_HOST}:/upgrade`)} ${shellQuote(COMPOSE_FILE)}`,
+      `grep -Fx ${shellQuote(`      - ${ADULT_HOST}:/adult_media`)} ${shellQuote(COMPOSE_FILE)}`,
+      `grep -Fx ${shellQuote(`      - ${ADULT_HOST}:/adult`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -F '/dev/dri:/dev/dri' ${shellQuote(COMPOSE_FILE)}`,
     ].join(' && ')],
     ['Verify running image tag', `docker inspect shelfdeck --format "{{.Config.Image}}" | grep -Fx ${shellQuote(targetImage)}`],
@@ -271,6 +274,7 @@ async function main() {
   console.log(`upgrade : ${UPGRADE_HOST} -> /upgrade`);
   console.log(`transcode: ${TRANSCODE_HOST} -> /transcode`);
   console.log(`adult   : ${ADULT_HOST} -> /adult_media`);
+  console.log(`adult   : ${ADULT_HOST} -> /adult`);
   console.log('qsv     : /dev/dri -> /dev/dri');
   console.log('secret  : env_file secret.env (not printed)');
 

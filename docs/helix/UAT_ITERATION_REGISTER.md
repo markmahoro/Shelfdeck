@@ -9,6 +9,7 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 状态说明：历史已关闭保留当时证据，不宣称本次重测；已实现/已部署不等于已关闭；阶段文档关闭不等于功能验收关闭。每次只根据对应项的现行合同及Evidence更新。
 | UAT编号 | 问题 / 历史事项 | 分类 | 当前状态 | 历史编号 | 实现提交 | 验收/部署证据 | 剩余工作或关闭条件 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| UAT-320 | 剧集来源缺路由，摩登家庭两季接收后长期停滞且误报准备中 | LIBRA / ROUTING_READINESS | 开放：正式配置已补齐，两季已创建Run；缺配置需要处理展示待修复验收 | 2026-10-15用户现场反馈 | 配置修复，无产品提交 | [Evidence](implementation/evidence/UAT-320_SERIES_ROUTING_READINESS_20261015.md) | 由Libra正式readiness表达routing_policy_unavailable及可达配置动作；实际版本UI与恢复进展独立验证，不Reset历史或放宽Routing合同。 |
 | UAT-319 | NAS重启后CIFS设备号变化导致ShelfDeck无法启动 | PLATFORM / MOUNT_IDENTITY | 开放：2f稳定指纹已发布且有界纠正后health正常；真实再次重挂载资格未做 | 2026-10-13生产重启现场 | 2f9560bcb | [Evidence](implementation/evidence/UAT-319_CIFS_REMOUNT_IDENTITY_20261013.md) | 同一Media共享设备号0:93→0:81；Scope ID/revision与媒体保护，稳定v2正式apply；不声称来源无法访问到恢复访问的自愈已实现。 |
 | UAT-318 | Series上线后整理中/我的收藏响应延迟 | LIBRA / ARCA / QUERY_PERFORMANCE | 开放：2f已生产发布；整理中六轮低于1秒，收藏仍有长尾 | 2026-10-12用户现场反馈，10-13追加1秒目标 | 2f9560bcb | [Evidence](implementation/evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md) | 最终Linux57项、完整查询等价、相同UI资产验收；生产整理中0.326–0.844秒/收藏0.246–1.779秒，海报与API排队仍影响响应。用户指示直接部署，完整本地Host/回退演练未完成；不补记资格通过。 |
 | UAT-317 | 生产盘满，Formation投影过期、放弃入口500及页面延迟待关联复核 | RUNTIME / STORAGE | 开放：获授权清理及后续发布后当前Avail约25GiB；罪恶之城席位释放、MoviePilot恢复 | 2026-10-12生产排查 | 无 | [Evidence](implementation/evidence/UAT-315_317_PRODUCTION_DIAGNOSIS_20261012.md) | 页面延迟仍在；问题解决后统一清理，保护媒体及当前回退/排障证据。 |
