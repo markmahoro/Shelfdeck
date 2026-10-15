@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-2026-10-16 UAT-318 独立只读排查复现 dc7 静态 JS 在 NAS loopback 约 19–20 秒传输，同文件容器内读取约 1 ms。当前 profile 指向概览/执行准备的主线程竞争。Foundation exact Process 状态查询、Work Admission open-state 读取、Startup Recovery snapshot 索引及 Libra Rating identity 精简已本地修复；当前库状态/评分完整输出等价，定向双平台回归通过，完整验证续记。尚未部署；同步媒体指纹、首开/HTTP 长尾与 1 秒 SLO 仍开放，生产身份仍以下述 dc7 为准。详见既有 [UAT-318 Evidence](implementation/evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md)。
+2026-10-16 UAT-318 独立只读排查复现 dc7 静态 JS 在 NAS loopback 约 19–20 秒传输，同文件容器内读取约 1 ms。当前 profile 指向概览/执行准备的主线程竞争。Foundation exact Process 状态、Work Admission open-state、Startup Recovery snapshot 索引及 Libra Rating identity 已本地修复为 `4ba8f04d9`；当前库状态/评分完整输出等价，Service645 pass/29既有skip、精确 Linux 候选79、31跨进程恢复与静态门禁通过。额外332文件全量包装主动中断，不计PASS。候选4ba8f04d97已标准构建并独立校验，未上传/部署；同步媒体指纹、首开/HTTP 长尾与1秒SLO仍开放，生产仍为下述dc7。本候选新鲜副本Host/发布资格未完成，不继承此前跳过NAS演练的决定。详见既有 [UAT-318 Evidence](implementation/evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md)。
 
 2026-10-16 已按用户最新“跳过NAS演练 升级吧”完成生产标准部署：`markmahoro/shelfdeck:dc7dcddbaf`（source `dc7dcddbaf6714d56aaa453610f862914863578f`）。UTC18:25复核health ok、mode/desiredMode running、normalSupplyAllowed=true、faulted=false、RestartCount0；`/adult`与原`/adult_media`绑定同一宿主目录，QSV/13无关容器/fnOS保持。完整备份及204→210/203旧表2,236,865行逐行保护通过，560原收藏、原Commit、两季精确Run/Workspace保持，54伴随文件与data目录物理身份保持，无Reset/删媒体。二号5席/占1，3来源已有公平记录。新鲜NAS完整Host演练按用户明确决定跳过，非PASS。UAT-318/UAT-320仍开放：两季尚等待资源，首开/静态大文件传输仍超时；不宣称完整媒体E2E或1秒SLO。详见既有双车间公平与UAT-318 Evidence。
 

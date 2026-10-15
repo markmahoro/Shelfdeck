@@ -240,8 +240,22 @@ UTC 18:35 NAS loopback curl 读取 503,927-byte JS，20 秒只收到 311,296 byt
 
 新增回归：状态读取覆盖 2,000 条无关历史、相同 Process ID 的不同 Owner/type/kind、全部 open state、latest failure、同时间 Work ID 排序及 NULL/0 时间，并检查真实 SQLite plan 必须 seek Process；Rating 覆盖 Movie/Series/JAV 的 formal/weak identity、坏证据和非 active Subject 拒绝；Admission 覆盖 2,000 条终态 Work/Event 不进入热计数。Startup 新规模回归按实际 Attempt 元素访问次数约束线性增长，不用不稳定的墙钟阈值；终态 Effect 不重放。Windows 最后三文件 40 项通过。原 reserved/hard cap、Circuit、并发、回滚与全历史恢复安全测试保留。
 
-Windows 定向 77 项、Event/Input/Series source 187 项通过；加入 Admission 专项后该文件 11 项通过。最终 `npm test` 为 645 pass/29 既有 skip/0 fail；该入口不包含 `test/helix-architecture` 子目录，不能拿 645 替代新增专项。最终本机 Linux disposable 容器以 dc7 基础镜像、只读绑定候选源码/测试，相关八文件 79 项通过。这是开发验证，不是最终镜像或生产升级资格。runtime guard 结果续记。
+Windows 定向 77 项、Event/Input/Series source 187 项通过；加入 Admission 专项后该文件 11 项通过。最终 `npm test` 为 645 pass/29 既有 skip/0 fail；该入口不包含 `test/helix-architecture` 子目录，不能拿 645 替代新增专项。最终本机 Linux disposable 容器以 dc7 基础镜像、只读绑定候选源码/测试，相关八文件 79 项通过；后续精确候选镜像再次完成同组 79 项，见下文。没有生产升级资格或 UAT PASS。
 
 私有材料在 ignored `.codex/console-response-20261016/`：stream/profile/ancestry、readonly-counts、owner-query-baseline、module-equivalence、admission-counts、startup-equivalence 及验证日志；不提交生产对象、标题、凭据或原始 profile。
 
 当前尚未部署。同步媒体指纹 I/O、概览重复重建、后台负载下静态分块长尾和浏览器首次绘制仍开放；本轮没有删物理 Identity/新鲜度检查或用缓存、停业务、Reset 隐藏问题，也没有宣称 1 秒 SLO 或 UAT-318 关闭。
+
+### 冻结候选与最终验证
+
+实现提交 `4ba8f04d97c0e8ac0352bbdf6751f819efd1fe84`；标准 `node scripts/build-image.js 4ba8f04d97` 成功，候选 `markmahoro/shelfdeck:4ba8f04d97`，本机 OCI image index `sha256:896d1c867c4b7cf6448dd229e2d8a93984d498b485a52a1eb95391e79e601d90`。tar `dist-image/shelfdeck-4ba8f04d97.tar` 565.1 MiB，构建输出及独立 `Get-FileHash` 均为 `fa862699e014cf9790d5d6d51a33f156e11b900b718f97c9c921c79c9daac7e6`。未上传或在 NAS load/deploy，不能将该本机 index 当 NAS classic config digest。
+
+精确镜像 Node20.20.2，相关八文件 79/79 通过；只绑定测试文件，运行代码全部来自镜像。2356 份 canonical runtime COPY 文件逐字节匹配冻结源码，aggregate `7cbbd5fb631921a5b3f7cc410f3d2fbb51bc7972ede1e6b8660af7c109f12a0c`；四处修改源码 hash 与已接受 JS/CSS hash 均匹配。镜像 `org.opencontainers.image.revision` 是继承 FFmpeg base 的 `8158cc5c…`，不是 ShelfDeck commit；初轮证明工具错误地断言它等于当前源码而失败，已改为外部 source commit + canonical bytes/独立 SHA 证明，未伪造标签或忽略代码字节不一致。
+
+直接静态门禁通过：package boundary、forbidden semantics、manifest、P2 contract baseline findings 全空，121 Capability/104 Result family/210 table/51 transaction/0 unresolved type。直接执行既有 `verifyP4RuntimeCrossProcess`，7 Effect Class、5 个非 pure crash point、31 场景全部通过，每个非 pure 场景保持一次 fake dispatch/marker；这是原 Foundation 跨进程 fixture，不是生产媒体恢复验收。首轮脚本把 temp root 放在系统临时根之外被边界拒绝；随后只为该子进程设置任务临时根，在同一受保护 workspace 下重跑通过，保留失败记录。
+
+额外 `helix-p4-runtime-verify.js` 包装会先串联全部 332 个架构 fixture 文件，包含全部 JAV/Series 真实 Host 旅程。本轮该广泛运行在上述受影响专项/31 恢复及静态门禁独立通过后主动中断；已按 PID/parent/命令验证任务归属再停止本轮三个测试进程。包装最终退出 1 / `P4_VERIFY_ARCHITECTURE_FAILED`，不可记为全量门禁 PASS，也不可据此虚构全部旅程失败或通过。没有新增代码以绕过该包装。原始结果在 `runtime-guard.log`；本轮只声明前述精确覆盖，未运行最终新鲜完整副本 Host/升级回退、Electron 或生产前端验收。
+
+最终证明材料另含 `candidate-proof.json`、`canonical-image.json`、`linux-exact-image.log`、`static-guards.json`、`cross-process.json`。本机测试容器均 `--rm`，未留下任务开发服务器。生产仍保持 dc7；候选只是后续资格验证与审阅材料，之前跳过 NAS 演练的决定不自动适用本候选。
+
+UTC 19:01:36（北京时间 10-16 03:01:36）最终只读复核：原 dc7 容器 ID/镜像/StartedAt 保持，RestartCount0；health ok、mode/desiredMode running、normalSupplyAllowed=true、faulted=false。没有因采样或本机修复改变生产运行状态，材料 `final-live.json`。
