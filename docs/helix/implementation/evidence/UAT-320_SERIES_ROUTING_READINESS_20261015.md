@@ -15,8 +15,12 @@
 
 2026-10-15T14:07:03–04Z，两个公开Formation详情均为routing resolved、目标“剧集”，已创建active Run并执行身份核对：S02 `35201b9aca9c898fc5edf993cb02c1a66b09a549562287d4b1f02b4aad552ac7`，S03 `3584095356cef02cdfcdc9b2eded52366807ed4057b23b0bc7e9c12235ec2e00`。这证明原停滞点解除，不等同于整季完成或上架。
 
+后续公开详情复核两季均currentIdentityRevision=1、无identity issue，已从核对身份推进到取得海报阶段；没有将新阶段的资源等待解释成原Routing停滞仍在。
+
 ## 相关部署准备与边界
 
 用户另要求NAS `/vol02/1000-0-24018892`提供容器`/adult`。已核实宿主是现有Adult CIFS共享；标准`deploy-nas.js`增加该绑定，同时保留`/adult_media`及其余既有绑定，运行后检查两个根的device/inode一致。生产dry-run测试验证实际生成Compose、全部既有绑定及Secret不输出，3项通过。当前尚未recreate生产容器，实际生效留待用户授权的合并升级。
+
+本机Docker使用实际037592bef4 Linux镜像，network none/read-only，同一task-owned fixture分别RO绑定`/adult`与`/adult_media`，两个根device/inode及文件内容一致。临时容器已自动退出；未在NAS创建额外Linux测试容器，未把本机fixture记为生产真实挂载验收。部署准备与现场记录提交`0f30e924b`。
 
 缺配置的正式readiness及工作区可达动作由席位功能聊天承接，必须避免从UI Projection反向授权转区；具体代码、实际版本UI及回归证据后补。UAT-320保持开放。
