@@ -126,3 +126,13 @@ Source commit 455873b3776d434b0fc561bcaf30ebb31b2ae8fb；标准scripts/build-ima
 用户提醒升级过程可使用既有功能。核对SSOT §10.1.6及实际实现，安全停机应先停止供给并等真实stopped/in-flight=0，再取一致副本；stopped意图跨容器重启持久化，原服务恢复须走正式Resume/Recovery Gate，不能只docker start就宣称业务已恢复。默认用户Reset预检通过当前生产镜像的createUserFormationReset.preview只读调用取得：9 Subjects/7关联Runs/480 Works/4 Workspaces，保护556收藏及695 ended Runs；ready=false，阻碍RESET_ENDED_HISTORY_OVERLAP及RESET_UNRESOLVED_EFFECT。
 
 进一步在readonly+query_only SQLite事务内逐项调用现有inspectPlan，六个active Run对应的精确Subject scope各自ready=true；这是可用的有界清场路径线索，不是默认用户Reset已通过、组合清单已冻结或生产Reset已获执行授权。20个Arca settlement-delete未决Effects也不由这六个scoped plan自动收口。ignored deployed-user-reset-readonly-preview-20261015.json/log保存实际预检，生产零mutation、未安全停机/Reset。下一步在完整副本演练精确Reset和升级/回退，保留已入藏事实及原视频，不新增旧Run兼容层。
+
+## 用户三步授权后的生产一致副本（2026-10-15）
+
+用户明确要求另开聊天排查并修复生产停滞，合并后演练升级，演练通过后标准部署；诊断聊天为01a13ebb-f373-7670-a207-64797e8c7c31。只读fnOS preflight核对原container/image/mounts、应用路径/权限、备份空间及本地和NAS Secret一致。诊断聊天确认现场已收齐后，主聊天调用正式安全停机，等stopped及全部in-flight为0，原容器正常退出0，再完整流式导出data、保留私密部署配置。归档3173101056 bytes，SHA256 8230f766e24ab30cd40978db5599a17f74aa861becdde74c47552a99fb0d3dc6；源库导出前后SHA256 b73d1ba2b7171b7c3e3960ba9774bb464b735b1ae49b1fc17f1ef01df58b06b7保持，提取后独立一致。严格核对134个归档成员无越界/链接/特殊项，SQLite integrity/FK通过，200表/556收藏/6active Runs/20未决FX。外部Media及Workspace绑定另有清单，此data备份不声称包含全部物理媒体。私有归档/配置/源库不入库，记录位于ignored nas-jav-session-87Utg7/archive-verification.json。
+
+同一原容器/image于08:53:32Z重新启动；正式Resume同一operationId在08:57:55Z受理，09:07:15Z完成，期间客户端15–20秒观察超时不作为失败或重启依据。持久Receipt从pending至completed、desiredMode=running，09:09:25Z已通过真实Admin GET确认mode=running/normalSupplyAllowed=true/activity.ready/faulted=false，同container及原image保持。原生产未Reset/部署或改写历史责任。完整3.17GB副本另通过实际运维createBackup/verifyBackup/restoreBackup，51文件完整摘要一致，peakRSS123252KiB；隔离原镜像Host恢复资格另行执行，不将文件恢复等同Host已通过。
+
+实际原生产镜像也按不可变config ID导出1770979840 bytes，tar SHA256 4125aaa842599d1d5b543d0ee16fa54d993ad89e4ca29ed0300ff07a5b8fdf5a。NAS classic image config ID为1b36d623...，本机Docker29 containerd载入后OCI manifest ID为331dd22c...；已从归档manifest/config逐字节SHA核对config ID等于原生产ID，并对照本机inspect确认全部55 layer diffIDs及Config完全相同，非同tag猜测。source-image-local-identity.json保存映射，未覆盖本机另一个同名旧tag。
+
+完整源库资格检查保持拒绝：libra_runs6、arca_acceptance_recovery_cases1、active Work/Attempt各4、workflow_events5、event_attempts1、unresolved Effects20、outbox1。完整源结构/历史proof已在256MiB heap下通过，peakRSS162476KiB；这些旧责任须按各自Owner收口，不放宽schema-copy gate。用户随后明确确认Libra保存完整候选Evidence+Foundation摘要引用方案；诊断修复将目标推进204表，合并修复和新候选/实际副本升级回退尚未完成，旧455候选不能当作含本次修复的新发布版本。
