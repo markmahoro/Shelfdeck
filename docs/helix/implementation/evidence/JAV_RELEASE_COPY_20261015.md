@@ -136,3 +136,12 @@ Source commit 455873b3776d434b0fc561bcaf30ebb31b2ae8fb；标准scripts/build-ima
 实际原生产镜像也按不可变config ID导出1770979840 bytes，tar SHA256 4125aaa842599d1d5b543d0ee16fa54d993ad89e4ca29ed0300ff07a5b8fdf5a。NAS classic image config ID为1b36d623...，本机Docker29 containerd载入后OCI manifest ID为331dd22c...；已从归档manifest/config逐字节SHA核对config ID等于原生产ID，并对照本机inspect确认全部55 layer diffIDs及Config完全相同，非同tag猜测。source-image-local-identity.json保存映射，未覆盖本机另一个同名旧tag。
 
 完整源库资格检查保持拒绝：libra_runs6、arca_acceptance_recovery_cases1、active Work/Attempt各4、workflow_events5、event_attempts1、unresolved Effects20、outbox1。完整源结构/历史proof已在256MiB heap下通过，peakRSS162476KiB；这些旧责任须按各自Owner收口，不放宽schema-copy gate。用户随后明确确认Libra保存完整候选Evidence+Foundation摘要引用方案；诊断修复将目标推进204表，合并修复和新候选/实际副本升级回退尚未完成，旧455候选不能当作含本次修复的新发布版本。
+
+
+## 合并修复后的062c0ba7a1与真实副本演练（2026-10-15）
+
+最终source 062c0ba7a17e8ff5e03d478a685968e0bdc929d1；tar 592493056 bytes，SHA256 8f5b73d69d03e1f4da7f4c1217bcaebd027d78eebb615f389795d9800ba10056。Docker29本地OCI manifest 5c100fb5...与NAS classic config d1c1014b...已从归档Config逐字节确认映射，不用同tag猜测。实际镜像Linux核心6/终态恢复8/Movie3/Series3全部通过，Windows独立Service 204表/147route/Native/API通过，完整Service642 pass/29既有skip/0fail。accepted JS/CSS字节不变；生产停滞修复引入的失败Projection另向UI负责人提交具体版本适用复核。
+
+真实完整冷副本在隔离目录执行6 active Subjects加用户明确授权discarded Subject的Reset，独立86表保护复核只删除获准Offer的10 acceptance-check Evidence与1 recovery Case，556收藏及范围外事实保持；源冷备份SHA不变。原验证器错误要求这10行也不变，保留首次失败及scope修正Annex，不伪称一次全绿。独立200→204准备通过199张旧表逐行digest/完整性/FK、20条Owner严格历史证明，未使用副本rollback eligible。候选完整Host在本机因ARCA_AFTERCARE_WORKSPACE_ROOT_CONFLICT退出：实际挂载身份与NAS持久Platform根不一致；保留失败日志，不改Root Fact或放宽守卫。原镜像完整本地恢复Host曾health/session/collection/stopped及正常关闭通过；196业务表不变，4张Platform技术观察表的有界变化由独立Annex验证，不能称normalSupplyAllowed=true或媒体演练通过。
+
+用户已明确允许这一次NAS完整副本演练，修订此前NAS临时测试skip的范围仅限本次。标准upload-nas-image.js及远端SHA256校验完成；NAS独立backups/jav-upgrade-rehearsal-*目录以3.17GB完整已清场副本执行同一operator，原data/媒体/Workspace计划只读挂载，外部网络隔离，原容器不重启。尚未生产Reset/部署，完整Host/正常Owner周期/严格回退拒绝资格仍待实际收取。最新生产只读复核仍556收藏/6 active Runs/20 reconcile_required Effects、discarded Subject保持，不能把这20条journal改成完成或再次执行delete。私有归档、配置、完整Result及工具均留ignored .codex/jav-development，不入库。

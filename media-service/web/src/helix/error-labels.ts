@@ -69,6 +69,7 @@ export function networkErrorLabel(code: string) {
 
 export function processFailureLabel(code: string, message?: string) {
   const known: Record<string, string> = {
+    P4_OBSERVATION_RESULT_STORAGE_BOUND_EXCEEDED: '返回的信息超出处理上限',
     RECOVERY_EXECUTION_BUDGET_EXHAUSTED: '恢复处理超过允许时长',
     CLEAN_ARCA_STAGE_TARGET_OCCUPIED: '写入目标已被占用',
   };
