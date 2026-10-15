@@ -99,3 +99,16 @@ Linux首轮缺少纯测试schema builder时明确失败；不把开发构造器�
 生产read-only范围进一步收取6 active Runs/20 unresolved Effects/4 active Works/556收藏，原数据不改；20项均是Arca ondeck.input_settlement.delete且其Work已failed，不把它们误报为仅6条Libra运行的同类待办。精确IDs在ignored nas-upgrade-blockers-readonly-20261015.json，不自动清除未知材料副作用。标准deploy-nas.js仅在本地生成9f的dry-run计划，没有上传/远程执行；该计划本身不证明source200已升级或readiness通过，必须另行通过完整203表副本与切换资格。
 
 为准备完整生产备份，发现helix-operational-safety.files原用readFileSync整块分配每个文件，实际生产DB约3.17GB，不能依靠小样本证明内存安全。改为单次遍历复用1MiB buffer+完整SHA256，前后fd stat/长度变化明确拒绝，保留同步API、清单字段/顺序/摘要与已有备份语义。新增256MiB稀疏文件实际备份/verify/restore/中段篡改拒绝，在128MiB Node heap及224MiB峰值RSS预算下通过；并核对hash中途同长改写拒绝。Windows P13共6pass。该样本是有界内存证据，不冒称已备份生产3.17GB库。此备份脚本改动需要新标准镜像及受影响验证；9f不作为最终发布镜像。
+
+
+## 最终本地候选455873b377（2026-10-15）
+
+Source commit 455873b3776d434b0fc561bcaf30ebb31b2ae8fb；标准scripts/build-image.js产出markmahoro/shelfdeck:455873b377，image ID sha256:f79db1d0a6514e078a8e5a1ad729cf690afaf05fb226de805a5ce9fb276da8f6。dist-image/shelfdeck-455873b377.tar为592484352 bytes（565.0MiB），SHA256 4068fd34107bf256af40c1f5333668b14f1c26784d9973df2f79c8caddfbb5c7，与PowerShell独立Get-FileHash一致。此后文档提交不改变该候选source身份。
+
+实际不可变镜像逐文件核验2318份src/15份runtime scripts；HTTP Host203表/147route、health200、无认证401、会话及五Admin GET通过。锁定探测器SHA256 576c21674291ec1948d507ea8ab0d78eb6621a0be8c6f1a6db0f50c5fcb1e0f9；已接受JS index-1qAJmlnq/CSS index-BYV0LKeb与UI负责人6ec75797a绑定版本相同，Service源码相同，新增差异仅备份运维脚本，无新增UI接受声明。当前常规Windows构建也恢复为该accepted bundle；历史NODE_ENV=test打包产生的qNABnIMQ不作为发布UI。
+
+该最终镜像重新实际执行JAV核心6、终态恢复8、Movie真实媒体3、Series进程恢复3，所选20条全部pass/0fail，未选择pattern skip不计业务通过。日志为ignored linux-candidate-{core-host,terminal-recovery,movie-real,series-recovery}-455873b377-20261015.log。独立384MiB容器运行备份P13六项通过，256MiB完整hash/backup/verify/restore/中段篡改拒绝在128MiB Node heap下验证；并非生产3.17GB冷备份已完成。当前运维相关Windows组合16项通过。所有任务容器network none、临时内置数据、只读测试输入、--rm；无生产或E盘用户测试集挂载，NAS临时Linux仍skip by user。
+
+当前Windows独立Service包用自带node.exe验证203表/147route、六Admin GET、Native依赖与require cache全包内、2318 src及明确分发的七runtime scripts匹配；包路径记录windows-candidate-package-location-455873b377.json。另在该包实际执行256MiB备份/恢复/篡改拒绝，peak RSS120628KiB，无整文件read；日志windows-packaged-backup-memory-455873b377-20261015.log。未开发Desktop。
+
+标准deploy-nas.js仅本地生成该tar/checksum对应dry-run计划，没有远程执行、上传或apply。生产只读仍6 active Libra/4 running Work/20 reconcile_required Effect；20项均是failed Work下的arca.ondeck.input_settlement.delete@1，不能靠清6条Run或直接改journal解除。原生产0dbd762d2未改变。完整生产一致副本/实际规模升级与回退资格仍未通过。下一步精确冷备份窗口及边界记于唯一CURRENT_PHASE：只停原容器、备份完整data/私密配置、原样重启；未经用户明确授权不执行，且不包含Reset、改旧责任、删媒体或部署新版。

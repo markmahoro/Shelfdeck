@@ -1,6 +1,6 @@
 # ShelfDeck / Helix 文档索引
 
-更新：2026-10-15。当前唯一活动Phase为JAV首版本地开发及部署准备。单站主备、未确认身份/首次锁定、Artifact/加工入藏、独立身份纠正及同任务显式终态恢复已实现，Windows与实际Host证据、具体版本UI负责人接受已记录。用户启动本机Docker后，标准候选镜像已构建；本机隔离Linux验证暴露基础FFprobe 8.1漏读HEVC色彩资料，固定为锁定依赖探测器后重新构建/验证中。生产完整一致升级副本仍受未收口任务阻断；无NAS停机/Reset/部署。NAS临时隔离Linux按用户决定skip。详见CURRENT_PLAN/CURRENT_STATUS/CURRENT_PHASE与JAV证据。
+更新：2026-10-15。唯一活动Phase为JAV首版本地开发及部署准备。保留视频身份纠正及显式终态恢复已完成；最终本地候选455873b377标准镜像/导出校验、20条Linux业务场景、备份内存与恢复、Windows独立Service包及适用UI版本已验证。完整生产一致副本及未结束责任收口仍开放，不宣称生产可部署；下一步准备精确停机备份窗口。没有NAS停机/Reset/上传/部署。NAS临时隔离Linux按用户决定skip。详见CURRENT_PLAN/CURRENT_STATUS/CURRENT_PHASE与既有JAV证据。
 
 ## 权威与当前入口
 

@@ -1,6 +1,13 @@
 # 当前 Phase：JAV 本地开发
 
-2026-10-15 JAV-WORKBENCH-RECOVERY：Source/Assets、stage/publish/verify/Commit、短producer、正式材料清理及Workspace回收终态均已有对应隔离真实Host恢复通过；相同Correction/维护任务、旧failed执行及原视频/Entry/原On-deck保持。连续2次Source-only Recovery失败后取消/重放实际Host通过，无写入取消核对完整不可变授权lineage。4种文件/事实Effect恢复观察改为Arca只读现场预检，冲突终结旧执行而非无限safe_retry。UI负责人新增后果确认问题已修复：未提交后果变更清勾选，结果不明保留原请求/后果/同key；Web186/宽窄浏览器20通过，新具体版本index-1qAJmlnq已获UI负责人适用UI接受（26常规/8并发），实际Service宽窄恢复浏览器2通过。P2 121/104/203/51，aggregate 1b6cbca9...，边界/语义通过。当前Service641pass/29既有skip、Windows独立Service203表/147route、Movie/Series隔离200→203副本及备份恢复窗口通过；冻结325文件整合收取2711pass/2旧计数fail/12既有skip；仅两断言文件更新，18项复验通过，runtime输入无漂移，组合证据见JAV_CORRECTION_RECOVERY。生产只读仍6 active Libra/4 running Work/20 reconcile_required Effects，实际一致副本不合格；本机Docker查询超时/原Secrets Engine故障，尚无最终镜像。NAS临时隔离Linux按用户决定skip，无生产变更。
+2026-10-15 JAV-RELEASE-CANDIDATE：最终本地候选 markmahoro/shelfdeck:455873b377 已通过标准构建、导出及独立SHA256校验；实际该镜像Linux JAV核心6/终态恢复8/Movie3/Series3共20条选择场景全部通过。固定锁定依赖FFprobe解决HEVC色彩漏读；备份改为有界完整hash，镜像384MiB容器内P13六项通过。当前Windows独立Service包203表/147路由、包内Native/API及256MiB备份恢复/篡改拒绝通过。2318份Service源码及已接受1qAJmlnq UI字节一致，继承具体版本适用UI接受。P2 121/104/203/51与既有完整整合/精确计数复验的组合证据保持，不宣称重跑过一次全绿整合。剩余部署准备为生产完整一致副本、6 active Libra及20未决Arca settlement-delete Effects的明确收口与实际规模升级/回退资格；4 running Work仍须核验。NAS临时隔离Linux仍按用户决定skip，没有上传、部署、停服、Reset或改生产数据。下一步须先取得仅限原容器停机备份后原样重启的精确授权。详见现有JAV_RELEASE_COPY/JAV_CORRECTION_RECOVERY证据。
+
+
+### 下一步：生产一致副本窗口（待用户精确授权，尚未执行）
+
+仅针对192.168.12.230现有shelfdeck容器及其原数据/部署配置，保持原image 0dbd762d2：现场核验容器身份、挂载、配置位置及本地私有备份目的目录；允许正常checkpoint的停机窗口（预留75秒grace），原容器停止后流式取得完整data及私密配置备份，确认传输完成/文件清单与hash后原样重启同一容器并检查健康。离线副本完整性/200表结构和旧责任分析在隔离路径执行；失败时优先原样恢复原服务并保留失败证据。预计停机包含约3.17GB数据传输，时长取决于现场吞吐，不承诺固定分钟数。
+
+该窗口不包含新版镜像应用、Reset、取消旧任务、改Effect状态、删源或媒体，也不包含NAS临时Linux测试容器。运行配置/Secret仅保存于私有ignored位置，不进入日志/文档/提交；先清点外部Workspace/Media绑定，data备份不冒充全部媒体备份。冷副本不自动解除6 active Libra/20未决Arca Effect的升级阻断；取得副本后只读确定逐项责任与可审查收口方案，任何生产数据处置另按明确范围授权。标准发布仍须完整副本/回退验证、checksum/dry-run以及用户明确部署授权。
 
 2026-10-15 JAV-WORKBENCH-RECOVERY：恢复Intent已原子保存完整Receipt/执行Snapshot/文件现场Observation并追加不可变历史；当前指针不覆盖旧证据。实际Host的Source失败恢复、资料已成功而NFO写入失败恢复均完成同一Correction及清理（2 pass），后一条验证站点选填资料变化不会重写冻结Source Result，原失败Work、视频与原On-deck保持。已接入有界只读现场Preparation；发布/提交后清理的终态恢复、producer temporary及反复恢复后取消、公开API/工作区继续动作和最终版本资格尚未闭合，不宣称恢复功能或生产部署就绪。详见既有JAV_CORRECTION_RECOVERY证据。
 
