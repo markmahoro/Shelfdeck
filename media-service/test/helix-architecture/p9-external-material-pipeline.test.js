@@ -180,3 +180,64 @@ test('query capability reads the owning Run basis instead of a scoped Work basis
   }}});
   assert.throws(()=>wrong[capabilityRef].execute(context),/escaped its Run/);
 });
+
+
+test('large candidate evidence survives restart and selects the complete set through a bounded Owner record', async t => {
+  const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),Database=require('better-sqlite3');
+  const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-kernel');
+  const {createSqliteUnitOfWork}=require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+  const {createCapabilityContractValidator}=require('../../src/helix/foundation/capability/contract-validator');
+  const {createAcquisitionCandidateEvidenceStore}=require('../../src/helix/domains/libra/persistence/acquisition-candidate-evidence-store');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'candidate-evidence-')),databasePath=path.join(root,'data.db');
+  let kernel; t.after(()=>{kernel?.close();fs.rmSync(root,{recursive:true,force:true});});
+  const schemaManifest=require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+  const schemaDdl=fs.readFileSync(path.resolve(__dirname,'../../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
+  const schemas=[],pending=[path.resolve(__dirname,'../../src/helix/contracts')];
+  while(pending.length){const dir=pending.pop();for(const entry of fs.readdirSync(dir,{withFileTypes:true})){
+    const full=path.join(dir,entry.name);if(entry.isDirectory())pending.push(full);else if(entry.name.endsWith('schema.json')){
+      const schema=JSON.parse(fs.readFileSync(full));if(schema.$id)schemas.push(schema);
+    }
+  }}
+  const contractValidator=createCapabilityContractValidator({schemas});
+  const open=()=>{kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>NOW});return {schemaManifest,
+    unitOfWork:createSqliteUnitOfWork({kernel}),contractValidator,now:()=>NOW};};
+  let options=open();
+  const db=new Database(databasePath);db.pragma('foreign_keys=ON');
+  db.prepare('INSERT INTO libra_subjects(subject_id) VALUES(?)').run('subject-1');
+  db.prepare('INSERT INTO libra_runs(libra_run_id,subject_id,state,execution_basis_digest) VALUES(?,?,?,?)').run('run-1','subject-1','active',hex('run'));
+  db.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id) VALUES(?,?,?,?)').run('search-work','libra','libra_run','run-1');
+  db.prepare('INSERT INTO fx_workflow_events(event_id,work_id,owner_domain,state) VALUES(?,?,?,?)').run('search-event','search-work','libra','executing');
+  db.prepare('INSERT INTO fx_event_attempts(event_attempt_id,event_id,state) VALUES(?,?,?)').run('search-attempt','search-event','executing');
+  db.close();
+  const full=candidates(Array.from({length:100},(_,providerRank)=>candidate({providerRank,seederCount:providerRank+1})));
+  assert.ok(Buffer.byteLength(JSON.stringify(full))>65536);
+  let calls=0;
+  const provider=async request=>{calls++;return {...request,integrationId:'integration-1',configRevision:3,
+    requestDigest:hex('request'),responseDigest:hex('response'),transportRequestId:'transport-1',result:full};};
+  const context={capabilityRef:'libra.external_material.search@1',idempotencyKey:'search',workId:'search-work',eventId:'search-event',
+    eventAttemptId:'search-attempt',ownerScope:{processId:'run-1'},namedInputs:{acquisitionQuery:query(),integrationHandle:{integrationId:'integration-1',configRevision:3}}};
+  const ports=createExternalMaterialCapabilityPorts({...options,executeExternalProvider:provider});
+  await assert.rejects(ports[context.capabilityRef].execute({...context,ownerScope:{processId:'another-run'}}),/immutable Run/);
+  assert.equal(calls,0);
+  const outcome=await ports[context.capabilityRef].execute(context);
+  contractValidator.validate(outcome.resultSchemaRef,outcome.result);
+  assert.equal(outcome.result.candidateCount,100);assert.ok(Buffer.byteLength(JSON.stringify(outcome.result))<4096);
+  const read=new Database(databasePath);try{
+    assert.throws(()=>read.prepare('INSERT INTO fx_event_result_bindings(result_id,event_id,result_json) VALUES(?,?,?)').run('oversize','search-event',JSON.stringify(full)),/CHECK/);
+    read.prepare('INSERT INTO fx_event_result_bindings(result_id,event_id,result_schema_ref,result_json,evidence_schema_ref,evidence_json) VALUES(?,?,?,?,?,?)')
+      .run('compact','search-event',outcome.resultSchemaRef,JSON.stringify(outcome.result),outcome.evidenceSchemaRef,JSON.stringify(outcome.evidence));
+    assert.equal(read.prepare('SELECT count(*) n FROM libra_acquisition_candidate_evidence').get().n,1);
+  }finally{read.close();}
+  kernel.close();kernel=null;options=open();
+  const restarted=createExternalMaterialCapabilityPorts({...options,executeExternalProvider:provider});
+  assert.deepEqual(await restarted[context.capabilityRef].execute(context),outcome);assert.equal(calls,1);
+  const selected=restarted['libra.external_material.candidate.select@1'].execute({capabilityRef:'libra.external_material.candidate.select@1',
+    ownerScope:{processId:'run-1'},namedInputs:{candidates:outcome.result,selectionCriteria:c.buildSelectionCriteria({revision:1,queryDigest:query().queryDigest})}});
+  assert.equal(selected.result.selectedCandidate.providerRank,99);
+  const store=createAcquisitionCandidateEvidenceStore(options);
+  assert.throws(()=>store.read(outcome.result,'another-run'),/immutable Run/);
+  assert.throws(()=>store.read({...outcome.result,candidateCount:99},'run-1'),/immutable Run/);
+  assert.throws(()=>store.read(full,'run-1'));
+  const corrupt=new Database(databasePath);try{corrupt.prepare('UPDATE libra_acquisition_candidate_evidence SET evidence_digest=?').run(hex('tamper'));}finally{corrupt.close();}
+  assert.throws(()=>store.read(outcome.result,'run-1'),/immutable Run/);
+});

@@ -969,6 +969,8 @@ function rollbackRetainedSubjectIntakes(database, scope, nowMs) {
 }
 
 function deleteFormationBusinessGraph(database, scope, nowMs) {
+  if(tableExists(database,'libra_acquisition_candidate_evidence'))
+    executeByIds(database,'DELETE FROM libra_acquisition_candidate_evidence WHERE libra_run_id IN',scope.runIds);
   rollbackRetainedSubjectIntakes(database, scope, nowMs);
   executeByIds(database, 'DELETE FROM arca_ondeck_settlement_approvals WHERE on_deck_run_id IN', scope.onDeckRunIds);
   executeByIds(database, 'DELETE FROM arca_final_inventory_decisions WHERE on_deck_run_id IN', scope.onDeckRunIds);
@@ -1168,6 +1170,8 @@ function verifyFrozenManifest(database, manifest) {
   if (reserved.length) residual.recoveryReservations = reserved.map(({workId,circuit})=>({workId,circuitKey:circuit.circuit_key}));
   assertIdsAbsent(database, 'libra_subjects', 'subject_id', scope.disposableSubjectIds, residual);
   assertIdsAbsent(database, 'libra_intake_decisions', 'intake_decision_id', scope.intakeDecisionIds, residual);
+  if(tableExists(database,'libra_acquisition_candidate_evidence'))
+    assertIdsAbsent(database,'libra_acquisition_candidate_evidence','libra_run_id',scope.runIds,residual);
   assertIdsAbsent(database, 'libra_run_outcomes', 'libra_run_id', scope.runIds, residual);
   assertIdsAbsent(database, 'libra_runs', 'libra_run_id', scope.runIds, residual);
   assertIdsAbsent(database, 'libra_workspaces', 'workspace_id', scope.workspaceIds, residual);

@@ -27,7 +27,7 @@ function fixture(t) {
   }); kernel.close();
   return { root, sourcePath, targetPath, schema };
 }
-test('offline release copy preserves all 199 existing row sets and the source bytes with exact 200-to-203 schema proof', t => {
+test('offline release copy preserves all 199 existing row sets and the source bytes with exact 200-to-204 schema proof', t => {
   const value = fixture(t), before = hash(value.sourcePath);
   assert.equal(inspectJavSchemaSource({ Database, sourcePath: value.sourcePath }).eligible, true);
   const receipt = prepareJavSchemaCopy({ Database, ...value });
@@ -120,7 +120,7 @@ test('snapshot verifier requires a real read-only transaction and operator CLI e
   const inspection = spawnSync(process.execPath, [script, '--source', value.sourcePath, '--inspect'], { encoding: 'utf8', windowsHide: true });
   assert.equal(inspection.status, 0, inspection.stderr); assert.equal(JSON.parse(inspection.stdout).source.tableCount, 200);
   const prepared = spawnSync(process.execPath, [script, '--source', value.sourcePath, '--target', value.targetPath], { encoding: 'utf8', windowsHide: true });
-  assert.equal(prepared.status, 0, prepared.stderr); assert.equal(JSON.parse(prepared.stdout).target.tableCount, 203);
+  assert.equal(prepared.status, 0, prepared.stderr); assert.equal(JSON.parse(prepared.stdout).target.tableCount, 204);
   assert.ok(!prepared.stdout.includes('opaque-secret-reference-never-report')); assert.equal(hash(value.sourcePath), before);
 });
 

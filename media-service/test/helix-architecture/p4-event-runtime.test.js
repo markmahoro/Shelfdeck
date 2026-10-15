@@ -325,6 +325,51 @@ function databaseFacts(databasePath) {
   } finally { database.close(); }
 }
 
+for (const field of ['result', 'evidence']) {
+  for (const recovery of [false, true]) {
+    test(`oversized pure observation ${field} closes its Attempt during ${recovery ? 'recovery' : 'dispatch'}`, async () => {
+      const outcome = { kind:'succeeded', resultSchemaRef:'helix://test/result', result:{value:1},
+        evidenceSchemaRef:'helix://test/evidence', evidence:{proof:true},
+        [field]:{value:'界'.repeat(22000)} };
+      await fixture(async ({runtime,lease,databasePath,state}) => {
+        const completed = recovery
+          ? await runtime.recover({eventId:'event',decision:'safe_retry'})
+          : await runtime.run({schedulerLease:lease});
+        assert.equal(completed.kind,'failed');
+        const facts = databaseFacts(databasePath);
+        assert.equal(facts.event.state,'failed');
+        assert.equal(facts.attempt.state,'completed');
+        assert.equal(facts.attempt.failure_class,'contract');
+        assert.equal(facts.attempt.failure_code,'P4_OBSERVATION_RESULT_STORAGE_BOUND_EXCEEDED');
+        assert.equal(facts.results,0);
+        assert.equal(facts.attempts,1);
+        assert.equal(state().governorReleased,1);
+        assert.deepEqual(state().journalCalls,[]);
+      }, {outcome,...(recovery ? {initialEventState:'executing',seedExecutingAttempt:true} : {})});
+    });
+  }
+}
+
+test('pure observation accepts the exact durable UTF-8 byte boundary', async () => {
+  const value = {value:'x'.repeat(65524)};
+  assert.equal(Buffer.byteLength(JSON.stringify(value)),65536);
+  await fixture(async ({runtime,lease,databasePath}) => {
+    assert.equal((await runtime.run({schedulerLease:lease})).kind,'succeeded');
+    assert.equal(databaseFacts(databasePath).results,1);
+  }, {outcome:{kind:'succeeded',resultSchemaRef:'helix://test/result',result:value,
+    evidenceSchemaRef:'helix://test/evidence',evidence:value}});
+});
+
+for(const recovery of [false,true]) test(`unserializable observation completion closes during ${recovery?'recovery':'dispatch'}`,async()=>{
+  await fixture(async({runtime,lease,databasePath,state})=>{
+    const result=recovery?await runtime.recover({eventId:'event',decision:'safe_retry'}):await runtime.run({schedulerLease:lease});
+    assert.equal(result.kind,'failed');assert.equal(databaseFacts(databasePath).attempt.state,'completed');
+    assert.equal(state().governorReleased,1);assert.equal(databaseFacts(databasePath).results,0);
+  },{outcome:{kind:'succeeded',resultSchemaRef:'helix://test/result',result:{value:1n},
+    evidenceSchemaRef:'helix://test/evidence',evidence:{proof:true}},
+    ...(recovery?{initialEventState:'executing',seedExecutingAttempt:true}:{})});
+});
+
 test('Host scan and synchronous input failure callback aggregate one real Attempt and settle its Owner once', async () => {
   await fixture(async ({ runtime, lease, databasePath, unitOfWork, state }) => {
     const lifecycle = createWorkLifecycle({ schemaManifest, unitOfWork, nextWorkAttemptId: () => assert.fail('unexpected replan') });

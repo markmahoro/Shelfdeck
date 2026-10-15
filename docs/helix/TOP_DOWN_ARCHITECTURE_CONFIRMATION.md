@@ -10050,7 +10050,7 @@ Package中的每个新Physical Material Identity取得Libra Control，并验证�
 | Capability ref | Input → Output | Effect Class |
 | --- | --- | --- |
 | `libra.external_material.query.prepare@1` | `ResolvedProductIdentity + ProductIdentityEvidenceObservation + ProductStructure + MediaRequirement + AcquisitionPolicy → AcquisitionQuery` | `pure_observation` |
-| `libra.external_material.search@1` | `AcquisitionQuery + IntegrationHandle → AcquisitionCandidates` | `pure_observation` |
+| `libra.external_material.search@1` | `AcquisitionQuery + IntegrationHandle → AcquisitionCandidatesRecord` | `pure_observation` |
 | `libra.external_material.candidate.select@1` | `Candidates + SelectionCriteria → SelectedCandidate` | `pure_observation` |
 | `libra.external_material.acquire.request@1` | `SelectedCandidate(selected) + AcquisitionQuery + IntegrationHandle → ExternalJobReceipt` | `external_request` |
 | `libra.external_material.acquire.observe@1` | `ExternalJobReceipt + IntegrationHandle + phase → AcquisitionObservation`（未完成使用Outcome `deferred`） | `pure_observation` |
@@ -11149,6 +11149,7 @@ Accepted variant的`rejection_schema_ref`及全部rejection列必须为NULL。SQ
 | `ReclamationReceipt` | `ReceiptEnvelope + workspaceId + memberResults[1..32 WorkspaceMaterialDeletionEvidence] + reclaimedHandleIds[] + retainedHandleIds[] + reclaimedBytes + receiptDigest`；member按materialHandleId排序且两类handle数组从member结果确定性派生；Libra一次调用固定恰一项，Arca/People同类Workspace回收允许有界批次；完整JCS≤`64 KiB`，`receiptDigest=SHA-256(JCS(完整value excluding receiptDigest))` |
 | `WorkspaceCleanupCommitReceipt` | `ReceiptEnvelope + cleanupScopeId + scopeStateRevision + materialHandleId + memberStateRevision + outcomeEvidenceDigest + releasedControlRevision? + releasedControlProjectionDigest? + cleanupState(completed|blocked) + receiptDigest`；固定`receiptKind=libra_workspace_cleanup_member,ownerDomain=libra,scopeType=workspace_cleanup_member,scopeId=cleanupScopeId+":"+materialHandleId,scopeDigest=WorkspaceCleanupCommitDecision.decisionDigest`，`receiptId=SHA-256(JCS({schema:"libra.workspace-cleanup-receipt-id@1",cleanupScopeId,materialHandleId,memberStateRevision}))`；completed的outcome是Deletion Evidence，blocked的outcome是Blocking Evidence；Control双字段同为NULL或同为非NULL且blocked恒为NULL；`receiptDigest=SHA-256(JCS(完整value excluding receiptDigest))` |
 | `AcquisitionQuery` | 8.6.8 `PBF-16` exact Query：完整Run/Basis、Resolved Identity Anchor、Product Structure/Episode scope、terms/constraints及唯一query digest；不含Workspace path |
+| `AcquisitionCandidatesRecord` | `EvidenceEnvelope + recordId + libraRunId + runExecutionBasisDigest + searchWorkId + searchEventId + searchEventAttemptId + queryDigest + integrationId + configRevision + candidateCount + candidateSetDigest`；Libra完整候选Evidence的不可变有界引用，payloadDigest覆盖完整AcquisitionCandidates，JCS≤4 KiB；Candidate Select只通过同Run的Libra Owner reader验证并读取全部候选 |
 | `AcquisitionCandidates` | `EvidenceEnvelope + queryDigest + integrationId + configRevision + candidates[0..100 ProviderAcquisitionCandidateSnapshot] + candidateSetDigest`；完整typed集合、排序、digest与256 KiB双界见8.6.8 |
 | `SelectedCandidate` | 8.6.8 closed `selected|not_selected` Draft；selected内联完整selected Provider Candidate Snapshot，not_selected不伪造ID；两者均绑定Query/Criteria/Candidate set |
 | `AcquisitionObservation` | ready-only `EvidenceEnvelope + ExternalJobReceipt完整值 + phase + providerObservationRevision + outputSnapshot + observationDigest`；pending使用`deferred`且不发布Result，禁止free-form state/outputRefs |
@@ -16178,3 +16179,15 @@ Arca允许用户在同一Correction下显式发起有界Recovery Intent：绑定
 JAV恢复前现场Observation只读核对声明路径、Physical Identity/有界fingerprint及有界资料文件完整SHA-256，保留逐文件和目录集合。原视频完整SHA-256仍由Foundation正式叶子在资源调度和执行围栏下核验，不在HTTP受理前无调度扫描多GB视频。Assets Work终态失败而Source Event已成功时，显式Recovery Intent引用该实际成功Source Result；新Assets Work通过Owner只读Projection取得同一Result，不重新产生Source Fact。仅此精确前置Event允许来自原failed Work，其他前置Work仍须succeeded；File Plan、最终语义核验与Identity Commit逐项重验同一引用及摘要。Source、文件计划一经恢复Intent冻结，后续Intent不得替换；未知文件仍拒绝覆盖或清理。
 
 恢复公开命令`POST /v1/admin/collection/:shelfEntryId/jav-corrections/:correctionId/actions/recover`只接受expectedStateRevision、expectedAdmissionDigest、expectedCleanupState、expectedRecoveryIntentDigest、idempotencyKey五字段；Actor来自服务端会话，Entry/Correction来自路径。Receipt preflight先于当前读取/现场检查；新请求先核当前状态，再做有界只读Preparation，随后在专用事务重验Owner/Control/Root/完整执行Snapshot及CAS。202只表示新Intent受理，当前完成状态由Owner任务Projection重读，不把受理当作纠正或清理完成。相同键重放不重查文件或重做Effect，改变请求返回冲突；未知现场拒绝附最多8个声明范围内的具体冲突路径。GET status的recovery.available只表示当前业务态允许提出继续请求，不授予执行或跳过现场资格。工作区交互区显示继续纠正/继续清理与对应后果确认，同一行同一时刻只能确认一种业务操作；网络结果不明保留原完整命令/键重试，冲突清除确认并重读当前Owner状态。过程详情不提供业务命令。
+
+### 外部候选完整Evidence与运行收口（2026-10-15，用户确认）
+
+AcquisitionCandidates保持最多100项、完整JCS≤256 KiB，作为Libra-owned不可变Observation Evidence保存，不再直接写Foundation Result。search的Result为AcquisitionCandidatesRecord（≤4 KiB）；Candidate Select的Candidates输入固定为该Record，不接受旧完整对象或双读。Record绑定Run及Execution Basis、search Work/Event/Attempt、Query、Integration/config revision、完整集合数量/摘要及完整Evidence摘要。Libra reader必须逐字段重算匹配并读取全部候选，不能截断、跨Run复用、读取current Provider或把Foundation变成业务Store。
+
+同一search Attempt先查已保存Evidence；已有时核验同一Run/Query/Integration并重用原Record，不重查Provider。首次保存须在Libra UoW验证Run仍active及相同Execution Basis；Evidence与Record同事务不可变保存，之后Foundation独立绑定有界Result。保存后Result绑定前崩溃由同Attempt重放原Record，不能覆盖Evidence；新的Attempt有独立Record。此Observation保存不产生Canonical业务决定、Material Control或文件副作用，search仍为pure_observation。Formation Reset按所选Run闭包删除该表，不能触碰其他Run。未完成旧运行无兼容权利，部署前仍用获授权Reset；已终态历史不改写。
+
+| Table | Columns | Constraints |
+| --- | --- | --- |
+| `libra_acquisition_candidate_evidence` | `record_id PK, libra_run_id FK, search_work_id FK, search_event_id FK, search_event_attempt_id FK UNIQUE, run_execution_basis_digest, evidence_schema_ref, evidence_json, evidence_digest, record_schema_ref, record_json, record_digest, observed_at_ms` | immutable；evidence JSON上限`256 KiB`；record JSON上限`4 KiB`；`INDEX(libra_run_id,record_id)` |
+
+Foundation保持Result及Evidence各≤64 KiB。pure_observation成功输出在落库前校验UTF-8 JCS字节上限，超限以稳定contract failure结束原Attempt并按既有Owner/Incident收口，不留下无执行器的executing，也不截断Evidence；非pure已提交Effect仍沿既有completion/reconcile合同。

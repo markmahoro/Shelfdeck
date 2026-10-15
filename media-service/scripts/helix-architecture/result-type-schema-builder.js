@@ -687,6 +687,7 @@ const contracts = {
   ReclamationReceipt: ['ReceiptEnvelope', 'workspaceId,reclaimedHandleIds,retainedHandleIds,reclaimedBytes'],
   WorkspaceCleanupCommitReceipt: ['ReceiptEnvelope', 'cleanupScopeId,materialHandleId,deletionEvidenceDigest,releasedControlRevision?,cleanupState'],
   AcquisitionQuery: ['DraftEnvelope', 'libraRunId,runExecutionBasisDigest,resolvedIdentityDigest,productStructureDigest,structureKind,contentProfile,providerIdentityAnchors,requestedEpisodeKeys,mediaRequirement,mediaRequirementDigest,acquisitionPolicyDigest,queryTerms,hardConstraints,queryDigest'],
+  AcquisitionCandidatesRecord: ['EvidenceEnvelope', 'recordId,libraRunId,runExecutionBasisDigest,searchWorkId,searchEventId,searchEventAttemptId,queryDigest,integrationId,configRevision,candidateCount,candidateSetDigest'],
   AcquisitionCandidates: ['EvidenceEnvelope', 'queryDigest,integrationId,configRevision,candidates,candidateSetDigest'],
   SelectedCandidate: ['DraftEnvelope', 'queryDigest,candidateSetDigest,selectionCriteriaDigest,result,selectedCandidate,selectedCandidateId,selectionReasonCode'],
   AcquisitionObservation: ['EvidenceEnvelope', 'externalJobReceipt,phase,providerObservationRevision,outputSnapshot,observationDigest'],
@@ -804,6 +805,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'OnDeckProductPackage') return onDeckProductPackageSchema();
   if (name === 'OnDeckProductPackageCommitReceipt') return onDeckProductPackageCommitReceiptSchema();
   if (name === 'AcquisitionQuery') return acquisitionQuerySchema();
+  if (name === 'AcquisitionCandidatesRecord') return resultSchema(name,'EvidenceEnvelope',{recordId:digest(),libraRunId:id(),runExecutionBasisDigest:digest(),searchWorkId:id(),searchEventId:id(),searchEventAttemptId:id(),queryDigest:digest(),integrationId:id(),configRevision:positiveInteger(),candidateCount:{type:'integer',minimum:0,maximum:100},candidateSetDigest:digest()},{'x-helix-maxCanonicalBytes':4096});
   if (name === 'AcquisitionCandidates') return acquisitionCandidatesSchema();
   if (name === 'SelectedCandidate') return selectedCandidateSchema();
   if (name === 'AcquisitionObservation') return acquisitionObservationSchema();

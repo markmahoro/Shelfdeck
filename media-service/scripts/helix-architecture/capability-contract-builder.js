@@ -104,7 +104,7 @@ function normalizedTypeName(value) {
     'External/user asset handle': 'ExternalMaterialHandle',
     'Provider/person hint': 'ProviderPersonHint',
     'PeopleCandidateDraft(registration|merge)': 'PeopleCandidateDraft',
-    'Candidates': 'AcquisitionCandidates',
+    'Candidates': 'AcquisitionCandidatesRecord',
     'Fulfillment result': 'FulfillmentVerification',
     'Resolution draft': 'PerceptionResolutionDraft',
     'Stable evidence': 'StableExternalMaterialEvidence',

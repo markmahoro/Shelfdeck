@@ -181,6 +181,12 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'libra_subject_episode_scopes.first_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id']
 });
 const EXPLICIT_FOREIGN_KEYS = Object.freeze({
+  libra_acquisition_candidate_evidence: [
+    {columns:['libra_run_id'],targetTable:'libra_runs',targetColumns:['libra_run_id']},
+    {columns:['search_work_id'],targetTable:'fx_supporting_works',targetColumns:['work_id']},
+    {columns:['search_event_id'],targetTable:'fx_workflow_events',targetColumns:['event_id']},
+    {columns:['search_event_attempt_id'],targetTable:'fx_event_attempts',targetColumns:['event_attempt_id']},
+  ],
   libra_run_outcomes: [{columns:['libra_run_id'],targetTable:'libra_runs',targetColumns:['libra_run_id']},{columns:['subject_id'],targetTable:'libra_subjects',targetColumns:['subject_id']}],
   libra_strategy_availability:[{columns:['libra_run_id'],targetTable:'libra_runs',targetColumns:['libra_run_id']}],
   arca_defect_admissions: [{columns:['shelf_entry_id'],targetTable:'arca_shelf_entries',targetColumns:['shelf_entry_id']}],
@@ -306,6 +312,8 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'libra_acquisition_candidate_evidence.evidence_json':262144,
+  'libra_acquisition_candidate_evidence.record_json':4096,
   'arca_jav_identity_corrections.preview_proof_json': 2 * 1024 * 1024,
   'arca_jav_identity_corrections.committed_context_json': 4 * 1024 * 1024,
   'arca_jav_identity_corrections.cleanup_receipt_json': 16 * 1024,

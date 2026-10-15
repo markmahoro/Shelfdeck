@@ -4,6 +4,7 @@ const EXTERNAL_LANDING_OBSERVATION_TIMEOUT_MS = 30 * 60 * 1000;
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const contracts = require('../model/external-material-contracts');
+const { createAcquisitionCandidateEvidenceStore } = require('../persistence/acquisition-candidate-evidence-store');
 
 const BASE = 'helix://contracts/capabilities/';
 
@@ -84,6 +85,8 @@ function productStructure(context, explicit) {
 }
 
 function createExternalMaterialCapabilityPorts(options) {
+  let candidateEvidenceStore;
+  const candidateEvidence = () => candidateEvidenceStore ||= createAcquisitionCandidateEvidenceStore(options);
   const now = options?.now || Date.now;
   const executeExternalProvider = options?.executeExternalProvider ||
     (async () => { throw new TypeError('External Provider port is unavailable.'); });
@@ -144,6 +147,10 @@ function createExternalMaterialCapabilityPorts(options) {
       },
       async execute(context) {
         const input = context.namedInputs;
+        const scope={libraRunId:context.ownerScope.processId,runExecutionBasisDigest:input.acquisitionQuery.runExecutionBasisDigest,
+          searchWorkId:context.workId,searchEventId:context.eventId,searchEventAttemptId:context.eventAttemptId};
+        const saved=candidateEvidence().find(scope,input.acquisitionQuery,input.integrationHandle);
+        if(saved)return succeeded(context.capabilityRef,saved,saved.observedAtMs);
         const response = await provider(context.capabilityRef,
           'pure_observation', input.integrationHandle,
           { acquisitionQuery:input.acquisitionQuery, limit:100 },
@@ -167,10 +174,11 @@ function createExternalMaterialCapabilityPorts(options) {
           candidateSetDigest: response.result.candidateSetDigest,
         });
         contracts.assertCandidates(result);
-        return succeeded(context.capabilityRef, result, result.observedAtMs);
+        const record=candidateEvidence().save(scope,input.acquisitionQuery,input.integrationHandle,result);
+        return succeeded(context.capabilityRef, record, record.observedAtMs);
       },
       validateResult(_context, outcome) {
-        contracts.assertCandidates(outcome?.result);
+        candidateEvidence().read(outcome?.result,_context.ownerScope.processId);
       },
     },
     'libra.external_material.candidate.select@1': {
@@ -179,7 +187,7 @@ function createExternalMaterialCapabilityPorts(options) {
       },
       execute(context) {
         const result = contracts.selectCandidate({
-          candidates: context.namedInputs.candidates,
+          candidates: candidateEvidence().read(context.namedInputs.candidates,context.ownerScope.processId),
           selectionCriteria: context.namedInputs.selectionCriteria,
           producedAtMs: now(),
         });

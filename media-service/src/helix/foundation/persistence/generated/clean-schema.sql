@@ -1624,6 +1624,32 @@ CREATE TABLE "libra_acceptance_specs" (
   FOREIGN KEY ("decision_basis_id") REFERENCES "libra_decision_basis_revisions" ("decision_basis_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "libra_acquisition_candidate_evidence" (
+  "record_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "search_work_id" TEXT,
+  "search_event_id" TEXT,
+  "search_event_attempt_id" TEXT,
+  "run_execution_basis_digest" TEXT CHECK (length("run_execution_basis_digest") = 64 AND "run_execution_basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "evidence_schema_ref" TEXT,
+  "evidence_json" TEXT,
+  "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT,
+  "record_json" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "observed_at_ms" INTEGER CHECK ("observed_at_ms" >= 0),
+  UNIQUE ("search_event_attempt_id"),
+  CHECK (json_valid("evidence_json")),
+  CHECK (length(CAST("evidence_json" AS BLOB)) <= 262144),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 4096),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("search_work_id") REFERENCES "fx_supporting_works" ("work_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("search_event_id") REFERENCES "fx_workflow_events" ("event_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("search_event_attempt_id") REFERENCES "fx_event_attempts" ("event_attempt_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_acquisition_candidate_evidence_hot_01" ON "libra_acquisition_candidate_evidence" ("libra_run_id", "record_id");
+
 CREATE TABLE "libra_decision_basis_inputs" (
   "decision_basis_id" TEXT,
   "input_ordinal" INTEGER CHECK ("input_ordinal" >= 0),

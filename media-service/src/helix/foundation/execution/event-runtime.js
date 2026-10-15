@@ -37,6 +37,22 @@ function canonical(value) {
 
 function json(value) { return JSON.stringify(canonical(value)); }
 function valueDigest(value) { return digest(json(value)); }
+
+function boundedObservationOutcome(entry, outcome) {
+  if (entry.manifest.effectClass !== 'pure_observation' || outcome?.kind !== 'succeeded') return outcome;
+  const resultBytes = Buffer.byteLength(json(outcome.result), 'utf8');
+  const evidenceBytes = Buffer.byteLength(json(outcome.evidence), 'utf8');
+  // Enforce the durable Result contract before the completion transaction. A
+  // SQLite CHECK failure here otherwise strands an executing pure Attempt even
+  // though its executor and Permit have already ended. Never truncate evidence
+  // or apply this conversion to a Capability with a physical/committed Effect.
+  if (resultBytes <= 65536 && evidenceBytes <= 65536) return outcome;
+  return Object.freeze({ kind:'failed', failureClass:'contract',
+    code:'P4_OBSERVATION_RESULT_STORAGE_BOUND_EXCEEDED',
+    message:'Pure observation Result or Evidence exceeds its durable byte limit.',
+    retryDirective:'never', evidence:Object.freeze({ resultBytes, evidenceBytes, maximumBytes:65536,
+      resultDigest:valueDigest(outcome.result), evidenceDigest:valueDigest(outcome.evidence) }) });
+}
 const DISPATCHABLE_EVENT_STATES = new Set([
   'ready',
   'waiting_for_resource',
@@ -773,6 +789,7 @@ function createEventRuntime(options) {
             return options.dispatcher.dispatch({ capabilityRef: snapshot.event.capability_ref,
               context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain });
           } }));
+        outcome = boundedObservationOutcome(entry, outcome);
       } catch (error) {
         if(error?.code==='P4_EXECUTION_SHUTDOWN_INTERRUPTED')throw error;
         outcome=cooperativeDeadlineOutcome(entry,error,attemptContract.deadlineAtMs);
@@ -1012,6 +1029,7 @@ function createEventRuntime(options) {
             operation: (signal) => { executionGuard.signal=signal||null;return options.dispatcher.dispatch({ capabilityRef: snapshot.event.capability_ref,
               context: Object.freeze(context), ownerDomain: snapshot.event.owner_domain }); }
           }));
+          outcome = boundedObservationOutcome(entry, outcome);
         } catch (error) {
           if(error?.code==='P4_EXECUTION_SHUTDOWN_INTERRUPTED')throw error;
           outcome=cooperativeDeadlineOutcome(entry,error,attemptContract.deadlineAtMs);

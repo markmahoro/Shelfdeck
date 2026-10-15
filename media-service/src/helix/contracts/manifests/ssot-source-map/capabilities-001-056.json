@@ -660,12 +660,12 @@
       "contractVersion": 1,
       "owner": "libra",
       "inputSummary": "AcquisitionQuery + IntegrationHandle",
-      "outputFamily": "AcquisitionCandidates",
+      "outputFamily": "AcquisitionCandidatesRecord",
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.8",
         "line": 10053,
-        "lineDigest": "272ea3787ea7ee72a188edb57852075a8230470e04de7df600f0e01570a7ad72"
+        "lineDigest": "64096b51a142d56612b44d6202ee04d0e3c38da72f3135e6ff52e47d4401881e"
       }
     },
     {

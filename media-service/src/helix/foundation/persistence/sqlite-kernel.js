@@ -45,7 +45,7 @@ function expectedCatalog(manifest) {
 
 function assertManifest(manifest, ddl) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.compilerContract !== 'helix-p3-deterministic-sqlite-ddl/v1' ||
-      ![200,203].includes(manifest.tableCount) || !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount) {
+      ![200,204].includes(manifest.tableCount) || !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount) {
     fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'The clean schema manifest is incomplete or unsupported.');
   }
   if (manifest.digestAlgorithm !== 'sha256' || digest(normalizedDdl(ddl)) !== manifest.ddlDigest) {
@@ -114,7 +114,7 @@ function assertCatalog(database, manifest, expected) {
       fail('P3_SQLITE_PARTIAL_UNIQUE_MISSING', 'A required partial unique index is absent or weakened.', item);
     }
   }
-  const requiredPartialCount=manifest.tableCount===203?23:22;
+  const requiredPartialCount=manifest.tableCount===204?23:22;
   if (partialExpected.length !== requiredPartialCount) fail('P3_SQLITE_PARTIAL_UNIQUE_COUNT', 'The clean schema requires its exact frozen partial unique index count.');
 }
 

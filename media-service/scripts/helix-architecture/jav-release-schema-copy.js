@@ -9,12 +9,12 @@ const { openSqliteKernel, verifyReadOnlySqliteSnapshot } = require('../../src/he
 const persistenceRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence');
 
 const SOURCE_DIGEST = 'c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d';
-const TARGET_DIGEST = 'ccef6a14c90620fa9e861ce9f860f66b5b92146f1028cc40467cc614715a9f90';
+const TARGET_DIGEST = '6ff9269258f74ae96d99ad770d1bd1d75a2fd38677def2e0e4c1fef2e50ca5ea';
 const EXTRA_COLUMNS = Object.freeze({
   libra_product_identity_selection_intents: ['selection_record_schema_ref', 'selection_record_json'],
   proc_candidate_packages: ['jav_part_set_schema_ref', 'jav_part_set_json'],
 });
-const EXTRA_TABLES = ['arca_jav_correction_directory_checks', 'arca_jav_correction_recovery_intents', 'arca_jav_identity_corrections'];
+const EXTRA_TABLES = ['arca_jav_correction_directory_checks', 'arca_jav_correction_recovery_intents', 'arca_jav_identity_corrections', 'libra_acquisition_candidate_evidence'];
 const TERMINAL_STATES = Object.freeze({
   proc_procurement_runs: ['state', ['sealed']],
   libra_runs: ['state', ['completed', 'discarded', 'superseded']],
@@ -61,7 +61,7 @@ function targetSchema() {
 }
 function verifyDifference(source, target) {
   const added = target.tables.filter(t => !source.tables.some(s => s.tableId === t.tableId)).map(t => t.tableId).sort();
-  if (source.tableCount !== 200 || target.tableCount !== 203 || JSON.stringify(added) !== JSON.stringify(EXTRA_TABLES))
+  if (source.tableCount !== 200 || target.tableCount !== 204 || JSON.stringify(added) !== JSON.stringify(EXTRA_TABLES))
     fail('JAV_SCHEMA_DIFFERENCE_INVALID', 'Release table set differs from its frozen scope.');
   for (const old of source.tables) {
     const current = target.tables.find(t => t.tableId === old.tableId), extras = EXTRA_COLUMNS[old.tableId] || [];

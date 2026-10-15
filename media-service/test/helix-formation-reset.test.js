@@ -200,6 +200,25 @@ function seedEventlessMarker(database, { marker, ownerDomain = 'libra', scopeTyp
     .run(marker,ownerDomain,scopeType,scopeId,DIGEST,resultId,resultDigest);
 }
 
+test('selected Formation Reset retires candidate Evidence with its execution scope and preserves other Runs',()=>{
+  const f=fixture('candidate-evidence-reset');
+  try {
+    const selected=seedSubjectRun(f.database,'selected'),other=seedSubjectRun(f.database,'preserved');
+    for(const scope of [selected,other]) {
+      const graph=seedExecution(f.database,'libra','libra_run',scope.runId,scope.runId);
+      f.database.prepare("UPDATE fx_effect_journal SET effect_class='pure' WHERE event_attempt_id=?").run(graph.eventAttemptId);
+      f.database.prepare(`INSERT INTO libra_acquisition_candidate_evidence
+        (record_id,libra_run_id,search_work_id,search_event_id,search_event_attempt_id,evidence_json,record_json)
+        VALUES (?,?,?,?,?,'{}','{}')`).run(scope.runId,scope.runId,graph.workId,graph.eventId,graph.eventAttemptId);
+    }
+    const retained=f.database.prepare('SELECT * FROM libra_acquisition_candidate_evidence WHERE libra_run_id=?').get(other.runId);
+    const result=applyReset({...f,subjectIds:[selected.subjectId],nowMs:100});
+    assert.equal(result.verification.foreignKeyViolations,0);
+    assert.equal(f.database.prepare('SELECT count(*) n FROM libra_acquisition_candidate_evidence WHERE libra_run_id=?').get(selected.runId).n,0);
+    assert.deepEqual(f.database.prepare('SELECT * FROM libra_acquisition_candidate_evidence WHERE libra_run_id=?').get(other.runId),retained);
+  } finally { close(f); }
+});
+
 function seedAcceptedOrphan(database, suffix) {
   const subjectId = `subject-orphan-${suffix}`;
   const intakeDecisionId = `intake-orphan-${suffix}`;

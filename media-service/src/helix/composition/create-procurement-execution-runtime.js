@@ -296,7 +296,7 @@ function createProcurementExecutionRuntime(options) {
     semanticValidator:Object.freeze({ref:manifests[capabilityRef].semanticValidatorRef,
       validateInputs:(context)=>ports[capabilityRef].validateInputs(context),
       validateResult:(context,outcome)=>ports[capabilityRef].validateResult(context,outcome)}) }));
-  const libraCapabilityRegistration=libraConstruction.createCapabilityRegistration({...libraOptions,now,workResultReader,
+  const libraCapabilityRegistration=libraConstruction.createCapabilityRegistration({...libraOptions,now,workResultReader,contractValidator,
     materialControlProjectionPort,
     computeFingerprint:options.computeFingerprint || computeBoundedMaterialFingerprint});
   const libraRegistrations=libraCapabilityRegistration.createRegistrations({enabledCapabilityRefs:LIBRA_ENABLED,
