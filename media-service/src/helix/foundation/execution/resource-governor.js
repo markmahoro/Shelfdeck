@@ -25,9 +25,9 @@ function definitions(schemaManifest) {
       defer: { kind: 'update', tableId: 'fx_workflow_events', setColumns: ['state', 'retry_at_ms'], keyColumns: ['event_id'] }
     } }),
     defers: createRepositoryDefinition({ repositoryId: 'governor_defers', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_resource_defer', columns: [
+      list_waiting: { kind: 'select-all', tableId: 'fx_resource_defer', columns: [
         'event_id', 'resource_key', 'queue_class', 'local_priority', 'priority_revision', 'enqueued_at_ms', 'retry_at_ms', 'state'
-      ], keyColumns: [] },
+      ], keyColumns: ['state'] },
       list_for_event: {kind:'select-all',tableId:'fx_resource_defer',columns:['event_id','resource_key','queue_class','local_priority','priority_revision','enqueued_at_ms','retry_at_ms','state'],keyColumns:['event_id']},
       reprioritize: {kind:'update',tableId:'fx_resource_defer',setColumns:['queue_class','local_priority','priority_revision'],keyColumns:['event_id','resource_key','state']},
       insert: { kind: 'insert', tableId: 'fx_resource_defer', columns: [
@@ -104,8 +104,8 @@ function createResourceGovernor(options) {
       participantId: 'resource_governor_release_defer', owner: 'execution-foundation',
       repositories: Object.values(repositories),
       execute(context) {
-        const waiting = context.repository('governor_defers').invoke('list')
-          .filter((row) => row.event_id === eventId && row.state === 'waiting');
+        const waiting = context.repository('governor_defers').invoke('list_for_event', { event_id: eventId })
+          .filter((row) => row.state === 'waiting');
         for (const row of waiting) {
           context.repository('governor_defers').invoke('update', {
             event_id: eventId, resource_key: row.resource_key, queue_class: row.queue_class,
@@ -349,7 +349,7 @@ function createResourceGovernor(options) {
       repositories: Object.values(repositories), execute(context) {
         const defers = context.repository('governor_defers'), events = context.repository('governor_events');
         const groups = new Map();
-        for (const row of defers.invoke('list')) {
+        for (const row of defers.invoke('list_waiting', { state: 'waiting' })) {
           if (row.state !== 'waiting' || eventPermits.has(row.event_id)) continue;
           if (!groups.has(row.event_id)) groups.set(row.event_id, []);
           groups.get(row.event_id).push(row);

@@ -29,14 +29,14 @@ function canonical(value) {
 function repositories(schemaManifest) {
   return Object.freeze({
     works: createRepositoryDefinition({ repositoryId: 'work_supply_works', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_supporting_works', columns: ['priority_class', 'state'], keyColumns: [] },
+      list: { kind: 'select-in', tableId: 'fx_supporting_works', columns: ['priority_class', 'state'], keyColumn: 'state', maxItems: OPEN_WORK.size },
       find: { kind: 'select-one', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'priority_class', 'state'], keyColumns: ['work_id'] }
     } }),
     attempts: createRepositoryDefinition({ repositoryId: 'work_supply_attempts', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_work_attempts', columns: ['state'], keyColumns: [] }
+      list: { kind: 'select-in', tableId: 'fx_work_attempts', columns: ['state'], keyColumn: 'state', maxItems: ACTIVE_ATTEMPT.size }
     } }),
     events: createRepositoryDefinition({ repositoryId: 'work_supply_events', owner: 'execution-foundation', schemaManifest, statements: {
-      list: { kind: 'select-all', tableId: 'fx_workflow_events', columns: ['state'], keyColumns: [] },
+      list: { kind: 'select-in', tableId: 'fx_workflow_events', columns: ['state'], keyColumn: 'state', maxItems: DISPATCHABLE_EVENT.size },
       find: { kind: 'select-one', tableId: 'fx_workflow_events', columns: ['event_id', 'work_id', 'owner_domain', 'priority_class', 'state'], keyColumns: ['event_id'] }
     } }),
     circuits: createRepositoryDefinition({ repositoryId: 'work_supply_circuits', owner: 'execution-foundation', schemaManifest, statements: {
@@ -108,9 +108,11 @@ function createWorkSupplyController(options) {
               lane:RESERVED.has(target.priority_class)?'reserved':projection.supplyRole==='completion'?'completion':'normal',
               snapshotDigest:digest(JSON.stringify(canonical(snapshot)))});
           }
-          const works = worksRepo.invoke('list');
-          const attempts = context.repository('work_supply_attempts').invoke('list');
-          const events = eventsRepo.invoke('list');
+          // Terminal history cannot contribute to any backlog count. Filter
+          // at the persistence boundary instead of materializing it on each check.
+          const works = worksRepo.invoke('list', { values: [...OPEN_WORK] });
+          const attempts = context.repository('work_supply_attempts').invoke('list', { values: [...ACTIVE_ATTEMPT] });
+          const events = eventsRepo.invoke('list', { values: [...DISPATCHABLE_EVENT] });
           const snapshot = {
             openWork: works.filter((item) => OPEN_WORK.has(item.state)).length,
             activeAttempt: attempts.filter((item) => ACTIVE_ATTEMPT.has(item.state)).length,

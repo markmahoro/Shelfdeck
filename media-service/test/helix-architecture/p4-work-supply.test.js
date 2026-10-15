@@ -10,6 +10,7 @@ const { createWorkSupplyController } = require('../../src/helix/foundation/execu
 const { createRepositoryDefinition } = require('../../src/helix/foundation/persistence/owner-repository');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+const { digest } = require('../../src/helix/foundation/persistence/ddl-compiler');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
@@ -19,10 +20,25 @@ const limits = Object.freeze({
   dispatchableEventSoft: 2, dispatchableEventHard: 3, backgroundWorkSoft: 2, backgroundWorkHard: 3
 });
 
-function fixture(run, now = 120000) {
+function fixture(run, now = 120000, reads = null) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-work-supply-'));
   const databasePath = path.join(root, 'shelfdeck.db');
-  const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1700000001300 });
+  function ObservedDatabase(...args) {
+    const database = new Database(...args);
+    if (!reads) return database;
+    const prepare = database.prepare;
+    database.prepare = function(sql) {
+      const statement = prepare.call(this, sql), all = statement.all;
+      statement.all = function(...bindings) {
+        const rows = all.apply(this, bindings);
+        reads.push({ sql, rowCount: rows.length });
+        return rows;
+      };
+      return statement;
+    };
+    return database;
+  }
+  const kernel = openSqliteKernel({ Database: ObservedDatabase, databasePath, schemaDdl, schemaManifest, now: () => 1700000001300 });
   const unitOfWork = createSqliteUnitOfWork({ kernel });
   const seed = createRepositoryDefinition({
     repositoryId: 'supply_seed', owner: 'execution-foundation', schemaManifest,
@@ -177,6 +193,48 @@ test('Circuit and target state defer or reject supply without Planner/Capability
     assert.deepEqual(controller.evaluate({ supplyKind: 'work_attempt', targetId: 'target' }), { kind: 'deferred', reasonCode: 'CIRCUIT_OPEN' });
     assert.equal(controller.evaluate({ supplyKind: 'work_attempt', targetId: 'missing' }).kind, 'ineligible');
   });
+});
+
+test('Supply preserves exact backlog digest while excluding terminal history from returned rows', () => {
+  const reads = [];
+  fixture(({ controller, seedRows }) => {
+    seedRows(repository => {
+      addWork(repository, 'target');
+      for (const [ordinal, state] of ['admitted', 'ready', 'running', 'blocked'].entries()) {
+        addWork(repository, 'open-' + ordinal,
+          ordinal % 2 ? 'background_observation' : 'normal_foreground', state);
+      }
+      for (const state of ['ready', 'running', 'blocked']) {
+        addWork(repository, 'attempt-owner-' + state, 'normal_foreground', 'running');
+        repository.invoke('attempt', { attempt_id: 'active-' + state, work_id: 'attempt-owner-' + state, state });
+      }
+      for (const state of ['ready', 'waiting_for_resource', 'waiting_for_external', 'waiting_for_approval']) {
+        addEventGraph(repository, state, 'normal_foreground', state);
+      }
+      for (let ordinal = 0; ordinal < 1000; ordinal += 1) {
+        const id = 'history-' + ordinal, state = ['succeeded', 'failed', 'cancelled'][ordinal % 3];
+        addWork(repository, id, 'background_observation', state);
+        repository.invoke('attempt', { attempt_id: 'attempt-' + id, work_id: id, state });
+        repository.invoke('plan', { plan_id: 'plan-' + id, attempt_id: 'attempt-' + id, state: 'planned' });
+        repository.invoke('event', { event_id: 'event-' + id, plan_id: 'plan-' + id, work_id: id,
+          owner_domain: 'libra', priority_class: 'background_observation',
+          state: ordinal % 4 === 0 ? 'skipped' : state });
+      }
+    });
+    reads.length = 0;
+    const decision = controller.evaluate({ supplyKind: 'work_attempt', targetId: 'target' });
+    assert.equal(decision.reasonCode, 'SUPPLY_HARD_CAP');
+    assert.equal(decision.snapshotDigest, digest(JSON.stringify({
+      activeAttempt: 7, backgroundWork: 2, dispatchableEvent: 4, openWork: 12,
+    })));
+    const backlogReads = reads.filter(item => /FROM "fx_(supporting_works|work_attempts|workflow_events)"/.test(item.sql));
+    assert.equal(backlogReads.length, 3);
+    assert.deepEqual(backlogReads.map(item => item.rowCount), [12, 7, 4]);
+    assert.ok(backlogReads.every(item => item.sql.includes('WHERE "state" IN (')));
+    reads.length = 0;
+    assert.equal(controller.evaluate({ supplyKind: 'event_dispatch', targetId: 'event-ready' }).kind, 'permitted');
+    assert.equal(reads.some(item => item.sql.includes('WHERE "state" IN (')), false);
+  }, 120000, reads);
 });
 
 test('Supply source has no Planner, Capability selection, capacity decision, deletion, or Business write', () => {

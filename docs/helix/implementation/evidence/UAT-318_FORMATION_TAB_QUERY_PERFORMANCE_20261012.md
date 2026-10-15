@@ -1,5 +1,15 @@
 # UAT-318：Series上线后媒体整理Tab切换延迟
 
+## 2026-10-16 通用积压与资源历史读取修复
+
+在`1f36d9ed8`双车间/公平交付之上，Foundation供给统计复用Scheduler既有`select-in(state)`，只返回原规则的open Work、active Attempt及dispatchable Event；阈值、snapshot字段/digest、completion/reserved lane、Circuit和Event排空语义均保持。Resource Governor发Permit前释放等待记录改用已有`list_for_event`，容量释放扫描只返回`waiting`；保持同Event完整历史的需求漂移/退避校验、全体等待者占用预算、优先级及资源原子性。公平任务此前已将`persistSoftWait/persistDeferred`的同Event读取收窄，这部分不重复计为本次修复。没有增加来源策略、缓存、调度队列、schema/API或UI改动。
+
+Windows与本机Linux（037镜像只读绑定当前候选源码/测试）各68项通过，包含供给、Scheduler、Governor和Runtime Host。新增真实SQLite fixture：1000组终态Work/Attempt/Event不进入返回结果，全部活动状态仍贡献原精确snapshot digest；另一组1000条released/cancelled/expired资源记录在Permit与容量唤醒时不物化、不改写，当前等待者仍正常释放。首轮fixture将多个活动Attempt挂在同Work，触发原partial unique约束；改为每个Attempt独立Work后通过，没有修改产品约束。此项是受影响切片，不冒充最终镜像或生产SLO。
+
+对照还使用已资格化的历史204→210结构副本（原204源3132153856 bytes；非新鲜生产副本、不含受保护S02/S03）。以只读Database及Linux只读bind运行实际旧/新SQL，顺序old/new/new/old：三项积压读取返回152635→0行，四个统计值及摘要保持；资源release/wake两项读取78104→1行，筛选后完整结果摘要保持。Linux耗时分别941.77/410.81/7.38/616.32ms及454.43/4.85/3.81/261.91ms，保留首读和冷热差异，不汇总为产品提速百分比。该历史库无活动积压，非零计数/门禁行为由上述fixture覆盖；这里仅证明查询与筛选的局部等价，不是完整Host/当前生产负载资格。私有脚本与原始Linux记录在ignored事故目录，未改该副本或生产。
+
+Libra Metadata完整执行结果的反复读取、浏览器发送前排队和冷启动仍单独待查；必须在最终组合镜像、新鲜副本及真实生产页面继续验证，UAT-318不关闭。
+
 ## 2026-10-15 独立热点复核，未确认唯一卡点
 
 用户追问是否只有Perception这一处。继续复核同一份037生产、修复前约13037.751ms CPU profile：仅取`invoke/all/Statement/get/exec`叶子样本，每个样本按祖先调用栈归入一组，避免把Aftercare与其内部Perception的inclusive时间重复相加。这是采样归因，不是逐SQL计时或页面延迟分解，也不是候选修复后的剩余耗时。

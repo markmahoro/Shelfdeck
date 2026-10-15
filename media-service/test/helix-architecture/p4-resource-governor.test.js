@@ -51,14 +51,27 @@ function request(eventId, resources, overrides = {}) {
     priorityRevision: overrides.priorityRevision || 1, resources: resources.map(([resourceKey, units = 1]) => ({ resourceKey, units })) };
 }
 
-function fixture(run) {
+function fixture(run, reads = null) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-governor-'));
   const databasePath = path.join(root, 'shelfdeck.db');
   let currentProfile = profile(); let now = 180000; let permitOrdinal = 0;
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1700000001500 });
   const sqliteUnitOfWork = createSqliteUnitOfWork({ kernel });
   let unitOfWorkExecutions=0;
-  const unitOfWork={execute(participants){unitOfWorkExecutions+=1;return sqliteUnitOfWork.execute(participants);}};
+  const unitOfWork={execute(participants){
+    unitOfWorkExecutions+=1;
+    if (!reads) return sqliteUnitOfWork.execute(participants);
+    return sqliteUnitOfWork.execute(participants.map(participant => ({...participant, execute(context) {
+      return participant.execute({...context, repository(id) {
+        const repository = context.repository(id);
+        return {...repository, invoke(statement, parameters) {
+          const result = repository.invoke(statement, parameters);
+          if (Array.isArray(result)) reads.push({ repositoryId: id, statement, rowCount: result.length });
+          return result;
+        }};
+      }});
+    }})));
+  }};
   const seed = createRepositoryDefinition({ repositoryId: 'governor_seed', owner: 'execution-foundation', schemaManifest, statements: {
     work: { kind: 'insert', tableId: 'fx_supporting_works', columns: ['work_id', 'owner_domain', 'priority_class', 'state', 'idempotency_key'] },
     attempt: { kind: 'insert', tableId: 'fx_work_attempts', columns: ['attempt_id', 'work_id', 'state'] },
@@ -67,7 +80,10 @@ function fixture(run) {
       'event_id', 'plan_id', 'node_id', 'work_id', 'owner_domain', 'priority_class', 'state', 'ready_at_ms', 'retry_at_ms'
     ] },
     set_event_state: { kind:'update', tableId:'fx_workflow_events',
-      setColumns:['state'], keyColumns:['event_id'] }
+      setColumns:['state'], keyColumns:['event_id'] },
+    defer: { kind:'insert', tableId:'fx_resource_defer', columns:[
+      'event_id','resource_key','queue_class','local_priority','priority_revision','enqueued_at_ms','retry_at_ms','state'
+    ] }
   } });
   function seedEvents(...ids) {
     unitOfWork.execute([{ participantId: 'governor_seed', owner: 'execution-foundation', repositories: [seed], execute(context) {
@@ -89,11 +105,19 @@ function fixture(run) {
         });
       } }]);
   }
+  function seedDefers(rows) {
+    unitOfWork.execute([{ participantId:'governor_seed_defers', owner:'execution-foundation', repositories:[seed], execute(context) {
+      for (const row of rows) context.repository('governor_seed').invoke('defer', {
+        resource_key:'sqlite_write', queue_class:'normal_foreground', local_priority:0, priority_revision:1,
+        enqueued_at_ms:100000, retry_at_ms:185000, ...row,
+      });
+    }}]);
+  }
   const governor = createResourceGovernor({ schemaManifest, unitOfWork, queueLimits, now: () => now,
     profileProvider: { current: () => currentProfile }, nextPermitId: () => 'permit-' + (++permitOrdinal) });
   const cleanup = () => { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); };
   try {
-    const result = run({ governor, databasePath, seedEvents, setEventState,
+    const result = run({ governor, databasePath, seedEvents, setEventState, seedDefers,
       getUnitOfWorkExecutions:()=>unitOfWorkExecutions,
       setNow: (value) => { now = value; }, setProfile: (value) => { currentProfile = value; } });
     if (result && typeof result.then === 'function') return result.finally(cleanup);
@@ -324,6 +348,35 @@ test('capacity wake preserves unrelated defers and terminal events', () => {
     } finally { db.close(); }
     governor.release(cpu.permit);
   });
+});
+
+test('Permit issue and capacity wake do not materialize unrelated terminal defer history', () => {
+  const reads = [];
+  fixture(({ governor, databasePath, seedEvents, seedDefers }) => {
+    const ids = Array.from({ length: 1000 }, (_, ordinal) => 'history-' + ordinal);
+    seedEvents('holder', 'waiter', ...ids);
+    seedDefers(ids.map((event_id, ordinal) => ({ event_id,
+      state:['released', 'cancelled', 'expired'][ordinal % 3] })));
+    const database = new Database(databasePath, { readonly: true });
+    try {
+      const history = database.prepare("SELECT * FROM fx_resource_defer WHERE event_id LIKE 'history-%' ORDER BY event_id").all();
+      reads.length = 0;
+      const holder = governor.acquire(request('holder', [['sqlite_write']]));
+      assert.equal(holder.kind, 'permitted');
+      assert.deepEqual(reads.filter(row => row.repositoryId === 'governor_defers'), [
+        { repositoryId:'governor_defers', statement:'list_for_event', rowCount:0 },
+      ]);
+      assert.equal(governor.acquire(request('waiter', [['sqlite_write']])).kind, 'waiting');
+      reads.length = 0;
+      governor.release(holder.permit);
+      assert.deepEqual(reads.filter(row => row.repositoryId === 'governor_defers'), [
+        { repositoryId:'governor_defers', statement:'list_waiting', rowCount:1 },
+      ]);
+      assert.equal(governor.acquire(request('waiter', [['sqlite_write']])).kind, 'permitted');
+      assert.equal(database.prepare('SELECT state FROM fx_resource_defer WHERE event_id=?').get('waiter').state, 'released');
+      assert.deepEqual(database.prepare("SELECT * FROM fx_resource_defer WHERE event_id LIKE 'history-%' ORDER BY event_id").all(), history);
+    } finally { database.close(); }
+  }, reads);
 });
 
 test('unsatisfiable resource is stable blocker and Profile reduction never revokes existing Permit', () => {
