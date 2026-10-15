@@ -259,3 +259,41 @@ Windows 定向 77 项、Event/Input/Series source 187 项通过；加入 Admissi
 最终证明材料另含 `candidate-proof.json`、`canonical-image.json`、`linux-exact-image.log`、`static-guards.json`、`cross-process.json`。本机测试容器均 `--rm`，未留下任务开发服务器。生产仍保持 dc7；候选只是后续资格验证与审阅材料，之前跳过 NAS 演练的决定不自动适用本候选。
 
 UTC 19:01:36（北京时间 10-16 03:01:36）最终只读复核：原 dc7 容器 ID/镜像/StartedAt 保持，RestartCount0；health ok、mode/desiredMode running、normalSupplyAllowed=true、faulted=false。没有因采样或本机修复改变生产运行状态，材料 `final-live.json`。
+
+## 2026-10-16 追加三轮调查：People 分页与残余热点
+
+按用户“再查几轮”继续原 UAT-318。三次约 13 秒 CPU profile、event-loop delay 与 NAS loopback 分块传输，以及三轮各十条真实 GET，均在原 dc7 正常供给下进行。每次 profile 与本机 JS/health 探针并行，十端点 GET 另行三轮；这些是含观察请求与采样成本的现状样本，不是空载基线或受控吞吐/SLO 验收。未部署 4ba 候选，也未执行生产停机、Reset、业务/媒体数据修改或新 NAS 完整 Host 演练。
+
+| 指标 | 第一轮 | 第二轮 | 第三轮 |
+| --- | --- | --- | --- |
+| 503,927-byte JS 完整传输 / 首块 | 25.598 / 4.357 s | 24.765 / 7.949 s | 19.552 / 2.921 s |
+| Event-loop delay mean / max | 627 / 2,098 ms | 888 / 5,083 ms | 524 / 1,814 ms |
+| Formation 25 项请求（实际 14 项） | 1,736 ms | 1,626 ms | 2,347 ms |
+| Collection 48 项请求 | 1,242 ms | 805 ms | 386 ms |
+| People 25 项请求 | 7,414 ms | 6,800 ms | 6,895 ms |
+
+30 条业务/health GET 均完成，未观察到 API 错误；空 Off-deck 请求仍出现一次 2,109 ms，说明返回空集合也可能等待主线程。Overview 返回 ready，projection age 20.075–25.116 s；本样本没有超过既有新鲜度阈值，不据此宣称错误地标记 ready。静态文件传输与 event loop 停顿持续复现，之前四处修复尚未部署，不能把本轮样本当其生产改善证明。
+
+### 新确认并修复：People 列表先展开全量历史再分页
+
+实现提交 `395560043f80d94039005d78fe8a3ce781e52dcf`，承接四处读取修复 `4ba8f04d9`；本轮新增 People Owner 内的分页读取，不改前一候选的历史证明。
+
+原 `PeopleAdminQuery.list` 每次先执行 `listPeople()`，再执行 Registration/Merge Candidate 全量读取以计算四个计数，最后只返回 25 项。当前只读库有 28,996 Person、33,667 Registration Candidate；两项完整映射分别约 3.38/4.20 s，涉及当前 Person、alias/provider identity 和所有 Candidate payload/digest 展开。这个开销独立于原 Formation 状态查询修复。
+
+修复保留 People Owner Repository/事务和现有 `mapPerson`：按二进制 Person ID 游标及 status 在数据库限定 head 页，只展开本页与一个 continuation probe 的精确当前事实；summary 复用 Owner 已有三个 grouped count。Search 仍按原 JS `toLocaleLowerCase().includes`，以 100-head 批次读取精确 current revision 的名字/alias，命中后才完整映射，保持 Unicode 规则，不使用 SQLite ASCII lower 替换。没有 schema、跨 Owner 读取、UI 字段/文字或新旧双读路径变化。
+
+同一生产只读事务，实际新旧 Store + Admin Query 运行 old/new/new/old：**8,152 / 13.01 / 8.17 / 7,485 ms**，完整 DTO、nextCursor 和 summary 的 SHA256 一致；SQL 调用 **120,658→82**，返回行 **183,298→107**，字符串读取 **43,172,090→15,018 bytes**。四次都是子进程隔离的同步查询，不含 HTTP 排队、传输或浏览器绘制。另六组 100 项边界、第二页、空 merged、无匹配、当前名称和 alias 搜索的完整输出分别一致；参考值复用一次原全量快照，不能把它计为六次旧耗时对照。
+
+验证发现初版 `select-page-after` 的 optional cursor 在稀疏筛选时会重复扫描较早 head：空 merged 约 2.06 s、全姓名搜索约 1.3–1.5 s。已改用现有声明式 Repository 的 mandatory greater-than cursor/status predicate，未改 Foundation：最终空 merged 31 ms/4 SQL/3 count rows，三类全姓名搜索仍需 **729–823 ms**、约 87k 轻量行。搜索成本保持开放；不能声称所有人物搜索或整页已小于一秒。测试检查实际 SQLite EXPLAIN 必须 `SEARCH … (person_id>?)`，防止仅返回量有界却反复扫描前页。
+
+新增规模/分页回归覆盖 310 Person 只展开 26 个事实、summary 不展开 Candidate；130+Unicode Person、current revision 名称/alias、历史名称排除、真实 merge、二进制游标、100 项及非法 limit；选中事实继续执行原完整类型/来源校验，坏来源被拒绝。Windows People 六文件 52 项、最终本机 Linux 同组 52 项通过；Linux 使用 4ba 镜像运行时，只读绑定当前 src/test，**不是包含 People 修复的新精确镜像**。最终 Windows `npm test` 为 645 pass/29 既有 skip/0 fail，该入口不包含架构子目录，不能替代 People 专项。初次 Linux 调用误传 Windows 反斜线测试路径而未找到文件，规范为 `/` 后通过，失败日志保留。静态 boundary/semantics/manifest/P2 四类门禁均通过，121 Capability/104 Result/210 table/51 transaction/0 unresolved 保持。
+
+### 新确认的剩余开销，尚未修改
+
+- **Outbox 历史轮询**：Dispatcher 的 `list_due` 每秒读取全部 delivery 后过滤，当前 10,030 行中 10,029 acked/1 delivered/0 pending。同事务 SQL 对照 full/open/open/full 为 38.31/0.187/0.069/28.75 ms，0 待投递时仍有全量物化；三轮 profile 的 `due` inclusive 为 280/313/322 ms。现有 deferred key、retry recovery、先过滤再 batch 与投递顺序需保留；尚未改查询或宣称延迟已消失。
+- **执行摘要的完整输入解析**：Formation list summary 仍以 `includePlans:true` 获取完整 Plan node input/parameters，然后构造详细投影再取当前行动摘要。第二/三轮在 `parseDurableJson(input_bindings_json)` 下的 canonical self 约 842/189 ms，第一轮未命中该栈；这是采样窗口累计，不是每请求固定成本。所需 Device Class、配置动作、当前事实及 canonical/digest fence 不能直接删掉；尚未建立更窄摘要读取合同或实现修复。
+- Metadata context 的重复构造、同步 source fingerprint、Aftercare/Perception 等继续有采样命中。已有 artifact input scope WeakMap 只在单次同步 preparation 复用，不误记为完全没有复用，也不扩为跨请求事实缓存。上述开销与静态传输/浏览器首次绘制仍需后续独立定位和部署后验证。
+
+UTC 19:22:25（北京时间 10-16 03:22:25）只读收尾：原容器 ID/镜像/StartedAt 保持、RestartCount0、health ok、running/normalSupplyAllowed=true/faulted=false，Inspector 确认关闭。第一轮只等一秒清理时曾得到 `INSPECTOR_OPEN`，随后 timer 已关闭；第二/三轮延长确认及收尾均 closed，保留短等待失败，不称为持续泄漏。没有任务开发服务器或保留测试容器。
+
+本轮 People 修复尚未构建新产品镜像、上传或部署；原 4ba tar 不包含本轮变更。UAT-318 保持开放，不继承旧候选的完整资格，也不把只读局部查询加速当整页 1 秒 PASS。私有材料在 ignored `.codex/console-response-followup-20261016/`：round 1–3 profile/lag/stream/API、store-bench、people-equivalence-first/最终、stack-findings、双平台测试及 final-live；不提交生产 payload/profile/凭据。
