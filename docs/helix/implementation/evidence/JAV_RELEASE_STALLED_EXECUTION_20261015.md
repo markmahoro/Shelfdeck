@@ -30,3 +30,17 @@ Foundation在正常dispatch和recovery的既有异常处理范围内校验pure_o
 - 本切片未部署NAS、未清理生产数据、未修改UI、未宣称完整架构套件或Linux候选镜像最终资格；真实完整生产副本升级/回退和生产责任收口仍由主聊天完成。
 
 本地原始日志位于忽略目录`.codex/jav-development/stalled-*`，不提交生产导出或运行数据。冻结冷副本只读，未修改原文件。
+
+## 冻结修复后的历史责任只读核查
+
+产品修复commit为`13e965c21`。此后仅继续读取冻结200表冷副本，不更改产品源码。
+
+20条Journal `reconcile_required`实际归属4个Arca On-deck Run：`935956e4cec5…`（5条）、`7c5091bf9b6a…`（7条）、`f6b5b9ab9520…`（3条）、`b4b54b41b23f…`（5条）。4个Owner Run均committed，各有唯一On-deck Commit Receipt；同一Run分别存在5/7/3/5条成功settlement。以实际`createTerminalEffectHistoryObserver`、`createCatalogPlanProofReader`、Owner Product Delivery/Acceptance/On-deck readers，在同一query_only事务逐一验证旧失败Plan及成功后继，返回20份`arca.terminal-effect-history-proof@1` / `fulfilled_by_successor`、0失败。该结果比仅统计成功后继更强，但未单独重跑完整Frozen Catalog递归验证；原始证明含精确Effect、后继Result/Commit及input摘要，保存在`stalled-history-proof-readonly.json`。
+
+处理建议：保留旧Journal和终态Work，不执行第二次删除、不重开Attempt。现有Owner历史证明是可复用的只读路径；当前JAV copy的`sourceBlockers`仍只按Journal状态计数，因而没有可直接执行的无损升级准入路径。若将既有历史证明接入copy资格，须在完整副本同一只读事务完成精确旧Catalog/Plan/后继责任证明，未知/活动/缺失任一证据继续拒绝，不得仅按这20个ID豁免。现有专用copy合同与这种历史履约准入的衔接须由主聊天明确后再实施；本任务没有修改门禁或新增retirement写入。
+
+剩余Recovery Case与Outbox是同一件事：offer `c09a5c83…`、package `a63da6ad…`、message `ea118336…`，来源Libra Run `bec197df…`已discarded，Subject `libra-subject-aa3518a72342d3aa4c9fa4644a5eeb1c65bd3960`无其他Run。Package仍published，Arca Inbox有已消费Receipt，但没有Acceptance Attempt/Custody，Case为`attention_required/CLEAN_ARCA_PRODUCT_SOURCE_MISSING`。SSOT“Executor terminal-outcome closure amendment”明确Admission Inbox不等于Business Ack：只有Accepted/Rejected终态事实才能Ack。因此不能凭Inbox直接把Outbox改fully_acked，也不能把技术失败伪装Rejected。
+
+精确只读`inspectPlan(subjectIds=[该Subject])`无底层Reset blocker，拟清范围为1个discarded Run、1 Workspace、1 Package、16终态Work、2 Artifact、该Recovery Case/Offer消息闭包，0 Material Control（保留1个Procurement Control），0 Custody/On-deck Run。此计划会删除已结束Run及执行历史；用户级Reset明确保护ended history，默认也不会选择仅有discarded Run的Subject。因此底层ready不代表已有授权或可直接运行，不能把它混入6个active Run清理。保留历史的Offer/Recovery退休目前没有对应现成命令；需主聊天明确选择该精确历史清场范围，或先取得新的Owner退休合同确认。已存在的显式Arca Retry会新建验收Work，不解决discarded源库责任，未建议对缺失源反复重试。
+
+两类后续资格均不由候选Evidence修复自动解决；本审计未发起Retry/Ack/Reset、删除媒体或重写历史。
