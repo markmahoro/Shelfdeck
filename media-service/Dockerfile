@@ -45,6 +45,10 @@ RUN rm -f /usr/bin/python /usr/bin/python3 /usr/bin/python3.* \
 
 COPY media-service/package.json media-service/package-lock.json ./
 COPY --from=service-dependencies /app/node_modules ./node_modules
+# Use the lockfile-pinned service probe on both supported platforms. The base
+# FFprobe 8.1 omits HEVC VUI primaries/transfer that the pinned artifact observes.
+# Keep the configured executable path and preserve unknown-media rejection.
+RUN node -e "const fs=require('fs'),source=require('@ffprobe-installer/ffprobe').path,target='/usr/local/bin/ffprobe'; fs.unlinkSync(target); fs.copyFileSync(source,target); fs.chmodSync(target,0o755);"
 COPY media-service/src/server.js ./src/server.js
 COPY media-service/src/admin-credential-secret-store.js ./src/admin-credential-secret-store.js
 COPY media-service/src/clean-service-host.js ./src/clean-service-host.js

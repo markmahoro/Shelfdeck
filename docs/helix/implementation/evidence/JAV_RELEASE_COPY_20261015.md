@@ -79,3 +79,12 @@ Movie、Series 均实际演练无新事实的完整备份恢复窗口：先创�
 两类源另建立独立backup/未启动新副本/全新restore目录，用原发布Host验证原credential/session/Collection/公开resume及唯一Commit，原schema c00f45c1...、199业务表相等、原媒体/源库保持。已开始写入新事实的当前203表副本被rollback-check以JAV_SCHEMA_ROLLBACK_CHANGED_FACTS拒绝；未恢复覆盖该副本。recovery-current-rollback-window-qualification.json、recovery-rollback-window-current-final-20261015.log为两个通过记录。首轮工具误读旧202表used-candidate证据，被严格schema检查拒绝，修正本地测试工具输入/新目录后复验，未放宽任何产品检查。
 
 当前Windows独立Service包重新构建在任务独有temp目录，通过真实node.exe启动203表/147route Host、六条公开Admin查询（含独立Correction列表）、SQLite/Sharp/FFmpeg及require cache全部包内来源。windows-recovery-service-package-qualification.json、windows-recovery-current-qualification-20261015.log；无Desktop开发。完整Service670 tests=641pass/29既有skip/0fail；这些skip不算JAV必需链路通过。架构全输入整合仍在运行，具体版本UI待负责人；NAS临时Linux测试skip by user，实际混合生产一致副本及镜像发布资格继续开放。
+
+
+## 本机Docker恢复与首轮真实Linux资格
+
+2026-10-15先确认本机Docker已崩溃在Secrets Engine socket；按Docker公开问题记录（https://github.com/docker/for-win/issues/15064）核对目录只有零字节reparse engine.sock。graceful stop超时后官方CLI --force stop成功；校验父目录/精确范围/无活动Docker进程后仅把该socket父目录改名保留至docker-secrets-engine.shelfdeck-preserved-20261015，没有删除文件、镜像、卷、WSL或配置。随后用户协助启动Docker，本机引擎29.4.1/Linux x86_64就绪。原socket目录保留，不作递归清理。
+
+从clean提交8c2d8899dcf124cf9b2ecb4326d90ffca590ea06经标准scripts/build-image.js构建markmahoro/shelfdeck:8c2d8899dc，导出536.6MiB tar SHA256 3de3fabfa9614535154477672140fa89c08a098162680372ce3648d743a847c2。该镜像是首轮候选，不是最终合格版本；SQLite/Sharp/FFmpeg及原UI bundle启动检查通过。本机临时容器network none/只读test fixture mounts/容器内tmp数据，无生产/用户测试集挂载。NAS临时测试skip决定保持。
+
+Linux首轮缺少纯测试schema builder时明确失败；不把开发构造器加入生产包，补入只读测试helper挂载后重跑。首轮JAV核心4pass/2因test dependency fail，terminal首轮已停止并保留日志。Movie真实媒体3 fail揭示基础FFprobe8.1同时在show_streams和精确show_entries漏读同一合法HEVC的color_primaries/color_transfer；锁定依赖的探测器对相同字节均读出BT.709，不是选字段或业务归一化问题。仅显式切换FFPROBE_PATH到已锁定探测器后真实3项通过，包括损坏产品独立decode拒绝；原unknown及安全合同未弱化。Docker配方将锁定依赖探测器复制到原/usr/local/bin/ffprobe，ENV与部署Compose路径不变；重新构建和新镜像资格待执行。当前旧镜像Linux恢复/Series运行结果不自动转给新镜像。
