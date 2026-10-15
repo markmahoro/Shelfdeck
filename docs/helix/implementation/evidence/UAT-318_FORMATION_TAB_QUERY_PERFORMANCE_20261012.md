@@ -1,5 +1,15 @@
 # UAT-318：Series上线后媒体整理Tab切换延迟
 
+## 2026-10-15 独立热点复核，未确认唯一卡点
+
+用户追问是否只有Perception这一处。继续复核同一份037生产、修复前约13037.751ms CPU profile：仅取`invoke/all/Statement/get/exec`叶子样本，每个样本按祖先调用栈归入一组，避免把Aftercare与其内部Perception的inclusive时间重复相加。这是采样归因，不是逐SQL计时或页面延迟分解，也不是候选修复后的剩余耗时。
+
+独立路径包括：Libra `metadataResultItems → nextMetadataStage → reconcile`约1046ms；Foundation `work-supply-controller.evaluate`约2161ms；Resource Governor的`persistReleaseDefers`约515ms、`wakeDeferredForReleasedCapacity`约477ms、`persistSoftWait`约293ms；Arca `healthProjectionInputs`的`selectMany`约316ms。原始profile及两份归因JSON留在ignored事故目录。Perception约1083ms的同类叶子归因只覆盖其SQL/Repository部分，不等于原约3.02秒inclusive成本；其余GC、摘要计算及运行开销也没有被这些SQL分组覆盖。
+
+源码核对：Libra每次决定Metadata下一阶段时，列出该Run全部Metadata Observation Work并逐个读取完整执行结果；Series逐集来源数量增加会放大读取。Foundation的`work_attempt`供给门禁仍完整读取Work、Attempt及Event历史，然后在JS中筛选活动状态；已有`event_dispatch`短路径不能消除这一分支的开销。以上是继续定位的独立热点，尚未完成各SQL/调用频率对照及修复资格，不能把采样占比直接当作可节省比例，也不据此改变Foundation调度或Owner优先级边界。
+
+浏览器同源海报导致管理请求发送前排队已有历史网络证据；本次尚未重现完整首次打开旅程。升级后整库启动检查和恢复协调也须与服务就绪后的热请求分别计时。UAT-318继续开放；Perception局部修复、席位/公平功能通过或一次请求变快，均不替代首开及后台负载下的实际页面验收。
+
 ## 2026-10-15 Perception候选热路径局部修复
 
 用户追加要求实际排查首开慢。既有约13秒生产profile中Aftercare Context约3.40秒、其内部Perception候选解析约3.02秒；这些是嵌套inclusive值，不能相加。后续生产LAN独立顺序读取health1737ms、Formation active349ms、Care1116ms、Collection48项2455ms，说明服务端仍有波动，不只是浏览器海报排队。
