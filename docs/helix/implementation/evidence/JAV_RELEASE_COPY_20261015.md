@@ -120,3 +120,9 @@ Source commit 455873b3776d434b0fc561bcaf30ebb31b2ae8fb；标准scripts/build-ima
 实际导出268439552 bytes，SHA256 357eee9bfa081ef5ac66ae6447608c53988480d8d15838063d6c74af0c6c6062；128MiB Node heap下本机流式采集进程peak RSS55744KiB。日志及可复演工具为ignored cold-backup-stream-rehearsal-20261015.log / rehearse-cold-backup-stream.js。此项补强正常停机/停止态传输/独立校验/同容器重启操作路径，不证明真实NAS传输吞吐、旧服务checkpoint或3.17GB完整生产副本已验证。实际生产停机备份仍等待精确授权，候选代码/镜像不变。
 
 第三轮同阻碍复核：实际NAS readonly SQLite/query_only事务仍返回6 active Runs、4 active Works、20未决Effects及556收藏，20项均是failed Work下Arca input_settlement.delete，无mutation。ignored nas-upgrade-blockers-blocked-audit-20261015.json/log为本次记录。没有仍运行的任务演练容器；本地候选/校验/恢复证据保持，整体目标未完成。剩余完整生产副本与实际规模升级/回退资格依赖尚未收到的精确停机备份授权，不能通过重复本地测试、清旧责任或自动apply解除；目标按同一阻碍连续三轮审计记为blocked，等待用户输入后继续。
+
+## 复用已上线安全停机与Reset的只读复核
+
+用户提醒升级过程可使用既有功能。核对SSOT §10.1.6及实际实现，安全停机应先停止供给并等真实stopped/in-flight=0，再取一致副本；stopped意图跨容器重启持久化，原服务恢复须走正式Resume/Recovery Gate，不能只docker start就宣称业务已恢复。默认用户Reset预检通过当前生产镜像的createUserFormationReset.preview只读调用取得：9 Subjects/7关联Runs/480 Works/4 Workspaces，保护556收藏及695 ended Runs；ready=false，阻碍RESET_ENDED_HISTORY_OVERLAP及RESET_UNRESOLVED_EFFECT。
+
+进一步在readonly+query_only SQLite事务内逐项调用现有inspectPlan，六个active Run对应的精确Subject scope各自ready=true；这是可用的有界清场路径线索，不是默认用户Reset已通过、组合清单已冻结或生产Reset已获执行授权。20个Arca settlement-delete未决Effects也不由这六个scoped plan自动收口。ignored deployed-user-reset-readonly-preview-20261015.json/log保存实际预检，生产零mutation、未安全停机/Reset。下一步在完整副本演练精确Reset和升级/回退，保留已入藏事实及原视频，不新增旧Run兼容层。
