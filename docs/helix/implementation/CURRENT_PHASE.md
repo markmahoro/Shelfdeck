@@ -138,7 +138,7 @@ JAV-PARTS（2026-10-14）：Procurement实际同目录同号A/B冻结一包，Li
 
 同站可有多个明确封面候选，逐项失败仍属同站预算。真正歧义/Identity冲突进入人工确认；普通错误页面或错误返号只使该站结果不合格，不污染下一站。换站不重复媒体加工、上架或来源处置。
 
-SSOT已经细化匿名/登录Handle variant、号码/CID区别、Snapshot来源/预算、逐站Outcome、图片host/network route及deterministic crop。独立来源基础子合同Ready后已进入本地机器实现：完整query anchor、按类型Source Selection Snapshot及闭合anonymous/secret JAV IntegrationHandle已有代码与negative tests，未接Provider Runtime。正式identity/selection variant、source qualification Result/Effect、首次Fact事务、派生Artifact及Arca Correction仍待传播；Source Map同步不能算它们Done。推荐Template源码仍要求release_date/studio/genre，节点1需对齐为requiredFieldCodes=[title]，Identity仍独立验证jav_code；不改其他Profile。
+2026-10-13启动阶段历史快照（后续交付以顶部当前状态为准）：SSOT已经细化匿名/登录Handle variant、号码/CID区别、Snapshot来源/预算、逐站Outcome、图片host/network route及deterministic crop。独立来源基础子合同Ready后已进入本地机器实现：完整query anchor、按类型Source Selection Snapshot及闭合anonymous/secret JAV IntegrationHandle已有代码与negative tests，未接Provider Runtime。正式identity/selection variant、source qualification Result/Effect、首次Fact事务、派生Artifact及Arca Correction仍待传播；Source Map同步不能算它们Done。推荐Template源码仍要求release_date/studio/genre，节点1需对齐为requiredFieldCodes=[title]，Identity仍独立验证jav_code；不改其他Profile。
 
 ## 来源实测与映射
 
@@ -220,6 +220,8 @@ Synthetic例：文件名ipx00177.mkv提取IPX-00177，但未能确权；用户�
 | 5 / JAV-QUALIFICATION（本轮发布资格完成，已部署；待用户验收） | Movie/Series回归、真实Provider/媒体、Windows/Linux Service与Admin Web最终版 | 必需链路无skip、历史保护、精确版本UI、旧版/候选/候选数据回退与未测边界；开发Exit与发布分开；Desktop本轮不开发 |
 
 当前实现覆盖typed identity/单站source attempt/Artifact/推荐标准、首次确认/锁定、A/B包与媒体加工、Arca独立Correction及显式Recovery Intent。部署资格已按顶部当前记录完成，生产037592bef4正常运行。CID无可信映射时保持明确未确认与手工完整番号选择；代表性来源实测不等于所有站点长期可用。用户原skip仍保留，本次NAS完整副本例外已明确授权并完成；Libra途中换号不在范围。下一步收取实际使用反馈，正式Phase Exit与旧UAT关闭仍按各自验收条件，不新增开发UAT。
+
+### 节点1启动阶段记录（历史，后续已实现）
 
 来源基础子合同本地交付：`src/helix/contracts/jav-source-contracts.js`提供完整号码/CID的互斥anchor、grammar digest、单站title/cover要求与有界Source Snapshot；schema与语义校验均限制按类型候选站，连续ordinal/重复配置/篡改摘要/混入Cookie或代理值均拒绝。`shared-type-schema-builder.js`/现有IntegrationHandle schema新增jav_source闭合分支，其他Secret-bound Provider不能附加JAV字段或变匿名。已完成9项源合同negative/positive、P2与dispatcher专项；source helper的Snapshot尚未绑定正式Intent/Result目录，Platform resolver不接受新型Handle，来源资格/首次Fact与功能工作项不因此Ready。此次纯合同实现没有UI或业务投影改动。
 
