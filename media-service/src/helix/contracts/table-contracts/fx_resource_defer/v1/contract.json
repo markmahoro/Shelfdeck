@@ -49,6 +49,16 @@
       },
       {
         "ordinal": 5,
+        "name": "priority_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 6,
         "name": "enqueued_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -58,7 +68,7 @@
         "nullable": false
       },
       {
-        "ordinal": 6,
+        "ordinal": 7,
         "name": "retry_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -68,7 +78,7 @@
         "nullable": false
       },
       {
-        "ordinal": 7,
+        "ordinal": 8,
         "name": "state",
         "logicalType": "TEXT",
         "enumValues": [
@@ -113,7 +123,9 @@
       }
     ],
     "revisionContract": {
-      "revisionColumns": [],
+      "revisionColumns": [
+        "priority_revision"
+      ],
       "currentPointerColumns": [],
       "pointerTargets": [],
       "pointerRules": []
@@ -130,16 +142,20 @@
     "semanticRules": [
       "`PK(event_id,resource_key)`",
       "一个Event/resource最多一个有效waiter",
+      "priority_revision为最后应用的Owner Projection正revision，NULL表示尚未记录revision元数据，首次刷新接受当前正revision",
+      "现有updateWaiterPriority仅按更高revision原子更新已有waiting rows的queue_class/local_priority/priority_revision，也覆盖硬上限外的durable defer",
+      "不创建waiter、不改资源集合/enqueued_at/retry_at、不发Permit",
+      "未知、已释放、已执行及较旧revision拒绝",
       "`INDEX(resource_key,state,queue_class,local_priority,enqueued_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`event_id FK, resource_key, queue_class, local_priority, enqueued_at_ms, retry_at_ms, state`",
-      "constraints": "`PK(event_id,resource_key)`；一个Event/resource最多一个有效waiter；`INDEX(resource_key,state,queue_class,local_priority,enqueued_at_ms)`"
+      "columns": "`event_id FK, resource_key, queue_class, local_priority, priority_revision INTEGER NULL, enqueued_at_ms, retry_at_ms, state`",
+      "constraints": "`PK(event_id,resource_key)`；一个Event/resource最多一个有效waiter；priority_revision为最后应用的Owner Projection正revision，NULL表示尚未记录revision元数据，首次刷新接受当前正revision；现有updateWaiterPriority仅按更高revision原子更新已有waiting rows的queue_class/local_priority/priority_revision，也覆盖硬上限外的durable defer；不创建waiter、不改资源集合/enqueued_at/retry_at、不发Permit；未知、已释放、已执行及较旧revision拒绝；`INDEX(resource_key,state,queue_class,local_priority,enqueued_at_ms)`"
     },
     "source": {
       "section": "8.5.10",
-      "line": 9390,
-      "lineDigest": "474029052cb5c6a25572058f9d2d843e1eac1218c3ac45d521316ad38dadaec2"
+      "line": 9430,
+      "lineDigest": "68f4303369d8d1f8a58061b96cabe7506876b781b2066844bbe12722459ecfd2"
     },
     "foreignKeys": [
       {

@@ -1,4 +1,6 @@
 'use strict';
+const {createSourceFairness}=require('../application/source-fairness');
+const {createAttentionWorkshop}=require('../application/attention-workshop');
 
 const catalog = require('../../../contracts/ports/p8-libra-intake-public-contracts.json');
 const productionCatalog = require('../../../contracts/ports/p9-libra-production-public-contracts.json');
@@ -229,17 +231,24 @@ function createExecutionRegistration() {
         }),
       });
       const routingContextReader=createRoutingContextReader(options);
-      const routingCoordinator=createRoutingProcessCoordinator({...options,contextReader:routingContextReader});
+      const attentionWorkshop=createAttentionWorkshop({...options,pipelineAdmission,onTransferred:options.onWorkshopTransferred,
+        onReadinessObserved:options.onWorkshopReadinessObserved});
+      const routingProcess=createRoutingProcessCoordinator({...options,contextReader:routingContextReader});
+      const routingCoordinator=Object.freeze({...routingProcess,reconcile(subjectId){
+        return attentionWorkshop.reconcileRouting(subjectId,()=>routingProcess.reconcile(subjectId));
+      }});
       const acceptanceSpecContextReader=createAcceptanceSpecContextReader({...options,routingContextReader});
       const acceptanceSpecCoordinator=createAcceptanceSpecCoordinator({...options,contextReader:acceptanceSpecContextReader});
       const libraRunContextReader=createLibraRunContextReader(options);
       const libraRunCreator=createLibraRunCreator({...options,contextReader:libraRunContextReader,pipelineAdmission});
-      const libraRunExecutionProjection=createLibraRunExecutionProjection(options);
+      const sourceFairness=createSourceFairness({...options,onPriorityChanged:options.onLibraPriorityChanged,
+        onWaitingExecutionsObserved:options.onLibraWaitingExecutionsObserved});
+      const libraRunExecutionProjection=createLibraRunExecutionProjection({...options,sourceFairness});
       const libraRunLifecycleService=createLibraRunLifecycleService({...options,libraRunExecutionProjection});
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
       const productIdentitySelection=createProductIdentitySelectionService({...options,movieProductionReader});
       const libraRunAdminService=createLibraRunAdminService({...options,libraRunExecutionProjection,pipelineAdmission});
-      const libraRunCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService,productIdentitySelection,routingContextReader,
+      const runCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService,productIdentitySelection,routingContextReader,
         resolveFrozenRun:libraRunAdminService.reconcileFrozen,
         resolveRejectedRun:libraRunAdminService.reconcileRejected,
         waitUnavailableStrategy:libraRunAdminService.waitUnavailableStrategy,
@@ -249,7 +258,14 @@ function createExecutionRegistration() {
           const context=libraRunContextReader.read(subjectId);
           return context.kind==='ready'?Object.freeze({kind:'ready',spec:context.spec}):context;
         }});
-      return Object.freeze({offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
+      const libraRunCoordinator=Object.freeze({...runCoordinator,reconcile(runId){
+        const result=attentionWorkshop.reconcileRun(runId,()=>runCoordinator.reconcile(runId));
+        const eligible=result.kind==='pending'&&Boolean(result.workId);
+        sourceFairness.setEligible(runId,eligible);
+        if(eligible)sourceFairness.refresh(runId);
+        return result;
+      }});
+      return Object.freeze({sourceFairness,offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
         libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore});
     },

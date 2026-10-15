@@ -1,7 +1,9 @@
 'use strict';
 
+const {createExecutionSummaryReader}=require('./execution-summary-reader');
 const { canonicalDigest } = require('../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../persistence/owner-repository');
+
 
 function definition(schemaManifest){return createRepositoryDefinition({repositoryId:'work_result_reader',owner:'execution-foundation',schemaManifest,statements:{
   latest_scoped_work:{kind:'select-joined-page',tableId:'fx_supporting_works',columns:['work_id','state','created_at_ms'],joins:[],
@@ -27,7 +29,12 @@ function definition(schemaManifest){return createRepositoryDefinition({repositor
 }});}
 
 function createWorkResultReader(options){if(!options?.schemaManifest||!options.unitOfWork)throw new TypeError('Work Result Reader requires Foundation persistence.');
-  const repository=definition(options.schemaManifest);return Object.freeze({
+  const repository=definition(options.schemaManifest);
+  let summaryReader;
+  function executionSummary(){return summaryReader||(summaryReader=createExecutionSummaryReader(options));}
+  return Object.freeze({
+    readExecutionSummaryPage(...args){return executionSummary().readExecutionSummaryPage(...args);},
+    createExecutionStateReadParticipant(...args){return executionSummary().createExecutionStateReadParticipant(...args);},
     scopedWorkStatus(scope){return options.unitOfWork.execute([{participantId:'work_scope_status',owner:'execution-foundation',repositories:[repository],execute(context){
       const repo=context.repository(repository.repositoryId),parameters={owner_domain:scope.ownerDomain,process_type:scope.processType,
         process_id:scope.processId,work_kind:scope.workKind,offset:0,limit:1};

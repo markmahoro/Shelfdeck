@@ -26,13 +26,15 @@ function definitions(schemaManifest) {
     } }),
     defers: createRepositoryDefinition({ repositoryId: 'governor_defers', owner: 'execution-foundation', schemaManifest, statements: {
       list: { kind: 'select-all', tableId: 'fx_resource_defer', columns: [
-        'event_id', 'resource_key', 'queue_class', 'local_priority', 'enqueued_at_ms', 'retry_at_ms', 'state'
+        'event_id', 'resource_key', 'queue_class', 'local_priority', 'priority_revision', 'enqueued_at_ms', 'retry_at_ms', 'state'
       ], keyColumns: [] },
+      list_for_event: {kind:'select-all',tableId:'fx_resource_defer',columns:['event_id','resource_key','queue_class','local_priority','priority_revision','enqueued_at_ms','retry_at_ms','state'],keyColumns:['event_id']},
+      reprioritize: {kind:'update',tableId:'fx_resource_defer',setColumns:['queue_class','local_priority','priority_revision'],keyColumns:['event_id','resource_key','state']},
       insert: { kind: 'insert', tableId: 'fx_resource_defer', columns: [
-        'event_id', 'resource_key', 'queue_class', 'local_priority', 'enqueued_at_ms', 'retry_at_ms', 'state'
+        'event_id', 'resource_key', 'queue_class', 'local_priority', 'priority_revision', 'enqueued_at_ms', 'retry_at_ms', 'state'
       ] },
       update: { kind: 'update', tableId: 'fx_resource_defer', setColumns: [
-        'queue_class', 'local_priority', 'enqueued_at_ms', 'retry_at_ms', 'state'
+        'queue_class', 'local_priority', 'priority_revision', 'enqueued_at_ms', 'retry_at_ms', 'state'
       ], keyColumns: ['event_id', 'resource_key'] }
     } })
   });
@@ -107,7 +109,7 @@ function createResourceGovernor(options) {
         for (const row of waiting) {
           context.repository('governor_defers').invoke('update', {
             event_id: eventId, resource_key: row.resource_key, queue_class: row.queue_class,
-            local_priority: row.local_priority, enqueued_at_ms: row.enqueued_at_ms,
+            local_priority: row.local_priority, priority_revision:row.priority_revision, enqueued_at_ms: row.enqueued_at_ms,
             retry_at_ms: row.retry_at_ms, state: 'released',
           });
         }
@@ -136,14 +138,14 @@ function createResourceGovernor(options) {
         if (!event || !['ready', 'waiting_for_resource'].includes(event.state)) fail(
           'P4_RESOURCE_DEFER_EVENT_INELIGIBLE', 'Resource defer requires a ready or resource-waiting Event.', { eventId: request.eventId }
         );
-        const all = context.repository('governor_defers').invoke('list');
-        const existing = all.filter((row) => row.event_id === request.eventId);
+        const existing = context.repository('governor_defers').invoke('list_for_event',{event_id:request.eventId});
         const requestedKeys = request.resources.map((item) => item.resourceKey).sort();
         if (existing.length > 0) {
           const existingKeys = existing.map((item) => item.resource_key).sort();
           if (JSON.stringify(existingKeys) !== JSON.stringify(requestedKeys)) fail(
             'P4_RESOURCE_DEFER_DEMAND_DRIFT', 'Durable Resource Demand cannot change for the same Event.'
           );
+          refreshPriorityRows(context.repository('governor_defers'),existing.filter(row=>row.state==='waiting'),request,false);
           const retryAt = Math.max(...existing.map((row) => row.retry_at_ms));
           if (retryAt > deferredAtMs) return Object.freeze({ retryAtMs: retryAt, replayed: true });
         }
@@ -154,7 +156,7 @@ function createResourceGovernor(options) {
         const byKey = new Map(existing.map((row) => [row.resource_key, row]));
         for (const resource of request.resources) {
           const values = { event_id: request.eventId, resource_key: resource.resourceKey, queue_class: request.queueClass,
-            local_priority: request.localPriority, enqueued_at_ms: deferredAtMs, retry_at_ms: retryAtMs, state: 'waiting' };
+            local_priority: request.localPriority, priority_revision:request.priorityRevision, enqueued_at_ms: deferredAtMs, retry_at_ms: retryAtMs, state: 'waiting' };
           context.repository('governor_defers').invoke(byKey.has(resource.resourceKey) ? 'update' : 'insert', values);
         }
         context.repository('governor_events').invoke('defer', {
@@ -174,14 +176,14 @@ function createResourceGovernor(options) {
         if (!event || !['ready', 'waiting_for_resource'].includes(event.state)) fail(
           'P4_RESOURCE_DEFER_EVENT_INELIGIBLE', 'Resource defer requires a ready or resource-waiting Event.', { eventId: request.eventId }
         );
-        const all = context.repository('governor_defers').invoke('list');
-        const existing = all.filter((row) => row.event_id === request.eventId);
+        const existing = context.repository('governor_defers').invoke('list_for_event',{event_id:request.eventId});
         const requestedKeys = request.resources.map((item) => item.resourceKey).sort();
         if (existing.length > 0) {
           const existingKeys = existing.map((item) => item.resource_key).sort();
           if (JSON.stringify(existingKeys) !== JSON.stringify(requestedKeys)) fail(
             'P4_RESOURCE_DEFER_DEMAND_DRIFT', 'Durable Resource Demand cannot change for the same Event.'
           );
+          refreshPriorityRows(context.repository('governor_defers'),existing.filter(row=>row.state==='waiting'),request,false);
           const retryAt = Math.max(...existing.map((row) => row.retry_at_ms));
           const unchanged = existing.every((row) => row.state === 'waiting' && row.queue_class === request.queueClass &&
             row.local_priority === request.localPriority);
@@ -199,7 +201,7 @@ function createResourceGovernor(options) {
         const byKey = new Map(existing.map((row) => [row.resource_key, row]));
         for (const resource of request.resources) {
           const values = { event_id: request.eventId, resource_key: resource.resourceKey, queue_class: request.queueClass,
-            local_priority: request.localPriority, enqueued_at_ms: deferredAtMs, retry_at_ms: retryAtMs, state: 'waiting' };
+            local_priority: request.localPriority, priority_revision:request.priorityRevision, enqueued_at_ms: deferredAtMs, retry_at_ms: retryAtMs, state: 'waiting' };
           context.repository('governor_defers').invoke(byKey.has(resource.resourceKey) ? 'update' : 'insert', values);
         }
         context.repository('governor_events').invoke('defer', {
@@ -387,17 +389,38 @@ function createResourceGovernor(options) {
     }]);
   }
 
+  function refreshPriorityRows(repository,rows,request,requireNewer){
+    const newest=Math.max(0,...rows.map(row=>Number(row.priority_revision||0)));
+    if(request.priorityRevision<newest||(requireNewer&&request.priorityRevision===newest))fail(
+      'P4_RESOURCE_PRIORITY_UPDATE_INVALID','Priority refresh requires a newer Owner revision.');
+    if(request.priorityRevision===newest&&rows.some(row=>row.queue_class!==request.queueClass||row.local_priority!==request.localPriority))fail(
+      'P4_RESOURCE_PRIORITY_UPDATE_INVALID','The same Owner revision cannot change priority.');
+    for(const row of rows)if(Number(row.priority_revision||0)<request.priorityRevision){
+      repository.invoke('reprioritize',{event_id:request.eventId,resource_key:row.resource_key,state:'waiting',
+        queue_class:request.queueClass,local_priority:request.localPriority,priority_revision:request.priorityRevision});
+      Object.assign(row,{queue_class:request.queueClass,local_priority:request.localPriority,priority_revision:request.priorityRevision});
+    }
+  }
+
   function updateWaiterPriority(request) {
     exact(request, ['eventId', 'queueClass', 'localPriority', 'priorityRevision'], 'P4_RESOURCE_PRIORITY_UPDATE_SHAPE_MISMATCH');
     const waiter = waiters.get(request.eventId);
-    if (!waiter) fail('P4_RESOURCE_WAITER_NOT_FOUND', 'Only an existing waiter can be reprioritized.');
-    if (!QUEUE_CLASSES.includes(request.queueClass) || !Number.isSafeInteger(request.localPriority) || request.localPriority < 0 ||
-        !Number.isSafeInteger(request.priorityRevision) || request.priorityRevision <= waiter.request.priorityRevision) fail(
-      'P4_RESOURCE_PRIORITY_UPDATE_INVALID', 'Waiter priority update requires a newer valid Owner projection.'
-    );
-    waiters.set(request.eventId, Object.freeze({ ...waiter, request: Object.freeze({ ...waiter.request, queueClass: request.queueClass,
-      localPriority: request.localPriority, priorityRevision: request.priorityRevision }), retryAtMs:null }));
-    return Object.freeze({ updated: true, eventId: request.eventId });
+    if(typeof request.eventId!=='string'||!request.eventId||!QUEUE_CLASSES.includes(request.queueClass)||
+        !Number.isSafeInteger(request.localPriority)||request.localPriority<0||!Number.isSafeInteger(request.priorityRevision)||request.priorityRevision<1||
+        (waiter&&request.priorityRevision<=waiter.request.priorityRevision))fail(
+      'P4_RESOURCE_PRIORITY_UPDATE_INVALID','Priority refresh requires a newer valid Owner projection.');
+    const result=options.unitOfWork.execute([{participantId:'resource_governor_priority_refresh',owner:'execution-foundation',
+      repositories:Object.values(repositories),execute(context){
+        const event=context.repository('governor_events').invoke('find',{event_id:request.eventId});
+        const repo=context.repository('governor_defers'),rows=repo.invoke('list_for_event',{event_id:request.eventId}).filter(row=>row.state==='waiting');
+        if(!event||event.state!=='waiting_for_resource'||eventPermits.has(request.eventId)||!rows.length)fail(
+          'P4_RESOURCE_WAITER_NOT_FOUND','Only an existing resource wait may be reprioritized.');
+        refreshPriorityRows(repo,rows,request,true);
+        return Object.freeze({updated:true,eventId:request.eventId});
+      }}]).resource_governor_priority_refresh;
+    if(waiter)waiters.set(request.eventId,Object.freeze({...waiter,request:Object.freeze({...waiter.request,
+      queueClass:request.queueClass,localPriority:request.localPriority,priorityRevision:request.priorityRevision})}));
+    return result;
   }
 
   function abandon(eventId) {

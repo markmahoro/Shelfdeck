@@ -184,13 +184,15 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.getByRole('tab', { name: '退出规则' })).toBeInTheDocument();
     vi.spyOn(helixAdminApi,'getWorkspaceRootSettings').mockResolvedValue({current:{rootPath:'D:\\ShelfDeck\\workspace',configRevision:1},
       pending:null,restartRequired:false});
+    vi.spyOn(helixAdminApi,'getSecondaryWorkshop').mockResolvedValue({secondarySeats:5,policyRevision:1,updatedAtMs:0,held:0,free:5});
     fireEvent.click(screen.getByRole('tab',{name:'整理空间'}));
     expect(await screen.findByRole('heading',{level:2,name:'整理工作目录'})).toBeInTheDocument();
     expect(screen.getByDisplayValue('D:\\ShelfDeck\\workspace')).toBeInTheDocument();
     expect(screen.queryByText(/保存会检查读写/)).not.toBeInTheDocument();
     expect(screen.getByRole('button',{name:'验证并保存'})).toBeInTheDocument();
     expect(screen.queryByText(/不会搬动或删除旧目录/)).not.toBeInTheDocument();
-    expect(document.querySelectorAll('.settings-card')).toHaveLength(1);
+    expect(screen.getByRole('heading',{level:2,name:'二号暂存车间'})).toBeInTheDocument();
+    expect(document.querySelectorAll('.settings-card')).toHaveLength(2);
     expect(screen.queryByText('连接、空间、资源与安全')).not.toBeInTheDocument();
     expect(ratings).not.toHaveBeenCalled();
   });

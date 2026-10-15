@@ -181,6 +181,52 @@ test('one Event has one waiter and newer Owner projection can reprioritize it', 
   });
 });
 
+test('priority refresh covers durable hard defers without permits, changed clocks, or a new queue', () => {
+  fixture(({ governor, seedEvents, databasePath, setEventState }) => {
+    const {createLibraResourcePriorityBridge}=require('../../src/helix/composition/libra-resource-priority-bridge');
+    seedEvents('holder','wait-1','wait-2','defer-a','defer-b','impossible');
+    let revision=2;
+    const projection=scope=>({priorityClass:'normal_foreground',localPriority:scope.processId==='b'?195:100,priorityRevision:revision});
+    const bridge=createLibraResourcePriorityBridge({governor,readProjection:projection});
+    const holder=bridge.governor.acquire(request('holder',[['sqlite_write']]));
+    for(const [eventId,processId] of [['wait-1','a'],['wait-2','a'],['defer-a','a'],['defer-b','b']]){
+      bridge.recordScope(eventId,{ownerDomain:'libra',processType:'libra_run',processId,workKind:'production'});
+      const admitted=bridge.governor.acquire(request(eventId,[['sqlite_write']]));
+      assert.equal(admitted.kind,eventId.startsWith('defer')?'deferred':'waiting');
+    }
+    bridge.recordScope('impossible',{ownerDomain:'libra',processType:'libra_run',processId:'b',workKind:'production'});
+    assert.equal(bridge.governor.acquire(request('impossible',[['encoder:unknown']])).kind,'unavailable');
+    const database=new Database(databasePath,{readonly:true});
+    try {
+      const clocks=()=>database.prepare('SELECT event_id,resource_key,enqueued_at_ms,retry_at_ms,state FROM fx_resource_defer ORDER BY event_id,resource_key').all();
+      const before=clocks();
+      bridge.refresh();
+      assert.deepEqual(clocks(),before);
+      assert.equal(governor.snapshot().permitCount,1);assert.equal(governor.snapshot().waiterCount,2);
+      assert.deepEqual(database.prepare('SELECT local_priority,priority_revision FROM fx_resource_defer WHERE event_id=?').get('defer-b'),
+        {local_priority:195,priority_revision:2});
+      assert.throws(()=>governor.updateWaiterPriority({eventId:'defer-b',queueClass:'normal_foreground',localPriority:195,priorityRevision:2}),
+        {code:'P4_RESOURCE_PRIORITY_UPDATE_INVALID'});
+      assert.throws(()=>governor.updateWaiterPriority({eventId:'unknown',queueClass:'normal_foreground',localPriority:100,priorityRevision:3}),
+        {code:'P4_RESOURCE_WAITER_NOT_FOUND'});
+      governor.release(holder.permit);
+      const next=bridge.governor.acquire(request('wait-1',[['sqlite_write']],{localPriority:100,priorityRevision:2}));
+      assert.equal(next.kind,'permitted');setEventState('wait-1','succeeded');governor.release(next.permit);
+      const a=database.prepare('SELECT retry_at_ms FROM fx_workflow_events WHERE event_id=?').get('defer-a');
+      const b=database.prepare('SELECT retry_at_ms FROM fx_workflow_events WHERE event_id=?').get('defer-b');
+      assert.ok(b.retry_at_ms<a.retry_at_ms,'a free queue slot wakes the newly preferred durable defer');
+      const recreated=createLibraResourcePriorityBridge({governor,readProjection:projection});
+      recreated.observeWait('defer-b',{ownerDomain:'libra',processType:'libra_run',processId:'b',workKind:'production'},2);
+      revision=3;recreated.refresh();
+      assert.equal(database.prepare('SELECT priority_revision FROM fx_resource_defer WHERE event_id=?').get('defer-b').priority_revision,3);
+      assert.equal(governor.snapshot().permitCount,0);
+      setEventState('defer-b','cancelled');
+      revision=4;recreated.refresh();
+      assert.equal(database.prepare('SELECT priority_revision FROM fx_resource_defer WHERE event_id=?').get('defer-b').priority_revision,3);
+    } finally {database.close();}
+  });
+});
+
 test('independent Capability resource keys do not share one global waiter head', () => {
   fixture(({ governor, seedEvents }) => {
     seedEvents('holder-a', 'holder-b', 'waiter-a', 'waiter-b');

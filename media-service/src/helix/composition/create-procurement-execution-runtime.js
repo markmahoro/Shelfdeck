@@ -1,4 +1,5 @@
 'use strict';
+const {createLibraResourcePriorityBridge}=require('./libra-resource-priority-bridge');
 
 const fs = require('node:fs');
 const os = require('node:os');
@@ -325,7 +326,10 @@ function createProcurementExecutionRuntime(options) {
     readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings});
   const arcaRegistrations=arcaCapabilityRegistration.createRegistrations({enabledCapabilityRefs:ARCA_ALL_ENABLED,
     manifests:Object.fromEntries(ARCA_ALL_ENABLED.map((ref)=>[ref,manifests[ref]]))});
-  const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations,...perceptionRegistrations,...arcaRegistrations]);
+  const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations,...perceptionRegistrations,...arcaRegistrations].map(entry=>Object.freeze({...entry,executor:Object.freeze({...entry.executor,execute(context){
+    libraProcessServices?.sourceFairness.onExecutionStarted(context);
+    return entry.executor.execute(context);
+  }})})));
   registry = createCapabilityRegistry({ registrations, expectedCapabilityRefs: ENABLED });
   const retryPolicies = [
     { ref: 'helix://foundation/retry/pure-observation/v1', effectClass: 'pure_observation', maxFailureAttempts: 3,
@@ -417,9 +421,12 @@ function createProcurementExecutionRuntime(options) {
     }
     return mapper.capacityFor(resourceKey);
   }});
-  const governor = createResourceGovernor({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
+  const baseGovernor = createResourceGovernor({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     profileProvider: { current: () => activeMapper }, now, nextPermitId: () => 'permit-' + (++sequence),
     onCapacityChanged:()=>host?.wake() });
+  const resourcePriorityBridge=createLibraResourcePriorityBridge({governor:baseGovernor,
+    readProjection:scope=>executionProjectionProvider.read(scope),wake:()=>host?.wake()});
+  const governor=resourcePriorityBridge.governor;
   const breaker = createCircuitBreaker({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork });
   const executorIncidents = createExecutorIncidentRegistry({ schemaManifest:options.schemaManifest,
     unitOfWork:options.unitOfWork, circuitBreaker:breaker, now });
@@ -504,7 +511,19 @@ function createProcurementExecutionRuntime(options) {
     inspectFieldRoot: options.inspectFieldRoot });
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal });
-  libraProcessServices=libraConstruction.createProcessServices({...libraOptions,now,workResultReader,contractValidator,
+  libraProcessServices=libraConstruction.createProcessServices({...libraOptions,now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
+    onWorkshopTransferred:(subjectId)=>{
+      fillPredeckIntakeSeats();options.onFormationSubjectChanged?.(subjectId);host?.wake();
+    },
+    onWorkshopReadinessObserved:({kind})=>{
+      for(const reconcilerKey of kind==='routing'?['active-routing-subjects']:['active-libra-runs','frozen-libra-outcomes'])
+        host?.wakeBackground({ownerDomain:'libra',reconcilerKey});
+    },
+    onLibraWaitingExecutionsObserved:(waiting)=>{
+      for(const {runId,eventId,workKind,priorityRevision} of waiting)resourcePriorityBridge.observeWait(eventId,
+        {ownerDomain:'libra',processType:'libra_run',processId:runId,workKind},priorityRevision);
+      resourcePriorityBridge.refresh();
+    },
     readArcaFormationStatus:(offerIds)=>arcaProcessServices.formationStatusProjection.read(offerIds),
     cancelProcessWorks:(scope)=>workLifecycle.cancelProcess(scope),
     resolveRetryPolicyDigest:(capabilityRef)=>canonicalDigest(
@@ -773,6 +792,8 @@ function createProcurementExecutionRuntime(options) {
       if(['perception.record.commit@1','perception.resolution.commit@1'].includes(capability))resources.push({resourceKey:'sqlite_write',units:1});
       if(resources.length===0)resources=[{resourceKey:'cpu_heavy',units:1}];
       if(capability==='arca.aftercare.media.verify@1')resources=mergeResourceDemands(resources);
+      if(snapshot.work.owner_domain==='libra'&&snapshot.work.process_type==='libra_run')resourcePriorityBridge.recordScope(snapshot.event.event_id,{
+        ownerDomain:'libra',processType:'libra_run',processId:snapshot.work.process_id,workKind:snapshot.work.work_kind});
       return {eventId:snapshot.event.event_id,queueClass:projection.priorityClass,localPriority:projection.localPriority,
         priorityRevision:projection.priorityRevision,resources}; } },
     nextEventAttemptId: () => 'event-attempt-' + randomUUID(), nextExecutionId: () => 'execution-' + randomUUID(),

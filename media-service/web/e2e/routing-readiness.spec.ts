@@ -11,6 +11,7 @@ test('missing routing policy opens the exact source configuration and clears aft
     routingDecisionHeadRevision:null,routingDecisionHeadDigest:null,organizingRequirement:'正在确认整理要求',organizingSteps:[],addedAtMs:1};
   await page.route('**/v1/**',async route=>{
     const url=new URL(route.request().url()),path=url.pathname;
+    if(path==='/v1/admin/runtime')return route.fulfill({json:{mode:'running',desiredMode:'running',revision:1,operation:null,activity:{}}});
     if(path==='/v1/admin/formation') {
       const ended=url.searchParams.get('section')==='ended'||url.searchParams.get('section')==='completed';
       return route.fulfill({json:{items:ended?[]:[{...base,classification:published?'in_progress':'attention_required',

@@ -23,6 +23,13 @@ export type ExtractionPolicyValue = {
   excludedMaterialKeys: string[];
 };
 
+export type SecondaryWorkshop = {
+  secondarySeats: number;
+  policyRevision: number;
+  updatedAtMs: number;
+  held: number;
+  free: number;
+};
 export type FieldIntakeAdmission = {
   fieldId: string;
   predeckPipelineSeats: number;
@@ -660,6 +667,14 @@ export const helixAdminApi = {
   },
   getFieldIntakeAdmission(fieldId: string) {
     return request<FieldIntakeAdmission>(`/v1/admin/libra/material-fields/${encodeURIComponent(fieldId)}/intake-admission`);
+  },
+  getSecondaryWorkshop() {
+    return request<SecondaryWorkshop>('/v1/admin/libra/workshops/secondary');
+  },
+  patchSecondaryWorkshop(secondarySeats: number) {
+    return request<SecondaryWorkshop>('/v1/admin/libra/workshops/secondary', {
+      method: 'PATCH', body: JSON.stringify({ secondarySeats, idempotencyKey:`secondary-workshop:${newOpaqueId()}` }),
+    });
   },
   patchFieldIntakeAdmission(fieldId: string, body: { predeckPipelineSeats: number }) {
     return request<FieldIntakeAdmission>(`/v1/admin/libra/material-fields/${encodeURIComponent(fieldId)}/intake-admission`, {

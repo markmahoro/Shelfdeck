@@ -1,5 +1,16 @@
 # ShelfDeck 当前状态
 
+2026-10-16 LIBRA 双车间/来源公平本地实现验证中：Service645 pass/29既有skip、Web190、宽窄UI4、Linux核心36及真实二号Host1通过，Windows实际二号恢复/三来源长转码各1通过。结构为210表/149 routes；3.13GB历史204副本203表逐行保护及未使用回退校验通过，但缺受保护S02/S03，不能替代新鲜生产副本。最终Windows组合Host2/2、独立Service包与Linux受影响范围已复核；具体版本UI负责人及新鲜副本资格仍开放，未部署。详见 CURRENT_PHASE 与对应审查Evidence。
+
+2026-10-15 新合同已获用户确认：Series 按 Subject 整体转入二号；允许 Foundation 最小通用只读分页执行摘要。继续实现与资格验证；不修改 Foundation 调度/执行语义、不接管原聊天 Arca/Perception 性能路径。
+
+2026-10-15 UAT-320 缺路由配置 readiness/需要处理/对应来源配置入口已独立本地实现，后台68、Web12及受控宽窄浏览器2项通过，Web构建通过。具体版本UI负责人审核及上线验收尚未完成，UAT保持开放；不等于双车间/来源公平完成。本聊天未部署或操作生产，见既有[UAT-320 Evidence](implementation/evidence/UAT-320_SERIES_ROUTING_READINESS_20261015.md)。
+
+2026-10-15 原聊天已记录 UAT-320：通过正式 Routing preview/PATCH 为剧集来源发布 revision1，摩登家庭 S02/S03 原 Subject 已创建 active Run 并进入身份核对；仅证明原停滞点解除，不代表整季完成。缺配置却显示 preparing/in_progress 的展示缺陷仍开放，由 LIBRA-ATTENTION-WORKSHOP 的 Owner readiness/attention 工作覆盖。后续合并升级保留 Evidence 中精确两季任务及新增事实，不执行默认清场；现场及具体身份见 [UAT-320 Evidence](implementation/evidence/UAT-320_SERIES_ROUTING_READINESS_20261015.md)。本聊天未直接核验或操作生产。
+
+2026-10-15 LIBRA-ATTENTION-WORKSHOP / LIBRA-SOURCE-FAIRNESS 已在唯一活动 Phase 开工审查。二号容量已获用户确认：全 Libra 共用默认5、0–32；Series Subject/Run席位一致性和低成本执行反馈接口边界待确认。尚无实现、测试或UI资格，不改变最近已记录生产身份；本聊天未操作生产。
+
+
 2026-10-15 JAV首版已完成本轮发布资格并标准部署生产：markmahoro/shelfdeck:037592bef4，source 037592bef4441ceda87b3270f6e70cb7857da3a7。11:46:57 UTC复核mode=running、normalSupplyAllowed=true、faulted=false；556条原收藏和原入藏Receipt保持，已观察11条新Libra执行成功。机器合同121/104/204/51、147 routes。完整生产副本200→204/199旧表逐行保护、真实完整Host正常供给/33协调器推进、停止及使用后回退拒绝通过；生产按授权清理6个未结束Subject与精确discarded旧记录，86表范围外保护及49个伴随文件物理身份保持。最终UI变更经负责人宽/窄两项接受，其余继承原接受；Web186、Service642 pass/29既有skip与Linux20条业务的精确backend字节继承范围明确，最终实际镜像Native/API/源码/资产及Windows独立Service包复核通过。生产五挂载/QSV、fnOS及13个无关容器保持。具体原始失败/观察超时、Annex、备份及回退限制见现有JAV_RELEASE_COPY Evidence；不追认为每站长期可用、整季生产E2E或Electron资格，不批量关闭既有UAT。以下较早段落为历史快照，不覆盖当前授权与事实。
 
 2026-10-15 用户明确授权三步推进：另开聊天排查生产任务长期停滞并修复，合并修复后用生产完整副本演练升级/回退，演练通过后标准部署生产。诊断聊天01a13ebb-f373-7670-a207-64797e8c7c31已建立；主聊天统一控制安全停机、备份、精确清场及发布，诊断期间保持生产只读。必要生产停机/标准部署不再以旧“未授权”文字阻塞；Reset仍需冻结可审查范围并通过原保护门禁，不能清掉未决非pure Effects或已入藏事实。

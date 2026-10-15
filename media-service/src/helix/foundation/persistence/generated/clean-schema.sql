@@ -1469,6 +1469,7 @@ CREATE TABLE "fx_resource_defer" (
   "resource_key" TEXT,
   "queue_class" TEXT,
   "local_priority" INTEGER,
+  "priority_revision" INTEGER CHECK ("priority_revision" >= 1),
   "enqueued_at_ms" INTEGER CHECK ("enqueued_at_ms" >= 0),
   "retry_at_ms" INTEGER CHECK ("retry_at_ms" >= 0),
   "state" TEXT CHECK ("state" IN ('waiting', 'released', 'cancelled', 'expired')),
@@ -1737,6 +1738,36 @@ CREATE TABLE "libra_delivery_receipts" (
   FOREIGN KEY ("on_deck_package_id") REFERENCES "libra_product_packages" ("on_deck_package_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_delivery_receipts_hot_01" ON "libra_delivery_receipts" ("result", "received_at_ms");
+
+CREATE TABLE "libra_fairness_clocks" (
+  "clock_id" TEXT PRIMARY KEY,
+  "turn_sequence" INTEGER,
+  "priority_revision" INTEGER CHECK ("priority_revision" >= 1)
+);
+
+CREATE TABLE "libra_fairness_events" (
+  "foundation_event_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "last_attempt_ordinal" INTEGER CHECK ("last_attempt_ordinal" >= 0),
+  "last_event_attempt_id" TEXT,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0)
+);
+CREATE INDEX "idx_libra_fairness_events_hot_01" ON "libra_fairness_events" ("libra_run_id", "foundation_event_id");
+
+CREATE TABLE "libra_fairness_runs" (
+  "libra_run_id" TEXT PRIMARY KEY,
+  "source_field_id" TEXT,
+  "last_turn_sequence" INTEGER,
+  "scan_cursor" TEXT,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0)
+);
+CREATE INDEX "idx_libra_fairness_runs_hot_01" ON "libra_fairness_runs" ("source_field_id", "libra_run_id");
+
+CREATE TABLE "libra_fairness_sources" (
+  "source_field_id" TEXT PRIMARY KEY,
+  "last_turn_sequence" INTEGER,
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0)
+);
 
 CREATE TABLE "libra_field_intake_admission_policies" (
   "field_id" TEXT PRIMARY KEY,
@@ -2672,6 +2703,20 @@ CREATE TABLE "libra_subjects" (
   FOREIGN KEY ("subject_id", "current_identity_revision") REFERENCES "libra_product_identity_revisions" ("subject_id", "revision") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_libra_subjects_hot_01" ON "libra_subjects" ("status", "subject_id");
+
+CREATE TABLE "libra_workshop_placements" (
+  "subject_id" TEXT PRIMARY KEY,
+  "transferred_at_ms" INTEGER CHECK ("transferred_at_ms" >= 0),
+  "readiness_digest" TEXT CHECK (length("readiness_digest") = 64 AND "readiness_digest" NOT GLOB '*[^0-9a-f]*')
+);
+CREATE INDEX "idx_libra_workshop_placements_hot_01" ON "libra_workshop_placements" ("transferred_at_ms", "subject_id");
+
+CREATE TABLE "libra_workshop_policies" (
+  "policy_id" TEXT PRIMARY KEY,
+  "secondary_seats" INTEGER,
+  "policy_revision" INTEGER CHECK ("policy_revision" >= 1),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0)
+);
 
 CREATE TABLE "libra_workspace_cleanup_members" (
   "cleanup_scope_id" TEXT,

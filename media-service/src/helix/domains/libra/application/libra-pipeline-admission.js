@@ -25,6 +25,10 @@ function createLibraPipelineAdmission(options) {
 
   return Object.freeze({
     defaultSeats: DEFAULT_PREDECK_PIPELINE_SEATS,
+    readSecondaryPolicy() { return store.readSecondaryPolicy(); },
+    reviseSecondaryPolicy(seats) { return store.reviseSecondaryPolicy(seats); },
+    listSecondaryPlacements() { return store.listSecondaryPlacements(); },
+    transferToSecondary(subjectId, proofParticipant, readParticipants) { return store.transferToSecondary(subjectId, proofParticipant, readParticipants); },
     readPolicy(fieldId) { return store.readPolicy(fieldId); },
     revisePolicy(fieldId, predeckPipelineSeats) { return store.revisePolicy(fieldId, predeckPipelineSeats); },
     hasToken(subjectId) { return store.hasToken(subjectId); },

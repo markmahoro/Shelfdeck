@@ -25,6 +25,20 @@ function createFieldIntakeAdmissionAdminService(options) {
   });
 
   return Object.freeze({
+    getSecondaryWorkshop() {
+      return pipelineAdmission.readSecondaryPolicy();
+    },
+    reviseSecondaryWorkshop(body) {
+      if (!body || Object.keys(body).some(key => !['secondarySeats','idempotencyKey'].includes(key)) ||
+          typeof body.idempotencyKey !== 'string' || !body.idempotencyKey || body.idempotencyKey.length > 256 ||
+          !Number.isSafeInteger(body.secondarySeats) || body.secondarySeats < 0 || body.secondarySeats > 32) {
+        throw new FieldIntakeAdmissionAdminError('ADMIN_SECONDARY_WORKSHOP_INVALID', 'secondarySeats must be an integer from 0 to 32.');
+      }
+      const previous=pipelineAdmission.readSecondaryPolicy();
+      const revised=pipelineAdmission.reviseSecondaryPolicy(body.secondarySeats);
+      if(previous.secondarySeats!==revised.secondarySeats)options.onSecondaryPolicyChanged?.();
+      return revised;
+    },
     getFieldIntakeAdmission(fieldId) {
       if (!fieldId) {
         throw new FieldIntakeAdmissionAdminError('ADMIN_FIELD_ID_REQUIRED', 'Material Field id is required.');

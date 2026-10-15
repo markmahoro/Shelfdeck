@@ -78,21 +78,22 @@
     },
     "semanticRules": [
       "`source_field_id`是Procurement Material Field opaque ref、不建跨Domain FK",
-      "每个Subject至多持有一个active Pre-deck pipeline token，且每个Handoff A Accepted Subject必须有匹配token",
+      "每个Subject至多持有一个active Pre-deck responsibility token，且每个Handoff A Accepted Subject必须有匹配token",
+      "存在libra_workshop_placements时计二号占用，否则计该来源一号占用",
       "Intake Evidence首次admit或历史Evidence replay恢复推进前acquire，Handoff B Accepted、用户合法终结对应Pre-deck责任或Intake Rejection时release并DELETE row",
       "Routing、Subject Rating、Acceptance Spec与initial Run Creation的周期reconciler只推进token holder",
-      "注意态继续持有token",
+      "注意态继续持有责任token，满足二号原子转入条件才改变占用位置",
       "`acquired_at_ms`为UTC epoch ms",
       "`INDEX(source_field_id,subject_id)`"
     ],
     "rawContract": {
       "columns": "`subject_id PK, source_field_id, source_process_id, acquired_at_ms`",
-      "constraints": "`source_field_id`是Procurement Material Field opaque ref、不建跨Domain FK；每个Subject至多持有一个active Pre-deck pipeline token，且每个Handoff A Accepted Subject必须有匹配token；Intake Evidence首次admit或历史Evidence replay恢复推进前acquire，Handoff B Accepted、用户合法终结对应Pre-deck责任或Intake Rejection时release并DELETE row；Routing、Subject Rating、Acceptance Spec与initial Run Creation的周期reconciler只推进token holder；注意态继续持有token；`acquired_at_ms`为UTC epoch ms；`INDEX(source_field_id,subject_id)`"
+      "constraints": "`source_field_id`是Procurement Material Field opaque ref、不建跨Domain FK；每个Subject至多持有一个active Pre-deck responsibility token，且每个Handoff A Accepted Subject必须有匹配token；存在libra_workshop_placements时计二号占用，否则计该来源一号占用；Intake Evidence首次admit或历史Evidence replay恢复推进前acquire，Handoff B Accepted、用户合法终结对应Pre-deck责任或Intake Rejection时release并DELETE row；Routing、Subject Rating、Acceptance Spec与initial Run Creation的周期reconciler只推进token holder；注意态继续持有责任token，满足二号原子转入条件才改变占用位置；`acquired_at_ms`为UTC epoch ms；`INDEX(source_field_id,subject_id)`"
     },
     "source": {
       "section": "8.5.11",
-      "line": 9443,
-      "lineDigest": "266987ac42ab88414e7fd20ae8eaa2f23de33bc8dbbf03b6b17e4040e9533761"
+      "line": 9483,
+      "lineDigest": "200e64609cfcc2c53507f12550f17d09bb1790f705b6c8716d3c8c1abf766311"
     },
     "foreignKeys": []
   }

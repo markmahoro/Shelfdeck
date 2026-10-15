@@ -1,0 +1,80 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_fairness_sources/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_fairness_sources",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "source_field_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "last_turn_sequence",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "source_field_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Libra来源公平账本，source_field_id仅为opaque Material Field引用",
+      "每来源只一份轮次，Run数量不放大来源权重",
+      "只按实际合格执行机会推进，等待不积累无限优先债"
+    ],
+    "rawContract": {
+      "columns": "`source_field_id PK, last_turn_sequence INTEGER, updated_at_ms`",
+      "constraints": "Libra来源公平账本，source_field_id仅为opaque Material Field引用；每来源只一份轮次，Run数量不放大来源权重；只按实际合格执行机会推进，等待不积累无限优先债"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9487,
+      "lineDigest": "479fa72759a800d7971e0b77b47639da675f8942ce7dbf8fb06fc1bd2026831c"
+    },
+    "foreignKeys": []
+  }
+}

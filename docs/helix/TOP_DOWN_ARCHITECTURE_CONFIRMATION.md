@@ -5722,6 +5722,17 @@ Package发布后Run保持active并等待Arca Acceptance：
 
 #### 6.4.9 Libra Run Priority
 
+2026-10-15 用户确认的来源公平扩展：仅 Libra Production 在既有 `normal|expedited` 意图及对应
+`priorityClass` 内先按来源、再按 Run 提供公平推进倾向。来源拥有更多 Run 不取得额外来源权重；
+不自动切换加急、不抢占已运行执行、不要求逐 Event 严格轮转、平均 CPU 时间、相同进度或同时完成。
+Libra Owner 持久化实际执行机会及幂等消费位置，Projection 读取不更新公平记录；公平影响新 Work
+供给、未执行 Work/Event 和已有资源等待队列的 `localPriority/priorityRevision`，不能只调整遍历顺序。
+检查、提交、资源申请失败及无变化外部轮询不记实际推进；长操作取得实际执行机会即可交棒，不等待
+整个 Run 完成。阻塞来源跳过，恢复后及时获得机会但不积累无限优先债；安全、交接、收口和等待老化
+保持。Procurement、维护及 Arca 不纳入此来源策略，Foundation 不拥有来源或公平业务决策。
+执行反馈的低成本、有界、及时、幂等及重启补账接口必须先获得资格；缺口不能由完整结果重复扫描、
+Projection 写入或跨 Owner SQL 掩盖。本段确认业务规则，不宣称接口或实现已经完成。
+
 Libra Run是Pre-deck Production的端到端业务优先级载体。`normal|expedited`只影响该Run从Decision
 Preparation后的生产、返工、Package交付和相关Handoff等待顺序；内部Supporting Work必须读取同一Run
 Priority，而不是要求用户逐Task“陪诊”。
@@ -5733,6 +5744,17 @@ Priority终止，且不随Handoff B传给Arca On-deck Run；“优先维护”�
 Task或Arca流程上，并在Handoff B Accepted时终止。
 
 #### 6.4.10 完成与责任收口
+
+2026-10-15 用户确认的二号车间规则：Libra 保留当前按 Material Field 的 Intake 席位及
+Procurement→Libra 门禁，在 Libra 内新增二号暂存车间，全 Libra 共用容量默认 5、可配置 0–32。
+0 只关闭新增转入；缩容不驱逐已有占位。需要处理时，只有二号容量可用且既有执行/副作用可安全
+收口，Owner 才原子转区并腾出原正常席位；二号满则保留一号占位形成背压，不以删除 token 或
+责任终结的 release 代替转区。需要处理是统一业务规则，不能仅处理身份识别失败。
+用户解决问题后在二号原位继续，直到正常 Handoff B 或合法责任终结；不回一号、不回流
+Procurement、不重新 Intake、不另建重复 Run。Subject、任务、Material Control、Workspace 与
+执行历史持续留在 Libra。不得硬杀执行、伪造终态或在转区后遗漏正常投产门禁。维护任务与整理
+席位独立计算。旧“注意态始终占来源 token”合同必须随位置/责任分离的机器合同一并迭代；
+用户进一步确认二号按 Subject 占一席；仅全部未交付 Run 都需要处理且执行/副作用安全收口后整体转入，全部责任交付或合法终结后释放。尚无 Run 的 Accepted Subject 按同一 Owner readiness 规则判定。不得从业务合同推导已完成 schema/运行资格。
 
 Run完成至少要求：
 
@@ -6819,6 +6841,24 @@ Domain Issuer在决定哪些eligible Process先形成Supporting Work时读取其
 
 Work Creator不维护独立Priority，Scheduler也不重新解释业务优先级。Priority变化更新尚未终结Work和未
 执行Event的Projection；正在执行的不可分割效果不抢占。
+
+Foundation 的 Work Result Reader 提供通用只读执行摘要：精确 `ownerDomain/processType/processId` scope，
+按 Event ID 分页，每页 1–100 项，返回 Event/Work/Capability 身份、状态、就绪/重试时间及 latest Event
+Attempt 的身份、ordinal、状态、结果种类、failure class/code、开始/结束时间；可按同一 scope 精确读取一个
+Event。摘要不展开 Plan bindings、Result 或 Evidence，不包含来源、公平判断或业务 readiness。随机 Event ID
+不构成时间游标；消费端在页尾从 NULL 开始下一轮，以发现稍后插入的较小 ID。
+
+同一 Reader 可构造有界精确 process scopes 的只读事务 participant，返回是否仍有 open Work、open Event
+及未收口 Effect 的布尔摘要；这些是 Foundation 执行事实，是否允许业务转区由 Libra 在同一事务中决定。
+该接口不改变准入、调度、Permit、执行、取消或 Effect 恢复语义。
+
+Libra 在 Capability executor 入口、完成输入/Fence 校验后及时消费 durable Attempt，并以公开摘要补偿重启窗口。
+公平账本保留每 Event 的已消费 Attempt ordinal/身份高水位，时钟、来源与 Run 轮次原子更新；普通协调检查、
+Work submit、资源请求失败与未变化的 acquisition/stability poll 不消费轮次。运行中的长效果一旦取得执行机会，
+下一轮即可偏向其他来源；不等待长效果完成，也不抢占它。账本的顺序用于有限公平偏好，不是完成数量或吞吐统计。
+已有 Work/Event 使用同一 Owner Projection；资源等待者在 Owner revision 改变后主动刷新。completion 与 expansion
+仍保留原 100 点间隔，公平 bonus 有界在 0–95；活跃来源过多时可共享分桶，不积累按等待时长无限增长的优先债，
+Foundation aging 及 priorityClass 仍按原合同生效。
 
 #### 7.2.5 Plan结果不需要伪造Event
 
@@ -9387,7 +9427,7 @@ Run/Retry引用核对；任一失败即拒绝可写启动。
 | `fx_outbox` | `message_id PK, producer_domain, message_kind, aggregate_type, aggregate_id, aggregate_revision, dedup_key, consumer_set_digest, intended_consumer_count, payload_schema_ref, payload_json, payload_digest, state, available_at_ms, created_at_ms, all_acked_at_ms` | payload上限`16 KiB`且只含ID/revision/digest；`UNIQUE(producer_domain,dedup_key)`；`INDEX(state,available_at_ms,message_id)` |
 | `fx_outbox_deliveries` | `message_id FK, consumer_domain, state(pending|delivered|acked), attempt_count, next_attempt_at_ms, acked_at_ms` | `PK(message_id,consumer_domain)`；publish事务冻结全部intended consumer；`INDEX(state,next_attempt_at_ms,message_id)` |
 | `fx_inbox` | `consumer_domain, message_id, dedup_key, received_at_ms, consumed_at_ms, result_digest` | `PK(consumer_domain,message_id)`及`UNIQUE(consumer_domain,dedup_key)` |
-| `fx_resource_defer` | `event_id FK, resource_key, queue_class, local_priority, enqueued_at_ms, retry_at_ms, state` | `PK(event_id,resource_key)`；一个Event/resource最多一个有效waiter；`INDEX(resource_key,state,queue_class,local_priority,enqueued_at_ms)` |
+| `fx_resource_defer` | `event_id FK, resource_key, queue_class, local_priority, priority_revision INTEGER NULL, enqueued_at_ms, retry_at_ms, state` | `PK(event_id,resource_key)`；一个Event/resource最多一个有效waiter；priority_revision为最后应用的Owner Projection正revision，NULL表示尚未记录revision元数据，首次刷新接受当前正revision；现有updateWaiterPriority仅按更高revision原子更新已有waiting rows的queue_class/local_priority/priority_revision，也覆盖硬上限外的durable defer；不创建waiter、不改资源集合/enqueued_at/retry_at、不发Permit；未知、已释放、已执行及较旧revision拒绝；`INDEX(resource_key,state,queue_class,local_priority,enqueued_at_ms)` |
 | `fx_event_resource_timings` | `event_attempt_id FK, resource_key, queue_class, enqueued_at_ms, acquired_at_ms, released_at_ms, wait_duration_ms, hold_duration_ms, outcome` | `PK(event_attempt_id,resource_key)`；只记录Evidence，不恢复内存Permit；`INDEX(resource_key,acquired_at_ms)`供p50/p95/p99 |
 | `fx_circuit_states` | `circuit_key PK, state, reason_code, evidence_digest, opened_at_ms, reviewed_at_ms` | `INDEX(state,opened_at_ms)`；只允许Control Plane写入 |
 | `fx_executor_incidents` | `incident_key PK, owner_domain, process_type, work_kind, error_code, occurrence_count, circuit_key, incident_state(open|recovering|resolved), evidence_digest, first_seen_at_ms, last_seen_at_ms, resolved_at_ms NULL` | Foundation-only lifecycle；`incident_key=SHA-256(JCS({owner_domain,process_type,work_kind,error_code,resource_scope_key?}))`，其中可选`resource_scope_key`不新增列，只能来自该Work实际冻结/使用的Permit、typed Resource Demand及`fx_event_resource_timings`并冻结在identity/circuit digest；无法精确归因时省略该值并保持process-local；同一terminal Work occurrence重复观察不增加计数，新的occurrence以CAS单调增加，达到3次时打开exact-scope Circuit；首个命中scope的新Work获得`open → recovering`资格，只有其实际成功经过的同一process/resource path invariant evidence才允许`recovering → resolved`并关闭对应Circuit；Domain只能读取Incident ref/projection，不得控制其生命周期；`INDEX(incident_state,last_seen_at_ms)` |
@@ -9440,7 +9480,13 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `libra_formation_projections` | `subject_id PK FK, projection_revision, classification(in_progress|attention_required|completed), attention_state(none|attention_required|blocked|suspended|frozen), attention_priority, display_identity, content_profile, structure_kind, subject_status, my_rating NULL, my_rating_source NULL, my_rating_revision NULL, target_shelf_id NULL, target_shelf_name NULL, routing_state, unresolved_reason_code NULL, routing_policy_mode NULL, routing_policy_revision NULL, routing_decision_revision NULL, routing_decision_digest NULL, routing_decision_head_revision NULL, routing_decision_head_digest NULL, primary_material_count, organizing_requirement, organizing_action, added_at_ms, next_action_label, next_action_state, progress_mode NULL, progress_current_value NULL, progress_total_value NULL, progress_unit NULL, progress_rate NULL, progress_eta_ms NULL, progress_bucket NULL, identity_issue_schema_ref NULL, identity_issue_json NULL, identity_issue_digest NULL, current_acceptance_spec_id NULL, current_acceptance_spec_revision NULL, current_acceptance_spec_digest NULL, current_libra_run_id NULL, current_libra_run_state NULL, current_libra_run_state_revision NULL, current_libra_run_state_digest NULL, current_priority_class NULL, current_identity_revision NULL, current_package_id NULL, current_package_revision NULL, current_package_digest NULL, current_offer_id NULL, completed_at_ms NULL, basis_digest, projection_digest, updated_at_ms` | current technical Read Projection；每个Subject恰好至多一行且可由Libra正式事实、User Perception/Arca公开Projection及Foundation Progress Projection重建；三类current状态互斥，`completed`必须由Arca公开Projection逐项证明On-deck Commit Receipt、Shelf Entry与对应active Deck Fact均成立，Product Package published或Handoff B Accepted单独都不构成完成；`attention_required`优先覆盖technical failure、blocked、suspended、frozen及需要用户确认的合法状态；Handoff A Accepted后即为`in_progress`，直到attention或completed条件取代；Discarded Run只进入immutable历史，不得重复计数；`projection_revision>=1`且相同`basis_digest`必须no-op，不递增revision、不执行UPDATE；nullable rating、identity issue、Spec、Run、Package/Offer及progress字段各自按closed bundle同时成立；`identity_issue_json`为JCS且≤`16 KiB`并由digest保护；`projection_digest=SHA-256(JCS(完整用户行 excluding projectionDigest))`；`INDEX(attention_priority,classification,updated_at_ms,subject_id)`供active排序，`INDEX(classification,completed_at_ms,subject_id)`供completed cursor，`INDEX(classification,subject_id)`供统计；本表不授权任何命令，损坏或缺失时必须重建，不能回填或改写Owner业务事实 |
 | `libra_field_routing_heads` | `field_id PK, current_routing_policy_id, current_policy_revision, updated_at_ms` | Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案 |
 | `libra_field_intake_admission_policies` | `field_id PK, predeck_pipeline_seats INTEGER, policy_revision INTEGER, updated_at_ms` | Field ID是Procurement Material Field opaque ref、不建跨Domain FK；Libra-owned Pre-deck pipeline admission配置；`predeck_pipeline_seats`范围0..8，默认3，0表示不从该Field接收新的Handoff A Offer，既有Accepted责任继续推进；各Field席位不可借用；`policy_revision`从1递增 |
-| `libra_predeck_pipeline_tokens` | `subject_id PK, source_field_id, source_process_id, acquired_at_ms` | `source_field_id`是Procurement Material Field opaque ref、不建跨Domain FK；每个Subject至多持有一个active Pre-deck pipeline token，且每个Handoff A Accepted Subject必须有匹配token；Intake Evidence首次admit或历史Evidence replay恢复推进前acquire，Handoff B Accepted、用户合法终结对应Pre-deck责任或Intake Rejection时release并DELETE row；Routing、Subject Rating、Acceptance Spec与initial Run Creation的周期reconciler只推进token holder；注意态继续持有token；`acquired_at_ms`为UTC epoch ms；`INDEX(source_field_id,subject_id)` |
+| `libra_predeck_pipeline_tokens` | `subject_id PK, source_field_id, source_process_id, acquired_at_ms` | `source_field_id`是Procurement Material Field opaque ref、不建跨Domain FK；每个Subject至多持有一个active Pre-deck responsibility token，且每个Handoff A Accepted Subject必须有匹配token；存在libra_workshop_placements时计二号占用，否则计该来源一号占用；Intake Evidence首次admit或历史Evidence replay恢复推进前acquire，Handoff B Accepted、用户合法终结对应Pre-deck责任或Intake Rejection时release并DELETE row；Routing、Subject Rating、Acceptance Spec与initial Run Creation的周期reconciler只推进token holder；注意态继续持有责任token，满足二号原子转入条件才改变占用位置；`acquired_at_ms`为UTC epoch ms；`INDEX(source_field_id,subject_id)` |
+| `libra_workshop_policies` | `policy_id PK, secondary_seats INTEGER, policy_revision INTEGER, updated_at_ms` | Libra二号全局政策，唯一policy_id=secondary；secondary_seats为0..32，缺行默认5；0只禁止新增转入，缩容不驱逐；policy_revision从1递增；与来源一号及Arca维护容量独立 |
+| `libra_workshop_placements` | `subject_id PK, transferred_at_ms, readiness_digest` | Libra二号位置而非新责任；Subject必须仍持有libra_predeck_pipeline_tokens；容量读取、当前全部未交付Run注意态/执行安全闭包复验与位置插入同事务；重复转入幂等；不删除责任token或移动Control/Workspace；恢复不删除位置，只有原有责任release成功才同事务删除；Season保留原有未交付和未分配材料闭包；INDEX(transferred_at_ms,subject_id) |
+| `libra_fairness_clocks` | `clock_id PK, turn_sequence INTEGER, priority_revision INTEGER` | 唯一clock_id=production；Libra执行机会计数与优先级revision，均为正安全整数；写机会/消费者去重/来源与Run轮次全成或全不成；Projection不写 |
+| `libra_fairness_sources` | `source_field_id PK, last_turn_sequence INTEGER, updated_at_ms` | Libra来源公平账本，source_field_id仅为opaque Material Field引用；每来源只一份轮次，Run数量不放大来源权重；只按实际合格执行机会推进，等待不积累无限优先债 |
+| `libra_fairness_runs` | `libra_run_id PK, source_field_id, last_turn_sequence INTEGER, scan_cursor NULL, updated_at_ms` | Libra Run公平及执行摘要有界扫描位置；INDEX(source_field_id,libra_run_id)；只消费同一Run实际机会，normal/expedited仍由libra_runs拥有；结束Run不参与排序；scan_cursor到页尾回NULL，重启继续扫描且重复机会不再次计数 |
+| `libra_fairness_events` | `foundation_event_id PK, libra_run_id, last_attempt_ordinal INTEGER, last_event_attempt_id, updated_at_ms` | Libra消费Foundation公开摘要后的幂等高水位；同Event只接受严格更高Attempt ordinal且同序不同ID拒绝；与clock/source/run轮次同事务；不复制Result或执行事实，不授权执行；INDEX(libra_run_id,foundation_event_id) |
 | `libra_routing_policy_revisions` | `routing_policy_id, revision, field_id, mode(direct|sorting), policy_schema_ref, policy_json, policy_digest, effective_at_ms` | Policy JSON上限`64 KiB`；`PK(routing_policy_id,revision)`；immutable；`INDEX(field_id,effective_at_ms)`；同一revision只属于一片Field |
 | `libra_routing_policy_targets` | `routing_policy_id, policy_revision, shelf_id, rank, match_rule_schema_ref, match_rule_json, match_rule_digest` | `PK(routing_policy_id,policy_revision,shelf_id)`及`UNIQUE(routing_policy_id,policy_revision,rank)`；Rule固定`RoutingMatchExpression@1`，JSON≤`16 KiB`、AST深度≤4、节点≤64；Shelf ID为Arca公开Projection中的opaque ref |
 | `libra_routing_assessments` | `routing_assessment_id PK, subject_id FK, decision_basis_id FK, routing_authority_kind(policy|manual_selection), routing_policy_id NULL, routing_policy_revision NULL, manual_selection_digest NULL, routing_input_digest, assessment_schema_ref, assessment_json, assessment_digest, created_at_ms` | policy与manual列variant互斥；JSON≤`64 KiB`并完整重建`RoutingAssessmentEvidence@1`；`UNIQUE(subject_id,decision_basis_id,routing_input_digest)`；immutable |
@@ -13572,9 +13618,12 @@ PATCH      /v1/admin/routing/material-fields/:fieldId
 GET        /v1/admin/routing/material-fields/:fieldId/revisions
 
 GET/PATCH  /v1/admin/libra/material-fields/:fieldId/intake-admission
+GET/PATCH  /v1/admin/libra/workshops/secondary
 ~~~
 
 Per Material Field Pre-deck pipeline seats（0–8，默认 3）由 **LibraAdminFacade** 读写 `libra_field_intake_admission_policies`；0表示该Field不接受新的Handoff A Offer，不暂停既有Accepted责任。Admin文件来源页把Libra席位与Procurement-owned Package交接统计组合成Read Model，但Libra不得写入`proc_*`，Procurement也不得写Libra政策/token Store。`fieldId`仅为Procurement Material Field标识引用，Libra不做cross-domain FK。
+
+全 Libra 二号容量由 **LibraAdminFacade** 独立读写 `libra_workshop_policies`。GET 返回 `secondarySeats,policyRevision,updatedAtMs,held,free`，缺政策行时只读返回默认 5。PATCH 的 closed body 为 `{secondarySeats: integer 0..32,idempotencyKey: nonempty string <=256}`，相同值重放不递增政策 revision；0 停止新增转入，缩容保留已有条目。设置页“整理空间”提供独立容量及实际占用；一号来源容量及 Arca 维护资源不受此政策控制。
 
 Material Field `POST`的closed registration body允许可选`contentProfileHint`；缺失时Host必须在Command schema
 验证及`requestDigest`计算前规范化为显式`mixed`，并原子建立Profile Hint revision 1。Material Field `PATCH`

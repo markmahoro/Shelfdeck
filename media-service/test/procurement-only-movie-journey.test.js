@@ -26,6 +26,9 @@ test('UAT-174 per-field pause and UAT-175 predeck tokens survive Host restart wi
   let cookie=await session(host,initialized.adminApiKey);
   async function request(method,url,payload){const response=await host.inject({method,url,headers:{cookie},payload});
     assert.ok(response.statusCode>=200&&response.statusCode<300,response.body);return response.json();}
+  // This regression isolates primary Intake capacity; secondary transfers have
+  // their own real Host journey and must not expand this fixture's admission.
+  await request('PATCH','/v1/admin/libra/workshops/secondary',{secondarySeats:0,idempotencyKey:'isolate-primary-intake'});
   async function seats(fieldId,count){return request('PATCH',`/v1/admin/libra/material-fields/${fieldId}/intake-admission`,{predeckPipelineSeats:count,idempotencyKey:`seats-${fieldId}-${count}`});}
   function snapshot(){const db=new Database(databasePath,{readonly:true});try{return {
     packages:db.prepare('SELECT count(*) n FROM proc_candidate_packages').get().n,
@@ -224,6 +227,9 @@ test('one bad Material is released while a bounded Movie Candidate set queues be
   });
   try {
     const cookie = await session(host, initialized.adminApiKey);
+    const secondary = await host.inject({method:'PATCH',url:'/v1/admin/libra/workshops/secondary',headers:{cookie},
+      payload:{secondarySeats:0,idempotencyKey:'isolate-primary-procurement'}});
+    assert.equal(secondary.statusCode,200,secondary.body);
     const created = await host.inject({
       method: 'POST',
       url: '/v1/admin/material-fields',
@@ -319,10 +325,12 @@ test('one bad Material is released while a bounded Movie Candidate set queues be
       formationCursor = page.json().nextCursor;
     } while (formationCursor);
     assert.equal(formation.json().summary.totalCount,intakeSeats);
-    assert.equal(formation.json().summary.inProgressCount,intakeSeats);
+    assert.equal(formation.json().summary.inProgressCount,0);
+    assert.equal(formation.json().summary.attentionRequiredCount,intakeSeats);
     assert.equal(formationItems.length,intakeSeats);
     assert.equal(new Set(formationItems.map((item)=>item.subjectId)).size,intakeSeats);
-    const invalidFormationItem=formationItems.find((item)=>item.classification!=='in_progress'||item.primaryMaterialCount!==1);
+    const invalidFormationItem=formationItems.find((item)=>item.classification!=='attention_required'||
+      item.unresolvedReasonCode!=='routing_policy_unavailable'||item.primaryMaterialCount!==1);
     assert.equal(invalidFormationItem,undefined,JSON.stringify(invalidFormationItem));
     const deregistered=await host.inject({method:'POST',url:`/v1/admin/material-fields/${accessBasis.fieldId}/actions/deregister`,headers:{cookie},payload:{
       idempotencyKey:'procurement-only-deregister',fieldId:accessBasis.fieldId,expectedAccessRevision:1,expectedPolicyRevision:1}});

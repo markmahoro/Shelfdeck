@@ -246,6 +246,12 @@ function createCleanFacades(options) {
     });
   }
   if (options.libraFieldIntakeAdmissionAdmin) {
+    facades.LibraAdminFacade.get_libra_workshops_secondary = async () => ({
+      body: options.libraFieldIntakeAdmissionAdmin.getSecondaryWorkshop(),
+    });
+    facades.LibraAdminFacade.patch_libra_workshops_secondary = async (input) => ({
+      body: options.libraFieldIntakeAdmissionAdmin.reviseSecondaryWorkshop(input.body),
+    });
     facades.LibraAdminFacade.get_libra_material_fields_fieldid_intake_admission = async (input) => ({
       body: options.libraFieldIntakeAdmissionAdmin.getFieldIntakeAdmission(input.params.fieldId),
     });

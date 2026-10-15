@@ -103,6 +103,8 @@ const CLEAN_RUNTIME_FILES = [
   'src/admin-credential-secret-store.js',
   'scripts/helix-clean-init.js',
   'scripts/helix-jav-schema-copy.js',
+  'scripts/helix-libra-schema-copy.js',
+  'scripts/helix-architecture/libra-workshop-schema-copy.js',
   'scripts/helix-architecture/jav-release-schema-copy.js',
   'scripts/helix-architecture/jav-release-effect-history-proof.js',
   'scripts/helix-architecture/readonly-history-projections.js',

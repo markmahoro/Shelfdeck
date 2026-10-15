@@ -1538,8 +1538,8 @@ test('H1.1 source and route inventory prove no production fixture or scope expan
   assert.doesNotMatch(hostSource, /formation\.contentProfile/);
   const guard = require('../../scripts/p14-h1-change-scope-guard');
   assert.deepEqual(guard.routeImplementationStatus().counts, {
-    total:147,
-    real:120,
+    total:149,
+    real:122,
     workerBeta404: 6,
     unavailable503: 21,
   });

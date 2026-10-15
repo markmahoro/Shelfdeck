@@ -1195,6 +1195,7 @@ function errorResponse(error, correlationId) {
   }
   else if (
     error.code === 'IDEMPOTENCY_KEY_REQUIRED' ||
+    error.code === 'ADMIN_SECONDARY_WORKSHOP_INVALID' ||
     error.code === 'GET_SIDE_EFFECT_INPUT_REJECTED' ||
     error.code === 'ADMIN_SESSION_ISSUE_INVALID'
   ) status = 400;
@@ -1221,7 +1222,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 147) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 149) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1591,6 +1592,10 @@ async function createCleanServiceHost(options) {
   const libraFieldIntakeAdmissionAdmin = createFieldIntakeAdmissionAdminService({
     ...constructed.applicationDependencies,
     now: options.now || Date.now,
+    onSecondaryPolicyChanged(){
+      for(const reconcilerKey of ['active-routing-subjects','active-libra-runs','frozen-libra-outcomes'])
+        routingExecution?.host.wakeBackground({ownerDomain:'libra',reconcilerKey});
+    },
   });
   let formationRatingReader = () => new Map(), formationAcceptanceReader = () => null,
     formationAcceptanceAttention = () => [], formationArcaStatusReader = () => new Map(), formationProjectionHost = null,

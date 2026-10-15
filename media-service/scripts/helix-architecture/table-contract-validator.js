@@ -19,8 +19,8 @@ function readJson(filePath, findings) {
 
 function readInventoryEntries(contractsRoot, findings) {
   const manifest = readJson(path.join(contractsRoot, 'manifests', 'table-inventory.json'), findings);
-    if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 204 || !Array.isArray(manifest.entryFiles)) {
-      findings.push(finding('INVALID_TABLE_INVENTORY_MANIFEST', 'Table inventory must be active with 204 sharded entries.'));
+    if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 210 || !Array.isArray(manifest.entryFiles)) {
+      findings.push(finding('INVALID_TABLE_INVENTORY_MANIFEST', 'Table inventory must be active with 210 sharded entries.'));
     return [];
   }
   return manifest.entryFiles.flatMap((relativePath) => {

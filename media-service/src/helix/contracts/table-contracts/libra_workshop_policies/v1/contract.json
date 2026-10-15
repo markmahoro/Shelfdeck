@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_workshop_policies/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_workshop_policies",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "policy_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "secondary_seats",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "policy_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "policy_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "policy_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Libra二号全局政策，唯一policy_id=secondary",
+      "secondary_seats为0..32，缺行默认5",
+      "0只禁止新增转入，缩容不驱逐",
+      "policy_revision从1递增",
+      "与来源一号及Arca维护容量独立"
+    ],
+    "rawContract": {
+      "columns": "`policy_id PK, secondary_seats INTEGER, policy_revision INTEGER, updated_at_ms`",
+      "constraints": "Libra二号全局政策，唯一policy_id=secondary；secondary_seats为0..32，缺行默认5；0只禁止新增转入，缩容不驱逐；policy_revision从1递增；与来源一号及Arca维护容量独立"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9484,
+      "lineDigest": "26f684959699a6e1a0052b4572a0621f428b74c688f277fad190707da56efc91"
+    },
+    "foreignKeys": []
+  }
+}

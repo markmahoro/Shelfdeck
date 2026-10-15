@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "tables",
+  "startOrdinal": 209,
+  "endOrdinal": 210,
+  "entries": [
+    {
+      "id": "arca_defect_repair_intents",
+      "owner": "arca",
+      "columnsContract": "`intent_id PK, shelf_entry_id FK, inventory_revision, care_basis_digest, gap_set_digest, authorization_revision, aftercare_case_id FK, actor_id, idempotency_key, intent_digest, issued_at_ms`",
+      "constraintsContract": "`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；`UNIQUE(aftercare_case_id)`；immutable",
+      "source": {
+        "section": "8.9.9",
+        "line": 15844,
+        "lineDigest": "6b01388fbace394628b73d88d23d73a671f05497789ee6e897a75ee25bdad4d2"
+      }
+    },
+    {
+      "id": "libra_acquisition_candidate_evidence",
+      "owner": "libra",
+      "columnsContract": "`record_id PK, libra_run_id FK, search_work_id FK, search_event_id FK, search_event_attempt_id FK UNIQUE, run_execution_basis_digest, evidence_schema_ref, evidence_json, evidence_digest, record_schema_ref, record_json, record_digest, observed_at_ms`",
+      "constraintsContract": "immutable；evidence JSON上限`256 KiB`；record JSON上限`4 KiB`；`INDEX(libra_run_id,record_id)`",
+      "source": {
+        "section": "8.9.9",
+        "line": 16240,
+        "lineDigest": "49d3449f5bd4106b74bd219582db8e12c7ed799be946420e9f057b86e3807b48"
+      }
+    }
+  ]
+}

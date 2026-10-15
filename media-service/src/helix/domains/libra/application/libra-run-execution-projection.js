@@ -55,9 +55,11 @@ function createLibraRunExecutionProjection(options) {
       },
     }]).libra_run_execution_projection_read;
     cache.set(processId, runPriority);
+    const fairness=options.sourceFairness?.read(processId);
     return Object.freeze({
       ...runPriority,
-      localPriority: COMPLETION_WORKS.has(workKind) ? 200 : 100,
+      priorityRevision:runPriority.priorityRevision+(fairness?.priorityRevision||1)-1,
+      localPriority: (COMPLETION_WORKS.has(workKind) ? 200 : 100)+(fairness?.localPriorityBonus||0),
       supplyRole: COMPLETION_WORKS.has(workKind) ? 'completion' : 'expansion',
     });
   }

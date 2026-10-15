@@ -11,7 +11,7 @@
       "atomicFactSet": "Shelf Entry create/extend + Canonical Content Identity + Inventory Representation（每个物理Material一row并完整复制typed Episode Claim Set）/accepted Product Fact/完整Media-Cast relation snapshot revision + Deck Fact + required Control acquire/release + Off-load Completion Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 8752,
+        "line": 8792,
         "lineDigest": "1b0282d9cf7648056e98d3ddf8c03d135d0ab22bfb10a627be3afdc7fda16579"
       }
     },
@@ -21,7 +21,7 @@
       "atomicFactSet": "real actionable repair Findings + immutable Care Basis + relationized Basis inputs + explicit physical Care Requirement Set + Case queued + Outbox；取得Arca处理席位后才可active并建立处理Work，单纯资料记录同步不得创建Case",
       "source": {
         "section": "8.5.4",
-        "line": 8753,
+        "line": 8793,
         "lineDigest": "cf5ea0c843bac236e760a30451c5c46b3fa1420f0c77bbe39f72bd957c60e9e9"
       }
     },
@@ -31,7 +31,7 @@
       "atomicFactSet": "Arca immutable用户Intent/完整preview proof + 当前Entry/Shelf/Canonical/Inventory/Standard/Placement/Control精确重验 + 独立Correction admitted/gate + Foundation Command Receipt/marker/audit；同Entry无其他nonterminal Correction/Care Case/active Off-deck Reservation；Control只读，不转移，不写旧On-deck/Libra/People/Perception事实，不产生Effect或Outbox；相同输入先重放Receipt，无Receipt才重验当前Basis",
       "source": {
         "section": "8.5.4",
-        "line": 8754,
+        "line": 8794,
         "lineDigest": "55ae399514d68825b73bc0c092905eb5e49634ee625dd137a4e8a5952e67b064"
       }
     },
@@ -41,7 +41,7 @@
       "atomicFactSet": "Arca显式继续原Correction的用户命令；当前attention或committed/cleanup attention、原Admission/上一恢复Receipt/实际终态失败执行及当前Owner/Control/现场证明同UOW重验；新closed Recovery Intent Receipt、原Correction的有界恢复lineage及业务状态CAS，与Foundation Command Receipt/marker/audit原子。原failed Work/Event/Effect/Result、Source/文件计划、Entry/视频和原On-deck均不改写；无Effect/Outbox，实际后续写入只由新Supporting Work/Event/Effect执行。Unknown conflict或未决执行拒绝；相同命令先重放Receipt，cleanup恢复不改变已提交身份",
       "source": {
         "section": "8.5.4",
-        "line": 8755,
+        "line": 8795,
         "lineDigest": "973e92298a2f0a528b35e00604c1730f399babe93bd6c593d892a674fd48e261"
       }
     },
@@ -51,7 +51,7 @@
       "atomicFactSet": "同Scope完整成功Work/Result、Manifest/最终Verification、actual active Admission、当前完整Basis与逐Material Control重验；新Arca Canonical/Metadata/Cast/Inventory、Entry双head、精确Control changes、Correction committed/terminal Evidence及Foundation Receipt Result/marker全有或全无；原视频字节、原On-deck Receipt/来源结算、People/Perception事实不改写；无Outbox，失败全回滚，精确Event已有Receipt先重放",
       "source": {
         "section": "8.5.4",
-        "line": 8756,
+        "line": 8796,
         "lineDigest": "2039c3722c869026616b3451c5ae0cd6ade4771b704dbb14529ee5a9e09250af"
       }
     },
@@ -61,7 +61,7 @@
       "atomicFactSet": "同committed context及未完成cleanup门禁、Platform root、原Assets/正式清理成功Result和实际Work/Event/Attempt重验；四Workspace Material reclaimed、三Artifact deleted/revision、Registry reclaimed、精确Reclaim Receipt Result/marker全有或全无；文件副作用先完成并独立核验；原Identity/Inventory/Control不写，无Outbox，不释放cleanup门禁",
       "source": {
         "section": "8.5.4",
-        "line": 8757,
+        "line": 8797,
         "lineDigest": "82b925a61973f4405a02e5716c05c92cf3a8615b85d0edd1e6d2174e7f6ecdb2"
       }
     },
@@ -71,7 +71,7 @@
       "atomicFactSet": "Arca同一committed context、原Identity Commit、当前Entry/双head与逐材料Control、两项实际成功清理Work/Result/marker及精确Registry/Artifact生命周期重验；cleanup_state=completed、closed Cleanup Receipt/schema/digest及updated时点与独立 pending 旧目录检查责任原子，随后门禁释放；无新文件副作用、Foundation Result/marker或Outbox，不改core terminal/原入藏事实；完成重放仅核验原持久证据，不要求当前head仍是纠正时revision",
       "source": {
         "section": "8.5.4",
-        "line": 8758,
+        "line": 8798,
         "lineDigest": "e5f6f15f1ec9e72ec654cd7b2fc12b311a26ab1e983fd0d870ec43acf9e8f66f"
       }
     },
@@ -81,7 +81,7 @@
       "atomicFactSet": "Arca只允许当前attention_required且原Basis/逐材料Control不变、原Assets Work及逐次Recovery Intent明确授权的新Assets Work均为Source核验终结失败/Assets未执行、全部关联Effect/Result/Workspace Registry/Material/Artifact为空的精确用户命令；同UOW先只读重验，再CAS cancelled/state revision/terminal Receipt digest/time，与closed Command Receipt/marker/audit原子；原Entry/Canonical/Inventory/视频/原On-deck Commit不变，既有执行历史保持；不创建Effect/Outbox，不释放或转移Control，不允许有写入副作用的取消；精确重放先返回同一Receipt",
       "source": {
         "section": "8.5.4",
-        "line": 8759,
+        "line": 8799,
         "lineDigest": "607a1ebdc4f3ec555a06788de2c6e27d4310eba9d6ec7001204bd5fcd6a5fd13"
       }
     },
@@ -91,7 +91,7 @@
       "atomicFactSet": "verified physical repair result + Inventory Representation/Product Fact/Media-Cast relation revision + exact new Material Control acquire/old Control release + AftercareInventoryCommitReceipt；该Receipt衔接active Case到新Inventory Basis，复检与结案前不得提前投影healthy",
       "source": {
         "section": "8.5.4",
-        "line": 8760,
+        "line": 8800,
         "lineDigest": "967982b60ab89f7dadc37d3591b4db6e5bc50dad7e72a472cc4df0e2964a7dc6"
       }
     },
@@ -101,7 +101,7 @@
       "atomicFactSet": "Arca记录更新内部命令 + exact current Inventory/Basis及bounded Observation fence + unchanged accepted Facts的新Inventory revision；Binding刷新保持Media-Cast不变并精确Control acquire/release；人物记录刷新按6.6.2.1消费People只读确定性证明，仅改对应person relation snapshot，保留材料/Binding/Control/Canonical Identity，Receipt保存证明revision/digest且不跨Owner事务；两种变体均写InventoryRecordRefreshReceipt/Command Receipt/commit marker/audit，没有物理文件写入、Case、Event Result或Outbox；active Case或Off-deck Reservation阻止提交，同输入重放原Receipt",
       "source": {
         "section": "8.5.4",
-        "line": 8761,
+        "line": 8801,
         "lineDigest": "b77734cff233865f33e841a861d886a624c9c83acd45a3f02ac49f8ef43c635b"
       }
     },
@@ -111,7 +111,7 @@
       "atomicFactSet": "Review + per-Entry Reservation + immutable pre-authorization Destruction Scope + selection basis",
       "source": {
         "section": "8.5.4",
-        "line": 8762,
+        "line": 8802,
         "lineDigest": "d84e96ef7c300f188c7958c64da90cad90657ecdc8ba7aab1237058b1403e2e7"
       }
     },
@@ -121,7 +121,7 @@
       "atomicFactSet": "current Scope set verification + Selection Receipt + required High-volume Escalation Receipt + immutable Authorization Batch envelope；不创建跨Entry Case",
       "source": {
         "section": "8.5.4",
-        "line": 8763,
+        "line": 8803,
         "lineDigest": "cae8451f709cd026085b9cb061981d31da7a71f040b5c417586bfa44b31cc22d"
       }
     },
@@ -131,7 +131,7 @@
       "atomicFactSet": "Batch Intent + one current Scope verification + per-Scope Authorization + one Case + one Shelf Entry `offdeck_in_progress`；每Entry独立事务、幂等向前恢复",
       "source": {
         "section": "8.5.4",
-        "line": 8764,
+        "line": 8804,
         "lineDigest": "e4c3bc41ecb66e8a9d32433eb9626890f9e04770d6d967b5c0131efe88c3a8aa"
       }
     },
@@ -141,7 +141,7 @@
       "atomicFactSet": "全部Deletion Evidence核对后的Deck Fact terminal + Control release + terminal receipt",
       "source": {
         "section": "8.5.4",
-        "line": 8765,
+        "line": 8805,
         "lineDigest": "7dd0033bbb591666aee306f1ac5ec4ea1a987112608dc13ab5e84d5eb1cf0332"
       }
     },
@@ -151,7 +151,7 @@
       "atomicFactSet": "Shelf/Shelf Entry administrative terminal facts + Shelf routing projection revision/digest CAS + precise Control release + release receipt",
       "source": {
         "section": "8.5.4",
-        "line": 8766,
+        "line": 8806,
         "lineDigest": "1ac2e4b2302ce105295e044d2aa5a8d64d18c823254c007fe20ecf8916b39073"
       }
     }

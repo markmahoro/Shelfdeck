@@ -1,5 +1,27 @@
 # 当前 Phase：JAV 首版发布与用户验收
 
+2026-10-15 新合同已获用户确认：Series 按 Subject 整体转入二号；允许 Foundation 最小通用只读分页执行摘要。继续实现与资格验证；不修改 Foundation 调度/执行语义、不接管原聊天 Arca/Perception 性能路径。
+
+## LIBRA-ATTENTION-WORKSHOP / LIBRA-SOURCE-FAIRNESS（2026-10-15）
+
+状态：本地实现与验证已推进，具体版本 UI 审核及新鲜生产副本资格仍开放；两个目标分别验收，不以排序单测宣称用户目标通过。
+
+源码核对及精确接口缺口见[审查 Evidence](evidence/LIBRA_WORKSHOP_FAIRNESS_INTERFACE_AUDIT_20261015.md)。
+
+2026-10-16 本地：Service 645 pass/29 既有 skip，Web190、宽窄 Playwright4、Linux核心36及真实二号Host1通过；Windows二号重启恢复1、三来源真实长转码1已分别通过。204→210结构Operator及3.13 GB/203表/2,138,297行完整结构副本通过，源字节不变；历史副本不含受保护S02/S03，不替代新鲜生产副本资格。机器合同121/104/210/51、149 routes。最终Windows Host组合2/2、独立Service包1及route/TMDB21复验通过；具体版本UI负责人及新鲜副本门禁保持开放，未部署。
+
+独立 UAT-320 readiness 修复已本地实现：后台68项、Web12项及受控宽/窄浏览器2项通过，构建通过；具体版本 UI 负责人审核、发布与上线验收未完成。证据见既有 UAT-320 Evidence，不表示双车间/公平已经实现。
+
+- 已确认容量：全 Libra 二号共用默认 5 席，配置 0–32；0 只停止转入，缩容不驱逐；一号每来源原 0–8/默认3及 Procurement→Libra 门禁保持。用户解决后留在二号至 Handoff B 或合法责任终结，不回一号、不重新 Intake、不重复 Run；维护/Arca 席位独立。
+- 已确认公平：Libra 先按来源再按 Run；相同 priorityClass 内 localPriority/priorityRevision，保留用户加急、安全/交接/收口和 aging；新 Work、已排队 Event、资源等待队列均覆盖；阻塞跳过、恢复有限补偿、长执行开始交棒、不抢占；无变化轮询/提交/失败资源请求不记推进。
+- 用户已确认：Subject 整体转入；允许最小通用只读执行摘要；另行允许现有 updateWaiterPriority 按更高 revision 刷新已存在 durable deferred 的元数据。Libra 决定来源公平；Foundation 不新增来源策略、不增队列、不发额外 Permit。
+- 合同落点：SSOT §6.4.9、§7.2.4、§8.5.11 token责任、§9 Admin 配置；需要处理统一规则要覆盖身份、业务冻结、配置与执行异常，不能仅监听 identity。转区需持久位置/revision/原因及事务容量判断；执行中安全收口，不硬杀、不伪造终态；重启重建与重复转入幂等。
+- UI旅程：工作区沿用“整理中/需要处理”与就地解决动作，恢复后真实状态刷新；设置提供二号容量控件与占用数量，缩容不驱逐。后端/前端均变化时须具体版本 UI 负责人验收；本任务尚无此项证据。
+- 验收：二号满背压/空位原子转入/并发与回滚/0与缩容/批量恢复/合法终结及Season责任/重启；三来源真实推进、Run数不均、阻塞恢复、长转码、用户加急、已有资源等待队列刷新、aging和收口；平台验证按影响范围；真实Host旅程不能被排序单测替代。
+- 相关缺陷：沿用已登记 [UAT-320](evidence/UAT-320_SERIES_ROUTING_READINESS_20261015.md)，统一 readiness/attention 覆盖无 Routing Decision 的缺配置态，并提供可达配置动作；不新建重复 UAT。原聊天已通过正式策略发布解除 S02/S03 原停滞点，不代表整季完成或本缺陷关闭。
+- 边界：/adult 部署绑定、生产剧集配置修复及 UAT-318 首开性能由原聊天处理；本聊天不部署生产、不停机/Reset/媒体处置。后续升级须保留 UAT-320 Evidence 列明的 S02/S03 两个精确 Subject、Run 及新增事实，不能默认清场或沿用旧 Reset 授权；若 schema 变化影响其连续性，先完成该精确范围的副本资格，不扩为通用历史兼容。初始 git status 干净，沿用共享 checkout，保留其他聊天修改。
+
+
 2026-10-15 JAV首版已完成本轮发布资格并标准部署生产：markmahoro/shelfdeck:037592bef4，source 037592bef4441ceda87b3270f6e70cb7857da3a7。11:46:57 UTC复核mode=running、normalSupplyAllowed=true、faulted=false；556条原收藏和原入藏Receipt保持，已观察11条新Libra执行成功。机器合同121/104/204/51、147 routes。完整生产副本200→204/199旧表逐行保护、真实完整Host正常供给/33协调器推进、停止及使用后回退拒绝通过；生产按授权清理6个未结束Subject与精确discarded旧记录，86表范围外保护及49个伴随文件物理身份保持。最终UI变更经负责人宽/窄两项接受，其余继承原接受；Web186、Service642 pass/29既有skip与Linux20条业务的精确backend字节继承范围明确，最终实际镜像Native/API/源码/资产及Windows独立Service包复核通过。生产五挂载/QSV、fnOS及13个无关容器保持。具体原始失败/观察超时、Annex、备份及回退限制见现有JAV_RELEASE_COPY Evidence；不追认为每站长期可用、整季生产E2E或Electron资格，不批量关闭既有UAT。以下较早段落为历史快照，不覆盖当前授权与事实。
 
 2026-10-15 用户明确授权三步推进：另开聊天排查生产任务长期停滞并修复，合并修复后用生产完整副本演练升级/回退，演练通过后标准部署生产。诊断聊天01a13ebb-f373-7670-a207-64797e8c7c31已建立；主聊天统一控制安全停机、备份、精确清场及发布，诊断期间保持生产只读。必要生产停机/标准部署不再以旧“未授权”文字阻塞；Reset仍需冻结可审查范围并通过原保护门禁，不能清掉未决非pure Effects或已入藏事实。

@@ -1,4 +1,5 @@
 import RecycleSettings from './RecycleSettings';
+import SecondaryWorkshopSettings from './SecondaryWorkshopSettings';
 import JavSourcesSettings from './JavSourcesSettings';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { helixAdminApi, type IntegrationState, type PerceptionRecord, type PerceptionSyncState, type WorkspaceRootSettings } from './api';
@@ -230,6 +231,7 @@ export default function SettingsPage() {
     {error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
     {tab === 'recycle' ? <RecycleSettings /> : tab === 'offdeck' ? <div className="settings-stack"><OffdeckRulesPanel /></div> : tab === 'workspace' ? <div className="settings-stack">
+      <SecondaryWorkshopSettings />
       <section className="settings-card" aria-labelledby="workspace-title">
         <header className="settings-card-head"><div><h2 id="workspace-title">整理工作目录</h2></div>
           <span className="integration-state" data-state={workspace?.restartRequired?'attention':workspace?'active':'unknown'}>{workspace?.restartRequired?'等待重启':'当前生效'}</span></header>

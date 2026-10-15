@@ -74,6 +74,8 @@ COPY media-service/src/clean-workspace-root-admin.js ./src/clean-workspace-root-
 COPY media-service/src/helix ./src/helix
 COPY media-service/scripts/helix-clean-init.js ./scripts/helix-clean-init.js
 COPY media-service/scripts/helix-jav-schema-copy.js ./scripts/helix-jav-schema-copy.js
+COPY media-service/scripts/helix-libra-schema-copy.js ./scripts/helix-libra-schema-copy.js
+COPY media-service/scripts/helix-architecture/libra-workshop-schema-copy.js ./scripts/helix-architecture/libra-workshop-schema-copy.js
 COPY media-service/scripts/helix-architecture/jav-release-schema-copy.js ./scripts/helix-architecture/jav-release-schema-copy.js
 COPY media-service/scripts/helix-architecture/jav-release-effect-history-proof.js ./scripts/helix-architecture/jav-release-effect-history-proof.js
 COPY media-service/scripts/helix-architecture/readonly-history-projections.js ./scripts/helix-architecture/readonly-history-projections.js

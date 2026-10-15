@@ -6,6 +6,8 @@ const { createRepositoryDefinition } = require('../../../foundation/persistence/
 const DEFAULT_PREDECK_PIPELINE_SEATS = 3;
 const MIN_PREDECK_PIPELINE_SEATS = 0;
 const MAX_PREDECK_PIPELINE_SEATS = 8;
+const DEFAULT_SECONDARY_SEATS = 5;
+const MAX_SECONDARY_SEATS = 32;
 
 class PredeckPipelineAdmissionStoreError extends Error {
   constructor(code, message, details = {}) {
@@ -27,6 +29,13 @@ function createPredeckPipelineAdmissionStore(options) {
     schemaManifest: options.schemaManifest,
     statements: {
       ...deliveryScopeStatements,
+      secondary_policy: {kind:'select-one',tableId:'libra_workshop_policies',columns:['secondary_seats','policy_revision','updated_at_ms'],keyColumns:['policy_id']},
+      insert_secondary_policy: {kind:'insert',tableId:'libra_workshop_policies',columns:['policy_id','secondary_seats','policy_revision','updated_at_ms']},
+      update_secondary_policy: {kind:'update',tableId:'libra_workshop_policies',setColumns:['secondary_seats','policy_revision','updated_at_ms'],keyColumns:['policy_id']},
+      list_secondary: {kind:'select-all',tableId:'libra_workshop_placements',columns:['subject_id','transferred_at_ms','readiness_digest'],keyColumns:[]},
+      find_secondary: {kind:'select-one',tableId:'libra_workshop_placements',columns:['subject_id','transferred_at_ms','readiness_digest'],keyColumns:['subject_id']},
+      insert_secondary: {kind:'insert',tableId:'libra_workshop_placements',columns:['subject_id','transferred_at_ms','readiness_digest']},
+      delete_secondary: {kind:'delete',tableId:'libra_workshop_placements',keyColumns:['subject_id']},
       scope_subject:{kind:'select-one',tableId:'libra_subjects',columns:['structure_kind'],keyColumns:['subject_id']},
       pending_bindings:{kind:'select-all',tableId:'libra_material_bindings',columns:['material_key','authority_kind','current'],keyColumns:['subject_id']},
       find_policy: {
@@ -113,7 +122,8 @@ function createPredeckPipelineAdmissionStore(options) {
 
   function heldCount(fieldId, context) {
     const rows = context.repository(repository.repositoryId).invoke('list_tokens_for_field', { source_field_id: fieldId });
-    return Array.isArray(rows) ? rows.length : 0;
+    const secondary = new Set(context.repository(repository.repositoryId).invoke('list_secondary', {}).map(row => row.subject_id));
+    return rows.filter(row => !secondary.has(row.subject_id)).length;
   }
 
   function projection(fieldId, row, held) {
@@ -128,10 +138,62 @@ function createPredeckPipelineAdmissionStore(options) {
     });
   }
 
+  function secondaryProjection(repo) {
+    const row = repo.invoke('secondary_policy', {policy_id:'secondary'});
+    const held = repo.invoke('list_secondary', {}).length;
+    const seats = row ? Number(row.secondary_seats) : DEFAULT_SECONDARY_SEATS;
+    return Object.freeze({secondarySeats:seats, policyRevision:row ? Number(row.policy_revision) : 1,
+      updatedAtMs:row ? Number(row.updated_at_ms) : 0, held, free:Math.max(0,seats-held)});
+  }
+
   return Object.freeze({
     DEFAULT_PREDECK_PIPELINE_SEATS,
     MIN_PREDECK_PIPELINE_SEATS,
     MAX_PREDECK_PIPELINE_SEATS,
+    readSecondaryPolicy() {
+      return execute('libra_secondary_policy_read', context => secondaryProjection(context.repository(repository.repositoryId)));
+    },
+    reviseSecondaryPolicy(seats) {
+      if (!Number.isSafeInteger(seats) || seats < 0 || seats > MAX_SECONDARY_SEATS) {
+        fail('LIBRA_SECONDARY_SEATS_INVALID', 'Secondary workshop seats must be an integer from 0 to 32.');
+      }
+      return execute('libra_secondary_policy_write', context => {
+        const repo=context.repository(repository.repositoryId), current=repo.invoke('secondary_policy',{policy_id:'secondary'});
+        if (!current || Number(current.secondary_seats)!==seats) repo.invoke(current?'update_secondary_policy':'insert_secondary_policy',{
+          policy_id:'secondary',secondary_seats:seats,policy_revision:current?Number(current.policy_revision)+1:1,updated_at_ms:options.now()});
+        return secondaryProjection(repo);
+      });
+    },
+    listSecondaryPlacements() {
+      return execute('libra_secondary_placements_read', context => Object.freeze(context.repository(repository.repositoryId)
+        .invoke('list_secondary',{}).map(row=>Object.freeze({subjectId:row.subject_id,
+          transferredAtMs:Number(row.transferred_at_ms),readinessDigest:row.readiness_digest}))));
+    },
+    // The Owner supplies a synchronous proof participant; it runs in the SAME
+    // transaction as capacity admission. A stale or absent proof cannot transfer.
+    transferToSecondary(subjectId, proofParticipant, readParticipants=[]) {
+      if (!subjectId || !proofParticipant || proofParticipant.owner!=='libra' ||
+          typeof proofParticipant.execute!=='function' || proofParticipant.participantId==='libra_secondary_transfer') {
+        fail('LIBRA_SECONDARY_PROOF_REQUIRED','Secondary transfer requires an Owner readiness proof.');
+      }
+      if(!Array.isArray(readParticipants)||readParticipants.some(participant=>participant.owner!=='execution-foundation'||!participant.repositories?.every(repo=>repo.readOnly)))
+        fail('LIBRA_SECONDARY_READ_PROOF_INVALID','Execution proof participants must belong to Foundation.');
+      let proof;
+      return options.unitOfWork.execute([...readParticipants,{...proofParticipant,execute(context){
+        proof=proofParticipant.execute(context);return proof;
+      }},{participantId:'libra_secondary_transfer',owner:'libra',repositories:[repository],execute(context){
+        const repo=context.repository(repository.repositoryId);
+        if (!repo.invoke('find_token',{subject_id:subjectId})) return Object.freeze({transferred:false,reasonCode:'responsibility_absent'});
+        if (repo.invoke('find_secondary',{subject_id:subjectId})) return Object.freeze({transferred:true,replayed:true});
+        if (proof?.subjectId!==subjectId || proof?.eligible!==true || !/^[a-f0-9]{64}$/.test(proof.readinessDigest||'')) {
+          return Object.freeze({transferred:false,reasonCode:'readiness_not_proven'});
+        }
+        const policy=secondaryProjection(repo);
+        if (!policy.free) return Object.freeze({transferred:false,reasonCode:'secondary_full'});
+        repo.invoke('insert_secondary',{subject_id:subjectId,transferred_at_ms:options.now(),readiness_digest:proof.readinessDigest});
+        return Object.freeze({transferred:true,replayed:false});
+      }}]).libra_secondary_transfer;
+    },
     readPolicy(fieldId) {
       return execute('libra_predeck_pipeline_policy_read', (context) => {
         const row = readPolicyRow(fieldId, context) || {
@@ -222,11 +284,12 @@ function createPredeckPipelineAdmissionStore(options) {
         if (!existing) return Object.freeze({ released: false, subjectId });
         if(repo.invoke('scope_subject',{subject_id:subjectId})?.structure_kind==='season'){
           const scopes=readDeliveryScopes(repo,subjectId),assigned=new Set(scopes.flatMap(scope=>scope.materialKeys));
-          const active=scopes.some(scope=>!scope.accepted&&['active','suspended'].includes(scope.state));
+          const active=scopes.some(scope=>!scope.accepted&&['active','suspended','frozen'].includes(scope.state));
           const pending=repo.invoke('pending_bindings',{subject_id:subjectId}).some(row=>
             Number(row.current)===1&&row.authority_kind==='primary_control'&&!assigned.has(row.material_key));
           if(active||pending)return Object.freeze({released:false,subjectId,reasonCode:'series_delivery_responsibility_remaining'});
         }
+        repo.invoke('delete_secondary', { subject_id: subjectId });
         repo.invoke('delete_token', { subject_id: subjectId });
         return Object.freeze({ released: true, subjectId, fieldId: existing.source_field_id });
       });
@@ -235,6 +298,8 @@ function createPredeckPipelineAdmissionStore(options) {
 }
 
 module.exports = Object.freeze({
+  DEFAULT_SECONDARY_SEATS,
+  MAX_SECONDARY_SEATS,
   DEFAULT_PREDECK_PIPELINE_SEATS,
   MIN_PREDECK_PIPELINE_SEATS,
   MAX_PREDECK_PIPELINE_SEATS,

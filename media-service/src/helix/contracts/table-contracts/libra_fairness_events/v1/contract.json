@@ -1,0 +1,107 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_fairness_events/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_fairness_events",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "foundation_event_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "last_attempt_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "last_event_attempt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "foundation_event_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "libra_run_id",
+        "foundation_event_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Libra消费Foundation公开摘要后的幂等高水位",
+      "同Event只接受严格更高Attempt ordinal且同序不同ID拒绝",
+      "与clock/source/run轮次同事务",
+      "不复制Result或执行事实，不授权执行",
+      "INDEX(libra_run_id,foundation_event_id)"
+    ],
+    "rawContract": {
+      "columns": "`foundation_event_id PK, libra_run_id, last_attempt_ordinal INTEGER, last_event_attempt_id, updated_at_ms`",
+      "constraints": "Libra消费Foundation公开摘要后的幂等高水位；同Event只接受严格更高Attempt ordinal且同序不同ID拒绝；与clock/source/run轮次同事务；不复制Result或执行事实，不授权执行；INDEX(libra_run_id,foundation_event_id)"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9489,
+      "lineDigest": "b52c7bce7a9e01db2c1665bbfcfe900eb7d7907b6435f25b777dd57a6314ce11"
+    },
+    "foreignKeys": []
+  }
+}

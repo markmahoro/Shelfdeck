@@ -54,8 +54,9 @@ function sourceSchema() {
   return { schemaDdl, schemaManifest };
 }
 function targetSchema() {
-  const schemaManifest = require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
-  const schemaDdl = fs.readFileSync(path.join(persistenceRoot, 'generated/clean-schema.sql'), 'utf8');
+  const archive = path.join(persistenceRoot, 'release-schemas', TARGET_DIGEST);
+  const schemaManifest = JSON.parse(zlib.gunzipSync(fs.readFileSync(archive + '.manifest.json.gz')));
+  const schemaDdl = zlib.gunzipSync(fs.readFileSync(archive + '.sql.gz')).toString('utf8');
   if (schemaManifest.ddlDigest !== TARGET_DIGEST || digest(schemaDdl) !== TARGET_DIGEST)
     fail('JAV_SCHEMA_TARGET_DRIFT', 'Release preparation requires its exact frozen target schema.');
   return { schemaDdl, schemaManifest };
