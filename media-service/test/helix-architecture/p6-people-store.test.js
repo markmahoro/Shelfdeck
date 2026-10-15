@@ -24,8 +24,27 @@ function fixture(run) {
   const databasePath = path.join(root, 'shelfdeck.db');
   let now = 1_700_020_000_000;
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => now++ });
-  const store = createPeopleStore({ schemaManifest, unitOfWork: createSqliteUnitOfWork({ kernel }) });
-  try { return run({ databasePath, store }); }
+  const preparedSql = [];
+  const actualUnitOfWork = createSqliteUnitOfWork({ kernel: {
+    runPrimitive: (operation) => kernel.runPrimitive((transaction) => operation({ ...transaction, prepare(sql) {
+      preparedSql.push(sql);
+      return transaction.prepare(sql);
+    } })),
+  } });
+  const reads = [];
+  const unitOfWork = { execute: (participants) => actualUnitOfWork.execute(participants.map((participant) => ({
+    ...participant,
+    execute: (context) => participant.execute({ ...context, repository(repositoryId) {
+      const repository = context.repository(repositoryId);
+      return { ...repository, invoke(statementId, parameters) {
+        const result = repository.invoke(statementId, parameters);
+        reads.push({ statementId, parameters, rows: Array.isArray(result) ? result.length : result ? 1 : 0 });
+        return result;
+      } };
+    } }),
+  }))) };
+  const store = createPeopleStore({ schemaManifest, unitOfWork });
+  try { return run({ databasePath, store, unitOfWork, reads, preparedSql }); }
   finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
 }
 
@@ -140,6 +159,112 @@ test('admin projection sorts a frozen multi-Person result without mutating the O
     const result = query.list({ limit: 50 });
     assert.deepEqual(result.items.map((person) => person.personId), ['person-a', 'person-z']);
     assert.equal(result.summary.activePersonCount, 2);
+  });
+});
+
+test('admin page expands only its bounded current People and uses aggregate summary counts', () => {
+  fixture(({ store, reads, preparedSql, databasePath }) => {
+    for (let index = 0; index < 310; index++) store.registerDirectPerson(directDecision(`person-${String(index).padStart(3, '0')}`));
+    for (let index = 0; index < 3; index++) {
+      const id = `registration-${index}`;
+      store.openCandidate({ candidateId: id, draft: registrationDraft(id) });
+    }
+    const query = createPeopleAdminQuery({ store: { ...store,
+      listPeople() { assert.fail('A page cannot expand all People.'); },
+      listRegistrationCandidates() { assert.fail('Summary cannot expand Registration payloads.'); },
+      listMergeCandidates() { assert.fail('Summary cannot expand Merge payloads.'); },
+    } });
+    reads.length = 0;
+    preparedSql.length = 0;
+    const result = query.list({ limit: 25 });
+    assert.equal(result.items.length, 25);
+    assert.equal(result.nextCursor, 'person-024');
+    assert.deepEqual(result.summary, { activePersonCount: 310, mergedPersonCount: 0,
+      openRegistrationCandidateCount: 3, openMergeCandidateCount: 0 });
+    assert.equal(reads.filter((read) => read.statementId === 'find_person_revision').length, 26);
+    assert.deepEqual(reads.filter((read) => read.statementId === 'page_people').map((read) => read.rows), [26]);
+    assert.equal(reads.filter((read) => read.statementId.startsWith('overview_')).length, 3);
+    assert.ok(Object.isFrozen(result.items));
+    assert.ok(Object.isFrozen(result.summary));
+    assert.ok(Object.isFrozen(result.items[0].providerIdentities[0]));
+    const sql = preparedSql.find((statement) => statement.includes('"base"."person_id">@cursor'));
+    assert.ok(sql, 'A later page must seek its cursor instead of rescanning all earlier heads.');
+    const inspected = new Database(databasePath, { readonly: true });
+    try {
+      const plan = inspected.prepare(`EXPLAIN QUERY PLAN ${sql}`).all({ cursor: 'person-250', status: '', offset: 0, limit: 26 });
+      assert.ok(plan.some((row) => /SEARCH base USING INDEX.*\(person_id>\?\)/.test(row.detail)), JSON.stringify(plan));
+    } finally { inspected.close(); }
+  });
+});
+
+test('People pages preserve binary cursors, current Unicode names and aliases, status filters and global counts', () => {
+  fixture(({ store, unitOfWork, reads }) => {
+    for (let index = 0; index < 130; index++) store.registerDirectPerson(directDecision(`person-${String(index).padStart(3, '0')}`));
+    for (const id of ['person-É', 'person-中文', 'person-😀', 'person-\uE000']) store.registerDirectPerson(directDecision(id));
+    store.revisePerson({ ...personInput('person-120'), revision: 2, canonicalName: 'ÉTOILE 中文',
+      factDigest: hash('person-120:fact:2'), aliases: [
+        { aliasDisplay: 'İSTANBUL', aliasNormalized: 'istanbul', provenanceDigest: hash('istanbul') },
+      ] }, 1);
+    const candidate = store.openCandidate({ candidateId: 'merge-page',
+      draft: mergeDraft('merge-page', store.getPerson('person-000'), store.getPerson('person-129')) });
+    const decision = { decisionId: 'merge-page-decision', candidateKind: 'merge', candidateId: candidate.candidateId,
+      expectedCandidateRevision: 1, candidatePayloadDigest: candidate.candidatePayloadDigest, decisionOrigin: 'user', actorId: 'admin-1',
+      sourcePersonId: 'person-000', targetPersonId: 'person-129', expectedSourcePersonRevision: 1, expectedTargetPersonRevision: 1,
+      expectedSourcePreferenceRevision: null, expectedTargetPreferenceRevision: null, preferenceResolution: 'keep_target' };
+    const handle = { handleId: 'merge-page-handle', ownerDomain: 'people', aggregateType: 'person', aggregateId: 'person-129',
+      expectedRevision: 1, resultSchemaRef: 'helix://contracts/types/PersonRevision/v1', commitIdempotencyKey: 'merge-page-key' };
+    unitOfWork.execute([store.createMergeAcceptanceParticipant(handle, { ...decision, decisionDigest: canonicalDigest(decision) })]);
+    const allPeople = [...store.listPeople()].sort((left, right) => Buffer.compare(Buffer.from(left.personId), Buffer.from(right.personId)));
+    const query = createPeopleAdminQuery({ store });
+    const cases = [
+      { limit: 100 }, { cursor: 'person-099', limit: 100 }, { cursor: 'person-110', status: 'active', limit: 25 },
+      { status: 'merged', limit: 1 }, { search: ' ÉTOILE ' }, { search: 'İSTANBUL' }, { search: '中文' },
+      { search: 'person-120' }, { search: 'not found' }, { cursor: 'person-\uE000', limit: 1 },
+      { limit: 0 }, { limit: 101 }, { status: 'unknown' },
+    ];
+    for (const input of cases) {
+      const search = String(input.search || '').trim().toLocaleLowerCase();
+      const limit = Number.isSafeInteger(input.limit) && input.limit >= 1 && input.limit <= 100 ? input.limit : 50;
+      const filtered = allPeople.filter((person) =>
+        (!['active', 'merged'].includes(input.status) || person.status === input.status) &&
+        (!input.cursor || Buffer.compare(Buffer.from(person.personId), Buffer.from(input.cursor)) > 0) &&
+        (!search || [person.revision.canonicalName, ...person.revision.aliases.map((alias) => alias.aliasDisplay)]
+          .some((name) => name.toLocaleLowerCase().includes(search))));
+      reads.length = 0;
+      const result = query.list(input);
+      assert.deepEqual(result.items.map((person) => person.personId), filtered.slice(0, limit).map((person) => person.personId), JSON.stringify(input));
+      assert.equal(result.nextCursor, filtered.length > limit ? filtered[limit - 1].personId : null);
+      assert.deepEqual(result.summary, { activePersonCount: 133, mergedPersonCount: 1,
+        openRegistrationCandidateCount: 0, openMergeCandidateCount: 0 });
+      assert.equal(reads.filter((read) => read.statementId === 'find_person_revision').length,
+        Math.min(filtered.length, limit + 1), 'Only matching page facts and the continuation probe may expand.');
+      for (const item of result.items) {
+        const person = allPeople.find((entry) => entry.personId === item.personId);
+        assert.equal(item.currentRevision, person.currentRevision);
+        assert.equal(item.canonicalName, person.revision.canonicalName);
+        assert.deepEqual(item.aliases, person.revision.aliases.map((alias) => alias.aliasDisplay));
+        assert.deepEqual(item.providerIdentities, person.revision.providerIdentities.map(({ provider, namespace, providerKey }) =>
+          ({ provider, namespace, providerKey })));
+      }
+    }
+  });
+});
+
+test('People page rejects invalid bounds and retains selected immutable Person validation', () => {
+  fixture(({ databasePath, store }) => {
+    store.registerDirectPerson(directDecision('person-1'));
+    const valid = { cursor: '', limit: 25, status: null, search: '' };
+    for (const input of [{ ...valid, limit: 102 }, { ...valid, limit: 0 }, { ...valid, limit: 1.5 },
+      { ...valid, status: 'unknown' }, { ...valid, cursor: null }, { ...valid, search: [] }, { ...valid, extra: true }]) {
+      assert.throws(() => store.listPeoplePage(input), (error) => error.code === 'P6_PEOPLE_PAGE_INPUT');
+    }
+    const inspected = new Database(databasePath);
+    try {
+      inspected.prepare('UPDATE people_person_revisions SET origin_decision_id=? WHERE person_id=? AND revision=1')
+        .run('', 'person-1');
+    } finally { inspected.close(); }
+    assert.throws(() => store.listPeoplePage(valid), (error) => error.code === 'P6_PEOPLE_TEXT_INVALID');
+    assert.throws(() => store.listPeoplePage({ ...valid, search: 'person' }), (error) => error.code === 'P6_PEOPLE_TEXT_INVALID');
   });
 });
 

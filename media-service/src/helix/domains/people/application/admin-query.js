@@ -1,11 +1,8 @@
 'use strict';
 
-function compare(left, right) {
-  return Buffer.compare(Buffer.from(left, 'utf8'), Buffer.from(right, 'utf8'));
-}
-
 function createPeopleAdminQuery(options) {
-  if (!options || !options.store || typeof options.store.listPeople !== 'function' ||
+  if (!options || !options.store || typeof options.store.listPeoplePage !== 'function' ||
+      typeof options.store.overviewStats !== 'function' ||
       typeof options.store.listRegistrationCandidates !== 'function' ||
       typeof options.store.listMergeCandidates !== 'function') {
     throw new TypeError('People Admin Query requires the People owner store.');
@@ -18,18 +15,8 @@ function createPeopleAdminQuery(options) {
     const cursor = String(query.cursor || '');
     const search = String(query.search || '').trim().toLocaleLowerCase();
     const status = ['active', 'merged'].includes(query.status) ? query.status : null;
-    const people = [...options.store.listPeople()].sort((left, right) => compare(left.personId, right.personId));
-    const filtered = people.filter((person) => {
-      if (status && person.status !== status) return false;
-      if (cursor && compare(person.personId, cursor) <= 0) return false;
-      if (!search) return true;
-      const names = [person.revision.canonicalName,
-        ...person.revision.aliases.map((alias) => alias.aliasDisplay)];
-      return names.some((name) => name.toLocaleLowerCase().includes(search));
-    });
-    const page = filtered.slice(0, limit);
-    const registrations = options.store.listRegistrationCandidates();
-    const merges = options.store.listMergeCandidates();
+    const people = options.store.listPeoplePage({ cursor, limit: limit + 1, status, search });
+    const page = people.slice(0, limit);
     return Object.freeze({
       items: Object.freeze(page.map((person) => Object.freeze({
         personId: person.personId,
@@ -43,13 +30,8 @@ function createPeopleAdminQuery(options) {
         currentReferenceRevision: person.currentReferenceRevision,
         createdAtMs: person.createdAtMs,
       }))),
-      nextCursor: filtered.length > limit ? page.at(-1).personId : null,
-      summary: Object.freeze({
-        activePersonCount: people.filter((person) => person.status === 'active').length,
-        mergedPersonCount: people.filter((person) => person.status === 'merged').length,
-        openRegistrationCandidateCount: registrations.filter((item) => item.currentState === 'open').length,
-        openMergeCandidateCount: merges.filter((item) => item.currentState === 'open').length,
-      }),
+      nextCursor: people.length > limit ? page.at(-1).personId : null,
+      summary: options.store.overviewStats(),
     });
   }
 

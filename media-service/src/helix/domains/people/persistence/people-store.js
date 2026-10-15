@@ -60,6 +60,17 @@ function personRegistryDefinition(schemaManifest) {
         'person_id', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
         'current_reference_projection_revision', 'current_reference_projection_digest', 'created_at_ms', 'terminal_at_ms'
       ], keyColumns: [] },
+      page_people: { kind: 'select-joined-page', tableId: 'people_persons', columns: [
+        'person_id', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
+        'current_reference_projection_revision', 'current_reference_projection_digest', 'created_at_ms', 'terminal_at_ms'
+      ], joins: [], filters: [
+        { kind: 'greater_than', column: 'person_id', parameter: 'cursor' },
+        { kind: 'equals', column: 'status', parameter: 'status', optional: true },
+      ], orderBy: [{ column: 'person_id', direction: 'asc' }], maxItems: 100 },
+      search_current_names: { kind: 'select-in', tableId: 'people_person_revisions', keyColumn: 'person_id',
+        fixedKeyColumns: ['revision'], columns: ['person_id', 'canonical_name'], maxItems: 100 },
+      search_current_aliases: { kind: 'select-in', tableId: 'people_aliases', keyColumn: 'person_id',
+        fixedKeyColumns: ['revision'], columns: ['person_id', 'alias_display'], maxItems: 100 },
       advance_person_head: { kind: 'update', tableId: 'people_persons', setColumns: ['status', 'current_revision', 'terminal_at_ms'],
         keyColumns: ['person_id'], compareColumns: [
           { column: 'current_revision', parameter: 'expected_current_revision' }, { column: 'status', parameter: 'expected_status' }
@@ -406,6 +417,51 @@ function createPeopleStore(options) {
       return execute([registry], (context) => {
         const repository = context.repository(registry.repositoryId);
         return Object.freeze(repository.invoke('list_people').map((row) => mapPerson(repository, row)));
+      });
+    },
+    listPeoplePage(input) {
+      exactInput(input, ['cursor', 'limit', 'status', 'search'], 'P6_PEOPLE_PAGE_INPUT');
+      if (typeof input.cursor !== 'string' || typeof input.search !== 'string' ||
+          !Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 101 ||
+          ![null, 'active', 'merged'].includes(input.status)) {
+        fail('P6_PEOPLE_PAGE_INPUT', 'Person page requires bounded filters and a cursor.');
+      }
+      const search = input.search.trim().toLocaleLowerCase();
+      return execute([registry], (context) => {
+        const repository = context.repository(registry.repositoryId), selected = [];
+        let cursor = input.cursor;
+        while (selected.length < input.limit) {
+          const limit = search ? 100 : Math.min(100, input.limit - selected.length);
+          const page = repository.invoke('page_people', { cursor, status: input.status || '', offset: 0, limit });
+          if (!page.length) break;
+          const namesByPerson = new Map();
+          if (search) {
+            const groups = new Map();
+            for (const row of page) {
+              if (!groups.has(row.current_revision)) groups.set(row.current_revision, []);
+              groups.get(row.current_revision).push(row.person_id);
+            }
+            for (const [revision, values] of groups) {
+              for (const row of repository.invoke('search_current_names', { revision, values }))
+                namesByPerson.set(row.person_id, [row.canonical_name]);
+              for (const row of repository.invoke('search_current_aliases', { revision, values }))
+                namesByPerson.get(row.person_id)?.push(row.alias_display);
+            }
+          }
+          for (const row of page) {
+            if (search) {
+              const names = namesByPerson.get(row.person_id);
+              if (!names) fail('P6_PEOPLE_PERSON_HEAD_CORRUPT', 'Person head does not point to an immutable revision.');
+              if (!names.some((name) => name.toLocaleLowerCase().includes(search))) continue;
+            }
+            // Expand and validate only this page's exact current Person facts.
+            selected.push(mapPerson(repository, row));
+            if (selected.length === input.limit) break;
+          }
+          cursor = page.at(-1).person_id;
+          if (page.length < limit) break;
+        }
+        return Object.freeze(selected);
       });
     },
     findActivePersonByProviderIdentity(identity) {
