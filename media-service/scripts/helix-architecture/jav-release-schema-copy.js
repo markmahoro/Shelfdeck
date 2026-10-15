@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const zlib = require('node:zlib');
 const { digest } = require('../../src/helix/foundation/persistence/ddl-compiler');
 const { openSqliteKernel, verifyReadOnlySqliteSnapshot } = require('../../src/helix/foundation/persistence/sqlite-kernel');
+const { proveReleaseEffectHistory } = require('./jav-release-effect-history-proof');
 const persistenceRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence');
 
 const SOURCE_DIGEST = 'c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d';
@@ -71,11 +72,12 @@ function verifyDifference(source, target) {
       fail('JAV_SCHEMA_DIFFERENCE_INVALID', 'Release columns or indexes differ from their frozen scope.', { tableId: old.tableId });
   }
 }
-function sourceBlockers(database) {
+function sourceBlockers(database, effectHistory) {
   return Object.entries(TERMINAL_STATES).flatMap(([tableId, [column, states]]) => {
     const count = database.prepare('SELECT count(*) AS n FROM ' + quote(tableId) + ' WHERE ' + quote(column) +
       ' IS NULL OR ' + quote(column) + ' NOT IN (' + states.map(() => '?').join(',') + ')').get(...states).n;
-    return count ? [{ tableId, count }] : [];
+    const unresolved = tableId === 'fx_effect_journal' ? count - effectHistory.provenEffectIds.length : count;
+    return unresolved ? [{ tableId, count:unresolved }] : [];
   });
 }
 function openSnapshot(Database, databasePath, schema) {
@@ -105,8 +107,9 @@ function inspectJavSchemaSource({ Database, sourcePath }) {
   verifyDifference(source.schemaManifest, target.schemaManifest);
   const snapshot = openSnapshot(Database, sourcePath, source);
   try {
-    const blockers = sourceBlockers(snapshot.database);
-    return { eligible: blockers.length === 0, source: snapshot.proof, targetSchemaDigest: TARGET_DIGEST, blockers };
+    const effectHistory = proveReleaseEffectHistory(snapshot.database, source.schemaManifest);
+    const blockers = sourceBlockers(snapshot.database, effectHistory);
+    return { eligible: blockers.length === 0, source: snapshot.proof, targetSchemaDigest: TARGET_DIGEST, blockers, effectHistory };
   } finally { snapshot.database.close(); }
 }
 function prepareJavSchemaCopy({ Database, sourcePath, targetPath, now = Date.now }) {
@@ -121,7 +124,8 @@ function prepareJavSchemaCopy({ Database, sourcePath, targetPath, now = Date.now
   const snapshot = openSnapshot(Database, sourcePath, source);
   let database, temporaryPath;
   try {
-    const blockers = sourceBlockers(snapshot.database);
+    const effectHistory = proveReleaseEffectHistory(snapshot.database, source.schemaManifest);
+    const blockers = sourceBlockers(snapshot.database, effectHistory);
     if (blockers.length) fail('JAV_SCHEMA_UNFINISHED_RESPONSIBILITY', 'Unfinished responsibilities require their own authorized handling.', { blockers });
     temporaryPath = path.join(parent, '.jav-schema-preparing-' + crypto.randomUUID() + '.sqlite');
     fs.closeSync(fs.openSync(temporaryPath, 'wx'));
@@ -157,7 +161,7 @@ function prepareJavSchemaCopy({ Database, sourcePath, targetPath, now = Date.now
       const directory = fs.openSync(parent, 'r'); try { fs.fsyncSync(directory); } finally { fs.closeSync(directory); }
     }
     return { prepared: true, source: snapshot.proof, target: targetProof, tableProofs,
-      copiedTableCount: tableProofs.length, sourceMode: 'readonly_snapshot' };
+      copiedTableCount: tableProofs.length, sourceMode: 'readonly_snapshot', effectHistory };
   } finally {
     if (database?.inTransaction) database.exec('ROLLBACK'); database?.close(); snapshot.database.close();
     if (temporaryPath && fs.existsSync(temporaryPath)) fs.unlinkSync(temporaryPath);

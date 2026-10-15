@@ -44,3 +44,15 @@ Foundation在正常dispatch和recovery的既有异常处理范围内校验pure_o
 精确只读`inspectPlan(subjectIds=[该Subject])`无底层Reset blocker，拟清范围为1个discarded Run、1 Workspace、1 Package、16终态Work、2 Artifact、该Recovery Case/Offer消息闭包，0 Material Control（保留1个Procurement Control），0 Custody/On-deck Run。此计划会删除已结束Run及执行历史；用户级Reset明确保护ended history，默认也不会选择仅有discarded Run的Subject。因此底层ready不代表已有授权或可直接运行，不能把它混入6个active Run清理。保留历史的Offer/Recovery退休目前没有对应现成命令；需主聊天明确选择该精确历史清场范围，或先取得新的Owner退休合同确认。已存在的显式Arca Retry会新建验收Work，不解决discarded源库责任，未建议对缺失源反复重试。
 
 两类后续资格均不由候选Evidence修复自动解决；本审计未发起Retry/Ack/Reset、删除媒体或重写历史。
+
+## 既有历史证明接入升级资格（同日后续）
+
+重新逐条核对SSOT UAT-261（15558起）后，确认其已明确规定“单一只读派生路径，不新增持久Resolution Receipt”，由Arca解释immutable Package/Custody/Final Inventory/后继Result，Foundation复核原/后继身份、输入/Fence/intent及完整链；允许证明“已发生且当前无剩余物理责任”，每次startup重验，禁止修改原Event/Attempt/Effect。因此上述20条在完整证明通过时是已履约历史，并非等待再次删除；JAV copy合同只禁止“未收口Effect”，没有要求把这种历史Journal改为raw committed。先前所述衔接疑问已按现有SSOT解决，无需新增Owner权威或兼容合同。
+
+离线Operator新增`jav-release-effect-history-proof.js`，复用目标Host同一Frozen Catalog档案、完整递归技术证明和Arca history observer。在原source只读事务内，每次最多100条待证明Effect，只接纳`reconcile_required/destructive_commit/arca.ondeck.input_settlement.delete@1`且完整证明为fulfilled_by_successor的条目。未知状态/类型/Catalog、活动责任、缺失/漂移证据均保持blocker；超过上限整组拒绝。stage历史可能需要物理观察，离线入口明确拒绝，不做文件IO。Projection只允许真实已登记ref的resolve，禁止执行；SQL adapter只允许SELECT，不新增Executor或Domain协调。
+
+inspection/copy Receipt增加逐原Journal完整行摘要、原Effect/Event、后继Result/Commit及输入摘要组成的effectHistory及整体proofDigest。copy仍逐表原样保存全部旧行；准入只扣除本snapshot内实际证明的精确Effect ID，不按ID白名单或raw状态批量豁免。目标Host仍使用原Frozen History verifier，每次startup先核Catalog证明，并且不会对failed Event/completed failed Attempt重新dispatch；Journal原样保留，不把后继Result写入旧Event。
+
+验证：完整冻结生产副本检查成功证明20条，其余6 active Libra、4 Work/4 WorkAttempt、5 Event/1 EventAttempt、1 Acceptance Recovery及1 Outbox仍全部阻断，eligible=false。一次性完整副本上8类破坏（缺失后继Result、原intent漂移、Owner未Commit、缺失Owner Receipt、活动Work、未知Catalog、后继摘要漂移、缺失Commit Result）逐项拒绝，随后rollback恢复原20条证明；源文件及副本完整SHA256均未变。该显式环境测试10 pass/0 skip，不提交生产数据；最终proofDigest为`9ccdedea4a8de65a72a426e79a1349bc8b795e702efbacab0ff1e7aa13e4f223`。原copy/terminal-history组合86 pass；新增未知孤立Effect的copy拒绝用例后copy文件10 pass，含有界heap大Outbox及回退保护。目标Host实际完整升级运行由主聊天继续，此处证明共用代码路径，不冒充已完成目标Host运行。
+
+Acceptance Recovery/Outbox仍不适用这项证明，上一节关于其精确范围及Ended-history保护的结论保持；没有直接Ack、补Rejected或清除该Case。

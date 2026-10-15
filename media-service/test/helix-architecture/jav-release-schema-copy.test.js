@@ -65,6 +65,17 @@ test('unfinished old Work is reported and cannot acquire compatibility through a
   assert.throws(() => prepareJavSchemaCopy({ Database, ...value }), { code: 'JAV_SCHEMA_UNFINISHED_RESPONSIBILITY' });
   assert.equal(fs.existsSync(value.targetPath), false); assert.equal(hash(value.sourcePath), before);
 });
+test('unknown unresolved Effect remains a copy blocker even when no other responsibility is active', t => {
+  const value=fixture(t),database=new Database(value.sourcePath);
+  database.prepare("INSERT INTO fx_effect_journal(effect_id,effect_class,state) VALUES('unproven-effect','destructive_commit','reconcile_required')").run();
+  database.close();const before=hash(value.sourcePath);
+  const result=inspectJavSchemaSource({Database,sourcePath:value.sourcePath});
+  assert.equal(result.eligible,false);assert.deepEqual(result.effectHistory.provenEffectIds,[]);
+  assert.deepEqual(result.blockers,[{tableId:'fx_effect_journal',count:1}]);
+  assert.throws(()=>prepareJavSchemaCopy({Database,...value}),{code:'JAV_SCHEMA_UNFINISHED_RESPONSIBILITY'});
+  assert.equal(fs.existsSync(value.targetPath),false);assert.equal(hash(value.sourcePath),before);
+});
+
 test('late row insertion failure rolls back the private target and never publishes a qualified copy', t => {
   const value = fixture(t), before = hash(value.sourcePath);
   function FailingDatabase(filename, options) {
