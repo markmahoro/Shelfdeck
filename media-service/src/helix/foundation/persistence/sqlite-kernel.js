@@ -45,7 +45,7 @@ function expectedCatalog(manifest) {
 
 function assertManifest(manifest, ddl) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.compilerContract !== 'helix-p3-deterministic-sqlite-ddl/v1' ||
-      manifest.tableCount !== 200 || !Array.isArray(manifest.tables) || manifest.tables.length !== 200) {
+      ![200,203].includes(manifest.tableCount) || !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount) {
     fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'The clean schema manifest is incomplete or unsupported.');
   }
   if (manifest.digestAlgorithm !== 'sha256' || digest(normalizedDdl(ddl)) !== manifest.ddlDigest) {
@@ -114,7 +114,8 @@ function assertCatalog(database, manifest, expected) {
       fail('P3_SQLITE_PARTIAL_UNIQUE_MISSING', 'A required partial unique index is absent or weakened.', item);
     }
   }
-  if (partialExpected.length !== 22) fail('P3_SQLITE_PARTIAL_UNIQUE_COUNT', 'The clean schema requires exactly 22 partial unique indexes.');
+  const requiredPartialCount=manifest.tableCount===203?23:22;
+  if (partialExpected.length !== requiredPartialCount) fail('P3_SQLITE_PARTIAL_UNIQUE_COUNT', 'The clean schema requires its exact frozen partial unique index count.');
 }
 
 function assertGuardConsistency(database) {
@@ -137,7 +138,7 @@ function assertGuardConsistency(database) {
 function assertMessageConsistency(database) {
   const messages = database.prepare(
     'SELECT message_id,consumer_set_digest,intended_consumer_count,payload_json,payload_digest,state,all_acked_at_ms FROM fx_outbox'
-  ).all();
+  ).iterate();
   const deliveryStatement = database.prepare(
     'SELECT consumer_domain,state FROM fx_outbox_deliveries WHERE message_id=? ORDER BY consumer_domain'
   );
@@ -229,7 +230,7 @@ function assertIntegrity(database, manifest, expected) {
     catalogDigest: currentMarker.catalog_digest,
     tableCount: expected.tables.size,
     indexCount: expected.indexes.size,
-    partialUniqueCount: 22,
+    partialUniqueCount: manifest.tables.reduce((count,table)=>count+table.indexes.filter(index=>index.kind==='partial-unique').length,0),
     appliedAtMs: currentMarker.applied_at_ms
   });
 }
@@ -348,4 +349,10 @@ function openSqliteKernel(options) {
   }
 }
 
-module.exports = Object.freeze({ GENERATION, SCHEMA_NAME, SqliteKernelError, openSqliteKernel });
+function verifyReadOnlySqliteSnapshot({ database, schemaDdl, schemaManifest }) {
+  if (!database?.readonly || !database.inTransaction)
+    fail('P3_SQLITE_READONLY_SNAPSHOT_REQUIRED', 'Snapshot verification requires a read-only transaction.');
+  return assertIntegrity(database, schemaManifest, assertManifest(schemaManifest, schemaDdl));
+}
+
+module.exports = Object.freeze({ GENERATION, SCHEMA_NAME, SqliteKernelError, openSqliteKernel, verifyReadOnlySqliteSnapshot });

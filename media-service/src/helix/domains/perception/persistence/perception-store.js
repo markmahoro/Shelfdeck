@@ -203,11 +203,14 @@ function createPerceptionStore(options) {
       const items=values.slice(0,limit),last=items.at(-1),nextCursor=values.length>limit&&last?last.committedAtMs+':'+last.perceptionId:null;
       return Object.freeze({items:Object.freeze(items),nextCursor});
     }); },
-    findCurrentTargetRating(targetType,targetId) { return execute([records], (context) => {
+    findCurrentTargetRating(targetType,targetId,factKind='rating') { return execute([records], (context) => {
+      if(!['rating','watched'].includes(factKind))fail('P6_PERCEPTION_FACT_KIND_INVALID','Direct target fact kind is invalid.');
       const repo=context.repository(records.repositoryId),anchorKind=targetType==='subject'?'subject_id':targetType==='shelf_entry'?'shelf_entry_id':null;
       if(!anchorKind)return null;const ids=new Set(repo.invoke('find_anchors_by_kind',{anchor_kind:anchorKind}).filter((row)=>row.anchor_value===targetId).map((row)=>row.perception_id));
       const terminal=new Set(repo.invoke('list_relations').filter((row)=>['supersedes','retracts'].includes(row.relation_kind)).map((row)=>row.target_perception_id));
       const candidates=[...ids].filter((id)=>!terminal.has(id)).map((id)=>mapRecord(repo,id))
+        .filter(item=>factKind==='watched'?item.sourceKind==='shelfdeck_direct'&&item.sourceRecordKey.startsWith('shelfdeck:watched:'):
+          !item.sourceRecordKey.startsWith('shelfdeck:watched:'))
         .sort((left,right)=>right.committedAtMs-left.committedAtMs||left.perceptionId.localeCompare(right.perceptionId));
       return candidates[0]||null;
     }); },
@@ -219,7 +222,7 @@ function createPerceptionStore(options) {
         .filter((row)=>['supersedes','retracts'].includes(row.relation_kind)).map((row)=>row.target_perception_id));
       const mapped=mapRecords(repo,anchors.filter(row=>!terminal.has(row.perception_id)).map(row=>row.perception_id));
       for(const targetId of wanted){const ids=anchors.filter((row)=>row.anchor_value===targetId&&!terminal.has(row.perception_id)).map((row)=>row.perception_id);
-        const current=ids.map((id)=>mapped.get(id))
+        const current=ids.map((id)=>mapped.get(id)).filter(item=>!item.sourceRecordKey.startsWith('shelfdeck:watched:'))
           .sort((left,right)=>right.committedAtMs-left.committedAtMs||left.perceptionId.localeCompare(right.perceptionId))[0]||null;
         result.set(targetId,current);}
       return result;
@@ -539,7 +542,7 @@ function normalizeAnchor(value, profile) {
   else if (profile === 'alphanumeric_casefold') normalized=value.normalize('NFKC').toLocaleLowerCase('und').replace(/[^\p{L}\p{N}]+/gu,'');
   else fail('P6_PERCEPTION_NORMALIZATION_PROFILE_UNKNOWN','Rule references an unknown normalization profile.',{profile});
   // Memoize only the pure string/profile transform, never live Records,
-  // candidate membership, Rule snapshots, or Resolution decisions.
+  // matching populations, Rule snapshots, or Resolution decisions.
   if(key!==null){
     if(anchorNormalizationCache.size>=8192)anchorNormalizationCache.delete(anchorNormalizationCache.keys().next().value);
     anchorNormalizationCache.set(key,normalized);

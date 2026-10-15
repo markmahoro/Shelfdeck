@@ -93,6 +93,8 @@ test('accepted On-deck projections keep the frozen Standard and Placement throug
     targetShelfId:'shelf-1', structureKind:'single', contentProfile:'movie',
     shelfStandardRevision:1, shelfStandardDigest:'standard-digest-1' };
   const packageValue = { onDeckPackageId:offer.onDeckPackageId, shelfId:'shelf-1',
+    productStructureSnapshot:{structureKind:'single'},
+    resolvedIdentitySnapshot:{factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie'}},
     acceptanceSpecRef:{ id:'spec-1', recordDigest:'spec-digest-1' },
     productionProvenance:{ acceptanceRequirementSnapshot:{ ...snapshotBody,
       snapshotDigest:canonicalDigest(snapshotBody) } } };

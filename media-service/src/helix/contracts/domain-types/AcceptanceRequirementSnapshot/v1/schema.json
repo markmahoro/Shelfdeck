@@ -79,7 +79,8 @@
                 {
                   "type": "string",
                   "enum": [
-                    "tmdb"
+                    "tmdb",
+                    "jav"
                   ]
                 },
                 {
@@ -93,7 +94,6 @@
           },
           "required": [
             "identityKind",
-            "requiredProvider",
             "requireSeasonNumber"
           ]
         },

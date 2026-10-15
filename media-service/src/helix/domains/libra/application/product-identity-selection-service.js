@@ -4,6 +4,8 @@ const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 
 const { frozenSeriesSeasonNumber } = require('../model/series-identity-contracts');
+const { createJavIdentitySelection } = require('./jav-identity-selection');
+const { SCHEMA_REF:JAV_SELECTION_SCHEMA,assertJavIdentitySelectionRecord } = require('../model/jav-identity-selection-record');
 
 const COMMAND = 'libra.choose-product-identity@1';
 const RESULT_SCHEMA = 'helix://libra/admin-results/ProductIdentitySelectionIntentReceipt/v1';
@@ -17,11 +19,12 @@ function validMovieId(value) { return typeof value === 'string' && /^[1-9]\d{0,1
 
 function createProductIdentitySelectionService(options) {
   if(!options?.schemaManifest||!options.unitOfWork)fail('LIBRA_IDENTITY_SELECTION_DEPENDENCIES','Product Identity selection requires Owner persistence.');
+  const jav = createJavIdentitySelection(options);
   const owner=createRepositoryDefinition({repositoryId:'libra_product_identity_selection',owner:'libra',schemaManifest:options.schemaManifest,statements:{
     find_run:{kind:'select-one',tableId:'libra_runs',columns:['libra_run_id','subject_id','state','state_revision','execution_basis_digest'],keyColumns:['libra_run_id'],safeIntegers:true},
     find_subject:{kind:'select-one',tableId:'libra_subjects',columns:['subject_id','content_profile'],keyColumns:['subject_id']},
     list_identity:{kind:'select-all',tableId:'libra_product_identity_revisions',columns:['subject_id','revision','identity_digest'],keyColumns:['subject_id'],safeIntegers:true},
-    list_intents:{kind:'select-all',tableId:'libra_product_identity_selection_intents',columns:['selection_intent_id','libra_run_id','intent_revision','selection_kind','provider','namespace','provider_key','candidate_set_digest','expected_run_state_revision','expected_identity_revision','idempotency_key','intent_digest','created_at_ms'],keyColumns:['libra_run_id'],safeIntegers:true},
+    list_intents:{kind:'select-all',tableId:'libra_product_identity_selection_intents',columns:['selection_intent_id','libra_run_id','intent_revision','selection_kind','provider','namespace','provider_key','candidate_set_digest','expected_run_state_revision','expected_identity_revision','selection_record_schema_ref','selection_record_json','idempotency_key','intent_digest','created_at_ms'],keyColumns:['libra_run_id'],safeIntegers:true},
     insert_intent:{kind:'insert',tableId:'libra_product_identity_selection_intents',columns:['selection_intent_id','libra_run_id','intent_revision','selection_kind','provider','namespace','provider_key','candidate_set_digest','expected_run_state_revision','expected_identity_revision','idempotency_key','intent_digest','created_at_ms']},
   }});
   const foundation=createRepositoryDefinition({repositoryId:'libra_product_identity_selection_receipt',owner:'execution-foundation',schemaManifest:options.schemaManifest,statements:{
@@ -30,7 +33,20 @@ function createProductIdentitySelectionService(options) {
   }});
   function read(libraRunId){return options.unitOfWork.execute([{participantId:'identity_selection_read',owner:'libra',repositories:[owner],execute(context){
     const rows=context.repository(owner.repositoryId).invoke('list_intents',{libra_run_id:libraRunId}).sort((a,b)=>Number(a.intent_revision)-Number(b.intent_revision));
-    const row=rows.at(-1);return row?Object.freeze({...row,intent_revision:Number(row.intent_revision),expected_run_state_revision:Number(row.expected_run_state_revision),
+    const row=rows.at(-1);
+    if(row?.provider==='jav') {
+      if(row.selection_record_schema_ref!==JAV_SELECTION_SCHEMA)fail('LIBRA_JAV_SELECTION_RECORD_INVALID','JAV selection record schema is invalid.');
+      const record=assertJavIdentitySelectionRecord(JSON.parse(row.selection_record_json));
+      const requestDigest=canonicalDigest({libraRunId:record.libraRunId,javCode:record.sourceSnapshot.queryAnchor.javCode,
+        previewId:record.previewId,candidateSetDigest:record.candidateSetDigest,expectedRunStateRevision:record.expectedRunStateRevision,
+        expectedIdentityRevision:0,expectedSelectionIntentRevision:record.expectedSelectionIntentRevision,idempotencyKey:record.idempotencyKey});
+      if(record.libraRunId!==row.libra_run_id || record.intentRevision!==Number(row.intent_revision) ||
+          record.sourceSnapshot.queryAnchor.javCode!==row.provider_key || record.candidateSetDigest!==row.candidate_set_digest ||
+          record.expectedRunStateRevision!==Number(row.expected_run_state_revision) || record.idempotencyKey!==row.idempotency_key ||
+          requestDigest!==row.intent_digest || row.expected_identity_revision!==null || row.selection_kind!=='provider_id' ||
+          row.namespace!=='jav_code')fail('LIBRA_JAV_SELECTION_RECORD_INVALID','JAV selection index differs from its immutable record.');
+    }
+    return row?Object.freeze({...row,intent_revision:Number(row.intent_revision),expected_run_state_revision:Number(row.expected_run_state_revision),
       expected_identity_revision:row.expected_identity_revision===null?null:Number(row.expected_identity_revision),created_at_ms:Number(row.created_at_ms)}):null;
   }}]).identity_selection_read;}
   function selectionTarget(libraRunId, body) {
@@ -57,7 +73,8 @@ function createProductIdentitySelectionService(options) {
         (target.contentProfile === 'series' && run.execution_basis_digest !== target.executionBasisDigest))
       fail('LIBRA_IDENTITY_SELECTION_INPUT', 'Identity selection must match the frozen Run profile and basis.');
   }
-  function choose(libraRunId, body) {
+  function choose(libraRunId, body, actor) {
+    if (Object.hasOwn(body || {}, 'javCode')) return jav.choose(libraRunId,body,actor);
     const target = selectionTarget(libraRunId, body);
     if(!body||typeof body.idempotencyKey!=='string'||!body.idempotencyKey||!Number.isSafeInteger(body.expectedRunStateRevision)||
         !(body.expectedIdentityRevision===null||Number.isSafeInteger(body.expectedIdentityRevision))||
@@ -92,6 +109,7 @@ function createProductIdentitySelectionService(options) {
       }}]).identity_selection_receipt;
   }
   async function preview(libraRunId, id) {
+    if (Object.hasOwn(id || {}, 'javCode')) return jav.preview(libraRunId,id);
     const target = selectionTarget(libraRunId, typeof id === 'string' ? {tmdbMovieId:id} : id);
     options.unitOfWork.execute([{ participantId:'identity_preview_read', owner:'libra', repositories:[owner], execute(context) {
       const run = context.repository(owner.repositoryId).invoke('find_run', {libra_run_id:libraRunId});
@@ -108,7 +126,8 @@ function createProductIdentitySelectionService(options) {
     return Object.freeze({... (target.contentProfile==='series'?{tmdbSeriesId:target.providerKey,seasonNumber:target.seasonNumber}:{tmdbMovieId:target.providerKey}),displayTitle:movie.title,originalTitle:movie.originalTitle || null,releaseYear:movie.releaseYear,
       posterUrl:movie.posterUrl || null});
   }
-  return Object.freeze({choose,preview,readCurrent:read});
+  return Object.freeze({choose,preview,readCurrent:read,snapshotJavSources:jav.snapshotSources,resolveJavSourceHandle:jav.resolveSourceHandle,
+    validateJavSourceHandleEvidence:jav.validateSourceHandleEvidence});
 }
 
 module.exports=Object.freeze({ProductIdentitySelectionError,createProductIdentitySelectionService});

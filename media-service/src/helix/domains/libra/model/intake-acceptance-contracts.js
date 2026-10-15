@@ -173,7 +173,7 @@ function buildAcceptedIntakePayload({snapshot,decision,bindingDraft,candidateVer
     fromOwnerDomain:controlTransferScope.fromOwnerDomain,fromOwnerScopeType:controlTransferScope.fromOwnerScopeType,
     fromOwnerScopeId:controlTransferScope.fromOwnerScopeId,items});
   const materialInputForm=snapshot.materialInputForm;
-  if (!['stream_file','bdmv','dvd','iso'].includes(materialInputForm) ||
+  if (!['stream_file','bdmv','dvd','iso','jav_named_parts'].includes(materialInputForm) ||
       snapshot.candidatePackage.materialInputForm !== materialInputForm) {
     fail('P8_ACCEPTANCE_INPUT_FORM','Candidate Delivery input form is missing or inconsistent.');
   }

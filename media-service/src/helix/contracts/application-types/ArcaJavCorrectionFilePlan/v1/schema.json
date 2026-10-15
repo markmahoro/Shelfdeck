@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ArcaJavCorrectionFilePlan/v1",
+  "title": "ArcaJavCorrectionFilePlan@1",
+  "x-helix-ssotRefs": [
+    "3.5.5",
+    "8.5.12",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 2097152,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/ArcaJavCorrectionFilePlan/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "correctionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "admissionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "scopeDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "basisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "placementPreviewDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "verifiedSourcePayloadDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "preparedAssetsPayloadDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "retainedPrimaryMaterialKey": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "planDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "endpointId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "rootLocation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "mountScopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "mountScopeRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "endpointId",
+        "rootLocation",
+        "mountScopeId",
+        "mountScopeRevision"
+      ]
+    },
+    "members": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 1024,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "role": {
+            "enum": [
+              "primary_payload",
+              "structural_dependency",
+              "metadata_sidecar",
+              "poster",
+              "fanart",
+              "subtitle",
+              "external_audio",
+              "chapter",
+              "sidecar"
+            ]
+          },
+          "original": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "ordinal": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "role": {
+                "enum": [
+                  "primary_payload",
+                  "structural_dependency",
+                  "metadata_sidecar",
+                  "poster",
+                  "fanart",
+                  "subtitle",
+                  "external_audio",
+                  "chapter",
+                  "sidecar"
+                ]
+              },
+              "physicalIdentity": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "schemaRef": {
+                    "const": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+                  },
+                  "schemaVersion": {
+                    "const": 2
+                  },
+                  "materialKey": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "mountScopeId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "inode": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9][0-9]*)$"
+                  },
+                  "sizeBytes": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "fingerprintAlgorithm": {
+                    "const": "middle-256k-sha256"
+                  },
+                  "fingerprintVersion": {
+                    "const": 1
+                  },
+                  "contentFingerprint": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "schemaRef",
+                  "schemaVersion",
+                  "materialKey",
+                  "mountScopeId",
+                  "inode",
+                  "sizeBytes",
+                  "fingerprintAlgorithm",
+                  "fingerprintVersion",
+                  "contentFingerprint"
+                ]
+              },
+              "endpointId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "location": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "bindingRevision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "controlRevision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              "controlProjectionDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "ordinal",
+              "role",
+              "physicalIdentity",
+              "endpointId",
+              "location",
+              "bindingRevision",
+              "controlRevision",
+              "controlProjectionDigest"
+            ]
+          },
+          "source": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "retained_inventory"
+                  },
+                  "workspaceMaterialHandle": {
+                    "type": "null"
+                  },
+                  "artifactHandle": {
+                    "type": "null"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "workspaceMaterialHandle",
+                  "artifactHandle"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "correction_artifact"
+                  },
+                  "workspaceMaterialHandle": {
+                    "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+                  },
+                  "artifactHandle": {
+                    "$ref": "helix://contracts/types/ArtifactHandle/v1"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "workspaceMaterialHandle",
+                  "artifactHandle"
+                ]
+              }
+            ]
+          },
+          "retainedLocation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "targetEndpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "targetLocation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          }
+        },
+        "required": [
+          "ordinal",
+          "role",
+          "original",
+          "source",
+          "retainedLocation",
+          "targetEndpointId",
+          "targetLocation"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "correctionId",
+    "shelfEntryId",
+    "admissionDigest",
+    "scopeDigest",
+    "basisDigest",
+    "placementPreviewDigest",
+    "verifiedSourcePayloadDigest",
+    "preparedAssetsPayloadDigest",
+    "retainedPrimaryMaterialKey",
+    "planDigest",
+    "target",
+    "members"
+  ]
+}

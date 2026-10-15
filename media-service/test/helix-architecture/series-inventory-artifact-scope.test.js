@@ -9,7 +9,7 @@ const {migrateUatIdentitySelectionSchema,PRE_ARTIFACT_SCOPE_SCHEMA_DIGEST}=requi
 const {digest}=require('../../src/helix/foundation/persistence/ddl-compiler');
 const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-kernel');
 function catalogRows(db){return db.prepare("SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name").all().map(row=>({...row,sql:row.sql&&row.sql.replaceAll('\r\n','\n')}));}
-const schemaManifest=require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+const schemaManifest=require('../fixtures/helix-historical-ddl/schema-snapshot').historicalSchema('c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d').schemaManifest;
 const {appendInventoryRevision}=require('../../src/helix/domains/arca/persistence/inventory-revision-writer');
 function fixture() {
   const episodeScope={seasonNumber:1,episodeNumber:2,episodeKey:'E002'},artifact={artifactHandleId:'nfo-2',artifactKind:'nfo',
@@ -73,7 +73,7 @@ for(const series of [false,true])test('exact prior schema '+(series?'refuses unp
   else {assert.equal(migrate().migrated,true);assert.equal(migrate().migrated,false);
     assert.ok(db.pragma('table_info(arca_inventory_materials)').some(column=>column.name==='artifact_scope_json'));
     assert.deepEqual(db.prepare('SELECT * FROM arca_inventory_materials').all(),oldMaterials.map(row=>({...row,artifact_scope_schema_ref:null,artifact_scope_json:null})));
-    const schemaDdl=fs.readFileSync(path.resolve(__dirname,'../../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
+    const schemaDdl=require('../fixtures/helix-historical-ddl/schema-snapshot').historicalSchema('c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d').schemaDdl;
     openSqliteKernel({Database,databasePath,schemaManifest,schemaDdl}).close();}
   assert.deepEqual(db.prepare('SELECT * FROM arca_shelf_entries').all(),before);
 });

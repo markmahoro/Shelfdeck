@@ -68,6 +68,7 @@ function validateLastCommand(value, revision) {
 }
 
 function validateConfig(snapshot, selectedProfile = TMDB_PROFILE) {
+  if (selectedProfile.authMode === 'anonymous') return require('./jav-source-integration').validateAnonymousJavConfig(snapshot, selectedProfile);
   const integration = snapshot?.integration;
   const secret = snapshot?.secret;
   if (!integration) {
@@ -182,6 +183,7 @@ function validateConfig(snapshot, selectedProfile = TMDB_PROFILE) {
 }
 
 function createIntegrationRuntime(options) {
+  if (options?.profile?.authMode === 'anonymous') return require('./jav-source-integration').createAnonymousJavRuntime(options);
   if (!options?.repository ||
       typeof options.repository.find !== 'function' ||
       typeof options.repository.findSecret !== 'function' ||

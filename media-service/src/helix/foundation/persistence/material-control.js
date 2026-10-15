@@ -171,7 +171,9 @@ function createMaterialControlAdmissionReadParticipant(options) {
       typeof options.boundBusinessOwner !== 'string') fail('P3_CONTROL_ADMISSION_QUERY_INVALID', 'Atomic admission Control read dependencies are required.');
   const resolveKeys=()=>typeof options.materialKeys==='function'?options.materialKeys():options.materialKeys;
   if(Array.isArray(options.materialKeys))validateAdmissionKeys(options.materialKeys);
-  const definition=repository(options.schemaManifest);
+  const definition=createRepositoryDefinition({repositoryId:'material_control',owner:'material-control-authority',schemaManifest:options.schemaManifest,
+    statements:{find_current:{kind:'select-one',tableId:'fx_material_controls',keyColumns:['material_key'],safeIntegers:true,
+      columns:['material_key','owner_domain','owner_scope_type','owner_scope_id','control_revision','state']}}});
   return Object.freeze({participantId:options.participantId||'material_control_admission_query',owner:'material-control-authority',
     boundBusinessOwner:options.boundBusinessOwner,repositories:[definition],execute(context){const control=context.repository('material_control');
       const keys=resolveKeys();validateAdmissionKeys(keys);

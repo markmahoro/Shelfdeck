@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ArcaJavCorrectionIdentityFact/v1",
+  "title": "ArcaJavCorrectionIdentityFact@1",
+  "x-helix-ssotRefs": [
+    "3.5.5",
+    "8.5.12",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "arca.jav-canonical-identity-proposal@1"
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "shelfId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "structureKind": {
+      "const": "single"
+    },
+    "contentProfile": {
+      "const": "jav"
+    },
+    "identityKind": {
+      "const": "jav_code"
+    },
+    "providerIdentities": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "const": "jav"
+          },
+          "namespace": {
+            "const": "jav_code"
+          },
+          "providerKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "seasonNumber": {
+            "type": "null"
+          }
+        },
+        "required": [
+          "provider",
+          "namespace",
+          "providerKey",
+          "seasonNumber"
+        ]
+      }
+    },
+    "displayIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "key": {
+                "enum": [
+                  "title",
+                  "jav_code"
+                ]
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 16384
+              }
+            },
+            "required": [
+              "key",
+              "value"
+            ]
+          }
+        }
+      },
+      "required": [
+        "entries"
+      ]
+    },
+    "identityDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schema",
+    "shelfEntryId",
+    "shelfId",
+    "structureKind",
+    "contentProfile",
+    "identityKind",
+    "providerIdentities",
+    "displayIdentity",
+    "identityDigest"
+  ]
+}

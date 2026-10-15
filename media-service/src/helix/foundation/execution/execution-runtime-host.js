@@ -553,6 +553,7 @@ function createExecutionRuntimeHost(options) {
     drainOnce,
     readiness() { return Object.freeze({ state, normalSupplyAllowed: state === 'ready', recovery: lastRecovery }); },
     backgroundOperations(){return options.fallbackReconciler.snapshot();},
+    wakeBackground(request){if(typeof options.fallbackReconciler.wake!=='function')fail('P4_BACKGROUND_WAKE_UNAVAILABLE','Background reconciler does not support scoped wake.');return options.fallbackReconciler.wake(request);},
     quiesce() {
       if (quiescing) return quiescing;
       if (state === 'quiesced') return Promise.resolve(Object.freeze({state}));

@@ -141,7 +141,7 @@ function validateDomainInputSchemas(options) {
         'routingAuthoritySnapshot', 'shelfRoutingTargets', 'routingDecision', 'shelfStandardProjection', 'productScope',
         'decisionFacts', 'queryResults', 'queryResultSetDigest', 'routingInputDigest', 'specInputDigest', 'inputSetDigest'],
       ProductIdentityEvidenceIntent: ['intentId', 'libraRunId', 'subjectId', 'runExecutionBasisDigest',
-        'contentProfile', 'sourceKind', 'aliases', 'yearHint', 'intentDigest'],
+        'contentProfile', 'sourceKind', 'intentDigest'],
       RoutingFactObservationIntent: ['intentId', 'subjectId', 'routingAnchorIntakeDecisionId', 'routingAnchorDigest',
         'contentProfile', 'identityClaim', 'requestedFactKinds', 'sourceKind', 'intentDigest'],
       ArtifactConformanceVerificationSnapshot: ['ordinal', 'verificationResultRef', 'verificationValue', 'snapshotDigest'],
@@ -178,6 +178,15 @@ function validateDomainInputSchemas(options) {
         findings.push(finding('MISSING_DOMAIN_INPUT_IDENTITY_FIELD', 'Domain input identity is incomplete.', {
           entryId: entry.id, field
         }));
+      }
+    }
+    if(entry.id==='ProductIdentityEvidenceIntent') {
+      for(const branch of schema.oneOf||[]) {
+        const jav=branch.properties?.contentProfile?.const==='jav';
+        const fields=jav?['provider','namespace','sourceSnapshot','sourceOrdinal','integrationId','configRevision',
+          'javSelectionFence','resourceKey','expectedTitle','expectedCoverDigest']:['aliases','yearHint'];
+        for(const field of fields)if(!(branch.required||[]).includes(field))findings.push(finding(
+          'MISSING_DOMAIN_INPUT_IDENTITY_FIELD','Profile identity input is incomplete.',{entryId:entry.id,field}));
       }
     }
     const exactBoundedContracts = new Set(['AnalysisSpec', 'ArtifactRequirement', 'ClusterParameters', 'EncodeIntent',

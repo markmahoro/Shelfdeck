@@ -67,7 +67,7 @@ function createFieldObservationAutomation(options) {
   function reconcile({ fieldId }) {
     const field = options.materialFieldStore.getMaterialField(fieldId);
     if (!field || field.status !== 'active') return Object.freeze({ kind: 'not_active', fieldId });
-    if (!['movie', 'series'].includes(field.currentProfileHintSnapshot?.contentProfileHint)) {
+    if (!['movie', 'series','jav','mixed'].includes(field.currentProfileHintSnapshot?.contentProfileHint)) {
       return Object.freeze({ kind: 'unsupported_profile', fieldId });
     }
     const works = observationWorks(fieldId);

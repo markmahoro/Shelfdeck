@@ -6,6 +6,19 @@ import {helixAdminApi} from '../src/helix/api';
 
 afterEach(()=>vi.restoreAllMocks());
 
+it('keeps correction directories independent and opens exact inspection without authorizing archive',async()=>{
+  const list=vi.spyOn(helixAdminApi,'listRecycle').mockResolvedValue({items:[],cleanupChecks:[{onDeckRunId:'original',shelfEntryId:'entry',state:'completed',checkedAtMs:1,checks:[{sourceLocation:'/original',state:'absent'}]}],
+    correctionChecks:[{correctionId:'correction',shelfEntryId:'entry',state:'attention',checkedAtMs:2,errorCode:null,checks:[{sourceLocation:'/old-film',state:'awaiting_confirmation'},{sourceLocation:'/media-root',state:'retained_root'}]}]});
+  const inspect=vi.fn(),archive=vi.spyOn(helixAdminApi,'archiveRecycle');render(<SessionProvider><SourceCleanupChecks kind="jav_correction" onInspect={inspect}/></SessionProvider>);
+  await screen.findByText('/old-film');expect(screen.queryByText('/original')).not.toBeInTheDocument();expect(screen.getByText('媒体根目录 · 已保留')).toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'检查这部影片的具体清单'}));expect(inspect).toHaveBeenCalledWith('entry');expect(archive).not.toHaveBeenCalled();expect(list).toHaveBeenLastCalledWith(undefined,undefined);
+});
+it('reports a correction preparation failure even when no directory observation could be published',async()=>{
+  vi.spyOn(helixAdminApi,'listRecycle').mockResolvedValue({items:[],correctionChecks:[{correctionId:'correction',shelfEntryId:'entry',state:'attention',checkedAtMs:2,errorCode:'ARCA_JAV_DIRECTORY_CHECK_SCOPE_CHANGED',checks:[]}]});
+  render(<SessionProvider><SourceCleanupChecks kind="jav_correction" onInspect={vi.fn()}/></SessionProvider>);
+  expect(await screen.findByRole('alert')).toHaveTextContent('影片目录范围已变化，请重新检查');
+});
+
 it('shows the exact pending source separately and opens inspection without archive authorization',async()=>{
   vi.spyOn(helixAdminApi,'listRecycle').mockResolvedValue({items:[],cleanupChecks:[{onDeckRunId:'run-1',shelfEntryId:'entry-1',state:'attention',checkedAtMs:1,checks:[{sourceLocation:'/source/movie',state:'awaiting_confirmation'}]}]});
   const archive=vi.spyOn(helixAdminApi,'archiveRecycle'),inspect=vi.fn();render(<SessionProvider><SourceCleanupChecks onInspect={inspect}/></SessionProvider>);

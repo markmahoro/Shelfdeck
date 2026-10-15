@@ -1,4 +1,5 @@
 'use strict';
+const {packageContentProfile}=require('../model/product-content-profile');
 const { readControlProjections } = require('../persistence/read-control-projections');
 const {seriesMetadataFieldMissing}=require('../model/series-metadata');
 const {acceptsMetadataFields,missingMetadataFields,acceptsArtifactKinds,packageMissingArtifactKinds}=require('../model/authorized-defect-manifest');
@@ -392,7 +393,7 @@ function createMovieOnDeckCoordinator(options) {
       replayCommitted: replayCommittedInventory,
     });
     const structureKind = packageValue.productStructureSnapshot?.structureKind;
-    const contentProfile = structureKind === 'season' ? 'series' : 'movie';
+    const contentProfile = packageContentProfile(packageValue);
     const snapshot = exactRequirementSnapshot(packageValue, shelf);
     const dimensionGaps = ordinaryDimensionGaps(packageValue, snapshot);
     const mandatory = mandatoryRequirement(packageValue, snapshot);

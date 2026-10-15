@@ -34,6 +34,8 @@ function createStagedManifestStore(options){
   const repo=createRepositoryDefinition({repositoryId:'arca_staged_manifest_records',owner:'arca',schemaManifest:options.schemaManifest,statements:{
     find:{kind:'select-one',tableId:'arca_staged_manifest_records',columns,keyColumns:['record_id']},
     event:{kind:'select-one',tableId:'arca_staged_manifest_records',columns,keyColumns:['event_id']},
+    correction:{kind:'select-one',tableId:'arca_jav_identity_corrections',columns:['correction_id','shelf_entry_id','state','state_revision','admission_digest','basis_digest','terminal_at_ms',
+      'recovery_intent_schema_ref','recovery_intent_json','recovery_intent_digest'],keyColumns:['correction_id'],safeIntegers:true},
     insert:{kind:'insert',tableId:'arca_staged_manifest_records',columns}}});
   const fence=createRepositoryDefinition({repositoryId:'arca_stage_record_execution',owner:'execution-foundation',schemaManifest:options.schemaManifest,statements:{
     work:{kind:'select-one',tableId:'fx_supporting_works',columns:['owner_domain','process_type','process_id','state'],keyColumns:['work_id']},
@@ -42,13 +44,28 @@ function createStagedManifestStore(options){
   function resolve(record){const row=options.unitOfWork.execute([{participantId:'arca_stage_read',owner:'arca',repositories:[repo],
     execute:c=>c.repository(repo.repositoryId).invoke('find',{record_id:record.recordId})}]).arca_stage_read;
     return unpack(row,record).manifest;}
-  function save(execution,manifest){
+  function save(execution,manifest,correctionPlan=null){
     options.contractValidator.validate(MANIFEST,manifest);
     validateManifest(manifest);
+    const correction=execution.ownerScope.processType==='arca_jav_identity_correction'&&execution.capabilityRef==='arca.jav_correction.files.stage@1';
     if(Buffer.byteLength(canonicalJson(manifest))>8*1024*1024||manifest.stagedMembers.length<1||manifest.stagedMembers.length>1024||
-        !['arca_ondeck_run','arca_shelf_entry'].includes(execution.ownerScope.processType)||execution.capabilityRef!=='arca.inventory.product.stage@1')
+        !correction&&(!['arca_ondeck_run','arca_shelf_entry'].includes(execution.ownerScope.processType)||execution.capabilityRef!=='arca.inventory.product.stage@1'))
       fail('Stage Manifest exceeds the exact execution scope or bound.');
-    if(execution.namedInputs?.targetCommitSlotHandle?.slotId!==manifest.targetCommitSlotId)
+    if(correction) {
+      const {planDigest,...body}=correctionPlan||{};
+      if(!correctionPlan||planDigest!==canonicalDigest(body)||correctionPlan.correctionId!==execution.ownerScope.processId||
+          execution.namedInputs?.javCorrectionScope?.correctionId!==correctionPlan.correctionId||execution.namedInputs.javCorrectionScope.digest!==correctionPlan.scopeDigest||
+          manifest.sourceProductManifestDigest!==planDigest||manifest.memberCount!==correctionPlan.members.length||
+          manifest.targetCommitSlotId!=='arca-jav-correction-slot-'+canonicalDigest({correctionId:correctionPlan.correctionId,planDigest}).slice(0,40))
+        fail('Correction staged Manifest differs from its exact Scope and File Plan.');
+      if(manifest.stagedMembers.some((member,index)=>{
+        const planned=correctionPlan.members[index],replacement=planned.source.kind==='correction_artifact',
+          sourceKey=replacement?planned.source.workspaceMaterialHandle.materialKey:planned.original.physicalIdentity.materialKey;
+        return member.sourceMaterialKey!==sourceKey||member.role!==planned.role||member.endpointId!==correctionPlan.target.endpointId||
+          !/^[a-f0-9]{64}$/.test(member.fullByteDigest||'')||member.physicalIdentity.sizeBytes!==(replacement?planned.source.workspaceMaterialHandle.sizeBytes:planned.original.physicalIdentity.sizeBytes)||
+          replacement&&member.fullByteDigest!==planned.source.workspaceMaterialHandle.digestHex;
+      }))fail('Correction stage must retain complete ordered source and full-byte proof.');
+    } else if(execution.namedInputs?.targetCommitSlotHandle?.slotId!==manifest.targetCommitSlotId)
       fail('Stage Manifest does not match the frozen Target Slot input.');
     const record=recordFor(execution.eventId,manifest);
     return options.unitOfWork.execute([{participantId:'arca_stage_record_fence',owner:'execution-foundation',repositories:[fence],execute(c){
@@ -59,6 +76,12 @@ function createStagedManifestStore(options){
           attempt?.event_id!==execution.eventId||attempt.state!=='executing')fail('Stage Manifest execution fence changed.');
     }},{participantId:'arca_stage_record_save',owner:'arca',repositories:[repo],execute(c){
       const r=c.repository(repo.repositoryId),old=r.invoke('event',{event_id:execution.eventId});
+      if(correction) {
+        const current=r.invoke('correction',{correction_id:correctionPlan.correctionId}),scope=execution.namedInputs.javCorrectionScope;
+        if(!current||current.state!=='active'||current.terminal_at_ms!==null||require('../model/jav-correction-recovery').executionRevisionForRow(current,options.contractValidator)!==scope.expectedStateRevision||
+            current.admission_digest!==correctionPlan.admissionDigest||current.basis_digest!==correctionPlan.basisDigest)
+          fail('Correction stage lost its active admission before durable Manifest recording.');
+      }
       if(old){if(old.work_id!==execution.workId||old.process_type!==execution.ownerScope.processType||old.process_id!==execution.ownerScope.processId)
         fail('Stage replay scope changed.');unpack(old,record);return record;}
       r.invoke('insert',{record_id:record.recordId,work_id:execution.workId,event_id:execution.eventId,process_type:execution.ownerScope.processType,

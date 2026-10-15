@@ -1,4 +1,5 @@
 'use strict';
+const {packageContentProfile}=require('../model/product-content-profile');
 const { readControlProjections } = require('../persistence/read-control-projections');
 const {createInventoryVerificationStore,resolveInventoryVerification}=require('../persistence/inventory-verification-store');
 const {createStagedManifestStore,resolveStagedResult}=require('../persistence/staged-manifest-store');
@@ -62,7 +63,7 @@ function packageRequirementSnapshot(c){const value=c.packageValue?.productionPro
   if(!value||value.schemaRef!=='helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1'||value.schemaVersion!==1||
       value.snapshotDigest!==canonicalDigest(body)||value.acceptanceSpecId!==c.packageValue.acceptanceSpecRef?.id||
       value.acceptanceSpecRecordDigest!==c.packageValue.acceptanceSpecRef?.recordDigest||value.targetShelfId!==c.packageValue.shelfId||
-      value.structureKind!==structure||value.contentProfile!==(structure==='season'?'series':'movie'))
+      value.structureKind!==structure||value.contentProfile!==packageContentProfile(c.packageValue))
     throw Object.assign(new TypeError('Package Acceptance Requirement Snapshot is invalid.'),{code:'ARCA_ACCEPTANCE_REQUIREMENT_INVALID'});
   return Object.freeze({value,stale:value.shelfStandardRevision!==c.shelf.currentStandardRevision||
     value.shelfStandardDigest!==c.shelf.standard.digest});}
@@ -285,7 +286,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
         shelf:c.shelf,onDeckProductPackage:c.packageValue}).targetDirectory;
     const controlled=handoffBControlMembers(c.packageValue),byKey=new Map(controlled.map(m=>[m.materialKey,m])),
       keys=[...byKey.keys()].sort(),projections=readControlProjections(controls,keys),
-      contentProfile=c.packageValue.productStructureSnapshot?.structureKind==='season'?'series':'movie';
+      contentProfile=packageContentProfile(c.packageValue);
     for(const p of projections){const member=byKey.get(p.materialKey),expectedRevision=member.committedControlRevision??member.admittedControlRevision,
       expectedDigest=member.committedControlProjectionDigest??member.admittedControlProjectionDigest;
       if(p.resultKind!=='available'||p.controlState!=='controlled'||p.ownerDomain!=='libra'||p.controlRevision!==expectedRevision||

@@ -6,7 +6,9 @@ import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader, ReadProgress } from './chrome';
 import { healthLabels } from './labels';
 import RatingControl from './RatingControl';
+import WatchedControl from './WatchedControl';
 import CollectionDefects from './CollectionDefects';
+import JavCorrectionDialog from './JavCorrectionDialog';
 import { isUnauthorized, useSession } from './session';
 import './collection.css';
 
@@ -73,6 +75,7 @@ export default function CollectionPage() {
   const [hasResult, setHasResult] = useState(false);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<CollectionEntry | null>(null);
+  const [correctionItem, setCorrectionItem] = useState<CollectionEntry | null>(null);
   const [care, setCare] = useState<CareDetail | null>(null);
   const [healthFilter, setHealthFilter] = useState<HealthState | 'all'>('all');
   const [checking, setChecking] = useState(false);
@@ -225,6 +228,7 @@ export default function CollectionPage() {
           </dl>
           {selected.series && <SeriesFiles series={selected.series} />}
           <div className="collection-rating"><span>我的评分</span><RatingControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
+          <div className="collection-rating"><span>观看状态</span><WatchedControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
           <section className="collection-health" aria-labelledby="collection-health-heading">
             <div className="collection-health-heading"><div><h3 id="collection-health-heading">收藏健康</h3></div>
               <Button type="button" onClick={() => void checkHealth()} disabled={checking}>{checking ? '已开始检查…' : '立即检查健康'}</Button>
@@ -247,10 +251,12 @@ export default function CollectionPage() {
           </section>
           <CollectionDefects shelfEntryId={selected.shelfEntryId} revision={`${care?.basis.careBasisDigest || selected.currentInventoryRevision}:${care?.health.updatedAtMs || 0}`} onChanged={()=>void load()} />
           <div className="collection-exit">
+            {selected.provider==='jav'&&selected.identityKind==='jav_code'&&<Button type="button" disabled={checking||exiting} onClick={()=>{setCorrectionItem(selected);setSelected(null);}}>核对影片</Button>}
             <Button variant="danger" type="button" onClick={() => void exitCollection()} disabled={exiting}>{exiting ? '正在准备退出…' : '退出收藏'}</Button>
           </div>
         </div>
       </section>
     </div>}
+    {correctionItem&&<JavCorrectionDialog item={correctionItem} onClose={()=>setCorrectionItem(null)} onChanged={()=>void load()} onUnauthorized={expire}/>}
   </section>;
 }

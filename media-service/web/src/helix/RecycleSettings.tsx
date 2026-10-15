@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect,useState } from 'react';
 import { helixAdminApi, type CollectionEntry } from './api';
 import { Button } from './chrome';
 import RecyclePanel from './RecyclePanel';
@@ -12,6 +12,8 @@ export default function RecycleSettings() {
   const [cursor, setCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [initialChecks,setInitialChecks]=useState<ReturnType<typeof helixAdminApi.listRecycle>|null>(null);
+  useEffect(()=>{const reading=helixAdminApi.listRecycle();void reading.catch(()=>undefined);setInitialChecks(reading);},[]);
   async function load(next?:string) {
     setLoading(true); setError('');
     try {
@@ -25,9 +27,9 @@ export default function RecycleSettings() {
   }
   return <div className="recycle-settings stack">
     <RecyclePanel />
-    <SourceCleanupChecks onInspect={setSelected} />
+    {initialChecks?<><SourceCleanupChecks initialPage={initialChecks} onInspect={setSelected} /><SourceCleanupChecks initialPage={initialChecks} kind="jav_correction" onInspect={setSelected} /></>:<p role="status">正在读取收尾记录…</p>}
     <section className="ui-card stack">
-    <header className="section-toolbar"><h3>检查影片旧目录</h3><Button type="button" disabled={loading} onClick={()=>void load()}>读取收藏列表</Button></header>
+    <header className="section-toolbar"><h2>检查影片旧目录</h2><Button type="button" disabled={loading} onClick={()=>void load()}>读取收藏列表</Button></header>
     {error && <p className="form-error" role="alert">{error}</p>}
     {entries.length>0 && <label>影片<select value={selected} onChange={event=>setSelected(event.target.value)}>
       <option value="">选择影片</option>

@@ -92,6 +92,44 @@ function counts(databasePath) {
   }
 }
 
+test('read-only command validators run before Owner writes and after receipt replay',()=>fixture(({coordinator,databasePath})=>{
+  const reads=createRepositoryDefinition({repositoryId:'validation_reads',owner:'execution-foundation',schemaManifest,statements:{
+    receipts:{kind:'select-all',tableId:'fx_command_receipts',columns:['command_receipt_id'],keyColumns:['owner_domain']}}});
+  let validated=0;
+  const input={...request(),validationParticipants:[{participantId:'validation',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[reads],
+    execute(c){validated++;assert.equal(c.repository('validation_reads').invoke('receipts',{owner_domain:'libra'}).length,0);}}]};
+  assert.equal(coordinator.execute(input).replayed,false);assert.equal(validated,1);
+  assert.equal(coordinator.execute(input).replayed,true);assert.equal(validated,1);
+  assert.deepEqual(counts(databasePath),{subjects:1,receipts:1,markers:1,audits:1});
+}));
+test('failed read validation leaves no domain fact, receipt, marker or audit',()=>fixture(({coordinator,databasePath})=>{
+  const reads=createRepositoryDefinition({repositoryId:'validation_reads',owner:'libra',schemaManifest,statements:{
+    find:{kind:'select-all',tableId:'libra_routing_policy_revisions',columns:['routing_policy_id'],keyColumns:['field_id']}}});
+  assert.throws(()=>coordinator.execute({...request(),validationParticipants:[{participantId:'validation',owner:'libra',repositories:[reads],
+    execute(){throw Object.assign(new Error('Current evidence changed.'),{code:'EVIDENCE_STALE'});}}]}),{code:'EVIDENCE_STALE'});
+  assert.deepEqual(counts(databasePath),{subjects:0,receipts:0,markers:0,audits:0});
+}));
+
+test('bound Platform Workspace root validation is read-only, replay-safe and cannot read other Platform tables',()=>fixture(({coordinator,databasePath})=>{
+  const roots=createRepositoryDefinition({repositoryId:'workspace_root_validation',owner:'platform-settings',schemaManifest,statements:{
+    root:{kind:'select-one',tableId:'platform_workspace_roots',columns:['root_id','owner_scope','state'],keyColumns:['root_id']}}});
+  const other=createRepositoryDefinition({repositoryId:'platform_integration_validation',owner:'platform-settings',schemaManifest,statements:{
+    integration:{kind:'select-one',tableId:'platform_integrations',columns:['integration_id'],keyColumns:['integration_id']}}});
+  let checked=0;const participant={participantId:'workspace_root_validation',owner:'platform-settings',boundBusinessOwner:'libra',repositories:[roots],
+    execute(c){checked++;assert.equal(c.repository(roots.repositoryId).invoke('root',{root_id:'absent-root'}),undefined);}};
+  for(const invalid of [{...participant,boundBusinessOwner:'arca'},{...participant,boundBusinessOwner:undefined},{...participant,repositories:[other]},
+    {...participant,repositories:[roots,other]},{...participant,repositories:[null]}])
+    assert.throws(()=>coordinator.execute({...request(),validationParticipants:[invalid]}),{code:'P3_COMMAND_VALIDATION_PARTICIPANT_INVALID'});
+  assert.deepEqual(counts(databasePath),{subjects:0,receipts:0,markers:0,audits:0});
+  const input={...request(),validationParticipants:[participant]};assert.equal(coordinator.execute(input).replayed,false);assert.equal(checked,1);
+  assert.equal(coordinator.execute(input).replayed,true);assert.equal(checked,1);
+}));
+test('command validators cannot inject writes, foreign owners or unbounded participants',()=>fixture(({coordinator})=>{
+  for(const validations of [[{participantId:'write',owner:'libra',repositories:[subjects],execute(){}}],
+    [{participantId:'foreign',owner:'people',repositories:[subjects],execute(){}}],Array.from({length:9},()=>({})),{},null,false])
+    assert.throws(()=>coordinator.execute({...request(),validationParticipants:validations}),{code:'P3_COMMAND_VALIDATION_PARTICIPANT_INVALID'});
+}));
+
 test('commits Owner fact, Command Receipt, global marker, and append-only Audit with one time', () => {
   fixture(({ coordinator, databasePath, kernel }) => {
     const result = coordinator.execute(request());

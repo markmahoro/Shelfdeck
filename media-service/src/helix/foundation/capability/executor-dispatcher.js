@@ -41,7 +41,7 @@ function createExecutorDispatcher(options) {
       options.contractValidator.validate(manifest.fenceSchemaRef, context.fenceSnapshot);
       const inputSchemaRef = manifest.parametersSchemaRef.replace(/\/parameters$/, '/inputs');
       options.contractValidator.validate(inputSchemaRef, context.namedInputs);
-      entry.semantic.validateInputs(context);
+      await entry.semantic.validateInputs(context);
       const outcome = await entry.executor.execute(context);
       options.contractValidator.validate('helix://contracts/types/CapabilityOutcome/v1', outcome);
       if (outcome.kind === 'succeeded') {
@@ -50,7 +50,7 @@ function createExecutorDispatcher(options) {
         );
         options.contractValidator.validate(manifest.resultSchemaRef, outcome.result);
         options.contractValidator.validate(manifest.evidenceSchemaRef, outcome.evidence);
-        entry.semantic.validateResult(context, outcome);
+        await entry.semantic.validateResult(context, outcome);
         if (manifest.effectClass !== 'pure_observation' && !outcome.effectReceipt) fail(
           'P4_DISPATCH_EFFECT_RECEIPT_REQUIRED', 'Non-pure succeeded Outcome requires an Effect Receipt or later journal-bound dispatch path.'
         );

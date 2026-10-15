@@ -1,4 +1,6 @@
 'use strict';
+const {aftercareJavSource,aftercareArtifactSourceIntent,aftercareJavAcquisitionSource,aftercareJavCoverProvenance}=require('../model/aftercare-artifact-source');
+const {assertJavCoverDerivation}=require('../../../contracts/jav-cover-derivation');
 const {remapInventoryMappingFacts}=require('../../../contracts/related-primary-mappings');
 const {stagedResultReader}=require('../persistence/staged-manifest-store');
 const { automaticCaseTargetsAcceptedDefect } = require('../model/accepted-defect-maintenance');
@@ -29,7 +31,7 @@ const { CAPABILITY_REFS:C,
   aftercareSettlementEventId, aftercareServiceCatalogRevision, aftercareSettlementApprovalId, aftercareInventoryCommitId,
   aftercareInventoryCommitDigest,
   buildAftercareSettlementHandles, physicalIdentityFromInventoryRow,
-  projectHealth, isAftercareArtifactMaterial } = require('../model/aftercare-contract');
+  projectHealth, isAftercareArtifactMaterial, aftercareReceiptMaterialRole } = require('../model/aftercare-contract');
 const { buildAftercareInventoryRequest,
   classifyAcceptedPlacement,
   placementMaterialReceipts, placementMatchesInventory } = require('../model/aftercare-placement');
@@ -199,7 +201,7 @@ function assertSettlementTargetReality(c,target,fingerprint,consumedReplay=false
   }
 }
 function permitsMissingArtifactReplacement(care,artifactKind){
-  if(!['nfo','poster'].includes(artifactKind))return false;
+  if(!['nfo','poster','fanart'].includes(artifactKind))return false;
   const codes=new Set(careFindingCodes(care?.careRequirement));
   return codes.has('custody:artifact_missing')&&codes.has('presentation:'+artifactKind+'_missing');
 }
@@ -407,7 +409,8 @@ function aftercareMediaProbeEvidence(raw,handle,sizeBytes,observedAtMs){
   const base={schemaRef:'helix://contracts/types/MediaProbeEvidence/v1',schemaVersion:1,
     evidenceId:stable('arca-care-media-probe-',{handle,raw}),evidenceKind:'media_probe',producerRef:'shared.material.media.probe@1',
     basisDigest:canonicalDigest(handle),payloadDigest:'',observedAtMs:Number(observedAtMs),sourceHandleDigest:canonicalDigest(handle),
-    resultKind:raw.resultKind,...(raw.resultKind==='not_media'?{reasonCode:'probe_not_media'}:{container:raw.container||'unknown',durationMs:Number(raw.durationMs||0)}),
+    resultKind:raw.resultKind,...(raw.resultKind==='not_media'?{reasonCode:'probe_not_media'}:{container:raw.container||'unknown',durationMs:Number(raw.durationMs||0),
+      ...(raw.copyCompatibilityDigest?{copyCompatibilityDigest:raw.copyCompatibilityDigest}:{})}),
     sizeBytes:Number(sizeBytes),videoStreams:Object.freeze((raw.videoStreams||[]).map((stream)=>{
       const codedWidth=Math.max(1,Number(stream.codedWidth||stream.width||1)),codedHeight=Math.max(1,Number(stream.codedHeight||stream.height||1)),
         rotation=Number(stream.rotation||0),rotated=Math.abs(rotation)%180===90,
@@ -694,7 +697,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
         current.basis.decisionFactSetDigest!==frozen.decisionFactSetDigest)throw Object.assign(new Error('Aftercare Settlement authority is stale.'),{code:'ARCA_AFTERCARE_SETTLEMENT_BASIS_STALE'});
     return Object.freeze({current,care,approval});}
   function resultFor(execution,capabilityRef){return options.workResultReader.read(execution.workId).find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===capabilityRef)?.result||null;}
-  function providerHandle(c){const provenance=c.raw.facts.map((item)=>item.value?.provenance||item.value?.sourceProvenance||{}).find((item)=>item.integrationId&&item.configRevision),intent={providerKind:c.raw.identity.provider,integrationId:provenance?.integrationId,configRevision:Number(provenance?.configRevision)};return options.resolveAftercareIntegrationHandle?.({operationId:C.binaryAcquire,artifactKind:'poster',intent})||null;}
+  function providerHandle(c,artifactKind='poster'){const intent=aftercareArtifactSourceIntent(c);return options.resolveAftercareIntegrationHandle?.({operationId:C.binaryAcquire,artifactKind,intent})||null;}
   function preparationWorkId(execution){for(const binding of options.workResultReader.readBindings(execution.workId).flatMap((item)=>item.inputBindings?.bindings||[])){const source=binding.parameters?.sourceWorkId||(binding.parameters?.dependencyRefs||[]).find((item)=>item.objectType==='repair_prepare_work')?.objectId;if(source)return source;}return null;}
   function validateAtomicInventoryOutcome(value){const validator=options.contractValidator;if(!validator||typeof validator.validate!=='function')throw new TypeError('Aftercare atomic Inventory commit requires the frozen Capability contract validator.');validator.validate('helix://contracts/types/CapabilityOutcome/v1',value);validator.validate(value.resultSchemaRef,value.result);validator.validate(value.evidenceSchemaRef,value.evidence);validator.validate('helix://contracts/types/EffectReceipt/v1',value.effectReceipt);if(!value.result?.newInventoryRevision)throw new TypeError('Aftercare Inventory Commit Receipt is invalid.');return value;}
   function pure(ref,names,build){return Object.freeze({validateInputs(c){requireNamed(c,names);},execute(c){return outcome(ref,build(c.namedInputs,context(c),now(),c),now());},validateResult(_c,o){if(!o?.result)throw new TypeError(ref+' Result is absent.');}});}
@@ -723,6 +726,12 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
       c.raw.identity.provider&&c.raw.identity.provider_key&&providerHandle(c)?'auto_repair':'attention_required',c.shelfEntryId));
     else if(!hasValidPoster)findings.push(finding('presentation','poster_corrupt','warning',
       c.raw.identity.provider&&c.raw.identity.provider_key&&providerHandle(c)?'auto_repair':'attention_required',c.shelfEntryId));
+    if(c.raw.identity.provider==='jav'&&effectiveRequirements(c)?.metadata?.requiredArtifactKinds?.includes('fanart')) {
+      const fanarts=existingMaterials(c.raw.materials,item=>isAftercareArtifactMaterial(item,'fanart'));let valid=false;
+      for(const fanart of fanarts)if(await validImage(fanart.location)){valid=true;break;}
+      if(!valid)findings.push(finding('presentation',fanarts.length?'fanart_corrupt':'fanart_missing','warning',
+        c.raw.identity.provider==='jav'&&providerHandle(c,'fanart')?'auto_repair':'attention_required',c.shelfEntryId));
+    }
     return outcome(C.presentation,assessment('presentation',c,findings,at,undefined,execution.workId),at);},validateResult(_c,o){if(!o?.result)throw new TypeError('Presentation Assessment Result is absent.');}});
   ports[C.conformance]=Object.freeze({validateInputs(c){requireNamed(c,['careBasis','inventoryRevision','knownBindings','standard','placement']);},async execute(execution){const c=context(execution),at=now(),custody=resultFor(execution,C.custody);
     if(execution.parameters?.materialKey!==undefined)return outcome(C.conformance,
@@ -780,27 +789,40 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     validateInputs(c){requireNamed(c,['stableProviderIdentity','integrationHandle']);},
     async execute(execution){
       const c=context(execution),admission=workspaceAdmission(c,execution);if(admission.failure)return admission.failure;
-      const care=admission.care,at=now(),n=execution.namedInputs,basis=canonicalDigest(n);
+      const care=admission.care,at=now(),n=execution.namedInputs,artifactKind=execution.parameters.artifactKind,basis=canonicalDigest({inputs:n,artifactKind});
+      if(!['poster','fanart'].includes(artifactKind)||artifactKind==='fanart'&&c.raw.identity.provider!=='jav')throw new TypeError('Aftercare image kind is unsupported.');
       if(n.integrationHandle.allowedOperation!==C.binaryAcquire||
           n.stableProviderIdentity.providerId!==c.raw.identity.provider||
           String(n.stableProviderIdentity.providerObjectId)!==String(c.raw.identity.provider_key)||
           n.stableProviderIdentity.identityDigest!==c.raw.identity.identity_digest)
         return Object.freeze({kind:'failed',failureClass:'executor',code:'ARCA_AFTERCARE_PROVIDER_INPUT_STALE',message:'Aftercare Provider input does not match the current Case identity and operation.',retryDirective:'contract_policy',evidence:Object.freeze({errorName:'AftercareProviderInputError',errorCode:'ARCA_AFTERCARE_PROVIDER_INPUT_STALE'})});
-      let response,image,resolvedProviderIdentity;
+      let response,image,resolvedProviderIdentity,javCoverDerivation=null;
       try {
       resolvedProviderIdentity=aftercareProviderIdentity(c,n.stableProviderIdentity);
       if(typeof options.fetchAftercareArtifact!=='function')
         throw Object.assign(new Error('Aftercare Provider Artifact adapter is unavailable.'),{code:'ARCA_AFTERCARE_PROVIDER_UNAVAILABLE'});
-      response=await options.fetchAftercareArtifact({operationId:C.binaryAcquire,artifactKind:'poster',
-          integrationHandle:n.integrationHandle,resolvedProviderIdentity});
+      response=await options.fetchAftercareArtifact({operationId:C.binaryAcquire,artifactKind,
+          integrationHandle:n.integrationHandle,resolvedProviderIdentity,...(c.raw.identity.provider==='jav'?{javSelectedSource:aftercareJavSource(c)}:{})});
       if(!response || !['acquired','not_available'].includes(response.resultKind) ||
           (response.resultKind==='not_available' && (!response.reasonCode || typeof response.reasonCode!=='string')))
         throw Object.assign(new Error('Aftercare Provider response is not a typed result.'),{code:'ARCA_AFTERCARE_PROVIDER_RESPONSE_INVALID'});
       if(response.resultKind==='acquired') {
-        if(response.artifactKind!=='poster'||response.integrationId!==n.integrationHandle.integrationId||
+        if(response.artifactKind!==artifactKind||response.integrationId!==n.integrationHandle.integrationId||
             response.configRevision!==n.integrationHandle.configRevision||
             canonicalDigest(response.resolvedProviderIdentity)!==canonicalDigest(resolvedProviderIdentity))
           throw Object.assign(new Error('Aftercare Provider response does not match the frozen Artifact Handle.'),{code:'ARCA_AFTERCARE_PROVIDER_RESPONSE_STALE'});
+        if(c.raw.identity.provider==='jav') {
+          const origin=aftercareJavSource(c),selectedSource=aftercareJavAcquisitionSource(origin,n.integrationHandle,response.sourceObservation);
+          if(typeof options.deriveJavCoverBytes!=='function')throw new TypeError('JAV Aftercare cover renderer is unavailable.');
+          const derived=await options.deriveJavCoverBytes({bytes:response.sourceCoverBytes,artifactKind,selectedSource,
+            sourceObservationDigest:response.sourceObservationDigest});
+          javCoverDerivation=assertJavCoverDerivation(derived.derivation);
+          if(javCoverDerivation.kind!==artifactKind||canonicalDigest(javCoverDerivation.javSelectedSource)!==canonicalDigest(selectedSource)||
+            javCoverDerivation.outputDigest!==crypto.createHash('sha256').update(derived.bytes).digest('hex'))
+            throw Object.assign(new Error('JAV Aftercare cover derivation changed its accepted source.'),{code:'ARCA_AFTERCARE_ARTIFACT_VERIFICATION_FAILED'});
+          aftercareJavCoverProvenance(c,n.integrationHandle,javCoverDerivation);
+          response={...response,bytes:derived.bytes};
+        }
         if(!Buffer.isBuffer(response.bytes))
           throw Object.assign(new Error('Aftercare Provider Artifact bytes are absent.'),{code:'ARCA_AFTERCARE_ARTIFACT_VERIFICATION_FAILED'});
         image=await inspectImageBytes(response.bytes);
@@ -811,7 +833,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
         const root=path.resolve(options.aftercareWorkspaceRoot||path.join(os.tmpdir(),'shelfdeck-aftercare-workspaces')),
           target=path.join(root,care.aftercareCaseId,'artifacts');
         const absent=location=>{try{fs.lstatSync(location);return false;}catch(observationError){return observationError.code==='ENOENT';}};
-        if(!inside(root,target)||!['jpg','png','webp'].every(extension=>absent(path.join(target,'poster.'+extension))))throw error;
+        if(!inside(root,target)||!['jpg','png','webp'].every(extension=>absent(path.join(target,artifactKind+'.'+extension))))throw error;
         return Object.freeze({kind:'failed',failureClass:'integration',code:'ARCA_AFTERCARE_ARTIFACT_FETCH_FAILED',
           message:'Artifact retrieval failed before Workspace write.',retryDirective:'never',
           evidence:Object.freeze({eventAttemptId:execution.eventAttemptId,idempotencyKey:execution.idempotencyKey,
@@ -829,22 +851,30 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
         return Object.freeze({...outcome(C.binaryAcquire,result,at),effectReceipt:effectReceipt(execution,'workspace_write',result,at)});
       }
       const extension=image.format==='jpeg'?'jpg':image.format,root=workspaceRoot(options,store,care.aftercareCaseId),
-        location=path.join(root,'artifacts','poster.'+extension);
+        location=path.join(root,'artifacts',artifactKind+'.'+extension);
       fs.mkdirSync(path.dirname(location),{recursive:true});
       if(fs.existsSync(location)){if(!fs.readFileSync(location).equals(response.bytes))throw new Error('Aftercare Poster Workspace replay conflicts with existing bytes.');}
       else fs.writeFileSync(location,response.bytes,{flag:'wx'});
-      const handle=artifactHandle(c,care.aftercareCaseId,'poster',location,at,image.mediaType),
-        member=buildWorkspaceMaterialHandle(c,store,care.aftercareCaseId,'poster',location,'sha256',handle.digestHex,fingerprint),
+      const provenanceDigest=javCoverDerivation?aftercareJavCoverProvenance(c,n.integrationHandle,javCoverDerivation):c.basis.digest,
+        handle=artifactHandle(c,care.aftercareCaseId,artifactKind,location,at,image.mediaType,provenanceDigest),
+        member=buildWorkspaceMaterialHandle(c,store,care.aftercareCaseId,artifactKind,location,'sha256',handle.digestHex,fingerprint),
         verifiedEvidence=Object.freeze({...evidenceValue,evidenceKind:'aftercare_artifact_verification',
-          payloadDigest:canonicalDigest({schema:'arca.aftercare-artifact-verification@1',basis,artifactKind:'poster',
+          payloadDigest:canonicalDigest({schema:'arca.aftercare-artifact-verification@1',basis,artifactKind,
             digestHex:handle.digestHex,sizeBytes:handle.sizeBytes,mediaType:handle.mediaType,width:image.width,
             height:image.height,result:'passed'})});
       store.registerAftercareWorkspaceMaterial(member,handle);
       const result=Object.freeze({schemaRef:'helix://contracts/types/ArtifactAcquisitionResult/v1',schemaVersion:1,
-        resultKind:'acquired',artifactHandle:handle,reasonCode:null,evidence:verifiedEvidence});
+        resultKind:'acquired',artifactHandle:handle,reasonCode:null,evidence:verifiedEvidence,...(javCoverDerivation?{javCoverDerivation}:{})});
       return Object.freeze({...outcome(C.binaryAcquire,result,at),effectReceipt:effectReceipt(execution,'workspace_write',result,at)});
     },
-    validateResult(_c,o){if(!['acquired','not_available'].includes(o?.result?.resultKind))throw new TypeError('Aftercare Artifact acquisition Result is invalid.');},
+    validateResult(execution,o){
+      if(!['acquired','not_available'].includes(o?.result?.resultKind))throw new TypeError('Aftercare Artifact acquisition Result is invalid.');
+      if(execution.namedInputs.stableProviderIdentity.providerId==='jav'&&o.result.resultKind==='acquired') {
+        const proof=assertJavCoverDerivation(o.result.javCoverDerivation),digest=aftercareJavCoverProvenance(context(execution),execution.namedInputs.integrationHandle,proof);
+        if(o.result.artifactHandle?.digestHex!==proof.outputDigest||o.result.artifactHandle.provenanceRef?.digest!==digest)
+          throw new TypeError('Aftercare JAV Artifact Result lacks its exact source recipe and registered output.');
+      }else if(o.result.javCoverDerivation)throw new TypeError('Non-JAV Aftercare Artifact cannot claim a JAV recipe.');
+    },
   });
   ports[C.artifactMaterialize]=Object.freeze({validateInputs(c){requireNamed(c,['verifiedArtifactOrWorkspaceMediaHandle','inventoryTargetHandle']);},async execute(execution){try{const c=context(execution),care=activeCase(c),at=now(),n=execution.namedInputs,output=n.verifiedArtifactOrWorkspaceMediaHandle,target=n.inventoryTargetHandle;if(!inside(c.raw.shelf.target_root_location,target.targetDirectory)||!inside(target.targetDirectory,target.slotDirectory))throw new Error('Aftercare output target escapes the Shelf Target.');const isMedia=Boolean(output.workspaceMediaHandleId),mediaTarget=isMedia&&c.raw.entry.structure_kind==='season'?seriesMediaOutputTarget(c,care,store.history(c.shelfEntryId),options.workResultReader,output):null,primary=mediaTarget?mediaTarget.material:c.raw.materials.find(isPrimaryMaterial),source=isMedia?workspaceLocation(store,output.workspaceMaterialHandle):output.storageRef,reconcileNfo=!isMedia&&output.artifactKind==='nfo'&&output.provenanceRef?.objectType==='aftercare_nfo_reconcile';let location,supersededLocation=null,kind,identity;
     let seriesTarget=null;
@@ -862,8 +892,8 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
         throw Object.assign(new Error('Series prepared media changed before materialization.'),{code:'ARCA_AFTERCARE_SERIES_MEDIA_OUTPUT_STALE'});
     }
     let supersededMaterialIdentity=null;if(isMedia){if(!primary)throw new Error('Aftercare media replacement has no current Primary.');const oldLocation=primary.location,sourceExtension=path.extname(source)||path.extname(oldLocation);location=path.join(path.dirname(oldLocation),path.parse(oldLocation).name+sourceExtension);kind='primary_payload';supersededLocation=oldLocation+'.superseded-'+care.aftercareCaseId;const staged=location+'.staged-'+care.aftercareCaseId,mountScopeId=c.raw.shelf.target_mount_scope_id;if(fs.existsSync(supersededLocation))supersededMaterialIdentity=physicalIdentity(supersededLocation,mountScopeId,fingerprint);else if(fs.existsSync(oldLocation)&&!sameBoundedMedia(oldLocation,source,mountScopeId,fingerprint))supersededMaterialIdentity=physicalIdentity(oldLocation,mountScopeId,fingerprint);identity=await materializeMediaWithRollback({source,location,oldLocation,supersededLocation,staged,oldMaterial:primary,mountScopeId,fingerprint,revalidate:()=>revalidateCaseAuthority(execution,care)});}
-    else {kind=output.artifactKind;const posterExtension=output.mediaType==='image/png'?'.png':output.mediaType==='image/webp'?'.webp':'.jpg',name=kind==='nfo'?(path.parse(primary?.location||'movie.mkv').name+'.nfo'):('poster'+posterExtension),selected=reconcileNfo?selectedNfoMaterial(c.raw.materials):null;location=seriesTarget?seriesTarget.material.location:reconcileNfo?selected?.location:path.join(target.slotDirectory,name);if(!location||!inside(c.raw.shelf.target_root_location,location))throw new Error('Aftercare NFO reconciliation target is absent or outside the Shelf Target.');const retiredLocation=location+'.superseded-'+care.aftercareCaseId,inventoryMaterial=c.raw.materials.find((item)=>(kind==='nfo'?isNfoMaterial(item):isPosterMaterial(item))&&path.resolve(item.location)===path.resolve(location));if(reconcileNfo){identity=observeSemanticNfoReconciliation({location,metadata:c.raw.facts.find((item)=>item.fact_kind==='product_metadata')?.value,cast:c.raw.facts.find((item)=>item.fact_kind==='media_cast')?.value,identity:{provider:c.raw.identity.provider,providerKey:c.raw.identity.provider_key},mountScopeId:c.raw.shelf.target_mount_scope_id,readSnapshot}).identity;revalidateCaseAuthority(execution,care);}else {const sourceGuard=seriesTarget?seriesNfoCommitSource({contextValue:c,target:seriesTarget,output,source,retiredLocation,recoveryDecision:execution.recoveryDecision,fingerprint}):kind==='nfo'?nfoCommitSource(c,output,location,inventoryMaterial,c.raw.shelf.target_mount_scope_id,fingerprint):Object.freeze({material:inventoryMaterial,supersededMaterialIdentity:null});if(sourceGuard.supersededMaterialIdentity){supersededMaterialIdentity=sourceGuard.supersededMaterialIdentity;supersededLocation=retiredLocation;}identity=materializeArtifactWithRollback({source,location,retiredLocation,oldMaterial:sourceGuard.material,mountScopeId:c.raw.shelf.target_mount_scope_id,fingerprint,revalidate:()=>revalidateCaseAuthority(execution,care),allowMissingOld:(!seriesTarget||sourceGuard.allowMissingOld)&&permitsMissingArtifactReplacement(care,kind)});}}
-    const canonicalLocation=location.replace(/\\/g,'/'),retiredMaterials=(isMedia?(mediaTarget?[{identity:physicalIdentityFromInventoryRow(primary),location:(supersededMaterialIdentity?supersededLocation:primary.location).replace(/\\/g,'/'),requiresSettlement:false}]:[]):c.raw.materials.filter((item)=>seriesTarget?item.material_key===seriesTarget.material.material_key:kind==='nfo'?isNfoMaterial(item):isPosterMaterial(item)).map((item)=>{const deterministic=item.location+'.superseded-'+care.aftercareCaseId,hasSuperseded=!reconcileNfo&&path.resolve(item.location)===path.resolve(location)&&fs.existsSync(deterministic),retiredLocation=hasSuperseded?deterministic:item.location,requiresSettlement=!reconcileNfo&&!supersededMaterialIdentity&&(hasSuperseded||(fs.existsSync(retiredLocation)&&path.resolve(retiredLocation)!==path.resolve(location)));return Object.freeze({identity:Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:item.material_key,mountScopeId:item.mount_scope_id,inode:item.inode,sizeBytes:Number(item.size_bytes),fingerprintAlgorithm:item.fingerprint_algorithm,fingerprintVersion:Number(item.fingerprint_version),contentFingerprint:item.content_fingerprint}),location:retiredLocation.replace(/\\/g,'/'),requiresSettlement});})).sort((a,b)=>a.identity.materialKey.localeCompare(b.identity.materialKey)),targetBindingDigest=canonicalDigest({endpointId:c.raw.shelf.target_endpoint_id,location:canonicalLocation,identity}),base={schemaRef:'helix://contracts/types/MaterialEffectReceipt/v1',schemaVersion:1,receiptId:stable('arca-care-materialized-',{caseId:care.aftercareCaseId,kind,targetBindingDigest}),receiptKind:'aftercare_output_materialized',ownerDomain:'arca',scopeType:'aftercare_case',scopeId:care.aftercareCaseId,scopeDigest:care.careRequirementDigest,effectReceiptRef:stable('arca-care-effect-receipt-',{eventId:execution.eventId}),committedAtMs:at,targetBindingDigest,materialEffectKind:isMedia?'primary_replace':reconcileNfo?'artifact_reconcile':'artifact_materialize',effectReceiptId:stable('arca-care-effect-receipt-',{eventId:execution.eventId}),finalRealityDigest:canonicalDigest({identity,location:canonicalLocation}),finalMaterialIdentity:identity,targetEndpointId:c.raw.shelf.target_endpoint_id,targetLocation:canonicalLocation,retiredMaterials:Object.freeze(retiredMaterials),...(supersededLocation&&supersededMaterialIdentity?{supersededLocation:supersededLocation.replace(/\\/g,'/'),supersededMaterialIdentity}:{})};const result=Object.freeze(base);return committed(execution,C.artifactMaterialize,result,at,'material_commit');}catch(error){const conflict=externalWriterConflictOutcome(error);if(conflict)return conflict;throw error;}},validateResult(_c,o){if(isExternalWriterConflictOutcome(o))return;if(o?.kind==='failed'||o?.result?.receiptKind!=='aftercare_output_materialized')throw new TypeError('Aftercare Material effect Receipt is invalid.');}});
+    else {kind=output.artifactKind;const posterExtension=output.mediaType==='image/png'?'.png':output.mediaType==='image/webp'?'.webp':'.jpg',name=kind==='nfo'?(path.parse(primary?.location||'movie.mkv').name+'.nfo'):(kind+posterExtension),selected=reconcileNfo?selectedNfoMaterial(c.raw.materials):c.raw.materials.find(item=>kind==='nfo'?isNfoMaterial(item):isAftercareArtifactMaterial(item,kind));location=seriesTarget?seriesTarget.material.location:selected?.location||path.join(target.slotDirectory,name);if(!location||!inside(c.raw.shelf.target_root_location,location))throw new Error('Aftercare NFO reconciliation target is absent or outside the Shelf Target.');const retiredLocation=location+'.superseded-'+care.aftercareCaseId,inventoryMaterial=c.raw.materials.find((item)=>(kind==='nfo'?isNfoMaterial(item):isAftercareArtifactMaterial(item,kind))&&path.resolve(item.location)===path.resolve(location));if(reconcileNfo){identity=observeSemanticNfoReconciliation({location,metadata:c.raw.facts.find((item)=>item.fact_kind==='product_metadata')?.value,cast:c.raw.facts.find((item)=>item.fact_kind==='media_cast')?.value,identity:{provider:c.raw.identity.provider,providerKey:c.raw.identity.provider_key},mountScopeId:c.raw.shelf.target_mount_scope_id,readSnapshot}).identity;revalidateCaseAuthority(execution,care);}else {const sourceGuard=seriesTarget?seriesNfoCommitSource({contextValue:c,target:seriesTarget,output,source,retiredLocation,recoveryDecision:execution.recoveryDecision,fingerprint}):kind==='nfo'?nfoCommitSource(c,output,location,inventoryMaterial,c.raw.shelf.target_mount_scope_id,fingerprint):Object.freeze({material:inventoryMaterial,supersededMaterialIdentity:null});if(sourceGuard.supersededMaterialIdentity){supersededMaterialIdentity=sourceGuard.supersededMaterialIdentity;supersededLocation=retiredLocation;}identity=materializeArtifactWithRollback({source,location,retiredLocation,oldMaterial:sourceGuard.material,mountScopeId:c.raw.shelf.target_mount_scope_id,fingerprint,revalidate:()=>revalidateCaseAuthority(execution,care),allowMissingOld:(!seriesTarget||sourceGuard.allowMissingOld)&&permitsMissingArtifactReplacement(care,kind)});}}
+    const canonicalLocation=location.replace(/\\/g,'/'),retiredMaterials=(isMedia?(mediaTarget?[{identity:physicalIdentityFromInventoryRow(primary),location:(supersededMaterialIdentity?supersededLocation:primary.location).replace(/\\/g,'/'),requiresSettlement:false}]:[]):c.raw.materials.filter((item)=>seriesTarget?item.material_key===seriesTarget.material.material_key:kind==='nfo'?isNfoMaterial(item):isAftercareArtifactMaterial(item,kind)).map((item)=>{const deterministic=item.location+'.superseded-'+care.aftercareCaseId,hasSuperseded=!reconcileNfo&&path.resolve(item.location)===path.resolve(location)&&fs.existsSync(deterministic),retiredLocation=hasSuperseded?deterministic:item.location,requiresSettlement=!reconcileNfo&&!supersededMaterialIdentity&&(hasSuperseded||(fs.existsSync(retiredLocation)&&path.resolve(retiredLocation)!==path.resolve(location)));return Object.freeze({identity:Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey:item.material_key,mountScopeId:item.mount_scope_id,inode:item.inode,sizeBytes:Number(item.size_bytes),fingerprintAlgorithm:item.fingerprint_algorithm,fingerprintVersion:Number(item.fingerprint_version),contentFingerprint:item.content_fingerprint}),location:retiredLocation.replace(/\\/g,'/'),requiresSettlement});})).sort((a,b)=>a.identity.materialKey.localeCompare(b.identity.materialKey)),targetBindingDigest=canonicalDigest({endpointId:c.raw.shelf.target_endpoint_id,location:canonicalLocation,identity}),base={schemaRef:'helix://contracts/types/MaterialEffectReceipt/v1',schemaVersion:1,receiptId:stable('arca-care-materialized-',{caseId:care.aftercareCaseId,kind,targetBindingDigest}),receiptKind:'aftercare_output_materialized',ownerDomain:'arca',scopeType:'aftercare_case',scopeId:care.aftercareCaseId,scopeDigest:care.careRequirementDigest,effectReceiptRef:stable('arca-care-effect-receipt-',{eventId:execution.eventId}),committedAtMs:at,targetBindingDigest,materialEffectKind:isMedia?'primary_replace':reconcileNfo?'artifact_reconcile':'artifact_materialize',effectReceiptId:stable('arca-care-effect-receipt-',{eventId:execution.eventId}),finalRealityDigest:canonicalDigest({identity,location:canonicalLocation}),finalMaterialIdentity:identity,targetEndpointId:c.raw.shelf.target_endpoint_id,targetLocation:canonicalLocation,retiredMaterials:Object.freeze(retiredMaterials),...(!isMedia?{artifactKind:kind}:{}),...(supersededLocation&&supersededMaterialIdentity?{supersededLocation:supersededLocation.replace(/\\/g,'/'),supersededMaterialIdentity}:{})};const result=Object.freeze(base);return committed(execution,C.artifactMaterialize,result,at,'material_commit');}catch(error){const conflict=externalWriterConflictOutcome(error);if(conflict)return conflict;throw error;}},validateResult(_c,o){if(isExternalWriterConflictOutcome(o))return;if(o?.kind==='failed'||o?.result?.receiptKind!=='aftercare_output_materialized')throw new TypeError('Aftercare Material effect Receipt is invalid.');}});
   function repairSource(c,care,execution,kind) {
     const source=mediaRepairSource(c,execution.parameters?.materialKey);
     if(c.raw.entry.structure_kind!=='season')return source;
@@ -954,7 +984,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
       verifySeriesMaterializedMedia(c,care,preparedSet,receipts,fingerprint);
     }
     {const planned=deriveInventoryMaterialChanges(frozenMaterials,receipts);if(planned.length===0)return aftercareInventoryNoChangeOutcome();const releasedKeys=new Set(planned.filter((item)=>item.action==='release').map((item)=>item.identity.materialKey)),materials=frozenMaterials.filter((item)=>!releasedKeys.has(item.material_key)).map((item)=>({...item}));
-      for(const receipt of receipts){const identity=receipt.finalMaterialIdentity,existing=materials.find((item)=>item.material_key===identity.materialKey);if(existing)continue;const extension=path.extname(receipt.targetLocation).toLowerCase(),retiredKey=receipt.retiredMaterials?.[0]?.identity?.materialKey||receipt.supersededMaterialIdentity?.materialKey,sourceRow=retiredKey?frozenMaterials.find((item)=>item.material_key===retiredKey):null,role=receipt.materialEffectKind==='placement_migrate'&&sourceRow?sourceRow.role:receipt.materialEffectKind==='primary_replace'?'primary_payload':extension==='.nfo'?'metadata_sidecar':/(jpg|jpeg|png|webp)$/.test(extension.slice(1))?'poster':'sidecar',episodeClaims=sourceRow?JSON.parse(sourceRow.episode_claims_json):emptyArcaMaterialEpisodeClaims();materials.push({shelf_entry_id:c.shelfEntryId,inventory_revision:c.raw.entry.current_inventory_revision+1,ordinal:materials.length,material_key:identity.materialKey,role,episode_claims_schema_ref:EPISODE_CLAIMS_SCHEMA,episode_claims_json:canonicalJson(episodeClaims),episode_claim_set_digest:sourceRow?.episode_claim_set_digest||episodeClaims.episodeClaimSetDigest,artifact_scope_schema_ref:sourceRow?.artifact_scope_schema_ref??null,artifact_scope_json:sourceRow?.artifact_scope_json??null,endpoint_id:receipt.targetEndpointId,location:receipt.targetLocation,binding_revision:1,mount_scope_id:identity.mountScopeId,inode:identity.inode,fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:String(identity.fingerprintVersion),content_fingerprint:identity.contentFingerprint,digest_hex:identity.contentFingerprint,size_bytes:identity.sizeBytes,active_guard:role==='primary_payload'?1:0});}
+      for(const receipt of receipts){const identity=receipt.finalMaterialIdentity,existing=materials.find((item)=>item.material_key===identity.materialKey);if(existing)continue;const retiredKey=receipt.retiredMaterials?.[0]?.identity?.materialKey||receipt.supersededMaterialIdentity?.materialKey,sourceRow=retiredKey?frozenMaterials.find((item)=>item.material_key===retiredKey):null,role=aftercareReceiptMaterialRole(receipt,sourceRow),episodeClaims=sourceRow?JSON.parse(sourceRow.episode_claims_json):emptyArcaMaterialEpisodeClaims();materials.push({shelf_entry_id:c.shelfEntryId,inventory_revision:c.raw.entry.current_inventory_revision+1,ordinal:materials.length,material_key:identity.materialKey,role,episode_claims_schema_ref:EPISODE_CLAIMS_SCHEMA,episode_claims_json:canonicalJson(episodeClaims),episode_claim_set_digest:sourceRow?.episode_claim_set_digest||episodeClaims.episodeClaimSetDigest,artifact_scope_schema_ref:sourceRow?.artifact_scope_schema_ref??null,artifact_scope_json:sourceRow?.artifact_scope_json??null,endpoint_id:receipt.targetEndpointId,location:receipt.targetLocation,binding_revision:1,mount_scope_id:identity.mountScopeId,inode:identity.inode,fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:String(identity.fingerprintVersion),content_fingerprint:identity.contentFingerprint,digest_hex:identity.contentFingerprint,size_bytes:identity.sizeBytes,active_guard:role==='primary_payload'?1:0});}
       const scope=Object.freeze({ownerDomain:'arca',scopeType:'shelf_entry',scopeId:c.shelfEntryId}),projections=controls.getMaterialControlProjections(planned.map((item)=>item.identity.materialKey)),byKey=new Map(projections.map((item)=>[item.materialKey,item])),changes=planned.map((item)=>{const projection=byKey.get(item.identity.materialKey);return Object.freeze({identity:item.identity,action:item.action,expectedRevision:Number(projection.controlRevision),expectedProjectionDigest:projection.projectionDigest,...(item.action==='release'?{fromScope:scope}:{toScope:scope})});});
       if(n.responsibilityControlCommitHandle.controlScopeDigest!==controlScopeDigest(changes))throw new Error('Aftercare Control Handle does not cover the exact Inventory change.');
       const updatedFacts=remapInventoryMappingFacts(c.raw.facts,receipts),nextRevision=Number(c.raw.entry.current_inventory_revision)+1,

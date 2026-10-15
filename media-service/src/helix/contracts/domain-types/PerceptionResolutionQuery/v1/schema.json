@@ -67,6 +67,36 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "directTargetScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "policyRef": {
+          "const": "perception.jav-retained-target@1"
+        },
+        "shelfEntryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "acceptedSubjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "continuityDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "policyRef",
+        "shelfEntryId",
+        "acceptedSubjectId",
+        "continuityDigest"
+      ]
     }
   },
   "required": [

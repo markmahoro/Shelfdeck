@@ -874,7 +874,7 @@ function createOnDeckStore(options) {
         'On-deck Commit requires the exact resolved Product Identity.');
     }
     const providerIdentity = identityValue.providerIdentities?.[0] || {};
-    const {canonicalIdentityKey,shelfEntryId}=canonicalContentIdentity(request.shelf.shelfId,identityValue);
+    const {canonicalIdentityKey,shelfEntryId}=canonicalContentIdentity(request.shelf.shelfId,identityValue,request.onDeckRunId);
     const previous=readSeasonInventory(request.shelf.shelfId,packageValue);
     const inventoryRevision=previous?Number(previous.entry.current_inventory_revision)+1:1;
     const deckFactRevision=previous?Number(previous.entry.current_deck_fact_revision)+1:1;

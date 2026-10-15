@@ -8,8 +8,7 @@ const Database = require('better-sqlite3');
 const { digest } = require('../src/helix/foundation/persistence/ddl-compiler');
 const { migrateUatIdentitySelectionSchema, PRE_SECONDARY_TARGET_SCHEMA_DIGEST, TARGET_SCHEMA_DIGEST } = require('../src/helix/foundation/persistence/uat-identity-selection-migration');
 const { rollbackSecondaryTargetSchema, SECONDARY_TARGET_SCHEMA_DIGEST } = require('../src/helix/foundation/persistence/secondary-target-schema-rollback');
-const generated = path.resolve(__dirname, '../src/helix/foundation/persistence/generated');
-const schemaManifest = require(path.join(generated, 'clean-schema.manifest.json'));
+const {schemaManifest}=require('./fixtures/helix-historical-ddl/schema-snapshot').historicalSchema(TARGET_SCHEMA_DIGEST);
 const ddl = require('node:zlib').gunzipSync(fs.readFileSync(path.join(__dirname,
   'fixtures/helix-historical-ddl', PRE_SECONDARY_TARGET_SCHEMA_DIGEST + '.sql.gz'))).toString('utf8');
 assert.equal(digest(ddl), PRE_SECONDARY_TARGET_SCHEMA_DIGEST);

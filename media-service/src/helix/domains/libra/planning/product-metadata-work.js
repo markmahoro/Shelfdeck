@@ -134,6 +134,7 @@ function providerSource(options, snapshot, identity, sourcePriority,
     requestedFields,
     ...(episodeScope ? { episodeScope } : {}),
     providerKind: providerIdentity.provider,
+    ...(snapshot.spec.contentProfile==='jav'?{javSelectedSource:require('../../../contracts/jav-selected-source').buildJavSelectedSource(identity.factValue.javSourceQualification)}:{}),
   };
   let handle;
   try {
@@ -144,6 +145,7 @@ function providerSource(options, snapshot, identity, sourcePriority,
         sourceKind: 'provider',
         providerKind: providerIdentity.provider,
         operationId: 'libra.product_metadata.fetch@1',
+        ...(seed.javSelectedSource?{javSelectedSource:seed.javSelectedSource}:{}),
       });
   } catch (error) {
     if (error?.code !== 'CLEAN_PRODUCT_INTEGRATION_UNAVAILABLE') throw error;
@@ -210,7 +212,7 @@ function metadataScopeStage(options, snapshot, identity, allResults, results, re
     return Object.freeze({ kind:'ready', requiredFields, missingFields,
       requiredCastRoles, missingCastRoles, results });
   }
-  const references = nfoReferences(snapshot).filter(reference => !episodeScope ||
+  const references = (snapshot.spec.contentProfile==='jav'?[]:nfoReferences(snapshot)).filter(reference => !episodeScope ||
     snapshot.members.some(member => member.materialKey === reference.primaryMaterialKey &&
       member.episodeClaims?.some(claim => claim.episodeKey === episodeScope.episodeKey)));
   const usedNfoRefs = new Set(results

@@ -5,8 +5,38 @@
   "kind": "application-type-registry",
   "owner": "libra",
   "status": "active",
-  "targetCount": 42,
+  "targetCount": 45,
   "entries": [
+    {
+      "id": "AcceptedProductRequirementsQuery",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/AcceptedProductRequirementsQuery/v1",
+      "relativePath": "application-types/AcceptedProductRequirementsQuery/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "b0da59abe9390843e8f50ab8229abb1a8ec6b3d591085c82ad1e3e044d87c9ca"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "AcceptedProductRequirementsResult",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/AcceptedProductRequirementsResult/v1",
+      "relativePath": "application-types/AcceptedProductRequirementsResult/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "10f21002bd9bf0713a85c593351608747f405a7fbe023108471004062d07fd10"
+      },
+      "ssotRefs": [
+        "8.6.21"
+      ]
+    },
     {
       "id": "AuthorizedDefectManifest",
       "version": 1,
@@ -22,6 +52,21 @@
         "5.6.7",
         "5.7.2",
         "5.8.2",
+        "8.6.21"
+      ]
+    },
+    {
+      "id": "LibraAcceptedSubjectOrigin",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/LibraAcceptedSubjectOrigin/v1",
+      "relativePath": "application-types/LibraAcceptedSubjectOrigin/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "b993ffb986a170cf03212343c57e88a5355f5e2974560f964c53401d09dfb620"
+      },
+      "ssotRefs": [
         "8.6.21"
       ]
     },
@@ -417,7 +462,7 @@
       "relativePath": "application-types/LibraRunTerminalDeliveryEvidence/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "3b06593af5abeb997b10322c273125653e14ae67956e3c4f351868191766a455"
+        "value": "279f4e88eac06d0b3ee5f53038eb74b51bb26da5cb8160495cbfdf4f6beadd14"
       },
       "ssotRefs": [
         "8.6.21"

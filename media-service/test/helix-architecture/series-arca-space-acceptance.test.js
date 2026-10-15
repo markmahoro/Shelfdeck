@@ -26,6 +26,7 @@ async function execute(members,maxSizeBytes,{series=true,stale=false,capability=
   manifest.manifestDigest=canonicalDigest(manifest);
   const packageValue={onDeckPackageId:'package',packageDigest:D('package'),shelfId:'shelf',
     acceptanceSpecRef:{id:'spec',recordDigest:D('spec')},productStructureSnapshot:{structureKind:series?'season':'single'},
+    resolvedIdentitySnapshot:{factValue:{identityKind:series?'tmdb_series_season':'tmdb_movie',contentProfile:series?'series':'movie',structureKind:series?'season':'single'}},
     productMaterialManifest:manifest,productionProvenance:{acceptanceRequirementSnapshot:snapshot}};
   const native=fixture(capability);
   try {

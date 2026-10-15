@@ -37,11 +37,16 @@ test('plans Related NFO then TMDB and never performs executor fallback',()=>{
 });
 
 test('keeps JAV and Western on their own closed source paths',()=>{
+  const body={schema:'libra.jav-selected-source@1',siteRef:'javdb',integrationId:'jav-main',configRevision:1,authMode:'anonymous',
+    endpointProfileDigest:d('endpoint'),networkRouteDigest:d('route'),queryAnchor:require('../../src/helix/contracts/jav-source-contracts').buildJavQueryAnchor('jav_code','SDKI-001'),
+    resourceKey:'qualified-film',title:'Qualified film',coverDigest:d('cover'),qualificationDigest:d('qualification')};
+  const javSelectedSource={...body,bindingDigest:canonicalDigest(body)};
   const jav=planMetadataGap({...base,contentProfile:'jav',relatedNfo:null,
     resolvedProviderIdentity:providerIdentity('jav','jav_code','SDKI-001'),
-    provider:{providerKind:'jav',integrationId:'jav-main',configRevision:1}});
+    provider:{providerKind:'jav',integrationId:'jav-main',configRevision:1},javSelectedSource});
   assert.equal(jav.nextIntent.providerKind,'jav');
   assert.equal(jav.nextIntent.sourcePriority,0);
+  assert.deepEqual(jav.nextIntent.javSelectedSource,javSelectedSource);
   const western=planMetadataGap({...base,contentProfile:'western_adult',relatedNfo:null,provider:null});
   assert.equal(western.planKind,'western_analysis');
   assert.equal(western.nextIntent,null);

@@ -165,7 +165,7 @@ test('UAT-126 upgrades the prior clean schema before defect admission revisions 
     database.prepare('UPDATE platform_schema_marker SET schema_digest=?,catalog_digest=?')
       .run(PRE_DEFECT_ADMISSION_SCHEMA_DIGEST, digest(catalog));
     database.close();
-    const schemaManifest = require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+    const schemaManifest = require('../fixtures/helix-historical-ddl/schema-snapshot').historicalSchema('c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d').schemaManifest;
     const migrated = migrateUatIdentitySelectionSchema({ Database, databasePath,
       schemaManifest, now:() => 119 });
     assert.equal(migrated.migrated, true);

@@ -31,6 +31,8 @@ const TRIAGE_PAYLOAD = Object.freeze({
   profileResolutionRule: Object.freeze({ mixedPrecedence:Object.freeze(['series_episode_token','jav_code','movie_fallback']),
     westernAdultRequiresExplicitHint:true }),
   structureRule: Object.freeze({ maxUnitCanonicalBytes:65536, maxSeriesUnitCanonicalBytes:8*1024*1024 }),
+  javNamedPartsRule:Object.freeze({profiles:Object.freeze(['jav','mixed']),labels:Object.freeze(['A','B']),parentBoundary:'direct_parent',
+    identityRule:'canonical_jav_code',memberOrder:'part_label',requireCompleteLabelSet:false,singleMemberInputForm:'stream_file',multipleMemberInputForm:'jav_named_parts'}),
   identityRule: Object.freeze({ claimKinds:Object.freeze(['movie_title','series_season','jav_code','western_temporary']) }),
   manifestRule: Object.freeze({ minimumMembers:1, maximumMembers:MAX_RUN_PHYSICAL_MEMBERS, firstOrdinal:0 })
 });
@@ -73,7 +75,7 @@ function validateTriageRuleSnapshot(rule) {
   return rule;
 }
 function createDefaultTriageRuleRegistry() {
-  const base = { ruleRef:'procurement.triage.default', revision:1, ruleSchemaRef:TRIAGE_RULE_SCHEMA, rulePayload:TRIAGE_PAYLOAD };
+  const base = { ruleRef:'procurement.triage.default', revision:2, ruleSchemaRef:TRIAGE_RULE_SCHEMA, rulePayload:TRIAGE_PAYLOAD };
   const signed = { ...base, ruleDigest:ruleDigestFor(base) };
   const entry = deepFreeze({ ...signed, authorityDigest:authorityDigestFor(signed) });
   const registry = { registrySchemaRef:TRIAGE_REGISTRY_SCHEMA, registryVersion:1, activeRuleRef:entry.ruleRef,

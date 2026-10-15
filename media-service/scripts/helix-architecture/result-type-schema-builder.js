@@ -1,4 +1,5 @@
 'use strict';
+const { javPartSetSchema } = require('../../src/helix/contracts/jav-part-set');
 
 const { boundSeriesNfoProvenance } = require('./series-nfo-provenance-schema');
 
@@ -214,6 +215,8 @@ const triageUnit = () => {
   return { oneOf: [
     object({ ...common, members: { ...arrayOf(member, PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 } }),
     object({ ...common, memberScope: scope }),
+    object({ ...common, mediaType:{ const:'single' }, contentProfile:{ const:'jav' }, structureKind:{ const:'single' },
+      materialInputForm:{ const:'jav_named_parts' }, javPartSet:javPartSetSchema(), members:{ ...arrayOf(member,2), minItems:2 } }),
     object({ recordKind:{ const:'series_unit' }, procurementRunId:id(), runBasisDigest:digest(), selectionDigest:digest(),
       triageRuleAuthorityDigest:digest(), structureInputDigest:digest(), pageMaxUnits:{ type:'integer', minimum:1, maximum:100 },
       unitId:digest(), unitDigest:digest(), memberCount:{ type:'integer', minimum:1, maximum:1024 },
@@ -230,6 +233,8 @@ const special = {
   'BoundedContentFingerprintEvidence.bytesSampled': { type:'integer', minimum:0, maximum:262144 },
   'MediaProbeEvidence.resultKind': enumText('probed', 'not_media'),
   'MediaProbeEvidence.reasonCode': enumText('probe_not_media'),
+  'MediaProbeEvidence.copyCompatibilityDigest': digest(),
+  'WorkspaceMediaHandle.javPartSetDigest': digest(),
   'MediaProbeEvidence.discTopology': object({
     discKind: enumText('bdmv', 'dvd', 'iso'),
     titleCount: positiveInteger(),
@@ -324,7 +329,8 @@ const special = {
   'CandidatePackage.materialFieldContextRef': object({ fieldId: id(), accessRevision: positiveInteger(), contextDigest: digest() }),
   'CandidatePackage.mediaType': triageMediaType(),
   'CandidatePackage.contentProfile': triageProfile(),
-  'CandidatePackage.materialInputForm': enumText('stream_file', 'bdmv', 'dvd', 'iso'),
+  'CandidatePackage.materialInputForm': enumText('stream_file', 'bdmv', 'dvd', 'iso', 'jav_named_parts'),
+  'CandidatePackage.javPartSet': javPartSetSchema(),
   'CandidatePackage.identityMetadata': triageIdentityMetadata(),
   'CandidatePackage.structureEvidenceRef': object({ evidenceId: id(), payloadDigest: digest(), unitId: digest(), unitDigest: digest() }),
   'CandidatePackage.seasonContinuityClaims': arrayOf(seasonContinuityClaim(), 64),
@@ -476,6 +482,9 @@ const special = {
     'video_codec_unmet', 'container_unmet', 'file_extension_unmet', 'minimum_raster_unmet', 'system_upscale_forbidden',
     'primary_audio_unmet', 'max_size_exceeded', 'requirement_integrity_failure', 'dynamic_range_conversion_unmet',
     'output_color_profile_unmet', 'dolby_vision_metadata_not_removed', 'playback_decode_failed'), 15),
+  'ProductMediaVerification.javPartVerification': object({sourceEvidenceDigest:digest(),partSetDigest:digest(),
+    sourceProbeDigests:{...arrayOf(digest(),2),minItems:2},expectedDurationMs:positiveInteger(),actualDurationMs:nonNegativeInteger(),
+    toleranceMs:positiveInteger(),joinSamplePointsMs:arrayOf(nonNegativeInteger(),2),passedJoinSamplePointsMs:arrayOf(nonNegativeInteger(),2),joinDecodeDigest:digest()}),
   'OnDeckProductPackage.productMaterialManifest': snapshot('product-material-manifest'),
   'OnDeckProductPackage.acceptanceSpecRef': object({ id: id(), recordDigest: digest() }),
   'OnDeckProductPackage.resolvedIdentitySnapshot': snapshot('resolved-identity-product-fact'),
@@ -493,7 +502,7 @@ const special = {
   'AcquisitionQuery.hardConstraints': boundedRecord('acquisition-hard-constraints'),
   'AcquisitionObservation.phase': enumText('download', 'transfer'),
   'AcceptanceCheck.checkKind': enumText('identity', 'structure', 'metadata', 'mandatory_media', 'space'),
-  'StagedInventoryManifest.stagedMembers': arrayOf(object({
+  'StagedInventoryManifest.stagedMembers': arrayOf((()=>{const value=object({
     sourceMaterialKey: id(),
     physicalIdentity: ref('PhysicalMaterialIdentity'),
     role: enumText(
@@ -504,7 +513,7 @@ const special = {
     location: text({ maxLength: 4096 }),
     bindingRevision: positiveInteger(),
     episodeClaims: applicationRef('ArcaMaterialEpisodeClaims'),
-  }), 1024),
+  });value.properties.fullByteDigest=digest();return value;})(), 1024),
   'SettlementDeletionEvidence.preDeleteIdentityDigest': nullable(digest()),
   'SettlementDeletionEvidence.postDeleteReality': settlementRealityRecord(),
   'DeletionEvidence.postDeleteReality': boundedRecord('post-delete-reality'),
@@ -614,12 +623,17 @@ function inferredField(resultName, fieldName) {
 }
 
 const contracts = {
+  JavCorrectionSourceVerified:['EvidenceEnvelope','correctionId,admissionDigest,scopeDigest,confirmedProposalDigest,actualProposalDigest,qualification'],
+  JavCorrectionAssetsPrepared:['EvidenceEnvelope','correctionId,admissionDigest,confirmedProposalDigest,actualProposalDigest,sourceObservationDigest,metadataFactDigest,metadataHandle,artifacts'],
+  JavCorrectionCommitReceipt:['ReceiptEnvelope','correctionId,shelfEntryId,previousCanonicalIdentityRevision,newCanonicalIdentityRevision,previousInventoryRevision,newInventoryRevision,canonicalIdentityDigest,canonicalIdentityKey,inventoryDigest,verificationDigest,controlChangeDigest,changeDigest,originalCommitDigest'],
+  JavCorrectionFormalRetirementReceipt:['ReceiptEnvelope','correctionId,shelfEntryId,committedContextDigest,commitReceiptDigest,retirementPlanDigest,guardDigest,finalMaterialSetDigest,retiredAliasSetDigest,retiredAliasCount,stageDisposition,realityDigest'],
+  JavCorrectionWorkspaceReclaimReceipt:['ReceiptEnvelope','correctionId,shelfEntryId,committedContextDigest,commitReceiptDigest,reclaimPlanDigest,guardDigest,handleSetDigest,reclaimedHandleCount,reclaimedArtifactCount,reclaimedBytes,workspaceDisposition,realityDigest,executionReference'],
   AcceptanceCheckRecord: ['VerificationEnvelope', ''],
   EpisodeMetadataRecordSet: ['EvidenceEnvelope', ''],
   PrimaryInputManifestDraftRecord: ['DraftEnvelope', ''],
   FilesystemIdentityEvidence: ['EvidenceEnvelope', 'identity,endpointId,location,statSizeBytes,statMtimeMs'],
   BoundedContentFingerprintEvidence: ['EvidenceEnvelope', 'identity,fingerprintProfileRef,sampleOffset,sampleLength,bytesSampled'],
-  MediaProbeEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,resultKind,reasonCode?,container?,durationMs?,sizeBytes,videoStreams,audioStreams,subtitleStreams,discTopology?'],
+  MediaProbeEvidence: ['EvidenceEnvelope', 'sourceHandleDigest,resultKind,reasonCode?,container?,durationMs?,sizeBytes,videoStreams,audioStreams,subtitleStreams,discTopology?,copyCompatibilityDigest?'],
   ManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef'],
   ArtifactManifestVerification: ['VerificationEnvelope', 'manifestDigest,contractRef,requirement,verifiedArtifacts,artifactDigests,verificationDigest'],
   IntegrationAvailabilityEvidence: ['EvidenceEnvelope', 'integrationId,configRevision,availabilityState,latencyMs?'],
@@ -633,7 +647,7 @@ const contracts = {
   IdentityClaim: ['DraftEnvelope', 'claimKind,mediaType,contentProfile,claimedTitle,displayIdentity,claimedYear?,seasonClaim?,javCode?,identityMetadataDigest,structureUnitDigest,sourceHints,claimDigest'],
   PrimaryInputManifestDraft: ['DraftEnvelope', 'preallocatedManifestId,procurementRunId,runBasisDigest,structureEvidencePayloadDigest,unitId,structureKind,memberCount,members,membersDigest,memberSourceDigest,manifestDraftDigest'],
   PrimaryInputManifest: ['ManifestEnvelope', 'structureKind,members'],
-  CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,materialInputForm,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,relatedDispositionScopeDigest,memberControlEvidenceSetDigest,packageDigest'],
+  CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,materialInputForm,javPartSet?,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,relatedDispositionScopeDigest,memberControlEvidenceSetDigest,packageDigest'],
   CandidatePublicationReceipt: ['ReceiptEnvelope', 'candidateDraftDigest,candidatePackageId,packageRevision,packageDigest,primaryInputManifestDigest,relatedReferenceSetDigest,relatedDispositionScopeDigest,memberControlEvidenceSetDigest,acceptanceBasisDigest,offerId,receiptDigest'],
   RelatedMaterialReference: [null, 'referenceId,primaryMaterialKey,role,identity,endpointId,location,fingerprintAlgorithm,fingerprintVersion,contentFingerprint,associationKind,dispositionRequired,associationEvidenceDigest,dispositionBasisDigest,referenceDigest'],
   SeasonContinuityClaim: [null, 'claimKind,claimNamespace,claimKey,claimDigest,evidenceDigest'],
@@ -664,8 +678,8 @@ const contracts = {
   MediaCastFact: ['DomainFactEnvelope', 'subjectId,relationsDigest,relationCount'],
   ProductMetadataFact: ['DomainFactEnvelope', 'subjectId,productMetadataDigest,verifiedArtifactManifestDigest'],
   TranscodeInputVerification: ['VerificationEnvelope', 'sourceHandleDigest,encodeIntentDigest,probeEvidenceId,probeEvidenceDigest,deviceId,deviceSnapshotDigest,selectedDeviceClass,disposition,rejectionScope,coveredStrategyKeys,sampleCount,passedSampleCount,preflightDigest,reasonCodes'],
-  WorkspaceMediaHandle: [null, 'workspaceMediaHandleId,sourceMaterialHandleDigest,workspaceMaterialHandle,workspaceMaterialHandleDigest,outputTargetId,outputTargetDigest,producingEventId,productionIntentKind,productionIntentDigest,executionDeviceRef,productionVideoProfile,effectReceiptRef,resultDigest'],
-  ProductMediaVerification: ['VerificationEnvelope', 'candidateId,candidateNodeId,candidateBasisDigest,candidateKind,libraRunId,producingEventId,productMaterialHandleId,productMaterialHandleDigest,productMaterialFenceDigest,workspaceMediaHandleId,mediaRequirementId,mediaRequirementDigest,sourceProbeEvidenceId,sourceProbeEvidenceDigest,outputProbeEvidenceId,outputProbeEvidenceDigest,qualitySummary,spaceSummary,dynamicRangeSummary,decodeSummary,reasonCodes'],
+  WorkspaceMediaHandle: [null, 'workspaceMediaHandleId,sourceMaterialHandleDigest,workspaceMaterialHandle,workspaceMaterialHandleDigest,outputTargetId,outputTargetDigest,producingEventId,productionIntentKind,productionIntentDigest,javPartSetDigest?,executionDeviceRef,productionVideoProfile,effectReceiptRef,resultDigest'],
+  ProductMediaVerification: ['VerificationEnvelope', 'candidateId,candidateNodeId,candidateBasisDigest,candidateKind,libraRunId,producingEventId,productMaterialHandleId,productMaterialHandleDigest,productMaterialFenceDigest,workspaceMediaHandleId,mediaRequirementId,mediaRequirementDigest,sourceProbeEvidenceId,sourceProbeEvidenceDigest,outputProbeEvidenceId,outputProbeEvidenceDigest,qualitySummary,spaceSummary,dynamicRangeSummary,decodeSummary,javPartVerification?,reasonCodes'],
   SelectedProductOutput: ['DraftEnvelope', 'libraRunId,acceptanceSpecId,mediaRequirementDigest,criteriaId,criteriaDigest,candidateSetDigest,result,selectedCandidateKind,selectedHandleId,selectedWorkspaceMediaHandleId,selectedVerificationId,selectedVerificationDigest,selectionReasonCode'],
   ProductConformanceEvidence: ['VerificationEnvelope', 'libraRunId,acceptanceSpecId,acceptanceSpecRecordDigest,runExecutionBasisDigest,productSnapshotDigest,productFactSetDigest,evaluatedRequirementSetDigest,unmetRequirementCodes,reasonCodes,missingMetadataFields,missingArtifactKinds'],
   OnDeckProductPackage: ['ManifestEnvelope', 'onDeckPackageId,packageRevision,libraRunId,runStateRevision,runStateDigest,runExecutionBasisDigest,subjectId,shelfId,acceptanceSpecRef,resolvedIdentitySnapshot,productStructureSnapshot,runMaterialManifestRef,productMaterialManifest,productFactManifest,artifactManifest,mediaCastSnapshot,offloadContextManifest,productionProvenance,productionAttestation,packageDigest'],
@@ -699,7 +713,7 @@ const contracts = {
   PresentationAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey'],
   ConformanceAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey,mediaRepairStrategy,memberScope?,memberAssessmentSet?'],
   AssessmentRevision: ['DomainFactEnvelope', 'shelfEntryId,careBasisDigest,professionalAssessmentSetDigest'],
-  MaterialEffectReceipt: ['ReceiptEnvelope', 'targetBindingDigest,materialEffectKind,effectReceiptId,finalRealityDigest,finalMaterialIdentity,targetEndpointId,targetLocation,retiredMaterials,supersededLocation?,supersededMaterialIdentity?'],
+  MaterialEffectReceipt: ['ReceiptEnvelope', 'targetBindingDigest,materialEffectKind,effectReceiptId,finalRealityDigest,finalMaterialIdentity,targetEndpointId,targetLocation,retiredMaterials,artifactKind?,supersededLocation?,supersededMaterialIdentity?'],
   CareProductVerification: ['VerificationEnvelope', 'aftercareCaseId,careRequirementDigest,workspaceMediaHandleId'],
   AftercareInventoryCommitReceipt: ['ReceiptEnvelope', 'aftercareCaseId,shelfEntryId,previousInventoryRevision,newInventoryRevision,controlChangeDigest'],
   AftercareCaseResult: ['DomainFactEnvelope', 'aftercareCaseId,resultState,reassessmentDigest,inventoryEffectRefs'],
@@ -732,6 +746,7 @@ special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact
 special['FinalProductVerification.memberEvidence'] = arrayOf(finalMaterialEvidence(),1024);
 special['FulfillmentVerification.memberEvidence'] = arrayOf(finalMaterialEvidence(),1024);
 special['MaterialEffectReceipt.finalMaterialIdentity'] = ref('PhysicalMaterialIdentity');
+special['MaterialEffectReceipt.artifactKind'] = {enum:['nfo','poster','fanart']};
 special['MaterialEffectReceipt.targetEndpointId'] = id();
 special['MaterialEffectReceipt.targetLocation'] = text();
 special['MaterialEffectReceipt.supersededLocation'] = text();
@@ -743,9 +758,14 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 }), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if(name==='JavCorrectionCommitReceipt')return require('../../src/helix/domains/arca/model/jav-correction-commit-contract').javCorrectionCommitReceiptSchema();
+  if(name==='JavCorrectionFormalRetirementReceipt')return require('../../src/helix/domains/arca/model/jav-correction-retirement-contract').retirementReceiptSchema();
+  if(name==='JavCorrectionWorkspaceReclaimReceipt')return require('../../src/helix/domains/arca/model/jav-correction-workspace-reclaim-contract').workspaceReclaimReceiptSchema();
+  if(name==='JavCorrectionSourceVerified')return require('../../src/helix/domains/arca/model/jav-correction-execution-contract').javCorrectionSourceVerifiedSchema();
+  if(name==='JavCorrectionAssetsPrepared')return require('../../src/helix/domains/arca/model/jav-correction-execution-contract').javCorrectionAssetsPreparedSchema();
   if (['FinalProductVerificationRecord','FulfillmentVerificationRecord'].includes(name)) return {$schema:DRAFT,$id:typeId(name),title:name+'@1',
     'x-helix-ssotRefs':['8.6.19'],'x-helix-maxCanonicalBytes':64*1024,...object({schemaRef:{const:typeId(name)},schemaVersion:{const:1},
-    recordId:id(),processType:enumText('arca_ondeck_run','arca_shelf_entry'),processId:id(),verificationId:id(),verificationDigest:digest(),
+    recordId:id(),processType:enumText('arca_ondeck_run','arca_shelf_entry',...(name==='FinalProductVerificationRecord'?['arca_jav_identity_correction']:[])),processId:id(),verificationId:id(),verificationDigest:digest(),
     memberCount:{type:'integer',minimum:1,maximum:1024},recordDigest:digest()})};
   if (name === 'StagedInventoryManifestRecord') return { $schema:DRAFT,$id:typeId(name),title:name+'@1',
     'x-helix-ssotRefs':['8.6.19'],'x-helix-maxCanonicalBytes':64*1024,...object({schemaRef:{const:typeId(name)},schemaVersion:{const:1},
@@ -812,6 +832,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
     ...(base ? { 'x-helix-envelopeRef': typeId(base) } : {}),
     ...object(properties, required)
   };
+  if (name === 'CandidatePackage') result.allOf = [{ if:{ properties:{ materialInputForm:{ const:'jav_named_parts' } }, required:['materialInputForm'] }, then:{ required:['javPartSet'], properties:{ contentProfile:{ const:'jav' }, mediaType:{ const:'single' }, memberCount:{ const:2 }, javPartSet:{ properties:{ parts:{ minItems:2, maxItems:2 } } } } }, else:{ not:{ required:['javPartSet'] } } }];
   if (['IdentityClaim','CandidatePackage'].includes(name)) {
     if (name === 'IdentityClaim') result.properties.sourceHints = triageIdentityMetadata(16384).properties.sourceHints;
     else result.properties.identityMetadata = triageIdentityMetadata(16384);
@@ -820,6 +841,22 @@ function buildResultTypeSchema(name, [base, fieldList]) {
         { identityMetadata:{ properties:{ sourceHints:{ maxItems:256 } } } } } }];
   }
   if (name === 'ObservationPageCommitResult' || name === 'ObservationPageCommitReceipt') result['x-helix-maxCanonicalBytes'] = 16 * 1024;
+  if (name === 'ResolvedProductIdentity') {
+    const jav=require('../../src/helix/contracts/jav-identity-evidence');
+    result.properties.javSelectionFence=jav.javIdentityFenceSchema();
+    result.properties.javSourceQualification=object({sourceSnapshot:require('../../src/helix/contracts/jav-source-contracts').javSourceSelectionSnapshotSchema(),
+      sourceOrdinal:{type:'integer',minimum:0,maximum:7},observation:jav.javQualificationSchema()});
+    result.allOf=[{if:{properties:{contentProfile:{const:'jav'}},required:['contentProfile']},
+      then:{required:['javSelectionFence','javSourceQualification'],properties:{structureKind:{const:'single'},identityKind:{const:'jav_code'}}},
+      else:{not:{anyOf:[{required:['javSelectionFence']},{required:['javSourceQualification']}]}}}];
+    result['x-helix-maxCanonicalBytes']=64*1024;
+  }
+  if(name==='ArtifactAcquisitionResult') {
+    result.properties.javCoverDerivation=require('../../src/helix/contracts/jav-cover-derivation').javCoverDerivationSchema();
+    result.allOf=[{if:{required:['javCoverDerivation']},then:{required:['artifactHandle'],properties:{resultKind:{const:'acquired'},
+      artifactHandle:ref('ArtifactHandle')}}}];
+    result['x-helix-maxCanonicalBytes']=64*1024;
+  }
   if (name === 'BdmvAssessmentEvidence') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
   if (['FinalProductVerification','FulfillmentVerification'].includes(name)) result['x-helix-maxCanonicalBytes']=8*1024*1024;
   if (name === 'StagedInventoryManifest') result['x-helix-maxCanonicalBytes'] = 8 * 1024 * 1024;
@@ -1061,6 +1098,10 @@ function metadataObservationSchema() {
     peopleHints: metadataPeopleHints(), artifactHints: emptyArtifactHints()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
   schema.properties.episodeScope = require('../../src/helix/contracts/episode-metadata-scope').episodeMetadataScopeSchema();
+  schema.properties.javSelectedSource=require('../../src/helix/contracts/jav-selected-source').javSelectedSourceSchema();
+  schema.properties.sourceIntegrationHandle=ref('IntegrationHandle');
+  schema.allOf=[{if:{properties:{contentProfile:{const:'jav'}},required:['contentProfile']},then:{required:['javSelectedSource','sourceIntegrationHandle']},
+    else:{not:{anyOf:[{required:['javSelectedSource']},{required:['sourceIntegrationHandle']}]}}}];
   return schema;
 }
 
@@ -1091,6 +1132,7 @@ function productIdentityEvidenceObservationSchema() {
         candidates: { ...arrayOf(candidate, 16), minItems: 2 }, verifiedIdentity: { type: 'null' }, candidateMatchCount: { type: 'integer', minimum: 2, maximum: 16 } }),
       object({ ...common, result: { const: 'conflicting' }, reasonCode: enumText('nfo_association_conflicting', 'provider_identity_conflicting'),
         candidates: arrayOf(candidate, 16), verifiedIdentity: { type: 'null' } }),
+      ...require('../../src/helix/contracts/jav-identity-evidence').javIdentityObservationSchema().oneOf,
     ],
   };
 }
@@ -1210,6 +1252,7 @@ function productMetadataDraftSchema() {
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
   schema.properties.episodeScope = require('../../src/helix/contracts/episode-metadata-scope').episodeMetadataScopeSchema();
   schema.properties.episodeMetadata = episodeMetadataSchema();
+  schema.properties.javSelectedSource=require('../../src/helix/contracts/jav-selected-source').javSelectedSourceSchema();
   schema['x-helix-maxCanonicalBytes'] = 16 * 1024 * 1024;
   return schema;
 }
@@ -1244,6 +1287,7 @@ function productMetadataFactSchema() {
     verifiedArtifactManifestDigest: digest(), productMetadataDigest: digest()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
   schema.properties.episodeMetadata=episodeMetadataSchema();
+  schema.properties.javSelectedSource=require('../../src/helix/contracts/jav-selected-source').javSelectedSourceSchema();
   schema.properties.episodeMetadataRef=object({recordCount:{type:'integer',minimum:1,maximum:256},recordsDigest:digest()});
   schema.not={required:['episodeMetadata','episodeMetadataRef']};
   schema['x-helix-maxCanonicalBytes'] = 16 * 1024 * 1024;

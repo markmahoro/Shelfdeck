@@ -2,6 +2,7 @@
 const {advanceSeriesExternalScope}=require('./series-external-scope-coordinator');
 const {replacementScopes}=require('../planning/external-material-work');
 const { candidateSeriesAnchor } = require('../model/series-identity-contracts');
+const {nextJavIdentityStage}=require('../planning/jav-product-identity-work');
 
 const { readDirectMediaSelections } = require('../planning/direct-media-selections');
 const {readSeriesProductionCandidates,readSeriesMediaSelections,candidateSetDigest}=require('../planning/series-production-candidates');
@@ -693,6 +694,22 @@ function createLibraRunCoordinator(options){
     const identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
     let committed=identity;
     if(!committed){
+      if(snapshot.spec.contentProfile==='jav') {
+        const stage=nextJavIdentityStage(options,snapshot);
+        if(stage.kind==='waiting')return Object.freeze({kind:'waiting_product_identity',phase:'product_identity_observation',libraRunId,
+          reasonCode:stage.reasonCode,observationId:stage.observationId||null,observationResult:stage.observationResult||'not_found'});
+        if(stage.kind==='observation') {
+          const submitted=submit(stage.work);
+          return Object.freeze({kind:'pending',phase:'product_identity_search',libraRunId,workId:stage.work.workId,replayed:submitted.replayed});
+        }
+        const work=identityCommitWork(snapshot,{workId:stage.work.workId,resultDigest:stage.sourceResult.resultDigest}),submitted=submit(work),status=options.workResultReader.status(work.workId);
+        if(!workSucceeded(status)) {
+          if(workFailed(status))return terminalWork(snapshot,work,status,'product_unachievable');
+          return Object.freeze({kind:'pending',phase:'product_identity_commit',libraRunId,workId:work.workId,replayed:submitted.replayed});
+        }
+        committed=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
+        if(!committed)throw new Error('Terminal JAV identity Work did not atomically publish its Fact.');
+      }else {
       const nfoReferences=snapshot.relatedReferences.filter((item)=>item.role==='nfo').sort((a,b)=>a.referenceId.localeCompare(b.referenceId));
       const manualSelection=options.productIdentitySelection?.readCurrent(libraRunId)||null;
       const established=!manualSelection?establishedSubjectIdentity(options,snapshot):null;
@@ -729,6 +746,7 @@ function createLibraRunCoordinator(options){
       committed=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
       if(!result||!committed||result.result.identityDigest!==committed.factValue.identityDigest)
         throw new Error('Terminal Product Identity Work did not atomically publish its Product Fact.');
+      }
     }
     const currentRequirements=options.resolveCurrentAcceptanceSpec(snapshot.run.subjectId,snapshot.spec.contentProfile==='series'?libraRunId:null);
     if(currentRequirements.kind!=='ready')return Object.freeze({kind:'pending',phase:'formal_identity_rating_resolution',libraRunId,
@@ -883,7 +901,13 @@ function createLibraRunCoordinator(options){
         {sourceWorkId:sourceMedia.workId,priorSelectionWorkId:direct.workId});
     return ensureDelivery(snapshot,workspace,direct);
   }
-  return Object.freeze({reconcile});
+  return Object.freeze({reconcile,
+    readJavIdentityStage(libraRunId) {
+      const snapshot=options.movieProductionReader.readRunSnapshot(libraRunId);
+      if(!snapshot || snapshot.spec.contentProfile!=='jav')return null;
+      return Object.freeze({...nextJavIdentityStage(options,snapshot),claimedCode:snapshot.candidateIdentityClaim.javCode||null,
+        sourceLocation:snapshot.members.find(member=>member.role==='primary_payload')?.location||null});
+    }});
 }
 
 module.exports=Object.freeze({createLibraRunCoordinator,definitionForReplay,unresolvedMetadataTerminal,identityObservationWork,identityCommitWork,metadataObservationWork,artifactWork,productFactWork,

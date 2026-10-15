@@ -6,7 +6,7 @@ const {assertProcessingRequirement}=require('../../src/helix/domains/arca/model/
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 
 function context(){return {basis:{inventoryRevision:1,standardRevision:2,placementRevision:1,decisionFactSetDigest:'d'.repeat(64)},
-  raw:{shelf:{shelf_id:'shelf-1',target_root_location:'C:/collection',target_endpoint_id:'local',target_mount_scope_id:'mount',target_mount_scope_revision:1},placement:{value:{folderTemplate:'{title}'},policy_digest:canonicalDigest({folderTemplate:'{title}'})},entry:{structure_kind:'movie'},facts:[],materials:[{role:'primary_payload',size_bytes:2000}],
+  raw:{identity:{identity_kind:'tmdb_movie'},shelf:{shelf_id:'shelf-1',target_root_location:'C:/collection',target_endpoint_id:'local',target_mount_scope_id:'mount',target_mount_scope_revision:1},placement:{value:{folderTemplate:'{title}'},policy_digest:canonicalDigest({folderTemplate:'{title}'})},entry:{structure_kind:'single'},facts:[],materials:[{role:'primary_payload',size_bytes:2000}],
     standard:{value:{profileRuleSets:[{contentProfile:'movie',baseRequirements:{space:{maxSizeBytes:1000},mandatoryMedia:{videoCodec:'hevc'}}}]}}}};}
 
 test('UAT-213 creation snapshot survives serialization and later policy changes without changing finding semantics',()=>{

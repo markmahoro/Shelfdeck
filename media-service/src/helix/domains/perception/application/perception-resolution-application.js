@@ -44,7 +44,8 @@ function freeze(value) {
 function buildRuleSnapshot() {
   const body = {
     ruleContract: 'perception-resolution-beta',
-    ruleVersion: 3,
+    ruleVersion: 4,
+    directTargetPolicyRef:'perception.jav-retained-target@1',
     supportedFactKinds: ['rating', 'watched'],
     candidateRetrievalClauses: [
       { anchorKind: 'provider_identity', lookupMode: 'exact', maxCandidates: 256 },

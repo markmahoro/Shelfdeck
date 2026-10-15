@@ -1,4 +1,5 @@
 'use strict';
+const {packageContentProfile}=require('./helix/domains/arca/model/product-content-profile');
 const {relatedPrimaryName}=require('./helix/domains/arca/model/related-primary-name');
 
 const fs = require('node:fs');
@@ -524,10 +525,7 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_PRIMARY_MISSING',
         'Product Material Manifest has no primary payload.');
     }
-    const contentProfile =
-      packageValue.productStructureSnapshot?.structureKind === 'season'
-        ? 'series'
-        : 'movie';
+    const contentProfile = packageContentProfile(packageValue);
     const draftPlans = packageValue.productMaterialManifest.members.map((member) => {
       const source = sourcePath(member);
       const name = finalMemberName(member, source, identity, placement, series);
@@ -593,10 +591,7 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_PRIMARY_MISSING',
         'Product Material Manifest has no primary payload.');
     }
-    const contentProfile =
-      packageValue.productStructureSnapshot?.structureKind === 'season'
-        ? 'series'
-        : 'movie';
+    const contentProfile = packageContentProfile(packageValue);
     const draftPlans = packageValue.productMaterialManifest.members.map((member) => {
       const source = sourcePath(member);
       const name = finalMemberName(member, source, identity, placement, series);
@@ -1822,7 +1817,47 @@ function createCleanArcaInventoryPort(options) {
       oldDirectoryDisposition });
   }
 
-  return Object.freeze({ assess, resolveTargetLocation, prepare, materialize, slotHandle, prepareSlot, observeEmptyStageSlot,
+  function inspectJavCorrectionPlacement(request) {
+    if(!request?.correctionId||request.aftercareCaseId||packageContentProfile(request.onDeckProductPackage)!=='jav')
+      fail('CLEAN_ARCA_CORRECTION_SCOPE_INVALID','Correction placement observation requires an owned JAV correction scope.');
+    const built=buildPlan(request),members=request.onDeckProductPackage.productMaterialManifest.members;
+    if(built.plans.filter(plan=>plan.member.role==='primary_payload').length!==1||
+        request.shelf.placement.value.collisionPolicy!==undefined&&request.shelf.placement.value.collisionPolicy!=='reject')
+      fail('CLEAN_ARCA_CORRECTION_SCOPE_INVALID','Correction must retain one video and reject name collisions.');
+    const statMaybe=value=>{try{return fs.lstatSync(value);}catch(error){if(error.code==='ENOENT')return null;throw error;}},
+      key=value=>{const resolved=path.resolve(value);return process.platform==='win32'?resolved.toLowerCase():resolved;},
+      sources=new Map(built.plans.map(plan=>[key(plan.source),plan])),targetDirectory=built.targetDirectory;
+    for(const target of [built.targetRoot,targetDirectory,...built.plans.map(plan=>plan.target)]) {
+      let cursor=target;
+      while(contained(built.targetRoot,cursor)) {
+        if(statMaybe(cursor)?.isSymbolicLink())
+          fail('CLEAN_ARCA_TARGET_ESCAPE','Correction target traverses a symbolic link.');
+        if(key(cursor)===key(built.targetRoot))break;
+        cursor=path.dirname(cursor);
+      }
+    }
+    if(fs.existsSync(targetDirectory)) {
+      if(!fs.statSync(targetDirectory).isDirectory()||!built.plans.some(plan=>key(path.dirname(plan.source))===key(targetDirectory)))
+        fail('CLEAN_ARCA_TARGET_COLLISION','Correction target directory is already occupied.');
+      const existing=fs.readdirSync(targetDirectory);
+      if(existing.length>members.length||existing.some(name=>!sources.has(key(path.join(targetDirectory,name)))))
+        fail('CLEAN_ARCA_TARGET_COLLISION','Correction cannot replace a directory containing materials outside this Entry.');
+    }
+    const observations=built.plans.map(plan=>{
+      const targetExists=Boolean(statMaybe(plan.target)),ownedTarget=sources.get(key(plan.target)),observed=computeBoundedMaterialFingerprintSync(plan.source,{requireStableSnapshot:true});
+      if(String(observed.stat.ino)!==plan.member.physicalIdentity.inode||Number(observed.stat.size)!==plan.member.physicalIdentity.sizeBytes||
+          observed.contentFingerprint!==plan.member.physicalIdentity.contentFingerprint||statMaybe(plan.source)?.isSymbolicLink())
+        fail('CLEAN_ARCA_PRODUCT_SOURCE_DRIFT','Correction source does not retain its exact owned Physical Identity.');
+      if(targetExists&&(!ownedTarget||ownedTarget.member.materialKey!==plan.member.materialKey))
+        fail('CLEAN_ARCA_TARGET_COLLISION','Correction target contains a conflicting material.');
+      return {materialKey:plan.member.materialKey,sourceLocation:plan.source,targetLocation:plan.target,
+        contentFingerprint:plan.contentFingerprint,sizeBytes:plan.sizeBytes,sourceInode:String(observed.stat.ino),targetExists};
+    });
+    return Object.freeze({schema:'arca.jav-correction-target-reality@1',targetRealityDigest:canonicalDigest({correctionId:request.correctionId,
+      targetEndpointId:request.shelf.target.endpointId,targetDirectory,observations})});
+  }
+
+  return Object.freeze({ assess, resolveTargetLocation, prepare, inspectJavCorrectionPlacement, materialize, slotHandle, prepareSlot, observeEmptyStageSlot,
     stage, verifyStaged, switchPlacement, readFinal, readFinalAsync, settleInput, settleInputAsync });
 }
 

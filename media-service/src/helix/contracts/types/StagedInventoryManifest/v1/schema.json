@@ -95,6 +95,11 @@
           },
           "episodeClaims": {
             "$ref": "helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1"
+          },
+          "fullByteDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
           }
         },
         "required": [

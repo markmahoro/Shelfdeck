@@ -515,6 +515,76 @@
         "passedSamplePointsPercent",
         "decodeDigest"
       ]
+    },
+    "javPartVerification": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceEvidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "partSetDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceProbeDigests": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "maxItems": 2,
+          "minItems": 2
+        },
+        "expectedDurationMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "actualDurationMs": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "toleranceMs": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "joinSamplePointsMs": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxItems": 2
+        },
+        "passedJoinSamplePointsMs": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "maxItems": 2
+        },
+        "joinDecodeDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "sourceEvidenceDigest",
+        "partSetDigest",
+        "sourceProbeDigests",
+        "expectedDurationMs",
+        "actualDurationMs",
+        "toleranceMs",
+        "joinSamplePointsMs",
+        "passedJoinSamplePointsMs",
+        "joinDecodeDigest"
+      ]
     }
   },
   "required": [

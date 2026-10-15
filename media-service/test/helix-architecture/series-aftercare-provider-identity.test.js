@@ -59,7 +59,7 @@ for(const scenario of ['series','movie','wrong_season','wrong_response'])test('A
       ?{resultKind:'acquired',artifactKind:'poster',integrationId:'tmdb-main',configRevision:1,
         resolvedProviderIdentity:{...request.resolvedProviderIdentity,namespace:'tmdb_movie'},bytes:Buffer.from('wrong')}
       :{resultKind:'not_available',reasonCode:'poster_not_available'};}});
-  const execution={ownerScope:{processId:'entry'},eventId:'event',eventAttemptId:'attempt',idempotencyKey:'key',
+  const execution={ownerScope:{processId:'entry'},eventId:'event',eventAttemptId:'attempt',idempotencyKey:'key',parameters:{artifactKind:'poster'},
     namedInputs:{stableProviderIdentity:f.stable,integrationHandle:{allowedOperation:C.binaryAcquire,integrationId:'tmdb-main',configRevision:1}}};
   const result=await ports[C.binaryAcquire].execute(execution);
   if(['wrong_season','wrong_response'].includes(scenario)) {

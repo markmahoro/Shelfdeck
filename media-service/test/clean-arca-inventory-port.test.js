@@ -111,7 +111,7 @@ test('target folder uses the resolved display title and derives its year without
     });
     const packageValue = Object.freeze({
       onDeckPackageId:'opaque-package-digest', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ displayIdentity:{ entries:Object.freeze([
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', displayIdentity:{ entries:Object.freeze([
         Object.freeze({ key:'title', value:'老笠 (2016)' }),
       ]) } } },
       productMaterialManifest:{ members:Object.freeze([{}]) },
@@ -119,7 +119,7 @@ test('target folder uses the resolved display title and derives its year without
     assert.equal(port.resolveTargetLocation({ shelf, onDeckProductPackage:packageValue }).targetDirectory,
       path.join(root, '老笠 (2016)'));
     assert.throws(() => port.resolveTargetLocation({ shelf, onDeckProductPackage:{
-      ...packageValue, resolvedIdentitySnapshot:{ factValue:{} },
+      ...packageValue, resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie',} },
     } }), (error) => error.code === 'CLEAN_ARCA_TARGET_IDENTITY_TITLE_REQUIRED');
   } finally {
     fs.rmSync(root, { recursive:true, force:true });
@@ -138,7 +138,7 @@ test('Placement target conflicts are preflighted before any earlier member is sw
       target:{endpointId:'canary',rootLocation:targetRoot,mountScopeId,mountScopeRevision:1},
       placement:{value:{folderTemplate:'{title} ({year})'}}});
     const packageValue=Object.freeze({onDeckPackageId:'package-preflight',shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{factValue:{displayIdentity:{entries:Object.freeze([
+      resolvedIdentitySnapshot:{factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie',displayIdentity:{entries:Object.freeze([
         Object.freeze({key:'title',value:'Preflight Movie'}),Object.freeze({key:'year',value:'2026'}),
       ])}}},productStructureSnapshot:{structureKind:'single'},
       productMaterialManifest:{manifestDigest:'manifest-preflight',members:Object.freeze([
@@ -178,7 +178,7 @@ test('source edition tags distinguish same title-year inventory folders without 
     });
     const packageFor = (edition) => Object.freeze({
       onDeckPackageId:'opaque-package-digest', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ displayIdentity:{ entries:Object.freeze([
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', displayIdentity:{ entries:Object.freeze([
         Object.freeze({ key:'title', value:'养蜂人' }),
         Object.freeze({ key:'year', value:'2024' }),
         ...(edition ? [Object.freeze({ key:'edition', value:edition })] : []),
@@ -222,7 +222,7 @@ test('Final Inventory Decision freezes standard Movie names instead of Workspace
     });
     const packageValue = Object.freeze({
       onDeckPackageId:'package-names', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ title:'老笠', year:2016 } },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'老笠', year:2016 } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ members:Object.freeze(sources), manifestDigest:'manifest-names' },
       offloadContextManifest:{ manifestDigest:'offload-names', members:Object.freeze([]) },
@@ -271,7 +271,7 @@ test('exact localized Chinese subtitle markers produce standard names without re
     });
     const packageValue = Object.freeze({
       onDeckPackageId:'package-localized-subtitle', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ title:'老笠', year:2016 } },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'老笠', year:2016 } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ members:Object.freeze(sources), manifestDigest:'manifest-localized-subtitle' },
       offloadContextManifest:{ manifestDigest:'offload-localized-subtitle', members:Object.freeze([]) },
@@ -312,7 +312,7 @@ test('unproven-language subtitles keep original names instead of collapsing onto
     });
     const packageValue = Object.freeze({
       onDeckPackageId:'package-subs', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ title:'战栗空间', year:2002 } },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'战栗空间', year:2002 } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ members:Object.freeze(sources), manifestDigest:'manifest-subs' },
       offloadContextManifest:{ manifestDigest:'offload-subs', members:Object.freeze([]) },
@@ -356,7 +356,7 @@ test('numbered same-language subtitles keep original names instead of colliding 
     });
     const packageValue = Object.freeze({
       onDeckPackageId:'package-iso-subs', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ title:'倩女幽魂2：人间道', year:1990 } },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'倩女幽魂2：人间道', year:1990 } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ members:Object.freeze(sources), manifestDigest:'manifest-iso-subs' },
       offloadContextManifest:{ manifestDigest:'offload-iso-subs', members:Object.freeze([]) },
@@ -405,7 +405,7 @@ test('same-root Stage/Switch preserves exact final members, merges new members, 
     ];
     const packageValue = Object.freeze({
       onDeckPackageId:'package-1', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ title:'Example Movie' } },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'Example Movie' } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ members:Object.freeze(productMembers), manifestDigest:'manifest-1' },
       offloadContextManifest:{ manifestDigest:'offload-1', members:Object.freeze([
@@ -528,7 +528,7 @@ test('On-deck recovery cannot overwrite an NFO using only a claimed managed path
     ];
     const packageValue = Object.freeze({
       onDeckPackageId:'package-recovery', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ title:'Example Movie' } },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'Example Movie' } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ members:Object.freeze(productMembers), manifestDigest:'manifest-recovery' },
       offloadContextManifest:{ manifestDigest:'offload-recovery', members:Object.freeze([
@@ -587,7 +587,7 @@ test('post-Placement NFO verification accepts semantic Emby rewrites while exact
     const packageNfoIdentity = identity(nfoSource, mountScopeId);
     const packageValue = Object.freeze({
       onDeckPackageId:'package-semantic-nfo', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ title:'Example Movie' } },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'Example Movie' } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ manifestDigest:'manifest-semantic-nfo', members:Object.freeze([
         member(primarySource, 'primary_payload', mountScopeId),
@@ -715,7 +715,7 @@ test('staged NFO presentation differences do not block Placement', async () => {
     const mountScopeId = 'canary-mount';
     const packageValue = Object.freeze({
       onDeckPackageId:'package-staged-semantic-drift', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ title:'人生密密缝' } },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'人生密密缝' } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ manifestDigest:'manifest-staged-semantic-drift', members:Object.freeze([
         member(primarySource, 'primary_payload', mountScopeId,
@@ -780,7 +780,7 @@ test('same-root Stage/Switch replaces managed source bytes occupying the final n
     ];
     const packageValue = Object.freeze({
       onDeckPackageId:'package-1', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ title:'Example Movie' } },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'Example Movie' } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ members:Object.freeze(productMembers), manifestDigest:'manifest-1' },
       offloadContextManifest:{ manifestDigest:'offload-1', members:Object.freeze([
@@ -870,7 +870,7 @@ test('Stage Result stays below the Foundation 64 KiB bound with many subtitle me
       target:{endpointId:'canary',rootLocation:targetRoot,mountScopeId,mountScopeRevision:1},
       placement:{value:{folderTemplate:'{title} ({year})',collisionPolicy:'reject'}}});
     const packageValue=Object.freeze({onDeckPackageId:'package-bounded',shelfId:'shelf-bounded',
-      resolvedIdentitySnapshot:{factValue:{title:'倩女幽魂2',year:1990}},productStructureSnapshot:{structureKind:'single'},
+      resolvedIdentitySnapshot:{factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie',title:'倩女幽魂2',year:1990}},productStructureSnapshot:{structureKind:'single'},
       productMaterialManifest:{members:Object.freeze(locations),manifestDigest:canonicalDigest('bounded-manifest')},
       offloadContextManifest:{manifestDigest:canonicalDigest('bounded-offload'),members:Object.freeze([])}});
     const port=createCleanArcaInventoryPort({schemaManifest,unitOfWork:{},workspaceRoot:path.join(root,'.workspace')});
@@ -963,7 +963,7 @@ function settlementFixture({
   const mappingDigest = canonicalDigest({ source:productMember.materialKey, target:'final' });
   const packageValue = Object.freeze({
     onDeckPackageId:'package-settlement', shelfId:'shelf-settlement',
-    resolvedIdentitySnapshot:{ factValue:{ title:'Settled Movie', year:2026 } },
+    resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'Settled Movie', year:2026 } },
     productStructureSnapshot:{ structureKind:'single' },
     productMaterialManifest:{ members:Object.freeze([productMember]), manifestDigest:'manifest-settlement' },
     offloadContextManifest:{ manifestDigest:'offload-settlement', members:Object.freeze([
@@ -1020,7 +1020,7 @@ function prepareDiscSettlement(root, selected, extraOffload = []) {
   ];
   const packageValue = Object.freeze({
     onDeckPackageId:'package-bdmv', shelfId:'shelf-bdmv',
-    resolvedIdentitySnapshot:{ factValue:{ title:'The Beekeeper', year:2024 } },
+    resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'The Beekeeper', year:2024 } },
     productStructureSnapshot:{ structureKind:'single' },
     productMaterialManifest:{ members:Object.freeze([productMember]), manifestDigest:'manifest-bdmv' },
     offloadContextManifest:{ manifestDigest:'offload-bdmv', members:Object.freeze(offloadMembers) },
@@ -1213,7 +1213,7 @@ test('same-root settlement keeps leftover extras in the retained final directory
     const mappingDigest = canonicalDigest({ source:productMember.materialKey, target:'final' });
     const packageValue = Object.freeze({
       onDeckPackageId:'package-extras', shelfId:'shelf-extras',
-      resolvedIdentitySnapshot:{ factValue:{ title:'The Beekeeper', year:2024 } },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'The Beekeeper', year:2024 } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ members:Object.freeze([productMember]), manifestDigest:'manifest-extras' },
       offloadContextManifest:{ manifestDigest:'offload-extras', members:Object.freeze([
@@ -1353,7 +1353,7 @@ test('Target Commit Slot is a hidden sibling and restores Emby-mutated presentat
     ];
     const packageValue = Object.freeze({
       onDeckPackageId:'package-1', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ title:'Example Movie' } },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'Example Movie' } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ members:Object.freeze(productMembers), manifestDigest:'manifest-1' },
       offloadContextManifest:{ manifestDigest:'offload-1', members:Object.freeze([]) },
@@ -1417,7 +1417,7 @@ test('in-flight legacy Target Commit Slot remains addressable until Switch', asy
     ];
     const packageValue = Object.freeze({
       onDeckPackageId:'package-1', shelfId:'shelf-1',
-      resolvedIdentitySnapshot:{ factValue:{ title:'Example Movie' } },
+      resolvedIdentitySnapshot:{ factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie', title:'Example Movie' } },
       productStructureSnapshot:{ structureKind:'single' },
       productMaterialManifest:{ members:Object.freeze(productMembers), manifestDigest:'manifest-1' },
       offloadContextManifest:{ manifestDigest:'offload-1', members:Object.freeze([]) },
@@ -1489,7 +1489,7 @@ for (const method of ['settleInput', 'settleInputAsync', 'switchPlacement']) for
           finalProductMaterialKey:nfoMember.materialKey,sourceNfoObservation};
         if (change === 'missing-basis') sourceMember.sourceNfoObservation = null;
         if (change === 'unmapped') sourceMember.contextRole = 'original_input';
-        const packageValue = {onDeckPackageId:'package',shelfId:'shelf',resolvedIdentitySnapshot:{factValue:{title:'Example'}},
+        const packageValue = {onDeckPackageId:'package',shelfId:'shelf',resolvedIdentitySnapshot:{factValue:{contentProfile:'movie',structureKind:'single',identityKind:'tmdb_movie',title:'Example'}},
           productStructureSnapshot:{structureKind:'single'},productMaterialManifest:{members:[primaryMember,nfoMember],manifestDigest:'manifest'},
           offloadContextManifest:{members:[sourceMember],manifestDigest:'offload'},
           productionProvenance:{sourceNfoObservations:change === 'missing-basis' ? [] : [sourceNfoObservation]}};
@@ -1745,7 +1745,7 @@ function seriesMultipleSettlementFixture(){
     location:f.source,contextRole:'original_input',sourceRelatedReferenceId:null,dispositionKind:'replaced_and_settled',
     settlementExpectation:'remove_after_place',finalProductMaterialKeys:finalTargets.map(item=>item.materialKey)};
   const old=f.finalInventoryRequest.onDeckProductPackage,packageValue={...old,
-    resolvedIdentitySnapshot:{factValue:{...old.resolvedIdentitySnapshot.factValue,providerIdentities:[{namespace:'tmdb_series',seasonNumber:1}]}},
+    resolvedIdentitySnapshot:{factValue:{...old.resolvedIdentitySnapshot.factValue,contentProfile:'series',structureKind:'season',identityKind:'tmdb_series_season',providerIdentities:[{namespace:'tmdb_series',seasonNumber:1}]}},
     productStructureSnapshot:{structureKind:'season'},productFactManifest:{items:[{factKind:'product_metadata',factValue:{episodeMetadata:[1,2].map(n=>({episodeScope:{episodeKey:'E'+String(n).padStart(3,'0'),seasonNumber:1,episodeNumber:n}}))}}]},
     productMaterialManifest:{...old.productMaterialManifest,members:products},offloadContextManifest:{members:[source]}};
   const command={materialHandle:f.materialHandle,approval:{approvalId:'approval'},finalTargets,

@@ -10,7 +10,7 @@ function episode(n) {return {episodeScope:{seasonNumber:1,episodeNumber:n,episod
 function fixture() {
   const identity={identityDigest:canonicalDigest('identity'),structureKind:'season',contentProfile:'series',identityKind:'tmdb_series_season',
     providerIdentities:[{provider:'tmdb',namespace:'tmdb_series',providerKey:'1399',seasonNumber:1}]};
-  return {entry:{structure_kind:'season',shelf_id:'shelf',canonical_identity_key:canonicalContentIdentity('shelf',identity).canonicalIdentityKey},
+  return {identity:{identity_kind:'tmdb_series_season'},entry:{structure_kind:'season',shelf_id:'shelf',canonical_identity_key:canonicalContentIdentity('shelf',identity).canonicalIdentityKey},
     materials:[1,2,3].map(n=>({role:'primary_payload',episode_claims_json:JSON.stringify({items:[{episodeKey:key(n)}]})})),
     facts:[{fact_kind:'resolved_identity',value:identity},{fact_kind:'product_metadata',value:{episodeMetadata:[episode(1),episode(2)]}},
       {fact_kind:'resolved_identity',value:structuredClone(identity)},{fact_kind:'product_metadata',value:{episodeMetadata:[episode(3)]}}],
@@ -45,7 +45,7 @@ test('Episode evidence outside the current Inventory cannot fill an absent curre
   assert.deepEqual(missingFields({raw}),['episode_plot','episode_title']);
 });
 test('Movie metadata still uses its top-level fields',()=>{
-  const raw=fixture();raw.entry.structure_kind='single';raw.standard.value.profileRuleSets=[{contentProfile:'movie',baseRequirements:{metadata:{requiredFieldCodes:['title','plot']}}}];
+  const raw=fixture();raw.identity.identity_kind='tmdb_movie';raw.entry.structure_kind='single';raw.standard.value.profileRuleSets=[{contentProfile:'movie',baseRequirements:{metadata:{requiredFieldCodes:['title','plot']}}}];
   raw.facts=[{fact_kind:'product_metadata',value:{descriptiveFacts:{entries:[{key:'title',value:'Movie'},{key:'plot',value:'Plot'}]}}}];
   assert.deepEqual(missingFields({raw}),[]);raw.facts[0].value.descriptiveFacts.entries.pop();assert.deepEqual(missingFields({raw}),['plot']);
 });

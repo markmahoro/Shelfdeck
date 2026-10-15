@@ -1,0 +1,261 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ArcaJavCorrectionCastFact/v1",
+  "title": "ArcaJavCorrectionCastFact@1",
+  "x-helix-ssotRefs": [
+    "3.5.5",
+    "8.5.12",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 262144,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/ArcaJavCorrectionCastFact/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "correctionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "admissionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "canonicalIdentityDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sourceObservationDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "relations": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "relationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "personId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16384
+          },
+          "displayNameNormalized": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16384
+          },
+          "role": {
+            "const": "actor"
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "providerIdentities": {
+            "type": "array",
+            "maxItems": 0,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "namespace": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "providerKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                }
+              },
+              "required": [
+                "provider",
+                "namespace",
+                "providerKey"
+              ]
+            }
+          },
+          "originEvidenceDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "confidenceClass": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "relationDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "relationId",
+          "personId",
+          "displayName",
+          "displayNameNormalized",
+          "role",
+          "source",
+          "providerIdentities",
+          "originEvidenceDigest",
+          "confidenceClass",
+          "relationDigest"
+        ]
+      }
+    },
+    "relationCount": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 64
+    },
+    "relationsDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "referenceProofs": {
+      "type": "array",
+      "maxItems": 64,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "relationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "inputDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "resultDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "resolutionKind": {
+            "enum": [
+              "resolved",
+              "unresolved"
+            ]
+          },
+          "reasonCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "personId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "personRevision": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "personFactDigest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proofDigest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "relationId",
+          "inputDigest",
+          "resultDigest",
+          "resolutionKind",
+          "reasonCode",
+          "personId",
+          "personRevision",
+          "personFactDigest",
+          "proofDigest"
+        ]
+      }
+    },
+    "factDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "correctionId",
+    "shelfEntryId",
+    "admissionDigest",
+    "canonicalIdentityDigest",
+    "sourceObservationDigest",
+    "relations",
+    "relationCount",
+    "relationsDigest",
+    "referenceProofs",
+    "factDigest"
+  ]
+}

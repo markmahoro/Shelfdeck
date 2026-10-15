@@ -34,6 +34,7 @@ function mediaEvidence(raw, handle, nowMs) {
     sourceHandleDigest:canonicalDigest(handle), resultKind:raw.resultKind,
     ...(raw.resultKind === 'not_media' ? { reasonCode:'probe_not_media' } : {
       container:raw.container || 'unknown', durationMs:Number(raw.durationMs || 0),
+      ...(raw.copyCompatibilityDigest ? {copyCompatibilityDigest:raw.copyCompatibilityDigest} : {}),
     }),
     sizeBytes:Number(raw.sizeBytes ?? handle.sizeBytes ??
       handle.physicalIdentity?.sizeBytes ?? handle.expectedSizeBytes),

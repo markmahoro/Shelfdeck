@@ -3,12 +3,14 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createCommandCommitCoordinator } = require('../../../foundation/persistence/commit-foundation');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const javCorrectionGate=require('./jav-correction-gate');
 const {
   RULES_SCHEMA_REF,
   SYSTEM_TEMPLATE_ID,
   SYSTEM_TEMPLATE_NAME,
   BETA_RECOMMENDED_RULES,
   BETA_RECOMMENDED_RULES_DIGEST,
+  JAV_TEMPLATE_ID,JAV_TEMPLATE_NAME,JAV_RECOMMENDED_RULES,JAV_RECOMMENDED_RULES_DIGEST,
   buildShelfStandard,
   validateRuleTemplateRules,
 } = require('../model/rule-template-contracts');
@@ -73,6 +75,7 @@ function createRuleTemplateStore(options) {
     owner: 'arca',
     schemaManifest: options.schemaManifest,
     statements: {
+      ...javCorrectionGate.statements,
       list_templates: {
         kind: 'select-all',
         tableId: 'arca_rule_templates',
@@ -918,6 +921,7 @@ function createRuleTemplateStore(options) {
         }
         const updatedShelves = [];
         for (const shelfBasis of shelves) {
+          javCorrectionGate.assertNoShelfJavCorrections(repo,shelfBasis.shelfId);
           const standardRevision = shelfBasis.currentStandardRevision + 1;
           const routingProjectionRevision = shelfBasis.routingProjectionRevision + 1;
           const standard = buildShelfStandard({
@@ -989,6 +993,7 @@ function createRuleTemplateStore(options) {
   }
 
   function publishSystemRecommendedRevision() {
+    ensureJavRecommendedTemplate();
     validateRuleTemplateRules(RULES_SCHEMA_REF, BETA_RECOMMENDED_RULES, BETA_RECOMMENDED_RULES_DIGEST);
     const current = getTemplate(SYSTEM_TEMPLATE_ID);
     if (!current || current.ownerKind !== 'system' || current.status !== 'active') {
@@ -1066,6 +1071,7 @@ function createRuleTemplateStore(options) {
         if (changed.changes !== 1) fail('SYSTEM_TEMPLATE_UPGRADE_CAS', 'System Template head CAS failed.');
         const updatedShelves = [];
         for (const shelfBasis of bound) {
+          javCorrectionGate.assertNoShelfJavCorrections(repo,shelfBasis.shelfId);
           const standardRevision = shelfBasis.currentStandardRevision + 1;
           const routingProjectionRevision = shelfBasis.routingProjectionRevision + 1;
           const standard = buildShelfStandard({
@@ -1131,6 +1137,32 @@ function createRuleTemplateStore(options) {
       'system',
     );
     return Object.freeze({ kind: 'published', ...committed.value, replayed: committed.replayed });
+  }
+
+  function ensureJavRecommendedTemplate() {
+    const existing=getTemplate(JAV_TEMPLATE_ID);
+    if(existing) {
+      if(existing.ownerKind!=='system'||existing.status!=='active'||existing.currentRevision!==1||existing.current.rulesDigest!==JAV_RECOMMENDED_RULES_DIGEST)
+        fail('SYSTEM_TEMPLATE_INTEGRITY','JAV system Rule Template does not match its frozen definition.');
+      return;
+    }
+    command({idempotencyKey:'system-jav-template-v1',input:{templateId:JAV_TEMPLATE_ID,rulesDigest:JAV_RECOMMENDED_RULES_DIGEST}},
+      'publish',JAV_TEMPLATE_ID,context=>{
+        const repo=context.repository(repository.repositoryId);
+        if(repo.invoke('find_template',{rule_template_id:JAV_TEMPLATE_ID}))fail('SYSTEM_TEMPLATE_INTEGRITY','JAV system Template was concurrently created.');
+        repo.invoke('insert_template',{rule_template_id:JAV_TEMPLATE_ID,name:JAV_TEMPLATE_NAME,owner_kind:'system',status:'active',current_revision:1,
+          created_at_ms:context.commitTimeMs,archived_at_ms:null});
+        repo.invoke('insert_revision',{rule_template_id:JAV_TEMPLATE_ID,revision:1,rules_schema_ref:RULES_SCHEMA_REF,
+          rules_json:canonicalJson(JAV_RECOMMENDED_RULES),rules_digest:JAV_RECOMMENDED_RULES_DIGEST,published_at_ms:context.commitTimeMs});
+        return Object.freeze({template:mapTemplate(repo,repo.invoke('find_template',{rule_template_id:JAV_TEMPLATE_ID}),false),affectedShelfCount:0,
+          affectedShelfSetDigest:canonicalDigest({schema:'arca.rule-template-affected-shelf-set@1',items:[]}),
+          updatedShelfResultSetDigest:canonicalDigest({schema:'arca.rule-template-updated-shelf-result-set@1',items:[]})});
+      },result=>({resultSchemaRef:'helix://contracts/application-results/ArcaRuleTemplatePublishResult/v1',resultRef:result}),
+      [{messageId:'arca-jav-recommended-template-published-v1',producerDomain:'arca',messageKind:'rule_template_published',aggregateType:'rule_template',
+        aggregateId:JAV_TEMPLATE_ID,aggregateRevision:1,dedupKey:'rule-template:'+JAV_TEMPLATE_ID+':1',
+        payloadSchemaRef:'helix://contracts/messages/ArcaRuleTemplatePublished/v1',payload:{messageKind:'rule_template_published',ruleTemplateId:JAV_TEMPLATE_ID,
+          ruleTemplateRevision:1,rulesDigest:JAV_RECOMMENDED_RULES_DIGEST,affectedShelfSetDigest:canonicalDigest({schema:'arca.rule-template-affected-shelf-set@1',items:[]})},
+        intendedConsumers:['read-model']}],'rule_template','system');
   }
 
   function archiveTemplate(request) {
@@ -1207,6 +1239,7 @@ function createRuleTemplateStore(options) {
         }
         const shelf = repo.invoke('find_shelf', { shelf_id: input.shelfId });
         if (!shelf) fail('P14_RULE_TEMPLATE_SHELF_NOT_FOUND', 'Shelf does not exist.');
+        javCorrectionGate.assertNoShelfJavCorrections(repo,input.shelfId);
         if (shelf.status !== 'active' ||
             shelf.current_standard_revision !== input.expectedStandardRevision ||
             shelf.routing_projection_revision !== input.expectedRoutingProjectionRevision) {

@@ -17,6 +17,7 @@ function createInventoryRecordRefresh(options){
       statFence:canonicalDigest({ino:String(snapshot.stat.ino),size:String(snapshot.stat.size),mtimeNs:String(snapshot.stat.mtimeNs),ctimeNs:String(snapshot.stat.ctimeNs)})});
   }
   return Object.freeze({refresh(c){
+    if(c.raw.correctionGate)return Object.freeze({kind:'records_deferred',reasonCode:'identity_correction_pending'});
     if(c.raw.reservations.some(item=>item.state==='active')||options.contextReader.store.history(c.shelfEntryId).cases.some(item=>item.state==='active'))
       return Object.freeze({kind:'records_deferred',reasonCode:'active_modification'});
     const candidates=c.raw.materials.filter(item=>item.role!=='primary_payload'&&isAftercareArtifactMaterial(item,'nfo'));

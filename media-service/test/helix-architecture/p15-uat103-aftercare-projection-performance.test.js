@@ -197,7 +197,7 @@ test('Aftercare batch health passes frozen rating targets instead of triggering 
     const shelfEntryId='entry-'+String(index).padStart(5,'0'),targetBase={targetType:'shelf_entry',targetId:shelfEntryId,
       targetRevision:1,title:'Movie '+index,year:2000+(index%20),providerIdentity:'tmdb:'+String(index+1),
       canonicalIdentityDigest:digest('identity:'+shelfEntryId)};
-    return Object.freeze({shelfEntryId,structureKind:'movie',inventoryRevision:1,standardRevision:1,placementRevision:1,
+    return Object.freeze({shelfEntryId,structureKind:'single',canonicalIdentity:Object.freeze({identity_kind:'tmdb_movie'}),inventoryRevision:1,standardRevision:1,placementRevision:1,
       canonicalIdentityDigest:targetBase.canonicalIdentityDigest,sourcePackageId:'package-'+shelfEntryId,
       standardValue:Object.freeze({profileRuleSets:Object.freeze([Object.freeze({contentProfile:'movie',decisionInputKinds:Object.freeze(['rating'])})])}),
       ratingTarget:Object.freeze({...targetBase,targetDigest:canonicalDigest(targetBase)}),factDigests:Object.freeze([]),

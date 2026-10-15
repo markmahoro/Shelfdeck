@@ -36,6 +36,9 @@ function createInventoryVerificationStore(options){
     find:{kind:'select-one',tableId:'arca_inventory_verification_records',columns,keyColumns:['record_id']},
     event:{kind:'select-one',tableId:'arca_inventory_verification_records',columns,keyColumns:['event_id']},
     insert:{kind:'insert',tableId:'arca_inventory_verification_records',columns}}});
+  const correctionFence=createRepositoryDefinition({repositoryId:'arca_verification_correction_fence',owner:'arca',schemaManifest:options.schemaManifest,statements:{
+    correction:{kind:'select-one',tableId:'arca_jav_identity_corrections',columns:['correction_id','shelf_entry_id','state','state_revision','admission_digest','basis_digest','terminal_at_ms',
+      'recovery_intent_schema_ref','recovery_intent_json','recovery_intent_digest'],keyColumns:['correction_id'],safeIntegers:true}}});
   const fence=createRepositoryDefinition({repositoryId:'arca_verification_execution',owner:'execution-foundation',schemaManifest:options.schemaManifest,statements:{
     work:{kind:'select-one',tableId:'fx_supporting_works',columns:['owner_domain','process_type','process_id','state'],keyColumns:['work_id']},
     event:{kind:'select-one',tableId:'fx_workflow_events',columns:['work_id','capability_ref','state'],keyColumns:['event_id']},
@@ -45,13 +48,15 @@ function createInventoryVerificationStore(options){
   const readEvent=eventId=>{const row=read('event',{event_id:eventId});return row?unpack(row):null;};
   const resolve=record=>unpack(read('find',{record_id:record.recordId}),record).value;
   function commit(execution,value){
-    const type=types.find(item=>item.schema===value.schemaRef&&item.capability===execution.capabilityRef);
-    if(!type||type.kind!==value.verificationKind||!['arca_ondeck_run','arca_shelf_entry'].includes(execution.ownerScope.processType))
+    const correction=execution.capabilityRef==='arca.jav_correction.files.verify@1'&&execution.ownerScope.processType==='arca_jav_identity_correction',
+      type=types.find(item=>item.schema===value.schemaRef&&(item.capability===execution.capabilityRef||correction&&item.kind==='final_product'));
+    if(!type||type.kind!==value.verificationKind||!correction&&!['arca_ondeck_run','arca_shelf_entry'].includes(execution.ownerScope.processType))
       fail('Inventory Verification is outside its executing Owner scope.');
     options.contractValidator.validate(type.schema,value);
     if(Buffer.byteLength(canonicalJson(value))>8*1024*1024||value.memberEvidence.length<1||value.memberEvidence.length>1024)
       fail('Complete Inventory Verification exceeds its byte or member bound.');
-    const record=recordFor(execution,value),prior=readEvent(execution.eventId);
+    const record=recordFor(execution,value);options.contractValidator.validate(type.record,record);
+    const prior=readEvent(execution.eventId);
     if(prior){if(canonicalJson(prior.record)!==canonicalJson(record))fail('Event already committed another Inventory Verification.');return prior;}
     const payload={value,workId:execution.workId,eventId:execution.eventId,eventAttemptId:execution.eventAttemptId},
       handle={schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,ownerDomain:'arca',aggregateType:'arca_inventory_verification',
@@ -61,14 +66,21 @@ function createInventoryVerificationStore(options){
     const registration={ownerDomain:'arca',aggregateType:handle.aggregateType,factType:handle.factType,factSchemaRef:type.schema,
       effectClass:'domain_fact_commit',revisionFence:true,createParticipant(){
         const participant={participantId:'arca_verification_prepare',owner:'arca',boundBusinessOwner:'arca',repositories:[repo],execute(c){
-          if(c.repository(repo.repositoryId).invoke('event',{event_id:execution.eventId}))fail('Inventory Verification Event already committed.');return record;}};
+          const r=c.repository(repo.repositoryId);
+          if(r.invoke('event',{event_id:execution.eventId}))fail('Inventory Verification Event already committed.');
+          return record;}};
         participant.readParticipants=[{participantId:'arca_verification_fence',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[fence],execute(c){
           const r=c.repository(fence.repositoryId),work=r.invoke('work',{work_id:execution.workId}),event=r.invoke('event',{event_id:execution.eventId}),
             attempt=r.invoke('attempt',{event_attempt_id:execution.eventAttemptId});
           if(work?.owner_domain!=='arca'||work.process_type!==execution.ownerScope.processType||work.process_id!==execution.ownerScope.processId||
-              work.state!=='running'||event?.work_id!==execution.workId||event.capability_ref!==type.capability||event.state!=='executing'||
+              work.state!=='running'||event?.work_id!==execution.workId||event.capability_ref!==execution.capabilityRef||event.state!=='executing'||
               attempt?.event_id!==execution.eventId||attempt.state!=='executing')fail('Inventory Verification execution fence changed.');
-        }}];
+        }},...(correction?[{participantId:'arca_verification_correction_fence',owner:'arca',boundBusinessOwner:'arca',repositories:[correctionFence],execute(c){
+          const scope=execution.namedInputs?.javCorrectionScope,current=c.repository(correctionFence.repositoryId).invoke('correction',{correction_id:execution.ownerScope.processId});
+          if(!scope||scope.correctionId!==execution.ownerScope.processId||!current||current.state!=='active'||current.terminal_at_ms!==null||
+              require('../model/jav-correction-recovery').executionRevisionForRow(current,options.contractValidator)!==scope.expectedStateRevision||current.admission_digest!==scope.admissionDigest||current.basis_digest!==scope.basisDigest||value.basisDigest!==scope.digest)
+            fail('Correction final Verification lost its actual active admission.');
+        }}]:[])];
         participant.postMarkerParticipants=[{participantId:'arca_verification_write',owner:'arca',boundBusinessOwner:'arca',repositories:[repo],execute(c){
           c.repository(repo.repositoryId).invoke('insert',{record_id:record.recordId,work_id:execution.workId,event_id:execution.eventId,
             process_type:execution.ownerScope.processType,process_id:execution.ownerScope.processId,verification_kind:type.kind,

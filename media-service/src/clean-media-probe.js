@@ -39,10 +39,10 @@ function run(binary, location, inputArgv = null) {
     const child = spawn(binary, [
       // Fatal-only diagnostics keep non-fatal packet warnings from overflowing the
       // bounded transport channel while preserving ffprobe's exit-code contract.
-      '-v', 'fatal', '-of', 'json=compact=1',
+      '-v', 'fatal', '-of', 'json=compact=1', '-show_data_hash', 'sha256',
       '-show_entries', [
         'format=format_name,duration,size',
-        'stream=index,codec_type,codec_name,profile,pix_fmt,bits_per_raw_sample,bit_rate,chroma_location,color_range,color_space,color_transfer,color_primaries,width,height,channels,channel_layout,disposition',
+        'stream=index,codec_type,codec_name,profile,level,pix_fmt,bits_per_raw_sample,bit_rate,chroma_location,color_range,color_space,color_transfer,color_primaries,width,height,sample_aspect_ratio,channels,channel_layout,sample_rate,time_base,r_frame_rate,extradata_hash,extradata_size,disposition',
         'stream_tags',
         'stream_side_data',
       ].join(':'), ...MEDIA_PROBE_INPUT_ARGS, ...(inputArgv || [location]),
@@ -180,6 +180,20 @@ function evidence(readHandle, parsed, discTopology = null) {
     discTopology,
     payloadDigest: '',
   };
+  const payloadStreams=streams.filter(stream=>['video','audio','subtitle'].includes(stream.codec_type));
+  if(payloadStreams.length&&payloadStreams.every(stream=>stream.codec_name&&stream.time_base&&
+      (!Number(stream.extradata_size)||/^SHA256:[a-f0-9]{64}$/i.test(stream.extradata_hash||'')))) {
+    value.copyCompatibilityDigest=canonicalDigest({schema:'media.stream-copy-compatibility@1',streams:payloadStreams.map(stream=>({
+      codecType:stream.codec_type,codec:stream.codec_name,profile:stream.profile||null,level:stream.level??null,
+      pixelFormat:stream.pix_fmt||null,width:stream.width??null,height:stream.height??null,
+      sampleAspectRatio:stream.sample_aspect_ratio||null,frameRate:stream.r_frame_rate||null,timeBase:stream.time_base,
+      sampleRate:stream.sample_rate||null,channels:stream.channels??null,channelLayout:stream.channel_layout||null,
+      colorRange:stream.color_range||null,colorPrimaries:stream.color_primaries||null,colorTransfer:stream.color_transfer||null,
+      colorMatrix:stream.color_space||null,extradataHash:stream.extradata_hash||null,extradataSize:stream.extradata_size||0,
+      disposition:stream.disposition||{},language:stream.tags?.language||null,
+      sideData:(stream.side_data_list||[]).filter(item=>/display matrix|dovi configuration/i.test(String(item.side_data_type||'')))
+    }))});
+  }
   value.payloadDigest = canonicalDigest(without(value, 'payloadDigest'));
   return Object.freeze(value);
 }

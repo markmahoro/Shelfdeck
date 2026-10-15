@@ -69,6 +69,8 @@ COPY media-service/src/clean-workspace-product-port.js ./src/clean-workspace-pro
 COPY media-service/src/clean-workspace-root-admin.js ./src/clean-workspace-root-admin.js
 COPY media-service/src/helix ./src/helix
 COPY media-service/scripts/helix-clean-init.js ./scripts/helix-clean-init.js
+COPY media-service/scripts/helix-jav-schema-copy.js ./scripts/helix-jav-schema-copy.js
+COPY media-service/scripts/helix-architecture/jav-release-schema-copy.js ./scripts/helix-architecture/jav-release-schema-copy.js
 COPY media-service/scripts/helix-operational-safety.js ./scripts/helix-operational-safety.js
 COPY media-service/scripts/helix-predeck-pipeline-migration.js ./scripts/helix-predeck-pipeline-migration.js
 COPY media-service/scripts/helix-formation-reset.js ./scripts/helix-formation-reset.js

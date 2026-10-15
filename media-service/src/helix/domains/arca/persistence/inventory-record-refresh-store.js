@@ -4,6 +4,7 @@ const {canonicalDigest}=require('../../../contracts/canonical-json');
 const {createCommandCommitCoordinator}=require('../../../foundation/persistence/commit-foundation');
 const {appendInventoryRevision}=require('./inventory-revision-writer');
 const {isAftercareArtifactMaterial}=require('../model/aftercare-contract');
+const {assertNoJavCorrection}=require('./jav-correction-gate');
 
 const fail=(code,message)=>{throw Object.assign(new Error(message),{code});};
 const COMMAND='arca.inventory.records.refresh@1';
@@ -28,6 +29,7 @@ function createInventoryRecordRefreshStore(options,repository){
       domainParticipant:{participantId:'arca_inventory_record_refresh',owner:'arca',repositories:[repository],execute(context){
         const repo=context.repository(repository.repositoryId),entry=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId}),
           shelf=entry&&repo.invoke('find_shelf',{shelf_id:entry.shelf_id});
+        assertNoJavCorrection(repo,shelfEntryId);
         if(!entry||entry.status!=='active'||!shelf||shelf.status!=='active'||
           Number(entry.current_inventory_revision)!==expectedInventoryRevision||
           Number(entry.canonical_identity_revision)!==request.canonicalIdentityRevision||

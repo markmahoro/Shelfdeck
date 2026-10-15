@@ -242,8 +242,9 @@ test('stored Retry Intent preserves its immutable rule while a changed active ru
   try {
     assert.throws(()=>f.service({retryIntentStore:{create(request){store.create(request);throw new Error('committed');}}}).retry(f.request),/committed/);
     const original=f.options.triageRegistry,{registryDigest:_digest,...old}=original;
-    const next={...original.entries[0],revision:2};next.ruleDigest=ruleDigestFor(next);next.authorityDigest=authorityDigestFor(next);
-    const registry={...old,activeRuleRevision:2,entries:[...old.entries,next]};registry.registryDigest=canonicalDigest(registry);
+    const active=original.entries.find(entry=>entry.ruleRef===original.activeRuleRef&&entry.revision===original.activeRuleRevision);
+    const next={...active,revision:original.activeRuleRevision+1};next.ruleDigest=ruleDigestFor(next);next.authorityDigest=authorityDigestFor(next);
+    const registry={...old,activeRuleRevision:next.revision,entries:[...old.entries,next]};registry.registryDigest=canonicalDigest(registry);
     const result=f.service({triageRegistry:registry}).retry(f.request);
     assert.equal(result.retryAdmissionResult.resultKind,'stale');
     assert.deepEqual(result.retryAdmissionResult.staleReasonCodes,['triage_rule_changed']);

@@ -1,0 +1,415 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_jav_identity_corrections/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_jav_identity_corrections",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "correction_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "preview_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "preview_proof_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "preview_proof_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "proposal_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "placement_preview_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "idempotency_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "admission_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "admitted",
+          "active",
+          "attention_required",
+          "committed",
+          "cancelled"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "terminal_evidence_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 15,
+        "name": "committed_context_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 16,
+        "name": "committed_context_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 17,
+        "name": "committed_context_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 18,
+        "name": "cleanup_state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "pending",
+          "active",
+          "attention_required",
+          "completed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 19,
+        "name": "cleanup_receipt_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 20,
+        "name": "cleanup_receipt_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 21,
+        "name": "cleanup_receipt_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 22,
+        "name": "recovery_intent_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 23,
+        "name": "recovery_intent_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 24,
+        "name": "recovery_intent_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 25,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 26,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 27,
+        "name": "terminal_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      }
+    ],
+    "primaryKey": [
+      "correction_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "shelf_entry_id",
+        "actor_id",
+        "idempotency_key"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "shelf_entry_id",
+        "state"
+      ]
+    ],
+    "partialUniqueRules": [
+      "`UNIQUE(shelf_entry_id) WHERE terminal_at_ms IS NULL OR cleanup_state IN (pending,active,attention_required)`"
+    ],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "admitted",
+          "active",
+          "attention_required",
+          "committed",
+          "cancelled"
+        ]
+      },
+      {
+        "column": "cleanup_state",
+        "enumValues": [
+          "pending",
+          "active",
+          "attention_required",
+          "completed"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "state_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "preview_proof_json",
+        "schemaRefColumn": "preview_proof_schema_ref",
+        "maxBytes": 2097152,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "committed_context_json",
+        "schemaRefColumn": "committed_context_schema_ref",
+        "maxBytes": 4194304,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "cleanup_receipt_json",
+        "schemaRefColumn": "cleanup_receipt_schema_ref",
+        "maxBytes": 16384,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "recovery_intent_json",
+        "schemaRefColumn": "recovery_intent_schema_ref",
+        "maxBytes": 16384,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": [
+        "完整Arca Basis/新Proposal/精确旧新路径/target reality不可更新，受理不发布新Canonical Fact、不产生文件副作用。`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "preview proof固定`helix://contracts/application-types/ArcaJavCorrectionPreviewProof/v1`、JCS≤2 MiB",
+      "完整Arca Basis/新Proposal/精确旧新路径/target reality不可更新，受理不发布新Canonical Fact、不产生文件副作用。`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`",
+      "`UNIQUE(shelf_entry_id) WHERE terminal_at_ms IS NULL OR cleanup_state IN (pending,active,attention_required)`",
+      "`INDEX(shelf_entry_id,state)`。仅state/state_revision/terminal evidence/timestamps可expected-state/revision CAS",
+      "admitted→active/cancelled，active→attention_required/committed，attention_required→active/cancelled",
+      "已开始正式文件Effect时不得cancelled，须恢复同一scope。terminal时Evidence/timestamp整体write-once",
+      "成功事实必须由独立Correction Inventory Commit提交，禁止以状态变化冒充成功"
+    ],
+    "rawContract": {
+      "columns": "`correction_id PK, shelf_entry_id FK, preview_id, preview_proof_schema_ref, preview_proof_json, basis_digest, proposal_digest, placement_preview_digest, actor_id, idempotency_key, admission_digest, state(admitted|active|attention_required|committed|cancelled), state_revision, terminal_evidence_digest NULL, committed_context_schema_ref NULL, committed_context_json NULL, committed_context_digest NULL, cleanup_state(pending|active|attention_required|completed) NULL, cleanup_receipt_schema_ref NULL, cleanup_receipt_json NULL, cleanup_receipt_digest NULL, recovery_intent_schema_ref NULL, recovery_intent_json NULL, recovery_intent_digest NULL, created_at_ms, updated_at_ms, terminal_at_ms NULL`",
+      "constraints": "preview proof固定`helix://contracts/application-types/ArcaJavCorrectionPreviewProof/v1`、JCS≤2 MiB；完整Arca Basis/新Proposal/精确旧新路径/target reality不可更新，受理不发布新Canonical Fact、不产生文件副作用。`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；`UNIQUE(shelf_entry_id) WHERE terminal_at_ms IS NULL OR cleanup_state IN (pending,active,attention_required)`；`INDEX(shelf_entry_id,state)`。仅state/state_revision/terminal evidence/timestamps可expected-state/revision CAS；admitted→active/cancelled，active→attention_required/committed，attention_required→active/cancelled；已开始正式文件Effect时不得cancelled，须恢复同一scope。terminal时Evidence/timestamp整体write-once；成功事实必须由独立Correction Inventory Commit提交，禁止以状态变化冒充成功"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9514,
+      "lineDigest": "c9cc49a94559d3d822cca6023cf8bac05b731a23780d92a8f1b7068db035e607"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

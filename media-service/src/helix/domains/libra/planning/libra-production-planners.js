@@ -8,6 +8,7 @@ const {
   executionInputUnavailable,
 } = require('../../../foundation/execution/execution-input-readiness');
 const { buildProductIdentityCommitBundle } = require('../model/product-identity-commit-contracts');
+const { nextJavIdentityStage } = require('./jav-product-identity-work');
 const { frozenSeriesSeasonNumber,candidateSeriesAnchor } = require('../model/series-identity-contracts');
 const { buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductMetadataDraft } =
   require('../model/product-fact-contracts');
@@ -104,7 +105,7 @@ function decisionEvidence(sourceResult, snapshot) {
   const queryResultBody={schemaRef:'helix://contracts/types/VersionedQueryResult/v1',schemaVersion:1,
     evidenceId:sourceResult.observationId,evidenceKind:'product_identity_evidence_query_result',producerRef:IDENTITY_EVIDENCE,
     basisDigest:sourceResult.evidenceDigest,payloadDigest:sourceResult.observationDigest,observedAtMs:0,
-    providerDomain:'tmdb',queryContract:IDENTITY_EVIDENCE,queryVersion:1,inputDigest:canonicalDigest(sourceResult.intentId),
+    providerDomain:sourceResult.contentProfile==='jav'?'jav':'tmdb',queryContract:IDENTITY_EVIDENCE,queryVersion:1,inputDigest:canonicalDigest(sourceResult.intentId),
     resultKind:'found',resultRevision:1,resultDigest:canonicalDigest(sourceResult),
     expiresAtMs:Number.MAX_SAFE_INTEGER};
   const queryResult=Object.freeze(queryResultBody);
@@ -121,6 +122,32 @@ function createProductIdentityPlanner(options) {
   return Object.freeze({plannerContractRef:'helix://libra/planners/ProductIdentity/v1',plannerVersion:1,plan(request) {
     const snapshot=readRunSnapshot(options.movieProductionReader,request.processId);
     if(!snapshot||snapshot.run.executionBasisDigest!==request.executionBasisDigest)throw new Error('Product Identity planning basis changed.');
+    if(snapshot.spec.contentProfile==='jav') {
+      const stage=nextJavIdentityStage(options,snapshot);
+      if(!['observation','resolved'].includes(stage.kind))throw new Error('JAV identity Work no longer matches its current selection.');
+      let work,nodes;
+      if(stage.kind==='observation') {
+        work=stage.work;
+        if(request.workId!==work.workId)throw new Error('JAV identity observation Work was superseded.');
+        const eventId=stable('libra-product-identity-fact-event-',{attempt:request.workAttemptId});
+        nodes=[planNode({...options,request,nodeId:'provider_identity_observation',eventId,capabilityRef:IDENTITY_EVIDENCE,
+          inputBindings:[owner('productIdentityEvidenceIntent',request,IDENTITY_EVIDENCE_INTENT,{javIntent:stage.intent}),
+            owner('physicalMaterialReadHandleOrIntegrationHandle',request,IDENTITY_EVIDENCE_SOURCE,{javIntent:stage.intent})],resourceKinds:['disk_io','network']})];
+      }else {
+        work=identityCommitWork(snapshot,{workId:stage.work.workId,resultDigest:stage.sourceResult.resultDigest});
+        if(request.workId!==work.workId)throw new Error('JAV identity commit Work was superseded.');
+        const eventId=stable('libra-product-identity-resolve-event-',{attempt:request.workAttemptId}),
+          parameters={sourceWorkId:stage.work.workId,libraRunId:request.processId,workId:request.workId,eventId};
+        nodes=[planNode({...options,request,nodeId:'product_identity_resolution',eventId,capabilityRef:IDENTITY,
+          inputBindings:[owner('identityClaim',request,IDENTITY_CLAIM),owner('decisionEvidence',request,DECISION_EVIDENCE,parameters),
+            owner('productStructure',request,PRODUCT_STRUCTURE),owner('domainFactCommitHandle',request,IDENTITY_HANDLE,parameters)],resourceKinds:['cpu']})];
+      }
+      return Object.freeze({schemaRef:'helix://foundation/types/WorkflowPlanDefinition/v1',schemaVersion:1,
+        planId:stable('libra-product-identity-plan-',{attempt:request.workAttemptId}),workAttemptId:request.workAttemptId,
+        ownerDomain:'libra',plannerContractRef:this.plannerContractRef,plannerVersion:1,workObjectiveTypeRef:work.workObjectiveTypeRef,
+        workObjectiveVersion:1,executionBasisDigest:request.executionBasisDigest,capabilityCatalogDigest:catalogDigest,
+        resolution:'planned',diagnosticClassification:null,nodes:Object.freeze(nodes)});
+    }
     const nfo=snapshot.relatedReferences.filter((item)=>item.role==='nfo').sort((a,b)=>a.referenceId.localeCompare(b.referenceId));
     const manualSelection=options.productIdentitySelection?.readCurrent(snapshot.run.libraRunId)||null;
     const established=!manualSelection?establishedSubjectIdentity(options,snapshot):null;
@@ -178,6 +205,12 @@ function createProductIdentityProjections(options) {
   }
   function identityIntent(value,parameters={}) {
     const contentProfile=value.spec?.contentProfile;
+    if(contentProfile==='jav') {
+      const stage=nextJavIdentityStage(options,value),intent=parameters.javIntent;
+      if(stage.kind!=='observation' || !intent || intent.intentDigest!==stage.intent.intentDigest ||
+          canonicalJson(intent)!==canonicalJson(stage.intent))throw new Error('JAV projected identity selection is stale.');
+      return stage.intent;
+    }
     if(!['movie','series'].includes(contentProfile))throw new Error('Product Identity profile is unavailable.');
     const series=contentProfile==='series';
     const seasonNumber=series?frozenSeriesSeasonNumber(value):null;
@@ -240,6 +273,7 @@ function createProductIdentityProjections(options) {
     return Object.freeze({intentId,...body,intentDigest});
   }
   function identitySource(intent) {
+    if(intent.contentProfile==='jav')return options.productIdentitySelection.resolveJavSourceHandle(intent.sourceSnapshot.sources[intent.sourceOrdinal]);
     const handle=options.resolveRoutingIntegrationHandle({...intent,providerKind:intent.provider,
       operationId:IDENTITY_EVIDENCE});
     if(!handle)throw executionInputUnavailable(
@@ -422,7 +456,13 @@ function createProductMetadataObservationProjections(options) {
   ]);
 }
 
-function resolvedMetadataInputs(options, source, snapshot) {
+function resolvedMetadataInputs(options, source, snapshot, sourceResult=null) {
+  if(source.intent.contentProfile==='jav') {
+    const handle=sourceResult?.sourceIntegrationHandle;
+    const valid=options.productIdentitySelection.validateJavSourceHandleEvidence(handle,source.intent.javSelectedSource,sourceResult?.observedAtMs,METADATA);
+    if(!valid)throw new Error('JAV metadata lacks its exact historical source Handle provenance.');
+    return Object.freeze({metadataFetchIntent:source.intent,physicalMaterialReadHandleOrIntegrationHandle:handle});
+  }
   if(source.kind==='provider')return Object.freeze({metadataFetchIntent:source.intent,
     physicalMaterialReadHandleOrIntegrationHandle:options.productProductionPort.resolveIntegrationHandle({
       intent:source.intent,operationId:METADATA})});
@@ -460,7 +500,7 @@ function productMetadataContext(options, libraRunId, selectedEpisodeKey) {
       if(source.kind==='related_nfo'&&!source.reference)
         throw new Error('Product Metadata NFO source is absent from the frozen Run snapshot.');
       sources.push(source);
-      const resolvedInputs=resolvedMetadataInputs(options,source,snapshot);
+      const resolvedInputs=resolvedMetadataInputs(options,source,snapshot,item.result);
       if(item.inputSnapshotDigest&&item.inputSnapshotDigest!==canonicalDigest(resolvedInputs))
         throw new Error('Product Metadata execution input snapshot changed.');
       return Object.freeze({...item,ownerDomain:'libra',processType:'libra_run',processId:libraRunId,

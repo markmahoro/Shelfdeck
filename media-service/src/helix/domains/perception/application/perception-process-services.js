@@ -7,6 +7,7 @@ const { createPerceptionResolutionInputAssembler } = require('./perception-resol
 const { buildRuleSnapshot, versionedQueryResult } = require('./perception-resolution-application');
 const { deriveTitleEvidence, normalizeAlias, titleAssociationAliases } = require('../model/perception-aliases');
 const { createPerceptionAcquisitionAutomation } = require('./perception-acquisition-automation');
+const {assertJavPerceptionContinuity,DIRECT_POLICY}=require('../../../contracts/jav-perception-continuity');
 
 const LIMITS = Object.freeze({ globalOpenWorks:256, ownerOpenWorks:256, openEvents:256 });
 const ACQUISITION_RESULT = 'helix://contracts/types/PerceptionRecordCommitResult/v1';
@@ -15,7 +16,10 @@ const RESOLUTION_INPUT_CONTRACT_REPAIR_CODE = 'P4_CAPABILITY_SCHEMA_REJECTED';
 const RESOLUTION_INPUT_CONTRACT_REPAIR_BASIS = 'perception-resolution-input-contract-repair@1';
 
 function stable(prefix,value){return prefix+canonicalDigest(value).slice(0,40);}
-function directSourceId(targetType,targetId){return stable('perception-direct-source-',{targetType,targetId});}
+function directSourceId(targetType,targetId,factKind='rating'){return stable('perception-direct-source-',factKind==='rating'?{targetType,targetId}:{targetType,targetId,factKind});}
+function resolutionTarget(processId){const factKind=processId.startsWith('watched/')?'watched':'rating',value=factKind==='watched'?processId.slice(8):processId,
+  separator=value.indexOf(':');if(separator<1||!['subject','shelf_entry'].includes(value.slice(0,separator))||!value.slice(separator+1))throw new TypeError('Resolution process target is invalid.');
+  return {targetType:value.slice(0,separator),targetId:value.slice(separator+1),factKind};}
 function freeze(value){return Array.isArray(value)?Object.freeze(value.map(freeze)):value&&typeof value==='object'?Object.freeze(Object.fromEntries(Object.entries(value).map(([k,v])=>[k,freeze(v)]))):value;}
 function definition(kind,processType,processId,basisDigest,outputContractRef){return Object.freeze({schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,
   workId:stable('perception-'+kind+'-work-',{processType,processId,basisDigest}),ownerDomain:'perception',processType,processId,workKind:kind,
@@ -23,14 +27,20 @@ function definition(kind,processType,processId,basisDigest,outputContractRef){re
   executionBasisDigest:basisDigest,dependencyRefs:Object.freeze([]),priorityClass:'normal_foreground',priorityRevision:1,
   capabilityCatalogScope:'perception',workspaceMaterialScope:Object.freeze([]),idempotencyKey:stable('perception-'+kind+'-key-',{processId,basisDigest}),
   concurrencyScope:processId+'/'+kind,outputContractRef});}
-function queryFor(target){const evidence=[];const add=(anchorKind,anchorValue,confidenceClass)=>{if(!anchorValue)return;evidence.push({anchorKind,anchorValue:String(anchorValue),confidenceClass,
+function queryFor(target,factKind='rating'){if(!['rating','watched'].includes(factKind))throw new TypeError('Perception query fact kind is invalid.');const evidence=[];const add=(anchorKind,anchorValue,confidenceClass)=>{if(!anchorValue)return;evidence.push({anchorKind,anchorValue:String(anchorValue),confidenceClass,
   evidenceDigest:canonicalDigest({targetType:target.targetType,targetId:target.targetId,targetRevision:target.targetRevision,anchorKind,anchorValue:String(anchorValue)})});};
   add(target.targetType==='shelf_entry'?'shelf_entry_id':'subject_id',target.targetId,'exact');
+  let directTargetScope;
+  if(target.javPerceptionContinuity){const proof=assertJavPerceptionContinuity(target.javPerceptionContinuity,target);
+    add('subject_id',proof.acceptedSubjectOrigin.subjectId,'exact');
+    directTargetScope={policyRef:DIRECT_POLICY,shelfEntryId:target.targetId,acceptedSubjectId:proof.acceptedSubjectOrigin.subjectId,continuityDigest:proof.continuityDigest};
+  }
   add('provider_identity',target.providerIdentity,'strong');if(target.title){
     for(const alias of titleAssociationAliases(target.title))add('title',alias,'medium');
   }
   evidence.sort((a,b)=>a.anchorKind.localeCompare(b.anchorKind)||a.anchorValue.localeCompare(b.anchorValue));
-  const body={queryContract:'perception.rating.resolve@1',queryVersion:1,querySchemaRef:'helix://contracts/domain-types/PerceptionResolutionQuery/v1',factKind:'rating',identityEvidence:evidence};
+  const body={queryContract:'perception.'+factKind+'.resolve@1',queryVersion:1,querySchemaRef:'helix://contracts/domain-types/PerceptionResolutionQuery/v1',factKind,identityEvidence:evidence,
+    ...(directTargetScope?{directTargetScope}: {})};
   return freeze({...body,queryInputDigest:canonicalDigest(body)});}
 function queryHandle(query,now,consumerDomain){const domain=consumerDomain==='arca'?'arca':'libra';
   const body={schemaRef:'helix://contracts/types/CanonicalQueryHandle/v1',schemaVersion:1,providerDomain:'perception',consumerDomain:domain,
@@ -66,17 +76,28 @@ function createPerceptionProcessServices(options){
     }
     const submitted=submit(work);return freeze({kind:succeeded(workStatus(work.workId))?'ready_to_reconcile':'pending',acquisitionId,workId:work.workId,replayed:submitted.replayed});}
   function target(targetType,targetId){const value=options.targetProjectionReader(targetType,targetId);if(!value)throw Object.assign(new Error('Rating target does not exist.'),{code:'PERCEPTION_TARGET_NOT_FOUND'});return freeze({...value,targetType,targetId});}
-  function createRecord(command){const retract=command?.rating===null;if(!command||!['subject','shelf_entry'].includes(command.targetType)||!retract&&(!Number.isSafeInteger(command.rating)||command.rating<1||command.rating>5)||!Number.isSafeInteger(command.expectedRevision)||command.expectedRevision<0||typeof command.idempotencyKey!=='string'||!command.idempotencyKey)throw Object.assign(new Error('Rating command is invalid.'),{code:'PERCEPTION_RATING_COMMAND_INVALID'});
-    const current=store.findCurrentTargetRating(command.targetType,command.targetId),currentRevision=current?.sourceRecordRevision||0;if(currentRevision!==command.expectedRevision)throw Object.assign(new Error('Rating revision is stale.'),{code:'PERCEPTION_RATING_REVISION_CONFLICT'});
-    if(retract&&(!current||current.recordKind==='retraction'||current.rating===null))throw Object.assign(new Error('No direct rating is available to clear.'),{code:'PERCEPTION_DIRECT_RATING_NOT_FOUND'});
-    const snapshot=target(command.targetType,command.targetId),revision=currentRevision+1,recordKey='shelfdeck:'+command.targetType+':'+command.targetId;
+  function createRecord(command){const factKind=command&&Object.hasOwn(command,'watched')?'watched':'rating',value=command?.[factKind],retract=value===null,
+    suffix=factKind==='rating'?'RATING':'WATCHED',required=['targetType','targetId','expectedRevision',factKind,'idempotencyKey'];
+    if(!command||Object.keys(command).sort().join(',')!==required.sort().join(',')||!['subject','shelf_entry'].includes(command.targetType)||
+        typeof command.targetId!=='string'||!command.targetId||command.targetId.length>256||!retract&&(factKind==='rating'?(!Number.isSafeInteger(value)||value<1||value>5):typeof value!=='boolean')||
+        !Number.isSafeInteger(command.expectedRevision)||command.expectedRevision<0||typeof command.idempotencyKey!=='string'||!command.idempotencyKey||command.idempotencyKey.length>256)
+      throw Object.assign(new Error('Direct perception command is invalid.'),{code:'PERCEPTION_'+suffix+'_COMMAND_INVALID'});
+    const acquisitionIdentity={idempotencyKey:command.idempotencyKey,targetType:command.targetType,targetId:command.targetId,...(factKind==='watched'?{factKind}: {})},
+      acquisitionId=stable('perception-direct-acquisition-',acquisitionIdentity),requestDigest=canonicalDigest(command),existing=store.getAcquisition(acquisitionId);
+    if(existing){const prior=JSON.parse(existing.scopeJson);if(prior.requestDigest!==requestDigest)throw Object.assign(new Error('Direct input retry differs from its accepted command.'),{code:'PERCEPTION_DIRECT_INPUT_IDEMPOTENCY_CONFLICT'});
+      const operation=reconcileAcquisition(acquisitionId),first=options.workResultReader.listWorks({ownerDomain:'perception',processType:'perception_acquisition',processId:acquisitionId,workKind:'acquisition_page'})
+        .sort((a,b)=>Number(a.created_at_ms)-Number(b.created_at_ms)||a.work_id.localeCompare(b.work_id))[0];
+      return freeze({operationRef:acquisitionId,state:'accepted',targetType:command.targetType,targetId:command.targetId,expectedResultRevision:prior.directInput.sourceRecordRevision,workId:first?.work_id||operation.workId});}
+    const current=store.findCurrentTargetRating(command.targetType,command.targetId,factKind),currentRevision=current?.sourceRecordRevision||0;
+    if(currentRevision!==command.expectedRevision)throw Object.assign(new Error('Direct perception revision is stale.'),{code:'PERCEPTION_'+suffix+'_REVISION_CONFLICT'});
+    if(retract&&(!current||current.recordKind==='retraction'||(factKind==='rating'?current.rating:current.watchedState)===null))throw Object.assign(new Error('No direct input is available to clear.'),{code:'PERCEPTION_DIRECT_'+suffix+'_NOT_FOUND'});
+    const snapshot=target(command.targetType,command.targetId),revision=currentRevision+1,recordKey='shelfdeck:'+(factKind==='watched'?'watched:':'')+command.targetType+':'+command.targetId;
     const scope=freeze({mode:'direct',target:snapshot,directInput:{targetType:command.targetType,targetId:command.targetId,title:snapshot.title,year:snapshot.year||null,
-      providerIdentity:snapshot.providerIdentity||null,rating:command.rating,watched:null,sourceRecordKey:recordKey,sourceRecordRevision:revision,
-      sourceRecordDigest:canonicalDigest({recordKey,revision,rating:command.rating,operation:retract?'retract':'set',targetDigest:snapshot.targetDigest}),
+      providerIdentity:snapshot.providerIdentity||null,rating:factKind==='rating'?value:null,watched:factKind==='watched'?value:null,sourceRecordKey:recordKey,sourceRecordRevision:revision,
+      sourceRecordDigest:canonicalDigest({recordKey,revision,[factKind]:value,operation:retract?'retract':'set',targetDigest:snapshot.targetDigest}),
       supersedes:!retract&&current?{sourceRecordKey:current.sourceRecordKey,sourceRecordRevision:current.sourceRecordRevision,sourceRecordDigest:current.sourceRecordDigest}:null,
-      retracts:retract?{sourceRecordKey:current.sourceRecordKey,sourceRecordRevision:current.sourceRecordRevision,sourceRecordDigest:current.sourceRecordDigest}:null},idempotencyKey:command.idempotencyKey});
-    const acquisitionId=stable('perception-direct-acquisition-',{idempotencyKey:command.idempotencyKey,targetType:command.targetType,targetId:command.targetId});
-    start({acquisitionId,sourceId:directSourceId(command.targetType,command.targetId),sourceKind:'shelfdeck_direct',integrationId:'shelfdeck-direct-input',configRevision:1,scope});
+      retracts:retract?{sourceRecordKey:current.sourceRecordKey,sourceRecordRevision:current.sourceRecordRevision,sourceRecordDigest:current.sourceRecordDigest}:null},idempotencyKey:command.idempotencyKey,requestDigest});
+    start({acquisitionId,sourceId:directSourceId(command.targetType,command.targetId,factKind),sourceKind:'shelfdeck_direct',integrationId:'shelfdeck-direct-input',configRevision:1,scope});
     const operation=reconcileAcquisition(acquisitionId);return freeze({operationRef:acquisitionId,state:'accepted',targetType:command.targetType,targetId:command.targetId,expectedResultRevision:revision,workId:operation.workId});}
   function requestAcquisition(command){const config=options.readDoubanSourceConfiguration?.();if(!config)throw Object.assign(new Error('Douban integration is not configured.'),{code:'PERCEPTION_DOUBAN_NOT_CONFIGURED'});
     const idempotencyKey=command?.idempotencyKey;if(typeof idempotencyKey!=='string'||!idempotencyKey)throw Object.assign(new Error('Douban sync requires idempotencyKey.'),{code:'PERCEPTION_ACQUISITION_COMMAND_INVALID'});
@@ -91,15 +112,16 @@ function createPerceptionProcessServices(options){
           acquisitionWindow:freeze({kind:'full_snapshot',openedAtMs:now()})});}
     start({acquisitionId,sourceId:config.sourceId,sourceKind:'douban',integrationId:config.integrationId,configRevision:config.configRevision,scope});const operation=reconcileAcquisition(acquisitionId);
     return freeze({operationRef:acquisitionId,state:'accepted',sourceKind:'douban',workId:operation.workId});}
-  function resolutionContext(targetType,targetId){const snapshot=target(targetType,targetId),query=queryFor(snapshot),handle=queryHandle(query,now(),targetType==='shelf_entry'?'arca':'libra'),assembled=assembler.assemble({queryHandle:handle,ruleSnapshot});return freeze({target:snapshot,queryHandle:handle,...assembled});}
-  function ensureResolution(targetType,targetId){const context=resolutionContext(targetType,targetId),existing=store.getResolution(context.query.queryContract,context.query.queryInputDigest);
+  function resolutionContext(targetType,targetId,factKind='rating'){const snapshot=target(targetType,targetId),query=queryFor(snapshot,factKind),handle=queryHandle(query,now(),targetType==='shelf_entry'?'arca':'libra'),assembled=assembler.assemble({queryHandle:handle,ruleSnapshot});return freeze({target:snapshot,queryHandle:handle,...assembled});}
+  function resolutionProcessContext(processId){const value=resolutionTarget(processId);return resolutionContext(value.targetType,value.targetId,value.factKind);}
+  function ensureResolution(targetType,targetId,factKind='rating'){const context=resolutionContext(targetType,targetId,factKind),existing=store.getResolution(context.query.queryContract,context.query.queryInputDigest);
     if(existing&&existing.recordSetDigest===context.recordSet.recordSetDigest&&existing.ruleDigest===context.ruleSnapshot.ruleDigest)return freeze({kind:'terminal',resolution:existing,queryResult:versionedQueryResult(existing,30*24*60*60*1000)});
-    const processId=targetType+':'+targetId,base={queryInputDigest:context.query.queryInputDigest,recordSetDigest:context.recordSet.recordSetDigest,ruleDigest:context.ruleSnapshot.ruleDigest},basisDigest=canonicalDigest(base);
+    const processId=(factKind==='watched'?'watched/':'')+targetType+':'+targetId,base={queryInputDigest:context.query.queryInputDigest,recordSetDigest:context.recordSet.recordSetDigest,ruleDigest:context.ruleSnapshot.ruleDigest},basisDigest=canonicalDigest(base);
     const priorStatus=workStatus(definition('resolution','perception_resolution',processId,basisDigest,RESOLUTION_RESULT).workId);
     const retryBasisDigest=priorStatus?.state==='failed'&&priorStatus.latestAttempt?.failure_code===RESOLUTION_INPUT_CONTRACT_REPAIR_CODE
       ? canonicalDigest({...base,recoveryBasis:RESOLUTION_INPUT_CONTRACT_REPAIR_BASIS}) : basisDigest;
     const work=definition('resolution','perception_resolution',processId,retryBasisDigest,RESOLUTION_RESULT),submitted=submit(work);return freeze({kind:'pending',workId:work.workId,replayed:submitted.replayed,queryInputDigest:context.query.queryInputDigest});}
-  function reconcileResolution(processId){const separator=processId.indexOf(':');return ensureResolution(processId.slice(0,separator),processId.slice(separator+1));}
+  function reconcileResolution(processId){const value=resolutionTarget(processId);return ensureResolution(value.targetType,value.targetId,value.factKind);}
   function reconcileImpactedSubjectResolutions(acquisitionId,listSubjectPage){
     if(typeof listSubjectPage!=='function')return freeze({matchedSubjectIds:[]});
     const anchorValues=new Set(store.listRecordsForAcquisition(acquisitionId).flatMap((record)=>(record.anchors || []).flatMap((anchor)=>
@@ -123,6 +145,14 @@ function createPerceptionProcessServices(options){
     for(const item of queries){const row=byDigest.get(item.query.queryInputDigest),resolution=row?.resolution;if(!resolution||resolution.ruleDigest!==ruleSnapshot.ruleDigest){values.set(item.targetId,freeze({state:'pending',rating:null,sourceKind:null,expectedRevision:direct.get(item.targetId)?.sourceRecordRevision||0,resolutionStatus:null,reasonCode:'resolution_pending',resolutionRevision:null,resolutionDigest:null}));continue;}
       values.set(item.targetId,freeze({state:'ready',rating:resolution.resultKind==='found'?resolution.resolvedValue.value:null,sourceKind:row.winner?.sourceKind||null,expectedRevision:direct.get(item.targetId)?.sourceRecordRevision||0,resolutionStatus:resolution.resultKind,reasonCode:resolution.reasonCode||null,resolutionRevision:resolution.revision,resolutionDigest:resolution.factDigest}));}
     return values;}
+  function readCurrentWatched(targetType,targetId){const context=resolutionContext(targetType,targetId,'watched'),
+    resolution=store.getResolution(context.query.queryContract,context.query.queryInputDigest),direct=store.findCurrentTargetRating(targetType,targetId,'watched');
+    if(!resolution||resolution.recordSetDigest!==context.recordSet.recordSetDigest||resolution.ruleDigest!==context.ruleSnapshot.ruleDigest)
+      return freeze({state:'pending',watchedState:null,sourceKind:null,expectedRevision:direct?.sourceRecordRevision||0,reasonCode:'resolution_pending'});
+    const winner=resolution.resultKind==='found'?store.getRecord(resolution.winningPerceptionId):null;
+    return freeze({state:'ready',watchedState:resolution.resultKind==='found'?resolution.resolvedValue.value:null,sourceKind:winner?.sourceKind||null,
+      expectedRevision:direct?.sourceRecordRevision||0,resolutionStatus:resolution.resultKind,reasonCode:resolution.reasonCode||null,resolutionRevision:resolution.revision,resolutionDigest:resolution.factDigest});
+  }
   const periodicAcquisition = createPerceptionAcquisitionAutomation({
     now, readDoubanSourceConfiguration: options.readDoubanSourceConfiguration,
     listAcquisitions: () => store.listAcquisitions(), requestAcquisition,
@@ -137,8 +167,8 @@ function createPerceptionProcessServices(options){
     return freeze({latest,activeCount,completionState,lastCursorOut:latestCursor?.cursorOut||latest?.initialCursorValue||null,
       cursorRevision:source?.currentCursorRevision||0,committedPageCount:latest?Math.max(0,(source?.currentCursorRevision||0)-latest.initialCursorRevision):0,
       recordCount:store.countRecordsForSource(config.sourceId)});}
-  return Object.freeze({store,ruleSnapshot,acquisitionContext,resolutionContext,reconcileAcquisition,reconcileResolution,reconcileImpactedSubjectResolutions,createRecord,requestAcquisition,ensureResolution,resolveDecisionFact,
-    readCurrentRating,readCurrentRatings,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions(),
+  return Object.freeze({store,ruleSnapshot,acquisitionContext,resolutionContext,resolutionProcessContext,reconcileAcquisition,reconcileResolution,reconcileImpactedSubjectResolutions,createRecord,requestAcquisition,ensureResolution,resolveDecisionFact,
+    readCurrentRating,readCurrentRatings,readCurrentWatched,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions(),
     syncState,periodicAcquisition});
 }
 

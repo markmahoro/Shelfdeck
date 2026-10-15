@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ArcaJavCorrectionCommittedContext/v1",
+  "title": "ArcaJavCorrectionCommittedContext@1",
+  "x-helix-ssotRefs": [
+    "3.5.5",
+    "8.5.12",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 4194304,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/ArcaJavCorrectionCommittedContext/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "correctionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "admissionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "receiptDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "contextDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "commitReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "eventId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "eventAttemptId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "scopeDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "workId",
+        "eventId",
+        "eventAttemptId",
+        "idempotencyKey",
+        "scopeDigest"
+      ]
+    },
+    "filePlan": {
+      "$ref": "helix://contracts/application-types/ArcaJavCorrectionFilePlan/v1"
+    },
+    "stagedRecord": {
+      "$ref": "helix://contracts/types/StagedInventoryManifestRecord/v1"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "correctionId",
+    "shelfEntryId",
+    "admissionDigest",
+    "receiptDigest",
+    "contextDigest",
+    "commitReference",
+    "filePlan",
+    "stagedRecord"
+  ]
+}

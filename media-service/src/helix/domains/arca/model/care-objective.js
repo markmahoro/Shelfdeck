@@ -1,8 +1,9 @@
 'use strict';
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const {inventoryContentProfile}=require('./product-content-profile');
 function acceptedRating(context){if(Number.isInteger(context.raw.perceptionRating?.rating))return context.raw.perceptionRating.rating;for(const fact of context.raw.facts){if(fact.fact_kind!=='decision_fact')continue;const value=fact.value||{};
   for(const key of ['rating','normalizedRating','ratingValue','stars'])if(Number.isInteger(value[key])&&value[key]>=1&&value[key]<=5)return value[key];}return null;}
-function effectiveRequirements(context){const profiles=context.raw.standard.value?.profileRuleSets||[],profile=profiles.find((item)=>item.contentProfile===(context.raw.entry.structure_kind==='season'?'series':'movie'))||profiles[0];if(!profile)return null;const rating=acceptedRating(context);if(rating===null)return profile.baseRequirements;const branch=(profile.decisionBranches||[]).find((item)=>item.predicate?.rating===rating||item.rating===rating||item.decisionValue===rating);return branch?.requirements||branch?.resultRequirements||profile.baseRequirements;}
+function effectiveRequirements(context){const contentProfile=inventoryContentProfile(context.raw.identity,context.raw.entry.structure_kind),profiles=context.raw.standard.value?.profileRuleSets||[],profile=profiles.find((item)=>item.contentProfile===contentProfile);if(!profile)return null;const rating=acceptedRating(context);if(rating===null)return profile.baseRequirements;const branch=(profile.decisionBranches||[]).find((item)=>item.predicate?.rating===rating||item.rating===rating||item.decisionValue===rating);return branch?.requirements||branch?.resultRequirements||profile.baseRequirements;}
 
 function careFindingCodes(requirement) {
   return (requirement?.typedParameters || []).filter(item =>
@@ -11,6 +12,19 @@ function careFindingCodes(requirement) {
 function careFindingParameters(findings) {
   return Object.freeze([...new Set(findings.map(item=>item.findingKind))].sort().map(value=>Object.freeze({
     parameter:'finding.'+canonicalDigest(value).slice(0,16),valueType:'string',value,valueDigest:canonicalDigest(value)})));
+}
+function missingArtifactCustodyRefreshScope(context,health) {
+  if(context.raw.entry.structure_kind!=='single')return Object.freeze([]);
+  const missing=new Set(health.dimensions.presentation.findings.map(item=>item.findingKind)),
+    artifacts=context.raw.materials.filter(item=>
+      missing.has('presentation:nfo_missing')&&(item.role==='metadata_sidecar'||String(item.role||'').includes('nfo')||
+        String(item.location||'').toLowerCase().endsWith('.nfo'))||
+      missing.has('presentation:poster_missing')&&String(item.role||'').includes('poster')||
+      missing.has('presentation:fanart_missing')&&String(item.role||'').includes('fanart'));
+  const unproved=artifacts.filter(item=>!health.dimensions.custody.findings.some(finding=>
+    finding.findingKind==='custody:artifact_missing'&&finding.findingDigest===canonicalDigest({kind:'custody',
+      code:'artifact_missing',severity:'critical',repairability:'auto_repair',basis:item.material_key})));
+  return Object.freeze(unproved.map(item=>item.material_key).sort());
 }
 function freezeCareObjective(context) {
   const requirements = effectiveRequirements(context);
@@ -61,4 +75,4 @@ function readCareObjective(requirement) {
   }
   return Object.freeze({requirements:value,requirementsDigest:digest.value,placement});
 }
-module.exports = Object.freeze({acceptedRating,effectiveRequirements,careFindingCodes,careFindingParameters,freezeCareObjective,readCareObjective});
+module.exports = Object.freeze({acceptedRating,effectiveRequirements,careFindingCodes,careFindingParameters,missingArtifactCustodyRefreshScope,freezeCareObjective,readCareObjective});

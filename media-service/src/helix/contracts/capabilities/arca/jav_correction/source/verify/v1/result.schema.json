@@ -1,0 +1,6 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.jav_correction.source.verify/v1/result",
+  "title": "arca.jav_correction.source.verify@1 succeeded result",
+  "$ref": "helix://contracts/types/JavCorrectionSourceVerified/v1"
+}

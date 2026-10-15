@@ -266,6 +266,14 @@ function resourceKinds(capability) {
   if (capability.id === 'libra.product_package.publish@1') return ['sqlite_write'];
   if (capability.id === 'arca.shelf_deregistration.release_manifest.verify@1') return ['control_plane'];
   if (capability.id === 'arca.shelf_deregistration.commit@1') return ['sqlite_write', 'control_commit'];
+  if (capability.id === 'arca.jav_correction.source.verify@1') return ['cpu', 'network'];
+  if (capability.id === 'arca.jav_correction.assets.prepare@1') return ['cpu', 'disk_io', 'network'];
+  if (capability.id === 'arca.jav_correction.files.stage@1') return ['cpu', 'disk_io'];
+  if (capability.id === 'arca.jav_correction.files.publish@1') return ['cpu', 'disk_io'];
+  if (capability.id === 'arca.jav_correction.files.verify@1') return ['cpu', 'disk_io'];
+  if (capability.id === 'arca.jav_correction.inventory.commit@1') return ['cpu', 'disk_io'];
+  if (capability.id === 'arca.jav_correction.formal_retirement.execute@1') return ['cpu', 'disk_io'];
+  if (capability.id === 'arca.jav_correction.workspace.reclaim@1') return ['cpu', 'disk_io'];
   // BDMV assessment is the first triage capability whose atomic effect needs
   // both source-volume I/O and bounded media parsing CPU.  Keep the demand
   // dimensions explicit in the contract; the runtime resolver later expands
@@ -372,7 +380,7 @@ function buildCapabilityPackage(capability) {
     effectClass: capability.effectClass,
     inputPorts,
     parametersSchemaRef: schemas['parameters.schema.json'].$id,
-    resultSchemaRef: ['arca.inventory.final_product.verify@1','arca.ondeck.fulfillment.verify@1'].includes(capability.id)
+    resultSchemaRef: ['arca.inventory.final_product.verify@1','arca.ondeck.fulfillment.verify@1','arca.jav_correction.files.verify@1','arca.jav_correction.inventory.commit@1','arca.jav_correction.formal_retirement.execute@1','arca.jav_correction.workspace.reclaim@1'].includes(capability.id)
       ? schemas['result.schema.json'].$ref : schemas['result.schema.json'].$id,
     evidenceSchemaRef: schemas['evidence.schema.json'].$id,
     failureSchemaRef: schemas['failure.schema.json'].$id,

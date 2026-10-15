@@ -1,6 +1,9 @@
 'use strict';
 const { observeNfoReferenceSemantics } = require('./helix/contracts/nfo-reference-semantics');
 const { nfoXmlText } = require('./helix/contracts/nfo-xml-text');
+const {validateProductIntegrationHandle}=require('./helix/platform/public/integration-adapter-support');
+const {deriveJavCoverBytes}=require('./helix/integrations/jav-cover-renderer');
+const {assertJavCoverDerivation}=require('./helix/contracts/jav-cover-derivation');
 
 const crypto = require('node:crypto');
 const fs = require('node:fs');
@@ -668,12 +671,14 @@ function createCleanProductProductionPort(options = {}) {
       intent,
       operationId: 'libra.product_metadata.fetch@1',
     });
+    const javSource=intent.contentProfile==='jav' && Boolean(intent.javSelectedSource);
+    const handleMatches=javSource?validateProductIntegrationHandle(integrationHandle,{...expectedHandle,artifactKind:null},now()):canonicalJson(integrationHandle)===canonicalJson(expectedHandle);
     if (!integrationHandle ||
-        canonicalJson(integrationHandle) !== canonicalJson(expectedHandle) ||
+        !handleMatches ||
         integrationHandle.allowedOperation !==
           'libra.product_metadata.fetch@1' ||
         integrationHandle.integrationId !== intent.integrationId ||
-        integrationHandle.integrationType !== intent.providerKind ||
+        integrationHandle.integrationType !== (javSource?'jav_source':intent.providerKind) ||
         integrationHandle.configRevision !== intent.configRevision ||
         integrationHandle.expiresAtMs < now()) {
       fail('CLEAN_PRODUCT_PROVIDER_HANDLE_INVALID',
@@ -743,23 +748,27 @@ function createCleanProductProductionPort(options = {}) {
     const draft = request?.productMetadataDraft;
     const kind = request?.artifactKind;
     const integrationHandle = request?.integrationHandle;
+    const javSource=Boolean(draft?.javSelectedSource);
+    if(javSource && !request.runtimeEffectAuthority)
+      fail('CLEAN_PRODUCT_ARTIFACT_AUTHORITY_REQUIRED','JAV Artifact production requires its formal Workspace Effect authority.');
     const identity = draft?.providerIdentities?.find((item) =>
-      item.provider === integrationHandle?.integrationType);
+      item.provider === (javSource?'jav':integrationHandle?.integrationType));
     const requirement = draft?.artifactRequirements?.find((item) =>
       item.artifactKind === kind);
     const expectedHandle = integrationHandle && resolveIntegrationHandle({
       intent: {
         sourceKind: 'provider',
-        providerKind: integrationHandle.integrationType,
+        providerKind: javSource?'jav':integrationHandle.integrationType,
         integrationId: request.integrationId,
         configRevision: request.configRevision,
+        ...(javSource?{javSelectedSource:draft.javSelectedSource}:{}),
       },
       operationId: 'libra.product_artifact.acquire@1',
       artifactKind: kind,
     });
     if (!draft || !['poster', 'fanart'].includes(kind) || !requirement ||
         !identity || !integrationHandle ||
-        canonicalJson(integrationHandle) !== canonicalJson(expectedHandle) ||
+        !(javSource?validateProductIntegrationHandle(integrationHandle,{...expectedHandle,artifactKind:kind},now()):canonicalJson(integrationHandle)===canonicalJson(expectedHandle)) ||
         integrationHandle.allowedOperation !==
           'libra.product_artifact.acquire@1' ||
         integrationHandle.integrationId !== request.integrationId ||
@@ -776,6 +785,7 @@ function createCleanProductProductionPort(options = {}) {
       integrationHandle,
     });
     const basisDigest = canonicalDigest(input);
+    let javCoverDerivation=null;
     const outcome = await options.workspaceProductPort.acquireArtifact({
       libraRunId: request.libraRunId,
       workspaceId: request.workspaceId,
@@ -795,7 +805,7 @@ function createCleanProductProductionPort(options = {}) {
         digest: request.metadataObservationDigest,
       },
       async acquireBytes() {
-        const response = await options.fetchProviderArtifact(input);
+        let response = await options.fetchProviderArtifact(input);
         if (!response ||
             !['acquired', 'not_available'].includes(response.resultKind)) {
           fail('CLEAN_PRODUCT_ARTIFACT_RESULT_INVALID',
@@ -811,6 +821,12 @@ function createCleanProductProductionPort(options = {}) {
             resultKind: 'not_available',
             reasonCode: response.reasonCode,
           });
+        }
+        if(javSource) {
+          const derived=await deriveJavCoverBytes({bytes:response.sourceCoverBytes,selectedSource:draft.javSelectedSource,
+            sourceObservationDigest:response.sourceObservationDigest,artifactKind:kind});
+          javCoverDerivation=derived.derivation;
+          response={...response,bytes:derived.bytes};
         }
         if (!Buffer.isBuffer(response.bytes) ||
             !response.bytes.length ||
@@ -847,11 +863,17 @@ function createCleanProductProductionPort(options = {}) {
       });
     }
     const materialized = outcome.materialized;
+    if(javSource) {
+      assertJavCoverDerivation(javCoverDerivation);
+      if(javCoverDerivation.outputDigest!==materialized.artifactHandle.digestHex)
+        fail('JAV_COVER_DERIVATION_INVALID','Registered JAV Artifact differs from its verified derived bytes.');
+    }
     const payload = {
       artifactKind: kind,
       artifactHandleId: materialized.artifactHandle.artifactHandleId,
       artifactDigest: materialized.artifactHandle.digestHex,
       requirementDigest: requirement.requirementDigest,
+      ...(javSource?{derivationDigest:javCoverDerivation.derivationDigest,selectedSourceDigest:javCoverDerivation.javSelectedSource.bindingDigest}:{}),
     };
     return Object.freeze({
       schemaRef: 'helix://contracts/types/ArtifactAcquisitionResult/v1',
@@ -859,6 +881,7 @@ function createCleanProductProductionPort(options = {}) {
       resultKind: 'acquired',
       artifactHandle: materialized.artifactHandle,
       reasonCode: null,
+      ...(javSource?{javCoverDerivation}:{}),
       evidence: evidenceEnvelope(
         'product_artifact_acquired',
         'libra.product_artifact.acquire@1',

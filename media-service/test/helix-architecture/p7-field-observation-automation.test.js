@@ -157,7 +157,7 @@ test('deregistered and unsupported-profile Fields are skipped', () => {
   const harness = createHarness({
     fields: [
       field({ fieldId: 'gone', status: 'deregistered' }),
-      field({ fieldId: 'unsupported', contentProfileHint: 'jav' }),
+      field({ fieldId: 'unsupported', contentProfileHint: 'western_adult' }),
     ],
   });
   assert.equal(harness.automation.reconcile({ fieldId: 'gone' }).kind, 'not_active');

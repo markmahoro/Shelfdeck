@@ -425,11 +425,14 @@ function runTerminalDeliveryEvidence() {
   const work = object({ workId: id(), planId: id(), workBasisDigest: digest(), terminalEventId: id(), capabilityRef: id(),
     failureClass: text(), failureCode: text(), attemptCount: positive(), retryPolicyDigest: digest(),
     terminalEvidenceDigest: digest(), memberDigest: digest() });
+  const planning=object({blockerSource:{const:'plan_rejection'},workId:id(),planId:id(),workBasisDigest:digest(),workAttemptId:id(),
+    plannerContractRef:id(),plannerVersion:positive(),catalogDigest:digest(),graphDigest:digest(),failureCode:text(),attemptCount:positive(),
+    terminalEvidenceDigest:digest(),memberDigest:digest()});
   return { $schema: DRAFT, $id: typeId('LibraRunTerminalDeliveryEvidence'), title: 'LibraRunTerminalDeliveryEvidence@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 256 * 1024,
     ...object({ evidenceId: digest(), libraRunId: digest(), executionBasisDigest: digest(),
       blockerKind: { type: 'string', enum: ['capability_exhausted', 'integration_exhausted', 'product_unachievable'] },
-      blockedWorks: { type: 'array', items: work, minItems: 1, maxItems: 256 }, blockerSetDigest: digest(),
+      blockedWorks: { type: 'array', items: {oneOf:[work,planning]}, minItems: 1, maxItems: 256 }, blockerSetDigest: digest(),
       assessedAtMs: nonNegative(), evidenceDigest: digest() }) };
 }
 
@@ -878,6 +881,18 @@ function buildLibraApplicationSchemas() {
   const previewCommon={libraRunId:id(),missingEvidence:arrayOf(id()),ineligibleReasons:arrayOf(id()),
     pathResults:arrayOf(object({workId:id(),capabilityRef:id(),failureClass:id(),failureCode:id(),evidenceDigest:digest()}))};
   return Object.freeze({
+    LibraAcceptedSubjectOrigin:{$schema:DRAFT,$id:typeId('LibraAcceptedSubjectOrigin'),title:'LibraAcceptedSubjectOrigin@1','x-helix-ssotRefs':['8.6.21'],
+      'x-helix-maxCanonicalBytes':4096,...require('../../src/helix/contracts/jav-perception-continuity').acceptedSubjectOriginSchema()},
+    AcceptedProductRequirementsQuery:{$schema:DRAFT,$id:typeId('AcceptedProductRequirementsQuery'),title:'AcceptedProductRequirementsQuery@1',
+      'x-helix-ssotRefs':['8.6.21'],'x-helix-maxCanonicalBytes':256*1024,...object({queryContract:{const:'libra.accepted-product-requirements@1'},
+        packages:{type:'array',minItems:1,maxItems:500,items:object({onDeckPackageId:id(),expectedPackageDigest:digest()})},
+        includeAcceptedSubjectOrigin:{const:true}},['queryContract','packages'])},
+    AcceptedProductRequirementsResult:{$schema:DRAFT,$id:typeId('AcceptedProductRequirementsResult'),title:'AcceptedProductRequirementsResult@1',
+      'x-helix-ssotRefs':['8.6.21'],'x-helix-maxCanonicalBytes':40*1024*1024,...object({items:{type:'array',minItems:1,maxItems:500,items:{oneOf:[
+        object({resultKind:{const:'not_found'},onDeckPackageId:id()}),
+        object({resultKind:{const:'found'},onDeckPackageId:id(),packageDigest:digest(),libraRunId:id(),shelfId:id(),authorizedDefectManifestDigest:nullable(digest()),
+          acceptanceRequirementSnapshot:{$ref:'helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1'},acceptedSubjectOrigin:{$ref:typeId('LibraAcceptedSubjectOrigin')}},
+          ['resultKind','onDeckPackageId','packageDigest','libraRunId','shelfId','authorizedDefectManifestDigest','acceptanceRequirementSnapshot'])]}}})},
     LibraDefectPreview:{$schema:DRAFT,$id:typeId('LibraDefectPreview'),title:'LibraDefectPreview@1',
       'x-helix-ssotRefs':['5.6.7','8.6.21'],'x-helix-maxCanonicalBytes':65536,
       oneOf:[object({...previewCommon,eligibility:{enum:['evidence_pending','ineligible']},message:text()}),

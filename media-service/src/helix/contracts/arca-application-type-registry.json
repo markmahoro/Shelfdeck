@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "arca",
   "status": "active",
-  "targetCount": 8,
+  "targetCount": 28,
   "entries": [
     {
       "id": "ArcaDefectAuthorization",
@@ -100,6 +100,346 @@
         "8.6.21",
         "9.5.3",
         "9.5.4"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionAdmissionReceipt",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionAdmissionReceipt/v1",
+      "relativePath": "application-types/ArcaJavCorrectionAdmissionReceipt/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "6d2f99b1c95e92f8908312bce85e23bf533466e4b65284af968a01bd9235ad95"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionBasis",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionBasis/v1",
+      "relativePath": "application-types/ArcaJavCorrectionBasis/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "fb14d55fcbce7baad8fc21e11a1ca52c20b5e7e5688e01b255e1932e10b5dac4"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionCancellationReceipt",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionCancellationReceipt/v1",
+      "relativePath": "application-types/ArcaJavCorrectionCancellationReceipt/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "350372bec3ad20ff7a3a00feea5a0dfc403fcefaee88b25807ab61c76d46073b"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionCastFact",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionCastFact/v1",
+      "relativePath": "application-types/ArcaJavCorrectionCastFact/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d1947e5cc1c6cdeb9f7de61f1a2880bbcafddad9fc1f76b13d991dab37e62a6e"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionCastRecord",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionCastRecord/v1",
+      "relativePath": "application-types/ArcaJavCorrectionCastRecord/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "16c6560bb3c554099de4c0711f68d93d556d7dcd6aff2efc0588c45f692a4120"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionCleanupReceipt",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionCleanupReceipt/v1",
+      "relativePath": "application-types/ArcaJavCorrectionCleanupReceipt/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "6664efd72a0115f7427c2f2b5fbeabfda335a69876ee8c78c7ab1af6aba9acca"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionCommittedContext",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionCommittedContext/v1",
+      "relativePath": "application-types/ArcaJavCorrectionCommittedContext/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "64339c86407974b35e985933c1feaf00e930cd0cfc55736c0b4b6f6d681bbed5"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionDirectoryChecks",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionDirectoryChecks/v1",
+      "relativePath": "application-types/ArcaJavCorrectionDirectoryChecks/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "13910d1e6a860a2e3974bb9b5b393fcf01ba26373a9907dff73bda3953a73b1f"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionDirectoryScope",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionDirectoryScope/v1",
+      "relativePath": "application-types/ArcaJavCorrectionDirectoryScope/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "0b25346e63fb92b4b29cc3508cd5ee4945d788b4280edc81bacb5d7faa96059d"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionFilePlan",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionFilePlan/v1",
+      "relativePath": "application-types/ArcaJavCorrectionFilePlan/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "d51317973b6e4c7d0f43a8e03143c44a3e5290e786ac16c866874c67e7484472"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionFormalRetirementPlan",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionFormalRetirementPlan/v1",
+      "relativePath": "application-types/ArcaJavCorrectionFormalRetirementPlan/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "f08347a26586962f16397aa9dbde148ddf507105978c77129a1e8ad77a9b5d9b"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionIdentityFact",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionIdentityFact/v1",
+      "relativePath": "application-types/ArcaJavCorrectionIdentityFact/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "a55fbd55f82f48373f40446e4e63e770a639482d9018a519dfd4a1f9990b9294"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionMetadataFact",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionMetadataFact/v1",
+      "relativePath": "application-types/ArcaJavCorrectionMetadataFact/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "f22b7677503111bd85acac17c74bb230582994b26e06d4934e092fe1bf4bc523"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionMetadataRecord",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionMetadataRecord/v1",
+      "relativePath": "application-types/ArcaJavCorrectionMetadataRecord/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "a769d0214a96f14f0c9b318fe79bc5962eb7903ca8f06676c52568fad0ac1578"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionPreviewProof",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionPreviewProof/v1",
+      "relativePath": "application-types/ArcaJavCorrectionPreviewProof/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "871cc67d58a4d20ecdb01a35588d66f224dfce49498fb07d095ee67f4b19eade"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionProposal",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionProposal/v1",
+      "relativePath": "application-types/ArcaJavCorrectionProposal/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "3bce046236c994f640742d08771a406e603ea981faa41929e46c1178bb2d7248"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionRecoveryIntentReceipt",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1",
+      "relativePath": "application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "ddaf717e247d9fe8643742abb16d16154f433808d29be8c12224c1ca3cdd7fc0"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionRecoveryObservation",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionRecoveryObservation/v1",
+      "relativePath": "application-types/ArcaJavCorrectionRecoveryObservation/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "1e5265824de7f5f0ab52acff02c44a31ee87efbbd60f00d6e1205617ca62696d"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavCorrectionWorkspaceReclaimPlan",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavCorrectionWorkspaceReclaimPlan/v1",
+      "relativePath": "application-types/ArcaJavCorrectionWorkspaceReclaimPlan/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "9642dfcced2fcb1f63b976932f93998b81a48db7162b893264280decb208c868"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaJavPerceptionContinuity",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaJavPerceptionContinuity/v1",
+      "relativePath": "application-types/ArcaJavPerceptionContinuity/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "81427353ce77ece36498e515f79c36ab4b2ef7e6ff2df3be4f125a6306d8ee64"
+      },
+      "ssotRefs": [
+        "3.5.5",
+        "8.5.12",
+        "8.6.19"
       ]
     },
     {

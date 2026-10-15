@@ -1,12 +1,13 @@
 import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
 import { ProcessStages } from '../src/helix/ProcessStages';
 import { CareWorkDetail } from '../src/helix/CareWorkRow';
 import { helixAdminApi } from '../src/helix/api';
 
 afterEach(()=>vi.restoreAllMocks());
+beforeEach(()=>{vi.spyOn(helixAdminApi,'listJavCorrectionWork').mockResolvedValue({items:[],counts:{},nextCursor:null});});
 
 it('distinguishes a delayed filter response from confirmed empty results and request failures',async()=>{
   const summary={totalCount:1,inProgressCount:1,attentionRequiredCount:0,completedCount:0};

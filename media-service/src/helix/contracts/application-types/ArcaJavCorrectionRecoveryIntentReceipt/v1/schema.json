@@ -1,0 +1,233 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1",
+  "title": "ArcaJavCorrectionRecoveryIntentReceipt@1",
+  "x-helix-ssotRefs": [
+    "3.5.5",
+    "8.5.12",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "recoveryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "correctionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "admissionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "actorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "mode": {
+      "enum": [
+        "continue_correction",
+        "continue_cleanup"
+      ]
+    },
+    "expectedStateRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "acceptedStateRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "expectedCleanupState": {
+      "oneOf": [
+        {
+          "const": "attention_required"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "previousIntentDigest": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "executionRevision": {
+      "type": "integer",
+      "minimum": 2,
+      "maximum": 9007199254740991
+    },
+    "scopeDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "filePlanDigest": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "observationDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "realityDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "failedWorkId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "failedWorkDefinitionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "failedExecutionEvidenceDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sourceResultReference": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "workId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "eventId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "resultDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "workId",
+            "eventId",
+            "resultDigest"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "workLineage": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 7,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "workKind": {
+            "enum": [
+              "jav_correction_assets",
+              "jav_correction_files",
+              "jav_correction_publish",
+              "jav_correction_verify",
+              "jav_correction_commit",
+              "jav_correction_formal_retirement",
+              "jav_correction_workspace_reclaim"
+            ]
+          },
+          "baseWorkId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "workId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "previousWorkId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "workKind",
+          "baseWorkId",
+          "workId",
+          "previousWorkId"
+        ]
+      }
+    },
+    "admittedAtMs": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "receiptDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "recoveryId",
+    "correctionId",
+    "shelfEntryId",
+    "admissionDigest",
+    "actorId",
+    "mode",
+    "expectedStateRevision",
+    "acceptedStateRevision",
+    "expectedCleanupState",
+    "previousIntentDigest",
+    "executionRevision",
+    "scopeDigest",
+    "filePlanDigest",
+    "observationDigest",
+    "realityDigest",
+    "failedWorkId",
+    "failedWorkDefinitionDigest",
+    "failedExecutionEvidenceDigest",
+    "sourceResultReference",
+    "workLineage",
+    "admittedAtMs",
+    "receiptDigest"
+  ]
+}

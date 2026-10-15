@@ -248,6 +248,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
 .shelf-page .shelf-standard-head { margin-bottom: 12px; }
 .source-page:not(.workbench) .section-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 .source-page:not(.workbench) .section-toolbar > :is(h3, p) { margin: 0; }
+.recycle-settings .section-toolbar > h2 { margin: 0; font-size: 16px; }
 .section-count { margin-left: 8px; color: var(--muted); font-weight: 400; font-variant-numeric: tabular-nums; }
 .people-page .source-form-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .offdeck-page .source-card-heading { margin-bottom: 0; }

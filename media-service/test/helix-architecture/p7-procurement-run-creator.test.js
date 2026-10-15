@@ -6,6 +6,16 @@ const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createProcurementRunSlices } = require('../../src/helix/domains/procurement/model/procurement-run-creator');
 
 const BASIS = canonicalDigest({ fixture: 'run-creator-v2' });
+test('JAV root named parts stay in one admission scope across Run packing boundaries',()=>{
+  const parts=['DDT-548A.mp4','DDT-548B.mp4'].map(relativeLocation=>({relativeLocation,materialKey:canonicalDigest({relativeLocation})}));
+  const input={fieldId:'field',creationBasisDigest:BASIS,profileHint:'jav',maxRunPhysicalMembers:2,materials:[...rootFiles(3),...parts]};
+  const sliced=createProcurementRunSlices(input),run=sliced.runs.find(run=>run.members.some(member=>member.relativeLocation==='DDT-548A.mp4'));
+  assert.equal(run.members.filter(member=>member.relativeLocation.startsWith('DDT-548')).length,2);
+  assert.deepEqual(run.selectionScopes.map(scope=>[scope.scopeKind,scope.scopeRootRelativeLocation,scope.memberCount]),[['ordinary_directory','.',2]]);
+  assert.deepEqual(createProcurementRunSlices({...input,materials:[...input.materials].reverse()}),sliced);
+  const movie=createProcurementRunSlices({...input,profileHint:'movie',materials:parts});
+  assert.ok(movie.runs[0].selectionScopes.every(scope=>scope.scopeKind==='standalone_file'));
+});
 
 function group(folder, count) {
   return Array.from({ length: count }, (_, index) => ({

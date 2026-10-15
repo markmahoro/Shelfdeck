@@ -153,6 +153,7 @@ function definition(schemaManifest) {
         keyColumns: ['libra_run_id', 'fact_kind', 'fact_revision'],
         safeIntegers: true,
       },
+      list_subject_runs:{kind:'select-all',tableId:'libra_runs',columns:['libra_run_id'],keyColumns:['subject_id']},
       find_workspace: {
         kind: 'select-one',
         tableId: 'libra_workspaces',
@@ -639,6 +640,22 @@ function createMovieProductionReader(options) {
     });
   }
 
+  function readSubjectIdentityFact(subjectId,identityDigest) {
+    return exact(context=>{
+      const repo=context.repository(repository.repositoryId),matches=[];
+      for(const run of repo.invoke('list_subject_runs',{subject_id:subjectId})) {
+        const row=repo.invoke('find_fact',{libra_run_id:run.libra_run_id,fact_kind:'resolved_identity',fact_revision:1});
+        if(!row || row.fact_digest!==identityDigest)continue;
+        const value=JSON.parse(row.fact_json);
+        if(canonicalDigest(value)!==row.result_digest || value.subjectId!==subjectId || value.identityDigest!==identityDigest)
+          fail('P14_MOVIE_PRODUCTION_FACT_DRIFT','Subject identity provenance is invalid.');
+        matches.push(value);
+      }
+      if(!matches.length)return null;
+      return Object.freeze(matches.at(-1));
+    });
+  }
+
   function readDecisionEvidence(decisionBasisId) {
     return exact((context) => {
       const repo = context.repository(repository.repositoryId);
@@ -832,6 +849,7 @@ function createMovieProductionReader(options) {
   return Object.freeze({
     readDecisionEvidence,
     readFact,
+    readSubjectIdentityFact,
     readPublishedDeliveryRef,
     readDeliveryReceipt,
     readRun,

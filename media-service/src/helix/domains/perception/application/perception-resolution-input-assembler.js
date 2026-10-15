@@ -24,6 +24,8 @@ function createPerceptionResolutionInputAssembler(options) {
       }
       bounded(query,16384,'P6_PERCEPTION_QUERY_BOUND');
       validateRule(ruleSnapshot,query.factKind);
+      if(query.directTargetScope&&ruleSnapshot.directTargetPolicyRef!=='perception.jav-retained-target@1')
+        fail('P6_PERCEPTION_RULE_SNAPSHOT_INVALID','Scoped direct query requires its declared Rule policy.');
       const snapshot=options.store.readResolutionCandidates(query,ruleSnapshot);
       const records=snapshot.records.map((record)=>{
         const facts={}; if(record.rating!==null)facts.rating=record.rating; if(record.watchedState!==null)facts.watchedState=record.watchedState;

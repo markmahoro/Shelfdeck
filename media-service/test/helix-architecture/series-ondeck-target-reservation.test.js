@@ -78,8 +78,8 @@ for(const state of ['committed','ready','blocked'])test('Reservation schema upgr
   const {migrateUatIdentitySelectionSchema,PRE_TARGET_RESERVATION_SCHEMA_DIGEST}=
     require('../../src/helix/foundation/persistence/uat-identity-selection-migration');
   const generated=path.resolve(__dirname,'../../src/helix/foundation/persistence/generated');
-  const schemaDdl=fs.readFileSync(path.join(generated,'clean-schema.sql'),'utf8');
-  const schemaManifest=JSON.parse(fs.readFileSync(path.join(generated,'clean-schema.manifest.json'),'utf8'));
+  const schemaDdl=require('../fixtures/helix-historical-ddl/schema-snapshot').historicalSchema('c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d').schemaDdl;
+  const schemaManifest=require('../fixtures/helix-historical-ddl/schema-snapshot').historicalSchema('c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d').schemaManifest;
   const databasePath=path.join(fs.mkdtempSync(path.join(os.tmpdir(),'series-target-upgrade-')),'test.sqlite');
   const oldDdl=require('node:zlib').gunzipSync(fs.readFileSync(path.resolve(__dirname,'../fixtures/helix-historical-ddl',PRE_TARGET_RESERVATION_SCHEMA_DIGEST+'.sql.gz'))).toString('utf8');
   assert.equal(digest(oldDdl),PRE_TARGET_RESERVATION_SCHEMA_DIGEST);

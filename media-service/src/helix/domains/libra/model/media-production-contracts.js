@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { assertJavPartSet } = require('../../../contracts/jav-part-set');
 
 class MediaProductionContractError extends Error {
   constructor(code, message, details = {}) {
@@ -129,7 +130,7 @@ function finalizeProductionIntent(value) {
 
 function buildProductionSourceScopeReference(value) {
   const scopeKind=value?.scopeKind;
-  if(!['stream_file','bdmv','dvd','iso'].includes(scopeKind))fail('P9_MEDIA_SOURCE_SCOPE_KIND','Production source scope kind is invalid.');
+  if(!['stream_file','bdmv','dvd','iso','jav_named_parts'].includes(scopeKind))fail('P9_MEDIA_SOURCE_SCOPE_KIND','Production source scope kind is invalid.');
   const memberCount=integer(value.memberCount,'memberCount',1);
   if(memberCount>1024||(scopeKind==='stream_file'||scopeKind==='iso')&&memberCount!==1)
     fail('P9_MEDIA_SOURCE_SCOPE_MEMBERS','Production source scope member count is invalid.');
@@ -137,6 +138,11 @@ function buildProductionSourceScopeReference(value) {
     scopeKind,scopeId:text(value.scopeId,'scopeId'),scopeDigest:digest(value.scopeDigest,'scopeDigest'),
     memberSetDigest:digest(value.memberSetDigest,'memberSetDigest'),memberCount,
     selectedPayloadSetDigest:digest(value.selectedPayloadSetDigest,'selectedPayloadSetDigest')};
+  if(scopeKind==='jav_named_parts') {
+    assertJavPartSet(value.javPartSet);
+    if(memberCount!==2||value.javPartSet.parts.length!==memberCount)fail('P9_MEDIA_SOURCE_SCOPE_MEMBERS','Named-part source must conserve its two actual members.');
+    result.javPartSet=value.javPartSet;
+  } else if(value.javPartSet!==undefined)fail('P9_MEDIA_SOURCE_SCOPE_KIND','Ordinary source scopes cannot carry a JAV part set.');
   if(value.workspaceMaterialHandle){
     const handle=value.workspaceMaterialHandle;
     if(scopeKind!=='stream_file'||handle.ownerDomain!=='libra'||handle.processId!==result.libraRunId)
@@ -333,6 +339,7 @@ function buildEncodeIntent(value) {
   if(value.audioStreamIndexes!==undefined)
     result.audio={mode:'copy',streamIndexes:uniqueIncreasingIndexes(value.audioStreamIndexes,'audioStreamIndexes')};
   if(strategyOrdinal>1)result.previousIntentDigest=value.previousIntentDigest;
+  if(value.javPartSetDigest)result.javPartSetDigest=digest(value.javPartSetDigest,'javPartSetDigest');
   return finalizeProductionIntent(result);
 }
 
@@ -340,7 +347,10 @@ function buildRemuxIntent(value) {
   return finalizeProductionIntent({ intentId:'', revision:integer(value.revision, 'revision', 1), schemaRef:'RemuxIntent@1',
     libraRunId:text(value.libraRunId, 'libraRunId'), sourceHandleDigest:digest(value.sourceHandleDigest, 'sourceHandleDigest'),
     mediaRequirementDigest:digest(value.mediaRequirementDigest, 'mediaRequirementDigest'), outputContainer:'matroska', outputExtension:'mkv',
-    streamPolicy:'copy_all_supported' });
+    streamPolicy:'copy_all_supported', ...(value.javPartSetDigest ? {
+      javPartSetDigest:digest(value.javPartSetDigest,'javPartSetDigest'), inputAssembly:'ordered_jav_parts_copy',
+      copyCompatibilityDigest:digest(value.copyCompatibilityDigest,'copyCompatibilityDigest')
+    } : {}) });
 }
 
 function validateDeviceSnapshot(value) {
@@ -461,6 +471,7 @@ function buildWorkspaceMediaHandle(value) {
     sourceMaterialHandleDigest, workspaceMaterialHandle:handle, workspaceMaterialHandleDigest:canonicalDigest(handle),
     outputTargetId:target.targetId, outputTargetDigest:target.targetDigest, producingEventId:text(value.producingEventId, 'producingEventId'),
     productionIntentKind:kind, productionIntentDigest:intent.intentDigest, executionDeviceRef,productionVideoProfile,
+    ...(intent.javPartSetDigest?{javPartSetDigest:intent.javPartSetDigest}:{}),
     effectReceiptRef:{ effectId:text(value.effectReceipt.effectId, 'effectId'), effectReceiptId:text(value.effectReceipt.effectReceiptId, 'effectReceiptId'),
       effectReceiptDigest:digest(value.effectReceipt.effectReceiptDigest, 'effectReceiptDigest') } };
   result.workspaceMediaHandleId = canonicalDigest({ schema:'libra.workspace-media-handle-id@1', sourceMaterialHandleDigest,
@@ -494,6 +505,15 @@ function buildProductMediaCandidateInput(value) {
       fail('P9_MEDIA_EDITION_EVIDENCE','Edition evidence must belong to this workspace Run.');
     result.editionEvidence=value.editionEvidence;
   }
+  if(value.javPartSourceEvidence) {
+    const evidence=require('./jav-media-parts').assertJavSourceEvidence(value.javPartSourceEvidence);
+    if(kind!=='workspace_output'||requirement.contentProfile!=='jav'||evidence.libraRunId!==value.libraRunId||
+        canonicalDigest(value.sourceProbeEvidence)!==canonicalDigest(evidence.parts[0].probeEvidence)||
+        value.workspaceMediaHandle.javPartSetDigest!==evidence.javPartSet.groupDigest)
+      fail('P9_MEDIA_JAV_PART_SOURCE','JAV part evidence must bind this Run and its first exact source Probe.');
+    for(const part of evidence.parts)assertProbeEvidence(part.probeEvidence);
+    result.javPartSourceEvidence=evidence;
+  } else if(value.workspaceMediaHandle?.javPartSetDigest)fail('P9_MEDIA_JAV_PART_SOURCE','A named-part Workspace product requires complete source evidence.');
   if(value.seriesSpaceBasis) {
     if(requirement.contentProfile!=='series'||requirement.space.unit!=='episode')
       fail('P9_MEDIA_SERIES_SPACE','Series space basis requires a Series Candidate.');
@@ -504,7 +524,7 @@ function buildProductMediaCandidateInput(value) {
   } else if(requirement.contentProfile==='series')
     fail('P9_MEDIA_SERIES_SPACE','Series Candidate requires a complete Episode space basis.');
   result.inputDigest = canonicalDigest(result);
-  return limited(result, requirement.contentProfile === 'series' ? 1024 * 1024 : 64 * 1024, 'P9_MEDIA_CANDIDATE_SIZE');
+  return limited(result, requirement.contentProfile === 'series' ? 1024 * 1024 : result.javPartSourceEvidence ? 256 * 1024 : 64 * 1024, 'P9_MEDIA_CANDIDATE_SIZE');
 }
 
 function buildPlannedProductCandidateReference(value) {
@@ -669,15 +689,35 @@ function buildProductMediaVerification(value) {
   }
   if(canonicalJson(playback.samplePointsPercent)!==canonicalJson([5,50,95])||
       canonicalJson(playback.passedSamplePointsPercent)!==canonicalJson([5,50,95]))reasons.push('playback_decode_failed');
+  let javPartVerification=null;
+  if(input.javPartSourceEvidence) {
+    try {
+      const source=require('./jav-media-parts').assertJavSourceEvidence(input.javPartSourceEvidence);
+      for(const part of source.parts)assertProbeEvidence(part.probeEvidence);
+      if(input.candidateKind!=='workspace_output'||requirement.contentProfile!=='jav'||source.libraRunId!==input.libraRunId||
+          canonicalDigest(input.sourceProbeEvidence)!==canonicalDigest(source.parts[0].probeEvidence))throw new TypeError('JAV source evidence crosses its Candidate.');
+      const toleranceMs=Math.max(1000,Math.ceil(source.totalDurationMs/1000));
+      if(Math.abs(outputProbe.durationMs-source.totalDurationMs)>toleranceMs)reasons.push('output_not_media');
+      if(mandatory.forbidSystemUpscaleFor4k&&outputRaster==='4k'&&source.parts.some(part=>rasterClass(part.probeEvidence)!=='4k'))reasons.push('system_upscale_forbidden');
+      const boundary=source.parts[0].probeEvidence.durationMs,expectedPoints=[Math.max(0,boundary-250),Math.min(outputProbe.durationMs-1,boundary+250)];
+      if(canonicalJson(playback.joinSamplePointsMs)!==canonicalJson(expectedPoints)||canonicalJson(playback.passedJoinSamplePointsMs)!==canonicalJson(expectedPoints)||
+          !DIGEST.test(playback.joinDecodeDigest||''))reasons.push('playback_decode_failed');
+      javPartVerification={sourceEvidenceDigest:source.evidenceDigest,partSetDigest:source.javPartSet.groupDigest,
+        sourceProbeDigests:source.parts.map(part=>canonicalDigest(part.probeEvidence)),expectedDurationMs:source.totalDurationMs,
+        actualDurationMs:outputProbe.durationMs,toleranceMs,joinSamplePointsMs:playback.joinSamplePointsMs||[],
+        passedJoinSamplePointsMs:playback.passedJoinSamplePointsMs||[],joinDecodeDigest:playback.joinDecodeDigest||canonicalDigest({schema:'libra.jav-join-not-executed@1'})};
+    } catch { reasons.push('requirement_integrity_failure'); }
+  }
   const reasonCodes = Object.freeze([...new Set(reasons)]), productMaterialHandleDigest = canonicalDigest(handle),
     productMaterialFenceDigest = digest(handle.fenceDigest, 'productMaterialFenceDigest'), sourceProbeEvidenceDigest = canonicalDigest(input.sourceProbeEvidence),
     outputProbeEvidenceDigest = canonicalDigest(outputProbe);
   const result = { schemaRef:'helix://contracts/types/ProductMediaVerification/v1',schemaVersion:1,verificationId:'',
     verificationKind:'libra_product_media',basisDigest:input.inputDigest,result:reasonCodes.length?'failed':'passed',reasonCodes,
-    evidenceRefs:Object.freeze([input.sourceProbeEvidence.evidenceId, outputProbe.evidenceId]),verifiedAtMs:integer(value.verifiedAtMs,'verifiedAtMs'),
+    evidenceRefs:Object.freeze([...new Set([...(input.javPartSourceEvidence?.parts||[]).map(part=>part.probeEvidence.evidenceId),input.sourceProbeEvidence.evidenceId,outputProbe.evidenceId])]),verifiedAtMs:integer(value.verifiedAtMs,'verifiedAtMs'),
     candidateId:input.candidateId,candidateNodeId:input.candidateNodeId,candidateBasisDigest:input.candidateBasisDigest,candidateKind:input.candidateKind,
     libraRunId:input.libraRunId,producingEventId:input.candidateKind==='workspace_output'?input.workspaceMediaHandle.producingEventId:null,
     productMaterialHandleId:handle.handleId,productMaterialHandleDigest,productMaterialFenceDigest,
+    ...(javPartVerification ? {javPartVerification} : {}),
     workspaceMediaHandleId:input.candidateKind==='workspace_output'?input.workspaceMediaHandle.workspaceMediaHandleId:null,
     mediaRequirementId:requirement.requirementId,mediaRequirementDigest:requirement.requirementDigest,
     sourceProbeEvidenceId:input.sourceProbeEvidence.evidenceId,sourceProbeEvidenceDigest,
@@ -692,7 +732,8 @@ function buildProductMediaVerification(value) {
     candidateBasisDigest:result.candidateBasisDigest,candidateKind:result.candidateKind,libraRunId:result.libraRunId,
     productMaterialHandleId:result.productMaterialHandleId,productMaterialFenceDigest,mediaRequirementDigest:result.mediaRequirementDigest,
     sourceProbeEvidenceDigest,outputProbeEvidenceDigest,
-    ...(episodeAllocation?{episodeSpaceBasisDigest:episodeAllocation.basisDigest}:{})});
+    ...(episodeAllocation?{episodeSpaceBasisDigest:episodeAllocation.basisDigest}:{}),
+    ...(javPartVerification?{javPartVerificationDigest:canonicalDigest(javPartVerification)}:{})});
   return limited(result,16*1024,'P9_PRODUCT_MEDIA_VERIFICATION_SIZE');
 }
 

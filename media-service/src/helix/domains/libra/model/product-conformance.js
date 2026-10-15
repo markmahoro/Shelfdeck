@@ -71,6 +71,7 @@ function validateFactValue(kind, value) {
       westernAnalysisVariantDigest:value.westernAnalysisVariantDigest,fieldProvenance:value.fieldProvenance,
       descriptiveFacts:value.descriptiveFacts,providerIdentities:value.providerIdentities,mediaCastFactRef:value.mediaCastFactRef,
       verifiedArtifactManifestDigest:value.verifiedArtifactManifestDigest};
+    if(value.javSelectedSource)body.javSelectedSource=require('../../../contracts/jav-selected-source').assertJavSelectedSource(value.javSelectedSource);
     if(value.episodeMetadata){
       validateEpisodeMetadata(value.episodeMetadata,value.providerIdentities);
       body.episodeMetadata=value.episodeMetadata;
@@ -289,7 +290,8 @@ function buildProductConformanceInputSnapshot(value) {
       libraRunId:verification.libraRunId,productMaterialHandleId:verification.productMaterialHandleId,
       productMaterialFenceDigest:verification.productMaterialFenceDigest,mediaRequirementDigest:verification.mediaRequirementDigest,
       sourceProbeEvidenceDigest:verification.sourceProbeEvidenceDigest,outputProbeEvidenceDigest:verification.outputProbeEvidenceDigest,
-      ...(verification.spaceSummary?.episodeAllocation?{episodeSpaceBasisDigest:verification.spaceSummary.episodeAllocation.basisDigest}:{})});
+      ...(verification.spaceSummary?.episodeAllocation?{episodeSpaceBasisDigest:verification.spaceSummary.episodeAllocation.basisDigest}:{}),
+      ...(verification.javPartVerification?{javPartVerificationDigest:canonicalDigest(verification.javPartVerification)}:{})});
     if(verification.verificationId!==expectedVerificationId)fail('P9_CONFORMANCE_SELECTED_CONTINUITY','Product Media Verification identity is invalid.');
   }
   const productFactSetDigest = canonicalDigest({ schema:'libra.product-conformance-fact-set@1', items:facts });

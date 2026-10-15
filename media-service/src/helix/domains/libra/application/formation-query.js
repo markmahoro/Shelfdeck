@@ -412,7 +412,9 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
   if (runState === 'suspended') return Object.freeze({ label: '整理已暂停，等待恢复评估', state: 'suspended', progress: null });
   if (recovery?.recoveryState === 'attention_required') return Object.freeze({ label: '接纳执行异常，需要处理', state: 'attention_required', progress: null });
   if (arcaStatus?.stage === 'attention_required') return Object.freeze({ label: '收藏架接纳或上架需要处理', state: 'attention_required', progress: null });
-  if (issue) return Object.freeze({ label: issue.result === 'ambiguous' ? '需要确认媒体身份' : issue.result === 'conflicting' ? '媒体身份信息冲突' : '暂未找到匹配的媒体身份', state: 'attention_required', progress: null });
+  if (issue) return Object.freeze({ label: issue.contentProfile==='jav'
+    ?issue.reasonCode==='jav_source_not_configured'?'等待连接 JAV 资料来源':'需要确认番号'
+    :issue.result === 'ambiguous' ? '需要确认媒体身份' : issue.result === 'conflicting' ? '媒体身份信息冲突' : '暂未找到匹配的媒体身份', state: 'attention_required', progress: null });
   if (waitingExternalIntegration) return Object.freeze({
     label: '等待配置外部获取服务后继续整理', state: 'waiting_external', progress: null,
   });
@@ -483,6 +485,8 @@ function createFormationProjectionSource(options) {
     find_subject: { kind: 'select-one', tableId: 'libra_subjects', keyColumns: ['subject_id'], columns: ['subject_id', 'structure_kind', 'content_profile', 'routing_anchor_intake_decision_id', 'status', 'intake_revision', 'current_identity_revision', 'created_at_ms', 'updated_at_ms'], safeIntegers: true },
     find_decisions: { kind: 'select-in', tableId: 'libra_intake_decisions', keyColumn: 'target_subject_id', maxItems: PAGE_SIZE, columns: ['intake_decision_id', 'candidate_delivery_snapshot_json', 'target_subject_id', 'decided_at_ms'], safeIntegers: true },
     find_bindings: { kind: 'select-in', tableId: 'libra_material_bindings', keyColumn: 'subject_id', maxItems: PAGE_SIZE, columns: ['subject_id', 'authority_kind', 'current'], safeIntegers: true },
+    find_identities:{kind:'select-in',tableId:'libra_product_identity_revisions',keyColumn:'subject_id',maxItems:PAGE_SIZE,
+      columns:['subject_id','revision','display_identity'],safeIntegers:true},
     find_routing_decisions: { kind: 'select-in', tableId: 'libra_routing_decisions', keyColumn: 'subject_id', maxItems: PAGE_SIZE, columns: ['routing_decision_id', 'subject_id', 'decision_revision', 'decision', 'shelf_id', 'unresolved_reason_code', 'routing_policy_id', 'routing_policy_revision', 'decision_digest'], safeIntegers: true },
     find_routing_policies: { kind: 'select-in', tableId: 'libra_routing_policy_revisions', keyColumn: 'routing_policy_id', maxItems: PAGE_SIZE, columns: ['routing_policy_id', 'revision', 'mode'], safeIntegers: true },
     find_decision_heads: { kind: 'select-in', tableId: 'libra_subject_decision_heads', keyColumn: 'subject_id', maxItems: PAGE_SIZE, columns: ['subject_id', 'head_revision', 'head_digest', 'current_acceptance_spec_id'], safeIntegers: true },
@@ -518,6 +522,7 @@ function createFormationProjectionSource(options) {
       const repo = context.repository(repository.repositoryId);
       const decisions = repo.invoke('find_decisions', { values: subjectIds });
       const bindings = repo.invoke('find_bindings', { values: subjectIds });
+      const identities=repo.invoke('find_identities',{values:subjectIds});
       const routingDecisions = repo.invoke('find_routing_decisions', { values: subjectIds });
       const policyIds = unique(routingDecisions.map((row) => row.routing_policy_id));
       const routingPolicies = policyIds.length ? repo.invoke('find_routing_policies', { values: policyIds }) : [];
@@ -528,7 +533,7 @@ function createFormationProjectionSource(options) {
       const runRevisions = runIds.length ? chunks(runIds, PAGE_SIZE).flatMap((values) => repo.invoke('find_run_revisions', { values })) : [];
       const packages = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_packages', { values })) : [];
       const identityIntents = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_identity_intents', { values })) : [];
-      return { decisions, bindings, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents };
+      return { decisions, bindings, identities, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents };
     } }]).libra_formation_batch;
   }
   function buildBatch(subjects, buildOptions = {}) {
@@ -556,7 +561,15 @@ function createFormationProjectionSource(options) {
       const decisions = value.decisions.filter((item) => item.target_subject_id === subject.subject_id).sort((a, b) => Number(a.decided_at_ms) - Number(b.decided_at_ms));
       const anchor = decisions.find((item) => item.intake_decision_id === subject.routing_anchor_intake_decision_id) || decisions[0];
       const snapshot = parse(anchor?.candidate_delivery_snapshot_json), claim = snapshot?.candidatePackage?.identityClaim || {};
-      const displayIdentity = snapshot?.candidatePackage?.displayIdentity || claim.claimedDisplayIdentity || subject.subject_id;
+      let displayIdentity = snapshot?.candidatePackage?.displayIdentity || claim.claimedDisplayIdentity || subject.subject_id;
+      if(subject.content_profile==='jav' && subject.current_identity_revision) {
+        const identity=value.identities.find(row=>row.subject_id===subject.subject_id&&Number(row.revision)===Number(subject.current_identity_revision));
+        if(identity) {
+          const entries=JSON.parse(identity.display_identity).entries,title=entries.find(entry=>entry.key==='title')?.value,
+            code=entries.find(entry=>entry.key==='jav_code')?.value;
+          if(title&&code)displayIdentity=title+' ('+code+')';
+        }
+      }
       return { subject, decisions, displayIdentity, snapshot };
     });
     const ratings = options.readPerceptionRatings?.(subjects.map((item) => item.subject_id)) || new Map();
@@ -599,7 +612,13 @@ function createFormationProjectionSource(options) {
       const works = run ? progressByRun.get(run.libra_run_id) || [] : [];
       const actionWorks = organizingWorks(run, latestRun, progressByRun);
       const selectionIntent = run ? latest((value.identityIntents || []).filter((item) => item.libra_run_id === run.libra_run_id), 'intent_revision') : null;
-      const issue = extractProductIdentityIssue(works, selectionIntent);
+      let issue = extractProductIdentityIssue(works, selectionIntent);
+      if(subject.content_profile==='jav') {
+        const stage=run && !subject.current_identity_revision && options.readJavIdentityStage?.(run.libra_run_id);
+        issue=stage?.kind==='waiting'?Object.freeze({contentProfile:'jav',result:stage.observationResult||'not_found',
+          reasonCode:stage.reasonCode,candidateSetDigest:null,candidates:Object.freeze([]),
+          sourceLocation:stage.sourceLocation,claimedCode:stage.claimedCode}):null;
+      }
       const waitingExternalIntegration = waitsForExternalIntegration(works, externalIntegrationReady);
       const recovery = pkg ? recoveries.get(pkg.offer_id) || null : null;
       const arcaStatus = pkg ? arcaStatuses.get(pkg.offer_id) || null : null;

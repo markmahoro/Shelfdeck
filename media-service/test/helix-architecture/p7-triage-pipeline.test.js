@@ -9,6 +9,38 @@ const { createSingleScopeSelection } = require('./helpers/procurement-selection-
 
 const d = (label) => canonicalDigest({ label });
 const rule = createDefaultTriageRuleRegistry().entries[0];
+test('JAV actual named parts form one ordered unit without an expected-part gate',()=>{
+  const scope={scopeKind:'ordinary_directory',scopeKey:'ordinary-directory:DDT-548',scopeRootRelativeLocation:'DDT-548'};
+  const both=movieScopeStructure(['DDT-548/DDT-548B.mp4','DDT-548/DDT-548A.mp4'],scope,'jav');
+  assert.equal(both.units.length,1);
+  const unit=both.units[0];
+  assert.equal(unit.materialInputForm,'jav_named_parts');
+  assert.equal(unit.members.length,2);
+  assert.equal(unit.identityMetadata.javCode,'DDT-548');
+  assert.deepEqual(unit.javPartSet.parts.map(part=>part.partLabel),['A','B']);
+  assert.deepEqual(unit.javPartSet.parts.map(part=>part.relativeLocation),['DDT-548/DDT-548A.mp4','DDT-548/DDT-548B.mp4']);
+  for(const label of ['A','B']) {
+    const single=movieScopeStructure([`DDT-548/DDT-548${label}.mp4`],scope,'jav');
+    assert.equal(single.units.length,1);
+    assert.equal(single.units[0].materialInputForm,'stream_file');
+    assert.equal(single.units[0].identityMetadata.javCode,'DDT-548');
+    assert.equal(single.units[0].javPartSet,undefined);
+  }
+  const ordinary=movieScopeStructure(['DDT-548/DDT-548.mp4','DDT-548/DDT-548A.mp4','DDT-548/DDT-548B.mp4'],scope,'jav');
+  assert.equal(ordinary.units.length,2);
+  const conflict=movieScopeStructure(['DDT-548/DDT-548A.mp4','DDT-548/DDT-548-A.mkv','DDT-548/DDT-548B.mp4'],scope,'jav');
+  assert.equal(conflict.units.length,0);
+  assert.equal(conflict.unassignedMaterials.length,3);
+});
+test('JAV filename extraction conserves complete special codes and leaves conflicting or truncated codes unconfirmed',()=>{
+  const samples=[['FC2 PPV 718323','FC2-718323'],['HEYDOUGA-4030-3073','HEYDOUGA-4030-3073'],['IBW-398Z','IBW-398Z'],
+    ['RED030','RED030'],['T38-047','T38-047'],['259LUXU-001','259LUXU-001'],['GETCHU-12345','GETCHU-12345'],
+    ['IPX-177 and IPX-178',null],['HEYDOUGA-4030',null],['FC2-718323-999',null]];
+  for(const [name,expected] of samples) {
+    const value=singleStructureFixture(name,'jav'),unit=value.structure.units[0];
+    assert.equal(unit.identityMetadata.javCode||null,expected,name);
+  }
+});
 const capabilities = createTriageCapabilities({ now:() => 1000 });
 const { reconstructStructureUnits } = require('../../src/helix/domains/procurement/model/triage-contracts');
 function inspectFullStructure({ triageStructureInspectionInput:input, procurementTriageRuleSnapshot:rule }) {
@@ -44,7 +76,7 @@ function probeMember(ordinal, label, probe = {}, location = `shows/Demo/${label}
   return value;
 }
 
-function movieScopeStructure(locations, scope) {
+function movieScopeStructure(locations, scope, hint='movie') {
   const probeMembers = locations.map((location, ordinal) => probeMember(
     ordinal,
     location.split('/').at(-1).replace(/\.[^.]+$/, ''),
@@ -89,7 +121,7 @@ function movieScopeStructure(locations, scope) {
     fieldId:'field-1',
     accessRevision:1,
     accessDigest:d('scope-access'),
-    profileHintSnapshot:profileHintSnapshot('movie'),
+    profileHintSnapshot:profileHintSnapshot(hint),
     memberContexts:probeMembers.map((member, selectionOrdinal) => ({
       selectionOrdinal,
       materialKey:member.materialKey,
@@ -814,7 +846,7 @@ test('Triage module and explicit continuity parser depend only on declared pure 
   const dependencies=file=>[...fs.readFileSync(path.resolve(__dirname,
     '../../src/helix/domains/procurement/model/',file),'utf8').matchAll(/require\(['"]([^'"]+)['"]\)/g)].map(match=>match[1]).sort();
   assert.deepEqual(dependencies('triage-contracts.js'),[
-    '../../../contracts/canonical-json','./bdmv-scope','./field-profile-hint-contracts',
+    '../../../contracts/canonical-json','../../../contracts/jav-part-set','./bdmv-scope','./field-profile-hint-contracts','./jav-filename-identity','./jav-part-groups',
     './procurement-run-contracts','./related-artwork-role','./series-continuity-claims',
   ].sort());
   assert.deepEqual(dependencies('series-continuity-claims.js'),['../../../contracts/canonical-json']);

@@ -21,6 +21,32 @@ function open(databasePath) {
   return { kernel, cursorStore:createReconcileCursorStore({ schemaManifest, unitOfWork, now:() => 1700000000100 }) };
 }
 
+test('a periodic sweep queued during a scoped pulse runs before another coalesced pulse',async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-reconcile-fairness-')),opened=open(path.join(root,'db'));let release,pulses=0,others=0;const order=[];
+  const pulse={ownerDomain:'arca',reconcilerKey:'pulse',listPage:()=>[{cursor:'singleton',scope:{}}],async reconcile(){order.push('pulse'+(++pulses));if(pulses===2)await new Promise(resolve=>{release=resolve;});}},
+    other={ownerDomain:'libra',reconcilerKey:'other',listPage:()=>[{cursor:'other',scope:{}}],reconcile(){order.push('other'+(++others));}},
+    runner=createDomainReconcileRunner({cursorStore:opened.cursorStore,registrations:[pulse,other],now:Date.now,cadenceMs:60000});
+  t.after(async()=>{release?.();await runner.stop();opened.kernel.close();fs.rmSync(root,{recursive:true,force:true});});
+  await runner.start();runner.wake(pulse);const deadline=Date.now()+5000;while(!release&&Date.now()<deadline)await new Promise(resolve=>setImmediate(resolve));assert.ok(release);
+  runner.wake(pulse);const current=runner.runOnce();release();await current;
+  while(pulses<4&&Date.now()<deadline)await new Promise(resolve=>setImmediate(resolve));assert.equal(others,2);assert.equal(pulses,4);assert.ok(order.indexOf('other2')<order.indexOf('pulse4'));
+});
+
+test('scoped wake coalesces requests, leaves other Owners idle and stop waits for the current pulse while discarding queued pulses',async t=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-reconcile-wake-')),opened=open(path.join(root,'db'));let release,pulses=0,other=0;
+  const pulse={ownerDomain:'arca',reconcilerKey:'recycle',listPage:()=>[{cursor:'singleton',scope:{}}],async reconcile(){pulses++;if(pulses===2)await new Promise(resolve=>{release=resolve;});}},
+    unrelated={ownerDomain:'libra',reconcilerKey:'unrelated',listPage:()=>[{cursor:'one',scope:{}}],reconcile(){other++;}},
+    runner=createDomainReconcileRunner({cursorStore:opened.cursorStore,registrations:[pulse,unrelated],now:Date.now,cadenceMs:60000});
+  t.after(async()=>{release?.();await runner.stop();opened.kernel.close();fs.rmSync(root,{recursive:true,force:true});});
+  await runner.start();assert.equal(pulses,1);assert.equal(other,1);
+  for(let index=0;index<10;index++)runner.wake(pulse);
+  while(!release)await new Promise(resolve=>setImmediate(resolve));assert.equal(pulses,2);assert.equal(other,1);
+  for(let index=0;index<10;index++)runner.wake(pulse);
+  let stopped=false;const stopping=runner.stop().then(()=>{stopped=true;});await new Promise(resolve=>setImmediate(resolve));assert.equal(stopped,false);
+  release();await stopping;await new Promise(resolve=>setImmediate(resolve));assert.equal(pulses,2);assert.equal(other,1);
+  assert.equal(runner.wake(pulse).kind,'inactive');assert.throws(()=>runner.wake({ownerDomain:'arca',reconcilerKey:'unknown'}),{code:'P4_DOMAIN_RECONCILE_WAKE_UNKNOWN'});
+});
+
 test('stop finishes the current Owner scope without starting remaining page items, and resume continues its cursor',async()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-reconcile-quiesce-')),opened=open(path.join(root,'shelfdeck.db'));
   let release;const seen=[];

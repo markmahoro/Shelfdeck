@@ -220,6 +220,7 @@ function validateStoredPublicResult(profile, value) {
 
 function createIntegrationAdminApplication(options) {
   const profile = options?.profile || requireIntegrationProfile('tmdb');
+  if (profile.authMode === 'anonymous') return require('./jav-source-integration').createAnonymousJavAdmin(options);
   const adapter = options?.adapter || options?.tmdbAdapter;
   if (!options?.repository ||
       typeof options.repository.find !== 'function' ||

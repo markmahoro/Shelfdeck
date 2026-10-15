@@ -110,6 +110,7 @@ function fixture({ authorized = false, expired = false, workspace = false,
     packageBody={schemaRef:'helix://contracts/types/OnDeckProductPackage/v1',schemaVersion:1,onDeckPackageId:packageId,packageRevision:1,
       libraRunId:runId,runStateRevision:4,runStateDigest:D('run-state'),runExecutionBasisDigest:D('run-basis'),subjectId:'subject-1',shelfId:'shelf-1',
       acceptanceSpecRef:Object.freeze({id:'spec-1',recordDigest:specDigest}),productStructureSnapshot:Object.freeze({structureKind:'single'}),
+      resolvedIdentitySnapshot:Object.freeze({factValue:Object.freeze({identityKind:'tmdb_movie',contentProfile:'movie',structureKind:'single'})}),
       productMaterialManifest:Object.freeze({members:Object.freeze([member])}),
       productionProvenance,productionAttestation},packageDigest=canonicalDigest(packageBody),
     packageValue=Object.freeze({...packageBody,manifestDigest:packageDigest,publishedAtMs:NOW-5,packageDigest}),requirementBody={

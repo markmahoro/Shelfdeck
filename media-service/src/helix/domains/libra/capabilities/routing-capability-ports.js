@@ -196,6 +196,11 @@ function identityAlias(value, sourceKind) {
 function identityObservationFailed(error) {
   const cause = (error?.details && typeof error.details.causeCode === 'string' && error.details.causeCode)
     || (typeof error?.code === 'string' ? error.code : '');
+  if(/^JAV_SOURCE_(?:UNAVAILABLE|TIMEOUT|ACCESS_DENIED|RESPONSE_INVALID|RESPONSE_TOO_LARGE|REDIRECT_DENIED|URL_DENIED|CHARSET_INVALID)$/.test(cause)) {
+    return Object.freeze({kind:'failed',failureClass:cause==='JAV_SOURCE_TIMEOUT'?'timeout':'integration',code:cause,
+      message:'JAV source observation failed.',retryDirective:['JAV_SOURCE_TIMEOUT','JAV_SOURCE_UNAVAILABLE'].includes(cause)?'contract_policy':'never',
+      evidence:Object.freeze({errorCode:cause})});
+  }
   if (cause === 'PLATFORM_INTEGRATION_TIMEOUT') {
     return Object.freeze({
       kind: 'failed', failureClass: 'timeout', code: cause,
@@ -278,6 +283,13 @@ function identityObservation(intent, resultKind, reasonCode, candidates, verifie
 }
 
 async function observeProductIdentity(options, intent, handle) {
+  if(intent.contentProfile==='jav') {
+    const {javIdentityObservation}=require('../model/jav-product-identity');
+    const source=intent.sourceSnapshot.sources[intent.sourceOrdinal];
+    const observed=await options.observeJavSource({siteRef:source.siteRef,integrationHandle:handle,
+      operationId:IDENTITY_EVIDENCE_REF,input:{queryAnchor:intent.sourceSnapshot.queryAnchor,...(intent.resourceKey?{resourceKey:intent.resourceKey}:{})}});
+    return javIdentityObservation(intent,observed);
+  }
   const series=intent.contentProfile==='series';
   if(series&&(!Number.isSafeInteger(intent.seasonNumber)||intent.seasonNumber<1||
       canonicalDigest(Object.fromEntries(Object.entries(intent).filter(([key])=>!['intentId','intentDigest'].includes(key))))!==intent.intentDigest))

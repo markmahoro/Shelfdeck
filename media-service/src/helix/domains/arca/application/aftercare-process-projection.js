@@ -34,15 +34,15 @@ function orderedEvents(events,edges){
   }
   return result;
 }
-function node(event,atMs){
+function node(event,atMs,labels=LABELS){
   const status=event.result?.outcomeKind==='failed'||['failed','timed_out'].includes(event.state)?'failed':event.state==='succeeded'||event.result?.outcomeKind==='succeeded'?'completed':
     ['cancelled','skipped'].includes(event.state)?event.state:state(event.state)==='running'?'running':'pending';
-  const label=LABELS[event.capabilityRef]||'执行维护步骤';
+  const label=labels[event.capabilityRef]||'执行维护步骤';
   const sample=event.progress,fresh=sample&&Number.isFinite(sample.sampledAtMs)&&atMs-sample.sampledAtMs<=120000;
   const statusText=status==='completed'?'已完成':status==='failed'?'执行失败':status==='cancelled'?'未执行':status==='skipped'?'无需执行':event.state==='waiting_for_resource'?'等待资源':event.state==='waiting_for_external'?'等待外部结果':
     event.state==='waiting_for_approval'?'等待确认':status==='running'&&sample&&!fresh?'等待进度更新':event.state==='executing'?'正在执行':event.state==='ready'?'准备执行':'等待前序步骤';
   const results=[];
-  if(event.result){
+  if(event.result?.result){
     const value=event.result.result;
     if(value.assessmentState)results.push({label:'检查结论',value:({healthy:'健康',degraded:'不健康',not_assessable:'暂无法判断'})[value.assessmentState]||'已记录'});
     if(Number.isSafeInteger(value.newInventoryRevision))results.push({label:'收藏版本',value:String(value.newInventoryRevision)});
@@ -57,13 +57,13 @@ function node(event,atMs){
       ...(event.result?[{label:'结果校验',value:event.result.resultDigest}]:[]),
     ]),parameters:Object.freeze([])})});
 }
-function projectAftercareProcess(works,atMs=Date.now()){
+function projectArcaProcess(works,atMs,{workLabels,capabilityLabels,contract}){
   const stages=[];
   for(const work of [...works].sort((a,b)=>a.createdAtMs-b.createdAtMs||a.workId.localeCompare(b.workId))){
-    const copy=WORKS[work.workKind];if(!copy)continue;
+    const copy=workLabels[work.workKind];if(!copy)continue;
     const plans=(work.plans||[]).map(plan=>{
       const events=orderedEvents(work.events.filter(event=>event.planId===plan.planId),plan.edges);
-      const nodes=events.map(event=>node(event,atMs)),planState=nodes.some(item=>item.state==='running')?'running':
+      const nodes=events.map(event=>node(event,atMs,capabilityLabels)),planState=nodes.some(item=>item.state==='running')?'running':
         nodes.some(item=>item.state==='failed')?'attention':work.state==='cancelled'?'cancelled':
           nodes.length&&nodes.every(item=>['completed','skipped'].includes(item.state))?'completed':'pending';
       return Object.freeze({planId:plan.planId,title:copy[1],state:planState,createdAtMs:plan.createdAtMs,
@@ -72,7 +72,10 @@ function projectAftercareProcess(works,atMs=Date.now()){
     stages.push(Object.freeze({key:work.workId,label:copy[1],description:copy[2],state:state(work.state),
       summary:work.state==='succeeded'?'已完成':work.state==='cancelled'?'已终止':work.state==='failed'?'执行失败':'执行中',plans:Object.freeze(plans)}));
   }
-  const detail={contract:'aftercare_process_actual_plans@1',stages:Object.freeze(stages)};
+  const detail={contract,stages:Object.freeze(stages)};
   return Object.freeze({...detail,currentAction:currentActionSummary(detail)});
 }
-module.exports=Object.freeze({projectAftercareProcess});
+function projectAftercareProcess(works,atMs=Date.now()){
+  return projectArcaProcess(works,atMs,{workLabels:WORKS,capabilityLabels:LABELS,contract:'aftercare_process_actual_plans@1'});
+}
+module.exports=Object.freeze({projectAftercareProcess,projectArcaProcess});

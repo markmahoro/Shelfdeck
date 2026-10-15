@@ -1,0 +1,114 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.jav-correction-inventory-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.jav-correction-inventory-commit",
+    "displayName": "JAV Correction Inventory Commit",
+    "ownerScope": "arca",
+    "commitClass": "responsibility_control_commit",
+    "atomicFactSet": "同Scope完整成功Work/Result、Manifest/最终Verification、actual active Admission、当前完整Basis与逐Material Control重验；新Arca Canonical/Metadata/Cast/Inventory、Entry双head、精确Control changes、Correction committed/terminal Evidence及Foundation Receipt Result/marker全有或全无；原视频字节、原On-deck Receipt/来源结算、People/Perception事实不改写；无Outbox，失败全回滚，精确Event已有Receipt先重放",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_jav_identity_corrections",
+          "arca_canonical_identity_revisions",
+          "arca_shelf_entries",
+          "arca_inventory_representations",
+          "arca_inventory_materials",
+          "arca_inventory_related_references",
+          "arca_inventory_product_facts",
+          "arca_inventory_person_relations"
+        ]
+      },
+      {
+        "participantKind": "material-control",
+        "owner": "material-control-authority",
+        "access": "write",
+        "tables": [
+          "fx_material_controls",
+          "fx_material_control_revisions"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_jav_identity_corrections",
+      "arca_canonical_identity_revisions",
+      "arca_shelf_entries",
+      "arca_inventory_representations",
+      "arca_inventory_materials",
+      "arca_inventory_related_references",
+      "arca_inventory_product_facts",
+      "arca_inventory_person_relations",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "arca_jav_identity_corrections",
+      "arca_shelf_entries",
+      "arca_shelves",
+      "arca_canonical_identity_revisions",
+      "arca_inventory_representations",
+      "arca_inventory_materials",
+      "arca_inventory_related_references",
+      "arca_inventory_product_facts",
+      "arca_inventory_person_relations",
+      "arca_ondeck_commit_receipts",
+      "arca_shelf_standard_revisions",
+      "arca_placement_policy_revisions",
+      "arca_aftercare_cases",
+      "arca_offdeck_reservations",
+      "arca_staged_manifest_records",
+      "arca_inventory_verification_records",
+      "fx_material_controls",
+      "fx_material_control_revisions",
+      "fx_supporting_works",
+      "fx_workflow_events",
+      "fx_event_attempts",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": true,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "jav-correction-inventory",
+        "faultInjectionPoints": "执行及前置Work/Result、active Admission/current Basis、每页Control CAS、新Canonical/Inventory与terminal Evidence、Result/marker各participant及响应前进程丢失",
+        "requiredInvariant": "任一步失败无新head/Control/terminal/Receipt/marker；旧视频及原入藏Receipt不变；成功全有，同Event重放不重做文件或创建第二Commit",
+        "source": {
+          "section": "8.9.7",
+          "line": 16085
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8756,
+      "lineDigest": "2039c3722c869026616b3451c5ae0cd6ade4771b704dbb14529ee5a9e09250af"
+    }
+  }
+}

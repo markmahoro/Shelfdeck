@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.jav-correction-recovery-intent/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.jav-correction-recovery-intent",
+    "displayName": "JAV Correction Recovery Intent",
+    "ownerScope": "arca",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "Arca显式继续原Correction的用户命令；当前attention或committed/cleanup attention、原Admission/上一恢复Receipt/实际终态失败执行及当前Owner/Control/现场证明同UOW重验；新closed Recovery Intent Receipt、原Correction的有界恢复lineage及业务状态CAS，与Foundation Command Receipt/marker/audit原子。原failed Work/Event/Effect/Result、Source/文件计划、Entry/视频和原On-deck均不改写；无Effect/Outbox，实际后续写入只由新Supporting Work/Event/Effect执行。Unknown conflict或未决执行拒绝；相同命令先重放Receipt，cleanup恢复不改变已提交身份",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_jav_correction_recovery_intents",
+          "arca_jav_identity_corrections"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records"
+        ]
+      },
+      {
+        "participantKind": "material-control-authority",
+        "owner": "material-control-authority",
+        "access": "read",
+        "tables": [
+          "fx_material_controls"
+        ]
+      },
+      {
+        "participantKind": "domain",
+        "owner": "platform-settings",
+        "access": "read",
+        "tables": [
+          "platform_workspace_roots"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "read",
+        "tables": [
+          "fx_supporting_works",
+          "fx_work_attempts",
+          "fx_workflow_plans",
+          "fx_plan_nodes",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_effect_journal",
+          "fx_event_result_bindings",
+          "fx_workspace_registry",
+          "fx_workspace_materials",
+          "fx_artifact_registry"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_jav_correction_recovery_intents",
+      "arca_jav_identity_corrections",
+      "fx_command_receipts",
+      "fx_commit_markers",
+      "fx_audit_records"
+    ],
+    "readTables": [
+      "arca_jav_correction_recovery_intents",
+      "arca_jav_identity_corrections",
+      "arca_shelf_entries",
+      "arca_shelves",
+      "arca_canonical_identity_revisions",
+      "arca_inventory_representations",
+      "arca_inventory_materials",
+      "arca_inventory_related_references",
+      "arca_inventory_product_facts",
+      "arca_inventory_person_relations",
+      "arca_ondeck_commit_receipts",
+      "arca_shelf_standard_revisions",
+      "arca_placement_policy_revisions",
+      "arca_aftercare_cases",
+      "arca_offdeck_reservations",
+      "fx_material_controls",
+      "fx_supporting_works",
+      "fx_work_attempts",
+      "fx_workflow_plans",
+      "fx_plan_nodes",
+      "fx_workflow_events",
+      "fx_event_attempts",
+      "fx_effect_journal",
+      "fx_event_result_bindings",
+      "platform_workspace_roots",
+      "fx_workspace_registry",
+      "fx_workspace_materials",
+      "fx_artifact_registry"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "command-idempotency",
+        "faultInjectionPoints": "Owner业务修改后响应前崩溃、相同key同payload重试、相同key不同payload重试",
+        "requiredInvariant": "Receipt与Owner修改同事务；同payload返回原result ref；不同payload稳定拒绝；不重复创建对象或推进revision",
+        "source": {
+          "section": "8.9.7",
+          "line": 8428
+        }
+      },
+      {
+        "fixtureId": "jav-correction-recovery-intent",
+        "faultInjectionPoints": "current Owner/Control and terminal execution validation, prior recovery digest CAS, Intent/Command Receipt/marker/audit writes, before and after COMMIT",
+        "requiredInvariant": "Recovery Intent and current lineage/state changes are all-or-none; prior failed execution, successful Results, collection and video are unchanged; replay precedes current-state checks; unresolved execution or unknown conflicts reject admission",
+        "source": {
+          "section": "8.9.7",
+          "line": 8755
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8755,
+      "lineDigest": "973e92298a2f0a528b35e00604c1730f399babe93bd6c593d892a674fd48e261"
+    }
+  }
+}

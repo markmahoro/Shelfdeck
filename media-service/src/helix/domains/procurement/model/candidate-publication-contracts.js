@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { assertJavPartSet } = require('../../../contracts/jav-part-set');
 
 const PACKAGE_SCHEMA = 'helix://contracts/types/CandidatePackage/v1';
 const RECEIPT_SCHEMA = 'helix://contracts/types/CandidatePublicationReceipt/v1';
@@ -9,7 +10,7 @@ const ACCEPTANCE_BASIS_SCHEMA = 'helix://contracts/types/CandidateIntakeAcceptan
 const OFFER_MESSAGE_SCHEMA = 'helix://contracts/types/ProcurementCandidateOfferAvailableMessage/v1';
 const HANDOFF_CONTRACT = 'helix://handoffs/procurement-to-libra/v1';
 const CLAIM_KINDS = new Set(['provider_season_identity', 'triage_grouping_lineage']);
-const MATERIAL_INPUT_FORMS = new Set(['stream_file', 'bdmv', 'dvd', 'iso']);
+const MATERIAL_INPUT_FORMS = new Set(['stream_file', 'bdmv', 'dvd', 'iso', 'jav_named_parts']);
 const SHA256 = /^[0-9a-f]{64}$/;
 
 class CandidatePublicationContractError extends Error {
@@ -156,6 +157,15 @@ function validateDraft(draft, runBasisMembers) {
     fail('P7_CANDIDATE_INPUT_FORM_INVALID', 'Candidate materialInputForm is missing or inconsistent with the Unit.');
   }
   requireArray(unitMembers, compact ? 'primaryInputManifestDraft.members' : 'structureEvidence.unit.members', 1024, 1);
+  if (unit.materialInputForm === 'jav_named_parts') {
+    assertJavPartSet(unit.javPartSet);
+    if (compact || unit.mediaType !== 'single' || unit.contentProfile !== 'jav' || unit.structureKind !== 'single' ||
+        unit.javPartSet.parts.length !== 2 || unitMembers.length !== 2 || unit.identityMetadata.javCode !== unit.javPartSet.javCode ||
+        unitMembers.some(member => member.role !== 'primary_payload' ||
+          !unit.javPartSet.parts.some(part => part.materialKey === member.materialKey))) {
+      fail('P7_CANDIDATE_PART_SET_INVALID', 'JAV named parts require the exact two actual primary members and code.');
+    }
+  } else if (unit.javPartSet !== undefined) fail('P7_CANDIDATE_PART_SET_INVALID', 'Ordinary inputs cannot carry a JAV part set.');
   let previousMember = null;
   const memberKeys = new Set();
   for (const member of unitMembers) {
@@ -174,7 +184,8 @@ function validateDraft(draft, runBasisMembers) {
       structureKind:unit.structureKind, scope:unit.memberScope, materialInputForm:unit.materialInputForm, relatedScope:unit.relatedScope })
     : canonicalDigest({ schema:'procurement.triage-unit-id@1', mediaType:unit.mediaType,
       contentProfile:unit.contentProfile, structureKind:unit.structureKind, materialInputForm:unit.materialInputForm, relatedScope:unit.relatedScope,
-      members:unitMembers.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })) });
+      members:unitMembers.map(({ materialKey, role, episodeClaims }) => ({ materialKey, role, episodeClaims })),
+      ...(unit.javPartSet ? { javPartSetDigest:unit.javPartSet.groupDigest } : {}) });
   if (unit.unitId !== expectedUnitId || draft.identityMetadata.metadataDigest !== canonicalDigest(without(draft.identityMetadata, 'metadataDigest'))) {
     fail('P7_CANDIDATE_UNIT_CANONICAL', 'Triage Unit identity or metadata digest is invalid.');
   }
@@ -326,7 +337,8 @@ function buildPublication(draft, publishedAtMs, runBasisMembers, packageRevision
     primaryInputManifestRef:{ manifestId:manifest.manifestId, manifestDigest:manifest.manifestDigest, memberCount:members.length },
     relatedReferences:draft.relatedReferences, relatedReferenceSetDigest:draft.relatedReferenceSetDigest,
     relatedDispositionScopeDigest:draft.relatedDispositionScopeDigest,
-    memberControlEvidenceSetDigest:draft.memberControlEvidenceSetDigest, packageDigest:'' };
+    memberControlEvidenceSetDigest:draft.memberControlEvidenceSetDigest,
+    ...(unit.javPartSet ? { javPartSet:unit.javPartSet } : {}), packageDigest:'' };
   packageValue.packageDigest = canonicalDigest(without(packageValue, 'manifestDigest', 'packageDigest'));
   packageValue.manifestDigest = packageValue.packageDigest;
   const basis = buildAcceptanceBasis(packageValue);

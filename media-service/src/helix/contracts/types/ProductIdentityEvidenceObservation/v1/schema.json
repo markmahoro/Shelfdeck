@@ -964,6 +964,2774 @@
         "candidates",
         "verifiedIdentity"
       ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/types/ProductIdentityEvidenceObservation/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "observationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
+          "enum": [
+            "provider_exact",
+            "provider_search"
+          ]
+        },
+        "contentProfile": {
+          "const": "jav"
+        },
+        "sourceSnapshot": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "libra.jav-source-selection-snapshot@1"
+            },
+            "ruleRef": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "ruleRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "ruleDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "queryAnchor": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "fc2"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^FC2-[0-9]{5,10}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "heydouga"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^HEYDOUGA-[0-9]{4}-[0-9]{3,5}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "getchu"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^GETCHU-[0-9]{1,12}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "gyutto"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^GYUTTO-[0-9]{1,12}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "digital_numeric"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,4}[A-Z]{2,10}-[0-9]{1,8}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "mugen"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^(?:MKB?D-S[0-9]{2,3}|(?:MK3D2DBD|S2M|S2MBD)-[0-9]{2,3})$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "ibw"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^IBW-[0-9]{2,5}Z?$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "tma"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^T[23]8-[0-9]{3}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "tokyo_hot"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^(?:N[0-9]{4}|K[0-9]{4}|RED[01][0-9]{2}|SKY[0-3][0-9]{2}|EX00[01][0-9])$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "date"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^[0-9]{6}-[0-9]{2,3}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "standard"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^[A-Z]{2,10}-[0-9]{2,5}$",
+                      "maxLength": 64,
+                      "not": {
+                        "pattern": "^(?:FC2|HEY|HEYDOUGA|GETCHU|GYUTTO|IBW|MKB?D|MK3D2DBD|S2MBD|S2M|T[23]8|RED|SKY|EX|N|K)(?:[-_0-9]|$)"
+                      }
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "cid"
+                    },
+                    "cid": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9]{2,64}$"
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "cid",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                }
+              ]
+            },
+            "requiredFields": {
+              "const": [
+                "title"
+              ]
+            },
+            "requiredSourceArtifacts": {
+              "const": [
+                "cover"
+              ]
+            },
+            "sources": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ordinal": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 7
+                  },
+                  "siteRef": {
+                    "type": "string",
+                    "enum": [
+                      "javdb",
+                      "javmenu",
+                      "jav321",
+                      "fc2_official",
+                      "caribbeancom_official",
+                      "heydouga_official",
+                      "avwiki",
+                      "mgstage",
+                      "dl_getchu",
+                      "gyutto",
+                      "fanza"
+                    ]
+                  },
+                  "integrationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "configRevision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "endpointProfileDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "networkRouteDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "authMode": {
+                    "type": "string",
+                    "enum": [
+                      "anonymous",
+                      "secret"
+                    ]
+                  },
+                  "queryKind": {
+                    "type": "string",
+                    "enum": [
+                      "jav_code",
+                      "cid"
+                    ]
+                  }
+                },
+                "required": [
+                  "ordinal",
+                  "siteRef",
+                  "integrationId",
+                  "configRevision",
+                  "endpointProfileDigest",
+                  "networkRouteDigest",
+                  "authMode",
+                  "queryKind"
+                ]
+              }
+            },
+            "snapshotDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "schema",
+            "ruleRef",
+            "ruleRevision",
+            "ruleDigest",
+            "queryAnchor",
+            "requiredFields",
+            "requiredSourceArtifacts",
+            "sources",
+            "snapshotDigest"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "standard"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "javdb",
+                            "javmenu",
+                            "jav321"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "fc2"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "fc2_official",
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "date"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "javmenu",
+                            "caribbeancom_official",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "mugen"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "ibw"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "tma"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "tokyo_hot"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "digital_numeric"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "avwiki",
+                            "mgstage",
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "heydouga"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "heydouga_official",
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "getchu"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "dl_getchu"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "gyutto"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "gyutto"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "cid"
+                      }
+                    },
+                    "required": [
+                      "queryKind"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "fanza"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "cid"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "sourceOrdinal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        },
+        "javSelectionFence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "subjectId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "libraRunId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "runExecutionBasisDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "expectedRunStateRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "expectedIdentityRevision": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "expectedIdentityDigest": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "expectedSelectionIntentRevision": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "selectionIntentId": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "selectionIntentDigest": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "subjectId",
+            "libraRunId",
+            "runExecutionBasisDigest",
+            "expectedRunStateRevision",
+            "expectedIdentityRevision",
+            "expectedIdentityDigest",
+            "expectedSelectionIntentRevision",
+            "selectionIntentId",
+            "selectionIntentDigest"
+          ]
+        },
+        "sourceAssociationDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observationDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "result": {
+          "const": "resolved"
+        },
+        "reasonCode": {
+          "type": "null"
+        },
+        "candidates": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "candidateMatchCount": {
+          "const": 1
+        },
+        "verifiedIdentity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "provider": {
+              "const": "jav"
+            },
+            "namespace": {
+              "const": "jav_code"
+            },
+            "providerKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "displayTitle": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 16384
+            },
+            "originalTitle": {
+              "type": "null"
+            },
+            "releaseYear": {
+              "oneOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1800,
+                  "maximum": 9007199254740991
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "identityDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "provider",
+            "namespace",
+            "providerKey",
+            "displayTitle",
+            "originalTitle",
+            "releaseYear",
+            "identityDigest"
+          ]
+        },
+        "qualificationObservation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "integration.jav-source-observation@1"
+            },
+            "siteRef": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            },
+            "endpointProfileDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "networkRouteDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "queryAnchorDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "result": {
+              "const": "qualified"
+            },
+            "pages": {
+              "type": "array",
+              "maxItems": 5,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "resourceUrl": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "byteDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "resourceUrl",
+                  "byteDigest"
+                ]
+              }
+            },
+            "resourceKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "resourceUrl": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "resolvedProviderIdentity": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "provider": {
+                  "const": "jav"
+                },
+                "namespace": {
+                  "const": "jav_code"
+                },
+                "providerKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "seasonNumber": {
+                  "type": "null"
+                },
+                "identityAnchorDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "provider",
+                "namespace",
+                "providerKey",
+                "seasonNumber",
+                "identityAnchorDigest"
+              ]
+            },
+            "descriptiveEntries": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 256,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "value": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 16384
+                  }
+                },
+                "required": [
+                  "key",
+                  "value"
+                ]
+              }
+            },
+            "peopleHints": {
+              "type": "array",
+              "maxItems": 64,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "displayName": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1024
+                  },
+                  "role": {
+                    "const": "actor"
+                  },
+                  "providerIdentities": {
+                    "type": "array",
+                    "maxItems": 0
+                  }
+                },
+                "required": [
+                  "displayName",
+                  "role",
+                  "providerIdentities"
+                ]
+              }
+            },
+            "cover": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "locator": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "byteDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "byteCount": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 16777216
+                },
+                "format": {
+                  "enum": [
+                    "jpeg",
+                    "png",
+                    "webp"
+                  ]
+                },
+                "width": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "height": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              },
+              "required": [
+                "locator",
+                "byteDigest",
+                "byteCount",
+                "format",
+                "width",
+                "height"
+              ]
+            },
+            "observationDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "schema",
+            "siteRef",
+            "endpointProfileDigest",
+            "networkRouteDigest",
+            "queryAnchorDigest",
+            "result",
+            "pages",
+            "resourceKey",
+            "resourceUrl",
+            "resolvedProviderIdentity",
+            "descriptiveEntries",
+            "peopleHints",
+            "cover",
+            "observationDigest"
+          ]
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "observationId",
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "sourceKind",
+        "contentProfile",
+        "sourceSnapshot",
+        "sourceOrdinal",
+        "javSelectionFence",
+        "sourceAssociationDigest",
+        "evidenceDigest",
+        "observationDigest",
+        "result",
+        "reasonCode",
+        "candidates",
+        "candidateMatchCount",
+        "verifiedIdentity",
+        "qualificationObservation"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/types/ProductIdentityEvidenceObservation/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "observationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
+          "enum": [
+            "provider_exact",
+            "provider_search"
+          ]
+        },
+        "contentProfile": {
+          "const": "jav"
+        },
+        "sourceSnapshot": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "libra.jav-source-selection-snapshot@1"
+            },
+            "ruleRef": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "ruleRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "ruleDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "queryAnchor": {
+              "oneOf": [
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "fc2"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^FC2-[0-9]{5,10}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "heydouga"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^HEYDOUGA-[0-9]{4}-[0-9]{3,5}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "getchu"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^GETCHU-[0-9]{1,12}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "gyutto"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^GYUTTO-[0-9]{1,12}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "digital_numeric"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^[0-9]{1,4}[A-Z]{2,10}-[0-9]{1,8}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "mugen"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^(?:MKB?D-S[0-9]{2,3}|(?:MK3D2DBD|S2M|S2MBD)-[0-9]{2,3})$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "ibw"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^IBW-[0-9]{2,5}Z?$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "tma"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^T[23]8-[0-9]{3}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "tokyo_hot"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^(?:N[0-9]{4}|K[0-9]{4}|RED[01][0-9]{2}|SKY[0-3][0-9]{2}|EX00[01][0-9])$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "date"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^[0-9]{6}-[0-9]{2,3}$",
+                      "maxLength": 64
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "jav_code"
+                    },
+                    "codeClass": {
+                      "const": "standard"
+                    },
+                    "javCode": {
+                      "type": "string",
+                      "pattern": "^[A-Z]{2,10}-[0-9]{2,5}$",
+                      "maxLength": 64,
+                      "not": {
+                        "pattern": "^(?:FC2|HEY|HEYDOUGA|GETCHU|GYUTTO|IBW|MKB?D|MK3D2DBD|S2MBD|S2M|T[23]8|RED|SKY|EX|N|K)(?:[-_0-9]|$)"
+                      }
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "codeClass",
+                    "javCode",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                },
+                {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "queryKind": {
+                      "const": "cid"
+                    },
+                    "cid": {
+                      "type": "string",
+                      "pattern": "^[a-z0-9]{2,64}$"
+                    },
+                    "grammarRevision": {
+                      "const": 1
+                    },
+                    "grammarDigest": {
+                      "const": "5ee10ad74955b7db6685b64e7e37d9af60822dc8b26a516e48264dd6417e7283"
+                    },
+                    "anchorDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "queryKind",
+                    "cid",
+                    "grammarRevision",
+                    "grammarDigest",
+                    "anchorDigest"
+                  ]
+                }
+              ]
+            },
+            "requiredFields": {
+              "const": [
+                "title"
+              ]
+            },
+            "requiredSourceArtifacts": {
+              "const": [
+                "cover"
+              ]
+            },
+            "sources": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ordinal": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 7
+                  },
+                  "siteRef": {
+                    "type": "string",
+                    "enum": [
+                      "javdb",
+                      "javmenu",
+                      "jav321",
+                      "fc2_official",
+                      "caribbeancom_official",
+                      "heydouga_official",
+                      "avwiki",
+                      "mgstage",
+                      "dl_getchu",
+                      "gyutto",
+                      "fanza"
+                    ]
+                  },
+                  "integrationId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "configRevision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "endpointProfileDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "networkRouteDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "authMode": {
+                    "type": "string",
+                    "enum": [
+                      "anonymous",
+                      "secret"
+                    ]
+                  },
+                  "queryKind": {
+                    "type": "string",
+                    "enum": [
+                      "jav_code",
+                      "cid"
+                    ]
+                  }
+                },
+                "required": [
+                  "ordinal",
+                  "siteRef",
+                  "integrationId",
+                  "configRevision",
+                  "endpointProfileDigest",
+                  "networkRouteDigest",
+                  "authMode",
+                  "queryKind"
+                ]
+              }
+            },
+            "snapshotDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "schema",
+            "ruleRef",
+            "ruleRevision",
+            "ruleDigest",
+            "queryAnchor",
+            "requiredFields",
+            "requiredSourceArtifacts",
+            "sources",
+            "snapshotDigest"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "standard"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "javdb",
+                            "javmenu",
+                            "jav321"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "fc2"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "fc2_official",
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "date"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "javmenu",
+                            "caribbeancom_official",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "mugen"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "ibw"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "tma"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "tokyo_hot"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "digital_numeric"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "avwiki",
+                            "mgstage",
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "heydouga"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "heydouga_official",
+                            "javmenu",
+                            "javdb"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "getchu"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "dl_getchu"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "jav_code"
+                      },
+                      "codeClass": {
+                        "const": "gyutto"
+                      }
+                    },
+                    "required": [
+                      "queryKind",
+                      "codeClass"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "gyutto"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "jav_code"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": {
+                  "queryAnchor": {
+                    "properties": {
+                      "queryKind": {
+                        "const": "cid"
+                      }
+                    },
+                    "required": [
+                      "queryKind"
+                    ]
+                  }
+                },
+                "required": [
+                  "queryAnchor"
+                ]
+              },
+              "then": {
+                "properties": {
+                  "sources": {
+                    "items": {
+                      "properties": {
+                        "siteRef": {
+                          "type": "string",
+                          "enum": [
+                            "fanza"
+                          ]
+                        },
+                        "queryKind": {
+                          "const": "cid"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "sourceOrdinal": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 7
+        },
+        "javSelectionFence": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "subjectId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "libraRunId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "runExecutionBasisDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "expectedRunStateRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "expectedIdentityRevision": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "expectedIdentityDigest": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "expectedSelectionIntentRevision": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            },
+            "selectionIntentId": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "selectionIntentDigest": {
+              "oneOf": [
+                {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "required": [
+            "subjectId",
+            "libraRunId",
+            "runExecutionBasisDigest",
+            "expectedRunStateRevision",
+            "expectedIdentityRevision",
+            "expectedIdentityDigest",
+            "expectedSelectionIntentRevision",
+            "selectionIntentId",
+            "selectionIntentDigest"
+          ]
+        },
+        "sourceAssociationDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observationDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "result": {
+          "enum": [
+            "not_found",
+            "ambiguous",
+            "conflicting"
+          ]
+        },
+        "reasonCode": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "candidates": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "siteRef": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              },
+              "resourceKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              "javCode": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 64
+              }
+            },
+            "required": [
+              "siteRef",
+              "resourceKey",
+              "javCode"
+            ]
+          }
+        },
+        "candidateMatchCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 16
+        },
+        "verifiedIdentity": {
+          "type": "null"
+        },
+        "qualificationObservation": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "observationId",
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "sourceKind",
+        "contentProfile",
+        "sourceSnapshot",
+        "sourceOrdinal",
+        "javSelectionFence",
+        "sourceAssociationDigest",
+        "evidenceDigest",
+        "observationDigest",
+        "result",
+        "reasonCode",
+        "candidates",
+        "candidateMatchCount",
+        "verifiedIdentity",
+        "qualificationObservation"
+      ]
     }
   ]
 }

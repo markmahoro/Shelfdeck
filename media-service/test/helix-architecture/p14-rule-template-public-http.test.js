@@ -137,8 +137,8 @@ test('controlled system publish upgrades the bound Shelf atomically and stays re
       .get(shelf.shelfId).n, 2);
     assert.equal(rows.prepare("SELECT COUNT(*) n FROM fx_outbox WHERE aggregate_type='rule_template' AND aggregate_id=? AND aggregate_revision=2")
       .get(SYSTEM_TEMPLATE_ID).n, 1);
-    assert.equal(rows.prepare("SELECT COUNT(*) n FROM fx_command_receipts WHERE command_contract='arca.system.rule-template.publish@1'")
-      .get().n, 1);
+    assert.equal(rows.prepare("SELECT COUNT(*) n FROM fx_command_receipts WHERE command_contract='arca.system.rule-template.publish@1' AND target_id=?")
+      .get(SYSTEM_TEMPLATE_ID).n, 1);
     rows.close();
   } finally { await replay.close(); }
 });
@@ -264,8 +264,9 @@ test('Arca Rule Template public HTTP preserves immutable system defaults and clo
       headers,
     });
     assert.equal(listed.statusCode, 200, listed.body);
-    assert.equal(listed.json().items.length, 1);
-    const system = listed.json().items[0];
+    assert.equal(listed.json().items.length, 2);
+    const system = listed.json().items.find(item=>item.templateId===SYSTEM_TEMPLATE_ID);
+    assert.ok(listed.json().items.some(item=>item.templateId==='system-jav-recommended'&&item.ownerKind==='system'));
     assert.equal(system.templateId, SYSTEM_TEMPLATE_ID);
     assert.equal(system.name, SYSTEM_TEMPLATE_NAME);
     assert.equal(system.ownerKind, 'system');
@@ -279,7 +280,7 @@ test('Arca Rule Template public HTTP preserves immutable system defaults and clo
       headers,
     });
     assert.equal(listedAfterEnglishStore.statusCode, 200, listedAfterEnglishStore.body);
-    assert.equal(listedAfterEnglishStore.json().items[0].name, SYSTEM_TEMPLATE_NAME);
+    assert.equal(listedAfterEnglishStore.json().items.find(item=>item.templateId===SYSTEM_TEMPLATE_ID).name,SYSTEM_TEMPLATE_NAME);
     assert.equal(system.current.rulesSchemaRef, RULES_SCHEMA_REF);
     assert.deepEqual(
       system.current.rules.profileRuleSets.map((item) => item.contentProfile),
@@ -464,7 +465,7 @@ test('Arca Rule Template public HTTP preserves immutable system defaults and clo
     const rows = new Database(value.databasePath, { readonly: true });
     assert.equal(
       rows.prepare('SELECT COUNT(*) count FROM arca_rule_templates').get().count,
-      2,
+      3,
     );
     assert.equal(
       rows.prepare("SELECT COUNT(*) count FROM arca_rule_template_drafts WHERE rule_template_id='user-template-1'").get().count,
@@ -651,7 +652,7 @@ test('Rule Template publish atomically auto-follows bound Shelves across restart
 
     await host.close();
     const pendingDb=new Database(value.databasePath);
-    const publication=pendingDb.prepare("SELECT * FROM fx_outbox WHERE message_kind='rule_template_published'").get();
+    const publication=pendingDb.prepare("SELECT * FROM fx_outbox WHERE message_kind='rule_template_published' AND aggregate_id='follow-template'").get();
     assert.equal(publication.state,'pending');
     const invalidPayload={...JSON.parse(publication.payload_json),rulesDigest:'0'.repeat(64)};
     pendingDb.prepare('UPDATE fx_outbox SET payload_json=?,payload_digest=? WHERE message_id=?').run(JSON.stringify(invalidPayload),canonicalDigest(invalidPayload),publication.message_id);
@@ -660,7 +661,7 @@ test('Rule Template publish atomically auto-follows bound Shelves across restart
     host=await restart();
     await host.close();
     const rejectedDb=new Database(value.databasePath);
-    assert.equal(rejectedDb.prepare("SELECT count(*) n FROM fx_inbox WHERE consumer_domain='read-model'").get().n,0);
+    assert.equal(rejectedDb.prepare("SELECT count(*) n FROM fx_inbox WHERE consumer_domain='read-model' AND message_id=?").get(publication.message_id).n,0);
     const rejectedDelivery=rejectedDb.prepare('SELECT state,attempt_count FROM fx_outbox_deliveries WHERE message_id=?').get(publication.message_id);
     assert.equal(rejectedDelivery.state,'pending');assert.ok(rejectedDelivery.attempt_count>=1);
     assert.ok(runtimeErrors.some(error=>/durable Arca revision/.test(error.message)));
@@ -672,7 +673,7 @@ test('Rule Template publish atomically auto-follows bound Shelves across restart
     assert.deepEqual(runtimeErrors.map(error=>({code:error.code,message:error.message,stack:error.stack})),[]);
     const replayDb=new Database(value.databasePath);
     assert.equal(replayDb.prepare('SELECT state FROM fx_outbox WHERE message_id=?').get(publication.message_id).state,'fully_acked');
-    assert.equal(replayDb.prepare("SELECT count(*) n FROM fx_inbox WHERE consumer_domain='read-model'").get().n,1);
+    assert.equal(replayDb.prepare("SELECT count(*) n FROM fx_inbox WHERE consumer_domain='read-model' AND message_id=?").get(publication.message_id).n,1);
     // Simulate loss after Inbox commit but before the delivery ACK; preserve the consumed receipt.
     replayDb.prepare("UPDATE fx_outbox SET state='pending',all_acked_at_ms=NULL WHERE message_id=?").run(publication.message_id);
     replayDb.prepare("UPDATE fx_outbox_deliveries SET state='pending',acked_at_ms=NULL,next_attempt_at_ms=0 WHERE message_id=?").run(publication.message_id);
@@ -680,7 +681,7 @@ test('Rule Template publish atomically auto-follows bound Shelves across restart
     host=await restart();
     const verifiedDb=new Database(value.databasePath,{readonly:true});
     assert.equal(verifiedDb.prepare('SELECT state FROM fx_outbox WHERE message_id=?').get(publication.message_id).state,'fully_acked');
-    assert.equal(verifiedDb.prepare("SELECT count(*) n FROM fx_inbox WHERE consumer_domain='read-model'").get().n,1);
+    assert.equal(verifiedDb.prepare("SELECT count(*) n FROM fx_inbox WHERE consumer_domain='read-model' AND message_id=?").get(publication.message_id).n,1);
     verifiedDb.close();assert.deepEqual(runtimeErrors,[]);
     const restarted = await host.inject({
       method: 'GET',

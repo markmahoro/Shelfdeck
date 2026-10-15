@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.jav_correction.assets.prepare@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "javCorrectionScope": {
+      "schemaRef": "helix://contracts/capabilities/arca.jav_correction.assets.prepare/v1/inputs#/$defs/javCorrectionScope",
+      "required": true,
+      "cardinality": "one"
+    },
+    "javCorrectionSourceVerified": {
+      "schemaRef": "helix://contracts/capabilities/arca.jav_correction.assets.prepare/v1/inputs#/$defs/javCorrectionSourceVerified",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.jav_correction.assets.prepare/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.jav_correction.assets.prepare/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.jav_correction.assets.prepare/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.jav_correction.assets.prepare/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.jav_correction.assets.prepare/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.jav_correction.assets.prepare/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.jav_correction.assets.prepare/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.11",
+    "line": 10364,
+    "lineDigest": "5ddd6f3dafc6139ac7c4ced8237e880af78f49a3a53c003a7ddf8965fc9bf2fc"
+  }
+}

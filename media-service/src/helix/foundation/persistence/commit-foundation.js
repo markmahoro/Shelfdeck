@@ -135,6 +135,15 @@ function createCommandCommitCoordinator(options) {
       if(request.controlParticipant&&(request.controlParticipant.owner!=='material-control-authority'||
           request.controlParticipant.boundBusinessOwner!==command.ownerDomain))fail(
         'P3_COMMAND_CONTROL_OWNER_MISMATCH','Command Control participant must be bound to the command Owner.');
+      const validations=request.validationParticipants===undefined?[]:request.validationParticipants;
+      if(!Array.isArray(validations)||validations.length>8||validations.some(participant=>
+          !participant||!([command.ownerDomain,'execution-foundation','material-control-authority'].includes(participant.owner)||
+            participant.owner==='platform-settings'&&Array.isArray(participant.repositories)&&participant.repositories.length>0&&
+              participant.repositories.every(repository=>repository&&Array.isArray(repository.tableIds)&&repository.tableIds.length===1&&repository.tableIds[0]==='platform_workspace_roots'))||
+          participant.owner!==command.ownerDomain&&participant.boundBusinessOwner!==command.ownerDomain||
+          !Array.isArray(participant.repositories)||!participant.repositories.length||participant.repositories.some(repository=>!repository||repository.readOnly!==true)||
+          typeof participant.execute!=='function'))fail('P3_COMMAND_VALIDATION_PARTICIPANT_INVALID',
+        'Command validation participants must be bounded, read-only and bound to the exact command Owner.');
       let domainResult;
       let receipt;
       try {
@@ -158,6 +167,7 @@ function createCommandCommitCoordinator(options) {
               throw new ReplaySignal(decodedReceipt(existing));
             }
           },
+          ...validations,
           {
             ...request.domainParticipant,
             execute(context) {

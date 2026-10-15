@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { assertJavPartSet } = require('../../../contracts/jav-part-set');
 const { ACCEPTANCE_BASIS_SCHEMA, MANIFEST_SCHEMA, OFFER_MESSAGE_SCHEMA, PACKAGE_SCHEMA, buildAcceptanceBasis, buildOffer } =
   require('../model/candidate-publication-contracts');
 
@@ -120,6 +121,13 @@ function reconstruct(rows) {
   const continuityDigest = canonicalDigest({ schema:'season-continuity-claim-set@1', items:continuity });
   const identityMetadata = parse(pkg.identity_metadata_json, pkg.identity_metadata_digest, 'metadataDigest', 'P8_CANDIDATE_DELIVERY_METADATA');
   const identityClaim = parse(pkg.identity_claim_json, pkg.identity_claim_digest, 'claimDigest', 'P8_CANDIDATE_DELIVERY_IDENTITY_CLAIM');
+  let javPartSet;
+  if (pkg.material_input_form === 'jav_named_parts') {
+    if (pkg.jav_part_set_schema_ref !== 'helix://implementation/procurement/JavPartSet/v1') fail('P8_CANDIDATE_DELIVERY_PART_SET', 'JAV part set schema reference is invalid.');
+    try { javPartSet=assertJavPartSet(JSON.parse(pkg.jav_part_set_json)); } catch { fail('P8_CANDIDATE_DELIVERY_PART_SET', 'JAV part set is corrupt.'); }
+    if (pkg.content_profile !== 'jav' || pkg.media_type !== 'single' || pkg.structure_kind !== 'single' || javPartSet.parts.length !== 2 || manifestMembers.length !== 2 || identityMetadata.javCode !== javPartSet.javCode ||
+        manifestMembers.some(member=>member.role !== 'primary_payload' || !javPartSet.parts.some(part=>part.materialKey===member.materialKey))) fail('P8_CANDIDATE_DELIVERY_PART_SET', 'JAV part set does not conserve its exact primary inputs.');
+  } else if (pkg.jav_part_set_schema_ref != null || pkg.jav_part_set_json != null) fail('P8_CANDIDATE_DELIVERY_PART_SET', 'Ordinary inputs cannot carry a JAV part set.');
   const candidatePackage = { schemaRef:PACKAGE_SCHEMA, schemaVersion:1, manifestId:pkg.candidate_package_id,
     manifestKind:'candidate_package', ownerDomain:'procurement', memberCount:manifestMembers.length, membersDigest,
     manifestDigest:pkg.package_digest, publishedAtMs:Number(pkg.published_at_ms), candidatePackageId:pkg.candidate_package_id,
@@ -132,7 +140,7 @@ function reconstruct(rows) {
     seasonContinuityClaimSetDigest:continuityDigest,
     primaryInputManifestRef:{ manifestId:manifest.manifestId, manifestDigest:manifest.manifestDigest, memberCount:manifest.memberCount },
     relatedReferences:related, relatedReferenceSetDigest,relatedDispositionScopeDigest, memberControlEvidenceSetDigest:pkg.member_control_evidence_set_digest,
-    packageDigest:pkg.package_digest };
+    ...(javPartSet ? { javPartSet } : {}), packageDigest:pkg.package_digest };
   if (canonicalDigest(without(candidatePackage, 'manifestDigest', 'packageDigest')) !== candidatePackage.packageDigest) {
     fail('P8_CANDIDATE_DELIVERY_PACKAGE', 'Candidate Package cannot be reconstructed to its published digest.');
   }
@@ -165,7 +173,7 @@ function reconstruct(rows) {
     return item;
   });
   const deliveryMemberSetDigest = canonicalDigest({ schema:'procurement.candidate-delivery-members@1', items:deliveries });
-  if (!['stream_file', 'bdmv', 'dvd', 'iso'].includes(candidatePackage.materialInputForm)) {
+  if (!['stream_file', 'bdmv', 'dvd', 'iso', 'jav_named_parts'].includes(candidatePackage.materialInputForm)) {
     fail('P8_CANDIDATE_DELIVERY_INPUT_FORM', 'Candidate Package materialInputForm is missing or invalid.');
   }
   const snapshot = { snapshotContract:'procurement.candidate-delivery@1', offer, acceptanceBasis, candidatePackage,

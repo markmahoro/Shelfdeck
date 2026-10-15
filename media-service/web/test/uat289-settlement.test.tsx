@@ -1,12 +1,13 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
 import InputSettlementAuthorization from '../src/helix/InputSettlementAuthorization';
 import { SessionProvider } from '../src/helix/session';
 import { helixAdminApi, type FormationSubject, type SetupReadinessProjection } from '../src/helix/api';
 
 afterEach(() => vi.restoreAllMocks());
+beforeEach(()=>{vi.spyOn(helixAdminApi,'listJavCorrectionWork').mockResolvedValue({items:[],counts:{},nextCursor:null});});
 
 it('opens the requested authorization configuration without granting it and restores focus on cancel', async () => {
   HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};

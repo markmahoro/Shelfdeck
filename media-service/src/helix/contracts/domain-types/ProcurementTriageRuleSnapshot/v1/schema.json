@@ -127,6 +127,52 @@
             "claimKinds"
           ]
         },
+        "javNamedPartsRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "profiles": {
+              "const": [
+                "jav",
+                "mixed"
+              ]
+            },
+            "labels": {
+              "const": [
+                "A",
+                "B"
+              ]
+            },
+            "parentBoundary": {
+              "const": "direct_parent"
+            },
+            "identityRule": {
+              "const": "canonical_jav_code"
+            },
+            "memberOrder": {
+              "const": "part_label"
+            },
+            "requireCompleteLabelSet": {
+              "const": false
+            },
+            "singleMemberInputForm": {
+              "const": "stream_file"
+            },
+            "multipleMemberInputForm": {
+              "const": "jav_named_parts"
+            }
+          },
+          "required": [
+            "profiles",
+            "labels",
+            "parentBoundary",
+            "identityRule",
+            "memberOrder",
+            "requireCompleteLabelSet",
+            "singleMemberInputForm",
+            "multipleMemberInputForm"
+          ]
+        },
         "manifestRule": {
           "type": "object",
           "additionalProperties": false,
@@ -159,6 +205,7 @@
         "profileResolutionRule",
         "structureRule",
         "identityRule",
+        "javNamedPartsRule",
         "manifestRule"
       ]
     },

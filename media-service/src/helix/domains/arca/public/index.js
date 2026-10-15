@@ -1,5 +1,9 @@
 'use strict';
 const {createPlanningEvidenceReader}=require('../persistence/planning-evidence-reader');
+const {createJavCorrectionServices}=require('../application/jav-correction-services');
+const {createJavCorrectionCapabilityPorts}=require('../capabilities/jav-correction-capability-ports');
+const {createJavCorrectionExecutionRegistrations}=require('../capabilities/jav-correction-execution-registrations');
+const {createJavCorrectionAssetsPlanner,createJavCorrectionFilesPlanner,createJavCorrectionPublishPlanner,createJavCorrectionVerifyPlanner,createJavCorrectionCommitPlanner,createJavCorrectionRetirementPlanner,createJavCorrectionWorkspaceReclaimPlanner,createJavCorrectionProjections}=require('../planning/jav-correction-planners');
 
 const { packageId } = require('./package.boundary.json');
 const { createOnDeckContextReader } = require('../application/on-deck-context-reader');
@@ -55,6 +59,7 @@ const OFFDECK_REFS=Object.freeze(['arca.offdeck.duplicate.detect@1','arca.offdec
   'arca.offdeck.related_reference.release@1','arca.offdeck.unreferenced_related.delete@1',
   'arca.offdeck.deletion.verify@1','arca.offdeck.terminal.commit@1']);
 const DEREGISTRATION_REFS=Object.freeze(['arca.shelf_deregistration.release_manifest.verify@1','arca.shelf_deregistration.commit@1']);
+const CORRECTION_REFS=Object.freeze(['arca.jav_correction.source.verify@1','arca.jav_correction.assets.prepare@1','arca.jav_correction.files.stage@1','arca.jav_correction.files.publish@1','arca.jav_correction.files.verify@1','arca.jav_correction.inventory.commit@1','arca.jav_correction.formal_retirement.execute@1','arca.jav_correction.workspace.reclaim@1']);
 
 function createArcaExecutionRegistration() {
   return Object.freeze({
@@ -68,11 +73,16 @@ function createArcaExecutionRegistration() {
       const aftercarePorts=createAftercareCapabilityPorts({...options,contextReader:aftercareContextReader});
       const offdeckPorts=createOffdeckCapabilityPorts({...options,contextReader:offdeckContextReader});
       const shelfDeregistrationPorts=createShelfDeregistrationCapabilityPorts({...options,contextReader:shelfDeregistrationContextReader});
-      return Object.freeze({contextReader,aftercareContextReader,offdeckContextReader,shelfDeregistrationContextReader,ports:Object.freeze({...ports,...aftercarePorts,...offdeckPorts,...shelfDeregistrationPorts}),createRegistrations(registrationOptions){
+      const correction=options.acquireJavCover?createJavCorrectionServices({...options,aftercareContextReader}):null,
+        correctionPorts=correction?createJavCorrectionCapabilityPorts({...options,...correction,
+          assertCurrentCorrectionScope:correction.correctionContextReader.assertCurrent}):{};
+      return Object.freeze({contextReader,aftercareContextReader,offdeckContextReader,shelfDeregistrationContextReader,correction,
+        ports:Object.freeze({...ports,...aftercarePorts,...offdeckPorts,...shelfDeregistrationPorts,...correctionPorts}),createRegistrations(registrationOptions){
         const assessment=registrationOptions.enabledCapabilityRefs.filter((ref)=>AFTERCARE_REFS.includes(ref));
         const offdeck=registrationOptions.enabledCapabilityRefs.filter((ref)=>OFFDECK_REFS.includes(ref));
         const deregistration=registrationOptions.enabledCapabilityRefs.filter((ref)=>DEREGISTRATION_REFS.includes(ref));
-        const onDeck=registrationOptions.enabledCapabilityRefs.filter((ref)=>!AFTERCARE_REFS.includes(ref)&&!OFFDECK_REFS.includes(ref)&&!DEREGISTRATION_REFS.includes(ref));
+        const corrected=registrationOptions.enabledCapabilityRefs.filter(ref=>CORRECTION_REFS.includes(ref));
+        const onDeck=registrationOptions.enabledCapabilityRefs.filter((ref)=>!AFTERCARE_REFS.includes(ref)&&!OFFDECK_REFS.includes(ref)&&!DEREGISTRATION_REFS.includes(ref)&&!CORRECTION_REFS.includes(ref));
         return Object.freeze([
           ...createOnDeckCapabilityRegistrations({...registrationOptions,enabledCapabilityRefs:onDeck,
             ports:Object.fromEntries(onDeck.map((ref)=>[ref,ports[ref]]))}),
@@ -82,6 +92,7 @@ function createArcaExecutionRegistration() {
             ports:Object.fromEntries(offdeck.map((ref)=>[ref,offdeckPorts[ref]]))}),
           ...createShelfDeregistrationCapabilityRegistrations({...registrationOptions,enabledCapabilityRefs:deregistration,
             ports:Object.fromEntries(deregistration.map((ref)=>[ref,shelfDeregistrationPorts[ref]]))}),
+          ...createJavCorrectionExecutionRegistrations({...registrationOptions,enabledCapabilityRefs:corrected,ports:correctionPorts}),
         ]);
       }});
     },
@@ -96,7 +107,7 @@ function createArcaExecutionRegistration() {
       const offdeckContextReader=options.offdeckContextReader||createOffdeckContextReader({...options,
         readAftercareHealth:options.readAftercareHealth||((shelfEntryId)=>{const value=aftercareCoordinator.project(shelfEntryId);return value?Object.freeze({...value,ageDays:Math.max(0,((options.now||Date.now)()-value.updatedAtMs)/86_400_000)}):undefined;})});
       const shelfDeregistrationContextReader=options.shelfDeregistrationContextReader||createShelfDeregistrationContextReader(options);
-      return Object.freeze({contextReader,formationStatusProjection,
+      return Object.freeze({contextReader,formationStatusProjection,correction:options.correction,
         onDeckPersonEvidenceProjection:createOnDeckPersonEvidenceProjection(options),
         onDeckNfoPersonEvidence:createOnDeckNfoPersonEvidence({...options,contextReader:aftercareContextReader}),
         aftercareContextReader,coordinator:createOnDeckProcessCoordinator({...options,contextReader}),
@@ -125,11 +136,13 @@ function createArcaExecutionRegistration() {
         createMaterialDestructionPlanner({...options,contextReader:offdeckContextReader}),
         createTerminalCommitPlanner({...options,contextReader:offdeckContextReader}),
         createManifestVerificationPlanner({...options,contextReader:shelfDeregistrationContextReader}),
-        createDeregistrationCommitPlanner({...options,contextReader:shelfDeregistrationContextReader})]),
+        createDeregistrationCommitPlanner({...options,contextReader:shelfDeregistrationContextReader}),
+        ...(options.correction?[createJavCorrectionAssetsPlanner({...options,...options.correction}),createJavCorrectionFilesPlanner({...options,...options.correction}),createJavCorrectionPublishPlanner({...options,...options.correction}),createJavCorrectionVerifyPlanner({...options,...options.correction}),createJavCorrectionCommitPlanner({...options,...options.correction}),createJavCorrectionRetirementPlanner({...options,...options.correction}),createJavCorrectionWorkspaceReclaimPlanner({...options,...options.correction})]:[])]),
       bindingProjections:Object.freeze([...createOnDeckProjections(options),...createAftercareProjections({...options,contextReader:aftercareContextReader}),
         ...createOffdeckAutomationProjections({...options,contextReader:offdeckContextReader}),
         ...createOffdeckProjections({...options,contextReader:offdeckContextReader}),
-        ...createShelfDeregistrationProjections({...options,contextReader:shelfDeregistrationContextReader})])});
+        ...createShelfDeregistrationProjections({...options,contextReader:shelfDeregistrationContextReader}),
+        ...(options.correction?createJavCorrectionProjections({...options,...options.correction}):[])])});
     },
   });
 }

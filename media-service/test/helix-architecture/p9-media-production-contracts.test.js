@@ -386,6 +386,42 @@ test('builds one target-bound workspace result and verifies it without hidden pa
   assert.equal(verification.result,'passed');assert.equal(verification.workspaceMediaHandleId,result.workspaceMediaHandleId);
 });
 
+test('JAV named-part verification rejects lost source proof, reordered members and a truncated merged output',()=>{
+  const first=source(),second={...source(),handleId:D('second-handle'),identity:{...source().identity,materialKey:D('second-material'),inode:'2'}},
+    parts=[first,second].map((handle,ordinal)=>({ordinal,partLabel:ordinal?'B':'A',materialKey:handle.identity.materialKey,relativeLocation:'IPX-177'+(ordinal?'B':'A')+'.mkv'})),
+    group={schema:'procurement.jav-named-part-group@1',javCode:'IPX-177',parentRelativeLocation:'.',parts};
+  const javPartSet={...group,groupDigest:canonicalDigest(group)},probes=[first,second].map((handle,index)=>probe(handle,'part-probe-'+index,{durationMs:3000}));
+  const value=spec();value.contentProfile='jav';value.requirements.mandatoryMedia.acceptedPrimaryAudioClasses=[];
+  const requirement=media.buildMediaRequirement(value),intent=media.buildRemuxIntent({revision:1,libraRunId:'run-1',sourceHandleDigest:D('part-source-scope'),
+    mediaRequirementDigest:requirement.requirementDigest,javPartSetDigest:javPartSet.groupDigest,copyCompatibilityDigest:D('copy-signature')}),workspaceId=D('workspace'),root=rootSnapshot();
+  const target=media.buildWorkspaceMediaOutputTarget({libraRunId:'run-1',executionBasisDigest:D('basis'),workspaceId,
+    expectedWorkspaceRevision:2,expectedWorkspaceStateDigest:D('workspace-state'),rootSnapshot:root,workspaceScopeDigest:D('scope'),
+    targetRelativePath:'products/jav.mkv',productionIntentDigest:intent.intentDigest});
+  const output={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:D('jav-output-handle'),workspaceId,ownerDomain:'libra',processId:'run-1',
+    endpointId:'endpoint-1',materialKey:D('output-material'),physicalIdentity:{mountScopeId:'mount-1',inode:'3',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('bytes')},
+    rootHandleRef:'root-handle',relativePath:'products/jav.mkv',digestAlgorithm:'sha256',digestHex:D('bytes'),sizeBytes:100,referenceRevision:1,
+    accessScope:'workspace_material_read',fenceDigest:D('output-fence')};
+  const workspace=media.buildWorkspaceMediaHandle({sourceHandle:first,outputTarget:target,workspaceMaterialHandle:output,productionIntentKind:'remux',productionIntent:intent,
+    deviceSnapshot:null,producingEventId:'event-1',effectReceipt:{effectId:'effect-1',effectReceiptId:'receipt-1',effectReceiptDigest:D('receipt'),effectScopeDigest:target.effectScopeDigest}});
+  const {buildJavSourceEvidence,assertJavSourceEvidence}=require('../../src/helix/domains/libra/model/jav-media-parts');
+  const evidence=buildJavSourceEvidence({materialInputForm:'jav_named_parts',spec:{contentProfile:'jav'},run:{libraRunId:'run-1',executionBasisDigest:D('basis')},
+    candidatePackage:{javPartSet,structureEvidenceRef:{unitDigest:D('part-scope')}}},[first,second].map((handle,index)=>({member:{materialKey:handle.identity.materialKey},readHandle:handle,record:{result:probes[index]}})));
+  const body={candidateKind:'workspace_output',candidateNodeId:'jav-merged',libraRunId:'run-1',mediaRequirement:requirement,workspaceMediaHandle:workspace,
+    sourceProbeEvidence:probes[0],outputProbeEvidence:probe(output,'merged-probe',{durationMs:5999}),javPartSourceEvidence:evidence};
+  const input=media.buildProductMediaCandidateInput(body),playback={samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('decode'),
+    joinSamplePointsMs:[2750,3250],passedJoinSamplePointsMs:[2750,3250],joinDecodeDigest:D('join-decode')};
+  const verified=media.buildProductMediaVerification({input,playbackVerification:playback,verifiedAtMs:9});
+  valid('helix://contracts/domain-types/ProductMediaCandidateInput/v1',input);valid('helix://contracts/types/ProductMediaVerification/v1',verified);
+  assert.equal(verified.result,'passed');assert.equal(verified.javPartVerification.expectedDurationMs,6000);
+  const {javPartSourceEvidence,...withoutProof}=body;
+  assert.throws(()=>media.buildProductMediaCandidateInput(withoutProof),{code:'P9_MEDIA_JAV_PART_SOURCE'});
+  const shortInput=media.buildProductMediaCandidateInput({...body,outputProbeEvidence:probe(output,'short-probe',{durationMs:3000})});
+  assert.ok(media.buildProductMediaVerification({input:shortInput,playbackVerification:playback,verifiedAtMs:10}).reasonCodes.includes('output_not_media'));
+  assert.ok(media.buildProductMediaVerification({input,playbackVerification:{...playback,passedJoinSamplePointsMs:[2750]},verifiedAtMs:11}).reasonCodes.includes('playback_decode_failed'));
+  const changed=structuredClone(evidence);changed.parts.reverse();delete changed.evidenceDigest;changed.evidenceDigest=canonicalDigest(changed);
+  assert.throws(()=>assertJavSourceEvidence(changed),{code:'LIBRA_JAV_PART_SOURCE_INVALID'});
+});
+
 test('restored edition satisfies the declared alternative without falsifying pixels or waiving codec',()=>{
   const handle=source(),requirement=media.buildMediaRequirement({...spec(),requirements:{...spec().requirements,mandatoryMedia:{...spec().requirements.mandatoryMedia,minimumRasterClass:'4k'}}}),intent=encodeIntent(handle,requirement),snapshot=device(),workspaceId=D('workspace');
   const root=rootSnapshot(),target=media.buildWorkspaceMediaOutputTarget({libraRunId:'run-1',executionBasisDigest:D('basis'),workspaceId,

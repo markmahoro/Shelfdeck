@@ -61,6 +61,7 @@
           "fx_commit_markers"
         ],
         "readTables": [
+          "arca_jav_identity_corrections",
           "arca_inventory_verification_records",
           "fx_supporting_works",
           "fx_workflow_events",
@@ -390,6 +391,7 @@
           "libra_run_material_episode_claims",
           "libra_subjects",
           "libra_product_identity_revisions",
+          "libra_product_identity_selection_intents",
           "libra_subject_season_continuity_claims",
           "libra_subject_continuity_heads",
           "libra_product_fact_revisions",
@@ -469,7 +471,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8706,
+      "line": 8716,
       "lineDigest": "540a8baf06b3cdd5b1ee8bda961e97781d0bc722037eacac4dc6c8aaff08ebf5"
     }
   }

@@ -60,6 +60,7 @@
       "arca_defect_admission_heads"
     ],
     "readTables": [
+      "arca_jav_identity_corrections",
       "arca_aftercare_cases",
       "arca_defect_repair_intents",
       "arca_defect_admissions",
@@ -90,7 +91,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8744,
+      "line": 8760,
       "lineDigest": "967982b60ab89f7dadc37d3591b4db6e5bc50dad7e72a472cc4df0e2964a7dc6"
     }
   }

@@ -2,6 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const DRAFT_SCHEMA='helix://contracts/types/PerceptionResolutionDraft/v1';
+const {DIRECT_POLICY}=require('../../../contracts/jav-perception-continuity');
 
 class PerceptionResolutionResolverError extends Error { constructor(code,message,details={}){super(message);this.name='PerceptionResolutionResolverError';this.code=code;this.details=details;} }
 function fail(code,message,details){throw new PerceptionResolutionResolverError(code,message,details);}
@@ -20,7 +21,9 @@ function resolvePerception(inputs, options) {
   if(!options||typeof options.draftId!=='string'||!Number.isSafeInteger(options.producedAtMs)||options.producedAtMs<0) fail('P6_PERCEPTION_RESOLUTION_OUTPUT_CONTEXT','Draft identity and production time are required.');
   const terminalTargets=new Set(recordSet.relations.filter((item)=>['supersedes','retracts'].includes(item.relationKind)).map((item)=>item.targetPerceptionId));
   const active=recordSet.records.filter((record)=>record.recordKind!=='retraction'&&!terminalTargets.has(record.perceptionId));
-  const matched=active.map((record)=>({record,matches:matchesFor(record,query,ruleSnapshot)})).filter((item)=>item.matches.length>0);
+  const selected=query.directTargetScope?scopedCandidates(active,query,ruleSnapshot):{records:active,scoped:false,duplicates:active};
+  const matched=selected.records.map((record)=>({record,matches:matchesFor(record,query,ruleSnapshot)
+    .filter(match=>!selected.scoped||['shelf_entry_id','subject_id'].includes(match.anchorKind))})).filter((item)=>item.matches.length>0);
   let decision;
   if(matched.length===0) decision={resultKind:'not_found',reasonCode:'no_matching_record'};
   else {
@@ -42,7 +45,7 @@ function resolvePerception(inputs, options) {
       }
     }
   }
-  const duplicateRelationDrafts=duplicateProofs(active,query.factKind,ruleSnapshot);
+  const duplicateRelationDrafts=duplicateProofs(selected.duplicates,query.factKind,ruleSnapshot);
   const body={queryContract:query.queryContract,querySchemaRef:query.querySchemaRef,queryInputDigest:query.queryInputDigest,
     factKind:query.factKind,recordSetDigest:recordSet.recordSetDigest,ruleRevision:ruleSnapshot.ruleVersion,
     ruleDigest:ruleSnapshot.ruleDigest,...decision,duplicateRelationDrafts};
@@ -51,6 +54,25 @@ function resolvePerception(inputs, options) {
     draftDigest:canonicalDigest(body),producedAtMs:options.producedAtMs,...body});
   if(Buffer.byteLength(canonicalJson(draft),'utf8')>16384)fail('P6_PERCEPTION_RESOLUTION_DRAFT_BOUND','Resolution Draft exceeds 16 KiB.');
   return draft;
+}
+
+function scopedCandidates(active,query,rule){
+  const scope=query.directTargetScope,expected=['acceptedSubjectId','continuityDigest','policyRef','shelfEntryId'];
+  if(Object.keys(scope).sort().join(',')!==expected.sort().join(',')||scope.policyRef!==DIRECT_POLICY||rule.directTargetPolicyRef!==DIRECT_POLICY||
+      !/^[a-f0-9]{64}$/.test(scope.continuityDigest||'')||!['shelfEntryId','acceptedSubjectId'].every(key=>typeof scope[key]==='string'&&scope[key].length>0&&scope[key].length<=256)||
+      !query.identityEvidence.some(item=>item.anchorKind==='shelf_entry_id'&&item.anchorValue===scope.shelfEntryId&&item.confidenceClass==='exact')||
+      !query.identityEvidence.some(item=>item.anchorKind==='subject_id'&&item.anchorValue===scope.acceptedSubjectId&&item.confidenceClass==='exact'))
+    fail('P6_PERCEPTION_DIRECT_SCOPE_INVALID','Scoped direct query must bind its exact Owner-proved targets and declared Rule.');
+  const own=record=>record.identityAnchors.some(anchor=>anchor.anchorKind==='shelf_entry_id'&&anchor.anchorValue===scope.shelfEntryId&&anchor.confidenceClass==='exact'),
+    accepted=record=>record.identityAnchors.some(anchor=>anchor.anchorKind==='subject_id'&&anchor.anchorValue===scope.acceptedSubjectId&&anchor.confidenceClass==='exact'),
+    foreign=record=>record.identityAnchors.some(anchor=>anchor.anchorKind==='shelf_entry_id'&&anchor.anchorValue!==scope.shelfEntryId||
+      anchor.anchorKind==='subject_id'&&anchor.anchorValue!==scope.acceptedSubjectId),
+    direct=active.filter(record=>record.sourceKind==='shelfdeck_direct'&&!foreign(record)&&fact(record,query.factKind)!==undefined&&(own(record)||accepted(record))),
+    entry=direct.filter(own),subjects=direct.filter(accepted),
+    provider=query.identityEvidence.filter(item=>item.anchorKind==='provider_identity'&&confidence(item.confidenceClass)>=confidence('strong')),
+    shared=active.filter(record=>record.sourceKind!=='shelfdeck_direct'&&record.identityAnchors.some(anchor=>anchor.anchorKind==='provider_identity'&&
+      confidence(anchor.confidenceClass)>=confidence('strong')&&provider.some(item=>item.anchorValue===anchor.anchorValue)));
+  return {records:entry.length?entry:subjects.length?subjects:shared,scoped:entry.length>0||subjects.length>0,duplicates:shared};
 }
 
 function matchesFor(record,query,rule){const result=[];for(const matcher of rule.anchorMatchers){for(const evidence of query.identityEvidence.filter((item)=>item.anchorKind===matcher.anchorKind)){for(const anchor of record.identityAnchors.filter((item)=>item.anchorKind===matcher.anchorKind)){if(confidence(anchor.confidenceClass)>=confidence(matcher.minConfidenceClass)&&matchValue(evidence.anchorValue,anchor.anchorValue,matcher.matchMode,matcher.normalizationProfileRef,matcher.threshold)){result.push({anchorKind:matcher.anchorKind,strengthRank:matcher.strengthRank,evidenceDigest:canonicalDigest({queryEvidenceDigest:evidence.evidenceDigest,recordEvidenceDigest:anchor.evidenceDigest,matcher})});}}}}return result;}

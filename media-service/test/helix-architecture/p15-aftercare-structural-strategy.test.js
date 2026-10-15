@@ -11,7 +11,7 @@ function options(devices){return {mediaEffectPort:{verifyTranscodeInput(){throw 
   platformComputeRuntime:{listReadyDeviceRefs:()=>({resultKind:'available',items:devices.map(item=>({deviceId:item.deviceId,probeRevision:1,capabilityDigest:item.snapshotDigest}))}),
     readDeviceSnapshot:({deviceId})=>({resultKind:'found',snapshot:devices.find(item=>item.deviceId===deviceId)})}};}
 const probe={videoStreams:[{dispositionDefault:true,dynamicRangeKind:'sdr',pixelFormat:'yuv420p'}]},evidence={evidenceId:'probe',payloadDigest:digest('probe')};
-const context=index=>({shelfEntryId:'entry-'+index,basis:{digest:digest(index)},raw:{entry:{structure_kind:'movie'},facts:[],
+const context=index=>({shelfEntryId:'entry-'+index,basis:{digest:digest(index)},raw:{identity:{identity_kind:'tmdb_movie'},entry:{structure_kind:'single'},facts:[],
   standard:{value:{profileRuleSets:[{contentProfile:'movie',baseRequirements:{}}]}},
   materials:[{role:'primary_payload',material_key:digest('material-'+index),endpoint_id:'endpoint',location:'movie.mkv',binding_revision:1}]}});
 

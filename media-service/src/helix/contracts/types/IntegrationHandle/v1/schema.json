@@ -33,9 +33,16 @@
       "minimum": 1
     },
     "secretRef": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "allowedOperation": {
       "type": "string",
@@ -49,6 +56,39 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "siteRef": {
+      "type": "string",
+      "enum": [
+        "javdb",
+        "javmenu",
+        "jav321",
+        "fc2_official",
+        "caribbeancom_official",
+        "heydouga_official",
+        "avwiki",
+        "mgstage",
+        "dl_getchu",
+        "gyutto",
+        "fanza"
+      ]
+    },
+    "endpointProfileDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "networkRouteDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "authMode": {
+      "type": "string",
+      "enum": [
+        "anonymous",
+        "secret"
+      ]
     }
   },
   "required": [
@@ -62,5 +102,85 @@
     "allowedOperation",
     "expiresAtMs",
     "fenceDigest"
+  ],
+  "oneOf": [
+    {
+      "properties": {
+        "integrationType": {
+          "not": {
+            "const": "jav_source"
+          }
+        },
+        "secretRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "not": {
+        "anyOf": [
+          {
+            "required": [
+              "siteRef"
+            ]
+          },
+          {
+            "required": [
+              "endpointProfileDigest"
+            ]
+          },
+          {
+            "required": [
+              "networkRouteDigest"
+            ]
+          },
+          {
+            "required": [
+              "authMode"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "properties": {
+        "integrationType": {
+          "const": "jav_source"
+        },
+        "authMode": {
+          "const": "anonymous"
+        },
+        "secretRef": {
+          "type": "null"
+        }
+      },
+      "required": [
+        "siteRef",
+        "endpointProfileDigest",
+        "networkRouteDigest",
+        "authMode"
+      ]
+    },
+    {
+      "properties": {
+        "integrationType": {
+          "const": "jav_source"
+        },
+        "authMode": {
+          "const": "secret"
+        },
+        "secretRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "siteRef",
+        "endpointProfileDigest",
+        "networkRouteDigest",
+        "authMode"
+      ]
+    }
   ]
 }

@@ -55,8 +55,8 @@ function buildResultTypeRegistry(contractsRoot) {
     kind: 'result-type-registry',
     owner: 'contracts',
     status: 'active',
-    targetCatalogResultCount: 99,
-    helperCount: 16,
+    targetCatalogResultCount: sourceEntries.length,
+    helperCount: entries.filter(entry => entry.role === 'result-helper').length,
     entries
   };
 }
@@ -119,7 +119,7 @@ function materializeResultTypes(contractsRoot) {
     owner: 'contracts',
     status: 'active',
     ssotRefs: ['7.7', '8.2.1', '8.6.18', '8.6.19', '8.9.5'],
-    targetCount: 99,
+    targetCount: inventoryEntries.length,
     entryFiles
   }, null, 2)}\n`);
   return registry;

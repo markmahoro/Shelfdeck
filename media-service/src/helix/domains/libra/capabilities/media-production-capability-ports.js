@@ -163,6 +163,11 @@ function createMediaProductionCapabilityPorts(options) {
           throw new TypeError('Remux Intent does not bind the frozen Production Source Scope.');
         }
         const source = await options.resolveProductionSourceScope(input.productionSourceScopeReference);
+        if(input.productionSourceScopeReference.scopeKind==='jav_named_parts' &&
+            (input.remuxIntent.inputAssembly!=='ordered_jav_parts_copy'||input.remuxIntent.javPartSetDigest!==input.productionSourceScopeReference.javPartSet.groupDigest))
+          throw new TypeError('Named-part Remux requires its exact ordered assembly Intent.');
+        if(input.productionSourceScopeReference.scopeKind!=='jav_named_parts'&&input.remuxIntent.inputAssembly)
+          throw new TypeError('Ordinary Remux cannot consume a named-part assembly Intent.');
         let receipt;
         try {
           receipt = await options.mediaEffectPort.executeRemux(Object.freeze({
@@ -265,6 +270,7 @@ function createMediaProductionCapabilityPorts(options) {
           ...(input.candidateKind==='direct_input'?{physicalMaterialReadHandle:input.sourceMaterialHandle}:
             {workspaceMediaHandle:input.workspaceMediaHandle}),
           outputProbeEvidence:input.candidateKind==='direct_input'?input.sourceProbeEvidence:input.outputProbeEvidence,
+          ...(input.javPartSourceEvidence ? {javPartSourceEvidence:input.javPartSourceEvidence} : {}),
           deadlineAtMs:context.deadlineAtMs,shouldContinue:context.shouldContinue});
         const result = buildProductMediaVerification({ input,playbackVerification, verifiedAtMs:now() });
         return succeeded('libra.product_media.verify@1', result, now());

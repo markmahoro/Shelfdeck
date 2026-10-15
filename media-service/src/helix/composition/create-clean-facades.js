@@ -309,7 +309,7 @@ function createCleanFacades(options) {
     });
     facades.LibraFormationFacade.post_formation_runs_librarunid_actions_choose_product_identity = async (input) => ({
       status: 202,
-      body: options.productIdentitySelection.choose(input.params.libraRunId, input.body),
+      body: options.productIdentitySelection.choose(input.params.libraRunId, input.body, input.actor),
     });
   }
   if (options.arcaAcceptanceRecovery) {
@@ -336,6 +336,15 @@ function createCleanFacades(options) {
       if(!value){const error=new Error('Shelf Entry poster was not found.');error.code='ARCA_SHELF_ENTRY_POSTER_NOT_FOUND';throw error;}
       return {body:value.bytes,contentType:value.contentType,headers:value.headers};
     };
+  }
+  if(options.arcaJavCorrectionAdmin){const app=options.arcaJavCorrectionAdmin;
+    facades.ArcaCollectionFacade.get_collection_jav_corrections=async input=>({body:app.list(input.query||{})});
+    facades.ArcaCollectionFacade.get_collection_shelfentryid_actions_preview_jav_correction=async input=>({body:await app.preview(input.params.shelfEntryId,{...input.query})});
+    facades.ArcaCollectionFacade.post_collection_shelfentryid_actions_confirm_jav_correction=async input=>({status:202,body:app.confirm(input.params.shelfEntryId,input.body,input.actor.actorId)});
+    facades.ArcaCollectionFacade.get_collection_shelfentryid_jav_corrections_correctionid=async input=>({body:app.status(input.params.shelfEntryId,input.params.correctionId)});
+    facades.ArcaCollectionFacade.post_collection_shelfentryid_jav_corrections_correctionid_actions_cancel=async input=>({body:app.cancel(input.params.shelfEntryId,input.params.correctionId,input.body,input.actor.actorId)});
+    facades.ArcaCollectionFacade.post_collection_shelfentryid_jav_corrections_correctionid_actions_recover=async input=>({status:202,body:await app.recover(input.params.shelfEntryId,input.params.correctionId,input.body,input.actor.actorId)});
+    facades.ArcaCollectionFacade.get_collection_shelfentryid_jav_correction=async input=>({body:app.latest(input.params.shelfEntryId)});
   }
   if(options.arcaRecycle){
     const app=options.arcaRecycle;

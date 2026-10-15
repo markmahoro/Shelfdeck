@@ -4,6 +4,7 @@ const OPERATION_CATALOG =
   require('../../contracts/ports/p5-provider-operation-contracts.json');
 const { settings: moviePilotLandingSettings } =
   require('./moviepilot-landing-binding');
+const { javSourceProfileDefinitions } = require('./jav-source-integration');
 
 const SHA256 = /^[0-9a-f]{64}$/;
 const TOKEN = /^[a-zA-Z0-9][a-zA-Z0-9._:@/-]*$/;
@@ -299,7 +300,7 @@ function profile(value) {
       'helix://implementation-contracts/platform-integrations/' +
       value.kind + '/v1',
     integrationId: value.kind + '-main',
-    secretRef: 'integration-secret:' + value.kind + '-main',
+    secretRef: value.authMode === 'anonymous' ? null : 'integration-secret:' + value.kind + '-main',
     allowedOperations: Object.freeze([
       ...new Set([
         ...operationsFor(value.integrationType),
@@ -310,6 +311,7 @@ function profile(value) {
 }
 
 const PROFILES = Object.freeze([
+  ...javSourceProfileDefinitions().map(profile),
   profile({
     kind: 'tmdb',
     integrationType: 'tmdb',

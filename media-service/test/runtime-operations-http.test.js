@@ -12,11 +12,15 @@ test('native clean host keeps authenticated HTTP online while stopped and recove
   try{
     host=await createCleanServiceHost(options);
     assert.equal((await host.inject({method:'GET',url:'/v1/admin/runtime'})).statusCode,401);
-    assert.equal((await request('POST','/v1/admin/runtime/actions/stop',{idempotencyKey:'stop'})).statusCode,202);await until('stopped');
+    const stopped=await request('POST','/v1/admin/runtime/actions/stop',{idempotencyKey:'stop'});
+    assert.equal(stopped.statusCode,202,stopped.body);await until('stopped');
     const health=await host.inject({method:'GET',url:'/v1/health'});assert.equal(health.statusCode,200);assert.equal(health.json().normalSupplyAllowed,false);
     assert.equal((await request('GET','/v1/admin/collection')).statusCode,200);
     const blocked=await request('POST','/v1/admin/material-fields',{idempotencyKey:'write'});assert.equal(blocked.statusCode,409);assert.equal(blocked.json().error.code,'RUNTIME_BUSINESS_WRITES_DISABLED');
     const preview=await request('GET','/v1/admin/runtime/reset-preview');assert.equal(preview.statusCode,200,preview.body);assert.equal(preview.json().empty,true);
+    const reset=await request('POST','/v1/admin/runtime/actions/reset',{idempotencyKey:'reset',confirmed:true,previewDigest:preview.json().previewDigest});
+    assert.equal(preview.json().ready,false);
+    assert.equal(reset.statusCode,409,reset.body);assert.equal(reset.json().error.code,'RUNTIME_RESET_BLOCKED');await until('stopped');
     await host.close();host=null;host=await createCleanServiceHost(options);assert.equal((await until('stopped')).normalSupplyAllowed,false);
     assert.equal((await request('POST','/v1/admin/runtime/actions/resume',{idempotencyKey:'resume'})).statusCode,202);await until('running');
     assert.equal((await host.inject({method:'GET',url:'/v1/health'})).json().normalSupplyAllowed,true);

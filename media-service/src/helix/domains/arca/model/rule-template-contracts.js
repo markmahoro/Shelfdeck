@@ -155,7 +155,7 @@ function validateRequirements(value, profile, structureKind) {
   );
   if (!IDENTITY_KINDS.has(value.identity.identityKind) ||
       typeof value.identity.requireSeasonNumber !== 'boolean' ||
-      value.identity.requiredProvider !== undefined && value.identity.requiredProvider !== 'tmdb') {
+      value.identity.requiredProvider !== undefined && !['tmdb','jav'].includes(value.identity.requiredProvider)) {
     fail('P14_RULE_TEMPLATE_IDENTITY', 'Identity Requirement is invalid.');
   }
   if (profile === 'movie' &&
@@ -558,6 +558,13 @@ function buildShelfStandard({
 
 const BETA_RECOMMENDED_RULES = createBetaRecommendedRules();
 const BETA_RECOMMENDED_RULES_DIGEST = canonicalDigest(BETA_RECOMMENDED_RULES);
+const JAV_TEMPLATE_ID='system-jav-recommended';
+const JAV_TEMPLATE_NAME='JAV 推荐整理标准';
+const JAV_RECOMMENDED_RULES=Object.freeze({profileRuleSets:Object.freeze([staticProfile({contentProfile:'jav',
+  identity:{identityKind:'jav_code',requiredProvider:'jav',requireSeasonNumber:false},requiredFieldCodes:['title'],
+  requiredArtifactKinds:['fanart','nfo','poster'],maxSizeGiB:2})])});
+const JAV_RECOMMENDED_RULES_DIGEST=canonicalDigest(JAV_RECOMMENDED_RULES);
+validateRuleTemplateRules(RULES_SCHEMA_REF,JAV_RECOMMENDED_RULES,JAV_RECOMMENDED_RULES_DIGEST);
 
 validateRuleTemplateRules(
   RULES_SCHEMA_REF,
@@ -566,6 +573,7 @@ validateRuleTemplateRules(
 );
 
 module.exports = Object.freeze({
+  JAV_TEMPLATE_ID,JAV_TEMPLATE_NAME,JAV_RECOMMENDED_RULES,JAV_RECOMMENDED_RULES_DIGEST,
   ArcaRuleTemplateContractError,
   BETA_RECOMMENDED_RULES,
   BETA_RECOMMENDED_RULES_DIGEST,

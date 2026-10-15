@@ -19,8 +19,8 @@ function readJson(filePath, findings) {
 
 function readInventoryEntries(contractsRoot, findings) {
   const manifest = readJson(path.join(contractsRoot, 'manifests', 'table-inventory.json'), findings);
-  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 200 || !Array.isArray(manifest.entryFiles)) {
-    findings.push(finding('INVALID_TABLE_INVENTORY_MANIFEST', 'Table inventory must be active with 200 sharded entries.'));
+    if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 203 || !Array.isArray(manifest.entryFiles)) {
+      findings.push(finding('INVALID_TABLE_INVENTORY_MANIFEST', 'Table inventory must be active with 203 sharded entries.'));
     return [];
   }
   return manifest.entryFiles.flatMap((relativePath) => {
@@ -94,6 +94,8 @@ function validateTableContracts(options) {
       const episodeRecordSet = entry.id === 'arca_final_inventory_decisions' && json.column === 'decision_json' && json.maxBytes === 8 * 1024 * 1024 || ['libra_product_fact_revisions', 'arca_inventory_product_facts'].includes(entry.id) &&
         json.column === 'episode_metadata_json' && json.maxBytes === 16 * 1024 * 1024 ||
       entry.id === 'arca_acceptance_check_evidence' && json.column === 'evidence_json' && json.maxBytes === 2 * 1024 * 1024 ||
+      entry.id === 'arca_jav_identity_corrections' && json.column === 'preview_proof_json' && json.maxBytes === 2 * 1024 * 1024 ||
+      entry.id === 'arca_jav_identity_corrections' && json.column === 'committed_context_json' && json.maxBytes === 4 * 1024 * 1024 ||
         entry.id === 'arca_staged_manifest_records' && json.column === 'manifest_json' && json.maxBytes === 8 * 1024 * 1024 ||
         entry.id === 'arca_inventory_verification_records' && json.column === 'verification_json' && json.maxBytes === 8 * 1024 * 1024;
       if ((!episodeRecordSet && ![4 * 1024, 16 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 1024 * 1024].includes(json.maxBytes)) || json.requiresJsonValidCheck !== true) findings.push(finding(

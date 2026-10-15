@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.jav_correction.files.stage/v1/inputs",
+  "title": "arca.jav_correction.files.stage@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "javCorrectionScope": {
+      "$ref": "#/$defs/javCorrectionScope"
+    }
+  },
+  "required": [
+    "javCorrectionScope"
+  ],
+  "$defs": {
+    "javCorrectionScope": {
+      "$ref": "helix://contracts/domain-types/JavCorrectionScope/v1",
+      "x-helix-typeExpression": "JavCorrectionScope"
+    }
+  }
+}

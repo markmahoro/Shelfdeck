@@ -192,7 +192,7 @@ for(const profile of ['movie','series','jav','western_adult','mixed'])test('Admi
     executionRuntimeHost:{wake(){wakes++;}}});
   admin.registerMaterialField({...registration(root),contentProfileHint:profile},{credentialRevision:1});
   const command={fieldId:'field-1',idempotencyKey:'observe',expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8};
-  if(['movie','series'].includes(profile)){
+  if(['movie','series','jav','mixed'].includes(profile)){
     const first=await admin.requestFieldObservation('field-1',command);
     const repeated=await admin.requestFieldObservation('field-1',command);
     assert.match(first.observation.observationWorkId,/^field-observation-work-/);
@@ -219,7 +219,7 @@ for (const profile of ['movie', 'series', 'jav', 'western_adult', 'mixed']) {
     const admin = createProcurementAdminApplication({ schemaManifest,
       unitOfWork: createSqliteUnitOfWork({ kernel }), executionRuntimeHost: { wake() {} } });
     admin.registerMaterialField({ ...registration(root), contentProfileHint: profile }, { credentialRevision: 1 });
-    if (['movie', 'series'].includes(profile)) {
+    if (['movie','series','jav','mixed'].includes(profile)) {
       const first = await admin.requestReprocessObservation('field-1', 'a'.repeat(64));
       const replay = await admin.requestReprocessObservation('field-1', 'a'.repeat(64));
       assert.match(first.observationWorkId, /^field-observation-work-/);

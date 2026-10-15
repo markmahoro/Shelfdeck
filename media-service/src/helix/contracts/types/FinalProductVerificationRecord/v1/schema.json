@@ -24,7 +24,8 @@
       "type": "string",
       "enum": [
         "arca_ondeck_run",
-        "arca_shelf_entry"
+        "arca_shelf_entry",
+        "arca_jav_identity_correction"
       ]
     },
     "processId": {

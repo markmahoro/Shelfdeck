@@ -65,6 +65,7 @@
       "libra_product_package_material_episode_claims",
       "libra_offload_context_materials",
       "fx_supporting_works",
+      "fx_work_attempts",
       "fx_workflow_plans",
       "fx_workflow_events",
       "fx_event_attempts",
@@ -100,7 +101,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8727,
+      "line": 8737,
       "lineDigest": "229915efdf3e84020eb525b909ecf229ebdae086e23e51b3fb09611fa8cd314f"
     }
   }

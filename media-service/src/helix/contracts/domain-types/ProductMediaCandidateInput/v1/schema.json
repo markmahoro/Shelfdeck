@@ -385,6 +385,148 @@
             "productContentFingerprint",
             "evidenceDigest"
           ]
+        },
+        "javPartSourceEvidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "schema",
+            "libraRunId",
+            "runExecutionBasisDigest",
+            "javPartSet",
+            "sourceScopeDigest",
+            "parts",
+            "totalDurationMs",
+            "evidenceDigest"
+          ],
+          "properties": {
+            "schema": {
+              "const": "libra.jav-part-source-evidence@1"
+            },
+            "libraRunId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "runExecutionBasisDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "javPartSet": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "schema",
+                "javCode",
+                "parentRelativeLocation",
+                "parts",
+                "groupDigest"
+              ],
+              "properties": {
+                "schema": {
+                  "const": "procurement.jav-named-part-group@1"
+                },
+                "javCode": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "parentRelativeLocation": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 4096
+                },
+                "parts": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 2,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "ordinal",
+                      "partLabel",
+                      "materialKey",
+                      "relativeLocation"
+                    ],
+                    "properties": {
+                      "ordinal": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "partLabel": {
+                        "enum": [
+                          "A",
+                          "B"
+                        ]
+                      },
+                      "materialKey": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      },
+                      "relativeLocation": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 4096
+                      }
+                    }
+                  }
+                },
+                "groupDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "x-helix-maxCanonicalBytes": 16384
+            },
+            "sourceScopeDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "parts": {
+              "type": "array",
+              "minItems": 2,
+              "maxItems": 2,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "ordinal",
+                  "materialKey",
+                  "sourceHandleDigest",
+                  "probeEvidence"
+                ],
+                "properties": {
+                  "ordinal": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "materialKey": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "sourceHandleDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "probeEvidence": {
+                    "$ref": "helix://contracts/types/MediaProbeEvidence/v1"
+                  }
+                }
+              }
+            },
+            "totalDurationMs": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "evidenceDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "x-helix-maxCanonicalBytes": 262144
         }
       },
       "required": [
@@ -425,6 +567,40 @@
                 "seriesSpaceBasis"
               ]
             }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "javPartSourceEvidence"
+            ]
+          },
+          "then": {
+            "properties": {
+              "mediaRequirement": {
+                "properties": {
+                  "contentProfile": {
+                    "const": "jav"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "workspaceMediaHandle": {
+                "required": [
+                  "javPartSetDigest"
+                ]
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "javPartSourceEvidence"
+            ]
           }
         }
       ]

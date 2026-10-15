@@ -24,6 +24,29 @@ const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
 
+test('persisted corrected JAV queries isolate foreign direct targets and old shared identity for both facts',()=>{
+  fixture(({store})=>{
+    const {ORIGIN_SCHEMA,CONTINUITY_SCHEMA}=require('../../src/helix/contracts/jav-perception-continuity');
+    const originBody={schemaRef:ORIGIN_SCHEMA,schemaVersion:1,onDeckPackageId:'package',packageRevision:1,packageDigest:hash('package'),subjectId:'accepted',libraRunId:'run',shelfId:'shelf'},
+      origin={...originBody,originDigest:canonicalDigest(originBody)},proofBody={schemaRef:CONTINUITY_SCHEMA,schemaVersion:1,shelfEntryId:'entry',shelfId:'shelf',canonicalIdentityRevision:2,canonicalIdentityDigest:hash('canonical'),correctionId:'correction',committedContextDigest:hash('context'),identityCommitReceiptDigest:hash('receipt'),originalOnDeckCommitDigest:hash('commit'),acceptedSubjectOrigin:origin},
+      target={targetType:'shelf_entry',targetId:'entry',targetRevision:2,title:'Same title',year:null,providerIdentity:'jav:IPX-178',canonicalIdentityDigest:proofBody.canonicalIdentityDigest,javPerceptionContinuity:{...proofBody,continuityDigest:canonicalDigest(proofBody)}};
+    const anchor=(kind,value)=>({anchorKind:kind,anchorValue:value,confidenceClass:kind==='title'?'medium':kind==='provider_identity'?'strong':'exact',evidenceDigest:hash(kind+value)});
+    register(store);start(store);
+    page(store,{records:[record('old-shared',{rating:5,watchedState:false,anchors:[anchor('provider_identity','jav:IPX-177'),anchor('title','same title')]}),
+      record('current-shared',{rating:2,watchedState:false,anchors:[anchor('provider_identity','jav:IPX-178')]})]});
+    store.registerSource({perceptionSourceId:'direct',sourceKind:'shelfdeck_direct',integrationId:'direct-input',status:'active',configRevision:1});
+    start(store,{perceptionAcquisitionId:'direct-acquisition',perceptionSourceId:'direct'});
+    page(store,{perceptionAcquisitionId:'direct-acquisition',perceptionSourceId:'direct',acquisitionCommitReceiptId:'direct-receipt',commitMarker:'direct-marker',records:[
+      record('accepted-record',{sourceKind:'shelfdeck_direct',rating:4,watchedState:true,anchors:[anchor('subject_id','accepted'),anchor('provider_identity','jav:IPX-177'),anchor('title','same title')]}),
+      record('foreign-record',{sourceKind:'shelfdeck_direct',rating:1,watchedState:false,anchors:[anchor('shelf_entry_id','foreign'),anchor('provider_identity','jav:IPX-178'),anchor('title','same title')]})]});
+    const before=store.getRecord('accepted-record'),assembler=createPerceptionResolutionInputAssembler({store}),ruleSnapshot=buildRuleSnapshot();
+    for(const kind of ['rating','watched']){const query=queryFor(target,kind),input=assembler.assemble({queryHandle:queryHandle(query,1,'arca'),ruleSnapshot}),result=resolvePerception(input,{draftId:'draft-'+kind,producedAtMs:1_700_010_000_100});
+      assert.equal(result.winningPerceptionId,'accepted-record');assert.equal(result.resolvedValue.value,kind==='rating'?4:true);assert.deepEqual(result.duplicateRelationDrafts,[]);
+    }
+    assert.deepEqual(store.getRecord('accepted-record'),before);
+  });
+});
+
 function fixture(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-perception-store-'));
   const databasePath = path.join(root, 'shelfdeck.db');

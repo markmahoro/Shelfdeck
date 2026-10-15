@@ -11,13 +11,13 @@ const { readFrozenTableContracts } = require('../../scripts/helix-architecture/p
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = readFrozenTableContracts(contractsRoot);
 
-test('compiles all 200 frozen contracts deterministically without legacy schema artifacts', () => {
+test('compiles all 203 frozen contracts deterministically without legacy schema artifacts', () => {
   const first = compileSchema(contracts);
   const second = compileSchema([...contracts].reverse());
-  assert.equal(first.manifest.tableCount, 200);
+  assert.equal(first.manifest.tableCount, 203);
   assert.equal(first.ddl, second.ddl);
   assert.equal(first.manifest.ddlDigest, second.manifest.ddlDigest);
-  assert.equal((first.ddl.match(/CREATE TABLE/g) || []).length, 200);
+  assert.equal((first.ddl.match(/CREATE TABLE/g) || []).length, 203);
   assert.doesNotMatch(first.ddl, /\b(?:nexora_|kairox_|CREATE\s+(?:VIEW|TRIGGER)|MIGRAT)/i);
 });
 
@@ -27,7 +27,7 @@ test('retains the exact P2 contract digest for every generated table trace', () 
     JSON.parse(fs.readFileSync(path.join(contractsRoot, 'manifests', relativePath), 'utf8')).entries
   ).map((entry) => [entry.id, entry.contract.contractDigest]));
   const actual = compileSchema(contracts).manifest.tables;
-  assert.equal(expected.size, 200);
+  assert.equal(expected.size, 203);
   for (const table of actual) assert.equal(table.contractDigest, expected.get(table.tableId), table.tableId);
 });
 
@@ -53,13 +53,13 @@ test('unconditional Event result uniqueness supports indexed lookups without a t
 test('maps every P2 partial-unique rule and only cross-table predicates use support guards', () => {
   const expected = contracts.reduce((count, contract) => count + contract.partialUniqueRules.length, 0);
   const actual = Object.values(PARTIAL_UNIQUE).reduce((count, rules) => count + rules.length, 0);
-  assert.equal(expected, 22);
+  assert.equal(expected, 23);
   assert.equal(actual, expected);
   assert.deepEqual(Object.keys(SUPPORT_COLUMNS).sort(), [
     'arca_inventory_materials', 'libra_intake_decisions', 'people_provider_identities'
   ]);
   const compiled = compileSchema(contracts);
-  assert.equal(compiled.manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'partial-unique').length, 22);
+  assert.equal(compiled.manifest.tables.flatMap((table) => table.indexes).filter((index) => index.kind === 'partial-unique').length, 23);
   assert.equal(compiled.manifest.tables.flatMap((table) => table.supportColumns).length, 7);
   assert.deepEqual(compiled.manifest.tables.find((table) => table.tableId === 'libra_intake_decisions').supportColumns
     .map((column) => column.name), [
@@ -118,6 +118,46 @@ test('fails closed on an unknown partial-unique rule shape', () => {
   const changed = structuredClone(contracts);
   changed.find((contract) => contract.tableId === 'fx_command_receipts').partialUniqueRules.push('new unsupported invariant');
   assert.throws(() => compileSchema(changed), /P3_DDL_UNSUPPORTED_PARTIAL_UNIQUE:fx_command_receipts/);
+});
+
+test('committed correction context is atomic with terminal state and has an exact four MiB JSON limit',()=>{
+  const db=new Database(':memory:');try{
+    db.exec(compileSchema(contracts).ddl);db.pragma('foreign_keys = OFF');
+    const insert=db.prepare('INSERT INTO arca_jav_identity_corrections(correction_id,shelf_entry_id,preview_proof_schema_ref,preview_proof_json,state,state_revision,terminal_evidence_digest,terminal_at_ms,committed_context_schema_ref,committed_context_json,committed_context_digest,cleanup_state) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)'),statement={run(...values){return insert.run(...values,values[4]==='committed'?'pending':null);}},
+      proof='helix://contracts/application-types/ArcaJavCorrectionPreviewProof/v1',context='helix://contracts/application-types/ArcaJavCorrectionCommittedContext/v1',digest='a'.repeat(64);
+    statement.run('active','one',proof,'{}','active',1,null,null,null,null,null);
+    assert.throws(()=>statement.run('active-context','two',proof,'{}','active',1,null,null,context,'{}',digest),/CHECK constraint failed/);
+    assert.throws(()=>statement.run('no-context','three',proof,'{}','committed',3,digest,1,null,null,null),/CHECK constraint failed/);
+    assert.throws(()=>statement.run('partial-context','four',proof,'{}','committed',3,digest,1,context,'{}',null),/CHECK constraint failed/);
+    assert.throws(()=>statement.run('null-schema','eight',proof,'{}','committed',3,digest,1,null,'{}',digest),/CHECK constraint failed/);
+    assert.throws(()=>statement.run('wrong-schema','five',proof,'{}','committed',3,digest,1,'foreign-schema','{}',digest),/CHECK constraint failed/);
+    const jsonBytes=bytes=>`{"v":"${'x'.repeat(bytes-8)}"}`;
+    statement.run('exact-limit','six',proof,'{}','committed',3,digest,1,context,jsonBytes(4*1024*1024),digest);
+    assert.throws(()=>statement.run('over-limit','seven',proof,'{}','committed',3,digest,1,context,jsonBytes(4*1024*1024+1),digest),/CHECK constraint failed/);
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_jav_identity_corrections').get().n,2);
+    assert.throws(()=>statement.run('second-correction','six',proof,'{}','active',1,null,null,null,null,null),/UNIQUE constraint failed/);
+    assert.throws(()=>db.prepare('UPDATE arca_jav_identity_corrections SET cleanup_state=? WHERE correction_id=?').run('completed','exact-limit'),/CHECK constraint failed/);
+    assert.throws(()=>db.prepare('UPDATE arca_jav_identity_corrections SET cleanup_state=NULL WHERE correction_id=?').run('exact-limit'),/CHECK constraint failed/);
+    assert.throws(()=>db.prepare('UPDATE arca_jav_identity_corrections SET cleanup_state=? WHERE correction_id=?').run('pending','active'),/CHECK constraint failed/);
+  }finally{db.close();}
+});
+
+test('recovery history enforces nominal schemas, bounded complete observations and immutable owner repositories',()=>{
+  const generated=compileSchema(contracts),db=new Database(':memory:');
+  try{db.exec(generated.ddl);db.pragma('foreign_keys = OFF');
+    const receipt='helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1',observation='helix://contracts/application-types/ArcaJavCorrectionRecoveryObservation/v1',digest='0'.repeat(64),
+      insert=db.prepare('INSERT INTO arca_jav_correction_recovery_intents (recovery_id,correction_id,shelf_entry_id,previous_intent_digest,receipt_schema_ref,receipt_json,receipt_digest,observation_schema_ref,observation_json,observation_digest,created_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?)'),
+      row=['recovery','correction','entry',null,receipt,'{}',digest,observation,'{}',digest,1];
+    insert.run(...row);
+    assert.throws(()=>insert.run(...row.map((value,index)=>index===0?'another':value)),/UNIQUE constraint failed/);
+    for(const [index,value] of [[4,'helix://wrong/Receipt/v1'],[7,'helix://wrong/Observation/v1'],[5,'{"v":"'+'x'.repeat(16384)+'"}'],[8,'{"v":"'+'x'.repeat(1024*1024)+'"}']]){
+      const changed=[...row];changed[0]='invalid-'+index;changed[6]='1'.repeat(64);changed[index]=value;assert.throws(()=>insert.run(...changed),/CHECK constraint failed/);
+    }
+    const {createRepositoryDefinition}=require('../../src/helix/foundation/persistence/owner-repository'),common={repositoryId:'fixture_recovery_history',owner:'arca',schemaManifest:generated.manifest};
+    assert.throws(()=>createRepositoryDefinition({...common,statements:{change:{kind:'update',tableId:'arca_jav_correction_recovery_intents',setColumns:['observation_json'],keyColumns:['recovery_id']}}}),{code:'P3_REPOSITORY_IMMUTABLE_UPDATE'});
+    assert.throws(()=>createRepositoryDefinition({...common,statements:{remove:{kind:'delete',tableId:'arca_jav_correction_recovery_intents',keyColumns:['recovery_id']}}}),{code:'P3_REPOSITORY_UNSUPPORTED_STATEMENT'});
+    assert.throws(()=>createRepositoryDefinition({...common,statements:{remove:{kind:'delete-one',tableId:'arca_jav_correction_recovery_intents',keyColumns:['recovery_id']}}}),{code:'P3_REPOSITORY_IMMUTABLE_DELETE'});
+  }finally{db.close();}
 });
 
 test('fails closed on unresolved FK targets and unsupported logical types', () => {

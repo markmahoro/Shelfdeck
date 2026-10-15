@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ArcaJavCorrectionFormalRetirementPlan/v1",
+  "title": "ArcaJavCorrectionFormalRetirementPlan@1",
+  "x-helix-ssotRefs": [
+    "3.5.5",
+    "8.5.12",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 4194304,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/ArcaJavCorrectionFormalRetirementPlan/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "correctionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "admissionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "filePlanDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "stagedManifestDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "commitReceiptDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "guardDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "targetRoot": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "stageDirectory": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "planDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "guard": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "correctionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "admissionDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "commitReceiptDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "retirementSetDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "shelfEntryId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "canonicalIdentityRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "inventoryRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "inventoryDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "canonicalIdentityDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "controls": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 2048,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "materialKey": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "controlRevision": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "projectionDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "materialKey",
+              "controlRevision",
+              "projectionDigest"
+            ]
+          }
+        }
+      },
+      "required": [
+        "correctionId",
+        "admissionDigest",
+        "commitReceiptDigest",
+        "retirementSetDigest",
+        "shelfEntryId",
+        "canonicalIdentityRevision",
+        "inventoryRevision",
+        "inventoryDigest",
+        "canonicalIdentityDigest",
+        "controls"
+      ]
+    },
+    "finals": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 1024,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3071
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "physicalIdentity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+          },
+          "fullByteDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "role",
+          "location",
+          "physicalIdentity",
+          "fullByteDigest"
+        ]
+      }
+    },
+    "retirements": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 3072,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 3071
+          },
+          "kind": {
+            "enum": [
+              "superseded_binding",
+              "retained_alias",
+              "stage_alias"
+            ]
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "physicalIdentity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+          },
+          "fullByteDigest": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "ordinal",
+          "kind",
+          "location",
+          "physicalIdentity",
+          "fullByteDigest"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "correctionId",
+    "shelfEntryId",
+    "admissionDigest",
+    "filePlanDigest",
+    "stagedManifestDigest",
+    "commitReceiptDigest",
+    "guardDigest",
+    "targetRoot",
+    "stageDirectory",
+    "planDigest",
+    "guard",
+    "finals",
+    "retirements"
+  ]
+}

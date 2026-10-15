@@ -1,0 +1,99 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.jav-correction-cleanup-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.jav-correction-cleanup-commit",
+    "displayName": "JAV Correction Cleanup Commit",
+    "ownerScope": "arca",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "Arca同一committed context、原Identity Commit、当前Entry/双head与逐材料Control、两项实际成功清理Work/Result/marker及精确Registry/Artifact生命周期重验；cleanup_state=completed、closed Cleanup Receipt/schema/digest及updated时点与独立 pending 旧目录检查责任原子，随后门禁释放；无新文件副作用、Foundation Result/marker或Outbox，不改core terminal/原入藏事实；完成重放仅核验原持久证据，不要求当前head仍是纠正时revision",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_jav_identity_corrections",
+          "arca_jav_correction_directory_checks"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "read",
+        "tables": [
+          "fx_supporting_works",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_effect_journal",
+          "fx_event_result_bindings",
+          "fx_commit_markers",
+          "fx_workspace_registry",
+          "fx_workspace_materials",
+          "fx_artifact_registry"
+        ]
+      },
+      {
+        "participantKind": "material-control",
+        "owner": "material-control-authority",
+        "access": "read",
+        "tables": [
+          "fx_material_controls",
+          "fx_material_control_revisions"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_jav_identity_corrections",
+      "arca_jav_correction_directory_checks"
+    ],
+    "readTables": [
+      "arca_jav_identity_corrections",
+      "arca_shelf_entries",
+      "arca_shelves",
+      "arca_canonical_identity_revisions",
+      "arca_inventory_representations",
+      "arca_ondeck_commit_receipts",
+      "fx_supporting_works",
+      "fx_workflow_events",
+      "fx_event_attempts",
+      "fx_effect_journal",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "fx_workspace_registry",
+      "fx_workspace_materials",
+      "fx_artifact_registry",
+      "fx_material_controls",
+      "fx_material_control_revisions"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": false,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "jav-correction-cleanup",
+        "faultInjectionPoints": "两项清理成功Work/Result与登记生命周期复验、committed context/head/Control围栏、cleanup Receipt及CAS、事务COMMIT前后进程退出",
+        "requiredInvariant": "cleanup Receipt与completed/门禁释放全有或全无；无文件、Control或历史Commit写入；重放同Receipt，失败保持门禁",
+        "source": {
+          "section": "8.9.7",
+          "line": 16113
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8758,
+      "lineDigest": "e5f6f15f1ec9e72ec654cd7b2fc12b311a26ab1e983fd0d870ec43acf9e8f66f"
+    }
+  }
+}

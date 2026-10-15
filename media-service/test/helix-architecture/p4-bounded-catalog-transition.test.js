@@ -307,19 +307,22 @@ test('historical witness stays immutable and cannot authorize changed secondary-
   assert.deepEqual(changed,[
     'arca.acceptance.accept.commit@1','arca.acceptance.identity.verify@1','arca.acceptance.mandatory_media.verify@1',
     'arca.acceptance.metadata.verify@1','arca.acceptance.space.verify@1','arca.acceptance.structure.verify@1',
+    'arca.aftercare.artifact.materialize@1','arca.aftercare.binary_artifact.acquire@1',
     'arca.aftercare.conformance.observe@1','arca.aftercare.input_settlement.delete@1','arca.aftercare.media.remux@1','arca.aftercare.media.transcode@1','arca.aftercare.media.verify@1',
     'arca.inventory.final_product.verify@1','arca.inventory.product.stage@1','arca.inventory.staged.verify@1',
     'arca.ondeck.commit@1','arca.ondeck.fulfillment.verify@1','arca.ondeck.input_settlement.delete@1',
-    'libra.external_material.acquire.request@1','libra.external_material.candidate.select@1',
-    'libra.external_material.query.prepare@1','libra.external_material.search@1',
-    'libra.intake.binding.resolve@1','libra.intake.candidate.verify@1','libra.intake.material.verify@1','libra.media.remux@1',
+    'libra.external_material.acquire.observe@1','libra.external_material.acquire.request@1','libra.external_material.candidate.select@1',
+    'libra.external_material.identity.verify@1',
+    'libra.external_material.query.prepare@1','libra.external_material.search@1','libra.external_material.stability.observe@1',
+    'libra.intake.accept.commit@1','libra.intake.binding.resolve@1','libra.intake.candidate.verify@1','libra.intake.material.verify@1','libra.media.remux@1','libra.media.transcode@1',
     'libra.media_cast.commit@1','libra.media_cast.resolve@1',
     'libra.product.conformance.verify@1','libra.product_artifact.acquire@1',
     'libra.product_identity.evidence.observe@1','libra.product_identity.resolve@1','libra.product_media.verify@1',
     'libra.product_metadata.commit@1','libra.product_metadata.fetch@1','libra.product_output.select@1',
     'libra.product_package.publish@1','libra.product_sidecar.render@1','libra.routing.fact.observe@1',
+    'libra.transcode.input.verify@1','perception.dedup.resolve@1','perception.source.acquire@1',
     'procurement.candidate.publish@1','procurement.triage.identity_claim.resolve@1','procurement.triage.playability.inspect@1',
-    'procurement.triage.primary_manifest.build@1','procurement.triage.structure.inspect@1']);
+    'procurement.triage.primary_manifest.build@1','procurement.triage.structure.inspect@1','shared.material.media.probe@1']);
   assert.deepEqual(witness.capabilities.filter(record => record.previousSchemaDigest !== record.currentSchemaDigest)
     .map(record => record.capabilityRef), [
       'arca.acceptance.accept.commit@1', 'arca.acceptance.identity.verify@1',
@@ -522,6 +525,56 @@ test('production Movie contract archive has exact provenance and cannot authoriz
   assert.equal(history.supports(HASH), false); assert.equal(history.verify(f.facts), false);
   const corrupt = structuredClone(archive); corrupt.schemas[0].description = 'tampered';
   assert.throws(() => createFrozenCatalogHistory({ ...options, archive: corrupt }), /provenance/);
+});
+
+test('published release archive reconstructs its exact Catalog without mutating archives or accepting active history', () => {
+  const { createFrozenCatalogHistory } = require('../../src/helix/foundation/execution/frozen-catalog-history');
+  const additional = Object.freeze({archive:require('../../src/helix/composition/catalog-transitions/published-terminal-contracts-20261015.json'),
+    archiveDigest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d'});
+  const f=fixture({terminalOnly:true}),reasons=[];
+  f.facts.plan.catalog_digest=additional.archive.catalogDigest;f.facts.plan.state='no_effect_required';
+  for(const key of ['nodes','events','attempts','results'])f.facts[key]=[];
+  const options={archive:require('../../src/helix/composition/catalog-transitions/movie-terminal-contracts-20260930.json'),
+    archiveDigest:'369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
+    priorArchive:require('../../src/helix/composition/catalog-transitions/secondary-acceptance-history-20260928.json'),
+    priorArchiveDigest:'1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
+    witness:require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json'),additionalArchives:Object.freeze([additional]),
+    onRejected:reason=>reasons.push(reason),proofReader:{verify:fn=>fn({prefetch(){},read:()=>f.facts})}};
+  const before=canonicalDigest(additional),history=createFrozenCatalogHistory(options);
+  assert.deepEqual(reasons,[]);assert.equal(history.supports(additional.archive.catalogDigest),true);
+  assert.equal(history.verify(f.facts),true);assert.equal(canonicalDigest(additional),before);
+  f.facts.workAttempt.state='running';assert.equal(history.verify(f.facts),false);
+  assert.deepEqual(history.verifyBatch([f.facts]),[false]);
+  const corrupt=structuredClone(additional.archive);corrupt.schemas[0].description='tampered';
+  assert.throws(()=>createFrozenCatalogHistory({...options,additionalArchives:[{...additional,archive:corrupt}]}),/provenance/);
+});
+
+function fullResultEvidenceFixture(){
+  const f=preboundFixture({terminalOnly:true}),ref='helix://contracts/types/FixtureFullRecord/v1';
+  f.schemas.set(ref,{$id:ref,type:'object',additionalProperties:false,properties:{schemaRef:{const:ref},recordDigest:{type:'string',pattern:'^[a-f0-9]{64}$'}},required:['schemaRef','recordDigest']});
+  f.schemas.set(f.prefix+'result',{$id:f.prefix+'result',$ref:ref});
+  const closure=canonicalDigest(schemaClosure(f.registry.resolve('libra.fixture@1','libra').manifest,f.schemas));
+  f.witness.capabilities.forEach(record=>{record.previousSchemaDigest=record.currentSchemaDigest=closure;});
+  const evidenceClosure=canonicalDigest(schemaClosure({inputPorts:{evidence:{schemaRef:ref}}},f.schemas));
+  f.witness.preboundEvidenceSchemas={[ref]:{capabilityRefs:['libra.fixture@1'],previousSchemaDigest:evidenceClosure,currentSchemaDigest:evidenceClosure,fullResultRecord:true}};
+  const result=f.facts.results[0],value={schemaRef:ref,recordDigest:HASH};
+  result.result_schema_ref=result.evidence_schema_ref=ref;result.result_json=result.evidence_json=JSON.stringify(value);
+  result.result_digest=result.evidence_digest=canonicalDigest(value);f.facts.effects[0].output_digest=result.result_digest;
+  f.facts.markers[0].result_schema_ref=ref;f.facts.markers[0].result_digest=result.result_digest;
+  f.facts.plan.catalog_digest=f.witness.currentCatalogDigest;
+  return f;
+}
+test('full typed historical Result Evidence must exactly equal its Result and retain its actual commit chain',()=>{
+  const f=fullResultEvidenceFixture(),valid=f.verify();assert.equal(valid,true,f.reasons.join('\n'));
+  const value=JSON.parse(f.facts.results[0].evidence_json);value.recordDigest='c'.repeat(64);
+  f.facts.results[0].evidence_json=JSON.stringify(value);f.facts.results[0].evidence_digest=canonicalDigest(value);
+  assert.equal(f.verify(),false);
+});
+test('full Result Evidence cannot omit schema fields, invent a producer or consume an active Attempt',()=>{
+  for(const mutate of [f=>{f.facts.markers=[];},f=>{f.facts.workAttempt.state='running';},
+    f=>{f.witness.preboundEvidenceSchemas[Object.keys(f.witness.preboundEvidenceSchemas)[0]].capabilityRefs=['libra.changed@1'];}]){
+    const f=fullResultEvidenceFixture();mutate(f);assert.equal(f.verify(),false);
+  }
 });
 
 test('a single frozen Catalog rejects a different payload shape even with a valid payload digest', () => {

@@ -112,6 +112,26 @@
       },
       {
         "ordinal": 11,
+        "name": "selection_record_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 12,
+        "name": "selection_record_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
         "name": "idempotency_key",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -121,7 +141,7 @@
         "nullable": false
       },
       {
-        "ordinal": 12,
+        "ordinal": 14,
         "name": "intent_digest",
         "logicalType": "TEXT",
         "enumValues": [],
@@ -131,7 +151,7 @@
         "nullable": false
       },
       {
-        "ordinal": 13,
+        "ordinal": 15,
         "name": "created_at_ms",
         "logicalType": "INTEGER",
         "enumValues": [],
@@ -178,7 +198,15 @@
       "pointerTargets": [],
       "pointerRules": []
     },
-    "jsonContracts": [],
+    "jsonContracts": [
+      {
+        "column": "selection_record_json",
+        "schemaRefColumn": "selection_record_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
     "immutability": {
       "immutable": true,
       "rules": [
@@ -193,16 +221,19 @@
     "semanticRules": [
       "append-only",
       "`UNIQUE(libra_run_id,intent_revision)`、`UNIQUE(libra_run_id,idempotency_key)`",
-      "用户选择只形成Libra-owned immutable Intent，后续仍须由`provider_exact` Evidence Work验证，不能直接发布Resolved Identity"
+      "用户选择只形成Libra-owned immutable Intent，后续仍须由`provider_exact` Evidence Work验证，不能直接发布Resolved Identity",
+      "JAV的selection_record_json冻结Source Snapshot、exact resource、qualification Observation、Subject/Run/basis/selection head及actor，不用客户端字段补造",
+      "JCS≤64 KiB",
+      "Movie/Series保持NULL"
     ],
     "rawContract": {
-      "columns": "`selection_intent_id PK, libra_run_id FK, intent_revision, selection_kind(candidate|provider_id), provider, namespace, provider_key, candidate_set_digest NULL, expected_run_state_revision, expected_identity_revision NULL, idempotency_key, intent_digest, created_at_ms`",
-      "constraints": "append-only；`UNIQUE(libra_run_id,intent_revision)`、`UNIQUE(libra_run_id,idempotency_key)`；用户选择只形成Libra-owned immutable Intent，后续仍须由`provider_exact` Evidence Work验证，不能直接发布Resolved Identity"
+      "columns": "`selection_intent_id PK, libra_run_id FK, intent_revision, selection_kind(candidate|provider_id), provider, namespace, provider_key, candidate_set_digest NULL, expected_run_state_revision, expected_identity_revision NULL, selection_record_schema_ref NULL, selection_record_json NULL, idempotency_key, intent_digest, created_at_ms`",
+      "constraints": "append-only；`UNIQUE(libra_run_id,intent_revision)`、`UNIQUE(libra_run_id,idempotency_key)`；用户选择只形成Libra-owned immutable Intent，后续仍须由`provider_exact` Evidence Work验证，不能直接发布Resolved Identity；JAV的selection_record_json冻结Source Snapshot、exact resource、qualification Observation、Subject/Run/basis/selection head及actor，不用客户端字段补造；JCS≤64 KiB；Movie/Series保持NULL"
     },
     "source": {
       "section": "8.5.11",
-      "line": 9423,
-      "lineDigest": "6104e8adb8500a15f9f91830a143abbb2a70ce40a9cf59fde78b8a3e313d5c20"
+      "line": 9439,
+      "lineDigest": "d1287a514873979841680ea44cd7ff270df790407145aaf016c9e6128a27a2da"
     },
     "foreignKeys": [
       {

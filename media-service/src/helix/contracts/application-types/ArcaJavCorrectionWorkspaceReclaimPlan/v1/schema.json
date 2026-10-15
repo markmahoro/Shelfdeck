@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ArcaJavCorrectionWorkspaceReclaimPlan/v1",
+  "title": "ArcaJavCorrectionWorkspaceReclaimPlan@1",
+  "x-helix-ssotRefs": [
+    "3.5.5",
+    "8.5.12",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 262144,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/ArcaJavCorrectionWorkspaceReclaimPlan/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "correctionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "admissionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "committedContextDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "commitReceiptDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "filePlanDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "assetsPayloadDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "formalRetirementResultDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "root": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "rootId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "rootHandleRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "endpointId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "mountScopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resolvedRoot": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "configRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "snapshotDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "rootId",
+        "rootHandleRef",
+        "endpointId",
+        "mountScopeId",
+        "resolvedRoot",
+        "configRevision",
+        "snapshotDigest"
+      ]
+    },
+    "members": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {
+        "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "$ref": "helix://contracts/types/ArtifactHandle/v1"
+      }
+    },
+    "handleSetDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "guardDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "planDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "correctionId",
+    "shelfEntryId",
+    "admissionDigest",
+    "committedContextDigest",
+    "commitReceiptDigest",
+    "filePlanDigest",
+    "assetsPayloadDigest",
+    "formalRetirementResultDigest",
+    "root",
+    "members",
+    "artifacts",
+    "handleSetDigest",
+    "guardDigest",
+    "planDigest"
+  ]
+}

@@ -6,10 +6,10 @@ const { buildDomainInputSchemas } = require('../../scripts/helix-architecture/do
 
 const schemas = buildDomainInputSchemas();
 
-test('builds exactly the 120 formal domain input contracts', () => {
-  assert.equal(Object.keys(schemas).length, 120);
+test('builds exactly the 123 formal domain input contracts', () => {
+  assert.equal(Object.keys(schemas).length, 123);
   assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 25);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 95);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 98);
 });
 
 test('freezes bounded Shelf Acceptance source and Product read authority', () => {
@@ -104,7 +104,9 @@ test('freezes product fact source basis variants and exact artifact manifest inp
   assert.equal(manifestItem.properties.verificationResultRef.properties.capabilityRef.const,
     'shared.artifact.manifest.verify@1');
   assert.equal(schemas.MetadataFetchIntent.oneOf[0].properties.sourcePriority.minimum, 0);
-  assert.deepEqual(schemas.MetadataFetchIntent.oneOf[0].properties.contentProfile.enum, ['movie', 'series', 'jav']);
+  assert.deepEqual(schemas.MetadataFetchIntent.oneOf[0].properties.contentProfile.enum, ['movie', 'series']);
+  assert.equal(schemas.MetadataFetchIntent.oneOf[2].properties.contentProfile.const,'jav');
+  assert.ok(schemas.MetadataFetchIntent.oneOf[2].required.includes('javSelectedSource'));
   const providerIntent = schemas.MetadataFetchIntent.oneOf[1];
   assert.ok(providerIntent.required.includes('resolvedProviderIdentity'));
   assert.equal(
@@ -277,7 +279,13 @@ test('accepted DTOs freeze semantic members instead of exposing arbitrary payloa
   assert.equal(schemas.TriageStructureInspectionInput.properties.playabilityPages.maxItems, 11);
   assert.equal(schemas.TriageStructureInspectionInput.properties.observationScopeProjection.properties.entries.maxItems, 1024);
   assert.equal(schemas.CandidateDraft.properties.primaryInputManifestDraft.$ref, 'helix://contracts/types/PrimaryInputManifestDraft/v1');
-  assert.equal(triageUnitBranches.every((branch) => branch.properties.mediaType.enum.includes('group')), true);
+  assert.equal(triageUnitBranches.filter(branch=>branch.properties.materialInputForm.const !== 'jav_named_parts')
+    .every(branch=>branch.properties.mediaType.enum.includes('group')),true);
+  const javParts=triageUnitBranches.find(branch=>branch.properties.materialInputForm.const==='jav_named_parts');
+  assert.equal(javParts.properties.mediaType.const,'single');
+  assert.equal(javParts.properties.contentProfile.const,'jav');
+  assert.equal(javParts.properties.members.minItems,2);
+  assert.equal(javParts.properties.members.maxItems,2);
   assert.equal(schemas.CandidateDraft.properties.seasonContinuityClaims.items.$ref,
     'helix://contracts/types/SeasonContinuityClaim/v1');
   assert.ok(schemas.CandidateDraft.required.includes('seasonContinuityClaimSetDigest'));

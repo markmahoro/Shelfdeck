@@ -5,7 +5,7 @@ const {historicalDatabase}=require('../fixtures/historical-database');
 
 const {digest}=require('../../src/helix/foundation/persistence/ddl-compiler');
 const {migrateUatIdentitySelectionSchema,PRE_SERIES_FACT_KEY_SCHEMA_DIGEST}=require('../../src/helix/foundation/persistence/uat-identity-selection-migration');
-const schemaManifest=require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+const schemaManifest=require('../fixtures/helix-historical-ddl/schema-snapshot').historicalSchema('c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d').schemaManifest;
 test('Inventory Fact key upgrade preserves accepted snapshots and admits distinct Package revisions',()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'series-fact-key-')),dataDir=path.join(root,'data'),databasePath=path.join(dataDir,'shelfdeck.db');
  let db;

@@ -878,7 +878,7 @@ function createProcurementAutomationService(options) {
     const locations = eligiblePool.map(material => relativeLocation(current.access.root_location, material.current_location));
     const scopes = new Map(), scopeKeys = new Map();
     eligiblePool.forEach((material, index) => {
-      const key = scopeFor(locations[index], locations).scopeKey;
+      const key = scopeFor(locations[index], locations, current.profileHint.content_profile_hint).scopeKey;
       scopeKeys.set(material.material_key, key);
       if (!scopes.has(key)) scopes.set(key, []);
       scopes.get(key).push(material);
@@ -893,6 +893,7 @@ function createProcurementAutomationService(options) {
       extractionPolicyId:current.policy.extraction_policy_id, extractionPolicyRevision:Number(current.policy.revision),
       extractionPolicyDigest:current.policy.policy_digest, triageRuleAuthorityDigest:rule.authorityDigest });
     const sliced = createProcurementRunSlices({ fieldId:observation.fieldId, creationBasisDigest,
+      profileHint:current.profileHint.content_profile_hint,
       maxRunPhysicalMembers:rule.maxRunPhysicalMembers,
       maxSelectionScopeMembers:rule.maxSelectionScopeMembers,
       materials:eligible.map((material) => ({ materialKey:material.material_key,

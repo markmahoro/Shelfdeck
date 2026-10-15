@@ -25,6 +25,9 @@ function planMetadataGap(value) {
     fail('P9_METADATA_PLAN_INPUT', 'Metadata planning input is invalid.');
   }
   const observations = [...(value.observations || [])];
+  if(profile==='jav' && observations.some(item=>item.sourceKind!=='provider'||
+      item.javSelectedSource?.bindingDigest!==value.javSelectedSource?.bindingDigest))
+    fail('P9_METADATA_PLAN_OBSERVATION_SCOPE','JAV Metadata observations must preserve the selected single site.');
   if (observations.length > 16 || observations.some((item, ordinal) => !item || item.sourcePriority !== ordinal ||
       item.contentProfile !== profile || item.identityDigest !== value.resolvedIdentityDigest ||
       !['related_nfo', 'provider'].includes(item.sourceKind))) {
@@ -54,7 +57,7 @@ function planMetadataGap(value) {
   } else if (profile === 'jav' && !seenKinds.has('provider:jav')) {
     if (!value.provider || value.provider.providerKind !== 'jav') fail('P9_METADATA_PLAN_SOURCE_UNAVAILABLE', 'JAV source is unavailable.');
     source = { sourceKind:'provider', providerKind:'jav', integrationId:value.provider.integrationId,
-      configRevision:value.provider.configRevision, resolvedProviderIdentity:value.resolvedProviderIdentity };
+      configRevision:value.provider.configRevision, resolvedProviderIdentity:value.resolvedProviderIdentity,javSelectedSource:value.javSelectedSource };
   } else {
     return Object.freeze({ planKind:'gap_unresolved', missingFields:Object.freeze(missingFields), nextIntent:null,
       planDigest:canonicalDigest({ schema:'libra.metadata-gap-plan@1', contentProfile:profile, missingFields, planKind:'gap_unresolved' }) });

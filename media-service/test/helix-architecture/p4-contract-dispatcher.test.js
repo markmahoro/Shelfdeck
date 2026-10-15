@@ -78,6 +78,17 @@ test('typed dispatcher resolves exact contract and validates context/input/param
     'helix://fixture/inputs', 'helix://contracts/types/CapabilityOutcome/v1', 'helix://fixture/result', 'helix://fixture/evidence'
   ]);
 });
+test('dispatcher awaits asynchronous semantic validation and rejects its late failure before publishing success',async()=>{
+  for(const reject of [false,true]){
+    const manifest=fixtureManifest();let enter,release,finished=false;
+    const entered=new Promise(resolve=>{enter=resolve;}),verification=new Promise((resolve,fail)=>{release=()=>reject?fail(new Error('Late byte verification failed.')):resolve();}),
+      registry=createCapabilityRegistry({expectedCapabilityRefs:[manifest.capabilityRef],registrations:[{manifest,executor:{version:1,async execute(){return {kind:'succeeded',resultSchemaRef:manifest.resultSchemaRef,
+        result:{ok:true},evidenceSchemaRef:manifest.evidenceSchemaRef,evidence:{observed:true}};}},semanticValidator:{ref:manifest.semanticValidatorRef,validateInputs(){},async validateResult(){enter();await verification;}}}]}),
+      dispatcher=createExecutorDispatcher({registry,contractValidator:{validate:(_ref,value)=>value}}),result=dispatcher.dispatch({ownerDomain:'libra',capabilityRef:manifest.capabilityRef,context:context()});
+    result.then(()=>{finished=true;},()=>{finished=true;});await entered;await Promise.resolve();assert.equal(finished,false);release();
+    if(reject)await assert.rejects(result,/Late byte verification failed/);else assert.equal((await result).kind,'succeeded');
+  }
+});
 
 test('dispatcher rejects owner/context/output drift and non-pure success without Effect Receipt', async () => {
   const fixture = dispatcherFixture();
@@ -129,7 +140,7 @@ test('Capability runtime sources contain no fallback, historical flow routing, S
     { source: 'domains.arca.capabilities', allow: ['node:fs', 'node:os', 'node:path', 'node:crypto', 'node:child_process', 'ffmpeg-static', 'sharp'] },
     { source: 'domains.arca.model', allow: ['node:path', 'node:util'] },
     { source: 'domains.arca.persistence', allow: ['node:fs', 'node:os', 'node:path'] },
-    { source: 'integrations', allow: ['node:crypto', 'node:fs', 'node:path', 'cheerio', 'undici'] },
+    { source: 'integrations', allow: ['node:crypto', 'node:fs', 'node:path', 'cheerio', 'undici', 'sharp'] },
     { source: 'projections', allow: ['node:fs'] }
   ]);
 });

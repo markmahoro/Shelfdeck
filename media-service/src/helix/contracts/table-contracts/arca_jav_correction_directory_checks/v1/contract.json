@@ -1,0 +1,244 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_jav_correction_directory_checks/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_jav_correction_directory_checks",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "correction_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "committed_context_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "cleanup_receipt_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "pending",
+          "attention",
+          "completed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "check_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "checks_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "checks_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "checks_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "last_error_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "next_check_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "correction_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "correction_id",
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "next_check_at_ms",
+        "correction_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "pending",
+          "attention",
+          "completed"
+        ]
+      },
+      {
+        "rule": "checks固定 closed ArcaJavCorrectionDirectoryChecks、JCS≤64 KiB/最多32个目录，初始空数组/check_revision=1。后续结果按 check_revision CAS 并重验同一 completed cleanup/context/Receipt 更新"
+      },
+      {
+        "rule": "`INDEX(next_check_at_ms,correction_id)`"
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "check_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "checks_json",
+        "schemaRefColumn": "checks_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": [
+        "context/cleanup Receipt/Entry/created时点 immutable，不能借 on_deck_run_id"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "JAV Correction Cleanup Commit 同事务建立独立 pending 目录检查责任",
+      "context/cleanup Receipt/Entry/created时点 immutable，不能借 on_deck_run_id",
+      "checks固定 closed ArcaJavCorrectionDirectoryChecks、JCS≤64 KiB/最多32个目录，初始空数组/check_revision=1。后续结果按 check_revision CAS 并重验同一 completed cleanup/context/Receipt 更新",
+      "`INDEX(next_check_at_ms,correction_id)`",
+      "检查结果和责任不授予文件处置权限，不重新持有纠正门禁"
+    ],
+    "rawContract": {
+      "columns": "`correction_id FK PK, shelf_entry_id FK, committed_context_digest, cleanup_receipt_digest, state(pending|attention|completed), check_revision INTEGER, checks_schema_ref, checks_json, checks_scope_digest NULL, last_error_code NULL, created_at_ms, updated_at_ms, next_check_at_ms`",
+      "constraints": "JAV Correction Cleanup Commit 同事务建立独立 pending 目录检查责任；context/cleanup Receipt/Entry/created时点 immutable，不能借 on_deck_run_id；checks固定 closed ArcaJavCorrectionDirectoryChecks、JCS≤64 KiB/最多32个目录，初始空数组/check_revision=1。后续结果按 check_revision CAS 并重验同一 completed cleanup/context/Receipt 更新；`INDEX(next_check_at_ms,correction_id)`；检查结果和责任不授予文件处置权限，不重新持有纠正门禁"
+    },
+    "source": {
+      "section": "8.5.14",
+      "line": 9600,
+      "lineDigest": "92a2659909858301edf33a805470143dce09fc7543a554f969fee324a65b2a6d"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "correction_id"
+        ],
+        "targetTable": "arca_jav_identity_corrections",
+        "targetColumns": [
+          "correction_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

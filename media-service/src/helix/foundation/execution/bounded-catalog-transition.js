@@ -75,6 +75,9 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
           typeof source.text === 'string' && canonicalDigest(source.text) === source.textDigest,
         'Missing historical nominal contract provenance.');
       } else requireProof(HASH.test(evidence.previousSchemaDigest), 'Invalid historical schema witness.');
+      if (evidence.fullResultRecord) requireProof(evidence.fullResultRecord === true &&
+        evidence.previousSchemaDigest === evidence.currentSchemaDigest && !evidence.historicalNominalContract,
+      'Invalid full Result Evidence witness.');
     }
     witnessValid = true;
   } catch (error) { onRejected?.(error.message); }
@@ -254,6 +257,9 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
           schemaAlias(manifest.evidenceSchemaRef, 'helix://contracts/types/EvidenceEnvelope/v1') &&
           ['domain_fact_commit', 'responsibility_control_commit'].includes(manifest.effectClass), 'Unproven prebound Evidence contract.');
         requireProof(!unaffected || frozen.previousSchemaDigest === frozen.currentSchemaDigest, 'Changed prebound Evidence dependency.');
+        if (frozen.fullResultRecord) requireProof(result.evidence_schema_ref === result.result_schema_ref &&
+          schemaAlias(manifest.resultSchemaRef, result.result_schema_ref) &&
+          canonicalDigest(evidenceValue) === canonicalDigest(resultValue), 'Full Result Evidence differs from its exact typed Result.');
         requireProof(markers.filter(marker => marker.result_id === result.result_id).length === 1,
           'Prebound Evidence requires an exact Result Commit Marker.');
         // EventRuntime persists the inner domain Evidence and only the digest of

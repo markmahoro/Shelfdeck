@@ -71,7 +71,7 @@ function createArtifactProductionCapabilityPorts(options) {
         const snapshot = typeof options.movieProductionReader.readRunSnapshot === 'function'
           ? options.movieProductionReader.readRunSnapshot(context.ownerScope.processId)
           : options.movieProductionReader.readRun(context.ownerScope.processId);
-        const related = snapshot?.relatedReferences?.find((item) => item.role === artifactKind);
+        const related = !draft.javSelectedSource && snapshot?.relatedReferences?.find((item) => item.role === artifactKind);
         const runtimeEffectAuthority = Object.freeze({
           effectClass:'workspace_write',
           eventAttemptId:context.eventAttemptId,
@@ -124,10 +124,17 @@ function createArtifactProductionCapabilityPorts(options) {
         }
         return succeeded(ACQUIRE, result, now, effectReceipt(context, result, now));
       },
-      validateResult(_context, outcome) {
+      validateResult(context, outcome) {
         if (!['acquired', 'not_available'].includes(outcome?.result?.resultKind)) {
           throw new TypeError('Artifact Acquisition result is invalid.');
         }
+        const binding=context.namedInputs.productMetadataDraft?.javSelectedSource;
+        if(binding && outcome.result.resultKind==='acquired') {
+          const proof=require('../../../contracts/jav-cover-derivation').assertJavCoverDerivation(outcome.result.javCoverDerivation);
+          if(canonicalDigest(proof.javSelectedSource)!==canonicalDigest(binding)||proof.kind!==outcome.result.artifactHandle?.artifactKind||
+              proof.outputDigest!==outcome.result.artifactHandle.digestHex)
+            throw new TypeError('JAV Artifact Result does not conserve its single-source derivation and registered output.');
+        }else if(outcome.result.javCoverDerivation)throw new TypeError('Non-JAV Artifact Result cannot claim a JAV derivation.');
       },
     }),
     [SIDECAR]: Object.freeze({
@@ -143,7 +150,7 @@ function createArtifactProductionCapabilityPorts(options) {
             !snapshot.episodeClaims.some(item=>item.episodeKey===draft.episodeScope.episodeKey)))
           throw new TypeError('Episode sidecar is outside the frozen Run delivery scope.');
         const sourceRefs = new Set(draft.fieldProvenance.filter(item=>item.sourceKind==='related_nfo').map(item=>item.sourceRef));
-        const relatedNfo = snapshot?.relatedReferences?.find((item) => item.role === 'nfo' &&
+        const relatedNfo = contentProfile!=='jav' && snapshot?.relatedReferences?.find((item) => item.role === 'nfo' &&
           (contentProfile !== 'series' || sourceRefs.has(item.referenceId))) || null;
         const result = options.productProductionPort.renderProductSidecar({
           productMetadataDraft: context.namedInputs.productMetadataDraft,

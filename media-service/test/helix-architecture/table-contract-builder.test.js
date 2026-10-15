@@ -10,15 +10,15 @@ const { readTableSourceEntries } = require('../../scripts/helix-architecture/tab
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = buildTableContracts(readTableSourceEntries(contractsRoot));
 
-test('builds all 200 sole-Owner table contracts with accepted owner counts', () => {
-  assert.equal(contracts.length, 200);
-  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 200);
+test('builds all 203 sole-Owner table contracts with accepted owner counts', () => {
+  assert.equal(contracts.length, 203);
+  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 203);
   const counts = Object.fromEntries([...new Set(contracts.map((contract) => contract.owner))].map((owner) => [
     owner, contracts.filter((contract) => contract.owner === owner).length
   ]));
   assert.deepEqual(counts, {
     'execution-foundation': 25, 'material-control-authority': 2, procurement: 17, libra: 54,
-    arca: 64, perception: 9, people: 13, 'platform-settings': 16
+    arca: 67, perception: 9, people: 13, 'platform-settings': 16
   });
 });
 
@@ -97,6 +97,8 @@ test('closes every PK, declared FK, JSON contract, and current revision pointer'
       if(contract.tableId==='arca_final_inventory_decisions'&&json.column==='decision_json') { assert.equal(json.maxBytes,8*1024*1024); continue; }
       if(contract.tableId==='arca_staged_manifest_records'&&json.column==='manifest_json') { assert.equal(json.maxBytes,8*1024*1024); continue; }
       if(contract.tableId==='arca_inventory_verification_records'&&json.column==='verification_json') { assert.equal(json.maxBytes,8*1024*1024); continue; }
+      if(contract.tableId==='arca_jav_identity_corrections'&&json.column==='preview_proof_json') { assert.equal(json.maxBytes,2*1024*1024); continue; }
+      if(contract.tableId==='arca_jav_identity_corrections'&&json.column==='committed_context_json') { assert.equal(json.maxBytes,4*1024*1024); continue; }
       assert.ok([4 * 1024, 16 * 1024, 64 * 1024, 128 * 1024, 256 * 1024, 1024 * 1024].includes(json.maxBytes));
     }
     const covered = new Set(contract.revisionContract.pointerTargets.flatMap((target) => [...target.sourceColumns, ...target.consistencyColumns]));

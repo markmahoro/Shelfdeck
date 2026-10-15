@@ -134,6 +134,12 @@ function buildMetadataFetchIntent(value) {
     common.resolvedProviderIdentity = Object.freeze({ ...identity });
     common.integrationId = text(value.integrationId, 'integrationId');
     common.configRevision = integer(value.configRevision, 'configRevision', 1);
+    if(common.contentProfile==='jav') {
+      common.javSelectedSource=require('../../../contracts/jav-selected-source').assertJavSelectedSource(value.javSelectedSource);
+      if(common.sourcePriority!==0||common.integrationId!==common.javSelectedSource.integrationId||common.configRevision!==common.javSelectedSource.configRevision||
+          identity.providerKey!==common.javSelectedSource.queryAnchor.javCode)
+        fail('P9_METADATA_SOURCE_ORDER','JAV Metadata Intent must conserve the selected site, config and canonical code.');
+    }
     if (!['tmdb', 'jav'].includes(common.providerKind) ||
         (common.providerKind === 'tmdb') !== ['movie', 'series'].includes(common.contentProfile) ||
         (common.providerKind === 'jav') !== (common.contentProfile === 'jav')) {
@@ -194,6 +200,12 @@ function buildMetadataObservation(value) {
     descriptiveFacts:Object.freeze(descriptiveFacts), providerIdentitySet:Object.freeze(providerIdentitySet),
     peopleHints:Object.freeze([...(value?.peopleHints || [])].slice(0, 64)), artifactHints:Object.freeze([]) };
   if (intent.episodeScope) result.episodeScope = intent.episodeScope;
+  if(intent.contentProfile==='jav') {
+    result.javSelectedSource=intent.javSelectedSource;
+    if(!value.sourceIntegrationHandle || value.sourceIntegrationHandle.integrationType!=='jav_source')
+      fail('P9_JAV_METADATA_SOURCE_HANDLE','JAV metadata requires the exact observed Integration Handle provenance.');
+    result.sourceIntegrationHandle=value.sourceIntegrationHandle;
+  }
   result.evidenceId = canonicalDigest({ schema:'libra.metadata-observation-evidence-id@1',
     fetchIntentDigest:result.fetchIntentDigest, sourceNfoSemanticsDigest:result.sourceNfoSemantics?.recordDigest || null, descriptiveFactsDigest:descriptiveFacts.recordDigest,
     providerIdentitySetDigest:providerIdentitySet.recordDigest });
@@ -376,6 +388,17 @@ function buildProductFactSourceRefs(value) {
       typedResultSchemaRef:'helix://contracts/types/ProductIdentityEvidenceObservation/v1'});
     const providerIdentity=result.verifiedIdentity;
     const identities=value.resolvedProductIdentity?.providerIdentities||[];
+    if(providerIdentity?.namespace==='jav_code') {
+      const binding=chain.inputBindings?.bindings?.find(item=>item.portName==='productIdentityEvidenceIntent'),intent=binding?.parameters?.javIntent;
+      const display=new Map((value.resolvedProductIdentity.displayIdentity?.entries||[]).map(item=>[item.key,item.value]));
+      if(!intent || binding.bindingKind!=='projected_owner_facts' || binding.ownerDomain!=='libra' ||
+          binding.processType!=='libra_run' || binding.processId!==basis.libraRunId ||
+          binding.projectionRef!=='helix://libra/input-projections/ProductIdentityEvidenceIntent/v1' ||
+          intent.intentId!==result.intentId || display.get('title')!==providerIdentity.displayTitle ||
+          display.get('jav_code')!==providerIdentity.providerKey ||
+          canonicalJson(result)!==canonicalJson(require('./jav-product-identity').javIdentityObservation(intent,result.qualificationObservation)))
+        fail('P9_RESOLVED_IDENTITY_SOURCE_CHAIN','JAV identity does not conserve its exact qualified source and immutable intent.');
+    }
     if(providerIdentity?.namespace==='tmdb_series') {
       const binding=chain.inputBindings?.bindings?.find(item=>item.portName==='productIdentityEvidenceIntent');
       const claim=value.resolvedProductIdentity.exactSeasonContinuityClaims?.find(item=>item.claimKind==='provider_season_identity');
@@ -518,6 +541,9 @@ function buildProductMetadataDraft(value) {
   const basis = value?.sourceBasis;
   if (!basis || basis.sourceBasisKind !== 'metadata_observation') fail('P9_METADATA_DRAFT_BASIS', 'Observation basis is required.');
   const required = [...(value.requiredFields || [])];
+  const jav=basis.observationSet.contentProfile==='jav';
+  if(jav && (basis.observationSet.observations.length!==1 || basis.observationSet.observations[0].sourceKind!=='provider'))
+    fail('P9_JAV_METADATA_SINGLE_SOURCE','JAV metadata cannot combine different source observations.');
   if(value.episodeScopes!==undefined&&!Array.isArray(value.episodeScopes))
     fail('P9_METADATA_EPISODE_SCOPE','Season Draft requires a typed Episode scope array.');
   const episodeScopes = value.episodeScopes === undefined ? null : value.episodeScopes.map(buildEpisodeMetadataScope);
@@ -558,6 +584,7 @@ function buildProductMetadataDraft(value) {
     fieldProvenance:provenance, descriptiveFacts:{ schemaRef:'helix://contracts/records/descriptive-facts/v1', schemaVersion:1,
       recordKind:'descriptive-facts', recordDigest:'', entries:[...winners].map(([key, itemValue]) => ({ key, value:itemValue })).sort((a,b)=>compare(a.key,b.key)) },
     providerIdentities:[...(value.providerIdentities || [])], artifactRequirements };
+  if(jav)draft.javSelectedSource=require('../../../contracts/jav-selected-source').assertJavSelectedSource(basis.observationSet.observations[0].javSelectedSource);
   if (episodeScope) {
     const numbers = new Map(draft.descriptiveFacts.entries.map(item => [item.key, item.value]));
     if (numbers.get('season_number') !== episodeScope.seasonNumber || numbers.get('episode_number') !== episodeScope.episodeNumber)
@@ -910,6 +937,7 @@ function buildResolvedProductIdentity(value) {
     }),
     displayIdentity: Object.freeze(displayIdentity),
     identityDigest: '',
+    ...(value?.contentProfile==='jav'?{javSelectionFence:value.javSelectionFence,javSourceQualification:value.javSourceQualification}:{}),
   };
   if (!['single', 'season'].includes(result.structureKind) ||
       !['movie', 'series', 'jav', 'western_adult'].includes(result.contentProfile) ||
@@ -935,6 +963,7 @@ function buildResolvedProductIdentity(value) {
     subjectId: result.subjectId,
     basisDigest: result.basisDigest,
     identityDigest: result.identityDigest,
+    ...(result.contentProfile==='jav'?{javSelectionFence:result.javSelectionFence,javSourceQualification:result.javSourceQualification}:{}),
   });
   result.payloadDigest = canonicalDigest({
     schema: 'libra.resolved-product-identity-evidence@1',
@@ -997,6 +1026,7 @@ function buildProductMetadataFact(value) {
     fieldProvenance:[...draft.fieldProvenance], descriptiveFacts:draft.descriptiveFacts,
     providerIdentities:[...draft.providerIdentities], mediaCastFactRef,
     verifiedArtifactManifestDigest:digest(manifest.manifestDigest, 'verifiedArtifactManifestDigest') };
+  if(draft.javSelectedSource)body.javSelectedSource=require('../../../contracts/jav-selected-source').assertJavSelectedSource(draft.javSelectedSource);
   if(draft.episodeMetadata){
     if(basis.sourceBasisKind!=='metadata_observation'||basis.observationSet.contentProfile!=='series')
       fail('P9_METADATA_EPISODE_FACT_SCOPE','Episode Metadata requires a Series Observation basis.');

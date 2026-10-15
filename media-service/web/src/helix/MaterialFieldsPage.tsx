@@ -27,7 +27,7 @@ export default function MaterialFieldsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [fieldId, setFieldId] = useState(newFieldId);
   const [name, setName] = useState('媒体文件来源');
-  const [contentProfileHint, setContentProfileHint] = useState<'movie' | 'series'>('movie');
+  const [contentProfileHint, setContentProfileHint] = useState<'movie' | 'series' | 'jav' | 'mixed'>('movie');
   const [rootLocation, setRootLocation] = useState('');
   const [includedDirectories, setIncludedDirectories] = useState('');
   const [excludedDirectories, setExcludedDirectories] = useState('');
@@ -191,7 +191,7 @@ export default function MaterialFieldsPage() {
     {showCreate && <form className="source-create" onSubmit={createField}>
       <div className="source-create-heading"><div><h2>添加文件来源</h2></div></div>
       <div className="source-form-grid">
-        <label><span>媒体类型</span><select value={contentProfileHint} onChange={(event) => setContentProfileHint(event.target.value as 'movie' | 'series')} disabled={loading}><option value="movie">电影</option><option value="series">剧集</option></select></label>
+        <label><span>媒体类型</span><select value={contentProfileHint} onChange={(event) => setContentProfileHint(event.target.value as typeof contentProfileHint)} disabled={loading}><option value="movie">电影</option><option value="series">剧集</option><option value="jav">JAV</option><option value="mixed">混合媒体</option></select></label>
         <label><span>来源名称</span><input value={name} onChange={(event) => setName(event.target.value)} required /></label>
         <label className="wide"><span>媒体目录</span><input value={rootLocation} onChange={(event) => setRootLocation(event.target.value)} placeholder="例如 E:\\Movies 或 /media/Film" required /></label>
         <label><span>只包含这些子目录</span><textarea value={includedDirectories} onChange={(event) => setIncludedDirectories(event.target.value)} placeholder="留空表示整个来源；每行一个相对目录" /></label>

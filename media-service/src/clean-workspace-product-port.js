@@ -194,6 +194,7 @@ function definitions(schemaManifest) {
         list_materials: {
           kind: 'select-all',
           tableId: 'fx_workspace_materials',
+          keyColumns: ['owner_domain'],
           columns: [
             'workspace_id', 'material_handle_id', 'material_key', 'endpoint_id',
             'mount_scope_id', 'inode', 'fingerprint_algorithm', 'fingerprint_version', 'content_fingerprint',
@@ -222,6 +223,7 @@ function definitions(schemaManifest) {
           ],
           keyColumns: ['workspace_id', 'relative_path'],
           compareColumns: [
+            { column: 'owner_domain', parameter: 'expected_owner_domain' },
             { column: 'state', parameter: 'expected_state' },
             { column: 'handle_digest', parameter: 'expected_handle_digest' },
             { column: 'fence_digest', parameter: 'expected_fence_digest' },
@@ -444,7 +446,7 @@ function createCleanWorkspaceProductPort(options) {
       repositories.foundation,
       (context) => {
         const repo = context.repository(repositories.foundation.repositoryId);
-        const rows = repo.invoke('list_materials', {});
+        const rows = repo.invoke('list_materials', {owner_domain:'libra'});
         let count = 0;
         for (const row of rows) {
           if (row.state !== 'active') continue;
@@ -464,6 +466,7 @@ function createCleanWorkspaceProductPort(options) {
             workspace_id: row.workspace_id,
             relative_path: row.relative_path,
             expected_state: 'active',
+            expected_owner_domain: 'libra',
             expected_handle_digest: row.handle_digest,
             expected_fence_digest: row.fence_digest,
           });
@@ -1717,7 +1720,7 @@ function createCleanWorkspaceProductPort(options) {
       'clean_workspace_unreferenced_list',
       'execution-foundation',
       repositories.foundation,
-      (context) => context.repository(repositories.foundation.repositoryId).invoke('list_materials', {}),
+      (context) => context.repository(repositories.foundation.repositoryId).invoke('list_materials', {owner_domain:'libra'}),
     ) || [];
     const active = rows.filter((row) => row.workspace_id === workspaceId && row.state === 'active');
     const nowMs = Number.isSafeInteger(options.now?.()) ? options.now() : Date.now();

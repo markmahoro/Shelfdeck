@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.jav_correction.formal_retirement.execute/v1/inputs",
+  "title": "arca.jav_correction.formal_retirement.execute@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "javCorrectionRetirementScope": {
+      "$ref": "#/$defs/javCorrectionRetirementScope"
+    }
+  },
+  "required": [
+    "javCorrectionRetirementScope"
+  ],
+  "$defs": {
+    "javCorrectionRetirementScope": {
+      "$ref": "helix://contracts/domain-types/JavCorrectionRetirementScope/v1",
+      "x-helix-typeExpression": "JavCorrectionRetirementScope"
+    }
+  }
+}

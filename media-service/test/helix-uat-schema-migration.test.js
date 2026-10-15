@@ -22,9 +22,9 @@ const {
   migrateUatIdentitySelectionSchema,
 } = require('../src/helix/foundation/persistence/uat-identity-selection-migration');
 
-const generatedRoot = path.resolve(__dirname, '../src/helix/foundation/persistence/generated');
-const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
-const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
+// This migration's accepted target is historical; later development schemas
+// must not silently rewrite the original migration or its preservation oracle.
+const {schemaDdl,schemaManifest}=require('./fixtures/helix-historical-ddl/schema-snapshot').historicalSchema(TARGET_SCHEMA_DIGEST);
 
 
 const historicalRoot=path.join(__dirname,'fixtures/helix-historical-ddl');

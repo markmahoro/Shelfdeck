@@ -52,7 +52,7 @@
     },
     {
       "source": "integrations",
-      "allow": ["node:crypto", "node:fs", "node:path", "cheerio", "undici"]
+      "allow": ["node:crypto", "node:fs", "node:path", "cheerio", "undici", "sharp"]
     },
     {
       "source": "projections",

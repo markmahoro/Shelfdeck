@@ -6,6 +6,7 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { physicalIdentityFromInventoryRow } = require('./aftercare-contract');
 const {readInventoryArtifactScope}=require('./inventory-artifact-scope');
 const {aftercareProviderIdentity}=require('./aftercare-provider-identity');
+const {inventoryContentProfile}=require('./product-content-profile');
 
 const PLACEMENT_LAYOUT_FIELDS = Object.freeze([
   'folderTemplate',
@@ -85,10 +86,14 @@ function inventoryMember(row) {
   return Object.freeze({ ...base, memberDigest:canonicalDigest(base) });
 }
 
-function buildAftercareInventoryRequest(context, inventoryPort, at, caseId) {
+function buildInventoryPlacementRequest(context, inventoryPort, at, caseId, processKind) {
   const members = context.raw.materials.map(inventoryMember)
     .sort((left, right) => left.materialKey.localeCompare(right.materialKey));
   const identity = metadataIdentity(context);
+  const contentProfile=inventoryContentProfile(context.raw.identity,context.raw.entry.structure_kind),
+    storedIdentity=context.raw.facts.find(item=>item.fact_kind==='resolved_identity')?.value,
+    placementIdentity=Object.freeze({...storedIdentity?.resolvedProductIdentity||storedIdentity,
+      ...identity,contentProfile,identityKind:context.raw.identity.identity_kind,structureKind:context.raw.entry.structure_kind});
   const series=context.raw.entry.structure_kind==='season';
   let seriesIdentity;
   if(series) {
@@ -124,7 +129,7 @@ function buildAftercareInventoryRequest(context, inventoryPort, at, caseId) {
     productStructureSnapshot: Object.freeze({
       structureKind: context.raw.entry.structure_kind === 'season' ? 'season' : 'single',
     }),
-    resolvedIdentitySnapshot: Object.freeze({ factValue:series?Object.freeze({...seriesIdentity,...identity}):identity }),
+    resolvedIdentitySnapshot: Object.freeze({ factValue:series?Object.freeze({...seriesIdentity,...placementIdentity}):placementIdentity }),
     ...(series?{productFactManifest:Object.freeze({items:Object.freeze(context.raw.facts.map(item=>
       Object.freeze({factKind:item.fact_kind,factValue:item.value,sourcePackageId:item.source_package_id})))})}:{}),
     productMaterialManifest,
@@ -154,7 +159,7 @@ function buildAftercareInventoryRequest(context, inventoryPort, at, caseId) {
   const base = {
     onDeckRunId: caseId,
     custodyId: caseId,
-    aftercareCaseId: caseId,
+    ...(processKind==='aftercare'?{aftercareCaseId:caseId}:{correctionId:caseId}),
     shelf,
     onDeckProductPackage,
     observedAtMs: at,
@@ -164,6 +169,14 @@ function buildAftercareInventoryRequest(context, inventoryPort, at, caseId) {
   };
   const finalInventoryDecision = inventoryPort.prepare(base);
   return Object.freeze({ ...base, finalInventoryDecision });
+}
+
+function buildAftercareInventoryRequest(context, inventoryPort, at, caseId) {
+  return buildInventoryPlacementRequest(context,inventoryPort,at,caseId,'aftercare');
+}
+
+function buildJavCorrectionPlacementRequest(context,inventoryPort,at,correctionId) {
+  return buildInventoryPlacementRequest(context,inventoryPort,at,correctionId,'correction');
 }
 
 function placementMatchesInventory(context,request) {
@@ -244,5 +257,5 @@ function placementMaterialReceipts(context, workResultReader, sourceWorkId,
     right.finalMaterialIdentity.materialKey)));
 }
 
-module.exports = Object.freeze({ buildAftercareInventoryRequest, classifyAcceptedPlacement,
+module.exports = Object.freeze({ buildAftercareInventoryRequest, buildJavCorrectionPlacementRequest, classifyAcceptedPlacement,
   metadataIdentity, placementMaterialReceipts, placementMatchesInventory });

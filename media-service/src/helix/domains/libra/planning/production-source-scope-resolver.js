@@ -27,6 +27,7 @@ function referenceFor(snapshot) {
     memberSetDigest: snapshot.run.runMaterialManifestDigest,
     memberCount: members.length,
     selectedPayloadSetDigest: selectedPayloadSetDigest(members),
+    ...(snapshot.materialInputForm==='jav_named_parts' ? { javPartSet:snapshot.candidatePackage.javPartSet } : {}),
   });
 }
 
@@ -101,7 +102,11 @@ function createProductionSourceScopeResolver(options) {
       error.code = 'LIBRA_PRODUCTION_SOURCE_SCOPE_STALE';
       throw error;
     }
-    const order = topologyOrder(snapshot);
+    const order = snapshot.materialInputForm==='jav_named_parts'
+      ? new Map(expected.javPartSet.parts.map(part=>[part.materialKey,part.ordinal])) : topologyOrder(snapshot);
+    if(snapshot.materialInputForm==='jav_named_parts' && (snapshot.spec.contentProfile!=='jav'||snapshot.members.length!==2||
+        snapshot.members.some(member=>member.role!=='primary_payload'||!order.has(member.materialKey))))
+      throw new Error('Named-part source does not conserve its exact JAV Run members.');
     const members = [...snapshot.members].sort((left, right) =>
       (order.get(left.materialKey) ?? Number.MAX_SAFE_INTEGER) -
       (order.get(right.materialKey) ?? Number.MAX_SAFE_INTEGER) || utf8(left, right)).map((member) => Object.freeze({
@@ -150,6 +155,7 @@ function createProductionSourceScopeResolver(options) {
   }
 
   function primarySources(snapshot) {
+    if(snapshot.materialInputForm==='jav_named_parts') return resolve(referenceFor(snapshot)).primaryMembers;
     if (snapshot.spec.contentProfile !== 'series') {
       // Disc probing keeps the frozen title/topology behavior of single products.
       return Object.freeze([resolve(referenceFor(snapshot)).primaryMembers[0]]);
@@ -159,7 +165,8 @@ function createProductionSourceScopeResolver(options) {
   }
 
   function primaryMember(snapshot, parameters) {
-    const member = seriesPrimaryMembers(snapshot).find(item => item.materialKey === parameters.materialKey);
+    const member = (snapshot.materialInputForm==='jav_named_parts' ? resolve(referenceFor(snapshot)).primaryMembers.map(item=>item.member)
+      : seriesPrimaryMembers(snapshot)).find(item => item.materialKey === parameters.materialKey);
     if (Object.keys(parameters).length !== 2 || !Object.hasOwn(parameters, 'memberDigest') ||
         !member || canonicalDigest(member) !== parameters.memberDigest) {
       const error = new Error('Source Probe does not bind an exact frozen Series Primary.');

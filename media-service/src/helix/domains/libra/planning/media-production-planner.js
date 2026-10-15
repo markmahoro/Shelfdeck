@@ -205,14 +205,16 @@ function transcodeSource(options,snapshot,member) {
     productionPort:options.productProductionPort});
   const original=sourceScopeResolver.resolve(sourceScopeResolver.referenceFor(snapshot)),sourceWork=sourceMediaObservationWork(snapshot);
   const sourceResults=options.workResultReader.read(sourceWork.workId).filter((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===PROBE);
-  if(sourceResults.length!==1)throw new Error('Transcode planning requires one source Probe Result.');
+  const originalProbe=snapshot.materialInputForm==='jav_named_parts'
+    ?readSourceMediaObservations(options,snapshot)[0].record.result:sourceResults[0]?.result;
+  if(snapshot.materialInputForm!=='jav_named_parts'&&sourceResults.length!==1)throw new Error('Transcode planning requires one source Probe Result.');
   if(snapshot.materialInputForm==='stream_file')return Object.freeze({handle:original.primaryReadHandle,
     inputProbe:sourceResults[0].result,originalProbe:sourceResults[0].result});
   const remuxWork=remuxMediaSelectionWork(snapshot),remuxResults=options.workResultReader.read(remuxWork.workId);
   const media=remuxResults.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===REMUX)?.result;
   const probe=remuxResults.find((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===PROBE)?.result;
   if(!media||!probe)throw new Error('Container Transcode planning requires durable Remux media and Probe Results.');
-  return Object.freeze({handle:media.workspaceMaterialHandle,inputProbe:probe,originalProbe:sourceResults[0].result});
+  return Object.freeze({handle:media.workspaceMaterialHandle,inputProbe:probe,originalProbe});
 }
 
 function transcodePlanning(options,snapshot,ordinal,member) {
@@ -264,6 +266,7 @@ function transcodePlanning(options,snapshot,ordinal,member) {
     outputColorProfile:hasDolbyVision?{range:'limited',primaries:'bt709',transfer:'bt709',matrix:'bt709'}:
       {range:'source',primaries:'source',transfer:'source',matrix:'source'},
     ...(previous?{previousIntentDigest:previous.intent.intentDigest}:{}),
+    ...(snapshot.materialInputForm==='jav_named_parts'?{javPartSetDigest:snapshot.candidatePackage.javPartSet.groupDigest}:{}),
     ...(selectedAudio.audioStreams.length?{audioStreamIndexes:selectedAudio.audioStreams.map((item)=>item.streamIndex)}:{})});
   const workspace=options.movieProductionReader.readWorkspace(workspaceId(snapshot.run.libraRunId));
   if(!workspace||workspace.state!=='active')throw new Error('Active Libra Workspace is unavailable for Transcode planning.');
@@ -323,7 +326,7 @@ function createWorkspaceMediaProductionPlanner(options) {
       return planEnvelope({plannerContractRef,catalogDigest},request,work,nodes);
     }
     if(request.workId===sourceWork.workId){
-      const isSeries=snapshot.spec.contentProfile==='series';
+      const isSeries=snapshot.spec.contentProfile==='series'||snapshot.materialInputForm==='jav_named_parts';
       const resolver=createProductionSourceScopeResolver({movieProductionReader:options.movieProductionReader,
         productionPort:options.productProductionPort});
       const nodes=resolver.primarySources(snapshot).map((item,index)=>{
@@ -371,8 +374,13 @@ function createWorkspaceMediaProductionPlanner(options) {
       const reference=importedSource?require('./production-source-scope-resolver').workspaceReferenceFor(snapshot,importedSource.handle):remuxMember?sourceScopeResolver.primaryReferenceFor(snapshot,memberParameters)
         :buildProductionSourceScopeReference(sourceScopeResolver.referenceFor(snapshot));
       const requirement=buildMediaRequirement(snapshot.spec);
+      const partSources=reference.javPartSet?readSourceMediaObservations(options,snapshot):null;
+      const copyDigest=partSources?.[0].record.result.copyCompatibilityDigest;
+      if(partSources&&(!copyDigest||partSources.some(source=>source.record.result.copyCompatibilityDigest!==copyDigest)))
+        return planEnvelope({plannerContractRef,catalogDigest},request,remuxWork,[],'contract_unplannable','jav_part_copy_incompatible');
       const intent=buildRemuxIntent({revision:1,libraRunId:snapshot.run.libraRunId,
-        sourceHandleDigest:reference.sourceReferenceDigest,mediaRequirementDigest:requirement.requirementDigest});
+        sourceHandleDigest:reference.sourceReferenceDigest,mediaRequirementDigest:requirement.requirementDigest,
+        ...(reference.javPartSet ? {javPartSetDigest:reference.javPartSet.groupDigest,copyCompatibilityDigest:copyDigest} : {})});
       const workspace=options.movieProductionReader.readWorkspace(workspaceId(snapshot.run.libraRunId));
       if(!workspace||workspace.state!=='active')throw new Error('Active Libra Workspace is unavailable for Remux planning.');
       const root=options.workspaceProductPort.rootSnapshot();
@@ -476,6 +484,7 @@ function createWorkspaceMediaProductionProjections(options) {
   function source(snapshotValue){return sourceScopeResolver.resolve(sourceScopeResolver.referenceFor(snapshotValue));}
   function sourceProbe(snapshotValue,sourceWorkId){
     const results=options.workResultReader.read(sourceWorkId).filter((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===PROBE);
+    if(snapshotValue.materialInputForm==='jav_named_parts')return readSourceMediaObservations(options,snapshotValue)[0].record.result;
     if(results.length!==1)throw new Error('Workspace Media source Observation is absent or ambiguous.');
     return results[0].result;
   }
@@ -486,7 +495,9 @@ function createWorkspaceMediaProductionProjections(options) {
   function remuxIntent(snapshotValue){
     const reference=sourceReference(snapshotValue),requirement=buildMediaRequirement(snapshotValue.spec);
     return buildRemuxIntent({revision:1,libraRunId:snapshotValue.run.libraRunId,
-      sourceHandleDigest:reference.sourceReferenceDigest,mediaRequirementDigest:requirement.requirementDigest});
+      sourceHandleDigest:reference.sourceReferenceDigest,mediaRequirementDigest:requirement.requirementDigest,
+      ...(reference.javPartSet ? {javPartSetDigest:reference.javPartSet.groupDigest,
+        copyCompatibilityDigest:readSourceMediaObservations(options,snapshotValue)[0].record.result.copyCompatibilityDigest} : {})});
   }
   function remuxTarget(snapshotValue){
     const workspace=options.movieProductionReader.readWorkspace(workspaceId(snapshotValue.run.libraRunId));
@@ -509,7 +520,7 @@ function createWorkspaceMediaProductionProjections(options) {
     }})}),
     Object.freeze({projectionRef:SOURCE_HANDLE,projection:Object.freeze({project:({ownerScope,parameters={}})=>{
       const value=snapshot(ownerScope);
-      if(value.spec.contentProfile!=='series') {
+      if(value.spec.contentProfile!=='series'&&value.materialInputForm!=='jav_named_parts') {
         if(Object.keys(parameters).length)throw new Error('Single source Probe cannot carry Series member parameters.');
         return source(value).primaryReadHandle;
       }
@@ -573,6 +584,7 @@ function createWorkspaceMediaProductionProjections(options) {
       return buildProductMediaCandidateInput({libraRunId:value.run.libraRunId,candidateNodeId:parameters.candidateNodeId,
         candidateKind:'workspace_output',mediaRequirement:buildMediaRequirement(value.spec),workspaceMediaHandle:media,
         sourceProbeEvidence:probe,outputProbeEvidence:outputProbe,
+        ...(value.materialInputForm==='jav_named_parts' ? {javPartSourceEvidence:require('../model/jav-media-parts').buildJavSourceEvidence(value,readSourceMediaObservations(options,value))} : {}),
         ...(externalSource&&canonicalDigest(externalSource.handle)===media.sourceMaterialHandleDigest&&externalSource.editionEvidence
           ?{editionEvidence:externalSource.editionEvidence}:{})});
     }})}),

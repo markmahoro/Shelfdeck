@@ -162,6 +162,16 @@ function domainRows(contract, owner) {
       row.winning_perception_id = null;
       row.reason_code = 'no_matching_record';
     }
+    if (tableId === 'arca_jav_identity_corrections') {
+      // These synthetic rows test kernel atomicity, not correction qualification.
+      // Actual committed context/Receipt proofs are tested by jav-host-journey.
+      for (const column of contractTable.columns.filter(column=>column.nullable)) row[column.name]=null;
+      row.preview_proof_schema_ref='helix://contracts/application-types/ArcaJavCorrectionPreviewProof/v1';
+    }
+    if(tableId==='arca_jav_correction_recovery_intents'){
+      row.receipt_schema_ref='helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1';
+      row.observation_schema_ref='helix://contracts/application-types/ArcaJavCorrectionRecoveryObservation/v1';
+    }
     rows.set(tableId, row);
   }
   return rows;
@@ -175,6 +185,9 @@ function domainParticipant(contract, owner, expectedRevision = 0) {
     ordinal += 1;
     statements['insert_' + String(ordinal).padStart(3, '0')] = { kind: 'insert', tableId, columns: Object.keys(row) };
   }
+  if(rows.size===0){const tableId=contract.readTables.find(tableId=>tableManifest.get(tableId)?.owner===owner);
+    assert.ok(tableId,'Read-only business participant must use its declared Owner table.');
+    statements.read_fence={kind:'select-one',tableId,columns:tableContract(tableId).primaryKey,keyColumns:tableContract(tableId).primaryKey};}
   const repository = createRepositoryDefinition({ repositoryId: 'fixture_domain', owner, schemaManifest, statements });
   return {
     participantId: 'fixture_domain', owner, repositories: [repository],
@@ -185,6 +198,7 @@ function domainParticipant(contract, owner, expectedRevision = 0) {
         throw error;
       }
       let index = 0;
+      if(rows.size===0){const tableId=statements.read_fence.tableId;context.repository('fixture_domain').invoke('read_fence',Object.fromEntries(tableContract(tableId).primaryKey.map(column=>[column,'missing-fixture-row'])));}
       for (const row of rows.values()) {
         index += 1;
         context.repository('fixture_domain').invoke('insert_' + String(index).padStart(3, '0'), row);
@@ -426,6 +440,16 @@ function participantsFor(contract, unitOfWork, options = {}) {
   if (contract.writeTables.includes('fx_audit_records')) result.push(auditParticipant(contract,owner));
   if (contract.writeTables.includes('fx_inbox')) result.push(inboxParticipant(contract, owner));
   if (contract.writeTables.includes('fx_workspace_registry')) result.push(workspaceRegistryParticipant(contract, owner));
+  const workspaceTables=contract.writeTables.filter(tableId=>['fx_workspace_materials','fx_artifact_registry'].includes(tableId));
+  if(workspaceTables.length){
+    const rows=domainRows({...contract,writeTables:workspaceTables},'execution-foundation'),statements={};let index=0;
+    for(const [tableId,row] of rows){for(const column of tableContract(tableId).columns.filter(column=>column.nullable))row[column.name]=null;
+      if(tableId==='fx_workspace_materials')row.workspace_id='workspace-'+digest(contract.transactionId).slice(0,16);
+      row.owner_domain=owner;statements['insert_'+index++]={kind:'insert',tableId,columns:Object.keys(row)};}
+    const repository=createRepositoryDefinition({repositoryId:'fixture_workspace_members',owner:'execution-foundation',schemaManifest,statements});
+    result.push({participantId:'fixture_workspace_members',owner:'execution-foundation',boundBusinessOwner:owner,repositories:[repository],execute(context){let ordinal=0;
+      for(const row of rows.values())context.repository(repository.repositoryId).invoke('insert_'+ordinal++,row);}});
+  }
   if (contract.fenceContract.commitMarkerRequired) result.push(markerParticipant(contract, owner, 'marker-' + digest(contract.transactionId).slice(0, 16)));
   if (contract.fenceContract.outboxRequired) result.push(outboxParticipant(contract, owner));
   return result;
@@ -472,13 +496,13 @@ function fixture(contract, run, options = {}) {
 
 const transactionContracts = contracts();
 
-test('canonical transaction inventory drives exactly 45 isolated contracts', () => {
+test('canonical transaction inventory drives exactly 51 isolated contracts', () => {
   const inventory = loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests/transaction-inventory.json'));
   const inventoryEntries = inventory.entryFiles.flatMap((file) =>
     loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests', file)).entries
   );
-  assert.equal(transactionContracts.length, 45);
-  assert.equal(inventory.targetCount, 45);
+  assert.equal(transactionContracts.length, 51);
+  assert.equal(inventory.targetCount, 51);
   assert.deepEqual(transactionContracts.map((contract) => contract.transactionId),
     [...inventoryEntries].sort((left, right) => left.id.localeCompare(right.id)).map((entry) => entry.id));
   for (const contract of transactionContracts) {

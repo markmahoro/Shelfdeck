@@ -38,7 +38,9 @@ const MUTABLE_LIFECYCLE_TABLES = new Set([
   'libra_workspace_cleanup_members',
   'arca_recycle_entries',
   'arca_source_cleanup_checks',
+  'arca_jav_correction_directory_checks',
   'arca_ondeck_runs'
+  ,'arca_jav_identity_corrections'
   ,'arca_offdeck_review_candidates','arca_offdeck_duplicate_groups','arca_offdeck_suppressions',
   'arca_offdeck_duplicate_whitelists','arca_offdeck_reviews','arca_offdeck_reservations',
   'arca_offdeck_scopes','arca_offdeck_authorizations','arca_offdeck_cases'
@@ -153,6 +155,8 @@ const NULLABLE_COLUMN_OVERRIDES = new Set([
   'libra_intake_decisions.expected_target_status'
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
+  'arca_jav_correction_recovery_intents.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
+  'arca_jav_correction_directory_checks.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
   'fx_plan_nodes.compensation_for_event_id': ['fx_workflow_events', 'event_id'],
   'proc_procurement_retry_intents.failed_run_id': ['proc_procurement_runs', 'procurement_run_id'],
   'libra_subjects.routing_anchor_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id'],
@@ -302,6 +306,15 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'arca_jav_identity_corrections.preview_proof_json': 2 * 1024 * 1024,
+  'arca_jav_identity_corrections.committed_context_json': 4 * 1024 * 1024,
+  'arca_jav_identity_corrections.cleanup_receipt_json': 16 * 1024,
+  'arca_jav_identity_corrections.recovery_intent_json': 16 * 1024,
+  'arca_jav_correction_recovery_intents.receipt_json': 16 * 1024,
+  'arca_jav_correction_recovery_intents.observation_json': 1024 * 1024,
+  'proc_candidate_packages.jav_part_set_json': 16 * 1024,
+  'proc_candidate_packages.identity_metadata_json': 64 * 1024,
+  'proc_candidate_packages.identity_claim_json': 64 * 1024,
   'arca_final_inventory_decisions.decision_json': 8 * 1024 * 1024,
   'arca_inventory_verification_records.verification_json':8*1024*1024,
   'arca_staged_manifest_records.manifest_json': 8 * 1024 * 1024,

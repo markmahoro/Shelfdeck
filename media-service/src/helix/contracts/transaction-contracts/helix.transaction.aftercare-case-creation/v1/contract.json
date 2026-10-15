@@ -35,6 +35,7 @@
       "fx_outbox"
     ],
     "readTables": [
+      "arca_jav_identity_corrections",
       "arca_aftercare_assessments",
       "arca_aftercare_findings",
       "arca_shelf_entries"
@@ -90,6 +91,7 @@
           "fx_audit_records"
         ],
         "readTables": [
+          "arca_jav_identity_corrections",
           "arca_aftercare_assessments",
           "arca_aftercare_findings",
           "arca_shelf_entries",
@@ -158,7 +160,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8743,
+      "line": 8753,
       "lineDigest": "cf5ea0c843bac236e760a30451c5c46b3fa1420f0c77bbe39f72bd957c60e9e9"
     }
   }

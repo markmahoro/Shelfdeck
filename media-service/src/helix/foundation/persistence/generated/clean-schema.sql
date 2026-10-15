@@ -511,6 +511,100 @@ CREATE TABLE "arca_inventory_verification_records" (
   FOREIGN KEY ("commit_marker") REFERENCES "fx_commit_markers" ("commit_marker") ON DELETE RESTRICT
 );
 
+CREATE TABLE "arca_jav_correction_directory_checks" (
+  "correction_id" TEXT PRIMARY KEY,
+  "shelf_entry_id" TEXT,
+  "committed_context_digest" TEXT CHECK (length("committed_context_digest") = 64 AND "committed_context_digest" NOT GLOB '*[^0-9a-f]*'),
+  "cleanup_receipt_digest" TEXT CHECK (length("cleanup_receipt_digest") = 64 AND "cleanup_receipt_digest" NOT GLOB '*[^0-9a-f]*'),
+  "state" TEXT CHECK ("state" IN ('pending', 'attention', 'completed')),
+  "check_revision" INTEGER CHECK ("check_revision" >= 1),
+  "checks_schema_ref" TEXT,
+  "checks_json" TEXT,
+  "checks_scope_digest" TEXT CHECK (length("checks_scope_digest") = 64 AND "checks_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "last_error_code" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  "next_check_at_ms" INTEGER CHECK ("next_check_at_ms" >= 0),
+  CHECK (json_valid("checks_json")),
+  CHECK (length(CAST("checks_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("correction_id") REFERENCES "arca_jav_identity_corrections" ("correction_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_jav_correction_directory_checks_hot_01" ON "arca_jav_correction_directory_checks" ("next_check_at_ms", "correction_id");
+
+CREATE TABLE "arca_jav_correction_recovery_intents" (
+  "recovery_id" TEXT PRIMARY KEY,
+  "correction_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "previous_intent_digest" TEXT CHECK (length("previous_intent_digest") = 64 AND "previous_intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "receipt_schema_ref" TEXT,
+  "receipt_json" TEXT,
+  "receipt_digest" TEXT CHECK (length("receipt_digest") = 64 AND "receipt_digest" NOT GLOB '*[^0-9a-f]*'),
+  "observation_schema_ref" TEXT,
+  "observation_json" TEXT,
+  "observation_digest" TEXT CHECK (length("observation_digest") = 64 AND "observation_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("receipt_digest"),
+  CHECK (json_valid("receipt_json")),
+  CHECK (length(CAST("receipt_json" AS BLOB)) <= 16384),
+  CHECK (json_valid("observation_json")),
+  CHECK (length(CAST("observation_json" AS BLOB)) <= 1048576),
+  CHECK ("receipt_schema_ref" = 'helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1'),
+  CHECK ("observation_schema_ref" = 'helix://contracts/application-types/ArcaJavCorrectionRecoveryObservation/v1'),
+  FOREIGN KEY ("correction_id") REFERENCES "arca_jav_identity_corrections" ("correction_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_jav_correction_recovery_intents_hot_01" ON "arca_jav_correction_recovery_intents" ("correction_id", "created_at_ms");
+
+CREATE TABLE "arca_jav_identity_corrections" (
+  "correction_id" TEXT PRIMARY KEY,
+  "shelf_entry_id" TEXT,
+  "preview_id" TEXT,
+  "preview_proof_schema_ref" TEXT,
+  "preview_proof_json" TEXT,
+  "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "proposal_digest" TEXT CHECK (length("proposal_digest") = 64 AND "proposal_digest" NOT GLOB '*[^0-9a-f]*'),
+  "placement_preview_digest" TEXT CHECK (length("placement_preview_digest") = 64 AND "placement_preview_digest" NOT GLOB '*[^0-9a-f]*'),
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "admission_digest" TEXT CHECK (length("admission_digest") = 64 AND "admission_digest" NOT GLOB '*[^0-9a-f]*'),
+  "state" TEXT CHECK ("state" IN ('admitted', 'active', 'attention_required', 'committed', 'cancelled')),
+  "state_revision" INTEGER CHECK ("state_revision" >= 1),
+  "terminal_evidence_digest" TEXT CHECK (length("terminal_evidence_digest") = 64 AND "terminal_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_context_schema_ref" TEXT,
+  "committed_context_json" TEXT,
+  "committed_context_digest" TEXT CHECK (length("committed_context_digest") = 64 AND "committed_context_digest" NOT GLOB '*[^0-9a-f]*'),
+  "cleanup_state" TEXT CHECK ("cleanup_state" IN ('pending', 'active', 'attention_required', 'completed')),
+  "cleanup_receipt_schema_ref" TEXT,
+  "cleanup_receipt_json" TEXT,
+  "cleanup_receipt_digest" TEXT CHECK (length("cleanup_receipt_digest") = 64 AND "cleanup_receipt_digest" NOT GLOB '*[^0-9a-f]*'),
+  "recovery_intent_schema_ref" TEXT,
+  "recovery_intent_json" TEXT,
+  "recovery_intent_digest" TEXT CHECK (length("recovery_intent_digest") = 64 AND "recovery_intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
+  UNIQUE ("shelf_entry_id", "actor_id", "idempotency_key"),
+  CHECK (json_valid("preview_proof_json")),
+  CHECK (length(CAST("preview_proof_json" AS BLOB)) <= 2097152),
+  CHECK ("committed_context_json" IS NULL OR json_valid("committed_context_json")),
+  CHECK ("committed_context_json" IS NULL OR length(CAST("committed_context_json" AS BLOB)) <= 4194304),
+  CHECK ("cleanup_receipt_json" IS NULL OR json_valid("cleanup_receipt_json")),
+  CHECK ("cleanup_receipt_json" IS NULL OR length(CAST("cleanup_receipt_json" AS BLOB)) <= 16384),
+  CHECK ("recovery_intent_json" IS NULL OR json_valid("recovery_intent_json")),
+  CHECK ("recovery_intent_json" IS NULL OR length(CAST("recovery_intent_json" AS BLOB)) <= 16384),
+  CHECK (("recovery_intent_schema_ref" IS NULL AND "recovery_intent_json" IS NULL AND "recovery_intent_digest" IS NULL) OR ("recovery_intent_schema_ref" IS NOT NULL AND "recovery_intent_schema_ref" = 'helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1' AND "recovery_intent_json" IS NOT NULL AND "recovery_intent_digest" IS NOT NULL)),
+  CHECK (("state" = 'committed' AND "cleanup_state" IS NOT NULL) OR ("state" <> 'committed' AND "cleanup_state" IS NULL)),
+  CHECK (("cleanup_state" = 'completed' AND "cleanup_receipt_schema_ref" IS NOT NULL AND "cleanup_receipt_schema_ref" = 'helix://contracts/application-types/ArcaJavCorrectionCleanupReceipt/v1' AND "cleanup_receipt_json" IS NOT NULL AND "cleanup_receipt_digest" IS NOT NULL) OR (COALESCE("cleanup_state", '') <> 'completed' AND "cleanup_receipt_schema_ref" IS NULL AND "cleanup_receipt_json" IS NULL AND "cleanup_receipt_digest" IS NULL)),
+  CHECK (("state" = 'committed' AND "committed_context_schema_ref" IS NOT NULL AND "committed_context_schema_ref" = 'helix://contracts/application-types/ArcaJavCorrectionCommittedContext/v1' AND "committed_context_json" IS NOT NULL AND "committed_context_digest" IS NOT NULL) OR ("state" <> 'committed' AND "committed_context_schema_ref" IS NULL AND "committed_context_json" IS NULL AND "committed_context_digest" IS NULL)),
+  CHECK ("state_revision" >= 1),
+  CHECK (("state" IN ('admitted','active','attention_required') AND "terminal_evidence_digest" IS NULL AND "terminal_at_ms" IS NULL) OR ("state" IN ('committed','cancelled') AND "terminal_evidence_digest" IS NOT NULL AND "terminal_at_ms" IS NOT NULL)),
+  CHECK ("preview_proof_schema_ref" = 'helix://contracts/application-types/ArcaJavCorrectionPreviewProof/v1'),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_jav_identity_corrections_hot_01" ON "arca_jav_identity_corrections" ("shelf_entry_id", "state");
+CREATE UNIQUE INDEX "uidx_arca_jav_identity_corrections_partial_01" ON "arca_jav_identity_corrections" ("shelf_entry_id") WHERE "terminal_at_ms" IS NULL OR "cleanup_state" IN ('pending','active','attention_required');
+
 CREATE TABLE "arca_material_bindings" (
   "owner_object_type" TEXT,
   "owner_object_id" TEXT,
@@ -2008,11 +2102,15 @@ CREATE TABLE "libra_product_identity_selection_intents" (
   "candidate_set_digest" TEXT CHECK (length("candidate_set_digest") = 64 AND "candidate_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "expected_run_state_revision" INTEGER CHECK ("expected_run_state_revision" >= 1),
   "expected_identity_revision" INTEGER CHECK ("expected_identity_revision" >= 1),
+  "selection_record_schema_ref" TEXT,
+  "selection_record_json" TEXT,
   "idempotency_key" TEXT,
   "intent_digest" TEXT CHECK (length("intent_digest") = 64 AND "intent_digest" NOT GLOB '*[^0-9a-f]*'),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   UNIQUE ("libra_run_id", "intent_revision"),
   UNIQUE ("libra_run_id", "idempotency_key"),
+  CHECK ("selection_record_json" IS NULL OR json_valid("selection_record_json")),
+  CHECK ("selection_record_json" IS NULL OR length(CAST("selection_record_json" AS BLOB)) <= 65536),
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
 );
 
@@ -3286,7 +3384,9 @@ CREATE TABLE "proc_candidate_packages" (
   "field_context_digest" TEXT CHECK (length("field_context_digest") = 64 AND "field_context_digest" NOT GLOB '*[^0-9a-f]*'),
   "media_type" TEXT CHECK ("media_type" IN ('single', 'group')),
   "content_profile" TEXT CHECK ("content_profile" IN ('movie', 'series', 'jav', 'western_adult')),
-  "material_input_form" TEXT CHECK ("material_input_form" IN ('stream_file', 'bdmv', 'dvd', 'iso')),
+  "material_input_form" TEXT CHECK ("material_input_form" IN ('stream_file', 'bdmv', 'dvd', 'iso', 'jav_named_parts')),
+  "jav_part_set_schema_ref" TEXT,
+  "jav_part_set_json" TEXT,
   "structure_kind" TEXT CHECK ("structure_kind" IN ('single', 'season')),
   "display_identity" TEXT,
   "identity_metadata_schema_ref" TEXT,
@@ -3311,6 +3411,8 @@ CREATE TABLE "proc_candidate_packages" (
   "state" TEXT CHECK ("state" IN ('published')),
   "published_at_ms" INTEGER CHECK ("published_at_ms" >= 0),
   UNIQUE ("procurement_run_id", "package_revision"),
+  CHECK ("jav_part_set_json" IS NULL OR json_valid("jav_part_set_json")),
+  CHECK ("jav_part_set_json" IS NULL OR length(CAST("jav_part_set_json" AS BLOB)) <= 16384),
   CHECK (json_valid("identity_metadata_json")),
   CHECK (length(CAST("identity_metadata_json" AS BLOB)) <= 65536),
   CHECK (json_valid("identity_claim_json")),

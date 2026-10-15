@@ -1,4 +1,9 @@
 const recycleErrors: Record<string, string> = {
+  ARCA_JAV_CORRECTION_BUSY: '影片身份正在纠正，请稍后再检查目录',
+  ARCA_JAV_CORRECTION_DIRECTORY_NOT_READY: '影片纠正尚未完成清理，请稍后再试',
+  ARCA_JAV_DIRECTORY_CHECK_SCOPE_CHANGED: '影片目录范围已变化，请重新检查',
+  ARCA_JAV_DIRECTORY_CHECK_CHANGED: '目录检查结果已更新，请刷新',
+  ARCA_JAV_DIRECTORY_CHECK_CORRUPT: '目录检查记录无法核验，请检查服务状态',
   ARCA_RECYCLE_SOURCE_IN_USE: '文件仍在使用，已保留',
   ARCA_RECYCLE_PRIMARY_PRESENT: '目录仍含影片文件，已保留',
   ARCA_RECYCLE_SOURCE_NOT_BOUND: '无法确认目录属于这部影片',

@@ -6,8 +6,8 @@ const {historicalDatabase}=require('../fixtures/historical-database');
 const {digest}=require('../../src/helix/foundation/persistence/ddl-compiler');
 const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-kernel');
 const {migrateUatIdentitySelectionSchema,PRE_SERIES_PROVENANCE_SCHEMA_DIGEST}=require('../../src/helix/foundation/persistence/uat-identity-selection-migration');
-const schemaManifest=require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
-const schemaDdl=fs.readFileSync(path.resolve(__dirname,'../../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
+const schemaManifest=require('../fixtures/helix-historical-ddl/schema-snapshot').historicalSchema('c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d').schemaManifest;
+const schemaDdl=require('../fixtures/helix-historical-ddl/schema-snapshot').historicalSchema('c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d').schemaDdl;
 const catalog=db=>db.prepare("SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name")
   .all().map(row=>({...row,sql:row.sql&&row.sql.replaceAll('\r\n','\n')}));
 

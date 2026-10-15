@@ -1,6 +1,7 @@
 'use strict';
 
 const crypto = require('crypto');
+const { JAV_SITE_REFS } = require('../../src/helix/contracts/jav-source-contracts');
 
 const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
 const typeVersion = (name) => name === 'PhysicalMaterialIdentity' ? 2 : 1;
@@ -160,10 +161,18 @@ const definitions = {
     expectedObservationRevision: nonNegativeInteger(), cursorIn: nullable(text()), pageBudget: boundedPositiveInteger(256),
     profileHintSnapshot: applicationRef('MaterialFieldProfileHintSnapshot'), requestDigest: digestHex()
   }),
-  IntegrationHandle: () => nominal('IntegrationHandle', {
-    handleId: opaqueId(), integrationId: opaqueId(), integrationType: text(), configRevision: positiveInteger(), secretRef: opaqueId(),
-    allowedOperation: text(), expiresAtMs: nonNegativeInteger(), fenceDigest: digestHex()
-  }),
+  IntegrationHandle: () => {
+    const base = { handleId: opaqueId(), integrationId: opaqueId(), integrationType: text(), configRevision: positiveInteger(),
+      secretRef: nullable(opaqueId()), allowedOperation: text(), expiresAtMs: nonNegativeInteger(), fenceDigest: digestHex() };
+    const javFields = { siteRef: enumText(...JAV_SITE_REFS), endpointProfileDigest: digestHex(), networkRouteDigest: digestHex(),
+      authMode: enumText('anonymous', 'secret') };
+    return nominal('IntegrationHandle', { ...base, ...javFields }, Object.keys(base), { oneOf: [
+      { properties: { integrationType: { not: { const: 'jav_source' } }, secretRef: opaqueId() },
+        not: { anyOf: Object.keys(javFields).map(field => ({ required: [field] })) } },
+      { properties: { integrationType: { const: 'jav_source' }, authMode: { const: 'anonymous' }, secretRef: { type: 'null' } }, required: Object.keys(javFields) },
+      { properties: { integrationType: { const: 'jav_source' }, authMode: { const: 'secret' }, secretRef: opaqueId() }, required: Object.keys(javFields) },
+    ] });
+  },
   WorkerHandle: () => nominal('WorkerHandle', {
     handleId: opaqueId(), workerId: opaqueId(), workerRevision: positiveInteger(), protocolVersion: text(), secretRef: opaqueId(),
     capabilityDigest: digestHex(), allowedOperation: text(), expiresAtMs: nonNegativeInteger(), fenceDigest: digestHex()

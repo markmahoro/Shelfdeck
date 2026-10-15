@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const os = require('node:os');
 const { spawn } = require('node:child_process');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const { compileFfmpegPipeline, compileFfmpegPassArgs } = require('./helix/integrations/ffmpeg-pipeline');
@@ -336,9 +337,11 @@ function createCleanMediaProductionEffectPort(options) {
     const isoInput = await isoRemuxArguments(source, temporaryTarget);
     if (isoInput) return isoInput;
     const primaries = source.primaryMembers || [];
+    if(primaries.some(item=>/[\r\n\0]/.test(sourceLocation(item.readHandle))))
+      fail('LIBRA_MEDIA_SOURCE_PATH_INVALID','Media input paths cannot contain concat record delimiters.');
     if (primaries.length === 1) return Object.freeze({ argv:['-i', sourceLocation(primaries[0].readHandle)], cleanup:null });
     const listPath = temporaryTarget + '.concat.txt';
-    fs.writeFileSync(listPath, primaries.map((item) => "file '" + escapeConcat(sourceLocation(item.readHandle).replace(/\\/g, '/')) + "'").join('\n') + '\n', 'utf8');
+    fs.writeFileSync(listPath, primaries.map((item) => "file '" + escapeConcat(sourceLocation(item.readHandle).replace(/\\/g, '/')) + "'").join('\n') + '\n', {encoding:'utf8',flag:'wx'});
     return Object.freeze({ argv:['-f', 'concat', '-safe', '0', '-i', listPath], cleanup:() => {
       if (fs.existsSync(listPath)) fs.rmSync(listPath, { force:true });
     } });
@@ -388,8 +391,28 @@ function createCleanMediaProductionEffectPort(options) {
         if(error?.code==='P4_EXECUTION_SHUTDOWN_INTERRUPTED'||error?.code==='LIBRA_MEDIA_FFMPEG_TIMEOUT'||error?.code==='ENOENT'||error?.code==='EACCES')throw error;
       }
     }
-    return Object.freeze({samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),
-      decodeDigest:canonicalDigest({schema:'libra.product-playback-decode@1',handleDigest:canonicalDigest(handle),points,passed})});
+    let joinSummary={};
+    if(request.javPartSourceEvidence) {
+      const evidence=require('./helix/domains/libra/model/jav-media-parts').assertJavSourceEvidence(request.javPartSourceEvidence);
+      const boundary=evidence.parts[0].probeEvidence.durationMs,joinPoints=[Math.max(0,boundary-250),Math.min(durationMs-1,boundary+250)],joinPassed=[];
+      const frameDigests=[];
+      for(const point of joinPoints) {
+        const scratch=await fs.promises.mkdtemp(path.join(os.tmpdir(),'shelfdeck-join-decode-')),proofPath=path.join(scratch,'frame.sha256');
+        try { await runProcess(ffmpegPath,['-hide_banner','-nostdin','-loglevel','error','-ss',(point/1000).toFixed(3),'-i',source,
+          '-map','0:v:0','-frames:v','1','-f','framehash','-hash','sha256',proofPath],30_000,null,
+          {processRegistry,deadlineAtMs:request.deadlineAtMs,shouldContinue:request.shouldContinue});
+          if((await fs.promises.stat(proofPath)).size>65536)fail('LIBRA_MEDIA_JOIN_DECODE_BOUND','Join decode frame proof exceeded its bound.');
+          const frames=(await fs.promises.readFile(proofPath,'utf8')).split(/\r?\n/).filter(line=>line&&!line.startsWith('#'));
+          if(frames.length===1&&/,[ ]*[a-f0-9]{64}$/.test(frames[0])){joinPassed.push(point);frameDigests.push(canonicalDigest(frames[0]));}
+        } catch(error) { if(['LIBRA_MEDIA_FFMPEG_TIMEOUT','P4_EXECUTION_SHUTDOWN_INTERRUPTED','ENOENT','EACCES'].includes(error?.code))throw error; }
+        finally { await fs.promises.rm(proofPath,{force:true});await fs.promises.rmdir(scratch); }
+      }
+      joinSummary={joinSamplePointsMs:Object.freeze(joinPoints),passedJoinSamplePointsMs:Object.freeze(joinPassed),
+        joinDecodeDigest:canonicalDigest({schema:'libra.jav-join-playback@1',sourceEvidenceDigest:evidence.evidenceDigest,
+          handleDigest:canonicalDigest(handle),joinPoints,joinPassed,frameDigests})};
+    }
+    return Object.freeze({samplePointsPercent:Object.freeze(points),passedSamplePointsPercent:Object.freeze(passed),...joinSummary,
+      decodeDigest:canonicalDigest({schema:'libra.product-playback-decode@1',handleDigest:canonicalDigest(handle),points,passed,...joinSummary})});
   }
 
   function matchesPhysicalHandle(handle, observed) {
@@ -521,6 +544,20 @@ function createCleanMediaProductionEffectPort(options) {
       outputTargetId:target.targetId, outputTargetDigest:target.targetDigest,
       runtimeEffectAuthority:request.runtimeEffectAuthority,
       async produce(temporaryTarget) {
+        const namedParts=request.sourceScopeReference?.scopeKind==='jav_named_parts';
+        if(namedParts) {
+          const members=request.source.primaryMembers;
+          const partSet=request.sourceScopeReference.javPartSet;
+          if(request.productionIntent.inputAssembly!=='ordered_jav_parts_copy'||request.productionIntent.javPartSetDigest!==partSet.groupDigest||
+              members.length!==2||members.some((item,index)=>item.member.materialKey!==partSet.parts[index].materialKey)||!options.mediaProbe?.probe)
+            fail('LIBRA_MEDIA_JAV_PART_SOURCE_INVALID','Named-part Remux requires the complete ordered source and an explicit copy Intent.');
+          for(const item of members) {
+            await assertCurrentPhysicalHandle(item.readHandle);
+            const observed=await options.mediaProbe.probe(item.readHandle);
+            if(observed.copyCompatibilityDigest!==request.productionIntent.copyCompatibilityDigest)
+              fail('LIBRA_MEDIA_JAV_PART_COPY_INCOMPATIBLE','Named-part streams no longer match the planned copy signature.');
+          }
+        }
         const input = await inputArguments(request.source, temporaryTarget);
         try {
           let identify = '';
@@ -534,6 +571,7 @@ function createCleanMediaProductionEffectPort(options) {
             '-hide_banner', '-nostdin', '-y', '-fflags', '+genpts', ...MEDIA_PROBE_INPUT_ARGS, ...input.argv,
             ...maps, '-c', 'copy', '-bsf:v', VIDEO_TIMESTAMP_FILL_BSF, '-f', 'matroska', temporaryTarget,
           ], timeoutMs, progress?progressPhase(progress,'remux'):null);
+          if(namedParts)for(const item of request.source.primaryMembers)await assertCurrentPhysicalHandle(item.readHandle);
         } finally { await input.cleanup?.(); }
       } });
   }

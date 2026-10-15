@@ -1,6 +1,7 @@
 'use strict';
 
 const { bytesOf, analyzeMovieNfo, attribute, directText, childText, inspectMovieNfo:inspectAftercareMovieNfo } = require('../../../contracts/movie-nfo-document');
+const { buildJavQueryAnchor } = require('../../../contracts/jav-source-contracts');
 
 const MAX_NFO_BYTES = 256 * 1024;
 function readableNfo(bytes) {
@@ -78,7 +79,20 @@ function movieIdentity(identity) {
   if (!provider || !providerKey) {
     fail('ARCA_AFTERCARE_NFO_IDENTITY_INVALID', 'Aftercare NFO movie identity is invalid.');
   }
+  if (provider === 'jav') {
+    try {
+      if (buildJavQueryAnchor('jav_code', providerKey).javCode !== providerKey) throw new Error('Noncanonical code.');
+    } catch {
+      fail('ARCA_AFTERCARE_NFO_IDENTITY_INVALID', 'Aftercare JAV NFO requires its exact accepted canonical code.');
+    }
+  }
   return Object.freeze({ provider, providerKey });
+}
+
+function javIdentityMatches(document, identity) {
+  const ids=document.directChildren.filter(child=>child.name==='uniqueid');
+  return ids.length===1 && String(attribute(ids[0],'type')||'').toLowerCase()==='jav' &&
+    childText(document,ids[0])===identity.providerKey && !document.directChildren.some(child=>child.name==='tmdbid');
 }
 
 function tmdbPersonId(relation) {
@@ -121,6 +135,8 @@ function createDocument(metadata, cast, identity) {
   for (const item of ownedValues(metadata, identity)) lines.push('  <' + item.tag + '>' + escapeXml(item.value) + '</' + item.tag + '>');
   if (identity.provider === 'tmdb' && identity.providerKey) {
     lines.push('  <uniqueid type="tmdb">' + escapeXml(identity.providerKey) + '</uniqueid>');
+  } else if (identity.provider === 'jav') {
+    lines.push('  <uniqueid type="jav" default="true">' + escapeXml(identity.providerKey) + '</uniqueid>');
   }
   for (const relation of cast) lines.push(actorBlock(relation));
   lines.push('</movie>');
@@ -236,6 +252,9 @@ function updateAftercareMovieNfo(input) {
       inspected.movieIdentity.providerKey !== prepared.identity.providerKey) {
     fail('ARCA_AFTERCARE_NFO_UPDATE_IDENTITY_CONFLICT', 'A movie identity conflict requires NFO rebuild.');
   }
+  if (prepared.identity.provider === 'jav' && !javIdentityMatches(inspected, prepared.identity)) {
+    fail('ARCA_AFTERCARE_NFO_UPDATE_IDENTITY_CONFLICT', 'A JAV artifact identity conflict requires NFO rebuild.');
+  }
   const updated = mergeActors(updateOwnedFields(inspected, prepared.metadata, prepared.identity), prepared.cast);
   return Object.freeze({ disposition:'update', reasonCode:null, bytes:assertOutputBound(updated) });
 }
@@ -247,6 +266,9 @@ function renderAftercareMovieNfo(input) {
   const identity = movieIdentity(input.identity);
   if (identity.provider === 'tmdb' && inspected.movieIdentity.providerKey &&
       inspected.movieIdentity.providerKey !== identity.providerKey) {
+    return rebuildAftercareMovieNfo(input, 'movie_identity_conflict');
+  }
+  if (identity.provider === 'jav' && !javIdentityMatches(inspected, identity)) {
     return rebuildAftercareMovieNfo(input, 'movie_identity_conflict');
   }
   return updateAftercareMovieNfo(input);
@@ -355,6 +377,9 @@ function compareMovieNfoPresentation(input) {
   const prepared = prepareInputs(input);
   const inspected = inspectAftercareMovieNfo(input.existingBytes);
   if (!inspected.usable) return Object.freeze({ matches:false, reasonCode:inspected.reasonCode });
+  if (prepared.identity.provider === 'jav' && !javIdentityMatches(inspected, prepared.identity)) {
+    return Object.freeze({ matches:false, reasonCode:'movie_identity_conflict' });
+  }
   if (prepared.identity.provider === 'tmdb') {
     if (!inspected.movieIdentity.providerKey) {
       return Object.freeze({ matches:false, reasonCode:'movie_identity_missing' });

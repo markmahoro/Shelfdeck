@@ -168,6 +168,7 @@ const {
 } = require('./helix/foundation/persistence/sqlite-unit-of-work');
 const {
   migrateUatIdentitySelectionSchema,
+  TARGET_SCHEMA_DIGEST: UAT_MIGRATION_TARGET_SCHEMA_DIGEST,
 } = require('./helix/foundation/persistence/uat-identity-selection-migration');
 const {
   repairTerminalResourceDefers,
@@ -560,7 +561,9 @@ function createPlatformIntegrationServices(options) {
         ? moviePilotLandingAccessAdapter
         : undefined,
     });
-    const adapter = profile.kind === 'tmdb'
+    const adapter = profile.siteRef
+      ? require('./helix/integrations/jav-source-provider-adapter').createJavSourceProviderAdapter({ runtime, fetchImpl: options.fetchImpl, now: options.now })
+      : profile.kind === 'tmdb'
       ? createTmdbProviderAdapter({
           integrationQueryPort: runtime.integrationQueryPort,
           integrationHandleResolverPort:
@@ -678,6 +681,25 @@ function createPlatformIntegrationServices(options) {
     });
   }
 
+  function javBindingHandle(binding,operationId,artifactKind=null) {
+    const {assertJavSelectedSource}=require('./helix/contracts/jav-selected-source');
+    assertJavSelectedSource(binding);
+    const handle=handleFor('jav-'+binding.siteRef,operationId,artifactKind);
+    if(!handle || ['integrationId','configRevision','siteRef','endpointProfileDigest','networkRouteDigest','authMode'].some(key=>handle[key]!==binding[key]))
+      throw new CleanServiceHostError('CLEAN_PRODUCT_INTEGRATION_UNAVAILABLE','The selected JAV source configuration is unavailable or changed.');
+    return handle;
+  }
+  async function observeJavBinding(binding,operationId,integrationHandle) {
+    javBindingHandle(binding,operationId);
+    const adapter=adapters.get('jav-'+binding.siteRef),observed=await adapter.observationPort.execute({operationId,integrationHandle,
+      input:{queryAnchor:binding.queryAnchor,resourceKey:binding.resourceKey}});
+    if(observed.result!=='qualified' || observed.resourceKey!==binding.resourceKey || observed.cover.byteDigest!==binding.coverDigest ||
+        observed.descriptiveEntries.find(entry=>entry.key==='title')?.value!==binding.title ||
+        observed.resolvedProviderIdentity?.providerKey!==binding.queryAnchor.javCode)
+      throw new CleanServiceHostError('JAV_SOURCE_ARTIFACT_CHANGED','The selected JAV source qualification changed.');
+    return observed;
+  }
+
   function javProductHandle(operationId, artifactKind = null) {
     const snapshot = javRuntime.readCurrent();
     if (!snapshot || snapshot.integration.state !== 'active') {
@@ -704,6 +726,35 @@ function createPlatformIntegrationServices(options) {
     isTmdbActive: tmdbRuntime.isTmdbActive,
     providerAdapters: adapters,
     providerRuntimes: runtimes,
+    resolveJavSourceHandle(request) {
+      return handleFor('jav-' + request.siteRef, request.operationId, request.artifactKind ?? null);
+    },
+    async observeJavSource(request) {
+      const adapter = adapters.get('jav-' + request?.siteRef);
+      if (!adapter) throw new CleanServiceHostError('PLATFORM_INTEGRATION_KIND_UNSUPPORTED', 'JAV source is unsupported.');
+      const operationId = request.operationId || 'libra.product_identity.evidence.observe@1';
+      const integrationHandle = request.integrationHandle || handleFor('jav-' + request.siteRef, operationId);
+      return adapter.observationPort.execute({ operationId, integrationHandle, input: request.input, timeoutMs: request.timeoutMs });
+    },
+    async previewJavSource(request) {
+      const adapter=adapters.get('jav-'+request?.siteRef);
+      if(!adapter)throw new CleanServiceHostError('PLATFORM_INTEGRATION_KIND_UNSUPPORTED','JAV source is unsupported.');
+      const operationId=request.operationId||'libra.product_identity.evidence.observe@1',integrationHandle=request.integrationHandle||handleFor('jav-'+request.siteRef,operationId);
+      return adapter.preview({operationId,integrationHandle,input:request.input,timeoutMs:request.timeoutMs});
+    },
+    async prepareJavSourceArtifact(request) {
+      const adapter = adapters.get('jav-' + request?.siteRef);
+      if (!adapter) throw new CleanServiceHostError('PLATFORM_INTEGRATION_KIND_UNSUPPORTED', 'JAV source is unsupported.');
+      const operationId = 'libra.product_artifact.acquire@1';
+      const integrationHandle = request.integrationHandle || handleFor('jav-' + request.siteRef, operationId, request.input?.artifactKind);
+      return adapter.prepareArtifact({ operationId, integrationHandle, input: request.input, timeoutMs: request.timeoutMs });
+    },
+    async acquireJavCorrectionCover(request) {
+      const adapter=adapters.get('jav-'+request?.siteRef);
+      if(!adapter)throw new CleanServiceHostError('PLATFORM_INTEGRATION_KIND_UNSUPPORTED','JAV source is unsupported.');
+      if(!['arca.jav_correction.assets.prepare@1','arca.jav_correction.source.verify@1'].includes(request.operationId))throw new CleanServiceHostError('P5_PROVIDER_INPUT_INVALID','Correction cover operation is invalid.');
+      return adapter.acquireCover({operationId:request.operationId,integrationHandle:request.integrationHandle,input:request.input,timeoutMs:request.timeoutMs});
+    },
     resolveRoutingHandle(intent) {
       if (!intent || intent.providerKind !== 'tmdb') return undefined;
       return handleFor(
@@ -784,6 +835,13 @@ function createPlatformIntegrationServices(options) {
       return javProductAdapter.searchProviderIdentity(request);
     },
     async fetchProviderMetadata(request) {
+      if(request.metadataFetchIntent.contentProfile==='jav') {
+        const binding=request.metadataFetchIntent.javSelectedSource;
+        const observed=await observeJavBinding(binding,'libra.product_metadata.fetch@1',request.integrationHandle);
+        return Object.freeze({providerKind:'jav',integrationId:binding.integrationId,configRevision:binding.configRevision,
+          descriptiveEntries:[...observed.descriptiveEntries,{key:'jav_code',value:observed.resolvedProviderIdentity.providerKey}],
+          providerIdentities:[observed.resolvedProviderIdentity],peopleHints:observed.peopleHints});
+      }
       return tmdbAdapter.observationPort.execute({
         operationId: 'libra.product_metadata.fetch@1',
         integrationHandle: request.integrationHandle,
@@ -798,6 +856,28 @@ function createPlatformIntegrationServices(options) {
       });
     },
     async fetchProviderArtifact(request) {
+      if(request.operationId==='arca.aftercare.binary_artifact.acquire@1'&&request.javSelectedSource) {
+        const binding=request.javSelectedSource;
+        if(!['poster','fanart'].includes(request.artifactKind)||request.resolvedProviderIdentity?.provider!=='jav'||
+          request.resolvedProviderIdentity.namespace!=='jav_code'||request.resolvedProviderIdentity.providerKey!==binding.queryAnchor.javCode)
+          throw new CleanServiceHostError('P5_PROVIDER_INPUT_INVALID','Aftercare JAV Artifact identity is invalid.');
+        const acquired=await adapters.get('jav-'+binding.siteRef).acquireAftercareCover(request);
+        return {resultKind:'acquired',sourceCoverBytes:acquired.coverBytes,javSelectedSource:binding,
+          sourceObservation:acquired.observation,sourceObservationDigest:acquired.observation.observationDigest,artifactKind:request.artifactKind,mediaType:'image/jpeg',
+          integrationId:request.integrationHandle.integrationId,configRevision:request.integrationHandle.configRevision,resolvedProviderIdentity:request.resolvedProviderIdentity};
+      }
+      if(request.productMetadataDraft?.javSelectedSource) {
+        const binding=request.productMetadataDraft.javSelectedSource,operationId='libra.product_artifact.acquire@1';
+        javBindingHandle(binding,operationId,request.artifactKind);
+        const adapter=adapters.get('jav-'+binding.siteRef),observationHandle=handleFor('jav-'+binding.siteRef,'libra.product_metadata.fetch@1');
+        const observed=await observeJavBinding(binding,'libra.product_metadata.fetch@1',observationHandle);
+        const acquired=await adapter.acquireCover({operationId,integrationHandle:request.integrationHandle,
+          input:{queryAnchor:binding.queryAnchor,qualifiedObservation:observed,artifactKind:request.artifactKind}});
+        return {resultKind:'acquired',sourceCoverBytes:acquired.coverBytes,sourceObservationDigest:acquired.observation.observationDigest,
+          artifactKind:request.artifactKind,mediaType:'image/jpeg',integrationId:binding.integrationId,
+          configRevision:binding.configRevision,resolvedProviderIdentity:observed.resolvedProviderIdentity,
+        };
+      }
       const operationId = request.integrationHandle?.allowedOperation;
       if (request.operationId !== operationId) {
         throw new CleanServiceHostError(
@@ -849,6 +929,7 @@ function createPlatformIntegrationServices(options) {
     },
     resolveProductHandle(value) {
       const intent = value.intent;
+      if(intent?.providerKind==='jav' && intent.javSelectedSource)return javBindingHandle(intent.javSelectedSource,value.operationId,value.artifactKind||null);
       if (intent?.providerKind !== 'tmdb' ||
           !tmdbRuntime.isTmdbActive()) {
         if (intent?.providerKind === 'jav' &&
@@ -875,6 +956,14 @@ function createPlatformIntegrationServices(options) {
     },
     resolveCurrentProductHandle(value) {
       if (!value || typeof value.operationId !== 'string') return undefined;
+      if(value.providerKind==='jav' && value.javSelectedSource) {
+        if(value.operationId==='arca.aftercare.binary_artifact.acquire@1') {
+          const source=require('./helix/contracts/jav-selected-source').assertJavSelectedSource(value.javSelectedSource),
+            handle=handleFor('jav-'+source.siteRef,value.operationId,value.artifactKind||null);
+          return handle&&handle.integrationId===source.integrationId&&handle.authMode===source.authMode?handle:undefined;
+        }
+        return javBindingHandle(value.javSelectedSource,value.operationId,value.artifactKind||null);
+      }
       if (value.providerKind === 'tmdb') {
         return handleFor('tmdb', value.operationId, value.artifactKind || null);
       }
@@ -959,7 +1048,8 @@ function createPlatformIntegrationServices(options) {
       }));
     },
     readRecoveryCondition(kind) {
-      if(!['tmdb','moviepilot'].includes(kind))throw new TypeError('Unknown provider recovery condition.');
+      if(!['tmdb','moviepilot'].includes(kind)&&getIntegrationProfile(kind)?.integrationType!=='jav_source')
+        throw new TypeError('Unknown provider recovery condition.');
       return Object.freeze({conditionKind:kind,snapshotDigest:providerRecoveryDigest(runtimeFor(kind)?.readCurrent())});
     },
     async acquirePerceptionProvider(request) {
@@ -1029,13 +1119,20 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_AUTOMATION_COMMAND_REJECTED' || error.code === 'ADMIN_AUTOMATION_PROJECTION_UNAVAILABLE') status = 400;
   else if (error.code === 'ADMIN_RULE_TEMPLATE_NOT_FOUND') status = 404;
   else if (error.code === 'ARCA_SHELF_ENTRY_NOT_FOUND' || error.code === 'PERCEPTION_TARGET_NOT_FOUND') status = 404;
+  else if (typeof error.code === 'string' && error.code.startsWith('ARCA_JAV_CORRECTION_')) {
+    if(error.code==='ARCA_JAV_CORRECTION_NOT_FOUND')status=404;
+    else if(error.code==='ARCA_JAV_CORRECTION_INPUT_INVALID'||error.code==='ARCA_JAV_CORRECTION_PREVIEW_TOO_LARGE')status=400;
+    else if(error.code==='ARCA_JAV_CORRECTION_PREVIEW_TIMEOUT')status=504;
+    else status=409;
+  }
   else if (typeof error.code === 'string' && error.code.startsWith('ARCA_RECYCLE_')) {
     if (error.code.endsWith('_NOT_FOUND')) status = 404;
     else if (/(?:_STALE|_CONFLICT|_CHANGED|_EXISTS|_IN_USE|_QUEUED|_OVERLAP)$/.test(error.code)) status = 409;
     else status = 400;
   }
-  else if (error.code === 'PERCEPTION_RATING_COMMAND_INVALID' || error.code === 'PERCEPTION_ACQUISITION_COMMAND_INVALID' || error.code === 'PERCEPTION_DOUBAN_NOT_CONFIGURED') status = 400;
-  else if (error.code === 'PERCEPTION_RATING_REVISION_CONFLICT' || error.code === 'PERCEPTION_SOURCE_REVISION_CONFLICT') status = 409;
+  else if (['PERCEPTION_RATING_COMMAND_INVALID','PERCEPTION_WATCHED_COMMAND_INVALID','PERCEPTION_ACQUISITION_COMMAND_INVALID','PERCEPTION_DOUBAN_NOT_CONFIGURED',
+    'PERCEPTION_DIRECT_RATING_NOT_FOUND','PERCEPTION_DIRECT_WATCHED_NOT_FOUND'].includes(error.code)) status = 400;
+  else if (['PERCEPTION_RATING_REVISION_CONFLICT','PERCEPTION_WATCHED_REVISION_CONFLICT','PERCEPTION_SOURCE_REVISION_CONFLICT','PERCEPTION_DIRECT_INPUT_IDEMPOTENCY_CONFLICT'].includes(error.code)) status = 409;
   else if (
     error.code === 'ADMIN_RULE_TEMPLATE_COMMAND_REJECTED' ||
     error.code === 'ADMIN_RULE_TEMPLATE_TARGET_MISMATCH'
@@ -1124,7 +1221,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 140) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 147) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1139,8 +1236,10 @@ function createRuntime(options) {
 
   let kernel;
   try {
-    migrateUatIdentitySelectionSchema({ Database, databasePath, schemaManifest, now: options.now });
-    repairTerminalResourceDefers({ Database, databasePath, now: options.now });
+    // Historical upgrades apply only to their frozen target. New development
+    // requires exact kernel schema admission before any repair may write data.
+    if (schemaManifest.ddlDigest === UAT_MIGRATION_TARGET_SCHEMA_DIGEST)
+      migrateUatIdentitySelectionSchema({ Database, databasePath, schemaManifest, now: options.now });
     kernel = openSqliteKernel({
       Database,
       databasePath,
@@ -1148,6 +1247,7 @@ function createRuntime(options) {
       schemaManifest,
       now: options.now,
     });
+    repairTerminalResourceDefers({ Database, databasePath, now: options.now });
     const baseUnitOfWork = createSqliteUnitOfWork({ kernel });
     const unitOfWork = typeof options.unitOfWorkDecorator === 'function'
       ? options.unitOfWorkDecorator(baseUnitOfWork)
@@ -1347,12 +1447,30 @@ async function createCleanServiceHost(options) {
   }));
   const candidateAcceptance = createCandidateAcceptanceConsumer(constructed.applicationDependencies);
   const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
-  let arcaCare = null, arcaRecycle = null;
+  let arcaCare = null, arcaRecycle = null, collectionContractValidator=null;
   const arcaCollectionQuery = createArcaCollectionQuery({
     ...constructed.applicationDependencies,
+    contractValidator:{validate(schemaRef,value){
+      if(!collectionContractValidator)throw new CleanServiceHostError('CLEAN_SERVICE_NOT_READY','Contract validation is not ready.');
+      return collectionContractValidator.validate(schemaRef,value);
+    }},
+    readAcceptedSubjectOrigin:reference=>{
+      const result=productDeliveryPort.readAcceptedRequirements({queryContract:'libra.accepted-product-requirements@1',packages:[reference],includeAcceptedSubjectOrigin:true});
+      const item=result.items.find(item=>item.onDeckPackageId===reference.onDeckPackageId);
+      if(item?.resultKind!=='found'||!item.acceptedSubjectOrigin)throw Object.assign(new Error('Accepted Subject origin is unavailable.'),{code:'ARCA_JAV_PERCEPTION_CONTINUITY_UNAVAILABLE'});
+      return item.acceptedSubjectOrigin;
+    },
     posterReader: options.arcaPosterReader || (async (reference, query = {}) => {
       const root = path.resolve(reference.shelfTargetRoot);
-      const target = path.resolve(reference.location);
+      let target = path.resolve(reference.location);
+      if(reference.retainedRead&&fs.existsSync(reference.retainedRead.location)) {
+        const retained=path.resolve(reference.retainedRead.location);
+        if(path.dirname(retained)!==path.dirname(target)||fs.lstatSync(retained).isSymbolicLink())throw new Error('Correction retained poster escaped its exact owned binding.');
+        const observed=await require('./helix/integrations/bounded-material-fingerprint').computeBoundedMaterialFingerprint(retained,{requireStableSnapshot:true}),identity=reference.retainedRead.physicalIdentity;
+        if(String(observed.stat.ino)!==identity.inode||Number(observed.stat.size)!==identity.sizeBytes||observed.contentFingerprint!==identity.contentFingerprint)
+          throw new Error('Correction retained poster no longer matches the current Inventory identity.');
+        target=retained;
+      }
       if (target !== root && !target.startsWith(root + path.sep)) {
         throw new Error('Shelf Entry poster escaped its Shelf Target.');
       }
@@ -1489,6 +1607,7 @@ async function createCleanServiceHost(options) {
       (() => platformIntegrations.isActive('moviepilot')),
     readAcceptanceRecoveries: (offerIds) => new Map(offerIds.map((offerId) => [offerId, formationAcceptanceReader(offerId)])),
     readArcaFormationStatuses: (offerIds) => formationArcaStatusReader(offerIds),
+    readJavIdentityStage: (libraRunId) => procurementExecution?.libraRunCoordinator.readJavIdentityStage(libraRunId),
   });
   const formationQuery = createFormationQuery({ store: formationProjectionStore, historyStore: formationRunHistoryStore,
     detailSource: formationProjectionSource,
@@ -1504,6 +1623,7 @@ async function createCleanServiceHost(options) {
   procurementExecution = createHelixExecutionRuntime({
     onHistoricalCatalogRejected: options.onHistoricalCatalogRejected,
     recycleTick:()=>arcaRecycle?.tick(),
+    onCorrectionCleanupCompleted:()=>executionRuntimeHost.wakeBackground({ownerDomain:'arca',reconcilerKey:'recycle-maintenance'}),
     failureEvidenceStore:createFailureEvidenceStore(path.join(options.dataDir, 'diagnostics', 'execution-failures')),
     ...constructed.applicationDependencies,
     materialFieldStore,
@@ -1517,6 +1637,10 @@ async function createCleanServiceHost(options) {
     readRelatedNfo: options.readRelatedNfo || readBoundedRoutingNfo,
     observeRoutingProvider: options.routingProviderObservation || platformIntegrations.observeRoutingProvider,
     resolveRoutingIntegrationHandle: options.routingIntegrationHandleResolver || platformIntegrations.resolveRoutingHandle,
+    observeJavSource: options.javSourceObservation || platformIntegrations.observeJavSource,
+    acquireJavCover:options.javCorrectionCoverAcquisition||platformIntegrations.acquireJavCorrectionCover,
+    observeJavSourceForPreview:options.javSourcePreview||platformIntegrations.previewJavSource,
+    resolveJavSourceHandle: options.javSourceHandleResolver || platformIntegrations.resolveJavSourceHandle,
     resolveExternalMaterialIntegrationHandle: options.externalMaterialIntegrationHandleResolver ||
       platformIntegrations.resolveExternalMaterialHandle,
     readExternalMaterialLandingBinding: options.externalMaterialLandingBindingReader ||
@@ -1530,6 +1654,7 @@ async function createCleanServiceHost(options) {
     readPerceptionObservation: options.perceptionObservationReader || ((reference) => platformIntegrations.readPerceptionObservation(reference)),
     readDoubanSourceConfiguration: options.readDoubanSourceConfiguration || platformIntegrations.readDoubanSourceConfiguration,
     readAcceptanceConnectionRevision: options.readAcceptanceConnectionRevision || platformIntegrations.readAcceptanceConnectionRevision,
+    onContractValidatorReady:validator=>{collectionContractValidator=validator;},
     targetProjectionReader: options.perceptionTargetProjectionReader || ((targetType, targetId) => {
       if (targetType === 'shelf_entry') return arcaCollectionQuery.targetProjection(targetId);
       if (targetType !== 'subject') return null;
@@ -1556,6 +1681,7 @@ async function createCleanServiceHost(options) {
       options.currentProductIntegrationHandleResolver || ((request) =>
         platformIntegrations.resolveCurrentProductHandle({
           providerKind: request.providerKind || request.intent?.providerKind,
+          ...(request.intent?.javSelectedSource?{javSelectedSource:request.intent.javSelectedSource}:{}),
           operationId: request.operationId,
           artifactKind: request.artifactKind || null,
         })),
@@ -1652,6 +1778,7 @@ async function createCleanServiceHost(options) {
       }
     },
     wake() { const execution=procurementExecution.host.wake(); outboxDispatcher.wake(); formationProjectionHost.wake(); return execution; },
+    wakeBackground(request){return procurementExecution.host.wakeBackground(request);},
     async quiesce() {
       const execution=procurementExecution.host.quiesce();
       await Promise.all([execution,formationProjectionHost.stop(),overviewQuery.stop(),outboxDispatcher.stop(),runtimeOperations.waitForBusinessCommands()]);
@@ -1685,14 +1812,22 @@ async function createCleanServiceHost(options) {
   arcaRecycle=createRecycleApplication({
     root:path.join(options.dataDir,'recycle'),now:options.now||Date.now,
     cleanupStore:createSourceCleanupStore(constructed.applicationDependencies),
+    directoryStore:procurementExecution.arcaJavCorrection.directoryStore,
+    prepareCorrectionDirectory:correctionId=>procurementExecution.arcaJavCorrection.directoryPreparation.prepare(correctionId,
+      [...materialFieldStore.listMaterialFields().map(field=>field.access.rootLocation),...(options.externalProviderScanRoots||[])]),
     store:createRecycleStore({...constructed.applicationDependencies,now:options.now||Date.now}),
     port:recycleFiles.createRecycleEffectPort(constructed.applicationDependencies),files:recycleFiles,
-    wake:()=>executionRuntimeHost.wake(),
-    readScope(shelfEntryId){
+    wake:()=>{executionRuntimeHost.wake();executionRuntimeHost.wakeBackground({ownerDomain:'arca',reconcilerKey:'recycle-maintenance'});},
+    readScope(shelfEntryId,purpose='recycle'){
       const store=procurementExecution.arcaAftercareContextReader.store,c=store.currentContext(shelfEntryId);
       if(!c)return null;
+      if(c.correctionGate)throw Object.assign(new Error('Identity correction is still holding this Entry.'),{code:'ARCA_JAV_CORRECTION_BUSY'});
       const protection=store.recycleProtection();
-      return {...protection,onDeckRunId:c.onDeckCommit?.on_deck_run_id,knownSourceDirectories:[...new Set(c.oldBindings.filter(row=>row.role?.startsWith('offload:')&&path.isAbsolute(row.location)).map(row=>path.dirname(row.location)))],
+      const additionalRoots=[...materialFieldStore.listMaterialFields().map(field=>field.access.rootLocation),...(options.externalProviderScanRoots||[])],
+        correction=procurementExecution.arcaJavCorrection,scopes=purpose==='on_deck_cleanup'?[]:correction.directoryStore.forEntry(shelfEntryId).map(row=>correction.directoryPreparation.prepare(row.correction_id,additionalRoots)),
+        directories=[...new Set([...c.oldBindings.filter(row=>row.role?.startsWith('offload:')&&path.isAbsolute(row.location)).map(row=>path.dirname(row.location)),...scopes.flatMap(scope=>scope.directories.map(row=>row.sourceLocation))])];
+      if(directories.length>32)throw Object.assign(new Error('Entry directory scope exceeds its explicit budget.'),{code:'ARCA_RECYCLE_SCOPE_TOO_LARGE'});
+      return {...protection,onDeckRunId:c.onDeckCommit?.on_deck_run_id,knownSourceDirectories:directories,
         scanRoots:[...protection.scanRoots,...materialFieldStore.listMaterialFields().map(field=>field.access.rootLocation),...(options.externalProviderScanRoots||[])]};
     },
   });
@@ -1735,8 +1870,8 @@ async function createCleanServiceHost(options) {
   });
   const productIdentitySelection = Object.freeze({
     preview(libraRunId, tmdbMovieId) { return procurementExecution.productIdentitySelection.preview(libraRunId, tmdbMovieId); },
-    choose(libraRunId, body) {
-      const result = procurementExecution.productIdentitySelection.choose(libraRunId, body);
+    choose(libraRunId, body, actor) {
+      const result = procurementExecution.productIdentitySelection.choose(libraRunId, body, actor);
       formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId));
       procurementExecution.libraRunCoordinator.reconcile(libraRunId);
       executionRuntimeHost.wake();
@@ -1751,7 +1886,8 @@ async function createCleanServiceHost(options) {
     createRecord(body) { const result=procurementExecution.perception.createRecord(body); if(body?.targetType==='subject')formationProjectionHost.enqueue(body.targetId); executionRuntimeHost.wake(); return result; },
     listRecords(query) { const result=procurementExecution.perception.listRecords(query);
       if(!query?.targetType||!query?.targetId)return result;
-      return Object.freeze({...result,currentRating:procurementExecution.perception.readCurrentRating(query.targetType,query.targetId)}); },
+      return Object.freeze({...result,currentRating:procurementExecution.perception.readCurrentRating(query.targetType,query.targetId),
+        currentWatched:procurementExecution.perception.readCurrentWatched(query.targetType,query.targetId)}); },
     listAcquisitions() { return procurementExecution.perception.listAcquisitions(); },
     requestAcquisition(body) { const result=procurementExecution.perception.requestAcquisition(body); executionRuntimeHost.wake(); return result; },
     syncState() { return procurementExecution.perception.syncState(); },
@@ -1894,6 +2030,11 @@ async function createCleanServiceHost(options) {
     libraFieldIntakeAdmissionAdmin,
     formationQuery,
     arcaCollectionQuery,
+    arcaJavCorrectionAdmin:{list:query=>procurementExecution.arcaJavCorrection.workQuery.list(query),preview:procurementExecution.arcaJavCorrection.admin.preview,status:procurementExecution.arcaJavCorrection.admin.status,
+      latest:shelfEntryId=>procurementExecution.arcaJavCorrection.admin.latest(shelfEntryId),
+      cancel(...args){const result=procurementExecution.arcaJavCorrection.admin.cancel(...args);executionRuntimeHost.wake();return result;},
+      async recover(...args){const result=await procurementExecution.arcaJavCorrection.admin.recover(...args);executionRuntimeHost.wake();return result;},
+      confirm(...args){const result=procurementExecution.arcaJavCorrection.admin.confirm(...args);executionRuntimeHost.wake();return result;}},
     arcaCare,
     arcaDefectAdmission:procurementExecution.arcaDefectAdmission,
     arcaRecycle,

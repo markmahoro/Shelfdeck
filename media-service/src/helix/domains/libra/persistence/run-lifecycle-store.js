@@ -1,6 +1,7 @@
 "use strict";
 
 const { bindingsForEpisodeScope } = require('../model/series-delivery-scope');
+const {buildPlanningMember,samePlanningMember}=require('../model/terminal-planning-evidence');
 
 const { createDefectAuthorizationStore } = require('./defect-authorization-store');
 
@@ -550,15 +551,16 @@ function foundationDefinition(schemaManifest) {
       find_plan: {
         kind: "select-one",
         tableId: "fx_workflow_plans",
-        columns: ["plan_id", "basis_digest", "graph_digest", "state"],
+        columns: ["plan_id","attempt_id","planner_ref","planner_version","catalog_digest","basis_digest","graph_digest","state"],
         keyColumns: ["plan_id"],
       },
       list_plans: {
         kind: "select-all",
         tableId: "fx_workflow_plans",
-        columns: ["plan_id", "basis_digest", "graph_digest", "state"],
+        columns: ["plan_id","attempt_id","planner_ref","planner_version","catalog_digest","basis_digest","graph_digest","state"],
         keyColumns: [],
       },
+      list_work_attempts:{kind:'select-all',tableId:'fx_work_attempts',columns:['attempt_id','work_id','ordinal','basis_digest','state','finished_at_ms','failure_code'],keyColumns:['work_id']},
       find_event: {
         kind: "select-one",
         tableId: "fx_workflow_events",
@@ -1437,6 +1439,13 @@ function assertTerminalEvidence(repo, decision, run, resolveRetryPolicyDigest,re
       "Terminal Evidence validation requires the immutable Retry Policy resolver.",
     );
   for (const member of evidence.blockedWorks) {
+    if(member.blockerSource==='plan_rejection') {
+      const work=repo.invoke('find_work',{work_id:member.workId}),plan=repo.invoke('find_plan',{plan_id:member.planId});
+      const actual=buildPlanningMember({work,plans:[plan].filter(Boolean),attempts:repo.invoke('list_work_attempts',{work_id:member.workId}),
+        events:repo.invoke('list_events',{}),libraRunId:run.libra_run_id});
+      if(!samePlanningMember(member,actual))fail('P9_RUN_LIFECYCLE_TERMINAL','Terminal planning evidence differs from immutable execution history.');
+      continue;
+    }
     const work = repo.invoke("find_work", { work_id: member.workId }),
       plan = repo.invoke("find_plan", { plan_id: member.planId }),
       event = repo.invoke("find_event", { event_id: member.terminalEventId }),
@@ -1707,6 +1716,10 @@ function createRunLifecycleStore(options) {
               item && item.work_id === workId && item.owner_domain === "libra" && item.state === "succeeded")
             : repo.invoke("list_events", {}).filter((item) =>
               item.work_id === workId && item.owner_domain === "libra" && item.state === "failed");
+          if(!events.length&&!terminalResult) {
+            blockedWorks=[buildPlanningMember({work,plans:[...plans.values()],attempts:repo.invoke('list_work_attempts',{work_id:workId}),
+              events:repo.invoke('list_events',{}),libraRunId})];return;
+          }
           if (!events.length)
             fail(
               "P9_RUN_LIFECYCLE_TERMINAL",

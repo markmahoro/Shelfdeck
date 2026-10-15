@@ -102,7 +102,7 @@ function seedNonEmptyShelf(databasePath, referenceCount = 10_001) {
     insertEntry.run(entryId, 'large-shelf', 'single', 'active', 1, 'canonical-large', 1, 1, 1);
     database.prepare(`INSERT INTO arca_canonical_identity_revisions
       (shelf_entry_id,revision,structure_kind,identity_kind,provider,provider_key,identity_digest,committed_at_ms)
-      VALUES (?,1,'single','movie','tmdb','1',?,1)`).run(entryId, digest({ entryId, identity:true }));
+      VALUES (?,1,'single','tmdb_movie','tmdb','1',?,1)`).run(entryId, digest({ entryId, identity:true }));
     database.prepare(`INSERT INTO arca_inventory_representations
       (shelf_entry_id,revision,representation_digest,source_package_id,committed_at_ms) VALUES (?,1,?,'pkg',1)`)
       .run(entryId, digest({ entryId, inventory:true }));

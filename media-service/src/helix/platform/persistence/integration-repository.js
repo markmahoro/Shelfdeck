@@ -158,7 +158,7 @@ function createIntegrationRepository(options) {
           integration: configValue(repository.invoke('find_integration', {
             integration_id: integrationId,
           })),
-          secret: secretValue(repository.invoke('find_secret', {
+          secret: secretRef === null ? undefined : secretValue(repository.invoke('find_secret', {
             secret_ref: secretRef,
           })),
         });
@@ -196,6 +196,18 @@ function createIntegrationRepository(options) {
     const currentIntegration = repository.invoke('find_integration', {
       integration_id: value.integration.integration_id,
     });
+    if (value.integration.integration_type === 'jav_source' && value.secret === null) {
+      if (value.expectedRevision === 0) {
+        if (currentIntegration) fail('PLATFORM_INTEGRATION_CAS_CONFLICT', 'JAV source initial revision already exists.');
+        repository.invoke('insert_integration', value.integration);
+      } else {
+        if (!currentIntegration || currentIntegration.integration_type !== 'jav_source' || currentIntegration.config_revision !== value.expectedRevision)
+          fail('PLATFORM_INTEGRATION_CAS_CONFLICT', 'JAV source configuration revision changed.');
+        const result = repository.invoke('update_integration', { ...value.integration, expected_config_revision: value.expectedRevision });
+        if (result.changes !== 1) fail('PLATFORM_INTEGRATION_CAS_CONFLICT', 'JAV source commit lost its revision fence.');
+      }
+      return Object.freeze({ integration: configValue(value.integration), secret: undefined });
+    }
     const currentSecret = repository.invoke('find_secret', {
       secret_ref: value.secret.secret_ref,
     });

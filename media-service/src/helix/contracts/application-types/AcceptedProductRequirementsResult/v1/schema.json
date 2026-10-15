@@ -1,12 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "x-helix-ssotRefs": [
-    "8.2.2",
-    "8.6.21"
-  ],
-  "x-helix-maxCanonicalBytes": 33554432,
   "$id": "helix://contracts/application-types/AcceptedProductRequirementsResult/v1",
   "title": "AcceptedProductRequirementsResult@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 41943040,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -48,6 +47,7 @@
               },
               "packageDigest": {
                 "type": "string",
+                "minLength": 1,
                 "pattern": "^[a-f0-9]{64}$"
               },
               "libraRunId": {
@@ -61,9 +61,10 @@
                 "maxLength": 256
               },
               "authorizedDefectManifestDigest": {
-                "oneOf": [
+                "anyOf": [
                   {
                     "type": "string",
+                    "minLength": 1,
                     "pattern": "^[a-f0-9]{64}$"
                   },
                   {
@@ -73,6 +74,9 @@
               },
               "acceptanceRequirementSnapshot": {
                 "$ref": "helix://contracts/domain-types/AcceptanceRequirementSnapshot/v1"
+              },
+              "acceptedSubjectOrigin": {
+                "$ref": "helix://contracts/application-types/LibraAcceptedSubjectOrigin/v1"
               }
             },
             "required": [

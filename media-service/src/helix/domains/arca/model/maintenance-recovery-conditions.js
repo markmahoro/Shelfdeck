@@ -1,10 +1,15 @@
 'use strict';
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
+const {aftercareJavSource}=require('./aftercare-artifact-source');
 
-function maintenanceRecoveryConditions(findings,readConditions) {
+function maintenanceRecoveryConditions(findings,readConditions,context) {
   const kinds=new Set();
   for(const finding of findings) {
-    if(['presentation:poster_missing','presentation:poster_corrupt'].includes(finding.findingKind))kinds.add('tmdb');
+    if(['presentation:poster_missing','presentation:poster_corrupt','presentation:fanart_missing','presentation:fanart_corrupt'].includes(finding.findingKind)) {
+      if(context?.raw?.identity?.provider==='jav')kinds.add('jav-'+aftercareJavSource(context).siteRef);
+      else if(context?.raw?.identity?.provider==='tmdb')kinds.add('tmdb');
+      else throw new TypeError('Maintenance poster recovery requires its accepted supported Provider.');
+    }
     if(['conformance:video_codec_unmet','conformance:max_size_exceeded'].includes(finding.findingKind))kinds.add('media_compute');
   }
   const conditions=readConditions?.([...kinds].sort())||[];

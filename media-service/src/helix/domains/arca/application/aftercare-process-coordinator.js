@@ -1,7 +1,7 @@
 'use strict';
 const {stagedResultReader}=require('../persistence/staged-manifest-store');
 const { automaticCaseTargetsAcceptedDefect } = require('../model/accepted-defect-maintenance');
-const { careFindingCodes, careFindingParameters, freezeCareObjective } = require('../model/care-objective');
+const { careFindingCodes, careFindingParameters, missingArtifactCustodyRefreshScope, freezeCareObjective } = require('../model/care-objective');
 const { maintenanceRecoveryConditions } = require('../model/maintenance-recovery-conditions');
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
@@ -153,6 +153,7 @@ function createAftercareProcessCoordinator(options){
       assessment.state==='failed'?'assessment_failed':'assessment_pending',workId:assessment.work.workId});
   }
   function reconcile(shelfEntryId,request={}){let c=reader.read(shelfEntryId);if(!c)return Object.freeze({kind:'not_found',shelfEntryId});
+    if(c.raw?.correctionGate)return Object.freeze({kind:'identity_correction_pending',shelfEntryId,correctionId:c.raw.correctionGate.correction_id});
     if(c.raw?.perceptionRating?.state==='pending'&&typeof options.ensurePerceptionRatingResolution==='function'){
       const resolution=options.ensurePerceptionRatingResolution(shelfEntryId);
       if(resolution?.kind!=='terminal')return Object.freeze({kind:'rating_resolution_pending',shelfEntryId,workId:resolution?.workId||null});
@@ -199,6 +200,13 @@ function createAftercareProcessCoordinator(options){
     c=reader.read(shelfEntryId);
     history=store.history(shelfEntryId);
     const currentHealth=projectHealth(c,history,now());
+    const missingArtifactScope=missingArtifactCustodyRefreshScope(c,currentHealth);
+    if(missingArtifactScope.length) {
+      const refreshed=runAssessment(c,'missing-artifact-custody:'+canonicalDigest({basis:c.basis.digest,materials:missingArtifactScope,
+        custody:currentHealth.dimensions.custody.evidenceDigest,presentation:currentHealth.dimensions.presentation.evidenceDigest}),true);
+      return Object.freeze({kind:refreshed.state==='failed'?'assessment_failed':'assessment_pending',shelfEntryId,
+        reasonCode:'missing_artifact_custody_recheck',workId:refreshed.work.workId});
+    }
     const findings=Object.values(currentHealth.dimensions).flatMap((item)=>item.findings);
     if(findings.some(item=>item.findingKind==='custody:nfo_identity_changed')){
       const refresh=refreshRecords(c,currentHealth);
@@ -210,7 +218,7 @@ function createAftercareProcessCoordinator(options){
     const findingSetDigest=canonicalDigest(findings.map((item)=>item.findingDigest).sort());
     const effects=findings.map((item)=>Object.freeze({objectId:item.findingId,revision:1,schemaRef:'helix://arca/types/RequiredCareEffect/v1',digest:item.findingDigest,objectKind:'required-effect'}));
     const typedParameters=careFindingParameters(findings);
-    const recovery=maintenanceRecoveryConditions(findings,options.readFailureRecoveryConditions);
+    const recovery=maintenanceRecoveryConditions(findings,options.readFailureRecoveryConditions,c);
     const base={schemaRef:'helix://contracts/domain-types/CareRequirement/v1',schemaVersion:1,requirementId:stable('arca-care-requirement-',{shelfEntryId,basis:c.basis.digest,findingSetDigest,recoveryConditions:recovery.conditions}),revision:1,careBasisDigest:c.basis.digest,requiredEffects:Object.freeze(effects),acceptanceDigest:canonicalDigest(effects),typedParameters:Object.freeze([...typedParameters,...freezeCareObjective(c),recovery.parameter])};
     const requirement=Object.freeze({...base,digest:canonicalDigest(base)});
     try{assertProcessingRequirement(requirement);}catch(error){

@@ -119,7 +119,7 @@ test('Aftercare Provider Artifact accepts bytes only behind the frozen response 
     'domains/arca/capabilities/aftercare-capability-ports.js'), 'utf8');
   const acquire = source.slice(source.indexOf('ports[C.binaryAcquire]'),
     source.indexOf('ports[C.artifactMaterialize]'));
-  assert.match(acquire, /response\.artifactKind!==['"]poster['"]/);
+  assert.match(acquire, /response\.artifactKind!==artifactKind/);
   assert.match(acquire, /response\.integrationId!==n\.integrationHandle\.integrationId/);
   assert.match(acquire, /response\.configRevision!==n\.integrationHandle\.configRevision/);
   assert.match(acquire, /canonicalDigest\(response\.resolvedProviderIdentity\)/);
@@ -303,6 +303,8 @@ test('Aftercare permits an absent frozen Artifact only for the matching missing 
   const care=(codes)=>Object.freeze({ careRequirement:Object.freeze({ typedParameters:Object.freeze(codes.map((value)=>Object.freeze({ value }))) }) });
   assert.equal(permitsMissingArtifactReplacement(care(['custody:artifact_missing','presentation:poster_missing']),'poster'),true);
   assert.equal(permitsMissingArtifactReplacement(care(['custody:artifact_missing','presentation:nfo_missing']),'nfo'),true);
+  assert.equal(permitsMissingArtifactReplacement(care(['custody:artifact_missing','presentation:fanart_missing']),'fanart'),true);
+  assert.equal(permitsMissingArtifactReplacement(care(['presentation:fanart_missing']),'fanart'),false);
   assert.equal(permitsMissingArtifactReplacement(care(['presentation:poster_missing']),'poster'),false);
   assert.equal(permitsMissingArtifactReplacement(care(['custody:artifact_missing','presentation:poster_missing']),'nfo'),false);
   assert.equal(permitsMissingArtifactReplacement(care(['custody:artifact_missing','presentation:nfo_missing']),'poster'),false);

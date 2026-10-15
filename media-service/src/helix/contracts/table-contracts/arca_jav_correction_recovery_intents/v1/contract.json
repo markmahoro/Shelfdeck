@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_jav_correction_recovery_intents/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_jav_correction_recovery_intents",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "recovery_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "correction_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "previous_intent_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 5,
+        "name": "receipt_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "receipt_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "receipt_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "observation_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "observation_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "observation_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "recovery_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "correction_id",
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "receipt_digest"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "correction_id",
+        "created_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "receipt_json",
+        "schemaRefColumn": "receipt_schema_ref",
+        "maxBytes": 16384,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "observation_json",
+        "schemaRefColumn": "observation_schema_ref",
+        "maxBytes": 1048576,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "immutable",
+      "完整Receipt固定`helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1`、JCS≤16 KiB",
+      "完整Observation固定`helix://contracts/application-types/ArcaJavCorrectionRecoveryObservation/v1`、JCS≤1 MiB，保留实际有界执行Snapshot和逐文件/目录现场证明",
+      "摘要必须与Receipt及Correction当前指针一致。`UNIQUE(receipt_digest)`",
+      "`INDEX(correction_id,created_at_ms)`",
+      "与新Intent受理、当前指针/CAS、Command Receipt/marker/audit同事务写入",
+      "后续恢复追加历史，不覆盖旧Observation。"
+    ],
+    "rawContract": {
+      "columns": "`recovery_id PK, correction_id FK, shelf_entry_id FK, previous_intent_digest NULL, receipt_schema_ref, receipt_json, receipt_digest, observation_schema_ref, observation_json, observation_digest, created_at_ms`",
+      "constraints": "immutable；完整Receipt固定`helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1`、JCS≤16 KiB；完整Observation固定`helix://contracts/application-types/ArcaJavCorrectionRecoveryObservation/v1`、JCS≤1 MiB，保留实际有界执行Snapshot和逐文件/目录现场证明；摘要必须与Receipt及Correction当前指针一致。`UNIQUE(receipt_digest)`；`INDEX(correction_id,created_at_ms)`；与新Intent受理、当前指针/CAS、Command Receipt/marker/audit同事务写入；后续恢复追加历史，不覆盖旧Observation。"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9515,
+      "lineDigest": "c0e62f8accef65a2d067a30118426a00ec065729eda98a7d2109399b5b93c003"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "correction_id"
+        ],
+        "targetTable": "arca_jav_identity_corrections",
+        "targetColumns": [
+          "correction_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

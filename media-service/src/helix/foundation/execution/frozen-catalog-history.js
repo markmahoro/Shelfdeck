@@ -53,7 +53,59 @@ function createFrozenCatalogHistory(options) {
   const frozen = createBoundedCatalogTransition({ ...shared, witness: frozenWitness, registry, policyRegistry, schemas,
     contractValidator: createCapabilityContractValidator({ schemas: archive.schemas }), terminalOnly: true });
   proofs.set(archive.catalogDigest, frozen.proveTerminal);
-  const verify = snapshot => snapshot?.plan?.catalog_digest === archive.catalogDigest ? frozen.verify(snapshot) : prior.verify(snapshot);
+  if (options.additionalArchives && (!Array.isArray(options.additionalArchives) || options.additionalArchives.length > 8))
+    throw new Error('Additional terminal Catalog archive set exceeds its bound.');
+  const additionalVerifiers = new Map();
+  for (const extra of options.additionalArchives || []) {
+    const value = extra.archive;
+    if (canonicalDigest(value) !== extra.archiveDigest || !/^[a-f0-9]{40}$/.test(value.sourceCommit) || proofs.has(value.catalogDigest))
+      throw new Error('Additional terminal Catalog archive provenance mismatch.');
+    const extraManifests = new Map(value.manifests.map(manifest => [manifest.capabilityRef, manifest]));
+    const extraSchemas = new Map(value.schemas.map(schema => [schema.$id, schema]));
+    if (extraManifests.size !== value.manifests.length || extraSchemas.size !== value.schemas.length)
+      throw new Error('Duplicate additional historical schema or Capability.');
+    for (const [ref, evidence] of Object.entries(value.preboundEvidenceSchemas || {})) {
+      if (Object.hasOwn(frozenWitness.preboundEvidenceSchemas, ref) || evidence.fullResultRecord !== true || evidence.historicalNominalContract)
+        throw new Error('Additional full Result witness cannot replace original nominal provenance.');
+    }
+    const extraPolicy = createExecutionPolicyRegistry(value.policy);
+    const extraRegistry = {
+      snapshot: value.policy.expectedCapabilityRefs.slice().sort().map(capabilityRef => {
+        const manifest = extraManifests.get(capabilityRef);
+        if (!manifest) throw new Error('Missing additional historical Capability.');
+        return { capabilityRef, contractVersion: manifest.contractVersion, ownerScope: manifest.ownerScope,
+          effectClass: manifest.effectClass, executorVersion: 1, executionContractDigest: canonicalDigest(manifest) };
+      }),
+      resolve(ref, owner) {
+        const manifest = extraManifests.get(ref);
+        if (!manifest || !['libra', 'arca', 'procurement', 'perception'].includes(owner) ||
+            ![owner, 'execution-foundation'].includes(manifest.ownerScope)) throw new Error('Additional historical Owner mismatch.');
+        return { manifest };
+      },
+    };
+    if (extraRegistry.snapshot.length !== extraManifests.size || executionCatalogDigest(extraRegistry, extraPolicy) !== value.catalogDigest)
+      throw new Error('Additional historical Catalog reconstruction mismatch.');
+    const extraWitness = { ...frozenWitness, policyDigest: extraPolicy.digest,
+      previousCatalogDigest: value.catalogDigest, currentCatalogDigest: value.catalogDigest,
+      // Preserve the original producer/provenance witness; bind its current
+      // schema side to this exact frozen release, never to live schemas.
+      preboundEvidenceSchemas: Object.fromEntries(Object.entries(frozenWitness.preboundEvidenceSchemas).map(([ref, evidence]) =>
+        [ref, { ...evidence, currentSchemaDigest: canonicalDigest(schemaClosure({ inputPorts: { evidence: { schemaRef: ref } } }, extraSchemas)) }])
+        .concat(Object.entries(value.preboundEvidenceSchemas || {}))),
+      capabilities: extraRegistry.snapshot.map(entry => ({ ...entry,
+        previousContractDigest: entry.executionContractDigest, currentContractDigest: entry.executionContractDigest,
+        previousSchemaDigest: canonicalDigest(schemaClosure(extraManifests.get(entry.capabilityRef), extraSchemas)),
+        currentSchemaDigest: canonicalDigest(schemaClosure(extraManifests.get(entry.capabilityRef), extraSchemas)) })) };
+    const history = createBoundedCatalogTransition({ ...shared, witness: extraWitness, registry: extraRegistry,
+      policyRegistry: extraPolicy, schemas: extraSchemas,
+      contractValidator: createCapabilityContractValidator({ schemas: value.schemas }), terminalOnly: true });
+    proofs.set(value.catalogDigest, history.proveTerminal);
+    additionalVerifiers.set(value.catalogDigest, snapshot => history.verify(snapshot));
+  }
+  const verify = snapshot => {
+    const extra = additionalVerifiers.get(snapshot?.plan?.catalog_digest);
+    return extra ? extra(snapshot) : snapshot?.plan?.catalog_digest === archive.catalogDigest ? frozen.verify(snapshot) : prior.verify(snapshot);
+  };
   return Object.freeze({
     supports: digest => proofs.has(digest),
     verify,

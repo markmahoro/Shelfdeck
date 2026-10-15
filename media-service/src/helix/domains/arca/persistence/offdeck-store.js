@@ -3,6 +3,7 @@
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { POLICY_ID, defaultPolicy, normalizePolicy, highVolumeDecision, stable } = require('../model/offdeck-contract');
+const javCorrectionGate=require('./jav-correction-gate');
 
 class OffdeckStoreError extends Error {
   constructor(code, message) { super(message); this.name = 'OffdeckStoreError'; this.code = code; }
@@ -37,6 +38,7 @@ function createOffdeckStore(options) {
   if (!options?.schemaManifest || !options.unitOfWork) throw new TypeError('Off-deck Store requires clean persistence dependencies.');
   const now = options.now || Date.now;
   const repo = createRepositoryDefinition({ repositoryId:'arca_offdeck_store', owner:'arca', schemaManifest:options.schemaManifest, statements:{
+    ...javCorrectionGate.statements,
     find_policy_head:{kind:'select-one',tableId:'arca_offdeck_policy_heads',columns:['policy_id','current_revision','status','updated_at_ms'],keyColumns:['policy_id'],safeIntegers:true},
     find_policy_revision:{kind:'select-one',tableId:'arca_offdeck_policy_revisions',columns:['policy_id','revision','condition_group_schema_ref','condition_group_json','policy_digest','effective_at_ms'],keyColumns:['policy_id','revision'],safeIntegers:true},
     insert_policy_revision:{kind:'insert',tableId:'arca_offdeck_policy_revisions',columns:['policy_id','revision','condition_group_schema_ref','condition_group_json','policy_digest','effective_at_ms']},
@@ -346,6 +348,7 @@ function createOffdeckStore(options) {
     const opened = write('arca_offdeck_review_open', (ctx) => {
       const r = ctx.repository(repo.repositoryId), existing = r.invoke('find_review', { review_id:reviewId });
       if (existing) return Object.freeze({ reviewId, replayed:true });
+      for(const record of records)javCorrectionGate.assertNoJavCorrection(r,record.snapshot.entry.shelf_entry_id);
       const reservations = r.invoke('list_reservations', {});
       if (records.some((record) => reservations.some((item) => item.shelf_entry_id === record.snapshot.entry.shelf_entry_id && item.state === 'active'))) {
         fail('ARCA_OFFDECK_RESERVATION_CONFLICT', 'Shelf Entry already has an active Off-deck Reservation.');
@@ -525,7 +528,7 @@ function createOffdeckStore(options) {
       if(stale){write('arca_offdeck_authorization_scope_stale',(ctx)=>{const r=ctx.repository(repo.repositoryId);if(scope.state==='confirmed')r.invoke('update_scope',{state:'stale',destruction_scope_id:scope.destruction_scope_id,expected_state:'confirmed'});if(reservation?.state==='active')r.invoke('update_reservation',{state:'released',released_at_ms:now(),reservation_id:reservation.reservation_id,expected_state:'active'});return Object.freeze({stale:true});});blocked.push(Object.freeze({shelfEntryId:scope.shelf_entry_id,destructionScopeId:scope.destruction_scope_id,reasonCode:'destruction_scope_stale'}));continue;}
       const authorizationId=stable('arca-offdeck-authorization-',{scopeId:scope.destruction_scope_id,scopeDigest:scope.scope_digest}),caseId=reauthorization?d.originRef:stable('arca-offdeck-case-',{shelfEntryId:scope.shelf_entry_id,originReviewId:reviewId});
       write('arca_offdeck_entry_authorize',(ctx)=>{const r=ctx.repository(repo.repositoryId),existing=r.invoke('list_authorizations',{}).find((item)=>item.authorization_id===authorizationId);if(existing)return Object.freeze({caseId,replayed:true});
-        const replacementCase=reauthorization?r.invoke('find_case',{offdeck_case_id:d.originRef}):null;r.invoke('insert_authorization',{authorization_id:authorizationId,destruction_scope_id:scope.destruction_scope_id,scope_digest:scope.scope_digest,actor_id:input.actorId||'admin',batch_id:envelope.batchId,authorized_at_ms:at,state:'active'});
+        javCorrectionGate.assertNoJavCorrection(r,scope.shelf_entry_id);const replacementCase=reauthorization?r.invoke('find_case',{offdeck_case_id:d.originRef}):null;r.invoke('insert_authorization',{authorization_id:authorizationId,destruction_scope_id:scope.destruction_scope_id,scope_digest:scope.scope_digest,actor_id:input.actorId||'admin',batch_id:envelope.batchId,authorized_at_ms:at,state:'active'});
         if(replacementCase){const oldAuth=r.invoke('list_authorizations',{}).find((item)=>item.authorization_id===replacementCase.current_authorization_id),oldScope=oldAuth&&r.invoke('find_scope',{destruction_scope_id:oldAuth.destruction_scope_id});if(!oldAuth||!oldScope||replacementCase.state!=='awaiting_reauthorization')fail('ARCA_OFFDECK_REAUTHORIZATION_STALE','Off-deck Case no longer awaits reauthorization.');r.invoke('update_authorization',{state:'stale',authorization_id:oldAuth.authorization_id,expected_state:'active'});r.invoke('update_scope',{state:'stale',destruction_scope_id:oldScope.destruction_scope_id,expected_state:'authorized'});r.invoke('update_case',{current_authorization_id:authorizationId,state:'executing',recovery_revision:Number(replacementCase.recovery_revision)+1,retry_at_ms:null,blocked_reason:null,terminal_at_ms:null,offdeck_case_id:caseId,expected_state:'awaiting_reauthorization'});}else{r.invoke('insert_case',{offdeck_case_id:caseId,initial_authorization_id:authorizationId,current_authorization_id:authorizationId,shelf_entry_id:scope.shelf_entry_id,origin_kind:d.originKind,origin_ref:reviewId,state:'executing',recovery_revision:1,retry_at_ms:null,blocked_reason:null,created_at_ms:at,terminal_at_ms:null});if(r.invoke('mark_entry',{status:'offdeck_in_progress',shelf_entry_id:scope.shelf_entry_id,expected_status:'active'}).changes!==1)fail('ARCA_OFFDECK_ENTRY_STALE','Shelf Entry changed before Authorization.');}
         if(r.invoke('update_scope',{state:'authorized',destruction_scope_id:scope.destruction_scope_id,expected_state:'confirmed'}).changes!==1||r.invoke('update_reservation',{state:'consumed',released_at_ms:at,reservation_id:reservation.reservation_id,expected_state:'active'}).changes!==1)fail('ARCA_OFFDECK_ENTRY_STALE','Off-deck Entry Authorization facts changed concurrently.');return Object.freeze({caseId,replayed:false});});cases.push(caseId);
     }

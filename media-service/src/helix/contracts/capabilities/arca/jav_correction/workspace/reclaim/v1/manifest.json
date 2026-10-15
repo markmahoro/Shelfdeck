@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.jav_correction.workspace.reclaim@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "javCorrectionWorkspaceReclaimScope": {
+      "schemaRef": "helix://contracts/capabilities/arca.jav_correction.workspace.reclaim/v1/inputs#/$defs/javCorrectionWorkspaceReclaimScope",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.jav_correction.workspace.reclaim/v1/parameters",
+  "resultSchemaRef": "helix://contracts/types/JavCorrectionWorkspaceReclaimReceipt/v1",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.jav_correction.workspace.reclaim/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.jav_correction.workspace.reclaim/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.jav_correction.workspace.reclaim/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.jav_correction.workspace.reclaim/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.jav_correction.workspace.reclaim/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.11",
+    "line": 10370,
+    "lineDigest": "8e052e732ce4d0b3c8fe0ad654451e9c4fad93bf23c8f4f6d090b1cdbf0ed217"
+  }
+}

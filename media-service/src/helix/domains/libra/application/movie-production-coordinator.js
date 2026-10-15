@@ -560,6 +560,7 @@ function mediaProbeEvidence(raw, handle, observedAtMs) {
   if (raw.resultKind === 'probed') {
     basis.container = raw.container || 'matroska';
     basis.durationMs = raw.durationMs;
+    if(raw.copyCompatibilityDigest)basis.copyCompatibilityDigest=raw.copyCompatibilityDigest;
     basis.discTopology = raw.discTopology || null;
   } else {
     basis.reasonCode = 'probe_not_media';

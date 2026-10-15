@@ -103,7 +103,7 @@
       "relativePath": "types/IntegrationHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "50d7cea4b9e6e121d9e785b83c2fc47cc3d58b0e91f0dc72be7168e931b8f716"
+        "value": "bed00c8a187841f614f869d6a3c0ed4ae52b4162261bc31a8b6bb5dbaea40fde"
       },
       "ssotRefs": [
         "8.6.18"

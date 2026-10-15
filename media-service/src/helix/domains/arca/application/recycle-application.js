@@ -2,12 +2,15 @@
 
 const path=require('node:path');
 const {canonicalDigest}=require('../../../contracts/canonical-json');
+const {createJavCorrectionDirectoryInspection}=require('./jav-correction-directory-inspection');
 
 function fail(code){throw Object.assign(new Error(code),{code});}
 function createRecycleApplication(options){
   const {store,port,files}=options,now=options.now||Date.now;
   const root=path.resolve(options.root);let busy=false,lastExpirySweep=0;
   const retryAfter=new Map();
+  const correctionInspection=options.directoryStore?createJavCorrectionDirectoryInspection({directoryStore:options.directoryStore,
+    prepareScope:options.prepareCorrectionDirectory,readRecycled:()=>store.list(),scopeFor,preview,archive,files,now}):null;
   async function assertRoot(scope){
     await files.noLinks(root);
     for(const scan of scope.scanRoots)if(files.inside(scan,root)||files.inside(root,scan))fail('ARCA_RECYCLE_ROOT_OVERLAP');
@@ -16,7 +19,7 @@ function createRecycleApplication(options){
     const scope=options.readScope(shelfEntryId);if(!scope)fail('ARCA_RECYCLE_ENTRY_NOT_FOUND');
     await assertRoot(scope);
     if(!scope.knownSourceDirectories.some(dir=>path.resolve(dir)===source))fail('ARCA_RECYCLE_SOURCE_NOT_BOUND');
-    if(scope.scanRoots.some(dir=>path.resolve(dir)===source)||scope.protectedLocations.some(location=>files.inside(source,location)))fail('ARCA_RECYCLE_SOURCE_IN_USE');
+    if(scope.scanRoots.some(dir=>files.inside(source,dir))||scope.protectedLocations.some(location=>files.inside(source,location)))fail('ARCA_RECYCLE_SOURCE_IN_USE');
     if(files.inside(source,root)||files.inside(root,source))fail('ARCA_RECYCLE_ROOT_OVERLAP');
     await files.noLinks(source);return scope;
   }
@@ -42,6 +45,7 @@ function createRecycleApplication(options){
     fileCount:row.manifest.entries.filter(item=>item.kind==='file').length,totalBytes:row.manifest.totalBytes,errorCode:row.last_error});}
   function cleanupProjection(check,recycled){
     const checks=check.checks.map(item=>{
+      if(['retained_root','retained_in_use'].includes(item.state))return item;
       const latest=recycled.filter(row=>row.shelf_entry_id===check.shelf_entry_id&&row.source_location===item.sourceLocation&&
         Number(row.created_at_ms)>=Number(check.created_at_ms)).sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms))[0];
       if(!latest)return item;
@@ -67,12 +71,13 @@ function createRecycleApplication(options){
   async function restore(id){const row=store.get(id);if(!row)fail('ARCA_RECYCLE_NOT_FOUND');
     if(row.state==='archived'&&await files.present(row.source_location))fail('ARCA_RECYCLE_TARGET_EXISTS');
     const scope=options.readScope(row.shelf_entry_id);if(!scope)fail('ARCA_RECYCLE_ENTRY_NOT_FOUND');await assertRoot(scope);
+    await scopeFor(row.shelf_entry_id,path.resolve(row.source_location));
     const result=store.requestRestore(id);options.wake?.();return publicRow(result);
   }
   async function inspectCleanup(check){
     const checks=[];let retryMs=24*60*60*1000;
     try{
-      const scope=options.readScope(check.shelf_entry_id);
+      const scope=options.readScope(check.shelf_entry_id,'on_deck_cleanup');
       if(!scope||scope.onDeckRunId!==check.on_deck_run_id)fail('ARCA_RECYCLE_CHECK_SCOPE_CHANGED');
       if(scope.knownSourceDirectories.length>32)fail('ARCA_RECYCLE_SCOPE_TOO_LARGE');
       const recycled=store.list();
@@ -117,6 +122,8 @@ function createRecycleApplication(options){
         .sort((a,b)=>Number(a.created_at_ms)-Number(b.created_at_ms))[0];
       if(!row){
         const check=options.cleanupStore?.next(now());
+        const correction=options.directoryStore?.next(now());
+        if(correction&&(!check||correction.next_check_at_ms<=check.next_check_at_ms))return await correctionInspection.inspect(correction);
         if(check)return await inspectCleanup(check);
         return {kind:'idle'};
       }
@@ -125,19 +132,26 @@ function createRecycleApplication(options){
         const scope=options.readScope(row.shelf_entry_id);if(!scope)fail('ARCA_RECYCLE_ENTRY_NOT_FOUND');await assertRoot(scope);
         if(!files.inside(root,row.archive_location)||row.archive_location!==path.join(root,row.recycle_entry_id,'payload'))fail('ARCA_RECYCLE_PATH_ESCAPE');
         if(row.state==='moving'&&await files.present(row.source_location))await scopeFor(row.shelf_entry_id,row.source_location);
+        if(row.state==='restoring')await scopeFor(row.shelf_entry_id,path.resolve(row.source_location));
         if(row.state==='pending'){await scopeFor(row.shelf_entry_id,row.source_location);await files.verify(row.source_location,row.manifest);current=store.start(row);}
         await port.apply(current);store.finish(current);retryAfter.delete(row.recycle_entry_id);
+        options.wake?.();
         return {kind:'completed',recycleEntryId:row.recycle_entry_id};
       }catch(error){store.recordError(current,error.code||'ARCA_RECYCLE_IO_FAILED');retryAfter.set(row.recycle_entry_id,now()+5*60*1000);return {kind:'blocked',recycleEntryId:row.recycle_entry_id,errorCode:error.code||'ARCA_RECYCLE_IO_FAILED'};}
     }finally{busy=false;}
   }
   return Object.freeze({list:(query={})=>{
     const cursor=query.cleanupCursor||null;
+    const correctionCursor=query.correctionCursor||null;
     if(cursor!==null&&(typeof cursor!=='string'||cursor.length>200))fail('ARCA_RECYCLE_CURSOR_INVALID');
+    if(correctionCursor!==null&&(typeof correctionCursor!=='string'||correctionCursor.length>256))fail('ARCA_RECYCLE_CURSOR_INVALID');
     const rows=options.cleanupStore?.page(cursor,51)||[],page=rows.slice(0,50),recycled=store.list().sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms));
+    const correctionRows=options.directoryStore?.page(correctionCursor,51)||[],correctionPage=correctionRows.slice(0,50);
     return {items:recycled.map(publicRow),
       cleanupChecks:page.map(row=>cleanupProjection(row,recycled)),
-      cleanupNextCursor:rows.length>50?page.at(-1).on_deck_run_id:null};
+      cleanupNextCursor:rows.length>50?page.at(-1).on_deck_run_id:null,
+      correctionChecks:correctionPage.map(row=>{const {onDeckRunId,...projection}=cleanupProjection(row,recycled);return {...projection,correctionId:row.correction_id,errorCode:row.last_error_code||null};}),
+      correctionNextCursor:correctionRows.length>50?correctionPage.at(-1).correction_id:null};
   },preview,archive,restore,tick});
 }
 module.exports=Object.freeze({createRecycleApplication});

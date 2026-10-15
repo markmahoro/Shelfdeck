@@ -218,6 +218,9 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "directTargetPolicyRef": {
+      "const": "perception.jav-retained-target@1"
     }
   },
   "required": [

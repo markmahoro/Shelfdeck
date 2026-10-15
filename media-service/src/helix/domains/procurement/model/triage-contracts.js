@@ -2,6 +2,9 @@
 const {explicitSeriesContinuityClaims,mergeExplicitSeriesContinuityClaims}=require('./series-continuity-claims');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const {identifyJavFilename}=require('./jav-filename-identity');
+const {groupJavNamedParts}=require('./jav-part-groups');
+const {assertJavPartSet}=require('../../../contracts/jav-part-set');
 const { validateTriageRuleSnapshot } = require('./procurement-run-contracts');
 const { relatedArtworkRole } = require('./related-artwork-role');
 const {
@@ -23,7 +26,7 @@ const STRUCTURE_REASONS = Object.freeze([...PLAYABILITY_REASONS, 'content_profil
   'triage_unit_contract_too_large', 'structure_ambiguous']);
 const CLAIM_KIND = Object.freeze({ movie:'movie_title', series:'series_season', jav:'jav_code', western_adult:'western_temporary' });
 const RELATED_RULE_REVISION = 2;
-const MATERIAL_INPUT_FORMS = Object.freeze(['stream_file', 'bdmv', 'dvd', 'iso']);
+const MATERIAL_INPUT_FORMS = Object.freeze(['stream_file', 'bdmv', 'dvd', 'iso', 'jav_named_parts']);
 
 class ProcurementTriageError extends Error {
   constructor(code, message, details = {}) { super(message); this.name = 'ProcurementTriageError'; this.code = code; this.details = details; }
@@ -141,7 +144,10 @@ function episodeToken(name) {
   }
   return null;
 }
-function javCode(name) { const match = name.match(/(?:^|[ ._-])([A-Za-z]{2,10})[-_ ]?(\d{2,6})(?=$|[ ._-])/); return match ? match[1].toUpperCase() + '-' + match[2] : null; }
+function javCode(name) {
+  const result=identifyJavFilename(name);
+  return result.javCode;
+}
 function titleFrom(context, temporaryLabel) {
   const fileStem = String(context.baseName || '').replace(/\.[^.]+$/, '').trim();
   return (context.directoryTitle || fileStem || temporaryLabel).trim() || temporaryLabel;
@@ -383,7 +389,7 @@ function materialInputFormFromProbe(probe) {
     typeof topology.titleSelectionEvidence === 'object' && topology.titleSelectionEvidence !== null &&
     typeof selectedPlaylist === 'string' && selectedPlaylist.length > 0 &&
     Array.isArray(topology.members) && topology.members.length > 0;
-  if (!MATERIAL_INPUT_FORMS.includes(topology.discKind) || !validTopology) {
+  if (!['bdmv','dvd','iso'].includes(topology.discKind) || !validTopology) {
     fail('P7_TRIAGE_INPUT_FORM_TOPOLOGY_INVALID', 'Typed disc topology evidence is incomplete for materialInputForm.');
   }
   return topology.discKind;
@@ -677,6 +683,30 @@ function mergeSeriesUnits(groups, unassigned) {
   return merged;
 }
 
+function mergeJavPartUnits(group,unitsByMaterial,unassigned) {
+  const units=group.parts.map(part=>unitsByMaterial.get(part.materialKey));
+  if(units.some(unit=>!unit||unit.contentProfile!=='jav'||unit.materialInputForm!=='stream_file')) {
+    for(const part of group.parts)if(!unassigned.some(item=>item.materialKey===part.materialKey))
+      unassigned.push({materialKey:part.materialKey,reasonCode:'structure_ambiguous',evidenceDigest:group.groupDigest});
+    return null;
+  }
+  const javPartSet=assertJavPartSet(group),members=units.flatMap(unit=>unit.members).sort((a,b)=>compareUtf8(a.materialKey,b.materialKey)),
+    sourceHints=units.flatMap(unit=>unit.identityMetadata.sourceHints).filter((hint,index,all)=>
+      hint.hintKind!=='field_content_profile_hint'||index===all.findIndex(item=>item.hintKind==='field_content_profile_hint'))
+      .sort((a,b)=>compareUtf8(a.hintKind,b.hintKind)||compareUtf8(a.hintValue,b.hintValue)||compareUtf8(a.evidenceDigest,b.evidenceDigest)),
+    identityMetadata={claimedTitle:group.javCode,javCode:group.javCode,contentProfileHint:units[0].identityMetadata.contentProfileHint,sourceHints};
+  identityMetadata.metadataDigest=digest(identityMetadata);
+  const scope={scopeKind:'ordinary_parent',parentRelativeLocation:group.parentRelativeLocation,stemKey:group.javCode.toLowerCase(),
+    associationMode:'standalone_same_stem',observationProjectionRevision:units[0].relatedScope.observationProjectionRevision,relatedRuleRevision:RELATED_RULE_REVISION},
+    relatedScope={...scope,scopeDigest:digest({schema:'procurement.related-scope@1',...scope})},
+    value={...units[0],unitId:'',displayIdentity:group.javCode,identityMetadata,members,relatedScope,materialInputForm:'jav_named_parts',javPartSet,unitDigest:''};
+  value.unitId=digest({schema:'procurement.triage-unit-id@1',mediaType:value.mediaType,contentProfile:value.contentProfile,
+    structureKind:value.structureKind,materialInputForm:value.materialInputForm,relatedScope,javPartSetDigest:javPartSet.groupDigest,
+    members:members.map(({materialKey,role,episodeClaims})=>({materialKey,role,episodeClaims}))});
+  value.unitDigest=digest(without(value,'unitDigest'));
+  return conserveUnitBound(value,unassigned)?value:null;
+}
+
 function inspectStructureUnits(input, rule) {
   validateTriageRuleSnapshot(rule); validateStructureInput(input);
   const layoutEvidence = observationScopeLayoutEvidence(input);
@@ -699,6 +729,14 @@ function inspectStructureUnits(input, rule) {
   const bdmvAssessments = bdmvAssessmentMap(input); const playable = playableMap(input); const playableBdmv = playableBdmvMap(input);
   const units = []; const unassigned = []; const seriesGroups = new Map(); const processed = new Set();
   const profileHintSnapshot = input.materialFieldContext.profileHintSnapshot;
+  const javNamedGroups=['jav','mixed'].includes(profileHintSnapshot.contentProfileHint)?groupJavNamedParts(selection.members
+    .filter(member=>contexts.get(member.materialKey)?.selectionScopeKind!=='bdmv_container'&&
+      /\.(?:mp4|mkv|wmv|avi|mov|m4v|ts|m2ts)$/i.test(member.fieldRelativeLocation)&&
+      (profileHintSnapshot.contentProfileHint==='jav'||!episodeToken(contexts.get(member.materialKey)?.baseName||'')))
+    .map(member=>({materialKey:member.materialKey,relativeLocation:member.fieldRelativeLocation}))):{groups:[],conflicts:[]},
+    javPartGroups=javNamedGroups.groups.filter(group=>group.parts.length>1),
+    javGroupedKeys=new Set(javPartGroups.flatMap(group=>group.parts.map(part=>part.materialKey))),
+    javConflictKeys=new Set(javNamedGroups.conflicts.flatMap(group=>group.materialKeys)),javUnitsByMaterial=new Map();
   const addGroupUnassigned = (group, reasonCode, evidenceDigest) => {
     for (const selected of group) unassigned.push({ materialKey:selected.materialKey, reasonCode,
       evidenceDigest:evidenceDigest || digest({ schema:'procurement.bdmv-structure-decision@1', materialKey:selected.materialKey, reasonCode }) });
@@ -859,13 +897,20 @@ function inspectStructureUnits(input, rule) {
     const unit = unitFor(probe, { ...context, directoryTitle, fieldId:input.materialFieldContext.fieldId }, profileName,
       profileName === 'series' ? 'group' : 'single', token && token.season, token ? token.episodes : [], relatedScope, materialInputForm,
       profileHintSnapshot);
-    if (profileName !== 'series') { if (conserveUnitBound(unit, unassigned)) units.push(unit); continue; }
+    if (profileName !== 'series') {
+      if(profileName==='jav'&&javConflictKeys.has(selected.materialKey))
+        unassigned.push({materialKey:selected.materialKey,reasonCode:'structure_ambiguous',evidenceDigest:digest(javNamedGroups.conflicts)});
+      else if(profileName==='jav'&&javGroupedKeys.has(selected.materialKey))javUnitsByMaterial.set(selected.materialKey,unit);
+      else if (conserveUnitBound(unit, unassigned)) units.push(unit);
+      continue;
+    }
     const groupKey = digest({ schema:'procurement.series-candidate-group@1', claimedTitle:unit.identityMetadata.claimedTitle,
       seasonClaimDigest:unit.identityMetadata.seasonClaim.claimDigest });
     if (!seriesGroups.has(groupKey)) seriesGroups.set(groupKey, []);
     seriesGroups.get(groupKey).push(unit);
   }
   units.push(...mergeSeriesUnits(seriesGroups, unassigned));
+  for(const group of javPartGroups){const unit=mergeJavPartUnits(group,javUnitsByMaterial,unassigned);if(unit)units.push(unit);}
   units.sort((a,b) => compareUtf8(a.unitId,b.unitId)); unassigned.sort((a,b) => compareUtf8(a.materialKey,b.materialKey));
   return { units, unassigned };
 }

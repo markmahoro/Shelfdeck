@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "tables",
+  "startOrdinal": 196,
+  "endOrdinal": 203,
+  "entries": [
+    {
+      "id": "libra_defect_authorizations",
+      "owner": "libra",
+      "columnsContract": "`authorization_id, revision, state(enabled|revoked), actor_id, authorization_digest, effective_at_ms, revoked_at_ms`",
+      "constraintsContract": "`PK(authorization_id,revision)`；immutable；revision为正整数",
+      "source": {
+        "section": "8.9.9",
+        "line": 15787,
+        "lineDigest": "8508fbbc000e32d4ee694d07ecb38e1ed718c02d1012fca2ddfde1962e7622a5"
+      }
+    },
+    {
+      "id": "libra_defect_authorization_head",
+      "owner": "libra",
+      "columnsContract": "`singleton_key PK, current_authorization_id, current_revision, updated_at_ms`",
+      "constraintsContract": "current pointer显式复合FK；CAS revision",
+      "source": {
+        "section": "8.9.9",
+        "line": 15788,
+        "lineDigest": "bce49ca70aa8369999f80da9113bbbd8fbf4082ab42977bf8732b90ae344fa2e"
+      }
+    },
+    {
+      "id": "libra_run_outcomes",
+      "owner": "libra",
+      "columnsContract": "`libra_run_id PK/FK, subject_id FK, outcome(on_deck|on_deck_with_defects|unable_to_on_deck), reason_code, stable_input_digest, requirements_digest, conditions_digest, outcome_schema_ref, outcome_json, outcome_digest, committed_at_ms`",
+      "constraintsContract": "`INDEX(subject_id,committed_at_ms)`；`INDEX(stable_input_digest,requirements_digest,conditions_digest)`；immutable；typed JSON上限`64 KiB`",
+      "source": {
+        "section": "8.9.9",
+        "line": 15789,
+        "lineDigest": "bc588a5a37ac833eae68c9adbbc154aeae0f6b3c878de7c3d9805f5bdbc2c4a8"
+      }
+    },
+    {
+      "id": "libra_reprocess_intents",
+      "owner": "libra",
+      "columnsContract": "`intent_id PK, stable_input_digest, previous_outcome_digest, actor_id, idempotency_key, intent_digest, issued_at_ms`",
+      "constraintsContract": "`UNIQUE(actor_id,idempotency_key)`；`INDEX(stable_input_digest,issued_at_ms)`；immutable",
+      "source": {
+        "section": "8.9.9",
+        "line": 15790,
+        "lineDigest": "c47fabd82f60de2f5c222d73758c9a24a15dc351d5576935e7070c49c87c1d96"
+      }
+    },
+    {
+      "id": "libra_strategy_availability",
+      "owner": "libra",
+      "columnsContract": "`libra_run_id FK, strategy_kind(moviepilot|tmdb), condition_digest, check_ordinal(0|1|2|3|4|5), evidence_schema_ref, evidence_json, evidence_digest, checked_at_ms`",
+      "constraintsContract": "`PK(libra_run_id,strategy_kind,condition_digest,check_ordinal)`；immutable；check_ordinal为0至5；typed JSON上限`4 KiB`",
+      "source": {
+        "section": "8.9.9",
+        "line": 15791,
+        "lineDigest": "efdec0f21af0d8ca4cf71e5a40de13d93b4aacfbb24fb0ea743ed7ea824789fc"
+      }
+    },
+    {
+      "id": "arca_defect_admissions",
+      "owner": "arca",
+      "columnsContract": "`shelf_entry_id FK, revision, inventory_revision, care_basis_digest, gap_set_digest, authorization_schema_ref, authorization_json, authorization_digest, actor_id, idempotency_key, decided_at_ms`",
+      "constraintsContract": "`PK(shelf_entry_id,revision)`；`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；immutable；typed JSON上限`64 KiB`",
+      "source": {
+        "section": "8.9.9",
+        "line": 15792,
+        "lineDigest": "88ec71a2d280751908ce94814f60ebb63cd00aa089e7f015bfa82ed65fb99f69"
+      }
+    },
+    {
+      "id": "arca_defect_admission_heads",
+      "owner": "arca",
+      "columnsContract": "`shelf_entry_id PK/FK, current_revision, updated_at_ms`",
+      "constraintsContract": "current pointer显式复合FK；CAS revision",
+      "source": {
+        "section": "8.9.9",
+        "line": 15793,
+        "lineDigest": "c2993d2fdd186a34ad68f9000cd181f0ab8502959b2bf8c033cf96d16b1c24e5"
+      }
+    },
+    {
+      "id": "arca_defect_repair_intents",
+      "owner": "arca",
+      "columnsContract": "`intent_id PK, shelf_entry_id FK, inventory_revision, care_basis_digest, gap_set_digest, authorization_revision, aftercare_case_id FK, actor_id, idempotency_key, intent_digest, issued_at_ms`",
+      "constraintsContract": "`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；`UNIQUE(aftercare_case_id)`；immutable",
+      "source": {
+        "section": "8.9.9",
+        "line": 15794,
+        "lineDigest": "6b01388fbace394628b73d88d23d73a671f05497789ee6e897a75ee25bdad4d2"
+      }
+    }
+  ]
+}

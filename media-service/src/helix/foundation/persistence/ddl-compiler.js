@@ -71,6 +71,7 @@ const PARTIAL_UNIQUE = Object.freeze({
     { columns: ['care_basis_digest', 'finding_set_digest', 'care_requirement_digest'], where: '"terminal_at_ms" IS NULL' },
     { columns: ['shelf_entry_id'], where: '"terminal_at_ms" IS NULL' },
   ],
+  arca_jav_identity_corrections: [{columns:['shelf_entry_id'],where:'"terminal_at_ms" IS NULL OR "cleanup_state" IN (\'pending\',\'active\',\'attention_required\')'}],
   arca_inventory_materials: [{ columns: ['material_key'], where: '"role" = \'primary_payload\' AND "active_guard" = 1' }],
   arca_offdeck_reservations: [{ columns: ['shelf_entry_id'], where: '"state" = \'active\'' }],
   arca_offdeck_review_candidates: [{ columns: ['shelf_entry_id', 'policy_id', 'policy_revision', 'reason_digest'], where: '"state" = \'open\'' }],
@@ -112,6 +113,23 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
 });
 
 const TABLE_CHECKS = Object.freeze({
+  arca_jav_correction_recovery_intents:[
+    '"receipt_schema_ref" = \'helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1\'',
+    '"observation_schema_ref" = \'helix://contracts/application-types/ArcaJavCorrectionRecoveryObservation/v1\''
+  ],
+  arca_jav_identity_corrections:[
+    '("recovery_intent_schema_ref" IS NULL AND "recovery_intent_json" IS NULL AND "recovery_intent_digest" IS NULL) OR ' +
+      '("recovery_intent_schema_ref" IS NOT NULL AND "recovery_intent_schema_ref" = \'helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1\' AND "recovery_intent_json" IS NOT NULL AND "recovery_intent_digest" IS NOT NULL)',
+    '("state" = \'committed\' AND "cleanup_state" IS NOT NULL) OR ("state" <> \'committed\' AND "cleanup_state" IS NULL)',
+    '("cleanup_state" = \'completed\' AND "cleanup_receipt_schema_ref" IS NOT NULL AND "cleanup_receipt_schema_ref" = \'helix://contracts/application-types/ArcaJavCorrectionCleanupReceipt/v1\' AND "cleanup_receipt_json" IS NOT NULL AND "cleanup_receipt_digest" IS NOT NULL) OR ' +
+      '(COALESCE("cleanup_state", \'\') <> \'completed\' AND "cleanup_receipt_schema_ref" IS NULL AND "cleanup_receipt_json" IS NULL AND "cleanup_receipt_digest" IS NULL)',
+    '("state" = \'committed\' AND "committed_context_schema_ref" IS NOT NULL AND "committed_context_schema_ref" = \'helix://contracts/application-types/ArcaJavCorrectionCommittedContext/v1\' AND "committed_context_json" IS NOT NULL AND "committed_context_digest" IS NOT NULL) OR ' +
+      '("state" <> \'committed\' AND "committed_context_schema_ref" IS NULL AND "committed_context_json" IS NULL AND "committed_context_digest" IS NULL)',
+    '"state_revision" >= 1',
+    '("state" IN (\'admitted\',\'active\',\'attention_required\') AND "terminal_evidence_digest" IS NULL AND "terminal_at_ms" IS NULL) OR ' +
+      '("state" IN (\'committed\',\'cancelled\') AND "terminal_evidence_digest" IS NOT NULL AND "terminal_at_ms" IS NOT NULL)',
+    '"preview_proof_schema_ref" = \'helix://contracts/application-types/ArcaJavCorrectionPreviewProof/v1\''
+  ],
   proc_candidate_packages: [
     `COALESCE("content_profile", '') = 'series' OR length(CAST("identity_metadata_json" AS BLOB)) <= 16384`,
     `COALESCE("content_profile", '') = 'series' OR length(CAST("identity_claim_json" AS BLOB)) <= 16384`
@@ -334,6 +352,8 @@ function compileTable(contract, allContracts) {
     const episodeRecordSet = contract.tableId === 'arca_final_inventory_decisions' && json.column === 'decision_json' && json.maxBytes === 8 * 1024 * 1024 || ['libra_product_fact_revisions','arca_inventory_product_facts'].includes(contract.tableId) &&
       json.column === 'episode_metadata_json' && json.maxBytes === 16 * 1024 * 1024 ||
       contract.tableId === 'arca_acceptance_check_evidence' && json.column === 'evidence_json' && json.maxBytes === 2 * 1024 * 1024 ||
+      contract.tableId === 'arca_jav_identity_corrections' && json.column === 'preview_proof_json' && json.maxBytes === 2 * 1024 * 1024 ||
+      contract.tableId === 'arca_jav_identity_corrections' && json.column === 'committed_context_json' && json.maxBytes === 4 * 1024 * 1024 ||
         contract.tableId === 'arca_staged_manifest_records' && json.column === 'manifest_json' && json.maxBytes === 8 * 1024 * 1024 ||
         contract.tableId === 'arca_inventory_verification_records' && json.column === 'verification_json' && json.maxBytes === 8 * 1024 * 1024;
     if (!json.requiresJsonValidCheck || (!episodeRecordSet && ![4096, 16384, 65536, 131072, 262144, 1048576].includes(json.maxBytes))) {

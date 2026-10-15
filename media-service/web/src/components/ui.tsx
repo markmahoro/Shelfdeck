@@ -32,9 +32,9 @@ export function Tabs({ items, value, onChange }: { items: Array<{ key: string; l
 export function EmptyState({ title, action }: { title: string; action?: ReactNode }) { return <div className="empty"><div><strong>{title}</strong>{action}</div></div>; }
 export function Loading() { return <div className="loading"><span className="spinner" aria-label="加载中" /></div>; }
 
-export function Dialog({ open, title, children, actions, onClose }: PropsWithChildren<{ open: boolean; title: string; actions?: ReactNode; onClose: () => void }>) {
+export function Dialog({ open, title, children, actions, onClose, dialogRef }: PropsWithChildren<{ open: boolean; title: string; actions?: ReactNode; onClose: () => void; dialogRef?: React.Ref<HTMLElement> }>) {
   if (!open) return null;
-  return <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section className="dialog" role="dialog" aria-modal="true" aria-label={title}><div className="dialog-head"><strong>{title}</strong><Button variant="quiet" className="icon-btn" aria-label="关闭" onClick={onClose}><Icon name="close" width={18} /></Button></div><div className="dialog-body">{children}</div>{actions && <div className="dialog-actions">{actions}</div>}</section></div>;
+  return <div className="dialog-scrim" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}><section ref={dialogRef} tabIndex={dialogRef ? -1 : undefined} className="dialog" role="dialog" aria-modal="true" aria-label={title}><div className="dialog-head"><strong>{title}</strong><Button variant="quiet" className="icon-btn" aria-label="关闭" onClick={onClose}><Icon name="close" width={18} /></Button></div><div className="dialog-body">{children}</div>{actions && <div className="dialog-actions">{actions}</div>}</section></div>;
 }
 
 export function Drawer({ open, title, children, onClose }: PropsWithChildren<{ open: boolean; title: string; onClose: () => void }>) {

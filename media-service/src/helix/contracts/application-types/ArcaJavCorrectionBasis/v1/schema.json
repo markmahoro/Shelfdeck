@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ArcaJavCorrectionBasis/v1",
+  "title": "ArcaJavCorrectionBasis@1",
+  "x-helix-ssotRefs": [
+    "3.5.5",
+    "8.5.12",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 1048576,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "arca.jav-correction-basis@1"
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "shelfId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "canonicalIdentityRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "canonicalIdentityKey": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "canonicalIdentityDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "javCode": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "inventoryRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "inventoryDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "deckFactRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "shelfTargetDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "standardRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "standardDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "placementRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "placementDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "originalSourcePackageId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "originalCommitDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "materials": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1024,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "role": {
+            "enum": [
+              "primary_payload",
+              "structural_dependency",
+              "metadata_sidecar",
+              "poster",
+              "fanart",
+              "subtitle",
+              "external_audio",
+              "chapter",
+              "sidecar"
+            ]
+          },
+          "physicalIdentity": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "schemaRef": {
+                "const": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+              },
+              "schemaVersion": {
+                "const": 2
+              },
+              "materialKey": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "mountScopeId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "inode": {
+                "type": "string",
+                "pattern": "^(0|[1-9][0-9]*)$"
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
+              },
+              "fingerprintAlgorithm": {
+                "const": "middle-256k-sha256"
+              },
+              "fingerprintVersion": {
+                "const": 1
+              },
+              "contentFingerprint": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "schemaRef",
+              "schemaVersion",
+              "materialKey",
+              "mountScopeId",
+              "inode",
+              "sizeBytes",
+              "fingerprintAlgorithm",
+              "fingerprintVersion",
+              "contentFingerprint"
+            ]
+          },
+          "endpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "bindingRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "controlRevision": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          },
+          "controlProjectionDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "ordinal",
+          "role",
+          "physicalIdentity",
+          "endpointId",
+          "location",
+          "bindingRevision",
+          "controlRevision",
+          "controlProjectionDigest"
+        ]
+      }
+    },
+    "relatedSetDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "acceptedFactSetDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "peopleSetDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "basisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schema",
+    "shelfEntryId",
+    "shelfId",
+    "canonicalIdentityRevision",
+    "canonicalIdentityKey",
+    "canonicalIdentityDigest",
+    "javCode",
+    "inventoryRevision",
+    "inventoryDigest",
+    "deckFactRevision",
+    "shelfTargetDigest",
+    "standardRevision",
+    "standardDigest",
+    "placementRevision",
+    "placementDigest",
+    "originalSourcePackageId",
+    "originalCommitDigest",
+    "materials",
+    "relatedSetDigest",
+    "acceptedFactSetDigest",
+    "peopleSetDigest",
+    "basisDigest"
+  ]
+}

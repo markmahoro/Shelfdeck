@@ -1,0 +1,132 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.jav-correction-no-effect-cancel/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.jav-correction-no-effect-cancel",
+    "displayName": "JAV Correction No Effect Cancel",
+    "ownerScope": "arca",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "Arca只允许当前attention_required且原Basis/逐材料Control不变、原Assets Work及逐次Recovery Intent明确授权的新Assets Work均为Source核验终结失败/Assets未执行、全部关联Effect/Result/Workspace Registry/Material/Artifact为空的精确用户命令；同UOW先只读重验，再CAS cancelled/state revision/terminal Receipt digest/time，与closed Command Receipt/marker/audit原子；原Entry/Canonical/Inventory/视频/原On-deck Commit不变，既有执行历史保持；不创建Effect/Outbox，不释放或转移Control，不允许有写入副作用的取消；精确重放先返回同一Receipt",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_jav_identity_corrections"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records"
+        ]
+      },
+      {
+        "participantKind": "material-control-authority",
+        "owner": "material-control-authority",
+        "access": "read",
+        "tables": [
+          "fx_material_controls"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "read",
+        "tables": [
+          "fx_supporting_works",
+          "fx_work_attempts",
+          "fx_workflow_plans",
+          "fx_plan_nodes",
+          "fx_plan_edges",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_effect_journal",
+          "fx_event_result_bindings",
+          "fx_workspace_registry",
+          "fx_workspace_materials",
+          "fx_artifact_registry"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_jav_identity_corrections",
+      "fx_command_receipts",
+      "fx_commit_markers",
+      "fx_audit_records"
+    ],
+    "readTables": [
+      "arca_jav_correction_recovery_intents",
+      "arca_jav_identity_corrections",
+      "arca_shelf_entries",
+      "arca_shelves",
+      "arca_canonical_identity_revisions",
+      "arca_inventory_representations",
+      "arca_inventory_materials",
+      "arca_inventory_related_references",
+      "arca_inventory_product_facts",
+      "arca_inventory_person_relations",
+      "arca_ondeck_commit_receipts",
+      "arca_shelf_standard_revisions",
+      "arca_placement_policy_revisions",
+      "arca_aftercare_cases",
+      "arca_offdeck_reservations",
+      "fx_material_controls",
+      "fx_supporting_works",
+      "fx_work_attempts",
+      "fx_workflow_plans",
+      "fx_plan_nodes",
+      "fx_plan_edges",
+      "fx_workflow_events",
+      "fx_event_attempts",
+      "fx_effect_journal",
+      "fx_event_result_bindings",
+      "fx_workspace_registry",
+      "fx_workspace_materials",
+      "fx_artifact_registry"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "command-idempotency",
+        "faultInjectionPoints": "Owner业务修改后响应前崩溃、相同key同payload重试、相同key不同payload重试",
+        "requiredInvariant": "Receipt与Owner修改同事务；同payload返回原result ref；不同payload稳定拒绝；不重复创建对象或推进revision",
+        "source": {
+          "section": "8.9.7",
+          "line": 8428
+        }
+      },
+      {
+        "fixtureId": "jav-correction-no-effect-cancel",
+        "faultInjectionPoints": "current Basis/Control/no-effect validation, cancellation CAS, Command Receipt/marker/audit writes, before and after COMMIT",
+        "requiredInvariant": "Cancellation and its Receipt/marker/audit are all-or-none; prior collection and execution history remain unchanged; exact replay precedes current-state checks; any write attempt or output registration rejects cancellation",
+        "source": {
+          "section": "8.9.7",
+          "line": 8758
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8759,
+      "lineDigest": "607a1ebdc4f3ec555a06788de2c6e27d4310eba9d6ec7001204bd5fcd6a5fd13"
+    }
+  }
+}

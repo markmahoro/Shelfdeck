@@ -4,6 +4,7 @@ const {canonicalDigest}=require('../../../contracts/canonical-json');
 const {createCommandCommitCoordinator}=require('../../../foundation/persistence/commit-foundation');
 const {appendInventoryRevision}=require('./inventory-revision-writer');
 const {assertPersonRecordObservation,personProofBatchFits}=require('../model/person-record-observation');
+const {assertNoJavCorrection}=require('./jav-correction-gate');
 const fail=(code,message)=>{throw Object.assign(new Error(message),{code});};
 const COMMAND='arca.inventory.person-records.refresh@1',RECEIPT='helix://arca/receipts/InventoryRecordRefreshReceipt/v1';
 function createPersonRecordRefreshStore(options,repository) {
@@ -22,6 +23,7 @@ function createPersonRecordRefreshStore(options,repository) {
       domainParticipant:{participantId:'arca_person_record_refresh',owner:'arca',repositories:[repository],execute(context) {
         const repo=context.repository(repository.repositoryId),entry=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId}),
           shelf=entry&&repo.invoke('find_shelf',{shelf_id:entry.shelf_id});
+        assertNoJavCorrection(repo,shelfEntryId);
         if(!entry||entry.status!=='active'||!shelf||shelf.status!=='active'||Number(entry.current_inventory_revision)!==expectedInventoryRevision||
           Number(entry.canonical_identity_revision)!==request.canonicalIdentityRevision||Number(shelf.current_standard_revision)!==request.standardRevision||
           Number(shelf.current_placement_revision)!==request.placementRevision)fail('ARCA_PERSON_RECORD_STALE','Person record Basis changed.');

@@ -35,7 +35,17 @@ function isAftercareArtifactMaterial(item, artifactKind) {
   // Inventory freezes a single business role. File names cannot promote a
   // generic sidecar into a required artifact or authorize its replacement.
   return (artifactKind==='nfo'&&item?.role==='metadata_sidecar')||
-    (artifactKind==='poster'&&item?.role==='poster');
+    (artifactKind==='poster'&&item?.role==='poster')||(artifactKind==='fanart'&&item?.role==='fanart');
+}
+
+function aftercareReceiptMaterialRole(receipt, sourceRow) {
+  if(receipt.materialEffectKind==='placement_migrate'&&sourceRow)return sourceRow.role;
+  if(receipt.materialEffectKind==='primary_replace')return 'primary_payload';
+  if(['artifact_materialize','artifact_reconcile'].includes(receipt.materialEffectKind)) {
+    if(receipt.artifactKind==='nfo')return 'metadata_sidecar';
+    if(['poster','fanart'].includes(receipt.artifactKind))return receipt.artifactKind;
+  }
+  throw new TypeError('Aftercare current Material Receipt lacks its declared role.');
 }
 
 function primaryReadHandle(context,item){return Object.freeze({schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',schemaVersion:1,
@@ -355,7 +365,7 @@ function dispositionFromAssessments(assessments) {
 
 function assertProcessingRequirement(requirement){
   const allowed=new Set(['custody:artifact_missing','custody:artifact_not_regular','custody:artifact_unreadable','custody:nfo_corrupt',
-    'presentation:nfo_missing','presentation:nfo_corrupt','presentation:poster_missing','presentation:poster_corrupt',
+    'presentation:nfo_missing','presentation:nfo_corrupt','presentation:poster_missing','presentation:poster_corrupt','presentation:fanart_missing','presentation:fanart_corrupt',
     'conformance:video_codec_unmet','conformance:max_size_exceeded','conformance:container_unmet','conformance:file_extension_unmet',
     'conformance:placement_unmet','conformance:settlement_gap']);
   const kinds=careFindingCodes(requirement);
@@ -370,6 +380,6 @@ module.exports = Object.freeze({ CAPABILITY_REFS, HEALTH_STATES, CASE_STATES, DI
   ASSESSMENT_KINDS, PERIODS, stableJitterMs, projectHealth, dispositionFromAssessments,
   hasIncompatibleRepairCombination,
   primaryReadHandle, physicalIdentityFromInventoryRow, deriveInventoryMaterialChanges, settlementScopeDigest,
-  isAftercareArtifactMaterial, aftercareSettlementEventId, aftercareServiceCatalogRevision, aftercareSettlementApprovalId,
+  isAftercareArtifactMaterial, aftercareReceiptMaterialRole, aftercareSettlementEventId, aftercareServiceCatalogRevision, aftercareSettlementApprovalId,
   aftercareInventoryCommitId, aftercareInventoryCommitDigest,
   buildAftercareSettlementHandles });

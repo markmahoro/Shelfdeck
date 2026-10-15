@@ -1,4 +1,5 @@
 import RecycleSettings from './RecycleSettings';
+import JavSourcesSettings from './JavSourcesSettings';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { helixAdminApi, type IntegrationState, type PerceptionRecord, type PerceptionSyncState, type WorkspaceRootSettings } from './api';
 import { newOpaqueId } from './id';
@@ -223,7 +224,7 @@ export default function SettingsPage() {
       <button type="button" role="tab" aria-selected={tab === 'integrations'} onClick={() => setTab('integrations')}>连接</button>
       <button type="button" role="tab" aria-selected={tab === 'workspace'} onClick={() => setTab('workspace')}>整理空间</button>
       <button type="button" role="tab" aria-selected={tab === 'offdeck'} onClick={() => setTab('offdeck')}>退出规则</button>
-      <button type="button" role="tab" aria-selected={tab === 'ratings'} onClick={() => setTab('ratings')}>评分日志</button>
+      <button type="button" role="tab" aria-selected={tab === 'ratings'} onClick={() => setTab('ratings')}>评分与已看日志</button>
       <button type="button" role="tab" aria-selected={tab === 'recycle'} onClick={() => setTab('recycle')}>回收站</button>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
@@ -281,6 +282,7 @@ export default function SettingsPage() {
           </form>}
         </div>
       </section>
+      <JavSourcesSettings onUnauthorized={expire}/>
       <section className="settings-card" aria-labelledby="moviepilot-title">
         <header className="settings-card-head"><div><h2 id="moviepilot-title">MoviePilot</h2></div><span className="integration-state" data-state={integrationTone(moviePilot)}>{integrationStateLabel(moviePilot)}</span></header>
         <div className="settings-card-body">
@@ -308,7 +310,7 @@ export default function SettingsPage() {
         </div>
       </section>
     </div> : <section className="settings-card rating-log" aria-labelledby="rating-log-title">
-      <h2 id="rating-log-title" className="sr-only">评分日志</h2>
+      <h2 id="rating-log-title" className="sr-only">评分与已看日志</h2>
       <div className="settings-card-body">
       <div className="log-filters">
         <Button type="button" onClick={() => void loadRatings()} disabled={loading}>刷新日志</Button>
@@ -317,7 +319,7 @@ export default function SettingsPage() {
         <label><span>状态</span><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">全部</option><option value="matched">已匹配</option><option value="unmatched">未匹配</option><option value="ambiguous">有歧义</option><option value="superseded">已更正</option></select></label>
         <label><span>目标</span><select value={targetFilter} onChange={(event) => setTargetFilter(event.target.value)}><option value="">全部</option><option value="subject">整理中的媒体</option><option value="shelf_entry">收藏条目</option></select></label>
       </div>
-      {records.length === 0 ? <div className="source-empty"><strong>{ratingsLoaded || loading ? '还没有评分记录' : '正在读取评分日志…'}</strong></div> : <div className="formation-table-wrap"><table className="formation-table"><thead><tr><th>标题</th><th>评分</th><th>来源</th><th>状态</th><th>目标</th><th>记录时间</th></tr></thead><tbody>{records.map((record) => <tr key={record.perceptionId}><td><strong>{record.observedTitle}</strong><small>{labelOf(recordKindLabels, record.recordKind)}</small></td><td className="rating-text">{stars(record.rating)}</td><td>{record.sourceKind === 'douban' ? '豆瓣' : 'ShelfDeck'}</td><td><span className="ui-state" data-state={record.resolutionStatus}>{labelOf(resolutionLabels, record.resolutionStatus)}</span></td><td>{record.targetType === 'subject' ? '整理中的媒体' : record.targetType === 'shelf_entry' ? '收藏条目' : '—'}</td><td>{time(record.committedAtMs)}</td></tr>)}</tbody></table></div>}
+      {records.length === 0 ? <div className="source-empty"><strong>{ratingsLoaded || loading ? '还没有评分或已看记录' : '正在读取日志…'}</strong></div> : <div className="formation-table-wrap"><table className="formation-table"><thead><tr><th>标题</th><th>评分</th><th>已看</th><th>来源</th><th>状态</th><th>目标</th><th>记录时间</th></tr></thead><tbody>{records.map((record) => <tr key={record.perceptionId}><td><strong>{record.observedTitle}</strong><small>{labelOf(recordKindLabels, record.recordKind)}</small></td><td className="rating-text">{stars(record.rating)}</td><td>{record.watchedState===null?'—':record.watchedState?'已看':'未看'}</td><td>{record.sourceKind === 'douban' ? '豆瓣' : 'ShelfDeck'}</td><td><span className="ui-state" data-state={record.resolutionStatus}>{labelOf(resolutionLabels, record.resolutionStatus)}</span></td><td>{record.targetType === 'subject' ? '整理中的媒体' : record.targetType === 'shelf_entry' ? '收藏条目' : '—'}</td><td>{time(record.committedAtMs)}</td></tr>)}</tbody></table></div>}
       {nextCursor && <Button type="button" onClick={() => void loadMore()}>加载更多</Button>}
       </div>
     </section>}

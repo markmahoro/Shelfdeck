@@ -9,7 +9,7 @@ function aftercareProviderIdentity(context,stableIdentity) {
   if(provider!==raw.identity.provider||providerKey!==String(raw.identity.provider_key)||
       stableIdentity.identityDigest!==raw.identity.identity_digest)stale();
   if(raw.entry.structure_kind!=='season')return Object.freeze({provider,providerKey,
-    namespace:provider==='tmdb'?'tmdb_movie':provider,seasonNumber:null,identityAnchorDigest:stableIdentity.identityDigest});
+    namespace:provider==='tmdb'?'tmdb_movie':provider==='jav'?'jav_code':provider,seasonNumber:null,identityAnchorDigest:stableIdentity.identityDigest});
   const identities=raw.facts.filter(item=>item.fact_kind==='resolved_identity')
     .map(item=>item.value?.resolvedProductIdentity||item.value);
   if(provider!=='tmdb'||raw.identity.identity_kind!=='tmdb_series_season'||!identities.length)stale();

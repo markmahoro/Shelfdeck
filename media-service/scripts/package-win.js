@@ -6,7 +6,7 @@
  * Produces a self-contained directory with node.exe, start.bat,
  * and all dependencies.  No separate Node.js installation required.
  *
- * Usage:  node scripts/package-win.js
+ * Usage:  node scripts/package-win.js [--output <new-directory>]
  * Output: dist-pkg/media-service/  (ready to zip)
  */
 
@@ -15,14 +15,29 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
-const OUT = path.join(ROOT, 'dist-pkg', 'media-service');
+const args = process.argv.slice(2);
+if (args.length && (args.length !== 2 || args[0] !== '--output' || !args[1])) {
+  throw new Error('Supply only --output with a new package directory.');
+}
+if (process.platform !== 'win32') throw new Error('Windows packaging requires its Windows runtime and native dependencies.');
+const OUT = args.length ? path.resolve(args[1]) : path.join(ROOT, 'dist-pkg', 'media-service');
+for (const input of ['src', 'scripts', 'dist', 'node_modules']) {
+  const relative = path.relative(path.join(ROOT, input), OUT);
+  if (!relative || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative))) {
+    throw new Error('Package output cannot be nested in its source inputs.');
+  }
+}
 
 // ── clean ──────────────────────────────────────────────────────────────────────
 
-if (fs.existsSync(OUT)) {
-  fs.rmSync(OUT, { recursive: true, force: true });
+if (fs.existsSync(OUT)) throw new Error('Package output already exists; use a new directory.');
+let existingParent = path.dirname(OUT);
+while (!fs.existsSync(existingParent)) existingParent = path.dirname(existingParent);
+if (fs.realpathSync(existingParent).toLowerCase() !== path.resolve(existingParent).toLowerCase()) {
+  throw new Error('Package output parents must not use symbolic links or junctions.');
 }
-fs.mkdirSync(OUT, { recursive: true });
+fs.mkdirSync(path.dirname(OUT), { recursive: true });
+fs.mkdirSync(OUT);
 
 // ── build admin web ────────────────────────────────────────────────────────────
 
@@ -49,13 +64,12 @@ for (const name of INCLUDE) {
   const src = path.join(ROOT, name);
   const dst = path.join(OUT, name);
   if (!fs.existsSync(src)) {
-    console.warn(`[package] WARN: ${name} not found, skipping`);
-    continue;
+    throw new Error(`Required package input is missing: ${name}`);
   }
   console.log(`[package] copying ${name}...`);
   const st = fs.statSync(src);
   if (st.isDirectory()) {
-    execSync(`xcopy "${src}" "${dst}" /E /I /H /Q /Y`, { windowsHide: true, stdio: 'ignore' });
+    fs.cpSync(src, dst, { recursive: true, errorOnExist: true, force: false, verbatimSymlinks: true });
   } else {
     fs.copyFileSync(src, dst);
   }
@@ -66,11 +80,30 @@ const CLEAN_RUNTIME_FILES = [
   'src/clean-service-host.js',
   'src/clean-runtime-operations.js',
   'src/clean-formation-reset-port.js',
+  'src/clean-arca-inventory-port.js',
+  'src/clean-arca-recycle-port.js',
+  'src/clean-arca-target-commit-slot.js',
+  'src/clean-compute-device-runtime.js',
+  'src/clean-ffmpeg-process-registry.js',
+  'src/clean-field-access-binding-probe.js',
+  'src/clean-field-observation-enumerator.js',
+  'src/clean-layout-observer.js',
+  'src/clean-local-filesystem-mount-probe.js',
+  'src/clean-media-probe.js',
+  'src/clean-media-production-effect-port.js',
+  'src/clean-offdeck-deletion-port.js',
+  'src/clean-product-production-port.js',
+  'src/clean-shelf-target-folder-probe.js',
+  'src/clean-western-analysis-port.js',
+  'src/clean-workspace-product-port.js',
+  'src/clean-workspace-root-admin.js',
   'scripts/helix-formation-reset.js',
   'scripts/user-formation-reset.js',
   'scripts/user-formation-reset-worker.js',
   'src/admin-credential-secret-store.js',
   'scripts/helix-clean-init.js',
+  'scripts/helix-jav-schema-copy.js',
+  'scripts/helix-architecture/jav-release-schema-copy.js',
   'scripts/helix-operational-safety.js',
 ];
 for (const name of CLEAN_RUNTIME_FILES) {
@@ -81,16 +114,13 @@ for (const name of CLEAN_RUNTIME_FILES) {
 }
 const cleanHelixSource = path.join(ROOT, 'src', 'helix');
 const cleanHelixTarget = path.join(OUT, 'src', 'helix');
-execSync(`xcopy "${cleanHelixSource}" "${cleanHelixTarget}" /E /I /H /Q /Y`, {
-  windowsHide: true,
-  stdio: 'ignore',
-});
+fs.cpSync(cleanHelixSource, cleanHelixTarget, { recursive: true, errorOnExist: true, force: false });
 
 // ── clean runtime data (fresh start for user) ──────────────────────────────────
 
 const dataDir = path.join(OUT, 'data');
 if (fs.existsSync(dataDir)) {
-  fs.rmSync(dataDir, { recursive: true, force: true });
+  throw new Error('A distributable package cannot contain runtime data.');
 }
 
 // ── create start.bat (fallback) ──────────────────────────────────────────────────
@@ -137,4 +167,5 @@ console.log('[package] created start.bat + start.vbs');
 // ── done ───────────────────────────────────────────────────────────────────────
 
 console.log(`[package] done → ${OUT}`);
-console.log('[package] zip it with: Compress-Archive -Path dist-pkg/media-service -DestinationPath dist-pkg/media-service.zip');
+const quotePowerShell = value => "'" + value.replace(/'/g, "''") + "'";
+console.log(`[package] zip it with: Compress-Archive -Path ${quotePowerShell(OUT)} -DestinationPath ${quotePowerShell(OUT + '.zip')}`);

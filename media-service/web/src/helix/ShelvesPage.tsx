@@ -18,11 +18,12 @@ import { Button, LoadingState, PageHeader } from './chrome';
 import { isUnauthorized, useSession } from './session';
 import InputSettlementAuthorization from './InputSettlementAuthorization';
 import DefectAuthorization from './DefectAuthorization';
+import {JavRuleEditor,JavRuleSummary,javEditFromRules,applyJavEdit,type JavRuleEdit} from './JavRuleSettings';
 
 const HIGH_QUALITY_AUDIO = ['dts_hd_ma', 'dts_x', 'eac3_atmos', 'truehd', 'truehd_atmos'];
 const SYSTEM_TEMPLATE_ID = 'system-beta-recommended';
 const SYSTEM_TEMPLATE_DISPLAY_NAME = '系统推荐整理标准';
-const PROFILE_LABELS = { movie: '电影', series: '剧集' } as const;
+const PROFILE_LABELS = { movie: '电影', series: '剧集',jav:'JAV' } as const;
 type EditableProfile = keyof typeof PROFILE_LABELS;
 const DEFAULT_PLACEMENT: ShelfPlacementPolicy = {
   folderTemplate: '{title} ({year})',
@@ -76,7 +77,7 @@ function RuleSummary({ rules }: { rules: RuleTemplateRules }) {
         <small>{profile === 'series' ? '每集 · ' : ''}{spaceLabel(branch)}</small>
       </div>)}</div>
     </section>;
-  })}</>;
+  })}<JavRuleSummary rules={rules}/></>;
 }
 function renderPreview(template: string, values: Record<string, string>) {
   return template.replace(/\{([^{}]+)\}/g, (_match, token) => values[token] || '');
@@ -145,7 +146,7 @@ export async function applyProfileEdits(rules: RuleTemplateRules, edits: MovieRu
   return next;
 }
 function templateDisplayName(item: Pick<RuleTemplate, 'templateId' | 'name' | 'ownerKind'>) {
-  return item.templateId === SYSTEM_TEMPLATE_ID || item.ownerKind === 'system'
+  return item.templateId === SYSTEM_TEMPLATE_ID
     ? SYSTEM_TEMPLATE_DISPLAY_NAME
     : item.name;
 }
@@ -185,7 +186,7 @@ function PlacementFields({ placement, onChange }: { placement: ShelfPlacementPol
 }
 
 export function namingExamples(placement: ShelfPlacementPolicy, sample: string) {
-  const series=sample !== 'movie', title=series?'示例剧集':'示例电影', base=title+' (2026)';
+  const series=sample.startsWith('series'), title=sample==='jav'?'示例 JAV 影片':series?'示例剧集':'示例电影', base=title+' (2026)';
   const primaryStems=sample==='series_shared'?[base+' - S01E01-E02']:sample==='series_parts'?[base+' - S01E01-part01',base+' - S01E01-part02']:[base+(series?' - S01E01':'')];
   const nfoStems=series?['season',base+' - S01E01',...(sample==='series_shared'?[base+' - S01E02']:[])]:[base];
   return {
@@ -199,6 +200,7 @@ export function namingExamples(placement: ShelfPlacementPolicy, sample: string) 
 function NamingPreview({placement,profiles}:{placement:ShelfPlacementPolicy;profiles:string[]}) {
   const [selected,setSelected]=useState('movie');
   const samples=[...(profiles.includes('movie')?[{value:'movie',label:'电影'}]:[]),
+    ...(profiles.includes('jav')?[{value:'jav',label:'JAV'}]:[]),
     ...(profiles.includes('series')?[{value:'series',label:'剧集：一集一文件'},{value:'series_shared',label:'剧集：两集共文件'},{value:'series_parts',label:'剧集：一集多个 part'}]:[])];
   if(!samples.length)return null;
   const sample=samples.some(item=>item.value===selected)?selected:samples[0].value;
@@ -250,6 +252,7 @@ export default function ShelvesPage({openSettlementAuthorization=false}:{openSet
   const [editingProfile, setEditingProfile] = useState<EditableProfile>('movie');
   const [seriesEdits, setSeriesEdits] = useState<MovieRuleEdit[]>([]);
   const [movieEdits, setMovieEdits] = useState<MovieRuleEdit[]>([]);
+  const [javEdit,setJavEdit]=useState<JavRuleEdit|null>(null);
   const [standardPreview, setStandardPreview] = useState<RuleTemplatePreview | null>(null);
   const [preparedDraft, setPreparedDraft] = useState<{ template: RuleTemplate; draft: RuleTemplateDraft } | null>(null);
   const standardDialog = useModalFocus(Boolean(standardEditor), () => setStandardEditor(null), loading);
@@ -354,7 +357,8 @@ export default function ShelvesPage({openSettlementAuthorization=false}:{openSet
     setCopyName(`${shelf.name} 整理标准`);
     setMovieEdits(editsFromBranches(profileRules(source?.current.rules || shelf.standard.value, 'movie')));
     setSeriesEdits(editsFromBranches(profileRules(source?.current.rules || shelf.standard.value, 'series')));
-    setEditingProfile(profileRules(source?.current.rules || shelf.standard.value, 'movie').length ? 'movie' : 'series');
+    setJavEdit(javEditFromRules(source?.current.rules||shelf.standard.value));
+    setEditingProfile(profileRules(source?.current.rules || shelf.standard.value, 'movie').length ? 'movie' : profileRules(source?.current.rules||shelf.standard.value,'series').length?'series':'jav');
     setStandardPreview(null);
     setPreparedDraft(null);
     setError(''); setNotice('');
@@ -368,7 +372,8 @@ export default function ShelvesPage({openSettlementAuthorization=false}:{openSet
     setCopyName(`${name.trim() || '媒体收藏架'} 整理标准`);
     setMovieEdits(editsFromBranches(profileRules(selectedTemplate.current.rules, 'movie')));
     setSeriesEdits(editsFromBranches(profileRules(selectedTemplate.current.rules, 'series')));
-    setEditingProfile(profileRules(selectedTemplate.current.rules, 'movie').length ? 'movie' : 'series');
+    setJavEdit(javEditFromRules(selectedTemplate.current.rules));
+    setEditingProfile(profileRules(selectedTemplate.current.rules, 'movie').length ? 'movie' : profileRules(selectedTemplate.current.rules,'series').length?'series':'jav');
     setStandardPreview(null);
     setPreparedDraft(null);
     setError(''); setNotice('');
@@ -436,6 +441,7 @@ export default function ShelvesPage({openSettlementAuthorization=false}:{openSet
     let rules = working.draft.rules;
     if (movieEdits.length) rules = await applyProfileEdits(rules, movieEdits, 'movie');
     if (seriesEdits.length) rules = await applyProfileEdits(rules, seriesEdits, 'series');
+    if(javEdit)rules=await applyJavEdit(rules,javEdit);
     const revised = await helixAdminApi.reviseRuleTemplateDraft(working.draft, rules);
     const draft: RuleTemplateDraft = { ...working.draft, ...revised, rules };
     const prepared = { template: working.template, draft };
@@ -585,8 +591,9 @@ export default function ShelvesPage({openSettlementAuthorization=false}:{openSet
         <div className="dialog-body">
           {standardEditor.kind === 'shelf' && !standardPreview && <p>发布后将按新标准重新评估已上架条目。</p>}
           {editorSource?.ownerKind !== 'user' && !preparedDraft && <label><span>自己的规则模板名称</span><input value={copyName} onChange={(event) => { setCopyName(event.target.value); setStandardPreview(null); }} required /></label>}
-          <label><span>媒体类型</span><select value={editingProfile} onChange={(event) => setEditingProfile(event.target.value as EditableProfile)}>{movieEdits.length > 0 && <option value="movie">电影</option>}{seriesEdits.length > 0 && <option value="series">剧集</option>}</select></label>
-          <MovieRuleEditor profile={editingProfile} edits={editingProfile === 'movie' ? movieEdits : seriesEdits} onChange={(value) => { (editingProfile === 'movie' ? setMovieEdits : setSeriesEdits)(value); setStandardPreview(null); }} />
+          <label><span>媒体类型</span><select value={editingProfile} onChange={(event) => setEditingProfile(event.target.value as EditableProfile)}>{movieEdits.length > 0 && <option value="movie">电影</option>}{seriesEdits.length > 0 && <option value="series">剧集</option>}{javEdit&&<option value="jav">JAV</option>}</select></label>
+          {editingProfile==='jav'?javEdit&&<JavRuleEditor edit={javEdit} onChange={value=>{setJavEdit(value);setStandardPreview(null);}}/>:
+            <MovieRuleEditor profile={editingProfile} edits={editingProfile === 'movie' ? movieEdits : seriesEdits} onChange={(value) => { (editingProfile === 'movie' ? setMovieEdits : setSeriesEdits)(value); setStandardPreview(null); }} />}
           {standardPreview && <div className="template-preview" role="status">
             <strong>将影响 {standardPreview.currentEntryPotentialGapCount || editorShelf?.deregistrationSummary.entryCount || 0} 个已上架条目</strong>
             <small>{reassessmentCopy(standardPreview.currentEntryPotentialGapCount || editorShelf?.deregistrationSummary.entryCount || 0, Math.max(0, standardPreview.affectedShelfCount - (editorShelf && editorShelf.standard.ruleTemplateId === standardPreview.templateId ? 1 : 0)), false)}</small>

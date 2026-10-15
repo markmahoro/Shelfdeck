@@ -2,6 +2,7 @@
 
 const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { identifyJavFilename } = require('./jav-filename-identity');
 const {
   normalized: normalizeScopeLocation,
   resolveBdmvContainerScope,
@@ -57,7 +58,7 @@ function topLevelDirectory(relativeLocation) {
   return index < 0 ? null : relativeLocation.slice(0, index);
 }
 
-function scopeFor(relativeLocation, knownLocations) {
+function scopeFor(relativeLocation, knownLocations, profileHint='movie') {
   const bdmv = resolveBdmvContainerScope(relativeLocation, knownLocations);
   if (bdmv) return Object.freeze({
     scopeKind: 'bdmv_container',
@@ -71,6 +72,13 @@ function scopeFor(relativeLocation, knownLocations) {
     scopeKey: 'ordinary-directory:' + directory,
     scopeRootRelativeLocation: directory,
     bdmvRootRelativeLocation: null,
+  });
+  const named=identifyJavFilename(relativeLocation);
+  if (['jav','mixed'].includes(profileHint) && named.javCode && named.multipartPart &&
+      /\.(?:mp4|mkv|wmv|avi|mov|m4v|ts|m2ts)$/i.test(relativeLocation) &&
+      !(profileHint==='mixed' && /(?:^|[^a-z0-9])s\d{1,2}e\d{1,3}/i.test(relativeLocation))) return Object.freeze({
+    scopeKind:'ordinary_directory', scopeKey:'jav-named-parts:'+named.javCode,
+    scopeRootRelativeLocation:'.', bdmvRootRelativeLocation:null,
   });
   return Object.freeze({
     scopeKind: 'standalone_file',
@@ -138,7 +146,7 @@ function createProcurementRunSlices(input) {
       fail('P7_RUN_CREATOR_MATERIAL_INVALID', 'Run Creator Material keys must be non-empty and unique.');
     }
     seen.add(material.materialKey);
-    const scope = scopeFor(material.relativeLocation, knownLocations);
+    const scope = scopeFor(material.relativeLocation, knownLocations, input.profileHint);
     const existing = scopesByKey.get(scope.scopeKey);
     if (existing && (existing.scopeKind !== scope.scopeKind ||
         existing.scopeRootRelativeLocation !== scope.scopeRootRelativeLocation)) {
@@ -156,7 +164,7 @@ function createProcurementRunSlices(input) {
   let current = [];
   let currentMemberCount = 0;
   for (const scope of orderedScopes) {
-    if (scope.memberCount > maxSelectionScopeMembers) {
+    if (scope.memberCount > maxSelectionScopeMembers || scope.memberCount > maxRunPhysicalMembers) {
       closedGroups.push(Object.freeze({
         scopeKind: scope.scopeKind,
         scopeKey: scope.scopeKey,

@@ -59,3 +59,17 @@ test('Final Verification rejects a foreign Capability, scope, or expired executi
     assert.equal(f.db.prepare('SELECT count(*) n FROM fx_commit_markers').get().n,0);
   }finally{f.close();}
 });
+
+test('correction final Verification cannot commit without its actual active admission and leaves no partial evidence',()=>{
+  const type=types[0],f=fixture('arca.jav_correction.files.verify@1','correction','arca_jav_identity_correction'),
+    store=createInventoryVerificationStore(f.options);
+  try {
+    const execution={...f.execution,namedInputs:{javCorrectionScope:{correctionId:'correction',expectedStateRevision:2,
+      admissionDigest:D('admission'),basisDigest:D('basis'),digest:D('basis')}}};
+    assert.throws(()=>store.commit(execution,verification(type)),{code:'ARCA_INVENTORY_VERIFICATION_INTEGRITY'});
+    for(const table of ['arca_inventory_verification_records','fx_event_result_bindings','fx_commit_markers'])
+      assert.equal(f.db.prepare('SELECT count(*) n FROM '+table).get().n,0);
+    assert.throws(()=>store.commit({...execution,ownerScope:{processType:'arca_ondeck_run',processId:'correction'}},verification(type)),
+      {code:'ARCA_INVENTORY_VERIFICATION_INTEGRITY'});
+  } finally {f.close();}
+});

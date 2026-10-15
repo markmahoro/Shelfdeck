@@ -630,7 +630,7 @@ function createProductDeliveryReader(options) {
   }
   function readAcceptedRequirements(query) {
     if (!query || query.queryContract !== 'libra.accepted-product-requirements@1' ||
-        Object.keys(query).sort().join(',') !== 'packages,queryContract' ||
+        Object.keys(query).sort().join(',') !== (query.includeAcceptedSubjectOrigin===true?'includeAcceptedSubjectOrigin,packages,queryContract':'packages,queryContract') ||
         !Array.isArray(query.packages) || query.packages.length < 1 || query.packages.length > 500 ||
         query.packages.some(item => !item || Object.keys(item).sort().join(',') !== 'expectedPackageDigest,onDeckPackageId' ||
           typeof item.onDeckPackageId !== 'string' || !item.onDeckPackageId || item.onDeckPackageId.length > 256 ||
@@ -662,10 +662,20 @@ function createProductDeliveryReader(options) {
               snapshot.targetShelfId !== row.shelf_id || provenance.libraRunId !== row.libra_run_id ||
               attestation.libraRunId !== row.libra_run_id || attestation.onDeckPackageId !== row.on_deck_package_id)
             fail('P9_ACCEPTED_REQUIREMENTS_INTEGRITY', 'Published acceptance requirement provenance is inconsistent.');
+          let acceptedSubjectOrigin;
+          if(query.includeAcceptedSubjectOrigin===true){
+            const completeRow=context.repository(repository.repositoryId).invoke('find_package',{on_deck_package_id:ref.onDeckPackageId}),
+              complete=reconstruct(context.repository(repository.repositoryId),completeRow);
+            if(complete.packageDigest!==ref.expectedPackageDigest||complete.shelfId!==row.shelf_id||complete.libraRunId!==row.libra_run_id)
+              fail('P9_ACCEPTED_REQUIREMENTS_INTEGRITY','Complete accepted Package origin differs from its frozen reference.');
+            const body={schemaRef:'helix://contracts/application-types/LibraAcceptedSubjectOrigin/v1',schemaVersion:1,onDeckPackageId:complete.onDeckPackageId,
+              packageRevision:complete.packageRevision,packageDigest:complete.packageDigest,subjectId:complete.subjectId,libraRunId:complete.libraRunId,shelfId:complete.shelfId};
+            acceptedSubjectOrigin=Object.freeze({...body,originDigest:canonicalDigest(body)});
+          }
           return Object.freeze({ resultKind: 'found', onDeckPackageId: row.on_deck_package_id,
             packageDigest: row.package_digest, libraRunId: row.libra_run_id, shelfId: row.shelf_id,
             authorizedDefectManifestDigest: attestation.authorizedDefectManifest?.manifestDigest || null,
-            acceptanceRequirementSnapshot: Object.freeze(snapshot) });
+            acceptanceRequirementSnapshot: Object.freeze(snapshot),...(acceptedSubjectOrigin?{acceptedSubjectOrigin}: {}) });
         });
         return Object.freeze({ items: Object.freeze(items) });
       },

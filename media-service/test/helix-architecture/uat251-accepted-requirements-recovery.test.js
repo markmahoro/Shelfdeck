@@ -29,9 +29,9 @@ function fixture(id='entry') {
   libraRunId:manifest.libraRunId,shelfId:'shelf',authorizedDefectManifestDigest:manifest.manifestDigest,acceptanceRequirementSnapshot:snapshot};
  const standardValue={profileRuleSets:[{contentProfile:'movie',decisionInputKinds:['rating'],baseRequirements:{mandatoryMedia:{videoCodec:'any',minimumRasterClass:'none',acceptedPrimaryAudioClasses:[]},space:{maxSizeBytes:null}},decisionBranches:[{rating:3,requirements}]}]};
  const raw={entry:{structure_kind:'single',status:'active',current_inventory_revision:1},shelf:{shelf_id:'shelf',target_endpoint_id:'endpoint',current_standard_revision:1,current_placement_revision:1},
-  standard:{value:standardValue,standard_digest:d('standard')},identity:{identity_digest:d(id)},inventory:{source_package_id:reference.onDeckPackageId,representation_digest:d('inventory')},materials:[],oldBindings:[],
+  standard:{value:standardValue,standard_digest:d('standard')},identity:{identity_kind:'tmdb_movie',identity_digest:d(id)},inventory:{source_package_id:reference.onDeckPackageId,representation_digest:d('inventory')},materials:[],oldBindings:[],
   placement:{policy_digest:d('placement')},acceptedPackageReference:reference,facts:[{fact_kind:'authorized_defect_manifest',fact_json:JSON.stringify(manifest),fact_digest:manifest.manifestDigest}]};
- const item={shelfEntryId:id,structureKind:'single',inventoryRevision:1,standardRevision:1,placementRevision:1,canonicalIdentityDigest:d(id),sourcePackageId:reference.onDeckPackageId,
+ const item={shelfEntryId:id,structureKind:'single',inventoryRevision:1,standardRevision:1,placementRevision:1,canonicalIdentity:raw.identity,canonicalIdentityDigest:d(id),sourcePackageId:reference.onDeckPackageId,
   acceptedPackageReference:reference,authorizedDefectManifest:manifest,standardValue,factDigests:[manifest.manifestDigest],decisionFactDigests:[],decisionFacts:[],
   ratingTarget:{targetType:'shelf_entry',targetId:id,targetRevision:1,title:id,year:2000,providerIdentity:'tmdb:1',canonicalIdentityDigest:d(id)},history:{assessments:[],findings:[],cases:[],commits:[]}};
  return {requirements,manifest,snapshot,reference,delivery,raw,item};

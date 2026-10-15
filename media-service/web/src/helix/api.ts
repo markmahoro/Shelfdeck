@@ -10,7 +10,8 @@ export type AcceptedGap = {gapDigest:string;findingKind:string;requirementCode:s
 export type CollectionDefectPreview = {shelfEntryId:string;inventoryRevision:number;careBasisDigest:string;authorizationRevision:number;
   candidateDigest:string;gapSetDigest:string;gaps:AcceptedGap[];acceptedGaps:AcceptedGap[];eligibility:'eligible'|'ineligible'|'evidence_pending';
   missingEvidence:string[];ineligibleReasons:string[];repairableGapDigests:string[];unavailableRepairs:Array<{findingKind:string;reasonCode:string}>};
-export type SourceCleanupCheck={onDeckRunId:string;shelfEntryId:string;state:string;checkedAtMs:number|null;checks:{sourceLocation?:string;state:string;errorCode?:string|null;recycleEntryId?:string}[]};
+export type SourceCleanupCheck={onDeckRunId:string;shelfEntryId:string;state:string;checkedAtMs:number|null;checks:{sourceLocation?:string;state:string;errorCode?:string|null;recycleEntryId?:string|null}[]};
+export type CorrectionDirectoryCheck=Omit<SourceCleanupCheck,'onDeckRunId'>&{correctionId:string;errorCode:string|null};
 export type RecycleEntry={id:string;shelfEntryId:string;sourceLocation:string;state:string;reasonCode:string;createdAtMs:number;archivedAtMs:number|null;expiresAtMs:number|null;fileCount:number;totalBytes:number;errorCode:string|null};
 export type RecyclePreview={shelfEntryId:string;sourceLocation:string;manifestDigest?:string;errorCode?:string;manifest?:{totalBytes:number;entries:Array<{relativePath:string;kind:string;sizeBytes?:number}>}};
 
@@ -255,7 +256,7 @@ export type FormationSubject = {
   ratingState?: 'pending'|'ready';
   ratingResolutionStatus?: 'found'|'not_found'|null;
   ratingReasonCode?: string|null;
-  productIdentityIssue: null | { result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
+  productIdentityIssue: null | { contentProfile?:'jav'; sourceLocation?:string|null; claimedCode?:string|null; result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string|null; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
   failureDiagnostics?: Array<{eventId:string;code:string;diagnosticsUnavailable?:boolean;diagnostics:{sourceDirectory?:string;unknownNames?:string[];unknownMemberCount?:number;truncated?:boolean;field?:string;reasonCode?:string;networkCode?:string;stage?:string;timeout?:boolean}|null}>;
   executorIssue: null | { phase:string; errorCode:string; attemptCount:number|null; owner:string; recoveryState:string;
     recoveryGeneration:number|null; automaticRecoveryUsed:boolean; canRetry:boolean; offerId:string; onDeckRunId?:string };
@@ -364,6 +365,13 @@ export type PerceptionSyncState = {
   recordCount: number;
 };
 
+export type JavCorrectionStatus={correctionId:string;shelfEntryId:string;state:'admitted'|'active'|'attention_required'|'committed'|'cancelled';cleanupState:'pending'|'active'|'attention_required'|'completed'|null;stateRevision:number;admissionDigest:string;cancellation:{available:boolean;reasonCode:'not_attention_required'|'no_effect_unproven'|'collection_basis_changed'|null};recovery:{available:boolean;mode:'continue_correction'|'continue_cleanup'|null;previousIntentDigest:string|null};oldJavCode:string;newJavCode:string;updatedAtMs:number};
+export type JavCorrectionWorkItem=JavCorrectionStatus&{taskType:'jav_identity_correction';classification:'in_progress'|'attention_required'|'completed'|'ended';displayIdentity:string;targetShelfId:string|null;targetShelfName:string|null;createdAtMs:number;terminalAtMs:number|null;
+  processDetail:{contract:'jav_correction_process_actual_plans@1';stages:Array<Omit<NonNullable<FormationSubject['processDetail']>['stages'][number],'key'>&{key:string}>}|null};
+export type JavCorrectionQualifiedPreview={result:'qualified';previewId:string;shelfEntryId:string;basisDigest:string;proposalDigest:string;placementPreviewDigest:string;
+  oldIdentity:{javCode:string;title:string};newIdentity:{javCode:string;title:string;posterUrl:string;siteRef:string};
+  paths:Array<{materialKey:string;role:string;previousLocation:string;targetLocation:string;targetEndpointId:string}>};
+export type JavCorrectionPreview=JavCorrectionQualifiedPreview|{result:'not_qualified';javCode:string}|{result:'ambiguous';javCode:string;candidates:Array<{siteRef:string;resourceKey:string;javCode:string}>};
 export type CollectionEntry = {
   series?: { seasonNumber: number; episodeCount: number; physicalFileCount: number; episodes: Array<{episodeKey: string; episodeNumber: number; title: string | null; files: Array<{materialKey: string; name: string; sizeBytes: number; coveredEpisodeCount: number}>}> } | null;
   shelfEntryId: string;
@@ -434,6 +442,7 @@ export type IntegrationState = {
   settings?: {
     language?: string;
     proxyServer?: string;
+    networkRoute?: {mode:'direct'|'http_proxy';proxyEndpoint:string|null};
   };
   landingBinding: {
     bindingId: string;
@@ -706,6 +715,25 @@ export const helixAdminApi = {
     const suffix=query.toString()?`?${query}`:'';
     return request<{ items: CollectionEntry[]; shelves?: Array<{shelfId:string;name:string;currentCount:number;historyCount:number}>; summary?:{currentCount:number;historyCount:number}; resultCount?:number; nextCursor?:string|null }>(`/v1/admin/collection${suffix}`);
   },
+  previewJavCorrection(shelfEntryId:string,javCode:string,candidate?:{siteRef:string;resourceKey:string}){
+    return request<JavCorrectionPreview>(`/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/actions/preview-jav-correction?${new URLSearchParams({javCode,...candidate})}`);
+  },
+  confirmJavCorrection(shelfEntryId:string,preview:JavCorrectionQualifiedPreview,idempotencyKey:string){
+    return request<{correctionId:string;shelfEntryId:string;state:'admitted';stateRevision:number;admissionDigest:string;updatedAtMs:number;replayed:boolean}>(`/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/actions/confirm-jav-correction`,
+      {method:'POST',body:JSON.stringify({previewId:preview.previewId,basisDigest:preview.basisDigest,proposalDigest:preview.proposalDigest,placementPreviewDigest:preview.placementPreviewDigest,idempotencyKey})});
+  },
+  listJavCorrectionWork(cursor?:string,correctionId?:string,filters?:{classification?:string;q?:string;shelfId?:string}){const query=new URLSearchParams({limit:'25'});if(cursor)query.set('cursor',cursor);if(correctionId)query.set('correctionId',correctionId);Object.entries(filters||{}).forEach(([key,value])=>{if(value)query.set(key,value);});return request<{items:JavCorrectionWorkItem[];counts:Record<string,number>;nextCursor:string|null}>(`/v1/admin/collection/jav-corrections?${query}`);},
+  getJavCorrection(shelfEntryId:string,correctionId:string){return request<JavCorrectionStatus>(`/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/jav-corrections/${encodeURIComponent(correctionId)}`);},
+  cancelJavCorrection(shelfEntryId:string,status:Pick<JavCorrectionStatus,'correctionId'|'stateRevision'|'admissionDigest'>,idempotencyKey:string){
+    return request<{state:'cancelled';stateRevision:number;cancelledAtMs:number;replayed:boolean}>(`/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/jav-corrections/${encodeURIComponent(status.correctionId)}/actions/cancel`,
+      {method:'POST',body:JSON.stringify({expectedStateRevision:status.stateRevision,expectedAdmissionDigest:status.admissionDigest,idempotencyKey})});
+  },
+  recoverJavCorrection(shelfEntryId:string,status:Pick<JavCorrectionStatus,'correctionId'|'stateRevision'|'admissionDigest'|'cleanupState'|'recovery'>,idempotencyKey:string){
+    return request<{correctionId:string;shelfEntryId:string;state:'active'|'committed';stateRevision:number;admissionDigest:string;cleanupState:'active'|null;recoveryIntentDigest:string;updatedAtMs:number;replayed:boolean}>(`/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/jav-corrections/${encodeURIComponent(status.correctionId)}/actions/recover`,
+      {method:'POST',body:JSON.stringify({expectedStateRevision:status.stateRevision,expectedAdmissionDigest:status.admissionDigest,expectedCleanupState:status.cleanupState,
+        expectedRecoveryIntentDigest:status.recovery.previousIntentDigest,idempotencyKey})});
+  },
+  getLatestJavCorrection(shelfEntryId:string){return request<{correction:JavCorrectionStatus|null}>(`/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/jav-correction`);},
   collectionPosterUrl(shelfEntryId: string, inventoryRevision?:number, size?:'wall'|'detail') {
     const query=new URLSearchParams();
     if(inventoryRevision)query.set('revision',String(inventoryRevision));
@@ -715,7 +743,8 @@ export const helixAdminApi = {
   },
   listCareWork(cursor?:string,aftercareCaseId?:string,filters?:{classification?:string;q?:string;shelfId?:string}){const query=new URLSearchParams({view:'work',limit:'25'});if(cursor)query.set('cursor',cursor);if(aftercareCaseId)query.set('aftercareCaseId',aftercareCaseId);Object.entries(filters||{}).forEach(([key,value])=>{if(value)query.set(key,value);});return request<{items:CareWorkItem[];counts:Record<string,number>;nextCursor:string|null}>(`/v1/admin/care?${query}`);},
   getCare(shelfEntryId:string){return request<CareDetail>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}`);},
-  listRecycle(cleanupCursor?:string){return request<{items:RecycleEntry[];cleanupChecks?:SourceCleanupCheck[];cleanupNextCursor?:string|null}>('/v1/admin/care-recycle'+(cleanupCursor?'?cleanupCursor='+encodeURIComponent(cleanupCursor):''));},
+  listRecycle(cleanupCursor?:string,correctionCursor?:string){const query=new URLSearchParams();if(cleanupCursor)query.set('cleanupCursor',cleanupCursor);if(correctionCursor)query.set('correctionCursor',correctionCursor);
+    return request<{items:RecycleEntry[];cleanupChecks?:SourceCleanupCheck[];cleanupNextCursor?:string|null;correctionChecks?:CorrectionDirectoryCheck[];correctionNextCursor?:string|null}>('/v1/admin/care-recycle'+(query.size?'?'+query:''));},
   previewRecycle(shelfEntryId:string){return request<{items:RecyclePreview[]}>(`/v1/admin/care-recycle/${encodeURIComponent(shelfEntryId)}/preview`);},
   archiveRecycle(value:RecyclePreview){return request<RecycleEntry>(`/v1/admin/care-recycle/${encodeURIComponent(value.shelfEntryId)}/actions/archive`,{method:'POST',body:JSON.stringify({idempotencyKey:newOpaqueId(),sourceLocation:value.sourceLocation,manifestDigest:value.manifestDigest,confirmManifestDigest:value.manifestDigest})});},
   restoreRecycle(id:string){return request<RecycleEntry>(`/v1/admin/care-recycle/${encodeURIComponent(id)}/actions/restore`,{method:'POST',body:'{}'});},
@@ -744,12 +773,18 @@ export const helixAdminApi = {
   listPerceptionRecords(filters: { cursor?: string; limit?: number; sourceKind?: string; rating?: number; resolutionStatus?: string; targetType?: string; targetId?: string } = {}) {
     const query = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => { if (value !== undefined && value !== '') query.set(key, String(value)); });
-    return request<{ items: PerceptionRecord[]; nextCursor: string | null; currentRating?: { state:'ready'|'pending'; rating:number|null; sourceKind:string|null; expectedRevision:number; resolutionStatus?:string; resolutionRevision?:number } }>(`/v1/admin/perception/records${query.size ? `?${query}` : ''}`);
+    return request<{ items: PerceptionRecord[]; nextCursor: string | null; currentRating?: { state:'ready'|'pending'; rating:number|null; sourceKind:string|null; expectedRevision:number; resolutionStatus?:string; resolutionRevision?:number }; currentWatched?: { state:'ready'|'pending'; watchedState:boolean|null; sourceKind:string|null; expectedRevision:number } }>(`/v1/admin/perception/records${query.size ? `?${query}` : ''}`);
   },
   rate(targetType: 'subject' | 'shelf_entry', targetId: string, expectedRevision: number, rating: number | null) {
     return request<{ operationRef: string; state: string; expectedResultRevision: number }>('/v1/admin/perception/records', {
       method:'POST', body:JSON.stringify({ targetType, targetId, expectedRevision, rating,
         idempotencyKey:`rating:${targetType}:${targetId}:${expectedRevision + 1}:${rating===null?'clear':rating}:${newOpaqueId()}` }),
+    });
+  },
+  setWatched(targetType: 'subject' | 'shelf_entry', targetId: string, expectedRevision: number, watched: boolean | null) {
+    return request<{ operationRef: string; state: string; expectedResultRevision: number }>('/v1/admin/perception/records', {
+      method:'POST', body:JSON.stringify({targetType,targetId,expectedRevision,watched,
+        idempotencyKey:`watched:${targetType}:${targetId}:${expectedRevision+1}:${watched===null?'clear':watched}:${newOpaqueId()}`}),
     });
   },
   getIntegration(kind: string) {
@@ -819,6 +854,18 @@ export const helixAdminApi = {
   previewProductIdentity(subject:FormationSubject,providerId:string) {
     if(!subject.currentRun)throw new Error('当前整理已变化，请刷新。');
     return request<ProductIdentityPreview>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/product-identity-preview?${subject.contentProfile === 'series' ? 'tmdbSeriesId' : 'tmdbMovieId'}=${encodeURIComponent(providerId)}`);
+  },
+  previewJavIdentity(subject:FormationSubject,javCode:string,candidate?:{siteRef:string;resourceKey:string}) {
+    if(!subject.currentRun)throw new Error('当前整理已变化，请刷新。');
+    const query=new URLSearchParams({javCode,...candidate});
+    return request<JavIdentityPreview>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/product-identity-preview?${query}`);
+  },
+  chooseJavIdentity(subject:FormationSubject,preview:JavQualifiedIdentityPreview,idempotencyKey:string) {
+    if(!subject.currentRun)throw new Error('当前整理已变化，请刷新。');
+    return request<{selectionIntentId:string;intentRevision:number;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/actions/choose-product-identity`,{method:'POST',body:JSON.stringify({
+      javCode:preview.javCode,previewId:preview.previewId,candidateSetDigest:preview.candidateSetDigest,
+      expectedRunStateRevision:preview.expectedRunStateRevision,expectedIdentityRevision:preview.expectedIdentityRevision,
+      expectedSelectionIntentRevision:preview.expectedSelectionIntentRevision,idempotencyKey})});
   },
   chooseProductIdentity(subject:FormationSubject,providerId:string,idempotencyKey?:string){if(!subject.currentRun)throw new Error('当前媒体没有可恢复的整理任务。');const run=subject.currentRun;return request<{selectionIntentId:string;libraRunId:string;providerKey:string;intentRevision:number;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/choose-product-identity`,{method:'POST',body:JSON.stringify({... (subject.contentProfile === 'series' ? {tmdbSeriesId:providerId} : {tmdbMovieId:providerId}),expectedRunStateRevision:run.stateRevision,expectedIdentityRevision:run.currentIdentityRevision,candidateSetDigest:subject.productIdentityIssue?.candidateSetDigest||null,idempotencyKey:idempotencyKey||`choose-product-identity:${run.libraRunId}:${run.stateRevision}:${providerId}:${newOpaqueId()}`})});},
   retryAcceptance(subject:FormationSubject){if(!subject.executorIssue?.canRetry)throw new Error('当前接纳或上架故障不能重试。');const offerId=subject.executorIssue.offerId;return request(`/v1/admin/formation/acceptance/${encodeURIComponent(offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({idempotencyKey:`acceptance-retry:${offerId}:${newOpaqueId()}`})});},
@@ -1000,7 +1047,7 @@ export const helixAdminApi = {
 
 export async function materialFieldRegistration(input: {
   fieldId: string;
-  contentProfileHint: 'movie' | 'series';
+  contentProfileHint: 'movie' | 'series' | 'jav' | 'mixed';
   name: string;
   rootLocation: string;
   includedDirectories: string[];
@@ -1045,3 +1092,6 @@ export type MovieIdentityPreview = {tmdbMovieId:string;displayTitle:string;origi
 
 export type SeriesIdentityPreview = Omit<MovieIdentityPreview, 'tmdbMovieId'> & { tmdbSeriesId: string; seasonNumber: number };
 export type ProductIdentityPreview = MovieIdentityPreview | SeriesIdentityPreview;
+export type JavQualifiedIdentityPreview={result:'qualified';javCode:string;displayTitle:string;posterUrl:string;siteRef:string;resourceKey:string;
+  candidateSetDigest:string;previewId:string;expectedRunStateRevision:number;expectedIdentityRevision:0;expectedSelectionIntentRevision:number};
+export type JavIdentityPreview=JavQualifiedIdentityPreview|{result:'ambiguous';javCode:string;candidates:Array<{siteRef:string;resourceKey:string;javCode:string}>}|{result:'not_qualified';javCode:string};

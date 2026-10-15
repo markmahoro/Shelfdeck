@@ -1164,14 +1164,19 @@ function absentFactRecoverySettings(extra={}) {
     effectReconciler:{async reconcile(){return {decision:'safe_retry',action:'revalidate_and_commit',evidenceDigest:HASH_B};}},
     ...extra };
 }
+function inputSnapshotDigest(databasePath) {
+  const database=new Database(databasePath,{readonly:true});
+  try{return database.prepare('SELECT input_snapshot_digest FROM fx_event_attempts WHERE event_id=? ORDER BY ordinal DESC LIMIT 1').get('event').input_snapshot_digest;}
+  finally{database.close();}
+}
 for(const inputError of [null,Object.assign(new Error('stale owner evidence'),{code:'OWNER_BASIS_STALE'})]) {
   test('absent atomic commit input failure ends the original attempt without dispatch: '+Boolean(inputError),async()=>{
     await fixture(async({runtime,databasePath,state})=>{
-      const before=databaseFacts(databasePath).attempt.input_snapshot_digest;
+      const before=inputSnapshotDigest(databasePath);
       const result=await runtime.recover({eventId:'event',effectId:'effect',decision:'safe_retry'});
       assert.equal(result.kind,'failed');const facts=databaseFacts(databasePath);
       assert.equal(facts.event.state,'failed');assert.equal(facts.attempt.state,'completed');
-      assert.equal(facts.attempt.input_snapshot_digest,before);
+      assert.equal(inputSnapshotDigest(databasePath),before);
       assert.equal(facts.attempt.failure_code,inputError?'OWNER_BASIS_STALE':'P4_EVENT_RECOVERY_INPUT_DRIFT');
       assert.equal(state().dispatchContext,undefined);assert.equal(state().recoveryAcquireCount,0);
       assert.equal(state().journalCalls.filter(x=>x==='abandon').length,1);
@@ -1203,6 +1208,27 @@ test('abandoned commit settles after restart even if owner projection now fails'
     assert.equal((await runtime.recover({eventId:'event',effectId:'effect',decision:'already_failed'})).kind,'failed');
     assert.equal(databaseFacts(databasePath).event.state,'failed');assert.equal(state().dispatchContext,undefined);
   },settings);
+});
+
+test('classified conflicting effect reality closes the original attempt without dispatch, input refresh or a successful receipt',async()=>{
+  const settings=absentFactRecoverySettings({effectClass:'workspace_write',inputError:new Error('must not refresh inputs')});
+  settings.effectJournalRead.effect_class='workspace_write';
+  await fixture(async({runtime,databasePath,state})=>{
+    const result=await runtime.recover({eventId:'event',effectId:'effect',decision:'terminal_failure',evidenceDigest:HASH_B});
+    assert.equal(result.kind,'failed');const facts=databaseFacts(databasePath);
+    assert.equal(facts.event.state,'failed');assert.equal(facts.attempt.failure_code,'P4_EVENT_RECOVERY_REALITY_CONFLICT');
+    assert.equal(inputSnapshotDigest(databasePath),EMPTY_INPUT_DIGEST);assert.equal(state().dispatchContext,undefined);
+    assert.equal(state().recoveryAcquireCount,0);assert.equal(state().journalCalls.filter(item=>item==='abandon').length,1);
+  },settings);
+});
+test('terminal reality classification cannot abandon a committed or different intent or omit its evidence',async()=>{
+  for(const change of [{state:'committed'},{intent_digest:HASH_B},null]) {
+    const settings=absentFactRecoverySettings();if(change)settings.effectJournalRead={...settings.effectJournalRead,...change};
+    await fixture(async({runtime,state})=>{
+      await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'terminal_failure',evidenceDigest:change?HASH_B:null}),{code:'P4_EVENT_RECOVERY_EFFECT_DRIFT'});
+      assert.equal(state().journalCalls.includes('abandon'),false);
+    },settings);
+  }
 });
 
 

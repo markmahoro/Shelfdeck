@@ -103,6 +103,15 @@ test('failure budget retries only frozen technical action and non-pure retry req
     recoveryDecision: 'not_a_decision' }), { code: 'P4_ATTEMPT_RECOVERY_DECISION_INVALID' });
 });
 
+test('classified terminal reality failure never enters another reconcile or retry cycle',()=>{
+  const policies=registry(),value=createAttemptPolicyController({registry:policies,now:()=>100000});
+  for(const [capabilityRef,effectClass] of [[OBSERVE,'pure_observation'],[REQUEST,'external_request'],[CLEANUP,'workspace_write']]) {
+    const binding=policies.bindingFor(capabilityRef,effectClass);
+    assert.deepEqual(value.decideFailure({capabilityRef,effectClass,retryPolicyRef:binding.retryPolicyRef,timeoutPolicyRef:binding.timeoutPolicyRef,
+      failureAttemptCount:1,outcome:{kind:'failed',failureClass:'integration',retryDirective:'contract_policy'},recoveryDecision:'terminal_failure'}),{decision:'terminal_failure'});
+  }
+});
+
 test('deferred observation budget is separate from failure attempts and enforces cadence, elapsed, and count', () => {
   const external = controller('external_request');
   assert.deepEqual(external.value.decideDeferred({ ...external.base, observationCount: 1, firstObservedAtMs: 99000, retryAfterMs: 100 }),

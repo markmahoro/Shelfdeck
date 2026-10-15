@@ -56,6 +56,7 @@
       "fx_audit_records"
     ],
     "readTables": [
+      "arca_jav_identity_corrections",
       "arca_aftercare_cases",
       "arca_offdeck_reservations",
       "arca_shelves"
@@ -100,6 +101,7 @@
           "fx_audit_records"
         ],
         "readTables": [
+          "arca_jav_identity_corrections",
           "arca_aftercare_cases",
           "arca_offdeck_reservations",
           "arca_shelves"
@@ -176,7 +178,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8745,
+      "line": 8761,
       "lineDigest": "b77734cff233865f33e841a861d886a624c9c83acd45a3f02ac49f8ef43c635b"
     }
   }

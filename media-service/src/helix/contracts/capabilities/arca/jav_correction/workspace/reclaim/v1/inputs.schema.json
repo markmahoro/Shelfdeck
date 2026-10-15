@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.jav_correction.workspace.reclaim/v1/inputs",
+  "title": "arca.jav_correction.workspace.reclaim@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "javCorrectionWorkspaceReclaimScope": {
+      "$ref": "#/$defs/javCorrectionWorkspaceReclaimScope"
+    }
+  },
+  "required": [
+    "javCorrectionWorkspaceReclaimScope"
+  ],
+  "$defs": {
+    "javCorrectionWorkspaceReclaimScope": {
+      "$ref": "helix://contracts/domain-types/JavCorrectionWorkspaceReclaimScope/v1",
+      "x-helix-typeExpression": "JavCorrectionWorkspaceReclaimScope"
+    }
+  }
+}

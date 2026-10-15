@@ -28,10 +28,10 @@ function validateP2ContractBaseline(options) {
   for (const [component, result] of Object.entries(components)) {
     if (!result.ok) findings.push(...result.findings.map((item) => ({ component, ...item })));
   }
-  const exactCounts = sourceMap.counts && sourceMap.counts.capabilities === 113 && sourceMap.counts.resultFamilies === 99 &&
-    sourceMap.counts.tables === 200 && sourceMap.counts.transactions === 45 && capabilities.packageCount === 113 &&
-    resultTypes.catalogResultCount + 1 === 99 && tables.tableCount === 200 && transactions.transactionCount === 45;
-  if (!exactCounts) findings.push({ code: 'P2_CARDINALITY_MISMATCH', message: 'P2 baseline must close 113/99/200/45 exactly.' });
+  const exactCounts = sourceMap.counts && sourceMap.counts.capabilities === 121 && sourceMap.counts.resultFamilies === 104 &&
+    sourceMap.counts.tables === 203 && sourceMap.counts.transactions === 51 && capabilities.packageCount === 121 &&
+    resultTypes.catalogResultCount + 1 === 104 && tables.tableCount === 203 && transactions.transactionCount === 51;
+  if (!exactCounts) findings.push({ code: 'P2_CARDINALITY_MISMATCH', message: 'P2 baseline must close 121/104/203/51 exactly.' });
   if (capabilities.unresolvedTypeRefCount !== 0) findings.push({
     code: 'P2_UNRESOLVED_TYPE_GRAPH', message: 'P2 Capability type graph must have zero unresolved refs.',
     refs: capabilities.unresolvedTypeRefs

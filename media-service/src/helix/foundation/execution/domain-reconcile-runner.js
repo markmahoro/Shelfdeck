@@ -15,6 +15,20 @@ function createDomainReconcileRunner(options){
   if(!Number.isSafeInteger(pageLimit)||pageLimit<1||pageLimit>100||!Number.isSafeInteger(budgetMs)||budgetMs<1||
       !Number.isSafeInteger(cadenceMs)||cadenceMs<1000)fail('P4_DOMAIN_RECONCILE_RUNNER_LIMITS_INVALID','Domain reconcile limits are invalid.');
   let state='created',timer=null,running=null,lastStartedAtMs=null,lastCompletedAtMs=null;
+  const pendingWakeups=new Set();let wakeScheduled=null,runningKind=null,fullSweepPending=false;
+  const registrationKey=registration=>registration.ownerDomain+':'+registration.reconcilerKey;
+  function finishRun(){running=null;runningKind=null;if(state==='ready'&&fullSweepPending){fullSweepPending=false;void runOnce().catch(error=>options.onError?.(error));}else scheduleWakeups();}
+  function scheduleWakeups(){
+    if(state!=='ready'||running||wakeScheduled||pendingWakeups.size===0)return;
+    wakeScheduled=setImmediate(()=>{wakeScheduled=null;if(state!=='ready'||running||pendingWakeups.size===0)return;
+      const keys=[...pendingWakeups];pendingWakeups.clear();
+      runningKind='scoped';
+      running=(async()=>{for(const key of keys){if(state!=='ready')break;const registration=options.registrations.find(item=>registrationKey(item)===key);
+        try{await runRegistration(registration);}catch(error){const status=statusFor(registration);Object.assign(status,{state:'attention',lastCompletedAtMs:options.now(),processed:0,pendingCount:1,errorCode:errorCodeOf(error),lastResultKind:'failed',nextDueAtMs:null});options.onError?.(error);}
+        await new Promise(resolve=>setImmediate(resolve));
+      }})().finally(finishRun);
+    });
+  }
   const registrationStatus=new Map(options.registrations.map((registration)=>[
     registration.ownerDomain + ':' + registration.reconcilerKey,
     {ownerDomain:registration.ownerDomain,reconcilerKey:registration.reconcilerKey,state:'waiting_first_check',
@@ -69,7 +83,8 @@ function createDomainReconcileRunner(options){
   }
   async function runOnce(){
     if(['stopping','stopped'].includes(state))return Object.freeze({kind:'inactive',results:Object.freeze([])});
-    if(running)return running;
+    if(running){if(runningKind==='scoped')fullSweepPending=true;return running;}
+    runningKind='full';
     running=(async()=>{lastStartedAtMs=options.now();const results=[];for(const registration of options.registrations){
       if(['stopping','stopped'].includes(state))break;
       try { results.push(await runRegistration(registration)); }
@@ -83,7 +98,7 @@ function createDomainReconcileRunner(options){
       }
       await new Promise((resolve)=>setImmediate(resolve));}
       lastCompletedAtMs=options.now();
-      return Object.freeze({kind:'completed',results:Object.freeze(results)});})().finally(()=>{running=null;});
+      return Object.freeze({kind:'completed',results:Object.freeze(results)});})().finally(finishRun);
     return running;
   }
   function snapshot(){
@@ -98,7 +113,9 @@ function createDomainReconcileRunner(options){
       state='ready';timer=setInterval(()=>runOnce().catch((error)=>options.onError?.(error)),cadenceMs);timer.unref?.();
       return runOnce();},
     runOnce,
-    async stop(){state='stopping';if(timer)clearInterval(timer);timer=null;if(running)await running;state='stopped';return Object.freeze({state});},
+    wake(request){const key=registrationKey(request||{});if(!options.registrations.some(item=>registrationKey(item)===key))fail('P4_DOMAIN_RECONCILE_WAKE_UNKNOWN','Scoped wake requires a registered Owner reconciler.');
+      if(['stopping','stopped'].includes(state))return Object.freeze({kind:'inactive'});pendingWakeups.add(key);scheduleWakeups();return Object.freeze({kind:'accepted',ownerDomain:request.ownerDomain,reconcilerKey:request.reconcilerKey});},
+    async stop(){state='stopping';if(timer)clearInterval(timer);timer=null;if(wakeScheduled)clearImmediate(wakeScheduled);wakeScheduled=null;pendingWakeups.clear();fullSweepPending=false;if(running)await running;state='stopped';return Object.freeze({state});},
     readiness(){return Object.freeze({state,running:running!==null,cadenceMs,pageLimit,budgetMs});},
     snapshot
   });

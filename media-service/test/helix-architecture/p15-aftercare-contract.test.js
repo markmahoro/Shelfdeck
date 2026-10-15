@@ -397,7 +397,9 @@ test('Planner and Settlement materialization use the frozen Inventory artifact r
   assert.equal(isAftercareArtifactMaterial({ role:'sidecar',location:'F:/movie/poster.jpg' },'poster'),false);
   assert.equal(isAftercareArtifactMaterial({role:'poster',location:'F:/movie/cover.jpg'},'poster'),true);
   assert.match(planner,/outputKinds\.has\('nfo'\)&&isAftercareArtifactMaterial\(item,'nfo'\)/);
-  assert.match(planner,/outputKinds\.has\('poster'\)&&isAftercareArtifactMaterial\(item,'poster'\)/);
+  assert.equal(isAftercareArtifactMaterial({role:'fanart',location:'F:/movie/backdrop.jpg'},'fanart'),true);
+  assert.equal(isAftercareArtifactMaterial({role:'sidecar',location:'F:/movie/fanart.jpg'},'fanart'),false);
+  assert.match(planner,/\['poster','fanart'\]\.some\(kind=>outputKinds\.has\(kind\)&&isAftercareArtifactMaterial\(item,kind\)\)/);
   assert.match(capability,/function isNfoMaterial\(item\)\{return isAftercareArtifactMaterial\(item,'nfo'\);\}/);
   assert.match(capability,/function isPosterMaterial\(item\)\{return isAftercareArtifactMaterial\(item,'poster'\);\}/);
 });
@@ -522,7 +524,7 @@ test('Aftercare legacy settlement remains evidence-gated and refuses unknown dir
 
 test('UAT-251 measured media gaps bind their exact required value independently of observation IDs', () => {
   const {probeConformance}=require('../../src/helix/domains/arca/capabilities/aftercare-capability-ports');
-  const context={shelfEntryId:'entry',raw:{entry:{structure_kind:'single'},facts:[],materials:[{role:'primary_payload',material_key:canonicalDigest('input'),location:'/shelf/movie.mkv',size_bytes:100}],
+  const context={shelfEntryId:'entry',raw:{identity:{identity_kind:'tmdb_movie'},entry:{structure_kind:'single'},facts:[],materials:[{role:'primary_payload',material_key:canonicalDigest('input'),location:'/shelf/movie.mkv',size_bytes:100}],
     standard:{value:{profileRuleSets:[{contentProfile:'movie',baseRequirements:{mandatoryMedia:{videoCodec:'hevc'},space:{}}}]}}}};
   const probe={resultKind:'probed',videoStreams:[{codec:'h264',width:1920,height:1080}],audioStreams:[]};
   const first=probeConformance(context,probe);

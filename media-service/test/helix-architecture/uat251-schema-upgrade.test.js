@@ -8,8 +8,8 @@ const {digest}=require('../../src/helix/foundation/persistence/ddl-compiler');
 const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-kernel');
 const {migrateUatIdentitySelectionSchema}=require('../../src/helix/foundation/persistence/uat-identity-selection-migration');
 const {validManifest}=require('../../src/helix/domains/arca/model/authorized-defect-manifest');
-const schemaManifest=require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
-const schemaDdl=fs.readFileSync(path.resolve(__dirname,'../../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
+const schemaManifest=require('../fixtures/helix-historical-ddl/schema-snapshot').historicalSchema('c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d').schemaManifest;
+const schemaDdl=require('../fixtures/helix-historical-ddl/schema-snapshot').historicalSchema('c00f45c15c5540e158a688c32fd4b57fdbc146b1a28067f0ac7fe82c496d0d5d').schemaDdl;
 const beforeDigest='b8cbd25e773b61e1e9ecfe1b8aecb079f4c97eae02f38c117b4d4e8a08427821';
 const catalog=db=>db.prepare("SELECT type,name,tbl_name,sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' ORDER BY type,name")
   .all().map(row=>({...row,sql:row.sql&&row.sql.replaceAll('\r\n','\n')}));

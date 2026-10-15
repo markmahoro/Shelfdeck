@@ -1,6 +1,7 @@
 'use strict';
 
 const { boundSeriesNfoProvenance } = require('./series-nfo-provenance-schema');
+const { javPartSetSchema } = require('../../src/helix/contracts/jav-part-set');
 
 const crypto = require('crypto');
 const { selectedCandidateSelectedValueSchema } = require('./result-type-schema-builder');
@@ -193,6 +194,9 @@ const boundedContracts = {
 };
 
 const dtoContracts = {
+  JavCorrectionScope: '',
+  JavCorrectionRetirementScope: '',
+  JavCorrectionWorkspaceReclaimScope: '',
   AcceptedIntakePayload: '',
   AcceptanceRequirementSnapshot: '',
   AftercareMediaRepairStrategy: '',
@@ -306,6 +310,9 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if(name==='JavCorrectionScope')return require('../../src/helix/domains/arca/model/jav-correction-execution-contract').javCorrectionScopeSchema();
+  if(name==='JavCorrectionRetirementScope')return require('../../src/helix/domains/arca/model/jav-correction-retirement-contract').retirementScopeSchema();
+  if(name==='JavCorrectionWorkspaceReclaimScope')return require('../../src/helix/domains/arca/model/jav-correction-workspace-reclaim-contract').workspaceReclaimScopeSchema();
   if (name === 'IntakeControlReadHandle') return { ...exactDomainSchema(name, {
     handleId:digest(), ownerDomain:{const:'libra'}, processType:{const:'libra_intake'}, processId:digest(),
     candidateDeliverySnapshotDigest:digest(), materialKeys:{...arrayOf(digest(),1024),minItems:1,uniqueItems:true},
@@ -468,7 +475,7 @@ function candidateDeliverySnapshotSchema() {
   return { ...exactDomainSchema('CandidateDeliverySnapshot', {
     snapshotContract: { const: 'procurement.candidate-delivery@1' }, offer: typeRef('ProcurementCandidateOfferAvailableMessage'),
     acceptanceBasis: typeRef('CandidateIntakeAcceptanceBasis'), candidatePackage: typeRef('CandidatePackage'),
-    materialInputForm: enumText('stream_file', 'bdmv', 'dvd', 'iso'),
+    materialInputForm: enumText('stream_file', 'bdmv', 'dvd', 'iso', 'jav_named_parts'),
     primaryInputManifest: typeRef('PrimaryInputManifest'), primaryMaterialDeliveries: { ...arrayOf(delivery, PROCUREMENT_RUN_MEMBER_LIMIT), minItems: 1 },
     deliveryMemberSetDigest: digest(), deliverySnapshotDigest: digest()
   }), 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024 };
@@ -550,7 +557,7 @@ function acceptedIntakePayloadSchema() {
   return exactDomainSchema('AcceptedIntakePayload', {
     intakeDecisionId: id(), decisionRevision: { const: 1 }, delivery,
     sourceProvenance: object({ fieldId:id(), fieldAccessRevision:positiveInteger(), fieldContextDigest:digest(),
-      structureKind:structureKind(), contentProfile:profile(), materialInputForm:enumText('stream_file', 'bdmv', 'dvd', 'iso'),
+      structureKind:structureKind(), contentProfile:profile(), materialInputForm:enumText('stream_file', 'bdmv', 'dvd', 'iso', 'jav_named_parts'),
       identityClaimDigest:digest() }),
     candidateVerification: typeRef('CandidateContractVerification'), materialVerification: typeRef('IntakeMaterialVerification'),
     resolutionDecision: domainRef('SubjectContinuityResolutionDecision'), bindingDraft: typeRef('LibraBindingDraft'),
@@ -587,6 +594,8 @@ const triageUnit = () => {
     selectedPayloadSetDigest: digest() });
   const ordinary = { ...common, contentProfile:enumText('movie','jav','western_adult') };
   return { oneOf: [object({ ...ordinary, members }), object({ ...ordinary, memberScope }),
+    object({ ...common, mediaType:{ const:'single' }, contentProfile:{ const:'jav' }, structureKind:{ const:'single' },
+      materialInputForm:{ const:'jav_named_parts' }, javPartSet:javPartSetSchema(), members:{ ...members, minItems:2, maxItems:2 } }),
     { ...object({ ...common, contentProfile:{ const:'series' }, identityMetadata:identityMetadata(16384), members }),
       'x-helix-maxCanonicalBytes':8*1024*1024 }] };
 };
@@ -600,6 +609,9 @@ function procurementTriageRuleSnapshotSchema() {
     profileResolutionRule: object({ mixedPrecedence: { const: ['series_episode_token', 'jav_code', 'movie_fallback'] },
       westernAdultRequiresExplicitHint: { const: true } }), structureRule: object({ maxUnitCanonicalBytes: { const: 65536 }, maxSeriesUnitCanonicalBytes:{ const:8*1024*1024 } }),
     identityRule: object({ claimKinds: { const: ['movie_title', 'series_season', 'jav_code', 'western_temporary'] } }),
+    javNamedPartsRule:object({profiles:{const:['jav','mixed']},labels:{const:['A','B']},parentBoundary:{const:'direct_parent'},
+      identityRule:{const:'canonical_jav_code'},memberOrder:{const:'part_label'},requireCompleteLabelSet:{const:false},
+      singleMemberInputForm:{const:'stream_file'},multipleMemberInputForm:{const:'jav_named_parts'}}),
     manifestRule: object({ minimumMembers: { const: 1 }, maximumMembers: { const: PROCUREMENT_RUN_MEMBER_LIMIT }, firstOrdinal: { const: 0 } })
   });
   return exactDomainSchema('ProcurementTriageRuleSnapshot', { ruleRef: id(), revision: positiveInteger(),
@@ -678,7 +690,7 @@ function candidateDraftSchema() {
     mediaType: mediaType(), contentProfile: profile(), displayIdentity: text(), identityMetadata: identityMetadata(16384),
     identityClaim: typeRef('IdentityClaim'), structureEvidence: object({ evidenceId: id(), payloadDigest: digest(), unit: triageUnit() }),
     primaryInputManifestDraft: typeRef('PrimaryInputManifestDraft'), seasonContinuityClaims: arrayOf(seasonContinuityClaim(), 64),
-    seasonContinuityClaimSetDigest: digest(), relatedReferences: arrayOf(relatedReference(), 1024), materialInputForm:enumText('stream_file', 'bdmv', 'dvd', 'iso'),
+    seasonContinuityClaimSetDigest: digest(), relatedReferences: arrayOf(relatedReference(), 1024), materialInputForm:enumText('stream_file', 'bdmv', 'dvd', 'iso', 'jav_named_parts'),
     relatedReferenceSetDigest: digest(), relatedDispositionScopeDigest:digest(),
     memberControlEvidenceSetDigest: digest(), candidateDraftDigest: digest()
   });
@@ -821,10 +833,12 @@ function decisionInputSetSchema() {
 }
 
 function perceptionResolutionQuerySchema() {
-  return exactDomainSchema('PerceptionResolutionQuery', {
+  const schema=exactDomainSchema('PerceptionResolutionQuery', {
     queryContract: text(), queryVersion: positiveInteger(), querySchemaRef: text(),
     factKind: enumText('rating', 'watched'), identityEvidence: arrayOf(identityAnchor(), 16), queryInputDigest: digest()
   });
+  schema.properties.directTargetScope=object({policyRef:{const:'perception.jav-retained-target@1'},shelfEntryId:id(),acceptedSubjectId:id(),continuityDigest:digest()});
+  return schema;
 }
 
 function perceptionResolutionRecordSetSchema() {
@@ -875,13 +889,14 @@ function perceptionResolutionRuleSnapshotSchema() {
     anchorKind: text(), matchMode: { const: 'exact' }, minConfidenceClass: text(), requireSameAnchorValue: { const: true },
     requireSameFactKind: { const: true }, requireSameCanonicalValue: { const: true }
   });
-  return exactDomainSchema('PerceptionResolutionRuleSnapshot', {
+  const schema=exactDomainSchema('PerceptionResolutionRuleSnapshot', {
     ruleContract: text(), ruleVersion: positiveInteger(), supportedFactKinds: arrayOf(enumText('rating', 'watched'), 2),
     candidateRetrievalClauses: arrayOf(retrieval, 32), anchorMatchers: arrayOf(matcher, 32),
     winnerOrder: { const: 'strongest_anchor_then_value_consensus_then_perception_id' },
     equalStrengthConflict: { const: 'not_found' }, duplicateProofMatchers: arrayOf(duplicateProof, 32),
     maxCandidateRecords: { const: 256 }, ruleDigest: digest()
   });
+  schema.properties.directTargetPolicyRef={const:'perception.jav-retained-target@1'};return schema;
 }
 
 function peopleCandidateAcceptanceDecisionSchema() {
@@ -970,11 +985,14 @@ function metadataFetchIntentSchema() {
   return { $schema: DRAFT, $id: domainTypeId('MetadataFetchIntent'), title: 'MetadataFetchIntent@1',
     'x-helix-ssotRefs': ['6.4.7.1', '8.6.18', '8.6.20'], 'x-helix-role': 'accepted-business-dto',
     'x-helix-maxCanonicalBytes': 16 * 1024, oneOf: [
-      object({ ...common, episodeScope, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(), relatedReferenceDigest: digest(), expectedChecksum: digest() },
+      object({ ...common,contentProfile:enumText('movie','series'), episodeScope, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(), relatedReferenceDigest: digest(), expectedChecksum: digest() },
         [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedChecksum']),
-      object({ ...common, episodeScope, sourceKind: { const: 'provider' }, providerKind: enumText('tmdb', 'jav'),
+      object({ ...common,contentProfile:enumText('movie','series'), episodeScope, sourceKind: { const: 'provider' }, providerKind: {const:'tmdb'},
         resolvedProviderIdentity: domainRef('ResolvedProviderIdentity'), integrationId: id(), configRevision: positiveInteger() },
-        [...Object.keys(common), 'providerKind', 'resolvedProviderIdentity', 'integrationId', 'configRevision'])
+        [...Object.keys(common), 'providerKind', 'resolvedProviderIdentity', 'integrationId', 'configRevision']),
+      object({ ...common,contentProfile:{const:'jav'},sourceKind:{const:'provider'},providerKind:{const:'jav'},
+        resolvedProviderIdentity:domainRef('ResolvedProviderIdentity'),integrationId:id(),configRevision:positiveInteger(),
+        javSelectedSource:require('../../src/helix/contracts/jav-selected-source').javSelectedSourceSchema() })
     ] };
 }
 
@@ -1010,7 +1028,7 @@ function productIdentityEvidenceIntentSchema() {
         object({ ...scopedCommon, sourceKind:{const:'provider_search'},integrationId:id(),configRevision:positiveInteger(),
           provider:{const:'tmdb'},namespace:{const:namespace} }),
       ];
-    }),
+    }).concat(require('../../src/helix/contracts/jav-identity-evidence').javIdentityIntentSchema()),
   };
 }
 
@@ -1288,7 +1306,7 @@ const nullablePositiveInteger = () => nullable(positiveInteger());
 
 function acceptanceRequirementSetSchema() {
   const identity = object({ identityKind: enumText('tmdb_movie', 'tmdb_series_season', 'jav_code', 'internal_identity'),
-    requiredProvider: nullable(enumText('tmdb')), requireSeasonNumber: bool() });
+    requiredProvider: nullable(enumText('tmdb','jav')), requireSeasonNumber: bool() },['identityKind','requireSeasonNumber']);
   const structure = object({ structureKind: acceptanceStructureKind(), primaryModel: enumText('single_primary', 'episode_primary'),
     requireOnePrimaryPerEpisode: bool() });
   const metadata = object({ requiredFieldCodes: arrayOf(enumText('tmdb_movie_id', 'tmdb_series_id', 'title', 'series_title',
@@ -1357,9 +1375,9 @@ function encodeIntentSchema() {
     outputExtension: { const: 'mkv' }, video,
     audio: object({ mode: { const: 'copy' }, streamIndexes: { type: 'array', items: nonNegativeInteger(), minItems: 1, maxItems: 64, uniqueItems: true } }, ['mode']),
     outputContainer: { const: 'matroska' }, subtitle: object({ mode: { const: 'copy' } }), deviceClass: deviceClass(),
-    previousIntentDigest: nullable(digest()), intentDigest: digest()
+    previousIntentDigest: nullable(digest()), javPartSetDigest:digest(), intentDigest: digest()
   };
-  const required = Object.keys(properties).filter((field) => field !== 'previousIntentDigest');
+  const required = Object.keys(properties).filter((field) => !['previousIntentDigest','javPartSetDigest'].includes(field));
   return { ...exactDomainSchema('EncodeIntent', properties, required, { 'x-helix-role': 'bounded-contract', allOf:[
     { if:{properties:{strategyOrdinal:{const:1}},required:['strategyOrdinal']},then:{not:{required:['previousIntentDigest']}} },
     { if:{properties:{strategyOrdinal:{minimum:2}},required:['strategyOrdinal']},then:{required:['previousIntentDigest'],properties:{previousIntentDigest:digest()}} },
@@ -1370,10 +1388,14 @@ function encodeIntentSchema() {
 }
 
 function remuxIntentSchema() {
-  return { ...exactDomainSchema('RemuxIntent', { intentId: id(), revision: positiveInteger(), schemaRef: { const: 'RemuxIntent@1' }, libraRunId: id(),
+  const schema=exactDomainSchema('RemuxIntent', { intentId: id(), revision: positiveInteger(), schemaRef: { const: 'RemuxIntent@1' }, libraRunId: id(),
     sourceHandleDigest: digest(), mediaRequirementDigest: digest(), outputContainer: { const: 'matroska' },
     outputExtension: { const: 'mkv' }, streamPolicy: { const: 'copy_all_supported' }, intentDigest: digest()
-  }, undefined, { 'x-helix-role': 'bounded-contract' }), 'x-helix-maxCanonicalBytes': 16 * 1024 };
+  }, undefined, { 'x-helix-role': 'bounded-contract' });
+  schema.properties.javPartSetDigest=digest();schema.properties.inputAssembly={const:'ordered_jav_parts_copy'};
+  schema.properties.copyCompatibilityDigest=digest();
+  schema.dependentRequired={javPartSetDigest:['inputAssembly','copyCompatibilityDigest'],inputAssembly:['javPartSetDigest','copyCompatibilityDigest'],copyCompatibilityDigest:['inputAssembly','javPartSetDigest']};
+  return {...schema,'x-helix-maxCanonicalBytes':16*1024};
 }
 
 function resolvedProviderIdentitySchema() {
@@ -1535,11 +1557,15 @@ function productInventoryConformanceSnapshotSchema() {
 function productionSourceScopeReferenceSchema() {
   const schema=exactDomainSchema('ProductionSourceScopeReference', {
     schemaRef: { const: 'ProductionSourceScopeReference@1' }, schemaVersion: { const: 1 },
-    libraRunId: id(), scopeKind: enumText('stream_file', 'bdmv', 'dvd', 'iso'), scopeId: id(),
+    libraRunId: id(), scopeKind: enumText('stream_file', 'bdmv', 'dvd', 'iso', 'jav_named_parts'), scopeId: id(),
     scopeDigest: digest(), memberSetDigest: digest(), memberCount: { type:'integer', minimum:1, maximum:1024 },
     selectedPayloadSetDigest: digest(), sourceReferenceDigest: digest()
   }, undefined, { 'x-helix-role':'bounded-contract' });
   schema.properties.workspaceMaterialHandle=typeRef('WorkspaceMaterialHandle');
+  schema.properties.javPartSet=javPartSetSchema();
+  schema.allOf=[{if:{properties:{scopeKind:{const:'jav_named_parts'}},required:['scopeKind']},
+    then:{required:['javPartSet'],properties:{memberCount:{const:2},javPartSet:{properties:{parts:{minItems:2,maxItems:2}}}},not:{required:['workspaceMaterialHandle']}},
+    else:{not:{required:['javPartSet']}}}];
   return {...schema,'x-helix-maxCanonicalBytes':16*1024};
 }
 
@@ -1707,6 +1733,10 @@ function productMediaCandidateInputSchema() {
   workspace.properties.seriesSpaceBasis=direct.properties.seriesSpaceBasis;
   workspace.allOf=direct.allOf;
   workspace.properties.editionEvidence = require('../../src/helix/contracts/media-edition-evidence').editionEvidenceSchema;
+  workspace.properties.javPartSourceEvidence=require('../../src/helix/domains/libra/model/jav-media-parts').javSourceEvidenceSchema();
+  workspace.allOf=[...workspace.allOf,
+    {if:{required:['javPartSourceEvidence']},then:{properties:{mediaRequirement:{properties:{contentProfile:{const:'jav'}}}}}},
+    {if:{properties:{workspaceMediaHandle:{required:['javPartSetDigest']}}},then:{required:['javPartSourceEvidence']}}];
   return { $schema: DRAFT, $id: domainTypeId('ProductMediaCandidateInput'), title: 'ProductMediaCandidateInput@1',
     'x-helix-ssotRefs': ['8.6.18'], 'x-helix-role': 'accepted-business-dto', 'x-helix-maxCanonicalBytes': 1024 * 1024,
     oneOf: [direct, workspace] };

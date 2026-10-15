@@ -1,12 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "x-helix-ssotRefs": [
-    "8.2.2",
-    "8.6.21"
-  ],
-  "x-helix-maxCanonicalBytes": 16777216,
   "$id": "helix://contracts/application-types/AcceptedProductRequirementsQuery/v1",
   "title": "AcceptedProductRequirementsQuery@1",
+  "x-helix-ssotRefs": [
+    "8.6.21"
+  ],
+  "x-helix-maxCanonicalBytes": 262144,
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -28,6 +27,7 @@
           },
           "expectedPackageDigest": {
             "type": "string",
+            "minLength": 1,
             "pattern": "^[a-f0-9]{64}$"
           }
         },
@@ -36,6 +36,9 @@
           "expectedPackageDigest"
         ]
       }
+    },
+    "includeAcceptedSubjectOrigin": {
+      "const": true
     }
   },
   "required": [

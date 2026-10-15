@@ -51,6 +51,19 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "javPartSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "inputAssembly": {
+      "const": "ordered_jav_parts_copy"
+    },
+    "copyCompatibilityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -65,5 +78,19 @@
     "streamPolicy",
     "intentDigest"
   ],
+  "dependentRequired": {
+    "javPartSetDigest": [
+      "inputAssembly",
+      "copyCompatibilityDigest"
+    ],
+    "inputAssembly": [
+      "javPartSetDigest",
+      "copyCompatibilityDigest"
+    ],
+    "copyCompatibilityDigest": [
+      "inputAssembly",
+      "javPartSetDigest"
+    ]
+  },
   "x-helix-maxCanonicalBytes": 16384
 }

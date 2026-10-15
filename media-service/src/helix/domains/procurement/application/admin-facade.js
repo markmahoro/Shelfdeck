@@ -337,7 +337,7 @@ function createProcurementAdminApplication(options) {
             { fieldId },
           );
         }
-        if (!['movie','series'].includes(field.currentProfileHintSnapshot?.contentProfileHint)) {
+        if (!['movie','series','jav','mixed'].includes(field.currentProfileHintSnapshot?.contentProfileHint)) {
           throw new ProcurementAdminApplicationError(
             'ADMIN_MEDIA_PROFILE_UNSUPPORTED',
             '暂不支持该媒体类型。',
@@ -367,7 +367,7 @@ function createProcurementAdminApplication(options) {
         return Object.freeze({observationWorkId:workId,fieldId,state:existing.state,replayed:true});
       }
       const field=store.getMaterialField(fieldId);
-      if(!field||!['movie','series'].includes(field.currentProfileHintSnapshot?.contentProfileHint))
+      if(!field||!['movie','series','jav','mixed'].includes(field.currentProfileHintSnapshot?.contentProfileHint))
         throw new ProcurementAdminApplicationError('ADMIN_FIELD_NOT_FOUND','原电影目录当前不可用。',{fieldId});
       try {
         return observation.observe({fieldId,idempotencyKey,expectedAccessRevision:field.currentAccessRevision,

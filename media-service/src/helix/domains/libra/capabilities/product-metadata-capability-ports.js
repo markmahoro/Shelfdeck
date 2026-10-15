@@ -145,6 +145,7 @@ function createProductMetadataCapabilityPorts(options) {
       }
       return outcome(buildMetadataObservation({
         intent,
+        ...(intent.contentProfile==='jav'?{sourceIntegrationHandle:handle}:{}),
         descriptiveEntries: source.descriptiveEntries,
         sourceNfoSemantics:source.sourceNfoSemantics || null,sourceNfoSnapshotDigest:source.sourceNfoSnapshotDigest || null,
         providerIdentities: source.providerIdentities,

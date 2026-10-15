@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '../../src/helix/contracts');
 test('materializes the SSOT-exact Libra production application contracts reproducibly', () => {
   const schemas = buildLibraApplicationSchemas();
   const registry = JSON.parse(fs.readFileSync(path.join(root, 'libra-application-type-registry.json'), 'utf8'));
-  assert.equal(registry.targetCount, 42);
+  assert.equal(registry.targetCount, 45);
   assert.ok(schemas.LibraOffloadProductMaterialKeys);
   for (const [name, schema] of Object.entries(schemas)) {
     const stored = JSON.parse(fs.readFileSync(path.join(root, 'application-types', name, 'v1/schema.json'), 'utf8'));
@@ -22,6 +22,14 @@ test('materializes the SSOT-exact Libra production application contracts reprodu
     assert.equal(entry.schemaId, typeId(name));
     assert.equal(entry.digest.value, schemaDigest(schema));
   }
+});
+
+test('accepted origin reads have an explicit bounded query and a closed digest-bound Subject origin',()=>{
+  const schemas=buildLibraApplicationSchemas(),query=schemas.AcceptedProductRequirementsQuery,origin=schemas.LibraAcceptedSubjectOrigin;
+  assert.deepEqual(query.required,['queryContract','packages']);assert.equal(query.properties.includeAcceptedSubjectOrigin.const,true);
+  assert.equal(query.properties.packages.maxItems,500);assert.equal(query.additionalProperties,false);
+  assert.equal(origin.additionalProperties,false);assert.equal(origin['x-helix-maxCanonicalBytes'],4096);
+  assert.ok(origin.required.includes('subjectId'));assert.ok(origin.required.includes('packageDigest'));assert.ok(origin.required.includes('originDigest'));
 });
 
 test('Western Analysis phase Plan binding is closed, bounded, and phase-capability exact', () => {

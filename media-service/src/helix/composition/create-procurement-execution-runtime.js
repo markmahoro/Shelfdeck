@@ -30,6 +30,7 @@ const intakeControlCatalogTransition = require('./catalog-transitions/intake-con
 const secondaryAcceptanceHistory = require('./catalog-transitions/secondary-acceptance-history-20260928.json');
 const { createFrozenCatalogHistory } = require('../foundation/execution/frozen-catalog-history');
 const movieTerminalContracts = require('./catalog-transitions/movie-terminal-contracts-20260930.json');
+const publishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261015.json');
 const { createTimeoutController } = require('../foundation/execution/timeout-controller');
 const { createCooperativeExecutionIsolation } = require('../foundation/execution/cooperative-execution-isolation');
 const { createWorkLifecycle } = require('../foundation/execution/work-lifecycle');
@@ -38,6 +39,12 @@ const { createWorkSupplyController } = require('../foundation/execution/work-sup
 const { createWorkResultReader } = require('../foundation/execution/work-result-reader');
 const { createReconcileCursorStore } = require('../foundation/execution/reconcile-cursor-store');
 const { createMaterialControlProjectionPort, controlScopeDigest } = require('../foundation/persistence/material-control');
+const {deriveJavCoverBytes}=require('../integrations/jav-cover-renderer');
+const {createJavCorrectionWorkspaceIo}=require('../integrations/jav-correction-workspace-io');
+const {createJavCorrectionFormalFiles}=require('../integrations/jav-correction-formal-files');
+const {createJavCorrectionFormalRetirement}=require('../integrations/jav-correction-formal-retirement');
+const {createJavCorrectionWorkspaceReclaim}=require('../integrations/jav-correction-workspace-reclaim');
+const {createJavCorrectionRecoveryScene}=require('../integrations/jav-correction-recovery-scene');
 const { createDomainReconcileRunner } = require('../foundation/execution/domain-reconcile-runner');
 const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foundation/execution/workflow-plan');
 const { PRE_PROJECTION_PLAN_REPLAN_CODE } = require('../foundation/persistence/uat-identity-selection-migration');
@@ -97,7 +104,8 @@ const ARCA_ENABLED = Object.freeze(['arca.acceptance.identity.verify@1','arca.ac
   'arca.aftercare.artifact.materialize@1','arca.aftercare.media.remux@1',
   'arca.aftercare.media.transcode@1','arca.aftercare.media.verify@1',
   'arca.aftercare.input_settlement.delete@1','arca.aftercare.inventory.commit@1',
-  'arca.aftercare.case.commit@1','arca.aftercare.workspace.reclaim@1']);
+  'arca.aftercare.case.commit@1','arca.aftercare.workspace.reclaim@1',
+  'arca.jav_correction.source.verify@1','arca.jav_correction.assets.prepare@1','arca.jav_correction.files.stage@1','arca.jav_correction.files.publish@1','arca.jav_correction.files.verify@1','arca.jav_correction.inventory.commit@1','arca.jav_correction.formal_retirement.execute@1','arca.jav_correction.workspace.reclaim@1']);
 const ARCA_OFFDECK_ENABLED=Object.freeze(['arca.offdeck.duplicate.detect@1','arca.offdeck.duplicate_group.commit@1','arca.offdeck.review_candidate.commit@1',
   'arca.offdeck.destruction_scope.verify@1','arca.offdeck.primary_material.delete@1',
   'arca.offdeck.related_reference.release@1','arca.offdeck.unreferenced_related.delete@1',
@@ -255,6 +263,7 @@ function createProcurementExecutionRuntime(options) {
   const workResultReader = createWorkResultReader(options);
   const runtimeSchemas = collectSchemas(contractsRoot);
   const contractValidator = createCapabilityContractValidator({ schemas: runtimeSchemas });
+  options.onContractValidatorReady?.(contractValidator);
   const manifests = Object.fromEntries(ENABLED.map((ref) => [ref, manifest(contractsRoot, ref)]));
   const procurementConstruction = ProcurementExecutionRegistration();
   const libraConstruction = LibraExecutionRegistration();
@@ -305,6 +314,8 @@ function createProcurementExecutionRuntime(options) {
     ?perceptionProcessServices.ensureResolution('shelf_entry',shelfEntryId)
     :Object.freeze({kind:'pending'});
   const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,contractValidator,
+    resolveMediaCastReference:input=>peopleProcessServices.mediaCastReferenceQuery.resolve(input),
+    materialControlProjectionPort,deriveJavCoverBytes,createJavCorrectionWorkspaceIo,createJavCorrectionFormalFiles,createJavCorrectionFormalRetirement,createJavCorrectionWorkspaceReclaim,createJavCorrectionRecoveryScene,
     registry:currentServiceCatalog,
     buildRatingTargetIdentity:LibraExecutionRegistration.buildRatingTargetIdentity,
     compileFfmpegPipeline, compileFfmpegPassArgs,
@@ -425,6 +436,9 @@ function createProcurementExecutionRuntime(options) {
   function recoveryReality(effectClass) {
     const observed = (context) => effectJournal.observeRecovery(context.effect.effect_id);
     if (effectClass === 'workspace_write') return { async observe(context) {
+      if(context.event?.capability_ref==='arca.jav_correction.workspace.reclaim@1')return arcaCapabilityRegistration.ports['arca.jav_correction.workspace.reclaim@1'].observeEffectReality(context);
+      if(context.event?.capability_ref==='arca.jav_correction.assets.prepare@1')
+        return arcaCapabilityRegistration.ports['arca.jav_correction.assets.prepare@1'].observeEffectReality(context);
       if (context.event?.capability_ref === 'libra.product_artifact.acquire@1' &&
           context.work?.process_type === 'libra_run' && typeof context.work.process_id === 'string') {
         let parameters;
@@ -452,14 +466,21 @@ function createProcurementExecutionRuntime(options) {
     } };
     if (effectClass === 'domain_fact_commit') return { async observe(context) {
       const value = observed(context), committed = value.markers.length === 1;
+      if(!committed&&context.event?.capability_ref==='arca.jav_correction.files.verify@1')
+        return arcaCapabilityRegistration.ports[context.event.capability_ref].observeEffectReality(context);
       return { status: committed ? 'committed' : 'absent', revisionMatches: committed, fenceValid: true, evidenceDigest: canonicalDigest(value) };
     } };
     if (effectClass === 'responsibility_control_commit') return { async observe(context) {
       const value = observed(context), committed = value.markers.length === 1;
+      if(!committed&&context.event?.capability_ref==='arca.jav_correction.inventory.commit@1')
+        return arcaCapabilityRegistration.ports[context.event.capability_ref].observeEffectReality(context);
       return { status: committed ? 'whole_established' : 'whole_absent', fenceValid: true, evidenceDigest: canonicalDigest(value) };
     } };
     if (effectClass === 'material_commit') return { async observe(context) {
+      if(context.event?.capability_ref==='arca.jav_correction.formal_retirement.execute@1')return arcaCapabilityRegistration.ports['arca.jav_correction.formal_retirement.execute@1'].observeEffectReality(context);
       const value = observed(context), committed = value.markers.length === 1;
+      if(!committed&&['arca.jav_correction.files.stage@1','arca.jav_correction.files.publish@1'].includes(context.event?.capability_ref))
+        return arcaCapabilityRegistration.ports[context.event.capability_ref].observeEffectReality(context);
       return { status: committed ? 'committed' : 'forward_required', rollbackDeclared: false, evidenceDigest: canonicalDigest(value) };
     } };
     return { async observe(context) {
@@ -504,7 +525,7 @@ function createProcurementExecutionRuntime(options) {
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
   const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
-  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,
+  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,correction:arcaCapabilityRegistration.correction,
     resolveMediaCastReference:input=>peopleProcessServices.mediaCastReferenceQuery.resolve(input),
     computeBoundedMaterialFingerprintSync,
     readBoundedFileSnapshotSync,
@@ -522,6 +543,7 @@ function createProcurementExecutionRuntime(options) {
     onDeckNfoPersonEvidence:arcaProcessServices.onDeckNfoPersonEvidence,
   });
   const arcaPlanningRegistration=arcaConstruction.createPlanningRegistration({...options,registry,policyRegistry,contractValidator,workResultReader,
+    correction:arcaCapabilityRegistration.correction,
     contextReader:arcaProcessServices.contextReader,aftercareContextReader:arcaProcessServices.aftercareContextReader,
     offdeckContextReader:arcaProcessServices.offdeckContextReader,
     shelfDeregistrationContextReader:arcaProcessServices.shelfDeregistrationContextReader,
@@ -651,16 +673,41 @@ function createProcurementExecutionRuntime(options) {
         else {
         const refs=workResultReader.readBindings(snapshot.work.work_id).flatMap((item)=>item.inputBindings?.bindings||[])
           .find((item)=>Array.isArray(item.parameters?.dependencyRefs))?.parameters.dependencyRefs||[];
-        const isAftercare=snapshot.work.process_type==='arca_shelf_entry',isOffdeck=snapshot.work.process_type==='arca_offdeck_case',isOffdeckAutomation=snapshot.work.process_type==='arca_offdeck_automation';
+        const isAftercare=snapshot.work.process_type==='arca_shelf_entry',isOffdeck=snapshot.work.process_type==='arca_offdeck_case',isOffdeckAutomation=snapshot.work.process_type==='arca_offdeck_automation',
+          isCorrection=snapshot.work.process_type==='arca_jav_identity_correction';
         const settlementMaterialKey=inputs.namedInputs?.oldPrimaryStructuralExclusiveRelatedHandleList?.members?.[0]?.materialKey;
-        const arcaContext=isOffdeckAutomation?null:isOffdeck?arcaProcessServices.offdeckContextReader.read(snapshot.work.process_id):isAftercare
+        const arcaContext=isOffdeckAutomation?null:isCorrection?['arca.jav_correction.formal_retirement.execute@1','arca.jav_correction.workspace.reclaim@1'].includes(capability)?arcaProcessServices.aftercareContextReader.read(arcaProcessServices.correction.correctionStore.get(snapshot.work.process_id).shelfEntryId):arcaProcessServices.correction.correctionContextReader.read(snapshot.work.process_id).context:
+          isOffdeck?arcaProcessServices.offdeckContextReader.read(snapshot.work.process_id):isAftercare
           ?arcaProcessServices.aftercareContextReader.read(snapshot.work.process_id)
           :snapshot.work.process_type==='arca_ondeck_run'
             ?capability==='arca.ondeck.input_settlement.delete@1'
               ?arcaProcessServices.contextReader.readSettlement(snapshot.work.process_id,refs,settlementMaterialKey)
               :arcaProcessServices.contextReader.readAccepted(snapshot.work.process_id,refs)
             :arcaProcessServices.contextReader.readOffer(refs);
-        const targetMount=isOffdeckAutomation?null:isOffdeck?arcaContext.snapshot.shelf.target_mount_scope_id:isAftercare?arcaContext.raw.shelf.target_mount_scope_id:arcaContext.shelf.target.mountScopeId;
+        const targetMount=isOffdeckAutomation?null:isOffdeck?arcaContext.snapshot.shelf.target_mount_scope_id:isAftercare||isCorrection?arcaContext.raw.shelf.target_mount_scope_id:arcaContext.shelf.target.mountScopeId;
+        if(isCorrection&&['arca.jav_correction.source.verify@1','arca.jav_correction.assets.prepare@1'].includes(capability)) {
+          const qualification=arcaProcessServices.correction.correctionStore.get(snapshot.work.process_id).proof.proposal.sourceQualification,
+            source=qualification.sourceSnapshot.sources[qualification.sourceOrdinal];
+          validatedIntegrationKeys.add(source.integrationId);resources.push({resourceKey:'integration:'+source.integrationId,units:1});
+        }
+        if(capability==='arca.jav_correction.assets.prepare@1'){
+          const workspaceMount=arcaProcessServices.correction.rootSnapshot.mountScopeId;validatedVolumeKeys.add(workspaceMount);
+          resources.push({resourceKey:'volume_write:'+workspaceMount,units:1},{resourceKey:'sqlite_write',units:1});
+        }
+        if(capability==='arca.jav_correction.workspace.reclaim@1'){
+          const workspaceMount=arcaProcessServices.correction.rootSnapshot.mountScopeId;validatedVolumeKeys.add(workspaceMount);
+          resources.push({resourceKey:'volume_read:'+workspaceMount,units:1},{resourceKey:'volume_write:'+workspaceMount,units:1},
+            {resourceKey:'volume_mutation:'+workspaceMount,units:1},{resourceKey:'sqlite_write',units:1});
+        }
+        if(['arca.jav_correction.files.stage@1','arca.jav_correction.files.publish@1','arca.jav_correction.files.verify@1','arca.jav_correction.inventory.commit@1','arca.jav_correction.formal_retirement.execute@1'].includes(capability)) {
+          const mounts=new Set(arcaContext.raw.materials.map(item=>item.mount_scope_id));mounts.add(arcaProcessServices.correction.rootSnapshot.mountScopeId);
+          if(capability==='arca.jav_correction.formal_retirement.execute@1')for(const item of arcaProcessServices.correction.correctionStore.get(snapshot.work.process_id).proof.basis.materials)mounts.add(item.physicalIdentity.mountScopeId);
+          for(const mount of mounts){validatedVolumeKeys.add(mount);resources.push({resourceKey:'volume_read:'+mount,units:1});}
+          if(!['arca.jav_correction.files.verify@1','arca.jav_correction.inventory.commit@1'].includes(capability))resources.push({resourceKey:'volume_write:'+targetMount,units:1});
+          else if(!mounts.has(targetMount))resources.push({resourceKey:'volume_read:'+targetMount,units:1});
+          resources.push({resourceKey:'sqlite_write',units:1});
+          if(['arca.jav_correction.files.publish@1','arca.jav_correction.formal_retirement.execute@1'].includes(capability))for(const mount of mounts)resources.push({resourceKey:'volume_mutation:'+mount,units:1});
+        }
         if(targetMount)validatedVolumeKeys.add(targetMount);
         if(['arca.acceptance.inventory_feasibility.observe@1','arca.inventory.target_slot.prepare@1',
           'arca.inventory.product.stage@1'].includes(capability))resources.push({resourceKey:'volume_write:'+targetMount,units:1});
@@ -735,7 +782,7 @@ function createProcurementExecutionRuntime(options) {
     'product_identity','product_metadata_observation','artifact_production','product_fact_assembly','workspace_media_production',
     'product_conformance','deliverable_promotion'];
   const perceptionPlannerKinds=['acquisition_page','resolution'];
-  const arcaPlannerKinds=['acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','care_workspace_reclaim','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit'];
+  const arcaPlannerKinds=['acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','care_workspace_reclaim','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit','jav_correction_assets','jav_correction_files','jav_correction_publish','jav_correction_verify','jav_correction_commit','jav_correction_formal_retirement','jav_correction_workspace_reclaim'];
   const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({
     ownerDomain: 'procurement', workKind: plannerKinds[index], plannerContractRef: planner.plannerContractRef,
     plannerVersion: planner.plannerVersion, planner
@@ -755,6 +802,7 @@ function createProcurementExecutionRuntime(options) {
     contractValidator, bindingProjectionRegistry,
     proofReader:catalogProofReader, terminalEffectObserver });
   const terminalHistory = createFrozenCatalogHistory({ archive: movieTerminalContracts,
+    additionalArchives: [{archive:publishedTerminalContracts,archiveDigest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d'}],
     archiveDigest: '369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
     priorArchive: secondaryAcceptanceHistory,
     priorArchiveDigest: '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
@@ -954,6 +1002,10 @@ function createProcurementExecutionRuntime(options) {
       if(request.workAttemptState==='succeeded')arcaProcessServices.aftercareCoordinator.reconcile(request.processId);
       return {workId:request.workId,disposition:request.workAttemptState};
     }
+    if(request.ownerDomain==='arca'&&request.processType==='arca_jav_identity_correction'){
+      return Promise.resolve(arcaProcessServices.correction.coordinator.reconcile(request.processId))
+        .then(()=>({workId:request.workId,disposition:request.workAttemptState}));
+    }
     if(request.ownerDomain==='arca'&&request.processType==='arca_offdeck_case'){
       if(['succeeded','failed','cancelled'].includes(request.workAttemptState))arcaProcessServices.offdeckCoordinator.reconcile(request.processId);
       return {workId:request.workId,disposition:request.workAttemptState};
@@ -968,8 +1020,12 @@ function createProcurementExecutionRuntime(options) {
         const context=perceptionProcessServices.acquisitionContext(request.processId);
         if(acquisition.kind==='terminal'&&context?.scope?.mode==='direct'){
           const target=context.scope.target;
-          perceptionProcessServices.ensureResolution(target.targetType,target.targetId);
-          if(target.targetType==='subject')libraProcessServices.acceptanceSpecCoordinator.reconcile(target.targetId);
+          const factKind=context.scope.directInput.sourceRecordKey.startsWith('shelfdeck:watched:')?'watched':'rating';
+          // Both query snapshots include the same immutable candidate record set.
+          // Refresh each independent fact after a direct record changes that set.
+          perceptionProcessServices.ensureResolution(target.targetType,target.targetId,'rating');
+          perceptionProcessServices.ensureResolution(target.targetType,target.targetId,'watched');
+          if(factKind==='rating'&&target.targetType==='subject')libraProcessServices.acceptanceSpecCoordinator.reconcile(target.targetId);
         }
         // Provider-wide rating fan-out is intentionally left to the durable,
         // bounded Domain Reconcile cursors below. Never scan every Subject on
@@ -1046,7 +1102,7 @@ function createProcurementExecutionRuntime(options) {
   const pipelineSubjectPage=(cursor,limit)=>libraProcessServices.pipelineAdmission.listTokens()
     .filter((item)=>(cursor===null||item.subjectId>cursor)&&Boolean(libraProcessServices.routingContextReader.read(item.subjectId))).slice(0,limit)
     .map((item)=>Object.freeze({cursor:item.subjectId,scope:Object.freeze({subjectId:item.subjectId})}));
-  const fallbackReconciler=createDomainReconcileRunner({cursorStore,now,onError:options.onError,registrations:[Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-maintenance',listPage:({cursor})=>cursor===null&&options.recycleTick?[{cursor:'recycle',scope:{}}]:[],reconcile:()=>options.recycleTick()}),Object.freeze({
+  const fallbackReconciler=createDomainReconcileRunner({cursorStore,now,onError:options.onError,registrations:[Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-maintenance',listPage:()=>options.recycleTick?[{cursor:'recycle',scope:{}}]:[],reconcile:()=>options.recycleTick()}),Object.freeze({
     ownerDomain:'procurement',reconcilerKey:'active-procurement-runs',
     listPage:({cursor,limit})=>triageReader.listActiveRunPage(cursor,limit),
     reconcile:({procurementRunId})=>runCoordinator.reconcile(procurementRunId),
@@ -1098,11 +1154,15 @@ function createProcurementExecutionRuntime(options) {
     }),Object.freeze({
       ownerDomain:'perception',reconcilerKey:'active-subject-rating-resolutions',
       listPage:({cursor,limit})=>pipelineSubjectPage(cursor,limit),
-      reconcile:({subjectId})=>perceptionProcessServices.ensureResolution('subject',subjectId),
+      reconcile:({subjectId})=>{const rating=perceptionProcessServices.ensureResolution('subject',subjectId);perceptionProcessServices.ensureResolution('subject',subjectId,'watched');return rating;},
     }),Object.freeze({
       ownerDomain:'perception',reconcilerKey:'active-shelf-entry-rating-resolutions',
       listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.listPage(cursor,limit),
-      reconcile:({shelfEntryId})=>perceptionProcessServices.ensureResolution('shelf_entry',shelfEntryId),
+      reconcile:({shelfEntryId})=>{const rating=perceptionProcessServices.ensureResolution('shelf_entry',shelfEntryId);perceptionProcessServices.ensureResolution('shelf_entry',shelfEntryId,'watched');return rating;},
+    }),Object.freeze({
+      ownerDomain:'arca',reconcilerKey:'jav-identity-corrections',
+      listPage:({cursor,limit})=>arcaProcessServices.correction?arcaProcessServices.correction.correctionStore.listReconcilePage(cursor,limit):[],
+      reconcile:({correctionId})=>arcaProcessServices.correction.coordinator.reconcile(correctionId),
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'failed-acceptance-assessments',
       listPage:({cursor,limit})=>workResultReader.listOwnerWorks({ownerDomain:'arca',workKind:'acceptance_assessment'})
@@ -1241,6 +1301,7 @@ function createProcurementExecutionRuntime(options) {
     arcaAcceptanceRecovery:arcaProcessServices.coordinator,
     arcaAftercareCoordinator:arcaProcessServices.aftercareCoordinator,
     arcaDefectAdmission:arcaProcessServices.defectAdmission,
+    arcaJavCorrection:arcaProcessServices.correction,
     arcaAftercareContextReader:arcaProcessServices.aftercareContextReader,
     arcaOffdeckCoordinator:arcaProcessServices.offdeckCoordinator,arcaOffdeckContextReader:arcaProcessServices.offdeckContextReader,
     arcaOffdeckAutomationCoordinator:arcaProcessServices.offdeckAutomationCoordinator,

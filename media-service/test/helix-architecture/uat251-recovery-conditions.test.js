@@ -9,10 +9,10 @@ test('ordinary maintenance freezes only relevant semantic conditions and changes
   let provider='initial';
   const read=kinds=>kinds.map(conditionKind=>({conditionKind,snapshotDigest:canonicalDigest(provider)}));
   const finding={findingKind:'presentation:poster_missing',findingId:'first',observedAtMs:1};
-  const first=maintenanceRecoveryConditions([finding],read);
-  assert.deepEqual(maintenanceRecoveryConditions([{...finding,findingId:'later',observedAtMs:200}],read),first);
+  const context={raw:{identity:{provider:'tmdb'}}},first=maintenanceRecoveryConditions([finding],read,context);
+  assert.deepEqual(maintenanceRecoveryConditions([{...finding,findingId:'later',observedAtMs:200}],read,context),first);
   assert.deepEqual(first.conditions.map(item=>item.conditionKind),['tmdb']);
-  provider='changed';assert.notDeepEqual(maintenanceRecoveryConditions([finding],read),first);
+  provider='changed';assert.notDeepEqual(maintenanceRecoveryConditions([finding],read,context),first);
   assert.deepEqual(maintenanceRecoveryConditions([{findingKind:'presentation:nfo_missing'}],read).conditions,[]);
   assert.equal(first.parameter.valueDigest,canonicalDigest(first.parameter.value));
 });

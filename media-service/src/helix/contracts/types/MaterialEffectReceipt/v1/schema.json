@@ -114,6 +114,13 @@
       },
       "maxItems": 1024
     },
+    "artifactKind": {
+      "enum": [
+        "nfo",
+        "poster",
+        "fanart"
+      ]
+    },
     "supersededLocation": {
       "type": "string",
       "minLength": 1

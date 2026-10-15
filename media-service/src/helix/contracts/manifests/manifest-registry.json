@@ -5,17 +5,65 @@
   "kind": "manifest-registry",
   "owner": "contracts",
   "status": "active",
-  "ssotRefs": ["8.6", "8.8.3", "8.9", "10.10"],
+  "ssotRefs": [
+    "8.6",
+    "8.8.3",
+    "8.9",
+    "10.10"
+  ],
   "distributedTargets": {
     "packageBoundaries": 47
   },
   "manifests": [
-    { "manifestId": "helix.inventory.capabilities", "kind": "capability-inventory", "relativePath": "capability-inventory.json", "targetCount": 113 },
-    { "manifestId": "helix.inventory.result-families", "kind": "result-family-inventory", "relativePath": "result-family-inventory.json", "targetCount": 99 },
-    { "manifestId": "helix.inventory.tables", "kind": "table-inventory", "relativePath": "table-inventory.json", "targetCount": 200 },
-    { "manifestId": "helix.inventory.routes", "kind": "route-inventory", "relativePath": "route-inventory.json", "targetCount": 135, "targetSegments": { "admin": 134, "publicHealth": 1 } },
-    { "manifestId": "helix.inventory.canonical-transactions", "kind": "transaction-inventory", "relativePath": "transaction-inventory.json", "targetCount": 45 },
-    { "manifestId": "helix.inventory.ui-surfaces", "kind": "ui-surface-inventory", "relativePath": "ui-surface-inventory.json", "targetCount": 17, "targetSegments": { "pages": 8, "journeys": 9 } },
-    { "manifestId": "helix.legacy-reuse-ledger", "kind": "legacy-reuse-ledger", "relativePath": "legacy-reuse-ledger.json", "targetCount": 62 }
+    {
+      "manifestId": "helix.inventory.capabilities",
+      "kind": "capability-inventory",
+      "relativePath": "capability-inventory.json",
+      "targetCount": 121
+    },
+    {
+      "manifestId": "helix.inventory.result-families",
+      "kind": "result-family-inventory",
+      "relativePath": "result-family-inventory.json",
+      "targetCount": 104
+    },
+    {
+      "manifestId": "helix.inventory.tables",
+      "kind": "table-inventory",
+      "relativePath": "table-inventory.json",
+      "targetCount": 203
+    },
+    {
+      "manifestId": "helix.inventory.routes",
+      "kind": "route-inventory",
+      "relativePath": "route-inventory.json",
+      "targetCount": 147,
+      "targetSegments": {
+        "admin": 146,
+        "publicHealth": 1
+      }
+    },
+    {
+      "manifestId": "helix.inventory.canonical-transactions",
+      "kind": "transaction-inventory",
+      "relativePath": "transaction-inventory.json",
+      "targetCount": 51
+    },
+    {
+      "manifestId": "helix.inventory.ui-surfaces",
+      "kind": "ui-surface-inventory",
+      "relativePath": "ui-surface-inventory.json",
+      "targetCount": 17,
+      "targetSegments": {
+        "pages": 8,
+        "journeys": 9
+      }
+    },
+    {
+      "manifestId": "helix.legacy-reuse-ledger",
+      "kind": "legacy-reuse-ledger",
+      "relativePath": "legacy-reuse-ledger.json",
+      "targetCount": 62
+    }
   ]
 }

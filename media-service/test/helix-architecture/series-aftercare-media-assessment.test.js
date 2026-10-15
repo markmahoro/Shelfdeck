@@ -23,7 +23,7 @@ async function fixture(t,specs,maximum=10) {
       episode_claims_schema_ref:'helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1',episode_claim_set_digest:episodeClaimSetDigest,
       episode_claims_json:canonicalJson({items:claims,episodeClaimSetDigest})};
   });
-  const context={shelfEntryId:'entry',basis:{digest:canonicalDigest('basis')},raw:{entry:{structure_kind:'season',current_inventory_revision:1},materials,facts:[],
+  const context={shelfEntryId:'entry',basis:{digest:canonicalDigest('basis')},raw:{identity:{identity_kind:'tmdb_series_season'},entry:{structure_kind:'season',current_inventory_revision:1},materials,facts:[],
     standard:{value:{profileRuleSets:[{contentProfile:'series',baseRequirements:{mandatoryMedia:{videoCodec:'hevc'},space:{maxSizeBytes:maximum}}}]}}}};
   const probed=[],played=[],options={computeBoundedMaterialFingerprintSync:fingerprint,
     mediaProbe:{async probe(handle){probed.push(handle.identity.materialKey);return {resultKind:'probed',durationMs:1000,
@@ -132,6 +132,7 @@ test('formal Conformance Capability evaluates the complete Series set and emits 
 test('Movie retains its physical size check and single-source assessment behavior',async t=>{
   const f=await fixture(t,[[12,['E01']]]);
   f.context.raw.entry.structure_kind='single';
+  f.context.raw.identity={identity_kind:'tmdb_movie'};
   f.context.raw.standard.value.profileRuleSets[0].contentProfile='movie';
   assert.deepEqual(codes(await f.run()),['max_size_exceeded']);assert.equal(f.played.length,3);
 });

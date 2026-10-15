@@ -21,10 +21,11 @@ function ownerReadRepository(schemaManifest,factKind){const statements={
 };
   if(factKind==='product_metadata')statements.find_fact_by_id={kind:'select-one',tableId:'libra_product_fact_revisions',columns:['product_fact_id','libra_run_id','fact_kind','fact_revision','schema_ref','fact_json','fact_digest','commit_marker','result_digest'],keyColumns:['product_fact_id']};
   if(factKind==='resolved_identity'){
-    statements.find_run.columns.push('run_material_manifest_id');
+    statements.find_run.columns.push('run_material_manifest_id','execution_basis_digest');
     statements.list_run_episode_claims={kind:'select-all',tableId:'libra_run_material_episode_claims',columns:['season_claim_digest'],keyColumns:['run_material_manifest_id']};
     statements.find_subject={kind:'select-one',tableId:'libra_subjects',columns:['subject_id','structure_kind','content_profile','status','current_identity_revision','current_continuity_set_digest'],keyColumns:['subject_id']};
-    statements.find_identity={kind:'select-one',tableId:'libra_product_identity_revisions',columns:['subject_id','revision','identity_digest'],keyColumns:['subject_id','revision']};
+    statements.find_identity={kind:'select-one',tableId:'libra_product_identity_revisions',columns:['subject_id','revision','identity_digest','identity_kind','display_identity'],keyColumns:['subject_id','revision']};
+    statements.list_identity_selections={kind:'select-all',tableId:'libra_product_identity_selection_intents',columns:['selection_intent_id','intent_revision','provider','namespace','provider_key','intent_digest'],keyColumns:['libra_run_id'],safeIntegers:true};
     statements.find_continuity_head={kind:'select-one',tableId:'libra_subject_continuity_heads',columns:['head_id','current_revision','head_digest'],keyColumns:['head_id'],safeIntegers:true};
     statements.list_continuity_claims={kind:'select-all',tableId:'libra_subject_season_continuity_claims',columns:['claim_kind','claim_namespace','claim_key','claim_digest','provenance_kind','provenance_ref'],keyColumns:['subject_id']};
   }
@@ -164,7 +165,7 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
               'Resolved Product Identity must bind the exact same-Run Source Basis.');
           }
           fact = payload.resolvedProductIdentity;
-          if(fact.contentProfile==='series'&&canonicalDigest(fact)!==canonicalDigest(
+          if(['series','jav'].includes(fact.contentProfile)&&canonicalDigest(fact)!==canonicalDigest(
               buildResolvedProductIdentity({...fact,displayEntries:fact.displayIdentity?.entries})))
             fail('P9_RESOLVED_IDENTITY_INPUT','Series Product Identity does not match its canonical typed Fact.');
           subjectSnapshot=repo.invoke('find_subject',{subject_id:run.subject_id});
@@ -172,6 +173,24 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
               subjectSnapshot.content_profile!==fact.contentProfile)
             fail('P9_RESOLVED_IDENTITY_SUBJECT_FENCE','Resolved Identity Subject scope is stale.');
           expectedSubjectIdentityRevision=subjectSnapshot.current_identity_revision===null?null:Number(subjectSnapshot.current_identity_revision);
+          if(fact.contentProfile==='jav') {
+            const fence=fact.javSelectionFence,proof=fact.javSourceQualification,source=sourceChains[0]?.result;
+            if(!fence || !proof || sourceChains.length!==1 || source?.contentProfile!=='jav' || source.result!=='resolved' ||
+                canonicalJson(source.javSelectionFence)!==canonicalJson(fence) ||
+                canonicalJson(proof)!==canonicalJson({sourceSnapshot:source.sourceSnapshot,sourceOrdinal:source.sourceOrdinal,observation:source.qualificationObservation}) ||
+                fence.subjectId!==run.subject_id || fence.libraRunId!==run.libra_run_id || fence.runExecutionBasisDigest!==run.execution_basis_digest ||
+                fence.expectedRunStateRevision!==Number(run.state_revision) || fence.expectedIdentityRevision!==(expectedSubjectIdentityRevision||0))
+              fail('P9_JAV_IDENTITY_SELECTION_FENCE','JAV identity no longer matches its exact Run and selection basis.');
+            const latest=repo.invoke('list_identity_selections',{libra_run_id:run.libra_run_id}).sort((a,b)=>Number(b.intent_revision)-Number(a.intent_revision))[0]||null;
+            if(Number(latest?.intent_revision||0)!==fence.expectedSelectionIntentRevision || (latest?.selection_intent_id||null)!==fence.selectionIntentId ||
+                (latest?.intent_digest||null)!==fence.selectionIntentDigest ||
+                (latest && (latest.provider!=='jav'||latest.namespace!=='jav_code'||latest.provider_key!==fact.providerIdentities[0].providerKey)))
+              fail('P9_JAV_IDENTITY_SELECTION_HEAD_STALE','A newer JAV selection superseded this identity Result.');
+            const previous=expectedSubjectIdentityRevision?repo.invoke('find_identity',{subject_id:run.subject_id,revision:expectedSubjectIdentityRevision}):null;
+            if((previous?.identity_digest||null)!==fence.expectedIdentityDigest ||
+                (previous && (previous.identity_kind!=='jav_code' || JSON.parse(previous.display_identity).entries.find(entry=>entry.key==='jav_code')?.value!==fact.providerIdentities[0].providerKey)))
+              fail('P9_JAV_IDENTITY_LOCKED','An established JAV Subject cannot change its canonical code.');
+          }
           subjectIdentityRevision=(expectedSubjectIdentityRevision||0)+1;
           if(repo.invoke('find_identity',{subject_id:run.subject_id,revision:subjectIdentityRevision}))
             fail('P9_RESOLVED_IDENTITY_REVISION_FENCE','Subject Product Identity revision already exists.');
