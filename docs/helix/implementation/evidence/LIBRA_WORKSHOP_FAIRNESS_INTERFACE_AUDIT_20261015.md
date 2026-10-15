@@ -82,3 +82,22 @@ Foundation `execution-summary-reader.js` 不含来源或公平业务。分页/�
 原始只读审核记录位于仓库外 `E:/my_project/helix-git-consolidation-20261008/libra-ui-review-1f36d9ed8-20261016/OWNER_REVIEW.md`；同目录保存 `identity-check.json`、三份最终日志、补充脚本、截图及 `owner-final-review.json`。审核用服务器/浏览器已结束，没有 tracked 文件或生产操作。此项关闭本次确切 UI 门禁，不关闭新鲜副本/发布资格、UAT-320 或整个 Phase；后续用户可见改动仍需受影响范围重验。
 
 原始审核记录 SHA256：`5a678d1d9fa8483528c86409c91fca211be7721a21d4cb61d6e01fedc9c24edb`；`owner-final-review.json` SHA256：`03b4d60bec048f8a319e4a5f1c413a546b321488dc76a5354fcb5ecef5cae172`。
+
+## 新鲜副本完整 Host 的物理资格边界（2026-10-16）
+
+原聊天要求复核本机完整 Host 准备方式，尚未提供新鲜副本。本轮仅核对源码及既有 harness/证据，没有连接或操作生产，也没有启动新的副本 Host。
+
+**当前没有已验证 harness，能在 Windows/Docker Desktop 把生产物理绑定替换为本地目录后，同时保持原 Scope、原 Workspace Handle 并证明完整正常供给。** 原 `JAV_RELEASE_COPY_20261015.md` 已记录本机 candidate 的 `ARCA_AFTERCARE_WORKSPACE_ROOT_CONFLICT`；当时正常供给超过两分钟、33 协调器 cursor 推进的证明来自用户特许的 NAS 同物理挂载隔离容器，不是本机演练。
+
+源码原因：`clean-local-filesystem-mount-probe.js` 使用实际 platform、mountinfo 的 source/mountRoot/filesystem（非 CIFS 还含 device）等证据；`local-filesystem-mount-scope-resolver.js` 校验完整当前 Scope，`aftercare-workspace-store.js` 校验持久 Root/Handle。Host 自行创建真实 probe，没有可用于生产资格的 probe 替身开关。路径名称相同、文件内容相同、只读挂载或复制完整 data，均不能替代这些物理事实；不能改 Root、重新登记 Scope、运行历史 CIFS correction 或伪造 probe 来获得通过。
+
+| 可复用入口 | 已验证范围与使用限制 |
+| --- | --- |
+| `media-service/scripts/helix-libra-schema-copy.js` | 204→210、203旧表精确保护、未使用回退及使用后拒绝；新鲜副本可沿用此 Operator。完整 data 的伴随文件与 runtime-generation 身份仍需另行复制/核对，不只复制 SQLite |
+| `media-service/test/helix-architecture/libra-workshop-host.test.js` | 自建临时介质与正式注册的本地 Scope；已完成 Windows 2/2、Linux 二号恢复 1 条。可以复用真实业务回归，不能换成生产 data 就声称原身份连续 |
+| ignored `qualify-production-original-restore-native.cjs` / `qualify-production-candidate-host.cjs`（`.codex/jav-development/`） | Docker native SQLite、network none、无宿主端口、只读外部根、原凭据会话和 stopped Host 的历史模板。candidate 曾在本机失败；固定旧镜像/表数/路径，不能原样执行或称当前正常供给已通过 |
+| ignored `nas-jav-rehearsal.cjs` / `nas-jav-rehearsal-runtime.cjs`（同目录） | 已验证过同 NAS 实际物理根、独立可写 data、生产 data/media/Workspace 只读、network none，公开 Resume/Stop 与持久 Receipt 跟踪。含旧 staging/上传流程且固定200→204，不能原样执行；仅能在原聊天取得当前精确授权后按当前210和冻结镜像重新准备 |
+
+安全顺序为：新鲜一致204冷副本和全 data 文件摘要→冻结 S02/S03 精确责任及其余新增事实清单→只读源生成新210目标并核对203旧表、伴随文件和未使用回退→在目标运行环境用真实 probe 对全部根/Scope/Workspace Handle 预检→预检通过才启动完整 Host。完整 Host 只写独立目标 data；外部媒体及生产 Workspace 只读、网络 none、不映射宿主端口，绝不让验证连接生产服务。若真实 Scope 不符，保留拒绝证据，资格止于结构/读入或守卫拒绝，不能自动重新绑定。
+
+保留清单区分不可变事实和可合法推进的 Run 状态：转化前全部203旧表逐行一致；运行后原 Subject/Run/Control/Workspace/Commit 等身份及既有不可变记录保持，允许同一责任的合法新状态/追加事实并逐项说明，不能 Reset 来简化。只读 Workspace 和断网会阻止需要写材料/联网的后续能力；即使 `normalSupplyAllowed=true` 和协调器有推进，也不证明两季实际转码/交付完成。Host 写入技术观察或新业务事实后，旧204基线回退应拒绝；保留未使用副本的回退窗口，不恢复覆盖已使用副本。
