@@ -48,7 +48,7 @@ function createAftercareStore(options) {
     find_ondeck_commits:{kind:'select-in',tableId:'arca_ondeck_commit_receipts',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','on_deck_run_id','inventory_revision','deck_fact_revision'],safeIntegers:true},
     find_deck_fact:{kind:'select-one',tableId:'arca_deck_fact_revisions',columns:['shelf_entry_id','revision','standard_revision'],keyColumns:['shelf_entry_id','revision'],safeIntegers:true},
     find_deck_facts:{kind:'select-in',tableId:'arca_deck_fact_revisions',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','revision','standard_revision'],safeIntegers:true},
-    find_material_roles:{kind:'select-in',tableId:'arca_inventory_materials',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','inventory_revision','role'],safeIntegers:true},
+    find_material_roles:{kind:'select-in',tableId:'arca_inventory_materials',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','role'],safeIntegers:true},
     find_accepted_custody:{kind:'select-one',tableId:'arca_ondeck_custodies',columns:['custody_id','on_deck_package_id','package_digest'],keyColumns:['custody_id'],safeIntegers:true},
     find_accepted_custodies:{kind:'select-in',tableId:'arca_ondeck_custodies',keyColumn:'custody_id',maxItems:500,columns:['custody_id','on_deck_package_id','package_digest'],safeIntegers:true},
     find_ondeck_runs:{kind:'select-in',tableId:'arca_ondeck_runs',keyColumn:'on_deck_run_id',maxItems:500,columns:['on_deck_run_id','custody_id'],safeIntegers:true},
@@ -56,7 +56,7 @@ function createAftercareStore(options) {
     list_custody_bindings:{kind:'select-all',tableId:'arca_material_bindings',columns:['owner_object_type','owner_object_id','material_key','role','endpoint_id','location','mount_scope_id','inode','size_bytes','fingerprint_algorithm','fingerprint_version','content_fingerprint','binding_revision','health_state','evidence_digest','current'],keyColumns:['owner_object_type','owner_object_id'],safeIntegers:true},
     find_final_decision:{kind:'select-one',tableId:'arca_final_inventory_decisions',columns:['final_inventory_decision_id','on_deck_run_id','shelf_id','placement_revision','target_endpoint_id','target_location','product_manifest_digest','offload_context_digest','related_disposition_set_digest','decision_schema_ref','decision_json','decision_digest','decided_at_ms'],keyColumns:['on_deck_run_id'],safeIntegers:true},
     list_all_inventories:{kind:'select-all',tableId:'arca_inventory_representations',columns:['shelf_entry_id','revision','representation_digest','source_package_id','committed_at_ms'],keyColumns:[],safeIntegers:true},
-    find_inventories:{kind:'select-in',tableId:'arca_inventory_representations',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','revision','representation_digest','source_package_id','committed_at_ms'],safeIntegers:true},
+    find_inventories:{kind:'select-in',tableId:'arca_inventory_representations',keyColumn:'shelf_entry_id',fixedKeyColumns:['revision'],maxItems:500,columns:['shelf_entry_id','revision','representation_digest','source_package_id','committed_at_ms'],safeIntegers:true},
     list_all_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_schema_ref','fact_json','episode_metadata_schema_ref','episode_metadata_json','fact_digest','source_package_id','provenance_digest','committed_at_ms'],keyColumns:[],safeIntegers:true},
     find_facts:{kind:'select-in',tableId:'arca_inventory_product_facts',keyColumn:'shelf_entry_id',maxItems:500,columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_schema_ref','fact_json','episode_metadata_schema_ref','episode_metadata_json','fact_digest','source_package_id','provenance_digest','committed_at_ms'],safeIntegers:true},
     find_revision_facts:{kind:'select-in',tableId:'arca_inventory_product_facts',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_schema_ref','fact_json','episode_metadata_schema_ref','episode_metadata_json','fact_digest','source_package_id','provenance_digest','committed_at_ms'],safeIntegers:true},
@@ -275,12 +275,20 @@ function createAftercareStore(options) {
   function selectMany(repo,statement,values){const unique=[...new Set(values)].filter(Boolean).sort(),rows=[];for(let offset=0;offset<unique.length;offset+=500)rows.push(...repo.invoke(statement,{values:unique.slice(offset,offset+500)}));return rows;}
   function healthProjectionInputs(shelfEntryIds){
     const wanted=new Set(shelfEntryIds);if(!wanted.size)return Object.freeze([]);
-    return read((context)=>{const repo=context.repository(arca.repositoryId),ids=[...wanted].sort(),entries=selectMany(repo,'find_entries',ids).filter((row)=>row.status==='active'),shelfIds=entries.map((row)=>row.shelf_id),shelves=new Map(selectMany(repo,'find_shelves',shelfIds).map((row)=>[row.shelf_id,row])),standards=new Map(selectMany(repo,'find_standards',shelfIds).map((row)=>[row.shelf_id+':'+Number(row.revision),row])),identities=new Map(selectMany(repo,'find_identities',ids).map((row)=>[row.shelf_entry_id+':'+Number(row.revision),row])),inventories=new Map(selectMany(repo,'find_inventories',ids).map((row)=>[row.shelf_entry_id+':'+Number(row.revision),row])),factsByEntry=new Map(),assessmentsByEntry=new Map(),findingsByAssessment=new Map(),casesByEntry=new Map();
+    return read((context)=>{const repo=context.repository(arca.repositoryId),ids=[...wanted].sort(),entries=selectMany(repo,'find_entries',ids).filter((row)=>row.status==='active'),shelfIds=entries.map((row)=>row.shelf_id),shelves=new Map(selectMany(repo,'find_shelves',shelfIds).map((row)=>[row.shelf_id,row])),standards=new Map(selectMany(repo,'find_standards',shelfIds).map((row)=>[row.shelf_id+':'+Number(row.revision),row])),identities=new Map(selectMany(repo,'find_identities',ids).map((row)=>[row.shelf_entry_id+':'+Number(row.revision),row])),inventories=new Map(),materialRoles=new Map(),factsByEntry=new Map(),assessmentsByEntry=new Map(),findingsByAssessment=new Map(),casesByEntry=new Map();
       const entriesByInventoryRevision=new Map();
       for(const entry of entries){const revision=Number(entry.current_inventory_revision),members=entriesByInventoryRevision.get(revision)||[];members.push(entry.shelf_entry_id);entriesByInventoryRevision.set(revision,members);}
+      // These inputs describe the same current Inventory head. Assessment and
+      // Case history below keeps its separate, complete health-history scope.
       for(const [inventory_revision,members] of entriesByInventoryRevision){
         for(let offset=0;offset<members.length;offset+=500){
-          for(const row of repo.invoke('find_revision_facts',{inventory_revision,values:members.slice(offset,offset+500)})){const list=factsByEntry.get(row.shelf_entry_id)||[];list.push(row);factsByEntry.set(row.shelf_entry_id,list);}
+          const values=members.slice(offset,offset+500);
+          for(const row of repo.invoke('find_inventories',{revision:inventory_revision,values}))inventories.set(row.shelf_entry_id+':'+Number(row.revision),row);
+          for(const row of repo.invoke('find_material_roles',{inventory_revision,values})){
+            const key=row.shelf_entry_id+':'+Number(row.inventory_revision),roles=materialRoles.get(key)||[];
+            roles.push(row.role);materialRoles.set(key,roles);
+          }
+          for(const row of repo.invoke('find_revision_facts',{inventory_revision,values})){const list=factsByEntry.get(row.shelf_entry_id)||[];list.push(row);factsByEntry.set(row.shelf_entry_id,list);}
         }
       }
       for(const row of selectMany(repo,'find_assessments',ids).map(mapAssessment)){const list=assessmentsByEntry.get(row.shelfEntryId)||[];list.push(row);assessmentsByEntry.set(row.shelfEntryId,list);}
@@ -296,8 +304,6 @@ function createAftercareStore(options) {
         commitsByEntry.set(row.shelf_entry_id,list);
       }
       const initialCommits=new Map(selectMany(repo,'find_ondeck_commits',ids).map(row=>[row.shelf_entry_id,row]));
-      const materialRoles=new Map();
-      for(const row of selectMany(repo,'find_material_roles',ids)){const key=row.shelf_entry_id+':'+Number(row.inventory_revision),roles=materialRoles.get(key)||[];roles.push(row.role);materialRoles.set(key,roles);}
       const initialRuns=new Map(selectMany(repo,'find_ondeck_runs',[...initialCommits.values()].map(row=>row.on_deck_run_id)).map(row=>[row.on_deck_run_id,row]));
       const initialCustodies=new Map(selectMany(repo,'find_accepted_custodies',[...initialRuns.values()].map(row=>row.custody_id)).map(row=>[row.custody_id,row]));
       return Object.freeze(entries.map((entry)=>{

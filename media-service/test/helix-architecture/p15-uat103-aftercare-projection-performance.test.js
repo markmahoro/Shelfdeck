@@ -162,7 +162,7 @@ test('single-Entry Aftercare history and terminal finding resolution never scan 
   });
 });
 
-test('health projection reads only each active Entry current Inventory facts across mixed revisions and bounded chunks', () => {
+test('health projection reads only each active Entry current Inventory facts, representations and roles across bounded chunks', () => {
   sqliteFixture('uat318-current-inventory-facts-', ({ root, unitOfWork, seed, sqlTrace }) => {
     insertShelf(seed);
     const ids=insertEntries(seed,503),second=ids[501],inactive=ids[502];
@@ -172,17 +172,35 @@ test('health projection reads only each active Entry current Inventory facts acr
     const fact=seed.prepare(`INSERT INTO arca_inventory_product_facts
       (shelf_entry_id,inventory_revision,fact_kind,fact_revision,fact_schema_ref,fact_json,fact_digest,source_package_id,provenance_digest,committed_at_ms)
       VALUES (?,?,?,?,?,?,?,?,?,?)`);
+    const material=seed.prepare(`INSERT INTO arca_inventory_materials
+      (shelf_entry_id,inventory_revision,ordinal,material_key,role,active_guard) VALUES (?,?,?,?,?,0)`);
     for(const id of ids){
+      seed.prepare('INSERT INTO arca_inventory_representations SELECT shelf_entry_id,9,representation_digest,source_package_id,committed_at_ms FROM arca_inventory_representations WHERE shelf_entry_id=? AND revision=1').run(id);
+      material.run(id,1,0,digest(id+':primary'),'primary_payload');
+      material.run(id,9,0,digest(id+':old-poster'),'poster');
       fact.run(id,1,'product_metadata',1,'helix://test/metadata',JSON.stringify({descriptiveFacts:{entries:[{key:'title',value:'current:'+id}]}}),digest(id),'package-'+id,digest('provenance'),1);
       fact.run(id,9,'product_metadata',1,'helix://test/metadata','{}',digest('historical:'+id),'package-'+id,digest('provenance'),1);
     }
+    material.run(second,2,0,digest(second+':nfo'),'metadata_sidecar');
     fact.run(second,2,'product_metadata',1,'helix://test/metadata',JSON.stringify({descriptiveFacts:{entries:[{key:'title',value:'revision-two'}]}}),digest('revision-two'),'package-'+second,digest('provenance'),1);
-    const store=createAftercareStore({schemaManifest,unitOfWork,now:()=>10_000,aftercareWorkspaceRoot:path.join(root,'aftercare-workspaces')});
+    const returned=[];
+    const measuredUnitOfWork={execute(parts){return unitOfWork.execute(parts.map(part=>({...part,execute(context){return part.execute({...context,
+      repository(id){const repo=context.repository(id);return {...repo,invoke(name,parameters){const value=repo.invoke(name,parameters);
+        if(['find_inventories','find_material_roles'].includes(name))returned.push({name,rows:value.length});return value;}};}});}})));}};
+    const store=createAftercareStore({schemaManifest,unitOfWork:measuredUnitOfWork,now:()=>10_000,aftercareWorkspaceRoot:path.join(root,'aftercare-workspaces')});
     sqlTrace.length=0;
     const projected=store.healthProjectionInputs(ids);
     assert.equal(projected.length,502);
     assert.equal(projected.find(item=>item.shelfEntryId===second).ratingTarget.title,'revision-two');
     assert.equal(projected.find(item=>item.shelfEntryId===ids[500]).ratingTarget.title,'current:'+ids[500]);
+    assert.deepEqual(projected.find(item=>item.shelfEntryId===second).materialRoles,['metadata_sidecar']);
+    assert.deepEqual(projected.find(item=>item.shelfEntryId===ids[500]).materialRoles,['primary_payload']);
+    for(const name of ['find_inventories','find_material_roles'])assert.equal(returned.filter(row=>row.name===name).reduce((sum,row)=>sum+row.rows,0),502);
+    for(const [table,column] of [['arca_inventory_representations','revision'],['arca_inventory_materials','inventory_revision']]){
+      const scoped=sqlTrace.filter(sql=>/^SELECT\b/i.test(sql.trim())&&sql.includes('FROM "'+table+'"'));
+      assert.equal(scoped.length,3);assert.ok(scoped.every(sql=>sql.includes('"'+column+'"=')&&/\bIN\s*\(/i.test(sql)));
+      assert.ok(scoped.every(sql=>!sql.includes("'"+inactive+"'")));
+    }
     const reads=sqlTrace.filter(sql=>/^SELECT\b/i.test(sql.trim())&&sql.includes('FROM "arca_inventory_product_facts"'));
     assert.equal(reads.length,3);
     assert.ok(reads.every(sql=>/"inventory_revision"=/.test(sql)&&/\bIN\s*\(/i.test(sql)));
