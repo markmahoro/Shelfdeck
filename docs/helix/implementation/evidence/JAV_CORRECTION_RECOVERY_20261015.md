@@ -131,3 +131,12 @@ index-1qAJmlnq已获UI负责人适用范围接受，26常规/8并发独立检查
 当前关键媒体/公开恢复Host组合6 pass（Direct、CID未确认手工确认、A/B Remux、A/B后HEVC Transcode、已成功Source固定的Assets恢复及公开Source恢复），见recovery-current-core-host-20261015.log。完整Service641pass/29既有skip、Windows独立Service147route/203table及Movie/Series200→203独立副本/备份恢复窗口通过，详见JAV_RELEASE_COPY。完整冻结架构整合尚未终结。
 
 生产只读复验显示556收藏（554 Movie/2 Season），200表/3.172 GB，仍6 active Libra、4 running Work/Attempt、20 reconcile_required Effect，不具备一致升级副本资格；只读无生产变更。当前Docker本机version查询10秒超时，既有Secrets Engine socket初始化崩溃日志仍在，未Reset/删除socket或Docker数据。用户决定skip NAS临时Linux测试保持，不能用它推导候选镜像已构建或生产操作已获授权。
+
+
+## 本轮整合收取与开发交付
+
+325个架构文件（显式排除另行真实Host验证的jav-host-journey）在冻结输入796d293399b8d8652a09f3e3dffc7ca437f530daeac01865a029384ee3b0a169下完成：2725项=2711pass/2fail/12既有skip，1152.51秒，输入前后一致。两fail精确为P3 verifier旧index102（当前103）及transaction builder旧transaction50（当前51）；更新后暴露同一builder旧crash fixture54（当前56=新增Recovery Intent两个绑定），也保持精确断言而非范围/跳过。四文件重验192项=191pass/1旧fixture计数fail；最终两个受影响文件18/18通过，另含完整canonical transaction crash/transaction validator的通过记录。初轮失败日志均保留，不将其改写为全绿。
+
+architecture-recovery-count-only-annex-20261015.json核验整合后变化仅p3-persistence-verifier.test.js和transaction-contract-builder.test.js；产品src、schema/contract、工程scripts、Web源码与测试/截图输入均无变化。采用完整冻结执行+两个精确断言修复/18项复验及全runtime无漂移的组合Evidence，不声称执行过一次改后325文件全绿。无需为精确计数断言再次重跑19分钟无变化Series业务旅程。当前P2/边界/语义、Service、Windows、关键Host、真实宽窄恢复及具体版本UI接受结果保持其已记范围。
+
+JAV全量实现已在独立codex/jav-release-preparation提交，原main及原生产不改。实现提交b21d8e5d3a4897f64a7f3641697e388940617909包含必要Docker COPY升级工具；精确计数和本节证据随后提交。身份纠正恢复开发已收口，整体部署就绪尚未达成：本机Docker Secrets Engine失败/只读version超时，没有候选Linux镜像/tar/checksum；生产6 active Libra/4 running Work/20 reconcile_required Effect没有获授权的终态处置与一致完整副本，禁止为升级自动Reset/取消。NAS临时隔离Linux按用户决定skip，不能替代镜像构建/副本资格。未部署、停服、Reset或改生产数据。
