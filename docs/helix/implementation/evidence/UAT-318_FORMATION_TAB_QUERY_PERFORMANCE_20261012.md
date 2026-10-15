@@ -350,3 +350,55 @@ UTC 19:22:25（北京时间 10-16 03:22:25）只读收尾：原容器 ID/镜像/
 UTC 19:34:43（北京时间 03:34:43）只读收尾确认原容器 ID/镜像/StartedAt 保持，RestartCount0、health ok、running/normalSupplyAllowed=true/faulted=false、Inspector closed。十轮没有生产停机、重启、Reset、数据/媒体处置、上传、部署或新 NAS 完整 Host 演练；本轮当前 Inventory 补丁和此前 People 补丁均未打入新产品镜像，4ba 旧 tar 不能代表它们。UAT-318 和实际整页一秒资格继续开放。
 
 私有材料：ignored `.codex/console-response-ten-20261016/ten-rounds.json`、每轮 api/complete、1/5/8 profile/summary、analysis、owner-bench、health-equivalence、双平台测试、static-guards、final-live。仅提交聚合证据，不提交原始生产对象、profile、密钥或 session。
+
+## 2026-10-16 本次读取修复发布资格
+
+用户明确要求“好的 先部署这次的修复升级吧”，授权本次标准生产发布；不包含 Reset、清库、迁移或媒体清理。候选合并四处读取修复、People 分页及 Arca 当前 Inventory 范围，source `3c3991fabe29678a5a51793a98ace8f9a0b99124`、Docker `markmahoro/shelfdeck:3c3991fabe`。本次没有 schema、依赖、UI 字段或文案变化。
+
+标准 `build-image.js` / `upload-nas-image.js` 及独立本机 SHA 校验完成：tar 592,583,168 bytes，SHA256 `b8392874942e46278d9f14a802b8690ddbceb8a49f9d0895318c7f9408348bf3`；本机 OCI index `sha256:20679f6af7cc86834bd4bf4dddb37d40699b3fcc7a87aba7059a3139bca9f170`，NAS classic config `sha256:4d6609cd47f5537096d18f357f7477d4ebf31bd9bbb95aa2aec5d0ef7e2559d3`。2356 份 canonical runtime 文件与冻结源码全部一致，aggregate `9c7b177125b0ba14a0d2ff2ba2d394c3ae7f9b2459b31da3bfd2569f7b9a6f6b`。最终镜像直接运行受影响 Linux 专项 **236/236** 通过；继承同一代码的 Windows Service645 pass/29既有skip、此前相关专项及静态门禁，不补称全量架构包装或整季媒体 E2E 已通过。
+
+已验 UI 的 JS `index-Kbt-DVCt.js` 503,927 bytes / SHA256 `484017837528e53f778648c4b37f05620f97c516901ba32fc72c87112e92584f`，CSS `index-BYV0LKeb.css` / SHA256 `82cb8561be6544293d0f6850171d0df02a9a97e53bf60a075ec262ede15df4e2` 在候选保持；未产生新 UI 版本。纯后端读取变化不以 hash 校验冒充浏览器首开性能验收。
+
+### 最新完整副本与候选 Host
+
+UTC 19:45:37.028 从仍运行的 dc7 捕获 SQLite 已提交一致快照及全部伴随文件，56文件/210表/560收藏，两季指定 Run 存在，integrity ok/FK0。冻结 aggregate `26508df100992bca533c7b8ff6243a94439dae83c265d872b0584be792628397`；NAS 独立目录 `backups/uat318-release-20261015T194429-3c3991fabe`。每份 Host 演练使用另外复制的目录，网络隔离，真实媒体和现有 Workspace 全部只读，生产 data 没有用于演练写入。
+
+首次准备被 `P13_BACKUP_DIGEST_MISMATCH` 拒绝：检查工具在冻结副本打开 SQLite 后生成 32KiB SHM/空 WAL。逐文件证明原 manifest 所列字节均未变化，仅把原清单文件及原 manifest 复制到新 `full-canonical`；官方 verifyBackup 在相同 aggregate 下通过，原件及辅助文件保留。没有重签摘要或修改生产来源来绕过检查。
+
+首个候选容器错误设置为 1GiB/cgroup 和约512MiB V8 heap，完整规模启动发生 V8 OOM、exit139；Docker OOMKilled=false 不能抹去此失败。实际生产 V8 heap limit约2GiB，故重试明确匹配2048MiB heap，cgroup3GiB，CPU最终2核。重试完整 `server.js` / `createCleanServiceHost` 于 UTC20:06:49 health ok、normalSupplyAllowed=true；从启动到本次探针约499s，包含初期1核限制，不能当作生产启动耗时。继续正常调度超过30秒后正常关闭、exit0。61张不可变表的704,292行、全部历史Effect意图及终态执行、560原收藏和两季Run基础保持。媒体写入的 EROFS/ENOENT 已定位到演练只读挂载，不能记为媒体旅程通过。
+
+候选启动期间 UTC20:05:14–20:05:55 出现118次 `P4_RESOURCE_PRIORITY_UPDATE_INVALID`，开放HTTP及正常供给之前已停止。根因证据：快照 Libra fairness revision895 的持久化 waiter 含195/188/143分，进程初始化尚未重建 eligible 来源集合时同 revision 投影为100分，Foundation正确拒绝同 revision 改优先级。旧、新精确镜像使用相同实际 Owner 代码的初始化投影对照均复现，四个相关文件 SHA相同；不是本轮读取补丁引入的新优先级语义，也不因此删除 Governor fence。该既有启动时序问题留存，不把演练错误笼统算成网络隔离。
+
+候选在首次 V8 OOM 后保留同一演练目录重试，没有删条目或重建数据掩盖恢复问题。再从已经运行并正常关闭的候选目录复制 `rollback`，使用原 dc7 精确镜像完整启动。UTC20:23:51 探针确认 health ok / normalSupplyAllowed=true，约782s（2核限制、完整恢复检查，另含一次约11s的任务容器采样观察成本）；至少30s正常调度后 exit0 关闭。61张不可变表704,334行、原Effect意图/终态执行、560收藏/两季Run保护通过，25项reconcile_required保持。回滚仅有只读媒体产生的EROFS/ENOENT，没有优先级错误。本次当前镜像覆盖来自原生产健康运行及该精确dc7回退Host，候选及候选使用后数据的回退均有实际完整Host证据；不是只验数据库readiness。隔离媒体/外网限制保持，不声称整季媒体E2E通过。
+
+私有发布材料在 ignored `.codex/uat318-release-20261016/`；包含原失败日志、精确镜像证明、snapshot envelope 核对、Host 观察及逐行历史核对。实际生产切换结果见下，不以构建/上传或 readiness 代替发布成功。
+
+### 标准生产升级结果
+
+UTC20:25:50 仅提交一次正式 Stop，desiredMode=stopped、新供给关闭，仍有1 Event/1 Recovery，Owner/Admin命令为0。在线Stop没有强制完成长任务；按获授权标准发布的75s信号窗口关闭进程。旧进程保留 `P4_SHUTDOWN_CHECKPOINT_TIMEOUT` / exit1 的实际记录，不称优雅关闭完全成功，不将技术中断伪写成媒体失败或删除Journal。停机后官方完整冷备份59文件，aggregate `66e7392db520ad6c5b0e4e98a5c7e75fc27682a332452c938cc0149b01d5c1aa`，位置 `backups/uat318-release-20261015T194429-3c3991fabe/cold`；compose/secret另存同一受保护目录。560收藏、两季active Run和2个Workspace被精确冻结，未Reset/改库/清理媒体。
+
+最终dry run及SHA通过后，标准 `deploy-nas.js --apply` exit0；最新停机数据readiness、health/Admin Web/原六个数据与媒体绑定/QSV/实际tag/镜像源码检查通过。新容器 `04f7ddfa9333db446004c37f5348621a4abbf179af63930c2637ef345febfd93`，StartedAt `2026-10-15T20:30:45.883315242Z`。首次启动保持stopped/quiesced，UTC20:34:01复核无活动执行和fault。
+
+UTC20:34:01.067正式Resume仅提交一次；25s客户端响应超时（code23）不等于操作失败，没有重复提交。持久化Receipt于UTC20:37:08.729 completed，约187.7s；UTC20:37:26复核mode/desiredMode running、normalSupplyAllowed=true、faulted=false、RestartCount0、OOMfalse。实际容器七个修复源文件及两份已验UI资产SHA均匹配候选；adult双绑定同inode、QSV/13无关容器/fnOS200保持。
+
+生产恢复同样出现既有启动时序优先级错误149次，UTC20:35:56.800–20:36:19.371，Resume完成前约49s已停止。UTC20:38观察供给正常且没有新错误类，不将该历史错误隐藏为“完全无启动错误”，也不将其写成新修复已经解决的问题。任务的3个隔离演练容器（包括原OOM失败者）已按准确ID/镜像/label核对后移除，演练数据、原失败日志、冻结备份及旧镜像/tar保留。
+
+生产恢复后的独立一致副本与冷备份逐行核对通过：61张不可变表 **704,421行**、所有原Effect intent及原终态执行均保留；原560 Entry和原Commit保留，当前仍560收藏。两季精确Subject/Run的不可变基础、2个Workspace绑定及原物理目录身份保持，data目录dev/inode保持。56个伴随文件中仅 `operator-runtime/intent.json` 因正式Resume从stopped/revision9变为running/revision10，按原atomic write更换inode/hash；其它55个文件字节和inode均相同。没有替换数据库、迁移、Reset或人工媒体处置。材料 `production-verified.json` / `production-history-proof.json` / `production-object-proof.json`。
+
+UTC20:40:35–20:41:45（北京时间04:40–04:41）正常供给下做三轮只读抽查。未开CPU profile；完整副本/历史核对进程已经结束，每轮五个API顺序请求并与一次容器内loopback静态流并行。15 API全部成功，3次503,927-byte JS完整返回且SHA与已验资产相同：
+
+| 轮 | health ms | Overview ms / age s | Formation25 ms | Collection48 ms | People25 ms | JS首块 / 完整 s |
+| --- | --- | --- | --- | --- | --- | --- |
+| 1 | 476 | 100 / 27.586，ready | 1084 | 1552 | 523 | 2.947 / 24.969 |
+| 2 | 1019 | 312 / 25.960，ready | 1460 | 1027 | 3012 | 3.532 / 20.327 |
+| 3 | 160 | 71 / 12.582，ready | 802 | 219 | 988 | 5.228 / 23.371 |
+
+这些是上线后短窗口、含探针观察成本的样本，负载与此前十轮不同，不声称同负载A/B改善幅度。没有本轮静态传输超时或stale，但JS仍20–25s、部分API仍超过1秒；**UAT-318继续开放**，不据三轮成功关闭浏览器首开、整页一秒SLO、交付包重建/同步I/O/Outbox/执行摘要等剩余热点。未重跑整季媒体生产E2E或Electron；不修改此前测试局限。材料 `production-smoke.json`。
+
+UTC20:44:49（北京时间04:44:49）收尾复核：原新容器ID/镜像/StartedAt保持，health ok、running/normalSupplyAllowed=true、faulted=false、RestartCount0/OOMfalse；启动优先级错误仍累计149次，最后一次20:36:19，没有在恢复运行后继续增长。媒体工作由原Owner正常继续，无人工重处理；原备份/回退镜像保留。
+
+### UAT-321：启动来源公平投影时序
+
+上述优先级错误是上线后新确认的独立问题，登记为UAT-321，不混入UAT-318性能关闭条件。已确认旧/新代码初始化阶段的相同Owner revision可能对应不同localPriority，Foundation拒绝正确；本次生产149次错误在Resume完成前消退，最终供给及fault状态正常。本次发布没有实现此项修复。
+
+关闭需由Libra Owner在既有合同内保证启动/重建/等待恢复阶段的revision与投影值一致，覆盖已有持久化waiter及新建执行的冷启动、正常Owner周期和精确规模完整Host复验；保留来源公平、Governor的同revision不可变围栏及历史数据。不能简单忽略错误、提高revision掩盖缺失的Owner事实、把业务优先级移入Foundation或Reset数据来关闭。
