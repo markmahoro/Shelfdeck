@@ -95,19 +95,69 @@ test('7-day purge is bounded, reference-safe, foreign-key-safe, and idempotent',
   database.close();
 }));
 
-test('retention schedule uses exact cutoff, drains backlog promptly, and records reclamation', () => {
+test('retention schedule uses exact cutoff, drains backlog promptly, and records reclamation', async () => {
   let nowMs = 1_800_000_000_000; const purges = []; const reclaims = [];
   const retention = createFieldObservationRetention({ now:() => nowMs,
     store:{ purge(input) { purges.push(input); return { deleted:1000, backlogLikely:true }; } },
     storageMaintenance:{ reclaimFreePages(limit) { reclaims.push(limit); return { status:'reclaimed', freelistCountAfter:10 }; } },
   });
   assert.equal(retention.listPage({ cursor:null, limit:100 }).length, 1);
-  const result = retention.reconcile();
+  const result = await retention.reconcile();
   assert.equal(purges[0].cutoffMs, nowMs - RETENTION_MS);
   assert.equal(purges[0].limit, 1000);
   assert.deepEqual(reclaims, [1024]);
   assert.equal(result.nextDueAtMs, nowMs);
 });
+
+test('retention yields between transactions, serializes callers, and preserves the total deletion limit',async()=>{
+  const calls=[];let yielded=false,reclaims=0;
+  const retention=createFieldObservationRetention({now:()=>1_800_000_000_000,
+    store:{purge(input){calls.push(input);if(calls.length===1){setImmediate(()=>{yielded=true;});return {deleted:400,scanned:400,nextScanCursor:{headerCursor:'header',entryOffset:0},backlogLikely:true};}
+      assert.equal(yielded,true);assert.deepEqual(input.scanCursor,{headerCursor:'header',entryOffset:0});
+      return {deleted:600,scanned:600,nextScanCursor:{headerCursor:'next',entryOffset:0},backlogLikely:true};}},
+    storageMaintenance:{reclaimFreePages(){reclaims++;return {status:'no_free_pages',freelistCountAfter:0};}}});
+  const first=retention.reconcile();assert.equal(retention.reconcile(),first);const result=await first;
+  assert.deepEqual(calls.map(input=>input.limit),[1000,600]);assert.equal(result.purge.deleted,1000);assert.equal(result.purge.slices,2);assert.equal(reclaims,1);
+});
+
+test('retention stops at its time budget and continues with the cursor on the next reconciliation',async()=>{
+  let elapsed=0;const calls=[],cursor={headerCursor:'completed-header',entryOffset:7};
+  const retention=createFieldObservationRetention({now:()=>1_800_000_000_000,monotonicNow:()=>elapsed,
+    store:{purge(input){calls.push(input);elapsed+=5001;return {deleted:0,scanned:100,nextScanCursor:cursor,backlogLikely:true};}},
+    storageMaintenance:{reclaimFreePages(){return {status:'no_free_pages',freelistCountAfter:0};}}});
+  const first=await retention.reconcile();assert.equal(first.purge.slices,1);assert.equal(calls.length,1);
+  assert.equal(retention.listPage({cursor:null,limit:1}).length,1);
+  await retention.reconcile();assert.equal(calls.length,2);assert.deepEqual(calls[1].scanCursor,cursor);
+});
+
+test('retention continues past protected headers and resumes an indexed detail page without exceeding its delete bound',()=>fixture(({databasePath,unitOfWork})=>{
+  const nowMs=1_800_000_000_000;seed(databasePath,nowMs);const db=new Database(databasePath);db.pragma('foreign_keys=ON');
+  const work=db.prepare("INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,state) VALUES(?,'procurement','material_field','field-1','field_observation','succeeded')"),
+    header=db.prepare("INSERT INTO proc_field_observations(field_id,revision,observation_id,field_observation_work_id,page_ordinal,observed_at_ms,completed) VALUES('field-1',?,?,?,?,?,1)"),
+    entry=db.prepare("INSERT INTO proc_field_observation_entries(field_id,field_observation_work_id,observation_id,observation_revision,page_ordinal,entry_ordinal,material_key,observed_at_ms) VALUES('field-1',?,?,?,0,?,?,?)"),
+    pointer=db.prepare("INSERT INTO proc_field_materials(field_id,material_key,last_observation_id) VALUES('field-1',?,?)");
+  db.transaction(()=>{
+    for(let i=0;i<105;i++){
+      const id='protected-'+i;work.run(id);header.run(8+i,id,id,0,nowMs-RETENTION_MS-1);
+      entry.run(id,id,8+i,0,id,nowMs-RETENTION_MS-1);pointer.run(id,id);
+    }
+    work.run('zz-late-details');header.run(113,'zz-late-details','zz-late-details',0,nowMs-RETENTION_MS-1);
+    for(let i=0;i<1201;i++)entry.run('zz-late-details','zz-late-details',113,i,'late-'+i,nowMs-RETENTION_MS-1);
+  })();
+  const store=createFieldObservationRetentionStore({schemaManifest,unitOfWork}),cutoffMs=nowMs-RETENTION_MS;
+  const first=store.purge({cutoffMs,limit:1000});assert.equal(first.deleted,1);assert.equal(first.scannedHeaders,100);assert.ok(first.nextScanCursor);
+  const second=store.purge({cutoffMs,limit:1000,scanCursor:first.nextScanCursor});assert.equal(second.deleted,1000);assert.ok(second.nextScanCursor);
+  // A new current reference between transactions must protect the exact row.
+  pointer.run('late-1000','zz-late-details');
+  const third=store.purge({cutoffMs,limit:1000,scanCursor:second.nextScanCursor});assert.equal(third.deleted,200);
+  assert.equal(third.exhausted,true);assert.equal(third.nextScanCursor,null);
+  assert.equal(db.prepare("SELECT count(*) n FROM proc_field_observation_entries WHERE field_observation_work_id='zz-late-details'").get().n,1);
+  assert.equal(db.prepare("SELECT material_key FROM proc_field_observation_entries WHERE field_observation_work_id='zz-late-details'").get().material_key,'late-1000');
+  const plan=db.prepare('EXPLAIN QUERY PLAN SELECT entry_ordinal FROM proc_field_observation_entries WHERE field_id=? AND field_observation_work_id=? AND page_ordinal=? AND observed_at_ms<? ORDER BY entry_ordinal LIMIT 500 OFFSET 0').all('field-1','zz-late-details',0,cutoffMs);
+  assert.ok(plan.some(row=>row.detail.includes('SEARCH')));assert.ok(plan.every(row=>!row.detail.includes('TEMP B-TREE')));
+  assert.equal(db.prepare('SELECT count(*) n FROM proc_field_observations').get().n,113);
+  assert.deepEqual(db.pragma('foreign_key_check'),[]);db.close();
+}));
 
 test('12-hour cadence capacity trend is deterministic for 7 days, 30 days, and one year', () => {
   const seven = estimateCapacity({ days:7 });

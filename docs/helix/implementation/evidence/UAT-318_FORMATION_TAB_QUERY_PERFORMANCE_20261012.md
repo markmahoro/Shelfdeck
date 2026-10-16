@@ -574,3 +574,15 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 - 旧版Exit0后初版历史断言IMMUTABLE_HISTORY_REMOVED:proc_field_observation_entries失败，诊断确认256条逐文件观察明细按现存Procurement GC回收。SSOT §10.5.1明确该类保留7天、无活动责任/Run/Retry/current pointer才可回收，header/Result/marker永久链保持；schema immutable不等于永不retire。
 - 审计按上述唯一表/合同逐行校验，未直接跳过表：256条observed_at_ms均1791535136797，均早于截止时间减7天，演练前后五类保护引用均不存在；所有剩余原行逐字节相同。共检查706253原行，保留705997行，唯一256条合法到期明细；61表的其余原行、所有Effect意图和旧终态执行记录、568收藏、两条精确Run均保持。没有产品GC改动，没有手工删除或生产数据操作。初始失败/诊断保留，旧泛化断言改为严格按retention class核验，不改变性能门禁。
 - 私有证据位于.codex/uat318-health-20261016/，含current-history-proof.json、history-proof-retention.cjs、guards.json、linux-475-final.log、service-final.log、equivalence.json。候选20轮及使用后旧版回退待完成，生产仍bfd97f36a，无apply。
+
+
+### 2026-10-16 第三候选未通过响应门禁；Perception配对读取与Observation GC索引修复
+
+- 4755d3d3d完整副本旧/新各20轮均100 API成功/20 JS完整。旧/新API P95 1478.587/1479.195ms，JS中位1255.185/1187.850ms、P95 3836.035/3432.241ms；概览age P95 36257/20052ms，stale 7/0。响应改善门禁未通过，未回退演练/部署，不选择性引用首10轮。
+- 两Host停止Exit0；61张不可变表原706253行逐条比较，候选保留700253行，6000行观察明细由SSOT §10.5.1七天GC合法退役。每条缺行核验截止时间及前后五类保护，所有其他原行/Effect意图/568收藏/两条Modern Family Run保持。旧版退役256行，保留705997行；原通用审计失败保留，不跳过整表。
+- 失败后的独立诊断Host三轮12秒profile：一轮event-loop max2640ms，其中GC SQL约2149ms，执行计划全表扫描并临时排序；另有Perception候选匹配、People候选映射、Libra转换/终态Evidence和同步媒体指纹热点，未声称全部解决。诊断Inspector均关闭，Host停止Exit0，不计正式20轮。
+- Perception新实现：一个同步Owner调用为同一目标构造rating/watched两条独立QueryHandle，经原Assembler分别验证并绑定各自完整RecordSet digest；只在这次调用内共享相同identity/direct scope和冻结Rule的候选快照。独立Work/Resolution及新Record实时可见性保持，不缓存跨调用事实。最终代码三轮100目标200查询：旧10163/8489/8588ms，新5025/4404/4244ms；全部完整输出digest d5f270e55ba6e57350f109de5d04224afb5321d312645fda971942b6b11f9acf一致。
+- Procurement新GC：永久Observation header按既有唯一索引keyset分页，再按field/work/page读取有界明细；每条明细仍用自己的observed_at_ms和同事务全部五类引用保护。Foundation只增加通用fixed-key SELECT能力，不承担业务判定。每事务最多100 header/10000明细，事务间setImmediate；每次reconcile总删除不超过1000，5秒预算后延续派生cursor。引用每事务重读，永久header/Work/Result/Marker/Canonical历史不删，六小时及backlog调度保持；无schema/index新增或迁移。
+- 最终代码同冻结副本、同cutoff三轮每轮真实删除1000：旧3930/2524/2542ms，新1382/616/678ms，新拆为2/4/4个事务，最大同步片段830/375/385ms。该基准跳过空间回收，仅衡量候选读取/保护/删除，不能冒充完整Host或维护总耗时；不同合法删除顺序不要求被删集合完全一致。
+- Windows受影响P3/P6/P7共514通过，新增测试涵盖跨批新引用保护、超100 header继续、1201明细断点、索引执行计划、协作让出/并发串行/总量/时间预算，以及配对Query隔离与新Record可见性。四类静态门禁零发现。完整Service/新精确镜像Linux及下一组正式Host多轮继续；UAT-318开放，生产保持bfd97f36a，无Reset或apply。
+- 私有原始证据：.codex/uat318-health-20261016下performance-qualification、candidate-history-proof、candidate-profiles、paired-final-benchmark、retention-final-before/after及final-owner-tests；下一资格目录.codex/uat318-retention-20261016。失败和实验原始证据均保留。

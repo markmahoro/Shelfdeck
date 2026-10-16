@@ -3,6 +3,7 @@
 const { DELETE_BATCH_LIMIT, RETENTION_MS } = require('../persistence/field-observation-retention-store');
 
 const PERIOD_MS = 6 * 60 * 60 * 1000;
+const RECONCILE_BUDGET_MS = 5000;
 const RECLAIM_PAGE_LIMIT = 1024;
 const SINGLETON_CURSOR = 'field-observation-entry-retention';
 const DEFAULT_FULL_OBSERVATION_BYTES = Math.round(39.5 * 1024 * 1024);
@@ -42,6 +43,9 @@ function createFieldObservationRetention(options) {
   }
   let nextDueAtMs = 0;
   let lastResult = null;
+  let scanCursor = null;
+  let running = null;
+  const monotonicNow=options.monotonicNow||(()=>performance.now());
 
   function listPage({ cursor, limit }) {
     if (!Number.isSafeInteger(limit) || limit < 1) fail('P7_FIELD_OBSERVATION_RETENTION_PAGE_INVALID', 'Retention page limit is invalid.');
@@ -49,9 +53,23 @@ function createFieldObservationRetention(options) {
     return Object.freeze([Object.freeze({ cursor:SINGLETON_CURSOR, scope:Object.freeze({ kind:SINGLETON_CURSOR }) })]);
   }
 
-  function reconcile() {
+  async function runReconcile() {
     const startedAtMs = options.now();
-    const purge = options.store.purge({ cutoffMs:startedAtMs - RETENTION_MS, limit:DELETE_BATCH_LIMIT });
+    const started=monotonicNow(),cutoffMs=startedAtMs-RETENTION_MS;
+    let purge,deleted=0,scanned=0,scannedHeaders=0,slices=0;
+    const protectedByReason={};
+    do {
+      purge=options.store.purge({cutoffMs,limit:DELETE_BATCH_LIMIT-deleted,scanCursor});
+      scanCursor=purge.nextScanCursor;
+      deleted+=purge.deleted;scanned+=purge.scanned||0;scannedHeaders+=purge.scannedHeaders||0;slices++;
+      for(const [reason,count] of Object.entries(purge.protectedByReason||{}))protectedByReason[reason]=(protectedByReason[reason]||0)+count;
+      if(!scanCursor||deleted>=DELETE_BATCH_LIMIT||monotonicNow()-started>=RECONCILE_BUDGET_MS)break;
+      // Each continuation rechecks all Owner references in its own transaction.
+      // Yield between bounded scans instead of blocking HTTP for the full sweep.
+      await new Promise(resolve=>setImmediate(resolve));
+    }while(true);
+    purge=Object.freeze({...purge,deleted,scanned,scannedHeaders,slices,protectedByReason:Object.freeze(protectedByReason)});
+    await new Promise(resolve=>setImmediate(resolve));
     const storage = options.storageMaintenance.reclaimFreePages(RECLAIM_PAGE_LIMIT);
     const continueBacklog = purge.backlogLikely || storage.status === 'reclaimed' && storage.freelistCountAfter > 0;
     nextDueAtMs = continueBacklog ? options.now() : options.now() + PERIOD_MS;
@@ -59,6 +77,10 @@ function createFieldObservationRetention(options) {
       completedAtMs:options.now(), retentionMs:RETENTION_MS, purge, storage, nextDueAtMs });
     if (options.metrics && typeof options.metrics === 'object') options.metrics.lastObservationRetention = lastResult;
     return lastResult;
+  }
+  function reconcile(){
+    if(running)return running;
+    running=runReconcile().finally(()=>{running=null;});return running;
   }
 
   return Object.freeze({ listPage, reconcile, nextDueAtMs:() => nextDueAtMs, lastResult:() => lastResult });

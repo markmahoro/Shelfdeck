@@ -114,7 +114,13 @@ function createPerceptionProcessServices(options){
     return freeze({operationRef:acquisitionId,state:'accepted',sourceKind:'douban',workId:operation.workId});}
   function resolutionContext(targetType,targetId,factKind='rating'){const snapshot=target(targetType,targetId),query=queryFor(snapshot,factKind),handle=queryHandle(query,now(),targetType==='shelf_entry'?'arca':'libra'),assembled=assembler.assemble({queryHandle:handle,ruleSnapshot});return freeze({target:snapshot,queryHandle:handle,...assembled});}
   function resolutionProcessContext(processId){const value=resolutionTarget(processId);return resolutionContext(value.targetType,value.targetId,value.factKind);}
-  function ensureResolution(targetType,targetId,factKind='rating'){const context=resolutionContext(targetType,targetId,factKind),existing=store.getResolution(context.query.queryContract,context.query.queryInputDigest);
+  function ensureResolution(targetType,targetId,factKind='rating'){return ensureResolutionContext(resolutionContext(targetType,targetId,factKind),targetType,targetId,factKind);}
+  function ensureTargetResolutions(targetType,targetId){
+    const snapshot=target(targetType,targetId),factKinds=['rating','watched'],at=now(),contexts=assembler.assemblePair({ruleSnapshot,
+      queryHandles:factKinds.map(kind=>queryHandle(queryFor(snapshot,kind),at,targetType==='shelf_entry'?'arca':'libra'))});
+    return freeze(Object.fromEntries(contexts.map((context,index)=>[factKinds[index],ensureResolutionContext(context,targetType,targetId,factKinds[index])])));
+  }
+  function ensureResolutionContext(context,targetType,targetId,factKind){const existing=store.getResolution(context.query.queryContract,context.query.queryInputDigest);
     if(existing&&existing.recordSetDigest===context.recordSet.recordSetDigest&&existing.ruleDigest===context.ruleSnapshot.ruleDigest)return freeze({kind:'terminal',resolution:existing,queryResult:versionedQueryResult(existing,30*24*60*60*1000)});
     const processId=(factKind==='watched'?'watched/':'')+targetType+':'+targetId,base={queryInputDigest:context.query.queryInputDigest,recordSetDigest:context.recordSet.recordSetDigest,ruleDigest:context.ruleSnapshot.ruleDigest},basisDigest=canonicalDigest(base);
     const priorStatus=workStatus(definition('resolution','perception_resolution',processId,basisDigest,RESOLUTION_RESULT).workId);
@@ -167,7 +173,7 @@ function createPerceptionProcessServices(options){
     return freeze({latest,activeCount,completionState,lastCursorOut:latestCursor?.cursorOut||latest?.initialCursorValue||null,
       cursorRevision:source?.currentCursorRevision||0,committedPageCount:latest?Math.max(0,(source?.currentCursorRevision||0)-latest.initialCursorRevision):0,
       recordCount:store.countRecordsForSource(config.sourceId)});}
-  return Object.freeze({store,ruleSnapshot,acquisitionContext,resolutionContext,resolutionProcessContext,reconcileAcquisition,reconcileResolution,reconcileImpactedSubjectResolutions,createRecord,requestAcquisition,ensureResolution,resolveDecisionFact,
+  return Object.freeze({store,ruleSnapshot,acquisitionContext,resolutionContext,resolutionProcessContext,reconcileAcquisition,reconcileResolution,reconcileImpactedSubjectResolutions,createRecord,requestAcquisition,ensureResolution,ensureTargetResolutions,resolveDecisionFact,
     readCurrentRating,readCurrentRatings,readCurrentWatched,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions(),
     syncState,periodicAcquisition});
 }

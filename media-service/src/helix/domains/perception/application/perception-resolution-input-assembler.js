@@ -13,8 +13,7 @@ function bounded(value, bytes, code) { if(Buffer.byteLength(canonicalJson(value)
 
 function createPerceptionResolutionInputAssembler(options) {
   if(!options?.store || typeof options.store.readResolutionCandidates!=='function') fail('P6_PERCEPTION_RESOLUTION_ASSEMBLER_DEPENDENCIES','Perception Repository reader is required.');
-  return Object.freeze({
-    assemble({ queryHandle, ruleSnapshot }) {
+  function assemble({ queryHandle, ruleSnapshot },readCandidates) {
       const query=queryHandle?.typedInput;
       if(!queryHandle || queryHandle.providerDomain!=='perception' || !query || queryHandle.queryContract!==query.queryContract ||
           queryHandle.queryVersion!==query.queryVersion || queryHandle.typedInputSchemaRef!==query.querySchemaRef ||
@@ -26,7 +25,7 @@ function createPerceptionResolutionInputAssembler(options) {
       validateRule(ruleSnapshot,query.factKind);
       if(query.directTargetScope&&ruleSnapshot.directTargetPolicyRef!=='perception.jav-retained-target@1')
         fail('P6_PERCEPTION_RULE_SNAPSHOT_INVALID','Scoped direct query requires its declared Rule policy.');
-      const snapshot=options.store.readResolutionCandidates(query,ruleSnapshot);
+      const snapshot=readCandidates(query,ruleSnapshot);
       const records=snapshot.records.map((record)=>{
         const facts={}; if(record.rating!==null)facts.rating=record.rating; if(record.watchedState!==null)facts.watchedState=record.watchedState;
         const identityAnchors=[...record.anchors];
@@ -48,7 +47,27 @@ function createPerceptionResolutionInputAssembler(options) {
       const recordSet=freeze({...basis,recordSetDigest:canonicalDigest(basis)});
       bounded(recordSet,512*1024,'P6_PERCEPTION_RECORD_SET_BOUND');
       return freeze({ query, recordSet, ruleSnapshot });
-    }
+  }
+  const readCandidates=(query,rule)=>options.store.readResolutionCandidates(query,rule);
+  return Object.freeze({
+    assemble:input=>assemble(input,readCandidates),
+    assemblePair({queryHandles,ruleSnapshot}) {
+      if(!Array.isArray(queryHandles)||queryHandles.length!==2||
+        new Set(queryHandles.map(handle=>handle?.typedInput?.factKind)).size!==2)
+        fail('P6_PERCEPTION_QUERY_PAIR_INVALID','A paired read requires one rating and one watched query.');
+      let scopeDigest,snapshot;
+      // Candidate retrieval depends on identity and the frozen Rule. Share only
+      // within this synchronous pair; each query still validates and binds its
+      // own complete Record Set digest. No live facts survive this call.
+      return Object.freeze(queryHandles.map(queryHandle=>assemble({queryHandle,ruleSnapshot},(query,rule)=>{
+        const digest=canonicalDigest({identityEvidence:query.identityEvidence,directTargetScope:query.directTargetScope||null});
+        if(scopeDigest!==undefined){
+          if(digest!==scopeDigest)fail('P6_PERCEPTION_QUERY_PAIR_INVALID','Paired queries must have identical identity evidence and direct scope.');
+          return snapshot;
+        }
+        scopeDigest=digest;snapshot=readCandidates(query,rule);return snapshot;
+      })));
+    },
   });
 }
 

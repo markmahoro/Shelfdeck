@@ -128,6 +128,8 @@ function compileStatement(statementId, statement, table) {
   if(statement.kind==='select-before-page'){
     requireColumns(table,statement.columns,statementId);
     requireColumns(table,[statement.upperBoundColumn],statementId);
+    const fixedKeyColumns=statement.fixedKeyColumns||[];
+    if(fixedKeyColumns.length)requireColumns(table,fixedKeyColumns,statementId);
     const orderBy=statement.orderBy||[];
     if(!Array.isArray(orderBy)||orderBy.length<1||orderBy.length>6){
       fail('P3_REPOSITORY_INVALID_COLUMNS','select-before-page requires a bounded ordering.',{statementId});
@@ -136,9 +138,10 @@ function compileStatement(statementId, statement, table) {
     if(!Number.isSafeInteger(statement.maxItems)||statement.maxItems<1||statement.maxItems>1000){
       fail('P3_REPOSITORY_INVALID_COLUMNS','select-before-page requires a bounded maxItems.',{statementId});
     }
-    return {statementId,kind:statement.kind,tableId:table.tableId,parameters:['upperBound','offset','limit'],
+    return {statementId,kind:statement.kind,tableId:table.tableId,parameters:[...fixedKeyColumns,'upperBound','offset','limit'],
       safeIntegers:statement.safeIntegers===true,maxItems:statement.maxItems,
       sql:'SELECT '+statement.columns.map(quote).join(', ')+' FROM '+tableName+' WHERE '+
+        (fixedKeyColumns.length?fixedKeyColumns.map(column=>quote(column)+'=@'+column).join(' AND ')+' AND ':'')+
         quote(statement.upperBoundColumn)+'<@upperBound ORDER BY '+orderBy.map(quote).join(', ')+' LIMIT @limit OFFSET @offset'};
   }
   if (statement.kind === 'select-filtered-page') {

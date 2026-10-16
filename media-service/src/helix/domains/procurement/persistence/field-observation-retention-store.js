@@ -6,6 +6,7 @@ const RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 const DELETE_BATCH_LIMIT = 1000;
 const SCAN_PAGE_LIMIT = 500;
 const SCAN_LIMIT = 10000;
+const HEADER_SCAN_LIMIT = 100;
 const OPEN_WORK_STATES = new Set(['admitted', 'ready', 'running', 'blocked']);
 
 class FieldObservationRetentionStoreError extends Error {
@@ -25,11 +26,13 @@ function definitions(schemaManifest) {
   const procurement = createRepositoryDefinition({
     repositoryId: 'field_observation_retention', owner: 'procurement', schemaManifest,
     statements: {
+      candidate_headers: { kind:'select-range', tableId:'proc_field_observations', columns:[
+        'field_id','field_observation_work_id','page_ordinal','observation_id'
+      ], keyColumn:'observation_id', maxItems:HEADER_SCAN_LIMIT },
       candidate_entries: { kind:'select-before-page', tableId:'proc_field_observation_entries', columns:[
         'field_id','field_observation_work_id','observation_id','material_key','page_ordinal','entry_ordinal','observed_at_ms'
-      ], upperBoundColumn:'observed_at_ms', orderBy:[
-        'observed_at_ms','field_id','field_observation_work_id','page_ordinal','entry_ordinal'
-      ], maxItems:SCAN_PAGE_LIMIT },
+      ], fixedKeyColumns:['field_id','field_observation_work_id','page_ordinal'],
+      upperBoundColumn:'observed_at_ms', orderBy:['entry_ordinal'], maxItems:SCAN_PAGE_LIMIT },
       delete_entry: { kind:'delete-one', tableId:'proc_field_observation_entries', keyColumns:[
         'field_id','field_observation_work_id','page_ordinal','entry_ordinal'
       ] },
@@ -82,6 +85,10 @@ function createFieldObservationRetentionStore(options) {
         !Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > DELETE_BATCH_LIMIT) {
       fail('P7_FIELD_OBSERVATION_RETENTION_INPUT_INVALID', 'Observation retention cutoff or batch limit is invalid.');
     }
+    const scanCursor=input.scanCursor??{headerCursor:null,entryOffset:0};
+    if((scanCursor.headerCursor!==null&&(typeof scanCursor.headerCursor!=='string'||!scanCursor.headerCursor))||
+      !Number.isSafeInteger(scanCursor.entryOffset)||scanCursor.entryOffset<0)
+      fail('P7_FIELD_OBSERVATION_RETENTION_INPUT_INVALID','Observation retention scan cursor is invalid.');
     let openWorkIds;
     const result = options.unitOfWork.execute([{
       participantId:'field_observation_retention_work_read', owner:'execution-foundation',
@@ -110,39 +117,51 @@ function createFieldObservationRetentionStore(options) {
         const materialCache = new Map();
         const protection = { openWorkIds, currentFieldWorkIds, runWorkIds, retryWorkIds, currentMaterialPointers };
         const protectedByReason = Object.create(null);
-        let scanned = 0; let deleted = 0; let offset = 0; let exhausted = false;
-        while (scanned < SCAN_LIMIT && deleted < input.limit) {
-          const pageLimit = Math.min(SCAN_PAGE_LIMIT, SCAN_LIMIT - scanned);
-          const candidates = repository.invoke('candidate_entries', {
-            upperBound:input.cutoffMs, offset, limit:pageLimit,
-          });
-          if (candidates.length === 0) { exhausted = true; break; }
-          let protectedCount = 0;
-          for (const row of candidates) {
-            if (deleted >= input.limit) break;
-            const materialCacheKey = row.field_id + '\0' + row.material_key;
-            if (!materialCache.has(materialCacheKey)) materialCache.set(materialCacheKey,
-              repository.invoke('material', { field_id:row.field_id, material_key:row.material_key }) || null);
-            const currentMaterial = materialCache.get(materialCacheKey);
-            if (currentMaterial?.last_observation_id === row.observation_id) {
-              currentMaterialPointers.add(exactMaterialPointer(row));
+        let scanned=0,deleted=0,scannedHeaders=0,exhausted=false;
+        let {headerCursor,entryOffset}=scanCursor;
+        // Permanent headers identify exact indexed detail pages. Do not sort
+        // the entire historical detail table for each 500-row deletion page.
+        while(scanned<SCAN_LIMIT&&deleted<input.limit&&scannedHeaders<HEADER_SCAN_LIMIT){
+          const headerLimit=HEADER_SCAN_LIMIT-scannedHeaders;
+          const headers=repository.invoke('candidate_headers',{rangeStart:headerCursor||'',rangeEnd:'\uffff',cursor:headerCursor,limit:headerLimit});
+          if(headers.length===0){exhausted=true;break;}
+          let interrupted=false;
+          for(const header of headers){
+            scannedHeaders++;
+            let headerComplete=false;
+            while(scanned<SCAN_LIMIT&&deleted<input.limit){
+              const pageLimit=Math.min(SCAN_PAGE_LIMIT,SCAN_LIMIT-scanned);
+              const candidates=repository.invoke('candidate_entries',{field_id:header.field_id,field_observation_work_id:header.field_observation_work_id,
+                page_ordinal:header.page_ordinal,upperBound:input.cutoffMs,offset:entryOffset,limit:pageLimit});
+              if(candidates.length===0){headerComplete=true;break;}
+              let protectedCount=0,processed=0;
+              for(const row of candidates){
+                if(deleted>=input.limit)break;
+                scanned++;processed++;
+                const materialCacheKey=row.field_id+'\0'+row.material_key;
+                if(!materialCache.has(materialCacheKey))materialCache.set(materialCacheKey,
+                  repository.invoke('material',{field_id:row.field_id,material_key:row.material_key})||null);
+                if(materialCache.get(materialCacheKey)?.last_observation_id===row.observation_id)
+                  currentMaterialPointers.add(exactMaterialPointer(row));
+                const reason=classifyProtection(row,protection);
+                if(reason){protectedByReason[reason]=(protectedByReason[reason]||0)+1;protectedCount++;continue;}
+                const removed=repository.invoke('delete_entry',row);
+                if(removed.changes!==1)fail('P7_FIELD_OBSERVATION_RETENTION_DELETE_FENCE','Retention candidate changed inside its transaction.');
+                deleted++;
+              }
+              entryOffset+=protectedCount;
+              if(processed===candidates.length&&candidates.length<pageLimit){headerComplete=true;break;}
             }
-            const reason = classifyProtection(row, protection);
-            if (reason) {
-              protectedByReason[reason] = (protectedByReason[reason] || 0) + 1;
-              protectedCount += 1;
-              continue;
-            }
-            const removed = repository.invoke('delete_entry', row);
-            if (removed.changes !== 1) fail('P7_FIELD_OBSERVATION_RETENTION_DELETE_FENCE', 'Retention candidate changed inside its transaction.');
-            deleted += 1;
+            if(!headerComplete){interrupted=true;break;}
+            headerCursor=header.observation_id;entryOffset=0;
+            if(scanned>=SCAN_LIMIT||deleted>=input.limit){interrupted=true;break;}
           }
-          scanned += candidates.length;
-          offset += protectedCount;
-          if (candidates.length < pageLimit) { exhausted = true; break; }
+          if(interrupted)break;
+          if(headers.length<headerLimit){exhausted=true;break;}
         }
         return Object.freeze({
-          cutoffMs:input.cutoffMs, scanned, deleted, exhausted,
+          cutoffMs:input.cutoffMs, scanned, scannedHeaders, deleted, exhausted,
+          nextScanCursor:exhausted?null:Object.freeze({headerCursor,entryOffset}),
           backlogLikely:deleted === input.limit || !exhausted,
           protectedByReason:Object.freeze({ ...protectedByReason }),
           protectedWorkCounts:Object.freeze({ open:openWorkIds.size, currentField:currentFieldWorkIds.size,

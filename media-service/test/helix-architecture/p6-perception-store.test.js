@@ -580,6 +580,35 @@ test('exact candidate lookup avoids loading unrelated anchors and retains candid
   });
 });
 
+test('paired rating and watched reads retain scalar results and exact scopes without retaining live candidates',()=>{
+  fixture(({store,unitOfWork})=>{
+    register(store);start(store);page(store,{records:[record('paired-record')]});
+    const target={targetType:'subject',targetId:'paired-subject',targetRevision:1,title:'Paired Film',year:2024,providerIdentity:'douban:paired-record'},
+      ruleSnapshot=buildRuleSnapshot(),handles=['rating','watched'].map(kind=>queryHandle(queryFor(target,kind),1,'libra'));
+    let reads=0,targetReads=0;
+    const measured={...store,readResolutionCandidates(query,rule){reads++;return store.readResolutionCandidates(query,rule);}},
+      assembler=createPerceptionResolutionInputAssembler({store:measured});
+    const scalar=handles.map(handle=>assembler.assemble({queryHandle:handle,ruleSnapshot}));assert.equal(reads,2);
+    reads=0;const paired=assembler.assemblePair({queryHandles:handles,ruleSnapshot});assert.equal(reads,1);assert.deepEqual(paired,scalar);
+    assert.notEqual(paired[0].recordSet.recordSetDigest,paired[1].recordSet.recordSetDigest);
+    assert.deepEqual(paired[0].recordSet.records,paired[1].recordSet.records);
+    const other=queryHandle(queryFor({...target,targetId:'other'},'watched'),1,'libra');
+    assert.throws(()=>assembler.assemblePair({queryHandles:[handles[0],other],ruleSnapshot}),{code:'P6_PERCEPTION_QUERY_PAIR_INVALID'});
+    assert.throws(()=>assembler.assemblePair({queryHandles:[handles[0],handles[0]],ruleSnapshot}),{code:'P6_PERCEPTION_QUERY_PAIR_INVALID'});
+    assert.throws(()=>assembler.assemblePair({queryHandles:[handles[0],{...handles[1],inputDigest:hash('wrong')}],ruleSnapshot}),{code:'P6_PERCEPTION_QUERY_HANDLE_INVALID'});
+    const services=createPerceptionProcessServices({schemaManifest,unitOfWork,perceptionStore:measured,now:()=>100,
+      workResultReader:{status:()=>null},targetProjectionReader:()=>{targetReads++;return target;}});
+    reads=0;const operations=services.ensureTargetResolutions('subject',target.targetId);
+    assert.equal(targetReads,1);assert.equal(reads,1);assert.notEqual(operations.rating.workId,operations.watched.workId);
+    register(store,'paired-new-source');start(store,{perceptionAcquisitionId:'paired-new-acquisition',perceptionSourceId:'paired-new-source'});
+    page(store,{perceptionAcquisitionId:'paired-new-acquisition',perceptionSourceId:'paired-new-source',acquisitionCommitReceiptId:'paired-new-commit',commitMarker:'paired-new-marker',
+      records:[record('paired-new-record',{anchors:[{anchorKind:'subject_id',anchorValue:target.targetId,confidenceClass:'exact',evidenceDigest:hash('new-target')} ]})]});
+    const changed=assembler.assemblePair({queryHandles:handles,ruleSnapshot});
+    assert.notDeepEqual(changed,paired);
+    assert.deepEqual(changed,handles.map(queryHandle=>assembler.assemble({queryHandle,ruleSnapshot})));
+  });
+});
+
 test('normalized candidate membership preserves exact and fuzzy modes, profiles and overflow',()=>{
   fixture(({store})=>{
     register(store);start(store);

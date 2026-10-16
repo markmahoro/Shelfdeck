@@ -1175,11 +1175,11 @@ function createProcurementExecutionRuntime(options) {
     }),Object.freeze({
       ownerDomain:'perception',reconcilerKey:'active-subject-rating-resolutions',
       listPage:({cursor,limit})=>pipelineSubjectPage(cursor,limit),
-      reconcile:({subjectId})=>{const rating=perceptionProcessServices.ensureResolution('subject',subjectId);perceptionProcessServices.ensureResolution('subject',subjectId,'watched');return rating;},
+      reconcile:({subjectId})=>perceptionProcessServices.ensureTargetResolutions('subject',subjectId).rating,
     }),Object.freeze({
       ownerDomain:'perception',reconcilerKey:'active-shelf-entry-rating-resolutions',
       listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.listPage(cursor,limit),
-      reconcile:({shelfEntryId})=>{const rating=perceptionProcessServices.ensureResolution('shelf_entry',shelfEntryId);perceptionProcessServices.ensureResolution('shelf_entry',shelfEntryId,'watched');return rating;},
+      reconcile:({shelfEntryId})=>perceptionProcessServices.ensureTargetResolutions('shelf_entry',shelfEntryId).rating,
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'jav-identity-corrections',
       listPage:({cursor,limit})=>arcaProcessServices.correction?arcaProcessServices.correction.correctionStore.listReconcilePage(cursor,limit):[],
