@@ -109,6 +109,13 @@ test('health reads exact live Care Basis, retains full history, and rejects chan
     const full=store.history(id);assert.equal(full.assessments.length,1003);assert.equal(full.findings.length,1000);
     assert.deepEqual(projectHealth(current,current.history,10000),projectHealth(current,full,10000));
     assert.equal(projectHealth(current,current.history,10000).state,'healthy');
+    insert.run('custody-new',id,1,1,1,first.basis.decisionFactSetDigest,first.basis.digest,'custody','degraded',null,digest('new-evidence'),20);
+    finding.run('custody-new-finding','custody-new','custody:primary_missing','warning','attention_required',digest('new-finding'),'open',20);
+    const reassessed=reader.healthProjectionInputs([id])[0];
+    assert.equal(reassessed.history.assessments.length,4);
+    assert.equal(store.history(id).assessments.length,1004);
+    assert.equal(projectHealth(reassessed,reassessed.history,10000).state,'attention_required');
+    assert.deepEqual(projectHealth(reassessed,reassessed.history,10000),projectHealth(reassessed,store.history(id),10000));
     ratingDigest=digest('changed-rating');const changed=reader.healthProjectionInputs([id])[0];
     assert.notEqual(changed.basis.digest,current.basis.digest);assert.equal(changed.history.assessments.length,0);
     assert.deepEqual(projectHealth(changed,changed.history,10000),projectHealth(changed,full,10000));

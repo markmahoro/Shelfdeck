@@ -564,3 +564,13 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 - Perception本次clause对normalized_exact查询证据建立短生命Set，候选逐项归一化一次；特殊title_year别名、exact/fuzzy、候选限额与实时读取保持。独立100查询三轮实验完整Assembler输出相等，耗时下降约15%–20%，不宣称整页改善。
 - 新回归覆盖1000条无关历史、实时rating变化、完整history与health等价、五种head/status变化拒绝、501项边界；Perception覆盖两种normalization profile、exact/fuzzy、重复证据与overflow。p15/p16+UAT251为339 pass/3既有skip；完整Service及正式候选双平台/Host资格继续，所有失败证据保留。
 - 私有原始证据：.codex/uat318-overview-slices-20261016/{performance-qualification,candidate-history-proof,health-basis-benchmark,match-set-benchmark}.json；不提交生产数据。
+
+
+### 2026-10-16 UTC08:52 精确候选与七天观察明细保留合同复核
+
+- 执行修复commit386216f87e6edab2aa7ccf5d0f4e09beaa5ad5f4；静态语义门禁随后发现注释中的旧术语membership，改为selected Records，修正commit4755d3d3d31b23b7e45d2e27d5dc9865d6591975。没有放宽guard、迁移schema或改变业务判断；最终镜像markmahoro/shelfdeck:4755d3d3d，NAS config SHA256 982f107474b3389172846487725993c888ef514a68ad12fcd7707f98497d7762，tar SHA256 e36c31d9c0998ad1169abf4d8ef33d9247239ca8825ae73cc8cfb34f5a769f65。2357个canonical runtime文件一致，aggregate f8e1643e86f98263c7e3f413f1975a4f4ef3e593a62576de69eeb3d2dd34506f；八个相关runtime文件+两UI资产与Windows包一致，UI字节未变。
+- 最终Windows Service647 pass/29既有skip，精确475 Linux87通过；同basis新损坏Assessment覆盖旧健康结果、仍保留旧周期历史的补充断言在Windows/Linux各10通过（包含于相关套件，不重复累加）。Procurement既有Retention合同Windows/Linux各4通过。Windows包native/Host/完整JS/Range通过；完整架构先前FC2偶发风险仍如前节，不把定向复验说成全量重跑通过。
+- 新根目录/vol1/1000/docker/shelfdeck/backups/uat318-release-20261016T082647-health使用同568收藏冻结副本。bfd旧版正常供给20轮100 API/20 JS成功；API中位282.366ms/P951478.587ms/max3699.609ms；JS中位1255.185ms/P953836.035ms/max6069.894ms；age中位22507ms/P9536257ms/max37928ms，7/20 stale。旧版恢复约720秒，Resume回执795b69e7f5c4fa622ce7c55b0f7a97ff1877bf3d52d93021706feabda13d457e于08:40:42.489完成；响应超时期间未重复发新意图。恢复期UAT321告警和只读媒体ENOENT单独记录，非稳态指标。
+- 旧版Exit0后初版历史断言IMMUTABLE_HISTORY_REMOVED:proc_field_observation_entries失败，诊断确认256条逐文件观察明细按现存Procurement GC回收。SSOT §10.5.1明确该类保留7天、无活动责任/Run/Retry/current pointer才可回收，header/Result/marker永久链保持；schema immutable不等于永不retire。
+- 审计按上述唯一表/合同逐行校验，未直接跳过表：256条observed_at_ms均1791535136797，均早于截止时间减7天，演练前后五类保护引用均不存在；所有剩余原行逐字节相同。共检查706253原行，保留705997行，唯一256条合法到期明细；61表的其余原行、所有Effect意图和旧终态执行记录、568收藏、两条精确Run均保持。没有产品GC改动，没有手工删除或生产数据操作。初始失败/诊断保留，旧泛化断言改为严格按retention class核验，不改变性能门禁。
+- 私有证据位于.codex/uat318-health-20261016/，含current-history-proof.json、history-proof-retention.cjs、guards.json、linux-475-final.log、service-final.log、equivalence.json。候选20轮及使用后旧版回退待完成，生产仍bfd97f36a，无apply。
