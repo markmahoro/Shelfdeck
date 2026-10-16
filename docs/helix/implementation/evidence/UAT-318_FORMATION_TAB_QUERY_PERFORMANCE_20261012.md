@@ -586,3 +586,11 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 - 最终代码同冻结副本、同cutoff三轮每轮真实删除1000：旧3930/2524/2542ms，新1382/616/678ms，新拆为2/4/4个事务，最大同步片段830/375/385ms。该基准跳过空间回收，仅衡量候选读取/保护/删除，不能冒充完整Host或维护总耗时；不同合法删除顺序不要求被删集合完全一致。
 - Windows受影响P3/P6/P7共514通过，新增测试涵盖跨批新引用保护、超100 header继续、1201明细断点、索引执行计划、协作让出/并发串行/总量/时间预算，以及配对Query隔离与新Record可见性。四类静态门禁零发现。完整Service/新精确镜像Linux及下一组正式Host多轮继续；UAT-318开放，生产保持bfd97f36a，无Reset或apply。
 - 私有原始证据：.codex/uat318-health-20261016下performance-qualification、candidate-history-proof、candidate-profiles、paired-final-benchmark、retention-final-before/after及final-owner-tests；下一资格目录.codex/uat318-retention-20261016。失败和实验原始证据均保留。
+
+
+#### 540b61cd59 精确构建与平台验证
+
+- source 540b61cd59dabce250fe5554464097e80e67e56e；标准build-image/upload-nas-image通过，tar SHA256 a906276b1ce65b97d14c79ed5168480149a19c961f2891bd4c5fbf028e1e3b9c，NAS config sha256:3b3a4c32ac2246278bf834713a1a684538bd1c0d654131958f3102ebb856feb7。首次尝试reuse-runtime被标准工具拒绝（非该参数要求的release tag），未改工具规则，随后完整标准构建成功。
+- 2357 canonical runtime文件aggregate 4148b4e4a648ee4bd2a7792768f0b812e9046c9666bba24aa9dd3244ec876116；14处相关运行文件和两份既有UI资产与Windows独立包一致，Native/Host/503927字节JS及Range验证通过。
+- Windows完整Service647 pass/29既有skip，P3/P6/P7 514 pass。精确Linux运行479 pass；首次8个fixture模块缺失保留，补挂只读工程测试脚手架后33 pass，余P6/P7两个仓库exit auditor依赖Git工具，在生产镜像中不可执行，Windows已通过；不称Linux完整套件全绿。生产镜像无新增开发工具。
+- 新旧Host同一冻结568收藏副本的20+20轮资格开始，正常Owner循环、无Inspector；生产仍bfd97f36a。最终生产冷备份须重新覆盖全部最新收藏，不以冻结副本替代。
