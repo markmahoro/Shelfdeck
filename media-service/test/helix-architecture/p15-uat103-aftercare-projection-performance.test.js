@@ -356,8 +356,8 @@ test('Douban terminal completion leaves fan-out to durable Subject and Shelf Ent
   const terminalHandler = source.slice(terminalStart, terminalEnd);
   assert.doesNotMatch(terminalHandler, /reconcileImpactedSubjectResolutions\s*\(/,
     'Terminal completion must not synchronously scan every Subject.');
-  assert.match(source, /reconcilerKey:'active-subject-rating-resolutions'[\s\S]*?ensureResolution\('subject',subjectId\)/);
-  assert.match(source, /reconcilerKey:'active-shelf-entry-rating-resolutions'[\s\S]*?aftercareContextReader\.listPage\(cursor,limit\)[\s\S]*?ensureResolution\('shelf_entry',shelfEntryId\)/);
+  assert.match(source, /reconcilerKey:'active-subject-rating-resolutions'[\s\S]*?ensureTargetResolutions\('subject',subjectId\)/);
+  assert.match(source, /reconcilerKey:'active-shelf-entry-rating-resolutions'[\s\S]*?aftercareContextReader\.listPage\(cursor,limit\)[\s\S]*?ensureTargetResolutions\('shelf_entry',shelfEntryId\)/);
   const runnerStart = source.indexOf('createDomainReconcileRunner({cursorStore');
   const shelfRunner = source.indexOf("reconcilerKey:'active-shelf-entry-rating-resolutions'");
   assert.ok(runnerStart >= 0 && shelfRunner > runnerStart,

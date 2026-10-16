@@ -411,3 +411,11 @@ test('Discard replay rejects a changed bounded Record, immutable Decision, or ma
     assert.throws(()=>store.inspect(command),{code:'P9_DISCARD_RECORD_INTEGRITY'});
   } finally {db.close();}
 }));
+
+
+test('terminal Result evidence reads only its exact Work events and referenced Plan',()=>fixture(input=>{
+  const original=input.unitOfWork,reads=[];
+  input.unitOfWork={execute(participants){return original.execute(participants.map(p=>({...p,execute(c){return p.execute({...c,repository(id){const r=c.repository(id);return {...r,invoke(name,args){reads.push(name);assert.ok(!['list_plans','list_events'].includes(name),'Global execution history is outside this terminal query.');return r.invoke(name,args);}};}});}})));}};
+  const {built}=sizeCapTerminal(input,['size_cap_exceeded']);
+  assert.equal(built.evidence.blockedWorks.length,1);assert.ok(reads.includes('find_plan'));assert.ok(reads.includes('find_event'));
+}));

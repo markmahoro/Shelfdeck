@@ -35,7 +35,7 @@ test('UAT-214 rejects unsafe XML and full observation overflow without partial a
 test('UAT-214 Arca observation fences Inventory changes and never reads primary payload or scans directories', () => {
   const {createOnDeckNfoPersonEvidence} = require('../../src/helix/domains/arca/application/on-deck-nfo-person-evidence');
   let revision=1, reads=0;
-  const projection=createOnDeckNfoPersonEvidence({contextReader:{store:{currentContext:()=>({
+  const projection=createOnDeckNfoPersonEvidence({contextReader:{store:{currentNfoContext:()=>({
     entry:{status:'active',current_inventory_revision:revision},shelf:{status:'active'},
     materials:[{ordinal:0,role:'primary_payload',location:'/movie.mkv'}, {ordinal:1,role:'metadata_sidecar',location:'/movie.nfo'}]})}},
     readBoundedFileSnapshotSync:location=>{assert.equal(location,'/movie.nfo');reads++;revision++;

@@ -246,7 +246,7 @@ test('UAT-214 consumes bounded Arca NFO evidence and does not re-register unchan
     materials:[{ordinal:0,role:'primary_payload',location:'/movie.mkv'},
       {ordinal:1,role:'metadata_sidecar',location:'/movie.nfo',material_key:'physical'}]});
   const projection=createOnDeckNfoPersonEvidence({now:()=>clock,contextReader:{store:{
-    currentContext:()=>raw(),listEntryPage:()=>[{cursor:'entry',scope:{shelfEntryId:'entry'}}]}},
+    currentNfoContext:()=>raw(),listEntryPage:()=>[{cursor:'entry',scope:{shelfEntryId:'entry'}}]}},
     readBoundedFileSnapshotSync:(location,bound)=>{
       assert.equal(location,'/movie.nfo');assert.equal(bound,262144);reads++;
       return {bytes:Buffer.from('<movie><actor><name>Strong Actor</name><tmdbid>987</tmdbid></actor><actor><name>Weak Actor</name></actor></movie>'),

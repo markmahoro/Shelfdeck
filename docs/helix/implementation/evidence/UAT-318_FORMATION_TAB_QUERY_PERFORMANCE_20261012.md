@@ -594,3 +594,14 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 - 2357 canonical runtime文件aggregate 4148b4e4a648ee4bd2a7792768f0b812e9046c9666bba24aa9dd3244ec876116；14处相关运行文件和两份既有UI资产与Windows独立包一致，Native/Host/503927字节JS及Range验证通过。
 - Windows完整Service647 pass/29既有skip，P3/P6/P7 514 pass。精确Linux运行479 pass；首次8个fixture模块缺失保留，补挂只读工程测试脚手架后33 pass，余P6/P7两个仓库exit auditor依赖Git工具，在生产镜像中不可执行，Windows已通过；不称Linux完整套件全绿。生产镜像无新增开发工具。
 - 新旧Host同一冻结568收藏副本的20+20轮资格开始，正常Owner循环、无Inspector；生产仍bfd97f36a。最终生产冷备份须重新覆盖全部最新收藏，不以冻结副本替代。
+
+
+### 2026-10-16 第四候选失败与精确对象读取
+
+- 540b61cd59完整副本旧/新各20轮：100 API各成功、20 JS各字节/SHA正确；概览stale3→0，age P95 31357→18591ms、候选max20166ms。API P95 1533.482→3051.806ms，JS中位1085.441→947.334ms、P95 3769.639→5576.874ms、候选max6505.274ms。响应不退化及改善门禁均失败，未部署/未回退演练；不放宽阈值。
+- 本轮在正式20轮结束后独立标记diagnostic，再于同一候选Host采集三轮12秒profile，未污染正式样本；Inspector均closed，Host随后停止Exit0。三轮event-loop max约1197/1323/2819ms；People→Arca NFO完整Context、People按evidence查Candidate、Perception匹配、Libra Terminal Evidence及全量Process Work取消仍有成本。
+- 两Host61不可变表逐条核验原706253行，旧版合法退役观察明细6000行、候选7000行，其他旧行/全部原Effect意图/568收藏/两条精确Run保持。GC仍遵守SSOT七天与全部五类引用保护；不是清空历史或停止维护换性能。
+- 后续实现：Arca为NFO观察提供当前Entry/Shelf/Material投影，保留四类当前basis存在性及原观察后Inventory fence，不展开无关事实/人物/Reservation；Off-deck按精确Entry和identity revision读，完整跨Entry去重查询保持。Foundation cancelProcess按原Owner/type/id选Work，并按Event读取waiting defer，原CAS、执行中draining及终态保护保持。Libra终态Evidence只取对应Work的Event、所引Plan；规划拒绝按该Work Attempts读Plan，保持原完整attempt/result/policy/digest校验。无跨Owner事实缓存、schema/index变化或迁移。
+- 同冻结数据100 Entry三轮完整输出等价：NFO旧595/489/463→新138/147/125ms（digest 2eda042c6f699ef2d4c3fa65720e8c950208990e13c4854c4f509f84290a5f71）；Off-deck旧933/882/910→新8.2/7.4/7.4ms（digest ea538cdc963ad00b08ca8606a5c055df75ca7c95545c673a4a66b369af2107c4）。不存在Process的真实只读cancelProcess旧1801/794/784→新2.86/0.31/0.19ms，完整结果digest一致；不代表有执行副作用取消的总耗时。冻结库没有符合条件的active Run/failed Work样本，因此Terminal Evidence微基准零样本不计性能证据，依赖相关真实SQLite回归与后续Host。
+- 8192→32768纯字符串缓存实验未有明显收益，未保留。新增精准查询回归覆盖其他Owner/Process和终态Work不变、终态Result不读全局历史、NFO当前basis缺失拒绝、Off-deck active/不存在状态等。相关568 tests：565 pass/3既有skip；完整Service647 pass/29既有skip；静态门禁通过。先前P15源码断言仍匹配旧scalar Perception入口而失败，已同步为配对入口，保留无全量fan-out及durable cursor断言；原失败日志保留。
+- 私有证据位于.codex/uat318-retention-20261016：performance-qualification、post-trial-profile、candidate-profiles、current/candidate-history-proof、scoped-benchmark、execution-scope-benchmark及scoped-owner-final-tests。下一资格目录.codex/uat318-scope-20261016；生产仍bfd97f36a。

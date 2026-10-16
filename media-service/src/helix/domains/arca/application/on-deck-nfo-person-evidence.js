@@ -9,7 +9,7 @@ function createOnDeckNfoPersonEvidence(options) {
   const cache = new Map();
   const unavailable = reasonCode => Object.freeze({ kind:'unavailable', reasonCode, items:Object.freeze([]) });
   function observeEntry({ shelfEntryId }) {
-    const current = store.currentContext(shelfEntryId);
+    const current = store.currentNfoContext(shelfEntryId);
     if (!current || current.entry.status !== 'active' || current.shelf.status !== 'active') return unavailable('entry_not_active');
     const revision = Number(current.entry.current_inventory_revision), previous = cache.get(shelfEntryId);
     if (previous && previous.revision === revision && now() - previous.at < 600000) return previous.value;
@@ -36,7 +36,7 @@ function createOnDeckNfoPersonEvidence(options) {
         items.push(Object.freeze({ ...evidence, evidenceDigest:canonicalDigest({schema:'arca.ondeck-nfo-person-evidence@1',...stableEvidence}) }));
       }
     }
-    const latest = store.currentContext(shelfEntryId);
+    const latest = store.currentNfoContext(shelfEntryId);
     if (!latest || latest.entry.status !== 'active' || latest.shelf.status !== 'active' ||
       Number(latest.entry.current_inventory_revision) !== revision) return unavailable('inventory_revision_changed');
     const value = Object.freeze({kind:'observed',items:Object.freeze(items)});

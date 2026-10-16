@@ -26,6 +26,10 @@ test('Off-deck search hydrates one page, while explicit selection captures every
       material.run(id,2,0,100+i);
     }})();
     const reads=[],uow=createSqliteUnitOfWork({kernel});
+    const store=require('../../src/helix/domains/arca/persistence/offdeck-store').createOffdeckStore({schemaManifest,unitOfWork:uow,now:()=>10000});
+    assert.deepEqual(store.entryFacts('entry-0000'),store.allEntryFacts().find(e=>e.shelf_entry_id==='entry-0000'));
+    assert.equal(store.entryFacts('entry-1001'),null);assert.equal(store.entryFacts('missing'),null);
+
     const unitOfWork={execute(participants){
       return uow.execute(participants.map(participant=>({...participant,execute(context){
         return participant.execute({...context,repository(id){

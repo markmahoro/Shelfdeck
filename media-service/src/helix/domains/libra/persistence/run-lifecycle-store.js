@@ -560,6 +560,12 @@ function foundationDefinition(schemaManifest) {
         columns: ["plan_id","attempt_id","planner_ref","planner_version","catalog_digest","basis_digest","graph_digest","state"],
         keyColumns: [],
       },
+      list_attempt_plans: {
+        kind: "select-all",
+        tableId: "fx_workflow_plans",
+        columns: ["plan_id","attempt_id","planner_ref","planner_version","catalog_digest","basis_digest","graph_digest","state"],
+        keyColumns: ["attempt_id"],
+      },
       list_work_attempts:{kind:'select-all',tableId:'fx_work_attempts',columns:['attempt_id','work_id','ordinal','basis_digest','state','finished_at_ms','failure_code'],keyColumns:['work_id']},
       find_event: {
         kind: "select-one",
@@ -587,6 +593,20 @@ function foundationDefinition(schemaManifest) {
           "state",
         ],
         keyColumns: [],
+      },
+      list_work_events: {
+        kind: "select-all",
+        tableId: "fx_workflow_events",
+        columns: [
+          "event_id",
+          "plan_id",
+          "work_id",
+          "owner_domain",
+          "capability_ref",
+          "priority_class",
+          "state",
+        ],
+        keyColumns: ["work_id"],
       },
       update_event_priority: {
         kind: "update",
@@ -1709,16 +1729,16 @@ function createRunLifecycleStore(options) {
               "P9_RUN_LIFECYCLE_TERMINAL",
               "Terminal blocker Work is not in the required terminal state for the Run.",
             );
-          const plans = new Map(repo.invoke("list_plans", {})
-            .map((item) => [item.plan_id, item]));
           const events = terminalResult
             ? [repo.invoke("find_event", { event_id: terminalResult.eventId })].filter((item) =>
               item && item.work_id === workId && item.owner_domain === "libra" && item.state === "succeeded")
-            : repo.invoke("list_events", {}).filter((item) =>
+            : repo.invoke("list_work_events", {work_id:workId}).filter((item) =>
               item.work_id === workId && item.owner_domain === "libra" && item.state === "failed");
           if(!events.length&&!terminalResult) {
-            blockedWorks=[buildPlanningMember({work,plans:[...plans.values()],attempts:repo.invoke('list_work_attempts',{work_id:workId}),
-              events:repo.invoke('list_events',{}),libraRunId})];return;
+            const workAttempts=repo.invoke("list_work_attempts",{work_id:workId});
+            const plans=workAttempts.flatMap(attempt=>repo.invoke("list_attempt_plans",{attempt_id:attempt.attempt_id}));
+            blockedWorks=[buildPlanningMember({work,plans,attempts:workAttempts,
+              events:repo.invoke('list_work_events',{work_id:workId}),libraRunId})];return;
           }
           if (!events.length)
             fail(
@@ -1726,7 +1746,7 @@ function createRunLifecycleStore(options) {
               "Terminal Work has no matching terminal Event.",
             );
           blockedWorks = events.map((event) => {
-            const plan = plans.get(event.plan_id),
+            const plan = repo.invoke("find_plan",{plan_id:event.plan_id}),
               attempts = repo.invoke("list_attempts", { event_id: event.event_id })
                 .sort((a, b) => number(a.ordinal) - number(b.ordinal)),
               attempt = attempts.at(-1),

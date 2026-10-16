@@ -235,7 +235,7 @@ test('UAT-214 real NFO observation registers People and Arca publishes the exact
       provider_identity_digest:digest('identities'),origin_evidence_digest:digest('origin'),confidence_class:'provider_asserted',relation_digest:digest('relation')});
     const current=()=>{const c=value.context();c.raw.people=value.db.prepare('SELECT * FROM arca_inventory_person_relations WHERE inventory_revision=?').all(c.raw.entry.current_inventory_revision);return c;};
     const projection=createOnDeckNfoPersonEvidence({...value.options,readBoundedFileSnapshotSync,contextReader:{store:{
-      currentContext:()=>current().raw,listEntryPage:()=>[{cursor:'entry',scope:{shelfEntryId:'entry'}}]}}});
+      currentNfoContext:()=>current().raw,listEntryPage:()=>[{cursor:'entry',scope:{shelfEntryId:'entry'}}]}}});
     const people=createPeopleProcessServices({...value.options,onDeckNfoPersonEvidence:projection});
     const observation=people.reconcileNfoEntry({shelfEntryId:'entry'});assert.equal(observation.registeredCount,1);
     const registered=people.store.listPeople()[0],nfo=fs.readFileSync(value.locations[1]);
@@ -291,5 +291,22 @@ test('UAT-214 large cast refresh uses bounded receipts and converges without a C
     assert.ok(batches>1);assert.equal(current().raw.people.length,64);
     assert.equal(refresh.refresh(current()).kind,'records_unchanged');
     assert.equal(value.db.prepare('SELECT count(*) n FROM arca_aftercare_cases').get().n,0);
+  }finally{value.close();}
+});
+
+
+test('NFO observation reads current materials without hydrating unrelated facts or people',()=>{
+  const value=fixture();try{
+    value.insert('arca_shelf_standard_revisions',{shelf_id:'shelf',revision:1,standard_json:'{}'});
+    value.insert('arca_placement_policy_revisions',{shelf_id:'shelf',revision:1,policy_json:'{}'});
+    value.insert('arca_canonical_identity_revisions',{shelf_entry_id:'entry',revision:1});
+    const full=value.store.currentContext('entry'),reads=[],original=value.options.unitOfWork;
+    const unitOfWork={execute(participants){return original.execute(participants.map(p=>({...p,execute(c){return p.execute({...c,repository(id){const r=c.repository(id);return {...r,invoke(name,args){reads.push(name);assert.ok(!['list_facts','list_people','list_reservations'].includes(name));return r.invoke(name,args);}};}});}})));}};
+    const store=createAftercareStore({...value.options,unitOfWork});
+    assert.deepEqual(store.currentNfoContext('entry'),{entry:full.entry,shelf:full.shelf,materials:full.materials});
+    assert.ok(reads.includes('find_inventory'));assert.ok(reads.includes('find_identity'));
+    value.db.prepare('UPDATE arca_shelf_entries SET current_inventory_revision=2').run();
+    assert.throws(()=>store.currentNfoContext('entry'),e=>e.code==='ARCA_AFTERCARE_CURRENT_BASIS_BROKEN');
+    assert.equal(store.currentNfoContext('missing'),null);
   }finally{value.close();}
 });

@@ -71,6 +71,10 @@ function definitions(schemaManifest) {
         'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state',
         'definition_schema_ref', 'definition_json', 'definition_digest', 'idempotency_key'
       ], keyColumns: [] },
+      list_process: { kind: 'select-all', tableId: 'fx_supporting_works', columns: [
+        'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state',
+        'definition_schema_ref', 'definition_json', 'definition_digest', 'idempotency_key'
+      ], keyColumns: ['owner_domain', 'process_type', 'process_id'] },
       list_running: { kind: 'select-all', tableId: 'fx_supporting_works', columns: [
         'work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'basis_digest', 'priority_class', 'state',
         'definition_schema_ref', 'definition_json', 'definition_digest', 'idempotency_key'
@@ -108,6 +112,7 @@ function definitions(schemaManifest) {
     resourceDefers: createRepositoryDefinition({ repositoryId: 'work_lifecycle_resource_defers', owner: 'execution-foundation', schemaManifest,
       statements: {
         list: { kind: 'select-all', tableId: 'fx_resource_defer', columns: ['event_id', 'resource_key', 'state'], keyColumns: [] },
+        list_waiting_event: { kind:'select-all', tableId:'fx_resource_defer', columns:['event_id','resource_key','state'], keyColumns:['event_id','state'] },
         cancel: { kind: 'update', tableId: 'fx_resource_defer', setColumns: ['state'], keyColumns: ['event_id', 'resource_key'],
           compareColumns: [{ column: 'state', parameter: 'expected_state' }] }
       } }),
@@ -385,14 +390,9 @@ function createWorkLifecycle(options) {
       const attempts = context.repository('work_lifecycle_attempts');
       const events = context.repository('work_lifecycle_events');
       const resourceDefers = context.repository('work_lifecycle_resource_defers');
-      const selected = works.invoke('list', {}).filter((work) => work.owner_domain === request.ownerDomain &&
-        work.process_type === request.processType && work.process_id === request.processId &&
+      const selected = works.invoke('list_process', { owner_domain:request.ownerDomain,
+        process_type:request.processType, process_id:request.processId }).filter((work) =>
         !['succeeded', 'failed', 'cancelled'].includes(work.state));
-      const waitingDefersByEvent = new Map();
-      for (const defer of resourceDefers.invoke('list').filter((row) => row.state === 'waiting')) {
-        if (!waitingDefersByEvent.has(defer.event_id)) waitingDefersByEvent.set(defer.event_id, []);
-        waitingDefersByEvent.get(defer.event_id).push(defer);
-      }
       let cancelledWorks = 0; let drainingWorks = 0; let cancelledEvents = 0;
       for (const work of selected) {
         const workAttempts = attempts.invoke('list', { work_id: work.work_id });
@@ -402,7 +402,7 @@ function createWorkLifecycle(options) {
         const executing = workEvents.some((event) => event.state === 'executing');
         for (const event of workEvents.filter((item) =>
           ['pending', 'ready', 'waiting_for_resource', 'waiting_for_external', 'waiting_for_approval'].includes(item.state))) {
-          const waitingDefers = waitingDefersByEvent.get(event.event_id) || [];
+          const waitingDefers = resourceDefers.invoke('list_waiting_event', {event_id:event.event_id,state:'waiting'});
           for (const defer of waitingDefers) {
             if (resourceDefers.invoke('cancel', { event_id:event.event_id, resource_key:defer.resource_key,
               state:'cancelled', expected_state:'waiting' }).changes !== 1) {

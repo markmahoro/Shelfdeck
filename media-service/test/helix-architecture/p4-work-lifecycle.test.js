@@ -313,6 +313,12 @@ test('Process cancellation atomically cancels durable Resource Defers and clears
     (event_id,resource_key,queue_class,local_priority,enqueued_at_ms,retry_at_ms,state) VALUES(?,?,?,?,?,?,?)`);
   insertDefer.run('event-1', 'cpu', 'normal_foreground', 0, 3, 999, 'waiting');
   insertDefer.run('event-1', 'volume:test', 'normal_foreground', 0, 3, 999, 'waiting');
+  const unrelated=database.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,state) VALUES(?,?,?,?,?)');
+  unrelated.run('other-owner','arca','procurement_run','run-1','ready');
+  unrelated.run('other-process','procurement','other_type','run-1','ready');
+  unrelated.run('other-id','procurement','procurement_run','run-2','ready');
+  unrelated.run('terminal','procurement','procurement_run','run-1','succeeded');
+
   database.close();
   lifecycle.startPlanned('work-1', activation.attempt.attempt_id);
 
@@ -325,6 +331,8 @@ test('Process cancellation atomically cancels durable Resource Defers and clears
     { state:'cancelled', retry_at_ms:null });
   const check = new Database(databasePath, { readonly:true });
   try {
+    assert.deepEqual(check.prepare("SELECT state FROM fx_supporting_works WHERE work_id IN ('other-owner','other-process','other-id')").all().map(x=>x.state),['ready','ready','ready']);
+    assert.equal(check.prepare("SELECT state FROM fx_supporting_works WHERE work_id='terminal'").get().state,'succeeded');
     assert.deepEqual(check.prepare('SELECT resource_key,state FROM fx_resource_defer WHERE event_id=? ORDER BY resource_key')
       .all('event-1'), [{resource_key:'cpu',state:'cancelled'},{resource_key:'volume:test',state:'cancelled'}]);
   } finally { check.close(); }
