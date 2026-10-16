@@ -1,6 +1,6 @@
 # 当前 Phase：JAV 首版发布与用户验收
 
-2026-10-16 UAT-318候选540b61cd59旧/新各20轮完成，未部署：概览stale 3→0、age P95 31.357→18.591秒；API P95 1.533→3.052秒、JS P95 3.770→5.577秒，响应门禁再次失败。正式20轮后才做三轮诊断，Inspector关闭/Host Exit0，568收藏/两条Run/Effect及历史保护通过。继续收窄原Owner内的NFO输入、Off-deck单Entry、Process取消及终态Evidence查询；无需schema迁移。Windows相关565 pass/3既有skip、Service647 pass/29既有skip；局部三轮完整输出等价，下一候选Host资格待测。生产仍bfd97f36a，UAT-318开放。
+2026-10-16 UAT-318候选540b61cd59旧/新各20轮完成，未部署：概览stale 3→0、age P95 31.357→18.591秒；API P95 1.533→3.052秒、JS P95 3.770→5.577秒，响应门禁再次失败。正式20轮后才做三轮诊断，Inspector关闭/Host Exit0，568收藏/两条Run/Effect及历史保护通过。继续收窄原Owner内的NFO输入、Off-deck单Entry、Process取消及终态Evidence查询；无需schema迁移。Windows相关565 pass/3既有skip、Service647 pass/29既有skip；局部三轮完整输出等价。下一候选d6ef5fee3e已标准构建/上传，精确Linux85通过，完整Host旧/新20轮资格进行中。生产仍bfd97f36a，UAT-318开放。
 
 2026-10-16 UAT-318候选4755d3d3d旧/新各20轮完成，未部署：概览stale 7→0、age P95 36.257→20.052秒；API P95 1.479→1.479秒、JS中位1.255→1.188秒，未通过真实响应改善门禁。两Host均Exit0，568收藏/两条Run/Effect意图保持；观察明细按SSOT七天及全部引用逐条核验后允许退役，候选6000行、旧版256行。新修复仅在原Owner内合并Perception同调用候选读取，以及按永久Observation header和现有索引分批GC、事务间让出；无schema/保留期/保护规则变更。三轮局部基准分别约减半和GC热批2.52–2.54→0.62–0.68秒；相关514测试/静态门禁通过，完整Service及下一候选Host资格继续，生产仍bfd97f36a。
 

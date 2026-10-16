@@ -605,3 +605,9 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 - 同冻结数据100 Entry三轮完整输出等价：NFO旧595/489/463→新138/147/125ms（digest 2eda042c6f699ef2d4c3fa65720e8c950208990e13c4854c4f509f84290a5f71）；Off-deck旧933/882/910→新8.2/7.4/7.4ms（digest ea538cdc963ad00b08ca8606a5c055df75ca7c95545c673a4a66b369af2107c4）。不存在Process的真实只读cancelProcess旧1801/794/784→新2.86/0.31/0.19ms，完整结果digest一致；不代表有执行副作用取消的总耗时。冻结库没有符合条件的active Run/failed Work样本，因此Terminal Evidence微基准零样本不计性能证据，依赖相关真实SQLite回归与后续Host。
 - 8192→32768纯字符串缓存实验未有明显收益，未保留。新增精准查询回归覆盖其他Owner/Process和终态Work不变、终态Result不读全局历史、NFO当前basis缺失拒绝、Off-deck active/不存在状态等。相关568 tests：565 pass/3既有skip；完整Service647 pass/29既有skip；静态门禁通过。先前P15源码断言仍匹配旧scalar Perception入口而失败，已同步为配对入口，保留无全量fan-out及durable cursor断言；原失败日志保留。
 - 私有证据位于.codex/uat318-retention-20261016：performance-qualification、post-trial-profile、candidate-profiles、current/candidate-history-proof、scoped-benchmark、execution-scope-benchmark及scoped-owner-final-tests。下一资格目录.codex/uat318-scope-20261016；生产仍bfd97f36a。
+
+
+#### d6ef5fee3e 精确候选身份
+
+- source d6ef5fee3e5485cd53c2ba212b0b42cd277384be，镜像markmahoro/shelfdeck:d6ef5fee3e，NAS config sha256:9284624fabbec8047e0c9502a6fd9da377c4db8c4de2c96b960c3bbe2dc44370；标准构建/上传及独立SHA通过，tar SHA256 9e3d5bb1365bb4a3e7531afb756c0d64a843e04af6c9152d701de30b5c6f853d。
+- 2357 canonical运行文件aggregate 4e2efe3dc6ad7eae5481570fe65c8affe8162a9eadc39fce520c93481a2b44eb，19处相关运行文件和两份UI资产与Windows独立包一致；Native/Host/JS完整字节及Range通过。精确镜像Linux受影响85项全部通过。完整Host资格进行中，生产未apply。
