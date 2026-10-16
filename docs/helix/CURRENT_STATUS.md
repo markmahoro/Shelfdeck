@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-16 UAT-318 修复候选 b84f36509a 完整副本各10轮：旧版JS 3/10超时、完成11.83–33.38s；候选无超时但1.67–28.40s，概览仍1/10 stale，性能不稳定，未部署。候选50 API成功、Health最大455ms、Formation最大1121ms；不能以改善均值宣称达标。同快照567收藏概览/3目标五组Arca投影完整digest一致，61不可变表705,991行/所有Effect意图/两条精确Run保护通过。后续两轮采样发现Effect intent/Marker全量历史读取，正在Foundation原Owner内改为精确条件读取，保留全部恢复和冲突校验；相关131测试及新增2000条无关历史回归通过，后续候选资格仍进行。生产仍3c3991fabe，无Reset或数据处置。
+
 2026-10-16 UTC03:36–03:41 UAT-318多轮因果对照：8轮同容器独立stream为12–39ms，正式JS为193–22639ms；7/8轮部分重叠采样，不冒充纯基线。维护检查完成后仍慢，两个新profile转为Formation/概览及周期Perception主导；单一Aftercare去重不足以解决。3目标固定只读事务five/one/one/five证明重复上下文放大、完整输出等价，但不是正式新鲜度/Host修复资格。根因收敛为多条高频全量同步读取在HTTP主线程竞争；概览每轮四次Formation list、全收藏健康重建及超cadence紧接重建均有代码证据。无产品代码修改/部署，Inspector和短生命对照server已收口；UAT保持开放，详见原Evidence最新多轮对照节。
 
 2026-10-16 UTC03:27–03:33 UAT-318继续只读定位：生产3c3991fabe保持正常供给/RestartCount0；两份约14秒profile中Arca维护上下文读取占inclusive约69%/70%，conformance单次准备重复5次完整上下文。关闭Inspector后，503927字节JS同容器HTTP仍29553ms、直接读盘2ms且SHA一致。两项字符串优化实验完整输出等价但无稳定收益，均未保留；本轮无有效新修复/部署，下一步须解决重复读取并证明新鲜度及完整性fence。详见原UAT-318 Evidence最新节；整页性能仍未达标。

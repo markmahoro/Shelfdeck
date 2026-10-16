@@ -48,10 +48,10 @@ function definitions(schemaManifest) {
         'effect_id', 'event_attempt_id', 'effect_class', 'idempotency_key', 'intent_digest', 'state', 'external_receipt_ref',
         'output_digest', 'verified_at_ms', 'updated_at_ms'
       ], keyColumns: ['effect_id'] },
-      list: { kind: 'select-all', tableId: 'fx_effect_journal', columns: [
+      find_identity: { kind: 'select-one', tableId: 'fx_effect_journal', columns: [
         'effect_id', 'event_attempt_id', 'effect_class', 'idempotency_key', 'intent_digest', 'state', 'external_receipt_ref',
         'output_digest', 'verified_at_ms', 'updated_at_ms'
-      ], keyColumns: [] },
+      ], keyColumns: ['effect_class', 'idempotency_key'] },
       insert: { kind: 'insert', tableId: 'fx_effect_journal', columns: [
         'effect_id', 'event_attempt_id', 'effect_class', 'idempotency_key', 'intent_digest', 'state', 'external_receipt_ref',
         'output_digest', 'verified_at_ms', 'updated_at_ms'
@@ -66,7 +66,7 @@ function definitions(schemaManifest) {
       ], keyColumns: ['commit_marker'] },
       list: { kind: 'select-all', tableId: 'fx_commit_markers', columns: [
         'commit_marker', 'effect_id', 'owner_domain', 'scope_type', 'scope_id', 'commit_digest', 'committed_at_ms'
-      ], keyColumns: [] },
+      ], keyColumns: ['effect_id'] },
       insert: { kind: 'insert', tableId: 'fx_commit_markers', columns: [
         'commit_marker', 'effect_id', 'owner_domain', 'scope_type', 'scope_id', 'commit_digest', 'committed_at_ms'
       ] }
@@ -106,8 +106,7 @@ function createEffectJournal(options) {
       repositories: [repositories.effects, repositories.markers], execute(context) {
         const effect = context.repository('effect_journal').invoke('find', { effect_id: id });
         if (!effect) fail('P4_EFFECT_NOT_FOUND', 'Effect intent does not exist.');
-        const markers = context.repository('effect_commit_markers').invoke('list')
-          .filter((marker) => marker.effect_id === id)
+        const markers = context.repository('effect_commit_markers').invoke('list', { effect_id: id })
           .sort((left, right) => left.commit_marker.localeCompare(right.commit_marker));
         return Object.freeze({ effect: Object.freeze(effect), markers: Object.freeze(markers.map((marker) => Object.freeze(marker))) });
       } }]).effect_journal_recovery_observation;
@@ -142,8 +141,9 @@ function createEffectJournal(options) {
         if (!context.repository('effect_event_attempts').invoke('find', { event_attempt_id: eventAttemptId })) fail(
           'P4_EFFECT_EVENT_ATTEMPT_NOT_FOUND', 'Effect intent must bind an existing durable Event Attempt.'
         );
-        const all = context.repository('effect_journal').invoke('list');
-        const found = all.find((effect) => effect.effect_class === effectClass && effect.idempotency_key === idempotencyKey);
+        const found = context.repository('effect_journal').invoke('find_identity', {
+          effect_class: effectClass, idempotency_key: idempotencyKey
+        });
         if (found) return found;
         context.repository('effect_journal').invoke('insert', {
           effect_id: effectId, event_attempt_id: eventAttemptId, effect_class: effectClass, idempotency_key: idempotencyKey,

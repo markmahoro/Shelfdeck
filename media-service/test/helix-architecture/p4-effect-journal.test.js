@@ -37,7 +37,7 @@ function fixture(run, verify = async () => ({ verified: true, evidenceDigest: RE
     realityVerifiers: Object.fromEntries(NON_PURE.map((effectClass) => [effectClass, { verify }])) });
   const cleanup = () => { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); };
   try {
-    const result = run({ journal, databasePath });
+    const result = run({ journal, databasePath, kernel });
     if (result && typeof result.then === 'function') return result.finally(cleanup);
     cleanup(); return result;
   } catch (error) { cleanup(); throw error; }
@@ -51,6 +51,28 @@ function receipt(overrides = {}) {
     ...overrides
   };
 }
+
+test('exact intent and recovery reads retain all matching markers without materializing unrelated history', () => fixture(({journal,kernel}) => {
+  const request={eventAttemptId:'event-attempt',effectClass:'external_request',idempotencyKey:'bounded-key',intentDigest:INTENT};
+  const effect=journal.intend(request);
+  kernel.runPrimitive(tx=>{
+    const marker=tx.prepare('INSERT INTO fx_commit_markers(commit_marker,effect_id) VALUES (?,?)');
+    const intent=tx.prepare('INSERT INTO fx_effect_journal(effect_id,effect_class,idempotency_key,intent_digest) VALUES (?,?,?,?)');
+    for(let i=0;i<2000;i++){marker.run('unrelated-marker-'+i,'unrelated-effect-'+i);intent.run('unrelated-effect-'+i,'external_request','unrelated-key-'+i,INTENT);}
+    marker.run('exact-b',effect.effect_id);marker.run('exact-a',effect.effect_id);
+  });
+  const returnedRows=[];
+  const measuredKernel={runPrimitive:fn=>kernel.runPrimitive(tx=>fn({...tx,prepare(sql){
+    const statement=tx.prepare(sql);
+    return new Proxy(statement,{get(target,key){if(key==='all')return (...args)=>{const rows=target.all(...args);returnedRows.push(rows.length);return rows;};const value=target[key];return typeof value==='function'?value.bind(target):value;}});
+  }}))};
+  const measured=createEffectJournal({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel:measuredKernel}),now:()=>1700000002001,
+    realityVerifiers:Object.fromEntries(NON_PURE.map(effectClass=>[effectClass,{verify:async()=>({verified:true,evidenceDigest:REALITY})}]))});
+  assert.equal(measured.intend(request).effect_id,effect.effect_id);
+  assert.throws(()=>measured.intend({...request,intentDigest:OUTPUT}),{code:'P4_EFFECT_IDEMPOTENCY_CONFLICT'});
+  assert.deepEqual(measured.observeRecovery(effect.effect_id).markers.map(m=>m.commit_marker),['exact-a','exact-b']);
+  assert.ok(returnedRows.length>0&&returnedRows.every(n=>n<=2));
+}));
 
 test('durable intent is idempotent only for the exact Event Attempt, class, key, and digest', () => fixture(({ journal }) => {
   const request = { eventAttemptId: 'event-attempt', effectClass: 'external_request', idempotencyKey: 'request-key', intentDigest: INTENT };

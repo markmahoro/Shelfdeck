@@ -125,7 +125,7 @@ function definitions(schemaManifest) {
       ] }
     } }),
     markers: createRepositoryDefinition({ repositoryId:'runtime_commit_markers',owner:'execution-foundation',schemaManifest,statements:{
-      list:{kind:'select-all',tableId:'fx_commit_markers',columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms'],keyColumns:[]}
+      list:{kind:'select-all',tableId:'fx_commit_markers',columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms'],keyColumns:['effect_id']}
     } }),
     timings: createRepositoryDefinition({ repositoryId: 'runtime_resource_timings', owner: 'execution-foundation', schemaManifest, statements: {
       insert: { kind: 'insert', tableId: 'fx_event_resource_timings', columns: [
@@ -267,7 +267,7 @@ function createEventRuntime(options) {
     const binding=options.unitOfWork.execute([{participantId:'event_runtime_prebound_result_read',owner:'execution-foundation',
       repositories:[repositories.results,repositories.markers],execute(context){return Object.freeze({
         row:context.repository('runtime_results').invoke('find',{event_id:eventId}),
-        markers:Object.freeze(context.repository('runtime_commit_markers').invoke('list').filter((item)=>item.effect_id===effectId)),
+        markers:Object.freeze(context.repository('runtime_commit_markers').invoke('list',{effect_id:effectId})),
       });}}]).event_runtime_prebound_result_read,row=binding.row;
     if(!row)return null;
     if(row.result_schema_ref!==entry.manifest.resultSchemaRef||
@@ -497,7 +497,7 @@ function createEventRuntime(options) {
                 existing.effect_receipt_id !== expectedReceiptId) {
               fail('P4_EVENT_PREBOUND_RESULT_CONFLICT', 'Atomic Capability commit pre-bound a different Event Result.');
             }
-            const linkedMarkers=outcome.effectReceipt?context.repository('runtime_commit_markers').invoke('list').filter((marker)=>
+            const linkedMarkers=outcome.effectReceipt?context.repository('runtime_commit_markers').invoke('list',{effect_id:outcome.effectReceipt.effectId}).filter((marker)=>
               marker.commit_marker===outcome.effectReceipt.commitMarker&&marker.effect_id===outcome.effectReceipt.effectId&&
               marker.owner_domain===event.owner_domain&&marker.result_id===existing.result_id&&
               marker.result_schema_ref===existing.result_schema_ref&&marker.result_digest===existing.result_digest&&

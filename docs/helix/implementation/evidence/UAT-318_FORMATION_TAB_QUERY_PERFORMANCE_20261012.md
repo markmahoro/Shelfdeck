@@ -477,3 +477,21 @@ Inspector 两次均确认关闭。之后不运行采样器或等价对照，只�
 Libra新增同次overview组合读取，复用当前activeSnapshot而保留原summary/分类/完整DTO规则；后续overview重读。Arca概览健康页100缩为10，每页之间yield，保留完整最终汇总；概览完成后至少等待原cadence再开始下轮，保留generatedAt、age/stale和失败显式状态。没有全局业务缓存或跳过canonical/fence，也没有新增持久健康投影；是否需要进一步机制调整以完整Host实测为准。
 
 首批23项定向、172项恢复/资源Governor/维护副作用/Settlement/Formation回归通过；新增超cadence测试独立3项通过。完整Service及精确候选Linux/完整数据副本/多轮性能对照仍在执行，未部署。原生产3c镜像、RestartCount0与61GB可用磁盘已复核，NAS preflight记录在ignored `.codex/uat318-fix-20261016/`。
+
+### 2026-10-16 b84f36509a 候选完整副本对照（进行中）
+
+- 用户授权保持架构边界和数据正确性，多轮确认改善后再部署。候选源提交 b84f36509a2244d51b8f902903fd43db8e7e8680；尚未 apply 到生产。
+- Windows 完整 Service：646 pass、29 既有 skip、0 fail；相关恢复/资源/维护 172 pass；精确候选 Linux 196 pass。镜像内 2356 个运行文件逐一匹配源码，aggregate e4eae9b850573044d6ce801932857137d6e5bf0df3431d97ae81f8918de6f0b7。
+- 最新一致快照 UTC 03:53:13：58 文件、210 表、567 当前 Shelf Entries，两条受保护 Run 保持；完整 SQLite integrity/FK 及伴随文件清单通过。原 560 条及不可变历史的逐行资格仍需候选使用后检查。
+- 完整旧版 Host 使用同一冻结副本，2 CPU / 3 GiB、媒体与生产 data 只读、network none。启动约 585 秒，normalSupplyAllowed=true；正常 Owner 周期及测试后退出码 0。既有 UAT-321 priority revision 错误和隔离媒体 ENOENT/EROFS 如实保留，不算媒体生产 E2E。
+- 旧版 10 轮：50/50 API 200；JS 7 次完整 hash 相同，耗时 11.83–33.38 秒，另 3 次在 35 秒截止未完成。Health 最大 12.69 秒，Formation 最大 2.89 秒；overview 1/10 stale，age 58.97 秒。复现主线程长尾，不能以 API 成功判性能达标。
+- 原始证据位于 ignored `.codex/uat318-fix-20261016/`。候选同副本 10 轮、历史保护和使用后回退资格正在进行；本段不构成发布通过。
+
+### 2026-10-16 b84 候选不通过及 Effect 精确读取追加修复
+
+- 候选10轮50 API成功，Health最大455ms、Formation最大1121ms；JS全部完整hash正确但1.67–28.40s，overview1/10 stale（32.74s）。旧/新整轮资源相同；背景工作随各自恢复推进，不冒充锁步相同业务状态。由于长尾仍显著，不apply生产。
+- 候选正常停止ExitCode0。61不可变表705,991行逐行保持、所有Effect意图保持、567原Entry及两条Run基础保持。冻结副本上完整Arca概览digest为020fd97fd6846fd5ef1b41e165f3e737ec10ba6d37a444d7e2facc29da3bf782，三个目标各五组投影digest为6773db226060710dd31d0f1e0be3d61b899dee8830193dee8a0f829b8808de1a，旧/新完全相同；首次辅助脚本漏传posterReader依赖失败后修正，未改产品数据。
+- 候选两个12秒采样分别见Effect Journal intent/恢复/完成Marker全量读取、Perception候选组装、People注册Evidence查找及物理指纹等竞争。两次Inspector均关闭；采样轮不混入10轮无profiler性能结果。
+- Foundation内部新增精确条件读取：Effect intent沿原唯一(effect_class,idempotency_key)查询；恢复和prebound completion只读取当前effect_id全部Marker。保留原identity/digest/CAS/marker完整字段与基数校验，未限定LIMIT隐藏多Marker异常；没有新Schema/索引、全局事实缓存或跨Owner事实迁移。
+- 最新冻结副本75468 Effects/57630 Markers，5轮×3真实目标旧/新完整结果逐项相等：旧1181.89–1478.15ms，新15.45–53.61ms。此为同只读事务的局部反事实测试，不替代下一候选完整Host性能验收。
+- 相关恢复/幂等/冲突/历史131测试通过；新增2000条无关Effect/Marker回归证明不物化无关历史，仍返回同Effect的两条Marker供原基数判断，digest冲突继续拒绝。后续完整Service及新精确镜像/Host资格进行中，生产保持3c3991fabe。
