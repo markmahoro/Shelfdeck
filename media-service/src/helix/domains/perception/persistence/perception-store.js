@@ -254,7 +254,7 @@ function createPerceptionStore(options) {
         const normalizedEvidence=['title','title_year'].includes(clause.anchorKind)
           ?new Set(evidence.map(item=>normalizeAlias(item.anchorValue))):null;
         // Normalize query evidence once per clause, not once per candidate pair.
-        // This set exists only for this read; Record membership is never cached.
+        // This set exists only for this read; selected Records are never cached.
         const normalizedMatchValues=clause.anchorKind!=='title_year'&&clause.lookupMode==='normalized_exact'&&candidates.length
           ?new Set(evidence.map(item=>normalizeAnchor(item.anchorValue,clause.normalizationProfileRef))):null;
         const matches=candidates.filter((anchor)=>{
