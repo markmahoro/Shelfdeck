@@ -519,3 +519,11 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 - **生产环境上线后独立10轮**（每轮间隔10秒，无Profiler）：50 API全200；JS10/10完整且hash一致，322–1977ms，中位883ms，无超时。概览API中位89ms/最大656ms，但4/10为stale、age31.958–42.251秒，另6轮ready。API响应快不等于投影新鲜，生产与上述隔离副本分开报告；本次不宣称概览问题解决、整页1秒SLO或整季媒体E2E通过。
 - 原始私有证据在忽略目录 `.codex/uat318-static-20261016/`，含canonical-image、Linux/Windows包、candidate/candidate-steady/production-steady性能、performance-qualification、history、cold、apply及receipt；前两候选证据保留于fix/effects目录。未执行生产Reset、直接编辑业务数据、迁移或人工媒体处置。UAT-318与UAT-321保持开放。
 - 上线后数据核验补充：最新冷备61不可变表706253旧行逐行保持，所有Effect意图与既有终态执行记录保持，568收藏及两条精确Run保持。两季Subject/Workspace/根记录及物理inode、data目录inode通过。59伴随文件中57份内容与身份均相同；operator-runtime/intent.json按正式Stop/Resume更新，另一个Aftercare `.tmp.normalized-video.ts` 内容变化但inode保持。UTC05:39:41确认FFmpeg PID1842正引用该精确producer临时路径，mtime05:39:39；属于正常运行输出，不声称全部伴随文件字节不变或完整媒体E2E已结束。5个本次已停止且ExitCode0的演练容器经精确ID核验移除，保留全部备份/演练数据与回退镜像，生产容器未改动。
+
+### 2026-10-16 发布后回到 UAT-318 的只读定位
+
+- 用户澄清资源等待不作为整机卡死问题，本轮回到概览新鲜度与剩余响应长尾；未重启、修改生产数据或部署新代码。
+- bfd生产两轮各约12秒CPU采样均完成Inspector关闭核验：event-loop max 2254/2096ms；采样期间JS完整4183/3041ms。这是有Profiler干扰的诊断样本，不能混入前述无Profiler10轮验收结果。热点分别包含Perception candidate anchors全量检索/别名匹配、Arca health输入、Aftercare Workspace生命周期重复历史读取、Formation评分目标组装及Outbox历史扫描。
+- 同冻结完整副本567收藏，以当前bfd只读查询连续三轮计算collection overview：2884/1449/1597ms，完整输出digest均为`020fd97fd6846fd5ef1b41e165f3e737ec10ba6d37a444d7e2facc29da3bf782`。每轮57页，18890条Assessment历史、2436条Finding；现有按当前Inventory revision分组使三类Inventory输入分别有431/436/436次SQL调用。没有省略历史或修改健康判断；此为隔离查询成本，不是生产完整概览重建时间。
+- 代码与现场时序支持的待验证判断：collection每10项让出事件循环；57次让出与其他Owner同步周期交错，会放大重建墙钟时间。生产05:48:17.198开始的概览在05:48:37.688请求时仍未替换旧快照，05:48:40.807已可见、年龄约23秒；随后再次超过30秒stale。因此HTTP返回快与新快照及时产出是两项指标，不能把generatedAt改为发布时刻或放宽stale阈值掩盖延迟。
+- 下一步优化优先保留Owner合同：缩减Perception/Workspace/Outbox不必要的同步历史读取，评估概览按实际计算预算让出而非固定小批次产生的大量等待；所有方案必须证明完整结果、候选集合、恢复/回收fence与新鲜度不变，再做同规模正常Owner周期多轮验证。当前仅完成定位，没有新增产品修复或性能达标结论。私有采样与只读副本计时保留在`.codex/uat318-overview-20261016/`。
