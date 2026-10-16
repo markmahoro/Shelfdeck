@@ -549,3 +549,7 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 
 - 后续局部实验：同568冻结副本100个实际历史标题Query×3轮，完整Assembler输出digest均为28896eca8b8a6a95f7713573d8dc5595ed4adc123df8ee553a4025a34b4fc536；纯别名转换复用前5599/5065/5194ms，后4956/4491/4449ms。仅为局部收益，不能替代Host资格。每类纯转换缓存最多8192项、输入≤512字符、最多16别名，长输入不缓存；新Record/关系仍每次从Owner读取，不缓存候选集合。
 - 下轮将概览计算片段预算调整为200ms、仍最多10页/每页10项；重负载下50ms常使一页后便等待其他Owner一轮，不能稳定降低57页的交错等待。预算依然在页边界检查，非硬200ms上界。4000项完整聚合及模拟110ms慢页在最多2页后让出通过；API长尾必须继续独立验收，不能用更长片段换取隐蔽响应退化。新完整副本资格根目录uat318-release-20261016T073532-slices，未部署。
+
+- 161af9810候选Windows完整Service647 pass/29既有skip；实际最终Linux镜像11文件70通过，Windows独立包Native/Host/JS/Range通过，2357运行文件aggregate 4aa4ddc91dce13bf0ead6ea0d2e2307fe332c3ccc9e55aefba1881c7ab7da5e7，UI字节不变。相同568副本完整概览与3目标×5组投影继续保持上述digest。当前仍是资格中，未apply。
+- 前候选d61启动的完整架构套件耗时3691.8秒，334文件2847项：2824 pass、10 fail、13 skip；静态Dependency/Semantic/Manifest/Contract均通过，不宣称完整套件PASS。8项为既有测试未同步当前210表/107索引、Libra61表、117 Result schemas/23 helpers、26 Source Map shards，以及此前已部署的clean-admin-static入口；依据现行SSOT/生成清单更新精确断言，保留所有negative/闭合验证。8文件首次重验68 pass/2 fail/2 skip，两个后续数量断言补齐后对应两文件10 pass，无产品schema变化。
+- JAV atomic fixture漏注册现行JavCorrectionSourceVerified schema，且unfinished assets Work会先触发既有Source Result fence（同一Work）；补齐fixture schema、限定模拟Work并将预期收紧到该明确错误，未放松产品验证。最终atomic完整事务/回滚场景通过。FC2 poster场景首次完整套件无Case，独立连续两次约40秒通过；首次失败保留，未据两次重跑宣称已证明其偶发原因或全量场景稳定。最终两场景2 pass。上述测试修正不改161af9810镜像运行源码。

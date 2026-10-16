@@ -156,6 +156,7 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
     assert.ok(
         relative === 'src/server.js' ||
         relative === 'src/clean-service-host.js' ||
+        relative === 'src/clean-admin-static.js' ||
         relative === 'src/clean-runtime-operations.js' ||
         relative === 'src/clean-formation-reset-port.js' ||
         relative === 'src/clean-arca-recycle-port.js' ||

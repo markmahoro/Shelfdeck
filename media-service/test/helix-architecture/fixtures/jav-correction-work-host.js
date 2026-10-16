@@ -51,6 +51,7 @@ async function inspectFilePlan({host,dataDir,db,correctionId,atomicCommit=false}
     kernel=openSqliteKernel({Database,databasePath:path.join(dataDir,'shelfdeck.db'),schemaDdl,schemaManifest}),
     contractValidator=createCapabilityContractValidator({schemas:[...Object.values(buildSharedTypeSchemas()),...Object.values(buildArcaApplicationSchemas()),
       require('../../../src/helix/domains/arca/model/jav-correction-commit-contract').javCorrectionCommitReceiptSchema(),
+      require('../../../src/helix/contracts/types/JavCorrectionSourceVerified/v1/schema.json'),
       require('../../../src/helix/contracts/types/StagedInventoryManifestRecord/v1/schema.json')]}),
     root=db.prepare('SELECT endpoint_id,mount_scope_id,mount_scope_revision,resolved_root FROM platform_workspace_roots WHERE root_id=?').get('service-arca-aftercare-workspace'),
     options={schemaManifest,contractValidator,unitOfWork:createSqliteUnitOfWork({kernel}),aftercareWorkspaceRoot:root.resolved_root,
@@ -70,9 +71,14 @@ async function inspectFilePlan({host,dataDir,db,correctionId,atomicCommit=false}
         filePlanPreparation:service,workResultReader,resolveMediaCastReference:input=>people.mediaCastReferenceQuery.resolve(input)}),
       preparedInventory=inventoryPreparation.prepare(correctionId,200),
       rejectedPreparation=createJavCorrectionInventoryPreparation({...options,correctionContextReader,contextReader,materialControlProjectionPort,
-        filePlanPreparation:service,workResultReader:{...workResultReader,status:workId=>({...workResultReader.status(workId),state:'running'})},
+        filePlanPreparation:service,workResultReader:{...workResultReader,status:candidateWorkId=>{
+          const status=workResultReader.status(candidateWorkId);
+          return candidateWorkId===workId?{...status,state:'running'}:status;
+        }},
         resolveMediaCastReference:input=>people.mediaCastReferenceQuery.resolve(input)});
-    require('node:assert/strict').throws(()=>rejectedPreparation.prepare(correctionId,200),{code:'ARCA_JAV_CORRECTION_INVENTORY_NOT_READY'});
+    // Source verification belongs to this same assets Work and is the first
+    // readiness fence; an unfinished Work cannot prove its Source Result.
+    require('node:assert/strict').throws(()=>rejectedPreparation.prepare(correctionId,200),{code:'ARCA_JAV_CORRECTION_SOURCE_RESULT_UNPROVEN'});
     const context=correctionContextReader.read(correctionId),committed=atomicCommit?require('./jav-correction-commit-host').verifyAtomicCommit({options,db,preparedInventory}):null;
     let formalRetirement=null;
     if(committed){
