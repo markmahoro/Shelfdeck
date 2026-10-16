@@ -503,3 +503,19 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 - 后续独立采样event-loop max909ms，JS9598ms；Effect历史读取已不占此前热点，剩余People Evidence/Perception/Arca workspace等周期读取仍有成本。Inspector已关闭；候选正常停止ExitCode0。
 - 新增仅Admin构建资产传输的有界读取：保留插件生成的精确现有asset路由，仅JS/CSS委托原sendFile使用512KiB highWaterMark，减少多个文件读取回调反复等待Owner同步工作的放大。未引入业务缓存、全文件无界缓冲、Schema/Owner边界或UI资产字节变更；Range/HEAD/ETag/路径限制仍由原sendFile处理。
 - 新增真实Fastify测试验证503927字节完整相等、512KiB上界、Range、HEAD、304、未知路径/目录穿越拒绝和index no-store通过。新完整Service、最终镜像与多轮Host资格尚待，不把静态测试计为正式提速。
+
+### 2026-10-16 bfd97f36a 最终修复、多轮资格及生产发布
+
+本轮按用户要求在原 Owner 内修复，并在完整副本反复验证改善、历史保护与使用后回退后发布；不等于 UAT-318 全部达标。
+
+- 实现提交：b84f36509a（单次 Binding 准备 scope、Libra 单次概览读取复用、Arca 健康分页及完成后 cadence）、ffa85c9a6（Effect intent/current-effect Marker 精确读取）、aa8c76bd7（Admin JS/CSS 512KiB 有界传输）、bfd97f36a（Docker/Windows 显式运行包纳入新 helper）。Arca 上下文仍由 Arca 持有，仅同步准备内复用；下次 Event/重试重新读取。Foundation 不保存业务事实，无跨 Event 全局缓存、Schema 迁移或 digest/CAS/基数校验弱化。
+- aa8 镜像首次 Linux 138 pass/1 fail，发现 Docker 显式 COPY 漏掉新 helper；未启动或部署该镜像。bfd 同时修正 Docker 与 Windows 包清单后，实际最终镜像 Linux 139/139 通过。失败记录保留，不能只引用本机通过结果。
+- Windows 完整 Service 647 pass/29既有 skip/0 fail；实际 Windows 独立包的 Node/Native SQLite/Host、JS 完整字节及 Range 通过。最终镜像 2357 运行文件逐一匹配 source，aggregate `d48ce5a3bbd922ccde77987a9adb2c2dbb1c76f6e66af02cb850301b0229cfdb`；OCI revision 标签继承底层 FFmpeg，不能作为 ShelfDeck source。两份 UI 构建资产字节保持，未改 UI/展示文案，不冒充新浏览器首开验收。
+- 同一冻结完整副本、相同 2 CPU/3GiB/Node heap 2GiB、正常 Owner 周期且不并行运行多个完整 Host：原版10轮与最终候选20轮，API 中位660→250ms、P95 3789→1431ms；JS中位30838→491ms、P95 35037→5355ms，超时3/10→0/20，最终100 API成功且20份503927字节JS hash全相等。原版超时按预算记入分位数。最终仍有7.81s尾部与2/20概览 stale（33.32/40.14s），原版1/10 stale；不宣称新鲜度比例改善或1秒目标达标。相同冻结输入不代表运行推进锁步，生产仍共享NAS资源，不夸大为完全隔离负载实验。
+- 最终候选完整 Host 约480秒 ready，正常停止 ExitCode0；61不可变表705991旧行、所有原Effect意图、567收藏和两季精确Run保护通过。旧3c镜像使用候选运行后的数据启动约449秒，正常Owner周期与停止ExitCode0；61表720380候选历史行及Effect/收藏/两季Run保持。只读隔离介质导致的EROFS/ENOENT/物理指纹错误单独记录，不视为生产媒体E2E成功。
+- 最终生产 Docker `markmahoro/shelfdeck:bfd97f36a`，source `bfd97f36a7c0913c22403add226abf48218cd40b`；NAS config `sha256:e5cdaef4bf929fbf7d17a2f3cc4cc5a404481bd4d424c70f1ce2862fe5183ed5`；本机OCI `sha256:67415a640b4be141c459fcee88b3c9d0040bc22bd368ad06adf690a19b64289f`；tar SHA256 `995ff4a7554274bb3026b3859c1727f0a66c24f29797268e1c8f965eea69623e`。标准build-image/upload-nas-image/deploy-nas dry-run/checksum/readiness/apply通过。
+- 最新冷备UTC05:23:54.851，62文件aggregate `545f3462b862bd483e31e113c9ce2c8ae3561b47e9bf348c3d6d16cf4450e4b4`，目录 `/vol1/1000/docker/shelfdeck/backups/uat318-release-20261016T035155-b84f36509a/cold`，含568收藏；目录沿用首候选名称，不代表部署b84。旧生产Stop后SIGTERM checkpoint 60秒超时、ExitCode1/P4_SHUTDOWN_CHECKPOINT_TIMEOUT如实保留，未伪造终态或Reset。
+- 新容器 `515d60b240ff5b6e6ee84a54b87c5e28a8efc5af07667bbf845408ff6b9331a3`，StartedAt `2026-10-16T05:27:40.09005934Z`。Resume初始HTTP25秒超时，通过持久receipt观察同一操作约130秒完成，未重复提交。UTC05:33:06.511完成，05:37复核running/health ok/normalSupplyAllowed=true、RestartCount0、无fatal/OOM。挂载、QSV、adult双别名、13个无关容器和fnOS保持。UAT-321告警在05:32:09–05:32:42出现133次，恢复后消退，仍未修复。
+- **生产环境上线后独立10轮**（每轮间隔10秒，无Profiler）：50 API全200；JS10/10完整且hash一致，322–1977ms，中位883ms，无超时。概览API中位89ms/最大656ms，但4/10为stale、age31.958–42.251秒，另6轮ready。API响应快不等于投影新鲜，生产与上述隔离副本分开报告；本次不宣称概览问题解决、整页1秒SLO或整季媒体E2E通过。
+- 原始私有证据在忽略目录 `.codex/uat318-static-20261016/`，含canonical-image、Linux/Windows包、candidate/candidate-steady/production-steady性能、performance-qualification、history、cold、apply及receipt；前两候选证据保留于fix/effects目录。未执行生产Reset、直接编辑业务数据、迁移或人工媒体处置。UAT-318与UAT-321保持开放。
+- 上线后数据核验补充：最新冷备61不可变表706253旧行逐行保持，所有Effect意图与既有终态执行记录保持，568收藏及两条精确Run保持。两季Subject/Workspace/根记录及物理inode、data目录inode通过。59伴随文件中57份内容与身份均相同；operator-runtime/intent.json按正式Stop/Resume更新，另一个Aftercare `.tmp.normalized-video.ts` 内容变化但inode保持。UTC05:39:41确认FFmpeg PID1842正引用该精确producer临时路径，mtime05:39:39；属于正常运行输出，不声称全部伴随文件字节不变或完整媒体E2E已结束。5个本次已停止且ExitCode0的演练容器经精确ID核验移除，保留全部备份/演练数据与回退镜像，生产容器未改动。

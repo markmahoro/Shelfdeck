@@ -1,5 +1,8 @@
 # ShelfDeck 当前状态
 
+2026-10-16 UAT-318本轮已标准部署 `markmahoro/shelfdeck:bfd97f36a`：保留Owner边界与全部恢复校验，修复准备/概览重复读取、Effect历史全量读取和Admin静态传输回调放大。最终完整副本20轮100 API成功、JS中位491ms/P95 5.35s、0超时；使用后旧版回退与历史保护通过。生产上线10轮50 API成功、JS10/10完整，中位883ms/最大1.98s；概览仍4/10 stale（32–42秒），1秒整页目标未达标，UAT-318开放。Windows647 pass/29既有skip、最终Linux139通过；568收藏、706253不可变历史行、所有原Effect意图及两季精确Run/Subject/Workspace保持，无Reset/迁移/人工媒体处置。UTC05:37 health/running/normalSupplyAllowed正常、RestartCount0；UAT-321恢复期133次告警仍未修复。57/59伴随文件字节/身份保持，其余为正式operator intent和有FFmpeg现场证据的活动producer临时文件。完整身份、备份、失败、数据核验与验收限制见原UAT-318 Evidence最新节；以下为历史时点。
+
+
 2026-10-16 UAT-318第二候选ffa85c9a6同副本10轮：概览10/10 ready、50 API成功、JS无超时，但第9/10轮27.53/19.51s，仍暂缓部署。Effect同快照读取5×3轮从1.18–1.48s降至15–54ms且完整输出相等；后续profile event-loop max909ms但JS9.6s。现补Admin静态JS/CSS的512KiB有界读取块，保持原sendFile路径/Range/HEAD/ETag与原字节；完整回归及下一镜像资格进行中，生产不变。
 
 2026-10-16 UAT-318 修复候选 b84f36509a 完整副本各10轮：旧版JS 3/10超时、完成11.83–33.38s；候选无超时但1.67–28.40s，概览仍1/10 stale，性能不稳定，未部署。候选50 API成功、Health最大455ms、Formation最大1121ms；不能以改善均值宣称达标。同快照567收藏概览/3目标五组Arca投影完整digest一致，61不可变表705,991行/所有Effect意图/两条精确Run保护通过。后续两轮采样发现Effect intent/Marker全量历史读取，正在Foundation原Owner内改为精确条件读取，保留全部恢复和冲突校验；相关131测试及新增2000条无关历史回归通过，后续候选资格仍进行。生产仍3c3991fabe，无Reset或数据处置。
