@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const Database = require('better-sqlite3');
 const Fastify = require('fastify');
-const fastifyStatic = require('@fastify/static');
+const {registerAdminStatic} = require('./clean-admin-static');
 const sharp = require('sharp');
 const routeRegistry = require('./helix/composition/admin-route-registry');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
@@ -2047,17 +2047,7 @@ async function createCleanServiceHost(options) {
   });
 
   const server = Fastify({ logger: false, trustProxy: false });
-  await server.register(fastifyStatic, {
-    root: path.resolve(options.adminDistDir),
-    prefix: '/',
-    wildcard: false,
-    cacheControl: false,
-    setHeaders(reply, filePath) {
-      if (path.basename(filePath) === 'index.html') {
-        reply.header('Cache-Control', 'no-store');
-      }
-    },
-  });
+  await registerAdminStatic(server, options.adminDistDir);
   const sendAdminIndex = (_request, reply) =>
     reply.header('Cache-Control', 'no-store').sendFile('index.html');
   for (const pagePath of ['/material-fields', '/shelves', '/collection', '/formation', '/offdeck', '/people', '/settings']) {

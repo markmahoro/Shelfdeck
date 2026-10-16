@@ -495,3 +495,11 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 - Foundation内部新增精确条件读取：Effect intent沿原唯一(effect_class,idempotency_key)查询；恢复和prebound completion只读取当前effect_id全部Marker。保留原identity/digest/CAS/marker完整字段与基数校验，未限定LIMIT隐藏多Marker异常；没有新Schema/索引、全局事实缓存或跨Owner事实迁移。
 - 最新冻结副本75468 Effects/57630 Markers，5轮×3真实目标旧/新完整结果逐项相等：旧1181.89–1478.15ms，新15.45–53.61ms。此为同只读事务的局部反事实测试，不替代下一候选完整Host性能验收。
 - 相关恢复/幂等/冲突/历史131测试通过；新增2000条无关Effect/Marker回归证明不物化无关历史，仍返回同Effect的两条Marker供原基数判断，digest冲突继续拒绝。后续完整Service及新精确镜像/Host资格进行中，生产保持3c3991fabe。
+
+### 2026-10-16 ffa85c9a6 完整副本与静态传输追加修复（进行中）
+
+- Effect精确读取候选 `ffa85c9a62ab446eca96ba7c406787eb9818560e`：Windows Service646 pass/29既有skip；精确Linux138 pass；2356运行文件对应源码；tar SHA256为551a4d586703ee214c6680436582e9d755277e517c783530925e539a100d3582。首次Linux调用未挂载tests失败，修正后通过。镜像OCI revision标签继承底层FFmpeg镜像，不能冒充ShelfDeck source；本次使用完整运行文件hash与tar SHA证明源对应。
+- 同冻结副本完整Host启动约495秒、正常供给后10轮：50 API成功，JS均完整，前8轮2.64–8.42秒，第9/10轮仍27.53/19.51秒；overview10/10 ready，age6.55–26.04秒。改善但长尾未消除，仍未apply。
+- 后续独立采样event-loop max909ms，JS9598ms；Effect历史读取已不占此前热点，剩余People Evidence/Perception/Arca workspace等周期读取仍有成本。Inspector已关闭；候选正常停止ExitCode0。
+- 新增仅Admin构建资产传输的有界读取：保留插件生成的精确现有asset路由，仅JS/CSS委托原sendFile使用512KiB highWaterMark，减少多个文件读取回调反复等待Owner同步工作的放大。未引入业务缓存、全文件无界缓冲、Schema/Owner边界或UI资产字节变更；Range/HEAD/ETag/路径限制仍由原sendFile处理。
+- 新增真实Fastify测试验证503927字节完整相等、512KiB上界、Range、HEAD、304、未知路径/目录穿越拒绝和index no-store通过。新完整Service、最终镜像与多轮Host资格尚待，不把静态测试计为正式提速。
