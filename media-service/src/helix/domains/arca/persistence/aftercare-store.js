@@ -343,6 +343,7 @@ function createAftercareStore(options) {
     ensureAftercareWorkspaceRoot:()=>workspaceStore.ensureRoot(),
     reconcileAftercareWorkspaceLifecycle:(caseId,settings)=>workspaceStore.reconcileLifecycle(caseId,settings),
     inspectAftercareWorkspaceLifecycle:(caseId)=>workspaceStore.inspectLifecycle(caseId),
+    inspectAftercareWorkspaceLifecycleHead:(caseId)=>workspaceStore.inspectLifecycleHead(caseId),
     listAftercareWorkspaceHandles:(caseId)=>workspaceStore.listWorkspaceHandles(caseId),
     aftercareWorkspaceRootSnapshot:workspaceStore.rootSnapshot});
 }

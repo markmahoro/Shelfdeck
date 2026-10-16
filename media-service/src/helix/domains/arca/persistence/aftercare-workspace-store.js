@@ -245,6 +245,19 @@ function createAftercareWorkspaceStore(options) {
       .map((row)=>Object.freeze({cursor:row.workspace_id,scope:Object.freeze({aftercareCaseId:row.process_id})})));
   }
 
+  function inspectLifecycleHead(aftercareCaseId) {
+    let care,registry;
+    options.unitOfWork.execute([
+      {participantId:'arca_aftercare_workspace_lifecycle_head_domain',owner:'arca',repositories:[definitions.arca],execute(context){
+        care=context.repository(definitions.arca.repositoryId).invoke('find_case',{aftercare_case_id:aftercareCaseId});
+      }},
+      {participantId:'arca_aftercare_workspace_lifecycle_head_foundation',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[definitions.foundation],execute(context){
+        registry=context.repository(definitions.foundation.repositoryId).invoke('find_registry',{workspace_id:aftercareCaseId});
+      }},
+    ]);
+    return Object.freeze({care,registry});
+  }
+
   function inspectLifecycle(aftercareCaseId) {
     let care,registry,materials,works,commits,artifacts,references,caseInputs; const pendingEffects=[],producerPaths=new Set();
     options.unitOfWork.execute([{participantId:'arca_aftercare_workspace_lifecycle_domain_read',owner:'arca',repositories:[definitions.arca],execute(context){const repo=context.repository(definitions.arca.repositoryId);care=repo.invoke('find_case',{aftercare_case_id:aftercareCaseId});caseInputs=repo.invoke('case_inputs',{aftercare_case_id:aftercareCaseId});commits=care?repo.invoke('list_commits',{shelf_entry_id:care.shelf_entry_id}).filter((row)=>row.aftercare_case_id===aftercareCaseId):[];}},
@@ -426,7 +439,7 @@ function createAftercareWorkspaceStore(options) {
   function listWorkspaceHandles(aftercareCaseId){return Object.freeze(inspectLifecycle(aftercareCaseId).materials.map(parseHandle).sort((left,right)=>left.handleId.localeCompare(right.handleId)));}
 
   return Object.freeze({rootSnapshot,resolvedRoot,ensureRoot,ensureWorkspace,workspaceLocation,workspaceRelativePath,registerMaterial,resolveArtifact,schedule,
-    listLifecyclePage,reconcileLifecycle,inspectLifecycle,listWorkspaceHandles,auditReferences});
+    listLifecyclePage,reconcileLifecycle,inspectLifecycleHead,inspectLifecycle,listWorkspaceHandles,auditReferences});
 }
 
 module.exports=Object.freeze({AftercareWorkspaceStoreError,RETENTION_MS,AUDIT_CYCLE_MS,createAftercareWorkspaceStore});

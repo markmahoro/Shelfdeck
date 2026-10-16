@@ -145,6 +145,24 @@ test('reclaim rejects same-size content drift through the injected bounded finge
   } finally {value.close();}
 });
 
+test('active Workspace lifecycle reads only its head and observes a later terminal transition', () => {
+  const value=fixture();try{
+    value.registerMember('active.bin');
+    const original=value.store.inspectAftercareWorkspaceLifecycle('case-1');
+    assert.deepEqual(value.store.inspectAftercareWorkspaceLifecycleHead('case-1'),{care:original.care,registry:original.registry});
+    let audits=0;
+    const store={...value.store,
+      inspectAftercareWorkspaceLifecycle(){throw new Error('Active lifecycle must not expand history');},
+      auditAftercareWorkspaceReferences(){audits+=1;return {ready:false,reasonCode:'unresolved_effect'};}};
+    const coordinator=createAftercareProcessCoordinator({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel:value.kernel}),
+      contextReader:{store,read(){return {shelfEntryId:'entry-1',basis:{digest:value.careBasis.digest}};}},
+      workResultReader:{status(){return null;},read(){return [];}},now:()=>10_000+AUDIT_CYCLE_MS});
+    assert.equal(coordinator.reconcileWorkspaceLifecycle('case-1').reasonCode,'case_active');assert.equal(audits,0);
+    value.store.terminateCase('case-1','unresolved','test',digest('terminal'));
+    assert.equal(coordinator.reconcileWorkspaceLifecycle('case-1').reasonCode,'unresolved_effect');assert.equal(audits,1);
+  }finally{value.close();}
+});
+
 test('eligible lifecycle is admitted as formal care_workspace_reclaim Work with its exact Handle scope', async () => {
   const value=fixture();try{
     const member=value.registerMember('cleanup.bin');value.store.terminateCase('case-1','unresolved','test_unresolved',digest('terminal-unresolved'));value.setTime(10_000+AUDIT_CYCLE_MS);

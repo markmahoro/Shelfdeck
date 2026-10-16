@@ -232,6 +232,7 @@ function createArcaCollectionQuery(options) {
     async overviewStats(nowMs){
       const monthStartMs=Date.UTC(new Date(nowMs).getUTCFullYear(),new Date(nowMs).getUTCMonth(),1);
       let cursor=null,currentCount=0,monthNewCount=0,healthyCount=0,healthAttentionCount=0,recent=[];
+      let sliceStarted=performance.now(),pagesInSlice=0;
       do {
         const rows=execute('arca_collection_overview_page',context=>context.repository(repository.repositoryId)
           .invoke('overview_entries',{status:'active',cursor,limit:10}));
@@ -245,7 +246,13 @@ function createArcaCollectionQuery(options) {
           if(state==='attention_required')healthAttentionCount+=1;
         }
         cursor=rows.length===10?rows.at(-1).shelf_entry_id:null;
-        if(cursor)await new Promise(resolve=>setImmediate(resolve));
+        // Keep individual health reads small, but do not pay a competing Owner
+        // turn after every cheap page. Bound each slice by elapsed work and pages.
+        pagesInSlice+=1;
+        if(cursor&&(performance.now()-sliceStarted>=50||pagesInSlice>=10)){
+          await new Promise(resolve=>setImmediate(resolve));
+          sliceStarted=performance.now();pagesInSlice=0;
+        }
       } while(cursor);
       const recentOnDeck=execute('arca_collection_overview_recent',context=>recent.map(row=>{
         const item=map(context.repository(repository.repositoryId),row);

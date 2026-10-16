@@ -238,6 +238,11 @@ test('Dispatcher durably consumes and acknowledges Procurement Retry Intent Avai
       message_id,consumer_domain,state,attempt_count,next_attempt_at_ms,acked_at_ms
     ) VALUES(?,?,?,?,?,?)
   `).run('retry-message-dispatch', 'procurement', 'pending', 1, 2_000, null);
+  database.pragma('foreign_keys=OFF');
+  database.transaction(()=>{
+    const insert=database.prepare('INSERT INTO fx_outbox_deliveries(message_id,consumer_domain,state,attempt_count,next_attempt_at_ms,acked_at_ms) VALUES (?,?,?,?,?,?)');
+    for(let i=0;i<2000;i++)insert.run('historical-'+i,'procurement','acked',1,0,1);
+  })();
   database.close();
   const receiptRepository = createRepositoryDefinition({
     repositoryId: 'retry_dispatch_receipt',
@@ -256,9 +261,15 @@ test('Dispatcher durably consumes and acknowledges Procurement Retry Intent Avai
   let consumed = 0;
   let wakes = 0;
   const admissionResultDigest = '3'.repeat(64);
+  const pendingReadSizes=[];
+  const measuredUnitOfWork={execute(participants){return unitOfWork.execute(participants.map(participant=>({...participant,execute(context){
+    return participant.execute({...context,repository(id){const repository=context.repository(id);return {invoke(statement,parameters){
+      const value=repository.invoke(statement,parameters);if(statement==='list_due')pendingReadSizes.push(value.length);return value;
+    }};}});
+  }})));}};
   const dispatcher = createOutboxDispatcherHost({
     schemaManifest,
-    unitOfWork,
+    unitOfWork:measuredUnitOfWork,
     now: () => 10,
     failedPreparationRetryService: {
       consumeAvailable(received) {
@@ -284,6 +295,7 @@ test('Dispatcher durably consumes and acknowledges Procurement Retry Intent Avai
   assert.deepEqual(await dispatcher.drainOnce(), { kind: 'idle', delivered: 0 });
   assert.equal(consumed, 1);
   assert.equal(wakes, 1);
+  assert.ok(pendingReadSizes.length>=3);assert.ok(pendingReadSizes.every(size=>size<=1));
   const lostAck = new Database(databasePath);
   lostAck.prepare("UPDATE fx_outbox_deliveries SET state='pending',acked_at_ms=NULL,next_attempt_at_ms=2000 WHERE message_id=?")
     .run('retry-message-dispatch');

@@ -5,7 +5,7 @@ const { createRepositoryDefinition } = require('../persistence/owner-repository'
 const { createInboxCoordinator } = require('../persistence/outbox-inbox');
 
 function repository(schemaManifest){return createRepositoryDefinition({repositoryId:'outbox_dispatcher',owner:'execution-foundation',schemaManifest,statements:{
-  list_due:{kind:'select-all',tableId:'fx_outbox_deliveries',columns:['message_id','consumer_domain','state','attempt_count','next_attempt_at_ms','acked_at_ms'],keyColumns:[],safeIntegers:true},
+  list_due:{kind:'select-in',tableId:'fx_outbox_deliveries',columns:['message_id','consumer_domain','state','attempt_count','next_attempt_at_ms','acked_at_ms'],keyColumn:'state',maxItems:2,safeIntegers:true},
   find_message:{kind:'select-one',tableId:'fx_outbox',columns:['message_id','producer_domain','message_kind','aggregate_type','aggregate_id','aggregate_revision','dedup_key',
     'payload_schema_ref','payload_json','payload_digest','state','available_at_ms','created_at_ms'],keyColumns:['message_id'],safeIntegers:true}
 }});}
@@ -23,7 +23,7 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     statements:{find_material:{kind:'select-one',tableId:'proc_field_materials',columns:['field_id','material_key'],keyColumns:['field_id','material_key']}}});
   let state='created',timer=null,running=null;
   function due(recoverRetryIntents=false){return options.unitOfWork.execute([{participantId:'outbox_dispatcher_due',owner:'execution-foundation',repositories:[repo],execute(context){
-    const r=context.repository(repo.repositoryId);return r.invoke('list_due',{}).filter((item)=>['pending','failed'].includes(item.state)&&(recoverRetryIntents||Number(item.next_attempt_at_ms)<=now()))
+    const r=context.repository(repo.repositoryId);return r.invoke('list_due',{values:['pending','failed']}).filter((item)=>recoverRetryIntents||Number(item.next_attempt_at_ms)<=now())
       .map((delivery)=>Object.freeze({delivery,message:r.invoke('find_message',{message_id:delivery.message_id})}))
       .filter((item)=>!recoverRetryIntents||(item.message.message_kind==='procurement_retry_intent_available'&&item.delivery.consumer_domain==='procurement'))
       .filter((item)=>!deferredDeliveryKeys.has(item.message.message_kind+'->'+item.delivery.consumer_domain)).slice(0,100);}}]).outbox_dispatcher_due;}

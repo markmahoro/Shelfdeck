@@ -527,3 +527,11 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 - 同冻结完整副本567收藏，以当前bfd只读查询连续三轮计算collection overview：2884/1449/1597ms，完整输出digest均为`020fd97fd6846fd5ef1b41e165f3e737ec10ba6d37a444d7e2facc29da3bf782`。每轮57页，18890条Assessment历史、2436条Finding；现有按当前Inventory revision分组使三类Inventory输入分别有431/436/436次SQL调用。没有省略历史或修改健康判断；此为隔离查询成本，不是生产完整概览重建时间。
 - 代码与现场时序支持的待验证判断：collection每10项让出事件循环；57次让出与其他Owner同步周期交错，会放大重建墙钟时间。生产05:48:17.198开始的概览在05:48:37.688请求时仍未替换旧快照，05:48:40.807已可见、年龄约23秒；随后再次超过30秒stale。因此HTTP返回快与新快照及时产出是两项指标，不能把generatedAt改为发布时刻或放宽stale阈值掩盖延迟。
 - 下一步优化优先保留Owner合同：缩减Perception/Workspace/Outbox不必要的同步历史读取，评估概览按实际计算预算让出而非固定小批次产生的大量等待；所有方案必须证明完整结果、候选集合、恢复/回收fence与新鲜度不变，再做同规模正常Owner周期多轮验证。当前仅完成定位，没有新增产品修复或性能达标结论。私有采样与只读副本计时保留在`.codex/uat318-overview-20261016/`。
+
+### 2026-10-16 概览刷新后续修复候选（验证中）
+
+- 用户要求继续保持架构边界与数据正确性，多轮确认概览刷新和响应改善后再部署；当前生产仍bfd97f36a。
+- Outbox按原pending/failed资格在SQL读取层限定，保留retry时间、启动Retry Intent恢复、consumer筛选、digest与ACK语义；不修改投递状态或历史记录，原无显式排序的读取不提供FIFO合同。
+- Arca定期Workspace生命周期检查先读取Case/Registry当前head，活动、已回收或保留期内状态不展开历史；真正回收仍走原完整审计、未决Effect/引用/producer/物理身份及双次观察围栏，不引入跨调用缓存或兼容逻辑。
+- collection overview仍每页最多10个完整health输入，以50ms计算预算或最多10页形成一个slice后让出事件循环。预算在页边界检查，单页自身仍可能超预算，不能宣称硬50ms延迟上界。聚合字段、分页顺序、真实generatedAt及30秒stale阈值保持。
+- Windows完整Service647 pass/29既有skip，受影响44项通过，包括2000条已ACK历史不被物化、活动→终态重新审计/未决Effect阻止回收、4000收藏完整聚合与页/slice上限。NAS当前版本与候选的同完整副本正常周期对照、精确镜像、历史保护与使用后回退仍待验证；没有新增部署资格。

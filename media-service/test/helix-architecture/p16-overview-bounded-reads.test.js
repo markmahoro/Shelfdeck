@@ -34,10 +34,15 @@ test('Overview aggregates 4000 SQLite entries in bounded health pages without lo
     }};}});
   }})));}};
   const dependencies={schemaManifest,unitOfWork},healthSizes=[];
+  let pagesSinceYield=0,maxPagesBetweenYields=0,yields=0,finished=false;
+  t.after(()=>{finished=true;});
+  const heartbeat=()=>{if(finished)return;maxPagesBetweenYields=Math.max(maxPagesBetweenYields,pagesSinceYield);pagesSinceYield=0;yields+=1;setImmediate(heartbeat);};
+  setImmediate(heartbeat);
   const query=createArcaCollectionQuery({...dependencies,posterReader:async()=>null,healthReaderMany(ids){
-    healthSizes.push(ids.length);assert.ok(ids.length<=10);return new Map(ids.map(id=>[id,{state:Number(id.slice(-4))%2?'healthy':'attention_required'}]));
+    pagesSinceYield+=1;healthSizes.push(ids.length);assert.ok(ids.length<=10);return new Map(ids.map(id=>[id,{state:Number(id.slice(-4))%2?'healthy':'attention_required'}]));
   }});
   const began=performance.now();const result=await query.overviewStats(Date.UTC(2026,8,9));
+  finished=true;assert.ok(yields>=40);assert.ok(maxPagesBetweenYields<=10);
   assert.equal(result.currentCount,4000);assert.equal(result.monthNewCount,4000);
   assert.equal(result.healthyCount,2000);assert.equal(result.healthAttentionCount,2000);
   assert.equal(result.recentOnDeck.length,5);assert.equal(result.recentOnDeck[0].displayIdentity,'Movie 3999');
