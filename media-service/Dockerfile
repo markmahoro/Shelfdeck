@@ -52,6 +52,7 @@ RUN node -e "const fs=require('fs'),source=require('@ffprobe-installer/ffprobe')
 COPY media-service/src/server.js ./src/server.js
 COPY media-service/src/admin-credential-secret-store.js ./src/admin-credential-secret-store.js
 COPY media-service/src/clean-service-host.js ./src/clean-service-host.js
+COPY media-service/src/clean-admin-static.js ./src/clean-admin-static.js
 COPY media-service/src/clean-runtime-operations.js ./src/clean-runtime-operations.js
 COPY media-service/src/clean-formation-reset-port.js ./src/clean-formation-reset-port.js
 COPY media-service/src/clean-arca-inventory-port.js ./src/clean-arca-inventory-port.js

@@ -78,6 +78,7 @@ for (const name of INCLUDE) {
 const CLEAN_RUNTIME_FILES = [
   'src/server.js',
   'src/clean-service-host.js',
+  'src/clean-admin-static.js',
   'src/clean-runtime-operations.js',
   'src/clean-formation-reset-port.js',
   'src/clean-arca-inventory-port.js',
