@@ -1971,21 +1971,7 @@ async function createCleanServiceHost(options) {
     readMaterialFields: () => procurementAdmin.overviewStats(),
     readShelves: () => arcaShelfAdmin.overviewStats(),
     readStandingAuthorization: () => inputSettlementAuthorizationStore.current(),
-    readFormation: async () => {
-      const summary = formationQuery.list({ section:'active', limit:1 }).summary;
-      await new Promise(resolve=>setImmediate(resolve));
-      const attentionItems = formationQuery.list({ section:'active', classification:'attention_required', limit:5 }).items;
-      await new Promise(resolve=>setImmediate(resolve));
-      const inProgressItems = formationQuery.list({ section:'active', classification:'in_progress', limit:5 }).items;
-      await new Promise(resolve=>setImmediate(resolve));
-      const completedItems = formationQuery.list({ section:'completed', limit:5 }).items;
-      return {
-        summary,
-        attentionItems,
-        inProgressItems,
-        completedItems,
-      };
-    },
+    readFormation: () => formationQuery.overview(),
     readCollectionStats: (nowMs) => arcaCollectionQuery.overviewStats(nowMs),
     readOffdeck: () => arcaOffdeck.overviewStats(),
     readPeopleSummary: () => peopleAdminQuery.summary(),

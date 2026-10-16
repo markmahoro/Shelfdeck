@@ -35,15 +35,15 @@ test('Overview aggregates 4000 SQLite entries in bounded health pages without lo
   }})));}};
   const dependencies={schemaManifest,unitOfWork},healthSizes=[];
   const query=createArcaCollectionQuery({...dependencies,posterReader:async()=>null,healthReaderMany(ids){
-    healthSizes.push(ids.length);assert.ok(ids.length<=100);return new Map(ids.map(id=>[id,{state:Number(id.slice(-4))%2?'healthy':'attention_required'}]));
+    healthSizes.push(ids.length);assert.ok(ids.length<=10);return new Map(ids.map(id=>[id,{state:Number(id.slice(-4))%2?'healthy':'attention_required'}]));
   }});
   const began=performance.now();const result=await query.overviewStats(Date.UTC(2026,8,9));
   assert.equal(result.currentCount,4000);assert.equal(result.monthNewCount,4000);
   assert.equal(result.healthyCount,2000);assert.equal(result.healthAttentionCount,2000);
   assert.equal(result.recentOnDeck.length,5);assert.equal(result.recentOnDeck[0].displayIdentity,'Movie 3999');
   assert.ok(!reads.some(row=>['list_entry_index','list_entries','list_all_facts'].includes(row.statement)));
-  assert.equal(reads.filter(row=>row.statement==='overview_entries').length,41);
-  assert.ok(reads.filter(row=>row.statement==='overview_entries').every(row=>row.rows<=100));
+  assert.equal(reads.filter(row=>row.statement==='overview_entries').length,401);
+  assert.ok(reads.filter(row=>row.statement==='overview_entries').every(row=>row.rows<=10));
   reads.length=0;
   assert.deepEqual(createOffdeckEntryQuery(dependencies).overviewStats(),{attentionCount:4000});
   assert.deepEqual(reads.map(row=>row.statement),['candidate_counts']);reads.length=0;

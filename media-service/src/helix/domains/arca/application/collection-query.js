@@ -234,7 +234,7 @@ function createArcaCollectionQuery(options) {
       let cursor=null,currentCount=0,monthNewCount=0,healthyCount=0,healthAttentionCount=0,recent=[];
       do {
         const rows=execute('arca_collection_overview_page',context=>context.repository(repository.repositoryId)
-          .invoke('overview_entries',{status:'active',cursor,limit:100}));
+          .invoke('overview_entries',{status:'active',cursor,limit:10}));
         currentCount+=rows.length;
         monthNewCount+=rows.filter(row=>Number(row.created_at_ms)>=monthStartMs).length;
         recent=[...recent,...rows].sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)||
@@ -244,7 +244,7 @@ function createArcaCollectionQuery(options) {
           if(state==='healthy')healthyCount+=1;
           if(state==='attention_required')healthAttentionCount+=1;
         }
-        cursor=rows.length===100?rows.at(-1).shelf_entry_id:null;
+        cursor=rows.length===10?rows.at(-1).shelf_entry_id:null;
         if(cursor)await new Promise(resolve=>setImmediate(resolve));
       } while(cursor);
       const recentOnDeck=execute('arca_collection_overview_recent',context=>recent.map(row=>{

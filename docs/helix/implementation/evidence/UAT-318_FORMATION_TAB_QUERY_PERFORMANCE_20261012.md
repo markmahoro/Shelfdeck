@@ -402,3 +402,78 @@ UTC20:44:49（北京时间04:44:49）收尾复核：原新容器ID/镜像/Starte
 上述优先级错误是上线后新确认的独立问题，登记为UAT-321，不混入UAT-318性能关闭条件。已确认旧/新代码初始化阶段的相同Owner revision可能对应不同localPriority，Foundation拒绝正确；本次生产149次错误在Resume完成前消退，最终供给及fault状态正常。本次发布没有实现此项修复。
 
 关闭需由Libra Owner在既有合同内保证启动/重建/等待恢复阶段的revision与投影值一致，覆盖已有持久化waiter及新建执行的冷启动、正常Owner周期和精确规模完整Host复验；保留来源公平、Governor的同revision不可变围栏及历史数据。不能简单忽略错误、提高revision掩盖缺失的Owner事实、把业务优先级移入Foundation或Reset数据来关闭。
+
+## 2026-10-16 生产当前版本继续排查（UTC03:27–03:33）
+
+生产仍为 `3c3991fabe`、原容器 `04f7ddfa9333`，RestartCount=0、health ok、normalSupplyAllowed=true；没有部署、停服或数据处置。UAT-321 同 revision priority 错误仍为启动期间149次，未新增；日志另出现 PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED，尚不能据此判定与本轮延迟的因果关系。
+
+两次当前进程 CPU 采样分别约13.95/13.98秒，Arca `aftercare-context-reader.read` inclusive 时间为9637/9785ms，约占69%/70%；其子路径 Perception `readCurrentRating` 为5418/5352ms，`readResolutionCandidates` 为4515/4744ms。inclusive 数值相互包含，不能相加。事件循环最大延迟2069/2525ms。同期 JS 在30秒预算内只收到360448/262144字节，均未完成；HTTP 200不计下载成功。采样含观察开销及少量health请求，不当作无负载基准。
+
+Inspector 两次均确认关闭。之后不运行采样器或等价对照，只进行单个容器 loopback HTTP 下载：503927字节完整传输29553ms，首块3830ms，SHA256为484017837528e53f778648c4b37f05620f97c516901ba32fc72c87112e92584f；同文件直接读取2ms、字节及SHA相同。分块之间持续停顿，说明延迟在当前服务路径上存在，不能只归因于客户端网络或Inspector。
+
+代码与现场只读记录对应：当前8个 `arca.aftercare.conformance.observe@1` Event处于waiting_for_resource，另有1 pending、1 executing。每次conformance输入准备的CareBasis/InventoryRevision/KnownBindings/Standard/Placement五个Projection均独立调用完整 `ctx → reader.read`，重做评分候选、历史Settlement结果与摘要。Governor已有5秒有界preparationWait，容量释放可立即重读；未发现“完全没有等待抑制”，不能用永久跳过新鲜读取或任意增大等待时间冒充修复。当前候选anchor为provider_identity1558、subject_id12、title2826、title_year2821；Outbox10074条均acked，仍有全历史轮询，但本窗口不是最大热点。
+
+两项未保留的实验：改纯字符串memo FIFO淘汰、将normalized_exact查询值预先归一化为Set。使用同一只读事务的6个实际收藏目标比较完整Resolution Context及Rating，均保持完整输出等价；第二项old/new/new/old合计851/630/769/571ms，未证明稳定收益。第一项同样无稳定收益。两项源代码均已恢复，不将其列为已修复，也没有热补丁到生产进程。
+
+后续修复重点应放在Arca维护Projection的重复完整读取及其正式新鲜度范围。现有 `p15-aftercare-projection-source` 明确验证后续调用读取新事实；不能简单加跨调用缓存。需证明同次准备的读取一致性、下一次准备的新鲜性、CareBasis/Settlement完整性fence及Owner职责均保持，再以实际完整Host和完整JS下载验收。本轮完成热点定位，没有新增有效产品修复；UAT-318及整页1秒SLO继续开放。
+
+原始证据保存在ignored `.codex/console-response-current-20261016/`：两份profile及summary、current-counts、perception-equivalence、unprofiled-transfer；私有数据不入库。
+
+## 2026-10-16 多轮因果对照（UTC03:36–03:41）
+
+用户要求继续多次排查以确认根因。本轮不修改产品代码、不部署、不停止生产供给；追加8轮同容器传输对照、2份新CPU采样及3个真实目标的只读事务反事实测量。生产镜像/容器/RestartCount保持；诊断Inspector已关闭，临时loopback HTTP对照server随每个探针进程关闭。
+
+### 传输路径对照
+
+每轮在独立短生命Node进程内，以127.0.0.1随机端口和16KiB stream发送同一份JS；同时向正式18080请求同文件。两端均核对完整503927字节及既有SHA256，另测正式服务16KiB Range和health。对照不加载业务Host，验证的是同容器文件/网络/基本stream能力，不冒充同配置Fastify或完整Host修复资格。
+
+| 轮次 | 独立stream并发对照 ms | 正式JS ms | 正式16KiB Range ms | health ms |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 39 | 11537 | 473 | 646 |
+| 2 | 12 | 18968 | 807 | 459 |
+| 3 | 20 | 9859 | 19 | 2 |
+| 4 | 15 | 193 | 3 | 1 |
+| 5 | 14 | 7252 | 231 | 8 |
+| 6 | 12 | 7955 | 50 | 594 |
+| 7 | 21 | 13785 | 378 | 75 |
+| 8 | 33 | 22639 | 25 | 634 |
+
+第7/8轮与03:39:32新profile窗口部分重叠，不能当作无采样基线；第1–6轮没有Inspector采样。第4轮CPU tick增量25，其他慢轮增量679–1970，测量区间包含JS/Range/health，不能作为精确CPU百分比。单轮193ms没有修复或部署发生，不是问题解决的证据；完整JS多chunk延迟会累积，小响应快不能代表首开快。上述反复差异排除了“静态文件读取/容器网络本身固定要几十秒”这一解释，支持应用主线程繁忙造成回调延后。
+
+### 主导负载发生变化，推翻单一热点即可解决的假设
+
+03:31现场有8个conformance资源等待Event；03:37:28只读盘点中已无该组活动检查，最新health_assessment Work记录03:34:42 succeeded。不能把03:37:11那次快速下载直接等同该Work的精确完成瞬间。此后第5–8轮仍7–23秒，证明先前Aftercare重复context并非全部原因。
+
+03:39:32窗口12.63秒：Formation list inclusive3825ms、概览Collection overviewStats2945ms、周期Owner runRegistration3110ms；Perception候选路径仍在周期rating/watched resolution核对中出现。该窗口有其他传输探针并行，保留观察限制。
+
+03:40:27另一个独立采样窗口13.12秒：Formation list inclusive6524ms、currentFacts6036ms、progress-projection read4506ms；其中概览readFormation4103ms。profile同时观察到真实Formation HTTP请求，不能全算后台概览。event-loop max2131ms、完整JS13175ms。以上inclusive父子时间重叠，不能累加。Inspector确认关闭。
+
+代码机制与两种负载下的证据一致：
+
+- conformance准备5个Projection时，每个均独立调用完整Arca context，重复Perception候选与历史结果校验；资源等待期间仍需有界刷新，原5秒preparationWait已存在，不是完全缺少等待抑制。
+- 概览生产者默认5秒cadence，每轮readFormation分别调用active summary、attention、in-progress、completed四次list；active路径在当前配置触发完整activeSnapshot/currentFacts，重建进度与canonical输入。Collection overviewStats另以100项分页读取全部active收藏健康。yield位于批次/reader之间，不能中断一个内部同步长调用。
+- 当一次概览重建耗时超过cadence，当前tick以max(1,cadence-elapsed)安排下一轮，即几乎立即再次重建；周期Owner评分/已看状态核对、用户列表请求也占用同一Node主线程。多个高频读取的总开销与单次连续阻塞共同影响静态stream。
+
+### 重复读取的独立量化与限制
+
+在独立进程、同一个query_only只读SQLite事务内，对3个实际收藏目标调用真实Aftercare/Perception/WorkResult/ProductDelivery reader，按five/one/one/five顺序比较五个Projection所需字段。one仅在实验固定快照内重用一次context，不是产品补丁；完整输出digest相同。
+
+| 目标 | five / one / one / five ms | SQL prepare次数 five→one |
+| --- | --- | --- |
+| 0 | 1323 / 233 / 173 / 1173 | 180→36 |
+| 1 | 459 / 71 / 55 / 348 | 205→41 |
+| 2 | 363 / 54 / 72 / 301 | 205→41 |
+
+评分及历史Work读取均5→1，证明确有重复计算放大；不能据此声称可安全跨Event缓存、正式并发新鲜度已通过，或网页将等比例提速。生产facts/digest/fence保持，未进行热替换或数据修复。
+
+当前证据支持的根因是：业务查询/投影在HTTP同一主线程中执行高频、范围较大的同步读取及校验；同次准备/同轮概览重复计算进一步放大，使静态stream回调长时间得不到执行。Aftercare、Formation/概览和周期Perception核对是已实证的不同贡献路径，不能再把其中一个当作唯一根因。具体修复须分别验证各Owner读取范围、同次计算复用及每次执行新鲜性，随后用完整Host同负载对照验证，不能仅改慢轮询间隔、移除完整性检查或扩大缓存来宣称达标。
+
+本轮没有新增有效产品修复或发布；UAT-318继续开放。证据目录为ignored `.codex/uat318-causal-20261016/`，包含8轮传输、after-fast-counts、history、context-counterfactual及两份profile/summary；其中profile round-1/round-3的编号独立于传输round-N.json，不能混淆。
+
+## 2026-10-16 按多轮根因实施（进行中）
+
+用户明确授权修复并在多轮同负载验证真正改善、架构及数据正确性保持后部署。第一批只改变读取/投影计算边界：Foundation Binding准备生成不持久化的opaque preparationScope，每次prepare唯一，Arca Projection通过WeakMap只在该同步scope内复用完整context；Executor、Effect、Result、持久输入和业务事务不接收此对象。直接Projection调用未给scope时仍每次读取，重试/其他Event/后续prepare均重新校验，读取失败不缓存。Owner职责不转移。
+
+Libra新增同次overview组合读取，复用当前activeSnapshot而保留原summary/分类/完整DTO规则；后续overview重读。Arca概览健康页100缩为10，每页之间yield，保留完整最终汇总；概览完成后至少等待原cadence再开始下轮，保留generatedAt、age/stale和失败显式状态。没有全局业务缓存或跳过canonical/fence，也没有新增持久健康投影；是否需要进一步机制调整以完整Host实测为准。
+
+首批23项定向、172项恢复/资源Governor/维护副作用/Settlement/Formation回归通过；新增超cadence测试独立3项通过。完整Service及精确候选Linux/完整数据副本/多轮性能对照仍在执行，未部署。原生产3c镜像、RestartCount0与61GB可用磁盘已复核，NAS preflight记录在ignored `.codex/uat318-fix-20261016/`。

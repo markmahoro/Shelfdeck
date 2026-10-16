@@ -1,5 +1,9 @@
 # ShelfDeck 当前状态
 
+2026-10-16 UTC03:36–03:41 UAT-318多轮因果对照：8轮同容器独立stream为12–39ms，正式JS为193–22639ms；7/8轮部分重叠采样，不冒充纯基线。维护检查完成后仍慢，两个新profile转为Formation/概览及周期Perception主导；单一Aftercare去重不足以解决。3目标固定只读事务five/one/one/five证明重复上下文放大、完整输出等价，但不是正式新鲜度/Host修复资格。根因收敛为多条高频全量同步读取在HTTP主线程竞争；概览每轮四次Formation list、全收藏健康重建及超cadence紧接重建均有代码证据。无产品代码修改/部署，Inspector和短生命对照server已收口；UAT保持开放，详见原Evidence最新多轮对照节。
+
+2026-10-16 UTC03:27–03:33 UAT-318继续只读定位：生产3c3991fabe保持正常供给/RestartCount0；两份约14秒profile中Arca维护上下文读取占inclusive约69%/70%，conformance单次准备重复5次完整上下文。关闭Inspector后，503927字节JS同容器HTTP仍29553ms、直接读盘2ms且SHA一致。两项字符串优化实验完整输出等价但无稳定收益，均未保留；本轮无有效新修复/部署，下一步须解决重复读取并证明新鲜度及完整性fence。详见原UAT-318 Evidence最新节；整页性能仍未达标。
+
 2026-10-16 已按用户“先部署这次的修复升级”完成标准生产发布：`markmahoro/shelfdeck:3c3991fabe`（source `3c3991fabe29678a5a51793a98ace8f9a0b99124`），含四处执行读取、People分页及Arca当前Inventory修复。精确镜像Linux236、最新完整副本候选/旧版回退Host及历史保护通过；首个错误512MiB heap演练OOM与只读媒体错误如实保留。冷备份59文件aggregate `66e7392db520ad6c5b0e4e98a5c7e75fc27682a332452c938cc0149b01d5c1aa`，标准SHA/readiness/apply通过。UTC20:37:08正式Resume完成、running/normalSupplyAllowed=true、faulted=false、RestartCount0；560原收藏/Commit、两季Subject/Run/Workspace与物理身份、704,421不可变历史行及原Effect意图保持，无Reset/迁移/人工媒体处置。挂载/QSV/13无关容器/fnOS通过，已验UI资产hash保持。上线三轮15 API无错、概览均ready、JS3/3完整但仍20–25s，部分API超过1秒，UAT-318不关闭。启动公平投影同revision错误独立登记UAT-321，恢复完成前已消退、尚未修复。完整身份、备份、失败与验收限制见原[UAT-318发布Evidence](implementation/evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md#2026-10-16-本次读取修复发布资格)。以下较早段落为历史时点。
 
 2026-10-16 UAT-318 按用户要求再查10轮已完成：50 API无错，JS有8/10在30–35s预算未完成；overview有8/10 stale、age31–54s。新发现Arca健康投影仍展开旧Inventory/Material role，已本地按当前head/revision限定：560 Entry完整输出等价，Representation5203→560、Material role40660→4339，old/new/new/old1290/1017/918/1216ms；双平台相关各63及静态门禁通过。上架完整Package重建采样窗口累计6.056s为新增未修复热点，不删除完整性fence。生产仍dc7/正常供给/RestartCount0，Inspector closed；无新构建、上传或部署，不宣称整页SLO或UAT关闭。十轮明细与试验限制见原[UAT-318 Evidence](implementation/evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md)。

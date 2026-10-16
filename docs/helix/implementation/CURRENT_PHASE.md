@@ -1,5 +1,7 @@
 # 当前 Phase：JAV 首版发布与用户验收
 
+2026-10-16 UAT-318继续修复：用户授权按多轮根因方案实施，在架构边界与数据正确性保持、多轮性能验证通过后标准部署。当前实现限于一次同步Binding准备的临时read scope（Arca持有上下文，Foundation不持有业务事实）、单次Libra概览读取复用、Arca健康10项分页及概览完成后5秒间隔；没有跨Event缓存、Schema/Fact迁移或UI字段变更。已有恢复/资源/维护172项及首批定向23项通过；完整Service、生产同规模完整Host对照/历史保护与发布资格仍待完成，不把局部性能试验视为允许部署的证据。560原收藏和两季精确Run/Workspace继续保护，无Reset授权扩大。
+
 2026-10-16 UAT-318 本次读取修复已标准发布 `markmahoro/shelfdeck:3c3991fabe`。精确Linux236、最新完整一致副本候选及旧镜像使用后回退Host/正常Owner周期/不可变历史保护完成，冷备份及标准apply通过；错误低heap演练OOM、原进程checkpoint超时及隔离媒体失败均留证。正式Resume完成，health/running/供给正常、RestartCount0；560收藏及两季原Subject/Run/Workspace保持，无Reset。三轮15 API及3次完整JS通过，但JS仍20–25s、部分API超过1秒，UAT-318保持开放；启动公平投影时序问题新增UAT-321待修，不因供给恢复而关闭。继续使用原[Evidence](evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md#2026-10-16-本次读取修复发布资格)，不新建活动包；未重跑整季媒体生产E2E/Electron。
 
 2026-10-16 UAT-318 再查10轮已完成：50 API无错、JS8/10未在30–35s完整传输、overview8/10 stale。当前Inventory健康读取漏掉的Representation/Material role历史展开已在Arca本地限定head/revision，三范围完整输出相同，双平台各63及静态门禁通过；完整交付Package反复重建新增为未修复热点，微调decode试验不宣称提速。生产身份/供给保持，无新构建或部署；继续原UAT及原[Evidence](evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md)，不另建活动包、不关闭首开/一秒资格。

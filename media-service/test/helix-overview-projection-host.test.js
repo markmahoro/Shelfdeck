@@ -7,6 +7,20 @@ function inputs(extra={}){return {readMaterialFields:()=>({items:[],waitingAccep
   readCollectionStats:()=>({currentCount:0,monthNewCount:0,healthyCount:0,healthAttentionCount:0,recentOnDeck:[]}),
   readOffdeck:()=>({attentionCount:0}),...extra};}
 
+test('an over-budget overview waits a full cadence before starting its next sweep',async t=>{
+  t.mock.timers.enable({apis:['setTimeout']});
+  let at=100_000,reads=0;
+  const host=createOverviewProjectionHost(inputs({now:()=>at,cadenceMs:50,readCollectionStats:()=>{
+    reads++;at+=100;return {currentCount:reads,recentOnDeck:[]};
+  }}));
+  t.after(()=>host.stop());
+  await host.start();assert.equal(reads,1);
+  t.mock.timers.tick(49);await new Promise(resolve=>setImmediate(resolve));assert.equal(reads,1);
+  t.mock.timers.tick(1);
+  while(reads===1)await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(reads,2);
+});
+
 test('Overview reads keep the last complete generation during an overlapping rebuild and expose failure',async t=>{
   let at=100_000,reads=0,release=null,fail=false;
   const host=createOverviewProjectionHost(inputs({now:()=>at,cadenceMs:100_000,readCollectionStats:async()=>{

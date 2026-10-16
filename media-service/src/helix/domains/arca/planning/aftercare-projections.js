@@ -40,12 +40,18 @@ function sourceWork(parameters){return parameters.sourceWorkId||(parameters.depe
 function materializeResults(options,workId){return options.workResultReader.read(workId).filter((item)=>item.outcomeKind==='succeeded'&&item.capabilityRef===C.artifactMaterialize).map((item)=>item.result);}
 function createAftercareProjections(options){const reader=options.contextReader,controls=options.materialControlProjectionPort,controlScopeDigest=options.controlScopeDigest;
   if(!controls||typeof controls.getMaterialControlProjections!=='function'||typeof controlScopeDigest!=='function')throw new TypeError('Aftercare projections require the public Material Control projection port.');
-  function ctx(ownerScope){const c=reader.read(ownerScope.processId);if(!c){
+  const preparationContexts=new WeakMap();
+  function ctx(ownerScope,preparationScope){
+    const prior=preparationScope&&preparationContexts.get(preparationScope);
+    if(prior){if(prior.processId!==ownerScope.processId)throw new Error('Aftercare preparation scope changed its Process.');return prior.context;}
+    const c=reader.read(ownerScope.processId);if(!c){
     const current=reader.store.currentContext?.(ownerScope.processId);
     if(current?.entry&&['offdeck_in_progress','offdecked','deregistered'].includes(current.entry.status))
       throw executionInputSuperseded('Aftercare Shelf Entry is no longer active.');
     throw new Error('Aftercare projection cannot resolve current Shelf Entry.');
-  }return c;}
+  }
+    if(preparationScope)preparationContexts.set(preparationScope,{processId:ownerScope.processId,context:c});
+    return c;}
   function assessmentSet(c,parameters={}){const workId=parameters.workId;if(typeof workId!=='string'||!workId)throw new Error('Aftercare Assessment projection requires its exact Work ID.');const current=options.workResultReader.read(workId).filter((item)=>item.outcomeKind==='succeeded'&&[C.custody,C.presentation,C.conformance].includes(item.capabilityRef)&&!item.result?.memberScope).map((item)=>item.result),byKind=new Map(current.map((value)=>[value.evidenceKind.replace('arca_aftercare_',''),value]));if(!parameters.deep){for(const item of reader.store.history(c.shelfEntryId).assessments){if(item.careBasisDigest!==c.basis.digest||byKind.has(item.assessmentKind))continue;byKind.set(item.assessmentKind,{evidenceId:item.assessmentId,schemaRef:'helix://contracts/types/'+item.assessmentKind[0].toUpperCase()+item.assessmentKind.slice(1)+'AssessmentEvidence/v1',payloadDigest:item.evidenceDigest});}}
     if(current.some(item=>item.careBasisDigest!==c.basis.digest))throw executionInputSuperseded('Aftercare Assessment evidence belongs to an obsolete Care Basis.');
     const values=[...byKind.values()];if(values.length!==3)throw new Error('Aftercare professional Assessment set is incomplete.');const assessments=values.map((value)=>Object.freeze({objectId:value.evidenceId,revision:1,schemaRef:value.schemaRef,digest:value.payloadDigest,objectKind:'professional-assessment'})).sort((a,b)=>a.schemaRef.localeCompare(b.schemaRef)),assessmentSetDigest=canonicalDigest(assessments),base={schemaRef:'helix://contracts/domain-types/ProfessionalAssessmentsSharingOneCareBasis/v1',schemaVersion:1,objectId:workId+':professional-assessments',revision:1,careBasisDigest:c.basis.digest,assessments:Object.freeze(assessments),assessmentSetDigest};return withDigest(base);}
@@ -93,7 +99,7 @@ function createAftercareProjections(options){const reader=options.contextReader,
     [P.finalDecision,(c)=>placementRequest(c).finalInventoryDecision],[P.productHandles,(c)=>productHandles(c)],[P.stagedManifest,(_c,source)=>source],[P.finalBindings,(c,source)=>bindingSnapshot('final',c,source)],[P.targetBindings,(c,source)=>bindingSnapshot('target',c,source)],[P.disposition,(c)=>disposition(c)],
     [P.artifactOutput,(c,s,p)=>preparedOutput(c,s,p)],[P.mediaOutput,(c,s,p)=>preparedOutput(c,s,p)],[P.verifiedChange,(c,_s,p)=>verifiedChange(c,p)],[P.control,(c,_s,p)=>controlHandle(c,p)],[P.settlementHandles,(c,_s,p)=>settlementHandles(c,p)],[P.settlementApproval,(c,_s,p)=>settlementApproval(c,p)],[P.reassessed,(c,_s,p)=>reassessed(c,p)],[P.caseCommit,(c,_s,p)=>caseCommit(c,p)],[P.workspaceHandles,(c,_s,p)=>workspaceHandles(c,p)],[P.referenceEvidence,(c,_s,p)=>referenceEvidence(c,p)],
   ];
-  return Object.freeze(defs.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,sourceResult,parameters}){const c=ctx(ownerScope);return build(c,options.evidenceReader.resolveSource(sourceResult),parameters||{},ownerScope);}})})));
+  return Object.freeze(defs.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,preparationScope,sourceResult,parameters}){const c=ctx(ownerScope,preparationScope);return build(c,options.evidenceReader.resolveSource(sourceResult),parameters||{},ownerScope);}})})));
 }
 
 module.exports=Object.freeze({createAftercareProjections,resolvePreparedOutput});

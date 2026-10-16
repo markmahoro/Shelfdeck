@@ -51,6 +51,9 @@ function createEventExecutionInputProvider(options) {
 
   function resolveBindings(snapshot, bindingSet) {
     const namedInputs = {};
+    // Opaque, ephemeral identity for one synchronous binding preparation. Owners
+    // may reuse reads within it; it is never persisted or passed to Executors.
+    const preparationScope = Object.freeze({});
     const ownerScope = Object.freeze({
       ownerDomain: snapshot.work.owner_domain,
       processType: snapshot.work.process_type,
@@ -93,7 +96,7 @@ function createEventExecutionInputProvider(options) {
         const projection = options.bindingProjectionRegistry.resolve(binding.projectionRef);
         namedInputs[binding.portName] = projection.project(Object.freeze({
           sourceResults: Object.freeze(sources), parameters: Object.freeze(binding.parameters),
-          ownerScope,
+          ownerScope, preparationScope,
           targetEventId: snapshot.event.event_id,
         }));
         continue;
@@ -116,7 +119,7 @@ function createEventExecutionInputProvider(options) {
         const projection = options.bindingProjectionRegistry.resolve(binding.projectionRef);
         namedInputs[binding.portName] = projection.project(Object.freeze({
           sourceResults: Object.freeze(sources), parameters: Object.freeze(binding.parameters),
-          ownerScope,
+          ownerScope, preparationScope,
           sourceWorkId: binding.sourceWorkId, targetEventId: snapshot.event.event_id,
         }));
         continue;
@@ -133,7 +136,7 @@ function createEventExecutionInputProvider(options) {
         }
         const projection=options.bindingProjectionRegistry.resolve(binding.projectionRef);
         namedInputs[binding.portName]=projection.project(Object.freeze({parameters:Object.freeze(binding.parameters),
-          ownerScope,
+          ownerScope, preparationScope,
           targetEventId:snapshot.event.event_id}));
         continue;
       }
@@ -145,7 +148,7 @@ function createEventExecutionInputProvider(options) {
         const projection = options.bindingProjectionRegistry.resolve(binding.projectionRef);
         namedInputs[binding.portName] = projection.project(Object.freeze({
           sourceResult: Object.freeze(result), parameters: Object.freeze(binding.parameters),
-          ownerScope,
+          ownerScope, preparationScope,
           sourceEventId: binding.eventId, targetEventId: snapshot.event.event_id,
         }));
       } else namedInputs[binding.portName] = result;

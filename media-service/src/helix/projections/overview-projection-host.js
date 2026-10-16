@@ -33,9 +33,10 @@ function createOverviewProjectionHost(options) {
     try {await running;} finally {running=null;}
   }
   async function tick() {
-    const startedAt=now();
     await rebuild();
-    if(!stopped){timer=setTimeout(tick,Math.max(1,cadenceMs-(now()-startedAt)));timer.unref?.();}
+    // A slow rebuild must not immediately start another full sweep. Keep one
+    // complete cadence of idle time, while publishing actual snapshot age.
+    if(!stopped){timer=setTimeout(tick,cadenceMs);timer.unref?.();}
   }
   return Object.freeze({
     start(){if(!stopped)return running||Promise.resolve();stopped=false;return tick();},

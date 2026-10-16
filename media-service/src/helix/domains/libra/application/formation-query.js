@@ -988,7 +988,7 @@ function createFormationQuery(options) {
         return leftId < rightId ? -1 : leftId > rightId ? 1 : 0;
       });
   }
-  function list(query = {}) {
+  function list(query = {}, readScope = null) {
     const section = ['completed', 'ended'].includes(query.section) ? query.section : 'active', offset = parseCursor(query.cursor);
     const limit = Math.min(section === 'active' ? 25 : 100, Math.max(1, Number(query.limit) || 25));
     const state = options.state?.() || Object.freeze({ status: 'ready', asOfMs: now() });
@@ -1001,7 +1001,8 @@ function createFormationQuery(options) {
       })), summary:summary(), nextCursor:hasMore ? cursorFor(offset + limit) : null,
       projection:Object.freeze({ status:state.status, asOfMs:state.asOfMs }) });
     }
-    const attention = (options.listAcceptanceAttention?.(100) || []).map((item)=>options.store.findByOffer?.(item.offerId)).filter(Boolean);
+    const readAttention=()=> (options.listAcceptanceAttention?.(100) || []).map((item)=>options.store.findByOffer?.(item.offerId)).filter(Boolean);
+    const attention = readScope ? (readScope.attention ||= readAttention()) : readAttention();
     const attentionOffers = new Set(attention.map((item)=>item.current_offer_id));
     if (section === 'completed') {
       let rows = options.store.listCompleted(offset, limit + 1, query).filter((item)=>!attentionOffers.has(item.current_offer_id));
@@ -1023,7 +1024,7 @@ function createFormationQuery(options) {
     let changes = [];
     const requiresFullScan = Boolean(options.readPipelineSubjectIds || options.detailSource?.getMany) || hasActiveFilters(filters) || attention.length > 0;
     if (requiresFullScan) {
-      const snapshot = activeSnapshot(attention);
+      const snapshot = readScope ? (readScope.active ||= activeSnapshot(attention)) : activeSnapshot(attention);
       items = snapshot.items;
       changes = snapshot.changes;
       items = items.filter((item) => isVisibleActiveItem(item, admitted) && matchesActiveItem(item, filters));
@@ -1043,7 +1044,17 @@ function createFormationQuery(options) {
     if (!row) throw Object.assign(new Error('Media organization item was not found.'), { code: 'FORMATION_SUBJECT_NOT_FOUND' });
     return technicalIssue(projectionItem(row));
   }
-  return Object.freeze({ list, get });
+  function overview() {
+    // Share only this synchronous overview read. Each later request rebuilds
+    // current Owner facts; no business decisions survive in a global cache.
+    const scope={};
+    const value=list({section:'active',limit:1},scope);
+    return Object.freeze({summary:value.summary,
+      attentionItems:list({section:'active',classification:'attention_required',limit:5},scope).items,
+      inProgressItems:list({section:'active',classification:'in_progress',limit:5},scope).items,
+      completedItems:list({section:'completed',limit:5},scope).items});
+  }
+  return Object.freeze({ list:query=>list(query), get, overview });
 }
 
 module.exports = Object.freeze({
