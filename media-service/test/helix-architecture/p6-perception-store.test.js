@@ -580,6 +580,29 @@ test('exact candidate lookup avoids loading unrelated anchors and retains candid
   });
 });
 
+test('warm title transforms do not retain candidate membership across new Record commits',()=>{
+  fixture(({store})=>{
+    register(store);start(store);
+    const anchors=[{anchorKind:'title_year',anchorValue:'The Film - 1080p WEB-DL HEVC\0'+'2002',
+      confidenceClass:'medium',evidenceDigest:hash('warm-alias')}];
+    page(store,{records:[record('first-alias',{anchors})]});
+    const query={identityEvidence:[{anchorKind:'title',anchorValue:'the film'}]},
+      clause={anchorKind:'title',lookupMode:'normalized_exact',normalizationProfileRef:'unicode_nfkc_casefold',maxCandidates:256},
+      rule={candidateRetrievalClauses:[clause],maxCandidateRecords:256};
+    const before=store.readResolutionCandidates(query,rule);
+    assert.deepEqual(before.records.map(r=>r.perceptionId),['first-alias']);
+    register(store,'source-2');start(store,{perceptionAcquisitionId:'acquisition-2',perceptionSourceId:'source-2'});
+    page(store,{perceptionAcquisitionId:'acquisition-2',perceptionSourceId:'source-2',
+      acquisitionCommitReceiptId:'commit-2',commitMarker:'marker-2',records:[record('second-alias',{anchors,rating:1})]});
+    const after=store.readResolutionCandidates(query,rule);
+    assert.deepEqual(after.records.map(r=>r.perceptionId),['first-alias','second-alias']);
+    assert.deepEqual(after.records[0],before.records[0]);
+    assert.equal(after.records[1].rating,1);
+    assert.throws(()=>store.readResolutionCandidates(query,{...rule,candidateRetrievalClauses:[{...clause,maxCandidates:1}]}),
+      {code:'P6_PERCEPTION_CANDIDATE_CLAUSE_OVERFLOW'});
+  });
+});
+
 function resolutionBasis(anchor){
   const queryBody={queryContract:'perception.rating.resolve@1',queryVersion:1,
     querySchemaRef:'helix://contracts/domain-types/PerceptionResolutionQuery/v1',factKind:'rating',identityEvidence:[anchor]};

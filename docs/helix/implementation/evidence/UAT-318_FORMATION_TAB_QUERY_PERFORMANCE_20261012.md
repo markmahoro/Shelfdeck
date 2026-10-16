@@ -535,3 +535,17 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 - Arca定期Workspace生命周期检查先读取Case/Registry当前head，活动、已回收或保留期内状态不展开历史；真正回收仍走原完整审计、未决Effect/引用/producer/物理身份及双次观察围栏，不引入跨调用缓存或兼容逻辑。
 - collection overview仍每页最多10个完整health输入，以50ms计算预算或最多10页形成一个slice后让出事件循环。预算在页边界检查，单页自身仍可能超预算，不能宣称硬50ms延迟上界。聚合字段、分页顺序、真实generatedAt及30秒stale阈值保持。
 - Windows完整Service647 pass/29既有skip，受影响44项通过，包括2000条已ACK历史不被物化、活动→终态重新审计/未决Effect阻止回收、4000收藏完整聚合与页/slice上限。NAS当前版本与候选的同完整副本正常周期对照、精确镜像、历史保护与使用后回退仍待验证；没有新增部署资格。
+
+
+### 2026-10-16 d61b91a1df 后续候选未达性能门禁
+
+- 实现 source d61b91a1df7e65b0713d95d19439e15e5d004cb8；实际镜像 Linux 44项通过，Windows完整Service647 pass/29既有skip，2357运行文件与源码匹配。候选仅上传/隔离运行，生产保持bfd97f36a，未执行新apply或Reset。
+- 同568收藏冻结副本、2 CPU/3GiB/heap2GiB、正常Owner周期，旧/新各20轮且每轮间隔10秒；各100 API/20 JS完整hash正确。旧→新：概览stale 5/20→7/20，age P95 36.377→68.111秒、候选max74.245秒；API P95 1.208→3.395秒，JS中位0.823→1.917秒、P95 2.452→8.454秒。首组候选10轮均ready不能代表持续达标；明确拒绝部署，不调整30秒阈值或验收门槛。
+- 两Host均正常停止Exit0；61不可变表706253旧行、568收藏、所有Effect意图和两条精确Run保持。旧版核验首轮因读取迭代器未关闭导致db.close失败，修正核验脚本后重跑通过；不将首次失败计PASS。候选使用后回退尚未进行，性能不合格不进入发布流程。
+- 完整概览等价核验补齐实际batch Perception评分依赖后旧/新输出一致：568/healthy553/attention2，digest 6633ceccb0307af67026ed97744f8f8742a9e530930269cdea81b6138cbb6e4e；3目标×5组Arca投影digest 2b87cb074d0f4f4e5eda485295b18a3990f6fd461e3b44fe2c30c90d1aee6e0c。旧缺依赖fixture单独保留，不称其为完整健康结果验证。
+- 隔离候选两次12秒CPU采样event-loop max2441/1276ms，持续热点包含Perception全量标题别名计算与Arca健康输入；Inspector已关闭。同期NAS CPU压力明显，生产仍共享资源，不能把非锁步运行差异全部归因于代码回归，也不能据此忽略失败。
+- 继续在Perception原Owner内验证有界纯字符串别名转换复用；每次仍查询当前候选/Records/Relations，所有digest/候选上限和冲突规则保持。30项专项已通过，新Record加入后相同标题查询可见新候选、超限仍拒绝；同完整副本逐查询等价与性能尚待。没有缓存业务事实或跨域Store。
+- 原始私有证据位于忽略目录 .codex/uat318-overview-release-20261016，包括20轮旧/新采样、performance-qualification、history、equivalence与candidate-profiles；完整架构测试仍运行，不宣称全量PASS。
+
+- 后续局部实验：同568冻结副本100个实际历史标题Query×3轮，完整Assembler输出digest均为28896eca8b8a6a95f7713573d8dc5595ed4adc123df8ee553a4025a34b4fc536；纯别名转换复用前5599/5065/5194ms，后4956/4491/4449ms。仅为局部收益，不能替代Host资格。每类纯转换缓存最多8192项、输入≤512字符、最多16别名，长输入不缓存；新Record/关系仍每次从Owner读取，不缓存候选集合。
+- 下轮将概览计算片段预算调整为200ms、仍最多10页/每页10项；重负载下50ms常使一页后便等待其他Owner一轮，不能稳定降低57页的交错等待。预算依然在页边界检查，非硬200ms上界。4000项完整聚合及模拟110ms慢页在最多2页后让出通过；API长尾必须继续独立验收，不能用更长片段换取隐蔽响应退化。新完整副本资格根目录uat318-release-20261016T073532-slices，未部署。

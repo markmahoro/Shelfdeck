@@ -5,6 +5,18 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const RULE_REVISION = 3;
 const aliasNormalizationCache = new Map();
 const NORMALIZATION_CACHE_LIMIT = 8192;
+const titleAliasCache = new Map();
+const associationAliasCache = new Map();
+
+function rememberAliases(cache, key, value) {
+  // Only immutable string transforms belong here. Records, candidate sets and
+  // Resolution decisions must still be read and checked on every invocation.
+  if (key !== null) {
+    if (cache.size >= NORMALIZATION_CACHE_LIMIT) cache.delete(cache.keys().next().value);
+    cache.set(key, value);
+  }
+  return value;
+}
 const TECHNICAL_TOKEN = /(?:^|[\s._-])(?:2160p|1080p|720p|480p|4k|uhd|bluray|blu-ray|remux|web[- .]?dl|webrip|hdtv|x26[45]|h\.?26[45]|hevc|avc|hdr10\+?|dolby[ .]?vision|dv|atmos|truehd|dts(?:-hd)?|aac|flac)(?:$|[\s._-])/iu;
 
 function normalizeAlias(value) {
@@ -43,7 +55,10 @@ function stripReleaseSuffix(title) {
 }
 
 function titleAliases(title, { providerDelimited = false, stripTechnical = false } = {}) {
-  const source = String(title || '').normalize('NFKC').trim();
+  const input = String(title || '');
+  const key = input.length <= 512 ? JSON.stringify([Boolean(providerDelimited), Boolean(stripTechnical), input]) : null;
+  if (key !== null && titleAliasCache.has(key)) return titleAliasCache.get(key);
+  const source = input.normalize('NFKC').trim();
   const values = providerDelimited ? source.split(/\s+[\/／]\s+/u) : [source];
   const result = new Map();
   for (const raw of values) {
@@ -52,17 +67,20 @@ function titleAliases(title, { providerDelimited = false, stripTechnical = false
       if (normalized) result.set(normalized, candidate.trim());
     }
   }
-  return Object.freeze([...result.values()].slice(0, 16));
+  return rememberAliases(titleAliasCache, key, Object.freeze([...result.values()].slice(0, 16)));
 }
 
 function titleAssociationAliases(title, { providerDelimited = false } = {}) {
+  const input = String(title || '');
+  const key = input.length <= 512 ? JSON.stringify([Boolean(providerDelimited), input]) : null;
+  if (key !== null && associationAliasCache.has(key)) return associationAliasCache.get(key);
   const result = new Map();
-  for (const alias of titleAliases(title, { providerDelimited })) {
+  for (const alias of titleAliases(input, { providerDelimited })) {
     const associationTitle = stripReleaseSuffix(alias);
     const normalized = normalizeAlias(associationTitle);
     if (normalized) result.set(normalized, associationTitle);
   }
-  return Object.freeze([...result.values()].slice(0, 16));
+  return rememberAliases(associationAliasCache, key, Object.freeze([...result.values()].slice(0, 16)));
 }
 
 function deriveTitleYearEvidence(anchorValue, options = {}) {

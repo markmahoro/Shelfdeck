@@ -49,6 +49,24 @@ test('Overview aggregates 4000 SQLite entries in bounded health pages without lo
   assert.ok(!reads.some(row=>['list_entry_index','list_entries','list_all_facts'].includes(row.statement)));
   assert.equal(reads.filter(row=>row.statement==='overview_entries').length,401);
   assert.ok(reads.filter(row=>row.statement==='overview_entries').every(row=>row.rows<=10));
+  // Slow pages must hit the elapsed-work bound before the page-count bound.
+  // Advance a monotonic test clock instead of burning CPU or relying on load.
+  const originalNow=Object.getOwnPropertyDescriptor(performance,'now');
+  let elapsed=0,slowPages=0,slowMaxPages=0,slowFinished=false;
+  const slowHeartbeat=()=>{if(slowFinished)return;slowMaxPages=Math.max(slowMaxPages,slowPages);slowPages=0;setImmediate(slowHeartbeat);};
+  Object.defineProperty(performance,'now',{configurable:true,value:()=>elapsed});
+  try{
+    setImmediate(slowHeartbeat);
+    const slowQuery=createArcaCollectionQuery({...dependencies,posterReader:async()=>null,healthReaderMany(ids){
+      elapsed+=110;slowPages+=1;
+      return new Map(ids.map(id=>[id,{state:Number(id.slice(-4))%2?'healthy':'attention_required'}]));
+    }});
+    assert.deepEqual(await slowQuery.overviewStats(Date.UTC(2026,8,9)),result);
+    assert.ok(slowMaxPages>0&&slowMaxPages<=2,'Slow pages must yield at the time budget, without dropping entries.');
+  }finally{
+    slowFinished=true;
+    if(originalNow)Object.defineProperty(performance,'now',originalNow);else delete performance.now;
+  }
   reads.length=0;
   assert.deepEqual(createOffdeckEntryQuery(dependencies).overviewStats(),{attentionCount:4000});
   assert.deepEqual(reads.map(row=>row.statement),['candidate_counts']);reads.length=0;
