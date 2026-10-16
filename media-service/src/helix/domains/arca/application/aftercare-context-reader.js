@@ -70,7 +70,26 @@ function createAftercareContextReader(options){const store=options.aftercareStor
     const standard=sealed('helix://contracts/domain-types/Standard/v1',raw.shelf.shelf_id+':standard',raw.shelf.current_standard_revision,{standardId:raw.shelf.shelf_id,standardRevision:raw.shelf.current_standard_revision,standardDigest:raw.standard.standard_digest});
     const placement=sealed('helix://contracts/domain-types/Placement/v1',shelfEntryId+':placement',raw.shelf.current_placement_revision,{shelfEntryId,placementRevision:raw.shelf.current_placement_revision,targetEndpointId:raw.shelf.target_endpoint_id,placementDigest:raw.placement.policy_digest});
     return Object.freeze({shelfEntryId,originalRequirements:originalRequirements([{shelfEntryId,acceptedPackageReference:raw.acceptedPackageReference,authorizedDefectManifest:defectManifest(raw.facts)}]).get(shelfEntryId),defectAuthorization:store.defectStore.current(shelfEntryId),raw:Object.freeze({...raw,perceptionRating}),basis,knownBindings,inventoryRevision,metadataRefs,standard,placement,authorizedDefectManifest:defectManifest(raw.facts)});}
-  function healthProjectionInputs(shelfEntryIds){const items=store.healthProjectionInputs(shelfEntryIds),originals=originalRequirements(items),authorizations=store.defectStore.currentMany(shelfEntryIds),ratingTargets=items.filter((item)=>usesRatingDecision(item.standardValue,item.structureKind,item.canonicalIdentity)).map(normalizedRatingTarget),ratings=ratingTargets.length&&typeof options.readPerceptionRatings==='function'?options.readPerceptionRatings(ratingTargets):new Map();return items.map((item)=>{const relevant=usesRatingDecision(item.standardValue,item.structureKind,item.canonicalIdentity),rating=ratings.get(item.shelfEntryId),digests=relevant?[...item.decisionFactDigests,...(rating?.state==='ready'&&rating.resolutionDigest?[rating.resolutionDigest]:[])]:[];return Object.freeze({shelfEntryId:item.shelfEntryId,originalRequirements:originals.get(item.shelfEntryId),materialRoles:item.materialRoles,defectAuthorization:authorizations.get(item.shelfEntryId)||null,effectiveRequirements:effectiveRequirements({raw:{identity:item.canonicalIdentity,entry:{structure_kind:item.structureKind},standard:{value:item.standardValue},facts:item.decisionFacts||[],perceptionRating:rating}}),incidentResourceHints:item.incidentResourceHints,authorizedDefectManifest:item.authorizedDefectManifest,basis:careBasis(item.shelfEntryId,item.inventoryRevision,item.standardRevision,item.placementRevision,item.canonicalIdentityDigest,item.sourcePackageId,item.factDigests,digests),history:item.history});});}
+  function healthProjectionInputs(shelfEntryIds){
+    const items=store.healthProjectionInputs(shelfEntryIds,{includeAssessments:false}),originals=originalRequirements(items),
+      authorizations=store.defectStore.currentMany(shelfEntryIds),
+      ratingTargets=items.filter(item=>usesRatingDecision(item.standardValue,item.structureKind,item.canonicalIdentity)).map(normalizedRatingTarget),
+      ratings=ratingTargets.length&&typeof options.readPerceptionRatings==='function'?options.readPerceptionRatings(ratingTargets):new Map();
+    const contexts=items.map(item=>{
+      const relevant=usesRatingDecision(item.standardValue,item.structureKind,item.canonicalIdentity),rating=ratings.get(item.shelfEntryId),
+        digests=relevant?[...item.decisionFactDigests,...(rating?.state==='ready'&&rating.resolutionDigest?[rating.resolutionDigest]:[])]:[];
+      return {shelfEntryId:item.shelfEntryId,originalRequirements:originals.get(item.shelfEntryId),materialRoles:item.materialRoles,
+        defectAuthorization:authorizations.get(item.shelfEntryId)||null,
+        effectiveRequirements:effectiveRequirements({raw:{identity:item.canonicalIdentity,entry:{structure_kind:item.structureKind},standard:{value:item.standardValue},facts:item.decisionFacts||[],perceptionRating:rating}}),
+        incidentResourceHints:item.incidentResourceHints,authorizedDefectManifest:item.authorizedDefectManifest,
+        basis:careBasis(item.shelfEntryId,item.inventoryRevision,item.standardRevision,item.placementRevision,item.canonicalIdentityDigest,item.sourcePackageId,item.factDigests,digests),history:item.history};
+    });
+    const histories=store.healthAssessmentHistory(contexts.map((context,index)=>({
+      shelfEntryId:context.shelfEntryId,careBasisDigest:context.basis.digest,
+      inventoryRevision:context.basis.inventoryRevision,standardRevision:context.basis.standardRevision,
+      placementRevision:context.basis.placementRevision,canonicalIdentityRevision:Number(items[index].canonicalIdentity.revision)})));
+    return contexts.map(context=>Object.freeze({...context,history:Object.freeze({...context.history,...histories.get(context.shelfEntryId)})}));
+  }
   return Object.freeze({store,read,
     sourceTargetBinding:(shelfEntryId,material)=>store.sourceTargetBinding(shelfEntryId,material),
     inventoryMaterials:(shelfEntryId,inventoryRevision)=>store.inventoryMaterials(shelfEntryId,inventoryRevision),

@@ -253,6 +253,10 @@ function createPerceptionStore(options) {
             : repo.invoke('find_anchors_by_kind',{anchor_kind:clause.anchorKind});
         const normalizedEvidence=['title','title_year'].includes(clause.anchorKind)
           ?new Set(evidence.map(item=>normalizeAlias(item.anchorValue))):null;
+        // Normalize query evidence once per clause, not once per candidate pair.
+        // This set exists only for this read; Record membership is never cached.
+        const normalizedMatchValues=clause.anchorKind!=='title_year'&&clause.lookupMode==='normalized_exact'&&candidates.length
+          ?new Set(evidence.map(item=>normalizeAnchor(item.anchorValue,clause.normalizationProfileRef))):null;
         const matches=candidates.filter((anchor)=>{
           if(clause.anchorKind==='title'&&anchor.anchor_kind==='title_year'){
             const parsed=splitTitleYear(anchor.anchor_value),title=parsed?parsed.title:String(anchor.anchor_value||'');
@@ -261,6 +265,7 @@ function createPerceptionStore(options) {
             return titleAssociationAliases(title,{providerDelimited:true})
               .some(alias=>normalizedEvidence.has(normalizeAlias(alias)));
           }
+          if(normalizedMatchValues)return normalizedMatchValues.has(normalizeAnchor(anchor.anchor_value,clause.normalizationProfileRef));
           if(clause.anchorKind!=='title_year')return evidence.some((item)=>anchorValuesMatch(item.anchorValue,anchor.anchor_value,clause.lookupMode,clause.normalizationProfileRef,clause.threshold));
           const parsed=splitTitleYear(anchor.anchor_value);
           return Boolean(parsed&&titleAliases(parsed.title,{providerDelimited:true})

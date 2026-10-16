@@ -1,5 +1,7 @@
 # 当前 Phase：JAV 首版发布与用户验收
 
+2026-10-16 UAT-318候选161af9810旧/新各20轮完成，未部署：概览stale从5/20降到0/20、age P95 33.104→21.843秒，JS中位2.188→1.318秒/P95 5.867→3.746秒，但API P95 1.063→1.766秒，未通过不退化门禁。继续在Arca Owner内按实际Care Basis读取健康评估，保留完整历史/Case/Commit并校验当前head；概览片段恢复50ms，Perception仅复用本次clause的纯归一化值。冻结568收藏三轮健康输出digest一致，评估18896→1677，耗时约下降22%–29%；正式Host资格待测，生产仍bfd97f36a。
+
 2026-10-16 UAT-318候选d61b91a1df未通过多轮门禁，未部署：同568收藏副本旧/新各20轮，候选7/20概览stale、max74.245秒，API P95 3.395秒、JS P95 8.454秒；两Host历史/Effect/两季Run保护通过。首组改善未持续，继续定位Perception别名转换与Arca健康读取成本，保留全部失败证据和原阈值。生产保持bfd97f36a，无Reset；详见原UAT-318 Evidence。
 
 2026-10-16 UAT-318本轮已标准部署 `markmahoro/shelfdeck:bfd97f36a`：保留Owner边界与全部恢复校验，修复准备/概览重复读取、Effect历史全量读取和Admin静态传输回调放大。最终完整副本20轮100 API成功、JS中位491ms/P95 5.35s、0超时；使用后旧版回退与历史保护通过。生产上线10轮50 API成功、JS10/10完整，中位883ms/最大1.98s；概览仍4/10 stale（32–42秒），1秒整页目标未达标，UAT-318开放。Windows647 pass/29既有skip、最终Linux139通过；568收藏、706253不可变历史行、所有原Effect意图及两季精确Run/Subject/Workspace保持，无Reset/迁移/人工媒体处置。UTC05:37 health/running/normalSupplyAllowed正常、RestartCount0；UAT-321恢复期133次告警仍未修复。57/59伴随文件字节/身份保持，其余为正式operator intent和有FFmpeg现场证据的活动producer临时文件。完整身份、备份、失败、数据核验与验收限制见原UAT-318 Evidence最新节；以下为历史时点。

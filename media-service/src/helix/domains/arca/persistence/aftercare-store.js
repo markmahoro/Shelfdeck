@@ -70,6 +70,7 @@ function createAftercareStore(options) {
     insert_inventory_commit:{kind:'insert',tableId:'arca_aftercare_inventory_commits',columns:['inventory_commit_id','aftercare_case_id','shelf_entry_id','previous_inventory_revision','new_inventory_revision','control_change_digest','commit_digest','committed_at_ms']},
     find_inventory_commit:{kind:'select-one',tableId:'arca_aftercare_inventory_commits',columns:['inventory_commit_id','aftercare_case_id','shelf_entry_id','previous_inventory_revision','new_inventory_revision','control_change_digest','commit_digest','committed_at_ms'],keyColumns:['aftercare_case_id','new_inventory_revision'],safeIntegers:true},
     list_assessments:{kind:'select-all',tableId:'arca_aftercare_assessments',columns:['assessment_id','shelf_entry_id','inventory_revision','standard_revision','placement_revision','decision_fact_set_digest','care_basis_digest','assessment_kind','result','incident_key','evidence_digest','assessed_at_ms'],keyColumns:['shelf_entry_id'],safeIntegers:true},
+    list_basis_assessments:{kind:'select-all',tableId:'arca_aftercare_assessments',columns:['assessment_id','shelf_entry_id','inventory_revision','standard_revision','placement_revision','decision_fact_set_digest','care_basis_digest','assessment_kind','result','incident_key','evidence_digest','assessed_at_ms'],keyColumns:['shelf_entry_id','care_basis_digest'],safeIntegers:true},
     list_all_assessments:{kind:'select-all',tableId:'arca_aftercare_assessments',columns:['assessment_id','shelf_entry_id','inventory_revision','standard_revision','placement_revision','decision_fact_set_digest','care_basis_digest','assessment_kind','result','incident_key','evidence_digest','assessed_at_ms'],keyColumns:[],safeIntegers:true},
     find_assessments:{kind:'select-in',tableId:'arca_aftercare_assessments',keyColumn:'shelf_entry_id',maxItems:500,columns:['assessment_id','shelf_entry_id','inventory_revision','standard_revision','placement_revision','decision_fact_set_digest','care_basis_digest','assessment_kind','result','incident_key','evidence_digest','assessed_at_ms'],safeIntegers:true},
     find_assessment:{kind:'select-one',tableId:'arca_aftercare_assessments',columns:['assessment_id','shelf_entry_id','inventory_revision','standard_revision','placement_revision','decision_fact_set_digest','care_basis_digest','assessment_kind','result','incident_key','evidence_digest','assessed_at_ms'],keyColumns:['shelf_entry_id','care_basis_digest','assessment_kind'],safeIntegers:true},
@@ -273,13 +274,35 @@ function createAftercareStore(options) {
     participants.push({participantId:'arca_aftercare_inventory_foundation',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId);repo.invoke('insert_result',{result_id:binding.resultId,event_id:binding.eventId,outcome_kind:binding.outcomeKind,result_schema_ref:binding.resultSchemaRef,result_json:resultJson,result_digest:resultDigest,evidence_schema_ref:binding.evidenceSchemaRef,evidence_json:evidenceJson,evidence_digest:evidenceDigest,effect_receipt_id:binding.effectReceiptId,committed_at_ms:at});repo.invoke('insert_marker',{commit_marker:effectReceipt.commitMarker,effect_id:effectReceipt.effectId,owner_domain:'arca',scope_type:'shelf_entry',scope_id:value.shelfEntryId,commit_digest:effectReceipt.verificationEvidenceDigest,result_id:binding.resultId,result_schema_ref:binding.resultSchemaRef,result_digest:resultDigest,committed_at_ms:effectReceipt.committedAtMs});}});options.unitOfWork.execute(participants);return Object.freeze({inventory_commit_id:commitId,aftercare_case_id:value.aftercareCaseId,shelf_entry_id:value.shelfEntryId,previous_inventory_revision:previous,new_inventory_revision:next,control_change_digest:value.controlChangeDigest,commit_digest:commitDigest,committed_at_ms:at,previousInventoryRevision:previous,newInventoryRevision:next});}
   function history(shelfEntryId){return read((context)=>{const repo=context.repository(arca.repositoryId),assessments=repo.invoke('list_assessments',{shelf_entry_id:shelfEntryId}).map(mapAssessment).sort((a,b)=>b.assessedAtMs-a.assessedAtMs),ids=assessments.map((x)=>x.assessmentId),findings=selectMany(repo,'find_findings',ids).map(mapFinding).sort((a,b)=>b.createdAtMs-a.createdAtMs),cases=repo.invoke('list_cases',{shelf_entry_id:shelfEntryId}).map(mapCase).map((item)=>Object.freeze({...item,basisInputs:Object.freeze(repo.invoke('list_basis',{aftercare_case_id:item.aftercareCaseId}).map((row)=>Object.freeze({inputKind:row.input_kind,ownerDomain:row.owner_domain,aggregateType:row.aggregate_type,aggregateId:row.aggregate_id,revision:Number(row.revision),inputDigest:row.input_digest})))})).sort((a,b)=>b.createdAtMs-a.createdAtMs),commits=repo.invoke('list_commits',{shelf_entry_id:shelfEntryId}).map((x)=>Object.freeze({inventoryCommitId:x.inventory_commit_id,aftercareCaseId:x.aftercare_case_id,previousInventoryRevision:Number(x.previous_inventory_revision),newInventoryRevision:Number(x.new_inventory_revision),controlChangeDigest:x.control_change_digest,commitDigest:x.commit_digest,committedAtMs:Number(x.committed_at_ms)}));return Object.freeze({assessments:Object.freeze(assessments),findings:Object.freeze(findings),cases:Object.freeze(cases),commits:Object.freeze(commits)});});}
   function selectMany(repo,statement,values){const unique=[...new Set(values)].filter(Boolean).sort(),rows=[];for(let offset=0;offset<unique.length;offset+=500)rows.push(...repo.invoke(statement,{values:unique.slice(offset,offset+500)}));return rows;}
-  function healthProjectionInputs(shelfEntryIds){
+  // The application resolves the current Care Basis, including live Perception
+  // decisions. Read only that basis through Arca's own repository. Full history
+  // remains available to detail and maintenance; no persisted history is removed.
+  function healthAssessmentHistory(scopes){return read(context=>{
+    const repo=context.repository(arca.repositoryId),entries=new Map(selectMany(repo,'find_entries',scopes.map(item=>item.shelfEntryId)).map(row=>[row.shelf_entry_id,row])),
+      shelves=new Map(selectMany(repo,'find_shelves',[...entries.values()].map(row=>row.shelf_id)).map(row=>[row.shelf_id,row])),result=new Map();
+    for(const scope of scopes){
+      const entry=entries.get(scope.shelfEntryId),shelf=entry&&shelves.get(entry.shelf_id);
+      if(!entry||entry.status!=='active'||!shelf||Number(entry.current_inventory_revision)!==scope.inventoryRevision||
+        Number(entry.canonical_identity_revision)!==scope.canonicalIdentityRevision||
+        Number(shelf.current_standard_revision)!==scope.standardRevision||Number(shelf.current_placement_revision)!==scope.placementRevision)
+        fail('ARCA_AFTERCARE_HEALTH_BASIS_STALE','Arca heads changed while resolving the health projection basis.');
+      const assessments=repo.invoke('list_basis_assessments',{shelf_entry_id:scope.shelfEntryId,care_basis_digest:scope.careBasisDigest})
+        .map(mapAssessment).sort((a,b)=>b.assessedAtMs-a.assessedAtMs);
+      result.set(scope.shelfEntryId,{assessments:Object.freeze(assessments),findings:[]});
+    }
+    const byAssessment=new Map([...result.values()].flatMap(item=>item.assessments.map(assessment=>[assessment.assessmentId,item])));
+    for(const row of selectMany(repo,'find_findings',[...byAssessment.keys()]))byAssessment.get(row.assessment_id).findings.push(mapFinding(row));
+    for(const [id,item] of result)result.set(id,Object.freeze({...item,findings:Object.freeze(item.findings.sort((a,b)=>b.createdAtMs-a.createdAtMs))}));
+    return result;
+  });}
+  function healthProjectionInputs(shelfEntryIds,{includeAssessments=true}={}){
     const wanted=new Set(shelfEntryIds);if(!wanted.size)return Object.freeze([]);
     return read((context)=>{const repo=context.repository(arca.repositoryId),ids=[...wanted].sort(),entries=selectMany(repo,'find_entries',ids).filter((row)=>row.status==='active'),shelfIds=entries.map((row)=>row.shelf_id),shelves=new Map(selectMany(repo,'find_shelves',shelfIds).map((row)=>[row.shelf_id,row])),standards=new Map(selectMany(repo,'find_standards',shelfIds).map((row)=>[row.shelf_id+':'+Number(row.revision),row])),identities=new Map(selectMany(repo,'find_identities',ids).map((row)=>[row.shelf_entry_id+':'+Number(row.revision),row])),inventories=new Map(),materialRoles=new Map(),factsByEntry=new Map(),assessmentsByEntry=new Map(),findingsByAssessment=new Map(),casesByEntry=new Map();
       const entriesByInventoryRevision=new Map();
       for(const entry of entries){const revision=Number(entry.current_inventory_revision),members=entriesByInventoryRevision.get(revision)||[];members.push(entry.shelf_entry_id);entriesByInventoryRevision.set(revision,members);}
-      // These inputs describe the same current Inventory head. Assessment and
-      // Case history below keeps its separate, complete health-history scope.
+      // These inputs describe the same current Inventory head. Cases and
+      // Commits remain complete; the application can resolve Assessments later
+      // against the live Care Basis without loading unrelated history here.
       for(const [inventory_revision,members] of entriesByInventoryRevision){
         for(let offset=0;offset<members.length;offset+=500){
           const values=members.slice(offset,offset+500);
@@ -291,7 +314,7 @@ function createAftercareStore(options) {
           for(const row of repo.invoke('find_revision_facts',{inventory_revision,values})){const list=factsByEntry.get(row.shelf_entry_id)||[];list.push(row);factsByEntry.set(row.shelf_entry_id,list);}
         }
       }
-      for(const row of selectMany(repo,'find_assessments',ids).map(mapAssessment)){const list=assessmentsByEntry.get(row.shelfEntryId)||[];list.push(row);assessmentsByEntry.set(row.shelfEntryId,list);}
+      for(const row of (includeAssessments?selectMany(repo,'find_assessments',ids):[]).map(mapAssessment)){const list=assessmentsByEntry.get(row.shelfEntryId)||[];list.push(row);assessmentsByEntry.set(row.shelfEntryId,list);}
       const assessmentIds=new Set([...assessmentsByEntry.values()].flat().map((row)=>row.assessmentId));
       for(const raw of selectMany(repo,'find_findings',[...assessmentIds])){const row=mapFinding(raw),list=findingsByAssessment.get(row.assessmentId)||[];list.push(row);findingsByAssessment.set(row.assessmentId,list);}
       for(const row of selectMany(repo,'find_cases',ids).map(mapCase)){const list=casesByEntry.get(row.shelfEntryId)||[];list.push(row);casesByEntry.set(row.shelfEntryId,list);}
@@ -331,7 +354,7 @@ function createAftercareStore(options) {
     refreshInventoryPersonRecords:createPersonRecordRefreshStore(options,arca).commit,
     listWorkCases:careWork.list,
     getSettlementApproval,issueSettlementApproval,consumeSettlementApproval,staleSettlementApprovals,
-    commitInventory,history,healthProjectionInputs,listEntryPage,
+    commitInventory,history,healthProjectionInputs,healthAssessmentHistory,listEntryPage,
     ensureAftercareWorkspace:(caseId)=>workspaceStore.ensureWorkspace(caseId),
     aftercareWorkspaceLocation:(workspaceId,relativePath)=>workspaceStore.workspaceLocation(workspaceId,relativePath),
     aftercareWorkspaceRelativePath:(workspaceId,location)=>workspaceStore.workspaceRelativePath(workspaceId,location),

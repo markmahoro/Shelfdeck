@@ -13,6 +13,7 @@ const { createArcaCareApplication } = require('../../src/helix/domains/arca/appl
 const { createArcaCollectionQuery } = require('../../src/helix/domains/arca/application/collection-query');
 const { createAftercareStore } = require('../../src/helix/domains/arca/persistence/aftercare-store');
 const { createAftercareContextReader } = require('../../src/helix/domains/arca/application/aftercare-context-reader');
+const { projectHealth } = require('../../src/helix/domains/arca/model/aftercare-contract');
 const { LibraExecutionRegistration } = require('../../src/helix/domains/libra/public');
 const { createCircuitBreaker } = require('../../src/helix/foundation/diagnostics/pressure-guard');
 const { createExecutorIncidentRegistry } = require('../../src/helix/foundation/execution/executor-incident-registry');
@@ -76,6 +77,52 @@ function insertEntries(seed, count) {
   return Array.from({ length:count }, (_, index) => 'entry-' + String(index).padStart(5, '0'));
 }
 
+test('health reads exact live Care Basis, retains full history, and rejects changed Arca heads',()=>{
+  sqliteFixture('uat318-current-care-basis-',({root,unitOfWork,seed,sqlTrace})=>{
+    insertShelf(seed);const [id]=insertEntries(seed,1);
+    seed.prepare('UPDATE arca_shelf_entries SET structure_kind=?').run('single');
+    seed.prepare('UPDATE arca_canonical_identity_revisions SET identity_kind=?').run('tmdb_movie');
+    seed.prepare('UPDATE arca_shelf_standard_revisions SET standard_json=?').run(JSON.stringify({profileRuleSets:[{contentProfile:'movie',decisionInputKinds:['rating']}]}));
+    let ratingDigest=digest('first-rating');const returned=[];
+    const measured={execute(parts){return unitOfWork.execute(parts.map(part=>({...part,execute(context){return part.execute({...context,
+      repository(repositoryId){const repo=context.repository(repositoryId);return {...repo,invoke(name,params){const value=repo.invoke(name,params);
+        if(['find_assessments','list_basis_assessments','find_findings'].includes(name))returned.push({name,count:value.length});return value;}};}});}})));}};
+    const store=createAftercareStore({schemaManifest,unitOfWork:measured,aftercareWorkspaceRoot:path.join(root,'workspace')});
+    const reader=createAftercareContextReader({aftercareStore:store,readPerceptionRatings:()=>new Map([[id,{state:'ready',resolutionDigest:ratingDigest}]])});
+    const first=reader.healthProjectionInputs([id])[0],insert=seed.prepare(`INSERT INTO arca_aftercare_assessments
+      (assessment_id,shelf_entry_id,inventory_revision,standard_revision,placement_revision,decision_fact_set_digest,care_basis_digest,assessment_kind,result,incident_key,evidence_digest,assessed_at_ms)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`),finding=seed.prepare(`INSERT INTO arca_aftercare_findings
+      (finding_id,assessment_id,finding_kind,severity,repairability,finding_digest,state,created_at_ms) VALUES (?,?,?,?,?,?,?,?)`);
+    seed.transaction(()=>{
+      for(let i=0;i<1000;i++){
+        insert.run('old-'+i,id,1,1,1,digest('old-decision'),digest('old-basis-'+i),'presentation','degraded',null,digest('old-evidence'),i+1);
+        finding.run('old-finding-'+i,'old-'+i,'presentation:poster_missing','warning','auto_repair',digest(i),'open',i+1);
+      }
+      for(const kind of ['custody','presentation','conformance'])insert.run(kind,id,1,1,1,first.basis.decisionFactSetDigest,first.basis.digest,kind,'healthy',null,digest(kind),10);
+    })();
+    returned.length=0;sqlTrace.length=0;
+    const current=reader.healthProjectionInputs([id])[0];
+    assert.equal(current.history.assessments.length,3);assert.equal(current.history.findings.length,0);
+    assert.deepEqual(returned.filter(item=>item.name==='list_basis_assessments'),[{name:'list_basis_assessments',count:3}]);
+    assert.ok(!returned.some(item=>item.name==='find_assessments'));
+    assert.ok(sqlTrace.some(sql=>sql.includes('FROM "arca_aftercare_assessments"')&&sql.includes('"care_basis_digest"=')));
+    const full=store.history(id);assert.equal(full.assessments.length,1003);assert.equal(full.findings.length,1000);
+    assert.deepEqual(projectHealth(current,current.history,10000),projectHealth(current,full,10000));
+    assert.equal(projectHealth(current,current.history,10000).state,'healthy');
+    ratingDigest=digest('changed-rating');const changed=reader.healthProjectionInputs([id])[0];
+    assert.notEqual(changed.basis.digest,current.basis.digest);assert.equal(changed.history.assessments.length,0);
+    assert.deepEqual(projectHealth(changed,changed.history,10000),projectHealth(changed,full,10000));
+    const scope={shelfEntryId:id,careBasisDigest:current.basis.digest,inventoryRevision:1,canonicalIdentityRevision:1,standardRevision:1,placementRevision:1};
+    for(const [table,column] of [['arca_shelf_entries','current_inventory_revision'],['arca_shelf_entries','canonical_identity_revision'],['arca_shelves','current_standard_revision'],['arca_shelves','current_placement_revision']]){
+      seed.prepare('UPDATE '+table+' SET '+column+'=2').run();
+      assert.throws(()=>store.healthAssessmentHistory([scope]),{code:'ARCA_AFTERCARE_HEALTH_BASIS_STALE'});
+      seed.prepare('UPDATE '+table+' SET '+column+'=1').run();
+    }
+    seed.prepare('UPDATE arca_shelf_entries SET status=?').run('offdecked');
+    assert.throws(()=>store.healthAssessmentHistory([scope]),{code:'ARCA_AFTERCARE_HEALTH_BASIS_STALE'});
+  });
+});
+
 test('Care list and summaries use one batch projection without per-entry history reads', () => {
   const ids = ['entry-1', 'entry-2', 'entry-3'];
   let projectionCalls = 0;
@@ -134,6 +181,12 @@ test('Aftercare health projection preserves and scopes every requested Shelf Ent
       assert.ok(reads.length>=1,table+' must be read for the health batch.');
       assert.ok(reads.every((sql)=>/\bIN\s*\(/i.test(sql)),table+' must not be loaded as an unbounded historical table.');
     }
+    const scoped=store.healthAssessmentHistory(projected.map(item=>({shelfEntryId:item.shelfEntryId,
+      careBasisDigest:digest(item.shelfEntryId),inventoryRevision:item.inventoryRevision,
+      canonicalIdentityRevision:Number(item.canonicalIdentity.revision),standardRevision:item.standardRevision,
+      placementRevision:item.placementRevision})));
+    assert.equal(scoped.size,501);
+    assert.ok([...scoped.values()].every(item=>item.assessments.length===0&&item.findings.length===0));
   });
 });
 
@@ -222,7 +275,7 @@ test('Aftercare batch health passes frozen rating targets instead of triggering 
       decisionFactDigests:Object.freeze([]),history:Object.freeze({assessments:Object.freeze([]),findings:Object.freeze([]),cases:Object.freeze([]),commits:Object.freeze([])})});
   });
   let calls=0;
-  const reader=createAftercareContextReader({aftercareStore:{defectStore:{currentMany:()=>new Map()},healthProjectionInputs:(ids)=>{
+  const reader=createAftercareContextReader({aftercareStore:{healthAssessmentHistory:scopes=>new Map(scopes.map(scope=>[scope.shelfEntryId,{assessments:[],findings:[]}])),defectStore:{currentMany:()=>new Map()},healthProjectionInputs:(ids)=>{
     assert.deepEqual(ids,items.map((item)=>item.shelfEntryId));return items;
   }},buildRatingTargetIdentity:LibraExecutionRegistration.buildRatingTargetIdentity,
   readPerceptionRatings:(targets)=>{calls+=1;assert.equal(targets.length,501);

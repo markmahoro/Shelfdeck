@@ -37,7 +37,7 @@ function fixture(id='entry') {
  return {requirements,manifest,snapshot,reference,delivery,raw,item};
 }
 function readerFor(fixtures,read) {
- return createAftercareContextReader({aftercareStore:{currentContext:id=>fixtures.find(f=>f.item.shelfEntryId===id).raw,
+ return createAftercareContextReader({aftercareStore:{healthAssessmentHistory:scopes=>new Map(scopes.map(scope=>[scope.shelfEntryId,{assessments:[],findings:[]}])),currentContext:id=>fixtures.find(f=>f.item.shelfEntryId===id).raw,
   defectStore:{current:()=>null,currentMany:()=>new Map()},healthProjectionInputs:()=>fixtures.map(f=>f.item)},
   readPerceptionRating:()=>({state:'ready',rating:3,resolutionDigest:d('rating')}),
   readPerceptionRatings:targets=>new Map(targets.map(t=>[t.targetId,{state:'ready',rating:3,resolutionDigest:d('rating')}])),

@@ -249,7 +249,7 @@ function createArcaCollectionQuery(options) {
         // Keep individual health reads small, but do not pay a competing Owner
         // turn after every cheap page. Bound each slice by elapsed work and pages.
         pagesInSlice+=1;
-        if(cursor&&(performance.now()-sliceStarted>=200||pagesInSlice>=10)){
+        if(cursor&&(performance.now()-sliceStarted>=50||pagesInSlice>=10)){
           await new Promise(resolve=>setImmediate(resolve));
           sliceStarted=performance.now();pagesInSlice=0;
         }

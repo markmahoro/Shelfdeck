@@ -553,3 +553,14 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 - 161af9810候选Windows完整Service647 pass/29既有skip；实际最终Linux镜像11文件70通过，Windows独立包Native/Host/JS/Range通过，2357运行文件aggregate 4aa4ddc91dce13bf0ead6ea0d2e2307fe332c3ccc9e55aefba1881c7ab7da5e7，UI字节不变。相同568副本完整概览与3目标×5组投影继续保持上述digest。当前仍是资格中，未apply。
 - 前候选d61启动的完整架构套件耗时3691.8秒，334文件2847项：2824 pass、10 fail、13 skip；静态Dependency/Semantic/Manifest/Contract均通过，不宣称完整套件PASS。8项为既有测试未同步当前210表/107索引、Libra61表、117 Result schemas/23 helpers、26 Source Map shards，以及此前已部署的clean-admin-static入口；依据现行SSOT/生成清单更新精确断言，保留所有negative/闭合验证。8文件首次重验68 pass/2 fail/2 skip，两个后续数量断言补齐后对应两文件10 pass，无产品schema变化。
 - JAV atomic fixture漏注册现行JavCorrectionSourceVerified schema，且unfinished assets Work会先触发既有Source Result fence（同一Work）；补齐fixture schema、限定模拟Work并将预期收紧到该明确错误，未放松产品验证。最终atomic完整事务/回滚场景通过。FC2 poster场景首次完整套件无Case，独立连续两次约40秒通过；首次失败保留，未据两次重跑宣称已证明其偶发原因或全量场景稳定。最终两场景2 pass。上述测试修正不改161af9810镜像运行源码。
+
+
+### 2026-10-16 后续20轮未达门禁及精确Care Basis读取
+
+- 161af9810完整副本旧/新各20轮：100 API各全部成功、20 JS各字节/SHA正确；概览stale 5→0，age P95 33104→21843ms，max候选23836ms；JS中位2188.007→1317.799ms、P95 5867.336→3746.399ms；API P95 1062.637→1765.659ms。原不退化门禁失败，未部署；不以JS/新鲜度改善抵消API退化。
+- 两Host均停止Exit0；候选61不可变表706253原行、568原收藏、全部Effect意图、两条精确Modern Family Run保护通过。生产保持bfd97f36a。
+- 当前修改：Arca Context先按现行Perception结果计算Care Basis，再经Arca自己的索引查询只取精确basis评估与对应Finding；第二次读取校验Inventory/Identity/Standard/Placement头及Entry active状态。完整history API、全部Case/Commit保持，无历史删除、跨Owner事实缓存或schema迁移。概览恢复50ms协作预算，最多10页，每页最多10项。
+- 冻结568收藏只读事务三轮对照：评估18896→1677、Finding2436→127；修改前1989.98/1700.30/1683.10ms，修改后1452.00/1335.40/1201.90ms。六次完整health输出digest均为5faf4fd38846e4fe905b2e14375292d25220f6f7912fd349539581ac10f6cb6f；仅微基准，不是Host资格。
+- Perception本次clause对normalized_exact查询证据建立短生命Set，候选逐项归一化一次；特殊title_year别名、exact/fuzzy、候选限额与实时读取保持。独立100查询三轮实验完整Assembler输出相等，耗时下降约15%–20%，不宣称整页改善。
+- 新回归覆盖1000条无关历史、实时rating变化、完整history与health等价、五种head/status变化拒绝、501项边界；Perception覆盖两种normalization profile、exact/fuzzy、重复证据与overflow。p15/p16+UAT251为339 pass/3既有skip；完整Service及正式候选双平台/Host资格继续，所有失败证据保留。
+- 私有原始证据：.codex/uat318-overview-slices-20261016/{performance-qualification,candidate-history-proof,health-basis-benchmark,match-set-benchmark}.json；不提交生产数据。

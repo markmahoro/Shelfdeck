@@ -580,6 +580,23 @@ test('exact candidate lookup avoids loading unrelated anchors and retains candid
   });
 });
 
+test('normalized candidate membership preserves exact and fuzzy modes, profiles and overflow',()=>{
+  fixture(({store})=>{
+    register(store);start(store);
+    page(store,{records:[record('alpha',{anchors:[{anchorKind:'title',anchorValue:'ＡＢＣ  Film',confidenceClass:'medium',evidenceDigest:hash('alpha')}]}),
+      record('beta',{anchors:[{anchorKind:'title',anchorValue:'ABC-Film',confidenceClass:'medium',evidenceDigest:hash('beta')}]}),
+      record('other',{anchors:[{anchorKind:'title',anchorValue:'Different',confidenceClass:'medium',evidenceDigest:hash('other')} ]})]});
+    const lookup=(values,lookupMode,normalizationProfileRef,maxCandidates=256)=>store.readResolutionCandidates({identityEvidence:values.map(anchorValue=>({anchorKind:'title',anchorValue}))},
+      {candidateRetrievalClauses:[{anchorKind:'title',lookupMode,normalizationProfileRef,threshold:1,maxCandidates}],maxCandidateRecords:256}).records.map(row=>row.perceptionId);
+    assert.deepEqual(lookup(['missing','abc film','abc film'],'normalized_exact','unicode_nfkc_casefold'),['alpha']);
+    assert.deepEqual(lookup(['abc film'],'normalized_exact','alphanumeric_casefold'),['alpha','beta']);
+    assert.deepEqual(lookup(['abc film'],'exact','unicode_nfkc_casefold'),[]);
+    assert.deepEqual(lookup(['ＡＢＣ  Film'],'exact','unicode_nfkc_casefold'),['alpha']);
+    assert.deepEqual(lookup(['abc film'],'bounded_fuzzy','unicode_nfkc_casefold'),['alpha']);
+    assert.throws(()=>lookup(['abc film'],'normalized_exact','alphanumeric_casefold',1),{code:'P6_PERCEPTION_CANDIDATE_CLAUSE_OVERFLOW'});
+  });
+});
+
 test('warm title transforms do not retain candidate membership across new Record commits',()=>{
   fixture(({store})=>{
     register(store);start(store);
