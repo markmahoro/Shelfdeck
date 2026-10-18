@@ -63,3 +63,5 @@ US Analysis Basis及完整Reference Page已持久冻结，正式CPU分析/分页
 完整分页匹配完成事实已持久冻结并验证后续不重新查库；Foundation正式Plan验证的依赖和资源声明已修正。当前为217表/56事务/133 Domain inputs；这仍是整理链路局部开发，不是完整US影片Host或发布资格。
 
 明确Actor Selection及US单演员Media-Cast Owner提交已实现，人工Intent不伪造算法Evidence；当前134 Domain inputs。主US Metadata/Artifact接入、暂存原位继续及完整Host仍在开发，局部验证见同一Evidence。
+
+US当前Run的Analysis→Metadata→NFO/共享Poster→Media/Conformance/Handoff→Arca初次On-deck已通过两条真实CPU Windows Host旅程（无脸/空库二号跨重启原Run人工确认，以及自动匹配）。演员选择POST已接，Formation查询/UI仍待完成。Package单演员和精确命名已加负例；新增Service全量在跑。当前155路由、134 Domain inputs；不计五议题或最终平台/UI资格完成。

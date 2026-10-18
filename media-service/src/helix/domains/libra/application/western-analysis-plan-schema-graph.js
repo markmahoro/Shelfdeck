@@ -2,6 +2,7 @@
 
 module.exports = Object.freeze([
   require('../../../contracts/application-types/LibraWesternAnalysisPhasePlanBinding/v1/schema.json'),
+  require('../../../contracts/application-types/PlatformWorkspaceRootSnapshot/v1/schema.json'),
   require('../../../contracts/capabilities/libra/media/frames/extract/v1/inputs.schema.json'),
   require('../../../contracts/capabilities/libra/media_cast/resolve/v1/inputs.schema.json'),
   require('../../../contracts/capabilities/libra/product_sidecar/render/v1/inputs.schema.json'),
@@ -18,6 +19,10 @@ module.exports = Object.freeze([
   require('../../../contracts/domain-types/ClusterParameters/v1/schema.json'),
   require('../../../contracts/domain-types/FaceModelRef/v1/schema.json'),
   require('../../../contracts/domain-types/LibraMediaCastSourceBasis/v1/schema.json'),
+  require('../../../contracts/domain-types/UsAdultActorSelectionBasis/v1/schema.json'),
+  require('../../../contracts/domain-types/UsAdultActorChoiceRecord/v1/schema.json'),
+  require('../../../contracts/domain-types/UsAdultPersonSnapshot/v1/schema.json'),
+  require('../../../contracts/domain-types/UsAdultMatchCompletion/v1/schema.json'),
   require('../../../contracts/domain-types/PersonReferenceProjection/v1/schema.json'),
   require('../../../contracts/domain-types/ResolvedProviderIdentity/v1/schema.json'),
   require('../../../contracts/domain-types/SamplingPlan/v1/schema.json'),
@@ -29,6 +34,7 @@ module.exports = Object.freeze([
   require('../../../contracts/types/FaceEmbeddingSetHandle/v1/schema.json'),
   require('../../../contracts/types/FrameArtifactSet/v1/schema.json'),
   require('../../../contracts/types/MetadataObservation/v1/schema.json'),
+  require('../../../contracts/types/IntegrationHandle/v1/schema.json'),
   require('../../../contracts/types/PersonMatchEvidence/v1/schema.json'),
   require('../../../contracts/types/PhysicalMaterialIdentity/v2/schema.json'),
   require('../../../contracts/types/PhysicalMaterialReadHandle/v1/schema.json'),

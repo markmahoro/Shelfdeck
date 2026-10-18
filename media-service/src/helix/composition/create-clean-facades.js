@@ -330,6 +330,10 @@ function createCleanFacades(options) {
       body: options.productIdentitySelection.choose(input.params.libraRunId, input.body, input.actor),
     });
   }
+  if(options.usAdultActorChoice){
+    facades.LibraFormationFacade.post_formation_runs_librarunid_actions_choose_us_adult_actor=async input=>({status:202,
+      body:options.usAdultActorChoice.choose(input.params.libraRunId,input.body,input.actor.actorId)});
+  }
   if (options.arcaAcceptanceRecovery) {
     facades.ArcaShelfAdminFacade.post_formation_acceptance_offerid_actions_retry = async (input) => ({
       status:202, body:options.arcaAcceptanceRecovery.retry(input.params.offerId),

@@ -45,6 +45,9 @@ const {createUsAdultActorChoiceStore} = require('../persistence/us-adult-actor-c
 const {createUsAdultMatchCompletionStore} = require('../persistence/us-adult-match-completion-store');
 const {createUsAdultActorChoiceCommand} = require('../capabilities/us-adult-actor-choice-command');
 const {createUsAdultAnalysisPlanner, createUsAdultAnalysisProjections} = require('../planning/us-adult-analysis-planner');
+const {createUsAdultProductPlanner}=require('../planning/us-adult-product-planner');
+const {createUsAdultProductCapabilityPorts,createUsAdultProductCapabilityRegistrations,EFFECTS:US_PRODUCT_EFFECTS}=
+  require('../capabilities/us-adult-product-capability-ports');
 const {createUsAdultAnalysisCapabilityPorts, createUsAdultAnalysisCapabilityRegistrations, EFFECTS:US_ANALYSIS_EFFECTS} =
   require('../capabilities/us-adult-analysis-capability-ports');
 const { createProductFactCapabilityPorts } = require('../capabilities/product-fact-capability-ports');
@@ -162,6 +165,8 @@ function createExecutionRegistration() {
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
       const usAdultAnalysisStore=createUsAdultAnalysisStore(options);
       const usAdultAnalysisPorts=createUsAdultAnalysisCapabilityPorts({...options,movieProductionReader,usAdultAnalysisStore});
+      const usAdultProductPorts=createUsAdultProductCapabilityPorts({...options,movieProductionReader,usAdultAnalysisStore,
+        usAdultActorChoiceStore:createUsAdultActorChoiceStore(options),usAdultMatchCompletionStore:createUsAdultMatchCompletionStore(options)});
       const productIdentitySelection=createProductIdentitySelectionService({...options,movieProductionReader});
       const domainCommitCoordinator=createProductFactDomainCommitCoordinator(options);
       const productFactPorts=createProductFactCapabilityPorts({...options,movieProductionReader,domainCommitCoordinator});
@@ -173,7 +178,7 @@ function createExecutionRegistration() {
         resolveProductionSourceScope:sourceScopeResolver.resolve});
       const deliveryPorts=createDeliveryLifecycleCapabilityPorts(options);
       const externalPorts=createExternalMaterialCapabilityPorts({...options,movieProductionReader});
-      const ports=Object.freeze({...intakePorts,...routingPorts,...productFactPorts,...productMetadataPorts,...artifactPorts,...mediaPorts,...usAdultAnalysisPorts,
+      const ports=Object.freeze({...intakePorts,...routingPorts,...productFactPorts,...productMetadataPorts,...artifactPorts,...mediaPorts,...usAdultAnalysisPorts,...usAdultProductPorts,
         ...deliveryPorts,...externalPorts});
       return Object.freeze({offerReader,movieProductionReader,ports,createRegistrations(registrationOptions){
         const routingRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>ROUTING_EFFECTS[ref]);
@@ -186,12 +191,15 @@ function createExecutionRegistration() {
         const deliveryRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>DELIVERY_EFFECTS[ref]);
         const externalRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>EXTERNAL_EFFECTS[ref]);
         const usAnalysisRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>US_ANALYSIS_EFFECTS[ref]);
+        const usProductRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>US_PRODUCT_EFFECTS[ref]);
         const intakeRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>!ROUTING_EFFECTS[ref]&&!productFactRefs.includes(ref)&&
           !productMetadataRefs.includes(ref)&&!artifactRefs.includes(ref)&&!mediaRefs.includes(ref)&&!deliveryRefs.includes(ref)&&
-          !externalRefs.includes(ref)&&!usAnalysisRefs.includes(ref));
+          !externalRefs.includes(ref)&&!usAnalysisRefs.includes(ref)&&!usProductRefs.includes(ref));
         return Object.freeze([
           ...createUsAdultAnalysisCapabilityRegistrations({
             manifests:Object.fromEntries(usAnalysisRefs.map(ref=>[ref,registrationOptions.manifests[ref]])),ports}),
+          ...createUsAdultProductCapabilityRegistrations({
+            manifests:Object.fromEntries(usProductRefs.map(ref=>[ref,registrationOptions.manifests[ref]])),ports}),
           ...createIntakeCapabilityRegistrations({...registrationOptions,enabledCapabilityRefs:intakeRefs,
             ports:Object.fromEntries(intakeRefs.map((ref)=>[ref,ports[ref]]))}),
           ...createRoutingCapabilityRegistrations({...registrationOptions,enabledCapabilityRefs:routingRefs,
@@ -264,7 +272,7 @@ function createExecutionRegistration() {
       const usAdultMatchCompletionStore=createUsAdultMatchCompletionStore(options);
       const usAdultActorChoiceStore=createUsAdultActorChoiceStore(options),
         usAdultActorChoice=createUsAdultActorChoiceCommand({...options,movieProductionReader,usAdultActorChoiceStore});
-      const runCoordinator=createLibraRunCoordinator({...options,movieProductionReader,usAdultAnalysisStore,usAdultMatchCompletionStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
+      const runCoordinator=createLibraRunCoordinator({...options,movieProductionReader,usAdultAnalysisStore,usAdultActorChoiceStore,usAdultMatchCompletionStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
         resolveFrozenRun:libraRunAdminService.reconcileFrozen,
         resolveRejectedRun:libraRunAdminService.reconcileRejected,
         waitUnavailableStrategy:libraRunAdminService.waitUnavailableStrategy,
@@ -302,7 +310,7 @@ function createExecutionRegistration() {
         createAcceptanceSpecPlanner({...options,contextReader:options.acceptanceSpecContextReader}),
         createProductIdentityPlanner(options),createProductMetadataObservationPlanner(options),createArtifactProductionPlanner(options),
         createProductFactAssemblyPlanner(options),workspaceMediaProductionPlanner,
-        productDeliveryPlanner,productDeliveryPlanner,createUsAdultAnalysisPlanner(options)
+        productDeliveryPlanner,productDeliveryPlanner,createUsAdultAnalysisPlanner(options),createUsAdultProductPlanner(options)
       ]),bindingProjections:Object.freeze([...createIntakeProjections(options),...createRoutingProjections(options),
         ...createAcceptanceSpecProjections({...options,contextReader:options.acceptanceSpecContextReader}),
         ...createProductIdentityProjections(options),...createProductMetadataObservationProjections(options),

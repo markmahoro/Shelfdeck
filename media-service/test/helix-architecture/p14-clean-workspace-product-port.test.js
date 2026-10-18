@@ -545,6 +545,20 @@ test('intended physical reality rejects recomputed bytes under the same stable e
     }
   }));
 
+test('Runtime frame sink retains its sole Event Effect before and after composite publication',()=>fixture(({databasePath,workspaceRoot,dependencies})=>{
+  const authority=seedRuntimeWorkspaceEffect(databasePath,'intended','libra.media.frames.extract@1'),
+    port=createCleanWorkspaceProductPort({...dependencies,rootPath:workspaceRoot}),
+    sink=port.openFrameCompositeSink({...frameRequest(),runtimeEffectAuthority:authority});
+  const effectId=canonicalDigest(['workspace_write',authority.idempotencyKey]);assert.equal(sink.contract.effectId,effectId);
+  const check=()=>{
+    const database=new Database(databasePath,{readonly:true});try{
+      assert.deepEqual(database.prepare('SELECT effect_id,event_attempt_id,effect_class,state FROM fx_effect_journal').all(),
+        [{effect_id:effectId,event_attempt_id:authority.eventAttemptId,effect_class:'workspace_write',state:'intended'}]);
+    }finally{database.close();}
+  };
+  check();sink.writeFrame({timestampMs:5,bytes:Buffer.from('fixture-controlled-frame')});sink.commit();check();
+}));
+
 test('frame sink journals stable target identity before accepting real member bytes', () =>
   fixture(({ databasePath, workspaceRoot, dependencies }) => {
     const port = createCleanWorkspaceProductPort({

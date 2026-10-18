@@ -10,6 +10,8 @@ const {
 const { buildProductIdentityCommitBundle } = require('../model/product-identity-commit-contracts');
 const { nextJavIdentityStage } = require('./jav-product-identity-work');
 const {nextUsAdultIdentityStage,usAdultIdentitySource}=require('./us-adult-product-identity-work');
+const {readUsAdultMetadataContext,artifactWorkIdentity,POSTER,frameInputs}=require('../model/us-adult-product-work');
+const {selectedPerson,actorRelation}=require('../model/us-adult-actor-selection');
 const { frozenSeriesSeasonNumber,candidateSeriesAnchor } = require('../model/series-identity-contracts');
 const { buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductMetadataDraft } =
   require('../model/product-fact-contracts');
@@ -47,6 +49,8 @@ const SIDECAR_PROFILE = 'helix://libra/input-projections/ProductSidecarProfile/v
 const ARTIFACT_REQUIREMENT = 'helix://libra/input-projections/ProductArtifactRequirement/v1';
 const ARTIFACT_HANDLE_LIST = 'helix://libra/input-projections/ProductArtifactHandleList/v1';
 const SIDECAR_MEDIA_CAST_DRAFT = 'helix://libra/input-projections/ProductSidecarMediaCastDraft/v1';
+const US_ACTOR_SELECTION='helix://libra/input-projections/UsAdultProductActorSelection/v1';
+const US_PRODUCT_FRAMES='helix://libra/input-projections/UsAdultProductFrames/v1';
 const MEDIA_CAST_RESOLVE = 'libra.media_cast.resolve@1';
 const MEDIA_CAST_COMMIT = 'libra.media_cast.commit@1';
 const METADATA_COMMIT = 'libra.product_metadata.commit@1';
@@ -485,6 +489,7 @@ function productMetadataContext(options, libraRunId, selectedEpisodeKey) {
   const snapshot=readRunSnapshot(options.movieProductionReader,libraRunId);
   const identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
   if(!snapshot||!identity)throw new Error('Product Metadata requires a resolved Product Identity.');
+  if(snapshot.spec.contentProfile==='western_adult')return readUsAdultMetadataContext(options,libraRunId);
   const works=options.workResultReader.listWorks({ownerDomain:'libra',processType:'libra_run',processId:libraRunId,
     workKind:'product_metadata_observation'}).filter((item)=>item.state==='succeeded')
     .sort((left,right)=>Buffer.from(left.work_id).compare(Buffer.from(right.work_id)));
@@ -567,7 +572,8 @@ function productMetadataContext(options, libraRunId, selectedEpisodeKey) {
 function artifactVerificationContext(options, libraRunId) {
   const metadata=productMetadataContext(options,libraRunId);
   const works=options.workResultReader.listWorks({ownerDomain:'libra',processType:'libra_run',processId:libraRunId,
-    workKind:'artifact_production'}).filter((item)=>item.state==='succeeded')
+    workKind:'artifact_production'}).filter((item)=>item.state==='succeeded'&&(!metadata.selection||
+      item.work_id===artifactWorkIdentity(metadata.snapshot,metadata.analysisBasis.workspaceId,requiredArtifactKinds(metadata.snapshot),metadata.selection).workId))
     .sort((left,right)=>Buffer.from(left.work_id).compare(Buffer.from(right.work_id)));
   const expectedKinds=metadata.requirements.flatMap(item=>
     Array(item.artifactKind==='nfo'?1+metadata.episodeDrafts.length:1).fill(item.artifactKind)).sort();
@@ -638,6 +644,7 @@ function artifactVerificationContext(options, libraRunId) {
 }
 
 function mediaCastRelations(context) {
+  if(context.selection)return Object.freeze([actorRelation(context.selection)]);
   return buildMetadataMediaCastRelations({
     sourceBasis:context.basis,
     subjectId:context.snapshot.run.subjectId,
@@ -645,6 +652,8 @@ function mediaCastRelations(context) {
 }
 
 function sidecarMediaCastDraft(context) {
+  if(context.selection)return buildMediaCastDraft({sourceBasis:context.actorBasis,subjectId:context.snapshot.run.subjectId,
+    relations:[actorRelation(context.selection)],personProjection:{items:[selectedPerson(context.selection).referenceProjection]},producedAtMs:0});
   const sourceBasis = buildMetadataObservationBasis({
     intents: context.sources.map((item) => item.intent),
     results: context.results,
@@ -700,14 +709,19 @@ function createProductFactAssemblyPlanner(options) {
 
 function createProductFactAssemblyProjections(options) {
   const context=(ownerScope)=>artifactVerificationContext(options,ownerScope.processId);
-  const basis=(ownerScope,factKind)=>buildMetadataObservationBasis({intents:context(ownerScope).sources.map((item)=>item.intent),
-    results:context(ownerScope).results,factKind,expectedRevision:0});
+  const basis=(ownerScope,factKind)=>{
+    const value=context(ownerScope);
+    if(value.selection)return factKind==='media_cast'?value.actorBasis:value.basis;
+    return buildMetadataObservationBasis({intents:value.sources.map((item)=>item.intent),results:value.results,factKind,expectedRevision:0});
+  };
   const handle=(ownerScope,parameters,factKind,payload)=>buildProductFactHandle({libraRunId:ownerScope.processId,factKind,
     expectedRevision:0,payloadDigest:canonicalDigest(payload),eventFenceDigest:factCommitFence(parameters.workId,parameters.eventId,factKind)});
   return Object.freeze([
     Object.freeze({projectionRef:MEDIA_CAST_BASIS,projection:Object.freeze({project:({ownerScope})=>basis(ownerScope,'media_cast')})}),
     Object.freeze({projectionRef:METADATA_BASIS,projection:Object.freeze({project:({ownerScope})=>basis(ownerScope,'product_metadata')})}),
-    Object.freeze({projectionRef:PERSON_REFERENCE_LIST,projection:Object.freeze({project:()=>Object.freeze([])})}),
+    Object.freeze({projectionRef:PERSON_REFERENCE_LIST,projection:Object.freeze({project:({ownerScope})=>{
+      const value=context(ownerScope);return Object.freeze(value.selection?[selectedPerson(value.selection).referenceProjection]:[]);
+    }})}),
     Object.freeze({projectionRef:MEDIA_CAST_DRAFT,projection:Object.freeze({project:({sourceResult})=>sourceResult})}),
     Object.freeze({projectionRef:VERIFIED_ARTIFACT_MANIFEST,projection:Object.freeze({project:({ownerScope})=>context(ownerScope).verifiedArtifactManifest})}),
     Object.freeze({projectionRef:MEDIA_CAST_FACT_REF,projection:Object.freeze({project:({ownerScope})=>{
@@ -783,17 +797,19 @@ function createArtifactProductionPlanner(options) {
     const targets=context.requirements.flatMap(requirement=>
       [{requirement},...(requirement.artifactKind==='nfo'?context.episodeDrafts.map(draft=>({requirement:artifactRequirement('nfo',draft.episodeScope),episodeScope:draft.episodeScope})):[])]);
     for(const [ordinal,{requirement,episodeScope}] of targets.entries()){
-      const producerRef=requirement.artifactKind==='nfo'?SIDECAR_RENDER:ARTIFACT_ACQUIRE;
+      const producerRef=requirement.artifactKind==='nfo'?SIDECAR_RENDER:
+        context.selection&&requirement.artifactKind==='poster'?POSTER:ARTIFACT_ACQUIRE;
       const targetBasis={attempt:request.workAttemptId,requirementDigest:requirement.requirementDigest,
         ...(episodeScope?{episodeScope}:{})};
       const projectionParameters=episodeScope?{episodeKey:episodeScope.episodeKey}:{};
       const producerEventId=stable('libra-artifact-producer-event-',targetBasis);
-      const inputBindings=[owner('productMetadataDraft',request,METADATA_DRAFT,projectionParameters)];
+      const inputBindings=producerRef===POSTER?[owner('usAdultActorSelectionBasis',request,US_ACTOR_SELECTION),
+        owner('frameArtifactSet',request,US_PRODUCT_FRAMES)]:[owner('productMetadataDraft',request,METADATA_DRAFT,projectionParameters)];
       if(producerRef===SIDECAR_RENDER)inputBindings.push(
         owner('mediaCastDraft',request,SIDECAR_MEDIA_CAST_DRAFT),
         owner('sidecarProfile',request,SIDECAR_PROFILE,projectionParameters),
       );
-      else inputBindings.push(owner('integrationHandle',request,ARTIFACT_INTEGRATION,{artifactKind:requirement.artifactKind}));
+      else if(producerRef===ARTIFACT_ACQUIRE)inputBindings.push(owner('integrationHandle',request,ARTIFACT_INTEGRATION,{artifactKind:requirement.artifactKind}));
       nodes.push(planNode({...options,request,nodeId:'artifact_'+ordinal,eventId:producerEventId,capabilityRef:producerRef,
         inputBindings,parameters:producerRef===ARTIFACT_ACQUIRE?{artifactKind:requirement.artifactKind}:{},
         resourceKinds:producerRef===ARTIFACT_ACQUIRE?['disk_io','network']:['cpu','disk_io']}));
@@ -834,6 +850,13 @@ function createArtifactProductionProjections(options) {
     return item;
   };
   return Object.freeze([
+    Object.freeze({projectionRef:US_ACTOR_SELECTION,projection:Object.freeze({project:({ownerScope})=>{
+      const value=context(ownerScope);if(!value.selection)throw new Error('US Adult poster requires an actor selection.');return value.selection;
+    }})}),
+    Object.freeze({projectionRef:US_PRODUCT_FRAMES,projection:Object.freeze({project:({ownerScope})=>{
+      const value=context(ownerScope);if(!value.selection)throw new Error('US Adult poster requires its analysis Basis.');
+      return frameInputs(options,{...value,basis:value.analysisBasis}).frameArtifactSet;
+    }})}),
     Object.freeze({projectionRef:METADATA_DRAFT,projection:Object.freeze({project:({ownerScope,parameters})=>draft(ownerScope,parameters)})}),
     Object.freeze({projectionRef:SIDECAR_MEDIA_CAST_DRAFT,projection:Object.freeze({project:({ownerScope})=>
       sidecarMediaCastDraft(context(ownerScope))})}),

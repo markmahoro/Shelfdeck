@@ -10,8 +10,10 @@ const {createCapabilityContractValidator}=require('../../../src/helix/foundation
 function harness(run){return fixture(input=>{
   createWorkspaceAdmissionStore({schemaManifest,unitOfWork:input.unitOfWork}).admit({decision:input.decision,commitMarker:'workspace-marker',resultId:'workspace-result'});
   const identity=buildResolvedProductIdentity({subjectId:'subject-1',contentProfile:'western_adult',structureKind:'single',identityKind:'internal_identity',
-    producerRef:'libra.product_identity.resolve@1',basisDigest:D('identity-basis'),observedAtMs:1,providerIdentities:[{provider:'internal',namespace:'internal_identity',providerKey:'internal-subject'}],
-    displayEntries:[{key:'title',value:'Original source'}]}),db=new Database(input.databasePath);
+    producerRef:'libra.product_identity.resolve@1',basisDigest:D('identity-basis'),observedAtMs:1,
+    providerIdentities:[{provider:'internal',namespace:'internal_identity',providerKey:'us-adult:'+canonicalDigest({schema:'libra.us-adult-subject-identity@1',subjectId:'subject-1'})}],
+    displayEntries:[{key:'title',value:'Original source'},{key:'original_file_name',value:'Original source.mkv'},
+      {key:'original_file_name_digest',value:require('../../../src/helix/contracts/us-adult-presentation').originalNameProvenance('Original source.mkv').provenanceDigest}]}),db=new Database(input.databasePath);
   try{
     db.prepare('INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,status,intake_revision) VALUES(?,?,?,?,?)').run('subject-1','single','western_adult','active',1);
     db.prepare('UPDATE libra_runs SET subject_id=? WHERE libra_run_id=?').run('subject-1','run-1');

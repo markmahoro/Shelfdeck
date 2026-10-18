@@ -501,8 +501,8 @@ function buildProductFactSourceRefs(value) {
         !Array.isArray(western.analysisRefs)||western.analysisRefs.length<1||western.analysisRefs.length>16||!western.normalizeRef)
       fail('P9_PRODUCT_FACT_SOURCE_BASIS','Western Product Metadata basis is invalid.');
     const normalizeChain=chains.get(western.normalizeRef.resultId),
-      variant=normalizeChain?.inputBindings?.westernAnalysisVariant ||
-        normalizeChain?.inputBindings?.capabilityInput?.westernAnalysisVariant;
+      variant=normalizeChain?.inputBindings?.bindings?.find(item=>item.portName==='westernAnalysisVariant'&&item.bindingKind==='literal')?.value ||
+        normalizeChain?.inputBindings?.westernAnalysisVariant || normalizeChain?.inputBindings?.capabilityInput?.westernAnalysisVariant;
     validateWesternAnalysisVariant(variant,western,chains);
     const refs=western.analysisRefs.map((ref,ordinal)=>{
       const chain=chains.get(ref.resultId);

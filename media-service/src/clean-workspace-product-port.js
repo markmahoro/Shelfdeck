@@ -1090,12 +1090,9 @@ function createCleanWorkspaceProductPort(options) {
       fail('CLEAN_WORKSPACE_FRAME_SINK_INPUT',
         'Frame composite sink requires one bounded Western frame target.');
     }
-    const prior = recordIntent(
-      identity.effectClass,
-      identity.effectId,
-      identity.idempotencyKey,
-      identity.intentDigest,
-    );
+    const runtimeAuthority=runtimeEffectAuthority(request);
+    const prior = runtimeAuthority?Object.freeze({state:'intended'}):recordIntent(
+      identity.effectClass,identity.effectId,identity.idempotencyKey,identity.intentDigest);
     if (prior.state === 'committed' || fs.existsSync(identity.target)) {
       fail('CLEAN_WORKSPACE_FRAME_SINK_RECOVERY_REQUIRED',
         'Frame composite sink must recover existing reality before execution.');
@@ -1107,7 +1104,7 @@ function createCleanWorkspaceProductPort(options) {
     const contract = Object.freeze({
       schemaRef:
         'helix://implementation-contracts/workspace-frame-composite-sink/v1',
-      effectId: identity.effectId,
+      effectId: runtimeAuthority?runtimeAuthority.effect.effect_id:identity.effectId,
       intentDigest: identity.intentDigest,
       workspaceId: request.workspaceId,
       artifactKind: request.artifactKind,

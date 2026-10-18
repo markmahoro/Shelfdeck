@@ -1177,6 +1177,8 @@ function errorResponse(error, correlationId) {
     error.code === 'ADMIN_MEDIA_PROFILE_UNSUPPORTED') status = 400;
   else if (error.code === 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_FIELD_CONFLICT') status = 409;
+  else if(error.code==='US_ADULT_ACTOR_CHOICE_INVALID')status=400;
+  else if(['US_ADULT_ACTOR_CHOICE_STALE','US_ADULT_ACTOR_HANDOFF_CONFLICT'].includes(error.code))status=409;
   else if (typeof error.code === 'string' && error.code.startsWith('ARCA_OFFDECK_')) {
     if (error.code.endsWith('_NOT_FOUND')) status = 404;
     else if (/(?:_STALE|_CONFLICT|_NOT_OPEN|_NOT_ACTIVE|_NOT_READY|_NOT_CANCELLABLE)$/.test(error.code)) status = 409;
@@ -1248,7 +1250,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 154) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 155) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1951,6 +1953,11 @@ async function createCleanServiceHost(options) {
     retry(offerId) { const result=procurementExecution.arcaCoordinator.retryAcceptance(offerId);
       executionRuntimeHost.wake(); return result; },
   });
+  const usAdultActorChoice=Object.freeze({choose(libraRunId,body,actorId){
+    const result=procurementExecution.usAdultActorChoice.choose(libraRunId,body,actorId);
+    formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId));
+    executionRuntimeHost.wake();return result;
+  }});
   const perceptionAdmin = Object.freeze({
     createRecord(body) { const result=procurementExecution.perception.createRecord(body); if(body?.targetType==='subject')formationProjectionHost.enqueue(body.targetId); executionRuntimeHost.wake(); return result; },
     listRecords(query) { const result=procurementExecution.perception.listRecords(query);
@@ -2115,6 +2122,7 @@ async function createCleanServiceHost(options) {
     routingManualSelection,
     libraRunAdmin,
     productIdentitySelection,
+    usAdultActorChoice,
     arcaAcceptanceRecovery,
     platformIntegrationAdmin: platformIntegrations.admin,
     workspaceRootAdmin,

@@ -13763,6 +13763,7 @@ POST /v1/admin/formation/runs/:libraRunId/actions/discard
 GET  /v1/admin/formation/runs/:libraRunId/defect-admission-candidate
 POST /v1/admin/formation/runs/:libraRunId/actions/admit-with-defects
 POST /v1/admin/formation/runs/:libraRunId/actions/choose-product-identity
+POST /v1/admin/formation/runs/:libraRunId/actions/choose-us-adult-actor
 POST /v1/admin/formation/acceptance/:offerId/actions/retry
 POST /v1/admin/formation/on-deck-runs/:onDeckRunId/actions/approve-input-settlement
 ~~~
@@ -13770,6 +13771,11 @@ POST /v1/admin/formation/on-deck-runs/:onDeckRunId/actions/approve-input-settlem
 `formationViewId`只是Read-model行引用，不能作为Command authority。详情Projection必须返回当前允许动作所需的
 typed target ID、expected revision与scope digest；Command端仍重新验证Owner Fact。删除通用
 `POST /v1/tasks`、Task execute/retry/pause、targetGate、flowKind、executor和Task priority写接口。
+
+US演员选择命令仅接受当前US Run、Subject choice head及People人物/Reference的期望版本，冻结单人物快照，
+不接受浏览器提交的姓名、照片事实或算法分数。未识别Run在既有二号车间原位等待并消费首次选择；
+产物Work已消费旧演员后再明确改选，由Libra既有replacement准入保留Subject/冻结原名和旧事实，
+不覆盖已提交Fact。交付竞争明确报告并重新读取当前Owner；已接管影片由Arca单片用户Intent处理。
 
 #### 9.7.7 Aftercare与Off-deck API
 
