@@ -157,7 +157,10 @@ function createPeopleProcessServices(options) {
     reconcile,
     registerPerson,
     imageOperations: options.imageOperations,
+    updateProfile:(personId,body,actorId)=>options.profileUpdate.update(personId,body,actorId),
     registrationSignalParticipant: payload => store.createRegistrationSignalParticipant(payload),
+    referenceSignalParticipant:payload=>store.createReferenceSignalParticipant(payload),
+    addReference:(personId,body,actorId)=>options.imageOperations.addReference(personId,body,actorId),
     acceptRegistration,
     dismissRegistration,
   });

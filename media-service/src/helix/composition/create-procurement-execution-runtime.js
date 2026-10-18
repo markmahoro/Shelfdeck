@@ -116,7 +116,7 @@ const ARCA_DEREGISTRATION_ENABLED=Object.freeze([
   'arca.shelf_deregistration.commit@1',
 ]);
 const ARCA_ALL_ENABLED=Object.freeze([...ARCA_ENABLED,...ARCA_OFFDECK_ENABLED,...ARCA_DEREGISTRATION_ENABLED]);
-const PEOPLE_IMAGE_ENABLED = Object.freeze(['people.reference_asset.import@1', 'shared.face.embedding.compute@1']);
+const PEOPLE_IMAGE_ENABLED = Object.freeze(['people.reference_asset.import@1', 'shared.face.embedding.compute@1','people.reference_fact.commit@1']);
 const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED, ...PEOPLE_IMAGE_ENABLED]);
 const UAT_SOURCE_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
@@ -563,7 +563,7 @@ function createProcurementExecutionRuntime(options) {
     readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings,
     ensurePerceptionRatingResolution:ensureShelfEntryRatingResolution});
   peopleProcessServices=createPeopleProcessServices({
-    ...options, now, peopleStore: peopleImageExecution.peopleStore, imageOperations: peopleImageExecution.imageOperations,
+    ...options, now, peopleStore: peopleImageExecution.peopleStore, imageOperations: peopleImageExecution.imageOperations, profileUpdate:peopleImageExecution.profileUpdate,
     onDeckPersonEvidenceProjection:arcaProcessServices.onDeckPersonEvidenceProjection,
     onDeckNfoPersonEvidence:arcaProcessServices.onDeckNfoPersonEvidence,
   });

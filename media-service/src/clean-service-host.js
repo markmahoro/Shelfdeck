@@ -1153,7 +1153,8 @@ function errorResponse(error, correlationId) {
   }
   else if (['PERCEPTION_RATING_COMMAND_INVALID','PERCEPTION_WATCHED_COMMAND_INVALID','PERCEPTION_ACQUISITION_COMMAND_INVALID','PERCEPTION_DOUBAN_NOT_CONFIGURED',
     'PERCEPTION_DIRECT_RATING_NOT_FOUND','PERCEPTION_DIRECT_WATCHED_NOT_FOUND'].includes(error.code)) status = 400;
-  else if (['PERCEPTION_RATING_REVISION_CONFLICT','PERCEPTION_WATCHED_REVISION_CONFLICT','PERCEPTION_SOURCE_REVISION_CONFLICT','PERCEPTION_DIRECT_INPUT_IDEMPOTENCY_CONFLICT'].includes(error.code)) status = 409;
+  else if (['PERCEPTION_RATING_REVISION_CONFLICT','PERCEPTION_WATCHED_REVISION_CONFLICT','PERCEPTION_SOURCE_REVISION_CONFLICT','PERCEPTION_DIRECT_INPUT_IDEMPOTENCY_CONFLICT',
+    'PERCEPTION_RESUME_COMMAND_CONFLICT','PERCEPTION_RESUME_BASIS_CONFLICT','P3_COMMAND_IDEMPOTENCY_CONFLICT'].includes(error.code)) status = 409;
   else if (
     error.code === 'ADMIN_RULE_TEMPLATE_COMMAND_REJECTED' ||
     error.code === 'ADMIN_RULE_TEMPLATE_TARGET_MISMATCH'
@@ -1167,8 +1168,8 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_ROUTING_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_ROUTING_MANUAL_INPUT_INVALID') status = 400;
   else if (error.code === 'FORMATION_SUBJECT_NOT_FOUND') status = 404;
-  else if (['PEOPLE_IMAGE_SEARCH_INPUT_INVALID', 'PEOPLE_IMAGE_SELECTION_INVALID', 'PEOPLE_REGISTRATION_INPUT_INVALID', 'PEOPLE_IMAGE_UPLOAD_INVALID', 'PEOPLE_IMAGE_BYTES_INVALID'].includes(error.code)) status = 400;
-  else if (['PEOPLE_IMAGE_SELECTION_STALE', 'PEOPLE_IMAGE_SOURCE_CHANGED', 'PEOPLE_LIBRARY_READ_ONLY', 'PEOPLE_IMAGE_OPERATION_COMMAND_CONFLICT', 'PEOPLE_IMAGE_OPERATION_STALE'].includes(error.code)) status = 409;
+  else if (['PEOPLE_IMAGE_SEARCH_INPUT_INVALID', 'PEOPLE_IMAGE_SELECTION_INVALID', 'PEOPLE_REGISTRATION_INPUT_INVALID', 'PEOPLE_IMAGE_UPLOAD_INVALID', 'PEOPLE_IMAGE_BYTES_INVALID','PEOPLE_PROFILE_INPUT_INVALID'].includes(error.code)) status = 400;
+  else if (['PEOPLE_IMAGE_SELECTION_STALE', 'PEOPLE_IMAGE_SOURCE_CHANGED', 'PEOPLE_LIBRARY_READ_ONLY', 'PEOPLE_IMAGE_OPERATION_COMMAND_CONFLICT', 'PEOPLE_IMAGE_OPERATION_STALE','PEOPLE_PROFILE_REVISION_CONFLICT','PEOPLE_REFERENCE_IMAGE_EXISTS','PEOPLE_REFERENCE_IMAGE_LIMIT'].includes(error.code)) status = 409;
   else if (['PEOPLE_IMAGE_SOURCE_INVALID', 'PEOPLE_IMAGE_SOURCE_UNAVAILABLE'].includes(error.code)) status = 502;
   else if (typeof error.code === 'string' && error.code.startsWith('PEOPLE_')) status = 404;
   else if (error.code === 'ADMIN_ROUTING_MANUAL_STATE_CONFLICT' || error.code === 'ADMIN_ROUTING_MANUAL_HEAD_CONFLICT') status = 409;
@@ -1939,7 +1940,7 @@ async function createCleanServiceHost(options) {
       return Object.freeze({...result,currentRating:procurementExecution.perception.readCurrentRating(query.targetType,query.targetId),
         currentWatched:procurementExecution.perception.readCurrentWatched(query.targetType,query.targetId)}); },
     listAcquisitions() { return procurementExecution.perception.listAcquisitions(); },
-    requestAcquisition(body) { const result=procurementExecution.perception.requestAcquisition(body); executionRuntimeHost.wake(); return result; },
+    requestAcquisition(body,actor) { const result=procurementExecution.perception.requestAcquisition(body,{actorId:actor?.credentialId||'admin'}); executionRuntimeHost.wake(); return result; },
     syncState() { return procurementExecution.perception.syncState(); },
   });
   const fieldAccessProbe = createCleanFieldAccessBindingProbe();
@@ -2032,6 +2033,8 @@ async function createCleanServiceHost(options) {
       return procurementExecution.people.registerPerson(body, actor?.credentialId || 'admin');
     },
     imageOperation: operationId => procurementExecution.people.imageOperations.get(operationId),
+    updateProfile:(personId,body,actor)=>procurementExecution.people.updateProfile(personId,body,actor?.credentialId||'admin'),
+    addReference:(personId,body,actor)=>procurementExecution.people.addReference(personId,body,actor?.credentialId||'admin'),
     accept(body, actor) {
       return procurementExecution.people.acceptRegistration(body, actor?.credentialId || 'admin');
     },
@@ -2121,7 +2124,7 @@ async function createCleanServiceHost(options) {
     server.route({
       method: route.method,
       url: route.path,
-      ...(route.method === 'POST' && route.path === '/v1/admin/people' ? { bodyLimit: 14 * 1024 * 1024 } : {}),
+      ...(route.method === 'POST' && (route.path === '/v1/admin/people'||route.path === '/v1/admin/people/:personId/reference-assets') ? { bodyLimit: 14 * 1024 * 1024 } : {}),
       handler: async (request, reply) => {
         const correlationId = request.headers['x-correlation-id'] || crypto.randomUUID();
         let response;

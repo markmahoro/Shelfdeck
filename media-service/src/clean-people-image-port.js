@@ -90,6 +90,9 @@ function createCleanPeopleImagePort(options) {
       try { fs.linkSync(temporary, file); }
       catch (error) { if (error.code !== 'EEXIST') throw error; readExact(file, digestBytes(bytes), bytes.length); }
     } finally { if (descriptor !== null && descriptor !== undefined) fs.closeSync(descriptor); if (fs.existsSync(temporary)) fs.unlinkSync(temporary); }
+    if(process.platform==='linux'){
+      const directory=fs.openSync(rootPath,'r');try{fs.fsyncSync(directory);}finally{fs.closeSync(directory);}
+    }
     readExact(file, digestBytes(bytes), bytes.length);
   }
   function parseStorageRef(storageRef) {
@@ -154,8 +157,11 @@ function createCleanPeopleImagePort(options) {
     requireEffect(context);
     if (!TOKEN.test(personId) || !TOKEN.test(operationId) || !['reference-image', 'reference-embedding'].includes(artifactKind)) fail('PEOPLE_IMAGE_ARTIFACT_INPUT_INVALID', '人物图片产物参数无效。');
     context.assertExecutionActive();
-    const root = controlledRoot(true), artifactHandleId = canonicalDigest({ schema: 'people.reference-artifact-id@1', personId, operationId, artifactKind });
+    const root = controlledRoot(true), artifactHandleId = canonicalDigest({ schema: 'people.reference-artifact-id@1', personId, artifactKind, digestHex:digestBytes(bytes) });
     const mediaType = artifactKind === 'reference-image' ? imageMediaType(bytes) : 'application/vnd.shelfdeck.face-embedding+json';
+    const intentId=canonicalDigest({schema:'people.reference-publication-intent-id@1',personId,operationId,artifactKind});
+    publish(fileFor(intentId),Buffer.from(canonicalJson({schema:'people.reference-publication-intent@1',personId,operationId,artifactKind,
+      artifactHandleId,digestHex:digestBytes(bytes),sizeBytes:bytes.length})));
     publish(fileFor(artifactHandleId), bytes);
     options.afterPhysicalEffect?.({ operationId, artifactKind });
     return registry.register({ artifactHandleId, artifactKind, ownerDomain: 'people', ownerScopeType: 'person', ownerScopeId: personId,

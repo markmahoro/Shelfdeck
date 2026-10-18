@@ -48,8 +48,8 @@
 
 三库身份/Provider唯一性与查询隔离、普通/JAV内部弱Evidence、US首图原子提交围栏已有代码与隔离验证。真实CPU模型包已锁定校验值/许可，实际单人、无脸、多脸及同图缩放匹配已验证；US上传建档已接入正式Work/Effect并通过实际CPU模型Host旅程；Formation尚未接入。2×2 Renderer与冻结原名组件已有局部测试，尚未接入实际产物。
 
-维护状态机、配置API/设置页/概览、调度筛选及持久cursor已接线；正式Host配置重放、版本冲突和手动停机跨重启测试通过。周期健康检查与正常Case推进已拆分，并修复维护截止后终态回调续发的边界；自动豆瓣与手动同步重叠行为有一个新业务问题待答，不阻塞其他工作。
+维护状态机、配置API/设置页/概览、调度筛选及持久cursor已接线；正式Host配置重放、版本冲突和手动停机跨重启测试通过。周期健康检查与正常Case推进已拆分，并修复维护截止后终态回调续发的边界；自动豆瓣与手动同步衔接已获确认：同一Acquisition/原cursor继续，并以持久用户Intent转normal准入，隔离重启验证通过。
 
 适用全量回归、数据副本升级、完整US Host链路、Windows/Linux及具体版本UI审核尚未完成。首轮Architecture整合主动终止，不能记PASS；未部署或操作生产。
 
-最新具体进度及验证限制见[本地实施Evidence](evidence/US_ADULT_LOCAL_IMPLEMENTATION_20261018.md)。US上传建档/头像/重启重放/无脸拒绝已通过正式Host；当前合同211表/154路由，资料编辑、推荐、Formation和Arca刷新继续开发。
+最新具体进度及验证限制见[本地实施Evidence](evidence/US_ADULT_LOCAL_IMPLEMENTATION_20261018.md)。US上传建档/头像/重启重放/无脸拒绝已通过正式Host；当前合同212表/53事务/154路由；三库页、US上传/搜图建档、姓名/别名编辑和补充参考图已接正式链路，Web207项通过。推荐、Formation、Arca刷新和完整平台/UI资格继续开发。

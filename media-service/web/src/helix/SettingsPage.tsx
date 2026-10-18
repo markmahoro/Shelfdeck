@@ -1,4 +1,5 @@
 import NetworkSettings from './NetworkSettings';
+import StashBoxSettings from './StashBoxSettings';
 import MaintenanceSettings from './MaintenanceSettings';
 import RecycleSettings from './RecycleSettings';
 import SecondaryWorkshopSettings from './SecondaryWorkshopSettings';
@@ -285,6 +286,7 @@ export default function SettingsPage() {
         </div>
       </section>
       <JavSourcesSettings onUnauthorized={expire}/>
+      <StashBoxSettings/>
       <section className="settings-card" aria-labelledby="moviepilot-title">
         <header className="settings-card-head"><div><h2 id="moviepilot-title">MoviePilot</h2></div><span className="integration-state" data-state={integrationTone(moviePilot)}>{integrationStateLabel(moviePilot)}</span></header>
         <div className="settings-card-body">

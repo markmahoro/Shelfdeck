@@ -268,6 +268,8 @@ const dtoContracts = {
   ReferenceEvidence: 'references,referenceSetDigest',
   PeopleCandidateAcceptanceDecision: '',
   DirectPersonRegistrationDecision: '',
+  PeopleProfileUpdateDecision: '',
+  PerceptionAcquisitionResumeDecision: '',
   PeopleReferenceMaintenanceDecision: '',
   PeopleSelectedImageHandle: '',
   RelatedReference: 'shelfEntryId,referenceId,materialKey,referenceDigest',
@@ -347,6 +349,8 @@ function buildSchema(name, role, fields) {
   if (name === 'TriageIdentityResolutionInput') return triageIdentityResolutionInputSchema();
   if (name === 'TriageManifestBuildInput') return triageManifestBuildInputSchema();
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
+  if (name === 'PeopleProfileUpdateDecision') return exactDomainSchema(name, {decisionId:id(),personId:id(),expectedPersonRevision:positiveInteger(),canonicalName:text({maxLength:200}),aliases:arrayOf(aliasSchema(),33),actorId:id(),requestDigest:digest(),decisionDigest:digest()});
+  if (name === 'PerceptionAcquisitionResumeDecision') return exactDomainSchema(name, {decisionId:id(),acquisitionId:id(),expectedScopeDigest:digest(),actorId:id(),idempotencyKey:text({maxLength:128}),requestDigest:digest(),decisionDigest:digest()});
   if (name === 'DirectPersonRegistrationDecision') return directPersonRegistrationDecisionSchema();
   if (name === 'PeopleReferenceMaintenanceDecision') return peopleReferenceMaintenanceDecisionSchema();
   if (name === 'PeopleSelectedImageHandle') return { ...exactDomainSchema(name, {

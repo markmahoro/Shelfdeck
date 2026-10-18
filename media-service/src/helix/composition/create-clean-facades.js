@@ -113,6 +113,8 @@ function createCleanFacades(options) {
       body: options.peopleAdminQuery.mergeCandidates(),
     });
     if (options.peopleAdmin) {
+      facades.PeopleAdminFacade.patch_people_personid = async input => ({body:options.peopleAdmin.updateProfile(input.params.personId,input.body,input.actor)});
+      facades.PeopleAdminFacade.post_people_personid_reference_assets = async input=>({status:202,body:await options.peopleAdmin.addReference(input.params.personId,input.body,input.actor)});
       facades.PeopleAdminFacade.get_people_operations_operationid = async input => ({ body: options.peopleAdmin.imageOperation(input.params.operationId) });
       facades.PeopleAdminFacade.get_people_image_search = async input => ({ body: await options.peopleAdmin.searchImages(input.query.name) });
       facades.PeopleAdminFacade.get_people_image_search_preview = async input => {
@@ -337,7 +339,7 @@ function createCleanFacades(options) {
     facades.PerceptionAdminFacade.post_perception_records = async (input) => ({ status:202, body:options.perceptionAdmin.createRecord(input.body) });
     facades.PerceptionAdminFacade.get_perception_records = async (input) => ({ body:options.perceptionAdmin.listRecords(input.query || {}) });
     facades.PerceptionAdminFacade.get_perception_acquisitions = async () => ({ body:{ items:options.perceptionAdmin.listAcquisitions() } });
-    facades.PerceptionAdminFacade.post_perception_actions_sync = async (input) => ({ status:202, body:options.perceptionAdmin.requestAcquisition(input.body) });
+    facades.PerceptionAdminFacade.post_perception_actions_sync = async (input) => ({ status:202, body:options.perceptionAdmin.requestAcquisition(input.body,input.actor) });
     facades.PerceptionAdminFacade.get_perception_sync_state = async () => ({ body:options.perceptionAdmin.syncState() });
   }
   if (options.arcaCollectionQuery) {

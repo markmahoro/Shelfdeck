@@ -14,11 +14,13 @@ const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createPerceptionResolutionQuery } = require('../../src/helix/domains/perception/application/perception-resolution-query');
 const { createPerceptionResolutionInputAssembler } = require('../../src/helix/domains/perception/application/perception-resolution-input-assembler');
 const { buildRuleSnapshot } = require('../../src/helix/domains/perception/application/perception-resolution-application');
-const { createPerceptionProcessServices, queryFor, queryHandle } = require('../../src/helix/domains/perception/application/perception-process-services');
+const { createPerceptionProcessServices:rawCreatePerceptionProcessServices, queryFor, queryHandle } = require('../../src/helix/domains/perception/application/perception-process-services');
 const { createPerceptionResolutionCommitRegistration } = require('../../src/helix/domains/perception/capabilities/perception-resolution-lifecycle');
 const { resolvePerception } = require('../../src/helix/domains/perception/capabilities/perception-resolution-resolver');
 const { createPerceptionStore } = require('../../src/helix/domains/perception/persistence/perception-store');
 
+const {createAcquisitionResumeIntent}=require('../../src/helix/domains/perception/capabilities/acquisition-resume-intent');
+const createPerceptionProcessServices=options=>rawCreatePerceptionProcessServices({...options,acquisitionResumeIntent:createAcquisitionResumeIntent(options)});
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
@@ -222,7 +224,7 @@ test('inherits a compatible persisted Source cursor after restart and resets onl
     const unitOfWork = createSqliteUnitOfWork({ kernel });
     return { kernel, unitOfWork, store:createPerceptionStore({ schemaManifest, unitOfWork }) };
   };
-  const scope = { mode:'provider', collection:'watched_movies', sourceId:'source-1', acquisitionWindow:{ kind:'full_snapshot', openedAtMs:1 } };
+  const scope = { mode:'provider', executionOrigin:'manual', collection:'watched_movies', sourceId:'source-1', acquisitionWindow:{ kind:'full_snapshot', openedAtMs:1 } };
   let opened = open();
   try {
     register(opened.store);

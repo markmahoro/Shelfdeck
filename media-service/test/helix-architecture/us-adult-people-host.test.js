@@ -32,7 +32,7 @@ test('formal Host publishes a US actor only after real CPU preparation and prese
     }
     assert.fail('People image operation did not complete: ' + JSON.stringify(errors));
   }
-  const body = { idempotencyKey: 'create-us-actor', libraryKind: 'us_adult', canonicalName: 'Test Actor', aliases: ['Test Alias'],
+  const body = { idempotencyKey: 'create-us-actor', libraryKind: 'us_adult', canonicalName: 'Test Actor', aliases: ['Test Alias','test actor','test alias'],
     image: { kind: 'upload', bytesBase64: fs.readFileSync(process.env.SHELFDECK_FACE_TEST_IMAGE).toString('base64') } };
   const started = await request('POST', '/v1/admin/people', body); assert.equal(started.statusCode, 202, started.body);
   const completed = await until(started.json().operationRef); assert.equal(completed.state, 'completed', JSON.stringify({ completed, errors }));
@@ -45,7 +45,25 @@ test('formal Host publishes a US actor only after real CPU preparation and prese
   assert.deepEqual((await request('POST', '/v1/admin/people', body)).json(), started.json());
   const changed = await request('POST', '/v1/admin/people', { ...body, canonicalName: 'Different Actor' }); assert.equal(changed.statusCode, 409, changed.body);
   assert.equal((await request('POST', '/v1/admin/people', { ...body, libraryKind: 'normal' })).statusCode, 409);
+  const editUrl='/v1/admin/people/'+completed.personId,edit={expectedPersonRevision:1,idempotencyKey:'edit-us-actor',canonicalName:'Revised Actor',aliases:['Known Alias','known alias']};
+  const edited=await request('PATCH',editUrl,edit);assert.equal(edited.statusCode,200,edited.body);
+  assert.equal(edited.json().receipt.resultRef.personRevision,2);assert.equal(edited.json().replayed,false);
+  const editedPerson=(await request('GET','/v1/admin/people?libraryKind=us_adult')).json().items[0];
+  assert.equal(editedPerson.canonicalName,'Revised Actor');assert.deepEqual(editedPerson.aliases.sort(),['Known Alias','Revised Actor']);
+  assert.equal(editedPerson.currentReferenceRevision,1);
+  const staleEdit=await request('PATCH',editUrl,{...edit,idempotencyKey:'edit-stale'});assert.equal(staleEdit.statusCode,409,staleEdit.body);
+  const conflictEdit=await request('PATCH',editUrl,{...edit,canonicalName:'Other Actor'});assert.equal(conflictEdit.statusCode,409,conflictEdit.body);
+  const addImage={idempotencyKey:'add-reference',expectedPersonRevision:2,expectedReferenceRevision:1,
+    image:{kind:'upload',bytesBase64:(await sharp(process.env.SHELFDECK_FACE_TEST_IMAGE).resize(420).jpeg().toBuffer()).toString('base64')}};
+  const added=await request('POST',editUrl+'/reference-assets',addImage);assert.equal(added.statusCode,202,added.body);
+  const addedResult=await until(added.json().operationRef);assert.equal(addedResult.state,'completed',JSON.stringify({addedResult,errors}));
+  assert.equal((await request('GET','/v1/admin/people?libraryKind=us_adult')).json().items[0].currentReferenceRevision,2);
+  assert.deepEqual((await request('POST',editUrl+'/reference-assets',addImage)).json(),added.json());
+  const duplicateImage=await request('POST',editUrl+'/reference-assets',{...addImage,idempotencyKey:'duplicate-reference',expectedReferenceRevision:2,image:body.image});
+  assert.equal(duplicateImage.statusCode,409,duplicateImage.body);assert.equal(duplicateImage.json().error.code,'PEOPLE_REFERENCE_IMAGE_EXISTS');
   await host.close(); host = null; host = await create();
+  const replayedEdit=await request('PATCH',editUrl,edit);assert.equal(replayedEdit.statusCode,200,replayedEdit.body);
+  assert.equal(replayedEdit.json().replayed,true);assert.deepEqual(replayedEdit.json().receipt,edited.json().receipt);
   assert.deepEqual((await request('GET', '/v1/admin/people/operations/' + completed.operationRef)).json(), completed);
   assert.deepEqual((await request('POST', '/v1/admin/people', body)).json(), started.json());
   const blank = await sharp({ create: { width: 640, height: 640, channels: 3, background: '#808080' } }).png().toBuffer();

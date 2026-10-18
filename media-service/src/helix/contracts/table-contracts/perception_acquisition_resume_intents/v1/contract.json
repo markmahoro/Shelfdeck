@@ -1,0 +1,149 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/perception_acquisition_resume_intents/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "perception_acquisition_resume_intents",
+    "owner": "perception",
+    "prefix": "perception_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "perception_acquisition_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "idempotency_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "request_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "intent_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "perception_acquisition_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "actor_id",
+        "idempotency_key"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "perception_acquisition_id",
+        "intent_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "用户主动继续同一Acquisition的immutable Intent"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "用户主动继续同一Acquisition的immutable Intent",
+      "`UNIQUE(actor_id,idempotency_key)`",
+      "`INDEX(perception_acquisition_id,intent_id)`",
+      "只对active且当前Source/config相同的Douban采集签发",
+      "重放先于current-state校验",
+      "存在Intent后该Acquisition按normal准入，Scope内原始executionOrigin不变"
+    ],
+    "rawContract": {
+      "columns": "`intent_id PK, perception_acquisition_id FK, actor_id, idempotency_key, request_digest, scope_digest, created_at_ms`",
+      "constraints": "用户主动继续同一Acquisition的immutable Intent；`UNIQUE(actor_id,idempotency_key)`；`INDEX(perception_acquisition_id,intent_id)`；只对active且当前Source/config相同的Douban采集签发；重放先于current-state校验；存在Intent后该Acquisition按normal准入，Scope内原始executionOrigin不变"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 9638,
+      "lineDigest": "587cb9fabd1c864f87e79e7942a7423ace8ce52a582bca9c810e29a75a68fd25"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "perception_acquisition_id"
+        ],
+        "targetTable": "perception_acquisitions",
+        "targetColumns": [
+          "perception_acquisition_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

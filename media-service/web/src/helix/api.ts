@@ -529,9 +529,17 @@ export type SetupReadinessProjection = {
   availableActions: Array<{ actionCode: string; label: string; expectedRevision: number; requiresConfirmation: boolean }>;
 };
 
+export type PersonLibrary = 'normal' | 'jav' | 'us_adult';
+export type PersonImageSelection = { kind:'upload'; bytesBase64:string } | { kind:'search'; selectionToken:string };
+export type PersonImageSearch = { sources:Array<{
+  source:'stashbox'|'wikimedia'; state:'available'|'empty'|'unconfigured'|'failed'; error?:{code:string;message:string};
+  items:Array<{source:'stashbox'|'wikimedia';sourceObjectId:string;canonicalName:string;aliases:string[];
+    sourcePageUrl:string;attribution:string;width:number;height:number;selectionToken:string}>;
+}> };
+export type PersonImageOperation = {operationRef:string;state:'preparing'|'completed'|'failed';personId:string|null;failureCode:string|null};
 export type PeopleProjection = {
   items: Array<{
-    personId:string; status:'active'|'merged'; currentRevision:number; canonicalName:string;
+    personId:string; libraryKind:PersonLibrary; status:'active'|'merged'; currentRevision:number; canonicalName:string;
     aliases:string[]; providerIdentities:Array<{provider:string;namespace:string;providerKey:string}>;
     currentPreferenceRevision:number|null; currentReferenceRevision:number|null; createdAtMs:number;
   }>;
@@ -644,7 +652,7 @@ export const helixAdminApi = {
   getSetupReadiness() {
     return request<SetupReadinessProjection>('/v1/admin/setup-readiness');
   },
-  listPeople(params:{cursor?:string;limit?:number;search?:string;status?:'active'|'merged'}={}) {
+  listPeople(params:{cursor?:string;limit?:number;search?:string;status?:'active'|'merged';libraryKind?:PersonLibrary}={}) {
     const query=new URLSearchParams();Object.entries(params).forEach(([key,value])=>{if(value!==undefined&&value!=='')query.set(key,String(value));});
     return request<PeopleProjection>(`/v1/admin/people${query.size?`?${query}`:''}`);
   },
@@ -654,10 +662,19 @@ export const helixAdminApi = {
   personAvatarUrl(personId: string) {
     return `/v1/admin/people/${encodeURIComponent(personId)}/avatar`;
   },
-  registerPerson(body:{ canonicalName:string; aliases?:string[]; providerIdentities?:Array<{provider?:string;namespace?:string;providerKey:string}> }) {
-    return request<{ person: { personId:string; revision?:{canonicalName:string} } }>('/v1/admin/people/actions/register', {
-      method:'POST', body:JSON.stringify({ ...body, idempotencyKey:`people-register:${body.canonicalName}:${newOpaqueId()}` }),
+  registerPerson(body:{ idempotencyKey:string;libraryKind:'us_adult';canonicalName:string;aliases:string[];image:PersonImageSelection }) {
+    return request<{operationRef:string;state:'accepted'}>('/v1/admin/people', {
+      method:'POST', body:JSON.stringify(body),
     });
+  },
+  searchPersonImages(name:string){return request<PersonImageSearch>(`/v1/admin/people/image-search?${new URLSearchParams({name})}`);},
+  personImagePreviewUrl(selectionToken:string){return `/v1/admin/people/image-search/preview?${new URLSearchParams({selectionToken})}`;},
+  getPersonImageOperation(operationRef:string){return request<PersonImageOperation>(`/v1/admin/people/operations/${encodeURIComponent(operationRef)}`);},
+  updatePersonProfile(personId:string,body:{idempotencyKey:string;expectedPersonRevision:number;canonicalName:string;aliases:string[]}){
+    return request<{replayed:boolean;receipt:{resultRef:{personId:string;personRevision:number}}}>(`/v1/admin/people/${encodeURIComponent(personId)}`,{method:'PATCH',body:JSON.stringify(body)});
+  },
+  addPersonReference(personId:string,body:{idempotencyKey:string;expectedPersonRevision:number;expectedReferenceRevision:number;image:PersonImageSelection}){
+    return request<{operationRef:string;state:'accepted'}>(`/v1/admin/people/${encodeURIComponent(personId)}/reference-assets`,{method:'POST',body:JSON.stringify(body)});
   },
   acceptPeopleCandidate(candidateId:string) {
     return request<{ person: { personId:string } }>('/v1/admin/people', {

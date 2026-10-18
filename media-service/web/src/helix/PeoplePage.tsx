@@ -1,14 +1,9 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
-import { helixAdminApi, type PeopleProjection } from './api';
+import { FormEvent, useCallback, useEffect, useRef, useState } from 'react';
+import { helixAdminApi, type PeopleProjection, type PersonLibrary } from './api';
 import { Button, LoadingState, PageHeader } from './chrome';
+import PersonRegistration from './PersonRegistration';
+import PersonProfileEditor from './PersonProfileEditor';
 import { isUnauthorized, useSession } from './session';
-
-type RegistrationCandidate = {
-  candidateId: string;
-  currentState: string;
-  currentRevision: number;
-  proposedName: string;
-};
 
 type RegisteredPerson = PeopleProjection['items'][number];
 
@@ -19,13 +14,13 @@ function initials(name: string) {
 }
 
 function PersonAvatar({ person }: { person: RegisteredPerson }) {
-  const hasTmdbIdentity = person.providerIdentities.some((identity) =>
+  const hasTmdbIdentity = person.libraryKind === 'us_adult' ? (person.currentReferenceRevision || 0) > 0 : person.providerIdentities.some((identity) =>
     identity.provider === 'tmdb' && identity.namespace === 'tmdb_person');
   const [state, setState] = useState<'loading' | 'loaded' | 'fallback'>(hasTmdbIdentity ? 'loading' : 'fallback');
 
   useEffect(() => {
     setState(hasTmdbIdentity ? 'loading' : 'fallback');
-  }, [hasTmdbIdentity, person.personId]);
+  }, [hasTmdbIdentity, person.personId, person.currentReferenceRevision]);
 
   return <div className="people-avatar" data-state={state}>
     <span className="people-avatar-initials" aria-hidden="true">{initials(person.canonicalName)}</span>
@@ -40,7 +35,7 @@ function PersonAvatar({ person }: { person: RegisteredPerson }) {
   </div>;
 }
 
-function PersonCard({ person }: { person: RegisteredPerson }) {
+function PersonCard({ person, onEdit, onAddReference }: { person: RegisteredPerson; onEdit?:()=>void;onAddReference?:()=>void }) {
   const aliases = person.aliases.filter((alias) => alias !== person.canonicalName);
   return <article className="people-card" tabIndex={0} aria-label={`${person.canonicalName}，${person.status === 'active' ? '已登记' : '已合并'}`}>
     <PersonAvatar person={person} />
@@ -53,92 +48,60 @@ function PersonCard({ person }: { person: RegisteredPerson }) {
         <div><dt>别名</dt><dd>{aliases.join('、') || '—'}</dd></div>
         <div><dt>外部编号</dt><dd>{person.providerIdentities.map((identity) => `${identity.provider.toUpperCase()} · ${identity.providerKey}`).join('、') || '—'}</dd></div>
       </dl>
+      {onEdit && <Button type="button" onClick={onEdit} aria-label={`编辑 ${person.canonicalName}`}>编辑资料</Button>}
+      {onAddReference && <Button type="button" onClick={onAddReference} aria-label={`补充 ${person.canonicalName} 的参考图`}>补充参考图</Button>}
     </div>
   </article>;
 }
 
+const libraries:Array<{kind:PersonLibrary;label:string}> = [{kind:'normal',label:'普通演员'},{kind:'jav',label:'JAV 演员'},{kind:'us_adult',label:'US Adult 演员'}];
 export default function PeoplePage() {
-  const { expire } = useSession();
-  const [projection, setProjection] = useState<PeopleProjection | null>(null);
-  const [candidates, setCandidates] = useState<RegistrationCandidate[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [canonicalName, setCanonicalName] = useState('');
-  const [aliases, setAliases] = useState('');
-  const [providerKey, setProviderKey] = useState('');
-
-  const load = useCallback(async () => {
-    setLoading(true); setError('');
+  const {expire} = useSession();
+  const [library,setLibrary] = useState<PersonLibrary>('normal');
+  const [projection,setProjection] = useState<PeopleProjection|null>(null), [loading,setLoading] = useState(false);
+  const [error,setError] = useState(''), [notice,setNotice] = useState('');
+  const [creating,setCreating] = useState(false), [search,setSearch] = useState(''), [query,setQuery] = useState('');
+  const [editing,setEditing] = useState<RegisteredPerson|null>(null);
+  const [addingReference,setAddingReference] = useState<RegisteredPerson|null>(null);
+  const sequence = useRef(0);
+  const load = useCallback(async (cursor?:string) => {
+    const id = ++sequence.current;setLoading(true);setError('');
     try {
-      const [people, registration] = await Promise.all([
-        helixAdminApi.listPeople({ limit: 50 }),
-        helixAdminApi.listPeopleRegistrationCandidates(),
-      ]);
-      setProjection(people);
-      setCandidates((registration.items || []).filter((item) => item.currentState === 'open'));
+      const value = await helixAdminApi.listPeople({libraryKind:library,limit:50,search:query,status:'active',...(cursor?{cursor}:{})});
+      if (id !== sequence.current) return;
+      setProjection(previous=>cursor && previous ? {...value,items:[...previous.items,...value.items]} : value);
     } catch (cause) {
-      if (isUnauthorized(cause)) expire();
-      else setError(cause instanceof Error ? cause.message : '人物名录读取失败。');
-    } finally { setLoading(false); }
-  }, [expire]);
-
-  useEffect(() => { void load(); }, [load]);
-
-  async function register(event: FormEvent) {
-    event.preventDefault();
-    if (!canonicalName.trim()) { setError('请填写姓名。'); return; }
-    setLoading(true); setError(''); setNotice('');
-    try {
-      await helixAdminApi.registerPerson({
-        canonicalName: canonicalName.trim(),
-        aliases: aliases.split(/[,\n]/).map((item) => item.trim()).filter(Boolean),
-        providerIdentities: providerKey.trim() ? [{ provider: 'tmdb', namespace: 'tmdb_person', providerKey: providerKey.trim() }] : [],
-      });
-      setCanonicalName(''); setAliases(''); setProviderKey('');
-      setNotice('已登记这个人。');
-      await load();
-    } catch (cause) {
-      if (isUnauthorized(cause)) expire();
-      else setError(cause instanceof Error ? cause.message : '登记失败。');
-      setLoading(false);
-    }
-  }
-
-  async function accept(candidateId: string) {
-    setLoading(true); setError('');
-    try { await helixAdminApi.acceptPeopleCandidate(candidateId); setNotice('已接受登记。'); await load(); }
-    catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '接受失败。'); setLoading(false); }
-  }
-
-  async function dismiss(candidateId: string) {
-    setLoading(true); setError('');
-    try { await helixAdminApi.dismissPeopleCandidate(candidateId); setNotice('已忽略这条待确认登记。'); await load(); }
-    catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '忽略失败。'); setLoading(false); }
-  }
-
-  if (!projection && !error) return <LoadingState>正在读取人物名录…</LoadingState>;
-  const summary = projection?.summary;
+      if (id !== sequence.current) return;
+      if (isUnauthorized(cause)) expire();else setError(cause instanceof Error?cause.message:'人物名录读取失败。');
+    } finally {if (id===sequence.current) setLoading(false);}
+  },[library,query,expire]);
+  useEffect(()=>{setProjection(null);void load();return ()=>{sequence.current++;};},[load]);
+  function changeLibrary(value:PersonLibrary) {setLibrary(value);setQuery('');setSearch('');setNotice('');setError('');}
+  function submitSearch(event:FormEvent) {event.preventDefault();if (query===search.trim()) void load();else setQuery(search.trim());}
   return <section className="source-page people-page">
-    <PageHeader title="人物" actions={<Button type="button" onClick={() => void load()} disabled={loading}>{loading ? '刷新中…' : '刷新'}</Button>} />
-    {error && <p className="form-error" role="alert">{error}</p>}
-    {notice && <p className="form-notice" role="status">{notice}</p>}
-    <form className="source-create" onSubmit={register}>
-      <div className="source-create-heading"><h2>登记一个人</h2></div>
-      <div className="source-form-grid">
-        <label><span>姓名</span><input value={canonicalName} onChange={(event) => setCanonicalName(event.target.value)} required /></label>
-        <label><span>别名</span><input value={aliases} onChange={(event) => setAliases(event.target.value)} placeholder="可选，逗号分隔" /></label>
-        <label><span>外部编号</span><input value={providerKey} onChange={(event) => setProviderKey(event.target.value)} placeholder="可选，例如 TMDB Person ID" /></label>
-      </div>
-      <div className="source-create-footer"><Button variant="primary" type="submit" disabled={loading}>{loading ? '正在登记…' : '登记'}</Button></div>
-    </form>
-    <section className="source-registry">
-      <div className="source-registry-heading"><h2>待确认登记 <span className="section-count">{candidates.length}</span></h2></div>
-      {candidates.length ? <div className="formation-table-wrap"><table className="formation-table"><thead><tr><th>姓名</th><th>操作</th></tr></thead><tbody>{candidates.map((item) => <tr key={item.candidateId}><td><strong>{item.proposedName}</strong></td><td><div className="settings-card-actions"><Button variant="primary" type="button" disabled={loading} onClick={() => void accept(item.candidateId)}>接受</Button><Button type="button" disabled={loading} onClick={() => void dismiss(item.candidateId)}>忽略</Button></div></td></tr>)}</tbody></table></div> : <div className="source-empty"><strong>没有待确认的人</strong></div>}
-    </section>
-    <section className="source-registry">
-      <div className="source-registry-heading"><h2>已登记人物 <span className="section-count">{summary?.activePersonCount ?? 0}</span></h2><span>当前显示 {projection?.items.length ?? 0} 条</span></div>
-      {projection?.items.length ? <div className="people-contact-sheet" aria-label="已登记人物名录">{projection.items.map((person) => <PersonCard key={person.personId} person={person} />)}</div> : <div className="source-empty"><strong>还没有已登记人物</strong></div>}
+    <PageHeader title="人物" actions={<><Button type="button" onClick={()=>void load()} disabled={loading}>刷新</Button>
+      {library==='us_adult' && !creating && !editing && !addingReference && <Button variant="primary" type="button" onClick={()=>{setCreating(true);setNotice('');}}>新建演员</Button>}</>}/>
+    <div className="settings-tabs" role="tablist" aria-label="演员库">{libraries.map(item=><button key={item.kind} type="button" role="tab"
+      aria-selected={library===item.kind} disabled={creating||Boolean(editing)||Boolean(addingReference)} onClick={()=>changeLibrary(item.kind)}>{item.label}</button>)}</div>
+    {library!=='us_adult' && <p className="people-library-note">演员资料由系统收纳和完善，无需手动确认。</p>}
+    {creating && <PersonRegistration onCancel={()=>setCreating(false)} onCreated={()=>{setCreating(false);setNotice('演员已建档，可以用于影片识别。');void load();}}/>}
+    {addingReference&&<PersonRegistration referenceFor={addingReference} onCancel={()=>{setAddingReference(null);void load();}} onCreated={()=>{
+      setAddingReference(null);setNotice('参考图片已添加。');void load();
+    }}/>}
+    {editing && <PersonProfileEditor key={editing.personId} person={editing} onCancel={()=>{setEditing(null);void load();}} onSaved={()=>{
+      setEditing(null);setNotice('演员资料已保存。');void load();
+    }}/>}
+    {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="form-notice" role="status">{notice}</p>}
+    <form className="people-filter" onSubmit={submitSearch}><label><span className="sr-only">搜索本库演员</span>
+      <input type="search" value={search} onChange={event=>setSearch(event.target.value)} placeholder="按姓名或别名搜索"/></label><Button type="submit" disabled={loading}>搜索</Button></form>
+    <section className="source-registry" role="tabpanel" aria-label={libraries.find(item=>item.kind===library)!.label}>
+      <div className="source-registry-heading"><h2>已登记人物 <span className="section-count">{projection?.summary.activePersonCount ?? '—'}</span></h2><span>当前显示 {projection?.items.length ?? 0} 条</span></div>
+      {!projection && loading ? <LoadingState>正在读取人物名录…</LoadingState> : projection?.items.length ?
+        <div className="people-contact-sheet" aria-label="已登记人物名录">{projection.items.map(person=><PersonCard key={person.personId} person={person}
+          onEdit={library==='us_adult'&&!creating&&!editing&&!addingReference?()=>{setEditing(person);setNotice('');}:undefined}
+          onAddReference={library==='us_adult'&&!creating&&!editing&&!addingReference?()=>{setAddingReference(person);setNotice('');}:undefined}/>)}</div> :
+        !error && <div className="source-empty"><strong>{query?'没有找到匹配的演员':'本库还没有演员'}</strong></div>}
+      {projection?.nextCursor && <div className="source-create-footer"><Button type="button" disabled={loading} onClick={()=>void load(projection.nextCursor!)}>{loading?'正在读取…':'加载更多'}</Button></div>}
     </section>
   </section>;
 }

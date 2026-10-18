@@ -189,6 +189,23 @@ button, input, select, textarea { font: inherit; }
 .people-card dl > div { min-width: 0; }
 .people-card dt { color: var(--muted); font-size: 11px; font-weight: 700; }
 .people-card dd { margin: 3px 0 0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.people-library-note { color: var(--muted); font-size: 13px; }
+.people-filter, .people-image-tools { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+.people-filter input { width: min(320px, 70vw); }
+.people-registration fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
+.people-image-tools label { display: grid; gap: 8px; flex: 1 1 240px; }
+.people-image-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 14px; }
+.people-image-option { min-width: 0; }
+.people-image-option button { width: 100%; padding: 4px; color: var(--ink); background: var(--paper); border: 2px solid var(--line); cursor: pointer; }
+.people-image-option button[aria-pressed="true"] { border-color: var(--accent); outline: 2px solid var(--accent); outline-offset: 2px; }
+.people-image-option img { display: block; width: 100%; height: 170px; object-fit: contain; }
+.people-image-option span, .people-image-option a { display: block; margin-top: 8px; font-size: 12px; overflow-wrap: anywhere; }
+.people-search-sources { margin-top: 24px; }
+.people-search-sources h3 { font-size: 15px; }
+.people-search-sources p { color: var(--muted); font-size: 13px; }
+.people-selected-image { margin: 24px 0 0; }
+.people-selected-image img { display: block; max-width: 240px; max-height: 280px; object-fit: contain; }
+.people-selected-image figcaption { margin-top: 8px; color: var(--muted); font-size: 12px; }
 .source-record { display: grid; grid-template-columns: minmax(0, 1fr) 220px; gap: 24px; padding: 20px 0; border-bottom: 1px solid var(--line); }
 .source-record-title { display: flex; align-items: flex-start; gap: 12px; }
 .source-record-title h2, .source-record-title h3 { margin: 0; font-size: 18px; font-weight: 650; }

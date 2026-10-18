@@ -3123,6 +3123,19 @@ CREATE TABLE "perception_acquisition_commits" (
   FOREIGN KEY ("perception_source_id") REFERENCES "perception_sources" ("perception_source_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "perception_acquisition_resume_intents" (
+  "intent_id" TEXT PRIMARY KEY,
+  "perception_acquisition_id" TEXT,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "scope_digest" TEXT CHECK (length("scope_digest") = 64 AND "scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("actor_id", "idempotency_key"),
+  FOREIGN KEY ("perception_acquisition_id") REFERENCES "perception_acquisitions" ("perception_acquisition_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_perception_acquisition_resume_intents_hot_01" ON "perception_acquisition_resume_intents" ("perception_acquisition_id", "intent_id");
+
 CREATE TABLE "perception_acquisitions" (
   "perception_acquisition_id" TEXT PRIMARY KEY,
   "perception_source_id" TEXT,

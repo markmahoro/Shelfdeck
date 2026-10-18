@@ -41,6 +41,14 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
         domainParticipant:options.peopleCoordinator.registrationSignalParticipant(payload)});
       inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'people'});return;
     }
+    if(item.message.message_kind==='people.reference.updated'&&item.delivery.consumer_domain==='people'){
+      if(item.message.producer_domain!=='people'||item.message.aggregate_type!=='person-reference'||
+        item.message.payload_schema_ref!=='helix://contracts/signals/people-reference-updated/v1'||payload.personId!==item.message.aggregate_id||
+        payload.referenceRevision!==Number(item.message.aggregate_revision))throw new Error('Reference update signal does not match its committed aggregate.');
+      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'people'},
+        resultDigest:canonicalDigest({schema:'people.reference-signal-consumption@1',...payload}),domainParticipant:options.peopleCoordinator.referenceSignalParticipant(payload)});
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'people'});return;
+    }
     if(item.message.message_kind==='rule_template_published'&&item.delivery.consumer_domain==='read-model'){
       if(item.message.producer_domain!=='arca'||item.message.aggregate_type!=='rule_template'||
           item.message.payload_schema_ref!=='helix://contracts/messages/ArcaRuleTemplatePublished/v1'||

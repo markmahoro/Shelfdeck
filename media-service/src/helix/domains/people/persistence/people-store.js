@@ -363,6 +363,11 @@ function createPeopleStore(options) {
         }
         const nextRevision = decision.expectedReferenceRevision + 1;
         if (decision.operationKind === 'add_image') {
+          if(person.library_kind==='us_adult'){
+            const priorAssets=repository.invoke('find_reference_assets',{person_id:decision.personId});
+            if(priorAssets.some(row=>row.artifact_digest===decision.artifactDigest))fail('PEOPLE_REFERENCE_IMAGE_EXISTS','此演员已经使用过这张图片。');
+            if(priorAssets.filter(row=>row.state==='active').length>=256)fail('PEOPLE_REFERENCE_IMAGE_LIMIT','参考图片已达到数量上限。');
+          }
           const asset = createReferenceAsset({ referenceAssetId: decision.referenceAssetId, personId: decision.personId,
             artifactHandleId: decision.artifactHandle.artifactHandleId, artifactDigest: decision.artifactDigest, state: 'active',
             createdReferenceRevision: nextRevision, releasedReferenceRevision: null, createdAtMs: context.commitTimeMs, releasedAtMs: null });
@@ -494,6 +499,37 @@ function createPeopleStore(options) {
       return Object.freeze({ participantId: 'people_direct_registration', owner: 'people', repositories: [registry],
         execute(context) { return commitDirectRegistration(context, decision); } });
     },
+    createReferenceSignalParticipant(payload){
+      exactInput(payload,['personId','personRevision','referenceRevision'],'PEOPLE_REFERENCE_SIGNAL_INVALID');
+      if(!Number.isSafeInteger(payload.personRevision)||payload.personRevision<1||!Number.isSafeInteger(payload.referenceRevision)||payload.referenceRevision<1)
+        fail('PEOPLE_REFERENCE_SIGNAL_INVALID','Reference update signal revision is invalid.');
+      return Object.freeze({participantId:'people_reference_signal',owner:'people',repositories:[registry],execute(context){
+        const row=context.repository(registry.repositoryId).invoke('find_person',{person_id:payload.personId});
+        if(!row||row.current_revision<payload.personRevision||row.current_reference_revision<payload.referenceRevision)
+          fail('PEOPLE_REFERENCE_SIGNAL_INVALID','Reference update signal is ahead of its durable Owner facts.');
+        return {...payload};
+      }});
+    },
+    createProfileUpdateParticipant(decision) {
+      exactInput(decision, ['decisionId','personId','expectedPersonRevision','canonicalName','aliases','actorId','requestDigest','decisionDigest'], 'PEOPLE_PROFILE_INPUT_INVALID');
+      const {decisionDigest,...value}=decision;
+      if(canonicalDigest(value)!==decisionDigest)fail('PEOPLE_PROFILE_INPUT_INVALID','演员资料决定摘要不匹配。');
+      return Object.freeze({participantId:'people_profile_update',owner:'people',repositories:[registry],execute(context){
+        const repository=context.repository(registry.repositoryId),current=repository.invoke('find_person',{person_id:decision.personId});
+        if(!current)fail('PEOPLE_PERSON_NOT_FOUND','未找到演员。');
+        if(current.library_kind!=='us_adult')fail('PEOPLE_LIBRARY_READ_ONLY','此演员库由系统维护。');
+        if(current.status!=='active'||current.current_revision!==decision.expectedPersonRevision)fail('PEOPLE_PROFILE_REVISION_CONFLICT','演员资料已变化，请重新读取后修改。');
+        const previous=mapPerson(repository,current).revision,revision=current.current_revision+1;
+        writePersonRevision(repository,{personId:decision.personId,revision,canonicalName:decision.canonicalName,aliases:decision.aliases,
+          providerIdentities:previous.providerIdentities,factDigest:decision.decisionDigest,personStatus:'active',mergedIntoPersonId:null,
+          originKind:previous.originKind,originDecisionRef:previous.originDecisionRef,originCandidateRef:previous.originCandidateRef},context.commitTimeMs,true);
+        const changed=repository.invoke('advance_person_head',{status:'active',current_revision:revision,terminal_at_ms:null,person_id:decision.personId,
+          expected_current_revision:decision.expectedPersonRevision,expected_status:'active'});
+        if(changed.changes!==1)fail('PEOPLE_PROFILE_REVISION_CONFLICT','演员资料版本冲突。');
+        checkpointProjection(repository,decision.personId);
+        return mapPerson(repository,repository.invoke('find_person',{person_id:decision.personId}));
+      }});
+    },
     revisePerson(input, expectedRevision) {
       exactInput(input, ['personId', 'revision', 'canonicalName', 'factDigest', 'aliases', 'providerIdentities'], 'P6_PEOPLE_PERSON_INPUT');
       return execute([registry], (context) => {
@@ -614,6 +650,7 @@ function createPeopleStore(options) {
       } });
     },
     createReferenceCommitParticipant,
+    hasReferenceImage(personId,artifactDigest){return execute([registry],context=>context.repository(registry.repositoryId).invoke('find_reference_assets',{person_id:personId}).some(row=>row.artifact_digest===artifactDigest));},
     getReferenceAsset(referenceAssetId) {
       return execute([registry], (context) => mapAsset(context.repository(registry.repositoryId).invoke('find_reference_asset', { reference_asset_id: referenceAssetId })));
     },

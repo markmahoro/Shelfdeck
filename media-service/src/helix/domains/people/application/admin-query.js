@@ -39,7 +39,11 @@ function createPeopleAdminQuery(options) {
   }
 
   return Object.freeze({
-    summary:()=>options.store.overviewStats('normal'),
+    summary:()=>{
+      const counts=['normal','jav','us_adult'].map(kind=>options.store.overviewStats(kind));
+      return Object.freeze({activePersonCount:counts.reduce((sum,item)=>sum+item.activePersonCount,0),
+        mergedPersonCount:counts.reduce((sum,item)=>sum+item.mergedPersonCount,0),openRegistrationCandidateCount:0,openMergeCandidateCount:0});
+    },
     list,
     get(personId) {
       const result = options.store.getPerson(personId);

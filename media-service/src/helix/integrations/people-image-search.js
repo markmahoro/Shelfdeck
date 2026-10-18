@@ -31,6 +31,7 @@ function createPeopleImageSearch(options) {
   function selection(candidate) {
     const payload = Buffer.from(canonicalJson({ schema: 'people.image-selection@1', ...candidate,
       networkRouteDigest: canonicalDigest(options.readNetworkRoute()), expiresAtMs: now() + 10 * 60000 })).toString('base64url');
+    if (payload.length > 6000) fail('PEOPLE_IMAGE_SOURCE_INVALID', '来源图片资料超过选择凭证的大小限制。');
     const selectionToken = payload + '.' + sign(payload);
     return Object.freeze({ source: candidate.source, sourceObjectId: candidate.sourceObjectId, canonicalName: candidate.canonicalName,
       aliases: candidate.aliases, sourcePageUrl: candidate.sourcePageUrl, attribution: candidate.attribution,

@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.perception-acquisition-resume-intent/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.perception-acquisition-resume-intent",
+    "displayName": "Perception Acquisition Resume Intent",
+    "ownerScope": "perception",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "complete PerceptionAcquisitionResumeDecision + active Source/config/Acquisition scope fence + immutable resume Intent + command receipt/result/marker/audit；原Acquisition/Scope/页cursor/Work与历史Record不变；不签发新同步",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "perception",
+        "access": "write",
+        "tables": [
+          "perception_acquisition_resume_intents"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records"
+        ]
+      }
+    ],
+    "writeTables": [
+      "perception_acquisition_resume_intents",
+      "fx_command_receipts",
+      "fx_commit_markers",
+      "fx_audit_records"
+    ],
+    "readTables": [
+      "perception_sources",
+      "perception_acquisitions"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "perception-acquisition-resume",
+        "faultInjectionPoints": "active Source/config/Acquisition fence, Intent and command receipt/marker/audit, before and after COMMIT",
+        "requiredInvariant": "Resume Intent is all-or-none with its command result; original Scope/cursor/Work unchanged; retry precedes terminal/current configuration checks",
+        "source": {
+          "section": "8.9.7",
+          "line": 8805
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8811,
+      "lineDigest": "9a959461b03af4b28e7bd28ec931791f7580547f19d565588e904c10c8f30b12"
+    }
+  }
+}

@@ -82,6 +82,8 @@ function validateDomainInputSchemas(options) {
     }
     const exactIdentityFields = {
       PeopleCandidateAcceptanceDecision: ['decisionId', 'expectedCandidateRevision', 'candidatePayloadDigest', 'decisionDigest'],
+      PeopleProfileUpdateDecision:['decisionId','personId','expectedPersonRevision','requestDigest','decisionDigest'],
+      PerceptionAcquisitionResumeDecision:['decisionId','acquisitionId','expectedScopeDigest','requestDigest','decisionDigest'],
       DirectPersonRegistrationDecision: ['decisionId', 'newPersonId', 'decisionDigest'],
       PeopleSelectedImageHandle: ['schemaRef', 'schemaVersion', 'uploadId', 'digestHex', 'sizeBytes', 'mediaType', 'provenance', 'handleDigest'],
       PeopleReferenceMaintenanceDecision: ['decisionId', 'personId', 'expectedPersonRevision', 'expectedReferenceRevision', 'decisionDigest'],
@@ -203,7 +205,7 @@ function validateDomainInputSchemas(options) {
   for (const name of usages.keys()) {
     if (!ids.has(name)) findings.push(finding('MISSING_DOMAIN_INPUT_TYPE', 'Catalog input reference has no schema.', { entryId: name }));
   }
-  const facadeOnlyTypes = new Set(['DirectPersonRegistrationDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
+  const facadeOnlyTypes = new Set(['DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
     'ResolvedProviderIdentity', 'ProductStructureSnapshot', 'ProductConformanceFactSnapshot', 'ProductionMaterialManifest',
     'ArtifactManifest', 'ArtifactConformanceVerificationSnapshot', 'ProductInventoryConformanceSnapshot',
     'WorkspaceArtifactOutputTarget', 'ShelfAcceptancePrimaryReadSet',

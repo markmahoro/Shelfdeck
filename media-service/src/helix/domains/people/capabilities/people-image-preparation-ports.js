@@ -46,7 +46,7 @@ function createPeopleImagePreparationPorts(options) {
         const operation = current(context).operation;
         try {
           return success(EMBED, context, await options.preparation.computeEmbedding({ context, personId: operation.personId, operationId: operation.operationId,
-            referenceRevision: 1, artifactHandle: context.namedInputs.artifactHandleList[0], faceModelRef: context.namedInputs.faceModelRef }));
+            referenceRevision: operation.payload.expectedReferenceRevision+1, artifactHandle: context.namedInputs.artifactHandleList[0], faceModelRef: context.namedInputs.faceModelRef }));
         } catch (error) {
           const messages = {
             FACE_REFERENCE_SINGLE_FACE_REQUIRED: '参考图必须且只能包含一张可识别的人脸。',

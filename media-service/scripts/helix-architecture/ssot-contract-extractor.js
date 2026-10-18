@@ -5,8 +5,8 @@ const crypto = require('crypto');
 const EXPECTED_COUNTS = Object.freeze({
   capabilities: 121,
   resultFamilies: 104,
-  tables: 211,
-  transactions: 51
+  tables: 212,
+  transactions: 53
 });
 
 const RETIRED_RESULT_FAMILIES = new Set(['FieldObservationPage', 'ObservationCommitResult', 'LayoutEvidence']);
@@ -97,8 +97,8 @@ function ownerForTable(tableName) {
 function transactionOwner(name) {
   if (name === 'Domain Fact Commit') return 'polymorphic-domain-owner';
   if (name === 'Field Observation Page Commit' || name === 'Field Eligibility Reconcile Commit') return 'procurement';
-  if (name === 'Perception Acquisition Page Commit' || name === 'Perception Resolution Commit') return 'perception';
-  if (name.startsWith('People Candidate ') || name === 'Direct Person Registration' || name === 'People Reference Image Commit') return 'people';
+  if (name === 'Perception Acquisition Page Commit' || name === 'Perception Resolution Commit' || name === 'Perception Acquisition Resume Intent') return 'perception';
+  if (name.startsWith('People Candidate ') || name === 'Direct Person Registration' || name === 'People Reference Image Commit' || name === 'People Profile Update') return 'people';
   if (name.startsWith('Procurement ')) return 'procurement';
   if (name === 'Field Routing Policy Publish' || name.startsWith('Handoff A') || name.startsWith('Libra ')) return 'libra';
   return 'arca';

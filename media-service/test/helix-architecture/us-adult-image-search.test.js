@@ -7,7 +7,7 @@ const { createPeopleImageSearch, STASH_QUERY } = require('../../src/helix/integr
 function fixture() {
   let now = 1000, route = { mode: 'direct', proxyEndpoint: null }, configuration = { endpoint: 'https://box.example/graphql', configRevision: 2 };
   const calls = [], image = Buffer.from('fixture image bytes');
-  let failStash = false;
+  let failStash = false, aliases = ['Alias'];
   const search = createPeopleImageSearch({ tokenKey: Buffer.alloc(32, 3), now: () => now,
     readNetworkRoute: () => route, readStashBoxConfiguration: () => configuration,
     withStashBoxCredential: async (revision, consume) => { assert.equal(revision, 2); const bytes = Buffer.from('fixture-api-key'); try { return await consume(bytes); } finally { bytes.fill(0); } },
@@ -17,7 +17,7 @@ function fixture() {
         if (failStash) throw Object.assign(new Error('secret must never appear in public failure'), { code: 'ECONNRESET' });
         assert.equal(request.headers.ApiKey, 'fixture-api-key');
         assert.deepEqual(JSON.parse(request.body), { query: STASH_QUERY, variables: { term: 'Sample Actor' } });
-        return Response.json({ data: { searchPerformers: { performers: [{ id: 'actor-1', name: 'Sample Actor', aliases: ['Alias'],
+        return Response.json({ data: { searchPerformers: { performers: [{ id: 'actor-1', name: 'Sample Actor', aliases,
           images: [{ id: 'image-1', url: 'https://images.example/actor.jpg', width: 600, height: 900 }] }] } } });
       }
       if (String(url).startsWith('https://commons.wikimedia.org/w/api.php?')) {
@@ -30,7 +30,7 @@ function fixture() {
       return new Response(image, { headers: { 'content-type': 'image/jpeg' } });
     } });
   return { search, calls, image, now: value => { now = value; }, route: value => { route = value; },
-    config: value => { configuration = value; }, failStash: () => { failStash = true; } };
+    config: value => { configuration = value; }, aliases:value=>{aliases=value;}, failStash: () => { failStash = true; } };
 }
 
 test('name search reports independent sources and requires a signed user image selection', async () => {
@@ -64,4 +64,12 @@ test('selection rejects tampering, expiry and changed source or network configur
     await assert.rejects(f.search.readSelectedImage(token), { code: change === 'tamper' ? 'PEOPLE_IMAGE_SELECTION_INVALID' : 'PEOPLE_IMAGE_SELECTION_STALE' });
     assert.equal(f.calls.length, 2);
   }
+});
+
+test('oversized source metadata fails visibly instead of publishing unusable or truncated selection tokens',async()=>{
+  const f=fixture();f.aliases(Array.from({length:128},(_,index)=>'a'.repeat(500)+index));
+  const result=await f.search.search('Sample Actor');
+  assert.equal(result.sources[0].state,'failed');assert.equal(result.sources[0].error.code,'PEOPLE_IMAGE_SOURCE_INVALID');
+  assert.equal(result.sources[1].state,'available');
+  assert.ok(result.sources[1].items[0].selectionToken.length<6100);
 });

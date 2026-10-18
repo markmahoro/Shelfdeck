@@ -5,7 +5,7 @@ const { faceModelReference } = require('../../../contracts/us-adult-face-model')
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const { createPeopleImageOperationStore } = require('../persistence/people-image-operation-store');
 
-const IMPORT = 'people.reference_asset.import@1', EMBED = 'shared.face.embedding.compute@1';
+const IMPORT = 'people.reference_asset.import@1', EMBED = 'shared.face.embedding.compute@1', COMMIT='people.reference_fact.commit@1';
 const stable = (prefix, value) => prefix + canonicalDigest(value).slice(0, 40);
 function fail(code, message) { throw Object.assign(new Error(message), { code }); }
 function exact(value, keys) {
@@ -17,6 +17,14 @@ function name(value) { return typeof value === 'string' && value.trim().length >
 function aliasFor(value) {
   return { aliasDisplay: value, aliasNormalized: value.toLocaleLowerCase(), provenanceDigest: canonicalDigest({ source: 'us_adult_user', alias: value }) };
 }
+function uniqueAliases(values) {
+  const seen = new Set();
+  return values.map(value => value.trim()).filter(value => {
+    const normalized = value.toLocaleLowerCase();
+    if (seen.has(normalized)) return false;
+    seen.add(normalized); return true;
+  });
+}
 
 function preparationWork(operation) {
   return Object.freeze({ schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1', schemaVersion: 1,
@@ -26,7 +34,7 @@ function preparationWork(operation) {
     dependencyRefs: [{ ownerDomain: 'people', objectType: 'people_image_operation', objectId: operation.operationId, revision: 1, digest: operation.payloadDigest }],
     priorityClass: 'normal_foreground', priorityRevision: 1, capabilityCatalogScope: 'people', workspaceMaterialScope: [],
     idempotencyKey: stable('people-image-work-key-', operation.operationId), concurrencyScope: 'people-image/' + operation.operationId,
-    outputContractRef: 'helix://contracts/capabilities/shared.face.embedding.compute/v1/result' });
+    outputContractRef: operation.payload.operationKind==='reference_add'?'helix://contracts/capabilities/people.reference_fact.commit/v1/result':'helix://contracts/capabilities/shared.face.embedding.compute/v1/result' });
 }
 
 function createPeopleImageOperationCoordinator(options) {
@@ -67,6 +75,27 @@ function createPeopleImageOperationCoordinator(options) {
         failureCode: status.latestAttempt?.failure_code || status.latestAttempt?.failureCode || 'PEOPLE_IMAGE_PREPARATION_FAILED' });
     }
     if (status?.state !== 'succeeded') return operation;
+    if(operation.payload.operationKind==='reference_add'){
+      const commits=options.workResultReader.read(work.workId).filter(item=>item.capabilityRef===COMMIT&&item.outcomeKind==='succeeded');
+      if(commits.length!==1||commits[0].result.personId!==operation.personId||commits[0].result.referenceRevision!==operation.payload.expectedReferenceRevision+1)
+        fail('PEOPLE_REFERENCE_PREPARATION_RESULT_INVALID','图片更新缺少唯一正式提交结果。');
+      return store.finish({operationId,expectedPayloadDigest:operation.payloadDigest,result:{personId:operation.personId,
+        personRevision:operation.payload.expectedPersonRevision,referenceRevision:commits[0].result.referenceRevision}});
+    }
+    const reference=referenceDecision(operationId);
+    const value = { decisionId: stable('people-register-', operationId), newPersonId: operation.personId, libraryKind: 'us_adult',
+      canonicalName: operation.payload.canonicalName, aliases: operation.payload.aliases.map(aliasFor), providerIdentities: [], actorId: operation.actorId,
+      initialReference: reference };
+    const decision = { ...value, decisionDigest: canonicalDigest(value) };
+    options.contractValidator.validate('helix://contracts/domain-types/DirectPersonRegistrationDecision/v1', decision);
+    registration.registerPerson(decision);
+    options.afterRegistrationCommit?.({ operationId, personId: operation.personId });
+    operation = store.finish({ operationId, expectedPayloadDigest: operation.payloadDigest,
+      result: { personId: operation.personId, personRevision: 1, referenceRevision: 1 } });
+    return operation;
+  }
+  function referenceDecision(operationId) {
+    const operation=readOperation(operationId),work=preparationWork(operation);
     const results = options.workResultReader.read(work.workId).filter(item => item.outcomeKind === 'succeeded');
     const imported = results.filter(item => item.capabilityRef === IMPORT), computed = results.filter(item => item.capabilityRef === EMBED);
     if (imported.length !== 1 || computed.length !== 1) fail('PEOPLE_REFERENCE_PREPARATION_RESULT_INVALID', '图片准备缺少唯一正式结果。');
@@ -76,20 +105,26 @@ function createPeopleImageOperationCoordinator(options) {
     if (artifactHandle.digestHex !== operation.payload.selectedImage.digestHex || embedding.faceModelRefDigest !== operation.payload.faceModelRef.digest ||
         embedding.sourceArtifactSetDigest !== artifactHandle.digestHex) fail('PEOPLE_REFERENCE_PREPARATION_RESULT_INVALID', '图片准备结果与冻结输入不一致。');
     const reference = { decisionId: stable('people-initial-reference-', operationId), operationKind: 'add_image', personId: operation.personId,
-      expectedPersonRevision: 1, expectedReferenceRevision: 0, actorId: operation.actorId,
+      expectedPersonRevision: operation.payload.expectedPersonRevision, expectedReferenceRevision: operation.payload.expectedReferenceRevision, actorId: operation.actorId,
       referenceAssetId: stable('people-reference-asset-', operationId), referenceFaceId: stable('people-reference-face-', operationId),
       artifactHandle, artifactDigest: artifactHandle.digestHex, faceEmbeddingSetHandle: embedding,
       modelRef: operation.payload.faceModelRef.digest, initialState: 'active' };
-    const value = { decisionId: stable('people-register-', operationId), newPersonId: operation.personId, libraryKind: 'us_adult',
-      canonicalName: operation.payload.canonicalName, aliases: operation.payload.aliases.map(aliasFor), providerIdentities: [], actorId: operation.actorId,
-      initialReference: { ...reference, decisionDigest: canonicalDigest(reference) } };
-    const decision = { ...value, decisionDigest: canonicalDigest(value) };
-    options.contractValidator.validate('helix://contracts/domain-types/DirectPersonRegistrationDecision/v1', decision);
-    registration.registerPerson(decision);
-    options.afterRegistrationCommit?.({ operationId, personId: operation.personId });
-    operation = store.finish({ operationId, expectedPayloadDigest: operation.payloadDigest,
-      result: { personId: operation.personId, personRevision: 1, referenceRevision: 1 } });
-    return operation;
+    return Object.freeze({ ...reference, decisionDigest: canonicalDigest(reference) });
+  }
+  async function stageImage(image,actorId,idempotencyKey) {
+    let bytes, provenance;
+    if (image?.kind === 'upload') {
+      exact(image, ['kind', 'bytesBase64']);
+      if (typeof image.bytesBase64 !== 'string' || image.bytesBase64.length > 14 * 1024 * 1024) fail('PEOPLE_IMAGE_UPLOAD_INVALID', '上传图片过大或无效。');
+      bytes = Buffer.from(image.bytesBase64, 'base64');
+      if (bytes.toString('base64') !== image.bytesBase64) fail('PEOPLE_IMAGE_UPLOAD_INVALID', '上传图片编码无效。');
+    } else if (image?.kind === 'search') {
+      exact(image, ['kind', 'selectionToken']);
+      const selected = await options.readSelectedImage(image.selectionToken); bytes = selected.bytes; provenance = selected.provenance;
+    } else fail('PEOPLE_IMAGE_UPLOAD_INVALID', '请上传或选择一张演员图片。');
+    const selectedImage = options.imagePort.stageUpload({ bytes, provenance, actorId, idempotencyKey: idempotencyKey });
+    options.contractValidator.validate('helix://contracts/domain-types/PeopleSelectedImageHandle/v1', selectedImage);
+    return selectedImage;
   }
   async function begin(body, actorId) {
     exact(body, ['idempotencyKey', 'libraryKind', 'canonicalName', 'aliases', 'image']);
@@ -101,26 +136,35 @@ function createPeopleImageOperationCoordinator(options) {
       if (existing.requestDigest !== requestDigest) fail('PEOPLE_IMAGE_OPERATION_COMMAND_CONFLICT', '此操作标识已用于其他建档内容。');
       return Object.freeze({ operationRef: existing.operationId, state: 'accepted' });
     }
-    let bytes, provenance;
-    if (body.image?.kind === 'upload') {
-      exact(body.image, ['kind', 'bytesBase64']);
-      if (typeof body.image.bytesBase64 !== 'string' || body.image.bytesBase64.length > 14 * 1024 * 1024) fail('PEOPLE_IMAGE_UPLOAD_INVALID', '上传图片过大或无效。');
-      bytes = Buffer.from(body.image.bytesBase64, 'base64');
-      if (bytes.toString('base64') !== body.image.bytesBase64) fail('PEOPLE_IMAGE_UPLOAD_INVALID', '上传图片编码无效。');
-    } else if (body.image?.kind === 'search') {
-      exact(body.image, ['kind', 'selectionToken']);
-      const selected = await options.readSelectedImage(body.image.selectionToken); bytes = selected.bytes; provenance = selected.provenance;
-    } else fail('PEOPLE_IMAGE_UPLOAD_INVALID', '请上传或选择一张演员图片。');
-    const selectedImage = options.imagePort.stageUpload({ bytes, provenance, actorId, idempotencyKey: body.idempotencyKey });
-    options.contractValidator.validate('helix://contracts/domain-types/PeopleSelectedImageHandle/v1', selectedImage);
+    const selectedImage=await stageImage(body.image,actorId,body.idempotencyKey);
     const operationId = stable('people-image-operation-', { actorId, key: body.idempotencyKey }), personId = stable('person-', operationId);
-    const payload = { schema: 'people.image-operation-request@1', operationId, personId, actorId, canonicalName: body.canonicalName.trim(),
-      aliases: [...new Set([body.canonicalName.trim(), ...body.aliases.map(value => value.trim())])], selectedImage, faceModelRef: faceModelReference('single_reference_face') };
+    const payload = { schema: 'people.image-operation-request@1',operationKind:'registration',expectedPersonRevision:1,expectedReferenceRevision:0, operationId, personId, actorId, canonicalName: body.canonicalName.trim(),
+      aliases: uniqueAliases([body.canonicalName, ...body.aliases]), selectedImage, faceModelRef: faceModelReference('single_reference_face') };
     const operation = store.create({ operationId, personId, actorId, idempotencyKey: body.idempotencyKey, requestDigest, payload });
     reconcile(operation.operationId); options.wake?.();
     return Object.freeze({ operationRef: operationId, state: 'accepted' });
   }
-  return Object.freeze({ begin, context, reconcile, listPendingPage: store.listPendingPage,
+  async function addReference(personId,body,actorId){
+    exact(body,['idempotencyKey','expectedPersonRevision','expectedReferenceRevision','image']);
+    if(typeof body.idempotencyKey!=='string'||!body.idempotencyKey||body.idempotencyKey.length>128||
+      !Number.isSafeInteger(body.expectedPersonRevision)||body.expectedPersonRevision<1||!Number.isSafeInteger(body.expectedReferenceRevision)||body.expectedReferenceRevision<1)
+      fail('PEOPLE_REGISTRATION_INPUT_INVALID','图片更新参数无效。');
+    const requestDigest=canonicalDigest({operationKind:'reference_add',personId,body}),existing=store.findCommand(actorId,body.idempotencyKey);
+    if(existing){if(existing.requestDigest!==requestDigest)fail('PEOPLE_IMAGE_OPERATION_COMMAND_CONFLICT','操作标识已用于其他内容。');return {operationRef:existing.operationId,state:'accepted'};}
+    const person=options.peopleStore.getPerson(personId);
+    if(!person)fail('PEOPLE_PERSON_NOT_FOUND','未找到演员。');
+    if(person.libraryKind!=='us_adult')fail('PEOPLE_LIBRARY_READ_ONLY','此演员库由系统维护。');
+    if(person.status!=='active'||person.currentRevision!==body.expectedPersonRevision||person.currentReferenceRevision!==body.expectedReferenceRevision)
+      fail('PEOPLE_PROFILE_REVISION_CONFLICT','演员资料或参考图已变化，请重新读取。');
+    const selectedImage=await stageImage(body.image,actorId,body.idempotencyKey);
+    if(options.peopleStore.hasReferenceImage(personId,selectedImage.digestHex))fail('PEOPLE_REFERENCE_IMAGE_EXISTS','此演员已经使用过这张图片。');
+    if(options.peopleStore.getPersonReferenceProjection(personId).contributions.flatMap(item=>item.activeAssets).length>=256)fail('PEOPLE_REFERENCE_IMAGE_LIMIT','参考图片已达到数量上限。');
+    const operationId=stable('people-image-operation-',{actorId,key:body.idempotencyKey}),payload={schema:'people.image-operation-request@1',operationKind:'reference_add',
+      expectedPersonRevision:body.expectedPersonRevision,expectedReferenceRevision:body.expectedReferenceRevision,operationId,personId,actorId,
+      canonicalName:person.revision.canonicalName,aliases:person.revision.aliases.map(item=>item.aliasDisplay),selectedImage,faceModelRef:faceModelReference('single_reference_face')};
+    store.create({operationId,personId,actorId,idempotencyKey:body.idempotencyKey,requestDigest,payload});reconcile(operationId);options.wake?.();return {operationRef:operationId,state:'accepted'};
+  }
+  return Object.freeze({ begin, addReference, referenceDecision, context, reconcile, listPendingPage: store.listPendingPage,
     get(operationId) {
       const operation = readOperation(operationId);
       return Object.freeze({ operationRef: operationId, state: operation.state, personId: operation.state === 'completed' ? operation.personId : null,

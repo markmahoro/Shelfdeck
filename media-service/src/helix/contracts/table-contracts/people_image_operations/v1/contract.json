@@ -222,8 +222,9 @@
     "semanticRules": [
       "`UNIQUE(actor_id,idempotency_key)`",
       "`INDEX(state,operation_id)`",
-      "payload schema固定`people.image-operation-request@1`，closed字段`schema,operationId,personId,actorId,canonicalName,aliases,selectedImage,faceModelRef`，≤`16 KiB`并完整JCS digest",
-      "person_id为未发布身份的预分配ID，不能FK或当作Person事实",
+      "payload schema固定`people.image-operation-request@1`，closed字段`schema,operationKind(registration|reference_add),expectedPersonRevision,expectedReferenceRevision,operationId,personId,actorId,canonicalName,aliases,selectedImage,faceModelRef`，≤`16 KiB`并完整JCS digest",
+      "registration的person_id为未发布身份的预分配ID",
+      "reference_add指向已发布Person并冻结两项expected revision，不能FK或由operation自身当作Person事实",
       "state仅从preparing执行terminal CAS",
       "completed schema固定`people.image-operation-result@1`，closed结果`personId,personRevision,referenceRevision`，≤`16 KiB`",
       "failed保存明确错误码且无result",
@@ -231,12 +232,12 @@
     ],
     "rawContract": {
       "columns": "`operation_id PK, person_id, actor_id, idempotency_key, request_digest, payload_schema_ref, payload_json, payload_digest, state(preparing|completed|failed), result_schema_ref NULL, result_json NULL, result_digest NULL, failure_code NULL, created_at_ms, updated_at_ms`",
-      "constraints": "`UNIQUE(actor_id,idempotency_key)`；`INDEX(state,operation_id)`；payload schema固定`people.image-operation-request@1`，closed字段`schema,operationId,personId,actorId,canonicalName,aliases,selectedImage,faceModelRef`，≤`16 KiB`并完整JCS digest；person_id为未发布身份的预分配ID，不能FK或当作Person事实；state仅从preparing执行terminal CAS；completed schema固定`people.image-operation-result@1`，closed结果`personId,personRevision,referenceRevision`，≤`16 KiB`；failed保存明确错误码且无result；只有内部工作流及用户本次operation只读查询可见，不构成确认队列"
+      "constraints": "`UNIQUE(actor_id,idempotency_key)`；`INDEX(state,operation_id)`；payload schema固定`people.image-operation-request@1`，closed字段`schema,operationKind(registration|reference_add),expectedPersonRevision,expectedReferenceRevision,operationId,personId,actorId,canonicalName,aliases,selectedImage,faceModelRef`，≤`16 KiB`并完整JCS digest；registration的person_id为未发布身份的预分配ID；reference_add指向已发布Person并冻结两项expected revision，不能FK或由operation自身当作Person事实；state仅从preparing执行terminal CAS；completed schema固定`people.image-operation-result@1`，closed结果`personId,personRevision,referenceRevision`，≤`16 KiB`；failed保存明确错误码且无result；只有内部工作流及用户本次operation只读查询可见，不构成确认队列"
     },
     "source": {
       "section": "8.5.13",
-      "line": 9644,
-      "lineDigest": "bba3108890ddb6b2a3957a867081b43a27a7fe4652b80bbda6bfe01812cc061e"
+      "line": 9647,
+      "lineDigest": "8a630800f5fd1c4b24ae0e51458189259498fa8e18c1a20bdf7ae94920f41408"
     },
     "foreignKeys": []
   }

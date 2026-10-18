@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/PerceptionAcquisitionResumeDecision/v1",
+  "title": "PerceptionAcquisitionResumeDecision@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "acquisitionId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedScopeDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "actorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "requestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "decisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "decisionId",
+    "acquisitionId",
+    "expectedScopeDigest",
+    "actorId",
+    "idempotencyKey",
+    "requestDigest",
+    "decisionDigest"
+  ]
+}
