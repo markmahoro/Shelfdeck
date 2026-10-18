@@ -69,3 +69,5 @@ US当前Run的Analysis→Metadata→NFO/共享Poster→Media/Conformance/Handoff
 Formation演员选择弹窗、US库搜图预览后确认、只读选择状态和“需要确认演员”Projection已接入，最新真实Host两条复验通过。Web212项及构建通过，尚无浏览器/负责人具体版本UI验收。当前156路由，下一步为US推荐/来源A联动及Arca单片刷新；其他开放项保留。
 
 推荐所需的帧/人脸位置与质量已保留到正式Embedding Artifact，并验证真实Host读回及篡改拒绝。尚未建立推荐Source端口和五人快照/认领，下一步仍为该工作。
+
+Libra推荐Source只读Facade及三个有界DTO已接Owner/Root，排除无脸、已选演员及已交付来源并校验完整Result链；24项局部检查与P2合同门禁通过。当前137 Domain inputs；五人快照/认领仍待实现。

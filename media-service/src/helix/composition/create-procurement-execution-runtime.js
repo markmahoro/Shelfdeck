@@ -1403,6 +1403,7 @@ function createProcurementExecutionRuntime(options) {
     pipelineAdmission:libraProcessServices.pipelineAdmission,
     usAdultActorChoice:libraProcessServices.usAdultActorChoice,
     usAdultActorSelectionQuery:libraProcessServices.usAdultActorSelectionQuery,
+    usAdultRecommendationSources:libraProcessServices.usAdultRecommendationQuery,
     arcaCoordinator:arcaProcessServices.coordinator,arcaContextReader:arcaProcessServices.contextReader,
     arcaFormationStatusProjection:arcaProcessServices.formationStatusProjection,
     arcaAcceptanceRecovery:arcaProcessServices.coordinator,

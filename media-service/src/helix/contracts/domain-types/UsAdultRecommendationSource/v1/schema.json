@@ -1,0 +1,191 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultRecommendationSource/v1",
+  "title": "UsAdultRecommendationSource@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultRecommendationSource/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "sourceId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedRunStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedChoiceRevision": {
+      "const": 0
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "analysisId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "analysisBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "completionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "originalName": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "us-adult-original-name@1"
+        },
+        "originalFileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "provenanceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "originalFileName",
+        "provenanceDigest"
+      ]
+    },
+    "frameArtifactSet": {
+      "$ref": "helix://contracts/types/FrameArtifactSet/v1"
+    },
+    "faceEmbeddingSetHandle": {
+      "$ref": "helix://contracts/types/FaceEmbeddingSetHandle/v1"
+    },
+    "faceClusterSetHandle": {
+      "$ref": "helix://contracts/types/FaceClusterSetHandle/v1"
+    },
+    "sourceResultRefs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "workId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "attemptId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "planId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "eventId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "resultId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "capabilityRef": {
+            "type": "string",
+            "enum": [
+              "libra.media.frames.extract@1",
+              "shared.face.embedding.compute@1",
+              "shared.face.cluster.compute@1"
+            ]
+          },
+          "resultSchemaRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "resultDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "inputBindingDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "workId",
+          "attemptId",
+          "planId",
+          "eventId",
+          "resultId",
+          "capabilityRef",
+          "resultSchemaRef",
+          "resultDigest",
+          "inputBindingDigest"
+        ]
+      },
+      "maxItems": 3,
+      "minItems": 3
+    },
+    "sourceDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "sourceId",
+    "subjectId",
+    "libraRunId",
+    "expectedRunStateRevision",
+    "expectedChoiceRevision",
+    "runExecutionBasisDigest",
+    "analysisId",
+    "analysisBasisDigest",
+    "completionDigest",
+    "originalName",
+    "frameArtifactSet",
+    "faceEmbeddingSetHandle",
+    "faceClusterSetHandle",
+    "sourceResultRefs",
+    "sourceDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 65536
+}

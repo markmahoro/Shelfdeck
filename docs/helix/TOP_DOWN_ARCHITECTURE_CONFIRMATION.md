@@ -2009,6 +2009,7 @@ Arca依据各自事实和确定性Evidence发布新Media-Cast revision。US Adul
 正式Frame Embedding Artifact同时保留有界、带版本的帧/人脸位置及质量Evidence，向量、截图digest、
 模型和采样Result连续校验；维护复用这些已完成的结果，不重新抽取整部影片。Libra只读Source Projection
 限定当前仍等待演员且未消费其他选择的A，People只能经该Projection及受控只读图片端口读取推荐线索。
+`UsAdultRecommendationQueryFacade.listSources(UsAdultRecommendationPageQuery)`有界扫描完成匹配记录，只返回当前US Subject、active/suspended Run、零用户选择且完整零匹配、有脸和正式Source Result链的Projection；无脸不能伪造推荐图片。`readSource(UsAdultRecommendationSource)`重验该精确版本，已确认、替换、进入交付或来源变化一律明确stale；两项均为只读，不发布Work或Actor关系。
 用户认领已有演员或创建新演员后，People提交身份决定及持久关联消息；Libra消费明确A的用户Intent，以版本围栏、
 幂等Receipt确认A的Media-Cast并解除演员阻塞。不是跨域原子事务，People不得写Libra事实。中途失败持续恢复；
 A若已被其他不同决定修改则明确冲突，不覆盖。聚类中的其他影片及已上架影片不在本次Intent授权内。
@@ -8191,7 +8192,8 @@ domains/libra/
 │  ├─ LibraCommandFacade
 │  ├─ LibraQueryFacade
 │  ├─ ProductDeliveryPort
-│  └─ WorkspaceReclamationPort
+│  ├─ WorkspaceReclamationPort
+│  └─ UsAdultRecommendationQueryFacade
 ├─ model/
 │  ├─ Subject
 │  ├─ RoutingDecision
@@ -10894,6 +10896,9 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `UsAdultActorChoiceReceipt` | `intentId,subjectId,libraRunId,choiceRevision,personId,personRevision,referenceRevision,recordDigest`；只读精确命令回执，不返回可变People查询或新Run身份；由同一Actor Choice Intent事务冻结并重放 |
 | `UsAdultMatchCompletion` | `schemaRef,schemaVersion(1),analysisId,libraRunId,subjectId,analysisBasisDigest,completedPageCount,detectedFaceCount,matchResultSetDigest,winner(NULL或{pageOrdinal,personSnapshot(UsAdultPersonSnapshot),matchResultRef{workId,attemptId,planId,eventId,resultId,capabilityRef,resultSchemaRef,resultDigest,inputBindingDigest},personMatchEvidence(PersonMatchEvidence)}),completionDigest`；完整value≤`256 KiB`；completionDigest排除自身；Result集digest覆盖按ordinal排列的全部实际Work/result/input摘要；必须先由Libra按不可变Analysis Basis逐页验证和选择唯一最高有效分，不能从调用方摘要直接发布；保存胜者完整Evidence而不复制全库到最终Media-Cast输入 |
 | `UsAdultActorSelectionBasis` | `schemaRef,schemaVersion(1),selectionId,libraRunId,subjectId,runExecutionBasisDigest,resolvedIdentityDigest,analysisId,analysisBasisDigest,selectionOrigin(user_choice|automatic_match),actorChoiceRecord NULL,matchCompletion NULL,referenceAssetId,selectionDigest`；完整value≤`1 MiB`；user_choice只携带当前Subject正式UsAdultActorChoiceRecord，automatic_match只携带有胜者的正式UsAdultMatchCompletion；Person和图均从该不可变来源读取，不读当前People；selectionDigest排除自身，selectionId覆盖Run/analysis basis/来源记录digest/图；是单演员生产及海报正式输入，不伪造人工选择的匹配分数 |
+| `UsAdultRecommendationPageQuery` | `schemaRef,schemaVersion(1),cursor(null或Run ID),limit(1..32)`；只读分页游标按Run ID UTF-8顺序，limit限制本批扫描量而非承诺返回同等推荐数量；空items配非空nextCursor表示继续扫描，不得解释为全库结束 |
+| `UsAdultRecommendationSource` | `schemaRef,schemaVersion(1),sourceId,subjectId,libraRunId,expectedRunStateRevision,expectedChoiceRevision(0),runExecutionBasisDigest,analysisId,analysisBasisDigest,completionDigest,originalName{schema(us-adult-original-name@1),originalFileName,provenanceDigest},frameArtifactSet(FrameArtifactSet),faceEmbeddingSetHandle(FaceEmbeddingSetHandle),faceClusterSetHandle(FaceClusterSetHandle),sourceResultRefs[3]{workId,attemptId,planId,eventId,resultId,capabilityRef,resultSchemaRef,resultDigest,inputBindingDigest},sourceDigest`；完整value≤`64 KiB`；refs依次为同Run正式Frames/Embedding/Cluster Result，所有Artifact及模型/图片/采样版本沿同一Analysis Basis且完成脸数大于零；sourceId覆盖Subject/Run/analysis/completion/Run revision，sourceDigest排除自身 |
+| `UsAdultRecommendationSourcePage` | `schemaRef,schemaVersion(1),items[0..32 UsAdultRecommendationSource],nextCursor(null或Run ID),pageDigest`；完整value≤`256 KiB`，pageDigest排除自身；按扫描顺序完整返回本批仍符合条件的Source，字节预算耗尽在未读取下一项前保存游标 |
 | `PeopleReferenceLibraryPage` | `schemaRef,schemaVersion(1),libraryKind(us_adult),libraryDigest,totalPersonCount,items[0..256 UsAdultPersonSnapshot],nextCursor(null|personId),pageDigest`；完整value≤`512 KiB`，pageDigest覆盖除自身外完整value；libraryDigest覆盖按Person ID UTF-8排序的active US Person全部head投影键及两项current revision/Reference Projection checkpoint；不是缓存时间戳；不得截断库或使用同名归并 |
 | `PerceptionAcquisitionResumeDecision` | `decisionId,acquisitionId,expectedScopeDigest,actorId,idempotencyKey,requestDigest,decisionDigest`；完整value≤`4 KiB`；只签发同一active Douban Acquisition的用户继续Intent，不覆盖原Snapshot/Scope/cursor；decisionDigest覆盖除自身外完整value |
 | `PeopleSelectedImageHandle` | `schemaRef,schemaVersion(1),uploadId,digestHex,sizeBytes,mediaType(image/jpeg|image/png|image/webp),provenance(source,sourceObjectId?,sourcePageUrl?,attribution?,selectedAtMs?,configRevision?),handleDigest`；≤`16 KiB`；uploadId为opaque受控ingress引用，字节≤`10 MiB`；handleDigest覆盖完整value除自身；不接受文件系统path、Embedding或内部Face ID |

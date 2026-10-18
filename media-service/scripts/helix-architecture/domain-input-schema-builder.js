@@ -276,6 +276,9 @@ const dtoContracts = {
   UsAdultActorChoiceReceipt:'',
   UsAdultMatchCompletion:'',
   UsAdultActorSelectionBasis:'',
+  UsAdultRecommendationPageQuery:'',
+  UsAdultRecommendationSource:'',
+  UsAdultRecommendationSourcePage:'',
   PeopleReferenceLibraryPage:'',
   PerceptionAcquisitionResumeDecision: '',
   PeopleReferenceMaintenanceDecision: '',
@@ -357,6 +360,9 @@ function buildSchema(name, role, fields) {
   if (name === 'TriageIdentityResolutionInput') return triageIdentityResolutionInputSchema();
   if (name === 'TriageManifestBuildInput') return triageManifestBuildInputSchema();
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
+  if(name==='UsAdultRecommendationPageQuery')return exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},cursor:nullable(id()),limit:{type:'integer',minimum:1,maximum:32}});
+  if(name==='UsAdultRecommendationSourcePage')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},items:arrayOf(domainRef('UsAdultRecommendationSource'),32),nextCursor:nullable(id()),pageDigest:digest()}),'x-helix-maxCanonicalBytes':256*1024};
+  if(name==='UsAdultRecommendationSource')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},sourceId:digest(),subjectId:id(),libraRunId:id(),expectedRunStateRevision:positiveInteger(),expectedChoiceRevision:{const:0},runExecutionBasisDigest:digest(),analysisId:digest(),analysisBasisDigest:digest(),completionDigest:digest(),originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()}),frameArtifactSet:typeRef('FrameArtifactSet'),faceEmbeddingSetHandle:typeRef('FaceEmbeddingSetHandle'),faceClusterSetHandle:typeRef('FaceClusterSetHandle'),sourceResultRefs:{...arrayOf(object({workId:id(),attemptId:id(),planId:id(),eventId:id(),resultId:id(),capabilityRef:enumText('libra.media.frames.extract@1','shared.face.embedding.compute@1','shared.face.cluster.compute@1'),resultSchemaRef:text({maxLength:256}),resultDigest:digest(),inputBindingDigest:digest()}),3),minItems:3},sourceDigest:digest()}),'x-helix-maxCanonicalBytes':64*1024};
   if(name==='UsAdultAnalysisBasis')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},analysisId:digest(),contentProfile:{const:'western_adult'},libraRunId:id(),subjectId:id(),expectedRunStateRevision:positiveInteger(),runExecutionBasisDigest:digest(),resolvedIdentityDigest:digest(),workspaceId:id(),sourceHandle:typeRef('PhysicalMaterialReadHandle'),sourceProbeRef:object({workId:id(),attemptId:id(),planId:id(),eventId:id(),resultId:id(),resultDigest:digest(),inputBindingDigest:digest()}),durationMs:positiveInteger(),faceModelRef:domainRef('FaceModelRef'),referenceModelRefDigest:digest(),clusterParameters:domainRef('ClusterParameters'),samplingPlan:domainRef('SamplingPlan'),referenceLibraryDigest:digest(),personCount:nonNegativeInteger(),pageCount:positiveInteger(),pageSetDigest:digest(),basisDigest:digest()}),'x-helix-maxCanonicalBytes':32*1024};
   if(name==='UsAdultActorChoiceRecord')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},intentId:digest(),libraRunId:id(),subjectId:id(),revision:positiveInteger(),expectedChoiceRevision:nonNegativeInteger(),expectedRunStateRevision:positiveInteger(),runExecutionBasisDigest:digest(),actorId:id(),idempotencyKey:text({maxLength:128}),requestDigest:digest(),personSnapshot:domainRef('UsAdultPersonSnapshot'),recordDigest:digest()}),'x-helix-maxCanonicalBytes':256*1024};
   if(name==='UsAdultActorChoiceDecision')return {...exactDomainSchema(name,{decisionId:digest(),record:domainRef('UsAdultActorChoiceRecord'),decisionDigest:digest()}),'x-helix-maxCanonicalBytes':1024*1024};

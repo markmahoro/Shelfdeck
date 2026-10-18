@@ -47,6 +47,7 @@ const {createUsAdultActorChoiceCommand} = require('../capabilities/us-adult-acto
 const {createUsAdultAnalysisPlanner, createUsAdultAnalysisProjections} = require('../planning/us-adult-analysis-planner');
 const {createUsAdultProductPlanner}=require('../planning/us-adult-product-planner');
 const {createUsAdultActorSelectionQuery}=require('../application/us-adult-actor-selection-query');
+const {createUsAdultRecommendationQuery}=require('../application/us-adult-recommendation-query');
 const {createUsAdultProductCapabilityPorts,createUsAdultProductCapabilityRegistrations,EFFECTS:US_PRODUCT_EFFECTS}=
   require('../capabilities/us-adult-product-capability-ports');
 const {createUsAdultAnalysisCapabilityPorts, createUsAdultAnalysisCapabilityRegistrations, EFFECTS:US_ANALYSIS_EFFECTS} =
@@ -105,6 +106,8 @@ if (!productDeliveryContract) {
 const workspaceReclamationContract = productionCatalog.ports.find((entry) =>
   entry.packageId === packageId && entry.exportName === 'WorkspaceReclamationPort'
 );
+const recommendationContract=productionCatalog.ports.find(entry=>entry.packageId===packageId&&entry.exportName==='UsAdultRecommendationQueryFacade');
+if(!recommendationContract)throw new LibraPublicFacadeError('US_ADULT_RECOMMENDATION_CONTRACT_MISSING','The formal US Adult recommendation query contract is missing.');
 if (!workspaceReclamationContract) {
   throw new LibraPublicFacadeError('P9_WORKSPACE_RECLAMATION_CONTRACT_MISSING',
     'Workspace Reclamation public contract is missing.');
@@ -154,6 +157,12 @@ function bindWorkspaceReclamation(implementation) {
     readCleanupScope: (query) => implementation.readCleanupScope(query),
     discardFrozenRun: (command) => implementation.discardFrozenRun(command)
   });
+}
+function bindUsAdultRecommendationQuery(implementation){
+  const expected=[...recommendationContract.methods].sort(),provided=Object.keys(implementation||{}).sort();
+  if(!implementation||JSON.stringify(expected)!==JSON.stringify(provided)||expected.some(method=>typeof implementation[method]!=='function'))
+    throw new LibraPublicFacadeError('US_ADULT_RECOMMENDATION_PORT_SHAPE_MISMATCH','Recommendation query exposes only its declared Owner reads.',{expected,provided});
+  return Object.freeze(Object.fromEntries(expected.map(method=>[method,query=>implementation[method](query)])));
 }
 
 function createExecutionRegistration() {
@@ -274,6 +283,7 @@ function createExecutionRegistration() {
       const usAdultActorChoiceStore=createUsAdultActorChoiceStore(options),
         usAdultActorChoice=createUsAdultActorChoiceCommand({...options,movieProductionReader,usAdultActorChoiceStore});
       const usAdultActorSelectionQuery=createUsAdultActorSelectionQuery({movieProductionReader,usAdultActorChoiceStore,usAdultAnalysisStore,usAdultMatchCompletionStore});
+      const usAdultRecommendationQuery=bindUsAdultRecommendationQuery(createUsAdultRecommendationQuery(options));
       const runCoordinator=createLibraRunCoordinator({...options,movieProductionReader,usAdultAnalysisStore,usAdultActorChoiceStore,usAdultMatchCompletionStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
         resolveFrozenRun:libraRunAdminService.reconcileFrozen,
         resolveRejectedRun:libraRunAdminService.reconcileRejected,
@@ -294,7 +304,7 @@ function createExecutionRegistration() {
       return Object.freeze({sourceFairness,offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
         libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore,usAdultAnalysisStore,
-        usAdultActorChoiceStore,usAdultActorChoice,usAdultActorSelectionQuery,usAdultMatchCompletionStore});
+        usAdultActorChoiceStore,usAdultActorChoice,usAdultActorSelectionQuery,usAdultRecommendationQuery,usAdultMatchCompletionStore});
     },
     createPlanningRegistration(options) {
       const productDeliveryAssembler=options.productDeliveryAssembler||createProductDeliveryAssembler(options);
@@ -341,5 +351,6 @@ module.exports = Object.freeze({
   LibraIntakeFacade:bind,
   ProductDeliveryPort:bindProductDelivery,
   WorkspaceReclamationPort:bindWorkspaceReclamation,
+  UsAdultRecommendationQueryFacade:bindUsAdultRecommendationQuery,
   LibraExecutionRegistration:createExecutionRegistration,
 });
