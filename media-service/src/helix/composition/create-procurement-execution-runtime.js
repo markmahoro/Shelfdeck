@@ -72,7 +72,7 @@ const createMovieResponsibilityClosureCoordinator =
 const { PerceptionExecutionRegistration } = require('../domains/perception/public');
 const { ArcaExecutionRegistration } = require('../domains/arca/public');
 const createOffloadCompletionPort = ArcaExecutionRegistration.createOffloadCompletionPort;
-const { createPeopleProcessServices } = require('../domains/people/public');
+const { createPeopleProcessServices, createPeopleImageExecutionRegistration } = require('../domains/people/public');
 
 const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.commit@1',
   'procurement.triage.playability.inspect@1','procurement.triage.bdmv.assess@1','procurement.triage.structure.inspect@1',
@@ -116,7 +116,8 @@ const ARCA_DEREGISTRATION_ENABLED=Object.freeze([
   'arca.shelf_deregistration.commit@1',
 ]);
 const ARCA_ALL_ENABLED=Object.freeze([...ARCA_ENABLED,...ARCA_OFFDECK_ENABLED,...ARCA_DEREGISTRATION_ENABLED]);
-const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED]);
+const PEOPLE_IMAGE_ENABLED = Object.freeze(['people.reference_asset.import@1', 'shared.face.embedding.compute@1']);
+const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED, ...PEOPLE_IMAGE_ENABLED]);
 const UAT_SOURCE_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79c362d01844af0853bc1c2c37442041acda1821d';
@@ -326,7 +327,10 @@ function createProcurementExecutionRuntime(options) {
     readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings});
   const arcaRegistrations=arcaCapabilityRegistration.createRegistrations({enabledCapabilityRefs:ARCA_ALL_ENABLED,
     manifests:Object.fromEntries(ARCA_ALL_ENABLED.map((ref)=>[ref,manifests[ref]]))});
-  const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations,...perceptionRegistrations,...arcaRegistrations].map(entry=>Object.freeze({...entry,executor:Object.freeze({...entry.executor,execute(context){
+  const peopleImageExecution = createPeopleImageExecutionRegistration({ ...options, workResultReader, contractValidator,
+    wake: () => host?.wakeBackground({ownerDomain:'people',reconcilerKey:'image-operations'}) });
+  const peopleImageRegistrations = peopleImageExecution.createRegistrations(manifests);
+  const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations,...perceptionRegistrations,...arcaRegistrations,...peopleImageRegistrations].map(entry=>Object.freeze({...entry,executor:Object.freeze({...entry.executor,execute(context){
     libraProcessServices?.sourceFairness.onExecutionStarted(context);
     return entry.executor.execute(context);
   }})})));
@@ -388,6 +392,7 @@ function createProcurementExecutionRuntime(options) {
     if(processType==='libra_intake')return Object.freeze({priorityClass:'handoff_acceptance',localPriority:300,priorityRevision:1,supplyRole:'completion'});
     if(processType==='libra_routing')return Object.freeze({priorityClass:'normal_foreground',localPriority:250,priorityRevision:1,supplyRole:'completion'});
     if(processType==='perception_acquisition'||processType==='perception_resolution')return Object.freeze({priorityClass:'normal_foreground',localPriority:240,priorityRevision:1,supplyRole:'completion'});
+    if(processType==='people_image_preparation')return Object.freeze({priorityClass:'normal_foreground',localPriority:240,priorityRevision:1,supplyRole:'completion'});
     if(processType==='libra_acceptance_spec')return Object.freeze({priorityClass:'normal_foreground',localPriority:230,priorityRevision:1,supplyRole:'completion'});
     if(processType==='arca_acceptance')return Object.freeze({priorityClass:'handoff_acceptance',localPriority:400,priorityRevision:1,supplyRole:'completion'});
     if(processType==='arca_ondeck_run')return Object.freeze({priorityClass:'normal_foreground',localPriority:300,priorityRevision:1,supplyRole:'completion'});
@@ -404,6 +409,7 @@ function createProcurementExecutionRuntime(options) {
   let sequence = 0;
   const scheduler = createWorkScheduler({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     supplyController, now, nextLeaseId: () => 'lease-' + (++sequence),
+    targetEligibilityProvider:options.executionEligibilityProvider,
     workSupplyEligibilityProvider:{check:({ownerDomain,workKind})=>
       !(ownerDomain==='procurement'&&workKind==='failed_preparation_retry')},
     priorityProjectionProvider: executionProjectionProvider });
@@ -557,7 +563,7 @@ function createProcurementExecutionRuntime(options) {
     readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings,
     ensurePerceptionRatingResolution:ensureShelfEntryRatingResolution});
   peopleProcessServices=createPeopleProcessServices({
-    ...options, now,
+    ...options, now, peopleStore: peopleImageExecution.peopleStore, imageOperations: peopleImageExecution.imageOperations,
     onDeckPersonEvidenceProjection:arcaProcessServices.onDeckPersonEvidenceProjection,
     onDeckNfoPersonEvidence:arcaProcessServices.onDeckNfoPersonEvidence,
   });
@@ -569,7 +575,7 @@ function createProcurementExecutionRuntime(options) {
     materialControlProjectionPort,controlScopeDigest,computeBoundedMaterialFingerprintSync,now});
   const bindingProjectionRegistry = createInputBindingProjectionRegistry({ registrations:[...planningRegistration.bindingProjections,
     ...libraPlanningRegistration.bindingProjections,...perceptionPlanningRegistration.bindingProjections,
-    ...arcaPlanningRegistration.bindingProjections] });
+    ...arcaPlanningRegistration.bindingProjections,...peopleImageExecution.createPlanningRegistration({registry,policyRegistry}).bindingProjections] });
   const executionInputProvider = createEventExecutionInputProvider({ schemaManifest: options.schemaManifest,
     unitOfWork: options.unitOfWork, contractValidator, bindingProjectionRegistry, workResultReader });
   const attemptPolicy = createAttemptPolicyController({ registry: policyRegistry, now });
@@ -804,14 +810,15 @@ function createProcurementExecutionRuntime(options) {
     'product_identity','product_metadata_observation','artifact_production','product_fact_assembly','workspace_media_production',
     'product_conformance','deliverable_promotion'];
   const perceptionPlannerKinds=['acquisition_page','resolution'];
-  const arcaPlannerKinds=['acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','care_workspace_reclaim','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit','jav_correction_assets','jav_correction_files','jav_correction_publish','jav_correction_verify','jav_correction_commit','jav_correction_formal_retirement','jav_correction_workspace_reclaim'];
+  const arcaPlannerKinds=['acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','periodic_health_assessment','periodic_custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','care_workspace_reclaim','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit','jav_correction_assets','jav_correction_files','jav_correction_publish','jav_correction_verify','jav_correction_commit','jav_correction_formal_retirement','jav_correction_workspace_reclaim'];
   const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({
     ownerDomain: 'procurement', workKind: plannerKinds[index], plannerContractRef: planner.plannerContractRef,
     plannerVersion: planner.plannerVersion, planner
   })),...libraPlanningRegistration.planners.map((planner,index)=>({ownerDomain:'libra',workKind:libraPlannerKinds[index],
     plannerContractRef:planner.plannerContractRef,plannerVersion:planner.plannerVersion,planner})),...perceptionPlanningRegistration.planners.map((planner,index)=>({ownerDomain:'perception',workKind:perceptionPlannerKinds[index],
     plannerContractRef:planner.plannerContractRef,plannerVersion:planner.plannerVersion,planner})),...arcaPlanningRegistration.planners.map((planner,index)=>({ownerDomain:'arca',workKind:arcaPlannerKinds[index],
-    plannerContractRef:planner.plannerContractRef,plannerVersion:planner.plannerVersion,planner}))] });
+    plannerContractRef:planner.plannerContractRef,plannerVersion:planner.plannerVersion,planner})),
+    ...peopleImageExecution.createPlanningRegistration({registry,policyRegistry}).planners] });
   const planPublisher = createWorkflowPlanPublisher({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     registry, contractValidator, policyRegistry });
   const catalogDigest = executionCatalogDigest(registry, policyRegistry);
@@ -959,6 +966,10 @@ function createProcurementExecutionRuntime(options) {
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.reconcilePhase!=='work_terminal')return null;
+    if(request.ownerDomain==='people'&&request.processType==='people_image_preparation'){
+      peopleImageExecution.imageOperations.reconcile(request.processId);
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
     if(request.ownerDomain==='libra'&&request.processType==='libra_intake'){
       const intake=libraProcessServices.coordinator.reconcile(request.processId);
       if(request.workKind==='acceptance'&&request.workAttemptState==='succeeded'){
@@ -1021,7 +1032,11 @@ function createProcurementExecutionRuntime(options) {
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='arca'&&request.processType==='arca_shelf_entry'){
-      if(request.workAttemptState==='succeeded')arcaProcessServices.aftercareCoordinator.reconcile(request.processId);
+      if (['periodic_health_assessment', 'periodic_custody_assessment', 'care_workspace_reclaim'].includes(request.workKind) &&
+          options.executionEligibilityProvider?.check(request) === false) {
+        return { workId:request.workId, disposition:request.workAttemptState };
+      }
+      if(request.workAttemptState==='succeeded')arcaProcessServices.aftercareCoordinator.reconcileAssessmentCompletion(request.processId,request.workId);
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='arca'&&request.processType==='arca_jav_identity_correction'){
@@ -1037,6 +1052,9 @@ function createProcurementExecutionRuntime(options) {
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='perception'&&request.processType==='perception_acquisition'){
+      if (options.executionEligibilityProvider?.check(request) === false) {
+        return { workId:request.workId, disposition:request.workAttemptState };
+      }
       if(request.workAttemptState==='succeeded'){
         const acquisition=perceptionProcessServices.reconcileAcquisition(request.processId);
         const context=perceptionProcessServices.acquisitionContext(request.processId);
@@ -1124,7 +1142,27 @@ function createProcurementExecutionRuntime(options) {
   const pipelineSubjectPage=(cursor,limit)=>libraProcessServices.pipelineAdmission.listTokens()
     .filter((item)=>(cursor===null||item.subjectId>cursor)&&Boolean(libraProcessServices.routingContextReader.read(item.subjectId))).slice(0,limit)
     .map((item)=>Object.freeze({cursor:item.subjectId,scope:Object.freeze({subjectId:item.subjectId})}));
-  const fallbackReconciler=createDomainReconcileRunner({cursorStore,now,onError:options.onError,registrations:[Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-maintenance',listPage:()=>options.recycleTick?[{cursor:'recycle',scope:{}}]:[],reconcile:()=>options.recycleTick()}),Object.freeze({
+  const fallbackReconciler=createDomainReconcileRunner({cursorStore,now,onError:options.onError,
+    reconcileEligibilityProvider:options.reconcileEligibilityProvider,onReconcileScopeStarted:options.onReconcileScopeStarted,
+    registrations:[Object.freeze({ownerDomain:'execution-foundation',reconcilerKey:'storage-maintenance',
+      listPage:()=>options.storageMaintenance&&options.maintenanceWindowKey?.()?[{cursor:'storage',scope:{}}]:[],
+      reconcile:()=>{
+        const key={ownerDomain:'execution-foundation',reconcilerKey:'storage-reference-audit-progress'},head=cursorStore.read(key),
+          progress=head.cursor?JSON.parse(head.cursor):{cursor:null,finishedWindow:null,optimizedWindow:null},window=options.maintenanceWindowKey();
+        if(progress.finishedWindow===window)return {kind:'complete'};
+        const cursor=progress.finishedWindow!==null?null:progress.cursor;
+        const result=options.storageMaintenance.auditReferenceSample(cursor,32);
+        if(progress.optimizedWindow!==window)options.storageMaintenance.optimize();
+        cursorStore.advance({...key,expectedRevision:head.revision,cursor:JSON.stringify({cursor:result.nextCursor,
+          finishedWindow:result.nextCursor===null?window:null,optimizedWindow:window})});
+        return {kind:'audited'};
+      },
+    }),Object.freeze({ownerDomain:'people',reconcilerKey:'image-operations',
+      listPage:page=>peopleImageExecution.imageOperations.listPendingPage(page),
+      reconcile:({operationId})=>peopleImageExecution.imageOperations.reconcile(operationId),
+    }),Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-expiry',
+      listPage:()=>options.recycleExpiryTick?[{cursor:'expiry',scope:{}}]:[],reconcile:()=>options.recycleExpiryTick(),
+    }),Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-maintenance',listPage:()=>options.recycleTick?[{cursor:'recycle',scope:{}}]:[],reconcile:()=>options.recycleTick()}),Object.freeze({
     ownerDomain:'procurement',reconcilerKey:'active-procurement-runs',
     listPage:({cursor,limit})=>triageReader.listActiveRunPage(cursor,limit),
     reconcile:({procurementRunId})=>runCoordinator.reconcile(procurementRunId),
@@ -1150,10 +1188,16 @@ function createProcurementExecutionRuntime(options) {
     reconcile:({processId})=>libraProcessServices.coordinator.reconcile(processId)}),Object.freeze({ownerDomain:'libra',reconcilerKey:'active-routing-subjects',
     listPage:({cursor,limit})=>pipelineSubjectPage(cursor,limit),
     reconcile:({subjectId})=>libraProcessServices.routingCoordinator.reconcile(subjectId)}),Object.freeze({ownerDomain:'perception',reconcilerKey:'active-acquisitions',
-    listPage:({cursor,limit})=>perceptionProcessServices.listAcquisitions().filter((item)=>item.state==='active')
+    listPage:({cursor,limit})=>perceptionProcessServices.listAcquisitions().filter((item)=>item.state==='active'&&perceptionProcessServices.acquisitionSchedulingClass(item.perceptionAcquisitionId)==='normal')
       .sort((a,b)=>a.perceptionAcquisitionId.localeCompare(b.perceptionAcquisitionId)).filter((item)=>cursor===null||item.perceptionAcquisitionId>cursor)
       .slice(0,limit).map((item)=>Object.freeze({cursor:item.perceptionAcquisitionId,scope:item})),
     reconcile:({perceptionAcquisitionId})=>perceptionProcessServices.reconcileAcquisition(perceptionAcquisitionId)}),Object.freeze({
+      ownerDomain:'perception',reconcilerKey:'active-periodic-acquisitions',
+      listPage:({cursor,limit})=>perceptionProcessServices.listAcquisitions().filter(item=>item.state==='active'&&perceptionProcessServices.acquisitionSchedulingClass(item.perceptionAcquisitionId)==='maintenance')
+        .sort((a,b)=>a.perceptionAcquisitionId.localeCompare(b.perceptionAcquisitionId)).filter(item=>cursor===null||item.perceptionAcquisitionId>cursor)
+        .slice(0,limit).map(item=>({cursor:item.perceptionAcquisitionId,scope:item})),
+      reconcile:({perceptionAcquisitionId})=>perceptionProcessServices.reconcileAcquisition(perceptionAcquisitionId),
+    }),Object.freeze({
       ownerDomain:'perception',reconcilerKey:'periodic-douban-acquisitions',
       listPage:({cursor,limit})=>perceptionProcessServices.periodicAcquisition
         ? perceptionProcessServices.periodicAcquisition.listPage({cursor,limit})
@@ -1225,6 +1269,10 @@ function createProcurementExecutionRuntime(options) {
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'due-aftercare-shelf-entries',
       listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.listPage(cursor,limit),
+      reconcile:({shelfEntryId})=>arcaProcessServices.aftercareCoordinator.reconcile(shelfEntryId,{periodic:true}),
+    }),Object.freeze({
+      ownerDomain:'arca',reconcilerKey:'active-aftercare-cases',
+      listPage:({cursor,limit})=>arcaProcessServices.aftercareContextReader.store.listOpenCasePage(cursor,limit),
       reconcile:({shelfEntryId})=>arcaProcessServices.aftercareCoordinator.reconcile(shelfEntryId),
     }),Object.freeze({
       ownerDomain:'libra',reconcilerKey:'frozen-libra-outcomes',
@@ -1306,6 +1354,7 @@ function createProcurementExecutionRuntime(options) {
     })]});
   host = createExecutionRuntimeHost({ startupRecovery, scheduler, plannerRegistry, planPublisher, workLifecycle,
     eventRuntime, domainReconciler, fallbackReconciler, incidentObserver:executorIncidentObserver,
+    onExecutionScopeStarted:options.onExecutionScopeStarted,
     onError: options.onError,maxInFlightEvents:16,shutdownTimeoutMs:options.shutdownTimeoutMs });
   return Object.freeze({ host, registry, policyRegistry, contractValidator, progressReader, procurementAutomation,
     readProcessFailures(scope){return workResultReader.listWorks(scope).slice().sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)).slice(0,3)

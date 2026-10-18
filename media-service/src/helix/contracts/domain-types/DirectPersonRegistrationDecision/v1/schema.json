@@ -11,6 +11,12 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "libraryKind": {
+      "const": "us_adult"
+    },
+    "initialReference": {
+      "$ref": "helix://contracts/domain-types/PeopleReferenceMaintenanceDecision/v1"
+    },
     "decisionId": {
       "type": "string",
       "minLength": 1,
@@ -104,6 +110,8 @@
     }
   },
   "required": [
+    "libraryKind",
+    "initialReference",
     "decisionId",
     "newPersonId",
     "canonicalName",

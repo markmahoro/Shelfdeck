@@ -12,7 +12,7 @@ const labels={starting:'正在启动',running:'后台运行中',stopping:'正在
 export default function RuntimeControls(){
   const {expire}=useSession();
   const status=useQuery({queryKey:['runtime-operations'],queryFn:()=>helixAdminApi.getRuntimeStatus(),
-    refetchInterval:query=>['stopping','resuming','resetting'].includes(query.state.data?.mode||'')?1000:5000});
+    refetchInterval:query=>query.state.data?.maintenance?.maintenanceActive||['stopping','resuming','resetting'].includes(query.state.data?.mode||'')?1000:5000});
   const [submitting,setSubmitting]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
   const [open,setOpen]=useState(false),[preview,setPreview]=useState<FormationResetPreview|null>(null),[checking,setChecking]=useState(false),[confirmed,setConfirmed]=useState(false);
   const previewRequest=useRef(0);
@@ -55,10 +55,13 @@ export default function RuntimeControls(){
     if(operation?.kind==='reset'&&operation.state==='completed')setNotice(`已清理 ${operation.result?.removedSubjects||0} 项整理，服务保持停机。`);
   },[status.data?.operation]);
   const activity=status.data?.activity;
+  const maintenance=mode==='running'&&status.data?.maintenance?.maintenanceActive?status.data.maintenance:null;
+  const maintenanceLabel=maintenance?.phase==='settling'?'维护收尾中':maintenance?.phase==='entering'||maintenance?.phase==='recovering'?'正在安全进入维护':'维护中';
   const active=(activity?.inFlightEvents||0)+(activity?.inFlightRecoveries||0)+(activity?.inFlightOwnerReconciliations||0)+(activity?.inFlightAdminCommands||0);
   return <>
     <section className="runtime-controls" aria-label="运行控制" aria-busy={busy}>
-      <div className="runtime-control-state" role="status" aria-live="polite"><strong>{status.error?'运行状态读取失败':mode?labels[mode]:'正在读取运行状态…'}</strong>
+      <div className="runtime-control-state" role="status" aria-live="polite"><strong>{status.error?'运行状态读取失败':maintenance?maintenanceLabel:mode?labels[mode]:'正在读取运行状态…'}</strong>
+        {maintenance?.phase==='maintaining'&&<small>{maintenance.currentTask||'等待下一批任务'}</small>}
         {mode==='stopping'&&<small>{active?`等待 ${active} 项操作完成`:'正在收尾'}</small>}
       </div>
       <div className="runtime-control-actions">

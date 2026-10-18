@@ -7,7 +7,7 @@ const {createJavCorrectionDirectoryInspection}=require('./jav-correction-directo
 function fail(code){throw Object.assign(new Error(code),{code});}
 function createRecycleApplication(options){
   const {store,port,files}=options,now=options.now||Date.now;
-  const root=path.resolve(options.root);let busy=false,lastExpirySweep=0;
+  const root=path.resolve(options.root);let busy=false;
   const retryAfter=new Map();
   const correctionInspection=options.directoryStore?createJavCorrectionDirectoryInspection({directoryStore:options.directoryStore,
     prepareScope:options.prepareCorrectionDirectory,readRecycled:()=>store.list(),scopeFor,preview,archive,files,now}):null;
@@ -110,14 +110,18 @@ function createRecycleApplication(options){
     options.cleanupStore.record(check,checks,state,state==='completed'?Number.MAX_SAFE_INTEGER:now()+retryMs);
     return {kind:'cleanup_checked',shelfEntryId:check.shelf_entry_id,state};
   }
+  async function expire(){
+    if(busy)return {kind:'busy'};
+    const row=store.list().filter(item=>item.state==='archived'&&item.expires_at_ms!==null&&Number(item.expires_at_ms)<=now())
+      .sort((a,b)=>Number(a.expires_at_ms)-Number(b.expires_at_ms)||a.recycle_entry_id.localeCompare(b.recycle_entry_id))[0];
+    if(!row)return {kind:'idle'};
+    store.requestPurge(row,now());
+    return tick();
+  }
   async function tick(){
     if(busy)return {kind:'busy'};busy=true;
     try{
       let rows=store.list();
-      if(now()-lastExpirySweep>=24*60*60*1000){
-        for(const row of rows.filter(row=>row.state==='archived'&&row.expires_at_ms!==null&&Number(row.expires_at_ms)<=now()))store.requestPurge(row,now());
-        lastExpirySweep=now();rows=store.list();
-      }
       const row=rows.filter(row=>['pending','moving','restoring','purging'].includes(row.state)&&now()>=(retryAfter.get(row.recycle_entry_id)||0))
         .sort((a,b)=>Number(a.created_at_ms)-Number(b.created_at_ms))[0];
       if(!row){
@@ -152,6 +156,6 @@ function createRecycleApplication(options){
       cleanupNextCursor:rows.length>50?page.at(-1).on_deck_run_id:null,
       correctionChecks:correctionPage.map(row=>{const {onDeckRunId,...projection}=cleanupProjection(row,recycled);return {...projection,correctionId:row.correction_id,errorCode:row.last_error_code||null};}),
       correctionNextCursor:correctionRows.length>50?correctionPage.at(-1).correction_id:null};
-  },preview,archive,restore,tick});
+  },preview,archive,restore,tick,expire});
 }
 module.exports=Object.freeze({createRecycleApplication});

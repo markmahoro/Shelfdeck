@@ -12,7 +12,7 @@ function castQueries(metadata) {
         hint.role!=='actor'||!Array.isArray(hint.providerIdentities)||hint.providerIdentities.length!==0)fail();
     const seed={schema:'arca.jav-correction-person-hint@1',correctionId:metadata.correctionId,shelfEntryId:metadata.shelfEntryId,hint,
         sourceObservationDigest:metadata.sourceQualification.observation.observationDigest},
-      input={providerIdentities:[],evidenceDigest:canonicalDigest(seed)},
+      input={libraryKind:'jav',providerIdentities:[],evidenceDigest:canonicalDigest(seed)},
       relationId='arca-jav-correction-cast-'+canonicalDigest(seed).slice(0,40);
     queries.set(relationId,{relationId,hint:structuredClone(hint),input,inputDigest:canonicalDigest(input)});
   }

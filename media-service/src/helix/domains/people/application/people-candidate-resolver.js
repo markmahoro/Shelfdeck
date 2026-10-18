@@ -29,7 +29,7 @@ function validatePolicyRef(value) {
   return Object.freeze({ ...value });
 }
 function validateRegistrationEvidence(value) {
-  const keys = ['schemaRef', 'schemaVersion', 'evidenceId', 'evidenceKind', 'producerRef', 'basisDigest', 'payloadDigest', 'observedAtMs',
+  const keys = ['libraryKind', 'schemaRef', 'schemaVersion', 'evidenceId', 'evidenceKind', 'producerRef', 'basisDigest', 'payloadDigest', 'observedAtMs',
     'proposedName', 'aliases', 'providerIdentities', 'referenceHints'];
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== keys.length ||
       keys.some((key) => !Object.hasOwn(value, key)) || value.schemaRef !== REGISTRATION_EVIDENCE_SCHEMA || value.schemaVersion !== 1 ||
@@ -38,7 +38,7 @@ function validateRegistrationEvidence(value) {
     fail('P6_PEOPLE_REGISTRATION_EVIDENCE_INVALID', 'Person Registration Evidence is invalid.');
   }
   for (const field of ['evidenceId', 'evidenceKind', 'producerRef', 'proposedName']) text(value[field], field);
-  const candidatePayload = { proposedName: value.proposedName, aliases: value.aliases,
+  const candidatePayload = { libraryKind: value.libraryKind, proposedName: value.proposedName, aliases: value.aliases,
     providerIdentities: value.providerIdentities, referenceHints: value.referenceHints };
   const normalized = createCandidateDraft({ schemaRef: 'helix://contracts/types/PeopleCandidateDraft/v1', schemaVersion: 1,
     draftId: value.evidenceId, draftKind: 'validation-only', basisDigest: value.basisDigest, draftDigest: value.basisDigest,

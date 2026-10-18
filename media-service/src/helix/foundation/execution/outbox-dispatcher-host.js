@@ -31,6 +31,16 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     consumerDomain:item.delivery.consumer_domain,payloadSchemaRef:item.message.payload_schema_ref,payloadDigest:item.message.payload_digest,payload});}
   async function deliver(item){let payload;try{payload=JSON.parse(item.message.payload_json);}catch{throw new Error('Outbox payload JSON is corrupt.');}
     if(canonicalDigest(payload)!==item.message.payload_digest)throw new Error('Outbox payload digest is corrupt.');
+    if(item.message.message_kind==='people.person.registered'&&item.delivery.consumer_domain==='people'){
+      if(item.message.producer_domain!=='people'||item.message.aggregate_type!=='person'||
+          item.message.payload_schema_ref!=='helix://contracts/signals/people-person-registered/v1'||
+          payload.personId!==item.message.aggregate_id||payload.personRevision!==Number(item.message.aggregate_revision))
+        throw new Error('Person registration signal does not match its committed aggregate.');
+      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'people'},
+        resultDigest:canonicalDigest({schema:'people.registration-signal-consumption@1',...payload}),
+        domainParticipant:options.peopleCoordinator.registrationSignalParticipant(payload)});
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'people'});return;
+    }
     if(item.message.message_kind==='rule_template_published'&&item.delivery.consumer_domain==='read-model'){
       if(item.message.producer_domain!=='arca'||item.message.aggregate_type!=='rule_template'||
           item.message.payload_schema_ref!=='helix://contracts/messages/ArcaRuleTemplatePublished/v1'||

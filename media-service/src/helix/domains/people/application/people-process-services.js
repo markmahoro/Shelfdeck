@@ -1,5 +1,6 @@
 'use strict';
 
+const { requireLibraryKind, libraryForProfile } = require('../model/person-library');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createMediaCastReferenceQuery } = require('./media-cast-reference-query');
 const { createPeopleStore } = require('../persistence/people-store');
@@ -39,9 +40,9 @@ function createPeopleProcessServices(options) {
   const evidenceProjection = options.onDeckPersonEvidenceProjection;
 
   function alreadyKnown(evidence) {
-    if(evidence.personId&&store.getPerson(evidence.personId))return true;
+    if(evidence.personId && store.getPerson(evidence.personId)?.libraryKind === libraryForProfile(evidence.contentProfile))return true;
     const identities = providerIdentitiesFrom(evidence);
-    if (identities.some((identity) => store.findActivePersonByProviderIdentity({provider:identity.provider,
+    if (identities.some((identity) => store.findActivePersonByProviderIdentity({libraryKind:libraryForProfile(evidence.contentProfile),provider:identity.provider,
       namespace:identity.namespace,providerKey:identity.providerKey}))) return true;
     const digest = evidence.evidenceDigest;
     return Boolean(store.findRegistrationCandidateByEvidence(digest));
@@ -52,6 +53,7 @@ function createPeopleProcessServices(options) {
     const aliases = [aliasFor(proposedName)];
     const providerIdentities = providerIdentitiesFrom(evidence);
     const candidatePayload = {
+      libraryKind: libraryForProfile(evidence.contentProfile),
       proposedName,
       aliases,
       providerIdentities,
@@ -108,6 +110,7 @@ function createPeopleProcessServices(options) {
 
   function reconcile(scope) {
     if (!scope || scope.skipped) return Object.freeze({ kind: 'skipped' });
+    if (libraryForProfile(scope.contentProfile) === 'us_adult') return Object.freeze({ kind: 'user_owned_library' });
     if (!scope.displayName && !(scope.providerIdentities || []).length) return Object.freeze({ kind: 'empty' });
     if (alreadyKnown(scope)) return Object.freeze({ kind: 'known', evidenceDigest: scope.evidenceDigest });
     const candidate = openDraft(scope);
@@ -118,69 +121,22 @@ function createPeopleProcessServices(options) {
       });
       return Object.freeze({ kind: 'auto_accepted', personId: person.personId, candidateId: candidate.candidateId });
     }
-    return Object.freeze({ kind: 'candidate_open', candidateId: candidate.candidateId });
+    return Object.freeze({ kind: 'internal_evidence', candidateId: candidate.candidateId });
   }
 
   function registerPerson(body, actorId) {
-    const canonicalName = String(body?.canonicalName || '').trim();
-    const aliases = Array.isArray(body?.aliases)
-      ? body.aliases.map((alias) => aliasFor(String(alias))).filter((item) => item.aliasDisplay)
-      : [];
-    const providerIdentities = Array.isArray(body?.providerIdentities)
-      ? body.providerIdentities.map((item) => Object.freeze({
-        provider: String(item.provider || 'tmdb'),
-        namespace: String(item.namespace || 'person'),
-        providerKey: String(item.providerKey || ''),
-        provenanceDigest: digestValue({ kind: 'direct-provider-identity', item }),
-      })).filter((item) => item.providerKey)
-      : [];
-    if (!canonicalName) {
-      const error = new Error('人物姓名不能为空。');
-      error.code = 'PEOPLE_NAME_REQUIRED';
-      throw error;
-    }
-    const newPersonId = String(body?.personId || 'person-' + digestValue({ canonicalName, actorId }).slice(0, 24));
-    const decision = {
-      decisionId: String(body?.idempotencyKey || ('register-' + newPersonId)),
-      newPersonId,
-      canonicalName,
-      aliases: aliases.length ? aliases : [aliasFor(canonicalName)],
-      providerIdentities,
-      actorId: actorId || 'admin',
-    };
-    return store.registerDirectPerson({ ...decision, decisionDigest: digestValue(decision) });
+    const libraryKind = requireLibraryKind(body?.libraryKind);
+    if (libraryKind !== 'us_adult') throw Object.assign(new Error('This Person library is system managed.'), { code: 'PEOPLE_LIBRARY_READ_ONLY' });
+    if (!options.imageOperations) throw Object.assign(new Error('People image preparation is unavailable.'), { code: 'PEOPLE_IMAGE_PREPARATION_UNAVAILABLE' });
+    return options.imageOperations.begin(body, actorId);
   }
 
   function acceptRegistration(body, actorId) {
-    const candidate = store.getRegistrationCandidate(body.candidateId);
-    if (!candidate || candidate.currentState !== 'open') {
-      const error = new Error('待确认人物不存在或已经处理。');
-      error.code = 'PEOPLE_CANDIDATE_NOT_OPEN';
-      throw error;
-    }
-    return acceptCandidate(candidate, {
-      decisionOrigin: 'user',
-      decisionId: String(body.idempotencyKey || ('accept-' + candidate.candidateId)),
-      actorId: actorId || 'admin',
-      newPersonId: body.newPersonId,
-    });
+    throw Object.assign(new Error('System Person evidence does not require user confirmation.'), { code: 'PEOPLE_LIBRARY_READ_ONLY' });
   }
 
   function dismissRegistration(body, actorId) {
-    const candidate = store.getRegistrationCandidate(body.candidateId);
-    if (!candidate || candidate.currentState !== 'open') {
-      const error = new Error('待确认人物不存在或已经处理。');
-      error.code = 'PEOPLE_CANDIDATE_NOT_OPEN';
-      throw error;
-    }
-    const decision = {
-      candidateKind: 'registration',
-      candidateId: candidate.candidateId,
-      expectedRevision: candidate.currentRevision,
-      decisionId: String(body.idempotencyKey || ('dismiss-' + candidate.candidateId)),
-      actorId: actorId || 'admin',
-    };
-    return store.dismissCandidate({ ...decision, decisionDigest: digestValue(decision) });
+    throw Object.assign(new Error('System Person evidence is managed internally.'), { code: 'PEOPLE_LIBRARY_READ_ONLY' });
   }
 
   function reconcileNfoEntry(scope) {
@@ -189,7 +145,7 @@ function createPeopleProcessServices(options) {
     const results = observation.items.map(reconcile);
     return Object.freeze({kind:'nfo_evidence_consumed',observedCount:results.length,
       registeredCount:results.filter(item => item.kind === 'auto_accepted').length,
-      pendingCount:results.filter(item => item.kind === 'candidate_open').length});
+      pendingCount:results.filter(item => item.kind === 'internal_evidence').length});
   }
 
   return Object.freeze({
@@ -200,6 +156,8 @@ function createPeopleProcessServices(options) {
     listPage,
     reconcile,
     registerPerson,
+    imageOperations: options.imageOperations,
+    registrationSignalParticipant: payload => store.createRegistrationSignalParticipant(payload),
     acceptRegistration,
     dismissRegistration,
   });

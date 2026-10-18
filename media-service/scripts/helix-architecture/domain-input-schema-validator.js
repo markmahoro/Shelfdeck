@@ -83,6 +83,7 @@ function validateDomainInputSchemas(options) {
     const exactIdentityFields = {
       PeopleCandidateAcceptanceDecision: ['decisionId', 'expectedCandidateRevision', 'candidatePayloadDigest', 'decisionDigest'],
       DirectPersonRegistrationDecision: ['decisionId', 'newPersonId', 'decisionDigest'],
+      PeopleSelectedImageHandle: ['schemaRef', 'schemaVersion', 'uploadId', 'digestHex', 'sizeBytes', 'mediaType', 'provenance', 'handleDigest'],
       PeopleReferenceMaintenanceDecision: ['decisionId', 'personId', 'expectedPersonRevision', 'expectedReferenceRevision', 'decisionDigest'],
       PersonReferenceProjection: ['projectionContract', 'projectionRevision', 'personId', 'personRevision', 'projectionDigest'],
       MetadataFetchIntent: ['intentId', 'libraRunId', 'runExecutionBasisDigest', 'sourceKind', 'sourcePriority', 'resolvedIdentityDigest', 'intentDigest'],
@@ -191,7 +192,7 @@ function validateDomainInputSchemas(options) {
     }
     const exactBoundedContracts = new Set(['AnalysisSpec', 'ArtifactRequirement', 'ClusterParameters', 'EncodeIntent',
       'FaceModelRef', 'MediaRequirement', 'RemuxIntent', 'SamplingPlan', 'IdentityRequirement', 'AcquisitionPolicy', 'SelectionCriteria',
-      'WorkspaceDeliveryContract', 'ProductionSourceScopeReference', 'MandatoryRequirement']);
+      'WorkspaceDeliveryContract', 'ProductionSourceScopeReference', 'MandatoryRequirement', 'PeopleSelectedImageHandle']);
     if (schema['x-helix-role'] === 'bounded-contract' && !exactBoundedContracts.has(entry.id) && !(schema.required || []).includes('typedParameters')) findings.push(finding(
       'UNBOUNDED_INTENT_PARAMETERS', 'Bounded intent/requirement contracts require typedParameters.', { entryId: entry.id }
     ));

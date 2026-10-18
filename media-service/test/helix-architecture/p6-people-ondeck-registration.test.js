@@ -21,7 +21,8 @@ test('UAT-214 current cast paging ignores 150 historical copies and preserves ex
   const {createOnDeckPersonEvidenceProjection}=require('../../src/helix/domains/arca/application/on-deck-person-evidence-projection');
   const {personRecordQuery}=require('../../src/helix/domains/arca/model/person-record-observation');
   kernel.runPrimitive(({prepare})=>{
-    prepare("INSERT INTO arca_shelf_entries(shelf_entry_id,status) VALUES('entry-history','active')").run();
+    prepare("INSERT INTO arca_canonical_identity_revisions(shelf_entry_id,revision,identity_kind) VALUES('entry-history',1,'tmdb_movie')").run();
+    prepare("INSERT INTO arca_shelf_entries(shelf_entry_id,status,structure_kind,canonical_identity_revision) VALUES('entry-history','active','single',1)").run();
     for(let revision=1;revision<=150;revision++){
       prepare('INSERT INTO arca_inventory_representations(shelf_entry_id,revision) VALUES(?,?)').run('entry-history',revision);
       for(const id of ['cast-a','cast-b'])prepare('INSERT INTO arca_inventory_person_relations(relation_id,shelf_entry_id,inventory_revision,display_name,display_name_normalized,role,provider_identity_json,relation_digest) VALUES(?,?,?,?,?,?,?,?)')
@@ -31,7 +32,7 @@ test('UAT-214 current cast paging ignores 150 historical copies and preserves ex
   });
   const projection=createOnDeckPersonEvidenceProjection({schemaManifest,unitOfWork}),people=createPeopleProcessServices({schemaManifest,unitOfWork,peopleStore:store});
   const original=projection.listPage({cursor:null,limit:1})[0].scope;
-  const draft=people.reconcile(original),person=people.acceptRegistration({candidateId:draft.candidateId},'admin');
+  const draft=people.reconcile(original),person=seedHistoricalAcceptance(store,draft.candidateId);
   kernel.runPrimitive(({prepare})=>prepare("UPDATE arca_shelf_entries SET current_inventory_revision=150 WHERE shelf_entry_id='entry-history'").run());
   const first=projection.listPage({cursor:null,limit:1}),second=projection.listPage({cursor:first[0].cursor,limit:1});
   assert.equal(first[0].scope.inventoryRevision,150);assert.equal(first[0].scope.skipped,false);
@@ -40,9 +41,9 @@ test('UAT-214 current cast paging ignores 150 historical copies and preserves ex
   assert.equal(projection.listPage({cursor:second[0].cursor,limit:1}).length,0);
   assert.equal(people.reconcile(first[0].scope).kind,'known');assert.equal(store.listRegistrationCandidates().length,1);
   const row=kernel.runPrimitive(({prepare})=>prepare("SELECT * FROM arca_inventory_person_relations WHERE relation_id='cast-a' AND inventory_revision=150").get());
-  const linked=people.mediaCastReferenceQuery.resolve(personRecordQuery({...row,evidence_inventory_revision:1}));
+  const linked=people.mediaCastReferenceQuery.resolve(personRecordQuery({...row,evidence_inventory_revision:1},'normal'));
   assert.equal(linked.personId,person.personId);assert.equal(linked.reasonCode,'accepted_origin_evidence');
-  assert.equal(people.mediaCastReferenceQuery.resolve({personId:null,providerIdentities:[],evidenceDigest:second[0].scope.evidenceDigest}).kind,'unresolved');
+  assert.equal(people.mediaCastReferenceQuery.resolve({libraryKind:'normal',personId:null,providerIdentities:[],evidenceDigest:second[0].scope.evidenceDigest}).kind,'unresolved');
   kernel.runPrimitive(({prepare})=>prepare("UPDATE arca_inventory_person_relations SET person_id=?,relation_digest=? WHERE relation_id='cast-a' AND inventory_revision=150").run(person.personId,canonicalDigest({linked:person.personId})));
   const bound=projection.listPage({cursor:null,limit:1})[0].scope;
   assert.equal(bound.personId,person.personId);assert.equal(people.reconcile(bound).kind,'known');
@@ -63,12 +64,12 @@ function fixture(run) {
   finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
 }
 
-test('strong On-deck Person Evidence is auto-accepted; weak Evidence stays open for the user', () => fixture(({ store, unitOfWork, schemaManifest }) => {
+test('strong On-deck Person Evidence is auto-accepted; weak Evidence stays internal without user confirmation', () => fixture(({ store, unitOfWork, schemaManifest }) => {
   const evidence = [
     Object.freeze({
       cursor: 'rel-strong',
       scope: Object.freeze({
-        skipped: false,
+        skipped: false, contentProfile: 'movie',
         displayName: '强身份演员',
         shelfEntryId: 'entry-1',
         inventoryRevision: 1,
@@ -80,7 +81,7 @@ test('strong On-deck Person Evidence is auto-accepted; weak Evidence stays open 
     Object.freeze({
       cursor: 'rel-weak',
       scope: Object.freeze({
-        skipped: false,
+        skipped: false, contentProfile: 'movie',
         displayName: '弱身份演员',
         shelfEntryId: 'entry-1',
         inventoryRevision: 1,
@@ -95,22 +96,21 @@ test('strong On-deck Person Evidence is auto-accepted; weak Evidence stays open 
     onDeckPersonEvidenceProjection: { listPage: () => evidence },
   });
   assert.equal(people.reconcile(evidence[0].scope).kind, 'auto_accepted');
-  assert.equal(people.reconcile(evidence[1].scope).kind, 'candidate_open');
+  assert.equal(people.reconcile(evidence[1].scope).kind, 'internal_evidence');
   assert.equal(store.listPeople().filter((item) => item.status === 'active').length, 1);
   assert.equal(store.listPeople()[0].revision.canonicalName, '强身份演员');
   const open = store.listRegistrationCandidates().filter((item) => item.currentState === 'open');
   assert.equal(open.length, 1);
   assert.equal(open[0].proposedName, '弱身份演员');
-  people.acceptRegistration({ candidateId: open[0].candidateId }, 'admin');
-  assert.equal(store.listPeople().filter((item) => item.status === 'active').length, 2);
+  assert.throws(() => people.acceptRegistration({ candidateId: open[0].candidateId }, 'admin'), {code:'PEOPLE_LIBRARY_READ_ONLY'});
+  assert.equal(store.listPeople().filter((item) => item.status === 'active').length, 1);
   assert.equal(people.reconcile(evidence[0].scope).kind, 'known');
 }));
 
-test('direct registration writes the Person Registry and does not require On-deck Evidence', () => fixture(({ store, unitOfWork, schemaManifest }) => {
-  const people = createPeopleProcessServices({ schemaManifest, unitOfWork, peopleStore: store, onDeckPersonEvidenceProjection: { listPage: () => [] } });
-  const person = people.registerPerson({ canonicalName: '直接登记', aliases: ['Direct'] }, 'admin');
-  assert.equal(person.revision.canonicalName, '直接登记');
-  assert.equal(store.listPeople().length, 1);
+test('normal and JAV libraries reject user registration without publishing a Person', () => fixture(({store,unitOfWork,schemaManifest}) => {
+  const people=createPeopleProcessServices({schemaManifest,unitOfWork,peopleStore:store});
+  for(const libraryKind of ['normal','jav']) assert.throws(() => people.registerPerson({libraryKind,canonicalName:'Name'},'admin'), {code:'PEOPLE_LIBRARY_READ_ONLY'});
+  assert.equal(store.listPeople().length,0);
 }));
 
 test('shared origin provenance produces one deterministic Evidence digest per Person relation', () => {
@@ -148,7 +148,7 @@ test('shared source provenance registers every strong identity and keeps every w
     })),
   ].map((item) => {
     const relationDigest = canonicalDigest({ relationId: item.relationId, displayName: item.displayName });
-    const base = {
+    const base = { contentProfile: 'movie',
       ...item,
       shelfEntryId: 'entry-1',
       inventoryRevision: 1,
@@ -165,7 +165,7 @@ test('shared source provenance registers every strong identity and keeps every w
   });
   const first = relations.map((scope) => people.reconcile(scope));
   assert.equal(first.filter((item) => item.kind === 'auto_accepted').length, 16);
-  assert.equal(first.filter((item) => item.kind === 'candidate_open').length, 3);
+  assert.equal(first.filter((item) => item.kind === 'internal_evidence').length, 3);
   assert.equal(store.listPeople().filter((item) => item.status === 'active').length, 16);
   assert.equal(store.listRegistrationCandidates().filter((item) => item.currentState === 'open').length, 3);
   assert.ok(relations.every((scope) => people.reconcile(scope).kind === 'known'));
@@ -174,7 +174,7 @@ test('shared source provenance registers every strong identity and keeps every w
 
 test('the same Provider Person Identity remains idempotent across sources and service restart', () => fixture(({ store, unitOfWork, schemaManifest }) => {
   const scopeFor = (relationId, source) => {
-    const base = {
+    const base = { contentProfile: 'movie',
       relationId,
       shelfEntryId: `entry-${source}`,
       inventoryRevision: 1,
@@ -205,7 +205,7 @@ test('new On-deck evidence is visible immediately after an empty sweep', () => f
     onDeckPersonEvidenceProjection: { listPage: () => page },
   });
   assert.deepEqual(people.listPage({ cursor: null, limit: 100 }), []);
-  const base = {
+  const base = { contentProfile: 'movie',
     relationId: 'relation-after-empty-sweep', shelfEntryId: 'entry-1', inventoryRevision: 1,
     relationDigest: canonicalDigest({ relationId: 'relation-after-empty-sweep' }),
     originEvidenceDigest: canonicalDigest({ source: 'movie-after-empty-sweep' }),
@@ -227,14 +227,14 @@ test('periodic Person evidence reconciliation uses exact identity and evidence l
   });
   const people=createPeopleProcessServices({schemaManifest,unitOfWork,peopleStore:guardedStore,
     onDeckPersonEvidenceProjection:{listPage:()=>[]}});
-  const strong=Object.freeze({displayName:'有界强身份',shelfEntryId:'entry-bounded',inventoryRevision:1,
+  const strong=Object.freeze({contentProfile:'movie',displayName:'有界强身份',shelfEntryId:'entry-bounded',inventoryRevision:1,
     providerIdentities:[{provider:'tmdb',namespace:'person',providerKey:'bounded-1'}],
     evidenceDigest:canonicalDigest({kind:'bounded-strong'}),identityStrength:'strong'});
-  const weak=Object.freeze({displayName:'有界弱身份',shelfEntryId:'entry-bounded',inventoryRevision:1,
+  const weak=Object.freeze({contentProfile:'movie',displayName:'有界弱身份',shelfEntryId:'entry-bounded',inventoryRevision:1,
     providerIdentities:[],evidenceDigest:canonicalDigest({kind:'bounded-weak'}),identityStrength:'weak'});
   assert.equal(people.reconcile(strong).kind,'auto_accepted');
   assert.equal(people.reconcile(strong).kind,'known');
-  assert.equal(people.reconcile(weak).kind,'candidate_open');
+  assert.equal(people.reconcile(weak).kind,'internal_evidence');
   assert.equal(people.reconcile(weak).kind,'known');
 }));
 
@@ -242,7 +242,7 @@ test('periodic Person evidence reconciliation uses exact identity and evidence l
 test('UAT-214 consumes bounded Arca NFO evidence and does not re-register unchanged content after an Inventory revision', () => fixture(({ store, unitOfWork, schemaManifest }) => {
   const {createOnDeckNfoPersonEvidence} = require('../../src/helix/domains/arca/application/on-deck-nfo-person-evidence');
   let revision=1, reads=0, clock=1000;
-  const raw=()=>({entry:{status:'active',current_inventory_revision:revision},shelf:{status:'active'},
+  const raw=()=>({contentProfile:'movie',entry:{status:'active',current_inventory_revision:revision},shelf:{status:'active'},
     materials:[{ordinal:0,role:'primary_payload',location:'/movie.mkv'},
       {ordinal:1,role:'metadata_sidecar',location:'/movie.nfo',material_key:'physical'}]});
   const projection=createOnDeckNfoPersonEvidence({now:()=>clock,contextReader:{store:{
@@ -268,18 +268,24 @@ test('UAT-214 consumes bounded Arca NFO evidence and does not re-register unchan
 
 test('UAT-214 resolves only exact provider namespace or user-accepted origin, never a shared name', () => fixture(({store,unitOfWork,schemaManifest}) => {
   const people=createPeopleProcessServices({schemaManifest,unitOfWork,peopleStore:store});
-  const person=people.registerPerson({personId:'person-exact',canonicalName:'Shared Name',
-    providerIdentities:[{provider:'tmdb',namespace:'person',providerKey:'10'}]},'admin');
-  const input={personId:null,providerIdentities:[{provider:'tmdb',namespace:'person',providerKey:'10'}],evidenceDigest:canonicalDigest({origin:'missing'})};
+  const result=people.reconcile({contentProfile:'movie',displayName:'Shared Name',shelfEntryId:'entry-exact',inventoryRevision:1,identityStrength:'strong',evidenceDigest:canonicalDigest({key:'10'}),providerIdentities:[{provider:'tmdb',namespace:'person',providerKey:'10'}]});
+  const person=store.getPerson(result.personId);
+  const input={libraryKind:'normal',personId:null,providerIdentities:[{provider:'tmdb',namespace:'person',providerKey:'10'}],evidenceDigest:canonicalDigest({origin:'missing'})};
   const exact=people.mediaCastReferenceQuery.resolve(input);
   assert.equal(exact.kind,'resolved');assert.equal(exact.personId,person.personId);assert.equal(exact.reasonCode,'exact_provider_identity');
   assert.equal(exact.personRevision,1);assert.equal(exact.personFactDigest,person.revision.factDigest);
   assert.equal(people.mediaCastReferenceQuery.resolve({...input,providerIdentities:[{provider:'tmdb',namespace:'movie',providerKey:'10'}]}).kind,'unresolved');
   const evidenceDigest=canonicalDigest({origin:'weak'});
-  const candidate=people.reconcile({displayName:'Shared Name',shelfEntryId:'entry',inventoryRevision:1,providerIdentities:[],identityStrength:'weak',evidenceDigest});
+  const candidate=people.reconcile({contentProfile:'movie',displayName:'Shared Name',shelfEntryId:'entry',inventoryRevision:1,providerIdentities:[],identityStrength:'weak',evidenceDigest});
   assert.equal(people.mediaCastReferenceQuery.resolve({...input,providerIdentities:[],evidenceDigest}).kind,'unresolved');
-  const accepted=people.acceptRegistration({candidateId:candidate.candidateId},'admin');
+  const accepted=seedHistoricalAcceptance(store,candidate.candidateId);
   const linked=people.mediaCastReferenceQuery.resolve({...input,providerIdentities:[],evidenceDigest});
   assert.equal(linked.kind,'resolved');assert.equal(linked.personId,accepted.personId);assert.equal(linked.reasonCode,'accepted_origin_evidence');
   assert.equal(people.mediaCastReferenceQuery.resolve({...input,providerIdentities:[],evidenceDigest:canonicalDigest({origin:'different'})}).kind,'unresolved');
 }));
+
+function seedHistoricalAcceptance(store,candidateId) {
+  const candidate=store.getRegistrationCandidate(candidateId);
+  const decision={decisionId:'historical-'+candidateId,candidateKind:'registration',candidateId,expectedCandidateRevision:candidate.currentRevision,candidatePayloadDigest:candidate.candidatePayloadDigest,decisionOrigin:'user',actorId:'historical-admin',newPersonId:'historical-person-'+candidateId};
+  return store.acceptRegistrationCandidate({...decision,decisionDigest:canonicalDigest(decision)});
+}

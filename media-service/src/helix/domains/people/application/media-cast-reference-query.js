@@ -1,5 +1,6 @@
 'use strict';
 
+const {requireLibraryKind} = require('../model/person-library');
 const {canonicalDigest} = require('../../../contracts/canonical-json');
 
 function createMediaCastReferenceQuery(store) {
@@ -18,16 +19,19 @@ function createMediaCastReferenceQuery(store) {
   return Object.freeze({resolve(input) {
     if(!input||!Array.isArray(input.providerIdentities)||input.providerIdentities.length>16)
       throw Object.assign(new Error('Media-Cast query requires bounded exact identity evidence.'),{code:'PEOPLE_MEDIA_CAST_QUERY_INVALID'});
+    const libraryKind = requireLibraryKind(input.libraryKind);
+    if (libraryKind === 'us_adult') return unresolved('user_actor_refresh_required');
     let target=null,reasonCode;
     if(input.personId) {
       const current=store.getPerson(input.personId);
+      if(current && current.libraryKind !== libraryKind) return unresolved('cross_library_reference');
       if(current?.status==='active')return Object.freeze({kind:'unchanged',personId:input.personId});
       target=activeTarget(current);reasonCode='formal_merge';
     } else {
       const matches=new Map();
       for(const identity of input.providerIdentities) {
         if(!identity.provider||!identity.namespace||!identity.providerKey)continue;
-        const person=store.findActivePersonByProviderIdentity({provider:identity.provider,namespace:identity.namespace,providerKey:identity.providerKey});
+        const person=store.findActivePersonByProviderIdentity({libraryKind,provider:identity.provider,namespace:identity.namespace,providerKey:identity.providerKey});
         if(person?.status==='active')matches.set(person.personId,person);
       }
       if(matches.size>1)return unresolved('conflicting_provider_identities');
@@ -36,7 +40,7 @@ function createMediaCastReferenceQuery(store) {
         target=activeTarget(store.findUserAcceptedRegistrationPerson(input.evidenceDigest));reasonCode='accepted_origin_evidence';
       }
     }
-    if(!target)return unresolved('no_deterministic_person');
+    if(!target || target.libraryKind !== libraryKind)return unresolved('no_deterministic_person');
     const proof={schema:'people.media-cast-reference-proof@1',kind:'resolved',personId:target.personId,
       personRevision:target.currentRevision,personFactDigest:target.revision.factDigest,reasonCode,
       inputDigest:canonicalDigest(input)};

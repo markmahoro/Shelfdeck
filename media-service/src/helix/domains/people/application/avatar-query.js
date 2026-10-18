@@ -24,6 +24,12 @@ function createPeopleAvatarQuery(options) {
     if (!person || person.status !== 'active') {
       fail('PEOPLE_PERSON_NOT_FOUND', 'Registered Person was not found.');
     }
+    if (person.libraryKind === 'us_adult') {
+      const projection = options.store.getPersonReferenceProjection(personId);
+      const assets = projection?.contributions.filter(item => item.ownerPersonId === personId).flatMap(item => item.activeAssets) || [];
+      if (!assets.length || typeof options.readReferenceAvatar !== 'function') fail('PEOPLE_AVATAR_NOT_AVAILABLE', 'Actor reference image is unavailable.');
+      return options.readReferenceAvatar({ personId, ...assets[0] });
+    }
     const providerIdentity = person.revision.providerIdentities.find((identity) =>
       identity.provider === 'tmdb' && identity.namespace === 'tmdb_person' &&
       /^\d+$/.test(identity.providerKey));

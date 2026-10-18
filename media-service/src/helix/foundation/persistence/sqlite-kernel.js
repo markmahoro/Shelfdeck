@@ -45,7 +45,7 @@ function expectedCatalog(manifest) {
 
 function assertManifest(manifest, ddl) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.compilerContract !== 'helix-p3-deterministic-sqlite-ddl/v1' ||
-      ![200,204,210].includes(manifest.tableCount) || !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount) {
+      ![200,204,210,211].includes(manifest.tableCount) || !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount) {
     fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'The clean schema manifest is incomplete or unsupported.');
   }
   if (manifest.digestAlgorithm !== 'sha256' || digest(normalizedDdl(ddl)) !== manifest.ddlDigest) {
@@ -127,6 +127,10 @@ function assertGuardConsistency(database) {
     {
       name: 'people-active-provider-identity',
       sql: "SELECT COUNT(*) count FROM people_provider_identities i LEFT JOIN people_persons p ON p.person_id=i.person_id WHERE i.active_guard <> CASE WHEN p.status='active' AND p.current_revision=i.revision THEN 1 ELSE 0 END"
+    },
+    {
+      name: 'people-provider-library',
+      sql: 'SELECT COUNT(*) count FROM people_provider_identities i JOIN people_persons p ON p.person_id=i.person_id WHERE i.library_kind<>p.library_kind'
     }
   ];
   for (const check of checks) {
@@ -264,6 +268,46 @@ function openSqliteKernel(options) {
     return Object.freeze({
       generation,
       storageMaintenance: Object.freeze({
+        optimize() {
+          ensureOpen();
+          if (transactionActive) fail('P3_SQLITE_MAINTENANCE_DURING_TRANSACTION', 'SQLite optimization cannot overlap a transaction.');
+          const previous = database.pragma('analysis_limit', { simple: true });
+          try { database.pragma('analysis_limit = 400'); database.pragma('optimize'); }
+          finally { database.pragma('analysis_limit = ' + previous); }
+          return Object.freeze({ status: 'optimized' });
+        },
+        auditReferenceSample(cursor = null, maxRows = 32) {
+          ensureOpen();
+          if (transactionActive) fail('P3_SQLITE_MAINTENANCE_DURING_TRANSACTION', 'Reference audit cannot overlap a transaction.');
+            if (!Number.isSafeInteger(maxRows) || maxRows < 1 || maxRows > 100 || cursor !== null &&
+                (typeof cursor !== 'object' || Array.isArray(cursor) || Object.keys(cursor).sort().join(',') !== 'rowId,tableIndex' ||
+                 !Number.isSafeInteger(cursor.tableIndex) || cursor.tableIndex < 0 || cursor.tableIndex >= options.schemaManifest.tables.length ||
+                 !Number.isSafeInteger(cursor.rowId) || cursor.rowId < 0)) {
+            fail('P3_SQLITE_MAINTENANCE_LIMIT_INVALID', 'Reference audit requires a bounded cursor.');
+          }
+          const quote = name => { if (!IDENTIFIER.test(name)) fail('P3_SQLITE_IDENTIFIER_INVALID', 'Invalid declared reference identifier.'); return '"' + name + '"'; };
+          let tableIndex = cursor?.tableIndex || 0;
+          while (tableIndex < options.schemaManifest.tables.length) {
+            const table = options.schemaManifest.tables[tableIndex], keys = database.pragma('foreign_key_list(' + quote(table.tableId) + ')');
+            if (!keys.length) { tableIndex++; continue; }
+              const columns = [...new Set(keys.map(key => key.from))];
+              const rows = database.prepare('SELECT rowid AS audit_rowid, ' + columns.map(quote).join(',') + ' FROM ' + quote(table.tableId) + ' WHERE rowid>? ORDER BY rowid LIMIT ?')
+              .all(tableIndex === cursor?.tableIndex ? cursor.rowId : 0, maxRows);
+            const groups = new Map();
+            for (const key of keys) { if (!groups.has(key.id)) groups.set(key.id, []); groups.get(key.id).push(key); }
+            for (const row of rows) for (const group of groups.values()) {
+              group.sort((a, b) => a.seq - b.seq);
+              if (group.some(key => row[key.from] === null)) continue;
+              const parent = database.prepare('SELECT 1 AS present FROM ' + quote(group[0].table) + ' WHERE ' + group.map(key => quote(key.to) + '=?').join(' AND ') + ' LIMIT 1')
+                .get(...group.map(key => row[key.from]));
+              if (!parent) fail('P3_SQLITE_REFERENCE_AUDIT_FAILED', 'A sampled declared reference has no parent.', { tableId: table.tableId });
+            }
+            const nextCursor = rows.length === maxRows ? { tableIndex, rowId: Number(rows.at(-1).audit_rowid) } :
+              tableIndex + 1 < options.schemaManifest.tables.length ? { tableIndex: tableIndex + 1, rowId: 0 } : null;
+            return Object.freeze({ nextCursor, sampledRows: rows.length });
+          }
+          return Object.freeze({ nextCursor: null, sampledRows: 0 });
+        },
         diagnostics() {
           ensureOpen();
           const pageSize = database.pragma('page_size', { simple:true });

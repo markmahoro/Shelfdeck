@@ -49,6 +49,10 @@ function createCleanFacades(options) {
     facades.PlatformAdminFacade.get_runtime_reset_preview=async()=>({body:await runtime.previewReset()});
     facades.PlatformAdminFacade.post_runtime_reset=async input=>({status:202,body:await runtime.reset(input.body,input.actor)});
   }
+  if(options.maintenanceWindow){
+    facades.PlatformAdminFacade.get_runtime_maintenance=async()=>({body:options.maintenanceWindow.configuration()});
+    facades.PlatformAdminFacade.patch_runtime_maintenance=async input=>({body:options.maintenanceWindow.configure(input.body,input.actor.actorId)});
+  }
   facades.PlatformAdminFacade.post_session = async (input) => {
     const ttlMs = input.body?.ttlMs ?? MAX_SESSION_TTL_MS;
     const token = options.sessionTokens.issueAuthenticated({
@@ -109,13 +113,19 @@ function createCleanFacades(options) {
       body: options.peopleAdminQuery.mergeCandidates(),
     });
     if (options.peopleAdmin) {
+      facades.PeopleAdminFacade.get_people_operations_operationid = async input => ({ body: options.peopleAdmin.imageOperation(input.params.operationId) });
+      facades.PeopleAdminFacade.get_people_image_search = async input => ({ body: await options.peopleAdmin.searchImages(input.query.name) });
+      facades.PeopleAdminFacade.get_people_image_search_preview = async input => {
+        const image = await options.peopleAdmin.previewImage(input.query.selectionToken);
+        return { body: image.bytes, contentType: image.mediaType, headers: { 'Cache-Control': 'private, no-store' } };
+      };
       facades.PeopleAdminFacade.post_people_actions_register = async (input) => ({
-        status: 201,
-        body: { person: options.peopleAdmin.register(input.body, input.actor) },
-      });
-      facades.PeopleAdminFacade.post_people = async (input) => ({
         status: 200,
         body: { person: options.peopleAdmin.accept(input.body, input.actor) },
+      });
+      facades.PeopleAdminFacade.post_people = async (input) => ({
+        status: 202,
+        body: await options.peopleAdmin.register(input.body, input.actor),
       });
       facades.PeopleAdminFacade.post_people_actions_dismiss_candidate = async (input) => ({
         status: 200,

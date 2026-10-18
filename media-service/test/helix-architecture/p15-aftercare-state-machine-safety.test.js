@@ -111,6 +111,16 @@ function fixture(options = {}) {
   };
 }
 
+test('normal callbacks do not initiate periodic assessment and a maintenance callback never progresses an active Case', () => {
+  const value = fixture();
+  try {
+    assert.equal(value.coordinator.reconcile('entry-1', { periodic: true }).kind, 'case_deferred_to_normal_supply');
+    value.history.cases = [];
+    assert.equal(value.coordinator.reconcile('entry-1').kind, 'no_active_case');
+    assert.equal(value.database.prepare('SELECT count(*) count FROM fx_supporting_works').get().count, 0);
+  } finally { value.close(); }
+});
+
 test('a committed repair assessment reaches Case admission before its next periodic check, without rerunning probes', () => {
   const current=basis('frozen',1),workId='completed-manual-assessment';
   const value=fixture({assessmentReader:{
@@ -130,7 +140,7 @@ test('a committed repair assessment reaches Case admission before its next perio
     }));
     value.history.findings=[{assessmentId:'presentation',state:'open',findingId:'missing-nfo',
       findingKind:'presentation:nfo_missing',findingDigest:digest('missing-nfo'),repairability:'auto_repair'}];
-    const result=value.coordinator.reconcile('entry-1');
+    const result=value.coordinator.reconcile('entry-1', { periodic: true });
     assert.equal(result.kind,'case_queued');
     assert.equal(value.caseRequests.length,1);
     const objective=require('../../src/helix/domains/arca/model/care-objective').readCareObjective(value.caseRequests[0].careRequirement);
@@ -138,7 +148,7 @@ test('a committed repair assessment reaches Case admission before its next perio
     assert.equal(value.caseRequests[0].basisInputs.find(item=>item.inputKind==='health_assessment_work').aggregateId,workId);
     assert.equal(value.database.prepare('SELECT count(*) count FROM fx_supporting_works').get().count,0);
     value.history.cases=[{...value.care,state:'unresolved',terminalAtMs:5000}];
-    assert.equal(value.coordinator.reconcile('entry-1').kind,'case_queued');
+    assert.equal(value.coordinator.reconcile('entry-1', { periodic: true }).kind,'case_queued');
     assert.equal(value.caseRequests.length,2,'A fresh assessment is not suppressed by an older failed Case.');
   }finally{value.close();}
 });
@@ -152,13 +162,13 @@ test('restored NFO bytes schedule one deduplicated health recheck and never crea
       result:kind==='custody'?'degraded':'healthy',evidenceDigest:digest(kind),assessedAtMs:9000}));
     value.history.findings=[{assessmentId:'custody',state:'open',findingId:'changed-nfo',
       findingKind:'custody:nfo_identity_changed',findingDigest:digest('changed-nfo'),repairability:'observe'}];
-    const first=value.coordinator.reconcile('entry-1'),second=value.coordinator.reconcile('entry-1');
+    const first=value.coordinator.reconcile('entry-1', { periodic: true }),second=value.coordinator.reconcile('entry-1', { periodic: true });
     assert.equal(first.kind,'assessment_pending');assert.equal(second.workId,first.workId);
     assert.equal(value.database.prepare('SELECT count(*) count FROM fx_supporting_works').get().count,1);
     assert.equal(value.caseRequests.length,0);
     value.history.findings=[];value.history.assessments[0].result='healthy';
     assert.equal(value.coordinator.project('entry-1').state,'healthy');
-    assert.equal(value.coordinator.reconcile('entry-1').kind,'not_due');
+    assert.equal(value.coordinator.reconcile('entry-1', { periodic: true }).kind,'not_due');
   }finally{value.close();}
 });
 
@@ -171,9 +181,9 @@ test('a fresh daily custody gap obtains concrete repair evidence without waiting
       result:kind==='custody'?'degraded':'healthy',evidenceDigest:digest(kind),assessedAtMs:kind==='custody'?9000:1000}));
     value.history.findings=[{assessmentId:'custody',state:'open',findingId:'missing-artifact',
       findingKind:'custody:artifact_missing',findingDigest:digest('missing-artifact'),repairability:'auto_repair'}];
-    const first=value.coordinator.reconcile('entry-1'),second=value.coordinator.reconcile('entry-1');
+    const first=value.coordinator.reconcile('entry-1', { periodic: true }),second=value.coordinator.reconcile('entry-1', { periodic: true });
     assert.equal(first.kind,'assessment_pending');assert.equal(second.workId,first.workId);
-    assert.equal(value.database.prepare('SELECT work_kind FROM fx_supporting_works WHERE work_id=?').get(first.workId).work_kind,'health_assessment');
+    assert.equal(value.database.prepare('SELECT work_kind FROM fx_supporting_works WHERE work_id=?').get(first.workId).work_kind,'periodic_health_assessment');
     assert.equal(value.database.prepare('SELECT count(*) count FROM fx_supporting_works').get().count,1);
     assert.equal(value.caseRequests.length,0);
   }finally{value.close();}
@@ -374,8 +384,8 @@ test('obsolete generic media strategy findings trigger a fresh health assessment
     value.history.assessments=['custody','presentation','conformance'].map(kind=>({assessmentId:kind,assessmentKind:kind,careBasisDigest:current.digest,
       result:kind==='conformance'?'degraded':'healthy',assessedAtMs:9000,evidenceDigest:digest(kind)}));
     value.history.findings=[{findingId:'legacy',findingDigest:digest('legacy'),findingKind:'conformance:media_strategy_unavailable',assessmentId:'conformance',state:'open',repairability:'attention_required'}];
-    const result=value.coordinator.reconcile('entry-1');assert.equal(result.kind,'assessment_pending');assert.equal(value.caseRequests.length,0);
-    const works=value.database.prepare('SELECT work_kind FROM fx_supporting_works').all();assert.deepEqual(works,[{work_kind:'health_assessment'}]);
-    assert.equal(value.coordinator.reconcile('entry-1').workId,result.workId);
+    const result=value.coordinator.reconcile('entry-1', { periodic: true });assert.equal(result.kind,'assessment_pending');assert.equal(value.caseRequests.length,0);
+    const works=value.database.prepare('SELECT work_kind FROM fx_supporting_works').all();assert.deepEqual(works,[{work_kind:'periodic_health_assessment'}]);
+    assert.equal(value.coordinator.reconcile('entry-1', { periodic: true }).workId,result.workId);
   }finally{value.close();}
 });

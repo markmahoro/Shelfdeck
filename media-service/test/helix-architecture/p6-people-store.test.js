@@ -13,11 +13,22 @@ const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sql
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createPeopleStore } = require('../../src/helix/domains/people/persistence/people-store');
 const { createPeopleAdminQuery } = require('../../src/helix/domains/people/application/admin-query');
+const { initialReference } = require('./fixtures/us-adult-initial-reference');
+const { createCapabilityContractValidator } = require('../../src/helix/foundation/capability/contract-validator');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 const hash = (value) => crypto.createHash('sha256').update(value).digest('hex');
+
+test('initial US reference fixture satisfies the nominal production DTO graph', () => {
+  const root = '../../src/helix/contracts/';
+  const validator = createCapabilityContractValidator({ schemas: [
+    require(root + 'types/ArtifactHandle/v1/schema.json'), require(root + 'types/FaceEmbeddingSetHandle/v1/schema.json'),
+    require(root + 'domain-types/PeopleReferenceMaintenanceDecision/v1/schema.json'),
+  ] });
+  validator.validate('helix://contracts/domain-types/PeopleReferenceMaintenanceDecision/v1', initialReference('qualified-person'));
+});
 
 function fixture(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-people-store-'));
@@ -55,16 +66,85 @@ function personInput(personId, key = personId) {
     providerIdentities: [{ provider: 'tmdb', namespace: 'person', providerKey: key, provenanceDigest: hash(`${personId}:provider`) }]
   };
 }
-function directDecision(personId, key = personId) {
+function directDecision(personId, key = personId, libraryKind = 'normal') {
   const person = personInput(personId, key);
-  const decision = { decisionId: `register-${personId}`, newPersonId: personId, canonicalName: person.canonicalName,
-    aliases: person.aliases, providerIdentities: person.providerIdentities, actorId: 'admin-1' };
+  const decision = { decisionId: `register-${personId}`, newPersonId: personId, libraryKind, canonicalName: person.canonicalName,
+    aliases: person.aliases, providerIdentities: person.providerIdentities, actorId: 'admin-1',
+    ...(libraryKind === 'us_adult' ? { initialReference: initialReference(personId) } : {}) };
   return { ...decision, decisionDigest: canonicalDigest(decision) };
 }
 
+test('isolates the same provider identity in three libraries and rejects duplicates within each library', () => {
+  fixture(({ store }) => {
+    for (const libraryKind of ['normal', 'jav', 'us_adult']) {
+      const personId = `person-${libraryKind}`;
+      store.registerDirectPerson(directDecision(personId, 'same-physical-person', libraryKind));
+      const identity = { libraryKind, provider: 'tmdb', namespace: 'person', providerKey: 'same-physical-person' };
+      assert.equal(store.findActivePersonByProviderIdentity(identity).personId, personId);
+      assert.throws(() => store.registerDirectPerson(directDecision(`${personId}-duplicate`, 'same-physical-person', libraryKind)),
+        /UNIQUE constraint/);
+      const page = store.listPeoplePage({ cursor: '', limit: 10, status: 'active', search: '', libraryKind });
+      assert.deepEqual(page.map(item => item.personId), [personId]);
+      assert.equal(page[0].libraryKind, libraryKind);
+    }
+    assert.equal(store.listPeople().length, 3);
+    assert.throws(() => store.findActivePersonByProviderIdentity({ provider: 'tmdb', namespace: 'person', providerKey: 'same-physical-person' }),
+      { code: 'P6_PEOPLE_PROVIDER_IDENTITY_LOOKUP_INPUT' });
+  });
+});
+
+test('publishes a US Adult Person and its initial image atomically, with no selectable identity on invalid reference evidence', () => {
+  fixture(({ store }) => {
+    const decision = directDecision('actor-valid', 'actor-valid', 'us_adult');
+    const person = store.registerDirectPerson(decision);
+    assert.equal(person.currentReferenceRevision, 1);
+    assert.equal(store.getReferenceAsset('asset-actor-valid').state, 'active');
+    assert.equal(store.listPersonReferenceProjections().length, 1);
+    const { initialReference: omitted, decisionDigest: oldDigest, ...missing } = directDecision('actor-missing', 'actor-missing', 'us_adult');
+    assert.throws(() => store.registerDirectPerson({ ...missing, decisionDigest: canonicalDigest(missing) }), { code: 'P6_PEOPLE_DIRECT_REGISTRATION_INPUT' });
+    assert.equal(store.getPerson('actor-missing'), undefined);
+    const reference = initialReference('actor-wrong');
+    const badReference = { ...reference, faceEmbeddingSetHandle: { ...reference.faceEmbeddingSetHandle, detectedFaceCount: 2, vectorCount: 2 } };
+    badReference.decisionDigest = canonicalDigest(Object.fromEntries(Object.entries(badReference).filter(([key]) => key !== 'decisionDigest')));
+    const bad = { ...directDecision('actor-wrong', 'actor-wrong', 'us_adult'), initialReference: badReference };
+    bad.decisionDigest = canonicalDigest(Object.fromEntries(Object.entries(bad).filter(([key]) => key !== 'decisionDigest')));
+    assert.throws(() => store.registerDirectPerson(bad), { code: 'P6_PEOPLE_REFERENCE_ADD_EVIDENCE' });
+    assert.equal(store.getPerson('actor-wrong'), undefined);
+  });
+});
+
+test('rejects cross-library merge before creating any candidate', () => {
+  fixture(({ store }) => {
+    const left = store.registerDirectPerson(directDecision('person-a', 'normal-person', 'normal'));
+    const right = store.registerDirectPerson(directDecision('person-b', 'jav-person', 'jav'));
+    assert.throws(() => store.openCandidate({ candidateId: 'cross-library', draft: mergeDraft('cross-library', left, right) }),
+      { code: 'PEOPLE_CROSS_LIBRARY_MERGE_FORBIDDEN' });
+    assert.equal(store.listMergeCandidates().length, 0);
+    assert.equal(store.getPerson('person-a').currentRevision, 1);
+    assert.equal(store.getPerson('person-b').currentRevision, 1);
+  });
+});
+
+test('keeps weak normal evidence internal and rejects user mutations of system libraries', () => {
+  fixture(({ store, unitOfWork }) => {
+    const { createPeopleProcessServices } = require('../../src/helix/domains/people/application/people-process-services');
+    const service = createPeopleProcessServices({ schemaManifest, unitOfWork, peopleStore: store });
+    const evidence = { contentProfile: 'movie', shelfEntryId: 'entry-a', inventoryRevision: 1,
+      displayName: 'Same Name', providerIdentities: [], identityStrength: 'weak', evidenceDigest: hash('weak-a') };
+    assert.equal(service.reconcile(evidence).kind, 'internal_evidence');
+    assert.equal(service.reconcile(evidence).kind, 'known');
+    assert.equal(store.listPeople().length, 0);
+    assert.throws(() => service.acceptRegistration({}), { code: 'PEOPLE_LIBRARY_READ_ONLY' });
+    assert.throws(() => service.dismissRegistration({}), { code: 'PEOPLE_LIBRARY_READ_ONLY' });
+    assert.throws(() => service.registerPerson({ libraryKind: 'normal', canonicalName: 'Name' }), { code: 'PEOPLE_LIBRARY_READ_ONLY' });
+    assert.equal(service.reconcile({ ...evidence, contentProfile: 'western_adult' }).kind, 'user_owned_library');
+    assert.equal(store.listRegistrationCandidates().length, 1);
+  });
+});
+
 function registrationDraft(id, overrides = {}) {
   const candidatePayload = overrides.candidatePayload || {
-    proposedName: `Candidate ${id}`,
+    libraryKind: 'normal', proposedName: `Candidate ${id}`,
     aliases: [{ aliasDisplay: id, aliasNormalized: id.toLowerCase(), provenanceDigest: hash(`${id}:alias`) }],
     providerIdentities: [{ provider: 'tmdb', namespace: 'person', providerKey: id, provenanceDigest: hash(`${id}:provider`) }],
     referenceHints: [{ hintKind: 'portrait', referenceValue: `artifact:${id}`, provenanceDigest: hash(`${id}:hint`) }]
@@ -97,7 +177,7 @@ function mergeDraft(id, left, right, overrides = {}) {
   };
 }
 
-test('binds exactly two Owner repositories to all thirteen current People tables', () => {
+test('binds the thirteen canonical Person and Candidate tables to their two Owner repositories', () => {
   fixture(({ store }) => assert.deepEqual(store.repositoryManifest.components, [
     {
       component: 'PersonRegistryRepository', repositoryId: 'person_registry_repository',
@@ -112,7 +192,7 @@ test('binds exactly two Owner repositories to all thirteen current People tables
   ]));
 });
 
-test('creates and revises a global Person through an immutable state-matched head with no content scope', () => {
+test('creates and revises a library-scoped Person through an immutable state-matched head with no content scope', () => {
   fixture(({ databasePath, store }) => {
     const first = store.registerDirectPerson(directDecision('person-1'));
     assert.equal(first.status, 'active');
@@ -180,10 +260,10 @@ test('admin page expands only its bounded current People and uses aggregate summ
     assert.equal(result.items.length, 25);
     assert.equal(result.nextCursor, 'person-024');
     assert.deepEqual(result.summary, { activePersonCount: 310, mergedPersonCount: 0,
-      openRegistrationCandidateCount: 3, openMergeCandidateCount: 0 });
+      openRegistrationCandidateCount: 0, openMergeCandidateCount: 0 });
     assert.equal(reads.filter((read) => read.statementId === 'find_person_revision').length, 26);
     assert.deepEqual(reads.filter((read) => read.statementId === 'page_people').map((read) => read.rows), [26]);
-    assert.equal(reads.filter((read) => read.statementId.startsWith('overview_')).length, 3);
+    assert.equal(reads.filter((read) => read.statementId.startsWith('overview_')).length, 1);
     assert.ok(Object.isFrozen(result.items));
     assert.ok(Object.isFrozen(result.summary));
     assert.ok(Object.isFrozen(result.items[0].providerIdentities[0]));
@@ -191,7 +271,7 @@ test('admin page expands only its bounded current People and uses aggregate summ
     assert.ok(sql, 'A later page must seek its cursor instead of rescanning all earlier heads.');
     const inspected = new Database(databasePath, { readonly: true });
     try {
-      const plan = inspected.prepare(`EXPLAIN QUERY PLAN ${sql}`).all({ cursor: 'person-250', status: '', offset: 0, limit: 26 });
+      const plan = inspected.prepare(`EXPLAIN QUERY PLAN ${sql}`).all({ cursor: 'person-250', status: '', library_kind: 'normal', offset: 0, limit: 26 });
       assert.ok(plan.some((row) => /SEARCH base USING INDEX.*\(person_id>\?\)/.test(row.detail)), JSON.stringify(plan));
     } finally { inspected.close(); }
   });
@@ -253,7 +333,7 @@ test('People pages preserve binary cursors, current Unicode names and aliases, s
 test('People page rejects invalid bounds and retains selected immutable Person validation', () => {
   fixture(({ databasePath, store }) => {
     store.registerDirectPerson(directDecision('person-1'));
-    const valid = { cursor: '', limit: 25, status: null, search: '' };
+    const valid = { libraryKind: 'normal', cursor: '', limit: 25, status: null, search: '' };
     for (const input of [{ ...valid, limit: 102 }, { ...valid, limit: 0 }, { ...valid, limit: 1.5 },
       { ...valid, status: 'unknown' }, { ...valid, cursor: null }, { ...valid, search: [] }, { ...valid, extra: true }]) {
       assert.throws(() => store.listPeoplePage(input), (error) => error.code === 'P6_PEOPLE_PAGE_INPUT');

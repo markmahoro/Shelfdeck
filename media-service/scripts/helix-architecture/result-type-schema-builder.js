@@ -128,6 +128,7 @@ const peoplePersonRef = object({
   personId: id(), revision: positiveInteger(), factDigest: digest(), preferenceRevision: nullable(positiveInteger())
 });
 const peopleRegistrationPayload = object({
+  libraryKind: enumText('normal', 'jav', 'us_adult'),
   proposedName: text(), aliases: arrayOf(peopleAlias, 256), providerIdentities: arrayOf(peopleProviderIdentity, 256),
   referenceHints: arrayOf(peopleReferenceHint, 256)
 });
@@ -587,6 +588,7 @@ const special = {
   'PeopleCandidateDraft.candidatePayload': { oneOf: [peopleRegistrationPayload, peopleMergePayload] },
   'PeopleCandidateRevision.candidateKind': enumText('registration', 'merge'),
   'PeopleCandidateRevision.state': enumText('open', 'accepted', 'dismissed', 'superseded'),
+  'PersonRegistrationEvidence.libraryKind': enumText('normal', 'jav', 'us_adult'),
   'PersonRegistrationEvidence.aliases': arrayOf(peopleAlias, 256),
   'PersonRegistrationEvidence.providerIdentities': arrayOf(peopleProviderIdentity, 256),
   'PersonRegistrationEvidence.referenceHints': arrayOf(peopleReferenceHint, 256),
@@ -732,7 +734,7 @@ const contracts = {
   PerceptionRecordCommitResult: ['ReceiptEnvelope', 'acquisitionCommitReceiptId,perceptionAcquisitionId,sourceId,committedCursorRevision,perceptionIds,relationIds,insertedCount,duplicateCount'],
   PerceptionResolutionDraft: ['DraftEnvelope', 'queryContract,querySchemaRef,queryInputDigest,factKind,recordSetDigest,ruleRevision,ruleDigest,resultKind,winningPerceptionId?,resolvedValue?,resolvedProvenance?,reasonCode?,duplicateRelationDrafts'],
   PerceptionResolutionRevision: ['DomainFactEnvelope', 'queryContract,querySchemaRef,queryInputDigest,factKind,recordSetDigest,ruleRevision,ruleDigest,resultKind,winningPerceptionId?,resolvedValue?,resolvedProvenance?,reasonCode?,committedRelationIds'],
-  PersonRegistrationEvidence: ['EvidenceEnvelope', 'proposedName,aliases,providerIdentities,referenceHints'],
+  PersonRegistrationEvidence: ['EvidenceEnvelope', 'libraryKind,proposedName,aliases,providerIdentities,referenceHints'],
   PeopleCandidateDraft: ['DraftEnvelope', 'candidateKind,evidenceDigest,candidatePayload,candidatePayloadDigest'],
   PeopleCandidateRevision: ['DomainFactEnvelope', 'candidateKind,candidateId,candidateRevision,candidateSchemaRef,candidatePayloadDigest,evidenceDigest,state'],
   PersonReferenceRevision: ['DomainFactEnvelope', 'personId,referenceRevision,operationKind,affectedReferenceAssetId,affectedReferenceFaceId,activeReferenceAssets,activeReferenceFaces,activeAssetSetDigest,activeFaceSetDigest,referenceSetDigest'],

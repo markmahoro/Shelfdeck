@@ -67,6 +67,7 @@ tools/ssh-askpass.ps1
 # 本地生成的调试、部署、媒体测试产物
 media-service/data/
 media-service/dist/
+media-service/resources/face-models/*.onnx
 media-service/web/test-results/
 media-service/web/playwright-report/
 media-worker/config.json

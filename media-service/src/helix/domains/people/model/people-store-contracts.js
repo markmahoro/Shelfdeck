@@ -2,6 +2,8 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 
+const { requireLibraryKind } = require('./person-library');
+
 const DIGEST = /^[a-f0-9]{64}$/;
 const PERSON_STATES = new Set(['active', 'merged']);
 const CANDIDATE_STATES = new Set(['open', 'accepted', 'dismissed', 'superseded']);
@@ -110,7 +112,7 @@ function createPersonRevision(value) {
 }
 
 function createPerson(value) {
-  exact(value, ['personId', 'status', 'currentRevision', 'currentPreferenceRevision', 'currentReferenceRevision',
+  exact(value, ['personId', 'libraryKind', 'status', 'currentRevision', 'currentPreferenceRevision', 'currentReferenceRevision',
     'currentReferenceProjectionRevision', 'currentReferenceProjectionDigest', 'createdAtMs', 'terminalAtMs', 'revision']);
   if (!PERSON_STATES.has(value.status)) fail('P6_PEOPLE_PERSON_STATE_INVALID', 'Person state is invalid.', { status: value.status });
   if ((value.status === 'active') !== (value.terminalAtMs === null)) fail('P6_PEOPLE_PERSON_TERMINAL_INVALID', 'Only an active Person has no terminal time.');
@@ -119,7 +121,7 @@ function createPerson(value) {
   if (personRevision.personId !== value.personId || personRevision.revision !== current || personRevision.personStatus !== value.status) {
     fail('P6_PEOPLE_PERSON_HEAD_MISMATCH', 'Person head must point to its exact immutable revision and state.');
   }
-  return freeze({ personId: text(value.personId, 'personId', 256), status: value.status, currentRevision: current,
+  return freeze({ personId: text(value.personId, 'personId', 256), libraryKind: requireLibraryKind(value.libraryKind), status: value.status, currentRevision: current,
     currentPreferenceRevision: nullableRevision(value.currentPreferenceRevision, 'currentPreferenceRevision'),
     currentReferenceRevision: nullableRevision(value.currentReferenceRevision, 'currentReferenceRevision'),
     currentReferenceProjectionRevision: revision(value.currentReferenceProjectionRevision, 'currentReferenceProjectionRevision'),
@@ -162,7 +164,7 @@ function createReferenceFace(value) {
 }
 
 function createRegistrationPayload(value) {
-  exact(value, ['proposedName', 'aliases', 'providerIdentities', 'referenceHints']);
+  exact(value, ['libraryKind', 'proposedName', 'aliases', 'providerIdentities', 'referenceHints']);
   const aliases = boundedArray(value.aliases, 'aliases').map(createAlias);
   const providerIdentities = boundedArray(value.providerIdentities, 'providerIdentities').map(createProviderIdentity);
   const referenceHints = boundedArray(value.referenceHints, 'referenceHints').map((hint) => {
@@ -172,7 +174,7 @@ function createRegistrationPayload(value) {
   });
   unique(aliases, (item) => item.aliasNormalized, 'P6_PEOPLE_ALIAS_DUPLICATE');
   unique(providerIdentities, (item) => [item.provider, item.namespace, item.providerKey].join('\u0000'), 'P6_PEOPLE_PROVIDER_IDENTITY_DUPLICATE');
-  return freeze({ proposedName: text(value.proposedName, 'proposedName', 1024), aliases, providerIdentities, referenceHints });
+  return freeze({ libraryKind: requireLibraryKind(value.libraryKind), proposedName: text(value.proposedName, 'proposedName', 1024), aliases, providerIdentities, referenceHints });
 }
 
 function createMergePayload(value) {

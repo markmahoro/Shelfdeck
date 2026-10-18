@@ -209,16 +209,16 @@
       "direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL",
       "Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload",
       "CHECK禁止两种来源混合",
-      "Person是全局Registry，不持久化媒体`content_scope`"
+      "library_kind在Person head冻结且不可改变，不持久化媒体`content_scope`"
     ],
     "rawContract": {
       "columns": "`person_id FK, revision, person_status(active|merged), canonical_name, merged_into_person_id NULL, origin_kind(direct|candidate), origin_decision_id, origin_decision_digest, origin_candidate_kind NULL, origin_candidate_id NULL, origin_candidate_revision NULL, origin_candidate_payload_digest NULL, fact_digest, committed_at_ms`",
-      "constraints": "`PK(person_id,revision)`；immutable；direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL；Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload；CHECK禁止两种来源混合；Person是全局Registry，不持久化媒体`content_scope`"
+      "constraints": "`PK(person_id,revision)`；immutable；direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL；Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload；CHECK禁止两种来源混合；library_kind在Person head冻结且不可改变，不持久化媒体`content_scope`"
     },
     "source": {
       "section": "8.5.13",
-      "line": 9601,
-      "lineDigest": "ed43b3ad2a8d964927a2e3cc2f2bb006969c4a222f556470c21d7ef8dd576b33"
+      "line": 9645,
+      "lineDigest": "faa31e5a6e2d54ed8329c7dc215288659d2c6570b1ac076364c02a4f983f9a2e"
     },
     "foreignKeys": [
       {

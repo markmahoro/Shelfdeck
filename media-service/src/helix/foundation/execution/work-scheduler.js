@@ -176,6 +176,12 @@ function createWorkScheduler(options) {
     for (const target of facts.candidates) {
       const work = request.targetType === 'work' ? target : workById.get(target.work_id);
       if (!work) fail('P4_SCHEDULER_WORK_FACT_MISSING', 'Event has no corresponding Supporting Work.', { eventId: target.event_id });
+      if (options.targetEligibilityProvider) {
+        const eligible = options.targetEligibilityProvider.check(Object.freeze({ targetType: request.targetType,
+          ownerDomain: work.owner_domain, processType: work.process_type, processId: work.process_id, workKind: work.work_kind }));
+        if (typeof eligible !== 'boolean') fail('P4_SCHEDULER_TARGET_ELIGIBILITY_INVALID', 'Target eligibility must return a boolean.');
+        if (!eligible) continue;
+      }
       if(request.targetType==='work'&&options.workSupplyEligibilityProvider){
         const eligible=options.workSupplyEligibilityProvider.check(Object.freeze({ownerDomain:work.owner_domain,
           processType:work.process_type,processId:work.process_id,workKind:work.work_kind}));
@@ -255,7 +261,10 @@ function createWorkScheduler(options) {
       minimumBackgroundLeases.add(leaseId);
       minimumBackgroundNotBeforeMs = nowMs + MINIMUM_BACKGROUND_RETRY_MS;
     }
-    return Object.freeze({ kind: 'leased', lease, lane: minimumBackgroundSelected ? 'minimum_background' : supply.lane, priorityClass: selected.projection.priorityClass,
+    return Object.freeze({ kind: 'leased', lease,
+      executionScope: Object.freeze({ownerDomain:selected.work.owner_domain,processType:selected.work.process_type,
+        processId:selected.work.process_id,workKind:selected.work.work_kind}),
+      lane: minimumBackgroundSelected ? 'minimum_background' : supply.lane, priorityClass: selected.projection.priorityClass,
       localPriority: selected.projection.localPriority, aging: selected.aging });
   }
 

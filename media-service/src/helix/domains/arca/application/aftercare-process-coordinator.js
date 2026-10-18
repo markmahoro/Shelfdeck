@@ -49,7 +49,7 @@ function createAftercareProcessCoordinator(options){
     eligibilityProvider:{check:(request)=>Object.freeze({eligible:request.ownerDomain==='arca'&&request.processType==='arca_shelf_entry',basisDigest:request.executionBasisDigest,reasonCode:'ARCA_AFTERCARE_BASIS_STALE'})}}),
     reader=options.contextReader,store=reader.store,now=options.now||Date.now;
   function definition(c,kind,identity,dependencyRefs,outputContractRef,workspaceMaterialScope=[]){const basisDigest=identity.basisDigest||c.basis.digest;return Object.freeze({schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,workId:stable('arca-care-work-',{kind,...identity}),ownerDomain:'arca',processType:'arca_shelf_entry',processId:c.shelfEntryId,workKind:kind,workObjectiveTypeRef:'helix://arca/work/'+kind+'/v1',workObjectiveVersion:1,executionBasisId:stable('arca-care-basis-',{kind,...identity}),executionBasisDigest:basisDigest,dependencyRefs:Object.freeze(dependencyRefs),priorityClass:'normal_foreground',priorityRevision:1,capabilityCatalogScope:'arca',workspaceMaterialScope:Object.freeze(workspaceMaterialScope),idempotencyKey:stable('arca-care-key-',{kind,...identity}),concurrencyScope:'arca_shelf_entry/'+c.shelfEntryId+'/'+kind,outputContractRef});}
-  function assessmentWork(c,cycleId,deep,replacementOrdinal=0){const identity={shelfEntryId:c.shelfEntryId,basisDigest:c.basis.digest,cycleId,deep,assessmentExecutionRevision:ASSESSMENT_EXECUTION_REVISION,...(replacementOrdinal>0?{replacementOrdinal}:{})},kind=deep?'health_assessment':'custody_assessment';return definition(c,kind,identity,[{ownerDomain:'arca',objectType:'shelf_entry',objectId:c.shelfEntryId,revision:c.raw.entry.current_inventory_revision,digest:c.basis.digest},{ownerDomain:'arca',objectType:'assessment_cycle',objectId:cycleId,revision:ASSESSMENT_EXECUTION_REVISION,digest:canonicalDigest({cycleId,deep,assessmentExecutionRevision:ASSESSMENT_EXECUTION_REVISION})}],'helix://contracts/types/AssessmentRevision/v1');}
+  function assessmentWork(c,cycleId,deep,replacementOrdinal=0){const identity={shelfEntryId:c.shelfEntryId,basisDigest:c.basis.digest,cycleId,deep,assessmentExecutionRevision:ASSESSMENT_EXECUTION_REVISION,...(replacementOrdinal>0?{replacementOrdinal}:{})},kind=(c.assessmentRequestOrigin==='periodic'?'periodic_':'')+(deep?'health_assessment':'custody_assessment');return definition(c,kind,identity,[{ownerDomain:'arca',objectType:'shelf_entry',objectId:c.shelfEntryId,revision:c.raw.entry.current_inventory_revision,digest:c.basis.digest},{ownerDomain:'arca',objectType:'assessment_cycle',objectId:cycleId,revision:ASSESSMENT_EXECUTION_REVISION,digest:canonicalDigest({cycleId,deep,assessmentExecutionRevision:ASSESSMENT_EXECUTION_REVISION})},...(c.assessmentRequestOrigin?[{ownerDomain:'arca',objectType:'assessment_request_origin',objectId:c.assessmentRequestOrigin,revision:1,digest:canonicalDigest(c.assessmentRequestOrigin)}]:[])],'helix://contracts/types/AssessmentRevision/v1');}
   function caseWork(c,kind,caseValue,extra=[],replacementOrdinal=0){const basisDigest=kind==='care_case_closure'?c.basis.digest:caseValue.careBasisDigest;return definition(c,kind,{shelfEntryId:c.shelfEntryId,basisDigest,aftercareCaseId:caseValue.aftercareCaseId,...(replacementOrdinal>0?{replacementOrdinal}:{})},[{ownerDomain:'arca',objectType:'aftercare_case',objectId:caseValue.aftercareCaseId,revision:1,digest:caseValue.careRequirementDigest},...extra],kind==='care_case_closure'?'helix://contracts/types/AftercareCaseResult/v1':kind==='care_deregistration_settlement'?'helix://contracts/types/ReclamationReceipt/v1':kind==='care_repair_commit'?'helix://contracts/types/AftercareInventoryCommitReceipt/v1':'helix://contracts/types/CareProductVerification/v1');}
   function submit(work){const result=admission.replay(work)||admission.submit(work);if(result?.kind==='invalid_contract')throw Object.assign(new Error('Aftercare Supporting Work violates Foundation contract.'),{code:result.reasonCode});return result;}
   function wait(work){submit(work);const status=options.workResultReader.status(work.workId);if(terminalFailure(status))return 'failed';return succeeded(status)?'succeeded':'pending';}
@@ -58,8 +58,8 @@ function createAftercareProcessCoordinator(options){
   function inspectLineage(makeWork){let last=null;for(let replacementOrdinal=0;replacementOrdinal<=MAX_WORK_REPLACEMENTS;replacementOrdinal+=1){const work=makeWork(replacementOrdinal),status=options.workResultReader.status(work.workId);if(!status)break;const state=statusState(status);last=Object.freeze({work,state,replacementOrdinal,exhausted:state==='failed'&&replacementOrdinal===MAX_WORK_REPLACEMENTS});if(state!=='failed')break;}return last;}
   function runAssessment(c,cycleId,deep){return advanceLineage(c,(replacementOrdinal)=>assessmentWork(c,cycleId,deep,replacementOrdinal));}
   function completedAssessmentForHealth(c,health){
-    const candidates=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_shelf_entry',
-      processId:c.shelfEntryId,workKind:'health_assessment'}).filter((item)=>item.state==='succeeded')
+    const candidates=['health_assessment','periodic_health_assessment'].flatMap(workKind=>options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_shelf_entry',
+      processId:c.shelfEntryId,workKind})).filter((item)=>item.state==='succeeded')
       .sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms));
     for(const candidate of candidates){
       const work=options.workResultReader.readDefinition(candidate.work_id)?.definition;
@@ -140,27 +140,33 @@ function createAftercareProcessCoordinator(options){
     if(inventoryCommit){const prepare=inspectCaseWork(c,'care_repair_prepare',care);if(!prepare||prepare.state!=='succeeded')return stopCase(c,care,'unresolved','successful_prepare_work_missing');const commitExtra=[{ownerDomain:'arca',objectType:'repair_prepare_work',objectId:prepare.work.workId,revision:1,digest:care.careRequirementDigest}],commit=inspectCaseWork(c,'care_repair_commit',care,commitExtra);ensureSettlementApproval(c,care,inventoryCommit,prepare,commit);if(!commit)return stopCase(c,care,'unresolved','repair_commit_lineage_missing');if(commit.state==='failed')return stopCase(c,care,'unresolved','settlement_or_commit_failed');if(commit.state!=='succeeded')return Object.freeze({kind:'repair_commit_pending',aftercareCaseId:care.aftercareCaseId,workId:commit.work.workId,reasonCode:'settlement_pending'});const assessment=runAssessment(c,'case-reassessment:'+care.aftercareCaseId,true);if(assessment.state==='failed')return assessment.exhausted?stopCase(c,care,'unresolved','reassessment_exhausted'):Object.freeze({kind:'reassessment_retry_failed',reasonCode:'reassessment_failed',workId:assessment.work.workId,replacementOrdinal:assessment.replacementOrdinal,aftercareCaseId:care.aftercareCaseId});if(assessment.state!=='succeeded')return Object.freeze({kind:'reassessment_pending',workId:assessment.work.workId,aftercareCaseId:care.aftercareCaseId});const health=projectHealth(reader.read(c.shelfEntryId),store.history(c.shelfEntryId),now()),freshHealthy=Object.values(health.dimensions).every((item)=>item.state==='healthy'&&item.findings.length===0);if(!freshHealthy)return stopCase(c,care,'unresolved','reassessment_not_healthy');const current=reader.read(c.shelfEntryId),closureExtra=[{ownerDomain:'arca',objectType:'reassessment_work',objectId:assessment.work.workId,revision:1,digest:current.basis.digest},{ownerDomain:'arca',objectType:'repair_prepare_work',objectId:prepare.work.workId,revision:1,digest:care.careRequirementDigest},{ownerDomain:'arca',objectType:'repair_commit_work',objectId:commit.work.workId,revision:1,digest:inventoryCommit.commitDigest}],closure=runCaseWork(current,'care_case_closure',care,closureExtra);if(closure.exhausted)return stopCase(current,care,'unresolved','case_closure_exhausted');return Object.freeze({kind:closure.state==='succeeded'?'case_resolved':closure.state==='failed'?'case_closure_retry_failed':'case_closure_pending',workId:closure.work.workId,replacementOrdinal:closure.replacementOrdinal,aftercareCaseId:care.aftercareCaseId});}
     const prepare=runCaseWork(c,'care_repair_prepare',care);if(prepare.state==='failed')return prepare.exhausted?stopCase(c,care,'unresolved',exhaustedReason(prepare,'repair_preparation_exhausted')):Object.freeze({kind:'repair_preparation_retry_failed',reasonCode:'repair_preparation_failed',workId:prepare.work.workId,replacementOrdinal:prepare.replacementOrdinal,aftercareCaseId:care.aftercareCaseId});if(prepare.state!=='succeeded')return Object.freeze({kind:'repair_preparation_pending',workId:prepare.work.workId,aftercareCaseId:care.aftercareCaseId});const results=options.workResultReader.read(prepare.work.workId).filter((item)=>item.outcomeKind==='succeeded'),notAvailable=results.some((item)=>item.result?.resultKind==='not_available'),verificationFailed=results.some((item)=>item.result?.verificationKind==='aftercare_media'&&item.result.result!=='passed');if(notAvailable||verificationFailed)return stopCase(c,care,'unresolved',notAvailable?'provider_artifact_not_available':'media_verification_failed');
     const commitExtra=[{ownerDomain:'arca',objectType:'repair_prepare_work',objectId:prepare.work.workId,revision:1,digest:care.careRequirementDigest}],commit=runCaseWork(c,'care_repair_commit',care,commitExtra);if(commit.exhausted)return stopCase(c,care,'unresolved',exhaustedReason(commit,'repair_commit_exhausted'));return Object.freeze({kind:commit.state==='succeeded'?'inventory_committed':commit.state==='failed'?'repair_commit_retry_failed':'repair_commit_pending',workId:commit.work.workId,replacementOrdinal:commit.replacementOrdinal,aftercareCaseId:care.aftercareCaseId});}
-  function refreshRecords(c,health){
+  function refreshRecords(c,health,periodic=false){
     if(typeof options.refreshInventoryRecords!=='function')return Object.freeze({kind:'records_deferred',reasonCode:'record_refresh_unavailable'});
     const refresh=options.refreshInventoryRecords(c);
     if(refresh.kind!=='records_unchanged')return refresh;
     // The writer may have restored the original bytes since the recorded assessment.
     // Recheck once per finding kind set and periodic window, without creating a Case.
     const findings=[...new Set(Object.values(health.dimensions).flatMap(item=>item.findings.map(finding=>finding.findingKind)))].sort();
-    const cycle='record-recheck:'+canonicalDigest({basis:c.basis.digest,findings,window:Math.floor(now()/(24*60*60*1000))});
+    const cycle=(periodic?'periodic:':'')+'record-recheck:'+canonicalDigest({basis:c.basis.digest,findings,window:Math.floor(now()/(24*60*60*1000))});
     const assessment=runAssessment(c,cycle,true);
     return Object.freeze({kind:assessment.state==='succeeded'?'records_rechecked':
       assessment.state==='failed'?'assessment_failed':'assessment_pending',workId:assessment.work.workId});
   }
-  function reconcile(shelfEntryId,request={}){let c=reader.read(shelfEntryId);if(!c)return Object.freeze({kind:'not_found',shelfEntryId});
+  function reconcile(shelfEntryId,request={}){
+    const origin=request.periodic===true?'periodic':typeof request.idempotencyKey==='string'&&request.idempotencyKey?'manual:'+request.idempotencyKey:null;
+    const readContext=()=>{const value=reader.read(shelfEntryId);return value&&origin?{...value,assessmentRequestOrigin:origin}:value;};
+    let c=readContext();if(!c)return Object.freeze({kind:'not_found',shelfEntryId});
     if(c.raw?.correctionGate)return Object.freeze({kind:'identity_correction_pending',shelfEntryId,correctionId:c.raw.correctionGate.correction_id});
     if(c.raw?.perceptionRating?.state==='pending'&&typeof options.ensurePerceptionRatingResolution==='function'){
       const resolution=options.ensurePerceptionRatingResolution(shelfEntryId);
       if(resolution?.kind!=='terminal')return Object.freeze({kind:'rating_resolution_pending',shelfEntryId,workId:resolution?.workId||null});
-      c=reader.read(shelfEntryId);
+      c=readContext();
       if(c?.raw?.perceptionRating?.state==='pending')return Object.freeze({kind:'rating_resolution_pending',shelfEntryId,workId:null});
     }
     let history=store.history(shelfEntryId),active=history.cases.find((item)=>['queued','active'].includes(item.state));
+    const periodic=request.periodic===true,manual=typeof request.idempotencyKey==='string'&&request.idempotencyKey.length>0;
+    if(active&&periodic)return Object.freeze({kind:'case_deferred_to_normal_supply',shelfEntryId,aftercareCaseId:active.aftercareCaseId});
+    if(!active&&!periodic&&!manual)return Object.freeze({kind:'no_active_case',shelfEntryId});
     if(active?.state!=='active'&&typeof options.refreshPersonRecords==='function'){
       const refresh=options.refreshPersonRecords(c);
       if(refresh.kind==='inventory_records_refreshed'){
@@ -173,7 +179,7 @@ function createAftercareProcessCoordinator(options){
       queuedRecordGoal=active?.state==='queued'&&active.careRequirement.typedParameters.some(item=>String(item.value).includes('nfo_identity_changed'));
     if((recordGap||queuedRecordGoal)&&active?.state!=='active'){
       if(typeof options.refreshInventoryRecords!=='function')return Object.freeze({kind:'records_deferred',shelfEntryId,reasonCode:'record_refresh_unavailable'});
-      const refresh=refreshRecords(c,projected);
+      const refresh=refreshRecords(c,projected,periodic);
       if(['inventory_records_refreshed','records_rechecked'].includes(refresh.kind)&&active?.state==='queued')
         store.terminateCase(active.aftercareCaseId,'invalidated','queued_basis_changed',canonicalDigest(refresh));
       return Object.freeze({...refresh,shelfEntryId});
@@ -185,7 +191,7 @@ function createAftercareProcessCoordinator(options){
       legacyConformance=health.dimensions.conformance.findings.some(item=>item.findingKind==='conformance:media_strategy_unavailable'),
       deep=forced||legacyConformance||custodyGapNeedsDeep||health.state==='never_assessed'||health.nextDeepDueAtMs<=now(),
       cycleId=forced?'manual:'+request.idempotencyKey:legacyConformance?'legacy-conformance:'+health.dimensions.conformance.evidenceDigest:custodyGapNeedsDeep?'custody-gap:'+health.dimensions.custody.evidenceDigest:
-        (deep?'deep:':'custody:')+Math.floor(now()/(deep?7*24*60*60*1000:24*60*60*1000)),
+        (periodic?'periodic:':'')+(deep?'deep:':'custody:')+Math.floor(now()/(deep?7*24*60*60*1000:24*60*60*1000)),
       notDue=!forced&&!legacyConformance&&!custodyGapNeedsDeep&&health.state!=='never_assessed'&&Math.min(health.nextCustodyDueAtMs,health.nextDeepDueAtMs)>now();
     let assessment;
     if(notDue){
@@ -197,19 +203,19 @@ function createAftercareProcessCoordinator(options){
     }else assessment=runAssessment(c,cycleId,deep);
     if(assessment.state==='failed')return Object.freeze({kind:'assessment_failed',shelfEntryId,workId:assessment.work.workId});
     if(assessment.state!=='succeeded')return Object.freeze({kind:'assessment_pending',shelfEntryId,workId:assessment.work.workId});
-    c=reader.read(shelfEntryId);
+    c=readContext();
     history=store.history(shelfEntryId);
     const currentHealth=projectHealth(c,history,now());
     const missingArtifactScope=missingArtifactCustodyRefreshScope(c,currentHealth);
     if(missingArtifactScope.length) {
-      const refreshed=runAssessment(c,'missing-artifact-custody:'+canonicalDigest({basis:c.basis.digest,materials:missingArtifactScope,
+      const refreshed=runAssessment(c,(periodic?'periodic:':'')+'missing-artifact-custody:'+canonicalDigest({basis:c.basis.digest,materials:missingArtifactScope,
         custody:currentHealth.dimensions.custody.evidenceDigest,presentation:currentHealth.dimensions.presentation.evidenceDigest}),true);
       return Object.freeze({kind:refreshed.state==='failed'?'assessment_failed':'assessment_pending',shelfEntryId,
         reasonCode:'missing_artifact_custody_recheck',workId:refreshed.work.workId});
     }
     const findings=Object.values(currentHealth.dimensions).flatMap((item)=>item.findings);
     if(findings.some(item=>item.findingKind==='custody:nfo_identity_changed')){
-      const refresh=refreshRecords(c,currentHealth);
+      const refresh=refreshRecords(c,currentHealth,periodic);
       return Object.freeze({...refresh,shelfEntryId});
     }
     const disposition=dispositionFromAssessments([{findings}]);
@@ -239,7 +245,14 @@ function createAftercareProcessCoordinator(options){
     if(!care)return Object.freeze({kind:'modification_fenced',shelfEntryId,workId:assessment.work.workId,health:currentHealth});
     if(!['queued','active'].includes(care.state))return Object.freeze({kind:'case_terminal',shelfEntryId,aftercareCaseId:care.aftercareCaseId,
       caseGeneration:care.caseGeneration,state:care.state,reasonCode:care.terminalReasonCode,evidenceDigest:care.terminalEvidenceDigest,health:currentHealth});
-    return progressCase(c,care);}
+    return periodic?Object.freeze({kind:'case_queued',shelfEntryId,aftercareCaseId:care.aftercareCaseId}):progressCase(c,care);}
+  function reconcileAssessmentCompletion(shelfEntryId,workId){
+    const definition=options.workResultReader.readDefinition(workId)?.definition;
+    if(!definition||definition.ownerDomain!=='arca'||definition.processType!=='arca_shelf_entry'||definition.processId!==shelfEntryId)
+      throw new TypeError('Assessment completion requires the exact Owner Work.');
+    const origin=definition.dependencyRefs.find(ref=>ref.ownerDomain==='arca'&&ref.objectType==='assessment_request_origin')?.objectId;
+    return reconcile(shelfEntryId,origin==='periodic'?{periodic:true}:origin?.startsWith('manual:')?{idempotencyKey:origin.slice(7)}:{});
+  }
   function caseProgress(shelfEntryId){
     const c=reader.read(shelfEntryId),history=c&&store.history(shelfEntryId),
       care=history?.cases.find(item=>['queued','active'].includes(item.state));
@@ -268,7 +281,7 @@ function createAftercareProcessCoordinator(options){
       progressPercent:mediaProgress.progressPercent,progress:mediaProgress.progress,goals});
   }
   function reconcileWorkspaceLifecycle(aftercareCaseId){const lifecycle=store.inspectAftercareWorkspaceLifecycleHead(aftercareCaseId),registry=lifecycle.registry,care=store.getCase(aftercareCaseId);if(!care||!registry)return Object.freeze({kind:'not_found',aftercareCaseId});if(['queued','active'].includes(care.state))return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'case_active'});if(registry.state==='reclaimed')return Object.freeze({kind:'already_reclaimed',aftercareCaseId});if(registry.reclaim_after_ms===null){store.scheduleAftercareWorkspace?.(aftercareCaseId,Number(care.terminalAtMs));return Object.freeze({kind:'scheduled',aftercareCaseId});}if(Number(registry.reclaim_after_ms)>now())return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'retention_period_active'});const c=reader.read(care.shelfEntryId);if(!c)return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'shelf_entry_unavailable'});const audit=store.auditAftercareWorkspaceReferences(aftercareCaseId);if(!audit.ready)return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:audit.reasonCode});const handles=store.listAftercareWorkspaceHandles(aftercareCaseId);if(handles.length>256)return Object.freeze({kind:'retained',aftercareCaseId,reasonCode:'workspace_scope_too_large'});const handleSetDigest=canonicalDigest(handles),workspaceMaterialScope=handles.map((handle)=>Object.freeze({handleSchemaRef:handle.schemaRef,handleId:handle.handleId,accessScope:handle.accessScope,fenceDigest:handle.fenceDigest})),prepare=inspectCaseWork(c,'care_repair_prepare',care),dependencyRefs=[{ownerDomain:'arca',objectType:'aftercare_case',objectId:care.aftercareCaseId,revision:1,digest:care.careRequirementDigest},...(prepare?[{ownerDomain:'arca',objectType:'repair_prepare_work',objectId:prepare.work.workId,revision:1,digest:care.careRequirementDigest}]:[])],work=definition(c,'care_workspace_reclaim',{shelfEntryId:c.shelfEntryId,basisDigest:care.careBasisDigest,aftercareCaseId,handleSetDigest,reclaimAfterMs:Number(registry.reclaim_after_ms)},dependencyRefs,'helix://contracts/types/ReclamationReceipt/v1',workspaceMaterialScope),state=wait(work);return Object.freeze({kind:state==='succeeded'?'workspace_reclaimed':state==='failed'?'workspace_reclaim_failed':'workspace_reclaim_pending',aftercareCaseId,workId:work.workId});}
-  return Object.freeze({reconcile,reconcileWorkspaceLifecycle,stopForShelfDeregistration(shelfEntryId,aftercareCaseId){const c=reader.read(shelfEntryId),care=c&&store.history(shelfEntryId).cases.find((item)=>item.aftercareCaseId===aftercareCaseId&&['queued','active'].includes(item.state));return !c||!care?Object.freeze({kind:'already_terminal',shelfEntryId,aftercareCaseId}):stopForModificationFence(c,care);},requestCheck(shelfEntryId,idempotencyKey){return reconcile(shelfEntryId,{idempotencyKey});},project(shelfEntryId){const c=reader.read(shelfEntryId);return c?projectHealth(c,store.history(shelfEntryId),now()):null;},projectMany(shelfEntryIds){return new Map(reader.healthProjectionInputs(shelfEntryIds).map((item)=>[item.shelfEntryId,projectHealth(item,item.history,now())]));},caseProgress,caseDetail});
+  return Object.freeze({reconcile,reconcileAssessmentCompletion,reconcileWorkspaceLifecycle,stopForShelfDeregistration(shelfEntryId,aftercareCaseId){const c=reader.read(shelfEntryId),care=c&&store.history(shelfEntryId).cases.find((item)=>item.aftercareCaseId===aftercareCaseId&&['queued','active'].includes(item.state));return !c||!care?Object.freeze({kind:'already_terminal',shelfEntryId,aftercareCaseId}):stopForModificationFence(c,care);},requestCheck(shelfEntryId,idempotencyKey){return reconcile(shelfEntryId,{idempotencyKey});},project(shelfEntryId){const c=reader.read(shelfEntryId);return c?projectHealth(c,store.history(shelfEntryId),now()):null;},projectMany(shelfEntryIds){return new Map(reader.healthProjectionInputs(shelfEntryIds).map((item)=>[item.shelfEntryId,projectHealth(item,item.history,now())]));},caseProgress,caseDetail});
 }
 
 module.exports=Object.freeze({createAftercareProcessCoordinator,projectActiveRepairProgress});

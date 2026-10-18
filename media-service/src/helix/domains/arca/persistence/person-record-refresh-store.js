@@ -1,4 +1,5 @@
 'use strict';
+const {inventoryContentProfile}=require('../model/product-content-profile');
 const {evidenceInventoryRevision}=require('./person-evidence-origin');
 const {canonicalDigest}=require('../../../contracts/canonical-json');
 const {createCommandCommitCoordinator}=require('../../../foundation/persistence/commit-foundation');
@@ -24,6 +25,9 @@ function createPersonRecordRefreshStore(options,repository) {
         const repo=context.repository(repository.repositoryId),entry=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId}),
           shelf=entry&&repo.invoke('find_shelf',{shelf_id:entry.shelf_id});
         assertNoJavCorrection(repo,shelfEntryId);
+        const profile=entry && inventoryContentProfile(repo.invoke('find_identity',{shelf_entry_id:shelfEntryId,revision:entry.canonical_identity_revision}),entry.structure_kind);
+        if(profile==='western_adult')fail('ARCA_USER_ACTOR_REFRESH_REQUIRED','US Adult actor refresh requires a user Aftercare Intent.');
+        const libraryKind=profile==='jav'?'jav':'normal';
         if(!entry||entry.status!=='active'||!shelf||shelf.status!=='active'||Number(entry.current_inventory_revision)!==expectedInventoryRevision||
           Number(entry.canonical_identity_revision)!==request.canonicalIdentityRevision||Number(shelf.current_standard_revision)!==request.standardRevision||
           Number(shelf.current_placement_revision)!==request.placementRevision)fail('ARCA_PERSON_RECORD_STALE','Person record Basis changed.');
@@ -37,7 +41,7 @@ function createPersonRecordRefreshStore(options,repository) {
         if(observations.some(item=>!rows.some(row=>row.relation_id===item.relationId)))fail('ARCA_PERSON_RECORD_UNKNOWN','Unknown relation cannot be introduced.');
         const people=rows.map(row=>{
           const observation=byId.get(row.relation_id);if(!observation)return row;
-          assertPersonRecordObservation({...row,evidence_inventory_revision:evidenceInventoryRevision(repo,row)},observation);
+          assertPersonRecordObservation({...row,evidence_inventory_revision:evidenceInventoryRevision(repo,row)},observation,libraryKind);
           return {...row,person_id:observation.proof.personId,relation_digest:canonicalDigest({schema:'arca.person-record-revision@1',
             previousRelationDigest:row.relation_digest,personId:observation.proof.personId,proofDigest:observation.proof.proofDigest})};
         });

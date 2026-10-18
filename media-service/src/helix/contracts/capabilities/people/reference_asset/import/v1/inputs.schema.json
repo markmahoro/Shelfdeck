@@ -5,21 +5,21 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "externalUserAssetHandle": {
-      "$ref": "#/$defs/externalUserAssetHandle"
+    "peopleSelectedImageHandle": {
+      "$ref": "#/$defs/peopleSelectedImageHandle"
     },
     "peopleWorkspace": {
       "$ref": "#/$defs/peopleWorkspace"
     }
   },
   "required": [
-    "externalUserAssetHandle",
+    "peopleSelectedImageHandle",
     "peopleWorkspace"
   ],
   "$defs": {
-    "externalUserAssetHandle": {
-      "$ref": "helix://contracts/types/ExternalMaterialHandle/v1",
-      "x-helix-typeExpression": "External/user asset handle"
+    "peopleSelectedImageHandle": {
+      "$ref": "helix://contracts/domain-types/PeopleSelectedImageHandle/v1",
+      "x-helix-typeExpression": "PeopleSelectedImageHandle"
     },
     "peopleWorkspace": {
       "$ref": "helix://contracts/domain-types/PeopleWorkspace/v1",

@@ -1,4 +1,5 @@
 'use strict';
+const {inventoryContentProfile}=require('../model/product-content-profile');
 const {acceptedFactDigest}=require('../../../contracts/related-primary-mappings');
 const { readStoredMetadataValue } = require('../../../contracts/episode-metadata-records');
 const {statements:targetBindingStatements,exactSourceTargetBinding}=require('./shelf-target-binding');
@@ -34,6 +35,9 @@ function createAftercareStore(options) {
   const defectStore=createArcaDefectAdmissionStore(options);
   const arca = createRepositoryDefinition({ repositoryId:'arca_aftercare_store', owner:'arca', schemaManifest:options.schemaManifest, statements:{
     ...inventoryContextStatements,
+    page_open_cases:{kind:'select-joined-page',tableId:'arca_aftercare_cases',columns:['aftercare_case_id','shelf_entry_id'],joins:[],
+      filters:[{column:'terminal_at_ms',kind:'is_null'},{column:'aftercare_case_id',kind:'greater_than',parameter:'cursor',optional:true}],
+      orderBy:[{column:'aftercare_case_id',direction:'asc'}],maxItems:100},
     list_source_target_bindings:targetBindingStatements.list_source_target_bindings,
     find_person_evidence_origin:personEvidenceOriginStatement,
     list_entries:{kind:'select-all',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key','current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],keyColumns:[],safeIntegers:true},
@@ -124,7 +128,7 @@ function createAftercareStore(options) {
     const shelf=repo.invoke('find_shelf',{shelf_id:entry.shelf_id});if(!shelf)return null;const inventoryRevision=Number(entry.current_inventory_revision),standardRevision=Number(shelf.current_standard_revision),placementRevision=Number(shelf.current_placement_revision);
     const inventory=repo.invoke('find_inventory',{shelf_entry_id:shelfEntryId,revision:inventoryRevision}),standard=repo.invoke('find_standard',{shelf_id:shelf.shelf_id,revision:standardRevision}),placement=repo.invoke('find_placement',{shelf_id:shelf.shelf_id,revision:placementRevision}),identity=repo.invoke('find_identity',{shelf_entry_id:shelfEntryId,revision:Number(entry.canonical_identity_revision)}),onDeckCommit=repo.invoke('find_ondeck_commit',{shelf_entry_id:shelfEntryId}),onDeckRun=onDeckCommit?repo.invoke('find_ondeck_run',{on_deck_run_id:onDeckCommit.on_deck_run_id}):null,initialPlacementDecision=onDeckCommit?repo.invoke('find_final_decision',{on_deck_run_id:onDeckCommit.on_deck_run_id}):null,initialPlacement=initialPlacementDecision?repo.invoke('find_placement',{shelf_id:shelf.shelf_id,revision:Number(initialPlacementDecision.placement_revision)}):null,oldBindings=onDeckRun?repo.invoke('list_custody_bindings',{owner_object_type:'on_deck_custody',owner_object_id:onDeckRun.custody_id}):[];
     if(!inventory||!standard||!placement||!identity)fail('ARCA_AFTERCARE_CURRENT_BASIS_BROKEN','Shelf Entry current Aftercare Basis is incomplete.');
-    if(nfoOnly)return Object.freeze({entry:Object.freeze({...entry,current_inventory_revision:inventoryRevision,current_deck_fact_revision:Number(entry.current_deck_fact_revision)}),
+    if(nfoOnly)return Object.freeze({contentProfile:inventoryContentProfile(identity,entry.structure_kind),entry:Object.freeze({...entry,current_inventory_revision:inventoryRevision,current_deck_fact_revision:Number(entry.current_deck_fact_revision)}),
       shelf:Object.freeze({...shelf,current_standard_revision:standardRevision,current_placement_revision:placementRevision}),
       materials:Object.freeze(repo.invoke('list_materials',{shelf_entry_id:shelfEntryId,inventory_revision:inventoryRevision}))});
     return Object.freeze({correctionGate:currentJavCorrectionGate(repo,shelfEntryId),acceptedPackageReference:acceptedPackageReference(repo,entry,onDeckCommit),entry:Object.freeze({...entry,current_inventory_revision:inventoryRevision,current_deck_fact_revision:Number(entry.current_deck_fact_revision)}),shelf:Object.freeze({...shelf,current_standard_revision:standardRevision,current_placement_revision:placementRevision}),inventory:Object.freeze(inventory),standard:Object.freeze({...standard,value:parse(standard.standard_json,'ARCA_AFTERCARE_STANDARD_CORRUPT')}),placement:Object.freeze({...placement,value:parse(placement.policy_json,'ARCA_AFTERCARE_PLACEMENT_CORRUPT')}),initialPlacement:initialPlacement?Object.freeze({...initialPlacement,value:parse(initialPlacement.policy_json,'ARCA_AFTERCARE_INITIAL_PLACEMENT_CORRUPT')}):null,identity:Object.freeze(identity),onDeckCommit:onDeckCommit?Object.freeze(onDeckCommit):null,initialPlacementDecision:initialPlacementDecision?Object.freeze({...initialPlacementDecision,placement_revision:Number(initialPlacementDecision.placement_revision)}):null,oldBindings:Object.freeze(oldBindings.map((row)=>Object.freeze({...row,binding_revision:Number(row.binding_revision),current:Number(row.current)}))),materials:Object.freeze(repo.invoke('list_materials',{shelf_entry_id:shelfEntryId,inventory_revision:inventoryRevision})),related:Object.freeze(repo.invoke('list_related',{shelf_entry_id:shelfEntryId,inventory_revision:inventoryRevision})),facts:Object.freeze(repo.invoke('list_facts',{shelf_entry_id:shelfEntryId,inventory_revision:inventoryRevision}).map((row)=>Object.freeze({...row,value:readStoredMetadataValue(row)}))),people:Object.freeze(repo.invoke('list_people',{shelf_entry_id:shelfEntryId,inventory_revision:inventoryRevision}).map(row=>Object.freeze({...row,evidence_inventory_revision:evidenceInventoryRevision(repo,row)}))),reservations:Object.freeze(repo.invoke('list_reservations',{shelf_entry_id:shelfEntryId}))});});}
@@ -196,6 +200,7 @@ function createAftercareStore(options) {
     workspaceStore.schedule(caseId,terminal.terminalAtMs);
     return terminal;
   }
+  function listOpenCasePage(cursor,limit){return read(context=>context.repository(arca.repositoryId).invoke('page_open_cases',{cursor:cursor||'',offset:0,limit}).map(row=>({cursor:row.aftercare_case_id,scope:{shelfEntryId:row.shelf_entry_id}})));}
   function listCases(){return read((context)=>context.repository(arca.repositoryId).invoke('list_all_cases',{}).map(mapCase));}
   function workDisplay(shelfEntryIds){return read(context=>{
     const repo=context.repository(arca.repositoryId),entries=selectMany(repo,'find_entries',shelfEntryIds);
@@ -355,7 +360,7 @@ function createAftercareStore(options) {
     sourceTargetBinding:(shelfEntryId,material)=>read(context=>{const repo=context.repository(arca.repositoryId),
       entry=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId}),shelf=entry&&repo.invoke('find_shelf',{shelf_id:entry.shelf_id});
       if(!shelf)fail('ARCA_SOURCE_TARGET_BINDING_MISSING','Source Shelf is absent.');
-      return exactSourceTargetBinding(repo,shelf,material);}),commitAssessmentSet,createCase,admitCase,listCases,workDisplay,caseEvidence,listShelfEntryIds,terminateCase,getCase,
+      return exactSourceTargetBinding(repo,shelf,material);}),commitAssessmentSet,createCase,admitCase,listCases,listOpenCasePage,workDisplay,caseEvidence,listShelfEntryIds,terminateCase,getCase,
     refreshInventoryRecords:recordRefresh.commit,
     refreshInventoryPersonRecords:createPersonRecordRefreshStore(options,arca).commit,
     listWorkCases:careWork.list,

@@ -2868,6 +2868,30 @@ CREATE TABLE "people_aliases" (
 );
 CREATE INDEX "idx_people_aliases_hot_01" ON "people_aliases" ("alias_normalized");
 
+CREATE TABLE "people_image_operations" (
+  "operation_id" TEXT PRIMARY KEY,
+  "person_id" TEXT,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "payload_schema_ref" TEXT,
+  "payload_json" TEXT,
+  "payload_digest" TEXT CHECK (length("payload_digest") = 64 AND "payload_digest" NOT GLOB '*[^0-9a-f]*'),
+  "state" TEXT CHECK ("state" IN ('preparing', 'completed', 'failed')),
+  "result_schema_ref" TEXT,
+  "result_json" TEXT,
+  "result_digest" TEXT CHECK (length("result_digest") = 64 AND "result_digest" NOT GLOB '*[^0-9a-f]*'),
+  "failure_code" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("payload_json")),
+  CHECK (length(CAST("payload_json" AS BLOB)) <= 16384),
+  CHECK ("result_json" IS NULL OR json_valid("result_json")),
+  CHECK ("result_json" IS NULL OR length(CAST("result_json" AS BLOB)) <= 16384)
+);
+CREATE INDEX "idx_people_image_operations_hot_01" ON "people_image_operations" ("state", "operation_id");
+
 CREATE TABLE "people_merge_candidate_revisions" (
   "merge_candidate_id" TEXT,
   "revision" INTEGER CHECK ("revision" >= 1),
@@ -2951,6 +2975,7 @@ CREATE TABLE "people_person_revisions" (
 
 CREATE TABLE "people_persons" (
   "person_id" TEXT PRIMARY KEY,
+  "library_kind" TEXT CHECK ("library_kind" IN ('normal', 'jav', 'us_adult')),
   "status" TEXT CHECK ("status" IN ('active', 'merged')),
   "current_revision" INTEGER CHECK ("current_revision" >= 1),
   "current_preference_revision" INTEGER CHECK ("current_preference_revision" >= 1),
@@ -2963,7 +2988,7 @@ CREATE TABLE "people_persons" (
   FOREIGN KEY ("person_id", "current_revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
   FOREIGN KEY ("person_id", "current_preference_revision") REFERENCES "people_preference_revisions" ("person_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
-CREATE INDEX "idx_people_persons_hot_01" ON "people_persons" ("status", "person_id");
+CREATE INDEX "idx_people_persons_hot_01" ON "people_persons" ("library_kind", "status", "person_id");
 
 CREATE TABLE "people_preference_revisions" (
   "person_id" TEXT,
@@ -2980,6 +3005,7 @@ CREATE TABLE "people_preference_revisions" (
 CREATE TABLE "people_provider_identities" (
   "person_id" TEXT,
   "revision" INTEGER CHECK ("revision" >= 1),
+  "library_kind" TEXT CHECK ("library_kind" IN ('normal', 'jav', 'us_adult')),
   "provider" TEXT,
   "namespace" TEXT,
   "provider_key" TEXT,
@@ -2988,7 +3014,7 @@ CREATE TABLE "people_provider_identities" (
   PRIMARY KEY ("person_id", "revision", "provider", "namespace", "provider_key"),
   FOREIGN KEY ("person_id", "revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT
 );
-CREATE UNIQUE INDEX "uidx_people_provider_identities_partial_01" ON "people_provider_identities" ("provider", "namespace", "provider_key") WHERE "active_guard" = 1;
+CREATE UNIQUE INDEX "uidx_people_provider_identities_partial_01" ON "people_provider_identities" ("library_kind", "provider", "namespace", "provider_key") WHERE "active_guard" = 1;
 
 CREATE TABLE "people_reference_assets" (
   "reference_asset_id" TEXT PRIMARY KEY,

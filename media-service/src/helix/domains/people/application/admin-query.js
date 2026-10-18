@@ -1,4 +1,5 @@
 'use strict';
+const { requireLibraryKind } = require('../model/person-library');
 
 function createPeopleAdminQuery(options) {
   if (!options || !options.store || typeof options.store.listPeoplePage !== 'function' ||
@@ -15,11 +16,13 @@ function createPeopleAdminQuery(options) {
     const cursor = String(query.cursor || '');
     const search = String(query.search || '').trim().toLocaleLowerCase();
     const status = ['active', 'merged'].includes(query.status) ? query.status : null;
-    const people = options.store.listPeoplePage({ cursor, limit: limit + 1, status, search });
+    const libraryKind = requireLibraryKind(query.libraryKind || 'normal');
+    const people = options.store.listPeoplePage({ cursor, limit: limit + 1, status, search, libraryKind });
     const page = people.slice(0, limit);
     return Object.freeze({
       items: Object.freeze(page.map((person) => Object.freeze({
         personId: person.personId,
+        libraryKind: person.libraryKind,
         status: person.status,
         currentRevision: person.currentRevision,
         canonicalName: person.revision.canonicalName,
@@ -31,22 +34,22 @@ function createPeopleAdminQuery(options) {
         createdAtMs: person.createdAtMs,
       }))),
       nextCursor: people.length > limit ? page.at(-1).personId : null,
-      summary: options.store.overviewStats(),
+      summary: options.store.overviewStats(libraryKind),
     });
   }
 
   return Object.freeze({
-    summary:()=>options.store.overviewStats(),
+    summary:()=>options.store.overviewStats('normal'),
     list,
     get(personId) {
       const result = options.store.getPerson(personId);
       return result || null;
     },
     registrationCandidates() {
-      return Object.freeze({ items:options.store.listRegistrationCandidates() });
+      return Object.freeze({ items:Object.freeze([]) });
     },
     mergeCandidates() {
-      return Object.freeze({ items:options.store.listMergeCandidates() });
+      return Object.freeze({ items:Object.freeze([]) });
     },
   });
 }

@@ -1,6 +1,7 @@
 'use strict';
 
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const { requireLibraryKind, requireSameLibrary } = require('../model/person-library');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const {
   PEOPLE_CANDIDATE_DRAFT_SCHEMA, createCandidate, createCandidateDraft, createCandidateRevision, createPerson,
@@ -48,24 +49,29 @@ function personRegistryDefinition(schemaManifest) {
     repositoryId: 'person_registry_repository', owner: 'people', schemaManifest,
     statements: {
       overview_counts: {kind:'count-grouped',tableId:'people_persons',groupColumn:'status'},
+      overview_library_counts: {kind:'count-grouped',tableId:'people_persons',groupColumn:'status',keyColumns:['library_kind']},
       insert_person: { kind: 'insert', tableId: 'people_persons', columns: [
-        'person_id', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
+        'person_id', 'library_kind', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
         'current_reference_projection_revision', 'current_reference_projection_digest', 'created_at_ms', 'terminal_at_ms'
       ] },
       find_person: { kind: 'select-one', tableId: 'people_persons', columns: [
-        'person_id', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
+        'person_id', 'library_kind', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
         'current_reference_projection_revision', 'current_reference_projection_digest', 'created_at_ms', 'terminal_at_ms'
       ], keyColumns: ['person_id'] },
+      page_reference_people: {kind:'select-page-after',tableId:'people_persons',keyColumn:'person_id',fixedKeyColumns:['library_kind','status'],maxItems:257,
+        columns:['person_id','library_kind','status','current_revision','current_preference_revision','current_reference_revision',
+          'current_reference_projection_revision','current_reference_projection_digest','created_at_ms','terminal_at_ms']},
       list_people: { kind: 'select-all', tableId: 'people_persons', columns: [
-        'person_id', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
+        'person_id', 'library_kind', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
         'current_reference_projection_revision', 'current_reference_projection_digest', 'created_at_ms', 'terminal_at_ms'
       ], keyColumns: [] },
       page_people: { kind: 'select-joined-page', tableId: 'people_persons', columns: [
-        'person_id', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
+        'person_id', 'library_kind', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
         'current_reference_projection_revision', 'current_reference_projection_digest', 'created_at_ms', 'terminal_at_ms'
       ], joins: [], filters: [
         { kind: 'greater_than', column: 'person_id', parameter: 'cursor' },
         { kind: 'equals', column: 'status', parameter: 'status', optional: true },
+        { kind: 'equals', column: 'library_kind', parameter: 'library_kind', optional: true },
       ], orderBy: [{ column: 'person_id', direction: 'asc' }], maxItems: 100 },
       search_current_names: { kind: 'select-in', tableId: 'people_person_revisions', keyColumn: 'person_id',
         fixedKeyColumns: ['revision'], columns: ['person_id', 'canonical_name'], maxItems: 100 },
@@ -104,14 +110,14 @@ function personRegistryDefinition(schemaManifest) {
       ], keyColumns: ['person_id', 'revision'] },
       deactivate_provider_identities: { kind: 'update', tableId: 'people_provider_identities', setColumns: ['active_guard'], keyColumns: ['person_id'] },
       insert_provider_identity: { kind: 'insert', tableId: 'people_provider_identities', columns: [
-        'person_id', 'revision', 'provider', 'namespace', 'provider_key', 'provenance_digest', 'active_guard'
+        'person_id', 'revision', 'library_kind', 'provider', 'namespace', 'provider_key', 'provenance_digest', 'active_guard'
       ] },
       find_provider_identities: { kind: 'select-all', tableId: 'people_provider_identities', columns: [
-        'person_id', 'revision', 'provider', 'namespace', 'provider_key', 'provenance_digest', 'active_guard'
+        'person_id', 'revision', 'library_kind', 'provider', 'namespace', 'provider_key', 'provenance_digest', 'active_guard'
       ], keyColumns: ['person_id', 'revision'] },
       find_active_provider_identity: { kind: 'select-one', tableId: 'people_provider_identities', columns: [
-        'person_id', 'revision', 'provider', 'namespace', 'provider_key', 'provenance_digest', 'active_guard'
-      ], keyColumns: ['provider', 'namespace', 'provider_key', 'active_guard'] },
+        'person_id', 'revision', 'library_kind', 'provider', 'namespace', 'provider_key', 'provenance_digest', 'active_guard'
+      ], keyColumns: ['library_kind', 'provider', 'namespace', 'provider_key', 'active_guard'] },
       insert_preference: { kind: 'insert', tableId: 'people_preference_revisions', columns: [
         'person_id', 'revision', 'preference_level', 'reason', 'origin_kind', 'origin_ref', 'committed_at_ms'
       ] },
@@ -241,12 +247,13 @@ function createPeopleStore(options) {
   }
   function writePersonRevision(repository, input, committedAtMs, deactivateCurrent) {
     const next = createPersonRevision({ ...input, committedAtMs });
+    const libraryKind = requireLibraryKind(repository.invoke('find_person', { person_id: next.personId })?.library_kind);
     if (deactivateCurrent) repository.invoke('deactivate_provider_identities', { active_guard: 0, person_id: next.personId });
     repository.invoke('insert_person_revision', personRevisionRow(next));
     for (const alias of next.aliases) repository.invoke('insert_alias', { person_id: next.personId, revision: next.revision,
       alias_normalized: alias.aliasNormalized, alias_display: alias.aliasDisplay, provenance_digest: alias.provenanceDigest });
     for (const identity of next.providerIdentities) repository.invoke('insert_provider_identity', { person_id: next.personId, revision: next.revision,
-      provider: identity.provider, namespace: identity.namespace, provider_key: identity.providerKey,
+      library_kind: libraryKind, provider: identity.provider, namespace: identity.namespace, provider_key: identity.providerKey,
       provenance_digest: identity.provenanceDigest, active_guard: next.personStatus === 'active' ? 1 : 0 });
     return next;
   }
@@ -338,175 +345,7 @@ function createPeopleStore(options) {
     }
     return result;
   }
-  function commitDirectRegistration(context, decision) {
-    const repository = context.repository(registry.repositoryId);
-    const personFact = { personStatus: 'active', canonicalName: decision.canonicalName, mergedIntoPersonId: null,
-      originKind: 'direct', originDecisionRef: { decisionId: decision.decisionId, decisionDigest: decision.decisionDigest },
-      originCandidateRef: null, aliases: decision.aliases, providerIdentities: decision.providerIdentities };
-    const factDigest = canonicalDigest(personFact);
-    repository.invoke('insert_person', { person_id: decision.newPersonId, status: 'active', current_revision: 1,
-      current_preference_revision: null, current_reference_revision: null, current_reference_projection_revision: 1,
-      current_reference_projection_digest: initialProjectionDigest(decision.newPersonId), created_at_ms: context.commitTimeMs, terminal_at_ms: null });
-    writePersonRevision(repository, { personId: decision.newPersonId, revision: 1, ...personFact, factDigest }, context.commitTimeMs, false);
-    return mapPerson(repository, repository.invoke('find_person', { person_id: decision.newPersonId }));
-  }
-  const repositoryManifest = Object.freeze({ components: Object.freeze([
-    Object.freeze({ component: 'PersonRegistryRepository', repositoryId: registry.repositoryId, tableIds: registry.tableIds }),
-    Object.freeze({ component: 'PeopleCandidateRepository', repositoryId: candidates.repositoryId, tableIds: candidates.tableIds })
-  ]) });
-  function commitCandidate(context, input) {
-    const draft = createCandidateDraft(input.draft);
-    const repository = context.repository(candidates.repositoryId);
-    const revisionItem = createCandidateRevision({ candidateId: input.candidateId, revision: 1, state: 'open', decisionOrigin: null,
-      decisionRef: null, decisionDigest: null, committedAtMs: context.commitTimeMs });
-    const candidateJson = boundedJson(draft.candidatePayload);
-    if (draft.candidateKind === 'registration') {
-      repository.invoke('insert_registration_candidate', { registration_candidate_id: input.candidateId, current_revision: 1,
-        current_state: 'open', proposed_name: draft.candidatePayload.proposedName, evidence_digest: draft.evidenceDigest,
-        candidate_schema_ref: PEOPLE_CANDIDATE_DRAFT_SCHEMA, candidate_json: candidateJson,
-        candidate_payload_digest: draft.candidatePayloadDigest, created_at_ms: context.commitTimeMs, terminal_at_ms: null });
-      repository.invoke('insert_registration_revision', candidateRevisionRow('registration', revisionItem));
-      return mapRegistrationCandidate(repository, repository.invoke('find_registration_candidate', { registration_candidate_id: input.candidateId }));
-    }
-    verifyMergeRefs(context.repository(registry.repositoryId), draft.candidatePayload);
-    repository.invoke('insert_merge_candidate', { merge_candidate_id: input.candidateId, current_revision: 1, current_state: 'open',
-      left_person_id: draft.candidatePayload.leftPersonRef.personId, left_person_revision: draft.candidatePayload.leftPersonRef.revision,
-      right_person_id: draft.candidatePayload.rightPersonRef.personId, right_person_revision: draft.candidatePayload.rightPersonRef.revision,
-      evidence_digest: draft.evidenceDigest, candidate_schema_ref: PEOPLE_CANDIDATE_DRAFT_SCHEMA, candidate_json: candidateJson,
-      candidate_payload_digest: draft.candidatePayloadDigest, created_at_ms: context.commitTimeMs, terminal_at_ms: null });
-    repository.invoke('insert_merge_revision', candidateRevisionRow('merge', revisionItem));
-    return mapMergeCandidate(repository, repository.invoke('find_merge_candidate', { merge_candidate_id: input.candidateId }));
-  }
-
-  return Object.freeze({
-    repositoryManifest,
-    registerDirectPerson(input) {
-      const decision = validateDirectRegistrationDecision(input);
-      return execute([registry], (context) => commitDirectRegistration(context, decision));
-    },
-    createDirectRegistrationParticipant(input) {
-      const decision = validateDirectRegistrationDecision(input);
-      return Object.freeze({ participantId: 'people_direct_registration', owner: 'people', repositories: [registry],
-        execute(context) { return commitDirectRegistration(context, decision); } });
-    },
-    revisePerson(input, expectedRevision) {
-      exactInput(input, ['personId', 'revision', 'canonicalName', 'factDigest', 'aliases', 'providerIdentities'], 'P6_PEOPLE_PERSON_INPUT');
-      return execute([registry], (context) => {
-        const repository = context.repository(registry.repositoryId);
-        const current = repository.invoke('find_person', { person_id: input.personId });
-        if (!current || current.status !== 'active') fail('P6_PEOPLE_PERSON_NOT_ACTIVE', 'Only an active Person can be revised.');
-        if (current.current_revision !== expectedRevision || input.revision !== expectedRevision + 1) {
-          fail('P6_PEOPLE_PERSON_REVISION_CONFLICT', 'Person revision is stale or skipped.');
-        }
-        const previous = mapPerson(repository, current).revision;
-        writePersonRevision(repository, { ...input, personStatus: 'active', mergedIntoPersonId: null,
-          originKind: previous.originKind, originDecisionRef: previous.originDecisionRef, originCandidateRef: previous.originCandidateRef },
-          context.commitTimeMs, true);
-        const advanced = repository.invoke('advance_person_head', { status: 'active', current_revision: input.revision, terminal_at_ms: null,
-          person_id: input.personId, expected_current_revision: expectedRevision, expected_status: 'active' });
-        if (advanced.changes !== 1) fail('P6_PEOPLE_PERSON_REVISION_CONFLICT', 'Person head changed concurrently.');
-        checkpointProjection(repository, input.personId);
-        return mapPerson(repository, repository.invoke('find_person', { person_id: input.personId }));
-      });
-    },
-    getPerson(personId) {
-      return execute([registry], (context) => mapPerson(context.repository(registry.repositoryId),
-        context.repository(registry.repositoryId).invoke('find_person', { person_id: personId })));
-    },
-    listPeople() {
-      return execute([registry], (context) => {
-        const repository = context.repository(registry.repositoryId);
-        return Object.freeze(repository.invoke('list_people').map((row) => mapPerson(repository, row)));
-      });
-    },
-    listPeoplePage(input) {
-      exactInput(input, ['cursor', 'limit', 'status', 'search'], 'P6_PEOPLE_PAGE_INPUT');
-      if (typeof input.cursor !== 'string' || typeof input.search !== 'string' ||
-          !Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 101 ||
-          ![null, 'active', 'merged'].includes(input.status)) {
-        fail('P6_PEOPLE_PAGE_INPUT', 'Person page requires bounded filters and a cursor.');
-      }
-      const search = input.search.trim().toLocaleLowerCase();
-      return execute([registry], (context) => {
-        const repository = context.repository(registry.repositoryId), selected = [];
-        let cursor = input.cursor;
-        while (selected.length < input.limit) {
-          const limit = search ? 100 : Math.min(100, input.limit - selected.length);
-          const page = repository.invoke('page_people', { cursor, status: input.status || '', offset: 0, limit });
-          if (!page.length) break;
-          const namesByPerson = new Map();
-          if (search) {
-            const groups = new Map();
-            for (const row of page) {
-              if (!groups.has(row.current_revision)) groups.set(row.current_revision, []);
-              groups.get(row.current_revision).push(row.person_id);
-            }
-            for (const [revision, values] of groups) {
-              for (const row of repository.invoke('search_current_names', { revision, values }))
-                namesByPerson.set(row.person_id, [row.canonical_name]);
-              for (const row of repository.invoke('search_current_aliases', { revision, values }))
-                namesByPerson.get(row.person_id)?.push(row.alias_display);
-            }
-          }
-          for (const row of page) {
-            if (search) {
-              const names = namesByPerson.get(row.person_id);
-              if (!names) fail('P6_PEOPLE_PERSON_HEAD_CORRUPT', 'Person head does not point to an immutable revision.');
-              if (!names.some((name) => name.toLocaleLowerCase().includes(search))) continue;
-            }
-            // Expand and validate only this page's exact current Person facts.
-            selected.push(mapPerson(repository, row));
-            if (selected.length === input.limit) break;
-          }
-          cursor = page.at(-1).person_id;
-          if (page.length < limit) break;
-        }
-        return Object.freeze(selected);
-      });
-    },
-    findActivePersonByProviderIdentity(identity) {
-      exactInput(identity, ['provider', 'namespace', 'providerKey'], 'P6_PEOPLE_PROVIDER_IDENTITY_LOOKUP_INPUT');
-      return execute([registry], (context) => {
-        const repository = context.repository(registry.repositoryId);
-        const row = repository.invoke('find_active_provider_identity', { provider:identity.provider,
-          namespace:identity.namespace,provider_key:identity.providerKey,active_guard:1 });
-        return row ? mapPerson(repository, repository.invoke('find_person', { person_id:row.person_id })) : undefined;
-      });
-    },
-    appendPreference(input) {
-      exactInput(input, ['personId', 'revision', 'preferenceLevel', 'reason', 'originKind', 'originRef'], 'P6_PEOPLE_PREFERENCE_INPUT');
-      return execute([registry], (context) => appendPreference(context.repository(registry.repositoryId), input, context.commitTimeMs));
-    },
-    getCurrentPreference(personId) {
-      return execute([registry], (context) => {
-        const repository = context.repository(registry.repositoryId);
-        const person = repository.invoke('find_person', { person_id: personId });
-        if (!person || person.current_preference_revision === null) return undefined;
-        return mapPreference(repository.invoke('find_preference', { person_id: personId, revision: person.current_preference_revision }));
-      });
-    },
-    createPreferenceCommitParticipant(handle, intent) {
-      const resultSchemaRef = 'helix://contracts/types/PersonPreferenceRevision/v1';
-      if (!handle || !intent || intent.schemaRef !== 'helix://contracts/domain-types/PreferenceIntent/v1' || intent.schemaVersion !== 1 ||
-          handle.ownerDomain !== 'people' || handle.aggregateType !== 'person-preference' || handle.aggregateId !== intent.personId ||
-          handle.expectedRevision !== intent.revision - 1 || handle.resultSchemaRef !== resultSchemaRef) {
-        fail('P6_PEOPLE_PREFERENCE_COMMIT_FENCE', 'Preference Commit Handle does not fence the exact Preference Intent.');
-      }
-      const digestBasis = Object.fromEntries(Object.entries(intent).filter(([key]) => key !== 'digest'));
-      if (canonicalDigest(digestBasis) !== intent.digest || intent.typedParameters.some((item) =>
-        canonicalDigest(item.value) !== item.valueDigest)) {
-        fail('P6_PEOPLE_PREFERENCE_INTENT_DIGEST', 'Preference Intent or one typed parameter has an invalid digest.');
-      }
-      return Object.freeze({ participantId: 'people_preference_commit', owner: 'people', repositories: [registry], execute(context) {
-        const item = appendPreference(context.repository(registry.repositoryId), { personId: intent.personId, revision: intent.revision,
-          preferenceLevel: intent.preferenceLevel, reason: intent.reason, originKind: 'preference_intent', originRef: intent.intentId }, context.commitTimeMs);
-        const fact = { personId: item.personId, preferenceLevel: item.preferenceLevel, reason: item.reason };
-        return Object.freeze({ schemaRef: resultSchemaRef, schemaVersion: 1, factId: handle.handleId, ownerDomain: 'people',
-          aggregateType: 'person-preference', aggregateId: item.personId, revision: item.revision, factSchemaRef: resultSchemaRef,
-          factDigest: canonicalDigest(fact), commitMarker: handle.commitIdempotencyKey, committedAtMs: item.committedAtMs, ...fact });
-      } });
-    },
-    createReferenceCommitParticipant(handle, decisionInput) {
+  function createReferenceCommitParticipant(handle, decisionInput) {
       const decision = validateReferenceDecision(decisionInput);
       const resultSchemaRef = 'helix://contracts/types/PersonReferenceRevision/v1';
       if (!handle || handle.ownerDomain !== 'people' || handle.aggregateType !== 'person-reference' ||
@@ -529,7 +368,7 @@ function createPeopleStore(options) {
             createdReferenceRevision: nextRevision, releasedReferenceRevision: null, createdAtMs: context.commitTimeMs, releasedAtMs: null });
           const face = createReferenceFace({ referenceFaceId: decision.referenceFaceId, personId: decision.personId,
             referenceAssetId: decision.referenceAssetId, embeddingHandleId: decision.faceEmbeddingSetHandle.artifactHandleId,
-            embeddingDigest: decision.faceEmbeddingSetHandle.digestHex, modelRef: decision.modelRef, state: 'active',
+            embeddingDigest: decision.faceEmbeddingSetHandle.embeddingDigest, modelRef: decision.modelRef, state: 'active',
             createdReferenceRevision: nextRevision, releasedReferenceRevision: null, createdAtMs: context.commitTimeMs, releasedAtMs: null });
           repository.invoke('insert_reference_asset', assetRow(asset));
           repository.invoke('insert_reference_face', faceRow(face));
@@ -541,6 +380,10 @@ function createPeopleStore(options) {
               asset.artifact_digest !== decision.artifactDigest || face.embedding_digest !== decision.embeddingDigest ||
               face.model_ref !== decision.modelRef) {
             fail('P6_PEOPLE_REFERENCE_RELEASE_FENCE', 'Reference release target, ownership, state, digest, or model does not match.');
+          }
+          if (person.library_kind === 'us_adult' && repository.invoke('find_reference_assets', {person_id:decision.personId})
+              .filter(item => item.state === 'active').length <= 1) {
+            fail('PEOPLE_LAST_REFERENCE_REQUIRED','A US Adult Person must retain a usable reference image.');
           }
           const assetReleased = repository.invoke('release_reference_asset', { state: 'released', released_reference_revision: nextRevision,
             released_at_ms: context.commitTimeMs, reference_asset_id: decision.referenceAssetId,
@@ -582,7 +425,195 @@ function createPeopleStore(options) {
         for (const affectedPersonId of affectedProjectionIds(repository, decision.personId)) checkpointProjection(repository, affectedPersonId);
         return fact;
       } });
+  }
+
+  function commitDirectRegistration(context, decision) {
+    const repository = context.repository(registry.repositoryId);
+    const personFact = { personStatus: 'active', canonicalName: decision.canonicalName, mergedIntoPersonId: null,
+      originKind: 'direct', originDecisionRef: { decisionId: decision.decisionId, decisionDigest: decision.decisionDigest },
+      originCandidateRef: null, aliases: decision.aliases, providerIdentities: decision.providerIdentities };
+    const factDigest = canonicalDigest(personFact);
+    repository.invoke('insert_person', { person_id: decision.newPersonId, library_kind: decision.libraryKind, status: 'active', current_revision: 1,
+      current_preference_revision: null, current_reference_revision: null, current_reference_projection_revision: 1,
+      current_reference_projection_digest: initialProjectionDigest(decision.newPersonId), created_at_ms: context.commitTimeMs, terminal_at_ms: null });
+    writePersonRevision(repository, { personId: decision.newPersonId, revision: 1, ...personFact, factDigest }, context.commitTimeMs, false);
+    if (decision.libraryKind === 'us_adult') createReferenceCommitParticipant({
+      handleId:'people-initial-reference-'+decision.decisionId,ownerDomain:'people',aggregateType:'person-reference',
+      aggregateId:decision.newPersonId,expectedRevision:0,resultSchemaRef:'helix://contracts/types/PersonReferenceRevision/v1',
+      commitIdempotencyKey:'people-initial-reference-'+decision.decisionId,
+    },decision.initialReference).execute(context);
+    return mapPerson(repository, repository.invoke('find_person', { person_id: decision.newPersonId }));
+  }
+  const repositoryManifest = Object.freeze({ components: Object.freeze([
+    Object.freeze({ component: 'PersonRegistryRepository', repositoryId: registry.repositoryId, tableIds: registry.tableIds }),
+    Object.freeze({ component: 'PeopleCandidateRepository', repositoryId: candidates.repositoryId, tableIds: candidates.tableIds })
+  ]) });
+  function commitCandidate(context, input) {
+    const draft = createCandidateDraft(input.draft);
+    const repository = context.repository(candidates.repositoryId);
+    const revisionItem = createCandidateRevision({ candidateId: input.candidateId, revision: 1, state: 'open', decisionOrigin: null,
+      decisionRef: null, decisionDigest: null, committedAtMs: context.commitTimeMs });
+    const candidateJson = boundedJson(draft.candidatePayload);
+    if (draft.candidateKind === 'registration') {
+      repository.invoke('insert_registration_candidate', { registration_candidate_id: input.candidateId, current_revision: 1,
+        current_state: 'open', proposed_name: draft.candidatePayload.proposedName, evidence_digest: draft.evidenceDigest,
+        candidate_schema_ref: PEOPLE_CANDIDATE_DRAFT_SCHEMA, candidate_json: candidateJson,
+        candidate_payload_digest: draft.candidatePayloadDigest, created_at_ms: context.commitTimeMs, terminal_at_ms: null });
+      repository.invoke('insert_registration_revision', candidateRevisionRow('registration', revisionItem));
+      return mapRegistrationCandidate(repository, repository.invoke('find_registration_candidate', { registration_candidate_id: input.candidateId }));
+    }
+    verifyMergeRefs(context.repository(registry.repositoryId), draft.candidatePayload);
+    repository.invoke('insert_merge_candidate', { merge_candidate_id: input.candidateId, current_revision: 1, current_state: 'open',
+      left_person_id: draft.candidatePayload.leftPersonRef.personId, left_person_revision: draft.candidatePayload.leftPersonRef.revision,
+      right_person_id: draft.candidatePayload.rightPersonRef.personId, right_person_revision: draft.candidatePayload.rightPersonRef.revision,
+      evidence_digest: draft.evidenceDigest, candidate_schema_ref: PEOPLE_CANDIDATE_DRAFT_SCHEMA, candidate_json: candidateJson,
+      candidate_payload_digest: draft.candidatePayloadDigest, created_at_ms: context.commitTimeMs, terminal_at_ms: null });
+    repository.invoke('insert_merge_revision', candidateRevisionRow('merge', revisionItem));
+    return mapMergeCandidate(repository, repository.invoke('find_merge_candidate', { merge_candidate_id: input.candidateId }));
+  }
+
+  return Object.freeze({
+    repositoryManifest,
+    registerDirectPerson(input) {
+      const decision = validateDirectRegistrationDecision(input);
+      return execute([registry], (context) => commitDirectRegistration(context, decision));
     },
+    createRegistrationSignalParticipant(payload) {
+      exactInput(payload, ['personId', 'personRevision'], 'PEOPLE_REGISTRATION_SIGNAL_INVALID');
+      if (!Number.isSafeInteger(payload.personRevision) || payload.personRevision < 1) fail('PEOPLE_REGISTRATION_SIGNAL_INVALID', 'Person registration signal revision is invalid.');
+      return Object.freeze({ participantId:'people_registration_signal',owner:'people',repositories:[registry],execute(context) {
+        const row = context.repository(registry.repositoryId).invoke('find_person', {person_id:payload.personId});
+        if (!row || row.current_revision < payload.personRevision || row.current_reference_projection_revision < 1) {
+          fail('PEOPLE_REGISTRATION_SIGNAL_INVALID', 'Person registration signal is ahead of its durable Owner Projection.');
+        }
+        return {personId:payload.personId,personRevision:payload.personRevision};
+      } });
+    },
+    createDirectRegistrationParticipant(input) {
+      const decision = validateDirectRegistrationDecision(input);
+      return Object.freeze({ participantId: 'people_direct_registration', owner: 'people', repositories: [registry],
+        execute(context) { return commitDirectRegistration(context, decision); } });
+    },
+    revisePerson(input, expectedRevision) {
+      exactInput(input, ['personId', 'revision', 'canonicalName', 'factDigest', 'aliases', 'providerIdentities'], 'P6_PEOPLE_PERSON_INPUT');
+      return execute([registry], (context) => {
+        const repository = context.repository(registry.repositoryId);
+        const current = repository.invoke('find_person', { person_id: input.personId });
+        if (!current || current.status !== 'active') fail('P6_PEOPLE_PERSON_NOT_ACTIVE', 'Only an active Person can be revised.');
+        if (current.current_revision !== expectedRevision || input.revision !== expectedRevision + 1) {
+          fail('P6_PEOPLE_PERSON_REVISION_CONFLICT', 'Person revision is stale or skipped.');
+        }
+        const previous = mapPerson(repository, current).revision;
+        writePersonRevision(repository, { ...input, personStatus: 'active', mergedIntoPersonId: null,
+          originKind: previous.originKind, originDecisionRef: previous.originDecisionRef, originCandidateRef: previous.originCandidateRef },
+          context.commitTimeMs, true);
+        const advanced = repository.invoke('advance_person_head', { status: 'active', current_revision: input.revision, terminal_at_ms: null,
+          person_id: input.personId, expected_current_revision: expectedRevision, expected_status: 'active' });
+        if (advanced.changes !== 1) fail('P6_PEOPLE_PERSON_REVISION_CONFLICT', 'Person head changed concurrently.');
+        checkpointProjection(repository, input.personId);
+        return mapPerson(repository, repository.invoke('find_person', { person_id: input.personId }));
+      });
+    },
+    getPerson(personId) {
+      return execute([registry], (context) => mapPerson(context.repository(registry.repositoryId),
+        context.repository(registry.repositoryId).invoke('find_person', { person_id: personId })));
+    },
+    listPeople() {
+      return execute([registry], (context) => {
+        const repository = context.repository(registry.repositoryId);
+        return Object.freeze(repository.invoke('list_people').map((row) => mapPerson(repository, row)));
+      });
+    },
+    listPeoplePage(input) {
+      exactInput(input, ['cursor', 'limit', 'status', 'search', 'libraryKind'], 'P6_PEOPLE_PAGE_INPUT');
+      if (input.libraryKind !== null) requireLibraryKind(input.libraryKind);
+      if (typeof input.cursor !== 'string' || typeof input.search !== 'string' ||
+          !Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 101 ||
+          ![null, 'active', 'merged'].includes(input.status)) {
+        fail('P6_PEOPLE_PAGE_INPUT', 'Person page requires bounded filters and a cursor.');
+      }
+      const search = input.search.trim().toLocaleLowerCase();
+      return execute([registry], (context) => {
+        const repository = context.repository(registry.repositoryId), selected = [];
+        let cursor = input.cursor;
+        while (selected.length < input.limit) {
+          const limit = search ? 100 : Math.min(100, input.limit - selected.length);
+          const page = repository.invoke('page_people', { cursor, status: input.status || '', library_kind: input.libraryKind || '', offset: 0, limit });
+          if (!page.length) break;
+          const namesByPerson = new Map();
+          if (search) {
+            const groups = new Map();
+            for (const row of page) {
+              if (!groups.has(row.current_revision)) groups.set(row.current_revision, []);
+              groups.get(row.current_revision).push(row.person_id);
+            }
+            for (const [revision, values] of groups) {
+              for (const row of repository.invoke('search_current_names', { revision, values }))
+                namesByPerson.set(row.person_id, [row.canonical_name]);
+              for (const row of repository.invoke('search_current_aliases', { revision, values }))
+                namesByPerson.get(row.person_id)?.push(row.alias_display);
+            }
+          }
+          for (const row of page) {
+            if (search) {
+              const names = namesByPerson.get(row.person_id);
+              if (!names) fail('P6_PEOPLE_PERSON_HEAD_CORRUPT', 'Person head does not point to an immutable revision.');
+              if (!names.some((name) => name.toLocaleLowerCase().includes(search))) continue;
+            }
+            // Expand and validate only this page's exact current Person facts.
+            selected.push(mapPerson(repository, row));
+            if (selected.length === input.limit) break;
+          }
+          cursor = page.at(-1).person_id;
+          if (page.length < limit) break;
+        }
+        return Object.freeze(selected);
+      });
+    },
+    findActivePersonByProviderIdentity(identity) {
+      exactInput(identity, ['libraryKind', 'provider', 'namespace', 'providerKey'], 'P6_PEOPLE_PROVIDER_IDENTITY_LOOKUP_INPUT');
+      requireLibraryKind(identity.libraryKind);
+      return execute([registry], (context) => {
+        const repository = context.repository(registry.repositoryId);
+        const row = repository.invoke('find_active_provider_identity', { library_kind: identity.libraryKind, provider:identity.provider,
+          namespace:identity.namespace,provider_key:identity.providerKey,active_guard:1 });
+        return row ? mapPerson(repository, repository.invoke('find_person', { person_id:row.person_id })) : undefined;
+      });
+    },
+    appendPreference(input) {
+      exactInput(input, ['personId', 'revision', 'preferenceLevel', 'reason', 'originKind', 'originRef'], 'P6_PEOPLE_PREFERENCE_INPUT');
+      return execute([registry], (context) => appendPreference(context.repository(registry.repositoryId), input, context.commitTimeMs));
+    },
+    getCurrentPreference(personId) {
+      return execute([registry], (context) => {
+        const repository = context.repository(registry.repositoryId);
+        const person = repository.invoke('find_person', { person_id: personId });
+        if (!person || person.current_preference_revision === null) return undefined;
+        return mapPreference(repository.invoke('find_preference', { person_id: personId, revision: person.current_preference_revision }));
+      });
+    },
+    createPreferenceCommitParticipant(handle, intent) {
+      const resultSchemaRef = 'helix://contracts/types/PersonPreferenceRevision/v1';
+      if (!handle || !intent || intent.schemaRef !== 'helix://contracts/domain-types/PreferenceIntent/v1' || intent.schemaVersion !== 1 ||
+          handle.ownerDomain !== 'people' || handle.aggregateType !== 'person-preference' || handle.aggregateId !== intent.personId ||
+          handle.expectedRevision !== intent.revision - 1 || handle.resultSchemaRef !== resultSchemaRef) {
+        fail('P6_PEOPLE_PREFERENCE_COMMIT_FENCE', 'Preference Commit Handle does not fence the exact Preference Intent.');
+      }
+      const digestBasis = Object.fromEntries(Object.entries(intent).filter(([key]) => key !== 'digest'));
+      if (canonicalDigest(digestBasis) !== intent.digest || intent.typedParameters.some((item) =>
+        canonicalDigest(item.value) !== item.valueDigest)) {
+        fail('P6_PEOPLE_PREFERENCE_INTENT_DIGEST', 'Preference Intent or one typed parameter has an invalid digest.');
+      }
+      return Object.freeze({ participantId: 'people_preference_commit', owner: 'people', repositories: [registry], execute(context) {
+        const item = appendPreference(context.repository(registry.repositoryId), { personId: intent.personId, revision: intent.revision,
+          preferenceLevel: intent.preferenceLevel, reason: intent.reason, originKind: 'preference_intent', originRef: intent.intentId }, context.commitTimeMs);
+        const fact = { personId: item.personId, preferenceLevel: item.preferenceLevel, reason: item.reason };
+        return Object.freeze({ schemaRef: resultSchemaRef, schemaVersion: 1, factId: handle.handleId, ownerDomain: 'people',
+          aggregateType: 'person-preference', aggregateId: item.personId, revision: item.revision, factSchemaRef: resultSchemaRef,
+          factDigest: canonicalDigest(fact), commitMarker: handle.commitIdempotencyKey, committedAtMs: item.committedAtMs, ...fact });
+      } });
+    },
+    createReferenceCommitParticipant,
     getReferenceAsset(referenceAssetId) {
       return execute([registry], (context) => mapAsset(context.repository(registry.repositoryId).invoke('find_reference_asset', { reference_asset_id: referenceAssetId })));
     },
@@ -602,19 +633,15 @@ function createPeopleStore(options) {
         return Object.freeze(projection);
       });
     },
-    listPersonReferenceProjections(limit = 256) {
+    listPersonReferenceProjections(limit = 256, libraryKind = 'us_adult') {
+      requireLibraryKind(libraryKind);
       if (!Number.isSafeInteger(limit) || limit < 1 || limit > 256) {
         fail('P6_PEOPLE_REFERENCE_QUERY_LIMIT',
           'Reference projection query limit must be 1..256.');
       }
       return execute([registry], (context) => {
         const repository = context.repository(registry.repositoryId);
-        const people = repository.invoke('list_people', {})
-          .filter((row) => row.status === 'active')
-          .sort((left, right) => utf8Compare(
-            left.person_id,
-            right.person_id,
-          ));
+        const people = repository.invoke('page_reference_people', {library_kind:libraryKind,status:'active',cursor:'',limit:limit+1});
         if (people.length > limit) {
           fail('P6_PEOPLE_REFERENCE_PROJECTION_SET_TOO_LARGE',
             'Active Person Reference Projection set exceeds the formal bound.',
@@ -678,6 +705,9 @@ function createPeopleStore(options) {
           fail('P6_PEOPLE_REGISTRATION_CANDIDATE_FENCE', 'Registration Candidate revision or payload changed before acceptance.');
         }
         const candidate = mapRegistrationCandidate(candidateRepository, row);
+        if (candidate.candidatePayload.libraryKind === 'us_adult') {
+          fail('P6_PEOPLE_US_REFERENCE_REQUIRED', 'US Adult registration requires an atomic initial Reference and cannot accept system evidence.');
+        }
         const nextCandidateRevision = createCandidateRevision({ candidateId: decision.candidateId,
           revision: decision.expectedCandidateRevision + 1, state: 'accepted', decisionOrigin: decision.decisionOrigin,
           decisionRef: decision.decisionId, decisionDigest: decision.decisionDigest, committedAtMs: context.commitTimeMs });
@@ -692,7 +722,7 @@ function createPeopleStore(options) {
         const personFact = { personStatus: 'active', canonicalName: candidate.candidatePayload.proposedName, mergedIntoPersonId: null,
           originCandidateRef, aliases: candidate.candidatePayload.aliases, providerIdentities: candidate.candidatePayload.providerIdentities };
         const factDigest = canonicalDigest(personFact);
-        personRepository.invoke('insert_person', { person_id: decision.newPersonId, status: 'active', current_revision: 1,
+        personRepository.invoke('insert_person', { person_id: decision.newPersonId, library_kind: candidate.candidatePayload.libraryKind, status: 'active', current_revision: 1,
           current_preference_revision: null, current_reference_revision: null, current_reference_projection_revision: 1,
           current_reference_projection_digest: initialProjectionDigest(decision.newPersonId), created_at_ms: context.commitTimeMs, terminal_at_ms: null });
         writePersonRevision(personRepository, { personId: decision.newPersonId, revision: 1, ...personFact,
@@ -744,6 +774,7 @@ function createPeopleStore(options) {
         }
         const source = mapPerson(personRepository, sourceHead);
         const target = mapPerson(personRepository, targetHead);
+        requireSameLibrary(source, target);
         if (source.revision.factDigest !== sourceRef.factDigest || target.revision.factDigest !== targetRef.factDigest) {
           fail('P6_PEOPLE_MERGE_PERSON_FENCE', 'Merge Person fact no longer matches the frozen Candidate.');
         }
@@ -852,7 +883,14 @@ function createPeopleStore(options) {
           .map((row) => mapRegistrationCandidate(repository, row)));
       }, 'people_candidate_store');
     },
-    overviewStats(){return execute([registry,candidates],context=>{
+    overviewStats(libraryKind){
+      if (libraryKind !== undefined) return execute([registry], context => {
+        const rows = context.repository(registry.repositoryId).invoke('overview_library_counts', { library_kind: requireLibraryKind(libraryKind) });
+        const count = state => Number(rows.find(row => row.group_value === state)?.row_count || 0);
+        return Object.freeze({ activePersonCount: count('active'), mergedPersonCount: count('merged'),
+          openRegistrationCandidateCount: 0, openMergeCandidateCount: 0 });
+      }, 'people_library_overview_stats');
+      return execute([registry,candidates],context=>{
       const people=context.repository(registry.repositoryId).invoke('overview_counts',{});
       const registrations=context.repository(candidates.repositoryId).invoke('overview_registration_counts',{});
       const merges=context.repository(candidates.repositoryId).invoke('overview_merge_counts',{});
@@ -895,7 +933,7 @@ function createPeopleStore(options) {
         const personFact = { personStatus: 'active', canonicalName: candidate.candidatePayload.proposedName, mergedIntoPersonId: null,
           originCandidateRef, aliases: candidate.candidatePayload.aliases, providerIdentities: candidate.candidatePayload.providerIdentities };
         const factDigest = canonicalDigest(personFact);
-        personRepository.invoke('insert_person', { person_id: decision.newPersonId, status: 'active', current_revision: 1,
+        personRepository.invoke('insert_person', { person_id: decision.newPersonId, library_kind: candidate.candidatePayload.libraryKind, status: 'active', current_revision: 1,
           current_preference_revision: null, current_reference_revision: null, current_reference_projection_revision: 1,
           current_reference_projection_digest: initialProjectionDigest(decision.newPersonId), created_at_ms: context.commitTimeMs, terminal_at_ms: null });
         writePersonRevision(personRepository, { personId: decision.newPersonId, revision: 1, ...personFact,
@@ -937,6 +975,9 @@ function createPeopleStore(options) {
 }
 
 function verifyMergeRefs(repository, payload) {
+  const left = repository.invoke('find_person', { person_id: payload.leftPersonRef.personId });
+  const right = repository.invoke('find_person', { person_id: payload.rightPersonRef.personId });
+  if (left && right) requireSameLibrary({ libraryKind: left.library_kind }, { libraryKind: right.library_kind });
   for (const ref of [payload.leftPersonRef, payload.rightPersonRef]) {
     const person = repository.invoke('find_person', { person_id: ref.personId });
     const fact = repository.invoke('find_person_revision', { person_id: ref.personId, revision: ref.revision });
@@ -962,8 +1003,12 @@ function validateReferenceDecision(value) {
     const embedding = value.faceEmbeddingSetHandle;
     if (value.initialState !== 'active' || !artifact || artifact.artifactHandleId === undefined ||
         artifact.digestHex !== value.artifactDigest || !embedding || embedding.artifactHandleId === undefined ||
-        embedding.modelRef !== value.modelRef || embedding.detectedFaceCount !== 1 || embedding.vectorCount !== 1 ||
-        embedding.sourceArtifactSetDigest !== value.artifactDigest || typeof embedding.digestHex !== 'string') {
+        embedding.faceModelRefDigest !== value.modelRef || embedding.computationMode !== 'single_reference_face' ||
+        embedding.libraRunId !== null || embedding.workspaceId !== null ||
+        embedding.artifactHandleId !== embedding.artifactHandle?.artifactHandleId || embedding.artifactHandle?.ownerDomain !== 'people' ||
+        embedding.artifactHandle?.ownerScope?.scopeId !== value.personId || embedding.artifactHandle?.digestHex !== embedding.embeddingDigest ||
+        embedding.handleDigest !== canonicalDigest(without(embedding,'handleDigest')) || embedding.detectedFaceCount !== 1 || embedding.vectorCount !== 1 ||
+        embedding.sourceArtifactSetDigest !== value.artifactDigest || typeof embedding.embeddingDigest !== 'string' || artifact.ownerDomain !== 'people' || artifact.ownerScope?.scopeId !== value.personId) {
       fail('P6_PEOPLE_REFERENCE_ADD_EVIDENCE', 'Reference add requires one face and exact Artifact/Embedding/model bindings.');
     }
   } else if (value.expectedAssetState !== 'active' || value.expectedFaceState !== 'active' || value.terminalState !== 'released') {
@@ -972,8 +1017,15 @@ function validateReferenceDecision(value) {
   return Object.freeze({ ...value });
 }
 function validateDirectRegistrationDecision(value) {
-  exactInput(value, ['decisionId', 'newPersonId', 'canonicalName', 'aliases', 'providerIdentities', 'actorId', 'decisionDigest'],
+  exactInput(value, ['decisionId', 'newPersonId', 'libraryKind', 'canonicalName', 'aliases', 'providerIdentities', 'actorId', 'decisionDigest',
+    ...(value?.libraryKind === 'us_adult' ? ['initialReference'] : [])],
     'P6_PEOPLE_DIRECT_REGISTRATION_INPUT');
+  requireLibraryKind(value.libraryKind);
+  if (value.libraryKind === 'us_adult') {
+    const reference = validateReferenceDecision(value.initialReference);
+    if(reference.operationKind!=='add_image'||reference.personId!==value.newPersonId||reference.expectedPersonRevision!==1||
+      reference.expectedReferenceRevision!==0||reference.actorId!==value.actorId)fail('PEOPLE_INITIAL_REFERENCE_INVALID','Initial reference does not belong to this registration.');
+  }
   if (canonicalDigest(without(value, 'decisionDigest')) !== value.decisionDigest) {
     fail('P6_PEOPLE_DIRECT_REGISTRATION_DIGEST', 'Direct Person Registration Decision digest is invalid.');
   }
@@ -1069,7 +1121,7 @@ function mapPerson(repository, row) {
     fact.origin_candidate_payload_digest !== null;
   if (hasOrigin && [fact.origin_candidate_kind, fact.origin_candidate_id, fact.origin_candidate_revision,
     fact.origin_candidate_payload_digest].some((item) => item === null)) fail('P6_PEOPLE_PERSON_ORIGIN_CORRUPT', 'Person Candidate origin is only partially stored.');
-  return createPerson({ personId: row.person_id, status: row.status, currentRevision: row.current_revision,
+  return createPerson({ personId: row.person_id, libraryKind: row.library_kind, status: row.status, currentRevision: row.current_revision,
     currentPreferenceRevision: row.current_preference_revision, currentReferenceRevision: row.current_reference_revision,
     currentReferenceProjectionRevision: row.current_reference_projection_revision,
     currentReferenceProjectionDigest: row.current_reference_projection_digest, createdAtMs: row.created_at_ms, terminalAtMs: row.terminal_at_ms,

@@ -125,6 +125,8 @@ function createArcaExecutionRegistration() {
         createAcceptanceCommitPlanner(options),createAcceptanceRejectionPlanner(options),
         createOnDeckExecutionPlanner({...options,contextReader:options.contextReader}),
         createHealthAssessmentPlanner({...options,contextReader:aftercareContextReader}),createCustodyAssessmentPlanner(options),
+        createHealthAssessmentPlanner({...options,contextReader:aftercareContextReader,workKind:'periodic_health_assessment'}),
+        createCustodyAssessmentPlanner({...options,workKind:'periodic_custody_assessment'}),
         createCareRepairPreparationPlanner({...options,contextReader:aftercareContextReader}),
         createCareRepairCommitPlanner({...options,contextReader:aftercareContextReader}),
         createCareCaseClosurePlanner({...options,contextReader:aftercareContextReader}),

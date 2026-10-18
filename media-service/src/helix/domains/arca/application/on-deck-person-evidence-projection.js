@@ -1,6 +1,7 @@
 'use strict';
 
 const {statement:personEvidenceOriginStatement,evidenceInventoryRevision}=require('../persistence/person-evidence-origin');
+const { inventoryContentProfile } = require('../model/product-content-profile');
 const { relationEvidenceDigest } = require('../model/on-deck-person-evidence');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 
@@ -24,6 +25,7 @@ function createOnDeckPersonEvidenceProjection(options) {
     readOnly: true,
     schemaManifest: options.schemaManifest,
     statements: {
+      find_identity: {kind:'select-one',tableId:'arca_canonical_identity_revisions',columns:['shelf_entry_id','revision','identity_kind'],keyColumns:['shelf_entry_id','revision']},
       find_person_evidence_origin:personEvidenceOriginStatement,
       page_relations: {
         kind: 'select-joined-page',
@@ -44,7 +46,7 @@ function createOnDeckPersonEvidenceProjection(options) {
         tableId: 'arca_shelf_entries',
         keyColumns: ['shelf_entry_id'],
         safeIntegers: true,
-        columns: ['shelf_entry_id', 'status', 'current_inventory_revision'],
+        columns: ['shelf_entry_id', 'status', 'structure_kind', 'canonical_identity_revision', 'current_inventory_revision'],
       },
     },
   });
@@ -83,6 +85,7 @@ function createOnDeckPersonEvidenceProjection(options) {
             cursor: row.relation_id,
             scope: Object.freeze({
               skipped: false,
+              contentProfile: inventoryContentProfile(repo.invoke('find_identity', {shelf_entry_id:entry.shelf_entry_id,revision:entry.canonical_identity_revision}),entry.structure_kind),
               personId:row.person_id||null,
               relationId: row.relation_id,
               shelfEntryId: row.shelf_entry_id,

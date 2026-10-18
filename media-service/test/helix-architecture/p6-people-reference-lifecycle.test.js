@@ -31,7 +31,7 @@ function fixture(run) {
 }
 
 function register(store, personId) {
-  const value = { decisionId: `register-${personId}`, newPersonId: personId, canonicalName: `Person ${personId}`,
+  const value = { decisionId: `register-${personId}`, newPersonId: personId, libraryKind: 'normal', canonicalName: `Person ${personId}`,
     aliases: [], providerIdentities: [], actorId: 'admin-1' };
   return store.registerDirectPerson({ ...value, decisionDigest: canonicalDigest(value) });
 }
@@ -52,9 +52,13 @@ function addDecision(personId, expectedPersonRevision, expectedReferenceRevision
       ownerScope: { scopeType: 'person', scopeId: personId }, storageRef: `workspace:${suffix}`, digestAlgorithm: 'sha256',
       digestHex: artifactDigest, sizeBytes: 100, mediaType: 'image/jpeg',
       provenanceRef: { objectType: 'user-upload', objectId: `upload-${suffix}`, revision: 1, digest: hash(`upload-${suffix}`) }, referenceRevision: 1 },
-    artifactDigest, faceEmbeddingSetHandle: { schemaRef: 'helix://contracts/types/FaceEmbeddingSetHandle/v1', schemaVersion: 1,
-      artifactHandleId: `embedding-handle-${suffix}`, modelRef: 'face-model@1', sourceArtifactSetDigest: artifactDigest,
-      detectedFaceCount: 1, vectorCount: 1, dimension: 512, digestHex: embeddingDigest }, modelRef: 'face-model@1', initialState: 'active' };
+    artifactDigest, modelRef: hash('face-model@1'), initialState: 'active' };
+  const embedding = { schemaRef:'helix://contracts/types/FaceEmbeddingSetHandle/v1',schemaVersion:1,
+    artifactHandleId:'embedding-handle-'+suffix,artifactHandle:{...value.artifactHandle,artifactHandleId:'embedding-handle-'+suffix,
+      artifactKind:'reference-embedding',digestHex:embeddingDigest,mediaType:'application/json'},
+    computationMode:'single_reference_face',libraRunId:null,workspaceId:null,faceModelRefDigest:value.modelRef,
+    sourceArtifactSetDigest:artifactDigest,detectedFaceCount:1,vectorCount:1,dimension:128,embeddingDigest};
+  value.faceEmbeddingSetHandle={...embedding,handleDigest:canonicalDigest(embedding)};
   return { ...value, decisionDigest: canonicalDigest(value) };
 }
 
@@ -63,7 +67,7 @@ function releaseDecision(add, expectedReferenceRevision) {
     expectedPersonRevision: add.expectedPersonRevision, expectedReferenceRevision, actorId: 'admin-1',
     referenceAssetId: add.referenceAssetId, referenceFaceId: add.referenceFaceId, expectedAssetState: 'active',
     expectedFaceState: 'active', terminalState: 'released', artifactDigest: add.artifactDigest,
-    embeddingDigest: add.faceEmbeddingSetHandle.digestHex, modelRef: add.modelRef };
+    embeddingDigest: add.faceEmbeddingSetHandle.embeddingDigest, modelRef: add.modelRef };
   return { ...value, decisionDigest: canonicalDigest(value) };
 }
 

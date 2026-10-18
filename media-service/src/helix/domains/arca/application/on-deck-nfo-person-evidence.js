@@ -28,7 +28,7 @@ function createOnDeckNfoPersonEvidence(options) {
         shelfEntryId, materialOrdinal:Number(row.ordinal), contentFingerprint:snapshot.contentFingerprint });
       for (const actor of parsed.actors) {
         const originEvidenceDigest = canonicalDigest({ schema:'arca.nfo-person-origin@1',nfoObservationDigest,ordinal:actor.ordinal });
-        const evidence = { shelfEntryId, inventoryRevision:revision, relationId:null, relationDigest:null,
+        const evidence = { contentProfile: current.contentProfile, shelfEntryId, inventoryRevision:revision, relationId:null, relationDigest:null,
           originEvidenceDigest, nfoObservationDigest, displayName:actor.displayName,
           displayNameNormalized:actor.displayNameNormalized, role:actor.role, providerIdentities:actor.providerIdentities,
           identityStrength:actor.providerIdentities.length ? 'strong' : 'weak' };

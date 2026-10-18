@@ -14,6 +14,8 @@ const {providerRecoveryDigest,computeRecoveryDigest}=require('./helix/platform/a
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
 const { createRuntimeOperations } = require('./clean-runtime-operations');
+const { createMaintenanceWindow } = require('./clean-maintenance-window');
+const { reconcilerCategory, workCategory, maintenanceTaskTitle } = require('./helix/composition/maintenance-admission-policy');
 const { createUserFormationResetWorkerPort } = require('./clean-formation-reset-port');
 const { createOverviewProjectionHost } = require('./helix/projections/overview-projection-host');
 const { createSetupReadinessQuery } = require('./helix/projections/setup-readiness-query');
@@ -564,7 +566,9 @@ function createPlatformIntegrationServices(options) {
         ? moviePilotLandingAccessAdapter
         : undefined,
     });
-    const adapter = profile.siteRef
+    const adapter = profile.kind === 'stashbox'
+      ? require('./helix/integrations/stashbox-provider-adapter').createStashBoxProviderAdapter({ runtime, fetchImpl: networkFetch, now: options.now })
+      : profile.siteRef
       ? require('./helix/integrations/jav-source-provider-adapter').createJavSourceProviderAdapter({ runtime, networkPolicy, fetchImpl: networkFetch, now: options.now })
       : profile.kind === 'tmdb'
       ? createTmdbProviderAdapter({
@@ -609,6 +613,12 @@ function createPlatformIntegrationServices(options) {
   const tmdbRuntime = runtimes.get('tmdb');
   const tmdbAdapter = adapters.get('tmdb');
   const javRuntime = runtimes.get('adult-provider');
+  const stashBoxAdapter = adapters.get('stashbox');
+  const peopleImageSearch = require('./helix/integrations/people-image-search').createPeopleImageSearch({
+    fetchImpl: networkFetch, readNetworkRoute: () => networkPolicy.route(),
+    readStashBoxConfiguration: stashBoxAdapter.configuration, withStashBoxCredential: stashBoxAdapter.withCredential,
+    tokenKey: crypto.createHmac('sha256', options.secretRoot).update('shelfdeck.people-image-selection@1').digest(), now: options.now,
+  });
   const javProductAdapter = createJavProductProviderAdapter({
     runtime: javRuntime,
     fetchImpl: networkFetch,
@@ -928,6 +938,8 @@ function createPlatformIntegrationServices(options) {
         timeoutMs: 10_000,
       });
     },
+    searchPeopleImages: name => peopleImageSearch.search(name),
+    readSelectedPersonImage: token => peopleImageSearch.readSelectedImage(token),
     async fetchJavProviderMetadata(request) {
       return javProductAdapter.fetchProviderMetadata(request);
     },
@@ -1105,6 +1117,8 @@ function clearSessionCookie() {
 function errorResponse(error, correlationId) {
   let status = 500;
   if (AUTH_ERROR_CODES.has(error.code)) status = 401;
+  else if (['MAINTENANCE_INPUT_INVALID', 'MAINTENANCE_TIME_INVALID', 'MAINTENANCE_CONFIG_INVALID'].includes(error.code)) status = 400;
+  else if (['MAINTENANCE_REVISION_CONFLICT', 'MAINTENANCE_COMMAND_CONFLICT'].includes(error.code)) status = 409;
   else if(error.code==='RUNTIME_OPERATION_INPUT_INVALID'||error.code==='RUNTIME_RESET_CONFIRMATION_REQUIRED')status=400;
   else if(typeof error.code==='string'&&error.code.startsWith('RUNTIME_'))status=error.statusCode||409;
   else if (error.code === 'OVERVIEW_PROJECTION_REBUILDING') status = 503;
@@ -1153,6 +1167,9 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_ROUTING_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_ROUTING_MANUAL_INPUT_INVALID') status = 400;
   else if (error.code === 'FORMATION_SUBJECT_NOT_FOUND') status = 404;
+  else if (['PEOPLE_IMAGE_SEARCH_INPUT_INVALID', 'PEOPLE_IMAGE_SELECTION_INVALID', 'PEOPLE_REGISTRATION_INPUT_INVALID', 'PEOPLE_IMAGE_UPLOAD_INVALID', 'PEOPLE_IMAGE_BYTES_INVALID'].includes(error.code)) status = 400;
+  else if (['PEOPLE_IMAGE_SELECTION_STALE', 'PEOPLE_IMAGE_SOURCE_CHANGED', 'PEOPLE_LIBRARY_READ_ONLY', 'PEOPLE_IMAGE_OPERATION_COMMAND_CONFLICT', 'PEOPLE_IMAGE_OPERATION_STALE'].includes(error.code)) status = 409;
+  else if (['PEOPLE_IMAGE_SOURCE_INVALID', 'PEOPLE_IMAGE_SOURCE_UNAVAILABLE'].includes(error.code)) status = 502;
   else if (typeof error.code === 'string' && error.code.startsWith('PEOPLE_')) status = 404;
   else if (error.code === 'ADMIN_ROUTING_MANUAL_STATE_CONFLICT' || error.code === 'ADMIN_ROUTING_MANUAL_HEAD_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED' || error.code === 'ADMIN_FIELD_TARGET_MISMATCH' ||
@@ -1230,7 +1247,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 149) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 154) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1353,6 +1370,12 @@ async function createCleanServiceHost(options) {
   const locationRegistryRepository = createLocationRegistryRepository(
     constructed.applicationDependencies,
   );
+  const peopleImagePort = require('./clean-people-image-port').createCleanPeopleImagePort({
+    ...constructed.applicationDependencies, locationRegistryRepository, rootPath: path.join(options.dataDir, 'artifacts', 'people'), now: options.now || Date.now,
+    afterPhysicalEffect: options.afterPeopleImagePhysicalEffect,
+  });
+  const localFaceModel = require('./helix/integrations/local-face-model').createLocalFaceModel({ modelRoot: options.faceModelRoot });
+  const peopleReferencePreparation = require('./helix/integrations/people-reference-preparation').createPeopleReferencePreparation({ imagePort: peopleImagePort, faceModel: localFaceModel });
   const durableLibraWorkspaceRoot=locationRegistryRepository.getWorkspaceRoot('service-libra-production-workspace');
   const libraWorkspaceRoot=path.resolve(durableLibraWorkspaceRoot?.resolvedRoot||options.libraWorkspaceRoot||
     path.join(options.dataDir,'workspaces','libra'));
@@ -1607,7 +1630,7 @@ async function createCleanServiceHost(options) {
   });
   let formationRatingReader = () => new Map(), formationAcceptanceReader = () => null,
     formationAcceptanceAttention = () => [], formationArcaStatusReader = () => new Map(), formationProjectionHost = null,
-    procurementExecution = null;
+    procurementExecution = null, maintenanceWindow = null;
   const formationProjectionStore = createFormationProjectionStore(constructed.applicationDependencies);
   const formationRunHistoryStore = createFormationRunHistoryStore(constructed.applicationDependencies);
   const executionProgressProjectionReader = createExecutionProgressProjectionReader(constructed.applicationDependencies);
@@ -1634,11 +1657,23 @@ async function createCleanServiceHost(options) {
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
   procurementExecution = createHelixExecutionRuntime({
+    peopleImagePort, peopleReferencePreparation,
+    readSelectedPersonImage: token => platformIntegrations.readSelectedPersonImage(token),
+    afterRegistrationCommit: options.afterPeopleRegistrationCommit,
     onHistoricalCatalogRejected: options.onHistoricalCatalogRejected,
     recycleTick:()=>arcaRecycle?.tick(),
+    recycleExpiryTick:()=>arcaRecycle?.expire(),
+    maintenanceWindowKey:()=>maintenanceWindow?.snapshot().windowEndAtMs || null,
+    executionEligibilityProvider:{check:scope=>!maintenanceWindow||maintenanceWindow.allows(workCategory(scope,
+      acquisitionId=>procurementExecution.perception.acquisitionSchedulingClass(acquisitionId)))},
+    reconcileEligibilityProvider:{check:scope=>!maintenanceWindow||maintenanceWindow.allows(reconcilerCategory(scope))},
+    onReconcileScopeStarted:scope=>maintenanceWindow?.beginScope(maintenanceTaskTitle(scope)),
+    onExecutionScopeStarted:scope=>maintenanceWindow?.beginScope(scope?.workKind?.startsWith('periodic_')?'检查收藏健康':
+      scope?.ownerDomain==='perception'&&scope.processType==='perception_acquisition'?'同步豆瓣评分':null),
     onCorrectionCleanupCompleted:()=>executionRuntimeHost.wakeBackground({ownerDomain:'arca',reconcilerKey:'recycle-maintenance'}),
     failureEvidenceStore:createFailureEvidenceStore(path.join(options.dataDir, 'diagnostics', 'execution-failures')),
     ...constructed.applicationDependencies,
+    now: options.now || Date.now,
     materialFieldStore,
     pageObserverFactory: createFieldPageObserver,
     enumerator: fieldEnumerator,
@@ -1761,6 +1796,7 @@ async function createCleanServiceHost(options) {
     procurementAutomation: procurementExecution.procurementAutomation,
     routingCoordinator: procurementExecution.routingCoordinator,
     perceptionCoordinator: procurementExecution.perception,
+    peopleCoordinator: procurementExecution.people,
     arcaCoordinator: procurementExecution.arcaCoordinator,
     handoffBOutcomeConsumer,
     wakeWorkspaceReclaimer: () => procurementExecution.wakeWorkspaceReclaimer(),
@@ -1774,7 +1810,7 @@ async function createCleanServiceHost(options) {
   const executionRuntimeHost = Object.freeze({
     async start() {
       if(runtimeOperations.shouldStartStopped()){
-        const execution=await procurementExecution.host.start({quiesced:true});await refreshStoppedViews();runtimeOperations.started();return execution;
+        const execution=await procurementExecution.host.start({quiesced:true});await refreshStoppedViews();runtimeOperations.started();await maintenanceWindow.start();return execution;
       }
       await outboxDispatcher.recoverCommittedRetryIntents();
       const execution = await procurementExecution.host.start();
@@ -1783,6 +1819,7 @@ async function createCleanServiceHost(options) {
         await formationProjectionHost.start();
         void overviewQuery.start().catch(error=>options.onExecutionRuntimeError?.(error));
         runtimeOperations.started();
+        await maintenanceWindow.start();
         return execution;
       } catch (error) {
         await outboxDispatcher.stop().catch(() => {});
@@ -1812,7 +1849,7 @@ async function createCleanServiceHost(options) {
       // Stop dispatch synchronously before waiting for observers or child processes.
       const executionStop=procurementExecution.host.stop();
       try {
-        const [result]=await Promise.all([executionStop,formationProjectionHost.stop(),overviewQuery.stop(),outboxDispatcher.stop()]);
+        const [result]=await Promise.all([executionStop,formationProjectionHost.stop(),overviewQuery.stop(),outboxDispatcher.stop(),maintenanceWindow.stop()]);
         return result;
       } finally {
         await ffmpegProcessRegistry.close();
@@ -1953,6 +1990,7 @@ async function createCleanServiceHost(options) {
   });
   const peopleAvatarQuery = createPeopleAvatarQuery({
     store: procurementExecution.people.store,
+    readReferenceAvatar: input => peopleImagePort.readReferenceImage(input),
     readProviderAvatar: (identity) => platformIntegrations.readPersonAvatar(identity),
   });
   setupReadinessQuery = createSetupReadinessQuery({
@@ -1988,9 +2026,12 @@ async function createCleanServiceHost(options) {
     now: options.now || Date.now,
   });
   const peopleAdmin = Object.freeze({
+    searchImages: name => platformIntegrations.searchPeopleImages(name),
+    previewImage: token => platformIntegrations.readSelectedPersonImage(token),
     register(body, actor) {
       return procurementExecution.people.registerPerson(body, actor?.credentialId || 'admin');
     },
+    imageOperation: operationId => procurementExecution.people.imageOperations.get(operationId),
     accept(body, actor) {
       return procurementExecution.people.acceptRegistration(body, actor?.credentialId || 'admin');
     },
@@ -2006,14 +2047,26 @@ async function createCleanServiceHost(options) {
       fs.accessSync(libraWorkspaceRoot,fs.constants.R_OK|fs.constants.W_OK);
     }});
   runtimeOperations=createRuntimeOperations({dataDir:options.dataDir,
+    onDesiredModeChanged:()=>maintenanceWindow?.tick(),
+    normalSupplyAllowed:()=>maintenanceWindow?.normalSupplyAllowed()!==false,
+    readMaintenance:()=>maintenanceWindow?.snapshot() || null,
     activity:()=>procurementExecution.host.activity(),quiesce:()=>executionRuntimeHost.quiesce(),resume:()=>executionRuntimeHost.resume(),
     previewReset:()=>userReset.preview(),reset:async(preview,beforeApply)=>{
       const result=await userReset.apply(preview,beforeApply);
       if(!transportClosing){for(const runId of result.removedRunIds||[])procurementExecution.libraRunExecutionProjection.invalidate(runId);
         await refreshStoppedViews();}return result;
     },onError:options.onExecutionRuntimeError});
+  maintenanceWindow=createMaintenanceWindow({dataDir:options.dataDir,now:options.now||Date.now,
+    desiredMode:()=>runtimeOperations.desiredMode(),
+    setAdmission:()=>procurementExecution.host.wake(),
+    isDrained:()=>{const activity=runtimeOperations.snapshot().activity;
+      return !activity.inFlightEvents&&!activity.inFlightPlanning&&!activity.inFlightRecoveries&&!activity.inFlightOwnerReconciliations&&
+        !activity.deferredRecoveryActions&&!activity.inFlightAdminCommands;},
+    onError:options.onExecutionRuntimeError,
+  });
   const facades = createCleanFacades({
     runtimeOperations,
+    maintenanceWindow,
     sessionTokens,
     readiness,
     credentialMetadata: runtime.readActiveCredential,
@@ -2068,6 +2121,7 @@ async function createCleanServiceHost(options) {
     server.route({
       method: route.method,
       url: route.path,
+      ...(route.method === 'POST' && route.path === '/v1/admin/people' ? { bodyLimit: 14 * 1024 * 1024 } : {}),
       handler: async (request, reply) => {
         const correlationId = request.headers['x-correlation-id'] || crypto.randomUUID();
         let response;
@@ -2134,6 +2188,8 @@ async function createCleanServiceHost(options) {
       try {
         await server.close();
         await platformIntegrations.close();
+        peopleReferencePreparation.clearCache();
+        await localFaceModel.close();
       } finally {
         constructed.close();
       }

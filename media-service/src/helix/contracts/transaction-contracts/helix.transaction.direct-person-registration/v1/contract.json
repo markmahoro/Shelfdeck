@@ -7,7 +7,7 @@
     "displayName": "Direct Person Registration",
     "ownerScope": "people",
     "commitClass": "domain_unit_of_work",
-    "atomicFactSet": "complete DirectPersonRegistrationDecision + Person首revision + Alias/Provider Identity + 初始Reference Projection checkpoint + durable command result + command receipt + People-internal Outbox；不包含Reference Fact",
+    "atomicFactSet": "complete DirectPersonRegistrationDecision(libraryKind=us_adult) + Person首revision + Alias/Provider Identity + 初始Reference Asset/Face/Reference revision + Reference Projection checkpoint + durable command result + command receipt + People-internal Outbox",
     "participants": [
       {
         "participantKind": "domain",
@@ -17,7 +17,10 @@
           "people_persons",
           "people_person_revisions",
           "people_aliases",
-          "people_provider_identities"
+          "people_provider_identities",
+          "people_reference_assets",
+          "people_reference_faces",
+          "people_reference_revisions"
         ]
       },
       {
@@ -37,6 +40,9 @@
       "people_person_revisions",
       "people_aliases",
       "people_provider_identities",
+      "people_reference_assets",
+      "people_reference_faces",
+      "people_reference_revisions",
       "fx_event_result_bindings",
       "fx_command_receipts",
       "fx_commit_markers",
@@ -59,7 +65,7 @@
       {
         "fixtureId": "direct-person-registration",
         "faultInjectionPoints": "Direct Person Registration提交前、Person/Identity/初始Projection checkpoint写入后、command receipt/Outbox前后、响应前崩溃",
-        "requiredInvariant": "Person首revision、Alias/Provider Identity、初始Reference Projection checkpoint、durable result、command receipt和Outbox必须全有或全无；重放返回同一结果且不经过Candidate或建立Reference Fact",
+        "requiredInvariant": "Person首revision、Alias/Provider Identity、初始Reference Projection checkpoint、durable result、command receipt和Outbox必须全有或全无；US Adult初始Reference与Person同事务成立；重放返回同一结果且不经过Candidate",
         "source": {
           "section": "8.9.7",
           "line": 11228
@@ -68,8 +74,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8766,
-      "lineDigest": "0914e3e83cd187ef5afe7d3bc50b41ee313ba589ccdbb49e54a3d7cbe72f08f3"
+      "line": 8809,
+      "lineDigest": "5224f1124ccb4088844033652553474a2e3fd7c0f9a6079f36f1efc3758a44e7"
     }
   }
 }

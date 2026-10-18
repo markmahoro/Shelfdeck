@@ -12,7 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { execSync, execFileSync } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
 const args = process.argv.slice(2);
@@ -21,7 +21,7 @@ if (args.length && (args.length !== 2 || args[0] !== '--output' || !args[1])) {
 }
 if (process.platform !== 'win32') throw new Error('Windows packaging requires its Windows runtime and native dependencies.');
 const OUT = args.length ? path.resolve(args[1]) : path.join(ROOT, 'dist-pkg', 'media-service');
-for (const input of ['src', 'scripts', 'dist', 'node_modules']) {
+for (const input of ['src', 'scripts', 'dist', 'node_modules', 'resources']) {
   const relative = path.relative(path.join(ROOT, input), OUT);
   if (!relative || (!relative.startsWith('..' + path.sep) && relative !== '..' && !path.isAbsolute(relative))) {
     throw new Error('Package output cannot be nested in its source inputs.');
@@ -41,6 +41,8 @@ fs.mkdirSync(OUT);
 
 // ── build admin web ────────────────────────────────────────────────────────────
 
+console.log('[package] verifying the local face model pack...');
+execFileSync(process.execPath, [path.join(ROOT, 'scripts/install-face-models.js')], { cwd: ROOT, stdio: 'inherit' });
 console.log('[package] building admin web...');
 execSync('npm run build:web', { cwd: ROOT, stdio: 'inherit' });
 
@@ -58,6 +60,7 @@ const INCLUDE = [
   'package-lock.json',
   'dist',
   'node_modules',
+  'resources',
 ];
 
 for (const name of INCLUDE) {
@@ -80,6 +83,8 @@ const CLEAN_RUNTIME_FILES = [
   'src/clean-service-host.js',
   'src/clean-admin-static.js',
   'src/clean-runtime-operations.js',
+  'src/clean-maintenance-window.js',
+  'src/clean-people-image-port.js',
   'src/clean-formation-reset-port.js',
   'src/clean-arca-inventory-port.js',
   'src/clean-arca-recycle-port.js',

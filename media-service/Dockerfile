@@ -30,7 +30,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY media-service/package.json media-service/package-lock.json ./
-RUN npm ci --omit=dev
+RUN ONNXRUNTIME_NODE_INSTALL=skip npm ci --omit=dev
+COPY media-service/resources/face-models ./resources/face-models
+COPY media-service/scripts/install-face-models.js ./scripts/install-face-models.js
+RUN node scripts/install-face-models.js
 
 FROM service-base AS service-runtime
 WORKDIR /app
@@ -45,6 +48,7 @@ RUN rm -f /usr/bin/python /usr/bin/python3 /usr/bin/python3.* \
 
 COPY media-service/package.json media-service/package-lock.json ./
 COPY --from=service-dependencies /app/node_modules ./node_modules
+COPY --from=service-dependencies /app/resources/face-models ./resources/face-models
 # Use the lockfile-pinned service probe on both supported platforms. The base
 # FFprobe 8.1 omits HEVC VUI primaries/transfer that the pinned artifact observes.
 # Keep the configured executable path and preserve unknown-media rejection.
@@ -54,6 +58,8 @@ COPY media-service/src/admin-credential-secret-store.js ./src/admin-credential-s
 COPY media-service/src/clean-service-host.js ./src/clean-service-host.js
 COPY media-service/src/clean-admin-static.js ./src/clean-admin-static.js
 COPY media-service/src/clean-runtime-operations.js ./src/clean-runtime-operations.js
+COPY media-service/src/clean-maintenance-window.js ./src/clean-maintenance-window.js
+COPY media-service/src/clean-people-image-port.js ./src/clean-people-image-port.js
 COPY media-service/src/clean-formation-reset-port.js ./src/clean-formation-reset-port.js
 COPY media-service/src/clean-arca-inventory-port.js ./src/clean-arca-inventory-port.js
 COPY media-service/src/clean-arca-recycle-port.js ./src/clean-arca-recycle-port.js

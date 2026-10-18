@@ -269,6 +269,7 @@ const dtoContracts = {
   PeopleCandidateAcceptanceDecision: '',
   DirectPersonRegistrationDecision: '',
   PeopleReferenceMaintenanceDecision: '',
+  PeopleSelectedImageHandle: '',
   RelatedReference: 'shelfEntryId,referenceId,materialKey,referenceDigest',
   ReleaseManifest: 'deregistrationId,shelfId,entryCount,memberCount,pageCount,controlRevisionSetDigest,manifestDigest',
   ShelfDeregistrationControlCommitHandle: 'deregistrationId,shelfId,manifestRevision,releaseManifestDigest,controlRevisionSetDigest,pageVerificationSetDigest,eventFenceDigest',
@@ -348,6 +349,13 @@ function buildSchema(name, role, fields) {
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
   if (name === 'DirectPersonRegistrationDecision') return directPersonRegistrationDecisionSchema();
   if (name === 'PeopleReferenceMaintenanceDecision') return peopleReferenceMaintenanceDecisionSchema();
+  if (name === 'PeopleSelectedImageHandle') return { ...exactDomainSchema(name, {
+    schemaRef: { const: domainTypeId(name) }, schemaVersion: { const: 1 }, uploadId: digest(), digestHex: digest(),
+    sizeBytes: { type: 'integer', minimum: 1, maximum: 10 * 1024 * 1024 }, mediaType: enumText('image/jpeg', 'image/png', 'image/webp'),
+    provenance: object({ source: enumText('user_upload', 'stashbox', 'wikimedia'), sourceObjectId: text({ maxLength: 512 }),
+      sourcePageUrl: text({ maxLength: 4096 }), attribution: text({ maxLength: 512 }), selectedAtMs: nonNegativeInteger(), configRevision: positiveInteger() }, ['source']),
+    handleDigest: digest(),
+  }), 'x-helix-role': 'bounded-contract', 'x-helix-maxCanonicalBytes': 16384 };
   if (name === 'PersonReferenceProjection') return personReferenceProjectionSchema();
   if (name === 'DecisionInputSet') return decisionInputSetSchema();
   if (name === 'ProductIdentityEvidenceIntent') return productIdentityEvidenceIntentSchema();
@@ -941,6 +949,7 @@ const providerIdentitySchema = () => object({ provider: text({ maxLength: 128 })
 
 function directPersonRegistrationDecisionSchema() {
   return exactDomainSchema('DirectPersonRegistrationDecision', {
+    libraryKind: {const:'us_adult'}, initialReference: domainRef('PeopleReferenceMaintenanceDecision'),
     decisionId: id(), newPersonId: id(), canonicalName: text({ maxLength: 1024 }), aliases: arrayOf(aliasSchema(), 256),
     providerIdentities: arrayOf(providerIdentitySchema(), 256), actorId: id(), decisionDigest: digest()
   });
@@ -952,7 +961,7 @@ function peopleReferenceMaintenanceDecisionSchema() {
   const commonRequired = Object.keys(common);
   const add = object({ ...common, operationKind: { const: 'add_image' }, referenceAssetId: id(), referenceFaceId: id(),
     artifactHandle: typeRef('ArtifactHandle'), artifactDigest: digest(), faceEmbeddingSetHandle: typeRef('FaceEmbeddingSetHandle'),
-    modelRef: text({ maxLength: 512 }), initialState: { const: 'active' }
+    modelRef: digest(), initialState: { const: 'active' }
   }, [...commonRequired, 'referenceAssetId', 'referenceFaceId', 'artifactHandle', 'artifactDigest', 'faceEmbeddingSetHandle', 'modelRef', 'initialState']);
   const release = object({ ...common, operationKind: { const: 'release_image' }, referenceAssetId: id(), referenceFaceId: id(),
     expectedAssetState: { const: 'active' }, expectedFaceState: { const: 'active' }, terminalState: { const: 'released' },

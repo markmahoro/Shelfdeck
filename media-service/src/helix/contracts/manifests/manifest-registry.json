@@ -31,15 +31,15 @@
       "manifestId": "helix.inventory.tables",
       "kind": "table-inventory",
       "relativePath": "table-inventory.json",
-      "targetCount": 210
+      "targetCount": 211
     },
     {
       "manifestId": "helix.inventory.routes",
       "kind": "route-inventory",
       "relativePath": "route-inventory.json",
-      "targetCount": 149,
+      "targetCount": 154,
       "targetSegments": {
-        "admin": 148,
+        "admin": 153,
         "publicHealth": 1
       }
     },

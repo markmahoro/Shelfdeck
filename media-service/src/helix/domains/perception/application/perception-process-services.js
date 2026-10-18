@@ -99,7 +99,7 @@ function createPerceptionProcessServices(options){
       retracts:retract?{sourceRecordKey:current.sourceRecordKey,sourceRecordRevision:current.sourceRecordRevision,sourceRecordDigest:current.sourceRecordDigest}:null},idempotencyKey:command.idempotencyKey,requestDigest});
     start({acquisitionId,sourceId:directSourceId(command.targetType,command.targetId,factKind),sourceKind:'shelfdeck_direct',integrationId:'shelfdeck-direct-input',configRevision:1,scope});
     const operation=reconcileAcquisition(acquisitionId);return freeze({operationRef:acquisitionId,state:'accepted',targetType:command.targetType,targetId:command.targetId,expectedResultRevision:revision,workId:operation.workId});}
-  function requestAcquisition(command){const config=options.readDoubanSourceConfiguration?.();if(!config)throw Object.assign(new Error('Douban integration is not configured.'),{code:'PERCEPTION_DOUBAN_NOT_CONFIGURED'});
+  function requestAcquisition(command,{executionOrigin='manual'}={}){const config=options.readDoubanSourceConfiguration?.();if(!config)throw Object.assign(new Error('Douban integration is not configured.'),{code:'PERCEPTION_DOUBAN_NOT_CONFIGURED'});
     const idempotencyKey=command?.idempotencyKey;if(typeof idempotencyKey!=='string'||!idempotencyKey)throw Object.assign(new Error('Douban sync requires idempotencyKey.'),{code:'PERCEPTION_ACQUISITION_COMMAND_INVALID'});
     const acquisitionId=stable('perception-douban-acquisition-',{sourceId:config.sourceId,idempotencyKey});
     const existing=store.getAcquisition(acquisitionId);let scope;
@@ -109,7 +109,8 @@ function createPerceptionProcessServices(options){
       scope=head?.hasMore&&headAcquisition?.state==='failed'&&headAcquisition.sourceConfigRevision===config.configRevision
         ? JSON.parse(headAcquisition.scopeJson)
         : freeze({mode:'provider',collection:'watched_movies',sourceId:config.sourceId,
-          acquisitionWindow:freeze({kind:'full_snapshot',openedAtMs:now()})});}
+          acquisitionWindow:freeze({kind:'full_snapshot',openedAtMs:now()})});
+      scope=freeze({...scope,executionOrigin});}
     start({acquisitionId,sourceId:config.sourceId,sourceKind:'douban',integrationId:config.integrationId,configRevision:config.configRevision,scope});const operation=reconcileAcquisition(acquisitionId);
     return freeze({operationRef:acquisitionId,state:'accepted',sourceKind:'douban',workId:operation.workId});}
   function resolutionContext(targetType,targetId,factKind='rating'){const snapshot=target(targetType,targetId),query=queryFor(snapshot,factKind),handle=queryHandle(query,now(),targetType==='shelf_entry'?'arca':'libra'),assembled=assembler.assemble({queryHandle:handle,ruleSnapshot});return freeze({target:snapshot,queryHandle:handle,...assembled});}
@@ -161,8 +162,15 @@ function createPerceptionProcessServices(options){
   }
   const periodicAcquisition = createPerceptionAcquisitionAutomation({
     now, readDoubanSourceConfiguration: options.readDoubanSourceConfiguration,
-    listAcquisitions: () => store.listAcquisitions(), requestAcquisition,
+    listAcquisitions: () => store.listAcquisitions(), requestAcquisition:command=>requestAcquisition(command,{executionOrigin:'periodic'}),
   });
+  function acquisitionSchedulingClass(acquisitionId){
+    const item=store.getAcquisition(acquisitionId);if(!item)throw new TypeError('Acquisition scheduling requires a known process.');
+    const scope=JSON.parse(item.scopeJson);
+    if(scope.mode==='direct')return 'normal';
+    if(!['manual','periodic'].includes(scope.executionOrigin))throw Object.assign(new Error('Acquisition execution origin is missing.'),{code:'PERCEPTION_ACQUISITION_ORIGIN_REQUIRED'});
+    return scope.executionOrigin==='periodic'?'maintenance':'normal';
+  }
   function syncState(){const config=options.readDoubanSourceConfiguration?.();if(!config)return freeze({latest:null,activeCount:0,
     completionState:'not_started',lastCursorOut:null,cursorRevision:0,committedPageCount:0,recordCount:0});
     const items=store.listAcquisitions().filter((item)=>item.perceptionSourceId===config.sourceId),latest=items[0]||null,
@@ -175,7 +183,7 @@ function createPerceptionProcessServices(options){
       recordCount:store.countRecordsForSource(config.sourceId)});}
   return Object.freeze({store,ruleSnapshot,acquisitionContext,resolutionContext,resolutionProcessContext,reconcileAcquisition,reconcileResolution,reconcileImpactedSubjectResolutions,createRecord,requestAcquisition,ensureResolution,ensureTargetResolutions,resolveDecisionFact,
     readCurrentRating,readCurrentRatings,readCurrentWatched,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions(),
-    syncState,periodicAcquisition});
+    syncState,periodicAcquisition,acquisitionSchedulingClass});
 }
 
 module.exports=Object.freeze({createPerceptionProcessServices,queryFor,queryHandle,directSourceId,RESOLUTION_INPUT_CONTRACT_REPAIR_CODE});

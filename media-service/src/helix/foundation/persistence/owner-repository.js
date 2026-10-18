@@ -173,9 +173,11 @@ function compileStatement(statementId, statement, table) {
         ' LIMIT @limit OFFSET @offset' };
   }
   if (statement.kind === 'count-grouped') {
-    requireColumns(table, [statement.groupColumn], statementId);
-    return { statementId, kind: statement.kind, tableId: table.tableId, parameters: [], safeIntegers: true,
+    const keys = statement.keyColumns || [];
+    requireColumns(table, [statement.groupColumn, ...keys], statementId);
+    return { statementId, kind: statement.kind, tableId: table.tableId, parameters: keys, safeIntegers: true,
       sql: 'SELECT ' + quote(statement.groupColumn) + ' AS "group_value", COUNT(*) AS "row_count" FROM ' + tableName +
+        (keys.length ? ' WHERE ' + keys.map(key => quote(key) + '=@' + key).join(' AND ') : '') +
         ' GROUP BY ' + quote(statement.groupColumn) };
   }
   if(statement.kind==='delete-one'){

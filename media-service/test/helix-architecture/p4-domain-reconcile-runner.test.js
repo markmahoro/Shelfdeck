@@ -21,6 +21,26 @@ function open(databasePath) {
   return { kernel, cursorStore:createReconcileCursorStore({ schemaManifest, unitOfWork, now:() => 1700000000100 }) };
 }
 
+test('maintenance cutoff pauses between scopes and preserves a durable continuation cursor', async t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-reconcile-admission-'));
+  const opened = open(path.join(root, 'database'));
+  const seen = [], finishes = [];
+  let allowed = false, reads = 0;
+  const registration = { ownerDomain: 'people', reconcilerKey: 'maintenance',
+    listPage({ cursor }) { reads++; return ['a', 'b'].filter(key => !cursor || key > cursor).map(key => ({ cursor: key, scope: { key } })); },
+    reconcile({ key }) { seen.push(key); allowed = false; } };
+  const runner = createDomainReconcileRunner({ cursorStore: opened.cursorStore, registrations: [registration], now: Date.now,
+    cadenceMs: 60000, pageLimit: 10, budgetMs: 5000, reconcileEligibilityProvider: { check: () => allowed },
+    onReconcileScopeStarted: () => () => finishes.push('finished') });
+  t.after(async () => { await runner.stop(); opened.kernel.close(); fs.rmSync(root, { recursive: true, force: true }); });
+  await runner.start(); assert.equal(reads, 0); assert.deepEqual(seen, []);
+  allowed = true; await runner.runOnce(); assert.deepEqual(seen, ['a']);
+  assert.equal(opened.cursorStore.read(registration).cursor, 'a');
+  await runner.runOnce(); assert.equal(reads, 1);
+  allowed = true; await runner.runOnce(); assert.deepEqual(seen, ['a', 'b']);
+  assert.equal(opened.cursorStore.read(registration).cursor, null); assert.deepEqual(finishes, ['finished', 'finished']);
+});
+
 test('a periodic sweep queued during a scoped pulse runs before another coalesced pulse',async t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-reconcile-fairness-')),opened=open(path.join(root,'db'));let release,pulses=0,others=0;const order=[];
   const pulse={ownerDomain:'arca',reconcilerKey:'pulse',listPage:()=>[{cursor:'singleton',scope:{}}],async reconcile(){order.push('pulse'+(++pulses));if(pulses===2)await new Promise(resolve=>{release=resolve;});}},

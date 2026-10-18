@@ -10,13 +10,10 @@
       "prefixItems": [
         {
           "const": "disk_io"
-        },
-        {
-          "const": "network"
         }
       ],
-      "minItems": 2,
-      "maxItems": 2
+      "minItems": 1,
+      "maxItems": 1
     },
     "demandDigest": {
       "type": "string",

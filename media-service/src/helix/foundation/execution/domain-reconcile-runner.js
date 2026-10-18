@@ -37,7 +37,14 @@ function createDomainReconcileRunner(options){
   ]));
   function statusFor(registration){return registrationStatus.get(registration.ownerDomain + ':' + registration.reconcilerKey);}
   function errorCodeOf(error){return typeof error?.code==='string'?error.code:'DOMAIN_RECONCILE_FAILED';}
+  function eligible(registration) {
+    if (!options.reconcileEligibilityProvider) return true;
+    const value = options.reconcileEligibilityProvider.check(Object.freeze({ ownerDomain: registration.ownerDomain, reconcilerKey: registration.reconcilerKey }));
+    if (typeof value !== 'boolean') fail('P4_RECONCILE_ELIGIBILITY_INVALID', 'Reconciler eligibility must return a boolean.');
+    return value;
+  }
   async function runRegistration(registration){
+    if (!eligible(registration)) return Object.freeze({ ownerDomain: registration.ownerDomain, reconcilerKey: registration.reconcilerKey, processed: 0, kind: 'supply_disabled' });
     const status=statusFor(registration);const started=options.now();
     Object.assign(status,{state:'running',lastStartedAtMs:started,errorCode:null});
     const head=options.cursorStore.read(registration);
@@ -48,7 +55,9 @@ function createDomainReconcileRunner(options){
     let processed=0,nextCursor=head.cursor,error=null,cursorFrozen=false;
     for(const item of page){
       if(['stopping','stopped'].includes(state))break;
+      if (!eligible(registration)) break;
       if(processed>0&&options.now()-started>=budgetMs)break;
+      const finishScope = options.onReconcileScopeStarted?.(Object.freeze({ ownerDomain: registration.ownerDomain, reconcilerKey: registration.reconcilerKey }));
       try {
         await registration.reconcile(item.scope);
         if(!cursorFrozen)nextCursor=item.cursor;
@@ -61,7 +70,7 @@ function createDomainReconcileRunner(options){
         if(!error)error=caught;
         cursorFrozen=true;
         options.onError?.(caught);
-      }
+      } finally { finishScope?.(); }
       // Owner reconciliation is commonly synchronous even though the runner
       // accepts async registrations. Yield after every bounded scope so a
       // periodic sweep cannot concatenate many owners into one HTTP blackout.

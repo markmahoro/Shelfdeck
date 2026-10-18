@@ -1,4 +1,5 @@
 import NetworkSettings from './NetworkSettings';
+import MaintenanceSettings from './MaintenanceSettings';
 import RecycleSettings from './RecycleSettings';
 import SecondaryWorkshopSettings from './SecondaryWorkshopSettings';
 import JavSourcesSettings from './JavSourcesSettings';
@@ -33,7 +34,7 @@ function stars(value: number | null) {
 
 export default function SettingsPage() {
   const { expire } = useSession();
-  const [tab, setTab] = useState<'integrations' | 'workspace' | 'ratings' | 'offdeck' | 'recycle'>('integrations');
+  const [tab, setTab] = useState<'integrations' | 'workspace' | 'ratings' | 'offdeck' | 'recycle' | 'maintenance'>('integrations');
   const [integration, setIntegration] = useState<IntegrationState | null>(null);
   const [tmdb, setTmdb] = useState<IntegrationState | null>(null);
   const [moviePilot, setMoviePilot] = useState<IntegrationState | null>(null);
@@ -226,10 +227,11 @@ export default function SettingsPage() {
       <button type="button" role="tab" aria-selected={tab === 'offdeck'} onClick={() => setTab('offdeck')}>退出规则</button>
       <button type="button" role="tab" aria-selected={tab === 'ratings'} onClick={() => setTab('ratings')}>评分与已看日志</button>
       <button type="button" role="tab" aria-selected={tab === 'recycle'} onClick={() => setTab('recycle')}>回收站</button>
+      <button type="button" role="tab" aria-selected={tab === 'maintenance'} onClick={() => setTab('maintenance')}>维护窗口</button>
     </div>
     {error && <p className="form-error" role="alert">{error}</p>}
     {notice && <p className="form-notice" role="status">{notice}</p>}
-    {tab === 'recycle' ? <RecycleSettings /> : tab === 'offdeck' ? <div className="settings-stack"><OffdeckRulesPanel /></div> : tab === 'workspace' ? <div className="settings-stack">
+    {tab === 'maintenance' ? <MaintenanceSettings /> : tab === 'recycle' ? <RecycleSettings /> : tab === 'offdeck' ? <div className="settings-stack"><OffdeckRulesPanel /></div> : tab === 'workspace' ? <div className="settings-stack">
       <SecondaryWorkshopSettings />
       <section className="settings-card" aria-labelledby="workspace-title">
         <header className="settings-card-head"><div><h2 id="workspace-title">整理工作目录</h2></div>

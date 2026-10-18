@@ -491,7 +491,10 @@ export type OverviewProjection = {
 
 export type RuntimeOperation = {operationId:string;kind:'stop'|'resume'|'reset';state:'pending'|'completed'|'failed';
   result?:{backupId?:string;removedSubjects?:number};error?:{code:string;message:string}};
+export type MaintenanceWindowSettings = {weekday:number;startTime:string;endTime:string;timeZone:'Asia/Shanghai'};
+export type MaintenanceConfiguration = {revision:number;settings:MaintenanceWindowSettings;pendingSettings:{settings:MaintenanceWindowSettings;effectiveAtMs:number}|null};
 export type RuntimeStatus = {mode:'starting'|'running'|'stopping'|'stopped'|'resuming'|'resetting'|'error';desiredMode:'running'|'stopped';
+  maintenance:{maintenanceActive:boolean;phase:'entering'|'recovering'|'maintaining'|'settling'|null;currentTask:string|null;windowEndAtMs:number|null};
   revision:number;normalSupplyAllowed:boolean;activity:{inFlightEvents:number;inFlightRecoveries:number;inFlightOwnerReconciliations:number;inFlightAdminCommands?:number};
   operation:RuntimeOperation|null;error:{code:string;message:string}|null;recoveryBackup:string|null};
 export type FormationResetPreview={previewDigest:string;ready:boolean;empty:boolean;items:Array<{subjectId:string;displayIdentity:string;contentProfile:string}>;
@@ -629,6 +632,10 @@ export const helixAdminApi = {
     return request<OverviewProjection>('/v1/admin/overview');
   },
   getRuntimeStatus(){return request<RuntimeStatus>('/v1/admin/runtime');},
+  getMaintenanceConfiguration(){return request<MaintenanceConfiguration>('/v1/admin/runtime/maintenance');},
+  patchMaintenanceConfiguration(expectedRevision:number,idempotencyKey:string,settings:Partial<MaintenanceWindowSettings>){
+    return request<MaintenanceConfiguration>('/v1/admin/runtime/maintenance',{method:'PATCH',body:JSON.stringify({expectedRevision,idempotencyKey,settings})});
+  },
   stopRuntime(idempotencyKey:string){return request<RuntimeOperation>('/v1/admin/runtime/actions/stop',{method:'POST',body:JSON.stringify({idempotencyKey})});},
   resumeRuntime(idempotencyKey:string){return request<RuntimeOperation>('/v1/admin/runtime/actions/resume',{method:'POST',body:JSON.stringify({idempotencyKey})});},
   previewFormationReset(){return request<FormationResetPreview>('/v1/admin/runtime/reset-preview');},
