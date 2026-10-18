@@ -1,5 +1,10 @@
 # ShelfDeck 当前状态
 
+2026-10-18 US Adult 本地开发开工：本地/远端 main 与 GitHub 默认分支已统一至 `ac278f33e`，`codex/us-adult` 从该最新基线重建。
+仅保留主目录 main、本线程分支两个 checkout；三个旧 worktree 的 Git 登记已移除，忽略资料移存仓库外，f8e1 留有 Windows 占用的空目录。
+旧 master/JAV/proxy 分支已合并并删除，历史 tag 保留。[五议题决定](implementation/evidence/US_ADULT_DECISION_BASELINE_20261018.md)已冻结，当前做合同对齐；
+尚未修改 SSOT/机器合同/产品实现，不能宣称已支持 US Adult。生产仍为下述 `5367179429` 镜像，本次仅只读核对，未发布、停机、Reset 或改真实媒体。
+
 2026-10-18 已按用户授权标准上线 `markmahoro/shelfdeck:helix-beta-20261018-5367179429`（source `5367179429d6e6785c1adf8c8da363bc21def9bd`），包含已合并查询优化、全站统一代理/JAV连接、空间不足转二号及本轮Package热点优化。Image ID `sha256:fe8fe2f77c2d32bdc3fe59c14e616610fc48e304704baea9b92352261267fe60`，tar SHA256 `94409f5791c1f31fc0cd494c1a2a0aea298f07a38857dbc45c1ab418f178f1f2`。最终Linux143、canonical2359文件、QSV及完整副本候选/使用后旧版回退/历史保护通过；隔离只读媒体错误和首次备份辅助文件校验拒绝如实保留。UTC 2026-10-18T04:41:42.805Z health/正常供给、RestartCount0；原585收藏/42Run、792590不可变行及Effect意图保持。冷备 `/vol1/1000/docker/shelfdeck/backups/package-release-20261018T033556-5367179429/cold`（63文件，aggregate `3fc937f068bcbc85e4563b81c662464b9f99c6a2b09a3e0657e14a8d447c130a`），无Reset/换库/手工媒体处置。Node 12011ms短采样单核88.5%，不代表长期整机降幅；未跑完整生产媒体E2E/Electron，UAT-318仍开放。详见[本轮发布证据](implementation/evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md#2026-10-18-完整热点优化及合并开发标准上线)。以下较早段落为历史时点。
 
 2026-10-18 UAT-318成品包热点本地优化完成：同一同步preparationScope下两个Settlement投影与资源解析共同读取一次完整上下文；Foundation仅传递不透明scope且不进入Executor/持久输入，Arca持有临时结果。Libra按精确Fact revision批量读取、单次恢复metadata、按成员分组Episode claims及同事务复用Run行，保留完整Package与逐项校验。143项定向回归通过。145材料/48 claims的真实Package记录在本机内存Repository对照中，旧3次重建80.27–86.46ms/36次调用，新1次23.88–27.07ms/9次调用，完整输出一致；不含SQLite I/O/媒体副作用，不能当作NAS CPU实测。未构建/部署、未改生产数据，既有开发已合并至57c7aa675且无新分支。

@@ -1,5 +1,15 @@
 # ShelfDeck 当前计划
 
+## US Adult 与全系统维护开发（2026-10-18）
+
+用户已确认五个议题并要求本地开发；唯一活动包切换为 `implementation/CURRENT_PHASE.md` 的 US Adult Phase。
+本地/远端 `main@ac278f33e` 已统一，`codex/us-adult` 从最新 main 重建；旧 master/JAV/proxy 分支和三个旧 worktree 已退出使用，忽略资料移存仓库外。
+当前先做合同对齐，再完成演员库、单演员 Formation、海报/命名、Arca 单片刷新、维护窗口及适用验证。
+决定来源见 [五议题基线](implementation/evidence/US_ADULT_DECISION_BASELINE_20261018.md)。依 Playbook §3.3 在本任务内先回写已确认设计并传播门禁，再实施；无需另建 Architecture 聊天。
+既有发布及未关闭 UAT 保持原状态；本轮无备份功能，不继承旧部署/Reset/真实媒体操作授权。状态与下一动作由 CURRENT_PHASE 记录。
+
+以下为已交付开发与旧授权的历史记录，不是 US Adult 的并行活动计划。
+
 2026-10-18 最新授权及结果：用户要求部署上线，已标准发布 `helix-beta-20261018-5367179429`（source `5367179429d6e6785c1adf8c8da363bc21def9bd`）；完整副本候选/使用后旧版回退、冷备、精确镜像及生产健康/历史保护通过。包含统一代理、空间不足转二号与UAT-318本轮热点优化，先前“未部署/暂停发布”仅为历史状态；未授权生产清理。未追加性能硬门槛或大批等价试验，未跑完整生产媒体E2E，UAT-318及其他未闭业务验收保持开放。详情见既有UAT-318 Evidence最新发布节。
 
 2026-10-18 用户恢复 UAT-318，并澄清要连续完成本轮热点优化、无需每步停下；不追加大批等价测试或性能硬门槛，此前暂停及候选失败记录保留为历史。既有优化及后续开发已合并至57c7aa675。本轮已本地完成Settlement同步输入/资源准备共享一次完整上下文，以及Libra精确revision批量Fact读取、单次metadata解码校验、claims分组和同事务Run读取复用；跨Event/重试/恢复及异步实际执行仍独立重读，全部完整性与授权围栏保持。143项定向回归及一次真实Package记录的隔离前后对照通过；未构建或部署，详见既有UAT-318 Evidence。
