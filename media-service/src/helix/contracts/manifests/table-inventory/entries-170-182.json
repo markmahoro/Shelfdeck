@@ -266,7 +266,7 @@
       "sourceLocator": {
         "section": "8.5.13",
         "line": 9689,
-        "lineDigest": "8a630800f5fd1c4b24ae0e51458189259498fa8e18c1a20bdf7ae94920f41408"
+        "lineDigest": "88709dc542d39b6ae3aefe95f8e26a8e1057e480bf412ba2bdd8dc314242aa18"
       },
       "targetLocator": {
         "path": "table-contracts/people_image_operations/v1/contract.json"
@@ -275,11 +275,11 @@
         "tableId": "people_image_operations",
         "owner": "people",
         "contractRef": "helix://contracts/tables/people_image_operations/v1",
-        "contractDigest": "fef940cf18dd66e96b355909c409fc328c18257b00b082f39afc5d945a0db60a"
+        "contractDigest": "187b868c81658dd42ad7f68a535aeba27a95ba2adeefb4b712a5a601b8ecec69"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "d63caa34fac6cc1f85c0135f28bd0b186ed2771b6474af8678f448318b15079b"
+        "value": "bf300cead4c2c7d7439f21d9b22e7843c38874d9e90df702af941a132cd24998"
       }
     },
     {

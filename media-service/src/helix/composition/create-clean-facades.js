@@ -108,8 +108,8 @@ function createCleanFacades(options) {
     };
     if (options.peopleAvatarQuery) {
       facades.PeopleAdminFacade.get_people_personid_avatar = async (input) => {
-        const value = await options.peopleAvatarQuery.get(input.params.personId);
-        return { body: value.bytes, contentType: value.contentType };
+        const value = await options.peopleAvatarQuery.get(input.params.personId,input.query||{});
+        return { body: value.bytes, contentType: value.contentType,headers:{'Cache-Control':'private, no-store'} };
       };
     }
     facades.PeopleAdminFacade.get_people_registration_candidates = async () => ({
@@ -121,6 +121,7 @@ function createCleanFacades(options) {
     if (options.peopleAdmin) {
       facades.PeopleAdminFacade.patch_people_personid = async input => ({body:options.peopleAdmin.updateProfile(input.params.personId,input.body,input.actor)});
       facades.PeopleAdminFacade.post_people_personid_reference_assets = async input=>({status:202,body:await options.peopleAdmin.addReference(input.params.personId,input.body,input.actor)});
+      facades.PeopleAdminFacade.delete_people_personid_reference_assets_assetid=async input=>({status:202,body:options.peopleAdmin.releaseReference(input.params.personId,input.params.assetId,input.body,input.actor)});
       facades.PeopleAdminFacade.get_people_operations_operationid = async input => ({ body: options.peopleAdmin.imageOperation(input.params.operationId) });
       facades.PeopleAdminFacade.get_people_recommendations = async()=>({body:options.peopleAdmin.recommendations()});
       facades.PeopleAdminFacade.post_people_recommendations_recommendationid_actions_claim = async input=>({status:202,

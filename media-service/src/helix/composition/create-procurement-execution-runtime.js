@@ -638,6 +638,16 @@ function createProcurementExecutionRuntime(options) {
     resourceDemandResolver: { resolve: ({ snapshot,inputs,preparationScope }) => {const projection=executionProjectionProvider.read({
       ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,processId:snapshot.work.process_id,workKind:snapshot.work.work_kind});
       const capability=snapshot.node.capability_ref;let resources=[];
+      if(snapshot.work.owner_domain==='people'&&PEOPLE_IMAGE_ENABLED.includes(capability)){
+        if(capability==='people.reference_fact.commit@1')resources.push({resourceKey:'sqlite_write',units:1});
+        else{
+          const root=options.peopleImagePort?.rootSnapshot?.();
+          if(!root?.mountScopeId||root.state!=='active'||root.rootKind!=='internal-artifact')throw new Error('P4_TYPED_PEOPLE_VOLUME_RESOURCE_UNRESOLVED');
+          validatedVolumeKeys.add(root.mountScopeId);resources.push({resourceKey:'volume_read:'+root.mountScopeId,units:1},
+            {resourceKey:'volume_write:'+root.mountScopeId,units:1},{resourceKey:'sqlite_write',units:1});
+          if(capability==='shared.face.embedding.compute@1')resources.push({resourceKey:'cpu_heavy',units:1});
+        }
+      }
       if(['procurement.field.observation.page.commit@1','shared.material.media.probe@1','procurement.triage.bdmv.assess@1',
         'libra.intake.material.verify@1'].includes(capability)){
         const mountScopeId=findMountScopeId(inputs);if(!mountScopeId)throw new Error('P4_TYPED_VOLUME_RESOURCE_UNRESOLVED:'+capability);

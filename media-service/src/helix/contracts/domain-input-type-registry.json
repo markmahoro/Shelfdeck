@@ -1490,7 +1490,7 @@
       "relativePath": "domain-types/PeopleReferenceMaintenanceDecision/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "99eba4410b02a4fec126598903a1167af7681588dc211e2307579c79886bff49"
+        "value": "4785109a9d3be189474e4b094dc25377a2dab33073e83f50fdb39033d08ca361"
       },
       "usedBy": [
         {

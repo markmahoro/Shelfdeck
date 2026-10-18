@@ -77,7 +77,7 @@ export default function UsAdultActorDialog({item,recommendation,onClaimStarted,o
         {!loading&&people.length===0&&<p>没有找到可选演员。</p>}
         <div className="us-actor-grid" role="radiogroup" aria-label="US Adult 演员库">
           {people.map(person=><label key={person.personId} className="us-actor-option" data-selected={chosen?.personId===person.personId||undefined}>
-            <img src={helixAdminApi.personAvatarUrl(person.personId)} alt="" loading="lazy" onLoad={()=>setVisibleImages(previous=>new Set([...previous,person.personId]))}
+            <img src={helixAdminApi.personAvatarUrl(person.personId,person.currentReferenceRevision)} alt="" loading="lazy" onLoad={()=>setVisibleImages(previous=>new Set([...previous,person.personId]))}
               onError={()=>{setVisibleImages(previous=>new Set([...previous].filter(id=>id!==person.personId)));setFailedImages(previous=>new Set([...previous,person.personId]));setChosen(previous=>previous?.personId===person.personId?null:previous);}}/>
             {failedImages.has(person.personId)&&<small>图片无法读取</small>}
             <span><input type="radio" name="us-film-actor" value={person.personId} checked={chosen?.personId===person.personId} disabled={saving||stale||!person.currentReferenceRevision||!visibleImages.has(person.personId)}

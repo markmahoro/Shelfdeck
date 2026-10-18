@@ -1493,7 +1493,7 @@ function personReferenceRevisionSchema() {
   const activeFace = object({ referenceFaceId: id(), referenceAssetId: id(), embeddingHandleId: id(), embeddingDigest: digest(), modelRef: text() });
   const properties = { schemaRef: { const: typeId('PersonReferenceRevision') }, schemaVersion: { const: 1 },
     ...envelopeFields.DomainFactEnvelope, personId: id(), referenceRevision: positiveInteger(),
-    operationKind: enumText('add_image', 'release_image'), affectedReferenceAssetId: id(), affectedReferenceFaceId: id(),
+    operationKind: enumText('add_image', 'release_image', 'replace_image'), affectedReferenceAssetId: id(), affectedReferenceFaceId: id(),
     activeReferenceAssets: arrayOf(activeAsset, 1024), activeReferenceFaces: arrayOf(activeFace, 1024),
     activeAssetSetDigest: digest(), activeFaceSetDigest: digest(), referenceSetDigest: digest() };
   return { $schema: DRAFT, $id: typeId('PersonReferenceRevision'), title: 'PersonReferenceRevision@1',

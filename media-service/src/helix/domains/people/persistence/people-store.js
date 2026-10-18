@@ -378,16 +378,33 @@ function createPeopleStore(options) {
         const person = repository.invoke('find_person', { person_id: decision.personId });
         const expectedPointer = decision.expectedReferenceRevision === 0 ? null : decision.expectedReferenceRevision;
         if (!person || person.current_revision !== decision.expectedPersonRevision || person.current_reference_revision !== expectedPointer ||
-            decision.operationKind === 'add_image' && person.status !== 'active') {
+            decision.operationKind !== 'release_image' && person.status !== 'active') {
           fail('P6_PEOPLE_REFERENCE_REVISION_CONFLICT', 'Person or Reference head is stale or not eligible for this operation.');
         }
         const nextRevision = decision.expectedReferenceRevision + 1;
-        if (decision.operationKind === 'add_image') {
+        function releaseImage(target,replacing=false){
+          const asset=repository.invoke('find_reference_asset',{reference_asset_id:target.referenceAssetId}),
+            face=repository.invoke('find_reference_face',{reference_face_id:target.referenceFaceId});
+          if(!asset||!face||asset.person_id!==decision.personId||face.person_id!==decision.personId||
+              face.reference_asset_id!==target.referenceAssetId||asset.state!=='active'||face.state!=='active'||
+              asset.artifact_digest!==target.artifactDigest||face.embedding_digest!==target.embeddingDigest||face.model_ref!==target.modelRef)
+            fail('P6_PEOPLE_REFERENCE_RELEASE_FENCE','Reference release target, ownership, state, digest, or model does not match.');
+          if(!replacing&&person.library_kind==='us_adult'&&repository.invoke('find_reference_assets',{person_id:decision.personId})
+              .filter(item=>item.state==='active').length<=1)fail('PEOPLE_LAST_REFERENCE_REQUIRED','A US Adult Person must retain a usable reference image.');
+          const assetReleased=repository.invoke('release_reference_asset',{state:'released',released_reference_revision:nextRevision,
+            released_at_ms:context.commitTimeMs,reference_asset_id:target.referenceAssetId,expected_person_id:decision.personId,expected_state:'active'}),
+            faceReleased=repository.invoke('release_reference_face',{state:'released',released_reference_revision:nextRevision,
+              released_at_ms:context.commitTimeMs,reference_face_id:target.referenceFaceId,expected_person_id:decision.personId,
+              expected_reference_asset_id:target.referenceAssetId,expected_state:'active'});
+          if(assetReleased.changes!==1||faceReleased.changes!==1)fail('P6_PEOPLE_REFERENCE_RELEASE_FENCE','Reference release target changed concurrently.');
+        }
+        if (decision.operationKind === 'add_image'||decision.operationKind==='replace_image') {
           if(person.library_kind==='us_adult'){
             const priorAssets=repository.invoke('find_reference_assets',{person_id:decision.personId});
             if(priorAssets.some(row=>row.artifact_digest===decision.artifactDigest))fail('PEOPLE_REFERENCE_IMAGE_EXISTS','此演员已经使用过这张图片。');
-            if(priorAssets.filter(row=>row.state==='active').length>=256)fail('PEOPLE_REFERENCE_IMAGE_LIMIT','参考图片已达到数量上限。');
+            if(decision.operationKind!=='replace_image'&&priorAssets.filter(row=>row.state==='active').length>=256)fail('PEOPLE_REFERENCE_IMAGE_LIMIT','参考图片已达到数量上限。');
           }
+          if(decision.operationKind==='replace_image')releaseImage(decision.replacedImage,true);
           const asset = createReferenceAsset({ referenceAssetId: decision.referenceAssetId, personId: decision.personId,
             artifactHandleId: decision.artifactHandle.artifactHandleId, artifactDigest: decision.artifactDigest, state: 'active',
             createdReferenceRevision: nextRevision, releasedReferenceRevision: null, createdAtMs: context.commitTimeMs, releasedAtMs: null });
@@ -398,27 +415,7 @@ function createPeopleStore(options) {
           repository.invoke('insert_reference_asset', assetRow(asset));
           repository.invoke('insert_reference_face', faceRow(face));
         } else {
-          const asset = repository.invoke('find_reference_asset', { reference_asset_id: decision.referenceAssetId });
-          const face = repository.invoke('find_reference_face', { reference_face_id: decision.referenceFaceId });
-          if (!asset || !face || asset.person_id !== decision.personId || face.person_id !== decision.personId ||
-              face.reference_asset_id !== decision.referenceAssetId || asset.state !== 'active' || face.state !== 'active' ||
-              asset.artifact_digest !== decision.artifactDigest || face.embedding_digest !== decision.embeddingDigest ||
-              face.model_ref !== decision.modelRef) {
-            fail('P6_PEOPLE_REFERENCE_RELEASE_FENCE', 'Reference release target, ownership, state, digest, or model does not match.');
-          }
-          if (person.library_kind === 'us_adult' && repository.invoke('find_reference_assets', {person_id:decision.personId})
-              .filter(item => item.state === 'active').length <= 1) {
-            fail('PEOPLE_LAST_REFERENCE_REQUIRED','A US Adult Person must retain a usable reference image.');
-          }
-          const assetReleased = repository.invoke('release_reference_asset', { state: 'released', released_reference_revision: nextRevision,
-            released_at_ms: context.commitTimeMs, reference_asset_id: decision.referenceAssetId,
-            expected_person_id: decision.personId, expected_state: 'active' });
-          const faceReleased = repository.invoke('release_reference_face', { state: 'released', released_reference_revision: nextRevision,
-            released_at_ms: context.commitTimeMs, reference_face_id: decision.referenceFaceId, expected_person_id: decision.personId,
-            expected_reference_asset_id: decision.referenceAssetId, expected_state: 'active' });
-          if (assetReleased.changes !== 1 || faceReleased.changes !== 1) {
-            fail('P6_PEOPLE_REFERENCE_RELEASE_FENCE', 'Reference release target changed concurrently.');
-          }
+          releaseImage(decision);
         }
         const activeReferenceAssets = repository.invoke('find_reference_assets', { person_id: decision.personId })
           .filter((row) => row.state === 'active').map((row) => ({ referenceAssetId: row.reference_asset_id,
@@ -1089,13 +1086,22 @@ function validateReferenceDecision(value) {
   const add = ['referenceAssetId', 'referenceFaceId', 'artifactHandle', 'artifactDigest', 'faceEmbeddingSetHandle', 'modelRef', 'initialState'];
   const release = ['referenceAssetId', 'referenceFaceId', 'expectedAssetState', 'expectedFaceState', 'terminalState',
     'artifactDigest', 'embeddingDigest', 'modelRef'];
-  exactInput(value, [...common, ...(value && value.operationKind === 'add_image' ? add : release)], 'P6_PEOPLE_REFERENCE_DECISION_INPUT');
-  if (!['add_image', 'release_image'].includes(value.operationKind) || !Number.isSafeInteger(value.expectedPersonRevision) ||
+  const replacing=value?.operationKind==='replace_image';
+  exactInput(value, [...common, ...(value && value.operationKind !== 'release_image' ? add : release),...(replacing?['replacedImage']:[])], 'P6_PEOPLE_REFERENCE_DECISION_INPUT');
+  if (!['add_image', 'release_image','replace_image'].includes(value.operationKind) || !Number.isSafeInteger(value.expectedPersonRevision) ||
       value.expectedPersonRevision < 1 || !Number.isSafeInteger(value.expectedReferenceRevision) || value.expectedReferenceRevision < 0 ||
       canonicalDigest(without(value, 'decisionDigest')) !== value.decisionDigest) {
     fail('P6_PEOPLE_REFERENCE_DECISION_CONTRACT', 'Reference Maintenance Decision is invalid.');
   }
-  if (value.operationKind === 'add_image') {
+  if (value.operationKind === 'add_image'||replacing) {
+    if(replacing){
+      exactInput(value.replacedImage,['referenceAssetId','referenceFaceId','artifactDigest','embeddingDigest','modelRef'],'P6_PEOPLE_REFERENCE_DECISION_INPUT');
+      const old=value.replacedImage;
+      if(typeof old.referenceAssetId!=='string'||!old.referenceAssetId||typeof old.referenceFaceId!=='string'||!old.referenceFaceId||
+          old.referenceAssetId===value.referenceAssetId||old.referenceFaceId===value.referenceFaceId||
+          !/^[a-f0-9]{64}$/.test(old.artifactDigest||'')||!/^[a-f0-9]{64}$/.test(old.embeddingDigest||'')||typeof old.modelRef!=='string'||!old.modelRef)
+        fail('P6_PEOPLE_REFERENCE_DECISION_CONTRACT','Replacement must freeze a different exact old image and Face.');
+    }
     const artifact = value.artifactHandle;
     const embedding = value.faceEmbeddingSetHandle;
     if (value.initialState !== 'active' || !artifact || artifact.artifactHandleId === undefined ||

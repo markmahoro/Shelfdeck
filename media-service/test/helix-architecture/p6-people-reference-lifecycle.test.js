@@ -211,3 +211,21 @@ test('keeps Reference ownership on merged source and atomically expands a read-o
     assert.equal(target.projectionRevision, 2);
   });
 });
+
+test('replacement releases the exact old image and adds its new unique Face in one rollback-safe Reference revision',()=>{
+  fixture(({store,unitOfWork})=>{
+    register(store,'person-replacement');const original=addDecision('person-replacement',1,0,'old');commit(unitOfWork,store,original);
+    const next=addDecision('person-replacement',1,1,'new'),{decisionDigest:ignored,...input}=next,
+      body={...input,operationKind:'replace_image',replacedImage:{referenceAssetId:original.referenceAssetId,referenceFaceId:original.referenceFaceId,
+        artifactDigest:original.artifactDigest,embeddingDigest:original.faceEmbeddingSetHandle.embeddingDigest,modelRef:original.modelRef}},
+      decision={...body,decisionDigest:canonicalDigest(body)},participant=store.createReferenceCommitParticipant(referenceHandle(decision),decision);
+    assert.throws(()=>unitOfWork.execute([{...participant,execute(context){participant.execute(context);throw new Error('isolated late replacement failure');}}]),/isolated late/);
+    assert.equal(store.getReferenceAsset(original.referenceAssetId).state,'active');assert.equal(store.getReferenceAsset(next.referenceAssetId),undefined);
+    assert.equal(store.getPerson('person-replacement').currentReferenceRevision,1);
+    const result=commit(unitOfWork,store,decision);assert.equal(result.operationKind,'replace_image');assert.equal(result.referenceRevision,2);
+    assert.equal(store.getReferenceAsset(original.referenceAssetId).state,'released');assert.equal(store.getReferenceFace(original.referenceFaceId).state,'released');
+    assert.deepEqual(result.activeReferenceAssets.map(item=>item.referenceAssetId),[next.referenceAssetId]);
+    assert.equal(store.getPersonReferenceProjection('person-replacement').currentReferenceRevision,2);
+    assert.throws(()=>commit(unitOfWork,store,decision),{code:'P6_PEOPLE_REFERENCE_REVISION_CONFLICT'});
+  });
+});

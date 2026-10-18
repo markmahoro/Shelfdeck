@@ -1241,12 +1241,12 @@
       "relativePath": "types/PersonReferenceRevision/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "896c1c85eead20657a057d89a135e17eb097b117361f07952945705f0d480566"
+        "value": "dab90203a32992c0a233da0d2eac8f57f1d673f2c563b0a4721b951f0f9ccd96"
       },
       "source": {
         "section": "8.6.19",
         "line": 11377,
-        "lineDigest": "5eeee451eabf20b8b826ee0d0eb2c52ac3ee4e64477709e02b4af2473fc374e0"
+        "lineDigest": "c48c952c9cb19e7ce9bfcc19caa79771a43ec6047378a263f6d09e81b9586cd0"
       }
     },
     {

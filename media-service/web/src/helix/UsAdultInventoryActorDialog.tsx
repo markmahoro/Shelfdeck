@@ -72,7 +72,7 @@ export default function UsAdultInventoryActorDialog({item,onClose,onChanged,onUn
         </form>
         {!loading&&people.length===0&&<p>没有找到可选演员。</p>}
         <div className="us-actor-grid" role="radiogroup" aria-label="US Adult 演员库">{people.map(person=><label key={person.personId} className="us-actor-option" data-selected={chosen?.personId===person.personId||undefined}>
-          <img src={helixAdminApi.personAvatarUrl(person.personId)} alt="" loading="lazy" onLoad={()=>setVisible(previous=>new Set([...previous,person.personId]))}
+          <img src={helixAdminApi.personAvatarUrl(person.personId,person.currentReferenceRevision)} alt="" loading="lazy" onLoad={()=>setVisible(previous=>new Set([...previous,person.personId]))}
             onError={()=>{setVisible(previous=>new Set([...previous].filter(id=>id!==person.personId)));setChosen(previous=>previous?.personId===person.personId?null:previous);}}/>
           <span><input type="radio" name="inventory-us-actor" checked={chosen?.personId===person.personId} disabled={!available||Boolean(command.current)||!person.currentReferenceRevision||!visible.has(person.personId)}
             onChange={()=>{setChosen(person);setError('');}}/><strong>{person.canonicalName}</strong></span>

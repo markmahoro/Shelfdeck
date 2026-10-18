@@ -5,6 +5,7 @@ import PersonRegistration from './PersonRegistration';
 import PersonProfileEditor from './PersonProfileEditor';
 import UsAdultRecommendations from './UsAdultRecommendations';
 import PersonWorksDialog from './PersonWorksDialog';
+import PersonReferencesDialog from './PersonReferencesDialog';
 import { isUnauthorized, useSession } from './session';
 
 type RegisteredPerson = PeopleProjection['items'][number];
@@ -27,7 +28,7 @@ function PersonAvatar({ person }: { person: RegisteredPerson }) {
   return <div className="people-avatar" data-state={state}>
     <span className="people-avatar-initials" aria-hidden="true">{initials(person.canonicalName)}</span>
     {hasTmdbIdentity && state !== 'fallback' && <img
-      src={helixAdminApi.personAvatarUrl(person.personId)}
+      src={helixAdminApi.personAvatarUrl(person.personId,person.libraryKind==='us_adult'?person.currentReferenceRevision:null)}
       alt={`${person.canonicalName}头像`}
       loading="lazy"
       onLoad={() => setState('loaded')}
@@ -51,7 +52,7 @@ function PersonCard({ person, onEdit, onAddReference,onWorks }: { person: Regist
         <div><dt>外部编号</dt><dd>{person.providerIdentities.map((identity) => `${identity.provider.toUpperCase()} · ${identity.providerKey}`).join('、') || '—'}</dd></div>
       </dl>
       {onEdit && <Button type="button" onClick={onEdit} aria-label={`编辑 ${person.canonicalName}`}>编辑资料</Button>}
-      {onAddReference && <Button type="button" onClick={onAddReference} aria-label={`补充 ${person.canonicalName} 的参考图`}>补充参考图</Button>}
+      {onAddReference && <Button type="button" onClick={onAddReference} aria-label={`管理 ${person.canonicalName} 的参考图片`}>参考图片</Button>}
       <Button type="button" onClick={onWorks} aria-label={`查看 ${person.canonicalName} 的相关作品`}>相关作品</Button>
     </div>
   </article>;
@@ -90,9 +91,8 @@ export default function PeoplePage() {
       aria-selected={library===item.kind} disabled={creating||Boolean(editing)||Boolean(addingReference)||recommendationEditing} onClick={()=>changeLibrary(item.kind)}>{item.label}</button>)}</div>
     {library!=='us_adult' && <p className="people-library-note">演员资料由系统收纳和完善，无需手动确认。</p>}
     {creating && <PersonRegistration onCancel={()=>setCreating(false)} onCreated={()=>{setCreating(false);setNotice('演员已建档，可以用于影片识别。');void load();}}/>}
-    {addingReference&&<PersonRegistration referenceFor={addingReference} onCancel={()=>{setAddingReference(null);void load();}} onCreated={()=>{
-      setAddingReference(null);setNotice('参考图片已添加。');void load();
-    }}/>}
+    {addingReference&&<PersonReferencesDialog person={addingReference} onClose={()=>{setAddingReference(null);void load();}}
+      onChanged={()=>void load()} onUnauthorized={expire}/>}
     {editing && <PersonProfileEditor key={editing.personId} person={editing} onCancel={()=>{setEditing(null);void load();}} onSaved={()=>{
       setEditing(null);setNotice('演员资料已保存。');void load();
     }}/>}

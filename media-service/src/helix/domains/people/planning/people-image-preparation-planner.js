@@ -17,7 +17,7 @@ function createPeopleImagePreparationPlanner(options) {
   const catalogDigest = executionCatalogDigest(options.registry, options.policyRegistry);
   function node(request, capabilityRef, eventId, nodeId, inputBindings, dependencies) {
     const manifest = options.registry.resolve(capabilityRef, 'people').manifest, policy = options.policyRegistry.bindingFor(capabilityRef, manifest.effectClass);
-    const resources = { resourceKinds: capabilityRef === IMPORT ? ['disk_io'] : capabilityRef===COMMIT?['cpu']:['compute_device', 'cpu', 'disk_io'] };
+    const resources = { resourceKinds: capabilityRef === IMPORT ? ['disk_io'] : capabilityRef===COMMIT?['sqlite_write']:['compute_device', 'cpu', 'disk_io'] };
     return Object.freeze({ nodeId, eventId, capabilityRef, contractVersion: 1,
       inputBindingsSchemaRef: manifest.parametersSchemaRef.replace('/parameters', '/inputs'),
       inputBindings: { schemaRef: 'helix://foundation/types/EventInputBindingSet/v1', schemaVersion: 1, bindings: inputBindings },
@@ -34,17 +34,17 @@ function createPeopleImagePreparationPlanner(options) {
       const value = options.context(request.processId).operation;
       if (value.payloadDigest !== request.executionBasisDigest) throw Object.assign(new Error('People image operation basis changed.'), { code: 'PEOPLE_IMAGE_OPERATION_STALE' });
       const importEvent = stable('people-image-import-', request.workAttemptId), embedEvent = stable('people-image-embedding-', request.workAttemptId);
-      const commitEvent=stable('people-reference-commit-',request.workAttemptId),commitNodes=value.payload.operationKind==='reference_add'?
+      const release=value.payload.operationKind==='reference_release',commitEvent=stable('people-reference-commit-',request.workAttemptId),commitNodes=value.payload.operationKind!=='registration'?
         [node(request,COMMIT,commitEvent,'commit',[owner('peopleReferenceMaintenanceDecision',request,PROJECTIONS.decision),
-          owner('domainFactCommitHandle',request,PROJECTIONS.handle,{commitEventId:commitEvent})],[{eventId:embedEvent,satisfaction:'success'}])]:[];
+          owner('domainFactCommitHandle',request,PROJECTIONS.handle,{commitEventId:commitEvent})],release?[]:[{eventId:embedEvent,satisfaction:'success'}])]:[];
       return Object.freeze({ schemaRef: 'helix://foundation/types/WorkflowPlanDefinition/v1', schemaVersion: 1,
         planId: stable('people-image-plan-', request.workAttemptId), workAttemptId: request.workAttemptId, ownerDomain: 'people',
         plannerContractRef: PLANNER, plannerVersion: 1, workObjectiveTypeRef: request.workObjectiveTypeRef, workObjectiveVersion: 1,
         executionBasisDigest: request.executionBasisDigest, capabilityCatalogDigest: catalogDigest, resolution: 'planned', diagnosticClassification: null,
-        nodes: [node(request, IMPORT, importEvent, 'import', [owner('peopleSelectedImageHandle', request, PROJECTIONS.selectedImage), owner('peopleWorkspace', request, PROJECTIONS.workspace)], []),
+        nodes: [...(release?[]:[node(request, IMPORT, importEvent, 'import', [owner('peopleSelectedImageHandle', request, PROJECTIONS.selectedImage), owner('peopleWorkspace', request, PROJECTIONS.workspace)], []),
           node(request, EMBED, embedEvent, 'embedding', [{ portName: 'artifactHandleList', bindingKind: 'projected_event_result', eventId: importEvent,
             resultSchemaRef: options.registry.resolve(IMPORT, 'people').manifest.resultSchemaRef, projectionRef: PROJECTIONS.artifacts, parameters: {} },
-          owner('faceModelRef', request, PROJECTIONS.model)], [{ eventId: importEvent, satisfaction: 'success' }]),...commitNodes] });
+          owner('faceModelRef', request, PROJECTIONS.model)], [{ eventId: importEvent, satisfaction: 'success' }])]),...commitNodes] });
     } });
 }
 function createPeopleImageProjections(options) {

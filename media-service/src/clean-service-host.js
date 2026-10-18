@@ -1179,7 +1179,7 @@ function errorResponse(error, correlationId) {
   else if(['PEOPLE_RECOMMENDATION_REVISION_CONFLICT','PEOPLE_RECOMMENDATION_WINDOW_CLOSED','PEOPLE_RECOMMENDATION_CLAIM_REVISION_CONFLICT','PEOPLE_RECOMMENDATION_CLAIM_COMMAND_CONFLICT','PEOPLE_RECOMMENDATION_CLAIM_IN_PROGRESS','PEOPLE_US_ACTOR_SNAPSHOT_STALE'].includes(error.code))status=409;
   else if(['PEOPLE_RECOMMENDATION_RECORD_INVALID','PEOPLE_RECOMMENDATION_EVIDENCE_INVALID','PEOPLE_RECOMMENDATION_CLAIM_CORRUPT'].includes(error.code))status=500;
   else if (['PEOPLE_IMAGE_SEARCH_INPUT_INVALID', 'PEOPLE_IMAGE_SELECTION_INVALID', 'PEOPLE_REGISTRATION_INPUT_INVALID', 'PEOPLE_IMAGE_UPLOAD_INVALID', 'PEOPLE_IMAGE_BYTES_INVALID','PEOPLE_PROFILE_INPUT_INVALID'].includes(error.code)) status = 400;
-  else if (['PEOPLE_IMAGE_SELECTION_STALE', 'PEOPLE_IMAGE_SOURCE_CHANGED', 'PEOPLE_LIBRARY_READ_ONLY', 'PEOPLE_IMAGE_OPERATION_COMMAND_CONFLICT', 'PEOPLE_IMAGE_OPERATION_STALE','PEOPLE_PROFILE_REVISION_CONFLICT','PEOPLE_REFERENCE_IMAGE_EXISTS','PEOPLE_REFERENCE_IMAGE_LIMIT','PEOPLE_REFERENCE_PROJECTION_TOO_LARGE','PEOPLE_REFERENCE_LIBRARY_CHANGED'].includes(error.code)) status = 409;
+  else if (['PEOPLE_IMAGE_SELECTION_STALE', 'PEOPLE_IMAGE_SOURCE_CHANGED', 'PEOPLE_LIBRARY_READ_ONLY', 'PEOPLE_IMAGE_OPERATION_COMMAND_CONFLICT', 'PEOPLE_IMAGE_OPERATION_STALE','PEOPLE_PROFILE_REVISION_CONFLICT','PEOPLE_LAST_REFERENCE_REQUIRED','PEOPLE_REFERENCE_IMAGE_EXISTS','PEOPLE_REFERENCE_IMAGE_LIMIT','PEOPLE_REFERENCE_PROJECTION_TOO_LARGE','PEOPLE_REFERENCE_LIBRARY_CHANGED'].includes(error.code)) status = 409;
   else if (['PEOPLE_IMAGE_SOURCE_INVALID', 'PEOPLE_IMAGE_SOURCE_UNAVAILABLE'].includes(error.code)) status = 502;
   else if (typeof error.code === 'string' && error.code.startsWith('PEOPLE_')) status = 404;
   else if (error.code === 'ADMIN_ROUTING_MANUAL_STATE_CONFLICT' || error.code === 'ADMIN_ROUTING_MANUAL_HEAD_CONFLICT') status = 409;
@@ -2084,6 +2084,7 @@ async function createCleanServiceHost(options) {
     imageOperation: operationId => procurementExecution.people.imageOperations.get(operationId),
     updateProfile:(personId,body,actor)=>procurementExecution.people.updateProfile(personId,body,actor?.credentialId||'admin'),
     addReference:(personId,body,actor)=>procurementExecution.people.addReference(personId,body,actor?.credentialId||'admin'),
+    releaseReference:(personId,assetId,body,actor)=>procurementExecution.people.releaseReference(personId,assetId,body,actor?.credentialId||'admin'),
     accept(body, actor) {
       return procurementExecution.people.acceptRegistration(body, actor?.credentialId || 'admin');
     },

@@ -1005,7 +1005,7 @@ function directPersonRegistrationDecisionSchema() {
 }
 
 function peopleReferenceMaintenanceDecisionSchema() {
-  const common = { decisionId: id(), operationKind: enumText('add_image', 'release_image'), personId: id(),
+  const common = { decisionId: id(), operationKind: enumText('add_image', 'release_image', 'replace_image'), personId: id(),
     expectedPersonRevision: positiveInteger(), expectedReferenceRevision: nonNegativeInteger(), actorId: id(), decisionDigest: digest() };
   const commonRequired = Object.keys(common);
   const add = object({ ...common, operationKind: { const: 'add_image' }, referenceAssetId: id(), referenceFaceId: id(),
@@ -1017,8 +1017,10 @@ function peopleReferenceMaintenanceDecisionSchema() {
     artifactDigest: digest(), embeddingDigest: digest(), modelRef: text({ maxLength: 512 })
   }, [...commonRequired, 'referenceAssetId', 'referenceFaceId', 'expectedAssetState', 'expectedFaceState', 'terminalState',
     'artifactDigest', 'embeddingDigest', 'modelRef']);
+  const replace=object({...add.properties,operationKind:{const:'replace_image'},replacedImage:object({referenceAssetId:id(),referenceFaceId:id(),
+    artifactDigest:digest(),embeddingDigest:digest(),modelRef:text({maxLength:512})})});
   return { $schema: DRAFT, $id: domainTypeId('PeopleReferenceMaintenanceDecision'), title: 'PeopleReferenceMaintenanceDecision@1',
-    'x-helix-ssotRefs': ['8.6.18', '8.6.20'], 'x-helix-role': 'accepted-business-dto', oneOf: [add, release] };
+    'x-helix-ssotRefs': ['8.6.18', '8.6.20'], 'x-helix-role': 'accepted-business-dto', oneOf: [add, release,replace] };
 }
 
 function personReferenceProjectionSchema() {

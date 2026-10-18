@@ -692,9 +692,12 @@ export const helixAdminApi = {
   readPersonCollection(personId:string,cursor?:string){return request<PersonRelatedCollection>(
     `/v1/admin/people/${encodeURIComponent(personId)}/collection?${new URLSearchParams({limit:'24',...(cursor?{cursor}:{})})}`);},
   readCollectionEntry(shelfEntryId:string){return request<CollectionEntry>(`/v1/admin/collection/${encodeURIComponent(shelfEntryId)}`);},
-  personAvatarUrl(personId: string) {
-    return `/v1/admin/people/${encodeURIComponent(personId)}/avatar`;
+  personAvatarUrl(personId: string,referenceRevision?:number|null) {
+    return `/v1/admin/people/${encodeURIComponent(personId)}/avatar${referenceRevision?`?revision=${referenceRevision}`:''}`;
   },
+  readPersonReferences(personId:string){return request<{personId:string;libraryKind:PersonLibrary;currentRevision:number;currentReferenceRevision:number;
+    referenceImages:Array<{referenceAssetId:string}>}>(`/v1/admin/people/${encodeURIComponent(personId)}`);},
+  personReferenceUrl(personId:string,assetId:string,revision:number){return `/v1/admin/people/${encodeURIComponent(personId)}/avatar?${new URLSearchParams({assetId,revision:String(revision)})}`;},
   registerPerson(body:{ idempotencyKey:string;libraryKind:'us_adult';canonicalName:string;aliases:string[];image:PersonImageSelection }) {
     return request<{operationRef:string;state:'accepted'}>('/v1/admin/people', {
       method:'POST', body:JSON.stringify(body),
@@ -711,8 +714,11 @@ export const helixAdminApi = {
   updatePersonProfile(personId:string,body:{idempotencyKey:string;expectedPersonRevision:number;canonicalName:string;aliases:string[]}){
     return request<{replayed:boolean;receipt:{resultRef:{personId:string;personRevision:number}}}>(`/v1/admin/people/${encodeURIComponent(personId)}`,{method:'PATCH',body:JSON.stringify(body)});
   },
-  addPersonReference(personId:string,body:{idempotencyKey:string;expectedPersonRevision:number;expectedReferenceRevision:number;image:PersonImageSelection}){
+  addPersonReference(personId:string,body:{idempotencyKey:string;expectedPersonRevision:number;expectedReferenceRevision:number;image:PersonImageSelection;replaceAssetId?:string}){
     return request<{operationRef:string;state:'accepted'}>(`/v1/admin/people/${encodeURIComponent(personId)}/reference-assets`,{method:'POST',body:JSON.stringify(body)});
+  },
+  releasePersonReference(personId:string,assetId:string,body:{idempotencyKey:string;expectedPersonRevision:number;expectedReferenceRevision:number}){
+    return request<{operationRef:string;state:'accepted'}>(`/v1/admin/people/${encodeURIComponent(personId)}/reference-assets/${encodeURIComponent(assetId)}`,{method:'DELETE',body:JSON.stringify(body)});
   },
   acceptPeopleCandidate(candidateId:string) {
     return request<{ person: { personId:string } }>('/v1/admin/people', {

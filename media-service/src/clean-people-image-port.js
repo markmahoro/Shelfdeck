@@ -126,7 +126,7 @@ function createCleanPeopleImagePort(options) {
     if (!TOKEN.test(actorId) || typeof idempotencyKey !== 'string' || !idempotencyKey || idempotencyKey.length > 256 ||
         !Buffer.isBuffer(bytes) || !bytes.length || bytes.length > MAX_IMAGE_BYTES) fail('PEOPLE_IMAGE_UPLOAD_INVALID', '人物图片上传参数无效。');
     const mediaType = imageMediaType(bytes), digestHex = digestBytes(bytes);
-    safeDirectory(rootPath); safeDirectory(path.join(rootPath, 'uploads'));
+    controlledRoot(true); safeDirectory(path.join(rootPath, 'uploads'));
     const uploadId = canonicalDigest({ schema: 'people.selected-upload@1', actorId, idempotencyKey, digestHex });
     publish(path.join(rootPath, 'uploads', uploadId), bytes);
     const basis = { schemaRef: 'helix://contracts/domain-types/PeopleSelectedImageHandle/v1', schemaVersion: 1, uploadId, digestHex, sizeBytes: bytes.length, mediaType,
@@ -175,7 +175,7 @@ function createCleanPeopleImagePort(options) {
         record.storageRef !== handle.storageRef || record.sizeBytes !== handle.sizeBytes) fail('PEOPLE_IMAGE_ARTIFACT_CHANGED', '人物图片引用已变化。');
     controlledRoot(); return readExact(parseStorageRef(record.storageRef), record.digestHex, record.sizeBytes);
   }
-  return Object.freeze({ stageUpload, readUpload, materialize, readArtifact,
+  return Object.freeze({ stageUpload, readUpload, materialize, readArtifact,rootSnapshot:()=>Object.freeze({...controlledRoot()}),
     readReferenceEmbedding({ personId, artifactHandleId, artifactDigest }) {
       const record = repository.get(artifactHandleId);
       if (!record || record.state !== 'active' || record.ownerDomain !== 'people' || record.ownerScopeType !== 'person' ||

@@ -31,8 +31,8 @@ function upload(file:File):Promise<{image:PersonImageSelection;preview:string}> 
     reader.readAsDataURL(file);
   });
 }
-export default function PersonRegistration({onCreated,onCancel,referenceFor,recommendationFor,onClaimStarted}:{onCreated:()=>void;onCancel:()=>void;
-  referenceFor?:PeopleProjection['items'][number];recommendationFor?:{item:UsAdultRecommendation;publication:RecommendationPublication};
+export default function PersonRegistration({onCreated,onCancel,referenceFor,replaceAssetId,recommendationFor,onClaimStarted,onPendingChange}:{onCreated:()=>void;onCancel:()=>void;
+  referenceFor?:PeopleProjection['items'][number];replaceAssetId?:string;onPendingChange?:(pending:boolean)=>void;recommendationFor?:{item:UsAdultRecommendation;publication:RecommendationPublication};
   onClaimStarted?:(value:RecommendationClaimAccepted)=>void}) {
   const {expire} = useSession();
   const [name,setName] = useState(referenceFor?.canonicalName || ''), [aliases,setAliases] = useState('');
@@ -48,6 +48,7 @@ export default function PersonRegistration({onCreated,onCancel,referenceFor,reco
   useEffect(()=>{if(recommendationFor)form.current?.querySelector<HTMLInputElement>('input')?.focus();},[recommendationFor?.item.recommendationId]);
   useEffect(() => {mounted.current=true;return () => {mounted.current=false;searchSequence.current++;fileSequence.current++;};},[]);
   const locked = busy || operation !== null || request.current !== null;
+  useEffect(()=>{onPendingChange?.(locked);return()=>onPendingChange?.(false);},[locked,onPendingChange]);
   const created = useRef(onCreated); created.current = onCreated;
   useEffect(() => {
     if (!operation || pollPaused) return;
@@ -104,7 +105,7 @@ export default function PersonRegistration({onCreated,onCancel,referenceFor,reco
       }else{
         if(selected.kind==='recommendation')return;
         request.current = referenceFor?{personId:referenceFor.personId,body:{idempotencyKey:newOpaqueId('us-person-image-'),
-        expectedPersonRevision:referenceFor.currentRevision,expectedReferenceRevision:referenceFor.currentReferenceRevision!,image:selected}}:
+        expectedPersonRevision:referenceFor.currentRevision,expectedReferenceRevision:referenceFor.currentReferenceRevision!,image:selected,...(replaceAssetId?{replaceAssetId}:{})}}:
         {idempotencyKey:newOpaqueId('us-person-'),libraryKind:'us_adult',canonicalName:name.trim(),
         aliases:aliases.split(/[,，\n]/).map(value=>value.trim()).filter(Boolean),image:selected};
       }
@@ -125,9 +126,9 @@ export default function PersonRegistration({onCreated,onCancel,referenceFor,reco
     } finally {if (mounted.current) setBusy(false);}
   }
   return <form ref={form} className="source-create people-registration" onSubmit={event=>void submit(event)}>
-    <div className="source-create-heading"><h2>{referenceFor?`补充 ${referenceFor.canonicalName} 的参考图片`:'新建 US Adult 演员'}</h2>
+    <div className="source-create-heading"><h2>{referenceFor?`${replaceAssetId?'替换':'补充'} ${referenceFor.canonicalName} 的参考图片`:'新建 US Adult 演员'}</h2>
       <p>{recommendationFor?`建档后会自动确认来源影片：${recommendationFor.item.source.title}。其余影片保持原状。`:
-        referenceFor?'选择一张清晰的单人照片，校验成功后加入这位演员的参考图。':'姓名和一张清晰的单人照片齐备后，演员才可用于影片识别。'}</p></div>
+        referenceFor?replaceAssetId?'新图片校验成功后替换原图。':'选择一张清晰的单人照片，校验成功后加入这位演员的参考图。':'姓名和一张清晰的单人照片齐备后，演员才可用于影片识别。'}</p></div>
     <fieldset disabled={locked}><div className="source-form-grid">
       <label><span>{referenceFor?'搜图姓名':'姓名'}</span><input value={name} maxLength={200} required onChange={event=>{
         setName(event.target.value);searchSequence.current++;setResults(null);setSearching(false);
@@ -161,7 +162,7 @@ export default function PersonRegistration({onCreated,onCancel,referenceFor,reco
     <div className="source-create-footer">
       {pollPaused ? <Button type="button" onClick={()=>{setError('');setPollPaused(false);}}>重试查询</Button> :
         <Button variant="primary" type="submit" disabled={busy || operation!==null || reading || searching || (!request.current && (!selected || !name.trim()||Boolean(recommendationFor&&!previewReady)))}>
-          {busy?'正在提交…':request.current && !operation?'重试同一次建档':recommendationFor?'建档并确认来源':referenceFor?'确认添加图片':'确认建档'}
+          {busy?'正在提交…':request.current && !operation?'重试同一次建档':recommendationFor?'建档并确认来源':referenceFor?replaceAssetId?'确认替换图片':'确认添加图片':'确认建档'}
         </Button>}
       <Button type="button" disabled={locked} onClick={onCancel}>取消</Button>
     </div>

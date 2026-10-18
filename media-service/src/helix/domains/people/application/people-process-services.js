@@ -175,6 +175,7 @@ function createPeopleProcessServices(options) {
     registrationSignalParticipant: payload => store.createRegistrationSignalParticipant(payload),
     referenceSignalParticipant:payload=>store.createReferenceSignalParticipant(payload),
     addReference:(personId,body,actorId)=>options.imageOperations.addReference(personId,body,actorId),
+    releaseReference:(personId,assetId,body,actorId)=>options.imageOperations.releaseReference(personId,assetId,body,actorId),
     acceptRegistration,
     dismissRegistration,
   });

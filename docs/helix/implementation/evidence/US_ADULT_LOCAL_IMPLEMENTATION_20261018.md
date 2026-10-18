@@ -234,3 +234,17 @@ arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后
 - 正式HTTP作品读取随真实Owner迟发失败回滚旅程复验1 PASS（47.3秒）；当前包边界650文件/2290依赖/47包、语义2524文件/42精确豁免均PASS，P2保持130/108/224/56/144及原aggregate；固定`1dd51987b`完整Architecture Gate仍在独立物理依赖checkout执行，尚无整体PASS，不覆盖本增量。
 - Arca终态失败后的用户恢复入口、Source Handle过期等剩余恢复资格、People深度系统维护/参考图片生命周期、离线副本升级、维护剩余项及平台/UI负责人资格仍开放；当前版本不称完成。
 - 子进程夹具两次修正均记录在忽略日志：一次错误地在父Host关闭后调用旧UoW只读，另一次unref计时器导致子进程在目标边界前正常退出；修正后才计PASS。未操作NAS、生产或真实媒体。
+
+
+## 2026-10-19 US参考图库、释放与原子替换
+
+基线`4a862c3d9`后继续同一Phase，未发布。
+
+- GET人物详情发布当前owned active图片ID，头像端口按精确asset/current Reference revision只读图片；拒绝其他人物/已释放图片。头像及两处US演员选择使用版本URL，避免同URL留旧图。
+- 既有DELETE Reference路由接入People-owned image operation、独立正式commit Work/Event、Result/marker与Outbox。release不运行import/embedding；last Reference保留约束在准入及事务内分别复验。只释放图片/内部Face，不删除Person。
+- replace_image是既有People Reference Image Commit内的原子variant：先准备新图/单脸特征，事务内释放精确旧Asset/Face、写新Asset/Face及一个新Reference revision/checkpoint。迟发失败回滚后旧图/Face/head仍完整；无脸替换不改变旧图。仍无People Merge/Person停用/删除及影片自动刷新。
+- API/内部operation closed union、Decision/Result、table enum、DDL及P2来源已传播；130/108/224/56/144不变，P2 aggregate=`4c0f2063ab5142c0ae691e80c1f625b588518bb50e0a822bfba2c6f6fad8ab80`。现有路由162，construction real139/worker4046/unavailable50317，不将未实现入口算完成。
+- People图片import/特征/commit显式绑定内部图片mount的读写/sqlite/CPU资源；上传Ingress先由Root建立受控平台Root，资源投影只读现有Root。初次接线发现Root创建时机及resource schema仍为CPU，均已按精确Owner/合同修正，无旁路或silent fallback。当前真实模型Host加Image Port 4 PASS（9.2秒）；本批Owner/合同27 PASS（含事务迟发失败回滚），先前完整相关Builder63 PASS。
+- 图库弹窗接补图/替换/释放、版本围栏及失联同命令重试；UI专项12 PASS，最新全Web231 PASS/43文件，build PASS（553.54kB既有单chunk warning）。实际浏览器及跨层具体版本负责人资格仍开放。
+- 本批Service首次637 PASS/29既有skip/2失败：本地tools的ssh2缺失导致Reset/部署dry-run合同未加载；按原tools lockfile npm ci恢复后两个文件13 PASS。没有执行SSH/NAS动作；完整Service重跑677 total/648 PASS/29既有skip/0 fail，137.3秒（reference-service-all-restored.txt）；该项是本地检查点，最终固定版本资格仍需统一记录。
+- 释放Reference不立即回收二进制，已冻结Libra/Arca快照仍可读取原Artifact。完整Reference审计/到期GC、系统People Evidence正式维护、离线副本升级、维护/平台最终资格继续；未宣布US-PEOPLE或本版完成。

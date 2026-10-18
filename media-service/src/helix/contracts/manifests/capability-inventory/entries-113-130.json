@@ -356,14 +356,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/reference_fact/commit/v1",
-        "packageDigest": "9b631a3cf70e2ed4f39a5141b2956759c6718a540006c29ddf5a8dabe3e53522",
+        "packageDigest": "136aa2a3fbae28ab839dadb7a2ffd3574f8b2207ee8a3a3988c7693520a993e1",
         "effectClass": "domain_fact_commit",
         "inputSummary": "PeopleReferenceMaintenanceDecision + DomainFactCommitHandle",
         "outputFamily": "PersonReferenceRevision"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "6f05d2429ffc3ce0c1837c66e661f5f2deee5d53fd3b1aeda1d215f9cf44922a"
+        "value": "f71a8e35fbe87d92c71fc3f406f7121010e3094c7ef72b3dfa41aa15d5d5d835"
       }
     },
     {

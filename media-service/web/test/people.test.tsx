@@ -158,15 +158,18 @@ it('adds a reference to the existing US actor without creating another identity'
   vi.spyOn(helixAdminApi,'listPeople').mockResolvedValue({...projection,items:[person]});
   const register=vi.spyOn(helixAdminApi,'registerPerson');
   vi.spyOn(helixAdminApi,'addPersonReference').mockResolvedValue({operationRef:'image-update',state:'accepted'});
+  vi.spyOn(helixAdminApi,'readPersonReferences').mockResolvedValue({personId:person.personId,libraryKind:'us_adult',currentRevision:3,currentReferenceRevision:2,
+    referenceImages:[{referenceAssetId:'existing'}]});
   vi.spyOn(helixAdminApi,'getPersonImageOperation').mockResolvedValue({operationRef:'image-update',state:'completed',personId:person.personId,failureCode:null});
   render(<SessionProvider><PeoplePage/></SessionProvider>);
   fireEvent.click(await screen.findByRole('tab',{name:'US Adult 演员'}));
-  fireEvent.click(await screen.findByRole('button',{name:'补充 Sample Actor 的参考图'}));
+  fireEvent.click(await screen.findByRole('button',{name:'管理 Sample Actor 的参考图片'}));
+  fireEvent.click(await screen.findByRole('button',{name:'补充参考图'}));
   expect(screen.getByLabelText('搜图姓名')).toHaveValue('Sample Actor');
   fireEvent.change(screen.getByLabelText('上传参考图片'),{target:{files:[new File(['new-photo'],'photo.jpg',{type:'image/jpeg'})]}});
   await screen.findByRole('img',{name:'已选择的演员参考图片'});
   fireEvent.click(screen.getByRole('button',{name:'确认添加图片'}));
-  await screen.findByText('参考图片已添加。');
+  await waitFor(()=>expect(screen.queryByRole('button',{name:'确认添加图片'})).not.toBeInTheDocument());
   expect(register).not.toHaveBeenCalled();
   expect(helixAdminApi.addPersonReference).toHaveBeenCalledWith(person.personId,expect.objectContaining({expectedPersonRevision:3,expectedReferenceRevision:2,image:{kind:'upload',bytesBase64:btoa('new-photo')}}));
   vi.restoreAllMocks();

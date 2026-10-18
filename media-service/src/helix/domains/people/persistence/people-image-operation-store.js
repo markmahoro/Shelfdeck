@@ -28,11 +28,15 @@ function createPeopleImageOperationStore(options) {
     let payload, result;
     try { payload = JSON.parse(row.payload_json); result = row.result_json === null ? null : JSON.parse(row.result_json); }
     catch { fail('PEOPLE_IMAGE_OPERATION_CORRUPT', '人物建档操作记录损坏。'); }
+    const common=['schema','operationKind','expectedPersonRevision','expectedReferenceRevision','operationId','personId','actorId'],
+      release=payload.operationKind==='reference_release',replacing=payload.operationKind==='reference_replace',
+      fields=[...common,...(release?['releaseDecision']:['canonicalName','aliases','selectedImage','faceModelRef']),...(replacing?['replacedImage']:[])];
     if (row.payload_schema_ref !== 'people.image-operation-request@1' || canonicalJson(payload) !== row.payload_json || canonicalDigest(payload) !== row.payload_digest || payload.personId !== row.person_id ||
         payload.actorId !== row.actor_id || payload.operationId !== row.operation_id || payload.schema !== 'people.image-operation-request@1' ||
-        !['registration','reference_add'].includes(payload.operationKind)||!Number.isSafeInteger(payload.expectedPersonRevision)||payload.expectedPersonRevision<1||!Number.isSafeInteger(payload.expectedReferenceRevision)||payload.expectedReferenceRevision<0||
+        !['registration','reference_add','reference_release','reference_replace'].includes(payload.operationKind)||!Number.isSafeInteger(payload.expectedPersonRevision)||payload.expectedPersonRevision<1||!Number.isSafeInteger(payload.expectedReferenceRevision)||payload.expectedReferenceRevision<0||
         !['preparing', 'completed', 'failed'].includes(row.state) ||
-        Object.keys(payload).sort().join(',') !== 'actorId,aliases,canonicalName,expectedPersonRevision,expectedReferenceRevision,faceModelRef,operationId,operationKind,personId,schema,selectedImage' ||
+        Object.keys(payload).sort().join(',') !== fields.sort().join(',') ||
+        release&&(payload.releaseDecision?.operationKind!=='release_image'||['personId','actorId','expectedPersonRevision','expectedReferenceRevision'].some(key=>payload.releaseDecision[key]!==payload[key]))||
         row.state === 'completed' && (!result || row.result_schema_ref !== 'people.image-operation-result@1' || canonicalDigest(result) !== row.result_digest || result.personId !== row.person_id || row.failure_code !== null ||
           Object.keys(result).sort().join(',') !== 'personId,personRevision,referenceRevision') ||
         row.state !== 'completed' && (row.result_schema_ref !== null || row.result_digest !== null) ||

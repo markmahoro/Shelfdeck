@@ -3168,7 +3168,7 @@ CREATE TABLE "people_reference_faces" (
 CREATE TABLE "people_reference_revisions" (
   "person_id" TEXT,
   "revision" INTEGER CHECK ("revision" >= 1),
-  "operation_kind" TEXT CHECK ("operation_kind" IN ('add_image', 'release_image')),
+  "operation_kind" TEXT CHECK ("operation_kind" IN ('add_image', 'release_image', 'replace_image')),
   "reference_asset_id" TEXT,
   "reference_face_id" TEXT,
   "active_asset_set_digest" TEXT CHECK (length("active_asset_set_digest") = 64 AND "active_asset_set_digest" NOT GLOB '*[^0-9a-f]*'),

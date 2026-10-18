@@ -188,13 +188,13 @@ test('reports exact current product route construction status without crediting 
   const status = routeImplementationStatus();
   assert.deepEqual(status.counts, {
     total:162,
-    real:138,
+    real:139,
     workerBeta404: 6,
-    unavailable503: 18,
+    unavailable503: 17,
   });
   assert.equal(
     status.rows.filter((row) => row.state === 'real').length,
-    138,
+    139,
   );
 });
 

@@ -47,7 +47,9 @@ function createPeopleAdminQuery(options) {
     list,
     get(personId) {
       const result = options.store.getPerson(personId);
-      return result || null;
+      if(!result)return null;
+      const own=result.libraryKind==='us_adult'?options.store.getPersonReferenceProjection(personId)?.contributions.find(item=>item.ownerPersonId===personId):null;
+      return Object.freeze({...result,referenceImages:Object.freeze((own?.activeAssets||[]).map(item=>Object.freeze({referenceAssetId:item.referenceAssetId})))});
     },
     registrationCandidates() {
       return Object.freeze({ items:Object.freeze([]) });

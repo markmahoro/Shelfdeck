@@ -641,7 +641,7 @@
       "sourceLocator": {
         "section": "8.6.19",
         "line": 11377,
-        "lineDigest": "5eeee451eabf20b8b826ee0d0eb2c52ac3ee4e64477709e02b4af2473fc374e0"
+        "lineDigest": "c48c952c9cb19e7ce9bfcc19caa79771a43ec6047378a263f6d09e81b9586cd0"
       },
       "targetLocator": {
         "path": "types/PersonReferenceRevision/v1/schema.json"

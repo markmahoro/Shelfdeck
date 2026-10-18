@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 224,
-  "tableContractAggregateDigest": "bf8dac34d1d9d335892da3b50288e37ac240d7f7ee8cea86879b12d6e0fb9d34",
-  "ddlDigest": "4882db66c612606e24cf714018c28b7db7a5eacb8b5d4f824af1138a307cfa52",
+  "tableContractAggregateDigest": "dd58ebb05e667a4529ec35b6effa05947e93d0de7cc8bdeedeedcaff1ced0d23",
+  "ddlDigest": "33ef1d7c2f07669991a8401754f7671c92f4848db8a9c1869724bc5edf8e614c",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -4343,7 +4343,7 @@
       "tableId": "people_image_operations",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_image_operations/v1",
-      "contractDigest": "fef940cf18dd66e96b355909c409fc328c18257b00b082f39afc5d945a0db60a",
+      "contractDigest": "187b868c81658dd42ad7f68a535aeba27a95ba2adeefb4b712a5a601b8ecec69",
       "sqlDigest": "3fef64cfe3670d89f238b10431fc2bb27801fa35592b780c94ce8800c951652d",
       "columns": [
         "operation_id",
@@ -4605,8 +4605,8 @@
       "tableId": "people_reference_revisions",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_reference_revisions/v1",
-      "contractDigest": "515e346ee35b7284054723e46be7277fd695e8fea33806eb12dfdd99cc119590",
-      "sqlDigest": "ef17c97ce3c7b4dfa569be298bf7e0f6fc6b4a26a50e68e697338586957bf002",
+      "contractDigest": "3fffbafb2c6ad973b2e746d982c1361004e456a38640bbc89446c70e3f93b7fa",
+      "sqlDigest": "c3a60447d035c6f63a5e8d7fed619b85f1929b1e6bdb14181b79c9320382cdc9",
       "columns": [
         "person_id",
         "revision",

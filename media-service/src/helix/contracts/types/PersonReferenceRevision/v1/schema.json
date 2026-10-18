@@ -68,7 +68,8 @@
       "type": "string",
       "enum": [
         "add_image",
-        "release_image"
+        "release_image",
+        "replace_image"
       ]
     },
     "affectedReferenceAssetId": {

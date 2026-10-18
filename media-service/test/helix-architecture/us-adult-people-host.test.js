@@ -10,7 +10,7 @@ const { initializeCleanData } = require('../../scripts/helix-operational-safety'
 const { createCleanServiceHost } = require('../../src/clean-service-host');
 
 test('formal Host publishes a US actor only after real CPU preparation and preserves registration replay across restart', {
-  timeout: 45000,
+  timeout: 90000,
   skip: !process.env.SHELFDECK_FACE_MODEL_ROOT || !process.env.SHELFDECK_FACE_TEST_IMAGE ? 'Explicit pinned models and non-production reference image are required.' : false,
 }, async t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'us-people-host-')), dataDir = path.join(root, 'data'), adminDistDir = path.join(root, 'admin');
@@ -30,7 +30,7 @@ test('formal Host publishes a US actor only after real CPU preparation and prese
       const result = response.json(); if (result.state !== 'preparing') return result;
       await new Promise(resolve => setTimeout(resolve, 50));
     }
-    assert.fail('People image operation did not complete: ' + JSON.stringify(errors));
+    assert.fail('People image operation did not complete: ' + JSON.stringify({errorCount:errors.length,errors:errors.slice(0,10)}));
   }
   const body = { idempotencyKey: 'create-us-actor', libraryKind: 'us_adult', canonicalName: 'Test Actor', aliases: ['Test Alias','test actor','test alias'],
     image: { kind: 'upload', bytesBase64: fs.readFileSync(process.env.SHELFDECK_FACE_TEST_IMAGE).toString('base64') } };
@@ -61,12 +61,37 @@ test('formal Host publishes a US actor only after real CPU preparation and prese
   assert.deepEqual((await request('POST',editUrl+'/reference-assets',addImage)).json(),added.json());
   const duplicateImage=await request('POST',editUrl+'/reference-assets',{...addImage,idempotencyKey:'duplicate-reference',expectedReferenceRevision:2,image:body.image});
   assert.equal(duplicateImage.statusCode,409,duplicateImage.body);assert.equal(duplicateImage.json().error.code,'PEOPLE_REFERENCE_IMAGE_EXISTS');
+  const gallery=(await request('GET',editUrl)).json();assert.equal(gallery.referenceImages.length,2);
+  const old=gallery.referenceImages[0].referenceAssetId,release={idempotencyKey:'release-reference',expectedPersonRevision:2,expectedReferenceRevision:2},
+    removed=await request('DELETE',editUrl+'/reference-assets/'+old,release);
+  assert.equal(removed.statusCode,202,removed.body);assert.equal((await until(removed.json().operationRef)).state,'completed');
+  assert.deepEqual((await request('DELETE',editUrl+'/reference-assets/'+old,release)).json(),removed.json());
+  const remaining=(await request('GET',editUrl)).json();assert.equal(remaining.currentReferenceRevision,3);assert.equal(remaining.referenceImages.length,1);
+  assert.notEqual((await request('GET',editUrl+'/avatar?assetId='+old+'&revision=3')).statusCode,200);
+  const last=remaining.referenceImages[0].referenceAssetId,
+    forbidden=await request('DELETE',editUrl+'/reference-assets/'+last,{...release,idempotencyKey:'last-reference',expectedReferenceRevision:3});
+  assert.equal(forbidden.statusCode,409,forbidden.body);assert.equal(forbidden.json().error.code,'PEOPLE_LAST_REFERENCE_REQUIRED');
+  const replace={...addImage,idempotencyKey:'replace-reference',expectedReferenceRevision:3,replaceAssetId:last,
+    image:{kind:'upload',bytesBase64:(await sharp(process.env.SHELFDECK_FACE_TEST_IMAGE).resize(400).jpeg().toBuffer()).toString('base64')}},
+    replacement=await request('POST',editUrl+'/reference-assets',replace);
+  assert.equal(replacement.statusCode,202,replacement.body);assert.equal((await until(replacement.json().operationRef)).state,'completed');
+  const replaced=(await request('GET',editUrl)).json();assert.equal(replaced.currentReferenceRevision,4);assert.equal(replaced.referenceImages.length,1);
+  assert.notEqual(replaced.referenceImages[0].referenceAssetId,last);
+  assert.equal((await request('GET',editUrl+'/avatar?assetId='+replaced.referenceImages[0].referenceAssetId+'&revision=4')).statusCode,200);
+  assert.notEqual((await request('GET',editUrl+'/avatar?assetId='+last+'&revision=4')).statusCode,200);
   await host.close(); host = null; host = await create();
+  assert.deepEqual((await request('POST',editUrl+'/reference-assets',replace)).json(),replacement.json());
+  assert.equal((await request('GET',editUrl)).json().currentReferenceRevision,4);
   const replayedEdit=await request('PATCH',editUrl,edit);assert.equal(replayedEdit.statusCode,200,replayedEdit.body);
   assert.equal(replayedEdit.json().replayed,true);assert.deepEqual(replayedEdit.json().receipt,edited.json().receipt);
   assert.deepEqual((await request('GET', '/v1/admin/people/operations/' + completed.operationRef)).json(), completed);
   assert.deepEqual((await request('POST', '/v1/admin/people', body)).json(), started.json());
   const blank = await sharp({ create: { width: 640, height: 640, channels: 3, background: '#808080' } }).png().toBuffer();
+  const badReplacement=await request('POST',editUrl+'/reference-assets',{...replace,idempotencyKey:'invalid-replacement',expectedReferenceRevision:4,
+    replaceAssetId:replaced.referenceImages[0].referenceAssetId,image:{kind:'upload',bytesBase64:blank.toString('base64')}});
+  assert.equal(badReplacement.statusCode,202,badReplacement.body);assert.equal((await until(badReplacement.json().operationRef)).state,'failed');
+  const preserved=(await request('GET',editUrl)).json();assert.equal(preserved.currentReferenceRevision,4);
+  assert.deepEqual(preserved.referenceImages,replaced.referenceImages);
   const failed = await request('POST', '/v1/admin/people', { ...body, idempotencyKey: 'blank-actor', image: { kind: 'upload', bytesBase64: blank.toString('base64') } });
   assert.equal(failed.statusCode, 202, failed.body);
   const rejected = await until(failed.json().operationRef); assert.equal(rejected.state, 'failed', JSON.stringify({ rejected, errors }));
