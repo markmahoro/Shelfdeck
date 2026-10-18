@@ -44,24 +44,32 @@ it('shows a source settings link and handles a concurrent first identity lock',a
   const callbacks=mount();await query();expect(await screen.findByRole('link',{name:'连接 JAV 资料来源'})).toHaveAttribute('href','/settings');
   await query();await screen.findByText('身份已确认，整理中不能更改番号。');expect(callbacks.onRefresh).toHaveBeenCalled();expect(screen.getByLabelText('番号')).toBeDisabled();
 });
-it('configures each source independently with an explicit anonymous route and retains saved feedback',async()=>{
-  const state={kind:'jav-javdb',configured:false,configRevision:0,endpoint:null,settings:{networkRoute:{mode:'direct',proxyEndpoint:null}}} as IntegrationState;
-  const read=vi.spyOn(helixAdminApi,'getIntegration').mockResolvedValue(state),test=vi.spyOn(helixAdminApi,'testIntegration').mockResolvedValue({connectionProofId:'proof',identityProviderKey:'IPX-177',expiresAtMs:1}),
-    save=vi.spyOn(helixAdminApi,'configureIntegration').mockResolvedValue(state);render(<JavSourcesSettings onUnauthorized={vi.fn()}/>);
-  await waitFor(()=>expect(screen.getByRole('button',{name:'测试并连接'})).toBeEnabled());expect(read).toHaveBeenCalledTimes(8);
-  fireEvent.change(screen.getByLabelText('网络方式'),{target:{value:'http_proxy'}});expect(screen.getByRole('button',{name:'测试并连接'})).toBeDisabled();
-  fireEvent.change(screen.getByLabelText('代理地址'),{target:{value:'http://proxy.test:7890'}});fireEvent.click(screen.getByRole('button',{name:'测试并连接'}));
-  await screen.findByText('来源验证通过，已保存连接。');expect(test.mock.calls[0][1]).toMatchObject({credential:{kind:'anonymous'},settings:{networkRoute:{mode:'http_proxy',proxyEndpoint:'http://proxy.test:7890'}}});
-  expect(save.mock.calls[0][1]).toMatchObject({expectedConfigRevision:0,connectionProofId:'proof'});
-});
-it('keeps a rejected source disconnected and offers an editable route without leaking upstream details',async()=>{
-  const state={kind:'jav-javdb',configured:false,configRevision:0,endpoint:null,settings:{networkRoute:{mode:'direct',proxyEndpoint:null}}} as IntegrationState;
+it('tests all sources from one action with no per-site proxy controls',async()=>{
+  const state={configured:false,configRevision:0,endpoint:null} as IntegrationState;
   vi.spyOn(helixAdminApi,'getIntegration').mockResolvedValue(state);
-  vi.spyOn(helixAdminApi,'testIntegration').mockRejectedValue(new AdminApiError(502,'PLATFORM_INTEGRATION_HTTP_FAILED','private upstream response'));
-  const save=vi.spyOn(helixAdminApi,'configureIntegration');render(<JavSourcesSettings onUnauthorized={vi.fn()}/>);
-  await waitFor(()=>expect(screen.getByRole('button',{name:'测试并连接'})).toBeEnabled());fireEvent.click(screen.getByRole('button',{name:'测试并连接'}));
-  await screen.findByText('来源未通过影片和封面验证，请核对网络方式后重试。');expect(screen.queryByText('private upstream response')).not.toBeInTheDocument();
-  expect(save).not.toHaveBeenCalled();expect(screen.queryByRole('button',{name:'断开该来源'})).not.toBeInTheDocument();expect(screen.getByRole('option',{name:'JavDB · 未连接'})).toBeInTheDocument();expect(screen.getByLabelText('网络方式')).toBeEnabled();
+  const test=vi.spyOn(helixAdminApi,'testIntegration').mockResolvedValue({connectionProofId:'proof',identityProviderKey:'IPX-177',expiresAtMs:1});
+  const save=vi.spyOn(helixAdminApi,'configureIntegration').mockResolvedValue({...state,configured:true});
+  render(<JavSourcesSettings onUnauthorized={vi.fn()}/>);
+  await waitFor(()=>expect(screen.getByRole('button',{name:'一键测试并启用'})).toBeEnabled());
+  expect(screen.queryByLabelText('网络方式')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button',{name:'一键测试并启用'}));
+  await waitFor(()=>expect(save).toHaveBeenCalledTimes(8));
+  await screen.findByText('8 / 8 已启用');
+  for(const call of test.mock.calls){expect(call[1]).toMatchObject({credential:{kind:'anonymous'}});expect(call[1]).not.toHaveProperty('settings');}
+});
+it('shows precise station failures, preserves successful stations and does not print upstream content',async()=>{
+  const state={configured:false,configRevision:0,endpoint:null} as IntegrationState;
+  vi.spyOn(helixAdminApi,'getIntegration').mockResolvedValue(state);
+  vi.spyOn(helixAdminApi,'testIntegration').mockImplementation(async kind=>{
+    if(kind==='jav-javdb')throw new AdminApiError(502,'PLATFORM_INTEGRATION_HTTP_FAILED','private upstream response',{reasonCode:'JAV_SOURCE_ACCESS_DENIED',status:403});
+    return {connectionProofId:'proof',identityProviderKey:'IPX-177',expiresAtMs:1};
+  });
+  const save=vi.spyOn(helixAdminApi,'configureIntegration').mockResolvedValue({...state,configured:true});
+  render(<JavSourcesSettings onUnauthorized={vi.fn()}/>);
+  await waitFor(()=>expect(screen.getByRole('button',{name:'一键测试并启用'})).toBeEnabled());
+  fireEvent.click(screen.getByRole('button',{name:'一键测试并启用'}));
+  await screen.findByText('站点拒绝访问（HTTP 403）');await screen.findByText('7 / 8 已启用');
+  expect(save).toHaveBeenCalledTimes(7);expect(screen.queryByText('private upstream response')).not.toBeInTheDocument();
 });
 it('blocks confirmation after a failed cover display until a fresh query',async()=>{
   vi.spyOn(helixAdminApi,'previewJavIdentity').mockResolvedValue(proof);const choose=vi.spyOn(helixAdminApi,'chooseJavIdentity');mount();await query();

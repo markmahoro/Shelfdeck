@@ -30,5 +30,6 @@ function createPlatformIntegrationRuntime(options) {
 
 module.exports = Object.freeze({
   createIntegrationAdminApplication,
+  createNetworkPolicy: require('../application/network-policy').createNetworkPolicy,
   createPlatformIntegrationRuntime,
 });

@@ -71,6 +71,7 @@ function createJavSourceClient(options) {
     if (value.signal?.aborted) controller.abort();
     const dispatcher = route.mode === 'http_proxy' ? new ProxyAgent(route.proxyEndpoint) : undefined;
     const pages = [];
+    let stage = 'page';
     try {
       async function read(initialUrl, isImage = false) {
         const limit = isImage ? 16 * 1024 * 1024 : 2 * 1024 * 1024, hosts = isImage ? assetHosts : pageHosts;
@@ -140,6 +141,7 @@ function createJavSourceClient(options) {
       if (!record.identityVerified) return outcome(record.observedCode ? 'identity_mismatch' : 'not_found');
       if (!record.title) return outcome('title_missing');
       if (!record.coverUrl) return outcome('cover_missing');
+      stage = 'cover';
       const image = await read(record.coverUrl, true);
       if (image.absent) return outcome('cover_missing');
       let metadata;
@@ -163,9 +165,9 @@ function createJavSourceClient(options) {
           format: metadata.format, width: metadata.width, height: metadata.height } });
       return keepCoverBytes ? { observation: qualified, coverBytes: image.bytes } : qualified;
     } catch (error) {
-      if (error instanceof JavSourceError) throw error;
+      if (error instanceof JavSourceError) { error.details = { ...error.details, stage }; throw error; }
       if (error.code === 'JAV_SOURCE_CHARSET_INVALID') fail(error.code, 'JAV source response charset is invalid.', { retryable: false, siteRef });
-      fail(controller.signal.aborted ? 'JAV_SOURCE_TIMEOUT' : 'JAV_SOURCE_UNAVAILABLE', 'JAV source observation did not complete.', { retryable: true, siteRef });
+      fail(controller.signal.aborted ? 'JAV_SOURCE_TIMEOUT' : 'JAV_SOURCE_UNAVAILABLE', 'JAV source observation did not complete.', { retryable: true, siteRef, stage });
     } finally {
       clearTimeout(timer); value.signal?.removeEventListener('abort', cancel); await dispatcher?.close();
     }

@@ -18,7 +18,7 @@ function createJavSourceProviderAdapter(options) {
   }
   function client(snapshot, timeoutMs) {
     return createJavSourceClient({ siteRef, endpoint: snapshot.integration.endpoint,
-      networkRoute: snapshot.integration.config.settings.networkRoute, fetchImpl: options.fetchImpl, timeoutMs });
+      networkRoute: options.networkPolicy.route(), fetchImpl: options.fetchImpl, timeoutMs });
   }
   function fenced(handle, operationId, artifactKind, timeoutMs) {
     const snapshot = current(), source = client(snapshot, timeoutMs);
@@ -32,7 +32,10 @@ function createJavSourceProviderAdapter(options) {
   const observationPort = ExternalProviderObservationPort({ async execute(request) {
     if (!['libra.product_identity.evidence.observe@1', 'libra.product_metadata.fetch@1', 'shared.integration.search@1','arca.jav_correction.source.verify@1'].includes(request?.operationId))
       throw new JavSourceError('P5_PROVIDER_INPUT_INVALID', 'JAV source observation operation is unsupported.');
-    return fenced(request.integrationHandle, request.operationId, null, request.timeoutMs).observe(request.input);
+    const source = fenced(request.integrationHandle, request.operationId, null, request.timeoutMs);
+    const result = await source.observe(request.input);
+    fenced(request.integrationHandle, request.operationId, null, request.timeoutMs);
+    return result;
   } });
   async function prepareArtifact(request) {
     if (request?.operationId !== 'libra.product_artifact.acquire@1')
@@ -64,6 +67,7 @@ function createJavSourceProviderAdapter(options) {
     if(!['libra.product_identity.evidence.observe@1','shared.integration.search@1'].includes(request?.operationId))
       throw new JavSourceError('P5_PROVIDER_INPUT_INVALID','JAV preview requires its fenced identity observation operation.');
     const value=await fenced(request.integrationHandle,request.operationId,null,request.timeoutMs).observeWithCover(request.input);
+    fenced(request.integrationHandle,request.operationId,null,request.timeoutMs);
     if(!value.coverBytes)return Object.freeze({observation:value});
     const image=await require('./jav-cover-renderer').renderJavPreviewCover(value.coverBytes,value.observation.cover.byteDigest);
     return Object.freeze({observation:value.observation,...image});
@@ -72,7 +76,7 @@ function createJavSourceProviderAdapter(options) {
     normalizedEndpoint: value => runtime.profile.normalizeEndpoint(value),
     async testCandidate(candidate) {
       const source = createJavSourceClient({ siteRef, endpoint: runtime.profile.normalizeEndpoint(candidate.endpoint),
-        networkRoute: candidate.settings.networkRoute, fetchImpl: options.fetchImpl, timeoutMs: candidate.timeoutMs });
+        networkRoute: options.networkPolicy.route(), fetchImpl: options.fetchImpl, timeoutMs: candidate.timeoutMs });
       const { buildJavQueryAnchor } = require('../contracts/jav-source-contracts');
       let observation;
       try { observation = await source.observe({ queryAnchor: buildJavQueryAnchor('jav_code', runtime.profile.probeCode) }); }
@@ -88,7 +92,7 @@ function createJavSourceProviderAdapter(options) {
           JAV_SOURCE_CHARSET_INVALID: 'PLATFORM_INTEGRATION_RESPONSE_INVALID',
         }[error.code];
         if (!code) throw error;
-        throw new JavSourceError(code, 'JAV source connection test failed.', { siteRef, reasonCode: error.code });
+        throw new JavSourceError(code, 'JAV source connection test failed.', { siteRef, reasonCode: error.code, ...(error.details?.status ? { status: error.details.status } : {}), ...(error.details?.stage ? { stage: error.details.stage } : {}) });
       }
       if (observation.result !== 'qualified') throw new JavSourceError('PLATFORM_INTEGRATION_CONNECTION_TEST_FAILED', 'JAV source did not return a qualified sample.', { reasonCode: observation.result });
       const { canonicalDigest } = require('../contracts/canonical-json');

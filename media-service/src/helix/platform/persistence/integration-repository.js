@@ -196,12 +196,12 @@ function createIntegrationRepository(options) {
     const currentIntegration = repository.invoke('find_integration', {
       integration_id: value.integration.integration_id,
     });
-    if (value.integration.integration_type === 'jav_source' && value.secret === null) {
+    if (['jav_source', 'network_policy'].includes(value.integration.integration_type) && value.secret === null) {
       if (value.expectedRevision === 0) {
         if (currentIntegration) fail('PLATFORM_INTEGRATION_CAS_CONFLICT', 'JAV source initial revision already exists.');
         repository.invoke('insert_integration', value.integration);
       } else {
-        if (!currentIntegration || currentIntegration.integration_type !== 'jav_source' || currentIntegration.config_revision !== value.expectedRevision)
+        if (!currentIntegration || currentIntegration.integration_type !== value.integration.integration_type || currentIntegration.config_revision !== value.expectedRevision)
           fail('PLATFORM_INTEGRATION_CAS_CONFLICT', 'JAV source configuration revision changed.');
         const result = repository.invoke('update_integration', { ...value.integration, expected_config_revision: value.expectedRevision });
         if (result.changes !== 1) fail('PLATFORM_INTEGRATION_CAS_CONFLICT', 'JAV source commit lost its revision fence.');

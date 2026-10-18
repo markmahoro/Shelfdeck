@@ -1,5 +1,8 @@
 # ShelfDeck 当前状态
 
+2026-10-18 本轮只读现场复核生产仍bfd97f36a、RestartCount0、health ok/正常供给；未部署或修改生产配置/数据。Workspace审计发现4份superseded旧Run合计70.1595 GiB，引用仍working且无Cleanup Scope，现有回收路径返回has_workspace_references；另有35.3902 GiB历史保留/备份、约7.55 GiB当前在用，同卷外部Landing约173 GiB。UAT-322开放，只诊断未清理。用户确认的全站统一代理/JAV一键连接已在独立worktree本地实现，专项22、Service647通过/29既有skip、Web192、最终宽窄浏览器2及构建通过；具体版本UI审核继续，未宣称发布就绪。证据：[网络](implementation/evidence/GLOBAL_NETWORK_POLICY_20261018.md)、[Workspace](implementation/evidence/UAT-322_WORKSPACE_RESIDUE_AUDIT_20261018.md)。
+
+
 2026-10-18 用户决定本轮性能优化先到这里，暂停后续优化与发布。d6ef5fee3e完整副本旧/新各20轮均100 API成功、20 JS完整：概览stale 7→0，age P95 40.575→23.723秒；API P95 1.599→1.477秒，JS中位0.970→0.877秒、P95 3.214→4.995秒。响应门禁未通过，未部署。三轮诊断完成；新旧演练Host均Exit0，当前无运行中的UAT-318演练容器。候选最终历史审计未返回成功结果，不记PASS；旧版历史保护已通过。已保存代码、镜像和全部证据，UAT-318保持开放。UTC01:47只读复核生产仍原bfd97f36a容器运行、RestartCount0。详见原UAT-318 Evidence暂停记录。
 
 2026-10-16 UAT-318候选540b61cd59旧/新各20轮完成，未部署：概览stale 3→0、age P95 31.357→18.591秒；API P95 1.533→3.052秒、JS P95 3.770→5.577秒，响应门禁再次失败。正式20轮后才做三轮诊断，Inspector关闭/Host Exit0，568收藏/两条Run/Effect及历史保护通过。继续收窄原Owner内的NFO输入、Off-deck单Entry、Process取消及终态Evidence查询；无需schema迁移。Windows相关565 pass/3既有skip、Service647 pass/29既有skip；局部三轮完整输出等价。下一候选d6ef5fee3e已标准构建/上传，精确Linux85通过，完整Host旧/新20轮资格进行中。生产仍bfd97f36a，UAT-318开放。

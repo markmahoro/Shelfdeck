@@ -544,12 +544,15 @@ function createPlatformIntegrationServices(options) {
       schemaManifest: options.schemaManifest,
       unitOfWork: options.unitOfWork,
     });
+  const networkPolicy = require('./helix/platform/public/integration-runtime').createNetworkPolicy({ repository, receiptRepository, now: options.now });
+  const networkFetch = require('./helix/integrations/network-fetch').createNetworkFetch({ networkPolicy, fetchImpl: options.fetchImpl });
   const runtimes = new Map();
   const adapters = new Map();
   const admins = new Map();
   for (const profile of PROFILES) {
     const runtime = createPlatformIntegrationRuntime({
       profile,
+      networkPolicy,
       repository,
       secretStore,
       now: options.now,
@@ -562,7 +565,7 @@ function createPlatformIntegrationServices(options) {
         : undefined,
     });
     const adapter = profile.siteRef
-      ? require('./helix/integrations/jav-source-provider-adapter').createJavSourceProviderAdapter({ runtime, fetchImpl: options.fetchImpl, now: options.now })
+      ? require('./helix/integrations/jav-source-provider-adapter').createJavSourceProviderAdapter({ runtime, networkPolicy, fetchImpl: networkFetch, now: options.now })
       : profile.kind === 'tmdb'
       ? createTmdbProviderAdapter({
           integrationQueryPort: runtime.integrationQueryPort,
@@ -571,18 +574,19 @@ function createPlatformIntegrationServices(options) {
           secretLeaseResolverPort:
             runtime.secretLeaseResolverPort,
           secretLeaseConsumer: runtime.broker,
-          fetchImpl: options.fetchImpl,
+          fetchImpl: networkFetch,
           now: options.now,
         })
       : createProviderAdapter(profile.kind, {
           runtime,
-          fetchImpl: options.fetchImpl,
+          fetchImpl: networkFetch,
           now: options.now,
           doubanRequestPaceMs: options.doubanRequestPaceMs,
           doubanDelay: options.doubanDelay,
         });
     const admin = createIntegrationAdminApplication({
       profile,
+      networkPolicy,
       repository,
       secretStore,
       adapter,
@@ -607,12 +611,13 @@ function createPlatformIntegrationServices(options) {
   const javRuntime = runtimes.get('adult-provider');
   const javProductAdapter = createJavProductProviderAdapter({
     runtime: javRuntime,
-    fetchImpl: options.fetchImpl,
+    fetchImpl: networkFetch,
     now: options.now,
   });
 
   const admin = Object.freeze({
     configure(kind, body) {
+      if (kind === 'network') return networkPolicy.configure(kind, body);
       const selected = admins.get(kind);
       if (!selected) {
         throw new CleanServiceHostError(
@@ -633,6 +638,7 @@ function createPlatformIntegrationServices(options) {
       return selected.disconnect(kind, body);
     },
     get(kind) {
+      if (kind === 'network') return networkPolicy.get();
       const selected = admins.get(kind);
       if (!selected) {
         return Object.freeze({
@@ -717,6 +723,7 @@ function createPlatformIntegrationServices(options) {
   }
 
   return Object.freeze({
+    close: networkFetch.close,
     admin,
     integrationHandleResolverPort:
       tmdbRuntime.integrationHandleResolverPort,
@@ -1200,6 +1207,7 @@ function errorResponse(error, correlationId) {
     error.code === 'ADMIN_SESSION_ISSUE_INVALID'
   ) status = 400;
   else if (error.code === 'HELIX_NOT_READY') status = 503;
+  if (error.code?.startsWith('PLATFORM_NETWORK_')) status = error.code.endsWith('_CORRUPT') ? 500 : 400;
   const code = status === 500 ? 'CLEAN_SERVICE_INTERNAL_ERROR' : error.code;
   const message = status === 500 ? 'Clean Service请求处理失败。' : error.message;
   return {
@@ -2125,6 +2133,7 @@ async function createCleanServiceHost(options) {
       await Promise.all([application.stop(),runtimeOperations.waitForShutdown(options.shutdownTimeoutMs||60000)]);
       try {
         await server.close();
+        await platformIntegrations.close();
       } finally {
         constructed.close();
       }

@@ -131,7 +131,7 @@ test('JAV connection testing reports a safe upstream error and creates no proof 
       response=await host.inject({method:'POST',url:'/v1/admin/settings/integrations/'+kind+'/actions/test',headers:{cookie},payload:{kind,
         idempotencyKey:'denied-source-test',endpoint:'https://javdb.com',credential:{kind:'anonymous'},settings:{networkRoute:{mode:'direct',proxyEndpoint:null}}}});
     assert.equal(response.statusCode,502,response.body);assert.equal(response.json().error.code,'PLATFORM_INTEGRATION_HTTP_FAILED');
-    assert.deepEqual(response.json().error.details,{siteRef:'javdb',reasonCode:'JAV_SOURCE_ACCESS_DENIED'});
+    assert.deepEqual(response.json().error.details,{siteRef:'javdb',reasonCode:'JAV_SOURCE_ACCESS_DENIED',status:403,stage:'page'});
     assert.equal(response.body.includes(privateValue),false);assert.equal(response.json().connectionProofId,undefined);
     const config=await host.inject({method:'GET',url:'/v1/admin/settings/integrations/'+kind,headers:{cookie}});
     assert.equal(config.statusCode,200);assert.equal(config.json().configured,false);assert.equal(config.json().configRevision,0);
@@ -151,7 +151,7 @@ test('JAV connection testing keeps unavailable, malformed and timeout failures i
   for(const item of cases){const value=fixture(),opened=open(value,item.fetch);try{
     await assert.rejects(opened.services.admin.test('jav-javdb',{kind:'jav-javdb',idempotencyKey:'safe-'+item.name,endpoint:'https://javdb.com',timeoutMs:100,
       credential:{kind:'anonymous'},settings:{networkRoute:{mode:'direct',proxyEndpoint:null}}}),error=>{
-        assert.equal(error.code,item.code);assert.deepEqual(error.details,{siteRef:'javdb',reasonCode:item.reason});assert.equal(error.message.includes('private'),false);return true;
+        assert.equal(error.code,item.code);assert.deepEqual(error.details,{siteRef:'javdb',reasonCode:item.reason,stage:'page'});assert.equal(error.message.includes('private'),false);return true;
       });
     assert.equal(opened.services.admin.get('jav-javdb').configured,false);
   }finally{opened.kernel.close();}}
@@ -346,4 +346,25 @@ test('JAV development schema refuses an older marker before startup repair or hi
     assert.deepEqual(database.prepare('SELECT * FROM platform_schema_marker').all(),before);
     assert.equal(database.prepare('SELECT count(*) n FROM libra_product_identity_selection_intents').get().n,0);
   } finally {database.close();}
+});
+
+test('global network settings persist in real Platform storage and invalidate a JAV test proof on route change',async()=>{
+  const value=fixture(),picture=await image(),fake=transport(picture),opened=open(value,fake.fetchImpl);
+  const save=(proxyServer,expectedConfigRevision,idempotencyKey)=>opened.services.admin.configure('network',{kind:'network',settings:{proxyServer},expectedConfigRevision,idempotencyKey});
+  try {
+    const initial=opened.services.admin.get('network');assert.equal(initial.configRevision,0);
+    const proof=await opened.services.admin.test('jav-javdb',{kind:'jav-javdb',idempotencyKey:'global-proof',endpoint:'https://javdb.com',credential:{kind:'anonymous'}});
+    const saved=save('http://proxy.test:7890',0,'global-save');assert.equal(saved.configRevision,1);
+    assert.deepEqual(save('http://proxy.test:7890',0,'global-save'),saved);
+    assert.throws(()=>save('',0,'global-stale'),{code:'PLATFORM_INTEGRATION_CAS_CONFLICT'});
+    assert.throws(()=>opened.services.admin.configure('jav-javdb',{kind:'jav-javdb',idempotencyKey:'global-stale-proof',expectedConfigRevision:0,connectionProofId:proof.connectionProofId}),{code:'PLATFORM_INTEGRATION_CONNECTION_PROOF_INVALID'});
+    const next=await opened.services.admin.test('jav-javdb',{kind:'jav-javdb',idempotencyKey:'global-fresh-proof',endpoint:'https://javdb.com',credential:{kind:'anonymous'},settings:{networkRoute:{mode:'direct',proxyEndpoint:null}}});
+    opened.services.admin.configure('jav-javdb',{kind:'jav-javdb',idempotencyKey:'global-jav-save',expectedConfigRevision:0,connectionProofId:next.connectionProofId});
+    const source=opened.services.admin.get('jav-javdb');assert.deepEqual(source.settings.networkRoute,{mode:'http_proxy',proxyEndpoint:'http://proxy.test:7890'});
+    const handle=opened.services.resolveJavSourceHandle({siteRef:'javdb',operationId:'libra.product_identity.evidence.observe@1'});
+    assert.equal(handle.networkRouteDigest,canonicalDigest(source.settings.networkRoute));
+    save('',1,'global-direct');
+    await assert.rejects(opened.services.observeJavSource({siteRef:'javdb',operationId:'libra.product_identity.evidence.observe@1',integrationHandle:handle,input:{queryAnchor:buildJavQueryAnchor('jav_code','IPX-177')}}),{code:'P5_PROVIDER_HANDLE_DENIED'});
+  }finally{await opened.services.close();opened.kernel.close();}
+  const reopened=open(value,fake.fetchImpl);try{assert.equal(reopened.services.admin.get('network').configRevision,2);assert.equal(reopened.services.admin.get('network').settings.proxyServer,'');}finally{await reopened.services.close();reopened.kernel.close();}
 });

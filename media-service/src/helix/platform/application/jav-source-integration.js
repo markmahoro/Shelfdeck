@@ -69,7 +69,7 @@ function createAnonymousJavRuntime(options) {
           (input.allowedOperation==='arca.aftercare.binary_artifact.acquire@1'?!['poster','fanart'].includes(input.artifactKind):
             ['libra.product_artifact.acquire@1','arca.jav_correction.assets.prepare@1'].includes(input.allowedOperation) ? !['poster', 'fanart'].includes(input.artifactKind) : input.artifactKind !== null))
         fail('PLATFORM_INTEGRATION_HANDLE_DENIED', 'JAV source operation is not allowed.');
-      const client = javSourceTransportProfile(profile.siteRef, row.endpoint, row.config.settings.networkRoute);
+      const client = javSourceTransportProfile(profile.siteRef, row.endpoint, options.networkPolicy.route());
       return buildProductIntegrationHandle({ ...input, secretRef: null, siteRef: profile.siteRef, authMode: 'anonymous',
         endpointProfileDigest: client.endpointProfileDigest, networkRouteDigest: client.networkRouteDigest, expiresAtMs: now() + 60_000 });
     } },
@@ -131,7 +131,7 @@ function createAnonymousJavAdmin(options) {
       target(kind, body, ['kind', 'idempotencyKey', 'endpoint', 'credential'], ['settings', 'timeoutMs']);
       exact(body.credential, ['kind']);
       if (body.credential.kind !== 'anonymous') fail('PLATFORM_INTEGRATION_CREDENTIAL_INVALID', 'JAV public source requires anonymous authentication.');
-      const endpoint = profile.normalizeEndpoint(body.endpoint), sourceSettings = profile.normalizeSettings(body.settings), digest = canonicalDigest(body);
+      const endpoint = profile.normalizeEndpoint(body.endpoint), sourceSettings = profile.normalizeSettings({ networkRoute: options.networkPolicy.route() }), digest = canonicalDigest(body);
       const timeoutMs = body.timeoutMs ?? 30_000;
       if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 60_000)
         fail('PLATFORM_INTEGRATION_TEST_TIMEOUT_INVALID', 'JAV connection test timeout is invalid.');
@@ -153,7 +153,7 @@ function createAnonymousJavAdmin(options) {
       if (!Number.isSafeInteger(body.expectedConfigRevision) || body.expectedConfigRevision < 0)
         fail('PLATFORM_INTEGRATION_CAS_CONFLICT', 'JAV integration expected revision is invalid.');
       const proof = proofs.get(body.connectionProofId);
-      if (!proof || proof.expiresAtMs < now()) fail('PLATFORM_INTEGRATION_CONNECTION_PROOF_INVALID', 'JAV connection proof is missing or expired.');
+      if (!proof || proof.expiresAtMs < now() || (canonicalDigest(proof.settings.networkRoute) !== canonicalDigest(options.networkPolicy.route()))) fail('PLATFORM_INTEGRATION_CONNECTION_PROOF_INVALID', 'JAV connection proof is missing or expired.');
       return commitConfig('configure', body, { schemaRef: profile.configSchemaRef, schemaVersion: 1, kind, endpoint: proof.endpoint,
         secretRef: null, credentialKind: 'anonymous', capabilityCodes: [...profile.capabilityCodes], lastTestSummary: proof.summary, settings: proof.settings }, 'active');
     },

@@ -16240,3 +16240,23 @@ AcquisitionCandidates保持最多100项、完整JCS≤256 KiB，作为Libra-owne
 | `libra_acquisition_candidate_evidence` | `record_id PK, libra_run_id FK, search_work_id FK, search_event_id FK, search_event_attempt_id FK UNIQUE, run_execution_basis_digest, evidence_schema_ref, evidence_json, evidence_digest, record_schema_ref, record_json, record_digest, observed_at_ms` | immutable；evidence JSON上限`256 KiB`；record JSON上限`4 KiB`；`INDEX(libra_run_id,record_id)` |
 
 Foundation保持Result及Evidence各≤64 KiB。pure_observation成功输出在落库前校验UTF-8 JCS字节上限，超限以稳定contract failure结束原Attempt并按既有Owner/Incident收口，不留下无执行器的executing，也不截断Evidence；非pure已提交Effect仍沿既有completion/reconcile合同。
+
+## 2026-10-18 全站网络代理与 JAV 批量连接修订（用户已确认）
+
+用户确认：全站统一配置网络代理；JAV 资料站列表提供一键测试并启用；不提供逐站代理覆盖；失败说明具体原因。
+此决定替代此前将网络方式作为每站用户设置的交互，不改变资料的 Domain Owner、单站 Qualification、番号匹配、
+封面资格、来源优先顺序或 Collection Handoff。
+
+- Platform 通过既有 Admin Integration GET/PATCH（kind=`network`）维护唯一 network policy。复用 Platform-owned
+  `platform_integrations` 的 `network-main` 行（type=`network_policy`，endpoint=`system://network`）存储 closed config
+  `schemaVersion/configRevision/proxyServer/lastCommand`；它是技术设置，不是 External Provider 或业务对象。
+  PATCH 采用 revision CAS、精确 idempotency key/request digest 和既有 Platform command Receipt。无需新表、route 或 Capability。
+- 所有产品 Integration 的 HTTP(S)请求（TMDB、JAV 页面/封面、豆瓣、MoviePilot、Emby 等）使用同一 Platform policy 驱动的
+  transport；本机 loopback 与显式私网 IP 保持直连。用户界面与执行路径均不提供逐站代理覆盖；历史 Integration 配置中的代理字段
+  不再决定当前 transport。无 policy 时为明确的默认直连；旧 TMDB 代理仅作为设置页待保存草稿，不静默迁移或在 GET 时写入。
+  后续部署必须在恢复供给前显式保存全站 policy，不能误把草稿当作当前已生效配置。
+- JAV Integration Handle 与 Qualification 继续绑定实际 networkRouteDigest。测试 Proof 冻结当次全站 route，保存前重验；
+  route 变更后旧 Proof/Handle 明确失效，不能沿旧路由或改站续接。对已开始的 Observation 在返回前再次核验 Handle。
+- 一键操作只批量调用既有逐站 test/configure，最多两个并行；每站独立的 Proof、CAS 和持久 Receipt 保持，不伪造全体原子成功。
+  单站失败不撤销其他成功来源、不静默断开既有来源；展示各站真实结果和安全的原因/HTTP status/page-or-cover stage。
+  不输出远端响应正文或凭据，不因网络失败切换资料站来冒充该站成功。
