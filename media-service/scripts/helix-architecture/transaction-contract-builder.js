@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 
 const crashFixtures = Object.freeze({
+  'us-adult-match-completion':['exact Run/Basis and full durable Match Result validation, completion row, before and after COMMIT','Completion is immutable and all-or-none; absent or failed pages never become an unmatched decision; no cross-Owner or execution writes',8821],
   'us-adult-actor-choice':['Run/Subject/choice revision validation, immutable Intent and head CAS, Command Receipt/marker/audit, before and after COMMIT','The explicit actor choice and durable receipt are all-or-none; replay precedes later Run/People changes; no People or Arca mutation',8821],
   'jav-correction-recovery-intent':['current Owner/Control and terminal execution validation, prior recovery digest CAS, Intent/Command Receipt/marker/audit writes, before and after COMMIT',
     'Recovery Intent and current lineage/state changes are all-or-none; prior failed execution, successful Results, collection and video are unchanged; replay precedes current-state checks; unresolved execution or unknown conflicts reject admission',8755],
@@ -199,6 +200,7 @@ const definitions = Object.freeze({
   },
   'US Adult Analysis Basis Freeze':{commitClass:'domain_unit_of_work',writeTables:['libra_us_adult_analysis_bases','libra_us_adult_reference_pages'],readTables:['libra_runs','libra_product_fact_revisions','libra_workspaces'],fixtureRefs:['us-adult-analysis-basis'],hasOutbox:false,commitMarkerRequired:false},
   'US Adult Actor Choice Intent':{commitClass:'domain_unit_of_work',writeTables:['libra_us_adult_actor_choice_intents','libra_us_adult_actor_choice_heads','fx_command_receipts','fx_commit_markers','fx_audit_records'],readTables:['libra_runs','libra_subjects'],fixtureRefs:['us-adult-actor-choice'],hasOutbox:false},
+  'US Adult Match Completion Freeze':{commitClass:'domain_unit_of_work',writeTables:['libra_us_adult_match_completions'],readTables:['libra_runs','libra_us_adult_analysis_bases'],fixtureRefs:['us-adult-match-completion'],hasOutbox:false,commitMarkerRequired:false},
   'People Profile Update': {commitClass:'domain_unit_of_work',writeTables:['people_persons','people_person_revisions','people_aliases','people_provider_identities','fx_command_receipts','fx_commit_markers','fx_audit_records'],readTables:['people_persons','people_person_revisions'],fixtureRefs:['people-profile-update'],hasOutbox:false},
   'Perception Acquisition Resume Intent': {commitClass:'domain_unit_of_work',writeTables:['perception_acquisition_resume_intents','fx_command_receipts','fx_commit_markers','fx_audit_records'],readTables:['perception_sources','perception_acquisitions'],fixtureRefs:['perception-acquisition-resume'],hasOutbox:false},
   'Direct Person Registration': {

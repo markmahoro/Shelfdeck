@@ -4,7 +4,7 @@ const { canonicalDigest } = require('../../../src/helix/contracts/canonical-json
 // Persistence fixtures consume already validated producer results. Real inference is tested separately.
 function initialReference(personId, actorId = 'admin-1') {
   const artifactDigest = canonicalDigest({ personId, kind: 'validated-reference-image' });
-  const modelRef = canonicalDigest({ model: 'opencv-yunet-2023mar-sface-2021dec@1' });
+  const modelRef = require('../../../src/helix/contracts/us-adult-face-model').faceModelReference('single_reference_face').digest;
   const imageHandle = { schemaRef: 'helix://contracts/types/ArtifactHandle/v1', schemaVersion: 1,
     artifactHandleId: 'image-' + personId, artifactKind: 'reference-image', ownerDomain: 'people',
     ownerScope: { scopeType: 'person', scopeId: personId }, storageRef: 'fixture:' + personId,

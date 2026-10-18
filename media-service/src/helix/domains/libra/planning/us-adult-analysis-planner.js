@@ -45,7 +45,8 @@ function createUsAdultAnalysisPlanner(options) {
     if (request.workId !== work.workId) throw new Error('US Adult analysis Work differs from the frozen reference page.');
     const node = (name, capabilityRef, inputBindings, dependencies = []) => {
       const manifest = options.registry.resolve(capabilityRef, 'libra').manifest, policy = options.policyRegistry.bindingFor(capabilityRef, manifest.effectClass),
-        eventId = stable('libra-us-adult-' + name + '-event-', {attempt:request.workAttemptId}), resourceKinds = ['cpu', 'disk_io'],
+        eventId = stable('libra-us-adult-' + name + '-event-', {attempt:request.workAttemptId}),
+        resourceKinds = capabilityRef===FRAME?['cpu','disk_io']:capabilityRef===EMBED?['compute_device','cpu','disk_io']:['compute_device','cpu'],
         resourceDemand = {resourceKinds};
       return Object.freeze({nodeId:name, eventId, capabilityRef, contractVersion:1,
         inputBindingsSchemaRef:manifest.parametersSchemaRef.replace(/\/parameters$/, '/inputs'),
@@ -65,9 +66,9 @@ function createUsAdultAnalysisPlanner(options) {
       const extracted = node('frames', FRAME, [owner('physicalMaterialReadHandleOrWorkspaceMaterialHandle', request, PROJECTIONS.source, parameters),
         owner('samplingPlan', request, PROJECTIONS.sampling, parameters), owner('workspaceArtifactOutputTarget', request, PROJECTIONS.target, parameters)]),
         embedded = node('embedding', EMBED, [projected('artifactHandleList', extracted, PROJECTIONS.frameList),
-          owner('faceModelRef', request, PROJECTIONS.model, parameters)], ['frames']),
+          owner('faceModelRef', request, PROJECTIONS.model, parameters)], [{eventId:extracted.eventId,satisfaction:'success'}]),
         clustered = node('clustering', CLUSTER, [{portName:'faceEmbeddingSetHandle', bindingKind:'event_result', eventId:embedded.eventId,
-          resultSchemaRef:resultRef(EMBED)}, owner('clusterParameters', request, PROJECTIONS.cluster, parameters)], ['embedding']);
+          resultSchemaRef:resultRef(EMBED)}, owner('clusterParameters', request, PROJECTIONS.cluster, parameters)], [{eventId:embedded.eventId,satisfaction:'success'}]);
       nodes = [extracted, embedded, clustered];
     } else nodes = [node('reference_match', MATCH, [owner('faceClusterSetHandle', request, PROJECTIONS.clusters, parameters),
       owner('personReferenceProjectionList', request, PROJECTIONS.references, {...parameters, pageOrdinal})])];

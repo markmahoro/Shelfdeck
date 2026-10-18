@@ -6,13 +6,24 @@
   "endOrdinal": 143,
   "entries": [
     {
+      "id": "arca_inventory_related_references",
+      "owner": "arca",
+      "columnsContract": "`shelf_entry_id FK, inventory_revision, reference_id, primary_ordinal, role, reference_kind(shared_external|historical_provenance), material_identity_hint, endpoint_id, location, checksum_hex`",
+      "constraintsContract": "`PK(shelf_entry_id,inventory_revision,reference_id)`；只允许无法被单一Candidate独占的shared external reference或已完成处置后的historical provenance；Movie首次On-deck后的active Inventory不得用本表承载仍位于Material Field的exclusive Related。last-reference计算只使用active Inventory revisions及真正shared reference，不得把本表当作跳过Input Settlement的兼容路径",
+      "source": {
+        "section": "8.5.12",
+        "line": 9614,
+        "lineDigest": "6604a783a1b7427330bc1bb9da8be0cd348192cc2bd42cc2b63ff2c951da0fa2"
+      }
+    },
+    {
       "id": "arca_inventory_product_facts",
       "owner": "arca",
       "columnsContract": "`shelf_entry_id FK, inventory_revision, fact_kind, fact_revision, fact_schema_ref, fact_json, episode_metadata_schema_ref NULL, episode_metadata_json NULL, fact_digest, source_package_id, provenance_digest, committed_at_ms`",
       "constraintsContract": "Fact JSON上限`64 KiB`；`PK(shelf_entry_id,inventory_revision,source_package_id,fact_kind,fact_revision)`；Series追加的每批Accepted Fact保留原始fact_revision/JSON/digest及source_package_id，禁止覆盖旧集资料或将不同Package的同revision误判同Fact；Arca保存Accepted Product Fact snapshot，不运行时回读Libra Store",
       "source": {
         "section": "8.5.12",
-        "line": 9613,
+        "line": 9615,
         "lineDigest": "bc8bee31041cf988c883ac7c8e019787ad2d88cffedc81bf586dbc0987e8f5c2"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "`PK(shelf_entry_id,inventory_revision,relation_id)`；同一relation lineage可在新Inventory revision保留relationId；`person_id IS NULL`是合法未注册关系；Provider JSON上限`4 KiB`且digest匹配；`UNIQUE(shelf_entry_id,inventory_revision,relation_digest)`；`INDEX(person_id,role,shelf_entry_id)`供People/Off-deck只读Projection；Aftercare只能按`6.6.2.1`确定性Evidence发布新Inventory revision，不原地PATCH历史row",
       "source": {
         "section": "8.5.12",
-        "line": 9614,
+        "line": 9616,
         "lineDigest": "71a12e530d699cd8186a5ec1f7b56ab0b95cb0a27a1eb9d6575f24e04b4f968d"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "`PK(shelf_entry_id,revision)`；只有On-deck Commit可写active Deck Fact",
       "source": {
         "section": "8.5.12",
-        "line": 9615,
+        "line": 9617,
         "lineDigest": "5fd9656b5a8d03c03e87964767d6f65267f763a59efd428706f1835e6885cb76"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "`UNIQUE(on_deck_run_id)`；只有全部Candidate Material Disposition成员均已`carried_forward|replaced_and_settled`且最终承载位于Shelf Target时才可建立；与On-deck Canonical Fact set同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 9616,
+        "line": 9618,
         "lineDigest": "5217419226d3ef0b359a62ecc5f2f1fd5c0a7b15dc644494cf54759febf8fe29"
       }
     },
@@ -56,7 +67,7 @@
       "constraintsContract": "`UNIQUE(on_deck_run_id)`；immutable Outbox source",
       "source": {
         "section": "8.5.12",
-        "line": 9617,
+        "line": 9619,
         "lineDigest": "a2d89572372aab45d8ef9f52b7386f3a46b333393352549fdcd3de1efbe66846"
       }
     },
@@ -67,7 +78,7 @@
       "constraintsContract": "`INDEX(shelf_entry_id,care_basis_digest,assessment_kind,assessed_at_ms)`；`INDEX(result,assessed_at_ms)`；同一Care Basis允许每日/每周或用户触发形成多次immutable Assessment history，`assessment_id`必须覆盖确定性cycle identity并承担重放幂等；同Inventory/Standard下Decision Fact或Placement变化仍可形成新Assessment；同一Endpoint或Provider故障以稳定`incident_key`聚合，不复制为大量独立损坏Case",
       "source": {
         "section": "8.5.12",
-        "line": 9618,
+        "line": 9620,
         "lineDigest": "4a1b31bb5c44ed0d86443ffbbb1c90c5648b6f6708d0e8675d5a4cdd55598816"
       }
     },
@@ -78,7 +89,7 @@
       "constraintsContract": "`INDEX(state,repairability,severity,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9619,
+        "line": 9621,
         "lineDigest": "2d8dd47bea6e2d8bb59708cdf5e919dd788c4a77c0c09dc14b036a62f3def09f"
       }
     },
@@ -89,7 +100,7 @@
       "constraintsContract": "两个JSON各上限`64 KiB`；同一`care_basis+finding_set+requirement`下`case_generation`从1连续递增，`trigger_digest`冻结实际Health Assessment Work与其Basis，同一trigger重放必须返回同一Case且不得重复产生Work或物理效果；相同`care_basis+finding_set+requirement`至多一个non-terminal Case；同一`shelf_entry_id`至多一个`terminal_at_ms IS NULL`的queued或active Case。queued和active时三个terminal列全NULL；`resolved|invalidated|unresolved`时三个terminal列全非NULL并write-once，必须保存精确reason和Evidence。terminal Case不会因相同trigger静默重开；新的Assessment trigger或显式用户Retry才可在相同Basis建立下一generation。Supporting Work通过Foundation反向关联；`UNIQUE(shelf_entry_id,care_basis_digest,finding_set_digest,care_requirement_digest,case_generation)`；`UNIQUE(shelf_entry_id,trigger_digest)`；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9620,
+        "line": 9622,
         "lineDigest": "1462034212665a0473b1359938383607ca7fcd895ffc81959919117e287ee546"
       }
     },
@@ -100,7 +111,7 @@
       "constraintsContract": "preview proof固定`helix://contracts/application-types/ArcaJavCorrectionPreviewProof/v1`、JCS≤2 MiB；完整Arca Basis/新Proposal/精确旧新路径/target reality不可更新，受理不发布新Canonical Fact、不产生文件副作用。`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；`UNIQUE(shelf_entry_id) WHERE terminal_at_ms IS NULL OR cleanup_state IN (pending,active,attention_required)`；`INDEX(shelf_entry_id,state)`。仅state/state_revision/terminal evidence/timestamps可expected-state/revision CAS；admitted→active/cancelled，active→attention_required/committed，attention_required→active/cancelled；已开始正式文件Effect时不得cancelled，须恢复同一scope。terminal时Evidence/timestamp整体write-once；成功事实必须由独立Correction Inventory Commit提交，禁止以状态变化冒充成功",
       "source": {
         "section": "8.5.12",
-        "line": 9621,
+        "line": 9623,
         "lineDigest": "c9cc49a94559d3d822cca6023cf8bac05b731a23780d92a8f1b7068db035e607"
       }
     },
@@ -111,7 +122,7 @@
       "constraintsContract": "immutable；完整Receipt固定`helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1`、JCS≤16 KiB；完整Observation固定`helix://contracts/application-types/ArcaJavCorrectionRecoveryObservation/v1`、JCS≤1 MiB，保留实际有界执行Snapshot和逐文件/目录现场证明；摘要必须与Receipt及Correction当前指针一致。`UNIQUE(receipt_digest)`；`INDEX(correction_id,created_at_ms)`；与新Intent受理、当前指针/CAS、Command Receipt/marker/audit同事务写入；后续恢复追加历史，不覆盖旧Observation。",
       "source": {
         "section": "8.5.12",
-        "line": 9622,
+        "line": 9624,
         "lineDigest": "c0e62f8accef65a2d067a30118426a00ec065729eda98a7d2109399b5b93c003"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "`PK(aftercare_case_id,input_kind,owner_domain,aggregate_type,aggregate_id)`；关系化保存Standard/Placement/Identity/Inventory/Decision Fact/Package provenance；Case创建后immutable",
       "source": {
         "section": "8.5.12",
-        "line": 9623,
+        "line": 9625,
         "lineDigest": "9a6e19b4a4dba41dc09a9e4e01a3e8e57e4dc24cd867cfeda812fc6fd56ae111"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "`UNIQUE(aftercare_case_id,settlement_scope_digest)`；只为`auto_repair`且确定性安全的精确替代Scope派生，不新增用户Authorization",
       "source": {
         "section": "8.5.12",
-        "line": 9624,
+        "line": 9626,
         "lineDigest": "63f9a9b819ac2f8124994b0037d4976ead18d94ec13813c50a0733ba454ef2fa"
-      }
-    },
-    {
-      "id": "arca_aftercare_inventory_commits",
-      "owner": "arca",
-      "columnsContract": "`inventory_commit_id PK, aftercare_case_id FK, shelf_entry_id FK, previous_inventory_revision, new_inventory_revision, control_change_digest, commit_digest, committed_at_ms`",
-      "constraintsContract": "`UNIQUE(aftercare_case_id,new_inventory_revision)`；与Inventory revision及Control acquire/release同事务成立",
-      "source": {
-        "section": "8.5.12",
-        "line": 9625,
-        "lineDigest": "39a54eb54b9c4193ca09a82b33d12a9d6a6d92a1248b5e8cb4ed534c74700a46"
       }
     }
   ]

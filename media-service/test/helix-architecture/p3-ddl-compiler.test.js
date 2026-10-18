@@ -11,13 +11,13 @@ const { readFrozenTableContracts } = require('../../scripts/helix-architecture/p
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = readFrozenTableContracts(contractsRoot);
 
-test('compiles all 216 frozen contracts deterministically without legacy schema artifacts', () => {
+test('compiles all 217 frozen contracts deterministically without legacy schema artifacts', () => {
   const first = compileSchema(contracts);
   const second = compileSchema([...contracts].reverse());
-  assert.equal(first.manifest.tableCount, 216);
+  assert.equal(first.manifest.tableCount, 217);
   assert.equal(first.ddl, second.ddl);
   assert.equal(first.manifest.ddlDigest, second.manifest.ddlDigest);
-  assert.equal((first.ddl.match(/CREATE TABLE/g) || []).length, 216);
+  assert.equal((first.ddl.match(/CREATE TABLE/g) || []).length, 217);
   assert.doesNotMatch(first.ddl, /\b(?:nexora_|kairox_|CREATE\s+(?:VIEW|TRIGGER)|MIGRAT)/i);
 });
 
@@ -27,7 +27,7 @@ test('retains the exact P2 contract digest for every generated table trace', () 
     JSON.parse(fs.readFileSync(path.join(contractsRoot, 'manifests', relativePath), 'utf8')).entries
   ).map((entry) => [entry.id, entry.contract.contractDigest]));
   const actual = compileSchema(contracts).manifest.tables;
-  assert.equal(expected.size, 216);
+  assert.equal(expected.size, 217);
   for (const table of actual) assert.equal(table.contractDigest, expected.get(table.tableId), table.tableId);
 });
 

@@ -45,7 +45,7 @@ function expectedCatalog(manifest) {
 
 function assertManifest(manifest, ddl) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.compilerContract !== 'helix-p3-deterministic-sqlite-ddl/v1' ||
-      ![200,204,210,211,212,214,216].includes(manifest.tableCount) || !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount) {
+      ![200,204,210,211,212,214,216,217].includes(manifest.tableCount) || !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount) {
     fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'The clean schema manifest is incomplete or unsupported.');
   }
   if (manifest.digestAlgorithm !== 'sha256' || digest(normalizedDdl(ddl)) !== manifest.ddlDigest) {
@@ -131,7 +131,7 @@ function assertGuardConsistency(database, manifest) {
   ];
   // Historical copy-verification kernels retain their exact frozen schema.
   // The library guard exists only in the explicitly supported US schema versions.
-  if ([211,212,214,216].includes(manifest.tableCount)) checks.push({
+  if ([211,212,214,216,217].includes(manifest.tableCount)) checks.push({
     name:'people-provider-library',
     sql:'SELECT COUNT(*) count FROM people_provider_identities i JOIN people_persons p ON p.person_id=i.person_id WHERE i.library_kind<>p.library_kind',
   });

@@ -2,10 +2,10 @@
 const {buildUsAdultAnalysisBasis} = require('../model/us-adult-analysis-basis');
 const {readSourceMediaObservations} = require('../planning/source-media-observations');
 const {sourceMediaObservationWork} = require('../planning/media-production-work');
-const {frameWork, matchWork, exactResult, pickCompleteMatch, CLUSTER, MATCH} = require('../model/us-adult-analysis-work');
+const {frameWork, matchWork, exactResult, pickCompleteMatch, CLUSTER, MATCH, EMBED} = require('../model/us-adult-analysis-work');
 
 function createUsAdultAnalysisCoordinator(options) {
-  if (!options?.usAdultAnalysisStore || typeof options.submit !== 'function' || !options.workResultReader || !options.peopleReferenceQuery) {
+  if (!options?.usAdultAnalysisStore || !options.usAdultMatchCompletionStore || typeof options.submit !== 'function' || !options.workResultReader || !options.peopleReferenceQuery) {
     throw new TypeError('US Adult analysis coordination requires Libra persistence, Work admission and formal People queries.');
   }
   function advance(snapshot, work, phase) {
@@ -17,6 +17,17 @@ function createUsAdultAnalysisCoordinator(options) {
   return Object.freeze({reconcile(snapshot, resolvedIdentity, workspace) {
     if (snapshot.spec.contentProfile !== 'western_adult' || resolvedIdentity.factValue.contentProfile !== 'western_adult' ||
         workspace.libraRunId !== snapshot.run.libraRunId) throw new TypeError('US Adult analysis requires one same-Run formal Identity and Workspace.');
+    const completed=options.usAdultMatchCompletionStore.getByRun(snapshot.run.libraRunId);
+    if(completed){
+      const basis=options.usAdultAnalysisStore.getByRun(snapshot.run.libraRunId);
+      if(!basis||basis.basisDigest!==completed.analysisBasisDigest||basis.resolvedIdentityDigest!==resolvedIdentity.factValue.identityDigest)
+        throw new Error('Completed US analysis differs from its frozen Run identity or Basis.');
+      const winner=completed.winner&&Object.freeze({personSnapshot:completed.winner.personSnapshot,
+        match:completed.winner.personMatchEvidence.matches[0],pageOrdinal:completed.winner.pageOrdinal,
+        record:exactResult(options,matchWork(snapshot,basis,completed.winner.pageOrdinal),MATCH)});
+      return Object.freeze({kind:winner?'matched':'unmatched',phase:'us_adult_actor_matching',libraRunId:snapshot.run.libraRunId,
+        basis,frameWork:frameWork(snapshot,basis),completion:completed,winner});
+    }
     const sourceWork = sourceMediaObservationWork(snapshot), probing = advance(snapshot, sourceWork, 'us_adult_source_probe');
     if (probing) return probing;
     let basis = options.usAdultAnalysisStore.getByRun(snapshot.run.libraRunId);
@@ -41,8 +52,10 @@ function createUsAdultAnalysisCoordinator(options) {
       pages.push(options.usAdultAnalysisStore.readPage(basis.analysisId, ordinal)); results.push(exactResult(options, work, MATCH));
     }
     const winner = pickCompleteMatch({basis, pages, results, clusterResult:clusterRecord.result});
+    const completion=options.usAdultMatchCompletionStore.freeze({basis,pages,results,clusterRecord,
+      embeddingRecord:exactResult(options,frames,EMBED)});
     return Object.freeze({kind:winner ? 'matched' : 'unmatched', phase:'us_adult_actor_matching', libraRunId:snapshot.run.libraRunId,
-      basis, frameWork:frames, clusterRecord, results:Object.freeze(results), winner});
+      basis, frameWork:frames, clusterRecord, results:Object.freeze(results), winner,completion});
   }});
 }
 module.exports = Object.freeze({createUsAdultAnalysisCoordinator});

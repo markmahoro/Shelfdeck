@@ -156,6 +156,7 @@ const NULLABLE_COLUMN_OVERRIDES = new Set([
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'libra_us_adult_reference_pages.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
+  'libra_us_adult_match_completions.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
   'libra_us_adult_actor_choice_heads.intent_id':['libra_us_adult_actor_choice_intents','intent_id'],
   'arca_jav_correction_recovery_intents.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
   'arca_jav_correction_directory_checks.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
@@ -316,6 +317,7 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
 const JSON_LIMIT_OVERRIDES = Object.freeze({
   'libra_us_adult_reference_pages.page_json':1024*1024,
   'libra_us_adult_actor_choice_intents.record_json':256*1024,
+  'libra_us_adult_match_completions.completion_json':256*1024,
   'libra_acquisition_candidate_evidence.evidence_json':262144,
   'libra_acquisition_candidate_evidence.record_json':4096,
   'arca_jav_identity_corrections.preview_proof_json': 2 * 1024 * 1024,

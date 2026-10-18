@@ -3,15 +3,25 @@
   "mapId": "helix.ssot-contract-source-map",
   "category": "transactions",
   "startOrdinal": 55,
-  "endOrdinal": 55,
+  "endOrdinal": 56,
   "entries": [
+    {
+      "id": "Off-deck terminal",
+      "owner": "arca",
+      "atomicFactSet": "全部Deletion Evidence核对后的Deck Fact terminal + Control release + terminal receipt",
+      "source": {
+        "section": "8.5.4",
+        "line": 8863,
+        "lineDigest": "7dd0033bbb591666aee306f1ac5ec4ea1a987112608dc13ab5e84d5eb1cf0332"
+      }
+    },
     {
       "id": "Shelf Deregistration Commit",
       "owner": "arca",
       "atomicFactSet": "Shelf/Shelf Entry administrative terminal facts + Shelf routing projection revision/digest CAS + precise Control release + release receipt",
       "source": {
         "section": "8.5.4",
-        "line": 8863,
+        "line": 8864,
         "lineDigest": "1ac2e4b2302ce105295e044d2aa5a8d64d18c823254c007fe20ecf8916b39073"
       }
     }

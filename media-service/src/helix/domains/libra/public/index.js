@@ -42,6 +42,7 @@ const { createProductIdentitySelectionService } = require('../application/produc
 const { createMovieProductionReader } = require('../persistence/movie-production-reader');
 const {createUsAdultAnalysisStore} = require('../persistence/us-adult-analysis-store');
 const {createUsAdultActorChoiceStore} = require('../persistence/us-adult-actor-choice-store');
+const {createUsAdultMatchCompletionStore} = require('../persistence/us-adult-match-completion-store');
 const {createUsAdultActorChoiceCommand} = require('../capabilities/us-adult-actor-choice-command');
 const {createUsAdultAnalysisPlanner, createUsAdultAnalysisProjections} = require('../planning/us-adult-analysis-planner');
 const {createUsAdultAnalysisCapabilityPorts, createUsAdultAnalysisCapabilityRegistrations, EFFECTS:US_ANALYSIS_EFFECTS} =
@@ -260,9 +261,10 @@ function createExecutionRegistration() {
       const usAdultAnalysisStore=createUsAdultAnalysisStore(options);
       const productIdentitySelection=createProductIdentitySelectionService({...options,movieProductionReader});
       const libraRunAdminService=createLibraRunAdminService({...options,libraRunExecutionProjection,pipelineAdmission});
+      const usAdultMatchCompletionStore=createUsAdultMatchCompletionStore(options);
       const usAdultActorChoiceStore=createUsAdultActorChoiceStore(options),
         usAdultActorChoice=createUsAdultActorChoiceCommand({...options,movieProductionReader,usAdultActorChoiceStore});
-      const runCoordinator=createLibraRunCoordinator({...options,movieProductionReader,usAdultAnalysisStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
+      const runCoordinator=createLibraRunCoordinator({...options,movieProductionReader,usAdultAnalysisStore,usAdultMatchCompletionStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
         resolveFrozenRun:libraRunAdminService.reconcileFrozen,
         resolveRejectedRun:libraRunAdminService.reconcileRejected,
         waitUnavailableStrategy:libraRunAdminService.waitUnavailableStrategy,
@@ -282,7 +284,7 @@ function createExecutionRegistration() {
       return Object.freeze({sourceFairness,offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
         libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore,usAdultAnalysisStore,
-        usAdultActorChoiceStore,usAdultActorChoice});
+        usAdultActorChoiceStore,usAdultActorChoice,usAdultMatchCompletionStore});
     },
     createPlanningRegistration(options) {
       const productDeliveryAssembler=options.productDeliveryAssembler||createProductDeliveryAssembler(options);

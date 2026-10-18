@@ -2754,6 +2754,22 @@ CREATE TABLE "libra_us_adult_analysis_bases" (
   FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "libra_us_adult_match_completions" (
+  "analysis_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "completion_schema_ref" TEXT,
+  "completion_json" TEXT,
+  "completion_digest" TEXT CHECK (length("completion_digest") = 64 AND "completion_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("libra_run_id"),
+  CHECK (json_valid("completion_json")),
+  CHECK (length(CAST("completion_json" AS BLOB)) <= 262144),
+  FOREIGN KEY ("analysis_id") REFERENCES "libra_us_adult_analysis_bases" ("analysis_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_us_adult_reference_pages" (
   "analysis_id" TEXT,
   "page_ordinal" INTEGER CHECK ("page_ordinal" >= 0),

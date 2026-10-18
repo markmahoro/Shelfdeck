@@ -82,6 +82,7 @@ function validateDomainInputSchemas(options) {
     }
     const exactIdentityFields = {
       PeopleCandidateAcceptanceDecision: ['decisionId', 'expectedCandidateRevision', 'candidatePayloadDigest', 'decisionDigest'],
+      UsAdultMatchCompletion:['analysisId','matchResultSetDigest','completionDigest'],
       UsAdultActorChoiceReceipt:['intentId','choiceRevision','recordDigest'],
       UsAdultActorChoiceRecord:['intentId','subjectId','recordDigest'],
       UsAdultActorChoiceDecision:['decisionId','record','decisionDigest'],
@@ -211,7 +212,7 @@ function validateDomainInputSchemas(options) {
   for (const name of usages.keys()) {
     if (!ids.has(name)) findings.push(finding('MISSING_DOMAIN_INPUT_TYPE', 'Catalog input reference has no schema.', { entryId: name }));
   }
-  const facadeOnlyTypes = new Set(['UsAdultActorChoiceReceipt','UsAdultActorChoiceRecord','UsAdultActorChoiceDecision','UsAdultAnalysisBasis','UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
+  const facadeOnlyTypes = new Set(['UsAdultMatchCompletion','UsAdultActorChoiceReceipt','UsAdultActorChoiceRecord','UsAdultActorChoiceDecision','UsAdultAnalysisBasis','UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
     'ResolvedProviderIdentity', 'ProductStructureSnapshot', 'ProductConformanceFactSnapshot', 'ProductionMaterialManifest',
     'ArtifactManifest', 'ArtifactConformanceVerificationSnapshot', 'ProductInventoryConformanceSnapshot',
     'WorkspaceArtifactOutputTarget', 'ShelfAcceptancePrimaryReadSet',
