@@ -146,9 +146,18 @@ function createUsAdultActorPipelinePorts(options){
         catch(error){if(error.code==='P3_JCS_NON_JSON_VALUE'&&typeof error.details?.path==='string')
           error.message+=' Actor Inventory field: '+error.details.path;throw error;}
       }
-      const manifest=snapshot.stages.stage?.record?.result.receipt,
-        receipt=phase==='stage'?await port.files.stage(snapshot.plan,settings):phase==='retire'?
-          await port.files.retire(snapshot.plan,manifest,{...settings,inventoryCommitted:true}):await port.files[phase](snapshot.plan,manifest,settings),at=now();
+      const manifest=snapshot.stages.stage?.record?.result.receipt;let receipt;
+      try{receipt=phase==='stage'?await port.files.stage(snapshot.plan,settings):phase==='retire'?
+          await port.files.retire(snapshot.plan,manifest,{...settings,inventoryCommitted:true}):await port.files[phase](snapshot.plan,manifest,settings);}
+      catch(error){
+        if(phase==='publish'&&!execution.recoveryDecision&&error.details?.effectWriteStarted===false&&error.details.boundary==='before_publication'&&
+            ['ARCA_US_ADULT_TARGET_CONFLICT','ARCA_US_ADULT_FILE_CHANGED','ARCA_US_ADULT_FILE_ESCAPE'].includes(error.code))
+          return {kind:'failed',failureClass:'placement_precondition',code:error.code,message:'Actor publication stopped before changing any files.',
+            retryDirective:'never',evidence:{aftercareCaseId:snapshot.care.aftercareCaseId,planDigest:snapshot.plan.planDigest,
+              errorCode:error.code,effectWriteStarted:false,boundary:'before_publication'}};
+        throw error;
+      }
+      const at=now();
       return outcome(execution,phase,fileResult(snapshot,phase,receipt,at),at);
     },validateResult(execution,value){
       options.contractValidator.validate(resultRef(action),value.result);

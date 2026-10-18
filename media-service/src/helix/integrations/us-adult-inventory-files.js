@@ -118,7 +118,7 @@ function createUsAdultInventoryFiles(options){
       fail('ARCA_US_ADULT_FILE_PLAN_INVALID','Staged receipt does not explain every exact planned member.');
     return current;
   }
-  async function publish(plan,manifest,settings){
+  async function preparePublication(plan,manifest,settings){
     const current=manifestFor(plan,manifest,settings),prepared=[];
     for(const member of plan.members){
       const staged=manifest.members[member.ordinal];current.check();parents(current.root,member.targetLocation);parents(current.root,staged.location);
@@ -140,6 +140,17 @@ function createUsAdultInventoryFiles(options){
       if(!plan.members.some(item=>key(path.dirname(item.original.location))===key(directory))&&!prepared.some(item=>item.finalExact&&key(path.dirname(item.member.targetLocation))===key(directory))&&settings.recoveryDecision!=='continue_forward')
         fail('ARCA_US_ADULT_TARGET_CONFLICT','Actor target directory already exists without a publication receipt.');
     }
+    return {current,prepared};
+  }
+  async function publish(plan,manifest,settings){
+    let value;
+    try{value=await preparePublication(plan,manifest,settings);}
+    catch(error){
+      if(!settings.recoveryDecision&&['ARCA_US_ADULT_TARGET_CONFLICT','ARCA_US_ADULT_FILE_CHANGED','ARCA_US_ADULT_FILE_ESCAPE'].includes(error.code))
+        error.details={...error.details,effectWriteStarted:false,boundary:'before_publication'};
+      throw error;
+    }
+    const {current,prepared}=value;
     for(const item of prepared)if(!item.retainedExact){current.check();parents(item.member.original.rootLocation,item.member.retainedLocation);
       fs.linkSync(item.member.original.location,item.member.retainedLocation);}
     for(const item of prepared){

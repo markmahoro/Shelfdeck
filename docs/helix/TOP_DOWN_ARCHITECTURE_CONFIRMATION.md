@@ -6111,7 +6111,7 @@ Case或全库扫描。此限制不影响普通健康Finding自动签发其他Cas
 
 Arca冻结用户Intent、目标Entry/Inventory revision、原始命名Provenance及选定Person/Reference/Renderer版本。
 通过本域Work/Effect更新出演关系、NFO、海报和依赖姓名的文件/目录名；不修改历史Accepted Package，不退回Libra。
-提交保留Shelf Entry、Deck Fact和Canonical Content Identity。文件现场、Actor revision或目标冲突不得静默覆盖；
+提交保留Shelf Entry、Deck Fact和Canonical Content Identity。提交前Collection海报只读当前库存：仅同Entry、旧Inventory及有效Actor Case冻结Basis一致时允许验证并读取精确retained旧海报，提交后读取新库存；不提前显示新图。文件现场、Actor revision或目标冲突不得静默覆盖；
 逐Effect保存意图、物理验证和Receipt，崩溃恢复原Case；新鲜读取不篡改已经冻结的执行输入。
 
 初次生产与本类刷新使用同一版本化纯海报Renderer：四帧2×2大截图，减小肖像比例，文字不得遮图。命名从首次
@@ -6126,7 +6126,7 @@ Arca后续排版从当前Inventory的Media-Cast及其单演员索引读取冻结
 演员刷新使用Arca应用Fact `ArcaUsAdultMetadataFact@1`：`schemaRef,schemaVersion,shelfEntryId,aftercareCaseId,intentDigest,selectionDigest,canonicalIdentityDigest,sourceFactDigest,descriptiveFacts{entries},factDigest`；≤128 KiB，描述字段保留且标题更新。`ArcaUsAdultActorFact@1`使用相同库存来源字段，加`personSnapshotDigest,referenceAssetId,sourceBasisKind(us_adult_actor_refresh),relations[1],relationCount(1),relationsDigest,factDigest`；≤128 KiB，关系digest用Arca命名空间；不捏造Libra Subject或Fact。
 演员Case结案使用既有Domain Fact Commit的`arca_us_adult_case_closure@1`精确variant：同事务保存本Case终态、AftercareCaseResult/Event Result及Commit Marker；核验实际Work/Event/Attempt和完整成功前置Result。无匹配以完整匹配完成证据结案，已刷新以精确Inventory Commit及旧材料退役证据结案，不关闭无关健康Finding。此variant不改变其他Domain Fact提交或新增业务事务边界。
 
-发布前保留所有旧成员精确别名，再发布验证过的stage；视频不原位覆盖，源漂移、外来目标或未知目录成员明确报告。同演员刷新也可替换NFO/poster。完整物理验证后将新Inventory/Actor/Metadata/人物索引、Control及Event Result/Effect Receipt/marker同事务提交，Entry/Deck/Canonical保持。提交后才清理精确旧别名/stage，不动外来文件或删除配置物理根。部分发布/清理恢复同Case且不伪报成功；Case关闭须有退役证明，无匹配则以完整匹配证明关闭、原演员及库存不变。
+发布前保留所有旧成员精确别名，再发布验证过的stage；视频不原位覆盖，源漂移、外来目标或未知目录成员明确报告。首次发布的只读预检若在任何写入前发现冲突，可返回精确失败Outcome并结束本次未提交Effect；continue_forward或已开始写入的失败不能冒用此证明，仍须现场分类恢复。同演员刷新也可替换NFO/poster。完整物理验证后将新Inventory/Actor/Metadata/人物索引、Control及Event Result/Effect Receipt/marker同事务提交，Entry/Deck/Canonical保持。提交后才清理精确旧别名/stage，不动外来文件或删除配置物理根。部分发布/清理恢复同Case且不伪报成功；Case关闭须有退役证明，无匹配则以完整匹配证明关闭、原演员及库存不变。
 用户刷新Intent固定请求digest、目标Inventory/Deck/Canonical revision、Care Basis、Known Bindings、唯一源视频binding和首次原名。指定演员冻结精确Person/Reference版本；自动刷新冻结完整同版People分页及其顺序/总数摘要，不能以首页代替全库。两种模式不得混入另一种模式的目标输入。该Intent对应用户演员刷新Objective，不伪造Health Finding；演员刷新完成不能将同Basis下无关健康Finding一并标记为修复。
 
 ### 6.7 Arca Off-deck执行架构
@@ -13313,7 +13313,7 @@ Activity和复验结果。
 
 #### 9.4.9 人物
 
-人物页按普通、JAV、US Adult三库浏览人物及相关作品。普通/JAV用户零介入，不显示注册/合并候选、确认、编辑、
+人物页按普通、JAV、US Adult三库浏览人物及相关作品。作品由Arca按当前Inventory出演关系、People确定的库类型及有界稳定cursor只读查询；历史出演关系不继续显示，链接打开精确当前Entry。普通/JAV用户零介入，不显示注册/合并候选、确认、编辑、
 Preference或删除操作。US Adult提供唯一手动建档入口：姓名、别名、上传图片，或姓名辅助搜图并选图确认；
 必须有可识别图片才完成建档。初始照片准备与最终发布状态可恢复，不得先发布无图演员。
 

@@ -6,6 +6,12 @@ import {useModalFocus} from './useModalFocus';
 type Person=PeopleProjection['items'][number];
 const phaseLabels:Record<string,string>={source:'正在分析影片',matching:'正在匹配演员',match:'正在匹配演员',assets:'正在生成海报和说明书',
   stage:'正在准备文件',publish:'正在更新文件',verify:'正在核验文件',commit:'正在更新收藏',retire:'正在清理旧文件',close:'正在完成刷新'};
+function attentionCopy(code:string|null){
+  if(code==='ARCA_US_ADULT_TARGET_CONFLICT'||code==='ARCA_US_ADULT_STAGE_CONFLICT')return '目标位置存在冲突文件，刷新已停止，当前进度已保留。';
+  if(['ARCA_US_ADULT_FILE_CHANGED','ARCA_US_ADULT_SOURCE_CHANGED','PHYSICAL_MATERIAL_STAT_FENCE_CHANGED'].includes(code||''))return '影片文件发生变化，刷新已停止，当前进度已保留。';
+  if(['ARCA_US_ADULT_REFRESH_EXECUTION_STALE','ARCA_US_ADULT_PHASE_PROOF_INVALID','P6_PEOPLE_REFERENCE_REVISION_CONFLICT'].includes(code||''))return '影片或执行版本发生变化，刷新已停止，当前进度已保留。';
+  return '刷新遇到问题，当前进度已保留。';
+}
 export default function UsAdultInventoryActorDialog({item,onClose,onChanged,onUnauthorized}:{item:CollectionEntry;onClose:()=>void;onChanged:()=>void;onUnauthorized:()=>void}){
   const [view,setView]=useState<UsAdultActorRefreshView|null>(null),[people,setPeople]=useState<Person[]>([]),[chosen,setChosen]=useState<Person|null>(null),
     [search,setSearch]=useState(''),[term,setTerm]=useState(''),[cursor,setCursor]=useState<string|null>(null),[loading,setLoading]=useState(true),
@@ -45,8 +51,8 @@ export default function UsAdultInventoryActorDialog({item,onClose,onChanged,onUn
     }catch(cause){if(cause instanceof AdminApiError&&[400,404,409].includes(cause.status)){setStale(true);setError('影片或演员资料已变化，请关闭后重新读取。');}
       else failed(cause,'提交结果尚未收到，请重试同一操作。');}finally{setSaving(false);}
   }
-  const running=view?.progress&&['queued','active'].includes(view.progress.state),active=view?.progress?.works.find(work=>!['succeeded','cancelled'].includes(work.state)),
-    pendingMode=command.current?.mode,available=view?.canRefresh&&!stale&&!saving;
+  const running=view?.progress&&['queued','active'].includes(view.progress.state),active=view?.progress?.works.find(work=>work.state!=='succeeded'),
+    attention=active&&['failed','timed_out','cancelled','blocked'].includes(active.state),pendingMode=command.current?.mode,available=view?.canRefresh&&!stale&&!saving;
   return <div className="dialog-scrim" onMouseDown={event=>{if(event.target===event.currentTarget&&!saving)onClose();}}>
     <section ref={content} tabIndex={-1} className="dialog dialog-wide us-actor-dialog" role="dialog" aria-modal="true" aria-labelledby="inventory-actor-title" aria-busy={saving}>
       <div className="dialog-head"><h2 id="inventory-actor-title">刷新影片演员</h2></div>
@@ -54,7 +60,7 @@ export default function UsAdultInventoryActorDialog({item,onClose,onChanged,onUn
         <p>{item.displayIdentity}</p>{view&&<p>当前演员：<strong>{view.currentActor.displayName}</strong></p>}
         <p>本片的演员、海报、说明书和文件名会一并更新。</p>
         {error&&<p role="alert" className="form-error">{error}</p>}
-        {running?<p role="status">{active?.state==='failed'?'刷新遇到问题，已保留当前进度。':active?phaseLabels[active.phase]||'正在刷新演员':'等待执行'}
+        {running?<p role={attention?'alert':'status'}>{attention?attentionCopy(active.failureCode):active?phaseLabels[active.phase]||'正在刷新演员':'等待执行'}
           </p>:view?.progress?.state==='resolved'&&
           <p role="status">{view.progress.reasonCode==='actor_match_unchanged'?'未找到有效匹配，保留原演员。':'演员刷新已完成。'}</p>}
         {view&&!view.canRefresh&&!running&&<p>影片当前有其他维护任务，请稍后重新读取。</p>}

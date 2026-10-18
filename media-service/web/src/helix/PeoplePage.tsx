@@ -4,6 +4,7 @@ import { Button, LoadingState, PageHeader } from './chrome';
 import PersonRegistration from './PersonRegistration';
 import PersonProfileEditor from './PersonProfileEditor';
 import UsAdultRecommendations from './UsAdultRecommendations';
+import PersonWorksDialog from './PersonWorksDialog';
 import { isUnauthorized, useSession } from './session';
 
 type RegisteredPerson = PeopleProjection['items'][number];
@@ -36,7 +37,7 @@ function PersonAvatar({ person }: { person: RegisteredPerson }) {
   </div>;
 }
 
-function PersonCard({ person, onEdit, onAddReference }: { person: RegisteredPerson; onEdit?:()=>void;onAddReference?:()=>void }) {
+function PersonCard({ person, onEdit, onAddReference,onWorks }: { person: RegisteredPerson; onEdit?:()=>void;onAddReference?:()=>void;onWorks:()=>void }) {
   const aliases = person.aliases.filter((alias) => alias !== person.canonicalName);
   return <article className="people-card" tabIndex={0} aria-label={`${person.canonicalName}，${person.status === 'active' ? '已登记' : '已合并'}`}>
     <PersonAvatar person={person} />
@@ -51,6 +52,7 @@ function PersonCard({ person, onEdit, onAddReference }: { person: RegisteredPers
       </dl>
       {onEdit && <Button type="button" onClick={onEdit} aria-label={`编辑 ${person.canonicalName}`}>编辑资料</Button>}
       {onAddReference && <Button type="button" onClick={onAddReference} aria-label={`补充 ${person.canonicalName} 的参考图`}>补充参考图</Button>}
+      <Button type="button" onClick={onWorks} aria-label={`查看 ${person.canonicalName} 的相关作品`}>相关作品</Button>
     </div>
   </article>;
 }
@@ -64,6 +66,7 @@ export default function PeoplePage() {
   const [creating,setCreating] = useState(false), [search,setSearch] = useState(''), [query,setQuery] = useState('');
   const [editing,setEditing] = useState<RegisteredPerson|null>(null);
   const [addingReference,setAddingReference] = useState<RegisteredPerson|null>(null);
+  const [worksFor,setWorksFor]=useState<RegisteredPerson|null>(null);
   const [recommendationEditing,setRecommendationEditing]=useState(false),[recommendationRefresh,setRecommendationRefresh]=useState(0);
   const sequence = useRef(0);
   const load = useCallback(async (cursor?:string) => {
@@ -93,6 +96,7 @@ export default function PeoplePage() {
     {editing && <PersonProfileEditor key={editing.personId} person={editing} onCancel={()=>{setEditing(null);void load();}} onSaved={()=>{
       setEditing(null);setNotice('演员资料已保存。');void load();
     }}/>}
+    {worksFor&&<PersonWorksDialog person={worksFor} onClose={()=>setWorksFor(null)} onUnauthorized={expire}/>}
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="form-notice" role="status">{notice}</p>}
     {library==='us_adult'&&<UsAdultRecommendations refreshKey={recommendationRefresh} disabled={creating||Boolean(editing)||Boolean(addingReference)}
       onChanged={()=>void load()} onEditingChange={setRecommendationEditing}/>}
@@ -101,7 +105,7 @@ export default function PeoplePage() {
     <section className="source-registry" role="tabpanel" aria-label={libraries.find(item=>item.kind===library)!.label}>
       <div className="source-registry-heading"><h2>已登记人物 <span className="section-count">{projection?.summary.activePersonCount ?? '—'}</span></h2><span>当前显示 {projection?.items.length ?? 0} 条</span></div>
       {!projection && loading ? <LoadingState>正在读取人物名录…</LoadingState> : projection?.items.length ?
-        <div className="people-contact-sheet" aria-label="已登记人物名录">{projection.items.map(person=><PersonCard key={person.personId} person={person}
+        <div className="people-contact-sheet" aria-label="已登记人物名录">{projection.items.map(person=><PersonCard key={person.personId} person={person} onWorks={()=>setWorksFor(person)}
           onEdit={library==='us_adult'&&!creating&&!editing&&!addingReference&&!recommendationEditing?()=>{setEditing(person);setNotice('');}:undefined}
           onAddReference={library==='us_adult'&&!creating&&!editing&&!addingReference&&!recommendationEditing?()=>{setAddingReference(person);setNotice('');}:undefined}/>)}</div> :
         !error && <div className="source-empty"><strong>{query?'没有找到匹配的演员':'本库还没有演员'}</strong></div>}

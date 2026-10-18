@@ -42,3 +42,10 @@ it('a version conflict stops further submissions until the user reopens current 
   const button=await screen.findByRole('button',{name:'自动刷新演员'});await waitFor(()=>expect(button).toBeEnabled());fireEvent.click(button);
   expect(await screen.findByRole('alert')).toHaveTextContent('影片或演员资料已变化');expect(button).toBeDisabled();expect(refresh).toHaveBeenCalledTimes(1);
 });
+it('reports a file collision without presenting an active Case as completed or allowing a duplicate refresh',async()=>{
+  mount({...state,canRefresh:false,blockingCaseId:'case',progress:{aftercareCaseId:'case',mode:'specified',state:'active',reasonCode:null,
+    works:[{workId:'publish',phase:'publish',state:'failed',failureCode:'ARCA_US_ADULT_TARGET_CONFLICT'}]}});
+  expect(await screen.findByRole('alert')).toHaveTextContent('目标位置存在冲突文件');
+  expect(screen.getByRole('button',{name:'自动刷新演员'})).toBeDisabled();
+  expect(screen.queryByText('演员刷新已完成。')).not.toBeInTheDocument();
+});

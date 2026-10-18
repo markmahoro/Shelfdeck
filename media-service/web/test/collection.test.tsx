@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import CollectionPage from '../src/helix/CollectionPage';
 import { helixAdminApi, type CollectionEntry } from '../src/helix/api';
 import { SessionProvider } from '../src/helix/session';
+import {MemoryRouter} from 'react-router-dom';
 
 const entry: CollectionEntry = {
   shelfEntryId: 'entry-1',
@@ -35,12 +36,20 @@ const entry: CollectionEntry = {
   terminalAtMs: null,
 };
 
-function renderCollection() {
-  return render(<SessionProvider><CollectionPage /></SessionProvider>);
+function renderCollection(url='/collection') {
+  return render(<MemoryRouter initialEntries={[url]}><SessionProvider><CollectionPage /></SessionProvider></MemoryRouter>);
 }
 
 describe('Arca collection poster wall', () => {
   afterEach(() => vi.restoreAllMocks());
+
+  it('opens an exact related-work link from the current Entry even when it is outside the wall page',async()=>{
+    vi.spyOn(helixAdminApi,'listCollection').mockResolvedValue({items:[],resultCount:0,nextCursor:null,shelves:[],summary:{currentCount:1,historyCount:0}});
+    const read=vi.spyOn(helixAdminApi,'readCollectionEntry').mockResolvedValue(entry);
+    vi.spyOn(helixAdminApi,'getCare').mockResolvedValue({activeCase:null,activeCaseProgress:null} as never);
+    renderCollection('/collection?entry=entry-1');
+    expect(await screen.findByRole('dialog')).toHaveTextContent(entry.displayIdentity);expect(read).toHaveBeenCalledWith('entry-1');
+  });
 
   it('keeps an unread collection unknown when the first request fails', async () => {
     vi.spyOn(helixAdminApi,'listCollection').mockRejectedValue(new Error('读取失败，请重试'));

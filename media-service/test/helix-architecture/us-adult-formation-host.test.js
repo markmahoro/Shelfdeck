@@ -103,6 +103,21 @@ async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendati
     refreshActor:(shelfEntryId,body)=>request('POST','/v1/admin/collection/'+shelfEntryId+'/actions/refresh-us-adult-actor',body),
     async requestImage(url){const response=await host.inject({method:'GET',url,headers:{'x-api-key':initialized.adminApiKey}});
       assert.equal(response.statusCode,200,response.body);return {bytes:response.rawPayload,headers:response.headers};},
+    async crashRefresh(entryId,command,boundary){
+      await host.close();host=null;
+      const child=require('node:child_process').fork(path.join(__dirname,'fixtures/us-adult-host-crash-worker.js'),[],{
+        silent:true,windowsHide:true}),messages=[],errors=[];
+      child.on('message',message=>messages.push(message));child.stderr.on('data',chunk=>errors.push(String(chunk)));
+      const timer=setTimeout(()=>child.kill(),120000);
+      try{
+        const exited=new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',(code,signal)=>resolve({code,signal}));});
+        child.send({dataDir,adminDistDir,secretRoot,apiKey:initialized.adminApiKey,now:epoch+Date.now()-clockStarted+clockOffset,
+          entryId,command,boundary});
+        const result=await exited;assert.equal(result.code,boundary==='before_commit'?73:74,errors.join(''));
+        assert.equal(messages.length,1,errors.join(''));return messages[0].admitted;
+      }finally{clearTimeout(timer);if(child.exitCode===null)child.kill();}
+    },
+    resume:async()=>{clockOffset+=120000;host=await start();},
     setTime:value=>{clockOffset=Date.parse(value)-epoch-(Date.now()-clockStarted);},restart:async()=>{await host.close();host=await start();}};
 }
 test('real Host retains an unmatched film in secondary across restart and confirms its original Run before actor-bound on-deck',{timeout:180000,skip},async t=>{
@@ -255,4 +270,54 @@ test('real Host refreshes one owned US actor through verified files and atomic I
   assert.equal(h.db.prepare('SELECT state FROM arca_aftercare_findings WHERE finding_id=?').get('unrelated-finding').state,'open');
   const displayed=await h.request('GET','/v1/admin/collection/'+before.shelfEntryId);
   assert.equal(displayed.displayIdentity,'Updated Actor Original source');assert.equal(displayed.people[0].displayName,'Updated Actor');
+  const works=await h.request('GET','/v1/admin/people/'+updated.personId+'/collection');
+  assert.equal(works.libraryKind,'us_adult');assert.deepEqual(works.items.map(item=>item.shelfEntryId),[before.shelfEntryId]);
+  assert.equal(works.items[0].displayIdentity,'Updated Actor Original source');
+});
+
+test('actual Host exits around Inventory commit recover the original actor Case and a later target conflict never overwrites files',{timeout:360000,skip},async t=>{
+  const h=await fixture(t,{visibleFace:true});
+  await h.wait(()=>h.db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n===1);
+  const identity={...h.inventoryContext().raw.entry};
+  for(const boundary of ['before_commit','after_commit']){
+    const person=(await h.request('GET','/v1/admin/people?libraryKind=us_adult')).items[0],name=boundary==='before_commit'?'First Actor':'Second Actor';
+    await h.request('PATCH','/v1/admin/people/'+person.personId,{idempotencyKey:'name-'+boundary,expectedPersonRevision:person.currentRevision,
+      canonicalName:name,aliases:[]});
+    const updated=(await h.request('GET','/v1/admin/people?libraryKind=us_adult')).items[0],before=h.inventoryContext(),
+      command={mode:'specified',idempotencyKey:'crash-'+boundary,expectedInventoryRevision:before.raw.entry.current_inventory_revision,
+        expectedRepresentationDigest:before.raw.inventory.representation_digest,personId:updated.personId,
+        expectedPersonRevision:updated.currentRevision,expectedReferenceRevision:updated.currentReferenceRevision},
+      admitted=await h.crashRefresh(before.shelfEntryId,command,boundary),interrupted=h.db.prepare('SELECT current_inventory_revision FROM arca_shelf_entries WHERE shelf_entry_id=?').get(before.shelfEntryId),
+      folder=path.join(h.target,name+' Original source');
+    assert.ok(fs.existsSync(path.join(folder,name+' Original source.mkv')));
+    assert.ok(fs.existsSync(path.join(folder,'poster.jpg')));
+    assert.equal(interrupted.current_inventory_revision,before.raw.entry.current_inventory_revision+(boundary==='after_commit'?1:0));
+    assert.equal(h.db.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(admitted.aftercareCaseId).state,'active');
+    await h.resume();
+    await h.wait(()=>h.db.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(admitted.aftercareCaseId).state==='resolved',120000);
+    const after=h.inventoryContext();assert.equal(after.raw.entry.current_inventory_revision,before.raw.entry.current_inventory_revision+1);
+    for(const key of ['shelf_entry_id','canonical_identity_key','canonical_identity_revision','current_deck_fact_revision'])assert.equal(after.raw.entry[key],identity[key]);
+    assert.equal(h.db.prepare('SELECT count(*) n FROM arca_aftercare_inventory_commits WHERE aftercare_case_id=?').get(admitted.aftercareCaseId).n,1);
+    assert.equal((await h.refreshActor(before.shelfEntryId,command)).replayed,true);
+    assert.equal(after.raw.people[0].display_name,name);
+    assert.match(fs.readFileSync(path.join(folder,name+' Original source.nfo'),'utf8'),new RegExp('<name>'+name+'</name>'));
+    assert.equal(fs.readdirSync(h.target).some(file=>file.startsWith('.shelfdeck-us-')),false);
+  }
+  const person=(await h.request('GET','/v1/admin/people?libraryKind=us_adult')).items[0];
+  await h.request('PATCH','/v1/admin/people/'+person.personId,{idempotencyKey:'name-conflict',expectedPersonRevision:person.currentRevision,
+    canonicalName:'Conflicting Actor',aliases:[]});
+  const updated=(await h.request('GET','/v1/admin/people?libraryKind=us_adult')).items[0],before=h.inventoryContext(),
+    conflictFolder=path.join(h.target,'Conflicting Actor Original source'),foreign=path.join(conflictFolder,'foreign.txt');
+  fs.mkdirSync(conflictFolder);fs.writeFileSync(foreign,'unrelated bytes');
+  const admitted=await h.refreshActor(before.shelfEntryId,{mode:'specified',idempotencyKey:'target-conflict',
+    expectedInventoryRevision:before.raw.entry.current_inventory_revision,expectedRepresentationDigest:before.raw.inventory.representation_digest,
+    personId:updated.personId,expectedPersonRevision:updated.currentRevision,expectedReferenceRevision:updated.currentReferenceRevision});
+  await h.wait(()=>Boolean(h.db.prepare("SELECT 1 FROM fx_supporting_works WHERE process_id=? AND work_kind='us_adult_actor_publish' AND state='failed'").get(before.shelfEntryId)),90000);
+  const after=h.inventoryContext(),view=await h.request('GET','/v1/admin/collection/'+before.shelfEntryId+'/actor-refresh');
+  assert.equal(after.raw.entry.current_inventory_revision,before.raw.entry.current_inventory_revision);
+  assert.equal(after.raw.people[0].display_name,'Second Actor');assert.equal(fs.readFileSync(foreign,'utf8'),'unrelated bytes');
+  assert.deepEqual(fs.readdirSync(conflictFolder),['foreign.txt']);
+  assert.equal(view.progress.aftercareCaseId,admitted.aftercareCaseId);assert.equal(view.progress.state,'active');
+  assert.equal(view.progress.works.find(work=>work.phase==='publish').failureCode,'ARCA_US_ADULT_TARGET_CONFLICT');
+  assert.equal(view.canRefresh,false);
 });

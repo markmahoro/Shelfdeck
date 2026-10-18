@@ -221,3 +221,16 @@ arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后
 该轮另准确暴露：当前Catalog已有增长而一组Builder/Registry测试仍断言旧121/140/210/51基线，旧transaction shard豁免仍指向不存在的051文件；US Adult已支持但旧“不支持profile”负例仍使用western_adult；Arca Intent内`sourceBinding`名称触碰既有禁止旧概念词典。处理为更新当前活跃基线的具体断言及精确056定位，保留未知profile负例并新增US Field可准入正例；将Arca Domain-local读取绑定明确命名`sourceMaterialBinding`及相应scope digest键，不增加词典豁免或放宽Owner规则。
 
 新P2通过，counts不变，aggregate `8680996346407ca5d0314faa9cca70e7b23a87466117d36f9257a77128b1e4e1`。语义Gate2524文件/42原有精确豁免/0 Finding。词典改名后的Owner/匹配/Source/负例/P2等30项通过；Builder组合原113项中112通过，唯一剩余旧137/135 route实际数量断言已修正且其所属fixture在上述30项中通过。完整Architecture须依赖恢复及修复后的新固定提交重跑，不从这次失败推断实际业务旅程是否通过。
+
+
+## 2026-10-19 Arca真实Host异常退出、冲突与人物作品读取
+
+基线`1dd51987bd67849b22d5fc06e895d649ea685650`后的本地增量，未发布。
+
+- 实际子进程运行正式Host、真实固定CPU模型和隔离合成视频。第一次在Inventory/Control/Result写入后、事务COMMIT前直接exit 73，第二次在真实COMMIT返回后、Event/Effect完成前exit 74。重开原数据后，均由原Case收口；每Case只有一次Inventory Commit，Entry/Deck/Canonical身份不变，NFO/海报/命名及旧别名退役一致。日志`.codex/us-adult-validation/arca-actual-host-crash.txt`：1 PASS，67.5秒。
+- 同一Host旅程继续制造外来目标目录。保留外来字节和当前库存/演员、明确显示原Case失败，禁止重复刷新；日志`arca-actual-host-crash-conflict.txt`：1 PASS，72.1秒。初次测试揭示预检异常被转成通用recovery conflict；现只在首次只读预检证明尚未写入时返回typed failure，部分发布/恢复仍保留uncertain Effect合同。专用文件负例8 PASS，不能把预检失败证明用于continue_forward。
+- 旧海报读取围栏：Actor Case active且旧Inventory仍current时，仅提供精确retained旧poster；head更新后读新poster。错误Basis拒绝。2 PASS（`arca-retained-poster.txt`，后续相关合批再次通过）。
+- 人物相关作品由Arca按当前出演关系、People确认的库类型及有界稳定cursor读取，排除历史关系/已退出Entry/其他库；Facade挂载在既有ArcaCollectionFacade路由，未移动Owner。后端2 PASS；Web新增分页/去重、跨库响应拒绝、迟到响应和精确Entry深链，相关14 PASS。完整Web 226 PASS为新增冲突文案测试前检查点，之后Actor弹窗5 PASS；构建PASS（548.69 kB既有单chunk告警）。
+- 正式HTTP作品读取随真实Owner迟发失败回滚旅程复验1 PASS（47.3秒）；当前包边界650文件/2290依赖/47包、语义2524文件/42精确豁免均PASS，P2保持130/108/224/56/144及原aggregate；固定`1dd51987b`完整Architecture Gate仍在独立物理依赖checkout执行，尚无整体PASS，不覆盖本增量。
+- Arca终态失败后的用户恢复入口、Source Handle过期等剩余恢复资格、People深度系统维护/参考图片生命周期、离线副本升级、维护剩余项及平台/UI负责人资格仍开放；当前版本不称完成。
+- 子进程夹具两次修正均记录在忽略日志：一次错误地在父Host关闭后调用旧UoW只读，另一次unref计时器导致子进程在目标边界前正常退出；修正后才计PASS。未操作NAS、生产或真实媒体。

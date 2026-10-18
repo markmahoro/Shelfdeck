@@ -1,4 +1,8 @@
 'use strict';
+const path=require('node:path');
+const {retainedName}=require('../../../contracts/us-adult-retained-name');
+const {readRequirement:readActorRequirement}=require('../model/us-adult-actor-refresh-objective');
+const {physicalIdentityFromInventoryRow}=require('../model/aftercare-contract');
 const { readStoredMetadataValue } = require('../../../contracts/episode-metadata-records');
 
 const {collectionSeriesProjection}=require('../model/collection-series-projection');
@@ -107,6 +111,16 @@ function createArcaCollectionQuery(options) {
   const repository = createRepositoryDefinition({ repositoryId:'arca_collection_query', owner:'arca', readOnly:true,
     schemaManifest:options.schemaManifest, statements:{
       pending_jav_correction:{kind:'select-all',tableId:'arca_jav_identity_corrections',columns:['correction_id','preview_proof_json','basis_digest','state','terminal_at_ms'],keyColumns:['shelf_entry_id']},
+      pending_actor_case:{kind:'select-all',tableId:'arca_aftercare_cases',columns:['aftercare_case_id','state','care_basis_json','care_basis_digest','care_requirement_json'],keyColumns:['shelf_entry_id']},
+      related_entries:{kind:'select-joined-page',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key',
+        'current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],joins:[
+        {tableId:'arca_inventory_person_relations',alias:'person',on:[{column:'shelf_entry_id',otherAlias:'base',otherColumn:'shelf_entry_id'},
+          {column:'inventory_revision',otherAlias:'base',otherColumn:'current_inventory_revision'}]},
+        {tableId:'arca_canonical_identity_revisions',alias:'identity',on:[{column:'shelf_entry_id',otherAlias:'base',otherColumn:'shelf_entry_id'},
+          {column:'revision',otherAlias:'base',otherColumn:'canonical_identity_revision'}]}],
+        filters:[{column:'status',kind:'equals',parameter:'status'},{alias:'person',column:'person_id',kind:'equals',parameter:'person_id'},
+          {alias:'identity',column:'identity_kind',kind:'equals',parameter:'identity_kind'},{column:'shelf_entry_id',kind:'greater_than',parameter:'cursor',optional:true}],
+        orderBy:[{column:'shelf_entry_id',direction:'asc'}],maxItems:101,safeIntegers:true},
       list_entries:{kind:'select-all',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key','current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],keyColumns:[],safeIntegers:true},
       overview_entries:{kind:'select-page-after',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key','current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],keyColumn:'shelf_entry_id',fixedKeyColumns:['status'],maxItems:100,safeIntegers:true},
       list_entry_index:{kind:'select-all',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','status'],keyColumns:[],safeIntegers:true},
@@ -117,7 +131,8 @@ function createArcaCollectionQuery(options) {
       list_identities:{kind:'select-all',tableId:'arca_canonical_identity_revisions',columns:['shelf_entry_id','revision','structure_kind','identity_kind','provider','provider_key','identity_digest','committed_at_ms'],keyColumns:[],safeIntegers:true},
       find_identities:{kind:'select-in',tableId:'arca_canonical_identity_revisions',keyColumn:'shelf_entry_id',fixedKeyColumns:['revision'],maxItems:500,columns:['shelf_entry_id','revision','structure_kind','identity_kind','provider','provider_key','identity_digest','committed_at_ms'],safeIntegers:true},
       find_shelf:{kind:'select-one',tableId:'arca_shelves',columns:['shelf_id','name','status','target_root_location'],keyColumns:['shelf_id']},
-      list_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard','episode_claims_json'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
+      list_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard','episode_claims_json',
+        'mount_scope_id','inode','fingerprint_algorithm','fingerprint_version','content_fingerprint'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
       list_all_materials:{kind:'select-all',tableId:'arca_inventory_materials',columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard','episode_claims_json'],keyColumns:[],safeIntegers:true},
       find_materials:{kind:'select-in',tableId:'arca_inventory_materials',keyColumn:'shelf_entry_id',fixedKeyColumns:['inventory_revision'],maxItems:500,columns:['shelf_entry_id','inventory_revision','ordinal','material_key','role','endpoint_id','location','size_bytes','active_guard','episode_claims_json'],safeIntegers:true},
       list_facts:{kind:'select-all',tableId:'arca_inventory_product_facts',columns:['shelf_entry_id','inventory_revision','fact_kind','fact_revision','fact_json','episode_metadata_schema_ref','episode_metadata_json','fact_digest'],keyColumns:['shelf_entry_id','inventory_revision'],safeIntegers:true},
@@ -184,7 +199,22 @@ function createArcaCollectionQuery(options) {
   }
   function getBase(shelfEntryId){return execute('arca_collection_entry_read',(context)=>map(context.repository(repository.repositoryId),context.repository(repository.repositoryId).invoke('find_entry',{shelf_entry_id:shelfEntryId})));}
   function get(shelfEntryId){return withHealth(getBase(shelfEntryId));}
-  return Object.freeze({list(query={}){const packed=execute('arca_collection_list',(context)=>{
+  function relatedWorks(query){
+    const kinds={normal:['tmdb_movie','tmdb_series_season'],jav:['jav_code'],us_adult:['internal_identity']},limit=Number(query?.limit??24),cursor=query?.cursor??'';
+    if(!query||!Object.hasOwn(kinds,query.libraryKind)||typeof query.personId!=='string'||!query.personId||query.personId.length>256||
+        typeof cursor!=='string'||cursor.length>256||!Number.isSafeInteger(limit)||limit<1||limit>100)
+      throw Object.assign(new Error('Related works require an exact Person library and bounded cursor.'),{code:'PEOPLE_RELATED_WORKS_QUERY_INVALID'});
+    return execute('arca_person_related_works',context=>{
+      const repo=context.repository(repository.repositoryId),found=kinds[query.libraryKind].flatMap(identityKind=>repo.invoke('related_entries',{
+        person_id:query.personId,identity_kind:identityKind,status:'active',cursor,limit:limit+1,offset:0})),
+        rows=[...new Map(found.map(row=>[row.shelf_entry_id,row])).values()]
+          .sort((a,b)=>Buffer.compare(Buffer.from(a.shelf_entry_id),Buffer.from(b.shelf_entry_id))),page=rows.slice(0,limit),caches=collectionCaches(repo,page),
+        items=page.map(row=>{const item=map(repo,row,caches);return Object.freeze({shelfEntryId:item.shelfEntryId,displayIdentity:item.displayIdentity,year:item.year,
+          currentInventoryRevision:item.currentInventoryRevision,shelfName:item.shelfName,hasPoster:item.hasPoster,structureKind:item.structureKind});});
+      return Object.freeze({personId:query.personId,libraryKind:query.libraryKind,items:Object.freeze(items),nextCursor:rows.length>limit?page.at(-1).shelf_entry_id:null});
+    });
+  }
+  return Object.freeze({relatedWorks,list(query={}){const packed=execute('arca_collection_list',(context)=>{
       const repo=context.repository(repository.repositoryId);
       const index=repo.invoke('list_entry_index',{});
       const shelfRows=repo.invoke('list_shelves',{});
@@ -273,6 +303,17 @@ function createArcaCollectionQuery(options) {
           throw Object.assign(new Error('Correction poster projection has corrupt owned Basis evidence.'),{code:'ARCA_JAV_CORRECTION_RECORD_CORRUPT'});
         if(material&&proof.basis.inventoryRevision===Number(row.current_inventory_revision)&&proof.basis.basisDigest===pending[0].basis_digest&&material.location===poster.location)
           retainedRead={location:require('../../../contracts/jav-correction-retained-location').javCorrectionRetainedLocation(pending[0].correction_id,material.ordinal,material.location),physicalIdentity:material.physicalIdentity};
+      }
+      if(!retainedRead){
+        const cases=repo.invoke('pending_actor_case',{shelf_entry_id:shelfEntryId}).filter(item=>item.state==='active'&&readActorRequirement(JSON.parse(item.care_requirement_json)));
+        if(cases.length>1)throw Object.assign(new Error('Poster read has competing actor Cases.'),{code:'ARCA_US_ADULT_PHASE_PROOF_INVALID'});
+        if(cases.length===1){const care=cases[0],basis=JSON.parse(care.care_basis_json),{digest,...body}=basis;
+          if(digest!==canonicalDigest(body)||care.care_basis_digest!==digest||basis.shelfEntryId!==shelfEntryId)
+            throw Object.assign(new Error('Actor poster read lost its frozen Case Basis.'),{code:'ARCA_US_ADULT_PHASE_PROOF_INVALID'});
+          if(basis.inventoryRevision===Number(row.current_inventory_revision))retainedRead={
+            location:path.join(path.dirname(poster.location),retainedName(care.aftercare_case_id,Number(poster.ordinal))),
+            physicalIdentity:physicalIdentityFromInventoryRow(poster)};
+        }
       }
       return Object.freeze({shelfEntryId,inventoryRevision:Number(row.current_inventory_revision),
         shelfTargetRoot:shelf.target_root_location,location:poster.location,materialKey:poster.material_key,sizeBytes:Number(poster.size_bytes),...(retainedRead?{retainedRead}: {})});});

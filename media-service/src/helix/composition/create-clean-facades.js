@@ -100,6 +100,12 @@ function createCleanFacades(options) {
     facades.PeopleAdminFacade.get_people_personid = async (input) => ({
       body: options.peopleAdminQuery.get(input.params.personId),
     });
+    if(typeof options.arcaCollectionQuery?.relatedWorks==='function')facades.ArcaCollectionFacade.get_people_personid_collection=async input=>{
+      const person=options.peopleAdminQuery.get(input.params.personId);
+      if(!person)throw Object.assign(new Error('Person was not found.'),{code:'PEOPLE_PERSON_NOT_FOUND'});
+      return {body:options.arcaCollectionQuery.relatedWorks({personId:person.personId,libraryKind:person.libraryKind,
+        cursor:input.query?.cursor,limit:input.query?.limit})};
+    };
     if (options.peopleAvatarQuery) {
       facades.PeopleAdminFacade.get_people_personid_avatar = async (input) => {
         const value = await options.peopleAvatarQuery.get(input.params.personId);

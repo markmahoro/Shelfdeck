@@ -1,6 +1,6 @@
 import { useModalFocus } from './useModalFocus';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link,useSearchParams } from 'react-router-dom';
 import { helixAdminApi, type CareDetail, type CollectionEntry, type HealthState } from './api';
 import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader, ReadProgress } from './chrome';
@@ -69,6 +69,7 @@ function SeriesFiles({ series }: { series: NonNullable<CollectionEntry['series']
 
 export default function CollectionPage() {
   const { expire } = useSession();
+  const [linkedParams]=useSearchParams(),linkedEntryId=linkedParams.get('entry');
   const [items, setItems] = useState<CollectionEntry[]>([]);
   const [shelves, setShelves] = useState<Array<{ shelfId: string; name: string; currentCount: number; historyCount: number }>>([]);
   const [summary, setSummary] = useState({ currentCount: 0, historyCount: 0 });
@@ -127,6 +128,16 @@ export default function CollectionPage() {
     finally { if (version === loadVersion.current) setLoading(false); }
   }, [expire, shelfId, healthFilter, search, sort]);
   useEffect(() => { currentPage.current = 0; pageCursors.current = [undefined]; setPageIndex(0); void load(undefined, 0); }, [load]);
+  useEffect(()=>{
+    if(!linkedEntryId)return;let cancelled=false;
+    void helixAdminApi.readCollectionEntry(linkedEntryId).then(item=>{
+      if(cancelled)return;
+      if(item.shelfEntryId!==linkedEntryId){setError('这部影片暂时无法打开，请重新读取收藏。');return;}
+      if(item.status!=='active'){setError('这部影片当前不在收藏中。');return;}
+      setSelected(item);
+    }).catch(cause=>{if(cancelled)return;if(isUnauthorized(cause))expire();else setError('这部影片暂时无法打开，请重新读取收藏。');});
+    return()=>{cancelled=true;};
+  },[linkedEntryId,expire]);
   useEffect(() => {
     if (!selected) return;
     document.body.classList.add('modal-open');

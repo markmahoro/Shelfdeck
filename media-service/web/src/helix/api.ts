@@ -571,6 +571,8 @@ export type PeopleProjection = {
   nextCursor:string|null;
   summary:{activePersonCount:number;mergedPersonCount:number;openRegistrationCandidateCount:number;openMergeCandidateCount:number};
 };
+export type PersonRelatedCollection={personId:string;libraryKind:PersonLibrary;items:Array<Pick<CollectionEntry,
+  'shelfEntryId'|'displayIdentity'|'year'|'currentInventoryRevision'|'shelfName'|'hasPoster'|'structureKind'>>;nextCursor:string|null};
 
 export type FormationSummary = { endedCount?:number;
   totalCount: number;
@@ -687,6 +689,9 @@ export const helixAdminApi = {
   listPeopleRegistrationCandidates() {
     return request<{ items: Array<{ candidateId: string; currentState: string; currentRevision: number; proposedName: string; evidenceDigest: string }> }>('/v1/admin/people/registration-candidates');
   },
+  readPersonCollection(personId:string,cursor?:string){return request<PersonRelatedCollection>(
+    `/v1/admin/people/${encodeURIComponent(personId)}/collection?${new URLSearchParams({limit:'24',...(cursor?{cursor}:{})})}`);},
+  readCollectionEntry(shelfEntryId:string){return request<CollectionEntry>(`/v1/admin/collection/${encodeURIComponent(shelfEntryId)}`);},
   personAvatarUrl(personId: string) {
     return `/v1/admin/people/${encodeURIComponent(personId)}/avatar`;
   },

@@ -61,6 +61,20 @@ test('source drift, a pre-existing target and cancellation fail before changing 
   for(const member of x.plan.members)assert.ok(fs.existsSync(member.original.location));assert.equal(fs.existsSync(x.target),false);
 });
 
+test('only a fresh publication preflight proves that its Effect has not started writing',async t=>{
+  const x=fixture(t),manifest=await x.io.stage(x.plan,x.settings);fs.mkdirSync(x.target);
+  const foreign=path.join(x.target,'foreign.txt');fs.writeFileSync(foreign,'keep');
+  await assert.rejects(x.io.publish(x.plan,manifest,x.settings),error=>{
+    assert.equal(error.code,'ARCA_US_ADULT_TARGET_CONFLICT');
+    assert.deepEqual(error.details,{effectWriteStarted:false,boundary:'before_publication'});return true;
+  });
+  assert.equal(x.plan.members.some(member=>fs.existsSync(member.retainedLocation)),false);
+  await assert.rejects(x.io.publish(x.plan,manifest,{...x.settings,recoveryDecision:'continue_forward'}),error=>{
+    assert.equal(error.code,'ARCA_US_ADULT_TARGET_CONFLICT');assert.equal(error.details,undefined);return true;
+  });
+  assert.equal(fs.readFileSync(foreign,'utf8'),'keep');
+});
+
 test('a classified partial stage resumes only an exact source prefix and reports foreign bytes as conflict',async t=>{
   const x=fixture(t),directory=path.join(x.shelf,'.shelfdeck-us-'+D(x.plan.aftercareCaseId).slice(0,32)+'-stage'),
     partial=path.join(directory,'0001.stage.part'),source=x.plan.members[1].source.workspaceMaterialHandle.location;
