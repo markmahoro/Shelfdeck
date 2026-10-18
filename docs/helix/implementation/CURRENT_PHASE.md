@@ -4,7 +4,7 @@
 
 用户已确认全站统一网络代理、JAV一键测试并启用、不提供逐站代理覆盖、逐站具体错误反馈。Platform拥有唯一技术policy；所有产品Integration统一transport，显式私网/loopback直连；不改变Provider资格、领域Owner或交接。首屏网络卡片显示当前状态，原TMDB代理只预填草稿；用户保存后唯一生效。JAV列表直接呈现八站状态、数量与一键动作，部分成功和失败可辨、可重试，无需逐站重复输入。
 
-验收：CAS/幂等/重启、关闭代理、拒绝路由覆盖、Proof/Handle随route变化拒绝、页面与封面错误DTO不泄露正文、批量部分失败/重试、宽窄/键盘、受影响Service/Provider和机器门禁；跨层具体版本仍须UI负责人审核。当前本地实现，未部署。工作Evidence：[GLOBAL_NETWORK_POLICY_20261018](evidence/GLOBAL_NETWORK_POLICY_20261018.md)。
+验收：CAS/幂等/重启、关闭代理、拒绝路由覆盖、Proof/Handle随route变化拒绝、页面与封面错误DTO不泄露正文、批量部分失败/重试、宽窄/键盘、受影响Service/Provider和机器门禁；跨层具体版本仍须UI负责人审核。当前本地实现、Service647/29既有skip、Provider58、Web197、本任务宽窄6及负责人宽窄20项验证通过；UI接受绑定12a4b4030，未部署、Linux精确候选未测。工作Evidence：[GLOBAL_NETWORK_POLICY_20261018](evidence/GLOBAL_NETWORK_POLICY_20261018.md)。
 
 生产调查仅只读：UAT-322已定位superseded旧Run回收Scope缺失及70.16 GiB积压；35.39 GiB保留/备份与约173 GiB外部Landing不得混作孤儿删除。未授权生产清理/配置保存/发布，也不恢复已暂停UAT-318优化。事实见[Workspace Evidence](evidence/UAT-322_WORKSPACE_RESIDUE_AUDIT_20261018.md)。
 

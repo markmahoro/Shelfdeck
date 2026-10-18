@@ -1,6 +1,6 @@
 # 全站网络代理与 JAV 一键连接 — 2026-10-18
 
-状态：本地实现与适用Windows验证完成；待具体版本UI审核，未部署、未修改生产配置。基线 `73edb3ac1`，独立分支 `codex/global-proxy-workspace-audit`。
+状态：本地实现、适用Windows验证及12a4b4030具体版本UI审核完成；未部署、未修改生产配置。基线 `73edb3ac1`，独立分支 `codex/global-proxy-workspace-audit`。
 工作项 `GLOBAL-NETWORK-POLICY`；用户确认全站统一代理、JAV列表/一键测试启用、不提供逐站覆盖、明确错误原因。
 生产 Workspace 只读调查独立见 [UAT-322](UAT-322_WORKSPACE_RESIDUE_AUDIT_20261018.md)。
 
@@ -24,7 +24,7 @@ JAV当前Handle取实际全站route digest；测试后改变route则拒绝旧Pro
   最终反馈语义色及reload清除旧结果变更后已重新构建并完成宽窄2/2复验。截图位于ignored `.codex/jav-browser/`。
 - Service整轮首跑636 pass/29 skip/2 fail：两个失败均为本worktree缺tools/node_modules/ssh2；连接现有依赖后整轮复验647 pass/29既有skip/0 fail（676 tests）。
 - Package boundary/forbidden semantics/manifest/P2 baseline全部PASS；SSOT修订后曾明确拒绝sourceDocumentDigest漂移，按标准materializer更新source-map来源digest并复验，未改合同内容/计数/aggregate。合同计数121 Capability/104 Result family/210 tables/51 canonical transactions/149 routes不变。
-- Linux实际候选验证、生产发布与具体版本UI负责人审核尚未完成；不把Windows或网络只读探测冒充这三项。
+- Linux实际候选验证与生产发布尚未完成；具体版本UI审核见下方最终结论。不把Windows或网络只读探测冒充Linux/生产资格。
 
 ## 发布边界
 
@@ -52,3 +52,13 @@ index-CJdUcY3I.css SHA256 3985683645dcfdfe58b7501901cd4d552d8bfecc88ca8f12440d78
 随后将全站设置与可选TMDB草稿解耦：已有全站policy时不读TMDB；首次配置的可选草稿失败只给可操作反馈，不禁用全站编辑/保存。generation围栏防止晚到草稿覆盖用户编辑、保存、重读或卸载后的状态。
 新增三项Web回归（已配置全站独立于TMDB、可选草稿失败不阻断、晚到草稿不覆盖编辑）及宽窄真实浏览器独立失败旅程。
 最终Web197/197、构建、宽窄Playwright6/6通过，等待新具体版本复核。Backend最终Provider组合58/58通过，新增覆盖真实网络设置Admin API鉴权/只读GET/安全错误，以及Cover403与Page503安全stage/status；UI资产绑定另见下述冻结记录。Service647/29的整轮基线未因最后安全DTO补充重复运行，最后变化由58项相关组合覆盖。
+
+## 最终UI审核结论
+
+用户任命的UI负责人任务 `01a0912a-0086-74e2-88ab-536c59d3862a` 于本轮最终复核通过 **12a4b4030**，
+turn `01a14cd3-3f9c-7d82-9bf1-a56fcfc73fdf`：宽窄屏20/20检查通过，无剩余本次UI阻断项。
+全站设置独立于TMDB、可选草稿失败手填、晚到草稿不覆盖编辑/保存/重读、批量连接与部分失败重试、反馈样式及卡片均通过。
+最终冻结JS `index-VYacCH4j.js` SHA256 `dcdd2596c392c71b5881c3374d9a1fdadce7bc2b36f212a9f0a0bc796a55aaad`；
+CSS `index-CJdUcY3I.css` SHA256 `3985683645dcfdfe58b7501901cd4d552d8bfecc88ca8f12440d7833f0c83864`。
+前两轮不通过及失败证据保留，不能回写为旧版通过；本结论不代表生产验收或Linux实际候选资格。
+本任务末次只读复核生产仍 `markmahoro/shelfdeck:bfd97f36a`、RestartCount0、health ok/normalSupplyAllowed=true；没有部署、配置写入或清理文件。

@@ -1,6 +1,6 @@
 # ShelfDeck 当前计划
 
-2026-10-18 用户确认新增 `GLOBAL-NETWORK-POLICY`：全站统一代理、JAV列表一键测试并启用、无逐站覆盖、明确失败原因；本地实现/验证继续，未授权生产发布或配置写入。另按只读授权调查Workspace积压，已登记UAT-322：约70.16 GiB superseded旧Run引用未释放、无Cleanup Scope，35.39 GiB保留/升级备份，当前活跃约7.55 GiB；同卷外部Landing约173 GiB独立管理。不得将调查推导为删除、Reset或扩大旧UAT-318优化范围。详见[网络Evidence](implementation/evidence/GLOBAL_NETWORK_POLICY_20261018.md)与[Workspace审计](implementation/evidence/UAT-322_WORKSPACE_RESIDUE_AUDIT_20261018.md)。
+2026-10-18 用户确认新增 `GLOBAL-NETWORK-POLICY`：全站统一代理、JAV列表一键测试并启用、无逐站覆盖、明确失败原因；本地实现/适用Windows验证及12a4b4030 UI审核20/20完成，未授权生产发布或配置写入。另按只读授权调查Workspace积压，已登记UAT-322：约70.16 GiB superseded旧Run引用未释放、无Cleanup Scope，35.39 GiB保留/升级备份，当前活跃约7.55 GiB；同卷外部Landing约173 GiB独立管理。不得将调查推导为删除、Reset或扩大旧UAT-318优化范围。详见[网络Evidence](implementation/evidence/GLOBAL_NETWORK_POLICY_20261018.md)与[Workspace审计](implementation/evidence/UAT-322_WORKSPACE_RESIDUE_AUDIT_20261018.md)。
 
 
 2026-10-18 最新用户决定：本轮UAT-318性能优化先到这里，暂停继续优化及后续发布。最后候选d6ef5fee3e未通过响应门禁，保留已实现代码和多轮证据，不视为发布接受；生产仍bfd97f36a。恢复工作时从既有CURRENT_PHASE及UAT-318 Evidence承接，不新建活动计划。
