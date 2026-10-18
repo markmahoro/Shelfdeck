@@ -18,12 +18,12 @@ JAV当前Handle取实际全站route digest；测试后改变route则拒绝旧Pro
 ## 验证记录
 
 - 专项 network policy + JAV runtime：22/22 PASS；真实SQLite持久化/重建、CAS、幂等、显式关闭代理、旧Proof/Handle拒绝、逐站覆盖无效。
-- TMDB与H1其他Provider受影响组合：此前组合55 PASS/1失败；唯一失败为新增测试误传未定义fixture transport，后修为正确fake.fetchImpl，专项已复验；最终全部受影响Provider组合复验结果见后续记录。
+- TMDB与H1其他Provider受影响组合：此前组合55 PASS/1失败；唯一失败为新增测试误传未定义fixture transport，后修为正确fake.fetchImpl，专项已复验；最终受影响Provider组合56/56 PASS；另增真实Admin HTTP网络设置鉴权/GET纯读/保存/敏感地址错误1/1 PASS。
   首轮两项旧错误DTO断言按新增安全stage/status更新后已通过；不是忽略失败。
 - Web：192/192 PASS；构建通过。宽1920/窄390实际Playwright：2/2 PASS，覆盖唯一代理输入、非法地址、键盘保存、单站403、7/8部分成功、重试8/8、无横向溢出。
   最终反馈语义色及reload清除旧结果变更后已重新构建并完成宽窄2/2复验。截图位于ignored `.codex/jav-browser/`。
 - Service整轮首跑636 pass/29 skip/2 fail：两个失败均为本worktree缺tools/node_modules/ssh2；连接现有依赖后整轮复验647 pass/29既有skip/0 fail（676 tests）。
-- Package boundary/forbidden semantics/manifest全部PASS；合同计数121 Capability/104 Result family/210 tables/51 canonical transactions/149 routes不变。
+- Package boundary/forbidden semantics/manifest/P2 baseline全部PASS；SSOT修订后曾明确拒绝sourceDocumentDigest漂移，按标准materializer更新source-map来源digest并复验，未改合同内容/计数/aggregate。合同计数121 Capability/104 Result family/210 tables/51 canonical transactions/149 routes不变。
 - Linux实际候选验证、生产发布与具体版本UI负责人审核尚未完成；不把Windows或网络只读探测冒充这三项。
 
 ## 发布边界

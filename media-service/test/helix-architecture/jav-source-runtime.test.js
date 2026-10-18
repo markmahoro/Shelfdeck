@@ -368,3 +368,18 @@ test('global network settings persist in real Platform storage and invalidate a 
   }finally{await opened.services.close();opened.kernel.close();}
   const reopened=open(value,fake.fetchImpl);try{assert.equal(reopened.services.admin.get('network').configRevision,2);assert.equal(reopened.services.admin.get('network').settings.proxyServer,'');}finally{await reopened.services.close();reopened.kernel.close();}
 });
+
+test('global proxy Admin API requires the existing session, preserves GET purity and reports invalid input without credentials',async()=>{
+  const value=fixture(),host=await createCleanServiceHost({...value,secretRoot,integrationFetch:async()=>{throw new Error('Network configuration must not contact providers.');}});
+  const url='/v1/admin/settings/integrations/network';
+  try{
+    const denied=await host.inject({method:'GET',url});assert.equal(denied.statusCode,401);
+    const login=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':value.initialized.adminApiKey}}),headers={cookie:login.headers['set-cookie']};
+    const before=await host.inject({method:'GET',url,headers});assert.equal(before.statusCode,200);assert.equal(before.json().configRevision,0);
+    const invalid=await host.inject({method:'PATCH',url,headers,payload:{kind:'network',idempotencyKey:'network-api-invalid',expectedConfigRevision:0,settings:{proxyServer:'http://private-user:private-password@proxy.test:7890'}}});
+    assert.equal(invalid.statusCode,400);assert.equal(invalid.json().error.code,'PLATFORM_NETWORK_PROXY_INVALID');assert.equal(invalid.body.includes('private-password'),false);
+    const saved=await host.inject({method:'PATCH',url,headers,payload:{kind:'network',idempotencyKey:'network-api-save',expectedConfigRevision:0,settings:{proxyServer:'http://proxy.test:7890'}}});
+    assert.equal(saved.statusCode,200,saved.body);assert.equal(saved.json().settings.proxyServer,'http://proxy.test:7890');
+    const current=await host.inject({method:'GET',url,headers});assert.equal(current.json().configRevision,1);assert.deepEqual(current.json(),saved.json());
+  }finally{await host.close();}
+});
