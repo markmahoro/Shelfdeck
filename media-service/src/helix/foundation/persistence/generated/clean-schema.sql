@@ -2077,7 +2077,7 @@ CREATE TABLE "libra_product_fact_revisions" (
   "episode_metadata_json" TEXT,
   "fact_digest" TEXT CHECK (length("fact_digest") = 64 AND "fact_digest" NOT GLOB '*[^0-9a-f]*'),
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
-  "source_basis_kind" TEXT CHECK ("source_basis_kind" IN ('decision_evidence', 'metadata_observation', 'western_analysis', 'western_match')),
+  "source_basis_kind" TEXT CHECK ("source_basis_kind" IN ('decision_evidence', 'metadata_observation', 'western_analysis', 'western_match', 'us_adult_actor')),
   "source_basis_id" TEXT,
   "source_basis_digest" TEXT CHECK (length("source_basis_digest") = 64 AND "source_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "source_ref_count" INTEGER CHECK ("source_ref_count" >= 0),
@@ -2107,7 +2107,7 @@ CREATE INDEX "idx_libra_product_fact_revisions_hot_01" ON "libra_product_fact_re
 CREATE TABLE "libra_product_fact_source_refs" (
   "product_fact_id" TEXT,
   "ordinal" INTEGER CHECK ("ordinal" >= 0),
-  "source_basis_kind" TEXT CHECK ("source_basis_kind" IN ('decision_evidence', 'metadata_observation', 'western_analysis', 'western_match')),
+  "source_basis_kind" TEXT CHECK ("source_basis_kind" IN ('decision_evidence', 'metadata_observation', 'western_analysis', 'western_match', 'us_adult_actor')),
   "work_id" TEXT,
   "attempt_id" TEXT,
   "plan_id" TEXT,

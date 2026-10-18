@@ -5,8 +5,8 @@
   "ownerScope": "libra",
   "effectClass": "pure_observation",
   "inputPorts": {
-    "libraMediaCastSourceBasisMetadataObservationOrWesternMatch": {
-      "schemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/inputs#/$defs/libraMediaCastSourceBasisMetadataObservationOrWesternMatch",
+    "libraMediaCastSourceBasis": {
+      "schemaRef": "helix://contracts/capabilities/libra.media_cast.resolve/v1/inputs#/$defs/libraMediaCastSourceBasis",
       "required": true,
       "cardinality": "one"
     },
@@ -30,6 +30,6 @@
   "sourceLocator": {
     "section": "8.6.6",
     "line": 10019,
-    "lineDigest": "cca3168fb397a15474e0a2c572676b1f51682a40d5e7c422a48e0fa580560346"
+    "lineDigest": "afd1a85a54e5e09cf264cd1efd9e7a1130bc56774129f282854905004bdbbdad"
   }
 }

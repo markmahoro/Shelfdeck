@@ -5,8 +5,8 @@
   "ownerScope": "libra",
   "effectClass": "domain_fact_commit",
   "inputPorts": {
-    "libraMediaCastSourceBasisMetadataObservationOrWesternMatch": {
-      "schemaRef": "helix://contracts/capabilities/libra.media_cast.commit/v1/inputs#/$defs/libraMediaCastSourceBasisMetadataObservationOrWesternMatch",
+    "libraMediaCastSourceBasis": {
+      "schemaRef": "helix://contracts/capabilities/libra.media_cast.commit/v1/inputs#/$defs/libraMediaCastSourceBasis",
       "required": true,
       "cardinality": "one"
     },
@@ -35,6 +35,6 @@
   "sourceLocator": {
     "section": "8.6.6",
     "line": 10020,
-    "lineDigest": "5e388e0a500d290644417b8a95a16a9c533014d8cd987b0adc80f5e7a85ebce9"
+    "lineDigest": "ae8502b8df87fdfbfeed5531ba79906b85efc3240dcaa501f288d0d97eb557b4"
   }
 }

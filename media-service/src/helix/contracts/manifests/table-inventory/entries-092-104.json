@@ -126,7 +126,7 @@
       "sourceLocator": {
         "section": "8.5.11",
         "line": 9574,
-        "lineDigest": "cd9e0bc435a1a07eb5efcd5188dab8aeae4f5408c49c4ffa1f9a81de9e0252f3"
+        "lineDigest": "4e1ee37363f2353100b0f797c05de34aa5a59b16bbd031a566a17eeab5a6b415"
       },
       "targetLocator": {
         "path": "table-contracts/libra_product_fact_revisions/v1/contract.json"
@@ -135,11 +135,11 @@
         "tableId": "libra_product_fact_revisions",
         "owner": "libra",
         "contractRef": "helix://contracts/tables/libra_product_fact_revisions/v1",
-        "contractDigest": "db3a73dd6c83c691c52399b1b68bca6fe19e4b31bfd3221edd0e4dfc8c8eda00"
+        "contractDigest": "e659ffa9719ed0eebfdb0dd0f09e15e6031770701b2bd47cfea400ef03ef185f"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "0ab6a7d06b3498f12926cccde98ca54630013ee6657fc98b33bb5c962f815d9c"
+        "value": "a3fc03fb2a6f45f03b0f3a61a4739d2464fc2332df9b2de8a0cdd0884934f80e"
       }
     },
     {
@@ -154,7 +154,7 @@
       "sourceLocator": {
         "section": "8.5.11",
         "line": 9575,
-        "lineDigest": "161626b0233e079caf4f988f80aeafc614a49045536975e79c4848e9816504a4"
+        "lineDigest": "a7ebdc675887775c5ed7248c134554ee4816490cee32e9767906203a3943581f"
       },
       "targetLocator": {
         "path": "table-contracts/libra_product_fact_source_refs/v1/contract.json"
@@ -163,11 +163,11 @@
         "tableId": "libra_product_fact_source_refs",
         "owner": "libra",
         "contractRef": "helix://contracts/tables/libra_product_fact_source_refs/v1",
-        "contractDigest": "345bcacd3e5aa6d95a4314d9f9b4685140153caf2bc27ccd3d46c9839f51780a"
+        "contractDigest": "9ce32b66b044b29eaa876db5ed4fb0c2dff097666985a5959cc3b65bbd1dd9fc"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "a2bb590d9332fb77c2bc32c648ef888fa458d9f4eeb4d2f02f1488038f321a51"
+        "value": "b5454c8abdb001b4dd6f09bfb96fe8f98ab0b4c2f2d5a51e25585ce0562b8f9d"
       }
     },
     {

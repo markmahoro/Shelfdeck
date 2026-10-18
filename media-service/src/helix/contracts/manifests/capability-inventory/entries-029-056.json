@@ -153,21 +153,21 @@
       "sourceLocator": {
         "section": "8.6.6",
         "line": 10017,
-        "lineDigest": "09b01e07391da03beeefecfb505ca33d3f4aa0e89429ba3a3dc45c0171b89609"
+        "lineDigest": "781cc708c567b9173af0019eec3a63c8e0e82accc06d78b58c9f1d700d2809d4"
       },
       "targetLocator": {
         "path": "capabilities/libra/western/poster/render/v1/manifest.json"
       },
       "contract": {
         "packagePath": "capabilities/libra/western/poster/render/v1",
-        "packageDigest": "fcbaadaf2da77f86da1b5d8151082d37c2cd98afd2b0831444daf9a74743325e",
+        "packageDigest": "536d5ccbe953d6dfc6a69cfc4a1e216fcb4041560d1173085e16c85bda5d201e",
         "effectClass": "workspace_write",
-        "inputSummary": "PersonMatchEvidence + FrameArtifactSet",
+        "inputSummary": "UsAdultActorSelectionBasis + FrameArtifactSet",
         "outputFamily": "ArtifactHandle"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "2cd038b48474d42213dedcc4b54541d1d535f7fb376c2a91be957856ab59e398"
+        "value": "b5afc7b39715eee85ae0e141bf70e877033392d1da0c7753ef90e8917838798f"
       }
     },
     {
@@ -209,21 +209,21 @@
       "sourceLocator": {
         "section": "8.6.6",
         "line": 10019,
-        "lineDigest": "cca3168fb397a15474e0a2c572676b1f51682a40d5e7c422a48e0fa580560346"
+        "lineDigest": "afd1a85a54e5e09cf264cd1efd9e7a1130bc56774129f282854905004bdbbdad"
       },
       "targetLocator": {
         "path": "capabilities/libra/media_cast/resolve/v1/manifest.json"
       },
       "contract": {
         "packagePath": "capabilities/libra/media_cast/resolve/v1",
-        "packageDigest": "8c601e1cad3b20cd4bf57e125d1649515c00cf5d1b92495970f0022b5633e2de",
+        "packageDigest": "d1c995e384bb75762485ea22110c6f2ea9427d33fb1262e0e6fafc85911eef8c",
         "effectClass": "pure_observation",
-        "inputSummary": "LibraMediaCastSourceBasis(metadata_observation|western_match) + PersonReferenceProjection[0..256]",
+        "inputSummary": "LibraMediaCastSourceBasis + PersonReferenceProjection[0..256]",
         "outputFamily": "MediaCastDraft"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "34e97b3de81befcec70b3e4bf8ea817a9965af1c5a9ed2b4002526a1d0067b7c"
+        "value": "cff069a1ba5562cdd1759053aa4c250d21e058321ddb1763f26d22bf4330856a"
       }
     },
     {
@@ -237,21 +237,21 @@
       "sourceLocator": {
         "section": "8.6.6",
         "line": 10020,
-        "lineDigest": "5e388e0a500d290644417b8a95a16a9c533014d8cd987b0adc80f5e7a85ebce9"
+        "lineDigest": "ae8502b8df87fdfbfeed5531ba79906b85efc3240dcaa501f288d0d97eb557b4"
       },
       "targetLocator": {
         "path": "capabilities/libra/media_cast/commit/v1/manifest.json"
       },
       "contract": {
         "packagePath": "capabilities/libra/media_cast/commit/v1",
-        "packageDigest": "73ef0e39945303b679439fffaff69fd4d8312bcb08611be4ba3933a71e625697",
+        "packageDigest": "42125f2e4bf52863f1727d50802f23d79ab248cd3c0ca6b3c147b6b1ad5f770f",
         "effectClass": "domain_fact_commit",
-        "inputSummary": "LibraMediaCastSourceBasis(metadata_observation|western_match) + MediaCastDraft + DomainFactCommitHandle",
+        "inputSummary": "LibraMediaCastSourceBasis + MediaCastDraft + DomainFactCommitHandle",
         "outputFamily": "MediaCastFact"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "44aa4715d932726a8b3ade131b31f3d625153341e780a8673cf3d8225b07f77c"
+        "value": "a48ef23c16e49ffb48d8c9a2669111b3aac041a2ada85dc0a7079d38239703b4"
       }
     },
     {

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "helix://contracts/domain-types/LibraMediaCastSourceBasisMetadataObservationWesternMatch/v1",
-  "title": "LibraMediaCastSourceBasisMetadataObservationWesternMatch@1",
+  "$id": "helix://contracts/domain-types/LibraMediaCastSourceBasis/v1",
+  "title": "LibraMediaCastSourceBasis@1",
   "x-helix-ssotRefs": [
     "6.4.7.1",
     "8.5.4",
@@ -434,6 +434,28 @@
       "required": [
         "sourceBasisKind",
         "westernBasis",
+        "sourceBasisDigest"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sourceBasisKind": {
+          "const": "us_adult_actor"
+        },
+        "actorSelection": {
+          "$ref": "helix://contracts/domain-types/UsAdultActorSelectionBasis/v1"
+        },
+        "sourceBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "sourceBasisKind",
+        "actorSelection",
         "sourceBasisDigest"
       ]
     }

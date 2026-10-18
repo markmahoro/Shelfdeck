@@ -17,7 +17,7 @@ module.exports = Object.freeze([
   require('../../../contracts/domain-types/ArtifactRequirement/v1/schema.json'),
   require('../../../contracts/domain-types/ClusterParameters/v1/schema.json'),
   require('../../../contracts/domain-types/FaceModelRef/v1/schema.json'),
-  require('../../../contracts/domain-types/LibraMediaCastSourceBasisMetadataObservationWesternMatch/v1/schema.json'),
+  require('../../../contracts/domain-types/LibraMediaCastSourceBasis/v1/schema.json'),
   require('../../../contracts/domain-types/PersonReferenceProjection/v1/schema.json'),
   require('../../../contracts/domain-types/ResolvedProviderIdentity/v1/schema.json'),
   require('../../../contracts/domain-types/SamplingPlan/v1/schema.json'),

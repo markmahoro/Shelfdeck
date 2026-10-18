@@ -5,8 +5,8 @@
   "ownerScope": "libra",
   "effectClass": "workspace_write",
   "inputPorts": {
-    "personMatchEvidence": {
-      "schemaRef": "helix://contracts/capabilities/libra.western.poster.render/v1/inputs#/$defs/personMatchEvidence",
+    "usAdultActorSelectionBasis": {
+      "schemaRef": "helix://contracts/capabilities/libra.western.poster.render/v1/inputs#/$defs/usAdultActorSelectionBasis",
       "required": true,
       "cardinality": "one"
     },
@@ -30,6 +30,6 @@
   "sourceLocator": {
     "section": "8.6.6",
     "line": 10017,
-    "lineDigest": "09b01e07391da03beeefecfb505ca33d3f4aa0e89429ba3a3dc45c0171b89609"
+    "lineDigest": "781cc708c567b9173af0019eec3a63c8e0e82accc06d78b58c9f1d700d2809d4"
   }
 }

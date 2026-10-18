@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 217,
-  "tableContractAggregateDigest": "9b53bd9050a63668b218a3f3b6f5f28f3190bbed3d23b7139b2ff2b892406c97",
-  "ddlDigest": "7d9f416595024bbea0f5c6b05d85162391add8878c8b274bcf07b9d0a653e28b",
+  "tableContractAggregateDigest": "331944266f22e32925dcdb585739b771ef8aef7e006d0db06f1e6b3dbb1b55be",
+  "ddlDigest": "80148db126f1d2c41edc680e3d59ce1c226a8cc5cce8f34879abf81b126c2f08",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -365,7 +365,7 @@
       "tableId": "arca_defect_admission_heads",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_defect_admission_heads/v1",
-      "contractDigest": "ae2e1b9e176cd0ffb5bce9ba7a9af0ca0d9cc127da151f4a0a8882064630593b",
+      "contractDigest": "1399df9ba5b4cbeeb2e9d414ecbb544773a79e81054d0006a8df5d2e4aea2af2",
       "sqlDigest": "6ba1be8471cc499464ba52ae5dc3a1fd08c238a0f9d15a535710f6d4f5da5732",
       "columns": [
         "shelf_entry_id",
@@ -380,7 +380,7 @@
       "tableId": "arca_defect_admissions",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_defect_admissions/v1",
-      "contractDigest": "6c5b8b62c750021538d185c49fad63c86347c26a7964b3b1ed0d45f8e5c243f7",
+      "contractDigest": "9e2a46d66b72e95f888054a65bc3f432d0d474b0bb8a807cf83e63aa059bae3c",
       "sqlDigest": "1f1b5a41f85960fd0f2706f31c6389e18e06c174ac340d4a44f11af254a63b0d",
       "columns": [
         "shelf_entry_id",
@@ -403,7 +403,7 @@
       "tableId": "arca_defect_repair_intents",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_defect_repair_intents/v1",
-      "contractDigest": "97f075aba656ce3a2c867126230534e255ca4e77249b03b634d0cc3e1396e9fc",
+      "contractDigest": "6bdc8cb3a4212afa6aa9e9c19596cad3ba7a80fd8f2043ab982f0db573df624e",
       "sqlDigest": "aaaee8d8bfff210c83bc9090ba226177eda8b0a77a25c2ce0c178eed05322421",
       "columns": [
         "intent_id",
@@ -2461,7 +2461,7 @@
       "tableId": "libra_acquisition_candidate_evidence",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_acquisition_candidate_evidence/v1",
-      "contractDigest": "76ebee79d24e1dc322b8c2b761d7c70be9fc459a50df5e2a169ec2dea0ae1813",
+      "contractDigest": "a86185934cd8892f0a5c4c4d3b1bf97e7b0164c0630b5f317073962ff347e5ed",
       "sqlDigest": "2ac90d4b8037fe9248bf124e27aafa1fa6f5060b04735a8c85bbc2d3ca77c805",
       "columns": [
         "record_id",
@@ -2554,7 +2554,7 @@
       "tableId": "libra_defect_authorization_head",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_defect_authorization_head/v1",
-      "contractDigest": "de26b5f705d68a750b891093bb65859aa5701d0ea041fe355adc4ca738fdad38",
+      "contractDigest": "6072958fc9db0f7926f2015d44f51a5350972912b5da2b8f89ee888963287b2b",
       "sqlDigest": "f8b6a17cdcb4526c39401976282ea08ba98c075538bd9a34844c4da3f107bc66",
       "columns": [
         "singleton_key",
@@ -2570,7 +2570,7 @@
       "tableId": "libra_defect_authorizations",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_defect_authorizations/v1",
-      "contractDigest": "bca8bd932be2adee4592377fa9ca867490964c0e9aeb33189256a3ceff303974",
+      "contractDigest": "39fff1872ae1d3bc6808e81cee6c46095fc98be26a955714a2accb4acc6edf56",
       "sqlDigest": "c85562d840a1b6d93a30ae892a11cd4f505c0612c03a7c859e743a7c84db3879",
       "columns": [
         "authorization_id",
@@ -3125,8 +3125,8 @@
       "tableId": "libra_product_fact_revisions",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_fact_revisions/v1",
-      "contractDigest": "db3a73dd6c83c691c52399b1b68bca6fe19e4b31bfd3221edd0e4dfc8c8eda00",
-      "sqlDigest": "cdcedc2081113aff33597a09f16a4586c5ab50e3068c9358817985fb812a978e",
+      "contractDigest": "e659ffa9719ed0eebfdb0dd0f09e15e6031770701b2bd47cfea400ef03ef185f",
+      "sqlDigest": "f2e45177fdf23bbc4a3e230737da01214ca587b5af3635016bfe39e2508d6785",
       "columns": [
         "product_fact_id",
         "libra_run_id",
@@ -3168,8 +3168,8 @@
       "tableId": "libra_product_fact_source_refs",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_fact_source_refs/v1",
-      "contractDigest": "345bcacd3e5aa6d95a4314d9f9b4685140153caf2bc27ccd3d46c9839f51780a",
-      "sqlDigest": "1238e5a4beb9e12798e19c2700ff37c4a648671574494a3be60a5c6154fc51d8",
+      "contractDigest": "9ce32b66b044b29eaa876db5ed4fb0c2dff097666985a5959cc3b65bbd1dd9fc",
+      "sqlDigest": "89b55a173fdd6855afe85cfcaa10f2e40195aca66ec3efa85be95fcbc11820ac",
       "columns": [
         "product_fact_id",
         "ordinal",
@@ -3418,7 +3418,7 @@
       "tableId": "libra_reprocess_intents",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_reprocess_intents/v1",
-      "contractDigest": "8cdb4ccd6407cb4ffd53a0d133b233ec8cce8eb2eefcf3b64a4fd363f8256fc8",
+      "contractDigest": "49ad98f6c8971150d6f9810bbfb263e7e74c344290c685ad65db6630479ed521",
       "sqlDigest": "9a56b4537f89f27ed92d0d58b31d91856e6bdc621a0c4acdce99b8877167f979",
       "columns": [
         "intent_id",
@@ -3685,7 +3685,7 @@
       "tableId": "libra_run_outcomes",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_run_outcomes/v1",
-      "contractDigest": "5e0c3f1b6fb2fd6e26bd45d8ca5a7e3d94187e8f935a1db7da8ae081e0a38a98",
+      "contractDigest": "1477a10f7a5ec9ae951945aa2904dce7b013f103623dd6fce11a8040ebc46075",
       "sqlDigest": "458f712ddcd390dff384f80c132dae7d5d1662a8552fc6a163a9c6bb23e69e02",
       "columns": [
         "libra_run_id",
@@ -3802,7 +3802,7 @@
       "tableId": "libra_strategy_availability",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_strategy_availability/v1",
-      "contractDigest": "afa3b79b871f3a3f42598f5c233ca2a67be6fe3ad62ec77ddb6d320b5c836f2a",
+      "contractDigest": "32dd4be07f2ed179f524a2f15251d81bcbb1d268ee39ff0e546bf8fe6ceafb2c",
       "sqlDigest": "1b8f79e5477439b1afaf937f557ab0be122727e60b30632f69286d9acb4ff2a8",
       "columns": [
         "libra_run_id",

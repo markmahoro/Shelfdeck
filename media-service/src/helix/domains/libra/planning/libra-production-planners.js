@@ -674,10 +674,10 @@ function createProductFactAssemblyPlanner(options) {
     const metadataCommitEvent=stable('libra-product-metadata-commit-event-',{attempt:request.workAttemptId});
     const nodes=[
       planNode({...options,request,nodeId:'media_cast_resolve',eventId:castResolveEvent,capabilityRef:MEDIA_CAST_RESOLVE,
-        inputBindings:[owner('libraMediaCastSourceBasisMetadataObservationOrWesternMatch',request,MEDIA_CAST_BASIS),
+        inputBindings:[owner('libraMediaCastSourceBasis',request,MEDIA_CAST_BASIS),
           owner('personReferenceProjectionList',request,PERSON_REFERENCE_LIST)],resourceKinds:['cpu','disk_io']}),
       planNode({...options,request,nodeId:'media_cast_commit',eventId:castCommitEvent,capabilityRef:MEDIA_CAST_COMMIT,
-        inputBindings:[owner('libraMediaCastSourceBasisMetadataObservationOrWesternMatch',request,MEDIA_CAST_BASIS),
+        inputBindings:[owner('libraMediaCastSourceBasis',request,MEDIA_CAST_BASIS),
           projected('mediaCastDraft',castResolveEvent,options.registry.resolve(MEDIA_CAST_RESOLVE,'libra').manifest.resultSchemaRef,MEDIA_CAST_DRAFT),
           projected('domainFactCommitHandle',castResolveEvent,options.registry.resolve(MEDIA_CAST_RESOLVE,'libra').manifest.resultSchemaRef,
             MEDIA_CAST_HANDLE,{workId:request.workId,eventId:castCommitEvent,processId:request.processId})],

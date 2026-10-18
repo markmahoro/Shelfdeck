@@ -3,6 +3,7 @@
 const {createHash} = require('node:crypto');
 const {canonicalDigest, canonicalJson} = require('../contracts/canonical-json');
 const {faceModelReference, referenceFeatureCacheKey} = require('../contracts/us-adult-face-model');
+const {originalNameProvenance}=require('../contracts/us-adult-presentation');
 const {normalizeVector} = require('./local-face-math');
 const {createUsAdultFrameAnalysis} = require('./us-adult-frame-analysis');
 const {renderUsAdultPoster} = require('./us-adult-poster-renderer');
@@ -67,16 +68,24 @@ function createUsAdultAnalysisEngine(options) {
     return {asset, feature};
   }
 
-  function presentation(match) {
+  function presentation(selection) {
     const snapshot = options.actorPresentation;
     if (!snapshot || snapshot.libraryKind !== 'us_adult' || typeof snapshot.canonicalName !== 'string' || !snapshot.canonicalName.trim() ||
-        !snapshot.originalName || typeof snapshot.originalName.originalFileName !== 'string' || !snapshot.internalIdentity) {
+        !snapshot.originalName || typeof snapshot.originalName.originalFileName !== 'string' || !snapshot.internalIdentity ||
+        !/^[a-f0-9]{64}$/.test(snapshot.actorSelectionDigest||'') ||
+        !same(snapshot.originalName,originalNameProvenance(snapshot.originalName.originalFileName))) {
       fail('US_ADULT_PRESENTATION_REQUIRED', 'Rendering requires the actor selection and original name frozen by Libra.');
     }
-    if (match && (match.matches.length !== 1 || match.matches[0].personId !== snapshot.personId ||
-        match.matches[0].personRevision !== snapshot.personRevision || match.matches[0].referenceAssetId !== snapshot.referenceAssetId ||
-        match.matches[0].artifactDigest !== snapshot.artifactDigest)) {
-      fail('US_ADULT_PRESENTATION_CHANGED', 'The poster actor differs from the frozen selection.');
+    if(selection){
+      const {selectionDigest,...body}=selection,person=selection.selectionOrigin==='user_choice'?
+        selection.actorChoiceRecord?.personSnapshot:selection.matchCompletion?.winner?.personSnapshot,
+        asset=person?.referenceProjection?.contributions.find(item=>item.ownerPersonId===person.personId)?.activeAssets
+          .find(item=>item.referenceAssetId===selection.referenceAssetId);
+      if(selection.schemaRef!=='helix://contracts/domain-types/UsAdultActorSelectionBasis/v1'||canonicalDigest(body)!==selectionDigest||
+        selectionDigest!==snapshot.actorSelectionDigest||person?.personId!==snapshot.personId||person.personRevision!==snapshot.personRevision||
+        person.canonicalName!==snapshot.canonicalName||selection.referenceAssetId!==snapshot.referenceAssetId||
+        asset?.artifactHandleId!==snapshot.artifactHandleId||asset.artifactDigest!==snapshot.artifactDigest)
+        fail('US_ADULT_PRESENTATION_CHANGED','The poster actor or portrait differs from the frozen actor selection.');
     }
     return snapshot;
   }
@@ -164,7 +173,8 @@ function createUsAdultAnalysisEngine(options) {
     },
     async analyzeWestern({analysisSpec}) {
       active(); const selected = presentation();
-      const expected = {actor_name:selected.canonicalName, original_file_name:selected.originalName.originalFileName, internal_identity:selected.internalIdentity};
+      const expected = {actor_name:selected.canonicalName, original_file_name:selected.originalName.originalFileName,
+        internal_identity:selected.internalIdentity,actor_selection_digest:selected.actorSelectionDigest};
       for (const [parameter, value] of Object.entries(expected)) {
         if (analysisSpec.typedParameters.find(item => item.parameter === parameter)?.value !== value) {
           fail('US_ADULT_PRESENTATION_CHANGED', 'Analysis metadata differs from its frozen actor and original filename.');
@@ -175,8 +185,8 @@ function createUsAdultAnalysisEngine(options) {
         {key:'title', value:selected.canonicalName + ' ' + stem}, {key:'actor_name', value:selected.canonicalName}, {key:'original_file_name', value:name},
       ].map(Object.freeze))});
     },
-    async renderPoster({frameComposite, personMatchEvidence}) {
-      active(); const selected = presentation(personMatchEvidence);
+    async renderPoster({frameComposite, actorSelectionBasis}) {
+      active(); const selected = presentation(actorSelectionBasis);
       const portrait = options.referencePort.readReferenceImage({personId:selected.personId,
         artifactHandleId:selected.artifactHandleId, artifactDigest:selected.artifactDigest}).bytes;
       const ordinals = Array.from({length:4}, (_, index) => Math.min(frameComposite.members.length - 1,

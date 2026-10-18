@@ -5,21 +5,21 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "personMatchEvidence": {
-      "$ref": "#/$defs/personMatchEvidence"
+    "usAdultActorSelectionBasis": {
+      "$ref": "#/$defs/usAdultActorSelectionBasis"
     },
     "frameArtifactSet": {
       "$ref": "#/$defs/frameArtifactSet"
     }
   },
   "required": [
-    "personMatchEvidence",
+    "usAdultActorSelectionBasis",
     "frameArtifactSet"
   ],
   "$defs": {
-    "personMatchEvidence": {
-      "$ref": "helix://contracts/types/PersonMatchEvidence/v1",
-      "x-helix-typeExpression": "PersonMatchEvidence"
+    "usAdultActorSelectionBasis": {
+      "$ref": "helix://contracts/domain-types/UsAdultActorSelectionBasis/v1",
+      "x-helix-typeExpression": "UsAdultActorSelectionBasis"
     },
     "frameArtifactSet": {
       "$ref": "helix://contracts/types/FrameArtifactSet/v1",

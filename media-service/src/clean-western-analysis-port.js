@@ -3,6 +3,7 @@
 const { createHash } = require('node:crypto');
 const { canonicalDigest, canonicalJson } =
   require('./helix/contracts/canonical-json');
+const {US_ADULT_PRESENTATION_VERSION}=require('./helix/contracts/us-adult-presentation');
 
 class CleanWesternAnalysisPortError extends Error {
   constructor(code, message, details = {}) {
@@ -878,12 +879,13 @@ function createCleanWesternAnalysisPort(options) {
 
   async function renderPoster(request) {
     const frameSet = request?.frameArtifactSet;
-    const match = request?.personMatchEvidence;
-    if (!frameSet || !match ||
+    const selection = request?.actorSelectionBasis;
+    if (!frameSet || !selection || selection.schemaRef!=='helix://contracts/domain-types/UsAdultActorSelectionBasis/v1'||
+        selection.libraRunId!==frameSet.libraRunId||frameSet.frameSetArtifactHandle?.ownerScope?.scopeId!==frameSet.libraRunId||
         frameSet.frameSetArtifactHandle?.artifactKind !==
           'western_frame_set') {
       fail('CLEAN_WESTERN_POSTER_INPUT_INVALID',
-        'Western Poster render requires exact Frame and Match Results.');
+        'US Adult poster rendering requires the exact same-Run frames and frozen actor selection.');
     }
     const materializeRequest = {
       libraRunId: frameSet.libraRunId,
@@ -892,12 +894,13 @@ function createCleanWesternAnalysisPort(options) {
       artifactKind: 'poster',
       mediaType: 'image/jpeg',
       provenanceRef: {
-        objectType: 'western_poster_render',
-        objectId: match.evidenceId,
+        objectType: 'us_adult_poster_render',
+        objectId: selection.selectionId,
         revision: 1,
         digest: canonicalDigest({
-          personMatchEvidenceDigest: match.payloadDigest,
+          actorSelectionDigest: selection.selectionDigest,
           frameArtifactSetDigest: frameSet.manifestDigest,
+          presentationVersion:US_ADULT_PRESENTATION_VERSION,
         }),
       },
     };
@@ -912,7 +915,7 @@ function createCleanWesternAnalysisPort(options) {
     const bytes = await options.engine.renderPoster(Object.freeze({
       frameArtifactSet: frameSet,
       frameComposite: framePayload,
-      personMatchEvidence: match,
+      actorSelectionBasis: selection,
     }));
     if (!Buffer.isBuffer(bytes) || !bytes.length) {
       fail('CLEAN_WESTERN_POSTER_RESULT_INVALID',

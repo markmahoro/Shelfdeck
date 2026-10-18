@@ -82,6 +82,7 @@ function validateDomainInputSchemas(options) {
     }
     const exactIdentityFields = {
       PeopleCandidateAcceptanceDecision: ['decisionId', 'expectedCandidateRevision', 'candidatePayloadDigest', 'decisionDigest'],
+      UsAdultActorSelectionBasis:['selectionId','selectionOrigin','selectionDigest'],
       UsAdultMatchCompletion:['analysisId','matchResultSetDigest','completionDigest'],
       UsAdultActorChoiceReceipt:['intentId','choiceRevision','recordDigest'],
       UsAdultActorChoiceRecord:['intentId','subjectId','recordDigest'],
@@ -98,7 +99,7 @@ function validateDomainInputSchemas(options) {
       MetadataFetchIntent: ['intentId', 'libraRunId', 'runExecutionBasisDigest', 'sourceKind', 'sourcePriority', 'resolvedIdentityDigest', 'intentDigest'],
       WesternAnalysisVariant: ['variantId', 'libraRunId', 'runExecutionBasisDigest', 'resolvedIdentityDigest', 'variantDigest'],
       ArtifactRequirement: ['requirementId', 'revision', 'schemaRef', 'artifactKind', 'requirementPayload', 'requirementDigest'],
-      LibraMediaCastSourceBasisMetadataObservationWesternMatch: ['sourceBasisKind', 'sourceBasisDigest'],
+      LibraMediaCastSourceBasis: ['sourceBasisKind', 'sourceBasisDigest'],
       LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis: ['sourceBasisKind', 'sourceBasisDigest'],
       VerifiedArtifactManifest: ['manifestId', 'libraRunId', 'artifactSetDigest', 'manifestDigest'],
       OnDeckPersonEvidenceProjectionItem: ['projectionItemId', 'shelfEntryId', 'inventoryRevision', 'relationId', 'projectionRevision', 'projectionItemDigest'],
@@ -212,7 +213,7 @@ function validateDomainInputSchemas(options) {
   for (const name of usages.keys()) {
     if (!ids.has(name)) findings.push(finding('MISSING_DOMAIN_INPUT_TYPE', 'Catalog input reference has no schema.', { entryId: name }));
   }
-  const facadeOnlyTypes = new Set(['UsAdultMatchCompletion','UsAdultActorChoiceReceipt','UsAdultActorChoiceRecord','UsAdultActorChoiceDecision','UsAdultAnalysisBasis','UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
+  const facadeOnlyTypes = new Set(['UsAdultActorSelectionBasis','UsAdultMatchCompletion','UsAdultActorChoiceReceipt','UsAdultActorChoiceRecord','UsAdultActorChoiceDecision','UsAdultAnalysisBasis','UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
     'ResolvedProviderIdentity', 'ProductStructureSnapshot', 'ProductConformanceFactSnapshot', 'ProductionMaterialManifest',
     'ArtifactManifest', 'ArtifactConformanceVerificationSnapshot', 'ProductInventoryConformanceSnapshot',
     'WorkspaceArtifactOutputTarget', 'ShelfAcceptancePrimaryReadSet',

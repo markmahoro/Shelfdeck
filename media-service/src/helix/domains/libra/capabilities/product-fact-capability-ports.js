@@ -4,6 +4,7 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { buildProductIdentityCommitBundle, findProductIdentitySourceResult } = require('../model/product-identity-commit-contracts');
 const { buildMediaCastDraft, buildMetadataMediaCastRelations, buildProductFactHandle } = require('../model/product-fact-contracts');
 const { identityCommitFence, factCommitFence } = require('../model/product-fact-execution-fences');
+const {actorRelation,selectedPerson}=require('../model/us-adult-actor-selection');
 
 const IDENTITY = 'libra.product_identity.resolve@1';
 const MEDIA_CAST_RESOLVE = 'libra.media_cast.resolve@1';
@@ -74,18 +75,20 @@ function createProductFactCapabilityPorts(options) {
     validateResult(_context,outcome){if(!outcome?.result?.identityDigest)throw new TypeError('Resolved Product Identity is absent.');},
   });
   const mediaCastResolvePort=Object.freeze({
-    validateInputs(context){requireNamed(context,['libraMediaCastSourceBasisMetadataObservationOrWesternMatch','personReferenceProjectionList']);},
+    validateInputs(context){requireNamed(context,['libraMediaCastSourceBasis','personReferenceProjectionList']);},
     execute(context){
-      const sourceBasis=context.namedInputs.libraMediaCastSourceBasisMetadataObservationOrWesternMatch;
+      const sourceBasis=context.namedInputs.libraMediaCastSourceBasis;
       const run=typeof options.movieProductionReader.readRunSnapshot==='function'
         ?options.movieProductionReader.readRunSnapshot(context.ownerScope.processId)
         :options.movieProductionReader.readRun(context.ownerScope.processId);
       if(!run)throw new TypeError('Libra Run snapshot is unavailable for Media Cast resolution.');
       const observations=sourceBasis?.observationSet?.observations||[];
+      if(sourceBasis.sourceBasisKind==='us_adult_actor'&&canonicalDigest(context.namedInputs.personReferenceProjectionList)!==
+        canonicalDigest([selectedPerson(sourceBasis.actorSelection).referenceProjection]))throw new Error('US actor resolution requires exactly its frozen reference Projection.');
       const result=buildMediaCastDraft({subjectId:run.run.subjectId,sourceBasis,
-        relations:buildMetadataMediaCastRelations({sourceBasis,subjectId:run.run.subjectId}),
+        relations:sourceBasis.sourceBasisKind==='us_adult_actor'?[actorRelation(sourceBasis.actorSelection)]:buildMetadataMediaCastRelations({sourceBasis,subjectId:run.run.subjectId}),
         personProjection:{items:context.namedInputs.personReferenceProjectionList},
-        producedAtMs:Math.max(...observations.map((item)=>item.observedAtMs))});
+        producedAtMs:sourceBasis.sourceBasisKind==='us_adult_actor'?0:Math.max(...observations.map((item)=>item.observedAtMs))});
       const schemas=resultSchemas(MEDIA_CAST_RESOLVE);
       return Object.freeze({kind:'succeeded',resultSchemaRef:schemas.result,result,
         evidenceSchemaRef:schemas.evidence,evidence:eventEvidence(MEDIA_CAST_RESOLVE,result,sourceBasis.sourceBasisDigest,now)});
@@ -128,8 +131,8 @@ function createProductFactCapabilityPorts(options) {
       throw new TypeError('Committed Product Fact is invalid.');},
   });}
   const mediaCastCommitPort=commitPort(MEDIA_CAST_COMMIT,'media_cast',[
-    'libraMediaCastSourceBasisMetadataObservationOrWesternMatch','mediaCastDraft','domainFactCommitHandle'],(inputs)=>Object.freeze({
-      sourceBasis:inputs.libraMediaCastSourceBasisMetadataObservationOrWesternMatch,mediaCastDraft:inputs.mediaCastDraft}));
+    'libraMediaCastSourceBasis','mediaCastDraft','domainFactCommitHandle'],(inputs)=>Object.freeze({
+      sourceBasis:inputs.libraMediaCastSourceBasis,mediaCastDraft:inputs.mediaCastDraft}));
   const metadataCommitPort=commitPort(METADATA_COMMIT,'product_metadata',[
     'libraProductMetadataSourceBasisMetadataObservationOrWesternAnalysis','productMetadataDraft','verifiedArtifactManifest',
     'mediaCastFactRefProductFactIdFactRevisionFactDigest','domainFactCommitHandle'],(inputs)=>Object.freeze({

@@ -228,7 +228,7 @@ const dtoContracts = {
   RoutingFactObservationIntent: '',
   MetadataFetchIntent: '',
   WesternAnalysisVariant: '',
-  LibraMediaCastSourceBasisMetadataObservationWesternMatch: '',
+  LibraMediaCastSourceBasis: '',
   LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis: '',
   OffLoadContext: 'onDeckPackageId,materials,contextDigest',
   OnDeckPersonEvidenceProjectionItem: '',
@@ -275,6 +275,7 @@ const dtoContracts = {
   UsAdultActorChoiceDecision:'',
   UsAdultActorChoiceReceipt:'',
   UsAdultMatchCompletion:'',
+  UsAdultActorSelectionBasis:'',
   PeopleReferenceLibraryPage:'',
   PerceptionAcquisitionResumeDecision: '',
   PeopleReferenceMaintenanceDecision: '',
@@ -360,6 +361,8 @@ function buildSchema(name, role, fields) {
   if(name==='UsAdultActorChoiceRecord')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},intentId:digest(),libraRunId:id(),subjectId:id(),revision:positiveInteger(),expectedChoiceRevision:nonNegativeInteger(),expectedRunStateRevision:positiveInteger(),runExecutionBasisDigest:digest(),actorId:id(),idempotencyKey:text({maxLength:128}),requestDigest:digest(),personSnapshot:domainRef('UsAdultPersonSnapshot'),recordDigest:digest()}),'x-helix-maxCanonicalBytes':256*1024};
   if(name==='UsAdultActorChoiceDecision')return {...exactDomainSchema(name,{decisionId:digest(),record:domainRef('UsAdultActorChoiceRecord'),decisionDigest:digest()}),'x-helix-maxCanonicalBytes':1024*1024};
   if(name==='UsAdultActorChoiceReceipt')return exactDomainSchema(name,{intentId:digest(),subjectId:id(),libraRunId:id(),choiceRevision:positiveInteger(),personId:id(),personRevision:positiveInteger(),referenceRevision:positiveInteger(),recordDigest:digest()});
+  if(name==='UsAdultActorSelectionBasis')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},selectionId:digest(),libraRunId:id(),subjectId:id(),runExecutionBasisDigest:digest(),resolvedIdentityDigest:digest(),analysisId:digest(),analysisBasisDigest:digest(),selectionOrigin:enumText('user_choice','automatic_match'),actorChoiceRecord:nullable(domainRef('UsAdultActorChoiceRecord')),matchCompletion:nullable(domainRef('UsAdultMatchCompletion')),referenceAssetId:id(),selectionDigest:digest()}),'x-helix-maxCanonicalBytes':1024*1024,
+    allOf:[{if:{properties:{selectionOrigin:{const:'user_choice'}}},then:{properties:{actorChoiceRecord:domainRef('UsAdultActorChoiceRecord'),matchCompletion:{type:'null'}}},else:{properties:{actorChoiceRecord:{type:'null'},matchCompletion:domainRef('UsAdultMatchCompletion')}}}]};
   if(name==='UsAdultMatchCompletion')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},analysisId:digest(),libraRunId:id(),subjectId:id(),analysisBasisDigest:digest(),completedPageCount:positiveInteger(),detectedFaceCount:nonNegativeInteger(),matchResultSetDigest:digest(),winner:nullable(object({pageOrdinal:nonNegativeInteger(),personSnapshot:domainRef('UsAdultPersonSnapshot'),matchResultRef:object({workId:id(),attemptId:id(),planId:id(),eventId:id(),resultId:id(),capabilityRef:{const:'shared.face.reference.match@1'},resultSchemaRef:{const:'helix://contracts/capabilities/shared.face.reference.match/v1/result'},resultDigest:digest(),inputBindingDigest:digest()}),personMatchEvidence:typeRef('PersonMatchEvidence')})),completionDigest:digest()}),'x-helix-maxCanonicalBytes':256*1024};
   if(name==='UsAdultPersonSnapshot')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},libraryKind:{const:'us_adult'},personId:id(),personRevision:positiveInteger(),canonicalName:text({maxLength:200}),aliases:arrayOf(text({maxLength:200}),33),personFactDigest:digest(),referenceProjection:domainRef('PersonReferenceProjection'),snapshotDigest:digest()}),'x-helix-maxCanonicalBytes':128*1024};
   if(name==='PeopleReferenceLibraryPage')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},libraryKind:{const:'us_adult'},libraryDigest:digest(),totalPersonCount:nonNegativeInteger(),items:arrayOf(domainRef('UsAdultPersonSnapshot'),256),nextCursor:nullable(id()),pageDigest:digest()}),'x-helix-maxCanonicalBytes':512*1024};
@@ -379,7 +382,7 @@ function buildSchema(name, role, fields) {
   if (name === 'ProductIdentityEvidenceIntent') return productIdentityEvidenceIntentSchema();
   if (name === 'RoutingFactObservationIntent') return routingFactObservationIntentSchema();
   if (name === 'MetadataFetchIntent') return metadataFetchIntentSchema();
-  if (name === 'LibraMediaCastSourceBasisMetadataObservationWesternMatch') return libraMediaCastSourceBasisSchema(name);
+  if (name === 'LibraMediaCastSourceBasis') return libraMediaCastSourceBasisSchema(name);
   if (name === 'LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis') return libraProductMetadataSourceBasisSchema(name);
   if (name === 'VerifiedArtifactManifest') return verifiedArtifactManifestSchema();
   if (name === 'OnDeckPersonEvidenceProjectionItem') return onDeckPersonEvidenceProjectionItemSchema();
@@ -1173,7 +1176,8 @@ function libraMediaCastSourceBasisSchema(name) {
   return sourceBasisEnvelope(name, [
     object({ sourceBasisKind: { const: 'metadata_observation' }, selection: metadataObservationSelectionValue(),
       observationSet: metadataObservationSetValue(), sourceBasisDigest: digest() }),
-    object({ sourceBasisKind: { const: 'western_match' }, westernBasis: westernMediaCastBasisValue(), sourceBasisDigest: digest() })
+    object({ sourceBasisKind: { const: 'western_match' }, westernBasis: westernMediaCastBasisValue(), sourceBasisDigest: digest() }),
+    object({sourceBasisKind:{const:'us_adult_actor'},actorSelection:domainRef('UsAdultActorSelectionBasis'),sourceBasisDigest:digest()})
   ], 8 * 1024 * 1024);
 }
 

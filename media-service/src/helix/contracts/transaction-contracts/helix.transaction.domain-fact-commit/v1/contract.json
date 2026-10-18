@@ -245,6 +245,11 @@
         ],
         "readTables": [
           "libra_runs",
+          "libra_subjects",
+          "libra_us_adult_analysis_bases",
+          "libra_us_adult_match_completions",
+          "libra_us_adult_actor_choice_heads",
+          "libra_us_adult_actor_choice_intents",
           "libra_product_fact_revisions",
           "libra_product_fact_source_refs",
           "fx_supporting_works",

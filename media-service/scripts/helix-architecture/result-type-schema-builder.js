@@ -1273,16 +1273,19 @@ function episodeMetadataSchema() {
 }
 
 function mediaCastDraftSchema() {
-  return resultSchema('MediaCastDraft', 'DraftEnvelope', {
-    subjectId: id(), sourceBasisKind: enumText('metadata_observation', 'western_match'),
+  const schema=resultSchema('MediaCastDraft', 'DraftEnvelope', {
+    subjectId: id(), sourceBasisKind: enumText('metadata_observation', 'western_match','us_adult_actor'),
     metadataObservationSetDigest: nullable(digest()), westernMatchBasisDigest: nullable(digest()),
     relations: arrayOf(mediaCastRelationSchema(), 4096)
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+  schema.properties.usAdultActorBasisDigest=digest();
+  schema.allOf=[{if:{properties:{sourceBasisKind:{const:'us_adult_actor'}}},then:{required:['usAdultActorBasisDigest'],properties:{metadataObservationSetDigest:{type:'null'},westernMatchBasisDigest:{type:'null'}}},else:{not:{required:['usAdultActorBasisDigest']}}}];
+  return schema;
 }
 
 function mediaCastFactSchema() {
   return resultSchema('MediaCastFact', 'DomainFactEnvelope', {
-    subjectId: id(), sourceBasisKind: enumText('metadata_observation', 'western_match'), sourceBasisDigest: digest(),
+    subjectId: id(), sourceBasisKind: enumText('metadata_observation', 'western_match','us_adult_actor'), sourceBasisDigest: digest(),
     relations: arrayOf(mediaCastRelationSchema(), 4096), relationsDigest: digest(), relationCount: nonNegativeInteger()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
 }

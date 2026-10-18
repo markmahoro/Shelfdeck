@@ -438,13 +438,13 @@
       "id": "libra.western.poster.render@1",
       "contractVersion": 1,
       "owner": "libra",
-      "inputSummary": "PersonMatchEvidence + FrameArtifactSet",
+      "inputSummary": "UsAdultActorSelectionBasis + FrameArtifactSet",
       "outputFamily": "ArtifactHandle",
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.6",
         "line": 10017,
-        "lineDigest": "09b01e07391da03beeefecfb505ca33d3f4aa0e89429ba3a3dc45c0171b89609"
+        "lineDigest": "781cc708c567b9173af0019eec3a63c8e0e82accc06d78b58c9f1d700d2809d4"
       }
     },
     {
@@ -464,26 +464,26 @@
       "id": "libra.media_cast.resolve@1",
       "contractVersion": 1,
       "owner": "libra",
-      "inputSummary": "LibraMediaCastSourceBasis(metadata_observation|western_match) + PersonReferenceProjection[0..256]",
+      "inputSummary": "LibraMediaCastSourceBasis + PersonReferenceProjection[0..256]",
       "outputFamily": "MediaCastDraft",
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.6",
         "line": 10019,
-        "lineDigest": "cca3168fb397a15474e0a2c572676b1f51682a40d5e7c422a48e0fa580560346"
+        "lineDigest": "afd1a85a54e5e09cf264cd1efd9e7a1130bc56774129f282854905004bdbbdad"
       }
     },
     {
       "id": "libra.media_cast.commit@1",
       "contractVersion": 1,
       "owner": "libra",
-      "inputSummary": "LibraMediaCastSourceBasis(metadata_observation|western_match) + MediaCastDraft + DomainFactCommitHandle",
+      "inputSummary": "LibraMediaCastSourceBasis + MediaCastDraft + DomainFactCommitHandle",
       "outputFamily": "MediaCastFact",
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.6",
         "line": 10020,
-        "lineDigest": "5e388e0a500d290644417b8a95a16a9c533014d8cd987b0adc80f5e7a85ebce9"
+        "lineDigest": "ae8502b8df87fdfbfeed5531ba79906b85efc3240dcaa501f288d0d97eb557b4"
       }
     },
     {

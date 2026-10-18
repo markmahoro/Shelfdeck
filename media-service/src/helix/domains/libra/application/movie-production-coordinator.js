@@ -1846,7 +1846,7 @@ function createMovieProductionCoordinator(options) {
       ) ||
       Buffer.compare(Buffer.from(left.relationId), Buffer.from(right.relationId)));
     const castResolveInput = Object.freeze({
-      libraMediaCastSourceBasisMetadataObservationOrWesternMatch: castBasis,
+      libraMediaCastSourceBasis: castBasis,
       personReferenceProjectionList: projectionList,
     });
     const castDraftChain = await phase({

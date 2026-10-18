@@ -87,16 +87,31 @@ test('real pinned CPU frames and selected reference feed the shared large-screen
     selected = {personId:'actor-a', personRevision:2, libraryKind:'us_adult', canonicalName:'Actor A', referenceAssetId:item.asset.referenceAssetId,
       artifactHandleId:item.asset.artifactHandleId, artifactDigest:item.asset.artifactDigest, internalIdentity:'us-adult:fixture', originalName};
   const h = harness([item], {faceModel, actorPresentation:selected}), composite = {members:[{timestampMs:50}], memberPayloads:[{bytesBase64:bytes.toString('base64')}]};
+  const personValue={schemaRef:'helix://contracts/domain-types/UsAdultPersonSnapshot/v1',schemaVersion:1,libraryKind:'us_adult',
+    personId:'actor-a',personRevision:2,canonicalName:'Actor A',aliases:[],personFactDigest:D('person-fact'),referenceProjection:item.projection},
+    personSnapshot={...personValue,snapshotDigest:D(personValue)},
+    choice=require('../../src/helix/domains/libra/model/us-adult-actor-choice').buildRecord({
+      snapshot:{run:{libraRunId:'test-run',subjectId:'test-subject',executionBasisDigest:D('run-basis')}},personSnapshot,
+      body:{personId:'actor-a',expectedPersonRevision:2,expectedReferenceRevision:3,expectedChoiceRevision:0,expectedRunStateRevision:1,idempotencyKey:'explicit-render-actor'},actorId:'admin'}),
+    selectionValue={schemaRef:'helix://contracts/domain-types/UsAdultActorSelectionBasis/v1',schemaVersion:1,libraRunId:'test-run',subjectId:'test-subject',
+      runExecutionBasisDigest:D('run-basis'),resolvedIdentityDigest:D('identity'),analysisId:D('analysis'),analysisBasisDigest:D('analysis-basis'),
+      selectionOrigin:'user_choice',actorChoiceRecord:choice,matchCompletion:null,referenceAssetId:item.asset.referenceAssetId,
+      selectionId:D({schema:'libra.us-adult-actor-selection-id@1',libraRunId:'test-run',analysisBasisDigest:D('analysis-basis'),
+        originDigest:choice.recordDigest,referenceAssetId:item.asset.referenceAssetId})},
+    actorSelectionBasis={...selectionValue,selectionDigest:D(selectionValue)};
+  require('../../src/helix/domains/libra/model/us-adult-actor-selection').assertActorSelection(actorSelectionBasis);
+  selected.actorSelectionDigest=actorSelectionBasis.selectionDigest;
   h.options.referencePort.readReferenceImage = () => ({bytes});
   const embedded = await h.engine.computeEmbeddings({frameComposite:composite, faceModelRef:model}),
     clustered = await h.engine.computeClusters({embeddingSet:embedded, clusterParameters:clusterParameters(model)}),
     matched = await h.engine.matchReferences({faceClusterSetHandle:{faceModelRefDigest:model.digest}, clusters:clustered.clusters, personReferenceProjections:[item.projection]});
   assert.equal(embedded.vectorCount, 1); assert.ok(matched.matches[0].score > 0.99);
-  const poster = await h.engine.renderPoster({frameComposite:composite, personMatchEvidence:{matches:[{...matched.matches[0], personRevision:2}]}});
+  const poster = await h.engine.renderPoster({frameComposite:composite, actorSelectionBasis});
   const metadata = await sharp(poster).metadata(); assert.equal(metadata.width, 1000); assert.equal(metadata.height, 1500);
   const analysis = await h.engine.analyzeWestern({analysisSpec:{typedParameters:[
     {parameter:'actor_name', value:selected.canonicalName}, {parameter:'original_file_name', value:originalName.originalFileName},
     {parameter:'internal_identity', value:selected.internalIdentity},
+    {parameter:'actor_selection_digest',value:actorSelectionBasis.selectionDigest},
   ]}});
   assert.equal(analysis.identityAnchor, selected.internalIdentity); assert.equal(analysis.descriptiveFacts.find(item => item.key === 'title').value, 'Actor A Original source');
 });

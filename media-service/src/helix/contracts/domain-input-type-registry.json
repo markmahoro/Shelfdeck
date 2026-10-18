@@ -5,7 +5,7 @@
   "kind": "domain-input-type-registry",
   "owner": "contracts",
   "status": "active",
-  "targetCount": 133,
+  "targetCount": 134,
   "ssotRefs": [
     "8.6.3",
     "8.6.14",
@@ -1109,14 +1109,14 @@
       ]
     },
     {
-      "id": "LibraMediaCastSourceBasisMetadataObservationWesternMatch",
+      "id": "LibraMediaCastSourceBasis",
       "version": 1,
       "role": "accepted-business-dto",
-      "schemaId": "helix://contracts/domain-types/LibraMediaCastSourceBasisMetadataObservationWesternMatch/v1",
-      "relativePath": "domain-types/LibraMediaCastSourceBasisMetadataObservationWesternMatch/v1/schema.json",
+      "schemaId": "helix://contracts/domain-types/LibraMediaCastSourceBasis/v1",
+      "relativePath": "domain-types/LibraMediaCastSourceBasis/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "38b3b14c1490d4c14c3341eb7f92612c694e9ba79075e28075bacf0c0ba5adad"
+        "value": "841e8845b17f8d40a241e9fdf0bf5305172def6c88f13908acfe797017b44380"
       },
       "usedBy": [
         {
@@ -1124,18 +1124,18 @@
           "source": {
             "section": "8.6.6",
             "line": 10020,
-            "lineDigest": "5e388e0a500d290644417b8a95a16a9c533014d8cd987b0adc80f5e7a85ebce9"
+            "lineDigest": "ae8502b8df87fdfbfeed5531ba79906b85efc3240dcaa501f288d0d97eb557b4"
           },
-          "typeExpression": "LibraMediaCastSourceBasis(metadata_observation|western_match)"
+          "typeExpression": "LibraMediaCastSourceBasis"
         },
         {
           "capabilityRef": "libra.media_cast.resolve@1",
           "source": {
             "section": "8.6.6",
             "line": 10019,
-            "lineDigest": "cca3168fb397a15474e0a2c572676b1f51682a40d5e7c422a48e0fa580560346"
+            "lineDigest": "afd1a85a54e5e09cf264cd1efd9e7a1130bc56774129f282854905004bdbbdad"
           },
-          "typeExpression": "LibraMediaCastSourceBasis(metadata_observation|western_match)"
+          "typeExpression": "LibraMediaCastSourceBasis"
         }
       ]
     },
@@ -1698,13 +1698,31 @@
       },
       "usedBy": [
         {
+          "capabilityRef": "libra.media_cast.commit@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10020,
+            "lineDigest": "ae8502b8df87fdfbfeed5531ba79906b85efc3240dcaa501f288d0d97eb557b4"
+          },
+          "typeExpression": "LibraMediaCastSourceBasis"
+        },
+        {
           "capabilityRef": "libra.media_cast.resolve@1",
           "source": {
             "section": "8.6.6",
             "line": 10019,
-            "lineDigest": "cca3168fb397a15474e0a2c572676b1f51682a40d5e7c422a48e0fa580560346"
+            "lineDigest": "afd1a85a54e5e09cf264cd1efd9e7a1130bc56774129f282854905004bdbbdad"
           },
           "typeExpression": null
+        },
+        {
+          "capabilityRef": "libra.western.poster.render@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10017,
+            "lineDigest": "781cc708c567b9173af0019eec3a63c8e0e82accc06d78b58c9f1d700d2809d4"
+          },
+          "typeExpression": "UsAdultActorSelectionBasis"
         },
         {
           "capabilityRef": "shared.face.reference.match@1",
@@ -2955,7 +2973,75 @@
         "algorithm": "sha256",
         "value": "4141516d48ec2cb65dd395a3d79253b82339f88aece03dad6ccb7dba04b99171"
       },
-      "usedBy": []
+      "usedBy": [
+        {
+          "capabilityRef": "libra.media_cast.commit@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10020,
+            "lineDigest": "ae8502b8df87fdfbfeed5531ba79906b85efc3240dcaa501f288d0d97eb557b4"
+          },
+          "typeExpression": "LibraMediaCastSourceBasis"
+        },
+        {
+          "capabilityRef": "libra.media_cast.resolve@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10019,
+            "lineDigest": "afd1a85a54e5e09cf264cd1efd9e7a1130bc56774129f282854905004bdbbdad"
+          },
+          "typeExpression": "LibraMediaCastSourceBasis"
+        },
+        {
+          "capabilityRef": "libra.western.poster.render@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10017,
+            "lineDigest": "781cc708c567b9173af0019eec3a63c8e0e82accc06d78b58c9f1d700d2809d4"
+          },
+          "typeExpression": "UsAdultActorSelectionBasis"
+        }
+      ]
+    },
+    {
+      "id": "UsAdultActorSelectionBasis",
+      "version": 1,
+      "role": "accepted-business-dto",
+      "schemaId": "helix://contracts/domain-types/UsAdultActorSelectionBasis/v1",
+      "relativePath": "domain-types/UsAdultActorSelectionBasis/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "65e24637494afe81ee93e2f10a1efab05322eb38f523c276ddd3ba7bb279935c"
+      },
+      "usedBy": [
+        {
+          "capabilityRef": "libra.media_cast.commit@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10020,
+            "lineDigest": "ae8502b8df87fdfbfeed5531ba79906b85efc3240dcaa501f288d0d97eb557b4"
+          },
+          "typeExpression": "LibraMediaCastSourceBasis"
+        },
+        {
+          "capabilityRef": "libra.media_cast.resolve@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10019,
+            "lineDigest": "afd1a85a54e5e09cf264cd1efd9e7a1130bc56774129f282854905004bdbbdad"
+          },
+          "typeExpression": "LibraMediaCastSourceBasis"
+        },
+        {
+          "capabilityRef": "libra.western.poster.render@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10017,
+            "lineDigest": "781cc708c567b9173af0019eec3a63c8e0e82accc06d78b58c9f1d700d2809d4"
+          },
+          "typeExpression": "UsAdultActorSelectionBasis"
+        }
+      ]
     },
     {
       "id": "UsAdultAnalysisBasis",
@@ -2979,7 +3065,35 @@
         "algorithm": "sha256",
         "value": "1d405e8f47b9e41d7b8def116b0acac6192d99f84b09b25870269c5f23d68d6d"
       },
-      "usedBy": []
+      "usedBy": [
+        {
+          "capabilityRef": "libra.media_cast.commit@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10020,
+            "lineDigest": "ae8502b8df87fdfbfeed5531ba79906b85efc3240dcaa501f288d0d97eb557b4"
+          },
+          "typeExpression": "LibraMediaCastSourceBasis"
+        },
+        {
+          "capabilityRef": "libra.media_cast.resolve@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10019,
+            "lineDigest": "afd1a85a54e5e09cf264cd1efd9e7a1130bc56774129f282854905004bdbbdad"
+          },
+          "typeExpression": "LibraMediaCastSourceBasis"
+        },
+        {
+          "capabilityRef": "libra.western.poster.render@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10017,
+            "lineDigest": "781cc708c567b9173af0019eec3a63c8e0e82accc06d78b58c9f1d700d2809d4"
+          },
+          "typeExpression": "UsAdultActorSelectionBasis"
+        }
+      ]
     },
     {
       "id": "UsAdultPersonSnapshot",
@@ -2991,7 +3105,35 @@
         "algorithm": "sha256",
         "value": "ecb614f04f1131bf666be5714e89b8fd34b9487519d7d8b5f69304c8eba0c859"
       },
-      "usedBy": []
+      "usedBy": [
+        {
+          "capabilityRef": "libra.media_cast.commit@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10020,
+            "lineDigest": "ae8502b8df87fdfbfeed5531ba79906b85efc3240dcaa501f288d0d97eb557b4"
+          },
+          "typeExpression": "LibraMediaCastSourceBasis"
+        },
+        {
+          "capabilityRef": "libra.media_cast.resolve@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10019,
+            "lineDigest": "afd1a85a54e5e09cf264cd1efd9e7a1130bc56774129f282854905004bdbbdad"
+          },
+          "typeExpression": "LibraMediaCastSourceBasis"
+        },
+        {
+          "capabilityRef": "libra.western.poster.render@1",
+          "source": {
+            "section": "8.6.6",
+            "line": 10017,
+            "lineDigest": "781cc708c567b9173af0019eec3a63c8e0e82accc06d78b58c9f1d700d2809d4"
+          },
+          "typeExpression": "UsAdultActorSelectionBasis"
+        }
+      ]
     },
     {
       "id": "VerifiedArtifactManifest",
