@@ -82,6 +82,9 @@ function validateDomainInputSchemas(options) {
     }
     const exactIdentityFields = {
       PeopleCandidateAcceptanceDecision: ['decisionId', 'expectedCandidateRevision', 'candidatePayloadDigest', 'decisionDigest'],
+      UsAdultActorChoiceReceipt:['intentId','choiceRevision','recordDigest'],
+      UsAdultActorChoiceRecord:['intentId','subjectId','recordDigest'],
+      UsAdultActorChoiceDecision:['decisionId','record','decisionDigest'],
       UsAdultAnalysisBasis:['analysisId','libraRunId','runExecutionBasisDigest','pageSetDigest','basisDigest'],
       UsAdultPersonSnapshot:['personId','personRevision','referenceProjection','snapshotDigest'],
       PeopleReferenceLibraryPage:['libraryDigest','items','nextCursor','pageDigest'],
@@ -208,7 +211,7 @@ function validateDomainInputSchemas(options) {
   for (const name of usages.keys()) {
     if (!ids.has(name)) findings.push(finding('MISSING_DOMAIN_INPUT_TYPE', 'Catalog input reference has no schema.', { entryId: name }));
   }
-  const facadeOnlyTypes = new Set(['UsAdultAnalysisBasis','UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
+  const facadeOnlyTypes = new Set(['UsAdultActorChoiceReceipt','UsAdultActorChoiceRecord','UsAdultActorChoiceDecision','UsAdultAnalysisBasis','UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
     'ResolvedProviderIdentity', 'ProductStructureSnapshot', 'ProductConformanceFactSnapshot', 'ProductionMaterialManifest',
     'ArtifactManifest', 'ArtifactConformanceVerificationSnapshot', 'ProductInventoryConformanceSnapshot',
     'WorkspaceArtifactOutputTarget', 'ShelfAcceptancePrimaryReadSet',

@@ -156,6 +156,7 @@ const NULLABLE_COLUMN_OVERRIDES = new Set([
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'libra_us_adult_reference_pages.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
+  'libra_us_adult_actor_choice_heads.intent_id':['libra_us_adult_actor_choice_intents','intent_id'],
   'arca_jav_correction_recovery_intents.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
   'arca_jav_correction_directory_checks.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
   'fx_plan_nodes.compensation_for_event_id': ['fx_workflow_events', 'event_id'],
@@ -314,6 +315,7 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
   'libra_us_adult_reference_pages.page_json':1024*1024,
+  'libra_us_adult_actor_choice_intents.record_json':256*1024,
   'libra_acquisition_candidate_evidence.evidence_json':262144,
   'libra_acquisition_candidate_evidence.record_json':4096,
   'arca_jav_identity_corrections.preview_proof_json': 2 * 1024 * 1024,
@@ -347,6 +349,7 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.verified_artifact_manifest_json': 256 * 1024
 });
 const CURRENT_POINTER_TARGETS = Object.freeze({
+  libra_us_adult_actor_choice_heads: [[['subject_id','current_revision'],'libra_us_adult_actor_choice_intents',['subject_id','choice_revision']]],
   libra_defect_authorization_head: [[['current_authorization_id','current_revision'],'libra_defect_authorizations',['authorization_id','revision']]],
   arca_defect_admission_heads: [[['shelf_entry_id','current_revision'],'arca_defect_admissions',['shelf_entry_id','revision']]],
   fx_workflow_events: [[['event_id', 'current_progress_revision'], 'fx_event_progress', ['event_id', 'revision']]],

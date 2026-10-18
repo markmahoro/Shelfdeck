@@ -1,0 +1,242 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_us_adult_actor_choice_intents/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_us_adult_actor_choice_intents",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "choice_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "person_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "person_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "reference_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "idempotency_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "request_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "record_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "record_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "record_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 14,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "intent_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "libra_run_id",
+      "subject_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "subject_id",
+        "choice_revision"
+      ],
+      [
+        "actor_id",
+        "idempotency_key"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "choice_revision",
+        "person_revision",
+        "reference_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "record_json",
+        "schemaRefColumn": "record_schema_ref",
+        "maxBytes": 262144,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable用户Intent"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "immutable用户Intent",
+      "`UNIQUE(subject_id,choice_revision)`、`UNIQUE(actor_id,idempotency_key)`",
+      "Person为People opaque ref不建FK",
+      "record_schema固定UsAdultActorChoiceRecord，JSON上限`256 KiB`",
+      "同Subject合法replacement读取原用户意图，不以影片命名或空演员关系替代",
+      "不自动修改其他影片"
+    ],
+    "rawContract": {
+      "columns": "`intent_id PK, libra_run_id FK, subject_id FK, choice_revision INTEGER, person_id, person_revision INTEGER, reference_revision INTEGER, actor_id, idempotency_key, request_digest, record_schema_ref, record_json, record_digest, created_at_ms`",
+      "constraints": "immutable用户Intent；`UNIQUE(subject_id,choice_revision)`、`UNIQUE(actor_id,idempotency_key)`；Person为People opaque ref不建FK；record_schema固定UsAdultActorChoiceRecord，JSON上限`256 KiB`；同Subject合法replacement读取原用户意图，不以影片命名或空演员关系替代；不自动修改其他影片"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9566,
+      "lineDigest": "eb33ddd018847dbd35708bbbe1570b5efe60287d17a669098749b77c213e1727"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "libra_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

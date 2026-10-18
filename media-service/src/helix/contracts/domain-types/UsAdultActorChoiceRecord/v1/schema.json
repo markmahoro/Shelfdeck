@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultActorChoiceRecord/v1",
+  "title": "UsAdultActorChoiceRecord@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultActorChoiceRecord/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "intentId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedChoiceRevision": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expectedRunStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "actorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "requestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "personSnapshot": {
+      "$ref": "helix://contracts/domain-types/UsAdultPersonSnapshot/v1"
+    },
+    "recordDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "intentId",
+    "libraRunId",
+    "subjectId",
+    "revision",
+    "expectedChoiceRevision",
+    "expectedRunStateRevision",
+    "runExecutionBasisDigest",
+    "actorId",
+    "idempotencyKey",
+    "requestDigest",
+    "personSnapshot",
+    "recordDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 262144
+}

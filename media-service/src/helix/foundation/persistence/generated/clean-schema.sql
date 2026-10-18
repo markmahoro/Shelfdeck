@@ -2704,6 +2704,39 @@ CREATE TABLE "libra_subjects" (
 );
 CREATE INDEX "idx_libra_subjects_hot_01" ON "libra_subjects" ("status", "subject_id");
 
+CREATE TABLE "libra_us_adult_actor_choice_heads" (
+  "subject_id" TEXT PRIMARY KEY,
+  "current_revision" INTEGER CHECK ("current_revision" >= 1),
+  "intent_id" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("intent_id") REFERENCES "libra_us_adult_actor_choice_intents" ("intent_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id", "current_revision") REFERENCES "libra_us_adult_actor_choice_intents" ("subject_id", "choice_revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_us_adult_actor_choice_intents" (
+  "intent_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "choice_revision" INTEGER CHECK ("choice_revision" >= 1),
+  "person_id" TEXT,
+  "person_revision" INTEGER CHECK ("person_revision" >= 1),
+  "reference_revision" INTEGER CHECK ("reference_revision" >= 1),
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT,
+  "record_json" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("subject_id", "choice_revision"),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 262144),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_us_adult_analysis_bases" (
   "analysis_id" TEXT PRIMARY KEY,
   "libra_run_id" TEXT,

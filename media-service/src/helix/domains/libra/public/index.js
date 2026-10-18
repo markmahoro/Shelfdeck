@@ -41,6 +41,8 @@ const { createLibraRunAdminService } = require('../application/libra-run-admin-s
 const { createProductIdentitySelectionService } = require('../application/product-identity-selection-service');
 const { createMovieProductionReader } = require('../persistence/movie-production-reader');
 const {createUsAdultAnalysisStore} = require('../persistence/us-adult-analysis-store');
+const {createUsAdultActorChoiceStore} = require('../persistence/us-adult-actor-choice-store');
+const {createUsAdultActorChoiceCommand} = require('../capabilities/us-adult-actor-choice-command');
 const {createUsAdultAnalysisPlanner, createUsAdultAnalysisProjections} = require('../planning/us-adult-analysis-planner');
 const {createUsAdultAnalysisCapabilityPorts, createUsAdultAnalysisCapabilityRegistrations, EFFECTS:US_ANALYSIS_EFFECTS} =
   require('../capabilities/us-adult-analysis-capability-ports');
@@ -258,6 +260,8 @@ function createExecutionRegistration() {
       const usAdultAnalysisStore=createUsAdultAnalysisStore(options);
       const productIdentitySelection=createProductIdentitySelectionService({...options,movieProductionReader});
       const libraRunAdminService=createLibraRunAdminService({...options,libraRunExecutionProjection,pipelineAdmission});
+      const usAdultActorChoiceStore=createUsAdultActorChoiceStore(options),
+        usAdultActorChoice=createUsAdultActorChoiceCommand({...options,movieProductionReader,usAdultActorChoiceStore});
       const runCoordinator=createLibraRunCoordinator({...options,movieProductionReader,usAdultAnalysisStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
         resolveFrozenRun:libraRunAdminService.reconcileFrozen,
         resolveRejectedRun:libraRunAdminService.reconcileRejected,
@@ -277,7 +281,8 @@ function createExecutionRegistration() {
       }});
       return Object.freeze({sourceFairness,offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
-        libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore,usAdultAnalysisStore});
+        libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore,usAdultAnalysisStore,
+        usAdultActorChoiceStore,usAdultActorChoice});
     },
     createPlanningRegistration(options) {
       const productDeliveryAssembler=options.productDeliveryAssembler||createProductDeliveryAssembler(options);

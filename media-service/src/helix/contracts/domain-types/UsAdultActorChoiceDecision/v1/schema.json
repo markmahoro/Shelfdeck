@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultActorChoiceDecision/v1",
+  "title": "UsAdultActorChoiceDecision@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "decisionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "record": {
+      "$ref": "helix://contracts/domain-types/UsAdultActorChoiceRecord/v1"
+    },
+    "decisionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "decisionId",
+    "record",
+    "decisionDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 1048576
+}

@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.us-adult-actor-choice-intent/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.us-adult-actor-choice-intent",
+    "displayName": "US Adult Actor Choice Intent",
+    "ownerScope": "libra",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "用户对当前未交付US Subject指定已有演员；冻结同Run/state/execution basis、People正式单人版本快照和Subject choice head期望revision；Actor Choice Intent、head、Command Receipt、marker、audit全有或全无，重放先于当前状态/People读取；不写People或Arca，不直接更改已提交Media-Cast；后续Libra按当前生产事实决定原位继续或合法replacement，Handoff B Accepted后由Arca处理",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_us_adult_actor_choice_intents",
+          "libra_us_adult_actor_choice_heads"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_us_adult_actor_choice_intents",
+      "libra_us_adult_actor_choice_heads",
+      "fx_command_receipts",
+      "fx_commit_markers",
+      "fx_audit_records"
+    ],
+    "readTables": [
+      "libra_runs",
+      "libra_subjects"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "us-adult-actor-choice",
+        "faultInjectionPoints": "Run/Subject/choice revision validation, immutable Intent and head CAS, Command Receipt/marker/audit, before and after COMMIT",
+        "requiredInvariant": "The explicit actor choice and durable receipt are all-or-none; replay precedes later Run/People changes; no People or Arca mutation",
+        "source": {
+          "section": "8.9.7",
+          "line": 8821
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8822,
+      "lineDigest": "c5ef9f569d3d50c2b37fa8bd0dc43a2334d332e2b6b25b27ab3c85b1707743c2"
+    }
+  }
+}

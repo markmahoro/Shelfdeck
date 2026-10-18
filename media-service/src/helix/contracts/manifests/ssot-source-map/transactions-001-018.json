@@ -136,12 +136,22 @@
       }
     },
     {
+      "id": "US Adult Actor Choice Intent",
+      "owner": "libra",
+      "atomicFactSet": "用户对当前未交付US Subject指定已有演员；冻结同Run/state/execution basis、People正式单人版本快照和Subject choice head期望revision；Actor Choice Intent、head、Command Receipt、marker、audit全有或全无，重放先于当前状态/People读取；不写People或Arca，不直接更改已提交Media-Cast；后续Libra按当前生产事实决定原位继续或合法replacement，Handoff B Accepted后由Arca处理",
+      "source": {
+        "section": "8.5.4",
+        "line": 8822,
+        "lineDigest": "c5ef9f569d3d50c2b37fa8bd0dc43a2334d332e2b6b25b27ab3c85b1707743c2"
+      }
+    },
+    {
       "id": "Perception Acquisition Resume Intent",
       "owner": "perception",
       "atomicFactSet": "complete PerceptionAcquisitionResumeDecision + active Source/config/Acquisition scope fence + immutable resume Intent + command receipt/result/marker/audit；原Acquisition/Scope/页cursor/Work与历史Record不变；不签发新同步",
       "source": {
         "section": "8.5.4",
-        "line": 8822,
+        "line": 8823,
         "lineDigest": "9a959461b03af4b28e7bd28ec931791f7580547f19d565588e904c10c8f30b12"
       }
     },
@@ -151,7 +161,7 @@
       "atomicFactSet": "PeopleReferenceMaintenanceDecision + Person/reference revision CAS + Asset/唯一派生Face同时active或released + new Reference revision/head + 所有受影响Person的Reference Projection checkpoint + durable typed result + commit marker + People-internal Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 8823,
+        "line": 8824,
         "lineDigest": "9189e51ed83f21bc8aa73672970d80c045e3e148fab9e0dd6866b1d54b632f4e"
       }
     },
@@ -161,7 +171,7 @@
       "atomicFactSet": "complete `ProcurementRetryIntent@1` + failed sealed Run/Basis与精确released member scope + current Field/Profile Hint/Access/terminal Observation/Policy/active Triage Rule admission head + Eligibility/Binding/Selection/Control precondition + `open` intent + durable `ProcurementRetryIntentReceipt`/commit marker + 唯一`ProcurementRetryIntentAvailableMessage` Outbox；Profile Hint必须命中current revision及terminal Observation Snapshot；相同`fieldId+idempotencyKey`重放原结果",
       "source": {
         "section": "8.5.4",
-        "line": 8824,
+        "line": 8825,
         "lineDigest": "6244c2bb8301bc89619d3256d477f3d5629381424579e9139b4f8331c1ee6822"
       }
     },
@@ -171,18 +181,8 @@
       "atomicFactSet": "open Intent expected state/digest CAS + current admission head和逐成员precondition重验 + `open → consumed|stale`；有效分支与一份新`ProcurementRunExecutionBasis@1`、新Run、Selection、全部Control acquire/assert及内嵌`ProcurementControlReceipt`的`ProcurementRetryAdmissionResult`同事务成立，stale分支写同一Result的stale variant及全部逐成员consume snapshot，不建Run；同一commit marker/result digest同时作为Intent consume与新Run admission恢复点；closed stale reason、primary reason、set digest和row replay映射按8.6.18唯一规则执行；`hasOutbox=false`且一个Intent最多关联一个新Run",
       "source": {
         "section": "8.5.4",
-        "line": 8825,
-        "lineDigest": "11219e808a18d920a3c1ccd01e0e372c120e611861223c2ee81ef6784ec87fdc"
-      }
-    },
-    {
-      "id": "Field Routing Policy Publish",
-      "owner": "libra",
-      "atomicFactSet": "immutable per-Field Policy revision + target ranks + Field Routing head switch + Outbox",
-      "source": {
-        "section": "8.5.4",
         "line": 8826,
-        "lineDigest": "7b074a66076c7f0b48fedb267139f5912a5416399d7d15cff0020d22efa131b4"
+        "lineDigest": "11219e808a18d920a3c1ccd01e0e372c120e611861223c2ee81ef6784ec87fdc"
       }
     }
   ]

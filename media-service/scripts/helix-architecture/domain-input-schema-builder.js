@@ -271,6 +271,9 @@ const dtoContracts = {
   PeopleProfileUpdateDecision: '',
   UsAdultPersonSnapshot:'',
   UsAdultAnalysisBasis:'',
+  UsAdultActorChoiceRecord:'',
+  UsAdultActorChoiceDecision:'',
+  UsAdultActorChoiceReceipt:'',
   PeopleReferenceLibraryPage:'',
   PerceptionAcquisitionResumeDecision: '',
   PeopleReferenceMaintenanceDecision: '',
@@ -353,6 +356,9 @@ function buildSchema(name, role, fields) {
   if (name === 'TriageManifestBuildInput') return triageManifestBuildInputSchema();
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
   if(name==='UsAdultAnalysisBasis')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},analysisId:digest(),contentProfile:{const:'western_adult'},libraRunId:id(),subjectId:id(),expectedRunStateRevision:positiveInteger(),runExecutionBasisDigest:digest(),resolvedIdentityDigest:digest(),workspaceId:id(),sourceHandle:typeRef('PhysicalMaterialReadHandle'),sourceProbeRef:object({workId:id(),attemptId:id(),planId:id(),eventId:id(),resultId:id(),resultDigest:digest(),inputBindingDigest:digest()}),durationMs:positiveInteger(),faceModelRef:domainRef('FaceModelRef'),referenceModelRefDigest:digest(),clusterParameters:domainRef('ClusterParameters'),samplingPlan:domainRef('SamplingPlan'),referenceLibraryDigest:digest(),personCount:nonNegativeInteger(),pageCount:positiveInteger(),pageSetDigest:digest(),basisDigest:digest()}),'x-helix-maxCanonicalBytes':32*1024};
+  if(name==='UsAdultActorChoiceRecord')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},intentId:digest(),libraRunId:id(),subjectId:id(),revision:positiveInteger(),expectedChoiceRevision:nonNegativeInteger(),expectedRunStateRevision:positiveInteger(),runExecutionBasisDigest:digest(),actorId:id(),idempotencyKey:text({maxLength:128}),requestDigest:digest(),personSnapshot:domainRef('UsAdultPersonSnapshot'),recordDigest:digest()}),'x-helix-maxCanonicalBytes':256*1024};
+  if(name==='UsAdultActorChoiceDecision')return {...exactDomainSchema(name,{decisionId:digest(),record:domainRef('UsAdultActorChoiceRecord'),decisionDigest:digest()}),'x-helix-maxCanonicalBytes':1024*1024};
+  if(name==='UsAdultActorChoiceReceipt')return exactDomainSchema(name,{intentId:digest(),subjectId:id(),libraRunId:id(),choiceRevision:positiveInteger(),personId:id(),personRevision:positiveInteger(),referenceRevision:positiveInteger(),recordDigest:digest()});
   if(name==='UsAdultPersonSnapshot')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},libraryKind:{const:'us_adult'},personId:id(),personRevision:positiveInteger(),canonicalName:text({maxLength:200}),aliases:arrayOf(text({maxLength:200}),33),personFactDigest:digest(),referenceProjection:domainRef('PersonReferenceProjection'),snapshotDigest:digest()}),'x-helix-maxCanonicalBytes':128*1024};
   if(name==='PeopleReferenceLibraryPage')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},libraryKind:{const:'us_adult'},libraryDigest:digest(),totalPersonCount:nonNegativeInteger(),items:arrayOf(domainRef('UsAdultPersonSnapshot'),256),nextCursor:nullable(id()),pageDigest:digest()}),'x-helix-maxCanonicalBytes':512*1024};
   if (name === 'PeopleProfileUpdateDecision') return exactDomainSchema(name, {decisionId:id(),personId:id(),expectedPersonRevision:positiveInteger(),canonicalName:text({maxLength:200}),aliases:arrayOf(aliasSchema(),33),actorId:id(),requestDigest:digest(),decisionDigest:digest()});

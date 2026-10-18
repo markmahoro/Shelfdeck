@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultActorChoiceReceipt/v1",
+  "title": "UsAdultActorChoiceReceipt@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "intentId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "choiceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "personId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "personRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "referenceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "recordDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "intentId",
+    "subjectId",
+    "libraRunId",
+    "choiceRevision",
+    "personId",
+    "personRevision",
+    "referenceRevision",
+    "recordDigest"
+  ]
+}
