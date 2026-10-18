@@ -29,9 +29,9 @@ async function renderUsAdultPoster({ actorName, originalTitle, portrait, frames 
   }
   const portraitBytes = await image(portrait, 250, 330, 'cover');
   const thumbnails = await Promise.all(frames.map(bytes => image(bytes, CELL_WIDTH, CELL_HEIGHT, 'contain')));
-  const names = lines(actorName, 19, 2).map((line, i) => `<text x="316" y="${120 + i * 64}" font-size="52" font-weight="700">${escapeXml(line)}</text>`).join('');
-  const titles = lines(originalTitle, 44, 3).map((line, i) => `<text x="32" y="${398 + i * 38}" font-size="30" fill="#cbd5e1">${escapeXml(line)}</text>`).join('');
-  const text = Buffer.from(`<svg width="${WIDTH}" height="${HEIGHT}" xmlns="http://www.w3.org/2000/svg"><g font-family="sans-serif" fill="#f8fafc">${names}${titles}</g></svg>`);
+  const names = lines(actorName, 19, 2).map((line, i) => '<text x="316" y="'+(120 + i * 64)+'" font-size="52" font-weight="700">'+escapeXml(line)+'</text>').join('');
+  const titles = lines(originalTitle, 44, 3).map((line, i) => '<text x="32" y="'+(398 + i * 38)+'" font-size="30" fill="#cbd5e1">'+escapeXml(line)+'</text>').join('');
+  const text = Buffer.from('<svg width="'+WIDTH+'" height="'+HEIGHT+'" xmlns="http://www.w3.org/2000/svg"><g font-family="sans-serif" fill="#f8fafc">'+names+titles+'</g></svg>');
   const bytes = await sharp({ create: { width: WIDTH, height: HEIGHT, channels: 3, background: '#0b1120' } })
     .composite([{ input: portraitBytes, left: 32, top: 28 }, { input: text, left: 0, top: 0 },
       ...thumbnails.map((input, index) => ({ input, ...GRID[index] }))]).jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toBuffer();

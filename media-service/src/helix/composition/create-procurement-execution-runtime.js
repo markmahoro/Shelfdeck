@@ -108,6 +108,7 @@ const ARCA_ENABLED = Object.freeze(['arca.acceptance.identity.verify@1','arca.ac
   'arca.aftercare.media.transcode@1','arca.aftercare.media.verify@1',
   'arca.aftercare.input_settlement.delete@1','arca.aftercare.inventory.commit@1',
   'arca.aftercare.case.commit@1','arca.aftercare.workspace.reclaim@1',
+  'arca.us_adult.source.prepare@1',
   'arca.jav_correction.source.verify@1','arca.jav_correction.assets.prepare@1','arca.jav_correction.files.stage@1','arca.jav_correction.files.publish@1','arca.jav_correction.files.verify@1','arca.jav_correction.inventory.commit@1','arca.jav_correction.formal_retirement.execute@1','arca.jav_correction.workspace.reclaim@1']);
 const ARCA_OFFDECK_ENABLED=Object.freeze(['arca.offdeck.duplicate.detect@1','arca.offdeck.duplicate_group.commit@1','arca.offdeck.review_candidate.commit@1',
   'arca.offdeck.destruction_scope.verify@1','arca.offdeck.primary_material.delete@1',
@@ -593,6 +594,7 @@ function createProcurementExecutionRuntime(options) {
     onDeckNfoPersonEvidence:arcaProcessServices.onDeckNfoPersonEvidence,
   });
   const arcaPlanningRegistration=arcaConstruction.createPlanningRegistration({...options,registry,policyRegistry,contractValidator,workResultReader,
+    actorRefreshSource:arcaCapabilityRegistration.actorRefreshSource,
     correction:arcaCapabilityRegistration.correction,
     contextReader:arcaProcessServices.contextReader,aftercareContextReader:arcaProcessServices.aftercareContextReader,
     offdeckContextReader:arcaProcessServices.offdeckContextReader,
@@ -851,7 +853,7 @@ function createProcurementExecutionRuntime(options) {
     'product_identity','product_metadata_observation','artifact_production','product_fact_assembly','workspace_media_production',
     'product_conformance','deliverable_promotion','us_adult_analysis','us_adult_product'];
   const perceptionPlannerKinds=['acquisition_page','resolution'];
-  const arcaPlannerKinds=['acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','periodic_health_assessment','periodic_custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','care_workspace_reclaim','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit','jav_correction_assets','jav_correction_files','jav_correction_publish','jav_correction_verify','jav_correction_commit','jav_correction_formal_retirement','jav_correction_workspace_reclaim'];
+  const arcaPlannerKinds=['us_adult_actor_source','acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','periodic_health_assessment','periodic_custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','care_workspace_reclaim','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit','jav_correction_assets','jav_correction_files','jav_correction_publish','jav_correction_verify','jav_correction_commit','jav_correction_formal_retirement','jav_correction_workspace_reclaim'];
   const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({
     ownerDomain: 'procurement', workKind: plannerKinds[index], plannerContractRef: planner.plannerContractRef,
     plannerVersion: planner.plannerVersion, planner

@@ -3,7 +3,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 const sharp = require('sharp');
-const { originalNameProvenance, buildUsAdultName } = require('../../src/helix/contracts/us-adult-presentation');
+const { originalNameProvenance, buildUsAdultTitle, buildUsAdultName } = require('../../src/helix/contracts/us-adult-presentation');
 const { renderUsAdultPoster } = require('../../src/helix/integrations/us-adult-poster-renderer');
 
 test('preserves the complete original stem and replaces only the actor prefix across refreshes', () => {
@@ -24,6 +24,13 @@ test('rejects missing provenance, path traversal and unrepresentable names witho
     { code: 'US_ADULT_ORIGINAL_NAME_PROOF_INVALID' });
   assert.throws(() => buildUsAdultName({ actorName: 'A'.repeat(250), originalName, outputExtension: '.mkv' }), { code: 'US_ADULT_NAME_TOO_LONG' });
   assert.throws(() => buildUsAdultName({ actorName: '../Actor', originalName, outputExtension: '.mkv' }), { code: 'US_ADULT_ACTOR_NAME_INVALID' });
+});
+
+test('title projection does not invent an output extension when the actual container decides the filename budget', () => {
+  const originalName=originalNameProvenance('x'.repeat(250)+'.mp4'),input={actorName:'A',originalName};
+  assert.equal(Buffer.byteLength(buildUsAdultTitle(input).title),252);
+  assert.equal(Buffer.byteLength(buildUsAdultName({...input,outputExtension:'.ts'}).fileName),255);
+  assert.throws(()=>buildUsAdultName({...input,outputExtension:'.mkv'}),{code:'US_ADULT_NAME_TOO_LONG'});
 });
 
 test('renders all four large screenshots in a two-by-two grid without portrait or text overlap', async () => {

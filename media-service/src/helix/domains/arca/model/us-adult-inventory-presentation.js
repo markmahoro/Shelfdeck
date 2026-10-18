@@ -1,7 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
-const { originalNameProvenance, buildUsAdultName } = require('../../../contracts/us-adult-presentation');
+const { originalNameProvenance, buildUsAdultTitle } = require('../../../contracts/us-adult-presentation');
 const { inventoryContentProfile } = require('./product-content-profile');
 const { SCHEMA, assertUsAdultInventoryPresentation } = require('../../../contracts/us-adult-inventory-presentation');
 
@@ -49,9 +49,7 @@ function readUsAdultInventoryPresentation(context) {
   if (canonicalJson(providers) !== canonicalJson(actor.providerIdentities) ||
       (providers.length ? row.provider_identity_digest !== canonicalDigest(providers) : row.provider_identity_digest !== null)) fail();
 
-  // The extension is used only to validate the title budget here. Final media
-  // names must be built separately with their verified output container.
-  const named = buildUsAdultName({ actorName: actor.displayName, originalName, outputExtension: '.mkv' });
+  const named = buildUsAdultTitle({ actorName: actor.displayName, originalName });
   return Object.freeze({ title: named.title, year: null, actor: Object.freeze(structuredClone(actor)), originalName,
     inventoryRevision: Number(raw.entry.current_inventory_revision), shelfEntryId: context.shelfEntryId });
 }

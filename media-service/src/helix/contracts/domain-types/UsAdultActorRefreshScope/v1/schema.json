@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultActorRefreshScope/v1",
+  "title": "UsAdultActorRefreshScope@1",
+  "x-helix-ssotRefs": [
+    "6.6.8",
+    "8.6.18"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 4096,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultActorRefreshScope/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "aftercareCaseId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "intentId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "intentDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "careRequirementDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "inventoryRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "workspaceRootHandleRef": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "scopeDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "shelfEntryId",
+    "aftercareCaseId",
+    "intentId",
+    "intentDigest",
+    "careRequirementDigest",
+    "inventoryRevision",
+    "workspaceRootHandleRef",
+    "scopeDigest"
+  ]
+}

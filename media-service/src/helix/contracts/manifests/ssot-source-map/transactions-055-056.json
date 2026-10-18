@@ -11,7 +11,7 @@
       "atomicFactSet": "全部Deletion Evidence核对后的Deck Fact terminal + Control release + terminal receipt",
       "source": {
         "section": "8.5.4",
-        "line": 8878,
+        "line": 8880,
         "lineDigest": "7dd0033bbb591666aee306f1ac5ec4ea1a987112608dc13ab5e84d5eb1cf0332"
       }
     },
@@ -21,7 +21,7 @@
       "atomicFactSet": "Shelf/Shelf Entry administrative terminal facts + Shelf routing projection revision/digest CAS + precise Control release + release receipt",
       "source": {
         "section": "8.5.4",
-        "line": 8879,
+        "line": 8881,
         "lineDigest": "1ac2e4b2302ce105295e044d2aa5a8d64d18c823254c007fe20ecf8916b39073"
       }
     }

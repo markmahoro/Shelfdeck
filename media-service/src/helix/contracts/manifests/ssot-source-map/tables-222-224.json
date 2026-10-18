@@ -12,7 +12,7 @@
       "constraintsContract": "current pointer显式复合FK；CAS revision",
       "source": {
         "section": "8.9.9",
-        "line": 16011,
+        "line": 16016,
         "lineDigest": "c2993d2fdd186a34ad68f9000cd181f0ab8502959b2bf8c033cf96d16b1c24e5"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；`UNIQUE(aftercare_case_id)`；immutable",
       "source": {
         "section": "8.9.9",
-        "line": 16012,
+        "line": 16017,
         "lineDigest": "6b01388fbace394628b73d88d23d73a671f05497789ee6e897a75ee25bdad4d2"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "immutable；evidence JSON上限`256 KiB`；record JSON上限`4 KiB`；`INDEX(libra_run_id,record_id)`",
       "source": {
         "section": "8.9.9",
-        "line": 16408,
+        "line": 16413,
         "lineDigest": "49d3449f5bd4106b74bd219582db8e12c7ed799be946420e9f057b86e3807b48"
       }
     }

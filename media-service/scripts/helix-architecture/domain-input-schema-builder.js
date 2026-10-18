@@ -278,6 +278,7 @@ const dtoContracts = {
   UsAdultActorSelectionBasis:'',
   UsAdultRecommendationConfirmation:'',
   UsAdultInventoryPresentation:'',
+  UsAdultActorRefreshScope:'',
   UsAdultActorRefreshIntent:'',
   UsAdultRecommendationPageQuery:'',
   UsAdultRecommendationSource:'',
@@ -363,6 +364,7 @@ function buildSchema(name, role, fields) {
   if (name === 'TriageIdentityResolutionInput') return triageIdentityResolutionInputSchema();
   if (name === 'TriageManifestBuildInput') return triageManifestBuildInputSchema();
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
+  if(name==='UsAdultActorRefreshScope')return require('../../src/helix/domains/arca/model/us-adult-actor-refresh-execution').scopeSchema();
   if(name==='UsAdultActorRefreshIntent')return {...exactDomainSchema(name,{
     schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},policyVersion:{const:'us-adult-actor-refresh@1'},intentId:digest(),actorId:id(),
     idempotencyKey:text({maxLength:128}),requestDigest:digest(),mode:enumText('specified','automatic'),shelfEntryId:id(),inventoryRevision:positiveInteger(),

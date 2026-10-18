@@ -1,6 +1,6 @@
 'use strict';
 const { canonicalDigest, canonicalJson } = require('./canonical-json');
-const { originalNameProvenance, buildUsAdultName } = require('./us-adult-presentation');
+const { originalNameProvenance, buildUsAdultTitle } = require('./us-adult-presentation');
 const SCHEMA = 'helix://contracts/domain-types/UsAdultInventoryPresentation/v1';
 const FIELDS = 'actorName,actorRelationDigest,aftercareCaseId,canonicalIdentityDigest,inventoryRevision,originalName,personId,representationDigest,schemaRef,schemaVersion,shelfEntryId,snapshotDigest';
 
@@ -18,7 +18,7 @@ function assertUsAdultInventoryPresentation(value, scope) {
   if (original.originalFileName.length > 1024) fail();
   if (scope.originalName && (scope.originalName.originalFileName !== original.originalFileName ||
       scope.originalName.provenanceDigest !== original.provenanceDigest)) fail();
-  buildUsAdultName({ actorName: value.actorName, originalName: value.originalName, outputExtension: '.mkv' });
+  buildUsAdultTitle({ actorName: value.actorName, originalName: value.originalName });
   return value;
 }
 

@@ -187,3 +187,15 @@ service-arca-intent-checkpoint.txt为本检查点重新执行Service：677总项
 arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后，因并行修改SSOT而在后置汇总抛出Table count drift（父进程仍缓存222，文档已224）。没有输出可用的fixture汇总，不能推断这些fixture通过，也不能记为Architecture PASS。已修复汇总器：后置检查异常产生失败Finding并保留已完成fixture输出，四个专门反例通过；Playbook明确长门禁在固定提交独立checkout运行。此修复不把异常转换为成功。下一次完整门禁使用独立版本快照。
 
 继续开放：Arca正式Source/准备/文件Effect/Inventory Commit/恢复及UI，普通/JAV深度维护与US参考图生命周期，离线副本升级，维护剩余清扫和最终跨平台/UI资格。本版未交付、未部署、未改生产或真实媒体。
+
+
+### 2026-10-19 Arca源准备 Work与不可变分析工作区（未交付）
+
+- 新增`arca.us_adult.source.prepare@1`：正式`arca_shelf_entry` Supporting Work、Owner投影、Planner、精确输入/结果语义检查和`workspace_write` Receipt接入现有调度。源Handle由Root读取真实stat/有界fingerprint后签发，绑定Case/Intent/Entry/原物理Target/Control，24小时有效；无伪造时间或借用Libra作用域。
+- `ArcaUsAdultSourcePrepared`≤16 KiB，只引用本Case自己的Frame manifest与Features Handles；20张JPEG和两个JSON各自进入既有Workspace Registry。完整特征/几何恢复后沿用相同CPU匹配和共享2×2海报，后继读已完成工作区不重新获取已到期源读权限。
+- Workspace仅写声明的内容寻址路径；全SHA、inode、有界fingerprint和无链接父路径均验证；短临时写入必须明确safe_retry并匹配原字节前缀才清理，异字节不覆盖。实际SQLite重开及3项写入恢复/取消/链接检查通过。Owner/Work/Intent/Control/Planner反例3项通过；真实FFmpeg+ONNX+工作区恢复组合6项通过，0 skip。
+- 标题投影拆出`buildUsAdultTitle`，不为标题检查捏造`.mkv`容器；实际扩展名确定后执行255 UTF-8字节预算。新增252字节标题可配`.ts`、不可配`.mkv`的边界回归。
+- Package Guard原词法扫描把RegExp中的引号当成字符串，新增独立标题校验后误报。修复仅明确表达式前缀位置的RegExp扫描，保留除法中的真实require审计；12项含负例通过。原Poster三处模板插值显式改为相同字节拼接，遵守既有禁止动态模板规则。Package Gate通过632 files/2208 dependencies/47 packages。
+- P2：122 Capability、105 Result families、224表、56事务、141 Domain Inputs、233 referenced types、0 unresolved、160 routes；aggregate `5b94bf91ef9654e18ca81c76bc2d28b67e34c495712a9f9bb84f59992762a268`。源准备接线首次Host启动发现Planner列表多一项而种类索引未更新，精确修复后真实CPU自动匹配至初次上架Host通过1项（44.2秒）；此证据不代表演员刷新文件提交已完成。
+- 接线前启动的Service批次在更新期间遇到旧Planner索引并失败，不能算通过；修复后的Service全量677项，648 pass/29既有skip/0 fail（135.6秒）。固定提交`64e2649d4`的完整Architecture在独立managed worktree运行，与此开发树分开；尚无完整结果。所有失败日志保留在忽略的`.codex/us-adult-validation/`。
+- 未完成：Arca完整分页匹配/目标选择、文件stage/publish/verify/Inventory commit/retirement、Case中断恢复、用户HTTP/UI及其资格。People图管理/深度系统维护、版本化离线副本升级、维护剩余资格及最终全量/跨平台/UI审核仍开放。未操作生产。

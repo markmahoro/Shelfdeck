@@ -4,7 +4,7 @@ const { createHash } = require('node:crypto');
 const { canonicalDigest } = require('../contracts/canonical-json');
 const { frameGeometry } = require('../contracts/us-adult-frame-geometry');
 const { faceModelReference } = require('../contracts/us-adult-face-model');
-const { buildUsAdultName } = require('../contracts/us-adult-presentation');
+const { buildUsAdultTitle } = require('../contracts/us-adult-presentation');
 const { createUsAdultFrameAnalysis, uniformFrameTimes } = require('./us-adult-frame-analysis');
 const { createUsAdultReferenceMatcher } = require('./us-adult-reference-matcher');
 const { renderUsAdultPoster } = require('./us-adult-poster-renderer');
@@ -72,7 +72,7 @@ function createUsAdultInventoryEngine(options) {
           !asset || !face || face.modelRef !== faceModelReference('single_reference_face').digest) {
         fail('ARCA_US_ADULT_POSTER_PERSON_CHANGED', 'Inventory poster requires the selected frozen actor and exact usable reference asset.');
       }
-      const named = buildUsAdultName({ actorName:person.canonicalName, originalName, outputExtension:'.mkv' }),
+      const named = buildUsAdultTitle({ actorName:person.canonicalName, originalName }),
         portrait = options.referencePort.readReferenceImage({ personId:person.personId, artifactHandleId:asset.artifactHandleId,
           artifactDigest:asset.artifactDigest })?.bytes;
       if (!Buffer.isBuffer(portrait) || portrait.length === 0 || portrait.length > 10 * 1024 * 1024 || sha(portrait) !== asset.artifactDigest) {

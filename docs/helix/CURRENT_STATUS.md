@@ -603,3 +603,6 @@ UAT-280已完成：[清理证据](implementation/evidence/UAT-280_BETA_WORKSPACE
 2026-10-08多成品Offload合同：SSOT/Package/Promotion支持互斥单目标及2..1024多目标，后者仅原Primary替换；Promotion校验所有目标为具备Claims的同Package Workspace Primary。15项专项、生成合同/P2/架构/语义通过。持久化、Reader/Assembler及Arca多目标验证/一次结算待接通，未启用多目标交付或部署NAS。[Evidence](implementation/evidence/SERIES_OFFLOAD_TARGET_CONTRACT_20261008.md)。
 
 2026-10-08多目标Offload存储：互斥单目标与固定schemaRef/128 KiB完整JSON列表、Promotion事务写入和Reader重建已接通。14项专项、35.8秒普通混合上架Host、6项既有回归及P2/架构/语义通过。新库启动摘要已对齐；旧Offload表升级尚未验证并明确拒绝，必须完成历史保护升级后才可发布。Assembler/Arca/Coordinator继续，未部署NAS。[Evidence](implementation/evidence/SERIES_OFFLOAD_TARGET_STORAGE_20261008.md)。
+
+
+2026-10-19 US Adult本地源准备检查点（未交付）：Arca单片刷新源准备已接正式Supporting Work/Planner/Workspace Effect及Root读取/20点CPU适配器，20帧和Features/manifest逐项注册；真实模型、SQLite重开、源/Work/Control/路径与部分写入反例通过。标题与实际容器文件名预算拆开。合同为122 Capability/105 Result families/224表/56事务/141 Domain Inputs/160路由，P2通过；Package Gate 632/2208/47通过，初次上架CPU Host 1项通过。首次新Planner种类索引遗漏已修复，Service648 pass/29既有skip/0 fail；固定旧检查点`64e2649d4`的独立完整Architecture仍运行，后者尚无完整结果。Arca后续匹配/文件与库存Effect/HTTP、数据副本升级、People及维护剩余项和UI/跨平台资格开放。未部署或触及生产。[Evidence](implementation/evidence/US_ADULT_LOCAL_IMPLEMENTATION_20261018.md)。

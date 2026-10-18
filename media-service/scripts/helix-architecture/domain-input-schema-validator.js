@@ -83,6 +83,7 @@ function validateDomainInputSchemas(options) {
     const exactIdentityFields = {
       PeopleCandidateAcceptanceDecision: ['decisionId', 'expectedCandidateRevision', 'candidatePayloadDigest', 'decisionDigest'],
       UsAdultActorSelectionBasis:['selectionId','selectionOrigin','selectionDigest'],
+      UsAdultActorRefreshScope:['schemaRef','schemaVersion','shelfEntryId','aftercareCaseId','intentId','intentDigest','scopeDigest'],
       UsAdultActorRefreshIntent:['schemaRef','schemaVersion','intentId','shelfEntryId','inventoryRevision','careBasisDigest','sourceBinding','intentDigest'],
       UsAdultInventoryPresentation:['schemaRef','schemaVersion','shelfEntryId','inventoryRevision','aftercareCaseId','actorRelationDigest','originalName','snapshotDigest'],
       UsAdultRecommendationConfirmation:['schemaRef','schemaVersion','claimId','actorId','source','personId','expectedPersonRevision','expectedReferenceRevision'],

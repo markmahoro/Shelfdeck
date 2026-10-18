@@ -20,8 +20,10 @@ test('real Service FFmpeg extracts twenty points and CPU matching selects one ac
   const encoded=spawnSync(ffmpeg,['-hide_banner','-nostdin','-loglevel','error','-loop','1','-i',process.env.SHELFDECK_FACE_TEST_IMAGE,
     '-t','2','-r','24','-c:v','libx264','-preset','ultrafast','-threads','1','-pix_fmt','yuv420p',video],{windowsHide:true,encoding:'utf8',timeout:30000});
   assert.equal(encoded.status,0,encoded.stderr);
-  const observed=await computeBoundedMaterialFingerprint(video),identity={inode:String(observed.stat.ino),sizeBytes:Number(observed.stat.size),
+  const observed=await computeBoundedMaterialFingerprint(video),tuple={mountScopeId:'native-mount',inode:String(observed.stat.ino),sizeBytes:Number(observed.stat.size),
     fingerprintAlgorithm:observed.fingerprintAlgorithm,fingerprintVersion:observed.fingerprintVersion,contentFingerprint:observed.contentFingerprint},
+    identity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,
+      materialKey:canonicalDigest({schema:'physical-material-identity@2',...tuple}),...tuple},
     handle={schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',identity,location:video,ownerDomain:'libra',ownerScope:{scopeType:'libra_run',scopeId:'test-run'},
       expectedMtimeNs:Number(observed.stat.mtimeNs/1000000n),expectedCtimeNs:Number(observed.stat.ctimeNs/1000000n)},
     context={ownerScope:{domain:'libra',processType:'libra_run',processId:'test-run'},assertExecutionActive:()=>{}},frames=await extractor.extract({sourceHandle:handle,context});
@@ -53,10 +55,28 @@ test('real Service FFmpeg extracts twenty points and CPU matching selects one ac
       canonicalName:'Arca Actor',aliases:[],personFactDigest:canonicalDigest('isolated-native-fixture'),referenceProjection:projection},
     personSnapshot={...personBody,snapshotDigest:canonicalDigest(personBody)};
   let portraitBytes=referenceBytes;
+  const sourceContext=require('./fixtures/us-adult-inventory-context').fixture();
+  sourceContext.shelfEntryId='entry-1';sourceContext.raw.entry.shelf_entry_id='entry-1';sourceContext.raw.people[0].shelf_entry_id='entry-1';
+  sourceContext.basis={digest:canonicalDigest('native-care-basis')};sourceContext.knownBindings={digest:canonicalDigest('native-known-bindings')};
+  sourceContext.raw.materials=[{role:'primary_payload',material_key:identity.materialKey,mount_scope_id:identity.mountScopeId,inode:identity.inode,
+    size_bytes:identity.sizeBytes,fingerprint_algorithm:identity.fingerprintAlgorithm,fingerprint_version:identity.fingerprintVersion,
+    content_fingerprint:identity.contentFingerprint,endpoint_id:'endpoint',location:video,binding_revision:1}];
+  const domainSchemas=require('../../scripts/helix-architecture/domain-input-schema-builder').buildDomainInputSchemas(),
+    sourceValidator=require('../../src/helix/foundation/capability/contract-validator').createCapabilityContractValidator({schemas:
+      [...['UsAdultActorRefreshIntent','UsAdultPersonSnapshot','PersonReferenceProjection','PeopleReferenceLibraryPage','FaceModelRef'].map(name=>domainSchemas[name]),
+        ...['PhysicalMaterialReadHandle','PhysicalMaterialIdentity','WorkspaceMaterialHandle'].map(name=>require('../../src/helix/contracts/types/'+name+'/'+(name==='PhysicalMaterialIdentity'?'v2':'v1')+'/schema.json')),
+        require('../../src/helix/contracts/us-adult-inventory-analysis').sourcePreparedSchema()]}),
+    emptyPage={schemaRef:'helix://contracts/domain-types/PeopleReferenceLibraryPage/v1',schemaVersion:1,libraryKind:'us_adult',libraryDigest:canonicalDigest('empty'),totalPersonCount:0,items:[],nextCursor:null},
+    sourceIntent=require('../../src/helix/domains/arca/model/us-adult-actor-refresh').buildIntent({context:sourceContext,actorId:'native-fixture',
+      body:{mode:'automatic',idempotencyKey:'source-read',expectedInventoryRevision:2,expectedRepresentationDigest:sourceContext.raw.inventory.representation_digest},
+      pages:[{...emptyPage,pageDigest:canonicalDigest(emptyPage)}],contractValidator:sourceValidator}),
+    sourceExecution={ownerScope:{domain:'arca',processType:'arca_shelf_entry',processId:'entry-1'},assertExecutionActive:()=>{}},
+    arcaHandle=require('../../src/helix/integrations/us-adult-inventory-source').createUsAdultInventorySource({assertAuthority:()=>true}).issueReadHandle({
+      intent:sourceIntent,aftercareCaseId:'native-source-case',identity,binding:{endpointId:'endpoint',bindingRevision:1,location:video},
+      target:{endpointId:'endpoint',rootLocation:root,mountScopeId:identity.mountScopeId,mountScopeRevision:1},context:sourceExecution});
   const inventoryEngine=require('../../src/helix/integrations/us-adult-inventory-engine').createUsAdultInventoryEngine({
-    frameExtractor:extractor,faceModel:model,context:{ownerScope:{domain:'arca',processType:'arca_shelf_entry',processId:'entry-1'},assertExecutionActive:()=>{}},
+    frameExtractor:extractor,faceModel:model,context:sourceExecution,
     referencePort:{readReferenceEmbedding:()=>embeddingBytes,readReferenceImage:()=>({bytes:portraitBytes})}}),
-    arcaHandle={...handle,ownerDomain:'arca',ownerScope:{scopeType:'shelf_entry',scopeId:'entry-1'}},
     prepared=await inventoryEngine.analyzeSource({sourceHandle:arcaHandle,durationMs:2000}),
     matched=await inventoryEngine.matchPage({analysis:prepared.analysis,personReferenceProjections:[projection]}),
     posterInput={...prepared,personSnapshot,referenceAssetId:asset.referenceAssetId,
@@ -69,6 +89,21 @@ test('real Service FFmpeg extracts twenty points and CPU matching selects one ac
       normalize(normalize(detected.vector)).reduce((sum,value,ordinal)=>sum+value*referenceUnit[ordinal],0)))));
   assert.equal(matched.matches[0].score,expectedMaximum,'Inventory matching uses the same normalized feature arithmetic as frozen Formation cluster members.');
   assert.equal((await sharp(poster.bytes).metadata()).height,1500);assert.equal(poster.version,'us-adult-presentation@1');
+  const workspaceRoot=path.join(root,'aftercare');fs.mkdirSync(workspaceRoot);
+  const handles=new Map(),workspaceOptions={rootSnapshot:{resolvedRoot:workspaceRoot,rootHandleRef:canonicalDigest('workspace-root'),mountScopeId:'workspace-mount',endpointId:'workspace-endpoint'},
+    ensureWorkspace:()=>{},registerMaterial:value=>handles.set(value.handleId,value),assertRegistered:value=>canonicalJson(handles.get(value.handleId))===canonicalJson(value)},
+    createWorkspace=()=>require('../../src/helix/integrations/us-adult-inventory-workspace').createUsAdultInventoryWorkspace(workspaceOptions),
+    createPreparation=()=>require('../../src/helix/integrations/us-adult-inventory-analysis').createUsAdultInventoryAnalysis({engine:inventoryEngine,workspace:createWorkspace(),
+      mediaProbe:createCleanMediaProbe(),context:sourceExecution,contractValidator:sourceValidator}),
+    sourceResult=await createPreparation().prepare({intent:sourceIntent,aftercareCaseId:'native-source-case',sourceHandle:arcaHandle}),
+    restored=createPreparation().read({intent:sourceIntent,aftercareCaseId:'native-source-case',result:sourceResult,includeFrames:true});
+  assert.equal(handles.size,22,'All twenty images and both immutable JSON members are registered individually.');
+  assert.equal(sourceResult.container,'mov');assert.equal(sourceResult.durationMs,2000);
+  assert.deepEqual(restored.analysis,prepared.analysis);assert.deepEqual(restored.frames,prepared.frames);
+  assert.equal((await inventoryEngine.matchPage({analysis:restored.analysis,personReferenceProjections:[projection]})).matches[0].score,expectedMaximum);
+  assert.deepEqual((await inventoryEngine.renderPoster({...posterInput,...restored})).bytes,poster.bytes);
+  const changedResult=structuredClone(sourceResult);changedResult.aftercareCaseId='other-case';
+  assert.throws(()=>createPreparation().read({intent:sourceIntent,aftercareCaseId:'native-source-case',result:changedResult}),{code:'ARCA_US_ADULT_SOURCE_RESULT_INVALID'});
   await assert.rejects(inventoryEngine.analyzeSource({sourceHandle:handle,durationMs:2000}),{code:'ARCA_US_ADULT_SOURCE_SCOPE_INVALID'});
   const changedFrames=[...prepared.frames];changedFrames[0]={...changedFrames[0],bytes:Buffer.from('substituted frame')};
   await assert.rejects(inventoryEngine.renderPoster({...posterInput,frames:changedFrames}),{code:'ARCA_US_ADULT_FRAME_SOURCE_CHANGED'});

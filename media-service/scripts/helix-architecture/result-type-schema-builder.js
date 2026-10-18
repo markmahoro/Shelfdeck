@@ -627,6 +627,7 @@ function inferredField(resultName, fieldName) {
 }
 
 const contracts = {
+  ArcaUsAdultSourcePrepared:['EvidenceEnvelope','shelfEntryId,aftercareCaseId,intentId,intentDigest,sourceHandle,sourceProbeDigest,durationMs,container,frameCount,detectedFaceCount,analysisDigest,faceModelRefDigest,referenceModelRefDigest,frameManifestHandle,featuresHandle'],
   JavCorrectionSourceVerified:['EvidenceEnvelope','correctionId,admissionDigest,scopeDigest,confirmedProposalDigest,actualProposalDigest,qualification'],
   JavCorrectionAssetsPrepared:['EvidenceEnvelope','correctionId,admissionDigest,confirmedProposalDigest,actualProposalDigest,sourceObservationDigest,metadataFactDigest,metadataHandle,artifacts'],
   JavCorrectionCommitReceipt:['ReceiptEnvelope','correctionId,shelfEntryId,previousCanonicalIdentityRevision,newCanonicalIdentityRevision,previousInventoryRevision,newInventoryRevision,canonicalIdentityDigest,canonicalIdentityKey,inventoryDigest,verificationDigest,controlChangeDigest,changeDigest,originalCommitDigest'],
@@ -763,6 +764,7 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 }), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if(name==='ArcaUsAdultSourcePrepared')return require('../../src/helix/contracts/us-adult-inventory-analysis').sourcePreparedSchema();
   if(name==='JavCorrectionCommitReceipt')return require('../../src/helix/domains/arca/model/jav-correction-commit-contract').javCorrectionCommitReceiptSchema();
   if(name==='JavCorrectionFormalRetirementReceipt')return require('../../src/helix/domains/arca/model/jav-correction-retirement-contract').retirementReceiptSchema();
   if(name==='JavCorrectionWorkspaceReclaimReceipt')return require('../../src/helix/domains/arca/model/jav-correction-workspace-reclaim-contract').workspaceReclaimReceiptSchema();

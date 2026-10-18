@@ -3,7 +3,7 @@ const {packageContentProfile}=require('./helix/domains/arca/model/product-conten
 const {relatedPrimaryName}=require('./helix/domains/arca/model/related-primary-name');
 const {assertRequiredUsAdultActor}=require('./helix/contracts/us-adult-actor-package');
 const {assertUsAdultInventoryPresentation}=require('./helix/contracts/us-adult-inventory-presentation');
-const {originalNameProvenance,buildUsAdultName}=require('./helix/contracts/us-adult-presentation');
+const {originalNameProvenance,buildUsAdultTitle,buildUsAdultName}=require('./helix/contracts/us-adult-presentation');
 
 const fs = require('node:fs');
 const {offloadProductKeys}=require('./helix/contracts/offload-product-targets');
@@ -218,7 +218,7 @@ function inventoryDisplayIdentity(packageValue,request) {
       assertRequiredUsAdultActor(packageValue);
       actorName=packageValue.mediaCastSnapshot.relations[0].displayName;
     }
-    const named=buildUsAdultName({actorName,originalName,outputExtension:'.mkv'});
+    const named=buildUsAdultTitle({actorName,originalName});
     return Object.freeze({title:named.title,year:null,edition:null,usAdultNaming:Object.freeze({actorName,originalName})});
   }
   let title = identityFact.title || identityFact.displayTitle ||

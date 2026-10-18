@@ -1682,6 +1682,11 @@ async function createCleanServiceHost(options) {
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
   procurementExecution = createHelixExecutionRuntime({
+    captureUsAdultInventorySource:({assertAuthority,...request})=>require('./helix/integrations/us-adult-inventory-source')
+      .createUsAdultInventorySource({assertAuthority,now:options.now||Date.now}).issueReadHandle(request),
+    createUsAdultInventoryAnalysisPort:request=>require('./clean-us-adult-inventory-analysis-port').createCleanUsAdultInventoryAnalysisPort({
+      ...request,aftercareWorkspaceRoot,frameExtractor:usAdultFrameExtractor,faceModel:localFaceModel,referencePort:peopleImagePort,
+      referenceCache:usAdultReferenceCache,mediaProbe,now:options.now||Date.now}),
     createUsAdultAnalysisPort,
     createUsAdultRecommendationImagePort:sourceQuery=>require('./clean-us-adult-recommendation-image-port').createCleanUsAdultRecommendationImagePort({
       sourceQuery,workspaceProductPort,

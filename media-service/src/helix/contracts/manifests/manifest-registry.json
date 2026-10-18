@@ -19,13 +19,13 @@
       "manifestId": "helix.inventory.capabilities",
       "kind": "capability-inventory",
       "relativePath": "capability-inventory.json",
-      "targetCount": 121
+      "targetCount": 122
     },
     {
       "manifestId": "helix.inventory.result-families",
       "kind": "result-family-inventory",
       "relativePath": "result-family-inventory.json",
-      "targetCount": 104
+      "targetCount": 105
     },
     {
       "manifestId": "helix.inventory.tables",
