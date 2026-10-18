@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultInventoryPresentation/v1",
+  "title": "UsAdultInventoryPresentation@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultInventoryPresentation/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "inventoryRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "aftercareCaseId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "representationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "canonicalIdentityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "personId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "actorName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1024
+    },
+    "actorRelationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "originalName": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "us-adult-original-name@1"
+        },
+        "originalFileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "provenanceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "originalFileName",
+        "provenanceDigest"
+      ]
+    },
+    "snapshotDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "shelfEntryId",
+    "inventoryRevision",
+    "aftercareCaseId",
+    "representationDigest",
+    "canonicalIdentityDigest",
+    "personId",
+    "actorName",
+    "actorRelationDigest",
+    "originalName",
+    "snapshotDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 16384
+}

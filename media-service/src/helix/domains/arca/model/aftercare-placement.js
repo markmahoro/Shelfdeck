@@ -7,6 +7,7 @@ const { physicalIdentityFromInventoryRow } = require('./aftercare-contract');
 const {readInventoryArtifactScope}=require('./inventory-artifact-scope');
 const {aftercareProviderIdentity}=require('./aftercare-provider-identity');
 const {inventoryContentProfile}=require('./product-content-profile');
+const {readUsAdultInventoryPresentation,buildUsAdultInventoryPresentation}=require('./us-adult-inventory-presentation');
 
 const PLACEMENT_LAYOUT_FIELDS = Object.freeze([
   'folderTemplate',
@@ -42,6 +43,10 @@ function classifyAcceptedPlacement(context) {
 }
 
 function metadataIdentity(context) {
+  if(inventoryContentProfile(context.raw.identity,context.raw.entry.structure_kind)==='western_adult') {
+    const {title,year}=readUsAdultInventoryPresentation(context);
+    return Object.freeze({title,year});
+  }
   const resolvedFact = context.raw.facts.find((item) =>
     item.fact_kind === 'resolved_identity')?.value || {};
   const resolvedIdentity=resolvedFact.resolvedProductIdentity||resolvedFact;
@@ -160,6 +165,8 @@ function buildInventoryPlacementRequest(context, inventoryPort, at, caseId, proc
     onDeckRunId: caseId,
     custodyId: caseId,
     ...(processKind==='aftercare'?{aftercareCaseId:caseId}:{correctionId:caseId}),
+    ...(contentProfile==='western_adult'?{shelfEntryId:context.shelfEntryId,
+      inventoryUsAdultPresentation:buildUsAdultInventoryPresentation(context,caseId)}:{}),
     shelf,
     onDeckProductPackage,
     observedAtMs: at,

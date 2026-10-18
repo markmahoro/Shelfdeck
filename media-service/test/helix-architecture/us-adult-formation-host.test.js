@@ -83,6 +83,10 @@ async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendati
     return {query,images};
   }
   return {db,target,request,wait,actor,readFrameEvidence,recommendations,getPerson:()=>person,diagnostics,
+    inventoryContext(){const shelfEntryId=db.prepare('SELECT shelf_entry_id FROM arca_shelf_entries WHERE status=?').get('active').shelf_entry_id;
+      const store=require('../../src/helix/domains/arca/persistence/aftercare-store').createAftercareStore({
+        schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),unitOfWork});
+      return {shelfEntryId,raw:store.currentContext(shelfEntryId)};},
     async requestImage(url){const response=await host.inject({method:'GET',url,headers:{'x-api-key':initialized.adminApiKey}});
       assert.equal(response.statusCode,200,response.body);return {bytes:response.rawPayload,headers:response.headers};},
     setTime:value=>{clockOffset=Date.parse(value)-epoch-(Date.now()-clockStarted);},restart:async()=>{await host.close();host=await start();}};
@@ -120,6 +124,17 @@ test('real Host selects the highest CPU match and produces one actor without man
   assert.equal(cast.relations.length,1);assert.equal(cast.relations[0].personId,h.getPerson().personId);assert.equal(cast.relations[0].source,'face_reference_match');
   assert.equal(h.db.prepare('SELECT count(*) n FROM libra_us_adult_actor_choice_intents').get().n,0);
   assert.ok(fs.existsSync(path.join(h.target,'Test Actor Original source','Test Actor Original source.mkv')));
+  const context=h.inventoryContext(),presentation=require('../../src/helix/domains/arca/model/us-adult-inventory-presentation'),
+    value=presentation.readUsAdultInventoryPresentation(context);
+  assert.equal(value.title,'Test Actor Original source');assert.equal(value.actor.personId,h.getPerson().personId);
+  const port=require('../../src/clean-arca-inventory-port').createCleanArcaInventoryPort({
+    schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
+    unitOfWork:{execute(){throw new Error('Readonly Inventory planning must not write.');}},workspaceRoot:path.join(h.target,'unused-workspace')}),
+    request=require('../../src/helix/domains/arca/model/aftercare-placement').buildAftercareInventoryRequest(context,port,1,'case-inventory-naming');
+  assert.ok(request.finalInventoryDecision.members.some(member=>member.finalName==='Test Actor Original source.mkv'));
+  assert.equal(request.onDeckProductPackage.mediaCastSnapshot,undefined);
+  assert.equal(request.inventoryUsAdultPresentation.personId,h.getPerson().personId);
+  assert.throws(()=>port.prepare({...request,aftercareCaseId:null}),{code:'CLEAN_ARCA_INVENTORY_INPUT'});
 });
 test('real empty-library Host groups two films, creates one recommended actor and recovers only source A confirmation across restart',{timeout:300000,skip},async t=>{
   const h=await fixture(t,{visibleFace:true,registerActor:false,loseRecommendationAck:true,twoFilms:true});

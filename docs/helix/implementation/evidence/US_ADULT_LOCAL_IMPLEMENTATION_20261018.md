@@ -159,3 +159,15 @@ US人物页已接最多五张有图推荐卡、已有演员选择及手动/辅�
 当前121 Capability /104 Result families /222 tables /56 transactions /138 Domain inputs /230 referenced types /0 unresolved /160 routes。p2-recommendation-claim-final.txt PASS，P2 aggregate 36df52db6109565fa8610394927808ec5f8e9504cfc06b76712d97cc623fb2bc；Package boundary PASS（615文件/2129依赖）。recommendation-claim-contract-final.txt 47项通过；web-recommendation-all.txt 218项/40文件通过，Web构建通过（现有大chunk警告仍在）；service-recommendation-checkpoint.txt 677总项/648通过/29既有skip/0失败。上述是本地检查点，未完成全量Architecture、Linux/Windows分发、真实进程强制中断或具体版本浏览器/UI负责人资格。
 
 继续开放：普通/JAV深度维护与US参考图生命周期、Arca演员刷新、离线隔离副本升级、维护残留清扫及最终跨平台/UI资格；本版未交付、未部署。
+
+### Arca刷新输入、共享匹配和单演员NFO基础检查点
+
+共享抽帧入口只接受匹配的Owner/物理scope/process三元组，覆盖Libra Run及Arca Shelf Entry；跨Entry、跨Owner或错误process在访问媒体前拒绝。原物理stat、fingerprint及20点采样校验保持。最高分参考匹配独立为无Domain Store/Work权限的技术组件，继续逐版本核验People Projection、特征内容、参考图模型和缓存键；Libra适配只映射自身cluster字段，Arca可以传递自己的脸组身份，无需构造Libra Handle。
+
+Arca售后目标规划读取本域当前Inventory冻结的唯一Actor及关系索引、首次原名与digest，不读取实时People姓名、不从成品名剥前缀。新增16 KiB精确UsAdultInventoryPresentation绑定Case/Entry/Inventory/Canonical及Actor关系digest；Root命名端口只在Arca Aftercare作用域使用它，初次Package验收仍走原严格单演员Fact。Movie/Series原命名路径保留。真实CPU Host从初次自动匹配、成品上架至Arca当前库存只读目标规划通过，且无Libra生产演员快照伪造或目标文件写入（arca-inventory-naming-host-final.txt，1 pass/0 skip）。首轮读取误用了无wrapper的relations digest，被真实Host拒绝；已按既有libra.media-cast-relations@1精确核验并修正fixture，保留失败记录。
+
+新增US专用NFO纯渲染精确替换全部直接Actor节点为一位，保留其他可读字段、私有ID及嵌套扩展内容；不捏造Provider编号，不使用普通影片追加演员规则。相同输入重复渲染字节稳定，损坏/缺失源按明确重建/创建结果处理。首轮替换会累积空白，幂等字节反例失败；已改为原位替换首Actor及删除其他直接Actor，重复结果精确一致。
+
+arca-shared-analysis-native.txt中33项通过/0 skip，含真实ONNX推理、Arca/Libra各自20帧及共享匹配同分数；arca-inventory-nfo-final.txt中23项通过，含Movie/JAV既有NFO回归。新增Domain input使当前为121/104/222/56、139 Domain inputs、230 referenced types/0 unresolved及160 routes。arca-presentation-p2-final.txt PASS，aggregate 910566a56d80f1f75c5398b6a59308cfb4f18e9cae8dc47785eecb20a1b4c84e。第二轮Product Surface materializer遇Windows UNKNOWN open manifest-registry.json；原文件可读完整，保留失败log后只重跑该materializer及DDL/P2成功，不绕过校验。完整Architecture进程已启动，尚无结果，不算PASS。
+
+此处完成的是刷新输入、只读规划和渲染基础；尚无用户Actor Refresh Case至文件Effect/Inventory Commit的完整实现或中断恢复资格，不能称单片演员刷新已交付。其他未关闭工作项不变。

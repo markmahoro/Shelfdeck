@@ -6117,6 +6117,9 @@ Arca冻结用户Intent、目标Entry/Inventory revision、原始命名Provenance
 初次生产与本类刷新使用同一版本化纯海报Renderer：四帧2×2大截图，减小肖像比例，文字不得遮图。命名从首次
 冻结的原文件名生成“演员名 + 空格 + 原名主体”，扩展名对应实际容器；不从已经加前缀的名字再次派生，不增加
 展示番号。首次命名Provenance缺失必须明确报告，不能猜原名。内部领域ID与幂等身份保持。
+共享Frame I/O仅接受成对的Owner/physical scope/process authority：Libra的libra_run，或Arca的shelf_entry/arca_shelf_entry；Arca不能借用Libra Run ID或Workspace。每次抽帧前后仍校验完整物理读取围栏。
+Arca后续排版从当前Inventory的Media-Cast及其单演员索引读取冻结姓名，与首次Resolved Identity中的原名Provenance核对；不查询实时People姓名，不把旧成品文件名当原名。目标命名使用绑定Case/Entry/Inventory及关系digest的UsAdultInventoryPresentation；它是Arca库存执行输入，不伪装成Libra生产Fact。初次On-deck仍必须验证正式单演员Package，库存排版快照不能绕过该验收。
+本类NFO更新精确替换直接出演者节点为选定唯一演员，不使用普通演员的追加归并规则；保留其他可读NFO字段与扩展内容，不为渲染捏造Provider编号。相同冻结输入重放不增添空白或演员节点。共享参考匹配器只接收冻结特征与People Projection，Arca和Libra仍各自拥有Work、Result及选择事实。
 
 ### 6.7 Arca Off-deck执行架构
 
@@ -10913,6 +10916,7 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `UsAdultRecommendationSource` | `schemaRef,schemaVersion(1),sourceId,subjectId,libraRunId,expectedRunStateRevision,expectedChoiceRevision(0),runExecutionBasisDigest,analysisId,analysisBasisDigest,completionDigest,originalName{schema(us-adult-original-name@1),originalFileName,provenanceDigest},frameArtifactSet(FrameArtifactSet),faceEmbeddingSetHandle(FaceEmbeddingSetHandle),faceClusterSetHandle(FaceClusterSetHandle),sourceResultRefs[3]{workId,attemptId,planId,eventId,resultId,capabilityRef,resultSchemaRef,resultDigest,inputBindingDigest},sourceDigest`；完整value≤`64 KiB`；refs依次为同Run正式Frames/Embedding/Cluster Result，所有Artifact及模型/图片/采样版本沿同一Analysis Basis且完成脸数大于零；sourceId覆盖Subject/Run/analysis/completion/Run revision，sourceDigest排除自身 |
 | `UsAdultRecommendationSourcePage` | `schemaRef,schemaVersion(1),items[0..32 UsAdultRecommendationSource],nextCursor(null或Run ID),pageDigest`；完整value≤`256 KiB`，pageDigest排除自身；按扫描顺序完整返回本批仍符合条件的Source，字节预算耗尽在未读取下一项前保存游标 |
 | `UsAdultRecommendationConfirmation` | `schemaRef, schemaVersion=1, claimId, actorId, source:UsAdultRecommendationSource, personId, expectedPersonRevision>=1, expectedReferenceRevision>=1` | People显式用户Claim驱动的Libra来源确认输入；closed字段、最多128 KiB；claimId和sourceDigest派生稳定幂等key，冻结精确来源Run/choice和Person/Reference版本；不是跨Domain写入或集合匹配命令 |
+| `UsAdultInventoryPresentation` | `schemaRef,schemaVersion(1),shelfEntryId,inventoryRevision,aftercareCaseId,representationDigest,canonicalIdentityDigest,personId,actorName,actorRelationDigest,originalName{schema(us-adult-original-name@1),originalFileName,provenanceDigest},snapshotDigest`；完整value≤`16 KiB`，snapshotDigest排除自身；只允许精确Arca库存Case作用域，当前单演员关系和索引必须一致；原名证据保持首次值，不能替代Libra Package的演员验收 |
 
 | `PeopleReferenceLibraryPage` | `schemaRef,schemaVersion(1),libraryKind(us_adult),libraryDigest,totalPersonCount,items[0..256 UsAdultPersonSnapshot],nextCursor(null|personId),pageDigest`；完整value≤`512 KiB`，pageDigest覆盖除自身外完整value；libraryDigest覆盖按Person ID UTF-8排序的active US Person全部head投影键及两项current revision/Reference Projection checkpoint；不是缓存时间戳；不得截断库或使用同名归并 |
 | `PerceptionAcquisitionResumeDecision` | `decisionId,acquisitionId,expectedScopeDigest,actorId,idempotencyKey,requestDigest,decisionDigest`；完整value≤`4 KiB`；只签发同一active Douban Acquisition的用户继续Intent，不覆盖原Snapshot/Scope/cursor；decisionDigest覆盖除自身外完整value |

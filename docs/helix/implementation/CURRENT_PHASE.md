@@ -50,8 +50,9 @@
 - Formation：service-local真实CPU固定模型、20点抽帧、最高有效单演员、无脸/空库转二号、原Run人工确认、NFO/共享2×2 Poster、精确Actor加原名与初次On-deck已贯通；Formation现有演员选择无建档快捷入口。
 - 推荐：维护内持久化扫描、分组与排名，窗口结束后最多五位可见；用户认领/新建经持久Claim及Owner命令自动确认明确来源A。两片聚合、真实截图建档、ACK丢失跨重启、只确认A而B仍暂存的CPU Host通过。UI已接，尚未做浏览器及具体版本负责人验收。
 - 维护：独立准入、安全进入/收尾、配置及概览、既有任务分类/持久cursor已接。手动豆瓣沿原Acquisition/cursor转普通调度已验证；残留清扫及完整截止/重启资格仍开放。
-- 当前合同：121 Capability /104 Result families /222表 /56事务 /138 Domain inputs /160路由。P2与Package boundary通过；最终完整Architecture Gate未通过或关闭。
+- Arca刷新基础：共享抽帧接受精确Arca物理读取作用域，共享最高分匹配器不携带Libra业务身份；当前库存Actor/原名读取及Case命名快照已接售后目标规划，单演员NFO替换纯渲染完成。真实CPU初次上架后库存只读规划通过；刷新Case及文件Effect链路仍未完成。
+- 当前合同：121 Capability /104 Result families /222表 /56事务 /139 Domain inputs /160路由。P2通过；完整Architecture Gate正在执行，尚未关闭。
 - 最新本地验证：Service648 pass/29既有skip/0 fail，Web218项通过及构建通过，推荐相关合同47项通过；真实CPU Host证据单列，不把合成Result fixture当成推理证据。
-- 下一项为Arca单片演员刷新。离线升级副本、适用跨平台、实际进程中断恢复及具体版本UI资格仍开放。未部署、未操作生产或真实媒体。
+- 继续实现Arca单片演员刷新Case。离线升级副本、适用跨平台、实际进程中断恢复及具体版本UI资格仍开放。未部署、未操作生产或真实媒体。
 
 具体历史、失败记录与验收限制见[本地实施Evidence](evidence/US_ADULT_LOCAL_IMPLEMENTATION_20261018.md)。全部五议题及适用验收闭合前不称开发完成。

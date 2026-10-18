@@ -13,7 +13,7 @@
       ],
       "sourceLocator": {
         "section": "8.9.9",
-        "line": 16400,
+        "line": 16404,
         "lineDigest": "49d3449f5bd4106b74bd219582db8e12c7ed799be946420e9f057b86e3807b48"
       },
       "targetLocator": {
@@ -23,11 +23,11 @@
         "tableId": "libra_acquisition_candidate_evidence",
         "owner": "libra",
         "contractRef": "helix://contracts/tables/libra_acquisition_candidate_evidence/v1",
-        "contractDigest": "deef8c700341c008088f547a1b129724bcc49bd3e5bf6f793813aef08b7d01a3"
+        "contractDigest": "63a21a2e6d26a0eb9b44acd81383e63288a9bc7ace2f6764fb390370327fb339"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "0955ce185563976638d82292b733aeab5ac812b41d52db1768e08cb255b21756"
+        "value": "17f92fa8a715268724f71094a2a9c1a66d6981bcefd8ec92957fecc638503678"
       }
     }
   ]

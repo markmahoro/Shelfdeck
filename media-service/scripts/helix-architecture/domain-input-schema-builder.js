@@ -277,6 +277,7 @@ const dtoContracts = {
   UsAdultMatchCompletion:'',
   UsAdultActorSelectionBasis:'',
   UsAdultRecommendationConfirmation:'',
+  UsAdultInventoryPresentation:'',
   UsAdultRecommendationPageQuery:'',
   UsAdultRecommendationSource:'',
   UsAdultRecommendationSourcePage:'',
@@ -361,6 +362,7 @@ function buildSchema(name, role, fields) {
   if (name === 'TriageIdentityResolutionInput') return triageIdentityResolutionInputSchema();
   if (name === 'TriageManifestBuildInput') return triageManifestBuildInputSchema();
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
+  if(name==='UsAdultInventoryPresentation')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},shelfEntryId:id(),inventoryRevision:positiveInteger(),aftercareCaseId:id(),representationDigest:digest(),canonicalIdentityDigest:digest(),personId:id(),actorName:text({maxLength:1024}),actorRelationDigest:digest(),originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()}),snapshotDigest:digest()}),'x-helix-maxCanonicalBytes':16*1024};
   if(name==='UsAdultRecommendationConfirmation')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},claimId:digest(),actorId:id(),source:domainRef('UsAdultRecommendationSource'),personId:id(),expectedPersonRevision:positiveInteger(),expectedReferenceRevision:positiveInteger()}),'x-helix-maxCanonicalBytes':128*1024};
   if(name==='UsAdultRecommendationPageQuery')return exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},cursor:nullable(id()),limit:{type:'integer',minimum:1,maximum:32}});
   if(name==='UsAdultRecommendationSourcePage')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},items:arrayOf(domainRef('UsAdultRecommendationSource'),32),nextCursor:nullable(id()),pageDigest:digest()}),'x-helix-maxCanonicalBytes':256*1024};

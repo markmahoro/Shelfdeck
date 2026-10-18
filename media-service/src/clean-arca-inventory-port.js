@@ -2,6 +2,7 @@
 const {packageContentProfile}=require('./helix/domains/arca/model/product-content-profile');
 const {relatedPrimaryName}=require('./helix/domains/arca/model/related-primary-name');
 const {assertRequiredUsAdultActor}=require('./helix/contracts/us-adult-actor-package');
+const {assertUsAdultInventoryPresentation}=require('./helix/contracts/us-adult-inventory-presentation');
 const {originalNameProvenance,buildUsAdultName}=require('./helix/contracts/us-adult-presentation');
 
 const fs = require('node:fs');
@@ -201,15 +202,22 @@ function exactUsAdultSegment(value){
   return value;
 }
 
-function inventoryDisplayIdentity(packageValue) {
+function inventoryDisplayIdentity(packageValue,request) {
   const snapshot = packageValue?.resolvedIdentitySnapshot?.factValue || {};
   const identityFact = snapshot.resolvedProductIdentity || snapshot;
   if(identityFact.contentProfile==='western_adult'){
-    assertRequiredUsAdultActor(packageValue);
-    const originalName=originalNameProvenance(displayIdentityEntry(identityFact,'original_file_name')),
-      actorName=packageValue.mediaCastSnapshot.relations[0].displayName;
+    const originalName=originalNameProvenance(displayIdentityEntry(identityFact,'original_file_name'));
     if(displayIdentityEntry(identityFact,'original_file_name_digest')!==originalName.provenanceDigest)
       fail('US_ADULT_ORIGINAL_NAME_PROOF_INVALID','US Adult placement requires its first frozen original name.');
+    let actorName;
+    if(request?.inventoryUsAdultPresentation!==undefined) {
+      if(!request.aftercareCaseId||request.correctionId)fail('CLEAN_ARCA_INVENTORY_INPUT','Inventory actor naming requires an Arca Aftercare Case.');
+      actorName=assertUsAdultInventoryPresentation(request.inventoryUsAdultPresentation,
+        {shelfEntryId:request.shelfEntryId,aftercareCaseId:request.aftercareCaseId,originalName}).actorName;
+    } else {
+      assertRequiredUsAdultActor(packageValue);
+      actorName=packageValue.mediaCastSnapshot.relations[0].displayName;
+    }
     const named=buildUsAdultName({actorName,originalName,outputExtension:'.mkv'});
     return Object.freeze({title:named.title,year:null,edition:null,usAdultNaming:Object.freeze({actorName,originalName})});
   }
@@ -514,7 +522,10 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE',
         'Shelf Target root is unavailable.');
     }
-    const identity = inventoryDisplayIdentity(packageValue);
+    if(request.inventoryUsAdultPresentation!==undefined&&
+        (packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||packageValue.resolvedIdentitySnapshot?.factValue)?.contentProfile!=='western_adult')
+      fail('CLEAN_ARCA_INVENTORY_INPUT','Inventory actor naming cannot change a different content profile.');
+    const identity = inventoryDisplayIdentity(packageValue,request);
     const placement = { ...DEFAULT_SHELF_PLACEMENT_POLICY, ...(shelf.placement?.value || {}) };
     if(identity.usAdultNaming)placement.collisionPolicy='reject';
     const renderedFolder = renderTemplate(placement.folderTemplate, {

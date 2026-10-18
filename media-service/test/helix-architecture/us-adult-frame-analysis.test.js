@@ -22,10 +22,13 @@ test('real Service FFmpeg extracts twenty points and CPU matching selects one ac
   assert.equal(encoded.status,0,encoded.stderr);
   const observed=await computeBoundedMaterialFingerprint(video),identity={inode:String(observed.stat.ino),sizeBytes:Number(observed.stat.size),
     fingerprintAlgorithm:observed.fingerprintAlgorithm,fingerprintVersion:observed.fingerprintVersion,contentFingerprint:observed.contentFingerprint},
-    handle={schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',identity,location:video,ownerDomain:'libra',ownerScope:{scopeId:'test-run'},
+    handle={schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',identity,location:video,ownerDomain:'libra',ownerScope:{scopeType:'libra_run',scopeId:'test-run'},
       expectedMtimeNs:Number(observed.stat.mtimeNs/1000000n),expectedCtimeNs:Number(observed.stat.ctimeNs/1000000n)},
-    context={ownerScope:{domain:'libra',processId:'test-run'},assertExecutionActive:()=>{}},frames=await extractor.extract({sourceHandle:handle,context});
+    context={ownerScope:{domain:'libra',processType:'libra_run',processId:'test-run'},assertExecutionActive:()=>{}},frames=await extractor.extract({sourceHandle:handle,context});
   assert.equal(frames.length,20);assert.deepEqual(frames.map(frame=>frame.timestampMs),uniformFrameTimes(2000));
+  const inventoryFrames=await extractor.extract({sourceHandle:{...handle,ownerDomain:'arca',ownerScope:{scopeType:'shelf_entry',scopeId:'entry-1'}},
+    context:{ownerScope:{domain:'arca',processType:'arca_shelf_entry',processId:'entry-1'},assertExecutionActive:()=>{}}});
+  assert.deepEqual(inventoryFrames,frames,'Arca reads its own entry through the same pure frame I/O without a borrowed Libra Run.');
   await assert.rejects(extractor.extract({sourceHandle:handle,context,durationMs:1000}),{code:'US_ADULT_SOURCE_PROBE_CHANGED'});
   const engine=createUsAdultFrameAnalysis({faceModel:model}),analysis=await engine.analyze(frames),
     reference=await model.analyzeImage(fs.readFileSync(process.env.SHELFDECK_FACE_TEST_IMAGE),{requireSingleFace:true});
@@ -43,4 +46,16 @@ test('real Service FFmpeg extracts twenty points and CPU matching selects one ac
   assert.throws(()=>engine.match(analysis,[{...ref,personId:'a-actor',modelRefDigest:canonicalDigest('other-model')}]),{code:'US_ADULT_REFERENCE_MODEL_CHANGED'});
   fs.appendFileSync(video,'changed-source');
   await assert.rejects(extractor.extract({sourceHandle:handle,context}),{code:'US_ADULT_SOURCE_CHANGED'});
+});
+test('frame I/O rejects cross-owner, cross-entry and wrong process authority before reading a source',async()=>{
+  let reads=0;const extractor=createCleanUsAdultFrameExtractor({ffmpegPath:process.execPath,mediaProbe:{probe(){reads++;throw new Error('Unexpected read');}}}),
+    source={schemaRef:'helix://contracts/types/PhysicalMaterialReadHandle/v1',ownerDomain:'arca',ownerScope:{scopeType:'shelf_entry',scopeId:'entry-1'}},
+    context={ownerScope:{domain:'arca',processType:'arca_shelf_entry',processId:'entry-1'},assertExecutionActive:()=>{}};
+  try{
+    for(const ownerScope of [{domain:'libra',processType:'libra_run',processId:'entry-1'},
+      {domain:'arca',processType:'arca_shelf_entry',processId:'entry-2'},{domain:'arca',processType:'arca_ondeck_run',processId:'entry-1'}])
+      await assert.rejects(extractor.extract({sourceHandle:source,context:{...context,ownerScope}}),{code:'US_ADULT_FRAME_AUTHORITY_INVALID'});
+    await assert.rejects(extractor.extract({sourceHandle:{...source,ownerScope:{scopeType:'libra_run',scopeId:'entry-1'}},context}),{code:'US_ADULT_FRAME_AUTHORITY_INVALID'});
+    assert.equal(reads,0);
+  }finally{await extractor.close();}
 });

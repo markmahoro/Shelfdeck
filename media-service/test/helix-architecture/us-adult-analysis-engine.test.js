@@ -2,6 +2,7 @@
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs');
 const sharp = require('sharp');
 const {createUsAdultAnalysisEngine} = require('../../src/helix/integrations/us-adult-analysis-engine');
+const {createUsAdultReferenceMatcher} = require('../../src/helix/integrations/us-adult-reference-matcher');
 const {createCleanWesternAnalysisPort} = require('../../src/clean-western-analysis-port');
 const {faceModelReference} = require('../../src/helix/contracts/us-adult-face-model');
 const {canonicalDigest, canonicalJson} = require('../../src/helix/contracts/canonical-json');
@@ -31,6 +32,20 @@ function harness(references = [reference('actor-z'), reference('actor-a')], extr
     }, readReferenceImage() { throw new Error('not used'); }}, ...extra};
   return {engine:createUsAdultAnalysisEngine(options), options, references, reads:() => reads, cancel:() => {active = false;}};
 }
+
+test('the shared matcher accepts Owner-local face groups without Libra handles and preserves global highest-match and reference guards', async () => {
+  const h = harness(), matcher = createUsAdultReferenceMatcher(h.options),
+    request = {faceModelRefDigest:model.digest,faces:[{faceGroupId:'arca-frame-19-face-0',vector:V(1)}],
+      personReferenceProjections:h.references.map(item=>item.projection)};
+  const result = await matcher.matchPage(request);
+  assert.equal(result.matches.length,1);assert.equal(result.matches[0].personId,'actor-a');
+  assert.equal(result.matches[0].faceGroupId,'arca-frame-19-face-0');assert.equal(result.matches[0].score,1);
+  assert.equal(Object.hasOwn(result.matches[0],'libraRunId'),false);
+  const changed = structuredClone(request);changed.personReferenceProjections[0].personRevision++;
+  await assert.rejects(matcher.matchPage(changed),{code:'US_ADULT_REFERENCE_CHANGED'});
+  await assert.rejects(matcher.matchPage({...request,faceModelRefDigest:D('unfrozen model')}),{code:'US_ADULT_ANALYSIS_CHANGED'});
+  h.cancel();await assert.rejects(matcher.matchPage(request),{code:'FIXTURE_CANCELLED'});
+});
 
 test('clustering preserves member vectors and matching selects the highest face score with stable actor tie ordering', async() => {
   const h = harness(), clustered = await h.engine.computeClusters({embeddingSet:{dimension:128, vectors:[V(1), V(0.8, 0.6), V(0, 1)]},
@@ -106,6 +121,9 @@ test('real pinned CPU frames and selected reference feed the shared large-screen
     clustered = await h.engine.computeClusters({embeddingSet:embedded, clusterParameters:clusterParameters(model)}),
     matched = await h.engine.matchReferences({faceClusterSetHandle:{faceModelRefDigest:model.digest}, clusters:clustered.clusters, personReferenceProjections:[item.projection]});
   assert.equal(embedded.vectorCount, 1); assert.ok(matched.matches[0].score > 0.99);
+  const sharedMatched=await createUsAdultReferenceMatcher(h.options).matchPage({faceModelRefDigest:model.digest,
+    faces:[{faceGroupId:'arca-frame-000000-face-000',vector:embedded.vectors[0]}],personReferenceProjections:[item.projection]});
+  assert.equal(sharedMatched.matches[0].score,matched.matches[0].score);assert.equal(sharedMatched.matches[0].personId,'actor-a');
   const poster = await h.engine.renderPoster({frameComposite:composite, actorSelectionBasis});
   const metadata = await sharp(poster).metadata(); assert.equal(metadata.width, 1000); assert.equal(metadata.height, 1500);
   const analysis = await h.engine.analyzeWestern({analysisSpec:{typedParameters:[

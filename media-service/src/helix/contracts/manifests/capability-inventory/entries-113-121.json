@@ -12,7 +12,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.13",
-        "line": 10587,
+        "line": 10590,
         "lineDigest": "a5f366f08e4b9b6012657fa5f8b69ddf661f6be0c05135b837c5be2e693b6153"
       },
       "targetLocator": {
@@ -20,14 +20,14 @@
       },
       "contract": {
         "packagePath": "capabilities/perception/resolution/commit/v1",
-        "packageDigest": "d5abeed2245b87f7c31b1485509de6e9c7e82f74c51c43927e57377b580ec7d6",
+        "packageDigest": "a33e5e1e044e5df30eaadf4abf0cee7a872aa3d4ac2b3445b6061a980f0acc2e",
         "effectClass": "domain_fact_commit",
         "inputSummary": "PerceptionResolutionDraft + DomainFactCommitHandle",
         "outputFamily": "PerceptionResolutionRevision"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "1b8e2e6571e4dda75c9882d8bc7e8291ef31a2e577f2ce0fac5b96a3ebfd2563"
+        "value": "38faf03aaf432e247ee8395dce1f9ca5cd83bcfab2129673455f466ebd6a89d0"
       }
     },
     {
@@ -40,7 +40,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.14",
-        "line": 10604,
+        "line": 10607,
         "lineDigest": "c676c7178e8b473e53bde4b2ef443161e1a6b892a01f53427e2cf24afd5ea0cc"
       },
       "targetLocator": {
@@ -48,14 +48,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/registration_evidence/observe/v1",
-        "packageDigest": "f86786e825297a06a55230cbb631a287289d796542e6111dd728b5b2a408689a",
+        "packageDigest": "f324d0efe252b38b5452cf166ce4b3b5da97d1b0d51f4f651893f7f0fb95d995",
         "effectClass": "pure_observation",
         "inputSummary": "(Provider person hint + IntegrationHandle) | OnDeckPersonEvidenceProjectionItem",
         "outputFamily": "PersonRegistrationEvidence"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "2821a26cd9c928cfab6361880214c0f2f375b7c1096b82d367d51e40f0f9cf83"
+        "value": "d389473f2688a6a3449219fe25dccc0e79af1312c862a850db6e2a924756abc1"
       }
     },
     {
@@ -68,7 +68,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.14",
-        "line": 10605,
+        "line": 10608,
         "lineDigest": "81d0f07a966a5fbfe8d73652f33c43a34d28f516c2b0db5f27ba074b49e3165e"
       },
       "targetLocator": {
@@ -76,14 +76,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/reference_asset/import/v1",
-        "packageDigest": "828cbad3e66db54b2df7eb91ac031dea7c6e7bca05988ffdc5d5004a2936f633",
+        "packageDigest": "ec7362d905b687cb7dce5b38158787cf368fdbf84d6d5a16296756e2f32e4410",
         "effectClass": "workspace_write",
         "inputSummary": "PeopleSelectedImageHandle + People Workspace",
         "outputFamily": "ArtifactHandle"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "0a8bb8245d20f3a43787dc85752f935b142a50cf2db7d3fa7b80f1b3d993d503"
+        "value": "60940a490b2d455db8af23d01d544fddb77297c0ed9d38fe3424794342a00b0f"
       }
     },
     {
@@ -96,7 +96,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.14",
-        "line": 10606,
+        "line": 10609,
         "lineDigest": "685bdb0074fce95a1b9cc4ee9b06b7383b3561bb57c249b4f206016357f636f5"
       },
       "targetLocator": {
@@ -104,14 +104,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/reference_fact/commit/v1",
-        "packageDigest": "277965380c24d38be19d27bf8717ab8841651e7e2dd022f6041a248e35bfd964",
+        "packageDigest": "0996fb8e8a3d7ca1885ff2666591a24b0784177d4ab7cf9b0ae5ec19b3bb212f",
         "effectClass": "domain_fact_commit",
         "inputSummary": "PeopleReferenceMaintenanceDecision + DomainFactCommitHandle",
         "outputFamily": "PersonReferenceRevision"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "1ab8873422b78589e3bce806b9af56cb9c2fa959ae9a7fcbc694dd279f656849"
+        "value": "a239fbf8f80bf974caa9a08f6755667b98ba36490fe306c02d0cf077d8323ae4"
       }
     },
     {
@@ -124,7 +124,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.14",
-        "line": 10607,
+        "line": 10610,
         "lineDigest": "c2c72913fb62f7a4f34313e68b475a5ae63b37aae17bec54b0fa5cdd543576a3"
       },
       "targetLocator": {
@@ -132,14 +132,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/merge_evidence/resolve/v1",
-        "packageDigest": "24ff19bab3db3707d95799ea0979e5a02bdb8f3b9ec59adeded477a2e072bb6f",
+        "packageDigest": "cf610209819c07ca14dee755db028b1982da8a9819f32bc47ad8465c19bf92d0",
         "effectClass": "pure_observation",
         "inputSummary": "Person identities/aliases/references",
         "outputFamily": "MergeCandidateEvidence"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "7d262ab75945699b109535280506bd8f1757e0bcdd7863bef7527fa362021774"
+        "value": "ead16c147bce67794798b99d1951bfe7a3bef05cfb263264b5c03a1600ab0520"
       }
     },
     {
@@ -152,7 +152,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.14",
-        "line": 10608,
+        "line": 10611,
         "lineDigest": "5b802677e93c5bf5f0716d5c3f0949d0940337b1c0b04be2e598dec0a2270a44"
       },
       "targetLocator": {
@@ -160,14 +160,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/candidate/commit/v1",
-        "packageDigest": "d6e6a776009fd2067aa3ec04b83c4b4c4e1f6d7171e3a03f59429edb8ddbf031",
+        "packageDigest": "e852af3fc4b5c09b2363d103335ba0396f49cb06555e20c09b4c29911a010f37",
         "effectClass": "domain_fact_commit",
         "inputSummary": "PeopleCandidateDraft + DomainFactCommitHandle",
         "outputFamily": "PeopleCandidateRevision"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "6120212c49bba78f34868af6e00f138fb5b858d5dbbc5ddb65fd4e6ddbb3485d"
+        "value": "c9f781cf804d2fd14f97cbb97e97fc2f8057929981b493c60b96d6aa056e72df"
       }
     },
     {
@@ -180,7 +180,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.14",
-        "line": 10609,
+        "line": 10612,
         "lineDigest": "0f57cc3035a38feb0a59cf729c6f3dd4eea9738ad70fb6ae128de208499621e8"
       },
       "targetLocator": {
@@ -188,14 +188,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/person/commit/v1",
-        "packageDigest": "90e009a359a3adef6588af00ce704228bd49f27eb7b8254eae41cce230ea9dc7",
+        "packageDigest": "35082a0d8703fc8b511ec44a0b6ad4c2b7407edf41f50c01ee92b17f27b70d9c",
         "effectClass": "domain_fact_commit",
         "inputSummary": "PeopleCandidateAcceptanceDecision + DomainFactCommitHandle",
         "outputFamily": "PersonRevision"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "8b26344a674c9df3122d98a870136130666116d013329fcf74b1afdcb425f935"
+        "value": "2f5d33df914c779e7d5630d1c610c6f285d2fe7bc218ac1b84b3dfa58ddb6026"
       }
     },
     {
@@ -208,7 +208,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.14",
-        "line": 10610,
+        "line": 10613,
         "lineDigest": "4ae0cbd3463df67c1ae83084d30ae44a5dd54aa9fedd41c732561a07ffe2343b"
       },
       "targetLocator": {
@@ -216,14 +216,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/preference/commit/v1",
-        "packageDigest": "521c9d757a624dc2fb7873285fd079c8647e0253288c8d46afc1de3e05c536e5",
+        "packageDigest": "9e59bc1af74729358f2784683c7dbfddc0f015ac471eedf219956f9d804ce7ad",
         "effectClass": "domain_fact_commit",
         "inputSummary": "Preference intent + DomainFactCommitHandle",
         "outputFamily": "PersonPreferenceRevision"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "36b4c9cb2c8c543ffaff95aa20007bdcf6369aac818dd614684409a6e22102e7"
+        "value": "9b74c746d9c12f57084f243e8a0a0d2d56e5da8f235273b000c4c15fe287568e"
       }
     },
     {
@@ -236,7 +236,7 @@
       ],
       "sourceLocator": {
         "section": "8.6.14",
-        "line": 10611,
+        "line": 10614,
         "lineDigest": "beced2784c1e277b20c4d5547149519e4cba307751d901ee3df5f29d59061d8c"
       },
       "targetLocator": {
@@ -244,14 +244,14 @@
       },
       "contract": {
         "packagePath": "capabilities/people/workspace/reclaim/v1",
-        "packageDigest": "34bfecd4d254fa2842aa357ffaed778187adc4b07f8c5e9075d6427c291721d0",
+        "packageDigest": "8a831c2a45f95abe3c0564c68414d9673ae82266160065f0539ff887e6278b8b",
         "effectClass": "workspace_write",
         "inputSummary": "People Workspace handles + ReferenceEvidence",
         "outputFamily": "ReclamationReceipt"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "092f9508e109ca3de6fcd0ed5599a593a323fab13e219726236ad547a03ff21d"
+        "value": "cb911ddd9a0613d2587f452b6ae66f1dddf14a4c0f03a4ae2e67bc8ddebe1774"
       }
     }
   ]

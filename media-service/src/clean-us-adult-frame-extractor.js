@@ -42,9 +42,12 @@ function createCleanUsAdultFrameExtractor(options){
     });
   }
   async function extract({sourceHandle,context,durationMs}){
-    if(sourceHandle?.schemaRef!=='helix://contracts/types/PhysicalMaterialReadHandle/v1'||sourceHandle.ownerDomain!=='libra'||
-      sourceHandle.ownerScope?.scopeId!==context?.ownerScope?.processId||context?.ownerScope?.domain!=='libra'||typeof context.assertExecutionActive!=='function')
-      fail('US_ADULT_FRAME_AUTHORITY_INVALID','Frame extraction requires its exact Libra Run and physical read authority.');
+    const owner=sourceHandle?.ownerDomain,authority=owner==='libra'?{scopeType:'libra_run',processType:'libra_run'}:
+      owner==='arca'?{scopeType:'shelf_entry',processType:'arca_shelf_entry'}:null;
+    if(sourceHandle?.schemaRef!=='helix://contracts/types/PhysicalMaterialReadHandle/v1'||!authority||sourceHandle.ownerScope?.scopeType!==authority.scopeType||
+      sourceHandle.ownerScope.scopeId!==context?.ownerScope?.processId||context?.ownerScope?.domain!==owner||
+      context.ownerScope.processType!==authority.processType||typeof context.assertExecutionActive!=='function')
+      fail('US_ADULT_FRAME_AUTHORITY_INVALID','Frame extraction requires the exact owning Run or Shelf Entry physical read authority.');
     const active=()=>context.assertExecutionActive();active();await verifySource(sourceHandle);active();
     const probe=await options.mediaProbe.probe(sourceHandle);
     if(durationMs!==undefined&&(!Number.isSafeInteger(durationMs)||durationMs<1||durationMs!==probe.durationMs))
