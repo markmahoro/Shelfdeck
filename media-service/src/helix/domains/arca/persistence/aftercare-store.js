@@ -1,5 +1,7 @@
 'use strict';
 const {inventoryContentProfile}=require('../model/product-content-profile');
+const {readRequirement:readActorRefreshRequirement}=require('../model/us-adult-actor-refresh-objective');
+const {assertActorRefreshAdmissionParticipant}=require('./us-adult-actor-refresh-store');
 const {acceptedFactDigest}=require('../../../contracts/related-primary-mappings');
 const { readStoredMetadataValue } = require('../../../contracts/episode-metadata-records');
 const {statements:targetBindingStatements,exactSourceTargetBinding}=require('./shelf-target-binding');
@@ -172,9 +174,12 @@ function createAftercareStore(options) {
     const existing=priorCases.find(item=>['queued','active'].includes(item.state));
     if(existing){if(existing.careBasisDigest===value.careBasis.digest&&existing.findingSetDigest===value.findingSetDigest)return existing;fail('ARCA_AFTERCARE_ACTIVE_CASE_CONFLICT','Shelf Entry already has another active Aftercare Case.');}
     const triggerReplay=matching.find((item)=>item.triggerDigest===triggerDigest);if(triggerReplay)return triggerReplay;const caseGeneration=Math.max(0,...matching.map((item)=>item.caseGeneration))+1,caseId='arca-care-'+canonicalDigest({shelfEntryId:value.shelfEntryId,careBasisDigest:value.careBasis.digest,findingSetDigest:value.findingSetDigest,careRequirementDigest:value.careRequirement.digest,caseGeneration,triggerDigest}).slice(0,40),marker='arca-aftercare-case-'+caseId;
+    const atomicParticipants=value.atomicParticipants?value.atomicParticipants(caseId):[],actorObjective=readActorRefreshRequirement(value.careRequirement);
+    if(!Array.isArray(atomicParticipants))throw new TypeError('Aftercare atomic participants must be an explicit Owner participant list.');
+    if(actorObjective)assertActorRefreshAdmissionParticipant(atomicParticipants,actorObjective,caseId);
     const payload={aftercareCaseId:caseId,shelfEntryId:value.shelfEntryId,careBasisDigest:value.careBasis.digest,careRequirementDigest:value.careRequirement.digest,caseGeneration,triggerDigest,state:'queued'},payloadDigest=canonicalDigest(payload),consumers=canonicalDigest([]);
     options.unitOfWork.execute([{participantId:'arca_aftercare_case_domain',owner:'arca',repositories:[arca],execute(context){const repo=context.repository(arca.repositoryId);assertNoJavCorrection(repo,value.shelfEntryId);if(repo.invoke('list_reservations',{shelf_entry_id:value.shelfEntryId}).some((item)=>item.state==='active'))fail('ARCA_AFTERCARE_MODIFICATION_FENCED','Off-deck Reservation prevents a new Aftercare Case.');repo.invoke('insert_case',{aftercare_case_id:caseId,shelf_entry_id:value.shelfEntryId,finding_set_digest:value.findingSetDigest,care_basis_schema_ref:value.careBasis.schemaRef,care_basis_json:canonicalJson(value.careBasis),care_basis_digest:value.careBasis.digest,care_requirement_schema_ref:value.careRequirement.schemaRef,care_requirement_json:canonicalJson(value.careRequirement),care_requirement_digest:value.careRequirement.digest,case_generation:caseGeneration,trigger_digest:triggerDigest,state:'queued',terminal_reason_code:null,terminal_evidence_digest:null,created_at_ms:at,terminal_at_ms:null});for(const input of value.basisInputs)repo.invoke('insert_basis',{aftercare_case_id:caseId,input_kind:input.inputKind,owner_domain:input.ownerDomain,aggregate_type:input.aggregateType,aggregate_id:input.aggregateId,revision:input.revision,input_digest:input.inputDigest});}},
-      ...(value.atomicParticipants ? value.atomicParticipants(caseId) : []),
+      ...atomicParticipants,
       {participantId:'arca_aftercare_case_foundation',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId);repo.invoke('insert_marker',{commit_marker:marker,effect_id:null,owner_domain:'arca',scope_type:'aftercare_case',scope_id:caseId,commit_digest:payloadDigest,result_id:null,result_schema_ref:null,result_digest:null,committed_at_ms:at});repo.invoke('insert_outbox',{message_id:'arca-aftercare-case-message-'+canonicalDigest(caseId).slice(0,32),producer_domain:'arca',message_kind:'arca.aftercare.case.created',aggregate_type:'aftercare_case',aggregate_id:caseId,aggregate_revision:1,dedup_key:marker,consumer_set_digest:consumers,intended_consumer_count:0,payload_schema_ref:'helix://arca/messages/AftercareCaseCreated/v1',payload_json:canonicalJson(payload),payload_digest:payloadDigest,state:'tombstoned',available_at_ms:at,created_at_ms:at,all_acked_at_ms:null});}}]);return getCase(caseId);}
   function terminateCase(caseId,state,reasonCode,evidenceDigest){
     if(!['resolved','invalidated','unresolved'].includes(state))fail('ARCA_AFTERCARE_CASE_STATE','Aftercare terminal state is invalid.');
@@ -188,7 +193,7 @@ function createAftercareStore(options) {
       }
       const changed=repo.invoke('update_case',{state,terminal_reason_code:reasonCode,terminal_evidence_digest:evidenceDigest,terminal_at_ms:now(),aftercare_case_id:caseId,expected_state:caseRow.state});
       if(changed.changes!==1){const current=repo.invoke('find_case',{aftercare_case_id:caseId});if(!current||current.state!==state||current.terminal_reason_code!==reasonCode||current.terminal_evidence_digest!==evidenceDigest)fail('ARCA_AFTERCARE_CASE_CAS','Aftercare Case terminal CAS failed.');}
-      if(state==='resolved'){
+      if(state==='resolved'&&!readActorRefreshRequirement(parse(caseRow.care_requirement_json,'ARCA_AFTERCARE_REQUIREMENT_CORRUPT'))){
         const assessmentIds=repo.invoke('list_assessments',{shelf_entry_id:caseRow.shelf_entry_id}).filter((item)=>item.care_basis_digest===caseRow.care_basis_digest).map((item)=>item.assessment_id);
         for(const finding of selectMany(repo,'find_findings',assessmentIds)){if(finding.state!=='open')continue;repo.invoke('update_finding',{state:'resolved',finding_id:finding.finding_id,expected_state:'open'});}
       }

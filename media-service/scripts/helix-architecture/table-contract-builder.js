@@ -155,6 +155,7 @@ const NULLABLE_COLUMN_OVERRIDES = new Set([
   'libra_intake_decisions.expected_target_status'
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
+  'arca_us_actor_refresh_pages.intent_id':['arca_us_actor_refresh_intents','intent_id'],
   'libra_us_adult_reference_pages.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
   'libra_us_adult_match_completions.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
   'libra_us_adult_actor_choice_heads.intent_id':['libra_us_adult_actor_choice_intents','intent_id'],
@@ -315,6 +316,8 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'arca_us_actor_refresh_intents.payload_json':256*1024,
+  'arca_us_actor_refresh_pages.page_json':512*1024,
   'people_us_recommendation_claims.payload_json':128*1024,
   'people_us_recommendation_claims.person_json':16*1024,
   'people_us_recommendation_claims.receipt_json':16*1024,

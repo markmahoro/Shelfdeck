@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "helix.inventory.tables",
+  "entries": [
+    {
+      "id": "arca_defect_admission_heads",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.5.9",
+        "8.9.9"
+      ],
+      "sourceLocator": {
+        "section": "8.9.9",
+        "line": 16011,
+        "lineDigest": "c2993d2fdd186a34ad68f9000cd181f0ab8502959b2bf8c033cf96d16b1c24e5"
+      },
+      "targetLocator": {
+        "path": "table-contracts/arca_defect_admission_heads/v1/contract.json"
+      },
+      "contract": {
+        "tableId": "arca_defect_admission_heads",
+        "owner": "arca",
+        "contractRef": "helix://contracts/tables/arca_defect_admission_heads/v1",
+        "contractDigest": "30fed6e9f75775e2794e513ff4175c352594fdf150a3ac0cbed54dcff92abfc0"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "174df25a66b2b3a2fb293bd6d36ce29e925967c0d86c27ba18a712ca4d3fd42b"
+      }
+    },
+    {
+      "id": "arca_defect_repair_intents",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.5.9",
+        "8.9.9"
+      ],
+      "sourceLocator": {
+        "section": "8.9.9",
+        "line": 16012,
+        "lineDigest": "6b01388fbace394628b73d88d23d73a671f05497789ee6e897a75ee25bdad4d2"
+      },
+      "targetLocator": {
+        "path": "table-contracts/arca_defect_repair_intents/v1/contract.json"
+      },
+      "contract": {
+        "tableId": "arca_defect_repair_intents",
+        "owner": "arca",
+        "contractRef": "helix://contracts/tables/arca_defect_repair_intents/v1",
+        "contractDigest": "b6330bcff90b24890addea9104ea83c4c6030c82b60a480d0adf4369dff48215"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "e517d6d87762133059d2fde0fa00b491c87efd7c3a042eae9373f243c3d2f838"
+      }
+    },
+    {
+      "id": "libra_acquisition_candidate_evidence",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.5.9",
+        "8.9.9"
+      ],
+      "sourceLocator": {
+        "section": "8.9.9",
+        "line": 16408,
+        "lineDigest": "49d3449f5bd4106b74bd219582db8e12c7ed799be946420e9f057b86e3807b48"
+      },
+      "targetLocator": {
+        "path": "table-contracts/libra_acquisition_candidate_evidence/v1/contract.json"
+      },
+      "contract": {
+        "tableId": "libra_acquisition_candidate_evidence",
+        "owner": "libra",
+        "contractRef": "helix://contracts/tables/libra_acquisition_candidate_evidence/v1",
+        "contractDigest": "2ea125d21c070276db32344a7fff6851b0c603ea9adc9f4c4aff342997e35011"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "e652cfad3599c857cb857ed3983ac1a8aa16712d9cd63797feb4cc38e08910fb"
+      }
+    }
+  ]
+}

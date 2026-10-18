@@ -1,5 +1,6 @@
 'use strict';
 const {stagedResultReader}=require('../persistence/staged-manifest-store');
+const {readRequirement:readActorRefreshRequirement}=require('../model/us-adult-actor-refresh-objective');
 const { automaticCaseTargetsAcceptedDefect } = require('../model/accepted-defect-maintenance');
 const { careFindingCodes, careFindingParameters, missingArtifactCustodyRefreshScope, freezeCareObjective } = require('../model/care-objective');
 const { maintenanceRecoveryConditions } = require('../model/maintenance-recovery-conditions');
@@ -132,6 +133,11 @@ function createAftercareProcessCoordinator(options){
     frozen.acceptedProductFactSetDigest===c.basis.acceptedProductFactSetDigest&&
     frozen.decisionFactSetDigest===c.basis.decisionFactSetDigest;}
   function progressCase(c,care){
+    if(readActorRefreshRequirement(care.careRequirement)) {
+      if(typeof options.actorRefreshCoordinator?.reconcile!=='function')throw Object.assign(new Error('Actor refresh requires its own complete Case execution pipeline.'),
+        {code:'ARCA_US_ADULT_REFRESH_RUNTIME_REQUIRED'});
+      return options.actorRefreshCoordinator.reconcile(c,care);
+    }
     if(automaticCaseTargetsAcceptedDefect(c,care,store.history(c.shelfEntryId)))
       return stopCase(c,care,'unresolved','accepted_defect_requires_manual_repair');
     if(care.state==='queued'){if(modificationBlocked(c)||care.careBasisDigest!==c.basis.digest)return store.terminateCase(care.aftercareCaseId,'invalidated','queued_basis_changed',canonicalDigest({caseId:care.aftercareCaseId,basis:c.basis.digest}));const admitted=store.admitCase(care.aftercareCaseId);if(admitted.state!=='active')return Object.freeze({kind:'case_queued',shelfEntryId:c.shelfEntryId,aftercareCaseId:care.aftercareCaseId});care=admitted;}const history=store.history(c.shelfEntryId),inventoryCommit=history.commits.find((item)=>item.aftercareCaseId===care.aftercareCaseId);

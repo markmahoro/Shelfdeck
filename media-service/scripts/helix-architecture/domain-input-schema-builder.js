@@ -278,6 +278,7 @@ const dtoContracts = {
   UsAdultActorSelectionBasis:'',
   UsAdultRecommendationConfirmation:'',
   UsAdultInventoryPresentation:'',
+  UsAdultActorRefreshIntent:'',
   UsAdultRecommendationPageQuery:'',
   UsAdultRecommendationSource:'',
   UsAdultRecommendationSourcePage:'',
@@ -362,6 +363,15 @@ function buildSchema(name, role, fields) {
   if (name === 'TriageIdentityResolutionInput') return triageIdentityResolutionInputSchema();
   if (name === 'TriageManifestBuildInput') return triageManifestBuildInputSchema();
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
+  if(name==='UsAdultActorRefreshIntent')return {...exactDomainSchema(name,{
+    schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},policyVersion:{const:'us-adult-actor-refresh@1'},intentId:digest(),actorId:id(),
+    idempotencyKey:text({maxLength:128}),requestDigest:digest(),mode:enumText('specified','automatic'),shelfEntryId:id(),inventoryRevision:positiveInteger(),
+    representationDigest:digest(),deckFactRevision:positiveInteger(),canonicalIdentityRevision:positiveInteger(),canonicalIdentityKey:digest(),canonicalIdentityDigest:digest(),
+    careBasisDigest:digest(),knownBindingsDigest:digest(),originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()}),
+    actorRelationDigest:digest(),sourceBinding:object({materialKey:digest(),endpointId:id(),bindingRevision:positiveInteger(),identityDigest:digest(),bindingDigest:digest()}),
+    manualPersonSnapshot:nullable(domainRef('UsAdultPersonSnapshot')),libraryDigest:nullable(digest()),personCount:nonNegativeInteger(),pageCount:nonNegativeInteger(),pageSetDigest:digest(),
+    faceModelRef:domainRef('FaceModelRef'),referenceModelRefDigest:digest(),rendererVersion:{const:'us-adult-presentation@1'},intentDigest:digest(),
+  }),'x-helix-maxCanonicalBytes':256*1024};
   if(name==='UsAdultInventoryPresentation')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},shelfEntryId:id(),inventoryRevision:positiveInteger(),aftercareCaseId:id(),representationDigest:digest(),canonicalIdentityDigest:digest(),personId:id(),actorName:text({maxLength:1024}),actorRelationDigest:digest(),originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()}),snapshotDigest:digest()}),'x-helix-maxCanonicalBytes':16*1024};
   if(name==='UsAdultRecommendationConfirmation')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},claimId:digest(),actorId:id(),source:domainRef('UsAdultRecommendationSource'),personId:id(),expectedPersonRevision:positiveInteger(),expectedReferenceRevision:positiveInteger()}),'x-helix-maxCanonicalBytes':128*1024};
   if(name==='UsAdultRecommendationPageQuery')return exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},cursor:nullable(id()),limit:{type:'integer',minimum:1,maximum:32}});

@@ -23,7 +23,8 @@ function readUsAdultInventoryPresentation(context) {
       !Number.isSafeInteger(Number(raw.entry.current_inventory_revision)) || Number(raw.entry.current_inventory_revision) < 1 ||
       !Array.isArray(raw.facts) || !Array.isArray(raw.people) || raw.people.length !== 1) fail();
   const resolvedFact = oneFact(raw, 'resolved_identity'), resolved = resolvedFact.resolvedProductIdentity || resolvedFact;
-  if (resolved.contentProfile !== 'western_adult' || resolved.identityKind !== 'internal_identity' || resolved.structureKind !== 'single') fail();
+  if (resolved.contentProfile !== 'western_adult' || resolved.identityKind !== 'internal_identity' || resolved.structureKind !== 'single' ||
+      resolved.identityDigest !== raw.identity.identity_digest) fail();
   const entries = resolved.displayIdentity?.entries;
   if (!Array.isArray(entries) || new Set(entries.map(item => item.key)).size !== entries.length) fail();
   const display = new Map(entries.map(item => [item.key, item.value]));

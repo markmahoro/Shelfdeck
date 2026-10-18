@@ -171,3 +171,19 @@ Arca售后目标规划读取本域当前Inventory冻结的唯一Actor及关系�
 arca-shared-analysis-native.txt中33项通过/0 skip，含真实ONNX推理、Arca/Libra各自20帧及共享匹配同分数；arca-inventory-nfo-final.txt中23项通过，含Movie/JAV既有NFO回归。新增Domain input使当前为121/104/222/56、139 Domain inputs、230 referenced types/0 unresolved及160 routes。arca-presentation-p2-final.txt PASS，aggregate 910566a56d80f1f75c5398b6a59308cfb4f18e9cae8dc47785eecb20a1b4c84e。第二轮Product Surface materializer遇Windows UNKNOWN open manifest-registry.json；原文件可读完整，保留失败log后只重跑该materializer及DDL/P2成功，不绕过校验。完整Architecture进程已启动，尚无结果，不算PASS。
 
 此处完成的是刷新输入、只读规划和渲染基础；尚无用户Actor Refresh Case至文件Effect/Inventory Commit的完整实现或中断恢复资格，不能称单片演员刷新已交付。其他未关闭工作项不变。
+
+### Arca用户刷新Intent及Case原子准入检查点
+
+新增UsAdultActorRefreshIntent固定Entry/Inventory/Deck/Canonical版本、Care Basis、Known Bindings、唯一视频binding、首次原名、模型/Renderer版本及原请求digest。指定演员经People正式查询读取完整Person/Reference预期版本；自动模式读取完整同版分页，逐页摘要、稳定排序、人数及pageSetDigest连续验证。重复key先读持久Intent，不依赖当前影片或Actor仍可选择；不同请求同key明确冲突。没有HTTP/UI入口，尚未接实际Supporting Work执行。
+
+两个Arca-owned表保存不可变Intent及完整参考分页，与既有Aftercare Case同一事务建立。Case创建要求本Owner产生的精确准入Participant，复制标签/缺失Intent均在写入前拒绝；不伪造Health Finding。Case解决只结束演员刷新目标，不关闭无关健康Finding。隔离SQLite实际重开、完整三页保存、快照篡改、迟发事务回滚、库存CAS变化、调用方对象突变及Finding隔离七项通过（arca-actor-refresh-persistence-semantic.txt）。这些fixture验证Owner事务，使用合成库存上下文，不代表真实媒体Actor Case全链路。首轮真实People Store指出命令遗漏Person/Reference两项预期版本，已修正；后续fixture两处误写表名修正，原失败log保留。
+
+独立Arca技术引擎用自己的Entry读取权限执行实际FFmpeg20帧、固定CPU分析、共享参考匹配和共享海报Renderer。保持与初次生产冻结特征相同的归一化计算；实际最大分数精确对照通过。截图或参考图字节替换拒绝；无Libra Run/Actor Selection伪装。arca-inventory-preparation-native-final.txt三项通过/0 skip，包含上述真实推理和海报；arca-intent-canonical-host.txt初次真实自动上架后库存/Canonical一致性与只读命名规划通过。另已查看本机海报布局样张（poster-layout-5995003a6.jpg，合成场景与公共良性参考图），不代替浏览器或负责人UI验收。
+
+当前121 Capability /104 Result families /224表 /56事务 /140 Domain inputs /230 referenced types /0 unresolved /160路由。参考分页的512 KiB数据库预算仅按精确表/列允许，没有放宽其他JSON上限。arca-intent-p2-final.txt PASS，aggregate da03ee4a1c0e075980d13e73ffafe9e89cf0ebfaf92c3f7f8a3305425331b4d2；arca-intent-checkpoint-final.txt 82项通过；Package boundary PASS（623文件/2168依赖/47包）。Table validator的旧210/251/88计数实际读取当前活动合同，并非历史冻结oracle，已更新为224表/269 FK/102 JSON列；负例保持且通过。Windows偶发manifest-registry.json UNKNOWN open原始log保留，独立重跑同一materializer及DDL/P2成功，尚无证据确定外部占用方。
+
+service-arca-intent-checkpoint.txt为本检查点重新执行Service：677总项/648通过/29既有skip/0失败（135秒）。Web本轮未改，沿用前序218项及构建证据；尚未取得具体版本浏览器/负责人UI资格。
+
+arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后，因并行修改SSOT而在后置汇总抛出Table count drift（父进程仍缓存222，文档已224）。没有输出可用的fixture汇总，不能推断这些fixture通过，也不能记为Architecture PASS。已修复汇总器：后置检查异常产生失败Finding并保留已完成fixture输出，四个专门反例通过；Playbook明确长门禁在固定提交独立checkout运行。此修复不把异常转换为成功。下一次完整门禁使用独立版本快照。
+
+继续开放：Arca正式Source/准备/文件Effect/Inventory Commit/恢复及UI，普通/JAV深度维护与US参考图生命周期，离线副本升级，维护剩余清扫和最终跨平台/UI资格。本版未交付、未部署、未改生产或真实媒体。

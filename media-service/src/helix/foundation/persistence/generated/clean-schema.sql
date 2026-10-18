@@ -1137,6 +1137,38 @@ CREATE TABLE "arca_staged_manifest_records" (
   CHECK (length(CAST("record_json" AS BLOB)) <= 65536)
 );
 
+CREATE TABLE "arca_us_actor_refresh_intents" (
+  "intent_id" TEXT PRIMARY KEY,
+  "aftercare_case_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "payload_schema_ref" TEXT,
+  "payload_json" TEXT,
+  "payload_digest" TEXT CHECK (length("payload_digest") = 64 AND "payload_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("aftercare_case_id"),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("payload_json")),
+  CHECK (length(CAST("payload_json" AS BLOB)) <= 262144),
+  FOREIGN KEY ("aftercare_case_id") REFERENCES "arca_aftercare_cases" ("aftercare_case_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_us_actor_refresh_intents_hot_01" ON "arca_us_actor_refresh_intents" ("shelf_entry_id", "created_at_ms");
+
+CREATE TABLE "arca_us_actor_refresh_pages" (
+  "intent_id" TEXT,
+  "page_ordinal" INTEGER CHECK ("page_ordinal" >= 0),
+  "page_schema_ref" TEXT,
+  "page_json" TEXT,
+  "page_digest" TEXT CHECK (length("page_digest") = 64 AND "page_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("intent_id", "page_ordinal"),
+  CHECK (json_valid("page_json")),
+  CHECK (length(CAST("page_json" AS BLOB)) <= 524288),
+  FOREIGN KEY ("intent_id") REFERENCES "arca_us_actor_refresh_intents" ("intent_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "fx_artifact_references" (
   "artifact_handle_id" TEXT,
   "consumer_domain" TEXT,
