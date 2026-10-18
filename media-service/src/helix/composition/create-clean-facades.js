@@ -117,6 +117,9 @@ function createCleanFacades(options) {
       facades.PeopleAdminFacade.post_people_personid_reference_assets = async input=>({status:202,body:await options.peopleAdmin.addReference(input.params.personId,input.body,input.actor)});
       facades.PeopleAdminFacade.get_people_operations_operationid = async input => ({ body: options.peopleAdmin.imageOperation(input.params.operationId) });
       facades.PeopleAdminFacade.get_people_recommendations = async()=>({body:options.peopleAdmin.recommendations()});
+      facades.PeopleAdminFacade.post_people_recommendations_recommendationid_actions_claim = async input=>({status:202,
+        body:await options.peopleAdmin.claimRecommendation(input.params.recommendationId,input.body,input.actor)});
+      facades.PeopleAdminFacade.get_people_recommendation_claims_claimid = async input=>({body:options.peopleAdmin.recommendationClaim(input.params.claimId)});
       facades.PeopleAdminFacade.get_people_recommendations_recommendationid_image = async input=>{
         const image=await options.peopleAdmin.recommendationImage(input.params.recommendationId);
         return {body:image.bytes,contentType:image.mediaType,headers:{'Cache-Control':'private, no-store'}};

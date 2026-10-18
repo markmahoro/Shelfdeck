@@ -22,7 +22,7 @@ function createUsAdultRecommendationQuery(options){
         const id=recommendationId(publication.windowKey,group),source=group.representative.source;
         items.push(Object.freeze({recommendationId:id,coverageCount:group.coverageCount,qualityScore:group.representative.image.qualityScore,
           source:Object.freeze({subjectId:source.subjectId,libraRunId:source.libraRunId,title:source.originalName.originalFileName}),
-          imageUrl:'/v1/admin/people/recommendations/'+id+'/image'}));
+          imageUrl:'/v1/admin/people/recommendations/'+id+'/image',claim:options.readActiveClaim?.(source.sourceId)||null}));
       }
       return Object.freeze({publication:Object.freeze({windowKey:publication.windowKey,revision:publication.publicationRevision,snapshotDigest:publication.snapshotDigest}),items:Object.freeze(items)});
     },

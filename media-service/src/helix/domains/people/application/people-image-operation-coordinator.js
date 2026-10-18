@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const {assertPreparedRegistration}=require('../model/prepared-registration');
 const { faceModelReference } = require('../../../contracts/us-adult-face-model');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const { createPeopleImageOperationStore } = require('../persistence/people-image-operation-store');
@@ -126,7 +127,11 @@ function createPeopleImageOperationCoordinator(options) {
     options.contractValidator.validate('helix://contracts/domain-types/PeopleSelectedImageHandle/v1', selectedImage);
     return selectedImage;
   }
-  async function begin(body, actorId) {
+  function preparedRegistration(operation){
+    return Object.freeze({schema:'people.prepared-registration@1',operationId:operation.operationId,personId:operation.personId,
+      actorId:operation.actorId,idempotencyKey:operation.idempotencyKey,requestDigest:operation.requestDigest,payload:operation.payload});
+  }
+  async function prepareRegistration(body, actorId) {
     exact(body, ['idempotencyKey', 'libraryKind', 'canonicalName', 'aliases', 'image']);
     if (body.libraryKind !== 'us_adult') fail('PEOPLE_LIBRARY_READ_ONLY', '此演员库由系统维护。');
     if (typeof body.idempotencyKey !== 'string' || !body.idempotencyKey || body.idempotencyKey.length > 128 || !actorId || !name(body.canonicalName) ||
@@ -134,16 +139,23 @@ function createPeopleImageOperationCoordinator(options) {
     const requestDigest = canonicalDigest(body), existing = store.findCommand(actorId, body.idempotencyKey);
     if (existing) {
       if (existing.requestDigest !== requestDigest) fail('PEOPLE_IMAGE_OPERATION_COMMAND_CONFLICT', '此操作标识已用于其他建档内容。');
-      return Object.freeze({ operationRef: existing.operationId, state: 'accepted' });
+      return preparedRegistration(existing);
     }
     const selectedImage=await stageImage(body.image,actorId,body.idempotencyKey);
     const operationId = stable('people-image-operation-', { actorId, key: body.idempotencyKey }), personId = stable('person-', operationId);
     const payload = { schema: 'people.image-operation-request@1',operationKind:'registration',expectedPersonRevision:1,expectedReferenceRevision:0, operationId, personId, actorId, canonicalName: body.canonicalName.trim(),
       aliases: uniqueAliases([body.canonicalName, ...body.aliases]), selectedImage, faceModelRef: faceModelReference('single_reference_face') };
-    const operation = store.create({ operationId, personId, actorId, idempotencyKey: body.idempotencyKey, requestDigest, payload });
+    return preparedRegistration({operationId,personId,actorId,idempotencyKey:body.idempotencyKey,requestDigest,payload});
+  }
+  function beginPrepared(prepared){
+    assertPreparedRegistration(prepared);
+    const {operationId,personId,actorId,idempotencyKey,requestDigest,payload}=prepared;
+    options.contractValidator.validate('helix://contracts/domain-types/PeopleSelectedImageHandle/v1',payload.selectedImage);
+    const operation=store.create({operationId,personId,actorId,idempotencyKey,requestDigest,payload});
     reconcile(operation.operationId); options.wake?.();
     return Object.freeze({ operationRef: operationId, state: 'accepted' });
   }
+  async function begin(body,actorId){return beginPrepared(await prepareRegistration(body,actorId));}
   async function addReference(personId,body,actorId){
     exact(body,['idempotencyKey','expectedPersonRevision','expectedReferenceRevision','image']);
     if(typeof body.idempotencyKey!=='string'||!body.idempotencyKey||body.idempotencyKey.length>128||
@@ -164,7 +176,7 @@ function createPeopleImageOperationCoordinator(options) {
       canonicalName:person.revision.canonicalName,aliases:person.revision.aliases.map(item=>item.aliasDisplay),selectedImage,faceModelRef:faceModelReference('single_reference_face')};
     store.create({operationId,personId,actorId,idempotencyKey:body.idempotencyKey,requestDigest,payload});reconcile(operationId);options.wake?.();return {operationRef:operationId,state:'accepted'};
   }
-  return Object.freeze({ begin, addReference, referenceDecision, context, reconcile, listPendingPage: store.listPendingPage,
+  return Object.freeze({ begin, prepareRegistration,beginPrepared, addReference, referenceDecision, context, reconcile, listPendingPage: store.listPendingPage,
     get(operationId) {
       const operation = readOperation(operationId);
       return Object.freeze({ operationRef: operationId, state: operation.state, personId: operation.state === 'completed' ? operation.personId : null,

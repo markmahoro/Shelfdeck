@@ -276,6 +276,7 @@ const dtoContracts = {
   UsAdultActorChoiceReceipt:'',
   UsAdultMatchCompletion:'',
   UsAdultActorSelectionBasis:'',
+  UsAdultRecommendationConfirmation:'',
   UsAdultRecommendationPageQuery:'',
   UsAdultRecommendationSource:'',
   UsAdultRecommendationSourcePage:'',
@@ -360,6 +361,7 @@ function buildSchema(name, role, fields) {
   if (name === 'TriageIdentityResolutionInput') return triageIdentityResolutionInputSchema();
   if (name === 'TriageManifestBuildInput') return triageManifestBuildInputSchema();
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
+  if(name==='UsAdultRecommendationConfirmation')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},claimId:digest(),actorId:id(),source:domainRef('UsAdultRecommendationSource'),personId:id(),expectedPersonRevision:positiveInteger(),expectedReferenceRevision:positiveInteger()}),'x-helix-maxCanonicalBytes':128*1024};
   if(name==='UsAdultRecommendationPageQuery')return exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},cursor:nullable(id()),limit:{type:'integer',minimum:1,maximum:32}});
   if(name==='UsAdultRecommendationSourcePage')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},items:arrayOf(domainRef('UsAdultRecommendationSource'),32),nextCursor:nullable(id()),pageDigest:digest()}),'x-helix-maxCanonicalBytes':256*1024};
   if(name==='UsAdultRecommendationSource')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},sourceId:digest(),subjectId:id(),libraRunId:id(),expectedRunStateRevision:positiveInteger(),expectedChoiceRevision:{const:0},runExecutionBasisDigest:digest(),analysisId:digest(),analysisBasisDigest:digest(),completionDigest:digest(),originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()}),frameArtifactSet:typeRef('FrameArtifactSet'),faceEmbeddingSetHandle:typeRef('FaceEmbeddingSetHandle'),faceClusterSetHandle:typeRef('FaceClusterSetHandle'),sourceResultRefs:{...arrayOf(object({workId:id(),attemptId:id(),planId:id(),eventId:id(),resultId:id(),capabilityRef:enumText('libra.media.frames.extract@1','shared.face.embedding.compute@1','shared.face.cluster.compute@1'),resultSchemaRef:text({maxLength:256}),resultDigest:digest(),inputBindingDigest:digest()}),3),minItems:3},sourceDigest:digest()}),'x-helix-maxCanonicalBytes':64*1024};

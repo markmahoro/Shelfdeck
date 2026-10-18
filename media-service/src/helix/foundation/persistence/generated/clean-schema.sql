@@ -3183,6 +3183,38 @@ CREATE TABLE "people_registration_candidates" (
 CREATE INDEX "idx_people_registration_candidates_hot_01" ON "people_registration_candidates" ("current_state", "created_at_ms");
 CREATE UNIQUE INDEX "uidx_people_registration_candidates_partial_01" ON "people_registration_candidates" ("evidence_digest") WHERE "current_state" = 'open';
 
+CREATE TABLE "people_us_recommendation_claims" (
+  "claim_id" TEXT PRIMARY KEY,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "source_id" TEXT,
+  "active_source_id" TEXT,
+  "state" TEXT CHECK ("state" IN ('preparing_person', 'confirming_source', 'completed', 'conflict', 'person_failed')),
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "payload_schema_ref" TEXT,
+  "payload_json" TEXT,
+  "payload_digest" TEXT CHECK (length("payload_digest") = 64 AND "payload_digest" NOT GLOB '*[^0-9a-f]*'),
+  "person_schema_ref" TEXT,
+  "person_json" TEXT,
+  "person_digest" TEXT CHECK (length("person_digest") = 64 AND "person_digest" NOT GLOB '*[^0-9a-f]*'),
+  "receipt_schema_ref" TEXT,
+  "receipt_json" TEXT,
+  "receipt_digest" TEXT CHECK (length("receipt_digest") = 64 AND "receipt_digest" NOT GLOB '*[^0-9a-f]*'),
+  "last_failure_code" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("active_source_id"),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("payload_json")),
+  CHECK (length(CAST("payload_json" AS BLOB)) <= 131072),
+  CHECK ("person_json" IS NULL OR json_valid("person_json")),
+  CHECK ("person_json" IS NULL OR length(CAST("person_json" AS BLOB)) <= 16384),
+  CHECK ("receipt_json" IS NULL OR json_valid("receipt_json")),
+  CHECK ("receipt_json" IS NULL OR length(CAST("receipt_json" AS BLOB)) <= 16384)
+);
+CREATE INDEX "idx_people_us_recommendation_claims_hot_01" ON "people_us_recommendation_claims" ("state", "claim_id");
+
 CREATE TABLE "people_us_recommendation_cycles" (
   "cycle_id" TEXT PRIMARY KEY,
   "state" TEXT CHECK ("state" IN ('active', 'complete')),

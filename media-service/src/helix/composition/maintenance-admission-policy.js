@@ -19,6 +19,7 @@ const MAINTENANCE = Object.freeze({
 const SAFETY = new Set(['arca:recycle-maintenance', 'libra:active-workspace-cleanup-scopes']);
 const NORMAL = new Set([
   'people:image-operations',
+  'people:us-adult-recommendation-claims',
   'procurement:active-procurement-runs', 'procurement:active-material-fields', 'libra:pending-intake-offers',
   'libra:active-routing-subjects', 'perception:active-acquisitions', 'perception:active-subject-rating-resolutions',
   'perception:active-shelf-entry-rating-resolutions', 'arca:jav-identity-corrections', 'arca:failed-acceptance-assessments',

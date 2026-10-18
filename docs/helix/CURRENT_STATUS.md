@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-18 US Adult最新本地检查点：推荐认领/建档及来源A幂等确认已接正式Owner链路和UI；真实CPU两片聚合、ACK丢失跨重启、只确认A且B仍暂存通过。当前222表/160路由；Service648通过/29既有skip，Web218通过及构建通过。Arca演员刷新、人物库剩余维护/参考图生命周期、隔离副本升级及最终平台/UI资格仍开放，本版未交付、未部署。
+
 2026-10-18 US Adult本地开发检查点：正式CPU初次生产和暂存原Run确认已贯通；推荐的People维护构建、跨周cursor、最多五人快照及只读列表/JPEG已接正式Host并有真实模型证据。当前221表/158路由，60项局部组合和新增维护Host通过；推荐认领/新建同步A、推荐UI、Arca演员刷新、隔离副本升级及最终平台/UI资格仍未完成，不是开发交付或生产发布。详见唯一活动Phase及US_ADULT_LOCAL_IMPLEMENTATION_20261018 Evidence；未操作生产。
 
 2026-10-18 US Adult 本地开发开工：本地/远端 main 与 GitHub 默认分支已统一至 `ac278f33e`，`codex/us-adult` 从该最新基线重建。

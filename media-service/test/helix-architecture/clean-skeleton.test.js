@@ -49,7 +49,7 @@ test('clean package IDs exactly match the accepted P1 physical skeleton', () => 
 test('each Domain exposes one frozen public package identity', () => {
   const expectedExports = {
     procurement: ['PACKAGE_ID', 'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade'],
-    libra: ['PACKAGE_ID', 'LibraExecutionRegistration', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort', 'UsAdultRecommendationQueryFacade'],
+    libra: ['PACKAGE_ID', 'LibraExecutionRegistration', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort', 'UsAdultRecommendationQueryFacade', 'UsAdultRecommendationCommandFacade'],
     arca: ['PACKAGE_ID', 'ArcaExecutionRegistration'],
     perception: ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionExecutionRegistration', 'PerceptionResolutionFacade'],
     people: ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade', 'createPeopleImageExecutionRegistration', 'createPeopleProcessServices']
@@ -96,7 +96,7 @@ test('composition root import is side-effect free and factory requires exact cle
     facades,
     sessionTokens:{ authenticate:() => ({}), verifyApiKey:() => ({}) },
   });
-  assert.equal(app.routeCount, 158);
+  assert.equal(app.routeCount, 160);
   assert.deepEqual(await app.start(), { state:'ready', normalSupplyAllowed:true });
   assert.equal(app.readiness().generation, 'helix-clean-v3');
   await assert.rejects(app.start(), (error) => error.code === 'HELIX_LIFECYCLE_CONFLICT');

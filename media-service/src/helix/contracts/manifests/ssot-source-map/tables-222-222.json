@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "tables",
+  "startOrdinal": 222,
+  "endOrdinal": 222,
+  "entries": [
+    {
+      "id": "libra_acquisition_candidate_evidence",
+      "owner": "libra",
+      "columnsContract": "`record_id PK, libra_run_id FK, search_work_id FK, search_event_id FK, search_event_attempt_id FK UNIQUE, run_execution_basis_digest, evidence_schema_ref, evidence_json, evidence_digest, record_schema_ref, record_json, record_digest, observed_at_ms`",
+      "constraintsContract": "immutable；evidence JSON上限`256 KiB`；record JSON上限`4 KiB`；`INDEX(libra_run_id,record_id)`",
+      "source": {
+        "section": "8.9.9",
+        "line": 16400,
+        "lineDigest": "49d3449f5bd4106b74bd219582db8e12c7ed799be946420e9f057b86e3807b48"
+      }
+    }
+  ]
+}

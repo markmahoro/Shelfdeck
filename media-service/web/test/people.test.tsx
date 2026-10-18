@@ -23,6 +23,7 @@ const projection: PeopleProjection = {
 function renderPeople() {
   vi.spyOn(helixAdminApi, 'listPeople').mockResolvedValue(projection);
   vi.spyOn(helixAdminApi, 'listPeopleRegistrationCandidates').mockResolvedValue({ items: [] });
+  vi.spyOn(helixAdminApi, 'readUsAdultRecommendations').mockResolvedValue({publication:null,items:[]});
   return render(<SessionProvider><PeoplePage /></SessionProvider>);
 }
 

@@ -58,6 +58,20 @@
         "listSources": "helix://contracts/domain-types/UsAdultRecommendationSourcePage/v1",
         "readSource": "helix://contracts/domain-types/UsAdultRecommendationSource/v1"
       }
+    },
+    {
+      "exportName": "UsAdultRecommendationCommandFacade",
+      "packageId": "domains.libra.public",
+      "kind": "owner-command-port",
+      "methods": [
+        "confirmSource"
+      ],
+      "inputSchemaRefs": {
+        "confirmSource": "helix://contracts/domain-types/UsAdultRecommendationConfirmation/v1"
+      },
+      "outputSchemaRefs": {
+        "confirmSource": "helix://contracts/domain-types/UsAdultActorChoiceReceipt/v1"
+      }
     }
   ]
 }

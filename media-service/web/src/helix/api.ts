@@ -531,6 +531,18 @@ export type SetupReadinessProjection = {
 
 export type PersonLibrary = 'normal' | 'jav' | 'us_adult';
 export type PersonImageSelection = { kind:'upload'; bytesBase64:string } | { kind:'search'; selectionToken:string };
+export type RecommendationClaim = {
+  claimId:string;state:'preparing_person'|'confirming_source'|'completed'|'conflict'|'person_failed';revision:number;
+  personId:string|null;failureCode:string|null;sourceConfirmed:boolean;source:{subjectId:string;libraRunId:string;title:string};
+};
+export type RecommendationPublication = {windowKey:number;revision:number;snapshotDigest:string};
+export type UsAdultRecommendation = {recommendationId:string;coverageCount:number;qualityScore:number;
+  source:{subjectId:string;libraRunId:string;title:string};imageUrl:string;claim:RecommendationClaim|null};
+export type UsAdultRecommendations = {publication:RecommendationPublication|null;items:UsAdultRecommendation[]};
+export type RecommendationClaimRequest = {idempotencyKey:string;expectedPublicationRevision:number;expectedSnapshotDigest:string;target:
+  {kind:'existing';personId:string;expectedPersonRevision:number;expectedReferenceRevision:number}|
+  {kind:'create';canonicalName:string;aliases:string[];image:PersonImageSelection|{kind:'recommendation'}}};
+export type RecommendationClaimAccepted = RecommendationClaim & {claimRef:string;replayed:boolean};
 export type PersonImageSearch = { sources:Array<{
   source:'stashbox'|'wikimedia'; state:'available'|'empty'|'unconfigured'|'failed'; error?:{code:string;message:string};
   items:Array<{source:'stashbox'|'wikimedia';sourceObjectId:string;canonicalName:string;aliases:string[];
@@ -674,6 +686,11 @@ export const helixAdminApi = {
       method:'POST', body:JSON.stringify(body),
     });
   },
+  readUsAdultRecommendations(){return request<UsAdultRecommendations>('/v1/admin/people/recommendations');},
+  claimUsAdultRecommendation(id:string,body:RecommendationClaimRequest){
+    return request<RecommendationClaimAccepted>(`/v1/admin/people/recommendations/${encodeURIComponent(id)}/actions/claim`,{method:'POST',body:JSON.stringify(body)});
+  },
+  readRecommendationClaim(id:string){return request<RecommendationClaim>(`/v1/admin/people/recommendation-claims/${encodeURIComponent(id)}`);},
   searchPersonImages(name:string){return request<PersonImageSearch>(`/v1/admin/people/image-search?${new URLSearchParams({name})}`);},
   personImagePreviewUrl(selectionToken:string){return `/v1/admin/people/image-search/preview?${new URLSearchParams({selectionToken})}`;},
   getPersonImageOperation(operationRef:string){return request<PersonImageOperation>(`/v1/admin/people/operations/${encodeURIComponent(operationRef)}`);},

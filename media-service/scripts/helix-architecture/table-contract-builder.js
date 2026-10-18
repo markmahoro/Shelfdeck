@@ -315,6 +315,9 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'people_us_recommendation_claims.payload_json':128*1024,
+  'people_us_recommendation_claims.person_json':16*1024,
+  'people_us_recommendation_claims.receipt_json':16*1024,
   'people_us_recommendation_cycles.progress_json':16*1024,
   'people_us_recommendation_sources.observation_json':128*1024,
   'people_us_recommendation_publications.snapshot_json':1024*1024,

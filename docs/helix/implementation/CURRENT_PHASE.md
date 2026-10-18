@@ -44,34 +44,14 @@
 未确认新业务边界只暂停依赖工作，纯工程选择由实施方处理。不得跨 Owner 写入、引入旧 Runtime、隐藏来源失败或擅自清理生产。
 全部工作项具备具体实现与适用验收证据后才能称本版开发完成；本文件当前记录本地开发进度。实际发布、数据升级与真实媒体效果需要相应精确授权。
 
-## 5. 2026-10-18 本地开发进度（未交付）
+## 5. 2026-10-18 本地开发检查点（未交付）
 
-三库身份/Provider唯一性与查询隔离、普通/JAV内部弱Evidence、US首图原子提交围栏已有代码与隔离验证。真实CPU模型包已锁定校验值/许可，实际单人、无脸、多脸及同图缩放匹配已验证；US上传建档已接入正式Work/Effect并通过实际CPU模型Host旅程；Formation尚未接入。2×2 Renderer与冻结原名组件已有局部测试，尚未接入实际产物。
+- People：三库隔离、普通/JAV零用户确认、US上传/搜图建档、姓名/别名编辑、补图已接正式链路；深度系统维护、参考图释放/图库和关联作品仍待完成。
+- Formation：service-local真实CPU固定模型、20点抽帧、最高有效单演员、无脸/空库转二号、原Run人工确认、NFO/共享2×2 Poster、精确Actor加原名与初次On-deck已贯通；Formation现有演员选择无建档快捷入口。
+- 推荐：维护内持久化扫描、分组与排名，窗口结束后最多五位可见；用户认领/新建经持久Claim及Owner命令自动确认明确来源A。两片聚合、真实截图建档、ACK丢失跨重启、只确认A而B仍暂存的CPU Host通过。UI已接，尚未做浏览器及具体版本负责人验收。
+- 维护：独立准入、安全进入/收尾、配置及概览、既有任务分类/持久cursor已接。手动豆瓣沿原Acquisition/cursor转普通调度已验证；残留清扫及完整截止/重启资格仍开放。
+- 当前合同：121 Capability /104 Result families /222表 /56事务 /138 Domain inputs /160路由。P2与Package boundary通过；最终完整Architecture Gate未通过或关闭。
+- 最新本地验证：Service648 pass/29既有skip/0 fail，Web218项通过及构建通过，推荐相关合同47项通过；真实CPU Host证据单列，不把合成Result fixture当成推理证据。
+- 下一项为Arca单片演员刷新。离线升级副本、适用跨平台、实际进程中断恢复及具体版本UI资格仍开放。未部署、未操作生产或真实媒体。
 
-维护状态机、配置API/设置页/概览、调度筛选及持久cursor已接线；正式Host配置重放、版本冲突和手动停机跨重启测试通过。周期健康检查与正常Case推进已拆分，并修复维护截止后终态回调续发的边界；自动豆瓣与手动同步衔接已获确认：同一Acquisition/原cursor继续，并以持久用户Intent转normal准入，隔离重启验证通过。
-
-适用全量回归、数据副本升级、完整US Host链路、Windows/Linux及具体版本UI审核尚未完成。首轮Architecture整合主动终止，不能记PASS；未部署或操作生产。
-
-最新具体进度及验证限制见[本地实施Evidence](evidence/US_ADULT_LOCAL_IMPLEMENTATION_20261018.md)。US上传建档/头像/重启重放/无脸拒绝已通过正式Host；当前合同217表/56事务/154路由；三库页、US上传/搜图建档、姓名/别名编辑和补充参考图已接正式链路，Web207项通过。推荐、Formation、Arca刷新和完整平台/UI资格继续开发。
-
-US整理已开始接当前Libra Run的internal_source正式身份分支；原名随Identity Fact冻结并跨replacement保持，真实20点抽帧/CPU算法已有证据。People完整库分页及版本摘要已验证270人；正式Analysis Work、暂存确认与全链路仍开放。详见同一Evidence追加记录。
-
-US Analysis Basis及完整Reference Page已持久冻结，正式CPU分析/分页Match Capability与Planner构造已接Service；跨页最高分及中断反例通过。尚未接完主Formation演员选择/暂存与Product链路，不计US Host旅程通过；Service全量及升级、平台、UI资格仍开放。
-
-用户演员选择Intent/head及正式幂等命令已有Owner事务和28项组合局部验证；按Subject保存选择，REST/Formation UI与原Run继续尚未接完。此前Service647 pass/29 skip/0 fail是015fd5f60检查点，当前未做US影片完整链路或新数据升级验收。
-
-完整分页匹配完成事实已持久冻结并验证后续不重新查库；Foundation正式Plan验证的依赖和资源声明已修正。当前为217表/56事务/133 Domain inputs；这仍是整理链路局部开发，不是完整US影片Host或发布资格。
-
-明确Actor Selection及US单演员Media-Cast Owner提交已实现，人工Intent不伪造算法Evidence；当前134 Domain inputs。主US Metadata/Artifact接入、暂存原位继续及完整Host仍在开发，局部验证见同一Evidence。
-
-US当前Run的Analysis→Metadata→NFO/共享Poster→Media/Conformance/Handoff→Arca初次On-deck已通过两条真实CPU Windows Host旅程（无脸/空库二号跨重启原Run人工确认，以及自动匹配）。演员选择POST已接，Formation查询/UI仍待完成。Package单演员和精确命名已加负例；新增Service全量在跑。当前155路由、134 Domain inputs；不计五议题或最终平台/UI资格完成。
-
-Formation演员选择弹窗、US库搜图预览后确认、只读选择状态和“需要确认演员”Projection已接入，最新真实Host两条复验通过。Web212项及构建通过，尚无浏览器/负责人具体版本UI验收。当前156路由，下一步为US推荐/来源A联动及Arca单片刷新；其他开放项保留。
-
-推荐所需的帧/人脸位置与质量已保留到正式Embedding Artifact，并验证真实Host读回及篡改拒绝。尚未建立推荐Source端口和五人快照/认领，下一步仍为该工作。
-
-Libra推荐Source只读Facade及三个有界DTO已接Owner/Root，排除无脸、已选演员及已交付来源并校验完整Result链；24项局部检查与P2合同门禁通过。当前137 Domain inputs；五人快照/认领仍待实现。
-
-推荐Source/受控图片已通过新增真实CPU空库Host：有脸图片跨重启可读，确认演员后失效，原Run继续上架；图片/入口静态6项通过。五人快照与认领Saga尚未完成；证据见同一Evidence。
-
-推荐已接正式维护Job、跨周持久化和窗口结束生效快照、只读列表/JPEG API；60项局部组合及1条真实CPU维护Host旅程通过。当前221表/56事务/137 Domain inputs/158路由；认领/新建同步来源A、推荐UI及Arca刷新等仍开放。
+具体历史、失败记录与验收限制见[本地实施Evidence](evidence/US_ADULT_LOCAL_IMPLEMENTATION_20261018.md)。全部五议题及适用验收闭合前不称开发完成。

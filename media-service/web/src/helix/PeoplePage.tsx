@@ -3,6 +3,7 @@ import { helixAdminApi, type PeopleProjection, type PersonLibrary } from './api'
 import { Button, LoadingState, PageHeader } from './chrome';
 import PersonRegistration from './PersonRegistration';
 import PersonProfileEditor from './PersonProfileEditor';
+import UsAdultRecommendations from './UsAdultRecommendations';
 import { isUnauthorized, useSession } from './session';
 
 type RegisteredPerson = PeopleProjection['items'][number];
@@ -63,6 +64,7 @@ export default function PeoplePage() {
   const [creating,setCreating] = useState(false), [search,setSearch] = useState(''), [query,setQuery] = useState('');
   const [editing,setEditing] = useState<RegisteredPerson|null>(null);
   const [addingReference,setAddingReference] = useState<RegisteredPerson|null>(null);
+  const [recommendationEditing,setRecommendationEditing]=useState(false),[recommendationRefresh,setRecommendationRefresh]=useState(0);
   const sequence = useRef(0);
   const load = useCallback(async (cursor?:string) => {
     const id = ++sequence.current;setLoading(true);setError('');
@@ -79,10 +81,10 @@ export default function PeoplePage() {
   function changeLibrary(value:PersonLibrary) {setLibrary(value);setQuery('');setSearch('');setNotice('');setError('');}
   function submitSearch(event:FormEvent) {event.preventDefault();if (query===search.trim()) void load();else setQuery(search.trim());}
   return <section className="source-page people-page">
-    <PageHeader title="人物" actions={<><Button type="button" onClick={()=>void load()} disabled={loading}>刷新</Button>
-      {library==='us_adult' && !creating && !editing && !addingReference && <Button variant="primary" type="button" onClick={()=>{setCreating(true);setNotice('');}}>新建演员</Button>}</>}/>
+    <PageHeader title="人物" actions={<><Button type="button" onClick={()=>{void load();setRecommendationRefresh(value=>value+1);}} disabled={loading}>刷新</Button>
+      {library==='us_adult' && !creating && !editing && !addingReference && !recommendationEditing && <Button variant="primary" type="button" onClick={()=>{setCreating(true);setNotice('');}}>新建演员</Button>}</>}/>
     <div className="settings-tabs" role="tablist" aria-label="演员库">{libraries.map(item=><button key={item.kind} type="button" role="tab"
-      aria-selected={library===item.kind} disabled={creating||Boolean(editing)||Boolean(addingReference)} onClick={()=>changeLibrary(item.kind)}>{item.label}</button>)}</div>
+      aria-selected={library===item.kind} disabled={creating||Boolean(editing)||Boolean(addingReference)||recommendationEditing} onClick={()=>changeLibrary(item.kind)}>{item.label}</button>)}</div>
     {library!=='us_adult' && <p className="people-library-note">演员资料由系统收纳和完善，无需手动确认。</p>}
     {creating && <PersonRegistration onCancel={()=>setCreating(false)} onCreated={()=>{setCreating(false);setNotice('演员已建档，可以用于影片识别。');void load();}}/>}
     {addingReference&&<PersonRegistration referenceFor={addingReference} onCancel={()=>{setAddingReference(null);void load();}} onCreated={()=>{
@@ -92,14 +94,16 @@ export default function PeoplePage() {
       setEditing(null);setNotice('演员资料已保存。');void load();
     }}/>}
     {error && <p className="form-error" role="alert">{error}</p>}{notice && <p className="form-notice" role="status">{notice}</p>}
+    {library==='us_adult'&&<UsAdultRecommendations refreshKey={recommendationRefresh} disabled={creating||Boolean(editing)||Boolean(addingReference)}
+      onChanged={()=>void load()} onEditingChange={setRecommendationEditing}/>}
     <form className="people-filter" onSubmit={submitSearch}><label><span className="sr-only">搜索本库演员</span>
       <input type="search" value={search} onChange={event=>setSearch(event.target.value)} placeholder="按姓名或别名搜索"/></label><Button type="submit" disabled={loading}>搜索</Button></form>
     <section className="source-registry" role="tabpanel" aria-label={libraries.find(item=>item.kind===library)!.label}>
       <div className="source-registry-heading"><h2>已登记人物 <span className="section-count">{projection?.summary.activePersonCount ?? '—'}</span></h2><span>当前显示 {projection?.items.length ?? 0} 条</span></div>
       {!projection && loading ? <LoadingState>正在读取人物名录…</LoadingState> : projection?.items.length ?
         <div className="people-contact-sheet" aria-label="已登记人物名录">{projection.items.map(person=><PersonCard key={person.personId} person={person}
-          onEdit={library==='us_adult'&&!creating&&!editing&&!addingReference?()=>{setEditing(person);setNotice('');}:undefined}
-          onAddReference={library==='us_adult'&&!creating&&!editing&&!addingReference?()=>{setAddingReference(person);setNotice('');}:undefined}/>)}</div> :
+          onEdit={library==='us_adult'&&!creating&&!editing&&!addingReference&&!recommendationEditing?()=>{setEditing(person);setNotice('');}:undefined}
+          onAddReference={library==='us_adult'&&!creating&&!editing&&!addingReference&&!recommendationEditing?()=>{setAddingReference(person);setNotice('');}:undefined}/>)}</div> :
         !error && <div className="source-empty"><strong>{query?'没有找到匹配的演员':'本库还没有演员'}</strong></div>}
       {projection?.nextCursor && <div className="source-create-footer"><Button type="button" disabled={loading} onClick={()=>void load(projection.nextCursor!)}>{loading?'正在读取…':'加载更多'}</Button></div>}
     </section>

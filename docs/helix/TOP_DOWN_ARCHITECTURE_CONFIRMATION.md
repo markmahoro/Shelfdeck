@@ -2015,6 +2015,9 @@ Arca依据各自事实和确定性Evidence发布新Media-Cast revision。US Adul
 用户认领已有演员或创建新演员后，People提交身份决定及持久关联消息；Libra消费明确A的用户Intent，以版本围栏、
 幂等Receipt确认A的Media-Cast并解除演员阻塞。不是跨域原子事务，People不得写Libra事实。中途失败持续恢复；
 A若已被其他不同决定修改则明确冲突，不覆盖。聚类中的其他影片及已上架影片不在本次Intent授权内。
+推荐认领冻结People-owned Claim，保存来源Snapshot、操作者、原请求digest及已有演员版本，或已准备好的受控Registration输入；上传/辅助选图在入Ingress后不再依赖短期搜索token。Claim在普通调度推进，作为持久来源确认消息；People图片准备/Person发布与Libra演员选择分别由原Owner提交，不建立跨Owner事务。一个来源至多一个活动Claim；同key重放先读Claim，不依赖当前推荐仍可见。
+`UsAdultRecommendationCommandFacade.confirmSource(UsAdultRecommendationConfirmation)`只接受上述明确用户Claim来源，派生绑定claimId及sourceDigest的命令key，复用Libra既有Actor Choice事务。首次提交前重验Source；相同命令已有Receipt则先幂等重放，不因Source已解除阻塞而拒绝ACK重试。返回UsAdultActorChoiceReceipt；不会确认同组其他来源。People记录完成或明确来源/版本冲突；传输/重启中断保留同Claim继续，不能重复建人。
+
 
 ### 3.8 全域结构校验
 
@@ -8195,7 +8198,8 @@ domains/libra/
 │  ├─ LibraQueryFacade
 │  ├─ ProductDeliveryPort
 │  ├─ WorkspaceReclamationPort
-│  └─ UsAdultRecommendationQueryFacade
+│  ├─ UsAdultRecommendationQueryFacade
+│  └─ UsAdultRecommendationCommandFacade
 ├─ model/
 │  ├─ Subject
 │  ├─ RoutingDecision
@@ -9674,6 +9678,8 @@ Plan node input/parameter/Fence/Resource Demand的具体JSON不直接重复存�
 | `people_us_recommendation_sources` | `cycle_id PK FK, source_id PK, libra_run_id, group_id NULL, observation_schema_ref, observation_json, observation_digest, created_at_ms` | `UNIQUE(cycle_id,libra_run_id)`；`INDEX(cycle_id,group_id,source_id)`；`FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`；Observation schema固定`people.us-adult-recommendation-observation@1`，closed字段`schema,source,image,observationDigest`，其中source严格为UsAdultRecommendationSource，image严格为版本化受控图片Evidence；最多`128 KiB`并校验JCS digest；group_id只允许首次分配，不产生影片Actor关系；libra_run_id只是公开来源引用，不创建跨Owner FK |
 | `people_us_recommendation_groups` | `cycle_id PK FK, group_id PK, representative_source_id, coverage_count INTEGER, quality_score REAL, rank_pass_id NULL, rank_coverage_count INTEGER, rank_representative_source_id NULL, rank_quality_score REAL NULL, revision INTEGER` | `INDEX(cycle_id,group_id)`；`FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`；来源代表必须由People Owner重验属于同cycle的Observation；coverage为cycle内已归组来源数，rank计数只属于指定版本排名pass重验后的有效来源；清晰度相同时按sourceId稳定选图；revision CAS，禁止把该内部分组当作Person合并 |
 | `people_us_recommendation_publications` | `window_key PK INTEGER, cycle_id FK, revision INTEGER, snapshot_schema_ref, snapshot_json, snapshot_digest, updated_at_ms` | `FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`；window_key是本维护窗口固定endAtMs；Snapshot schema固定`people.us-adult-recommendation-publication@1`，closed字段`schema,windowKey,cycleId,policy,items`，items最多五项完整内部Group Snapshot，最多`1 MiB`并校验JCS digest；revision CAS，仅本窗口维护准入可更新尚未生效Publication；GET只读，不能启动扫描或发布 |
+| `people_us_recommendation_claims` | `claim_id PK, actor_id, idempotency_key, request_digest, source_id, active_source_id NULL UNIQUE, state(preparing_person|confirming_source|completed|conflict|person_failed), revision INTEGER, payload_schema_ref, payload_json, payload_digest, person_schema_ref NULL, person_json NULL, person_digest NULL, receipt_schema_ref NULL, receipt_json NULL, receipt_digest NULL, last_failure_code NULL, created_at_ms, updated_at_ms` | `UNIQUE(actor_id,idempotency_key)`；`INDEX(state,claim_id)`；active_source_id在活动状态严格等于source_id，终态释放NULL，以单一Owner事务及唯一约束阻止同来源并发认领；payload schema固定`people.us-adult-recommendation-claim@1`，closed字段`schema,claimId,actorId,recommendationId,publicationWindowKey,publicationRevision,source,imageEvidenceDigest,target`，target为existing精确Person版本或create的preparedRegistration；最多`128 KiB`；person schema固定`people.us-adult-recommendation-person@1`，closed字段`schema,personId,personRevision,referenceRevision`，最多`16 KiB`；receipt schema固定`people.us-adult-recommendation-ack@1`，closed字段`schema,receipt:UsAdultActorChoiceReceipt`，最多`16 KiB`；全部JSON按JCS digest校验；请求重放先读持久Claim，revision CAS推进；终态Receipt不因当前推荐变化而重写 |
+
 
 | `people_person_revisions` | `person_id FK, revision, person_status(active|merged), canonical_name, merged_into_person_id NULL, origin_kind(direct|candidate), origin_decision_id, origin_decision_digest, origin_candidate_kind NULL, origin_candidate_id NULL, origin_candidate_revision NULL, origin_candidate_payload_digest NULL, fact_digest, committed_at_ms` | `PK(person_id,revision)`；immutable；direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL；Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload；CHECK禁止两种来源混合；library_kind在Person head冻结且不可改变，不持久化媒体`content_scope` |
 | `people_aliases` | `person_id FK, revision, alias_normalized, alias_display, provenance_digest` | `PK(person_id,revision,alias_normalized)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；`INDEX(alias_normalized)` |
@@ -10906,6 +10912,8 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `UsAdultRecommendationPageQuery` | `schemaRef,schemaVersion(1),cursor(null或Run ID),limit(1..32)`；只读分页游标按Run ID UTF-8顺序，limit限制本批扫描量而非承诺返回同等推荐数量；空items配非空nextCursor表示继续扫描，不得解释为全库结束 |
 | `UsAdultRecommendationSource` | `schemaRef,schemaVersion(1),sourceId,subjectId,libraRunId,expectedRunStateRevision,expectedChoiceRevision(0),runExecutionBasisDigest,analysisId,analysisBasisDigest,completionDigest,originalName{schema(us-adult-original-name@1),originalFileName,provenanceDigest},frameArtifactSet(FrameArtifactSet),faceEmbeddingSetHandle(FaceEmbeddingSetHandle),faceClusterSetHandle(FaceClusterSetHandle),sourceResultRefs[3]{workId,attemptId,planId,eventId,resultId,capabilityRef,resultSchemaRef,resultDigest,inputBindingDigest},sourceDigest`；完整value≤`64 KiB`；refs依次为同Run正式Frames/Embedding/Cluster Result，所有Artifact及模型/图片/采样版本沿同一Analysis Basis且完成脸数大于零；sourceId覆盖Subject/Run/analysis/completion/Run revision，sourceDigest排除自身 |
 | `UsAdultRecommendationSourcePage` | `schemaRef,schemaVersion(1),items[0..32 UsAdultRecommendationSource],nextCursor(null或Run ID),pageDigest`；完整value≤`256 KiB`，pageDigest排除自身；按扫描顺序完整返回本批仍符合条件的Source，字节预算耗尽在未读取下一项前保存游标 |
+| `UsAdultRecommendationConfirmation` | `schemaRef, schemaVersion=1, claimId, actorId, source:UsAdultRecommendationSource, personId, expectedPersonRevision>=1, expectedReferenceRevision>=1` | People显式用户Claim驱动的Libra来源确认输入；closed字段、最多128 KiB；claimId和sourceDigest派生稳定幂等key，冻结精确来源Run/choice和Person/Reference版本；不是跨Domain写入或集合匹配命令 |
+
 | `PeopleReferenceLibraryPage` | `schemaRef,schemaVersion(1),libraryKind(us_adult),libraryDigest,totalPersonCount,items[0..256 UsAdultPersonSnapshot],nextCursor(null|personId),pageDigest`；完整value≤`512 KiB`，pageDigest覆盖除自身外完整value；libraryDigest覆盖按Person ID UTF-8排序的active US Person全部head投影键及两项current revision/Reference Projection checkpoint；不是缓存时间戳；不得截断库或使用同名归并 |
 | `PerceptionAcquisitionResumeDecision` | `decisionId,acquisitionId,expectedScopeDigest,actorId,idempotencyKey,requestDigest,decisionDigest`；完整value≤`4 KiB`；只签发同一active Douban Acquisition的用户继续Intent，不覆盖原Snapshot/Scope/cursor；decisionDigest覆盖除自身外完整value |
 | `PeopleSelectedImageHandle` | `schemaRef,schemaVersion(1),uploadId,digestHex,sizeBytes,mediaType(image/jpeg|image/png|image/webp),provenance(source,sourceObjectId?,sourcePageUrl?,attribution?,selectedAtMs?,configRevision?),handleDigest`；≤`16 KiB`；uploadId为opaque受控ingress引用，字节≤`10 MiB`；handleDigest覆盖完整value除自身；不接受文件系统path、Embedding或内部Face ID |
@@ -13857,6 +13865,8 @@ GET       /v1/admin/people/image-search/preview
 GET       /v1/admin/people/operations/:operationId
 GET       /v1/admin/people/recommendations
 GET       /v1/admin/people/recommendations/:recommendationId/image
+POST      /v1/admin/people/recommendations/:recommendationId/actions/claim
+GET       /v1/admin/people/recommendation-claims/:claimId
 GET/PATCH /v1/admin/people/:personId
 GET       /v1/admin/people/:personId/avatar
 GET       /v1/admin/people/:personId/collection

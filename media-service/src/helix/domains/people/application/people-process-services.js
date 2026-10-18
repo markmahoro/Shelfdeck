@@ -8,6 +8,7 @@ const { createCandidateDraft } = require('../model/people-store-contracts');
 const {createUsAdultRecommendationStore}=require('../persistence/us-adult-recommendation-store');
 const {createUsAdultRecommendationCoordinator}=require('./us-adult-recommendation-coordinator');
 const {createUsAdultRecommendationQuery}=require('./us-adult-recommendation-query');
+const {createUsAdultRecommendationClaims}=require('./us-adult-recommendation-claims');
 
 const PEOPLE_CANDIDATE_DRAFT_SCHEMA = 'helix://contracts/types/PeopleCandidateDraft/v1';
 
@@ -41,9 +42,13 @@ function createPeopleProcessServices(options) {
   const now = options.now || Date.now;
   const store = options.peopleStore || createPeopleStore(options);
   const evidenceProjection = options.onDeckPersonEvidenceProjection;
+  let recommendationClaims=null;
   const recommendationStore=options.recommendationPorts?createUsAdultRecommendationStore(options):null,
     recommendations=recommendationStore?createUsAdultRecommendationCoordinator({store:recommendationStore,...options.recommendationPorts}):null,
-    recommendationQuery=recommendationStore?createUsAdultRecommendationQuery({store:recommendationStore,...options.recommendationPorts,now}):null;
+    recommendationQuery=recommendationStore?createUsAdultRecommendationQuery({store:recommendationStore,...options.recommendationPorts,now,
+      readActiveClaim:sourceId=>recommendationClaims?.findActive(sourceId)||null}):null;
+  if(recommendationStore)recommendationClaims=createUsAdultRecommendationClaims({...options,...options.recommendationPorts,peopleStore:store,
+    recommendationQuery,afterSourceConfirmation:options.afterRecommendationSourceConfirmation,onClaimFailure:options.onRecommendationClaimFailure});
 
   function alreadyKnown(evidence) {
     if(evidence.personId && store.getPerson(evidence.personId)?.libraryKind === libraryForProfile(evidence.contentProfile))return true;
@@ -161,6 +166,7 @@ function createPeopleProcessServices(options) {
     store,
     recommendations,
     recommendationQuery,
+    recommendationClaims,
     listPage,
     reconcile,
     registerPerson,

@@ -107,6 +107,9 @@ const workspaceReclamationContract = productionCatalog.ports.find((entry) =>
   entry.packageId === packageId && entry.exportName === 'WorkspaceReclamationPort'
 );
 const recommendationContract=productionCatalog.ports.find(entry=>entry.packageId===packageId&&entry.exportName==='UsAdultRecommendationQueryFacade');
+const recommendationCommandContract=productionCatalog.ports.find(entry=>entry.packageId===packageId&&entry.exportName==='UsAdultRecommendationCommandFacade');
+const {createUsAdultRecommendationConfirmation}=require('../capabilities/us-adult-recommendation-confirmation');
+if(!recommendationCommandContract)throw new LibraPublicFacadeError('US_ADULT_RECOMMENDATION_CONTRACT_MISSING','The formal US Adult recommendation command contract is missing.');
 if(!recommendationContract)throw new LibraPublicFacadeError('US_ADULT_RECOMMENDATION_CONTRACT_MISSING','The formal US Adult recommendation query contract is missing.');
 if (!workspaceReclamationContract) {
   throw new LibraPublicFacadeError('P9_WORKSPACE_RECLAMATION_CONTRACT_MISSING',
@@ -163,6 +166,12 @@ function bindUsAdultRecommendationQuery(implementation){
   if(!implementation||JSON.stringify(expected)!==JSON.stringify(provided)||expected.some(method=>typeof implementation[method]!=='function'))
     throw new LibraPublicFacadeError('US_ADULT_RECOMMENDATION_PORT_SHAPE_MISMATCH','Recommendation query exposes only its declared Owner reads.',{expected,provided});
   return Object.freeze(Object.fromEntries(expected.map(method=>[method,query=>implementation[method](query)])));
+}
+function bindUsAdultRecommendationCommand(implementation){
+  const expected=[...recommendationCommandContract.methods].sort(),provided=Object.keys(implementation||{}).sort();
+  if(!implementation||JSON.stringify(expected)!==JSON.stringify(provided)||expected.some(method=>typeof implementation[method]!=='function'))
+    throw new LibraPublicFacadeError('US_ADULT_RECOMMENDATION_PORT_SHAPE_MISMATCH','Recommendation command exposes only its declared Source confirmation.',{expected,provided});
+  return Object.freeze(Object.fromEntries(expected.map(method=>[method,input=>implementation[method](input)])));
 }
 
 function createExecutionRegistration() {
@@ -284,6 +293,8 @@ function createExecutionRegistration() {
         usAdultActorChoice=createUsAdultActorChoiceCommand({...options,movieProductionReader,usAdultActorChoiceStore});
       const usAdultActorSelectionQuery=createUsAdultActorSelectionQuery({movieProductionReader,usAdultActorChoiceStore,usAdultAnalysisStore,usAdultMatchCompletionStore});
       const usAdultRecommendationQuery=bindUsAdultRecommendationQuery(createUsAdultRecommendationQuery(options));
+      const usAdultRecommendationCommand=bindUsAdultRecommendationCommand(createUsAdultRecommendationConfirmation({...options,
+        usAdultActorChoiceStore,usAdultActorChoice,usAdultRecommendationQuery}));
       const runCoordinator=createLibraRunCoordinator({...options,movieProductionReader,usAdultAnalysisStore,usAdultActorChoiceStore,usAdultMatchCompletionStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
         resolveFrozenRun:libraRunAdminService.reconcileFrozen,
         resolveRejectedRun:libraRunAdminService.reconcileRejected,
@@ -304,7 +315,7 @@ function createExecutionRegistration() {
       return Object.freeze({sourceFairness,offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
         libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore,usAdultAnalysisStore,
-        usAdultActorChoiceStore,usAdultActorChoice,usAdultActorSelectionQuery,usAdultRecommendationQuery,usAdultMatchCompletionStore});
+        usAdultActorChoiceStore,usAdultActorChoice,usAdultActorSelectionQuery,usAdultRecommendationQuery,usAdultRecommendationCommand,usAdultMatchCompletionStore});
     },
     createPlanningRegistration(options) {
       const productDeliveryAssembler=options.productDeliveryAssembler||createProductDeliveryAssembler(options);
@@ -352,5 +363,6 @@ module.exports = Object.freeze({
   ProductDeliveryPort:bindProductDelivery,
   WorkspaceReclamationPort:bindWorkspaceReclamation,
   UsAdultRecommendationQueryFacade:bindUsAdultRecommendationQuery,
+  UsAdultRecommendationCommandFacade:bindUsAdultRecommendationCommand,
   LibraExecutionRegistration:createExecutionRegistration,
 });

@@ -147,3 +147,15 @@ People四张Owner表持久化cycle、来源Observation、内部分组和Publicat
 当前121 Capability /104 Result families /221 tables /56 transactions /137 Domain inputs /158 routes（157 Admin + health）；P2 PASS，Source Map aggregate b637719e43cbec5bfb9dfa42f39e6f52969645393c024e8b42519a9a12c42164。Package boundary PASS（610 files/2115 dependencies）；recommendation-combined-final.txt中60项通过，涵盖DDL、Kernel、排名、Owner Query、跨周cursor和生效时间。recommendation-maintenance-real-host-third.txt中新增真实CPU Host旅程通过：空库有脸→维护正式构建→维护中隐藏→重启→安全退出→正式HTTP列表及JPEG→用户人工确认来源→旧推荐失效→原Run上架。前两次分别暴露30秒逐步轮询导致90秒测试预算不足，以及测试时钟跳至结束后未等待安全退出；现使用Runner原5秒预算内最多8个有界scope，并明确等normalSupplyAllowed，无绕过维护准入。
 
 当前仍缺推荐认领/新建与来源A自动确认Saga、推荐UI、Arca演员刷新、离线升级副本和最终全量/平台/UI资格；不得称五议题开发完成。
+
+### 推荐认领与来源A持久确认检查点
+
+新增People-owned Claim及Libra UsAdultRecommendationCommandFacade。已有演员冻结Person/Reference版本；新建先复制明确选择的图片至People ingress并冻结prepared Registration，再保存Claim，随后经原People Work/Effect准备与发布Person。短期搜图token不参与持久恢复。活动来源唯一，原请求key/digest先重放Claim；普通调度推进待确认消息。Libra派生claimId/sourceDigest命令key，复用原Actor Choice事务；已有Receipt先于失效Source重放。People ACK丢失、Actor库随后编辑或来源已进入交付时，仍能确认原命令回执；未提交前Actor/来源版本变化则明确冲突，不覆盖新决定。
+
+真实CPU Host用两部相同演员的合成影片验证：空库→20帧分析各自未匹配→维护聚合为覆盖2片的单一推荐→窗口结束后展示→从来源截图创建1位演员→只确认A→模拟ACK中断→重启/原请求重放→A沿原Run上架并使用演员名加冻结原名，B仍在暂存且无Actor Choice。People Person、图片操作和Libra Actor Intent各恰好1条。recommendation-claim-two-films-host-final.txt中该Host旅程通过；先前fixture误用关闭后的UOW、误把A单片确认后的来源列表断言为空，均已修正且保留失败log，不算产品失败后伪报PASS。
+
+US人物页已接最多五张有图推荐卡、已有演员选择及手动/辅助新建、同次请求重试及Claim进度查询。无图/图片加载失败禁用确认，Formation原选择器继续不提供建档入口；正常/JAV不读取推荐。共享建档组件的推荐路径通过单一Claim命令耦合A，不由浏览器拼接两个写请求。Source Owner查询每批最多扫描32条完成索引，遇有效来源才占用返回限额，终态Run不读取大型Completion正文。
+
+当前121 Capability /104 Result families /222 tables /56 transactions /138 Domain inputs /230 referenced types /0 unresolved /160 routes。p2-recommendation-claim-final.txt PASS，P2 aggregate 36df52db6109565fa8610394927808ec5f8e9504cfc06b76712d97cc623fb2bc；Package boundary PASS（615文件/2129依赖）。recommendation-claim-contract-final.txt 47项通过；web-recommendation-all.txt 218项/40文件通过，Web构建通过（现有大chunk警告仍在）；service-recommendation-checkpoint.txt 677总项/648通过/29既有skip/0失败。上述是本地检查点，未完成全量Architecture、Linux/Windows分发、真实进程强制中断或具体版本浏览器/UI负责人资格。
+
+继续开放：普通/JAV深度维护与US参考图生命周期、Arca演员刷新、离线隔离副本升级、维护残留清扫及最终跨平台/UI资格；本版未交付、未部署。

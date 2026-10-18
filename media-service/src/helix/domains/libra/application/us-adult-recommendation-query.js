@@ -20,10 +20,10 @@ function createUsAdultRecommendationQuery(options){
     execute:context=>callback(context.repository(repository.repositoryId))}]).us_recommendation_source_read;
   function ownerSnapshot(libraRunId){return read(repo=>{
     const run=repo.invoke('run',{libra_run_id:libraRunId});if(!run)return null;
-    const subject=repo.invoke('subject',{subject_id:run.subject_id}),choice=repo.invoke('choice',{subject_id:run.subject_id}),
-      completion=repo.invoke('completion',{libra_run_id:libraRunId});
+    const subject=repo.invoke('subject',{subject_id:run.subject_id}),choice=repo.invoke('choice',{subject_id:run.subject_id});
     if(!subject||subject.status!=='active'||subject.content_profile!=='western_adult'||subject.structure_kind!=='single'||
-      !['active','suspended'].includes(run.state)||run.package_revision_head!==0||choice||!completion)return null;
+      !['active','suspended'].includes(run.state)||run.package_revision_head!==0||choice)return null;
+    const completion=repo.invoke('completion',{libra_run_id:libraRunId});if(!completion)return null;
     return {run,subject,completion,basis:repo.invoke('basis',{analysis_id:completion.analysis_id}),
       identity:repo.invoke('identity',{libra_run_id:libraRunId,fact_kind:'resolved_identity',fact_revision:1})};
   });}
@@ -50,13 +50,14 @@ function createUsAdultRecommendationQuery(options){
   }
   return Object.freeze({listSources(query){
     options.contractValidator.validate(QUERY_SCHEMA,query);
-    const rows=read(repo=>repo.invoke('page',{cursor:query.cursor,limit:query.limit})),items=[];let cursor=query.cursor,byteStop=false;
+    const rows=read(repo=>repo.invoke('page',{cursor:query.cursor,limit:32})),items=[];let cursor=query.cursor,byteStop=false,reachedLimit=false;
     for(const row of rows){
       const source=currentSource(row.libra_run_id);
       if(source&&Buffer.byteLength(canonicalJson(items.concat(source)),'utf8')>256*1024-1024){byteStop=true;break;}
       if(source)items.push(source);cursor=row.libra_run_id;
+      if(items.length===query.limit){reachedLimit=true;break;}
     }
-    const value={schemaRef:PAGE_SCHEMA,schemaVersion:1,items:Object.freeze(items),nextCursor:byteStop||rows.length===query.limit?cursor:null},
+    const value={schemaRef:PAGE_SCHEMA,schemaVersion:1,items:Object.freeze(items),nextCursor:byteStop||reachedLimit||rows.length===32?cursor:null},
       page=Object.freeze({...value,pageDigest:canonicalDigest(value)});
     options.contractValidator.validate(PAGE_SCHEMA,page);return page;
   },readSource(source){

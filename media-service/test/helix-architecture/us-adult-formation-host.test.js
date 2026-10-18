@@ -5,7 +5,7 @@ const {initializeCleanData}=require('../../scripts/helix-operational-safety');
 const {createCleanServiceHost}=require('../../src/clean-service-host');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const skip=!process.env.SHELFDECK_FACE_MODEL_ROOT||!process.env.SHELFDECK_FACE_TEST_IMAGE?'Explicit pinned models and benign reference image required.':false;
-async function fixture(t,{visibleFace,registerActor=visibleFace}){
+async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendationAck=false,twoFilms=false}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'us-formation-host-')),dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),
     source=path.join(root,'source'),target=path.join(root,'shelf');
   for(const dir of [adminDistDir,source,target])fs.mkdirSync(dir);fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
@@ -15,13 +15,16 @@ async function fixture(t,{visibleFace,registerActor=visibleFace}){
       '-x265-params','pools=1:frame-threads=1','-pix_fmt','yuv420p','-color_range','tv','-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709',video],
       {encoding:'utf8',windowsHide:true,timeout:60000});
   assert.equal(encoded.status,0,encoded.stderr);
+  if(twoFilms)fs.copyFileSync(video,path.join(source,'Other source.mkv'));
   const secretRoot='us-formation-host-isolated-secret-0123456789abcdef',errors=[],
     initialized=initializeCleanData({dataDir,secretRoot,confirmation:'INITIALIZE_HELIX_CLEAN_V1'});
   const epoch=Date.parse('2026-10-25T12:00:00+08:00'),clockStarted=Date.now();let clockOffset=0;
-  let host,db,lastRequestError,unitOfWork;
+  let host,db,lastRequestError,unitOfWork,recommendationAckLost=false;
   t.after(async()=>{await host?.close();db?.close();assert.equal(path.dirname(root),path.resolve(os.tmpdir()));fs.rmSync(root,{recursive:true,force:true});});
   const start=()=>createCleanServiceHost({dataDir,adminDistDir,secretRoot,faceModelRoot:process.env.SHELFDECK_FACE_MODEL_ROOT,
     unitOfWorkDecorator:value=>{unitOfWork=value;return value;},
+    afterRecommendationSourceConfirmation(){if(loseRecommendationAck&&!recommendationAckLost){recommendationAckLost=true;
+      throw Object.assign(new Error('Isolated Source confirmation ACK interruption'),{code:'FIXTURE_ACK_LOST'});}},
     now:()=>epoch+Date.now()-clockStarted+clockOffset,onRequestError:error=>{lastRequestError=error;},
     onExecutionRuntimeError:error=>errors.push({code:error.code,message:error.message})});
   host=await start();db=new Database(path.join(dataDir,'shelfdeck.db'));
@@ -32,7 +35,9 @@ async function fixture(t,{visibleFace,registerActor=visibleFace}){
   };
   const diagnostics=()=>JSON.stringify({errors,runs:db.prepare('SELECT libra_run_id,state FROM libra_runs').all(),
     works:db.prepare('SELECT work_kind,state FROM fx_supporting_works').all(),events:db.prepare("SELECT capability_ref,state FROM fx_workflow_events WHERE state NOT IN ('succeeded','skipped')").all(),
-    failures:db.prepare('SELECT failure_class,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()});
+    failures:db.prepare('SELECT failure_class,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),
+    claims:db.prepare('SELECT state,last_failure_code FROM people_us_recommendation_claims').all(),
+    imageOperations:db.prepare('SELECT state,failure_code FROM people_image_operations').all()});
   async function wait(predicate,timeout=90000){const end=Date.now()+timeout;while(Date.now()<end){assert.equal(errors.length,0,diagnostics());if(predicate())return;await new Promise(resolve=>setTimeout(resolve,100));}assert.fail(diagnostics());}
   async function actor(){
     const started=await request('POST','/v1/admin/people',{idempotencyKey:'actor',libraryKind:'us_adult',canonicalName:'Test Actor',aliases:[],
@@ -116,22 +121,25 @@ test('real Host selects the highest CPU match and produces one actor without man
   assert.equal(h.db.prepare('SELECT count(*) n FROM libra_us_adult_actor_choice_intents').get().n,0);
   assert.ok(fs.existsSync(path.join(h.target,'Test Actor Original source','Test Actor Original source.mkv')));
 });
-test('real empty-library Host supplies a verified recommendation photograph across restart and invalidates it after source actor confirmation',{timeout:180000,skip},async t=>{
-  const h=await fixture(t,{visibleFace:true,registerActor:false});
+test('real empty-library Host groups two films, creates one recommended actor and recovers only source A confirmation across restart',{timeout:300000,skip},async t=>{
+  const h=await fixture(t,{visibleFace:true,registerActor:false,loseRecommendationAck:true,twoFilms:true});
   assert.deepEqual((await h.request('GET','/v1/admin/people/recommendations')).items,[]);
-  await h.wait(()=>h.db.prepare('SELECT count(*) n FROM libra_us_adult_match_completions').get().n===1&&h.db.prepare('SELECT count(*) n FROM libra_workshop_placements').get().n===1);
+  await h.wait(()=>h.db.prepare('SELECT count(*) n FROM libra_us_adult_match_completions').get().n===2&&h.db.prepare('SELECT count(*) n FROM libra_workshop_placements').get().n===2);
   let ports=h.recommendations();
   const pageQuery={schemaRef:'helix://contracts/domain-types/UsAdultRecommendationPageQuery/v1',schemaVersion:1,cursor:null,limit:32},
-    page=ports.query.listSources(pageQuery),source=page.items[0];
-  assert.equal(page.items.length,1);assert.equal(source.originalName.originalFileName,'Original source.mkv');
-  const candidate=ports.images.readCandidate(source),image=await ports.images.readImage({source,expectedEvidenceDigest:candidate.evidenceDigest}),
+    page=ports.query.listSources(pageQuery);
+  let source=page.items[0],candidate=ports.images.readCandidate(source);
+  assert.equal(page.items.length,2);
+  const image=await ports.images.readImage({source,expectedEvidenceDigest:candidate.evidenceDigest}),
     metadata=await sharp(image.bytes).metadata();
   assert.equal(candidate.vector.length,128);assert.ok(candidate.clusterFaceCount>=20);assert.equal(metadata.format,'jpeg');
   assert.ok(metadata.width>40&&metadata.height>40);assert.equal(h.db.prepare('SELECT count(*) n FROM people_persons').get().n,0);
   h.setTime('2026-10-31T03:00:01+08:00');
   await h.wait(()=>h.db.prepare('SELECT count(*) n FROM people_us_recommendation_publications').get().n===1);
   const publication=JSON.parse(h.db.prepare('SELECT snapshot_json FROM people_us_recommendation_publications').get().snapshot_json);
-  assert.equal(publication.items.length,1);assert.equal(publication.items[0].representative.source.sourceId,source.sourceId);
+  assert.equal(publication.items.length,1);assert.equal(publication.items[0].coverageCount,2);
+  source=publication.items[0].representative.source;candidate=ports.images.readCandidate(source);
+  const otherSource=page.items.find(item=>item.sourceId!==source.sourceId);
   assert.deepEqual((await h.request('GET','/v1/admin/people/recommendations')).items,[]);
   await h.restart();ports=h.recommendations();assert.deepEqual(ports.query.readSource(source),source);
   assert.equal(ports.images.readCandidate(source).evidenceDigest,candidate.evidenceDigest);
@@ -142,11 +150,24 @@ test('real empty-library Host supplies a verified recommendation photograph acro
   const cards=await h.request('GET','/v1/admin/people/recommendations');assert.equal(cards.items.length,1);
   const photograph=await h.requestImage(cards.items[0].imageUrl);assert.equal((await sharp(photograph.bytes).metadata()).format,'jpeg');
   assert.match(photograph.headers['cache-control'],/no-store/);
-  const actor=await h.actor(),current=await h.request('GET','/v1/admin/formation/runs/'+source.libraRunId+'/actor-selection');
-  await h.request('POST','/v1/admin/formation/runs/'+source.libraRunId+'/actions/choose-us-adult-actor',{
-    idempotencyKey:'source-actor-confirmation',expectedRunStateRevision:current.expectedRunStateRevision,expectedChoiceRevision:current.expectedChoiceRevision,
-    personId:actor.personId,expectedPersonRevision:actor.currentRevision,expectedReferenceRevision:actor.currentReferenceRevision});
+  const claimBody={idempotencyKey:'recommendation-create',expectedPublicationRevision:cards.publication.revision,expectedSnapshotDigest:cards.publication.snapshotDigest,
+    target:{kind:'create',canonicalName:'Recommended Actor',aliases:[],image:{kind:'recommendation'}}},
+    claimUrl='/v1/admin/people/recommendations/'+cards.items[0].recommendationId+'/actions/claim',started=await h.request('POST',claimUrl,claimBody);
+  await h.wait(()=>h.db.prepare("SELECT count(*) n FROM people_us_recommendation_claims WHERE state='confirming_source' AND last_failure_code='FIXTURE_ACK_LOST'").get().n===1);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM people_persons').get().n,1);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_us_adult_actor_choice_intents').get().n,1);
+  await h.restart();ports=h.recommendations();
+  const replay=await h.request('POST',claimUrl,claimBody);assert.equal(replay.replayed,true);assert.equal(replay.state,'completed');assert.equal(replay.claimRef,started.claimRef);
+  const claim=await h.request('GET','/v1/admin/people/recommendation-claims/'+started.claimRef);assert.equal(claim.sourceConfirmed,true);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM people_persons').get().n,1);assert.equal(h.db.prepare('SELECT count(*) n FROM people_image_operations').get().n,1);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_us_adult_actor_choice_intents').get().n,1);
+  assert.deepEqual(ports.query.readSource(otherSource),otherSource);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_us_adult_actor_choice_heads WHERE subject_id=?').get(otherSource.subjectId).n,0);
   assert.throws(()=>ports.images.readCandidate(source),{code:'US_ADULT_RECOMMENDATION_SOURCE_STALE'});
-  assert.deepEqual(ports.query.listSources(pageQuery).items,[]);
+  assert.deepEqual(ports.query.listSources(pageQuery).items,[otherSource]);
   await h.wait(()=>h.db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n===1);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
+  const stem=path.parse(source.originalName.originalFileName).name,name='Recommended Actor '+stem;
+  assert.ok(fs.existsSync(path.join(h.target,name,name+'.mkv')));
+  assert.equal(h.db.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(otherSource.libraRunId).state,'active');
 });

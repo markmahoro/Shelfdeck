@@ -83,6 +83,7 @@ function validateDomainInputSchemas(options) {
     const exactIdentityFields = {
       PeopleCandidateAcceptanceDecision: ['decisionId', 'expectedCandidateRevision', 'candidatePayloadDigest', 'decisionDigest'],
       UsAdultActorSelectionBasis:['selectionId','selectionOrigin','selectionDigest'],
+      UsAdultRecommendationConfirmation:['schemaRef','schemaVersion','claimId','actorId','source','personId','expectedPersonRevision','expectedReferenceRevision'],
       UsAdultRecommendationPageQuery:['schemaRef','schemaVersion','cursor','limit'],
       UsAdultRecommendationSource:['sourceId','libraRunId','expectedRunStateRevision','completionDigest','sourceDigest'],
       UsAdultRecommendationSourcePage:['schemaRef','schemaVersion','items','nextCursor','pageDigest'],
@@ -216,7 +217,7 @@ function validateDomainInputSchemas(options) {
   for (const name of usages.keys()) {
     if (!ids.has(name)) findings.push(finding('MISSING_DOMAIN_INPUT_TYPE', 'Catalog input reference has no schema.', { entryId: name }));
   }
-  const facadeOnlyTypes = new Set(['UsAdultRecommendationPageQuery','UsAdultRecommendationSource','UsAdultRecommendationSourcePage','UsAdultActorSelectionBasis','UsAdultMatchCompletion','UsAdultActorChoiceReceipt','UsAdultActorChoiceRecord','UsAdultActorChoiceDecision','UsAdultAnalysisBasis','UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
+  const facadeOnlyTypes = new Set(['UsAdultRecommendationConfirmation','UsAdultRecommendationPageQuery','UsAdultRecommendationSource','UsAdultRecommendationSourcePage','UsAdultActorSelectionBasis','UsAdultMatchCompletion','UsAdultActorChoiceReceipt','UsAdultActorChoiceRecord','UsAdultActorChoiceDecision','UsAdultAnalysisBasis','UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
     'ResolvedProviderIdentity', 'ProductStructureSnapshot', 'ProductConformanceFactSnapshot', 'ProductionMaterialManifest',
     'ArtifactManifest', 'ArtifactConformanceVerificationSnapshot', 'ProductInventoryConformanceSnapshot',
     'WorkspaceArtifactOutputTarget', 'ShelfAcceptancePrimaryReadSet',

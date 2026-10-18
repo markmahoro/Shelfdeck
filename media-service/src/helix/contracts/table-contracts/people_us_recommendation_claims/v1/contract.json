@@ -1,0 +1,311 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_us_recommendation_claims/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_us_recommendation_claims",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "claim_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "idempotency_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "request_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "source_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "active_source_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": true,
+        "nullable": true
+      },
+      {
+        "ordinal": 7,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "preparing_person",
+          "confirming_source",
+          "completed",
+          "conflict",
+          "person_failed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "payload_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "payload_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "payload_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "person_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 13,
+        "name": "person_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 14,
+        "name": "person_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 15,
+        "name": "receipt_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 16,
+        "name": "receipt_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 17,
+        "name": "receipt_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 18,
+        "name": "last_failure_code",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 19,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 20,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "claim_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [
+      [
+        "active_source_id"
+      ],
+      [
+        "actor_id",
+        "idempotency_key"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "state",
+        "claim_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "preparing_person",
+          "confirming_source",
+          "completed",
+          "conflict",
+          "person_failed"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "payload_json",
+        "schemaRefColumn": "payload_schema_ref",
+        "maxBytes": 131072,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "person_json",
+        "schemaRefColumn": "person_schema_ref",
+        "maxBytes": 16384,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "receipt_json",
+        "schemaRefColumn": "receipt_schema_ref",
+        "maxBytes": 16384,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(actor_id,idempotency_key)`",
+      "`INDEX(state,claim_id)`",
+      "active_source_id在活动状态严格等于source_id，终态释放NULL，以单一Owner事务及唯一约束阻止同来源并发认领",
+      "payload schema固定`people.us-adult-recommendation-claim@1`，closed字段`schema,claimId,actorId,recommendationId,publicationWindowKey,publicationRevision,source,imageEvidenceDigest,target`，target为existing精确Person版本或create的preparedRegistration",
+      "最多`128 KiB`",
+      "person schema固定`people.us-adult-recommendation-person@1`，closed字段`schema,personId,personRevision,referenceRevision`，最多`16 KiB`",
+      "receipt schema固定`people.us-adult-recommendation-ack@1`，closed字段`schema,receipt:UsAdultActorChoiceReceipt`，最多`16 KiB`",
+      "全部JSON按JCS digest校验",
+      "请求重放先读持久Claim，revision CAS推进",
+      "终态Receipt不因当前推荐变化而重写"
+    ],
+    "rawContract": {
+      "columns": "`claim_id PK, actor_id, idempotency_key, request_digest, source_id, active_source_id NULL UNIQUE, state(preparing_person|confirming_source|completed|conflict|person_failed), revision INTEGER, payload_schema_ref, payload_json, payload_digest, person_schema_ref NULL, person_json NULL, person_digest NULL, receipt_schema_ref NULL, receipt_json NULL, receipt_digest NULL, last_failure_code NULL, created_at_ms, updated_at_ms`",
+      "constraints": "`UNIQUE(actor_id,idempotency_key)`；`INDEX(state,claim_id)`；active_source_id在活动状态严格等于source_id，终态释放NULL，以单一Owner事务及唯一约束阻止同来源并发认领；payload schema固定`people.us-adult-recommendation-claim@1`，closed字段`schema,claimId,actorId,recommendationId,publicationWindowKey,publicationRevision,source,imageEvidenceDigest,target`，target为existing精确Person版本或create的preparedRegistration；最多`128 KiB`；person schema固定`people.us-adult-recommendation-person@1`，closed字段`schema,personId,personRevision,referenceRevision`，最多`16 KiB`；receipt schema固定`people.us-adult-recommendation-ack@1`，closed字段`schema,receipt:UsAdultActorChoiceReceipt`，最多`16 KiB`；全部JSON按JCS digest校验；请求重放先读持久Claim，revision CAS推进；终态Receipt不因当前推荐变化而重写"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 9681,
+      "lineDigest": "3115aef1b174e7bffbac2065c5829721f735b8536b425f7c5555b9a89237ea61"
+    },
+    "foreignKeys": []
+  }
+}
