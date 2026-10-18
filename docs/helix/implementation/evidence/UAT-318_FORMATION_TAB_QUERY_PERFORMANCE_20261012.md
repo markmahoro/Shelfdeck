@@ -611,3 +611,12 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 
 - source d6ef5fee3e5485cd53c2ba212b0b42cd277384be，镜像markmahoro/shelfdeck:d6ef5fee3e，NAS config sha256:9284624fabbec8047e0c9502a6fd9da377c4db8c4de2c96b960c3bbe2dc44370；标准构建/上传及独立SHA通过，tar SHA256 9e3d5bb1365bb4a3e7531afb756c0d64a843e04af6c9152d701de30b5c6f853d。
 - 2357 canonical运行文件aggregate 4e2efe3dc6ad7eae5481570fe65c8affe8162a9eadc39fce520c93481a2b44eb，19处相关运行文件和两份UI资产与Windows独立包一致；Native/Host/JS完整字节及Range通过。精确镜像Linux受影响85项全部通过。完整Host资格进行中，生产未apply。
+
+### 2026-10-18 用户暂停本轮优化；d6ef5fee3e结果收口
+
+- 用户明确“这个优化先优化到这里”，停止后续优化、构建、演练与发布。已实现代码及精确镜像保留，未通过门禁的候选不部署，UAT-318不关闭。
+- 2026-10-16同568收藏冻结副本旧/新各20轮：100 API均200、20 JS均503927字节且SHA正确。API中位308.377→293.293ms，P95 1599.237→1477.262ms，max3087.141→4733.762ms；JS中位969.879→876.668ms，P95 3213.520→4994.645ms，max4259.650→5033.424ms。概览age中位21465→11159ms、P95 40575→23723ms、max44256→24052ms，stale 7→0。
+- 响应不退化与响应改善两项门禁失败；概览新鲜度改善不能替代响应资格，不改阈值，不宣称一秒首开或完整媒体E2E。未进入使用后旧版回退演练，未执行生产Stop、cold backup或apply。
+- 正式20轮结束后三轮诊断均完成；新旧Host分别于UTC10:55及11:15停止Exit0。旧版历史审计通过，候选最终历史审计在既有日志只记录开始、没有成功结果，明确保留为未验证，不能沿用前一候选的保护结论。
+- 2026-10-18 UTC01:47只读复核：两演练容器ID与记录一致，均停止/Exit0；无运行中的shelfdeck-uat318演练容器。本地未发现本轮资格脚本Node进程。生产仍markmahoro/shelfdeck:bfd97f36a、原容器/镜像身份一致、running、RestartCount0；没有数据处置或生产重建。
+- 原始证据保留在.codex/uat318-scope-20261016：performance-qualification.json、两组各20轮原始请求、post-trial-profile.json、candidate-profiles、qualification.log、session-closure.json；所有演练数据及备份保留。后续如恢复，先承接未完成的候选历史核验及残余阻塞证据，再决定新修复与资格，不自动恢复部署。
