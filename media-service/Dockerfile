@@ -77,6 +77,7 @@ COPY media-service/src/clean-offdeck-deletion-port.js ./src/clean-offdeck-deleti
 COPY media-service/src/clean-product-production-port.js ./src/clean-product-production-port.js
 COPY media-service/src/clean-shelf-target-folder-probe.js ./src/clean-shelf-target-folder-probe.js
 COPY media-service/src/clean-western-analysis-port.js ./src/clean-western-analysis-port.js
+COPY media-service/src/clean-us-adult-recommendation-image-port.js ./src/clean-us-adult-recommendation-image-port.js
 COPY media-service/src/clean-workspace-product-port.js ./src/clean-workspace-product-port.js
 COPY media-service/src/clean-workspace-root-admin.js ./src/clean-workspace-root-admin.js
 COPY media-service/src/helix ./src/helix

@@ -71,3 +71,5 @@ Formation演员选择弹窗、US库搜图预览后确认、只读选择状态和
 推荐所需的帧/人脸位置与质量已保留到正式Embedding Artifact，并验证真实Host读回及篡改拒绝。尚未建立推荐Source端口和五人快照/认领，下一步仍为该工作。
 
 Libra推荐Source只读Facade及三个有界DTO已接Owner/Root，排除无脸、已选演员及已交付来源并校验完整Result链；24项局部检查与P2合同门禁通过。当前137 Domain inputs；五人快照/认领仍待实现。
+
+推荐Source/受控图片已通过新增真实CPU空库Host：有脸图片跨重启可读，确认演员后失效，原Run继续上架；图片/入口静态6项通过。五人快照与认领Saga尚未完成；证据见同一Evidence。

@@ -173,6 +173,10 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/clean-workspace-product-port.js' ||
         relative === 'src/clean-workspace-root-admin.js' ||
         relative === 'src/clean-western-analysis-port.js' ||
+        relative === 'src/clean-us-adult-recommendation-image-port.js' ||
+        relative === 'src/clean-us-adult-frame-extractor.js' ||
+        relative === 'src/clean-people-image-port.js' ||
+        relative === 'src/clean-maintenance-window.js' ||
         relative === 'src/clean-arca-inventory-port.js' ||
         relative === 'src/clean-arca-target-commit-slot.js' ||
         relative === 'src/clean-offdeck-deletion-port.js' ||

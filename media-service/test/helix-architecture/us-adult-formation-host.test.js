@@ -5,7 +5,7 @@ const {initializeCleanData}=require('../../scripts/helix-operational-safety');
 const {createCleanServiceHost}=require('../../src/clean-service-host');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const skip=!process.env.SHELFDECK_FACE_MODEL_ROOT||!process.env.SHELFDECK_FACE_TEST_IMAGE?'Explicit pinned models and benign reference image required.':false;
-async function fixture(t,{visibleFace}){
+async function fixture(t,{visibleFace,registerActor=visibleFace}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'us-formation-host-')),dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),
     source=path.join(root,'source'),target=path.join(root,'shelf');
   for(const dir of [adminDistDir,source,target])fs.mkdirSync(dir);fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
@@ -18,9 +18,10 @@ async function fixture(t,{visibleFace}){
   const secretRoot='us-formation-host-isolated-secret-0123456789abcdef',errors=[],
     initialized=initializeCleanData({dataDir,secretRoot,confirmation:'INITIALIZE_HELIX_CLEAN_V1'});
   const epoch=Date.parse('2026-10-25T12:00:00+08:00'),clockStarted=Date.now();
-  let host,db,lastRequestError;
+  let host,db,lastRequestError,unitOfWork;
   t.after(async()=>{await host?.close();db?.close();assert.equal(path.dirname(root),path.resolve(os.tmpdir()));fs.rmSync(root,{recursive:true,force:true});});
   const start=()=>createCleanServiceHost({dataDir,adminDistDir,secretRoot,faceModelRoot:process.env.SHELFDECK_FACE_MODEL_ROOT,
+    unitOfWorkDecorator:value=>{unitOfWork=value;return value;},
     now:()=>epoch+Date.now()-clockStarted,onRequestError:error=>{lastRequestError=error;},
     onExecutionRuntimeError:error=>errors.push({code:error.code,message:error.message})});
   host=await start();db=new Database(path.join(dataDir,'shelfdeck.db'));
@@ -41,7 +42,7 @@ async function fixture(t,{visibleFace}){
     assert.equal(operation?.state,'completed',JSON.stringify({operation,errors}));
     return (await request('GET','/v1/admin/people?libraryKind=us_adult')).items[0];
   }
-  let person=visibleFace?await actor():null;
+  let person=registerActor?await actor():null;
   await request('POST','/v1/admin/shelves',{idempotencyKey:'shelf',shelfId:'us-shelf',name:'US fixture',targetRootLocation:target,
     ruleTemplateId:'system-beta-recommended',expectedTemplateRevision:1,placementPolicy:{folderTemplate:'{title}',primaryTemplate:'{stem}{ext}',nfoTemplate:'{stem}.nfo',
       subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}',posterTemplate:'poster{ext}',fanartTemplate:'fanart{ext}',collisionPolicy:'reject'}});
@@ -60,7 +61,23 @@ async function fixture(t,{visibleFace}){
     return require('../../src/helix/contracts/us-adult-frame-geometry').restoreFrameAnalysis(JSON.parse(fs.readFileSync(
       path.join(workspaceRoot.resolved_root,material.workspace_id,...material.relative_path.split('/')),'utf8')));
   }
-  return {db,target,request,wait,actor,readFrameEvidence,getPerson:()=>person,diagnostics,restart:async()=>{await host.close();host=await start();}};
+  function recommendations(){
+    const contractsRoot=path.resolve(__dirname,'../../src/helix/contracts'),pending=[contractsRoot],schemas=[];
+    while(pending.length){const folder=pending.pop();for(const entry of fs.readdirSync(folder,{withFileTypes:true})){
+      const location=path.join(folder,entry.name);if(entry.isDirectory())pending.push(location);
+      else if(entry.isFile()&&entry.name.endsWith('schema.json')){const value=JSON.parse(fs.readFileSync(location,'utf8'));if(value.$id)schemas.push(value);}
+    }}
+    const schemaManifest=require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
+      contractValidator=require('../../src/helix/foundation/capability/contract-validator').createCapabilityContractValidator({schemas}),
+      workResultReader=require('../../src/helix/foundation/execution/work-result-reader').createWorkResultReader({schemaManifest,unitOfWork}),
+      query=require('../../src/helix/domains/libra/public').UsAdultRecommendationQueryFacade(
+        require('../../src/helix/domains/libra/application/us-adult-recommendation-query').createUsAdultRecommendationQuery({schemaManifest,unitOfWork,contractValidator,workResultReader})),
+      rootPath=db.prepare("SELECT resolved_root FROM platform_workspace_roots WHERE owner_scope='libra'").get().resolved_root,
+      workspaceProductPort=require('../../src/clean-workspace-product-port').createCleanWorkspaceProductPort({schemaManifest,unitOfWork,rootPath}),
+      images=require('../../src/clean-us-adult-recommendation-image-port').createCleanUsAdultRecommendationImagePort({sourceQuery:query,workspaceProductPort});
+    return {query,images};
+  }
+  return {db,target,request,wait,actor,readFrameEvidence,recommendations,getPerson:()=>person,diagnostics,restart:async()=>{await host.close();host=await start();}};
 }
 test('real Host retains an unmatched film in secondary across restart and confirms its original Run before actor-bound on-deck',{timeout:180000,skip},async t=>{
   const h=await fixture(t,{visibleFace:false});
@@ -95,4 +112,25 @@ test('real Host selects the highest CPU match and produces one actor without man
   assert.equal(cast.relations.length,1);assert.equal(cast.relations[0].personId,h.getPerson().personId);assert.equal(cast.relations[0].source,'face_reference_match');
   assert.equal(h.db.prepare('SELECT count(*) n FROM libra_us_adult_actor_choice_intents').get().n,0);
   assert.ok(fs.existsSync(path.join(h.target,'Test Actor Original source','Test Actor Original source.mkv')));
+});
+test('real empty-library Host supplies a verified recommendation photograph across restart and invalidates it after source actor confirmation',{timeout:180000,skip},async t=>{
+  const h=await fixture(t,{visibleFace:true,registerActor:false});
+  await h.wait(()=>h.db.prepare('SELECT count(*) n FROM libra_us_adult_match_completions').get().n===1&&h.db.prepare('SELECT count(*) n FROM libra_workshop_placements').get().n===1);
+  let ports=h.recommendations();
+  const pageQuery={schemaRef:'helix://contracts/domain-types/UsAdultRecommendationPageQuery/v1',schemaVersion:1,cursor:null,limit:32},
+    page=ports.query.listSources(pageQuery),source=page.items[0];
+  assert.equal(page.items.length,1);assert.equal(source.originalName.originalFileName,'Original source.mkv');
+  const candidate=ports.images.readCandidate(source),image=await ports.images.readImage({source,expectedEvidenceDigest:candidate.evidenceDigest}),
+    metadata=await sharp(image.bytes).metadata();
+  assert.equal(candidate.vector.length,128);assert.ok(candidate.clusterFaceCount>=20);assert.equal(metadata.format,'jpeg');
+  assert.ok(metadata.width>40&&metadata.height>40);assert.equal(h.db.prepare('SELECT count(*) n FROM people_persons').get().n,0);
+  await h.restart();ports=h.recommendations();assert.deepEqual(ports.query.readSource(source),source);
+  assert.equal(ports.images.readCandidate(source).evidenceDigest,candidate.evidenceDigest);
+  const actor=await h.actor(),current=await h.request('GET','/v1/admin/formation/runs/'+source.libraRunId+'/actor-selection');
+  await h.request('POST','/v1/admin/formation/runs/'+source.libraRunId+'/actions/choose-us-adult-actor',{
+    idempotencyKey:'source-actor-confirmation',expectedRunStateRevision:current.expectedRunStateRevision,expectedChoiceRevision:current.expectedChoiceRevision,
+    personId:actor.personId,expectedPersonRevision:actor.currentRevision,expectedReferenceRevision:actor.currentReferenceRevision});
+  assert.throws(()=>ports.images.readCandidate(source),{code:'US_ADULT_RECOMMENDATION_SOURCE_STALE'});
+  assert.deepEqual(ports.query.listSources(pageQuery).items,[]);
+  await h.wait(()=>h.db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n===1);
 });
