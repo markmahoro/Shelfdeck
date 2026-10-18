@@ -1,4 +1,4 @@
-import {fireEvent,render,screen,waitFor} from '@testing-library/react';
+import {act,fireEvent,render,screen,waitFor} from '@testing-library/react';
 import {expect,it,vi} from 'vitest';
 import NetworkSettings from '../src/helix/NetworkSettings';
 import {helixAdminApi,type IntegrationState} from '../src/helix/api';
@@ -32,4 +32,26 @@ it('shows unknown state after a failed read and restores real state on retry',as
   expect(screen.queryByText('未配置',{exact:true})).not.toBeInTheDocument();expect(screen.queryByText('全站直连')).not.toBeInTheDocument();
   read.mockResolvedValue(initial);fireEvent.click(screen.getByRole('button',{name:'重新读取'}));
   await screen.findByText('未配置',{exact:true});expect(screen.getByRole('button',{name:'保存网络设置'})).toBeEnabled();
+});
+
+it('uses a saved global policy even when TMDB cannot be read',async()=>{
+  const saved={...initial,configured:true,configRevision:3,settings:{proxyServer:'http://global.test:7890'}};
+  const read=vi.spyOn(helixAdminApi,'getIntegration').mockImplementation(async kind=>{if(kind==='network')return saved;throw new Error('TMDB unavailable');});
+  render(<NetworkSettings onUnauthorized={vi.fn()}/>);await screen.findByText('全站使用代理');
+  expect(screen.getByRole('button',{name:'保存网络设置'})).toBeEnabled();expect(screen.getByLabelText('代理服务器')).toHaveValue('http://global.test:7890');
+  expect(read).not.toHaveBeenCalledWith('tmdb');expect(screen.queryByText('读取失败',{exact:true})).not.toBeInTheDocument();
+});
+it('does not block first-time global settings when the optional TMDB draft fails',async()=>{
+  vi.spyOn(helixAdminApi,'getIntegration').mockImplementation(async kind=>{if(kind==='network')return initial;throw new Error('TMDB unavailable');});
+  const save=vi.spyOn(helixAdminApi,'configureIntegration').mockResolvedValue({...initial,configured:true,configRevision:1});
+  render(<NetworkSettings onUnauthorized={vi.fn()}/>);await screen.findByText('旧 TMDB 代理读取失败，可手动填写。');
+  expect(screen.getByText('未配置',{exact:true})).toBeVisible();expect(screen.getByRole('button',{name:'保存网络设置'})).toBeEnabled();
+  fireEvent.click(screen.getByRole('button',{name:'保存网络设置'}));await screen.findByText('全站网络设置已保存。');expect(save).toHaveBeenCalledTimes(1);
+});
+it('a late optional TMDB draft cannot replace a user edit',async()=>{
+  let resolveDraft!:(value:IntegrationState)=>void;
+  vi.spyOn(helixAdminApi,'getIntegration').mockImplementation(kind=>kind==='network'?Promise.resolve(initial):new Promise<IntegrationState>(resolve=>{resolveDraft=resolve;}));
+  render(<NetworkSettings onUnauthorized={vi.fn()}/>);await waitFor(()=>expect(screen.getByRole('button',{name:'保存网络设置'})).toBeEnabled());
+  fireEvent.change(screen.getByLabelText('网络方式'),{target:{value:'http_proxy'}});fireEvent.change(screen.getByLabelText('代理服务器'),{target:{value:'http://edited.test:7890'}});
+  await act(async()=>resolveDraft({...initial,settings:{proxyServer:'http://old.test:7890'}}));expect(screen.getByLabelText('代理服务器')).toHaveValue('http://edited.test:7890');
 });

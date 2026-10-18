@@ -87,7 +87,7 @@ function createJavSourceClient(options) {
           target = safeUrl(new URL(location, target).toString(), hosts);
         }
         if (response.status === 429 || response.status >= 500) {
-          await response.body?.cancel(); fail('JAV_SOURCE_UNAVAILABLE', 'JAV source is temporarily unavailable.', { retryable: true, siteRef });
+          await response.body?.cancel(); fail('JAV_SOURCE_UNAVAILABLE', 'JAV source is temporarily unavailable.', { retryable: true, siteRef, status: response.status });
         }
         if (response.status === 404) { await response.body?.cancel(); return { absent: true, url: target.toString() }; }
         if (!response.ok) {

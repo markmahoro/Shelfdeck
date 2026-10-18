@@ -59,3 +59,18 @@ test('failed settings reads stay unknown and can be retried without claiming dis
   await expect(network.getByText('未配置',{exact:true})).toBeVisible();await expect(jav.getByText('0 / 8 已启用',{exact:true})).toBeVisible();
   await expect(jav.getByRole('button',{name:'一键测试并启用'})).toBeEnabled();
 });
+
+test('TMDB read failure does not disable an independently saved global proxy',async({page},testInfo)=>{
+  await page.route('**/v1/**',async route=>{
+    const p=new URL(route.request().url()).pathname;
+    if(p==='/v1/admin/runtime')return route.fulfill({json:{mode:'running',desiredMode:'running',revision:1,activity:{}}});
+    if(p.endsWith('/integrations/tmdb'))return route.fulfill({status:503,json:{error:{code:'UNAVAILABLE',message:'TMDB unavailable'}}});
+    if(p.endsWith('/integrations/network'))return route.fulfill({json:{configured:true,configRevision:2,settings:{proxyServer:'http://global.test:7890'}}});
+    if(p.includes('/settings/integrations/'))return route.fulfill({json:{configured:false,configRevision:0,settings:{}}});
+    return route.fulfill({json:{items:[],counts:{},nextCursor:null}});
+  });
+  await page.goto('/settings');const network=page.getByRole('region',{name:'网络代理',exact:true});
+  await expect(network.getByText('全站使用代理',{exact:true})).toBeVisible();await expect(network.getByRole('textbox',{name:'代理服务器'})).toHaveValue('http://global.test:7890');
+  await expect(network.getByRole('button',{name:'保存网络设置'})).toBeEnabled();await expect(network.getByText('读取失败',{exact:true})).toHaveCount(0);
+  await page.screenshot({path:testInfo.outputPath('network-independent-tmdb-failure.png'),fullPage:true});
+});

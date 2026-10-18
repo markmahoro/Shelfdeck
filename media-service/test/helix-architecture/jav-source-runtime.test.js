@@ -151,7 +151,7 @@ test('JAV connection testing keeps unavailable, malformed and timeout failures i
   for(const item of cases){const value=fixture(),opened=open(value,item.fetch);try{
     await assert.rejects(opened.services.admin.test('jav-javdb',{kind:'jav-javdb',idempotencyKey:'safe-'+item.name,endpoint:'https://javdb.com',timeoutMs:100,
       credential:{kind:'anonymous'},settings:{networkRoute:{mode:'direct',proxyEndpoint:null}}}),error=>{
-        assert.equal(error.code,item.code);assert.deepEqual(error.details,{siteRef:'javdb',reasonCode:item.reason,stage:'page'});assert.equal(error.message.includes('private'),false);return true;
+        assert.equal(error.code,item.code);assert.deepEqual(error.details,{siteRef:'javdb',reasonCode:item.reason,stage:'page',...(item.name==='unavailable'?{status:503}:{})});assert.equal(error.message.includes('private'),false);return true;
       });
     assert.equal(opened.services.admin.get('jav-javdb').configured,false);
   }finally{opened.kernel.close();}}
@@ -382,4 +382,14 @@ test('global proxy Admin API requires the existing session, preserves GET purity
     assert.equal(saved.statusCode,200,saved.body);assert.equal(saved.json().settings.proxyServer,'http://proxy.test:7890');
     const current=await host.inject({method:'GET',url,headers});assert.equal(current.json().configRevision,1);assert.deepEqual(current.json(),saved.json());
   }finally{await host.close();}
+});
+
+test('JAV cover connection errors retain safe stage and HTTP status without leaking its body',async()=>{
+  const value=fixture(),picture=await image(),fake=transport(picture,{override:url=>url.hostname==='c0.jdbstatic.com'?new Response('private-cover-body',{status:403}):null}),opened=open(value,fake.fetchImpl);
+  try {
+    await assert.rejects(opened.services.admin.test('jav-javdb',{kind:'jav-javdb',idempotencyKey:'cover-denied-test',endpoint:'https://javdb.com',credential:{kind:'anonymous'}}),error=>{
+      assert.equal(error.code,'PLATFORM_INTEGRATION_HTTP_FAILED');assert.deepEqual(error.details,{siteRef:'javdb',reasonCode:'JAV_SOURCE_ACCESS_DENIED',status:403,stage:'cover'});assert.equal(JSON.stringify(error).includes('private-cover-body'),false);return true;
+    });
+    assert.equal(opened.services.admin.get('jav-javdb').configured,false);
+  } finally {await opened.services.close();opened.kernel.close();}
 });

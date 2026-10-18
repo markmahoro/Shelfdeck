@@ -14,8 +14,8 @@ SSH gezhu，通过统一nas-ssh-config；不输出凭据。调查约北京时间
 | 当前active Run Workspace | 8目录，约7.55 GiB，随在途转码增长 | 正常在用，不能清 |
 | superseded旧Run Workspace | 4目录、11文件、75,333,165,878 bytes，70.1595 GiB | 旧Run已替换，无open Work；Workspace仍active，引用仍working，无Cleanup Scope |
 | discarded/reclaimed残留 | 12目录、54文件、387,713 bytes | 主要NFO；登记状态未同步，容量影响可忽略 |
-| `.prod065-preserved-20260907` | 2文件、27,506,629,081 bytes，25.6175 GiB | 历史明确保留目录，不当作无主垃圾 |
-| `.upgrade-backups` | 17文件、10,493,327,756 bytes，9.7727 GiB | 三份Series升级备份，另有历史发布证据；未授权删除 |
+| `.prod065-preserved-20260907` | 2文件、27,506,629,081 bytes，25.6175 GiB | 带preserved标记的历史目录；用途未作完整复核，不当作无主垃圾 |
+| `.upgrade-backups` | 17文件、10,493,327,756 bytes，9.7727 GiB | 三个Series备份目录，其中cab3e2d77有历史发布证据；未授权删除 |
 
 同卷`/vol2/1000/shelfdeck_upgrade`还占186,032,857,088 allocated bytes（约173.26 GiB）：
 6个外部下载/整理落地目录，最大「疯狂的麦克斯：狂暴女神 (2024)」约85 GiB。
