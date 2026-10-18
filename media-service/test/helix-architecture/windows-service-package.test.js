@@ -28,7 +28,7 @@ test('Windows distribution boots independently with its own native dependencies 
       })().catch(error=>{console.error(error);process.exitCode=1;});`;
     const result=spawnSync(path.join(output,'node.exe'),['-e',code],{cwd:output,encoding:'utf8',windowsHide:true,timeout:45000,
       env:{...process.env,NODE_PATH:'',NODE_OPTIONS:'',SHELFDECK_SECRET_ROOT:crypto.randomBytes(48).toString('base64url'),PACKAGE_TEST_DATA:dataDir}});
-    assert.equal(result.status,0,result.stderr);assert.deepEqual(JSON.parse(result.stdout),{ok:true,tableCount:217,routeCount:155});
+    assert.equal(result.status,0,result.stderr);assert.deepEqual(JSON.parse(result.stdout),{ok:true,tableCount:217,routeCount:156});
     const entryHash=crypto.createHash('sha256').update(fs.readFileSync(path.join(output,'src','server.js'))).digest('hex'),
       again=spawnSync(process.execPath,['scripts/package-win.js','--output',output],{cwd:serviceRoot,encoding:'utf8',windowsHide:true,timeout:10000});
     assert.notEqual(again.status,0);assert.match(again.stderr,/output already exists/);

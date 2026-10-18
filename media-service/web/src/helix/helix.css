@@ -648,6 +648,16 @@ button, input, select, textarea { font: inherit; }
 .formation-run-outcome > h3, .formation-run-outcome > ul, .formation-run-outcome > p { margin: 0; }
 
 .identity-picker { display:grid; grid-template-columns:minmax(0,1fr); gap:16px; min-width:0; overflow-wrap:anywhere; }
+.us-actor-dialog { width:min(760px,calc(100vw - 32px)); }
+.us-actor-grid { display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px; }
+.us-actor-option { display:grid;align-content:start;gap:8px;min-width:0;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--paper);cursor:pointer; }
+.us-actor-option[data-selected] { border-color:var(--accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--accent) 18%,transparent); }
+.us-actor-option:focus-within { outline:2px solid var(--accent);outline-offset:2px; }
+.us-actor-option img { display:block;width:100%;aspect-ratio:4 / 5;object-fit:cover;border-radius:4px;background:#edf0f2; }
+.us-actor-option > span { display:flex;align-items:baseline;gap:6px;overflow-wrap:anywhere; }
+.us-actor-option input { flex:none; }
+.us-actor-option strong { min-width:0;font-size:14px; }
+.us-actor-option small { color:var(--muted); }
 .identity-picker dd { margin:4px 0 0; }
 .identity-picker form { display:grid; gap:8px; }
 .identity-picker-input { display:flex; gap:8px; }

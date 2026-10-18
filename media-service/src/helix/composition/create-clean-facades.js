@@ -334,6 +334,10 @@ function createCleanFacades(options) {
     facades.LibraFormationFacade.post_formation_runs_librarunid_actions_choose_us_adult_actor=async input=>({status:202,
       body:options.usAdultActorChoice.choose(input.params.libraRunId,input.body,input.actor.actorId)});
   }
+  if(options.usAdultActorSelectionQuery){
+    facades.LibraFormationFacade.get_formation_runs_librarunid_actor_selection=async input=>({
+      body:options.usAdultActorSelectionQuery.read(input.params.libraRunId)});
+  }
   if (options.arcaAcceptanceRecovery) {
     facades.ArcaShelfAdminFacade.post_formation_acceptance_offerid_actions_retry = async (input) => ({
       status:202, body:options.arcaAcceptanceRecovery.retry(input.params.offerId),

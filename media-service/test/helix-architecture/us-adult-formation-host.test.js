@@ -61,9 +61,13 @@ test('real Host retains an unmatched film in secondary across restart and confir
   await h.wait(()=>h.db.prepare('SELECT count(*) n FROM libra_us_adult_match_completions').get().n===1&&h.db.prepare('SELECT count(*) n FROM libra_workshop_placements').get().n===1);
   const run=h.db.prepare('SELECT libra_run_id,subject_id FROM libra_runs').get(),completion=JSON.parse(h.db.prepare('SELECT completion_json FROM libra_us_adult_match_completions').get().completion_json);
   assert.equal(completion.winner,null);assert.equal(completion.detectedFaceCount,0);assert.equal(h.db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,0);
-  await h.restart();const actor=await h.actor(),current=h.db.prepare('SELECT state_revision FROM libra_runs WHERE libra_run_id=?').get(run.libra_run_id),
-    body={idempotencyKey:'choose-actor',expectedRunStateRevision:current.state_revision,expectedChoiceRevision:0,personId:actor.personId,
+  const waitingView=await h.request('GET','/v1/admin/formation/'+run.subject_id);
+  assert.equal(waitingView.classification,'attention_required');assert.equal(waitingView.productIdentityIssue.contentProfile,'western_adult');
+  assert.equal(waitingView.nextAction.label,'需要确认演员');
+  await h.restart();const actor=await h.actor(),current=await h.request('GET','/v1/admin/formation/runs/'+run.libra_run_id+'/actor-selection'),
+    body={idempotencyKey:'choose-actor',expectedRunStateRevision:current.expectedRunStateRevision,expectedChoiceRevision:current.expectedChoiceRevision,personId:actor.personId,
       expectedPersonRevision:actor.currentRevision,expectedReferenceRevision:actor.currentReferenceRevision};
+  assert.equal(current.selectedActor,null);assert.equal(current.canChoose,true);
   const chosen=await h.request('POST','/v1/admin/formation/runs/'+run.libra_run_id+'/actions/choose-us-adult-actor',body);assert.equal(chosen.replayed,false);
   await h.wait(()=>h.db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n===1);
   assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,1);assert.equal(h.db.prepare('SELECT state FROM libra_runs').get().state,'completed');
@@ -72,6 +76,8 @@ test('real Host retains an unmatched film in secondary across restart and confir
   const nfo=fs.readFileSync(path.join(folder,'Test Actor Original source.nfo'),'utf8');assert.match(nfo,/<name>Test Actor<\/name>/);assert.match(nfo,/<title>Test Actor Original source<\/title>/);
   const poster=await sharp(path.join(folder,'poster.jpg')).metadata();assert.equal(poster.width,1000);assert.equal(poster.height,1500);
   const replay=await h.request('POST','/v1/admin/formation/runs/'+run.libra_run_id+'/actions/choose-us-adult-actor',body);assert.equal(replay.replayed,true);assert.deepEqual(replay.receipt,chosen.receipt);
+  const delivered=await h.request('GET','/v1/admin/formation/runs/'+run.libra_run_id+'/actor-selection');assert.equal(delivered.canChoose,false);
+  assert.equal(delivered.selectedActor.personId,actor.personId);
 });
 test('real Host selects the highest CPU match and produces one actor without manual confirmation',{timeout:180000,skip},async t=>{
   const h=await fixture(t,{visibleFace:true});

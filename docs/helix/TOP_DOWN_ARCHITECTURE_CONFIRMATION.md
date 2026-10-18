@@ -13750,6 +13750,7 @@ Shelf Placement PATCH必须携带最近一次preview digest；对非空Shelf发�
 ~~~text
 GET  /v1/admin/formation
 GET        /v1/admin/formation/runs/:libraRunId/product-identity-preview
+GET  /v1/admin/formation/runs/:libraRunId/actor-selection
 GET  /v1/admin/formation/:formationViewId
 POST /v1/admin/formation/subjects/:subjectId/actions/choose-shelf
 POST /v1/admin/formation/subjects/:subjectId/actions/abandon

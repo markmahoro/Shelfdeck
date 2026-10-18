@@ -77,7 +77,14 @@ function RuleSummary({ rules }: { rules: RuleTemplateRules }) {
         <small>{profile === 'series' ? '每集 · ' : ''}{spaceLabel(branch)}</small>
       </div>)}</div>
     </section>;
-  })}<JavRuleSummary rules={rules}/></>;
+  })}<JavRuleSummary rules={rules}/>{rules.profileRuleSets.filter(profile=>profile.contentProfile==='western_adult').map(profile=>{
+    const base=profile.baseRequirements as MovieRuleBranch['requirements']|undefined;
+    if(!base)return <p key={profile.contentProfile} role="alert">US Adult 标准读取失败。</p>;
+    return <section key={profile.contentProfile} aria-label="US Adult整理标准">
+    <strong>US Adult</strong><div className="movie-rule-grid"><div><b>单演员整理</b><span>有效演员资料、NFO 和四张截图海报</span>
+      <small>{base.mandatoryMedia.videoCodec==='hevc'?'HEVC · ':''}{base.space.maxSizeGiB==null?'空间不限制':`空间上限 ${base.space.maxSizeGiB} GiB`}</small>
+      <small>文件命名：演员名 + 原文件名</small></div></div>
+  </section>;})}</>;
 }
 function renderPreview(template: string, values: Record<string, string>) {
   return template.replace(/\{([^{}]+)\}/g, (_match, token) => values[token] || '');

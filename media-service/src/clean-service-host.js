@@ -1250,7 +1250,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 155) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 156) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -2123,6 +2123,7 @@ async function createCleanServiceHost(options) {
     libraRunAdmin,
     productIdentitySelection,
     usAdultActorChoice,
+    usAdultActorSelectionQuery:procurementExecution.usAdultActorSelectionQuery,
     arcaAcceptanceRecovery,
     platformIntegrationAdmin: platformIntegrations.admin,
     workspaceRootAdmin,

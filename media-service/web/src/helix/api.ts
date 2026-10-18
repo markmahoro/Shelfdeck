@@ -263,7 +263,7 @@ export type FormationSubject = {
   ratingState?: 'pending'|'ready';
   ratingResolutionStatus?: 'found'|'not_found'|null;
   ratingReasonCode?: string|null;
-  productIdentityIssue: null | { contentProfile?:'jav'; sourceLocation?:string|null; claimedCode?:string|null; result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string|null; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
+  productIdentityIssue: null | { contentProfile?:'jav'|'western_adult'; sourceLocation?:string|null; claimedCode?:string|null; result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string|null; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
   failureDiagnostics?: Array<{eventId:string;code:string;diagnosticsUnavailable?:boolean;diagnostics:{sourceDirectory?:string;unknownNames?:string[];unknownMemberCount?:number;truncated?:boolean;field?:string;reasonCode?:string;networkCode?:string;stage?:string;timeout?:boolean}|null}>;
   executorIssue: null | { phase:string; errorCode:string; attemptCount:number|null; owner:string; recoveryState:string;
     recoveryGeneration:number|null; automaticRecoveryUsed:boolean; canRetry:boolean; offerId:string; onDeckRunId?:string };
@@ -537,6 +537,13 @@ export type PersonImageSearch = { sources:Array<{
     sourcePageUrl:string;attribution:string;width:number;height:number;selectionToken:string}>;
 }> };
 export type PersonImageOperation = {operationRef:string;state:'preparing'|'completed'|'failed';personId:string|null;failureCode:string|null};
+export type UsAdultActorSelection = {
+  libraRunId:string;subjectId:string;expectedRunStateRevision:number;expectedChoiceRevision:number;canChoose:boolean;
+  analysisState:'not_started'|'analyzing'|'completed';detectedFaceCount:number|null;selectionOrigin:'user_choice'|'automatic_match'|null;
+  selectedActor:{personId:string;canonicalName:string;personRevision:number;referenceRevision:number}|null;
+};
+export type UsAdultActorChoice = {idempotencyKey:string;expectedRunStateRevision:number;expectedChoiceRevision:number;
+  personId:string;expectedPersonRevision:number;expectedReferenceRevision:number};
 export type PeopleProjection = {
   items: Array<{
     personId:string; libraryKind:PersonLibrary; status:'active'|'merged'; currentRevision:number; canonicalName:string;
@@ -908,6 +915,9 @@ export const helixAdminApi = {
       expectedSelectionIntentRevision:preview.expectedSelectionIntentRevision,idempotencyKey})});
   },
   chooseProductIdentity(subject:FormationSubject,providerId:string,idempotencyKey?:string){if(!subject.currentRun)throw new Error('当前媒体没有可恢复的整理任务。');const run=subject.currentRun;return request<{selectionIntentId:string;libraRunId:string;providerKey:string;intentRevision:number;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/choose-product-identity`,{method:'POST',body:JSON.stringify({... (subject.contentProfile === 'series' ? {tmdbSeriesId:providerId} : {tmdbMovieId:providerId}),expectedRunStateRevision:run.stateRevision,expectedIdentityRevision:run.currentIdentityRevision,candidateSetDigest:subject.productIdentityIssue?.candidateSetDigest||null,idempotencyKey:idempotencyKey||`choose-product-identity:${run.libraRunId}:${run.stateRevision}:${providerId}:${newOpaqueId()}`})});},
+  readUsAdultActorSelection(libraRunId:string){return request<UsAdultActorSelection>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actor-selection`);},
+  chooseUsAdultActor(libraRunId:string,body:UsAdultActorChoice){return request<{replayed:boolean;receipt:{resultRef:{personId:string;choiceRevision:number}}}>(
+    `/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actions/choose-us-adult-actor`,{method:'POST',body:JSON.stringify(body)});},
   retryAcceptance(subject:FormationSubject){if(!subject.executorIssue?.canRetry)throw new Error('当前接纳或上架故障不能重试。');const offerId=subject.executorIssue.offerId;return request(`/v1/admin/formation/acceptance/${encodeURIComponent(offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({idempotencyKey:`acceptance-retry:${offerId}:${newOpaqueId()}`})});},
   createShelf(body: JsonValue) {
     return request<{ shelf: Shelf; replayed: boolean }>('/v1/admin/shelves', {
@@ -1087,7 +1097,7 @@ export const helixAdminApi = {
 
 export async function materialFieldRegistration(input: {
   fieldId: string;
-  contentProfileHint: 'movie' | 'series' | 'jav' | 'mixed';
+  contentProfileHint: 'movie' | 'series' | 'jav' | 'western_adult' | 'mixed';
   name: string;
   rootLocation: string;
   includedDirectories: string[];
