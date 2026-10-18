@@ -11,7 +11,7 @@
       "atomicFactSet": "complete `DecisionInputSet@1` + exact pre-CAS `SubjectDecisionHeadSnapshot@1` + Subject/current Decision head CAS + immutable Decision Basis revision + relationized typed input snapshots + durable `DecisionBasisRevision@1`/commit marker；manual selection variant同事务写Command Receipt；Routing与Spec使用同一事务但不同`basisKind`，不创建Routing Decision、Acceptance Spec或Libra Run；`hasOutbox=false`",
       "source": {
         "section": "8.5.4",
-        "line": 8817,
+        "line": 8825,
         "lineDigest": "4fbf039ff9e6d3552842ab32579da3d5cf11b65a5b05e168d04f230a53b45aa9"
       }
     },
@@ -21,7 +21,7 @@
       "atomicFactSet": "ready routing `DecisionBasisRevision@1` + complete `RoutingAssessmentEvidence@1` + `RoutingDecision@1` + current Subject/Policy/Decision head CAS + immutable Assessment/Decision + head switch + durable application Result/commit marker；`hasOutbox=false`，不读取`arca_*`或创建Acceptance Spec/Run",
       "source": {
         "section": "8.5.4",
-        "line": 8818,
+        "line": 8826,
         "lineDigest": "325382a616b9f8f8517978b06e281303b6e96dddf79b38ac33a79bb402c4b5ce"
       }
     },
@@ -31,7 +31,7 @@
       "atomicFactSet": "ready spec `DecisionBasisRevision@1` + complete `AcceptanceSpec@1` + current Subject/Routing Decision/Decision Basis/head CAS + immutable Spec + head switch + durable application Result/commit marker；`hasOutbox=false`，不读取`arca_*`或创建Libra Run",
       "source": {
         "section": "8.5.4",
-        "line": 8819,
+        "line": 8827,
         "lineDigest": "a6f532fd9d365e7c6529b4106c598d67fab686e0e6809c1198b543696a2da59c"
       }
     },
@@ -41,7 +41,7 @@
       "atomicFactSet": "authenticated manual choice + current Libra Run/Subject/Identity head fence + immutable `libra_product_identity_selection_intents` row + Command Receipt；该Admin command不伪造Event Result或commit marker；选择只允许后端给出的candidate或typed TMDB ID：Movie为tmdbMovieId，Series为tmdbSeriesId，两者互斥；Series namespace为tmdb_series，Season只从同Run冻结Candidate Season Claim读取，必须匹配当前Subject Profile及Run execution basis，用户不能改季或扩集；Series请求摘要纳入该Season与executionBasisDigest，后续provider_exact继续核验TV及该Season，不能直接发布Identity；`hasOutbox=false`",
       "source": {
         "section": "8.5.4",
-        "line": 8820,
+        "line": 8828,
         "lineDigest": "693376471cb01bfbe370735d0bc6dbcbfc6d139537f991e7464e4b240eba7f67"
       }
     },
@@ -51,7 +51,7 @@
       "atomicFactSet": "complete `LibraRunAdmissionDecision@1` + Subject current Decision head/Acceptance Spec + expected Run admission head CAS + immutable `LibraRunExecutionBasis@1`/`ProductionMaterialManifest@1` + Run/current state revision + exact active scope set switch + durable `LibraRunAdmissionResult@1`/commit marker；initial与replacement共用该事务，replacement还必须把旧`active|suspended` Run原子置为`superseded`并追加旧Run revision；`hasOutbox=false`",
       "source": {
         "section": "8.5.4",
-        "line": 8821,
+        "line": 8829,
         "lineDigest": "0bfa0d265b207b051e37257534f7a826616ed320f4242063fbfc1dc283f10180"
       }
     },
@@ -61,7 +61,7 @@
       "atomicFactSet": "complete `LibraRunLifecycleDecision@1` + expected Run state/recovery revision/digest + expected Run admission head/active scope set CAS + variant-specific typed `LibraRunFreshnessAssessment@1|LibraRunTerminalDeliveryEvidence@1|LibraRunPriorityIntent@1|ArcaProductAcceptedMessage@1` + Run/current revision CAS + immutable new Run revision（含完整Evidence JSON与recovery snapshot）+ durable `LibraRunLifecycleResult@1`/commit marker；freshness/recovery严格执行8.6.21固定Policy/attempt/state matrix，complete原子写Delivery Receipt/Inbox；`hasOutbox=false`，不得创建replacement Run、Workspace效果或Package",
       "source": {
         "section": "8.5.4",
-        "line": 8822,
+        "line": 8830,
         "lineDigest": "229915efdf3e84020eb525b909ecf229ebdae086e23e51b3fb09611fa8cd314f"
       }
     },
@@ -71,7 +71,7 @@
       "atomicFactSet": "complete `LibraWorkspaceAdmissionDecision@1` + active Run/current state revision + current `PlatformWorkspaceRootSnapshot@1` + 未过期admitted `WorkspaceSpaceAdmissionEvidence@1` + stable Workspace identity + Foundation Workspace Registry row + Libra Workspace/current revision及完整typed Evidence快照 + durable `LibraWorkspaceAdmissionResult@1`/commit marker；Platform read participant只验证root current tuple，不向Libra暴露`resolved_root`；同一Run只允许一个current Workspace，`hasOutbox=false`",
       "source": {
         "section": "8.5.4",
-        "line": 8823,
+        "line": 8831,
         "lineDigest": "93e6291a266e3939b5914fa67fda5d4649136bc893309311927920dbbe9b82d5"
       }
     },
@@ -81,7 +81,7 @@
       "atomicFactSet": "complete `LibraWorkspaceMaterialReferenceDecision@1` + expected Workspace/Reference revision + exact `WorkspaceMaterialHandle`/role-aware verification Evidence + current Run fence + immutable Reference revision + Workspace revision CAS + durable `LibraWorkspaceMaterialReferenceResult@1`/commit marker；closed operation为`attach_working|promote_to_product_staging`，同一handle不得同时处于Working与Product Staging，`hasOutbox=false`；`released`只由持有删除/absence Evidence的Workspace Cleanup Commit追加，不能借普通Reference command绕过清理合同",
       "source": {
         "section": "8.5.4",
-        "line": 8824,
+        "line": 8832,
         "lineDigest": "e066b6a15c8fdc5f085c2387dde39096386fcc6a5d952501b3838723f7b88e78"
       }
     },
@@ -91,7 +91,7 @@
       "atomicFactSet": "complete `CandidateDeliverySnapshot@1` + Libra-owned `SubjectContinuityResolutionDecision@1` + `LibraBindingDraft@1` + `AcceptedIntakePayload@1` + Subject Continuity head CAS + unique extension target Intake head CAS（带Continuity/Episode Claim的Decision必须精确匹配冻结head；无Claim的新Movie Subject可在同一原子事务验证当前head完整性后从current head推进，不因无关Subject提交而全局串行）+ immutable Intake Decision/match witness/overlap Evidence + Subject create/extension + accepted continuity/Episode scope + Primary `primary_control` Binding、exclusive Related `related_derived` Binding及N:M Episode relation + precise Primary Control transfer + `SubjectAndTransferReceipt@1`/commit marker/accepted Outbox；Related Disposition Scope与两类Binding必须和Primary Control transfer在同一事务全有或全无，但Related不得进入Control revision set；全部Physical Identity/size/endpoint/location逐项复制Snapshot，不能旁读current Field/Provider补值",
       "source": {
         "section": "8.5.4",
-        "line": 8825,
+        "line": 8833,
         "lineDigest": "e929af258b4f19ccdfa9bf21a7e4c6c61ada0352d0cb44c78bd8c969b0a9ea37"
       }
     },
@@ -101,7 +101,7 @@
       "atomicFactSet": "`LibraCandidateAcceptedMessage@1` + current open Candidate Delivery/Reservation CAS + exact Candidate member set + Procurement Inbox dedup；同事务把Delivery置`accepted`、全部对应`proc_run_materials candidate_delivery → transferred+handoff_accepted`并冻结同一Receipt Evidence；Material Control已经由Handoff A Accepted转移，本事务不得再次转移或释放；重复消息返回同一closure result，已rejected或Evidence不一致稳定拒绝",
       "source": {
         "section": "8.5.4",
-        "line": 8826,
+        "line": 8834,
         "lineDigest": "9af1e19e00c76c75aeba17d0422beec413ef7e1a7cbbaa776a0c367f2dc7b2c9"
       }
     },
@@ -111,7 +111,7 @@
       "atomicFactSet": "complete `IntakeRejectionDecision@1` + immutable rejected Intake Decision + relationized reason/Evidence rows + rejected `IntakeRejectionReceipt@1` + durable typed Result/commit marker + `LibraCandidateRejectedMessage@1` Outbox；不读取或更新Subject Continuity head，不创建/扩充Subject，不建立Binding或转移Control；Decision/Reasons/Receipt/Result/marker/Outbox全有或全无",
       "source": {
         "section": "8.5.4",
-        "line": 8827,
+        "line": 8835,
         "lineDigest": "126bd985a59608601c1311e11612cc56da006de70c37874aad7fde2d32139e72"
       }
     },
@@ -121,7 +121,7 @@
       "atomicFactSet": "`LibraCandidateRejectedMessage@1` + current open Candidate Delivery/Reservation CAS + exact Candidate member set + Procurement Inbox dedup；同事务把Delivery置`rejected`、全部对应`proc_run_materials candidate_delivery → released+handoff_rejected`并冻结同一Receipt Evidence；Procurement Material Control保持不变；重复消息返回同一closure result，已accepted或Evidence不一致稳定拒绝",
       "source": {
         "section": "8.5.4",
-        "line": 8828,
+        "line": 8836,
         "lineDigest": "d46d448e07485265340fc81e3af807d6ebc7ae09879793807e5815f76dc4be7a"
       }
     },
@@ -131,7 +131,7 @@
       "atomicFactSet": "immutable Subject Abandon Decision + no-Run Pre-deck scope terminal + precise Primary Control release + receipt/Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 8829,
+        "line": 8837,
         "lineDigest": "143372b9d3d1830cec08cab5904e65d186afd25daf4e3e325aeaa089252cb674"
       }
     },
@@ -141,7 +141,7 @@
       "atomicFactSet": "current active Acceptance Attempt terminal CAS + Acceptance Decision + immutable Final Inventory Decision + initial On-deck Run + On-deck Material Custody + Arca Product/Related Binding（含逐Product member无损复制的typed Episode Claim Set及完整Related Disposition Set）+ precise Product Control transfer + Handoff Receipt + `ArcaProductAcceptedMessage@1` Outbox；Related dependent obligation随Custody转移但不进入Control revision set；Acceptance Attempt、Run/Decision、Custody/Binding、Control、Receipt/Result/marker/Outbox全有或全无",
       "source": {
         "section": "8.5.4",
-        "line": 8830,
+        "line": 8838,
         "lineDigest": "86695bde1558023bb781974afc19ef4d745dedc734be0ca05bfbcdceadf1a057"
       }
     },
@@ -151,7 +151,7 @@
       "atomicFactSet": "current active Acceptance Attempt terminal CAS + complete `ArcaAcceptanceRejectionDecision@1` + immutable rejected Acceptance Decision + `RejectionReceipt@1` + durable typed Result/commit marker + `ArcaProductRejectedMessage@1` Outbox；不建立On-deck Custody/Run/Binding、不转移Control；Attempt terminal、Decision/Receipt/Result/marker/Outbox全有或全无",
       "source": {
         "section": "8.5.4",
-        "line": 8831,
+        "line": 8839,
         "lineDigest": "5bd38eab2cd7a5372e6ff8d3c4ce676d770f75c1313553eb54688be29cf266af"
       }
     },
@@ -161,7 +161,7 @@
       "atomicFactSet": "`ArcaProductRejectedMessage@1` + immutable published Package fence + `libra_delivery_receipts.offer_id`唯一终态插入 + Libra Inbox dedup；同事务保存rejected Delivery Receipt并逻辑关闭该Package Offer；不改写Package或Arca Decision，重复消息返回同一closure result",
       "source": {
         "section": "8.5.4",
-        "line": 8832,
+        "line": 8840,
         "lineDigest": "7cf5c295bdcdaa8c2e0215f860f0a954e510efa38c7f19808b5801f74fbca95d"
       }
     },
@@ -171,7 +171,7 @@
       "atomicFactSet": "complete `LibraDeliverablePromotionDecision@1` + active Run/state revision fence + immutable Run Basis/Production Material/Workspace Staging/Product Fact/Artifact/Control/Related authority fence + 由Run/package revision预派生的稳定`onDeckPackageId` + complete `OnDeckProductPackage@1`、完整source-to-final Related disposition mapping及全部relation + direct-original Control assert/exclusive Related authority assert/new Workspace Product Control acquire及实际post-state projection + open Offer + durable bounded `OnDeckProductPackageCommitReceipt@1` Result/commit marker + `LibraProductOfferAvailableMessage@1` Outbox；任何Run Basis Related遗漏、重复或无successor mapping都禁止Promotion；Package head、全部快照关系、Control、Offer与Result全有或全无",
       "source": {
         "section": "8.5.4",
-        "line": 8833,
+        "line": 8841,
         "lineDigest": "15cae5f898cd5f17754b6d6a463d674e7115cf739281b7ad10ca1356eabd9b73"
       }
     },
@@ -181,7 +181,7 @@
       "atomicFactSet": "complete `LibraRunDiscardDecision@1` + user-initiated active/frozen or rejected-Handoff Run expected state revision/digest + all Work/Effect safe closure + immutable Discard Decision/Receipt + Run discarded revision + Run admission active-scope head CAS + exact original Primary Input Control release + `run_discarded` Workspace Cleanup Scope/member set + durable typed Result/commit marker + `LibraWorkspaceCleanupRequestedMessage@1` Outbox；不得在同一事务执行物理删除",
       "source": {
         "section": "8.5.4",
-        "line": 8834,
+        "line": 8842,
         "lineDigest": "a80c6b6fa49bf52df6a0f6c44e538c2fc5cc5cb0ef1727880c14a0410699071a"
       }
     }

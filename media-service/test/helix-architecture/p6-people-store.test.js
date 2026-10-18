@@ -93,6 +93,26 @@ test('isolates the same provider identity in three libraries and rejects duplica
   });
 });
 
+test('pages the complete US reference library beyond 256 people under one immutable head digest',()=>{
+  fixture(({store})=>{
+    for(let index=0;index<270;index++)store.registerDirectPerson(directDecision('us-'+String(index).padStart(4,'0'),'actor-'+index,'us_adult'));
+    store.registerDirectPerson(directDecision('ordinary-only','ordinary-only','normal'));
+    const schemaRoot='../../src/helix/contracts/domain-types/',validator=createCapabilityContractValidator({schemas:
+      ['PeopleReferenceLibraryPage','UsAdultPersonSnapshot','PersonReferenceProjection'].map(type=>require(schemaRoot+type+'/v1/schema.json'))});
+    let cursor=null,libraryDigest=null;const ids=[];
+    do{
+      const page=store.readUsAdultReferencePage({cursor,limit:256,expectedLibraryDigest:libraryDigest});
+      validator.validate('helix://contracts/domain-types/PeopleReferenceLibraryPage/v1',page);
+      assert.equal(page.totalPersonCount,270);assert.ok(page.items.length<=256);
+      libraryDigest??=page.libraryDigest;assert.equal(page.libraryDigest,libraryDigest);
+      ids.push(...page.items.map(item=>item.personId));cursor=page.nextCursor;
+    }while(cursor);
+    assert.equal(ids.length,270);assert.equal(new Set(ids).size,270);assert.ok(!ids.includes('ordinary-only'));
+    store.registerDirectPerson(directDecision('us-new','new','us_adult'));
+    assert.throws(()=>store.readUsAdultReferencePage({cursor:null,limit:20,expectedLibraryDigest:libraryDigest}),{code:'PEOPLE_REFERENCE_LIBRARY_CHANGED'});
+  });
+});
+
 test('publishes a US Adult Person and its initial image atomically, with no selectable identity on invalid reference evidence', () => {
   fixture(({ store }) => {
     const decision = directDecision('actor-valid', 'actor-valid', 'us_adult');

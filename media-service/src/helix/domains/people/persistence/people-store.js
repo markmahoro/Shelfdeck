@@ -61,6 +61,8 @@ function personRegistryDefinition(schemaManifest) {
       page_reference_people: {kind:'select-page-after',tableId:'people_persons',keyColumn:'person_id',fixedKeyColumns:['library_kind','status'],maxItems:257,
         columns:['person_id','library_kind','status','current_revision','current_preference_revision','current_reference_revision',
           'current_reference_projection_revision','current_reference_projection_digest','created_at_ms','terminal_at_ms']},
+      reference_library_heads:{kind:'select-all',tableId:'people_persons',keyColumns:['library_kind','status'],
+        columns:['person_id','current_revision','current_reference_revision','current_reference_projection_revision','current_reference_projection_digest'],safeIntegers:true},
       list_people: { kind: 'select-all', tableId: 'people_persons', columns: [
         'person_id', 'library_kind', 'status', 'current_revision', 'current_preference_revision', 'current_reference_revision',
         'current_reference_projection_revision', 'current_reference_projection_digest', 'created_at_ms', 'terminal_at_ms'
@@ -322,6 +324,8 @@ function createPeopleStore(options) {
   function checkpointProjection(repository, personId) {
     const current = repository.invoke('find_person', { person_id: personId });
     const projection = buildReferenceProjection(repository, personId);
+    if(projection&&Buffer.byteLength(canonicalJson(projection),'utf8')>64*1024-128)
+      fail('PEOPLE_REFERENCE_PROJECTION_TOO_LARGE','演员参考图集合已达到正式查询的大小限制。');
     if (!current || !projection) fail('PEOPLE_REFERENCE_PROJECTION_INVARIANT_VIOLATION', 'Projection checkpoint Person is missing.');
     if (projection.projectionDigest === current.current_reference_projection_digest) return projection;
     const advanced = repository.invoke('advance_reference_projection', {
@@ -502,11 +506,11 @@ function createPeopleStore(options) {
     createReferenceSignalParticipant(payload){
       exactInput(payload,['personId','personRevision','referenceRevision'],'PEOPLE_REFERENCE_SIGNAL_INVALID');
       if(!Number.isSafeInteger(payload.personRevision)||payload.personRevision<1||!Number.isSafeInteger(payload.referenceRevision)||payload.referenceRevision<1)
-        fail('PEOPLE_REFERENCE_SIGNAL_INVALID','Reference update signal revision is invalid.');
+        fail('PEOPLE_REFERENCE_SIGNAL_INVALID','Reference signal revision is invalid.');
       return Object.freeze({participantId:'people_reference_signal',owner:'people',repositories:[registry],execute(context){
         const row=context.repository(registry.repositoryId).invoke('find_person',{person_id:payload.personId});
         if(!row||row.current_revision<payload.personRevision||row.current_reference_revision<payload.referenceRevision)
-          fail('PEOPLE_REFERENCE_SIGNAL_INVALID','Reference update signal is ahead of its durable Owner facts.');
+          fail('PEOPLE_REFERENCE_SIGNAL_INVALID','Reference signal is ahead of its durable Owner facts.');
         return {...payload};
       }});
     },
@@ -668,6 +672,41 @@ function createPeopleStore(options) {
           fail('PEOPLE_REFERENCE_PROJECTION_INVARIANT_VIOLATION', 'Projection payload does not match its persisted checkpoint.');
         }
         return Object.freeze(projection);
+      });
+    },
+    readUsAdultReferencePage(input){
+      exactInput(input,['cursor','limit','expectedLibraryDigest'],'PEOPLE_REFERENCE_QUERY_INVALID');
+      if(input.cursor!==null&&(typeof input.cursor!=='string'||!input.cursor||input.cursor.length>256)||
+        !Number.isSafeInteger(input.limit)||input.limit<1||input.limit>256||input.expectedLibraryDigest!==null&&!/^[a-f0-9]{64}$/.test(input.expectedLibraryDigest))
+        fail('PEOPLE_REFERENCE_QUERY_INVALID','演员参考库分页参数无效。');
+      return execute([registry],context=>{
+        const repository=context.repository(registry.repositoryId),heads=repository.invoke('reference_library_heads',{library_kind:'us_adult',status:'active'}).map(row=>{
+          const item={...row,current_revision:Number(row.current_revision),current_reference_revision:Number(row.current_reference_revision),
+            current_reference_projection_revision:Number(row.current_reference_projection_revision)};
+          if([item.current_revision,item.current_reference_revision,item.current_reference_projection_revision].some(value=>!Number.isSafeInteger(value)||value<1))
+            fail('PEOPLE_REFERENCE_PROJECTION_INVARIANT_VIOLATION','US演员参考库head版本缺失或越界。');
+          return item;
+        })
+          .sort((a,b)=>utf8Compare(a.person_id,b.person_id)),libraryDigest=canonicalDigest({schema:'people.us-adult-reference-library@1',heads});
+        if(input.expectedLibraryDigest!==null&&input.expectedLibraryDigest!==libraryDigest)fail('PEOPLE_REFERENCE_LIBRARY_CHANGED','演员参考库已变化，请重新读取快照。');
+        if(input.cursor!==null&&!heads.some(row=>row.person_id===input.cursor))fail('PEOPLE_REFERENCE_LIBRARY_CHANGED','演员参考库分页位置已变化。');
+        const remaining=heads.filter(row=>input.cursor===null||utf8Compare(row.person_id,input.cursor)>0),items=[];let bytes=0;
+        for(const head of remaining){
+          if(items.length>=input.limit)break;
+          const person=mapPerson(repository,repository.invoke('find_person',{person_id:head.person_id})),projection=buildReferenceProjection(repository,head.person_id);
+          if(!person.currentReferenceRevision||projection.projectionDigest!==head.current_reference_projection_digest||projection.projectionRevision!==Number(head.current_reference_projection_revision))
+            fail('PEOPLE_REFERENCE_PROJECTION_INVARIANT_VIOLATION','US演员参考图快照缺失或损坏。');
+          const value={schemaRef:'helix://contracts/domain-types/UsAdultPersonSnapshot/v1',schemaVersion:1,libraryKind:'us_adult',
+            personId:person.personId,personRevision:person.currentRevision,canonicalName:person.revision.canonicalName,
+            aliases:person.revision.aliases.map(item=>item.aliasDisplay),personFactDigest:person.revision.factDigest,referenceProjection:projection},
+            item={...value,snapshotDigest:canonicalDigest(value)},size=Buffer.byteLength(canonicalJson(item),'utf8');
+          if(size>128*1024)fail('PEOPLE_REFERENCE_PROJECTION_TOO_LARGE','单个演员快照超过正式大小限制。');
+          if(items.length&&bytes+size>256*1024)break;
+          items.push(Object.freeze(item));bytes+=size;
+        }
+        const value={schemaRef:'helix://contracts/domain-types/PeopleReferenceLibraryPage/v1',schemaVersion:1,libraryKind:'us_adult',libraryDigest,
+          totalPersonCount:heads.length,items:Object.freeze(items),nextCursor:remaining.length>items.length?items.at(-1).personId:null};
+        return Object.freeze({...value,pageDigest:canonicalDigest(value)});
       });
     },
     listPersonReferenceProjections(limit = 256, libraryKind = 'us_adult') {

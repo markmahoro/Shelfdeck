@@ -28,6 +28,14 @@
       "authority": ["composition_root_only_execution_construction"]
     },
     {
+      "exportName": "createPeopleImageExecutionRegistration",
+      "packageId": "domains.people.public",
+      "owner": "people",
+      "kind": "construction",
+      "methods": ["createRegistrations", "createPlanningRegistration", "createProcessServices", "createReferenceQuery"],
+      "authority": ["composition_root_only_execution_construction"]
+    },
+    {
       "exportName": "PeopleCommandFacade",
       "packageId": "domains.people.public",
       "owner": "people",
@@ -49,7 +57,7 @@
       "packageId": "domains.people.public",
       "owner": "people",
       "kind": "query",
-      "methods": ["getPersonReferenceProjection", "listPersonReferenceProjections"],
+      "methods": ["getPersonReferenceProjection", "listPersonReferenceProjections", "readUsAdultReferencePage"],
       "authority": ["person_identity_and_reference_projection_read"]
     }
   ],

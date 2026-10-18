@@ -28,7 +28,7 @@ function createPeopleReferenceCommitPort(options){
         aggregateType:'person-reference',aggregateId:payload.personId,aggregateRevision:payload.expectedReferenceRevision+1,dedupKey:handle.commitIdempotencyKey,
         intendedConsumers:['people'],payloadSchemaRef:'helix://contracts/signals/people-reference-updated/v1',
         payload:{personId:payload.personId,personRevision:payload.expectedPersonRevision,referenceRevision:payload.expectedReferenceRevision+1}}]});}
-    catch(error){if(!['P6_PEOPLE_REFERENCE_REVISION_CONFLICT','PEOPLE_REFERENCE_IMAGE_EXISTS','PEOPLE_REFERENCE_IMAGE_LIMIT'].includes(error.code))throw error;
+    catch(error){if(!['P6_PEOPLE_REFERENCE_REVISION_CONFLICT','PEOPLE_REFERENCE_IMAGE_EXISTS','PEOPLE_REFERENCE_IMAGE_LIMIT','PEOPLE_REFERENCE_PROJECTION_TOO_LARGE'].includes(error.code))throw error;
       return {kind:'failed',failureClass:'stale_decision_basis',code:error.code,message:'演员或参考图片已变化，请重新读取后操作。',retryDirective:'never',
         evidence:{operationId:context.ownerScope.processId,writeCommitted:false}};}
     const result=committed.typedResult;

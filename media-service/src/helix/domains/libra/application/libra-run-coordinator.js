@@ -3,6 +3,7 @@ const {advanceSeriesExternalScope}=require('./series-external-scope-coordinator'
 const {replacementScopes}=require('../planning/external-material-work');
 const { candidateSeriesAnchor } = require('../model/series-identity-contracts');
 const {nextJavIdentityStage}=require('../planning/jav-product-identity-work');
+const {nextUsAdultIdentityStage}=require('../planning/us-adult-product-identity-work');
 
 const { readDirectMediaSelections } = require('../planning/direct-media-selections');
 const {readSeriesProductionCandidates,readSeriesMediaSelections,candidateSetDigest}=require('../planning/series-production-candidates');
@@ -694,8 +695,9 @@ function createLibraRunCoordinator(options){
     const identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
     let committed=identity;
     if(!committed){
-      if(snapshot.spec.contentProfile==='jav') {
-        const stage=nextJavIdentityStage(options,snapshot);
+      if(['jav','western_adult'].includes(snapshot.spec.contentProfile)) {
+        const stage=snapshot.spec.contentProfile==='jav'?nextJavIdentityStage(options,snapshot):nextUsAdultIdentityStage(options,snapshot);
+        if(stage.kind==='failed')return terminalWork(snapshot,stage.work,stage.status,'product_unachievable');
         if(stage.kind==='waiting')return Object.freeze({kind:'waiting_product_identity',phase:'product_identity_observation',libraRunId,
           reasonCode:stage.reasonCode,observationId:stage.observationId||null,observationResult:stage.observationResult||'not_found'});
         if(stage.kind==='observation') {

@@ -165,7 +165,7 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
               'Resolved Product Identity must bind the exact same-Run Source Basis.');
           }
           fact = payload.resolvedProductIdentity;
-          if(['series','jav'].includes(fact.contentProfile)&&canonicalDigest(fact)!==canonicalDigest(
+          if(['series','jav','western_adult'].includes(fact.contentProfile)&&canonicalDigest(fact)!==canonicalDigest(
               buildResolvedProductIdentity({...fact,displayEntries:fact.displayIdentity?.entries})))
             fail('P9_RESOLVED_IDENTITY_INPUT','Series Product Identity does not match its canonical typed Fact.');
           subjectSnapshot=repo.invoke('find_subject',{subject_id:run.subject_id});

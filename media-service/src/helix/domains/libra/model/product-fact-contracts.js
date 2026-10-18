@@ -388,6 +388,17 @@ function buildProductFactSourceRefs(value) {
       typedResultSchemaRef:'helix://contracts/types/ProductIdentityEvidenceObservation/v1'});
     const providerIdentity=result.verifiedIdentity;
     const identities=value.resolvedProductIdentity?.providerIdentities||[];
+    if(providerIdentity?.namespace==='internal_identity'){
+      const binding=chain.inputBindings?.bindings?.find(item=>item.portName==='productIdentityEvidenceIntent'),intent=binding?.parameters?.usAdultIntent,
+        display=new Map((value.resolvedProductIdentity.displayIdentity?.entries||[]).map(item=>[item.key,item.value]));
+      if(!intent||binding.bindingKind!=='projected_owner_facts'||binding.ownerDomain!=='libra'||binding.processType!=='libra_run'||
+        binding.processId!==basis.libraRunId||binding.projectionRef!=='helix://libra/input-projections/ProductIdentityEvidenceIntent/v1'||
+        intent.libraRunId!==basis.libraRunId||intent.subjectId!==result.subjectId||intent.contentProfile!=='western_adult'||intent.sourceKind!=='internal_source'||
+        display.get('title')!==providerIdentity.displayTitle||display.get('internal_identity')!==providerIdentity.providerKey||
+        display.get('original_file_name')!==intent.originalName.originalFileName||display.get('original_file_name_digest')!==intent.originalName.provenanceDigest||
+        canonicalJson(result)!==canonicalJson(require('./us-adult-identity-evidence').usAdultIdentityObservation(intent)))
+        fail('P9_RESOLVED_IDENTITY_SOURCE_CHAIN','US Adult identity does not conserve its frozen internal source and original filename.');
+    }
     if(providerIdentity?.namespace==='jav_code') {
       const binding=chain.inputBindings?.bindings?.find(item=>item.portName==='productIdentityEvidenceIntent'),intent=binding?.parameters?.javIntent;
       const display=new Map((value.resolvedProductIdentity.displayIdentity?.entries||[]).map(item=>[item.key,item.value]));

@@ -6,16 +6,16 @@ const catalog = require('../../src/helix/contracts/ports/p6-horizontal-domain-pu
 const perception = require('../../src/helix/domains/perception/public');
 const people = require('../../src/helix/domains/people/public');
 
-test('P6 publishes exactly four Owner-scoped horizontal Domain Facades plus one construction registration', () => {
+test('publishes four Owner-scoped horizontal Domain Facades and both execution construction registrations', () => {
   assert.equal(catalog.schemaVersion, 1);
   assert.equal(catalog.contractVersion, 1);
   assert.deepEqual(catalog.facades.filter((item) => item.kind !== 'construction').map((item) => item.exportName).sort(), [
     'PeopleCommandFacade', 'PerceptionCommandFacade', 'PerceptionResolutionFacade', 'PersonReferenceQueryFacade'
   ]);
   assert.deepEqual(catalog.facades.filter((item) => item.kind === 'construction').map((item) => item.exportName),
-    ['PerceptionExecutionRegistration']);
+    ['PerceptionExecutionRegistration','createPeopleImageExecutionRegistration']);
   assert.deepEqual(Object.keys(perception).sort(), ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionExecutionRegistration', 'PerceptionResolutionFacade']);
-  assert.deepEqual(Object.keys(people).sort(), ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade', 'createPeopleProcessServices']);
+  assert.deepEqual(Object.keys(people).sort(), ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade', 'createPeopleImageExecutionRegistration', 'createPeopleProcessServices']);
   assert.equal(catalog.facades.every((item) => item.owner === 'perception' || item.owner === 'people'), true);
   assert.equal(catalog.prohibitedAuthority.includes('media_cast_write'), true);
   assert.equal(catalog.prohibitedAuthority.includes('material_control'), true);
@@ -54,7 +54,8 @@ test('People Facades reject Media-Cast and generic Store authority', () => {
     (error) => error.code === 'P6_PEOPLE_FACADE_SHAPE_MISMATCH');
   const query = people.PersonReferenceQueryFacade({
     getPersonReferenceProjection: (input) => ({ owner: 'people', input }),
-    listPersonReferenceProjections: (input) => [{ owner: 'people', input }]
+    listPersonReferenceProjections: (input) => [{ owner: 'people', input }],
+    readUsAdultReferencePage: input=>({owner:"people",input})
   });
   assert.deepEqual(query.getPersonReferenceProjection({ personId: 'p-1' }), { owner: 'people', input: { personId: 'p-1' } });
   assert.deepEqual(query.listPersonReferenceProjections({ limit: 256 }),

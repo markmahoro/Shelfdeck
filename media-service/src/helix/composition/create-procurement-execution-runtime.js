@@ -72,7 +72,7 @@ const createMovieResponsibilityClosureCoordinator =
 const { PerceptionExecutionRegistration } = require('../domains/perception/public');
 const { ArcaExecutionRegistration } = require('../domains/arca/public');
 const createOffloadCompletionPort = ArcaExecutionRegistration.createOffloadCompletionPort;
-const { createPeopleProcessServices, createPeopleImageExecutionRegistration } = require('../domains/people/public');
+const { createPeopleImageExecutionRegistration } = require('../domains/people/public');
 
 const PROCUREMENT_ENABLED = Object.freeze(['procurement.field.observation.page.commit@1',
   'procurement.triage.playability.inspect@1','procurement.triage.bdmv.assess@1','procurement.triage.structure.inspect@1',
@@ -562,8 +562,8 @@ function createProcurementExecutionRuntime(options) {
     shelfDeregistrationContextReader:arcaCapabilityRegistration.shelfDeregistrationContextReader,
     readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings,
     ensurePerceptionRatingResolution:ensureShelfEntryRatingResolution});
-  peopleProcessServices=createPeopleProcessServices({
-    ...options, now, peopleStore: peopleImageExecution.peopleStore, imageOperations: peopleImageExecution.imageOperations, profileUpdate:peopleImageExecution.profileUpdate,
+  peopleProcessServices=peopleImageExecution.createProcessServices({
+    ...options, now,
     onDeckPersonEvidenceProjection:arcaProcessServices.onDeckPersonEvidenceProjection,
     onDeckNfoPersonEvidence:arcaProcessServices.onDeckNfoPersonEvidence,
   });
@@ -967,7 +967,7 @@ function createProcurementExecutionRuntime(options) {
     }
     if(request.reconcilePhase!=='work_terminal')return null;
     if(request.ownerDomain==='people'&&request.processType==='people_image_preparation'){
-      peopleImageExecution.imageOperations.reconcile(request.processId);
+      peopleProcessServices.imageOperations.reconcile(request.processId);
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='libra'&&request.processType==='libra_intake'){
@@ -1158,8 +1158,8 @@ function createProcurementExecutionRuntime(options) {
         return {kind:'audited'};
       },
     }),Object.freeze({ownerDomain:'people',reconcilerKey:'image-operations',
-      listPage:page=>peopleImageExecution.imageOperations.listPendingPage(page),
-      reconcile:({operationId})=>peopleImageExecution.imageOperations.reconcile(operationId),
+      listPage:page=>peopleProcessServices.imageOperations.listPendingPage(page),
+      reconcile:({operationId})=>peopleProcessServices.imageOperations.reconcile(operationId),
     }),Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-expiry',
       listPage:()=>options.recycleExpiryTick?[{cursor:'expiry',scope:{}}]:[],reconcile:()=>options.recycleExpiryTick(),
     }),Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-maintenance',listPage:()=>options.recycleTick?[{cursor:'recycle',scope:{}}]:[],reconcile:()=>options.recycleTick()}),Object.freeze({

@@ -1136,6 +1136,10 @@ function productIdentityEvidenceObservationSchema() {
         candidates: { ...arrayOf(candidate, 16), minItems: 2 }, verifiedIdentity: { type: 'null' }, candidateMatchCount: { type: 'integer', minimum: 2, maximum: 16 } }),
       object({ ...common, result: { const: 'conflicting' }, reasonCode: enumText('nfo_association_conflicting', 'provider_identity_conflicting'),
         candidates: arrayOf(candidate, 16), verifiedIdentity: { type: 'null' } }),
+      object({...common,contentProfile:{const:'western_adult'},sourceKind:{const:'internal_source'},result:{const:'resolved'},reasonCode:{type:'null'},
+        candidates:{type:'array',maxItems:0},candidateMatchCount:{const:1},verifiedIdentity:object({provider:{const:'internal'},namespace:{const:'internal_identity'},
+          providerKey:text({maxLength:128}),displayTitle:text({maxLength:1024}),originalTitle:{type:'null'},releaseYear:{type:'null'},aliases:{type:'array',maxItems:0},identityDigest:digest()}),
+        originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()})}),
       ...require('../../src/helix/contracts/jav-identity-evidence').javIdentityObservationSchema().oneOf,
     ],
   };

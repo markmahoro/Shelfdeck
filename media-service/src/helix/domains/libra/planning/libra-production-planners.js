@@ -9,6 +9,7 @@ const {
 } = require('../../../foundation/execution/execution-input-readiness');
 const { buildProductIdentityCommitBundle } = require('../model/product-identity-commit-contracts');
 const { nextJavIdentityStage } = require('./jav-product-identity-work');
+const {nextUsAdultIdentityStage,usAdultIdentitySource}=require('./us-adult-product-identity-work');
 const { frozenSeriesSeasonNumber,candidateSeriesAnchor } = require('../model/series-identity-contracts');
 const { buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductMetadataDraft } =
   require('../model/product-fact-contracts');
@@ -105,7 +106,7 @@ function decisionEvidence(sourceResult, snapshot) {
   const queryResultBody={schemaRef:'helix://contracts/types/VersionedQueryResult/v1',schemaVersion:1,
     evidenceId:sourceResult.observationId,evidenceKind:'product_identity_evidence_query_result',producerRef:IDENTITY_EVIDENCE,
     basisDigest:sourceResult.evidenceDigest,payloadDigest:sourceResult.observationDigest,observedAtMs:0,
-    providerDomain:sourceResult.contentProfile==='jav'?'jav':'tmdb',queryContract:IDENTITY_EVIDENCE,queryVersion:1,inputDigest:canonicalDigest(sourceResult.intentId),
+    providerDomain:sourceResult.contentProfile==='western_adult'?'libra':sourceResult.contentProfile==='jav'?'jav':'tmdb',queryContract:IDENTITY_EVIDENCE,queryVersion:1,inputDigest:canonicalDigest(sourceResult.intentId),
     resultKind:'found',resultRevision:1,resultDigest:canonicalDigest(sourceResult),
     expiresAtMs:Number.MAX_SAFE_INTEGER};
   const queryResult=Object.freeze(queryResultBody);
@@ -122,8 +123,8 @@ function createProductIdentityPlanner(options) {
   return Object.freeze({plannerContractRef:'helix://libra/planners/ProductIdentity/v1',plannerVersion:1,plan(request) {
     const snapshot=readRunSnapshot(options.movieProductionReader,request.processId);
     if(!snapshot||snapshot.run.executionBasisDigest!==request.executionBasisDigest)throw new Error('Product Identity planning basis changed.');
-    if(snapshot.spec.contentProfile==='jav') {
-      const stage=nextJavIdentityStage(options,snapshot);
+    if(['jav','western_adult'].includes(snapshot.spec.contentProfile)) {
+      const usAdult=snapshot.spec.contentProfile==='western_adult',stage=usAdult?nextUsAdultIdentityStage(options,snapshot):nextJavIdentityStage(options,snapshot);
       if(!['observation','resolved'].includes(stage.kind))throw new Error('JAV identity Work no longer matches its current selection.');
       let work,nodes;
       if(stage.kind==='observation') {
@@ -131,8 +132,8 @@ function createProductIdentityPlanner(options) {
         if(request.workId!==work.workId)throw new Error('JAV identity observation Work was superseded.');
         const eventId=stable('libra-product-identity-fact-event-',{attempt:request.workAttemptId});
         nodes=[planNode({...options,request,nodeId:'provider_identity_observation',eventId,capabilityRef:IDENTITY_EVIDENCE,
-          inputBindings:[owner('productIdentityEvidenceIntent',request,IDENTITY_EVIDENCE_INTENT,{javIntent:stage.intent}),
-            owner('physicalMaterialReadHandleOrIntegrationHandle',request,IDENTITY_EVIDENCE_SOURCE,{javIntent:stage.intent})],resourceKinds:['disk_io','network']})];
+          inputBindings:[owner('productIdentityEvidenceIntent',request,IDENTITY_EVIDENCE_INTENT,usAdult?{usAdultIntent:stage.intent}:{javIntent:stage.intent}),
+            owner('physicalMaterialReadHandleOrIntegrationHandle',request,IDENTITY_EVIDENCE_SOURCE,usAdult?{usAdultIntent:stage.intent}:{javIntent:stage.intent})],resourceKinds:['disk_io','network']})];
       }else {
         work=identityCommitWork(snapshot,{workId:stage.work.workId,resultDigest:stage.sourceResult.resultDigest});
         if(request.workId!==work.workId)throw new Error('JAV identity commit Work was superseded.');
@@ -205,6 +206,11 @@ function createProductIdentityProjections(options) {
   }
   function identityIntent(value,parameters={}) {
     const contentProfile=value.spec?.contentProfile;
+    if(contentProfile==='western_adult'){
+      const stage=nextUsAdultIdentityStage(options,value),intent=parameters.usAdultIntent;
+      if(stage.kind!=='observation'||!intent||canonicalJson(intent)!==canonicalJson(stage.intent))throw new Error('US Adult identity Observation basis is stale.');
+      return stage.intent;
+    }
     if(contentProfile==='jav') {
       const stage=nextJavIdentityStage(options,value),intent=parameters.javIntent;
       if(stage.kind!=='observation' || !intent || intent.intentDigest!==stage.intent.intentDigest ||
@@ -306,6 +312,7 @@ function createProductIdentityProjections(options) {
     {projectionRef:IDENTITY_EVIDENCE_INTENT,projection:{project:({ownerScope,parameters})=>identityIntent(snapshot(ownerScope),parameters)}},
     {projectionRef:IDENTITY_EVIDENCE_SOURCE,projection:{project:({ownerScope,parameters})=>{
       const value=snapshot(ownerScope),intent=identityIntent(value,parameters);
+      if(intent.sourceKind==='internal_source')return usAdultIdentitySource(options,value);
       if(intent.sourceKind==='related_nfo'){
         const reference=value.relatedReferences.find((item)=>item.referenceId===intent.relatedReferenceId),binding=reference&&value.relatedBindings.find((item)=>item.materialKey===reference.identity.materialKey&&item.role===reference.role);
         if(!reference||!binding)throw new Error('Product Identity NFO reference is unavailable.');

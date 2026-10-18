@@ -1,10 +1,12 @@
 'use strict';
 
 const {createPeopleReferenceCommitPort,COMMIT}=require('../capabilities/people-reference-commit-port');
+const {createPersonReferenceQuery}=require('../capabilities/people-reference-lifecycle');
 const { createPeopleStore } = require('../persistence/people-store');
 const { createPeopleProfileUpdate } = require('../capabilities/people-profile-update');
 const { createDirectPersonRegistrationFromPersistence } = require('../capabilities/people-registration-lifecycle');
 const { createPeopleImageOperationCoordinator } = require('../application/people-image-operation-coordinator');
+const {createPeopleProcessServices}=require('../application/people-process-services');
 const { createPeopleImagePreparationPorts, IMPORT, EMBED } = require('../capabilities/people-image-preparation-ports');
 const { createPeopleImagePreparationPlanner, createPeopleImageProjections } = require('../planning/people-image-preparation-planner');
 
@@ -18,7 +20,10 @@ function createPeopleImageExecutionRegistration(options) {
     preparation: options.peopleReferencePreparation || { importImage() { throw new Error('People image import is unavailable.'); },
       computeEmbedding() { throw new Error('People reference compute is unavailable.'); } } });
   const ports={...preparationPorts,[COMMIT]:createPeopleReferenceCommitPort({...options,peopleStore,referenceDecision:imageOperations.referenceDecision})};
-  return Object.freeze({ peopleStore, imageOperations, profileUpdate:createPeopleProfileUpdate({...options,peopleStore}),
+  const profileUpdate=createPeopleProfileUpdate({...options,peopleStore});
+  return Object.freeze({
+    createProcessServices(processOptions){return createPeopleProcessServices({...options,...processOptions,peopleStore,imageOperations,profileUpdate});},
+    createReferenceQuery:()=>createPersonReferenceQuery(peopleStore),
     createRegistrations(manifests) {
       return [IMPORT, EMBED,COMMIT].map(capabilityRef => ({ manifest: manifests[capabilityRef], executor: { version: 1, execute: context => ports[capabilityRef].execute(context) },
         semanticValidator: { ref: manifests[capabilityRef].semanticValidatorRef,

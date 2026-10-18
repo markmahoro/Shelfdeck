@@ -269,6 +269,8 @@ const dtoContracts = {
   PeopleCandidateAcceptanceDecision: '',
   DirectPersonRegistrationDecision: '',
   PeopleProfileUpdateDecision: '',
+  UsAdultPersonSnapshot:'',
+  PeopleReferenceLibraryPage:'',
   PerceptionAcquisitionResumeDecision: '',
   PeopleReferenceMaintenanceDecision: '',
   PeopleSelectedImageHandle: '',
@@ -349,6 +351,8 @@ function buildSchema(name, role, fields) {
   if (name === 'TriageIdentityResolutionInput') return triageIdentityResolutionInputSchema();
   if (name === 'TriageManifestBuildInput') return triageManifestBuildInputSchema();
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
+  if(name==='UsAdultPersonSnapshot')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},libraryKind:{const:'us_adult'},personId:id(),personRevision:positiveInteger(),canonicalName:text({maxLength:200}),aliases:arrayOf(text({maxLength:200}),33),personFactDigest:digest(),referenceProjection:domainRef('PersonReferenceProjection'),snapshotDigest:digest()}),'x-helix-maxCanonicalBytes':128*1024};
+  if(name==='PeopleReferenceLibraryPage')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},libraryKind:{const:'us_adult'},libraryDigest:digest(),totalPersonCount:nonNegativeInteger(),items:arrayOf(domainRef('UsAdultPersonSnapshot'),256),nextCursor:nullable(id()),pageDigest:digest()}),'x-helix-maxCanonicalBytes':512*1024};
   if (name === 'PeopleProfileUpdateDecision') return exactDomainSchema(name, {decisionId:id(),personId:id(),expectedPersonRevision:positiveInteger(),canonicalName:text({maxLength:200}),aliases:arrayOf(aliasSchema(),33),actorId:id(),requestDigest:digest(),decisionDigest:digest()});
   if (name === 'PerceptionAcquisitionResumeDecision') return exactDomainSchema(name, {decisionId:id(),acquisitionId:id(),expectedScopeDigest:digest(),actorId:id(),idempotencyKey:text({maxLength:128}),requestDigest:digest(),decisionDigest:digest()});
   if (name === 'DirectPersonRegistrationDecision') return directPersonRegistrationDecisionSchema();
@@ -1041,7 +1045,10 @@ function productIdentityEvidenceIntentSchema() {
         object({ ...scopedCommon, sourceKind:{const:'provider_search'},integrationId:id(),configRevision:positiveInteger(),
           provider:{const:'tmdb'},namespace:{const:namespace} }),
       ];
-    }).concat(require('../../src/helix/contracts/jav-identity-evidence').javIdentityIntentSchema()),
+    }).concat(require('../../src/helix/contracts/jav-identity-evidence').javIdentityIntentSchema(),object({
+      intentId:id(),libraRunId:id(),subjectId:id(),runExecutionBasisDigest:digest(),contentProfile:{const:'western_adult'},sourceKind:{const:'internal_source'},
+      internalIdentity:text({maxLength:128}),originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()}),
+      sourceHandleDigest:digest(),intentDigest:digest()})),
   };
 }
 

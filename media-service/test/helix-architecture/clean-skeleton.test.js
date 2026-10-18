@@ -52,7 +52,7 @@ test('each Domain exposes one frozen public package identity', () => {
     libra: ['PACKAGE_ID', 'LibraExecutionRegistration', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort'],
     arca: ['PACKAGE_ID', 'ArcaExecutionRegistration'],
     perception: ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionExecutionRegistration', 'PerceptionResolutionFacade'],
-    people: ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade', 'createPeopleProcessServices']
+    people: ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade', 'createPeopleImageExecutionRegistration', 'createPeopleProcessServices']
   };
   for (const domain of domainNames) {
     const entry = require(path.join(helixRoot, 'domains', domain, 'public'));

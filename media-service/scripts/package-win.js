@@ -85,6 +85,7 @@ const CLEAN_RUNTIME_FILES = [
   'src/clean-runtime-operations.js',
   'src/clean-maintenance-window.js',
   'src/clean-people-image-port.js',
+  'src/clean-us-adult-frame-extractor.js',
   'src/clean-formation-reset-port.js',
   'src/clean-arca-inventory-port.js',
   'src/clean-arca-recycle-port.js',

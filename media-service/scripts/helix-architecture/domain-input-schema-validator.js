@@ -82,6 +82,8 @@ function validateDomainInputSchemas(options) {
     }
     const exactIdentityFields = {
       PeopleCandidateAcceptanceDecision: ['decisionId', 'expectedCandidateRevision', 'candidatePayloadDigest', 'decisionDigest'],
+      UsAdultPersonSnapshot:['personId','personRevision','referenceProjection','snapshotDigest'],
+      PeopleReferenceLibraryPage:['libraryDigest','items','nextCursor','pageDigest'],
       PeopleProfileUpdateDecision:['decisionId','personId','expectedPersonRevision','requestDigest','decisionDigest'],
       PerceptionAcquisitionResumeDecision:['decisionId','acquisitionId','expectedScopeDigest','requestDigest','decisionDigest'],
       DirectPersonRegistrationDecision: ['decisionId', 'newPersonId', 'decisionDigest'],
@@ -185,8 +187,8 @@ function validateDomainInputSchemas(options) {
     }
     if(entry.id==='ProductIdentityEvidenceIntent') {
       for(const branch of schema.oneOf||[]) {
-        const jav=branch.properties?.contentProfile?.const==='jav';
-        const fields=jav?['provider','namespace','sourceSnapshot','sourceOrdinal','integrationId','configRevision',
+        const jav=branch.properties?.contentProfile?.const==='jav',usAdult=branch.properties?.contentProfile?.const==='western_adult';
+        const fields=usAdult?['internalIdentity','originalName','sourceHandleDigest']:jav?['provider','namespace','sourceSnapshot','sourceOrdinal','integrationId','configRevision',
           'javSelectionFence','resourceKey','expectedTitle','expectedCoverDigest']:['aliases','yearHint'];
         for(const field of fields)if(!(branch.required||[]).includes(field))findings.push(finding(
           'MISSING_DOMAIN_INPUT_IDENTITY_FIELD','Profile identity input is incomplete.',{entryId:entry.id,field}));
@@ -205,7 +207,7 @@ function validateDomainInputSchemas(options) {
   for (const name of usages.keys()) {
     if (!ids.has(name)) findings.push(finding('MISSING_DOMAIN_INPUT_TYPE', 'Catalog input reference has no schema.', { entryId: name }));
   }
-  const facadeOnlyTypes = new Set(['DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
+  const facadeOnlyTypes = new Set(['UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
     'ResolvedProviderIdentity', 'ProductStructureSnapshot', 'ProductConformanceFactSnapshot', 'ProductionMaterialManifest',
     'ArtifactManifest', 'ArtifactConformanceVerificationSnapshot', 'ProductInventoryConformanceSnapshot',
     'WorkspaceArtifactOutputTarget', 'ShelfAcceptancePrimaryReadSet',

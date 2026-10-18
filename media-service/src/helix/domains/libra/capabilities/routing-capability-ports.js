@@ -283,6 +283,7 @@ function identityObservation(intent, resultKind, reasonCode, candidates, verifie
 }
 
 async function observeProductIdentity(options, intent, handle) {
+  if(intent.contentProfile==='western_adult')return require('../model/us-adult-identity-evidence').observeUsAdultIdentity(intent,handle);
   if(intent.contentProfile==='jav') {
     const {javIdentityObservation}=require('../model/jav-product-identity');
     const source=intent.sourceSnapshot.sources[intent.sourceOrdinal];

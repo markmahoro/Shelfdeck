@@ -12,7 +12,7 @@
       "constraintsContract": "Shelf创建/Target修订同事务保存实际旧、新Target Binding；同tuple幂等且不可改写，`UNIQUE(shelf_id,binding_digest)`；`INDEX(shelf_id,endpoint_id,mount_scope_id)`；仅作为Arca精确物理权限证据，历史Binding不代表当前Target、不自动授权迁移或删除",
       "source": {
         "section": "8.5.12",
-        "line": 9575,
+        "line": 9583,
         "lineDigest": "b023e58fb190fe46f2ebe906d2c739f610b6f386258a75fbaeccec0bf571d665"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "Policy JSON上限`16 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK",
       "source": {
         "section": "8.5.12",
-        "line": 9576,
+        "line": 9584,
         "lineDigest": "f1ff9fbfeb19ff8629a2ca30d5d792300614f66d81e5d042e1baf50cb5bfd75a"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "同一Offer至多一个Attempt且相同`package_digest+standard+placement`至多一个active attempt；Related disposition set必须逐字节等于Package；accepted/rejected只允许从active以Decision事务CAS一次；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9577,
+        "line": 9585,
         "lineDigest": "85631065bfc7dd1279d5ee8ba5deec58cb1c327359abd07c6f01f161833e3eb8"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "一份Offer恰有一个current Recovery Case；`recovery_generation`从1单调递增且每个generation派生不同Supporting Work ID，历史Work/Event/Attempt不修改；技术失败只允许`active|automatic_recovering|user_retrying → attention_required`，不得建立Acceptance Decision；trigger变化最多一次`attention_required → automatic_recovering`，用户Retry一次只创建一个`user_retrying` generation；Accepted/Rejected后才`resolved`；`INDEX(recovery_state,updated_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9578,
+        "line": 9586,
         "lineDigest": "e799b560fb844b702d580f8a2e01d86817e1155cdd3b1342e4eb4f092d9e461a"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(acceptance_attempt_id,check_kind,check_revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 9579,
+        "line": 9587,
         "lineDigest": "77d3920ed642da9e59d4fd9c91e1474be0429b26f5f775356b97d12915d5b36a"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "Arca独占不可变最终校验Evidence；verification_json是closed FinalProductVerification或FulfillmentVerification完整值≤8 MiB；record_json为同名Record≤64 KiB；精确Event唯一，Result/marker原子；不产生Custody、Control或Own。",
       "source": {
         "section": "8.5.12",
-        "line": 9580,
+        "line": 9588,
         "lineDigest": "2618e65bf5f7aaf319398ab874a2402dafac5a006c850a9e0eb5fb655a038a87"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "Arca独占不可变Stage Evidence；同一Event只一条，manifest_json固定StagedInventoryManifest@1完整JCS≤8 MiB，record_json固定StagedInventoryManifestRecord@1≤64 KiB；无Custody/Control/收藏事实，无Foundation到Owner外键。",
       "source": {
         "section": "8.5.12",
-        "line": 9581,
+        "line": 9589,
         "lineDigest": "3afeec3ad5629c2d1e6143e3a48eab26c7c1f3c015b35dd6af0873483a6a82cf"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`PK(acceptance_attempt_id,check_kind,check_revision)`；immutable完整AcceptanceCheck Evidence≤2 MiB；有界Record≤64 KiB；同事务Evidence/Record/Result/marker全有或全无；Evidence产生在Acceptance Attempt最终汇总之前，不建立Custody或集合所有权",
       "source": {
         "section": "8.5.12",
-        "line": 9582,
+        "line": 9590,
         "lineDigest": "8f65dd227fc172caddb22556315ec4fd25f2c06470810b5eaffa977b3f5f1e51"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`acceptance_decision_id=SHA-256(JCS({schema:\"arca.acceptance-decision-id@1\",acceptanceAttemptId}))`且`UNIQUE(acceptance_attempt_id)`；Offer/Package/Related disposition set逐字节等于Attempt；accepted要求rejection列全NULL且证明完整处置义务可履行；rejected固定`rejection_schema_ref=StructuredRejection@1`且code/digest非NULL，并逐项重建`ArcaAcceptanceRejectionDecision@1`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 9583,
+        "line": 9591,
         "lineDigest": "fdb2ce5541da67e64dd26bfd5bb41324df96693b8ca3ce9fe1504c73b057fd4b"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`UNIQUE(on_deck_package_id,package_digest)`；只有Accepted Decision可建立；`control_scope_digest`只覆盖正式Product Control transfer，`related_disposition_set_digest`逐字节冻结Package中全部exclusive Related的source-to-final义务，两者不得合并为一个Control Scope",
       "source": {
         "section": "8.5.12",
-        "line": 9584,
+        "line": 9592,
         "lineDigest": "b59049ec0e64e65c6573ee3dccc02d4eadcf9f07bbbeb4afb4f2f3e4de18d40c"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`UNIQUE(acceptance_decision_id)`及`UNIQUE(offer_id)`；Offer/Package/Related disposition set逐字节等于Decision；accepted要求Custody/Binding/Control列非NULL、全部rejection列为NULL，receipt digest按`CustodyAndTransferReceipt@1`公式重建，其中Related set不进入Control digest；rejected要求Custody/Binding/Control列NULL且rejection列非NULL，receipt digest按`RejectionReceipt@1`公式重建；两种终态都必须有receipt digest并作为各自typed Outbox的durable source，相同marker不新增Receipt或相反终态",
       "source": {
         "section": "8.5.12",
-        "line": 9585,
+        "line": 9593,
         "lineDigest": "c477065ed9f1cbba0baaa99ec52d4920b52301b2afb96234e221f1f957a10751"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`PK(owner_object_type,owner_object_id,material_key,role,binding_revision)`；每个物理Material/role/revision只有一row且每个关系只有一个current row。每行冻结可重建`material_key`的完整Physical Material Identity tuple，Aftercare或历史重放不得用当前Shelf mount scope猜测旧Identity。`product_control`逐项命中Handoff B Product member及Control transfer，三个Related authority列全NULL；`related_derived`只用于Off-load Context中仍为原Physical Identity的exclusive Related，必须命中同Package source reference、Primary及derived authority且不声明独立Control。两种variant严格互斥。Episode JSON固定`helix://contracts/application-types/ArcaMaterialEpisodeClaims/v1`、canonical JCS≤`16 KiB`，schema/json/digest均非NULL并逐字节满足8.6.19公式；Series Primary为`1..32`项，single Primary及非Primary/Off-load Context-only Binding为空Set；`evidence_digest`与`arcaBindingSetDigest`覆盖完整typed Set、Physical Identity和authority variant，禁止只取第一项、复制member row或旁读Libra补值",
       "source": {
         "section": "8.5.12",
-        "line": 9586,
+        "line": 9594,
         "lineDigest": "92a18c56c2be19b7aab9cd211b20c90c300c2e4557388a7d382359450620bd8e"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立；同一Custody一个non-terminal Run；`blocked`在自动预算未耗尽时可恢复，耗尽后是零资源且投影为`attention_required`的稳定业务暂停态，只有显式用户Retry可把同一Run恢复为`offloading`；只有`committed`为terminal且写`terminal_at_ms`；`target_reserved_at_ms`只在Arca同事务重验Final Decision目标无其他未Commit持有者后、首次进入offloading时写入，blocked保留；未取得预约的blocked不得阻塞其他Run，恢复须重新竞争；committed后预约失效但保留历史时间；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9587,
+        "line": 9595,
         "lineDigest": "b2d3a8034aafd509edbbb4485a4c3a3ad573df3ea0c6f7f6daa46b4f41f6b0af"
       }
     }

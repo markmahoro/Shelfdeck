@@ -34,6 +34,14 @@ function providerFact(decisionEvidence,sourceResultItem,contentProfile='movie',s
       observation.subjectId!==decisionEvidence.subjectId)fail('Product Identity Decision Evidence does not resolve to its exact provider Observation.');
   const identity=observation.verifiedIdentity;
   const series=contentProfile==='series';
+  if(contentProfile==='western_adult'){
+    if(!identity||identity.provider!=='internal'||identity.namespace!=='internal_identity'||observation.contentProfile!=='western_adult'||observation.sourceKind!=='internal_source'||
+      canonicalDigest(observation)!==sourceResultItem.resultDigest||identity.identityDigest!==canonicalDigest(Object.fromEntries(Object.entries(identity).filter(([key])=>key!=='identityDigest'))))
+      fail('US Adult identity requires its exact internal source Observation.');
+    const original=require('../../../contracts/us-adult-presentation').originalNameProvenance(observation.originalName?.originalFileName);
+    if(original.provenanceDigest!==observation.originalName.provenanceDigest)fail('US Adult original name provenance is invalid.');
+    return identity;
+  }
   if(contentProfile==='jav') {
     const qualification=observation.qualificationObservation,source=observation.sourceSnapshot?.sources?.[observation.sourceOrdinal];
     if(!identity || identity.provider!=='jav' || identity.namespace!=='jav_code' || observation.contentProfile!=='jav' ||
@@ -56,10 +64,10 @@ function providerFact(decisionEvidence,sourceResultItem,contentProfile='movie',s
 function buildProductIdentityCommitBundle(value) {
   const {snapshot,identityClaim,decisionEvidence,productStructure,sourceResultItem,eventFenceDigest}=value;
   const series=identityClaim?.contentProfile==='series';
-  const jav=identityClaim?.contentProfile==='jav',profile=jav?'jav':series?'series':'movie';
+  const usAdult=identityClaim?.contentProfile==='western_adult',jav=identityClaim?.contentProfile==='jav',profile=usAdult?'western_adult':jav?'jav':series?'series':'movie';
   const seasonNumber=series?frozenSeriesSeasonNumber(snapshot):null;
   if(!snapshot?.run||snapshot.run.libraRunId!==value.libraRunId||snapshot.run.subjectId!==decisionEvidence?.subjectId||
-      identityClaim?.contentProfile!==profile||identityClaim.claimKind!==(jav?'jav_code':series?'series_season':'movie_title')||
+      identityClaim?.contentProfile!==profile||identityClaim.claimKind!==(usAdult?'western_temporary':jav?'jav_code':series?'series_season':'movie_title')||
       (series&&canonicalDigest(identityClaim)!==canonicalDigest(snapshot.candidateIdentityClaim))||
       productStructure?.subjectId!==snapshot.run.subjectId||productStructure.structureKind!==(series?'season':'single')||
       (series&&canonicalDigest(productStructure.episodeClaims)!==canonicalDigest(snapshot.episodeClaims))||
@@ -69,7 +77,8 @@ function buildProductIdentityCommitBundle(value) {
   const displayTitle=String(fact.displayTitle||'').trim();
   if(!displayTitle)fail('Resolved Product Identity does not carry a provider display title.');
   const displayEntries=[{key:'title',value:displayTitle},
-    {key:jav?'jav_code':series?'tmdb_series_id':'tmdb_movie_id',value:fact.providerKey}];
+    {key:usAdult?'internal_identity':jav?'jav_code':series?'tmdb_series_id':'tmdb_movie_id',value:fact.providerKey}];
+  if(usAdult){displayEntries.push({key:'original_file_name',value:sourceResultItem.result.originalName.originalFileName},{key:'original_file_name_digest',value:sourceResultItem.result.originalName.provenanceDigest});}
   if(series)displayEntries.push({key:'season_number',value:seasonNumber});
   const originalTitle=typeof fact.originalTitle==='string'?fact.originalTitle.trim():'';
   if(originalTitle&&originalTitle!==displayTitle)displayEntries.push({key:'original_title',value:originalTitle});
@@ -80,7 +89,7 @@ function buildProductIdentityCommitBundle(value) {
   if(edition)displayEntries.push({key:'edition',value:edition});
   const resolvedProductIdentity=buildResolvedProductIdentity({producerRef:'libra.product_identity.resolve@1',
     basisDigest:decisionEvidence.digest,observedAtMs:0,subjectId:snapshot.run.subjectId,structureKind:series?'season':'single',contentProfile:profile,
-    identityKind:jav?'jav_code':series?'tmdb_series_season':'tmdb_movie',providerIdentities:[{provider:jav?'jav':'tmdb',namespace:jav?'jav_code':series?'tmdb_series':'tmdb_movie',providerKey:fact.providerKey,seasonNumber}],
+    identityKind:usAdult?'internal_identity':jav?'jav_code':series?'tmdb_series_season':'tmdb_movie',providerIdentities:[{provider:usAdult?'internal':jav?'jav':'tmdb',namespace:usAdult?'internal_identity':jav?'jav_code':series?'tmdb_series':'tmdb_movie',providerKey:fact.providerKey,seasonNumber}],
     exactSeasonContinuityClaims:series?[buildProviderSeasonContinuityClaim(fact,sourceResultItem.result.observationDigest)]:[],displayEntries,
     ...(jav?{javSelectionFence:sourceResultItem.result.javSelectionFence,javSourceQualification:{sourceSnapshot:sourceResultItem.result.sourceSnapshot,
       sourceOrdinal:sourceResultItem.result.sourceOrdinal,observation:sourceResultItem.result.qualificationObservation}}:{})});
