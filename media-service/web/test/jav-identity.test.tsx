@@ -85,3 +85,13 @@ it('discards an expired proof and requires a new query before confirmation',asyn
   await query();await screen.findByLabelText('影片预览');fireEvent.click(screen.getByRole('button',{name:'确认影片并继续整理'}));await waitFor(()=>expect(choose).toHaveBeenCalledTimes(2));
   expect(lookup).toHaveBeenCalledTimes(2);expect(choose.mock.calls[1][1].previewId).toBe('fresh-preview');expect(choose.mock.calls[1][2]).not.toBe(choose.mock.calls[0][2]);
 });
+it('does not report unconfigured JAV stations or a zero count when the read fails',async()=>{
+  const state={configured:false,configRevision:0,endpoint:null} as IntegrationState;
+  const read=vi.spyOn(helixAdminApi,'getIntegration').mockRejectedValue(new Error('offline'));
+  render(<JavSourcesSettings onUnauthorized={vi.fn()}/>);await screen.findByRole('alert');
+  expect(screen.getByText('状态读取失败')).toBeVisible();expect(screen.getAllByText('状态未知')).toHaveLength(8);
+  expect(screen.queryByText('0 / 8 已启用')).not.toBeInTheDocument();expect(screen.queryAllByText('未启用')).toHaveLength(0);
+  expect(screen.getByRole('button',{name:'一键测试并启用'})).toBeDisabled();
+  read.mockResolvedValue(state);fireEvent.click(screen.getByRole('button',{name:'重新读取'}));
+  await screen.findByText('0 / 8 已启用');expect(screen.getByRole('button',{name:'一键测试并启用'})).toBeEnabled();
+});

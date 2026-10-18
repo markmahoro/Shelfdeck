@@ -33,12 +33,13 @@ export function javConnectionError(cause:unknown) {
 export default function JavSourcesSettings({onUnauthorized}:{onUnauthorized:()=>void}) {
   const [states,setStates]=useState<Record<string,IntegrationState>>({}),[results,setResults]=useState<Record<string,string>>({});
   const [loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState('');
+  const [readFailed,setReadFailed]=useState(false);
   const generation=useRef(0),mounted=useRef(true);
   async function load() {
-    setLoading(true);setError('');setResults({});
+    setLoading(true);setReadFailed(false);setStates({});setError('');setResults({});
     try {const values=await Promise.all(SOURCES.map(async s=>[s.id,await helixAdminApi.getIntegration('jav-'+s.id)] as const));
       if(mounted.current)setStates(Object.fromEntries(values));
-    }catch(cause){if(mounted.current){if(cause instanceof AdminApiError&&cause.status===401)onUnauthorized();else setError('资料来源读取失败，请重新读取。');}}
+    }catch(cause){if(mounted.current){setReadFailed(true);if(cause instanceof AdminApiError&&cause.status===401)onUnauthorized();else setError('资料来源读取失败，请重新读取。');}}
     finally{if(mounted.current)setLoading(false);}
   }
   useEffect(()=>{mounted.current=true;void load();return()=>{mounted.current=false;generation.current++;};},[onUnauthorized]);
@@ -71,16 +72,16 @@ export default function JavSourcesSettings({onUnauthorized}:{onUnauthorized:()=>
     finally{if(mounted.current)setBusy(false);}
   }
   return <section className="settings-card" aria-labelledby="jav-sources-title">
-    <header className="settings-card-head"><h2 id="jav-sources-title">JAV 资料来源</h2><span>{SOURCES.filter(s=>states[s.id]?.configured).length} / {SOURCES.length} 已启用</span></header>
+    <header className="settings-card-head"><h2 id="jav-sources-title">JAV 资料来源</h2><span>{loading?'正在读取…':readFailed?'状态读取失败':`${SOURCES.filter(s=>states[s.id]?.configured).length} / ${SOURCES.length} 已启用`}</span></header>
     <div className="settings-card-body">
       <div className="settings-card-actions"><Button variant="primary" disabled={loading||busy||SOURCES.some(s=>!states[s.id])} onClick={()=>void connectAll()}>{busy?'正在处理…':'一键测试并启用'}</Button><Button disabled={loading||busy} onClick={()=>void load()}>重新读取</Button></div>
-      {error&&<p role="alert">{error}</p>}
+      {error&&<p className="form-error" role="alert">{error}</p>}
       <ul className="jav-source-list" aria-label="JAV 资料站">
-        {SOURCES.map(source=><li key={source.id}>
+        {SOURCES.map(source=><li key={source.id} className="ui-card">
           <div><strong>{javSourceLabel(source.id)}</strong><small>{source.scope}</small></div>
           <span role="status" className="ui-state" data-state={results[source.id]
             ?results[source.id]==='正在验证…'?'running':results[source.id]==='已验证并启用'?'completed':results[source.id]==='已停用'?'unknown':'failed'
-            :states[source.id]?.configured?'completed':'unknown'}>{results[source.id]||(loading?'正在读取…':states[source.id]?.configured?'已启用':'未启用')}</span>
+            :states[source.id]?.configured?'completed':'unknown'}>{results[source.id]||(loading?'正在读取…':readFailed?'状态未知':states[source.id]?.configured?'已启用':'未启用')}</span>
           {states[source.id]?.configured&&<Button disabled={busy||loading} aria-label={`停用 ${javSourceLabel(source.id)}`} onClick={()=>void disconnect(source.id)}>停用</Button>}
         </li>)}
       </ul>

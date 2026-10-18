@@ -39,3 +39,23 @@ test('one global proxy and bulk JAV activation retain partial failures and suppo
   const dimensions=await page.evaluate(()=>({viewport:innerWidth,content:document.documentElement.scrollWidth}));expect(dimensions.content).toBeLessThanOrEqual(dimensions.viewport);
   await page.screenshot({path:testInfo.outputPath('network-jav-success.png'),fullPage:true});
 });
+
+test('failed settings reads stay unknown and can be retried without claiming disabled sources',async({page},testInfo)=>{
+  let failed=true;
+  await page.route('**/v1/**',async route=>{
+    const p=new URL(route.request().url()).pathname;
+    if(p==='/v1/admin/runtime')return route.fulfill({json:{mode:'running',desiredMode:'running',revision:1,activity:{}}});
+    if(p.includes('/settings/integrations/')){
+      if(failed)return route.fulfill({status:503,json:{error:{code:'UNAVAILABLE',message:'Unavailable'}}});
+      return route.fulfill({json:{configured:false,configRevision:0,settings:{}}});
+    }
+    return route.fulfill({json:{items:[],counts:{},nextCursor:null}});
+  });
+  await page.goto('/settings');const network=page.getByRole('region',{name:'网络代理',exact:true}),jav=page.getByRole('region',{name:'JAV 资料来源',exact:true});
+  await expect(network.getByText('读取失败',{exact:true})).toBeVisible();await expect(jav.getByText('状态读取失败',{exact:true})).toBeVisible();
+  await expect(jav.getByText('状态未知',{exact:true})).toHaveCount(8);await expect(jav.getByText('0 / 8 已启用')).toHaveCount(0);
+  await page.screenshot({path:testInfo.outputPath('network-jav-read-failure.png'),fullPage:true});
+  failed=false;await network.getByRole('button',{name:'重新读取'}).click();await jav.getByRole('button',{name:'重新读取'}).click();
+  await expect(network.getByText('未配置',{exact:true})).toBeVisible();await expect(jav.getByText('0 / 8 已启用',{exact:true})).toBeVisible();
+  await expect(jav.getByRole('button',{name:'一键测试并启用'})).toBeEnabled();
+});

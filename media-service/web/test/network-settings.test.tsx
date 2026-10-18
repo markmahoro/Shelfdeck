@@ -25,3 +25,11 @@ it('rejects invalid proxies, retains failed drafts and can explicitly save direc
   fireEvent.change(screen.getByLabelText('网络方式'),{target:{value:'direct'}});fireEvent.click(screen.getByRole('button',{name:'保存网络设置'}));
   await screen.findByText('全站直连');expect(save.mock.calls[1][1]).toMatchObject({settings:{proxyServer:''}});
 });
+it('shows unknown state after a failed read and restores real state on retry',async()=>{
+  const read=vi.spyOn(helixAdminApi,'getIntegration').mockRejectedValue(new Error('offline'));
+  render(<NetworkSettings onUnauthorized={vi.fn()}/>);
+  await screen.findByRole('alert');expect(screen.getByText('读取失败',{exact:true})).toBeVisible();
+  expect(screen.queryByText('未配置',{exact:true})).not.toBeInTheDocument();expect(screen.queryByText('全站直连')).not.toBeInTheDocument();
+  read.mockResolvedValue(initial);fireEvent.click(screen.getByRole('button',{name:'重新读取'}));
+  await screen.findByText('未配置',{exact:true});expect(screen.getByRole('button',{name:'保存网络设置'})).toBeEnabled();
+});
