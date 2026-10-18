@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_us_recommendation_groups/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_us_recommendation_groups",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "cycle_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "group_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "representative_source_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "coverage_count",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "quality_score",
+        "logicalType": "REAL",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "rank_pass_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 7,
+        "name": "rank_coverage_count",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "rank_representative_source_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 9,
+        "name": "rank_quality_score",
+        "logicalType": "REAL",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "cycle_id",
+      "group_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "cycle_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "cycle_id",
+        "group_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`INDEX(cycle_id,group_id)`",
+      "`FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`",
+      "来源代表必须由People Owner重验属于同cycle的Observation",
+      "coverage为cycle内已归组来源数，rank计数只属于指定版本排名pass重验后的有效来源",
+      "清晰度相同时按sourceId稳定选图",
+      "revision CAS，禁止把该内部分组当作Person合并"
+    ],
+    "rawContract": {
+      "columns": "`cycle_id PK FK, group_id PK, representative_source_id, coverage_count INTEGER, quality_score REAL, rank_pass_id NULL, rank_coverage_count INTEGER, rank_representative_source_id NULL, rank_quality_score REAL NULL, revision INTEGER`",
+      "constraints": "`INDEX(cycle_id,group_id)`；`FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`；来源代表必须由People Owner重验属于同cycle的Observation；coverage为cycle内已归组来源数，rank计数只属于指定版本排名pass重验后的有效来源；清晰度相同时按sourceId稳定选图；revision CAS，禁止把该内部分组当作Person合并"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 9675,
+      "lineDigest": "797868e30799a3757a89836596433f872e18582c5b1c11d4da59c7b8e9823979"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "cycle_id"
+        ],
+        "targetTable": "people_us_recommendation_cycles",
+        "targetColumns": [
+          "cycle_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

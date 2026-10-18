@@ -5,6 +5,9 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createMediaCastReferenceQuery } = require('./media-cast-reference-query');
 const { createPeopleStore } = require('../persistence/people-store');
 const { createCandidateDraft } = require('../model/people-store-contracts');
+const {createUsAdultRecommendationStore}=require('../persistence/us-adult-recommendation-store');
+const {createUsAdultRecommendationCoordinator}=require('./us-adult-recommendation-coordinator');
+const {createUsAdultRecommendationQuery}=require('./us-adult-recommendation-query');
 
 const PEOPLE_CANDIDATE_DRAFT_SCHEMA = 'helix://contracts/types/PeopleCandidateDraft/v1';
 
@@ -38,6 +41,9 @@ function createPeopleProcessServices(options) {
   const now = options.now || Date.now;
   const store = options.peopleStore || createPeopleStore(options);
   const evidenceProjection = options.onDeckPersonEvidenceProjection;
+  const recommendationStore=options.recommendationPorts?createUsAdultRecommendationStore(options):null,
+    recommendations=recommendationStore?createUsAdultRecommendationCoordinator({store:recommendationStore,...options.recommendationPorts}):null,
+    recommendationQuery=recommendationStore?createUsAdultRecommendationQuery({store:recommendationStore,...options.recommendationPorts,now}):null;
 
   function alreadyKnown(evidence) {
     if(evidence.personId && store.getPerson(evidence.personId)?.libraryKind === libraryForProfile(evidence.contentProfile))return true;
@@ -153,6 +159,8 @@ function createPeopleProcessServices(options) {
     reconcileNfoEntry,
     mediaCastReferenceQuery:createMediaCastReferenceQuery(store),
     store,
+    recommendations,
+    recommendationQuery,
     listPage,
     reconcile,
     registerPerson,

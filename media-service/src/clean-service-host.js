@@ -1168,6 +1168,11 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_ROUTING_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_ROUTING_MANUAL_INPUT_INVALID') status = 400;
   else if (error.code === 'FORMATION_SUBJECT_NOT_FOUND') status = 404;
+  else if(error.code==='US_ADULT_RECOMMENDATION_SOURCE_STALE')status=409;
+  else if(error.code==='PEOPLE_RECOMMENDATION_INPUT_INVALID')status=400;
+  else if(error.code==='PEOPLE_RECOMMENDATION_NOT_FOUND')status=404;
+  else if(['PEOPLE_RECOMMENDATION_REVISION_CONFLICT','PEOPLE_RECOMMENDATION_WINDOW_CLOSED'].includes(error.code))status=409;
+  else if(['PEOPLE_RECOMMENDATION_RECORD_INVALID','PEOPLE_RECOMMENDATION_EVIDENCE_INVALID'].includes(error.code))status=500;
   else if (['PEOPLE_IMAGE_SEARCH_INPUT_INVALID', 'PEOPLE_IMAGE_SELECTION_INVALID', 'PEOPLE_REGISTRATION_INPUT_INVALID', 'PEOPLE_IMAGE_UPLOAD_INVALID', 'PEOPLE_IMAGE_BYTES_INVALID','PEOPLE_PROFILE_INPUT_INVALID'].includes(error.code)) status = 400;
   else if (['PEOPLE_IMAGE_SELECTION_STALE', 'PEOPLE_IMAGE_SOURCE_CHANGED', 'PEOPLE_LIBRARY_READ_ONLY', 'PEOPLE_IMAGE_OPERATION_COMMAND_CONFLICT', 'PEOPLE_IMAGE_OPERATION_STALE','PEOPLE_PROFILE_REVISION_CONFLICT','PEOPLE_REFERENCE_IMAGE_EXISTS','PEOPLE_REFERENCE_IMAGE_LIMIT','PEOPLE_REFERENCE_PROJECTION_TOO_LARGE','PEOPLE_REFERENCE_LIBRARY_CHANGED'].includes(error.code)) status = 409;
   else if (['PEOPLE_IMAGE_SOURCE_INVALID', 'PEOPLE_IMAGE_SOURCE_UNAVAILABLE'].includes(error.code)) status = 502;
@@ -1250,7 +1255,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 156) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 158) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1678,6 +1683,9 @@ async function createCleanServiceHost(options) {
   });
   procurementExecution = createHelixExecutionRuntime({
     createUsAdultAnalysisPort,
+    createUsAdultRecommendationImagePort:sourceQuery=>require('./clean-us-adult-recommendation-image-port').createCleanUsAdultRecommendationImagePort({
+      sourceQuery,workspaceProductPort,
+    }),
     peopleImagePort, peopleReferencePreparation,
     readSelectedPersonImage: token => platformIntegrations.readSelectedPersonImage(token),
     afterRegistrationCommit: options.afterPeopleRegistrationCommit,
@@ -2052,6 +2060,8 @@ async function createCleanServiceHost(options) {
     now: options.now || Date.now,
   });
   const peopleAdmin = Object.freeze({
+    recommendations:()=>procurementExecution.people.recommendationQuery.current(),
+    recommendationImage:id=>procurementExecution.people.recommendationQuery.image(id),
     searchImages: name => platformIntegrations.searchPeopleImages(name),
     previewImage: token => platformIntegrations.readSelectedPersonImage(token),
     register(body, actor) {

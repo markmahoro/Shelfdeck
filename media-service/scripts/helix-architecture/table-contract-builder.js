@@ -315,6 +315,9 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'people_us_recommendation_cycles.progress_json':16*1024,
+  'people_us_recommendation_sources.observation_json':128*1024,
+  'people_us_recommendation_publications.snapshot_json':1024*1024,
   'libra_us_adult_reference_pages.page_json':1024*1024,
   'libra_us_adult_actor_choice_intents.record_json':256*1024,
   'libra_us_adult_match_completions.completion_json':256*1024,
@@ -481,7 +484,7 @@ function parseColumns(columnsContract, tableId = null) {
     const match = token.match(/^([a-z][a-z0-9_]*)(?:\(([^)]*)\))?(?:\s+(.+))?$/);
     if (!match) throw new Error(`Unsupported column token: ${token}`);
     const qualifiers = match[3] ? match[3].split(/\s+/) : [];
-    const declaredLogicalType = qualifiers.find((value) => value === 'INTEGER') || null;
+    const declaredLogicalType = qualifiers.find((value) => ['INTEGER','REAL'].includes(value)) || null;
     const fixedPrimaryKey = qualifiers.find((value) => /^PK\([a-z][a-z0-9_]*\)$/.test(value)) || null;
     const splitPrimaryForeignKey = qualifiers.includes('PK') && qualifiers.includes('FK');
     const marker = fixedPrimaryKey ? 'PK' : (splitPrimaryForeignKey ? 'PK/FK' :

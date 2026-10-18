@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-18 US Adult本地开发检查点：正式CPU初次生产和暂存原Run确认已贯通；推荐的People维护构建、跨周cursor、最多五人快照及只读列表/JPEG已接正式Host并有真实模型证据。当前221表/158路由，60项局部组合和新增维护Host通过；推荐认领/新建同步A、推荐UI、Arca演员刷新、隔离副本升级及最终平台/UI资格仍未完成，不是开发交付或生产发布。详见唯一活动Phase及US_ADULT_LOCAL_IMPLEMENTATION_20261018 Evidence；未操作生产。
+
 2026-10-18 US Adult 本地开发开工：本地/远端 main 与 GitHub 默认分支已统一至 `ac278f33e`，`codex/us-adult` 从该最新基线重建。
 仅保留主目录 main、本线程分支两个 checkout；三个旧 worktree 的 Git 登记已移除，忽略资料移存仓库外，f8e1 留有 Windows 占用的空目录。
 旧 master/JAV/proxy 分支已合并并删除，历史 tag 保留。[五议题决定](implementation/evidence/US_ADULT_DECISION_BASELINE_20261018.md)已冻结，当前做合同对齐；

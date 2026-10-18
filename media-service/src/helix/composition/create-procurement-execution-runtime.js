@@ -581,7 +581,11 @@ function createProcurementExecutionRuntime(options) {
     readPerceptionRating:readShelfEntryRating,readPerceptionRatings:readShelfEntryRatings,
     ensurePerceptionRatingResolution:ensureShelfEntryRatingResolution});
   peopleProcessServices=peopleImageExecution.createProcessServices({
-    ...options, now,
+    ...options, now,contractValidator,
+    recommendationPorts:typeof options.createUsAdultRecommendationImagePort==='function'?{
+      sources:libraProcessServices.usAdultRecommendationQuery,
+      images:options.createUsAdultRecommendationImagePort(libraProcessServices.usAdultRecommendationQuery),
+    }:null,
     onDeckPersonEvidenceProjection:arcaProcessServices.onDeckPersonEvidenceProjection,
     onDeckNfoPersonEvidence:arcaProcessServices.onDeckNfoPersonEvidence,
   });
@@ -1243,6 +1247,15 @@ function createProcurementExecutionRuntime(options) {
       ownerDomain:'people',reconcilerKey:'ondeck-nfo-person-evidence',
       listPage:page=>peopleProcessServices ? peopleProcessServices.listNfoPage(page) : [],
       reconcile:scope=>peopleProcessServices ? peopleProcessServices.reconcileNfoEntry(scope) : Object.freeze({kind:'unavailable'}),
+    }),Object.freeze({
+      ownerDomain:'people',reconcilerKey:'us-adult-recommendations',
+      listPage:({limit})=>{
+        const windowKey=options.maintenanceWindowKey?.();
+        return peopleProcessServices.recommendations&&windowKey?Array.from({length:Math.min(8,limit)},(_,ordinal)=>({
+          cursor:'recommendations:'+ordinal,scope:{windowKey},
+        })):[];
+      },
+      reconcile:({windowKey})=>peopleProcessServices.recommendations.reconcile(windowKey),
     }),Object.freeze({
       ownerDomain:'people',reconcilerKey:'ondeck-person-evidence',
       listPage:({cursor,limit})=>peopleProcessServices

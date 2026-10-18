@@ -19,6 +19,8 @@ function fixture(run) {
   const databasePath = path.join(root, 'shelfdeck.db');
   const now = 1700000000000;
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => now });
+  let deferred=false;
+  const cleanup=()=>{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});};
   try {
     const libraRunId = 'run-1';
     const executionBasisDigest = D('basis');
@@ -54,10 +56,11 @@ function fixture(run) {
     seed.prepare('INSERT INTO libra_run_material_members (run_material_manifest_id,ordinal,material_key,role,size_bytes,member_digest) VALUES (?,?,?,?,?,?)').run('manifest-1',0,'material-1','primary_payload',100,D('member'));
     seed.prepare('INSERT INTO platform_workspace_roots (root_id,owner_scope,root_kind,endpoint_id,mount_scope_id,mount_scope_revision,resolved_root,config_revision,capability_digest,state,root_handle_ref,snapshot_digest,updated_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(rootId,'libra','production-workspace','endpoint-1','mount-1',1,'C:\\internal-only',1,capabilityDigest,'active',rootHandleRef,snapshot.snapshotDigest,now);
     seed.close();
-    return run({ databasePath, kernel, unitOfWork:createSqliteUnitOfWork({kernel}), decision, id });
+    const result=run({ databasePath, kernel, unitOfWork:createSqliteUnitOfWork({kernel}), decision, id });
+    if(result&&typeof result.then==='function'){deferred=true;return Promise.resolve(result).finally(cleanup);}
+    return result;
   } finally {
-    kernel.close();
-    fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});
+    if(!deferred)cleanup();
   }
 }
 

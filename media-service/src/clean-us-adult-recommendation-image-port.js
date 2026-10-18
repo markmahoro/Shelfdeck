@@ -43,7 +43,7 @@ function createCleanUsAdultRecommendationImagePort(options){
       !exact(grouped,['schema','clusters'])||grouped.schema!=='shared.face-cluster-set@1'||!Array.isArray(grouped.clusters)||
       grouped.clusters.length!==source.faceClusterSetHandle.clusterCount||grouped.clusters.length<1||grouped.clusters.length>1280)
       fail('Recommendation frames, geometry and cluster index disagree.');
-    const images=frames.members.map((member,ordinal)=>{
+    frames.members.forEach((member,ordinal)=>{
       const image=frames.memberPayloads[ordinal],geometry=analysis.frameMembers[ordinal];
       if(!exact(member,['ordinal','timestampMs','contentDigest','locator'])||!exact(image,['ordinal','contentDigest','encoding','bytesBase64'])||
         member.ordinal!==ordinal||image.ordinal!==ordinal||member.locator!=='composite-member:'+ordinal||image.encoding!=='base64'||
@@ -52,7 +52,6 @@ function createCleanUsAdultRecommendationImagePort(options){
       const bytes=Buffer.from(image.bytesBase64,'base64');
       if(!bytes.length||bytes.length>10*1024*1024||bytes.toString('base64')!==image.bytesBase64||digestBytes(bytes)!==geometry.imageDigest)
         fail('Recommendation screenshot bytes changed.');
-      return bytes;
     });
     const seen=new Set(),clusterIds=new Set(),groups=grouped.clusters.map(cluster=>{
       if(!exact(cluster,['clusterId','memberOrdinals','vectors'])||typeof cluster.clusterId!=='string'||!cluster.clusterId||cluster.clusterId.length>256||
@@ -75,7 +74,7 @@ function createCleanUsAdultRecommendationImagePort(options){
         frameOrdinal:face.frameOrdinal,imageDigest:face.imageDigest,width:frame.width,height:frame.height,box:face.box,
         qualityScore:face.qualityScore,vector:face.vector},evidence=Object.freeze({...basis,evidenceDigest:canonicalDigest(basis)});
     options.sourceQuery.readSource(source);
-    return {evidence,bytes:images[face.frameOrdinal]};
+    return {evidence,bytes:Buffer.from(frames.memberPayloads[face.frameOrdinal].bytesBase64,'base64')};
   }
   return Object.freeze({
     readCandidate(source){return read(source).evidence;},

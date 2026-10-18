@@ -3183,6 +3183,66 @@ CREATE TABLE "people_registration_candidates" (
 CREATE INDEX "idx_people_registration_candidates_hot_01" ON "people_registration_candidates" ("current_state", "created_at_ms");
 CREATE UNIQUE INDEX "uidx_people_registration_candidates_partial_01" ON "people_registration_candidates" ("evidence_digest") WHERE "current_state" = 'open';
 
+CREATE TABLE "people_us_recommendation_cycles" (
+  "cycle_id" TEXT PRIMARY KEY,
+  "state" TEXT CHECK ("state" IN ('active', 'complete')),
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "progress_schema_ref" TEXT,
+  "progress_json" TEXT,
+  "progress_digest" TEXT CHECK (length("progress_digest") = 64 AND "progress_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  CHECK (json_valid("progress_json")),
+  CHECK (length(CAST("progress_json" AS BLOB)) <= 16384)
+);
+CREATE INDEX "idx_people_us_recommendation_cycles_hot_01" ON "people_us_recommendation_cycles" ("state", "cycle_id");
+
+CREATE TABLE "people_us_recommendation_groups" (
+  "cycle_id" TEXT,
+  "group_id" TEXT,
+  "representative_source_id" TEXT,
+  "coverage_count" INTEGER CHECK ("coverage_count" >= 0),
+  "quality_score" REAL,
+  "rank_pass_id" TEXT,
+  "rank_coverage_count" INTEGER CHECK ("rank_coverage_count" >= 0),
+  "rank_representative_source_id" TEXT,
+  "rank_quality_score" REAL,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  PRIMARY KEY ("cycle_id", "group_id"),
+  FOREIGN KEY ("cycle_id") REFERENCES "people_us_recommendation_cycles" ("cycle_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_people_us_recommendation_groups_hot_01" ON "people_us_recommendation_groups" ("cycle_id", "group_id");
+
+CREATE TABLE "people_us_recommendation_publications" (
+  "window_key" INTEGER PRIMARY KEY,
+  "cycle_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "snapshot_schema_ref" TEXT,
+  "snapshot_json" TEXT,
+  "snapshot_digest" TEXT CHECK (length("snapshot_digest") = 64 AND "snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  CHECK (json_valid("snapshot_json")),
+  CHECK (length(CAST("snapshot_json" AS BLOB)) <= 1048576),
+  FOREIGN KEY ("cycle_id") REFERENCES "people_us_recommendation_cycles" ("cycle_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "people_us_recommendation_sources" (
+  "cycle_id" TEXT,
+  "source_id" TEXT,
+  "libra_run_id" TEXT,
+  "group_id" TEXT,
+  "observation_schema_ref" TEXT,
+  "observation_json" TEXT,
+  "observation_digest" TEXT CHECK (length("observation_digest") = 64 AND "observation_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  PRIMARY KEY ("cycle_id", "source_id"),
+  UNIQUE ("cycle_id", "libra_run_id"),
+  CHECK (json_valid("observation_json")),
+  CHECK (length(CAST("observation_json" AS BLOB)) <= 131072),
+  FOREIGN KEY ("cycle_id") REFERENCES "people_us_recommendation_cycles" ("cycle_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_people_us_recommendation_sources_hot_01" ON "people_us_recommendation_sources" ("cycle_id", "group_id", "source_id");
+
 CREATE TABLE "perception_acquisition_commits" (
   "acquisition_commit_receipt_id" TEXT PRIMARY KEY,
   "perception_acquisition_id" TEXT,

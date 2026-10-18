@@ -14,6 +14,7 @@ function harness(run){return fixture(input=>{
     providerIdentities:[{provider:'internal',namespace:'internal_identity',providerKey:'us-adult:'+canonicalDigest({schema:'libra.us-adult-subject-identity@1',subjectId:'subject-1'})}],
     displayEntries:[{key:'title',value:'Original source'},{key:'original_file_name',value:'Original source.mkv'},
       {key:'original_file_name_digest',value:require('../../../src/helix/contracts/us-adult-presentation').originalNameProvenance('Original source.mkv').provenanceDigest}]}),db=new Database(input.databasePath);
+  let deferred=false;
   try{
     db.prepare('INSERT INTO libra_subjects(subject_id,structure_kind,content_profile,status,intake_revision) VALUES(?,?,?,?,?)').run('subject-1','single','western_adult','active',1);
     db.prepare('UPDATE libra_runs SET subject_id=? WHERE libra_run_id=?').run('subject-1','run-1');
@@ -41,7 +42,9 @@ function harness(run){return fixture(input=>{
         ...['UsAdultAnalysisBasis','FaceModelRef','ClusterParameters','SamplingPlan','PeopleReferenceLibraryPage','UsAdultPersonSnapshot','PersonReferenceProjection'].map(type=>require(contracts+'domain-types/'+type+'/v1/schema.json')),
         ...['PhysicalMaterialReadHandle','PhysicalMaterialIdentity'].map(type=>require(contracts+'types/'+type+'/'+(type==='PhysicalMaterialIdentity'?'v2':'v1')+'/schema.json'))]}),
       options={schemaManifest,unitOfWork:input.unitOfWork,contractValidator};
-    return run({...input,db,pages,basis,options,snapshot,sourceHandle,sourceProbeRecord});
-  }finally{db.close();}
+    const result=run({...input,db,pages,basis,options,snapshot,sourceHandle,sourceProbeRecord});
+    if(result&&typeof result.then==='function'){deferred=true;return Promise.resolve(result).finally(()=>db.close());}
+    return result;
+  }finally{if(!deferred)db.close();}
 });}
 module.exports=Object.freeze({harness});

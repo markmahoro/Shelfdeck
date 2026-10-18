@@ -1,0 +1,168 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_us_recommendation_sources/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_us_recommendation_sources",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "cycle_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "source_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "group_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 5,
+        "name": "observation_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "observation_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "observation_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "cycle_id",
+      "source_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "cycle_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "cycle_id",
+        "libra_run_id"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "cycle_id",
+        "group_id",
+        "source_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "observation_json",
+        "schemaRefColumn": "observation_schema_ref",
+        "maxBytes": 131072,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(cycle_id,libra_run_id)`",
+      "`INDEX(cycle_id,group_id,source_id)`",
+      "`FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`",
+      "Observation schema固定`people.us-adult-recommendation-observation@1`，closed字段`schema,source,image,observationDigest`，其中source严格为UsAdultRecommendationSource，image严格为版本化受控图片Evidence",
+      "最多`128 KiB`并校验JCS digest",
+      "group_id只允许首次分配，不产生影片Actor关系",
+      "libra_run_id只是公开来源引用，不创建跨Owner FK"
+    ],
+    "rawContract": {
+      "columns": "`cycle_id PK FK, source_id PK, libra_run_id, group_id NULL, observation_schema_ref, observation_json, observation_digest, created_at_ms`",
+      "constraints": "`UNIQUE(cycle_id,libra_run_id)`；`INDEX(cycle_id,group_id,source_id)`；`FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`；Observation schema固定`people.us-adult-recommendation-observation@1`，closed字段`schema,source,image,observationDigest`，其中source严格为UsAdultRecommendationSource，image严格为版本化受控图片Evidence；最多`128 KiB`并校验JCS digest；group_id只允许首次分配，不产生影片Actor关系；libra_run_id只是公开来源引用，不创建跨Owner FK"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 9674,
+      "lineDigest": "fbf043741ca6eb484906f21dc95ecc1d37540c8513f1f1ac722113ddaebac175"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "cycle_id"
+        ],
+        "targetTable": "people_us_recommendation_cycles",
+        "targetColumns": [
+          "cycle_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

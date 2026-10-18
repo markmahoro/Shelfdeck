@@ -17,12 +17,12 @@ async function fixture(t,{visibleFace,registerActor=visibleFace}){
   assert.equal(encoded.status,0,encoded.stderr);
   const secretRoot='us-formation-host-isolated-secret-0123456789abcdef',errors=[],
     initialized=initializeCleanData({dataDir,secretRoot,confirmation:'INITIALIZE_HELIX_CLEAN_V1'});
-  const epoch=Date.parse('2026-10-25T12:00:00+08:00'),clockStarted=Date.now();
+  const epoch=Date.parse('2026-10-25T12:00:00+08:00'),clockStarted=Date.now();let clockOffset=0;
   let host,db,lastRequestError,unitOfWork;
   t.after(async()=>{await host?.close();db?.close();assert.equal(path.dirname(root),path.resolve(os.tmpdir()));fs.rmSync(root,{recursive:true,force:true});});
   const start=()=>createCleanServiceHost({dataDir,adminDistDir,secretRoot,faceModelRoot:process.env.SHELFDECK_FACE_MODEL_ROOT,
     unitOfWorkDecorator:value=>{unitOfWork=value;return value;},
-    now:()=>epoch+Date.now()-clockStarted,onRequestError:error=>{lastRequestError=error;},
+    now:()=>epoch+Date.now()-clockStarted+clockOffset,onRequestError:error=>{lastRequestError=error;},
     onExecutionRuntimeError:error=>errors.push({code:error.code,message:error.message})});
   host=await start();db=new Database(path.join(dataDir,'shelfdeck.db'));
   const request=async(method,url,payload)=>{
@@ -77,7 +77,10 @@ async function fixture(t,{visibleFace,registerActor=visibleFace}){
       images=require('../../src/clean-us-adult-recommendation-image-port').createCleanUsAdultRecommendationImagePort({sourceQuery:query,workspaceProductPort});
     return {query,images};
   }
-  return {db,target,request,wait,actor,readFrameEvidence,recommendations,getPerson:()=>person,diagnostics,restart:async()=>{await host.close();host=await start();}};
+  return {db,target,request,wait,actor,readFrameEvidence,recommendations,getPerson:()=>person,diagnostics,
+    async requestImage(url){const response=await host.inject({method:'GET',url,headers:{'x-api-key':initialized.adminApiKey}});
+      assert.equal(response.statusCode,200,response.body);return {bytes:response.rawPayload,headers:response.headers};},
+    setTime:value=>{clockOffset=Date.parse(value)-epoch-(Date.now()-clockStarted);},restart:async()=>{await host.close();host=await start();}};
 }
 test('real Host retains an unmatched film in secondary across restart and confirms its original Run before actor-bound on-deck',{timeout:180000,skip},async t=>{
   const h=await fixture(t,{visibleFace:false});
@@ -115,6 +118,7 @@ test('real Host selects the highest CPU match and produces one actor without man
 });
 test('real empty-library Host supplies a verified recommendation photograph across restart and invalidates it after source actor confirmation',{timeout:180000,skip},async t=>{
   const h=await fixture(t,{visibleFace:true,registerActor:false});
+  assert.deepEqual((await h.request('GET','/v1/admin/people/recommendations')).items,[]);
   await h.wait(()=>h.db.prepare('SELECT count(*) n FROM libra_us_adult_match_completions').get().n===1&&h.db.prepare('SELECT count(*) n FROM libra_workshop_placements').get().n===1);
   let ports=h.recommendations();
   const pageQuery={schemaRef:'helix://contracts/domain-types/UsAdultRecommendationPageQuery/v1',schemaVersion:1,cursor:null,limit:32},
@@ -124,8 +128,20 @@ test('real empty-library Host supplies a verified recommendation photograph acro
     metadata=await sharp(image.bytes).metadata();
   assert.equal(candidate.vector.length,128);assert.ok(candidate.clusterFaceCount>=20);assert.equal(metadata.format,'jpeg');
   assert.ok(metadata.width>40&&metadata.height>40);assert.equal(h.db.prepare('SELECT count(*) n FROM people_persons').get().n,0);
+  h.setTime('2026-10-31T03:00:01+08:00');
+  await h.wait(()=>h.db.prepare('SELECT count(*) n FROM people_us_recommendation_publications').get().n===1);
+  const publication=JSON.parse(h.db.prepare('SELECT snapshot_json FROM people_us_recommendation_publications').get().snapshot_json);
+  assert.equal(publication.items.length,1);assert.equal(publication.items[0].representative.source.sourceId,source.sourceId);
+  assert.deepEqual((await h.request('GET','/v1/admin/people/recommendations')).items,[]);
   await h.restart();ports=h.recommendations();assert.deepEqual(ports.query.readSource(source),source);
   assert.equal(ports.images.readCandidate(source).evidenceDigest,candidate.evidenceDigest);
+  h.setTime('2026-10-31T09:00:01+08:00');
+  let runtime;const deadline=Date.now()+10000;
+  do{await new Promise(resolve=>setTimeout(resolve,100));runtime=await h.request('GET','/v1/admin/runtime');}while(!runtime.normalSupplyAllowed&&Date.now()<deadline);
+  assert.equal(runtime.normalSupplyAllowed,true);
+  const cards=await h.request('GET','/v1/admin/people/recommendations');assert.equal(cards.items.length,1);
+  const photograph=await h.requestImage(cards.items[0].imageUrl);assert.equal((await sharp(photograph.bytes).metadata()).format,'jpeg');
+  assert.match(photograph.headers['cache-control'],/no-store/);
   const actor=await h.actor(),current=await h.request('GET','/v1/admin/formation/runs/'+source.libraRunId+'/actor-selection');
   await h.request('POST','/v1/admin/formation/runs/'+source.libraRunId+'/actions/choose-us-adult-actor',{
     idempotencyKey:'source-actor-confirmation',expectedRunStateRevision:current.expectedRunStateRevision,expectedChoiceRevision:current.expectedChoiceRevision,

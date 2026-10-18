@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_us_recommendation_publications/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_us_recommendation_publications",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "window_key",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "cycle_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "snapshot_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "snapshot_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "snapshot_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "window_key"
+    ],
+    "declaredForeignKeyColumns": [
+      "cycle_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "snapshot_json",
+        "schemaRefColumn": "snapshot_schema_ref",
+        "maxBytes": 1048576,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`",
+      "window_key是本维护窗口固定endAtMs",
+      "Snapshot schema固定`people.us-adult-recommendation-publication@1`，closed字段`schema,windowKey,cycleId,policy,items`，items最多五项完整内部Group Snapshot，最多`1 MiB`并校验JCS digest",
+      "revision CAS，仅本窗口维护准入可更新尚未生效Publication",
+      "GET只读，不能启动扫描或发布"
+    ],
+    "rawContract": {
+      "columns": "`window_key PK INTEGER, cycle_id FK, revision INTEGER, snapshot_schema_ref, snapshot_json, snapshot_digest, updated_at_ms`",
+      "constraints": "`FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`；window_key是本维护窗口固定endAtMs；Snapshot schema固定`people.us-adult-recommendation-publication@1`，closed字段`schema,windowKey,cycleId,policy,items`，items最多五项完整内部Group Snapshot，最多`1 MiB`并校验JCS digest；revision CAS，仅本窗口维护准入可更新尚未生效Publication；GET只读，不能启动扫描或发布"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 9676,
+      "lineDigest": "b7a9ecd7227573301f03c971f6ecbd07d8136025a7f5adca4f1d4ee4d97cbb6e"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "cycle_id"
+        ],
+        "targetTable": "people_us_recommendation_cycles",
+        "targetColumns": [
+          "cycle_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}
