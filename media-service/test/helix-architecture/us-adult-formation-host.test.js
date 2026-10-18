@@ -54,13 +54,20 @@ async function fixture(t,{visibleFace}){
   await request('PATCH','/v1/admin/routing/material-fields/us-field',{idempotencyKey:'route',fieldId:'us-field',expectedPolicyId:null,expectedRevision:0,
     policy:{routingPolicyId:'us-route',mode:'direct',targets:[{shelfId:'us-shelf',rank:1,matchExpression:{nodeKind:'always'}}]}});
   await request('POST','/v1/admin/material-fields/us-field/actions/observe',{idempotencyKey:'observe',fieldId:'us-field',expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
-  return {db,target,request,wait,actor,getPerson:()=>person,diagnostics,restart:async()=>{await host.close();host=await start();}};
+  function readFrameEvidence(){
+    const material=db.prepare("SELECT workspace_id,relative_path FROM fx_workspace_materials WHERE relative_path LIKE 'analysis/embeddings/%'").get(),
+      workspaceRoot=db.prepare("SELECT resolved_root FROM platform_workspace_roots WHERE owner_scope='libra'").get();
+    return require('../../src/helix/contracts/us-adult-frame-geometry').restoreFrameAnalysis(JSON.parse(fs.readFileSync(
+      path.join(workspaceRoot.resolved_root,material.workspace_id,...material.relative_path.split('/')),'utf8')));
+  }
+  return {db,target,request,wait,actor,readFrameEvidence,getPerson:()=>person,diagnostics,restart:async()=>{await host.close();host=await start();}};
 }
 test('real Host retains an unmatched film in secondary across restart and confirms its original Run before actor-bound on-deck',{timeout:180000,skip},async t=>{
   const h=await fixture(t,{visibleFace:false});
   await h.wait(()=>h.db.prepare('SELECT count(*) n FROM libra_us_adult_match_completions').get().n===1&&h.db.prepare('SELECT count(*) n FROM libra_workshop_placements').get().n===1);
   const run=h.db.prepare('SELECT libra_run_id,subject_id FROM libra_runs').get(),completion=JSON.parse(h.db.prepare('SELECT completion_json FROM libra_us_adult_match_completions').get().completion_json);
   assert.equal(completion.winner,null);assert.equal(completion.detectedFaceCount,0);assert.equal(h.db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,0);
+  const geometry=h.readFrameEvidence();assert.equal(geometry.frameMembers.length,20);assert.equal(geometry.detectedFaceCount,0);
   const waitingView=await h.request('GET','/v1/admin/formation/'+run.subject_id);
   assert.equal(waitingView.classification,'attention_required');assert.equal(waitingView.productIdentityIssue.contentProfile,'western_adult');
   assert.equal(waitingView.nextAction.label,'需要确认演员');

@@ -4,7 +4,7 @@ const {canonicalDigest}=require('../contracts/canonical-json');
 const {faceModelReference}=require('../contracts/us-adult-face-model');
 const {bestActorMatch}=require('./local-face-math');
 const pack=require('../contracts/us-adult-face-model-pack.json');
-const ANALYSIS_VERSION='us-adult-frame-analysis@1';
+const {FRAME_ANALYSIS_VERSION:ANALYSIS_VERSION}=require('../contracts/us-adult-frame-geometry');
 function uniformFrameTimes(durationMs,count=20){
   if(!Number.isSafeInteger(durationMs)||durationMs<1||!Number.isSafeInteger(count)||count<1||count>20)
     throw Object.assign(new TypeError('Frame sampling requires a positive duration and 1..20 points.'),{code:'US_ADULT_SAMPLING_INVALID'});

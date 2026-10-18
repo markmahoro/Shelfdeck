@@ -14,7 +14,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.13",
-        "line": 10569,
+        "line": 10572,
         "lineDigest": "a5f366f08e4b9b6012657fa5f8b69ddf661f6be0c05135b837c5be2e693b6153"
       }
     },
@@ -27,7 +27,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.14",
-        "line": 10586,
+        "line": 10589,
         "lineDigest": "c676c7178e8b473e53bde4b2ef443161e1a6b892a01f53427e2cf24afd5ea0cc"
       }
     },
@@ -40,7 +40,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.14",
-        "line": 10587,
+        "line": 10590,
         "lineDigest": "81d0f07a966a5fbfe8d73652f33c43a34d28f516c2b0db5f27ba074b49e3165e"
       }
     },
@@ -53,7 +53,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.14",
-        "line": 10588,
+        "line": 10591,
         "lineDigest": "685bdb0074fce95a1b9cc4ee9b06b7383b3561bb57c249b4f206016357f636f5"
       }
     },
@@ -66,7 +66,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.14",
-        "line": 10589,
+        "line": 10592,
         "lineDigest": "c2c72913fb62f7a4f34313e68b475a5ae63b37aae17bec54b0fa5cdd543576a3"
       }
     },
@@ -79,7 +79,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.14",
-        "line": 10590,
+        "line": 10593,
         "lineDigest": "5b802677e93c5bf5f0716d5c3f0949d0940337b1c0b04be2e598dec0a2270a44"
       }
     },
@@ -92,7 +92,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.14",
-        "line": 10591,
+        "line": 10594,
         "lineDigest": "0f57cc3035a38feb0a59cf729c6f3dd4eea9738ad70fb6ae128de208499621e8"
       }
     },
@@ -105,7 +105,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.14",
-        "line": 10592,
+        "line": 10595,
         "lineDigest": "4ae0cbd3463df67c1ae83084d30ae44a5dd54aa9fedd41c732561a07ffe2343b"
       }
     },
@@ -118,7 +118,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.14",
-        "line": 10593,
+        "line": 10596,
         "lineDigest": "beced2784c1e277b20c4d5547149519e4cba307751d901ee3df5f29d59061d8c"
       }
     }

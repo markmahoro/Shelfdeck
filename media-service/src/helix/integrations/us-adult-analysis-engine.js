@@ -8,6 +8,7 @@ const {normalizeVector} = require('./local-face-math');
 const {createUsAdultFrameAnalysis} = require('./us-adult-frame-analysis');
 const {renderUsAdultPoster} = require('./us-adult-poster-renderer');
 const pack = require('../contracts/us-adult-face-model-pack.json');
+const {frameGeometry}=require('../contracts/us-adult-frame-geometry');
 
 function fail(code, message) { throw Object.assign(new Error(message), {code}); }
 function same(left, right) { return canonicalJson(left) === canonicalJson(right); }
@@ -108,7 +109,7 @@ function createUsAdultAnalysisEngine(options) {
         bytes:Buffer.from(frameComposite.memberPayloads[ordinal].bytesBase64, 'base64')}));
       const analysis = await frameAnalysis.analyze(frames, {assertActive:active});
       return Object.freeze({detectedFaceCount:analysis.detectedFaceCount, vectorCount:analysis.detectedFaceCount,
-        dimension:pack.dimension, vectors:Object.freeze(analysis.faces.map(face => face.vector))});
+        dimension:pack.dimension, vectors:Object.freeze(analysis.faces.map(face => face.vector)),frameGeometry:frameGeometry(analysis)});
     },
     async computeClusters({embeddingSet, clusterParameters}) {
       const algorithm = clusterParameters.typedParameters.find(item => item.parameter === 'algorithm')?.value;

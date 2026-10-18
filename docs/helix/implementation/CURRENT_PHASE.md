@@ -67,3 +67,5 @@ US Analysis Basis及完整Reference Page已持久冻结，正式CPU分析/分页
 US当前Run的Analysis→Metadata→NFO/共享Poster→Media/Conformance/Handoff→Arca初次On-deck已通过两条真实CPU Windows Host旅程（无脸/空库二号跨重启原Run人工确认，以及自动匹配）。演员选择POST已接，Formation查询/UI仍待完成。Package单演员和精确命名已加负例；新增Service全量在跑。当前155路由、134 Domain inputs；不计五议题或最终平台/UI资格完成。
 
 Formation演员选择弹窗、US库搜图预览后确认、只读选择状态和“需要确认演员”Projection已接入，最新真实Host两条复验通过。Web212项及构建通过，尚无浏览器/负责人具体版本UI验收。当前156路由，下一步为US推荐/来源A联动及Arca单片刷新；其他开放项保留。
+
+推荐所需的帧/人脸位置与质量已保留到正式Embedding Artifact，并验证真实Host读回及篡改拒绝。尚未建立推荐Source端口和五人快照/认领，下一步仍为该工作。

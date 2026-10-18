@@ -2006,6 +2006,9 @@ Arca依据各自事实和确定性Evidence发布新Media-Cast revision。US Adul
 
 每轮维护按未知人物聚合线索，优先暂存影片覆盖数和清晰图片，发布最多五位的当前推荐快照；不足五位不补空项。
 未处理线索下轮重新排序，不累积用户待办。推荐须带明确来源Subject/Run A及其revision/Evidence digest。
+正式Frame Embedding Artifact同时保留有界、带版本的帧/人脸位置及质量Evidence，向量、截图digest、
+模型和采样Result连续校验；维护复用这些已完成的结果，不重新抽取整部影片。Libra只读Source Projection
+限定当前仍等待演员且未消费其他选择的A，People只能经该Projection及受控只读图片端口读取推荐线索。
 用户认领已有演员或创建新演员后，People提交身份决定及持久关联消息；Libra消费明确A的用户Intent，以版本围栏、
 幂等Receipt确认A的Media-Cast并解除演员阻塞。不是跨域原子事务，People不得写Libra事实。中途失败持续恢复；
 A若已被其他不同决定修改则明确冲突，不覆盖。聚类中的其他影片及已上架影片不在本次Intent授权内。

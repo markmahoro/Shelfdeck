@@ -1,4 +1,6 @@
 'use strict';
+const {restoreFrameAnalysis}=require('./helix/contracts/us-adult-frame-geometry');
+const {faceModelReference}=require('./helix/contracts/us-adult-face-model');
 
 const { createHash } = require('node:crypto');
 const { canonicalDigest, canonicalJson } =
@@ -449,10 +451,7 @@ function createCleanWesternAnalysisPort(options) {
         schema: 'shared.face-embedding-set@1',
         dimension: raw.dimension,
         vectors: Object.freeze(raw.vectors),
-      });
-      materialized = materialize({
-        ...materializeRequest,
-        bytes: Buffer.from(canonicalJson(payload), 'utf8'),
+        ...(raw.frameGeometry?{frameGeometry:raw.frameGeometry}:{}),
       });
     }
     if (payload?.schema !== 'shared.face-embedding-set@1' ||
@@ -461,6 +460,13 @@ function createCleanWesternAnalysisPort(options) {
       fail('CLEAN_WESTERN_EMBEDDING_RESULT_INVALID',
         'Recovered embedding set does not match the frozen contract.');
     }
+    if(model.modelId===faceModelReference('western_frame_set').modelId){
+      const analysis=restoreFrameAnalysis(payload);
+      if(analysis.frameMembers.length!==framePayload.members.length||analysis.frameMembers.some((member,ordinal)=>
+        member.timestampMs!==framePayload.members[ordinal].timestampMs||member.imageDigest!==framePayload.members[ordinal].contentDigest))
+        fail('CLEAN_WESTERN_EMBEDDING_RESULT_INVALID','US Adult face geometry no longer matches its complete source frame composite.');
+    }
+    if(!materialized)materialized=materialize({...materializeRequest,bytes:Buffer.from(canonicalJson(payload),'utf8')});
     const vectorCount = payload.vectors.length;
     const basis = {
       schemaRef: 'helix://contracts/types/FaceEmbeddingSetHandle/v1',
