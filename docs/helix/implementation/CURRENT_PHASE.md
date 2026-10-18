@@ -1,5 +1,7 @@
 # 当前 Phase：JAV 首版发布与用户验收
 
+2026-10-18 最新授权及结果：用户要求部署上线，已标准发布 `helix-beta-20261018-5367179429`（source `5367179429d6e6785c1adf8c8da363bc21def9bd`）；完整副本候选/使用后旧版回退、冷备、精确镜像及生产健康/历史保护通过。包含统一代理、空间不足转二号与UAT-318本轮热点优化，先前“未部署/暂停发布”仅为历史状态；未授权生产清理。未追加性能硬门槛或大批等价试验，未跑完整生产媒体E2E，UAT-318及其他未闭业务验收保持开放。详情见既有UAT-318 Evidence最新发布节。
+
 ## UAT-318 小步恢复（2026-10-18）
 
 用户恢复优化并澄清应连续完成本轮，不另设性能硬门槛。当前工作区已合并全部既有优化及后续开发至57c7aa675。本轮在Arca On-deck的两个Settlement输入投影及同步资源准备之间共享完整已校验上下文；Foundation只将原不透明preparationScope贯穿同步prepare/resolve，不持有业务上下文、不传给Executor或持久化，正常dispatch和recovery各自新建scope。Arca按Run/dependencyRefs/material/Event精确绑定，失败不复用，授权/Approval逐投影重验；异步Executor及清退前Approval回调仍独立读取。Libra内只优化关系读取和重复计算，完整Package及metadata/digest校验保持。143项定向回归与真实Package记录的短隔离对照通过；未构建或部署，NAS整体收益待实测。沿用原UAT-318 Evidence，不新建活动包。
