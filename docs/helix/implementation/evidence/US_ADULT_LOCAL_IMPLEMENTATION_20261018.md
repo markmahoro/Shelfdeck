@@ -212,3 +212,12 @@ arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后
 - Web全量222项/41文件通过，构建通过（既有>500 kB chunk提示）；本轮Service677总项/648通过/29既有skip/0失败。完整Architecture及最终具体版本UI、平台和离线升级资格仍须独立完成。本轮局部验证过程中曾暴露资源合同/重复资源键、Workspace resolver参数、SQLite BigInt及GET查询作用域接线错误，已准确修复并保留失败log，不算通过证据。
 - 先前`64e2649d4`固定提交完整Architecture及匹配阶段Service均已按用户暂停指令取消，不能记PASS，也未在后台继续。全部原始log保存在本地忽略目录`.codex/us-adult-validation/`。当前停止的旧验证checkout无用户改动或需保留的忽略产物，将按managed流程退出，后续长门禁使用新固定提交。
 - 继续开放：全链真正Host异常进程退出/并发冲突资格、UI负责人具体版本审核及适用Linux/Windows；People深度系统维护、US参考图生命周期及关联作品；离线副本升级；维护清扫/超时/跨重启整体资格。不得以本检查点认定五议题开发完成；未部署、未操作生产数据或真实媒体。
+
+
+### 2026-10-19 固定提交门禁首轮、验证依赖恢复与词典对齐
+
+固定提交`86a96f2ad0d1cda7f878dc54889cfa221d049341`独立checkout完整Architecture未通过，不计PASS：旧验证checkout经App managed archive退出时，工具连带移除了其依赖junction指向的共享node_modules内容，导致新checkout大量`better-sqlite3/sharp`缺失；此次不具有完整运行资格。共享Service/Web依赖已分别在原物理目录按原lockfile `npm ci`恢复（161/205包），源码和业务数据未改。新验证checkout先验证并仅移除两个junction本身，再按本提交lockfile安装物理独立Service/Web依赖（177/205包）；不再与主开发目录共享依赖。
+
+该轮另准确暴露：当前Catalog已有增长而一组Builder/Registry测试仍断言旧121/140/210/51基线，旧transaction shard豁免仍指向不存在的051文件；US Adult已支持但旧“不支持profile”负例仍使用western_adult；Arca Intent内`sourceBinding`名称触碰既有禁止旧概念词典。处理为更新当前活跃基线的具体断言及精确056定位，保留未知profile负例并新增US Field可准入正例；将Arca Domain-local读取绑定明确命名`sourceMaterialBinding`及相应scope digest键，不增加词典豁免或放宽Owner规则。
+
+新P2通过，counts不变，aggregate `8680996346407ca5d0314faa9cca70e7b23a87466117d36f9257a77128b1e4e1`。语义Gate2524文件/42原有精确豁免/0 Finding。词典改名后的Owner/匹配/Source/负例/P2等30项通过；Builder组合原113项中112通过，唯一剩余旧137/135 route实际数量断言已修正且其所属fixture在上述30项中通过。完整Architecture须依赖恢复及修复后的新固定提交重跑，不从这次失败推断实际业务旅程是否通过。

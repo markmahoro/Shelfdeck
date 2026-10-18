@@ -34,12 +34,12 @@ function registration(manifest, overrides = {}) {
   };
 }
 
-test('Registry closes exactly all 121 frozen Capability refs with deterministic snapshot', () => {
+test('Registry closes exactly all 130 frozen Capability refs with deterministic snapshot', () => {
   const catalog = manifests();
   const expected = catalog.map((manifest) => manifest.capabilityRef);
   const first = createCapabilityRegistry({ registrations: catalog.map((manifest) => registration(manifest)), expectedCapabilityRefs: expected });
   const second = createCapabilityRegistry({ registrations: [...catalog].reverse().map((manifest) => registration(manifest)), expectedCapabilityRefs: expected });
-  assert.equal(first.size, 121);
+  assert.equal(first.size, 130);
   assert.deepEqual(first.snapshot, second.snapshot);
   assert.equal(first.snapshot.every((entry) => /^[0-9a-f]{64}$/.test(entry.contractDigest)), true);
   assert.equal(first.snapshot.every((entry) => /^[0-9a-f]{64}$/.test(entry.executionContractDigest)), true);

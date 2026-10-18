@@ -17,7 +17,7 @@ function createUsAdultActorRefreshSource(options){
   function assertAuthority(scope){
     const current=read(scope.shelfEntryId,scope.aftercareCaseId);
     if(scope.intentId!==current.intent.intentId||scope.intentDigest!==current.intent.intentDigest)return false;
-    const control=options.materialControlProjectionPort?.getMaterialControlProjection(current.intent.sourceBinding.materialKey);
+    const control=options.materialControlProjectionPort?.getMaterialControlProjection(current.intent.sourceMaterialBinding.materialKey);
     return control?.resultKind==='available'&&control.controlState==='controlled'&&control.ownerDomain==='arca'&&
       control.ownerScopeType==='shelf_entry'&&control.ownerScopeId===scope.shelfEntryId;
   }

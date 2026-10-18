@@ -118,7 +118,7 @@
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
     },
-    "sourceBinding": {
+    "sourceMaterialBinding": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
@@ -227,7 +227,7 @@
     "knownBindingsDigest",
     "originalName",
     "actorRelationDigest",
-    "sourceBinding",
+    "sourceMaterialBinding",
     "manualPersonSnapshot",
     "libraryDigest",
     "personCount",

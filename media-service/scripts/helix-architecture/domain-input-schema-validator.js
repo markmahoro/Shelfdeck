@@ -87,7 +87,7 @@ function validateDomainInputSchemas(options) {
       UsAdultActorFilePlan:['schemaRef','schemaVersion','shelfEntryId','aftercareCaseId','intentId','planDigest'],
       UsAdultActorExecutionInput:['schemaRef','schemaVersion','shelfEntryId','aftercareCaseId','intentId','inputDigest'],
       UsAdultActorRefreshScope:['schemaRef','schemaVersion','shelfEntryId','aftercareCaseId','intentId','intentDigest','scopeDigest'],
-      UsAdultActorRefreshIntent:['schemaRef','schemaVersion','intentId','shelfEntryId','inventoryRevision','careBasisDigest','sourceBinding','intentDigest'],
+      UsAdultActorRefreshIntent:['schemaRef','schemaVersion','intentId','shelfEntryId','inventoryRevision','careBasisDigest','sourceMaterialBinding','intentDigest'],
       UsAdultInventoryPresentation:['schemaRef','schemaVersion','shelfEntryId','inventoryRevision','aftercareCaseId','actorRelationDigest','originalName','snapshotDigest'],
       UsAdultRecommendationConfirmation:['schemaRef','schemaVersion','claimId','actorId','source','personId','expectedPersonRevision','expectedReferenceRevision'],
       UsAdultRecommendationPageQuery:['schemaRef','schemaVersion','cursor','limit'],

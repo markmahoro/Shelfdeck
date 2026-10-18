@@ -9,16 +9,16 @@ function scope(intent,aftercareCaseId){
   const {intentDigest,...body}=intent||{};
   if(intent?.schemaRef!=='helix://contracts/domain-types/UsAdultActorRefreshIntent/v1'||intent.schemaVersion!==1||
       intentDigest!==canonicalDigest(body)||typeof aftercareCaseId!=='string'||!aftercareCaseId||aftercareCaseId.length>256||
-      !/^[a-f0-9]{64}$/.test(intent.intentId||'')||!/^[a-f0-9]{64}$/.test(intent.sourceBinding?.bindingDigest||'')||
+      !/^[a-f0-9]{64}$/.test(intent.intentId||'')||!/^[a-f0-9]{64}$/.test(intent.sourceMaterialBinding?.bindingDigest||'')||
       typeof intent.shelfEntryId!=='string'||!intent.shelfEntryId)fail();
   return Object.freeze({shelfEntryId:intent.shelfEntryId,aftercareCaseId,intentId:intent.intentId,intentDigest,
-    materialKey:intent.sourceBinding.materialKey,sourceBindingDigest:intent.sourceBinding.bindingDigest,bindingRevision:intent.sourceBinding.bindingRevision});
+    materialKey:intent.sourceMaterialBinding.materialKey,sourceMaterialBindingDigest:intent.sourceMaterialBinding.bindingDigest,bindingRevision:intent.sourceMaterialBinding.bindingRevision});
 }
 function readHandleId(intent,aftercareCaseId){return 'arca-us-read-'+canonicalDigest({schema:'arca.us-adult-read-handle-id@1',...scope(intent,aftercareCaseId)});}
 function readHandleFence(intent,aftercareCaseId,body){return canonicalDigest({schema:'arca.us-adult-read-fence@1',scope:scope(intent,aftercareCaseId),handle:body});}
 function assertReadHandle({intent,aftercareCaseId,handle,atMs}){
   scope(intent,aftercareCaseId);
-  const {fenceDigest,...body}=handle||{},binding=intent.sourceBinding;
+  const {fenceDigest,...body}=handle||{},binding=intent.sourceMaterialBinding;
   if(!handle||Object.keys(handle).sort().join(',')!==[...FIELDS].sort().join(',')||
       handle.schemaRef!=='helix://contracts/types/PhysicalMaterialReadHandle/v1'||handle.schemaVersion!==1||
       handle.handleId!==readHandleId(intent,aftercareCaseId)||handle.ownerDomain!=='arca'||handle.ownerScope?.scopeType!=='shelf_entry'||

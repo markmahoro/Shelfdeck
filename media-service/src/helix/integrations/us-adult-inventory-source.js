@@ -9,7 +9,7 @@ function createUsAdultInventorySource(options){
   if(typeof options?.assertAuthority!=='function')throw new TypeError('Inventory source reads require an explicit Owner authority guard.');
   const now=options.now||Date.now,fingerprint=options.computeFingerprint||computeBoundedMaterialFingerprintSync;
   function issueReadHandle({intent,aftercareCaseId,identity,binding,target,context}){
-    const scope=proof.scope(intent,aftercareCaseId),expected=intent.sourceBinding;
+    const scope=proof.scope(intent,aftercareCaseId),expected=intent.sourceMaterialBinding;
     if(context?.ownerScope?.domain!=='arca'||context.ownerScope.processType!=='arca_shelf_entry'||context.ownerScope.processId!==scope.shelfEntryId||
         typeof context.assertExecutionActive!=='function'||identity?.schemaRef!=='helix://contracts/types/PhysicalMaterialIdentity/v2'||
         identity.schemaVersion!==2||identity.materialKey!==expected.materialKey||canonicalDigest(identity)!==expected.identityDigest||

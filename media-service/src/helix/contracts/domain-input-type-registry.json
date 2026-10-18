@@ -3191,7 +3191,7 @@
       "relativePath": "domain-types/UsAdultActorRefreshIntent/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "e65f4c595d5b77d5f9e1c549645d6611711f97089cf165b6956a920f845bc967"
+        "value": "f5e8041bc39d8d42388565ba7c015760c78a495a8d33e2bc8d65e28e42b062c1"
       },
       "usedBy": [
         {

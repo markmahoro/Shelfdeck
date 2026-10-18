@@ -134,7 +134,7 @@ function buildIntent({ context, body, actorId, personSnapshot = null, pages = []
     canonicalIdentityKey:raw.entry.canonical_identity_key, canonicalIdentityDigest:raw.identity.identity_digest,
     careBasisDigest:context.basis.digest, knownBindingsDigest:context.knownBindings.digest,
     originalName:current.originalName, actorRelationDigest:canonicalDigest(current.actor),
-    sourceBinding:{ materialKey:identity.materialKey, endpointId:primary[0].endpoint_id, bindingRevision:Number(primary[0].binding_revision),
+    sourceMaterialBinding:{ materialKey:identity.materialKey, endpointId:primary[0].endpoint_id, bindingRevision:Number(primary[0].binding_revision),
       identityDigest:canonicalDigest(identity), bindingDigest:canonicalDigest({ materialKey:identity.materialKey, endpointId:primary[0].endpoint_id,
         location:primary[0].location, bindingRevision:Number(primary[0].binding_revision) }) },
     manualPersonSnapshot:personSnapshot, ...library, faceModelRef:faceModelReference('western_frame_set'),

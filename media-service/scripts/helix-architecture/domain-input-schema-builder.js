@@ -376,7 +376,7 @@ function buildSchema(name, role, fields) {
     idempotencyKey:text({maxLength:128}),requestDigest:digest(),mode:enumText('specified','automatic'),shelfEntryId:id(),inventoryRevision:positiveInteger(),
     representationDigest:digest(),deckFactRevision:positiveInteger(),canonicalIdentityRevision:positiveInteger(),canonicalIdentityKey:digest(),canonicalIdentityDigest:digest(),
     careBasisDigest:digest(),knownBindingsDigest:digest(),originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()}),
-    actorRelationDigest:digest(),sourceBinding:object({materialKey:digest(),endpointId:id(),bindingRevision:positiveInteger(),identityDigest:digest(),bindingDigest:digest()}),
+    actorRelationDigest:digest(),sourceMaterialBinding:object({materialKey:digest(),endpointId:id(),bindingRevision:positiveInteger(),identityDigest:digest(),bindingDigest:digest()}),
     manualPersonSnapshot:nullable(domainRef('UsAdultPersonSnapshot')),libraryDigest:nullable(digest()),personCount:nonNegativeInteger(),pageCount:nonNegativeInteger(),pageSetDigest:digest(),
     faceModelRef:domainRef('FaceModelRef'),referenceModelRefDigest:digest(),rendererVersion:{const:'us-adult-presentation@1'},intentDigest:digest(),
   }),'x-helix-maxCanonicalBytes':256*1024};
