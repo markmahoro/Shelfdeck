@@ -1,5 +1,11 @@
 # 当前 Phase：JAV 首版发布与用户验收
 
+## LIBRA-WORKSPACE-SPACE-WORKSHOP（2026-10-18）
+
+用户追加空间不足反复重试后可进入现有二号车间。已在Libra既有Attention Workshop实现：同一稳定Owner basis下3次真实Workspace admission不足、计数间隔至少60秒；快速轮询不累计，恢复/原因变化/basis变化清零，转入前重启重新观察。全部未交付Run均合格、执行/Effect安全及二号容量仍由既有原子事务验证；二号满/0保留一号，转入保留token/Run/Control/Workspace，空间恢复后自动在二号继续。无新schema/API/UI或Foundation调度变更，不扩为encoder/volume等待转区。
+
+验收：17项二号/来源席位测试通过（新增5项），包含计时/重置/重启/0与满/Season/执行安全/Owner CAS；隔离真实Host完整旅程通过（空间不足→二号→下一Subject进入一号→服务重启→空间恢复→原Run自动完成2份On-deck Commit）。原流程Host1/1、API/复制4/4、Service647 pass/29既有skip/0 fail亦通过。机器合同121/104/210/51、149 routes保持；SSOT追加及source digest已同步，P2/边界/语义/manifest门禁通过。仅本地实现，未部署、未清理生产、不恢复UAT-318优化。详见[Evidence](evidence/LIBRA_WORKSPACE_SPACE_WORKSHOP_20261018.md)。
+
 ## GLOBAL-NETWORK-POLICY / Workspace只读调查（2026-10-18）
 
 用户已确认全站统一网络代理、JAV一键测试并启用、不提供逐站代理覆盖、逐站具体错误反馈。Platform拥有唯一技术policy；所有产品Integration统一transport，显式私网/loopback直连；不改变Provider资格、领域Owner或交接。首屏网络卡片显示当前状态，原TMDB代理只预填草稿；用户保存后唯一生效。JAV列表直接呈现八站状态、数量与一键动作，部分成功和失败可辨、可重试，无需逐站重复输入。

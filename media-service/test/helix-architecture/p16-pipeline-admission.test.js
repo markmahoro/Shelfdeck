@@ -140,10 +140,10 @@ test('a frozen Season Run retains the whole Subject responsibility and secondary
 });
 
 
-function attention(ctx,pipelineAdmission=ctx.store){
+function attention(ctx,pipelineAdmission=ctx.store,options={}){
  const {createAttentionWorkshop}=require('../../src/helix/domains/libra/application/attention-workshop');
  const {createWorkResultReader}=require('../../src/helix/foundation/execution/work-result-reader');
- return createAttentionWorkshop({schemaManifest,unitOfWork:ctx.unitOfWork,pipelineAdmission,
+ return createAttentionWorkshop({...options,schemaManifest,unitOfWork:ctx.unitOfWork,pipelineAdmission,
   workResultReader:createWorkResultReader({schemaManifest,unitOfWork:ctx.unitOfWork})});
 }
 function seedSubject(ctx,subjectId,runs=[]){
@@ -153,6 +153,82 @@ function seedSubject(ctx,subjectId,runs=[]){
  });
  ctx.store.acquire({fieldId:'source',subjectId,sourceProcessId:'intake-'+subjectId});
 }
+
+const spaceWait=()=>({kind:'waiting_for_resource',phase:'workspace_admission',reasonCode:'insufficient_space'});
+
+test('Workspace shortage needs three separated checks, keeps the Run active and resumes in secondary',t=>{
+ const ctx=runtime();t.after(ctx.close);seedSubject(ctx,'space-subject',['space-run']);
+ let now=1000,wakes=0;
+ const workshop=attention(ctx,ctx.store,{now:()=>now,onReadinessObserved:()=>wakes++});
+ for(let i=0;i<8;i++)assert.deepEqual(workshop.reconcileRun('space-run',spaceWait),spaceWait());
+ assert.equal(ctx.store.readSecondaryPolicy().held,0);assert.equal(wakes,1,'fast polling must not create a wake loop');
+ now+=60000;workshop.reconcileRun('space-run',spaceWait);assert.equal(ctx.store.readSecondaryPolicy().held,0);
+ now+=59999;workshop.reconcileRun('space-run',spaceWait);assert.equal(ctx.store.readSecondaryPolicy().held,0);
+ now++;workshop.reconcileRun('space-run',spaceWait);assert.equal(ctx.store.readSecondaryPolicy().held,1);
+ assert.equal(ctx.store.readPolicy('source').held,0);assert.equal(ctx.store.hasToken('space-subject'),true);
+ assert.equal(ctx.kernel.runPrimitive(({prepare})=>prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get('space-run')).state,'active');
+ const restarted=attention(ctx,ctx.store,{now:()=>now});
+ assert.deepEqual(restarted.reconcileRun('space-run',()=>({kind:'pending',workId:'resumed'})),{kind:'pending',workId:'resumed'});
+ assert.equal(ctx.store.readSecondaryPolicy().held,1,'recovery never returns to primary');
+});
+
+test('recovery, other resource waits and changed Owner basis reset shortage observations',t=>{
+ const ctx=runtime();t.after(ctx.close);seedSubject(ctx,'reset-subject',['reset-run']);
+ let now=0;const workshop=attention(ctx,ctx.store,{now:()=>now});
+ const check=()=>{workshop.reconcileRun('reset-run',spaceWait);now+=60000;};
+ check();check();
+ workshop.reconcileRun('reset-run',()=>({kind:'pending',workId:'recovered'}));
+ check();check();assert.equal(ctx.store.readSecondaryPolicy().held,0);
+ workshop.reconcileRun('reset-run',()=>({kind:'waiting_for_resource',phase:'workspace_admission',reasonCode:'root_unavailable'}));
+ check();check();assert.equal(ctx.store.readSecondaryPolicy().held,0);
+ workshop.reconcileRun('reset-run',()=>({kind:'waiting_for_resource',phase:'transcode',reasonCode:'insufficient_space'}));
+ check();check();assert.equal(ctx.store.readSecondaryPolicy().held,0);
+ ctx.kernel.runPrimitive(({prepare})=>prepare('UPDATE libra_runs SET state_revision=2 WHERE libra_run_id=?').run('reset-run'));
+ check();check();assert.equal(ctx.store.readSecondaryPolicy().held,0);
+ check();assert.equal(ctx.store.readSecondaryPolicy().held,1);
+});
+
+test('restart before transfer conservatively starts fresh space checks; full or disabled secondary keeps primary',t=>{
+ const ctx=runtime();t.after(ctx.close);seedSubject(ctx,'full-subject',['full-run']);
+ let now=0;let workshop=attention(ctx,ctx.store,{now:()=>now});
+ const check=()=>{workshop.reconcileRun('full-run',spaceWait);now+=60000;};
+ check();check();workshop=attention(ctx,ctx.store,{now:()=>now});check();
+ assert.equal(ctx.store.readSecondaryPolicy().held,0);
+ ctx.store.reviseSecondaryPolicy(0);check();check();
+ assert.equal(ctx.store.readSecondaryPolicy().held,0);assert.equal(ctx.store.readPolicy('source').held,1);
+ ctx.store.reviseSecondaryPolicy(1);check();assert.equal(ctx.store.readSecondaryPolicy().held,1);
+ seedSubject(ctx,'other-subject',['other-run']);
+ for(let i=0;i<3;i++){workshop.reconcileRun('other-run',spaceWait);now+=60000;}
+ assert.equal(ctx.store.readPolicy('source').held,1);assert.equal(ctx.store.hasToken('other-subject'),true);
+ ctx.store.release('full-subject');workshop.reconcileRun('other-run',spaceWait);
+ assert.equal(ctx.store.readSecondaryPolicy().held,1);assert.equal(ctx.store.readPolicy('source').held,0);
+});
+
+test('Season transfer requires every unfinished Run to meet its own repeated-shortage threshold',t=>{
+ const ctx=runtime();t.after(ctx.close);seedSubject(ctx,'space-season',['space-r1','space-r2']);
+ let now=0;const workshop=attention(ctx,ctx.store,{now:()=>now});
+ for(let i=0;i<3;i++){workshop.reconcileRun('space-r1',spaceWait);now+=60000;}
+ for(let i=0;i<2;i++){workshop.reconcileRun('space-r2',spaceWait);now+=60000;}
+ assert.equal(ctx.store.readSecondaryPolicy().held,0);
+ workshop.reconcileRun('space-r2',spaceWait);assert.equal(ctx.store.readSecondaryPolicy().held,1);
+});
+
+test('repeated shortage still cannot transfer an executing Run or use a stale atomic Owner proof',t=>{
+ const ctx=runtime();t.after(ctx.close);seedSubject(ctx,'busy-subject',['busy-run']);
+ ctx.kernel.runPrimitive(({prepare})=>prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,state) VALUES(?,?,?,?,?)').run('busy-work','libra','libra_run','busy-run','running'));
+ let now=0;const workshop=attention(ctx,ctx.store,{now:()=>now});
+ for(let i=0;i<3;i++){workshop.reconcileRun('busy-run',spaceWait);now+=60000;}
+ assert.equal(ctx.store.readSecondaryPolicy().held,0);
+ ctx.kernel.runPrimitive(({prepare})=>prepare("UPDATE fx_supporting_works SET state='succeeded' WHERE work_id='busy-work'").run());
+ workshop.reconcileRun('busy-run',spaceWait);assert.equal(ctx.store.readSecondaryPolicy().held,1);
+ seedSubject(ctx,'stale-space',['stale-run']);
+ const stale=attention(ctx,{...ctx.store,transferToSecondary(...args){
+  ctx.kernel.runPrimitive(({prepare})=>prepare('UPDATE libra_runs SET state_revision=5 WHERE libra_run_id=?').run('stale-run'));
+  return ctx.store.transferToSecondary(...args);
+ }},{now:()=>now});
+ for(let i=0;i<3;i++){stale.reconcileRun('stale-run',spaceWait);now+=60000;}
+ assert.equal(ctx.store.readPolicy('source').held,1);assert.equal(ctx.store.readSecondaryPolicy().held,1);
+});
 
 test('missing routing configuration moves only stable no-Run readiness; whole Season needs every Run attention',t=>{
  const ctx=runtime();t.after(ctx.close);const workshop=attention(ctx);

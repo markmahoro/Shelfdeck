@@ -7,7 +7,7 @@ const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const {initializeCleanData}=require('../../scripts/helix-operational-safety');
 const {createCleanServiceHost}=require('../../src/clean-service-host');
 
-async function fixture(t,fields,{secondarySeats=5,holdCode=null,transcodeCode=null}={}){
+async function fixture(t,fields,{secondarySeats=5,holdCode=null,transcodeCode=null,spaceBlocked=false,primarySeats=null}={}){
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'libra-workshop-host-'));
  const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),target=path.join(root,'shelf');
  fs.mkdirSync(adminDistDir);fs.mkdirSync(target);fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
@@ -26,7 +26,8 @@ async function fixture(t,fields,{secondarySeats=5,holdCode=null,transcodeCode=nu
   assert.equal(generated.status,0,generated.stderr);transcodeBytes=fs.readFileSync(input);
  }
  const picture=await sharp({create:{width:560,height:800,channels:3,background:{r:80,g:110,b:150}}}).jpeg().toBuffer();
- let releaseHeld,held=false,armed=false,requestError=null,runtimeError=null,host,db;
+ let releaseHeld,held=false,armed=false,requestError=null,runtimeError=null,host,db,clockOffset=0;
+ const spaceChecks=[];
  const gate=new Promise(resolve=>{releaseHeld=resolve;});
  const secretRoot='libra-workshop-host-fixture-0123456789abcdef0123456789';
  const initialized=initializeCleanData({dataDir,secretRoot,confirmation:'INITIALIZE_HELIX_CLEAN_V1'});
@@ -44,7 +45,11 @@ async function fixture(t,fields,{secondarySeats=5,holdCode=null,transcodeCode=nu
   if(value.hostname==='c0.jdbstatic.com')return new Response(picture,{headers:{'content-type':'image/jpeg'}});
   throw Error('Unexpected fixture network request.');
  };
- const start=async()=>createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetch,
+ const start=async()=>createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetch,now:()=>Date.now()+clockOffset,
+  workspaceStatfsSync:(location,options)=>{
+   if(armed&&spaceBlocked){spaceChecks.push(Date.now()+clockOffset);return {bsize:4096n,bavail:0n};}
+   return fs.statfsSync(location,options);
+  },
   onRequestError:error=>{requestError=error;},onExecutionRuntimeError:error=>{runtimeError=error;}});
  t.after(async()=>{releaseHeld();await host?.close();db?.close();assert.equal(path.dirname(root),os.tmpdir());fs.rmSync(root,{recursive:true,force:true});});
  host=await start();let cookie;
@@ -77,13 +82,38 @@ async function fixture(t,fields,{secondarySeats=5,holdCode=null,transcodeCode=nu
     policy,policyDigest:canonicalDigest({extractionPolicyId:policyId,revision:1,...policy})}});
   await request('PATCH','/v1/admin/routing/material-fields/'+fieldId,{idempotencyKey:'route-'+fieldId,fieldId,expectedPolicyId:null,expectedRevision:0,
    policy:{routingPolicyId:'route-'+fieldId,mode:'direct',targets:[{shelfId:'fixture-shelf',rank:1,matchExpression:{nodeKind:'always'}}]}});
-  await request('PATCH','/v1/admin/libra/material-fields/'+fieldId+'/intake-admission',{predeckPipelineSeats:names.length===3?1:3,idempotencyKey:'seats-'+fieldId});
+  await request('PATCH','/v1/admin/libra/material-fields/'+fieldId+'/intake-admission',{predeckPipelineSeats:primarySeats??(names.length===3?1:3),idempotencyKey:'seats-'+fieldId});
  }
  armed=true;
  for(const fieldId of Object.keys(fields))await request('POST','/v1/admin/material-fields/'+fieldId+'/actions/observe',{
   idempotencyKey:'observe-'+fieldId,fieldId,expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
- return {db,request,wait,releaseHeld,isHeld:()=>held,bytes,restart:async()=>{await host.close();host=await start();await login();}};
+ return {db,request,wait,releaseHeld,isHeld:()=>held,bytes,spaceChecks,advanceClock:ms=>{clockOffset+=ms;},
+  releaseSpace:()=>{spaceBlocked=false;},restart:async()=>{await host.close();host=await start();await login();}};
 }
+
+test('real Host parks repeated space shortage, fills the freed source seat and automatically resumes after space recovery',{timeout:180000},async t=>{
+ const ctx=await fixture(t,{source:['IPX-177','IPX-178']},{secondarySeats:1,primarySeats:1,spaceBlocked:true});
+ await ctx.wait(()=>ctx.spaceChecks.length>=3);
+ assert.equal(ctx.db.prepare('SELECT count(*) n FROM libra_workshop_placements').get().n,0,'fast retries cannot park immediately');
+ const firstRun=ctx.db.prepare('SELECT libra_run_id,subject_id FROM libra_runs').get();
+ assert.ok(firstRun);assert.equal(ctx.db.prepare('SELECT count(*) n FROM libra_workspaces').get().n,0);
+ const initialChecks=ctx.spaceChecks.length;
+ ctx.advanceClock(60000);await ctx.wait(()=>ctx.spaceChecks.length>initialChecks);
+ assert.equal(ctx.db.prepare('SELECT count(*) n FROM libra_workshop_placements').get().n,0);
+ ctx.advanceClock(60000);
+ await ctx.wait(()=>ctx.db.prepare('SELECT count(*) n FROM libra_workshop_placements').get().n===1&&
+  ctx.db.prepare('SELECT count(*) n FROM libra_runs').get().n===2);
+ const placement=ctx.db.prepare('SELECT subject_id FROM libra_workshop_placements').get();assert.equal(placement.subject_id,firstRun.subject_id);
+ assert.equal((await ctx.request('GET','/v1/admin/libra/material-fields/source/intake-admission')).pipelineTokensHeld,1);
+ await ctx.restart();
+ assert.deepEqual(ctx.db.prepare('SELECT subject_id FROM libra_workshop_placements').get(),placement);
+ ctx.releaseSpace();
+ await ctx.wait(()=>ctx.db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n===2,90000);
+ assert.equal(ctx.db.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(firstRun.libra_run_id).state,'completed');
+ assert.equal(ctx.db.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
+ assert.equal(ctx.db.prepare('SELECT count(*) n FROM libra_workshop_placements').get().n,0);
+ assert.equal(ctx.db.prepare('SELECT count(*) n FROM libra_predeck_pipeline_tokens').get().n,0);
+});
 
 test('real Host transfers attention under backpressure, persists placement over restart and resumes the same Run in secondary',{timeout:180000},async t=>{
  const ctx=await fixture(t,{source:['Unrecognized-one','Unrecognized-two','Unrecognized-three']},{secondarySeats:2});

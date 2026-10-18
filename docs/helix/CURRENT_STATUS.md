@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-18 用户追加的空间不足重试转二号已本地实现：3次、至少间隔60秒，保留Subject整体安全转区；空间恢复自动原位继续。17项席位、4项API/复制、2条真实Host旅程及Service647通过/29既有skip。未部署、未清理/修改生产数据或配置；完整证据见[本项Evidence](implementation/evidence/LIBRA_WORKSPACE_SPACE_WORKSHOP_20261018.md)。
+
 2026-10-18 本轮只读现场复核生产仍bfd97f36a、RestartCount0、health ok/正常供给；未部署或修改生产配置/数据。Workspace审计发现4份superseded旧Run合计70.1595 GiB，引用仍working且无Cleanup Scope，现有回收路径返回has_workspace_references；另有35.3902 GiB历史保留/备份、约7.55 GiB当前在用，同卷外部Landing约173 GiB。UAT-322开放，只诊断未清理。用户确认的全站统一代理/JAV一键连接已在独立worktree本地实现，专项22、Service647通过/29既有skip、Web197、最终宽窄浏览器6及构建通过；12a4b4030具体版本UI审核20/20通过；尚无Linux精确候选/生产资格，未宣称发布就绪。证据：[网络](implementation/evidence/GLOBAL_NETWORK_POLICY_20261018.md)、[Workspace](implementation/evidence/UAT-322_WORKSPACE_RESIDUE_AUDIT_20261018.md)。
 
 

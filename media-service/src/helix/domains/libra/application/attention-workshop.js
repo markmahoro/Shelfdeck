@@ -4,6 +4,7 @@ const {canonicalDigest}=require('../../../contracts/canonical-json');
 const {deliveryScopeStatements}=require('../persistence/series-delivery-scope-reader');
 const ATTENTION=new Set(['waiting_product_identity','waiting_external_integration','frozen','freeze','awaiting_defect_decision',
  'suspended','suspend','recovery_reassessed','evidence_pending','work_cancelled','integrity_rejected','product_unachievable']);
+const SPACE_CHECK_INTERVAL_MS=60_000,SPACE_CHECK_THRESHOLD=3;
 
 function createAttentionWorkshop(options){
  const repository=createRepositoryDefinition({repositoryId:'libra_attention_workshop',owner:'libra',schemaManifest:options.schemaManifest,statements:{
@@ -42,7 +43,7 @@ function createAttentionWorkshop(options){
  function transfer(snapshot){
   if(!snapshot||snapshot.pendingResponsibility||options.pipelineAdmission.readSecondaryPolicy().free===0)return;
   const keys=snapshot.runIds.length?snapshot.runIds:[snapshot.subjectId];
-  if(!keys.every(key=>observations.get(key)===snapshot.digest))return;
+  if(!keys.every(key=>{const observation=observations.get(key);return observation?.eligible&&observation.digest===snapshot.digest;}))return;
   const scopes=[...snapshot.runIds.map(processId=>({ownerDomain:'libra',processType:'libra_run',processId})),
    {ownerDomain:'libra',processType:'libra_intake',processId:snapshot.sourceProcessId},
    ...['libra_routing','libra_acceptance_spec'].map(processType=>({ownerDomain:'libra',processType,processId:snapshot.subjectId}))];
@@ -58,25 +59,36 @@ function createAttentionWorkshop(options){
    }},[executionRead]);
   if(result.transferred&&!result.replayed)options.onTransferred?.(snapshot.subjectId);
  }
- function observe(key,subjectId,attention,noRunOnly=false){
+ function observe(key,subjectId,attention,noRunOnly=false,spaceWait=false){
   if(!attention){observations.delete(key);return;}
-  if(options.pipelineAdmission.readSecondaryPolicy().free===0)return;
+  if(!spaceWait&&options.pipelineAdmission.readSecondaryPolicy().free===0)return;
   if(options.pipelineAdmission.listSecondaryPlacements().some(row=>row.subjectId===subjectId))return;
   const snapshot=capture(subjectId);
   if(!snapshot||(noRunOnly&&snapshot.hasRuns)){observations.delete(key);return;}
-  const previous=observations.get(key);observations.set(key,snapshot.digest);
+  const previous=observations.get(key),now=(options.now||Date.now)();
+  let observation={digest:snapshot.digest,eligible:true};
+  if(spaceWait){
+   const stable=previous?.digest===snapshot.digest&&previous.spaceChecks;
+   const due=stable&&now-previous.lastSpaceCheckAtMs>=SPACE_CHECK_INTERVAL_MS;
+   const spaceChecks=stable?Math.min(SPACE_CHECK_THRESHOLD,previous.spaceChecks+(due?1:0)):1;
+   observation={digest:snapshot.digest,eligible:spaceChecks>=SPACE_CHECK_THRESHOLD,spaceChecks,
+    lastSpaceCheckAtMs:!stable||due?now:previous.lastSpaceCheckAtMs};
+  }
+  observations.set(key,observation);
   // Re-observe stable Owner readiness on a later reconciliation before moving.
   // The final transaction still checks this complete current fingerprint.
-  if(previous===snapshot.digest)transfer(snapshot);
-  else options.onReadinessObserved?.({kind:noRunOnly?'routing':'run'});
+  if(previous?.digest===snapshot.digest&&observation.eligible)transfer(snapshot);
+  else if(previous?.digest!==snapshot.digest)options.onReadinessObserved?.({kind:noRunOnly?'routing':'run'});
  }
  return Object.freeze({
   reconcileRun(runId,operation){
    const result=operation();
+   // Only repeated Workspace admission failures qualify; encoder/volume waits do not.
+   const spaceWait=result.kind==='waiting_for_resource'&&result.phase==='workspace_admission'&&result.reasonCode==='insufficient_space';
    const attention=ATTENTION.has(result.kind)||(result.kind==='terminal'&&['suspended','frozen'].includes(result.state));
-   if(attention||result.kind==='not_due'){
+   if(spaceWait||attention||result.kind==='not_due'){
     const scope=scopeForRun(runId);
-    if(scope&&(attention||scope.state==='suspended'))observe(runId,scope.subject_id,true);
+    if(scope&&(spaceWait||attention||scope.state==='suspended'))observe(runId,scope.subject_id,true,false,spaceWait);
     else observations.delete(runId);
    }else observations.delete(runId);
    return result;

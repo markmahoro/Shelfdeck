@@ -16260,3 +16260,13 @@ Foundation保持Result及Evidence各≤64 KiB。pure_observation成功输出在�
 - 一键操作只批量调用既有逐站 test/configure，最多两个并行；每站独立的 Proof、CAS 和持久 Receipt 保持，不伪造全体原子成功。
   单站失败不撤销其他成功来源、不静默断开既有来源；展示各站真实结果和安全的原因/HTTP status/page-or-cover stage。
   不输出远端响应正文或凭据，不因网络失败切换资料站来冒充该站成功。
+
+### 2026-10-18 Workspace 空间等待与二号车间补充
+
+2026-10-18 用户追加：Workspace 空间不足反复尝试后也可进入二号车间。Libra 对同一稳定 Owner
+readiness basis 连续观察 3 次真实 `workspace_admission / insufficient_space`，计数检查间隔至少 60 秒，
+才将该 Run 纳入二号转入资格；快速轮询不累计，其他资源等待不纳入。成功继续、等待原因或 Owner
+basis 变化重置计数；转入前进程重启从零重新观察，不凭旧瞬时空间证据转区。仍须全部未交付 Run
+符合注意态、执行/副作用安全收口及二号容量的原子复验。二号满或配置为 0 时保留一号占位。
+转入不冻结、终结或替换 Run，也不搬移材料；后台继续重新检查实际空间，满足原空间门槛后在
+二号原位自动继续，至 Handoff B 或合法责任终结才释放二号席位，不另设恢复席位或跳过资源门禁。

@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-18 用户追加 `LIBRA-WORKSPACE-SPACE-WORKSHOP`：Workspace 空间不足连续重试后转二号，空间恢复后原位自动继续。沿用现有二号容量、Subject整体转区与执行安全收口合同；本地默认3次、计数间隔至少60秒，重启前尚未转入的观察重新开始。本地实现及验证完成：二号席位17项、API/复制4项、真实Host2条旅程及Service647通过/29既有skip；无生产发布、清理或Reset授权。验收与证据见唯一CURRENT_PHASE及[本项Evidence](implementation/evidence/LIBRA_WORKSPACE_SPACE_WORKSHOP_20261018.md)。
+
 2026-10-18 用户确认新增 `GLOBAL-NETWORK-POLICY`：全站统一代理、JAV列表一键测试并启用、无逐站覆盖、明确失败原因；本地实现/适用Windows验证及12a4b4030 UI审核20/20完成，未授权生产发布或配置写入。另按只读授权调查Workspace积压，已登记UAT-322：约70.16 GiB superseded旧Run引用未释放、无Cleanup Scope，35.39 GiB保留/升级备份，当前活跃约7.55 GiB；同卷外部Landing约173 GiB独立管理。不得将调查推导为删除、Reset或扩大旧UAT-318优化范围。详见[网络Evidence](implementation/evidence/GLOBAL_NETWORK_POLICY_20261018.md)与[Workspace审计](implementation/evidence/UAT-322_WORKSPACE_RESIDUE_AUDIT_20261018.md)。
 
 
