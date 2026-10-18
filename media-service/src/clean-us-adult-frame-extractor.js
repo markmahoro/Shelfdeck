@@ -41,12 +41,15 @@ function createCleanUsAdultFrameExtractor(options){
       });
     });
   }
-  async function extract({sourceHandle,context}){
+  async function extract({sourceHandle,context,durationMs}){
     if(sourceHandle?.schemaRef!=='helix://contracts/types/PhysicalMaterialReadHandle/v1'||sourceHandle.ownerDomain!=='libra'||
       sourceHandle.ownerScope?.scopeId!==context?.ownerScope?.processId||context?.ownerScope?.domain!=='libra'||typeof context.assertExecutionActive!=='function')
       fail('US_ADULT_FRAME_AUTHORITY_INVALID','Frame extraction requires its exact Libra Run and physical read authority.');
     const active=()=>context.assertExecutionActive();active();await verifySource(sourceHandle);active();
-    const probe=await options.mediaProbe.probe(sourceHandle),times=uniformFrameTimes(probe.durationMs),frames=[];
+    const probe=await options.mediaProbe.probe(sourceHandle);
+    if(durationMs!==undefined&&(!Number.isSafeInteger(durationMs)||durationMs<1||durationMs!==probe.durationMs))
+      fail('US_ADULT_SOURCE_PROBE_CHANGED','Frame sampling duration differs from the frozen source Probe.');
+    const times=uniformFrameTimes(durationMs??probe.durationMs),frames=[];
     for(const timestampMs of times)frames.push(await readFrame(sourceHandle,timestampMs,active));
     await verifySource(sourceHandle);active();return Object.freeze(frames);
   }

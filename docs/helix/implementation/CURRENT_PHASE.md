@@ -52,6 +52,8 @@
 
 适用全量回归、数据副本升级、完整US Host链路、Windows/Linux及具体版本UI审核尚未完成。首轮Architecture整合主动终止，不能记PASS；未部署或操作生产。
 
-最新具体进度及验证限制见[本地实施Evidence](evidence/US_ADULT_LOCAL_IMPLEMENTATION_20261018.md)。US上传建档/头像/重启重放/无脸拒绝已通过正式Host；当前合同212表/53事务/154路由；三库页、US上传/搜图建档、姓名/别名编辑和补充参考图已接正式链路，Web207项通过。推荐、Formation、Arca刷新和完整平台/UI资格继续开发。
+最新具体进度及验证限制见[本地实施Evidence](evidence/US_ADULT_LOCAL_IMPLEMENTATION_20261018.md)。US上传建档/头像/重启重放/无脸拒绝已通过正式Host；当前合同214表/54事务/154路由；三库页、US上传/搜图建档、姓名/别名编辑和补充参考图已接正式链路，Web207项通过。推荐、Formation、Arca刷新和完整平台/UI资格继续开发。
 
 US整理已开始接当前Libra Run的internal_source正式身份分支；原名随Identity Fact冻结并跨replacement保持，真实20点抽帧/CPU算法已有证据。People完整库分页及版本摘要已验证270人；正式Analysis Work、暂存确认与全链路仍开放。详见同一Evidence追加记录。
+
+US Analysis Basis及完整Reference Page已持久冻结，正式CPU分析/分页Match Capability与Planner构造已接Service；跨页最高分及中断反例通过。尚未接完主Formation演员选择/暂存与Product链路，不计US Host旅程通过；Service全量及升级、平台、UI资格仍开放。

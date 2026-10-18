@@ -266,9 +266,11 @@ const special = {
   'MediaProbeEvidence.audioStreams': arrayOf(audioStream, 128),
   'MediaProbeEvidence.subtitleStreams': arrayOf(simpleStream, 256),
   'PersonMatchEvidence.matches': arrayOf(object({ clusterId: id(), personId: id(), personRevision: positiveInteger(),
-    projectionRevision: positiveInteger(), projectionDigest: digest(), confidenceClass: text(), evidenceDigest: digest() }), 1024),
+    projectionRevision: positiveInteger(), projectionDigest: digest(), confidenceClass: text(),
+    score: {type:'number',minimum:-1,maximum:1}, threshold: {type:'number',minimum:-1,maximum:1},
+    referenceAssetId:id(), artifactDigest:digest(), faceModelRefDigest:digest(), referenceModelRefDigest:digest(), evidenceDigest: digest() }), 1024),
   'PersonMatchEvidence.referenceProjectionSetDigest': digest(),
-  'PersonMatchEvidence.unmatchedClusterIds': arrayOf(id(), 1024),
+  'PersonMatchEvidence.unmatchedClusterIds': arrayOf(id(), 1280),
   'ObservationPageCommitResult.profileHintSnapshot': applicationRef('MaterialFieldProfileHintSnapshot'),
   'ObservationPageCommitResult.nextCursor': nullable(text()),
   'PlayabilityEvidence.materialResults': { ...arrayOf({ oneOf: [

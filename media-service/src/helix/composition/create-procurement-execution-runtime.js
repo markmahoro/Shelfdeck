@@ -90,7 +90,8 @@ const LIBRA_ENABLED = Object.freeze(['libra.intake.candidate.verify@1','libra.in
   'libra.external_material.candidate.select@1','libra.external_material.acquire.request@1',
   'libra.external_material.acquire.observe@1','libra.external_material.output.resolve@1',
   'libra.external_material.stability.observe@1','libra.external_material.identity.verify@1',
-  'libra.external_material.package.verify@1','libra.workspace.material.import@1']);
+  'libra.external_material.package.verify@1','libra.workspace.material.import@1',
+  'libra.media.frames.extract@1','shared.face.cluster.compute@1','shared.face.reference.match@1']);
 const PERCEPTION_ENABLED = Object.freeze(['perception.source.acquire@1','perception.record.normalize@1','perception.record.commit@1',
   'perception.dedup.resolve@1','perception.resolution.commit@1']);
 const ARCA_ENABLED = Object.freeze(['arca.acceptance.identity.verify@1','arca.acceptance.metadata.verify@1',
@@ -329,7 +330,20 @@ function createProcurementExecutionRuntime(options) {
     manifests:Object.fromEntries(ARCA_ALL_ENABLED.map((ref)=>[ref,manifests[ref]]))});
   const peopleImageExecution = createPeopleImageExecutionRegistration({ ...options, workResultReader, contractValidator,
     wake: () => host?.wakeBackground({ownerDomain:'people',reconcilerKey:'image-operations'}) });
-  const peopleImageRegistrations = peopleImageExecution.createRegistrations(manifests);
+  const peopleReferenceQuery=peopleImageExecution.createReferenceQuery();
+  const peopleImageRegistrations = peopleImageExecution.createRegistrations(manifests).map(entry=>{
+    if(entry.manifest.capabilityRef!=='shared.face.embedding.compute@1')return entry;
+    const libraPort=libraCapabilityRegistration.ports['shared.face.embedding.compute@1'];
+    const choose=context=>{
+      if(context.ownerScope?.domain==='libra')return libraPort;
+      if(context.ownerScope?.domain==='people')return null;
+      throw new Error('Shared face embedding requires an explicit People or Libra Owner.');
+    };
+    return Object.freeze({...entry,executor:{version:1,execute(context){const port=choose(context);return port?port.execute(context):entry.executor.execute(context);}},
+      semanticValidator:{ref:entry.manifest.semanticValidatorRef,
+        validateInputs(context){const port=choose(context);return port?port.validateInputs(context):entry.semanticValidator.validateInputs(context);},
+        validateResult(context,outcome){const port=choose(context);return port?port.validateResult(context,outcome):entry.semanticValidator.validateResult(context,outcome);}}});
+  });
   const registrations = Object.freeze([...procurementRegistrations,...sharedRegistrations,...libraRegistrations,...perceptionRegistrations,...arcaRegistrations,...peopleImageRegistrations].map(entry=>Object.freeze({...entry,executor:Object.freeze({...entry.executor,execute(context){
     libraProcessServices?.sourceFairness.onExecutionStarted(context);
     return entry.executor.execute(context);
@@ -517,7 +531,7 @@ function createProcurementExecutionRuntime(options) {
     inspectFieldRoot: options.inspectFieldRoot });
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal });
-  libraProcessServices=libraConstruction.createProcessServices({...libraOptions,now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
+  libraProcessServices=libraConstruction.createProcessServices({...libraOptions,peopleReferenceQuery,now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
     onWorkshopTransferred:(subjectId)=>{
       fillPredeckIntakeSeats();options.onFormationSubjectChanged?.(subjectId);host?.wake();
     },
@@ -545,6 +559,7 @@ function createProcurementExecutionRuntime(options) {
     readExternalAcquisitionSettings:libraOptions.readExternalAcquisitionSettings,
     movieProductionReader:libraProcessServices.movieProductionReader,routingContextReader:libraProcessServices.routingContextReader,
     productIdentitySelection:libraProcessServices.productIdentitySelection,
+    usAdultAnalysisStore:libraProcessServices.usAdultAnalysisStore,
     productProductionPort:libraOptions.productProductionPort,workspaceProductPort:libraOptions.workspaceProductPort,
     platformComputeRuntime:libraOptions.platformComputeRuntime,now});
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
@@ -621,6 +636,16 @@ function createProcurementExecutionRuntime(options) {
       if(capability==='libra.product_sidecar.render@1'){
         const workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();validatedVolumeKeys.add(workspaceRoot.mountScopeId);
         resources.push({resourceKey:'volume_write:'+workspaceRoot.mountScopeId,units:1},{resourceKey:'sqlite_write',units:1});
+      }
+      if(snapshot.work.owner_domain==='libra'&&['libra.media.frames.extract@1','shared.face.embedding.compute@1','shared.face.cluster.compute@1','shared.face.reference.match@1'].includes(capability)){
+        const workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();validatedVolumeKeys.add(workspaceRoot.mountScopeId);
+        resources.push({resourceKey:'cpu_heavy',units:1},{resourceKey:'volume_read:'+workspaceRoot.mountScopeId,units:1});
+        if(capability!=='shared.face.reference.match@1')resources.push({resourceKey:'volume_write:'+workspaceRoot.mountScopeId,units:1},{resourceKey:'sqlite_write',units:1});
+        if(capability==='libra.media.frames.extract@1'){
+          const mountScopeId=findMountScopeId(inputs);if(!mountScopeId)throw new Error('P4_TYPED_US_ADULT_SOURCE_VOLUME_UNRESOLVED');
+          validatedVolumeKeys.add(mountScopeId);resources.push({resourceKey:'volume_read:'+mountScopeId,units:1});
+          resources=mergeResourceDemands(resources);
+        }
       }
       if(capability==='shared.artifact.manifest.verify@1'){
         const workspaceRoot=libraOptions.workspaceProductPort.rootSnapshot();validatedVolumeKeys.add(workspaceRoot.mountScopeId);
@@ -808,7 +833,7 @@ function createProcurementExecutionRuntime(options) {
   const plannerKinds = ['field_observation', 'evidence_assessment', 'candidate_assembly'];
   const libraPlannerKinds=['evidence','acceptance','rejection','routing_nfo_facts','routing_provider_facts','routing_basis','acceptance_spec_basis',
     'product_identity','product_metadata_observation','artifact_production','product_fact_assembly','workspace_media_production',
-    'product_conformance','deliverable_promotion'];
+    'product_conformance','deliverable_promotion','us_adult_analysis'];
   const perceptionPlannerKinds=['acquisition_page','resolution'];
   const arcaPlannerKinds=['acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','periodic_health_assessment','periodic_custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','care_workspace_reclaim','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit','jav_correction_assets','jav_correction_files','jav_correction_publish','jav_correction_verify','jav_correction_commit','jav_correction_formal_retirement','jav_correction_workspace_reclaim'];
   const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({

@@ -4,6 +4,7 @@ const {replacementScopes}=require('../planning/external-material-work');
 const { candidateSeriesAnchor } = require('../model/series-identity-contracts');
 const {nextJavIdentityStage}=require('../planning/jav-product-identity-work');
 const {nextUsAdultIdentityStage}=require('../planning/us-adult-product-identity-work');
+const {createUsAdultAnalysisCoordinator}=require('./us-adult-analysis-coordinator');
 
 const { readDirectMediaSelections } = require('../planning/direct-media-selections');
 const {readSeriesProductionCandidates,readSeriesMediaSelections,candidateSetDigest}=require('../planning/series-production-candidates');
@@ -904,6 +905,15 @@ function createLibraRunCoordinator(options){
     return ensureDelivery(snapshot,workspace,direct);
   }
   return Object.freeze({reconcile,
+    analyzeUsAdult(libraRunId) {
+      const snapshot=options.movieProductionReader.readRunSnapshot(libraRunId),
+        identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
+      if(!snapshot||snapshot.run.state!=='active'||snapshot.spec.contentProfile!=='western_adult'||!identity)
+        throw new Error('US Adult analysis can start only in an active Run with its formal Identity.');
+      const workspace=ensureWorkspace(snapshot);
+      if(workspace.kind==='workspace_admission_deferred')return workspace;
+      return createUsAdultAnalysisCoordinator({...options,submit}).reconcile(snapshot,identity,workspace);
+    },
     readJavIdentityStage(libraRunId) {
       const snapshot=options.movieProductionReader.readRunSnapshot(libraRunId);
       if(!snapshot || snapshot.spec.contentProfile!=='jav')return null;

@@ -155,6 +155,7 @@ const NULLABLE_COLUMN_OVERRIDES = new Set([
   'libra_intake_decisions.expected_target_status'
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
+  'libra_us_adult_reference_pages.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
   'arca_jav_correction_recovery_intents.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
   'arca_jav_correction_directory_checks.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
   'fx_plan_nodes.compensation_for_event_id': ['fx_workflow_events', 'event_id'],
@@ -312,6 +313,7 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'libra_us_adult_reference_pages.page_json':1024*1024,
   'libra_acquisition_candidate_evidence.evidence_json':262144,
   'libra_acquisition_candidate_evidence.record_json':4096,
   'arca_jav_identity_corrections.preview_proof_json': 2 * 1024 * 1024,

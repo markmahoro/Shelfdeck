@@ -2,15 +2,15 @@
   "schemaVersion": 1,
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
-  "tableCount": 212,
-  "tableContractAggregateDigest": "b25e3032d2eb6f4d75a8de3e66435df1f60f12993847d7ab4fd0c9ef0f17374c",
-  "ddlDigest": "305b46628fa5e59c36698c1a55fc8d9d6e300d3708a80f601d38a5ca6cbe930b",
+  "tableCount": 214,
+  "tableContractAggregateDigest": "5085fa9219e863f7ff5f7d9c8749f9d0c4c044ea7bb0a7371e925450963127ff",
+  "ddlDigest": "e219f81ff490d4dc64b6391707ba9d85df229d1448ba8d3dee53a4ea3b391db7",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_acceptance_attempts/v1",
-      "contractDigest": "fbb050b99e5009b118e204a3044e3a924ad8299b56679305c151308d9a47b74d",
+      "contractDigest": "a72c99112debc51d7e4a4dc0a8cd21e27f1b5bd832a28dc03b8163ae135a0398",
       "sqlDigest": "450fa85e17ef6784693d378420d75763dd4ec07ff6514ba2066d538bc26ddf43",
       "columns": [
         "acceptance_attempt_id",
@@ -45,7 +45,7 @@
       "tableId": "arca_acceptance_check_evidence",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_acceptance_check_evidence/v1",
-      "contractDigest": "934aa7869316290292f5eb6e90253cabec46144e16a3592af4191298d639fdee",
+      "contractDigest": "f66f0570b78a9990d03051d82c913b6d01dbe117985ef2bef2cdf7357e9f0a1b",
       "sqlDigest": "e3242fa90881badb4d71c11a61f868a709b85917e3707366f463ce7dc63a70d7",
       "columns": [
         "acceptance_attempt_id",
@@ -72,7 +72,7 @@
       "tableId": "arca_acceptance_checks",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_acceptance_checks/v1",
-      "contractDigest": "0e1b6e1c4715a85380ea13ff210b3c15e4f5518dfb7845860b3f6119e5610815",
+      "contractDigest": "1c8e57aa416f3271cde7f632f0cae3c719b7bc50a29f78c856daca3939f818d2",
       "sqlDigest": "e242c9d0f88fc2824041f303b5bea11caf24a62e21dafc8fc248c4f65d5cb9d4",
       "columns": [
         "acceptance_attempt_id",
@@ -90,7 +90,7 @@
       "tableId": "arca_acceptance_decisions",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_acceptance_decisions/v1",
-      "contractDigest": "d6096a542f288e17850cb26ceb757b12b8560003c58087417e64a3da4b9f522d",
+      "contractDigest": "1dbdf98cf3e697c2cc358011f106d0126307daa7aa5e0394b1d76cee755c8c6b",
       "sqlDigest": "7c9c3da307d9575c0c7d7673c86a0f1948d1b0fb26cab7d52f911585b4b91483",
       "columns": [
         "acceptance_decision_id",
@@ -118,7 +118,7 @@
       "tableId": "arca_acceptance_recovery_cases",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_acceptance_recovery_cases/v1",
-      "contractDigest": "294e35e0e0ab9ff21eb09d738a85286618bdfb3e057ed450cdcc1d9f0586f109",
+      "contractDigest": "e3ba7c83dc3c3afbd15d93f4f73543edd94d1511e2e92fae075a3a183e4c49e5",
       "sqlDigest": "83c94e3d88b7bd43821913cbebf0f827fad32e8a5fa90f641e1a41e365fa0618",
       "columns": [
         "offer_id",
@@ -154,7 +154,7 @@
       "tableId": "arca_aftercare_assessments",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_aftercare_assessments/v1",
-      "contractDigest": "20ace31de94bf20d23f78ddaa62c673ab1b422b411fe88fa646da33fc4cdc176",
+      "contractDigest": "624b47f21c6bdd77401d4c8d83f4eb8b241fc7cc48a94a42e525b450f20b4775",
       "sqlDigest": "f793c0bc4dab182b5ff91ab8c4652075a875521e3a31c693d1a728f8a5b4da9c",
       "columns": [
         "assessment_id",
@@ -189,7 +189,7 @@
       "tableId": "arca_aftercare_case_basis_inputs",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_aftercare_case_basis_inputs/v1",
-      "contractDigest": "274879938fe07ddca979c9c2b18ca1f68cfb16fe2d0fc1e1c0a82f04823123b3",
+      "contractDigest": "cdb1b04840d9102c29ed35b4dbdaa2b11e23927321f5e8ce4237aa81dbf3f1d1",
       "sqlDigest": "9e4a73f4a9cbc0ea9847143601275f496de4c9ebb3b196d4dcde1c52b45bec88",
       "columns": [
         "aftercare_case_id",
@@ -208,7 +208,7 @@
       "tableId": "arca_aftercare_cases",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_aftercare_cases/v1",
-      "contractDigest": "ee0488140d881f3b500ecef4a2a30a3260b5dc3bed095a0d218acadca3fafec8",
+      "contractDigest": "598655908e600f1bc5c429fbe7bf605bb1174e7f3b8fa46a3bb05b2a4a847f15",
       "sqlDigest": "85fe58f039ee26f2e569fb50d3a13c14bdd2a72973af0686c3d989fd081df92a",
       "columns": [
         "aftercare_case_id",
@@ -254,7 +254,7 @@
       "tableId": "arca_aftercare_findings",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_aftercare_findings/v1",
-      "contractDigest": "b44942156c91585da5a194189b1c536ba33158b5e7ca53418cb7a7aa2555831b",
+      "contractDigest": "3c906a51050a5cc96eed5e5b347228e5354d2f6db4ee908b00a911f39dccf637",
       "sqlDigest": "0b20da4100c44daecbd702bbb9c226c6ca232a5813f3f3a99feb3dea62f41516",
       "columns": [
         "finding_id",
@@ -280,7 +280,7 @@
       "tableId": "arca_aftercare_inventory_commits",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_aftercare_inventory_commits/v1",
-      "contractDigest": "469354c951fc33406089b4d90a3902c8be45074739e82f1b0c8b0fa7a919cd4b",
+      "contractDigest": "06a1ec7e460fd65d187cfed2b718eb02b1493c208d49d448a358d581d0a3008b",
       "sqlDigest": "550e4ed1f7cf9460181cc299ff4bfbda34ec51ddce5ea78b4e5570b503ea74b8",
       "columns": [
         "inventory_commit_id",
@@ -300,7 +300,7 @@
       "tableId": "arca_aftercare_settlement_approvals",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_aftercare_settlement_approvals/v1",
-      "contractDigest": "8672e7ff36389e2876dc39e47a13ddcd146896d84e1e5fe698a2a6507d2a1067",
+      "contractDigest": "8e126acb3f4759bcdd6ad1470906083c3281a8ac1e4050cab62d19a750567fd3",
       "sqlDigest": "852f6eb621a005042b3de92e2c601cfa6da295fcd954019c660cba2e8fae4ff9",
       "columns": [
         "approval_id",
@@ -320,7 +320,7 @@
       "tableId": "arca_canonical_identity_revisions",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_canonical_identity_revisions/v1",
-      "contractDigest": "e2fb6f38d79a89d3fa28adc6baba1a99ee07c28cfc4bf86aa5cd5248e06d9aed",
+      "contractDigest": "9d317c33a572e0a725cfb8985d751dcf5e6fd9e5d4b19d3fd279be65061b0979",
       "sqlDigest": "3bdf572efd5626313197b4f310227cf82f9ed93fbcc8984f8fffe0cc68de1b7b",
       "columns": [
         "shelf_entry_id",
@@ -346,7 +346,7 @@
       "tableId": "arca_deck_fact_revisions",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_deck_fact_revisions/v1",
-      "contractDigest": "750d0f5dc450fc3e328ee24ebbda565ca1cf06802ae32c13e92ae4ac8d7e4890",
+      "contractDigest": "f72f17a4ba3f7c48c16569e2c048414274f53401985271cc4a7a94228af00eaa",
       "sqlDigest": "cd093bef9ff7e654138beab23a5554c635fa88debe29905e3e3691ebb692d9ce",
       "columns": [
         "shelf_entry_id",
@@ -365,7 +365,7 @@
       "tableId": "arca_defect_admission_heads",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_defect_admission_heads/v1",
-      "contractDigest": "7e61b2d8e1fc8211e0dafe322e58c083860727c7e082dbb2204d3836a144d775",
+      "contractDigest": "e49371f6fbae363756bc0229393def301eea164857f22eaa1cf6145850412639",
       "sqlDigest": "6ba1be8471cc499464ba52ae5dc3a1fd08c238a0f9d15a535710f6d4f5da5732",
       "columns": [
         "shelf_entry_id",
@@ -380,7 +380,7 @@
       "tableId": "arca_defect_admissions",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_defect_admissions/v1",
-      "contractDigest": "f9f12fe08561c6634990ceb19041bfdeee3741e818519f0f5545d42cc14f1596",
+      "contractDigest": "734441e3b1fd05be4ca2b38bce4c936a4345a227e8c5a4a730c84a7842688ec7",
       "sqlDigest": "1f1b5a41f85960fd0f2706f31c6389e18e06c174ac340d4a44f11af254a63b0d",
       "columns": [
         "shelf_entry_id",
@@ -403,7 +403,7 @@
       "tableId": "arca_defect_repair_intents",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_defect_repair_intents/v1",
-      "contractDigest": "06780114ed6535fe83eded5333c1dce7d20baaefcf3cadd09fb0648d7fa0f102",
+      "contractDigest": "e82c80df805fbf7642880f90a03c238e8c77a2f37ac30d48744998ec042dd1d0",
       "sqlDigest": "aaaee8d8bfff210c83bc9090ba226177eda8b0a77a25c2ce0c178eed05322421",
       "columns": [
         "intent_id",
@@ -426,7 +426,7 @@
       "tableId": "arca_deregistration_receipts",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_deregistration_receipts/v1",
-      "contractDigest": "6639c80f21f6cd2acfecbae8507199e93c994ec8825385974643b23737335fa0",
+      "contractDigest": "4ebb7273c4bdd5e6ce0f9b502547916247ee10988bbcb36a527c93c944fbebd9",
       "sqlDigest": "aea3f06fdd7702bc07ddee908042f7c58db51f9592842b25900733ae1a820caa",
       "columns": [
         "receipt_id",
@@ -444,7 +444,7 @@
       "tableId": "arca_deregistration_releases",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_deregistration_releases/v1",
-      "contractDigest": "1d89830205abd88230c9d1a6961a8fd8322b0de944095cf149b9486baf5caf84",
+      "contractDigest": "a526176a4d30b2e84e7ad828342715cfe821deb4b67bcef529ed1a3e72440660",
       "sqlDigest": "437899420654a0555ee43bbe380d60730524406914adae115ca455e269ce4496",
       "columns": [
         "deregistration_id",
@@ -475,7 +475,7 @@
       "tableId": "arca_deregistrations",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_deregistrations/v1",
-      "contractDigest": "aa54354390bed122971edcc961e5f8172fefd3d3bf96159de18926fe701993a7",
+      "contractDigest": "9b9fd798b0b1da3771481ea6984225d100c5d609dc94bfce07dee8e9814ccf4b",
       "sqlDigest": "c72257fe770ea953f2a2062ae8a24ca0382295fee19b8f9f70c83ec547087671",
       "columns": [
         "deregistration_id",
@@ -500,7 +500,7 @@
       "tableId": "arca_final_inventory_decisions",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_final_inventory_decisions/v1",
-      "contractDigest": "421bdbf1f62f1c1bb54fee9e6d513d61e88ba6370cb62fb915a230748f40e4a4",
+      "contractDigest": "4a4ce39ce2c4bae66798fb9715b5716e5be06fa2437e405cc177ee0df9de35f7",
       "sqlDigest": "ef492c7f747e349550556e0a497b2f13706c67470f7444f7943d63badefe6de0",
       "columns": [
         "final_inventory_decision_id",
@@ -525,7 +525,7 @@
       "tableId": "arca_handoff_b_receipts",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_handoff_b_receipts/v1",
-      "contractDigest": "7fd5b64ce1771ca814032c1a689f19b931e6f846c9dca7c49b4bbe77b1921c33",
+      "contractDigest": "ee1131c49ede07c9eaa002aec047a1f705b359977651539780f85594372e8986",
       "sqlDigest": "1ddc3b5c4f1dedb4f97232e53bc5de6003952b2b11b9d491ffdf2aef1ebeb5c8",
       "columns": [
         "receipt_id",
@@ -552,7 +552,7 @@
       "tableId": "arca_input_settlement_authorization_head",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_input_settlement_authorization_head/v1",
-      "contractDigest": "19b8024104c952413dca7d97f664e14f63b1e4f66689489ff8438a43e22b7028",
+      "contractDigest": "c79446f352acfd62cd84f04dc739a822c5461f428f0943fd57267b565a1742bf",
       "sqlDigest": "12f304e41c780822ca3464d300863f3a032d8ca1fcc215098ccff4294b59383f",
       "columns": [
         "singleton_key",
@@ -568,7 +568,7 @@
       "tableId": "arca_input_settlement_authorizations",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_input_settlement_authorizations/v1",
-      "contractDigest": "c5d649f4edf678b402013de7f65637cca8cea84e21d4242800616ddf383f6f32",
+      "contractDigest": "f7bc1b5ca741854aa2cd99a2b9d4fb3732f5cf9106bb84dc26604f656f4df6c4",
       "sqlDigest": "8663ff839a68b2cb183fa9c54e071c47cfb29484bee8ed1b17b96eac3696ef59",
       "columns": [
         "authorization_id",
@@ -588,7 +588,7 @@
       "tableId": "arca_inventory_materials",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_inventory_materials/v1",
-      "contractDigest": "ab1ef2383adfcb810d1a8c5df65ece05b17b000810e434c0fa8174ba0e5eb088",
+      "contractDigest": "bccfe859c4cbe19e43b8560d0b2230caac3213f3d71018775c4fd231928f34aa",
       "sqlDigest": "7feb938e107962004f4d4334a645d3ca6ac1a56d357893342a48b196f40a5b4a",
       "columns": [
         "shelf_entry_id",
@@ -633,7 +633,7 @@
       "tableId": "arca_inventory_person_relations",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_inventory_person_relations/v1",
-      "contractDigest": "9ef291625d97029ed188f5dfda9170e2a33d760cc5ffc9e633a80dd9681d999a",
+      "contractDigest": "7d7db6ca21e43b0c4536f0c49068402ae1a654d54c3c446be9178160dac57c9d",
       "sqlDigest": "f5deccb0473a5c00fb34209efeb97c31d41c70bba53342dddce748612e93a27a",
       "columns": [
         "relation_id",
@@ -665,7 +665,7 @@
       "tableId": "arca_inventory_product_facts",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_inventory_product_facts/v1",
-      "contractDigest": "60f882ef5cc56dc2528309d36409413a665681e0d9dec204c4fa3467ead17edc",
+      "contractDigest": "61324b9b9754e82a140e2dadbb312504b54076333e5de5e61d472635a4c170e5",
       "sqlDigest": "ec0e624cb583b77e7547077a8feba72374487bb7e9be41fe379c37bd6952dd98",
       "columns": [
         "shelf_entry_id",
@@ -689,7 +689,7 @@
       "tableId": "arca_inventory_related_references",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_inventory_related_references/v1",
-      "contractDigest": "f2f03a01491e7a1ebd061dbab78cd0ec6f3962c9218a31056375c0b58ee4d69c",
+      "contractDigest": "8a551e8c51cfb39faecf03018dcd6618c446b35a34fed0fa932330e5bc99da24",
       "sqlDigest": "d6a9df048c113063ce417bc72fa4270e20818a3307573fdbca4a175cda5439f6",
       "columns": [
         "shelf_entry_id",
@@ -711,7 +711,7 @@
       "tableId": "arca_inventory_representations",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_inventory_representations/v1",
-      "contractDigest": "1e98e1afd123befd9c3ffc3700cb6c7780e59dc6d7f9578e867bfdf87e62a4d3",
+      "contractDigest": "1f6d22207c6de27403e485719ce4cfff5ef3ca4de56c3c8497754f558ce8ad45",
       "sqlDigest": "b1a6b225ee0721dfa2e70c47d14e200c18f2f65d2263c81958644a55c278cace",
       "columns": [
         "shelf_entry_id",
@@ -728,7 +728,7 @@
       "tableId": "arca_inventory_verification_records",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_inventory_verification_records/v1",
-      "contractDigest": "e34cf1cb5655ae0c82bcc84cc61941dd04b561ee8b37f4a6a3d80f9adce331e1",
+      "contractDigest": "a2dc5f1a3e12b4837a4b0f96c2b9af029649cc2ec50d83ea5fec61c8a3cc64c0",
       "sqlDigest": "c2c7ad56d48a76030aa728eec9dee2fbe1f045e9232cd43c5293d72a6a36d901",
       "columns": [
         "record_id",
@@ -754,7 +754,7 @@
       "tableId": "arca_jav_correction_directory_checks",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_jav_correction_directory_checks/v1",
-      "contractDigest": "00a371e92a6b970e0b9db4d04419f6fb412c5c48bd8c1e41947b12d39b023ebc",
+      "contractDigest": "be3a678896c7ff564af02275dead019a063b3ba93206ffea6ad1a3c911b5748d",
       "sqlDigest": "3f20872414db1a1ec9ba6ac0b139903aa567d8c7f05a521562828930ed4b69b8",
       "columns": [
         "correction_id",
@@ -785,7 +785,7 @@
       "tableId": "arca_jav_correction_recovery_intents",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_jav_correction_recovery_intents/v1",
-      "contractDigest": "95fc13addec653e7c55379c27c5ce5b9b790e124b700a81dd01b3070720c3cfe",
+      "contractDigest": "1545b8fdd2fdd32161d44ec99fb6affb9f74ca011ad1fd9862ad00889aef8ff1",
       "sqlDigest": "597c9ec91bad606567c5df577ec0e429fd20ae05dd1afe3eac4b7577cde88d31",
       "columns": [
         "recovery_id",
@@ -814,7 +814,7 @@
       "tableId": "arca_jav_identity_corrections",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_jav_identity_corrections/v1",
-      "contractDigest": "6115663b924f457ee9400ef8123ca525d902479be8108b6a796d8b564cc59205",
+      "contractDigest": "1389af17f7038fbf60a49e435ba52f59f38c4cc2b000758bcad1c0078a0f4030",
       "sqlDigest": "bc2d5684dafe48b80d705a5e0a2ba91579f989faec2c93af6282f828aa653c98",
       "columns": [
         "correction_id",
@@ -865,7 +865,7 @@
       "tableId": "arca_material_bindings",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_material_bindings/v1",
-      "contractDigest": "913c93598ac80c2e9d327d5658e6efb02d4f29cc7dbea774a9839fc0f65ec936",
+      "contractDigest": "d8d0f68b3e733dee946ec9c2b215f89f7b2b59f572f7f75ca9d2146b9ffbf7f9",
       "sqlDigest": "ec86ebeea016587ad30879f0a814ff7a9d3e91c8a876229d1e21fb2cfb747be3",
       "columns": [
         "owner_object_type",
@@ -900,7 +900,7 @@
       "tableId": "arca_offdeck_authorization_batches",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_authorization_batches/v1",
-      "contractDigest": "e52d90ca331a562d3aff81f1f0360cbeff17a0f8f007355936992b0b3d6f2a89",
+      "contractDigest": "1543116c3bae95fd073e6724799cb039dc905636cd027261bea3d283dfdc15e5",
       "sqlDigest": "2ac38abc058ed4f37a8e65f39a73f8dd6827c68588e382a089ad332081aba290",
       "columns": [
         "batch_id",
@@ -919,7 +919,7 @@
       "tableId": "arca_offdeck_authorizations",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_authorizations/v1",
-      "contractDigest": "b04878754e1d227382da6fe17eae14f019a5279f52a4d15858313bf78959d454",
+      "contractDigest": "1c156c5082da3fea7f6114017644ee14771384360d7c9f70ccff407ba25f711c",
       "sqlDigest": "7f6bf9aafa07ce8786671151b0966a99dc01a1e28aa61b928063ebd063c4c92a",
       "columns": [
         "authorization_id",
@@ -938,7 +938,7 @@
       "tableId": "arca_offdeck_cases",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_cases/v1",
-      "contractDigest": "d12b7e734a01ede6c3b33d4053d5795ac9686dad98dbaa5be3e3410af68f712c",
+      "contractDigest": "1eac64fa5d4701d780d3c6215cb39a6b9b3f68af778b8ee619f5e8d13a6abd1c",
       "sqlDigest": "99cde95c1d1dcf4cd11fd9b991bd6947b29a47d86fe56c30440c2e8571488320",
       "columns": [
         "offdeck_case_id",
@@ -962,7 +962,7 @@
       "tableId": "arca_offdeck_deletion_evidence",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_deletion_evidence/v1",
-      "contractDigest": "83e2b869ee482706ce5fe20e57724ae7608f973e9b9b57e596de466cf38b8b8a",
+      "contractDigest": "a121a8fe5d9cc7869e9e3f62a4aa416fd43e424964d3e42b25452b3f7fe0ba23",
       "sqlDigest": "128afdc7186790dd840fe70209be051d6a8c3ba2bf4ae77278946d8565d73386",
       "columns": [
         "destruction_scope_id",
@@ -981,7 +981,7 @@
       "tableId": "arca_offdeck_duplicate_group_members",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_duplicate_group_members/v1",
-      "contractDigest": "fdd636654dbd44d953a0420c3c485f7bb6d4a64dd65ea87f03d9f70826ca0ac1",
+      "contractDigest": "dd92f1e98f11b3f183385651dff0c322a6e7c8edccabc1108ea220698f0f888f",
       "sqlDigest": "a521807cec54808803bd1ab1d7a82ca227fe097295f6767cd3006f774678d3c6",
       "columns": [
         "duplicate_group_id",
@@ -997,7 +997,7 @@
       "tableId": "arca_offdeck_duplicate_groups",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_duplicate_groups/v1",
-      "contractDigest": "d28a3d5ff571071b7cd09b7da3b304fdf30351503ba602614f33fc61e29543e1",
+      "contractDigest": "6778ef2c2fcde879215ae5178487dc10da31883fa042ed09d9fb5510a5bbfa15",
       "sqlDigest": "0478d40294a77134bc834dc641b5eb5062b5b5e67d782587db24bf006ddb7f7f",
       "columns": [
         "duplicate_group_id",
@@ -1015,7 +1015,7 @@
       "tableId": "arca_offdeck_duplicate_whitelists",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_duplicate_whitelists/v1",
-      "contractDigest": "f5d93e3553c73510dc59286207673bd073a7e9e64231d74cdd7930ddf846179c",
+      "contractDigest": "6e2a641ae440585d7a6720664cdd3e5e331409447417e36945675cd37d9eb370",
       "sqlDigest": "c6f3e283988156323754962f956ab33eb334f220d6a06383663f84508e023b8c",
       "columns": [
         "whitelist_id",
@@ -1034,7 +1034,7 @@
       "tableId": "arca_offdeck_escalation_receipts",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_escalation_receipts/v1",
-      "contractDigest": "416b0d9321d3a3937f66bb386bc1475e9240b87d1d10bc8a89849d39d2acbb16",
+      "contractDigest": "f52ff05fc79520bf814222c30668f6d230d6afb7f8ee2daeff0c8cd432725027",
       "sqlDigest": "35f4e9a77ed0ea18797efbc3303dc40fd37e4a03c13f1e827b057560b0f80d66",
       "columns": [
         "escalation_receipt_id",
@@ -1051,7 +1051,7 @@
       "tableId": "arca_offdeck_policy_heads",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_policy_heads/v1",
-      "contractDigest": "6ee64d8d0d08bb1e64f46bb547d55c5a48ab91f81878d533c73946c9f52729f0",
+      "contractDigest": "6cdb30b4cbfe8d1af28b899d3c5b0e79897e9c92100232534d750260916b54b1",
       "sqlDigest": "4671fb3accf68c574f6c462ec5715ab48c8f2f8075c4cd998a8ca64d12749d76",
       "columns": [
         "policy_id",
@@ -1067,7 +1067,7 @@
       "tableId": "arca_offdeck_policy_revisions",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_policy_revisions/v1",
-      "contractDigest": "f699c16a87ca4df44e9bf859f4e78b10ac51ad83de0faa4916b3a63d72034536",
+      "contractDigest": "efca573db0f1011b77004f8ed1b65d195f596ca518b030b18406f57ebfd93ea8",
       "sqlDigest": "7d9422f84f119d93ada27851f3c1b2d3fefd21409b695b02b1148ab6b919f5f2",
       "columns": [
         "policy_id",
@@ -1085,7 +1085,7 @@
       "tableId": "arca_offdeck_reservations",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_reservations/v1",
-      "contractDigest": "505219e727948d053a517edaa470f49d413ddb0e5fc3c37ff0f75542430ca2a8",
+      "contractDigest": "d7a22b0edfb3561fd8683820107a99e11ee4308eca8fc0eb1a5fe5db2a855d8c",
       "sqlDigest": "114952cbeba634012610a52a1d13674b091bf8e79bae4324dfb4bb2b5e357740",
       "columns": [
         "reservation_id",
@@ -1117,7 +1117,7 @@
       "tableId": "arca_offdeck_review_candidates",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_review_candidates/v1",
-      "contractDigest": "f9ca3194232d5f07b8acd824afeea18441c0510656367898aa564ae3a725a902",
+      "contractDigest": "5f5a977b701e8ede9f177941d0d61941edcf9a29163579ec891284bc0d7ab284",
       "sqlDigest": "810fd0501664307f2a907ac02049d6697490a7ebc73928de793a73bfa26aa4fe",
       "columns": [
         "candidate_id",
@@ -1154,7 +1154,7 @@
       "tableId": "arca_offdeck_reviews",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_reviews/v1",
-      "contractDigest": "9fdd68e2d0b517bcda2dfb636796fa30cf3e250da94aaa673b2f20bb98a64e1d",
+      "contractDigest": "c51957722b1cba0038b93cb19e287683889841122a9c03eefeaa619d5c603fa3",
       "sqlDigest": "c3f8b349831ad1615bb0d8eadacc9603aa103e029dec4f115a6252b3a1e10b91",
       "columns": [
         "review_id",
@@ -1179,7 +1179,7 @@
       "tableId": "arca_offdeck_scope_materials",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_scope_materials/v1",
-      "contractDigest": "dbf275482eb355f1bd58e598957f3a3957b8627e227fc4fa104a1b7c9b08e9e9",
+      "contractDigest": "c2de6b0ffe6a1d1451b00bcb7306e4cf7103c3ba2c41702d3cc8cc54fa78978d",
       "sqlDigest": "53c5035e4bb59114b47d6c18e378b0e82068d52a3254fb1501423f45af58315f",
       "columns": [
         "destruction_scope_id",
@@ -1207,7 +1207,7 @@
       "tableId": "arca_offdeck_scopes",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_scopes/v1",
-      "contractDigest": "502baadd685cd9596a3187d6b239873f218e87356ed464791af1262717487468",
+      "contractDigest": "05649f4890d525d27274b0cc5b32e3825375f60d8534fc20d268b15119387d7a",
       "sqlDigest": "ac7fa3290451ca17a87397dcfaf95aa381f32a606ca28d84dae7b09be59c6175",
       "columns": [
         "destruction_scope_id",
@@ -1227,7 +1227,7 @@
       "tableId": "arca_offdeck_selection_receipts",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_selection_receipts/v1",
-      "contractDigest": "890f31c92e088987ec061802ae53633c5601998307fbcde845f9ed6d8d842726",
+      "contractDigest": "ecca979ffd2cf625eb25ecff95c04eb2796db0e98489eb20001793ca6a34144c",
       "sqlDigest": "e45171edc2b2171ed65e098dc9d227242dd82a18d36d7d70f54fee96fcd9e888",
       "columns": [
         "selection_receipt_id",
@@ -1252,7 +1252,7 @@
       "tableId": "arca_offdeck_suppressions",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_suppressions/v1",
-      "contractDigest": "0b74cd0eec071ebb934e945789c81931e216905c7081075ec1278f1d2e94de43",
+      "contractDigest": "1356ec3a39221886759b3c00d58fb1f1ca3e6d0e598f347ac484bb275f48dc3a",
       "sqlDigest": "c7d10f52d1ec74758a05cad0bdc9959538999f2535ee6bd140dcc1222b453ea3",
       "columns": [
         "suppression_id",
@@ -1280,7 +1280,7 @@
       "tableId": "arca_offdeck_terminal_receipts",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offdeck_terminal_receipts/v1",
-      "contractDigest": "a77e0aac14099592e688545b5a1e8b5b894ab19b4cc42e26d532031ee5c2fd68",
+      "contractDigest": "0879219e7f5203cd30a64f516868f77bd84d49e2f97e8c14533fb359855b1a15",
       "sqlDigest": "c21d3701bd0b778cc9a7946645b2a17fec26535113fd7f800ed9e412241daf05",
       "columns": [
         "receipt_id",
@@ -1298,7 +1298,7 @@
       "tableId": "arca_offload_completions",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_offload_completions/v1",
-      "contractDigest": "adeae359c43c1a137e67b269a76864d784a4c401143b390900d894d59a7e6493",
+      "contractDigest": "71851442b18a2a011f780484f30bd9bdac630de5b8928e33708e64daf6917228",
       "sqlDigest": "3e7ab0ce6563429a2951461b9cebc5be05fd1f92853c0672510775f45778c701",
       "columns": [
         "offload_completion_id",
@@ -1317,7 +1317,7 @@
       "tableId": "arca_ondeck_commit_receipts",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_ondeck_commit_receipts/v1",
-      "contractDigest": "49c97cc44028311527e81cda0c1e07f491a5cf427621e25e5e69973a44c5f0da",
+      "contractDigest": "ea902bf8b32289b2fe08e34083e7234845ce1942cf39a45a3708031d4fae3e54",
       "sqlDigest": "522bb5d2be3e39b8dbb5ab5971c9962d67345d798cec544d1eb244be7082c900",
       "columns": [
         "receipt_id",
@@ -1338,7 +1338,7 @@
       "tableId": "arca_ondeck_custodies",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_ondeck_custodies/v1",
-      "contractDigest": "e2dde61099ea2303de58f003edbacdd2ae11af5f263a8b0fea744bddc175374f",
+      "contractDigest": "99587473f3884bc55f91b8291bb64ad6e860297035bf133c1c68ea9c2b75bfe5",
       "sqlDigest": "40b70fe6078db071c00033d8823a1c5b73cc4d1c8137f0946404e9aeb819fdc3",
       "columns": [
         "custody_id",
@@ -1358,7 +1358,7 @@
       "tableId": "arca_ondeck_runs",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_ondeck_runs/v1",
-      "contractDigest": "bc9aff2e112733a4fb74ae88dcd5c1fcba0272f91d73a4c6c4bf32e0a182ce33",
+      "contractDigest": "d2bb5941ce2abb2e9579a9c7baeda25ca72b67dd77478f752064eebeb7ee418a",
       "sqlDigest": "1a9c43906852086c004a6569b34dbe592450b832c770193f32b389658e002f3f",
       "columns": [
         "on_deck_run_id",
@@ -1383,7 +1383,7 @@
       "tableId": "arca_ondeck_settlement_approvals",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_ondeck_settlement_approvals/v1",
-      "contractDigest": "a2c6a0d0b4065b0ec1be601b2e35169e01f7d1f732c40d520d22b940d2f10b95",
+      "contractDigest": "747d0c01d5cca46d4f843ff0e0c40c68b0de9ad430d46adc39c19cc2d24c4e98",
       "sqlDigest": "51ce73770a8d70d635abe3ddac34dd3416e03f570be05c1ae92d3444949d23a1",
       "columns": [
         "approval_id",
@@ -1406,7 +1406,7 @@
       "tableId": "arca_placement_policy_revisions",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_placement_policy_revisions/v1",
-      "contractDigest": "43bed20d66c7c65e5e6292d85f07270685e3c6a819b07b2f650cc9a45fee502e",
+      "contractDigest": "b141620e51f74ab765ee19c1a28b2515e6e6bff5586ce8e47e315fb4744bb14c",
       "sqlDigest": "63399c043b6c9841646eda58ccb97bff78b823af9e149c1546f40c4560b7e12d",
       "columns": [
         "shelf_id",
@@ -1424,7 +1424,7 @@
       "tableId": "arca_recycle_entries",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_recycle_entries/v1",
-      "contractDigest": "e165534744a2b8feda82aa055257268aa204f1964a1d3c79b47bcf903c8a89be",
+      "contractDigest": "62eeb29ce61c617deee05159a994dbe268102983131a4438808892f14aa95aa3",
       "sqlDigest": "9ccc767992e295fb0ff642a0a279f414e5c1a28c2cdad5b34099fa41ad924b36",
       "columns": [
         "recycle_entry_id",
@@ -1457,7 +1457,7 @@
       "tableId": "arca_rule_template_drafts",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_rule_template_drafts/v1",
-      "contractDigest": "6fabb6d4c90acaeadfd87689f3c56c055636f3313f8f1eed2ee71bb5daa43c12",
+      "contractDigest": "945e499a5c7e4c1b37ce5bfd01d3f71d1251349efd3b8a0658190caaf8d85f5b",
       "sqlDigest": "dff00a0e89c7809085e4169463e74ac895e545acc134d3b2f11055397c793736",
       "columns": [
         "rule_template_id",
@@ -1483,7 +1483,7 @@
       "tableId": "arca_rule_template_revisions",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_rule_template_revisions/v1",
-      "contractDigest": "74310ba5d055223384894d0fb940b45b36120d8e84336893cc7f01186e790097",
+      "contractDigest": "bbe6bc7e1fa52c501b3b8b350466c5b52008069aa96beccae2d3e835205b26b3",
       "sqlDigest": "05fe440f409bdac229239d1a3025e8f8d855395b4a6f58a2317fb3804ec5d344",
       "columns": [
         "rule_template_id",
@@ -1501,7 +1501,7 @@
       "tableId": "arca_rule_templates",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_rule_templates/v1",
-      "contractDigest": "c2b686785eb811df38b6efa57a48c1e0e0754748de99371ed76ac4bfa16f4989",
+      "contractDigest": "83c95f518861add2173085176873856dd58e1e29f16259440f8de66c19f55a16",
       "sqlDigest": "f18dfaad6beb3dfa8bb2cc99c71197dec3f5f8ccd8bdf940edd17668ec3749a0",
       "columns": [
         "rule_template_id",
@@ -1526,7 +1526,7 @@
       "tableId": "arca_shelf_entries",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_shelf_entries/v1",
-      "contractDigest": "d1882bb877fb2ca440a2bde8fd310f31559a4886a51917d46b3eed2340459d72",
+      "contractDigest": "d812d6f8d19a0793718e2d38b24b053fc867e969e0719966fe039ee263862c45",
       "sqlDigest": "e8d0354b18d3c4be013db894d97e347aad52832a5f7f65e31a9ab36a0998b91a",
       "columns": [
         "shelf_entry_id",
@@ -1560,7 +1560,7 @@
       "tableId": "arca_shelf_standard_revisions",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_shelf_standard_revisions/v1",
-      "contractDigest": "b2bdabf73a4d958357caf330f21ea3b991ab7655cb302414d2c15e5a2d2957ce",
+      "contractDigest": "4e2fe0cc97d17b73035fc3b7c0f99b84578e1ed9d86bd717f7c8f22b8c8ae7aa",
       "sqlDigest": "e2beda5d366efae5bcf8fdfa114e0eb61660297eed44b6571a404f194e40a448",
       "columns": [
         "shelf_id",
@@ -1586,7 +1586,7 @@
       "tableId": "arca_shelf_target_bindings",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_shelf_target_bindings/v1",
-      "contractDigest": "4df46a29409258ab3b4adddeea7dc20cd7882eed1364e01c2d646161c1bb5957",
+      "contractDigest": "373ec52787b1b92a9a49b8303a3bc2798c24160256bc856e4c9060fa9102bb77",
       "sqlDigest": "a41ef84dcce38555963ca66f3c3b795821690b89877e2f1752667af5fc0bb380",
       "columns": [
         "target_binding_id",
@@ -1612,7 +1612,7 @@
       "tableId": "arca_shelves",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_shelves/v1",
-      "contractDigest": "aa776bc268fd628a78a2fb5e357c91b413bd2c38e23b07d702f6e4fd714dfcb4",
+      "contractDigest": "908936b008a217f7a42de3fb3a93b8406d11de6f8ff948f92dbc325fa81c4719",
       "sqlDigest": "ae1d67c1696917314562e4deb0f84a1a0a8e08653b5dc4837d0086e0e85d8673",
       "columns": [
         "shelf_id",
@@ -1643,7 +1643,7 @@
       "tableId": "arca_source_cleanup_checks",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_source_cleanup_checks/v1",
-      "contractDigest": "127c4300433e7ee503f40a345b9803bbfea5ef68e8ebb69796f31f8d720299e0",
+      "contractDigest": "56fa537ca844caa149452f6750ddb2c15b9d87b7712b452612f59fe229c32c27",
       "sqlDigest": "446c5917b796a1ea84bcc4c8698d0efc7402e4fd79b5e141079000767851feb7",
       "columns": [
         "cleanup_id",
@@ -1671,7 +1671,7 @@
       "tableId": "arca_staged_manifest_records",
       "owner": "arca",
       "contractId": "helix://contracts/tables/arca_staged_manifest_records/v1",
-      "contractDigest": "1b27084f0a4b6bccfa02e9f3046717a57f9ff1330cccc85ed9fa1a799787b5d4",
+      "contractDigest": "78bf651f82b3e7e65720504514a6e2c1aa9e43e478c2956d9c00b6d45cbf67db",
       "sqlDigest": "c34b35814642033d680935b68f96a370350421cf31b9c3cb93e8de31e99165e9",
       "columns": [
         "record_id",
@@ -1697,7 +1697,7 @@
       "tableId": "fx_artifact_references",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_artifact_references/v1",
-      "contractDigest": "061f92322b0ca3fd3be5ad69c031f947c1049cbe847d645f77a8554d9bc89cec",
+      "contractDigest": "d5eb23505c240b21d403720a353152f5848a7bad0dbc3ef5126d42dd17637294",
       "sqlDigest": "38339f296e70d5dde7f0b3cdbf69e696ade6b665654ed12eb420dc67c61b9d8d",
       "columns": [
         "artifact_handle_id",
@@ -1718,7 +1718,7 @@
       "tableId": "fx_artifact_registry",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_artifact_registry/v1",
-      "contractDigest": "dd7a516bb27d215fb14de9da04f3d43bdaeefbcbafc5f9963d4959ad83614359",
+      "contractDigest": "08e6132f6b4541fbc237a62dbd899e77e0d49299e1a328baae39a8df7c4b1b1a",
       "sqlDigest": "e13902428d8362da57271abbdd8098c61b2fe6e12affb338faaf60f092d40a36",
       "columns": [
         "artifact_handle_id",
@@ -1750,7 +1750,7 @@
       "tableId": "fx_audit_records",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_audit_records/v1",
-      "contractDigest": "2994d073426f48f7e92d8ca5e5aa7325e95da70e14d5a8916adbad0bb1623deb",
+      "contractDigest": "bec807521cd48788d23155797cfcc2333ccdfa3a9453710c5330b221566bab6e",
       "sqlDigest": "87b1206b92b898918a30fa2edaeb734ecfa59f2fe68e25babc670f6772614aa3",
       "columns": [
         "audit_id",
@@ -1779,7 +1779,7 @@
       "tableId": "fx_circuit_states",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_circuit_states/v1",
-      "contractDigest": "ac1284cca72414792add1ba531170624f77756e9091180a064c816e697bffb78",
+      "contractDigest": "cd9fa4c66281a8bc85dd1d647ff6089a8d3e871238cf914bf752a0fe94e40da2",
       "sqlDigest": "1a48cff751c28eae7afef66915890af9e85b24952e548c8630c791adfeb2d7de",
       "columns": [
         "circuit_key",
@@ -1803,7 +1803,7 @@
       "tableId": "fx_command_receipts",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_command_receipts/v1",
-      "contractDigest": "b3fe6fa6c776ed488099eed81815703218a3ab8c1006e95bf0788c601344371f",
+      "contractDigest": "6cb11b2780dd04094b6d20e6eafca841f67116c5991c47d84f0d56f34af0fe66",
       "sqlDigest": "44d8274b67e2b71464b2c5e0aee9781e12069963282f52f3a44d127b70accd3a",
       "columns": [
         "command_receipt_id",
@@ -1827,7 +1827,7 @@
       "tableId": "fx_commit_markers",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_commit_markers/v1",
-      "contractDigest": "3e6ac7823d1859d197c13279aac3d820b1f9ce92e68e7518678c1ca3ce7ee04a",
+      "contractDigest": "6f178eb42b4afc10a0fde45a485c4fbf1c4f0ac02accbfad0e10c4896892a236",
       "sqlDigest": "1cb8b3a143c0dabab3eca1c0d0d7a200709cf393ae5ce2e48094a79cfa054b2e",
       "columns": [
         "commit_marker",
@@ -1849,7 +1849,7 @@
       "tableId": "fx_effect_journal",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_effect_journal/v1",
-      "contractDigest": "d3194300eb655b1de5fab1eddc16ee3a9b362970df7d6c7c4ebe2d8125b627aa",
+      "contractDigest": "871147561d321a9109abbcdb42426340db996eb85c8c8c4489ef0d57803618d5",
       "sqlDigest": "50342fc816fcec208aee762b314fc085148f221b9199cab7a3fda29dd3968148",
       "columns": [
         "effect_id",
@@ -1877,7 +1877,7 @@
       "tableId": "fx_event_attempts",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_event_attempts/v1",
-      "contractDigest": "344ac57b2769d43c94078c4a342232a7bbb92bc6358e3537621b1f02b92ffeb0",
+      "contractDigest": "8d0a1b31a6477229350efaa30170f1e8209593b32a4986b7fefb73909bebf956",
       "sqlDigest": "1783d1dc9008015b21b12e2b02f9abaf89d447ac5fc38220843288a4f8795e24",
       "columns": [
         "event_attempt_id",
@@ -1912,7 +1912,7 @@
       "tableId": "fx_event_progress",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_event_progress/v1",
-      "contractDigest": "d555e2477b5956b3b954488151696087c39cf7d884b9f487cfa9fb5c783febf9",
+      "contractDigest": "a0234d8cf335ad0616e2c59fe9aadb4e57d4b739765a9329ec479eeee564aed1",
       "sqlDigest": "f6e33028a902929d4d0f7bcabf814da7652bef9fc7690298b6aafcdee4623304",
       "columns": [
         "event_id",
@@ -1936,7 +1936,7 @@
       "tableId": "fx_event_resource_timings",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_event_resource_timings/v1",
-      "contractDigest": "a4ef6c88cc8cfb89f0ce866290a5763e7f00c626445872386bcd6ff6f255044d",
+      "contractDigest": "82be9b4dcc557c1e52f212cba78130b4a00313eeda15073db7c48cdc4f0e6f21",
       "sqlDigest": "1d09772fd6ab444cc4caa8f8d7684d408364d87e2ba5fa301cc849826c00007e",
       "columns": [
         "event_attempt_id",
@@ -1963,7 +1963,7 @@
       "tableId": "fx_event_result_bindings",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_event_result_bindings/v1",
-      "contractDigest": "f52b20ea3b275b21f841bfca3aa953af27eec21e7d1f9d0833a313d819665fbd",
+      "contractDigest": "daecd3bafec5056fd0a4375751074afd62efe773c759614abda8787ff508a0a0",
       "sqlDigest": "1511ed57afde50d222cac7bec7f8f07518a345b5421a57ee40d616f832d0db59",
       "columns": [
         "result_id",
@@ -1993,7 +1993,7 @@
       "tableId": "fx_executor_incidents",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_executor_incidents/v1",
-      "contractDigest": "5ceda8af8caf6c5d3b33b701ebf86c937012e3492cbd3edf3307de97ff2595df",
+      "contractDigest": "d45cbde55a97078d4188d088881bee7420c547f76828c884ba15ea5577908ade",
       "sqlDigest": "a55db5b000f422a8f76a3bf2dde1305cef8c03298bee6ab254040c68f0f48bb0",
       "columns": [
         "incident_key",
@@ -2023,7 +2023,7 @@
       "tableId": "fx_inbox",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_inbox/v1",
-      "contractDigest": "2b77222e1a55abd9ab81e662f9f2e0a1c332913107f495b8dcdeb20569607924",
+      "contractDigest": "627ad48151a3ab0056b57312ce76cf5139a068c465b62c154c27eb5f838bff43",
       "sqlDigest": "1c46c01858ff23fee939fed64b0796eb933428dc0af3c3230e441fe058f8feca",
       "columns": [
         "consumer_domain",
@@ -2041,7 +2041,7 @@
       "tableId": "fx_material_control_revisions",
       "owner": "material-control-authority",
       "contractId": "helix://contracts/tables/fx_material_control_revisions/v1",
-      "contractDigest": "773870de2ac17a85c0a74120e99ac48fd453de7cd8f6b03e9d2dc2de66d004c9",
+      "contractDigest": "0be0dabfa0ee214c04bd21df1ceb3e39a4f3b6f4b34d5124c8efecd92262d4df",
       "sqlDigest": "000e6cd3b9904b817a08239e1b06c11f60332c16535a4a30e64a4fc1366494ad",
       "columns": [
         "material_key",
@@ -2065,7 +2065,7 @@
       "tableId": "fx_material_controls",
       "owner": "material-control-authority",
       "contractId": "helix://contracts/tables/fx_material_controls/v1",
-      "contractDigest": "53269b2aac2cedf42d4f56a1cc40216d0b8c2e9a439ee2a39aa55c7c85756e0c",
+      "contractDigest": "28bc643b76015667a4455bdab86cec9c335c83257414040a512338c555b94520",
       "sqlDigest": "8ec426b4844c0e4222943011b0d447f29c4ed5f702ae508ca25a07711797eb3e",
       "columns": [
         "material_key",
@@ -2090,7 +2090,7 @@
       "tableId": "fx_outbox",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_outbox/v1",
-      "contractDigest": "f05e5cc95fe7f88450a40c3a048d3a07452d49c1fa39a60fda1e9e4fa0fbaa4c",
+      "contractDigest": "d9675714a6565900102b414ea77eef401dc86301cebfd1332089ae099f25d6b4",
       "sqlDigest": "53a797909f3fab3e2464edfecaf93b9a1519d686634cb4e3c9b87d7ed3ae8ea2",
       "columns": [
         "message_id",
@@ -2124,7 +2124,7 @@
       "tableId": "fx_outbox_deliveries",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_outbox_deliveries/v1",
-      "contractDigest": "8a64ceaf01e64b66cf3e138862aec34f9cdc0d42d44d700af9ed5793276708ae",
+      "contractDigest": "a75192dca8c19b0ac6bf0bb512a0dd150aac0be4efa36ad3eac41e86c7f719c1",
       "sqlDigest": "11905e7762a02dcd8bd3d3668686e137c609b5479b5cb8c7486ac79c999ef9cb",
       "columns": [
         "message_id",
@@ -2148,7 +2148,7 @@
       "tableId": "fx_plan_edges",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_plan_edges/v1",
-      "contractDigest": "14ebfac2b5b072fa084bb9eaee8c3ab80c0d9429be0bb873f3ad458176edebea",
+      "contractDigest": "065929d2a5d35edbede7b298d74a962b69b896be521380b75670f279a1b5838d",
       "sqlDigest": "fb9fcf8ba7aca91c86f20e81cb694d25ebc2b7c5c456eb930c7ac9415ce91aa1",
       "columns": [
         "plan_id",
@@ -2164,7 +2164,7 @@
       "tableId": "fx_plan_nodes",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_plan_nodes/v1",
-      "contractDigest": "d1dbaca19db9dec9b0dc5420c39fe689fa5542f8d3cfe64215c1082c3b18ba97",
+      "contractDigest": "484cc1a96c1c98c716e06bba7f7cffd96444d4825b0b3c348bf45960f52df06f",
       "sqlDigest": "9eabf6a1e822464b1cea4a7aa61a77468906785b544bebf3f94b6659c4e5d41e",
       "columns": [
         "plan_id",
@@ -2197,7 +2197,7 @@
       "tableId": "fx_reconcile_cursors",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_reconcile_cursors/v1",
-      "contractDigest": "b60f99936079602a1ede15e7f54557ad3275dc94007eba1d9ba04ebfa556289b",
+      "contractDigest": "55b151bd5422968ccdd40bdfdf7edf38f138c2aa70480fd87847fcde10803f01",
       "sqlDigest": "3f35930eba11fd5e46587feb21ad8e9f56f804e5b28d14487268efcaca8993bb",
       "columns": [
         "owner_domain",
@@ -2214,7 +2214,7 @@
       "tableId": "fx_resource_defer",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_resource_defer/v1",
-      "contractDigest": "41a36c2894a8debfbbc7612fae30454d5bee33b3a21cdcc2e21efe47d6f4e759",
+      "contractDigest": "40b4c68c6b80abcc2351af0f6f2988046e1875180727230c9c38d0a04d9bc965",
       "sqlDigest": "94749ffe07b5fe7f512c6a3929dd5a1eba512e44db266dfed27702bcddf092ed",
       "columns": [
         "event_id",
@@ -2240,7 +2240,7 @@
       "tableId": "fx_supporting_works",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_supporting_works/v1",
-      "contractDigest": "7c5c4183b206bec2240138104398ce26a7d65c222cab50192579925ad4767fc7",
+      "contractDigest": "88f38bba50bf58c0cc018e988df68feb1ea397a3beefb80a3ee51ccba7ebb629",
       "sqlDigest": "4cf80fca68f7d191e0b4e08fe02e2dd47dd11cfcb8790123ecc7dcff07994579",
       "columns": [
         "work_id",
@@ -2282,7 +2282,7 @@
       "tableId": "fx_work_attempts",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_work_attempts/v1",
-      "contractDigest": "146df0a9c40530bccb65ba4a199b9aa81d1b408eab124bf19089a04b25589574",
+      "contractDigest": "c3d00af6230e86953a05ddc5fd0080f088cc4e7b208741374554aa58792d05c5",
       "sqlDigest": "88f564d169a1a67ed84ee2df076cedb68f65611e223130510de7a6b35a59c3cd",
       "columns": [
         "attempt_id",
@@ -2309,7 +2309,7 @@
       "tableId": "fx_workflow_events",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_workflow_events/v1",
-      "contractDigest": "be85f03b480775a97f9712394723692ba9640c39c74002936119c4696f168bf1",
+      "contractDigest": "9d69c1566009cb51b0b953c918d0c5533f731aaafce0ab7c19afa42e956b8191",
       "sqlDigest": "45d0d3cc26b6f829919b50cada63b01ab1ddaa4fefeb2da56c40c11e2c630264",
       "columns": [
         "event_id",
@@ -2346,7 +2346,7 @@
       "tableId": "fx_workflow_plans",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_workflow_plans/v1",
-      "contractDigest": "384862ba0812eedef476a53a2cad57e8ea80e5f04b7b3d2a2473b729e0f71341",
+      "contractDigest": "5cf9285222d118eec350186ce6c31da9698ed1b9630ec017d8404f124204d2ca",
       "sqlDigest": "4ba412e4d9cefcdd96472d6b4843b7ea7ea6ab916bdcec042836b9bd800e7dc5",
       "columns": [
         "plan_id",
@@ -2367,7 +2367,7 @@
       "tableId": "fx_workspace_materials",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_workspace_materials/v1",
-      "contractDigest": "da968ea38b026f4871f7a80c966b96be57a19c69e598a76e320d8ab40ff2f525",
+      "contractDigest": "a0949e45e4110b8edcb4c95cb91844d8b079e649ed184f30fd67a1f8582d839c",
       "sqlDigest": "d83bcca5278a9d572d7f07009802fbf2d06d3f4a9239c7882f192054f50f491c",
       "columns": [
         "workspace_id",
@@ -2405,7 +2405,7 @@
       "tableId": "fx_workspace_registry",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_workspace_registry/v1",
-      "contractDigest": "996cab0705d065eed8d4acb8cea27b9316f9fc675734cb1a082f3998b9a2e656",
+      "contractDigest": "cf096d4b9729c69e737455614733d5efbf481f563034c0fc1070300799b2f667",
       "sqlDigest": "03376b8e25e635be2e9dee787b5a62e8092203d015e595cb3884b9aa8e4986cd",
       "columns": [
         "workspace_id",
@@ -2432,7 +2432,7 @@
       "tableId": "libra_acceptance_specs",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_acceptance_specs/v1",
-      "contractDigest": "b19092080d0d2c7f5bd4909346792925d23b45a691bbf00891ed0a676707a11b",
+      "contractDigest": "decd061595094f19b4e5d5560da11d75e2812bc3b2f067f175bc2f969cd5bb12",
       "sqlDigest": "71737db50cde85db975046492e06cc3d8a22628b44390339e90349c3082d7b3f",
       "columns": [
         "acceptance_spec_id",
@@ -2461,7 +2461,7 @@
       "tableId": "libra_acquisition_candidate_evidence",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_acquisition_candidate_evidence/v1",
-      "contractDigest": "7a50dc24fc617c0e24e5a49564c81aa93b56552928f71ff5137cd4429d3ff831",
+      "contractDigest": "4ebb4ac0571d7aa54d611a3c9a4d24a2309b673530d42b75c78353a7d6f6921d",
       "sqlDigest": "2ac90d4b8037fe9248bf124e27aafa1fa6f5060b04735a8c85bbc2d3ca77c805",
       "columns": [
         "record_id",
@@ -2492,7 +2492,7 @@
       "tableId": "libra_decision_basis_inputs",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_decision_basis_inputs/v1",
-      "contractDigest": "6112f2cb139e5c1fc25451400c1318fcb03b4a4e7db792faae2dda4bd22e4129",
+      "contractDigest": "97dc7787b4d6faf837a15d12ac0b618b0c2ff8f398255f4097d168599a45f3eb",
       "sqlDigest": "c48e5b4fbbf7ca2783ab17cec9e45981bd370c9c158c761077b9733fbcbea35e",
       "columns": [
         "decision_basis_id",
@@ -2520,7 +2520,7 @@
       "tableId": "libra_decision_basis_revisions",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_decision_basis_revisions/v1",
-      "contractDigest": "462a49efbeb6d92e28b2881a19dfeb3149da5f24675aea6586cd3222a7a4b849",
+      "contractDigest": "6e9a686c251a711618a9ac0c143efd51f0f93b4ca8e4225d857b9ce847b5e77c",
       "sqlDigest": "dc019283bed11b3c64d064ffc05a26844c30cc81583ef7a9ddd7ed19c1cc72f8",
       "columns": [
         "decision_basis_id",
@@ -2554,7 +2554,7 @@
       "tableId": "libra_defect_authorization_head",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_defect_authorization_head/v1",
-      "contractDigest": "2d05f45de58645f37c54e2169a087229052f21dd361444d9b5ce0b42c3666654",
+      "contractDigest": "2f43458aa9f7ac628f855f70aefdc77fca2e3d36abb5126591a89e53c380b5ac",
       "sqlDigest": "f8b6a17cdcb4526c39401976282ea08ba98c075538bd9a34844c4da3f107bc66",
       "columns": [
         "singleton_key",
@@ -2570,7 +2570,7 @@
       "tableId": "libra_defect_authorizations",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_defect_authorizations/v1",
-      "contractDigest": "5886595f3c45e4cd7773069edc134e510f74151c903c3e60505a24b9b85f6fb1",
+      "contractDigest": "7910cf2ede09b9cd394e6025922296bdc1f0192a1832fcc053648321e2f83644",
       "sqlDigest": "c85562d840a1b6d93a30ae892a11cd4f505c0612c03a7c859e743a7c84db3879",
       "columns": [
         "authorization_id",
@@ -2589,7 +2589,7 @@
       "tableId": "libra_delivery_receipts",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_delivery_receipts/v1",
-      "contractDigest": "6f2602b6b21f0bc5a113986fbedd8c76a7e7b76076d012146326667f3c4ac349",
+      "contractDigest": "4256efd807cde4daf708b348135d27778fd2c49ba73e0a4d3e5331c71517ea38",
       "sqlDigest": "cead2b27311bfced3833e6dcd2798fcbc485b7be5dc02284a4b8b65d344f4843",
       "columns": [
         "receipt_id",
@@ -2622,7 +2622,7 @@
       "tableId": "libra_fairness_clocks",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_fairness_clocks/v1",
-      "contractDigest": "9501b7703e04b088edf5d9cbdf688ec25ba69dc1078e27213c16b13e17e65ef0",
+      "contractDigest": "5ec978ce987ed037e471a9978cf3d7033ecbaafd122d6ca9d09bfabaa859daf9",
       "sqlDigest": "345d5f94a078f55b36e77fdee1dbd7aeccad27a8dff371d3dea22235b3eba9bc",
       "columns": [
         "clock_id",
@@ -2637,7 +2637,7 @@
       "tableId": "libra_fairness_events",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_fairness_events/v1",
-      "contractDigest": "75d905435fcc411c54c4efe1e0fdef856d96e6a96ea30c42ab719a9951e91bbc",
+      "contractDigest": "0a97a31bef282b836b7fd18f1546cbde148296590a3a16fb06bc89e92c872e46",
       "sqlDigest": "272f46a45b35c0528b5d7b06c376cee3792b2db1085ba58d97299f53f6eef7df",
       "columns": [
         "foundation_event_id",
@@ -2660,7 +2660,7 @@
       "tableId": "libra_fairness_runs",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_fairness_runs/v1",
-      "contractDigest": "47ac7a68c03269a6007a0d8bcd3d09bb6a86c820cc38fed69f55efd98e67dbc7",
+      "contractDigest": "0790ee1e27da1aae70a9a240c16687bba33cd0d8b30f772ff971188a446f318c",
       "sqlDigest": "421eb7290d5e0de8da23ffe892ad9d12b50abc4104c22fdc748228616a0d4933",
       "columns": [
         "libra_run_id",
@@ -2683,7 +2683,7 @@
       "tableId": "libra_fairness_sources",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_fairness_sources/v1",
-      "contractDigest": "3bdd5e9b278af534c5ec6aa5528d9ccc32b7113921c8e5fd5c848f8b13a95453",
+      "contractDigest": "20dec5addedc004f4ad60f14ab0d834a2a523ec9b0c51175b9deced14a89e2ef",
       "sqlDigest": "fa66dd9e81a6aefeac85e9dfba41c013c4e8e50344d6401380a6de6d813bf38f",
       "columns": [
         "source_field_id",
@@ -2698,7 +2698,7 @@
       "tableId": "libra_field_intake_admission_policies",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_field_intake_admission_policies/v1",
-      "contractDigest": "25ce5f9063d3c28a676ed0b145af845a5a454606d54dc8bc46a5a0bc2af90918",
+      "contractDigest": "1d8e1d78f3602686db5089eb2f435034fc6ae1eaea36d70b1ba9367657184532",
       "sqlDigest": "42739d34f724d12a53ffbcce42ead7e48767a2f40311bc07d6a79a056e5f40b9",
       "columns": [
         "field_id",
@@ -2714,7 +2714,7 @@
       "tableId": "libra_field_routing_heads",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_field_routing_heads/v1",
-      "contractDigest": "96fc4da2e44df9a677fd8ca51195ef8646276d43e04372e125baf7d39a053918",
+      "contractDigest": "66422d04e37b93931f2f9e132b8ac7213f66fa2035b302a0903e3b8d91f030ba",
       "sqlDigest": "ed878da117d22821f97bba5f615db4965076fb3fc2cd57b2114fcc005b1c001a",
       "columns": [
         "field_id",
@@ -2730,7 +2730,7 @@
       "tableId": "libra_formation_projections",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_formation_projections/v1",
-      "contractDigest": "ad846d5beb74dd86c99ad285a8e5f344fff77b651609f8d1002e4ddc07527363",
+      "contractDigest": "f67a4db02a6ee9a0d3c2e6c4f93e6a20c13de9289713c614f0c889644e82a14d",
       "sqlDigest": "821a5c82b28340a642a637f785054334faf7124d2918766a38709c27f3ebbad3",
       "columns": [
         "subject_id",
@@ -2813,7 +2813,7 @@
       "tableId": "libra_handoff_a_receipts",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_handoff_a_receipts/v1",
-      "contractDigest": "1ea801da33cbee45055c837aa0ba02858be6124f3864a074a27fee474d9f75fb",
+      "contractDigest": "a3e5e09c269440c0c994471197f7f7bfd1b517b9a2c776cca5bb0f219bd0b13e",
       "sqlDigest": "13725977373e5374408e1febf5a0e52e5315aee29910f080cd9caaf65260cffc",
       "columns": [
         "receipt_id",
@@ -2855,7 +2855,7 @@
       "tableId": "libra_intake_decisions",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_intake_decisions/v1",
-      "contractDigest": "594832103454a17d3ebb687daaba9f86de264738254127dce7f18c455c954760",
+      "contractDigest": "4db360d46e03c2f1bfb785533db93d74d6c5b5b04261389e57243ab3262699c1",
       "sqlDigest": "1647b30fe01b0c5b4a045ba9c7d9a3870c08e34f765deda34caed3e7a0d18ce0",
       "columns": [
         "intake_decision_id",
@@ -2941,7 +2941,7 @@
       "tableId": "libra_intake_rejection_reason_evidence",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_intake_rejection_reason_evidence/v1",
-      "contractDigest": "e8e35242bbd68851854f6deeb9bb8bcf85605200601d5af975305842be7180a6",
+      "contractDigest": "bad68dc0a50c1d6369ac398c36e298b505464ea937b6625c7aad44944d932da1",
       "sqlDigest": "430b6b598bcaab8fd5dec3a46397c52a7cdb80281ed7888af03fe0e68ee4df3d",
       "columns": [
         "intake_decision_id",
@@ -2967,7 +2967,7 @@
       "tableId": "libra_intake_resolution_episode_overlaps",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_intake_resolution_episode_overlaps/v1",
-      "contractDigest": "a768665288e17043076aa878b033ec2dc8b16d5c1818fc4ecc99e9ce11b3170d",
+      "contractDigest": "9219fa07b1df07f936cb390599c90da1e1926da1b72a7570523fadb08b6b97f3",
       "sqlDigest": "514be05859c9be7b8bbe665a4de4a2b8745488c1a33d224ccef08f860330b5fe",
       "columns": [
         "intake_decision_id",
@@ -2983,7 +2983,7 @@
       "tableId": "libra_intake_resolution_match_witnesses",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_intake_resolution_match_witnesses/v1",
-      "contractDigest": "255b818ea4e2c9ca04eb6601f9a4f53d0de80a806ff009e54225dbe4a2b51613",
+      "contractDigest": "781b5607ade4a3cae583f94fce0b727dc9dc3374867927845ef630d13fdc9d17",
       "sqlDigest": "b8f5aa1edde29faaef6fa6af4c7d292d0856d73f2db4a75edd8317b725e0fbc6",
       "columns": [
         "intake_decision_id",
@@ -3010,7 +3010,7 @@
       "tableId": "libra_material_binding_episode_claims",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_material_binding_episode_claims/v1",
-      "contractDigest": "0582bedf250a3be1dec3ecab19911d075303bd30458393b421b0334de50ca5e9",
+      "contractDigest": "82e61f5c89cc34f1db5178e7f6367bd1e9df77294a43b8fe60e051d4b52e6e30",
       "sqlDigest": "6c2f92b579f669c35247a5a3e7ae41b3ce97b1f74bfd949ca7f69d30eac9507b",
       "columns": [
         "subject_id",
@@ -3028,7 +3028,7 @@
       "tableId": "libra_material_bindings",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_material_bindings/v1",
-      "contractDigest": "32e70fc08d599af3f672d28bbad0f3082b7674618722bdb92ba178186d14a55f",
+      "contractDigest": "2c5b638b46419ad4e65ad3aa4ba4e1aedc6033bb2dfad293114588fc47408976",
       "sqlDigest": "6405d970b71fcfbcadad779ae58d54cd4768651710a7d61af17ad24be00d671e",
       "columns": [
         "subject_id",
@@ -3067,7 +3067,7 @@
       "tableId": "libra_offload_context_materials",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_offload_context_materials/v1",
-      "contractDigest": "e39e23595660f8daa31e5d0b7d36d3295846ba2aa17909618af1d603f38bc3ff",
+      "contractDigest": "cc5d08134530855559b5b78933af7f1edf72dae36776fe01afa48e67d1f74a80",
       "sqlDigest": "ffba419a56f94c4ef31daf6a2d156bce7a0532eea650128bb61fbfb13f1f55fa",
       "columns": [
         "on_deck_package_id",
@@ -3103,7 +3103,7 @@
       "tableId": "libra_predeck_pipeline_tokens",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_predeck_pipeline_tokens/v1",
-      "contractDigest": "22e1abca6afa25a15a7df87545c4258a37667ade4fe34c58a1c012b2efab6011",
+      "contractDigest": "5a61451030079cc14037393206467082085b274ec009b96ae978b646401c0809",
       "sqlDigest": "08bf6c2fa03d548f644f51bb968fd8cdbfa8e68705188c04b4446c0178c6fc12",
       "columns": [
         "subject_id",
@@ -3125,7 +3125,7 @@
       "tableId": "libra_product_fact_revisions",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_fact_revisions/v1",
-      "contractDigest": "ebbd361371315ade3125290e09dc7ba93c17f98bce2668551965771639bcf28d",
+      "contractDigest": "93048cc8e3c411f079da440ff0698a8d4663a5b6c72379b0c7b3eabc3bbfcce7",
       "sqlDigest": "cdcedc2081113aff33597a09f16a4586c5ab50e3068c9358817985fb812a978e",
       "columns": [
         "product_fact_id",
@@ -3168,7 +3168,7 @@
       "tableId": "libra_product_fact_source_refs",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_fact_source_refs/v1",
-      "contractDigest": "bfc2bb394bdbe58545af1bedd1689e40be431af6be08715d834b3b40c8b57276",
+      "contractDigest": "1bfa43f58c64c02213e98280219f9713c689231f8f81857f0b24b24a6c16659d",
       "sqlDigest": "1238e5a4beb9e12798e19c2700ff37c4a648671574494a3be60a5c6154fc51d8",
       "columns": [
         "product_fact_id",
@@ -3197,7 +3197,7 @@
       "tableId": "libra_product_identity_revisions",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_identity_revisions/v1",
-      "contractDigest": "869f734ab0c4daeaed7755e68db0f33e4644e1828bdd09d942a3f23712ffaf4a",
+      "contractDigest": "260475263ec0ff5c5baca9a8596803eb32cbff2e9f0c6038272b54a40d40bad7",
       "sqlDigest": "b0cac6980ff01634c98ea5c92b5c2650e7727e08309390d16184b44f6476c52e",
       "columns": [
         "subject_id",
@@ -3220,7 +3220,7 @@
       "tableId": "libra_product_identity_selection_intents",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_identity_selection_intents/v1",
-      "contractDigest": "c4b69d4f16521c823a04cd9ebf5ceab1a763471722e5d2876808b2e25ffe4025",
+      "contractDigest": "d59078426731898874d884d3d60d460ffc1868f91fcd424c5928353a24e5e17d",
       "sqlDigest": "8d1b452c2f28e46463d169e1d48c9e02b980eb65886ab7f50b510164a217dc89",
       "columns": [
         "selection_intent_id",
@@ -3247,7 +3247,7 @@
       "tableId": "libra_product_package_artifact_refs",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_package_artifact_refs/v1",
-      "contractDigest": "ed7350ab1394293f4f539676aa9c4de323fa325685beea8c9c3868afeff62a56",
+      "contractDigest": "82840b156a8f6ea765e993d1b960f2945b420ead2bdb8c83d3675133f3ac6ea2",
       "sqlDigest": "11d5e15fbc1bf9eb5e8f98aeb7850abca2cfaf46f2c8d4587f7d40458611f545",
       "columns": [
         "on_deck_package_id",
@@ -3268,7 +3268,7 @@
       "tableId": "libra_product_package_fact_refs",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_package_fact_refs/v1",
-      "contractDigest": "3f643b5cecd03b46e4598b1f470930e99f13bcc108ef3475891f01c0444ad38b",
+      "contractDigest": "619e4f900c0d1ff1264a662ba86456f3b92f81d968642d30ff2adeba8aa4eba7",
       "sqlDigest": "c1946398eb08b7330d6ca8607a5393e0e35b7f82b42c81e12ed6137e9326d264",
       "columns": [
         "on_deck_package_id",
@@ -3289,7 +3289,7 @@
       "tableId": "libra_product_package_material_episode_claims",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_package_material_episode_claims/v1",
-      "contractDigest": "059f53e2a91ff94c12c43e515577587b92e6a383d2fcf7c15741dd299e549398",
+      "contractDigest": "95f76e4a36167e843048ee99b3f1b07d9323b8adfb54a48f9ea4b989dbf4fb42",
       "sqlDigest": "ab5f5cb509aec5b6c39702b21732f26b08e7f3113350d35ec2f45472afad94bd",
       "columns": [
         "on_deck_package_id",
@@ -3306,7 +3306,7 @@
       "tableId": "libra_product_package_materials",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_package_materials/v1",
-      "contractDigest": "f2351d00d5fd812a576f984cc12e48a5390e76cbb17c6cc391de9c90b16aac98",
+      "contractDigest": "0c3cced86b7fad6780c9f2e1d4b9df1d09d8e9887cee6f8879513b8514284749",
       "sqlDigest": "6b7f03a91c314830e60477eae8b1efa3de48d94de644f852a849b5e412602dde",
       "columns": [
         "on_deck_package_id",
@@ -3360,7 +3360,7 @@
       "tableId": "libra_product_packages",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_product_packages/v1",
-      "contractDigest": "ad21e169fe1c143f27f19489642bf01435240cf2f3f606e2d21cfa23a50d2e97",
+      "contractDigest": "f6bfb1b9c67b9f24e336a6bbe634d8cff4e053460371bb0c3d87a84dd21255e6",
       "sqlDigest": "6f53a14ed953ad21ffac6147d05b7ee9f304d0735e2eff57206df15f33496cbd",
       "columns": [
         "on_deck_package_id",
@@ -3418,7 +3418,7 @@
       "tableId": "libra_reprocess_intents",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_reprocess_intents/v1",
-      "contractDigest": "27f6346097ddfec90247becb48fd8a8d6538c254bcc9dcc79d8a9a28e74278fa",
+      "contractDigest": "e1f3c49fc5003ca651d52f2bebb2ba92bfc254f2297c9d4fb3242424da4e7c15",
       "sqlDigest": "9a56b4537f89f27ed92d0d58b31d91856e6bdc621a0c4acdce99b8877167f979",
       "columns": [
         "intent_id",
@@ -3443,7 +3443,7 @@
       "tableId": "libra_routing_assessments",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_routing_assessments/v1",
-      "contractDigest": "e24ac7370e1ae30347e94ff5471a5ae9ebcc07508edaefcbb74ae1b571daf1d1",
+      "contractDigest": "d7bfa08b9d5d0ea6edd6cc44c32415bb63344c70b599b45a9b14e88bf6d96aaa",
       "sqlDigest": "848d1eca95460874880f26170f58f12b7baff92eb880af078b784e6b5d1fcb70",
       "columns": [
         "routing_assessment_id",
@@ -3467,7 +3467,7 @@
       "tableId": "libra_routing_decisions",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_routing_decisions/v1",
-      "contractDigest": "7bfa044f3c7f2d1308fa4e001a5a46e586a4a77212225dd90a54c024596c93cc",
+      "contractDigest": "b4f98955e7ab1902b409bd13f942ac7e7a54550fe4ae1fe1be53ca6ef2766002",
       "sqlDigest": "6df0f0c1be463f27fcb5f8ae37ca5eaacf70f97c08d797f8bf80e76c013f0336",
       "columns": [
         "routing_decision_id",
@@ -3500,7 +3500,7 @@
       "tableId": "libra_routing_policy_revisions",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_routing_policy_revisions/v1",
-      "contractDigest": "11bf239c10d0cfa799ec4c810beafcdf0f633dab76096cf91ee176779f7a1ace",
+      "contractDigest": "dc031baada2428468dbdf6708382d7c7536a945cf74fcf47fe16ea699ae834b3",
       "sqlDigest": "44ffb18910cd1e5b0695288c3393fd93131333840a846584cd4535b49d0754ba",
       "columns": [
         "routing_policy_id",
@@ -3526,7 +3526,7 @@
       "tableId": "libra_routing_policy_targets",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_routing_policy_targets/v1",
-      "contractDigest": "c64dfdd16ddddfb18e5b6d1eb1c0af5eecba04d06beca5cae3f0eb8316dfad24",
+      "contractDigest": "cb7727147dc9888c9da06889599ea8fc1871572aaf6c93704177e28af77ccd53",
       "sqlDigest": "23657799c78209ad9410afab3112e7efd59d259c9f5801f2e4297eb514b38f0c",
       "columns": [
         "routing_policy_id",
@@ -3545,7 +3545,7 @@
       "tableId": "libra_run_admission_heads",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_run_admission_heads/v1",
-      "contractDigest": "ca44574235241d1110b4ab92fd0654e47d711c98bcb051f6332e629709c7781f",
+      "contractDigest": "873c80ebc7a434cb658b89e028ef129af062f371f6fe12eef33cd1f05b238546",
       "sqlDigest": "6d12b60ec60551236df7af142da55e5234f682f0da35c7f5b4045a8e4253a848",
       "columns": [
         "subject_id",
@@ -3561,7 +3561,7 @@
       "tableId": "libra_run_discard_decisions",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_run_discard_decisions/v1",
-      "contractDigest": "7d1a2f0ca61e88643a33c487a298e420996a985b871f9483da5ae0f55a75dd9c",
+      "contractDigest": "d224dc2131806fdfec9681484195b9e2549b008bac7dd035ba69cd8150eda386",
       "sqlDigest": "142937ecec36b6bb0c9a13e523a4e6566f9ff28777972ade228ad745481fe159",
       "columns": [
         "discard_decision_id",
@@ -3585,7 +3585,7 @@
       "tableId": "libra_run_discard_receipts",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_run_discard_receipts/v1",
-      "contractDigest": "6dd57942fd4bf5265d54ec6c7b530d51123dd4921e341758482fab1495d1f534",
+      "contractDigest": "a014475820cb34dab198c02178b1b7a15d21860106d57dce0916bd4cd1e63510",
       "sqlDigest": "e58a19381f525e84912a89375e775921fe3c74aae9a00b25e22cafd8d7186dd6",
       "columns": [
         "receipt_id",
@@ -3606,7 +3606,7 @@
       "tableId": "libra_run_material_episode_claims",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_run_material_episode_claims/v1",
-      "contractDigest": "39fa07e10c0fa3093a477383bb571bc4eb926e2f7a28d6338f4095bd5787edeb",
+      "contractDigest": "42c2ca5d38fb5f6298acbb4fbf6f6e26f6d013742309fd25a1274e59977dfbc9",
       "sqlDigest": "d6b5ed6e9652846749a6741c5d63a7ccb90cbcf70df216f61608f59483fbaac9",
       "columns": [
         "run_material_manifest_id",
@@ -3623,7 +3623,7 @@
       "tableId": "libra_run_material_manifests",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_run_material_manifests/v1",
-      "contractDigest": "e1bbadaa9037b7761767e6f2e5c534c2072f71f0a13f4dc50f2e292ec0a8fc22",
+      "contractDigest": "b763a06382605a5236e2b2351030ae6208a9bed2afa1af6064984423c34f9088",
       "sqlDigest": "2c57274f6a2023a7f4922c2b4f2d5ca714172ef24e044db460881ea2d3ea4471",
       "columns": [
         "run_material_manifest_id",
@@ -3645,7 +3645,7 @@
       "tableId": "libra_run_material_members",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_run_material_members/v1",
-      "contractDigest": "cfebd69e97a6879d700dc7e593e063ea5658e19a87df0c4c8f1989571fef9276",
+      "contractDigest": "8914967234a7b21ec99571b20388374e14539ad32259cfba4f59ce702dfe57ed",
       "sqlDigest": "363cc2367fd3c4566fbe48f9f4747e5fed5281a708937440a6bcf3402ab613fa",
       "columns": [
         "run_material_manifest_id",
@@ -3685,7 +3685,7 @@
       "tableId": "libra_run_outcomes",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_run_outcomes/v1",
-      "contractDigest": "099e66835ef5762b8dc681fadeedbc2971032eb12d4421b80dee7d0f116ac047",
+      "contractDigest": "f2250bcb85291a83af55ce886da136f0e2a561b7224d67f0e47aab2f6d273eed",
       "sqlDigest": "458f712ddcd390dff384f80c132dae7d5d1662a8552fc6a163a9c6bb23e69e02",
       "columns": [
         "libra_run_id",
@@ -3719,7 +3719,7 @@
       "tableId": "libra_run_revisions",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_run_revisions/v1",
-      "contractDigest": "0d5d97d30f75b739540347af9134594c2d8287ef8e80ef84be7d659ac16b851b",
+      "contractDigest": "337b0e29d50a2076fed17416d46647d964df9938e7b1fe63ed150cfca5a8f74a",
       "sqlDigest": "726d96c1b5de725c4a0caf3260dc7ca47fdf12457523787ebdb504a64a422211",
       "columns": [
         "libra_run_id",
@@ -3758,7 +3758,7 @@
       "tableId": "libra_runs",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_runs/v1",
-      "contractDigest": "00b17112bf6d38d8e4f3a577108784b84aad2252b4d7b0effafda2c7f650c3a4",
+      "contractDigest": "3f72f4797f67545fe608db31307011e0149cf36e1acf54b6207ef11a7178653f",
       "sqlDigest": "637c4e94cc86b9d8940052b126a4f807bfb7b6e7cb0eae97688040dd61782c4e",
       "columns": [
         "libra_run_id",
@@ -3802,7 +3802,7 @@
       "tableId": "libra_strategy_availability",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_strategy_availability/v1",
-      "contractDigest": "6916be91408c05f1227a9e17c5eb922a7440520eb473065105104bf5eb09a298",
+      "contractDigest": "f1cd73f4f4c835f47c7ab258e86c32007630e1298b27362f78cfe50aa9d50885",
       "sqlDigest": "1b8f79e5477439b1afaf937f557ab0be122727e60b30632f69286d9acb4ff2a8",
       "columns": [
         "libra_run_id",
@@ -3822,7 +3822,7 @@
       "tableId": "libra_subject_abandon_decisions",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_subject_abandon_decisions/v1",
-      "contractDigest": "43f98f38eb19b4d92dd6bfd2a4dd4b84b803908ecf7c148c787bb63e3b1ed979",
+      "contractDigest": "af99d5591f36fa05b4832075975e4fdbc232279960d70ad6d3ba6d2d4097dbe6",
       "sqlDigest": "b1c4ae55edf18e0b73393f5be987d86cbf220d5e4d4170a61758092433184c08",
       "columns": [
         "abandon_decision_id",
@@ -3842,7 +3842,7 @@
       "tableId": "libra_subject_abandon_receipts",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_subject_abandon_receipts/v1",
-      "contractDigest": "8cdef0381a0b58ceb16fb18fb09772c70d998bda2a4cfc414bccb306cc77f144",
+      "contractDigest": "005ef074ca041230a0f2afba12aaf014e75812ed0594d5e6ea84e9493aa96349",
       "sqlDigest": "be7a7c2032fdfedcfccd816fffac41ab0e4a728971368b78d582f4b32b64b078",
       "columns": [
         "receipt_id",
@@ -3861,7 +3861,7 @@
       "tableId": "libra_subject_continuity_heads",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_subject_continuity_heads/v1",
-      "contractDigest": "ebeb7f7a96879b3744b9591e669a508f063599cc242593dea8f8352755192b19",
+      "contractDigest": "abe08136846fb196ebfc0dd39b1104b187d0c268a7056c75fadd28e1d29745e5",
       "sqlDigest": "fcb8daa0bc05d7f0071ffdb536efbffb7cb70b45c20edffe585bd432fedc4ccf",
       "columns": [
         "head_id",
@@ -3877,7 +3877,7 @@
       "tableId": "libra_subject_decision_heads",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_subject_decision_heads/v1",
-      "contractDigest": "442c729c6260b24210f4be17182e915ab44d417fe11340dc9628123a4d3c2838",
+      "contractDigest": "7e6af6dfa952bc5ac96017952c341708a3239a20db6ec1c290fa9e389a059db2",
       "sqlDigest": "5b661ad8d7ae4ab144d47549db06ecab4d05e965eefef0360c839b7c9c91de26",
       "columns": [
         "subject_id",
@@ -3896,7 +3896,7 @@
       "tableId": "libra_subject_episode_scopes",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_subject_episode_scopes/v1",
-      "contractDigest": "25bf2b834187bb85be3c1abaf87bbfe2e2c2bea89f3a257e118c9aa18aa7f97a",
+      "contractDigest": "836b28c8124748946102307d9979eb8e31a16372149f57f7e0c80b33d66c38f8",
       "sqlDigest": "972edf9e1bb03454c5d259afc081ed3e735d1671e2eb4b368107fb28ea948ee3",
       "columns": [
         "subject_id",
@@ -3913,7 +3913,7 @@
       "tableId": "libra_subject_season_continuity_claims",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_subject_season_continuity_claims/v1",
-      "contractDigest": "d4141b01e4e3745cae046c8536f1557c9105cb79bf409511c5843889a31d460e",
+      "contractDigest": "45f1bc9643fc373f9f226fd46e0bc71cee9afcea3ede40a6342a3ed5e019d6d2",
       "sqlDigest": "b20a92fdf2f8d0b2eace9db2f4be18ae889097c83cb4b7627c8b5fea5080f43e",
       "columns": [
         "subject_id",
@@ -3939,7 +3939,7 @@
       "tableId": "libra_subjects",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_subjects/v1",
-      "contractDigest": "3bea6ae82664e78e956241686e87b8dda6cfcf5c324a97efd91721c39e468fe0",
+      "contractDigest": "ca103a1f085e1e710e204518b9305132943615e7c7e2c3974d8c2cd99ccf63e8",
       "sqlDigest": "ab37e62bb7e4a320d7d21078aff1ba1d40566263f39330dbbc5cb365cb6f34cf",
       "columns": [
         "subject_id",
@@ -3966,10 +3966,50 @@
       ]
     },
     {
+      "tableId": "libra_us_adult_analysis_bases",
+      "owner": "libra",
+      "contractId": "helix://contracts/tables/libra_us_adult_analysis_bases/v1",
+      "contractDigest": "6a60eb5430c48c6323f2c09c7fc7e11b82df4d133283919843d4757ab9e4393f",
+      "sqlDigest": "0bf665b3807e56a6ef0ceb883d0c4fffe0f9c8d93acefd1225531f0bf54e8e99",
+      "columns": [
+        "analysis_id",
+        "libra_run_id",
+        "subject_id",
+        "workspace_id",
+        "basis_schema_ref",
+        "basis_json",
+        "basis_digest",
+        "created_at_ms"
+      ],
+      "immutable": true,
+      "supportColumns": [],
+      "indexes": []
+    },
+    {
+      "tableId": "libra_us_adult_reference_pages",
+      "owner": "libra",
+      "contractId": "helix://contracts/tables/libra_us_adult_reference_pages/v1",
+      "contractDigest": "958f337a3e5b926d09ba4797f4eba95248c612f01bec7cb286a98e9cb1b00c59",
+      "sqlDigest": "01eee9040a4626c36921cefa9910133c7886d99ae93ae557dc02d58f13c18b39",
+      "columns": [
+        "analysis_id",
+        "page_ordinal",
+        "page_schema_ref",
+        "page_json",
+        "page_payload_digest",
+        "item_count",
+        "first_person_id",
+        "last_person_id"
+      ],
+      "immutable": true,
+      "supportColumns": [],
+      "indexes": []
+    },
+    {
       "tableId": "libra_workshop_placements",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_workshop_placements/v1",
-      "contractDigest": "10472e1c8287f73351e834f0b84d42948deb01e08dd5366a7fbb9d1300882e4b",
+      "contractDigest": "57d2eb7119e35abaf09355e3effb80f9874ade59076b50079d62c1e46dad41ee",
       "sqlDigest": "c262056691ddd53e1101382c086a2ba0da710d32abb15d2146c113b78a0aea4e",
       "columns": [
         "subject_id",
@@ -3990,7 +4030,7 @@
       "tableId": "libra_workshop_policies",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_workshop_policies/v1",
-      "contractDigest": "64afa5c0bb40ac83dfbacd383d191db6e87221523dba1cc1ec83d3edafd94f4f",
+      "contractDigest": "df74c83311c070eeb293e217539630bc41100b05655efb3fd33813b167a84983",
       "sqlDigest": "2e199ebb01729aeefde4ec6f4cb6d286bfa6175a08f5712f371328ccbf1e40f0",
       "columns": [
         "policy_id",
@@ -4006,7 +4046,7 @@
       "tableId": "libra_workspace_cleanup_members",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_workspace_cleanup_members/v1",
-      "contractDigest": "bdd997fd38efb54fe6e8ab2ff1a21f77ae33cf9bee5d1533658df79d8187b0f2",
+      "contractDigest": "d3afffe48f1ac86a9aed32e9d0541b38424439064c02405c71244f910f3e794e",
       "sqlDigest": "a2af99b4dd4448214494566c9dd71bc6b7a4d57d764d6cb88a0a3c5536e4370d",
       "columns": [
         "cleanup_scope_id",
@@ -4048,7 +4088,7 @@
       "tableId": "libra_workspace_cleanup_scopes",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_workspace_cleanup_scopes/v1",
-      "contractDigest": "bbff048ce000cbb265fc9b623b59fd0206460506fa992043b415fc820eabaae7",
+      "contractDigest": "9d92cc9ff0f822c7dbe372b8de2bae86715d74aa93c9fd57135cff4f34fecc67",
       "sqlDigest": "b49360b406b609c2252107ff0b70341aa056000fdc461b3fa0c589f3fdce9b3b",
       "columns": [
         "cleanup_scope_id",
@@ -4083,7 +4123,7 @@
       "tableId": "libra_workspace_material_refs",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_workspace_material_refs/v1",
-      "contractDigest": "c813ecd6cb477d80126422c3a74baade8013535e1cb896d898f3c584ae3874f8",
+      "contractDigest": "ac0aa554e752ef85f71cea0c67e30644045b7ae6f93362ab7f28ec16033e9a31",
       "sqlDigest": "521755af1c7c14351ecc2cff90f2763f81a1c8fa5559c824188ae521d5dd184b",
       "columns": [
         "workspace_id",
@@ -4116,7 +4156,7 @@
       "tableId": "libra_workspace_revisions",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_workspace_revisions/v1",
-      "contractDigest": "3210706949b5566228ca4eb010ce649cbfe35b97fda4ad971a52156a2e60b0ac",
+      "contractDigest": "e7e66c262da781e2b74acec8995fbffc591d7d728943de97571096ced506df78",
       "sqlDigest": "b0980cef5e5dcd8561963407144efb831e77e799cdb041a8709323dc112adf0c",
       "columns": [
         "workspace_id",
@@ -4137,7 +4177,7 @@
       "tableId": "libra_workspaces",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_workspaces/v1",
-      "contractDigest": "caba5c9b790030bfbec0e2e72a979b6f0b8bafc8897290cace1fc4f62f7d7182",
+      "contractDigest": "e6c1d8a05601d57e8100e5a020e7e07f6140d301127ec3acee01a83affad6e82",
       "sqlDigest": "e69445f829077f46052e981b172938b6497dc41e72784efe4ae1f4e794283f00",
       "columns": [
         "workspace_id",
@@ -4174,7 +4214,7 @@
       "tableId": "people_aliases",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_aliases/v1",
-      "contractDigest": "9ca4a90063b3e80cf7d163b196ecfe0772816efa5a6a90400a3b6e0ea45690fb",
+      "contractDigest": "e5b8d6e33dc61e73c90de4c3d5ba2d75d95f1b7e4ac6c7428059e775150b2d69",
       "sqlDigest": "45cfb3f7f412d2f4254161244817c7e4d372602813171e4309b69314d13bc413",
       "columns": [
         "person_id",
@@ -4197,7 +4237,7 @@
       "tableId": "people_image_operations",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_image_operations/v1",
-      "contractDigest": "954583b13b107ff719ef3d61b4a0ed705e6f6ae61f2f1f3650be0fd80ce7614a",
+      "contractDigest": "c77d087c6d3f6430f27c1ae487986f0bc768b687cad676683f3691c8964ac249",
       "sqlDigest": "3fef64cfe3670d89f238b10431fc2bb27801fa35592b780c94ce8800c951652d",
       "columns": [
         "operation_id",
@@ -4230,7 +4270,7 @@
       "tableId": "people_merge_candidate_revisions",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_merge_candidate_revisions/v1",
-      "contractDigest": "5f7e26f55f40c5ead8f4bd21097a22a6a8b32c5a01344886c35b40c0629eb4f9",
+      "contractDigest": "99646198c44c16a3f6f29f9f12d9e0dc4bccf6149b3946b576a7ed47c1243040",
       "sqlDigest": "ae0003322cded7714b804106449e31061c4514912b376ebd4435ea3fe665d24a",
       "columns": [
         "merge_candidate_id",
@@ -4249,7 +4289,7 @@
       "tableId": "people_merge_candidates",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_merge_candidates/v1",
-      "contractDigest": "f14bfa78f9f0d13067a883d1deda52f2a91c5774a082ea50deb57605180305b0",
+      "contractDigest": "211e4f7d3cb1a87dd87812706f2f166278a3a4e6afeb6efd3bb5676e7fbd0b8d",
       "sqlDigest": "39a53250092334bd4f8e6ab568949607c830e3aeb95f1732ec43b2f061710763",
       "columns": [
         "merge_candidate_id",
@@ -4286,7 +4326,7 @@
       "tableId": "people_merge_records",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_merge_records/v1",
-      "contractDigest": "f5a0e91816cc0fc8d6b822b4adea45d72ec187676e75abf353046f05f5a28d7a",
+      "contractDigest": "ce3a3ac97da093233d0e59bdda460e2bd99a151aa3e41e209ea5d7d43a0707f0",
       "sqlDigest": "b8d072cc95c4055693cd929bd94f58fcf2a93482dfe455d714930a186cb9d19a",
       "columns": [
         "merge_record_id",
@@ -4310,7 +4350,7 @@
       "tableId": "people_person_revisions",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_person_revisions/v1",
-      "contractDigest": "845ab965d9f5d405b3b1ee6221b3621c2f38b0e52a5ba2b74cd4fead6d496834",
+      "contractDigest": "08195194fe0aeb63fa041e6908f65c50a97efaa998959ffddb7d193d92322922",
       "sqlDigest": "0d6b844009cad95803923b7e54424bdb643620925e844d9fcb5ee33dad114029",
       "columns": [
         "person_id",
@@ -4336,7 +4376,7 @@
       "tableId": "people_persons",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_persons/v1",
-      "contractDigest": "ab16ea04e539fa0db4612c625bd637bfeb7e60e77e5eed236821d059894c82ba",
+      "contractDigest": "556c0d570dc538ebb796f0c45637e3865fad4c9523c805ebc52e8705c1cbfdca",
       "sqlDigest": "93fc6668536e30ecaba063b5db2f690723ab6ef10e71c6546c2e93c93628ada3",
       "columns": [
         "person_id",
@@ -4364,7 +4404,7 @@
       "tableId": "people_preference_revisions",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_preference_revisions/v1",
-      "contractDigest": "a1888ba7ed3fcb5e92f1c869c9ccbe5574aa833390911f281f0fc2c73b9e19d9",
+      "contractDigest": "383480553ba55883c28847ffce4affa7d2b839052c21138e90003aa9e8595bca",
       "sqlDigest": "d9fea1526f31a8c15cf9ea138666a4a49070360fdab1e9d02c8c4b870f97f2b0",
       "columns": [
         "person_id",
@@ -4383,7 +4423,7 @@
       "tableId": "people_provider_identities",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_provider_identities/v1",
-      "contractDigest": "2563cb4ff0838cdb0a36783933568e851e59a091bb4ad675fa3acf0cd423fc92",
+      "contractDigest": "403f8ca31fa485371a0b9592fc89b2d2af8b9c97c0378a473375d041cfa1759a",
       "sqlDigest": "f9f0879e259571e2868d738f709675815d241c04e6f20afb73344226cdd062f0",
       "columns": [
         "person_id",
@@ -4415,7 +4455,7 @@
       "tableId": "people_reference_assets",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_reference_assets/v1",
-      "contractDigest": "1e0010b291da06a025c2ec0a5c39f3198d14bb95b9bc798d67d75f51bf2c2684",
+      "contractDigest": "d8cf8aed511ace74fc9429e8e7b9553ebb408c408382b52e4b8b2744e9be54b8",
       "sqlDigest": "07985c49e82c87e4a03cc941e4c9503cd0bd8aa445e0ceebd15e8a02f0813bb8",
       "columns": [
         "reference_asset_id",
@@ -4436,7 +4476,7 @@
       "tableId": "people_reference_faces",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_reference_faces/v1",
-      "contractDigest": "7d6817590a5091c4f7656cdaa9cc581c69c58c146444d2f79edd08a5324812fd",
+      "contractDigest": "66e203bf2d95fe0fc99725242d844681788a677ab6a29d2b631c8eb183767b8b",
       "sqlDigest": "8b2df3163d70ddc6132d79d607ca6bdccf5040be88903ad8cc04ab6bb7712602",
       "columns": [
         "reference_face_id",
@@ -4459,7 +4499,7 @@
       "tableId": "people_reference_revisions",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_reference_revisions/v1",
-      "contractDigest": "9fa6b199051701e79ca73fc4d4d0be46a28450d4b433b38ce42f9d4a80af119e",
+      "contractDigest": "9e30c568b54373d94a2e29653ba9f5cf392d496f0f7513d1c2defde87602b0de",
       "sqlDigest": "ef17c97ce3c7b4dfa569be298bf7e0f6fc6b4a26a50e68e697338586957bf002",
       "columns": [
         "person_id",
@@ -4482,7 +4522,7 @@
       "tableId": "people_registration_candidate_revisions",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_registration_candidate_revisions/v1",
-      "contractDigest": "985fcccd44b57fb39ddc34a214f3cd786146bb6da2d92a314601abea604a9972",
+      "contractDigest": "badc92935eaa4f8042434fa2d83d0e971d1f4a16d8b6bbeb38e85968b93e3985",
       "sqlDigest": "6b62eeb4a0bcfa339badbe77005ddc1b21e80eab5cffe7afe51e65960ceaa37c",
       "columns": [
         "registration_candidate_id",
@@ -4501,7 +4541,7 @@
       "tableId": "people_registration_candidates",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_registration_candidates/v1",
-      "contractDigest": "fa4432f65ff138f07946b5214023722273e7df846839748635b8a301342c9f9b",
+      "contractDigest": "5d659ac82f3ea96fd7c38fe161dd66b9116a9f0177da1a3c17b02728b555ba33",
       "sqlDigest": "1a56281390220d122875f86e476dc2b87911c90911efd6e1e8af997ab0dc2a10",
       "columns": [
         "registration_candidate_id",
@@ -4535,7 +4575,7 @@
       "tableId": "perception_acquisition_commits",
       "owner": "perception",
       "contractId": "helix://contracts/tables/perception_acquisition_commits/v1",
-      "contractDigest": "eee1a2c28c1a09c8fb74d19c6be33d568b5436a28353412cd22f9e25356c9200",
+      "contractDigest": "ef74749569723257663b50bb342e00ae3762821f5d2ed8ba009c80aef7bd2a32",
       "sqlDigest": "04a0f11f65ddd16c1c087bbb4fa26dcb2c2b9f5ade3568ba53162c13cd6f158b",
       "columns": [
         "acquisition_commit_receipt_id",
@@ -4559,7 +4599,7 @@
       "tableId": "perception_acquisition_resume_intents",
       "owner": "perception",
       "contractId": "helix://contracts/tables/perception_acquisition_resume_intents/v1",
-      "contractDigest": "72076105cd841d71bde632542cdee6f015e21ac8059b93d2eb9cd393e642f2e1",
+      "contractDigest": "8635347ea01eb257814dcf8b26c0d9497b05fc88ddddaf21d31026f9115f4439",
       "sqlDigest": "537f97279afdd8732d3d053418617d6506157907033a178b256573ac18721221",
       "columns": [
         "intent_id",
@@ -4584,7 +4624,7 @@
       "tableId": "perception_acquisitions",
       "owner": "perception",
       "contractId": "helix://contracts/tables/perception_acquisitions/v1",
-      "contractDigest": "14890e8f85b79f26c8fc7d24074d823842845337b38499f80990981cc61f71eb",
+      "contractDigest": "168e7c8956f8e1b1ff7edd743e8aa048078f40cc54721992f07fe9f3028758d9",
       "sqlDigest": "f3a5c9b1361cd6efb7a90c51fbfce63d57f6979a189d7aa3e406154b390cefae",
       "columns": [
         "perception_acquisition_id",
@@ -4614,7 +4654,7 @@
       "tableId": "perception_identity_anchors",
       "owner": "perception",
       "contractId": "helix://contracts/tables/perception_identity_anchors/v1",
-      "contractDigest": "5f88bd900a2a5219fa9e61a0ce8099d13c50c66cda32904c9f8f5a9f7a4e8298",
+      "contractDigest": "233c37a7a2de979eac3d49b6ce2437f78d4e9e25bb96e25afdc48c692a333761",
       "sqlDigest": "47706a269aa37d147ccca6fcbcd4d36f8e9d38ff774d215d92b4138c9ea51c2e",
       "columns": [
         "perception_id",
@@ -4637,7 +4677,7 @@
       "tableId": "perception_record_relations",
       "owner": "perception",
       "contractId": "helix://contracts/tables/perception_record_relations/v1",
-      "contractDigest": "cbb580e177d5e65a13eb002f7d74a93477d9805d23f4ae4a35ba701356e5197c",
+      "contractDigest": "54dbddbc1c62cb2e729e28608a278450edb502968351769eadb5afcb9f4035c3",
       "sqlDigest": "4d2538d2f7d9df0e85f73d2431c0c226edc482c572ca1d335be7e8f30467fe1e",
       "columns": [
         "relation_id",
@@ -4656,7 +4696,7 @@
       "tableId": "perception_records",
       "owner": "perception",
       "contractId": "helix://contracts/tables/perception_records/v1",
-      "contractDigest": "e83cf540bd1d4ee1d5684577e684dee6ecd2f34c93335e367d24948c60b25bb4",
+      "contractDigest": "bd751c8e6dd48ace0e1991347d8347db460ef1f1a6293b87b4f654dcedecaa9d",
       "sqlDigest": "3a17542f9172a33e9af0ffaf03d05facfdded47609260e125a819d43ede8df05",
       "columns": [
         "perception_id",
@@ -4692,7 +4732,7 @@
       "tableId": "perception_resolution_heads",
       "owner": "perception",
       "contractId": "helix://contracts/tables/perception_resolution_heads/v1",
-      "contractDigest": "7af6c90df83ef3c57285597de2243d82a1bb83d2abcb392a5318bc42e2d40b89",
+      "contractDigest": "99c7a0fa8eba4e20b1df47f9aae083af53b70f42e32336dddd5459edb985dd5f",
       "sqlDigest": "c88ab7b409cc5315bfd85861d1f467febe6ffde1d7ede2fd2bce0dc2f7318e2f",
       "columns": [
         "query_contract",
@@ -4709,7 +4749,7 @@
       "tableId": "perception_resolution_revisions",
       "owner": "perception",
       "contractId": "helix://contracts/tables/perception_resolution_revisions/v1",
-      "contractDigest": "7d4e6debb63396eb953d5fcb08b8d9b6cee75cf5dc1bdc49b4e3ad2c05d1c2bb",
+      "contractDigest": "10919ea85d2c76831661e212f54e69726f55b396e84000677399aea4d3050461",
       "sqlDigest": "e2c0fb646dae6a010b7bb898e5b91881758f3a51d5c516fabf99b4c710087edf",
       "columns": [
         "resolution_id",
@@ -4737,7 +4777,7 @@
       "tableId": "perception_source_cursors",
       "owner": "perception",
       "contractId": "helix://contracts/tables/perception_source_cursors/v1",
-      "contractDigest": "543616e1f081da6da5ad5d1a22d48cee6bd436692d973a3e30623ee34e264747",
+      "contractDigest": "d023cecf3dded777e2e650de38ea1dedd75851d7c513568206a3ee1fd681c46d",
       "sqlDigest": "ab72ce97a40c543aa2594488c1e6ed38d60bfcd2dca150ce3c8dc403161a76bb",
       "columns": [
         "perception_source_id",
@@ -4757,7 +4797,7 @@
       "tableId": "perception_sources",
       "owner": "perception",
       "contractId": "helix://contracts/tables/perception_sources/v1",
-      "contractDigest": "95155fd69da3598b979333471f9763c2ab391294b4020d78a9f4867d05350322",
+      "contractDigest": "b20d6340e62baaee4e5390b79797b7d6ebb2239c2d385507181d8881b90ad62a",
       "sqlDigest": "db62eabdf4b563d60b6e94c8b8f896afe7592bd78118da296e5ec80037b992cc",
       "columns": [
         "perception_source_id",
@@ -4783,7 +4823,7 @@
       "tableId": "platform_admin_credentials",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_admin_credentials/v1",
-      "contractDigest": "657e18dfdd71831e00f4d835fbb7a9c9796b375d6679a872a781f687423a7707",
+      "contractDigest": "4864a1f0af77d84ad9c40f61e712c7cd480f57a231fd50c9625d85eac5f7f68b",
       "sqlDigest": "5630f44bd7bfe074a0078ab843c18746ba7e2ed26eea56e2a336b6b291d782d4",
       "columns": [
         "credential_id",
@@ -4802,7 +4842,7 @@
       "tableId": "platform_compute_device_probes",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_compute_device_probes/v1",
-      "contractDigest": "bed45d6ee66fde78f077ecc549152282700b096a4e422e840a2f79ed0b1bb742",
+      "contractDigest": "3d041ed516d3c676b7e0e95735b687c68c88b9f199adc5513a4424e67d8559d3",
       "sqlDigest": "77203ef6f973679956f95ca8a37d6cf54d9b3a4c15f0e61234124ffac50623f4",
       "columns": [
         "device_id",
@@ -4821,7 +4861,7 @@
       "tableId": "platform_compute_devices",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_compute_devices/v1",
-      "contractDigest": "dcdc8cae23670bd5a5610f33a97c6bd97707499981badaa635051483dd9c6eda",
+      "contractDigest": "1a6af2a19a509dbeeee0976786639780b7d11c95699d84e3c9ee1c2250c634c3",
       "sqlDigest": "28a19857b0fdff4853396a1c3f87eb0cdccc8c6dc2fa30293c1f4f8cdb86e6e0",
       "columns": [
         "device_id",
@@ -4846,7 +4886,7 @@
       "tableId": "platform_integrations",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_integrations/v1",
-      "contractDigest": "4dc6cffc687e19bf3eb0c54da411edb2520c6264d811980c7efd52d1fd012ced",
+      "contractDigest": "1ed42d8e7383baef7614b1504e2e776bb238633c001a4b66e902b3b949ee3d05",
       "sqlDigest": "1aeca7907029024849afda145ea331d9ce674216ddcd2a364a118ce986144475",
       "columns": [
         "integration_id",
@@ -4867,7 +4907,7 @@
       "tableId": "platform_mount_scope_revisions",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_mount_scope_revisions/v1",
-      "contractDigest": "0607348e6bd1891a35b3b2b4920c29465e71823368069bfb5fedc9de919497d1",
+      "contractDigest": "416949c4768ef095eaae2f43ab6e0e1d38fd520d78695672c3b1bb61a15ede6d",
       "sqlDigest": "65a7b33967e3d1505e1baefe687d11dbdf00d76ce45ce8c7f24c0a77d1765de6",
       "columns": [
         "mount_scope_id",
@@ -4888,7 +4928,7 @@
       "tableId": "platform_mount_scopes",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_mount_scopes/v1",
-      "contractDigest": "07c8cc9167fa4a1028d3a57b5456907c3c626fda0da6939222e4fcc48e9e1f27",
+      "contractDigest": "1eaf6d1b17b84dc1bdcbe5ada11ad4116abd9ed9c75f27596af38690816af748",
       "sqlDigest": "3c54dbc0c842c71e089b672b56a2602559f34c38c2701d1491b6e8bb00b981d1",
       "columns": [
         "mount_scope_id",
@@ -4911,7 +4951,7 @@
       "tableId": "platform_resource_operating_policy",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_resource_operating_policy/v1",
-      "contractDigest": "1a4e47957c8d61686861874a70896b9063b0d0fb1a5ca50131d841a375889a5c",
+      "contractDigest": "713893ea42a43e24885db115bdaeb0c94f38d64d52111f3b536d037f56a49ed7",
       "sqlDigest": "78068c753ae6cf081436d388081554e5913c0035418256588461b6cabb794a68",
       "columns": [
         "singleton_key",
@@ -4926,7 +4966,7 @@
       "tableId": "platform_resource_operating_revisions",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_resource_operating_revisions/v1",
-      "contractDigest": "db3a04e13919754e2603f63f57d454672373366097149364021a7cef4282e928",
+      "contractDigest": "f8481526c6a600ea6dbf0018bfb4a56f634a49c8d1c646e59eb40da17738d08b",
       "sqlDigest": "00a7f2a7b2b5686e2cc72b11b0fa06536fdf30d27a81dc04b1936942f4d70e33",
       "columns": [
         "singleton_key",
@@ -4946,7 +4986,7 @@
       "tableId": "platform_resource_profile_revisions",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_resource_profile_revisions/v1",
-      "contractDigest": "9f65e792515d03f5a8b8d154319e5fb618d0bf698c883fa1d47ff4d679fcfea9",
+      "contractDigest": "f398bf35f4a4d8711fc58ade389c3f98dff9a6d014fb373c10b0cff50fa2b66c",
       "sqlDigest": "fe08fdcc038e574fcea84ba627108f886e0f37a0d721c1fd6642d91f508b6cc5",
       "columns": [
         "profile_id",
@@ -4964,7 +5004,7 @@
       "tableId": "platform_resource_profiles",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_resource_profiles/v1",
-      "contractDigest": "45e28f531d9f0901822982acfed39825d5ca3eb306418f0ce9e381100f644828",
+      "contractDigest": "b21743399085c8a9f6ccc8948e42e1dd58a3d692202d78def6065651e893d193",
       "sqlDigest": "e11945b50e399bb5688c16d432c638176166baa4b187ec1f71be2b326e546511",
       "columns": [
         "profile_id",
@@ -4983,7 +5023,7 @@
       "tableId": "platform_schema_marker",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_schema_marker/v1",
-      "contractDigest": "b290abbfd4d11db94d0babe251fabd69acacf362c8a7cbc546ddf85fcad71127",
+      "contractDigest": "b51830573883104694b978077e9c6b664115b1caf5990b4267985457c71929c3",
       "sqlDigest": "a43853fe1a5987ad38f5f7257c6780ad8eb6caacc81c9365536c8eef26c4a453",
       "columns": [
         "schema_name",
@@ -5000,7 +5040,7 @@
       "tableId": "platform_secret_refs",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_secret_refs/v1",
-      "contractDigest": "f1d860732f006ee36750224b259cc89829c9ee35dc883ef28aa00fca6967d5dc",
+      "contractDigest": "e42c2a6ca680545126d381e7f40e354fd128189cbb5351c210b7e98082cdf5e7",
       "sqlDigest": "c9dd21e5e6ef81741088e0b04fc6159f43185fcc3b9ae4248f6a6993dd761ade",
       "columns": [
         "secret_ref",
@@ -5020,7 +5060,7 @@
       "tableId": "platform_worker_devices",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_worker_devices/v1",
-      "contractDigest": "04034e26f15e2c312634f906e1fae37bbb8498eff45d6c58d71397d66dce4281",
+      "contractDigest": "8962bdf8d87e24fc6962b798d682d71f76f90bc8b237a17a97585f01d82146f5",
       "sqlDigest": "c6b7743858335e59dec6392adf6154918bfd37cc44e32e06c401758c8ce664d7",
       "columns": [
         "worker_id",
@@ -5038,7 +5078,7 @@
       "tableId": "platform_worker_revisions",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_worker_revisions/v1",
-      "contractDigest": "676ce121ffdaefdced7cb4ab2d1b9591b359b348c9684d7b8a0a086f1a096fe4",
+      "contractDigest": "f5ff836d2144726e9bf785062ea2d9605f9ed33f5ccd72bafca77495bc41dd8e",
       "sqlDigest": "9f984bff670508bc94befe1d6e679ab0b1c90c1cc3e9ab471ad8e90f2ea69315",
       "columns": [
         "worker_id",
@@ -5060,7 +5100,7 @@
       "tableId": "platform_workers",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_workers/v1",
-      "contractDigest": "923e1290fe903623e41cbec9f81fbda6a1874982d79f278355cd45e1ec258005",
+      "contractDigest": "3654643c2ec8e37a4221ed3f839d2b83b763fa1d6170155c9d9eb33f5d3f8fc7",
       "sqlDigest": "6bd83e0bcb8c207209ff5198b04b2a4329f5fd57fc22b33a68024f64362e8c9c",
       "columns": [
         "worker_id",
@@ -5084,7 +5124,7 @@
       "tableId": "platform_workspace_roots",
       "owner": "platform-settings",
       "contractId": "helix://contracts/tables/platform_workspace_roots/v1",
-      "contractDigest": "218738d4775d2ecf5861685230b64c25843e2da1dcdeb815e6f53836dade67a7",
+      "contractDigest": "af423deedffe47b7d096265ae03b2b951a65b0671764d2729410e158b757e955",
       "sqlDigest": "a7136dfcc4dcce54b1579c247391e341dac8d5ccc6a36ed671208fd3cbce1096",
       "columns": [
         "root_id",
@@ -5109,7 +5149,7 @@
       "tableId": "proc_candidate_deliveries",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_candidate_deliveries/v1",
-      "contractDigest": "2d337f41bbd69770ea5a03498b8c442850d6b808ab76ca9da86934ac6d7e57ea",
+      "contractDigest": "d8216e9c829e35cd6c4ecd6fee36cda664132693f50f538150e2f53f45d6063f",
       "sqlDigest": "ab2668564b910c3ab1771dc314e0a57a2983376caeac6dcc39490a81621e8498",
       "columns": [
         "offer_id",
@@ -5146,7 +5186,7 @@
       "tableId": "proc_candidate_packages",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_candidate_packages/v1",
-      "contractDigest": "e447c0ce747fa1af2f58db74c18ef78206c9500e3c5340b5be3937d83b3a35ce",
+      "contractDigest": "c97561c60da39ee3041afcaf84cc4cd52cac3fa1d4237f3973bfeef68bfec0da",
       "sqlDigest": "526ec2e99c4140cefe208cf310cbfc92f43689a1c5c7370edfe1f7a8bfa92fc7",
       "columns": [
         "candidate_package_id",
@@ -5198,7 +5238,7 @@
       "tableId": "proc_candidate_primary_material_episode_claims",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_candidate_primary_material_episode_claims/v1",
-      "contractDigest": "a58f9305acdce0d22368907b9e6cee5aeda7fe0cb3ab3a817ea1a0c9d1a0bb47",
+      "contractDigest": "370cf6c937182021cdcb6fb00698b6aa220c916aa867753a0442226bfac2d718",
       "sqlDigest": "d30a31e32ff382f12e7adae6252454ab1e9ddd14d98388f54b4c13063afb3a8c",
       "columns": [
         "candidate_package_id",
@@ -5215,7 +5255,7 @@
       "tableId": "proc_candidate_primary_materials",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_candidate_primary_materials/v1",
-      "contractDigest": "f2b5f510d1b1bd4d12a4f3eb6c72ae66b591483ee55546f7b7d2458a46f2f674",
+      "contractDigest": "bfbcc8a0b6d8f6e692a68441c0bb43929ff2d9b521c9251a38a645a975123744",
       "sqlDigest": "305d1d89b75edbb51b9eb9c1003007cd9cca2d255b90d7c8a494d22240bf09c7",
       "columns": [
         "candidate_package_id",
@@ -5241,7 +5281,7 @@
       "tableId": "proc_candidate_related_references",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_candidate_related_references/v1",
-      "contractDigest": "8c9fe4363c8a5b539bcc0ac27a31e560cc1e7a2185c72d5398481a8a06cdc89b",
+      "contractDigest": "e7237ad8847a46e8e2257b2762d9657a66396c89ed5b8c5440b07488b7c5d473",
       "sqlDigest": "49d4ae0d3817f95a887261369222e451c37f3efc2ac4343d79bcf1b810ffce3c",
       "columns": [
         "candidate_package_id",
@@ -5271,7 +5311,7 @@
       "tableId": "proc_candidate_season_continuity_claims",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_candidate_season_continuity_claims/v1",
-      "contractDigest": "2440fe3068e28e2a90dcde4ed37a50dc9465de5637d80a51c92588b28215ccde",
+      "contractDigest": "62a50e4a6a19a90f1dc611a849911361aad2af857ef25e937fb5d53b95d33b27",
       "sqlDigest": "d51f9fbedb676bd2b1de2613c4317f2fb6b9fecfd00dec19b8c0e7b6da2751d9",
       "columns": [
         "candidate_package_id",
@@ -5289,7 +5329,7 @@
       "tableId": "proc_extraction_policy_revisions",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_extraction_policy_revisions/v1",
-      "contractDigest": "35bc4adba8935259baab8739299c2dd50b1e43b69ec1dd7c2dd9b0d26a18a1a1",
+      "contractDigest": "c4753a236f7f1d27ef5f34517d967fc21038c33ceb0fdfc0571e83635671b8d2",
       "sqlDigest": "68fd57e03025d0d440acd41961d66ff166b45e77c133e025e1f941fee149941b",
       "columns": [
         "extraction_policy_id",
@@ -5307,7 +5347,7 @@
       "tableId": "proc_field_access_revisions",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_field_access_revisions/v1",
-      "contractDigest": "5eb5fc51223aa9433b28231272318116ab24897a1fcb7357f87273e17096577a",
+      "contractDigest": "6f2ac4a1e69ee3d90a4b757ded53eda36835e34986e7f5e07577dd7a8317ed49",
       "sqlDigest": "4b596c02477f3b93b01061a8aedc744004d1848d7767d232205968af331e118a",
       "columns": [
         "field_id",
@@ -5328,7 +5368,7 @@
       "tableId": "proc_field_materials",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_field_materials/v1",
-      "contractDigest": "8425d5b2c33ee112e1af706baa77c03c330e8918e4f8c51f1adb4a2ff047ed92",
+      "contractDigest": "f517b4af8a49c5d52dbf3132fefb96128632a802399edbdeb753c8a3aee3ca08",
       "sqlDigest": "4c0fec80800f0142ae89a6698979f6eabc2a1cca3c0aaf580645fc8bdb652b9e",
       "columns": [
         "field_id",
@@ -5383,7 +5423,7 @@
       "tableId": "proc_field_observation_entries",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_field_observation_entries/v1",
-      "contractDigest": "d73c6671a7560ccc97879f404f816e8702cece2c47f83af90243344b1227ef0f",
+      "contractDigest": "bce6d4e0f58f281728506569517c20419cec1f66e6618346c062543278c36654",
       "sqlDigest": "9645f3aba14fbe579cc9c98100ed1c8b741a85ae49e8a4f4d9ca30f19b7761a8",
       "columns": [
         "field_id",
@@ -5442,7 +5482,7 @@
       "tableId": "proc_field_observations",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_field_observations/v1",
-      "contractDigest": "ec18b7f077874b69d9a8f69a5e0c62033b963975378d7a36c91dc8e4c30413c9",
+      "contractDigest": "ff19d3d05f20014e654ff3062af371dd31c7f3726d40a195186f170222b6cd00",
       "sqlDigest": "e2e8e6f33515376bd4e3eaa78967ab2ea939bf3fbcd8e431ce0d4778229f85e1",
       "columns": [
         "field_id",
@@ -5478,7 +5518,7 @@
       "tableId": "proc_field_profile_hint_revisions",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_field_profile_hint_revisions/v1",
-      "contractDigest": "41c543a3990fa623c173bb52636e74e173bd3bd98190dffe945e9d6a15984c3f",
+      "contractDigest": "d716224dc7ff3fbc28616e6ab8e789a65ab8a4fad2569daba37999769f2c3acf",
       "sqlDigest": "08bd5375a4efb6f3dbeb6d1fabad94b4f60a246d5eb307f9e4b9d216a7ff997b",
       "columns": [
         "field_id",
@@ -5503,7 +5543,7 @@
       "tableId": "proc_material_fields",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_material_fields/v1",
-      "contractDigest": "ecc7cee166ba17e7eba4c7ad80cea14f813eca374ad0e4e1543c5fc99823319b",
+      "contractDigest": "17db2de65213de722aa758a24b1a1973fa7be47306b0bde4ee9f4d613505ccac",
       "sqlDigest": "574031300a0fe8bab7fa4f03715a74a87e40bbdafcaee4c73794148fe10af9c4",
       "columns": [
         "field_id",
@@ -5531,7 +5571,7 @@
       "tableId": "proc_procurement_retry_intent_materials",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_procurement_retry_intent_materials/v1",
-      "contractDigest": "186fa7fc45eac5cb5a513366a74895cff1ec4e6f1f87de081fb30698ea084d08",
+      "contractDigest": "cee2b83f1ea50bb3c8fa70bc771cbfdf2a4e1864036ffe5e2252bf031ab6954a",
       "sqlDigest": "5d95ddabf41813198504e15380507ae32c988f8e48591370a82b539b93f12ac2",
       "columns": [
         "retry_intent_id",
@@ -5567,7 +5607,7 @@
       "tableId": "proc_procurement_retry_intents",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_procurement_retry_intents/v1",
-      "contractDigest": "279d1b6985a19608f7705cf51b88e104bc1578dde57c298b2a8ac918e911b357",
+      "contractDigest": "00b716bde07d1f0a8b4862be5bc4bf5f99f33d1f111282b7526b9b997658f168",
       "sqlDigest": "35e57d72ddf6f93065cdde3ec9b900048b03d20092b9a5d50806d2da94d43dc6",
       "columns": [
         "retry_intent_id",
@@ -5626,7 +5666,7 @@
       "tableId": "proc_procurement_runs",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_procurement_runs/v1",
-      "contractDigest": "9ee439553eb79e0ef60f627931cca03c4a230a9b02c5fc6432f7dee737f70c1f",
+      "contractDigest": "ed9cc3804e25ac731c0c366c9c39033aac3f5a7c29095a08154c387c8467ce0f",
       "sqlDigest": "3ceaf4630d3af044928957e85638f3e652f54bd7b41a392fbc30661819d940d4",
       "columns": [
         "procurement_run_id",
@@ -5693,7 +5733,7 @@
       "tableId": "proc_run_materials",
       "owner": "procurement",
       "contractId": "helix://contracts/tables/proc_run_materials/v1",
-      "contractDigest": "3940dfcd7a4859ff03117e92c727f5b8a94935f8d5bc5a6c87cbbd83224c6a40",
+      "contractDigest": "cdc4a540e0229281d2d2c139967e81451e93d66fbf4113427b6fdd0bfb428010",
       "sqlDigest": "910cd9aea4c11a0cfc7998b0e5ef7dda10e729a7d2e42cfcd0bc1b8b8b9a3539",
       "columns": [
         "procurement_run_id",

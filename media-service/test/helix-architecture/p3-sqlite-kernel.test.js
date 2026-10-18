@@ -69,13 +69,13 @@ test('maintenance reference auditing reads bounded key samples and rejects missi
   });
 });
 
-test('creates and reopens the current clean 211-table WAL generation with hard startup gates', () => {
+test('creates and reopens the current clean 214-table WAL generation with hard startup gates', () => {
   temporaryDatabase((databasePath) => {
     let firstGeneration;
     {
       const first = open(databasePath, { now: () => 1700000000000 });
-      assert.equal(first.generation.tableCount,211);
-      assert.equal(first.generation.indexCount, 108);
+      assert.equal(first.generation.tableCount,214);
+      assert.equal(first.generation.indexCount, 109);
       assert.equal(first.generation.partialUniqueCount, 23);
       assert.equal(first.generation.schemaDigest, schemaManifest.ddlDigest);
       assert.deepEqual(first.diagnostics(), { foreignKeys: 1, journalMode: 'wal', synchronous: 1, busyTimeout: 5000 });
@@ -218,5 +218,22 @@ test('rejects foreign-key corruption and cross-table guard projection drift', ()
     changed.exec("INSERT INTO arca_inventory_materials(shelf_entry_id,inventory_revision,ordinal,material_key,role,active_guard) VALUES('entry',1,0,'material','primary_payload',0)");
     changed.close();
     assert.throws(() => open(databasePath), (error) => error.code === 'P3_SQLITE_GUARD_PROJECTION_DRIFT');
+  });
+});
+
+test('current US schema retains its strict Person and Provider library consistency guard', () => {
+  temporaryDatabase(databasePath => {
+    const kernel=open(databasePath);kernel.close();
+    const changed=new Database(databasePath);
+    try {
+      changed.pragma('foreign_keys=OFF');
+      changed.prepare('INSERT INTO people_persons(person_id,library_kind,status,current_revision) VALUES(?,?,?,?)')
+        .run('normal-person','normal','active',1);
+      changed.prepare('INSERT INTO people_person_revisions(person_id,revision,canonical_name,origin_kind,origin_decision_id,origin_decision_digest) VALUES(?,?,?,?,?,?)')
+        .run('normal-person',1,'Test Actor','direct','fixture-decision','1'.repeat(64));
+      changed.prepare('INSERT INTO people_provider_identities(person_id,revision,library_kind,provider,namespace,provider_key,active_guard) VALUES(?,?,?,?,?,?,?)')
+        .run('normal-person',1,'jav','tmdb','tmdb_person','123',1);
+    } finally {changed.close();}
+    assert.throws(()=>open(databasePath),error=>error.code==='P3_SQLITE_GUARD_PROJECTION_DRIFT'&&error.details.check==='people-provider-library');
   });
 });

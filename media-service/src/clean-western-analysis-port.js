@@ -251,7 +251,17 @@ function createCleanWesternAnalysisPort(options) {
       'The service-local Western engine is incomplete.');
   }
   const now = typeof options.now === 'function' ? options.now : Date.now;
-  const configuration = modelConfiguration(options.modelPack);
+  const configuration = options.configuration || modelConfiguration(options.modelPack);
+  for (const [key, value] of Object.entries(configuration)) {
+    if (!['faceModelRef', 'clusterParameters'].includes(key) || !value ||
+        value.digest !== canonicalDigest(Object.fromEntries(Object.entries(value).filter(([field]) => field !== 'digest')))) {
+      fail('CLEAN_WESTERN_MODEL_PACK_INVALID', 'Analysis configuration must freeze exact model and clustering contracts.');
+    }
+  }
+  if (!configuration.faceModelRef || !configuration.clusterParameters ||
+      configuration.clusterParameters.modelRefDigest !== configuration.faceModelRef.digest) {
+    fail('CLEAN_WESTERN_MODEL_PACK_INVALID', 'Clustering and embedding require the same frozen model.');
+  }
   const workspacePort = options.workspaceProductPort;
 
   function materialize(value) {
@@ -530,7 +540,7 @@ function createCleanWesternAnalysisPort(options) {
       }));
       rawClusters = raw?.clusters;
     }
-    if (!Array.isArray(rawClusters) || rawClusters.length > 1024) {
+    if (!Array.isArray(rawClusters) || rawClusters.length > 1280) {
       fail('CLEAN_WESTERN_CLUSTER_RESULT_INVALID',
         'Cluster engine returned an invalid bounded cluster set.');
     }
@@ -800,7 +810,13 @@ function createCleanWesternAnalysisPort(options) {
       const projection = byPerson.get(item.personId);
       if (!projection || !clusterIds.includes(item.clusterId) ||
           seenClusters.has(item.clusterId) ||
-          !['exact', 'strong', 'weak'].includes(item.confidenceClass)) {
+          !['exact', 'strong', 'weak'].includes(item.confidenceClass) ||
+          !Number.isFinite(item.score) || item.score < -1 || item.score > 1 ||
+          !Number.isFinite(item.threshold) || item.score < item.threshold ||
+          item.faceModelRefDigest !== clusters.faceModelRefDigest ||
+          !projection.contributions.some(contribution => contribution.ownerPersonId === projection.personId &&
+            contribution.activeAssets.some(asset => asset.referenceAssetId === item.referenceAssetId && asset.artifactDigest === item.artifactDigest) &&
+            contribution.activeFaces.some(face => face.referenceAssetId === item.referenceAssetId && face.modelRef === item.referenceModelRefDigest))) {
         fail('CLEAN_WESTERN_MATCH_RESULT_INVALID',
           'Reference Match result is outside its frozen input projections.');
       }
@@ -812,6 +828,12 @@ function createCleanWesternAnalysisPort(options) {
         projectionRevision: projection.projectionRevision,
         projectionDigest: projection.projectionDigest,
         confidenceClass: item.confidenceClass,
+        score: item.score,
+        threshold: item.threshold,
+        referenceAssetId: item.referenceAssetId,
+        artifactDigest: item.artifactDigest,
+        faceModelRefDigest: item.faceModelRefDigest,
+        referenceModelRefDigest: item.referenceModelRefDigest,
       };
       return Object.freeze({
         ...value,

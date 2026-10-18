@@ -45,7 +45,7 @@ function expectedCatalog(manifest) {
 
 function assertManifest(manifest, ddl) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.compilerContract !== 'helix-p3-deterministic-sqlite-ddl/v1' ||
-      ![200,204,210,211,212].includes(manifest.tableCount) || !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount) {
+      ![200,204,210,211,212,214].includes(manifest.tableCount) || !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount) {
     fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'The clean schema manifest is incomplete or unsupported.');
   }
   if (manifest.digestAlgorithm !== 'sha256' || digest(normalizedDdl(ddl)) !== manifest.ddlDigest) {
@@ -118,7 +118,7 @@ function assertCatalog(database, manifest, expected) {
   if (partialExpected.length !== requiredPartialCount) fail('P3_SQLITE_PARTIAL_UNIQUE_COUNT', 'The clean schema requires its exact frozen partial unique index count.');
 }
 
-function assertGuardConsistency(database) {
+function assertGuardConsistency(database, manifest) {
   const checks = [
     {
       name: 'arca-active-inventory-material',
@@ -127,12 +127,14 @@ function assertGuardConsistency(database) {
     {
       name: 'people-active-provider-identity',
       sql: "SELECT COUNT(*) count FROM people_provider_identities i LEFT JOIN people_persons p ON p.person_id=i.person_id WHERE i.active_guard <> CASE WHEN p.status='active' AND p.current_revision=i.revision THEN 1 ELSE 0 END"
-    },
-    {
-      name: 'people-provider-library',
-      sql: 'SELECT COUNT(*) count FROM people_provider_identities i JOIN people_persons p ON p.person_id=i.person_id WHERE i.library_kind<>p.library_kind'
     }
   ];
+  // Historical copy-verification kernels retain their exact frozen schema.
+  // The library guard exists only in the explicitly supported US schema versions.
+  if ([211,212,214].includes(manifest.tableCount)) checks.push({
+    name:'people-provider-library',
+    sql:'SELECT COUNT(*) count FROM people_provider_identities i JOIN people_persons p ON p.person_id=i.person_id WHERE i.library_kind<>p.library_kind',
+  });
   for (const check of checks) {
     const count = database.prepare(check.sql).get().count;
     if (count !== 0) fail('P3_SQLITE_GUARD_PROJECTION_DRIFT', 'A cross-table uniqueness guard is inconsistent.', { check: check.name, count });
@@ -225,7 +227,7 @@ function assertIntegrity(database, manifest, expected) {
   if (integrity.length !== 1 || integrity[0].integrity_check !== 'ok') {
     fail('P3_SQLITE_INTEGRITY_CHECK_FAILED', 'SQLite integrity_check failed.', { findings: integrity });
   }
-  assertGuardConsistency(database);
+  assertGuardConsistency(database, manifest);
   assertMessageConsistency(database);
   assertMaterialControlConsistency(database);
   return Object.freeze({

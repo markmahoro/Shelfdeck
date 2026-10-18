@@ -40,6 +40,10 @@ const { createLibraRunLifecycleService } = require('../application/libra-run-lif
 const { createLibraRunAdminService } = require('../application/libra-run-admin-service');
 const { createProductIdentitySelectionService } = require('../application/product-identity-selection-service');
 const { createMovieProductionReader } = require('../persistence/movie-production-reader');
+const {createUsAdultAnalysisStore} = require('../persistence/us-adult-analysis-store');
+const {createUsAdultAnalysisPlanner, createUsAdultAnalysisProjections} = require('../planning/us-adult-analysis-planner');
+const {createUsAdultAnalysisCapabilityPorts, createUsAdultAnalysisCapabilityRegistrations, EFFECTS:US_ANALYSIS_EFFECTS} =
+  require('../capabilities/us-adult-analysis-capability-ports');
 const { createProductFactCapabilityPorts } = require('../capabilities/product-fact-capability-ports');
 const { createProductFactCapabilityRegistrations } = require('../capabilities/product-fact-capability-registrations');
 const { createProductMetadataCapabilityPorts } = require('../capabilities/product-metadata-capability-ports');
@@ -153,6 +157,8 @@ function createExecutionRegistration() {
         intakeControlObservationPort:createIntakeControlObservationPort(options)});
       const routingPorts=createRoutingCapabilityPorts(options);
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
+      const usAdultAnalysisStore=createUsAdultAnalysisStore(options);
+      const usAdultAnalysisPorts=createUsAdultAnalysisCapabilityPorts({...options,movieProductionReader,usAdultAnalysisStore});
       const productIdentitySelection=createProductIdentitySelectionService({...options,movieProductionReader});
       const domainCommitCoordinator=createProductFactDomainCommitCoordinator(options);
       const productFactPorts=createProductFactCapabilityPorts({...options,movieProductionReader,domainCommitCoordinator});
@@ -164,7 +170,7 @@ function createExecutionRegistration() {
         resolveProductionSourceScope:sourceScopeResolver.resolve});
       const deliveryPorts=createDeliveryLifecycleCapabilityPorts(options);
       const externalPorts=createExternalMaterialCapabilityPorts({...options,movieProductionReader});
-      const ports=Object.freeze({...intakePorts,...routingPorts,...productFactPorts,...productMetadataPorts,...artifactPorts,...mediaPorts,
+      const ports=Object.freeze({...intakePorts,...routingPorts,...productFactPorts,...productMetadataPorts,...artifactPorts,...mediaPorts,...usAdultAnalysisPorts,
         ...deliveryPorts,...externalPorts});
       return Object.freeze({offerReader,movieProductionReader,ports,createRegistrations(registrationOptions){
         const routingRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>ROUTING_EFFECTS[ref]);
@@ -176,10 +182,13 @@ function createExecutionRegistration() {
         const mediaRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>MEDIA_EFFECTS[ref]);
         const deliveryRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>DELIVERY_EFFECTS[ref]);
         const externalRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>EXTERNAL_EFFECTS[ref]);
+        const usAnalysisRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>US_ANALYSIS_EFFECTS[ref]);
         const intakeRefs=registrationOptions.enabledCapabilityRefs.filter((ref)=>!ROUTING_EFFECTS[ref]&&!productFactRefs.includes(ref)&&
           !productMetadataRefs.includes(ref)&&!artifactRefs.includes(ref)&&!mediaRefs.includes(ref)&&!deliveryRefs.includes(ref)&&
-          !externalRefs.includes(ref));
+          !externalRefs.includes(ref)&&!usAnalysisRefs.includes(ref));
         return Object.freeze([
+          ...createUsAdultAnalysisCapabilityRegistrations({
+            manifests:Object.fromEntries(usAnalysisRefs.map(ref=>[ref,registrationOptions.manifests[ref]])),ports}),
           ...createIntakeCapabilityRegistrations({...registrationOptions,enabledCapabilityRefs:intakeRefs,
             ports:Object.fromEntries(intakeRefs.map((ref)=>[ref,ports[ref]]))}),
           ...createRoutingCapabilityRegistrations({...registrationOptions,enabledCapabilityRefs:routingRefs,
@@ -246,9 +255,10 @@ function createExecutionRegistration() {
       const libraRunExecutionProjection=createLibraRunExecutionProjection({...options,sourceFairness});
       const libraRunLifecycleService=createLibraRunLifecycleService({...options,libraRunExecutionProjection});
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
+      const usAdultAnalysisStore=createUsAdultAnalysisStore(options);
       const productIdentitySelection=createProductIdentitySelectionService({...options,movieProductionReader});
       const libraRunAdminService=createLibraRunAdminService({...options,libraRunExecutionProjection,pipelineAdmission});
-      const runCoordinator=createLibraRunCoordinator({...options,movieProductionReader,libraRunLifecycleService,productIdentitySelection,routingContextReader,
+      const runCoordinator=createLibraRunCoordinator({...options,movieProductionReader,usAdultAnalysisStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
         resolveFrozenRun:libraRunAdminService.reconcileFrozen,
         resolveRejectedRun:libraRunAdminService.reconcileRejected,
         waitUnavailableStrategy:libraRunAdminService.waitUnavailableStrategy,
@@ -267,7 +277,7 @@ function createExecutionRegistration() {
       }});
       return Object.freeze({sourceFairness,offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
-        libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore});
+        libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore,usAdultAnalysisStore});
     },
     createPlanningRegistration(options) {
       const productDeliveryAssembler=options.productDeliveryAssembler||createProductDeliveryAssembler(options);
@@ -285,14 +295,14 @@ function createExecutionRegistration() {
         createAcceptanceSpecPlanner({...options,contextReader:options.acceptanceSpecContextReader}),
         createProductIdentityPlanner(options),createProductMetadataObservationPlanner(options),createArtifactProductionPlanner(options),
         createProductFactAssemblyPlanner(options),workspaceMediaProductionPlanner,
-        productDeliveryPlanner,productDeliveryPlanner
+        productDeliveryPlanner,productDeliveryPlanner,createUsAdultAnalysisPlanner(options)
       ]),bindingProjections:Object.freeze([...createIntakeProjections(options),...createRoutingProjections(options),
         ...createAcceptanceSpecProjections({...options,contextReader:options.acceptanceSpecContextReader}),
         ...createProductIdentityProjections(options),...createProductMetadataObservationProjections(options),
         ...createArtifactProductionProjections(options),...createProductFactAssemblyProjections(options),
         ...createWorkspaceMediaProductionProjections(options),
         ...createExternalMaterialProjections(options),
-        ...createProductDeliveryProjections({...options,productDeliveryAssembler})])});
+        ...createProductDeliveryProjections({...options,productDeliveryAssembler}),...createUsAdultAnalysisProjections(options)])});
     }
   };
   const provided=Object.keys(implementation).sort(),expected=[...executionContract.methods].sort();

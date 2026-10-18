@@ -1596,6 +1596,23 @@ async function createCleanServiceHost(options) {
         ((request) => platformIntegrations.resolveCurrentProductHandle(request)),
     });
   const ffmpegProcessRegistry = options.ffmpegProcessRegistry || createFfmpegProcessRegistry();
+  const usAdultFrameExtractor=require('./clean-us-adult-frame-extractor').createCleanUsAdultFrameExtractor({
+    mediaProbe,ffmpegPath:options.ffmpegPath,ffmpegProcessRegistry});
+  const usAdultReferenceCache=new Map();
+  function createUsAdultAnalysisPort({context,basis,actorPresentation}){
+    const runtimeEffectAuthority=Object.freeze({effectClass:'workspace_write',eventAttemptId:context.eventAttemptId,
+      idempotencyKey:context.idempotencyKey,recoveryDecision:context.recoveryDecision});
+    const scopedWorkspacePort=Object.freeze({
+      materializeArtifact:request=>workspaceProductPort.materializeArtifact({...request,runtimeEffectAuthority}),
+      openFrameCompositeSink:request=>workspaceProductPort.openFrameCompositeSink({...request,runtimeEffectAuthority}),
+      recoverMaterializedArtifact:request=>workspaceProductPort.recoverMaterializedArtifact({...request,runtimeEffectAuthority}),
+      readArtifactBytes:handle=>workspaceProductPort.readArtifactBytes(handle),
+    });
+    const engine=require('./helix/integrations/us-adult-analysis-engine').createUsAdultAnalysisEngine({context,actorPresentation,
+      frameExtractor:usAdultFrameExtractor,faceModel:localFaceModel,referencePort:peopleImagePort,referenceCache:usAdultReferenceCache});
+    return require('./clean-western-analysis-port').createCleanWesternAnalysisPort({workspaceProductPort:scopedWorkspacePort,engine,
+      configuration:{faceModelRef:basis.faceModelRef,clusterParameters:basis.clusterParameters},now:options.now||Date.now});
+  }
   const arcaMediaAcceptanceScratchRoot = path.join(
     path.resolve(options.dataDir), 'runtime', 'arca-acceptance-observation');
   fs.rmSync(arcaMediaAcceptanceScratchRoot, { recursive:true, force:true });
@@ -1658,6 +1675,7 @@ async function createCleanServiceHost(options) {
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
   procurementExecution = createHelixExecutionRuntime({
+    createUsAdultAnalysisPort,
     peopleImagePort, peopleReferencePreparation,
     readSelectedPersonImage: token => platformIntegrations.readSelectedPersonImage(token),
     afterRegistrationCommit: options.afterPeopleRegistrationCommit,

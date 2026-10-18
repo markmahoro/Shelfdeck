@@ -138,15 +138,18 @@ test('Media organization workspace uses user-facing stages after Procurement han
   assert.doesNotMatch(formation, /Subject|Routing|Spec|Run|Work|Event|判断开采资格|准备候选包/);
 });
 
-test('People page registers, confirms, and does not copy collection cast', () => {
+test('People page isolates three libraries and offers user registration only for US Adult', () => {
   const page = read('web/src/helix/PeoplePage.tsx');
   const runtime = read('src/helix/composition/create-procurement-execution-runtime.js');
-  assert.match(page, /登记一个人/);
-  assert.match(page, /待确认登记/);
-  assert.match(page, /接受/);
-  assert.match(page, /忽略/);
+  assert.match(page, /PersonLibrary/);
+  assert.match(page, /普通演员/);
+  assert.match(page, /JAV/);
+  assert.match(page, /US Adult/);
+  assert.match(page, /libraryKind === 'us_adult'/);
+  assert.match(page, /PersonRegistration/);
+  assert.doesNotMatch(page, /待确认登记|acceptPersonCandidate|ignorePersonCandidate/);
   assert.match(runtime, /ondeck-person-evidence/);
-  assert.match(runtime, /createPeopleProcessServices/);
+  assert.match(runtime, /peopleImageExecution\.createProcessServices/);
 });
 
 test('Settings splits Douban sync from rating-log refresh', () => {

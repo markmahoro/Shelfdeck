@@ -176,6 +176,16 @@ function createCleanPeopleImagePort(options) {
     controlledRoot(); return readExact(parseStorageRef(record.storageRef), record.digestHex, record.sizeBytes);
   }
   return Object.freeze({ stageUpload, readUpload, materialize, readArtifact,
+    readReferenceEmbedding({ personId, artifactHandleId, artifactDigest }) {
+      const record = repository.get(artifactHandleId);
+      if (!record || record.state !== 'active' || record.ownerDomain !== 'people' || record.ownerScopeType !== 'person' ||
+          record.ownerScopeId !== personId || record.artifactKind !== 'reference-embedding' || record.digestHex !== artifactDigest ||
+          record.mediaType !== 'application/vnd.shelfdeck.face-embedding+json' || record.sizeBytes > 64 * 1024) {
+        fail('PEOPLE_IMAGE_ARTIFACT_CHANGED', 'Actor reference feature is missing, changed or belongs to another Person.');
+      }
+      controlledRoot();
+      return readExact(parseStorageRef(record.storageRef), record.digestHex, record.sizeBytes);
+    },
     readReferenceImage({ personId, artifactHandleId, artifactDigest }) {
       const record = repository.get(artifactHandleId);
       if (!record || record.state !== 'active' || record.ownerDomain !== 'people' || record.ownerScopeType !== 'person' ||

@@ -73,6 +73,10 @@ test('real CPU preparation produces nominal image/embedding Handles before atomi
   const embedding = await preparation.computeEmbedding(computeRequest);
   assert.deepEqual(await preparation.computeEmbedding(computeRequest), embedding, 'Frozen preparation reuses the same reference feature version.');
   validator.validate(embedding.schemaRef, embedding);
+  const frozenFeature={personId:'real-model-person',artifactHandleId:embedding.artifactHandleId,artifactDigest:embedding.embeddingDigest};
+  assert.deepEqual(f.port.readReferenceEmbedding(frozenFeature),f.port.readArtifact(embedding.artifactHandle));
+  assert.throws(()=>f.port.readReferenceEmbedding({...frozenFeature,personId:'other-person'}),{code:'PEOPLE_IMAGE_ARTIFACT_CHANGED'});
+  assert.throws(()=>f.port.readReferenceEmbedding({...frozenFeature,artifactDigest:canonicalDigest('substituted-feature')}),{code:'PEOPLE_IMAGE_ARTIFACT_CHANGED'});
   assert.equal(store.getPerson('real-model-person'), undefined);
   const reference = { decisionId: 'real-reference-commit', operationKind: 'add_image', personId: 'real-model-person',
     expectedPersonRevision: 1, expectedReferenceRevision: 0, actorId: 'admin', referenceAssetId: 'real-reference-asset', referenceFaceId: 'real-reference-face',

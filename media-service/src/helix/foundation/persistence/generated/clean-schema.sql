@@ -2704,6 +2704,38 @@ CREATE TABLE "libra_subjects" (
 );
 CREATE INDEX "idx_libra_subjects_hot_01" ON "libra_subjects" ("status", "subject_id");
 
+CREATE TABLE "libra_us_adult_analysis_bases" (
+  "analysis_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "workspace_id" TEXT,
+  "basis_schema_ref" TEXT,
+  "basis_json" TEXT,
+  "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("libra_run_id"),
+  CHECK (json_valid("basis_json")),
+  CHECK (length(CAST("basis_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_us_adult_reference_pages" (
+  "analysis_id" TEXT,
+  "page_ordinal" INTEGER CHECK ("page_ordinal" >= 0),
+  "page_schema_ref" TEXT,
+  "page_json" TEXT,
+  "page_payload_digest" TEXT CHECK (length("page_payload_digest") = 64 AND "page_payload_digest" NOT GLOB '*[^0-9a-f]*'),
+  "item_count" INTEGER CHECK ("item_count" >= 0),
+  "first_person_id" TEXT,
+  "last_person_id" TEXT,
+  PRIMARY KEY ("analysis_id", "page_ordinal"),
+  CHECK (json_valid("page_json")),
+  CHECK (length(CAST("page_json" AS BLOB)) <= 1048576),
+  FOREIGN KEY ("analysis_id") REFERENCES "libra_us_adult_analysis_bases" ("analysis_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_workshop_placements" (
   "subject_id" TEXT PRIMARY KEY,
   "transferred_at_ms" INTEGER CHECK ("transferred_at_ms" >= 0),

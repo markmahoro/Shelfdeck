@@ -26,6 +26,7 @@ test('real Service FFmpeg extracts twenty points and CPU matching selects one ac
       expectedMtimeNs:Number(observed.stat.mtimeNs/1000000n),expectedCtimeNs:Number(observed.stat.ctimeNs/1000000n)},
     context={ownerScope:{domain:'libra',processId:'test-run'},assertExecutionActive:()=>{}},frames=await extractor.extract({sourceHandle:handle,context});
   assert.equal(frames.length,20);assert.deepEqual(frames.map(frame=>frame.timestampMs),uniformFrameTimes(2000));
+  await assert.rejects(extractor.extract({sourceHandle:handle,context,durationMs:1000}),{code:'US_ADULT_SOURCE_PROBE_CHANGED'});
   const engine=createUsAdultFrameAnalysis({faceModel:model}),analysis=await engine.analyze(frames),
     reference=await model.analyzeImage(fs.readFileSync(process.env.SHELFDECK_FACE_TEST_IMAGE),{requireSingleFace:true});
   assert.equal(analysis.frameMembers.length,20);assert.ok(analysis.detectedFaceCount>=20);
