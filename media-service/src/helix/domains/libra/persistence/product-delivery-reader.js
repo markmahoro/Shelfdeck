@@ -136,14 +136,16 @@ function definition(schemaManifest) {
         keyColumns: ['on_deck_package_id'],
         safeIntegers: true,
       },
-      find_fact: {
-        kind: 'select-one',
+      list_fact_revisions: {
+        kind: 'select-in',
         tableId: 'libra_product_fact_revisions',
+        keyColumn: 'product_fact_id',
+        fixedKeyColumns: ['fact_revision'],
+        maxItems: 500,
         columns: [
           'product_fact_id', 'fact_revision', 'schema_ref', 'fact_json', 'episode_metadata_schema_ref', 'episode_metadata_json',
           'fact_digest', 'evidence_digest',
         ],
-        keyColumns: ['product_fact_id', 'fact_revision'],
         safeIntegers: true,
       },
       list_artifact_refs: {
@@ -321,15 +323,21 @@ function assertRelatedDisposition(row, run, members, offloadMembers) {
   return assertions;
 }
 
-function reconstruct(repo, row) {
+function reconstruct(repo, row, run) {
   const claimRows = repo.invoke('list_episode_claims', {
     on_deck_package_id: row.on_deck_package_id,
   });
   const materialRows = repo.invoke('list_materials', {
     on_deck_package_id: row.on_deck_package_id,
   }).sort((left, right) => number(left.ordinal) - number(right.ordinal));
-  const members = materialRows.map((item) => material(item, claimRows
-    .filter((claim) => number(claim.member_ordinal) === number(item.ordinal))
+  const claimsByMember = new Map();
+  for (const claim of claimRows) {
+    const ordinal = number(claim.member_ordinal);
+    if (!claimsByMember.has(ordinal)) claimsByMember.set(ordinal, []);
+    claimsByMember.get(ordinal).push(claim);
+  }
+  const members = materialRows.map((item) => material(item,
+    (claimsByMember.get(number(item.ordinal)) || [])
     .sort((left, right) => utf8(left.episode_key, right.episode_key))
     .map((claim) => ({
       episodeKey: claim.episode_key,
@@ -339,26 +347,29 @@ function reconstruct(repo, row) {
   const factRefs = repo.invoke('list_fact_refs', {
     on_deck_package_id: row.on_deck_package_id,
   }).sort((left, right) => number(left.ordinal) - number(right.ordinal));
+  const idsByRevision = new Map();
+  for (const ref of factRefs) {
+    const revision = number(ref.fact_revision);
+    if (!idsByRevision.has(revision)) idsByRevision.set(revision, new Set());
+    idsByRevision.get(revision).add(ref.product_fact_id);
+  }
+  const factsByRevision = new Map();
+  for (const [revision, ids] of idsByRevision) {
+    const values = [...ids], found = new Map();
+    for (let offset = 0; offset < values.length; offset += 500) {
+      for (const fact of repo.invoke('list_fact_revisions', {
+        fact_revision:revision, values:values.slice(offset, offset + 500),
+      })) found.set(fact.product_fact_id, fact);
+    }
+    factsByRevision.set(revision, found);
+  }
   const facts = factRefs.map((ref) => {
-    const fact = repo.invoke('find_fact', {
-      product_fact_id: ref.product_fact_id,
-      fact_revision: number(ref.fact_revision),
-    });
+    const fact = factsByRevision.get(number(ref.fact_revision)).get(ref.product_fact_id);
     if (!fact || fact.fact_digest !== ref.fact_digest ||
-        fact.evidence_digest !== ref.evidence_digest ||
-        ref.reference_digest !== canonicalDigest(without({
-          productFactId: ref.product_fact_id,
-          factKind: ref.fact_kind,
-          factRevision: number(ref.fact_revision),
-          schemaRef: ref.schema_ref,
-          factValue: readStoredMetadataValue(fact),
-          factDigest: ref.fact_digest,
-          evidenceDigest: ref.evidence_digest,
-          referenceDigest: ref.reference_digest,
-        }, 'referenceDigest'))) {
+        fact.evidence_digest !== ref.evidence_digest) {
       fail('P9_PRODUCT_DELIVERY_FACT_CORRUPT', 'Package Fact relation is not reconstructable.');
     }
-    return {
+    const item = {
       productFactId: ref.product_fact_id,
       factKind: ref.fact_kind,
       factRevision: number(ref.fact_revision),
@@ -368,6 +379,10 @@ function reconstruct(repo, row) {
       evidenceDigest: ref.evidence_digest,
       referenceDigest: ref.reference_digest,
     };
+    if (ref.reference_digest !== canonicalDigest(without(item, 'referenceDigest'))) {
+      fail('P9_PRODUCT_DELIVERY_FACT_CORRUPT', 'Package Fact relation is not reconstructable.');
+    }
+    return item;
   });
   const resolved = facts.find((item) => item.productFactId === row.resolved_identity_fact_id &&
     item.factRevision === number(row.resolved_identity_revision));
@@ -472,7 +487,6 @@ function reconstruct(repo, row) {
     memberSetDigest: canonicalDigest({ schema: 'libra.offload-context-members@1', items: offloadMembers }),
   };
   offloadContextManifest.manifestDigest = canonicalDigest(offloadContextManifest);
-  const run = repo.invoke('find_run', { libra_run_id: row.libra_run_id });
   const assertions=assertRelatedDisposition(row, run, members, offloadMembers);
   const relatedPrimaryMappings=structure.structureKind==='season'?buildRelatedPrimaryMappings(assertions,offloadMembers,members):[];
   const resolvedIdentitySnapshot = resolved ? Object.fromEntries(
@@ -496,10 +510,7 @@ function reconstruct(repo, row) {
     libraRunId: row.libra_run_id,
     runStateRevision: number(row.run_state_revision),
     runStateDigest: row.run_state_digest,
-    runExecutionBasisDigest: parse(
-      row.production_provenance_json,
-      'P9_PRODUCT_DELIVERY_PROVENANCE',
-    ).runExecutionBasisDigest,
+    runExecutionBasisDigest: productionProvenance.runExecutionBasisDigest,
     subjectId: row.subject_id,
     shelfId: row.shelf_id,
     acceptanceSpecRef: {
@@ -550,8 +561,7 @@ function reconstruct(repo, row) {
   return Object.freeze(packageValue);
 }
 
-function deliveryFence(repo, row, packageValue) {
-  const run = repo.invoke('find_run', { libra_run_id: row.libra_run_id });
+function deliveryFence(repo, row, run) {
   const receipt = repo.invoke('find_delivery', { on_deck_package_id: row.on_deck_package_id });
   let eligibility = 'eligible';
   let reasonCode;
@@ -609,10 +619,11 @@ function createProductDeliveryReader(options) {
             row.package_digest !== query.expectedPackageDigest) {
           fail('P9_PRODUCT_DELIVERY_INTEGRITY', 'Product Delivery query identity conflicts with the immutable Package.');
         }
-        const onDeckProductPackage = reconstruct(repo, row);
+        const run = repo.invoke('find_run', { libra_run_id:row.libra_run_id });
+        const onDeckProductPackage = reconstruct(repo, row, run);
         const fence = query.readPurpose === 'historical'
           ? null
-          : deliveryFence(repo, row, onDeckProductPackage);
+          : deliveryFence(repo, row, run);
         const result = {
           resultKind: 'found',
           onDeckProductPackage,
@@ -665,7 +676,8 @@ function createProductDeliveryReader(options) {
           let acceptedSubjectOrigin;
           if(query.includeAcceptedSubjectOrigin===true){
             const completeRow=context.repository(repository.repositoryId).invoke('find_package',{on_deck_package_id:ref.onDeckPackageId}),
-              complete=reconstruct(context.repository(repository.repositoryId),completeRow);
+              complete=reconstruct(context.repository(repository.repositoryId),completeRow,
+                context.repository(repository.repositoryId).invoke('find_run',{libra_run_id:completeRow.libra_run_id}));
             if(complete.packageDigest!==ref.expectedPackageDigest||complete.shelfId!==row.shelf_id||complete.libraRunId!==row.libra_run_id)
               fail('P9_ACCEPTED_REQUIREMENTS_INTEGRITY','Complete accepted Package origin differs from its frozen reference.');
             const body={schemaRef:'helix://contracts/application-types/LibraAcceptedSubjectOrigin/v1',schemaVersion:1,onDeckPackageId:complete.onDeckPackageId,

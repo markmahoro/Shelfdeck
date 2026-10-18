@@ -188,6 +188,7 @@ function fixture(run, settings = {}) {
   let fenceIndex = 0;
   const dispatcher = { async dispatch(request) {
     dispatchContext = request.context;
+    assert.equal(Object.hasOwn(request.context, 'preparationScope'), false);
     if (!settings.seedExecutingAttempt) {
       assert.equal(schedulerReleased, 1, 'technical scheduler lease must end before Executor call');
     }
@@ -221,6 +222,7 @@ function fixture(run, settings = {}) {
     }
     return outcome;
   } };
+  let inputPreparationScope;
   const runtime = createEventRuntime({ schemaManifest, unitOfWork, scheduler, governor, failureEvidenceStore:settings.failureEvidenceStore,onDiagnosticError:settings.onDiagnosticError,
     ...(settings.incidentObserver ? { incidentObserver:settings.incidentObserver } : {}),
     registry: { resolve: () => ({ manifest: { capabilityRef: 'libra.test.observe@1',ownerScope:'libra',resultSchemaRef: 'helix://test/result',evidenceSchemaRef:'helix://test/evidence',
@@ -267,7 +269,9 @@ function fixture(run, settings = {}) {
       return request.operation();
     } },
     circuitBreaker: { allows: () => settings.circuitDecision || ({ allowed: true, reason: 'closed' }) },
-    executionInputProvider: { prepare: () => {
+    executionInputProvider: { prepare: ({ preparationScope }) => {
+      assert.ok(preparationScope && Object.isFrozen(preparationScope));
+      inputPreparationScope = preparationScope;
       if (settings.inputError) throw settings.inputError;
       return ({ ownerScope: { domain: 'libra', processType: 'libra_run', processId: 'run', objectRefs: [] },
       basisRefs: [{ basisType: 'execution_basis', basisId: 'basis', revision: 1, digest: HASH_A }], namedInputs: settings.namedInputs || {},
@@ -277,8 +281,11 @@ function fixture(run, settings = {}) {
     } },
     fenceValidator: { validate: () => fences[fenceIndex++] },
     whenEvaluator: { evaluate: () => settings.whenDecision || 'run' },
-    resourceDemandResolver: { resolve: () => ({ eventId: settings.demandEventId || 'event', queueClass: 'normal_foreground',
-      localPriority: 0, priorityRevision: 1, resources: [{ resourceKey: 'cpu_heavy', units: 1 }] }) },
+    resourceDemandResolver: { resolve: ({ preparationScope }) => {
+      assert.equal(preparationScope, inputPreparationScope);
+      return { eventId: settings.demandEventId || 'event', queueClass: 'normal_foreground',
+        localPriority: 0, priorityRevision: 1, resources: [{ resourceKey: 'cpu_heavy', units: 1 }] };
+    } },
     nextEventAttemptId: () => settings.seedDeferredAttempt
       ? 'event-attempt-2' : 'event-attempt',
     nextExecutionId: () => 'execution', nextResultId: () => 'result', now: () => settings.nowMs ?? 1000 });

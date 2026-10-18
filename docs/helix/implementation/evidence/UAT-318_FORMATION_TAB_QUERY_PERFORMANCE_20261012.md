@@ -620,3 +620,22 @@ Libra新增同次overview组合读取，复用当前activeSnapshot而保留原su
 - 正式20轮结束后三轮诊断均完成；新旧Host分别于UTC10:55及11:15停止Exit0。旧版历史审计通过，候选最终历史审计在既有日志只记录开始、没有成功结果，明确保留为未验证，不能沿用前一候选的保护结论。
 - 2026-10-18 UTC01:47只读复核：两演练容器ID与记录一致，均停止/Exit0；无运行中的shelfdeck-uat318演练容器。本地未发现本轮资格脚本Node进程。生产仍markmahoro/shelfdeck:bfd97f36a、原容器/镜像身份一致、running、RestartCount0；没有数据处置或生产重建。
 - 原始证据保留在.codex/uat318-scope-20261016：performance-qualification.json、两组各20轮原始请求、post-trial-profile.json、candidate-profiles、qualification.log、session-closure.json；所有演练数据及备份保留。后续如恢复，先承接未完成的候选历史核验及残余阻塞证据，再决定新修复与资格，不自动恢复部署。
+
+### 2026-10-18 按用户要求小步恢复：Settlement Binding 准备内复用
+
+- 用户恢复优化，明确不安排大批本地等价试验或新增性能硬门槛；先将原UAT-318开发及全局代理、Workspace空间不足转二号等后续提交快进合并到当前工作区57c7aa675，不再增加分支。此前失败候选及正式性能结果保持历史事实，不将其改记PASS。
+- 本轮生产只读采样已确认：四次约20秒窗口，Libra readPackage重建/完整校验inclusive约58.9%–67.9%，Arca readSettlement约63.0%–72.5%，GC约9.5%–10.8%；这些存在嵌套不能相加。前三轮Work Scheduler acquire仅约0.9%–1.2%。无Profiler基线Node进程约118.3% CPU；Profiler比例与全进程CPU分母不同。原Inspector均关闭，未重启或部署。私有原始采样留在本机ignored `.codex/cpu-diagnosis-20261018/`。
+- 实现仅改Arca on-deck-projections：两个Settlement投影在相同的同步preparationScope、owner/process、dependencyRefs、materialKey及Event身份下共享一次readSettlement。WeakMap仅由Arca持有，Foundation仍只提供原有不透明scope；无跨Event缓存、Schema/Port/Capability变更。Libra原完整Package重建/digest和Arca责任校验仍执行；各投影继续独立校验当前授权、Final Product Verification、Approval，资源需求解析与Executor的独立读取不变。
+- 局部调用次数与结果对照：两个输入投影共用scope时readSettlement从2次降为1次，Handle与Approval作用范围保持；新scope/无scope独立重读，Process/material/Package依赖/Event变化不复用，失败不能成为可复用结果，授权撤销和错误Final Product Verification仍拒绝。目标是去掉已采样证实昂贵的一次完整重建；未把此调用计数当成整机CPU降幅或真实清退吞吐实测。
+- 运行本地 `node --test`：p15-uat111-ondeck-settlement-bounded-context 8项，p4-event-execution-input-provider及p10-handoff-b-ondeck合计11项，全部通过；使用既有本机依赖，不安装或改锁文件。没有扩大为完整Service/Docker/Linux/媒体E2E资格；本次同平台独立对照仅确认重复读取次数和输出，不新增性能PASS门槛。未修改UI、资源Governor、清退授权或实际媒体，未构建和部署。后续在用户授权的迭代内观察真实收益。
+
+### 2026-10-18 完成本轮 Package 热点优化（未部署）
+
+- 用户澄清“小步迭代”不要求每一步停下，授权连续完成本轮热点优化，仍无部署授权。沿用当前工作区，不增加分支；上一节仅代表此前第一步。
+- Foundation把已有不透明preparationScope贯穿同一同步输入准备及resourceDemandResolver；普通dispatch和recovery各新建一个scope，资源解析后释放本地引用。scope不进入持久输入/Result/Effect、资源需求或Executor Context；Foundation没有缓存、理解或裁决Arca事实。现有Runtime回归的所有dispatch/recovery fixture均断言两个准备入口收到同一scope且Executor未收到它，输入Provider回归断言投影收到该身份。
+- Arca Context Reader持有WeakMap，仅复用同scope、Run、完整dependencyRefs、materialKey和Event的一次成功readSettlement；两个投影和资源需求读取共享该结果。所有投影依旧独立读授权和Approval；源/目标Volume集合与Governor请求逻辑不变。新scope/无scope、不同Run/材料/Package依赖/Event均重读，读取失败不缓存。异步Executor、媒体操作前assertCurrentApproval继续走原无scope完整重验，未越过任何异步边界复用责任事实。
+- Libra Product Delivery Reader按Fact revision分组、每组最多500 ID精确读取引用Fact；仍逐条核对revision、fact/evidence/reference digest并重建完整Manifest/Package。每条Fact的readStoredMetadataValue从重复两次改为一次，保留其Episode记录顺序、字节上限、schema和set digest校验；Episode claims预分组，避免逐材料扫全部claims；Production Provenance只解析一次；同一只读Unit of Work中的Run行供Package关系校验与Delivery Fence共同使用。无Schema、Facade、Fact/摘要公式、全局canonical-json或旧数据兼容路径变更。
+- 最终定向回归：p15-uat111 Settlement、p4 Event Input Provider/Event Runtime/Runtime Host、p9 Deliverable Promotion Store、Series Delivery Scope/Episode Metadata Schema、UAT-251 Accepted Requirements共143项全部通过，含真实SQLite历史重建篡改拒绝、回滚/重放、恢复、授权及异步清退保护。未另设固定性能门槛，未做大批全库等价验收。
+- 性能对照只读导出生产一个完整Package引用行集合（约1.48MB，145 Product materials、48 claims、3 Facts），随后所有计时在Windows本机内存Repository进行；无生产候选注入或媒体操作。旧57c7aa675/当前按before-after-after-before各做一个准备工作量，旧3次完整重建86.4625/80.2692ms，新1次23.8781/27.0735ms；Repository调用36→9，完整公开read结果deepEqual。缺失Fact和错误Fact revision在新旧两侧均拒绝。此对照测的是完整重建CPU成本与重复调用，不含真实SQLite I/O、Arca全部准备、Governor等待或异步Executor，不能宣称NAS整机CPU下降约70%。
+- 原始只读记录、诊断脚本、完整对照及测试日志仅存本机ignored `.codex/cpu-diagnosis-20261018/`（package-rows.private.json、package-benchmark.json、final-targeted-tests.log）。现网保持bfd97f36a，本轮未构建、上传、部署、重启、Reset或改变生产配置/业务数据。先前143项内首轮105项通过为开发中间结果，最终结果以上述143项为准。
+- 补充Service常规回归已跑完：首次 `npm test --prefix media-service` 为636 pass/4 fail/27 skip；4处失败全部为当前工作区缺少固定相对路径依赖（tools/node_modules/ssh2及web/node_modules/@playwright/test），没有发现产品断言失败。使用本机已有依赖建立ignored目录Junction后，只补跑这4个文件：13 pass/2既有skip/0 fail（其中2项原先已在首次通过），不重跑整个耗时套件。组合覆盖为647通过、29既有skip；不将首次失败日志改成单次全绿，原日志和补跑日志保留。常规套件包含本机临时介质/模拟Provider的Host场景，其结果不代表生产媒体E2E或浏览器验收。本轮所有测试进程均已结束，无待运行服务或采样器。

@@ -585,7 +585,7 @@ function createProcurementExecutionRuntime(options) {
     fenceValidator: { validate: ({ snapshot }) => {
       const fence = JSON.parse(snapshot.node.fence_basis_json); return { valid: true, digest: canonicalDigest(fence), snapshot: fence };
     } },
-    resourceDemandResolver: { resolve: ({ snapshot,inputs }) => {const projection=executionProjectionProvider.read({
+    resourceDemandResolver: { resolve: ({ snapshot,inputs,preparationScope }) => {const projection=executionProjectionProvider.read({
       ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,processId:snapshot.work.process_id,workKind:snapshot.work.work_kind});
       const capability=snapshot.node.capability_ref;let resources=[];
       if(['procurement.field.observation.page.commit@1','shared.material.media.probe@1','procurement.triage.bdmv.assess@1',
@@ -700,7 +700,8 @@ function createProcurementExecutionRuntime(options) {
           ?arcaProcessServices.aftercareContextReader.read(snapshot.work.process_id)
           :snapshot.work.process_type==='arca_ondeck_run'
             ?capability==='arca.ondeck.input_settlement.delete@1'
-              ?arcaProcessServices.contextReader.readSettlement(snapshot.work.process_id,refs,settlementMaterialKey)
+              ?arcaProcessServices.contextReader.readSettlement(snapshot.work.process_id,refs,settlementMaterialKey,
+                { preparationScope, eventId:snapshot.event.event_id })
               :arcaProcessServices.contextReader.readAccepted(snapshot.work.process_id,refs)
             :arcaProcessServices.contextReader.readOffer(refs);
         const targetMount=isOffdeckAutomation?null:isOffdeck?arcaContext.snapshot.shelf.target_mount_scope_id:isAftercare||isCorrection?arcaContext.raw.shelf.target_mount_scope_id:arcaContext.shelf.target.mountScopeId;

@@ -49,11 +49,10 @@ function createEventExecutionInputProvider(options) {
   }
   const repository = definition(options.schemaManifest);
 
-  function resolveBindings(snapshot, bindingSet) {
+  function resolveBindings(snapshot, bindingSet, preparationScope) {
     const namedInputs = {};
-    // Opaque, ephemeral identity for one synchronous binding preparation. Owners
-    // may reuse reads within it; it is never persisted or passed to Executors.
-    const preparationScope = Object.freeze({});
+    // Owners may reuse reads in this synchronous preparation; the identity is
+    // never persisted or passed to Executors.
     const ownerScope = Object.freeze({
       ownerDomain: snapshot.work.owner_domain,
       processType: snapshot.work.process_type,
@@ -157,13 +156,13 @@ function createEventExecutionInputProvider(options) {
   }
 
   return Object.freeze({
-    prepare({ snapshot }) {
+    prepare({ snapshot, preparationScope = Object.freeze({}) }) {
       let frozen;
       try { frozen = JSON.parse(snapshot.node.input_bindings_json); } catch {
         fail('P4_EVENT_INPUT_BINDING_CORRUPT', 'Frozen Event input bindings are not valid JSON.');
       }
       const namedInputs = frozen?.schemaRef === 'helix://foundation/types/EventInputBindingSet/v1'
-        ? resolveBindings(snapshot, frozen) : frozen;
+        ? resolveBindings(snapshot, frozen, preparationScope) : frozen;
       options.contractValidator.validate(snapshot.node.input_binding_schema_ref, namedInputs);
       const values=Object.values(namedInputs),approvalHandle=values.find((value)=>value?.schemaRef==='helix://contracts/types/ApprovalHandle/v1'),authorizationHandle=values.find((value)=>value?.schemaRef==='helix://contracts/types/AuthorizationHandle/v1');
       return Object.freeze({

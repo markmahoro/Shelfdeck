@@ -12,6 +12,22 @@ const { requiresInputSettlement } = require('../model/offload-settlement');
 
 function stable(schema, value) { return canonicalDigest({ schema, ...value }); }
 
+function createSettlementPreparationReader(read) {
+  const preparations = new WeakMap();
+  return function readSettlement(onDeckRunId, dependencyRefs, materialKey, preparation = {}) {
+    const { preparationScope, eventId = null } = preparation;
+    if (!preparationScope) return read(onDeckRunId, dependencyRefs, materialKey);
+    const key = canonicalDigest({ onDeckRunId, dependencyRefs, materialKey, eventId });
+    const prior = preparations.get(preparationScope);
+    if (prior?.key === key) return prior.context;
+    // The opaque scope ends before dispatch or any asynchronous media effect.
+    // Only a successful, fully checked Arca context can be shared inside it.
+    const context = read(onDeckRunId, dependencyRefs, materialKey);
+    preparations.set(preparationScope, { key, context });
+    return context;
+  };
+}
+
 function dependencyMap(dependencyRefs) {
   return new Map((dependencyRefs || []).map((item) => [item.objectType, item]));
 }
@@ -246,7 +262,9 @@ function createOnDeckContextReader(options) {
     return boundedSettlementContext(context, responsibility, verified, materialKey);
   }
 
-  return Object.freeze({ messageFromRefs, readOffer, readAccepted, readSettlement, acceptance, onDeck, settlementAuthorizations, settlementApprovals });
+  return Object.freeze({ messageFromRefs, readOffer, readAccepted,
+    readSettlement:createSettlementPreparationReader(readSettlement),
+    acceptance, onDeck, settlementAuthorizations, settlementApprovals });
 }
 
 module.exports = Object.freeze({
@@ -254,5 +272,6 @@ module.exports = Object.freeze({
   acceptedRunBasis,
   boundedSettlementContext,
   createOnDeckContextReader,
+  createSettlementPreparationReader,
   messageFromRefs,
 });

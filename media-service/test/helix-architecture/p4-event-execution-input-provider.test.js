@@ -82,6 +82,7 @@ test('Event input provider resolves predecessor typed Result plus literal ports 
 });
 
 test('Event input provider projects an ordered set of predecessor Results without coordinator assembly', () => {
+  const preparationScope = Object.freeze({});
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-event-input-set-'));
   const databasePath = path.join(root, 'shelfdeck.db');
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 10 });
@@ -101,7 +102,9 @@ test('Event input provider projects an ordered set of predecessor Results withou
       contractValidator: { validate(_schemaRef, value) { return value; } },
       bindingProjectionRegistry: { resolve(ref) {
         assert.equal(ref, 'helix://fixture/projections/collect/v1');
-        return { project({ sourceResults, parameters }) {
+        return { project({ sourceResults, parameters, preparationScope:actualScope, targetEventId }) {
+          assert.equal(actualScope, preparationScope);
+          assert.equal(targetEventId, 'event-target');
           return { values: sourceResults.map((source) => source.result.ordinal), label: parameters.label };
         } };
       } },
@@ -113,7 +116,7 @@ test('Event input provider projects an ordered set of predecessor Results withou
         { eventId: 'event-a', resultSchemaRef: 'helix://fixture/Item/v1' },
       ],
     }] };
-    const prepared = provider.prepare({ snapshot: {
+    const prepared = provider.prepare({ preparationScope, snapshot: {
       node: { input_bindings_json: canonicalJson(bindingSet), input_binding_schema_ref: 'helix://fixture/BatchInputs/v1' },
       event: { event_id: 'event-target' },
       work: { work_id: 'work-1', owner_domain: 'procurement', process_type: 'run', process_id: 'run-1', basis_digest: 'a'.repeat(64) },

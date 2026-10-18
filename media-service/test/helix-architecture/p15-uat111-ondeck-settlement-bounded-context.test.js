@@ -8,6 +8,7 @@ const test = require('node:test');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const {
   boundedSettlementContext,
+  createSettlementPreparationReader,
 } = require('../../src/helix/domains/arca/application/on-deck-context-reader');
 const {
   createOnDeckProjections,
@@ -150,17 +151,20 @@ test('UAT-111 Settlement handle and approval projections use the bounded reader 
   const bounded = boundedSettlementContext(value.context, value.responsibility,
     Object.freeze({ state:'offloading' }), 'source-12');
   const calls = [];
-  const authorization={state:'enabled',revision:1,authorizationScopeKind:'old_primary_and_exclusive_related',authorizationDigest:canonicalDigest('grant')};
+  let authorization={state:'enabled',revision:1,authorizationScopeKind:'old_primary_and_exclusive_related',authorizationDigest:canonicalDigest('grant')};
+  let readFailure = null;
   const sourceResult={schemaRef:'helix://contracts/types/FinalProductVerification/v1',result:'passed',productManifestDigest:'product-manifest-1',verifiedMaterialKeys:[canonicalDigest('product-12')]};
   let approvalReads=0;
+  const readSettlement = createSettlementPreparationReader((runId, dependencyRefs, materialKey) => {
+    calls.push({ runId, dependencyRefs, materialKey });
+    if (readFailure) throw readFailure;
+    return bounded;
+  });
   const projections = createOnDeckProjections({ evidenceReader:createPlanningEvidenceReader({}),
     contextReader:{
       settlementAuthorizations:{current:()=>authorization},
       settlementApprovals:{readHandle(scope,actual,eventId){approvalReads++;assert.equal(actual,authorization);assert.equal(eventId,'settlement-12');return {approvalId:'persisted-approval',exactEffectScopeDigest:scope.approvalScopeDigest};}},
-      readSettlement(runId, dependencyRefs, materialKey) {
-        calls.push({ runId, dependencyRefs, materialKey });
-        return bounded;
-      },
+      readSettlement,
       readAccepted() { throw new Error('Settlement projection must not read the full accepted context.'); },
       readOffer() { throw new Error('Settlement projection must not read an Offer context.'); },
     },
@@ -170,13 +174,13 @@ test('UAT-111 Settlement handle and approval projections use the bounded reader 
   const ownerScope = Object.freeze({ processType:'arca_ondeck_run', processId:'run-1' });
   const dependencyRefs = Object.freeze([{ objectType:'on_deck_package', objectId:'package-1' }]);
   const parameters = Object.freeze({ materialKey:'source-12', eventId:'settlement-12', dependencyRefs });
+  const preparationScope = Object.freeze({});
 
-  const handles = handlesProjection.projection.project({ ownerScope, parameters, sourceResult });
-  const approval = approvalProjection.projection.project({ ownerScope, parameters, sourceResult });
+  const handles = handlesProjection.projection.project({ ownerScope, parameters, sourceResult, preparationScope });
+  const approval = approvalProjection.projection.project({ ownerScope, parameters, sourceResult, preparationScope });
 
-  assert.equal(calls.length, 2);
+  assert.equal(calls.length, 1);
   assert.deepEqual(calls, [
-    { runId:'run-1', dependencyRefs, materialKey:'source-12' },
     { runId:'run-1', dependencyRefs, materialKey:'source-12' },
   ]);
   assert.equal(handles.members.length, 1);
@@ -185,6 +189,46 @@ test('UAT-111 Settlement handle and approval projections use the bounded reader 
   assert.equal(approvalReads,1);
   assert.equal(approval.approvalId,'persisted-approval');
   assert.equal(handles.members[0].finalProductVerificationDigest,canonicalDigest(sourceResult));
+  // Resource demand uses the same synchronous preparation, without another read.
+  assert.equal(readSettlement('run-1', dependencyRefs, 'source-12',
+    { preparationScope, eventId:'settlement-12' }), bounded);
+  assert.equal(calls.length, 1);
+
+  // A new preparation (including a retry) must read and validate again.
+  assert.deepEqual(handlesProjection.projection.project({ ownerScope, parameters, sourceResult,
+    preparationScope:Object.freeze({}) }), handles);
+  assert.equal(calls.length, 2);
+  // Callers outside the Binding provider retain independent reads.
+  assert.deepEqual(handlesProjection.projection.project({ ownerScope, parameters, sourceResult }), handles);
+  assert.deepEqual(approvalProjection.projection.project({ ownerScope, parameters, sourceResult }), approval);
+  assert.equal(calls.length, 4);
+
+  authorization = { ...authorization, state:'disabled' };
+  assert.throws(() => approvalProjection.projection.project({ ownerScope, parameters, sourceResult, preparationScope }),
+    /Current Input Settlement Authorization/);
+  assert.equal(approvalReads, 2);
+  authorization = { ...authorization, state:'enabled' };
+  assert.throws(() => handlesProjection.projection.project({ ownerScope, parameters,
+    sourceResult:{ ...sourceResult, productManifestDigest:'corrupt' }, preparationScope }),
+    /Final Product Verification/);
+
+  readFailure = new Error('Package integrity changed');
+  const failedScope = Object.freeze({});
+  for (let attempt = 0; attempt < 2; attempt++) {
+    assert.throws(() => handlesProjection.projection.project({ ownerScope, parameters, sourceResult,
+      preparationScope:failedScope }), /Package integrity changed/);
+  }
+  assert.equal(calls.length, 6);
+  for (const changed of [
+    { ownerScope:{ ...ownerScope, processId:'run-2' } },
+    { parameters:{ ...parameters, materialKey:'source-13' } },
+    { parameters:{ ...parameters, dependencyRefs:[{ objectType:'on_deck_package', objectId:'package-2' }] } },
+    { targetEventId:'settlement-13' },
+  ]) {
+    assert.throws(() => handlesProjection.projection.project({ ownerScope, parameters, sourceResult,
+      preparationScope, ...changed }), /Package integrity changed/);
+  }
+  assert.equal(calls.length, 10);
 });
 
 test('UAT-111 resource demand and executor are wired to the bounded Settlement reader', () => {

@@ -17,10 +17,11 @@ const stable = (prefix, value) => prefix + canonicalDigest(value).slice(0, 40);
 function typed(parameter, value) { return Object.freeze({ parameter,
   valueType:typeof value === 'number' ? (Number.isInteger(value) ? 'integer' : 'number') : typeof value,
   value, valueDigest:canonicalDigest({ parameter, value }) }); }
-function contextFor(options, ownerScope, parameters, projectionRef) { const deps=parameters?.dependencyRefs||[];
+function contextFor(options, ownerScope, parameters, projectionRef, preparationScope, targetEventId) { const deps=parameters?.dependencyRefs||[];
   return ownerScope.processType === 'arca_ondeck_run'
     ? [P.settlementHandles,P.settlementApproval].includes(projectionRef)
-      ? options.contextReader.readSettlement(ownerScope.processId,deps,parameters.materialKey)
+      ? options.contextReader.readSettlement(ownerScope.processId,deps,parameters.materialKey,
+        { preparationScope, eventId:targetEventId || parameters.eventId || null })
       : options.contextReader.readAccepted(ownerScope.processId, deps)
     : options.contextReader.readOffer(deps); }
 function attemptId(c) { return canonicalDigest({ schema:'arca.acceptance-attempt-id@1', offerId:c.offer.offerId,
@@ -200,8 +201,8 @@ function createOnDeckProjections(options) { const definitions=[
   [P.finalReality,(c,source)=>source?.schemaRef==='helix://contracts/types/FulfillmentVerification/v1'?source:finalReality(options,c,source)],
   [P.onDeckControl,(c,_s,p)=>controlHandle(c,'arca_ondeck_run',c.responsibility.onDeckRunId,p.eventId,'replace_control_set')],
   ];
-  return Object.freeze(definitions.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,sourceResult,parameters}){
-    try{return build(contextFor(options,ownerScope,parameters,projectionRef),options.evidenceReader.resolveSource(sourceResult),parameters||{});}
+  return Object.freeze(definitions.map(([projectionRef,build])=>Object.freeze({projectionRef,projection:Object.freeze({project({ownerScope,sourceResult,parameters,preparationScope,targetEventId}){
+    try{return build(contextFor(options,ownerScope,parameters,projectionRef,preparationScope,targetEventId),options.evidenceReader.resolveSource(sourceResult),parameters||{});}
     catch(error){if(isSettlementAuthorityUnavailable(error))throw executionInputUnavailable(error.message,{dependencyKind:'owner_approval',dependencyRef:ownerScope.processId});throw error;}}})})));
 }
 

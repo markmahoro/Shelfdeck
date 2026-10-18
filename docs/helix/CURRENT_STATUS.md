@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-18 UAT-318成品包热点本地优化完成：同一同步preparationScope下两个Settlement投影与资源解析共同读取一次完整上下文；Foundation仅传递不透明scope且不进入Executor/持久输入，Arca持有临时结果。Libra按精确Fact revision批量读取、单次恢复metadata、按成员分组Episode claims及同事务复用Run行，保留完整Package与逐项校验。143项定向回归通过。145材料/48 claims的真实Package记录在本机内存Repository对照中，旧3次重建80.27–86.46ms/36次调用，新1次23.88–27.07ms/9次调用，完整输出一致；不含SQLite I/O/媒体副作用，不能当作NAS CPU实测。未构建/部署、未改生产数据，既有开发已合并至57c7aa675且无新分支。
+
 2026-10-18 用户追加的空间不足重试转二号已本地实现：3次、至少间隔60秒，保留Subject整体安全转区；空间恢复自动原位继续。17项席位、4项API/复制、2条真实Host旅程及Service647通过/29既有skip。未部署、未清理/修改生产数据或配置；完整证据见[本项Evidence](implementation/evidence/LIBRA_WORKSPACE_SPACE_WORKSHOP_20261018.md)。
 
 2026-10-18 本轮只读现场复核生产仍bfd97f36a、RestartCount0、health ok/正常供给；未部署或修改生产配置/数据。Workspace审计发现4份superseded旧Run合计70.1595 GiB，引用仍working且无Cleanup Scope，现有回收路径返回has_workspace_references；另有35.3902 GiB历史保留/备份、约7.55 GiB当前在用，同卷外部Landing约173 GiB。UAT-322开放，只诊断未清理。用户确认的全站统一代理/JAV一键连接已在独立worktree本地实现，专项22、Service647通过/29既有skip、Web197、最终宽窄浏览器6及构建通过；12a4b4030具体版本UI审核20/20通过；尚无Linux精确候选/生产资格，未宣称发布就绪。证据：[网络](implementation/evidence/GLOBAL_NETWORK_POLICY_20261018.md)、[Workspace](implementation/evidence/UAT-322_WORKSPACE_RESIDUE_AUDIT_20261018.md)。

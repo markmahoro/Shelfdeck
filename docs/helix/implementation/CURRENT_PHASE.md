@@ -1,5 +1,9 @@
 # 当前 Phase：JAV 首版发布与用户验收
 
+## UAT-318 小步恢复（2026-10-18）
+
+用户恢复优化并澄清应连续完成本轮，不另设性能硬门槛。当前工作区已合并全部既有优化及后续开发至57c7aa675。本轮在Arca On-deck的两个Settlement输入投影及同步资源准备之间共享完整已校验上下文；Foundation只将原不透明preparationScope贯穿同步prepare/resolve，不持有业务上下文、不传给Executor或持久化，正常dispatch和recovery各自新建scope。Arca按Run/dependencyRefs/material/Event精确绑定，失败不复用，授权/Approval逐投影重验；异步Executor及清退前Approval回调仍独立读取。Libra内只优化关系读取和重复计算，完整Package及metadata/digest校验保持。143项定向回归与真实Package记录的短隔离对照通过；未构建或部署，NAS整体收益待实测。沿用原UAT-318 Evidence，不新建活动包。
+
 ## LIBRA-WORKSPACE-SPACE-WORKSHOP（2026-10-18）
 
 用户追加空间不足反复重试后可进入现有二号车间。已在Libra既有Attention Workshop实现：同一稳定Owner basis下3次真实Workspace admission不足、计数间隔至少60秒；快速轮询不累计，恢复/原因变化/basis变化清零，转入前重启重新观察。全部未交付Run均合格、执行/Effect安全及二号容量仍由既有原子事务验证；二号满/0保留一号，转入保留token/Run/Control/Workspace，空间恢复后自动在二号继续。无新schema/API/UI或Foundation调度变更，不扩为encoder/volume等待转区。

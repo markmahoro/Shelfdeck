@@ -645,9 +645,10 @@ function createEventRuntime(options) {
       }));
       return complete(snapshot, attempt.event_attempt_id, outcome, policyDecision);
     }
+    let preparationScope = Object.freeze({});
     let inputs;
     try {
-      inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot }));
+      inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot, preparationScope }));
       if (valueDigest(inputs.namedInputs) !== attempt.input_snapshot_digest) fail(
         'P4_EVENT_RECOVERY_INPUT_DRIFT', 'Recovery inputs differ from the durable Event Attempt snapshot.'
       );
@@ -694,7 +695,8 @@ function createEventRuntime(options) {
     if (!fence || fence.valid !== true || fence.digest !== attempt.fence_snapshot_digest) fail(
       'P4_EVENT_RECOVERY_FENCE_DRIFT', 'Recovery Fence no longer matches the durable Event Attempt.'
     );
-    const demand = options.resourceDemandResolver.resolve(Object.freeze({ snapshot, inputs }));
+    const demand = options.resourceDemandResolver.resolve(Object.freeze({ snapshot, inputs, preparationScope }));
+    preparationScope = null;
     if (!demand || demand.eventId !== request.eventId) fail(
       'P4_EVENT_RECOVERY_RESOURCE_BINDING_MISMATCH', 'Recovery Resource Demand must bind the exact Event.'
     );
@@ -905,9 +907,10 @@ function createEventRuntime(options) {
           options.scheduler.release(request.schedulerLease); schedulerReleased = true;
           return preparationWait;
         }
+        let preparationScope = Object.freeze({});
         let inputs;
         try {
-          inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot }));
+          inputs = options.executionInputProvider.prepare(Object.freeze({ snapshot, preparationScope }));
         } catch (error) {
           options.scheduler.release(request.schedulerLease);
           schedulerReleased = true;
@@ -942,7 +945,8 @@ function createEventRuntime(options) {
           options.scheduler.release(request.schedulerLease); schedulerReleased = true;
           return recordFenceRejected(snapshot, entry, attemptId, startedAtMs, firstFence || { actualDigest: valueDigest({ missing: true }) });
         }
-        demand = options.resourceDemandResolver.resolve(Object.freeze({ snapshot, inputs }));
+        demand = options.resourceDemandResolver.resolve(Object.freeze({ snapshot, inputs, preparationScope }));
+        preparationScope = null;
         if (!demand || demand.eventId !== eventId) fail('P4_EVENT_RESOURCE_DEMAND_BINDING_MISMATCH', 'Resolved Resource Demand must bind the current Event.');
         if(options.incidentObserver){const decision=options.incidentObserver.prepareExecution(Object.freeze({
           ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,workKind:snapshot.work.work_kind,
