@@ -1140,6 +1140,11 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_AUTOMATION_COMMAND_REJECTED' || error.code === 'ADMIN_AUTOMATION_PROJECTION_UNAVAILABLE') status = 400;
   else if (error.code === 'ADMIN_RULE_TEMPLATE_NOT_FOUND') status = 404;
   else if (error.code === 'ARCA_SHELF_ENTRY_NOT_FOUND' || error.code === 'PERCEPTION_TARGET_NOT_FOUND') status = 404;
+  else if (typeof error.code==='string'&&error.code.startsWith('ARCA_US_ADULT_')) {
+    if(error.code.endsWith('_NOT_FOUND'))status=404;
+    else if(error.code==='ARCA_US_ADULT_REFRESH_REQUEST_INVALID')status=400;
+    else status=409;
+  }
   else if (typeof error.code === 'string' && error.code.startsWith('ARCA_JAV_CORRECTION_')) {
     if(error.code==='ARCA_JAV_CORRECTION_NOT_FOUND')status=404;
     else if(error.code==='ARCA_JAV_CORRECTION_INPUT_INVALID'||error.code==='ARCA_JAV_CORRECTION_PREVIEW_TOO_LARGE')status=400;
@@ -1255,7 +1260,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 160) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 162) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -2129,6 +2134,7 @@ async function createCleanServiceHost(options) {
     libraFieldIntakeAdmissionAdmin,
     formationQuery,
     arcaCollectionQuery,
+    arcaUsAdultActorRefresh:procurementExecution.arcaUsAdultActorRefresh,
     arcaJavCorrectionAdmin:{list:query=>procurementExecution.arcaJavCorrection.workQuery.list(query),preview:procurementExecution.arcaJavCorrection.admin.preview,status:procurementExecution.arcaJavCorrection.admin.status,
       latest:shelfEntryId=>procurementExecution.arcaJavCorrection.admin.latest(shelfEntryId),
       cancel(...args){const result=procurementExecution.arcaJavCorrection.admin.cancel(...args);executionRuntimeHost.wake();return result;},

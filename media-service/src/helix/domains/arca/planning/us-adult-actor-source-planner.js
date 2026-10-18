@@ -16,7 +16,7 @@ function createUsAdultActorSourcePlanner(options){
       eventId='arca-us-source-event-'+canonicalDigest(request.workAttemptId),parameters={aftercareCaseId:caseId,intentId:current.intent.intentId},
       bindings=Object.entries({usAdultActorRefreshScope:PROJECTIONS.scope,usAdultActorRefreshIntent:PROJECTIONS.intent,physicalMaterialReadHandle:PROJECTIONS.source})
         .map(([portName,projectionRef])=>({portName,bindingKind:'projected_owner_facts',ownerDomain:'arca',processType:'arca_shelf_entry',processId:request.processId,projectionRef,parameters})),
-      demand={resourceKinds:['cpu','disk_io','compute_device']};
+      demand={resourceKinds:['cpu','disk_io']};
     return {schemaRef:'helix://foundation/types/WorkflowPlanDefinition/v1',schemaVersion:1,planId:'arca-us-source-plan-'+canonicalDigest(request.workAttemptId),
       workAttemptId:request.workAttemptId,ownerDomain:'arca',plannerContractRef:PLANNER,plannerVersion:1,workObjectiveTypeRef:OBJECTIVE,workObjectiveVersion:1,
       executionBasisDigest:current.intent.intentDigest,capabilityCatalogDigest:catalogDigest,resolution:'planned',diagnosticClassification:null,

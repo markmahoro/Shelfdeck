@@ -10,8 +10,8 @@ const routes=[];for(const line of routeSection.split(/\r?\n/)){const m=line.matc
 for(const route of routes){const match=route.contract.path.match(/^\/v1\/admin\/runtime\/actions\/(stop|resume|reset)$/);
   if(route.contract.method==='POST'&&match){route.contract.facadeMethod='post_runtime_'+match[1];route.contractDigest.value=digest(route.contract);}}
 const healthContract={method:'GET',path:'/v1/health',facade:'HealthFacade',facadeMethod:'read_health',authentication:'public',sideEffect:'none'};routes.unshift({id:'get:/v1/health',version:1,owner:'application-composition',status:'verified',ssotRefs:['9.7.2'],sourceLocator:{section:'9.7.2',line:11990,lineDigest:digest('GET /v1/health public health')},targetLocator:{path:'public/admin-route-registry.js'},contract:healthContract,contractDigest:{algorithm:'sha256',value:digest(healthContract)}});
-if(routes.length!==160)throw new Error('Expected 160 routes, found '+routes.length);
-const routeManifest={schemaVersion:1,manifestVersion:1,manifestId:'helix.inventory.routes',kind:'route-inventory',owner:'contracts',status:'active',ssotRefs:['9.7','9.9.7'],targetCount:160,targetSegments:{admin:159,publicHealth:1},entries:routes};
+if(routes.length!==162)throw new Error('Expected 162 routes, found '+routes.length);
+const routeManifest={schemaVersion:1,manifestVersion:1,manifestId:'helix.inventory.routes',kind:'route-inventory',owner:'contracts',status:'active',ssotRefs:['9.7','9.9.7'],targetCount:162,targetSegments:{admin:161,publicHealth:1},entries:routes};
 const registryPath=path.join(__dirname,'../src/helix/contracts/manifests/manifest-registry.json'),manifestRegistry=JSON.parse(fs.readFileSync(registryPath,'utf8'));
 const routeRegistration=manifestRegistry.manifests.find(entry=>entry.kind==='route-inventory');
 if(!routeRegistration)throw new Error('Missing route inventory registration');

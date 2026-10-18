@@ -278,6 +278,9 @@ const dtoContracts = {
   UsAdultActorSelectionBasis:'',
   UsAdultRecommendationConfirmation:'',
   UsAdultInventoryPresentation:'',
+  UsAdultActorRefreshSelection:'',
+  UsAdultActorFilePlan:'',
+  UsAdultActorExecutionInput:'',
   UsAdultActorRefreshScope:'',
   UsAdultActorRefreshIntent:'',
   UsAdultRecommendationPageQuery:'',
@@ -364,6 +367,9 @@ function buildSchema(name, role, fields) {
   if (name === 'TriageIdentityResolutionInput') return triageIdentityResolutionInputSchema();
   if (name === 'TriageManifestBuildInput') return triageManifestBuildInputSchema();
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
+  if(name==='UsAdultActorRefreshSelection')return require('../../src/helix/contracts/us-adult-actor-selection').selectionSchema();
+  if(name==='UsAdultActorFilePlan')return require('../../src/helix/contracts/us-adult-actor-file-contracts').filePlanSchema();
+  if(name==='UsAdultActorExecutionInput')return require('../../src/helix/contracts/us-adult-actor-file-contracts').executionInputSchema();
   if(name==='UsAdultActorRefreshScope')return require('../../src/helix/domains/arca/model/us-adult-actor-refresh-execution').scopeSchema();
   if(name==='UsAdultActorRefreshIntent')return {...exactDomainSchema(name,{
     schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},policyVersion:{const:'us-adult-actor-refresh@1'},intentId:digest(),actorId:id(),

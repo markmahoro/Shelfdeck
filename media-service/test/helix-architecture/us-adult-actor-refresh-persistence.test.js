@@ -77,13 +77,15 @@ test('mutating a caller object after participant preparation cannot change the a
     atomicParticipants:caseId=>{const participant=s.store.participant(intent,[],caseId);intent.manualPersonSnapshot.canonicalName='Injected name';return [participant];}});
   assert.equal(s.store.byCase(care.aftercareCaseId).intent.manualPersonSnapshot.canonicalName,'actor-a');
 });
-test('resolving an actor refresh leaves unrelated health Findings open on the same Basis',t=>{
+test('an unbound actor closure is rejected and unrelated health Findings remain available for their own repair',t=>{
   const f=fixture(t),s=f.services(),started=s.command.request('entry',f.request,'admin');
   f.db.prepare('INSERT INTO arca_aftercare_assessments VALUES(?,?,?,?,?,?,?,?,?,?,?,?)').run('assessment','entry',2,1,1,
     f.context.basis.decisionFactSetDigest,f.context.basis.digest,'presentation','unhealthy',null,D('health'),10000);
   f.db.prepare('INSERT INTO arca_aftercare_findings VALUES(?,?,?,?,?,?,?,?)').run('finding','assessment','presentation:nfo_missing','warning','auto_repair',D('missing'),'open',10000);
   s.care.admitCase(started.aftercareCaseId);
-  s.care.terminateCase(started.aftercareCaseId,'resolved','actor_unchanged',D('unchanged result'));
+  assert.throws(()=>s.care.terminateCase(started.aftercareCaseId,'resolved','actor_unchanged',D('unchanged result')),{code:'ARCA_US_ADULT_CASE_RESULT_REQUIRED'});
+  assert.equal(s.care.getCase(started.aftercareCaseId).state,'active');
+  s.care.terminateCase(started.aftercareCaseId,'unresolved','fixture_stopped',D('stopped'));
   assert.equal(f.db.prepare('SELECT state FROM arca_aftercare_findings').get().state,'open');
   const body={schemaRef:'helix://contracts/domain-types/CareRequirement/v1',schemaVersion:1,requirementId:'health',revision:1,
     careBasisDigest:f.context.basis.digest,acceptanceDigest:D('health acceptance'),requiredEffects:[{objectId:'finding',revision:1,schemaRef:'required-effect',digest:D('missing'),objectKind:'required-effect'}],

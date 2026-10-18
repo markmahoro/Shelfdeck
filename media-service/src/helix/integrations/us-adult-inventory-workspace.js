@@ -20,7 +20,7 @@ function createUsAdultInventoryWorkspace(options){
     if(!/^[A-Za-z0-9_-]{1,256}$/.test(aftercareCaseId))fail('ARCA_US_ADULT_WORKSPACE_PATH_INVALID','Case identity cannot contain a physical path.');
   }
   function location(aftercareCaseId,relativePath){
-    if(typeof relativePath!=='string'||!/^us-adult\/[a-f0-9]{64}\/(?:frame-\d{2}|frames|features|poster|nfo)-[a-f0-9]{64}\.(?:jpg|json|nfo)$/.test(relativePath))
+    if(typeof relativePath!=='string'||!/^us-adult\/[a-f0-9]{64}\/(?:frame-\d{2}|frames|features|poster|nfo|plan|facts)-[a-f0-9]{64}\.(?:jpg|json|nfo)$/.test(relativePath))
       fail('ARCA_US_ADULT_WORKSPACE_PATH_INVALID','Workspace member is outside the declared actor refresh recipe.');
     return path.join(root.resolvedRoot,aftercareCaseId,...relativePath.split('/'));
   }
@@ -39,7 +39,7 @@ function createUsAdultInventoryWorkspace(options){
   function sameSnapshot(left,right){return left.ino===right.ino&&left.dev===right.dev&&left.size===right.size&&left.mtimeNs===right.mtimeNs&&left.ctimeNs===right.ctimeNs;}
   function write({intent,aftercareCaseId,kind,bytes,context,recoveryDecision=null}){
     guard(context,intent,aftercareCaseId);
-    if(!/^(?:frame-\d{2}|frames|features|poster|nfo)$/.test(kind||'')||!Buffer.isBuffer(bytes)||bytes.length<1||bytes.length>MAX_BYTES)
+    if(!/^(?:frame-\d{2}|frames|features|poster|nfo|plan|facts)$/.test(kind||'')||!Buffer.isBuffer(bytes)||bytes.length<1||bytes.length>MAX_BYTES)
       fail('ARCA_US_ADULT_WORKSPACE_BYTES_INVALID','Actor refresh member exceeds its declared kind or bounded bytes.');
     const digestHex=sha(bytes),extension=kind==='nfo'?'nfo':kind.startsWith('frame-')||kind==='poster'?'jpg':'json',
       relativePath='us-adult/'+intent.intentId+'/'+kind+'-'+digestHex+'.'+extension,target=location(aftercareCaseId,relativePath),temporary=target+'.part';

@@ -43,6 +43,7 @@ function buildArcaApplicationSchemas() {
   const correctionType=(name,body,maxBytes)=>({$schema:DRAFT,$id:typeId(name),title:name+'@1',
     'x-helix-ssotRefs':['3.5.5','8.5.12','8.6.19'],'x-helix-maxCanonicalBytes':maxBytes,...body});
   return Object.freeze({
+    ...require('../../src/helix/contracts/us-adult-actor-file-contracts').inventoryFactSchemas(),
     ArcaJavCorrectionCancellationReceipt:correctionType('ArcaJavCorrectionCancellationReceipt',require('../../src/helix/domains/arca/model/jav-correction-cancellation').javCorrectionCancellationReceiptSchema(),16384),
     ArcaJavCorrectionRecoveryIntentReceipt:correctionType('ArcaJavCorrectionRecoveryIntentReceipt',require('../../src/helix/domains/arca/model/jav-correction-recovery').javCorrectionRecoveryReceiptSchema(),16384),
     ArcaJavCorrectionRecoveryObservation:correctionType('ArcaJavCorrectionRecoveryObservation',require('../../src/helix/domains/arca/model/jav-correction-recovery').javCorrectionRecoveryObservationSchema(),1024*1024),

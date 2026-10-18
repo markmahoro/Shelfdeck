@@ -91,7 +91,7 @@ function inventoryMember(row) {
   return Object.freeze({ ...base, memberDigest:canonicalDigest(base) });
 }
 
-function buildInventoryPlacementRequest(context, inventoryPort, at, caseId, processKind) {
+function buildInventoryPlacementRequest(context, inventoryPort, at, caseId, processKind, actorSelection=null) {
   const members = context.raw.materials.map(inventoryMember)
     .sort((left, right) => left.materialKey.localeCompare(right.materialKey));
   const identity = metadataIdentity(context);
@@ -166,7 +166,7 @@ function buildInventoryPlacementRequest(context, inventoryPort, at, caseId, proc
     custodyId: caseId,
     ...(processKind==='aftercare'?{aftercareCaseId:caseId}:{correctionId:caseId}),
     ...(contentProfile==='western_adult'?{shelfEntryId:context.shelfEntryId,
-      inventoryUsAdultPresentation:buildUsAdultInventoryPresentation(context,caseId)}:{}),
+      ...(actorSelection?{inventoryActorRefreshSelection:actorSelection}:{inventoryUsAdultPresentation:buildUsAdultInventoryPresentation(context,caseId)})}:{}),
     shelf,
     onDeckProductPackage,
     observedAtMs: at,
@@ -178,8 +178,9 @@ function buildInventoryPlacementRequest(context, inventoryPort, at, caseId, proc
   return Object.freeze({ ...base, finalInventoryDecision });
 }
 
-function buildAftercareInventoryRequest(context, inventoryPort, at, caseId) {
-  return buildInventoryPlacementRequest(context,inventoryPort,at,caseId,'aftercare');
+function buildAftercareInventoryRequest(context, inventoryPort, at, caseId, actorSelection=null) {
+  if(actorSelection)require('../../../contracts/us-adult-actor-selection').assertSelection(actorSelection,{shelfEntryId:context.shelfEntryId,aftercareCaseId:caseId});
+  return buildInventoryPlacementRequest(context,inventoryPort,at,caseId,'aftercare',actorSelection);
 }
 
 function buildJavCorrectionPlacementRequest(context,inventoryPort,at,correctionId) {

@@ -65,11 +65,14 @@ test('real Service FFmpeg extracts twenty points and CPU matching selects one ac
     sourceValidator=require('../../src/helix/foundation/capability/contract-validator').createCapabilityContractValidator({schemas:
       [...['UsAdultActorRefreshIntent','UsAdultPersonSnapshot','PersonReferenceProjection','PeopleReferenceLibraryPage','FaceModelRef'].map(name=>domainSchemas[name]),
         ...['PhysicalMaterialReadHandle','PhysicalMaterialIdentity','WorkspaceMaterialHandle'].map(name=>require('../../src/helix/contracts/types/'+name+'/'+(name==='PhysicalMaterialIdentity'?'v2':'v1')+'/schema.json')),
-        require('../../src/helix/contracts/us-adult-inventory-analysis').sourcePreparedSchema()]}),
-    emptyPage={schemaRef:'helix://contracts/domain-types/PeopleReferenceLibraryPage/v1',schemaVersion:1,libraryKind:'us_adult',libraryDigest:canonicalDigest('empty'),totalPersonCount:0,items:[],nextCursor:null},
+        require('../../src/helix/contracts/us-adult-inventory-analysis').sourcePreparedSchema(),
+        require('../../src/helix/contracts/us-adult-inventory-matching').pageMatchSchema()]}),
+    referencePageBody={schemaRef:'helix://contracts/domain-types/PeopleReferenceLibraryPage/v1',schemaVersion:1,libraryKind:'us_adult',
+      libraryDigest:canonicalDigest('native-frozen-library'),totalPersonCount:1,items:[personSnapshot],nextCursor:null},
+    referencePage={...referencePageBody,pageDigest:canonicalDigest(referencePageBody)},
     sourceIntent=require('../../src/helix/domains/arca/model/us-adult-actor-refresh').buildIntent({context:sourceContext,actorId:'native-fixture',
       body:{mode:'automatic',idempotencyKey:'source-read',expectedInventoryRevision:2,expectedRepresentationDigest:sourceContext.raw.inventory.representation_digest},
-      pages:[{...emptyPage,pageDigest:canonicalDigest(emptyPage)}],contractValidator:sourceValidator}),
+      pages:[referencePage],contractValidator:sourceValidator}),
     sourceExecution={ownerScope:{domain:'arca',processType:'arca_shelf_entry',processId:'entry-1'},assertExecutionActive:()=>{}},
     arcaHandle=require('../../src/helix/integrations/us-adult-inventory-source').createUsAdultInventorySource({assertAuthority:()=>true}).issueReadHandle({
       intent:sourceIntent,aftercareCaseId:'native-source-case',identity,binding:{endpointId:'endpoint',bindingRevision:1,location:video},
@@ -102,6 +105,18 @@ test('real Service FFmpeg extracts twenty points and CPU matching selects one ac
   assert.deepEqual(restored.analysis,prepared.analysis);assert.deepEqual(restored.frames,prepared.frames);
   assert.equal((await inventoryEngine.matchPage({analysis:restored.analysis,personReferenceProjections:[projection]})).matches[0].score,expectedMaximum);
   assert.deepEqual((await inventoryEngine.renderPoster({...posterInput,...restored})).bytes,poster.bytes);
+  const rootPort=require('../../src/clean-us-adult-inventory-analysis-port').createCleanUsAdultInventoryAnalysisPort({
+    context:sourceExecution,intent:sourceIntent,aftercareCaseId:'native-source-case',aftercareWorkspaceRoot:workspaceRoot,assertAuthority:()=>true,
+    workspaceRegistry:{rootSnapshot:workspaceOptions.rootSnapshot,ensureWorkspace:workspaceOptions.ensureWorkspace,registerMaterial:workspaceOptions.registerMaterial,
+      listHandles:()=>[...handles.values()]},frameExtractor:extractor,faceModel:model,referencePort:{readReferenceEmbedding:()=>embeddingBytes,readReferenceImage:()=>({bytes:portraitBytes})},
+    mediaProbe:createCleanMediaProbe(),contractValidator:sourceValidator}),
+    matchedRestored=await rootPort.matchPage({intent:sourceIntent,aftercareCaseId:'native-source-case',sourceResult,page:referencePage}),
+    matchingContract=require('../../src/helix/contracts/us-adult-inventory-matching'),
+    pageResult=matchingContract.pageMatch({intent:sourceIntent,aftercareCaseId:'native-source-case',pageOrdinal:0,page:referencePage,sourceResult,
+      matches:matchedRestored.matches,atMs:Date.now()});
+  assert.equal(pageResult.matches[0].personId,'arca-actor');assert.equal(pageResult.matches[0].score,expectedMaximum);
+  matchingContract.assertPageMatch({intent:sourceIntent,aftercareCaseId:'native-source-case',pageOrdinal:0,page:referencePage,sourceResult,result:pageResult,validator:sourceValidator});
+  assert.equal(handles.size,22,'Pure page matching only reads the complete frozen Case analysis.');
   const changedResult=structuredClone(sourceResult);changedResult.aftercareCaseId='other-case';
   assert.throws(()=>createPreparation().read({intent:sourceIntent,aftercareCaseId:'native-source-case',result:changedResult}),{code:'ARCA_US_ADULT_SOURCE_RESULT_INVALID'});
   await assert.rejects(inventoryEngine.analyzeSource({sourceHandle:handle,durationMs:2000}),{code:'ARCA_US_ADULT_SOURCE_SCOPE_INVALID'});

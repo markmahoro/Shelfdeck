@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(aftercare_case_id,input_kind,owner_domain,aggregate_type,aggregate_id)`；关系化保存Standard/Placement/Identity/Inventory/Decision Fact/Package provenance；Case创建后immutable",
       "source": {
         "section": "8.5.12",
-        "line": 9644,
+        "line": 9649,
         "lineDigest": "9a6e19b4a4dba41dc09a9e4e01a3e8e57e4dc24cd867cfeda812fc6fd56ae111"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`UNIQUE(aftercare_case_id,settlement_scope_digest)`；只为`auto_repair`且确定性安全的精确替代Scope派生，不新增用户Authorization",
       "source": {
         "section": "8.5.12",
-        "line": 9645,
+        "line": 9650,
         "lineDigest": "63f9a9b819ac2f8124994b0037d4976ead18d94ec13813c50a0733ba454ef2fa"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`UNIQUE(aftercare_case_id,new_inventory_revision)`；与Inventory revision及Control acquire/release同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 9646,
+        "line": 9651,
         "lineDigest": "39a54eb54b9c4193ca09a82b33d12a9d6a6d92a1248b5e8cb4ed534c74700a46"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "current revision显式FK；Automation只读head，不使用`MAX(revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 9647,
+        "line": 9652,
         "lineDigest": "535fe763445393a3f6da2bb862caf3f6fd6ba0558dc091cce994de67691f040b"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "Policy JSON上限`64 KiB`；`PK(policy_id,revision)`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 9648,
+        "line": 9653,
         "lineDigest": "bb4435c564a9cbcf01820993a914b28644e31f066e085d2e56bfdd4563b63a25"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "target是closed union：entry恰有`shelf_entry_id`，duplicate group恰有`duplicate_group_id`，另一列必须NULL；Condition Evidence JSON上限`16 KiB`；相同`target+policy revision+reason`至多一个open Candidate；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9649,
+        "line": 9654,
         "lineDigest": "374b650105d8da6b200797bada923eef2075d3c2d8b1dc3d2c73934d59b31ba1"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "Suppression精确绑定Entry、Policy revision与reason digest；Policy或reason变化后旧Suppression不遮蔽新Candidate；`INDEX(shelf_entry_id,candidate_kind,state,expires_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9650,
+        "line": 9655,
         "lineDigest": "06f2b7d8f0f1b8e1c2d52e791ed6e38b3da1583c5f9f5f4eaff008b578343620"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`UNIQUE(canonical_identity_digest,member_set_digest)`；Group是Off-deck Evidence aggregate，不选择保留成员",
       "source": {
         "section": "8.5.12",
-        "line": 9651,
+        "line": 9656,
         "lineDigest": "2ea29ec1242d920e488cfa644865edf2eadbfd2c9a47f89520e5b3c52995081d"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`PK(duplicate_group_id,shelf_entry_id)`",
       "source": {
         "section": "8.5.12",
-        "line": 9652,
+        "line": 9657,
         "lineDigest": "ecc853bb09c6cec484bca73f98a35dd59f67b481466ce9bb51300fd99d5b5955"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "当前Group/member set至多一份active；成员或Identity变化后旧Whitelist为stale",
       "source": {
         "section": "8.5.12",
-        "line": 9653,
+        "line": 9658,
         "lineDigest": "756bfc233aee57e11d4135953ceea853fc9063ba4681f6cd400ab61cced3829f"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "创建时先原子建立Review与每Entry Reservation；只有已有Aftercare Case在安全边界停下后才进入open并冻结Scope；Authorization前取消只终结Review并释放Reservation；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9654,
+        "line": 9659,
         "lineDigest": "31bbedcaa13d47f99b41dd816871d4ae3953bfa797abda46c8cbbb4a063c0ee4"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "同一Shelf Entry至多一个active Off-deck Reservation；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9655,
+        "line": 9660,
         "lineDigest": "d9ec380f97236575796baeeb3e5ebdce5a3a60d11c825419eb07e7327a4b87c6"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`member_count=1..1024`且逐字节等于material rows；`UNIQUE(reservation_id,scope_digest)`；pre-authorization immutable Scope由Reservation拥有，不依赖Case，准备Scope期间不占Resource Permit",
       "source": {
         "section": "8.5.12",
-        "line": 9656,
+        "line": 9661,
         "lineDigest": "38bfcadff57970b766e542947b984c55415df931c7d580ae736d8265d7de9f28"
       }
     }

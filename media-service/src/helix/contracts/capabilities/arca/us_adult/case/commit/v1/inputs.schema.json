@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.us_adult.case.commit/v1/inputs",
+  "title": "arca.us_adult.case.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "usAdultActorExecutionInput": {
+      "$ref": "#/$defs/usAdultActorExecutionInput"
+    }
+  },
+  "required": [
+    "usAdultActorExecutionInput"
+  ],
+  "$defs": {
+    "usAdultActorExecutionInput": {
+      "$ref": "helix://contracts/domain-types/UsAdultActorExecutionInput/v1",
+      "x-helix-typeExpression": "UsAdultActorExecutionInput"
+    }
+  }
+}

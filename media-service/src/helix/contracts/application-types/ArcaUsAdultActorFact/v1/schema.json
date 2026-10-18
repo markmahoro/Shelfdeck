@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ArcaUsAdultActorFact/v1",
+  "title": "ArcaUsAdultActorFact@1",
+  "x-helix-ssotRefs": [
+    "6.6.8",
+    "8.6.18"
+  ],
+  "x-helix-maxCanonicalBytes": 131072,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/ArcaUsAdultActorFact/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "aftercareCaseId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "intentDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "canonicalIdentityDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sourceFactDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "personSnapshotDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "referenceAssetId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sourceBasisKind": {
+      "const": "us_adult_actor_refresh"
+    },
+    "relations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "relationId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "personId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1
+          },
+          "displayNameNormalized": {
+            "type": "string",
+            "minLength": 1
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1
+          },
+          "source": {
+            "type": "string",
+            "minLength": 1
+          },
+          "providerIdentities": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "provider": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "namespace": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "providerKey": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "provider",
+                "namespace",
+                "providerKey"
+              ]
+            },
+            "maxItems": 128
+          },
+          "originEvidenceDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "confidenceClass": {
+            "type": "string",
+            "minLength": 1
+          },
+          "relationDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "relationId",
+          "personId",
+          "displayName",
+          "displayNameNormalized",
+          "role",
+          "source",
+          "providerIdentities",
+          "originEvidenceDigest",
+          "confidenceClass",
+          "relationDigest"
+        ]
+      }
+    },
+    "relationCount": {
+      "const": 1
+    },
+    "relationsDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "factDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "shelfEntryId",
+    "aftercareCaseId",
+    "intentDigest",
+    "selectionDigest",
+    "canonicalIdentityDigest",
+    "sourceFactDigest",
+    "personSnapshotDigest",
+    "referenceAssetId",
+    "sourceBasisKind",
+    "relations",
+    "relationCount",
+    "relationsDigest",
+    "factDigest"
+  ]
+}

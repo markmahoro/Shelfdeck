@@ -19,13 +19,13 @@
       "manifestId": "helix.inventory.capabilities",
       "kind": "capability-inventory",
       "relativePath": "capability-inventory.json",
-      "targetCount": 122
+      "targetCount": 130
     },
     {
       "manifestId": "helix.inventory.result-families",
       "kind": "result-family-inventory",
       "relativePath": "result-family-inventory.json",
-      "targetCount": 105
+      "targetCount": 108
     },
     {
       "manifestId": "helix.inventory.tables",
@@ -37,9 +37,9 @@
       "manifestId": "helix.inventory.routes",
       "kind": "route-inventory",
       "relativePath": "route-inventory.json",
-      "targetCount": 160,
+      "targetCount": 162,
       "targetSegments": {
-        "admin": 159,
+        "admin": 161,
         "publicHealth": 1
       }
     },

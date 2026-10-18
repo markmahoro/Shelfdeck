@@ -93,7 +93,9 @@ function validateTransactionContracts(options) {
         ((entry.id === 'helix.transaction.inventory-record-refresh-commit' &&
           selector.commandContract === 'arca.inventory.person-records.refresh@1') ||
          (entry.id === 'helix.transaction.aftercare-case-creation' &&
-          selector.commandContract === 'arca.repair-accepted-defects@1'));
+          selector.commandContract === 'arca.repair-accepted-defects@1') ||
+         (entry.id === 'helix.transaction.aftercare-inventory-commit' && variant.variantId === 'arca_us_adult_actor_inventory@1' &&
+          selector.commandContract === 'arca.us_adult.inventory.commit@1'));
       const factSelector = selector.selectorKind === 'domain_fact_handle_exact' && selector.factType &&
         selector.factSchemaRef && selector.resultSchemaRef;
       const selectorKey = commandSelector ? selector.commandContract : [selector.factType, selector.factSchemaRef, selector.resultSchemaRef].join('|');
@@ -146,10 +148,10 @@ function validateTransactionContracts(options) {
       if (!contract.participants.some((participant) => participant.dynamicTableSelector)) findings.push(finding(
         'MISSING_POLYMORPHIC_DOMAIN_PARTICIPANT', 'Domain Fact Commit requires a handle-selected Owner participant.', { transactionId: entry.id }
       ));
-      if (variants.filter((variant) => variant.selector).length !== 6 || variants.some((variant) => variant.selector &&
+      if (variants.filter((variant) => variant.selector).length !== 7 || variants.some((variant) => variant.selector &&
           (variant.dynamicTableRequirements.length !== 0 || variant.writeTables.includes('fx_outbox') ||
            variant.fenceContract.outboxRequired !== false))) findings.push(finding(
-        'INVALID_PRODUCT_FACT_VARIANT_OVERRIDE', 'Product Fact and Acceptance Evidence variants must be six exact static no-Outbox overrides.', { transactionId: entry.id }
+        'INVALID_PRODUCT_FACT_VARIANT_OVERRIDE', 'Product, Acceptance, Verification and Actor Case variants must be seven exact static no-Outbox overrides.', { transactionId: entry.id }
       ));
     }
     if (contract.displayName === 'Shelf Deregistration Commit' && contract.forbiddenCapabilities.length !== 2) findings.push(finding(

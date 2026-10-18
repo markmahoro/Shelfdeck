@@ -32,9 +32,12 @@ function readUsAdultInventoryPresentation(context) {
   if (display.get('original_file_name_digest') !== originalName.provenanceDigest) fail();
 
   const cast = oneFact(raw, 'media_cast'), actor = cast.relations?.[0], row = raw.people[0];
-  if (cast.schemaRef !== 'helix://contracts/types/MediaCastFact/v1' || cast.sourceBasisKind !== 'us_adult_actor' ||
+  const own=cast.schemaRef==='helix://contracts/application-types/ArcaUsAdultActorFact/v1',castRow=raw.facts.find(item=>item.fact_kind==='media_cast');
+  if(own){const {factDigest,...body}=cast;if(cast.shelfEntryId!==context.shelfEntryId||cast.canonicalIdentityDigest!==raw.identity.identity_digest||
+      factDigest!==canonicalDigest(body)||castRow.fact_schema_ref!==cast.schemaRef||castRow.fact_digest!==canonicalDigest(cast))fail();}
+  if ((!own&&cast.schemaRef !== 'helix://contracts/types/MediaCastFact/v1') || cast.sourceBasisKind !== (own?'us_adult_actor_refresh':'us_adult_actor') ||
       cast.relationCount !== 1 || cast.relations?.length !== 1 ||
-      cast.relationsDigest !== canonicalDigest({ schema: 'libra.media-cast-relations@1', relations: cast.relations }) ||
+      cast.relationsDigest !== canonicalDigest({ schema: own?'arca.us-adult-actor-relations@1':'libra.media-cast-relations@1', relations: cast.relations }) ||
       !actor || actor.role !== 'actor' || typeof actor.personId !== 'string' || !actor.personId ||
       typeof actor.displayName !== 'string' || !actor.displayName.trim() ||
       !['user_actor_choice', 'face_reference_match'].includes(actor.source) || !Array.isArray(actor.providerIdentities) ||

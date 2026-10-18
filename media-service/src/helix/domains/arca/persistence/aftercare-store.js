@@ -103,10 +103,32 @@ function createAftercareStore(options) {
     update_settlement_approval:{kind:'update',tableId:'arca_aftercare_settlement_approvals',setColumns:['state'],keyColumns:['approval_id'],compareColumns:[{column:'state',parameter:'expected_state'}]},
   }});
   const foundation = createRepositoryDefinition({repositoryId:'arca_aftercare_foundation',owner:'execution-foundation',schemaManifest:options.schemaManifest,statements:{
+    actor_work:{kind:'select-one',tableId:'fx_supporting_works',columns:['owner_domain','process_type','process_id','state','basis_digest'],keyColumns:['work_id']},
+    actor_event:{kind:'select-one',tableId:'fx_workflow_events',columns:['work_id','capability_ref','state'],keyColumns:['event_id']},
+    actor_attempt:{kind:'select-one',tableId:'fx_event_attempts',columns:['event_id','state'],keyColumns:['event_attempt_id']},
+    actor_result:{kind:'select-one',tableId:'fx_event_result_bindings',columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest'],keyColumns:['event_id']},
+
     insert_result:{kind:'insert',tableId:'fx_event_result_bindings',columns:['result_id','event_id','outcome_kind','result_schema_ref','result_json','result_digest','evidence_schema_ref','evidence_json','evidence_digest','effect_receipt_id','committed_at_ms']},
     insert_marker:{kind:'insert',tableId:'fx_commit_markers',columns:['commit_marker','effect_id','owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms']},
     insert_outbox:{kind:'insert',tableId:'fx_outbox',columns:['message_id','producer_domain','message_kind','aggregate_type','aggregate_id','aggregate_revision','dedup_key','consumer_set_digest','intended_consumer_count','payload_schema_ref','payload_json','payload_digest','state','available_at_ms','created_at_ms','all_acked_at_ms']},
   }});
+  function assertActorExecution(repo,binding){
+    const ref=binding.executionReference;
+    if(!ref||!['arca.us_adult.inventory.commit@1','arca.us_adult.case.commit@1'].includes(ref.capabilityRef)||!Array.isArray(ref.predecessors)||!ref.predecessors.length)
+      fail('ARCA_US_ADULT_EXECUTION_FENCE','Actor atomic commit lacks its exact execution and predecessors.');
+    const work=repo.invoke('actor_work',{work_id:ref.workId}),event=repo.invoke('actor_event',{event_id:binding.eventId}),
+      attempt=repo.invoke('actor_attempt',{event_attempt_id:ref.eventAttemptId});
+    if(work?.owner_domain!=='arca'||work.process_type!=='arca_shelf_entry'||work.process_id!==ref.shelfEntryId||work.state!=='running'||
+        work.basis_digest!==ref.intentDigest||event?.work_id!==ref.workId||event.capability_ref!==ref.capabilityRef||event.state!=='executing'||
+        attempt?.event_id!==binding.eventId||attempt.state!=='executing')fail('ARCA_US_ADULT_EXECUTION_FENCE','Actor atomic commit lost its actual active Work, Event or Attempt.');
+    for(const prior of ref.predecessors){
+      const w=repo.invoke('actor_work',{work_id:prior.workId}),e=repo.invoke('actor_event',{event_id:prior.eventId}),r=repo.invoke('actor_result',{event_id:prior.eventId});
+      if(w?.owner_domain!=='arca'||w.process_type!=='arca_shelf_entry'||w.process_id!==ref.shelfEntryId||w.basis_digest!==ref.intentDigest||w.state!=='succeeded'||
+          e?.work_id!==prior.workId||e.capability_ref!==prior.capabilityRef||e.state!=='succeeded'||r?.outcome_kind!=='succeeded'||
+          r.result_id!==prior.resultId||r.result_schema_ref!==prior.resultSchemaRef||r.result_digest!==prior.resultDigest||canonicalDigest(JSON.parse(r.result_json))!==prior.resultDigest)
+        fail('ARCA_US_ADULT_EXECUTION_FENCE','Actor commit predecessor is not its exact durable successful Result.');
+    }
+  }
   const recordRefresh=createInventoryRecordRefreshStore(options,arca);
   const careWork=createCareWorkStore(options);
   const read=(body)=>options.unitOfWork.execute([{participantId:'arca_aftercare_read',owner:'arca',repositories:[arca],execute:body}]).arca_aftercare_read;
@@ -181,17 +203,34 @@ function createAftercareStore(options) {
     options.unitOfWork.execute([{participantId:'arca_aftercare_case_domain',owner:'arca',repositories:[arca],execute(context){const repo=context.repository(arca.repositoryId);assertNoJavCorrection(repo,value.shelfEntryId);if(repo.invoke('list_reservations',{shelf_entry_id:value.shelfEntryId}).some((item)=>item.state==='active'))fail('ARCA_AFTERCARE_MODIFICATION_FENCED','Off-deck Reservation prevents a new Aftercare Case.');repo.invoke('insert_case',{aftercare_case_id:caseId,shelf_entry_id:value.shelfEntryId,finding_set_digest:value.findingSetDigest,care_basis_schema_ref:value.careBasis.schemaRef,care_basis_json:canonicalJson(value.careBasis),care_basis_digest:value.careBasis.digest,care_requirement_schema_ref:value.careRequirement.schemaRef,care_requirement_json:canonicalJson(value.careRequirement),care_requirement_digest:value.careRequirement.digest,case_generation:caseGeneration,trigger_digest:triggerDigest,state:'queued',terminal_reason_code:null,terminal_evidence_digest:null,created_at_ms:at,terminal_at_ms:null});for(const input of value.basisInputs)repo.invoke('insert_basis',{aftercare_case_id:caseId,input_kind:input.inputKind,owner_domain:input.ownerDomain,aggregate_type:input.aggregateType,aggregate_id:input.aggregateId,revision:input.revision,input_digest:input.inputDigest});}},
       ...atomicParticipants,
       {participantId:'arca_aftercare_case_foundation',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId);repo.invoke('insert_marker',{commit_marker:marker,effect_id:null,owner_domain:'arca',scope_type:'aftercare_case',scope_id:caseId,commit_digest:payloadDigest,result_id:null,result_schema_ref:null,result_digest:null,committed_at_ms:at});repo.invoke('insert_outbox',{message_id:'arca-aftercare-case-message-'+canonicalDigest(caseId).slice(0,32),producer_domain:'arca',message_kind:'arca.aftercare.case.created',aggregate_type:'aftercare_case',aggregate_id:caseId,aggregate_revision:1,dedup_key:marker,consumer_set_digest:consumers,intended_consumer_count:0,payload_schema_ref:'helix://arca/messages/AftercareCaseCreated/v1',payload_json:canonicalJson(payload),payload_digest:payloadDigest,state:'tombstoned',available_at_ms:at,created_at_ms:at,all_acked_at_ms:null});}}]);return getCase(caseId);}
-  function terminateCase(caseId,state,reasonCode,evidenceDigest){
+  function terminateCase(caseId,state,reasonCode,evidenceDigest,resultBinding=null){
     if(!['resolved','invalidated','unresolved'].includes(state))fail('ARCA_AFTERCARE_CASE_STATE','Aftercare terminal state is invalid.');
     if(typeof reasonCode!=='string'||!reasonCode||typeof evidenceDigest!=='string'||!/^[a-f0-9]{64}$/.test(evidenceDigest))fail('ARCA_AFTERCARE_CASE_TERMINAL_EVIDENCE','Aftercare terminal reason and Evidence are required.');
+    let alreadyTerminal=false;
     const terminal=options.unitOfWork.execute([{participantId:'arca_aftercare_case_terminal',owner:'arca',repositories:[arca],execute(context){
       const repo=context.repository(arca.repositoryId),caseRow=repo.invoke('find_case',{aftercare_case_id:caseId});
       if(!caseRow)fail('ARCA_AFTERCARE_CASE_MISSING','Aftercare Case is absent.');
+      const actorObjective=readActorRefreshRequirement(parse(caseRow.care_requirement_json,'ARCA_AFTERCARE_REQUIREMENT_CORRUPT'));
+      if(state==='resolved'&&actorObjective&&!resultBinding)fail('ARCA_US_ADULT_CASE_RESULT_REQUIRED','Actor Case closure requires its atomic Event Result.');
+      if(resultBinding){
+        const binding=resultBinding,result=binding.result,receipt=binding.effectReceipt,{factDigest,...body}=result||{};
+        if(state!=='resolved'||!readActorRefreshRequirement(parse(caseRow.care_requirement_json,'ARCA_AFTERCARE_REQUIREMENT_CORRUPT'))||
+            binding.outcomeKind!=='succeeded'||binding.resultSchemaRef!=='helix://contracts/capabilities/arca.us_adult.case.commit/v1/result'||
+            binding.evidenceSchemaRef!=='helix://contracts/capabilities/arca.us_adult.case.commit/v1/evidence'||binding.executionReference?.capabilityRef!=='arca.us_adult.case.commit@1'||
+            binding.executionReference?.intentDigest!==actorObjective.intentDigest||binding.executionReference?.shelfEntryId!==caseRow.shelf_entry_id||result?.schemaRef!=='helix://contracts/types/AftercareCaseResult/v1'||result.aftercareCaseId!==caseId||
+            result.resultState!=='resolved'||result.reassessmentDigest!==evidenceDigest||factDigest!==canonicalDigest(body)||
+            result.ownerDomain!=='arca'||result.aggregateType!=='aftercare_case'||result.aggregateId!==caseId||
+            !binding.resultId||!binding.eventId||!binding.resultSchemaRef||!binding.evidenceSchemaRef||!binding.evidence||
+            receipt?.effectClass!=='domain_fact_commit'||receipt.effectReceiptId!==binding.effectReceiptId||receipt.commitMarker!==result.commitMarker||
+            receipt.outputDigest!==canonicalDigest(result)||receipt.verificationEvidenceDigest!==evidenceDigest||!Number.isSafeInteger(receipt.committedAtMs)||
+            receipt.committedAtMs!==result.committedAtMs)fail('ARCA_US_ADULT_CASE_RESULT_INVALID','Actor Case closure requires its exact atomic Result and Effect Receipt.');
+      }
       if(!['queued','active'].includes(caseRow.state)){
         if(caseRow.state!==state||caseRow.terminal_reason_code!==reasonCode||caseRow.terminal_evidence_digest!==evidenceDigest)fail('ARCA_AFTERCARE_CASE_CAS','A terminal Aftercare Case cannot be rewritten.');
-        return mapCase(caseRow);
+        alreadyTerminal=true;return mapCase(caseRow);
       }
-      const changed=repo.invoke('update_case',{state,terminal_reason_code:reasonCode,terminal_evidence_digest:evidenceDigest,terminal_at_ms:now(),aftercare_case_id:caseId,expected_state:caseRow.state});
+      const changed=repo.invoke('update_case',{state,terminal_reason_code:reasonCode,terminal_evidence_digest:evidenceDigest,
+        terminal_at_ms:resultBinding?.effectReceipt.committedAtMs??now(),aftercare_case_id:caseId,expected_state:caseRow.state});
       if(changed.changes!==1){const current=repo.invoke('find_case',{aftercare_case_id:caseId});if(!current||current.state!==state||current.terminal_reason_code!==reasonCode||current.terminal_evidence_digest!==evidenceDigest)fail('ARCA_AFTERCARE_CASE_CAS','Aftercare Case terminal CAS failed.');}
       if(state==='resolved'&&!readActorRefreshRequirement(parse(caseRow.care_requirement_json,'ARCA_AFTERCARE_REQUIREMENT_CORRUPT'))){
         const assessmentIds=repo.invoke('list_assessments',{shelf_entry_id:caseRow.shelf_entry_id}).filter((item)=>item.care_basis_digest===caseRow.care_basis_digest).map((item)=>item.assessment_id);
@@ -201,7 +240,16 @@ function createAftercareStore(options) {
         if(approval.state==='active')repo.invoke('update_settlement_approval',{state:'stale',approval_id:approval.approval_id,expected_state:'active'});
       }
       return mapCase(repo.invoke('find_case',{aftercare_case_id:caseId}));
-    }}]).arca_aftercare_case_terminal;
+    }},...(resultBinding?[{participantId:'arca_us_actor_case_terminal_result',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[foundation],execute(context){
+      if(alreadyTerminal)return;
+      const repo=context.repository(foundation.repositoryId),binding=resultBinding,resultDigest=canonicalDigest(binding.result),receipt=binding.effectReceipt;
+      assertActorExecution(repo,binding);
+      repo.invoke('insert_result',{result_id:binding.resultId,event_id:binding.eventId,outcome_kind:'succeeded',result_schema_ref:binding.resultSchemaRef,
+        result_json:canonicalJson(binding.result),result_digest:resultDigest,evidence_schema_ref:binding.evidenceSchemaRef,evidence_json:canonicalJson(binding.evidence),
+        evidence_digest:canonicalDigest(binding.evidence),effect_receipt_id:binding.effectReceiptId,committed_at_ms:receipt.committedAtMs});
+      repo.invoke('insert_marker',{commit_marker:receipt.commitMarker,effect_id:receipt.effectId,owner_domain:'arca',scope_type:'aftercare_case',scope_id:caseId,
+        commit_digest:evidenceDigest,result_id:binding.resultId,result_schema_ref:binding.resultSchemaRef,result_digest:resultDigest,committed_at_ms:receipt.committedAtMs});
+    }}]:[])]).arca_aftercare_case_terminal;
     workspaceStore.schedule(caseId,terminal.terminalAtMs);
     return terminal;
   }
@@ -284,10 +332,24 @@ function createAftercareStore(options) {
     if(!Number.isSafeInteger(at)||at<0)fail('ARCA_AFTERCARE_INVENTORY_TIME_INVALID','Aftercare Inventory commit time is invalid.');
     if(!binding||typeof binding.resultId!=='string'||!binding.resultId||typeof binding.eventId!=='string'||!binding.eventId||binding.outcomeKind!=='succeeded'||typeof binding.resultSchemaRef!=='string'||!binding.resultSchemaRef||typeof binding.evidenceSchemaRef!=='string'||!binding.evidenceSchemaRef||typeof binding.effectReceiptId!=='string'||!binding.effectReceiptId||!binding.result||!binding.evidence||!effectReceipt||effectReceipt.effectReceiptId!==binding.effectReceiptId||effectReceipt.effectClass!=='responsibility_control_commit'||typeof effectReceipt.effectId!=='string'||!effectReceipt.effectId||typeof effectReceipt.commitMarker!=='string'||!effectReceipt.commitMarker||effectReceipt.outputDigest!==resultDigest||effectReceipt.verificationEvidenceDigest!==commitDigest||!Number.isSafeInteger(effectReceipt.committedAtMs)||effectReceipt.committedAtMs<0||binding.result.receiptId!==commitId||binding.result.effectReceiptRef!==binding.effectReceiptId||binding.result.aftercareCaseId!==value.aftercareCaseId||binding.result.shelfEntryId!==value.shelfEntryId||Number(binding.result.previousInventoryRevision)!==previous||Number(binding.result.newInventoryRevision)!==next||binding.result.controlChangeDigest!==value.controlChangeDigest||Number(binding.result.committedAtMs)!==at)fail('ARCA_AFTERCARE_INVENTORY_RESULT_INVALID','Aftercare Inventory commit requires its exact typed Event Result and Effect Receipt.');
     const prior=read((context)=>context.repository(arca.repositoryId).invoke('find_inventory_commit',{aftercare_case_id:value.aftercareCaseId,new_inventory_revision:next}));if(prior){if(prior.commit_digest!==commitDigest)fail('ARCA_AFTERCARE_INVENTORY_REPLAY_CONFLICT','Aftercare Inventory replay conflicts with the committed revision.');if(value.settlementApproval)issueSettlementApproval(value.settlementApproval);return Object.freeze({...prior,previousInventoryRevision:Number(prior.previous_inventory_revision),newInventoryRevision:Number(prior.new_inventory_revision)});}
-    const participants=[];if(controlParticipant)participants.push(controlParticipant);participants.push({participantId:'arca_aftercare_inventory_domain',owner:'arca',repositories:[arca],execute(context){const repo=context.repository(arca.repositoryId),entry=repo.invoke('find_entry',{shelf_entry_id:value.shelfEntryId});assertNoJavCorrection(repo,value.shelfEntryId);if(!entry||Number(entry.current_inventory_revision)!==previous)fail('ARCA_AFTERCARE_INVENTORY_STALE','Shelf Entry Inventory changed before Aftercare commit.');const inventory=repo.invoke('find_inventory',{shelf_entry_id:value.shelfEntryId,revision:previous});
+    const participants=[];if(controlParticipant)participants.push(...(Array.isArray(controlParticipant)?controlParticipant:[controlParticipant]));participants.push({participantId:'arca_aftercare_inventory_domain',owner:'arca',repositories:[arca],execute(context){const repo=context.repository(arca.repositoryId),entry=repo.invoke('find_entry',{shelf_entry_id:value.shelfEntryId});assertNoJavCorrection(repo,value.shelfEntryId);if(!entry||Number(entry.current_inventory_revision)!==previous)fail('ARCA_AFTERCARE_INVENTORY_STALE','Shelf Entry Inventory changed before Aftercare commit.');const inventory=repo.invoke('find_inventory',{shelf_entry_id:value.shelfEntryId,revision:previous});
+      if(value.actorRefreshProof){
+        if(binding.resultSchemaRef!=='helix://contracts/capabilities/arca.us_adult.inventory.commit/v1/result'||
+            binding.evidenceSchemaRef!=='helix://contracts/capabilities/arca.us_adult.inventory.commit/v1/evidence'||
+            binding.executionReference?.capabilityRef!=='arca.us_adult.inventory.commit@1'||binding.executionReference?.shelfEntryId!==value.shelfEntryId||
+            binding.executionReference?.intentDigest!==value.actorRefreshProof.intentDigest)
+          fail('ARCA_US_ADULT_EXECUTION_FENCE','Actor Inventory Result has a foreign execution binding.');
+        const proof=value.actorRefreshProof,care=repo.invoke('find_case',{aftercare_case_id:value.aftercareCaseId}),shelf=repo.invoke('find_shelf',{shelf_id:entry.shelf_id}),
+          objective=care&&readActorRefreshRequirement(parse(care.care_requirement_json,'ARCA_AFTERCARE_REQUIREMENT_CORRUPT'));
+        if(care?.state!=='active'||objective?.intentDigest!==proof.intentDigest||care.care_basis_digest!==proof.careBasisDigest||entry.status!=='active'||shelf?.status!=='active'||
+            Number(entry.canonical_identity_revision)!==proof.canonicalIdentityRevision||Number(entry.current_deck_fact_revision)!==proof.deckFactRevision||
+            Number(shelf.current_standard_revision)!==proof.standardRevision||Number(shelf.current_placement_revision)!==proof.placementRevision||
+            inventory.representation_digest!==proof.representationDigest||repo.invoke('list_reservations',{shelf_entry_id:value.shelfEntryId}).some(row=>row.state==='active'))
+          fail('ARCA_US_ADULT_INVENTORY_STALE','Actor commit lost its exact active Case, Inventory, Shelf, Deck or Canonical revision.');
+      }
       appendInventoryRevision(repo,value,inventory,previous,next,at);repo.invoke('insert_inventory_commit',{inventory_commit_id:commitId,aftercare_case_id:value.aftercareCaseId,shelf_entry_id:value.shelfEntryId,previous_inventory_revision:previous,new_inventory_revision:next,control_change_digest:value.controlChangeDigest,commit_digest:commitDigest,committed_at_ms:at});if(value.settlementApproval)issueSettlementApprovalInRepository(repo,value.settlementApproval,at);return next;}});
     if(value.defectRepair)participants.push(defectStore.repairCommitParticipant({...value.defectRepair,aftercareCaseId:value.aftercareCaseId}));
-    participants.push({participantId:'arca_aftercare_inventory_foundation',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId);repo.invoke('insert_result',{result_id:binding.resultId,event_id:binding.eventId,outcome_kind:binding.outcomeKind,result_schema_ref:binding.resultSchemaRef,result_json:resultJson,result_digest:resultDigest,evidence_schema_ref:binding.evidenceSchemaRef,evidence_json:evidenceJson,evidence_digest:evidenceDigest,effect_receipt_id:binding.effectReceiptId,committed_at_ms:at});repo.invoke('insert_marker',{commit_marker:effectReceipt.commitMarker,effect_id:effectReceipt.effectId,owner_domain:'arca',scope_type:'shelf_entry',scope_id:value.shelfEntryId,commit_digest:effectReceipt.verificationEvidenceDigest,result_id:binding.resultId,result_schema_ref:binding.resultSchemaRef,result_digest:resultDigest,committed_at_ms:effectReceipt.committedAtMs});}});options.unitOfWork.execute(participants);return Object.freeze({inventory_commit_id:commitId,aftercare_case_id:value.aftercareCaseId,shelf_entry_id:value.shelfEntryId,previous_inventory_revision:previous,new_inventory_revision:next,control_change_digest:value.controlChangeDigest,commit_digest:commitDigest,committed_at_ms:at,previousInventoryRevision:previous,newInventoryRevision:next});}
+    participants.push({participantId:'arca_aftercare_inventory_foundation',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId);if(value.actorRefreshProof)assertActorExecution(repo,binding);repo.invoke('insert_result',{result_id:binding.resultId,event_id:binding.eventId,outcome_kind:binding.outcomeKind,result_schema_ref:binding.resultSchemaRef,result_json:resultJson,result_digest:resultDigest,evidence_schema_ref:binding.evidenceSchemaRef,evidence_json:evidenceJson,evidence_digest:evidenceDigest,effect_receipt_id:binding.effectReceiptId,committed_at_ms:at});repo.invoke('insert_marker',{commit_marker:effectReceipt.commitMarker,effect_id:effectReceipt.effectId,owner_domain:'arca',scope_type:'shelf_entry',scope_id:value.shelfEntryId,commit_digest:effectReceipt.verificationEvidenceDigest,result_id:binding.resultId,result_schema_ref:binding.resultSchemaRef,result_digest:resultDigest,committed_at_ms:effectReceipt.committedAtMs});}});options.unitOfWork.execute(participants);return Object.freeze({inventory_commit_id:commitId,aftercare_case_id:value.aftercareCaseId,shelf_entry_id:value.shelfEntryId,previous_inventory_revision:previous,new_inventory_revision:next,control_change_digest:value.controlChangeDigest,commit_digest:commitDigest,committed_at_ms:at,previousInventoryRevision:previous,newInventoryRevision:next});}
   function history(shelfEntryId){return read((context)=>{const repo=context.repository(arca.repositoryId),assessments=repo.invoke('list_assessments',{shelf_entry_id:shelfEntryId}).map(mapAssessment).sort((a,b)=>b.assessedAtMs-a.assessedAtMs),ids=assessments.map((x)=>x.assessmentId),findings=selectMany(repo,'find_findings',ids).map(mapFinding).sort((a,b)=>b.createdAtMs-a.createdAtMs),cases=repo.invoke('list_cases',{shelf_entry_id:shelfEntryId}).map(mapCase).map((item)=>Object.freeze({...item,basisInputs:Object.freeze(repo.invoke('list_basis',{aftercare_case_id:item.aftercareCaseId}).map((row)=>Object.freeze({inputKind:row.input_kind,ownerDomain:row.owner_domain,aggregateType:row.aggregate_type,aggregateId:row.aggregate_id,revision:Number(row.revision),inputDigest:row.input_digest})))})).sort((a,b)=>b.createdAtMs-a.createdAtMs),commits=repo.invoke('list_commits',{shelf_entry_id:shelfEntryId}).map((x)=>Object.freeze({inventoryCommitId:x.inventory_commit_id,aftercareCaseId:x.aftercare_case_id,previousInventoryRevision:Number(x.previous_inventory_revision),newInventoryRevision:Number(x.new_inventory_revision),controlChangeDigest:x.control_change_digest,commitDigest:x.commit_digest,committedAtMs:Number(x.committed_at_ms)}));return Object.freeze({assessments:Object.freeze(assessments),findings:Object.freeze(findings),cases:Object.freeze(cases),commits:Object.freeze(commits)});});}
   function selectMany(repo,statement,values){const unique=[...new Set(values)].filter(Boolean).sort(),rows=[];for(let offset=0;offset<unique.length;offset+=500)rows.push(...repo.invoke(statement,{values:unique.slice(offset,offset+500)}));return rows;}
   // The application resolves the current Care Basis, including live Perception

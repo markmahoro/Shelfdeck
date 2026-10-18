@@ -66,7 +66,104 @@
       "arca_defect_admissions",
       "arca_defect_admission_heads"
     ],
-    "variants": [],
+    "variants": [
+      {
+        "variantId": "arca_us_adult_actor_inventory@1",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "arca",
+            "access": "write",
+            "tables": [
+              "arca_inventory_representations",
+              "arca_inventory_materials",
+              "arca_inventory_related_references",
+              "arca_inventory_product_facts",
+              "arca_inventory_person_relations",
+              "arca_aftercare_inventory_commits",
+              "arca_shelf_entries"
+            ]
+          },
+          {
+            "participantKind": "material-control",
+            "owner": "material-control-authority",
+            "access": "write",
+            "tables": [
+              "fx_material_controls",
+              "fx_material_control_revisions"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_event_result_bindings",
+              "fx_commit_markers"
+            ]
+          }
+        ],
+        "writeTables": [
+          "arca_inventory_representations",
+          "arca_inventory_materials",
+          "arca_inventory_related_references",
+          "arca_inventory_product_facts",
+          "arca_inventory_person_relations",
+          "arca_aftercare_inventory_commits",
+          "arca_shelf_entries",
+          "fx_material_controls",
+          "fx_material_control_revisions",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "readTables": [
+          "arca_aftercare_cases",
+          "arca_us_actor_refresh_intents",
+          "arca_jav_identity_corrections",
+          "arca_shelves",
+          "arca_offdeck_reservations",
+          "arca_inventory_representations",
+          "arca_inventory_materials",
+          "arca_inventory_product_facts",
+          "fx_supporting_works",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_event_result_bindings"
+        ],
+        "selector": {
+          "selectorKind": "owner_command_exact",
+          "commandContract": "arca.us_adult.inventory.commit@1"
+        },
+        "dynamicTableRequirements": [],
+        "fenceContract": {
+          "domainRevisionFenceRequired": true,
+          "materialControlCasRequired": true,
+          "commitMarkerRequired": true,
+          "outboxRequired": false
+        },
+        "rollbackInvariant": "The exact verified Inventory, selected Actor Facts, old/new Material Control, Event Result and marker are all-or-none; original Shelf Entry, Deck and Canonical identity remain continuous; retirement is authorized only by this durable commit.",
+        "crashFixtures": [
+          {
+            "fixtureId": "aftercare-basis-inventory",
+            "faultInjectionPoints": "Standard/Placement/Decision Fact变化、Case create、Workspace output、Stage/Switch、Settlement、Inventory/Control commit",
+            "requiredInvariant": "Case冻结完整Care Basis；旧Basis不能提交；原Shelf Entry/Identity/Deck持续；新Inventory revision与Control set一致",
+            "source": {
+              "section": "8.9.7",
+              "line": 8421
+            }
+          },
+          {
+            "fixtureId": "effect-outbox-recovery",
+            "faultInjectionPoints": "effect intent后、外部效果后receipt前、Outbox commit后dispatch前",
+            "requiredInvariant": "依据Effect Class reconcile，不统一重置ready；duplicate message/effect不重复提交",
+            "source": {
+              "section": "8.9.7",
+              "line": 8430
+            }
+          }
+        ]
+      }
+    ],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],
@@ -91,7 +188,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8875,
+      "line": 8880,
       "lineDigest": "967982b60ab89f7dadc37d3591b4db6e5bc50dad7e72a472cc4df0e2964a7dc6"
     }
   }

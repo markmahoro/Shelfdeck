@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.us_adult.inventory.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "responsibility_control_commit",
+  "inputPorts": {
+    "usAdultActorExecutionInput": {
+      "schemaRef": "helix://contracts/capabilities/arca.us_adult.inventory.commit/v1/inputs#/$defs/usAdultActorExecutionInput",
+      "required": true,
+      "cardinality": "one"
+    },
+    "usAdultActorFilePlan": {
+      "schemaRef": "helix://contracts/capabilities/arca.us_adult.inventory.commit/v1/inputs#/$defs/usAdultActorFilePlan",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.us_adult.inventory.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.us_adult.inventory.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.us_adult.inventory.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.us_adult.inventory.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.us_adult.inventory.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.us_adult.inventory.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.us_adult.inventory.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.11",
+    "line": 10511,
+    "lineDigest": "9bcc1a666ea6567248b5c96258e14cc4fb34141282a0ff39b632e5774c34aa1a"
+  }
+}

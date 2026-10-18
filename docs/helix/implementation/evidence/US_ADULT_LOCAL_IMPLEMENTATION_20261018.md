@@ -199,3 +199,16 @@ arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后
 - P2：122 Capability、105 Result families、224表、56事务、141 Domain Inputs、233 referenced types、0 unresolved、160 routes；aggregate `5b94bf91ef9654e18ca81c76bc2d28b67e34c495712a9f9bb84f59992762a268`。源准备接线首次Host启动发现Planner列表多一项而种类索引未更新，精确修复后真实CPU自动匹配至初次上架Host通过1项（44.2秒）；此证据不代表演员刷新文件提交已完成。
 - 接线前启动的Service批次在更新期间遇到旧Planner索引并失败，不能算通过；修复后的Service全量677项，648 pass/29既有skip/0 fail（135.6秒）。固定提交`64e2649d4`的完整Architecture在独立managed worktree运行，与此开发树分开；尚无完整结果。所有失败日志保留在忽略的`.codex/us-adult-validation/`。
 - 未完成：Arca完整分页匹配/目标选择、文件stage/publish/verify/Inventory commit/retirement、Case中断恢复、用户HTTP/UI及其资格。People图管理/深度系统维护、版本化离线副本升级、维护剩余资格及最终全量/跨平台/UI审核仍开放。未操作生产。
+
+
+### 2026-10-19 Arca单片演员刷新主链路与恢复检查点（本版仍未交付）
+
+- 用户恢复开发后，已接通Arca Source、完整冻结参考分页匹配、唯一最高Actor选择、资产准备、stage/publish/verify、Inventory/Control原子提交、旧材料退役、Case原子结案。指定/自动刷新均通过正式HTTP创建原Case；库编辑不创建Case。Arca自身Metadata/Actor Fact不伪造Libra Fact，首次原始命名、Shelf Entry/Deck/Canonical持续。
+- GET `/v1/admin/collection/:shelfEntryId/actor-refresh`只读返回当前版本/演员/执行状态；POST `actions/refresh-us-adult-actor`提供指定/自动命令及幂等/CAS。收藏页新增有图的演员选择、自动刷新、状态及冲突提示；未知响应重用完整同命令，不能混入另一种操作。
+- 真正启用固定CPU模型的HTTP/Host：改名指定Actor整链及重复命令通过；有脸自动刷新、Source后跨Host重启、同名不重叠前缀通过；无脸自动刷新保留原Actor且不产生Inventory/file Work通过。`arca-pipeline-automatic-host-final.txt`两项119.2秒，`arca-pipeline-owner-recovery-final.txt`一项47.6秒。后者在真实Owner UOW最后追加迟发失败，证明Inventory/Control/Result回滚后沿同Case恢复；无关健康Finding未被关闭；Collection投影显示更新标题/Actor。
+- `arca-pipeline-local-final.txt`18项：完整分页证明、目标产物/版本、Inventory与Control守恒、文件冲突及恢复。文件专项最新`arca-pipeline-file-recovery.txt`7项，包含发布第一项/旧别名退役后真实子进程Exit73，再按同Plan向前恢复；这是物理Effect进程边界证据，不冒称整个正式Host被强杀。短stage临时文件只有明确恢复决定、精确字节前缀和稳定stat均通过才清理，外部异字节不覆盖。
+- Owner/命名34项、Actor原子准入/结案7项、既有Aftercare/事务69项、当前Catalog/路由/负例22项通过。Case必须具备准确Capability、实际执行Work/Event/Attempt、全部前置Result和原子Result/marker才可resolved；无匹配不触碰原库存，其他健康修复不受此Case关闭影响。
+- 派生合同P2通过：130 Capability、108 Result families、224表、56事务、144 Domain inputs、240 referenced types、0 unresolved、162路由；aggregate `8a222ba39e25315d5f183e848dbdad3b8cae6463832fabd7c91bbff273f0c6a1`。两项提交使用既有Domain Fact/Aftercare Inventory事务精确variant；没有另建跨域事务。Package Gate 650文件/2286依赖/47包通过；保留Contracts纯规则，物理路径解析留在Domain/Root。
+- Web全量222项/41文件通过，构建通过（既有>500 kB chunk提示）；本轮Service677总项/648通过/29既有skip/0失败。完整Architecture及最终具体版本UI、平台和离线升级资格仍须独立完成。本轮局部验证过程中曾暴露资源合同/重复资源键、Workspace resolver参数、SQLite BigInt及GET查询作用域接线错误，已准确修复并保留失败log，不算通过证据。
+- 先前`64e2649d4`固定提交完整Architecture及匹配阶段Service均已按用户暂停指令取消，不能记PASS，也未在后台继续。全部原始log保存在本地忽略目录`.codex/us-adult-validation/`。当前停止的旧验证checkout无用户改动或需保留的忽略产物，将按managed流程退出，后续长门禁使用新固定提交。
+- 继续开放：全链真正Host异常进程退出/并发冲突资格、UI负责人具体版本审核及适用Linux/Windows；People深度系统维护、US参考图生命周期及关联作品；离线副本升级；维护清扫/超时/跨重启整体资格。不得以本检查点认定五议题开发完成；未部署、未操作生产数据或真实媒体。

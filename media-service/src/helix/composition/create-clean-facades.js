@@ -371,6 +371,12 @@ function createCleanFacades(options) {
       return {body:value.bytes,contentType:value.contentType,headers:value.headers};
     };
   }
+  if(options.arcaUsAdultActorRefresh){
+    const app=options.arcaUsAdultActorRefresh;
+    facades.ArcaCollectionFacade.get_collection_shelfentryid_actor_refresh=async input=>({body:app.read(input.params.shelfEntryId)});
+    facades.ArcaCollectionFacade.post_collection_shelfentryid_actions_refresh_us_adult_actor=async input=>({status:202,
+      body:app.request(input.params.shelfEntryId,input.body,input.actor.actorId)});
+  }
   if(options.arcaJavCorrectionAdmin){const app=options.arcaJavCorrectionAdmin;
     facades.ArcaCollectionFacade.get_collection_jav_corrections=async input=>({body:app.list(input.query||{})});
     facades.ArcaCollectionFacade.get_collection_shelfentryid_actions_preview_jav_correction=async input=>({body:await app.preview(input.params.shelfEntryId,{...input.query})});

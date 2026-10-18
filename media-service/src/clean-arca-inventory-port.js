@@ -210,7 +210,14 @@ function inventoryDisplayIdentity(packageValue,request) {
     if(displayIdentityEntry(identityFact,'original_file_name_digest')!==originalName.provenanceDigest)
       fail('US_ADULT_ORIGINAL_NAME_PROOF_INVALID','US Adult placement requires its first frozen original name.');
     let actorName;
-    if(request?.inventoryUsAdultPresentation!==undefined) {
+    if(request?.inventoryActorRefreshSelection!==undefined) {
+      if(!request.aftercareCaseId||request.correctionId||request.inventoryUsAdultPresentation!==undefined)
+        fail('CLEAN_ARCA_INVENTORY_INPUT','Actor target naming requires one precise Aftercare selection.');
+      const selection=require('./helix/contracts/us-adult-actor-selection').assertSelection(request.inventoryActorRefreshSelection,
+        {shelfEntryId:request.shelfEntryId,aftercareCaseId:request.aftercareCaseId});
+      if(canonicalDigest(selection.originalName)!==canonicalDigest(originalName))fail('US_ADULT_ORIGINAL_NAME_PROOF_INVALID','Actor target changed the first original name.');
+      actorName=selection.personSnapshot.canonicalName;
+    } else if(request?.inventoryUsAdultPresentation!==undefined) {
       if(!request.aftercareCaseId||request.correctionId)fail('CLEAN_ARCA_INVENTORY_INPUT','Inventory actor naming requires an Arca Aftercare Case.');
       actorName=assertUsAdultInventoryPresentation(request.inventoryUsAdultPresentation,
         {shelfEntryId:request.shelfEntryId,aftercareCaseId:request.aftercareCaseId,originalName}).actorName;

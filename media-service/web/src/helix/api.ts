@@ -556,6 +556,12 @@ export type UsAdultActorSelection = {
 };
 export type UsAdultActorChoice = {idempotencyKey:string;expectedRunStateRevision:number;expectedChoiceRevision:number;
   personId:string;expectedPersonRevision:number;expectedReferenceRevision:number};
+export type UsAdultActorRefreshView={shelfEntryId:string;expectedInventoryRevision:number;expectedRepresentationDigest:string;
+  currentActor:{personId:string;displayName:string};canRefresh:boolean;blockingCaseId:string|null;
+  progress:{aftercareCaseId:string;mode:'specified'|'automatic';state:string;reasonCode:string|null;
+    works:Array<{workId:string;phase:string;state:string;failureCode:string|null}>}|null};
+export type UsAdultActorRefreshRequest={idempotencyKey:string;expectedInventoryRevision:number;expectedRepresentationDigest:string}&(
+  {mode:'automatic'}|{mode:'specified';personId:string;expectedPersonRevision:number;expectedReferenceRevision:number});
 export type PeopleProjection = {
   items: Array<{
     personId:string; libraryKind:PersonLibrary; status:'active'|'merged'; currentRevision:number; canonicalName:string;
@@ -675,6 +681,9 @@ export const helixAdminApi = {
     const query=new URLSearchParams();Object.entries(params).forEach(([key,value])=>{if(value!==undefined&&value!=='')query.set(key,String(value));});
     return request<PeopleProjection>(`/v1/admin/people${query.size?`?${query}`:''}`);
   },
+  readInventoryActorRefresh(shelfEntryId:string){return request<UsAdultActorRefreshView>(`/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/actor-refresh`);},
+  refreshInventoryActor(shelfEntryId:string,body:UsAdultActorRefreshRequest){return request<{aftercareCaseId:string;state:string;replayed:boolean}>(
+    `/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/actions/refresh-us-adult-actor`,{method:'POST',body:JSON.stringify(body)});},
   listPeopleRegistrationCandidates() {
     return request<{ items: Array<{ candidateId: string; currentState: string; currentRevision: number; proposedName: string; evidenceDigest: string }> }>('/v1/admin/people/registration-candidates');
   },

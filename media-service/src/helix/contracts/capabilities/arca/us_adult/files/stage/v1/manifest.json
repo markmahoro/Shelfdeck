@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.us_adult.files.stage@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "material_commit",
+  "inputPorts": {
+    "usAdultActorExecutionInput": {
+      "schemaRef": "helix://contracts/capabilities/arca.us_adult.files.stage/v1/inputs#/$defs/usAdultActorExecutionInput",
+      "required": true,
+      "cardinality": "one"
+    },
+    "usAdultActorFilePlan": {
+      "schemaRef": "helix://contracts/capabilities/arca.us_adult.files.stage/v1/inputs#/$defs/usAdultActorFilePlan",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.us_adult.files.stage/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.us_adult.files.stage/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.us_adult.files.stage/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.us_adult.files.stage/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.us_adult.files.stage/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.us_adult.files.stage/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.us_adult.files.stage/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.11",
+    "line": 10508,
+    "lineDigest": "0bba081d0456e0046d3070e093927272357377717fa476f4e31de9715d5d7832"
+  }
+}

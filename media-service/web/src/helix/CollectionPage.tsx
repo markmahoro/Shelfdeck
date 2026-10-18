@@ -9,6 +9,7 @@ import RatingControl from './RatingControl';
 import WatchedControl from './WatchedControl';
 import CollectionDefects from './CollectionDefects';
 import JavCorrectionDialog from './JavCorrectionDialog';
+import UsAdultInventoryActorDialog from './UsAdultInventoryActorDialog';
 import { isUnauthorized, useSession } from './session';
 import './collection.css';
 
@@ -76,6 +77,7 @@ export default function CollectionPage() {
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<CollectionEntry | null>(null);
   const [correctionItem, setCorrectionItem] = useState<CollectionEntry | null>(null);
+  const [actorItem,setActorItem]=useState<CollectionEntry|null>(null);
   const [care, setCare] = useState<CareDetail | null>(null);
   const [healthFilter, setHealthFilter] = useState<HealthState | 'all'>('all');
   const [checking, setChecking] = useState(false);
@@ -252,11 +254,13 @@ export default function CollectionPage() {
           <CollectionDefects shelfEntryId={selected.shelfEntryId} revision={`${care?.basis.careBasisDigest || selected.currentInventoryRevision}:${care?.health.updatedAtMs || 0}`} onChanged={()=>void load()} />
           <div className="collection-exit">
             {selected.provider==='jav'&&selected.identityKind==='jav_code'&&<Button type="button" disabled={checking||exiting} onClick={()=>{setCorrectionItem(selected);setSelected(null);}}>核对影片</Button>}
+            {selected.identityKind==='internal_identity'&&<Button type="button" disabled={checking||exiting} onClick={()=>{setActorItem(selected);setSelected(null);}}>刷新演员</Button>}
             <Button variant="danger" type="button" onClick={() => void exitCollection()} disabled={exiting}>{exiting ? '正在准备退出…' : '退出收藏'}</Button>
           </div>
         </div>
       </section>
     </div>}
+    {actorItem&&<UsAdultInventoryActorDialog item={actorItem} onClose={()=>setActorItem(null)} onChanged={()=>void load()} onUnauthorized={expire}/>}
     {correctionItem&&<JavCorrectionDialog item={correctionItem} onClose={()=>setCorrectionItem(null)} onChanged={()=>void load()} onUnauthorized={expire}/>}
   </section>;
 }

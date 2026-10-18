@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.us_adult.assets.prepare@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "usAdultActorRefreshScope": {
+      "schemaRef": "helix://contracts/capabilities/arca.us_adult.assets.prepare/v1/inputs#/$defs/usAdultActorRefreshScope",
+      "required": true,
+      "cardinality": "one"
+    },
+    "usAdultActorRefreshSelection": {
+      "schemaRef": "helix://contracts/capabilities/arca.us_adult.assets.prepare/v1/inputs#/$defs/usAdultActorRefreshSelection",
+      "required": true,
+      "cardinality": "one"
+    },
+    "arcaUsAdultSourcePrepared": {
+      "schemaRef": "helix://contracts/capabilities/arca.us_adult.assets.prepare/v1/inputs#/$defs/arcaUsAdultSourcePrepared",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.us_adult.assets.prepare/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.us_adult.assets.prepare/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.us_adult.assets.prepare/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.us_adult.assets.prepare/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.us_adult.assets.prepare/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.us_adult.assets.prepare/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.us_adult.assets.prepare/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.11",
+    "line": 10507,
+    "lineDigest": "829111a4ef0b86cd40ca33a82111392bbf3bc3e2db382f310022b93c18ccc520"
+  }
+}

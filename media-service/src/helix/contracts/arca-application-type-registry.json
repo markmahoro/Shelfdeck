@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "arca",
   "status": "active",
-  "targetCount": 28,
+  "targetCount": 30,
   "entries": [
     {
       "id": "ArcaDefectAuthorization",
@@ -457,6 +457,38 @@
         "3.3.1",
         "8.5.13",
         "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaUsAdultActorFact",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaUsAdultActorFact/v1",
+      "relativePath": "application-types/ArcaUsAdultActorFact/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "f4c07e49b8015ded50fdfbeb4354c7019023da13e560ca5d30147a61c63dfd4d"
+      },
+      "ssotRefs": [
+        "6.6.8",
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ArcaUsAdultMetadataFact",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaUsAdultMetadataFact/v1",
+      "relativePath": "application-types/ArcaUsAdultMetadataFact/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "76ca29e7c674521e7a01bb1953e9cec1218b14e66b97379add9a256c4a47eb94"
+      },
+      "ssotRefs": [
+        "6.6.8",
+        "8.6.18"
       ]
     },
     {

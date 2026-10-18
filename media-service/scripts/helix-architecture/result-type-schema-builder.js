@@ -627,6 +627,9 @@ function inferredField(resultName, fieldName) {
 }
 
 const contracts = {
+  ArcaUsAdultAssetsPrepared:['EvidenceEnvelope','aftercareCaseId,shelfEntryId,intentId,intentDigest,selectionDigest,sourceResultDigest,factsHandle,nfoHandle,posterHandle,planHandle,planDigest'],
+  ArcaUsAdultFileReceipt:['EvidenceEnvelope','aftercareCaseId,shelfEntryId,intentId,intentDigest,selectionDigest,planDigest,action,receipt,receiptDigest'],
+  ArcaUsAdultPageMatch:['EvidenceEnvelope','shelfEntryId,aftercareCaseId,intentId,intentDigest,pageOrdinal,pageDigest,libraryDigest,sourceResultDigest,analysisDigest,matches'],
   ArcaUsAdultSourcePrepared:['EvidenceEnvelope','shelfEntryId,aftercareCaseId,intentId,intentDigest,sourceHandle,sourceProbeDigest,durationMs,container,frameCount,detectedFaceCount,analysisDigest,faceModelRefDigest,referenceModelRefDigest,frameManifestHandle,featuresHandle'],
   JavCorrectionSourceVerified:['EvidenceEnvelope','correctionId,admissionDigest,scopeDigest,confirmedProposalDigest,actualProposalDigest,qualification'],
   JavCorrectionAssetsPrepared:['EvidenceEnvelope','correctionId,admissionDigest,confirmedProposalDigest,actualProposalDigest,sourceObservationDigest,metadataFactDigest,metadataHandle,artifacts'],
@@ -764,6 +767,9 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 }), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if(name==='ArcaUsAdultAssetsPrepared')return require('../../src/helix/contracts/us-adult-actor-file-contracts').assetsSchema();
+  if(name==='ArcaUsAdultFileReceipt')return require('../../src/helix/contracts/us-adult-actor-file-contracts').fileReceiptSchema();
+  if(name==='ArcaUsAdultPageMatch')return require('../../src/helix/contracts/us-adult-inventory-matching').pageMatchSchema();
   if(name==='ArcaUsAdultSourcePrepared')return require('../../src/helix/contracts/us-adult-inventory-analysis').sourcePreparedSchema();
   if(name==='JavCorrectionCommitReceipt')return require('../../src/helix/domains/arca/model/jav-correction-commit-contract').javCorrectionCommitReceiptSchema();
   if(name==='JavCorrectionFormalRetirementReceipt')return require('../../src/helix/domains/arca/model/jav-correction-retirement-contract').retirementReceiptSchema();
