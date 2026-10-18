@@ -55,7 +55,8 @@ test('People Facades reject Media-Cast and generic Store authority', () => {
   const query = people.PersonReferenceQueryFacade({
     getPersonReferenceProjection: (input) => ({ owner: 'people', input }),
     listPersonReferenceProjections: (input) => [{ owner: 'people', input }],
-    readUsAdultReferencePage: input=>({owner:"people",input})
+    readUsAdultReferencePage: input=>({owner:"people",input}),
+    readUsAdultPersonSnapshot: input=>({owner:"people",input})
   });
   assert.deepEqual(query.getPersonReferenceProjection({ personId: 'p-1' }), { owner: 'people', input: { personId: 'p-1' } });
   assert.deepEqual(query.listPersonReferenceProjections({ limit: 256 }),

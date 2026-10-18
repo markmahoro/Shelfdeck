@@ -29,7 +29,8 @@ test('synthetic Arca consumer sees one People-owned Reference Image projection a
   const facade = people.PersonReferenceQueryFacade({
     getPersonReferenceProjection: () => projection,
     listPersonReferenceProjections: () => [projection],
-    readUsAdultReferencePage: input=>({owner:"people",input})
+    readUsAdultReferencePage: input=>({owner:"people",input}),
+    readUsAdultPersonSnapshot: input=>({owner:"people",input})
   });
   const received = facade.getPersonReferenceProjection({ personId: 'person-1' });
   assert.equal(received.referenceImages.length, 1);
@@ -46,7 +47,8 @@ test('duplicate, missing, or reordered wake signals cannot mutate canonical proj
   const facade = people.PersonReferenceQueryFacade({
     getPersonReferenceProjection: () => canonical,
     listPersonReferenceProjections: () => [canonical],
-    readUsAdultReferencePage: input=>({owner:"people",input})
+    readUsAdultReferencePage: input=>({owner:"people",input}),
+    readUsAdultPersonSnapshot: input=>({owner:"people",input})
   });
   const wakeSignals = [{ sequence: 2 }, { sequence: 1 }, { sequence: 2 }];
   for (const signal of wakeSignals) assert.ok(signal.sequence > 0);

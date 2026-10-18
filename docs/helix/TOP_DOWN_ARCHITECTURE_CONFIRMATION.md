@@ -8391,6 +8391,8 @@ domains/people/
 People Management只维护Person、Alias、Provider Identity、Preference、Reference Image、内部派生Reference Face和候选/合并事实。
 People的`createPeopleImageExecutionRegistration`是Composition Root-only Construction Registration；只返回createRegistrations、createPlanningRegistration、createProcessServices和createReferenceQuery，不返回Store或Repository。Work/Executor/Planner和只读Reference Query都由People在public边界内构造。
 
+`PersonReferenceQueryFacade.readUsAdultPersonSnapshot`接收closed `{personId,expectedPersonRevision,expectedReferenceRevision}`，在单次只读Owner事务内返回恰一个可用US身份的`UsAdultPersonSnapshot@1`；库型、Person和参考图版本须逐字节相等，不存在/不可用或版本变化明确拒绝。此查询用于用户指定影片演员的正式输入，Libra复制快照后不读取People Store，也不因演员库后续编辑自动重写影片。
+
 `PersonReferenceQueryFacade.readUsAdultReferencePage`接收closed `{cursor:null|personId,limit:1..256,expectedLibraryDigest:null|digest}`。
 People在同一只读UnitOfWork验证库head digest、当前Person/reference Projection checkpoint并返回PeopleReferenceLibraryPage；
 每页最多256人且按256 KiB item预算收窄，库本身不设256人截断。首轮返回libraryDigest，后续页必须携带相同digest，

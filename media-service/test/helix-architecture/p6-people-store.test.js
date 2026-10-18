@@ -113,6 +113,25 @@ test('pages the complete US reference library beyond 256 people under one immuta
   });
 });
 
+test('exact US actor snapshots freeze both revisions, reject system libraries and remain immutable after later edits',()=>{
+  fixture(({store})=>{
+    store.registerDirectPerson(directDecision('actor','actor','us_adult'));
+    store.registerDirectPerson(directDecision('normal','normal','normal'));
+    const input={personId:'actor',expectedPersonRevision:1,expectedReferenceRevision:1},snapshot=store.readUsAdultPersonSnapshot(input);
+    assert.equal(snapshot.personId,'actor');assert.equal(snapshot.libraryKind,'us_adult');
+    assert.equal(Object.isFrozen(snapshot.referenceProjection.contributions[0].activeFaces),true);
+    assert.throws(()=>store.readUsAdultPersonSnapshot({...input,personId:'normal'}),{code:'PEOPLE_US_ACTOR_NOT_AVAILABLE'});
+    assert.throws(()=>store.readUsAdultPersonSnapshot({...input,expectedReferenceRevision:2}),{code:'PEOPLE_US_ACTOR_SNAPSHOT_STALE'});
+    const previous=store.getPerson('actor').revision;
+    store.revisePerson({personId:'actor',revision:2,canonicalName:'Revised actor',factDigest:hash('actor-profile-2'),
+      aliases:previous.aliases,providerIdentities:previous.providerIdentities},1);
+    assert.throws(()=>store.readUsAdultPersonSnapshot(input),{code:'PEOPLE_US_ACTOR_SNAPSHOT_STALE'});
+    const changed=store.readUsAdultPersonSnapshot({...input,expectedPersonRevision:2});
+    assert.equal(changed.canonicalName,'Revised actor');assert.equal(snapshot.canonicalName,'Person actor');
+    assert.notEqual(changed.snapshotDigest,snapshot.snapshotDigest);
+  });
+});
+
 test('publishes a US Adult Person and its initial image atomically, with no selectable identity on invalid reference evidence', () => {
   fixture(({ store }) => {
     const decision = directDecision('actor-valid', 'actor-valid', 'us_adult');
