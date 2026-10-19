@@ -355,3 +355,8 @@ Service677 total/648 PASS/29既有skip/0 fail（149.1秒）；Web43文件/242 PA
 ### Linux模型安装阶段分发审计
 
 审查实际多阶段镜像发现：安装脚本在service-dependencies阶段require固定us-adult-face-model-pack.json，但该阶段此前只COPY资源license和脚本，src合同只在后续runtime阶段复制。已在安装前精确COPY manifest，安装的版本/尺寸/SHA256校验及许可不变。这是Docker-only分发修正；等待最终重建，不以先前Windows包通过冒充Linux模型分发通过。
+
+
+### Linux全新安装的旧registry解析修正
+
+镜像npm ci实测因registry.npmmirror.com/typedarray的ECONNRESET失败（linux-build-7515a087a8.txt），官方npm及模型上游实际HEAD200。Service/Web锁文件分别189/244处resolved旧镜像URL统一改为registry.npmjs.org；结构比较证明只变resolved host，全部版本/依赖树/integrity不变，不换包、不忽略校验或静默回退。旧失败构建不计PASS；最终重新安装/镜像及Web资产摘要仍需复验。固定13e5完整Gate仍独立运行，不将该后续分发diff记为其原始覆盖。
