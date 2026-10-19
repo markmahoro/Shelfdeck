@@ -49,8 +49,8 @@ test('clean package IDs exactly match the accepted P1 physical skeleton', () => 
 test('each Domain exposes one frozen public package identity', () => {
   const expectedExports = {
     procurement: ['PACKAGE_ID', 'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade'],
-    libra: ['PACKAGE_ID', 'LibraExecutionRegistration', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort', 'UsAdultRecommendationQueryFacade', 'UsAdultRecommendationCommandFacade'],
-    arca: ['PACKAGE_ID', 'ArcaExecutionRegistration'],
+    libra: ['PACKAGE_ID', 'LibraExecutionRegistration', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort', 'UsAdultRecommendationQueryFacade', 'UsAdultRecommendationCommandFacade', 'createLibraArtifactAuditSource'],
+    arca: ['PACKAGE_ID', 'ArcaExecutionRegistration', 'createArcaArtifactAuditSource'],
     perception: ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionExecutionRegistration', 'PerceptionResolutionFacade'],
     people: ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade', 'createPeopleImageExecutionRegistration', 'createPeopleProcessServices']
   };

@@ -398,3 +398,12 @@ Libra自身read投影现扩展为当前Run已发布Package Product/Offload的Mat
 - 最新Service677 total/648 PASS/29既有skip/0 fail、139.3秒（service-final-edbb470256.txt）；Web最终242 PASS/43文件为13e5固定Source，之后无web/src/Renderer变更，官方registry干净Linux重建及Windows build均产出相同审核JS/CSS字节。
 - 最终Package boundary、semantic、manifests及P2静态门禁全部PASS（final-edbb-static-gates.json）；P2仍131/110/224/58/145、31 shared、243 refs、0 unresolved，aggregate ec14f57ab8512de541597a8a482688f6399648f6b16f9273685cba0b65e19b23。
 - Windows临时managed checkout已申请归档；归档前全树无link且Git干净，主Service/Web的E盘依赖junction目标与存在性前后保持。两份过渡本机测试镜像已删除，只保留最终edbb本机镜像；无本轮测试容器常驻。固定13e5完整Architecture仍在运行，保持独立来源边界。
+
+
+## 固定13e5完整Gate结果与修正
+
+固定13e5完整Architecture结束：386文件、3118 tests /3099 PASS /6 FAIL /13既有skip，3557.2秒。Package boundary/semantic/manifests/P2均PASS，4,178个tracked文件前后digest相同：3cf2ce9121ba790bc6eb9f404c755be6e868cb59babd508e7a122bcbd5f3c411。52条JAV隔离旅程及其余实际Host均通过；该轮整体为FAIL，不计全绿。
+
+六项：clean public export精确清单缺Libra/Arca只读Reference Audit Source factory；正式server dependency图缺GC Root adapter；P3 verifier模块白名单缺reference-audit-source导致两个fixture前置拒绝；Result schema图仍121而应123、Capability输出families仍106而应108。已逐项补精确成员及新Evidence/Receipt结构断言，无宽泛豁免、未放宽跨Owner/未知module/legacy拒绝。相关49项47 PASS/2既有环境skip。
+
+为保留完整验收并减少重复串行耗时，Gate执行器将唯一长JAV文件的52个独立literal测试按原声明顺序分成四组独立Node进程；其他文件仍独立执行，总并发始终不超过4。声明解析、重复/动态名称、pattern字符转义、选中数及全部文件覆盖均fail closed；每个case恰执行一次，额外name-filter跳过单独计数，不冒充覆盖。失败子进程不被吞掉，也不阻止其他已计划项输出结果。新执行器/原报告负例8 PASS，实际两文件CLI21 PASS。下一轮标准Architecture命令重新执行全部当前文件及全部52条JAV，没有继承旧fixture PASS跳过执行。该执行器是开发验证工具，不改业务Runtime或Docker/Windows分发内容。

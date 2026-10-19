@@ -14,6 +14,7 @@ const EXPECTED_MODULES = Object.freeze([
   'material-control.js',
   'outbox-inbox.js',
   'owner-repository.js',
+  'reference-audit-source.js',
   'secondary-target-schema-rollback.js',
   'sqlite-kernel.js',
   'sqlite-unit-of-work.js',
