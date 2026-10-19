@@ -36,7 +36,7 @@ export default function StashBoxSettings() {
     catch(cause){if(mounted.current){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'停用失败。');}}
     finally{if(mounted.current)setBusy(false);}
   }
-  return <section className="settings-card" aria-labelledby="stashbox-title">
+  return <section id="stashbox" className="settings-card" aria-labelledby="stashbox-title">
     <header className="settings-card-head"><h2 id="stashbox-title">US Adult 演员图片来源</h2><span>{loading?'正在读取…':!state?'状态未知':state.configured?'StashBox 已启用':'StashBox 未启用'}</span></header>
     <div className="settings-card-body"><p>Wikimedia Commons 可直接搜索。连接 StashBox 后，可按姓名搜索其中的演员图片；搜索遵守全站网络设置。</p>
       <form onSubmit={event=>void connect(event)}><div className="source-form-grid">

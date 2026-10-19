@@ -59,7 +59,7 @@ export default function PersonRegistration({onCreated,onCancel,referenceFor,repl
         if (!active) return;
         if (status.state === 'completed') {created.current();return;}
         if (status.state === 'failed') {
-          setError(failureCopy[status.failureCode || ''] || `图片建档失败（${status.failureCode || 'UNKNOWN'}），请修正后重新提交。`);
+          setError(failureCopy[status.failureCode || ''] || '参考图片未能完成校验，请重新选择图片后提交。');
           setOperation(null);request.current = null;setBusy(false);return;
         }
         timer = setTimeout(() => void poll(),1000);
@@ -127,21 +127,20 @@ export default function PersonRegistration({onCreated,onCancel,referenceFor,repl
   }
   return <form ref={form} className="source-create people-registration" onSubmit={event=>void submit(event)}>
     <div className="source-create-heading"><h2>{referenceFor?`${replaceAssetId?'替换':'补充'} ${referenceFor.canonicalName} 的参考图片`:'新建 US Adult 演员'}</h2>
-      <p>{recommendationFor?`建档后会自动确认来源影片：${recommendationFor.item.source.title}。其余影片保持原状。`:
-        referenceFor?replaceAssetId?'新图片校验成功后替换原图。':'选择一张清晰的单人照片，校验成功后加入这位演员的参考图。':'姓名和一张清晰的单人照片齐备后，演员才可用于影片识别。'}</p></div>
+      {(recommendationFor||replaceAssetId)&&<p>{recommendationFor?`建档后会自动确认来源影片：${recommendationFor.item.source.title}。其余影片保持原状。`:'新图片校验成功后替换原图。'}</p>}</div>
     <fieldset disabled={locked}><div className="source-form-grid">
       <label><span>{referenceFor?'搜图姓名':'姓名'}</span><input value={name} maxLength={200} required onChange={event=>{
         setName(event.target.value);searchSequence.current++;setResults(null);setSearching(false);
       }}/></label>
       {!referenceFor&&<label><span>别名</span><input value={aliases} onChange={event=>setAliases(event.target.value)} placeholder="可选，逗号分隔"/></label>}
     </div><div className="people-image-tools">
-      <label><span>上传参考图片</span><input type="file" accept="image/jpeg,image/png,image/webp" onChange={event=>void selectFile(event.target.files?.[0])}/></label>
+      <label><span>参考图片（清晰单人照）</span><input aria-label="上传参考图片" type="file" accept="image/jpeg,image/png,image/webp" onChange={event=>void selectFile(event.target.files?.[0])}/></label>
       <Button type="button" disabled={!name.trim() || searching || reading} onClick={()=>void search()}>{searching?'正在搜索…':'按姓名辅助搜图'}</Button>
     </div>
     {results && <div className="people-search-sources">{results.sources.map(source=><section key={source.source} aria-label={source.source==='stashbox'?'StashBox 图片':'Wikimedia 图片'}>
       <h3>{source.source==='stashbox'?'StashBox':'Wikimedia Commons'}</h3>
-      {source.state==='unconfigured' && <p>尚未配置，请在设置中连接 StashBox。</p>}
-      {source.state==='failed' && <p role="alert">{source.error?.message || '此来源搜索失败。'}</p>}
+      {source.state==='unconfigured' && <p className="form-neutral">StashBox 尚未配置。<a href="/settings#stashbox" target="_blank" rel="noreferrer">配置 StashBox</a></p>}
+      {source.state==='failed' && <p className="form-error" role="alert">{source.error?.message || '此来源搜索失败。'}</p>}
       {source.state==='empty' && <p>没有找到可用图片。</p>}
       <div className="people-image-options">{source.items.map(item=><div className="people-image-option" key={item.selectionToken}>
         <button type="button" aria-pressed={selected?.kind==='search' && selected.selectionToken===item.selectionToken}
@@ -158,7 +157,7 @@ export default function PersonRegistration({onCreated,onCancel,referenceFor,repl
       onError={()=>{setPreviewReady(false);if(recommendationFor)setError('参考图片无法显示，请重新选择。');}}/><figcaption>已选择这张图片</figcaption></figure>}
     </fieldset>
     {error && <p className="form-error" role="alert">{error}</p>}
-    {operation && <p role="status">{referenceFor?'正在校验并保存参考图片…':'正在校验参考图片并建立演员档案…'}</p>}
+    {operation && <p className="form-neutral" role="status">{referenceFor?'正在校验并保存参考图片…':'正在校验参考图片并建立演员档案…'}</p>}
     <div className="source-create-footer">
       {pollPaused ? <Button type="button" onClick={()=>{setError('');setPollPaused(false);}}>重试查询</Button> :
         <Button variant="primary" type="submit" disabled={busy || operation!==null || reading || searching || (!request.current && (!selected || !name.trim()||Boolean(recommendationFor&&!previewReady)))}>

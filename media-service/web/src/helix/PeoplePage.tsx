@@ -89,7 +89,6 @@ export default function PeoplePage() {
       {library==='us_adult' && !creating && !editing && !addingReference && !recommendationEditing && <Button variant="primary" type="button" onClick={()=>{setCreating(true);setNotice('');}}>新建演员</Button>}</>}/>
     <div className="settings-tabs" role="tablist" aria-label="演员库">{libraries.map(item=><button key={item.kind} type="button" role="tab"
       aria-selected={library===item.kind} disabled={creating||Boolean(editing)||Boolean(addingReference)||recommendationEditing} onClick={()=>changeLibrary(item.kind)}>{item.label}</button>)}</div>
-    {library!=='us_adult' && <p className="people-library-note">演员资料由系统收纳和完善，无需手动确认。</p>}
     {creating && <PersonRegistration onCancel={()=>setCreating(false)} onCreated={()=>{setCreating(false);setNotice('演员已建档，可以用于影片识别。');void load();}}/>}
     {addingReference&&<PersonReferencesDialog person={addingReference} onClose={()=>{setAddingReference(null);void load();}}
       onChanged={()=>void load()} onUnauthorized={expire}/>}

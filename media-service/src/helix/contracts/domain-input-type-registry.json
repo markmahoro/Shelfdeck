@@ -3191,7 +3191,7 @@
       "relativePath": "domain-types/UsAdultActorRefreshIntent/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "f5e8041bc39d8d42388565ba7c015760c78a495a8d33e2bc8d65e28e42b062c1"
+        "value": "380ae8da42749e9a85a212450f349cd962d49b3c7782b88db84beb8ecfb525c1"
       },
       "usedBy": [
         {
@@ -3262,7 +3262,7 @@
       "relativePath": "domain-types/UsAdultActorRefreshSelection/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "18d82dbba5afc187529b1a9dceecfb7d530a4a0788899c486846c86aa638a0f6"
+        "value": "0c2522273637acb36599c668cf3dd7ae874605a816668fd0f2b7ada84cacaf07"
       },
       "usedBy": [
         {

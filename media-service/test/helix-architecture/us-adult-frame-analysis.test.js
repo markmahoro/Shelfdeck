@@ -91,7 +91,7 @@ test('real Service FFmpeg extracts twenty points and CPU matching selects one ac
     expectedMaximum=Math.max(...prepared.analysis.faces.map(detected=>Math.max(-1,Math.min(1,
       normalize(normalize(detected.vector)).reduce((sum,value,ordinal)=>sum+value*referenceUnit[ordinal],0)))));
   assert.equal(matched.matches[0].score,expectedMaximum,'Inventory matching uses the same normalized feature arithmetic as frozen Formation cluster members.');
-  assert.equal((await sharp(poster.bytes).metadata()).height,1500);assert.equal(poster.version,'us-adult-presentation@1');
+  assert.equal((await sharp(poster.bytes).metadata()).height,1500);assert.equal(poster.version,'us-adult-presentation@2');
   const workspaceRoot=path.join(root,'aftercare');fs.mkdirSync(workspaceRoot);
   const handles=new Map(),workspaceOptions={rootSnapshot:{resolvedRoot:workspaceRoot,rootHandleRef:canonicalDigest('workspace-root'),mountScopeId:'workspace-mount',endpointId:'workspace-endpoint'},
     ensureWorkspace:()=>{},registerMaterial:value=>handles.set(value.handleId,value),assertRegistered:value=>canonicalJson(handles.get(value.handleId))===canonicalJson(value)},

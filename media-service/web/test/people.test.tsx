@@ -179,3 +179,18 @@ it('adds a reference to the existing US actor without creating another identity'
   expect(helixAdminApi.addPersonReference).toHaveBeenCalledWith(person.personId,expect.objectContaining({expectedPersonRevision:3,expectedReferenceRevision:2,image:{kind:'upload',bytesBase64:btoa('new-photo')}}));
   vi.restoreAllMocks();
 });
+
+it('keeps an unfinished draft while opening the missing image-source configuration in another tab',async()=>{
+  vi.spyOn(helixAdminApi,'searchPersonImages').mockResolvedValue({sources:[{source:'stashbox',state:'unconfigured',items:[]},{source:'wikimedia',state:'empty',items:[]}]});
+  await openRegistration();fireEvent.click(screen.getByRole('button',{name:'按姓名辅助搜图'}));
+  const link=await screen.findByRole('link',{name:'配置 StashBox'});expect(link).toHaveAttribute('href','/settings#stashbox');expect(link).toHaveAttribute('target','_blank');
+  expect(screen.getByLabelText('姓名')).toHaveValue('Sample Actor');
+});
+it('shows safe recoverable copy when a reference preparation fails with an unrecognized internal code',async()=>{
+  vi.spyOn(helixAdminApi,'registerPerson').mockResolvedValue({operationRef:'op-failed',state:'accepted'});
+  vi.spyOn(helixAdminApi,'getPersonImageOperation').mockResolvedValue({operationRef:'op-failed',state:'failed',personId:null,failureCode:'PEOPLE_IMAGE_PREPARATION_FAILED'});
+  await openRegistration();fireEvent.change(screen.getByLabelText('上传参考图片'),{target:{files:[new File(['jpeg'],'actor.jpg',{type:'image/jpeg'})]}});
+  await screen.findByRole('img',{name:'已选择的演员参考图片'});fireEvent.click(screen.getByRole('button',{name:'确认建档'}));
+  expect(await screen.findByRole('alert')).toHaveTextContent('参考图片未能完成校验');expect(screen.getByRole('alert')).not.toHaveTextContent('PEOPLE_');
+  expect(screen.getByLabelText('姓名')).toBeEnabled();expect(screen.getByRole('button',{name:'确认建档'})).toBeEnabled();
+});

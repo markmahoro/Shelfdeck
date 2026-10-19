@@ -4,6 +4,7 @@ import {AdminApiError,helixAdminApi,type FormationSubject,type PeopleProjection,
 import {Button} from './chrome';
 import {newOpaqueId} from './id';
 import {useModalFocus} from './useModalFocus';
+import {actorImageKey,actorSnapshotKey} from './usAdultImage';
 type Person=PeopleProjection['items'][number];
 type Props={onClose:()=>void;onSelected:()=>void;onRefresh:()=>void;onUnauthorized?:()=>void}&(
   {item:FormationSubject;recommendation?:never;onClaimStarted?:never}|
@@ -15,7 +16,7 @@ export default function UsAdultActorDialog({item,recommendation,onClaimStarted,o
     [saving,setSaving]=useState(false),[stale,setStale]=useState(false),[error,setError]=useState(''),
     [visibleImages,setVisibleImages]=useState<Set<string>>(new Set()),[failedImages,setFailedImages]=useState<Set<string>>(new Set());
   const generation=useRef(0),command=useRef<UsAdultActorChoice|null>(null),claimCommand=useRef<RecommendationClaimRequest|null>(null),content=useModalFocus(true,onClose,saving),
-    canChoose=recommendation?true:selection?.canChoose;
+    canChoose=recommendation?true:selection?.canChoose,locked=Boolean(command.current||claimCommand.current);
   const unauthorized=(cause:unknown)=>{if(cause instanceof AdminApiError&&cause.status===401){onUnauthorized?.();return true;}return false;};
   useEffect(()=>{
     const current=++generation.current;
@@ -27,18 +28,20 @@ export default function UsAdultActorDialog({item,recommendation,onClaimStarted,o
     return()=>{generation.current++;};
   },[runId]);
   async function find(append=false){
-    if(loading||saving)return;
+    if(loading||saving||locked)return;
     const current=++generation.current,query=append?term:search.trim();setLoading(true);setError('');
     try{
       const page=await helixAdminApi.listPeople({libraryKind:'us_adult',limit:24,search:query,...(append&&cursor?{cursor}:{})});
       if(current!==generation.current)return;
       setPeople(previous=>append?[...previous,...page.items.filter(person=>!previous.some(item=>item.personId===person.personId))]:page.items);
+      setChosen(previous=>previous&&page.items.some(person=>person.personId===previous.personId&&actorSnapshotKey(person)!==actorSnapshotKey(previous))?null:previous);
       setCursor(page.nextCursor);setTerm(query);
     }catch(cause){if(current===generation.current&&!unauthorized(cause))setError('演员搜索失败，请重试。');}
     finally{if(current===generation.current)setLoading(false);}
   }
   async function confirm(){
-    if(!canChoose||!chosen||!visibleImages.has(chosen.personId)||!chosen.currentReferenceRevision||saving||stale)return;
+    if(saving||stale||!locked&&(!canChoose||!chosen||!visibleImages.has(actorImageKey(chosen))||!chosen.currentReferenceRevision))return;
+    if(!chosen?.currentReferenceRevision)return;
     setSaving(true);setError('');
     try{
       if(recommendation){
@@ -70,26 +73,26 @@ export default function UsAdultActorDialog({item,recommendation,onClaimStarted,o
         {selection&&!selection.canChoose&&<p role="status">影片当前无法修改演员，请刷新工作区查看最新状态。</p>}
         <form onSubmit={event=>{event.preventDefault();void find();}} className="identity-picker-input">
           <label className="sr-only" htmlFor="us-actor-search">搜索 US Adult 演员</label>
-          <input id="us-actor-search" value={search} onChange={event=>setSearch(event.target.value)} placeholder="输入演员姓名或别名" disabled={saving||stale}/>
-          <Button type="submit" disabled={loading||saving||stale}>搜索</Button>
+          <input id="us-actor-search" value={search} onChange={event=>setSearch(event.target.value)} placeholder="输入演员姓名或别名" disabled={saving||stale||locked}/>
+          <Button type="submit" disabled={loading||saving||stale||locked}>搜索</Button>
         </form>
         {error&&<p role="alert" className="form-error">{error}</p>}
         {!loading&&people.length===0&&<p>没有找到可选演员。</p>}
         <div className="us-actor-grid" role="radiogroup" aria-label="US Adult 演员库">
           {people.map(person=><label key={person.personId} className="us-actor-option" data-selected={chosen?.personId===person.personId||undefined}>
-            <img src={helixAdminApi.personAvatarUrl(person.personId,person.currentReferenceRevision)} alt="" loading="lazy" onLoad={()=>setVisibleImages(previous=>new Set([...previous,person.personId]))}
-              onError={()=>{setVisibleImages(previous=>new Set([...previous].filter(id=>id!==person.personId)));setFailedImages(previous=>new Set([...previous,person.personId]));setChosen(previous=>previous?.personId===person.personId?null:previous);}}/>
-            {failedImages.has(person.personId)&&<small>图片无法读取</small>}
-            <span><input type="radio" name="us-film-actor" value={person.personId} checked={chosen?.personId===person.personId} disabled={saving||stale||!person.currentReferenceRevision||!visibleImages.has(person.personId)}
+            <img key={actorImageKey(person)} src={actorImageKey(person)} alt="" loading="lazy" onLoad={()=>{setVisibleImages(previous=>new Set([...previous,actorImageKey(person)]));setFailedImages(previous=>new Set([...previous].filter(id=>id!==actorImageKey(person))));}}
+              onError={()=>{setVisibleImages(previous=>new Set([...previous].filter(id=>id!==actorImageKey(person))));setFailedImages(previous=>new Set([...previous,actorImageKey(person)]));setChosen(previous=>previous&&actorSnapshotKey(previous)===actorSnapshotKey(person)&&!locked?null:previous);}}/>
+            {failedImages.has(actorImageKey(person))&&<small>图片无法读取</small>}
+            <span><input type="radio" name="us-film-actor" value={person.personId} checked={Boolean(chosen&&actorSnapshotKey(chosen)===actorSnapshotKey(person))} disabled={saving||stale||locked||!person.currentReferenceRevision||!visibleImages.has(actorImageKey(person))}
               onChange={()=>{setChosen(person);command.current=null;claimCommand.current=null;setError('');}}/><strong>{person.canonicalName}</strong></span>
           </label>)}
         </div>
         {loading&&<p role="status">正在读取演员库…</p>}
-        {cursor&&<Button type="button" disabled={loading||saving||stale} onClick={()=>void find(true)}>加载更多演员</Button>}
+        {cursor&&<Button type="button" disabled={loading||saving||stale||locked} onClick={()=>void find(true)}>加载更多演员</Button>}
         {chosen&&<p role="status">已选择：{chosen.canonicalName}</p>}
       </div>
       <div className="dialog-actions"><Button type="button" disabled={saving} onClick={onClose}>取消</Button>
-        <Button type="button" variant="primary" disabled={!canChoose||!chosen||!visibleImages.has(chosen.personId)||loading||saving||stale} onClick={()=>void confirm()}>{saving?'正在确认…':recommendation?'确认认领':'确认演员'}</Button></div>
+        <Button type="button" variant="primary" disabled={loading||saving||stale||!locked&&(!canChoose||!chosen||!visibleImages.has(actorImageKey(chosen)))} onClick={()=>void confirm()}>{saving?'正在确认…':recommendation?'确认认领':'确认演员'}</Button></div>
     </div>
   </div>;
 }

@@ -67,3 +67,28 @@ it('reports a file collision without presenting an active Case as completed or a
   expect(screen.getByRole('button',{name:'自动刷新演员'})).toBeDisabled();
   expect(screen.queryByText('演员刷新已完成。')).not.toBeInTheDocument();
 });
+
+it('keeps an accepted Case across status read failure and retries the query instead of creating another Case',async()=>{
+  const refresh=vi.spyOn(helixAdminApi,'refreshInventoryActor').mockResolvedValue({aftercareCaseId:'accepted-case',state:'queued',replayed:false}),h=mount();
+  const button=await screen.findByRole('button',{name:'自动刷新演员'});await waitFor(()=>expect(button).toBeEnabled());
+  h.read.mockRejectedValueOnce(new Error('private status failure'));fireEvent.click(button);
+  expect(await screen.findByRole('alert')).toHaveTextContent('刷新状态读取失败');expect(button).toBeDisabled();
+  h.read.mockResolvedValue({...state,canRefresh:false,progress:{aftercareCaseId:'accepted-case',mode:'automatic',state:'active',reasonCode:null,works:[]}});
+  fireEvent.click(screen.getByRole('button',{name:'重试查询刷新状态'}));await screen.findByText('等待执行');
+  expect(refresh).toHaveBeenCalledTimes(1);expect(button).toBeDisabled();expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+});
+it('offers status query recovery when the initial current-state query fails',async()=>{
+  vi.spyOn(helixAdminApi,'listPeople').mockResolvedValue({items:[],nextCursor:null} as unknown as PeopleProjection);
+  const read=vi.spyOn(helixAdminApi,'readInventoryActorRefresh').mockRejectedValueOnce(new Error('transport')).mockResolvedValue(state);
+  render(<UsAdultInventoryActorDialog item={item} onClose={()=>{}} onChanged={()=>{}} onUnauthorized={()=>{}}/>);
+  await screen.findByRole('alert');expect(screen.getByRole('button',{name:'自动刷新演员'})).toBeDisabled();
+  fireEvent.click(screen.getByRole('button',{name:'重试查询刷新状态'}));await waitFor(()=>expect(screen.getByRole('button',{name:'自动刷新演员'})).toBeEnabled());
+  expect(read).toHaveBeenCalledTimes(2);
+});
+it('invalidates an actor selection when its own reference version changes',async()=>{
+  const h=mount(),radio=await screen.findByRole('radio',{name:'New Actor'});fireEvent.load(radio.closest('label')!.querySelector('img')!);fireEvent.click(radio);
+  h.people.mockResolvedValueOnce({items:[{...person,currentRevision:4,currentReferenceRevision:3}],nextCursor:null} as PeopleProjection);
+  fireEvent.click(screen.getByRole('button',{name:'搜索'}));await waitFor(()=>expect(screen.getByRole('radio',{name:'New Actor'})).toBeDisabled());
+  expect(screen.getByRole('button',{name:'指定演员并更新'})).toBeDisabled();const next=screen.getByRole('radio',{name:'New Actor'});
+  fireEvent.load(next.closest('label')!.querySelector('img')!);fireEvent.click(next);expect(screen.getByRole('button',{name:'指定演员并更新'})).toBeEnabled();
+});

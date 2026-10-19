@@ -56,10 +56,10 @@ export default function UsAdultRecommendations({refreshKey,disabled,onChanged,on
     setTracking(value);void load();
   }
   return <section className="source-registry people-recommendations" aria-label="US Adult 人物推荐">
-    <div className="source-registry-heading"><div><h2>人物推荐</h2><p className="people-library-note">维护后更新，每次最多五位。每次认领只确认所示来源影片。</p></div>
+    <div className="source-registry-heading"><div><h2>人物推荐</h2></div>
       <Button type="button" disabled={loading} onClick={()=>{setError('');void load();}}>刷新推荐</Button></div>
     {error&&<p className="form-error" role="alert">{error}</p>}{notice&&<p className="form-notice" role="status">{notice}</p>}
-    {tracking&&<div className="people-recommendation-progress" role="status">
+    {tracking&&<div className="people-recommendation-progress form-neutral" role="status">
       <strong>{tracking.state==='preparing_person'?'正在建立演员档案…':'正在确认来源影片…'}</strong><p>{tracking.source.title}</p>
       {pollPaused&&<Button type="button" onClick={()=>{setPollPaused(false);setError('');}}>重试查询认领进度</Button>}
     </div>}
@@ -74,7 +74,7 @@ export default function UsAdultRecommendations({refreshKey,disabled,onChanged,on
             {failedImages.has(id)&&<p role="status">图片暂时无法显示，请刷新推荐。</p>}</div>
           <div className="people-card-body"><h3>推荐人物 {index+1}</h3><p>{item.coverageCount} 部暂存影片出现过</p>
             <dl><div><dt>本次确认的来源影片</dt><dd>{item.source.title}</dd></div></dl>
-            {activeClaim?<><p role="status">{activeClaim.state==='preparing_person'?'正在建立演员档案':'正在确认来源影片'}</p>
+            {activeClaim?tracking?.claimId===activeClaim.claimId?null:<><p className="form-neutral" role="status">{activeClaim.state==='preparing_person'?'正在建立演员档案':'正在确认来源影片'}</p>
               <Button type="button" onClick={()=>{setTracking(activeClaim);setPollPaused(false);setError('');}}>查看认领进度</Button></>:
               <div className="people-recommendation-actions"><Button type="button" disabled={!available} aria-label={`认领推荐人物 ${index+1} 为已有演员`}
                 onClick={()=>{setSelection({kind:'existing',item,publication:projection.publication!});setError('');setNotice('');}}>是已有演员</Button>

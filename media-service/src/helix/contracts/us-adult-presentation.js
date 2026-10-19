@@ -2,7 +2,7 @@
 
 const { canonicalDigest } = require('./canonical-json');
 
-const US_ADULT_PRESENTATION_VERSION = 'us-adult-presentation@1';
+const US_ADULT_PRESENTATION_VERSION = 'us-adult-presentation@2';
 
 function fail(code, message) { throw Object.assign(new TypeError(message), { code }); }
 

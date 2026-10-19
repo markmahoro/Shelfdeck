@@ -67,6 +67,7 @@ it('keeps a submitted claim across progress-query failure and retries its status
   await sourceLoaded();fireEvent.click(screen.getByRole('button',{name:'新建推荐人物 1 的演员档案'}));
   fireEvent.change(screen.getByLabelText('姓名'),{target:{value:'New Actor'}});fireEvent.load(screen.getByRole('img',{name:'已选择的演员参考图片'}));
   fireEvent.click(screen.getByRole('button',{name:'建档并确认来源'}));await screen.findByText('暂时无法读取认领进度，操作会继续。请重试查询。');
+  expect(screen.getAllByText(/正在建立演员档案/)).toHaveLength(1);
   h.read.mockResolvedValue({publication:projection.publication,items:[]});fireEvent.click(screen.getByRole('button',{name:'重试查询认领进度'}));
   await screen.findByText('演员及来源影片已确认，影片会继续整理。');expect(claim).toHaveBeenCalledTimes(1);
   expect(progress.mock.calls).toEqual([['claim-1'],['claim-1']]);

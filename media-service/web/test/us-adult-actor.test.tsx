@@ -60,3 +60,16 @@ it('ignores a late initial response after the picker unmounts',async()=>{
   const view=render(<UsAdultActorDialog item={item} onClose={()=>{}} onSelected={h.onSelected} onRefresh={()=>{}}/>);view.unmount();
   await act(async()=>resolve(state));expect(h.onSelected).not.toHaveBeenCalled();
 });
+
+it('requires the new reference image after the same actor changes revision and clears stale failures after reload',async()=>{
+  const choose=vi.spyOn(helixAdminApi,'chooseUsAdultActor').mockResolvedValue({} as never),h=mount();
+  await select();h.people.mockResolvedValueOnce({...page,items:[{...actor,currentRevision:5,currentReferenceRevision:3}]});
+  fireEvent.click(screen.getByRole('button',{name:'搜索'}));
+  await waitFor(()=>expect(screen.getByRole('radio',{name:'Actor One'})).toBeDisabled());
+  expect(screen.getByRole('button',{name:'确认演员'})).toBeDisabled();
+  const radio=screen.getByRole('radio',{name:'Actor One'}),image=radio.closest('label')!.querySelector('img')!;
+  expect(image).toHaveAttribute('src',helixAdminApi.personAvatarUrl(actor.personId,3));
+  fireEvent.error(image);expect(screen.getByText('图片无法读取')).toBeVisible();fireEvent.load(image);
+  expect(screen.queryByText('图片无法读取')).not.toBeInTheDocument();fireEvent.click(radio);fireEvent.click(screen.getByRole('button',{name:'确认演员'}));
+  await waitFor(()=>expect(choose).toHaveBeenCalledWith('run',expect.objectContaining({expectedPersonRevision:5,expectedReferenceRevision:3})));
+});

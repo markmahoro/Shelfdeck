@@ -4,7 +4,7 @@ const assert = require('node:assert/strict');
 const test = require('node:test');
 const sharp = require('sharp');
 const { originalNameProvenance, buildUsAdultTitle, buildUsAdultName } = require('../../src/helix/contracts/us-adult-presentation');
-const { renderUsAdultPoster } = require('../../src/helix/integrations/us-adult-poster-renderer');
+const { renderUsAdultPoster, fitPosterText } = require('../../src/helix/integrations/us-adult-poster-renderer');
 
 test('preserves the complete original stem and replaces only the actor prefix across refreshes', () => {
   const originalName = originalNameProvenance('Studio.2024-05-21.Scene.Title.1080p.HEVC.mp4');
@@ -46,4 +46,17 @@ test('renders all four large screenshots in a two-by-two grid without portrait o
   }
   // Each screenshot spans over twice the old 218-pixel thumbnail width.
   assert.ok(pixel(40, 770)[0] > 240); assert.ok(pixel(470, 770)[0] > 240);
+});
+
+test('fits actual wide glyphs, combining marks and XML characters within declared text bounds with visible truncation', async () => {
+  const cases = ['亚历山德拉蒙哥马利阿尔伯特森示例姓名', 'WWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWWW',
+    'A & <B> "C" e\u0301 ' .repeat(80), '这是一部用于审核海报布局的本地合成影片原始名称应完整可辨识且不被画布边缘直接截断'.repeat(8)];
+  for (const text of cases) {
+    const result = await fitPosterText(text, { width: 656, height: 128, font: 'sans bold 52', color: '#ffffff' });
+    const metadata = await sharp(result.bytes).metadata();
+    assert.ok(metadata.width <= 656); assert.ok(metadata.height <= 128);
+    if (result.truncated) assert.ok(result.text.endsWith('…'));
+  }
+  const short = await fitPosterText('Alice Example', { width: 656, height: 128, font: 'sans bold 52', color: '#ffffff' });
+  assert.equal(short.text, 'Alice Example'); assert.equal(short.truncated, false);
 });

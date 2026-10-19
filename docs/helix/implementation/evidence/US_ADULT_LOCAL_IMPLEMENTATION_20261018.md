@@ -312,3 +312,12 @@ arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后
 首轮发现Actor选择radio继承通用.dialog input的100%宽度，挤压姓名为竖排；已以精确radio样式限制尺寸，保留选中/焦点状态，供Formation、推荐认领及Arca三处共享使用。另发现完成后弹窗标题仍沿旧item快照；改为精确读取当前Entry并校验ID/库存版本，关闭后迟到响应不重开，墙面过滤后也能更新标题。US资料来源internal改为演员库。完整Web235 PASS/43文件及build通过（ui-current-actor-web-final.txt、ui-current-actor-build-final.txt），新增墙面排除影片时仍显示正确新标题的回归；更新后实际浏览器和具体版本负责人审核待继续。
 
 开发中原Host只为启动时的精确静态资产注册路由，重建Web后旧Host不服务新hash资产导致浏览器空白；已定位为隔离验证过程的版本切换方式，需正常重开Host加载新构建，不放宽静态路由或以旧hash冒充新文件。旧正式Case已完成，测试Host正在安全关闭，后续以新固定UI版本重新建立隔离数据。
+
+
+## 2026-10-19 具体版本UI审核及修正
+
+UI负责人对5e923a411冻结77份源码、9项资产进行1920×1080及390×844受控API走查：28项中18 PASS/10 FAIL，结论CHANGES_REQUESTED，非真实模型Host结论。六项明确修正：参考图换版加载状态、已受理Arca命令的状态读取恢复、内部错误码外露、StashBox缺配置入口、宽文字海报裁切、常驻说明/重复认领进度/异常样式。外部审核owner-review.json SHA256及具体截图由负责人保留，未改源码或生产。
+
+已逐项修改：图片就绪按实际版本URL隔离，已选快照在新版出现后失效，未知提交保持原命令；Arca保存已受理Case并提供只读查询重试，未知状态禁止新提交；建档失败使用可操作文案；缺StashBox时从新标签打开精确设置锚点，当前草稿保留；去除普通常驻说明，来源A及文件变更后果仍在提交意图处说明，认领进度只显示一次；状态/错误使用既有语义样式。
+
+共享海报Renderer升级为us-adult-presentation@2，Pango按实际字形宽度在固定姓名/标题区域换行，超出高度以省略号收尾，不改冻结原始文件名；四张2×2大截图和肖像区域保持。生成机器合同及P2 aggregate更新为87b9d2e9ca8e3480122e4b249e1868b2c39c4d69530ad2a16668ae1ebae6fdd6，仍130/108/224/57/144。Web最终241 PASS/43文件，build PASS（555.22kB已有分块告警）；Renderer/持久化helper13项、P2/P3/Actor Intent与Owner及离线副本36项PASS，日志ui-review-*.txt。首次构建的nullable类型约束和首次P2旧固定摘要断言失败均已修正并最终复验；没有把失败计PASS。当前修改仍需具体新提交负责人复验、最终全量及平台资格，Reference审计GC等剩余项继续。

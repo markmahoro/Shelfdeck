@@ -8,11 +8,25 @@ const GRID = Object.freeze([{ left: 28, top: 540 }, { left: 514, top: 540 }, { l
 const CELL_WIDTH = 458, CELL_HEIGHT = 460;
 const escapeXml = value => value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[character]);
 
-function lines(value, maximum, count) {
-  const result = [], characters = Array.from(value);
-  while (characters.length && result.length < count) result.push(characters.splice(0, maximum).join(''));
-  if (characters.length) result[result.length - 1] = result.at(-1).slice(0, -1) + '…';
-  return result;
+async function fitPosterText(value, { width, height, font, color }) {
+  const characters = Array.from(value.replace(/\s+/gu, ' ').trim());
+  async function render(text) {
+    const { data, info } = await sharp({ text: {
+      text: '<span foreground="'+color+'">'+escapeXml(text)+'</span>',
+      font, dpi: 72, width, wrap: 'word-char', rgba: true
+    } }).png().toBuffer({ resolveWithObject: true });
+    return { bytes: data, width: info.width, height: info.height, text };
+  }
+  const full = await render(characters.join(''));
+  if (full.width <= width && full.height <= height) return Object.freeze({ ...full, truncated: false });
+  let low = 0, high = characters.length - 1, fitted = await render('…');
+  while (low <= high) {
+    const middle = Math.floor((low + high) / 2), candidate = await render(characters.slice(0, middle).join('').trimEnd()+'…');
+    if (candidate.width <= width && candidate.height <= height) { fitted = candidate; low = middle + 1; }
+    else high = middle - 1;
+  }
+  if (fitted.width > width || fitted.height > height) throw Object.assign(new Error('Poster text cannot fit its declared bounds.'), { code: 'US_ADULT_POSTER_TEXT_INVALID' });
+  return Object.freeze({ ...fitted, truncated: true });
 }
 
 async function image(bytes, width, height, fit) {
@@ -29,13 +43,14 @@ async function renderUsAdultPoster({ actorName, originalTitle, portrait, frames 
   }
   const portraitBytes = await image(portrait, 250, 330, 'cover');
   const thumbnails = await Promise.all(frames.map(bytes => image(bytes, CELL_WIDTH, CELL_HEIGHT, 'contain')));
-  const names = lines(actorName, 19, 2).map((line, i) => '<text x="316" y="'+(120 + i * 64)+'" font-size="52" font-weight="700">'+escapeXml(line)+'</text>').join('');
-  const titles = lines(originalTitle, 44, 3).map((line, i) => '<text x="32" y="'+(398 + i * 38)+'" font-size="30" fill="#cbd5e1">'+escapeXml(line)+'</text>').join('');
-  const text = Buffer.from('<svg width="'+WIDTH+'" height="'+HEIGHT+'" xmlns="http://www.w3.org/2000/svg"><g font-family="sans-serif" fill="#f8fafc">'+names+titles+'</g></svg>');
+  const [names, titles] = await Promise.all([
+    fitPosterText(actorName, { width: 656, height: 128, font: 'sans bold 52', color: '#f8fafc' }),
+    fitPosterText(originalTitle, { width: 936, height: 114, font: 'sans 30', color: '#cbd5e1' })
+  ]);
   const bytes = await sharp({ create: { width: WIDTH, height: HEIGHT, channels: 3, background: '#0b1120' } })
-    .composite([{ input: portraitBytes, left: 32, top: 28 }, { input: text, left: 0, top: 0 },
+    .composite([{ input: portraitBytes, left: 32, top: 28 }, { input: names.bytes, left: 316, top: 72 }, { input: titles.bytes, left: 32, top: 372 },
       ...thumbnails.map((input, index) => ({ input, ...GRID[index] }))]).jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toBuffer();
   return Object.freeze({ version: US_ADULT_PRESENTATION_VERSION, width: WIDTH, height: HEIGHT, bytes });
 }
 
-module.exports = Object.freeze({ renderUsAdultPoster });
+module.exports = Object.freeze({ renderUsAdultPoster, fitPosterText });
