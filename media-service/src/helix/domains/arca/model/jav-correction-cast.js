@@ -9,10 +9,11 @@ function castQueries(metadata) {
   if(!Array.isArray(hints)||hints.length>64)fail();
   for(const hint of hints) {
     if(typeof hint.displayName!=='string'||!hint.displayName.trim()||typeof hint.role!=='string'||!hint.role||
-        hint.role!=='actor'||!Array.isArray(hint.providerIdentities)||hint.providerIdentities.length!==0)fail();
+        hint.role!=='actor'||!Array.isArray(hint.providerIdentities)||hint.providerIdentities.length>1||hint.providerIdentities.some(identity=>
+          Object.keys(identity).sort().join(',')!=='namespace,provider,providerKey'||identity.provider!=='javdb'||identity.namespace!=='javdb_actor'||!/^[A-Za-z0-9_-]{1,128}$/.test(identity.providerKey)))fail();
     const seed={schema:'arca.jav-correction-person-hint@1',correctionId:metadata.correctionId,shelfEntryId:metadata.shelfEntryId,hint,
         sourceObservationDigest:metadata.sourceQualification.observation.observationDigest},
-      input={libraryKind:'jav',providerIdentities:[],evidenceDigest:canonicalDigest(seed)},
+      input={libraryKind:'jav',providerIdentities:structuredClone(hint.providerIdentities),evidenceDigest:canonicalDigest(seed)},
       relationId='arca-jav-correction-cast-'+canonicalDigest(seed).slice(0,40);
     queries.set(relationId,{relationId,hint:structuredClone(hint),input,inputDigest:canonicalDigest(input)});
   }
@@ -30,7 +31,8 @@ function buildJavCorrectionCast({correctionId,admissionDigest,basis,proposal,res
       if(Object.keys(result).sort().join(',')!=='inputDigest,kind,personFactDigest,personId,personRevision,proofDigest,reasonCode,schema'||
           result.schema!=='people.media-cast-reference-proof@1'||result.inputDigest!==query.inputDigest||proofDigest!==canonicalDigest(proof)||
           typeof result.personId!=='string'||!result.personId||!Number.isSafeInteger(result.personRevision)||result.personRevision<1||
-          !/^[a-f0-9]{64}$/.test(result.personFactDigest)||result.reasonCode!=='accepted_origin_evidence')fail();
+          !/^[a-f0-9]{64}$/.test(result.personFactDigest)||!['accepted_origin_evidence','exact_provider_identity'].includes(result.reasonCode)||
+          result.reasonCode==='exact_provider_identity'&&!query.input.providerIdentities.length)fail();
       personId=result.personId;confidenceClass=result.reasonCode;
     } else if(typeof result.reasonCode!=='string'||!result.reasonCode||Object.keys(result).sort().join(',')!=='kind,reasonCode')fail();
     proofs.push({relationId:query.relationId,inputDigest:query.inputDigest,resultDigest:canonicalDigest(result),

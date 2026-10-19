@@ -207,29 +207,112 @@
         "terminalReasons": {
           "type": "array",
           "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "properties": {
-              "failureClass": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "failureClass": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "failureCode": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "capabilityRef": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  }
+                },
+                "required": [
+                  "failureClass",
+                  "failureCode",
+                  "capabilityRef"
+                ]
               },
-              "failureCode": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
-              },
-              "capabilityRef": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "blockerSource": {
+                    "const": "plan_rejection"
+                  },
+                  "workId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "planId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "workBasisDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "workAttemptId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "plannerContractRef": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "plannerVersion": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "catalogDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "graphDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "failureCode": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "attemptCount": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  },
+                  "terminalEvidenceDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "memberDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "blockerSource",
+                  "workId",
+                  "planId",
+                  "workBasisDigest",
+                  "workAttemptId",
+                  "plannerContractRef",
+                  "plannerVersion",
+                  "catalogDigest",
+                  "graphDigest",
+                  "failureCode",
+                  "attemptCount",
+                  "terminalEvidenceDigest",
+                  "memberDigest"
+                ]
               }
-            },
-            "required": [
-              "failureClass",
-              "failureCode",
-              "capabilityRef"
             ]
           },
           "uniqueItems": true

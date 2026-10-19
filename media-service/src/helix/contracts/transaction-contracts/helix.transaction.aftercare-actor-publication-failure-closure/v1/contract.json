@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.aftercare-actor-publication-failure-closure/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.aftercare-actor-publication-failure-closure",
+    "displayName": "Aftercare Actor Publication Failure Closure",
+    "ownerScope": "arca",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "Arca按持久无写入Evidence作出失败收口决定；单事务expected-state CAS更新原Actor Case为unresolved及stale该Case审批；Foundation只读重验exact Work Definition/failed Event/completed failed Attempt/failed material_commit Effect，Owner重验原Inventory head；证据、revision或Effect状态变化则全回滚；不写执行历史、Event Result、成功marker或其他影片，不自动新建Case。terminal head/Evidence digest提供精确重放",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_aftercare_cases",
+          "arca_aftercare_settlement_approvals"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "read",
+        "tables": [
+          "fx_supporting_works",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_effect_journal"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_aftercare_cases",
+      "arca_aftercare_settlement_approvals"
+    ],
+    "readTables": [
+      "arca_aftercare_cases",
+      "arca_shelf_entries",
+      "fx_supporting_works",
+      "fx_workflow_events",
+      "fx_event_attempts",
+      "fx_effect_journal"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_",
+      "libra_",
+      "people_",
+      "fx_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": false,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "actor-prepublication-failure",
+        "faultInjectionPoints": "Owner terminal CAS before and after exact Foundation failure proof, before COMMIT and response",
+        "requiredInvariant": "Only a completely failed no-write publication may close unresolved; uncertain Effects and changed Inventory reject with zero Case writes; failed execution and unrelated Findings remain unchanged",
+        "source": {
+          "section": "8.9.7",
+          "line": 8821
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8873,
+      "lineDigest": "66a4b8294d3ebe5c285980f8b31b40479e2acfd65323e9661bf3837f6bfbc727"
+    }
+  }
+}

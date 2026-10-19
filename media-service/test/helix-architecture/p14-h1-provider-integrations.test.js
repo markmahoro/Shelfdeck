@@ -2126,7 +2126,7 @@ test('H1.2 official response projections accept bounded documented extras and so
       'emby' + 'service',
       'douban' + 'service',
       'fallback',
-      '/graph' + 'ql',
+      ...(relative.endsWith('/integration-profile-catalog.js')?[]:['/graph'+'ql']),
       'find' + 'scenes',
       'find' + 'scene(',
       'search' + 'performer',

@@ -85,7 +85,8 @@ test('an unbound actor closure is rejected and unrelated health Findings remain 
   s.care.admitCase(started.aftercareCaseId);
   assert.throws(()=>s.care.terminateCase(started.aftercareCaseId,'resolved','actor_unchanged',D('unchanged result')),{code:'ARCA_US_ADULT_CASE_RESULT_REQUIRED'});
   assert.equal(s.care.getCase(started.aftercareCaseId).state,'active');
-  s.care.terminateCase(started.aftercareCaseId,'unresolved','fixture_stopped',D('stopped'));
+  assert.throws(()=>s.care.terminateCase(started.aftercareCaseId,'unresolved','fixture_stopped',D('stopped')),{code:'ARCA_US_ADULT_FAILURE_CLOSURE_UNPROVEN'});
+  s.care.terminateCase(started.aftercareCaseId,'invalidated','fixture_basis_changed',D('stopped'));
   assert.equal(f.db.prepare('SELECT state FROM arca_aftercare_findings').get().state,'open');
   const body={schemaRef:'helix://contracts/domain-types/CareRequirement/v1',schemaVersion:1,requirementId:'health',revision:1,
     careBasisDigest:f.context.basis.digest,acceptanceDigest:D('health acceptance'),requiredEffects:[{objectId:'finding',revision:1,schemaRef:'required-effect',digest:D('missing'),objectKind:'required-effect'}],

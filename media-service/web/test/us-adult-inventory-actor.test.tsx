@@ -13,6 +13,17 @@ function mount(view=state){
     callbacks={onClose:vi.fn(),onChanged:vi.fn(),onUnauthorized:vi.fn()};
   render(<UsAdultInventoryActorDialog item={item} {...callbacks}/>);return {read,people,...callbacks};
 }
+it('reports a proven failed publication and allows a fresh explicit refresh without claiming completion',async()=>{
+  const refresh=vi.spyOn(helixAdminApi,'refreshInventoryActor').mockResolvedValue({aftercareCaseId:'new-case',state:'queued',replayed:false}),
+    h=mount({...state,progress:{aftercareCaseId:'failed-case',mode:'specified',state:'unresolved',reasonCode:'ARCA_US_ADULT_TARGET_CONFLICT',
+      works:[{workId:'failed-work',phase:'publish',state:'failed',failureCode:'ARCA_US_ADULT_TARGET_CONFLICT'}]}});
+  expect(await screen.findByRole('alert')).toHaveTextContent('处理冲突后可重新提交刷新');
+  expect(screen.queryByText('演员刷新已完成。')).not.toBeInTheDocument();
+  const button=screen.getByRole('button',{name:'自动刷新演员'});expect(button).toBeEnabled();fireEvent.click(button);
+  await waitFor(()=>expect(refresh).toHaveBeenCalledTimes(1));
+  expect(refresh.mock.calls[0][1]).toMatchObject({mode:'automatic',expectedInventoryRevision:4,expectedRepresentationDigest:'inventory-digest'});
+  expect(h.onChanged).not.toHaveBeenCalled();
+});
 it('requires a visible reference image and submits the exact Inventory and Actor revisions',async()=>{
   const refresh=vi.spyOn(helixAdminApi,'refreshInventoryActor').mockResolvedValue({aftercareCaseId:'case',state:'queued',replayed:false}),h=mount(),
     radio=await screen.findByRole('radio',{name:'New Actor'}),button=screen.getByRole('button',{name:'指定演员并更新'});

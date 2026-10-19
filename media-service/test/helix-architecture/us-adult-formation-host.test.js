@@ -317,7 +317,23 @@ test('actual Host exits around Inventory commit recover the original actor Case 
   assert.equal(after.raw.entry.current_inventory_revision,before.raw.entry.current_inventory_revision);
   assert.equal(after.raw.people[0].display_name,'Second Actor');assert.equal(fs.readFileSync(foreign,'utf8'),'unrelated bytes');
   assert.deepEqual(fs.readdirSync(conflictFolder),['foreign.txt']);
-  assert.equal(view.progress.aftercareCaseId,admitted.aftercareCaseId);assert.equal(view.progress.state,'active');
+  await h.wait(()=>h.db.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(admitted.aftercareCaseId).state==='unresolved',15000);
+  const failedView=await h.request('GET','/v1/admin/collection/'+before.shelfEntryId+'/actor-refresh');
+  assert.equal(failedView.progress.aftercareCaseId,admitted.aftercareCaseId);assert.equal(failedView.progress.state,'unresolved');
   assert.equal(view.progress.works.find(work=>work.phase==='publish').failureCode,'ARCA_US_ADULT_TARGET_CONFLICT');
-  assert.equal(view.canRefresh,false);
+  assert.equal(failedView.canRefresh,true);
+  const failedWorks=h.db.prepare("SELECT * FROM fx_supporting_works WHERE work_id=?").all(failedView.progress.works.find(work=>work.phase==='publish').workId),
+    failedCase=h.db.prepare('SELECT * FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(admitted.aftercareCaseId);
+  fs.unlinkSync(foreign);fs.rmdirSync(conflictFolder);
+  const retryCommand={mode:'specified',idempotencyKey:'target-conflict-new-intent',expectedInventoryRevision:failedView.expectedInventoryRevision,
+    expectedRepresentationDigest:failedView.expectedRepresentationDigest,personId:updated.personId,
+    expectedPersonRevision:updated.currentRevision,expectedReferenceRevision:updated.currentReferenceRevision},
+    retried=await h.refreshActor(before.shelfEntryId,retryCommand);
+  assert.notEqual(retried.aftercareCaseId,admitted.aftercareCaseId);
+  assert.equal((await h.refreshActor(before.shelfEntryId,retryCommand)).replayed,true);
+  await h.wait(()=>h.db.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(retried.aftercareCaseId).state==='resolved',90000);
+  assert.deepEqual(h.db.prepare('SELECT * FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(admitted.aftercareCaseId),failedCase);
+  assert.deepEqual(h.db.prepare('SELECT * FROM fx_supporting_works WHERE work_id=?').all(failedWorks[0].work_id),failedWorks);
+  assert.equal(h.inventoryContext().raw.people[0].display_name,'Conflicting Actor');
+  assert.equal(h.inventoryContext().raw.entry.current_inventory_revision,before.raw.entry.current_inventory_revision+1);
 });

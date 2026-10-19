@@ -1,4 +1,5 @@
 'use strict';
+const {assertProof:assertActorFailureProof,failureParticipant:actorFailureParticipant}=require('./actor-publication-failure');
 const {inventoryContentProfile}=require('../model/product-content-profile');
 const {readRequirement:readActorRefreshRequirement}=require('../model/us-adult-actor-refresh-objective');
 const {assertActorRefreshAdmissionParticipant}=require('./us-adult-actor-refresh-store');
@@ -203,7 +204,8 @@ function createAftercareStore(options) {
     options.unitOfWork.execute([{participantId:'arca_aftercare_case_domain',owner:'arca',repositories:[arca],execute(context){const repo=context.repository(arca.repositoryId);assertNoJavCorrection(repo,value.shelfEntryId);if(repo.invoke('list_reservations',{shelf_entry_id:value.shelfEntryId}).some((item)=>item.state==='active'))fail('ARCA_AFTERCARE_MODIFICATION_FENCED','Off-deck Reservation prevents a new Aftercare Case.');repo.invoke('insert_case',{aftercare_case_id:caseId,shelf_entry_id:value.shelfEntryId,finding_set_digest:value.findingSetDigest,care_basis_schema_ref:value.careBasis.schemaRef,care_basis_json:canonicalJson(value.careBasis),care_basis_digest:value.careBasis.digest,care_requirement_schema_ref:value.careRequirement.schemaRef,care_requirement_json:canonicalJson(value.careRequirement),care_requirement_digest:value.careRequirement.digest,case_generation:caseGeneration,trigger_digest:triggerDigest,state:'queued',terminal_reason_code:null,terminal_evidence_digest:null,created_at_ms:at,terminal_at_ms:null});for(const input of value.basisInputs)repo.invoke('insert_basis',{aftercare_case_id:caseId,input_kind:input.inputKind,owner_domain:input.ownerDomain,aggregate_type:input.aggregateType,aggregate_id:input.aggregateId,revision:input.revision,input_digest:input.inputDigest});}},
       ...atomicParticipants,
       {participantId:'arca_aftercare_case_foundation',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[foundation],execute(context){const repo=context.repository(foundation.repositoryId);repo.invoke('insert_marker',{commit_marker:marker,effect_id:null,owner_domain:'arca',scope_type:'aftercare_case',scope_id:caseId,commit_digest:payloadDigest,result_id:null,result_schema_ref:null,result_digest:null,committed_at_ms:at});repo.invoke('insert_outbox',{message_id:'arca-aftercare-case-message-'+canonicalDigest(caseId).slice(0,32),producer_domain:'arca',message_kind:'arca.aftercare.case.created',aggregate_type:'aftercare_case',aggregate_id:caseId,aggregate_revision:1,dedup_key:marker,consumer_set_digest:consumers,intended_consumer_count:0,payload_schema_ref:'helix://arca/messages/AftercareCaseCreated/v1',payload_json:canonicalJson(payload),payload_digest:payloadDigest,state:'tombstoned',available_at_ms:at,created_at_ms:at,all_acked_at_ms:null});}}]);return getCase(caseId);}
-  function terminateCase(caseId,state,reasonCode,evidenceDigest,resultBinding=null){
+  function terminateCase(caseId,state,reasonCode,evidenceDigest,resultBinding=null,failureBinding=null){
+    let failureScope=null;
     if(!['resolved','invalidated','unresolved'].includes(state))fail('ARCA_AFTERCARE_CASE_STATE','Aftercare terminal state is invalid.');
     if(typeof reasonCode!=='string'||!reasonCode||typeof evidenceDigest!=='string'||!/^[a-f0-9]{64}$/.test(evidenceDigest))fail('ARCA_AFTERCARE_CASE_TERMINAL_EVIDENCE','Aftercare terminal reason and Evidence are required.');
     let alreadyTerminal=false;
@@ -212,6 +214,15 @@ function createAftercareStore(options) {
       if(!caseRow)fail('ARCA_AFTERCARE_CASE_MISSING','Aftercare Case is absent.');
       const actorObjective=readActorRefreshRequirement(parse(caseRow.care_requirement_json,'ARCA_AFTERCARE_REQUIREMENT_CORRUPT'));
       if(state==='resolved'&&actorObjective&&!resultBinding)fail('ARCA_US_ADULT_CASE_RESULT_REQUIRED','Actor Case closure requires its atomic Event Result.');
+      if(actorObjective&&state==='unresolved'){
+        failureScope={caseId,intentDigest:actorObjective.intentDigest,shelfEntryId:caseRow.shelf_entry_id};
+        const proof=assertActorFailureProof(failureBinding,failureScope),basis=JSON.parse(caseRow.care_basis_json),
+          entry=repo.invoke('find_entry',{shelf_entry_id:caseRow.shelf_entry_id});
+        if(resultBinding||reasonCode!==proof.errorCode||(['queued','active'].includes(caseRow.state)&&(!entry||entry.status!=='active'||Number(entry.current_inventory_revision)!==basis.inventoryRevision))||
+            evidenceDigest!==canonicalDigest({schema:'arca.actor-prepublication-terminal@1',workId:failureBinding.work.workId,
+              aftercareCaseId:caseId,intentDigest:actorObjective.intentDigest,failureEvidenceDigest:failureBinding.failure.evidenceDigest}))
+          fail('ARCA_US_ADULT_FAILURE_CLOSURE_UNPROVEN','Only a closed no-write publication failure may release this Actor Case.');
+      }else if(failureBinding)fail('ARCA_US_ADULT_FAILURE_CLOSURE_UNPROVEN','Failure closure cannot authorize another Case transition.');
       if(resultBinding){
         const binding=resultBinding,result=binding.result,receipt=binding.effectReceipt,{factDigest,...body}=result||{};
         if(state!=='resolved'||!readActorRefreshRequirement(parse(caseRow.care_requirement_json,'ARCA_AFTERCARE_REQUIREMENT_CORRUPT'))||
@@ -240,7 +251,9 @@ function createAftercareStore(options) {
         if(approval.state==='active')repo.invoke('update_settlement_approval',{state:'stale',approval_id:approval.approval_id,expected_state:'active'});
       }
       return mapCase(repo.invoke('find_case',{aftercare_case_id:caseId}));
-    }},...(resultBinding?[{participantId:'arca_us_actor_case_terminal_result',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[foundation],execute(context){
+    }},...(failureBinding?[{participantId:'arca_actor_failed_publication_proof',owner:'execution-foundation',boundBusinessOwner:'arca',
+      repositories:actorFailureParticipant(options,failureBinding,{caseId,intentDigest:failureBinding.work.executionBasisDigest,shelfEntryId:failureBinding.work.processId}).repositories,
+      execute(context){return actorFailureParticipant(options,failureBinding,failureScope).execute(context);}}]:[]),...(resultBinding?[{participantId:'arca_us_actor_case_terminal_result',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[foundation],execute(context){
       if(alreadyTerminal)return;
       const repo=context.repository(foundation.repositoryId),binding=resultBinding,resultDigest=canonicalDigest(binding.result),receipt=binding.effectReceipt;
       assertActorExecution(repo,binding);

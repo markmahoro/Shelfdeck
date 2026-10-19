@@ -1,11 +1,12 @@
 'use strict';
 const {canonicalDigest}=require('../../contracts/canonical-json');
 
-function providerRecoveryDigest(snapshot) {
+function providerRecoveryDigest(snapshot, effectiveNetworkRoute) {
   const integration=snapshot?.integration,config=integration?.config;
   return canonicalDigest({state:integration?.state||'absent',endpoint:config?.endpoint||null,
     credentialDigest:config?.secretEnvelopeDigest||null,settings:config?.settings||null,
-    capabilities:config?.capabilityCodes||[],landingBinding:config?.landingBinding||null});
+    capabilities:config?.capabilityCodes||[],landingBinding:config?.landingBinding||null,
+    ...(effectiveNetworkRoute?{effectiveNetworkRoute}:{})});
 }
 function computeRecoveryDigest(runtime) {
   if(!runtime)return canonicalDigest({devices:[]});

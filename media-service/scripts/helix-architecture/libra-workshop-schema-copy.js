@@ -20,8 +20,9 @@ function schemas(){
  const archive=path.join(persistence,'release-schemas',SOURCE_DIGEST);
  const source={schemaDdl:zlib.gunzipSync(fs.readFileSync(archive+'.sql.gz')).toString('utf8'),
   schemaManifest:JSON.parse(zlib.gunzipSync(fs.readFileSync(archive+'.manifest.json.gz')))};
- const target={schemaDdl:fs.readFileSync(path.join(persistence,'generated/clean-schema.sql'),'utf8'),
-  schemaManifest:JSON.parse(fs.readFileSync(path.join(persistence,'generated/clean-schema.manifest.json'),'utf8'))};
+ const targetArchive=path.join(persistence,'release-schemas',TARGET_DIGEST);
+ const target={schemaDdl:zlib.gunzipSync(fs.readFileSync(targetArchive+'.sql.gz')).toString('utf8'),
+  schemaManifest:JSON.parse(zlib.gunzipSync(fs.readFileSync(targetArchive+'.manifest.json.gz')))};
  for(const [schema,expected] of [[source,SOURCE_DIGEST],[target,TARGET_DIGEST]])if(schema.schemaManifest.ddlDigest!==expected||digest(schema.schemaDdl)!==expected)
   fail('LIBRA_SCHEMA_DIGEST_DRIFT','Schema copy requires its exact frozen source and target.');
  const previous=source.schemaManifest,current=target.schemaManifest;

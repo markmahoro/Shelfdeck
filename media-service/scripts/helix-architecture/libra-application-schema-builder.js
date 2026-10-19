@@ -425,9 +425,7 @@ function runTerminalDeliveryEvidence() {
   const work = object({ workId: id(), planId: id(), workBasisDigest: digest(), terminalEventId: id(), capabilityRef: id(),
     failureClass: text(), failureCode: text(), attemptCount: positive(), retryPolicyDigest: digest(),
     terminalEvidenceDigest: digest(), memberDigest: digest() });
-  const planning=object({blockerSource:{const:'plan_rejection'},workId:id(),planId:id(),workBasisDigest:digest(),workAttemptId:id(),
-    plannerContractRef:id(),plannerVersion:positive(),catalogDigest:digest(),graphDigest:digest(),failureCode:text(),attemptCount:positive(),
-    terminalEvidenceDigest:digest(),memberDigest:digest()});
+  const planning=require('./terminal-planning-schema').terminalPlanningSchema();
   return { $schema: DRAFT, $id: typeId('LibraRunTerminalDeliveryEvidence'), title: 'LibraRunTerminalDeliveryEvidence@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 256 * 1024,
     ...object({ evidenceId: digest(), libraRunId: digest(), executionBasisDigest: digest(),
@@ -879,7 +877,7 @@ function buildLibraApplicationSchemas() {
   const arrayOf=items=>({type:'array',items,maxItems:256});
   const manifestProperties=authorizedDefectManifest().properties;
   const previewCommon={libraRunId:id(),missingEvidence:arrayOf(id()),ineligibleReasons:arrayOf(id()),
-    pathResults:arrayOf(object({workId:id(),capabilityRef:id(),failureClass:id(),failureCode:id(),evidenceDigest:digest()}))};
+    pathResults:arrayOf({oneOf:[object({workId:id(),capabilityRef:id(),failureClass:id(),failureCode:id(),evidenceDigest:digest()}),require('./terminal-planning-schema').terminalPlanningSchema()]})};
   return Object.freeze({
     LibraAcceptedSubjectOrigin:{$schema:DRAFT,$id:typeId('LibraAcceptedSubjectOrigin'),title:'LibraAcceptedSubjectOrigin@1','x-helix-ssotRefs':['8.6.21'],
       'x-helix-maxCanonicalBytes':4096,...require('../../src/helix/contracts/jav-perception-continuity').acceptedSubjectOriginSchema()},

@@ -63,6 +63,7 @@ export default function UsAdultInventoryActorDialog({item,onClose,onChanged,onUn
         {running?<p role={attention?'alert':'status'}>{attention?attentionCopy(active.failureCode):active?phaseLabels[active.phase]||'正在刷新演员':'等待执行'}
           </p>:view?.progress?.state==='resolved'&&
           <p role="status">{view.progress.reasonCode==='actor_match_unchanged'?'未找到有效匹配，保留原演员。':'演员刷新已完成。'}</p>}
+        {view?.progress?.state==='unresolved'&&<p role="alert">{attentionCopy(view.progress.reasonCode)}{view.canRefresh?'处理冲突后可重新提交刷新。':''}</p>}
         {view&&!view.canRefresh&&!running&&<p>影片当前有其他维护任务，请稍后重新读取。</p>}
         <Button type="button" disabled={!available||Boolean(pendingMode&&pendingMode!=='automatic')} onClick={()=>void refresh('automatic')}>自动刷新演员</Button>
         <form className="identity-picker-input" onSubmit={event=>{event.preventDefault();void find();}}>

@@ -125,8 +125,8 @@ function createRunOutcomeStore(options) {
         fail('LIBRA_OUTCOME_EVIDENCE_STALE','Failure evidence changed before its terminal commit.');
       const terminal=JSON.parse(revision.transition_evidence_json),requirements=JSON.parse(spec.spec_json).requirements;
       const reasons=[...(productEvidence?.reasonCodes||[]).map(code=>({failureClass:'business_unachievable',failureCode:code,
-        capabilityRef:'libra.product_media.verify@1'})),...(terminal.blockedWorks || []).map(item=>({failureClass:item.failureClass,failureCode:item.failureCode,
-        capabilityRef:item.capabilityRef})),...strategyReasons,...deliveryReasons];
+        capabilityRef:'libra.product_media.verify@1'})),...(terminal.blockedWorks || []).map(item=>item.blockerSource==='plan_rejection'?
+        require('../model/terminal-planning-evidence').validatePlanningMember(item):{failureClass:item.failureClass,failureCode:item.failureCode,capabilityRef:item.capabilityRef}),...strategyReasons,...deliveryReasons];
       if(reasonCode!=='user_cancelled' && !reasons.length && !terminal.assessmentId)
         fail('LIBRA_OUTCOME_EVIDENCE_MISSING','Automatic termination requires a persisted exhausted attempt.');
       const outcome={schemaRef:SCHEMA_REF,schemaVersion:1,libraRunId:run.libra_run_id,subjectId:run.subject_id,

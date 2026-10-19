@@ -23,7 +23,7 @@ function prepare(input,calls=[]) {
   const knownDigest=castQueries(buildJavCorrectionMetadata(input)).find(query=>query.hint.displayName==='Known Actor')?.input.evidenceDigest,
     people=createMediaCastReferenceQuery({findActivePersonByProviderIdentity(){throw new Error('Current JAV source has no exact actor provider identities');},
       findUserAcceptedRegistrationPerson(evidenceDigest){calls.push(evidenceDigest);return evidenceDigest===knownDigest?
-        {personId:'person-known',status:'active',currentRevision:3,revision:{factDigest:fixture.digest('known-person')}}:null;}}),
+        {personId:'person-known',libraryKind:'jav',status:'active',currentRevision:3,revision:{factDigest:fixture.digest('known-person')}}:null;}}),
     contractValidator=createCapabilityContractValidator({schemas:Object.values(buildArcaApplicationSchemas())});
   return createJavCorrectionCastPreparation({contractValidator,resolveMediaCastReference:input=>people.resolve(input)}).prepare(input);
 }

@@ -248,3 +248,20 @@ arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后
 - 图库弹窗接补图/替换/释放、版本围栏及失联同命令重试；UI专项12 PASS，最新全Web231 PASS/43文件，build PASS（553.54kB既有单chunk warning）。实际浏览器及跨层具体版本负责人资格仍开放。
 - 本批Service首次637 PASS/29既有skip/2失败：本地tools的ssh2缺失导致Reset/部署dry-run合同未加载；按原tools lockfile npm ci恢复后两个文件13 PASS。没有执行SSH/NAS动作；完整Service重跑677 total/648 PASS/29既有skip/0 fail，137.3秒（reference-service-all-restored.txt）；该项是本地检查点，最终固定版本资格仍需统一记录。
 - 释放Reference不立即回收二进制，已冻结Libra/Arca快照仍可读取原Artifact。完整Reference审计/到期GC、系统People Evidence正式维护、离线副本升级、维护/平台最终资格继续；未宣布US-PEOPLE或本版完成。
+
+
+## 2026-10-19 系统People正式维护、Actor失败收口与跨Profile回归
+
+同一Phase、602505d35后的本地增量；没有生产、NAS、真实媒体或Desktop操作。
+
+- 普通/JAV不再在reconciler内直接open/accept Candidate：Arca发布完整有界media_cast/NFO Projection，People冻结Supporting Work与policy；observe→Candidate Commit→可靠身份Person Commit全部采用正式Planner/Event/typed Result/Owner事务及Outbox。弱来源仅形成内部Evidence/Candidate，US库不走系统注册；可靠ID冲突在事务内拒绝，不按同名合并。每次最多32个未完成People Work，global准入上限768低于正常1000，避免维护遗留挤满正常准入；deferred不伪报已创建Work。
+- Arca精确读取同时校验Entry、Inventory、relation与Projection digest；150个历史版本不干扰当前来源。合法NULL Provider identities表示无强身份，非法非数组数据拒绝。JavDB仅在影片身份已核实且演员链接为精确同源/无凭据/无query/hash的actors ID时发布javdb_actor身份；同名不同ID保留，外链等仍为弱Evidence。
+- 真实JAV正式Host：窗口外不注册；维护内正式Evidence Work自动建立可靠演员并更新Arca当前关系，弱演员仍无Person且用户确认队列为空；原收藏/入藏Receipt/纠正Receipt/视频不变。连同不兼容实际分段的正常终结，2 PASS/80.4秒（jav-weak-terminal-qualified.txt）。后者修复RunOutcome/瑕疵预览错误地要求Plan拒绝具有Event Capability的缺口，保留完整closed planning-rejection成员。
+- Series真实Host：跨季同标题保护、NFO修复、NFO+poster修复均在实际维护窗口补齐People后回到正常供给，3 PASS/346.6秒（series-maintenance-people-host.txt）。JAV来源语义恢复纳入实际全局网络route，重复配置revision不触发新Case；实际海报失败后来源改变的新Case恢复1 PASS/96.9秒，旧失败Effect/收藏保持（jav-final-three-host.txt，该日志其余两条是后续已修正fixture断言，不能算该三条全PASS）。
+- Actor首次发布前的无写入失败现在持久保存精确技术Evidence。Arca以新Canonical边界Aftercare Actor Publication Failure Closure重验原Inventory及实际Work/Event/Attempt/Effect，只能原子终结为unresolved；拒绝uncertain、reconcile_required、写入已开始或证据变动，晚发Foundation拒绝回滚Owner写入。旧失败历史保持，用户从原单片入口显式再次提交新Intent；部分发布仍原Case恢复。无成功Result/marker或无关Finding结案。
+- 真实固定CPU Host再次在Inventory提交前/后exit 73/74恢复原Case，随后目标外来文件冲突保持原收藏/外来字节；失败Case收口后移走fixture冲突文件，再通过显式新Intent完成演员/NFO/海报/命名，旧失败Work/Case不变。1 PASS/79.3秒（arca-failed-publication-retry-host-final.txt）。Owner失败闭合/旧Actor持久化/Aftercare安全组合24 PASS（arca-failure-proof-transactions-final.txt）。
+- 历史204→210副本Operator改读其原始精确target archive，不将当前224表误当旧target；两个archive从1f36d9ed8提取并校验原DDL摘要，旧保留、别名/覆盖拒绝和回退负例通过，未操作实际升级副本。Gate旧计数、US admission及系统People旧确认断言分别按具体合同更新；不删除负例或扩大旧架构权限。
+- 当前P2：130 Capability/108 Result/224表/57事务/144 Domain inputs/31 shared/240引用/0 unresolved，aggregate 64d18131ff41a7774b4de095156e81c45f6297996561b8be9e775061e9da3856。新增事务仅失败Case收口，不新增顶层Business Object。包边界657文件/2317依赖/47包通过；semantic精确transaction shard豁免随057文件更名，最终2532文件/42原有精确豁免/0 Finding通过。
+- Service本批677 total/648 PASS/29既有skip/0 fail，146.7秒（arca-system-people-service-final.txt）；Web232 PASS/43文件及build PASS（既有553.74 kB chunk warning）。此前People Owner/Source/parser/Arca记录等定向组合49 PASS、parser/Projection12 PASS，容量/事务Builder/negative合同29 PASS；日志有交叠，不相加为独立总数。
+- canonical crash/Owner组合247项中246 PASS，唯一Windows打包因本checkout node_modules为共享junction而cp尝试创建symlink被Windows拒绝，尚无本轮Windows分发PASS。应在已准备的独立物理依赖checkout对固定提交复验，不改共享依赖或放宽打包隔离测试。固定1dd51987b完整Gate已结束：3061 total/3006 PASS/33 FAIL/22 skip，旧检查点不覆盖4a/602或本批；已按Owner根因修复及局部复验，仍须新固定版本完整Gate。
+- 开放项：失败Actor Case已完成stage材料的到期精确清扫；其他恢复/Source过期资格；普通/JAV可靠归并/补全与Reference审计GC；离线升级副本、维护截止/重启剩余资格、最终固定版本全量Gate/Windows/Linux及浏览器/具体版本UI负责人审核。不得据这些局部证据宣布五议题完成或发布。

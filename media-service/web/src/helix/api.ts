@@ -5,7 +5,7 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
 export type DefectAuthorization = { authorizationId:string; revision:number; state:'enabled'|'revoked'; authorizationDigest:string };
 export type LibraRunOutcome = {libraRunId:string;outcome:'on_deck'|'on_deck_with_defects'|'unable_to_on_deck';
   reasonCode:string;outcomeDigest:string;committedAtMs:number;
-  terminalReasons?:Array<{failureClass:string;failureCode:string;capabilityRef:string}>};
+  terminalReasons?:Array<{failureCode:string}&({failureClass:string;capabilityRef:string}|{blockerSource:'plan_rejection';workId:string;planId:string;workBasisDigest:string;workAttemptId:string;plannerContractRef:string;plannerVersion:number;catalogDigest:string;graphDigest:string;attemptCount:number;terminalEvidenceDigest:string;memberDigest:string})>};
 export type AcceptedGap = {gapDigest:string;findingKind:string;requirementCode:string;targetKind:'media'|'artifact'|'metadata_field';targetId:string;requiredValue:{value?:unknown;field?:string;artifact?:string}};
 export type CollectionDefectPreview = {shelfEntryId:string;inventoryRevision:number;careBasisDigest:string;authorizationRevision:number;
   candidateDigest:string;gapSetDigest:string;gaps:AcceptedGap[];acceptedGaps:AcceptedGap[];eligibility:'eligible'|'ineligible'|'evidence_pending';

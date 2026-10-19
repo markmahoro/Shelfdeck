@@ -154,7 +154,9 @@ function createUsAdultActorPipelinePorts(options){
             ['ARCA_US_ADULT_TARGET_CONFLICT','ARCA_US_ADULT_FILE_CHANGED','ARCA_US_ADULT_FILE_ESCAPE'].includes(error.code))
           return {kind:'failed',failureClass:'placement_precondition',code:error.code,message:'Actor publication stopped before changing any files.',
             retryDirective:'never',evidence:{aftercareCaseId:snapshot.care.aftercareCaseId,planDigest:snapshot.plan.planDigest,
-              errorCode:error.code,effectWriteStarted:false,boundary:'before_publication'}};
+              errorCode:error.code,effectWriteStarted:false,boundary:'before_publication',diagnostics:{
+                schema:'arca.actor-publication-precondition@1',aftercareCaseId:snapshot.care.aftercareCaseId,intentDigest:snapshot.intent.intentDigest,
+                workId:execution.workId,eventId:execution.eventId,planDigest:snapshot.plan.planDigest,errorCode:error.code,effectWriteStarted:false,boundary:'before_publication'}}};
         throw error;
       }
       const at=now();

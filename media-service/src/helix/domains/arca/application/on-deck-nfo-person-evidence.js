@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const {projectionItem,matchesProjection}=require('../model/person-evidence-projection-item');
 const { isAftercareArtifactMaterial } = require('../model/aftercare-contract');
 const { MAX_NFO_BYTES, projectMovieNfoPersonObservations } = require('../model/aftercare-nfo');
 
@@ -33,7 +34,8 @@ function createOnDeckNfoPersonEvidence(options) {
           displayNameNormalized:actor.displayNameNormalized, role:actor.role, providerIdentities:actor.providerIdentities,
           identityStrength:actor.providerIdentities.length ? 'strong' : 'weak' };
         const { inventoryRevision:_revision, ...stableEvidence } = evidence;
-        items.push(Object.freeze({ ...evidence, evidenceDigest:canonicalDigest({schema:'arca.ondeck-nfo-person-evidence@1',...stableEvidence}) }));
+        const scope={...evidence,evidenceDigest:canonicalDigest({schema:'arca.ondeck-nfo-person-evidence@1',...stableEvidence})};
+        items.push(Object.freeze({...scope,projectionItem:projectionItem(scope,'nfo')}));
       }
     }
     const latest = store.currentNfoContext(shelfEntryId);
@@ -44,7 +46,8 @@ function createOnDeckNfoPersonEvidence(options) {
     cache.set(shelfEntryId,{revision,at:now(),value});
     return value;
   }
-  return Object.freeze({ listPage:({cursor,limit}) => store.listEntryPage(cursor,limit), observeEntry });
+  return Object.freeze({ listPage:({cursor,limit}) => store.listEntryPage(cursor,limit), observeEntry,
+    read:input=>observeEntry(input).items.map(item=>item.projectionItem).find(item=>matchesProjection(item,input))||null });
 }
 
 module.exports = Object.freeze({ createOnDeckNfoPersonEvidence });

@@ -1297,7 +1297,28 @@
                   },
                   "providerIdentities": {
                     "type": "array",
-                    "maxItems": 0
+                    "maxItems": 1,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "provider": {
+                          "const": "javdb"
+                        },
+                        "namespace": {
+                          "const": "javdb_actor"
+                        },
+                        "providerKey": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "namespace",
+                        "providerKey"
+                      ]
+                    }
                   }
                 },
                 "required": [
@@ -1372,6 +1393,33 @@
             "peopleHints",
             "cover",
             "observationDigest"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "siteRef": {
+                    "const": "javdb"
+                  }
+                },
+                "required": [
+                  "siteRef"
+                ]
+              },
+              "else": {
+                "properties": {
+                  "peopleHints": {
+                    "items": {
+                      "properties": {
+                        "providerIdentities": {
+                          "maxItems": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           ]
         }
       },

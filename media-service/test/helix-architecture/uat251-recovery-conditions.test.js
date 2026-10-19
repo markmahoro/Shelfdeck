@@ -37,3 +37,10 @@ test('compute recovery ignores probe revision and proof identifiers but detects 
   const first=computeRecoveryDigest(runtime);revision++;
   assert.equal(first,computeRecoveryDigest(runtime));encoder='h264';assert.notEqual(first,computeRecoveryDigest(runtime));
 });
+
+test('provider recovery observes the effective global route but ignores network command revisions',()=>{
+  const snapshot={integration:{state:'active',config:{endpoint:'https://javdb.com',settings:{}}}},
+    direct={mode:'direct',proxyEndpoint:null},proxy={mode:'http_proxy',proxyEndpoint:'http://127.0.0.1:18999'};
+  assert.notEqual(providerRecoveryDigest(snapshot,direct),providerRecoveryDigest(snapshot,proxy));
+  assert.equal(providerRecoveryDigest(snapshot,proxy),providerRecoveryDigest(snapshot,{...proxy}));
+});

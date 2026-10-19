@@ -96,10 +96,11 @@ test('Aftercare media verification merges same-mount reads and preserves cross-m
   }
 });
 
-test('production composition scopes demand merging to Aftercare media verification', () => {
+test('production composition scopes demand merging to Aftercare verification and US Actor physical work', () => {
   const source = fs.readFileSync(path.resolve(__dirname,
     '../../src/helix/composition/create-procurement-execution-runtime.js'), 'utf8');
   assert.match(source,
-    /if\(capability==='arca\.aftercare\.media\.verify@1'\)resources=mergeResourceDemands\(resources\)/);
-  assert.doesNotMatch(source, /\n\s*resources=mergeResourceDemands\(resources\);/);
+    /if\(capability==='arca\.aftercare\.media\.verify@1'\|\|capability\.startsWith\('arca\.us_adult\.'\)\)resources=mergeResourceDemands\(resources\)/);
+  assert.equal([...source.matchAll(/resources=mergeResourceDemands\(resources\)/g)].length,2);
+  assert.match(source,/if\(capability==='libra\.media\.frames\.extract@1'\)\{[\s\S]*?resources=mergeResourceDemands\(resources\);/);
 });

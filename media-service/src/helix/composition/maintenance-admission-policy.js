@@ -29,6 +29,7 @@ const NORMAL = new Set([
   'arca:preparing-offdeck-reviews', 'arca:active-offdeck-cases', 'arca:active-shelf-deregistrations',
 ]);
 const MAINTENANCE_WORKS = new Set([
+  'people:system_person_registration',
   'arca:periodic_health_assessment', 'arca:periodic_custody_assessment', 'arca:care_workspace_reclaim',
   'arca:offdeck_policy_evaluation', 'arca:offdeck_duplicate_detection',
 ]);

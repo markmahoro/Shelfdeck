@@ -511,6 +511,16 @@ function createPeopleStore(options) {
         return {personId:payload.personId,personRevision:payload.personRevision};
       } });
     },
+    createCandidateSignalParticipant(payload){
+      exactInput(payload,['candidateId','candidateRevision','candidatePayloadDigest'],'PEOPLE_CANDIDATE_SIGNAL_INVALID');
+      if(payload.candidateRevision!==1||!/^[a-f0-9]{64}$/.test(payload.candidatePayloadDigest||''))fail('PEOPLE_CANDIDATE_SIGNAL_INVALID','Candidate signal must bind its exact initial revision.');
+      return Object.freeze({participantId:'people_candidate_signal',owner:'people',repositories:[candidates],execute(context){
+        const row=context.repository(candidates.repositoryId).invoke('find_registration_candidate',{registration_candidate_id:payload.candidateId});
+        if(!row||row.current_revision<payload.candidateRevision||row.candidate_payload_digest!==payload.candidatePayloadDigest)
+          fail('PEOPLE_CANDIDATE_SIGNAL_INVALID','Candidate signal differs from its durable immutable payload.');
+        return payload;
+      }});
+    },
     createDirectRegistrationParticipant(input) {
       const decision = validateDirectRegistrationDecision(input);
       return Object.freeze({ participantId: 'people_direct_registration', owner: 'people', repositories: [registry],
@@ -801,6 +811,13 @@ function createPeopleStore(options) {
         const candidate = mapRegistrationCandidate(candidateRepository, row);
         if (candidate.candidatePayload.libraryKind === 'us_adult') {
           fail('P6_PEOPLE_US_REFERENCE_REQUIRED', 'US Adult registration requires an atomic initial Reference and cannot accept system evidence.');
+        }
+        if(decision.decisionOrigin==='strong_identity_rule'){
+          const identities=candidate.candidatePayload.providerIdentities;
+          if(!identities.length)fail('P6_PEOPLE_REGISTRATION_CANDIDATE_FENCE','A system registration requires explicit Provider Person identity.');
+          const matches=new Set(identities.map(identity=>personRepository.invoke('find_active_provider_identity',{
+            library_kind:candidate.candidatePayload.libraryKind,provider:identity.provider,namespace:identity.namespace,provider_key:identity.providerKey,active_guard:1})?.person_id).filter(Boolean));
+          if(matches.size)fail(matches.size===1?'P6_PEOPLE_IDENTITY_ALREADY_KNOWN':'P6_PEOPLE_PROVIDER_IDENTITY_CONFLICT','Provider identity was already registered while this Evidence Work was pending.');
         }
         const nextCandidateRevision = createCandidateRevision({ candidateId: decision.candidateId,
           revision: decision.expectedCandidateRevision + 1, state: 'accepted', decisionOrigin: decision.decisionOrigin,

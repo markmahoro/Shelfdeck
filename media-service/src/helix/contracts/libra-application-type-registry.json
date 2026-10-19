@@ -117,7 +117,7 @@
       "relativePath": "application-types/LibraDefectPreview/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "0f6c0a3ba7ea5824fd1eb5e965725d3314f9d04f564e8bf80783a80a1c05efa1"
+        "value": "f5b73454fe11f000853ea8a94d6f43761a8c2e9e05e4df678bfbdc92bf563d5a"
       },
       "ssotRefs": [
         "5.6.7",
@@ -413,7 +413,7 @@
       "relativePath": "application-types/LibraRunOutcome/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "daaed4d9d0fa1dcdb02851b392ec534060da2f7ea1c901f1356da2eefb6f2e11"
+        "value": "1381ee93c3f2554f8e6cc77d51fd721b44438cb0485146a0ee3d1a89e69627c8"
       },
       "ssotRefs": [
         "5.6.7",
@@ -462,7 +462,7 @@
       "relativePath": "application-types/LibraRunTerminalDeliveryEvidence/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "279f4e88eac06d0b3ee5f53038eb74b51bb26da5cb8160495cbfdf4f6beadd14"
+        "value": "ce38c7cda5a0edc79d74edb9150ba2b8a067e0a6806d5ecb5a3a0d74c2d32792"
       },
       "ssotRefs": [
         "8.6.21"

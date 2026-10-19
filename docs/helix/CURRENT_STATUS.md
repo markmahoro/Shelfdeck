@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-19 US Adult恢复开发增量：系统People维护正式Work/typed Evidence链、可靠JavDB Actor ID与Arca当前出演关联已接通；真实JAV强/弱来源2项、Series维护人物/修复3项通过。Actor实际提交前/后进程退出恢复、目标冲突无覆盖及失败收口后显式新Intent再提交1项通过，未知/部分副作用仍原Case恢复。当前130/108/224/57/144及162路由，P2通过；Service648 PASS/29既有skip、Web232 PASS及构建。stage残留清扫、People深度维护/Reference审计GC、离线副本升级、维护剩余项、固定版本完整Gate/独立Windows/Linux/浏览器与负责人UI资格仍开放。旧1dd完整Gate实际33失败不是PASS，当前checkout Windows打包因共享依赖junction失败，待物理依赖checkout复验。未发布或操作生产；见唯一CURRENT_PHASE及既有US_ADULT_LOCAL_IMPLEMENTATION Evidence。
+
 2026-10-19 US Adult本地Arca检查点：指定/自动演员已贯通正式HTTP、Source/匹配、海报/NFO/命名、文件Effect、Inventory/Control原子提交和Case结案。有脸/无脸/跨Host重启及真实UOW迟发失败回滚恢复通过，身份/收藏连续且无关健康Finding保持。P2为130 Capability/108 Result/224表/56事务/144输入/162路由；Web222项及构建、Aftercare69项通过，本轮Service648 pass/29既有skip/0 fail。此前暂停取消的Gate/Service非PASS；固定新版本完整Architecture、正式Host异常退出/并发冲突、People/维护/离线升级剩余项和最终平台/UI资格仍开放，本版未交付、未部署或操作生产。
 
 2026-10-18 US Adult最新本地检查点：推荐认领/建档及来源A幂等确认已接正式Owner链路和UI，真实CPU两片聚合与ACK丢失跨重启通过。Arca用户刷新Intent、完整参考分页和Case原子准入、当前库存Actor/首次原名规划、独立20帧CPU匹配/海报引擎及单演员NFO纯渲染已通过局部验证。当前224表/140 Domain inputs/160路由，P2通过；一次完整Architecture被并行SSOT修订导致的汇总异常打断，不能算PASS，待固定提交副本重跑。前一Service648通过/29既有skip、Web218通过及构建为前序检查点。Arca实际Work/文件Effect与UI、人物库剩余维护/参考图生命周期、隔离副本升级及最终平台/UI资格仍开放，本版未交付、未部署。

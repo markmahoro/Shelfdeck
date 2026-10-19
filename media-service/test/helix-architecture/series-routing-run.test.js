@@ -319,7 +319,9 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     }
     return result;
   }}}:{};
-  const hostOptions={dataDir,adminDistDir,secretRoot,...shutdownOptions,...(external?{integrationFetch:async(input,init)=>{
+  let maintenanceClock=null,maintenanceClockStart=Date.now();
+  const now=()=>maintenanceClock===null?Date.now():maintenanceClock+Date.now()-maintenanceClockStart;
+  const hostOptions={dataDir,adminDistDir,secretRoot,now,...shutdownOptions,...(external?{integrationFetch:async(input,init)=>{
     const pathname=new URL(input).pathname;
     if(externalBrowserFlow&&['/api/v1/search/title','/api/v1/download/add'].includes(pathname)&&!observedProviderStages.has(pathname)){
       observedProviderStages.add(pathname);await new Promise(resolve=>setTimeout(resolve,15000));
@@ -1443,6 +1445,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     // People registration is asynchronous; allow its legitimate relation revision to settle first.
     if(browserFlow)await browserFlow.checkHealth(collection[0],'care-recheck-');
     else await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',{idempotencyKey:'series-nfo-post-repair-check'});
+    maintenanceClock=Date.parse('2026-10-31T03:00:00+08:00');maintenanceClockStart=Date.now();
     const settleUntil=Date.now()+120000;let settled,pendingPeople;
     do {
       assert.ifError(runtimeError);
@@ -1452,6 +1455,9 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
       await new Promise(resolve=>setTimeout(resolve,50));
     }while(Date.now()<settleUntil);
     assert.equal(settled.health.state,'healthy');assert.equal(pendingPeople,0);
+    maintenanceClock=Date.parse('2026-10-31T09:00:00+08:00');maintenanceClockStart=Date.now();
+    const normalUntil=Date.now()+10000;while(Date.now()<normalUntil&&!JSON.parse((await request('GET','/v1/admin/runtime')).body).normalSupplyAllowed)await new Promise(resolve=>setTimeout(resolve,50));
+    assert.equal(JSON.parse((await request('GET','/v1/admin/runtime')).body).normalSupplyAllowed,true);
     const healthyCollection=JSON.parse((await request('GET','/v1/admin/collection')).body).items.find(item=>item.shelfEntryId===entry.shelf_entry_id);
     assert.deepEqual(healthyCollection.health,settled.health,'Collection and Care must project the same current health.');
     if(browserFlow)await browserFlow.verifyHealthy(collection[0]);
@@ -1600,11 +1606,15 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
 
   }
   if(multiSeason) {
+    maintenanceClock=Date.parse('2026-10-31T03:00:00+08:00');maintenanceClockStart=Date.now();
     const peopleDeadline=Date.now()+30000;
     while(db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n&&Date.now()<peopleDeadline) {
       assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,50));
     }
     assert.equal(db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n,0);
+    maintenanceClock=Date.parse('2026-10-31T09:00:00+08:00');maintenanceClockStart=Date.now();
+    const normalUntil=Date.now()+10000;while(Date.now()<normalUntil&&!JSON.parse((await request('GET','/v1/admin/runtime')).body).normalSupplyAllowed)await new Promise(resolve=>setTimeout(resolve,50));
+    assert.equal(JSON.parse((await request('GET','/v1/admin/runtime')).body).normalSupplyAllowed,true);
     const firstEntry=db.prepare('SELECT * FROM arca_shelf_entries').get();
     const firstTables=['arca_inventory_materials','arca_inventory_product_facts','arca_deck_fact_revisions','arca_ondeck_commit_receipts'];
     const snapshot=()=>firstTables.map(table=>[table,db.prepare('SELECT * FROM '+table+' WHERE shelf_entry_id=? ORDER BY rowid').all(firstEntry.shelf_entry_id)]);

@@ -170,8 +170,8 @@ test('keeps weak normal evidence internal and rejects user mutations of system l
     const service = createPeopleProcessServices({ schemaManifest, unitOfWork, peopleStore: store });
     const evidence = { contentProfile: 'movie', shelfEntryId: 'entry-a', inventoryRevision: 1,
       displayName: 'Same Name', providerIdentities: [], identityStrength: 'weak', evidenceDigest: hash('weak-a') };
-    assert.equal(service.reconcile(evidence).kind, 'internal_evidence');
-    assert.equal(service.reconcile(evidence).kind, 'known');
+    require('./fixtures/people-state-fixture').seedCandidate(store,evidence);
+    assert.throws(()=>service.reconcile(evidence),/formal Evidence Work coordinator/);
     assert.equal(store.listPeople().length, 0);
     assert.throws(() => service.acceptRegistration({}), { code: 'PEOPLE_LIBRARY_READ_ONLY' });
     assert.throws(() => service.dismissRegistration({}), { code: 'PEOPLE_LIBRARY_READ_ONLY' });

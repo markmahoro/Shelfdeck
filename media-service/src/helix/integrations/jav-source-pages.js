@@ -52,7 +52,14 @@ function parseJavSourcePage(siteRef, code, page, origin) {
     cover = $('img.video-cover').first().attr('src');
     fields = { release_date: validDate(value('日期')), studio: value('片商'), genre: value('類別') };
     people = blocks.toArray().filter(node => clean($(node).find('strong').first().text()).replace(/[:：\s]/g, '') === '演員')
-      .flatMap(node => $(node).find('.value a').toArray().map(actor => clean($(actor).text(), 256)));
+      .flatMap(node => $(node).find('.value a').toArray().map(actor => {
+        const displayName=clean($(actor).text(),256),providerIdentities=[];
+        try{const url=new URL($(actor).attr('href'),origin),match=url.pathname.match(/^\/actors\/([A-Za-z0-9_-]{1,128})$/);
+          if(identityVerified&&url.origin==='https://javdb.com'&&!url.search&&!url.hash&&!url.username&&!url.password&&match)
+            providerIdentities.push({provider:'javdb',namespace:'javdb_actor',providerKey:match[1]});
+        }catch{/* A display name alone remains weak Evidence. */}
+        return {displayName,role:'actor',providerIdentities};
+      }));
     creditRole = 'studio';
   } else if (siteRef === 'javmenu') {
     const main = $('.col-md-9').filter((_, node) => $(node).find('h1.display-5').length === 1).first();
@@ -136,7 +143,7 @@ function parseJavSourcePage(siteRef, code, page, origin) {
   if (fields.studio && creditRole) descriptiveEntries.push({ key: 'studio_credit_role', value: creditRole });
   descriptiveEntries.sort((left, right) => Buffer.compare(Buffer.from(left.key), Buffer.from(right.key)));
   return { identityVerified, observedCode, canonicalResourceUrl: canonical || null, title: displayTitle, coverUrl: cover ? new URL(cover, origin).toString() : null,
-    descriptiveEntries, peopleHints: [...new Set(people.filter(Boolean))].slice(0, 64).map(displayName => ({ displayName, role: 'actor', providerIdentities: [] })) };
+    descriptiveEntries, peopleHints:[...new Map(people.filter(item=>item.displayName).map(item=>[JSON.stringify(item),item])).values()].slice(0,64) };
 }
 
 module.exports = Object.freeze({ document, javDbCandidates, parseJavSourcePage });

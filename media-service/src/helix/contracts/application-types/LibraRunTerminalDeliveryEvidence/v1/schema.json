@@ -117,58 +117,56 @@
               "workId": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 256
+                "maxLength": 4096
               },
               "planId": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 256
+                "maxLength": 4096
               },
               "workBasisDigest": {
                 "type": "string",
-                "minLength": 1,
                 "pattern": "^[a-f0-9]{64}$"
               },
               "workAttemptId": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 256
+                "maxLength": 4096
               },
               "plannerContractRef": {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 256
+                "maxLength": 4096
               },
               "plannerVersion": {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1,
+                "maximum": 9007199254740991
               },
               "catalogDigest": {
                 "type": "string",
-                "minLength": 1,
                 "pattern": "^[a-f0-9]{64}$"
               },
               "graphDigest": {
                 "type": "string",
-                "minLength": 1,
                 "pattern": "^[a-f0-9]{64}$"
               },
               "failureCode": {
                 "type": "string",
-                "minLength": 1
+                "minLength": 1,
+                "maxLength": 4096
               },
               "attemptCount": {
                 "type": "integer",
-                "minimum": 1
+                "minimum": 1,
+                "maximum": 9007199254740991
               },
               "terminalEvidenceDigest": {
                 "type": "string",
-                "minLength": 1,
                 "pattern": "^[a-f0-9]{64}$"
               },
               "memberDigest": {
                 "type": "string",
-                "minLength": 1,
                 "pattern": "^[a-f0-9]{64}$"
               }
             },

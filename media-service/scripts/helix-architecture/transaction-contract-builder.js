@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 
 const crashFixtures = Object.freeze({
+  'actor-prepublication-failure':['Owner terminal CAS before and after exact Foundation failure proof, before COMMIT and response','Only a completely failed no-write publication may close unresolved; uncertain Effects and changed Inventory reject with zero Case writes; failed execution and unrelated Findings remain unchanged',8821],
   'us-adult-match-completion':['exact Run/Basis and full durable Match Result validation, completion row, before and after COMMIT','Completion is immutable and all-or-none; absent or failed pages never become an unmatched decision; no cross-Owner or execution writes',8821],
   'us-adult-actor-choice':['Run/Subject/choice revision validation, immutable Intent and head CAS, Command Receipt/marker/audit, before and after COMMIT','The explicit actor choice and durable receipt are all-or-none; replay precedes later Run/People changes; no People or Arca mutation',8821],
   'jav-correction-recovery-intent':['current Owner/Control and terminal execution validation, prior recovery digest CAS, Intent/Command Receipt/marker/audit writes, before and after COMMIT',
@@ -478,6 +479,13 @@ const definitions = Object.freeze({
     commitClass: 'responsibility_control_commit',
     writeTables: ['arca_source_cleanup_checks', 'arca_shelf_entries', 'arca_canonical_identity_revisions', 'arca_inventory_representations', 'arca_inventory_materials', 'arca_inventory_related_references', 'arca_inventory_product_facts', 'arca_inventory_person_relations', 'arca_deck_fact_revisions', 'arca_ondeck_commit_receipts', 'arca_offload_completions', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
     readTables: ['arca_final_inventory_decisions', 'arca_ondeck_runs'], fixtureRefs: ['ondeck-fixed-transaction'], hasOutbox: true
+  },
+  'Aftercare Actor Publication Failure Closure': {
+    commitClass:'domain_unit_of_work',writeTables:['arca_aftercare_cases','arca_aftercare_settlement_approvals'],
+    readTables:['arca_aftercare_cases','arca_shelf_entries','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal'],
+    readParticipants:[{participantKind:'foundation',owner:'execution-foundation',access:'read',tables:['fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal']}],
+    fixtureRefs:['actor-prepublication-failure'],hasOutbox:false,commitMarkerRequired:false,
+    forbiddenWritePrefixes:['proc_','libra_','people_','fx_']
   },
   'Aftercare Case Creation': {
     commitClass: 'domain_unit_of_work',

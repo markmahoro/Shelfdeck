@@ -129,7 +129,8 @@ const ARCA_DEREGISTRATION_ENABLED=Object.freeze([
 ]);
 const ARCA_ALL_ENABLED=Object.freeze([...ARCA_ENABLED,...ARCA_OFFDECK_ENABLED,...ARCA_DEREGISTRATION_ENABLED]);
 const PEOPLE_IMAGE_ENABLED = Object.freeze(['people.reference_asset.import@1', 'shared.face.embedding.compute@1','people.reference_fact.commit@1']);
-const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED, ...PEOPLE_IMAGE_ENABLED]);
+const PEOPLE_SYSTEM_ENABLED=Object.freeze(['people.registration_evidence.observe@1','people.candidate.commit@1','people.person.commit@1']);
+const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED, ...PEOPLE_IMAGE_ENABLED,...PEOPLE_SYSTEM_ENABLED]);
 const UAT_SOURCE_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79c362d01844af0853bc1c2c37442041acda1821d';
@@ -418,6 +419,7 @@ function createProcurementExecutionRuntime(options) {
     if(processType==='libra_routing')return Object.freeze({priorityClass:'normal_foreground',localPriority:250,priorityRevision:1,supplyRole:'completion'});
     if(processType==='perception_acquisition'||processType==='perception_resolution')return Object.freeze({priorityClass:'normal_foreground',localPriority:240,priorityRevision:1,supplyRole:'completion'});
     if(processType==='people_image_preparation')return Object.freeze({priorityClass:'normal_foreground',localPriority:240,priorityRevision:1,supplyRole:'completion'});
+    if(processType==='people_system_registration')return Object.freeze({priorityClass:'background_observation',localPriority:0,priorityRevision:1,supplyRole:'expansion'});
     if(processType==='libra_acceptance_spec')return Object.freeze({priorityClass:'normal_foreground',localPriority:230,priorityRevision:1,supplyRole:'completion'});
     if(processType==='arca_acceptance')return Object.freeze({priorityClass:'handoff_acceptance',localPriority:400,priorityRevision:1,supplyRole:'completion'});
     if(processType==='arca_ondeck_run')return Object.freeze({priorityClass:'normal_foreground',localPriority:300,priorityRevision:1,supplyRole:'completion'});
@@ -638,6 +640,8 @@ function createProcurementExecutionRuntime(options) {
     resourceDemandResolver: { resolve: ({ snapshot,inputs,preparationScope }) => {const projection=executionProjectionProvider.read({
       ownerDomain:snapshot.work.owner_domain,processType:snapshot.work.process_type,processId:snapshot.work.process_id,workKind:snapshot.work.work_kind});
       const capability=snapshot.node.capability_ref;let resources=[];
+      if(snapshot.work.owner_domain==='people'&&PEOPLE_SYSTEM_ENABLED.includes(capability))
+        resources.push({resourceKey:capability==='people.registration_evidence.observe@1'?'cpu_heavy':'sqlite_write',units:1});
       if(snapshot.work.owner_domain==='people'&&PEOPLE_IMAGE_ENABLED.includes(capability)){
         if(capability==='people.reference_fact.commit@1')resources.push({resourceKey:'sqlite_write',units:1});
         else{
@@ -1051,6 +1055,7 @@ function createProcurementExecutionRuntime(options) {
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.reconcilePhase!=='work_terminal')return null;
+    if(request.ownerDomain==='people'&&request.processType==='people_system_registration')return {workId:request.workId,disposition:request.workAttemptState};
     if(request.ownerDomain==='people'&&request.processType==='people_image_preparation'){
       peopleProcessServices.imageOperations.reconcile(request.processId);
       host?.wakeBackground({ownerDomain:'people',reconcilerKey:'us-adult-recommendation-claims'});
@@ -1123,6 +1128,7 @@ function createProcurementExecutionRuntime(options) {
         return { workId:request.workId, disposition:request.workAttemptState };
       }
       if(request.workAttemptState==='succeeded')arcaProcessServices.aftercareCoordinator.reconcileAssessmentCompletion(request.processId,request.workId);
+      else if(request.workAttemptState==='failed'&&request.workKind.startsWith('us_adult_actor_'))arcaProcessServices.aftercareCoordinator.reconcile(request.processId);
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='arca'&&request.processType==='arca_jav_identity_correction'){

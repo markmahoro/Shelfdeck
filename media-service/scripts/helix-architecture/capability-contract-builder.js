@@ -264,7 +264,7 @@ function approvalAuthorization(capabilityRef) {
 function resourceKinds(capability) {
   if (['arca.us_adult.source.prepare@1','arca.us_adult.references.match@1','arca.us_adult.assets.prepare@1'].includes(capability.id)) return ['cpu','disk_io'];
   if (['arca.us_adult.files.stage@1','arca.us_adult.files.publish@1','arca.us_adult.files.verify@1','arca.us_adult.files.retire@1'].includes(capability.id)) return ['disk_io'];
-  if (['arca.us_adult.inventory.commit@1','arca.us_adult.case.commit@1','people.reference_fact.commit@1'].includes(capability.id)) return ['sqlite_write'];
+  if (['arca.us_adult.inventory.commit@1','arca.us_adult.case.commit@1','people.reference_fact.commit@1','people.candidate.commit@1','people.person.commit@1'].includes(capability.id)) return ['sqlite_write'];
   if (capability.id === 'procurement.field.observation.page.commit@1') return ['volume_read', 'sqlite_write'];
   if (capability.id === 'libra.product_package.publish@1') return ['sqlite_write'];
   if (capability.id === 'arca.shelf_deregistration.release_manifest.verify@1') return ['control_plane'];
@@ -375,6 +375,11 @@ function buildCapabilityPackage(capability) {
     }
   };
 
+  if(capability.id==='people.registration_evidence.observe@1'){
+    const demand=schemas['resource-demand.schema.json'].properties.resourceKinds;
+    schemas['resource-demand.schema.json'].properties.resourceKinds={oneOf:[demand,
+      {type:'array',prefixItems:[{const:'cpu'}],minItems:1,maxItems:1}]};
+  }
   const manifest = {
     schemaVersion: 1,
     capabilityRef: capability.id,

@@ -13,7 +13,7 @@
       ],
       "sourceLocator": {
         "section": "8.9.9",
-        "line": 16037,
+        "line": 16038,
         "lineDigest": "c2993d2fdd186a34ad68f9000cd181f0ab8502959b2bf8c033cf96d16b1c24e5"
       },
       "targetLocator": {
@@ -23,11 +23,11 @@
         "tableId": "arca_defect_admission_heads",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_defect_admission_heads/v1",
-        "contractDigest": "3d54ad50d4afe264c44d314dc6559f0f86c9b4aab1c25e9638c92ebdeca41880"
+        "contractDigest": "1cab7eaf7aac9a91fca1a08f2b2a6b46c94359633bcf6d2aa8dea9f2ecd82287"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "83baf76ecc2888f2351e1cf22e7eb53cda1d5d53f784761550e8849cde9a7239"
+        "value": "7b8bbab23cb35b19c84f1830ddd939640e0fcee5e522200ece9e5c8c22aa7053"
       }
     },
     {
@@ -41,7 +41,7 @@
       ],
       "sourceLocator": {
         "section": "8.9.9",
-        "line": 16038,
+        "line": 16039,
         "lineDigest": "6b01388fbace394628b73d88d23d73a671f05497789ee6e897a75ee25bdad4d2"
       },
       "targetLocator": {
@@ -51,11 +51,11 @@
         "tableId": "arca_defect_repair_intents",
         "owner": "arca",
         "contractRef": "helix://contracts/tables/arca_defect_repair_intents/v1",
-        "contractDigest": "13ccf5cef9110c0706c36287620249a85fb19b1aa6fb1b058994a9730173ed23"
+        "contractDigest": "9d193f48cbcb04b24c8388a40c4aa80de7968ef5a1575e232370fac59a5f1020"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "5f249e2ac9130290ec8b435e5edb137029888a552f754f9b94b3c1182af83fc2"
+        "value": "348af1706a1ab01303efdbbd02cfda74d5d5dfa312461fc05e34e0589032dff2"
       }
     },
     {
@@ -69,7 +69,7 @@
       ],
       "sourceLocator": {
         "section": "8.9.9",
-        "line": 16434,
+        "line": 16435,
         "lineDigest": "49d3449f5bd4106b74bd219582db8e12c7ed799be946420e9f057b86e3807b48"
       },
       "targetLocator": {
@@ -79,11 +79,11 @@
         "tableId": "libra_acquisition_candidate_evidence",
         "owner": "libra",
         "contractRef": "helix://contracts/tables/libra_acquisition_candidate_evidence/v1",
-        "contractDigest": "592f5db9f78a23463da5fe5c4dcd34634425104d29165d43c2bb542ad3ed4973"
+        "contractDigest": "d29e1fac51a3eab62fdf0847862654e8a77983f9c78331084d9676b88d8dca64"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "029bb3cebb7239ea9920cf3613949c8f84cf615928d5d3cb545a6aacc96f139e"
+        "value": "691415e6f75346bc0f2294d75e0502224e56803881c8a6dda49db036fe395be8"
       }
     }
   ]

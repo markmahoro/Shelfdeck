@@ -1232,10 +1232,11 @@ function artifactRequirementSchema() {
 }
 
 function onDeckPersonEvidenceProjectionItemSchema() {
-  return exactDomainSchema('OnDeckPersonEvidenceProjectionItem', { projectionItemId: id(), shelfEntryId: id(),
-    inventoryRevision: positiveInteger(), relationId: id(), relationDigest: digest(), displayName: text({ maxLength: 1024 }),
+  const nullable=value=>({oneOf:[value,{type:'null'}]});
+  return exactDomainSchema('OnDeckPersonEvidenceProjectionItem', { projectionItemId: id(),sourceKind:enumText('media_cast','nfo'),libraryKind:enumText('normal','jav','us_adult'),shelfEntryId: id(),
+    inventoryRevision: positiveInteger(), relationId: nullable(id()), relationDigest: nullable(digest()), displayName: text({ maxLength: 1024 }),
     displayNameNormalized: text({ maxLength: 1024 }), role: text({ maxLength: 256 }),
-    providerIdentities: arrayOf(providerIdentitySchema(), 128), originEvidenceDigest: digest(), nfoObservationDigest: digest(),
+    providerIdentities: arrayOf(providerIdentitySchema(), 128), originEvidenceDigest: nullable(digest()), nfoObservationDigest: nullable(digest()),
     projectionRevision: positiveInteger(), projectionItemDigest: digest() });
 }
 
