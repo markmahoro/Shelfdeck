@@ -101,9 +101,9 @@ function createCleanFacades(options) {
       body: options.peopleAdminQuery.get(input.params.personId),
     });
     if(typeof options.arcaCollectionQuery?.relatedWorks==='function')facades.ArcaCollectionFacade.get_people_personid_collection=async input=>{
-      const person=options.peopleAdminQuery.get(input.params.personId);
-      if(!person)throw Object.assign(new Error('Person was not found.'),{code:'PEOPLE_PERSON_NOT_FOUND'});
-      return {body:options.arcaCollectionQuery.relatedWorks({personId:person.personId,libraryKind:person.libraryKind,
+      const scope=options.peopleAdminQuery.relatedWorksScope(input.params.personId);
+      if(!scope)throw Object.assign(new Error('Person was not found.'),{code:'PEOPLE_PERSON_NOT_FOUND'});
+      return {body:options.arcaCollectionQuery.relatedWorks({...scope,
         cursor:input.query?.cursor,limit:input.query?.limit})};
     };
     if (options.peopleAvatarQuery) {

@@ -31,14 +31,21 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
     consumerDomain:item.delivery.consumer_domain,payloadSchemaRef:item.message.payload_schema_ref,payloadDigest:item.message.payload_digest,payload});}
   async function deliver(item){let payload;try{payload=JSON.parse(item.message.payload_json);}catch{throw new Error('Outbox payload JSON is corrupt.');}
     if(canonicalDigest(payload)!==item.message.payload_digest)throw new Error('Outbox payload digest is corrupt.');
-    if(item.message.message_kind==='people.candidate.opened'&&item.delivery.consumer_domain==='people'){
+    if(['people.candidate.opened','people.merge-candidate.opened'].includes(item.message.message_kind)&&item.delivery.consumer_domain==='people'){
       if(item.message.producer_domain!=='people'||item.message.aggregate_type!=='people-candidate'||
           item.message.payload_schema_ref!=='helix://contracts/signals/people-candidate-opened/v1'||
           payload.candidateId!==item.message.aggregate_id||payload.candidateRevision!==Number(item.message.aggregate_revision))
         throw new Error('Person Candidate signal does not match its committed aggregate.');
       inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'people'},
         resultDigest:canonicalDigest({schema:'people.candidate-signal-consumption@1',...payload}),
-        domainParticipant:options.peopleCoordinator.candidateSignalParticipant(payload)});
+        domainParticipant:item.message.message_kind==='people.merge-candidate.opened'?options.peopleCoordinator.mergeCandidateSignalParticipant(payload):options.peopleCoordinator.candidateSignalParticipant(payload)});
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'people'});return;
+    }
+    if(item.message.message_kind==='people.person.merged'&&item.delivery.consumer_domain==='people'){
+      if(item.message.producer_domain!=='people'||item.message.aggregate_type!=='person'||item.message.payload_schema_ref!=='helix://contracts/signals/people-person-merged/v1'||
+          payload.targetPersonId!==item.message.aggregate_id||payload.targetPersonRevision!==Number(item.message.aggregate_revision))throw new Error('Merge signal differs from its committed target revision.');
+      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'people'},
+        resultDigest:canonicalDigest({schema:'people.merge-signal-consumption@1',...payload}),domainParticipant:options.peopleCoordinator.mergeSignalParticipant(payload)});
       inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'people'});return;
     }
     if(item.message.message_kind==='people.person.registered'&&item.delivery.consumer_domain==='people'){

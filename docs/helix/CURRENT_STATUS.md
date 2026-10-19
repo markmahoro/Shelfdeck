@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-19 系统人物归并增量：维护内可靠编号归并正式Work/Owner事务/消息ACK，普通/JAV无用户确认；原名/身份历史保留，作品经People Merge身份Scope与Arca当前关系连续读取。真实Host归并1项、Arca CPU刷新及作品1项、Owner/规则18项通过。固定c046独立完整Gate3062 PASS/1 FAIL/13 skip，输入未变；唯一P3 trace manifest漂移已准确修复并局部24项复验，尚无新固定版本完整PASS。该固定版本独立Windows原生模型包检查通过；Reference GC、维护剩余及最终全量/Linux/浏览器/UI审核继续，无生产操作。
+
 2026-10-19 历史人物与副本工具增量：可靠TMDB人物命名空间隔离查询/提交、历史头像与NFO编号修复通过69项及人物页9项；离线main 210→224结构副本已实现，保留全部209个旧事实表原列/行、旧确认及收藏引用，仅可靠来源填分库，未知/冲突与未完成责任拒绝。Operator与来源合批21项通过，生产副本未读取/升级，未发布；Reference GC、正式可靠归并、维护剩余及最终平台/UI资格继续。
 
 2026-10-19 Actor stage恢复增量：原Case独立discard Work及持久Effect精确清扫完成后才可无写入失败收口。真实Host在Inventory提交前/后及stage删除第一项实际exit 73/74/75，原Case恢复、新Intent刷新和历史Source期限组合1 PASS；局部20项、Web233项与构建通过。当前P2为130/108/224/57/144、162路由，aggregate见现有Evidence。独立c04641bab完整Gate在运行；人物深度维护、Reference GC、离线升级、维护剩余及最终平台/UI仍开放，未交付或操作生产。

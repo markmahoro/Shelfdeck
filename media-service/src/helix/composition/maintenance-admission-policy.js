@@ -6,6 +6,7 @@ const MAINTENANCE = Object.freeze({
   'perception:active-periodic-acquisitions': '同步豆瓣评分',
   'people:ondeck-nfo-person-evidence': '收纳演员资料',
   'people:ondeck-person-evidence': '完善演员身份',
+  'people:reliable-person-merge': '归并可靠演员身份',
   'people:us-adult-recommendations': '整理演员推荐',
   'arca:due-aftercare-shelf-entries': '检查收藏健康',
   'arca:aftercare-workspace-lifecycle': '清理到期维护工作区',
@@ -30,6 +31,7 @@ const NORMAL = new Set([
 ]);
 const MAINTENANCE_WORKS = new Set([
   'people:system_person_registration',
+  'people:system_person_merge',
   'arca:periodic_health_assessment', 'arca:periodic_custody_assessment', 'arca:care_workspace_reclaim',
   'arca:offdeck_policy_evaluation', 'arca:offdeck_duplicate_detection',
 ]);

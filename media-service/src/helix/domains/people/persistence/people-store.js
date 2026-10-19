@@ -3,6 +3,7 @@
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { requireLibraryKind, requireSameLibrary } = require('../model/person-library');
 const { personIdentityNamespaces } = require('../model/provider-person-identity');
+const { reliablePair } = require('../model/system-merge-work');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const {
   PEOPLE_CANDIDATE_DRAFT_SCHEMA, createCandidate, createCandidateDraft, createCandidateRevision, createPerson,
@@ -512,13 +513,25 @@ function createPeopleStore(options) {
         return {personId:payload.personId,personRevision:payload.personRevision};
       } });
     },
-    createCandidateSignalParticipant(payload){
+    createCandidateSignalParticipant(payload,kind='registration'){
       exactInput(payload,['candidateId','candidateRevision','candidatePayloadDigest'],'PEOPLE_CANDIDATE_SIGNAL_INVALID');
       if(payload.candidateRevision!==1||!/^[a-f0-9]{64}$/.test(payload.candidatePayloadDigest||''))fail('PEOPLE_CANDIDATE_SIGNAL_INVALID','Candidate signal must bind its exact initial revision.');
       return Object.freeze({participantId:'people_candidate_signal',owner:'people',repositories:[candidates],execute(context){
-        const row=context.repository(candidates.repositoryId).invoke('find_registration_candidate',{registration_candidate_id:payload.candidateId});
+        const row=context.repository(candidates.repositoryId).invoke(kind==='merge'?'find_merge_candidate':'find_registration_candidate',
+          kind==='merge'?{merge_candidate_id:payload.candidateId}:{registration_candidate_id:payload.candidateId});
         if(!row||row.current_revision<payload.candidateRevision||row.candidate_payload_digest!==payload.candidatePayloadDigest)
           fail('PEOPLE_CANDIDATE_SIGNAL_INVALID','Candidate signal differs from its durable immutable payload.');
+        return payload;
+      }});
+    },
+    createMergeSignalParticipant(payload){
+      exactInput(payload,['sourcePersonId','sourcePersonRevision','targetPersonId','targetPersonRevision','candidateId'],'PEOPLE_MERGE_SIGNAL_INVALID');
+      return Object.freeze({participantId:'people_merge_signal',owner:'people',repositories:[registry],execute(context){
+        const repository=context.repository(registry.repositoryId),source=repository.invoke('find_person_revision',{person_id:payload.sourcePersonId,revision:payload.sourcePersonRevision}),
+          target=repository.invoke('find_person_revision',{person_id:payload.targetPersonId,revision:payload.targetPersonRevision});
+        if(!source||!target||source.person_status!=='merged'||source.merged_into_person_id!==payload.targetPersonId||
+          source.origin_candidate_kind!=='merge'||target.origin_candidate_kind!=='merge'||source.origin_candidate_id!==payload.candidateId||target.origin_candidate_id!==payload.candidateId)
+          fail('PEOPLE_MERGE_SIGNAL_INVALID','Merge signal differs from exact immutable Owner revisions.');
         return payload;
       }});
     },
@@ -582,6 +595,13 @@ function createPeopleStore(options) {
       return execute([registry], (context) => mapPerson(context.repository(registry.repositoryId),
         context.repository(registry.repositoryId).invoke('find_person', { person_id: personId })));
     },
+    relatedWorksScope(personId){return execute([registry],context=>{const repository=context.repository(registry.repositoryId),person=repository.invoke('find_person',{person_id:personId});
+      if(!person)return null;const personIds=person.library_kind==='us_adult'?[personId]:ownerIdsForProjection(repository,personId);
+      if(personIds.length>256)fail('PEOPLE_RELATED_WORKS_SCOPE_TOO_LARGE','Related works identity scope exceeds its bounded query size.');
+      for(const id of personIds)if(repository.invoke('find_person',{person_id:id})?.library_kind!==person.library_kind)
+        fail('PEOPLE_CROSS_LIBRARY_MERGE_FORBIDDEN','Historical Merge correlation crosses Person libraries.');
+      return Object.freeze({personId,libraryKind:requireLibraryKind(person.library_kind),personIds:Object.freeze(personIds)});
+    });},
     listPeople() {
       return execute([registry], (context) => {
         const repository = context.repository(registry.repositoryId);
@@ -644,6 +664,12 @@ function createPeopleStore(options) {
         if(matches.size > 1) fail('P6_PEOPLE_PROVIDER_IDENTITY_CONFLICT', 'TMDB Person namespace evidence identifies different active Persons.');
         return matches.size ? mapPerson(repository, repository.invoke('find_person', { person_id:[...matches][0] })) : undefined;
       });
+    },
+    findActivePeopleByProviderIdentity(identity) {
+      exactInput(identity,['libraryKind','provider','namespace','providerKey'],'P6_PEOPLE_PROVIDER_IDENTITY_LOOKUP_INPUT');requireLibraryKind(identity.libraryKind);
+      return execute([registry],context=>{const repository=context.repository(registry.repositoryId),ids=new Set(personIdentityNamespaces(identity).map(namespace=>
+        repository.invoke('find_active_provider_identity',{library_kind:identity.libraryKind,provider:identity.provider,namespace,provider_key:identity.providerKey,active_guard:1})?.person_id).filter(Boolean));
+        return [...ids].sort().map(id=>mapPerson(repository,repository.invoke('find_person',{person_id:id})));});
     },
     appendPreference(input) {
       exactInput(input, ['personId', 'revision', 'preferenceLevel', 'reason', 'originKind', 'originRef'], 'P6_PEOPLE_PREFERENCE_INPUT');
@@ -899,6 +925,8 @@ function createPeopleStore(options) {
             (sourcePreferenceLevel !== targetPreferenceLevel || decision.preferenceResolution === 'set_explicit')) {
           fail('P6_PEOPLE_MERGE_PREFERENCE_USER_REQUIRED', 'A strong identity rule cannot resolve a Preference conflict.');
         }
+        if(decision.decisionOrigin==='strong_identity_rule'&&!reliablePair([source,target]))
+          fail('P6_PEOPLE_MERGE_IDENTITY_UNPROVEN','Current reliable Provider identities do not prove this exact Person pair.');
 
         const nextCandidateRevision = createCandidateRevision({ candidateId: decision.candidateId,
           revision: decision.expectedCandidateRevision + 1, state: 'accepted', decisionOrigin: decision.decisionOrigin,
@@ -910,7 +938,10 @@ function createPeopleStore(options) {
         if (candidateAdvanced.changes !== 1) fail('P6_PEOPLE_MERGE_CANDIDATE_FENCE', 'Merge Candidate head changed concurrently.');
 
         const preference = resolveMergePreference(personRepository, decision, sourcePreference, targetPreference, context.commitTimeMs);
-        const aliases = mergeByKey(target.revision.aliases, source.revision.aliases, (item) => item.aliasNormalized);
+        const sourceNames=decision.decisionOrigin==='strong_identity_rule'?[...source.revision.aliases,{aliasDisplay:source.revision.canonicalName,
+          aliasNormalized:source.revision.canonicalName.trim().normalize('NFKC').toLocaleLowerCase(),provenanceDigest:canonicalDigest({schema:'people.merged-name-provenance@1',
+            personId:source.personId,revision:source.currentRevision,factDigest:source.revision.factDigest})}]:source.revision.aliases;
+        const aliases = mergeByKey(target.revision.aliases, sourceNames, (item) => item.aliasNormalized);
         const providerIdentities = mergeByKey(target.revision.providerIdentities, source.revision.providerIdentities,
           (item) => [item.provider, item.namespace, item.providerKey].join('\u0000'));
         const originCandidateRef = { candidateKind: 'merge', candidateId: candidate.candidateId,

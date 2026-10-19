@@ -358,6 +358,14 @@ test('strong identity rule cannot choose across conflicting Preferences', () => 
   });
 });
 
+test('a system Merge cannot use equal Preferences to accept an unproven Person pair',()=>fixture(({coordinator,store})=>{
+  seedMergePeople(store,false);coordinator.execute(candidateRequest(mergeDraft(store)));
+  const candidate=store.getMergeCandidate('merge-1'),decision=mergeDecision(candidate,{decisionOrigin:'strong_identity_rule',ruleRevision:1,preferenceResolution:'keep_target'});
+  delete decision.actorId;decision.decisionDigest=canonicalDigest(Object.fromEntries(Object.entries(decision).filter(([key])=>key!=='decisionDigest')));
+  assert.throws(()=>coordinator.execute(mergeAcceptanceRequest(decision)),{code:'P6_PEOPLE_MERGE_IDENTITY_UNPROVEN'});
+  assert.equal(store.getMergeCandidate('merge-1').currentState,'open');assert.equal(store.getPerson('person-left').status,'active');assert.equal(store.getPerson('person-right').status,'active');
+}));
+
 test('explicit Merge Preference is committed on target and malformed decision is rejected before writes', () => {
   fixture(({ coordinator, store }) => {
     seedMergePeople(store, false);

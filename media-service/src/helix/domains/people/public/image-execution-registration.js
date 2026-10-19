@@ -13,6 +13,8 @@ const {createSystemRegistrationQuery}=require('../application/system-registratio
 const {createSystemRegistrationCoordinator}=require('../application/system-registration-coordinator');
 const {createSystemRegistrationPorts}=require('../capabilities/system-registration-ports');
 const {createSystemRegistrationPlanning}=require('../planning/system-registration-planner');
+const {createSystemMerge}=require('../application/system-merge');
+const mergeModel=require('../model/system-merge-work');
 
 function createPeopleImageExecutionRegistration(options) {
   const peopleStore = createPeopleStore(options);
@@ -22,6 +24,16 @@ function createPeopleImageExecutionRegistration(options) {
     return (input.sourceKind==='nfo'?sources.nfo:sources.cast).read(input);
   }}),systemRegistration=createSystemRegistrationCoordinator({...options,peopleStore}),
     systemPorts=createSystemRegistrationPorts({...options,peopleStore,systemRegistrationQuery});
+  const systemMerge=createSystemMerge({...options,peopleStore}),mergeOptions={...options,peopleStore,systemRegistrationQuery:systemMerge.query,systemModel:mergeModel,
+    systemProcessType:'people_system_merge',systemSourcePort:'personIdentitiesAliasesReferences',systemAlwaysCommit:true,
+    systemWorkKind:'system_person_merge',systemPlannerRef:'helix://people/planners/SystemMerge/v1',systemProjectionPrefix:'helix://people/projections/system-merge/',
+    systemEvidence:(workId,at)=>systemMerge.query.evidence(workId,at),systemMessage:(phase,payload)=>phase==='candidate'?{
+      messageKind:'people.merge-candidate.opened',aggregateType:'people-candidate',aggregateId:payload.draftId,aggregateRevision:1,
+      payloadSchemaRef:'helix://contracts/signals/people-candidate-opened/v1',payload:{candidateId:payload.draftId,candidateRevision:1,candidatePayloadDigest:payload.candidatePayloadDigest}}:{
+      messageKind:'people.person.merged',aggregateType:'person',aggregateId:payload.targetPersonId,aggregateRevision:payload.expectedTargetPersonRevision+1,
+      payloadSchemaRef:'helix://contracts/signals/people-person-merged/v1',payload:{sourcePersonId:payload.sourcePersonId,sourcePersonRevision:payload.expectedSourcePersonRevision+1,
+        targetPersonId:payload.targetPersonId,targetPersonRevision:payload.expectedTargetPersonRevision+1,candidateId:payload.candidateId}}},
+    mergePorts=createSystemRegistrationPorts(mergeOptions);
   const registrationCommand = createDirectPersonRegistrationFromPersistence(peopleStore, options);
   const imageOperations = createPeopleImageOperationCoordinator({ ...options, peopleStore, registrationCommand,
     imagePort: options.peopleImagePort || { stageUpload() { throw new Error('People image ingress is unavailable.'); } },
@@ -29,22 +41,26 @@ function createPeopleImageExecutionRegistration(options) {
   const preparationPorts = createPeopleImagePreparationPorts({ ...options, operationContext: imageOperations.context,
     preparation: options.peopleReferencePreparation || { importImage() { throw new Error('People image import is unavailable.'); },
       computeEmbedding() { throw new Error('People reference compute is unavailable.'); } } });
-  const ports={...preparationPorts,...systemPorts,[COMMIT]:createPeopleReferenceCommitPort({...options,peopleStore,referenceDecision:imageOperations.referenceDecision})};
+  const sharedPorts=Object.fromEntries([mergeModel.CANDIDATE,mergeModel.PERSON].map(capability=>[capability,Object.fromEntries(['execute','validateInputs','validateResult'].map(method=>
+    [method,(context,...args)=>(context.ownerScope?.processType==='people_system_merge'?mergePorts:systemPorts)[capability][method](context,...args)]))]));
+  const ports={...preparationPorts,...systemPorts,...sharedPorts,[mergeModel.OBSERVE]:mergePorts[mergeModel.OBSERVE],
+    [COMMIT]:createPeopleReferenceCommitPort({...options,peopleStore,referenceDecision:imageOperations.referenceDecision})};
   const profileUpdate=createPeopleProfileUpdate({...options,peopleStore});
   return Object.freeze({
     createProcessServices(processOptions){sources={cast:processOptions.onDeckPersonEvidenceProjection,nfo:processOptions.onDeckNfoPersonEvidence};
-      return createPeopleProcessServices({...options,...processOptions,peopleStore,imageOperations,profileUpdate,systemRegistration});},
+      return createPeopleProcessServices({...options,...processOptions,peopleStore,imageOperations,profileUpdate,systemRegistration,systemMerge});},
     createReferenceQuery:()=>createPersonReferenceQuery(peopleStore),
     createRegistrations(manifests) {
-      return [IMPORT, EMBED,COMMIT,...Object.keys(systemPorts)].map(capabilityRef => ({ manifest: manifests[capabilityRef], executor: { version: 1, execute: context => ports[capabilityRef].execute(context) },
+      return [IMPORT, EMBED,COMMIT,...Object.keys(systemPorts),mergeModel.OBSERVE].map(capabilityRef => ({ manifest: manifests[capabilityRef], executor: { version: 1, execute: context => ports[capabilityRef].execute(context) },
         semanticValidator: { ref: manifests[capabilityRef].semanticValidatorRef,
           validateInputs: context => ports[capabilityRef].validateInputs(context), validateResult: (context, outcome) => ports[capabilityRef].validateResult(context, outcome) } }));
     },
     createPlanningRegistration(planning) {
       const planner = createPeopleImagePreparationPlanner({ ...planning, context: imageOperations.context });
       const system=createSystemRegistrationPlanning({...planning,systemRegistrationQuery});
-      return { planners: [{ ownerDomain: 'people', workKind: 'people_image_preparation', plannerContractRef: planner.plannerContractRef, plannerVersion: 1, planner },...system.planners],
-        bindingProjections: [...createPeopleImageProjections({ context: imageOperations.context,referenceDecision:imageOperations.referenceDecision }),...system.bindingProjections] };
+      const merge=createSystemRegistrationPlanning({...mergeOptions,...planning});
+      return { planners: [{ ownerDomain: 'people', workKind: 'people_image_preparation', plannerContractRef: planner.plannerContractRef, plannerVersion: 1, planner },...system.planners,...merge.planners],
+        bindingProjections: [...createPeopleImageProjections({ context: imageOperations.context,referenceDecision:imageOperations.referenceDecision }),...system.bindingProjections,...merge.bindingProjections] };
     },
   });
 }

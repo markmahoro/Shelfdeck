@@ -291,3 +291,15 @@ arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后
 - 隔离archive fixture：实际复制、完整性/FK、三库同名身份、旧待确认保留、已接受弱来源可读、Merge归属传播与冲突、未完成责任、改库/旧字节/新事实后禁止无损回退、别名/覆盖与写入中断均通过；最新21项合批包含8项Operator及13项People证据（us-upgrade-origins.txt）。没有读取/导出/升级生产数据，该证据不代表生产副本Host资格。Windows/Docker显式分发清单已补入工具及精确依赖，仍须最终独立包检查。
 - 72963fb39的Service全量677项/648 PASS/29既有skip/0 fail（135.9秒，arca-discard-service-final.txt）；本文增量尚未全量Service。当前包边界658文件/2320依赖/47包通过，P2保持130/108/224/57/144及aggregate a26df8c4641a9a08b5bb3dc18daa12009acddd9fff8037af4f9ca907be3e804a。固定c04641bab完整Gate仍独立运行，不覆盖本增量。
 - 剩余：系统People可靠归并正式运行、Reference引用审计/无引用GC、维护完整资格、Formation迟发选择实际Host、最终固定提交全量及Windows/Linux/浏览器/具体版本UI审核。全部五议题仍未交付；无生产操作。
+
+
+## 2026-10-19 系统人物可靠归并、作品连续性与固定版本完整Gate
+
+- 普通/JAV新增维护内有界人物分页及可靠Merge Supporting Work。仅Provider人物编号确证且其他编号无矛盾、历史Preference一致的同库active人物可准入；不同名也可确证，同名本身不作依据，US禁止。Work冻结人物Fact/Preference及policy，既有merge_evidence.resolve→candidate.commit→person.commit形成真实typed Result、Owner原子Merge/Result/marker及内部Outbox/Inbox ACK。提交再次重验身份/Preference；稳定保留较早身份，源原名成为有来源别名；原记录/引用不删除。共享现有32个People活动Work上限及维护准入，不用reconciler直接改人物。
+- 原图/引用和Merge合同继续由People持有；当前作品查询由People发布同库有界历史身份Scope，Arca据当前Inventory出演关系分页、去重读取。既有Arca关系不必为展示立即重写，US仍严格单Actor，HTTP调用方不能覆盖Scope。相关Owner/规则/作品18项通过（system-merge-owner-collection.txt），既有People/窗口33项检查点通过；最新Package660文件/2329依赖/47包及semantic2535文件/42精确豁免通过。
+- 正式Host在窗口外不归并，窗口内真实三步Work及两类消息ACK后仅归并可靠同库对；同名不同编号、跨库、Preference冲突保持。跨Host重开不重复归并、历史来源连续可读及相关作品身份Scope验证1 PASS/49.9秒（people-system-merge-host-final.txt）。首次20秒等待小于正式30秒reconciler cadence而无Work，不是业务成功；随后测试清理句柄顺序错误已修正，只有最终完整通过计PASS。Arca真实固定CPU指定刷新/正式HTTP相关作品复验1 PASS/63.9秒（merge-arca-related-host.txt），收藏身份不变。
+- 独立物理依赖固定c04641bab完整Architecture完成：3076 total/3062 PASS/1 FAIL/13 skip，3516.1秒（architecture-c04641bab.txt）。输入前后4140文件aggregate均7ca7843fac25b4656534d5cad5046b0197ee812d68982ae9d05bcbf767ad63f5，没有开发中改动。Package/semantic/manifests/P2均PASS；唯一失败为P3生成manifest未随table contract摘要重新物化，DDL digest仍33ef1d7c…且无物理结构变化。已重新物化追溯manifest并同步未发布Operator目标archive trace，P3/P2/construction24项及Operator8项通过（merge-frozen-contracts.txt、merge-upgrade-archive.txt），不把局部修复后的版本称为完整Gate PASS。
+- 同一固定c046完整Gate内，独立Windows分发包使用自带依赖启动、拒绝覆盖及本机原生ONNX/YuNet/SFace加载/空图推理和显式良性图128维特征检查通过1项/29.7秒；相关模型、初次整理、原Run人工确认、推荐建档/来源A、Actor自动/指定/真实提交崩溃及图库Host均通过。13项skip不代表适用Linux/真实Provider/平台或最终UI资格通过。完整Gate不覆盖后续729/be4及当前归并增量。
+- 当前仍有Reference显式引用审计/无引用GC及维护剩余资格，最终固定版本Service/Web/Architecture、适用Linux与实际浏览器/具体版本UI负责人审核。未部署、未操作生产或真实媒体，五议题尚未交付。
+
+本增量Service全量677项/648 PASS/29既有skip/0 fail，141.2秒（system-merge-service.txt）；规则排序与最终Scope专项5项再次通过。未将独立固定c046旧版本Gate结果推广到新提交。

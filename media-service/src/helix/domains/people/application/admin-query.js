@@ -45,6 +45,7 @@ function createPeopleAdminQuery(options) {
         mergedPersonCount:counts.reduce((sum,item)=>sum+item.mergedPersonCount,0),openRegistrationCandidateCount:0,openMergeCandidateCount:0});
     },
     list,
+    relatedWorksScope:personId=>options.store.relatedWorksScope(personId),
     get(personId) {
       const result = options.store.getPerson(personId);
       if(!result)return null;

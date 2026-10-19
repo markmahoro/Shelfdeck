@@ -200,13 +200,16 @@ function createArcaCollectionQuery(options) {
   function getBase(shelfEntryId){return execute('arca_collection_entry_read',(context)=>map(context.repository(repository.repositoryId),context.repository(repository.repositoryId).invoke('find_entry',{shelf_entry_id:shelfEntryId})));}
   function get(shelfEntryId){return withHealth(getBase(shelfEntryId));}
   function relatedWorks(query){
-    const kinds={normal:['tmdb_movie','tmdb_series_season'],jav:['jav_code'],us_adult:['internal_identity']},limit=Number(query?.limit??24),cursor=query?.cursor??'';
+    const kinds={normal:['tmdb_movie','tmdb_series_season'],jav:['jav_code'],us_adult:['internal_identity']},limit=Number(query?.limit??24),cursor=query?.cursor??'',personIds=query?.personIds??[query?.personId];
     if(!query||!Object.hasOwn(kinds,query.libraryKind)||typeof query.personId!=='string'||!query.personId||query.personId.length>256||
         typeof cursor!=='string'||cursor.length>256||!Number.isSafeInteger(limit)||limit<1||limit>100)
       throw Object.assign(new Error('Related works require an exact Person library and bounded cursor.'),{code:'PEOPLE_RELATED_WORKS_QUERY_INVALID'});
+    if(!Array.isArray(personIds)||!personIds.length||personIds.length>256||new Set(personIds).size!==personIds.length||!personIds.includes(query.personId)||
+      personIds.some(id=>typeof id!=='string'||!id||id.length>256)||query.libraryKind==='us_adult'&&personIds.length!==1)
+      throw Object.assign(new Error('Related works require the exact People-owned identity scope.'),{code:'PEOPLE_RELATED_WORKS_QUERY_INVALID'});
     return execute('arca_person_related_works',context=>{
-      const repo=context.repository(repository.repositoryId),found=kinds[query.libraryKind].flatMap(identityKind=>repo.invoke('related_entries',{
-        person_id:query.personId,identity_kind:identityKind,status:'active',cursor,limit:limit+1,offset:0})),
+      const repo=context.repository(repository.repositoryId),found=personIds.flatMap(personId=>kinds[query.libraryKind].flatMap(identityKind=>repo.invoke('related_entries',{
+        person_id:personId,identity_kind:identityKind,status:'active',cursor,limit:limit+1,offset:0}))),
         rows=[...new Map(found.map(row=>[row.shelf_entry_id,row])).values()]
           .sort((a,b)=>Buffer.compare(Buffer.from(a.shelf_entry_id),Buffer.from(b.shelf_entry_id))),page=rows.slice(0,limit),caches=collectionCaches(repo,page),
         items=page.map(row=>{const item=map(repo,row,caches);return Object.freeze({shelfEntryId:item.shelfEntryId,displayIdentity:item.displayIdentity,year:item.year,

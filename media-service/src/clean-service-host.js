@@ -1709,7 +1709,7 @@ async function createCleanServiceHost(options) {
       acquisitionId=>procurementExecution.perception.acquisitionSchedulingClass(acquisitionId)))},
     reconcileEligibilityProvider:{check:scope=>!maintenanceWindow||maintenanceWindow.allows(reconcilerCategory(scope))},
     onReconcileScopeStarted:scope=>maintenanceWindow?.beginScope(maintenanceTaskTitle(scope)),
-    onExecutionScopeStarted:scope=>maintenanceWindow?.beginScope(scope?.processType==='people_system_registration'?'完善演员身份':scope?.workKind?.startsWith('periodic_')?'检查收藏健康':
+    onExecutionScopeStarted:scope=>maintenanceWindow?.beginScope(['people_system_registration','people_system_merge'].includes(scope?.processType)?'完善演员身份':scope?.workKind?.startsWith('periodic_')?'检查收藏健康':
       scope?.ownerDomain==='perception'&&scope.processType==='perception_acquisition'?'同步豆瓣评分':null),
     onCorrectionCleanupCompleted:()=>executionRuntimeHost.wakeBackground({ownerDomain:'arca',reconcilerKey:'recycle-maintenance'}),
     failureEvidenceStore:createFailureEvidenceStore(path.join(options.dataDir, 'diagnostics', 'execution-failures')),

@@ -16472,3 +16472,10 @@ basis 变化重置计数；转入前进程重启从零重新观察，不凭旧�
 本次用户确认的数据保护仅授权版本化离线副本工具与隔离材料验证，不授权生产升级。来源固定为main的210表结构，目标为本次224表结构，精确DDL/manifest分别归档并校验；未完成Formation、入藏/维护/退出/注销、执行与未收口Effect阻断复制，不自动取消、Reset或兼容。
 
 旧人物及Provider identities新增library_kind，仅由可靠TMDB/JavDB人物编号、已入藏影片的Canonical Profile及既有Merge关联推导。无证据或跨库证据冲突明确阻断，禁止按姓名归属、默认普通库或静默拆分/合并身份。全部既有列/行、历史Preference/Reference/Candidate、收藏身份和引用逐字节保留；旧待确认项保留内部解析依据，不批量接受/删除或暴露用户确认队列。新表为空。源只读事务与目标独立事务逐表比较，完整性及FK核验通过才发布新文件；禁止覆盖/链接别名，失败不发布副本。无损回退检查只允许新业务尚未运行且全部旧事实及分库赋值保持时通过，不执行回退。工具Receipt为技术验证，不是生产升级授权。
+
+
+### 2026-10-19 普通/JAV可靠人物归并与作品连续读取
+
+系统人物维护在维护窗口有界分页检查普通/JAV当前人物，只有可靠Provider人物编号一致且其他身份无矛盾、历史Preference一致时才准入People自己的Merge Supporting Work。姓名相同不构成依据；US Adult不参与。Work冻结库类型、两份Person Fact与Preference revision及系统Rule；既有merge_evidence.resolve→candidate.commit→person.commit链形成typed Evidence/Candidate、既有Owner原子Merge事务、Result/marker和People内部Outbox确认。提交再次验证可靠身份和Preference，冲突仅内部保留，不产生用户确认。稳定保留较早身份为target，同一时间按Person ID排序；保留原名为有来源别名，历史Person/引用不硬删除。未完成Work受维护准入和原安全收尾约束，最多32个People活动Work，游标及幂等定义跨重启保持。
+
+人物相关作品读取由People给出同库、最多256个已正式Merge身份的只读作用域，Arca仅按该作用域及当前Inventory关联分页、去重读取，HTTP调用方不能覆盖库类型/身份集合。归并不直接改写Arca关系、收藏身份或文件；旧关系可在后续Arca普通维护更新前继续通过正式Merge身份链显示。US作品仍只有明确单个用户Actor，禁止借此广播刷新影片。
