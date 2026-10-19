@@ -482,8 +482,8 @@ const definitions = Object.freeze({
   },
   'Aftercare Actor Publication Failure Closure': {
     commitClass:'domain_unit_of_work',writeTables:['arca_aftercare_cases','arca_aftercare_settlement_approvals'],
-    readTables:['arca_aftercare_cases','arca_shelf_entries','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal'],
-    readParticipants:[{participantKind:'foundation',owner:'execution-foundation',access:'read',tables:['fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal']}],
+    readTables:['arca_aftercare_cases','arca_shelf_entries','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings'],
+    readParticipants:[{participantKind:'foundation',owner:'execution-foundation',access:'read',tables:['fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings']}],
     fixtureRefs:['actor-prepublication-failure'],hasOutbox:false,commitMarkerRequired:false,
     forbiddenWritePrefixes:['proc_','libra_','people_','fx_']
   },

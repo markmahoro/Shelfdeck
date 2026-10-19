@@ -1,6 +1,6 @@
 'use strict';
 const {canonicalDigest:D,canonicalJson}=require('../../../contracts/canonical-json');
-const {CAPS,executionInput,effectClass,resultRef}=require('../model/us-adult-actor-pipeline');
+const {CAPS,capability,executionInput,effectClass,resultRef}=require('../model/us-adult-actor-pipeline');
 const {executionScope}=require('../model/us-adult-actor-refresh-execution');
 const {buildFacts,buildFilePlan}=require('../model/us-adult-actor-products');
 const {buildInventoryChange,buildControlChanges}=require('../model/us-adult-actor-inventory-change');
@@ -9,13 +9,14 @@ const {physicalIdentityFromInventoryRow,aftercareInventoryCommitId,aftercareInve
 const {createMaterialControlParticipant,controlScopeDigest}=require('../../../foundation/persistence/material-control');
 const stable=(prefix,value)=>prefix+D(value).slice(0,40);
 function fail(message){throw Object.assign(new Error(message),{code:'ARCA_US_ADULT_PHASE_PROOF_INVALID'});}
+function selectedPhase(action,input){return action==='close'&&input?.action==='unchanged'?'unchanged':action==='retire'&&input?.action==='discard'?'discard':action;}
 function createUsAdultActorPipelinePorts(options){
   const query=options.actorPipelineQuery,reader=options.aftercareContextReader,now=options.now||Date.now;
   function current(execution,action){
     const input=execution.namedInputs,caseId=input?.usAdultActorRefreshScope?.aftercareCaseId||input?.usAdultActorExecutionInput?.aftercareCaseId,
       snapshot=caseId&&query.inspect(execution.ownerScope?.processId,caseId),phase=snapshot?.stages[action],
       definition=options.workResultReader.readDefinition(execution.workId)?.definition;
-    if(execution.ownerScope?.domain!=='arca'||execution.ownerScope.processType!=='arca_shelf_entry'||execution.capabilityRef!==CAPS[action==='unchanged'?'close':action]||
+    if(execution.ownerScope?.domain!=='arca'||execution.ownerScope.processType!=='arca_shelf_entry'||execution.capabilityRef!==capability(action)||
         !phase||execution.workId!==phase.work.workId||canonicalJson(definition)!==canonicalJson(phase.work)||!query.assertAuthority(snapshot.intent.shelfEntryId,caseId))
       fail('Actor phase must execute its exact admitted Work and current Entry authority.');
     if(action==='assets'){
@@ -28,7 +29,7 @@ function createUsAdultActorPipelinePorts(options){
     return snapshot;
   }
   function outcome(execution,action,result,at,verification=D(result)){
-    const cap=CAPS[action==='unchanged'?'close':action],base='helix://contracts/capabilities/'+cap.replace('@1','/v1/'),digest=D(result),
+    const cap=capability(action),base='helix://contracts/capabilities/'+cap.replace('@1','/v1/'),digest=D(result),
       value={kind:'succeeded',resultSchemaRef:base+'result',result,evidenceSchemaRef:base+'evidence',evidence:{
         evidenceId:stable('arca-us-phase-evidence-',{eventId:execution.eventId,digest}),evidenceKind:'us_adult_actor_'+action,producerRef:cap,
         basisDigest:options.workResultReader.readDefinition(execution.workId).definition.executionBasisDigest,payloadDigest:digest,observedAtMs:at}};
@@ -49,7 +50,7 @@ function createUsAdultActorPipelinePorts(options){
     aftercareCaseId:care.aftercareCaseId,shelfEntryId:intent.shelfEntryId,intentId:intent.intentId,intentDigest:intent.intentDigest,
     selectionDigest:selection.selectionDigest,planDigest:plan.planDigest,action,receipt,receiptDigest:D(receipt)};
     return {schemaRef:'helix://contracts/types/ArcaUsAdultFileReceipt/v1',schemaVersion:1,evidenceId:stable('arca-us-file-evidence-',body),
-      evidenceKind:'us_adult_actor_'+action,producerRef:CAPS[action],basisDigest:intent.intentDigest,payloadDigest:D(body),observedAtMs:at,...body};}
+      evidenceKind:'us_adult_actor_'+action,producerRef:capability(action),basisDigest:intent.intentDigest,payloadDigest:D(body),observedAtMs:at,...body};}
   async function assets(execution,snapshot,port){
     const {intent,care,context,selection}=snapshot,facts=buildFacts(context,selection),
       row=context.raw.materials.find(item=>item.role==='metadata_sidecar'),target=reader.sourceTargetBinding(intent.shelfEntryId,row),
@@ -115,7 +116,8 @@ function createUsAdultActorPipelinePorts(options){
       try{
         const work=options.workResultReader.readDefinition(context.work?.work_id)?.definition,
           caseId=work?.dependencyRefs.find(item=>item.objectType==='aftercare_case')?.objectId,
-          phase=action==='close'&&work?.workObjectiveTypeRef==='helix://arca/work/us_adult_actor_unchanged/v1'?'unchanged':action,
+          phase=action==='close'&&work?.workObjectiveTypeRef==='helix://arca/work/us_adult_actor_unchanged/v1'?'unchanged':
+            action==='retire'&&work?.workKind==='us_adult_actor_discard'?'discard':action,
           snapshot=caseId&&query.inspect(context.work.process_id,caseId);
         if(!snapshot||context.work.owner_domain!=='arca'||context.work.process_type!=='arca_shelf_entry'||context.event?.work_id!==work.workId||
             context.event.capability_ref!==CAPS[action]||context.effect?.effect_class!==effectClass(phase)||
@@ -127,15 +129,15 @@ function createUsAdultActorPipelinePorts(options){
           return {status:committing?'whole_absent':'absent',fenceValid:true,...(!committing?{revisionMatches:false}:{}),
             evidenceDigest:D({schema:'arca.us-adult-fact-recovery@1',intentDigest:snapshot.intent.intentDigest,action,input:executionInput(snapshot,phase)})};
         }
-        const port=query.portFor(snapshot),proof=await port.files.observe(snapshot.plan,snapshot.stages.stage?.record?.result.receipt,action,{
+        const port=query.portFor(snapshot),proof=await port.files.observe(snapshot.plan,snapshot.stages.stage?.record?.result.receipt,phase,{
           shouldContinue:()=>query.assertAuthority(snapshot.intent.shelfEntryId,caseId)});
         return {status:'forward_required',rollbackDeclared:false,evidenceDigest:D(proof)};
       }catch(error){return {status:'conflict',...(fact?{fenceValid:false,...(!committing?{revisionMatches:false}:{})}:{rollbackDeclared:false}),
         evidenceDigest:D({schema:'arca.us-adult-phase-recovery-conflict@1',action,eventId:context.event?.event_id||null,code:error.code||'ARCA_US_ADULT_RECOVERY_CONFLICT'})};}
     },
-    validateInputs(execution){return current(execution,action==='close'&&execution.namedInputs?.usAdultActorExecutionInput?.action==='unchanged'?'unchanged':action);},
+    validateInputs(execution){return current(execution,selectedPhase(action,execution.namedInputs?.usAdultActorExecutionInput));},
     async execute(execution){
-      const phase=action==='close'&&execution.namedInputs?.usAdultActorExecutionInput?.action==='unchanged'?'unchanged':action,
+      const phase=selectedPhase(action,execution.namedInputs?.usAdultActorExecutionInput),
         snapshot=current(execution,phase);
       if(phase==='close'||phase==='unchanged')return close(execution,phase,snapshot);
       const port=query.portFor(snapshot,execution),settings={recoveryDecision:execution.recoveryDecision,shouldContinue:()=>{

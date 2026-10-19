@@ -1,10 +1,10 @@
 'use strict';
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
 const {CAPS}=require('../../../contracts/us-adult-actor-file-contracts');
-const RESULTS=Object.freeze({assets:'ArcaUsAdultAssetsPrepared',stage:'ArcaUsAdultFileReceipt',publish:'ArcaUsAdultFileReceipt',verify:'ArcaUsAdultFileReceipt',
+const RESULTS=Object.freeze({discard:'ArcaUsAdultFileReceipt',assets:'ArcaUsAdultAssetsPrepared',stage:'ArcaUsAdultFileReceipt',publish:'ArcaUsAdultFileReceipt',verify:'ArcaUsAdultFileReceipt',
   commit:'AftercareInventoryCommitReceipt',retire:'ArcaUsAdultFileReceipt',close:'AftercareCaseResult',unchanged:'AftercareCaseResult'});
-const effectClass=action=>action==='assets'?'workspace_write':['stage','publish','retire'].includes(action)?'material_commit':action==='verify'?'pure_observation':action==='commit'?'responsibility_control_commit':'domain_fact_commit';
-const capability=action=>CAPS[action==='unchanged'?'close':action];
+const effectClass=action=>action==='assets'?'workspace_write':['stage','publish','retire','discard'].includes(action)?'material_commit':action==='verify'?'pure_observation':action==='commit'?'responsibility_control_commit':'domain_fact_commit';
+const capability=action=>CAPS[action==='unchanged'?'close':action==='discard'?'retire':action];
 const resultRef=action=>'helix://contracts/capabilities/'+capability(action).replace('@1','/v1/result');
 function phaseWork(intent,care,action,dependencies){
   const id=canonicalDigest({schema:'arca.us-adult-phase-work@1',intentDigest:intent.intentDigest,aftercareCaseId:care.aftercareCaseId,action,dependencies});
@@ -38,7 +38,7 @@ function executionInput(snapshot,action){
     completionDigest:snapshot.completion?.completionDigest||null};
   // A Work's projected input never starts referring to its own later result.
   const order=['assets','stage','publish','verify','commit','retire','close'];
-  for(const later of order.slice(Math.max(0,order.indexOf(action)))){
+  for(const later of order.slice(action==='discard'?2:Math.max(0,order.indexOf(action)))){
     const prefix={assets:'assets',stage:'stage',publish:'publish',verify:'verify',commit:'commit',retire:'retirement'}[later];
     if(prefix){body[prefix+'WorkId']=null;body[prefix+'ResultDigest']=null;}
   }

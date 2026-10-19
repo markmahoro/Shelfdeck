@@ -24,6 +24,13 @@ it('reports a proven failed publication and allows a fresh explicit refresh with
   expect(refresh.mock.calls[0][1]).toMatchObject({mode:'automatic',expectedInventoryRevision:4,expectedRepresentationDigest:'inventory-digest'});
   expect(h.onChanged).not.toHaveBeenCalled();
 });
+it('reports a current Owner version conflict even when its Work has not failed',async()=>{
+  mount({...state,canRefresh:false,blockingCaseId:'active-case',progress:{aftercareCaseId:'active-case',mode:'specified',state:'active',
+    reasonCode:'ARCA_US_ADULT_REFRESH_EXECUTION_STALE',works:[{workId:'waiting-work',phase:'source',state:'ready',failureCode:null}]}});
+  expect(await screen.findByRole('alert')).toHaveTextContent('影片或执行版本发生变化');
+  expect(screen.getByRole('button',{name:'自动刷新演员'})).toBeDisabled();
+  expect(screen.queryByText('演员刷新已完成。')).not.toBeInTheDocument();
+});
 it('requires a visible reference image and submits the exact Inventory and Actor revisions',async()=>{
   const refresh=vi.spyOn(helixAdminApi,'refreshInventoryActor').mockResolvedValue({aftercareCaseId:'case',state:'queued',replayed:false}),h=mount(),
     radio=await screen.findByRole('radio',{name:'New Actor'}),button=screen.getByRole('button',{name:'指定演员并更新'});

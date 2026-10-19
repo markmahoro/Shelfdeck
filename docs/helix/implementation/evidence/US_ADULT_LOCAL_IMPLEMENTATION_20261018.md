@@ -270,3 +270,14 @@ arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后
 ### 925145631固定副本与打包延迟依赖补齐
 
 独立物理依赖checkout已切到925145631：Service 677 total/648 PASS/29既有skip/0 fail（146.1秒，service-925145631.txt），Windows独立包启动1 PASS（56.7秒，windows-925145631.txt）。该Windows检查只证明原HTTP/基础二进制启动；后续人工审查发现新Arca Root analysis adapter为函数内延迟require，Windows/Docker显式打包清单均漏列，原启动不能证明Actor动作可用。已为两种分发加入精确文件，Windows包检查增加实际require及包内原生YuNet/SFace模型加载、空图推理；有显式良性参考图时还检查单脸128维特征，不使用外部NODE_PATH。Windows/Docker静态入口防漏1 PASS；新增包内原生检查待新固定提交复验。没有因启动PASS关闭完整平台资格，失败stage残留清扫仍开放。
+
+
+## 2026-10-19 Actor失败stage回收、真实第三崩溃边界及Source期限
+
+- c04641bab后的同Phase本地增量。无写入发布失败不直接结束Case：Arca冻结失败Evidence及实际stage Result，原Case准入独立discard Supporting Work，复用arca.us_adult.files.retire@1、material_commit及正式Planner/Event/Effect；仅精确stage manifest可被删除。成员、hash、物理身份及目录边界全量预检，逐项删除前再次验证；未知/变字节/链接不扩大清扫，也不碰原片、retained/final或外来冲突字节。
+- 失败收口事务要求成功discard Work/Event/Attempt/typed Result、正确manifest/plan digest及闭合Effect；清扫未完成、reconcile_required、Evidence更改或晚发Foundation拒绝均禁止Owner结案。没有新Canonical事务或新Capability，闭合既有057事务合同。
+- 实际正式Host：Inventory COMMIT前exit 73、COMMIT后但Event完成前exit 74；第三次外来目标冲突后，在真实删除第一项stage文件立即exit 75。重启原数据，沿原Case/Effect删除剩余精确stage，再unresolved；原库存/外来目标字节保持。用户显式新Intent完成刷新，旧失败Work/Case保持。源准备Result在其历史24小时源租约过期一天后仍以冻结Work结果消费，Result与digest不变。日志arca-discard-expired-source-host.txt：1 PASS、85.0秒。
+- Source单独4 PASS（arca-source-lease-renewal.txt）：过期物理读取租约拒绝；Owner以同物理源及同冻结Work重新捕获当前授权。不能用历史Source结果取得新的过期媒体读取权。最新组合arca-discard-final-local.txt为20 PASS，含文件改变/未知stage拒绝、真实子进程部分删除恢复、Owner迟发回滚、只读当前Basis冲突及P2；此前31项组合与其重叠不累加。
+- GET状态检测已知当前Basis/执行来源冲突并明确reasonCode，不改变Case、不捏造Work。前端显示活动冲突及实际discard阶段；Web233 PASS/43文件，build PASS（既有554.03 kB chunk warning），日志arca-discard-web-final.txt及arca-discard-web-build-final.txt。没有自动取消/重设冻结Case，其他未知错误仍明确失败。
+- 当前P2：130 Capability/108 Result/224表/57事务/144 Domain inputs/31 shared/240引用/0 unresolved/162路由；aggregate a26df8c4641a9a08b5bb3dc18daa12009acddd9fff8037af4f9ca907be3e804a。固定c04641bab完整Architecture仍独立运行，其输入快照4140文件aggregate 7ca7843fac25b4656534d5cad5046b0197ee812d68982ae9d05bcbf767ad63f5，不能冒称覆盖本增量。
+- 开放范围：普通/JAV深度可靠归并/补全、Reference审计与无引用GC、离线副本升级、维护剩余资格、Formation迟发选择正式Host、最终固定版本全量/平台/浏览器及具体版本UI负责人审核。无生产、NAS、真实媒体或Desktop操作，本版仍未交付。

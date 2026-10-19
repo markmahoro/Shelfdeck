@@ -42,7 +42,8 @@
         "commit",
         "retire",
         "close",
-        "unchanged"
+        "unchanged",
+        "discard"
       ]
     },
     "assetsWorkId": {

@@ -9,9 +9,16 @@ test('Actor failure closure atomically rechecks its actual failed publication an
   const care=s.care.getCase(admitted.aftercareCaseId),intent=s.store.get(admitted.intentId).intent,work=phaseWork(intent,care,'publish',[]),
     code='ARCA_US_ADULT_TARGET_CONFLICT',evidence={diagnostics:{schema:'arca.actor-publication-precondition@1',aftercareCaseId:care.aftercareCaseId,
       intentDigest:intent.intentDigest,workId:work.workId,eventId:'failed-event',planDigest:D('plan'),errorCode:code,effectWriteStarted:false,boundary:'before_publication'}},
-    failure={eventId:'failed-event',code,evidenceDigest:D(evidence),evidence},binding={work,failure},
-    digest=D({schema:'arca.actor-prepublication-terminal@1',workId:work.workId,aftercareCaseId:care.aftercareCaseId,
-      intentDigest:intent.intentDigest,failureEvidenceDigest:failure.evidenceDigest}),
+    failure={eventId:'failed-event',code,evidenceDigest:D(evidence),evidence},binding={work,failure};
+  const discardWork=phaseWork(intent,care,'discard',[{ownerDomain:'arca',objectType:'failed_actor_publication',objectId:work.workId,revision:1,digest:failure.evidenceDigest}]),
+    receipt={schema:'arca.us-adult-discarded-stage@1',aftercareCaseId:care.aftercareCaseId,planDigest:D('plan'),stagedManifestDigest:D('stage'),deletedCount:3},
+    result={schemaRef:'helix://contracts/types/ArcaUsAdultFileReceipt/v1',schemaVersion:1,action:'discard',aftercareCaseId:care.aftercareCaseId,
+      intentDigest:intent.intentDigest,planDigest:D('plan'),producerRef:'arca.us_adult.files.retire@1',receipt,receiptDigest:D(receipt)},
+    discardRecord={workId:discardWork.workId,eventId:'discard-event',resultId:'discard-result',outcomeKind:'succeeded',
+      capabilityRef:'arca.us_adult.files.retire@1',resultSchemaRef:'helix://contracts/capabilities/arca.us_adult.files.retire/v1/result',result,resultDigest:D(result)};
+  Object.assign(binding,{discardWork,discardRecord});
+  const digest=D({schema:'arca.actor-prepublication-terminal@1',workId:work.workId,aftercareCaseId:care.aftercareCaseId,
+      intentDigest:intent.intentDigest,failureEvidenceDigest:failure.evidenceDigest,discardResultDigest:discardRecord.resultDigest}),
     close=()=>s.care.terminateCase(care.aftercareCaseId,'unresolved',code,digest,null,binding);
   f.db.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,state,basis_digest,definition_schema_ref,definition_json,definition_digest) VALUES(?,?,?,?,?,?,?,?,?,?)')
     .run(work.workId,'arca','arca_shelf_entry','entry',work.workKind,'failed',intent.intentDigest,work.schemaRef,canonicalJson(work),D(work));
@@ -21,6 +28,19 @@ test('Actor failure closure atomically rechecks its actual failed publication an
     .run('failed-attempt','failed-event',1,'completed','failed','placement_precondition',code,failure.evidenceDigest);
   f.db.prepare('INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,state) VALUES(?,?,?,?)')
     .run('failed-effect','failed-attempt','material_commit','failed');
+  f.db.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,state,basis_digest,definition_schema_ref,definition_json,definition_digest) VALUES(?,?,?,?,?,?,?,?,?,?)')
+    .run(discardWork.workId,'arca','arca_shelf_entry','entry',discardWork.workKind,'succeeded',intent.intentDigest,discardWork.schemaRef,canonicalJson(discardWork),D(discardWork));
+  f.db.prepare('INSERT INTO fx_workflow_events(event_id,work_id,owner_domain,capability_ref,state,result_id) VALUES(?,?,?,?,?,?)')
+    .run('discard-event',discardWork.workId,'arca','arca.us_adult.files.retire@1','succeeded','discard-result');
+  f.db.prepare('INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state,outcome_kind) VALUES(?,?,?,?,?)')
+    .run('discard-attempt','discard-event',1,'completed','succeeded');
+  f.db.prepare('INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,state) VALUES(?,?,?,?)')
+    .run('discard-effect','discard-attempt','material_commit','committed');
+  f.db.prepare('INSERT INTO fx_event_result_bindings(event_id,result_id,outcome_kind,result_schema_ref,result_json,result_digest) VALUES(?,?,?,?,?,?)')
+    .run('discard-event','discard-result','succeeded',discardRecord.resultSchemaRef,canonicalJson(result),D(result));
+  f.db.prepare("UPDATE fx_effect_journal SET state='reconcile_required' WHERE effect_id='discard-effect'").run();
+  assert.throws(close,{code:'ARCA_US_ADULT_FAILURE_CLOSURE_UNPROVEN'});assert.deepEqual(s.care.getCase(care.aftercareCaseId),care);
+  f.db.prepare("UPDATE fx_effect_journal SET state='committed' WHERE effect_id='discard-effect'").run();
   for(const [column,value,original] of [['state','reconcile_required','failed'],['effect_class','workspace_write','material_commit']]){
     f.db.prepare('UPDATE fx_effect_journal SET '+column+'=? WHERE effect_id=?').run(value,'failed-effect');
     assert.throws(close,{code:'ARCA_US_ADULT_FAILURE_CLOSURE_UNPROVEN'});

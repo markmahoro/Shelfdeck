@@ -117,3 +117,37 @@ test('an actual process exit after publication or retirement resumes the exact f
   assert.equal(fs.existsSync(x.old),false);assert.ok(fs.existsSync(x.plan.members[0].targetLocation));
   assert.equal((await x.io.retire(x.plan,manifest,{...x.settings,inventoryCommitted:true})).deletedCount,0);
 });
+
+test('failed publication discards only its exact stage and preserves original and foreign target bytes',async t=>{
+  const x=fixture(t),manifest=await x.io.stage(x.plan,x.settings),before=x.plan.members.map(member=>fs.readFileSync(member.original.location));
+  fs.mkdirSync(x.target);const foreign=path.join(x.target,'foreign.txt');fs.writeFileSync(foreign,'foreign bytes');
+  await assert.rejects(x.io.publish(x.plan,manifest,x.settings),{code:'ARCA_US_ADULT_TARGET_CONFLICT'});
+  const receipt=await x.io.discard(x.plan,manifest,x.settings);
+  assert.equal(receipt.schema,'arca.us-adult-discarded-stage@1');assert.equal(receipt.stagedManifestDigest,manifest.manifestDigest);
+  assert.equal(receipt.deletedCount,manifest.members.length);assert.equal(fs.existsSync(manifest.directory),false);
+  x.plan.members.forEach((member,i)=>{assert.deepEqual(fs.readFileSync(member.original.location),before[i]);assert.equal(fs.existsSync(member.retainedLocation),false);});
+  assert.equal(fs.readFileSync(foreign,'utf8'),'foreign bytes');assert.equal((await x.io.discard(x.plan,manifest,x.settings)).deletedCount,0);
+});
+
+test('stage discard rejects every unknown or changed member before deleting any temporary file',async t=>{
+  const x=fixture(t),manifest=await x.io.stage(x.plan,x.settings),foreign=path.join(manifest.directory,'foreign.txt');
+  fs.writeFileSync(foreign,'keep');await assert.rejects(x.io.discard(x.plan,manifest,x.settings),{code:'ARCA_US_ADULT_STAGE_CONFLICT'});
+  assert.equal(fs.readFileSync(foreign,'utf8'),'keep');assert.ok(manifest.members.every(member=>fs.existsSync(member.location)));
+  fs.unlinkSync(foreign);fs.writeFileSync(manifest.members[1].location,'changed stage bytes');
+  await assert.rejects(x.io.discard(x.plan,manifest,x.settings),{code:'ARCA_US_ADULT_STAGE_CONFLICT'});
+  assert.ok(manifest.members.every(member=>fs.existsSync(member.location)));
+});
+
+test('an actual process exit during stage discard resumes the original exact temporary scope',async t=>{
+  const x=fixture(t),manifest=await x.io.stage(x.plan,x.settings),input=path.join(x.root,'discard-input.json'),
+    before=x.plan.members.map(member=>fs.readFileSync(member.original.location));
+  fs.writeFileSync(input,JSON.stringify({plan:x.plan,manifest}));
+  const child=require('node:child_process').spawnSync(process.execPath,[path.join(__dirname,'fixtures/us-adult-file-crash-worker.js'),input,'discard'],
+    {encoding:'utf8',windowsHide:true,timeout:15000});
+  assert.equal(child.status,73,child.stderr);
+  const observation=await x.io.observe(x.plan,manifest,'discard',x.settings);
+  assert.equal(observation.members[0].present,false);assert.equal(observation.members.slice(1).every(member=>member.present),true);
+  const receipt=await x.io.discard(x.plan,manifest,{...x.settings,recoveryDecision:'continue_forward'});
+  assert.equal(receipt.deletedCount,manifest.members.length-1);assert.equal(fs.existsSync(manifest.directory),false);
+  x.plan.members.forEach((member,i)=>assert.deepEqual(fs.readFileSync(member.original.location),before[i]));
+});

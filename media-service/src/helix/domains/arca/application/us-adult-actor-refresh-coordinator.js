@@ -10,14 +10,15 @@ function createUsAdultActorRefreshCoordinator(options){
     const submitted=admission.replay(work)||admission.submit(work);
     if(submitted?.kind==='invalid_contract')throw Object.assign(new Error('Actor Supporting Work violates the Foundation contract.'),{code:submitted.reasonCode});
     const status=options.workResultReader.status(work.workId),failed=['failed','cancelled','timed_out'].includes(status?.state);
-    if(failed&&phase==='publish'){
-      const failures=options.workResultReader.readFailures(work.workId,{includeEvidence:true});
-      if(failures.length===1&&failures[0].evidence?.diagnostics?.schema==='arca.actor-publication-precondition@1'){
-        const binding={work,failure:failures[0]},evidenceDigest=canonicalDigest({schema:'arca.actor-prepublication-terminal@1',workId:work.workId,
-          aftercareCaseId:snapshot.care.aftercareCaseId,intentDigest:snapshot.intent.intentDigest,failureEvidenceDigest:failures[0].evidenceDigest});
-        reader.store.terminateCase(snapshot.care.aftercareCaseId,'unresolved',failures[0].code,evidenceDigest,null,binding);
-        return {kind:'actor_refresh_failed',aftercareCaseId:snapshot.care.aftercareCaseId,shelfEntryId:snapshot.intent.shelfEntryId,reasonCode:failures[0].code};
-      }
+    if(failed&&phase==='publish'&&snapshot.publicationFailure){
+      const discard=snapshot.stages.discard;
+      if(!discard?.record)return pending(snapshot,discard.work,'discard');
+      const binding={...snapshot.publicationFailure,discardWork:discard.work,discardRecord:discard.record},
+        evidenceDigest=canonicalDigest({schema:'arca.actor-prepublication-terminal@1',workId:work.workId,
+          aftercareCaseId:snapshot.care.aftercareCaseId,intentDigest:snapshot.intent.intentDigest,
+          failureEvidenceDigest:binding.failure.evidenceDigest,discardResultDigest:discard.record.resultDigest});
+      reader.store.terminateCase(snapshot.care.aftercareCaseId,'unresolved',binding.failure.code,evidenceDigest,null,binding);
+      return {kind:'actor_refresh_failed',aftercareCaseId:snapshot.care.aftercareCaseId,shelfEntryId:snapshot.intent.shelfEntryId,reasonCode:binding.failure.code};
     }
     return Object.freeze({kind:failed?'actor_refresh_attention_required':'actor_refresh_pending',shelfEntryId:snapshot.intent.shelfEntryId,
       aftercareCaseId:snapshot.care.aftercareCaseId,phase,workId:work.workId,

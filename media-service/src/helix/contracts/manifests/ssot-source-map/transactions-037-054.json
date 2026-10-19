@@ -68,11 +68,11 @@
     {
       "id": "Aftercare Actor Publication Failure Closure",
       "owner": "arca",
-      "atomicFactSet": "Arca按持久无写入Evidence作出失败收口决定；单事务expected-state CAS更新原Actor Case为unresolved及stale该Case审批；Foundation只读重验exact Work Definition/failed Event/completed failed Attempt/failed material_commit Effect，Owner重验原Inventory head；证据、revision或Effect状态变化则全回滚；不写执行历史、Event Result、成功marker或其他影片，不自动新建Case。terminal head/Evidence digest提供精确重放",
+      "atomicFactSet": "Arca按持久无写入Evidence及原Case精确stage discard成功Result作出失败收口决定；单事务expected-state CAS更新原Actor Case为unresolved及stale该Case审批；Foundation只读重验exact Work Definition/failed Event/completed failed Attempt/failed material_commit Effect，Owner重验原Inventory head；证据、revision或Effect状态变化则全回滚；不写执行历史、Event Result、成功marker或其他影片，不自动新建Case。terminal head/Evidence digest提供精确重放",
       "source": {
         "section": "8.5.4",
         "line": 8873,
-        "lineDigest": "66a4b8294d3ebe5c285980f8b31b40479e2acfd65323e9661bf3837f6bfbc727"
+        "lineDigest": "c10db6ccad091c50d6f55944239c0cb37b43b239446885e7e138e41ac352b1f2"
       }
     },
     {

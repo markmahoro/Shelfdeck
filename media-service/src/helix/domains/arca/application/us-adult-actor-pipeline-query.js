@@ -6,6 +6,7 @@ const {matchWork,exactSource}=require('../model/us-adult-actor-match-work');
 const {buildSelection}=require('../model/us-adult-actor-selection');
 const {assertSelection}=require('../../../contracts/us-adult-actor-selection');
 const {phaseWork,dependency,completed}=require('../model/us-adult-actor-pipeline');
+const {assertProof:assertPublicationFailure}=require('../persistence/actor-publication-failure');
 const {readRequirement}=require('../model/us-adult-actor-refresh-objective');
 function fail(message){throw Object.assign(new Error(message),{code:'ARCA_US_ADULT_PHASE_PROOF_INVALID'});}
 function createUsAdultActorPipelineQuery(options){
@@ -46,6 +47,16 @@ function createUsAdultActorPipelineQuery(options){
     return options.createUsAdultInventoryAnalysisPort({context,intent,aftercareCaseId:care.aftercareCaseId,contractValidator:options.contractValidator,
       assertAuthority:()=>assertAuthority(intent.shelfEntryId,care.aftercareCaseId,!execution),workspaceRegistry:{rootSnapshot:store.aftercareWorkspaceRootSnapshot,
         ensureWorkspace:id=>store.ensureAftercareWorkspace(id),registerMaterial:handle=>store.registerAftercareWorkspaceMaterial(handle),listHandles:id=>store.listAftercareWorkspaceHandles(id)}});
+  }
+  function publicationFailure(snapshot){
+    const work=snapshot.stages.publish?.work;
+    if(!work||options.workResultReader.status(work.workId)?.state!=='failed')return null;
+    const failures=options.workResultReader.readFailures(work.workId,{includeEvidence:true});
+    if(failures.length!==1||failures[0].evidence?.diagnostics?.schema!=='arca.actor-publication-precondition@1')return null;
+    const binding={work,failure:failures[0]},proof=assertPublicationFailure(binding,{caseId:snapshot.care.aftercareCaseId,
+      intentDigest:snapshot.intent.intentDigest,shelfEntryId:snapshot.intent.shelfEntryId});
+    if(proof.planDigest!==snapshot.plan?.planDigest)fail('Failed publication refers to a different frozen File Plan.');
+    return binding;
   }
   function inspect(entryId,caseId){
     const current=base(entryId,caseId),{intent,care}=current,snapshot={...current,stages:{},source:{work:sourceWork(intent,caseId)},matching:[],selection:null,completion:null,plan:null,facts:null};
@@ -90,7 +101,25 @@ function createUsAdultActorPipelineQuery(options){
       const dependencies=[dependency(assets,snapshot.stages.assets.record.resultDigest),
         ...(previous.work.workId===assets.workId?[]:[dependency(previous.work,previous.record.resultDigest)])],work=phaseWork(intent,care,action,dependencies),
         record=completed(options,work,action);snapshot.stages[action]={work,record};
-      if(!record)break;
+      if(!record){
+        if(action==='publish'){
+          const failure=publicationFailure(snapshot);
+          if(failure){
+            const discardWork=phaseWork(intent,care,'discard',[dependency(assets,snapshot.stages.assets.record.resultDigest),
+              dependency(snapshot.stages.stage.work,snapshot.stages.stage.record.resultDigest),
+              {ownerDomain:'arca',objectType:'failed_actor_publication',objectId:work.workId,revision:1,digest:failure.failure.evidenceDigest}]),
+              discarded=completed(options,discardWork,'discard');
+            snapshot.publicationFailure=failure;snapshot.stages.discard={work:discardWork,record:discarded};
+            if(discarded){const result=discarded.result;
+              if(result.action!=='discard'||result.aftercareCaseId!==caseId||result.intentDigest!==intent.intentDigest||result.planDigest!==planDigest||
+                  result.receiptDigest!==canonicalDigest(result.receipt)||result.receipt.schema!=='arca.us-adult-discarded-stage@1'||
+                  result.receipt.stagedManifestDigest!==snapshot.stages.stage.record.result.receipt.manifestDigest)
+                fail('Stage discard did not preserve its exact Case, Plan and original Stage manifest.');
+            }
+          }
+        }
+        break;
+      }
       if(['stage','publish','verify','retire'].includes(action)&&
           (record.result.aftercareCaseId!==caseId||record.result.intentDigest!==intent.intentDigest||record.result.planDigest!==planDigest||
            record.result.selectionDigest!==snapshot.selection.selectionDigest||record.result.action!==action||record.result.receiptDigest!==canonicalDigest(record.result.receipt)))

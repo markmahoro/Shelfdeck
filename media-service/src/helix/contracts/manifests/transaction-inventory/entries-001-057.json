@@ -1233,7 +1233,7 @@
       "sourceLocator": {
         "section": "8.5.4",
         "line": 8873,
-        "lineDigest": "66a4b8294d3ebe5c285980f8b31b40479e2acfd65323e9661bf3837f6bfbc727"
+        "lineDigest": "c10db6ccad091c50d6f55944239c0cb37b43b239446885e7e138e41ac352b1f2"
       },
       "targetLocator": {
         "path": "transaction-contracts/helix.transaction.aftercare-actor-publication-failure-closure/v1/contract.json"
@@ -1242,11 +1242,11 @@
         "transactionId": "helix.transaction.aftercare-actor-publication-failure-closure",
         "ownerScope": "arca",
         "contractRef": "helix://contracts/transactions/helix.transaction.aftercare-actor-publication-failure-closure/v1",
-        "contractDigest": "cbe56e1b9418f44f38968914744b64c8da56014fc0243e1640b01fee64d2789b"
+        "contractDigest": "ab8c127810b58e5d3e18bb596c9c6a3d7e5b2a330f0501eae997471ca19b3901"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "b080e534150ccc92da309905cde84f08ffaeb3312042dca7447a83a90a4dab65"
+        "value": "64ed33a8f2152cc880109f5e14cfd0040c27ca9082d35571fb6b1bca1db21998"
       }
     },
     {

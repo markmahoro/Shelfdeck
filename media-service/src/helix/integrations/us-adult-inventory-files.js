@@ -199,7 +199,42 @@ function createUsAdultInventoryFiles(options){
     }
     return Object.freeze({schema:'arca.us-adult-retired-files@1',aftercareCaseId:plan.aftercareCaseId,planDigest:plan.planDigest,finalRealityDigest:canonicalDigest(manifest.members.map(item=>({identity:item.physicalIdentity,location:item.targetLocation}))),deletedCount});
   }
+  async function discardReality(plan,manifest,settings){
+    const current=manifestFor(plan,manifest,settings),members=[];
+    parents(current.root,current.stage);
+    if(fs.existsSync(current.stage)){
+      const stat=fs.lstatSync(current.stage);
+      if(!stat.isDirectory()||stat.isSymbolicLink()||fs.readdirSync(current.stage).some(name=>!manifest.members.some(item=>path.basename(item.location)===name)))
+        fail('ARCA_US_ADULT_STAGE_CONFLICT','Stage discard cannot include foreign or linked members.');
+    }
+    for(const staged of manifest.members){
+      current.check();parents(current.root,staged.location);const present=fs.existsSync(staged.location);
+      if(present&&!await exact(staged.location,staged.physicalIdentity,current.check,staged.fullByteDigest))
+        fail('ARCA_US_ADULT_STAGE_CONFLICT','Stage discard requires each exact temporary identity and complete bytes.');
+      members.push({ordinal:staged.ordinal,present});
+    }
+    return {current,members};
+  }
+  async function discard(plan,manifest,settings){
+    const {current}=await discardReality(plan,manifest,settings);let deletedCount=0;
+    for(const staged of manifest.members){
+      current.check();parents(current.root,staged.location);if(!fs.existsSync(staged.location))continue;
+      if(!await exact(staged.location,staged.physicalIdentity,current.check,staged.fullByteDigest))
+        fail('ARCA_US_ADULT_STAGE_CONFLICT','Stage member changed before exact temporary removal.');
+      current.check();fs.unlinkSync(staged.location);deletedCount++;
+    }
+    current.check();parents(current.root,current.stage);
+    if(fs.existsSync(current.stage)){
+      if(fs.readdirSync(current.stage).length)fail('ARCA_US_ADULT_STAGE_CONFLICT','Stage directory gained a foreign member during discard.');
+      fs.rmdirSync(current.stage);
+    }
+    return Object.freeze({schema:'arca.us-adult-discarded-stage@1',aftercareCaseId:plan.aftercareCaseId,planDigest:plan.planDigest,
+      stagedManifestDigest:manifest.manifestDigest,deletedCount});
+  }
   async function observe(plan,manifest,action,settings){
+    if(action==='discard'){
+      const {members}=await discardReality(plan,manifest,settings);return {planDigest:plan.planDigest,action,members};
+    }
     if(action==='stage'){
       const current=await preflight(plan,settings),members=[];
       for(const item of current.prepared){const part=item.location+'.part';parents(current.root,part);
@@ -240,6 +275,6 @@ function createUsAdultInventoryFiles(options){
     }
     return {planDigest:plan.planDigest,action,members};
   }
-  return Object.freeze({stage,publish,verify,retire,preflight,exact,fullDigest,observe});
+  return Object.freeze({stage,publish,verify,retire,discard,preflight,exact,fullDigest,observe});
 }
 module.exports=Object.freeze({PLAN,createUsAdultInventoryFiles});

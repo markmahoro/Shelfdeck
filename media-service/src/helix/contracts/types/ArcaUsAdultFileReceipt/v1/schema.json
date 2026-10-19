@@ -78,7 +78,8 @@
         "stage",
         "publish",
         "verify",
-        "retire"
+        "retire",
+        "discard"
       ]
     },
     "receipt": {
@@ -270,6 +271,40 @@
             "stagedManifestDigest",
             "members",
             "finalRealityDigest"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "arca.us-adult-discarded-stage@1"
+            },
+            "aftercareCaseId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "planDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "stagedManifestDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "deletedCount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "schema",
+            "aftercareCaseId",
+            "planDigest",
+            "stagedManifestDigest",
+            "deletedCount"
           ]
         },
         {

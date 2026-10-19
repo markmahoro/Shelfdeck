@@ -17,15 +17,15 @@ function setup(t){
   const s=f.services(),started=s.command.request('entry',f.request,'admin'),intent=s.store.get(started.intentId).intent;
   s.care.admitCase(started.aftercareCaseId);
   const reader={...s.reader,sourceTargetBinding:()=>({endpointId:'endpoint',rootLocation:f.root,mountScopeId:'mount',mountScopeRevision:1})};
-  let controlled=true,captures=0;
+  let controlled=true,captures=0,clock=10000;
   const make=services=>createUsAdultActorRefreshSource({...services.dependencies,actorRefreshStore:services.store,aftercareContextReader:{...reader,store:services.care},
     materialControlProjectionPort:{getMaterialControlProjection:()=>({resultKind:'available',controlState:controlled?'controlled':'uncontrolled',ownerDomain:'arca',ownerScopeType:'shelf_entry',ownerScopeId:'entry'})},
-    captureUsAdultInventorySource:({assertAuthority,...request})=>{captures++;return createUsAdultInventorySource({assertAuthority,now:()=>10000}).issueReadHandle(request);}}),
+    captureUsAdultInventorySource:({assertAuthority,...request})=>{captures++;return createUsAdultInventorySource({assertAuthority,now:()=>clock}).issueReadHandle(request);}}),
     source=make(s),current=source.read('entry',started.aftercareCaseId),work=sourceWork(intent,started.aftercareCaseId),
     input={usAdultActorRefreshScope:current.scope,usAdultActorRefreshIntent:intent,physicalMaterialReadHandle:source.capture('entry',started.aftercareCaseId)},
     context={ownerScope:{domain:'arca',processType:'arca_shelf_entry',processId:'entry'},workId:work.workId,capabilityRef:SOURCE,namedInputs:input,assertExecutionActive(){}},
-    port=createUsAdultActorSourcePort({actorRefreshSource:source,aftercareContextReader:reader,contractValidator:f.contractValidator,now:()=>10000});
-  return {f,s,started,intent,source,current,work,input,context,port,make,setControlled:value=>{controlled=value;},captures:()=>captures};
+    port=createUsAdultActorSourcePort({actorRefreshSource:source,aftercareContextReader:reader,contractValidator:f.contractValidator,now:()=>clock});
+  return {f,s,started,intent,source,current,work,input,context,port,make,setControlled:value=>{controlled=value;},captures:()=>captures,setNow:value=>{clock=value;}};
 }
 test('actor source Work and read authority remain bound to one active durable Case after a database reopen',t=>{
   const x=setup(t);x.port.validateInputs(x.context);
@@ -60,4 +60,17 @@ test('source planner projects exact Owner inputs and refuses a different admitte
   assert.deepEqual(projections.get(PROJECTIONS.source).project({ownerScope,parameters}),x.input.physicalMaterialReadHandle);
   assert.throws(()=>projections.get(PROJECTIONS.intent).project({ownerScope,parameters:{...parameters,intentId:D('other')}}),/different Intent/);
   assert.throws(()=>planner.plan({...request,workId:'other-work'}),/exact admitted Work/);
+});
+
+test('an expired physical lease is reissued from current Arca authority without replacing the frozen Actor Work',t=>{
+  const x=setup(t),old=x.input.physicalMaterialReadHandle,at=old.expiresAtMs+86400000;
+  x.setNow(at);
+  assert.throws(()=>require('../../src/helix/contracts/us-adult-inventory-read-handle').assertReadHandle({intent:x.intent,
+    aftercareCaseId:x.started.aftercareCaseId,handle:old,atMs:at}),{code:'ARCA_US_ADULT_READ_HANDLE_EXPIRED'});
+  const fresh=x.source.capture('entry',x.started.aftercareCaseId);
+  assert.equal(fresh.identity.materialKey,old.identity.materialKey);assert.equal(fresh.fingerprintVerifiedAtMs,at);
+  assert.ok(fresh.expiresAtMs>at);assert.notEqual(fresh.fenceDigest,old.fenceDigest);
+  assert.equal(sourceWork(x.intent,x.started.aftercareCaseId).workId,x.work.workId);
+  require('../../src/helix/contracts/us-adult-inventory-read-handle').assertReadHandle({intent:x.intent,
+    aftercareCaseId:x.started.aftercareCaseId,handle:fresh,atMs:at});
 });

@@ -3,6 +3,7 @@ const {createUsAdultActorRefreshCommand}=require('./us-adult-actor-refresh-comma
 const {readUsAdultInventoryPresentation}=require('../model/us-adult-inventory-presentation');
 const {readRequirement}=require('../model/us-adult-actor-refresh-objective');
 function createUsAdultActorRefreshAdmin(options){
+  if(typeof options?.actorPipelineQuery?.base!=='function')throw new TypeError('Actor refresh status requires its Owner pipeline authority query.');
   const reader=options.aftercareContextReader,command=createUsAdultActorRefreshCommand({...options,actorRefreshStore:options.actorRefreshSource.store,
     onAdmitted:options.onActorRefreshAdmitted});
   function read(shelfEntryId){
@@ -13,10 +14,15 @@ function createUsAdultActorRefreshAdmin(options){
       record=latest&&options.actorRefreshSource.store.byCase(latest.aftercareCaseId);
     let progress=null;
     if(record){
-      const works=['source','match','assets','stage','publish','verify','commit','retire','close'].flatMap(phase=>
+      const works=['source','match','assets','stage','publish','verify','commit','retire','close','discard'].flatMap(phase=>
         options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_shelf_entry',processId:shelfEntryId,workKind:'us_adult_actor_'+phase}))
         .filter(row=>options.workResultReader.readDefinition(row.work_id)?.definition.dependencyRefs.some(ref=>ref.objectType==='aftercare_case'&&ref.objectId===latest.aftercareCaseId));
-      progress={aftercareCaseId:latest.aftercareCaseId,mode:record.intent.mode,state:latest.state,reasonCode:latest.terminalReasonCode||null,
+      let reasonCode=latest.terminalReasonCode||null;
+      if(['queued','active'].includes(latest.state)){
+        try{options.actorPipelineQuery.base(shelfEntryId,latest.aftercareCaseId);}
+        catch(error){if(!['ARCA_US_ADULT_REFRESH_EXECUTION_STALE','ARCA_US_ADULT_PHASE_PROOF_INVALID'].includes(error.code))throw error;reasonCode=error.code;}
+      }
+      progress={aftercareCaseId:latest.aftercareCaseId,mode:record.intent.mode,state:latest.state,reasonCode,
         works:works.map(row=>({workId:row.work_id,phase:row.work_kind.replace('us_adult_actor_',''),state:row.state,
           failureCode:options.workResultReader.status(row.work_id)?.latestAttempt?.failure_code||null}))};
     }

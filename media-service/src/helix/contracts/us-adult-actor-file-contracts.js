@@ -17,7 +17,7 @@ function filePlanSchema(){return {...schema('UsAdultActorFilePlan','domain-types
       object({kind:{const:'actor_artifact'},workspaceMaterialHandle:ref('WorkspaceMaterialHandle')})]}})},planDigest:digest()},2*1024*1024),
   'x-helix-role':'accepted-business-dto'};}
 function executionInputSchema(){return {...schema('UsAdultActorExecutionInput','domain-types',{
-  aftercareCaseId:id(),shelfEntryId:id(),intentId:digest(),intentDigest:digest(),action:{enum:['stage','publish','verify','commit','retire','close','unchanged']},
+  aftercareCaseId:id(),shelfEntryId:id(),intentId:digest(),intentDigest:digest(),action:{enum:['stage','publish','verify','commit','retire','close','unchanged','discard']},
   assetsWorkId:nullable(id()),assetsResultDigest:nullable(digest()),planDigest:nullable(digest()),selectionDigest:nullable(digest()),
   stageWorkId:nullable(id()),stageResultDigest:nullable(digest()),publishWorkId:nullable(id()),publishResultDigest:nullable(digest()),
   verifyWorkId:nullable(id()),verifyResultDigest:nullable(digest()),commitWorkId:nullable(id()),commitResultDigest:nullable(digest()),
@@ -31,9 +31,10 @@ function receiptMember(final=false){return object({ordinal:integer(),role:id(),p
   physicalIdentity:ref('PhysicalMaterialIdentity',2),fullByteDigest:digest(),...(final?{bindingRevision:integer(1)}:{})});}
 function fileReceiptSchema(){return {...schema('ArcaUsAdultFileReceipt','types',{
   ...evidence({enum:[CAPS.stage,CAPS.publish,CAPS.verify,CAPS.retire]}),aftercareCaseId:id(),shelfEntryId:id(),intentId:digest(),intentDigest:digest(),
-  selectionDigest:digest(),planDigest:digest(),action:{enum:['stage','publish','verify','retire']},receipt:{oneOf:[
+  selectionDigest:digest(),planDigest:digest(),action:{enum:['stage','publish','verify','retire','discard']},receipt:{oneOf:[
     object({schema:{const:'arca.us-adult-staged-files@1'},aftercareCaseId:id(),planDigest:digest(),directory:text(),members:{type:'array',minItems:3,maxItems:1024,items:receiptMember()},manifestDigest:digest()}),
     object({schema:{const:'arca.us-adult-final-files@1'},aftercareCaseId:id(),planDigest:digest(),stagedManifestDigest:digest(),members:{type:'array',minItems:3,maxItems:1024,items:receiptMember(true)},finalRealityDigest:digest()}),
+    object({schema:{const:'arca.us-adult-discarded-stage@1'},aftercareCaseId:id(),planDigest:digest(),stagedManifestDigest:digest(),deletedCount:integer()}),
     object({schema:{const:'arca.us-adult-retired-files@1'},aftercareCaseId:id(),planDigest:digest(),finalRealityDigest:digest(),deletedCount:integer()})]},receiptDigest:digest()},1024*1024),
   'x-helix-envelopeRef':BASE+'types/EvidenceEnvelope/v1'};}
 function inventoryFactSchemas(){

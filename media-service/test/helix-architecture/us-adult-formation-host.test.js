@@ -112,8 +112,8 @@ async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendati
       try{
         const exited=new Promise((resolve,reject)=>{child.once('error',reject);child.once('exit',(code,signal)=>resolve({code,signal}));});
         child.send({dataDir,adminDistDir,secretRoot,apiKey:initialized.adminApiKey,now:epoch+Date.now()-clockStarted+clockOffset,
-          entryId,command,boundary});
-        const result=await exited;assert.equal(result.code,boundary==='before_commit'?73:74,errors.join(''));
+          entryId,command,boundary,targetRoot:target});
+        const result=await exited;assert.equal(result.code,boundary==='before_commit'?73:boundary==='discard'?75:74,errors.join(''));
         assert.equal(messages.length,1,errors.join(''));return messages[0].admitted;
       }finally{clearTimeout(timer);if(child.exitCode===null)child.kill();}
     },
@@ -275,7 +275,7 @@ test('real Host refreshes one owned US actor through verified files and atomic I
   assert.equal(works.items[0].displayIdentity,'Updated Actor Original source');
 });
 
-test('actual Host exits around Inventory commit recover the original actor Case and a later target conflict never overwrites files',{timeout:360000,skip},async t=>{
+test('actual Host exits around Inventory commit and stage discard recover exact Cases without overwriting target conflicts',{timeout:360000,skip},async t=>{
   const h=await fixture(t,{visibleFace:true});
   await h.wait(()=>h.db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n===1);
   const identity={...h.inventoryContext().raw.entry};
@@ -293,8 +293,11 @@ test('actual Host exits around Inventory commit recover the original actor Case 
     assert.ok(fs.existsSync(path.join(folder,'poster.jpg')));
     assert.equal(interrupted.current_inventory_revision,before.raw.entry.current_inventory_revision+(boundary==='after_commit'?1:0));
     assert.equal(h.db.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(admitted.aftercareCaseId).state,'active');
+    const sourceResult=h.db.prepare("SELECT r.result_json,r.result_digest FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref='arca.us_adult.source.prepare@1' AND json_extract(r.result_json,'$.aftercareCaseId')=?").get(admitted.aftercareCaseId);
+    if(boundary==='after_commit')h.setTime(new Date(JSON.parse(sourceResult.result_json).sourceHandle.expiresAtMs+86400000).toISOString());
     await h.resume();
     await h.wait(()=>h.db.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(admitted.aftercareCaseId).state==='resolved',120000);
+    assert.deepEqual(h.db.prepare('SELECT result_json,result_digest FROM fx_event_result_bindings WHERE result_digest=?').get(sourceResult.result_digest),sourceResult);
     const after=h.inventoryContext();assert.equal(after.raw.entry.current_inventory_revision,before.raw.entry.current_inventory_revision+1);
     for(const key of ['shelf_entry_id','canonical_identity_key','canonical_identity_revision','current_deck_fact_revision'])assert.equal(after.raw.entry[key],identity[key]);
     assert.equal(h.db.prepare('SELECT count(*) n FROM arca_aftercare_inventory_commits WHERE aftercare_case_id=?').get(admitted.aftercareCaseId).n,1);
@@ -309,18 +312,23 @@ test('actual Host exits around Inventory commit recover the original actor Case 
   const updated=(await h.request('GET','/v1/admin/people?libraryKind=us_adult')).items[0],before=h.inventoryContext(),
     conflictFolder=path.join(h.target,'Conflicting Actor Original source'),foreign=path.join(conflictFolder,'foreign.txt');
   fs.mkdirSync(conflictFolder);fs.writeFileSync(foreign,'unrelated bytes');
-  const admitted=await h.refreshActor(before.shelfEntryId,{mode:'specified',idempotencyKey:'target-conflict',
+  const admitted=await h.crashRefresh(before.shelfEntryId,{mode:'specified',idempotencyKey:'target-conflict',
     expectedInventoryRevision:before.raw.entry.current_inventory_revision,expectedRepresentationDigest:before.raw.inventory.representation_digest,
-    personId:updated.personId,expectedPersonRevision:updated.currentRevision,expectedReferenceRevision:updated.currentReferenceRevision});
-  await h.wait(()=>Boolean(h.db.prepare("SELECT 1 FROM fx_supporting_works WHERE process_id=? AND work_kind='us_adult_actor_publish' AND state='failed'").get(before.shelfEntryId)),90000);
-  const after=h.inventoryContext(),view=await h.request('GET','/v1/admin/collection/'+before.shelfEntryId+'/actor-refresh');
+    personId:updated.personId,expectedPersonRevision:updated.currentRevision,expectedReferenceRevision:updated.currentReferenceRevision},'discard'),
+    stageRoot=path.join(h.target,'.shelfdeck-us-'+canonicalDigest(admitted.aftercareCaseId).slice(0,32)+'-stage'),
+    discardWork=h.db.prepare("SELECT work_id FROM fx_supporting_works WHERE work_kind='us_adult_actor_discard' AND process_id=?").get(before.shelfEntryId);
+  assert.ok(discardWork);assert.equal(fs.existsSync(path.join(stageRoot,'0000.stage')),false);assert.ok(fs.readdirSync(stageRoot).length>0);
+  assert.equal(h.db.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(admitted.aftercareCaseId).state,'active');
+  assert.equal(h.db.prepare('SELECT current_inventory_revision FROM arca_shelf_entries WHERE shelf_entry_id=?').get(before.shelfEntryId).current_inventory_revision,before.raw.entry.current_inventory_revision);
+  await h.resume();
+  await h.wait(()=>h.db.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(admitted.aftercareCaseId).state==='unresolved',90000);
+  const after=h.inventoryContext(),failedView=await h.request('GET','/v1/admin/collection/'+before.shelfEntryId+'/actor-refresh');
   assert.equal(after.raw.entry.current_inventory_revision,before.raw.entry.current_inventory_revision);
   assert.equal(after.raw.people[0].display_name,'Second Actor');assert.equal(fs.readFileSync(foreign,'utf8'),'unrelated bytes');
-  assert.deepEqual(fs.readdirSync(conflictFolder),['foreign.txt']);
-  await h.wait(()=>h.db.prepare('SELECT state FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(admitted.aftercareCaseId).state==='unresolved',15000);
-  const failedView=await h.request('GET','/v1/admin/collection/'+before.shelfEntryId+'/actor-refresh');
+  assert.deepEqual(fs.readdirSync(conflictFolder),['foreign.txt']);assert.equal(fs.existsSync(stageRoot),false);
+  assert.equal(h.db.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(discardWork.work_id).state,'succeeded');
   assert.equal(failedView.progress.aftercareCaseId,admitted.aftercareCaseId);assert.equal(failedView.progress.state,'unresolved');
-  assert.equal(view.progress.works.find(work=>work.phase==='publish').failureCode,'ARCA_US_ADULT_TARGET_CONFLICT');
+  assert.equal(failedView.progress.works.find(work=>work.phase==='publish').failureCode,'ARCA_US_ADULT_TARGET_CONFLICT');
   assert.equal(failedView.canRefresh,true);
   const failedWorks=h.db.prepare("SELECT * FROM fx_supporting_works WHERE work_id=?").all(failedView.progress.works.find(work=>work.phase==='publish').workId),
     failedCase=h.db.prepare('SELECT * FROM arca_aftercare_cases WHERE aftercare_case_id=?').get(admitted.aftercareCaseId);

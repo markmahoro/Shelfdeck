@@ -1,7 +1,7 @@
 'use strict';
 const {canonicalDigest:D,canonicalJson}=require('../../../contracts/canonical-json');
 const {executionCatalogDigest}=require('../../../foundation/execution/workflow-plan');
-const {CAPS,executionInput,effectClass}=require('../model/us-adult-actor-pipeline');
+const {CAPS,capability,executionInput,effectClass}=require('../model/us-adult-actor-pipeline');
 const {executionScope}=require('../model/us-adult-actor-refresh-execution');
 const PREFIX='helix://arca/projections/us-adult-actor-pipeline/';
 function named(snapshot,action,options){
@@ -12,7 +12,7 @@ function named(snapshot,action,options){
 }
 function createUsAdultActorPipelinePlanners(options){
   const catalogDigest=executionCatalogDigest(options.registry,options.policyRegistry);
-  return Object.freeze(Object.keys(CAPS).map(configured=>{
+  return Object.freeze([...Object.keys(CAPS),'discard'].map(configured=>{
     const plannerContractRef='helix://arca/planners/UsAdultActor'+configured[0].toUpperCase()+configured.slice(1)+'/v1';
     return Object.freeze({plannerContractRef,plannerVersion:1,plan(request){
       const work=options.workResultReader.readDefinition(request.workId)?.definition,
@@ -21,7 +21,7 @@ function createUsAdultActorPipelinePlanners(options){
         snapshot=caseId&&options.actorPipelineQuery.inspect(request.processId,caseId);
       if(!snapshot||request.processType!=='arca_shelf_entry'||canonicalJson(snapshot.stages[action]?.work)!==canonicalJson(work)||
           request.executionBasisDigest!==snapshot.intent.intentDigest)throw new Error('Actor phase planner requires its exact frozen predecessor lineage.');
-      const cap=CAPS[configured],manifest=options.registry.resolve(cap,'arca').manifest,policy=options.policyRegistry.bindingFor(cap,effectClass(action)),
+      const cap=capability(configured),manifest=options.registry.resolve(cap,'arca').manifest,policy=options.policyRegistry.bindingFor(cap,effectClass(action)),
         eventId='arca-us-'+action+'-event-'+D(request.workAttemptId),parameters={aftercareCaseId:caseId,intentId:snapshot.intent.intentId,action},
         bindings=Object.keys(named(snapshot,action,options)).map(portName=>({portName,bindingKind:'projected_owner_facts',ownerDomain:'arca',
           processType:'arca_shelf_entry',processId:request.processId,projectionRef:PREFIX+portName+'/v1',parameters})),

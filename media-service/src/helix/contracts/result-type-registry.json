@@ -154,12 +154,12 @@
       "relativePath": "types/ArcaUsAdultFileReceipt/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "27de416a7523c09b0915ba495729de29f82a4e3b8649696fa0e2f2a231877f05"
+        "value": "3137df8f175949b6b3d0e1ae037968bf3adea9804cd8617e511f4ef5de30e6b7"
       },
       "source": {
         "section": "8.6.19",
         "line": 11354,
-        "lineDigest": "f04a340a3914683eac6385260e54d74027714095d041c516125b947daed30175"
+        "lineDigest": "ba73196fae8d5b4543b5749536d5abbd7eea71d9defd2bdcfffa976b97855f6d"
       }
     },
     {
