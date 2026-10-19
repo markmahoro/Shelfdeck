@@ -4,7 +4,7 @@
 
 用户已确认五个议题并要求本地开发；唯一活动包切换为 `implementation/CURRENT_PHASE.md` 的 US Adult Phase。
 本地/远端 `main@ac278f33e` 已统一，`codex/us-adult` 从最新 main 重建；旧 master/JAV/proxy 分支和三个旧 worktree 已退出使用，忽略资料移存仓库外。
-当前Arca主链/进程恢复及无写入失败后重新提交已接通；继续失败stage清扫、People深度维护/Reference审计GC、离线副本升级和维护剩余资格，再完成固定版本整体及平台/UI验证。
+五议题实现、实际模型/进程恢复、People可靠归并/Reference审计GC、离线副本升级、维护任务及具体版本UI已闭合到最终资格候选；最终Linux98项及额外跨Profile8场景通过，剩余完整固定Architecture Gate及最新Source Windows独立包复核，随后执行Phase Exit Audit。
 决定来源见 [五议题基线](implementation/evidence/US_ADULT_DECISION_BASELINE_20261018.md)。依 Playbook §3.3 在本任务内先回写已确认设计并传播门禁，再实施；无需另建 Architecture 聊天。
 既有发布及未关闭 UAT 保持原状态；本轮无备份功能，不继承旧部署/Reset/真实媒体操作授权。状态与下一动作由 CURRENT_PHASE 记录。
 

@@ -378,3 +378,13 @@ Service677 total/648 PASS/29既有skip/0 fail（149.1秒）；Web43文件/242 PA
 额外跨Profile组合7 PASS/1 FAIL，98个非选中测试为name过滤，不计覆盖。唯一失败是opt-in Series外部Transcode进程恢复：Arca已接管Package Product Control、Accepted消息尚未消费的间隙，Libra freshness试图suspend而被原有P9_RUN_LIFECYCLE_PACKAGE_CONTROL围栏拒绝。实际child在预定exit73前因该RuntimeError结束1，不是预期恢复PASS。
 
 Libra自身read投影现扩展为当前Run已发布Package Product/Offload的Material Control，只在发现Arca custody时返回技术handoff_resolution_pending，等待既有durable Accepted消息；不把Control当Accepted事实、不完成Run、不读取Arca Store、不放宽transition fence。已有直接非complete越权仍拒绝，新增promoted product不在原输入Scope的确定性负例证明零Run/head/Result/marker写入、原输入Basis比较保持；Owner/Series continuity30 PASS。首次新fixture未列Package的7个列名导致SQL错误，修正后通过，未改表或放宽SQL规则。实际额外Series恢复需最终复验。
+
+
+## 最终Linux资格：edbb470256
+
+- 本机Docker Desktop linux/amd64，镜像`shelfdeck-us-adult-local:edbb470256`，immutable image ID `sha256:ac79715cecf3cb54f0c92aa95b650d70d7210eed956f7cc175f7ea159426d40d`，808,637,613 bytes；只构建本机标签，无registry push/NAS/生产挂载。
+- 镜像自身启动/原生smoke PASS：Node20.20.2、224表、162路由，独立HTTP Admin及Sharp/FFmpeg/FFprobe，包内固定YuNet/SFace实际空图和单脸128维，Python不可执行。Fontconfig实际发现Noto Sans CJK，纯Renderer@2中英混排及四张2×2合成帧已实际生成并目视检查，无缺字框或重叠；样例仅本地非生产材料。
+- 2,631份打包Source/Script/Admin资产/模型资源与本提交逐字节一致；JS SHA256 `1d5d97cb4466612443cb8424954786c4c73633ac44a94cf3d7abe81deda5e519`、CSS `eefaa8a482d7e83261b84cf0d9e209ea3fd027e6f588c8f7bf21a49b6b027dcd`，精确继承d8 UI审核，不仅按文件名推断。
+- network none、只读root、12 GiB tmpfs容量上限及独立6 GiB/4 CPU资源限额：18文件98 PASS/0 fail/0 skip，335.5秒。包含本次Libra custody间隙修正30项、全部此前68项US/People/维护/GC/离线副本及真实进程退出旅程。日志`linux-native-journeys-edbb470256.txt`。
+- 另组隔离跨Profile8个选中场景全部PASS/0 fail、385.3秒；98个name filter跳过不计资格。涵盖JAV实际HEVC入藏/系统演员维护、Movie真实合成媒体独立decode三反例、Series N:M Aftercare、外部Transcode、Off-deck的实际跨进程恢复；外部Transcode修正后PASS/130.0秒，原Run/Entry/Receipt连续，无重复下载。日志`linux-profile-edbb470256.txt`。这些不是生产真实媒体E2E或NAS平台资格。
+- 两组最终容器均已退出并自动删除；当前无本轮运行容器。最终完整固定13e5 Architecture与Windows最新Source分发继续，不能将当前Linux结论提前等同整个Phase完成。
