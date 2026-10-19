@@ -338,3 +338,10 @@ UI负责人对5e923a411冻结77份源码、9项资产进行1920×1080及390×844
 - 最终P2：131 Capability /110 Result families /224 tables /58 transactions /145 Domain inputs /31 shared /243 refs /0 unresolved，aggregate `ec14f57ab8512de541597a8a482688f6399648f6b16f9273685cba0b65e19b23`。物理DDL仍33ef1d7c2f07669991a8401754f7671c92f4848db8a9c1869724bc5edf8e614c，源210升级归档保持。冻结引用及Choice重试8项、Arca引用分页5项通过，计数有重叠。
 - UI负责人对 `d8cff243b2af7b0bf440ee72c8904f443c802da0` 的受影响宽窄屏8/8通过，US-UI-4/6关闭；其余四项按75个未变源码及Renderer继承2b03d5200通过，六项全部关闭。不是三轮重叠计数相加；后端GC不改变UI或Renderer。9项dist资产与78份源码冻结，JS SHA256 `1d5d97cb4466612443cb8424954786c4c73633ac44a94cf3d7abe81deda5e519`。
 - 此前 Service648 PASS/29既有skip、Web242 PASS/43文件及build通过；c046完整Gate唯一trace漂移已修复，但不称最终全绿。接下来固定新提交独立依赖完整Architecture、Service、Windows分发及本机Docker Linux实际原生/Host验证；保留未测/跳过解释。没有生产/NAS/真实媒体操作，没有部署或正式版本发布。
+
+
+### 固定13e5db4cd回归及Linux构建根因
+
+Service677 total/648 PASS/29既有skip/0 fail（149.1秒）；Web43文件/242 PASS（18.7秒）。GC最终加固后真实Host2 PASS/105.0秒；UOW/GC/当前P2专项17 PASS。完整Architecture仍在独立13e5db4cd checkout运行，前后tracked输入摘要独立保存，尚无完整结论。
+
+本机linux/amd64首次构建发现NodeSource apt源连接拒绝，setup脚本仍返回成功，后续apt选择Ubuntu Node18。该构建取消，不记镜像或平台PASS。改为与Web同一个官方Node20阶段复制/usr/local运行时，并在镜像层显式断言major20；继续使用原FFmpeg/驱动base，没有降级或改用旧Face HTTP。该Docker-only修复不改13e5的Service/合同/UI输入，最终镜像必须独立重建及实际执行。

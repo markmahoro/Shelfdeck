@@ -1,5 +1,6 @@
 # Build the frozen Admin Web.
-FROM node:20-bookworm AS web-builder
+FROM node:20-bookworm AS node-runtime
+FROM node-runtime AS web-builder
 WORKDIR /build/web
 COPY media-service/web/package.json media-service/web/package-lock.json ./
 RUN npm ci
@@ -12,12 +13,14 @@ RUN npm run build
 FROM linuxserver/ffmpeg:latest AS service-base
 WORKDIR /app
 
+# Use the same official Node runtime as the web build. Installing from an
+# optional apt repository can silently choose the distribution's older Node.
+COPY --from=node-runtime /usr/local/ /usr/local/
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl gnupg \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
+    && apt-get install -y --no-install-recommends \
       intel-media-va-driver mesa-va-drivers libvulkan1 mesa-vulkan-drivers \
       intel-opencl-icd fonts-dejavu-core fonts-noto-cjk \
+    && node -e "if(Number(process.versions.node.split('.')[0])!==20)throw new Error('Node 20 runtime required');" \
     && rm -rf /var/lib/apt/lists/*
 
 # better-sqlite3 currently needs node-gyp fallback on Node 20.  Compile all
