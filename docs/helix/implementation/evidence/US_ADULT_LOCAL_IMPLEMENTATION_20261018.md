@@ -345,3 +345,8 @@ UI负责人对5e923a411冻结77份源码、9项资产进行1920×1080及390×844
 Service677 total/648 PASS/29既有skip/0 fail（149.1秒）；Web43文件/242 PASS（18.7秒）。GC最终加固后真实Host2 PASS/105.0秒；UOW/GC/当前P2专项17 PASS。完整Architecture仍在独立13e5db4cd checkout运行，前后tracked输入摘要独立保存，尚无完整结论。
 
 本机linux/amd64首次构建发现NodeSource apt源连接拒绝，setup脚本仍返回成功，后续apt选择Ubuntu Node18。该构建取消，不记镜像或平台PASS。改为与Web同一个官方Node20阶段复制/usr/local运行时，并在镜像层显式断言major20；继续使用原FFmpeg/驱动base，没有降级或改用旧Face HTTP。该Docker-only修复不改13e5的Service/合同/UI输入，最终镜像必须独立重建及实际执行。
+
+
+### 维护截止直接时钟围栏
+
+审计补强allows(maintenance)：除持久准入状态外，物理批次准入直接检查当前时钟在[start,end−5min)内，避免协调器下一tick前的短间隙继续新增批次。无需写状态或改变安全收尾；safety及人工stop优先保持。初次新fixture从08:54首次进入正确触发15分钟超时skip，已改为03:00进入后直接推进时钟，再验证无需tick即截止。窗口/正式Host/豆瓣续跑组合10 PASS（maintenance-clock-cutoff-final.txt）；完整13e5固定Gate继续，其后只增加本围栏及Docker运行时修正，需独立记录适用增量与最终镜像验证，不能称13e5覆盖这两项新diff。

@@ -41,6 +41,16 @@ test('stops new maintenance batches five minutes before the deadline and waits s
   assert.deepEqual(Object.keys(window.snapshot()).sort(), ['currentTask', 'maintenanceActive', 'phase', 'windowEndAtMs']);
 });
 
+test('maintenance physical admission enforces the clock cutoff before the next coordinator tick', async () => {
+  const f = fixture('2026-10-24T03:00:00'), window = f.create();await window.tick();f.now('2026-10-24T08:54:59');
+  assert.equal(window.allows('maintenance'),true);
+  f.now('2026-10-24T08:55:00');
+  assert.equal(window.allows('maintenance'),false);assert.equal(window.allows('safety'),true);
+  assert.equal(window.normalSupplyAllowed(),false);
+  f.now('2026-10-24T09:00:01');assert.equal(window.allows('maintenance'),false);
+  await window.tick();await window.tick();assert.equal(window.normalSupplyAllowed(),true);
+});
+
 test('retains the fixed end time across restart and resumes only the remaining part of a maintenance window', async () => {
   const f = fixture('2026-10-24T03:00:00');
   await f.create().tick();

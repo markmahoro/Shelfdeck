@@ -172,7 +172,9 @@ function createMaintenanceWindow(options) {
   }
   return Object.freeze({ snapshot, tick,
     normalSupplyAllowed: () => options.desiredMode() === 'running' && admission === 'normal',
-    allows(category) { return category === 'safety' || options.desiredMode() === 'running' && (admission === 'normal' && category === 'normal' || admission === 'maintenance' && category === 'maintenance'); },
+    allows(category) { return category === 'safety' || options.desiredMode() === 'running' && (admission === 'normal' && category === 'normal' ||
+      admission === 'maintenance' && category === 'maintenance' && record.active !== null &&
+      options.now() >= record.active.startAtMs && options.now() < record.active.endAtMs - 5 * 60000); },
     beginScope(title) { const key = ++scopeSequence; activeScopes.set(key, admission === 'maintenance' ? title : null);
       return () => { activeScopes.delete(key); }; },
     configuration() { return immutableCopy({ revision: record.revision, settings: record.settings, pendingSettings: record.pendingSettings }); },
