@@ -20,3 +20,14 @@ it('saves only a validated connection proof and clears the StashBox key after co
   expect(JSON.stringify(vi.mocked(helixAdminApi.configureIntegration).mock.calls)).not.toContain('test-credential');
   await waitFor(()=>expect(screen.getByLabelText('StashBox API Key')).toHaveValue(''));
 });
+
+it('scrolls to the requested StashBox card after async configuration has rendered',async()=>{
+  const old=window.location.href,scroll=vi.fn();window.history.replaceState(null,'','/settings#stashbox');
+  const prior=Object.getOwnPropertyDescriptor(HTMLElement.prototype,'scrollIntoView');Object.defineProperty(HTMLElement.prototype,'scrollIntoView',{value:scroll,configurable:true});
+  try{
+    vi.spyOn(helixAdminApi,'getIntegration').mockResolvedValue({kind:'stashbox',configRevision:0,configured:false,endpoint:null} as unknown as IntegrationState);
+    render(<SessionProvider><StashBoxSettings/></SessionProvider>);await screen.findByText('StashBox 未启用');
+    await waitFor(()=>expect(scroll).toHaveBeenCalledWith({block:'start'}));expect(scroll.mock.instances[0]).toHaveAttribute('id','stashbox');
+    expect(screen.queryByText(/Wikimedia Commons 可直接搜索/)).not.toBeInTheDocument();
+  }finally{window.history.replaceState(null,'',old);if(prior)Object.defineProperty(HTMLElement.prototype,'scrollIntoView',prior);else delete (HTMLElement.prototype as unknown as {scrollIntoView?:unknown}).scrollIntoView;}
+});

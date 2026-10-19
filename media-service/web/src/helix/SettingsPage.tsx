@@ -114,6 +114,7 @@ export default function SettingsPage() {
     finally{setLoading(false);}},[fail]);
 
   useEffect(() => { void loadIntegrations(); }, [loadIntegrations]);
+  useEffect(()=>{if(!loading&&tab==='integrations'&&window.location.hash==='#stashbox')document.getElementById('stashbox')?.scrollIntoView?.({block:'start'});},[loading,tab]);
   useEffect(() => { if (tab === 'ratings') void loadRatings(); }, [tab, loadRatings]);
   useEffect(()=>{if(tab==='workspace')void loadWorkspace();},[tab,loadWorkspace]);
   useEffect(() => {

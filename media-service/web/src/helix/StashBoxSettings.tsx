@@ -16,6 +16,7 @@ export default function StashBoxSettings() {
     finally{if(mounted.current)setLoading(false);}
   },[expire]);
   useEffect(()=>{mounted.current=true;void load();return()=>{mounted.current=false;};},[load]);
+  useEffect(()=>{if(!loading&&window.location.hash==='#stashbox')document.getElementById('stashbox')?.scrollIntoView?.({block:'start'});},[loading]);
   async function connect(event:FormEvent) {
     event.preventDefault();if(!state)return;
     setBusy(true);setError('');setNotice('');
@@ -38,7 +39,7 @@ export default function StashBoxSettings() {
   }
   return <section id="stashbox" className="settings-card" aria-labelledby="stashbox-title">
     <header className="settings-card-head"><h2 id="stashbox-title">US Adult 演员图片来源</h2><span>{loading?'正在读取…':!state?'状态未知':state.configured?'StashBox 已启用':'StashBox 未启用'}</span></header>
-    <div className="settings-card-body"><p>Wikimedia Commons 可直接搜索。连接 StashBox 后，可按姓名搜索其中的演员图片；搜索遵守全站网络设置。</p>
+    <div className="settings-card-body">
       <form onSubmit={event=>void connect(event)}><div className="source-form-grid">
         <label><span>StashBox GraphQL 地址</span><input type="url" value={endpoint} disabled={loading||busy} required placeholder="https://example.com/graphql" onChange={event=>setEndpoint(event.target.value)}/></label>
         <label><span>StashBox API Key</span><input type="password" autoComplete="off" value={key} disabled={loading||busy} required onChange={event=>setKey(event.target.value)}/></label>

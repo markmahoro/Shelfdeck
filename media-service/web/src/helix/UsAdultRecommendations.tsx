@@ -60,7 +60,7 @@ export default function UsAdultRecommendations({refreshKey,disabled,onChanged,on
       <Button type="button" disabled={loading} onClick={()=>{setError('');void load();}}>刷新推荐</Button></div>
     {error&&<p className="form-error" role="alert">{error}</p>}{notice&&<p className="form-notice" role="status">{notice}</p>}
     {tracking&&<div className="people-recommendation-progress form-neutral" role="status">
-      <strong>{tracking.state==='preparing_person'?'正在建立演员档案…':'正在确认来源影片…'}</strong><p>{tracking.source.title}</p>
+      <strong>{tracking.state==='preparing_person'?'正在建立演员档案…':'正在确认来源影片…'}</strong>{!projection?.items.some(item=>item.source.libraRunId===tracking.source.libraRunId)&&<p>{tracking.source.title}</p>}
       {pollPaused&&<Button type="button" onClick={()=>{setPollPaused(false);setError('');}}>重试查询认领进度</Button>}
     </div>}
     {!projection&&loading?<p role="status">正在读取人物推荐…</p>:projection?.items.length?
