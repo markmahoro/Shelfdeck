@@ -1,5 +1,9 @@
 # ShelfDeck 当前状态
 
+2026-10-20用户恢复US Adult开发。ONNX技术线程客户端/原生会话/Pack校验已拆开，32请求/32MiB有界排队及独立close控制槽、FIFO、崩溃/协议失败明确拒绝且无主线程回退。真实线程八项和预备模型/帧/图片十四项通过，输出与原实现完全一致；本轮模型检查使用独立目录NODE_PATH，尚不算分发资格。四项静态Gate通过，最终独立checkout、Windows/Linux及N95预算复验继续，未部署生产。
+
+2026-10-19 US Adult再次按用户指令暂停：本机完整Gate取消、NAS本轮测试容器已正常退出，无运行测试容器，生产镜像/StartedAt/RestartCount未变。N95四片抽帧检出、两片技术标签完整上架/单片指定刷新、维护窗口及下一窗口原Work续跑已有隔离证据；真实出演身份准确性未判定。1.5核/1.5GiB隔离环境高频482次请求零错误，p95约511 ms/最大2.58秒，未达预设500 ms。ONNX Node的同步native推理阻塞已由profile及backend源码确认；worker thread调整未提交、未测试，不称性能已修复或开发完成。详见唯一Phase及既有US Adult Evidence。
+
 2026-10-19 US Adult本地收口候选：Arca指定/自动单片刷新及三类真实进程中断恢复已贯通，普通/JAV可靠维护/归并、三库/图片生命周期、离线210→224副本升级、维护任务和Reference精确GC已实现。后期Actor人工纠正实际CPU Host按原Subject合法replacement完成，提交后续跑重试不重复Intent。d8cff243b具体版本UI负责人六项发现全部关闭（最后受影响宽窄8/8），后续后端改动不改UI/Renderer。当前P2 131/110/224/58/145、162路由通过，最终固定完整Gate与Windows/Linux资格进行中，不能视为开发完成或发布。详见唯一Phase及US_ADULT_LOCAL_IMPLEMENTATION Evidence。
 
 2026-10-19 系统人物归并增量：维护内可靠编号归并正式Work/Owner事务/消息ACK，普通/JAV无用户确认；原名/身份历史保留，作品经People Merge身份Scope与Arca当前关系连续读取。真实Host归并1项、Arca CPU刷新及作品1项、Owner/规则18项通过。固定c046独立完整Gate3062 PASS/1 FAIL/13 skip，输入未变；唯一P3 trace manifest漂移已准确修复并局部24项复验，尚无新固定版本完整PASS。该固定版本独立Windows原生模型包检查通过；Reference GC、维护剩余及最终全量/Linux/浏览器/UI审核继续，无生产操作。

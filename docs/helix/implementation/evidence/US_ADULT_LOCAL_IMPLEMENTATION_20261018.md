@@ -414,3 +414,37 @@ Libra自身read投影现扩展为当前Run已发布Package Product/Offload的Mat
 aec928e1d工具汇总返回ok=true、3102 tests/3089 PASS/13 skip/0 fail，输入4,181文件前后相同（28758f838e2b85b57cad6e1fec4356aadfd26a118e79b122810232e067afe09d），耗时1790.5秒。但反向逐名称比较发现JAV实际上74条：52个直接声明、22个for循环生成。新静态分组器只识别了前52条，selected数自检只验证自身不完整清单；Node25对非选中case不报告过滤skip，filtered=0也不能证明完整。缺少15个special/class source、2个collection operation及5个phase recovery共22条，故这轮整体资格撤销，不记最终完整Gate PASS。前文及聊天中“52条JAV”的表述仅指直接声明，完整范围应为74。
 
 已移除新分组执行器和其4项单元测试，恢复edbb时原始Node --test/全文件/concurrency4执行路径；保留六项精确合同/模块清单修正。没有用旧PASS补齐未执行case，也不继续修改框架来减少本次验收。重新固定提交执行全部原始文件/实际动态声明；预期相比13e5只新增维护时钟及custody间隙两项，具体数量以实际报告及名称覆盖审计为准。底层业务、最终Linux镜像及Windows分发字节均未因此改变。
+
+## 2026-10-19 恢复开发与实际N95隔离资格准备
+
+用户明确恢复开发；固定`72388341e`独立物理依赖checkout原始全文件Architecture重跑中。此前`461d8805d`一轮已按暂停指令终止，未记PASS。
+
+实际303NAS只读确认Intel N95四核、7,734 MiB内存、约3.6 GiB available、已有约2.5 GiB swap使用；生产ShelfDeck原镜像`sha256:fe8fe2f77c2d32bdc3fe59c14e616610fc48e304704baea9b92352261267fe60`，StartedAt `2026-10-18T04:31:06.595469109Z`、RestartCount0。测试应用根`/vol1/1000/docker/shelfdeck-us-adult-qualification`与生产目录分离，核验父目录/挂载/无symlink后新建；不挂载生产数据及原媒体目录。参考原影片仅从用户指定目录复制四份，共946,647,416 bytes；每份完整SHA256与原件一致，源size/mtime/ctime/inode前后保持。清单及原路径只存ignored证据，不以文件名推断演员真值。
+
+测试镜像复用已逐字节审计的edbb运行时，ID `sha256:ac79715cecf3cb54f0c92aa95b650d70d7210eed956f7cc175f7ea159426d40d`；本机docker save后通过标准upload-nas-image.js上传隔离目录，tar SHA256 `43612de4080f2649821abbd6d2072f952907116fbccb64cbe23c3f0393bfe119`。没有调用生产deploy/apply。首轮资源限制1 CPU、1536 MiB且禁止容器额外swap、256 PIDs，端口仅NAS loopback18124，独立数据库/Workspace/Shelf、rootfs只读、复制输入只读、无特权或设备透传。
+
+执行前预算：先做无推理基线及模型冷/热加载，再逐片20点抽帧/检出和有界并发2；单独记录模型加载、抽帧、每帧推理、峰值RSS、容器cgroup CPU/内存/IO及宿主swap/iowait。测试API p95目标500 ms、单次超时上限5秒；生产健康连续3次失败/超过3秒、可用内存连续3次低于768 MiB、测试OOM或生产重启则停止测试供给并安全关闭，仅该测试容器可被停止。生产p95相对同轮空载基线变化与最大值明确报告，p95预算为max(500 ms, 2×基线p95)，保留既有波动，不能以单次快响应证明达标。早期空载12点已有一次4.89秒，另一次只读观察1.75秒；准备期间文件复制/镜像导入可能影响I/O，因此正式推理前另采无准备负载基线，不将准备阶段观测算作稳定空载结论。
+
+真实媒体只报告技术检出数量、时延及业务状态；不执行真实演员身份比对或声称身份准确性。正式链路可用空演员库→暂存→显式技术标签选择验证，技术标签不代表真实出演者。跨片演员身份与错误匹配率保留给用户独立人工验收；不把循环自匹配、文件名、已有NFO或最高分当作真值，不以小样本检出率替代识别可靠性PASS。测试脚本与原始日志保存在ignored目录，Evidence只记录技术统计与摘要，不提交媒体/人脸图像。
+
+### N95技术结果、性能缺口及再次暂停
+
+导出包核验澄清：Desktop的`ac79715c…`是OCI index，NAS实际image config为`sha256:9e2522da9b306eadc0768679543175fba7c04a1bca92ee7d3489b4019389e007`。已对导出config完整SHA256、全部74个diff layers、平台及配置进行精确比较；Docker补出的Entrypoint/OnBuild=null和User空串按明确默认值校验，未跳过其他差异。首次严格ID比较正确中止，核验后才运行。首轮cap_drop ALL配root无法读取750/660测试目录/脚本，EACCES退出；改为NAS自身1000:1001运行，未改宿主权限。后续HOME/XDG_CACHE_HOME指向可写/tmp解决测试非root字体cache目录问题，不更改生产。
+
+单CPU下四片各20点完成，抽帧+推理分别14.389/14.509/15.205/34.581秒，检出6/12/7/18张脸；模型冷加载640 ms，四片合计78.691秒。双任务热测试仍限制单CPU，两个样本27.607/41.696秒、总41.697秒，模型加载0 ms。以上仅检出/耗时，无人物识别准确率结论。纯合成40个特征对100/1000/5000个参考身份冷/热耗时192/87、645/414、2394/2906 ms，cache不超过1024；不是真实身份比较或完整DB库规模资格。
+
+实际HEVC样本02（640×360/10-bit/AAC）与03（512×384/8-bit/MP3）在空库进入暂存，随后显式选任意技术标签，沿原两Run完成NFO/1000×1500 Poster/命名及唯一上架；更新标签后只有用户指定单片刷新，另一片Inventory不变，Entry/Deck/Canonical身份连续、命令重放通过。1核、1.5核及带profile探针三次隔离运行均通过，后两次为响应预算疑点复验，非新增独立覆盖数。未比较真实人物身份、不展示或分析原影片画面。原四片SHA256及size/mtime/ctime/inode已在测试后核对保持，原目录未挂入测试容器。
+
+维护实际重开同两条收藏，受控周六时钟进入窗口、08:55收尾、用户stop及重启stop优先通过。首轮3条facet评估时尚有一个health Work运行，不把其日志`health-batch-completed`字样误算完整批次PASS。下一周显式resume后，该精确Work ID成功，原两个health Work全部succeeded、评估6条，随后截止/stop/重启通过；两轮cgroup峰值约260/270 MiB、oom/oom_kill均0。下一周首试harness误用不存在的actions/start返回404，已按正式actions/resume修正；失败JSON及容器日志保留。维护使用本fixture自有secret root通过现有session-token-service.issueAuthenticated签发有界cookie，不算登录交换覆盖，也未读/改生产凭据。
+
+性能资格未关闭：正式无推理基线30次有2次5秒超时，不能把生产既有尾延迟归因于新版本。低频串行推理17点测试API p95约349 ms；双任务8点约649 ms、完整E2E22点约588 ms。1.5核复验低频17点p95约1.276秒，不能因此宣称增加CPU已解决。独立5 Hz、最多4在途的探针在完整E2E期间实际482次请求、0错误、14次受在途上限限制未发起；p50 5.20 ms、p95 510.74 ms、p99 1545.45 ms、max2579.85 ms，严格未达500 ms预算；probe在Host正式供给前同步启动、结束前排空，不把预期关闭后的连接失败纳入稳态结果。1.5核非profile完整E2E cgroup峰值650,383,360 bytes，oom/oom_kill均0；不能把新空库1.5GiB测试上限当作现有约2.25GiB生产Service的合适内存限额。
+
+CPU profile发现onnxruntime-node/dist/backend.js的run在setImmediate内同步调用native，Promise不代表脱离HTTP主线程；主线程native约5.87秒、GC约5.55秒，另有Canonical JSON及Arca authority重复检查开销，未将inclusive时间相加作CPU总量。已起步将现有native模型实现移至local-face-model-native.js、local-face-model-worker.js，原local-face-model.js作为线程客户端；未提交、未测试或构建，生命周期/满队列close/异常恢复等仍须审查，没有性能修复PASS。模型/阈值/预处理、Owner和持久合同尚无改变。
+
+用户此时再次明确暂停。固定72388341e原始完整Gate进程已停止，不计PASS；NAS测试容器exited0、OOM=false且无运行的本轮测试容器，生产image fe8fe2f7…、StartedAt 2026-10-18T04:31:06.595469109Z及RestartCount0保持。原始日志、CPU profile、脚本与测试数据均保留于本机ignored目录及NAS精确测试根，未部署或改生产数据。本版保持未完成，恢复先审查/验证线程调整，再做精确Windows/Linux/N95及最终完整Gate；真实演员身份准确性仍保留人工验收。
+
+## 2026-10-20 worker thread恢复开发检查点
+
+用户明确恢复开发。固定模型/阈值/预处理及Owner合同保持；图片解码、缩放、对齐与ONNX会话由单一service-local技术线程持有，主线程只传输自有Buffer副本和接收结果，不传递Domain/Work/Store权限。32个请求/32 MiB排队图片双重上限，close独立控制槽，FIFO收尾；启动/崩溃/协议故障拒绝所有等待者且不自动回退主线程。校验Pack拆为纯模块，Main不加载native推理会话；许可和SHA256保持原合同。仅Integrations external allowlist新增精确node:worker_threads，Domain依赖规则不变。
+
+实际线程fixture八项通过：同步忙算不阻塞Main timer、原Buffer保留、满队列close、字节上限释放、结构化失败后下一请求、崩溃/错误关联响应拒绝所有请求、不静默重建、推理期间Owner执行权限撤销后拒绝发布。预备真实模型/帧/图片/Renderer四文件14项全通过，线程输出与原native实现逐字段完全相同；此轮通过显式NODE_PATH读取独立验证目录的固定ORT，不代表独立分发资格，最终物理依赖checkout/Windows/Linux/N95必须另验。首次Package Gate精确缺少node:worker_threads许可已补，未放宽跨Owner边界；其余semantic/manifests/P2通过，完整新Gate待固定提交。

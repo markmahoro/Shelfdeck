@@ -29,6 +29,11 @@ test('real pinned CPU models recognize a resized image and reject blank and mult
   const model = createLocalFaceModel({ modelRoot });
   try {
     const original = fs.readFileSync(sampleImage), first = await model.analyzeImage(original, { requireSingleFace: true });
+    const native = require('../../src/helix/integrations/local-face-model-native').createNativeLocalFaceModel({ modelRoot });
+    try {
+      const baseline = await native.analyzeImage(original, { requireSingleFace: true });
+      assert.deepEqual(first, baseline, 'Thread transport must preserve pinned preprocessing and every model output exactly.');
+    } finally { await native.close(); }
     const second = await model.analyzeImage(await sharp(original).resize(400, 400).png().toBuffer(), { requireSingleFace: true });
     assert.equal(first.detectedFaceCount, 1); assert.equal(second.detectedFaceCount, 1);
     assert.equal(first.faces[0].vector.length, 128);

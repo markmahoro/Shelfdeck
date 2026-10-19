@@ -1,105 +1,121 @@
 'use strict';
 
-const fs = require('node:fs');
 const path = require('node:path');
-const { createHash } = require('node:crypto');
-const sharp = require('sharp');
+const { Worker } = require('node:worker_threads');
 const manifest = require('../contracts/us-adult-face-model-pack.json');
-const { normalizeVector, decodeYuNet, alignRgb } = require('./local-face-math');
+const { verifyModelPack } = require('./local-face-model-pack');
+const MAX_PENDING = 32;
+const MAX_PENDING_BYTES = 32 * 1024 * 1024;
 
-function fail(code, message, details) {
-  throw Object.assign(new Error(message), { code, details });
+function failure(code, message, details) { return Object.assign(new Error(message), { code, ...(details === undefined ? {} : { details }) }); }
+function freeze(value) {
+  if (value && typeof value === 'object') { Object.values(value).forEach(freeze); Object.freeze(value); }
+  return value;
 }
 
-function verifyModelPack(modelRoot, licenseRoot = path.resolve(__dirname, '../../../resources/face-models')) {
-  for (const license of manifest.licenses) {
-    const file = path.join(licenseRoot, license.file), stat = fs.lstatSync(file);
-    if (!stat.isFile() || stat.isSymbolicLink() || createHash('sha256').update(fs.readFileSync(file)).digest('hex') !== license.sha256) {
-      fail('FACE_MODEL_LICENSE_INVALID', 'The local face model license does not match the pinned distribution.');
-    }
-  }
-  return Object.fromEntries(manifest.models.map(model => {
-    const file = path.join(modelRoot, model.file);
-    let stat;
-    try { stat = fs.lstatSync(file); }
-    catch (error) {
-      if (error.code === 'ENOENT') fail('FACE_MODEL_PACK_MISSING', 'The pinned local face model pack is not installed.', { model: model.role });
-      throw error;
-    }
-    if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== model.size ||
-        createHash('sha256').update(fs.readFileSync(file)).digest('hex') !== model.sha256) {
-      fail('FACE_MODEL_PACK_INVALID', 'The local face model does not match its pinned checksum.', { model: model.role });
-    }
-    return [model.role, file];
-  }));
-}
-
+// ONNX's Node backend calls synchronous native inference inside setImmediate.
+// Its Promise alone does not keep the Service HTTP/event loop responsive.
+// This thread owns only image math and pinned model sessions, never Work or Domain facts.
 function createLocalFaceModel(options = {}) {
   const modelRoot = options.modelRoot || path.resolve(__dirname, '../../../resources/face-models');
-  let loading = null;
-  async function load() {
-    if (!loading) loading = (async () => {
-      const files = verifyModelPack(modelRoot);
-      const ort = options.ort || require('onnxruntime-node');
-      if (ort.env?.versions?.node !== manifest.runtimeVersion) fail('FACE_MODEL_RUNTIME_VERSION_INVALID', 'The local face runtime does not match the pinned model contract.');
-      const sessionOptions = { executionProviders: ['cpu'], intraOpNumThreads: 2, interOpNumThreads: 1, logSeverityLevel: 3 };
-      const detector = await ort.InferenceSession.create(files.detector, sessionOptions);
-      let recognizer;
-      try { recognizer = await ort.InferenceSession.create(files.recognizer, sessionOptions); }
-      catch (error) { await detector.release(); throw error; }
-      return { ort, detector, recognizer };
-    })();
-    return loading;
+  const pending = new Map();
+  let worker = null, sequence = 0, loading = null, closing = null, closed = false, fatal = null, pendingBytes = 0;
+
+  function rejectPending(error) {
+    fatal = fatal || error;
+    for (const request of pending.values()) request.reject(fatal);
+    pending.clear();
+    pendingBytes = 0;
   }
 
-  async function analyzeImage(bytes, { requireSingleFace = false } = {}) {
-    if (!Buffer.isBuffer(bytes) || !bytes.length || bytes.length > 16 * 1024 * 1024) {
-      fail('FACE_IMAGE_INVALID', 'A bounded JPEG, PNG or WebP image is required.');
+  function ensureWorker() {
+    if (fatal) throw fatal;
+    if (!worker) {
+      const createWorker = options.createWorker || ((file, settings) => new Worker(file, settings));
+      try {
+        worker = createWorker(path.join(__dirname, 'local-face-model-worker.js'), { workerData: { modelRoot } });
+      } catch (error) {
+        fatal = failure('FACE_MODEL_WORKER_FAILED', 'The local CPU model thread could not start.', { causeCode: error.code || 'WORKER_START_FAILED' });
+        throw fatal;
+      }
+      worker.on('message', reply => {
+        const request = pending.get(reply?.id);
+        if (!Number.isSafeInteger(reply?.id) || !request || typeof reply.ok !== 'boolean' ||
+            !reply.ok && (typeof reply.error?.code !== 'string' || typeof reply.error?.message !== 'string')) {
+          rejectPending(failure('FACE_MODEL_WORKER_PROTOCOL_INVALID', 'The local CPU model returned an invalid response.'));
+          void worker.terminate().catch(() => {}); return;
+        }
+        pending.delete(reply.id);
+        pendingBytes -= request.imageBytes;
+        if (reply.ok) request.resolve(freeze(reply.value));
+        else request.reject(failure(reply.error?.code || 'FACE_MODEL_INFERENCE_FAILED',
+          reply.error?.message || 'The local CPU model failed.', reply.error?.details));
+      });
+      worker.on('error', error => rejectPending(failure('FACE_MODEL_WORKER_FAILED',
+        'The local CPU model thread failed.', { causeCode: error.code || 'WORKER_ERROR' })));
+      worker.on('exit', code => {
+        if (!closed || pending.size) rejectPending(failure('FACE_MODEL_WORKER_FAILED',
+          'The local CPU model thread stopped before completing its requests.', { exitCode: code }));
+      });
     }
-    const image = sharp(bytes, { limitInputPixels: 16 * 1024 * 1024 });
-    const metadata = await image.metadata().catch(() => fail('FACE_IMAGE_INVALID', 'The selected image cannot be decoded.'));
-    if (!['jpeg', 'png', 'webp'].includes(metadata.format) || (metadata.pages || 1) !== 1) {
-      fail('FACE_IMAGE_INVALID', 'A single JPEG, PNG or WebP image is required.');
-    }
-    const { data, info } = await image.rotate().resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-      .flatten({ background: '#000000' }).toColourspace('srgb').removeAlpha().raw().toBuffer({ resolveWithObject: true })
-      .catch(() => fail('FACE_IMAGE_INVALID', 'The selected image cannot be decoded.'));
-    if (info.channels !== 3) fail('FACE_IMAGE_INVALID', 'The image cannot be decoded into RGB.');
-    const { ort, detector, recognizer } = await load();
-    const scale = Math.min(manifest.detectorSize / info.width, manifest.detectorSize / info.height);
-    const resizedWidth = Math.max(1, Math.round(info.width * scale)), resizedHeight = Math.max(1, Math.round(info.height * scale));
-    const scaled = await sharp(data, { raw: info }).resize(resizedWidth, resizedHeight, { fit: 'fill' })
-      .extend({ top: 0, left: 0, right: manifest.detectorSize - resizedWidth, bottom: manifest.detectorSize - resizedHeight, background: '#000000' })
-      .raw().toBuffer();
-    const planeSize = manifest.detectorSize * manifest.detectorSize, input = new Float32Array(planeSize * 3);
-    // YuNet consumes BGR at the original 0..255 scale. SFace consumes RGB at that same scale.
-    for (let i = 0; i < planeSize; i++) for (let channel = 0; channel < 3; channel++) input[channel * planeSize + i] = scaled[i * 3 + 2 - channel];
-    const output = await detector.run({ [detector.inputNames[0]]: new ort.Tensor('float32', input, [1, 3, manifest.detectorSize, manifest.detectorSize]) });
-    const faces = decodeYuNet(output, manifest.detectorSize, manifest.detectionThreshold)
-      .filter(face => face.x + face.width / 2 < resizedWidth && face.y + face.height / 2 < resizedHeight)
-      .map(face => ({ ...face, x: face.x * info.width / resizedWidth, y: face.y * info.height / resizedHeight,
-        width: face.width * info.width / resizedWidth, height: face.height * info.height / resizedHeight,
-        landmarks: face.landmarks.map(([x, y]) => [x * info.width / resizedWidth, y * info.height / resizedHeight]) }));
-    if (requireSingleFace && faces.length !== 1) fail('FACE_REFERENCE_SINGLE_FACE_REQUIRED',
-      'A reference image must contain exactly one identifiable face.', { detectedFaceCount: faces.length });
-    const descriptors = [];
-    for (const face of faces) {
-      const aligned = alignRgb(data, info.width, info.height, face.landmarks);
-      const result = await recognizer.run({ [recognizer.inputNames[0]]: new ort.Tensor('float32', aligned, [1, 3, 112, 112]) });
-      const feature = result[recognizer.outputNames[0]];
-      if (feature?.data?.length !== manifest.dimension) fail('FACE_MODEL_OUTPUT_INVALID', 'The recognizer returned an unexpected vector dimension.');
-      descriptors.push(Object.freeze({ x: face.x, y: face.y, width: face.width, height: face.height,
-        confidence: face.score, landmarks: face.landmarks, vector: Object.freeze(normalizeVector(feature.data)) }));
-    }
-    return Object.freeze({ modelRef: manifest.modelRef, width: info.width, height: info.height,
-      detectedFaceCount: descriptors.length, faces: Object.freeze(descriptors) });
+    return worker;
   }
 
-  return Object.freeze({ modelRef: manifest.modelRef, manifest, load, analyzeImage,
-    async close() {
-      if (!loading) return;
-      const loaded = await loading.then(value => value, () => null); loading = null;
-      if (loaded) { await loaded.recognizer.release(); await loaded.detector.release(); }
+  function send(kind, value, transferList = []) {
+    return new Promise((resolve, reject) => {
+      let activeWorker;
+      try { activeWorker = ensureWorker(); }
+      catch (error) { reject(error); return; }
+      const imageBytes = value?.bytes?.byteLength || 0;
+      // Shutdown has its own control slot and remains admissible when the data queue is full.
+      if (kind !== 'close' && (pending.size >= MAX_PENDING || pendingBytes + imageBytes > MAX_PENDING_BYTES)) {
+        reject(failure('FACE_MODEL_BUSY', 'The bounded local CPU model queue is full.')); return;
+      }
+      const id = ++sequence;
+      pending.set(id, { resolve, reject, imageBytes });
+      pendingBytes += imageBytes;
+      try { activeWorker.postMessage({ id, kind, ...value }, transferList); }
+      catch (error) {
+        rejectPending(failure('FACE_MODEL_WORKER_FAILED', 'The local CPU model request could not be sent.', { causeCode: error.code || 'WORKER_MESSAGE_FAILED' }));
+        void activeWorker.terminate().catch(() => {});
+      }
+    });
+  }
+
+  function available() {
+    if (closed || closing) throw failure('FACE_MODEL_CLOSED', 'The local CPU model has been closed.');
+    if (fatal) throw fatal;
+  }
+
+  return Object.freeze({
+    modelRef: manifest.modelRef,
+    manifest,
+    async load() {
+      available();
+      if (!loading) loading = send('load');
+      await loading;
+    },
+    async analyzeImage(bytes, { requireSingleFace = false } = {}) {
+      available();
+      if (!Buffer.isBuffer(bytes) || !bytes.length || bytes.length > 16 * 1024 * 1024) {
+        throw failure('FACE_IMAGE_INVALID', 'A bounded JPEG, PNG or WebP image is required.');
+      }
+      if (pending.size >= MAX_PENDING || pendingBytes + bytes.length > MAX_PENDING_BYTES) {
+        throw failure('FACE_MODEL_BUSY', 'The bounded local CPU model queue is full.');
+      }
+      // Transfer an owned copy; pooled caller Buffers and their live contents stay intact.
+      const owned = Uint8Array.from(bytes);
+      return send('analyze', { bytes: owned, requireSingleFace: Boolean(requireSingleFace) }, [owned.buffer]);
+    },
+    close() {
+      if (closing) return closing;
+      if (closed) return Promise.resolve();
+      if (!worker) { closed = true; return Promise.resolve(); }
+      closing = (async () => {
+        try { if (!fatal) await send('close'); }
+        finally { closed = true; await worker.terminate(); }
+      })();
+      return closing;
     },
   });
 }
