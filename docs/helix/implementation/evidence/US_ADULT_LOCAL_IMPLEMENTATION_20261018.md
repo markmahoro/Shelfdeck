@@ -478,3 +478,19 @@ CPU profile发现onnxruntime-node/dist/backend.js的run在setImmediate内同步�
 独立Windows精确候选再验：物理依赖checkout、NODE_PATH清空、固定模型离线输入，实际package-win.js打包、自带node.exe/Native/Worker/包内YuNet/SFace、Host 224表/162路由、FFmpeg/FFprobe和单脸128维均通过；拒绝覆盖已有/源码内/junction输出，1 PASS/0fail/0skip、29.59s。Main require cache无包外依赖，Worker通过实际模型调用证明包内动态入口可用。日志worker-final-windows-package.txt。最终Service完整677 total/648 PASS/29既有skip/0fail已复验。
 
 共机安全观察没有触发SAFETY_STOP；E2E监控期间NAS最低MemAvailable约3.28GiB，测试后30次生产health有1次5s超时、p95约2.105s（之前空载基线已有2次超时），不声称旧生产延迟已修复或共机开销为零。全部本轮NAS容器最终停止，root owner/mode保持root:root/755；不自动清理保留的测试数据或旧镜像。
+
+额外跨Profile精确候选：同一Linux镜像的5文件组合106条测试中5 PASS/0fail、98个name-filter未选中与3个Movie显式opt-in跳过；补齐HELIX_UAT137_REAL_MEDIA=1后独立Movie文件3 PASS/0fail/26个name-filter未选中。合计8个不同选定场景均PASS，不把过滤/opt-in跳过记覆盖。包含JAV实际HEVC完整入藏及窗口内系统演员维护、Movie三类独立Product decode反例、Series Aftercare（48.24s）/external Transcode（125.97s）/Off-deck实际跨进程恢复，组合380.25s、Movie补验1.14s。Main CPU profile旧版有9个ORT backend frame，新候选为0，原生推理不再出现在Main profile；仍保留其他同步热点和长尾，不称所有CPU开销消失。日志worker-final-profile-tests.txt、worker-final-movie-tests.txt及对应command.json。
+
+## 2026-10-20 最终原始完整Gate及收尾
+
+固定0c82ee862a380bc1f590f94266ba656987ec3eff原始helix-architecture-verify.js（原spawnSync、原Node test并发，不分组/不筛选）完成exit0/ok=true。387文件、3129 total/3116 PASS/13既有skip/0fail，fixture3493823.1298ms；Gate从UTC18:19:34.041至19:18:01.656。4183 tracked输入前后aggregate均73c06dab33d3a59329af8f17519b7579b9c98ef0062c38317d63ae4d5f4e7a80；独立checkout干净。JAV测试定义清单仅用于核对、并非执行证据，实际全量输出逐名证明74/74 PASS（52 literal+22动态），无缺项。
+
+包边界47包/672文件/2367依赖、semantic2560文件、manifests、P2全部PASS/零findings。P2保持131 Capability/110 Result families/224表/58事务/145 Domain inputs/31 shared/243 refs/0 unresolved，aggregate ec14f57ab8512de541597a8a482688f6399648f6b16f9273685cba0b65e19b23，162路由不变。原始输出architecture-0c82ee862.json/.fixture.txt、前后inputs JSON及worker-final-jav-inventory/coverage.json均保留。
+
+13个Gate既有skip：1个未提供的完整历史快照；6个已被新实际旅程取代的里程碑旧skip；3个Movie实际媒体opt-in和3个Series跨进程opt-in。后6个已在同一Linux精确候选显式启用并通过，不能把Gate skip本身算通过；冻结历史快照资格仍未提供，不改旧skip或历史发布结论。额外8个选定跨Profile场景的未选中/首次opt-in缺失如上节明示。
+
+收尾检查发现主Service node_modules仍是指向E盘另一工作区的junction且缺ORT，不能让合格代码依赖NODE_PATH临时绕行。已核实物理输入目录无任何symlink，复制独立依赖4978文件/542512457bytes；先在ignored staging准备，再只rename原junction对象到.codex/service-node-modules-shared-link，原E盘target及其依赖lock摘要前后不变，无删除/安装/修改外部目录。主Service现在是独立物理目录、ORT1.30.0；默认resources/face-models两份模型逐项size/SHA256匹配固定manifest，正式installer再验通过。NODE_PATH清空、使用本工作区默认模型的真实线程/模型/图片/帧/analysis五文件22 PASS/0fail/0skip，worker-local-own-dependencies-tests.txt；环境调整不改tracked runtime、合同或SSOT。Web/tools既有共享依赖未改。
+
+良性参考图91814bytes，SHA256 7de7ed51a1594fff247f4cae2301eceacf5313d6011e37b4a4c8733f7bb72c07，本机与NAS一致；模型固定输入记录在worker-final-native-inputs.json，不提交图像或生物特征。最后NAS只读核验测试exited0/OOM=false、无运行qualification容器；生产image fe8fe2f7…、StartedAt 2026-10-18T04:31:06.595469109Z、RestartCount0及latest原指向保持，root:root/755。主本地验证及Docker测试进程均已退出；工作区最后提交只有验收文档变更，不要求重建等价runtime镜像。
+
+Phase Exit反向检查：五议题实现/正式Owner/Effect/恢复、唯一计划、无跨域authority/新Business Object/旧Runtime可达/兼容双路径/后续Phase耦合均有证据；本轮线程和编译技术优化不移动事实。**适用工程资格PASS，整体Phase业务验收不关闭**：真实出演者身份准确率未评估，真实影片仅检出/技术标签链路；N95小样本预算PASS不外推大库生产容量，max2.62s长尾保留。生产发布、生产数据升级与真实媒体改动均未执行，不能称整版已发布或全部业务验收完成。

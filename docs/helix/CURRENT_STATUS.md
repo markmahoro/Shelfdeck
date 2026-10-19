@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-20 US Adult工程固定0c82ee862完整资格PASS：原始387文件/3129 tests/3116 PASS/13既有skip/0fail；JAV全部74场景实际通过，4183个tracked输入前后digest相同。Service648 PASS/29既有skip、Web242 PASS、Windows独立模型包、Linux208项及额外8个跨Profile恢复/媒体场景通过。N95隔离434请求零错误、p95 410.05ms达500ms预算、峰值887.6MiB/无OOM，仍有2.62s长尾；四片检出、两片上架/单片指定刷新及维护跨周原Work续跑通过。原件及生产实例/原latest指向保持，无运行的本轮测试容器。主工作区Service依赖已从E盘共享junction安全改为独立物理目录、固定模型默认目录齐备，自身依赖22项CPU/线程检查通过，未改外部依赖。真实出演身份准确性未评估，Phase业务验收继续开放、未生产发布；详见唯一Phase及既有Evidence。
+
 2026-10-20固定0c82ee862：ONNX Worker生命周期/队列/异常及真实输出一致性完成；N95隔离1.5核/1.5GiB完整两片及单片指定刷新434请求零错误，p95 410.05ms达既定500ms预算，max仍2.62s，峰值887.6MiB、无OOM。四片20点检出与旧版一致，维护截止/手动停机/跨Host及下周原Work续跑通过。Linux208项全通过，Service648 PASS/29既有skip、Web242 PASS；原始完整Architecture和额外跨Profile/Windows仍在资格中。四源完整hash/stat未变，生产实例未动、NAS测试容器已正常退出。真实出演身份准确性未评估，本Phase未完成、无生产发布。详见唯一Phase及US Adult Evidence。
 
 2026-10-20用户恢复US Adult开发。ONNX技术线程客户端/原生会话/Pack校验已拆开，32请求/32MiB有界排队及独立close控制槽、FIFO、崩溃/协议失败明确拒绝且无主线程回退。真实线程八项和预备模型/帧/图片十四项通过，输出与原实现完全一致；本轮模型检查使用独立目录NODE_PATH，尚不算分发资格。四项静态Gate通过，最终独立checkout、Windows/Linux及N95预算复验继续，未部署生产。

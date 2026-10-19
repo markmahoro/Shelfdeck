@@ -1,6 +1,6 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
-日期：2026-10-20。状态：`PERFORMANCE FIX / QUALIFICATION IN PROGRESS`。
+日期：2026-10-20。状态：`ENGINEERING QUALIFIED / IDENTITY ACCURACY UNASSESSED`。
 
 ## 1. 基线与授权
 
@@ -17,13 +17,13 @@
 
 | 工作项 | 可验收结果 | 当前状态 |
 | --- | --- | --- |
-| `US-CONTRACT-BASELINE` | 五个议题映射至 Owner、命令、事实、Effect、恢复和验收；SSOT 与派生合同一致，负例与 Architecture Gate 通过 | 已实现：SSOT及派生合同、Owner/Effect/恢复负例已对齐；最终固定提交完整Gate进行中 |
-| `US-PEOPLE` | 三库独立；普通/JAV 零用户介入；US Adult 有图手动/辅助建档、编辑、每轮最多五位推荐；认领来源影片无二次确认 | 本地实现及定向资格已完成；最终整体验证继续 |
-| `US-FORMATION` | 真实 service-local 抽帧/人脸匹配，唯一最高有效演员；未识别进入既有暂存车间，确认后原位继续，有演员才可上架 | 本地实现及定向资格已完成；最终整体验证继续 |
-| `US-PRESENTATION` | 初次生产和 Arca 刷新共用正式 Renderer；四张 2×2 大截图；演员名加冻结原名；无展示用自建番号 | 本地实现及定向资格已完成；最终整体验证继续 |
-| `US-ARCA-REFRESH` | 仅用户单片手动指定/自动刷新创建本类 Aftercare Case；演员、NFO、海报、相关命名一致更新，收藏身份不变 | 正式HTTP/Work/文件Effect/库存提交、真实进程恢复及UI已验；本轮N95单片指定刷新通过，最终Gate继续 |
-| `SYSTEM-MAINTENANCE-WINDOW` | 每周配置、安全进入/退出、游标续跑和任务分类；概览只显示维护状态与当前任务 | 本地实现及定向资格已完成；最终整体验证继续 |
-| `US-QUALIFICATION` | 正式 Host 旅程、恢复反例、适用跨平台验证和具体版本 UI 审核有 Evidence | 最终Windows/完整Gate进行中；Linux208项及N95预算通过，真实身份准确性未评估 |
+| `US-CONTRACT-BASELINE` | 五个议题映射至 Owner、命令、事实、Effect、恢复和验收；SSOT 与派生合同一致，负例与 Architecture Gate 通过 | PASS：SSOT及派生合同、Owner/Effect/恢复负例及固定0c82ee862原始完整Gate通过 |
+| `US-PEOPLE` | 三库独立；普通/JAV 零用户介入；US Adult 有图手动/辅助建档、编辑、每轮最多五位推荐；认领来源影片无二次确认 | 本地实现及适用工程资格PASS；范围限制见下文 |
+| `US-FORMATION` | 真实 service-local 抽帧/人脸匹配，唯一最高有效演员；未识别进入既有暂存车间，确认后原位继续，有演员才可上架 | 本地实现及适用工程资格PASS；范围限制见下文 |
+| `US-PRESENTATION` | 初次生产和 Arca 刷新共用正式 Renderer；四张 2×2 大截图；演员名加冻结原名；无展示用自建番号 | 本地实现及适用工程资格PASS；范围限制见下文 |
+| `US-ARCA-REFRESH` | 仅用户单片手动指定/自动刷新创建本类 Aftercare Case；演员、NFO、海报、相关命名一致更新，收藏身份不变 | PASS：正式链路/真实进程恢复/UI、Windows/Linux及N95单片指定刷新；身份连续 |
+| `SYSTEM-MAINTENANCE-WINDOW` | 每周配置、安全进入/退出、游标续跑和任务分类；概览只显示维护状态与当前任务 | 本地实现及适用工程资格PASS；范围限制见下文 |
+| `US-QUALIFICATION` | 正式 Host 旅程、恢复反例、适用跨平台验证和具体版本 UI 审核有 Evidence | 工程资格PASS：完整Gate、Windows/Linux/N95通过；真实出演身份准确性未评估，整体业务验收保持开放 |
 
 本 Phase 滚动细化当前工作项；不另建活动计划，不分配开发用 UAT。缺失真实模型/适配器不能由旧 Face HTTP 服务、Mirex Store、mock Result 或空演员关系替代。
 
@@ -128,3 +128,13 @@ TMDB NFO/credits可靠人物命名空间统一查询及提交复验，跨库/多
 四片各20点检出与改造前一致；1核串行总65.096s，双任务37.212s（两片），主事件循环p95约80/82ms。两片暂存→原Run确认→唯一上架→用户单片指定刷新、维护截止/手动停机/跨Host重启及下一窗口原健康Work续跑均通过；原件四份完整hash/大小/时间戳/inode未变，生产镜像/StartedAt/RestartCount保持。独立Linux最终47文件208项全通过；前序环境遗漏测试专用脚本的13失败已保留，修正测试挂载后重跑，不改产品包。新镜像2634文件逐字节与Source/资源相同，UI摘要沿用已接受版本。
 
 当前Service648 PASS/29既有skip、Web242 PASS；最终固定`0c82ee862`原始完整Gate不筛选/不分组，仍在运行。最初`a4a673c20`完整Gate因追加有证据的性能修复而中止，不计PASS。不得提前关闭Phase；具体镜像、原始日志、范围限制及最后结果以现有Evidence为准。
+
+## 最终工程验收与Phase退出检查（2026-10-20）
+
+固定0c82ee862原始完整Gate PASS：387文件、3129 total/3116 PASS/13既有skip/0fail，fixture 3493.8s。74个JAV名称（52 literal+22动态）逐名核验全部PASS；4183 tracked files前后aggregate 73c06dab33d3a59329af8f17519b7579b9c98ef0062c38317d63ae4d5f4e7a80完全相同。包边界、semantic、manifests、P2均PASS；此前取消/分组遗漏/失败轮次不计最终资格。
+
+Service/Web/Windows/Linux/N95及UI的适用工程证据已齐备，跳过和未选中项均单列。主工作区Service原E盘junction已仅移动链接对象至ignored恢复入口，换成独立物理依赖；未改外部target，ORT1.30.0及默认固定模型完整，清空NODE_PATH后22项真实CPU/线程检查通过。代码/持久合同/SSOT在资格后未改，仅更新文档。
+
+从SSOT反向检查：五议题代码、正式Owner/命令/Effect和实际恢复链均有证据；Worker仅持有图片计算/模型、不持有Domain事实，编译优化仍在Foundation Validator内，不引入跨域authority或新业务对象；无旧Runtime/双读/迁移兼容路径，无media-desktop或后续Phase耦合。原件完整hash/stat及生产image/StartedAt/RestartCount保持，测试已退出，无生产发布授权。
+
+**不关闭整体Phase**：真实出演者身份准确性仍未评估。本轮只对真实素材检出/技术标签业务链路、固定模型一致性和性能负责，不能用最高算法分、文件名或未标注样本证明真实身份准确率；500ms预算仅在已记录的小样本/资源配置通过，2.62s长尾及生产容量限制保留。所有实现工作项的工程检查PASS不替代该业务验收，也不等于生产可部署或已发布。

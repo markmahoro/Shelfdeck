@@ -1,17 +1,14 @@
 # ShelfDeck 当前计划
 
-## US Adult 与全系统维护开发（2026-10-18）
+## US Adult 与全系统维护开发（2026-10-20）
 
-用户已确认五个议题并要求本地开发；唯一活动包切换为 `implementation/CURRENT_PHASE.md` 的 US Adult Phase。
-本地/远端 `main@ac278f33e` 已统一，`codex/us-adult` 从最新 main 重建；旧 master/JAV/proxy 分支和三个旧 worktree 已退出使用，忽略资料移存仓库外。
-五议题实现、实际模型/进程恢复、People可靠归并/Reference审计GC、离线副本升级、维护任务及具体版本UI已闭合到最终资格候选；最终Linux98项及额外跨Profile8场景、Windows独立分发复核通过。完整Architecture此前六项精确清单失败已修正；一次分组执行遗漏22条动态JAV用例，资格已撤销，原始完整执行已恢复，最新重跑按用户要求取消，仍无最终全绿结论。
-2026-10-19用户要求暂停开发，并追加下一轮恢复后的发布前资格：在实际N95 NAS建立资源受限的隔离环境检查性能及生产共机影响；从`/vol02/1000-0-24018892/US/scraped`选择少量影片作为正式真实媒体E2E测试集，检验人脸识别可靠性。隔离数据库、Workspace和输出，原目录只读、原媒体不变；该授权不含生产部署、生产数据库升级或真实源文件处置。当前仅记录要求，不启动NAS测试；具体指标、测试集和验收要求见唯一CURRENT_PHASE，适用资格闭合后执行Phase Exit Audit。
-决定来源见 [五议题基线](implementation/evidence/US_ADULT_DECISION_BASELINE_20261018.md)。依 Playbook §3.3 在本任务内先回写已确认设计并传播门禁，再实施；无需另建 Architecture 聊天。
-2026-10-19用户后续明确恢复开发，开始固定72388341e原始完整Gate及精确NAS隔离验收准备；上段“仅记录、不启动”为暂停时点记录。真实媒体阶段自动检查技术性能、检出与业务链路，真实演员身份正确性留人工验收，不将未标注样本或算法分数算作准确率。
-最新用户再次暂停开发。N95隔离技术链路与维护续跑已验证，但高频响应p95约511 ms未达预设500 ms；发现ONNX Node同步native推理阻塞主线程，worker thread调整仅起步、尚未验证。完整72388341e Gate已取消，无最终PASS；所有本轮测试已停止，代码与日志保留，未生产部署。恢复顺序及未验证修改见CURRENT_PHASE。
-2026-10-20用户恢复开发：完成有界worker thread及生命周期/异常/输出一致性验证，随后以精确分发版本复验N95性能及原始完整Architecture Gate。沿用已确认业务、同一NAS隔离测试根和原件保护；无生产发布授权。
-2026-10-20最新固定候选0c82ee862已完成线程改造和有证据的共享Schema编译优化；N95小样本p95 410ms达预算、无OOM，真实媒体技术链路与维护续跑复验通过。仍有约2.62s长尾及未标注真实身份准确性限制；最终完整Gate/Windows和跨Profile资格未结束，不提前关闭Phase。
-既有发布及未关闭 UAT 保持原状态；本轮无备份功能，不继承旧部署/Reset/真实媒体操作授权。状态与下一动作由 CURRENT_PHASE 记录。
+唯一活动包仍为 [CURRENT_PHASE](implementation/CURRENT_PHASE.md)。五议题本地实现及ONNX worker thread、共享Schema编译优化完成，工程固定提交为0c82ee862a380bc1f590f94266ba656987ec3eff；之后仅更新验收文档，不改已验证runtime。
+
+原始完整Architecture Gate通过：387文件、3129 total/3116 PASS/13既有skip/0fail，74个JAV场景（含22个动态定义）全部通过，4183个tracked输入前后摘要一致。Service648 PASS/29既有skip、Web242 PASS及build、Windows独立分发、Linux208专项及额外8个跨Profile场景通过；未选中/opt-in跳过不记覆盖。
+
+实际N95隔离复验：1.5核/1.5GiB两片技术标签整理和单片指定刷新，434请求零错误、p95 410.05ms达到预定500ms预算，峰值887.6MiB、无OOM；仍有2.62s偶发长尾。四片各20点检出与旧版一致，维护截止/手动停机/跨Host及下周原Work续跑通过。NAS本轮进程已退出，原件及生产实例保持，无生产发布/升级或原媒体处置。
+
+本轮工程验证已补齐；真实出演者身份准确性仍未评估，不用检出率或技术标签冒充准确率，因此保留Phase的业务验收开放状态，不宣称整版已发布或全部业务验收完成。证据及范围限制见 [US Adult Evidence](implementation/evidence/US_ADULT_LOCAL_IMPLEMENTATION_20261018.md)。既有发布和未关闭UAT保持，不新增平行活动计划或备份功能。
 
 以下为已交付开发与旧授权的历史记录，不是 US Adult 的并行活动计划。
 
