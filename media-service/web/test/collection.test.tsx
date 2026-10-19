@@ -43,10 +43,27 @@ function renderCollection(url='/collection') {
 describe('Arca collection poster wall', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('updates the Actor dialog from the exact current Entry after refresh even when the wall no longer contains it',async()=>{
+    const original={...entry,provider:'internal',identityKind:'internal_identity',displayIdentity:'Old Actor Original source'},
+      updated={...original,displayIdentity:'New Actor Original source',currentInventoryRevision:2};
+    vi.spyOn(helixAdminApi,'listCollection').mockResolvedValueOnce({items:[original]}).mockResolvedValue({items:[]});
+    vi.spyOn(helixAdminApi,'getCare').mockResolvedValue({activeCase:null,activeCaseProgress:null,health:{state:'healthy'},basis:{careBasisDigest:'proof'}} as never);
+    vi.spyOn(helixAdminApi,'listPeople').mockResolvedValue({items:[],nextCursor:null} as never);
+    const read=vi.spyOn(helixAdminApi,'readCollectionEntry').mockResolvedValue(updated);
+    vi.spyOn(helixAdminApi,'readInventoryActorRefresh').mockResolvedValue({shelfEntryId:entry.shelfEntryId,expectedInventoryRevision:2,
+      expectedRepresentationDigest:'current',currentActor:{personId:'new-actor',displayName:'New Actor'},canRefresh:true,blockingCaseId:null,
+      progress:{aftercareCaseId:'completed-case',mode:'specified',state:'resolved',reasonCode:null,works:[]}});
+    renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 Old Actor Original source 详情/}));
+    expect(await screen.findByText('演员库')).toBeVisible();fireEvent.click(screen.getByRole('button',{name:'刷新演员'}));
+    const dialog=await screen.findByRole('dialog',{name:'刷新影片演员'});
+    expect(await within(dialog).findByText(updated.displayIdentity)).toBeVisible();expect(read).toHaveBeenCalledWith(entry.shelfEntryId);
+    expect(within(dialog).queryByText(original.displayIdentity)).not.toBeInTheDocument();
+  });
+
   it('opens an exact related-work link from the current Entry even when it is outside the wall page',async()=>{
     vi.spyOn(helixAdminApi,'listCollection').mockResolvedValue({items:[],resultCount:0,nextCursor:null,shelves:[],summary:{currentCount:1,historyCount:0}});
     const read=vi.spyOn(helixAdminApi,'readCollectionEntry').mockResolvedValue(entry);
-    vi.spyOn(helixAdminApi,'getCare').mockResolvedValue({activeCase:null,activeCaseProgress:null} as never);
+    vi.spyOn(helixAdminApi,'getCare').mockResolvedValue({activeCase:null,activeCaseProgress:null,health:{state:'healthy'},basis:{careBasisDigest:'proof'}} as never);
     renderCollection('/collection?entry=entry-1');
     expect(await screen.findByRole('dialog')).toHaveTextContent(entry.displayIdentity);expect(read).toHaveBeenCalledWith('entry-1');
   });

@@ -303,3 +303,12 @@ arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后
 - 当前仍有Reference显式引用审计/无引用GC及维护剩余资格，最终固定版本Service/Web/Architecture、适用Linux与实际浏览器/具体版本UI负责人审核。未部署、未操作生产或真实媒体，五议题尚未交付。
 
 本增量Service全量677项/648 PASS/29既有skip/0 fail，141.2秒（system-merge-service.txt）；规则排序与最终Scope专项5项再次通过。未将独立固定c046旧版本Gate结果推广到新提交。
+
+
+## 2026-10-19 实际浏览器首轮及Actor卡片修复
+
+固定47a615f70本地隔离正式Host，使用良性参考图及合成3秒视频形成一部入藏US影片、两位已建档Actor；没有生产或真实媒体。实际浏览器检查三库、普通/JAV零确认、US建档来源反馈、图库最后一图禁用释放，以及单片指定Actor真实Case。第一次实际UI刷新完成后，墙面标题和当前Actor更新；截图保留在本地忽略目录.codex/us-adult-ui。
+
+首轮发现Actor选择radio继承通用.dialog input的100%宽度，挤压姓名为竖排；已以精确radio样式限制尺寸，保留选中/焦点状态，供Formation、推荐认领及Arca三处共享使用。另发现完成后弹窗标题仍沿旧item快照；改为精确读取当前Entry并校验ID/库存版本，关闭后迟到响应不重开，墙面过滤后也能更新标题。US资料来源internal改为演员库。完整Web235 PASS/43文件及build通过（ui-current-actor-web-final.txt、ui-current-actor-build-final.txt），新增墙面排除影片时仍显示正确新标题的回归；更新后实际浏览器和具体版本负责人审核待继续。
+
+开发中原Host只为启动时的精确静态资产注册路由，重建Web后旧Host不服务新hash资产导致浏览器空白；已定位为隔离验证过程的版本切换方式，需正常重开Host加载新构建，不放宽静态路由或以旧hash冒充新文件。旧正式Case已完成，测试Host正在安全关闭，后续以新固定UI版本重新建立隔离数据。

@@ -127,6 +127,14 @@ export default function CollectionPage() {
     }
     finally { if (version === loadVersion.current) setLoading(false); }
   }, [expire, shelfId, healthFilter, search, sort]);
+  const actorEntryId=actorItem?.shelfEntryId;
+  const actorChanged=useCallback(()=>{
+    void load();if(!actorEntryId)return;
+    void helixAdminApi.readCollectionEntry(actorEntryId).then(next=>{
+      if(next.shelfEntryId!==actorEntryId||next.status!=='active')throw new Error('Current actor collection scope changed.');
+      setActorItem(current=>current?.shelfEntryId===actorEntryId&&current.currentInventoryRevision<=next.currentInventoryRevision?next:current);
+    }).catch(cause=>{if(isUnauthorized(cause))expire();else setError('当前收藏信息读取失败，请重新刷新。');});
+  },[actorEntryId,load,expire]);
   useEffect(() => { currentPage.current = 0; pageCursors.current = [undefined]; setPageIndex(0); void load(undefined, 0); }, [load]);
   useEffect(()=>{
     if(!linkedEntryId)return;let cancelled=false;
@@ -236,7 +244,7 @@ export default function CollectionPage() {
             <div><dt>{selected.series ? '全部视频文件' : '主视频'}</dt><dd>{selected.primaryVideoBytes == null ? '—' : `${formatBytes(selected.primaryVideoBytes)}${selected.primaryContainer ? ` · ${selected.primaryContainer}` : ''}`}</dd></div>
             {(selected.videoCodec || selected.videoRaster) && <div><dt>编码与清晰度</dt><dd>{[selected.videoCodec, selected.videoRaster].filter(Boolean).join(' · ')}</dd></div>}
             <div><dt>海报 / NFO</dt><dd>{selected.hasPoster ? '有海报' : '无海报'} · {selected.hasNfo ? '有 NFO' : '无 NFO'}</dd></div>
-            <div><dt>资料来源</dt><dd>{selected.provider === 'tmdb' ? 'TMDB' : selected.provider}</dd></div>
+            <div><dt>资料来源</dt><dd>{selected.provider === 'tmdb' ? 'TMDB' : selected.provider === 'internal' ? '演员库' : selected.provider}</dd></div>
             <div><dt>状态</dt><dd>已上架</dd></div>
           </dl>
           {selected.series && <SeriesFiles series={selected.series} />}
@@ -271,7 +279,7 @@ export default function CollectionPage() {
         </div>
       </section>
     </div>}
-    {actorItem&&<UsAdultInventoryActorDialog item={actorItem} onClose={()=>setActorItem(null)} onChanged={()=>void load()} onUnauthorized={expire}/>}
+    {actorItem&&<UsAdultInventoryActorDialog item={actorItem} onClose={()=>setActorItem(null)} onChanged={actorChanged} onUnauthorized={expire}/>}
     {correctionItem&&<JavCorrectionDialog item={correctionItem} onClose={()=>setCorrectionItem(null)} onChanged={()=>void load()} onUnauthorized={expire}/>}
   </section>;
 }
