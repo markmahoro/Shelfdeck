@@ -369,3 +369,12 @@ Service677 total/648 PASS/29既有skip/0 fail（149.1秒）；Web43文件/242 PA
 第一轮read-only容器/tmp只给3 GiB，低于既有Workspace需求1.2×输入+5 GiB，正确等待空间而无Workspace。该轮已终止，不记旅程PASS；改为12 GiB tmpfs上限（实际内存独立限额，材料仍隔离），不修改准入规则。窗口时钟围栏后的Windows实际GC2 PASS/132.3秒，缺失文件窗口外只结算保持。
 
 后续Linux发现fonts文件虽已安装，但--no-install-recommends未带Fontconfig配置，/etc/fonts/fonts.conf不存在，Sharp报告Cannot load default config。已在runtime阶段显式安装fontconfig并生成缓存，指定正式配置路径；不改Renderer或应用逻辑。必须以最终新镜像验证文字与旅程，不以有fonts文件或旧无配置渲染成功冒充正确字形发现。
+
+
+### Linux真实旅程与额外Series恢复竞态
+
+8079ae7bb4以12 GiB隔离tmpfs、实际内存/CPU限额及network none运行16文件：68 PASS/0 FAIL/0 skip、337.2秒。覆盖实际US三库/参考图、20帧、暂存原位确认、最高匹配、推荐A-only ACK重启、Arca单片刷新与Inventory提交前/后及stage discard真实进程退出、后期Actor replacement、GC双轮/窗口外结算、可靠People归并、离线210→224副本、维护配置/截止/豆瓣续跑。该镜像字体配置发现后已另行补强，最终镜像字体及受影响海报旅程需重验。
+
+额外跨Profile组合7 PASS/1 FAIL，98个非选中测试为name过滤，不计覆盖。唯一失败是opt-in Series外部Transcode进程恢复：Arca已接管Package Product Control、Accepted消息尚未消费的间隙，Libra freshness试图suspend而被原有P9_RUN_LIFECYCLE_PACKAGE_CONTROL围栏拒绝。实际child在预定exit73前因该RuntimeError结束1，不是预期恢复PASS。
+
+Libra自身read投影现扩展为当前Run已发布Package Product/Offload的Material Control，只在发现Arca custody时返回技术handoff_resolution_pending，等待既有durable Accepted消息；不把Control当Accepted事实、不完成Run、不读取Arca Store、不放宽transition fence。已有直接非complete越权仍拒绝，新增promoted product不在原输入Scope的确定性负例证明零Run/head/Result/marker写入、原输入Basis比较保持；Owner/Series continuity30 PASS。首次新fixture未列Package的7个列名导致SQL错误，修正后通过，未改表或放宽SQL规则。实际额外Series恢复需最终复验。

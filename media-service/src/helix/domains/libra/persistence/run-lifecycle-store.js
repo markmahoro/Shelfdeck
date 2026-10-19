@@ -1344,7 +1344,7 @@ function assertAssessment(decision, original, current, skeleton) {
     );
 }
 
-function assertPackageFence(repo, run, decision, controls) {
+function publishedPackage(repo, run) {
   const packages = repo
     .invoke("list_packages", { libra_run_id: run.libra_run_id })
     .filter((row) => row.state === "published");
@@ -1367,7 +1367,10 @@ function assertPackageFence(repo, run, decision, controls) {
       "P9_RUN_LIFECYCLE_PACKAGE",
       "Published Package Offer identity is invalid.",
     );
-  if (decision.transitionKind === "complete") return pkg;
+  return pkg;
+}
+
+function packageMaterialKeys(repo, pkg) {
   const materials = repo.invoke("list_package_materials", {
       on_deck_package_id: pkg.on_deck_package_id,
     }),
@@ -1382,7 +1385,14 @@ function assertPackageFence(repo, run, decision, controls) {
         ...materials.map((row) => row.material_key),
         ...offload.map((row) => row.material_key),
       ]),
-    ].sort(utf8),
+    ].sort(utf8);
+  return keys;
+}
+
+function assertPackageFence(repo, run, decision, controls) {
+  const pkg = publishedPackage(repo, run);
+  if (!pkg || decision.transitionKind === "complete") return pkg;
+  const keys = packageMaterialKeys(repo, pkg),
     byKey = new Map(controls.map((item) => [item.materialKey, item]));
   for (const key of keys) {
     const control = byKey.get(key);
@@ -1605,7 +1615,7 @@ function createRunLifecycleStore(options) {
           "P9_RUN_LIFECYCLE_ASSESSMENT_INPUT",
           "Run identity and non-negative assessment time are required.",
         );
-      let run, admissionHead, original, skeleton, controls = [], controlKeys = [];
+      let run, admissionHead, original, skeleton, controls = [], controlKeys = [], packageKeys = [];
       const read = {
         participantId: "run_freshness_read",
         owner: "libra",
@@ -1627,7 +1637,9 @@ function createRunLifecycleStore(options) {
               "P9_RUN_LIFECYCLE_HEAD",
               "Run admission head is absent during Freshness assessment.",
             );
-          controlKeys = [...new Set(skeleton?.keys || [])].sort(utf8);
+          const pkg = publishedPackage(repo, run);
+          packageKeys = pkg ? packageMaterialKeys(repo, pkg) : [];
+          controlKeys = [...new Set([...(skeleton?.keys || []), ...packageKeys])].sort(utf8);
         },
       };
       const authority = {
@@ -1647,6 +1659,12 @@ function createRunLifecycleStore(options) {
       };
       options.unitOfWork.execute([read, authority]);
       if (!run) return Object.freeze({ kind: "not_found", libraRunId });
+      if (packageKeys.some(key => controls.some(control => control.materialKey === key &&
+          control.resultKind === "available" && control.controlState === "controlled" && control.ownerDomain === "arca"))) {
+        // Control is only a fence, never proof of Handoff acceptance. The
+        // durable Arca message must still complete the original Libra Run.
+        return Object.freeze({ kind: "handoff_resolution_pending", libraRunId });
+      }
       const built = buildFreshnessAssessment(
         run,
         original,
