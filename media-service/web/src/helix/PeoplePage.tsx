@@ -18,7 +18,7 @@ function initials(name: string) {
 
 function PersonAvatar({ person }: { person: RegisteredPerson }) {
   const hasTmdbIdentity = person.libraryKind === 'us_adult' ? (person.currentReferenceRevision || 0) > 0 : person.providerIdentities.some((identity) =>
-    identity.provider === 'tmdb' && identity.namespace === 'tmdb_person');
+    identity.provider === 'tmdb' && ['tmdb_person','person'].includes(identity.namespace) && /^[1-9][0-9]{0,15}$/.test(identity.providerKey));
   const [state, setState] = useState<'loading' | 'loaded' | 'fallback'>(hasTmdbIdentity ? 'loading' : 'fallback');
 
   useEffect(() => {

@@ -20,8 +20,8 @@ const projection: PeopleProjection = {
   summary: { activePersonCount: 2, mergedPersonCount: 0, openRegistrationCandidateCount: 0, openMergeCandidateCount: 0 },
 };
 
-function renderPeople() {
-  vi.spyOn(helixAdminApi, 'listPeople').mockResolvedValue(projection);
+function renderPeople(value:PeopleProjection=projection) {
+  vi.spyOn(helixAdminApi, 'listPeople').mockResolvedValue(value);
   vi.spyOn(helixAdminApi, 'listPeopleRegistrationCandidates').mockResolvedValue({ items: [] });
   vi.spyOn(helixAdminApi, 'readUsAdultRecommendations').mockResolvedValue({publication:null,items:[]});
   return render(<SessionProvider><PeoplePage /></SessionProvider>);
@@ -29,6 +29,11 @@ function renderPeople() {
 
 describe('People contact sheet', () => {
   afterEach(() => vi.restoreAllMocks());
+
+  it('loads an existing NFO Person avatar from its reliable TMDB Person ID',async()=>{
+    renderPeople({...projection,items:[{...projection.items[0],providerIdentities:[{provider:'tmdb',namespace:'person',providerKey:'1337'}]}]});
+    expect(await screen.findByRole('img',{name:'周迅头像'})).toHaveAttribute('src',helixAdminApi.personAvatarUrl('person-tmdb',null));
+  });
 
   it('shows registered people as accessible cards with Provider identities', async () => {
     renderPeople();

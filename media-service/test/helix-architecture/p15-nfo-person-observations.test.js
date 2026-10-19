@@ -10,7 +10,7 @@ test('UAT-214 observes NFO actor identity as provider evidence, never as local P
   assert.equal(result.usable, true);
   assert.deepEqual(result.actors, [{ ordinal:0, displayName:'张三 & 李四', displayNameNormalized:'张三 & 李四',
     role:'actor', character:'主角', identityConflict:false,
-    providerIdentities:[{provider:'tmdb',namespace:'person',providerKey:'123'}] }]);
+    providerIdentities:[{provider:'tmdb',namespace:'tmdb_person',providerKey:'123'}] }]);
   assert.equal(Object.hasOwn(result.actors[0], 'personId'), false);
 });
 

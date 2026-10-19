@@ -2,6 +2,7 @@
 
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { requireLibraryKind, requireSameLibrary } = require('../model/person-library');
+const { personIdentityNamespaces } = require('../model/provider-person-identity');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const {
   PEOPLE_CANDIDATE_DRAFT_SCHEMA, createCandidate, createCandidateDraft, createCandidateRevision, createPerson,
@@ -638,9 +639,10 @@ function createPeopleStore(options) {
       requireLibraryKind(identity.libraryKind);
       return execute([registry], (context) => {
         const repository = context.repository(registry.repositoryId);
-        const row = repository.invoke('find_active_provider_identity', { library_kind: identity.libraryKind, provider:identity.provider,
-          namespace:identity.namespace,provider_key:identity.providerKey,active_guard:1 });
-        return row ? mapPerson(repository, repository.invoke('find_person', { person_id:row.person_id })) : undefined;
+        const matches = new Set(personIdentityNamespaces(identity).map(namespace => repository.invoke('find_active_provider_identity', {
+          library_kind: identity.libraryKind, provider:identity.provider, namespace, provider_key:identity.providerKey, active_guard:1 })?.person_id).filter(Boolean));
+        if(matches.size > 1) fail('P6_PEOPLE_PROVIDER_IDENTITY_CONFLICT', 'TMDB Person namespace evidence identifies different active Persons.');
+        return matches.size ? mapPerson(repository, repository.invoke('find_person', { person_id:[...matches][0] })) : undefined;
       });
     },
     appendPreference(input) {
@@ -815,8 +817,8 @@ function createPeopleStore(options) {
         if(decision.decisionOrigin==='strong_identity_rule'){
           const identities=candidate.candidatePayload.providerIdentities;
           if(!identities.length)fail('P6_PEOPLE_REGISTRATION_CANDIDATE_FENCE','A system registration requires explicit Provider Person identity.');
-          const matches=new Set(identities.map(identity=>personRepository.invoke('find_active_provider_identity',{
-            library_kind:candidate.candidatePayload.libraryKind,provider:identity.provider,namespace:identity.namespace,provider_key:identity.providerKey,active_guard:1})?.person_id).filter(Boolean));
+          const matches=new Set(identities.flatMap(identity=>personIdentityNamespaces(identity).map(namespace=>personRepository.invoke('find_active_provider_identity',{
+            library_kind:candidate.candidatePayload.libraryKind,provider:identity.provider,namespace,provider_key:identity.providerKey,active_guard:1})?.person_id)).filter(Boolean));
           if(matches.size)fail(matches.size===1?'P6_PEOPLE_IDENTITY_ALREADY_KNOWN':'P6_PEOPLE_PROVIDER_IDENTITY_CONFLICT','Provider identity was already registered while this Evidence Work was pending.');
         }
         const nextCandidateRevision = createCandidateRevision({ candidateId: decision.candidateId,
@@ -971,12 +973,16 @@ function createPeopleStore(options) {
     findUserAcceptedRegistrationPerson(evidenceDigest) {
       return execute([candidates,registry], context => {
         const candidateRepository=context.repository(candidates.repositoryId), personRepository=context.repository(registry.repositoryId);
-        const candidate=mapRegistrationCandidate(candidateRepository,
-          candidateRepository.invoke('find_registration_candidate_by_evidence',{evidence_digest:evidenceDigest}));
-        if (!candidate || candidate.currentState !== 'accepted' || candidate.revision.decisionOrigin !== 'user') return null;
+        const row=candidateRepository.invoke('find_registration_candidate_by_evidence',{evidence_digest:evidenceDigest});
+        if(!row||row.current_state!=='accepted')return null;
+        const revision=candidateRepository.invoke('find_registration_revision',{registration_candidate_id:row.registration_candidate_id,revision:row.current_revision});
+        if(revision?.state!=='accepted'||revision.decision_origin!=='user')return null;
+        let payload;
+        try{payload=JSON.parse(row.candidate_json);}catch{fail('P6_PEOPLE_CANDIDATE_PAYLOAD_DIGEST','Historical registration origin JSON is corrupt.');}
+        if(canonicalDigest(payload)!==row.candidate_payload_digest)fail('P6_PEOPLE_CANDIDATE_PAYLOAD_DIGEST','Historical registration origin payload digest is corrupt.');
         const origins=personRepository.invoke('find_registration_origin_person',{
-          origin_candidate_kind:'registration',origin_candidate_id:candidate.candidateId,revision:1});
-        if (origins.length !== 1 || origins[0].origin_candidate_payload_digest !== candidate.candidatePayloadDigest) return null;
+          origin_candidate_kind:'registration',origin_candidate_id:row.registration_candidate_id,revision:1});
+        if (origins.length !== 1 || origins[0].origin_candidate_payload_digest !== row.candidate_payload_digest) return null;
         return mapPerson(personRepository,personRepository.invoke('find_person',{person_id:origins[0].person_id}));
       },'people_registration_origin_query');
     },
@@ -1031,6 +1037,13 @@ function createPeopleStore(options) {
           fail('P6_PEOPLE_REGISTRATION_CANDIDATE_FENCE', 'Registration Candidate revision or payload changed before acceptance.');
         }
         const candidate = mapRegistrationCandidate(candidateRepository, row);
+        if(decision.decisionOrigin==='strong_identity_rule'){
+          const identities=candidate.candidatePayload.providerIdentities;
+          if(!identities.length)fail('P6_PEOPLE_REGISTRATION_CANDIDATE_FENCE','A system registration requires explicit Provider Person identity.');
+          const matches=new Set(identities.flatMap(identity=>personIdentityNamespaces(identity).map(namespace=>personRepository.invoke('find_active_provider_identity',{
+            library_kind:candidate.candidatePayload.libraryKind,provider:identity.provider,namespace,provider_key:identity.providerKey,active_guard:1})?.person_id)).filter(Boolean));
+          if(matches.size)fail(matches.size===1?'P6_PEOPLE_IDENTITY_ALREADY_KNOWN':'P6_PEOPLE_PROVIDER_IDENTITY_CONFLICT','Provider identity was already registered while this Evidence Work was pending.');
+        }
         const nextCandidateRevision = createCandidateRevision({ candidateId: decision.candidateId,
           revision: decision.expectedCandidateRevision + 1, state: 'accepted', decisionOrigin: decision.decisionOrigin,
           decisionRef: decision.decisionId, decisionDigest: decision.decisionDigest, committedAtMs: context.commitTimeMs });

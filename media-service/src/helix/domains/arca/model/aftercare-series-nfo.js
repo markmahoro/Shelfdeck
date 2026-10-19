@@ -117,11 +117,13 @@ function renderSeriesAftercareNfo(context,materialKey) {
     if(relation?.role!=='actor')continue;
     if(typeof relation.displayName!=='string'||!relation.displayName.trim())fail('Series NFO actor name is absent.');
     lines.push('  <actor>','    <name>'+xmlText(relation.displayName)+'</name>');
-    const ids=(relation.providerIdentities||[]).filter(item=>item.provider==='tmdb'&&item.namespace==='tmdb_person');
+    const claims=(relation.providerIdentities||[]).filter(item=>item.provider==='tmdb'&&['tmdb_person','person'].includes(item.namespace));
+    if(new Set(claims.map(item=>item.namespace)).size!==claims.length)fail('Series NFO actor identity is duplicated.');
+    const ids=[...new Set(claims.map(item=>item.providerKey))];
     if(ids.length>1)fail('Series NFO actor identity is ambiguous.');
     if(ids.length) {
-      if(!/^[1-9][0-9]{0,15}$/.test(String(ids[0].providerKey)))fail('Series NFO actor identity is invalid.');
-      lines.push('    <tmdbid>'+xmlText(ids[0].providerKey)+'</tmdbid>');
+      if(!/^[1-9][0-9]{0,15}$/.test(String(ids[0])))fail('Series NFO actor identity is invalid.');
+      lines.push('    <tmdbid>'+xmlText(ids[0])+'</tmdbid>');
     }
     lines.push('  </actor>');
   }

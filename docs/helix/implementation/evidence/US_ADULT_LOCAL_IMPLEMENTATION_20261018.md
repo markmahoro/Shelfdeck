@@ -281,3 +281,13 @@ arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后
 - GET状态检测已知当前Basis/执行来源冲突并明确reasonCode，不改变Case、不捏造Work。前端显示活动冲突及实际discard阶段；Web233 PASS/43文件，build PASS（既有554.03 kB chunk warning），日志arca-discard-web-final.txt及arca-discard-web-build-final.txt。没有自动取消/重设冻结Case，其他未知错误仍明确失败。
 - 当前P2：130 Capability/108 Result/224表/57事务/144 Domain inputs/31 shared/240引用/0 unresolved/162路由；aggregate a26df8c4641a9a08b5bb3dc18daa12009acddd9fff8037af4f9ca907be3e804a。固定c04641bab完整Architecture仍独立运行，其输入快照4140文件aggregate 7ca7843fac25b4656534d5cad5046b0197ee812d68982ae9d05bcbf767ad63f5，不能冒称覆盖本增量。
 - 开放范围：普通/JAV深度可靠归并/补全、Reference审计与无引用GC、离线副本升级、维护剩余资格、Formation迟发选择正式Host、最终固定版本全量/平台/浏览器及具体版本UI负责人审核。无生产、NAS、真实媒体或Desktop操作，本版仍未交付。
+
+
+## 2026-10-19 TMDB人物可靠编号与离线结构副本
+
+- 正常/JAV系统维护继续只依可靠人物ID，不按姓名归并。NFO新观察统一使用tmdb_person；People将严格数字TMDB Person的两个既有命名空间作为同一Provider身份查询，按库隔离，并在正式及直接Owner提交内重验，拒绝并发重复建档。多个不同Person命中保持内部冲突，不任取一条。历史事实不改写；头像端口转为标准tmdb_person调用，历史NFO人物可显示头像，冲突ID不选肖像。Movie/Series NFO保留可靠历史编号并拒绝矛盾或重复编号。69项定向通过，人物页9项通过，日志people-tmdb-namespace.txt及people-namespace-web.txt。
+- 版本化Operator helix-us-adult-schema-copy.js：冻结main 210表来源5e82c36bf1d63e1297cf468361be67c074df3226a64d2dfb755d472db0bbee41与224表目标33ef1d7c2f07669991a8401754f7671c92f4848db8a9c1869724bc5edf8e614c，来源/目标archive都验证DDL/manifest。逐表保留209个既有事实/执行表的全部旧列/行；仅Person/Provider identity新增library_kind，新14表为空。分类用可靠TMDB/JavDB编号、既有Arca Canonical Profile及历史Merge关联，不用姓名/默认库，不静默拆身份。未知/冲突归属或未结束Process/Work/Effect拒绝复制，源始终只读；禁止覆盖及软/硬链接别名，中断不发布目标。
+- 历史普通/JAV确认项保留内部Candidate，不批量接受/删除。已被用户接受的旧弱Evidence经精确Candidate状态/原始payload digest/唯一Person origin恢复历史关联，不要求给旧不可变JSON添加libraryKind，当前Person提供隔离归属。旧名字、收藏Person关系、整数历史、Preference/Reference及执行记录全部按行集摘要保护。回退只做资格检查，新事实/旧字节变化或新分库赋值变化均拒绝，不执行替换。
+- 隔离archive fixture：实际复制、完整性/FK、三库同名身份、旧待确认保留、已接受弱来源可读、Merge归属传播与冲突、未完成责任、改库/旧字节/新事实后禁止无损回退、别名/覆盖与写入中断均通过；最新21项合批包含8项Operator及13项People证据（us-upgrade-origins.txt）。没有读取/导出/升级生产数据，该证据不代表生产副本Host资格。Windows/Docker显式分发清单已补入工具及精确依赖，仍须最终独立包检查。
+- 72963fb39的Service全量677项/648 PASS/29既有skip/0 fail（135.9秒，arca-discard-service-final.txt）；本文增量尚未全量Service。当前包边界658文件/2320依赖/47包通过，P2保持130/108/224/57/144及aggregate a26df8c4641a9a08b5bb3dc18daa12009acddd9fff8037af4f9ca907be3e804a。固定c04641bab完整Gate仍独立运行，不覆盖本增量。
+- 剩余：系统People可靠归并正式运行、Reference引用审计/无引用GC、维护完整资格、Formation迟发选择实际Host、最终固定提交全量及Windows/Linux/浏览器/具体版本UI审核。全部五议题仍未交付；无生产操作。

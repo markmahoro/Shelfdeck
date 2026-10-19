@@ -31,7 +31,9 @@ function createMediaCastReferenceQuery(store) {
       const matches=new Map();
       for(const identity of input.providerIdentities) {
         if(!identity.provider||!identity.namespace||!identity.providerKey)continue;
-        const person=store.findActivePersonByProviderIdentity({libraryKind,provider:identity.provider,namespace:identity.namespace,providerKey:identity.providerKey});
+        let person;
+        try { person=store.findActivePersonByProviderIdentity({libraryKind,provider:identity.provider,namespace:identity.namespace,providerKey:identity.providerKey}); }
+        catch(error) { if(error.code!=='P6_PEOPLE_PROVIDER_IDENTITY_CONFLICT')throw error;return unresolved('conflicting_provider_identities'); }
         if(person?.status==='active')matches.set(person.personId,person);
       }
       if(matches.size>1)return unresolved('conflicting_provider_identities');

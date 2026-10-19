@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-19 历史人物与副本工具增量：可靠TMDB人物命名空间隔离查询/提交、历史头像与NFO编号修复通过69项及人物页9项；离线main 210→224结构副本已实现，保留全部209个旧事实表原列/行、旧确认及收藏引用，仅可靠来源填分库，未知/冲突与未完成责任拒绝。Operator与来源合批21项通过，生产副本未读取/升级，未发布；Reference GC、正式可靠归并、维护剩余及最终平台/UI资格继续。
+
 2026-10-19 Actor stage恢复增量：原Case独立discard Work及持久Effect精确清扫完成后才可无写入失败收口。真实Host在Inventory提交前/后及stage删除第一项实际exit 73/74/75，原Case恢复、新Intent刷新和历史Source期限组合1 PASS；局部20项、Web233项与构建通过。当前P2为130/108/224/57/144、162路由，aggregate见现有Evidence。独立c04641bab完整Gate在运行；人物深度维护、Reference GC、离线升级、维护剩余及最终平台/UI仍开放，未交付或操作生产。
 
 2026-10-19 US Adult恢复开发增量：系统People维护正式Work/typed Evidence链、可靠JavDB Actor ID与Arca当前出演关联已接通；真实JAV强/弱来源2项、Series维护人物/修复3项通过。Actor实际提交前/后进程退出恢复、目标冲突无覆盖及失败收口后显式新Intent再提交1项通过，未知/部分副作用仍原Case恢复。当前130/108/224/57/144及162路由，P2通过；Service648 PASS/29既有skip、Web232 PASS及构建。stage残留清扫、People深度维护/Reference审计GC、离线副本升级、维护剩余项、固定版本完整Gate/独立Windows/Linux/浏览器与负责人UI资格仍开放。旧1dd完整Gate实际33失败不是PASS，当前checkout Windows打包因共享依赖junction失败，待物理依赖checkout复验。未发布或操作生产；见唯一CURRENT_PHASE及既有US_ADULT_LOCAL_IMPLEMENTATION Evidence。

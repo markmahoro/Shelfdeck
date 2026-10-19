@@ -141,6 +141,29 @@ test('exact Provider identity resolves across sources and coordinator restart wi
   assert.equal(value.store.listPeople().length,1);
 }));
 
+test('TMDB NFO and credits namespaces resolve one reliable Person without rewriting historical facts',()=>fixture(value=>{
+  const original=scopeFor('nfo',[{provider:'tmdb',namespace:'person',providerKey:'424242'}]),person=seedPerson(value.store,original),
+    credits=scopeFor('credits',[{provider:'tmdb',namespace:'tmdb_person',providerKey:'424242'}]),before=value.store.getPerson(person.personId);
+  assert.equal(peopleFor(value).reconcile(credits).personId,person.personId);
+  assert.equal(value.store.findActivePersonByProviderIdentity({libraryKind:'normal',...credits.providerIdentities[0]}).personId,person.personId);
+  assert.deepEqual(value.store.getPerson(person.personId),before);
+  assert.equal(value.kernel.runPrimitive(({prepare})=>prepare('SELECT count(*) n FROM fx_supporting_works').get().n),0);
+  assert.equal(peopleFor(value).reconcile({...credits,contentProfile:'jav',projectionItem:projectionItem({...credits,contentProfile:'jav'},'media_cast')}).kind,'evidence_pending');
+  const candidate=seedCandidate(value.store,credits),body={decisionId:'racing-registration',candidateKind:'registration',candidateId:candidate.candidateId,
+    expectedCandidateRevision:1,candidatePayloadDigest:candidate.candidatePayloadDigest,newPersonId:'racing-person',decisionOrigin:'strong_identity_rule',ruleRevision:1};
+  assert.throws(()=>value.store.acceptRegistrationCandidate({...body,decisionDigest:canonicalDigest(body)}),{code:'P6_PEOPLE_IDENTITY_ALREADY_KNOWN'});
+  assert.equal(value.store.getRegistrationCandidate(candidate.candidateId).currentState,'open');
+  assert.equal(value.store.listPeople().length,1);
+}));
+
+test('conflicting historical TMDB namespace identities remain internal instead of selecting by name or row order',()=>fixture(value=>{
+  for(const namespace of ['person','tmdb_person'])seedPerson(value.store,scopeFor(namespace,[{provider:'tmdb',namespace,providerKey:'42'}]),{historical:true});
+  const people=peopleFor(value),input={libraryKind:'normal',personId:null,providerIdentities:[{provider:'tmdb',namespace:'tmdb_person',providerKey:'42'}]};
+  assert.deepEqual(people.mediaCastReferenceQuery.resolve(input),{kind:'unresolved',reasonCode:'conflicting_provider_identities'});
+  assert.equal(value.store.listPeople().length,2);
+  assert.equal(people.mediaCastReferenceQuery.resolve({...input,providerIdentities:[{provider:'tmdb',namespace:'movie',providerKey:'42'}]}).kind,'unresolved');
+}));
+
 test('new On-deck evidence is visible and admitted immediately after an empty sweep', () => fixture(({ store, unitOfWork, schemaManifest,systemRegistration }) => {
   let page = [];
   const people = createPeopleProcessServices({

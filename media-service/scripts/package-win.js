@@ -113,6 +113,8 @@ const CLEAN_RUNTIME_FILES = [
   'scripts/helix-clean-init.js',
   'scripts/helix-jav-schema-copy.js',
   'scripts/helix-libra-schema-copy.js',
+  'scripts/helix-us-adult-schema-copy.js',
+  'scripts/helix-architecture/us-adult-schema-copy.js',
   'scripts/helix-architecture/libra-workshop-schema-copy.js',
   'scripts/helix-architecture/jav-release-schema-copy.js',
   'scripts/helix-architecture/jav-release-effect-history-proof.js',

@@ -96,8 +96,11 @@ function javIdentityMatches(document, identity) {
 }
 
 function tmdbPersonId(relation) {
-  const value = relation.providerIdentities.find((item) => item?.provider === 'tmdb' && item.namespace === 'tmdb_person')?.providerKey;
-  return value === undefined || value === null ? null : String(value).trim() || null;
+  const ids = new Set(relation.providerIdentities.filter(item => item?.provider === 'tmdb' && ['tmdb_person','person'].includes(item.namespace)).map(item=>item.providerKey));
+  if(ids.size>1)fail('ARCA_AFTERCARE_NFO_IDENTITY_INVALID','NFO actor has conflicting TMDB Person identities.');
+  const value=[...ids][0];
+  if(value!==undefined&&!/^[1-9][0-9]{0,15}$/.test(value))fail('ARCA_AFTERCARE_NFO_IDENTITY_INVALID','NFO actor TMDB Person identity is invalid.');
+  return value ?? null;
 }
 
 function normalizedName(value) {
@@ -391,7 +394,7 @@ function projectMovieNfoPersonObservations(value) {
       const actor = parseActor(inspected.xml, node);
       return Object.freeze({ ordinal, displayName:actor.name, displayNameNormalized:actor.normalizedName,
         role:'actor', character:actor.character || null, identityConflict:actor.identityConflict === true,
-        providerIdentities:Object.freeze(/^[1-9][0-9]{0,15}$/.test(actor.personId || '') ? [Object.freeze({ provider:'tmdb', namespace:'person', providerKey:actor.personId })] : []),
+        providerIdentities:Object.freeze(/^[1-9][0-9]{0,15}$/.test(actor.personId || '') ? [Object.freeze({ provider:'tmdb', namespace:'tmdb_person', providerKey:actor.personId })] : []),
       });
     })),
   });
