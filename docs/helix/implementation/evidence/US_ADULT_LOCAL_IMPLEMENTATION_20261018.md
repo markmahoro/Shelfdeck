@@ -350,3 +350,8 @@ Service677 total/648 PASS/29既有skip/0 fail（149.1秒）；Web43文件/242 PA
 ### 维护截止直接时钟围栏
 
 审计补强allows(maintenance)：除持久准入状态外，物理批次准入直接检查当前时钟在[start,end−5min)内，避免协调器下一tick前的短间隙继续新增批次。无需写状态或改变安全收尾；safety及人工stop优先保持。初次新fixture从08:54首次进入正确触发15分钟超时skip，已改为03:00进入后直接推进时钟，再验证无需tick即截止。窗口/正式Host/豆瓣续跑组合10 PASS（maintenance-clock-cutoff-final.txt）；完整13e5固定Gate继续，其后只增加本围栏及Docker运行时修正，需独立记录适用增量与最终镜像验证，不能称13e5覆盖这两项新diff。
+
+
+### Linux模型安装阶段分发审计
+
+审查实际多阶段镜像发现：安装脚本在service-dependencies阶段require固定us-adult-face-model-pack.json，但该阶段此前只COPY资源license和脚本，src合同只在后续runtime阶段复制。已在安装前精确COPY manifest，安装的版本/尺寸/SHA256校验及许可不变。这是Docker-only分发修正；等待最终重建，不以先前Windows包通过冒充Linux模型分发通过。

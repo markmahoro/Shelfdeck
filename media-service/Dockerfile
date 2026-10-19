@@ -35,6 +35,7 @@ RUN apt-get update \
 COPY media-service/package.json media-service/package-lock.json ./
 RUN ONNXRUNTIME_NODE_INSTALL=skip npm ci --omit=dev
 COPY media-service/resources/face-models ./resources/face-models
+COPY media-service/src/helix/contracts/us-adult-face-model-pack.json ./src/helix/contracts/us-adult-face-model-pack.json
 COPY media-service/scripts/install-face-models.js ./scripts/install-face-models.js
 RUN node scripts/install-face-models.js
 
