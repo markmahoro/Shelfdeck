@@ -158,12 +158,15 @@ function createCleanPeopleImagePort(options) {
     if (!TOKEN.test(personId) || !TOKEN.test(operationId) || !['reference-image', 'reference-embedding'].includes(artifactKind)) fail('PEOPLE_IMAGE_ARTIFACT_INPUT_INVALID', '人物图片产物参数无效。');
     context.assertExecutionActive();
     const root = controlledRoot(true), artifactHandleId = canonicalDigest({ schema: 'people.reference-artifact-id@1', personId, artifactKind, digestHex:digestBytes(bytes) });
+    const previousArtifact=repository.get(artifactHandleId);if(previousArtifact?.state==='gc_eligible')fail('PEOPLE_IMAGE_ARTIFACT_CHANGED','参考图正在安全回收，请稍后重试。');
     const mediaType = artifactKind === 'reference-image' ? imageMediaType(bytes) : 'application/vnd.shelfdeck.face-embedding+json';
     const intentId=canonicalDigest({schema:'people.reference-publication-intent-id@1',personId,operationId,artifactKind});
     publish(fileFor(intentId),Buffer.from(canonicalJson({schema:'people.reference-publication-intent@1',personId,operationId,artifactKind,
       artifactHandleId,digestHex:digestBytes(bytes),sizeBytes:bytes.length})));
     publish(fileFor(artifactHandleId), bytes);
     options.afterPhysicalEffect?.({ operationId, artifactKind });
+    if(previousArtifact?.state==='deleted')repository.reactivateVerified({artifactHandleId,expectedReferenceRevision:previousArtifact.referenceRevision,context,readParticipants:[options.locationRegistryRepository.createWorkspaceRootReadParticipant(root)],
+      verifyReality:record=>{safeDirectory(rootPath);readExact(parseStorageRef(record.storageRef),record.digestHex,record.sizeBytes);return true;}});
     return registry.register({ artifactHandleId, artifactKind, ownerDomain: 'people', ownerScopeType: 'person', ownerScopeId: personId,
       rootId, rootConfigRevision: root.configRevision, relativePath: artifactHandleId, digestHex: digestBytes(bytes), sizeBytes: bytes.length,
       mediaType, provenanceRef, createdAtMs: now() });
@@ -175,7 +178,8 @@ function createCleanPeopleImagePort(options) {
         record.storageRef !== handle.storageRef || record.sizeBytes !== handle.sizeBytes) fail('PEOPLE_IMAGE_ARTIFACT_CHANGED', '人物图片引用已变化。');
     controlledRoot(); return readExact(parseStorageRef(record.storageRef), record.digestHex, record.sizeBytes);
   }
-  return Object.freeze({ stageUpload, readUpload, materialize, readArtifact,rootSnapshot:()=>Object.freeze({...controlledRoot()}),
+  const reclamation=require('./clean-people-artifact-reclamation-port').createCleanPeopleArtifactReclamationPort({...options,rootPath,controlledRoot,safeDirectory,readExact,publish,requireEffect,afterPhysicalEffect:options.afterReclamationPhysicalEffect});
+  return Object.freeze({ stageUpload, readUpload, materialize, readArtifact,reclamation,rootSnapshot:()=>Object.freeze({...controlledRoot()}),
     readReferenceEmbedding({ personId, artifactHandleId, artifactDigest }) {
       const record = repository.get(artifactHandleId);
       if (!record || record.state !== 'active' || record.ownerDomain !== 'people' || record.ownerScopeType !== 'person' ||

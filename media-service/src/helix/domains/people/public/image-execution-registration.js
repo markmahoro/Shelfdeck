@@ -15,6 +15,8 @@ const {createSystemRegistrationPorts}=require('../capabilities/system-registrati
 const {createSystemRegistrationPlanning}=require('../planning/system-registration-planner');
 const {createSystemMerge}=require('../application/system-merge');
 const mergeModel=require('../model/system-merge-work');
+const {createPeopleArtifactReclamation}=require('../application/reference-artifact-reclamation');
+const {createReferenceArtifactReclamationPlanning}=require('../planning/reference-artifact-reclamation-planner');
 
 function createPeopleImageExecutionRegistration(options) {
   const peopleStore = createPeopleStore(options);
@@ -43,24 +45,26 @@ function createPeopleImageExecutionRegistration(options) {
       computeEmbedding() { throw new Error('People reference compute is unavailable.'); } } });
   const sharedPorts=Object.fromEntries([mergeModel.CANDIDATE,mergeModel.PERSON].map(capability=>[capability,Object.fromEntries(['execute','validateInputs','validateResult'].map(method=>
     [method,(context,...args)=>(context.ownerScope?.processType==='people_system_merge'?mergePorts:systemPorts)[capability][method](context,...args)]))]));
-  const ports={...preparationPorts,...systemPorts,...sharedPorts,[mergeModel.OBSERVE]:mergePorts[mergeModel.OBSERVE],
+  const artifactReclamation=createPeopleArtifactReclamation(options);
+  const ports={...artifactReclamation.ports,...preparationPorts,...systemPorts,...sharedPorts,[mergeModel.OBSERVE]:mergePorts[mergeModel.OBSERVE],
     [COMMIT]:createPeopleReferenceCommitPort({...options,peopleStore,referenceDecision:imageOperations.referenceDecision})};
   const profileUpdate=createPeopleProfileUpdate({...options,peopleStore});
   return Object.freeze({
     createProcessServices(processOptions){sources={cast:processOptions.onDeckPersonEvidenceProjection,nfo:processOptions.onDeckNfoPersonEvidence};
-      return createPeopleProcessServices({...options,...processOptions,peopleStore,imageOperations,profileUpdate,systemRegistration,systemMerge});},
+      return createPeopleProcessServices({...options,...processOptions,peopleStore,imageOperations,profileUpdate,systemRegistration,systemMerge,artifactReclamation});},
+    artifactReclamation,
     createReferenceQuery:()=>createPersonReferenceQuery(peopleStore),
     createRegistrations(manifests) {
-      return [IMPORT, EMBED,COMMIT,...Object.keys(systemPorts),mergeModel.OBSERVE].map(capabilityRef => ({ manifest: manifests[capabilityRef], executor: { version: 1, execute: context => ports[capabilityRef].execute(context) },
+      return [IMPORT, EMBED,COMMIT,...Object.keys(systemPorts),mergeModel.OBSERVE,...Object.keys(artifactReclamation.ports)].map(capabilityRef => ({ manifest: manifests[capabilityRef], executor: { version: 1, execute: context => ports[capabilityRef].execute(context) },
         semanticValidator: { ref: manifests[capabilityRef].semanticValidatorRef,
           validateInputs: context => ports[capabilityRef].validateInputs(context), validateResult: (context, outcome) => ports[capabilityRef].validateResult(context, outcome) } }));
     },
     createPlanningRegistration(planning) {
       const planner = createPeopleImagePreparationPlanner({ ...planning, context: imageOperations.context });
       const system=createSystemRegistrationPlanning({...planning,systemRegistrationQuery});
-      const merge=createSystemRegistrationPlanning({...mergeOptions,...planning});
-      return { planners: [{ ownerDomain: 'people', workKind: 'people_image_preparation', plannerContractRef: planner.plannerContractRef, plannerVersion: 1, planner },...system.planners,...merge.planners],
-        bindingProjections: [...createPeopleImageProjections({ context: imageOperations.context,referenceDecision:imageOperations.referenceDecision }),...system.bindingProjections,...merge.bindingProjections] };
+      const merge=createSystemRegistrationPlanning({...mergeOptions,...planning}),reclamation=createReferenceArtifactReclamationPlanning({...planning,artifactReclamation});
+      return { planners: [{ ownerDomain: 'people', workKind: 'people_image_preparation', plannerContractRef: planner.plannerContractRef, plannerVersion: 1, planner },...system.planners,...merge.planners,...reclamation.planners],
+        bindingProjections: [...createPeopleImageProjections({ context: imageOperations.context,referenceDecision:imageOperations.referenceDecision }),...system.bindingProjections,...merge.bindingProjections,...reclamation.bindingProjections] };
     },
   });
 }

@@ -11,10 +11,10 @@ const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = buildTransactionContracts(readTransactionSourceEntries(contractsRoot));
 const byName = new Map(contracts.map((contract) => [contract.displayName, contract]));
 
-test('builds all 57 canonical transactions with stable identities and crash fixtures', () => {
-  assert.equal(contracts.length, 57);
-  assert.equal(new Set(contracts.map((contract) => contract.transactionId)).size, 57);
-  assert.equal(contracts.reduce((sum, contract) => sum + contract.crashFixtures.length, 0), 62);
+test('builds all 58 canonical transactions with stable identities and crash fixtures', () => {
+  assert.equal(contracts.length, 58);
+  assert.equal(new Set(contracts.map((contract) => contract.transactionId)).size, 58);
+  assert.equal(contracts.reduce((sum, contract) => sum + contract.crashFixtures.length, 0), 63);
   for (const contract of contracts) {
     assert.ok(contract.crashFixtures.length > 0);
     assert.equal(contract.fenceContract.commitMarkerRequired, contract.writeTables.includes('fx_commit_markers'));

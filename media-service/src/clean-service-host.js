@@ -15,7 +15,7 @@ const { createHelixApplication } = require('./helix/composition/createHelixAppli
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
 const { createRuntimeOperations } = require('./clean-runtime-operations');
 const { createMaintenanceWindow } = require('./clean-maintenance-window');
-const { reconcilerCategory, workCategory, maintenanceTaskTitle } = require('./helix/composition/maintenance-admission-policy');
+const { reconcilerCategory, workCategory, maintenanceTaskTitle, maintenanceExecutionTitle } = require('./helix/composition/maintenance-admission-policy');
 const { createUserFormationResetWorkerPort } = require('./clean-formation-reset-port');
 const { createOverviewProjectionHost } = require('./helix/projections/overview-projection-host');
 const { createSetupReadinessQuery } = require('./helix/projections/setup-readiness-query');
@@ -1385,7 +1385,7 @@ async function createCleanServiceHost(options) {
   );
   const peopleImagePort = require('./clean-people-image-port').createCleanPeopleImagePort({
     ...constructed.applicationDependencies, locationRegistryRepository, rootPath: path.join(options.dataDir, 'artifacts', 'people'), now: options.now || Date.now,
-    afterPhysicalEffect: options.afterPeopleImagePhysicalEffect,
+    afterPhysicalEffect: options.afterPeopleImagePhysicalEffect,afterReclamationPhysicalEffect:options.afterPeopleReferenceReclamationPhysicalEffect,
   });
   const localFaceModel = require('./helix/integrations/local-face-model').createLocalFaceModel({ modelRoot: options.faceModelRoot });
   const peopleReferencePreparation = require('./helix/integrations/people-reference-preparation').createPeopleReferencePreparation({ imagePort: peopleImagePort, faceModel: localFaceModel });
@@ -1705,12 +1705,12 @@ async function createCleanServiceHost(options) {
     recycleTick:()=>arcaRecycle?.tick(),
     recycleExpiryTick:()=>arcaRecycle?.expire(),
     maintenanceWindowKey:()=>maintenanceWindow?.snapshot().windowEndAtMs || null,
+    maintenanceBatchAllowed:()=>Boolean(maintenanceWindow?.allows('maintenance')),
     executionEligibilityProvider:{check:scope=>!maintenanceWindow||maintenanceWindow.allows(workCategory(scope,
       acquisitionId=>procurementExecution.perception.acquisitionSchedulingClass(acquisitionId)))},
     reconcileEligibilityProvider:{check:scope=>!maintenanceWindow||maintenanceWindow.allows(reconcilerCategory(scope))},
     onReconcileScopeStarted:scope=>maintenanceWindow?.beginScope(maintenanceTaskTitle(scope)),
-    onExecutionScopeStarted:scope=>maintenanceWindow?.beginScope(['people_system_registration','people_system_merge'].includes(scope?.processType)?'完善演员身份':scope?.workKind?.startsWith('periodic_')?'检查收藏健康':
-      scope?.ownerDomain==='perception'&&scope.processType==='perception_acquisition'?'同步豆瓣评分':null),
+    onExecutionScopeStarted:scope=>maintenanceWindow?.beginScope(maintenanceExecutionTitle(scope)),
     onCorrectionCleanupCompleted:()=>executionRuntimeHost.wakeBackground({ownerDomain:'arca',reconcilerKey:'recycle-maintenance'}),
     failureEvidenceStore:createFailureEvidenceStore(path.join(options.dataDir, 'diagnostics', 'execution-failures')),
     ...constructed.applicationDependencies,

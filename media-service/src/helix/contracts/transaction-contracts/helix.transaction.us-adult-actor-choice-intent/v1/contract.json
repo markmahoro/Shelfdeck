@@ -7,7 +7,7 @@
     "displayName": "US Adult Actor Choice Intent",
     "ownerScope": "libra",
     "commitClass": "domain_unit_of_work",
-    "atomicFactSet": "用户对当前未交付US Subject指定已有演员；冻结同Run/state/execution basis、People正式单人版本快照和Subject choice head期望revision；Actor Choice Intent、head、Command Receipt、marker、audit全有或全无，重放先于当前状态/People读取；不写People或Arca，不直接更改已提交Media-Cast；后续Libra按当前生产事实决定原位继续或合法replacement，Handoff B Accepted后由Arca处理",
+    "atomicFactSet": "用户对当前未交付US Subject指定已有演员；冻结同Run/state/execution basis、People正式单人版本快照和Subject choice head期望revision；Actor Choice Intent、head、Command Receipt、marker、audit全有或全无，重放先于当前状态/People读取；不写People或Arca，不直接更改已提交Media-Cast；提交后及同命令重放时，Libra在唤醒生产前按当前生产事实决定原位继续或经既有独立Owner准入事务合法replacement；续跑中断不得重建Intent或覆盖冻结产品事实，Handoff B Accepted后由Arca处理",
     "participants": [
       {
         "participantKind": "domain",
@@ -66,7 +66,7 @@
     "source": {
       "section": "8.5.4",
       "line": 8844,
-      "lineDigest": "c5ef9f569d3d50c2b37fa8bd0dc43a2334d332e2b6b25b27ab3c85b1707743c2"
+      "lineDigest": "fd11af495f774e322978b4ea9dc1319ee281d8ba7e6ee8a7042ee6539d1c94d1"
     }
   }
 }

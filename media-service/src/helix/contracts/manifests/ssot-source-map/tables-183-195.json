@@ -12,7 +12,7 @@
       "constraintsContract": "`FOREIGN KEY(cycle_id) REFERENCES people_us_recommendation_cycles(cycle_id)`；window_key是本维护窗口固定endAtMs；Snapshot schema固定`people.us-adult-recommendation-publication@1`，closed字段`schema,windowKey,cycleId,policy,items`，items最多五项完整内部Group Snapshot，最多`1 MiB`并校验JCS digest；revision CAS，仅本窗口维护准入可更新尚未生效Publication；GET只读，不能启动扫描或发布",
       "source": {
         "section": "8.5.13",
-        "line": 9694,
+        "line": 9695,
         "lineDigest": "b7a9ecd7227573301f03c971f6ecbd07d8136025a7f5adca4f1d4ee4d97cbb6e"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`UNIQUE(actor_id,idempotency_key)`；`INDEX(state,claim_id)`；active_source_id在活动状态严格等于source_id，终态释放NULL，以单一Owner事务及唯一约束阻止同来源并发认领；payload schema固定`people.us-adult-recommendation-claim@1`，closed字段`schema,claimId,actorId,recommendationId,publicationWindowKey,publicationRevision,source,imageEvidenceDigest,target`，target为existing精确Person版本或create的preparedRegistration；最多`128 KiB`；person schema固定`people.us-adult-recommendation-person@1`，closed字段`schema,personId,personRevision,referenceRevision`，最多`16 KiB`；receipt schema固定`people.us-adult-recommendation-ack@1`，closed字段`schema,receipt:UsAdultActorChoiceReceipt`，最多`16 KiB`；全部JSON按JCS digest校验；请求重放先读持久Claim，revision CAS推进；终态Receipt不因当前推荐变化而重写",
       "source": {
         "section": "8.5.13",
-        "line": 9695,
+        "line": 9696,
         "lineDigest": "3115aef1b174e7bffbac2065c5829721f735b8536b425f7c5555b9a89237ea61"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`PK(person_id,revision)`；immutable；direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL；Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload；CHECK禁止两种来源混合；library_kind在Person head冻结且不可改变，不持久化媒体`content_scope`",
       "source": {
         "section": "8.5.13",
-        "line": 9698,
+        "line": 9699,
         "lineDigest": "faa31e5a6e2d54ed8329c7dc215288659d2c6570b1ac076364c02a4f983f9a2e"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`PK(person_id,revision,alias_normalized)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；`INDEX(alias_normalized)`",
       "source": {
         "section": "8.5.13",
-        "line": 9699,
+        "line": 9700,
         "lineDigest": "bd43e6bd7b8f61d3edeb1afd1af2b94acccb8ba986a1cb2a3493948cf2997a51"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`PK(person_id,revision,provider,namespace,provider_key)`；`FOREIGN KEY(person_id,revision)`引用精确Person revision；stable identity active unique限定`library_kind,provider,namespace,provider_key`；library_kind必须等于Person head",
       "source": {
         "section": "8.5.13",
-        "line": 9700,
+        "line": 9701,
         "lineDigest": "6c675ceb9aa6b87bb74dd73a796972f0cea2062c2cbfad6fa463910a224cec2d"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`PK(person_id,revision)`；level枚举`-2..2`；current pointer由`people_persons.current_preference_revision`维护，禁止热路径`MAX(revision)`",
       "source": {
         "section": "8.5.13",
-        "line": 9701,
+        "line": 9702,
         "lineDigest": "b4a09dbb667fe1048ff44b6f98529e82d1c3abd77d084d0d35760f75275c0977"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "stable业务ID由`ReferenceAssetCoordinator`在Plan前分配；`artifact_handle_id/artifact_digest`必须分别等于Decision中`artifactHandle.artifactHandleId/digestHex`；`UNIQUE(person_id,artifact_digest)`；created/released revision都显式引用同Person的`people_reference_revisions`；released不可回到active",
       "source": {
         "section": "8.5.13",
-        "line": 9702,
+        "line": 9703,
         "lineDigest": "9310ae4780a034c017c0fe0e8027c30effa5b6c815bf631e8fe1bc6ff6b626cd"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`embedding_handle_id/embedding_digest/model_ref`必须分别等于Decision中`faceEmbeddingSetHandle.artifactHandleId/digestHex/modelRef`；每个active Asset恰好一个active派生Face；Face与Asset同事务建立/释放；`UNIQUE(reference_asset_id)`及`UNIQUE(person_id,embedding_handle_id,model_ref)`；用户API不得按Face ID修改",
       "source": {
         "section": "8.5.13",
-        "line": 9703,
+        "line": 9704,
         "lineDigest": "40b612dbfb17b8cdd516fa5e1268cd835947499b9b69229d3978aefe562d1782"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`PK(person_id,revision)`；immutable；`people_persons.current_reference_revision`显式FK指向current row；Reference commit以expected reference revision CAS并保存完整active set digest，不通过扫描时间猜current；三个set digest及`fact_digest`必须严格使用`PersonReferenceRevision` nominal合同声明的唯一basis",
       "source": {
         "section": "8.5.13",
-        "line": 9704,
+        "line": 9705,
         "lineDigest": "756e91a6ead741e35ef48a4bf422a3baaab36d15e173525b4b6f62e52b8aece1"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`candidate_json`保存Draft中精确Registration `candidatePayload`，其JCS digest必须等于`candidate_payload_digest`，且`proposed_name`以DDL CHECK匹配payload字段；payload在Candidate生命周期内immutable；JSON上限`16 KiB`且大Reference只含handle；`FOREIGN KEY(registration_candidate_id,current_revision,current_state)`显式引用revision表并`DEFERRABLE INITIALLY DEFERRED`；`UNIQUE(evidence_digest) WHERE current_state='open'`；`INDEX(current_state,created_at_ms)`",
       "source": {
         "section": "8.5.13",
-        "line": 9705,
+        "line": 9706,
         "lineDigest": "3d5f894e2f70f04a1a8fc462ca7708bec32f7938b3849e29a5570de47fb8fb35"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`PK(registration_candidate_id,revision)`加`UNIQUE(registration_candidate_id,revision,state)`供head复合FK；到head的FK同样deferred；revision 1固定为open；只允许`open → accepted|dismissed|superseded`一次terminal CAS；terminal revision保存正式Decision ID/digest；immutable",
       "source": {
         "section": "8.5.13",
-        "line": 9706,
+        "line": 9707,
         "lineDigest": "a969b59ee206686028ad9e30b7c9e1f86fd9fee14e5e76cbec4c4d6fb50899e1"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`candidate_json`保存Draft中精确Merge `candidatePayload`，JCS digest匹配`candidate_payload_digest`，四个Person热字段以DDL CHECK匹配payload refs；Person pair按ID规范化；两个`(person_id,revision)`复合FK冻结精确Person revision，payload与该snapshot immutable；Candidate current复合FK `DEFERRABLE INITIALLY DEFERRED`；`UNIQUE(left_person_id,right_person_id) WHERE current_state='open'`；`INDEX(current_state,created_at_ms)`",
       "source": {
         "section": "8.5.13",
-        "line": 9707,
+        "line": 9708,
         "lineDigest": "73d1ef0e5baeb5a12fd4429b23e6392a8f6ae2c490808a95111a0f5b283f408a"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "`PK(merge_candidate_id,revision)`加`UNIQUE(merge_candidate_id,revision,state)`供head复合FK；到head的FK同样deferred；revision 1固定为open；只允许`open → accepted|dismissed|superseded`一次terminal CAS；terminal revision保存正式Decision ID/digest；immutable",
       "source": {
         "section": "8.5.13",
-        "line": 9708,
+        "line": 9709,
         "lineDigest": "281a3977f0be22c06852ef188c92aa3f33404c73b511a6a309f2aabdfac3290e"
       }
     }

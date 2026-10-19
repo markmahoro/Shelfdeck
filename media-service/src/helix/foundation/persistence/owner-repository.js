@@ -36,6 +36,23 @@ function requireColumns(table, columns, statementId) {
 function compileStatement(statementId, statement, table) {
   if (!statement || statement.sql !== undefined) fail('P3_REPOSITORY_RAW_SQL_FORBIDDEN', 'Repository definitions cannot provide raw SQL.', { statementId });
   const tableName = quote(table.tableId);
+  if(statement.kind==='select-summary'){
+    const summaries=statement.summaries,keys=statement.keyColumns||[];
+    if(!Array.isArray(summaries)||!summaries.length||summaries.length>8||new Set(summaries.map(item=>item?.output)).size!==summaries.length)
+      fail('P3_REPOSITORY_INVALID_SUMMARY','Summary requires one to eight unique declared outputs.',{statementId});
+    if(keys.length)requireColumns(table,keys,statementId);
+    const expressions=summaries.map(item=>{
+      if(!item||!IDENTIFIER.test(item.output||'')||!['count','sum','max'].includes(item.operator)||
+        Object.keys(item).sort().join(',')!==(item.operator==='count'?'operator,output':'column,operator,output'))
+        fail('P3_REPOSITORY_INVALID_SUMMARY','Summary operator or shape is invalid.',{statementId});
+      if(item.operator==='count')return 'count(*) AS '+quote(item.output);
+      requireColumns(table,[item.column],statementId);
+      const expression=item.operator+'('+quote(item.column)+')';
+      return (item.operator==='sum'?'coalesce('+expression+',0)':expression)+' AS '+quote(item.output);
+    });
+    return {statementId,kind:statement.kind,tableId:table.tableId,parameters:[...keys],safeIntegers:true,
+      sql:'SELECT '+expressions.join(', ')+' FROM '+tableName+(keys.length?' WHERE '+keys.map(column=>quote(column)+'=@'+column).join(' AND '):'')};
+  }
   if (statement.kind === 'insert') {
     requireColumns(table, statement.columns, statementId);
     return {
@@ -268,7 +285,7 @@ function createRepositoryDefinition(options) {
     repositoryId: options.repositoryId,
     owner: options.owner,
     readOnly: [...compiled.values()].every((statement) =>
-      statement.kind === 'select-one' || statement.kind === 'select-all' || statement.kind === 'select-in'||statement.kind==='select-page-after'||statement.kind==='select-range'||statement.kind==='select-before-page'||statement.kind==='select-filtered-page'||statement.kind==='count-grouped'||statement.kind==='select-joined-page'),
+      statement.kind === 'select-one' || statement.kind === 'select-summary' || statement.kind === 'select-all' || statement.kind === 'select-in'||statement.kind==='select-page-after'||statement.kind==='select-range'||statement.kind==='select-before-page'||statement.kind==='select-filtered-page'||statement.kind==='count-grouped'||statement.kind==='select-joined-page'),
     statementIds: Object.freeze([...compiled.keys()].sort()),
     tableIds: Object.freeze([...tableIds].sort())
   });
@@ -322,7 +339,7 @@ function bindRepository(definition, transaction, isActive) {
       if (!prepared.has(statementId)) prepared.set(statementId, transaction.prepare(statement.sql));
       const executable = prepared.get(statementId);
       if (statement.safeIntegers) executable.safeIntegers(true);
-      if (statement.kind === 'select-one') return executable.get(values);
+      if (statement.kind === 'select-one'||statement.kind==='select-summary') return executable.get(values);
       if (statement.kind === 'select-all'||statement.kind==='select-page-after'||statement.kind==='select-range'||statement.kind==='select-before-page'||statement.kind==='select-filtered-page'||statement.kind==='count-grouped'||statement.kind==='select-joined-page') return executable.all(values);
       return executable.run(values);
     }

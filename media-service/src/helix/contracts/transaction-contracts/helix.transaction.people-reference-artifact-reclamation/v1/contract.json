@@ -1,0 +1,160 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.people-reference-artifact-reclamation/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.people-reference-artifact-reclamation",
+    "displayName": "People Reference Artifact Reclamation",
+    "ownerScope": "people",
+    "commitClass": "workspace_write",
+    "atomicFactSet": "People frozen双轮audit Result、actual Work/Event/Attempt/workspace_write Effect、当前People引用及Platform root只读guard、Libra/Arca formal Projection epoch及Foundation技术read-view fence；Foundation Registry精确active→gc_eligible claim或gc_eligible→deleted/active settlement，settlement Receipt/Result/marker原子；claim无成功marker，无Outbox，无跨Owner事实改写",
+    "participants": [
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_artifact_registry",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ]
+      },
+      {
+        "participantKind": "domain",
+        "owner": "people",
+        "access": "read",
+        "tables": [
+          "people_reference_assets",
+          "people_reference_faces",
+          "people_image_operations"
+        ]
+      },
+      {
+        "participantKind": "domain",
+        "owner": "platform-settings",
+        "access": "read",
+        "tables": [
+          "platform_workspace_roots"
+        ]
+      }
+    ],
+    "writeTables": [
+      "fx_artifact_registry",
+      "fx_event_result_bindings",
+      "fx_commit_markers"
+    ],
+    "readTables": [
+      "fx_artifact_registry",
+      "fx_artifact_references",
+      "fx_supporting_works",
+      "fx_workflow_events",
+      "fx_event_attempts",
+      "fx_effect_journal",
+      "fx_event_result_bindings",
+      "fx_commit_markers",
+      "people_reference_assets",
+      "people_reference_faces",
+      "people_image_operations",
+      "platform_workspace_roots"
+    ],
+    "variants": [
+      {
+        "variantId": "people_reference_artifact_claim@1",
+        "participants": [
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_artifact_registry"
+            ]
+          },
+          {
+            "participantKind": "domain",
+            "owner": "people",
+            "access": "read",
+            "tables": [
+              "people_reference_assets",
+              "people_reference_faces",
+              "people_image_operations"
+            ]
+          },
+          {
+            "participantKind": "domain",
+            "owner": "platform-settings",
+            "access": "read",
+            "tables": [
+              "platform_workspace_roots"
+            ]
+          }
+        ],
+        "writeTables": [
+          "fx_artifact_registry"
+        ],
+        "readTables": [
+          "fx_artifact_registry",
+          "fx_artifact_references",
+          "fx_supporting_works",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_effect_journal",
+          "fx_event_result_bindings",
+          "people_reference_assets",
+          "people_reference_faces",
+          "people_image_operations",
+          "platform_workspace_roots",
+          "fx_commit_markers"
+        ],
+        "selector": {
+          "selectorKind": "owner_command_exact",
+          "commandContract": "people.reference_artifact.claim@1"
+        },
+        "fenceContract": {
+          "domainRevisionFenceRequired": true,
+          "materialControlCasRequired": false,
+          "commitMarkerRequired": false,
+          "outboxRequired": false
+        },
+        "rollbackInvariant": "Claim CAS failure leaves no Registry transition or successful marker; physical unlink requires this exact durable claim and Effect.",
+        "crashFixtures": [
+          {
+            "fixtureId": "people-reference-reclamation",
+            "faultInjectionPoints": "当前及冻结引用、两轮quiet interval/epoch、boot/window、真实Effect、claim及单文件unlink前后、最后Registry CAS/Result/marker迟发失败",
+            "requiredInvariant": "只删除同一正式Work/Effect的精确无引用Artifact；引用/权限变化保留；absence后恢复原Effect并原子结算，未知文件及父目录不删",
+            "source": {
+              "section": "8.9.7",
+              "line": 14996
+            }
+          }
+        ]
+      }
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "people-reference-reclamation",
+        "faultInjectionPoints": "当前及冻结引用、两轮quiet interval/epoch、boot/window、真实Effect、claim及单文件unlink前后、最后Registry CAS/Result/marker迟发失败",
+        "requiredInvariant": "只删除同一正式Work/Effect的精确无引用Artifact；引用/权限变化保留；absence后恢复原Effect并原子结算，未知文件及父目录不删",
+        "source": {
+          "section": "8.9.7",
+          "line": 14996
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8878,
+      "lineDigest": "78f95c5fc6cf89d8b1f599d59450401187b76aafdd937bfe137453393cb065ca"
+    }
+  }
+}

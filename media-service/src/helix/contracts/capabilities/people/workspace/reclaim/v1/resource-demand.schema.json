@@ -9,11 +9,17 @@
       "type": "array",
       "prefixItems": [
         {
+          "const": "cpu"
+        },
+        {
           "const": "disk_io"
+        },
+        {
+          "const": "sqlite_write"
         }
       ],
-      "minItems": 1,
-      "maxItems": 1
+      "minItems": 3,
+      "maxItems": 3
     },
     "demandDigest": {
       "type": "string",

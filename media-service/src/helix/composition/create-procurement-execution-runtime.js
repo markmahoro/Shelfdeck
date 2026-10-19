@@ -129,8 +129,9 @@ const ARCA_DEREGISTRATION_ENABLED=Object.freeze([
 ]);
 const ARCA_ALL_ENABLED=Object.freeze([...ARCA_ENABLED,...ARCA_OFFDECK_ENABLED,...ARCA_DEREGISTRATION_ENABLED]);
 const PEOPLE_IMAGE_ENABLED = Object.freeze(['people.reference_asset.import@1', 'shared.face.embedding.compute@1','people.reference_fact.commit@1']);
+const PEOPLE_REFERENCE_ENABLED=Object.freeze(['people.reference_usage.audit@1','people.workspace.reclaim@1']);
 const PEOPLE_SYSTEM_ENABLED=Object.freeze(['people.registration_evidence.observe@1','people.merge_evidence.resolve@1','people.candidate.commit@1','people.person.commit@1']);
-const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED, ...PEOPLE_IMAGE_ENABLED,...PEOPLE_SYSTEM_ENABLED]);
+const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED, ...PEOPLE_IMAGE_ENABLED,...PEOPLE_SYSTEM_ENABLED,...PEOPLE_REFERENCE_ENABLED]);
 const UAT_SOURCE_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
 const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
 const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79c362d01844af0853bc1c2c37442041acda1821d';
@@ -341,6 +342,8 @@ function createProcurementExecutionRuntime(options) {
   const arcaRegistrations=arcaCapabilityRegistration.createRegistrations({enabledCapabilityRefs:ARCA_ALL_ENABLED,
     manifests:Object.fromEntries(ARCA_ALL_ENABLED.map((ref)=>[ref,manifests[ref]]))});
   const peopleImageExecution = createPeopleImageExecutionRegistration({ ...options, workResultReader, contractValidator,
+    artifactReferenceSources:[require('../domains/libra/public').createLibraArtifactAuditSource({...options,contractValidator}),
+      require('../domains/arca/public').createArcaArtifactAuditSource({...options,contractValidator})],
     wake: () => host?.wakeBackground({ownerDomain:'people',reconcilerKey:'image-operations'}) });
   const peopleReferenceQuery=peopleImageExecution.createReferenceQuery();
   const peopleImageRegistrations = peopleImageExecution.createRegistrations(manifests).map(entry=>{
@@ -419,7 +422,7 @@ function createProcurementExecutionRuntime(options) {
     if(processType==='libra_routing')return Object.freeze({priorityClass:'normal_foreground',localPriority:250,priorityRevision:1,supplyRole:'completion'});
     if(processType==='perception_acquisition'||processType==='perception_resolution')return Object.freeze({priorityClass:'normal_foreground',localPriority:240,priorityRevision:1,supplyRole:'completion'});
     if(processType==='people_image_preparation')return Object.freeze({priorityClass:'normal_foreground',localPriority:240,priorityRevision:1,supplyRole:'completion'});
-    if(['people_system_registration','people_system_merge'].includes(processType))return Object.freeze({priorityClass:'background_observation',localPriority:0,priorityRevision:1,supplyRole:'expansion'});
+    if(['people_system_registration','people_system_merge','people_artifact_reclamation'].includes(processType))return Object.freeze({priorityClass:'background_observation',localPriority:0,priorityRevision:1,supplyRole:'expansion'});
     if(processType==='libra_acceptance_spec')return Object.freeze({priorityClass:'normal_foreground',localPriority:230,priorityRevision:1,supplyRole:'completion'});
     if(processType==='arca_acceptance')return Object.freeze({priorityClass:'handoff_acceptance',localPriority:400,priorityRevision:1,supplyRole:'completion'});
     if(processType==='arca_ondeck_run')return Object.freeze({priorityClass:'normal_foreground',localPriority:300,priorityRevision:1,supplyRole:'completion'});
@@ -476,6 +479,7 @@ function createProcurementExecutionRuntime(options) {
   function recoveryReality(effectClass) {
     const observed = (context) => effectJournal.observeRecovery(context.effect.effect_id);
     if (effectClass === 'workspace_write') return { async observe(context) {
+      if(context.event?.capability_ref==='people.workspace.reclaim@1')return peopleImageExecution.artifactReclamation.ports['people.workspace.reclaim@1'].observeEffectReality(context);
       if(context.event?.capability_ref==='arca.jav_correction.workspace.reclaim@1')return arcaCapabilityRegistration.ports['arca.jav_correction.workspace.reclaim@1'].observeEffectReality(context);
       if(context.event?.capability_ref==='arca.jav_correction.assets.prepare@1')
         return arcaCapabilityRegistration.ports['arca.jav_correction.assets.prepare@1'].observeEffectReality(context);
@@ -642,6 +646,11 @@ function createProcurementExecutionRuntime(options) {
       const capability=snapshot.node.capability_ref;let resources=[];
       if(snapshot.work.owner_domain==='people'&&PEOPLE_SYSTEM_ENABLED.includes(capability))
         resources.push({resourceKey:['people.registration_evidence.observe@1','people.merge_evidence.resolve@1'].includes(capability)?'cpu_heavy':'sqlite_write',units:1});
+      if(snapshot.work.owner_domain==='people'&&PEOPLE_REFERENCE_ENABLED.includes(capability)){
+        const root=options.peopleImagePort?.rootSnapshot?.();if(!root?.mountScopeId||root.state!=='active')throw new Error('P4_TYPED_PEOPLE_VOLUME_RESOURCE_UNRESOLVED');
+        validatedVolumeKeys.add(root.mountScopeId);resources.push({resourceKey:'cpu_heavy',units:1},{resourceKey:'volume_read:'+root.mountScopeId,units:1});
+        if(capability==='people.workspace.reclaim@1')resources.push({resourceKey:'volume_write:'+root.mountScopeId,units:1},{resourceKey:'sqlite_write',units:1});
+      }
       if(snapshot.work.owner_domain==='people'&&PEOPLE_IMAGE_ENABLED.includes(capability)){
         if(capability==='people.reference_fact.commit@1')resources.push({resourceKey:'sqlite_write',units:1});
         else{
@@ -1055,6 +1064,7 @@ function createProcurementExecutionRuntime(options) {
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.reconcilePhase!=='work_terminal')return null;
+    if(request.ownerDomain==='people'&&request.processType==='people_artifact_reclamation'){host?.wakeBackground({ownerDomain:'people',reconcilerKey:'reference-artifact-reclamation'});return {workId:request.workId,disposition:request.workAttemptState};}
     if(request.ownerDomain==='people'&&['people_system_registration','people_system_merge'].includes(request.processType))return {workId:request.workId,disposition:request.workAttemptState};
     if(request.ownerDomain==='people'&&request.processType==='people_image_preparation'){
       peopleProcessServices.imageOperations.reconcile(request.processId);
@@ -1300,6 +1310,9 @@ function createProcurementExecutionRuntime(options) {
       reconcile:({sourceId})=>perceptionProcessServices.periodicAcquisition
         ? perceptionProcessServices.periodicAcquisition.reconcile({sourceId})
         : Object.freeze({kind:'unavailable',sourceId}),
+    }),Object.freeze({
+      ownerDomain:'people',reconcilerKey:'reference-artifact-reclamation',
+      listPage:page=>peopleProcessServices.artifactReclamation.listPage(page),reconcile:scope=>peopleProcessServices.artifactReclamation.reconcile(scope),
     }),Object.freeze({
       ownerDomain:'people',reconcilerKey:'reliable-person-merge',
       listPage:page=>peopleProcessServices.systemMerge.listPage(page),reconcile:scope=>peopleProcessServices.systemMerge.reconcile(scope),

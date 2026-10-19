@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/people.reference_usage.audit/v1/inputs",
+  "title": "people.reference_usage.audit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "peopleArtifactReferenceAuditInput": {
+      "$ref": "#/$defs/peopleArtifactReferenceAuditInput"
+    }
+  },
+  "required": [
+    "peopleArtifactReferenceAuditInput"
+  ],
+  "$defs": {
+    "peopleArtifactReferenceAuditInput": {
+      "$ref": "helix://contracts/domain-types/PeopleArtifactReferenceAuditInput/v1",
+      "x-helix-typeExpression": "PeopleArtifactReferenceAuditInput"
+    }
+  }
+}

@@ -627,6 +627,8 @@ function inferredField(resultName, fieldName) {
 }
 
 const contracts = {
+  PeopleArtifactReferenceEvidence:['EvidenceEnvelope','artifactHandle,policyDigest,bootId,rootFenceDigest,sourceEpochs,round,sourceIndex,cursor,status,firstPassCompletedAtMs,pageCount,chainDigest'],
+  PeopleArtifactReclamationReceipt:['ReceiptEnvelope','artifactHandleId,artifactDigest,previousReferenceRevision,referenceRevision,disposition,reasonCode,reclaimedBytes,auditResultDigest,physicalEvidenceDigest,executionReference,receiptDigest'],
   ArcaUsAdultAssetsPrepared:['EvidenceEnvelope','aftercareCaseId,shelfEntryId,intentId,intentDigest,selectionDigest,sourceResultDigest,factsHandle,nfoHandle,posterHandle,planHandle,planDigest'],
   ArcaUsAdultFileReceipt:['EvidenceEnvelope','aftercareCaseId,shelfEntryId,intentId,intentDigest,selectionDigest,planDigest,action,receipt,receiptDigest'],
   ArcaUsAdultPageMatch:['EvidenceEnvelope','shelfEntryId,aftercareCaseId,intentId,intentDigest,pageOrdinal,pageDigest,libraryDigest,sourceResultDigest,analysisDigest,matches'],
@@ -767,6 +769,8 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 }), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if(name==='PeopleArtifactReferenceEvidence')return require('../../src/helix/contracts/people-artifact-reclamation').evidenceSchema();
+  if(name==='PeopleArtifactReclamationReceipt')return require('../../src/helix/contracts/people-artifact-reclamation').receiptSchema();
   if(name==='ArcaUsAdultAssetsPrepared')return require('../../src/helix/contracts/us-adult-actor-file-contracts').assetsSchema();
   if(name==='ArcaUsAdultFileReceipt')return require('../../src/helix/contracts/us-adult-actor-file-contracts').fileReceiptSchema();
   if(name==='ArcaUsAdultPageMatch')return require('../../src/helix/contracts/us-adult-inventory-matching').pageMatchSchema();

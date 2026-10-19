@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/PeopleArtifactReclamationReceipt/v1",
+  "title": "PeopleArtifactReclamationReceipt@1",
+  "x-helix-ssotRefs": [
+    "10.5.4",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "x-helix-envelopeRef": "helix://contracts/types/ReceiptEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/PeopleArtifactReclamationReceipt/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receiptKind": {
+      "const": "people_artifact_reclamation"
+    },
+    "ownerDomain": {
+      "const": "people"
+    },
+    "scopeType": {
+      "const": "people_artifact_reclamation"
+    },
+    "scopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "scopeDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "effectReceiptRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "committedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "artifactHandleId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "artifactDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "previousReferenceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "referenceRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "disposition": {
+      "enum": [
+        "deleted",
+        "retained"
+      ]
+    },
+    "reasonCode": {
+      "enum": [
+        "unreferenced",
+        "authority_changed"
+      ]
+    },
+    "reclaimedBytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "auditResultDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "physicalEvidenceDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "receiptDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "executionReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "eventId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "eventAttemptId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        }
+      },
+      "required": [
+        "workId",
+        "eventId",
+        "eventAttemptId",
+        "idempotencyKey"
+      ]
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "receiptId",
+    "receiptKind",
+    "ownerDomain",
+    "scopeType",
+    "scopeId",
+    "scopeDigest",
+    "effectReceiptRef",
+    "committedAtMs",
+    "artifactHandleId",
+    "artifactDigest",
+    "previousReferenceRevision",
+    "referenceRevision",
+    "disposition",
+    "reasonCode",
+    "reclaimedBytes",
+    "auditResultDigest",
+    "physicalEvidenceDigest",
+    "receiptDigest",
+    "executionReference"
+  ]
+}

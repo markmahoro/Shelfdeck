@@ -6,6 +6,7 @@ const MAINTENANCE = Object.freeze({
   'perception:active-periodic-acquisitions': '同步豆瓣评分',
   'people:ondeck-nfo-person-evidence': '收纳演员资料',
   'people:ondeck-person-evidence': '完善演员身份',
+  'people:reference-artifact-reclamation': '清理无引用演员参考图',
   'people:reliable-person-merge': '归并可靠演员身份',
   'people:us-adult-recommendations': '整理演员推荐',
   'arca:due-aftercare-shelf-entries': '检查收藏健康',
@@ -32,6 +33,8 @@ const NORMAL = new Set([
 const MAINTENANCE_WORKS = new Set([
   'people:system_person_registration',
   'people:system_person_merge',
+  'people:reference_artifact_audit',
+  'people:reference_artifact_reclaim',
   'arca:periodic_health_assessment', 'arca:periodic_custody_assessment', 'arca:care_workspace_reclaim',
   'arca:offdeck_policy_evaluation', 'arca:offdeck_duplicate_detection',
 ]);
@@ -51,8 +54,19 @@ function workCategory(scope, acquisitionSchedulingClass) {
   return MAINTENANCE_WORKS.has(scope.ownerDomain + ':' + scope.workKind) ? 'maintenance' : 'normal';
 }
 
+function maintenanceExecutionTitle(scope) {
+  if(scope?.ownerDomain==='perception'&&scope.processType==='perception_acquisition')return '同步豆瓣评分';
+  if(scope?.ownerDomain==='people')return scope.processType==='people_artifact_reclamation'?'清理无引用演员参考图':
+    ['people_system_registration','people_system_merge'].includes(scope.processType)?'完善演员身份':null;
+  if(scope?.ownerDomain==='arca'){
+    if(scope.workKind?.startsWith('periodic_'))return '检查收藏健康';
+    return {care_workspace_reclaim:'清理到期维护工作区',offdeck_policy_evaluation:'评估退出收藏建议',offdeck_duplicate_detection:'检测重复收藏'}[scope.workKind]||null;
+  }
+  return null;
+}
+
 function maintenanceTaskTitle(scope) {
   return MAINTENANCE[scope.ownerDomain + ':' + scope.reconcilerKey] || null;
 }
 
-module.exports = Object.freeze({ reconcilerCategory, workCategory, maintenanceTaskTitle });
+module.exports = Object.freeze({ reconcilerCategory, workCategory, maintenanceTaskTitle, maintenanceExecutionTitle });

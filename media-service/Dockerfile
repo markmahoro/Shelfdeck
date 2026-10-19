@@ -17,7 +17,7 @@ RUN apt-get update \
     && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     && apt-get install -y --no-install-recommends nodejs \
       intel-media-va-driver mesa-va-drivers libvulkan1 mesa-vulkan-drivers \
-      intel-opencl-icd \
+      intel-opencl-icd fonts-dejavu-core fonts-noto-cjk \
     && rm -rf /var/lib/apt/lists/*
 
 # better-sqlite3 currently needs node-gyp fallback on Node 20.  Compile all
@@ -60,6 +60,7 @@ COPY media-service/src/clean-admin-static.js ./src/clean-admin-static.js
 COPY media-service/src/clean-runtime-operations.js ./src/clean-runtime-operations.js
 COPY media-service/src/clean-maintenance-window.js ./src/clean-maintenance-window.js
 COPY media-service/src/clean-people-image-port.js ./src/clean-people-image-port.js
+COPY media-service/src/clean-people-artifact-reclamation-port.js ./src/clean-people-artifact-reclamation-port.js
 COPY media-service/src/clean-us-adult-frame-extractor.js ./src/clean-us-adult-frame-extractor.js
 COPY media-service/src/clean-us-adult-inventory-analysis-port.js ./src/clean-us-adult-inventory-analysis-port.js
 COPY media-service/src/clean-formation-reset-port.js ./src/clean-formation-reset-port.js

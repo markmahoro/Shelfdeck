@@ -282,6 +282,7 @@ const dtoContracts = {
   UsAdultActorFilePlan:'',
   UsAdultActorExecutionInput:'',
   UsAdultActorRefreshScope:'',
+  PeopleArtifactReferenceAuditInput:'',
   UsAdultActorRefreshIntent:'',
   UsAdultRecommendationPageQuery:'',
   UsAdultRecommendationSource:'',
@@ -371,6 +372,7 @@ function buildSchema(name, role, fields) {
   if(name==='UsAdultActorFilePlan')return require('../../src/helix/contracts/us-adult-actor-file-contracts').filePlanSchema();
   if(name==='UsAdultActorExecutionInput')return require('../../src/helix/contracts/us-adult-actor-file-contracts').executionInputSchema();
   if(name==='UsAdultActorRefreshScope')return require('../../src/helix/domains/arca/model/us-adult-actor-refresh-execution').scopeSchema();
+  if(name==='PeopleArtifactReferenceAuditInput')return require('../../src/helix/contracts/people-artifact-reclamation').inputSchema();
   if(name==='UsAdultActorRefreshIntent')return {...exactDomainSchema(name,{
     schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},policyVersion:{const:'us-adult-actor-refresh@1'},intentId:digest(),actorId:id(),
     idempotencyKey:text({maxLength:128}),requestDigest:digest(),mode:enumText('specified','automatic'),shelfEntryId:id(),inventoryRevision:positiveInteger(),

@@ -78,7 +78,15 @@ function createLocationRegistryRepository(options) {
     rootHandleRef: row.root_handle_ref, snapshotDigest: row.snapshot_digest, updatedAtMs: row.updated_at_ms
   });
 
+  const rootReads=createRepositoryDefinition({repositoryId:'platform_reference_artifact_root_guard',owner:'platform-settings',schemaManifest:options.schemaManifest,readOnly:true,statements:{
+    root:{kind:'select-one',tableId:'platform_workspace_roots',columns:['root_id','owner_scope','root_kind','endpoint_id','mount_scope_id','mount_scope_revision','resolved_root','config_revision','capability_digest','state','root_handle_ref','snapshot_digest','updated_at_ms'],keyColumns:['root_id']}
+  }});
   return Object.freeze({
+    createWorkspaceRootReadParticipant(expected){return {participantId:'platform_reference_artifact_root_guard',owner:'platform-settings',boundBusinessOwner:'people',readOnly:true,repositories:[rootReads],execute(context){
+      const current=mapRoot(context.repository(rootReads.repositoryId).invoke('root',{root_id:expected.rootId}));
+      if(!current||current.state!=='active'||JSON.stringify(current)!==JSON.stringify(createWorkspaceRoot(expected)))fail('P5_WORKSPACE_ROOT_CONFLICT','Artifact root changed after its frozen snapshot.');
+      return true;
+    }};},
     publishMountScope(revision, validateCurrentSet) {
       const item = createMountScopeRevision(revision);
       return execute((context) => {

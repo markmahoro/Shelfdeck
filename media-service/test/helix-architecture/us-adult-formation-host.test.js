@@ -5,7 +5,7 @@ const {initializeCleanData}=require('../../scripts/helix-operational-safety');
 const {createCleanServiceHost}=require('../../src/clean-service-host');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const skip=!process.env.SHELFDECK_FACE_MODEL_ROOT||!process.env.SHELFDECK_FACE_TEST_IMAGE?'Explicit pinned models and benign reference image required.':false;
-async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendationAck=false,twoFilms=false,failInventoryParticipantOnce=false}){
+async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendationAck=false,twoFilms=false,failInventoryParticipantOnce=false,registerSecondActor=false}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'us-formation-host-')),dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),
     source=path.join(root,'source'),target=path.join(root,'shelf');
   for(const dir of [adminDistDir,source,target])fs.mkdirSync(dir);fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
@@ -22,19 +22,19 @@ async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendati
   let host,db,lastRequestError,unitOfWork,recommendationAckLost=false,inventoryFailureInjected=false,rollbackProof=null;
   t.after(async()=>{await host?.close();db?.close();assert.equal(path.dirname(root),path.resolve(os.tmpdir()));fs.rmSync(root,{recursive:true,force:true});});
   const start=()=>createCleanServiceHost({dataDir,adminDistDir,secretRoot,faceModelRoot:process.env.SHELFDECK_FACE_MODEL_ROOT,
-    unitOfWorkDecorator:value=>{unitOfWork={...value,execute(participants){
+    unitOfWorkDecorator:value=>{unitOfWork={...value,execute(participants,...executeOptions){
       if(failInventoryParticipantOnce&&!inventoryFailureInjected&&participants.some(participant=>participant.participantId==='arca_aftercare_inventory_foundation')){
         inventoryFailureInjected=true;
         try{return value.execute([...participants,{...participants[participants.length-1],participantId:'isolated_actor_inventory_failure',execute(){
           throw Object.assign(new Error('Isolated failure after Inventory and Result writes'),{code:'FIXTURE_ACTOR_INVENTORY_ROLLBACK'});
-        }}]);}catch(error){
+        }}],...executeOptions);}catch(error){
           const entry=db.prepare('SELECT current_inventory_revision FROM arca_shelf_entries').get(),
             commits=db.prepare('SELECT count(*) n FROM arca_aftercare_inventory_commits').get(),
             event=db.prepare("SELECT result_id FROM fx_workflow_events WHERE capability_ref='arca.us_adult.inventory.commit@1'").get();
           rollbackProof={inventoryRevision:entry.current_inventory_revision,commits:commits.n,eventResultId:event.result_id};throw error;
         }
       }
-      return value.execute(participants);
+      return value.execute(participants,...executeOptions);
     }};return unitOfWork;},
     afterRecommendationSourceConfirmation(){if(loseRecommendationAck&&!recommendationAckLost){recommendationAckLost=true;
       throw Object.assign(new Error('Isolated Source confirmation ACK interruption'),{code:'FIXTURE_ACK_LOST'});}},
@@ -51,16 +51,16 @@ async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendati
     failures:db.prepare('SELECT failure_class,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),
     claims:db.prepare('SELECT state,last_failure_code FROM people_us_recommendation_claims').all(),
     imageOperations:db.prepare('SELECT state,failure_code FROM people_image_operations').all()});
-  async function wait(predicate,timeout=90000){const end=Date.now()+timeout;while(Date.now()<end){assert.equal(errors.filter(error=>error.code!=='FIXTURE_ACTOR_INVENTORY_ROLLBACK').length,0,diagnostics());if(predicate())return;await new Promise(resolve=>setTimeout(resolve,100));}assert.fail(diagnostics());}
-  async function actor(){
-    const started=await request('POST','/v1/admin/people',{idempotencyKey:'actor',libraryKind:'us_adult',canonicalName:'Test Actor',aliases:[],
+  async function wait(predicate,timeout=90000,pollMs=100){const end=Date.now()+timeout;while(Date.now()<end){assert.equal(errors.filter(error=>error.code!=='FIXTURE_ACTOR_INVENTORY_ROLLBACK').length,0,diagnostics());if(predicate())return;await new Promise(resolve=>setTimeout(resolve,pollMs));}assert.fail(diagnostics());}
+  async function actor(actorName='Test Actor',key='actor'){
+    const started=await request('POST','/v1/admin/people',{idempotencyKey:key,libraryKind:'us_adult',canonicalName:actorName,aliases:[],
       image:{kind:'upload',bytesBase64:fs.readFileSync(process.env.SHELFDECK_FACE_TEST_IMAGE).toString('base64')}});
     let operation;
     const end=Date.now()+20000;while(Date.now()<end){operation=await request('GET','/v1/admin/people/operations/'+started.operationRef);if(operation.state!=='preparing')break;await new Promise(resolve=>setTimeout(resolve,100));}
     assert.equal(operation?.state,'completed',JSON.stringify({operation,errors}));
-    return (await request('GET','/v1/admin/people?libraryKind=us_adult')).items[0];
+    return (await request('GET','/v1/admin/people?libraryKind=us_adult')).items.find(person=>person.personId===operation.personId);
   }
-  let person=registerActor?await actor():null;
+  let person=registerActor?await actor():null;const secondActor=registerSecondActor?await actor('Second Actor','actor-second'):null;
   await request('POST','/v1/admin/shelves',{idempotencyKey:'shelf',shelfId:'us-shelf',name:'US fixture',targetRootLocation:target,
     ruleTemplateId:'system-beta-recommended',expectedTemplateRevision:1,placementPolicy:{folderTemplate:'{title}',primaryTemplate:'{stem}{ext}',nfoTemplate:'{stem}.nfo',
       subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}',posterTemplate:'poster{ext}',fanartTemplate:'fanart{ext}',collisionPolicy:'reject'}});
@@ -95,7 +95,7 @@ async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendati
       images=require('../../src/clean-us-adult-recommendation-image-port').createCleanUsAdultRecommendationImagePort({sourceQuery:query,workspaceProductPort});
     return {query,images};
   }
-  return {db,target,request,wait,actor,readFrameEvidence,recommendations,rollbackProof:()=>rollbackProof,expectedRollbackErrors:()=>errors.filter(error=>error.code==='FIXTURE_ACTOR_INVENTORY_ROLLBACK'),getPerson:()=>person,diagnostics,
+  return {db,target,request,wait,actor,secondActor,readFrameEvidence,recommendations,rollbackProof:()=>rollbackProof,expectedRollbackErrors:()=>errors.filter(error=>error.code==='FIXTURE_ACTOR_INVENTORY_ROLLBACK'),getPerson:()=>person,diagnostics,
     inventoryContext(){const shelfEntryId=db.prepare('SELECT shelf_entry_id FROM arca_shelf_entries WHERE status=?').get('active').shelf_entry_id;
       const store=require('../../src/helix/domains/arca/persistence/aftercare-store').createAftercareStore({
         schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),unitOfWork});
@@ -344,4 +344,31 @@ test('actual Host exits around Inventory commit and stage discard recover exact 
   assert.deepEqual(h.db.prepare('SELECT * FROM fx_supporting_works WHERE work_id=?').all(failedWorks[0].work_id),failedWorks);
   assert.equal(h.inventoryContext().raw.people[0].display_name,'Conflicting Actor');
   assert.equal(h.inventoryContext().raw.entry.current_inventory_revision,before.raw.entry.current_inventory_revision+1);
+});
+
+test('a late explicit actor correction preserves frozen production and continues the same Subject through one replacement Run',{timeout:240000,skip},async t=>{
+  const h=await fixture(t,{visibleFace:true,registerSecondActor:true});
+  await h.wait(()=>h.db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE owner_domain='libra' AND work_kind='us_adult_product'").get().n>0,90000,10);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,0,h.diagnostics());
+  const original=h.db.prepare('SELECT libra_run_id,subject_id,package_revision_head FROM libra_runs').get();assert.equal(original.package_revision_head,0);
+  const oldFacts=h.db.prepare('SELECT product_fact_id,fact_revision,fact_json,fact_digest FROM libra_product_fact_revisions WHERE libra_run_id=? ORDER BY product_fact_id,fact_revision').all(original.libra_run_id),
+    current=await h.request('GET','/v1/admin/formation/runs/'+original.libra_run_id+'/actor-selection'),
+    target=current.selectedActor.personId===h.getPerson().personId?h.secondActor:h.getPerson();
+  assert.equal(current.canChoose,true);assert.notEqual(current.selectedActor.personId,target.personId);
+  const body={idempotencyKey:'late-correction',expectedRunStateRevision:current.expectedRunStateRevision,expectedChoiceRevision:current.expectedChoiceRevision,
+    personId:target.personId,expectedPersonRevision:target.currentRevision,expectedReferenceRevision:target.currentReferenceRevision},
+    choiceUrl='/v1/admin/formation/runs/'+original.libra_run_id+'/actions/choose-us-adult-actor',chosen=await h.request('POST',choiceUrl,body);
+  assert.equal(chosen.replayed,false);
+  await h.wait(()=>h.db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n===1,120000);
+  const runs=h.db.prepare('SELECT libra_run_id,subject_id,state FROM libra_runs').all(),replacement=runs.find(run=>run.libra_run_id!==original.libra_run_id);
+  assert.equal(runs.length,2,h.diagnostics());assert.equal(replacement.subject_id,original.subject_id);assert.equal(replacement.state,'completed');
+  assert.ok(['superseded','discarded'].includes(runs.find(run=>run.libra_run_id===original.libra_run_id).state));
+  const preserved=h.db.prepare('SELECT product_fact_id,fact_revision,fact_json,fact_digest FROM libra_product_fact_revisions WHERE libra_run_id=? ORDER BY product_fact_id,fact_revision').all(original.libra_run_id);
+  for(const fact of oldFacts)assert.deepEqual(preserved.find(value=>value.product_fact_id===fact.product_fact_id&&value.fact_revision===fact.fact_revision),fact);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_subjects').get().n,1);assert.equal(h.db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1);
+  const context=h.inventoryContext(),view=await h.request('GET','/v1/admin/collection/'+context.shelfEntryId+'/actor-refresh');assert.equal(view.currentActor.personId,target.personId);
+  const folder=path.join(h.target,target.canonicalName+' Original source'),nfo=fs.readFileSync(path.join(folder,target.canonicalName+' Original source.nfo'),'utf8');
+  assert.match(nfo,new RegExp('<name>'+target.canonicalName+'</name>'));assert.equal((nfo.match(/<actor>/g)||[]).length,1);
+  assert.equal(fs.existsSync(path.join(folder,target.canonicalName+' Original source.mkv')),true);
+  const replay=await h.request('POST',choiceUrl,body);assert.equal(replay.replayed,true);assert.deepEqual(replay.receipt,chosen.receipt);assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
 });

@@ -109,3 +109,21 @@ test('requires formal Effect authority and recovers no-overwrite image publicati
   assert.deepEqual(f.port.readArtifact(handle), f.bytes);
   assert.equal(f.kernel.runPrimitive(({ prepare }) => prepare('SELECT count(*) n FROM people_persons').get().n), 0);
 });
+
+test('republication of deleted reference bytes requires a real matching People preparation scope and advances the Registry only once',async t=>{
+  const f=await fixture(t);f.authorize();const first=f.port.materialize(f.request),file=path.join(f.root,'people',first.artifactHandleId);
+  f.kernel.runPrimitive(({prepare})=>prepare("UPDATE fx_artifact_registry SET state='deleted',reference_revision=3 WHERE artifact_handle_id=?").run(first.artifactHandleId));fs.unlinkSync(file);
+  const context={workId:'revival-work',eventId:'revival-event',eventAttemptId:'revival-attempt',idempotencyKey:'revival-key',recoveryDecision:null,assertExecutionActive(){}};
+  f.kernel.runPrimitive(({prepare})=>{
+    prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,state) VALUES(?,?,?,?,?)').run(context.workId,'people','people_image_preparation','reference-add','running');
+    prepare('INSERT INTO fx_workflow_events(event_id,work_id,capability_ref,state) VALUES(?,?,?,?)').run(context.eventId,context.workId,'people.reference_asset.import@1','executing');
+    prepare('INSERT INTO fx_event_attempts(event_attempt_id,event_id,state) VALUES(?,?,?)').run(context.eventAttemptId,context.eventId,'executing');
+    prepare('INSERT INTO fx_effect_journal(effect_id,effect_class,idempotency_key,event_attempt_id,state,intent_digest) VALUES(?,?,?,?,?,?)')
+      .run(canonicalDigest(['workspace_write',context.idempotencyKey]),'workspace_write',context.idempotencyKey,context.eventAttemptId,'intended',canonicalDigest('revival-intent'));
+  });
+  const request={...f.request,operationId:'reference-add',context},result=f.port.materialize(request);
+  assert.equal(result.artifactHandleId,first.artifactHandleId);assert.equal(result.referenceRevision,4);assert.deepEqual(result.provenanceRef,first.provenanceRef);
+  assert.deepEqual(f.port.readArtifact(result),f.bytes);assert.deepEqual(f.port.materialize(request),result);
+  f.kernel.runPrimitive(({prepare})=>prepare("UPDATE fx_artifact_registry SET state='gc_eligible',reference_revision=5 WHERE artifact_handle_id=?").run(first.artifactHandleId));fs.unlinkSync(file);
+  assert.throws(()=>f.port.materialize({...request,operationId:'different-operation'}),{code:'PEOPLE_IMAGE_ARTIFACT_CHANGED'});assert.equal(fs.existsSync(file),false);
+});

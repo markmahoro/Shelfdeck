@@ -81,6 +81,7 @@ function validateDomainInputSchemas(options) {
       findings.push(finding('DOMAIN_INPUT_CONTRACT_DRIFT', 'Committed domain input differs from the SSOT-derived contract.', { entryId: entry.id }));
     }
     const exactIdentityFields = {
+      PeopleArtifactReferenceAuditInput:['schemaRef','schemaVersion','artifactHandle','bootId','rootFenceDigest','previousEvidence'],
       PeopleCandidateAcceptanceDecision: ['decisionId', 'expectedCandidateRevision', 'candidatePayloadDigest', 'decisionDigest'],
       UsAdultActorSelectionBasis:['selectionId','selectionOrigin','selectionDigest'],
       UsAdultActorRefreshSelection:['schemaRef','schemaVersion','shelfEntryId','aftercareCaseId','intentId','selectionDigest'],

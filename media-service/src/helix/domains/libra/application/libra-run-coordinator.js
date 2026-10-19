@@ -913,6 +913,14 @@ function createLibraRunCoordinator(options){
     return ensureDelivery(snapshot,workspace,direct);
   }
   return Object.freeze({reconcile,
+    reconcileActorChoice(libraRunId){
+      const snapshot=options.movieProductionReader.readRunSnapshot(libraRunId);
+      if(!snapshot||snapshot.spec.contentProfile!=='western_adult')throw new TypeError('Actor continuation requires its exact US Adult Run.');
+      const result=reconcile(libraRunId);
+      if(result?.kind!=='replacement_required')return result;
+      const replacement=options.libraRunCreator.replace(result.subjectId,libraRunId);
+      return replacement.libraRunId?reconcile(replacement.libraRunId):replacement;
+    },
     analyzeUsAdult(libraRunId) {
       const snapshot=options.movieProductionReader.readRunSnapshot(libraRunId),
         identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);

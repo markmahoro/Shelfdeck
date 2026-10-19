@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-19 US Adult本地收口候选：Arca指定/自动单片刷新及三类真实进程中断恢复已贯通，普通/JAV可靠维护/归并、三库/图片生命周期、离线210→224副本升级、维护任务和Reference精确GC已实现。后期Actor人工纠正实际CPU Host按原Subject合法replacement完成，提交后续跑重试不重复Intent。d8cff243b具体版本UI负责人六项发现全部关闭（最后受影响宽窄8/8），后续后端改动不改UI/Renderer。当前P2 131/110/224/58/145、162路由通过，最终固定完整Gate与Windows/Linux资格进行中，不能视为开发完成或发布。详见唯一Phase及US_ADULT_LOCAL_IMPLEMENTATION Evidence。
+
 2026-10-19 系统人物归并增量：维护内可靠编号归并正式Work/Owner事务/消息ACK，普通/JAV无用户确认；原名/身份历史保留，作品经People Merge身份Scope与Arca当前关系连续读取。真实Host归并1项、Arca CPU刷新及作品1项、Owner/规则18项通过。固定c046独立完整Gate3062 PASS/1 FAIL/13 skip，输入未变；唯一P3 trace manifest漂移已准确修复并局部24项复验，尚无新固定版本完整PASS。该固定版本独立Windows原生模型包检查通过；Reference GC、维护剩余及最终全量/Linux/浏览器/UI审核继续，无生产操作。
 
 2026-10-19 历史人物与副本工具增量：可靠TMDB人物命名空间隔离查询/提交、历史头像与NFO编号修复通过69项及人物页9项；离线main 210→224结构副本已实现，保留全部209个旧事实表原列/行、旧确认及收藏引用，仅可靠来源填分库，未知/冲突与未完成责任拒绝。Operator与来源合批21项通过，生产副本未读取/升级，未发布；Reference GC、正式可靠归并、维护剩余及最终平台/UI资格继续。

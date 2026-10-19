@@ -326,3 +326,15 @@ UI负责人对5e923a411冻结77份源码、9项资产进行1920×1080及390×844
 ### UI负责人第二轮与残余修正
 
 2b03d5200冻结审核：宽窄屏32 PASS/4 FAIL；US-UI-1/2/3/5通过，配置地址可达但SPA异步渲染未滚动定位StashBox，来源A片名仍在进度与卡片重复，StashBox配置卡还残留常驻说明。已在设置与来源卡加载完成后处理精确hash定位；去除该说明；来源卡存在时，进度区只保留操作状态，片名显示一次，若卡已离开推荐集合才由进度区保留来源。新增异步定位和来源A不重复断言。Web242 PASS/43文件，相关源码build PASS；具体新提交负责人复验继续。没有修改生产或宣布UI/Phase交付。
+
+
+## 2026-10-19 Reference 到期回收与最终资格候选
+
+- 新增正式 `people.reference_usage.audit@1` Supporting Work，分批审计 People 当前图片/特征、Libra 冻结分析/选择、Arca 冻结刷新及 retained Inventory Cast。完整双轮、至少60秒静默、同boot/root/source epoch；分页连续性、固定schema、规范JSON及摘要不完整时拒绝删除。Reference Asset ID经People自身历史映射保护对应图片/embedding，不跨Owner查询数据库。
+- 仅登记且30天到期的Reference image/embedding有资格，相关技术操作90天且无未决责任；活跃、未知、未登记残留保留。每批及物理删除前复验维护准入；截止/手动停机禁止新增删除。持久intent、真实Effect、单文件预像与独立缺失证明接入 Registry claim/Receipt/marker原子提交，支持删除后中断、窗口外仅恢复结算和已删除Artifact经真实重新发布验证后重新激活。
+- Foundation按需 opaque read fence 保护跨Owner只读Projection到People claim的间隔，比较SQLite data/schema version及精确64-bit changes，在BEGIN及Owner事务内显式复验；UOW仍只含People及绑定People的Platform读参与者。没有跨People/Libra/Arca原子事务或新全局业务revision。
+- 实际GC Host两条（真实无脸失败导入到期清扫；unlink后真实SQLite marker trigger导致晚发回滚、窗口外原Effect恢复）此前2 PASS/115.2秒，本候选新增摘要/缺页加固后继续原生复验。初次两条架构边界失败已按P3单Owner约束修正，不放宽UOW验证器。
+- 后期人工改Actor先提交原Choice Intent，再由Libra Owner在唤醒Planner前按既有准入事务创建合法replacement。真实CPU Host同Subject、一replacement、旧产品事实保持、Actor/NFO/命名及唯一Entry、旧命令重放1 PASS/45.5秒；提交后续跑失败重试负例通过，不重复Intent或revision。没有把replacement并入Choice原子事务。
+- 最终P2：131 Capability /110 Result families /224 tables /58 transactions /145 Domain inputs /31 shared /243 refs /0 unresolved，aggregate `ec14f57ab8512de541597a8a482688f6399648f6b16f9273685cba0b65e19b23`。物理DDL仍33ef1d7c2f07669991a8401754f7671c92f4848db8a9c1869724bc5edf8e614c，源210升级归档保持。冻结引用及Choice重试8项、Arca引用分页5项通过，计数有重叠。
+- UI负责人对 `d8cff243b2af7b0bf440ee72c8904f443c802da0` 的受影响宽窄屏8/8通过，US-UI-4/6关闭；其余四项按75个未变源码及Renderer继承2b03d5200通过，六项全部关闭。不是三轮重叠计数相加；后端GC不改变UI或Renderer。9项dist资产与78份源码冻结，JS SHA256 `1d5d97cb4466612443cb8424954786c4c73633ac44a94cf3d7abe81deda5e519`。
+- 此前 Service648 PASS/29既有skip、Web242 PASS/43文件及build通过；c046完整Gate唯一trace漂移已修复，但不称最终全绿。接下来固定新提交独立依赖完整Architecture、Service、Windows分发及本机Docker Linux实际原生/Host验证；保留未测/跳过解释。没有生产/NAS/真实媒体操作，没有部署或正式版本发布。

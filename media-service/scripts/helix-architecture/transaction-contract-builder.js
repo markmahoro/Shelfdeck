@@ -12,6 +12,7 @@ const crashFixtures = Object.freeze({
     'Cancellation and its Receipt/marker/audit are all-or-none; prior collection and execution history remain unchanged; exact replay precedes current-state checks; any write attempt or output registration rejects cancellation',8758],
   'jav-correction-cleanup':['两项清理成功Work/Result与登记生命周期复验、committed context/head/Control围栏、cleanup Receipt及CAS、事务COMMIT前后进程退出',
     'cleanup Receipt与completed/门禁释放全有或全无；无文件、Control或历史Commit写入；重放同Receipt，失败保持门禁',16113],
+  'people-reference-reclamation':['当前及冻结引用、两轮quiet interval/epoch、boot/window、真实Effect、claim及单文件unlink前后、最后Registry CAS/Result/marker迟发失败', '只删除同一正式Work/Effect的精确无引用Artifact；引用/权限变化保留；absence后恢复原Effect并原子结算，未知文件及父目录不删', 14996],
   'jav-correction-workspace':['实际文件退出、执行及前置Work/Result、committed context/root、逐Material/Artifact/Registry CAS、Result/marker、响应前进程丢失',
     'Registry生命周期/Result/marker全有或全无；物理部分退出沿原Effect继续，错材料保留冲突；原身份/库存/视频不变，cleanup门禁保持',16108],
   'jav-correction-inventory': ['执行及前置Work/Result、active Admission/current Basis、每页Control CAS、新Canonical/Inventory与terminal Evidence、Result/marker各participant及响应前进程丢失', '任一步失败无新head/Control/terminal/Receipt/marker；旧视频及原入藏Receipt不变；成功全有，同Event重放不重做文件或创建第二Commit', 16085],
@@ -548,6 +549,23 @@ const definitions = Object.freeze({
       'arca_inventory_verification_records','fx_material_controls','fx_material_control_revisions','fx_supporting_works','fx_workflow_events','fx_event_attempts',
       'fx_event_result_bindings','fx_commit_markers'],fixtureRefs:['jav-correction-inventory'],
   },
+  'People Reference Artifact Reclamation': {
+    commitClass:'workspace_write',hasOutbox:false,
+    variants:[{variantId:'people_reference_artifact_claim@1',exactOverride:true,commitMarkerRequired:false,hasOutbox:false,rollbackInvariant:'Claim CAS failure leaves no Registry transition or successful marker; physical unlink requires this exact durable claim and Effect.',
+      selector:{selectorKind:'owner_command_exact',commandContract:'people.reference_artifact.claim@1'},writeTables:['fx_artifact_registry'],
+      readTables:['fx_artifact_registry','fx_artifact_references','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings',
+        'people_reference_assets','people_reference_faces','people_image_operations',
+        'platform_workspace_roots','fx_commit_markers'],fixtureRefs:['people-reference-reclamation'],
+      readParticipants:[{participantKind:'domain',owner:'people',access:'read',tables:['people_reference_assets','people_reference_faces','people_image_operations']},
+        {participantKind:'domain',owner:'platform-settings',access:'read',tables:['platform_workspace_roots']}]}],
+    writeTables:['fx_artifact_registry','fx_event_result_bindings','fx_commit_markers'],
+    readTables:['fx_artifact_registry','fx_artifact_references','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings','fx_commit_markers',
+      'people_reference_assets','people_reference_faces','people_image_operations',
+      'platform_workspace_roots'],
+    fixtureRefs:['people-reference-reclamation'],
+    readParticipants:[{participantKind:'domain',owner:'people',access:'read',tables:['people_reference_assets','people_reference_faces','people_image_operations']},
+      {participantKind:'domain',owner:'platform-settings',access:'read',tables:['platform_workspace_roots']}],
+  },
   'JAV Correction Workspace Reclaim': {
     commitClass:'workspace_write',hasOutbox:false,writeTables:['fx_workspace_registry','fx_workspace_materials','fx_artifact_registry','fx_event_result_bindings','fx_commit_markers'],
     readTables:['arca_jav_identity_corrections','platform_workspace_roots','fx_workspace_registry','fx_workspace_materials','fx_artifact_registry',
@@ -678,7 +696,7 @@ function buildVariants(owner, baseWriteTables, baseReadTables, variants = []) {
       : [...new Set([...baseReadTables, ...(variant.additionalReadTables || [])])];
     const built = {
       variantId: variant.variantId,
-      participants: participantsFor(owner, writeTables),
+      participants: [...participantsFor(owner, writeTables),...(variant.readParticipants||[])],
       writeTables,
       readTables
     };
@@ -690,7 +708,7 @@ function buildVariants(owner, baseWriteTables, baseReadTables, variants = []) {
       fenceContract: {
         domainRevisionFenceRequired: true,
         materialControlCasRequired: variant.materialControlCasRequired === true,
-        commitMarkerRequired: true,
+        commitMarkerRequired: variant.commitMarkerRequired !== false,
         outboxRequired: variant.hasOutbox
       },
       rollbackInvariant: variant.rollbackInvariant,

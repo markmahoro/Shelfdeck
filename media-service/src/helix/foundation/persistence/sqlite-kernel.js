@@ -267,7 +267,12 @@ function openSqliteKernel(options) {
     const ensureOpen = () => {
       if (closed) fail('P3_SQLITE_KERNEL_CLOSED', 'SQLite Kernel is closed.');
     };
+    const readVersion=()=>Object.freeze({externalVersion:database.pragma('data_version',{simple:true}),schemaVersion:database.pragma('schema_version',{simple:true}),
+      connectionChanges:database.prepare('SELECT total_changes() AS changes').safeIntegers(true).get().changes.toString()});
     return Object.freeze({
+      readVersionMatches(expected){ensureOpen();if(!transactionActive)fail('P3_SQLITE_READ_FENCE_REQUIRES_TRANSACTION','Read fences must be asserted in the current transaction.');
+        const current=readVersion();return expected.externalVersion===current.externalVersion&&expected.schemaVersion===current.schemaVersion&&expected.connectionChanges===current.connectionChanges;},
+      captureReadVersion(){ensureOpen();if(transactionActive)fail('P3_SQLITE_NESTED_TRANSACTION','Read fences must be captured outside a transaction.');return readVersion();},
       generation,
       storageMaintenance: Object.freeze({
         optimize() {
@@ -351,7 +356,7 @@ function openSqliteKernel(options) {
           busyTimeout: database.pragma('busy_timeout', { simple: true })
         });
       },
-      runPrimitive(operation) {
+      runPrimitive(operation,{readVersionRequested=false}={}) {
         ensureOpen();
         if (typeof operation !== 'function') fail('P3_SQLITE_INVALID_TRANSACTION_BODY', 'Transaction body must be a function.');
         if (transactionActive) fail('P3_SQLITE_NESTED_TRANSACTION', 'Nested SQLite Kernel transactions are forbidden.');
@@ -367,6 +372,7 @@ function openSqliteKernel(options) {
           if (!Number.isSafeInteger(commitTimeMs) || commitTimeMs < 0) fail('P3_SQLITE_INVALID_COMMIT_TIME', 'Commit time must be a non-negative safe UTC epoch millisecond.');
           const result = operation(Object.freeze({
             commitTimeMs,
+            ...(readVersionRequested?{readVersion:readVersion()}:{}),
             prepare(statement) {
               if (typeof statement !== 'string' || statement.length === 0) fail('P3_SQLITE_INVALID_STATEMENT', 'A non-empty SQL statement is required.');
               return database.prepare(statement);

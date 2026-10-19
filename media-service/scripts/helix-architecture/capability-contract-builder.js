@@ -276,6 +276,8 @@ function resourceKinds(capability) {
   if (capability.id === 'arca.jav_correction.files.verify@1') return ['cpu', 'disk_io'];
   if (capability.id === 'arca.jav_correction.inventory.commit@1') return ['cpu', 'disk_io'];
   if (capability.id === 'arca.jav_correction.formal_retirement.execute@1') return ['cpu', 'disk_io'];
+  if (capability.id === 'people.reference_usage.audit@1') return ['cpu', 'disk_io'];
+  if (capability.id === 'people.workspace.reclaim@1') return ['cpu', 'disk_io', 'sqlite_write'];
   if (capability.id === 'arca.jav_correction.workspace.reclaim@1') return ['cpu', 'disk_io'];
   // BDMV assessment is the first triage capability whose atomic effect needs
   // both source-volume I/O and bounded media parsing CPU.  Keep the demand
@@ -388,7 +390,7 @@ function buildCapabilityPackage(capability) {
     effectClass: capability.effectClass,
     inputPorts,
     parametersSchemaRef: schemas['parameters.schema.json'].$id,
-    resultSchemaRef: ['arca.inventory.final_product.verify@1','arca.ondeck.fulfillment.verify@1','arca.jav_correction.files.verify@1','arca.jav_correction.inventory.commit@1','arca.jav_correction.formal_retirement.execute@1','arca.jav_correction.workspace.reclaim@1'].includes(capability.id)
+    resultSchemaRef: ['arca.inventory.final_product.verify@1','arca.ondeck.fulfillment.verify@1','arca.jav_correction.files.verify@1','arca.jav_correction.inventory.commit@1','arca.jav_correction.formal_retirement.execute@1','arca.jav_correction.workspace.reclaim@1','people.reference_usage.audit@1','people.workspace.reclaim@1'].includes(capability.id)
       ? schemas['result.schema.json'].$ref : schemas['result.schema.json'].$id,
     evidenceSchemaRef: schemas['evidence.schema.json'].$id,
     failureSchemaRef: schemas['failure.schema.json'].$id,

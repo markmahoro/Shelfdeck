@@ -30,7 +30,7 @@ function createUsAdultActorChoiceCommand(options){
         const resultSchemaRef='helix://contracts/domain-types/UsAdultActorChoiceReceipt/v1';
         options.contractValidator.validate(resultSchemaRef,value);return {resultSchemaRef,resultRef:value};
       }});
-    options.wake?.();return result;
+    options.afterUsAdultActorChoice?.(libraRunId);options.wake?.();return result;
   }});
 }
 module.exports=Object.freeze({createUsAdultActorChoiceCommand});

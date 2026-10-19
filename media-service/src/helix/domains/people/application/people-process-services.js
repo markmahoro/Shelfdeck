@@ -73,6 +73,7 @@ function createPeopleProcessServices(options) {
     registerPerson,
     imageOperations: options.imageOperations,
     systemMerge:options.systemMerge,
+    artifactReclamation:options.artifactReclamation,
     updateProfile:(personId,body,actorId)=>options.profileUpdate.update(personId,body,actorId),
     registrationSignalParticipant: payload => store.createRegistrationSignalParticipant(payload),
     candidateSignalParticipant:payload=>store.createCandidateSignalParticipant(payload),

@@ -17,6 +17,17 @@ function setup(input,extra={}){
   return {store,command,reads:()=>reads,unavailable:()=>{unavailable=true;}};
 }
 const body={idempotencyKey:'actor-choice',expectedRunStateRevision:1,expectedChoiceRevision:0,personId:'actor-1',expectedPersonRevision:1,expectedReferenceRevision:1};
+
+test('actor choice retries its post-commit continuation before waking production without repeating the accepted intent',()=>harness(input=>{
+  let attempts=0,wakes=0;
+  const h=setup(input,{afterUsAdultActorChoice(runId){assert.equal(runId,'run-1');if(++attempts===1)throw new Error('fixture-continuation-interrupted');},wake(){wakes++;}});
+  assert.throws(()=>h.command.choose('run-1',body,'admin'),/fixture-continuation-interrupted/);
+  assert.equal(h.store.current('subject-1').revision,1);assert.equal(wakes,0);h.unavailable();
+  assert.equal(h.command.choose('run-1',body,'admin').replayed,true);
+  assert.equal(attempts,2);assert.equal(wakes,1);assert.equal(h.reads(),1);
+  assert.equal(input.db.prepare('SELECT count(*) n FROM libra_us_adult_actor_choice_intents').get().n,1);
+  assert.equal(h.store.current('subject-1').revision,1);
+}));
 test('actor choice atomically freezes the selected actor and replays the command before later Run or People changes',()=>harness(input=>{
   const h=setup(input),result=h.command.choose('run-1',body,'admin');
   assert.equal(result.replayed,false);assert.equal(result.receipt.resultRef.personId,'actor-1');assert.equal(h.reads(),1);

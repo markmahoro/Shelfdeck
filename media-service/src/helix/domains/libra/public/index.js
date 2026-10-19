@@ -290,12 +290,12 @@ function createExecutionRegistration() {
       const libraRunAdminService=createLibraRunAdminService({...options,libraRunExecutionProjection,pipelineAdmission});
       const usAdultMatchCompletionStore=createUsAdultMatchCompletionStore(options);
       const usAdultActorChoiceStore=createUsAdultActorChoiceStore(options),
-        usAdultActorChoice=createUsAdultActorChoiceCommand({...options,movieProductionReader,usAdultActorChoiceStore});
+        usAdultActorChoice=createUsAdultActorChoiceCommand({...options,movieProductionReader,usAdultActorChoiceStore,afterUsAdultActorChoice:libraRunId=>runCoordinator.reconcileActorChoice(libraRunId)});
       const usAdultActorSelectionQuery=createUsAdultActorSelectionQuery({movieProductionReader,usAdultActorChoiceStore,usAdultAnalysisStore,usAdultMatchCompletionStore});
       const usAdultRecommendationQuery=bindUsAdultRecommendationQuery(createUsAdultRecommendationQuery(options));
       const usAdultRecommendationCommand=bindUsAdultRecommendationCommand(createUsAdultRecommendationConfirmation({...options,
         usAdultActorChoiceStore,usAdultActorChoice,usAdultRecommendationQuery}));
-      const runCoordinator=createLibraRunCoordinator({...options,movieProductionReader,usAdultAnalysisStore,usAdultActorChoiceStore,usAdultMatchCompletionStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
+      const runCoordinator=createLibraRunCoordinator({...options,libraRunCreator,movieProductionReader,usAdultAnalysisStore,usAdultActorChoiceStore,usAdultMatchCompletionStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
         resolveFrozenRun:libraRunAdminService.reconcileFrozen,
         resolveRejectedRun:libraRunAdminService.reconcileRejected,
         waitUnavailableStrategy:libraRunAdminService.waitUnavailableStrategy,
@@ -357,7 +357,7 @@ Object.defineProperties(createExecutionRegistration, {
   buildRatingTargetIdentity: { value: buildRatingTargetIdentity },
 });
 
-module.exports = Object.freeze({
+module.exports = Object.freeze({ createLibraArtifactAuditSource(options){const source=require('../persistence/reference-artifact-audit-source').createLibraArtifactAuditSource(options);return Object.freeze({sourceId:source.sourceId,epoch:source.epoch,page:source.page});},
   PACKAGE_ID:packageId,
   LibraIntakeFacade:bind,
   ProductDeliveryPort:bindProductDelivery,
