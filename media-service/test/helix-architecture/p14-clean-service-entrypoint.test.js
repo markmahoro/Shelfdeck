@@ -2077,6 +2077,8 @@ test('Windows and Docker artifacts select the service-only clean entrypoint', ()
 
   const windows = fs.readFileSync(path.join(serviceRoot, 'scripts', 'package-win.js'), 'utf8');
   assert.match(windows, /CLEAN_RUNTIME_FILES/);
+  assert.match(windows,/src\/clean-us-adult-inventory-analysis-port\.js/);
+  assert.match(docker,/COPY media-service\/src\/clean-us-adult-inventory-analysis-port\.js \.\/src\/clean-us-adult-inventory-analysis-port\.js/);
   assert.match(windows, /cleanHelixSource/);
   assert.doesNotMatch(windows, /^\s*['"]src['"],?\s*$/m);
   assert.doesNotMatch(windows, /media-worker|face-service|19110|ollama/i);

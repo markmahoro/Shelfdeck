@@ -61,6 +61,7 @@ COPY media-service/src/clean-runtime-operations.js ./src/clean-runtime-operation
 COPY media-service/src/clean-maintenance-window.js ./src/clean-maintenance-window.js
 COPY media-service/src/clean-people-image-port.js ./src/clean-people-image-port.js
 COPY media-service/src/clean-us-adult-frame-extractor.js ./src/clean-us-adult-frame-extractor.js
+COPY media-service/src/clean-us-adult-inventory-analysis-port.js ./src/clean-us-adult-inventory-analysis-port.js
 COPY media-service/src/clean-formation-reset-port.js ./src/clean-formation-reset-port.js
 COPY media-service/src/clean-arca-inventory-port.js ./src/clean-arca-inventory-port.js
 COPY media-service/src/clean-arca-recycle-port.js ./src/clean-arca-recycle-port.js

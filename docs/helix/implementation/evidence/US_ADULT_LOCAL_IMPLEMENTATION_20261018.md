@@ -265,3 +265,8 @@ arca-groundwork-full-architecture.txt这次完整门禁在昂贵fixture运行后
 - Service本批677 total/648 PASS/29既有skip/0 fail，146.7秒（arca-system-people-service-final.txt）；Web232 PASS/43文件及build PASS（既有553.74 kB chunk warning）。此前People Owner/Source/parser/Arca记录等定向组合49 PASS、parser/Projection12 PASS，容量/事务Builder/negative合同29 PASS；日志有交叠，不相加为独立总数。
 - canonical crash/Owner组合247项中246 PASS，唯一Windows打包因本checkout node_modules为共享junction而cp尝试创建symlink被Windows拒绝，尚无本轮Windows分发PASS。应在已准备的独立物理依赖checkout对固定提交复验，不改共享依赖或放宽打包隔离测试。固定1dd51987b完整Gate已结束：3061 total/3006 PASS/33 FAIL/22 skip，旧检查点不覆盖4a/602或本批；已按Owner根因修复及局部复验，仍须新固定版本完整Gate。
 - 开放项：失败Actor Case已完成stage材料的到期精确清扫；其他恢复/Source过期资格；普通/JAV可靠归并/补全与Reference审计GC；离线升级副本、维护截止/重启剩余资格、最终固定版本全量Gate/Windows/Linux及浏览器/具体版本UI负责人审核。不得据这些局部证据宣布五议题完成或发布。
+
+
+### 925145631固定副本与打包延迟依赖补齐
+
+独立物理依赖checkout已切到925145631：Service 677 total/648 PASS/29既有skip/0 fail（146.1秒，service-925145631.txt），Windows独立包启动1 PASS（56.7秒，windows-925145631.txt）。该Windows检查只证明原HTTP/基础二进制启动；后续人工审查发现新Arca Root analysis adapter为函数内延迟require，Windows/Docker显式打包清单均漏列，原启动不能证明Actor动作可用。已为两种分发加入精确文件，Windows包检查增加实际require及包内原生YuNet/SFace模型加载、空图推理；有显式良性参考图时还检查单脸128维特征，不使用外部NODE_PATH。Windows/Docker静态入口防漏1 PASS；新增包内原生检查待新固定提交复验。没有因启动PASS关闭完整平台资格，失败stage残留清扫仍开放。
