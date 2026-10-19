@@ -448,3 +448,33 @@ CPU profile发现onnxruntime-node/dist/backend.js的run在setImmediate内同步�
 用户明确恢复开发。固定模型/阈值/预处理及Owner合同保持；图片解码、缩放、对齐与ONNX会话由单一service-local技术线程持有，主线程只传输自有Buffer副本和接收结果，不传递Domain/Work/Store权限。32个请求/32 MiB排队图片双重上限，close独立控制槽，FIFO收尾；启动/崩溃/协议故障拒绝所有等待者且不自动回退主线程。校验Pack拆为纯模块，Main不加载native推理会话；许可和SHA256保持原合同。仅Integrations external allowlist新增精确node:worker_threads，Domain依赖规则不变。
 
 实际线程fixture八项通过：同步忙算不阻塞Main timer、原Buffer保留、满队列close、字节上限释放、结构化失败后下一请求、崩溃/错误关联响应拒绝所有请求、不静默重建、推理期间Owner执行权限撤销后拒绝发布。预备真实模型/帧/图片/Renderer四文件14项全通过，线程输出与原native实现逐字段完全相同；此轮通过显式NODE_PATH读取独立验证目录的固定ORT，不代表独立分发资格，最终物理依赖checkout/Windows/Linux/N95必须另验。首次Package Gate精确缺少node:worker_threads许可已补，未放宽跨Owner边界；其余semantic/manifests/P2通过，完整新Gate待固定提交。
+
+## 2026-10-20 worker thread与N95固定候选资格
+
+实现固定提交：
+- a4a673c206a1e4e02fc7441118a53e90863fc76d：模型Pack验证与原生预处理/ORT会话拆分到Service-local Worker；32请求/32MiB有界队列，16MiB单图，owned ArrayBuffer转移，FIFO和独立close控制槽，线程失败/协议错误拒绝所有等待调用、不重启或主线程回退。Owner/Work/租约/取消/Effect及最终持久事实仍在原组件。
+- 0c82ee862a380bc1f590f94266ba656987ec3eff：profile证明剩余冷编译热点后，仅将Foundation Ajv inlineRefs设false，复用共享名义Schema的编译函数；不删校验、不强转/填默认值。9个Arca US输入冷编译对照本机148.76→68.30ms、生成入口代码338033→22928字符（不等于总代码尺寸或NAS加速承诺）。递归/共享引用、闭合字段、format、完整错误路径、调用方bytes及恢复后校验10项通过；精确builtin断言只增加Integration的node:worker_threads，其他边界保持。
+
+实际N95前置read-only preflight通过。仍使用/vol1/1000/docker/shelfdeck-us-adult-qualification独立project、loopback18124、UID1000:1001、只读root/drop ALL/no-new-privileges、1536MiB且无额外container swap；生产数据库和原媒体未挂载。两片完整E2E使用相同1.5核、5Hz/最多4 in-flight/5秒timeout的独立探针及Main profile。结果：
+
+| 固定输入 | 请求数 | 错误 | p50 ms | p95 ms | p99 ms | max ms | 既定p95≤500ms |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 改造前edbb | 482 | 0 | 5.20 | 510.74 | 1545.45 | 2579.85 | FAIL |
+| a4a673c20仅线程 | 445 | 0 | 2.84 | 555.13 | 1587.93 | 2738.87 | FAIL |
+| 0c82ee862线程+共享编译 | 434 | 0 | 2.58 | 410.05 | 836.48 | 2619.84 | PASS |
+
+新候选探针因4个请求同时未完成跳过12个200ms发起槽，已计数，不能称每个计划槽均发出。两片技术标签（任意Qualification Actor A/B，不代表真实出演者）完整暂存、原Run用户选择、NFO/1000×1500海报/命名、唯一On-deck、单片指定刷新与幂等全部通过，Entry/Deck/Canonical不变、仅目标库存+1；无RuntimeError。峰值930701312bytes（887.59MiB），memory.events全0，正常退出。小样本仍有约2.62s长尾；共机旧生产health本来有数秒波动，不声明解决其既有性能，也不将测试内存限额推广到已有约2GiB以上生产数据库进程。
+
+在同一1核/1.5GiB限制下四份既有只读副本各抽20点：sample01/02/03/04总耗时9621/14844/17563/23000ms，face counts 6/12/7/18与旧版一致；冷load576ms，串行wall65096ms、Main loop p95 80.02ms/max177.47ms。02+04双任务wall37212ms、warm load0、loop p95 81.85ms/max112.85ms；吞吐没有证明应提高正式并发，保留cpu_heavy=1。四份源文件完整SHA256、大小、mtime/ctime和inode与上轮完全相同，复制输入累计946647416bytes；未标注真实身份、不报告准确率、不按文件名猜真值。
+
+维护在精确候选上以受控窗口时钟测试：安全进入、两Entry健康批次、08:55停止新增、用户stop跨Host重启保留；下一周显式resume后同一个pending running健康Work变succeeded（两个Work最终均成功），不重建责任。两轮errors为空，最终容器exit0/OOM=false/RestartCount0。生产image fe8fe2f7…、StartedAt 2026-10-18T04:31:06.595469109Z、RestartCount0保持；fnOS和无关服务200。镜像archive会同时携带latest标签，导入后即时恢复NAS原latest指向原生产image，测试始终使用自身精确tag；没有重建或停止生产容器。
+
+标准build-image.js/upload-nas-image.js构建上传，无deploy-nas --apply。测试标签us-adult-worker-20261020-0c82ee862c是任意Docker标签，源码以上述完整commit为准（标签尾c不作为commit）；tar SHA256 a1dafee04805ea636142fc2c483b835096737791616da2d5d1c01fd267ecca2e，Desktop index sha256:4bdb714c2393acf6436055d645ad1c729cfe652294add7c4ac88439d539e0112，NAS实际config sha256:34c1d31b358be90cf516b759a9035ea6b912f5f33d31d7d52dc2791dba325ed1；archive config bytes及74层rootfs/Config/platform精确核对一致。2634个runtime代码、合同、脚本、资源/模型及dist文件全量比Source，0差异；UI JS/CSS与d8接受字节相同。无push、生产部署/数据升级。
+
+最终Linux network-none/只读root/4CPU/6GiB/12GiB tmpfs（容量上限）47文件208 PASS/0fail/0skip，325.25s；额外readonly挂载测试和测试专用Schema工具及SSOT，不覆盖产品src/native依赖。首轮仅挂test漏测试用工具，13个MODULE_NOT_FOUND失败保留为测试环境FAIL，修正挂载后完整重跑，不往产品包添加开发工具。Service新候选677 total/648 PASS/29既有skip/0fail，231.39s；Web43文件242 PASS/0fail，源码未变。完整Gate及额外跨Profile/Windows最终资格继续，真实出演身份准确性未评估，尚不关闭Phase。
+
+原始日志均在ignored .codex/us-adult-validation/worker-*，NAS各轮独立子目录保留；最后输入/输出摘要及Gate/JAV动态覆盖核验待补。
+
+独立Windows精确候选再验：物理依赖checkout、NODE_PATH清空、固定模型离线输入，实际package-win.js打包、自带node.exe/Native/Worker/包内YuNet/SFace、Host 224表/162路由、FFmpeg/FFprobe和单脸128维均通过；拒绝覆盖已有/源码内/junction输出，1 PASS/0fail/0skip、29.59s。Main require cache无包外依赖，Worker通过实际模型调用证明包内动态入口可用。日志worker-final-windows-package.txt。最终Service完整677 total/648 PASS/29既有skip/0fail已复验。
+
+共机安全观察没有触发SAFETY_STOP；E2E监控期间NAS最低MemAvailable约3.28GiB，测试后30次生产health有1次5s超时、p95约2.105s（之前空载基线已有2次超时），不声称旧生产延迟已修复或共机开销为零。全部本轮NAS容器最终停止，root owner/mode保持root:root/755；不自动清理保留的测试数据或旧镜像。

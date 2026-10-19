@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-20固定0c82ee862：ONNX Worker生命周期/队列/异常及真实输出一致性完成；N95隔离1.5核/1.5GiB完整两片及单片指定刷新434请求零错误，p95 410.05ms达既定500ms预算，max仍2.62s，峰值887.6MiB、无OOM。四片20点检出与旧版一致，维护截止/手动停机/跨Host及下周原Work续跑通过。Linux208项全通过，Service648 PASS/29既有skip、Web242 PASS；原始完整Architecture和额外跨Profile/Windows仍在资格中。四源完整hash/stat未变，生产实例未动、NAS测试容器已正常退出。真实出演身份准确性未评估，本Phase未完成、无生产发布。详见唯一Phase及US Adult Evidence。
+
 2026-10-20用户恢复US Adult开发。ONNX技术线程客户端/原生会话/Pack校验已拆开，32请求/32MiB有界排队及独立close控制槽、FIFO、崩溃/协议失败明确拒绝且无主线程回退。真实线程八项和预备模型/帧/图片十四项通过，输出与原实现完全一致；本轮模型检查使用独立目录NODE_PATH，尚不算分发资格。四项静态Gate通过，最终独立checkout、Windows/Linux及N95预算复验继续，未部署生产。
 
 2026-10-19 US Adult再次按用户指令暂停：本机完整Gate取消、NAS本轮测试容器已正常退出，无运行测试容器，生产镜像/StartedAt/RestartCount未变。N95四片抽帧检出、两片技术标签完整上架/单片指定刷新、维护窗口及下一窗口原Work续跑已有隔离证据；真实出演身份准确性未判定。1.5核/1.5GiB隔离环境高频482次请求零错误，p95约511 ms/最大2.58秒，未达预设500 ms。ONNX Node的同步native推理阻塞已由profile及backend源码确认；worker thread调整未提交、未测试，不称性能已修复或开发完成。详见唯一Phase及既有US Adult Evidence。

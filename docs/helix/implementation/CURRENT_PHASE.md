@@ -17,13 +17,13 @@
 
 | 工作项 | 可验收结果 | 当前状态 |
 | --- | --- | --- |
-| `US-CONTRACT-BASELINE` | 五个议题映射至 Owner、命令、事实、Effect、恢复和验收；SSOT 与派生合同一致，负例与 Architecture Gate 通过 | 进行中：产品决定已冻结，已回写主要SSOT及机器合同；全局残余条款对齐及最终门禁待完成 |
-| `US-PEOPLE` | 三库独立；普通/JAV 零用户介入；US Adult 有图手动/辅助建档、编辑、每轮最多五位推荐；认领来源影片无二次确认 | 开发中，尚未闭合 |
-| `US-FORMATION` | 真实 service-local 抽帧/人脸匹配，唯一最高有效演员；未识别进入既有暂存车间，确认后原位继续，有演员才可上架 | 开发中，尚未闭合 |
-| `US-PRESENTATION` | 初次生产和 Arca 刷新共用正式 Renderer；四张 2×2 大截图；演员名加冻结原名；无展示用自建番号 | 开发中，尚未闭合 |
-| `US-ARCA-REFRESH` | 仅用户单片手动指定/自动刷新创建本类 Aftercare Case；演员、NFO、海报、相关命名一致更新，收藏身份不变 | 正式HTTP/Work/提交与stage清扫真实进程恢复、Source过期及新Intent通过；最终平台/UI资格待闭合 |
-| `SYSTEM-MAINTENANCE-WINDOW` | 每周配置、安全进入/退出、游标续跑和任务分类；概览只显示维护状态与当前任务 | 开发中，尚未闭合 |
-| `US-QUALIFICATION` | 正式 Host 旅程、恢复反例、适用跨平台验证和具体版本 UI 审核有 Evidence | 待实现 |
+| `US-CONTRACT-BASELINE` | 五个议题映射至 Owner、命令、事实、Effect、恢复和验收；SSOT 与派生合同一致，负例与 Architecture Gate 通过 | 已实现：SSOT及派生合同、Owner/Effect/恢复负例已对齐；最终固定提交完整Gate进行中 |
+| `US-PEOPLE` | 三库独立；普通/JAV 零用户介入；US Adult 有图手动/辅助建档、编辑、每轮最多五位推荐；认领来源影片无二次确认 | 本地实现及定向资格已完成；最终整体验证继续 |
+| `US-FORMATION` | 真实 service-local 抽帧/人脸匹配，唯一最高有效演员；未识别进入既有暂存车间，确认后原位继续，有演员才可上架 | 本地实现及定向资格已完成；最终整体验证继续 |
+| `US-PRESENTATION` | 初次生产和 Arca 刷新共用正式 Renderer；四张 2×2 大截图；演员名加冻结原名；无展示用自建番号 | 本地实现及定向资格已完成；最终整体验证继续 |
+| `US-ARCA-REFRESH` | 仅用户单片手动指定/自动刷新创建本类 Aftercare Case；演员、NFO、海报、相关命名一致更新，收藏身份不变 | 正式HTTP/Work/文件Effect/库存提交、真实进程恢复及UI已验；本轮N95单片指定刷新通过，最终Gate继续 |
+| `SYSTEM-MAINTENANCE-WINDOW` | 每周配置、安全进入/退出、游标续跑和任务分类；概览只显示维护状态与当前任务 | 本地实现及定向资格已完成；最终整体验证继续 |
+| `US-QUALIFICATION` | 正式 Host 旅程、恢复反例、适用跨平台验证和具体版本 UI 审核有 Evidence | 最终Windows/完整Gate进行中；Linux208项及N95预算通过，真实身份准确性未评估 |
 
 本 Phase 滚动细化当前工作项；不另建活动计划，不分配开发用 UAT。缺失真实模型/适配器不能由旧 Face HTTP 服务、Mirex Store、mock Result 或空演员关系替代。
 
@@ -120,3 +120,11 @@ TMDB NFO/credits可靠人物命名空间统一查询及提交复验，跨库/多
 ### Reference GC、后期Actor续跑与UI收口
 
 正式双轮Reference审计及维护内精确Artifact回收、claim/Receipt恢复和重新发布验证接通；保持P3单Owner UOW，以Foundation opaque read fence保护跨Owner读间隔。后期人工Actor选择由Libra在唤醒生产前完成原位或合法replacement判定，真实CPU Host1项及提交后续跑重试负例通过。具体d8cff243b UI负责人8/8受影响检查通过、六项发现全部关闭；UI/Renderer后无变化。当前P2 131/110/224/58/145及162路由，物理DDL不变。最终固定提交完整Gate、Service/Windows/Linux资格继续，尚未交付；日志及准确限制见既有Evidence最新节。
+
+### 2026-10-20 固定线程版本与NAS复验
+
+`a4a673c20`完成线程客户端、原生模型/预处理、纯Pack验证及线程入口拆分；`0c82ee862`补齐共享Schema编译复用和精确Integration builtin负例基线。模型/阈值/业务Owner及持久合同不变。第一轮仅线程改造445请求p95 555ms仍FAIL；新固定版本434请求p95 410.05ms、p99 836.48ms、max 2619.84ms、零错误，达到既定p95≤500ms，偶发长尾仍存在。此结论限实际N95的1.5核/1.5GiB、两片技术标签旅程，峰值约887.6MiB、无OOM；不等于大库生产容量或实际身份准确性保证。
+
+四片各20点检出与改造前一致；1核串行总65.096s，双任务37.212s（两片），主事件循环p95约80/82ms。两片暂存→原Run确认→唯一上架→用户单片指定刷新、维护截止/手动停机/跨Host重启及下一窗口原健康Work续跑均通过；原件四份完整hash/大小/时间戳/inode未变，生产镜像/StartedAt/RestartCount保持。独立Linux最终47文件208项全通过；前序环境遗漏测试专用脚本的13失败已保留，修正测试挂载后重跑，不改产品包。新镜像2634文件逐字节与Source/资源相同，UI摘要沿用已接受版本。
+
+当前Service648 PASS/29既有skip、Web242 PASS；最终固定`0c82ee862`原始完整Gate不筛选/不分组，仍在运行。最初`a4a673c20`完整Gate因追加有证据的性能修复而中止，不计PASS。不得提前关闭Phase；具体镜像、原始日志、范围限制及最后结果以现有Evidence为准。
