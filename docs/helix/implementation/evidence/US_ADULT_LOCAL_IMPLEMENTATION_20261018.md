@@ -360,3 +360,12 @@ Service677 total/648 PASS/29既有skip/0 fail（149.1秒）；Web43文件/242 PA
 ### Linux全新安装的旧registry解析修正
 
 镜像npm ci实测因registry.npmmirror.com/typedarray的ECONNRESET失败（linux-build-7515a087a8.txt），官方npm及模型上游实际HEAD200。Service/Web锁文件分别189/244处resolved旧镜像URL统一改为registry.npmjs.org；结构比较证明只变resolved host，全部版本/依赖树/integrity不变，不换包、不忽略校验或静默回退。旧失败构建不计PASS；最终重新安装/镜像及Web资产摘要仍需复验。固定13e5完整Gate仍独立运行，不将该后续分发diff记为其原始覆盖。
+
+
+### Linux原生启动及隔离环境/字体发现修正
+
+8079ae7bb4本机linux/amd64镜像构建通过，实际Node20.20.2、224表/162路由、Sharp/FFmpeg、包内YuNet/SFace空图及单脸128维推理通过，Python不可执行。镜像2,631文件逐字节等于本提交源/资源；JS/CSS SHA256与d8 UI接受完全相同。镜像ID及原始输出保存在本地linux-image/source-audit/native-smoke日志。
+
+第一轮read-only容器/tmp只给3 GiB，低于既有Workspace需求1.2×输入+5 GiB，正确等待空间而无Workspace。该轮已终止，不记旅程PASS；改为12 GiB tmpfs上限（实际内存独立限额，材料仍隔离），不修改准入规则。窗口时钟围栏后的Windows实际GC2 PASS/132.3秒，缺失文件窗口外只结算保持。
+
+后续Linux发现fonts文件虽已安装，但--no-install-recommends未带Fontconfig配置，/etc/fonts/fonts.conf不存在，Sharp报告Cannot load default config。已在runtime阶段显式安装fontconfig并生成缓存，指定正式配置路径；不改Renderer或应用逻辑。必须以最终新镜像验证文字与旅程，不以有fonts文件或旧无配置渲染成功冒充正确字形发现。

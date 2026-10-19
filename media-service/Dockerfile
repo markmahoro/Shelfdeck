@@ -42,6 +42,14 @@ RUN node scripts/install-face-models.js
 FROM service-base AS service-runtime
 WORKDIR /app
 
+# Sharp's bundled text renderer still needs the system Fontconfig configuration
+# to discover the installed Latin and CJK fonts.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fontconfig \
+    && fc-cache -f \
+    && rm -rf /var/lib/apt/lists/*
+ENV FONTCONFIG_FILE=/etc/fonts/fonts.conf
+
 # The FFmpeg base carries a distro Python interpreter even though this service
 # does not.  Native modules were already compiled in service-dependencies, so
 # remove the interpreter/runtime from the final image instead of retaining a
