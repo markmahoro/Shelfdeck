@@ -407,3 +407,10 @@ Libra自身read投影现扩展为当前Run已发布Package Product/Offload的Mat
 六项：clean public export精确清单缺Libra/Arca只读Reference Audit Source factory；正式server dependency图缺GC Root adapter；P3 verifier模块白名单缺reference-audit-source导致两个fixture前置拒绝；Result schema图仍121而应123、Capability输出families仍106而应108。已逐项补精确成员及新Evidence/Receipt结构断言，无宽泛豁免、未放宽跨Owner/未知module/legacy拒绝。相关49项47 PASS/2既有环境skip。
 
 为保留完整验收并减少重复串行耗时，Gate执行器将唯一长JAV文件的52个独立literal测试按原声明顺序分成四组独立Node进程；其他文件仍独立执行，总并发始终不超过4。声明解析、重复/动态名称、pattern字符转义、选中数及全部文件覆盖均fail closed；每个case恰执行一次，额外name-filter跳过单独计数，不冒充覆盖。失败子进程不被吞掉，也不阻止其他已计划项输出结果。新执行器/原报告负例8 PASS，实际两文件CLI21 PASS。下一轮标准Architecture命令重新执行全部当前文件及全部52条JAV，没有继承旧fixture PASS跳过执行。该执行器是开发验证工具，不改业务Runtime或Docker/Windows分发内容。
+
+
+### aec928e1d执行器结果撤销及覆盖修正
+
+aec928e1d工具汇总返回ok=true、3102 tests/3089 PASS/13 skip/0 fail，输入4,181文件前后相同（28758f838e2b85b57cad6e1fec4356aadfd26a118e79b122810232e067afe09d），耗时1790.5秒。但反向逐名称比较发现JAV实际上74条：52个直接声明、22个for循环生成。新静态分组器只识别了前52条，selected数自检只验证自身不完整清单；Node25对非选中case不报告过滤skip，filtered=0也不能证明完整。缺少15个special/class source、2个collection operation及5个phase recovery共22条，故这轮整体资格撤销，不记最终完整Gate PASS。前文及聊天中“52条JAV”的表述仅指直接声明，完整范围应为74。
+
+已移除新分组执行器和其4项单元测试，恢复edbb时原始Node --test/全文件/concurrency4执行路径；保留六项精确合同/模块清单修正。没有用旧PASS补齐未执行case，也不继续修改框架来减少本次验收。重新固定提交执行全部原始文件/实际动态声明；预期相比13e5只新增维护时钟及custody间隙两项，具体数量以实际报告及名称覆盖审计为准。底层业务、最终Linux镜像及Windows分发字节均未因此改变。

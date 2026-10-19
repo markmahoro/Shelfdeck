@@ -22,19 +22,12 @@ const testFiles = fs.readdirSync(testDirectory)
 
 // Bound simultaneous SQLite/child-process fixtures so host CPU oversubscription
 // does not consume service startup deadlines before the child can run.
-const fixtureRun = childProcess.spawnSync(process.execPath, ['scripts/helix-architecture-test-execute.js', ...testFiles], {
+const fixtureRun = childProcess.spawnSync(process.execPath, ['--test', '--test-concurrency=4', ...testFiles], {
   cwd: serviceRoot,
   encoding: 'utf8',
   maxBuffer: 10 * 1024 * 1024,
   env: { ...process.env, NODE_ENV: 'test' }
 });
-let executionReport = null;
-try {
-  executionReport = JSON.parse(fixtureRun.stdout);
-  if (!Array.isArray(executionReport.jobs) || executionReport.sourceFileCount !== testFiles.length ||
-      executionReport.jobs.some(job => !testFiles.includes(job.file)) ||
-      new Set(executionReport.jobs.map(job => job.file)).size !== testFiles.length || !executionReport.ok) fixtureRun.status = 1;
-} catch { fixtureRun.status = 1; }
 
 const dependency = runCheck('package-boundaries', () => checkPackageBoundaries({
   rootPath,
@@ -54,9 +47,7 @@ const fixturePassed = fixtureRun.status === 0 && !fixtureRun.error && !fixtureRu
 const result = {
   ok: fixturePassed && dependency.ok && semantic.ok && manifests.ok && contracts.ok,
   scope: 'P2_LOCAL_ISOLATED_CONTRACT_BASELINE',
-  fixture: { ...fixtureReport(fixtureRun, testFiles.map(filePath => path.basename(filePath)), [dependency, semantic, manifests, contracts]),
-    execution: executionReport ? { strategy:executionReport.strategy, concurrency:executionReport.concurrency,
-      jobCount:executionReport.jobs.length, counts:executionReport.counts } : null },
+  fixture: fixtureReport(fixtureRun, testFiles.map(filePath => path.basename(filePath)), [dependency, semantic, manifests, contracts]),
   dependency: {
     ok: dependency.ok,
     packageCount: dependency.packageCount,
