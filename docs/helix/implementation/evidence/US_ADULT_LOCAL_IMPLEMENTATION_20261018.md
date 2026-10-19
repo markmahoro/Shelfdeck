@@ -388,3 +388,13 @@ Libra自身read投影现扩展为当前Run已发布Package Product/Offload的Mat
 - network none、只读root、12 GiB tmpfs容量上限及独立6 GiB/4 CPU资源限额：18文件98 PASS/0 fail/0 skip，335.5秒。包含本次Libra custody间隙修正30项、全部此前68项US/People/维护/GC/离线副本及真实进程退出旅程。日志`linux-native-journeys-edbb470256.txt`。
 - 另组隔离跨Profile8个选中场景全部PASS/0 fail、385.3秒；98个name filter跳过不计资格。涵盖JAV实际HEVC入藏/系统演员维护、Movie真实合成媒体独立decode三反例、Series N:M Aftercare、外部Transcode、Off-deck的实际跨进程恢复；外部Transcode修正后PASS/130.0秒，原Run/Entry/Receipt连续，无重复下载。日志`linux-profile-edbb470256.txt`。这些不是生产真实媒体E2E或NAS平台资格。
 - 两组最终容器均已退出并自动删除；当前无本轮运行容器。最终完整固定13e5 Architecture与Windows最新Source分发继续，不能将当前Linux结论提前等同整个Phase完成。
+
+
+## 最终Windows与Service增量资格：edbb470256
+
+- 独立managed checkout `us-adult-windows-final`，精确Code SHA `edbb4702563e4857757fd9178627130e8ab570c8`。Service/Web/tools依赖从前一独立验证目录作物理副本；全树无symbolic link，非主工作区junction、无外部NODE_PATH。版本/integrity与锁文件保持，registry host变更不换包。
+- 第一轮40 PASS/1 FAIL，唯一Windows包在首次模型下载fetch failed，非编译或推理失败，保留`windows-final-edbb470256.txt`；向独立构建提供两份逐项大小/SHA256匹配固定manifest的离线模型输入后，重新完整Windows分发+维护/Owner组合41 PASS/0 fail/0 skip、35.6秒（windows-final-pinned-edbb470256.txt）。实际包含自身Node、Native与模型，启动224表/162路由、Sharp/FFmpeg/FFprobe及空图/单脸128维通过，require cache无包外依赖，重复/源码内/junction目标均拒绝覆盖。
+- 网络随后HEAD200，在全新空目录直接执行相同installer再次下载两模型并校验PASS（windows-model-fresh-download.txt）；首次故障视为瞬时连接失败，不删除原失败记录，也不把离线分发冒充该首次下载成功。两份临时下载文件校验后精确删除及空目录移除，没有递归清扫用户目录。
+- 最新Service677 total/648 PASS/29既有skip/0 fail、139.3秒（service-final-edbb470256.txt）；Web最终242 PASS/43文件为13e5固定Source，之后无web/src/Renderer变更，官方registry干净Linux重建及Windows build均产出相同审核JS/CSS字节。
+- 最终Package boundary、semantic、manifests及P2静态门禁全部PASS（final-edbb-static-gates.json）；P2仍131/110/224/58/145、31 shared、243 refs、0 unresolved，aggregate ec14f57ab8512de541597a8a482688f6399648f6b16f9273685cba0b65e19b23。
+- Windows临时managed checkout已申请归档；归档前全树无link且Git干净，主Service/Web的E盘依赖junction目标与存在性前后保持。两份过渡本机测试镜像已删除，只保留最终edbb本机镜像；无本轮测试容器常驻。固定13e5完整Architecture仍在运行，保持独立来源边界。
