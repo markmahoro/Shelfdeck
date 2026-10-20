@@ -481,7 +481,7 @@ function buildWorkspaceMediaHandle(value) {
   return limited(result, 16 * 1024, 'P9_WORKSPACE_MEDIA_HANDLE_SIZE');
 }
 
-function buildProductMediaCandidateInput(value) {
+function buildProductMediaCandidateInput(value,seriesSpaceScope=null) {
   const requirement = assertExactMediaRequirement(value.mediaRequirement), kind = value.candidateKind;
   if (!['direct_input','workspace_output'].includes(kind)) fail('P9_MEDIA_CANDIDATE_KIND', 'Candidate kind is invalid.');
   const common = { schemaRef:'helix://contracts/domain-types/ProductMediaCandidateInput/v1', schemaVersion:1, candidateId:'',
@@ -519,7 +519,7 @@ function buildProductMediaCandidateInput(value) {
       fail('P9_MEDIA_SERIES_SPACE','Series space basis requires a Series Candidate.');
     require('./series-media-space').evaluateSeriesMediaSpace({basis:value.seriesSpaceBasis,libraRunId:value.libraRunId,
       handle:kind==='direct_input'?value.sourceMaterialHandle:value.workspaceMediaHandle.workspaceMaterialHandle,
-      probe:kind==='direct_input'?value.sourceProbeEvidence:value.outputProbeEvidence,maxSizeBytes:requirement.space.maxSizeBytes});
+      probe:kind==='direct_input'?value.sourceProbeEvidence:value.outputProbeEvidence,maxSizeBytes:requirement.space.maxSizeBytes},seriesSpaceScope);
     result.seriesSpaceBasis=value.seriesSpaceBasis;
   } else if(requirement.contentProfile==='series')
     fail('P9_MEDIA_SERIES_SPACE','Series Candidate requires a complete Episode space basis.');

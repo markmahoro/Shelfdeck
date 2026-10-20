@@ -22,6 +22,10 @@ function input(source,mode='specified') {
 }
 test('specified refresh freezes the exact requested actor, original naming and current Inventory without library scanning',()=>harness(source=>{
   const value=input(source),intent=model.buildIntent(value),requirement=model.requirement(intent);
+  assert.equal(intent.rendererVersion,'us-adult-presentation@3');
+  const obsolete={...intent,rendererVersion:'us-adult-presentation@2'}, {intentDigest,...obsoleteBody}=obsolete;
+  obsolete.intentDigest=D(obsoleteBody);
+  assert.throws(()=>model.assertIntent(obsolete,validator),'A correctly hashed old layout cannot be rendered as the new frozen version.');
   assert.equal(intent.manualPersonSnapshot.personId,value.body.personId);assert.equal(intent.pageCount,0);assert.equal(intent.libraryDigest,null);
   assert.equal(intent.inventoryRevision,2);assert.equal(intent.deckFactRevision,1);assert.equal(intent.canonicalIdentityRevision,1);
   assert.equal(intent.originalName.originalFileName,'Studio.Scene.1080p.mp4');assert.ok(Object.isFrozen(intent.manualPersonSnapshot.referenceProjection));

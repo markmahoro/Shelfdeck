@@ -86,7 +86,7 @@
       ]
     },
     "rendererVersion": {
-      "const": "us-adult-presentation@2"
+      "const": "us-adult-presentation@3"
     },
     "selectionOrigin": {
       "enum": [

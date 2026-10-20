@@ -80,9 +80,8 @@ describe('People contact sheet', () => {
   });
 });
 
-const searched:PersonImageSearch = {sources:[{source:'stashbox',state:'failed',items:[],error:{code:'SOURCE_FAILED',message:'StashBox 搜索失败。'}},
-  {source:'wikimedia',state:'available',items:[{source:'wikimedia',sourceObjectId:'photo-1',canonicalName:'Sample Actor',aliases:[],
-    sourcePageUrl:'https://commons.wikimedia.org/wiki/File:Sample.jpg',attribution:'Wikimedia Commons',width:600,height:900,selectionToken:'chosen-photo'}]}]};
+const searched:PersonImageSearch = {sources:[{source:'stashbox',state:'available',items:[{source:'stashbox',sourceObjectId:'photo-1',canonicalName:'Sample Actor',aliases:[],
+  sourcePageUrl:'https://api.theporndb.net/performers/sample',attribution:'ThePornDB',width:600,height:900,selectionToken:'chosen-photo'}]}]};
 
 async function openRegistration() {
   renderPeople();await screen.findByRole('article',{name:'周迅，已登记'});
@@ -92,15 +91,24 @@ async function openRegistration() {
 }
 describe('US Adult registration',()=>{
   afterEach(()=>vi.restoreAllMocks());
-  it('requires explicit selection, shows independent source errors, and retries the same operation after an unknown outcome',async()=>{
+  it('shows ThePornDB failure without another source or enabling registration',async()=>{
+    vi.spyOn(helixAdminApi,'searchPersonImages').mockResolvedValue({sources:[{source:'stashbox',state:'failed',items:[],
+      error:{code:'PEOPLE_IMAGE_SOURCE_UNAVAILABLE',message:'ThePornDB 搜索失败，请检查连接配置后重试。'}}]});
+    await openRegistration();fireEvent.click(screen.getByRole('button',{name:'按姓名辅助搜图'}));
+    expect(await screen.findByRole('alert')).toHaveTextContent('ThePornDB 搜索失败');
+    expect(screen.getByRole('button',{name:'确认建档'})).toBeDisabled();
+    expect(screen.queryByText(/Wikimedia/)).not.toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'按姓名辅助搜图'})).toBeEnabled();
+  });
+  it('requires explicit selection and retries the same operation after an unknown outcome',async()=>{
     vi.spyOn(helixAdminApi,'searchPersonImages').mockResolvedValue(searched);
     const register=vi.spyOn(helixAdminApi,'registerPerson').mockRejectedValueOnce(new TypeError('network')).mockResolvedValue({operationRef:'op-1',state:'accepted'});
     vi.spyOn(helixAdminApi,'getPersonImageOperation').mockResolvedValue({operationRef:'op-1',state:'completed',personId:'person-created',failureCode:null});
     await openRegistration();
     fireEvent.click(screen.getByRole('button',{name:'按姓名辅助搜图'}));
-    await screen.findByText('StashBox 搜索失败。');
+    await screen.findByRole('heading',{name:'ThePornDB'});
     expect(screen.getByRole('button',{name:'确认建档'})).toBeDisabled();
-    fireEvent.click(screen.getByRole('button',{name:'选择 Sample Actor 的图片，Wikimedia Commons'}));
+    fireEvent.click(screen.getByRole('button',{name:'选择 Sample Actor 的图片，ThePornDB'}));
     fireEvent.click(screen.getByRole('button',{name:'确认建档'}));
     await screen.findByText('尚未收到提交结果，请重试同一次建档。');
     expect(screen.getByLabelText('姓名')).toBeDisabled();
@@ -131,7 +139,7 @@ describe('US Adult registration',()=>{
     fireEvent.click(screen.getByRole('button',{name:'按姓名辅助搜图'}));
     fireEvent.change(screen.getByLabelText('姓名'),{target:{value:'Another Actor'}});
     await act(async()=>resolve(searched));
-    expect(screen.queryByRole('button',{name:'选择 Sample Actor 的图片，Wikimedia Commons'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'选择 Sample Actor 的图片，ThePornDB'})).not.toBeInTheDocument();
   });
 });
 
@@ -181,9 +189,9 @@ it('adds a reference to the existing US actor without creating another identity'
 });
 
 it('keeps an unfinished draft while opening the missing image-source configuration in another tab',async()=>{
-  vi.spyOn(helixAdminApi,'searchPersonImages').mockResolvedValue({sources:[{source:'stashbox',state:'unconfigured',items:[]},{source:'wikimedia',state:'empty',items:[]}]});
+  vi.spyOn(helixAdminApi,'searchPersonImages').mockResolvedValue({sources:[{source:'stashbox',state:'unconfigured',items:[]}]});
   await openRegistration();fireEvent.click(screen.getByRole('button',{name:'按姓名辅助搜图'}));
-  const link=await screen.findByRole('link',{name:'配置 StashBox'});expect(link).toHaveAttribute('href','/settings#stashbox');expect(link).toHaveAttribute('target','_blank');
+  const link=await screen.findByRole('link',{name:'配置 ThePornDB'});expect(link).toHaveAttribute('href','/settings#stashbox');expect(link).toHaveAttribute('target','_blank');
   expect(screen.getByLabelText('姓名')).toHaveValue('Sample Actor');
 });
 it('shows safe recoverable copy when a reference preparation fails with an unrecognized internal code',async()=>{

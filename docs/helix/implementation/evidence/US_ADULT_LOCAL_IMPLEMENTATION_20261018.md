@@ -1,5 +1,15 @@
 # US Adult 本地实施证据（开发中）
 
+## 2026-10-20 最终候选准备：ThePornDB唯一来源
+
+用户确认US Adult不需要Wikimedia，只保留ThePornDB，并要求改完直接生产升级。已同步SSOT姓名辅助搜图合同：固定`https://api.theporndb.net/graphql`，用户只填写API Key，继续全站网络策略和用户明确选图。移除Commons请求及来源展示，来源失败/未配置/空结果均明确返回唯一来源状态，不隐藏切源。内部沿用既有`stashbox`协议标识及Platform proof/CAS/Secret保存；新配置拒绝其他地址，旧非TPDB配置及已签名的Wikimedia选择在取图前拒绝。手工上传及已存参考图保持，不执行批量人物修改。
+
+新选图合同`PeopleSelectedImageHandle`与构建器/Registry同步移除Wikimedia。Source-map仅传播SSOT文档摘要，检查原counts/categoryDigests/aggregateDigest一致；P2新总摘要`1b9df5e2fd2ffe41a64382f2159c8d8537b037fb47c15a30222086c173b5f2ba`，131/110/224/58/145及243 references保持。四项静态Gate通过。
+
+Windows受影响Service两文件30 PASS，包含正式Host错误凭据、固定地址拒绝且零传输、proof保存/重启后搜索，以及唯一来源/无备用请求、签名旧来源拒绝、网络和配置变化、过期、篡改及超界资料。Web43文件242 PASS及build（保留既有chunk大小提示），随后新增唯一来源失败状态用例，受影响两文件14 PASS。P2与搜图合同九项PASS；新UI及最终候选资格继续验证，不继承旧UI审核。
+
+生产只读预检记录当前镜像`helix-beta-20261018-5367179429`及image ID `fe8fe2f77c2d32bdc3fe59c14e616610fc48e304704baea9b92352261267fe60`，607条Shelf Entries、30,941个Person、10个活动Run。Schema为210表来源版本。使用现有隔离Runtime和当前离线operator精确源码，对生产只读挂载进行SQLite一致快照及升级资格检查；输出在隔离应用新子目录，未写生产数据库/凭据/媒体、未停止生产。此检查只有数据库和加密管理员文件，不能作为完整备份或完整Host资格。一次性TPDB测试凭据不复制进生产。全部私有原始记录留ignored `.codex/us-adult-validation/`，不提交凭据、人物/影片标签或导出生产数据。
+
 本记录不代表版本交付或生产发布。唯一活动计划仍为 `implementation/CURRENT_PHASE.md`，业务决定来源为五议题基线。
 
 ## 已落地范围
@@ -494,3 +504,129 @@ CPU profile发现onnxruntime-node/dist/backend.js的run在setImmediate内同步�
 良性参考图91814bytes，SHA256 7de7ed51a1594fff247f4cae2301eceacf5313d6011e37b4a4c8733f7bb72c07，本机与NAS一致；模型固定输入记录在worker-final-native-inputs.json，不提交图像或生物特征。最后NAS只读核验测试exited0/OOM=false、无运行qualification容器；生产image fe8fe2f7…、StartedAt 2026-10-18T04:31:06.595469109Z、RestartCount0及latest原指向保持，root:root/755。主本地验证及Docker测试进程均已退出；工作区最后提交只有验收文档变更，不要求重建等价runtime镜像。
 
 Phase Exit反向检查：五议题实现/正式Owner/Effect/恢复、唯一计划、无跨域authority/新Business Object/旧Runtime可达/兼容双路径/后续Phase耦合均有证据；本轮线程和编译技术优化不移动事实。**适用工程资格PASS，整体Phase业务验收不关闭**：真实出演者身份准确率未评估，真实影片仅检出/技术标签链路；N95小样本预算PASS不外推大库生产容量，max2.62s长尾保留。生产发布、生产数据升级与真实媒体改动均未执行，不能称整版已发布或全部业务验收完成。
+
+
+## 2026-10-20 人工验收准备与安全停止
+
+同一固定0c82ee862镜像在既有隔离根下新建manual-uat-v1；仅挂载新验收数据、四份冻结输入副本和验收启动脚本，不挂载生产、原片或历史测试凭据。初始人物0、Libra Run 0、接收席位0。四份副本完整SHA256校验后才发布到测试来源；setup-complete记录已下载并验证样本数4、席位0、operator_review_pending。真实身份由用户根据独立参考资料确认，不将文件名或技术标签当真值。
+
+首次初始化HTTP400来自验收夹具的allowedExtensions未按既有sorted-set合同排序；原失败保留，诊断记录确认material-fields接口拒绝。修改夹具为.mkv/.mp4后，以原幂等命令恢复，未删除/重置数据或变更产品代码。期间一次恢复探针未进入初始化步骤，已停止该短生命容器；随后完成setup，Host报告ready。该过程不计产品修复或完整UAT通过。
+
+NAS生产health三次连续5秒超时，既有保护监控自动停止唯一测试容器，Exit0、OOMfalse；测试最后CPU 0.17%、内存160.2MiB。未继续放宽监控或自动重启测试。停止后UTC04:17:38起三次生产health均200，耗时14.369483、1.107050、0.251698秒；不能据此判定慢响应根因。生产image仍fe8fe2f77c2d32bdc3fe59c14e616610fc48e304704baea9b92352261267fe60、StartedAt仍2026-10-18T04:31:06.595469109Z、RestartCount0。未修改生产实例或业务数据。
+
+本机127.0.0.2:18125到NAS loopback18124的SSH转发已关闭；入口、登录及会话验证被停止打断（fetch failed），不可宣称可用入口。测试数据和mode600凭据保留；本机私有登录文件移除继承ACL，仅当前用户可读。私有清单包括建档、开启席位、人工匹配判断、海报/命名、单片指定及自动刷新。暂不让用户操作，待NAS响应稳定后继续入口资格及人工验收。未展示或判断实际人像，身份准确性仍未评估。
+
+原始记录均为ignored：manual-uat-preflight.txt、manual-uat-prepare.txt、manual-uat-start.txt、manual-uat-monitor-active.txt、manual-uat-post-stop.txt、manual-uat-setup-complete.json（均在.codex/us-adult-validation）。夹具、Compose、受限凭据与清单亦仅在ignored目录；不提交密钥、图片或媒体。后续只需恢复此隔离环境并完成入口检查，无需重新跑已合格工程套件；生产发布仍无授权。
+
+
+## 2026-10-20 NAS health超时诊断、启停对照与验收入口
+
+用户要求先确认超时与测试环境的关系，再准备人工入口。本轮仅生产只读观测及临时诊断采样，未改变生产代码、配置、数据库或运行意图；生产image/StartedAt/RestartCount仍为上节原值。两次临时Inspector采样均已关闭，最终独立端口检查ECONNREFUSED。生产正常工作持续，含已有FFmpeg子进程；不存在锁步工作量控制，以下不是生产修复或SLO资格。
+
+### 停测基线与真实热点
+
+测试已停止时，生产第一次6次health全部200，最大3.843124秒；随后12次独立基线最大0.828081秒。该时点生产Docker CPU126.98%、缓存计入后容器约2.234GiB，Node RSS约0.66GiB；NAS可用内存约3.6GiB、无OOM。30.01秒生产PID1 counters：rchar逻辑读取约414.09MiB/s、read_bytes实际读取约0.624MiB/s、write_bytes约0.275MiB/s、read syscall约20260/s；不能将逻辑量误写为物理磁盘带宽。数据库约3.75GB。短时本地iostat未见盘饱和，NAS仍有约20%–25%iowait和较高I/O PSI，另存在CIFS挂载，不能仅据整机iowait认定本地盘故障或USB饱和。
+
+两次仅诊断profile不混入无Profiler启停样本：
+- 第一轮约13.36秒采样，event-loop max912ms；同步UOW/Repository约4.8s inclusive，概览约1.7s，其中Libra Formation约1.57s，Arca健康输入约1.30s。
+- 第二轮约24.46秒采样，event-loop max2074ms；domain reconcile约18.40s、同步UOW约14.82s、Libra Run reconcile约8.26s、Perception候选读取约4.71s、People NFO reconcile约2.91s inclusive，canonical serialization/digest亦占明显成本。父子inclusive重叠，不得相加。主要栈为既有同步SQL/当前事实投影、候选扫描及完整摘要计算，而非US人脸推理。health handler本身读取现有运行快照；重活持续占用同一主事件循环会延后HTTP。
+
+### 已初始化测试的启停对照
+
+已初始化manual-uat-v1恢复后不再复制/重复校验四片；只保持演员0、Run 0、席位0，不进行模型或整理运行。容器稳定约127–128MiB，多数CPU0.16%–1%，一次28.51%短峰；重启累计Docker BlockIO约249MB读/3.89MB写，前次首次初始化计数为约5.89GB读（均为Docker报告值，不解释为唯一设备的物理量）。本次没有重做首次冷初始化，不能由此量化它当时的额外影响。
+
+| 时段 | 样本 | 全200 | 最大响应 |
+| --- | --- | --- | --- |
+| 测试停止，第一独立基线 | 12 | 是 | 0.828081s |
+| 测试运行但不整理 | 8 | 是 | 4.528290s |
+| 再次停止测试 | 12 | 是 | 6.113250s（另有4.357574s） |
+
+因此已证明生产自身在没有测试时也会超过原5秒探针预算；测试不是超时的必要条件。采样确认后台同步查询/计算占用主线程。首次测试初始化确有同机CPU/I/O负载，可能放大已有竞争；工作量持续变化且没有重做冷启动，不能声称完全零影响，也不能从一组启停均值证明因果改善。此现象关联既有UAT-318生产响应性能问题，本轮不引入生产热修复或改动已合格候选。
+
+### 已恢复的人工入口
+
+最终UTC04:27:28（北京时间12:27:28）隔离容器running/healthy/OOMfalse，1.5CPU、1.5GiB；health约1.69ms。仍为固定0c82ee862镜像，独立manual-uat-v1、四份测试副本；生产与原片不挂载。NAS端仅loopback18124，本机SSH转发仅127.0.0.2:18125，入口 /people。主运行与Web代码未变。
+
+入口资格：public health200、未认证admin401、独立凭据换session204、HttpOnly/SameSite Cookie、来源1、席位0、US人物0，页面200；JS555524字节、CSS85890字节均200。未用生产凭据、没有将密钥写入URL或浏览器存储；私有登录文件仍仅当前Windows用户可读，清单在ignored .codex。已请求在Codex面板打开，工具返回queued，不冒充浏览器人工验收或显示完成。
+
+保护监控保留原条件：三次生产health失败或超过3秒（单请求5秒预算）、三次MemAvailable低于768MiB、生产StartedAt变化均停止唯一测试容器；新增监控正常到期、退出或收到结束信号也停止精确scope测试容器，避免留下无保护测试负载。未放宽健康阈值，没有自动重试启动。监控运行中，人工识别尚未开始；用户先建演员库，再自行把测试来源席位0→1。技术性能通过不替代真实身份判断；Phase业务验收继续开放。
+
+ignored记录：nas-health-diagnose-baseline.txt、nas-production-counters.jsonl、nas-production-diagnostic-profile.json、nas-production-diagnostic-profile-long.json、nas-production-profile-summary.json、nas-health-off-baseline-long.txt、nas-health-on-idle.txt、nas-health-off-after.txt、nas-storage-diagnose.txt、nas-uat-causal-monitor.txt、manual-uat-ready-monitor.txt。私有图片/身份/密钥不进入仓库。入口检查由私有verify脚本完成且最终复验PASS；本轮无产品代码改动，不重复整套工程资格。
+
+
+## 2026-10-20 用户追加的查询优化增量
+
+用户在确认既有查询优化及生产profile机会后要求实施。本轮限同一Phase、本地Service：先处理整季空间重复计算及Perception重复候选扫描，不改生产、不更换正在供用户人工验收的NAS固定镜像。未实施新的概览查询方案或跨周期跳过完整Resolution重算，也未调整维护窗口分类、调度频率、匹配规则或候选上限。
+
+### 实现与正确性边界
+
+- Libra series-media-space提供显式同步evaluation scope，纯整季分配计算在一次Direct Selection重建内按不可变Basis身份、Run和maxSizeBytes复用。仅本模块构造并深冻结的完整Basis可复用，外来/可变Basis每次完整校验；scope在同步调用结束或异常后立即销毁，异步/过期/外来scope拒绝。逐文件Handle/Probe digest、大小和完整Episode分配核验继续；单独调用和Effect/新读取均重新完整验证。候选ID、Canonical输入、摘要公式与最终安全检查不变。
+- Perception Store内增加最多256项的候选ID查询索引，键为完整检索Clause/Evidence，版本为同一事务读取的全体Source cursor heads。所有合法Record插入均与Source cursor推进同事务提交，因此任何新Source/资料页使旧索引失效；不使用TTL或进程内猜测版本。只存候选ID，不存Record、Relation、Resolution或业务裁决。每次仍重新读取完整匹配记录和当前关系、检查集合上限，Assembler/Resolver与摘要计算不变。纯exact检索继续原有精确SQL，不额外读取heads。冷查询/淘汰后继续完整原检索；失败不发布索引，不产生新的静默业务回退。
+- 无Schema、表、索引DDL、持久事实、Public Facade/API、合同、UI或desktop变更；P2仍131/110/224/58/145（shared31、refs243、unresolved0），aggregate ec14f57ab8512de541597a8a482688f6399648f6b16f9273685cba0b65e19b23。没有跨Owner读取或向Worker迁移业务权限。
+
+### 增量验证
+
+最终19个明确受影响文件261 tests/261 PASS/0skip/0fail，四个改动Runtime文件及19个测试文件的SHA256前后完全相同。覆盖评分导入/Resolution/维护续跑、Movie/JAV Perception连续性、媒体生产合同/路由、Series source/空间/预算/Arca接受及外部替换/交付。新增负例含跨Store提交使缓存空结果失效、候选上限及规则变化、容量淘汰、exact路径不增heads读取、未变Acquisition cursor时仍读到新Resolution关系、不同Run/大小限制、Probe/Handle篡改、可变和冻结accessor Basis、异常/异步/过期scope。
+
+Linux基于原固定镜像，只读挂载本次src/test及测试脚本，在本机Desktop Docker隔离运行；9文件190 PASS/0skip/0fail。首轮188 PASS/1fail来自未挂载测试专用series-media-space-schema脚本，补齐测试挂载后重跑；失败日志保留，未修补产品分发。后续最终代码与负例复验同为190 PASS。Windows最终定向178项及专项41项通过；package boundaries/semantic/manifests/P2四项静态检查零finding。
+
+曾启动过宽的83文件扩展回归，包含未选择逐名过滤的整套JAV真实媒体长旅程；因超出本次增量范围，精确识别本机唯一runner并结束其两个子进程，未清理fixture或媒体，原日志保留，**该轮取消不计PASS或完整Architecture资格**。其已完成的四个JAV旅程不据此推断全部JAV场景资格。最终261项为后续独立、明确文件集，非把取消轮重新标绿。原0c82ee862全量Gate只证明旧固定基线，不覆盖本次新Runtime。最终Service常规结果及组件对照见本节下方补记。
+
+本轮未修改或重建NAS生产/验收容器；不声称生产health超时已解决，亦未将US身份准确性业务验收关闭。当前增量没有新镜像/N95性能或独立Windows分发资格，发布前仍须按最终候选补齐适用资格。Web字节与接口无变化，未重复无关UI构建或浏览器验收。
+
+
+### 最终常规回归与组件对照
+
+最终代码Service常规677 total：648 PASS、29既有skip、0fail，134580.38ms；本轮较早一轮同为648 PASS/29skip，后续Basis证书与exact fast path收口后完整重跑，以最终日志为准。最后再次计算四个Runtime/19个测试文件摘要，仍与最终261项回归输入完全相同。期间只更新文档；所有本轮本机测试/采样进程均已结束，保留既有人工验收SSH入口和安全监控。
+
+组件benchmark使用Windows本机合成数据，旧实现通过git show 0c82ee862加载，SQLite来自本机私有临时数据库，最终清理仅针对自行创建并验证位置/名称的临时目录。没有导出生产数据或访问原片。两组输出deepEqual，评分另逐条断言64个查询均命中预定唯一ID，避免空结果产生虚假收益。
+
+| 工作量 | 旧实现 | 新实现 | 计量范围 |
+| --- | --- | --- | --- |
+| 96成员、完整Series分配 | 58.0869ms | 0.7728ms | 一轮完整成员集合；各5轮中位数，仅纯计算 |
+| 1500记录、64个标题候选冷查询 | 83.3758ms | 81.8052ms | 一次，不声称冷查显著加速 |
+| 同64个重复候选查询 | 73.4538ms | 3.6364ms | 各5轮中位数；当前Source heads未变 |
+
+另一次与Service测试并行的采样为Series111.0355→2.2308ms、重复查询305.407→14.9751ms，但冷查询196.3266→263.1209ms较慢，保留在query-opt-benchmark-concurrent.json。该轮存在本机并行负载干扰，不用它或最终单次冷查证明无退化/SLO。以上均不是实际NAS整机CPU、完整Direct Selection路径、真实大库Source规模、生产health长尾或新分发镜像性能资格；不得将组件降幅乘到整体。超过256查询项或新资料提交后会重新进行原完整检索，冷启动成本及Resolver完整摘要仍在。
+
+原始ignored日志：query-opt-targeted-final.txt、query-opt-fence-final.txt、query-opt-final-regression.txt、query-opt-final-inputs.json、query-opt-service-final.txt、query-opt-static-final.json、query-opt-linux.txt（首轮失败）、query-opt-linux-final.txt、query-opt-benchmark.json及并行轮、query-opt-affected.txt（取消轮）。复现脚本在ignored .codex/us-adult-query-benchmark.cjs与us-adult-query-linux.cjs。未新增活动计划、API或数据升级责任。本轮两项优化本地完成，整体US Adult业务验收/发布仍按原Phase开放边界执行。
+
+## 2026-10-20 TPDB真实辅助建档连接修复
+
+用户要求通过ShelfDeck实际姓名辅助建档，并提供仅用于本轮验收的临时TPDB API Key。凭据只从用户指定本地文件读取，经隔离实例正式Platform test/proof/configure流程保存；未提交、输出或复制进脚本、Compose、证据正文或生产配置。原有全站代理策略保持，未修改生产或Clash服务。
+
+- 初始真实账户连接已成功，但StashBox适配器返回摘要遗漏`capabilityCodes`，被Platform以`PLATFORM_INTEGRATION_TEST_RESULT_INVALID`拒绝。补回Profile声明的冻结能力清单，保留原验证/版本/加密Secret和Owner提交流程，未绕过校验。
+- 连接后真实搜图返回GraphQL错误：线上TPDB没有`searchPerformers`，而支持`searchPerformer`。改为一次有界数组查询及严格数组结果校验；不做异常后换协议重试。该字段仍在[官方Stash-box Schema](https://github.com/stashapp/stash-box/blob/master/graphql/schema/schema.graphql)内。真实返回资料用于核验协议形状，未据图片判定人物身份。
+- Windows完整受影响两个测试文件29 PASS/0skip/0fail；新增正式Host测试覆盖错误凭据拒绝、test-proof-save、重启后Secret保留和正常搜图，不只mock适配摘要。新增空数组、错误形状、超界及GraphQL错误拒绝，验证不隐式补发请求。首轮新增测试误将Provider错误HTTP断言为400，实际合同502，准确修正为502及错误码后复验；不计首轮为PASS。
+- Linux固定本地Runtime加只读当前源/测试挂载，相关6 PASS/23未选中skip/0fail；23项不记覆盖。另一次仅连接回归1 PASS/23未选中。四项静态Gate再次通过，DDL/API/Owner/业务合同未改；没有重跑或继承新完整版本Architecture Gate。
+
+NAS只更新`shelfdeck-us-adult-qualification`，原`manual-uat-v1`数据及席位0保持；先通过原监控停止隔离实例，再核验原镜像、路径、摘要和生产健康，以单文件只读挂载先复验连接，再加入搜图修复挂载。原Compose和镜像保留。当前Compose为`compose-manual-uat-tpdb-v2.yaml`，基础image仍为`sha256:34c1d31b358be90cf516b759a9035ea6b912f5f33d31d7d52dc2791dba325ed1`；本轮是明确标识的增量验收叠加，不是新完整发布镜像，也未带入此前查询优化。两处文件SHA256：
+
+| 文件 | SHA256 |
+| --- | --- |
+| stashbox-provider-adapter.js | f87c60c549311cfa559b8ff689eda5df439916d0956355a792119eadade6f025 |
+| people-image-search.js | 5d6761977b9eb63541e639d9711ec8e4cad5a887210ffa179a39be3d29b3bd75 |
+
+实际公开Admin API连接验证200、配置保存200/revision1；三个测试演员查询均200，TPDB返回候选图47/5/5，约2.57/2.92/3.09秒。47项包含近名人物，不能宣称均属于查询演员。浏览器实际进入US Adult新建演员、输入一个测试姓名并按辅助搜图，五张图片均complete且naturalWidth/Height非零；未自动选图或提交人物。Wikimedia仍独立返回来源错误，已定位其中官方thumbnail host被现有白名单拒绝，尚未修复，不伪报全部来源可用。真实出演者识别准确性仍未评估。
+
+隔离监控沿用生产连续健康超时/低可用内存停止测试阈值及退出trap；未放宽保护。两次重建前生产健康成功，生产image `fe8fe2f77c2d32bdc3fe59c14e616610fc48e304704baea9b92352261267fe60`、StartedAt `2026-10-18T04:31:06.595469109Z`、RestartCount0保持。本轮不改原片、不部署生产。
+
+私有ignored证据：`tpdb-live-connection.txt`、`tpdb-live-search-shape.json`、`tpdb-singular-search-shape.json`、`shelfdeck-assisted-search-before-query-fix.json`及当前`...search.json`、`tpdb-search-local-regression.txt`、`tpdb-search-linux-regression.txt`、`tpdb-final-helix-*.json`、`tpdb-overlay-manifest.json`、`tpdb-connection-monitor.txt`/`tpdb-search-monitor.txt`、不含Key的`tpdb-connected.png`和`tpdb-assisted-search-ui.png`。真实姓名、选择凭证及原片路径仅留私有验收资料。
+
+### 用户建档后入口恢复与只读交接
+
+用户随后自行完成4个人物建档。正式GET检查三位真值所需身份均存在，另有一个额外身份；Formation active/completed/ended和Collection均为空。用户问下一步时入口已不可达：原监控在2026-10-20T05:53:39Z记录生产health连续三次超过3秒或超时，触发`SAFETY_STOP health=3 lowMemory=0`；测试Exit0、无OOM，不能将其记作测试环境崩溃或识别失败。
+
+恢复前确认原实例停止、精确scope及数据路径。首次对只读WAL数据库查询得到`SQLITE_CANTOPEN`，未更改原库/Journal；改为在原Host停止期间将数据库及WAL从只读挂载复制到一次性容器tmpfs内，检查该一致副本，query_only读取4个人物、唯一uat-us-field席位0、Run0。此项仅验证技术数据和准入状态，不读取人脸或执行匹配。六次生产health预检均成功（0.014–0.328秒），原apply脚本另三次成功后恢复原v2实例/数据，不重建档案或复制影片；生产image/StartedAt/RestartCount保持。原阈值监控重新启用。
+
+恢复后正式GET返回200，4个人物保留、整理及收藏仍为空；浏览器文件来源显示4包等待接收、累计接收0、接收席位0/暂停接收。只展开席位设置并保存交接截图，未改席位、指定演员、发起识别或生成准确率结论。结果文字统计工具仅处理独立产生的文本记录，不调用人脸模型或Service识别命令。私有ignored证据：`operator-entry-readonly-wal-error.txt`、`operator-entry-preflight.txt`、`operator-entry-restore.txt`、`operator-entry-monitor.txt`、`existing-output-check.json`及`operator-entry-seats-zero.png`。本节不新增产品实现或扩大旧资格。
+
+## 2026-10-20 用户确认的海报新排版v3
+
+用户指出黑底及左上角头像/姓名的资料卡布局不合适，随后明确确认中性示例右侧排版。按该确认更新SSOT §7海报段及冻结Intent版本，正式共享Renderer维持1000×1500，使用暖白底`#f3f0e9`、顶部姓名（920×124有界文本区）、四格450×510居中cover裁切（左40/510，顶210/750）、页脚原始片名（800×108有界文本区）及76×100小肖像。文字及肖像不覆盖截图，边距/行间距与已确认示例一致。截图由contain改为cover，明确裁切两侧而不生成大块黑色留边；透明图片先flatten到纸色，中间以低压缩PNG合成、最终一次JPEG编码，保持纯函数及输入大小限制。
+
+首次Libra生产和Arca单片刷新继续调用原唯一`renderUsAdultPoster`，未新建第二套排版端口、Owner或业务事实。`US_ADULT_PRESENTATION_VERSION`由@2升至@3，正式Arca Intent/Selection Schema和domain-input registry同步；新Intent冻结@3并拒绝把正确摘要的旧版Intent渲染为新版。原始命名Provenance、姓名前缀和实际容器规则保持。当前SSOT source-map只更新文档摘要，逐项核对counts/categoryDigests/aggregateDigest未变；P2当前131/110/224/58/145、31 shared types、243 references/0 unresolved，完整aggregate为`476c0fd150cd9fb2b44a0379c1b5f37b97003af013b44e9e6b14e355d22f7411`。
+
+验证：Windows九个受影响测试文件56 total/55 PASS/1既有opt-in skip/0fail，包含渲染像素区域、四格完整填满、暖白边距、页脚肖像、实际姓名/片名字形边界、版本冻结/旧版拒绝、Arca Inventory/Case持久化、命名/Package及P2负例。Linux本地固定Runtime加只读当前src/test/架构脚本/docs挂载，四文件32 total/31 PASS/1同项skip/0fail。该skip是要求显式模型和测试图的既有真实CPU场景，本轮未执行；不记为新真实媒体或身份匹配资格。四项静态Architecture/semantic/manifest/P2检查通过，`git diff --check`通过。首次P2因SSOT sourceDocumentDigest变化失败，精确同步并验证目录计数和分类摘要不变后复验通过，保留失败日志；不把失败或旧全量资格算作本轮PASS。
+
+正式Renderer已用同一组非真人、非影片的合成风景/图形素材生成并检查中性对照图，画面与用户确认的提案一致；没有读取实际影片画面或参考人像。私有ignored证据为`poster-v3-regression-final.txt`、`poster-v3-linux.txt`、`poster-v3-helix-*.json`、`poster-v3-p2.json`及失败快照、`poster-layout-v3-implemented-neutral.jpg`和`poster-layout-v3-implemented-comparison.png`。未构建/上传/部署NAS镜像，未修改原片、测试现场或已上架海报；新Runtime完整最终资格及发布仍另行完成，不把局部回归当成整版完成。用户已停止准确率统计，后续不继续该统计。

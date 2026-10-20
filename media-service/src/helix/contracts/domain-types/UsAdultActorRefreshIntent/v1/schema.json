@@ -199,7 +199,7 @@
       "pattern": "^[a-f0-9]{64}$"
     },
     "rendererVersion": {
-      "const": "us-adult-presentation@2"
+      "const": "us-adult-presentation@3"
     },
     "intentDigest": {
       "type": "string",

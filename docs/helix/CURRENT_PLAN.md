@@ -2,7 +2,13 @@
 
 ## US Adult 与全系统维护开发（2026-10-20）
 
-唯一活动包仍为 [CURRENT_PHASE](implementation/CURRENT_PHASE.md)。五议题本地实现及ONNX worker thread、共享Schema编译优化完成，工程固定提交为0c82ee862a380bc1f590f94266ba656987ec3eff；之后仅更新验收文档，不改已验证runtime。
+唯一活动包仍为 [CURRENT_PHASE](implementation/CURRENT_PHASE.md)。五议题本地实现及ONNX worker thread、共享Schema编译优化完成，工程固定提交为0c82ee862a380bc1f590f94266ba656987ec3eff；该固定版本的全量资格继续保留。2026-10-20用户追加查询优化：在同一活动Phase内处理整季空间重复校验及评分候选重复扫描；增量代码单独记录回归和组件对照，不继承原固定版本完整发布资格。
+
+最新授权：用户要求改完直接升级生产，并确认US Adult辅助搜图仅保留ThePornDB。固定官方GraphQL地址，设置只填写API Key；移除Wikimedia查询、入口及新选图合同。既有一次性测试凭据不复制到生产。继续同一Phase完成最终候选检查、精确版本UI审核和标准发布，先证明生产数据升级及回退资格，不Reset未完成整理。
+
+TPDB连接摘要与线上查询协议缺陷已修复并通过隔离实测。当前验收环境为固定镜像加两处只读适配修复，不含查询优化、海报v3及单一来源增量，也不视为新完整发布镜像。
+
+用户已确认海报新排版，v3共享Renderer及合同增量本地完成，Windows/Linux受影响回归与静态门禁通过；保留四帧2×2，暖白底、顶部姓名与页脚小肖像。后续最终候选整合须包含该增量；当前未更新NAS运行代码或已上架封面。用户已明确停止准确率统计，不继续收集或计算该项。
 
 原始完整Architecture Gate通过：387文件、3129 total/3116 PASS/13既有skip/0fail，74个JAV场景（含22个动态定义）全部通过，4183个tracked输入前后摘要一致。Service648 PASS/29既有skip、Web242 PASS及build、Windows独立分发、Linux208专项及额外8个跨Profile场景通过；未选中/opt-in跳过不记覆盖。
 

@@ -1,5 +1,19 @@
 # ShelfDeck 当前状态
 
+2026-10-20 最新生产升级授权与来源收敛：用户确认改完直接生产部署，US Adult辅助搜图只保留ThePornDB。已移除Wikimedia查询/页面入口/新选图来源，固定官方GraphQL地址，设置仅保留API Key；不将一次性验收凭据复制到生产。受影响Service30 PASS、Web14 PASS，Web原43文件242 PASS及build后新增失败状态用例已定向复验；四项静态Gate/P2通过，aggregate `1b9df5e2fd2ffe41a64382f2159c8d8537b037fb47c15a30222086c173b5f2ba`。完整候选/UI及生产数据升级资格正在核验，生产尚未切换；只读数据库副本检查不等同完整备份或Host验收。
+
+2026-10-20 海报排版v3本地完成：用户确认中性示例后，正式共享Renderer改为暖白底/顶部演员名/四帧2×2居中裁切铺满/页脚原名及小肖像，保持1000×1500。SSOT及冻结Renderer合同升为us-adult-presentation@3，首次Libra生产和Arca刷新复用原唯一组件。Windows受影响55 PASS/1既有opt-in skip，Linux31 PASS/1同项skip及四项静态Gate通过；正式Renderer中性预览已检查。未重建或部署NAS镜像、未重生成已有封面，原完整版本资格不自动覆盖本增量；详见既有US Adult Evidence。
+
+2026-10-20 人工验收入口补记：用户已自行建立4个US Adult演员档案，原4片仍待接收、席位0、Run0，尚无识别或上架结果。生产健康连续三次慢/超时触发原阈值安全停测；隔离数据保留。停机数据一致副本只读检查及6次健康预检通过后恢复原隔离实例/原数据，重新启动原保护监控，入口复验200。只展开席位设置供用户操作，未修改席位或发起识别；生产实例保持。详见既有US Adult Evidence。
+
+2026-10-20 辅助建档真实来源复验：修复StashBox适配器验证摘要缺少capabilityCodes，以及TPDB线上仅支持searchPerformer数组接口的协议差异。Windows受影响29项、Linux相关6项与四项静态Gate通过；隔离验收实例在原固定镜像上只读挂载两处明确摘要的适配修复，正常Owner API验证/保存临时凭据后，三个人名查询均返回TPDB候选，浏览器实际加载五张参考图。未选择图片/建档或判定出演身份；Wikimedia独立来源错误仍开放。生产实例未变，未生成新完整发布资格；详见既有US Adult Evidence。
+
+2026-10-20 查询优化增量本地完成：Series同次同步读取内复用完整空间分配，Perception按Source cursor heads约束256项候选ID查询索引，新资料失效、记录/关系与规则仍每次核验。最终261项受影响回归、Linux190项、Service648 PASS/29既有skip、四项静态Gate通过；DDL/API/UI/Owner不变。合成组件Series58.09→0.77ms、重复候选查询73.45→3.64ms，输出一致；冷查无显著加速，且并行轮曾变慢，不宣称生产SLO修复。旧固定0c82ee862完整资格不自动覆盖新增Runtime；NAS生产及人工验收镜像未更新，身份业务验收仍开放。详见唯一Phase及既有US Adult Evidence。
+
+2026-10-20 NAS超时已完成只读诊断和测试启停核验：停测仍复现6.113s健康响应，同步SQL/Libra协调及Perception/投影计算占用生产主线程；测试首次初始化可能加重竞争，不称零影响或生产已修复。生产实例保持、两次Inspector关闭。隔离人工入口现已恢复并通过登录/权限/Cookie及页面资源资格，空演员库/席位0，原保护监控生效且监控退出停止测试。等待用户独立身份和效果验收，Phase开放、未发布。见唯一Phase和US Adult Evidence。
+
+2026-10-20 US Adult人工验收环境已建立独立数据与四份校验副本，空演员库/席位0；生产health连续三次超时触发安全停测，测试Exit0、无OOM，本机转发关闭。生产image/StartedAt/RestartCount保持；入口/会话资格与人工身份验收尚未完成，未交付操作入口或发布。隔离数据与私有清单保留，详见唯一Phase和既有Evidence。
+
 2026-10-20 US Adult工程固定0c82ee862完整资格PASS：原始387文件/3129 tests/3116 PASS/13既有skip/0fail；JAV全部74场景实际通过，4183个tracked输入前后digest相同。Service648 PASS/29既有skip、Web242 PASS、Windows独立模型包、Linux208项及额外8个跨Profile恢复/媒体场景通过。N95隔离434请求零错误、p95 410.05ms达500ms预算、峰值887.6MiB/无OOM，仍有2.62s长尾；四片检出、两片上架/单片指定刷新及维护跨周原Work续跑通过。原件及生产实例/原latest指向保持，无运行的本轮测试容器。主工作区Service依赖已从E盘共享junction安全改为独立物理目录、固定模型默认目录齐备，自身依赖22项CPU/线程检查通过，未改外部依赖。真实出演身份准确性未评估，Phase业务验收继续开放、未生产发布；详见唯一Phase及既有Evidence。
 
 2026-10-20固定0c82ee862：ONNX Worker生命周期/队列/异常及真实输出一致性完成；N95隔离1.5核/1.5GiB完整两片及单片指定刷新434请求零错误，p95 410.05ms达既定500ms预算，max仍2.62s，峰值887.6MiB、无OOM。四片20点检出与旧版一致，维护截止/手动停机/跨Host及下周原Work续跑通过。Linux208项全通过，Service648 PASS/29既有skip、Web242 PASS；原始完整Architecture和额外跨Profile/Windows仍在资格中。四源完整hash/stat未变，生产实例未动、NAS测试容器已正常退出。真实出演身份准确性未评估，本Phase未完成、无生产发布。详见唯一Phase及US Adult Evidence。

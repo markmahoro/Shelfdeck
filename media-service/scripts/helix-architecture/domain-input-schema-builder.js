@@ -403,7 +403,7 @@ function buildSchema(name, role, fields) {
   if (name === 'PeopleSelectedImageHandle') return { ...exactDomainSchema(name, {
     schemaRef: { const: domainTypeId(name) }, schemaVersion: { const: 1 }, uploadId: digest(), digestHex: digest(),
     sizeBytes: { type: 'integer', minimum: 1, maximum: 10 * 1024 * 1024 }, mediaType: enumText('image/jpeg', 'image/png', 'image/webp'),
-    provenance: object({ source: enumText('user_upload', 'stashbox', 'wikimedia'), sourceObjectId: text({ maxLength: 512 }),
+    provenance: object({ source: enumText('user_upload', 'stashbox'), sourceObjectId: text({ maxLength: 512 }),
       sourcePageUrl: text({ maxLength: 4096 }), attribution: text({ maxLength: 512 }), selectedAtMs: nonNegativeInteger(), configRevision: positiveInteger() }, ['source']),
     handleDigest: digest(),
   }), 'x-helix-role': 'bounded-contract', 'x-helix-maxCanonicalBytes': 16384 };

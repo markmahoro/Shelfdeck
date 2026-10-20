@@ -1,6 +1,12 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
-日期：2026-10-20。状态：`ENGINEERING QUALIFIED / IDENTITY ACCURACY UNASSESSED`。
+日期：2026-10-20。状态：`BASELINE QUALIFIED / QUERY INCREMENT LOCALLY VERIFIED / IDENTITY ACCURACY UNASSESSED`。
+
+最新授权覆盖下方早期仅本地范围：用户要求改完直接生产升级，并将US Adult搜图收敛为唯一ThePornDB来源、固定地址及API Key设置。沿用同一活动Phase处理候选整合、UI与生产副本升级/回退证明及标准部署；不新增清库、Reset、旧任务终结或一次性测试凭据进入生产的授权。准确率统计按用户决定停止。
+
+海报新排版补记：用户确认暖白底、顶部演员名、四帧2×2裁切铺满及页脚小肖像/原名的中性预览。唯一共享Renderer和冻结合同升级为us-adult-presentation@3；Windows55 PASS/1既有opt-in skip、Linux31 PASS/1同项skip、四项静态Gate通过。局部本地完成，未更新NAS镜像或已有成品，不继承原完整版本资格。用户已停止准确率统计，身份准确性状态继续保持未完成，不再主动收集统计；详见既有US Adult Evidence最新节。
+
+真实辅助建档补记：用户提供仅用于本轮隔离验收的临时TPDB凭据。两处适配缺陷已修复并通过Windows29项、Linux相关6项及四项静态Gate；原验收镜像加两处只读适配修复后，正式连接/保存/搜图API和浏览器图片加载通过。来源候选数量不是身份正确率；旧Wikimedia缺陷随最新唯一来源决定退出当前范围，未追认旧结果。生产未改，无新增完整发布资格；证据见既有US Adult Evidence最新节。
 
 ## 1. 基线与授权
 
@@ -138,3 +144,24 @@ Service/Web/Windows/Linux/N95及UI的适用工程证据已齐备，跳过和未�
 从SSOT反向检查：五议题代码、正式Owner/命令/Effect和实际恢复链均有证据；Worker仅持有图片计算/模型、不持有Domain事实，编译优化仍在Foundation Validator内，不引入跨域authority或新业务对象；无旧Runtime/双读/迁移兼容路径，无media-desktop或后续Phase耦合。原件完整hash/stat及生产image/StartedAt/RestartCount保持，测试已退出，无生产发布授权。
 
 **不关闭整体Phase**：真实出演者身份准确性仍未评估。本轮只对真实素材检出/技术标签业务链路、固定模型一致性和性能负责，不能用最高算法分、文件名或未标注样本证明真实身份准确率；500ms预算仅在已记录的小样本/资源配置通过，2.62s长尾及生产容量限制保留。所有实现工作项的工程检查PASS不替代该业务验收，也不等于生产可部署或已发布。
+
+
+### 2026-10-20 人工验收准备
+
+同一固定镜像的独立manual-uat-v1已准备四份校验副本，空演员库、席位0、无Run，等待用户独立建档和评估身份。初始化夹具排序400经原幂等命令恢复，未重置数据或修改产品。NAS生产health连续三次5秒超时，安全监控已停止测试容器（Exit0、无OOM），本机转发亦关闭。停测后生产三次health 14.369/1.107/0.252秒，image/StartedAt/RestartCount保持；不判断慢响应根因。入口与会话资格未完成，暂不交付用户操作。私有清单/受限登录文件及全部隔离数据保留；待NAS稳定继续入口资格，身份和实际效果验收未开始，Phase保持开放。详情见既有Evidence最新节。
+
+
+### 2026-10-20 超时关系核验及入口就绪
+
+已完成生产只读profile与测试启停对照：停测后12次health仍出现6.113s及4.358s；测试不整理时8次均200、最大4.528s。证明生产自身存在超过5秒的慢响应，后台同步SQL/Libra reconcile、Perception候选/摘要和概览健康计算占用主线程；不能排除首次测试冷初始化加重同机竞争，也不宣称已修复生产性能。两次Inspector均关闭，生产实例身份保持；详见既有Evidence，不改已合格候选。
+
+同一隔离数据已恢复，入口http://127.0.0.2:18125/people的health、登录session、未认证拒绝、Cookie、空人物库/席位0、页面及JS/CSS全部检查通过；未作浏览器人工身份验收。私有登录文件和清单已准备。1.5CPU/1.5GiB及原安全停测阈值保持；监控退出亦停止唯一测试容器。当前等用户独立建档、开启整理并判断匹配/海报/命名/单片刷新；Phase业务验收开放，无生产发布。
+
+
+### 2026-10-20 查询优化增量完成（本地）
+
+用户要求实施前述机会后，完成Series Direct Selection同次同步计算内的整季空间分配复用，以及Perception按完整Clause/Evidence和同事务Source cursor heads约束的256项候选ID查询索引。仅深冻结且由本模块构造的Basis可复用；逐文件Probe/Handle仍核验，scope结束/异常即失效。评分仍每次读取当前记录/关系并执行原规则；新资料使索引失效，exact路径不增加head查询。未实现新的Resolution未变快返或概览方案。
+
+最终19文件261 PASS、Linux9文件190 PASS、Service648 PASS/29既有skip、四项静态Gate零finding；运行与测试输入摘要前后保持。此前83文件过宽扩展轮已取消，不计PASS或完整Gate；Linux首次缺测试脚本的1fail保留，补齐验证挂载后通过。原0c82ee862完整Gate只证明固定旧基线，增量没有新完整Gate/分发/N95资格，NAS验收入口仍原固定镜像。
+
+本机组件5轮中位数：96成员纯Series分配58.09→0.77ms；1500记录64个重复候选查询73.45→3.64ms，输出相同，冷查83.38→81.81ms；并行干扰下曾有冷查变慢，已保留。不能当作整机CPU或生产health改善。表/API/UI/摘要规则及Owner不变，当前P2 aggregate不变。整体身份业务验收继续开放，无生产发布；实现、安全负例、原始记录及准确范围见既有US Adult Evidence最新节。

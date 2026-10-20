@@ -664,3 +664,47 @@ function resolutionBasis(anchor){
   return {queryHandle:{providerDomain:'perception',consumerDomain:'libra',queryContract:query.queryContract,queryVersion:1,
     typedInputSchemaRef:query.querySchemaRef,typedInput:query,inputDigest:query.queryInputDigest},ruleSnapshot};
 }
+
+
+test('bounded candidate lookup avoids repeat scans and invalidates cached misses on another Store commit',()=>{
+ fixture(({store,unitOfWork})=>{
+  register(store);start(store);
+  const anchor=value=>({anchorKind:'title_year',anchorValue:value+'\0'+'2001',confidenceClass:'medium',evidenceDigest:hash(value)});
+  page(store,{records:[record('first',{anchors:[anchor('ＡＢＣ / Other') ]})],hasMore:true});
+  const calls=new Map(),tracked={...unitOfWork,execute(participants,options){return unitOfWork.execute(participants.map(p=>({...p,execute(context){return p.execute({...context,repository(id){const repo=context.repository(id);return {invoke(name,args){calls.set(name,(calls.get(name)||0)+1);return repo.invoke(name,args);}};}});}})),options);}};
+  const indexed=createPerceptionStore({schemaManifest,unitOfWork:tracked});
+  const lookup=(value,maxCandidateRecords=256,maxCandidates=256)=>indexed.readResolutionCandidates({identityEvidence:[{anchorKind:'title',anchorValue:value}]},{candidateRetrievalClauses:[{anchorKind:'title',lookupMode:'normalized_exact',normalizationProfileRef:'unicode_nfkc_casefold',maxCandidates}],maxCandidateRecords});
+  assert.equal(lookup('abc').records[0].perceptionId,'first');const scans=calls.get('find_anchors_by_kind');
+  assert.equal(lookup('abc').records[0].perceptionId,'first');assert.equal(calls.get('find_anchors_by_kind'),scans);
+  assert.deepEqual(lookup('new').records,[]);const emptyScans=calls.get('find_anchors_by_kind');
+  assert.deepEqual(lookup('new').records,[]);assert.equal(calls.get('find_anchors_by_kind'),emptyScans);
+  page(store,{acquisitionCommitReceiptId:'commit-2',pageOrdinal:1,expectedCursorRevision:1,cursorIn:'cursor-1',cursorOut:'cursor-2',commitMarker:'marker-2',observationPageDigest:hash('page-2'),records:[record('new',{anchors:[anchor('New / ABC')]})]});
+  assert.equal(lookup('new').records[0].perceptionId,'new');assert.ok(calls.get('find_anchors_by_kind')>emptyScans);
+  assert.equal(lookup('abc').records.length,2);
+  assert.throws(()=>lookup('abc',1),e=>e.code==='P6_PERCEPTION_CANDIDATE_SET_OVERFLOW');
+  assert.throws(()=>lookup('abc',256,1),e=>e.code==='P6_PERCEPTION_CANDIDATE_CLAUSE_OVERFLOW');
+  const headReads=calls.get('read_record_heads');
+  indexed.readResolutionCandidates({identityEvidence:[{anchorKind:'provider_id',anchorValue:'missing'}]},
+    {candidateRetrievalClauses:[{anchorKind:'provider_id',lookupMode:'exact',maxCandidates:256}],maxCandidateRecords:256});
+  assert.equal(calls.get('read_record_heads'),headReads);
+  const warmScans=calls.get('find_anchors_by_kind');for(let i=0;i<257;i++)lookup('unrelated-'+i);
+  lookup('abc');assert.ok(calls.get('find_anchors_by_kind')>warmScans);
+ });
+});
+
+
+test('warm candidate lookup rereads Resolution relations without an Acquisition cursor change',()=>{
+ fixture(({store,unitOfWork})=>{
+  register(store);start(store);
+  const anchor={anchorKind:'provider_id',anchorValue:'douban:shared',confidenceClass:'strong',evidenceDigest:hash('shared')},title={anchorKind:'title',anchorValue:'Shared title',confidenceClass:'medium',evidenceDigest:hash('title')};
+  page(store,{records:[record('a',{rating:5,anchors:[anchor,title]}),record('b',{rating:5,anchors:[anchor,title]})]});
+  const query={identityEvidence:[title]},rule={candidateRetrievalClauses:[{anchorKind:'title',lookupMode:'normalized_exact',normalizationProfileRef:'unicode_nfkc_casefold',maxCandidates:256}],maxCandidateRecords:256};
+  assert.deepEqual(store.readResolutionCandidates(query,rule).relations,[]);
+  const heads=store.getSource('source-1').currentCursorRevision,basis=resolutionBasis(anchor),inputs=createPerceptionResolutionInputAssembler({store}).assemble(basis),draft=resolvePerception(inputs,{draftId:'live-relations',producedAtMs:1_700_010_000_100});
+  assert.equal(draft.duplicateRelationDrafts.length,1);
+  const aggregateId='perception-resolution:'+canonicalDigest({queryContract:draft.queryContract,queryInputDigest:draft.queryInputDigest}),handle={ownerDomain:'perception',aggregateType:'perception-resolution',aggregateId,factType:'PerceptionResolutionDraft',factSchemaRef:draft.schemaRef,resultSchemaRef:'helix://contracts/types/PerceptionResolutionRevision/v1',expectedRevision:0,handleId:'live-resolution',commitIdempotencyKey:'live-marker',payloadDigest:canonicalDigest(draft)};
+  unitOfWork.execute([createPerceptionResolutionCommitRegistration(store).createParticipant({handle,payload:draft})]);
+  assert.equal(store.getSource('source-1').currentCursorRevision,heads);
+  assert.equal(store.readResolutionCandidates(query,rule).relations.length,1);
+ });
+});

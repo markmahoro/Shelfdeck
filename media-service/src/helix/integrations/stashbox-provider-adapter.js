@@ -14,7 +14,7 @@ function createStashBoxProviderAdapter(options) {
   async function withCredential(expectedRevision, consumer) {
     const snapshot = runtime.readCurrent();
     if (!snapshot || snapshot.integration.state !== 'active' || snapshot.integration.configRevision !== expectedRevision) {
-      throw Object.assign(new Error('StashBox 配置已变化或未启用。'), { code: 'PLATFORM_INTEGRATION_REVISION_MISMATCH' });
+      throw Object.assign(new Error('ThePornDB 配置已变化或未启用。'), { code: 'PLATFORM_INTEGRATION_REVISION_MISMATCH' });
     }
     const lease = runtime.secretLeaseResolverPort.resolve({ secretRef: snapshot.secret.secretRef, secretKind: snapshot.secret.secretKind,
       ownerScopeType: 'integration', ownerScopeId: snapshot.integration.integrationId, expectedRevision: snapshot.secret.revision,
@@ -28,9 +28,10 @@ function createStashBoxProviderAdapter(options) {
       const result = await fetchJson(fetchImpl, endpoint, { method: 'POST', redirect: 'manual', signal: AbortSignal.timeout(candidate.timeoutMs),
         headers: { 'Content-Type': 'application/json', ApiKey: candidate.secretBytes.toString('utf8') }, body: JSON.stringify({ query: '{ me { id } }' }) }, 64 * 1024);
       if (result.errors?.length || typeof result.data?.me?.id !== 'string' || !result.data.me.id || result.data.me.id.length > 256) {
-        throw Object.assign(new Error('StashBox 未通过账户连接验证。'), { code: 'PLATFORM_INTEGRATION_RESPONSE_INVALID' });
+        throw Object.assign(new Error('ThePornDB 未通过账户连接验证。'), { code: 'PLATFORM_INTEGRATION_RESPONSE_INVALID' });
       }
       return Object.freeze({ checkedAtMs: now(), endpointDigest: canonicalDigest({ endpoint }), observationDigest: canonicalDigest(result),
+        capabilityCodes: Object.freeze([...runtime.profile.capabilityCodes]),
         identityNamespace: 'stashbox_user', identityProviderKey: result.data.me.id });
     },
   });

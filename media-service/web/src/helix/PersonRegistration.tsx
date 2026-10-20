@@ -137,9 +137,9 @@ export default function PersonRegistration({onCreated,onCancel,referenceFor,repl
       <label><span>参考图片（清晰单人照）</span><input aria-label="上传参考图片" type="file" accept="image/jpeg,image/png,image/webp" onChange={event=>void selectFile(event.target.files?.[0])}/></label>
       <Button type="button" disabled={!name.trim() || searching || reading} onClick={()=>void search()}>{searching?'正在搜索…':'按姓名辅助搜图'}</Button>
     </div>
-    {results && <div className="people-search-sources">{results.sources.map(source=><section key={source.source} aria-label={source.source==='stashbox'?'StashBox 图片':'Wikimedia 图片'}>
-      <h3>{source.source==='stashbox'?'StashBox':'Wikimedia Commons'}</h3>
-      {source.state==='unconfigured' && <p className="form-neutral">StashBox 尚未配置。<a href="/settings#stashbox" target="_blank" rel="noreferrer">配置 StashBox</a></p>}
+    {results && <div className="people-search-sources">{results.sources.map(source=><section key={source.source} aria-label="ThePornDB 图片">
+      <h3>ThePornDB</h3>
+      {source.state==='unconfigured' && <p className="form-neutral">ThePornDB 尚未配置。<a href="/settings#stashbox" target="_blank" rel="noreferrer">配置 ThePornDB</a></p>}
       {source.state==='failed' && <p className="form-error" role="alert">{source.error?.message || '此来源搜索失败。'}</p>}
       {source.state==='empty' && <p>没有找到可用图片。</p>}
       <div className="people-image-options">{source.items.map(item=><div className="people-image-option" key={item.selectionToken}>

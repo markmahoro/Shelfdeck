@@ -4,8 +4,9 @@ const sharp = require('sharp');
 const { US_ADULT_PRESENTATION_VERSION } = require('../contracts/us-adult-presentation');
 
 const WIDTH = 1000, HEIGHT = 1500;
-const GRID = Object.freeze([{ left: 28, top: 540 }, { left: 514, top: 540 }, { left: 28, top: 1012 }, { left: 514, top: 1012 }]);
-const CELL_WIDTH = 458, CELL_HEIGHT = 460;
+const BACKGROUND = '#f3f0e9';
+const GRID = Object.freeze([{ left: 40, top: 210 }, { left: 510, top: 210 }, { left: 40, top: 750 }, { left: 510, top: 750 }]);
+const CELL_WIDTH = 450, CELL_HEIGHT = 510;
 const escapeXml = value => value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&apos;' })[character]);
 
 async function fitPosterText(value, { width, height, font, color }) {
@@ -29,11 +30,13 @@ async function fitPosterText(value, { width, height, font, color }) {
   return Object.freeze({ ...fitted, truncated: true });
 }
 
-async function image(bytes, width, height, fit) {
+async function image(bytes, width, height) {
   if (!Buffer.isBuffer(bytes) || bytes.length < 1 || bytes.length > 16 * 1024 * 1024) {
     throw Object.assign(new TypeError('Poster composition requires bounded image bytes.'), { code: 'US_ADULT_POSTER_IMAGE_INVALID' });
   }
-  return sharp(bytes, { limitInputPixels: 16 * 1024 * 1024 }).rotate().resize(width, height, { fit, background: '#111827' }).jpeg({ quality: 92 }).toBuffer();
+  return sharp(bytes, { limitInputPixels: 16 * 1024 * 1024 }).rotate()
+    .resize(width, height, { fit: 'cover', position: 'centre' })
+    .flatten({ background: BACKGROUND }).png({ compressionLevel: 1 }).toBuffer();
 }
 
 async function renderUsAdultPoster({ actorName, originalTitle, portrait, frames }) {
@@ -41,15 +44,18 @@ async function renderUsAdultPoster({ actorName, originalTitle, portrait, frames 
       actorName.length > 1024 || originalTitle.length > 4096 || !Array.isArray(frames) || frames.length !== 4) {
     throw Object.assign(new TypeError('The poster requires an actor, original title, portrait and four frames.'), { code: 'US_ADULT_POSTER_INPUT_INVALID' });
   }
-  const portraitBytes = await image(portrait, 250, 330, 'cover');
-  const thumbnails = await Promise.all(frames.map(bytes => image(bytes, CELL_WIDTH, CELL_HEIGHT, 'contain')));
-  const [names, titles] = await Promise.all([
-    fitPosterText(actorName, { width: 656, height: 128, font: 'sans bold 52', color: '#f8fafc' }),
-    fitPosterText(originalTitle, { width: 936, height: 114, font: 'sans 30', color: '#cbd5e1' })
+  const [portraitBytes, thumbnails, names, titles, divider] = await Promise.all([
+    image(portrait, 76, 100),
+    Promise.all(frames.map(bytes => image(bytes, CELL_WIDTH, CELL_HEIGHT))),
+    fitPosterText(actorName, { width: 920, height: 124, font: 'sans bold 64', color: '#292b29' }),
+    fitPosterText(originalTitle, { width: 800, height: 108, font: 'sans 27', color: '#706d65' }),
+    sharp({ create: { width: 920, height: 1, channels: 3, background: '#d4d0c7' } }).png().toBuffer()
   ]);
-  const bytes = await sharp({ create: { width: WIDTH, height: HEIGHT, channels: 3, background: '#0b1120' } })
-    .composite([{ input: portraitBytes, left: 32, top: 28 }, { input: names.bytes, left: 316, top: 72 }, { input: titles.bytes, left: 32, top: 372 },
-      ...thumbnails.map((input, index) => ({ input, ...GRID[index] }))]).jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toBuffer();
+  const bytes = await sharp({ create: { width: WIDTH, height: HEIGHT, channels: 3, background: BACKGROUND } })
+    .composite([{ input: names.bytes, left: 40, top: 46 },
+      ...thumbnails.map((input, index) => ({ input, ...GRID[index] })),
+      { input: divider, left: 40, top: 1308 }, { input: titles.bytes, left: 40, top: 1340 },
+      { input: portraitBytes, left: 884, top: 1340 }]).jpeg({ quality: 92, chromaSubsampling: '4:4:4' }).toBuffer();
   return Object.freeze({ version: US_ADULT_PRESENTATION_VERSION, width: WIDTH, height: HEIGHT, bytes });
 }
 

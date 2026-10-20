@@ -1534,7 +1534,7 @@
       "relativePath": "domain-types/PeopleSelectedImageHandle/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "b8f31df64edc9612ee683123e72f481edfbc16403478b836feebc012463d0ad5"
+        "value": "5946cb6a0a615b72b92cb27d557257d3d2137846c73857bb4b5f5a71dbae8a25"
       },
       "usedBy": [
         {
@@ -3204,7 +3204,7 @@
       "relativePath": "domain-types/UsAdultActorRefreshIntent/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "380ae8da42749e9a85a212450f349cd962d49b3c7782b88db84beb8ecfb525c1"
+        "value": "285b19d1c36a5c2aa2354110132a067a9857609ec3f5986190dd5504a25eaa01"
       },
       "usedBy": [
         {
@@ -3275,7 +3275,7 @@
       "relativePath": "domain-types/UsAdultActorRefreshSelection/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "0c2522273637acb36599c668cf3dd7ae874605a816668fd0f2b7ada84cacaf07"
+        "value": "9073555b565e24fe1b8b22303e6ca5e6b74f3ea93f6d18e8fee4383d1eec5358"
       },
       "usedBy": [
         {

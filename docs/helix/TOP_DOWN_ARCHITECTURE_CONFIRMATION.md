@@ -6114,7 +6114,7 @@ Arca冻结用户Intent、目标Entry/Inventory revision、原始命名Provenance
 提交保留Shelf Entry、Deck Fact和Canonical Content Identity。提交前Collection海报只读当前库存：仅同Entry、旧Inventory及有效Actor Case冻结Basis一致时允许验证并读取精确retained旧海报，提交后读取新库存；不提前显示新图。文件现场、Actor revision或目标冲突不得静默覆盖；
 逐Effect保存意图、物理验证和Receipt，崩溃恢复原Case；新鲜读取不篡改已经冻结的执行输入。
 
-初次生产与本类刷新使用同一版本化纯海报Renderer：四帧2×2大截图，减小肖像比例，文字不得遮图。命名从首次
+初次生产与本类刷新使用同一版本化纯海报Renderer：1000×1500暖白底，演员名作为顶部标题，四帧2×2大截图居中裁切铺满画格；小肖像与原名移至页脚，文字不得遮图。命名从首次
 冻结的原文件名生成“演员名 + 空格 + 原名主体”，扩展名对应实际容器；不从已经加前缀的名字再次派生，不增加
 展示番号。首次命名Provenance缺失必须明确报告，不能猜原名。内部领域ID与幂等身份保持。
 共享Frame I/O仅接受成对的Owner/physical scope/process authority：Libra的libra_run，或Arca的shelf_entry/arca_shelf_entry；Arca不能借用Libra Run ID或Workspace。每次抽帧前后仍校验完整物理读取围栏。
@@ -6411,7 +6411,7 @@ Person自己的local Reference pointer；没有Merge contribution时`contributio
 由能够改变其semantic basis的Person Registration、Merge或Reference事务同步维护；Query和HTTP GET不得为了
 补建或推进Projection revision产生写入。
 
-US Adult姓名辅助搜图是只读Provider查询，首版支持已配置StashBox及Wikimedia，统一使用全站网络策略。
+US Adult姓名辅助搜图是只读Provider查询，唯一来源为ThePornDB（使用Stash-box协议），地址固定为https://api.theporndb.net/graphql，用户仅配置API Key；统一使用全站网络策略，不查询Wikimedia或其他备用来源。
 结果明确显示来源、不可用或失败；用户必须选择图片后才能进入与本地上传相同的single-reference准备链。
 搜索结果本身不建立Person、Reference或媒体演员关系；normal/JAV不提供此用户流程。
 
@@ -10944,7 +10944,7 @@ Executor只能返回以下discriminated union，且每个variant都`additionalPr
 | `UsAdultActorFilePlan` | `schemaRef,schemaVersion,aftercareCaseId,shelfEntryId,intentId,intentDigest,selectionDigest,inventoryRevision,representationDigest,canonicalIdentityDigest,placementDecisionDigest,target{endpointId,rootLocation,mountScopeId,mountScopeRevision},members[3..1024]{ordinal,role,original{rootLocation,location,physicalIdentity,bindingRevision},source(retained_inventory或actor_artifact及WorkspaceMaterialHandle),retainedLocation,targetEndpointId,targetLocation},planDigest`；≤2 MiB；完整覆盖库存，目标来自正式Placement与Selection，stage前冻结Plan工作区JSON，恢复不重算路径 |
 | `UsAdultActorExecutionInput` | `schemaRef,schemaVersion,aftercareCaseId,shelfEntryId,intentId,intentDigest,action(stage或publish或verify或commit或retire或close或unchanged或discard),assetsWorkId/assetsResultDigest,planDigest,selectionDigest,stageWorkId/stageResultDigest,publishWorkId/publishResultDigest,verifyWorkId/verifyResultDigest,commitWorkId/commitResultDigest,retirementWorkId/retirementResultDigest,completionDigest,inputDigest`；≤16 KiB，未成立阶段为NULL，Owner从同Case实际成功Work/Definition/Result重建 |
 | `UsAdultActorRefreshScope` | `schemaRef,schemaVersion(1),shelfEntryId,aftercareCaseId,intentId,intentDigest,careRequirementDigest,inventoryRevision,workspaceRootHandleRef,scopeDigest`；≤4 KiB，scopeDigest排除自身；精确active Case、原Inventory/Deck/Canonical/Care Basis/Known Bindings及Workspace root均由Arca重验。Source Supporting Work属于arca_shelf_entry并引用该Case与Intent，不引入平行业务流程 |
-| `UsAdultActorRefreshIntent` | `schemaRef,schemaVersion(1),policyVersion(us-adult-actor-refresh@1),intentId,actorId,idempotencyKey,requestDigest,mode(specified|automatic),shelfEntryId,inventoryRevision,representationDigest,deckFactRevision,canonicalIdentityRevision,canonicalIdentityKey,canonicalIdentityDigest,careBasisDigest,knownBindingsDigest,originalName{schema,originalFileName,provenanceDigest},actorRelationDigest,sourceMaterialBinding{materialKey,endpointId,bindingRevision,identityDigest,bindingDigest},manualPersonSnapshot(NULL或UsAdultPersonSnapshot),libraryDigest(NULL或digest),personCount,pageCount,pageSetDigest,faceModelRef(FaceModelRef),referenceModelRefDigest,rendererVersion(us-adult-presentation@2),intentDigest`；完整value≤`256 KiB`，intentDigest排除自身；指定模式只冻结所选Actor，自动模式只冻结完整People分页引用；唯一视频读取权限由后续Arca Work在精确物理围栏下构造，Intent不携带伪造stat或Libra Run |
+| `UsAdultActorRefreshIntent` | `schemaRef,schemaVersion(1),policyVersion(us-adult-actor-refresh@1),intentId,actorId,idempotencyKey,requestDigest,mode(specified|automatic),shelfEntryId,inventoryRevision,representationDigest,deckFactRevision,canonicalIdentityRevision,canonicalIdentityKey,canonicalIdentityDigest,careBasisDigest,knownBindingsDigest,originalName{schema,originalFileName,provenanceDigest},actorRelationDigest,sourceMaterialBinding{materialKey,endpointId,bindingRevision,identityDigest,bindingDigest},manualPersonSnapshot(NULL或UsAdultPersonSnapshot),libraryDigest(NULL或digest),personCount,pageCount,pageSetDigest,faceModelRef(FaceModelRef),referenceModelRefDigest,rendererVersion(us-adult-presentation@3),intentDigest`；完整value≤`256 KiB`，intentDigest排除自身；指定模式只冻结所选Actor，自动模式只冻结完整People分页引用；唯一视频读取权限由后续Arca Work在精确物理围栏下构造，Intent不携带伪造stat或Libra Run |
 
 | `PeopleReferenceLibraryPage` | `schemaRef,schemaVersion(1),libraryKind(us_adult),libraryDigest,totalPersonCount,items[0..256 UsAdultPersonSnapshot],nextCursor(null|personId),pageDigest`；完整value≤`512 KiB`，pageDigest覆盖除自身外完整value；libraryDigest覆盖按Person ID UTF-8排序的active US Person全部head投影键及两项current revision/Reference Projection checkpoint；不是缓存时间戳；不得截断库或使用同名归并 |
 | `PerceptionAcquisitionResumeDecision` | `decisionId,acquisitionId,expectedScopeDigest,actorId,idempotencyKey,requestDigest,decisionDigest`；完整value≤`4 KiB`；只签发同一active Douban Acquisition的用户继续Intent，不覆盖原Snapshot/Scope/cursor；decisionDigest覆盖除自身外完整value |

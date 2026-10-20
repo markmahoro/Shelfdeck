@@ -544,8 +544,8 @@ export type RecommendationClaimRequest = {idempotencyKey:string;expectedPublicat
   {kind:'create';canonicalName:string;aliases:string[];image:PersonImageSelection|{kind:'recommendation'}}};
 export type RecommendationClaimAccepted = RecommendationClaim & {claimRef:string;replayed:boolean};
 export type PersonImageSearch = { sources:Array<{
-  source:'stashbox'|'wikimedia'; state:'available'|'empty'|'unconfigured'|'failed'; error?:{code:string;message:string};
-  items:Array<{source:'stashbox'|'wikimedia';sourceObjectId:string;canonicalName:string;aliases:string[];
+  source:'stashbox'; state:'available'|'empty'|'unconfigured'|'failed'; error?:{code:string;message:string};
+  items:Array<{source:'stashbox';sourceObjectId:string;canonicalName:string;aliases:string[];
     sourcePageUrl:string;attribution:string;width:number;height:number;selectionToken:string}>;
 }> };
 export type PersonImageOperation = {operationRef:string;state:'preparing'|'completed'|'failed';personId:string|null;failureCode:string|null};

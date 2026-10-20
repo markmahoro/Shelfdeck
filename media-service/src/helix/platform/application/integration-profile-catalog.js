@@ -314,11 +314,7 @@ const PROFILES = Object.freeze([
   ...javSourceProfileDefinitions().map(profile),
   profile({
     kind: 'stashbox', integrationType: 'stashbox', capabilityCodes: Object.freeze(['people']),
-    normalizeEndpoint(value) {
-      const endpoint = normalizedUrl(value, { allowPrivateHttp: true });
-      if (!new URL(endpoint).pathname.endsWith('/graphql')) fail('PLATFORM_INTEGRATION_ENDPOINT_INVALID', 'StashBox requires its configured GraphQL endpoint.');
-      return endpoint;
-    },
+    normalizeEndpoint: exactEndpoint('https://api.theporndb.net/graphql'),
     prepareCredential: (value, settings) => tokenCredential(value, settings, { credentialKind: 'api_key', secretKind: 'stashbox_api_key' }),
     acceptedSecretKinds: Object.freeze(['stashbox_api_key']), credentialKindsBySecret: Object.freeze({ stashbox_api_key: 'api_key' }),
     identityNamespaces: Object.freeze(['stashbox_user']), artifactKinds: Object.freeze([]), extraOperations: Object.freeze(['shared.integration.search@1']),

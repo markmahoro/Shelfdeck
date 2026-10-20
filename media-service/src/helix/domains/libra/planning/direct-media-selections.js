@@ -5,6 +5,7 @@ const { buildMediaRequirement, buildProductMediaCandidateInput, buildProductOutp
   selectProductOutput } = require('../model/media-production-contracts');
 const { directMediaSelectionWork } = require('./media-production-work');
 const { readSourceMediaObservations } = require('./source-media-observations');
+const {withSeriesMediaSpaceEvaluation}=require('../model/series-media-space');
 const stable = (prefix, value) => prefix + canonicalDigest(value).slice(0, 40);
 
 function directCandidateNodeId(snapshot, member) {
@@ -38,15 +39,18 @@ function buildDirectMediaInput(snapshot, sources, source) {
   return directMediaInput(snapshot,source,directRequirement(snapshot),seriesSpaceBasis);
 }
 
-function directMediaInput(snapshot, source, requirement, seriesSpaceBasis) {
+function directMediaInput(snapshot, source, requirement, seriesSpaceBasis,seriesSpaceScope=null) {
   return buildProductMediaCandidateInput({libraRunId:snapshot.run.libraRunId,
     candidateNodeId:directCandidateNodeId(snapshot,source.member),candidateKind:'direct_input',
     mediaRequirement:requirement,sourceMaterialHandle:source.readHandle,sourceProbeEvidence:source.record.result,
-    ...(seriesSpaceBasis?{seriesSpaceBasis}:{})});
+    ...(seriesSpaceBasis?{seriesSpaceBasis}:{})},seriesSpaceScope);
 }
 
 // Reconstruct the whole frozen set before any caller consumes a selected member.
 function readDirectMediaSelections(options, snapshot, workId) {
+  return withSeriesMediaSpaceEvaluation(scope=>readDirectMediaSelectionsInScope(options,snapshot,workId,scope));
+}
+function readDirectMediaSelectionsInScope(options,snapshot,workId,seriesSpaceScope) {
   if (workId !== directMediaSelectionWork(snapshot).workId) throw new Error('Direct Selection Work does not match the frozen Run.');
   const sources = readSourceMediaObservations(options, snapshot);
   const requirement = directRequirement(snapshot, sources),seriesSpaceBasis=seriesSpaceBasisFor(snapshot,sources);
@@ -57,7 +61,7 @@ function readDirectMediaSelections(options, snapshot, workId) {
     throw new Error('Direct Results do not cover the complete frozen Primary set.');
   const used = new Set();
   return Object.freeze(sources.map(source => {
-    const input = directMediaInput(snapshot,source,requirement,seriesSpaceBasis);
+    const input = directMediaInput(snapshot,source,requirement,seriesSpaceBasis,seriesSpaceScope);
     const matches = verifications.filter(item => item.result.candidateId === input.candidateId);
     if (matches.length !== 1) throw new Error('Direct Verification is missing or ambiguous for a Primary.');
     const verification = matches[0].result;
@@ -71,7 +75,7 @@ function readDirectMediaSelections(options, snapshot, workId) {
       throw new Error('Direct Verification differs from its frozen Primary basis.');
     if (input.seriesSpaceBasis) {
       const expected=require('../model/series-media-space').evaluateSeriesMediaSpace({basis:input.seriesSpaceBasis,
-        libraRunId:input.libraRunId,handle:source.readHandle,probe:source.record.result,maxSizeBytes:requirement.space.maxSizeBytes});
+        libraRunId:input.libraRunId,handle:source.readHandle,probe:source.record.result,maxSizeBytes:requirement.space.maxSizeBytes},seriesSpaceScope);
       if(canonicalJson(verification.spaceSummary.episodeAllocation)!==canonicalJson(expected)||
           verification.spaceSummary.withinLimit!==expected.withinLimit)
         throw new Error('Direct Verification differs from the complete Episode allocation basis.');
