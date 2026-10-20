@@ -1,6 +1,6 @@
 # JAV演员完整性：本地实现与验证
 
-日期：2026-10-21。所属唯一Phase工作项：`JAV-ACTOR-COMPLETENESS`。基线`1b7b683e0`，产品实现提交`7b318ef956142ef7e1857e79207fa321879501ca`。状态：本地实现/适用验证通过，UI负责人审核待回收；无生产操作，不关闭整个Phase或既有UAT。
+日期：2026-10-21。所属唯一Phase工作项：`JAV-ACTOR-COMPLETENESS`。基线`1b7b683e0`，产品实现提交`7b318ef956142ef7e1857e79207fa321879501ca`；测试/Evidence补充提交`460806dc9c041e3dd36dd9a90c057eea758773f9`。状态：本地开发/适用验证及具体版本UI负责人验收通过；无生产操作，不关闭整个Phase或既有UAT。
 
 ## 用户确认与Owner合同
 
@@ -27,6 +27,7 @@
 | 实际写完纠正NFO后进程退出Host | 1 PASS，54.55秒 | 重启恢复原Effect与冻结来源；纠正后当前Inventory Cast及NFO仍为同一未知Person，相关作品不重复，视频和唯一Commit保持 |
 | Web People/Collection现有组件 | 24 PASS / 0fail | 相关页面现有交互回归 |
 | Playwright桌面1440×900/窄屏390×844 | 2 PASS，7.5秒 | 现有人物页JAV tab、姓名头像、相关作品键盘入口、作品跳转收藏详情与未知演员、Escape关闭；无写请求/页面异常；详情axe零violations |
+| UI负责人独立具体版本审核 | 8 PASS / 0fail，无阻断项 | 冻结dist重跑主路径2项，并补失败503/空态/键盘重试与焦点恢复/跨库隔离/真实演员不追加未知6项；只读行为及详情axe通过 |
 | 静态检查 | 五项PASS | Package boundaries、forbidden semantics、manifest set、P2 baseline、SSOT source map；131 capabilities/110 families/224 tables/58 transactions不变 |
 
 核心54项命令：`node --test test/helix-architecture/p6-people-store.test.js test/helix-architecture/p9-product-fact-contracts.test.js test/helix-architecture/jav-correction-cast.test.js test/helix-architecture/jav-correction-metadata.test.js test/helix-architecture/jav-source-resilience.test.js test/helix-architecture/jav-correction-inventory-change.test.js test/helix-architecture/jav-correction-stored-facts.test.js`。
@@ -49,8 +50,10 @@ Owner回归93项命令：`node --test test/helix-architecture/p6-people-ondeck-r
 
 ## 审核与发布边界
 
-按Playbook §11.1/§12.3执行，属于后端影响用户可见Projection。本地页面走查不能替代UI负责人接受；用户已明确“发送审核”，准备提交具体冻结版本，尚未记录负责人PASS。
+按Playbook §11.1/§12.3执行，属于后端影响用户可见Projection。用户明确“发送审核”后，UI负责人聊天`01a0912a-0086-74e2-88ab-536c59d3862a`已正式接受具体产品版本，宽窄8/8、无阻断项；不是用实施侧自测替代负责人接受。
 
 已发送审核的冻结身份为产品提交`7b318ef956142ef7e1857e79207fa321879501ca`：110份精确git blob源码、9份实际构建资产、4张截图及8份原始日志；`identity.json` SHA256为`6eeeff12c03bbb880886b00b5a5e559353f65a73524dc5168d62ee60eefd14bc`。之后的上述Owner测试fixture及Evidence更新不改产品源码、前端源码或构建资产，须按明确范围继承该产品版本审核，不能将后续用户可见diff自动纳入。冻结脚本首轮误指`web/dist`而失败，只写了本项忽略目录中的源码副本；改为Vite实际`media-service/dist/admin`后重新完整冻结成功，未更改产品构建配置。
+
+负责人报告：`E:/my_project/helix-git-consolidation-20261008/jav-actor-ui-review-7b318ef956-20261021/owner-review.json`，SHA256 `c890d5c5e90941383ea3818401a73de0f2b0bb3b7f8e91d9ff993d87821e8c31`。独立核验131份冻结输入/资产/日志/截图；再次核对当前92份产品源码及9份Web资产无漂移。审核只绑定7b318产品范围；后续测试/文档提交可据不变字节继承，不覆盖来源标题UAT、历史回填、实际媒体/NFO内容/恢复的独立重跑或平台发布资格。负责人服务器已停止，未改tracked文件、读真实媒体或操作生产。
 
 本机Docker Linux Engine未运行，`docker version`返回named pipe不存在；未自行启动或使用生产容器替代。未新增Linux实际Effect/镜像、Windows独立Service分发、Electron或完整Architecture Gate资格。没有部署、生产配置变更、历史收藏回填/重处理；生产保持af2257版本。UAT-322继续仅记录待修，UAT-323/324的来源长期稳定与已污染收藏处置范围保持各自开放。

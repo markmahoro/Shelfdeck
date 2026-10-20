@@ -1,6 +1,6 @@
 # ShelfDeck 当前计划
 
-2026-10-21 `JAV-ACTOR-COMPLETENESS` 已本地实现：JAV无演员时统一关联People真实“未知演员”，有演员则保留来源演员；首次Cast/NFO/入藏、Arca纠正及进程退出恢复均有隔离Evidence。Service648 PASS/29既有skip、核心54项、来源与Cast48项及3条真实Host旅程通过，宽窄页面2项通过；用户已允许提交UI负责人审核，尚不记负责人接受。未部署或改历史收藏，Linux与独立分发资格未新增；见[本项Evidence](implementation/evidence/JAV_ACTOR_COMPLETENESS_20261021.md)。
+2026-10-21 `JAV-ACTOR-COMPLETENESS` 本地开发与受影响UI验收完成：JAV无演员时统一关联People真实“未知演员”，有演员则保留来源演员；首次Cast/NFO/入藏、Arca纠正及进程退出恢复均有隔离Evidence。产品提交`7b318ef956`，Service648 PASS/29既有skip、核心54、来源/Cast48、Owner回归93及真实Host3项通过；UI负责人具体版本宽窄8/8接受，后续仅测试/文档变更且92份产品源码/9资产相同。未部署或改历史收藏，Linux与独立分发资格未新增；见[本项Evidence](implementation/evidence/JAV_ACTOR_COMPLETENESS_20261021.md)。
 
 2026-10-21 新反馈UAT-323/324：JAV连接及JavMenu广告标题已对照官方JavSP定位，本地补精确封面Host、同预算有限连接测试重试和站点专用尾缀清理；40项专项及四项静态检查通过，ABF-047只读live已qualified。未部署，其他来源长期稳定、精确版本UI/平台及已入藏标题的正式纠正仍开放；见[证据](implementation/evidence/JAV_SOURCE_STABILITY_TITLE_20261021.md)。UAT-322继续只记录待修，不混入本轮产品改动。
 
