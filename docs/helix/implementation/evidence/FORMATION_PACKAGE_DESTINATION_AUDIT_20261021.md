@@ -393,3 +393,15 @@ node --test test/helix-architecture/p14-uat019-executor-terminal-closure.test.js
 验收分母必须先冻结来源中的物理媒体范围与观察时点，再关联成员归属与后续尝试。每项应落到：①真实 Commit；②明确合法排除/本次终止且无未说明责任；③仍在途且有 Owner、原因、真实下一条件/动作；④本轮发现的无效等待/错误准入/缺失退出。第二类还要继续区分“此轮结束”和“材料长期不再收录”，不能把所有 discarded 当永久归宿。
 
 同一材料的新包/旧包、新 Run/旧 Run 要沿精确已有 provenance 归并展示当前责任，保留历史；不建立跨域全局媒体 ID。包未形成、材料被政策排除、旧 Control 仍阻挡的情况不能从分母消失。待处理并不要求立即成功上架，但不得靠无限重试、改源文件、数据库清场或删除历史才有出口。
+
+## 2026-10-21 实施承接与生产建档阻塞
+
+用户已授权整合工作区、修复专项及部署未上线增量；随后明确要求删除 NAS 的 ShelfDeck 测试、备份等残留。本节为新执行事实，前文“只审查”的限制属于当时时点。
+
+- 本地合并：`9357688b0` 保存审查记录，`fde48ef32` 整合 `codex/us-adult` 的 `d15bdb993`；尚未推送/发布。
+- 生产原版本：`helix-beta-20261020-af2257c423`，容器自 `2026-10-20T12:07:21.989Z` 运行。数据库只读检查发现两次 People registration 的 IMPORT Event 等待资源，EMBED 尚 pending，Operation 长期 preparing。
+- 日志确认 SQLITE_FULL/ENOSPC；数据卷175 GiB，处置前可用约1.8 GiB（df显示100%）；旧备份/演练目录的du分配量约207 GiB，独立US Adult资格目录27 GiB，另有tar/旧镜像。du存在共享块，不能把目录数字直接相加认定释放量。验收ISO临时抽取位于同卷 `data/runtime/arca-acceptance-observation`，当时约12 GiB；它属于在用生产过程，不手动删除。
+- 用户授权清理仅针对测试/备份/旧归档和停用镜像；通过 `tools/nas-ssh-config.js` 连接，先校验真实路径、符号链接、挂载与运行容器引用，再用精确路径删除。未直接编辑数据库、Reset Formation、移动正式来源或中断生产；未使用全机Docker prune。
+- 释放部分空间后，两次建档请求均自动进入 completed、failure_code=null（`1792533397118`、`1792533398463`）；对应阻塞中的Arca验收Event后来failed。此证据确认生产空间/资源阻塞消退后人物流程可自行完成，不证明Arca失败和生命周期其他缺陷已修复。
+- 清理完成：主应用 backups/tests/releases/data/backups、16个镜像tar、旧调试脚本；独立 shelfdeck-test/backups/releases/us-adult-qualification；两处独立测试转码/下载目录与转码盘 .prod065-preserved-20260907/.upgrade-backups。删除13个已退出测试容器及1个经package.json确认的ShelfDeck失败构建容器，移除21个未被使用的ShelfDeck旧镜像Tag及该失败构建中间镜像；仅保留当前0434b691b4da镜像的生产Tag和latest。
+- 最终现场 df：数据卷175 GiB，总使用71 GiB、可用101 GiB、42%；转码卷477 GiB，使用118 GiB、可用358 GiB、25%。生产health=ok、normalSupplyAllowed=true，StartedAt与清理前一致、RestartCount=0；fnOS HTTP200，应用/系统根权限保持。既有文档中的NAS备份/测试路径现为历史记录，不再是可用恢复副本；本轮未创建替代备份。

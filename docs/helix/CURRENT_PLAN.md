@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-21 最新授权：从审查转入实施。先整合本地、远端及未上线小功能，再修复已确认生命周期死胡同，落实取消任务与排除/撤销分离、取消不作为防重试依据、Libra Run 公平竞争纳入 Candidate 发布时间；Arca Accepted 后仍不允许取消。并排查生产 US Adult 上传照片建档阻塞。当前优先处理生产磁盘满：用户已明确要求删除 ShelfDeck 测试、备份等残留；不包含生产 Formation Reset 或正式媒体删除。沿用本 Phase，不新建平行计划。
+
 2026-10-21 **FORMATION-PACKAGE-DESTINATION（“死包”专项）**：用户明确先排查业务流程，再排查 UI/入口；起点为来源媒体文件，包含尚未成包者。两类重点为模块持有责任却不能入藏/退出，以及本可开采却被错误限制的材料。已完成本轮 37 类业务分支审查；正式隔离 Host 确认无 Run abandon 未实现、退休 Field 残留 Control 阻断新来源、重试 Offer 拒收后新意图被封锁；Coordinator 另确认终态失败仍 pending 等问题。现有定向测试 120 pass；不代表 600 生产文件实盘核账或全故障/UI验收。下一步逐项讨论 Evidence 中 D01–D07（结束/排除、重试资格、退休来源、Arca 非入藏收口及恢复语义），仅审查记录，未实施功能/SSOT或生产变更。沿用唯一 CURRENT_PHASE，无新增开发 UAT。详见 [审查 Evidence](implementation/evidence/FORMATION_PACKAGE_DESTINATION_AUDIT_20261021.md)。
 2026-10-21 `JAV-ACTOR-COMPLETENESS` 本地开发与受影响UI验收完成：JAV无演员时统一关联People真实“未知演员”，有演员则保留来源演员；首次Cast/NFO/入藏、Arca纠正及进程退出恢复均有隔离Evidence。产品提交`7b318ef956`，Service648 PASS/29既有skip、核心54、来源/Cast48、Owner回归93及真实Host3项通过；UI负责人具体版本宽窄8/8接受，后续仅测试/文档变更且92份产品源码/9资产相同。未部署或改历史收藏，Linux与独立分发资格未新增；见[本项Evidence](implementation/evidence/JAV_ACTOR_COMPLETENESS_20261021.md)。
 

@@ -1,5 +1,9 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+## 2026-10-21 实施授权与当前顺序
+
+用户已授权整合工作区/远端/生产、交付未上线增量、修复本专项及生产人物建档问题。既有审查记录的“仅审查、未授权实施”描述为历史时点。当前工作项：WORKSPACE-CONSOLIDATION（已合并 US Adult 与 JAV 增量，尚未推送/部署）；PRODUCTION-CAPACITY（已确认 SQLITE_FULL/ENOSPC，按用户明确授权清理测试/历史备份/无使用旧镜像）；DESTINATION-IMPLEMENTATION（按审查中的已确认决定修复；新合同缺口不擅自决定）；PEOPLE-REGISTRATION-RECOVERY（两次 preparing 请求在 import 资源等待，验收 ISO scratch 与同卷不足链仍在核查）。产品改动、精确版本 UI 与平台资格、生产部署分别记证据，不复用旧版验收。
+
 ## FORMATION-PACKAGE-DESTINATION / “死包”专项（2026-10-21，当前优先）
 
 用户要求在进一步性能优化及 UI polish 前完成全生命周期归宿审视，已恢复完整排查。起点为来源中的媒体文件，包含从未成包者；核心是控制责任不能收敛、以及错误准入限制，UI/入口为第二层。覆盖观察/资格/Triage、A、Libra、B、Arca Commit/合法非入藏、替代和再进入。600 包为目标示例，非已读取的生产清单；结束本次尝试与排除材料是两个独立意图。

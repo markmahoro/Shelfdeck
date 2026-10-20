@@ -1,5 +1,11 @@
 # ShelfDeck 当前状态
 
+2026-10-21 生产清理完成：按用户明确授权删除ShelfDeck测试、历史备份、旧镜像归档和停用测试/构建容器；数据卷可用101 GiB（42%使用），转码卷可用358 GiB（25%使用）。只保留在用生产镜像0434b691b4da；生产未重启，health正常，fnOS HTTP200。两次上传照片建档已自动completed、无失败码。没有手工改库/Reset/正式来源删除；生命周期功能仍待实施，详见[本专项Evidence](implementation/evidence/FORMATION_PACKAGE_DESTINATION_AUDIT_20261021.md)。以下“进行中”为历史时点。
+
+## 2026-10-21 整合与生产空间处置（进行中）
+
+当前分支 `codex/formation-lifecycle-recovery` 已通过 `9357688b0` 保存审查记录，并以 `fde48ef32` 合并 `codex/us-adult` 的 `d15bdb993`；未推送或部署，尚无本轮产品修复。生产仍为 `helix-beta-20261020-af2257c423`。只读日志确认多次 SQLITE_FULL/ENOSPC；清理前数据卷175 GiB、可用约1.8 GiB。用户明确授权删除 ShelfDeck 测试及备份等残留，当前正在清理经路径/挂载核验的旧备份、测试环境、镜像归档和停用测试容器；正式数据库、媒体与运行中 Workspace 不在清理范围。完成后补实际空间、健康与人物请求状态；不能把释放空间记成代码缺陷已修复。
+
 ## 2026-10-21 “死包”专项启动事实
 
 用户恢复完整排查，并明确文件级业务流程优先、UI/入口其次。第二轮 B01–B37 路径、F07–F14 新发现、U01–U08 入口与 D01–D07 决策记录于 [Evidence](implementation/evidence/FORMATION_PACKAGE_DESTINATION_AUDIT_20261021.md)。三条新增隔离 Host 复现：无 Run abandon 503、退休 Field 保 Control 使新来源 control_not_acquirable、重试 Offer 拒收后材料恢复仍抑制且新键 reprocess 409。五项 Coordinator/Store fixture 另确认 Intake/Routing/Spec 终态失败持续 pending、Arca 自动恢复首项阻挡后项、验收 32 代后人工重试也被拒绝；120 项定向测试通过。原放弃后新扫描可成包、显式意图正常接通同包的证据保留。已完成本轮业务路径审查，等待逐项讨论合同与修复顺序；产品代码/SSOT未修改，无生产访问/部署/Reset/媒体操作；未声称全路径实景、600 文件核账或 UI 验收。本节不改变以下既有生产身份记录。
