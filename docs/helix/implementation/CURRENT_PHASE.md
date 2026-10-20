@@ -2,6 +2,8 @@
 
 日期：2026-10-20。状态：`BASELINE QUALIFIED / QUERY INCREMENT LOCALLY VERIFIED / IDENTITY ACCURACY UNASSESSED`。
 
+最新执行顺序：用户已明确授权清理当前10项未上架整理，且补充包含新进入的1项；当前611条收藏保护。用户进一步要求先完成正式安全停机并核查收敛，再升级。原容器停服超时未计PASS；已恢复原版并发出正式stop，现供给关闭、事件清零，1个转码恢复仍在运行。停止成功之前不执行Reset/数据迁移/部署，成功后重新完整冷备和核对精确清单。固定64d1完整Gate已PASS（3137 total/3111 pass/26 skip，前后4183输入不变）；生产未升级，准确率统计保持停止。
+
 发布检查点：精确候选`64d1b06702`的镜像已标准构建/上传并校验，dry run及当前UI负责人审核通过，Service和Linux增量验证通过；固定checkout完整Gate尚在运行。生产副本10个未完成Run阻挡210→224升级；标准显式10 Subject Reset仅完成只读预览。依Playbook §3.4等待新的生产数据处理决定，不擅自Reset或加兼容。生产尚未切换，冷备/完整Host/回退资格未完成；详见既有US Adult Evidence最新补记。
 
 最新授权覆盖下方早期仅本地范围：用户要求改完直接生产升级，并将US Adult搜图收敛为唯一ThePornDB来源、固定地址及API Key设置。沿用同一活动Phase处理候选整合、UI与生产副本升级/回退证明及标准部署；不新增清库、Reset、旧任务终结或一次性测试凭据进入生产的授权。准确率统计按用户决定停止。

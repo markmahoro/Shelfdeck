@@ -2,6 +2,20 @@
 
 ## 2026-10-20 最终候选准备：ThePornDB唯一来源
 
+### 补充清理授权、完整Gate结束与安全停机纠正
+
+用户先允许原10项整理进度清理后升级；复核时原1部电影已完成、系统补入1部新电影，当前收藏611而非先前607。已明确提出范围变化，用户补充允许包含新1项，只清理停机冻结时当前10项，全部已完成收藏保持。没有据旧清单删除已完成条目，也没有把补充授权扩大到其他业务范围。
+
+候选64d1固定checkout完整Architecture Gate于07:44:04 UTC完成，387个测试文件、3137 total/3111 PASS/26 skip/0fail，dependency/semantic/manifests/contracts均PASS。26项skip为未提供显式材料/opt-in等适用条件，不计覆盖；本轮没有调用真实身份识别。前后4183个tracked输入SHA256摘要同为`2c0245319b51bdac20298cc56c650407c1784fb73580715d2518e57003fc9f94`。全量日志及未选中用例留ignored原始记录，不只保存筛选摘要。
+
+生产原容器在约08:19 UTC走标准Compose stop，Service收到SIGTERM，60秒执行checkpoint预算耗尽，Exit1、P4_SHUTDOWN_CHECKPOINT_TIMEOUT，仍有1个Event在途并回收自身FFmpeg进程。此结果只证明容器退出，不是概览安全停机成功。随后在`/vol1/1000/docker/shelfdeck/backups/us-adult-20261020T081900Z`保存完整data及compose/secret；65文件共3,861,661,861 bytes逐文件内容、mode/uid/gid与来源一致，配置及Secret摘要一致，备份根700。没有Reset/迁移/部署、没有改原片或已上架媒体；这个冷备保留初次停服现场，但不代替后续新鲜备份。
+
+用户质疑为何不先使用概览安全停机，并进一步明确“先安全停机，成功后开始部署升级”，还要求检查任务收敛。核对代码后承认顺序问题：正式stop先持久化desiredMode=stopped并quiesce，无60秒强制结束预算；Compose stop走SIGTERM stop，只有有限checkpoint预算，两者不能混称。为满足新前置要求，08:24:43 UTC按既有Compose恢复原精确镜像，未换版或改运行数据文件；旧Host约4分41秒启动后，08:29:24 UTC正式公开`POST /v1/admin/runtime/actions/stop`受理固定幂等命令。当前desiredMode=stopped、normalSupplyAllowed=false、mode=stopping；inFlightEvents从1降0、inFlightRecoveries仍1，无运行故障。该恢复属于libra.media.transcode@1，FFmpeg正在运行；两次只读/proc采样CPU ticks及同一输出文件从625,999,872增至820,248,576 bytes、mtime推进，不能误判为卡死或已停止。旧进度表存在前次执行采样，不能用旧采样当新恢复的准确ETA。
+
+本地53项现有收敛回归全部PASS：先关闭供给、Event和Owner closure等待、Admin command等待、进程内未获许可等待队列释放、持久等待保留、失败不假报stopped、停止意图跨重建保持。生产仍必须实际等恢复动作及Owner收尾清零，再复查FFmpeg和稳定快照；active Run或待续批次Work留存不等于还有执行在途。目前尚无SAFE_STOP_COMPLETED，不执行Reset/迁移/标准deploy apply。后续须基于本次安全停止后的最新完整冷备重新做精确副本和回退，不沿用初次备份资格。
+
+私有原始记录为`production-authorized-reset-preflight.txt`、`production-authorized-runtime.txt`、`production-cold-prepare.txt`、`production-shutdown-check.txt`、`production-safe-stop-restore.txt`、`production-safe-stop-request.txt/jsonl`、`production-convergence-before*.txt`、`production-convergence-progress.txt`、`production-safe-stop-encoder-liveness*.json`及`safe-stop-convergence-regression.txt`；初次只读诊断SQL误用了不存在的Subject current_run_id，未写库，修正为直接读libra_runs后留失败与成功两份证据。
+
 ### 最终候选、适用审核及实际升级阻挡
 
 冻结候选commit `64d1b067024b98e51b9fa75942e465e8958b0a9c`，包含当前生产`5367179429`完整祖先链。标准`build-image.js`构建`helix-beta-20261020-64d1b06702`，771.3MiB tar的SHA256为`1edf357198efd8c3c7384e786481ab6198b4ebe8648165d55e3ecaf1ddc8799a`；标准upload完成NAS逐字节校验，标准deploy dry run通过，没有apply或生产停服。第一次构建手填短hash末位错误被构建器拒绝，正确精确10位后完成；第一次dry run因当前worktree无本地Secret文件被拒绝，随后只在子进程环境使用主checkout既有Secret，未生成/轮换Secret或复制到文档/命令参数。完整镜像2634个Runtime/脚本/资源/模型/资产文件与源码逐项SHA256一致，无源码覆盖挂载；Web JS为`index-DP-CFWjn.js`、SHA256 `3a0fe1d8b451359882e51a3c8fe9d9e20e979b4a46fe2f4017b3688299abe3d8`，CSS保持原接受字节。
