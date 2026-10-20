@@ -7,6 +7,7 @@ const { createPerceptionResolutionInputAssembler } = require('./perception-resol
 const { buildRuleSnapshot, versionedQueryResult } = require('./perception-resolution-application');
 const { deriveTitleEvidence, normalizeAlias, titleAssociationAliases } = require('../model/perception-aliases');
 const { createPerceptionAcquisitionAutomation } = require('./perception-acquisition-automation');
+const { proveLegacyPeriodicAcquisition } = require('../model/legacy-acquisition-origin');
 const {assertJavPerceptionContinuity,DIRECT_POLICY}=require('../../../contracts/jav-perception-continuity');
 
 const LIMITS = Object.freeze({ globalOpenWorks:256, ownerOpenWorks:256, openEvents:256 });
@@ -131,7 +132,7 @@ function createPerceptionProcessServices(options){
           acquisitionWindow:freeze({kind:'full_snapshot',openedAtMs:now()})});
       scope=freeze(scope);}
     const acquisition=start({acquisitionId,sourceId:config.sourceId,sourceKind:'douban',integrationId:config.integrationId,configRevision:config.configRevision,scope});
-    if(executionOrigin==='manual'&&acquisition.state==='active'&&scope.executionOrigin==='periodic'&&!resumeIntent.hasResume(acquisitionId))resumeIntent.request(acquisition,command,actorId);
+    if(executionOrigin==='manual'&&acquisition.state==='active'&&scope.executionOrigin!=='manual'&&!resumeIntent.hasResume(acquisitionId))resumeIntent.request(acquisition,command,actorId);
     const operation=reconcileAcquisition(acquisitionId);
     return freeze({operationRef:acquisitionId,state:'accepted',sourceKind:'douban',workId:operation.workId});}
   function resolutionContext(targetType,targetId,factKind='rating'){const snapshot=target(targetType,targetId),query=queryFor(snapshot,factKind),handle=queryHandle(query,now(),targetType==='shelf_entry'?'arca':'libra'),assembled=assembler.assemble({queryHandle:handle,ruleSnapshot});return freeze({target:snapshot,queryHandle:handle,...assembled});}
@@ -189,8 +190,11 @@ function createPerceptionProcessServices(options){
     const item=store.getAcquisition(acquisitionId);if(!item)throw new TypeError('Acquisition scheduling requires a known process.');
     const scope=JSON.parse(item.scopeJson);
     if(scope.mode==='direct')return 'normal';
-    if(!['manual','periodic'].includes(scope.executionOrigin))throw Object.assign(new Error('Acquisition execution origin is missing.'),{code:'PERCEPTION_ACQUISITION_ORIGIN_REQUIRED'});
-    return scope.executionOrigin==='periodic'&&!resumeIntent.hasResume(acquisitionId)?'maintenance':'normal';
+    if(Object.hasOwn(scope,'executionOrigin')&&!['manual','periodic'].includes(scope.executionOrigin))throw Object.assign(new Error('Acquisition execution origin is invalid.'),{code:'PERCEPTION_ACQUISITION_ORIGIN_REQUIRED'});
+    if(resumeIntent.hasResume(acquisitionId))return 'normal';
+    const executionOrigin=scope.executionOrigin||proveLegacyPeriodicAcquisition(item,store.listAcquisitions())?.executionOrigin;
+    if(!['manual','periodic'].includes(executionOrigin))throw Object.assign(new Error('Acquisition execution origin is missing.'),{code:'PERCEPTION_ACQUISITION_ORIGIN_REQUIRED'});
+    return executionOrigin==='periodic'?'maintenance':'normal';
   }
   function syncState(){const config=options.readDoubanSourceConfiguration?.();if(!config)return freeze({latest:null,activeCount:0,
     completionState:'not_started',lastCursorOut:null,cursorRevision:0,committedPageCount:0,recordCount:0});

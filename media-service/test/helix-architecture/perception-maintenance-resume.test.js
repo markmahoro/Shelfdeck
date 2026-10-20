@@ -11,7 +11,7 @@ const createPerceptionProcessServices=options=>rawCreatePerceptionProcessService
 const schemaManifest=require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
 const schemaDdl=fs.readFileSync(path.resolve(__dirname,'../../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
 
-test('manual sync resumes the same periodic Acquisition and frozen page after persistent restart',t=>{
+for(const legacy of [false,'periodic','unproven'])test('manual sync preserves the same Acquisition and page after restart: '+(legacy||'current'),t=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'perception-maintenance-resume-')),databasePath=path.join(root,'test.db');
   let opened,now=1000,configRevision=1;
   function open(){
@@ -25,8 +25,19 @@ test('manual sync resumes the same periodic Acquisition and frozen page after pe
   }
   t.after(()=>{opened?.kernel.close();assert.equal(path.dirname(root),path.resolve(os.tmpdir()));fs.rmSync(root,{recursive:true,force:true});});
   opened=open();
-  const periodic=opened.services.requestAcquisition({idempotencyKey:'periodic-1'},{executionOrigin:'periodic'}),id=periodic.operationRef;
-  assert.equal(opened.services.acquisitionSchedulingClass(id),'maintenance');
+  let periodic;
+  if(legacy){
+    const scope={mode:'provider',collection:'watched_movies',sourceId:'douban-test',acquisitionWindow:{kind:'full_snapshot',openedAtMs:0}},
+      key=legacy==='periodic'?'periodic-douban-acquisition:douban-test:config-1:after-none':'old-explicit-manual',
+      acquisitionId='perception-douban-acquisition-'+canonicalDigest({sourceId:'douban-test',idempotencyKey:key}).slice(0,40);
+    opened.store.registerSource({perceptionSourceId:'douban-test',sourceKind:'douban',integrationId:'douban',status:'active',configRevision:1});
+    opened.store.startAcquisition({perceptionAcquisitionId:acquisitionId,perceptionSourceId:'douban-test',sourceConfigRevision:1,
+      scopeSchemaRef:'helix://contracts/types/PerceptionAcquisitionScope/v1',scope,scopeDigest:canonicalDigest(scope)});
+    periodic={operationRef:acquisitionId};
+  }else periodic=opened.services.requestAcquisition({idempotencyKey:'periodic-1'},{executionOrigin:'periodic'});
+  const id=periodic.operationRef;
+  if(legacy==='unproven')assert.throws(()=>opened.services.acquisitionSchedulingClass(id),{code:'PERCEPTION_ACQUISITION_ORIGIN_REQUIRED'});
+  else assert.equal(opened.services.acquisitionSchedulingClass(id),'maintenance');
   opened.store.commitPage({acquisitionCommitReceiptId:'page-1',perceptionAcquisitionId:id,perceptionSourceId:'douban-test',pageOrdinal:0,
     expectedCursorRevision:0,cursorIn:null,cursorOut:'page-2',observationPageDigest:canonicalDigest('page'),hasMore:true,commitMarker:'page-1-marker',records:[],relations:[]});
   const before=opened.services.acquisitionContext(id),work=opened.services.reconcileAcquisition(id);
@@ -35,7 +46,7 @@ test('manual sync resumes the same periodic Acquisition and frozen page after pe
   assert.equal(manual.operationRef,id);assert.equal(manual.workId,work.workId);
   assert.deepEqual(opened.services.acquisitionContext(id),before);
   assert.equal(opened.services.acquisitionSchedulingClass(id),'normal');
-  assert.equal(JSON.parse(opened.store.getAcquisition(id).scopeJson).executionOrigin,'periodic');
+  assert.equal(JSON.parse(opened.store.getAcquisition(id).scopeJson).executionOrigin,legacy?undefined:'periodic');
   opened.kernel.close();opened=open();
   assert.equal(opened.services.acquisitionSchedulingClass(id),'normal');
   assert.equal(opened.store.listAcquisitions().length,1);

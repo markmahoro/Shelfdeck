@@ -4,6 +4,10 @@
 
 ### 安全停机完成及暂停批次保护补充
 
+完整副本演练：旧210表源在隔离目录精确Reset10项、FK0/integrity ok，224表复制及209表逐列摘要和条件式Schema rollback验证通过。首个旧Host因复制后的Aftercare挂载身份不同报ROOT_CONFLICT，不计通过；随后数据独立可写、原数据目录仅用于保留原Workspace只读挂载身份，生产DB路径以空只读文件遮挡，Root仅打开`/case/current-host/data`。原镜像完整Host health200、normalSupplyAllowed=true、多轮正常Owner/Intake reconciliation、errors0并安全关闭，通过。两次环境失败及原始日志均保留；未改生产挂载/数据/媒体。
+
+d485候选完整Host构造/health200、正常供给及局部Owner循环达成，但有4次`PERCEPTION_ACQUISITION_ORIGIN_REQUIRED`，**整体验证不通过**。旧验证脚本曾只按health和至少一轮循环输出qualification_pass，该行是判定器缺陷，已修正为unexpected runtime errors拒绝；不能引用该PASS。原生产31条provider Acquisition全部缺少新executionOrigin，但其Scope digest有效、ID均唯一匹配旧周期协调器的source/config/previous-terminal请求身份；含1个active。Perception Owner新增严格旧Scope/摘要/时间/唯一请求身份只读证明，未确认来源仍拒绝，禁止猜manual或改历史JSON/hash/cursor。显式用户Resume Intent优先于缺失旧来源，保留原Scope与Work；既有Scope显式无效origin仍拒绝。实际31/31证据证明与24项定向回归通过，包含当前/旧周期/来源未确证三类游标跨重启及用户继续。需要新精确镜像和完整副本复验，不把d485构造成功当交付。
+
 实际副本初检eligible=false，精确剩余4 Work/3 Attempt/3 Event：两个Field和一个Perception处于waiting_for_resource，另一个Field已完成上一Attempt、Work为ready等待下一页。无executing或未决Effect，属于安全停机应保留的持久责任。证明补充仅允许无执行的资源等待，并检查活动Work的已关闭前页；外部等待仍拒绝。复用Foundation正式SupportingWorkDefinition校验、摘要/大小及Owner/process/work metadata一致性，不接受仅改hash的跨域定义。真实副本12个后台图（7重复检测、4观察图、1豆瓣图）在只读私有技术fixture中全部通过当前证明；未执行Domain投影、不是正式Host资格。最新局部29项通过；c726固定Gate已不含此增量，不能当成最终PASS，最终固定代码须重跑。
 
 打包补齐后的e37镜像Linux四文件119/119 PASS，2638文件摘要全部与源码一致，审核UI JS/CSS保持。标准完整构建此前继承上游FFmpeg的OCI revision，不能当作ShelfDeck提交；已在标准构建参数统一显式写入当前Git revision，最终镜像须复核标签和字节身份。隔离Reset补/tmp后实际Exit0，10 active Run归零、611 Entry保持；首轮disk I/O只属于只读测试容器缺少SQLite临时写入空间，不能算旧Reset业务失败或生产变更。新副本继续Schema/Host资格，尚未生产部署。
