@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-20 19:18 Asia/Shanghai检查点：生产正式安全停机已完成，旧镜像保持停止；已按用户10项精确授权启动标准Formation Reset，工具已完成完整data备份并进入apply，尚未记录清理完成或数据换版。af2257c423候选在独立完整生产副本中health200、normalSupplyAllowed=true，并在放行后完成active-material-fields常规协调4来源、无runtime error、无历史Catalog拒绝，安全关闭。13组历史收藏/身份/库存/人物保护表保持。完整Architecture基线d485已3158 total/3132 PASS/26 skip/0fail；含Perception旧周期来源证明的af2257独立完整Gate仍运行，不继承为最终PASS。生产未切换新镜像。
+
 2026-10-20 09:12:47 UTC更新：正式安全停机成功，mode/desiredMode=stopped、operation completed、所有在途通道及deferred recovery=0，FFmpeg退出，受理后新增Attempt=0；611条收藏保持。原容器随后正常停止，新完整冷备64文件/3,842,413,191 bytes及权限逐项一致。生产未Reset/迁移/换版；现补最新Catalog历史及三种合同完全不变的暂停后台批次证明，不扩大10项清理授权。94项局部回归和空Host通过，生产副本及新固定Gate仍待验。下文停机pending为此前检查点。
 
 2026-10-20生产操作新检查点：用户已授权清理当次未上架10项（含原1项完成后补入的1项），但要求先正式安全停机成功并检查收敛，再升级。冻结前收藏为611条，全部保护。第一次标准容器停服以Exit1/P4_SHUTDOWN_CHECKPOINT_TIMEOUT结束，未当作安全停机成功；已对全部65个data文件约3.86GB及compose/secret建立并逐项验证冷备，未Reset/迁移。按最新指令恢复原精确镜像，08:29:24 UTC正式stop API受理；desiredMode=stopped、normalSupplyAllowed=false，事件1→0，仍有1个转码恢复动作在途，FFmpeg CPU及产物增长证明仍推进，尚未完成停机。现有冷备因恢复运行仅为此前现场保护，最终升级前须再捕获新鲜完整冷备。53项收敛回归PASS，不能替代生产完成状态。

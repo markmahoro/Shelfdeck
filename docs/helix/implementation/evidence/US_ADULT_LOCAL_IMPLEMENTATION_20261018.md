@@ -4,6 +4,10 @@
 
 ### 安全停机完成及暂停批次保护补充
 
+最新af2257c423复验：31个旧provider Scope均由唯一旧周期请求身份证明，24项Windows及Linux定向PASS；精确镜像2639文件SHA256与源一致，UI JS/CSS保持已审核字节。完整副本Host第一轮只覆盖放行前completion循环，不作为完整普通调度依据；第二轮在mode=running后观察active-material-fields协调4来源，health200、normalSupplyAllowed=true、errors0、Catalog rejects0并安全停止/关闭，原始记录`full-copy-upgraded-origin-normal-cycle.txt`。13组收藏/身份/库存/人物表旧列摘要与冻结源完全一致；旧536完整Host直接读取224表候选数据明确拒绝P3_SQLITE_SCHEMA_GENERATION_MISMATCH，禁止直接旧镜像回退。条件式Schema rollback在新业务运行前209表一致时通过，不宣称放行后可无损倒回旧格式；保留原版及完整停机备份，未来恢复须先核验无新增事实。
+
+d485固定完整Gate388文件3158 total/3132 PASS/26既有或opt-in skip/0fail、四组件PASS，完整输入摘要前后相同。af2257新增Owner证明独立全量仍运行。生产按最新--keep-stopped预览再次确认10个Subject/Run/active Work与授权完全相同；首次预览忘记keep-stopped导致镜像解析拒绝，未清理，正确参数后ready=true。19:12开始标准Formation Reset --apply/FORMATION_RESET_V2/--keep-stopped/精确10 IDs；完整data备份后进入apply，当前未得完成结果，未换库或部署新镜像。受控清理仅本线程已拒绝候选的NAS staging tar、本地精确文件仍保留；缺少未上传00080 tar的首轮检查在删除前拒绝，修正清单后继续，不涉及生产/原版tar、镜像或媒体。
+
 完整副本演练：旧210表源在隔离目录精确Reset10项、FK0/integrity ok，224表复制及209表逐列摘要和条件式Schema rollback验证通过。首个旧Host因复制后的Aftercare挂载身份不同报ROOT_CONFLICT，不计通过；随后数据独立可写、原数据目录仅用于保留原Workspace只读挂载身份，生产DB路径以空只读文件遮挡，Root仅打开`/case/current-host/data`。原镜像完整Host health200、normalSupplyAllowed=true、多轮正常Owner/Intake reconciliation、errors0并安全关闭，通过。两次环境失败及原始日志均保留；未改生产挂载/数据/媒体。
 
 d485候选完整Host构造/health200、正常供给及局部Owner循环达成，但有4次`PERCEPTION_ACQUISITION_ORIGIN_REQUIRED`，**整体验证不通过**。旧验证脚本曾只按health和至少一轮循环输出qualification_pass，该行是判定器缺陷，已修正为unexpected runtime errors拒绝；不能引用该PASS。原生产31条provider Acquisition全部缺少新executionOrigin，但其Scope digest有效、ID均唯一匹配旧周期协调器的source/config/previous-terminal请求身份；含1个active。Perception Owner新增严格旧Scope/摘要/时间/唯一请求身份只读证明，未确认来源仍拒绝，禁止猜manual或改历史JSON/hash/cursor。显式用户Resume Intent优先于缺失旧来源，保留原Scope与Work；既有Scope显式无效origin仍拒绝。实际31/31证据证明与24项定向回归通过，包含当前/旧周期/来源未确证三类游标跨重启及用户继续。需要新精确镜像和完整副本复验，不把d485构造成功当交付。
