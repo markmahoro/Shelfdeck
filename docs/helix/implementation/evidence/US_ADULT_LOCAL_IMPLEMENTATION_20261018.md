@@ -4,6 +4,8 @@
 
 ### 安全停机完成及暂停批次保护补充
 
+打包补齐后的e37镜像Linux四文件119/119 PASS，2638文件摘要全部与源码一致，审核UI JS/CSS保持。标准完整构建此前继承上游FFmpeg的OCI revision，不能当作ShelfDeck提交；已在标准构建参数统一显式写入当前Git revision，最终镜像须复核标签和字节身份。隔离Reset补/tmp后实际Exit0，10 active Run归零、611 Entry保持；首轮disk I/O只属于只读测试容器缺少SQLite临时写入空间，不能算旧Reset业务失败或生产变更。新副本继续Schema/Host资格，尚未生产部署。
+
 正式stop操作于08:29:24.650 UTC受理，09:12:47.808 UTC完成（本地17:12:47），mode/desiredMode均stopped、operation completed、normalSupplyAllowed=false，Events/Recoveries/Owner/Admin四个在途通道及deferred recovery均0，faulted=false。只读/proc确认FFmpeg退出；受理后新增Event Attempt及Work Attempt均0。10个未完成Run、11个暂停后台Work与611条收藏保持，证明当前执行收敛，不表示排队Work全部完成。随后Compose stop正常退出，新完整冷备`/vol1/1000/docker/shelfdeck/backups/us-adult-20261020T091400Z`的64文件共3,842,413,191 bytes逐文件摘要及mode/uid/gid一致，compose/secret摘要一致，根700、receipt600。081900备份只保留先前现场。生产尚未Reset、迁移或换版。
 
 检查发现64d1缺少生产最新Catalog的历史证明，Copy也会阻挡安全暂停的非Formation批次。新增公开合同档案的95 manifests/1220 schemas逐项与Git `5367179429d6e6785c1adf8c8da363bc21def9bd`一致，原policy重建Catalog为`b3a5256d59ef03005d5d3d0b20f264f1c77fb7aae8e4787870bd8de644d18bae`，档案canonical digest为`02c61b170e4209eb07f6abb1172eece6e598ed06ab9ad9fa227a5fea32803a6c`。档案无生产数据、凭据或executor；终态沿既有完整Verifier证明，不按digest直接接受。
