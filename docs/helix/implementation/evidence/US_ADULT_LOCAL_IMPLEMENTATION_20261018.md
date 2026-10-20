@@ -2,6 +2,16 @@
 
 ## 2026-10-20 最终候选准备：ThePornDB唯一来源
 
+### 安全停机完成及暂停批次保护补充
+
+正式stop操作于08:29:24.650 UTC受理，09:12:47.808 UTC完成（本地17:12:47），mode/desiredMode均stopped、operation completed、normalSupplyAllowed=false，Events/Recoveries/Owner/Admin四个在途通道及deferred recovery均0，faulted=false。只读/proc确认FFmpeg退出；受理后新增Event Attempt及Work Attempt均0。10个未完成Run、11个暂停后台Work与611条收藏保持，证明当前执行收敛，不表示排队Work全部完成。随后Compose stop正常退出，新完整冷备`/vol1/1000/docker/shelfdeck/backups/us-adult-20261020T091400Z`的64文件共3,842,413,191 bytes逐文件摘要及mode/uid/gid一致，compose/secret摘要一致，根700、receipt600。081900备份只保留先前现场。生产尚未Reset、迁移或换版。
+
+检查发现64d1缺少生产最新Catalog的历史证明，Copy也会阻挡安全暂停的非Formation批次。新增公开合同档案的95 manifests/1220 schemas逐项与Git `5367179429d6e6785c1adf8c8da363bc21def9bd`一致，原policy重建Catalog为`b3a5256d59ef03005d5d3d0b20f264f1c77fb7aae8e4787870bd8de644d18bae`，档案canonical digest为`02c61b170e4209eb07f6abb1172eece6e598ed06ab9ad9fa227a5fea32803a6c`。档案无生产数据、凭据或executor；终态沿既有完整Verifier证明，不按digest直接接受。
+
+非终态证明仅限Procurement field_observation、Perception acquisition_page、Arca offdeck_duplicate_detection三个精确Owner/process/work kind及六个Capability。当前manifest（除源码定位）、完整Schema closure、retry/timeout/compensation必须与冻结旧版完全相同；技术图、绑定及Result/证据摘要沿既有Bounded Verifier复查，拒绝executing Event/Attempt、未决Effect和其他Capability。Root与只读Copy共用证明，原Catalog、Work、Attempt、Result及Domain cursor不变，不注册旧executor、不清理后台批次。Libra/Formation无兼容例外，仍限用户授权的精确10项Reset。
+
+三个本地测试文件94/94 PASS，实际空数据完整Host构造/关闭通过。新固定提交完整Gate、生产副本Reset/升级/回退与完整Host资格、新镜像及标准部署仍待通过；64d1资格不冒充新增代码PASS。私有记录：`production-safe-stop-completed.json`、`production-safe-stop.jsonl`、`production-safe-cold-prepare.txt`、`canonical-nas-preflight.txt`、`source-catalog-audit.json`、`paused-batch-local-tests.txt`、`paused-batch-empty-host.txt`。
+
 ### 补充清理授权、完整Gate结束与安全停机纠正
 
 用户先允许原10项整理进度清理后升级；复核时原1部电影已完成、系统补入1部新电影，当前收藏611而非先前607。已明确提出范围变化，用户补充允许包含新1项，只清理停机冻结时当前10项，全部已完成收藏保持。没有据旧清单删除已完成条目，也没有把补充授权扩大到其他业务范围。

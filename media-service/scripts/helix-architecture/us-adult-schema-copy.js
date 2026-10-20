@@ -4,6 +4,7 @@ const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypt
 const {digest}=require('../../src/helix/foundation/persistence/ddl-compiler');
 const {openSqliteKernel,verifyReadOnlySqliteSnapshot}=require('../../src/helix/foundation/persistence/sqlite-kernel');
 const {proveReleaseEffectHistory}=require('./jav-release-effect-history-proof');
+const {provePausedReleaseBatches}=require('./paused-release-batch-proof');
 const persistence=path.resolve(__dirname,'../../src/helix/foundation/persistence');
 const SOURCE_DIGEST='5e82c36bf1d63e1297cf468361be67c074df3226a64d2dfb755d472db0bbee41';
 const TARGET_DIGEST='33ef1d7c2f07669991a8401754f7671c92f4848db8a9c1869724bc5edf8e614c';
@@ -69,8 +70,11 @@ function classify(database){
   return {assignments,blockers};
 }
 function inspect(database,schema){
-  const effectHistory=proveReleaseEffectHistory(database,schema),blockers=Object.entries(TERMINAL).flatMap(([tableId,[column,states]])=>{
-    const count=database.prepare('SELECT count(*) n FROM '+quote(tableId)+' WHERE '+quote(column)+' IS NULL OR '+quote(column)+' NOT IN ('+states.map(()=>'?').join(',')+')').get(...states).n,
+  const effectHistory=proveReleaseEffectHistory(database,schema),paused=provePausedReleaseBatches(database,schema),
+    keys={fx_supporting_works:'work_id',fx_work_attempts:'attempt_id',fx_workflow_events:'event_id'},
+    blockers=Object.entries(TERMINAL).flatMap(([tableId,[column,states]])=>{
+    const ids=paused[tableId]||[],excluded=ids.length?' AND '+quote(keys[tableId])+' NOT IN ('+ids.map(()=>'?').join(',')+')':'',
+      count=database.prepare('SELECT count(*) n FROM '+quote(tableId)+' WHERE ('+quote(column)+' IS NULL OR '+quote(column)+' NOT IN ('+states.map(()=>'?').join(',')+'))'+excluded).get(...states,...ids).n,
       unresolved=tableId==='fx_effect_journal'?count-effectHistory.provenEffectIds.length:count;
     return unresolved?[{tableId,count:unresolved,reasonCode:'unfinished_responsibility'}]:[];});
   const classification=classify(database);return {...classification,blockers:[...blockers,...classification.blockers]};

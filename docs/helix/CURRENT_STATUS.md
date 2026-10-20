@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-20 09:12:47 UTC更新：正式安全停机成功，mode/desiredMode=stopped、operation completed、所有在途通道及deferred recovery=0，FFmpeg退出，受理后新增Attempt=0；611条收藏保持。原容器随后正常停止，新完整冷备64文件/3,842,413,191 bytes及权限逐项一致。生产未Reset/迁移/换版；现补最新Catalog历史及三种合同完全不变的暂停后台批次证明，不扩大10项清理授权。94项局部回归和空Host通过，生产副本及新固定Gate仍待验。下文停机pending为此前检查点。
+
 2026-10-20生产操作新检查点：用户已授权清理当次未上架10项（含原1项完成后补入的1项），但要求先正式安全停机成功并检查收敛，再升级。冻结前收藏为611条，全部保护。第一次标准容器停服以Exit1/P4_SHUTDOWN_CHECKPOINT_TIMEOUT结束，未当作安全停机成功；已对全部65个data文件约3.86GB及compose/secret建立并逐项验证冷备，未Reset/迁移。按最新指令恢复原精确镜像，08:29:24 UTC正式stop API受理；desiredMode=stopped、normalSupplyAllowed=false，事件1→0，仍有1个转码恢复动作在途，FFmpeg CPU及产物增长证明仍推进，尚未完成停机。现有冷备因恢复运行仅为此前现场保护，最终升级前须再捕获新鲜完整冷备。53项收敛回归PASS，不能替代生产完成状态。
 
 精确候选`64d1b06702`完整Architecture Gate实际完成：387文件、3137 total/3111 PASS/26既有或opt-in skip/0fail，四项组件PASS；4183个tracked输入前后摘要同为`2c0245319b51bdac20298cc56c650407c1784fb73580715d2518e57003fc9f94`。未选中的真实模型/测试材料不计新覆盖。下方“Gate运行中”和“清理未获授权”为之前的历史检查点，已被本节结果与最新授权覆盖；生产仍未切换。

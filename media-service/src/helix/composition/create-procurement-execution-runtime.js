@@ -32,6 +32,8 @@ const secondaryAcceptanceHistory = require('./catalog-transitions/secondary-acce
 const { createFrozenCatalogHistory } = require('../foundation/execution/frozen-catalog-history');
 const movieTerminalContracts = require('./catalog-transitions/movie-terminal-contracts-20260930.json');
 const publishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261015.json');
+const latestPublishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261018.json');
+const { createPausedReleaseBatchProof } = require('./paused-release-batches');
 const { createTimeoutController } = require('../foundation/execution/timeout-controller');
 const { createCooperativeExecutionIsolation } = require('../foundation/execution/cooperative-execution-isolation');
 const { createWorkLifecycle } = require('../foundation/execution/work-lifecycle');
@@ -154,6 +156,56 @@ const FAILED_PREPARATION_RETRY_CATALOG_DIGEST = canonicalDigest({
   ],
 });
 
+function createHelixExecutionPolicyRegistry(manifests) {
+  const retryPolicies = [
+    { ref: 'helix://foundation/retry/pure-observation/v1', effectClass: 'pure_observation', maxFailureAttempts: 3,
+      backoffMs: [1000, 5000], retryableFailureClasses: ['integration', 'timeout'] },
+    { ref: 'helix://foundation/retry/perception-provider-observation/v1', effectClass: 'pure_observation', maxFailureAttempts: 3,
+      backoffMs: [30_000, 120_000], retryableFailureClasses: ['integration', 'timeout'] },
+    { ref: 'helix://foundation/retry/domain-fact-commit/v1', effectClass: 'domain_fact_commit', maxFailureAttempts: 1,
+      backoffMs: [], retryableFailureClasses: [] },
+    { ref: 'helix://foundation/retry/responsibility-control-commit/v1', effectClass: 'responsibility_control_commit', maxFailureAttempts: 1,
+      backoffMs: [], retryableFailureClasses: [] },
+    { ref: 'helix://foundation/retry/workspace-write/v1', effectClass: 'workspace_write', maxFailureAttempts: 1,
+      backoffMs: [], retryableFailureClasses: [] },
+    { ref: 'helix://foundation/retry/external-request/v1', effectClass: 'external_request', maxFailureAttempts: 1,
+      backoffMs: [], retryableFailureClasses: [] },
+    { ref: 'helix://foundation/retry/material-commit/v1', effectClass: 'material_commit', maxFailureAttempts: 1,
+      backoffMs: [], retryableFailureClasses: [] },
+    { ref: 'helix://foundation/retry/destructive-commit/v1', effectClass: 'destructive_commit', maxFailureAttempts: 1,
+      backoffMs: [], retryableFailureClasses: [] },
+  ];
+  const timeoutPolicies = [
+    { ref: 'helix://foundation/timeout/field-observation/v1', timeoutMs: 3_600_000,
+      minObservationCadenceMs: null, maxObservationElapsedMs: null, maxObservationCount: null },
+    { ref: 'helix://foundation/timeout/short-deferred-observation/v1', timeoutMs: 1_800_000,
+      minObservationCadenceMs: 5_000, maxObservationElapsedMs: 300_000, maxObservationCount: 16 },
+    { ref: 'helix://foundation/timeout/external-job-observation/v1', timeoutMs: 1_800_000,
+      minObservationCadenceMs: 15_000, maxObservationElapsedMs: 86_400_000, maxObservationCount: 1_024 },
+    { ref: 'helix://foundation/timeout/aftercare-long-media/v1', timeoutMs: LOCAL_MEDIA_ENCODE_TIMEOUT_MS,
+      minObservationCadenceMs: null, maxObservationElapsedMs: null, maxObservationCount: null },
+  ];
+  const timeoutPolicyFor = (capabilityRef) => ['arca.aftercare.media.remux@1',
+    'arca.aftercare.media.transcode@1', 'libra.media.remux@1', 'libra.media.transcode@1'].includes(capabilityRef)
+    ? timeoutPolicies[3].ref
+    : capabilityRef === 'libra.external_material.acquire.observe@1'
+      ? timeoutPolicies[2].ref
+    : capabilityRef === 'libra.external_material.stability.observe@1'
+      ? timeoutPolicies[1].ref
+      : timeoutPolicies[0].ref;
+  return createExecutionPolicyRegistry({ expectedCapabilityRefs: Object.keys(manifests), retryPolicies, timeoutPolicies,
+    compensationContracts: [], capabilityBindings: Object.keys(manifests).map((capabilityRef) => ({ capabilityRef,
+      effectClass: manifests[capabilityRef].effectClass,
+      retryPolicyRef: capabilityRef === 'perception.source.acquire@1' ? retryPolicies[1].ref :
+          manifests[capabilityRef].effectClass === 'pure_observation' ? retryPolicies[0].ref :
+          manifests[capabilityRef].effectClass === 'responsibility_control_commit' ? retryPolicies[3].ref :
+          manifests[capabilityRef].effectClass === 'workspace_write' ? retryPolicies[4].ref :
+          manifests[capabilityRef].effectClass === 'external_request' ? retryPolicies[5].ref :
+          manifests[capabilityRef].effectClass === 'material_commit' ? retryPolicies[6].ref :
+          manifests[capabilityRef].effectClass === 'destructive_commit' ? retryPolicies[7].ref : retryPolicies[2].ref,
+      timeoutPolicyRef: timeoutPolicyFor(capabilityRef), compensationContractRefs: [] })) });
+}
+
 function verifyFailedPreparationRetryPlan(snapshot) {
   if (snapshot?.plan?.catalog_digest !== FAILED_PREPARATION_RETRY_CATALOG_DIGEST ||
       snapshot.plan.state !== 'planned' ||
@@ -181,10 +233,11 @@ function verifyFailedPreparationRetryPlan(snapshot) {
   return expectedCapabilities.size === 0;
 }
 
-function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition, terminalHistory) {
+function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition, terminalHistory, pausedBatches) {
   if (!snapshot || !snapshot.plan) return false;
   if (verifyFailedPreparationRetryPlan(snapshot)) return true;
   if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
+  if (pausedBatches?.supports(snapshot)) return pausedBatches.verify(snapshot);
   if (terminalHistory?.supports(snapshot.plan.catalog_digest)) return terminalHistory.verify(snapshot);
   if (snapshot.plan.catalog_digest === boundedTransition?.previousCatalogDigest) return boundedTransition.verify(snapshot);
   const previousCatalog = [PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
@@ -364,53 +417,7 @@ function createProcurementExecutionRuntime(options) {
     return entry.executor.execute(context);
   }})})));
   registry = createCapabilityRegistry({ registrations, expectedCapabilityRefs: ENABLED });
-  const retryPolicies = [
-    { ref: 'helix://foundation/retry/pure-observation/v1', effectClass: 'pure_observation', maxFailureAttempts: 3,
-      backoffMs: [1000, 5000], retryableFailureClasses: ['integration', 'timeout'] },
-    { ref: 'helix://foundation/retry/perception-provider-observation/v1', effectClass: 'pure_observation', maxFailureAttempts: 3,
-      backoffMs: [30_000, 120_000], retryableFailureClasses: ['integration', 'timeout'] },
-    { ref: 'helix://foundation/retry/domain-fact-commit/v1', effectClass: 'domain_fact_commit', maxFailureAttempts: 1,
-      backoffMs: [], retryableFailureClasses: [] },
-    { ref: 'helix://foundation/retry/responsibility-control-commit/v1', effectClass: 'responsibility_control_commit', maxFailureAttempts: 1,
-      backoffMs: [], retryableFailureClasses: [] },
-    { ref: 'helix://foundation/retry/workspace-write/v1', effectClass: 'workspace_write', maxFailureAttempts: 1,
-      backoffMs: [], retryableFailureClasses: [] },
-    { ref: 'helix://foundation/retry/external-request/v1', effectClass: 'external_request', maxFailureAttempts: 1,
-      backoffMs: [], retryableFailureClasses: [] },
-    { ref: 'helix://foundation/retry/material-commit/v1', effectClass: 'material_commit', maxFailureAttempts: 1,
-      backoffMs: [], retryableFailureClasses: [] },
-    { ref: 'helix://foundation/retry/destructive-commit/v1', effectClass: 'destructive_commit', maxFailureAttempts: 1,
-      backoffMs: [], retryableFailureClasses: [] },
-  ];
-  const timeoutPolicies = [
-    { ref: 'helix://foundation/timeout/field-observation/v1', timeoutMs: 3_600_000,
-      minObservationCadenceMs: null, maxObservationElapsedMs: null, maxObservationCount: null },
-    { ref: 'helix://foundation/timeout/short-deferred-observation/v1', timeoutMs: 1_800_000,
-      minObservationCadenceMs: 5_000, maxObservationElapsedMs: 300_000, maxObservationCount: 16 },
-    { ref: 'helix://foundation/timeout/external-job-observation/v1', timeoutMs: 1_800_000,
-      minObservationCadenceMs: 15_000, maxObservationElapsedMs: 86_400_000, maxObservationCount: 1_024 },
-    { ref: 'helix://foundation/timeout/aftercare-long-media/v1', timeoutMs: LOCAL_MEDIA_ENCODE_TIMEOUT_MS,
-      minObservationCadenceMs: null, maxObservationElapsedMs: null, maxObservationCount: null },
-  ];
-  const timeoutPolicyFor = (capabilityRef) => ['arca.aftercare.media.remux@1',
-    'arca.aftercare.media.transcode@1', 'libra.media.remux@1', 'libra.media.transcode@1'].includes(capabilityRef)
-    ? timeoutPolicies[3].ref
-    : capabilityRef === 'libra.external_material.acquire.observe@1'
-      ? timeoutPolicies[2].ref
-    : capabilityRef === 'libra.external_material.stability.observe@1'
-      ? timeoutPolicies[1].ref
-      : timeoutPolicies[0].ref;
-  const policyRegistry = createExecutionPolicyRegistry({ expectedCapabilityRefs: ENABLED, retryPolicies, timeoutPolicies,
-    compensationContracts: [], capabilityBindings: ENABLED.map((capabilityRef) => ({ capabilityRef,
-      effectClass: manifests[capabilityRef].effectClass,
-      retryPolicyRef: capabilityRef === 'perception.source.acquire@1' ? retryPolicies[1].ref :
-          manifests[capabilityRef].effectClass === 'pure_observation' ? retryPolicies[0].ref :
-          manifests[capabilityRef].effectClass === 'responsibility_control_commit' ? retryPolicies[3].ref :
-          manifests[capabilityRef].effectClass === 'workspace_write' ? retryPolicies[4].ref :
-          manifests[capabilityRef].effectClass === 'external_request' ? retryPolicies[5].ref :
-          manifests[capabilityRef].effectClass === 'material_commit' ? retryPolicies[6].ref :
-          manifests[capabilityRef].effectClass === 'destructive_commit' ? retryPolicies[7].ref : retryPolicies[2].ref,
-      timeoutPolicyRef: timeoutPolicyFor(capabilityRef), compensationContractRefs: [] })) });
+  const policyRegistry = createHelixExecutionPolicyRegistry(manifests);
   let libraProcessServices;
   const executionProjectionProvider=Object.freeze({read:({processType,processId,workKind})=>{
     if(processType==='libra_run'){
@@ -929,13 +936,17 @@ function createProcurementExecutionRuntime(options) {
     contractValidator, bindingProjectionRegistry,
     proofReader:catalogProofReader, terminalEffectObserver });
   const terminalHistory = createFrozenCatalogHistory({ archive: movieTerminalContracts,
-    additionalArchives: [{archive:publishedTerminalContracts,archiveDigest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d'}],
+    additionalArchives: [{archive:publishedTerminalContracts,archiveDigest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d'},
+      {archive:latestPublishedTerminalContracts,archiveDigest:'02c61b170e4209eb07f6abb1172eece6e598ed06ab9ad9fa227a5fea32803a6c'}],
     archiveDigest: '369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
     priorArchive: secondaryAcceptanceHistory,
     priorArchiveDigest: '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
     onRejected: options.onHistoricalCatalogRejected,
     witness: intakeControlCatalogTransition,
     bindingProjectionRegistry, proofReader: catalogProofReader, terminalEffectObserver });
+  const pausedBatches = createPausedReleaseBatchProof({ registry, policyRegistry,
+    schemas: new Map(runtimeSchemas.map(schema => [schema.$id, schema])),
+    bindingProjectionRegistry, proofReader: catalogProofReader, onRejected: options.onHistoricalCatalogRejected });
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     standaloneEffectClasses:Object.freeze(['libra_workspace_material_reclaim','arca_recycle_move','arca_recycle_restore','arca_recycle_purge']),
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
@@ -943,9 +954,10 @@ function createProcurementExecutionRuntime(options) {
       const results = [], pending = [];
       for (let index = 0; index < snapshots.length; index += 1) {
         const snapshot = snapshots[index];
-        if (terminalHistory.supports(snapshot.plan.catalog_digest)) pending.push({ index, snapshot });
+        if (pausedBatches.supports(snapshot)) results[index] = pausedBatches.verify(snapshot);
+        else if (terminalHistory.supports(snapshot.plan.catalog_digest)) pending.push({ index, snapshot });
         else results[index] = verifyStartupPlanCatalog(snapshot, catalogDigest, registry, policyRegistry,
-          bindingProjectionRegistry, boundedTransition, terminalHistory);
+          bindingProjectionRegistry, boundedTransition, terminalHistory, pausedBatches);
       }
       for (let offset = 0; offset < pending.length; offset += 100) {
         const batch = pending.slice(offset, offset + 100);
@@ -954,7 +966,7 @@ function createProcurementExecutionRuntime(options) {
       }
       return results;
     }, verify: (snapshot) => verifyStartupPlanCatalog(
-      snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition, terminalHistory,
+      snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition, terminalHistory, pausedBatches,
     ) },
     effectReconciler, effectJournal });
   function fillPredeckIntakeSeats() {
@@ -1518,4 +1530,5 @@ module.exports = Object.freeze({
   volumeReadUnitsForCapability,
   mergeResourceDemands,
   verifyStartupPlanCatalog,
+  createHelixExecutionPolicyRegistry,
 });
