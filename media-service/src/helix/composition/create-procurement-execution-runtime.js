@@ -8,6 +8,7 @@ const { randomUUID } = require('node:crypto');
 const { computeBoundedMaterialFingerprint, computeBoundedMaterialFingerprintSync,
   readBoundedFileSnapshotSync } = require('../integrations/bounded-material-fingerprint');
 const { canonicalDigest } = require('../contracts/canonical-json');
+const { JAV_UNKNOWN_ACTOR_ID } = require('../contracts/jav-actor-policy');
 const { createCapabilityContractValidator } = require('../foundation/capability/contract-validator');
 const { createCapabilityRegistry } = require('../foundation/capability/capability-registry');
 const { createExecutorDispatcher } = require('../foundation/capability/executor-dispatcher');
@@ -344,6 +345,7 @@ function createProcurementExecutionRuntime(options) {
     targetProjectionReader:options.targetProjectionReader||(()=>null),readDoubanSourceConfiguration:options.readDoubanSourceConfiguration||(()=>null),
     resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle||(()=>undefined)});
   const libraOptions = Object.freeze({ ...options,
+    readJavUnknownActorProjection:()=>peopleReferenceQuery.getPersonReferenceProjection({personId:JAV_UNKNOWN_ACTOR_ID}),
     readArcaRoutingTargets: options.readArcaRoutingTargets || (() => Object.freeze([])),
     readArcaShelfStandard: options.readArcaShelfStandard || (() => null),
     readRelatedNfo: options.readRelatedNfo || (async () => { throw new Error('Routing NFO adapter is unavailable.'); }),
@@ -583,6 +585,7 @@ function createProcurementExecutionRuntime(options) {
     offerReader:libraCapabilityRegistration.offerReader,readArcaShelfStandard:libraOptions.readArcaShelfStandard,
     resolvePerceptionRating:(subjectId)=>perceptionProcessServices?.resolveDecisionFact({targetType:'subject',targetId:subjectId})||Object.freeze({kind:'pending'})});
   const libraPlanningRegistration=libraConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
+    readJavUnknownActorProjection:()=>peopleReferenceQuery.getPersonReferenceProjection({personId:JAV_UNKNOWN_ACTOR_ID}),
     workResultReader,offerReader:libraProcessServices.offerReader,decisionResolver:libraProcessServices.decisionResolver,
     contextReader:libraProcessServices.routingContextReader,acceptanceSpecContextReader:libraProcessServices.acceptanceSpecContextReader,
     resolveRoutingIntegrationHandle:libraOptions.resolveRoutingIntegrationHandle,

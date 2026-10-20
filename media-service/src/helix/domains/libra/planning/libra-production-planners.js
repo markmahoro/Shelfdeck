@@ -564,9 +564,12 @@ function productMetadataContext(options, libraRunId, selectedEpisodeKey) {
     return result.draft;
   };
   const episodeDrafts=selectedScopes.map(scope=>readEpisodeDraft(scope.episodeKey));
+  const needsUnknownActor = basis.observationSet.contentProfile === 'jav' &&
+    !basis.observationSet.observations.some(item => item.peopleHints?.some(hint => hint.role === 'actor'));
+  const personProjections = needsUnknownActor ? [options.readJavUnknownActorProjection()] : [];
   return Object.freeze({snapshot,identity,sources:Object.freeze(sources),workIds:Object.freeze(works.map((item)=>item.work_id)),
     results:Object.freeze(results),basis,get draft(){return readSeasonDraft();},readEpisodeDraft,episodeDrafts:Object.freeze(episodeDrafts),
-    requirements:Object.freeze(requirements)});
+    requirements:Object.freeze(requirements),personProjections:Object.freeze(personProjections)});
 }
 
 function artifactVerificationContext(options, libraRunId) {
@@ -667,7 +670,7 @@ function sidecarMediaCastDraft(context) {
       sourceBasis,
       subjectId: context.snapshot.run.subjectId,
     }),
-    personProjection: Object.freeze({ items:Object.freeze([]) }),
+    personProjection: Object.freeze({ items:context.personProjections }),
     producedAtMs: Math.max(...sourceBasis.observationSet.observations
       .map((item) => item.observedAtMs)),
   });
@@ -720,7 +723,7 @@ function createProductFactAssemblyProjections(options) {
     Object.freeze({projectionRef:MEDIA_CAST_BASIS,projection:Object.freeze({project:({ownerScope})=>basis(ownerScope,'media_cast')})}),
     Object.freeze({projectionRef:METADATA_BASIS,projection:Object.freeze({project:({ownerScope})=>basis(ownerScope,'product_metadata')})}),
     Object.freeze({projectionRef:PERSON_REFERENCE_LIST,projection:Object.freeze({project:({ownerScope})=>{
-      const value=context(ownerScope);return Object.freeze(value.selection?[selectedPerson(value.selection).referenceProjection]:[]);
+      const value=context(ownerScope);return Object.freeze(value.selection?[selectedPerson(value.selection).referenceProjection]:value.personProjections);
     }})}),
     Object.freeze({projectionRef:MEDIA_CAST_DRAFT,projection:Object.freeze({project:({sourceResult})=>sourceResult})}),
     Object.freeze({projectionRef:VERIFIED_ARTIFACT_MANIFEST,projection:Object.freeze({project:({ownerScope})=>context(ownerScope).verifiedArtifactManifest})}),

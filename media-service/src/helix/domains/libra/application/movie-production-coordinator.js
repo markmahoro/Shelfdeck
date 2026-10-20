@@ -2435,6 +2435,9 @@ function createMovieProductionCoordinator(options) {
     const castDraft = buildMediaCastDraft({
       subjectId: snapshot.run.subjectId,
       sourceBasis: castBasis,
+      personProjection: { items: castBasis.observationSet.contentProfile === 'jav' &&
+        !castBasis.observationSet.observations.some(item => item.peopleHints?.some(hint => hint.role === 'actor'))
+        ? [options.readJavUnknownActorProjection()] : [] },
       relations: buildMetadataMediaCastRelations({
         sourceBasis: castBasis,
         subjectId: snapshot.run.subjectId,

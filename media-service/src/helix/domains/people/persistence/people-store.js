@@ -498,6 +498,21 @@ function createPeopleStore(options) {
 
   return Object.freeze({
     repositoryManifest,
+    ensureJavUnknownActor() {
+      const { JAV_UNKNOWN_ACTOR_ID: personId, JAV_UNKNOWN_ACTOR_NAME: canonicalName } = require('../../../contracts/jav-actor-policy');
+      return execute([registry], context => {
+        const repo = context.repository(registry.repositoryId), current = repo.invoke('find_person', { person_id: personId });
+        if (current) {
+          const person = mapPerson(repo, current);
+          if (person.libraryKind !== 'jav' || person.status !== 'active' || person.revision.canonicalName !== canonicalName || person.revision.providerIdentities.length)
+            fail('PEOPLE_JAV_RESERVED_ACTOR_CONFLICT', 'The reserved JAV actor differs from its system identity.');
+          return person;
+        }
+        const value = { decisionId: 'people-jav-unknown-actor-initialization-v1', newPersonId: personId, libraryKind: 'jav',
+          canonicalName, aliases: [], providerIdentities: [], actorId: 'system:jav-actor-policy' };
+        return commitDirectRegistration(context, validateDirectRegistrationDecision({ ...value, decisionDigest: canonicalDigest(value) }));
+      });
+    },
     registerDirectPerson(input) {
       const decision = validateDirectRegistrationDecision(input);
       return execute([registry], (context) => commitDirectRegistration(context, decision));

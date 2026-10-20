@@ -14,6 +14,7 @@ function createPeopleProcessServices(options) {
   }
   const now = options.now || Date.now;
   const store = options.peopleStore || createPeopleStore(options);
+  store.ensureJavUnknownActor();
   const evidenceProjection = options.onDeckPersonEvidenceProjection;
   let recommendationClaims=null;
   const recommendationStore=options.recommendationPorts?createUsAdultRecommendationStore(options):null,

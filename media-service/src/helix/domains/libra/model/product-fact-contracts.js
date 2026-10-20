@@ -696,6 +696,8 @@ function buildMediaCastDraft(value) {
     compare(left.displayNameNormalized, right.displayNameNormalized) || compare(left.relationId, right.relationId));
   if (new Set(sorted.map((item) => item.relationId)).size !== sorted.length || canonicalJson(relations) !== canonicalJson(sorted))
     fail('P9_MEDIA_CAST_RELATIONS', 'Media Cast relations must be unique and canonically sorted.');
+  if (basis.observationSet?.contentProfile === 'jav' && !sorted.some(item => item.role === 'actor'))
+    fail('P9_JAV_ACTOR_REQUIRED', 'JAV Media Cast requires a real or reserved unknown actor.');
   if (basis.sourceBasisKind === 'western_match') {
     if (basis.westernBasis?.matchState === 'no_matches' && relations.length !== 0 ||
         basis.westernBasis?.matchState === 'matches_found' && relations.length === 0) {
@@ -780,6 +782,14 @@ function buildMetadataMediaCastRelations(value) {
       }));
       for (const key of identityKeys) claimedProviderIdentities.add(key);
     }
+  }
+  if (value.sourceBasis.observationSet.contentProfile === 'jav' && !relations.some(item => item.role === 'actor')) {
+    const { JAV_UNKNOWN_ACTOR_ID, JAV_UNKNOWN_ACTOR_NAME } = require('../../../contracts/jav-actor-policy');
+    const originEvidenceDigest = canonicalDigest({ schema: 'libra.jav-unknown-actor@1', subjectId, sourceBasisDigest: value.sourceBasis.sourceBasisDigest });
+    relations.push(Object.freeze({ relationId: 'libra-media-cast-relation-' + originEvidenceDigest.slice(0, 40),
+      personId: JAV_UNKNOWN_ACTOR_ID, displayName: JAV_UNKNOWN_ACTOR_NAME, displayNameNormalized: JAV_UNKNOWN_ACTOR_NAME,
+      role: 'actor', source: 'system:jav-unknown-actor@1', providerIdentities: Object.freeze([]), originEvidenceDigest,
+      confidenceClass: 'system_unknown_actor' }));
   }
   return Object.freeze(relations.sort((left, right) =>
     compare(left.role, right.role) ||
@@ -1025,6 +1035,8 @@ function buildMediaCastFact(value) {
         Object.entries(draft).filter(([key])=>key!=='draftDigest'))))
     fail('P9_MEDIA_CAST_FACT_INPUT', 'Media Cast Draft and Source Basis disagree.');
   const relations = [...draft.relations], relationsDigest = canonicalDigest({ schema:'libra.media-cast-relations@1', relations });
+  if (basis.observationSet?.contentProfile === 'jav' && !relations.some(item => item.role === 'actor'))
+    fail('P9_JAV_ACTOR_REQUIRED', 'JAV Media Cast cannot publish an empty actor result.');
   if(basis.sourceBasisKind==='us_adult_actor'){
     const expected=actorRelation(assertActorSelection(basis.actorSelection)),{relationDigest,...actual}=relations[0]||{};
     if(draft.usAdultActorBasisDigest!==basis.sourceBasisDigest||relations.length!==1||canonicalJson(actual)!==canonicalJson(expected)||

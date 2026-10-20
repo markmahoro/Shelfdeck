@@ -1,5 +1,9 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-21 新增用户确认工作项 `JAV-ACTOR-COMPLETENESS`：补JavMenu同站演员提取；JAV演员结果必有，缺失时关联People管理的统一“未知演员”档案，覆盖首次Cast/NFO/入藏及Arca纠正，不伪造来源字段或外部人物ID，不改其他库。按SSOT同日合同实施、隔离验证和精确版本UI验收；未授权部署/生产历史修复。既有UAT-323/324和UAT-322各自保持独立状态。
+
+本项本地代码与受影响Windows/浏览器验证完成；Service648 PASS/29既有skip、核心54、来源/Cast48、真实Host3及宽窄UI2项通过。五项静态检查通过，SSOT摘要已按正式materializer更新；用户授权送UI负责人审核，负责人接受仍待回收，Linux/独立分发及发布资格不继承。UI旅程沿用人物→JAV演员→未知演员→相关作品→收藏详情，首屏真实登记数和姓名即为结果，无人工确认待办或新增说明文案。详见[JAV演员Evidence](evidence/JAV_ACTOR_COMPLETENESS_20261021.md)。
+
 20:14生产发布完成：标准部署精确af2257c423，正式Resume已持久完成，health/Admin/正常供给与正常Owner周期、611原收藏/13组历史保护、15无关容器及fnOS通过。获授权的10项旧整理已清理，新整理按正常调度推进（复验9项进行中）；维护默认周六03:00–09:00上海时区，US辅助只保留ThePornDB，测试Key未进入生产。当前承接使用反馈，不把原固定全量环境失败改成一次全绿，不将未统计身份准确率或完整生产媒体E2E记为PASS，不批量关闭既有UAT或代替正式Phase Exit Audit。精确身份、备份与回退限制见CURRENT_STATUS及本项Evidence。
 
 20:05检查点：生产新224表主库原子发布并验证摘要成功，13组历史事实/611原收藏保护通过。标准af2257部署apply进行中，未记正常供给完成。最终组合资格3145 PASS/26既有或opt-in skip/0剩余失败、四项静态检查PASS；全量首轮唯一Windows打包项因漏Web依赖失败，相同锁文件补齐后定向复验PASS，4190 tracked输入四次摘要完全相同，首轮ok=false记录保持。首个分离bind mount换库EXDEV未替换原库；单一父目录挂载经NAS隔离验证后成功。细节见既有US Adult Evidence。
@@ -35,6 +39,7 @@
 
 | 工作项 | 可验收结果 | 当前状态 |
 | --- | --- | --- |
+| `JAV-ACTOR-COMPLETENESS` | 来源演员保留；缺失时统一真实未知演员；Cast/NFO/收藏/相关作品一致，无伪造来源身份 | 本地实现及适用Windows/浏览器通过；具体版本UI负责人审核待回收，未发布 |
 | `US-CONTRACT-BASELINE` | 五个议题映射至 Owner、命令、事实、Effect、恢复和验收；SSOT 与派生合同一致，负例与 Architecture Gate 通过 | PASS：SSOT及派生合同、Owner/Effect/恢复负例及固定0c82ee862原始完整Gate通过 |
 | `US-PEOPLE` | 三库独立；普通/JAV 零用户介入；US Adult 有图手动/辅助建档、编辑、每轮最多五位推荐；认领来源影片无二次确认 | 本地实现及适用工程资格PASS；范围限制见下文 |
 | `US-FORMATION` | 真实 service-local 抽帧/人脸匹配，唯一最高有效演员；未识别进入既有暂存车间，确认后原位继续，有演员才可上架 | 本地实现及适用工程资格PASS；范围限制见下文 |

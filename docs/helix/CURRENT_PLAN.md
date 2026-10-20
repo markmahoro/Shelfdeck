@@ -1,5 +1,11 @@
 # ShelfDeck 当前计划
 
+2026-10-21 `JAV-ACTOR-COMPLETENESS` 已本地实现：JAV无演员时统一关联People真实“未知演员”，有演员则保留来源演员；首次Cast/NFO/入藏、Arca纠正及进程退出恢复均有隔离Evidence。Service648 PASS/29既有skip、核心54项、来源与Cast48项及3条真实Host旅程通过，宽窄页面2项通过；用户已允许提交UI负责人审核，尚不记负责人接受。未部署或改历史收藏，Linux与独立分发资格未新增；见[本项Evidence](implementation/evidence/JAV_ACTOR_COMPLETENESS_20261021.md)。
+
+2026-10-21 新反馈UAT-323/324：JAV连接及JavMenu广告标题已对照官方JavSP定位，本地补精确封面Host、同预算有限连接测试重试和站点专用尾缀清理；40项专项及四项静态检查通过，ABF-047只读live已qualified。未部署，其他来源长期稳定、精确版本UI/平台及已入藏标题的正式纠正仍开放；见[证据](implementation/evidence/JAV_SOURCE_STABILITY_TITLE_20261021.md)。UAT-322继续只记录待修，不混入本轮产品改动。
+
+2026-10-21 用户确认 UAT-322 旧 Workspace 自动回收缺口需要修复，当前仅记录待办，尚未开始实现。后续在 Libra Owner 内补齐 Run superseded 的正式 Cleanup Scope 准入、双轮安全审计与既有回收链，避免新 replacement 再次积压；根因及范围见[既有 Evidence](implementation/evidence/UAT-322_WORKSPACE_RESIDUE_AUDIT_20261018.md)。本次不包含部署或生产残留清理授权。
+
 2026-10-20 US Adult五议题本轮已完成生产标准部署af2257c423及恢复正常供给，既有唯一Phase继续承接使用反馈与正式收尾，不新增并行开发计划。身份准确率按用户决定不再统计；生产发布、隔离技术资格和未执行的完整生产媒体E2E分别记录于CURRENT_STATUS及既有Evidence，不扩大既有UAT关闭范围。
 
 ## US Adult 与全系统维护开发（2026-10-20）

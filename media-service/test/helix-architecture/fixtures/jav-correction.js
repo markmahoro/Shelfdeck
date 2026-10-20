@@ -39,4 +39,13 @@ function source() {
     queryAnchor:buildJavQueryAnchor('jav_code','IPX-178'),sources:[{ordinal:0,queryKind:'jav_code',...item}]});
   return {sourceSnapshot,sourceOrdinal:0,observation:observation()};
 }
-module.exports={context,handle,observation,source,digest};
+function castResolutions(input) {
+  const {castQueries}=require('../../../src/helix/domains/arca/model/jav-correction-cast');
+  const {buildJavCorrectionMetadata}=require('../../../src/helix/domains/arca/model/jav-correction-metadata');
+  const {createMediaCastReferenceQuery}=require('../../../src/helix/domains/people/application/media-cast-reference-query');
+  const query=createMediaCastReferenceQuery({getPerson:personId=>personId==='person-jav-unknown-actor'?{
+    personId,libraryKind:'jav',status:'active',currentRevision:1,revision:{factDigest:digest('reserved-person')}}:null,
+    findActivePersonByProviderIdentity:()=>null,findUserAcceptedRegistrationPerson:()=>null});
+  return castQueries(buildJavCorrectionMetadata(input)).map(item=>({relationId:item.relationId,inputDigest:item.inputDigest,result:query.resolve(item.input)}));
+}
+module.exports={context,handle,observation,source,digest,castResolutions};

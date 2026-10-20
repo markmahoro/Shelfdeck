@@ -144,6 +144,19 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
   assert.deepEqual(canonical,{identity_kind:'jav_code',provider:'jav',provider_key:expectedCode});
   const materials=db.prepare('SELECT location,role FROM arca_inventory_materials').all();
   const primary=materials.find(material=>material.role==='primary_payload');assert.ok(primary);
+  if(!identity.javSourceQualification.observation.peopleHints.some(item=>item.role==='actor')) {
+    const cast=JSON.parse(db.prepare("SELECT fact_json FROM libra_product_fact_revisions WHERE fact_kind='media_cast'").get().fact_json);
+    assert.equal(cast.relationCount,1);assert.equal(cast.relations[0].personId,'person-jav-unknown-actor');
+    assert.equal(cast.relations[0].displayName,'未知演员');assert.deepEqual(cast.relations[0].providerIdentities,[]);
+    const relation=db.prepare("SELECT person_id,display_name FROM arca_inventory_person_relations WHERE role='actor'").get();
+    assert.deepEqual(relation,{person_id:'person-jav-unknown-actor',display_name:'未知演员'});
+    const nfo=fs.readFileSync(materials.find(item=>item.role==='metadata_sidecar').location,'utf8');
+    assert.match(nfo,/<actor>\s*<name>未知演员<\/name>\s*<\/actor>/);
+    const people=await request('GET','/v1/admin/people?libraryKind=jav');
+    assert.equal(people.items.filter(item=>item.personId==='person-jav-unknown-actor').length,1);
+    const related=await request('GET','/v1/admin/people/person-jav-unknown-actor/collection');
+    assert.equal(related.items.length,1);
+  }
   if(parts) {
     assert.equal(materials.filter(material=>material.role==='primary_payload').length,1);
     const pkg=db.prepare('SELECT material_input_form,jav_part_set_json FROM proc_candidate_packages').all();
@@ -682,6 +695,13 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
     assert.equal(receipt.correctionId,correctionId);assert.equal(receipt.newInventoryRevision,2);assert.equal(receipt.newCanonicalIdentityRevision,2);
     if(interrupted?.commitResult){assert.equal(receiptRow().result_json,interrupted.commitResult);assert.equal(db.prepare('SELECT state FROM fx_effect_journal WHERE effect_id=?').get(interrupted.effectId).state,'committed');}
     assert.equal(entry.current_inventory_revision,2);assert.equal(entry.canonical_identity_revision,2);
+    if(!correctionPeople) {
+      const currentCast=db.prepare("SELECT person_id,display_name FROM arca_inventory_person_relations WHERE inventory_revision=2 AND role='actor'").all();
+      assert.deepEqual(currentCast,[{person_id:'person-jav-unknown-actor',display_name:'未知演员'}]);
+      const currentNfo=db.prepare("SELECT location FROM arca_inventory_materials WHERE inventory_revision=2 AND role='metadata_sidecar'").get();
+      assert.match(fs.readFileSync(currentNfo.location,'utf8'),/<actor>\s*<name>未知演员<\/name>\s*<\/actor>/);
+      assert.equal((await request('GET','/v1/admin/people/person-jav-unknown-actor/collection')).items.length,1);
+    }
     assert.equal(db.prepare('SELECT provider_key FROM arca_canonical_identity_revisions WHERE revision=2').get().provider_key,'IPX-178');
     assert.equal(db.prepare('SELECT provider_key FROM arca_canonical_identity_revisions WHERE revision=1').get().provider_key,'IPX-177');
     assert.equal(db.prepare('SELECT state FROM arca_jav_identity_corrections WHERE correction_id=?').get(correctionId).state,'committed');
@@ -706,7 +726,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
       assert.equal(rows[1].display_name,'Unresolved Actor');assert.equal(rows[1].person_id,null);
       assert.equal(rows[0].display_name,'New Actor');assert.equal(rows[0].person_id,null);
       assert.equal(db.prepare('SELECT display_name FROM arca_inventory_person_relations WHERE inventory_revision=1').get().display_name,'Old Actor');
-      assert.equal(db.prepare('SELECT count(*) n FROM people_persons').get().n,0);
+      assert.equal(db.prepare("SELECT count(*) n FROM people_persons WHERE person_id<>'person-jav-unknown-actor'").get().n,0);
       assert.equal(db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE work_kind='system_person_registration'").get().n,0);
       clockEpoch=Date.parse('2026-10-31T03:00:00+08:00');clockStart=Date.now();
       const registered=()=>db.prepare("SELECT p.person_id FROM people_persons p JOIN people_person_revisions r ON r.person_id=p.person_id AND r.revision=p.current_revision WHERE p.library_kind='jav' AND r.canonical_name='New Actor'").get(),end=Date.now()+35000;

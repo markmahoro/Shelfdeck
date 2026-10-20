@@ -1,11 +1,12 @@
 'use strict';
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
 const {buildJavCorrectionMetadata}=require('./jav-correction-metadata');
+const {javActorHints,JAV_UNKNOWN_ACTOR_ID,JAV_UNKNOWN_ACTOR_ROLE}=require('../../../contracts/jav-actor-policy');
 const SCHEMA='helix://contracts/application-types/ArcaJavCorrectionCastFact/v1';
 const compare=(a,b)=>a<b?-1:a>b?1:0;
 const fail=()=>{throw Object.assign(new TypeError('Correction cast requires exact new-source hints and public People reference proofs.'),{code:'ARCA_JAV_CORRECTION_CAST_INVALID'});};
 function castQueries(metadata) {
-  const hints=metadata.peopleHints,queries=new Map();
+  const hints=javActorHints(metadata.peopleHints),queries=new Map(),unknown=!metadata.peopleHints.some(item=>item.role==='actor');
   if(!Array.isArray(hints)||hints.length>64)fail();
   for(const hint of hints) {
     if(typeof hint.displayName!=='string'||!hint.displayName.trim()||typeof hint.role!=='string'||!hint.role||
@@ -13,7 +14,8 @@ function castQueries(metadata) {
           Object.keys(identity).sort().join(',')!=='namespace,provider,providerKey'||identity.provider!=='javdb'||identity.namespace!=='javdb_actor'||!/^[A-Za-z0-9_-]{1,128}$/.test(identity.providerKey)))fail();
     const seed={schema:'arca.jav-correction-person-hint@1',correctionId:metadata.correctionId,shelfEntryId:metadata.shelfEntryId,hint,
         sourceObservationDigest:metadata.sourceQualification.observation.observationDigest},
-      input={libraryKind:'jav',providerIdentities:structuredClone(hint.providerIdentities),evidenceDigest:canonicalDigest(seed)},
+      input={libraryKind:'jav',providerIdentities:structuredClone(hint.providerIdentities),evidenceDigest:canonicalDigest(seed),
+        ...(unknown?{systemRole:JAV_UNKNOWN_ACTOR_ROLE}:{})},
       relationId='arca-jav-correction-cast-'+canonicalDigest(seed).slice(0,40);
     queries.set(relationId,{relationId,hint:structuredClone(hint),input,inputDigest:canonicalDigest(input)});
   }
@@ -25,13 +27,15 @@ function buildJavCorrectionCast({correctionId,admissionDigest,basis,proposal,res
   const byId=new Map(resolutions.map(item=>[item.relationId,item])),proofs=[],relations=queries.map(query=>{
     const value=byId.get(query.relationId),result=value?.result;
     if(value?.inputDigest!==query.inputDigest||!result||!['resolved','unresolved'].includes(result.kind))fail();
+    if(query.input.systemRole&&(result.kind!=='resolved'||result.reasonCode!=='system_unknown_actor'||result.personId!==JAV_UNKNOWN_ACTOR_ID))fail();
     let personId=null,confidenceClass='provider_asserted';
     if(result.kind==='resolved') {
       const {proofDigest,...proof}=result;
       if(Object.keys(result).sort().join(',')!=='inputDigest,kind,personFactDigest,personId,personRevision,proofDigest,reasonCode,schema'||
           result.schema!=='people.media-cast-reference-proof@1'||result.inputDigest!==query.inputDigest||proofDigest!==canonicalDigest(proof)||
           typeof result.personId!=='string'||!result.personId||!Number.isSafeInteger(result.personRevision)||result.personRevision<1||
-          !/^[a-f0-9]{64}$/.test(result.personFactDigest)||!['accepted_origin_evidence','exact_provider_identity'].includes(result.reasonCode)||
+          !/^[a-f0-9]{64}$/.test(result.personFactDigest)||!['accepted_origin_evidence','exact_provider_identity','system_unknown_actor'].includes(result.reasonCode)||
+          result.reasonCode==='system_unknown_actor'&&(query.input.systemRole!==JAV_UNKNOWN_ACTOR_ROLE||result.personId!==JAV_UNKNOWN_ACTOR_ID)||
           result.reasonCode==='exact_provider_identity'&&!query.input.providerIdentities.length)fail();
       personId=result.personId;confidenceClass=result.reasonCode;
     } else if(typeof result.reasonCode!=='string'||!result.reasonCode||Object.keys(result).sort().join(',')!=='kind,reasonCode')fail();
@@ -40,7 +44,7 @@ function buildJavCorrectionCast({correctionId,admissionDigest,basis,proposal,res
       personFactDigest:result.personFactDigest??null,proofDigest:result.proofDigest??null});
     const body={relationId:query.relationId,personId,displayName:query.hint.displayName,
       displayNameNormalized:query.hint.displayName.normalize('NFKC').toLowerCase(),role:query.hint.role,
-      source:'jav:'+metadata.sourceQualification.observation.siteRef,providerIdentities:query.input.providerIdentities,
+      source:query.input.systemRole?'system:jav-unknown-actor@1':'jav:'+metadata.sourceQualification.observation.siteRef,providerIdentities:query.input.providerIdentities,
       originEvidenceDigest:query.input.evidenceDigest,confidenceClass};
     return {...body,relationDigest:canonicalDigest(body)};
   }).sort((a,b)=>compare(a.role,b.role)||compare(a.displayNameNormalized,b.displayNameNormalized)||compare(a.relationId,b.relationId));

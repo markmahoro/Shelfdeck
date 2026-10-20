@@ -15,6 +15,14 @@ function title(value, code) {
   const text = clean(value, 1024).replace(new RegExp('^' + code + '(?:\\s+|$)'), '').trim();
   return text && text !== code ? text : null;
 }
+function javMenuTitle(value, code) {
+  // Remove known site decorations only at the end of JavMenu's primary title.
+  // The same words inside a film title, and other sites' titles, remain intact.
+  const text = clean(value, 1024)
+    .replace(/\s*[|｜]\s*JAV(?:目錄|目录)大全\s*[|｜]\s*每日更新\s*$/i, '')
+    .replace(/\s+(?:免費|免费)\s*(?:AV\s*)?(?:在線|在线)看\s*$/i, '');
+  return title(text, code);
+}
 function validDate(value) {
   const normalized = clean(value).replace(/\//g, '-');
   const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
@@ -66,7 +74,7 @@ function parseJavSourcePage(siteRef, code, page, origin) {
     const card = main.find('.left-wrapper > .card > .card-body').first(), key = card.find('.code').first();
     observedCode = key.children('a').first().text().trim() + key.children('span').last().text().trim();
     identityVerified = sameCode(observedCode, code) && main.find('.single-video').length > 0;
-    displayTitle = title(main.find('h1 strong').first().text(), code);
+    displayTitle = javMenuTitle(main.find('h1 strong').first().text(), code);
     const videos = main.find('.single-video video');
     const primary = main.find('#seo-main-video video, video#seo-main-video').first();
     const video = primary.length ? primary : videos.length === 1 ? videos.first() : videos.slice(0, 0);
@@ -74,6 +82,8 @@ function parseJavSourcePage(siteRef, code, page, origin) {
     const date = card.children('div').filter((_, node) => /^(公開日時|發佈於|日期)[:：]/.test($(node).children('span').first().text().trim())).first();
     fields = { release_date: validDate(date.children('span').eq(1).text()), studio: clean(card.find('.maker a').first().text()),
       genre: card.find('a.genre').toArray().map(node => clean($(node).text(), 256)).filter(Boolean).join(', ') };
+    const actorRows = card.children('div').filter((_, node) => /^(女優|女优|演員|演员|出演者)[:：]?$/.test(clean($(node).children('span').first().text(), 128)));
+    people = actorRows.find('a').toArray().map(node => ({ displayName: clean($(node).text(), 256), role: 'actor', providerIdentities: [] }));
     creditRole = 'maker';
   } else if (siteRef === 'fc2_official') {
     const digits = code.slice(4), main = $('.items_article_left').first();

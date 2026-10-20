@@ -45,7 +45,8 @@ function input() {
     verification={result:'passed',verificationKind:'final_product',basisDigest:scope.digest,productManifestDigest:plan.planDigest,relatedDispositionSetDigest:basis.relatedSetDigest,
       finalBindingSetDigest:publication.finalBindingSetDigest,verifiedMaterialKeys:stagedMembers.map(item=>item.physicalIdentity.materialKey),
       memberEvidence:stagedMembers.map(item=>({sourceProductMaterialKey:item.sourceMaterialKey,role:item.role,actualPhysicalIdentity:item.physicalIdentity}))},
-    cast=buildJavCorrectionCast({correctionId:record.correctionId,admissionDigest:record.admissionDigest,basis,proposal,resolutions:[]});
+    cast=buildJavCorrectionCast({correctionId:record.correctionId,admissionDigest:record.admissionDigest,basis,proposal,
+      resolutions:fixture.castResolutions({correctionId:record.correctionId,admissionDigest:record.admissionDigest,basis,proposal})});
   return {record,scope,raw,controlProjections,verified,plan,manifest,publication,verification,cast,committedAtMs:200};
 }
 test('correction Inventory advances both revisions, retains video and original admission, and replaces old identity metadata and cast only',()=>{
@@ -54,7 +55,9 @@ test('correction Inventory advances both revisions, retains video and original a
   assert.equal(change.previousInventoryRevision,1);assert.equal(change.newInventoryRevision,2);assert.equal(change.shelfEntryId,'entry');
   assert.equal(video.material_key,value.raw.materials[0].material_key);assert.equal(video.location,value.record.proof.paths[0].targetLocation);
   assert.equal(physicalIdentityFromInventoryRow(video).contentFingerprint,value.raw.materials[0].content_fingerprint);
-  assert.deepEqual(change.related,value.raw.related);assert.deepEqual(change.people,[]);
+  assert.deepEqual(change.related,value.raw.related);
+  assert.deepEqual(change.people.map(item=>({personId:item.person_id,name:item.display_name,role:item.role})),
+    [{personId:'person-jav-unknown-actor',name:'未知演员',role:'actor'}]);
   for(const kind of ['resolved_identity','product_metadata','media_cast']) {
     const row=change.facts.find(row=>row.fact_kind===kind);assert.equal(row.fact_revision,2);assert.equal(row.source_package_id,'original-package');
     assert.doesNotMatch(row.fact_json,/Old Actor|oldFact|IPX-177/);

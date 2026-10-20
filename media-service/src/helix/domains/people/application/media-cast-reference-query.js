@@ -22,7 +22,12 @@ function createMediaCastReferenceQuery(store) {
     const libraryKind = requireLibraryKind(input.libraryKind);
     if (libraryKind === 'us_adult') return unresolved('user_actor_refresh_required');
     let target=null,reasonCode;
-    if(input.personId) {
+    if (input.systemRole !== undefined) {
+      const { JAV_UNKNOWN_ACTOR_ID, JAV_UNKNOWN_ACTOR_ROLE } = require('../../../contracts/jav-actor-policy');
+      if (libraryKind !== 'jav' || input.systemRole !== JAV_UNKNOWN_ACTOR_ROLE || input.providerIdentities.length || input.personId)
+        return unresolved('invalid_system_actor_scope');
+      target = store.getPerson(JAV_UNKNOWN_ACTOR_ID); reasonCode = 'system_unknown_actor';
+    } else if(input.personId) {
       const current=store.getPerson(input.personId);
       if(current && current.libraryKind !== libraryKind) return unresolved('cross_library_reference');
       if(current?.status==='active')return Object.freeze({kind:'unchanged',personId:input.personId});
@@ -42,7 +47,7 @@ function createMediaCastReferenceQuery(store) {
         target=activeTarget(store.findUserAcceptedRegistrationPerson(input.evidenceDigest));reasonCode='accepted_origin_evidence';
       }
     }
-    if(!target || target.libraryKind !== libraryKind)return unresolved('no_deterministic_person');
+    if(!target || target.status !== 'active' || target.libraryKind !== libraryKind)return unresolved('no_deterministic_person');
     const proof={schema:'people.media-cast-reference-proof@1',kind:'resolved',personId:target.personId,
       personRevision:target.currentRevision,personFactDigest:target.revision.factDigest,reasonCode,
       inputDigest:canonicalDigest(input)};

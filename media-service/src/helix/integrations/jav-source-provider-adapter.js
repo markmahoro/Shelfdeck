@@ -75,11 +75,27 @@ function createJavSourceProviderAdapter(options) {
   return Object.freeze({ observationPort, prepareArtifact, acquireCover, acquireAftercareCover, preview,
     normalizedEndpoint: value => runtime.profile.normalizeEndpoint(value),
     async testCandidate(candidate) {
-      const source = createJavSourceClient({ siteRef, endpoint: runtime.profile.normalizeEndpoint(candidate.endpoint),
-        networkRoute: options.networkPolicy.route(), fetchImpl: options.fetchImpl, timeoutMs: candidate.timeoutMs });
+      const endpoint = runtime.profile.normalizeEndpoint(candidate.endpoint), networkRoute = options.networkPolicy.route();
+      let source = createJavSourceClient({ siteRef, endpoint,
+        networkRoute, fetchImpl: options.fetchImpl, timeoutMs: candidate.timeoutMs });
       const { buildJavQueryAnchor } = require('../contracts/jav-source-contracts');
+      const deadline = Date.now() + (candidate.timeoutMs ?? 30_000);
       let observation;
-      try { observation = await source.observe({ queryAnchor: buildJavQueryAnchor('jav_code', runtime.profile.probeCode) }); }
+      try {
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            observation = await source.observe({ queryAnchor: buildJavQueryAnchor('jav_code', runtime.profile.probeCode) });
+            break;
+          } catch (error) {
+            const remaining = deadline - Date.now();
+            if (attempt !== 0 || remaining < 100 || !['JAV_SOURCE_UNAVAILABLE', 'JAV_SOURCE_TIMEOUT'].includes(error.code)) throw error;
+            // A transient failure can retry the same sample on the same frozen
+            // route, sharing the original deadline rather than doubling it.
+            source = createJavSourceClient({ siteRef, endpoint, networkRoute,
+              fetchImpl: options.fetchImpl, timeoutMs: remaining });
+          }
+        }
+      }
       catch (error) {
         const code = {
           JAV_SOURCE_UNAVAILABLE: 'PLATFORM_INTEGRATION_NETWORK_FAILED',

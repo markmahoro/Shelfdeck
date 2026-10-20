@@ -3,6 +3,7 @@
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
 const {buildJavCorrectionProposal}=require('./jav-identity-correction');
 const {analyzeMovieNfo,attribute,childText,directText}=require('../../../contracts/movie-nfo-document');
+const {javActorHints}=require('../../../contracts/jav-actor-policy');
 const fail=message=>{throw Object.assign(new TypeError(message),{code:'ARCA_JAV_CORRECTION_METADATA_INVALID'});};
 const escape=value=>String(value).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&apos;');
 function validateProposal(basis,proposal) {
@@ -34,14 +35,14 @@ function renderJavCorrectionNfo({basis,proposal}) {
   }
   const genres=entries.get('genre');
   if(typeof genres==='string')for(const genre of [...new Set(genres.split(/[|;；]/).map(value=>value.trim()).filter(Boolean))])lines.push('  <genre>'+escape(genre)+'</genre>');
-  for(const name of [...new Set(observation.peopleHints.filter(item=>item.role==='actor').map(item=>item.displayName))]) {
+  for(const name of [...new Set(javActorHints(observation.peopleHints).map(item=>item.displayName))]) {
     if(typeof name!=='string'||!name.trim())continue;
     lines.push('  <actor>','    <name>'+escape(name)+'</name>','  </actor>');
   }
   lines.push('</movie>');const bytes=Buffer.from(lines.join('\n')+'\n','utf8');
   if(bytes.byteLength>128*1024)fail('Correction NFO exceeds its artifact byte budget.');
   return Object.freeze({bytes,renderDigest:canonicalDigest({schema:'arca.jav-correction-nfo-content@1',xml:bytes.toString('utf8')}),
-    sourceObservationDigest:observation.observationDigest,proposalDigest:proposal.proposalDigest,rendererVersion:'arca.jav-correction-nfo@1'});
+    sourceObservationDigest:observation.observationDigest,proposalDigest:proposal.proposalDigest,rendererVersion:'arca.jav-correction-nfo@2'});
 }
 function verifyJavCorrectionNfo(bytes,{javCode,title}) {
   const document=analyzeMovieNfo(bytes),ids=document.usable?document.directChildren.filter(item=>item.name==='uniqueid'):[],

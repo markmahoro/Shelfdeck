@@ -21,7 +21,9 @@ function values() {
 }
 function prepare(input,calls=[]) {
   const knownDigest=castQueries(buildJavCorrectionMetadata(input)).find(query=>query.hint.displayName==='Known Actor')?.input.evidenceDigest,
-    people=createMediaCastReferenceQuery({findActivePersonByProviderIdentity(){throw new Error('Current JAV source has no exact actor provider identities');},
+    people=createMediaCastReferenceQuery({getPerson(personId){return personId==='person-jav-unknown-actor'?{
+      personId,libraryKind:'jav',status:'active',currentRevision:1,revision:{factDigest:fixture.digest('reserved-person')}}:null;},
+      findActivePersonByProviderIdentity(){throw new Error('Current JAV source has no exact actor provider identities');},
       findUserAcceptedRegistrationPerson(evidenceDigest){calls.push(evidenceDigest);return evidenceDigest===knownDigest?
         {personId:'person-known',libraryKind:'jav',status:'active',currentRevision:3,revision:{factDigest:fixture.digest('known-person')}}:null;}}),
     contractValidator=createCapabilityContractValidator({schemas:Object.values(buildArcaApplicationSchemas())});
@@ -47,12 +49,26 @@ test('correction cast conserves exact query proofs and rejects foreign query, un
     const changed=structuredClone(resolutions);mutate(changed);assert.throws(()=>buildJavCorrectionCast({...input,resolutions:changed}),{code:'ARCA_JAV_CORRECTION_CAST_INVALID'});
   }
 });
-test('source without cast remains valid and People transport failures are explicit rather than guessed associations',()=>{
+test('source without cast links the reserved unknown actor and People failures remain explicit',()=>{
   const input=values(),observation=input.proposal.sourceQualification.observation,source={...input.proposal.sourceQualification,
     observation:{...observation,peopleHints:[]}};
   source.observation.observationDigest=canonicalDigest(Object.fromEntries(Object.entries(source.observation).filter(([key])=>key!=='observationDigest')));
   const minimal={...input,proposal:buildJavCorrectionProposal({basis:input.basis,...source})};
-  assert.equal(prepare(minimal).relationCount,0);
+  const fallback=prepare(minimal);
+  assert.equal(fallback.relationCount,1);
+  assert.equal(fallback.relations[0].personId,'person-jav-unknown-actor');
+  assert.equal(fallback.relations[0].displayName,'未知演员');
+  assert.equal(fallback.relations[0].confidenceClass,'system_unknown_actor');
+  assert.deepEqual(minimal.proposal.sourceQualification.observation.peopleHints,[]);
+  const queries=castQueries(buildJavCorrectionMetadata(minimal)),query=queries[0],
+    valid={schema:'people.media-cast-reference-proof@1',kind:'resolved',personId:'person-jav-unknown-actor',personRevision:1,
+      personFactDigest:fixture.digest('reserved-person'),reasonCode:'system_unknown_actor',inputDigest:query.inputDigest};
+  for(const proof of [{kind:'unresolved',reasonCode:'no_deterministic_person'},
+    {...valid,personId:'foreign-person'},{...valid,reasonCode:'accepted_origin_evidence'}]) {
+    const result=proof.kind==='resolved'?{...proof,proofDigest:canonicalDigest(proof)}:proof;
+    assert.throws(()=>buildJavCorrectionCast({...minimal,resolutions:[{relationId:query.relationId,inputDigest:query.inputDigest,result}]}),
+      {code:'ARCA_JAV_CORRECTION_CAST_INVALID'});
+  }
   const contractValidator=createCapabilityContractValidator({schemas:Object.values(buildArcaApplicationSchemas())});
   assert.throws(()=>createJavCorrectionCastPreparation({contractValidator,resolveMediaCastReference(){throw new Error('People query unavailable');}}).prepare(input),/People query unavailable/);
 });

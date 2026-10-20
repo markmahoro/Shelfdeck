@@ -39,7 +39,7 @@ test('formal Host publishes a US actor only after real CPU preparation and prese
   const people = await request('GET', '/v1/admin/people?libraryKind=us_adult'); assert.equal(people.statusCode, 200, people.body);
   assert.equal(people.json().items.length, 1); assert.equal(people.json().items[0].canonicalName, 'Test Actor');
   assert.equal((await request('GET', '/v1/admin/people?libraryKind=normal')).json().items.length, 0);
-  assert.equal((await request('GET', '/v1/admin/people?libraryKind=jav')).json().items.length, 0);
+  assert.deepEqual((await request('GET', '/v1/admin/people?libraryKind=jav')).json().items.map(item=>item.personId), ['person-jav-unknown-actor']);
   const avatar = await request('GET', '/v1/admin/people/' + completed.personId + '/avatar'); assert.equal(avatar.statusCode, 200, avatar.body);
   assert.deepEqual(avatar.rawPayload, fs.readFileSync(process.env.SHELFDECK_FACE_TEST_IMAGE));
   assert.deepEqual((await request('POST', '/v1/admin/people', body)).json(), started.json());

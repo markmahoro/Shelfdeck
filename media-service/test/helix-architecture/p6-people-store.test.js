@@ -172,12 +172,32 @@ test('keeps weak normal evidence internal and rejects user mutations of system l
       displayName: 'Same Name', providerIdentities: [], identityStrength: 'weak', evidenceDigest: hash('weak-a') };
     require('./fixtures/people-state-fixture').seedCandidate(store,evidence);
     assert.throws(()=>service.reconcile(evidence),/formal Evidence Work coordinator/);
-    assert.equal(store.listPeople().length, 0);
+    assert.deepEqual(store.listPeople().map(item=>item.personId), ['person-jav-unknown-actor']);
     assert.throws(() => service.acceptRegistration({}), { code: 'PEOPLE_LIBRARY_READ_ONLY' });
     assert.throws(() => service.dismissRegistration({}), { code: 'PEOPLE_LIBRARY_READ_ONLY' });
     assert.throws(() => service.registerPerson({ libraryKind: 'normal', canonicalName: 'Name' }), { code: 'PEOPLE_LIBRARY_READ_ONLY' });
     assert.equal(service.reconcile({ ...evidence, contentProfile: 'western_adult' }).kind, 'user_owned_library');
     assert.equal(store.listRegistrationCandidates().length, 1);
+  });
+});
+
+test('initializes one durable JAV unknown actor without external identities and resolves only its explicit system scope', () => {
+  fixture(({store,unitOfWork})=>{
+    const {createPeopleProcessServices}=require('../../src/helix/domains/people/application/people-process-services');
+    const first=createPeopleProcessServices({schemaManifest,unitOfWork,peopleStore:store});
+    const person=store.getPerson('person-jav-unknown-actor');
+    assert.equal(person.libraryKind,'jav');assert.equal(person.revision.canonicalName,'未知演员');
+    assert.deepEqual(person.revision.providerIdentities,[]);assert.equal(person.currentReferenceRevision,null);
+    createPeopleProcessServices({schemaManifest,unitOfWork});
+    assert.deepEqual(store.getPerson(person.personId),person);
+    assert.equal(store.listPeople().length,1);
+    const input={libraryKind:'jav',providerIdentities:[],systemRole:'jav_unknown_actor',evidenceDigest:hash('source-without-actors')};
+    const proof=first.mediaCastReferenceQuery.resolve(input);
+    assert.equal(proof.kind,'resolved');assert.equal(proof.personId,person.personId);assert.equal(proof.reasonCode,'system_unknown_actor');
+    assert.equal(first.mediaCastReferenceQuery.resolve({...input,systemRole:undefined}).kind,'unresolved');
+    assert.equal(first.mediaCastReferenceQuery.resolve({...input,libraryKind:'normal'}).kind,'unresolved');
+    assert.equal(first.mediaCastReferenceQuery.resolve({...input,providerIdentities:[{provider:'javdb',namespace:'javdb_actor',providerKey:'someone'}]}).kind,'unresolved');
+    assert.equal(store.listPeople().length,1);
   });
 });
 

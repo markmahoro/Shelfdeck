@@ -51,3 +51,42 @@ SSOT已有superseded cleanup合同；后续修复应在Libra Owner内建立合�
 所有生产动作均为docker inspect/health/readonly SQLite/stat/lstat/du；没有restart、Stop/Resume、配置保存、UPDATE、媒体读写或删除。
 记录本地查询失败`no such column x.libra_run_id`后按已读schema改为r.libra_run_id重跑，未执行任何写SQL。
 后续清理需形成精确当前清单、完整引用/Control/Effect复核及用户生产处置授权；历史备份和Landing不混入同一删除范围。
+
+## 2026-10-21 深度定位（只读，未修复）
+
+用户要求再次深度定位。北京时间02:42–02:44，生产仍为`helix-beta-20261020-af2257c423`，容器运行约7小时；代码核对使用干净的`codex/us-adult@1b7b683e0`。生产四个关键源码文件SHA256与该工作区完全相同：closure coordinator、cleanup contracts/store、run admission store。本节不继承10-18现场作为当前状态。
+
+### 当前现场
+
+- 4个有文件的旧Workspace仍是上表的精确ID，共11文件、75,333,165,878 logical bytes（70.1595 GiB），与10-18相同；只读递归lstat没有发现symlink，没有读取媒体内容。
+- 4个旧Run均`superseded`，Workspace和Foundation Registry均`active`；10个current Reference均`working`，Cleanup Scope均为0。3个大目录在09-23已终结，另一个小目录在09-28终结；对应replacement已完成或discarded，旧Run的Acceptance Spec与replacement不同，terminal revision均保存`LibraRunAdmissionDecision@1`。
+- 对上述4个旧Run，open Work=0；其Foundation执行图中的`intended|effect_observed|reconcile_required` Effect=0；目标Reference material key没有其他Run input manifest成员，也没有其他Workspace的current non-released Reference。10个Reference material key当前没有Material Control row；Foundation material registry仍为active，登记11文件的总字节与物理stat相符。此检查不是全Owner/全Control/所有物理别名的删除资格证明。
+- 另有第5个`superseded/active` Workspace `593accec5b38077bdbe9e766649654ac5a9940e7edb8f679523f0e3928bffa12`，无Reference、2个Foundation material已reclaimed、目录ENOENT，仅剩登记状态未收口；不计入70.16 GiB。
+- 同库已有631个`offload_completed`及78个`run_discarded` Scope完成，`run_superseded` Scope为0。因此有证据表明另外两条清理路径有实际成功记录，不能把本问题归为整个Reclaimer失效。
+
+### 精确根因：superseded准入链没有实现
+
+1. `run-admission-store.js`的replacement事务把旧Run及immutable revision写成superseded，并建立双向replacement关系；它没有释放旧Workspace Reference。保持旧引用等待合法清理是必要的，不能把Run终结直接等同于允许删文件。没有Outbox本身也不是本缺陷：当前合同允许后台以durable事实补偿发现。
+2. `movie-responsibility-closure-coordinator.js:642`的后台枚举确实包含discarded和superseded旧Run；`:667`的reconcile只会续跑已有active Scope，或在完全没有non-released Reference时调用unreferenced reclaim。`:680–681`一旦发现自己的working Reference就返回`has_workspace_references`，没有为superseded建立两轮审计或新的Scope。该保护分支本身不能删掉。
+3. `workspace-cleanup-contracts.js:84`只有`buildOffloadAdmission`，没有superseded Decision builder。`workspace-cleanup-store.js:660/684`写trigger时无条件解引用`triggerSnapshot.offloadCompletionFact.factId`，`:858`的trigger lookup也固定offload；因此不能仅在coordinator换一个triggerKind就补全本链路。
+4. SSOT §8.6.21及WorkspaceCleanupScopeAdmissionDecision已经明确要求superseded variant：读取immutable old Run终态与互相一致的replacement relation，间隔至少一个Reclaimer周期的两轮外部引用/Control审计；以old Run ID、terminal revision/digest作trigger，grace=0。表合同允许`run_superseded`，实际应用实现没有传播这个variant。
+
+于是形成固定停滞：旧Run已替换 → 自己的working Reference仍存在 → 无Scope → leftovers拒绝无引用回收 → 没有合法删除Evidence/Reference release的后续动作。反复扫描、等待24小时、调整公平优先级或新Run完成都不会补建缺失的Scope。此缺陷也会影响将来新建且产生同样replacement状态的条目，不能只当旧数据不兼容处理。
+
+### 维护窗口与复现证据
+
+当前`maintenance-admission-policy.js`将`discarded-workspace-leftovers`和`completed-workspace-reclamation`归入每周维护；已有active Scope的逐项清理为safety类别。窗口外暂不扫描是当前正常调度，但即使进入窗口仍会命中上述guard。维护窗口不是旧残留形成的根因。
+
+在本地用精确coordinator、正式schema manifest和仅返回Scope/Reference样本的只读UnitOfWork替身复现：单个superseded旧Workspace、working Reference、无Scope，时钟分别推进1/2/3天，三次均返回`has_workspace_references`、reclaim port调用0次；仅将样本Reference追加released revision的对照才到达unreferenced reclaim替身。没有创建实际清理Scope或删除文件，也未在生产运行reconcile。此项证明控制流停点，不冒充完整SQLite/文件Effect或未来修复验收。
+
+Windows既有专项`p14-workspace-cleanup-audit.test.js`和`p9-run-admission-store.test.js`共10 PASS/0fail/0skip（约1.02秒）。现有测试分别验证offload双轮审计、replacement事务及保护，没有覆盖“有working Reference的superseded Workspace自动建立Scope”组合旅程；通过不否定本缺陷。
+
+原始现场和复现脚本在主工作区ignored `.codex/uat322-deep-production*-20261021.json`及`.codex/uat322-control-flow-repro.cjs`，不提交运行数据。
+
+### 修复边界与未完成项
+
+后续应在Libra Owner内补齐superseded trigger构造/原子准入和后台调用，沿用现有逐member删除Evidence、Reference/Control release和Foundation Registry收口；另对无Reference且目录已消失的Workspace核对登记收口路径。必须覆盖replacement仍运行、外部引用/Control变化、未决Work/Effect、重启重放和范围外保护，不能直接放宽`has_workspace_references`或伪造offload事实。
+
+本轮只更新定位Evidence；没有修改产品、部署、Stop/Resume、生产配置或数据，没有清理Workspace。UAT-322保持开放；70.16 GiB是文件logical size，不等同于已经证明的可释放allocated空间。
+
+2026-10-21 用户确认：“行 这个要改 你先记一下”。状态转为已确认待修复，本轮只记录，不启动实现。后续按上节既有合同补齐 superseded 正式清理链；本次确认不包含生产部署、文件删除或数据清理授权。

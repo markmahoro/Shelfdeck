@@ -16488,3 +16488,11 @@ basis 变化重置计数；转入前进程重启从零重新观察，不凭旧�
 系统人物维护在维护窗口有界分页检查普通/JAV当前人物，只有可靠Provider人物编号一致且其他身份无矛盾、历史Preference一致时才准入People自己的Merge Supporting Work。姓名相同不构成依据；US Adult不参与。Work冻结库类型、两份Person Fact与Preference revision及系统Rule；既有merge_evidence.resolve→candidate.commit→person.commit链形成typed Evidence/Candidate、既有Owner原子Merge事务、Result/marker和People内部Outbox确认。提交再次验证可靠身份和Preference，冲突仅内部保留，不产生用户确认。稳定保留较早身份为target，同一时间按Person ID排序；保留原名为有来源别名，历史Person/引用不硬删除。未完成Work受维护准入和原安全收尾约束，最多32个People活动Work，游标及幂等定义跨重启保持。
 
 人物相关作品读取由People给出同库、最多256个已正式Merge身份的只读作用域，Arca仅按该作用域及当前Inventory关联分页、去重读取，HTTP调用方不能覆盖库类型/身份集合。归并不直接改写Arca关系、收藏身份或文件；旧关系可在后续Arca普通维护更新前继续通过正式Merge身份链显示。US作品仍只有明确单个用户Actor，禁止借此广播刷新影片。
+
+### 2026-10-21 JAV演员完整性与统一未知演员
+
+用户确认：JAV演员为必有结果字段，但允许关联统一、真实的“未知演员”Person。People在服务初始化阶段以自身直接注册事务幂等建立JAV库保留身份`person-jav-unknown-actor`，名称固定“未知演员”，无外部Provider Identity、无参考图；初始化不是GET或Projection副作用，不按同名匹配或合并普通/US人物。该身份不表示已识别真实出演者，不能由网站声明或浏览器输入伪造保留身份。
+
+Libra在JAV正式Media-Cast与NFO生成时保留同一已选来源提供的实际演员；来源无演员时，由Libra依据明确的系统规则派生一条关联该保留Person的actor关系，使用People公开的正式只读Projection证明身份，不把占位演员写入原始Provider Observation，不捏造网站人物编号或跨站补资料。Media-Cast Draft/Fact必须至少一条actor；有真实演员时不另加未知演员。未知演员是有效结果，不阻断资料资格、加工或上架，首次身份资格仍为完整番号+单站title+可用cover。
+
+Arca的JAV身份纠正同样依据新单站演员或系统未知演员规则重建当前Cast及NFO；保留身份由People公开查询提供`system_unknown_actor`证明，Arca不得自己建Person或跨域写库。人物页可查看该Person及其当前关联作品；Movie/Series/US Adult规则不变。本项不授权自动改写既有收藏、重处理旧Run或生产批量修复；后续明确的JAV新整理/纠正按本合同生成结果。

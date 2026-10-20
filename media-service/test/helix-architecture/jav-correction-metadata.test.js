@@ -29,6 +29,7 @@ test('Arca correction forms its own metadata Fact with complete new source and r
 });
 test('new correction NFO uses the new exact JAV identity, escapes source text and does not inherit old NFO fields or actors',()=>{
   const input=values(),rendered=renderJavCorrectionNfo(input),xml=rendered.bytes.toString('utf8');
+  assert.equal(rendered.rendererVersion,'arca.jav-correction-nfo@2');
   assert.match(xml,/<uniqueid type="jav" default="true">IPX-178<\/uniqueid>/);assert.match(xml,/Correct &lt;film&gt; &amp; title/);
   assert.match(xml,/New &amp; Actor/);assert.doesNotMatch(xml,/IPX-177|tmdb|Old Actor|<script>|<premiered>/);
   assert.equal((xml.match(/<genre>A<\/genre>/g)||[]).length,1);
@@ -38,6 +39,17 @@ test('tampered proposal and observation cannot produce correction metadata or ar
   const input=values();input.proposal={...input.proposal,newJavCode:'IPX-179'};
   assert.throws(()=>buildJavCorrectionMetadata(input),{code:'ARCA_JAV_CORRECTION_METADATA_INVALID'});
   assert.throws(()=>renderJavCorrectionNfo(input),{code:'ARCA_JAV_CORRECTION_METADATA_INVALID'});
+});
+
+test('an empty source cast renders one unknown actor without changing the source observation',()=>{
+  const input=values(),source=structuredClone(input.proposal.sourceQualification);
+  source.observation.peopleHints=[];
+  source.observation.observationDigest=canonicalDigest(Object.fromEntries(Object.entries(source.observation).filter(([key])=>key!=='observationDigest')));
+  input.proposal=buildJavCorrectionProposal({basis:input.basis,...source});
+  const nfo=renderJavCorrectionNfo(input).bytes.toString('utf8');
+  assert.match(nfo,/<actor>\s*<name>未知演员<\/name>\s*<\/actor>/);
+  assert.deepEqual(buildJavCorrectionMetadata(input).peopleHints,[]);
+  assert.deepEqual(input.proposal.sourceQualification.observation.peopleHints,[]);
 });
 
 test('independent NFO verification decodes escaped text and rejects wrong, duplicate or inherited identities and titles',()=>{
