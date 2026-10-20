@@ -86,7 +86,7 @@ test('strong and weak Evidence admit separate immutable Works without synchronou
   const people=peopleFor(value),strong=scopeFor('strong',[{provider:'tmdb',namespace:'person',providerKey:'12345'}]),weak=scopeFor('weak');
   const a=people.reconcile(strong),b=people.reconcile(weak);
   assert.equal(a.kind,'evidence_pending');assert.equal(b.kind,'evidence_pending');assert.notEqual(a.workId,b.workId);
-  assert.equal(value.store.listPeople().length,0);assert.equal(value.store.listRegistrationCandidates().length,0);
+  assert.deepEqual(value.store.listPeople().map(person=>person.personId),['person-jav-unknown-actor']);assert.equal(value.store.listRegistrationCandidates().length,0);
   for(const [result,scope] of [[a,strong],[b,weak]]) {
     const work=value.workResultReader.readDefinition(result.workId).definition;
     assert.equal(work.ownerDomain,'people');assert.equal(work.workKind,'system_person_registration');
@@ -97,10 +97,10 @@ test('strong and weak Evidence admit separate immutable Works without synchronou
   assert.throws(()=>people.acceptRegistration({},'admin'),{code:'PEOPLE_LIBRARY_READ_ONLY'});
 }));
 
-test('normal and JAV libraries reject user registration without publishing a Person', () => fixture(({store,unitOfWork,schemaManifest}) => {
+test('normal and JAV libraries reject user registration without publishing a new Person', () => fixture(({store,unitOfWork,schemaManifest}) => {
   const people=createPeopleProcessServices({schemaManifest,unitOfWork,peopleStore:store});
   for(const libraryKind of ['normal','jav']) assert.throws(() => people.registerPerson({libraryKind,canonicalName:'Name'},'admin'), {code:'PEOPLE_LIBRARY_READ_ONLY'});
-  assert.equal(store.listPeople().length,0);
+  assert.deepEqual(store.listPeople().map(person=>person.personId),['person-jav-unknown-actor']);
 }));
 
 test('shared origin provenance produces one deterministic Evidence digest per Person relation', () => {
@@ -127,7 +127,7 @@ test('shared provenance and identical names retain every strong and weak source 
   const admitted=relations.map(scope=>people.reconcile(scope));
   assert.equal(new Set(admitted.map(item=>item.workId)).size,19);
   assert.equal(value.kernel.runPrimitive(({prepare})=>prepare('SELECT count(*) n FROM fx_supporting_works').get().n),19);
-  assert.equal(value.store.listPeople().length,0);assert.equal(value.store.listRegistrationCandidates().length,0);
+  assert.deepEqual(value.store.listPeople().map(person=>person.personId),['person-jav-unknown-actor']);assert.equal(value.store.listRegistrationCandidates().length,0);
   relations.forEach((scope,i)=>assert.equal(people.reconcile(scope).workId,admitted[i].workId));
 }));
 
@@ -138,7 +138,7 @@ test('exact Provider identity resolves across sources and coordinator restart wi
   const restarted=createSystemRegistrationCoordinator(value);
   assert.equal(restarted.reconcile(second).kind,'known');
   assert.equal(restarted.reconcile(scopeFor('jav',first.providerIdentities,'jav')).kind,'evidence_pending');
-  assert.equal(value.store.listPeople().length,1);
+  assert.deepEqual(value.store.listPeople().map(item=>item.personId).sort(),[person.personId,'person-jav-unknown-actor'].sort());
 }));
 
 test('TMDB NFO and credits namespaces resolve one reliable Person without rewriting historical facts',()=>fixture(value=>{
@@ -153,14 +153,14 @@ test('TMDB NFO and credits namespaces resolve one reliable Person without rewrit
     expectedCandidateRevision:1,candidatePayloadDigest:candidate.candidatePayloadDigest,newPersonId:'racing-person',decisionOrigin:'strong_identity_rule',ruleRevision:1};
   assert.throws(()=>value.store.acceptRegistrationCandidate({...body,decisionDigest:canonicalDigest(body)}),{code:'P6_PEOPLE_IDENTITY_ALREADY_KNOWN'});
   assert.equal(value.store.getRegistrationCandidate(candidate.candidateId).currentState,'open');
-  assert.equal(value.store.listPeople().length,1);
+  assert.deepEqual(value.store.listPeople().map(item=>item.personId).sort(),[person.personId,'person-jav-unknown-actor'].sort());
 }));
 
 test('conflicting historical TMDB namespace identities remain internal instead of selecting by name or row order',()=>fixture(value=>{
   for(const namespace of ['person','tmdb_person'])seedPerson(value.store,scopeFor(namespace,[{provider:'tmdb',namespace,providerKey:'42'}]),{historical:true});
   const people=peopleFor(value),input={libraryKind:'normal',personId:null,providerIdentities:[{provider:'tmdb',namespace:'tmdb_person',providerKey:'42'}]};
   assert.deepEqual(people.mediaCastReferenceQuery.resolve(input),{kind:'unresolved',reasonCode:'conflicting_provider_identities'});
-  assert.equal(value.store.listPeople().length,2);
+  assert.equal(value.store.listPeople().length,3);
   assert.equal(people.mediaCastReferenceQuery.resolve({...input,providerIdentities:[{provider:'tmdb',namespace:'movie',providerKey:'42'}]}).kind,'unresolved');
 }));
 
@@ -183,7 +183,7 @@ test('new On-deck evidence is visible and admitted immediately after an empty sw
   page = [Object.freeze({ cursor: scope.relationId, scope })];
   assert.equal(people.listPage({ cursor: null, limit: 100 }).length, 1);
   assert.equal(people.reconcile(scope).kind, 'evidence_pending');
-  assert.equal(store.listPeople().length, 0);
+  assert.deepEqual(store.listPeople().map(person=>person.personId),['person-jav-unknown-actor']);
 }));
 
 test('periodic admission uses exact lookups and rejects forged Projection bytes',()=>fixture(value=>{
@@ -217,7 +217,7 @@ test('UAT-214 consumes bounded Arca NFO evidence and does not re-register unchan
   revision=2;people.reconcileNfoEntry(scope);assert.equal(reads,2);
   assert.equal(projection.observeEntry(scope).items[0].inventoryRevision,2);
   assert.equal(projection.observeEntry(scope).items[0].evidenceDigest,first[0].evidenceDigest);
-  assert.equal(store.listPeople().length,0);assert.equal(store.listRegistrationCandidates().length,0);
+  assert.deepEqual(store.listPeople().map(person=>person.personId),['person-jav-unknown-actor']);assert.equal(store.listRegistrationCandidates().length,0);
   assert.equal(kernel.runPrimitive(({prepare})=>prepare('SELECT count(*) n FROM fx_supporting_works').get().n),2,'One live Work per source holds the concurrency scope.');
   assert.equal(systemRegistration.reconcile(projection.observeEntry(scope).items[0]).kind,'evidence_deferred');
   clock+=600001;people.reconcileNfoEntry(scope);assert.equal(reads,3);
