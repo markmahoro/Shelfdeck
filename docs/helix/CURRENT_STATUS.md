@@ -1,5 +1,9 @@
 # ShelfDeck 当前状态
 
+## 2026-10-21 “死包”专项启动事实
+
+用户恢复完整排查，并明确文件级业务流程优先、UI/入口其次。第二轮 B01–B37 路径、F07–F14 新发现、U01–U08 入口与 D01–D07 决策记录于 [Evidence](implementation/evidence/FORMATION_PACKAGE_DESTINATION_AUDIT_20261021.md)。三条新增隔离 Host 复现：无 Run abandon 503、退休 Field 保 Control 使新来源 control_not_acquirable、重试 Offer 拒收后材料恢复仍抑制且新键 reprocess 409。五项 Coordinator/Store fixture 另确认 Intake/Routing/Spec 终态失败持续 pending、Arca 自动恢复首项阻挡后项、验收 32 代后人工重试也被拒绝；120 项定向测试通过。原放弃后新扫描可成包、显式意图正常接通同包的证据保留。已完成本轮业务路径审查，等待逐项讨论合同与修复顺序；产品代码/SSOT未修改，无生产访问/部署/Reset/媒体操作；未声称全路径实景、600 文件核账或 UI 验收。本节不改变以下既有生产身份记录。
+
 2026-10-18 已按用户授权标准上线 `markmahoro/shelfdeck:helix-beta-20261018-5367179429`（source `5367179429d6e6785c1adf8c8da363bc21def9bd`），包含已合并查询优化、全站统一代理/JAV连接、空间不足转二号及本轮Package热点优化。Image ID `sha256:fe8fe2f77c2d32bdc3fe59c14e616610fc48e304704baea9b92352261267fe60`，tar SHA256 `94409f5791c1f31fc0cd494c1a2a0aea298f07a38857dbc45c1ab418f178f1f2`。最终Linux143、canonical2359文件、QSV及完整副本候选/使用后旧版回退/历史保护通过；隔离只读媒体错误和首次备份辅助文件校验拒绝如实保留。UTC 2026-10-18T04:41:42.805Z health/正常供给、RestartCount0；原585收藏/42Run、792590不可变行及Effect意图保持。冷备 `/vol1/1000/docker/shelfdeck/backups/package-release-20261018T033556-5367179429/cold`（63文件，aggregate `3fc937f068bcbc85e4563b81c662464b9f99c6a2b09a3e0657e14a8d447c130a`），无Reset/换库/手工媒体处置。Node 12011ms短采样单核88.5%，不代表长期整机降幅；未跑完整生产媒体E2E/Electron，UAT-318仍开放。详见[本轮发布证据](implementation/evidence/UAT-318_FORMATION_TAB_QUERY_PERFORMANCE_20261012.md#2026-10-18-完整热点优化及合并开发标准上线)。以下较早段落为历史时点。
 
 2026-10-18 UAT-318成品包热点本地优化完成：同一同步preparationScope下两个Settlement投影与资源解析共同读取一次完整上下文；Foundation仅传递不透明scope且不进入Executor/持久输入，Arca持有临时结果。Libra按精确Fact revision批量读取、单次恢复metadata、按成员分组Episode claims及同事务复用Run行，保留完整Package与逐项校验。143项定向回归通过。145材料/48 claims的真实Package记录在本机内存Repository对照中，旧3次重建80.27–86.46ms/36次调用，新1次23.88–27.07ms/9次调用，完整输出一致；不含SQLite I/O/媒体副作用，不能当作NAS CPU实测。未构建/部署、未改生产数据，既有开发已合并至57c7aa675且无新分支。
