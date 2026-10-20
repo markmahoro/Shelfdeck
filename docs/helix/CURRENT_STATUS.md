@@ -1,5 +1,9 @@
 # ShelfDeck 当前状态
 
+2026-10-20 20:14 Asia/Shanghai生产升级完成：`markmahoro/shelfdeck:helix-beta-20261020-af2257c423`，source `af2257c423d11f85ba2905a985a2d154c6af7cfb`，NAS image `sha256:0434b691b4dad4e1a7e2607674f1944d1fe03c4b46ec901867f0745f0ad5ac95`，tar SHA256 `0e222ee05d3cc27a50ea3bf3763f632937fd457dce539e057ff05fc99b4b2875`。标准build/upload/checksum/dry-run/readiness/apply/health/Admin/挂载/QSV检查通过；容器StartedAt `2026-10-20T12:07:21.989324547Z`，RestartCount0、无OOM。Resume在UTC12:12:00.605持久完成，12:14:07复验running/normalSupplyAllowed=true/faulted=false、后台错误0，Procurement/Libra/Perception正常周期已完成，9项整理在进行。原611收藏及13组历史事实在换库后逐项摘要保护通过，15个无关容器身份及fnOS200保持。维护默认周六03:00–09:00 Asia/Shanghai；US辅助来源仅ThePornDB，未复制一次性测试Key。完整副本正常Host/N95及平台资格见既有Evidence，最终组合3145 PASS/26既有或opt-in skip/0剩余失败；原全量环境失败及复验如实保留，未跑完整生产媒体E2E、不宣称身份准确率统计完成。生产已产生新事实，旧536不能直接读取224表，禁止仅换旧镜像或擅自覆盖旧库；保留清理后完整冷备及现场，恢复须另行核对精确范围。以下为此前检查点，不覆盖本次已上线事实。
+
+2026-10-20 20:05 Asia/Shanghai检查点：生产210→224同卷原子换库已成功，安装后SHA256为`8eb1bd089004a75b00ae3dbed5e850ce9871abb080f1bfe27089a2ec8ced8f16`；13组历史收藏/身份/库存/人物旧列摘要全部与清理后冷备一致，611条原收藏保护。标准af2257部署apply正在执行，尚未确认新容器健康或正常供给。固定全量首轮3144 PASS/26 skip/1环境失败（独立工作区漏Web依赖）；相同锁文件补齐后原Windows打包/独立启动/原生模型用例复验PASS，tracked输入均未变，组合资格3145 PASS/26 skip/0剩余失败及四项静态检查PASS，保留首轮非全绿原报告。
+
 2026-10-20 19:37 Asia/Shanghai检查点：标准Formation Reset已按精确10项授权完成并保持停服，原611条收藏保护；清理后再次完整备份66文件/3,842,445,959 bytes，内容及mode/uid/gid逐项一致。生产210表仍为旧镜像停止状态，新224表在独立release目录准备及验证，尚未发布到生产数据库路径。af2257完整副本放行后正常周期已通过，13组历史收藏/库存/人物事实在该周期后再次核对摘要不变。最终固定完整Gate仍运行，不将旧基线计为新版本PASS。
 
 2026-10-20 19:18 Asia/Shanghai检查点：生产正式安全停机已完成，旧镜像保持停止；已按用户10项精确授权启动标准Formation Reset，工具已完成完整data备份并进入apply，尚未记录清理完成或数据换版。af2257c423候选在独立完整生产副本中health200、normalSupplyAllowed=true，并在放行后完成active-material-fields常规协调4来源、无runtime error、无历史Catalog拒绝，安全关闭。13组历史收藏/身份/库存/人物保护表保持。完整Architecture基线d485已3158 total/3132 PASS/26 skip/0fail；含Perception旧周期来源证明的af2257独立完整Gate仍运行，不继承为最终PASS。生产未切换新镜像。

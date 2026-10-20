@@ -1,8 +1,35 @@
-# US Adult 本地实施证据（开发中）
+# US Adult 实施与生产发布证据
 
 ## 2026-10-20 最终候选准备：ThePornDB唯一来源
 
 ### 安全停机完成及暂停批次保护补充
+
+#### 最终生产发布（2026-10-20 20:14 Asia/Shanghai）
+
+| 项目 | 实际结果 |
+| --- | --- |
+| 生产入口 | `http://192.168.12.230:18080`；标准根目录`/vol1/1000/docker/shelfdeck` |
+| 精确镜像 | `markmahoro/shelfdeck:helix-beta-20261020-af2257c423` |
+| Source / NAS image | `af2257c423d11f85ba2905a985a2d154c6af7cfb` / `sha256:0434b691b4dad4e1a7e2607674f1944d1fe03c4b46ec901867f0745f0ad5ac95` |
+| tar SHA256 | `0e222ee05d3cc27a50ea3bf3763f632937fd457dce539e057ff05fc99b4b2875`，本地/上传/正式部署再次核对通过 |
+| 正式安全停机 | UTC08:29:24.650受理→09:12:47.808完成，当前执行收敛、受理后新增Attempt0；保留未完批次游标 |
+| 精确清理与备份 | 仅用户授权当前10项，标准Reset Exit0；清理后完整冷备`backups/us-adult-post-reset-20261020T111412Z`，66文件/3,842,445,959 bytes逐项SHA256及权限一致 |
+| 换库 | 210→224独立准备/209表历史逐行证明/条件回退资格通过；同一父目录挂载原子安装，安装SHA256 `8eb1bd089004a75b00ae3dbed5e850ce9871abb080f1bfe27089a2ec8ced8f16`，原格式Source保留于`releases/us-adult-af2257c423-prepared/source.sqlite` |
+| 发布与启动 | 标准`deploy-nas.js` dry run与`--apply` Exit0；StartedAt UTC12:07:21.989324547，health/Admin/源码来自精确镜像/媒体与QSV绑定验证通过 |
+| 恢复运行 | UTC12:10:37.151 Resume持久受理→12:12:00.605完成；客户端60s等待超时，随后只读持久Receipt与公开GET核验成功，没有重复命令或重启容器 |
+| 最终生产复核 | UTC12:14:07 health/runtime/overview/formation全部200；running/desired running、normalSupplyAllowed=true、faulted=false、后台errors0；正式收藏611，整理进行9项；普通Owner周期已完成并推进Libra |
+| 环境保护 | 13组历史收藏/身份/库存/人物旧列摘要换库后与清理后冷备完全一致；15个无关容器ID及镜像保持、fnOS200、根/SSH权限保持，RestartCount0/无OOM |
+| 配置 | 维护周六03:00–09:00 Asia/Shanghai；US辅助唯一ThePornDB，不复制一次性测试Key |
+
+原始记录均位于ignored验证目录：`final-af2257-standard-deploy-apply.txt`、`production-database-cutover-bind-apply.txt`、`production-protected-facts-after-cutover.json`、`production-resume-durable-status.txt`、`production-af2257-running-summary.json`、`production-post-resume-smoke.json`、`production-environment-after-deploy.txt`与`production-unrelated-container-comparison.json`。固定输入/具体版本UI/平台/N95资格按下文保留，不冒充一次全量全绿、完整生产媒体E2E、身份准确率统计、正式Phase Exit或全部UAT关闭。生产周六实际维护尚未发生，现有窗口完成/截止/跨重启证据来自隔离演练。
+
+回退边界：旧536完整Host已证明无法直接读取224表；新业务运行前209保留表完全一致时条件式回退合格，但当前正常供给已产生新事实，不得覆盖旧库。保留原536镜像、完整冷备和新现场，优先向前修复；确需旧格式恢复时先核对媒体/业务事实连续性并取得精确生产恢复授权。仅在该恢复完成且完整Host重新验证后，镜像切回仍须走标准dry run：`node scripts/deploy-nas.js /vol1/1000/docker/shelfdeck/shelfdeck-helix-beta-20261018-5367179429.tar --sha256 94409f5791c1f31fc0cd494c1a2a0aea298f07a38857dbc45c1ab418f178f1f2`，通过后再使用同命令`--apply`；此处不是执行恢复授权，本次未运行回退。
+
+以下为过程中检查点和原始失败，不覆盖最终已部署事实。
+
+19:58最终资格：af2257固定checkout全量389文件/3171 tests实际结束，3144 PASS/26既有或opt-in skip/1 FAIL；唯一失败为独立工作区漏复制Web node_modules，`tsc`不存在导致Windows打包失败。四项静态检查均PASS，4190 tracked输入前后digest同为`cfd952c8ee66ae016113d3ad3c4b128356d81f9441872adb67286ceff70aa67e`。从上一合格物理目录按相同Web lock SHA256复制依赖后，未改产品代码，原Windows独立打包/启动/模型/防覆盖用例1/1复验PASS，复验前后输入仍相同。组合资格3145 PASS/26 skip/0剩余失败，原全量报告ok=false保留，不改写成一次全绿；明细`final-af2257-combined-qualification.json`和`final-windows-package-retry.*`。
+
+生产独立新库准备及209表条件回退资格均Exit0；首次换库dry run通过。首次apply因两个独立bind mount间rename返回EXDEV被拒绝，原生产主库未替换；qualified marker及原失败保留。操作工具改为同一应用父目录单一bind mount，NAS同挂载结构生成夹具的dry run/来源漂移拒绝/原子安装/幂等重试/rename后Receipt前中断恢复均PASS。夹具首轮自身模块查找失败（未写DB），改用镜像/app依赖解析后复验通过。当前正在重新dry run及摘要核对，尚未记录成功发布或生产正常供给。
 
 19:37检查点：标准生产Reset已Exit0，范围仅获授权当前10个Subject，`--keep-stopped`生效。标准备份为`backups/formation-reset-20261020T111211Z/data`；清理后另做完整冷备`backups/us-adult-post-reset-20261020T111412Z`，66文件/3,842,445,959 bytes逐项SHA256、mode/uid/gid一致，compose/secret摘要保持。生产224表准备仅写入`releases/us-adult-af2257c423-prepared`，原210表主库尚未替换。原镜像完整Host/候选严格正常周期后，再核对13组收藏、库存、人物旧列摘要完全一致（私有记录`protected-facts-after-origin-normal-cycle.json`）。准备好的原子换库工具仅在Linux生成夹具验证：dry run无业务修改、来源漂移拒绝、同卷原子安装、重复执行不覆盖及rename后Receipt前中断恢复全部通过；未运行生产apply。最终af2257固定完整Gate仍在运行。
 
