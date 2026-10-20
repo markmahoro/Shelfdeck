@@ -16496,3 +16496,11 @@ basis 变化重置计数；转入前进程重启从零重新观察，不凭旧�
 Libra在JAV正式Media-Cast与NFO生成时保留同一已选来源提供的实际演员；来源无演员时，由Libra依据明确的系统规则派生一条关联该保留Person的actor关系，使用People公开的正式只读Projection证明身份，不把占位演员写入原始Provider Observation，不捏造网站人物编号或跨站补资料。Media-Cast Draft/Fact必须至少一条actor；有真实演员时不另加未知演员。未知演员是有效结果，不阻断资料资格、加工或上架，首次身份资格仍为完整番号+单站title+可用cover。
 
 Arca的JAV身份纠正同样依据新单站演员或系统未知演员规则重建当前Cast及NFO；保留身份由People公开查询提供`system_unknown_actor`证明，Arca不得自己建Person或跨域写库。人物页可查看该Person及其当前关联作品；Movie/Series/US Adult规则不变。本项不授权自动改写既有收藏、重处理旧Run或生产批量修复；后续明确的JAV新整理/纠正按本合同生成结果。
+
+### 2026-10-21 整理取消、排除与正常再开采（用户确认修订）
+
+本修订以用户本轮明确决定为准，替代旧UAT-268/UAT-269关于“同条件非入藏终局必须抑制再次Intake”的规定。材料处于有效来源且未被明确排除，继续表达正常收录意愿；取消一次任务不表示排除文件，也不构成自动重试拦截依据。普通新Observation可以依照Procurement的现有资格、精确Selection/Control和不可变Candidate发布流程形成新尝试；Libra不再以历史无法上架/用户取消且条件未变化作为额外Intake拒绝条件。不增加冷冻期、强制人工放行或Intake FIFO，既有Receipt幂等、活跃责任冲突、席位、物理/合同验证和执行内有限重试继续有效。历史终局仍保留证据，不改写成成功。该修订不改变Arca Aftercare的稳定问题去重规则。
+
+“公平竞争机制”专指Libra Run内部优先级。新Run注册到当前公平轮次，以当时全局turn_sequence初始化自己的last_turn_sequence，不能用0获得历史未获服务加分；同来源同轮次按该Subject路由锚定Intake所保存Candidate的publishedAtMs先后、再按Run ID稳定排序。真实执行机会继续推进来源/Run轮转，重启不能重置；发布时间只从Libra已接收的不可变Handoff A Snapshot读取并缓存，不查询历史失败或重复读取Procurement内部数据。来源公平、有界加分、加急、收尾优先和Foundation aging保留；不保证尚未Intake的包参与竞争，不保证固定延迟或等所有旧电影完成。
+
+用户操作改为“取消整理任务”，默认只结束当前尝试；默认不勾选“以后不再整理本任务关联的来源文件”。勾选另行表达Procurement的文件排除意图；撤销排除只恢复正常开采资格，不恢复旧Run、不立即触发一次处理。取消命令须持久接受并在安全Work/Effect收尾后完成，用户无需再次点击或留在页面。无Run Subject按既有Subject Abandon事务释放精确Primary责任；Arca Handoff B Accepted后不允许取消，责任必须保留并通过合法恢复完成上架。技术性准备失败后新一轮普通开采不得因旧失败类别而永久禁止；未变化的不合格材料、同一Observation重放及活跃Selection/Control仍受正常边界约束。

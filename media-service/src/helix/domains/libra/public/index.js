@@ -12,8 +12,6 @@ const { createIntakeOfferReader } = require('../persistence/intake-offer-reader'
 const { createMaterialBindingScopeReader } = require('../application/material-binding-scope-reader');
 const { createIntakeDecisionResolver } = require('../application/intake-decision-resolver');
 const { createIntakeProcessCoordinator } = require('../application/intake-process-coordinator');
-const {createRunOutcomeStore}=require('../persistence/run-outcome-store');
-const {resolveCurrentRequirements}=require('../model/acceptance-spec-contracts');
 const {
   createLibraPipelineAdmission,
   fieldIdFromOfferSource,
@@ -246,7 +244,6 @@ function createExecutionRegistration() {
     },
     createProcessServices(options) {
       const offerReader=options.offerReader || createIntakeOfferReader(options);
-      const outcomes=createRunOutcomeStore(options);
       const decisionResolver=createIntakeDecisionResolver(options);
       const intakeStore=options.intakeStore || createLibraIntakeStore(options);
       const subjectIdForProcess=(processId)=>{
@@ -264,10 +261,6 @@ function createExecutionRegistration() {
       });
       const coordinator=createIntakeProcessCoordinator({
         ...options,offerReader,decisionResolver,pipelineAdmission,subjectIdForProcess,
-        checkReentry:source=>intakeStore.getReceipt(source.processId)?null:outcomes.checkReentry(source,subjectId=>{
-          const current=acceptanceSpecContextReader.read(subjectId);
-          return current.inputSet?resolveCurrentRequirements(current.inputSet):null;
-        }),
       });
       const routingContextReader=createRoutingContextReader(options);
       const attentionWorkshop=createAttentionWorkshop({...options,pipelineAdmission,onTransferred:options.onWorkshopTransferred,

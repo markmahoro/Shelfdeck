@@ -187,47 +187,6 @@ function createRunOutcomeStore(options) {
     });
     return Object.freeze({...committed.receipt.resultRef,replayed:committed.replayed});
   }
-  function reserveAttempt(source,previous,intent) {
-    const commandContract='libra.reprocess-intent-reservation@1',key=canonicalDigest({commandContract,intentId:intent.intent_id});
-    const command=createCommandCommitCoordinator(options).execute({
-      command:{commandReceiptId:key,ownerDomain:'libra',commandContract,callerScope:intent.actor_id,idempotencyKey:intent.intent_id,
-        requestDigest:canonicalDigest({intentId:intent.intent_id}),targetType:'reprocess_intent',targetId:intent.intent_id},
-      domainParticipant:{participantId:'libra_reprocess_reservation',owner:'libra',repositories:[repository],execute(context){
-        const latest=context.repository(repository.repositoryId).invoke('input_history',{stable_input_digest:previous.stable_input_digest})
-          .sort((a,b)=>Number(b.committed_at_ms)-Number(a.committed_at_ms)||b.libra_run_id.localeCompare(a.libra_run_id))[0];
-        if(latest?.outcome_digest!==intent.previous_outcome_digest)
-          fail('LIBRA_REPROCESS_INTENT_STALE','Reserved retry no longer matches the latest result.');
-        return Object.freeze({intentId:intent.intent_id,offerId:source.offer.offerId});
-      }},
-      commitMarker:{commitMarker:key,scopeType:'reprocess_intent',scopeId:intent.intent_id,commitDigest:canonicalDigest({intentId:intent.intent_id})},
-      auditRecords:[{auditId:key,actorType:intent.actor_type||'admin',actorId:intent.actor_id,action:'reserve_reprocessing_attempt',
-        scopeType:'reprocess_intent',scopeId:intent.intent_id,evidenceDigest:previous.outcome_digest}],
-      resultEnvelope:result=>({resultSchemaRef:'helix://contracts/application-types/LibraReprocessReservation/v1',resultRef:result}),
-    });
-    return command.receipt.resultRef.offerId===source.offer.offerId;
-  }
-  function checkReentry(source,readCurrentRequirements) {
-    const input=stableInputDigest(source.snapshot.primaryMaterialDeliveries);
-    const previous=read(context=>context.repository(repository.repositoryId).invoke('input_history',{stable_input_digest:input})
-      .sort((a,b)=>Number(b.committed_at_ms)-Number(a.committed_at_ms)||b.libra_run_id.localeCompare(a.libra_run_id))[0]);
-    if(!previous||previous.outcome!=='unable_to_on_deck')return null;
-    const current=readCurrentRequirements(previous.subject_id);
-    const previousOutcome=value(previous),conditions=recoveryConditions(previousOutcome.terminalReasons);
-    const conditionsChanged=canonicalDigest(conditions)!==canonicalDigest(previousOutcome.recoveryConditions);
-    if(current&&(canonicalDigest(current)!==previous.requirements_digest || conditionsChanged)) {
-      const changeIntent={intent_id:canonicalDigest({schema:'libra.changed-requirement-attempt@1',
-        previousOutcomeDigest:previous.outcome_digest,requirementsDigest:canonicalDigest(current),recoveryConditions:conditions}),
-        previous_outcome_digest:previous.outcome_digest,actor_id:'system:failure-conditions-changed',actor_type:'system'};
-      if(reserveAttempt(source,previous,changeIntent))return null;
-    }
-    const intents=read(context=>context.repository(repository.repositoryId).invoke('intents',{stable_input_digest:input}))
-      .filter(intent=>intent.previous_outcome_digest===previous.outcome_digest).sort((a,b)=>Number(a.issued_at_ms)-Number(b.issued_at_ms)||a.intent_id.localeCompare(b.intent_id));
-    for(const intent of intents) {
-      if(reserveAttempt(source,previous,intent))return null;
-    }
-    return Object.freeze({kind:'reentry_suppressed',reasonCode:'LIBRA_FAILURE_CONDITIONS_UNCHANGED',previousRunId:previous.libra_run_id,
-      previousOutcomeDigest:previous.outcome_digest});
-  }
-  return Object.freeze({get,listPendingCommitted,reconcileCommitted,failureParticipant,sourceFieldIds,requestReprocess,checkReentry});
+  return Object.freeze({get,listPendingCommitted,reconcileCommitted,failureParticipant,sourceFieldIds,requestReprocess});
 }
 module.exports=Object.freeze({SCHEMA_REF,stableInputDigest,createRunOutcomeStore});

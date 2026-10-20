@@ -1,5 +1,13 @@
 # “死包”专项：Formation 全生命周期归宿审视
 
+## 2026-10-21 实施检查点：首批本地修复，尚未发布
+
+用户已授权实施；以下早期“仅审查”文字保留历史语境。当前产品修改：移除Libra以未变化非入藏历史额外拒收的门禁，保留Receipt幂等、活跃责任/席位等安全边界；新Run注册到当前turn_sequence，同来源同轮按路由锚定Intake的不可变Candidate publishedAtMs排序，保留正常轮转、加急与收尾；Procurement凭原技术失败精确证据允许下一轮普通Observation重做准备，同Observation及未变业务无效材料不重复成包；Arca恢复处理本轮选中的Offer，不再每次回头只处理列表首项。
+
+验证：`node --test media-service/test/helix-architecture/source-fairness-store.test.js media-service/test/helix-architecture/p9-run-lifecycle-store.test.js media-service/test/helix-architecture/p14-uat019-executor-terminal-closure.test.js` 为46 PASS；`formation-cancel-reprocurement.test.js` 为3 PASS，包含原文件inode/size/mtime/hash不变的取消→普通扫描→新Run、临时媒体检查故障恢复，以及未变非媒体不重新开采。测试只用本地临时目录，均自动关闭Host并清理。`git diff --check`通过。不是完整Gate、跨平台或UI验收，未推送/部署。
+
+未完成：持久接受取消（当前Host测试仍重复调用旧discard以完成收尾）、无Run退出、排除及撤销入口、退休Field闲置Control、前置终态失败闭环等。本批不将这些路径记为已修复。生产清理、人物请求恢复及旧备份已删除的记录见本文后部；清理没有更换生产代码。
+
 日期：2026-10-21。状态：用户恢复完整排查后，已完成第二轮业务分支审查及关键断点的隔离验证，见本文「第二轮：从来源文件出发的完整业务路径审查」。证据区分源码、Coordinator fixture、正式 Host；不是 600 个生产包的实测，也不是全故障注入或 UI 验收。本文是 Evidence，不是平行活动计划，也不修改架构合同。前面首轮记录保留历史语境，最新分类以后面的第二轮为准。
 
 ## 用户目标与边界

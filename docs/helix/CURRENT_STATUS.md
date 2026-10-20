@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-21 生命周期首批本地修复：移除Libra按未变化失败历史拒收；新Run以当前公平轮次注册、以已接收Candidate发布时间作同轮排序；技术性准备失败允许下一轮普通Observation重新开采；Arca恢复改为处理分页选中的Offer。46项Owner/调度回归及3项隔离Host旅程通过，包含取消后原文件再开采、技术恢复及未变非法媒体不重试；尚未完整Gate/跨平台/UI验收或部署。退休Field闲置Control、持久取消/无Run取消及排除撤销仍待实现，不能记本专项完成。
+
 2026-10-21 生产清理完成：按用户明确授权删除ShelfDeck测试、历史备份、旧镜像归档和停用测试/构建容器；数据卷可用101 GiB（42%使用），转码卷可用358 GiB（25%使用）。只保留在用生产镜像0434b691b4da；生产未重启，health正常，fnOS HTTP200。两次上传照片建档已自动completed、无失败码。没有手工改库/Reset/正式来源删除；生命周期功能仍待实施，详见[本专项Evidence](implementation/evidence/FORMATION_PACKAGE_DESTINATION_AUDIT_20261021.md)。以下“进行中”为历史时点。
 
 ## 2026-10-21 整合与生产空间处置（进行中）

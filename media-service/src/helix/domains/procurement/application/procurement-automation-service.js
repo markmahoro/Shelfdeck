@@ -247,7 +247,7 @@ function repositoryDefinition(schemaManifest) {
           'procurement_run_id',
           'ordinal',
           'material_key', 'selection_role', 'binding_revision', 'reality_digest', 'selection_scope_key',
-          'candidate_package_id', 'terminal_disposition', 'reservation_updated_at_ms',
+          'candidate_package_id', 'terminal_disposition', 'terminal_evidence_digest', 'reservation_updated_at_ms',
           'selection_state',
           'admitted_control_revision',
           'admitted_control_projection_digest',
@@ -285,7 +285,7 @@ function selectionSnapshot(runMaterialByKey, runs, material) {
   }).filter(Boolean));
 }
 
-function availableForAutomaticRun(material, snapshot, controls, rule, scopeMembers) {
+function availableForAutomaticRun(material, snapshot, controls, rule, scopeMembers, technicalFailures) {
   const history = snapshot.runs.map((run) => ({ run, member: snapshot.runMaterialByKey.get(
     run.procurement_run_id + '\u0000' + material.material_key) })).filter(({ member }) => member)
     .sort((left, right) => Number(right.run.created_at_ms) - Number(left.run.created_at_ms) ||
@@ -296,8 +296,11 @@ function availableForAutomaticRun(material, snapshot, controls, rule, scopeMembe
   if (latest?.member.terminal_disposition === 'handoff_rejected' &&
       Number(latest.member.reservation_updated_at_ms) >= Number(snapshot.terminalObservation.observed_at_ms)) return false;
   if (!latest || latest.member.terminal_disposition !== 'triage_failed') return true;
-  // Failed preparation requires changed material/rule facts or the existing explicit
-  // retry contract. Handoff rejection deliberately does not enter this condition.
+  // A later ordinary observation may retry a proven technical preparation failure.
+  // Business-invalid materials retain their existing changed-facts qualification.
+  if (latest.member.terminal_evidence_digest &&
+      Number(snapshot.terminalObservation.observed_at_ms) > Number(latest.member.reservation_updated_at_ms) &&
+      technicalFailures(latest.run.procurement_run_id)?.get(material.material_key) === latest.member.terminal_evidence_digest) return true;
   const previousScope = [...snapshot.runMaterialByKey.values()].filter(member =>
     member.procurement_run_id === latest.run.procurement_run_id && member.selection_scope_key === latest.member.selection_scope_key);
   const unchangedScope = previousScope.length === scopeMembers.length && scopeMembers.every(current => {
@@ -883,8 +886,13 @@ function createProcurementAutomationService(options) {
       if (!scopes.has(key)) scopes.set(key, []);
       scopes.get(key).push(material);
     });
+    const preparationFailures=new Map();
+    const technicalFailures=runId=>{
+      if(!preparationFailures.has(runId))preparationFailures.set(runId,options.readTechnicalPreparationFailures?.(runId)||new Map());
+      return preparationFailures.get(runId);
+    };
     const eligible = eligiblePool.filter(material => availableForAutomaticRun(material, current, currentControlByKey, rule,
-      scopes.get(scopeKeys.get(material.material_key))));
+      scopes.get(scopeKeys.get(material.material_key)),technicalFailures));
     const creationBasisDigest = canonicalDigest({ schema:'procurement.run-creator-basis@1', fieldId:observation.fieldId,
       accessRevision:observation.accessRevision, accessDigest:current.access.access_digest,
       profileHintRevision:Number(current.profileHint.revision), profileHintDigest:current.profileHint.hint_digest,

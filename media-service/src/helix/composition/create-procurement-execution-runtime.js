@@ -1376,7 +1376,7 @@ function createProcurementExecutionRuntime(options) {
       ownerDomain:'arca',reconcilerKey:'acceptance-technical-recovery',
       listPage:({cursor,limit})=>arcaProcessServices.coordinator.listAcceptanceAttention(limit,cursor)
         .map((item)=>Object.freeze({cursor:item.offerId,scope:item})),
-      reconcile:()=>arcaProcessServices.coordinator.recoverAttentionCases(1),
+      reconcile:({offerId})=>arcaProcessServices.coordinator.recoverAttentionCase(offerId),
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'pending-ondeck-settlement-approvals',
       listPage:({cursor,limit})=>arcaProcessServices.coordinator.listPendingSettlementApprovals(cursor,limit),

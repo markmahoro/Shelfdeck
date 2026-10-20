@@ -323,6 +323,16 @@ function createOnDeckProcessCoordinator(options) {
     }
     return {kind:'approvals_ready',issued};
   }
+  function recoverAttentionCase(offerId) {
+    const item = recovery.read(offerId), triggerDigest = recoveryTriggerDigest();
+    if (!item || item.recoveryState !== 'attention_required' ||
+        item.automaticRecoveryUsed || item.failedTriggerDigest === triggerDigest) return null;
+    const refs = refsFromWorkDefinition(item.activeWorkId);
+    const nextWork = assessmentWork(item.offerId, refs, item.recoveryGeneration + 1, triggerDigest);
+    const next = recovery.startGeneration(item.offerId, { mode:'automatic', workId:nextWork.workId, recoveryTriggerDigest:triggerDigest });
+    return next.activeWorkId === nextWork.workId
+      ? Object.freeze({ offerId:item.offerId, work:nextWork, result:submit(nextWork) }) : null;
+  }
   return Object.freeze({
     admitOffer(message) {
       const offer = exactOffer(message), refs = refsFromOffer(offer);
@@ -336,14 +346,12 @@ function createOnDeckProcessCoordinator(options) {
         admissionParticipant:recovery.admissionParticipant({ offerId:offer.offerId, workId:work.workId, packageDigest:offer.packageDigest }) });
     },
     recordTerminalFailure,
+    recoverAttentionCase,
     recoverAttentionCases(limit = 100) {
-      const triggerDigest = recoveryTriggerDigest(), results = [];
+      const results = [];
       for (const item of recovery.listAttention(limit)) {
-        if (item.automaticRecoveryUsed || item.failedTriggerDigest === triggerDigest) continue;
-        const refs = refsFromWorkDefinition(item.activeWorkId);
-        const nextWork = assessmentWork(item.offerId, refs, item.recoveryGeneration + 1, triggerDigest);
-        const next = recovery.startGeneration(item.offerId, { mode:'automatic', workId:nextWork.workId, recoveryTriggerDigest:triggerDigest });
-        if (next.activeWorkId === nextWork.workId) results.push(Object.freeze({ offerId:item.offerId, work:nextWork, result:submit(nextWork) }));
+        const result = recoverAttentionCase(item.offerId);
+        if (result) results.push(result);
       }
       return Object.freeze(results);
     },

@@ -73,6 +73,31 @@ test('revision change creates one automatic generation and later failures wait f
   assert.deepEqual({ generation:user.recoveryGeneration, state:user.recoveryState }, { generation:3, state:'user_retrying' });
 }));
 
+test('paged acceptance recovery advances the selected case past an unchanged first case', () => fixture(({ unitOfWork, recovery }) => {
+  const trigger = canonicalDigest({ schema:'arca.acceptance-recovery-trigger@1',
+    executionContractRevision:'arca.acceptance.executor@2', connectionRevision:'none' });
+  for (const [offerId, failedTrigger] of [['a-unchanged', trigger], ['b-repaired', hex('d')]]) {
+    recovery.admit({ offerId, onDeckPackageId:'package-' + offerId, packageDigest:hex('a'),
+      workId:'work-' + offerId, workKind:'acceptance_assessment', recoveryTriggerDigest:failedTrigger });
+    recovery.recordFailure(offerId, { workId:'work-' + offerId, failurePhase:'acceptance_assessment',
+      errorCode:'EXECUTOR_DOWN', terminalAttemptCount:3, incidentKey:null });
+  }
+  const coordinator = createOnDeckProcessCoordinator({ schemaManifest, unitOfWork,
+    workResultReader:{ readDefinition:workId => ({ definition:{ dependencyRefs:[{
+      ownerDomain:'libra', objectType:'on_deck_package', objectId:'package-' + workId,
+      revision:1, digest:hex('a'),
+    }] } }) }, contextReader:{} });
+  const first = coordinator.listAcceptanceAttention(1, null)[0];
+  assert.equal(first.offerId, 'a-unchanged');
+  assert.equal(coordinator.recoverAttentionCase(first.offerId), null);
+  const second = coordinator.listAcceptanceAttention(1, first.offerId)[0];
+  assert.equal(second.offerId, 'b-repaired');
+  assert.equal(coordinator.recoverAttentionCase(second.offerId).result.kind, 'admitted');
+  assert.equal(recovery.read('a-unchanged').recoveryGeneration, 1);
+  assert.equal(recovery.read('b-repaired').recoveryGeneration, 2);
+  assert.equal(coordinator.recoverAttentionCase(second.offerId), null);
+}));
+
 test('a failed accepted On-deck Work resumes the same Run with one bounded successor Work', () => fixture(({ unitOfWork }) => {
   const refs=Object.freeze([{ownerDomain:'libra',objectType:'on_deck_package',objectId:'package-recovery',revision:1,digest:hex('a')}]);
   const acceptedRef=Object.freeze({ownerDomain:'arca',objectType:'supporting_work',objectId:'acceptance-commit-work',revision:1,digest:hex('b')});

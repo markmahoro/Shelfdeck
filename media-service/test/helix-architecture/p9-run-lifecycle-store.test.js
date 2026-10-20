@@ -343,25 +343,12 @@ test('discard is an atomic exit that releases original input Control without del
   const outcome=outcomes.get(input.libraRunId);
   assert.equal(outcome.outcome,'unable_to_on_deck');assert.equal(outcome.reasonCode,'user_cancelled');
   assert.deepEqual(outcome.responsibilityReceipt,result.discardReceipt);
-  const members=check.prepare('SELECT material_key AS materialKey,role FROM libra_run_material_members').all();
-  const requirements=JSON.parse(check.prepare('SELECT spec_json FROM libra_acceptance_specs').get().spec_json).requirements;
-  const source=offerId=>({offer:{offerId},snapshot:{primaryMaterialDeliveries:members}});
-  assert.equal(outcomes.checkReentry(source('new-observation'),()=>requirements).kind,'reentry_suppressed');
-  assert.equal(outcomes.checkReentry(source('changed-requirements'),()=>({...requirements,revisionForFixture:'changed'})),null);
-  assert.equal(outcomes.checkReentry(source('second-changed-requirements'),()=>({...requirements,revisionForFixture:'changed'})).kind,'reentry_suppressed');
-  const conditionStore=require('../../src/helix/domains/libra/persistence/run-outcome-store').createRunOutcomeStore({schemaManifest,
-    unitOfWork:input.unitOfWork,readFailureRecoveryConditions:()=>[{conditionKind:'tmdb',snapshotDigest:D('changed-provider')}]});
-  assert.equal(conditionStore.checkReentry(source('changed-provider'),()=>requirements),null);
-  assert.equal(conditionStore.checkReentry(source('another-offer-same-provider'),()=>requirements).kind,'reentry_suppressed');
   const intent=outcomes.requestReprocess(input.libraRunId,{expectedOutcomeDigest:outcome.outcomeDigest,actorId:'admin',idempotencyKey:'retry-1'});
   assert.equal(intent.replayed,false);
   assert.equal(outcomes.requestReprocess(input.libraRunId,{expectedOutcomeDigest:outcome.outcomeDigest,actorId:'admin',idempotencyKey:'retry-1'}).replayed,true);
   assert.throws(()=>outcomes.requestReprocess(input.libraRunId,{expectedOutcomeDigest:outcome.outcomeDigest,actorId:'admin',idempotencyKey:'retry-2'}),
     {code:'LIBRA_REPROCESS_ALREADY_REQUESTED'});
   assert.deepEqual(outcomes.sourceFieldIds(input.libraRunId),['field-1']);
-  assert.equal(outcomes.checkReentry(source('chosen-offer'),()=>requirements),null);
-  assert.equal(outcomes.checkReentry(source('chosen-offer'),()=>requirements),null);
-  assert.equal(outcomes.checkReentry(source('another-observation'),()=>requirements).kind,'reentry_suppressed');
   assert.equal(check.prepare('SELECT COUNT(*) n FROM libra_workspace_cleanup_scopes').get().n,0);
   assert.equal(check.prepare("SELECT COUNT(*) n FROM fx_outbox WHERE message_kind='libra.workspace-cleanup.requested@1'").get().n,1);
   assert.equal(check.prepare("SELECT consumer_domain FROM fx_outbox_deliveries WHERE message_id=(SELECT message_id FROM fx_outbox WHERE message_kind='libra.workspace-cleanup.requested@1')").get().consumer_domain,'libra');

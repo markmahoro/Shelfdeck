@@ -64,12 +64,47 @@ function candidateWork(snapshot,structure,unit,ordinal){const runId=snapshot.run
     idempotencyKey:'procurement-candidate-key-'+suffix,concurrencyScope:runId+'/candidate/'+unit.unitId,
     outputContractRef:'helix://contracts/types/CandidatePublicationReceipt/v1'});}
 
+function technicalEvidenceDigest(run, definition, status, materialKey) {
+  const terminalState=['failed','cancelled'].find(state=>status?.state===state||status?.latestAttempt?.state===state);
+  if(!terminalState)return null;
+  const attempt=status.latestAttempt||null;
+  return canonicalDigest({schema:'procurement.evidence-work-technical-failure@1',runId:run.procurement_run_id,
+    runBasisDigest:run.run_basis_digest,workId:definition.workId,attemptId:attempt?.attempt_id||null,
+    attemptOrdinal:attempt?Number(attempt.ordinal):null,terminalState,materialKey,
+    diagnosticClassification:attempt?.failure_code||('PROCUREMENT_EVIDENCE_ASSESSMENT_'+terminalState.toUpperCase())});
+}
+function candidateFailureDigest(runId, definition, unit, diagnostic) {
+  return canonicalDigest({schema:'procurement.candidate-work-business-failure@1',runId,
+    workId:definition.workId,unitId:unit.unitId,unitDigest:unit.unitDigest,
+    diagnosticClassification:diagnostic||'PROCUREMENT_CANDIDATE_ASSEMBLY_FAILED'});
+}
 function createProcurementRunCoordinator(options){
   if(!options?.schemaManifest||!options.unitOfWork||!options.triageReader||!options.workResultReader||
       typeof options.workResultReader.status!=='function'||!options.evidenceIndex||typeof options.evidenceIndex.read!=='function'||
       !options.runSealStore)fail('P7_RUN_COORDINATOR_DEPENDENCIES',
     'Procurement Run Coordinator requires only Owner read facts and Work Admission.');
   return Object.freeze({
+    readTechnicalPreparationFailures(runId) {
+      const run=options.triageReader.readRunHeader(runId),failures=new Map();
+      if(!run||['active','waiting'].includes(run.state))return failures;
+      const snapshot={run},definition=evidenceWork(snapshot),status=options.workResultReader.status(definition.workId);
+      const basis=options.triageReader.readRunBasis(runId);
+      for(const member of basis.members){
+        const digest=technicalEvidenceDigest(run,definition,status,member.material_key);
+        if(digest)failures.set(member.material_key,digest);
+      }
+      const index=options.evidenceIndex.read(definition.workId);
+      let ordinal=0;
+      const units=index.units||index.structureResults.flatMap(structure=>(structure.units||[])
+        .map(unit=>({structure,unit,ordinal:ordinal++})));
+      for(const [position,entry] of units.entries()){
+        const work=candidateWork(snapshot,entry.structure,entry.unit,position),current=options.workResultReader.status(work.workId);
+        if(!['failed','cancelled'].some(state=>current?.state===state||current?.latestAttempt?.state===state))continue;
+        const digest=candidateFailureDigest(runId,work,entry.unit,current?.latestAttempt?.failure_code);
+        for(const materialKey of unitMaterialKeys(entry.unit,basis))failures.set(materialKey,digest);
+      }
+      return failures;
+    },
     reconcile(runId){const run=typeof options.triageReader.readRunHeader==='function'?options.triageReader.readRunHeader(runId):options.triageReader.read(runId)?.run;
       if(!run)return Object.freeze({kind:'not_found',runId});
       const snapshot=Object.freeze({run});
@@ -160,9 +195,7 @@ function createProcurementRunCoordinator(options){
         for(const failedWork of failedWorks){
           const unit=failedWork.entry.unit;
           const materialKeys=unitMaterialKeys(unit,runBasis);
-          const evidenceDigest=canonicalDigest({schema:'procurement.candidate-work-business-failure@1',runId,
-            workId:failedWork.definition.workId,unitId:unit.unitId,unitDigest:unit.unitDigest,
-            diagnosticClassification:failedWork.diagnostic||'PROCUREMENT_CANDIDATE_ASSEMBLY_FAILED'});
+          const evidenceDigest=candidateFailureDigest(runId,failedWork.definition,unit,failedWork.diagnostic);
           for(const materialKey of materialKeys)unassigned.set(materialKey,Object.freeze({materialKey,
             reasonCode:failedWork.diagnostic||'PROCUREMENT_CANDIDATE_ASSEMBLY_FAILED',evidenceDigest}));
         }
@@ -176,11 +209,8 @@ function createProcurementRunCoordinator(options){
           for(const member of runBasis.members){
             if(successfulMaterialKeys.has(member.material_key)||unassigned.has(member.material_key))continue;
             const materialKey=member.material_key;
-            unassigned.set(materialKey,Object.freeze({materialKey,reasonCode:diagnostic,evidenceDigest:canonicalDigest({
-              schema:'procurement.evidence-work-technical-failure@1',runId,runBasisDigest:snapshot.run.run_basis_digest,
-              workId:definition.workId,attemptId:attempt?.attempt_id||null,attemptOrdinal:attempt?Number(attempt.ordinal):null,
-              terminalState:evidenceTerminalFailure,materialKey,diagnosticClassification:diagnostic,
-            })}));
+            unassigned.set(materialKey,Object.freeze({materialKey,reasonCode:diagnostic,
+              evidenceDigest:technicalEvidenceDigest(snapshot.run,definition,evidenceStatus,materialKey)}));
           }
         }
         const releasedMembers=Object.freeze([...unassigned.values()].sort((a,b)=>Buffer.compare(Buffer.from(a.materialKey),Buffer.from(b.materialKey)))

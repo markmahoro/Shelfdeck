@@ -21,6 +21,8 @@ function createSourceFairnessStore(options) {
   statements.sources_by_id={kind:'select-in',tableId:tables.source,columns:columns.source,keyColumn:'source_field_id',maxItems:500};
   statements.sources={kind:'select-all',tableId:tables.source,columns:columns.source,keyColumns:[]};
   statements.owner_run={kind:'select-one',tableId:'libra_runs',columns:['subject_id'],keyColumns:['libra_run_id']};
+  statements.owner_subject={kind:'select-one',tableId:'libra_subjects',columns:['routing_anchor_intake_decision_id'],keyColumns:['subject_id']};
+  statements.intake_snapshot={kind:'select-one',tableId:'libra_intake_decisions',columns:['candidate_delivery_snapshot_json'],keyColumns:['intake_decision_id']};
   statements.token={kind:'select-one',tableId:'libra_predeck_pipeline_tokens',columns:['source_field_id'],keyColumns:['subject_id']};
   const repository=createRepositoryDefinition({repositoryId:'libra_source_fairness',owner:'libra',schemaManifest:options.schemaManifest,statements});
   function execute(body){return options.unitOfWork.execute([{participantId:'libra_source_fairness',owner:'libra',repositories:[repository],
@@ -34,15 +36,22 @@ function createSourceFairnessStore(options) {
   }
   return Object.freeze({
     registerRun(runId){return execute(repo=>{
-      const current=repo.invoke('get_run',{libra_run_id:runId});if(current)return Object.freeze({...current});
       const run=repo.invoke('owner_run',{libra_run_id:runId});
+      const subject=run&&repo.invoke('owner_subject',{subject_id:run.subject_id});
+      const decision=subject&&repo.invoke('intake_snapshot',{intake_decision_id:subject.routing_anchor_intake_decision_id});
+      const candidatePublishedAtMs=decision&&JSON.parse(decision.candidate_delivery_snapshot_json).candidatePackage?.publishedAtMs;
+      if(!Number.isSafeInteger(candidatePublishedAtMs)||candidatePublishedAtMs<0)
+        throw new Error('Fairness Run lacks its immutable Candidate publication time.');
+      const current=repo.invoke('get_run',{libra_run_id:runId});
+      if(current)return Object.freeze({...current,candidatePublishedAtMs});
       const token=run&&repo.invoke('token',{subject_id:run.subject_id});
       if(!token)throw new Error('Fairness Run lacks its original source responsibility.');
-      const row={libra_run_id:runId,source_field_id:token.source_field_id,last_turn_sequence:0,scan_cursor:null,updated_at_ms:options.now()};
+      // Join the current round instead of claiming an unserved historical turn.
+      const row={libra_run_id:runId,source_field_id:token.source_field_id,last_turn_sequence:Number(clock(repo).turn_sequence),scan_cursor:null,updated_at_ms:options.now()};
       put(repo,'run',row);
       if(!repo.invoke('get_source',{source_field_id:row.source_field_id}))put(repo,'source',{
         source_field_id:row.source_field_id,last_turn_sequence:0,updated_at_ms:options.now()});
-      return Object.freeze({...row});
+      return Object.freeze({...row,candidatePublishedAtMs});
     });},
     advancePriorityRevision(){return execute(repo=>{
       const current=clock(repo),revision=Number(current.priority_revision)+1;

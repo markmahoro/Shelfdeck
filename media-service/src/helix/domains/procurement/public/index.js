@@ -81,9 +81,10 @@ function createExecutionRegistration() {
         triageReader, evidenceIndex, triageRuleRegistry,
       });
       const progressReader = createFieldObservationProgressReader(options);
-      const procurementAutomation = createProcurementAutomationService({ ...options, triageRegistry: triageRuleRegistry });
       const runSealStore = createProcurementRunSealCommandStore(options);
       const runCoordinator = createProcurementRunCoordinator({ ...options, triageReader, workResultReader, evidenceIndex, runSealStore });
+      const procurementAutomation = createProcurementAutomationService({ ...options, triageRegistry: triageRuleRegistry,
+        readTechnicalPreparationFailures:runCoordinator.readTechnicalPreparationFailures });
       const observationAdmin = options.executionRuntimeHost && options.materialFieldStore
         ? createFieldObservationAdminService(options)
         : null;

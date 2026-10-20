@@ -13,8 +13,10 @@ function fixture(t){
  t.after(()=>{kernel.close();fs.rmSync(root,{recursive:true,force:true});});
  kernel.runPrimitive(({prepare})=>{
   prepare('PRAGMA foreign_keys=OFF').run();
-  for(const [run,subject,source] of [['a1','sa','a'],['a2','sa','a'],['b1','sb','b'],['c1','sc','c']]){
-   prepare('INSERT OR IGNORE INTO libra_subjects(subject_id,status) VALUES(?,?)').run(subject,'active');
+  for(const [run,subject,source] of [['a1','sa','a'],['a2','sa2','a'],['b1','sb','b'],['c1','sc','c']]){
+   prepare('INSERT OR IGNORE INTO libra_intake_decisions(intake_decision_id,decision_kind,candidate_delivery_snapshot_schema_ref,candidate_delivery_snapshot_json,decision_identity_evidence_schema_ref,decision_identity_evidence_json,decision_identity_evidence_digest) VALUES(?,?,?,?,?,?,?)')
+    .run('intake-'+subject,'accepted_resolution','fixture',JSON.stringify({candidatePackage:{publishedAtMs:1}}),'fixture','{}','a'.repeat(64));
+   prepare('INSERT OR IGNORE INTO libra_subjects(subject_id,status,routing_anchor_intake_decision_id) VALUES(?,?,?)').run(subject,'active','intake-'+subject);
    prepare('INSERT INTO libra_runs(libra_run_id,subject_id,state) VALUES(?,?,?)').run(run,subject,'active');
    prepare('INSERT OR IGNORE INTO libra_predeck_pipeline_tokens(subject_id,source_field_id,source_process_id,acquired_at_ms) VALUES(?,?,?,?)').run(subject,source,'intake-'+subject,1);
   }
@@ -32,7 +34,7 @@ test('durable opportunities advance one source and one Run atomically; restart a
  assert.equal(store.recordOpportunity(opportunity).recorded,true);
  const charged=store.snapshot();
  assert.equal(charged.sources.find(s=>s.sourceFieldId==='a').lastTurn,2);
- assert.equal(charged.runs.find(s=>s.runId==='a2').lastTurn,0);
+ assert.equal(charged.runs.find(s=>s.runId==='a2').lastTurn,1);
  for(let i=0;i<20;i++)assert.equal(store.recordOpportunity(opportunity).recorded,false);
  assert.deepEqual(store.snapshot(),charged);
  store.saveCursor('a1','event-a');
@@ -58,6 +60,36 @@ test('failure between clock and ledger writes rolls back every fairness fact',t=
  assert.throws(()=>failing.recordOpportunity(opportunity),/interrupted ledger write/);
  assert.deepEqual(store.snapshot(),before);
  assert.equal(store.recordOpportunity(opportunity).recorded,true);
+});
+
+test('late registration joins the current round and uses publication time before arbitrary Run IDs',t=>{
+ const {createSourceFairness}=require('../../src/helix/domains/libra/application/source-fairness');
+ const options=fixture(t),store=createSourceFairnessStore(options);
+ options.kernel.runPrimitive(({prepare})=>{
+  for(const [subject,publishedAtMs] of [['sa',200],['sa2',100]])
+   prepare('UPDATE libra_intake_decisions SET candidate_delivery_snapshot_json=? WHERE intake_decision_id=?')
+    .run(JSON.stringify({candidatePackage:{publishedAtMs}}),'intake-'+subject);
+ });
+ const fairness=createSourceFairness({...options,store});
+ fairness.setEligible('a1',true);fairness.setEligible('a2',true);
+ assert.ok(fairness.read('a2').localPriorityBonus>fairness.read('a1').localPriorityBonus);
+});
+
+test('a new attempt gets no zero-turn advantage over an existing Run and still rotates after service',t=>{
+ const {createSourceFairness}=require('../../src/helix/domains/libra/application/source-fairness');
+ const options=fixture(t),store=createSourceFairnessStore(options);
+ options.kernel.runPrimitive(({prepare})=>prepare('UPDATE libra_intake_decisions SET candidate_delivery_snapshot_json=? WHERE intake_decision_id=?')
+  .run(JSON.stringify({candidatePackage:{publishedAtMs:200}}),'intake-sa2'));
+ store.registerRun('a1');
+ store.recordOpportunity({runId:'a1',eventId:'old-event',eventAttemptId:'old-start',ordinal:1});
+ assert.equal(store.registerRun('a2').last_turn_sequence,2);
+ const fairness=createSourceFairness({...options,store});
+ fairness.setEligible('a1',true);fairness.setEligible('a2',true);
+ assert.ok(fairness.read('a1').localPriorityBonus>fairness.read('a2').localPriorityBonus);
+ store.recordOpportunity({runId:'a1',eventId:'old-event',eventAttemptId:'old-next-start',ordinal:2});
+ const restarted=createSourceFairness({...options,store:createSourceFairnessStore(options)});
+ restarted.setEligible('a2',true);restarted.setEligible('a1',true);
+ assert.ok(restarted.read('a2').localPriorityBonus>restarted.read('a1').localPriorityBonus);
 });
 
 

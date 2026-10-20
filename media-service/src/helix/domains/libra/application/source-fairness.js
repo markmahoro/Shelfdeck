@@ -12,7 +12,7 @@ function qualifiedOpportunity(summary){
     attempt.failureCode!=='FENCE_REJECTED';
 }
 function createSourceFairness(options){
- const store=options.store||createSourceFairnessStore(options),registered=new Set(),eligible=new Set(),lastScans=new Map();
+ const store=options.store||createSourceFairnessStore(options),registered=new Set(),eligible=new Set(),lastScans=new Map(),packageTimes=new Map();
  let snapshot=store.snapshot([]),bonuses=new Map();
  function rebuild(){
   snapshot=store.snapshot([...eligible]);bonuses=new Map();
@@ -20,14 +20,15 @@ function createSourceFairness(options){
   for(const run of runs){if(!groups.has(run.sourceFieldId))groups.set(run.sourceFieldId,[]);groups.get(run.sourceFieldId).push(run);}
   const sources=snapshot.sources.filter(row=>groups.has(row.sourceFieldId)).sort((a,b)=>a.lastTurn-b.lastTurn||a.sourceFieldId.localeCompare(b.sourceFieldId));
   for(let sourceIndex=0;sourceIndex<sources.length;sourceIndex++){
-   const source=sources[sourceIndex],members=groups.get(source.sourceFieldId).sort((a,b)=>a.lastTurn-b.lastTurn||a.runId.localeCompare(b.runId));
+   const source=sources[sourceIndex],members=groups.get(source.sourceFieldId).sort((a,b)=>a.lastTurn-b.lastTurn||
+     packageTimes.get(a.runId)-packageTimes.get(b.runId)||a.runId.localeCompare(b.runId));
    // Bounded preference preserves the existing 100-point completion gap and
    // Foundation aging. Large populations share buckets; no waiting-time debt.
    const sourceBonus=8*Math.floor(11*(sources.length-sourceIndex-1)/Math.max(1,sources.length-1));
    for(let i=0;i<members.length;i++)bonuses.set(members[i].runId,sourceBonus+Math.floor(7*(members.length-i-1)/Math.max(1,members.length-1)));
   }
  }
- function register(runId){if(!registered.has(runId)){store.registerRun(runId);registered.add(runId);}}
+ function register(runId){if(!registered.has(runId)){const run=store.registerRun(runId);packageTimes.set(runId,run.candidatePublishedAtMs);registered.add(runId);}}
  function consume(runId,summary,expectedAttemptId=null){
   if(!qualifiedOpportunity(summary))return false;
   const attempt=summary.latestAttempt;
