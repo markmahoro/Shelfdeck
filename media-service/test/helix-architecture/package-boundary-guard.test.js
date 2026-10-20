@@ -12,6 +12,20 @@ const {
   scanCommonJsDependencies
 } = require('../../scripts/helix-architecture/package-boundary-guard');
 
+test('CommonJS scanner preserves quoted and escaped RegExp bytes without losing real dependencies',()=>{
+  const source=String.raw`const name = /[<>:"/\\|?*]/; const quoted = /require\('fake'\)/;
+    const escaped = /[\]/"']+/g; const slash = /a\/b/;
+    const real = require('./actual');`;
+  const result=scanCommonJsDependencies(source,'regexp-fixture.js');
+  assert.deepEqual(result.findings,[]);assert.deepEqual(result.dependencies.map(item=>item.specifier),['./actual']);
+});
+
+test('CommonJS scanner still checks actual loaders inside division expressions',()=>{
+  const result=scanCommonJsDependencies("const a=4 / require('./actual') / 2; const b=8 / require(dynamic);",'division-fixture.js');
+  assert.deepEqual(result.dependencies.map(item=>item.specifier),['./actual']);
+  assert.ok(result.findings.some(item=>item.code==='DYNAMIC_REQUIRE_NOT_ALLOWED'));
+});
+
 const POLICY = Object.freeze({
   schemaVersion: 1,
   defaultInternalDecision: 'deny',

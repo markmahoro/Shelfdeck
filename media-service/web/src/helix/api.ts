@@ -5,7 +5,7 @@ export type JsonValue = null | boolean | number | string | JsonValue[] | { [key:
 export type DefectAuthorization = { authorizationId:string; revision:number; state:'enabled'|'revoked'; authorizationDigest:string };
 export type LibraRunOutcome = {libraRunId:string;outcome:'on_deck'|'on_deck_with_defects'|'unable_to_on_deck';
   reasonCode:string;outcomeDigest:string;committedAtMs:number;
-  terminalReasons?:Array<{failureClass:string;failureCode:string;capabilityRef:string}>};
+  terminalReasons?:Array<{failureCode:string}&({failureClass:string;capabilityRef:string}|{blockerSource:'plan_rejection';workId:string;planId:string;workBasisDigest:string;workAttemptId:string;plannerContractRef:string;plannerVersion:number;catalogDigest:string;graphDigest:string;attemptCount:number;terminalEvidenceDigest:string;memberDigest:string})>};
 export type AcceptedGap = {gapDigest:string;findingKind:string;requirementCode:string;targetKind:'media'|'artifact'|'metadata_field';targetId:string;requiredValue:{value?:unknown;field?:string;artifact?:string}};
 export type CollectionDefectPreview = {shelfEntryId:string;inventoryRevision:number;careBasisDigest:string;authorizationRevision:number;
   candidateDigest:string;gapSetDigest:string;gaps:AcceptedGap[];acceptedGaps:AcceptedGap[];eligibility:'eligible'|'ineligible'|'evidence_pending';
@@ -263,7 +263,7 @@ export type FormationSubject = {
   ratingState?: 'pending'|'ready';
   ratingResolutionStatus?: 'found'|'not_found'|null;
   ratingReasonCode?: string|null;
-  productIdentityIssue: null | { contentProfile?:'jav'; sourceLocation?:string|null; claimedCode?:string|null; result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string|null; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
+  productIdentityIssue: null | { contentProfile?:'jav'|'western_adult'; sourceLocation?:string|null; claimedCode?:string|null; result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string|null; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
   failureDiagnostics?: Array<{eventId:string;code:string;diagnosticsUnavailable?:boolean;diagnostics:{sourceDirectory?:string;unknownNames?:string[];unknownMemberCount?:number;truncated?:boolean;field?:string;reasonCode?:string;networkCode?:string;stage?:string;timeout?:boolean}|null}>;
   executorIssue: null | { phase:string; errorCode:string; attemptCount:number|null; owner:string; recoveryState:string;
     recoveryGeneration:number|null; automaticRecoveryUsed:boolean; canRetry:boolean; offerId:string; onDeckRunId?:string };
@@ -491,7 +491,10 @@ export type OverviewProjection = {
 
 export type RuntimeOperation = {operationId:string;kind:'stop'|'resume'|'reset';state:'pending'|'completed'|'failed';
   result?:{backupId?:string;removedSubjects?:number};error?:{code:string;message:string}};
+export type MaintenanceWindowSettings = {weekday:number;startTime:string;endTime:string;timeZone:'Asia/Shanghai'};
+export type MaintenanceConfiguration = {revision:number;settings:MaintenanceWindowSettings;pendingSettings:{settings:MaintenanceWindowSettings;effectiveAtMs:number}|null};
 export type RuntimeStatus = {mode:'starting'|'running'|'stopping'|'stopped'|'resuming'|'resetting'|'error';desiredMode:'running'|'stopped';
+  maintenance:{maintenanceActive:boolean;phase:'entering'|'recovering'|'maintaining'|'settling'|null;currentTask:string|null;windowEndAtMs:number|null};
   revision:number;normalSupplyAllowed:boolean;activity:{inFlightEvents:number;inFlightRecoveries:number;inFlightOwnerReconciliations:number;inFlightAdminCommands?:number};
   operation:RuntimeOperation|null;error:{code:string;message:string}|null;recoveryBackup:string|null};
 export type FormationResetPreview={previewDigest:string;ready:boolean;empty:boolean;items:Array<{subjectId:string;displayIdentity:string;contentProfile:string}>;
@@ -526,15 +529,50 @@ export type SetupReadinessProjection = {
   availableActions: Array<{ actionCode: string; label: string; expectedRevision: number; requiresConfirmation: boolean }>;
 };
 
+export type PersonLibrary = 'normal' | 'jav' | 'us_adult';
+export type PersonImageSelection = { kind:'upload'; bytesBase64:string } | { kind:'search'; selectionToken:string };
+export type RecommendationClaim = {
+  claimId:string;state:'preparing_person'|'confirming_source'|'completed'|'conflict'|'person_failed';revision:number;
+  personId:string|null;failureCode:string|null;sourceConfirmed:boolean;source:{subjectId:string;libraRunId:string;title:string};
+};
+export type RecommendationPublication = {windowKey:number;revision:number;snapshotDigest:string};
+export type UsAdultRecommendation = {recommendationId:string;coverageCount:number;qualityScore:number;
+  source:{subjectId:string;libraRunId:string;title:string};imageUrl:string;claim:RecommendationClaim|null};
+export type UsAdultRecommendations = {publication:RecommendationPublication|null;items:UsAdultRecommendation[]};
+export type RecommendationClaimRequest = {idempotencyKey:string;expectedPublicationRevision:number;expectedSnapshotDigest:string;target:
+  {kind:'existing';personId:string;expectedPersonRevision:number;expectedReferenceRevision:number}|
+  {kind:'create';canonicalName:string;aliases:string[];image:PersonImageSelection|{kind:'recommendation'}}};
+export type RecommendationClaimAccepted = RecommendationClaim & {claimRef:string;replayed:boolean};
+export type PersonImageSearch = { sources:Array<{
+  source:'stashbox'; state:'available'|'empty'|'unconfigured'|'failed'; error?:{code:string;message:string};
+  items:Array<{source:'stashbox';sourceObjectId:string;canonicalName:string;aliases:string[];
+    sourcePageUrl:string;attribution:string;width:number;height:number;selectionToken:string}>;
+}> };
+export type PersonImageOperation = {operationRef:string;state:'preparing'|'completed'|'failed';personId:string|null;failureCode:string|null};
+export type UsAdultActorSelection = {
+  libraRunId:string;subjectId:string;expectedRunStateRevision:number;expectedChoiceRevision:number;canChoose:boolean;
+  analysisState:'not_started'|'analyzing'|'completed';detectedFaceCount:number|null;selectionOrigin:'user_choice'|'automatic_match'|null;
+  selectedActor:{personId:string;canonicalName:string;personRevision:number;referenceRevision:number}|null;
+};
+export type UsAdultActorChoice = {idempotencyKey:string;expectedRunStateRevision:number;expectedChoiceRevision:number;
+  personId:string;expectedPersonRevision:number;expectedReferenceRevision:number};
+export type UsAdultActorRefreshView={shelfEntryId:string;expectedInventoryRevision:number;expectedRepresentationDigest:string;
+  currentActor:{personId:string;displayName:string};canRefresh:boolean;blockingCaseId:string|null;
+  progress:{aftercareCaseId:string;mode:'specified'|'automatic';state:string;reasonCode:string|null;
+    works:Array<{workId:string;phase:string;state:string;failureCode:string|null}>}|null};
+export type UsAdultActorRefreshRequest={idempotencyKey:string;expectedInventoryRevision:number;expectedRepresentationDigest:string}&(
+  {mode:'automatic'}|{mode:'specified';personId:string;expectedPersonRevision:number;expectedReferenceRevision:number});
 export type PeopleProjection = {
   items: Array<{
-    personId:string; status:'active'|'merged'; currentRevision:number; canonicalName:string;
+    personId:string; libraryKind:PersonLibrary; status:'active'|'merged'; currentRevision:number; canonicalName:string;
     aliases:string[]; providerIdentities:Array<{provider:string;namespace:string;providerKey:string}>;
     currentPreferenceRevision:number|null; currentReferenceRevision:number|null; createdAtMs:number;
   }>;
   nextCursor:string|null;
   summary:{activePersonCount:number;mergedPersonCount:number;openRegistrationCandidateCount:number;openMergeCandidateCount:number};
 };
+export type PersonRelatedCollection={personId:string;libraryKind:PersonLibrary;items:Array<Pick<CollectionEntry,
+  'shelfEntryId'|'displayIdentity'|'year'|'currentInventoryRevision'|'shelfName'|'hasPoster'|'structureKind'>>;nextCursor:string|null};
 
 export type FormationSummary = { endedCount?:number;
   totalCount: number;
@@ -629,6 +667,10 @@ export const helixAdminApi = {
     return request<OverviewProjection>('/v1/admin/overview');
   },
   getRuntimeStatus(){return request<RuntimeStatus>('/v1/admin/runtime');},
+  getMaintenanceConfiguration(){return request<MaintenanceConfiguration>('/v1/admin/runtime/maintenance');},
+  patchMaintenanceConfiguration(expectedRevision:number,idempotencyKey:string,settings:Partial<MaintenanceWindowSettings>){
+    return request<MaintenanceConfiguration>('/v1/admin/runtime/maintenance',{method:'PATCH',body:JSON.stringify({expectedRevision,idempotencyKey,settings})});
+  },
   stopRuntime(idempotencyKey:string){return request<RuntimeOperation>('/v1/admin/runtime/actions/stop',{method:'POST',body:JSON.stringify({idempotencyKey})});},
   resumeRuntime(idempotencyKey:string){return request<RuntimeOperation>('/v1/admin/runtime/actions/resume',{method:'POST',body:JSON.stringify({idempotencyKey})});},
   previewFormationReset(){return request<FormationResetPreview>('/v1/admin/runtime/reset-preview');},
@@ -637,20 +679,46 @@ export const helixAdminApi = {
   getSetupReadiness() {
     return request<SetupReadinessProjection>('/v1/admin/setup-readiness');
   },
-  listPeople(params:{cursor?:string;limit?:number;search?:string;status?:'active'|'merged'}={}) {
+  listPeople(params:{cursor?:string;limit?:number;search?:string;status?:'active'|'merged';libraryKind?:PersonLibrary}={}) {
     const query=new URLSearchParams();Object.entries(params).forEach(([key,value])=>{if(value!==undefined&&value!=='')query.set(key,String(value));});
     return request<PeopleProjection>(`/v1/admin/people${query.size?`?${query}`:''}`);
   },
+  readInventoryActorRefresh(shelfEntryId:string){return request<UsAdultActorRefreshView>(`/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/actor-refresh`);},
+  refreshInventoryActor(shelfEntryId:string,body:UsAdultActorRefreshRequest){return request<{aftercareCaseId:string;state:string;replayed:boolean}>(
+    `/v1/admin/collection/${encodeURIComponent(shelfEntryId)}/actions/refresh-us-adult-actor`,{method:'POST',body:JSON.stringify(body)});},
   listPeopleRegistrationCandidates() {
     return request<{ items: Array<{ candidateId: string; currentState: string; currentRevision: number; proposedName: string; evidenceDigest: string }> }>('/v1/admin/people/registration-candidates');
   },
-  personAvatarUrl(personId: string) {
-    return `/v1/admin/people/${encodeURIComponent(personId)}/avatar`;
+  readPersonCollection(personId:string,cursor?:string){return request<PersonRelatedCollection>(
+    `/v1/admin/people/${encodeURIComponent(personId)}/collection?${new URLSearchParams({limit:'24',...(cursor?{cursor}:{})})}`);},
+  readCollectionEntry(shelfEntryId:string){return request<CollectionEntry>(`/v1/admin/collection/${encodeURIComponent(shelfEntryId)}`);},
+  personAvatarUrl(personId: string,referenceRevision?:number|null) {
+    return `/v1/admin/people/${encodeURIComponent(personId)}/avatar${referenceRevision?`?revision=${referenceRevision}`:''}`;
   },
-  registerPerson(body:{ canonicalName:string; aliases?:string[]; providerIdentities?:Array<{provider?:string;namespace?:string;providerKey:string}> }) {
-    return request<{ person: { personId:string; revision?:{canonicalName:string} } }>('/v1/admin/people/actions/register', {
-      method:'POST', body:JSON.stringify({ ...body, idempotencyKey:`people-register:${body.canonicalName}:${newOpaqueId()}` }),
+  readPersonReferences(personId:string){return request<{personId:string;libraryKind:PersonLibrary;currentRevision:number;currentReferenceRevision:number;
+    referenceImages:Array<{referenceAssetId:string}>}>(`/v1/admin/people/${encodeURIComponent(personId)}`);},
+  personReferenceUrl(personId:string,assetId:string,revision:number){return `/v1/admin/people/${encodeURIComponent(personId)}/avatar?${new URLSearchParams({assetId,revision:String(revision)})}`;},
+  registerPerson(body:{ idempotencyKey:string;libraryKind:'us_adult';canonicalName:string;aliases:string[];image:PersonImageSelection }) {
+    return request<{operationRef:string;state:'accepted'}>('/v1/admin/people', {
+      method:'POST', body:JSON.stringify(body),
     });
+  },
+  readUsAdultRecommendations(){return request<UsAdultRecommendations>('/v1/admin/people/recommendations');},
+  claimUsAdultRecommendation(id:string,body:RecommendationClaimRequest){
+    return request<RecommendationClaimAccepted>(`/v1/admin/people/recommendations/${encodeURIComponent(id)}/actions/claim`,{method:'POST',body:JSON.stringify(body)});
+  },
+  readRecommendationClaim(id:string){return request<RecommendationClaim>(`/v1/admin/people/recommendation-claims/${encodeURIComponent(id)}`);},
+  searchPersonImages(name:string){return request<PersonImageSearch>(`/v1/admin/people/image-search?${new URLSearchParams({name})}`);},
+  personImagePreviewUrl(selectionToken:string){return `/v1/admin/people/image-search/preview?${new URLSearchParams({selectionToken})}`;},
+  getPersonImageOperation(operationRef:string){return request<PersonImageOperation>(`/v1/admin/people/operations/${encodeURIComponent(operationRef)}`);},
+  updatePersonProfile(personId:string,body:{idempotencyKey:string;expectedPersonRevision:number;canonicalName:string;aliases:string[]}){
+    return request<{replayed:boolean;receipt:{resultRef:{personId:string;personRevision:number}}}>(`/v1/admin/people/${encodeURIComponent(personId)}`,{method:'PATCH',body:JSON.stringify(body)});
+  },
+  addPersonReference(personId:string,body:{idempotencyKey:string;expectedPersonRevision:number;expectedReferenceRevision:number;image:PersonImageSelection;replaceAssetId?:string}){
+    return request<{operationRef:string;state:'accepted'}>(`/v1/admin/people/${encodeURIComponent(personId)}/reference-assets`,{method:'POST',body:JSON.stringify(body)});
+  },
+  releasePersonReference(personId:string,assetId:string,body:{idempotencyKey:string;expectedPersonRevision:number;expectedReferenceRevision:number}){
+    return request<{operationRef:string;state:'accepted'}>(`/v1/admin/people/${encodeURIComponent(personId)}/reference-assets/${encodeURIComponent(assetId)}`,{method:'DELETE',body:JSON.stringify(body)});
   },
   acceptPeopleCandidate(candidateId:string) {
     return request<{ person: { personId:string } }>('/v1/admin/people', {
@@ -884,6 +952,9 @@ export const helixAdminApi = {
       expectedSelectionIntentRevision:preview.expectedSelectionIntentRevision,idempotencyKey})});
   },
   chooseProductIdentity(subject:FormationSubject,providerId:string,idempotencyKey?:string){if(!subject.currentRun)throw new Error('当前媒体没有可恢复的整理任务。');const run=subject.currentRun;return request<{selectionIntentId:string;libraRunId:string;providerKey:string;intentRevision:number;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/choose-product-identity`,{method:'POST',body:JSON.stringify({... (subject.contentProfile === 'series' ? {tmdbSeriesId:providerId} : {tmdbMovieId:providerId}),expectedRunStateRevision:run.stateRevision,expectedIdentityRevision:run.currentIdentityRevision,candidateSetDigest:subject.productIdentityIssue?.candidateSetDigest||null,idempotencyKey:idempotencyKey||`choose-product-identity:${run.libraRunId}:${run.stateRevision}:${providerId}:${newOpaqueId()}`})});},
+  readUsAdultActorSelection(libraRunId:string){return request<UsAdultActorSelection>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actor-selection`);},
+  chooseUsAdultActor(libraRunId:string,body:UsAdultActorChoice){return request<{replayed:boolean;receipt:{resultRef:{personId:string;choiceRevision:number}}}>(
+    `/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actions/choose-us-adult-actor`,{method:'POST',body:JSON.stringify(body)});},
   retryAcceptance(subject:FormationSubject){if(!subject.executorIssue?.canRetry)throw new Error('当前接纳或上架故障不能重试。');const offerId=subject.executorIssue.offerId;return request(`/v1/admin/formation/acceptance/${encodeURIComponent(offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({idempotencyKey:`acceptance-retry:${offerId}:${newOpaqueId()}`})});},
   createShelf(body: JsonValue) {
     return request<{ shelf: Shelf; replayed: boolean }>('/v1/admin/shelves', {
@@ -1063,7 +1134,7 @@ export const helixAdminApi = {
 
 export async function materialFieldRegistration(input: {
   fieldId: string;
-  contentProfileHint: 'movie' | 'series' | 'jav' | 'mixed';
+  contentProfileHint: 'movie' | 'series' | 'jav' | 'western_adult' | 'mixed';
   name: string;
   rootLocation: string;
   includedDirectories: string[];

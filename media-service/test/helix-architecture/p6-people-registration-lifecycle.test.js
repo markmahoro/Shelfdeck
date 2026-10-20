@@ -8,6 +8,7 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 
+const { initialReference } = require('./fixtures/us-adult-initial-reference');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createCommandCommitCoordinator } = require('../../src/helix/foundation/persistence/commit-foundation');
 const { createCanonicalTransactionRegistry, createDomainCommitCoordinator, createDomainCommitRegistry } = require('../../src/helix/foundation/persistence/domain-commit-registry');
@@ -61,7 +62,7 @@ function fixture(run) {
 
 function draft(id = 'registration-1', providerKey = id) {
   const candidatePayload = {
-    proposedName: `Candidate ${id}`,
+    libraryKind: 'normal', proposedName: `Candidate ${id}`,
     aliases: [{ aliasDisplay: id, aliasNormalized: id.toLowerCase(), provenanceDigest: hash(`${id}:alias`) }],
     providerIdentities: [{ provider: 'tmdb', namespace: 'person', providerKey, provenanceDigest: hash(`${id}:provider`) }],
     referenceHints: [{ hintKind: 'portrait', referenceValue: `artifact:${id}`, provenanceDigest: hash(`${id}:hint`) }]
@@ -154,7 +155,7 @@ function mergeAcceptanceRequest(value) {
 }
 
 function registerDirect(store, personId, canonicalName, alias, provider, providerKey) {
-  const value = { decisionId: `register-${personId}`, newPersonId: personId, canonicalName,
+  const value = { decisionId: `register-${personId}`, newPersonId: personId, libraryKind: 'normal', canonicalName,
     aliases: [{ aliasDisplay: alias, aliasNormalized: alias.toLowerCase(), provenanceDigest: hash(`${personId}:alias`) }],
     providerIdentities: [{ provider, namespace: 'person', providerKey, provenanceDigest: hash(`${personId}:provider`) }], actorId: 'admin-1' };
   return store.registerDirectPerson({ ...value, decisionDigest: canonicalDigest(value) });
@@ -357,6 +358,14 @@ test('strong identity rule cannot choose across conflicting Preferences', () => 
   });
 });
 
+test('a system Merge cannot use equal Preferences to accept an unproven Person pair',()=>fixture(({coordinator,store})=>{
+  seedMergePeople(store,false);coordinator.execute(candidateRequest(mergeDraft(store)));
+  const candidate=store.getMergeCandidate('merge-1'),decision=mergeDecision(candidate,{decisionOrigin:'strong_identity_rule',ruleRevision:1,preferenceResolution:'keep_target'});
+  delete decision.actorId;decision.decisionDigest=canonicalDigest(Object.fromEntries(Object.entries(decision).filter(([key])=>key!=='decisionDigest')));
+  assert.throws(()=>coordinator.execute(mergeAcceptanceRequest(decision)),{code:'P6_PEOPLE_MERGE_IDENTITY_UNPROVEN'});
+  assert.equal(store.getMergeCandidate('merge-1').currentState,'open');assert.equal(store.getPerson('person-left').status,'active');assert.equal(store.getPerson('person-right').status,'active');
+}));
+
 test('explicit Merge Preference is committed on target and malformed decision is rejected before writes', () => {
   fixture(({ coordinator, store }) => {
     seedMergePeople(store, false);
@@ -394,7 +403,7 @@ test('commits a closed Preference Intent with stable replay and rejects digest t
 
 test('direct registration atomically creates Person, initial Projection checkpoint, command receipt and People-internal Outbox', () => {
   fixture(({ databasePath, directRegistration, store }) => {
-    const value = { decisionId: 'direct-1', newPersonId: 'person-direct', canonicalName: 'Direct Person', aliases: [],
+    const value = { decisionId: 'direct-1', newPersonId: 'person-direct', libraryKind: 'us_adult', initialReference: initialReference('person-direct'), canonicalName: 'Direct Person', aliases: [],
       providerIdentities: [], actorId: 'admin-1' };
     const decision = { ...value, decisionDigest: canonicalDigest(value) };
     const first = directRegistration.registerPerson(decision);
@@ -403,14 +412,14 @@ test('direct registration atomically creates Person, initial Projection checkpoi
     assert.equal(replay.replayed, true);
     assert.deepEqual(replay.receipt.resultRef, first.receipt.resultRef);
     const person = store.getPerson('person-direct');
-    assert.equal(person.currentReferenceRevision, null);
-    assert.equal(person.currentReferenceProjectionRevision, 1);
+    assert.equal(person.currentReferenceRevision, 1);
+    assert.equal(person.currentReferenceProjectionRevision, 2);
     assert.equal(person.revision.originKind, 'direct');
     const inspected = new Database(databasePath, { readonly: true });
     assert.equal(inspected.prepare("SELECT COUNT(*) count FROM fx_command_receipts WHERE command_contract='people.register-person@1'").get().count, 1);
     assert.equal(inspected.prepare("SELECT COUNT(*) count FROM fx_outbox WHERE message_kind='people.person.registered'").get().count, 1);
     assert.equal(inspected.prepare('SELECT COUNT(*) count FROM people_registration_candidates').get().count, 0);
-    assert.equal(inspected.prepare('SELECT COUNT(*) count FROM people_reference_revisions').get().count, 0);
+    assert.equal(inspected.prepare('SELECT COUNT(*) count FROM people_reference_revisions').get().count, 1);
     inspected.close();
   });
 });

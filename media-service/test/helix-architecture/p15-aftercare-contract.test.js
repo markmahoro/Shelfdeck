@@ -46,7 +46,7 @@ const assessment = (kind, at, basisDigest = digest('a'), result = 'healthy') =>
   });
 
 test('Aftercare Placement uses the committed display identity and formal year field', () => {
-  const value=metadataIdentity({shelfEntryId:'entry-1',raw:{identity:{provider_key:'475946'},facts:[
+  const value=metadataIdentity({shelfEntryId:'entry-1',raw:{entry:{structure_kind:'single'},identity:{identity_kind:'tmdb_movie',provider_key:'475946'},facts:[
     {fact_kind:'product_metadata',value:{descriptiveFacts:{entries:[
       {key:'title',value:'银翼杀手：2022黑暗浩劫'},
       {key:'year_or_release_date',value:'2017'},
@@ -57,7 +57,7 @@ test('Aftercare Placement uses the committed display identity and formal year fi
     ]}}},
   ]}});
   assert.deepEqual(value,{title:'银翼杀手2022：黑暗浩劫',year:2017});
-  assert.deepEqual(metadataIdentity({shelfEntryId:'entry-2',raw:{identity:{provider_key:'2'},facts:[
+  assert.deepEqual(metadataIdentity({shelfEntryId:'entry-2',raw:{entry:{structure_kind:'single'},identity:{identity_kind:'tmdb_movie',provider_key:'2'},facts:[
     {fact_kind:'product_metadata',value:{descriptiveFacts:{entries:[
       {key:'title',value:'长空之王'},
       {key:'release_date',value:'2023-04-28'},

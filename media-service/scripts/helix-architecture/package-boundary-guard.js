@@ -237,6 +237,23 @@ function scanCommonJsDependencies(source, filePath) {
       index = end + 2;
       continue;
     }
+    // Only these expression-prefix positions unambiguously start a RegExp.
+    // A slash after an operand remains division, so its real require() calls
+    // must still be inspected. vm.Script above has already checked JS syntax.
+    if (character === '/' && (previousToken === null ||
+        ['(', '[', '{', '=', ':', ',', ';', '!', '?', '&', '|', '+', '-', '*', '%', '~', '<', '>',
+          'return', 'throw', 'yield', 'await', 'case', 'typeof', 'void', 'delete', 'in', 'instanceof'].includes(previousToken))) {
+      let end=index+1,inClass=false;
+      for(;end<source.length;end++){
+        if(source[end]==='\\'){end++;continue;}
+        if(source[end]==='[')inClass=true;
+        else if(source[end]===']')inClass=false;
+        else if(source[end]==='/'&&!inClass)break;
+      }
+      if(end>=source.length){findings.push(createFinding('PARSE_FAILURE','Unterminated regular expression.',{file:normalizePath(filePath)}));break;}
+      end++;while(end<source.length&&/[A-Za-z]/.test(source[end]))end++;
+      previousToken='literal';index=end;continue;
+    }
     if (character === "'" || character === '"' || character === '`') {
       const quoted = skipQuoted(source, index, character);
       if (!quoted.closed) {

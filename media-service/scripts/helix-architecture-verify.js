@@ -8,6 +8,7 @@ const { checkPackageBoundaries } = require('./helix-architecture/package-boundar
 const { checkForbiddenSemantics } = require('./helix-architecture/forbidden-semantic-guard');
 const { validateManifestSet } = require('./helix-architecture/manifest-validator');
 const { validateP2ContractBaseline } = require('./helix-architecture/p2-contract-baseline-validator');
+const { runCheck, fixtureReport } = require('./helix-architecture/gate-report');
 
 const serviceRoot = path.resolve(__dirname, '..');
 const repositoryRoot = path.resolve(serviceRoot, '..');
@@ -28,30 +29,25 @@ const fixtureRun = childProcess.spawnSync(process.execPath, ['--test', '--test-c
   env: { ...process.env, NODE_ENV: 'test' }
 });
 
-const dependency = checkPackageBoundaries({
+const dependency = runCheck('package-boundaries', () => checkPackageBoundaries({
   rootPath,
   policyPath: path.join(manifestDirectory, 'package-boundary-policy.json')
-});
-const semantic = checkForbiddenSemantics({
+}));
+const semantic = runCheck('forbidden-semantics', () => checkForbiddenSemantics({
   rootPath,
   policyPath: path.join(manifestDirectory, 'forbidden-semantic-policy.json')
-});
-const manifests = validateManifestSet({ rootPath, repositoryRoot });
-const contracts = validateP2ContractBaseline({
+}));
+const manifests = runCheck('manifest-set', () => validateManifestSet({ rootPath, repositoryRoot }));
+const contracts = runCheck('contract-baseline', () => validateP2ContractBaseline({
   repositoryRoot,
   contractsRoot: path.join(rootPath, 'contracts')
-});
-const fixturePassed = fixtureRun.status === 0;
+}));
+const fixturePassed = fixtureRun.status === 0 && !fixtureRun.error && !fixtureRun.signal;
 
 const result = {
   ok: fixturePassed && dependency.ok && semantic.ok && manifests.ok && contracts.ok,
   scope: 'P2_LOCAL_ISOLATED_CONTRACT_BASELINE',
-  fixture: {
-    ok: fixturePassed,
-    fileCount: testFiles.length,
-    files: testFiles.map((filePath) => path.basename(filePath)),
-    failureOutput: fixturePassed ? undefined : `${fixtureRun.stdout || ''}${fixtureRun.stderr || ''}`
-  },
+  fixture: fixtureReport(fixtureRun, testFiles.map(filePath => path.basename(filePath)), [dependency, semantic, manifests, contracts]),
   dependency: {
     ok: dependency.ok,
     packageCount: dependency.packageCount,

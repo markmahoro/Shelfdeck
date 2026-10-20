@@ -4,6 +4,7 @@ const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical
 const { buildEpisodeMetadataScope } = require('../../../contracts/episode-metadata-scope');
 const { metadataObservationLimit, metadataObservationSetByteLimit } = require('../../../contracts/metadata-observation-limits');
 const { metadataSetRef, SET_LIMIT } = require('../../../contracts/episode-metadata-records');
+const {assertActorSelection,selectedPerson,actorRelation}=require('./us-adult-actor-selection');
 
 class ProductFactContractError extends Error {
   constructor(code, message) { super(message); this.name = 'ProductFactContractError'; this.code = code; }
@@ -377,6 +378,19 @@ function validateWesternAnalysisVariant(variant,basis,chains){
 function buildProductFactSourceRefs(value) {
   const basis=value?.sourceBasis, chains=new Map((value?.foundationChains || []).map((item)=>[item.resultId,item]));
   if (!basis) fail('P9_PRODUCT_FACT_SOURCE_BASIS','Product Fact Source Basis is required.');
+  if(basis.sourceBasisKind==='us_adult_actor'){
+    const selection=assertActorSelection(basis.actorSelection),relations=value.mediaCastDraft?.relations||[],expected=actorRelation(selection),
+      {relationDigest,...actual}=relations[0]||{};
+    if(basis.sourceBasisDigest!==selection.selectionDigest||relations.length!==1||canonicalJson(actual)!==canonicalJson(expected)||
+      relationDigest!==canonicalDigest(expected))fail('P9_US_ACTOR_SOURCE','The Media-Cast must exactly explain the selected US actor.');
+    if(selection.selectionOrigin==='user_choice')return Object.freeze([]);
+    const winner=selection.matchCompletion.winner,ref=winner.matchResultRef,chain=chains.get(ref.resultId),
+      {result}=exactResultChain(chain,ref,{libraRunId:selection.libraRunId,capabilityRef:'shared.face.reference.match@1',
+        resultContractRef:capabilityResultRef('shared.face.reference.match@1'),typedResultSchemaRef:'helix://contracts/types/PersonMatchEvidence/v1'});
+    if(canonicalJson(result)!==canonicalJson(winner.personMatchEvidence)||chain.evidence?.payloadDigest!==canonicalDigest(result))
+      fail('P9_US_ACTOR_SOURCE','US actor match differs from its immutable completion and formal Event Result.');
+    return Object.freeze([sourceReference(text(value.productFactId,'productFactId'),0,'us_adult_actor',chain,selection.selectionId,result.evidenceId,result.payloadDigest)]);
+  }
   if(basis.sourceBasisKind==='decision_evidence'){
     const ref=basis.resolutionRef,chain=ref&&chains.get(ref.resultId),productFactId=text(value?.productFactId,'productFactId');
     if(!ref||basis.libraRunId===undefined||basis.decisionEvidenceId===undefined||
@@ -388,6 +402,17 @@ function buildProductFactSourceRefs(value) {
       typedResultSchemaRef:'helix://contracts/types/ProductIdentityEvidenceObservation/v1'});
     const providerIdentity=result.verifiedIdentity;
     const identities=value.resolvedProductIdentity?.providerIdentities||[];
+    if(providerIdentity?.namespace==='internal_identity'){
+      const binding=chain.inputBindings?.bindings?.find(item=>item.portName==='productIdentityEvidenceIntent'),intent=binding?.parameters?.usAdultIntent,
+        display=new Map((value.resolvedProductIdentity.displayIdentity?.entries||[]).map(item=>[item.key,item.value]));
+      if(!intent||binding.bindingKind!=='projected_owner_facts'||binding.ownerDomain!=='libra'||binding.processType!=='libra_run'||
+        binding.processId!==basis.libraRunId||binding.projectionRef!=='helix://libra/input-projections/ProductIdentityEvidenceIntent/v1'||
+        intent.libraRunId!==basis.libraRunId||intent.subjectId!==result.subjectId||intent.contentProfile!=='western_adult'||intent.sourceKind!=='internal_source'||
+        display.get('title')!==providerIdentity.displayTitle||display.get('internal_identity')!==providerIdentity.providerKey||
+        display.get('original_file_name')!==intent.originalName.originalFileName||display.get('original_file_name_digest')!==intent.originalName.provenanceDigest||
+        canonicalJson(result)!==canonicalJson(require('./us-adult-identity-evidence').usAdultIdentityObservation(intent)))
+        fail('P9_RESOLVED_IDENTITY_SOURCE_CHAIN','US Adult identity does not conserve its frozen internal source and original filename.');
+    }
     if(providerIdentity?.namespace==='jav_code') {
       const binding=chain.inputBindings?.bindings?.find(item=>item.portName==='productIdentityEvidenceIntent'),intent=binding?.parameters?.javIntent;
       const display=new Map((value.resolvedProductIdentity.displayIdentity?.entries||[]).map(item=>[item.key,item.value]));
@@ -476,8 +501,8 @@ function buildProductFactSourceRefs(value) {
         !Array.isArray(western.analysisRefs)||western.analysisRefs.length<1||western.analysisRefs.length>16||!western.normalizeRef)
       fail('P9_PRODUCT_FACT_SOURCE_BASIS','Western Product Metadata basis is invalid.');
     const normalizeChain=chains.get(western.normalizeRef.resultId),
-      variant=normalizeChain?.inputBindings?.westernAnalysisVariant ||
-        normalizeChain?.inputBindings?.capabilityInput?.westernAnalysisVariant;
+      variant=normalizeChain?.inputBindings?.bindings?.find(item=>item.portName==='westernAnalysisVariant'&&item.bindingKind==='literal')?.value ||
+        normalizeChain?.inputBindings?.westernAnalysisVariant || normalizeChain?.inputBindings?.capabilityInput?.westernAnalysisVariant;
     validateWesternAnalysisVariant(variant,western,chains);
     const refs=western.analysisRefs.map((ref,ordinal)=>{
       const chain=chains.get(ref.resultId);
@@ -651,7 +676,7 @@ function buildWesternProductMetadataDraft(value) {
 
 function buildMediaCastDraft(value) {
   const basis = value?.sourceBasis, subjectId = text(value?.subjectId, 'subjectId');
-  if (!basis || !['metadata_observation', 'western_match'].includes(basis.sourceBasisKind))
+  if (!basis || !['metadata_observation', 'western_match','us_adult_actor'].includes(basis.sourceBasisKind))
     fail('P9_MEDIA_CAST_BASIS', 'Media Cast requires a closed Source Basis.');
   const projection = new Map((value.personProjection?.items || []).map((item) => [item.personId, item]));
   const relations = (value.relations || []).map((item) => {
@@ -671,18 +696,27 @@ function buildMediaCastDraft(value) {
     compare(left.displayNameNormalized, right.displayNameNormalized) || compare(left.relationId, right.relationId));
   if (new Set(sorted.map((item) => item.relationId)).size !== sorted.length || canonicalJson(relations) !== canonicalJson(sorted))
     fail('P9_MEDIA_CAST_RELATIONS', 'Media Cast relations must be unique and canonically sorted.');
+  if (basis.observationSet?.contentProfile === 'jav' && !sorted.some(item => item.role === 'actor'))
+    fail('P9_JAV_ACTOR_REQUIRED', 'JAV Media Cast requires a real or reserved unknown actor.');
   if (basis.sourceBasisKind === 'western_match') {
     if (basis.westernBasis?.matchState === 'no_matches' && relations.length !== 0 ||
         basis.westernBasis?.matchState === 'matches_found' && relations.length === 0) {
       fail('P9_MEDIA_CAST_MATCH_CONTINUITY', 'Western match state and relations disagree.');
     }
   }
+  if(basis.sourceBasisKind==='us_adult_actor'){
+    const selection=assertActorSelection(basis.actorSelection),person=selectedPerson(selection),expected=actorRelation(selection),
+      {relationDigest,...actual}=sorted[0]||{};
+    if(selection.subjectId!==subjectId||basis.sourceBasisDigest!==selection.selectionDigest||sorted.length!==1||
+      canonicalJson(actual)!==canonicalJson(expected)||canonicalJson(projection.get(person.personId))!==canonicalJson(person.referenceProjection))
+      fail('P9_US_ACTOR_REQUIRED','US Media-Cast requires exactly its selected actor, reference version and explicit origin.');
+  }
   const draft = { schemaRef:'helix://contracts/types/MediaCastDraft/v1', schemaVersion:1, draftId:'',
     draftKind:'media_cast', basisDigest:basis.sourceBasisDigest, draftDigest:'', producedAtMs:integer(value.producedAtMs, 'producedAtMs'),
     subjectId, sourceBasisKind:basis.sourceBasisKind,
     metadataObservationSetDigest:basis.sourceBasisKind === 'metadata_observation' ? basis.observationSet.setDigest : null,
     westernMatchBasisDigest:basis.sourceBasisKind === 'western_match' ? basis.westernBasis.basisDigest : null,
-    relations:sorted };
+    ...(basis.sourceBasisKind==='us_adult_actor'?{usAdultActorBasisDigest:basis.sourceBasisDigest}:{}),relations:sorted };
   draft.draftId = canonicalDigest({ schema:'libra.media-cast-draft-id@1', subjectId,
     sourceBasisKind:draft.sourceBasisKind, sourceBasisDigest:basis.sourceBasisDigest,
     relationsDigest:canonicalDigest({ schema:'libra.media-cast-relations@1', relations:sorted }) });
@@ -748,6 +782,14 @@ function buildMetadataMediaCastRelations(value) {
       }));
       for (const key of identityKeys) claimedProviderIdentities.add(key);
     }
+  }
+  if (value.sourceBasis.observationSet.contentProfile === 'jav' && !relations.some(item => item.role === 'actor')) {
+    const { JAV_UNKNOWN_ACTOR_ID, JAV_UNKNOWN_ACTOR_NAME } = require('../../../contracts/jav-actor-policy');
+    const originEvidenceDigest = canonicalDigest({ schema: 'libra.jav-unknown-actor@1', subjectId, sourceBasisDigest: value.sourceBasis.sourceBasisDigest });
+    relations.push(Object.freeze({ relationId: 'libra-media-cast-relation-' + originEvidenceDigest.slice(0, 40),
+      personId: JAV_UNKNOWN_ACTOR_ID, displayName: JAV_UNKNOWN_ACTOR_NAME, displayNameNormalized: JAV_UNKNOWN_ACTOR_NAME,
+      role: 'actor', source: 'system:jav-unknown-actor@1', providerIdentities: Object.freeze([]), originEvidenceDigest,
+      confidenceClass: 'system_unknown_actor' }));
   }
   return Object.freeze(relations.sort((left, right) =>
     compare(left.role, right.role) ||
@@ -993,6 +1035,13 @@ function buildMediaCastFact(value) {
         Object.entries(draft).filter(([key])=>key!=='draftDigest'))))
     fail('P9_MEDIA_CAST_FACT_INPUT', 'Media Cast Draft and Source Basis disagree.');
   const relations = [...draft.relations], relationsDigest = canonicalDigest({ schema:'libra.media-cast-relations@1', relations });
+  if (basis.observationSet?.contentProfile === 'jav' && !relations.some(item => item.role === 'actor'))
+    fail('P9_JAV_ACTOR_REQUIRED', 'JAV Media Cast cannot publish an empty actor result.');
+  if(basis.sourceBasisKind==='us_adult_actor'){
+    const expected=actorRelation(assertActorSelection(basis.actorSelection)),{relationDigest,...actual}=relations[0]||{};
+    if(draft.usAdultActorBasisDigest!==basis.sourceBasisDigest||relations.length!==1||canonicalJson(actual)!==canonicalJson(expected)||
+      relationDigest!==canonicalDigest(expected))fail('P9_US_ACTOR_REQUIRED','A US Media-Cast Fact cannot omit or replace its confirmed actor.');
+  }
   const body = { subjectId:text(value.subjectId, 'subjectId'), sourceBasisKind:basis.sourceBasisKind,
     sourceBasisDigest:digest(basis.sourceBasisDigest, 'sourceBasisDigest'), relations, relationsDigest, relationCount:relations.length };
   const factDigest = canonicalDigest({ schema:'libra.media-cast-fact@1', ...body });

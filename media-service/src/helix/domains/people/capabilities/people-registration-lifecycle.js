@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { createCommandCommitCoordinator } = require('../../../foundation/persistence/commit-foundation');
 
 const CANDIDATE_DRAFT_SCHEMA = 'helix://contracts/types/PeopleCandidateDraft/v1';
 const ACCEPTANCE_DECISION_SCHEMA = 'helix://contracts/domain-types/PeopleCandidateAcceptanceDecision/v1';
@@ -51,6 +52,9 @@ function createDirectPersonRegistrationCommand(store, commandCoordinator) {
   }
   return Object.freeze({
     registerPerson(decision) {
+      if (decision?.libraryKind !== 'us_adult') {
+        throw new PeopleRegistrationLifecycleError('PEOPLE_LIBRARY_READ_ONLY', 'Only US Adult Person registration accepts a user command.');
+      }
       const scopeId = decision && decision.newPersonId;
       const decisionId = decision && decision.decisionId;
       return commandCoordinator.execute({
@@ -64,7 +68,7 @@ function createDirectPersonRegistrationCommand(store, commandCoordinator) {
           action: 'people.person.register', scopeType: 'person', scopeId, evidenceDigest: decision.decisionDigest }],
         outboxMessages: [{ messageId: 'people-registration-message-' + decisionId, producerDomain: 'people',
           messageKind: 'people.person.registered', aggregateType: 'person', aggregateId: scopeId, aggregateRevision: 1,
-          dedupKey: 'person-registered/' + decisionId, intendedConsumers: ['people-projection'],
+          dedupKey: 'person-registered/' + decisionId, intendedConsumers: ['people'],
           payloadSchemaRef: 'helix://contracts/signals/people-person-registered/v1',
           payload: { personId: scopeId, personRevision: 1 } }],
         resultEnvelope(person) {
@@ -80,5 +84,6 @@ function createDirectPersonRegistrationCommand(store, commandCoordinator) {
 
 module.exports = Object.freeze({
   PeopleRegistrationLifecycleError, createPeopleCandidateCommitRegistration, createPeopleCandidateAcceptanceRegistration,
-  createDirectPersonRegistrationCommand
+  createDirectPersonRegistrationCommand,
+  createDirectPersonRegistrationFromPersistence: (store, options) => createDirectPersonRegistrationCommand(store, createCommandCommitCoordinator(options)),
 });

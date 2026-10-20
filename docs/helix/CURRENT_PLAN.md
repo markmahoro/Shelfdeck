@@ -1,6 +1,35 @@
 # ShelfDeck 当前计划
 
 2026-10-21 **FORMATION-PACKAGE-DESTINATION（“死包”专项）**：用户明确先排查业务流程，再排查 UI/入口；起点为来源媒体文件，包含尚未成包者。两类重点为模块持有责任却不能入藏/退出，以及本可开采却被错误限制的材料。已完成本轮 37 类业务分支审查；正式隔离 Host 确认无 Run abandon 未实现、退休 Field 残留 Control 阻断新来源、重试 Offer 拒收后新意图被封锁；Coordinator 另确认终态失败仍 pending 等问题。现有定向测试 120 pass；不代表 600 生产文件实盘核账或全故障/UI验收。下一步逐项讨论 Evidence 中 D01–D07（结束/排除、重试资格、退休来源、Arca 非入藏收口及恢复语义），仅审查记录，未实施功能/SSOT或生产变更。沿用唯一 CURRENT_PHASE，无新增开发 UAT。详见 [审查 Evidence](implementation/evidence/FORMATION_PACKAGE_DESTINATION_AUDIT_20261021.md)。
+2026-10-21 `JAV-ACTOR-COMPLETENESS` 本地开发与受影响UI验收完成：JAV无演员时统一关联People真实“未知演员”，有演员则保留来源演员；首次Cast/NFO/入藏、Arca纠正及进程退出恢复均有隔离Evidence。产品提交`7b318ef956`，Service648 PASS/29既有skip、核心54、来源/Cast48、Owner回归93及真实Host3项通过；UI负责人具体版本宽窄8/8接受，后续仅测试/文档变更且92份产品源码/9资产相同。未部署或改历史收藏，Linux与独立分发资格未新增；见[本项Evidence](implementation/evidence/JAV_ACTOR_COMPLETENESS_20261021.md)。
+
+2026-10-21 新反馈UAT-323/324：JAV连接及JavMenu广告标题已对照官方JavSP定位，本地补精确封面Host、同预算有限连接测试重试和站点专用尾缀清理；40项专项及四项静态检查通过，ABF-047只读live已qualified。未部署，其他来源长期稳定、精确版本UI/平台及已入藏标题的正式纠正仍开放；见[证据](implementation/evidence/JAV_SOURCE_STABILITY_TITLE_20261021.md)。UAT-322继续只记录待修，不混入本轮产品改动。
+
+2026-10-21 用户确认 UAT-322 旧 Workspace 自动回收缺口需要修复，当前仅记录待办，尚未开始实现。后续在 Libra Owner 内补齐 Run superseded 的正式 Cleanup Scope 准入、双轮安全审计与既有回收链，避免新 replacement 再次积压；根因及范围见[既有 Evidence](implementation/evidence/UAT-322_WORKSPACE_RESIDUE_AUDIT_20261018.md)。本次不包含部署或生产残留清理授权。
+
+2026-10-20 US Adult五议题本轮已完成生产标准部署af2257c423及恢复正常供给，既有唯一Phase继续承接使用反馈与正式收尾，不新增并行开发计划。身份准确率按用户决定不再统计；生产发布、隔离技术资格和未执行的完整生产媒体E2E分别记录于CURRENT_STATUS及既有Evidence，不扩大既有UAT关闭范围。
+
+## US Adult 与全系统维护开发（2026-10-20）
+
+2026-10-20最新授权与执行顺序：用户已允许清理停机前当前10项未上架整理，并补充授权其中新进入的1部电影；已完成上架项保持。随后明确要求先通过正式安全停机，等成功后再部署升级，并检查任务收敛。旧版现已通过公开stop API关闭供给、等待1个转码恢复动作，尚未stopped；在成功前不得Reset/迁移/部署。原第一次容器停服触发60秒超时，不计安全停机PASS，已恢复旧版并纠正顺序；冷备须在本次安全停机后重新捕获。候选完整Gate已完成PASS，见当前状态及既有Evidence。
+
+发布承接：候选`64d1b06702`已构建/上传/checksum/dry run、具体版本UI及适用增量验证通过，独立完整Gate运行中。生产副本因10个未完成Run拒绝升级，30,941个人物归属无阻挡。标准10 Subject Reset只读预览已准备，但不得执行或添加跨迭代兼容；等待用户选择保留进度待完成，或明确授权清理这10项重整。选择后重核现场并继续完整冷备、副本Host/回退、标准apply，不能直接套用旧快照或清单。
+
+唯一活动包仍为 [CURRENT_PHASE](implementation/CURRENT_PHASE.md)。五议题本地实现及ONNX worker thread、共享Schema编译优化完成，工程固定提交为0c82ee862a380bc1f590f94266ba656987ec3eff；该固定版本的全量资格继续保留。2026-10-20用户追加查询优化：在同一活动Phase内处理整季空间重复校验及评分候选重复扫描；增量代码单独记录回归和组件对照，不继承原固定版本完整发布资格。
+
+最新授权：用户要求改完直接升级生产，并确认US Adult辅助搜图仅保留ThePornDB。固定官方GraphQL地址，设置只填写API Key；移除Wikimedia查询、入口及新选图合同。既有一次性测试凭据不复制到生产。继续同一Phase完成最终候选检查、精确版本UI审核和标准发布，先证明生产数据升级及回退资格，不Reset未完成整理。
+
+TPDB连接摘要与线上查询协议缺陷已修复并通过隔离实测。当前验收环境为固定镜像加两处只读适配修复，不含查询优化、海报v3及单一来源增量，也不视为新完整发布镜像。
+
+用户已确认海报新排版，v3共享Renderer及合同增量本地完成，Windows/Linux受影响回归与静态门禁通过；保留四帧2×2，暖白底、顶部姓名与页脚小肖像。后续最终候选整合须包含该增量；当前未更新NAS运行代码或已上架封面。用户已明确停止准确率统计，不继续收集或计算该项。
+
+原始完整Architecture Gate通过：387文件、3129 total/3116 PASS/13既有skip/0fail，74个JAV场景（含22个动态定义）全部通过，4183个tracked输入前后摘要一致。Service648 PASS/29既有skip、Web242 PASS及build、Windows独立分发、Linux208专项及额外8个跨Profile场景通过；未选中/opt-in跳过不记覆盖。
+
+实际N95隔离复验：1.5核/1.5GiB两片技术标签整理和单片指定刷新，434请求零错误、p95 410.05ms达到预定500ms预算，峰值887.6MiB、无OOM；仍有2.62s偶发长尾。四片各20点检出与旧版一致，维护截止/手动停机/跨Host及下周原Work续跑通过。NAS本轮进程已退出，原件及生产实例保持，无生产发布/升级或原媒体处置。
+
+本轮工程验证已补齐；真实出演者身份准确性仍未评估，不用检出率或技术标签冒充准确率，因此保留Phase的业务验收开放状态，不宣称整版已发布或全部业务验收完成。证据及范围限制见 [US Adult Evidence](implementation/evidence/US_ADULT_LOCAL_IMPLEMENTATION_20261018.md)。既有发布和未关闭UAT保持，不新增平行活动计划或备份功能。
+
+以下为已交付开发与旧授权的历史记录，不是 US Adult 的并行活动计划。
 
 2026-10-18 最新授权及结果：用户要求部署上线，已标准发布 `helix-beta-20261018-5367179429`（source `5367179429d6e6785c1adf8c8da363bc21def9bd`）；完整副本候选/使用后旧版回退、冷备、精确镜像及生产健康/历史保护通过。包含统一代理、空间不足转二号与UAT-318本轮热点优化，先前“未部署/暂停发布”仅为历史状态；未授权生产清理。未追加性能硬门槛或大批等价试验，未跑完整生产媒体E2E，UAT-318及其他未闭业务验收保持开放。详情见既有UAT-318 Evidence最新发布节。
 

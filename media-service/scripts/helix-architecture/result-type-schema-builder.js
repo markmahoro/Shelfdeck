@@ -128,6 +128,7 @@ const peoplePersonRef = object({
   personId: id(), revision: positiveInteger(), factDigest: digest(), preferenceRevision: nullable(positiveInteger())
 });
 const peopleRegistrationPayload = object({
+  libraryKind: enumText('normal', 'jav', 'us_adult'),
   proposedName: text(), aliases: arrayOf(peopleAlias, 256), providerIdentities: arrayOf(peopleProviderIdentity, 256),
   referenceHints: arrayOf(peopleReferenceHint, 256)
 });
@@ -265,9 +266,11 @@ const special = {
   'MediaProbeEvidence.audioStreams': arrayOf(audioStream, 128),
   'MediaProbeEvidence.subtitleStreams': arrayOf(simpleStream, 256),
   'PersonMatchEvidence.matches': arrayOf(object({ clusterId: id(), personId: id(), personRevision: positiveInteger(),
-    projectionRevision: positiveInteger(), projectionDigest: digest(), confidenceClass: text(), evidenceDigest: digest() }), 1024),
+    projectionRevision: positiveInteger(), projectionDigest: digest(), confidenceClass: text(),
+    score: {type:'number',minimum:-1,maximum:1}, threshold: {type:'number',minimum:-1,maximum:1},
+    referenceAssetId:id(), artifactDigest:digest(), faceModelRefDigest:digest(), referenceModelRefDigest:digest(), evidenceDigest: digest() }), 1024),
   'PersonMatchEvidence.referenceProjectionSetDigest': digest(),
-  'PersonMatchEvidence.unmatchedClusterIds': arrayOf(id(), 1024),
+  'PersonMatchEvidence.unmatchedClusterIds': arrayOf(id(), 1280),
   'ObservationPageCommitResult.profileHintSnapshot': applicationRef('MaterialFieldProfileHintSnapshot'),
   'ObservationPageCommitResult.nextCursor': nullable(text()),
   'PlayabilityEvidence.materialResults': { ...arrayOf({ oneOf: [
@@ -587,6 +590,7 @@ const special = {
   'PeopleCandidateDraft.candidatePayload': { oneOf: [peopleRegistrationPayload, peopleMergePayload] },
   'PeopleCandidateRevision.candidateKind': enumText('registration', 'merge'),
   'PeopleCandidateRevision.state': enumText('open', 'accepted', 'dismissed', 'superseded'),
+  'PersonRegistrationEvidence.libraryKind': enumText('normal', 'jav', 'us_adult'),
   'PersonRegistrationEvidence.aliases': arrayOf(peopleAlias, 256),
   'PersonRegistrationEvidence.providerIdentities': arrayOf(peopleProviderIdentity, 256),
   'PersonRegistrationEvidence.referenceHints': arrayOf(peopleReferenceHint, 256),
@@ -623,6 +627,12 @@ function inferredField(resultName, fieldName) {
 }
 
 const contracts = {
+  PeopleArtifactReferenceEvidence:['EvidenceEnvelope','artifactHandle,policyDigest,bootId,rootFenceDigest,sourceEpochs,round,sourceIndex,cursor,status,firstPassCompletedAtMs,pageCount,chainDigest'],
+  PeopleArtifactReclamationReceipt:['ReceiptEnvelope','artifactHandleId,artifactDigest,previousReferenceRevision,referenceRevision,disposition,reasonCode,reclaimedBytes,auditResultDigest,physicalEvidenceDigest,executionReference,receiptDigest'],
+  ArcaUsAdultAssetsPrepared:['EvidenceEnvelope','aftercareCaseId,shelfEntryId,intentId,intentDigest,selectionDigest,sourceResultDigest,factsHandle,nfoHandle,posterHandle,planHandle,planDigest'],
+  ArcaUsAdultFileReceipt:['EvidenceEnvelope','aftercareCaseId,shelfEntryId,intentId,intentDigest,selectionDigest,planDigest,action,receipt,receiptDigest'],
+  ArcaUsAdultPageMatch:['EvidenceEnvelope','shelfEntryId,aftercareCaseId,intentId,intentDigest,pageOrdinal,pageDigest,libraryDigest,sourceResultDigest,analysisDigest,matches'],
+  ArcaUsAdultSourcePrepared:['EvidenceEnvelope','shelfEntryId,aftercareCaseId,intentId,intentDigest,sourceHandle,sourceProbeDigest,durationMs,container,frameCount,detectedFaceCount,analysisDigest,faceModelRefDigest,referenceModelRefDigest,frameManifestHandle,featuresHandle'],
   JavCorrectionSourceVerified:['EvidenceEnvelope','correctionId,admissionDigest,scopeDigest,confirmedProposalDigest,actualProposalDigest,qualification'],
   JavCorrectionAssetsPrepared:['EvidenceEnvelope','correctionId,admissionDigest,confirmedProposalDigest,actualProposalDigest,sourceObservationDigest,metadataFactDigest,metadataHandle,artifacts'],
   JavCorrectionCommitReceipt:['ReceiptEnvelope','correctionId,shelfEntryId,previousCanonicalIdentityRevision,newCanonicalIdentityRevision,previousInventoryRevision,newInventoryRevision,canonicalIdentityDigest,canonicalIdentityKey,inventoryDigest,verificationDigest,controlChangeDigest,changeDigest,originalCommitDigest'],
@@ -732,7 +742,7 @@ const contracts = {
   PerceptionRecordCommitResult: ['ReceiptEnvelope', 'acquisitionCommitReceiptId,perceptionAcquisitionId,sourceId,committedCursorRevision,perceptionIds,relationIds,insertedCount,duplicateCount'],
   PerceptionResolutionDraft: ['DraftEnvelope', 'queryContract,querySchemaRef,queryInputDigest,factKind,recordSetDigest,ruleRevision,ruleDigest,resultKind,winningPerceptionId?,resolvedValue?,resolvedProvenance?,reasonCode?,duplicateRelationDrafts'],
   PerceptionResolutionRevision: ['DomainFactEnvelope', 'queryContract,querySchemaRef,queryInputDigest,factKind,recordSetDigest,ruleRevision,ruleDigest,resultKind,winningPerceptionId?,resolvedValue?,resolvedProvenance?,reasonCode?,committedRelationIds'],
-  PersonRegistrationEvidence: ['EvidenceEnvelope', 'proposedName,aliases,providerIdentities,referenceHints'],
+  PersonRegistrationEvidence: ['EvidenceEnvelope', 'libraryKind,proposedName,aliases,providerIdentities,referenceHints'],
   PeopleCandidateDraft: ['DraftEnvelope', 'candidateKind,evidenceDigest,candidatePayload,candidatePayloadDigest'],
   PeopleCandidateRevision: ['DomainFactEnvelope', 'candidateKind,candidateId,candidateRevision,candidateSchemaRef,candidatePayloadDigest,evidenceDigest,state'],
   PersonReferenceRevision: ['DomainFactEnvelope', 'personId,referenceRevision,operationKind,affectedReferenceAssetId,affectedReferenceFaceId,activeReferenceAssets,activeReferenceFaces,activeAssetSetDigest,activeFaceSetDigest,referenceSetDigest'],
@@ -759,6 +769,12 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 }), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if(name==='PeopleArtifactReferenceEvidence')return require('../../src/helix/contracts/people-artifact-reclamation').evidenceSchema();
+  if(name==='PeopleArtifactReclamationReceipt')return require('../../src/helix/contracts/people-artifact-reclamation').receiptSchema();
+  if(name==='ArcaUsAdultAssetsPrepared')return require('../../src/helix/contracts/us-adult-actor-file-contracts').assetsSchema();
+  if(name==='ArcaUsAdultFileReceipt')return require('../../src/helix/contracts/us-adult-actor-file-contracts').fileReceiptSchema();
+  if(name==='ArcaUsAdultPageMatch')return require('../../src/helix/contracts/us-adult-inventory-matching').pageMatchSchema();
+  if(name==='ArcaUsAdultSourcePrepared')return require('../../src/helix/contracts/us-adult-inventory-analysis').sourcePreparedSchema();
   if(name==='JavCorrectionCommitReceipt')return require('../../src/helix/domains/arca/model/jav-correction-commit-contract').javCorrectionCommitReceiptSchema();
   if(name==='JavCorrectionFormalRetirementReceipt')return require('../../src/helix/domains/arca/model/jav-correction-retirement-contract').retirementReceiptSchema();
   if(name==='JavCorrectionWorkspaceReclaimReceipt')return require('../../src/helix/domains/arca/model/jav-correction-workspace-reclaim-contract').workspaceReclaimReceiptSchema();
@@ -1134,6 +1150,10 @@ function productIdentityEvidenceObservationSchema() {
         candidates: { ...arrayOf(candidate, 16), minItems: 2 }, verifiedIdentity: { type: 'null' }, candidateMatchCount: { type: 'integer', minimum: 2, maximum: 16 } }),
       object({ ...common, result: { const: 'conflicting' }, reasonCode: enumText('nfo_association_conflicting', 'provider_identity_conflicting'),
         candidates: arrayOf(candidate, 16), verifiedIdentity: { type: 'null' } }),
+      object({...common,contentProfile:{const:'western_adult'},sourceKind:{const:'internal_source'},result:{const:'resolved'},reasonCode:{type:'null'},
+        candidates:{type:'array',maxItems:0},candidateMatchCount:{const:1},verifiedIdentity:object({provider:{const:'internal'},namespace:{const:'internal_identity'},
+          providerKey:text({maxLength:128}),displayTitle:text({maxLength:1024}),originalTitle:{type:'null'},releaseYear:{type:'null'},aliases:{type:'array',maxItems:0},identityDigest:digest()}),
+        originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()})}),
       ...require('../../src/helix/contracts/jav-identity-evidence').javIdentityObservationSchema().oneOf,
     ],
   };
@@ -1265,16 +1285,19 @@ function episodeMetadataSchema() {
 }
 
 function mediaCastDraftSchema() {
-  return resultSchema('MediaCastDraft', 'DraftEnvelope', {
-    subjectId: id(), sourceBasisKind: enumText('metadata_observation', 'western_match'),
+  const schema=resultSchema('MediaCastDraft', 'DraftEnvelope', {
+    subjectId: id(), sourceBasisKind: enumText('metadata_observation', 'western_match','us_adult_actor'),
     metadataObservationSetDigest: nullable(digest()), westernMatchBasisDigest: nullable(digest()),
     relations: arrayOf(mediaCastRelationSchema(), 4096)
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
+  schema.properties.usAdultActorBasisDigest=digest();
+  schema.allOf=[{if:{properties:{sourceBasisKind:{const:'us_adult_actor'}}},then:{required:['usAdultActorBasisDigest'],properties:{metadataObservationSetDigest:{type:'null'},westernMatchBasisDigest:{type:'null'}}},else:{not:{required:['usAdultActorBasisDigest']}}}];
+  return schema;
 }
 
 function mediaCastFactSchema() {
   return resultSchema('MediaCastFact', 'DomainFactEnvelope', {
-    subjectId: id(), sourceBasisKind: enumText('metadata_observation', 'western_match'), sourceBasisDigest: digest(),
+    subjectId: id(), sourceBasisKind: enumText('metadata_observation', 'western_match','us_adult_actor'), sourceBasisDigest: digest(),
     relations: arrayOf(mediaCastRelationSchema(), 4096), relationsDigest: digest(), relationCount: nonNegativeInteger()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
 }
@@ -1474,7 +1497,7 @@ function personReferenceRevisionSchema() {
   const activeFace = object({ referenceFaceId: id(), referenceAssetId: id(), embeddingHandleId: id(), embeddingDigest: digest(), modelRef: text() });
   const properties = { schemaRef: { const: typeId('PersonReferenceRevision') }, schemaVersion: { const: 1 },
     ...envelopeFields.DomainFactEnvelope, personId: id(), referenceRevision: positiveInteger(),
-    operationKind: enumText('add_image', 'release_image'), affectedReferenceAssetId: id(), affectedReferenceFaceId: id(),
+    operationKind: enumText('add_image', 'release_image', 'replace_image'), affectedReferenceAssetId: id(), affectedReferenceFaceId: id(),
     activeReferenceAssets: arrayOf(activeAsset, 1024), activeReferenceFaces: arrayOf(activeFace, 1024),
     activeAssetSetDigest: digest(), activeFaceSetDigest: digest(), referenceSetDigest: digest() };
   return { $schema: DRAFT, $id: typeId('PersonReferenceRevision'), title: 'PersonReferenceRevision@1',

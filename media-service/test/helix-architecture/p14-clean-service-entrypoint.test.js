@@ -173,6 +173,12 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/clean-workspace-product-port.js' ||
         relative === 'src/clean-workspace-root-admin.js' ||
         relative === 'src/clean-western-analysis-port.js' ||
+        relative === 'src/clean-us-adult-inventory-analysis-port.js' ||
+        relative === 'src/clean-us-adult-recommendation-image-port.js' ||
+        relative === 'src/clean-us-adult-frame-extractor.js' ||
+        relative === 'src/clean-people-image-port.js' ||
+        relative === 'src/clean-people-artifact-reclamation-port.js' ||
+        relative === 'src/clean-maintenance-window.js' ||
         relative === 'src/clean-arca-inventory-port.js' ||
         relative === 'src/clean-arca-target-commit-slot.js' ||
         relative === 'src/clean-offdeck-deletion-port.js' ||
@@ -347,7 +353,7 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     secretRoot,
   });
   try {
-    assert.equal(host.routeCount, 149);
+    assert.equal(host.routeCount, 162);
     const health = await host.inject({ method: 'GET', url: '/v1/health' });
     assert.equal(health.statusCode, 200);
     assert.deepEqual(Object.keys(health.json()).sort(), ['generation', 'normalSupplyAllowed', 'status']);
@@ -2072,6 +2078,8 @@ test('Windows and Docker artifacts select the service-only clean entrypoint', ()
 
   const windows = fs.readFileSync(path.join(serviceRoot, 'scripts', 'package-win.js'), 'utf8');
   assert.match(windows, /CLEAN_RUNTIME_FILES/);
+  assert.match(windows,/src\/clean-us-adult-inventory-analysis-port\.js/);
+  assert.match(docker,/COPY media-service\/src\/clean-us-adult-inventory-analysis-port\.js \.\/src\/clean-us-adult-inventory-analysis-port\.js/);
   assert.match(windows, /cleanHelixSource/);
   assert.doesNotMatch(windows, /^\s*['"]src['"],?\s*$/m);
   assert.doesNotMatch(windows, /media-worker|face-service|19110|ollama/i);

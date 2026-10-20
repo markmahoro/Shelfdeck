@@ -1,0 +1,60 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.us-adult-analysis-basis-freeze/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.us-adult-analysis-basis-freeze",
+    "displayName": "US Adult Analysis Basis Freeze",
+    "ownerScope": "libra",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "current active Libra Run/state revision/execution basis、正式resolved_identity与active同Run Workspace围栏 + 完整UsAdultAnalysisBasis和全部连续Reference Page快照全有或全无；同Run相同Basis重放，不同Basis拒绝；不创建Event/Effect/Outbox，不写People事实或当前head",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_us_adult_analysis_bases",
+          "libra_us_adult_reference_pages"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_us_adult_analysis_bases",
+      "libra_us_adult_reference_pages"
+    ],
+    "readTables": [
+      "libra_runs",
+      "libra_product_fact_revisions",
+      "libra_workspaces"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": false,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "us-adult-analysis-basis",
+        "faultInjectionPoints": "active Run/identity/Workspace fences, immutable Basis and each page insert, before and after COMMIT",
+        "requiredInvariant": "Basis and all complete pages are all-or-none; replay returns the same snapshot; no cross-Owner writes, Event, Effect or Outbox",
+        "source": {
+          "section": "8.9.7",
+          "line": 8809
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8843,
+      "lineDigest": "840082d54650480220fa43ec661c7617534202a5504dcc128f3582978552abce"
+    }
+  }
+}

@@ -81,14 +81,36 @@ function validateDomainInputSchemas(options) {
       findings.push(finding('DOMAIN_INPUT_CONTRACT_DRIFT', 'Committed domain input differs from the SSOT-derived contract.', { entryId: entry.id }));
     }
     const exactIdentityFields = {
+      PeopleArtifactReferenceAuditInput:['schemaRef','schemaVersion','artifactHandle','bootId','rootFenceDigest','previousEvidence'],
       PeopleCandidateAcceptanceDecision: ['decisionId', 'expectedCandidateRevision', 'candidatePayloadDigest', 'decisionDigest'],
+      UsAdultActorSelectionBasis:['selectionId','selectionOrigin','selectionDigest'],
+      UsAdultActorRefreshSelection:['schemaRef','schemaVersion','shelfEntryId','aftercareCaseId','intentId','selectionDigest'],
+      UsAdultActorFilePlan:['schemaRef','schemaVersion','shelfEntryId','aftercareCaseId','intentId','planDigest'],
+      UsAdultActorExecutionInput:['schemaRef','schemaVersion','shelfEntryId','aftercareCaseId','intentId','inputDigest'],
+      UsAdultActorRefreshScope:['schemaRef','schemaVersion','shelfEntryId','aftercareCaseId','intentId','intentDigest','scopeDigest'],
+      UsAdultActorRefreshIntent:['schemaRef','schemaVersion','intentId','shelfEntryId','inventoryRevision','careBasisDigest','sourceMaterialBinding','intentDigest'],
+      UsAdultInventoryPresentation:['schemaRef','schemaVersion','shelfEntryId','inventoryRevision','aftercareCaseId','actorRelationDigest','originalName','snapshotDigest'],
+      UsAdultRecommendationConfirmation:['schemaRef','schemaVersion','claimId','actorId','source','personId','expectedPersonRevision','expectedReferenceRevision'],
+      UsAdultRecommendationPageQuery:['schemaRef','schemaVersion','cursor','limit'],
+      UsAdultRecommendationSource:['sourceId','libraRunId','expectedRunStateRevision','completionDigest','sourceDigest'],
+      UsAdultRecommendationSourcePage:['schemaRef','schemaVersion','items','nextCursor','pageDigest'],
+      UsAdultMatchCompletion:['analysisId','matchResultSetDigest','completionDigest'],
+      UsAdultActorChoiceReceipt:['intentId','choiceRevision','recordDigest'],
+      UsAdultActorChoiceRecord:['intentId','subjectId','recordDigest'],
+      UsAdultActorChoiceDecision:['decisionId','record','decisionDigest'],
+      UsAdultAnalysisBasis:['analysisId','libraRunId','runExecutionBasisDigest','pageSetDigest','basisDigest'],
+      UsAdultPersonSnapshot:['personId','personRevision','referenceProjection','snapshotDigest'],
+      PeopleReferenceLibraryPage:['libraryDigest','items','nextCursor','pageDigest'],
+      PeopleProfileUpdateDecision:['decisionId','personId','expectedPersonRevision','requestDigest','decisionDigest'],
+      PerceptionAcquisitionResumeDecision:['decisionId','acquisitionId','expectedScopeDigest','requestDigest','decisionDigest'],
       DirectPersonRegistrationDecision: ['decisionId', 'newPersonId', 'decisionDigest'],
+      PeopleSelectedImageHandle: ['schemaRef', 'schemaVersion', 'uploadId', 'digestHex', 'sizeBytes', 'mediaType', 'provenance', 'handleDigest'],
       PeopleReferenceMaintenanceDecision: ['decisionId', 'personId', 'expectedPersonRevision', 'expectedReferenceRevision', 'decisionDigest'],
       PersonReferenceProjection: ['projectionContract', 'projectionRevision', 'personId', 'personRevision', 'projectionDigest'],
       MetadataFetchIntent: ['intentId', 'libraRunId', 'runExecutionBasisDigest', 'sourceKind', 'sourcePriority', 'resolvedIdentityDigest', 'intentDigest'],
       WesternAnalysisVariant: ['variantId', 'libraRunId', 'runExecutionBasisDigest', 'resolvedIdentityDigest', 'variantDigest'],
       ArtifactRequirement: ['requirementId', 'revision', 'schemaRef', 'artifactKind', 'requirementPayload', 'requirementDigest'],
-      LibraMediaCastSourceBasisMetadataObservationWesternMatch: ['sourceBasisKind', 'sourceBasisDigest'],
+      LibraMediaCastSourceBasis: ['sourceBasisKind', 'sourceBasisDigest'],
       LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis: ['sourceBasisKind', 'sourceBasisDigest'],
       VerifiedArtifactManifest: ['manifestId', 'libraRunId', 'artifactSetDigest', 'manifestDigest'],
       OnDeckPersonEvidenceProjectionItem: ['projectionItemId', 'shelfEntryId', 'inventoryRevision', 'relationId', 'projectionRevision', 'projectionItemDigest'],
@@ -182,8 +204,8 @@ function validateDomainInputSchemas(options) {
     }
     if(entry.id==='ProductIdentityEvidenceIntent') {
       for(const branch of schema.oneOf||[]) {
-        const jav=branch.properties?.contentProfile?.const==='jav';
-        const fields=jav?['provider','namespace','sourceSnapshot','sourceOrdinal','integrationId','configRevision',
+        const jav=branch.properties?.contentProfile?.const==='jav',usAdult=branch.properties?.contentProfile?.const==='western_adult';
+        const fields=usAdult?['internalIdentity','originalName','sourceHandleDigest']:jav?['provider','namespace','sourceSnapshot','sourceOrdinal','integrationId','configRevision',
           'javSelectionFence','resourceKey','expectedTitle','expectedCoverDigest']:['aliases','yearHint'];
         for(const field of fields)if(!(branch.required||[]).includes(field))findings.push(finding(
           'MISSING_DOMAIN_INPUT_IDENTITY_FIELD','Profile identity input is incomplete.',{entryId:entry.id,field}));
@@ -191,7 +213,7 @@ function validateDomainInputSchemas(options) {
     }
     const exactBoundedContracts = new Set(['AnalysisSpec', 'ArtifactRequirement', 'ClusterParameters', 'EncodeIntent',
       'FaceModelRef', 'MediaRequirement', 'RemuxIntent', 'SamplingPlan', 'IdentityRequirement', 'AcquisitionPolicy', 'SelectionCriteria',
-      'WorkspaceDeliveryContract', 'ProductionSourceScopeReference', 'MandatoryRequirement']);
+      'WorkspaceDeliveryContract', 'ProductionSourceScopeReference', 'MandatoryRequirement', 'PeopleSelectedImageHandle']);
     if (schema['x-helix-role'] === 'bounded-contract' && !exactBoundedContracts.has(entry.id) && !(schema.required || []).includes('typedParameters')) findings.push(finding(
       'UNBOUNDED_INTENT_PARAMETERS', 'Bounded intent/requirement contracts require typedParameters.', { entryId: entry.id }
     ));
@@ -202,7 +224,7 @@ function validateDomainInputSchemas(options) {
   for (const name of usages.keys()) {
     if (!ids.has(name)) findings.push(finding('MISSING_DOMAIN_INPUT_TYPE', 'Catalog input reference has no schema.', { entryId: name }));
   }
-  const facadeOnlyTypes = new Set(['DirectPersonRegistrationDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
+  const facadeOnlyTypes = new Set(['UsAdultActorRefreshIntent','UsAdultInventoryPresentation','UsAdultRecommendationConfirmation','UsAdultRecommendationPageQuery','UsAdultRecommendationSource','UsAdultRecommendationSourcePage','UsAdultActorSelectionBasis','UsAdultMatchCompletion','UsAdultActorChoiceReceipt','UsAdultActorChoiceRecord','UsAdultActorChoiceDecision','UsAdultAnalysisBasis','UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
     'ResolvedProviderIdentity', 'ProductStructureSnapshot', 'ProductConformanceFactSnapshot', 'ProductionMaterialManifest',
     'ArtifactManifest', 'ArtifactConformanceVerificationSnapshot', 'ProductInventoryConformanceSnapshot',
     'WorkspaceArtifactOutputTarget', 'ShelfAcceptancePrimaryReadSet',

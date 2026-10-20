@@ -12,6 +12,7 @@ test('Windows distribution boots independently with its own native dependencies 
     const code=String.raw`
       const assert=require('node:assert/strict'),path=require('node:path');
       (async()=>{assert.equal(typeof require('./scripts/helix-architecture/jav-release-schema-copy').inspectJavSchemaSource,'function');
+        assert.equal(typeof require('./src/clean-us-adult-inventory-analysis-port').createCleanUsAdultInventoryAnalysisPort,'function');
         const output=process.cwd(),secretRoot=process.env.SHELFDECK_SECRET_ROOT,dataDir=process.env.PACKAGE_TEST_DATA,
         initialized=require('./scripts/helix-operational-safety').initializeCleanData({dataDir,secretRoot,confirmation:'INITIALIZE_HELIX_CLEAN_V1'}),
         host=await require('./src/clean-service-host').createCleanServiceHost({dataDir,secretRoot,adminDistDir:path.join(output,'dist','admin')});
@@ -20,6 +21,12 @@ test('Windows distribution boots independently with its own native dependencies 
           for(const url of ['/v1/admin/collection','/v1/admin/formation','/v1/admin/settings/integrations/jav-javdb'])
             assert.equal((await host.inject({method:'GET',url,headers:{cookie:login.headers['set-cookie']}})).statusCode,200);
           assert.ok((await require('sharp')({create:{width:4,height:4,channels:3,background:'#376892'}}).jpeg().toBuffer()).length);
+          const model=require('./src/helix/integrations/local-face-model').createLocalFaceModel({modelRoot:path.join(output,'resources','face-models')});
+          try {const blank=await require('sharp')({create:{width:640,height:640,channels:3,background:'#808080'}}).png().toBuffer();
+            assert.equal((await model.analyzeImage(blank)).detectedFaceCount,0);
+            if(process.env.SHELFDECK_FACE_TEST_IMAGE){const face=await model.analyzeImage(require('node:fs').readFileSync(process.env.SHELFDECK_FACE_TEST_IMAGE),{requireSingleFace:true});
+              assert.equal(face.detectedFaceCount,1);assert.equal(face.faces[0].vector.length,128);}
+          }finally{await model.close();}
           for(const binary of [require('ffmpeg-static'),require('@ffprobe-installer/ffprobe').path])
             assert.equal(require('node:child_process').spawnSync(binary,['-version'],{windowsHide:true,timeout:10000}).status,0);
           assert.equal(Object.keys(require.cache).filter(file=>{const rel=path.relative(output,file);return rel.startsWith('..'+path.sep)||path.isAbsolute(rel);}).length,0);
@@ -28,7 +35,7 @@ test('Windows distribution boots independently with its own native dependencies 
       })().catch(error=>{console.error(error);process.exitCode=1;});`;
     const result=spawnSync(path.join(output,'node.exe'),['-e',code],{cwd:output,encoding:'utf8',windowsHide:true,timeout:45000,
       env:{...process.env,NODE_PATH:'',NODE_OPTIONS:'',SHELFDECK_SECRET_ROOT:crypto.randomBytes(48).toString('base64url'),PACKAGE_TEST_DATA:dataDir}});
-    assert.equal(result.status,0,result.stderr);assert.deepEqual(JSON.parse(result.stdout),{ok:true,tableCount:210,routeCount:149});
+    assert.equal(result.status,0,result.stderr);assert.deepEqual(JSON.parse(result.stdout),{ok:true,tableCount:224,routeCount:162});
     const entryHash=crypto.createHash('sha256').update(fs.readFileSync(path.join(output,'src','server.js'))).digest('hex'),
       again=spawnSync(process.execPath,['scripts/package-win.js','--output',output],{cwd:serviceRoot,encoding:'utf8',windowsHide:true,timeout:10000});
     assert.notEqual(again.status,0);assert.match(again.stderr,/output already exists/);

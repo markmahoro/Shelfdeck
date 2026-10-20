@@ -6,14 +6,28 @@
   "additionalProperties": false,
   "properties": {
     "resourceKinds": {
-      "type": "array",
-      "prefixItems": [
+      "oneOf": [
         {
-          "const": "network"
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "network"
+            }
+          ],
+          "minItems": 1,
+          "maxItems": 1
+        },
+        {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "cpu"
+            }
+          ],
+          "minItems": 1,
+          "maxItems": 1
         }
-      ],
-      "minItems": 1,
-      "maxItems": 1
+      ]
     },
     "demandDigest": {
       "type": "string",

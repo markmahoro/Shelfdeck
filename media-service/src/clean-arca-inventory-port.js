@@ -1,6 +1,9 @@
 'use strict';
 const {packageContentProfile}=require('./helix/domains/arca/model/product-content-profile');
 const {relatedPrimaryName}=require('./helix/domains/arca/model/related-primary-name');
+const {assertRequiredUsAdultActor}=require('./helix/contracts/us-adult-actor-package');
+const {assertUsAdultInventoryPresentation}=require('./helix/contracts/us-adult-inventory-presentation');
+const {originalNameProvenance,buildUsAdultTitle,buildUsAdultName}=require('./helix/contracts/us-adult-presentation');
 
 const fs = require('node:fs');
 const {offloadProductKeys}=require('./helix/contracts/offload-product-targets');
@@ -192,10 +195,39 @@ function displayIdentityEntry(identityFact, key) {
     ? entry.value.trim()
     : null;
 }
+function exactUsAdultSegment(value){
+  if(typeof value!=='string'||!value||value!==value.trim()||/[<>:"/\\|?*\u0000-\u001f]/.test(value)||/[. ]$/.test(value)||
+    ['.','..'].includes(value)||/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(value)||Buffer.byteLength(value,'utf8')>255)
+    fail('US_ADULT_NAME_UNSUPPORTED','US Adult names must fit the target filesystem without rewriting or truncation.');
+  return value;
+}
 
-function inventoryDisplayIdentity(packageValue) {
+function inventoryDisplayIdentity(packageValue,request) {
   const snapshot = packageValue?.resolvedIdentitySnapshot?.factValue || {};
   const identityFact = snapshot.resolvedProductIdentity || snapshot;
+  if(identityFact.contentProfile==='western_adult'){
+    const originalName=originalNameProvenance(displayIdentityEntry(identityFact,'original_file_name'));
+    if(displayIdentityEntry(identityFact,'original_file_name_digest')!==originalName.provenanceDigest)
+      fail('US_ADULT_ORIGINAL_NAME_PROOF_INVALID','US Adult placement requires its first frozen original name.');
+    let actorName;
+    if(request?.inventoryActorRefreshSelection!==undefined) {
+      if(!request.aftercareCaseId||request.correctionId||request.inventoryUsAdultPresentation!==undefined)
+        fail('CLEAN_ARCA_INVENTORY_INPUT','Actor target naming requires one precise Aftercare selection.');
+      const selection=require('./helix/contracts/us-adult-actor-selection').assertSelection(request.inventoryActorRefreshSelection,
+        {shelfEntryId:request.shelfEntryId,aftercareCaseId:request.aftercareCaseId});
+      if(canonicalDigest(selection.originalName)!==canonicalDigest(originalName))fail('US_ADULT_ORIGINAL_NAME_PROOF_INVALID','Actor target changed the first original name.');
+      actorName=selection.personSnapshot.canonicalName;
+    } else if(request?.inventoryUsAdultPresentation!==undefined) {
+      if(!request.aftercareCaseId||request.correctionId)fail('CLEAN_ARCA_INVENTORY_INPUT','Inventory actor naming requires an Arca Aftercare Case.');
+      actorName=assertUsAdultInventoryPresentation(request.inventoryUsAdultPresentation,
+        {shelfEntryId:request.shelfEntryId,aftercareCaseId:request.aftercareCaseId,originalName}).actorName;
+    } else {
+      assertRequiredUsAdultActor(packageValue);
+      actorName=packageValue.mediaCastSnapshot.relations[0].displayName;
+    }
+    const named=buildUsAdultTitle({actorName,originalName});
+    return Object.freeze({title:named.title,year:null,edition:null,usAdultNaming:Object.freeze({actorName,originalName})});
+  }
   let title = identityFact.title || identityFact.displayTitle ||
     identityFact.canonicalTitle || displayIdentityEntry(identityFact, 'title');
   let year = identityFact.year || identityFact.releaseYear ||
@@ -252,40 +284,42 @@ function subtitleQualifiers(fileName) {
 }
 
 function finalMemberName(member, source, identity, placement, series = null) {
+  const segment=identity.usAdultNaming?exactUsAdultSegment:safeSegment;
   if(series&&member.role==='sidecar'){
     const relatedName=relatedPrimaryName(series.packageValue,member,primary=>
       finalMemberName(primary,primary.location?.location||primary.workspaceMaterialHandle?.relativePath||'video.mkv',identity,placement,series));
     if(relatedName)return safeSegment(relatedName);
   }
   const extension = path.extname(source).toLowerCase();
-  const baseStem = safeSegment(identity.year === null
+  const baseStem = segment(identity.year === null
     ? identity.title
     : `${identity.title} (${identity.year})`);
   const stem=series ? safeSegment(seriesMemberStem(series,member,baseStem)) : baseStem;
   const common = Object.freeze({ stem, ext:extension });
   if (member.role === 'primary_payload') {
-    return safeSegment(renderTemplate(placement.primaryTemplate, common));
+    if(identity.usAdultNaming)return buildUsAdultName({...identity.usAdultNaming,outputExtension:extension}).fileName;
+    return segment(renderTemplate(placement.primaryTemplate, common));
   }
   if (member.role === 'metadata_sidecar') {
-    return safeSegment(renderTemplate(placement.nfoTemplate, common));
+    return segment(renderTemplate(placement.nfoTemplate, common));
   }
   if (member.role === 'subtitle') {
     const qualifiers = subtitleQualifiers(source);
     if (!qualifiers.language && !qualifiers.forced && !qualifiers.sdh) {
-      return safeSegment(path.basename(source));
+      return segment(path.basename(source));
     }
-    return safeSegment(renderTemplate(placement.subtitleTemplate, {
+    return segment(renderTemplate(placement.subtitleTemplate, {
       ...common,
       ...qualifiers,
     }));
   }
   if (member.role === 'poster') {
-    return safeSegment(renderTemplate(placement.posterTemplate, { ext:extension }));
+    return segment(renderTemplate(placement.posterTemplate, { ext:extension }));
   }
   if (member.role === 'fanart') {
-    return safeSegment(renderTemplate(placement.fanartTemplate, { ext:extension }));
+    return segment(renderTemplate(placement.fanartTemplate, { ext:extension }));
   }
-  return safeSegment(path.basename(source));
+  return segment(path.basename(source));
 }
 
 function suffixName(name, materialKey) {
@@ -495,13 +529,17 @@ function createCleanArcaInventoryPort(options) {
       fail('CLEAN_ARCA_TARGET_ROOT_UNAVAILABLE',
         'Shelf Target root is unavailable.');
     }
-    const identity = inventoryDisplayIdentity(packageValue);
+    if(request.inventoryUsAdultPresentation!==undefined&&
+        (packageValue.resolvedIdentitySnapshot?.factValue?.resolvedProductIdentity||packageValue.resolvedIdentitySnapshot?.factValue)?.contentProfile!=='western_adult')
+      fail('CLEAN_ARCA_INVENTORY_INPUT','Inventory actor naming cannot change a different content profile.');
+    const identity = inventoryDisplayIdentity(packageValue,request);
     const placement = { ...DEFAULT_SHELF_PLACEMENT_POLICY, ...(shelf.placement?.value || {}) };
+    if(identity.usAdultNaming)placement.collisionPolicy='reject';
     const renderedFolder = renderTemplate(placement.folderTemplate, {
       title:identity.title,
       year:identity.year === null ? '' : String(identity.year),
     }).replace(/\s+\(\s*\)$/, '');
-    const folder = safeSegment(identity.edition
+    const folder = (identity.usAdultNaming?exactUsAdultSegment:safeSegment)(identity.edition
       ? renderedFolder + ' - ' + identity.edition
       : renderedFolder);
     if(request.inventoryArtifactScopes!==undefined&&!request.aftercareCaseId)

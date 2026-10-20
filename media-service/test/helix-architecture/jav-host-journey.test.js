@@ -37,7 +37,9 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
     if(changeCorrectionOptional&&new URL(url).pathname==='/v/Correct02')return new Response((await response.text()).replace('<div class="movie-panel-info">','<div class="movie-panel-info"><div class="panel-block"><strong>日期：</strong><span class="value">2026-10-15</span></div>'),{headers:response.headers});
     return response;};
   const initialized=initializeCleanData({dataDir,secretRoot,confirmation:'INITIALIZE_HELIX_CLEAN_V1'});
-  let requestError=null,runtimeError=null,host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;},onRequestError:error=>{requestError=error;}});
+  let clockEpoch=Date.parse('2026-10-25T12:00:00+08:00'),clockStart=Date.now();
+  const clock=()=>correctionPeople?clockEpoch+Date.now()-clockStart:Date.now();
+  let requestError=null,runtimeError=null,host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;},onRequestError:error=>{requestError=error;}});
   const db=new Database(path.join(dataDir,'shelfdeck.db'));
   const primaryBytes=()=>fs.readFileSync(db.prepare("SELECT m.location FROM arca_inventory_materials m JOIN arca_shelf_entries e ON e.shelf_entry_id=m.shelf_entry_id AND e.current_inventory_revision=m.inventory_revision WHERE m.role='primary_payload'").get().location);
   t.after(async()=>{await host.close();db.close();assert.equal(path.dirname(path.resolve(root)),path.resolve(os.tmpdir()));assert.ok(path.basename(root).startsWith('helix-jav-host-'));fs.rmSync(root,{recursive:true,force:true});});
@@ -71,14 +73,16 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
   let deadline=Date.now()+20000;
   if(incompatible) {
     const second=fs.readFileSync(secondVideoPath);
-    while(Date.now()<deadline&&!runtimeError&&!db.prepare("SELECT libra_run_id FROM libra_runs WHERE state='frozen'").get())await new Promise(resolve=>setTimeout(resolve,100));
-    assert.equal(runtimeError,null,diagnostics());assert.ok(db.prepare("SELECT libra_run_id FROM libra_runs WHERE state='frozen'").get(),diagnostics());
+    while(Date.now()<deadline&&!runtimeError&&!db.prepare("SELECT libra_run_id FROM libra_run_outcomes WHERE outcome='unable_to_on_deck'").get())await new Promise(resolve=>setTimeout(resolve,100));
+    assert.equal(runtimeError,null,diagnostics());assert.ok(db.prepare("SELECT libra_run_id FROM libra_run_outcomes WHERE outcome='unable_to_on_deck'").get(),diagnostics());
     assert.deepEqual(fs.readFileSync(videoPath),video);assert.deepEqual(fs.readFileSync(secondVideoPath),second);
     assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,0);
     const rejected=db.prepare("SELECT work_id FROM fx_work_attempts WHERE failure_code='jav_part_copy_incompatible'").get();assert.ok(rejected);
     assert.equal(db.prepare('SELECT count(*) n FROM fx_workflow_events WHERE work_id=?').get(rejected.work_id).n,0);
-    const evidence=JSON.parse(db.prepare('SELECT transition_evidence_json FROM libra_run_revisions ORDER BY state_revision DESC LIMIT 1').get().transition_evidence_json);
+    const evidence=JSON.parse(db.prepare("SELECT transition_evidence_json FROM libra_run_revisions WHERE json_extract(transition_evidence_json,'$.blockedWorks[0].blockerSource')='plan_rejection' ORDER BY state_revision DESC LIMIT 1").get().transition_evidence_json);
     assert.equal(evidence.blockedWorks[0].blockerSource,'plan_rejection');assert.equal(evidence.blockedWorks[0].failureCode,'jav_part_copy_incompatible');
+    const outcome=JSON.parse(db.prepare('SELECT outcome_json FROM libra_run_outcomes').get().outcome_json);
+    assert.deepEqual(outcome.terminalReasons,[evidence.blockedWorks[0]]);assert.equal(Object.hasOwn(outcome.terminalReasons[0],'capabilityRef'),false);
     return;
   }
   let selection=null,confirmation=null,originalCandidateClaim=null;
@@ -140,6 +144,19 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
   assert.deepEqual(canonical,{identity_kind:'jav_code',provider:'jav',provider_key:expectedCode});
   const materials=db.prepare('SELECT location,role FROM arca_inventory_materials').all();
   const primary=materials.find(material=>material.role==='primary_payload');assert.ok(primary);
+  if(!identity.javSourceQualification.observation.peopleHints.some(item=>item.role==='actor')) {
+    const cast=JSON.parse(db.prepare("SELECT fact_json FROM libra_product_fact_revisions WHERE fact_kind='media_cast'").get().fact_json);
+    assert.equal(cast.relationCount,1);assert.equal(cast.relations[0].personId,'person-jav-unknown-actor');
+    assert.equal(cast.relations[0].displayName,'未知演员');assert.deepEqual(cast.relations[0].providerIdentities,[]);
+    const relation=db.prepare("SELECT person_id,display_name FROM arca_inventory_person_relations WHERE role='actor'").get();
+    assert.deepEqual(relation,{person_id:'person-jav-unknown-actor',display_name:'未知演员'});
+    const nfo=fs.readFileSync(materials.find(item=>item.role==='metadata_sidecar').location,'utf8');
+    assert.match(nfo,/<actor>\s*<name>未知演员<\/name>\s*<\/actor>/);
+    const people=await request('GET','/v1/admin/people?libraryKind=jav');
+    assert.equal(people.items.filter(item=>item.personId==='person-jav-unknown-actor').length,1);
+    const related=await request('GET','/v1/admin/people/person-jav-unknown-actor/collection');
+    assert.equal(related.items.length,1);
+  }
   if(parts) {
     assert.equal(materials.filter(material=>material.role==='primary_payload').length,1);
     const pkg=db.prepare('SELECT material_input_form,jav_part_set_json FROM proc_candidate_packages').all();
@@ -208,6 +225,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
     expectedJavCode:expectedCode,expectedSite,
     failure:posterRepairFailure,beforeObserve:()=>{aftercareCoverUnavailable=posterRepairFailure;},recoverSource:posterRepairRecovery?async()=>{
       aftercareCoverUnavailable=false;
+      await request('PATCH','/v1/admin/settings/integrations/network',{kind:'network',idempotencyKey:'jav-recovery-network',expectedConfigRevision:0,settings:{proxyServer:'http://127.0.0.1:18999'}});
       const kind='jav-javdb',proof=await request('POST','/v1/admin/settings/integrations/'+kind+'/actions/test',{kind,idempotencyKey:'jav-aftercare-source-recovery-test',
         endpoint:'https://javdb.com',credential:{kind:'anonymous'},settings:{networkRoute:{mode:'http_proxy',proxyEndpoint:'http://127.0.0.1:18999'}}});
       await request('PATCH','/v1/admin/settings/integrations/'+kind,{kind,idempotencyKey:'jav-aftercare-source-recovery-config',expectedConfigRevision:1,connectionProofId:proof.connectionProofId});
@@ -273,7 +291,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
       const intentFile=path.join(dataDir,'operator-runtime','intent.json'),intent=fs.existsSync(intentFile)?JSON.parse(fs.readFileSync(intentFile,'utf8')):
         {schema:'shelfdeck.runtime-intent@1',desiredMode:'running',revision:0,pendingReset:null};
       fs.writeFileSync(intentFile,JSON.stringify({...intent,desiredMode:'stopped',revision:intent.revision+1}));
-      host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;}});
+      host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;}});
       const login=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}}),
         entryId=db.prepare('SELECT shelf_entry_id FROM arca_shelf_entries').get().shelf_entry_id,
         poster=await host.inject({method:'GET',url:'/v1/admin/collection/'+entryId+'/poster',headers:{cookie:login.headers['set-cookie']}});
@@ -294,7 +312,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
         sourceResults=db.prepare("SELECT e.event_id,r.result_json,r.result_digest FROM fx_workflow_events e JOIN fx_event_result_bindings r ON r.event_id=e.event_id JOIN fx_supporting_works w ON w.work_id=e.work_id WHERE w.process_id=? AND e.capability_ref='arca.jav_correction.source.verify@1'").all(correctionId),
         conflictBytes=fs.readFileSync(fault.foreignPath),beforeIdentity=db.prepare('SELECT canonical_identity_revision,current_inventory_revision FROM arca_shelf_entries').get();
       assert.equal(failedWorks.length,1);assert.ok(failedEffects.length);assert.deepEqual(beforeIdentity,{canonical_identity_revision:1,current_inventory_revision:1});assert.deepEqual(primaryBytes(),video);
-      runtimeError=null;host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;}});
+      runtimeError=null;host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;}});
       const session=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}}),headers={cookie:session.headers['set-cookie']},
         scope='/v1/admin/collection/'+correctionEntryId+'/jav-corrections/'+correctionId,status=(await host.inject({method:'GET',url:scope,headers})).json(),
         command={expectedStateRevision:status.stateRevision,expectedAdmissionDigest:status.admissionDigest,expectedCleanupState:status.cleanupState,
@@ -304,7 +322,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
       assert.deepEqual(fs.readFileSync(fault.foreignPath),conflictBytes);assert.equal(db.prepare('SELECT count(*) n FROM arca_jav_correction_recovery_intents').get().n,0);await host.close();
       if(fault.restoreAction==='copy')fs.copyFileSync(fault.restoreFromPath,fault.foreignPath);
       else{fs.unlinkSync(fault.foreignPath);if(fault.restoreAction==='link')fs.linkSync(fault.restoreFromPath,fault.foreignPath);}
-      const recoveryErrors=[];host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>recoveryErrors.push(error)});
+      const recoveryErrors=[];host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>recoveryErrors.push(error)});
       const login=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}}),authorized={cookie:login.headers['set-cookie']},
         accepted=await host.inject({method:'POST',url:scope+'/actions/recover',headers:authorized,payload:command});assert.equal(accepted.statusCode,202,accepted.body);assert.equal(accepted.json().replayed,false);
       const replay=await host.inject({method:'POST',url:scope+'/actions/recover',headers:authorized,payload:command});assert.equal(replay.statusCode,202,replay.body);assert.equal(replay.json().replayed,true);
@@ -377,7 +395,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
     if(correctionProcessLoss==='workspace_reclaim_conflict'){interrupted.foreignLocation=path.join(dataDir,'workspaces','aftercare',correctionId+'-assets','poster','poster.jpg');
       interrupted.originalWorkspaceBytes=fs.readFileSync(interrupted.foreignLocation);interrupted.conflictingBytes=Buffer.from(interrupted.originalWorkspaceBytes);
       interrupted.conflictingBytes[0]^=1;fs.writeFileSync(interrupted.foreignLocation,interrupted.conflictingBytes);}
-    runtimeError=null;host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;},onRequestError:error=>{requestError=error;}});
+    runtimeError=null;host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;},onRequestError:error=>{requestError=error;}});
     if(correctionAssetsFailure){const deadline=Date.now()+45000;
       while(Date.now()<deadline&&db.prepare('SELECT state FROM arca_jav_identity_corrections WHERE correction_id=?').get(correctionId).state!=='attention_required')await new Promise(resolve=>setTimeout(resolve,100));
       assert.equal(runtimeError?.code,'ARCA_JAV_CORRECTION_WORKSPACE_REPLAY_CONFLICT',diagnostics());assert.equal(db.prepare('SELECT state FROM arca_jav_identity_corrections WHERE correction_id=?').get(correctionId).state,'attention_required',diagnostics());
@@ -391,7 +409,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
         receipt=await recover({dataDir,db,correctionId}),sourceResults=db.prepare('SELECT e.event_id,r.result_json,r.result_digest FROM fx_workflow_events e JOIN fx_event_result_bindings r ON r.event_id=e.event_id WHERE e.work_id=? AND e.capability_ref=?').all(failedBefore[0].work_id,'arca.jav_correction.source.verify@1');
       assert.ok(receipt.sourceResultReference);assert.equal(receipt.failedWorkId,failedBefore[0].work_id);assert.equal(receipt.filePlanDigest,null);
       assert.deepEqual(fs.readFileSync(metadataPath),metadataBytes);assert.equal(sourceResults.length,1);runtimeError=null;changeCorrectionOptional=true;
-      host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;},onRequestError:error=>{requestError=error;}});
+      host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;},onRequestError:error=>{requestError=error;}});
       const completionDeadline=Date.now()+60000;
       while(Date.now()<completionDeadline&&!runtimeError&&db.prepare('SELECT cleanup_state FROM arca_jav_identity_corrections WHERE correction_id=?').get(correctionId).cleanup_state!=='completed')await new Promise(resolve=>setTimeout(resolve,100));
       assert.equal(runtimeError,null,diagnostics());assert.equal(db.prepare('SELECT cleanup_state FROM arca_jav_identity_corrections WHERE correction_id=?').get(correctionId).cleanup_state,'completed',diagnostics());
@@ -429,7 +447,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
       assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1);assert.deepEqual(primaryBytes(),video);
       assert.equal(db.prepare('SELECT state FROM arca_jav_identity_corrections WHERE correction_id=?').get(correctionId).state,'attention_required');
       if(correctionRepeatCancel){
-        runtimeError=null;requestError=null;host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;},onRequestError:error=>{requestError=error;}});
+        runtimeError=null;requestError=null;host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;},onRequestError:error=>{requestError=error;}});
         const session=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}}),headers={cookie:session.headers['set-cookie']},
           scope='/v1/admin/collection/'+correctionEntryId+'/jav-corrections/'+correctionId;
         for(let attempt=0;attempt<2;attempt++){
@@ -456,7 +474,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
       if(correctionPublicRecovery){
         const failedBefore=db.prepare("SELECT * FROM fx_supporting_works WHERE process_id=? AND state='failed' ORDER BY work_id").all(correctionId);
         changeConfirmedTitle=false;runtimeError=null;
-        host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;}});
+        host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;}});
         const session=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}}),headers={cookie:session.headers['set-cookie']},
           scope='/v1/admin/collection/'+correctionEntryId+'/jav-corrections/'+correctionId,
           read=await host.inject({method:'GET',url:scope,headers}),status=read.json(),
@@ -486,7 +504,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
         assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1);
         if(!correctionRecoveryContinue)return;
         changeConfirmedTitle=false;runtimeError=null;
-        host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;},onRequestError:error=>{requestError=error;}});
+        host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;},onRequestError:error=>{requestError=error;}});
         const recoveryDeadline=Date.now()+60000;
         while(Date.now()<recoveryDeadline&&!runtimeError&&db.prepare('SELECT cleanup_state FROM arca_jav_identity_corrections WHERE correction_id=?').get(correctionId).cleanup_state!=='completed')await new Promise(resolve=>setTimeout(resolve,100));
         assert.equal(runtimeError,null,diagnostics());assert.equal(db.prepare('SELECT cleanup_state FROM arca_jav_identity_corrections WHERE correction_id=?').get(correctionId).cleanup_state,'completed',diagnostics());
@@ -499,7 +517,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
         assert.equal(task.processDetail.stages.length,8);assert.equal(task.processDetail.stages.filter(item=>item.state==='attention').length,1);
         assert.equal(task.processDetail.stages.filter(item=>item.state==='completed').length,7);assert.deepEqual(primaryBytes(),video);return;}
       if(correctionCancelApi){
-        host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;}});
+        host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;}});
         const base='/v1/admin/collection/'+correctionEntryId,status=await request('GET',base+'/jav-corrections/'+correctionId),cancelUrl=base+'/jav-corrections/'+correctionId+'/actions/cancel',
           body={expectedStateRevision:status.stateRevision,expectedAdmissionDigest:status.admissionDigest,idempotencyKey:'public-source-only-cancel'};
         assert.deepEqual(status.cancellation,{available:true,reasonCode:null});
@@ -540,7 +558,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
       else fs.writeFileSync(interrupted.foreignLocation,interrupted.originalWorkspaceBytes);
       const receipt=await recover({dataDir,db,correctionId});assert.equal(receipt.mode,'continue_cleanup');
       assert.equal(receipt.acceptedStateRevision,committed.state_revision);const recoveryErrors=[];
-      host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>recoveryErrors.push(error)});
+      host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>recoveryErrors.push(error)});
       const end=Date.now()+45000;while(Date.now()<end&&db.prepare('SELECT cleanup_state FROM arca_jav_identity_corrections WHERE correction_id=?').get(correctionId).cleanup_state!=='completed')await new Promise(resolve=>setTimeout(resolve,100));
       assert.equal(db.prepare('SELECT cleanup_state FROM arca_jav_identity_corrections WHERE correction_id=?').get(correctionId).cleanup_state,'completed',JSON.stringify(recoveryErrors.map(error=>({code:error.code,message:error.message}))));
       assert.ok(recoveryErrors.every(error=>['ARCA_JAV_CORRECTION_RETIREMENT_INCOMPLETE','ARCA_JAV_CORRECTION_WORKSPACE_RECLAIM_CONFLICT'].includes(error.code)),JSON.stringify(recoveryErrors));
@@ -677,6 +695,13 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
     assert.equal(receipt.correctionId,correctionId);assert.equal(receipt.newInventoryRevision,2);assert.equal(receipt.newCanonicalIdentityRevision,2);
     if(interrupted?.commitResult){assert.equal(receiptRow().result_json,interrupted.commitResult);assert.equal(db.prepare('SELECT state FROM fx_effect_journal WHERE effect_id=?').get(interrupted.effectId).state,'committed');}
     assert.equal(entry.current_inventory_revision,2);assert.equal(entry.canonical_identity_revision,2);
+    if(!correctionPeople) {
+      const currentCast=db.prepare("SELECT person_id,display_name FROM arca_inventory_person_relations WHERE inventory_revision=2 AND role='actor'").all();
+      assert.deepEqual(currentCast,[{person_id:'person-jav-unknown-actor',display_name:'未知演员'}]);
+      const currentNfo=db.prepare("SELECT location FROM arca_inventory_materials WHERE inventory_revision=2 AND role='metadata_sidecar'").get();
+      assert.match(fs.readFileSync(currentNfo.location,'utf8'),/<actor>\s*<name>未知演员<\/name>\s*<\/actor>/);
+      assert.equal((await request('GET','/v1/admin/people/person-jav-unknown-actor/collection')).items.length,1);
+    }
     assert.equal(db.prepare('SELECT provider_key FROM arca_canonical_identity_revisions WHERE revision=2').get().provider_key,'IPX-178');
     assert.equal(db.prepare('SELECT provider_key FROM arca_canonical_identity_revisions WHERE revision=1').get().provider_key,'IPX-177');
     assert.equal(db.prepare('SELECT state FROM arca_jav_identity_corrections WHERE correction_id=?').get(correctionId).state,'committed');
@@ -697,17 +722,25 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
       assert.deepEqual(records.filter(item=>item.sourceKind==='shelfdeck_direct').map(item=>item.perceptionId),perceptionBefore.items.filter(item=>item.sourceKind==='shelfdeck_direct').map(item=>item.perceptionId));
     }
     if(correctionPeople) {
-      const rows=db.prepare('SELECT * FROM arca_inventory_person_relations WHERE inventory_revision=2').all();assert.equal(rows.length,1);
+      const rows=db.prepare("SELECT * FROM arca_inventory_person_relations WHERE inventory_revision=2 ORDER BY display_name").all();assert.equal(rows.length,2);
+      assert.equal(rows[1].display_name,'Unresolved Actor');assert.equal(rows[1].person_id,null);
       assert.equal(rows[0].display_name,'New Actor');assert.equal(rows[0].person_id,null);
       assert.equal(db.prepare('SELECT display_name FROM arca_inventory_person_relations WHERE inventory_revision=1').get().display_name,'Old Actor');
-      const query=require('../../src/helix/domains/arca/model/person-record-observation').personRecordQuery(rows[0]),
-        candidate=()=>db.prepare('SELECT * FROM people_registration_candidates WHERE evidence_digest=?').get(query.evidenceDigest),end=Date.now()+35000;
-      while(Date.now()<end&&!candidate())await new Promise(resolve=>setTimeout(resolve,100));
-      assert.ok(candidate(),diagnostics());assert.equal(candidate().proposed_name,'New Actor');assert.equal(candidate().current_state,'open');
-      const login=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}}),
-        accepted=await host.inject({method:'POST',url:'/v1/admin/people',headers:{cookie:login.headers['set-cookie']},
-          payload:{candidateId:candidate().registration_candidate_id,idempotencyKey:'jav-correction-new-actor'}});
-      assert.equal(accepted.statusCode,200,accepted.body);const personId=accepted.json().person.personId;
+      assert.equal(db.prepare("SELECT count(*) n FROM people_persons WHERE person_id<>'person-jav-unknown-actor'").get().n,0);
+      assert.equal(db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE work_kind='system_person_registration'").get().n,0);
+      clockEpoch=Date.parse('2026-10-31T03:00:00+08:00');clockStart=Date.now();
+      const registered=()=>db.prepare("SELECT p.person_id FROM people_persons p JOIN people_person_revisions r ON r.person_id=p.person_id AND r.revision=p.current_revision WHERE p.library_kind='jav' AND r.canonical_name='New Actor'").get(),end=Date.now()+35000;
+      while(Date.now()<end&&!registered()&&!runtimeError)await new Promise(resolve=>setTimeout(resolve,100));
+      assert.equal(runtimeError,null,diagnostics());assert.ok(registered(),diagnostics());const personId=registered().person_id;
+      const currentCandidate=db.prepare("SELECT * FROM people_registration_candidates WHERE proposed_name='New Actor' AND current_state='accepted'").get();
+      assert.ok(currentCandidate,diagnostics());
+      assert.equal(db.prepare('SELECT decision_origin FROM people_registration_candidate_revisions WHERE registration_candidate_id=? AND state=?').get(currentCandidate.registration_candidate_id,'accepted').decision_origin,'strong_identity_rule');
+      assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref='people.registration_evidence.observe@1' AND state='succeeded'").get().n>=1,true);
+      const weak=()=>db.prepare("SELECT * FROM people_registration_candidates WHERE proposed_name='Unresolved Actor' AND current_state='open'").get(),weakDeadline=Date.now()+35000;
+      while(Date.now()<weakDeadline&&!weak()&&!runtimeError)await new Promise(resolve=>setTimeout(resolve,100));
+      assert.ok(weak(),diagnostics());assert.deepEqual(JSON.parse(weak().candidate_json).providerIdentities,[]);
+      assert.equal(db.prepare("SELECT count(*) n FROM people_person_revisions WHERE canonical_name='Unresolved Actor'").get().n,0);
+      const hidden=await request('GET','/v1/admin/people/registration-candidates');assert.deepEqual(hidden.items,[]);
       const linked=()=>db.prepare('SELECT person_id FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE display_name=?').get('New Actor');
       const linkDeadline=Date.now()+35000;while(Date.now()<linkDeadline&&linked()?.person_id!==personId&&!runtimeError)await new Promise(resolve=>setTimeout(resolve,100));
       assert.equal(runtimeError,null,diagnostics());assert.equal(linked()?.person_id,personId);
@@ -718,7 +751,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
     const before={works:db.prepare('SELECT count(*) n FROM fx_supporting_works WHERE process_id=?').get(correctionId).n,receipt:receiptRow().result_json,
       materials:db.prepare('SELECT * FROM fx_workspace_materials WHERE workspace_id=? ORDER BY relative_path').all(correctionId+'-assets'),requests:requests.length};
     await host.close();runtimeError=null;
-    host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;}});
+    host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;}});
     await new Promise(resolve=>setTimeout(resolve,1200));assert.equal(runtimeError,null,diagnostics());
     assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works WHERE process_id=?').get(correctionId).n,before.works);assert.equal(receiptRow().result_json,before.receipt);
     assert.deepEqual(db.prepare('SELECT * FROM fx_workspace_materials WHERE workspace_id=? ORDER BY relative_path').all(correctionId+'-assets'),before.materials);
@@ -758,7 +791,7 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
       assert.equal(retired.cleanupReceipt.committedContextDigest,JSON.parse(db.prepare('SELECT committed_context_json FROM arca_jav_identity_corrections WHERE correction_id=?').get(correctionId).committed_context_json).contextDigest);
       assert.equal(requests.length,before.requests);assert.deepEqual(primaryBytes(),video);
       if(correctedPosterRepair) {
-        host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;}});
+        host=await createCleanServiceHost({dataDir,adminDistDir,secretRoot,now:clock,integrationFetch:fetchImpl,onExecutionRuntimeError:error=>{runtimeError=error;}});
         const currentRequest=async(method,url,payload)=>{const response=await host.inject({method,url,headers,payload});
           assert.ok(response.statusCode>=200&&response.statusCode<300,response.body);return response.json();};
         await require('./fixtures/jav-aftercare-poster-host').assertJavAftercarePoster({request:currentRequest,db,requests,primaryBytes,diagnostics,
@@ -820,7 +853,7 @@ test('actual loss after the last staged file resumes formal staging under its or
 test('overlapping correction publication keeps the current original poster and identity visible before the final commit',{timeout:150000},t=>journey(t,{correctionOverlap:true}));
 test('actual loss after atomic correction Receipt resumes the same bound Effect without a second identity Inventory or collection Commit',{timeout:150000},t=>journey(t,{correctionProcessLoss:'commit'}));
 test('actual process exit inside Correction Owner transaction rolls back all heads Control and Receipt then recovers the same Effect',{timeout:150000},t=>journey(t,{correctionProcessLoss:'rollback'}));
-test('corrected JAV cast originates from the new source and exact user accepted People evidence links only the new actor',{timeout:150000},t=>journey(t,{correctionWork:true,correctionPeople:true}));
+test('corrected JAV cast is registered and linked by formal system Evidence only in the maintenance window',{timeout:150000},t=>journey(t,{correctionWork:true,correctionPeople:true}));
 test('direct rating on the same JAV Entry remains resolved after identity correction through public Perception APIs',{timeout:150000},t=>journey(t,{correctionWork:true,correctionPerception:true}));
 test('direct rating on the exact accepted Subject remains available on its corrected JAV Entry without rewriting the Record',{timeout:150000},t=>journey(t,{correctionWork:true,correctionPerception:'subject'}));
 test('public JAV correction preview confirm and owned status reach Commit and exact confirmation replays after cache loss',{timeout:150000},t=>journey(t,{correctionWork:true,correctionAdmin:true}));

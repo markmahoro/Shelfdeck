@@ -1,0 +1,158 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_us_adult_reference_pages/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_us_adult_reference_pages",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "analysis_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "page_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "page_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "page_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "page_payload_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "item_count",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "first_person_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 8,
+        "name": "last_person_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      }
+    ],
+    "primaryKey": [
+      "analysis_id",
+      "page_ordinal"
+    ],
+    "declaredForeignKeyColumns": [
+      "analysis_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "page_json",
+        "schemaRefColumn": "page_schema_ref",
+        "maxBytes": 1048576,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable完整PeopleReferenceLibraryPage副本，数据库JSON上限`1 MiB`/页，typed Page仍≤512 KiB"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(analysis_id,page_ordinal)`",
+      "immutable完整PeopleReferenceLibraryPage副本，数据库JSON上限`1 MiB`/页，typed Page仍≤512 KiB",
+      "ordinal从0连续、库digest相同、Person ID全局UTF-8升序且唯一、terminal页才完成",
+      "payload digest覆盖整个Page（包括其pageDigest）",
+      "page set digest和person/page count回指Basis",
+      "不建立People FK或共享Store"
+    ],
+    "rawContract": {
+      "columns": "`analysis_id FK, page_ordinal INTEGER, page_schema_ref, page_json, page_payload_digest, item_count INTEGER, first_person_id NULL, last_person_id NULL`",
+      "constraints": "`PK(analysis_id,page_ordinal)`；immutable完整PeopleReferenceLibraryPage副本，数据库JSON上限`1 MiB`/页，typed Page仍≤512 KiB；ordinal从0连续、库digest相同、Person ID全局UTF-8升序且唯一、terminal页才完成；payload digest覆盖整个Page（包括其pageDigest）；page set digest和person/page count回指Basis；不建立People FK或共享Store"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9590,
+      "lineDigest": "f6c167b60ea8628d200b66117710ef2ff3334d38d19752b1109c6d76c2001487"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "analysis_id"
+        ],
+        "targetTable": "libra_us_adult_analysis_bases",
+        "targetColumns": [
+          "analysis_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/PeopleArtifactReferenceAuditInput/v1",
+  "title": "PeopleArtifactReferenceAuditInput@1",
+  "x-helix-ssotRefs": [
+    "10.5.4",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 32768,
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/PeopleArtifactReferenceAuditInput/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "artifactHandle": {
+      "$ref": "helix://contracts/types/ArtifactHandle/v1"
+    },
+    "bootId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "rootFenceDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "previousEvidence": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/types/PeopleArtifactReferenceEvidence/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "artifactHandle",
+    "bootId",
+    "rootFenceDigest",
+    "previousEvidence"
+  ]
+}

@@ -49,6 +49,10 @@ function createCleanFacades(options) {
     facades.PlatformAdminFacade.get_runtime_reset_preview=async()=>({body:await runtime.previewReset()});
     facades.PlatformAdminFacade.post_runtime_reset=async input=>({status:202,body:await runtime.reset(input.body,input.actor)});
   }
+  if(options.maintenanceWindow){
+    facades.PlatformAdminFacade.get_runtime_maintenance=async()=>({body:options.maintenanceWindow.configuration()});
+    facades.PlatformAdminFacade.patch_runtime_maintenance=async input=>({body:options.maintenanceWindow.configure(input.body,input.actor.actorId)});
+  }
   facades.PlatformAdminFacade.post_session = async (input) => {
     const ttlMs = input.body?.ttlMs ?? MAX_SESSION_TTL_MS;
     const token = options.sessionTokens.issueAuthenticated({
@@ -96,10 +100,16 @@ function createCleanFacades(options) {
     facades.PeopleAdminFacade.get_people_personid = async (input) => ({
       body: options.peopleAdminQuery.get(input.params.personId),
     });
+    if(typeof options.arcaCollectionQuery?.relatedWorks==='function')facades.ArcaCollectionFacade.get_people_personid_collection=async input=>{
+      const scope=options.peopleAdminQuery.relatedWorksScope(input.params.personId);
+      if(!scope)throw Object.assign(new Error('Person was not found.'),{code:'PEOPLE_PERSON_NOT_FOUND'});
+      return {body:options.arcaCollectionQuery.relatedWorks({...scope,
+        cursor:input.query?.cursor,limit:input.query?.limit})};
+    };
     if (options.peopleAvatarQuery) {
       facades.PeopleAdminFacade.get_people_personid_avatar = async (input) => {
-        const value = await options.peopleAvatarQuery.get(input.params.personId);
-        return { body: value.bytes, contentType: value.contentType };
+        const value = await options.peopleAvatarQuery.get(input.params.personId,input.query||{});
+        return { body: value.bytes, contentType: value.contentType,headers:{'Cache-Control':'private, no-store'} };
       };
     }
     facades.PeopleAdminFacade.get_people_registration_candidates = async () => ({
@@ -109,13 +119,30 @@ function createCleanFacades(options) {
       body: options.peopleAdminQuery.mergeCandidates(),
     });
     if (options.peopleAdmin) {
+      facades.PeopleAdminFacade.patch_people_personid = async input => ({body:options.peopleAdmin.updateProfile(input.params.personId,input.body,input.actor)});
+      facades.PeopleAdminFacade.post_people_personid_reference_assets = async input=>({status:202,body:await options.peopleAdmin.addReference(input.params.personId,input.body,input.actor)});
+      facades.PeopleAdminFacade.delete_people_personid_reference_assets_assetid=async input=>({status:202,body:options.peopleAdmin.releaseReference(input.params.personId,input.params.assetId,input.body,input.actor)});
+      facades.PeopleAdminFacade.get_people_operations_operationid = async input => ({ body: options.peopleAdmin.imageOperation(input.params.operationId) });
+      facades.PeopleAdminFacade.get_people_recommendations = async()=>({body:options.peopleAdmin.recommendations()});
+      facades.PeopleAdminFacade.post_people_recommendations_recommendationid_actions_claim = async input=>({status:202,
+        body:await options.peopleAdmin.claimRecommendation(input.params.recommendationId,input.body,input.actor)});
+      facades.PeopleAdminFacade.get_people_recommendation_claims_claimid = async input=>({body:options.peopleAdmin.recommendationClaim(input.params.claimId)});
+      facades.PeopleAdminFacade.get_people_recommendations_recommendationid_image = async input=>{
+        const image=await options.peopleAdmin.recommendationImage(input.params.recommendationId);
+        return {body:image.bytes,contentType:image.mediaType,headers:{'Cache-Control':'private, no-store'}};
+      };
+      facades.PeopleAdminFacade.get_people_image_search = async input => ({ body: await options.peopleAdmin.searchImages(input.query.name) });
+      facades.PeopleAdminFacade.get_people_image_search_preview = async input => {
+        const image = await options.peopleAdmin.previewImage(input.query.selectionToken);
+        return { body: image.bytes, contentType: image.mediaType, headers: { 'Cache-Control': 'private, no-store' } };
+      };
       facades.PeopleAdminFacade.post_people_actions_register = async (input) => ({
-        status: 201,
-        body: { person: options.peopleAdmin.register(input.body, input.actor) },
-      });
-      facades.PeopleAdminFacade.post_people = async (input) => ({
         status: 200,
         body: { person: options.peopleAdmin.accept(input.body, input.actor) },
+      });
+      facades.PeopleAdminFacade.post_people = async (input) => ({
+        status: 202,
+        body: await options.peopleAdmin.register(input.body, input.actor),
       });
       facades.PeopleAdminFacade.post_people_actions_dismiss_candidate = async (input) => ({
         status: 200,
@@ -318,6 +345,14 @@ function createCleanFacades(options) {
       body: options.productIdentitySelection.choose(input.params.libraRunId, input.body, input.actor),
     });
   }
+  if(options.usAdultActorChoice){
+    facades.LibraFormationFacade.post_formation_runs_librarunid_actions_choose_us_adult_actor=async input=>({status:202,
+      body:options.usAdultActorChoice.choose(input.params.libraRunId,input.body,input.actor.actorId)});
+  }
+  if(options.usAdultActorSelectionQuery){
+    facades.LibraFormationFacade.get_formation_runs_librarunid_actor_selection=async input=>({
+      body:options.usAdultActorSelectionQuery.read(input.params.libraRunId)});
+  }
   if (options.arcaAcceptanceRecovery) {
     facades.ArcaShelfAdminFacade.post_formation_acceptance_offerid_actions_retry = async (input) => ({
       status:202, body:options.arcaAcceptanceRecovery.retry(input.params.offerId),
@@ -327,7 +362,7 @@ function createCleanFacades(options) {
     facades.PerceptionAdminFacade.post_perception_records = async (input) => ({ status:202, body:options.perceptionAdmin.createRecord(input.body) });
     facades.PerceptionAdminFacade.get_perception_records = async (input) => ({ body:options.perceptionAdmin.listRecords(input.query || {}) });
     facades.PerceptionAdminFacade.get_perception_acquisitions = async () => ({ body:{ items:options.perceptionAdmin.listAcquisitions() } });
-    facades.PerceptionAdminFacade.post_perception_actions_sync = async (input) => ({ status:202, body:options.perceptionAdmin.requestAcquisition(input.body) });
+    facades.PerceptionAdminFacade.post_perception_actions_sync = async (input) => ({ status:202, body:options.perceptionAdmin.requestAcquisition(input.body,input.actor) });
     facades.PerceptionAdminFacade.get_perception_sync_state = async () => ({ body:options.perceptionAdmin.syncState() });
   }
   if (options.arcaCollectionQuery) {
@@ -342,6 +377,12 @@ function createCleanFacades(options) {
       if(!value){const error=new Error('Shelf Entry poster was not found.');error.code='ARCA_SHELF_ENTRY_POSTER_NOT_FOUND';throw error;}
       return {body:value.bytes,contentType:value.contentType,headers:value.headers};
     };
+  }
+  if(options.arcaUsAdultActorRefresh){
+    const app=options.arcaUsAdultActorRefresh;
+    facades.ArcaCollectionFacade.get_collection_shelfentryid_actor_refresh=async input=>({body:app.read(input.params.shelfEntryId)});
+    facades.ArcaCollectionFacade.post_collection_shelfentryid_actions_refresh_us_adult_actor=async input=>({status:202,
+      body:app.request(input.params.shelfEntryId,input.body,input.actor.actorId)});
   }
   if(options.arcaJavCorrectionAdmin){const app=options.arcaJavCorrectionAdmin;
     facades.ArcaCollectionFacade.get_collection_jav_corrections=async input=>({body:app.list(input.query||{})});

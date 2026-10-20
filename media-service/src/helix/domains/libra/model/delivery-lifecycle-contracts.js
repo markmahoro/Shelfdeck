@@ -1,5 +1,6 @@
 'use strict';
 const {buildRelatedPrimaryMappings}=require('../../../contracts/related-primary-mappings');
+const {assertRequiredUsAdultActor}=require('../../../contracts/us-adult-actor-package');
 
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
 const {acceptsProductionAttestation}=require('./defect-admission-contracts');
@@ -24,7 +25,7 @@ function packageContentValue(decision,subjectId,shelfId){
   const relatedPrimaryMappings=decision.productStructureSnapshot.structureKind==='season'
     ?buildRelatedPrimaryMappings(decision.relatedAuthorityAssertions||[],decision.offloadContextManifest.members,members):[];
   const identity=decision.resolvedIdentitySnapshot;
-  return {
+  return assertRequiredUsAdultActor({
     schemaRef:'helix://contracts/types/OnDeckProductPackage/v1',schemaVersion:1,
     manifestId:decision.onDeckPackageId,manifestKind:'on_deck_product_package',ownerDomain:'libra',
     memberCount:members.length,membersDigest:decision.productMaterialManifest.memberSetDigest,
@@ -45,7 +46,7 @@ function packageContentValue(decision,subjectId,shelfId){
     offloadContextManifest:clone(decision.offloadContextManifest),productionProvenance:clone(decision.productionProvenance),
     productionAttestation:clone(decision.productionAttestation),
     ...(relatedPrimaryMappings.length?{relatedPrimaryMappings}:{})
-  };
+  });
 }
 
 function onDeckProductPackageDigest(decision,subjectId,shelfId){
@@ -62,6 +63,7 @@ function buildOnDeckProductPackage(decision,subjectId,shelfId,publishedAtMs){
 }
 
 function verifyOnDeckProductPackageDigest(value){
+  assertRequiredUsAdultActor(value);
   const expected=canonicalDigest(withoutPackageDigestFields(value));
   if(value.manifestDigest!==expected||value.packageDigest!==expected)
     fail('P9_PRODUCT_DELIVERY_PACKAGE_DIGEST','Reconstructed Product Package content digest drifted.');

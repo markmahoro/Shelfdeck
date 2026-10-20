@@ -232,6 +232,24 @@ test('secondary target persists once, stays active, and replays without replacin
 
 test('published Package custody drift rejects a non-complete transition with zero writes',()=>fixture((input)=>{const onDeckPackageId='package-custody',packageDigest=D('custody-package'),offerId=canonicalDigest({schema:'libra.product-offer-id@1',onDeckPackageId,packageDigest}),db=new Database(input.databasePath);db.prepare('INSERT INTO libra_product_packages (on_deck_package_id,offer_id,package_revision,libra_run_id,package_digest,state,published_at_ms) VALUES (?,?,?,?,?,?,?)').run(onDeckPackageId,offerId,1,input.libraRunId,packageDigest,'published',2);db.prepare('INSERT INTO libra_product_package_materials (on_deck_package_id,ordinal,material_key,committed_control_revision,committed_control_projection_digest,member_digest) SELECT ?,0,material_key,2,?,? FROM libra_run_material_members LIMIT 1').run(onDeckPackageId,D('committed-control'),D('package-member'));db.prepare("UPDATE fx_material_controls SET owner_domain='arca',owner_scope_type='on_deck',owner_scope_id='other-custody'").run();db.close();const intent={libraRunId:input.libraRunId,actorId:'user-1',idempotencyKey:'custody-priority',expectedPriorityClass:'normal',requestedPriorityClass:'expedited',intentKind:'accelerate',issuedAtMs:2000};intent.intentId=canonicalDigest({schema:'libra.run-priority-intent-id@1',libraRunId:intent.libraRunId,actorId:intent.actorId,idempotencyKey:intent.idempotencyKey});intent.intentDigest=canonicalDigest(intent);const decision=buildRunLifecycleDecision({libraRunId:input.libraRunId,expectedStateRevision:input.admitted.stateRevision,expectedStateDigest:input.admitted.stateDigest,transitionKind:'set_priority',newPriority:{priorityClass:'expedited',priorityIntentDigest:intent.intentDigest},transitionEvidence:intent,expectedAdmissionHeadRevision:input.admitted.committedAdmissionHeadRevision,expectedActiveScopeSetDigest:input.admitted.activeScopeSetDigest});assert.throws(()=>createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}).transition({decision,commitMarker:'custody-marker',resultId:'custody-result'}),/no longer owned by Libra/);const check=new Database(input.databasePath,{readonly:true});assert.equal(check.prepare('SELECT state_revision FROM libra_runs').get().state_revision,1);assert.equal(check.prepare('SELECT head_revision FROM libra_run_admission_heads').get().head_revision,1);assert.equal(check.prepare("SELECT COUNT(*) n FROM fx_commit_markers WHERE commit_marker='custody-marker'").get().n,0);check.close();}));
 
+test('freshness waits for the durable delivery message when promoted Package material has Arca custody without completing the Run',()=>fixture(input=>{
+  const db=new Database(input.databasePath),onDeckPackageId='promoted-package',packageDigest=D('promoted-package'),
+    offerId=canonicalDigest({schema:'libra.product-offer-id@1',onDeckPackageId,packageDigest}),materialKey=D('promoted-product');
+  try{
+    db.prepare('INSERT INTO libra_product_packages (on_deck_package_id,offer_id,package_revision,libra_run_id,package_digest,state,published_at_ms) VALUES (?,?,?,?,?,?,?)').run(onDeckPackageId,offerId,1,input.libraRunId,packageDigest,'published',2);
+    db.prepare('INSERT INTO libra_product_package_materials (on_deck_package_id,ordinal,material_key,committed_control_revision,committed_control_projection_digest,member_digest) VALUES(?,0,?,2,?,?)')
+      .run(onDeckPackageId,materialKey,D('product-control'),D('product-member'));
+    db.prepare('INSERT INTO fx_material_controls SELECT ?,mount_scope_id,?,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint,owner_domain,owner_scope_type,owner_scope_id,control_revision,state,updated_at_ms FROM fx_material_controls LIMIT 1')
+      .run(materialKey,'promoted-inode');
+    const store=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork});
+    assert.equal(store.assess({libraRunId:input.libraRunId,assessedAtMs:2000}).assessment.comparison,'same');
+    db.prepare("UPDATE fx_material_controls SET owner_domain='arca',owner_scope_type='on_deck',owner_scope_id='pending-custody' WHERE material_key=?").run(materialKey);
+    const snapshot=()=>JSON.stringify(['libra_runs','libra_run_admission_heads','fx_commit_markers','fx_event_result_bindings'].map(table=>db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all())),before=snapshot();
+    assert.deepEqual(store.assess({libraRunId:input.libraRunId,assessedAtMs:2000}),{kind:'handoff_resolution_pending',libraRunId:input.libraRunId});
+    assert.equal(snapshot(),before);assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'active');
+  }finally{db.close();}
+}));
+
 test('user can end an active Run after Work and Effect closure, with a durable replay and outcome',()=>fixture((input)=>{
   let draining=true;
   const admin=require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService({

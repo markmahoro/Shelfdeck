@@ -1,0 +1,219 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultActorFilePlan/v1",
+  "title": "UsAdultActorFilePlan@1",
+  "x-helix-ssotRefs": [
+    "6.6.8",
+    "8.6.18"
+  ],
+  "x-helix-maxCanonicalBytes": 2097152,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultActorFilePlan/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "aftercareCaseId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "intentId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "intentDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "inventoryRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "representationDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "canonicalIdentityDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "placementDecisionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "endpointId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "rootLocation": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "mountScopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "mountScopeRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      },
+      "required": [
+        "endpointId",
+        "rootLocation",
+        "mountScopeId",
+        "mountScopeRevision"
+      ]
+    },
+    "members": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 1024,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "ordinal": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          },
+          "role": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "original": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "rootLocation": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "location": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 4096
+              },
+              "physicalIdentity": {
+                "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+              },
+              "bindingRevision": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 9007199254740991
+              }
+            },
+            "required": [
+              "rootLocation",
+              "location",
+              "physicalIdentity",
+              "bindingRevision"
+            ]
+          },
+          "retainedLocation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "targetEndpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "targetLocation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "source": {
+            "oneOf": [
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "retained_inventory"
+                  }
+                },
+                "required": [
+                  "kind"
+                ]
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "kind": {
+                    "const": "actor_artifact"
+                  },
+                  "workspaceMaterialHandle": {
+                    "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "workspaceMaterialHandle"
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "ordinal",
+          "role",
+          "original",
+          "retainedLocation",
+          "targetEndpointId",
+          "targetLocation",
+          "source"
+        ]
+      }
+    },
+    "planDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "aftercareCaseId",
+    "shelfEntryId",
+    "intentId",
+    "intentDigest",
+    "selectionDigest",
+    "inventoryRevision",
+    "representationDigest",
+    "canonicalIdentityDigest",
+    "placementDecisionDigest",
+    "target",
+    "members",
+    "planDigest"
+  ],
+  "x-helix-role": "accepted-business-dto"
+}

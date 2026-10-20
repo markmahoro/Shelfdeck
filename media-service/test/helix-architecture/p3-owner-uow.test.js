@@ -14,6 +14,37 @@ const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persis
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generatedRoot, 'clean-schema.manifest.json'), 'utf8'));
 
+test('bounded Owner summaries retain exact integer watermarks and reject executable or foreign definitions',()=>temporaryKernel(({kernel})=>{
+  kernel.runPrimitive(({prepare})=>{prepare('INSERT INTO fx_audit_records(audit_id,owner_domain,occurred_at_ms) VALUES(?,?,?)').run('large','arca',9223372036854775806n);
+    prepare('INSERT INTO fx_audit_records(audit_id,owner_domain,occurred_at_ms) VALUES(?,?,?)').run('other','people',10);});
+  const statement={kind:'select-summary',tableId:'fx_audit_records',keyColumns:['owner_domain'],summaries:[{operator:'count',output:'rows'},
+    {operator:'max',column:'occurred_at_ms',output:'watermark'}]},definition=createRepositoryDefinition({repositoryId:'audit_summary',owner:'execution-foundation',schemaManifest,statements:{summary:statement}}),
+    uow=createSqliteUnitOfWork({kernel}),read=owner=>uow.execute([{participantId:'summary',owner:'execution-foundation',repositories:[definition],execute:context=>
+      context.repository(definition.repositoryId).invoke('summary',{owner_domain:owner})}]).summary;
+  assert.equal(definition.readOnly,true);assert.deepEqual(read('arca'),{rows:1n,watermark:9223372036854775806n});assert.deepEqual(read('missing'),{rows:0n,watermark:null});
+  for(const summaries of [[{operator:'count; DROP TABLE fx_audit_records',output:'rows'}],[{operator:'max',column:'unknown',output:'rows'}],
+    [{operator:'count',column:'audit_id',output:'rows'}],[{operator:'count',output:'bad;sql'}]])
+    assert.throws(()=>createRepositoryDefinition({repositoryId:'invalid_summary',owner:'execution-foundation',schemaManifest,statements:{summary:{...statement,summaries}}}));
+  assert.throws(()=>createRepositoryDefinition({repositoryId:'foreign_summary',owner:'libra',schemaManifest,statements:{summary:statement}}),{code:'P3_REPOSITORY_OWNER_MISMATCH'});
+}));
+
+test('opaque read-view fences reject any intervening commit without admitting foreign Owner repositories',()=>temporaryKernel(({kernel,databasePath})=>{
+  const uow=createSqliteUnitOfWork({kernel}),definition=createRepositoryDefinition({repositoryId:'fenced_audit_read',owner:'execution-foundation',schemaManifest,readOnly:true,
+    statements:{count:{kind:'select-summary',tableId:'fx_audit_records',summaries:[{operator:'count',output:'rows'}]}}}),
+    participants=[{participantId:'fenced',owner:'execution-foundation',repositories:[definition],execute:tx=>tx.repository(definition.repositoryId).invoke('count')}],
+    read=readFence=>uow.execute(participants,{readFence}).fenced;
+  const stable=uow.captureReadFence();assert.deepEqual(read(stable),{rows:0n});assert.deepEqual(read(stable),{rows:0n},'Unchanged readonly views remain reusable.');
+  assert.throws(()=>read(Object.freeze({})),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  const foreign=createSqliteUnitOfWork({kernel}).captureReadFence();assert.throws(()=>read(foreign),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  kernel.runPrimitive(({prepare})=>prepare('INSERT INTO fx_audit_records(audit_id,owner_domain) VALUES(?,?)').run('own-write','people'));
+  assert.throws(()=>read(stable),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  const externalFence=uow.captureReadFence(),external=new Database(databasePath);try{external.prepare('INSERT INTO fx_audit_records(audit_id,owner_domain) VALUES(?,?)').run('external-write','arca');}finally{external.close();}
+  assert.throws(()=>read(externalFence),{code:'P3_UOW_READ_FENCE_CHANGED'});assert.deepEqual(read(uow.captureReadFence()),{rows:2n});
+  const stale=uow.captureReadFence();kernel.runPrimitive(({prepare})=>prepare('INSERT INTO fx_audit_records(audit_id,owner_domain) VALUES(?,?)').run('decorated-write','people'));
+  const decorated={...uow,execute(participants){return uow.execute(participants);}};
+  assert.throws(()=>decorated.execute([{...participants[0],execute(){decorated.assertReadFence(stale);}}],{readFence:stale}),{code:'P3_UOW_READ_FENCE_CHANGED'},'A wrapper dropping optional execute arguments cannot bypass the explicit in-transaction guard.');
+}));
+
 function temporaryKernel(run) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-owner-uow-'));
   const databasePath = path.join(root, 'shelfdeck.db');

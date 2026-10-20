@@ -5,13 +5,26 @@ import RuntimeControls from '../src/helix/RuntimeControls';
 import {SessionProvider} from '../src/helix/session';
 import {helixAdminApi,type RuntimeStatus,type FormationResetPreview} from '../src/helix/api';
 
-const stopped:RuntimeStatus={mode:'stopped',desiredMode:'stopped',revision:1,normalSupplyAllowed:false,
+const stopped:RuntimeStatus={maintenance:{maintenanceActive:false,phase:null,currentTask:null,windowEndAtMs:null},mode:'stopped',desiredMode:'stopped',revision:1,normalSupplyAllowed:false,
   activity:{inFlightEvents:0,inFlightRecoveries:0,inFlightOwnerReconciliations:0},operation:null,error:null,recoveryBackup:null};
 const preview:FormationResetPreview={previewDigest:'a'.repeat(64),ready:true,empty:false,items:[{subjectId:'s',displayIdentity:'测试电影',contentProfile:'movie'}],
   counts:{subjects:1,runs:1,works:1,workspaces:1},protected:{collectionCount:8,endedRunCount:3},blockers:[]};
 afterEach(()=>vi.restoreAllMocks());
 function show(){const client=new QueryClient({defaultOptions:{queries:{retry:false,gcTime:0}}});
   render(<QueryClientProvider client={client}><SessionProvider><RuntimeControls/></SessionProvider></QueryClientProvider>);return client;}
+
+it('shows maintenance and the executing task while keeping operator stop available',async()=>{
+  vi.spyOn(helixAdminApi,'getRuntimeStatus').mockResolvedValue({...stopped,mode:'running',desiredMode:'running',
+    maintenance:{maintenanceActive:true,phase:'maintaining',currentTask:'检查收藏健康',windowEndAtMs:1}});
+  const resume=vi.spyOn(helixAdminApi,'resumeRuntime');
+  show();
+  expect(await screen.findByText('维护中')).toBeVisible();
+  expect(screen.getByText('检查收藏健康')).toBeVisible();
+  expect(screen.getByRole('button',{name:'安全停机'})).toBeEnabled();
+  expect(screen.getByRole('button',{name:'Reset 整理任务'})).toBeDisabled();
+  expect(screen.queryByText(/维护结果|维护历史|完成数量/)).not.toBeInTheDocument();
+  expect(resume).not.toHaveBeenCalled();
+});
 
 it('requires exact list confirmation and stays stopped after Reset completes',async()=>{
   vi.spyOn(helixAdminApi,'getRuntimeStatus').mockResolvedValue(stopped);

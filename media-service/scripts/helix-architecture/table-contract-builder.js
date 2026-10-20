@@ -155,6 +155,10 @@ const NULLABLE_COLUMN_OVERRIDES = new Set([
   'libra_intake_decisions.expected_target_status'
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
+  'arca_us_actor_refresh_pages.intent_id':['arca_us_actor_refresh_intents','intent_id'],
+  'libra_us_adult_reference_pages.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
+  'libra_us_adult_match_completions.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
+  'libra_us_adult_actor_choice_heads.intent_id':['libra_us_adult_actor_choice_intents','intent_id'],
   'arca_jav_correction_recovery_intents.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
   'arca_jav_correction_directory_checks.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
   'fx_plan_nodes.compensation_for_event_id': ['fx_workflow_events', 'event_id'],
@@ -312,6 +316,17 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'arca_us_actor_refresh_intents.payload_json':256*1024,
+  'arca_us_actor_refresh_pages.page_json':512*1024,
+  'people_us_recommendation_claims.payload_json':128*1024,
+  'people_us_recommendation_claims.person_json':16*1024,
+  'people_us_recommendation_claims.receipt_json':16*1024,
+  'people_us_recommendation_cycles.progress_json':16*1024,
+  'people_us_recommendation_sources.observation_json':128*1024,
+  'people_us_recommendation_publications.snapshot_json':1024*1024,
+  'libra_us_adult_reference_pages.page_json':1024*1024,
+  'libra_us_adult_actor_choice_intents.record_json':256*1024,
+  'libra_us_adult_match_completions.completion_json':256*1024,
   'libra_acquisition_candidate_evidence.evidence_json':262144,
   'libra_acquisition_candidate_evidence.record_json':4096,
   'arca_jav_identity_corrections.preview_proof_json': 2 * 1024 * 1024,
@@ -345,6 +360,7 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.verified_artifact_manifest_json': 256 * 1024
 });
 const CURRENT_POINTER_TARGETS = Object.freeze({
+  libra_us_adult_actor_choice_heads: [[['subject_id','current_revision'],'libra_us_adult_actor_choice_intents',['subject_id','choice_revision']]],
   libra_defect_authorization_head: [[['current_authorization_id','current_revision'],'libra_defect_authorizations',['authorization_id','revision']]],
   arca_defect_admission_heads: [[['shelf_entry_id','current_revision'],'arca_defect_admissions',['shelf_entry_id','revision']]],
   fx_workflow_events: [[['event_id', 'current_progress_revision'], 'fx_event_progress', ['event_id', 'revision']]],
@@ -474,7 +490,7 @@ function parseColumns(columnsContract, tableId = null) {
     const match = token.match(/^([a-z][a-z0-9_]*)(?:\(([^)]*)\))?(?:\s+(.+))?$/);
     if (!match) throw new Error(`Unsupported column token: ${token}`);
     const qualifiers = match[3] ? match[3].split(/\s+/) : [];
-    const declaredLogicalType = qualifiers.find((value) => value === 'INTEGER') || null;
+    const declaredLogicalType = qualifiers.find((value) => ['INTEGER','REAL'].includes(value)) || null;
     const fixedPrimaryKey = qualifiers.find((value) => /^PK\([a-z][a-z0-9_]*\)$/.test(value)) || null;
     const splitPrimaryForeignKey = qualifiers.includes('PK') && qualifiers.includes('FK');
     const marker = fixedPrimaryKey ? 'PK' : (splitPrimaryForeignKey ? 'PK/FK' :

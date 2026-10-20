@@ -6,6 +6,7 @@ const os=require('node:os');
 const path=require('node:path');
 const Database=require('better-sqlite3');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
+const {seedPerson}=require('./fixtures/people-state-fixture');
 const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-kernel');
 const {createSqliteUnitOfWork}=require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const {createAftercareStore}=require('../../src/helix/domains/arca/persistence/aftercare-store');
@@ -24,8 +25,9 @@ function fixture(){
   db.pragma('foreign_keys = OFF');
   const insert=(table,row)=>db.prepare(`INSERT INTO "${table}" (${Object.keys(row).map(key=>`"${key}"`).join(',')}) VALUES (${Object.keys(row).map(()=>'?').join(',')})`).run(...Object.values(row));
   insert('arca_shelves',{shelf_id:'shelf',status:'active',current_standard_revision:1,current_placement_revision:1});
-  insert('arca_shelf_entries',{shelf_entry_id:'entry',shelf_id:'shelf',status:'active',structure_kind:'movie',canonical_identity_revision:1,current_inventory_revision:1,current_deck_fact_revision:1});
+  insert('arca_shelf_entries',{shelf_entry_id:'entry',shelf_id:'shelf',status:'active',structure_kind:'single',canonical_identity_revision:1,current_inventory_revision:1,current_deck_fact_revision:1});
   insert('arca_inventory_representations',{shelf_entry_id:'entry',revision:1,representation_digest:digest('inventory'),source_package_id:'package',committed_at_ms:1});
+  insert('arca_canonical_identity_revisions',{shelf_entry_id:'entry',revision:1,structure_kind:'single',identity_kind:'tmdb_movie',provider:'tmdb',provider_key:'123',identity_digest:digest('canonical'),committed_at_ms:1});
   const locations=[path.join(root,'movie.mkv'),path.join(root,'movie.nfo')];
   locations.forEach((location,index)=>fs.writeFileSync(location,index?'old NFO':'original movie bytes'));
   const materials=locations.map((location,ordinal)=>{
@@ -43,6 +45,7 @@ function fixture(){
   fs.writeFileSync(locations[1],'externally updated NFO bytes');
   const store=createAftercareStore(options),contextReader={store},service=createInventoryRecordRefresh({...options,contextReader,computeBoundedMaterialFingerprintSync}),
     context=()=>({shelfEntryId:'entry',basis:{digest:digest('basis'),acceptedProductFactSetDigest:digest('facts')},raw:{
+      contentProfile:'movie',identity:db.prepare('SELECT * FROM arca_canonical_identity_revisions WHERE shelf_entry_id=? AND revision=1').get('entry'),
       entry:db.prepare('SELECT * FROM arca_shelf_entries WHERE shelf_entry_id=?').get('entry'),
       shelf:db.prepare('SELECT * FROM arca_shelves WHERE shelf_id=?').get('shelf'),
       inventory:db.prepare('SELECT * FROM arca_inventory_representations WHERE shelf_entry_id=? ORDER BY revision DESC').get('entry'),
@@ -169,8 +172,8 @@ test('UAT-214 exact Person proof commits only relation records, preserves files 
       provider_identity_schema_ref:'identities',provider_identity_json:'[{"provider":"tmdb","namespace":"person","providerKey":"123"}]',
       provider_identity_digest:digest('identities'),origin_evidence_digest:digest('origin'),confidence_class:'provider_asserted',relation_digest:digest('relation')};
     value.insert('arca_inventory_person_relations',row);
-    const query=createMediaCastReferenceQuery({findActivePersonByProviderIdentity:()=>({personId:'person-123',status:'active',currentRevision:1,revision:{factDigest:digest('person')}})});
-    const proof=query.resolve(personRecordQuery(row)),request={shelfEntryId:'entry',expectedInventoryRevision:1,
+    const query=createMediaCastReferenceQuery({findActivePersonByProviderIdentity:()=>({personId:'person-123',libraryKind:'normal',status:'active',currentRevision:1,revision:{factDigest:digest('person')}})});
+    const proof=query.resolve(personRecordQuery(row,'normal')),request={shelfEntryId:'entry',expectedInventoryRevision:1,
       expectedInventoryDigest:digest('inventory'),standardRevision:1,placementRevision:1,canonicalIdentityRevision:1,
       observations:[{relationId:row.relation_id,previousRelationDigest:row.relation_digest,proof}]};
     const controls=value.db.prepare('SELECT * FROM fx_material_controls').all(),files=value.locations.map(location=>fs.readFileSync(location));
@@ -201,15 +204,14 @@ test('UAT-214 user-accepted weak evidence remains usable after an unrelated Inve
       provider_identity_schema_ref:'identities',provider_identity_json:'[]',provider_identity_digest:digest('empty'),
       origin_evidence_digest:digest('weak-origin'),confidence_class:'weak',relation_digest:digest('weak-relation')};
     value.insert('arca_inventory_person_relations',row);
-    const people=createPeopleProcessServices(value.options),original=personRecordQuery(row);
-    const draft=people.reconcile({displayName:row.display_name,shelfEntryId:'entry',inventoryRevision:1,providerIdentities:[],identityStrength:'weak',evidenceDigest:original.evidenceDigest});
-    const person=people.acceptRegistration({candidateId:draft.candidateId},'admin');
+    const people=createPeopleProcessServices(value.options),original=personRecordQuery(row,'normal');
+    const person=seedPerson(people.store,{contentProfile:'movie',displayName:row.display_name,providerIdentities:[],evidenceDigest:original.evidenceDigest},{historical:true});
     value.insert('arca_inventory_representations',{shelf_entry_id:'entry',revision:2,representation_digest:digest('unrelated-inventory'),source_package_id:'package',committed_at_ms:2});
     value.insert('arca_inventory_person_relations',{...row,inventory_revision:2});
     value.db.prepare('UPDATE arca_inventory_materials SET active_guard=0 WHERE inventory_revision=1').run();
     for(const material of value.materials)value.insert('arca_inventory_materials',{...material,inventory_revision:2});
     value.db.prepare("UPDATE arca_shelf_entries SET current_inventory_revision=2 WHERE shelf_entry_id='entry'").run();
-    const proof=people.mediaCastReferenceQuery.resolve(personRecordQuery({...row,inventory_revision:2,evidence_inventory_revision:1}));
+    const proof=people.mediaCastReferenceQuery.resolve(personRecordQuery({...row,inventory_revision:2,evidence_inventory_revision:1},'normal'));
     const before=value.locations.map(location=>fs.readFileSync(location));
     const result=value.store.refreshInventoryPersonRecords({shelfEntryId:'entry',expectedInventoryRevision:2,
       expectedInventoryDigest:digest('unrelated-inventory'),standardRevision:1,placementRevision:1,canonicalIdentityRevision:1,
@@ -222,7 +224,7 @@ test('UAT-214 user-accepted weak evidence remains usable after an unrelated Inve
 });
 
 
-test('UAT-214 real NFO observation registers People and Arca publishes the exact relation revision with zero Cases',()=>{
+test('UAT-214 Arca consumes exact NFO-derived system Person state and publishes only a relation revision with zero Cases',()=>{
   const value=fixture();try{
     const {createPeopleProcessServices}=require('../../src/helix/domains/people/application/people-process-services');
     const {createOnDeckNfoPersonEvidence}=require('../../src/helix/domains/arca/application/on-deck-nfo-person-evidence');
@@ -237,15 +239,15 @@ test('UAT-214 real NFO observation registers People and Arca publishes the exact
     const projection=createOnDeckNfoPersonEvidence({...value.options,readBoundedFileSnapshotSync,contextReader:{store:{
       currentNfoContext:()=>current().raw,listEntryPage:()=>[{cursor:'entry',scope:{shelfEntryId:'entry'}}]}}});
     const people=createPeopleProcessServices({...value.options,onDeckNfoPersonEvidence:projection});
-    const observation=people.reconcileNfoEntry({shelfEntryId:'entry'});assert.equal(observation.registeredCount,1);
-    const registered=people.store.listPeople()[0],nfo=fs.readFileSync(value.locations[1]);
+    const observation=projection.observeEntry({shelfEntryId:'entry'});assert.equal(observation.kind,'observed');
+    const registered=seedPerson(people.store,observation.items[0]),nfo=fs.readFileSync(value.locations[1]);
     const refresh=createInventoryPersonRecordRefresh({contextReader:{store:value.store},resolveMediaCastReference:input=>people.mediaCastReferenceQuery.resolve(input)});
     const updated=refresh.refresh(current());assert.equal(updated.kind,'inventory_records_refreshed');
     const relation=current().raw.people[0];assert.equal(relation.person_id,registered.personId);
     assert.equal(relation.display_name,'Accepted Actor Name','NFO observation cannot overwrite accepted Media-Cast names.');
     assert.deepEqual(fs.readFileSync(value.locations[1]),nfo);assert.equal(refresh.refresh(current()).kind,'records_unchanged');
     assert.equal(value.db.prepare('SELECT count(*) n FROM arca_aftercare_cases').get().n,0);
-    assert.equal(people.reconcileNfoEntry({shelfEntryId:'entry'}).registeredCount,0);
+    assert.equal(projection.observeEntry({shelfEntryId:'entry'}).items[0].evidenceDigest,observation.items[0].evidenceDigest);
   }finally{value.close();}
 });
 
@@ -274,7 +276,7 @@ test('UAT-214 large cast refresh uses bounded receipts and converges without a C
     const people=createPeopleProcessServices(value.options);
     for(let i=0;i<64;i++){
       const providerIdentities=[{provider:'tmdb',namespace:'person',providerKey:String(9000+i)}];
-      people.reconcile({displayName:'Actor '+i,shelfEntryId:'entry',inventoryRevision:1,providerIdentities,identityStrength:'strong',evidenceDigest:digest('actor-'+i)});
+      seedPerson(people.store,{contentProfile:'movie',displayName:'Actor '+i,providerIdentities,evidenceDigest:digest('actor-'+i)});
       value.insert('arca_inventory_person_relations',{shelf_entry_id:'entry',inventory_revision:1,relation_id:'relation-'+i,person_id:null,
         display_name:'Actor '+i,display_name_normalized:'actor '+i,role:'actor',relation_source:'accepted_product',provider_identity_schema_ref:'identities',
         provider_identity_json:JSON.stringify(providerIdentities),provider_identity_digest:digest('ids-'+i),origin_evidence_digest:digest('origin-'+i),
@@ -299,11 +301,10 @@ test('NFO observation reads current materials without hydrating unrelated facts 
   const value=fixture();try{
     value.insert('arca_shelf_standard_revisions',{shelf_id:'shelf',revision:1,standard_json:'{}'});
     value.insert('arca_placement_policy_revisions',{shelf_id:'shelf',revision:1,policy_json:'{}'});
-    value.insert('arca_canonical_identity_revisions',{shelf_entry_id:'entry',revision:1});
     const full=value.store.currentContext('entry'),reads=[],original=value.options.unitOfWork;
     const unitOfWork={execute(participants){return original.execute(participants.map(p=>({...p,execute(c){return p.execute({...c,repository(id){const r=c.repository(id);return {...r,invoke(name,args){reads.push(name);assert.ok(!['list_facts','list_people','list_reservations'].includes(name));return r.invoke(name,args);}};}});}})));}};
     const store=createAftercareStore({...value.options,unitOfWork});
-    assert.deepEqual(store.currentNfoContext('entry'),{entry:full.entry,shelf:full.shelf,materials:full.materials});
+    assert.deepEqual(store.currentNfoContext('entry'),{entry:full.entry,shelf:full.shelf,contentProfile:'movie',materials:full.materials});
     assert.ok(reads.includes('find_inventory'));assert.ok(reads.includes('find_identity'));
     value.db.prepare('UPDATE arca_shelf_entries SET current_inventory_revision=2').run();
     assert.throws(()=>store.currentNfoContext('entry'),e=>e.code==='ARCA_AFTERCARE_CURRENT_BASIS_BROKEN');

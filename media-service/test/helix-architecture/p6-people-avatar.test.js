@@ -181,3 +181,13 @@ test('Person avatar route requires an authenticated Admin session', async () => 
     method: 'GET', path: '/v1/admin/people/person-1/avatar', nowMs: 1, correlationId: 'test-correlation',
   }), (error) => error.code === 'ADMIN_SESSION_REQUIRED');
 });
+
+test('historical NFO Person identity uses the canonical avatar operation and conflicting IDs never choose a portrait',async()=>{
+  let calls=0,identities=[{provider:'tmdb',namespace:'person',providerKey:'819'}];
+  const query=createPeopleAvatarQuery({store:{getPerson:()=>({status:'active',libraryKind:'normal',revision:{providerIdentities:identities}})},
+    readProviderAvatar:async value=>{calls++;assert.deepEqual(value,identity);return {resultKind:'acquired',mediaType:'image/png',bytes:Buffer.from([1])};}});
+  assert.equal((await query.get('person')).contentType,'image/png');
+  identities=[...identities,identity];await query.get('person');assert.equal(calls,2);
+  identities=[...identities,{...identity,providerKey:'820'}];
+  await assert.rejects(()=>query.get('person'),{code:'PEOPLE_AVATAR_IDENTITY_NOT_AVAILABLE'});assert.equal(calls,2);
+});

@@ -5,8 +5,8 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "libraMediaCastSourceBasisMetadataObservationOrWesternMatch": {
-      "$ref": "#/$defs/libraMediaCastSourceBasisMetadataObservationOrWesternMatch"
+    "libraMediaCastSourceBasis": {
+      "$ref": "#/$defs/libraMediaCastSourceBasis"
     },
     "mediaCastDraft": {
       "$ref": "#/$defs/mediaCastDraft"
@@ -16,14 +16,14 @@
     }
   },
   "required": [
-    "libraMediaCastSourceBasisMetadataObservationOrWesternMatch",
+    "libraMediaCastSourceBasis",
     "mediaCastDraft",
     "domainFactCommitHandle"
   ],
   "$defs": {
-    "libraMediaCastSourceBasisMetadataObservationOrWesternMatch": {
-      "$ref": "helix://contracts/domain-types/LibraMediaCastSourceBasisMetadataObservationWesternMatch/v1",
-      "x-helix-typeExpression": "LibraMediaCastSourceBasis(metadata_observation|western_match)"
+    "libraMediaCastSourceBasis": {
+      "$ref": "helix://contracts/domain-types/LibraMediaCastSourceBasis/v1",
+      "x-helix-typeExpression": "LibraMediaCastSourceBasis"
     },
     "mediaCastDraft": {
       "$ref": "helix://contracts/types/MediaCastDraft/v1",

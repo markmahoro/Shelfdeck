@@ -996,6 +996,162 @@
           "maxLength": 256
         },
         "sourceKind": {
+          "const": "internal_source"
+        },
+        "candidateMatchCount": {
+          "const": 1
+        },
+        "sourceAssociationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "evidenceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "observationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contentProfile": {
+          "const": "western_adult"
+        },
+        "result": {
+          "const": "resolved"
+        },
+        "reasonCode": {
+          "type": "null"
+        },
+        "candidates": {
+          "type": "array",
+          "maxItems": 0
+        },
+        "verifiedIdentity": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "provider": {
+              "const": "internal"
+            },
+            "namespace": {
+              "const": "internal_identity"
+            },
+            "providerKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128
+            },
+            "displayTitle": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "originalTitle": {
+              "type": "null"
+            },
+            "releaseYear": {
+              "type": "null"
+            },
+            "aliases": {
+              "type": "array",
+              "maxItems": 0
+            },
+            "identityDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "provider",
+            "namespace",
+            "providerKey",
+            "displayTitle",
+            "originalTitle",
+            "releaseYear",
+            "aliases",
+            "identityDigest"
+          ]
+        },
+        "originalName": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "us-adult-original-name@1"
+            },
+            "originalFileName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "provenanceDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "schema",
+            "originalFileName",
+            "provenanceDigest"
+          ]
+        }
+      },
+      "required": [
+        "schemaRef",
+        "schemaVersion",
+        "observationId",
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "sourceKind",
+        "candidateMatchCount",
+        "sourceAssociationDigest",
+        "evidenceDigest",
+        "observationDigest",
+        "contentProfile",
+        "result",
+        "reasonCode",
+        "candidates",
+        "verifiedIdentity",
+        "originalName"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schemaRef": {
+          "const": "helix://contracts/types/ProductIdentityEvidenceObservation/v1"
+        },
+        "schemaVersion": {
+          "const": 1
+        },
+        "observationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sourceKind": {
           "enum": [
             "provider_exact",
             "provider_search"
@@ -2358,7 +2514,28 @@
                   },
                   "providerIdentities": {
                     "type": "array",
-                    "maxItems": 0
+                    "maxItems": 1,
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "provider": {
+                          "const": "javdb"
+                        },
+                        "namespace": {
+                          "const": "javdb_actor"
+                        },
+                        "providerKey": {
+                          "type": "string",
+                          "pattern": "^[A-Za-z0-9_-]{1,128}$"
+                        }
+                      },
+                      "required": [
+                        "provider",
+                        "namespace",
+                        "providerKey"
+                      ]
+                    }
                   }
                 },
                 "required": [
@@ -2433,6 +2610,33 @@
             "peopleHints",
             "cover",
             "observationDigest"
+          ],
+          "allOf": [
+            {
+              "if": {
+                "properties": {
+                  "siteRef": {
+                    "const": "javdb"
+                  }
+                },
+                "required": [
+                  "siteRef"
+                ]
+              },
+              "else": {
+                "properties": {
+                  "peopleHints": {
+                    "items": {
+                      "properties": {
+                        "providerIdentities": {
+                          "maxItems": 0
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           ]
         }
       },

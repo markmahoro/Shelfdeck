@@ -49,7 +49,8 @@
       "type": "string",
       "enum": [
         "metadata_observation",
-        "western_match"
+        "western_match",
+        "us_adult_actor"
       ]
     },
     "metadataObservationSetDigest": {
@@ -171,6 +172,11 @@
         ]
       },
       "maxItems": 4096
+    },
+    "usAdultActorBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [
@@ -186,5 +192,36 @@
     "metadataObservationSetDigest",
     "westernMatchBasisDigest",
     "relations"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "sourceBasisKind": {
+            "const": "us_adult_actor"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "usAdultActorBasisDigest"
+        ],
+        "properties": {
+          "metadataObservationSetDigest": {
+            "type": "null"
+          },
+          "westernMatchBasisDigest": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "not": {
+          "required": [
+            "usAdultActorBasisDigest"
+          ]
+        }
+      }
+    }
   ]
 }

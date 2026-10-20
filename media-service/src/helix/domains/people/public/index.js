@@ -38,4 +38,5 @@ module.exports = Object.freeze({
   PeopleCommandFacade: (implementation) => bind('PeopleCommandFacade', implementation),
   PersonReferenceQueryFacade: (implementation) => bind('PersonReferenceQueryFacade', implementation),
   createPeopleProcessServices,
+  createPeopleImageExecutionRegistration: require('./image-execution-registration').createPeopleImageExecutionRegistration,
 });

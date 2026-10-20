@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "people.reference_usage.audit@1",
+  "contractVersion": 1,
+  "ownerScope": "people",
+  "effectClass": "pure_observation",
+  "inputPorts": {
+    "peopleArtifactReferenceAuditInput": {
+      "schemaRef": "helix://contracts/capabilities/people.reference_usage.audit/v1/inputs#/$defs/peopleArtifactReferenceAuditInput",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/people.reference_usage.audit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/types/PeopleArtifactReferenceEvidence/v1",
+  "evidenceSchemaRef": "helix://contracts/capabilities/people.reference_usage.audit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/people.reference_usage.audit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/people.reference_usage.audit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/people.reference_usage.audit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/people.reference_usage.audit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.14",
+    "line": 10635,
+    "lineDigest": "8b6b81935a3fdb846d00812fb6271848ca610adb86520877778ebe98005bb69c"
+  }
+}

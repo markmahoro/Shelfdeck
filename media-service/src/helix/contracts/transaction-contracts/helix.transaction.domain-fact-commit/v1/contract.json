@@ -35,6 +35,82 @@
     "readTables": [],
     "variants": [
       {
+        "variantId": "arca_us_adult_case_closure@1",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "arca",
+            "access": "write",
+            "tables": [
+              "arca_aftercare_cases",
+              "arca_aftercare_settlement_approvals"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_event_result_bindings",
+              "fx_commit_markers"
+            ]
+          }
+        ],
+        "writeTables": [
+          "arca_aftercare_cases",
+          "arca_aftercare_settlement_approvals",
+          "fx_event_result_bindings",
+          "fx_commit_markers"
+        ],
+        "readTables": [
+          "arca_aftercare_cases",
+          "arca_us_actor_refresh_intents",
+          "arca_aftercare_inventory_commits",
+          "arca_inventory_product_facts",
+          "arca_shelf_entries",
+          "arca_shelves",
+          "arca_offdeck_reservations",
+          "fx_supporting_works",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_event_result_bindings"
+        ],
+        "selector": {
+          "selectorKind": "domain_fact_handle_exact",
+          "factType": "us_adult_actor_case",
+          "factSchemaRef": "helix://contracts/types/AftercareCaseResult/v1",
+          "resultSchemaRef": "helix://contracts/types/AftercareCaseResult/v1"
+        },
+        "dynamicTableRequirements": [],
+        "fenceContract": {
+          "domainRevisionFenceRequired": true,
+          "materialControlCasRequired": false,
+          "commitMarkerRequired": true,
+          "outboxRequired": false
+        },
+        "rollbackInvariant": "The exact Actor Case closure, Event Result and marker are all-or-none; unchanged requires all matching pages; refreshed requires its exact Inventory commit and physical retirement; unrelated health Findings remain open.",
+        "crashFixtures": [
+          {
+            "fixtureId": "aftercare-basis-inventory",
+            "faultInjectionPoints": "Standard/Placement/Decision Fact变化、Case create、Workspace output、Stage/Switch、Settlement、Inventory/Control commit",
+            "requiredInvariant": "Case冻结完整Care Basis；旧Basis不能提交；原Shelf Entry/Identity/Deck持续；新Inventory revision与Control set一致",
+            "source": {
+              "section": "8.9.7",
+              "line": 8421
+            }
+          },
+          {
+            "fixtureId": "effect-outbox-recovery",
+            "faultInjectionPoints": "effect intent后、外部效果后receipt前、Outbox commit后dispatch前",
+            "requiredInvariant": "依据Effect Class reconcile，不统一重置ready；duplicate message/effect不重复提交",
+            "source": {
+              "section": "8.9.7",
+              "line": 8430
+            }
+          }
+        ]
+      },
+      {
         "variantId": "arca_final_product_verification@1",
         "participants": [
           {
@@ -245,6 +321,11 @@
         ],
         "readTables": [
           "libra_runs",
+          "libra_subjects",
+          "libra_us_adult_analysis_bases",
+          "libra_us_adult_match_completions",
+          "libra_us_adult_actor_choice_heads",
+          "libra_us_adult_actor_choice_intents",
           "libra_product_fact_revisions",
           "libra_product_fact_source_refs",
           "fx_supporting_works",
@@ -471,7 +552,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8756,
+      "line": 8831,
       "lineDigest": "540a8baf06b3cdd5b1ee8bda961e97781d0bc722037eacac4dc6c8aaff08ebf5"
     }
   }

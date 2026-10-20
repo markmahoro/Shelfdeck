@@ -33,7 +33,8 @@
         "logicalType": "TEXT",
         "enumValues": [
           "add_image",
-          "release_image"
+          "release_image",
+          "replace_image"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -136,7 +137,8 @@
         "column": "operation_kind",
         "enumValues": [
           "add_image",
-          "release_image"
+          "release_image",
+          "replace_image"
         ]
       }
     ],
@@ -169,13 +171,13 @@
       "三个set digest及`fact_digest`必须严格使用`PersonReferenceRevision` nominal合同声明的唯一basis"
     ],
     "rawContract": {
-      "columns": "`person_id FK, revision, operation_kind(add_image|release_image), reference_asset_id, reference_face_id, active_asset_set_digest, active_face_set_digest, reference_set_digest, decision_digest, fact_digest, committed_at_ms`",
+      "columns": "`person_id FK, revision, operation_kind(add_image|release_image|replace_image), reference_asset_id, reference_face_id, active_asset_set_digest, active_face_set_digest, reference_set_digest, decision_digest, fact_digest, committed_at_ms`",
       "constraints": "`PK(person_id,revision)`；immutable；`people_persons.current_reference_revision`显式FK指向current row；Reference commit以expected reference revision CAS并保存完整active set digest，不通过扫描时间猜current；三个set digest及`fact_digest`必须严格使用`PersonReferenceRevision` nominal合同声明的唯一basis"
     },
     "source": {
       "section": "8.5.13",
-      "line": 9607,
-      "lineDigest": "fd1af7799be92b38afe9241681728fd01a4c52590ca8323bc64c9f1471f6eecb"
+      "line": 9705,
+      "lineDigest": "756e91a6ead741e35ef48a4bf422a3baaab36d15e173525b4b6f62e52b8aece1"
     },
     "foreignKeys": [
       {

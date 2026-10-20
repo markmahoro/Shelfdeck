@@ -126,6 +126,34 @@ test('target folder uses the resolved display title and derives its year without
   }
 });
 
+test('US Inventory preserves its frozen original name beyond the old segment limit and rejects duplicate targets',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'clean-arca-us-name-'));
+  try{
+    const primary=path.join(root,'workspace-output.mkv'),poster1=path.join(root,'one.jpg'),poster2=path.join(root,'two.jpg');
+    for(const file of [primary,poster1,poster2])fs.writeFileSync(file,Buffer.from('isolated-input'));
+    const original='Studio.'+'a'.repeat(183)+'.1080p.mp4',proof=require('../src/helix/contracts/us-adult-presentation').originalNameProvenance(original),
+      actor={role:'actor',personId:'actor-1',displayName:'Actor',source:'user_actor_choice'},
+      cast={schemaRef:'helix://contracts/types/MediaCastFact/v1',sourceBasisKind:'us_adult_actor',relationCount:1,relations:[actor],relationsDigest:canonicalDigest(actor)},
+      packageValue={onDeckPackageId:'us-package',shelfId:'shelf-1',
+        resolvedIdentitySnapshot:{factValue:{contentProfile:'western_adult',identityKind:'internal_identity',structureKind:'single',
+          displayIdentity:{entries:[{key:'title',value:'Original title'},{key:'original_file_name',value:original},{key:'original_file_name_digest',value:proof.provenanceDigest}]}}},
+        mediaCastSnapshot:{mediaCastFactId:'cast',mediaCastFactRevision:1,factDigest:'cast-digest',factValue:cast,relations:cast.relations,relationsDigest:cast.relationsDigest},
+        productFactManifest:{items:[{factKind:'media_cast',productFactId:'cast',factRevision:1,factDigest:'cast-digest',factValue:cast}]},
+        productStructureSnapshot:{structureKind:'single'},productMaterialManifest:{manifestDigest:'members',members:[member(primary,'primary_payload','mount')]},
+        offloadContextManifest:{manifestDigest:'offload',members:[]}},
+      shelf={shelfId:'shelf-1',status:'active',currentPlacementRevision:1,target:{endpointId:'target',rootLocation:root,mountScopeId:'mount',mountScopeRevision:1},
+        placement:{value:{folderTemplate:'{title}',primaryTemplate:'{stem}{ext}',collisionPolicy:'append_material_key'}}},
+      port=createCleanArcaInventoryPort({schemaManifest,unitOfWork:{},workspaceRoot:path.join(root,'.workspace')}),
+      request={onDeckRunId:'us-run',custodyId:'us-custody',onDeckProductPackage:packageValue,shelf,observedAtMs:1},plan=port.prepare(request),
+      expected='Actor '+original.slice(0,-4);
+    assert.equal(path.basename(path.dirname(plan.members[0].targetLocation)),expected);assert.equal(plan.members[0].finalName,expected+'.mkv');
+    packageValue.productMaterialManifest.members.push(member(poster1,'poster','mount'),member(poster2,'poster','mount'));
+    assert.throws(()=>port.prepare(request),{code:'CLEAN_ARCA_TARGET_COLLISION'});
+    packageValue.mediaCastSnapshot.relations=[];
+    assert.throws(()=>port.prepare(request),{code:'US_ADULT_ACTOR_REQUIRED'});
+  }finally{fs.rmSync(root,{recursive:true,force:true});}
+});
+
 test('Placement target conflicts are preflighted before any earlier member is switched', async () => {
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'clean-arca-placement-preflight-'));
   try {

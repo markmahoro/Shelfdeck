@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultRecommendationConfirmation/v1",
+  "title": "UsAdultRecommendationConfirmation@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultRecommendationConfirmation/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "claimId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "actorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "source": {
+      "$ref": "helix://contracts/domain-types/UsAdultRecommendationSource/v1"
+    },
+    "personId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedPersonRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "expectedReferenceRevision": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "claimId",
+    "actorId",
+    "source",
+    "personId",
+    "expectedPersonRevision",
+    "expectedReferenceRevision"
+  ],
+  "x-helix-maxCanonicalBytes": 131072
+}

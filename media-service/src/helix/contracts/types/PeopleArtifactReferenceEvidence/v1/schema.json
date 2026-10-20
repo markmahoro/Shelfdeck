@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/PeopleArtifactReferenceEvidence/v1",
+  "title": "PeopleArtifactReferenceEvidence@1",
+  "x-helix-ssotRefs": [
+    "10.5.4",
+    "8.6.19"
+  ],
+  "x-helix-maxCanonicalBytes": 16384,
+  "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/PeopleArtifactReferenceEvidence/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "evidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "evidenceKind": {
+      "const": "people_artifact_reference_audit"
+    },
+    "producerRef": {
+      "const": "people.reference_usage.audit@1"
+    },
+    "basisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "payloadDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observedAtMs": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "artifactHandle": {
+      "$ref": "helix://contracts/types/ArtifactHandle/v1"
+    },
+    "policyDigest": {
+      "const": "e1639a519c71682f38b466ce6b0a442edaf9578c426b74acefa83bedc94f5e5c"
+    },
+    "bootId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "rootFenceDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sourceEpochs": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "sourceId": {
+            "enum": [
+              "people_current",
+              "libra_frozen",
+              "arca_frozen"
+            ]
+          },
+          "epochDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "sourceId",
+          "epochDigest"
+        ]
+      }
+    },
+    "round": {
+      "enum": [
+        1,
+        2
+      ]
+    },
+    "sourceIndex": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "cursor": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2048
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "enum": [
+        "scanning",
+        "waiting",
+        "eligible",
+        "retained",
+        "changed"
+      ]
+    },
+    "firstPassCompletedAtMs": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "pageCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "chainDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "evidenceId",
+    "evidenceKind",
+    "producerRef",
+    "basisDigest",
+    "payloadDigest",
+    "observedAtMs",
+    "artifactHandle",
+    "policyDigest",
+    "bootId",
+    "rootFenceDigest",
+    "sourceEpochs",
+    "round",
+    "sourceIndex",
+    "cursor",
+    "status",
+    "firstPassCompletedAtMs",
+    "pageCount",
+    "chainDigest"
+  ]
+}

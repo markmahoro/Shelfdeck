@@ -45,13 +45,37 @@ const open = (databasePath, options = {}) => openSqliteKernel({
   Database, databasePath, schemaDdl, schemaManifest, now: options.now
 });
 
-test('creates and reopens the current clean 210-table WAL generation with hard startup gates', () => {
+test('maintenance reference auditing reads bounded key samples and rejects missing parents without repairing data', () => {
+  temporaryDatabase(databasePath => {
+    const kernel = open(databasePath);
+    try {
+      kernel.runPrimitive(({ prepare }) => {
+        prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,priority_class,state,idempotency_key,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?)')
+          .run('audit-work', 'people', 'person_registration', 'audit-person', 'reference_import', 'normal_foreground', 'admitted', 'audit-work-key', 1);
+        for (let index = 0; index < 3; index++) prepare('INSERT INTO fx_work_attempts(attempt_id,work_id,state) VALUES(?,?,?)').run('attempt-' + index, 'audit-work', 'failed');
+      });
+      const tableIndex = schemaManifest.tables.findIndex(table => table.tableId === 'fx_work_attempts');
+      const first = kernel.storageMaintenance.auditReferenceSample({ tableIndex, rowId: 0 }, 2);
+      assert.equal(first.sampledRows, 2); assert.equal(first.nextCursor.tableIndex, tableIndex);
+      assert.equal(kernel.storageMaintenance.auditReferenceSample(first.nextCursor, 2).sampledRows, 1);
+      assert.throws(() => kernel.storageMaintenance.auditReferenceSample({ tableIndex, rowId: 0, extra: true }, 2), { code: 'P3_SQLITE_MAINTENANCE_LIMIT_INVALID' });
+      assert.equal(kernel.storageMaintenance.optimize().status, 'optimized');
+      const external = new Database(databasePath);
+      try { external.pragma('foreign_keys=OFF'); external.prepare('UPDATE fx_work_attempts SET work_id=? WHERE attempt_id=?').run('absent-work', 'attempt-0'); }
+      finally { external.close(); }
+      assert.throws(() => kernel.storageMaintenance.auditReferenceSample({ tableIndex, rowId: 0 }, 2), { code: 'P3_SQLITE_REFERENCE_AUDIT_FAILED' });
+      kernel.runPrimitive(({ prepare }) => assert.equal(prepare('SELECT work_id FROM fx_work_attempts WHERE attempt_id=?').get('attempt-0').work_id, 'absent-work'));
+    } finally { kernel.close(); }
+  });
+});
+
+test('creates and reopens the current clean 224-table WAL generation with hard startup gates', () => {
   temporaryDatabase((databasePath) => {
     let firstGeneration;
     {
       const first = open(databasePath, { now: () => 1700000000000 });
-      assert.equal(first.generation.tableCount,210);
-      assert.equal(first.generation.indexCount, 107);
+      assert.equal(first.generation.tableCount,224);
+      assert.equal(first.generation.indexCount, 114);
       assert.equal(first.generation.partialUniqueCount, 23);
       assert.equal(first.generation.schemaDigest, schemaManifest.ddlDigest);
       assert.deepEqual(first.diagnostics(), { foreignKeys: 1, journalMode: 'wal', synchronous: 1, busyTimeout: 5000 });
@@ -194,5 +218,22 @@ test('rejects foreign-key corruption and cross-table guard projection drift', ()
     changed.exec("INSERT INTO arca_inventory_materials(shelf_entry_id,inventory_revision,ordinal,material_key,role,active_guard) VALUES('entry',1,0,'material','primary_payload',0)");
     changed.close();
     assert.throws(() => open(databasePath), (error) => error.code === 'P3_SQLITE_GUARD_PROJECTION_DRIFT');
+  });
+});
+
+test('current US schema retains its strict Person and Provider library consistency guard', () => {
+  temporaryDatabase(databasePath => {
+    const kernel=open(databasePath);kernel.close();
+    const changed=new Database(databasePath);
+    try {
+      changed.pragma('foreign_keys=OFF');
+      changed.prepare('INSERT INTO people_persons(person_id,library_kind,status,current_revision) VALUES(?,?,?,?)')
+        .run('normal-person','normal','active',1);
+      changed.prepare('INSERT INTO people_person_revisions(person_id,revision,canonical_name,origin_kind,origin_decision_id,origin_decision_digest) VALUES(?,?,?,?,?,?)')
+        .run('normal-person',1,'Test Actor','direct','fixture-decision','1'.repeat(64));
+      changed.prepare('INSERT INTO people_provider_identities(person_id,revision,library_kind,provider,namespace,provider_key,active_guard) VALUES(?,?,?,?,?,?,?)')
+        .run('normal-person',1,'jav','tmdb','tmdb_person','123',1);
+    } finally {changed.close();}
+    assert.throws(()=>open(databasePath),error=>error.code==='P3_SQLITE_GUARD_PROJECTION_DRIFT'&&error.details.check==='people-provider-library');
   });
 });

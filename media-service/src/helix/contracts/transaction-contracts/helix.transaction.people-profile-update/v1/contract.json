@@ -1,0 +1,76 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.people-profile-update/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.people-profile-update",
+    "displayName": "People Profile Update",
+    "ownerScope": "people",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "complete PeopleProfileUpdateDecision + active us_adult Person revision CAS + 新Person revision/aliases + 不变Provider identities的同revision重建 + Reference Projection checkpoint + durable command result/receipt + commit marker/audit；不写Arca、不广播影片刷新",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "people",
+        "access": "write",
+        "tables": [
+          "people_persons",
+          "people_person_revisions",
+          "people_aliases",
+          "people_provider_identities"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records"
+        ]
+      }
+    ],
+    "writeTables": [
+      "people_persons",
+      "people_person_revisions",
+      "people_aliases",
+      "people_provider_identities",
+      "fx_command_receipts",
+      "fx_commit_markers",
+      "fx_audit_records"
+    ],
+    "readTables": [
+      "people_persons",
+      "people_person_revisions"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "people-profile-update",
+        "faultInjectionPoints": "revision fence, immutable revision/alias/identity writes, command receipt/marker/audit, before and after COMMIT",
+        "requiredInvariant": "Profile revision and durable command result are all-or-none; replay returns the original result after later edits; no Media-Cast or Arca writes",
+        "source": {
+          "section": "8.9.7",
+          "line": 8809
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8842,
+      "lineDigest": "3d42c534b0f206012fb3afa224e050041d1db55a25b1910a2ae4b9fbce473b5b"
+    }
+  }
+}

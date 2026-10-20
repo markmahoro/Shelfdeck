@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultActorRefreshIntent/v1",
+  "title": "UsAdultActorRefreshIntent@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultActorRefreshIntent/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "policyVersion": {
+      "const": "us-adult-actor-refresh@1"
+    },
+    "intentId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "actorId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "requestDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "specified",
+        "automatic"
+      ]
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "inventoryRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "representationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "deckFactRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "canonicalIdentityRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "canonicalIdentityKey": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "canonicalIdentityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "careBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "knownBindingsDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "originalName": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "us-adult-original-name@1"
+        },
+        "originalFileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1024
+        },
+        "provenanceDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "originalFileName",
+        "provenanceDigest"
+      ]
+    },
+    "actorRelationDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "sourceMaterialBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "materialKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "endpointId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "bindingRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "identityDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "bindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "materialKey",
+        "endpointId",
+        "bindingRevision",
+        "identityDigest",
+        "bindingDigest"
+      ]
+    },
+    "manualPersonSnapshot": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/domain-types/UsAdultPersonSnapshot/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "libraryDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "personCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pageCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pageSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "faceModelRef": {
+      "$ref": "helix://contracts/domain-types/FaceModelRef/v1"
+    },
+    "referenceModelRefDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "rendererVersion": {
+      "const": "us-adult-presentation@3"
+    },
+    "intentDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "policyVersion",
+    "intentId",
+    "actorId",
+    "idempotencyKey",
+    "requestDigest",
+    "mode",
+    "shelfEntryId",
+    "inventoryRevision",
+    "representationDigest",
+    "deckFactRevision",
+    "canonicalIdentityRevision",
+    "canonicalIdentityKey",
+    "canonicalIdentityDigest",
+    "careBasisDigest",
+    "knownBindingsDigest",
+    "originalName",
+    "actorRelationDigest",
+    "sourceMaterialBinding",
+    "manualPersonSnapshot",
+    "libraryDigest",
+    "personCount",
+    "pageCount",
+    "pageSetDigest",
+    "faceModelRef",
+    "referenceModelRefDigest",
+    "rendererVersion",
+    "intentDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 262144
+}

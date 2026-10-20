@@ -30,6 +30,8 @@ function createPersonReferenceQuery(store) {
   requireMethod(store, 'listPersonReferenceProjections',
     'P6_PEOPLE_REFERENCE_QUERY_STORE_REQUIRED');
   return Object.freeze({
+    readUsAdultPersonSnapshot:input=>store.readUsAdultPersonSnapshot(input),
+    readUsAdultReferencePage:input=>store.readUsAdultReferencePage(input),
     getPersonReferenceProjection(input) {
       if (!input || Object.keys(input).length !== 1 || typeof input.personId !== 'string' || input.personId.length < 1) {
         throw new PeopleReferenceLifecycleError('P6_PEOPLE_REFERENCE_QUERY_INPUT', 'Reference query requires exactly one personId.');

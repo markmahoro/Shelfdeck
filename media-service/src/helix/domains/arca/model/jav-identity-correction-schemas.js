@@ -65,8 +65,8 @@ function javCorrectionFilePlanSchema() {
 
 function javCorrectionCastFactSchema() {
   const nullable=value=>({anyOf:[value,{type:'null'}]}),relation=object({relationId:text(),personId:nullable(text()),displayName:text(16384),
-    displayNameNormalized:text(16384),role:{const:'actor'},source:text(),providerIdentities:{type:'array',maxItems:0,
-      items:object({provider:text(),namespace:text(),providerKey:text()})},originEvidenceDigest:digest(),confidenceClass:text(),relationDigest:digest()});
+    displayNameNormalized:text(16384),role:{const:'actor'},source:text(),providerIdentities:javQualificationSchema().properties.peopleHints.items.properties.providerIdentities,
+    originEvidenceDigest:digest(),confidenceClass:text(),relationDigest:digest()});
   return object({schemaRef:{const:'helix://contracts/application-types/ArcaJavCorrectionCastFact/v1'},schemaVersion:{const:1},
     correctionId:text(),shelfEntryId:text(),admissionDigest:digest(),canonicalIdentityDigest:digest(),sourceObservationDigest:digest(),
     relations:{type:'array',maxItems:64,items:relation},relationCount:{type:'integer',minimum:0,maximum:64},relationsDigest:digest(),

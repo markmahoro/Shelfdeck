@@ -3,6 +3,10 @@ const {advanceSeriesExternalScope}=require('./series-external-scope-coordinator'
 const {replacementScopes}=require('../planning/external-material-work');
 const { candidateSeriesAnchor } = require('../model/series-identity-contracts');
 const {nextJavIdentityStage}=require('../planning/jav-product-identity-work');
+const {nextUsAdultIdentityStage}=require('../planning/us-adult-product-identity-work');
+const {createUsAdultAnalysisCoordinator}=require('./us-adult-analysis-coordinator');
+const {createUsAdultProductCoordinator}=require('./us-adult-product-coordinator');
+const {artifactWorkIdentity}=require('../model/us-adult-product-work');
 
 const { readDirectMediaSelections } = require('../planning/direct-media-selections');
 const {readSeriesProductionCandidates,readSeriesMediaSelections,candidateSetDigest}=require('../planning/series-production-candidates');
@@ -50,11 +54,8 @@ const PRODUCT_METADATA_RESULT='helix://contracts/capabilities/libra.product_meta
 function stable(prefix,value){return prefix+canonicalDigest(value).slice(0,40);}
 function priority(snapshot) { return snapshot.run.priorityClass === 'expedited'
   ? 'expedited_formation' : 'normal_foreground'; }
-function artifactWork(snapshot,workspace) {
-  const basis={libraRunId:snapshot.run.libraRunId,executionBasisDigest:snapshot.run.executionBasisDigest,
-    workspaceId:workspace.workspaceId,
-    artifactRequirementDigest:canonicalDigest({schema:'libra.artifact-requirement-set@1',
-      items:requiredArtifactKinds(snapshot)})};
+function artifactWork(snapshot,workspace,selection=null) {
+  const {basis}=artifactWorkIdentity(snapshot,workspace.workspaceId,requiredArtifactKinds(snapshot),selection);
   return Object.freeze({schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,
     workId:stable('libra-artifact-production-work-',basis),ownerDomain:'libra',processType:'libra_run',
     processId:snapshot.run.libraRunId,workKind:'artifact_production',
@@ -694,8 +695,9 @@ function createLibraRunCoordinator(options){
     const identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
     let committed=identity;
     if(!committed){
-      if(snapshot.spec.contentProfile==='jav') {
-        const stage=nextJavIdentityStage(options,snapshot);
+      if(['jav','western_adult'].includes(snapshot.spec.contentProfile)) {
+        const stage=snapshot.spec.contentProfile==='jav'?nextJavIdentityStage(options,snapshot):nextUsAdultIdentityStage(options,snapshot);
+        if(stage.kind==='failed')return terminalWork(snapshot,stage.work,stage.status,'product_unachievable');
         if(stage.kind==='waiting')return Object.freeze({kind:'waiting_product_identity',phase:'product_identity_observation',libraRunId,
           reasonCode:stage.reasonCode,observationId:stage.observationId||null,observationResult:stage.observationResult||'not_found'});
         if(stage.kind==='observation') {
@@ -756,7 +758,16 @@ function createLibraRunCoordinator(options){
       return Object.freeze({kind:'pending',phase:'acceptance_requirements_changed',libraRunId,
         acceptanceSpecId:currentRequirements.spec.acceptanceSpecId});
     }
-    const metadataStage=nextMetadataStage(options,snapshot,committed);
+    let usAdultStage=null;
+    if(snapshot.spec.contentProfile==='western_adult'){
+      const targetWorkspace=ensureWorkspace(snapshot);
+      if(targetWorkspace.kind==='workspace_admission_deferred')return Object.freeze({kind:'waiting_for_resource',phase:'workspace_admission',
+        libraRunId,workspaceId:targetWorkspace.workspaceId,reasonCode:targetWorkspace.reasonCode,requiredFreeBytes:targetWorkspace.requiredFreeBytes});
+      usAdultStage=createUsAdultProductCoordinator({...options,submit}).reconcile(snapshot,committed,targetWorkspace);
+      if(usAdultStage.kind==='failed')return terminalWork(snapshot,usAdultStage.work,usAdultStage.status);
+      if(usAdultStage.kind!=='ready')return usAdultStage;
+    }
+    const metadataStage=usAdultStage||nextMetadataStage(options,snapshot,committed);
     if(metadataStage.kind==='unavailable'&&options.waitUnavailableStrategy) {
       const pending=ensureDefectProductEvidence(snapshot);if(pending)return pending;
       return options.waitUnavailableStrategy(libraRunId,'tmdb',metadataStage.reasonCode);
@@ -798,7 +809,7 @@ function createLibraRunCoordinator(options){
     if(workspace.kind==='workspace_admission_deferred')return Object.freeze({kind:'waiting_for_resource',
       phase:'workspace_admission',libraRunId,workspaceId:workspace.workspaceId,
       reasonCode:workspace.reasonCode,requiredFreeBytes:workspace.requiredFreeBytes});
-    const artifact=requiredArtifactKinds(snapshot).length?artifactWork(snapshot,workspace):null;
+    const artifact=requiredArtifactKinds(snapshot).length?artifactWork(snapshot,workspace,usAdultStage?.selection):null;
     if(artifact) {
     const artifactSubmitted=submit(artifact),artifactStatus=options.workResultReader.status(artifact.workId);
     if(!workSucceeded(artifactStatus)){
@@ -902,6 +913,23 @@ function createLibraRunCoordinator(options){
     return ensureDelivery(snapshot,workspace,direct);
   }
   return Object.freeze({reconcile,
+    reconcileActorChoice(libraRunId){
+      const snapshot=options.movieProductionReader.readRunSnapshot(libraRunId);
+      if(!snapshot||snapshot.spec.contentProfile!=='western_adult')throw new TypeError('Actor continuation requires its exact US Adult Run.');
+      const result=reconcile(libraRunId);
+      if(result?.kind!=='replacement_required')return result;
+      const replacement=options.libraRunCreator.replace(result.subjectId,libraRunId);
+      return replacement.libraRunId?reconcile(replacement.libraRunId):replacement;
+    },
+    analyzeUsAdult(libraRunId) {
+      const snapshot=options.movieProductionReader.readRunSnapshot(libraRunId),
+        identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
+      if(!snapshot||snapshot.run.state!=='active'||snapshot.spec.contentProfile!=='western_adult'||!identity)
+        throw new Error('US Adult analysis can start only in an active Run with its formal Identity.');
+      const workspace=ensureWorkspace(snapshot);
+      if(workspace.kind==='workspace_admission_deferred')return workspace;
+      return createUsAdultAnalysisCoordinator({...options,submit}).reconcile(snapshot,identity,workspace);
+    },
     readJavIdentityStage(libraRunId) {
       const snapshot=options.movieProductionReader.readRunSnapshot(libraRunId);
       if(!snapshot || snapshot.spec.contentProfile!=='jav')return null;

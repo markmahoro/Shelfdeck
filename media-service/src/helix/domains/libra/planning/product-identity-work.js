@@ -76,7 +76,7 @@ function establishedSubjectIdentity(options, snapshot) {
 }
 
 function identityObservationWork(snapshot, sourceKind = 'provider_search', source = null) {
-  if (!['related_nfo', 'provider_exact', 'provider_search'].includes(sourceKind)) {
+  if (!['related_nfo', 'provider_exact', 'provider_search','internal_source'].includes(sourceKind)) {
     throw new TypeError('Product Identity observation source kind is invalid.');
   }
   return definition(snapshot, 'observation_' + sourceKind, IDENTITY_EVIDENCE_RESULT, [], source);

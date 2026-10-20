@@ -1,0 +1,177 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultAnalysisBasis/v1",
+  "title": "UsAdultAnalysisBasis@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultAnalysisBasis/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "analysisId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "contentProfile": {
+      "const": "western_adult"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "expectedRunStateRevision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "resolvedIdentityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "workspaceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sourceHandle": {
+      "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1"
+    },
+    "sourceProbeRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "attemptId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "planId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "eventId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resultDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inputBindingDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "workId",
+        "attemptId",
+        "planId",
+        "eventId",
+        "resultId",
+        "resultDigest",
+        "inputBindingDigest"
+      ]
+    },
+    "durationMs": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "faceModelRef": {
+      "$ref": "helix://contracts/domain-types/FaceModelRef/v1"
+    },
+    "referenceModelRefDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "clusterParameters": {
+      "$ref": "helix://contracts/domain-types/ClusterParameters/v1"
+    },
+    "samplingPlan": {
+      "$ref": "helix://contracts/domain-types/SamplingPlan/v1"
+    },
+    "referenceLibraryDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "personCount": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "pageCount": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "pageSetDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "basisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "analysisId",
+    "contentProfile",
+    "libraRunId",
+    "subjectId",
+    "expectedRunStateRevision",
+    "runExecutionBasisDigest",
+    "resolvedIdentityDigest",
+    "workspaceId",
+    "sourceHandle",
+    "sourceProbeRef",
+    "durationMs",
+    "faceModelRef",
+    "referenceModelRefDigest",
+    "clusterParameters",
+    "samplingPlan",
+    "referenceLibraryDigest",
+    "personCount",
+    "pageCount",
+    "pageSetDigest",
+    "basisDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 32768
+}

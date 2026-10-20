@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_us_actor_refresh_intents/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_us_actor_refresh_intents",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "aftercare_case_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "idempotency_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "request_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "payload_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "payload_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "payload_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "intent_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "aftercare_case_id",
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "aftercare_case_id"
+      ],
+      [
+        "actor_id",
+        "idempotency_key"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "shelf_entry_id",
+        "created_at_ms"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "payload_json",
+        "schemaRefColumn": "payload_schema_ref",
+        "maxBytes": 262144,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable，禁止更新"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(actor_id,idempotency_key)`",
+      "`INDEX(shelf_entry_id,created_at_ms)`",
+      "payload为精确UsAdultActorRefreshIntent，最多`256 KiB`，JCS digest校验",
+      "immutable，禁止更新",
+      "与用户演员刷新Aftercare Case同Owner事务建立，Case与Intent一对一，命令重放先查原Intent，不重读当前Actor/Source",
+      "不能由健康检查或People变化建立"
+    ],
+    "rawContract": {
+      "columns": "`intent_id PK, aftercare_case_id FK UNIQUE, shelf_entry_id FK, actor_id, idempotency_key, request_digest, payload_schema_ref, payload_json, payload_digest, created_at_ms`",
+      "constraints": "`UNIQUE(actor_id,idempotency_key)`；`INDEX(shelf_entry_id,created_at_ms)`；payload为精确UsAdultActorRefreshIntent，最多`256 KiB`，JCS digest校验；immutable，禁止更新；与用户演员刷新Aftercare Case同Owner事务建立，Case与Intent一对一，命令重放先查原Intent，不重读当前Actor/Source；不能由健康检查或People变化建立"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9647,
+      "lineDigest": "75cb73c9245ea24366dd42000cf5bd8255ffc2c344eb9b8d9cfe962cfae6b2a5"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "aftercare_case_id"
+        ],
+        "targetTable": "arca_aftercare_cases",
+        "targetColumns": [
+          "aftercare_case_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

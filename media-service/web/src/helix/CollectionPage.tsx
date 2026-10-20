@@ -1,6 +1,6 @@
 import { useModalFocus } from './useModalFocus';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link,useSearchParams } from 'react-router-dom';
 import { helixAdminApi, type CareDetail, type CollectionEntry, type HealthState } from './api';
 import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader, ReadProgress } from './chrome';
@@ -9,6 +9,7 @@ import RatingControl from './RatingControl';
 import WatchedControl from './WatchedControl';
 import CollectionDefects from './CollectionDefects';
 import JavCorrectionDialog from './JavCorrectionDialog';
+import UsAdultInventoryActorDialog from './UsAdultInventoryActorDialog';
 import { isUnauthorized, useSession } from './session';
 import './collection.css';
 
@@ -68,6 +69,7 @@ function SeriesFiles({ series }: { series: NonNullable<CollectionEntry['series']
 
 export default function CollectionPage() {
   const { expire } = useSession();
+  const [linkedParams]=useSearchParams(),linkedEntryId=linkedParams.get('entry');
   const [items, setItems] = useState<CollectionEntry[]>([]);
   const [shelves, setShelves] = useState<Array<{ shelfId: string; name: string; currentCount: number; historyCount: number }>>([]);
   const [summary, setSummary] = useState({ currentCount: 0, historyCount: 0 });
@@ -76,6 +78,7 @@ export default function CollectionPage() {
   const [error, setError] = useState('');
   const [selected, setSelected] = useState<CollectionEntry | null>(null);
   const [correctionItem, setCorrectionItem] = useState<CollectionEntry | null>(null);
+  const [actorItem,setActorItem]=useState<CollectionEntry|null>(null);
   const [care, setCare] = useState<CareDetail | null>(null);
   const [healthFilter, setHealthFilter] = useState<HealthState | 'all'>('all');
   const [checking, setChecking] = useState(false);
@@ -124,7 +127,25 @@ export default function CollectionPage() {
     }
     finally { if (version === loadVersion.current) setLoading(false); }
   }, [expire, shelfId, healthFilter, search, sort]);
+  const actorEntryId=actorItem?.shelfEntryId;
+  const actorChanged=useCallback(()=>{
+    void load();if(!actorEntryId)return;
+    void helixAdminApi.readCollectionEntry(actorEntryId).then(next=>{
+      if(next.shelfEntryId!==actorEntryId||next.status!=='active')throw new Error('Current actor collection scope changed.');
+      setActorItem(current=>current?.shelfEntryId===actorEntryId&&current.currentInventoryRevision<=next.currentInventoryRevision?next:current);
+    }).catch(cause=>{if(isUnauthorized(cause))expire();else setError('当前收藏信息读取失败，请重新刷新。');});
+  },[actorEntryId,load,expire]);
   useEffect(() => { currentPage.current = 0; pageCursors.current = [undefined]; setPageIndex(0); void load(undefined, 0); }, [load]);
+  useEffect(()=>{
+    if(!linkedEntryId)return;let cancelled=false;
+    void helixAdminApi.readCollectionEntry(linkedEntryId).then(item=>{
+      if(cancelled)return;
+      if(item.shelfEntryId!==linkedEntryId){setError('这部影片暂时无法打开，请重新读取收藏。');return;}
+      if(item.status!=='active'){setError('这部影片当前不在收藏中。');return;}
+      setSelected(item);
+    }).catch(cause=>{if(cancelled)return;if(isUnauthorized(cause))expire();else setError('这部影片暂时无法打开，请重新读取收藏。');});
+    return()=>{cancelled=true;};
+  },[linkedEntryId,expire]);
   useEffect(() => {
     if (!selected) return;
     document.body.classList.add('modal-open');
@@ -223,7 +244,7 @@ export default function CollectionPage() {
             <div><dt>{selected.series ? '全部视频文件' : '主视频'}</dt><dd>{selected.primaryVideoBytes == null ? '—' : `${formatBytes(selected.primaryVideoBytes)}${selected.primaryContainer ? ` · ${selected.primaryContainer}` : ''}`}</dd></div>
             {(selected.videoCodec || selected.videoRaster) && <div><dt>编码与清晰度</dt><dd>{[selected.videoCodec, selected.videoRaster].filter(Boolean).join(' · ')}</dd></div>}
             <div><dt>海报 / NFO</dt><dd>{selected.hasPoster ? '有海报' : '无海报'} · {selected.hasNfo ? '有 NFO' : '无 NFO'}</dd></div>
-            <div><dt>资料来源</dt><dd>{selected.provider === 'tmdb' ? 'TMDB' : selected.provider}</dd></div>
+            <div><dt>资料来源</dt><dd>{selected.provider === 'tmdb' ? 'TMDB' : selected.provider === 'internal' ? '演员库' : selected.provider}</dd></div>
             <div><dt>状态</dt><dd>已上架</dd></div>
           </dl>
           {selected.series && <SeriesFiles series={selected.series} />}
@@ -252,11 +273,13 @@ export default function CollectionPage() {
           <CollectionDefects shelfEntryId={selected.shelfEntryId} revision={`${care?.basis.careBasisDigest || selected.currentInventoryRevision}:${care?.health.updatedAtMs || 0}`} onChanged={()=>void load()} />
           <div className="collection-exit">
             {selected.provider==='jav'&&selected.identityKind==='jav_code'&&<Button type="button" disabled={checking||exiting} onClick={()=>{setCorrectionItem(selected);setSelected(null);}}>核对影片</Button>}
+            {selected.identityKind==='internal_identity'&&<Button type="button" disabled={checking||exiting} onClick={()=>{setActorItem(selected);setSelected(null);}}>刷新演员</Button>}
             <Button variant="danger" type="button" onClick={() => void exitCollection()} disabled={exiting}>{exiting ? '正在准备退出…' : '退出收藏'}</Button>
           </div>
         </div>
       </section>
     </div>}
+    {actorItem&&<UsAdultInventoryActorDialog item={actorItem} onClose={()=>setActorItem(null)} onChanged={actorChanged} onUnauthorized={expire}/>}
     {correctionItem&&<JavCorrectionDialog item={correctionItem} onClose={()=>setCorrectionItem(null)} onChanged={()=>void load()} onUnauthorized={expire}/>}
   </section>;
 }

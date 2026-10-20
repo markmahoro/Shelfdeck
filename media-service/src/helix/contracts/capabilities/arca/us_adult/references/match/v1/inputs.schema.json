@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.us_adult.references.match/v1/inputs",
+  "title": "arca.us_adult.references.match@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "usAdultActorRefreshScope": {
+      "$ref": "#/$defs/usAdultActorRefreshScope"
+    },
+    "usAdultActorRefreshIntent": {
+      "$ref": "#/$defs/usAdultActorRefreshIntent"
+    },
+    "arcaUsAdultSourcePrepared": {
+      "$ref": "#/$defs/arcaUsAdultSourcePrepared"
+    },
+    "peopleReferenceLibraryPage": {
+      "$ref": "#/$defs/peopleReferenceLibraryPage"
+    }
+  },
+  "required": [
+    "usAdultActorRefreshScope",
+    "usAdultActorRefreshIntent",
+    "arcaUsAdultSourcePrepared",
+    "peopleReferenceLibraryPage"
+  ],
+  "$defs": {
+    "usAdultActorRefreshScope": {
+      "$ref": "helix://contracts/domain-types/UsAdultActorRefreshScope/v1",
+      "x-helix-typeExpression": "UsAdultActorRefreshScope"
+    },
+    "usAdultActorRefreshIntent": {
+      "$ref": "helix://contracts/domain-types/UsAdultActorRefreshIntent/v1",
+      "x-helix-typeExpression": "UsAdultActorRefreshIntent"
+    },
+    "arcaUsAdultSourcePrepared": {
+      "$ref": "helix://contracts/types/ArcaUsAdultSourcePrepared/v1",
+      "x-helix-typeExpression": "ArcaUsAdultSourcePrepared"
+    },
+    "peopleReferenceLibraryPage": {
+      "$ref": "helix://contracts/domain-types/PeopleReferenceLibraryPage/v1",
+      "x-helix-typeExpression": "PeopleReferenceLibraryPage"
+    }
+  }
+}

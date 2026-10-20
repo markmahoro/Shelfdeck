@@ -45,7 +45,7 @@ function expectedCatalog(manifest) {
 
 function assertManifest(manifest, ddl) {
   if (!manifest || manifest.schemaVersion !== 1 || manifest.compilerContract !== 'helix-p3-deterministic-sqlite-ddl/v1' ||
-      ![200,204,210].includes(manifest.tableCount) || !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount) {
+      ![200,204,210,211,212,214,216,217,221,222,224].includes(manifest.tableCount) || !Array.isArray(manifest.tables) || manifest.tables.length !== manifest.tableCount) {
     fail('P3_SQLITE_INVALID_SCHEMA_MANIFEST', 'The clean schema manifest is incomplete or unsupported.');
   }
   if (manifest.digestAlgorithm !== 'sha256' || digest(normalizedDdl(ddl)) !== manifest.ddlDigest) {
@@ -118,7 +118,7 @@ function assertCatalog(database, manifest, expected) {
   if (partialExpected.length !== requiredPartialCount) fail('P3_SQLITE_PARTIAL_UNIQUE_COUNT', 'The clean schema requires its exact frozen partial unique index count.');
 }
 
-function assertGuardConsistency(database) {
+function assertGuardConsistency(database, manifest) {
   const checks = [
     {
       name: 'arca-active-inventory-material',
@@ -129,6 +129,12 @@ function assertGuardConsistency(database) {
       sql: "SELECT COUNT(*) count FROM people_provider_identities i LEFT JOIN people_persons p ON p.person_id=i.person_id WHERE i.active_guard <> CASE WHEN p.status='active' AND p.current_revision=i.revision THEN 1 ELSE 0 END"
     }
   ];
+  // Historical copy-verification kernels retain their exact frozen schema.
+  // The library guard exists only in the explicitly supported US schema versions.
+  if ([211,212,214,216,217,221,222,224].includes(manifest.tableCount)) checks.push({
+    name:'people-provider-library',
+    sql:'SELECT COUNT(*) count FROM people_provider_identities i JOIN people_persons p ON p.person_id=i.person_id WHERE i.library_kind<>p.library_kind',
+  });
   for (const check of checks) {
     const count = database.prepare(check.sql).get().count;
     if (count !== 0) fail('P3_SQLITE_GUARD_PROJECTION_DRIFT', 'A cross-table uniqueness guard is inconsistent.', { check: check.name, count });
@@ -221,7 +227,7 @@ function assertIntegrity(database, manifest, expected) {
   if (integrity.length !== 1 || integrity[0].integrity_check !== 'ok') {
     fail('P3_SQLITE_INTEGRITY_CHECK_FAILED', 'SQLite integrity_check failed.', { findings: integrity });
   }
-  assertGuardConsistency(database);
+  assertGuardConsistency(database, manifest);
   assertMessageConsistency(database);
   assertMaterialControlConsistency(database);
   return Object.freeze({
@@ -261,9 +267,54 @@ function openSqliteKernel(options) {
     const ensureOpen = () => {
       if (closed) fail('P3_SQLITE_KERNEL_CLOSED', 'SQLite Kernel is closed.');
     };
+    const readVersion=()=>Object.freeze({externalVersion:database.pragma('data_version',{simple:true}),schemaVersion:database.pragma('schema_version',{simple:true}),
+      connectionChanges:database.prepare('SELECT total_changes() AS changes').safeIntegers(true).get().changes.toString()});
     return Object.freeze({
+      readVersionMatches(expected){ensureOpen();if(!transactionActive)fail('P3_SQLITE_READ_FENCE_REQUIRES_TRANSACTION','Read fences must be asserted in the current transaction.');
+        const current=readVersion();return expected.externalVersion===current.externalVersion&&expected.schemaVersion===current.schemaVersion&&expected.connectionChanges===current.connectionChanges;},
+      captureReadVersion(){ensureOpen();if(transactionActive)fail('P3_SQLITE_NESTED_TRANSACTION','Read fences must be captured outside a transaction.');return readVersion();},
       generation,
       storageMaintenance: Object.freeze({
+        optimize() {
+          ensureOpen();
+          if (transactionActive) fail('P3_SQLITE_MAINTENANCE_DURING_TRANSACTION', 'SQLite optimization cannot overlap a transaction.');
+          const previous = database.pragma('analysis_limit', { simple: true });
+          try { database.pragma('analysis_limit = 400'); database.pragma('optimize'); }
+          finally { database.pragma('analysis_limit = ' + previous); }
+          return Object.freeze({ status: 'optimized' });
+        },
+        auditReferenceSample(cursor = null, maxRows = 32) {
+          ensureOpen();
+          if (transactionActive) fail('P3_SQLITE_MAINTENANCE_DURING_TRANSACTION', 'Reference audit cannot overlap a transaction.');
+            if (!Number.isSafeInteger(maxRows) || maxRows < 1 || maxRows > 100 || cursor !== null &&
+                (typeof cursor !== 'object' || Array.isArray(cursor) || Object.keys(cursor).sort().join(',') !== 'rowId,tableIndex' ||
+                 !Number.isSafeInteger(cursor.tableIndex) || cursor.tableIndex < 0 || cursor.tableIndex >= options.schemaManifest.tables.length ||
+                 !Number.isSafeInteger(cursor.rowId) || cursor.rowId < 0)) {
+            fail('P3_SQLITE_MAINTENANCE_LIMIT_INVALID', 'Reference audit requires a bounded cursor.');
+          }
+          const quote = name => { if (!IDENTIFIER.test(name)) fail('P3_SQLITE_IDENTIFIER_INVALID', 'Invalid declared reference identifier.'); return '"' + name + '"'; };
+          let tableIndex = cursor?.tableIndex || 0;
+          while (tableIndex < options.schemaManifest.tables.length) {
+            const table = options.schemaManifest.tables[tableIndex], keys = database.pragma('foreign_key_list(' + quote(table.tableId) + ')');
+            if (!keys.length) { tableIndex++; continue; }
+              const columns = [...new Set(keys.map(key => key.from))];
+              const rows = database.prepare('SELECT rowid AS audit_rowid, ' + columns.map(quote).join(',') + ' FROM ' + quote(table.tableId) + ' WHERE rowid>? ORDER BY rowid LIMIT ?')
+              .all(tableIndex === cursor?.tableIndex ? cursor.rowId : 0, maxRows);
+            const groups = new Map();
+            for (const key of keys) { if (!groups.has(key.id)) groups.set(key.id, []); groups.get(key.id).push(key); }
+            for (const row of rows) for (const group of groups.values()) {
+              group.sort((a, b) => a.seq - b.seq);
+              if (group.some(key => row[key.from] === null)) continue;
+              const parent = database.prepare('SELECT 1 AS present FROM ' + quote(group[0].table) + ' WHERE ' + group.map(key => quote(key.to) + '=?').join(' AND ') + ' LIMIT 1')
+                .get(...group.map(key => row[key.from]));
+              if (!parent) fail('P3_SQLITE_REFERENCE_AUDIT_FAILED', 'A sampled declared reference has no parent.', { tableId: table.tableId });
+            }
+            const nextCursor = rows.length === maxRows ? { tableIndex, rowId: Number(rows.at(-1).audit_rowid) } :
+              tableIndex + 1 < options.schemaManifest.tables.length ? { tableIndex: tableIndex + 1, rowId: 0 } : null;
+            return Object.freeze({ nextCursor, sampledRows: rows.length });
+          }
+          return Object.freeze({ nextCursor: null, sampledRows: 0 });
+        },
         diagnostics() {
           ensureOpen();
           const pageSize = database.pragma('page_size', { simple:true });
@@ -305,7 +356,7 @@ function openSqliteKernel(options) {
           busyTimeout: database.pragma('busy_timeout', { simple: true })
         });
       },
-      runPrimitive(operation) {
+      runPrimitive(operation,{readVersionRequested=false}={}) {
         ensureOpen();
         if (typeof operation !== 'function') fail('P3_SQLITE_INVALID_TRANSACTION_BODY', 'Transaction body must be a function.');
         if (transactionActive) fail('P3_SQLITE_NESTED_TRANSACTION', 'Nested SQLite Kernel transactions are forbidden.');
@@ -321,6 +372,7 @@ function openSqliteKernel(options) {
           if (!Number.isSafeInteger(commitTimeMs) || commitTimeMs < 0) fail('P3_SQLITE_INVALID_COMMIT_TIME', 'Commit time must be a non-negative safe UTC epoch millisecond.');
           const result = operation(Object.freeze({
             commitTimeMs,
+            ...(readVersionRequested?{readVersion:readVersion()}:{}),
             prepare(statement) {
               if (typeof statement !== 'string' || statement.length === 0) fail('P3_SQLITE_INVALID_STATEMENT', 'A non-empty SQL statement is required.');
               return database.prepare(statement);

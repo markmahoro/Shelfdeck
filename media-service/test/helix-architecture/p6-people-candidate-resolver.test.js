@@ -15,7 +15,7 @@ const policyRef = Object.freeze({ policyKind: 'registration', policyRevision: 1,
 
 function evidence() {
   const payload = {
-    proposedName: 'Candidate Person', aliases: [{ aliasDisplay: 'Candidate', aliasNormalized: 'candidate', provenanceDigest: hash('alias') }],
+    libraryKind: 'normal', proposedName: 'Candidate Person', aliases: [{ aliasDisplay: 'Candidate', aliasNormalized: 'candidate', provenanceDigest: hash('alias') }],
     providerIdentities: [{ provider: 'tmdb', namespace: 'person', providerKey: '100', provenanceDigest: hash('provider') }],
     referenceHints: [{ hintKind: 'portrait', referenceValue: 'artifact:portrait', provenanceDigest: hash('portrait') }]
   };

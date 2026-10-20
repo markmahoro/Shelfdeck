@@ -67,7 +67,7 @@
         "modelRef": {
           "type": "string",
           "minLength": 1,
-          "maxLength": 512
+          "pattern": "^[a-f0-9]{64}$"
         },
         "initialState": {
           "const": "active"
@@ -176,6 +176,127 @@
         "artifactDigest",
         "embeddingDigest",
         "modelRef"
+      ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "decisionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "operationKind": {
+          "const": "replace_image"
+        },
+        "personId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expectedPersonRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expectedReferenceRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "decisionDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "referenceAssetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "referenceFaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "artifactHandle": {
+          "$ref": "helix://contracts/types/ArtifactHandle/v1"
+        },
+        "artifactDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "faceEmbeddingSetHandle": {
+          "$ref": "helix://contracts/types/FaceEmbeddingSetHandle/v1"
+        },
+        "modelRef": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "initialState": {
+          "const": "active"
+        },
+        "replacedImage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "referenceAssetId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "referenceFaceId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "artifactDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "embeddingDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "modelRef": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "referenceAssetId",
+            "referenceFaceId",
+            "artifactDigest",
+            "embeddingDigest",
+            "modelRef"
+          ]
+        }
+      },
+      "required": [
+        "decisionId",
+        "operationKind",
+        "personId",
+        "expectedPersonRevision",
+        "expectedReferenceRevision",
+        "actorId",
+        "decisionDigest",
+        "referenceAssetId",
+        "referenceFaceId",
+        "artifactHandle",
+        "artifactDigest",
+        "faceEmbeddingSetHandle",
+        "modelRef",
+        "initialState",
+        "replacedImage"
       ]
     }
   ]

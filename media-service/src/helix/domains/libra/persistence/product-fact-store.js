@@ -6,6 +6,8 @@ const { createRepositoryDefinition } = require('../../../foundation/persistence/
 const { buildMediaCastFact, buildProductFactEvidence, buildProductFactHandle, buildProductFactSourceRefs,
   buildProductMetadataFact, buildResolvedProductIdentity, validateVerifiedArtifactManifest } = require('../model/product-fact-contracts');
 const {CONTINUITY_HEAD_ID,continuityHeadDigest,subjectContinuitySetDigest} = require('../model/libra-intake-contracts');
+const {assertActorSelection,selectedPerson}=require('../model/us-adult-actor-selection');
+const {assertUsAdultAnalysisBasis}=require('../model/us-adult-analysis-basis');
 
 class ProductFactStoreError extends Error {
   constructor(code,message){super(message);this.name='ProductFactStoreError';this.code=code;}
@@ -16,18 +18,25 @@ const METADATA_SCHEMA='helix://contracts/types/ProductMetadataFact/v1';
 const IDENTITY_SCHEMA='helix://contracts/types/ResolvedProductIdentity/v1';
 
 function ownerReadRepository(schemaManifest,factKind){const statements={
-  find_run:{kind:'select-one',tableId:'libra_runs',columns:['libra_run_id','subject_id','state','state_revision','state_digest'],keyColumns:['libra_run_id']},
+  find_run:{kind:'select-one',tableId:'libra_runs',columns:['libra_run_id','subject_id','state','state_revision','state_digest','execution_basis_digest'],keyColumns:['libra_run_id']},
   find_fact:{kind:'select-one',tableId:'libra_product_fact_revisions',columns:['product_fact_id','libra_run_id','fact_kind','fact_revision','schema_ref','fact_json','fact_digest','commit_marker','result_digest'],keyColumns:['libra_run_id','fact_kind','fact_revision']}
 };
   if(factKind==='product_metadata')statements.find_fact_by_id={kind:'select-one',tableId:'libra_product_fact_revisions',columns:['product_fact_id','libra_run_id','fact_kind','fact_revision','schema_ref','fact_json','fact_digest','commit_marker','result_digest'],keyColumns:['product_fact_id']};
   if(factKind==='resolved_identity'){
-    statements.find_run.columns.push('run_material_manifest_id','execution_basis_digest');
+    statements.find_run.columns.push('run_material_manifest_id');
     statements.list_run_episode_claims={kind:'select-all',tableId:'libra_run_material_episode_claims',columns:['season_claim_digest'],keyColumns:['run_material_manifest_id']};
     statements.find_subject={kind:'select-one',tableId:'libra_subjects',columns:['subject_id','structure_kind','content_profile','status','current_identity_revision','current_continuity_set_digest'],keyColumns:['subject_id']};
     statements.find_identity={kind:'select-one',tableId:'libra_product_identity_revisions',columns:['subject_id','revision','identity_digest','identity_kind','display_identity'],keyColumns:['subject_id','revision']};
     statements.list_identity_selections={kind:'select-all',tableId:'libra_product_identity_selection_intents',columns:['selection_intent_id','intent_revision','provider','namespace','provider_key','intent_digest'],keyColumns:['libra_run_id'],safeIntegers:true};
     statements.find_continuity_head={kind:'select-one',tableId:'libra_subject_continuity_heads',columns:['head_id','current_revision','head_digest'],keyColumns:['head_id'],safeIntegers:true};
     statements.list_continuity_claims={kind:'select-all',tableId:'libra_subject_season_continuity_claims',columns:['claim_kind','claim_namespace','claim_key','claim_digest','provenance_kind','provenance_ref'],keyColumns:['subject_id']};
+  }
+  if(factKind==='media_cast'){
+    statements.find_actor_subject={kind:'select-one',tableId:'libra_subjects',columns:['subject_id','content_profile'],keyColumns:['subject_id']};
+    statements.find_us_analysis={kind:'select-one',tableId:'libra_us_adult_analysis_bases',columns:['analysis_id','basis_json','basis_digest'],keyColumns:['analysis_id']};
+    statements.find_us_completion={kind:'select-one',tableId:'libra_us_adult_match_completions',columns:['analysis_id','completion_json','completion_digest'],keyColumns:['analysis_id']};
+    statements.find_us_choice_head={kind:'select-one',tableId:'libra_us_adult_actor_choice_heads',columns:['subject_id','current_revision','intent_id','record_digest'],keyColumns:['subject_id']};
+    statements.find_us_choice={kind:'select-one',tableId:'libra_us_adult_actor_choice_intents',columns:['intent_id','subject_id','choice_revision','record_json','record_digest'],keyColumns:['intent_id']};
   }
   return createRepositoryDefinition({repositoryId:'libra_product_fact_'+factKind+'_reads',owner:'libra',schemaManifest,statements});
 }
@@ -109,15 +118,46 @@ function readChain(repo,ref){const work=repo.invoke('find_work',{work_id:ref.wor
     inputBindings:parseJson(node.input_bindings_json,'P9_PRODUCT_FACT_INPUT_JSON'),inputBindingDigest:canonicalDigest(parseJson(node.input_bindings_json,'P9_PRODUCT_FACT_INPUT_JSON')),
     executionEventAttemptId:executionAttempt.event_attempt_id,inputSnapshotDigest:executionAttempt.input_snapshot_digest});}
 
-function basisRunId(payload){return payload.sourceBasis?.libraRunId||payload.sourceBasis?.selection?.libraRunId||payload.sourceBasis?.westernBasis?.libraRunId||
+function basisRunId(payload){return payload.sourceBasis?.libraRunId||payload.sourceBasis?.selection?.libraRunId||payload.sourceBasis?.westernBasis?.libraRunId||payload.sourceBasis?.actorSelection?.libraRunId||
   payload.verifiedArtifactManifest?.libraRunId;}
-function basisId(sourceBasis){return sourceBasis.decisionEvidenceId||sourceBasis.selection?.selectionId||sourceBasis.westernBasis?.basisId;}
+function basisId(sourceBasis){return sourceBasis.decisionEvidenceId||sourceBasis.selection?.selectionId||sourceBasis.westernBasis?.basisId||sourceBasis.actorSelection?.selectionId;}
 function sourceResultRefs(sourceBasis){
   if(sourceBasis?.sourceBasisKind==='decision_evidence')return sourceBasis.resolutionRef?[sourceBasis.resolutionRef]:[];
   if(sourceBasis?.sourceBasisKind==='metadata_observation')return sourceBasis.selection?.items||[];
   if(sourceBasis?.sourceBasisKind==='western_analysis')return [...(sourceBasis.westernBasis?.analysisRefs||[]),sourceBasis.westernBasis?.normalizeRef].filter(Boolean);
   if(sourceBasis?.sourceBasisKind==='western_match')return sourceBasis.westernBasis?.matchRef?[sourceBasis.westernBasis.matchRef]:[];
+  if(sourceBasis?.sourceBasisKind==='us_adult_actor')return sourceBasis.actorSelection?.matchCompletion?.winner?[sourceBasis.actorSelection.matchCompletion.winner.matchResultRef]:[];
   return [];
+}
+
+function validateActorOwnerBasis(repo,run,sourceBasis){
+  const subject=repo.invoke('find_actor_subject',{subject_id:run.subject_id});
+  if(subject?.content_profile==='western_adult'&&sourceBasis.sourceBasisKind!=='us_adult_actor')
+    fail('P9_US_ACTOR_REQUIRED','US Adult cannot commit an empty or unconfirmed actor relation.');
+  if(sourceBasis.sourceBasisKind!=='us_adult_actor')return;
+  const selection=assertActorSelection(sourceBasis.actorSelection),head=repo.invoke('find_us_choice_head',{subject_id:run.subject_id}),
+    analysis=repo.invoke('find_us_analysis',{analysis_id:selection.analysisId}),identity=repo.invoke('find_fact',{
+      libra_run_id:run.libra_run_id,fact_kind:'resolved_identity',fact_revision:1});
+  if(subject?.content_profile!=='western_adult'||selection.subjectId!==run.subject_id||selection.libraRunId!==run.libra_run_id||
+    selection.runExecutionBasisDigest!==run.execution_basis_digest||!identity||identity.fact_digest!==selection.resolvedIdentityDigest||
+    !analysis||analysis.basis_digest!==selection.analysisBasisDigest)fail('P9_US_ACTOR_BASIS_STALE','US actor selection crossed its Subject, Run, identity or frozen analysis.');
+  const analysisBasis=assertUsAdultAnalysisBasis(parseJson(analysis.basis_json,'P9_US_ACTOR_BASIS_JSON'));
+  if(analysisBasis.libraRunId!==run.libra_run_id||analysisBasis.subjectId!==run.subject_id||analysisBasis.resolvedIdentityDigest!==selection.resolvedIdentityDigest||
+    analysisBasis.basisDigest!==selection.analysisBasisDigest)fail('P9_US_ACTOR_BASIS_STALE','US actor analysis header differs from its complete immutable Basis.');
+  const person=selectedPerson(selection);
+  if(!person.referenceProjection.contributions.some(item=>item.ownerPersonId===person.personId&&item.activeFaces.some(face=>
+    face.referenceAssetId===selection.referenceAssetId&&face.modelRef===analysisBasis.referenceModelRefDigest)))
+    fail('P9_US_ACTOR_BASIS_STALE','The selected actor image uses a different model from the frozen analysis.');
+  if(selection.selectionOrigin==='user_choice'){
+    const choice=selection.actorChoiceRecord,row=repo.invoke('find_us_choice',{intent_id:choice.intentId});
+    if(!head||head.intent_id!==choice.intentId||head.current_revision!==choice.revision||head.record_digest!==choice.recordDigest||
+      !row||row.subject_id!==run.subject_id||row.choice_revision!==choice.revision||row.record_digest!==choice.recordDigest||canonicalJson(choice)!==row.record_json)
+      fail('P9_US_ACTOR_CHOICE_STALE','The current explicit actor choice changed before Media-Cast commit.');
+  }else{
+    const completion=selection.matchCompletion,row=repo.invoke('find_us_completion',{analysis_id:selection.analysisId});
+    if(head||!row||row.completion_digest!==completion.completionDigest||canonicalJson(completion)!==row.completion_json)
+      fail('P9_US_ACTOR_CHOICE_STALE','A user choice or complete matching fact superseded this automatic actor selection.');
+  }
 }
 
 function registration(options,factKind,factSchemaRef){const ownerRead=options.ownerRead,ownerWrite=options.ownerWrite,foundation=options.foundation;
@@ -146,6 +186,7 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
         if((handle.expectedRevision===0&&prior)||(handle.expectedRevision>0&&!prior)||next)fail('P9_PRODUCT_FACT_REVISION_FENCE','Product Fact revision fence failed.');
         productFactId=canonicalDigest({schema:'libra.product-fact-id@1',libraRunId:run.libra_run_id,
           factKind,factRevision:handle.expectedRevision+1});
+        if(factKind==='media_cast')validateActorOwnerBasis(repo,run,payload.sourceBasis);
         sourceRefs=buildProductFactSourceRefs({sourceBasis:payload.sourceBasis,foundationChains:sourceChains,productFactId,
           productMetadataDraft:payload.productMetadataDraft,mediaCastDraft:payload.mediaCastDraft,
           resolvedProductIdentity:payload.resolvedProductIdentity});
@@ -165,7 +206,7 @@ function registration(options,factKind,factSchemaRef){const ownerRead=options.ow
               'Resolved Product Identity must bind the exact same-Run Source Basis.');
           }
           fact = payload.resolvedProductIdentity;
-          if(['series','jav'].includes(fact.contentProfile)&&canonicalDigest(fact)!==canonicalDigest(
+          if(['series','jav','western_adult'].includes(fact.contentProfile)&&canonicalDigest(fact)!==canonicalDigest(
               buildResolvedProductIdentity({...fact,displayEntries:fact.displayIdentity?.entries})))
             fail('P9_RESOLVED_IDENTITY_INPUT','Series Product Identity does not match its canonical typed Fact.');
           subjectSnapshot=repo.invoke('find_subject',{subject_id:run.subject_id});

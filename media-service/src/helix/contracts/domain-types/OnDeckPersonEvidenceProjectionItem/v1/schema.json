@@ -16,6 +16,21 @@
       "minLength": 1,
       "maxLength": 256
     },
+    "sourceKind": {
+      "type": "string",
+      "enum": [
+        "media_cast",
+        "nfo"
+      ]
+    },
+    "libraryKind": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "jav",
+        "us_adult"
+      ]
+    },
     "shelfEntryId": {
       "type": "string",
       "minLength": 1,
@@ -26,14 +41,28 @@
       "minimum": 1
     },
     "relationId": {
-      "type": "string",
-      "minLength": 1,
-      "maxLength": 256
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "relationDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "displayName": {
       "type": "string",
@@ -87,14 +116,28 @@
       "maxItems": 128
     },
     "originEvidenceDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "nfoObservationDigest": {
-      "type": "string",
-      "minLength": 1,
-      "pattern": "^[a-f0-9]{64}$"
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "projectionRevision": {
       "type": "integer",
@@ -108,6 +151,8 @@
   },
   "required": [
     "projectionItemId",
+    "sourceKind",
+    "libraryKind",
     "shelfEntryId",
     "inventoryRevision",
     "relationId",

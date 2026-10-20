@@ -7,6 +7,7 @@ const { createPerceptionResolutionInputAssembler } = require('./perception-resol
 const { buildRuleSnapshot, versionedQueryResult } = require('./perception-resolution-application');
 const { deriveTitleEvidence, normalizeAlias, titleAssociationAliases } = require('../model/perception-aliases');
 const { createPerceptionAcquisitionAutomation } = require('./perception-acquisition-automation');
+const { proveLegacyPeriodicAcquisition } = require('../model/legacy-acquisition-origin');
 const {assertJavPerceptionContinuity,DIRECT_POLICY}=require('../../../contracts/jav-perception-continuity');
 
 const LIMITS = Object.freeze({ globalOpenWorks:256, ownerOpenWorks:256, openEvents:256 });
@@ -50,6 +51,8 @@ function queryHandle(query,now,consumerDomain){const domain=consumerDomain==='ar
 function createPerceptionProcessServices(options){
   if(!options?.schemaManifest||!options.unitOfWork||!options.workResultReader||typeof options.targetProjectionReader!=='function')throw new TypeError('Perception process services require persistence, Foundation results, and public target projections.');
   const now=options.now||Date.now,store=options.perceptionStore||createPerceptionStore(options),assembler=createPerceptionResolutionInputAssembler({store}),ruleSnapshot=buildRuleSnapshot();
+  const resumeIntent=options.acquisitionResumeIntent;
+  if(!resumeIntent?.findCommand||!resumeIntent.hasResume||!resumeIntent.request)throw new TypeError('Perception process services require the Owner acquisition resume command.');
   const admission=createWorkAdmission({schemaManifest:options.schemaManifest,unitOfWork:options.unitOfWork,limits:LIMITS,eligibilityProvider:{check:(request)=>Object.freeze({eligible:request.ownerDomain==='perception',basisDigest:request.executionBasisDigest,reasonCode:'PERCEPTION_BASIS_STALE'})}});
   function submit(work){return admission.replay(work)||admission.submit(work);}
   function workStatus(workId){return options.workResultReader.status(workId);}
@@ -99,18 +102,38 @@ function createPerceptionProcessServices(options){
       retracts:retract?{sourceRecordKey:current.sourceRecordKey,sourceRecordRevision:current.sourceRecordRevision,sourceRecordDigest:current.sourceRecordDigest}:null},idempotencyKey:command.idempotencyKey,requestDigest});
     start({acquisitionId,sourceId:directSourceId(command.targetType,command.targetId,factKind),sourceKind:'shelfdeck_direct',integrationId:'shelfdeck-direct-input',configRevision:1,scope});
     const operation=reconcileAcquisition(acquisitionId);return freeze({operationRef:acquisitionId,state:'accepted',targetType:command.targetType,targetId:command.targetId,expectedResultRevision:revision,workId:operation.workId});}
-  function requestAcquisition(command){const config=options.readDoubanSourceConfiguration?.();if(!config)throw Object.assign(new Error('Douban integration is not configured.'),{code:'PERCEPTION_DOUBAN_NOT_CONFIGURED'});
-    const idempotencyKey=command?.idempotencyKey;if(typeof idempotencyKey!=='string'||!idempotencyKey)throw Object.assign(new Error('Douban sync requires idempotencyKey.'),{code:'PERCEPTION_ACQUISITION_COMMAND_INVALID'});
+  function requestAcquisition(command,{executionOrigin='manual',actorId='admin'}={}){const config=options.readDoubanSourceConfiguration?.();if(!config)throw Object.assign(new Error('Douban integration is not configured.'),{code:'PERCEPTION_DOUBAN_NOT_CONFIGURED'});
+    const idempotencyKey=command?.idempotencyKey;if(!command||Object.keys(command).join(',')!=='idempotencyKey'||typeof idempotencyKey!=='string'||!idempotencyKey||idempotencyKey.length>128)throw Object.assign(new Error('Douban sync requires idempotencyKey.'),{code:'PERCEPTION_ACQUISITION_COMMAND_INVALID'});
+    if(executionOrigin==='manual'){
+      const prior=resumeIntent.findCommand(actorId,idempotencyKey);
+      if(prior){
+        if(prior.request_digest!==canonicalDigest(command))throw Object.assign(new Error('同步继续请求与原命令不同。'),{code:'PERCEPTION_RESUME_COMMAND_CONFLICT'});
+        const operation=reconcileAcquisition(prior.perception_acquisition_id);
+        return freeze({operationRef:prior.perception_acquisition_id,state:'accepted',sourceKind:'douban',workId:operation.workId||null});
+      }
+    }
     const acquisitionId=stable('perception-douban-acquisition-',{sourceId:config.sourceId,idempotencyKey});
+    if(executionOrigin==='manual'&&!store.getAcquisition(acquisitionId)){
+      const active=store.listAcquisitions().find(item=>item.perceptionSourceId===config.sourceId&&item.state==='active');
+      if(active){
+        if(active.sourceConfigRevision!==config.configRevision)throw Object.assign(new Error('同步配置已变化，不能沿旧配置继续。'),{code:'PERCEPTION_RESUME_BASIS_CONFLICT'});
+        resumeIntent.request(active,command,actorId);
+        const operation=reconcileAcquisition(active.perceptionAcquisitionId);
+        return freeze({operationRef:active.perceptionAcquisitionId,state:'accepted',sourceKind:'douban',workId:operation.workId||null});
+      }
+    }
     const existing=store.getAcquisition(acquisitionId);let scope;
     if(existing)scope=JSON.parse(existing.scopeJson);
     else {const source=store.getSource(config.sourceId),head=source?.currentCursorRevision?store.getCursor(config.sourceId,source.currentCursorRevision):null,
       headAcquisition=head?store.getAcquisition(head.perceptionAcquisitionId):null;
       scope=head?.hasMore&&headAcquisition?.state==='failed'&&headAcquisition.sourceConfigRevision===config.configRevision
         ? JSON.parse(headAcquisition.scopeJson)
-        : freeze({mode:'provider',collection:'watched_movies',sourceId:config.sourceId,
-          acquisitionWindow:freeze({kind:'full_snapshot',openedAtMs:now()})});}
-    start({acquisitionId,sourceId:config.sourceId,sourceKind:'douban',integrationId:config.integrationId,configRevision:config.configRevision,scope});const operation=reconcileAcquisition(acquisitionId);
+        : freeze({mode:'provider',executionOrigin,collection:'watched_movies',sourceId:config.sourceId,
+          acquisitionWindow:freeze({kind:'full_snapshot',openedAtMs:now()})});
+      scope=freeze(scope);}
+    const acquisition=start({acquisitionId,sourceId:config.sourceId,sourceKind:'douban',integrationId:config.integrationId,configRevision:config.configRevision,scope});
+    if(executionOrigin==='manual'&&acquisition.state==='active'&&scope.executionOrigin!=='manual'&&!resumeIntent.hasResume(acquisitionId))resumeIntent.request(acquisition,command,actorId);
+    const operation=reconcileAcquisition(acquisitionId);
     return freeze({operationRef:acquisitionId,state:'accepted',sourceKind:'douban',workId:operation.workId});}
   function resolutionContext(targetType,targetId,factKind='rating'){const snapshot=target(targetType,targetId),query=queryFor(snapshot,factKind),handle=queryHandle(query,now(),targetType==='shelf_entry'?'arca':'libra'),assembled=assembler.assemble({queryHandle:handle,ruleSnapshot});return freeze({target:snapshot,queryHandle:handle,...assembled});}
   function resolutionProcessContext(processId){const value=resolutionTarget(processId);return resolutionContext(value.targetType,value.targetId,value.factKind);}
@@ -161,8 +184,18 @@ function createPerceptionProcessServices(options){
   }
   const periodicAcquisition = createPerceptionAcquisitionAutomation({
     now, readDoubanSourceConfiguration: options.readDoubanSourceConfiguration,
-    listAcquisitions: () => store.listAcquisitions(), requestAcquisition,
+    listAcquisitions: () => store.listAcquisitions(), requestAcquisition:command=>requestAcquisition(command,{executionOrigin:'periodic'}),
   });
+  function acquisitionSchedulingClass(acquisitionId){
+    const item=store.getAcquisition(acquisitionId);if(!item)throw new TypeError('Acquisition scheduling requires a known process.');
+    const scope=JSON.parse(item.scopeJson);
+    if(scope.mode==='direct')return 'normal';
+    if(Object.hasOwn(scope,'executionOrigin')&&!['manual','periodic'].includes(scope.executionOrigin))throw Object.assign(new Error('Acquisition execution origin is invalid.'),{code:'PERCEPTION_ACQUISITION_ORIGIN_REQUIRED'});
+    if(resumeIntent.hasResume(acquisitionId))return 'normal';
+    const executionOrigin=scope.executionOrigin||proveLegacyPeriodicAcquisition(item,store.listAcquisitions())?.executionOrigin;
+    if(!['manual','periodic'].includes(executionOrigin))throw Object.assign(new Error('Acquisition execution origin is missing.'),{code:'PERCEPTION_ACQUISITION_ORIGIN_REQUIRED'});
+    return executionOrigin==='periodic'?'maintenance':'normal';
+  }
   function syncState(){const config=options.readDoubanSourceConfiguration?.();if(!config)return freeze({latest:null,activeCount:0,
     completionState:'not_started',lastCursorOut:null,cursorRevision:0,committedPageCount:0,recordCount:0});
     const items=store.listAcquisitions().filter((item)=>item.perceptionSourceId===config.sourceId),latest=items[0]||null,
@@ -175,7 +208,7 @@ function createPerceptionProcessServices(options){
       recordCount:store.countRecordsForSource(config.sourceId)});}
   return Object.freeze({store,ruleSnapshot,acquisitionContext,resolutionContext,resolutionProcessContext,reconcileAcquisition,reconcileResolution,reconcileImpactedSubjectResolutions,createRecord,requestAcquisition,ensureResolution,ensureTargetResolutions,resolveDecisionFact,
     readCurrentRating,readCurrentRatings,readCurrentWatched,listRecords:(query)=>store.listRecords(query),listAcquisitions:()=>store.listAcquisitions(),
-    syncState,periodicAcquisition});
+    syncState,periodicAcquisition,acquisitionSchedulingClass});
 }
 
 module.exports=Object.freeze({createPerceptionProcessServices,queryFor,queryHandle,directSourceId,RESOLUTION_INPUT_CONTRACT_REPAIR_CODE});

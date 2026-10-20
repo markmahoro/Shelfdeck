@@ -1,4 +1,5 @@
 'use strict';
+const {assertCompletion}=require('../model/us-adult-match-completion');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
@@ -415,6 +416,7 @@ function nextAction(works, classification, issue, runState, recovery, arcaStatus
   if (arcaStatus?.stage === 'attention_required') return Object.freeze({ label: '收藏架接纳或上架需要处理', state: 'attention_required', progress: null });
   if (issue) return Object.freeze({ label: issue.contentProfile==='jav'
     ?issue.reasonCode==='jav_source_not_configured'?'等待连接 JAV 资料来源':'需要确认番号'
+    :issue.contentProfile==='western_adult'?'需要确认演员'
     :issue.result === 'ambiguous' ? '需要确认媒体身份' : issue.result === 'conflicting' ? '媒体身份信息冲突' : '暂未找到匹配的媒体身份', state: 'attention_required', progress: null });
   if (waitingExternalIntegration) return Object.freeze({
     label: '等待配置外部获取服务后继续整理', state: 'waiting_external', progress: null,
@@ -498,6 +500,10 @@ function createFormationProjectionSource(options) {
     find_run_subject: { kind: 'select-one', tableId: 'libra_runs', keyColumns: ['libra_run_id'], columns: ['subject_id'] },
     find_packages: { kind: 'select-in', tableId: 'libra_product_packages', keyColumn: 'libra_run_id', maxItems: 500, columns: ['on_deck_package_id', 'offer_id', 'libra_run_id', 'package_revision', 'package_digest', 'state', 'published_at_ms'], safeIntegers: true },
     find_identity_intents: { kind: 'select-in', tableId: 'libra_product_identity_selection_intents', keyColumn: 'libra_run_id', maxItems: 500, columns: ['selection_intent_id', 'libra_run_id', 'intent_revision', 'provider_key', 'created_at_ms'], safeIntegers: true },
+    find_us_completions:{kind:'select-in',tableId:'libra_us_adult_match_completions',keyColumn:'libra_run_id',maxItems:500,
+      columns:['libra_run_id','completion_json','completion_digest']},
+    find_us_actor_choices:{kind:'select-in',tableId:'libra_us_adult_actor_choice_heads',keyColumn:'subject_id',maxItems:PAGE_SIZE,
+      columns:['subject_id','current_revision','intent_id','record_digest']},
   } });
 
   function readPage(cursor, limit = PAGE_SIZE) {
@@ -538,7 +544,11 @@ function createFormationProjectionSource(options) {
       const runRevisions = runIds.length ? chunks(runIds, PAGE_SIZE).flatMap((values) => repo.invoke('find_run_revisions', { values })) : [];
       const packages = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_packages', { values })) : [];
       const identityIntents = runIds.length ? chunks(runIds).flatMap((values) => repo.invoke('find_identity_intents', { values })) : [];
-      return { decisions, routingFields, bindings, identities, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents };
+      const usSubjects=subjects.filter(subject=>subject.content_profile==='western_adult').map(subject=>subject.subject_id),
+        usRunIds=runs.filter(run=>usSubjects.includes(run.subject_id)).map(run=>run.libra_run_id),
+        usCompletions=usRunIds.length?chunks(usRunIds).flatMap(values=>repo.invoke('find_us_completions',{values})):[],
+        usChoices=usSubjects.length?repo.invoke('find_us_actor_choices',{values:usSubjects}):[];
+      return { decisions, routingFields, bindings, identities, routingDecisions, routingPolicies, decisionHeads, acceptanceSpecs, runs, runRevisions, packages, identityIntents,usCompletions,usChoices };
     } }]).libra_formation_batch;
   }
   function buildBatch(subjects, buildOptions = {}) {
@@ -624,6 +634,15 @@ function createFormationProjectionSource(options) {
           reasonCode:stage.reasonCode,candidateSetDigest:null,candidates:Object.freeze([]),
           sourceLocation:stage.sourceLocation,claimedCode:stage.claimedCode}):null;
       }
+      if(subject.content_profile==='western_adult'){
+        issue=null;
+        const row=run&&!pkg&&value.usCompletions.find(item=>item.libra_run_id===run.libra_run_id),
+          completion=row?assertCompletion(parse(row.completion_json)):null;
+        if(completion&&(completion.completionDigest!==row.completion_digest||completion.subjectId!==subject.subject_id||completion.libraRunId!==run.libra_run_id))
+          throw new Error('US Adult Formation completion scope changed.');
+        if(completion&&!completion.winner&&!value.usChoices.some(item=>item.subject_id===subject.subject_id))issue=Object.freeze({
+          contentProfile:'western_adult',result:'not_found',reasonCode:'us_adult_actor_unmatched',candidateSetDigest:completion.completionDigest,candidates:Object.freeze([])});
+      }
       const waitingExternalIntegration = waitsForExternalIntegration(works, externalIntegrationReady);
       const recovery = pkg ? recoveries.get(pkg.offer_id) || null : null;
       const arcaStatus = pkg ? arcaStatuses.get(pkg.offer_id) || null : null;
@@ -669,7 +688,7 @@ function createFormationProjectionSource(options) {
         seriesDelivery:includeActualPlans ? seriesDelivery(subject, packageRun) : undefined,
         routingConfigurationFieldId: missingRoutingPolicy ? sourceFieldId : null,
         processDetail:buildOptions.includeProcessDetail === true ? detail : undefined,
-        currentPlan:missingRoutingPolicy ? undefined : detail ? currentPlanSummary(detail) : undefined,
+        currentPlan:missingRoutingPolicy||issue?.contentProfile==='western_adult' ? undefined : detail ? currentPlanSummary(detail) : undefined,
         targetShelfId: routing?.shelf_id || null, targetShelfName: shelfNames.get(routing?.shelf_id) || null, routingState: routing?.decision || (missingRoutingPolicy ? 'unresolved' : 'preparing'), unresolvedReasonCode: routing?.unresolved_reason_code || routingReadiness?.reasonCode || null, routingPolicyMode: policy?.mode || null, routingPolicyRevision: routing?.routing_policy_revision == null ? null : Number(routing.routing_policy_revision), routingDecisionRevision: routing ? Number(routing.decision_revision) : null, routingDecisionDigest: routing?.decision_digest || null, routingDecisionHeadRevision: head ? Number(head.head_revision) : null, routingDecisionHeadDigest: head?.head_digest || null, acceptanceSpecId: spec?.acceptance_spec_id || null, acceptanceSpecRevision: spec ? Number(spec.spec_revision) : null, acceptanceSpecDigest: spec?.spec_digest || null, acceptanceSpecPublishedAtMs: spec ? Number(spec.published_at_ms) : null, primaryMaterialCount: primaryCount, addedAtMs: Number(subject.created_at_ms), organizingRequirement: requirementLabel(spec), organizingAction: actionLabel(actionWorks, spec, stepOptions), organizingSteps: steps, nextAction: missingRoutingPolicy ? Object.freeze({label:'尚未配置收藏去向',state:'attention_required',progress:null}) : nextAction(works, classification, issue, run?.state, recovery, arcaStatus, pkg, latestRun?.state || null, waitingExternalIntegration, terminalEvidence, spec, onDeckWorks), currentRun: run ? Object.freeze({ libraRunId: run.libra_run_id, state: run.state, stateRevision: Number(run.state_revision), stateDigest: run.state_digest, priorityClass: run.priority_class, packageRevisionHead: Number(run.package_revision_head), currentIdentityRevision: subject.current_identity_revision === null ? null : Number(subject.current_identity_revision) }) : null, handoffB: pkg ? Object.freeze({ onDeckPackageId: pkg.on_deck_package_id, offerId: pkg.offer_id, packageRevision: Number(pkg.package_revision), packageDigest: pkg.package_digest, state: pkg.state, publishedAtMs: Number(pkg.published_at_ms) }) : null, completedAtMs: arcaStatus?.stage === 'completed' ? arcaStatus.completedAtMs : null });
     });
   }

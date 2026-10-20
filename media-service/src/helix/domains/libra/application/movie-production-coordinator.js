@@ -1846,7 +1846,7 @@ function createMovieProductionCoordinator(options) {
       ) ||
       Buffer.compare(Buffer.from(left.relationId), Buffer.from(right.relationId)));
     const castResolveInput = Object.freeze({
-      libraMediaCastSourceBasisMetadataObservationOrWesternMatch: castBasis,
+      libraMediaCastSourceBasis: castBasis,
       personReferenceProjectionList: projectionList,
     });
     const castDraftChain = await phase({
@@ -2435,6 +2435,9 @@ function createMovieProductionCoordinator(options) {
     const castDraft = buildMediaCastDraft({
       subjectId: snapshot.run.subjectId,
       sourceBasis: castBasis,
+      personProjection: { items: castBasis.observationSet.contentProfile === 'jav' &&
+        !castBasis.observationSet.observations.some(item => item.peopleHints?.some(hint => hint.role === 'actor'))
+        ? [options.readJavUnknownActorProjection()] : [] },
       relations: buildMetadataMediaCastRelations({
         sourceBasis: castBasis,
         subjectId: snapshot.run.subjectId,

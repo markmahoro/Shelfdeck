@@ -85,6 +85,36 @@
             "type": "string",
             "minLength": 1
           },
+          "score": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "threshold": {
+            "type": "number",
+            "minimum": -1,
+            "maximum": 1
+          },
+          "referenceAssetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "artifactDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "faceModelRefDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "referenceModelRefDigest": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[a-f0-9]{64}$"
+          },
           "evidenceDigest": {
             "type": "string",
             "minLength": 1,
@@ -98,6 +128,12 @@
           "projectionRevision",
           "projectionDigest",
           "confidenceClass",
+          "score",
+          "threshold",
+          "referenceAssetId",
+          "artifactDigest",
+          "faceModelRefDigest",
+          "referenceModelRefDigest",
           "evidenceDigest"
         ]
       },
@@ -110,7 +146,7 @@
         "minLength": 1,
         "maxLength": 256
       },
-      "maxItems": 1024
+      "maxItems": 1280
     }
   },
   "required": [

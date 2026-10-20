@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.us_adult.source.prepare/v1/inputs",
+  "title": "arca.us_adult.source.prepare@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "usAdultActorRefreshScope": {
+      "$ref": "#/$defs/usAdultActorRefreshScope"
+    },
+    "usAdultActorRefreshIntent": {
+      "$ref": "#/$defs/usAdultActorRefreshIntent"
+    },
+    "physicalMaterialReadHandle": {
+      "$ref": "#/$defs/physicalMaterialReadHandle"
+    }
+  },
+  "required": [
+    "usAdultActorRefreshScope",
+    "usAdultActorRefreshIntent",
+    "physicalMaterialReadHandle"
+  ],
+  "$defs": {
+    "usAdultActorRefreshScope": {
+      "$ref": "helix://contracts/domain-types/UsAdultActorRefreshScope/v1",
+      "x-helix-typeExpression": "UsAdultActorRefreshScope"
+    },
+    "usAdultActorRefreshIntent": {
+      "$ref": "helix://contracts/domain-types/UsAdultActorRefreshIntent/v1",
+      "x-helix-typeExpression": "UsAdultActorRefreshIntent"
+    },
+    "physicalMaterialReadHandle": {
+      "$ref": "helix://contracts/types/PhysicalMaterialReadHandle/v1",
+      "x-helix-typeExpression": "PhysicalMaterialReadHandle"
+    }
+  }
+}

@@ -5,7 +5,7 @@
   "kind": "application-type-registry",
   "owner": "arca",
   "status": "active",
-  "targetCount": 28,
+  "targetCount": 30,
   "entries": [
     {
       "id": "ArcaDefectAuthorization",
@@ -162,7 +162,7 @@
       "relativePath": "application-types/ArcaJavCorrectionCastFact/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "d1947e5cc1c6cdeb9f7de61f1a2880bbcafddad9fc1f76b13d991dab37e62a6e"
+        "value": "d5c7c04fb6452a7fcbe526fde8bfab4c008a3809b0138c9969b8d7462c6d5a3f"
       },
       "ssotRefs": [
         "3.5.5",
@@ -315,7 +315,7 @@
       "relativePath": "application-types/ArcaJavCorrectionMetadataFact/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "f22b7677503111bd85acac17c74bb230582994b26e06d4934e092fe1bf4bc523"
+        "value": "2f7733ab412d230bf9e65dc62a46f9920f2590d91cd62ef644f46f25b9c4ffc6"
       },
       "ssotRefs": [
         "3.5.5",
@@ -349,7 +349,7 @@
       "relativePath": "application-types/ArcaJavCorrectionPreviewProof/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "871cc67d58a4d20ecdb01a35588d66f224dfce49498fb07d095ee67f4b19eade"
+        "value": "3a27727f239c68464f60c6303289b31c95ee7a2209c566c22f75c8b7e3ef7a68"
       },
       "ssotRefs": [
         "3.5.5",
@@ -366,7 +366,7 @@
       "relativePath": "application-types/ArcaJavCorrectionProposal/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "3bce046236c994f640742d08771a406e603ea981faa41929e46c1178bb2d7248"
+        "value": "39859ce4fa8b2d04f33a81e1771ff424a8fa376704616c2b19c57c6f8558f35f"
       },
       "ssotRefs": [
         "3.5.5",
@@ -457,6 +457,38 @@
         "3.3.1",
         "8.5.13",
         "8.6.19"
+      ]
+    },
+    {
+      "id": "ArcaUsAdultActorFact",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaUsAdultActorFact/v1",
+      "relativePath": "application-types/ArcaUsAdultActorFact/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "f4c07e49b8015ded50fdfbeb4354c7019023da13e560ca5d30147a61c63dfd4d"
+      },
+      "ssotRefs": [
+        "6.6.8",
+        "8.6.18"
+      ]
+    },
+    {
+      "id": "ArcaUsAdultMetadataFact",
+      "version": 1,
+      "owner": "arca",
+      "status": "contracted",
+      "schemaId": "helix://contracts/application-types/ArcaUsAdultMetadataFact/v1",
+      "relativePath": "application-types/ArcaUsAdultMetadataFact/v1/schema.json",
+      "digest": {
+        "algorithm": "sha256",
+        "value": "76ca29e7c674521e7a01bb1953e9cec1218b14e66b97379add9a256c4a47eb94"
+      },
+      "ssotRefs": [
+        "6.6.8",
+        "8.6.18"
       ]
     },
     {

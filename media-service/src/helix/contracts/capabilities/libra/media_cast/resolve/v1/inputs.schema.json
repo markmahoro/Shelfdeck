@@ -5,21 +5,21 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "libraMediaCastSourceBasisMetadataObservationOrWesternMatch": {
-      "$ref": "#/$defs/libraMediaCastSourceBasisMetadataObservationOrWesternMatch"
+    "libraMediaCastSourceBasis": {
+      "$ref": "#/$defs/libraMediaCastSourceBasis"
     },
     "personReferenceProjectionList": {
       "$ref": "#/$defs/personReferenceProjectionList"
     }
   },
   "required": [
-    "libraMediaCastSourceBasisMetadataObservationOrWesternMatch",
+    "libraMediaCastSourceBasis",
     "personReferenceProjectionList"
   ],
   "$defs": {
-    "libraMediaCastSourceBasisMetadataObservationOrWesternMatch": {
-      "$ref": "helix://contracts/domain-types/LibraMediaCastSourceBasisMetadataObservationWesternMatch/v1",
-      "x-helix-typeExpression": "LibraMediaCastSourceBasis(metadata_observation|western_match)"
+    "libraMediaCastSourceBasis": {
+      "$ref": "helix://contracts/domain-types/LibraMediaCastSourceBasis/v1",
+      "x-helix-typeExpression": "LibraMediaCastSourceBasis"
     },
     "personReferenceProjectionList": {
       "type": "array",

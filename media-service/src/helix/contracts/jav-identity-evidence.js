@@ -13,13 +13,16 @@ function javIdentityFenceSchema() {
 }
 function javQualificationSchema() {
   const identity=object({provider:{const:'jav'},namespace:{const:'jav_code'},providerKey:text(64),seasonNumber:{type:'null'},identityAnchorDigest:digest()});
-  return object({schema:{const:'integration.jav-source-observation@1'},siteRef:text(64),endpointProfileDigest:digest(),networkRouteDigest:digest(),
+  const qualification=object({schema:{const:'integration.jav-source-observation@1'},siteRef:text(64),endpointProfileDigest:digest(),networkRouteDigest:digest(),
     queryAnchorDigest:digest(),result:{const:'qualified'},pages:{type:'array',maxItems:5,items:object({resourceUrl:text(4096),byteDigest:digest()})},
     resourceKey:text(128),resourceUrl:text(4096),resolvedProviderIdentity:identity,
     descriptiveEntries:{type:'array',minItems:1,maxItems:256,items:object({key:text(128),value:text(16384)})},
-    peopleHints:{type:'array',maxItems:64,items:object({displayName:text(1024),role:{const:'actor'},providerIdentities:{type:'array',maxItems:0}})},
+    peopleHints:{type:'array',maxItems:64,items:object({displayName:text(1024),role:{const:'actor'},providerIdentities:{type:'array',maxItems:1,
+      items:object({provider:{const:'javdb'},namespace:{const:'javdb_actor'},providerKey:{type:'string',pattern:'^[A-Za-z0-9_-]{1,128}$'}})}})},
     cover:object({locator:text(4096),byteDigest:digest(),byteCount:{type:'integer',minimum:1,maximum:16*1024*1024},
       format:{enum:['jpeg','png','webp']},width:integer(1),height:integer(1)}),observationDigest:digest()});
+  qualification.allOf=[{if:{properties:{siteRef:{const:'javdb'}},required:['siteRef']},else:{properties:{peopleHints:{items:{properties:{providerIdentities:{maxItems:0}}}}}}}];
+  return qualification;
 }
 function javIdentityIntentSchema() {
   return object({intentId:text(),intentDigest:digest(),libraRunId:text(),subjectId:text(),runExecutionBasisDigest:digest(),

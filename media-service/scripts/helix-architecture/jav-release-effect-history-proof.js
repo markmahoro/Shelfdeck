@@ -41,7 +41,9 @@ function proveReleaseEffectHistory(database, schemaManifest) {
     priorArchiveDigest:'1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
     witness:load('src/helix/composition/catalog-transitions/intake-control-20260912.json'),
     additionalArchives:[{ archive:load('src/helix/composition/catalog-transitions/published-terminal-contracts-20261015.json'),
-      archiveDigest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d' }],
+      archiveDigest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d' },
+      { archive:load('src/helix/composition/catalog-transitions/published-terminal-contracts-20261018.json'),
+        archiveDigest:'02c61b170e4209eb07f6abb1172eece6e598ed06ab9ad9fa227a5fea32803a6c' }],
     bindingProjectionRegistry:createReadonlyProofProjectionRegistry(load).registry,
     proofReader,
     terminalEffectObserver:{ observe(facts) {

@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.us_adult.case.commit@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "domain_fact_commit",
+  "inputPorts": {
+    "usAdultActorExecutionInput": {
+      "schemaRef": "helix://contracts/capabilities/arca.us_adult.case.commit/v1/inputs#/$defs/usAdultActorExecutionInput",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.us_adult.case.commit/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.us_adult.case.commit/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.us_adult.case.commit/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.us_adult.case.commit/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.us_adult.case.commit/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.us_adult.case.commit/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.us_adult.case.commit/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.11",
+    "line": 10515,
+    "lineDigest": "94afab23b8b94441ab9731c94a30a03331d6fa88b4ad43dc52b5a91043dacb18"
+  }
+}

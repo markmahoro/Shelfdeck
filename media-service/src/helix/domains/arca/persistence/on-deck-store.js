@@ -1,4 +1,5 @@
 'use strict';
+const {assertRequiredUsAdultActor}=require('../../../contracts/us-adult-actor-package');
 const { readControlProjections } = require('../persistence/read-control-projections');
 const {inventoryMappingFact,FACT_SCHEMA}=require('../../../contracts/related-primary-mappings');
 const {createInventoryVerificationStore}=require('./inventory-verification-store');
@@ -849,6 +850,7 @@ function createOnDeckStore(options) {
 
   function commit(request) {
     const packageValue = request.package;
+    assertRequiredUsAdultActor(packageValue);
     const verificationRecord = request.fulfillmentVerificationRecord;
     if (verificationRecord?.schemaRef !== 'helix://contracts/types/FulfillmentVerificationRecord/v1' ||
         verificationRecord.processType !== 'arca_ondeck_run' || verificationRecord.processId !== request.onDeckRunId ||

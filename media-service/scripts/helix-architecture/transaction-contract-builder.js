@@ -3,12 +3,16 @@
 const crypto = require('crypto');
 
 const crashFixtures = Object.freeze({
+  'actor-prepublication-failure':['Owner terminal CAS before and after exact Foundation failure proof, before COMMIT and response','Only a completely failed no-write publication may close unresolved; uncertain Effects and changed Inventory reject with zero Case writes; failed execution and unrelated Findings remain unchanged',8821],
+  'us-adult-match-completion':['exact Run/Basis and full durable Match Result validation, completion row, before and after COMMIT','Completion is immutable and all-or-none; absent or failed pages never become an unmatched decision; no cross-Owner or execution writes',8821],
+  'us-adult-actor-choice':['Run/Subject/choice revision validation, immutable Intent and head CAS, Command Receipt/marker/audit, before and after COMMIT','The explicit actor choice and durable receipt are all-or-none; replay precedes later Run/People changes; no People or Arca mutation',8821],
   'jav-correction-recovery-intent':['current Owner/Control and terminal execution validation, prior recovery digest CAS, Intent/Command Receipt/marker/audit writes, before and after COMMIT',
     'Recovery Intent and current lineage/state changes are all-or-none; prior failed execution, successful Results, collection and video are unchanged; replay precedes current-state checks; unresolved execution or unknown conflicts reject admission',8755],
   'jav-correction-no-effect-cancel':['current Basis/Control/no-effect validation, cancellation CAS, Command Receipt/marker/audit writes, before and after COMMIT',
     'Cancellation and its Receipt/marker/audit are all-or-none; prior collection and execution history remain unchanged; exact replay precedes current-state checks; any write attempt or output registration rejects cancellation',8758],
   'jav-correction-cleanup':['两项清理成功Work/Result与登记生命周期复验、committed context/head/Control围栏、cleanup Receipt及CAS、事务COMMIT前后进程退出',
     'cleanup Receipt与completed/门禁释放全有或全无；无文件、Control或历史Commit写入；重放同Receipt，失败保持门禁',16113],
+  'people-reference-reclamation':['当前及冻结引用、两轮quiet interval/epoch、boot/window、真实Effect、claim及单文件unlink前后、最后Registry CAS/Result/marker迟发失败', '只删除同一正式Work/Effect的精确无引用Artifact；引用/权限变化保留；absence后恢复原Effect并原子结算，未知文件及父目录不删', 14996],
   'jav-correction-workspace':['实际文件退出、执行及前置Work/Result、committed context/root、逐Material/Artifact/Registry CAS、Result/marker、响应前进程丢失',
     'Registry生命周期/Result/marker全有或全无；物理部分退出沿原Effect继续，错材料保留冲突；原身份/库存/视频不变，cleanup门禁保持',16108],
   'jav-correction-inventory': ['执行及前置Work/Result、active Admission/current Basis、每页Control CAS、新Canonical/Inventory与terminal Evidence、Result/marker各participant及响应前进程丢失', '任一步失败无新head/Control/terminal/Receipt/marker；旧视频及原入藏Receipt不变；成功全有，同Event重放不重做文件或创建第二Commit', 16085],
@@ -25,7 +29,10 @@ const crashFixtures = Object.freeze({
   'perception-acquisition-page': ['第一次Source同步、第二次Acquisition首页、配置/scope不兼容重扫、Acquire后bounded inline payload冻结、Normalize前、Record/Anchor/Relation participant后、cursor head CAS前后、typed Result/marker/Outbox前后、响应前崩溃', '仅从未存在cursor row时logical expected revision为0/storage pointer为NULL；后续Acquisition冻结真实head且revision永不重置；Normalize只读取digest-bound inline DTO，pure Acquire不创建Artifact；任一验证/CAS失败整页rollback；同来源事实不重复；cursor不越过未提交页；同marker重放返回原typed Result及相同storage result digest；Outbox不通知Libra/Arca', 8527],
   'perception-resolution': ['Query Handle验证、候选检索前后、Record/Relation snapshot后、pure Resolver前后、Resolution/head/duplicate relation participant后、typed Result/marker前后', 'Handle携带可读取typed query；Assembler只读Perception Store并按Rule取得完整候选超集，不决定winner；Executor不旁读Store；被retracted/superseded或缺少请求kind的Record不能获胜；最高strength同值稳定found、同tier冲突稳定not_found；fuzzy match不生成duplicate；任一query/record-set/rule digest变化形成新revision；同三重digest重放返回同一typed Resolution', 8643],
   'people-candidate': ['typed Evidence恢复、Resolver产出complete Draft、Candidate head/open revision/typed Result/marker各边界；用户或strong rule接受前后；Registration Person/alias/provider identity与Merge target/source/preference/correlation提交各边界', 'CommitParticipant不旁读Foundation/Provider；Candidate payload digest可重算；重启不丢open Candidate；candidate revision或任一Person/Preference revision变化时整体CAS失败；接受成功时Candidate terminal与全部Person facts同时成立，同marker重放返回同一typed Result；弱Identity未经用户确认不建立Person，Preference冲突不得strong-rule自动接受', 8584],
-  'direct-person-registration': ['Direct Person Registration提交前、Person/Identity/初始Projection checkpoint写入后、command receipt/Outbox前后、响应前崩溃', 'Person首revision、Alias/Provider Identity、初始Reference Projection checkpoint、durable result、command receipt和Outbox必须全有或全无；重放返回同一结果且不经过Candidate或建立Reference Fact', 11228],
+  'us-adult-analysis-basis':['active Run/identity/Workspace fences, immutable Basis and each page insert, before and after COMMIT','Basis and all complete pages are all-or-none; replay returns the same snapshot; no cross-Owner writes, Event, Effect or Outbox',8809],
+  'people-profile-update': ['revision fence, immutable revision/alias/identity writes, command receipt/marker/audit, before and after COMMIT', 'Profile revision and durable command result are all-or-none; replay returns the original result after later edits; no Media-Cast or Arca writes', 8809],
+  'perception-acquisition-resume': ['active Source/config/Acquisition fence, Intent and command receipt/marker/audit, before and after COMMIT', 'Resume Intent is all-or-none with its command result; original Scope/cursor/Work unchanged; retry precedes terminal/current configuration checks', 8805],
+  'direct-person-registration': ['Direct Person Registration提交前、Person/Identity/初始Projection checkpoint写入后、command receipt/Outbox前后、响应前崩溃', 'Person首revision、Alias/Provider Identity、初始Reference Projection checkpoint、durable result、command receipt和Outbox必须全有或全无；US Adult初始Reference与Person同事务成立；重放返回同一结果且不经过Candidate', 11228],
   'people-reference-image': ['Reference Image导入后、Face检测/Embedding前后、Asset/Face/Reference head/Projection checkpoint各participant后、typed Result/marker/Outbox前后、响应前崩溃', '零Face、多Face、handle/digest/model不一致或stale Person/Reference revision整体失败；Asset与唯一Face同事务active或released；Reference revision和所有受影响Projection checkpoint连续；同marker重放返回原typed Result', 11228],
   'handoff-a-accepted': ['Candidate Delivery snapshot重建前后、global continuity head CAS前后、continuity match前后、并发Subject/episode/Resolved Identity exact anchor变化、target Intake CAS前后、Decision/Subject/Binding N:M relation participant后、Control participant前后、Result/marker/Outbox前', 'Snapshot的Offer/Package/Manifest/Location Evidence不一致即fail closed且不旁读proc_*修补；exact claim唯一命中且zero overlap才extension；0/N命中、缺失或overlap新建Subject；global head阻止query phantom，target head阻止唯一Subject stale extension；竞态使Decision失效后重新装配；new Subject identity pointer为NULL；要么全部不存在，要么global/target revision、Decision及match/overlap Evidence、Subject/claim/Episode scope、每Material Binding及全部Episode relation、Control、Receipt/Result/marker/Outbox全部成立；Procurement只异步消费Receipt', 9501],
   'procurement-handoff-a-acceptance-consume': ['Inbox写入前后、open Delivery CAS前后、Reservation逐项转移中途、Delivery terminal与Inbox result提交前后、迟到Rejected消息', 'Delivery、全部Candidate member transferred+handoff_accepted、同一Receipt Evidence与Inbox result全有或全无；Material Control不变；重复消息重放同一closure digest，相反终态或digest冲突稳定拒绝', 9639],
@@ -65,6 +72,14 @@ const definitions = Object.freeze({
     dynamicTableRequirements: [{ participant: 'domain', selector: 'DomainFactCommitHandle.factSchemaRef', ownerConstraint: 'execution_owner' }],
     readTables: [], fixtureRefs: ['command-idempotency', 'effect-outbox-recovery'], hasOutbox: true,
     variants: [
+      {variantId:'arca_us_adult_case_closure@1',exactOverride:true,
+        selector:{selectorKind:'domain_fact_handle_exact',factType:'us_adult_actor_case',
+          factSchemaRef:'helix://contracts/types/AftercareCaseResult/v1',resultSchemaRef:'helix://contracts/types/AftercareCaseResult/v1'},
+        writeTables:['arca_aftercare_cases','arca_aftercare_settlement_approvals','fx_event_result_bindings','fx_commit_markers'],
+        readTables:['arca_aftercare_cases','arca_us_actor_refresh_intents','arca_aftercare_inventory_commits','arca_inventory_product_facts',
+          'arca_shelf_entries','arca_shelves','arca_offdeck_reservations','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_event_result_bindings'],
+        dynamicTableRequirements:[],hasOutbox:false,fixtureRefs:['aftercare-basis-inventory','effect-outbox-recovery'],
+        rollbackInvariant:'The exact Actor Case closure, Event Result and marker are all-or-none; unchanged requires all matching pages; refreshed requires its exact Inventory commit and physical retirement; unrelated health Findings remain open.'},
 {"variantId":"arca_final_product_verification@1","exactOverride":true,"selector":{"selectorKind":"domain_fact_handle_exact","factType":"inventory_verification","factSchemaRef":"helix://contracts/types/FinalProductVerification/v1","resultSchemaRef":"helix://contracts/types/FinalProductVerificationRecord/v1"},"writeTables":["arca_inventory_verification_records","fx_event_result_bindings","fx_commit_markers"],"readTables":["arca_jav_identity_corrections","arca_inventory_verification_records","fx_supporting_works","fx_workflow_events","fx_event_attempts","fx_event_result_bindings","fx_commit_markers"],"dynamicTableRequirements":[],"hasOutbox":false,"fixtureRefs":["arca-inventory-verification"],"rollbackInvariant":"Complete verification, bounded record, Result and marker are atomic; exact Event replay preserves the same observation."},
 {"variantId":"arca_fulfillment_verification@1","exactOverride":true,"selector":{"selectorKind":"domain_fact_handle_exact","factType":"inventory_verification","factSchemaRef":"helix://contracts/types/FulfillmentVerification/v1","resultSchemaRef":"helix://contracts/types/FulfillmentVerificationRecord/v1"},"writeTables":["arca_inventory_verification_records","fx_event_result_bindings","fx_commit_markers"],"readTables":["arca_inventory_verification_records","fx_supporting_works","fx_workflow_events","fx_event_attempts","fx_event_result_bindings","fx_commit_markers"],"dynamicTableRequirements":[],"hasOutbox":false,"fixtureRefs":["arca-inventory-verification"],"rollbackInvariant":"Complete verification, bounded record, Result and marker are atomic; exact Event replay preserves the same observation."},
       {
@@ -81,7 +96,8 @@ const definitions = Object.freeze({
         selector: { selectorKind: 'domain_fact_handle_exact', factType: 'media_cast',
           factSchemaRef: 'helix://contracts/types/MediaCastFact/v1', resultSchemaRef: 'helix://contracts/types/MediaCastFact/v1' },
         writeTables: ['libra_product_fact_revisions', 'libra_product_fact_source_refs', 'fx_event_result_bindings', 'fx_commit_markers'],
-        readTables: ['libra_runs', 'libra_product_fact_revisions', 'libra_product_fact_source_refs', 'fx_supporting_works',
+        readTables: ['libra_runs','libra_subjects','libra_us_adult_analysis_bases','libra_us_adult_match_completions',
+          'libra_us_adult_actor_choice_heads','libra_us_adult_actor_choice_intents', 'libra_product_fact_revisions', 'libra_product_fact_source_refs', 'fx_supporting_works',
           'fx_work_attempts', 'fx_workflow_plans', 'fx_plan_nodes', 'fx_workflow_events', 'fx_event_attempts',
           'fx_event_result_bindings', 'fx_commit_markers'],
         dynamicTableRequirements: [], hasOutbox: false, fixtureRefs: ['libra-product-fact-variants'],
@@ -193,9 +209,15 @@ const definitions = Object.freeze({
       'people_merge_candidates', 'people_merge_candidate_revisions'],
     fixtureRefs: ['people-candidate'], hasOutbox: true
   },
+  'US Adult Analysis Basis Freeze':{commitClass:'domain_unit_of_work',writeTables:['libra_us_adult_analysis_bases','libra_us_adult_reference_pages'],readTables:['libra_runs','libra_product_fact_revisions','libra_workspaces'],fixtureRefs:['us-adult-analysis-basis'],hasOutbox:false,commitMarkerRequired:false},
+  'US Adult Actor Choice Intent':{commitClass:'domain_unit_of_work',writeTables:['libra_us_adult_actor_choice_intents','libra_us_adult_actor_choice_heads','fx_command_receipts','fx_commit_markers','fx_audit_records'],readTables:['libra_runs','libra_subjects'],fixtureRefs:['us-adult-actor-choice'],hasOutbox:false},
+  'US Adult Match Completion Freeze':{commitClass:'domain_unit_of_work',writeTables:['libra_us_adult_match_completions'],readTables:['libra_runs','libra_us_adult_analysis_bases'],fixtureRefs:['us-adult-match-completion'],hasOutbox:false,commitMarkerRequired:false},
+  'People Profile Update': {commitClass:'domain_unit_of_work',writeTables:['people_persons','people_person_revisions','people_aliases','people_provider_identities','fx_command_receipts','fx_commit_markers','fx_audit_records'],readTables:['people_persons','people_person_revisions'],fixtureRefs:['people-profile-update'],hasOutbox:false},
+  'Perception Acquisition Resume Intent': {commitClass:'domain_unit_of_work',writeTables:['perception_acquisition_resume_intents','fx_command_receipts','fx_commit_markers','fx_audit_records'],readTables:['perception_sources','perception_acquisitions'],fixtureRefs:['perception-acquisition-resume'],hasOutbox:false},
   'Direct Person Registration': {
     commitClass: 'domain_unit_of_work',
     writeTables: ['people_persons', 'people_person_revisions', 'people_aliases', 'people_provider_identities',
+      'people_reference_assets', 'people_reference_faces', 'people_reference_revisions',
       'fx_event_result_bindings', 'fx_command_receipts', 'fx_commit_markers', 'fx_outbox'],
     readTables: [], fixtureRefs: ['direct-person-registration'], hasOutbox: true
   },
@@ -459,6 +481,13 @@ const definitions = Object.freeze({
     writeTables: ['arca_source_cleanup_checks', 'arca_shelf_entries', 'arca_canonical_identity_revisions', 'arca_inventory_representations', 'arca_inventory_materials', 'arca_inventory_related_references', 'arca_inventory_product_facts', 'arca_inventory_person_relations', 'arca_deck_fact_revisions', 'arca_ondeck_commit_receipts', 'arca_offload_completions', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
     readTables: ['arca_final_inventory_decisions', 'arca_ondeck_runs'], fixtureRefs: ['ondeck-fixed-transaction'], hasOutbox: true
   },
+  'Aftercare Actor Publication Failure Closure': {
+    commitClass:'domain_unit_of_work',writeTables:['arca_aftercare_cases','arca_aftercare_settlement_approvals'],
+    readTables:['arca_aftercare_cases','arca_shelf_entries','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings'],
+    readParticipants:[{participantKind:'foundation',owner:'execution-foundation',access:'read',tables:['fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings']}],
+    fixtureRefs:['actor-prepublication-failure'],hasOutbox:false,commitMarkerRequired:false,
+    forbiddenWritePrefixes:['proc_','libra_','people_','fx_']
+  },
   'Aftercare Case Creation': {
     commitClass: 'domain_unit_of_work',
     writeTables: ['arca_aftercare_cases', 'arca_aftercare_case_basis_inputs', 'fx_commit_markers', 'fx_outbox'],
@@ -520,6 +549,23 @@ const definitions = Object.freeze({
       'arca_inventory_verification_records','fx_material_controls','fx_material_control_revisions','fx_supporting_works','fx_workflow_events','fx_event_attempts',
       'fx_event_result_bindings','fx_commit_markers'],fixtureRefs:['jav-correction-inventory'],
   },
+  'People Reference Artifact Reclamation': {
+    commitClass:'workspace_write',hasOutbox:false,
+    variants:[{variantId:'people_reference_artifact_claim@1',exactOverride:true,commitMarkerRequired:false,hasOutbox:false,rollbackInvariant:'Claim CAS failure leaves no Registry transition or successful marker; physical unlink requires this exact durable claim and Effect.',
+      selector:{selectorKind:'owner_command_exact',commandContract:'people.reference_artifact.claim@1'},writeTables:['fx_artifact_registry'],
+      readTables:['fx_artifact_registry','fx_artifact_references','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings',
+        'people_reference_assets','people_reference_faces','people_image_operations',
+        'platform_workspace_roots','fx_commit_markers'],fixtureRefs:['people-reference-reclamation'],
+      readParticipants:[{participantKind:'domain',owner:'people',access:'read',tables:['people_reference_assets','people_reference_faces','people_image_operations']},
+        {participantKind:'domain',owner:'platform-settings',access:'read',tables:['platform_workspace_roots']}]}],
+    writeTables:['fx_artifact_registry','fx_event_result_bindings','fx_commit_markers'],
+    readTables:['fx_artifact_registry','fx_artifact_references','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings','fx_commit_markers',
+      'people_reference_assets','people_reference_faces','people_image_operations',
+      'platform_workspace_roots'],
+    fixtureRefs:['people-reference-reclamation'],
+    readParticipants:[{participantKind:'domain',owner:'people',access:'read',tables:['people_reference_assets','people_reference_faces','people_image_operations']},
+      {participantKind:'domain',owner:'platform-settings',access:'read',tables:['platform_workspace_roots']}],
+  },
   'JAV Correction Workspace Reclaim': {
     commitClass:'workspace_write',hasOutbox:false,writeTables:['fx_workspace_registry','fx_workspace_materials','fx_artifact_registry','fx_event_result_bindings','fx_commit_markers'],
     readTables:['arca_jav_identity_corrections','platform_workspace_roots','fx_workspace_registry','fx_workspace_materials','fx_artifact_registry',
@@ -537,6 +583,16 @@ const definitions = Object.freeze({
       {participantKind:'material-control',owner:'material-control-authority',access:'read',tables:['fx_material_controls','fx_material_control_revisions']}],
   },
   'Aftercare Inventory Commit': {
+    variants:[{variantId:'arca_us_adult_actor_inventory@1',exactOverride:true,
+      selector:{selectorKind:'owner_command_exact',commandContract:'arca.us_adult.inventory.commit@1'},
+      writeTables:['arca_inventory_representations','arca_inventory_materials','arca_inventory_related_references','arca_inventory_product_facts',
+        'arca_inventory_person_relations','arca_aftercare_inventory_commits','arca_shelf_entries','fx_material_controls','fx_material_control_revisions',
+        'fx_event_result_bindings','fx_commit_markers'],
+      readTables:['arca_aftercare_cases','arca_us_actor_refresh_intents','arca_jav_identity_corrections','arca_shelves','arca_offdeck_reservations',
+        'arca_inventory_representations','arca_inventory_materials','arca_inventory_product_facts',
+        'fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_event_result_bindings'],
+      dynamicTableRequirements:[],hasOutbox:false,materialControlCasRequired:true,fixtureRefs:['aftercare-basis-inventory','effect-outbox-recovery'],
+      rollbackInvariant:'The exact verified Inventory, selected Actor Facts, old/new Material Control, Event Result and marker are all-or-none; original Shelf Entry, Deck and Canonical identity remain continuous; retirement is authorized only by this durable commit.'}],
     commitClass: 'responsibility_control_commit',
     writeTables: ['arca_inventory_representations', 'arca_inventory_materials', 'arca_inventory_related_references', 'arca_inventory_product_facts', 'arca_inventory_person_relations', 'arca_aftercare_inventory_commits', 'arca_shelf_entries', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'arca_defect_admissions', 'arca_defect_admission_heads'],
       readTables:['arca_jav_identity_corrections','arca_aftercare_cases', 'arca_defect_repair_intents', 'arca_defect_admissions',
@@ -640,7 +696,7 @@ function buildVariants(owner, baseWriteTables, baseReadTables, variants = []) {
       : [...new Set([...baseReadTables, ...(variant.additionalReadTables || [])])];
     const built = {
       variantId: variant.variantId,
-      participants: participantsFor(owner, writeTables),
+      participants: [...participantsFor(owner, writeTables),...(variant.readParticipants||[])],
       writeTables,
       readTables
     };
@@ -652,7 +708,7 @@ function buildVariants(owner, baseWriteTables, baseReadTables, variants = []) {
       fenceContract: {
         domainRevisionFenceRequired: true,
         materialControlCasRequired: variant.materialControlCasRequired === true,
-        commitMarkerRequired: true,
+        commitMarkerRequired: variant.commitMarkerRequired !== false,
         outboxRequired: variant.hasOutbox
       },
       rollbackInvariant: variant.rollbackInvariant,

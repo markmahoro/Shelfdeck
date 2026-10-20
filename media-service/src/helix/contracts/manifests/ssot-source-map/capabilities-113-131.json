@@ -1,0 +1,256 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "capabilities",
+  "startOrdinal": 113,
+  "endOrdinal": 131,
+  "entries": [
+    {
+      "id": "arca.offdeck.unreferenced_related.delete@1",
+      "contractVersion": 1,
+      "owner": "arca",
+      "inputSummary": "Unreferenced Related handle + ReferenceReleaseResult + Destructive Authorization",
+      "outputFamily": "DeletionEvidence",
+      "effectClass": "destructive_commit",
+      "source": {
+        "section": "8.6.12",
+        "line": 10577,
+        "lineDigest": "259ecabd7e68ad332ee3833cc96cbda41dc6f89e6f85c64a76c6c4f0bdf0cf1d"
+      }
+    },
+    {
+      "id": "arca.offdeck.deletion.verify@1",
+      "contractVersion": 1,
+      "owner": "arca",
+      "inputSummary": "Scope + Deletion Evidence[]",
+      "outputFamily": "DestructionCompletionVerification",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.12",
+        "line": 10578,
+        "lineDigest": "de79a37a739e145a8e12e793ebf68b5fe6c08bb496a7bf67d011f3cf727f0ac0"
+      }
+    },
+    {
+      "id": "arca.offdeck.terminal.commit@1",
+      "contractVersion": 1,
+      "owner": "arca",
+      "inputSummary": "Verified destruction + ResponsibilityControlCommitHandle",
+      "outputFamily": "OffdeckTerminalReceipt",
+      "effectClass": "responsibility_control_commit",
+      "source": {
+        "section": "8.6.12",
+        "line": 10579,
+        "lineDigest": "3afab25b8905eba49d060b38b1472e150705b9e1554dea24cf1ddadbaf9e4e0c"
+      }
+    },
+    {
+      "id": "arca.shelf_deregistration.release_manifest.verify@1",
+      "contractVersion": 1,
+      "owner": "arca",
+      "inputSummary": "Release Manifest + current Inventory/Control",
+      "outputFamily": "ReleaseVerification",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.12",
+        "line": 10580,
+        "lineDigest": "28fc5bb6077c6e4f46d115156a5891718f27888dbb1f6438b6d6e3e6369bd2f2"
+      }
+    },
+    {
+      "id": "arca.shelf_deregistration.commit@1",
+      "contractVersion": 1,
+      "owner": "arca",
+      "inputSummary": "Verified release + ShelfDeregistrationControlCommitHandle",
+      "outputFamily": "DeregistrationReceipt",
+      "effectClass": "responsibility_control_commit",
+      "source": {
+        "section": "8.6.12",
+        "line": 10581,
+        "lineDigest": "9c301d5222bd9c93668549c59405df7a5b23f7860077b775c48b55eeca9d4a03"
+      }
+    },
+    {
+      "id": "perception.source.acquire@1",
+      "contractVersion": 1,
+      "owner": "perception",
+      "inputSummary": "PerceptionSourceSnapshot + IntegrationHandle + PerceptionAcquisitionCursor",
+      "outputFamily": "PerceptionObservationPage",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.13",
+        "line": 10607,
+        "lineDigest": "b5aa853f6a29eb3fd38bf0e74583a7b0427b368d9d53d38ff982faa92e1e134b"
+      }
+    },
+    {
+      "id": "perception.record.normalize@1",
+      "contractVersion": 1,
+      "owner": "perception",
+      "inputSummary": "PerceptionObservationPage + PerceptionNormalizationRuleRef",
+      "outputFamily": "PerceptionAcquisitionCommitDraft",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.13",
+        "line": 10608,
+        "lineDigest": "2206f66ff49af564eb60aa0c359f124ff84f7dcce9a60df89ec053576f9e5a60"
+      }
+    },
+    {
+      "id": "perception.record.commit@1",
+      "contractVersion": 1,
+      "owner": "perception",
+      "inputSummary": "PerceptionAcquisitionCommitDraft + DomainFactCommitHandle",
+      "outputFamily": "PerceptionRecordCommitResult",
+      "effectClass": "domain_fact_commit",
+      "source": {
+        "section": "8.6.13",
+        "line": 10609,
+        "lineDigest": "bc448a188fb69e96f1288e2a5c24dfc40438b5d4de4551268fbdfef7da1b102c"
+      }
+    },
+    {
+      "id": "perception.dedup.resolve@1",
+      "contractVersion": 1,
+      "owner": "perception",
+      "inputSummary": "PerceptionResolutionQuery + PerceptionResolutionRecordSet + PerceptionResolutionRuleSnapshot",
+      "outputFamily": "PerceptionResolutionDraft",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.13",
+        "line": 10610,
+        "lineDigest": "c6978b0ba2609a2f6567244097c26ef09b61ca9e75aa5e798cf81dc1cd449938"
+      }
+    },
+    {
+      "id": "perception.resolution.commit@1",
+      "contractVersion": 1,
+      "owner": "perception",
+      "inputSummary": "PerceptionResolutionDraft + DomainFactCommitHandle",
+      "outputFamily": "PerceptionResolutionRevision",
+      "effectClass": "domain_fact_commit",
+      "source": {
+        "section": "8.6.13",
+        "line": 10611,
+        "lineDigest": "a5f366f08e4b9b6012657fa5f8b69ddf661f6be0c05135b837c5be2e693b6153"
+      }
+    },
+    {
+      "id": "people.registration_evidence.observe@1",
+      "contractVersion": 1,
+      "owner": "people",
+      "inputSummary": "(Provider person hint + IntegrationHandle) | OnDeckPersonEvidenceProjectionItem",
+      "outputFamily": "PersonRegistrationEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.14",
+        "line": 10628,
+        "lineDigest": "c676c7178e8b473e53bde4b2ef443161e1a6b892a01f53427e2cf24afd5ea0cc"
+      }
+    },
+    {
+      "id": "people.reference_asset.import@1",
+      "contractVersion": 1,
+      "owner": "people",
+      "inputSummary": "PeopleSelectedImageHandle + People Workspace",
+      "outputFamily": "ArtifactHandle",
+      "effectClass": "workspace_write",
+      "source": {
+        "section": "8.6.14",
+        "line": 10629,
+        "lineDigest": "81d0f07a966a5fbfe8d73652f33c43a34d28f516c2b0db5f27ba074b49e3165e"
+      }
+    },
+    {
+      "id": "people.reference_fact.commit@1",
+      "contractVersion": 1,
+      "owner": "people",
+      "inputSummary": "PeopleReferenceMaintenanceDecision + DomainFactCommitHandle",
+      "outputFamily": "PersonReferenceRevision",
+      "effectClass": "domain_fact_commit",
+      "source": {
+        "section": "8.6.14",
+        "line": 10630,
+        "lineDigest": "685bdb0074fce95a1b9cc4ee9b06b7383b3561bb57c249b4f206016357f636f5"
+      }
+    },
+    {
+      "id": "people.merge_evidence.resolve@1",
+      "contractVersion": 1,
+      "owner": "people",
+      "inputSummary": "Person identities/aliases/references",
+      "outputFamily": "MergeCandidateEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.14",
+        "line": 10631,
+        "lineDigest": "c2c72913fb62f7a4f34313e68b475a5ae63b37aae17bec54b0fa5cdd543576a3"
+      }
+    },
+    {
+      "id": "people.candidate.commit@1",
+      "contractVersion": 1,
+      "owner": "people",
+      "inputSummary": "PeopleCandidateDraft + DomainFactCommitHandle",
+      "outputFamily": "PeopleCandidateRevision",
+      "effectClass": "domain_fact_commit",
+      "source": {
+        "section": "8.6.14",
+        "line": 10632,
+        "lineDigest": "5b802677e93c5bf5f0716d5c3f0949d0940337b1c0b04be2e598dec0a2270a44"
+      }
+    },
+    {
+      "id": "people.person.commit@1",
+      "contractVersion": 1,
+      "owner": "people",
+      "inputSummary": "PeopleCandidateAcceptanceDecision + DomainFactCommitHandle",
+      "outputFamily": "PersonRevision",
+      "effectClass": "domain_fact_commit",
+      "source": {
+        "section": "8.6.14",
+        "line": 10633,
+        "lineDigest": "0f57cc3035a38feb0a59cf729c6f3dd4eea9738ad70fb6ae128de208499621e8"
+      }
+    },
+    {
+      "id": "people.preference.commit@1",
+      "contractVersion": 1,
+      "owner": "people",
+      "inputSummary": "Preference intent + DomainFactCommitHandle",
+      "outputFamily": "PersonPreferenceRevision",
+      "effectClass": "domain_fact_commit",
+      "source": {
+        "section": "8.6.14",
+        "line": 10634,
+        "lineDigest": "4ae0cbd3463df67c1ae83084d30ae44a5dd54aa9fedd41c732561a07ffe2343b"
+      }
+    },
+    {
+      "id": "people.reference_usage.audit@1",
+      "contractVersion": 1,
+      "owner": "people",
+      "inputSummary": "PeopleArtifactReferenceAuditInput",
+      "outputFamily": "PeopleArtifactReferenceEvidence",
+      "effectClass": "pure_observation",
+      "source": {
+        "section": "8.6.14",
+        "line": 10635,
+        "lineDigest": "8b6b81935a3fdb846d00812fb6271848ca610adb86520877778ebe98005bb69c"
+      }
+    },
+    {
+      "id": "people.workspace.reclaim@1",
+      "contractVersion": 1,
+      "owner": "people",
+      "inputSummary": "PeopleArtifactReferenceEvidence",
+      "outputFamily": "PeopleArtifactReclamationReceipt",
+      "effectClass": "workspace_write",
+      "source": {
+        "section": "8.6.14",
+        "line": 10636,
+        "lineDigest": "956799d8f2b2542239aeee8b888a26a3de9001efcb50f93f034f72816c12bd61"
+      }
+    }
+  ]
+}

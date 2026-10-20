@@ -42,6 +42,14 @@
       "type": "integer",
       "minimum": 0
     },
+    "libraryKind": {
+      "type": "string",
+      "enum": [
+        "normal",
+        "jav",
+        "us_adult"
+      ]
+    },
     "proposedName": {
       "type": "string",
       "minLength": 1
@@ -145,6 +153,7 @@
     "basisDigest",
     "payloadDigest",
     "observedAtMs",
+    "libraryKind",
     "proposedName",
     "aliases",
     "providerIdentities",

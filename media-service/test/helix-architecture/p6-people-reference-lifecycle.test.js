@@ -31,7 +31,7 @@ function fixture(run) {
 }
 
 function register(store, personId) {
-  const value = { decisionId: `register-${personId}`, newPersonId: personId, canonicalName: `Person ${personId}`,
+  const value = { decisionId: `register-${personId}`, newPersonId: personId, libraryKind: 'normal', canonicalName: `Person ${personId}`,
     aliases: [], providerIdentities: [], actorId: 'admin-1' };
   return store.registerDirectPerson({ ...value, decisionDigest: canonicalDigest(value) });
 }
@@ -52,9 +52,13 @@ function addDecision(personId, expectedPersonRevision, expectedReferenceRevision
       ownerScope: { scopeType: 'person', scopeId: personId }, storageRef: `workspace:${suffix}`, digestAlgorithm: 'sha256',
       digestHex: artifactDigest, sizeBytes: 100, mediaType: 'image/jpeg',
       provenanceRef: { objectType: 'user-upload', objectId: `upload-${suffix}`, revision: 1, digest: hash(`upload-${suffix}`) }, referenceRevision: 1 },
-    artifactDigest, faceEmbeddingSetHandle: { schemaRef: 'helix://contracts/types/FaceEmbeddingSetHandle/v1', schemaVersion: 1,
-      artifactHandleId: `embedding-handle-${suffix}`, modelRef: 'face-model@1', sourceArtifactSetDigest: artifactDigest,
-      detectedFaceCount: 1, vectorCount: 1, dimension: 512, digestHex: embeddingDigest }, modelRef: 'face-model@1', initialState: 'active' };
+    artifactDigest, modelRef: hash('face-model@1'), initialState: 'active' };
+  const embedding = { schemaRef:'helix://contracts/types/FaceEmbeddingSetHandle/v1',schemaVersion:1,
+    artifactHandleId:'embedding-handle-'+suffix,artifactHandle:{...value.artifactHandle,artifactHandleId:'embedding-handle-'+suffix,
+      artifactKind:'reference-embedding',digestHex:embeddingDigest,mediaType:'application/json'},
+    computationMode:'single_reference_face',libraRunId:null,workspaceId:null,faceModelRefDigest:value.modelRef,
+    sourceArtifactSetDigest:artifactDigest,detectedFaceCount:1,vectorCount:1,dimension:128,embeddingDigest};
+  value.faceEmbeddingSetHandle={...embedding,handleDigest:canonicalDigest(embedding)};
   return { ...value, decisionDigest: canonicalDigest(value) };
 }
 
@@ -63,7 +67,7 @@ function releaseDecision(add, expectedReferenceRevision) {
     expectedPersonRevision: add.expectedPersonRevision, expectedReferenceRevision, actorId: 'admin-1',
     referenceAssetId: add.referenceAssetId, referenceFaceId: add.referenceFaceId, expectedAssetState: 'active',
     expectedFaceState: 'active', terminalState: 'released', artifactDigest: add.artifactDigest,
-    embeddingDigest: add.faceEmbeddingSetHandle.digestHex, modelRef: add.modelRef };
+    embeddingDigest: add.faceEmbeddingSetHandle.embeddingDigest, modelRef: add.modelRef };
   return { ...value, decisionDigest: canonicalDigest(value) };
 }
 
@@ -205,5 +209,23 @@ test('keeps Reference ownership on merged source and atomically expands a read-o
     assert.equal(target.contributions[0].inheritedReadOnly, true);
     assert.equal(store.getReferenceAsset(add.referenceAssetId).personId, 'person-source');
     assert.equal(target.projectionRevision, 2);
+  });
+});
+
+test('replacement releases the exact old image and adds its new unique Face in one rollback-safe Reference revision',()=>{
+  fixture(({store,unitOfWork})=>{
+    register(store,'person-replacement');const original=addDecision('person-replacement',1,0,'old');commit(unitOfWork,store,original);
+    const next=addDecision('person-replacement',1,1,'new'),{decisionDigest:ignored,...input}=next,
+      body={...input,operationKind:'replace_image',replacedImage:{referenceAssetId:original.referenceAssetId,referenceFaceId:original.referenceFaceId,
+        artifactDigest:original.artifactDigest,embeddingDigest:original.faceEmbeddingSetHandle.embeddingDigest,modelRef:original.modelRef}},
+      decision={...body,decisionDigest:canonicalDigest(body)},participant=store.createReferenceCommitParticipant(referenceHandle(decision),decision);
+    assert.throws(()=>unitOfWork.execute([{...participant,execute(context){participant.execute(context);throw new Error('isolated late replacement failure');}}]),/isolated late/);
+    assert.equal(store.getReferenceAsset(original.referenceAssetId).state,'active');assert.equal(store.getReferenceAsset(next.referenceAssetId),undefined);
+    assert.equal(store.getPerson('person-replacement').currentReferenceRevision,1);
+    const result=commit(unitOfWork,store,decision);assert.equal(result.operationKind,'replace_image');assert.equal(result.referenceRevision,2);
+    assert.equal(store.getReferenceAsset(original.referenceAssetId).state,'released');assert.equal(store.getReferenceFace(original.referenceFaceId).state,'released');
+    assert.deepEqual(result.activeReferenceAssets.map(item=>item.referenceAssetId),[next.referenceAssetId]);
+    assert.equal(store.getPersonReferenceProjection('person-replacement').currentReferenceRevision,2);
+    assert.throws(()=>commit(unitOfWork,store,decision),{code:'P6_PEOPLE_REFERENCE_REVISION_CONFLICT'});
   });
 });

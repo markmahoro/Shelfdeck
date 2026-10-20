@@ -1,14 +1,18 @@
 'use strict';
+const {inventoryContentProfile}=require('../model/product-content-profile');
 const {canonicalDigest}=require('../../../contracts/canonical-json');
 const {personRecordQuery,personProofBatchFits}=require('../model/person-record-observation');
 function createInventoryPersonRecordRefresh(options) {
   return Object.freeze({refresh(c) {
+    const profile=inventoryContentProfile(c.raw.identity,c.raw.entry.structure_kind);
+    if(profile==='western_adult')return Object.freeze({kind:'records_unchanged'});
+    const libraryKind=profile==='jav'?'jav':'normal';
     if(c.raw.reservations.some(row=>row.state==='active'))return Object.freeze({kind:'records_deferred',reasonCode:'active_modification'});
     const rows=c.raw.people||[];
     if(rows.length>4096)return Object.freeze({kind:'records_deferred',reasonCode:'relation_scope_too_large'});
     const observations=[];
     for(const row of rows) {
-      const proof=options.resolveMediaCastReference(personRecordQuery(row));
+      const proof=options.resolveMediaCastReference(personRecordQuery(row,libraryKind));
       if(proof.kind!=='resolved')continue;
       const observation={relationId:row.relation_id,previousRelationDigest:row.relation_digest,proof};
       if(!personProofBatchFits([...observations,observation])) {
@@ -25,7 +29,7 @@ function createInventoryPersonRecordRefresh(options) {
     // are retained in its receipt and future Merge changes reconcile separately.
     for(const observation of observations) {
       const row=rows.find(item=>item.relation_id===observation.relationId);
-      if(canonicalDigest(options.resolveMediaCastReference(personRecordQuery(row)))!==canonicalDigest(observation.proof))
+      if(canonicalDigest(options.resolveMediaCastReference(personRecordQuery(row,libraryKind)))!==canonicalDigest(observation.proof))
         return Object.freeze({kind:'records_deferred',reasonCode:'person_projection_changed'});
     }
     const result=options.contextReader.store.refreshInventoryPersonRecords({shelfEntryId:c.shelfEntryId,

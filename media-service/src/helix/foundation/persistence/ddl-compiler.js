@@ -83,7 +83,7 @@ const PARTIAL_UNIQUE = Object.freeze({
   libra_intake_decisions: [{ columns: ['candidate_package_id', 'package_digest'], where: '"decision_kind" = \'accepted_resolution\'' }],
   libra_handoff_a_receipts: [{ columns: ['candidate_package_id', 'package_digest'], where: '"outcome" = \'accepted\'' }],
   people_merge_candidates: [{ columns: ['left_person_id', 'right_person_id'], where: '"current_state" = \'open\'' }],
-  people_provider_identities: [{ columns: ['provider', 'namespace', 'provider_key'], where: '"active_guard" = 1' }],
+  people_provider_identities: [{ columns: ['library_kind', 'provider', 'namespace', 'provider_key'], where: '"active_guard" = 1' }],
   people_registration_candidates: [{ columns: ['evidence_digest'], where: '"current_state" = \'open\'' }],
   perception_acquisitions: [{ columns: ['perception_source_id'], where: '"state" = \'active\'' }],
   proc_candidate_deliveries: [{ columns: ['candidate_package_id'], where: '"state" = \'open\'' }],
@@ -351,6 +351,7 @@ function compileTable(contract, allContracts) {
     requireColumns(contract, [json.column], contract.tableId + ':json');
     const episodeRecordSet = contract.tableId === 'arca_final_inventory_decisions' && json.column === 'decision_json' && json.maxBytes === 8 * 1024 * 1024 || ['libra_product_fact_revisions','arca_inventory_product_facts'].includes(contract.tableId) &&
       json.column === 'episode_metadata_json' && json.maxBytes === 16 * 1024 * 1024 ||
+      contract.tableId === 'arca_us_actor_refresh_pages' && json.column === 'page_json' && json.maxBytes === 512 * 1024 ||
       contract.tableId === 'arca_acceptance_check_evidence' && json.column === 'evidence_json' && json.maxBytes === 2 * 1024 * 1024 ||
       contract.tableId === 'arca_jav_identity_corrections' && json.column === 'preview_proof_json' && json.maxBytes === 2 * 1024 * 1024 ||
       contract.tableId === 'arca_jav_identity_corrections' && json.column === 'committed_context_json' && json.maxBytes === 4 * 1024 * 1024 ||

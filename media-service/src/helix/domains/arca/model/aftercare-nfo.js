@@ -96,8 +96,11 @@ function javIdentityMatches(document, identity) {
 }
 
 function tmdbPersonId(relation) {
-  const value = relation.providerIdentities.find((item) => item?.provider === 'tmdb' && item.namespace === 'tmdb_person')?.providerKey;
-  return value === undefined || value === null ? null : String(value).trim() || null;
+  const ids = new Set(relation.providerIdentities.filter(item => item?.provider === 'tmdb' && ['tmdb_person','person'].includes(item.namespace)).map(item=>item.providerKey));
+  if(ids.size>1)fail('ARCA_AFTERCARE_NFO_IDENTITY_INVALID','NFO actor has conflicting TMDB Person identities.');
+  const value=[...ids][0];
+  if(value!==undefined&&!/^[1-9][0-9]{0,15}$/.test(value))fail('ARCA_AFTERCARE_NFO_IDENTITY_INVALID','NFO actor TMDB Person identity is invalid.');
+  return value ?? null;
 }
 
 function normalizedName(value) {
@@ -118,7 +121,7 @@ function ownedValues(metadata, identity) {
     const key = field.keys.find((candidate) => metadata.has(candidate) && scalar(metadata.get(candidate)) !== null);
     if (key) values.push(Object.freeze({ tag:field.tag, value:scalar(metadata.get(key)) }));
   }
-  if (identity.provider === 'tmdb' && identity.providerKey) {
+  if (identity?.provider === 'tmdb' && identity.providerKey) {
     values.push(Object.freeze({ tag:'tmdbid', value:identity.providerKey }));
   }
   return Object.freeze(values);
@@ -133,9 +136,9 @@ function assertOutputBound(xml) {
 function createDocument(metadata, cast, identity) {
   const lines = ['<movie>'];
   for (const item of ownedValues(metadata, identity)) lines.push('  <' + item.tag + '>' + escapeXml(item.value) + '</' + item.tag + '>');
-  if (identity.provider === 'tmdb' && identity.providerKey) {
+  if (identity?.provider === 'tmdb' && identity.providerKey) {
     lines.push('  <uniqueid type="tmdb">' + escapeXml(identity.providerKey) + '</uniqueid>');
-  } else if (identity.provider === 'jav') {
+  } else if (identity?.provider === 'jav') {
     lines.push('  <uniqueid type="jav" default="true">' + escapeXml(identity.providerKey) + '</uniqueid>');
   }
   for (const relation of cast) lines.push(actorBlock(relation));
@@ -167,7 +170,7 @@ function updateOwnedFields(document, metadata, identity) {
       }
     }
   }
-  if (identity.provider === 'tmdb' && identity.providerKey) {
+  if (identity?.provider === 'tmdb' && identity.providerKey) {
     const matches = document.directChildren.filter((child) => child.name === 'uniqueid' &&
       String(attribute(child, 'type') || '').toLowerCase() === 'tmdb');
     if (matches.length === 0) missing.push('  <uniqueid type="tmdb">' + escapeXml(identity.providerKey) + '</uniqueid>');
@@ -274,6 +277,33 @@ function renderAftercareMovieNfo(input) {
   return updateAftercareMovieNfo(input);
 }
 
+function renderUsAdultInventoryNfo({ metadata, actor, existingBytes }) {
+  if (!actor || actor.role !== 'actor' || typeof actor.personId !== 'string' || !actor.personId ||
+      typeof actor.displayName !== 'string' || !actor.displayName.trim() || !Array.isArray(actor.providerIdentities) ||
+      actor.providerIdentities.length !== 0) {
+    fail('ARCA_US_ADULT_NFO_ACTOR_INVALID', 'US Adult NFO requires one explicit isolated actor.');
+  }
+  const values = metadataEntries(metadata), cast = castRelations([actor]);
+  if (!scalar(values.get('title'))) fail('ARCA_US_ADULT_NFO_TITLE_REQUIRED', 'US Adult NFO requires its frozen actor and original-name title.');
+  if (existingBytes === null || existingBytes === undefined) return Object.freeze({ disposition:'create', reasonCode:'source_missing',
+    bytes:assertOutputBound(createDocument(values, cast, null)) });
+  const existing = readableNfo(existingBytes) ? analyzeMovieNfo(existingBytes) : { usable:false, reasonCode:'nfo_byte_bound' };
+  if (!existing.usable) return Object.freeze({ disposition:'rebuild', reasonCode:existing.reasonCode,
+    bytes:assertOutputBound(createDocument(values, cast, null)) });
+  const updated = analyzeMovieNfo(updateOwnedFields(existing, values, null));
+  if (!updated.usable) fail('ARCA_US_ADULT_NFO_UPDATE_INVALID', 'US Adult metadata update produced an invalid document.');
+  const actors = updated.directChildren.filter(child => child.name === 'actor');
+  const replacements = actors.map((child, index) => ({ start:child.openStart, end:child.closeEnd,
+    value:index === 0 ? actorBlock(cast[0]).trimStart() : '' }));
+  if (actors.length === 0) replacements.push({ start:updated.root.closeStart, end:updated.root.closeStart,
+    value:'\n' + actorBlock(cast[0]) + '\n' });
+  const bytes = assertOutputBound(replaceRanges(updated.xml, replacements)), verified = analyzeMovieNfo(bytes);
+  if (!verified.usable || verified.directChildren.filter(child => child.name === 'actor').length !== 1) {
+    fail('ARCA_US_ADULT_NFO_UPDATE_INVALID', 'US Adult NFO must contain exactly its selected actor.');
+  }
+  return Object.freeze({ disposition:'update', reasonCode:null, bytes });
+}
+
 function comparableText(value) {
   return normalizedName(scalar(value) || '');
 }
@@ -364,7 +394,7 @@ function projectMovieNfoPersonObservations(value) {
       const actor = parseActor(inspected.xml, node);
       return Object.freeze({ ordinal, displayName:actor.name, displayNameNormalized:actor.normalizedName,
         role:'actor', character:actor.character || null, identityConflict:actor.identityConflict === true,
-        providerIdentities:Object.freeze(/^[1-9][0-9]{0,15}$/.test(actor.personId || '') ? [Object.freeze({ provider:'tmdb', namespace:'person', providerKey:actor.personId })] : []),
+        providerIdentities:Object.freeze(/^[1-9][0-9]{0,15}$/.test(actor.personId || '') ? [Object.freeze({ provider:'tmdb', namespace:'tmdb_person', providerKey:actor.personId })] : []),
       });
     })),
   });
@@ -415,5 +445,6 @@ module.exports = Object.freeze({
   projectMovieNfoPersonObservations,
   rebuildAftercareMovieNfo,
   renderAftercareMovieNfo,
+  renderUsAdultInventoryNfo,
   updateAftercareMovieNfo,
 });

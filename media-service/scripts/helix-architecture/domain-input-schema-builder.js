@@ -228,7 +228,7 @@ const dtoContracts = {
   RoutingFactObservationIntent: '',
   MetadataFetchIntent: '',
   WesternAnalysisVariant: '',
-  LibraMediaCastSourceBasisMetadataObservationWesternMatch: '',
+  LibraMediaCastSourceBasis: '',
   LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis: '',
   OffLoadContext: 'onDeckPackageId,materials,contextDigest',
   OnDeckPersonEvidenceProjectionItem: '',
@@ -268,7 +268,29 @@ const dtoContracts = {
   ReferenceEvidence: 'references,referenceSetDigest',
   PeopleCandidateAcceptanceDecision: '',
   DirectPersonRegistrationDecision: '',
+  PeopleProfileUpdateDecision: '',
+  UsAdultPersonSnapshot:'',
+  UsAdultAnalysisBasis:'',
+  UsAdultActorChoiceRecord:'',
+  UsAdultActorChoiceDecision:'',
+  UsAdultActorChoiceReceipt:'',
+  UsAdultMatchCompletion:'',
+  UsAdultActorSelectionBasis:'',
+  UsAdultRecommendationConfirmation:'',
+  UsAdultInventoryPresentation:'',
+  UsAdultActorRefreshSelection:'',
+  UsAdultActorFilePlan:'',
+  UsAdultActorExecutionInput:'',
+  UsAdultActorRefreshScope:'',
+  PeopleArtifactReferenceAuditInput:'',
+  UsAdultActorRefreshIntent:'',
+  UsAdultRecommendationPageQuery:'',
+  UsAdultRecommendationSource:'',
+  UsAdultRecommendationSourcePage:'',
+  PeopleReferenceLibraryPage:'',
+  PerceptionAcquisitionResumeDecision: '',
   PeopleReferenceMaintenanceDecision: '',
+  PeopleSelectedImageHandle: '',
   RelatedReference: 'shelfEntryId,referenceId,materialKey,referenceDigest',
   ReleaseManifest: 'deregistrationId,shelfId,entryCount,memberCount,pageCount,controlRevisionSetDigest,manifestDigest',
   ShelfDeregistrationControlCommitHandle: 'deregistrationId,shelfId,manifestRevision,releaseManifestDigest,controlRevisionSetDigest,pageVerificationSetDigest,eventFenceDigest',
@@ -346,14 +368,51 @@ function buildSchema(name, role, fields) {
   if (name === 'TriageIdentityResolutionInput') return triageIdentityResolutionInputSchema();
   if (name === 'TriageManifestBuildInput') return triageManifestBuildInputSchema();
   if (name === 'PeopleCandidateAcceptanceDecision') return peopleCandidateAcceptanceDecisionSchema();
+  if(name==='UsAdultActorRefreshSelection')return require('../../src/helix/contracts/us-adult-actor-selection').selectionSchema();
+  if(name==='UsAdultActorFilePlan')return require('../../src/helix/contracts/us-adult-actor-file-contracts').filePlanSchema();
+  if(name==='UsAdultActorExecutionInput')return require('../../src/helix/contracts/us-adult-actor-file-contracts').executionInputSchema();
+  if(name==='UsAdultActorRefreshScope')return require('../../src/helix/domains/arca/model/us-adult-actor-refresh-execution').scopeSchema();
+  if(name==='PeopleArtifactReferenceAuditInput')return require('../../src/helix/contracts/people-artifact-reclamation').inputSchema();
+  if(name==='UsAdultActorRefreshIntent')return {...exactDomainSchema(name,{
+    schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},policyVersion:{const:'us-adult-actor-refresh@1'},intentId:digest(),actorId:id(),
+    idempotencyKey:text({maxLength:128}),requestDigest:digest(),mode:enumText('specified','automatic'),shelfEntryId:id(),inventoryRevision:positiveInteger(),
+    representationDigest:digest(),deckFactRevision:positiveInteger(),canonicalIdentityRevision:positiveInteger(),canonicalIdentityKey:digest(),canonicalIdentityDigest:digest(),
+    careBasisDigest:digest(),knownBindingsDigest:digest(),originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()}),
+    actorRelationDigest:digest(),sourceMaterialBinding:object({materialKey:digest(),endpointId:id(),bindingRevision:positiveInteger(),identityDigest:digest(),bindingDigest:digest()}),
+    manualPersonSnapshot:nullable(domainRef('UsAdultPersonSnapshot')),libraryDigest:nullable(digest()),personCount:nonNegativeInteger(),pageCount:nonNegativeInteger(),pageSetDigest:digest(),
+    faceModelRef:domainRef('FaceModelRef'),referenceModelRefDigest:digest(),rendererVersion:{const:require('../../src/helix/contracts/us-adult-presentation').US_ADULT_PRESENTATION_VERSION},intentDigest:digest(),
+  }),'x-helix-maxCanonicalBytes':256*1024};
+  if(name==='UsAdultInventoryPresentation')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},shelfEntryId:id(),inventoryRevision:positiveInteger(),aftercareCaseId:id(),representationDigest:digest(),canonicalIdentityDigest:digest(),personId:id(),actorName:text({maxLength:1024}),actorRelationDigest:digest(),originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()}),snapshotDigest:digest()}),'x-helix-maxCanonicalBytes':16*1024};
+  if(name==='UsAdultRecommendationConfirmation')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},claimId:digest(),actorId:id(),source:domainRef('UsAdultRecommendationSource'),personId:id(),expectedPersonRevision:positiveInteger(),expectedReferenceRevision:positiveInteger()}),'x-helix-maxCanonicalBytes':128*1024};
+  if(name==='UsAdultRecommendationPageQuery')return exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},cursor:nullable(id()),limit:{type:'integer',minimum:1,maximum:32}});
+  if(name==='UsAdultRecommendationSourcePage')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},items:arrayOf(domainRef('UsAdultRecommendationSource'),32),nextCursor:nullable(id()),pageDigest:digest()}),'x-helix-maxCanonicalBytes':256*1024};
+  if(name==='UsAdultRecommendationSource')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},sourceId:digest(),subjectId:id(),libraRunId:id(),expectedRunStateRevision:positiveInteger(),expectedChoiceRevision:{const:0},runExecutionBasisDigest:digest(),analysisId:digest(),analysisBasisDigest:digest(),completionDigest:digest(),originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()}),frameArtifactSet:typeRef('FrameArtifactSet'),faceEmbeddingSetHandle:typeRef('FaceEmbeddingSetHandle'),faceClusterSetHandle:typeRef('FaceClusterSetHandle'),sourceResultRefs:{...arrayOf(object({workId:id(),attemptId:id(),planId:id(),eventId:id(),resultId:id(),capabilityRef:enumText('libra.media.frames.extract@1','shared.face.embedding.compute@1','shared.face.cluster.compute@1'),resultSchemaRef:text({maxLength:256}),resultDigest:digest(),inputBindingDigest:digest()}),3),minItems:3},sourceDigest:digest()}),'x-helix-maxCanonicalBytes':64*1024};
+  if(name==='UsAdultAnalysisBasis')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},analysisId:digest(),contentProfile:{const:'western_adult'},libraRunId:id(),subjectId:id(),expectedRunStateRevision:positiveInteger(),runExecutionBasisDigest:digest(),resolvedIdentityDigest:digest(),workspaceId:id(),sourceHandle:typeRef('PhysicalMaterialReadHandle'),sourceProbeRef:object({workId:id(),attemptId:id(),planId:id(),eventId:id(),resultId:id(),resultDigest:digest(),inputBindingDigest:digest()}),durationMs:positiveInteger(),faceModelRef:domainRef('FaceModelRef'),referenceModelRefDigest:digest(),clusterParameters:domainRef('ClusterParameters'),samplingPlan:domainRef('SamplingPlan'),referenceLibraryDigest:digest(),personCount:nonNegativeInteger(),pageCount:positiveInteger(),pageSetDigest:digest(),basisDigest:digest()}),'x-helix-maxCanonicalBytes':32*1024};
+  if(name==='UsAdultActorChoiceRecord')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},intentId:digest(),libraRunId:id(),subjectId:id(),revision:positiveInteger(),expectedChoiceRevision:nonNegativeInteger(),expectedRunStateRevision:positiveInteger(),runExecutionBasisDigest:digest(),actorId:id(),idempotencyKey:text({maxLength:128}),requestDigest:digest(),personSnapshot:domainRef('UsAdultPersonSnapshot'),recordDigest:digest()}),'x-helix-maxCanonicalBytes':256*1024};
+  if(name==='UsAdultActorChoiceDecision')return {...exactDomainSchema(name,{decisionId:digest(),record:domainRef('UsAdultActorChoiceRecord'),decisionDigest:digest()}),'x-helix-maxCanonicalBytes':1024*1024};
+  if(name==='UsAdultActorChoiceReceipt')return exactDomainSchema(name,{intentId:digest(),subjectId:id(),libraRunId:id(),choiceRevision:positiveInteger(),personId:id(),personRevision:positiveInteger(),referenceRevision:positiveInteger(),recordDigest:digest()});
+  if(name==='UsAdultActorSelectionBasis')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},selectionId:digest(),libraRunId:id(),subjectId:id(),runExecutionBasisDigest:digest(),resolvedIdentityDigest:digest(),analysisId:digest(),analysisBasisDigest:digest(),selectionOrigin:enumText('user_choice','automatic_match'),actorChoiceRecord:nullable(domainRef('UsAdultActorChoiceRecord')),matchCompletion:nullable(domainRef('UsAdultMatchCompletion')),referenceAssetId:id(),selectionDigest:digest()}),'x-helix-maxCanonicalBytes':1024*1024,
+    allOf:[{if:{properties:{selectionOrigin:{const:'user_choice'}}},then:{properties:{actorChoiceRecord:domainRef('UsAdultActorChoiceRecord'),matchCompletion:{type:'null'}}},else:{properties:{actorChoiceRecord:{type:'null'},matchCompletion:domainRef('UsAdultMatchCompletion')}}}]};
+  if(name==='UsAdultMatchCompletion')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},analysisId:digest(),libraRunId:id(),subjectId:id(),analysisBasisDigest:digest(),completedPageCount:positiveInteger(),detectedFaceCount:nonNegativeInteger(),matchResultSetDigest:digest(),winner:nullable(object({pageOrdinal:nonNegativeInteger(),personSnapshot:domainRef('UsAdultPersonSnapshot'),matchResultRef:object({workId:id(),attemptId:id(),planId:id(),eventId:id(),resultId:id(),capabilityRef:{const:'shared.face.reference.match@1'},resultSchemaRef:{const:'helix://contracts/capabilities/shared.face.reference.match/v1/result'},resultDigest:digest(),inputBindingDigest:digest()}),personMatchEvidence:typeRef('PersonMatchEvidence')})),completionDigest:digest()}),'x-helix-maxCanonicalBytes':256*1024};
+  if(name==='UsAdultPersonSnapshot')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},libraryKind:{const:'us_adult'},personId:id(),personRevision:positiveInteger(),canonicalName:text({maxLength:200}),aliases:arrayOf(text({maxLength:200}),33),personFactDigest:digest(),referenceProjection:domainRef('PersonReferenceProjection'),snapshotDigest:digest()}),'x-helix-maxCanonicalBytes':128*1024};
+  if(name==='PeopleReferenceLibraryPage')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},libraryKind:{const:'us_adult'},libraryDigest:digest(),totalPersonCount:nonNegativeInteger(),items:arrayOf(domainRef('UsAdultPersonSnapshot'),256),nextCursor:nullable(id()),pageDigest:digest()}),'x-helix-maxCanonicalBytes':512*1024};
+  if (name === 'PeopleProfileUpdateDecision') return exactDomainSchema(name, {decisionId:id(),personId:id(),expectedPersonRevision:positiveInteger(),canonicalName:text({maxLength:200}),aliases:arrayOf(aliasSchema(),33),actorId:id(),requestDigest:digest(),decisionDigest:digest()});
+  if (name === 'PerceptionAcquisitionResumeDecision') return exactDomainSchema(name, {decisionId:id(),acquisitionId:id(),expectedScopeDigest:digest(),actorId:id(),idempotencyKey:text({maxLength:128}),requestDigest:digest(),decisionDigest:digest()});
   if (name === 'DirectPersonRegistrationDecision') return directPersonRegistrationDecisionSchema();
   if (name === 'PeopleReferenceMaintenanceDecision') return peopleReferenceMaintenanceDecisionSchema();
+  if (name === 'PeopleSelectedImageHandle') return { ...exactDomainSchema(name, {
+    schemaRef: { const: domainTypeId(name) }, schemaVersion: { const: 1 }, uploadId: digest(), digestHex: digest(),
+    sizeBytes: { type: 'integer', minimum: 1, maximum: 10 * 1024 * 1024 }, mediaType: enumText('image/jpeg', 'image/png', 'image/webp'),
+    provenance: object({ source: enumText('user_upload', 'stashbox'), sourceObjectId: text({ maxLength: 512 }),
+      sourcePageUrl: text({ maxLength: 4096 }), attribution: text({ maxLength: 512 }), selectedAtMs: nonNegativeInteger(), configRevision: positiveInteger() }, ['source']),
+    handleDigest: digest(),
+  }), 'x-helix-role': 'bounded-contract', 'x-helix-maxCanonicalBytes': 16384 };
   if (name === 'PersonReferenceProjection') return personReferenceProjectionSchema();
   if (name === 'DecisionInputSet') return decisionInputSetSchema();
   if (name === 'ProductIdentityEvidenceIntent') return productIdentityEvidenceIntentSchema();
   if (name === 'RoutingFactObservationIntent') return routingFactObservationIntentSchema();
   if (name === 'MetadataFetchIntent') return metadataFetchIntentSchema();
-  if (name === 'LibraMediaCastSourceBasisMetadataObservationWesternMatch') return libraMediaCastSourceBasisSchema(name);
+  if (name === 'LibraMediaCastSourceBasis') return libraMediaCastSourceBasisSchema(name);
   if (name === 'LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis') return libraProductMetadataSourceBasisSchema(name);
   if (name === 'VerifiedArtifactManifest') return verifiedArtifactManifestSchema();
   if (name === 'OnDeckPersonEvidenceProjectionItem') return onDeckPersonEvidenceProjectionItemSchema();
@@ -941,26 +1000,29 @@ const providerIdentitySchema = () => object({ provider: text({ maxLength: 128 })
 
 function directPersonRegistrationDecisionSchema() {
   return exactDomainSchema('DirectPersonRegistrationDecision', {
+    libraryKind: {const:'us_adult'}, initialReference: domainRef('PeopleReferenceMaintenanceDecision'),
     decisionId: id(), newPersonId: id(), canonicalName: text({ maxLength: 1024 }), aliases: arrayOf(aliasSchema(), 256),
     providerIdentities: arrayOf(providerIdentitySchema(), 256), actorId: id(), decisionDigest: digest()
   });
 }
 
 function peopleReferenceMaintenanceDecisionSchema() {
-  const common = { decisionId: id(), operationKind: enumText('add_image', 'release_image'), personId: id(),
+  const common = { decisionId: id(), operationKind: enumText('add_image', 'release_image', 'replace_image'), personId: id(),
     expectedPersonRevision: positiveInteger(), expectedReferenceRevision: nonNegativeInteger(), actorId: id(), decisionDigest: digest() };
   const commonRequired = Object.keys(common);
   const add = object({ ...common, operationKind: { const: 'add_image' }, referenceAssetId: id(), referenceFaceId: id(),
     artifactHandle: typeRef('ArtifactHandle'), artifactDigest: digest(), faceEmbeddingSetHandle: typeRef('FaceEmbeddingSetHandle'),
-    modelRef: text({ maxLength: 512 }), initialState: { const: 'active' }
+    modelRef: digest(), initialState: { const: 'active' }
   }, [...commonRequired, 'referenceAssetId', 'referenceFaceId', 'artifactHandle', 'artifactDigest', 'faceEmbeddingSetHandle', 'modelRef', 'initialState']);
   const release = object({ ...common, operationKind: { const: 'release_image' }, referenceAssetId: id(), referenceFaceId: id(),
     expectedAssetState: { const: 'active' }, expectedFaceState: { const: 'active' }, terminalState: { const: 'released' },
     artifactDigest: digest(), embeddingDigest: digest(), modelRef: text({ maxLength: 512 })
   }, [...commonRequired, 'referenceAssetId', 'referenceFaceId', 'expectedAssetState', 'expectedFaceState', 'terminalState',
     'artifactDigest', 'embeddingDigest', 'modelRef']);
+  const replace=object({...add.properties,operationKind:{const:'replace_image'},replacedImage:object({referenceAssetId:id(),referenceFaceId:id(),
+    artifactDigest:digest(),embeddingDigest:digest(),modelRef:text({maxLength:512})})});
   return { $schema: DRAFT, $id: domainTypeId('PeopleReferenceMaintenanceDecision'), title: 'PeopleReferenceMaintenanceDecision@1',
-    'x-helix-ssotRefs': ['8.6.18', '8.6.20'], 'x-helix-role': 'accepted-business-dto', oneOf: [add, release] };
+    'x-helix-ssotRefs': ['8.6.18', '8.6.20'], 'x-helix-role': 'accepted-business-dto', oneOf: [add, release,replace] };
 }
 
 function personReferenceProjectionSchema() {
@@ -1028,7 +1090,10 @@ function productIdentityEvidenceIntentSchema() {
         object({ ...scopedCommon, sourceKind:{const:'provider_search'},integrationId:id(),configRevision:positiveInteger(),
           provider:{const:'tmdb'},namespace:{const:namespace} }),
       ];
-    }).concat(require('../../src/helix/contracts/jav-identity-evidence').javIdentityIntentSchema()),
+    }).concat(require('../../src/helix/contracts/jav-identity-evidence').javIdentityIntentSchema(),object({
+      intentId:id(),libraRunId:id(),subjectId:id(),runExecutionBasisDigest:digest(),contentProfile:{const:'western_adult'},sourceKind:{const:'internal_source'},
+      internalIdentity:text({maxLength:128}),originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()}),
+      sourceHandleDigest:digest(),intentDigest:digest()})),
   };
 }
 
@@ -1143,7 +1208,8 @@ function libraMediaCastSourceBasisSchema(name) {
   return sourceBasisEnvelope(name, [
     object({ sourceBasisKind: { const: 'metadata_observation' }, selection: metadataObservationSelectionValue(),
       observationSet: metadataObservationSetValue(), sourceBasisDigest: digest() }),
-    object({ sourceBasisKind: { const: 'western_match' }, westernBasis: westernMediaCastBasisValue(), sourceBasisDigest: digest() })
+    object({ sourceBasisKind: { const: 'western_match' }, westernBasis: westernMediaCastBasisValue(), sourceBasisDigest: digest() }),
+    object({sourceBasisKind:{const:'us_adult_actor'},actorSelection:domainRef('UsAdultActorSelectionBasis'),sourceBasisDigest:digest()})
   ], 8 * 1024 * 1024);
 }
 
@@ -1168,10 +1234,11 @@ function artifactRequirementSchema() {
 }
 
 function onDeckPersonEvidenceProjectionItemSchema() {
-  return exactDomainSchema('OnDeckPersonEvidenceProjectionItem', { projectionItemId: id(), shelfEntryId: id(),
-    inventoryRevision: positiveInteger(), relationId: id(), relationDigest: digest(), displayName: text({ maxLength: 1024 }),
+  const nullable=value=>({oneOf:[value,{type:'null'}]});
+  return exactDomainSchema('OnDeckPersonEvidenceProjectionItem', { projectionItemId: id(),sourceKind:enumText('media_cast','nfo'),libraryKind:enumText('normal','jav','us_adult'),shelfEntryId: id(),
+    inventoryRevision: positiveInteger(), relationId: nullable(id()), relationDigest: nullable(digest()), displayName: text({ maxLength: 1024 }),
     displayNameNormalized: text({ maxLength: 1024 }), role: text({ maxLength: 256 }),
-    providerIdentities: arrayOf(providerIdentitySchema(), 128), originEvidenceDigest: digest(), nfoObservationDigest: digest(),
+    providerIdentities: arrayOf(providerIdentitySchema(), 128), originEvidenceDigest: nullable(digest()), nfoObservationDigest: nullable(digest()),
     projectionRevision: positiveInteger(), projectionItemDigest: digest() });
 }
 

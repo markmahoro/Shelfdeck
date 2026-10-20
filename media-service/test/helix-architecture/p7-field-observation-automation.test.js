@@ -157,7 +157,7 @@ test('deregistered and unsupported-profile Fields are skipped', () => {
   const harness = createHarness({
     fields: [
       field({ fieldId: 'gone', status: 'deregistered' }),
-      field({ fieldId: 'unsupported', contentProfileHint: 'western_adult' }),
+      field({ fieldId: 'unsupported', contentProfileHint: 'unknown_profile' }),
     ],
   });
   assert.equal(harness.automation.reconcile({ fieldId: 'gone' }).kind, 'not_active');
@@ -173,4 +173,10 @@ test('deferred Observation Work is treated as in progress, not thrown', () => {
     fieldId: 'field-a',
     reasonCode: 'FIELD_OBSERVATION_WORK_DEFERRED',
   }));
+});
+
+
+test('US Adult Material Fields issue their own Observation Work like the other supported profiles',()=>{
+  const harness=createHarness({fields:[field({fieldId:'us-adult',contentProfileHint:'western_adult'})]});
+  assert.equal(harness.automation.reconcile({fieldId:'us-adult'}).kind,'issued');assert.equal(harness.issued.length,1);
 });

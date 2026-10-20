@@ -1,5 +1,6 @@
 'use strict';
 const { careFindingCodes, effectiveRequirements } = require('./care-objective');
+const { readRequirement:readActorRefreshRequirement } = require('./us-adult-actor-refresh-objective');
 const { requirementGapValueDigest } = require('../../../contracts/requirement-gap-values');
 
 const { validManifest } = require('./authorized-defect-manifest');
@@ -364,6 +365,7 @@ function dispositionFromAssessments(assessments) {
 }
 
 function assertProcessingRequirement(requirement){
+  if(readActorRefreshRequirement(requirement))return;
   const allowed=new Set(['custody:artifact_missing','custody:artifact_not_regular','custody:artifact_unreadable','custody:nfo_corrupt',
     'presentation:nfo_missing','presentation:nfo_corrupt','presentation:poster_missing','presentation:poster_corrupt','presentation:fanart_missing','presentation:fanart_corrupt',
     'conformance:video_codec_unmet','conformance:max_size_exceeded','conformance:container_unmet','conformance:file_extension_unmet',

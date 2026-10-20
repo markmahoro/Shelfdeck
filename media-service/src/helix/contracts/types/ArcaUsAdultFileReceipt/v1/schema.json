@@ -1,0 +1,371 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/types/ArcaUsAdultFileReceipt/v1",
+  "title": "ArcaUsAdultFileReceipt@1",
+  "x-helix-ssotRefs": [
+    "6.6.8",
+    "8.6.18"
+  ],
+  "x-helix-maxCanonicalBytes": 1048576,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/types/ArcaUsAdultFileReceipt/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "evidenceId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "evidenceKind": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "producerRef": {
+      "enum": [
+        "arca.us_adult.files.stage@1",
+        "arca.us_adult.files.publish@1",
+        "arca.us_adult.files.verify@1",
+        "arca.us_adult.files.retire@1"
+      ]
+    },
+    "basisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "payloadDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "observedAtMs": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9007199254740991
+    },
+    "aftercareCaseId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "intentId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "intentDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "planDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "action": {
+      "enum": [
+        "stage",
+        "publish",
+        "verify",
+        "retire",
+        "discard"
+      ]
+    },
+    "receipt": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "arca.us-adult-staged-files@1"
+            },
+            "aftercareCaseId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "planDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "directory": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "members": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 1024,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ordinal": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "role": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "previousMaterialKey": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "location": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "targetLocation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "endpointId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "physicalIdentity": {
+                    "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+                  },
+                  "fullByteDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "ordinal",
+                  "role",
+                  "previousMaterialKey",
+                  "location",
+                  "targetLocation",
+                  "endpointId",
+                  "physicalIdentity",
+                  "fullByteDigest"
+                ]
+              }
+            },
+            "manifestDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "schema",
+            "aftercareCaseId",
+            "planDigest",
+            "directory",
+            "members",
+            "manifestDigest"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "arca.us-adult-final-files@1"
+            },
+            "aftercareCaseId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "planDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "stagedManifestDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "members": {
+              "type": "array",
+              "minItems": 3,
+              "maxItems": 1024,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "ordinal": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  "role": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "previousMaterialKey": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "location": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "targetLocation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "endpointId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "physicalIdentity": {
+                    "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+                  },
+                  "fullByteDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  "bindingRevision": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": [
+                  "ordinal",
+                  "role",
+                  "previousMaterialKey",
+                  "location",
+                  "targetLocation",
+                  "endpointId",
+                  "physicalIdentity",
+                  "fullByteDigest",
+                  "bindingRevision"
+                ]
+              }
+            },
+            "finalRealityDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "schema",
+            "aftercareCaseId",
+            "planDigest",
+            "stagedManifestDigest",
+            "members",
+            "finalRealityDigest"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "arca.us-adult-discarded-stage@1"
+            },
+            "aftercareCaseId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "planDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "stagedManifestDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "deletedCount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "schema",
+            "aftercareCaseId",
+            "planDigest",
+            "stagedManifestDigest",
+            "deletedCount"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "arca.us-adult-retired-files@1"
+            },
+            "aftercareCaseId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "planDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "finalRealityDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "deletedCount": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9007199254740991
+            }
+          },
+          "required": [
+            "schema",
+            "aftercareCaseId",
+            "planDigest",
+            "finalRealityDigest",
+            "deletedCount"
+          ]
+        }
+      ]
+    },
+    "receiptDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "evidenceId",
+    "evidenceKind",
+    "producerRef",
+    "basisDigest",
+    "payloadDigest",
+    "observedAtMs",
+    "aftercareCaseId",
+    "shelfEntryId",
+    "intentId",
+    "intentDigest",
+    "selectionDigest",
+    "planDigest",
+    "action",
+    "receipt",
+    "receiptDigest"
+  ],
+  "x-helix-envelopeRef": "helix://contracts/types/EvidenceEnvelope/v1"
+}

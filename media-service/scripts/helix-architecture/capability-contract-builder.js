@@ -262,6 +262,9 @@ function approvalAuthorization(capabilityRef) {
 }
 
 function resourceKinds(capability) {
+  if (['arca.us_adult.source.prepare@1','arca.us_adult.references.match@1','arca.us_adult.assets.prepare@1'].includes(capability.id)) return ['cpu','disk_io'];
+  if (['arca.us_adult.files.stage@1','arca.us_adult.files.publish@1','arca.us_adult.files.verify@1','arca.us_adult.files.retire@1'].includes(capability.id)) return ['disk_io'];
+  if (['arca.us_adult.inventory.commit@1','arca.us_adult.case.commit@1','people.reference_fact.commit@1','people.candidate.commit@1','people.person.commit@1'].includes(capability.id)) return ['sqlite_write'];
   if (capability.id === 'procurement.field.observation.page.commit@1') return ['volume_read', 'sqlite_write'];
   if (capability.id === 'libra.product_package.publish@1') return ['sqlite_write'];
   if (capability.id === 'arca.shelf_deregistration.release_manifest.verify@1') return ['control_plane'];
@@ -273,6 +276,8 @@ function resourceKinds(capability) {
   if (capability.id === 'arca.jav_correction.files.verify@1') return ['cpu', 'disk_io'];
   if (capability.id === 'arca.jav_correction.inventory.commit@1') return ['cpu', 'disk_io'];
   if (capability.id === 'arca.jav_correction.formal_retirement.execute@1') return ['cpu', 'disk_io'];
+  if (capability.id === 'people.reference_usage.audit@1') return ['cpu', 'disk_io'];
+  if (capability.id === 'people.workspace.reclaim@1') return ['cpu', 'disk_io', 'sqlite_write'];
   if (capability.id === 'arca.jav_correction.workspace.reclaim@1') return ['cpu', 'disk_io'];
   // BDMV assessment is the first triage capability whose atomic effect needs
   // both source-volume I/O and bounded media parsing CPU.  Keep the demand
@@ -372,6 +377,11 @@ function buildCapabilityPackage(capability) {
     }
   };
 
+  if(capability.id==='people.registration_evidence.observe@1'){
+    const demand=schemas['resource-demand.schema.json'].properties.resourceKinds;
+    schemas['resource-demand.schema.json'].properties.resourceKinds={oneOf:[demand,
+      {type:'array',prefixItems:[{const:'cpu'}],minItems:1,maxItems:1}]};
+  }
   const manifest = {
     schemaVersion: 1,
     capabilityRef: capability.id,
@@ -380,7 +390,7 @@ function buildCapabilityPackage(capability) {
     effectClass: capability.effectClass,
     inputPorts,
     parametersSchemaRef: schemas['parameters.schema.json'].$id,
-    resultSchemaRef: ['arca.inventory.final_product.verify@1','arca.ondeck.fulfillment.verify@1','arca.jav_correction.files.verify@1','arca.jav_correction.inventory.commit@1','arca.jav_correction.formal_retirement.execute@1','arca.jav_correction.workspace.reclaim@1'].includes(capability.id)
+    resultSchemaRef: ['arca.inventory.final_product.verify@1','arca.ondeck.fulfillment.verify@1','arca.jav_correction.files.verify@1','arca.jav_correction.inventory.commit@1','arca.jav_correction.formal_retirement.execute@1','arca.jav_correction.workspace.reclaim@1','people.reference_usage.audit@1','people.workspace.reclaim@1'].includes(capability.id)
       ? schemas['result.schema.json'].$ref : schemas['result.schema.json'].$id,
     evidenceSchemaRef: schemas['evidence.schema.json'].$id,
     failureSchemaRef: schemas['failure.schema.json'].$id,

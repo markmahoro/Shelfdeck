@@ -9,6 +9,9 @@ const {
 } = require('../../../foundation/execution/execution-input-readiness');
 const { buildProductIdentityCommitBundle } = require('../model/product-identity-commit-contracts');
 const { nextJavIdentityStage } = require('./jav-product-identity-work');
+const {nextUsAdultIdentityStage,usAdultIdentitySource}=require('./us-adult-product-identity-work');
+const {readUsAdultMetadataContext,artifactWorkIdentity,POSTER,frameInputs}=require('../model/us-adult-product-work');
+const {selectedPerson,actorRelation}=require('../model/us-adult-actor-selection');
 const { frozenSeriesSeasonNumber,candidateSeriesAnchor } = require('../model/series-identity-contracts');
 const { buildMetadataFetchIntent, buildMetadataObservationBasis, buildProductMetadataDraft } =
   require('../model/product-fact-contracts');
@@ -46,6 +49,8 @@ const SIDECAR_PROFILE = 'helix://libra/input-projections/ProductSidecarProfile/v
 const ARTIFACT_REQUIREMENT = 'helix://libra/input-projections/ProductArtifactRequirement/v1';
 const ARTIFACT_HANDLE_LIST = 'helix://libra/input-projections/ProductArtifactHandleList/v1';
 const SIDECAR_MEDIA_CAST_DRAFT = 'helix://libra/input-projections/ProductSidecarMediaCastDraft/v1';
+const US_ACTOR_SELECTION='helix://libra/input-projections/UsAdultProductActorSelection/v1';
+const US_PRODUCT_FRAMES='helix://libra/input-projections/UsAdultProductFrames/v1';
 const MEDIA_CAST_RESOLVE = 'libra.media_cast.resolve@1';
 const MEDIA_CAST_COMMIT = 'libra.media_cast.commit@1';
 const METADATA_COMMIT = 'libra.product_metadata.commit@1';
@@ -105,7 +110,7 @@ function decisionEvidence(sourceResult, snapshot) {
   const queryResultBody={schemaRef:'helix://contracts/types/VersionedQueryResult/v1',schemaVersion:1,
     evidenceId:sourceResult.observationId,evidenceKind:'product_identity_evidence_query_result',producerRef:IDENTITY_EVIDENCE,
     basisDigest:sourceResult.evidenceDigest,payloadDigest:sourceResult.observationDigest,observedAtMs:0,
-    providerDomain:sourceResult.contentProfile==='jav'?'jav':'tmdb',queryContract:IDENTITY_EVIDENCE,queryVersion:1,inputDigest:canonicalDigest(sourceResult.intentId),
+    providerDomain:sourceResult.contentProfile==='western_adult'?'libra':sourceResult.contentProfile==='jav'?'jav':'tmdb',queryContract:IDENTITY_EVIDENCE,queryVersion:1,inputDigest:canonicalDigest(sourceResult.intentId),
     resultKind:'found',resultRevision:1,resultDigest:canonicalDigest(sourceResult),
     expiresAtMs:Number.MAX_SAFE_INTEGER};
   const queryResult=Object.freeze(queryResultBody);
@@ -122,8 +127,8 @@ function createProductIdentityPlanner(options) {
   return Object.freeze({plannerContractRef:'helix://libra/planners/ProductIdentity/v1',plannerVersion:1,plan(request) {
     const snapshot=readRunSnapshot(options.movieProductionReader,request.processId);
     if(!snapshot||snapshot.run.executionBasisDigest!==request.executionBasisDigest)throw new Error('Product Identity planning basis changed.');
-    if(snapshot.spec.contentProfile==='jav') {
-      const stage=nextJavIdentityStage(options,snapshot);
+    if(['jav','western_adult'].includes(snapshot.spec.contentProfile)) {
+      const usAdult=snapshot.spec.contentProfile==='western_adult',stage=usAdult?nextUsAdultIdentityStage(options,snapshot):nextJavIdentityStage(options,snapshot);
       if(!['observation','resolved'].includes(stage.kind))throw new Error('JAV identity Work no longer matches its current selection.');
       let work,nodes;
       if(stage.kind==='observation') {
@@ -131,8 +136,8 @@ function createProductIdentityPlanner(options) {
         if(request.workId!==work.workId)throw new Error('JAV identity observation Work was superseded.');
         const eventId=stable('libra-product-identity-fact-event-',{attempt:request.workAttemptId});
         nodes=[planNode({...options,request,nodeId:'provider_identity_observation',eventId,capabilityRef:IDENTITY_EVIDENCE,
-          inputBindings:[owner('productIdentityEvidenceIntent',request,IDENTITY_EVIDENCE_INTENT,{javIntent:stage.intent}),
-            owner('physicalMaterialReadHandleOrIntegrationHandle',request,IDENTITY_EVIDENCE_SOURCE,{javIntent:stage.intent})],resourceKinds:['disk_io','network']})];
+          inputBindings:[owner('productIdentityEvidenceIntent',request,IDENTITY_EVIDENCE_INTENT,usAdult?{usAdultIntent:stage.intent}:{javIntent:stage.intent}),
+            owner('physicalMaterialReadHandleOrIntegrationHandle',request,IDENTITY_EVIDENCE_SOURCE,usAdult?{usAdultIntent:stage.intent}:{javIntent:stage.intent})],resourceKinds:['disk_io','network']})];
       }else {
         work=identityCommitWork(snapshot,{workId:stage.work.workId,resultDigest:stage.sourceResult.resultDigest});
         if(request.workId!==work.workId)throw new Error('JAV identity commit Work was superseded.');
@@ -205,6 +210,11 @@ function createProductIdentityProjections(options) {
   }
   function identityIntent(value,parameters={}) {
     const contentProfile=value.spec?.contentProfile;
+    if(contentProfile==='western_adult'){
+      const stage=nextUsAdultIdentityStage(options,value),intent=parameters.usAdultIntent;
+      if(stage.kind!=='observation'||!intent||canonicalJson(intent)!==canonicalJson(stage.intent))throw new Error('US Adult identity Observation basis is stale.');
+      return stage.intent;
+    }
     if(contentProfile==='jav') {
       const stage=nextJavIdentityStage(options,value),intent=parameters.javIntent;
       if(stage.kind!=='observation' || !intent || intent.intentDigest!==stage.intent.intentDigest ||
@@ -306,6 +316,7 @@ function createProductIdentityProjections(options) {
     {projectionRef:IDENTITY_EVIDENCE_INTENT,projection:{project:({ownerScope,parameters})=>identityIntent(snapshot(ownerScope),parameters)}},
     {projectionRef:IDENTITY_EVIDENCE_SOURCE,projection:{project:({ownerScope,parameters})=>{
       const value=snapshot(ownerScope),intent=identityIntent(value,parameters);
+      if(intent.sourceKind==='internal_source')return usAdultIdentitySource(options,value);
       if(intent.sourceKind==='related_nfo'){
         const reference=value.relatedReferences.find((item)=>item.referenceId===intent.relatedReferenceId),binding=reference&&value.relatedBindings.find((item)=>item.materialKey===reference.identity.materialKey&&item.role===reference.role);
         if(!reference||!binding)throw new Error('Product Identity NFO reference is unavailable.');
@@ -478,6 +489,7 @@ function productMetadataContext(options, libraRunId, selectedEpisodeKey) {
   const snapshot=readRunSnapshot(options.movieProductionReader,libraRunId);
   const identity=options.movieProductionReader.readFact(libraRunId,'resolved_identity',1);
   if(!snapshot||!identity)throw new Error('Product Metadata requires a resolved Product Identity.');
+  if(snapshot.spec.contentProfile==='western_adult')return readUsAdultMetadataContext(options,libraRunId);
   const works=options.workResultReader.listWorks({ownerDomain:'libra',processType:'libra_run',processId:libraRunId,
     workKind:'product_metadata_observation'}).filter((item)=>item.state==='succeeded')
     .sort((left,right)=>Buffer.from(left.work_id).compare(Buffer.from(right.work_id)));
@@ -552,15 +564,19 @@ function productMetadataContext(options, libraRunId, selectedEpisodeKey) {
     return result.draft;
   };
   const episodeDrafts=selectedScopes.map(scope=>readEpisodeDraft(scope.episodeKey));
+  const needsUnknownActor = basis.observationSet.contentProfile === 'jav' &&
+    !basis.observationSet.observations.some(item => item.peopleHints?.some(hint => hint.role === 'actor'));
+  const personProjections = needsUnknownActor ? [options.readJavUnknownActorProjection()] : [];
   return Object.freeze({snapshot,identity,sources:Object.freeze(sources),workIds:Object.freeze(works.map((item)=>item.work_id)),
     results:Object.freeze(results),basis,get draft(){return readSeasonDraft();},readEpisodeDraft,episodeDrafts:Object.freeze(episodeDrafts),
-    requirements:Object.freeze(requirements)});
+    requirements:Object.freeze(requirements),personProjections:Object.freeze(personProjections)});
 }
 
 function artifactVerificationContext(options, libraRunId) {
   const metadata=productMetadataContext(options,libraRunId);
   const works=options.workResultReader.listWorks({ownerDomain:'libra',processType:'libra_run',processId:libraRunId,
-    workKind:'artifact_production'}).filter((item)=>item.state==='succeeded')
+    workKind:'artifact_production'}).filter((item)=>item.state==='succeeded'&&(!metadata.selection||
+      item.work_id===artifactWorkIdentity(metadata.snapshot,metadata.analysisBasis.workspaceId,requiredArtifactKinds(metadata.snapshot),metadata.selection).workId))
     .sort((left,right)=>Buffer.from(left.work_id).compare(Buffer.from(right.work_id)));
   const expectedKinds=metadata.requirements.flatMap(item=>
     Array(item.artifactKind==='nfo'?1+metadata.episodeDrafts.length:1).fill(item.artifactKind)).sort();
@@ -631,6 +647,7 @@ function artifactVerificationContext(options, libraRunId) {
 }
 
 function mediaCastRelations(context) {
+  if(context.selection)return Object.freeze([actorRelation(context.selection)]);
   return buildMetadataMediaCastRelations({
     sourceBasis:context.basis,
     subjectId:context.snapshot.run.subjectId,
@@ -638,6 +655,8 @@ function mediaCastRelations(context) {
 }
 
 function sidecarMediaCastDraft(context) {
+  if(context.selection)return buildMediaCastDraft({sourceBasis:context.actorBasis,subjectId:context.snapshot.run.subjectId,
+    relations:[actorRelation(context.selection)],personProjection:{items:[selectedPerson(context.selection).referenceProjection]},producedAtMs:0});
   const sourceBasis = buildMetadataObservationBasis({
     intents: context.sources.map((item) => item.intent),
     results: context.results,
@@ -651,7 +670,7 @@ function sidecarMediaCastDraft(context) {
       sourceBasis,
       subjectId: context.snapshot.run.subjectId,
     }),
-    personProjection: Object.freeze({ items:Object.freeze([]) }),
+    personProjection: Object.freeze({ items:context.personProjections }),
     producedAtMs: Math.max(...sourceBasis.observationSet.observations
       .map((item) => item.observedAtMs)),
   });
@@ -667,10 +686,10 @@ function createProductFactAssemblyPlanner(options) {
     const metadataCommitEvent=stable('libra-product-metadata-commit-event-',{attempt:request.workAttemptId});
     const nodes=[
       planNode({...options,request,nodeId:'media_cast_resolve',eventId:castResolveEvent,capabilityRef:MEDIA_CAST_RESOLVE,
-        inputBindings:[owner('libraMediaCastSourceBasisMetadataObservationOrWesternMatch',request,MEDIA_CAST_BASIS),
+        inputBindings:[owner('libraMediaCastSourceBasis',request,MEDIA_CAST_BASIS),
           owner('personReferenceProjectionList',request,PERSON_REFERENCE_LIST)],resourceKinds:['cpu','disk_io']}),
       planNode({...options,request,nodeId:'media_cast_commit',eventId:castCommitEvent,capabilityRef:MEDIA_CAST_COMMIT,
-        inputBindings:[owner('libraMediaCastSourceBasisMetadataObservationOrWesternMatch',request,MEDIA_CAST_BASIS),
+        inputBindings:[owner('libraMediaCastSourceBasis',request,MEDIA_CAST_BASIS),
           projected('mediaCastDraft',castResolveEvent,options.registry.resolve(MEDIA_CAST_RESOLVE,'libra').manifest.resultSchemaRef,MEDIA_CAST_DRAFT),
           projected('domainFactCommitHandle',castResolveEvent,options.registry.resolve(MEDIA_CAST_RESOLVE,'libra').manifest.resultSchemaRef,
             MEDIA_CAST_HANDLE,{workId:request.workId,eventId:castCommitEvent,processId:request.processId})],
@@ -693,14 +712,19 @@ function createProductFactAssemblyPlanner(options) {
 
 function createProductFactAssemblyProjections(options) {
   const context=(ownerScope)=>artifactVerificationContext(options,ownerScope.processId);
-  const basis=(ownerScope,factKind)=>buildMetadataObservationBasis({intents:context(ownerScope).sources.map((item)=>item.intent),
-    results:context(ownerScope).results,factKind,expectedRevision:0});
+  const basis=(ownerScope,factKind)=>{
+    const value=context(ownerScope);
+    if(value.selection)return factKind==='media_cast'?value.actorBasis:value.basis;
+    return buildMetadataObservationBasis({intents:value.sources.map((item)=>item.intent),results:value.results,factKind,expectedRevision:0});
+  };
   const handle=(ownerScope,parameters,factKind,payload)=>buildProductFactHandle({libraRunId:ownerScope.processId,factKind,
     expectedRevision:0,payloadDigest:canonicalDigest(payload),eventFenceDigest:factCommitFence(parameters.workId,parameters.eventId,factKind)});
   return Object.freeze([
     Object.freeze({projectionRef:MEDIA_CAST_BASIS,projection:Object.freeze({project:({ownerScope})=>basis(ownerScope,'media_cast')})}),
     Object.freeze({projectionRef:METADATA_BASIS,projection:Object.freeze({project:({ownerScope})=>basis(ownerScope,'product_metadata')})}),
-    Object.freeze({projectionRef:PERSON_REFERENCE_LIST,projection:Object.freeze({project:()=>Object.freeze([])})}),
+    Object.freeze({projectionRef:PERSON_REFERENCE_LIST,projection:Object.freeze({project:({ownerScope})=>{
+      const value=context(ownerScope);return Object.freeze(value.selection?[selectedPerson(value.selection).referenceProjection]:value.personProjections);
+    }})}),
     Object.freeze({projectionRef:MEDIA_CAST_DRAFT,projection:Object.freeze({project:({sourceResult})=>sourceResult})}),
     Object.freeze({projectionRef:VERIFIED_ARTIFACT_MANIFEST,projection:Object.freeze({project:({ownerScope})=>context(ownerScope).verifiedArtifactManifest})}),
     Object.freeze({projectionRef:MEDIA_CAST_FACT_REF,projection:Object.freeze({project:({ownerScope})=>{
@@ -776,17 +800,19 @@ function createArtifactProductionPlanner(options) {
     const targets=context.requirements.flatMap(requirement=>
       [{requirement},...(requirement.artifactKind==='nfo'?context.episodeDrafts.map(draft=>({requirement:artifactRequirement('nfo',draft.episodeScope),episodeScope:draft.episodeScope})):[])]);
     for(const [ordinal,{requirement,episodeScope}] of targets.entries()){
-      const producerRef=requirement.artifactKind==='nfo'?SIDECAR_RENDER:ARTIFACT_ACQUIRE;
+      const producerRef=requirement.artifactKind==='nfo'?SIDECAR_RENDER:
+        context.selection&&requirement.artifactKind==='poster'?POSTER:ARTIFACT_ACQUIRE;
       const targetBasis={attempt:request.workAttemptId,requirementDigest:requirement.requirementDigest,
         ...(episodeScope?{episodeScope}:{})};
       const projectionParameters=episodeScope?{episodeKey:episodeScope.episodeKey}:{};
       const producerEventId=stable('libra-artifact-producer-event-',targetBasis);
-      const inputBindings=[owner('productMetadataDraft',request,METADATA_DRAFT,projectionParameters)];
+      const inputBindings=producerRef===POSTER?[owner('usAdultActorSelectionBasis',request,US_ACTOR_SELECTION),
+        owner('frameArtifactSet',request,US_PRODUCT_FRAMES)]:[owner('productMetadataDraft',request,METADATA_DRAFT,projectionParameters)];
       if(producerRef===SIDECAR_RENDER)inputBindings.push(
         owner('mediaCastDraft',request,SIDECAR_MEDIA_CAST_DRAFT),
         owner('sidecarProfile',request,SIDECAR_PROFILE,projectionParameters),
       );
-      else inputBindings.push(owner('integrationHandle',request,ARTIFACT_INTEGRATION,{artifactKind:requirement.artifactKind}));
+      else if(producerRef===ARTIFACT_ACQUIRE)inputBindings.push(owner('integrationHandle',request,ARTIFACT_INTEGRATION,{artifactKind:requirement.artifactKind}));
       nodes.push(planNode({...options,request,nodeId:'artifact_'+ordinal,eventId:producerEventId,capabilityRef:producerRef,
         inputBindings,parameters:producerRef===ARTIFACT_ACQUIRE?{artifactKind:requirement.artifactKind}:{},
         resourceKinds:producerRef===ARTIFACT_ACQUIRE?['disk_io','network']:['cpu','disk_io']}));
@@ -827,6 +853,13 @@ function createArtifactProductionProjections(options) {
     return item;
   };
   return Object.freeze([
+    Object.freeze({projectionRef:US_ACTOR_SELECTION,projection:Object.freeze({project:({ownerScope})=>{
+      const value=context(ownerScope);if(!value.selection)throw new Error('US Adult poster requires an actor selection.');return value.selection;
+    }})}),
+    Object.freeze({projectionRef:US_PRODUCT_FRAMES,projection:Object.freeze({project:({ownerScope})=>{
+      const value=context(ownerScope);if(!value.selection)throw new Error('US Adult poster requires its analysis Basis.');
+      return frameInputs(options,{...value,basis:value.analysisBasis}).frameArtifactSet;
+    }})}),
     Object.freeze({projectionRef:METADATA_DRAFT,projection:Object.freeze({project:({ownerScope,parameters})=>draft(ownerScope,parameters)})}),
     Object.freeze({projectionRef:SIDECAR_MEDIA_CAST_DRAFT,projection:Object.freeze({project:({ownerScope})=>
       sidecarMediaCastDraft(context(ownerScope))})}),

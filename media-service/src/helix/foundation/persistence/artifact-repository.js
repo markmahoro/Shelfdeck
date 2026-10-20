@@ -35,6 +35,10 @@ function createArtifactRepository(options) {
       cas_artifact: { kind: 'update', tableId: 'fx_artifact_registry',
         setColumns: ['reference_revision', 'state'], keyColumns: ['artifact_handle_id'],
         compareColumns: [{ column: 'reference_revision', parameter: 'expected_reference_revision' }] },
+      revival_effect:{kind:'select-one',tableId:'fx_effect_journal',columns:['effect_id','event_attempt_id','state'],keyColumns:['effect_class','idempotency_key']},
+      revival_attempt:{kind:'select-one',tableId:'fx_event_attempts',columns:['event_attempt_id','event_id','state'],keyColumns:['event_attempt_id']},
+      revival_event:{kind:'select-one',tableId:'fx_workflow_events',columns:['event_id','work_id','capability_ref','state'],keyColumns:['event_id']},
+      revival_work:{kind:'select-one',tableId:'fx_supporting_works',columns:['work_id','owner_domain','process_type','state'],keyColumns:['work_id']},
       insert_reference: { kind: 'insert', tableId: 'fx_artifact_references', columns: [
         'artifact_handle_id', 'consumer_domain', 'consumer_scope_type', 'consumer_scope_id', 'reference_kind',
         'reference_revision', 'state', 'created_at_ms'
@@ -49,9 +53,9 @@ function createArtifactRepository(options) {
     }
   });
 
-  function execute(body) {
-    return options.unitOfWork.execute([{
-      participantId: 'foundation_artifacts', owner: 'execution-foundation', repositories: [definition], execute: body
+  function execute(body,readParticipants=[],boundBusinessOwner=null) {
+    return options.unitOfWork.execute([...readParticipants,{
+      participantId: 'foundation_artifacts', owner: 'execution-foundation',...(boundBusinessOwner?{boundBusinessOwner}:{}), repositories: [definition], execute: body
     }]).foundation_artifacts;
   }
 
@@ -64,6 +68,19 @@ function createArtifactRepository(options) {
         repository.invoke('insert_artifact', artifactParameters(record));
         return Object.freeze({ ...record });
       });
+    },
+    reactivateVerified({artifactHandleId,expectedReferenceRevision,context,verifyReality,readParticipants=[]}){
+      return execute(tx=>{const repo=tx.repository(definition.repositoryId),row=repo.invoke('find_artifact',{artifact_handle_id:artifactHandleId}),
+        effect=repo.invoke('revival_effect',{effect_class:'workspace_write',idempotency_key:context?.idempotencyKey}),
+        original=effect&&repo.invoke('revival_attempt',{event_attempt_id:effect.event_attempt_id}),attempt=context?.eventAttemptId&&repo.invoke('revival_attempt',{event_attempt_id:context.eventAttemptId}),
+        event=context?.eventId&&repo.invoke('revival_event',{event_id:context.eventId}),work=event&&repo.invoke('revival_work',{work_id:event.work_id});
+        if(!row||row.state!=='deleted'||row.reference_revision!==expectedReferenceRevision||row.owner_domain!=='people'||row.owner_scope_type!=='person'||
+          work?.owner_domain!=='people'||work.work_id!==context.workId||work.process_type!=='people_image_preparation'||work.state!=='running'||event?.state!=='executing'||
+          event.capability_ref!==(row.artifact_kind==='reference-image'?'people.reference_asset.import@1':row.artifact_kind==='reference-embedding'?'shared.face.embedding.compute@1':null)||original?.event_id!==event.event_id||
+          attempt?.event_id!==event.event_id||attempt.state!=='executing'||!['intended','reconcile_required'].includes(effect?.state)||typeof verifyReality!=='function'||verifyReality(mapArtifact(row))!==true)
+          fail('P5_ARTIFACT_REPUBLICATION_FENCED','Reactivation requires exact deleted bytes and their actual People preparation Effect.');
+        advance(repo,mapArtifact(row),'active');return mapArtifact(repo.invoke('find_artifact',{artifact_handle_id:artifactHandleId}));
+      },readParticipants,'people');
     },
     get(artifactHandleId) {
       return execute((context) => mapArtifact(context.repository(definition.repositoryId).invoke('find_artifact', {

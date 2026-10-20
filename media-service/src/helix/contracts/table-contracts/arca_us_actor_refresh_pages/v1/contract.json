@@ -1,0 +1,128 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_us_actor_refresh_pages/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_us_actor_refresh_pages",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "page_ordinal",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "page_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "page_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "page_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "intent_id",
+      "page_ordinal"
+    ],
+    "declaredForeignKeyColumns": [
+      "intent_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "page_json",
+        "schemaRefColumn": "page_schema_ref",
+        "maxBytes": 524288,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable，禁止更新"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(intent_id,page_ordinal)`",
+      "page_ordinal从0连续",
+      "page为PeopleReferenceLibraryPage@1的完整冻结Projection，最多`512 KiB`，JCS digest校验",
+      "immutable，禁止更新",
+      "只供自动刷新，页数/总人数/排序及完整pageSetDigest均与Intent一致",
+      "禁止仅首页匹配或窗口外改写快照"
+    ],
+    "rawContract": {
+      "columns": "`intent_id FK, page_ordinal INTEGER, page_schema_ref, page_json, page_digest`",
+      "constraints": "`PK(intent_id,page_ordinal)`；page_ordinal从0连续；page为PeopleReferenceLibraryPage@1的完整冻结Projection，最多`512 KiB`，JCS digest校验；immutable，禁止更新；只供自动刷新，页数/总人数/排序及完整pageSetDigest均与Intent一致；禁止仅首页匹配或窗口外改写快照"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9648,
+      "lineDigest": "ed782481054ebc633b2a79118a5fd271e26f58e5ed6b1b0138f91b9a3f575a39"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "intent_id"
+        ],
+        "targetTable": "arca_us_actor_refresh_intents",
+        "targetColumns": [
+          "intent_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

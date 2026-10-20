@@ -1,0 +1,57 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.us-adult-match-completion-freeze/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.us-adult-match-completion-freeze",
+    "displayName": "US Adult Match Completion Freeze",
+    "ownerScope": "libra",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "Libra在完整冻结页集的全部正式Match Work成功后，重验各页Result/输入/模型/阈值/最高分并冻结有界UsAdultMatchCompletion；只写Libra不可变完成事实，Basis、来源Run与全部页数必须相等；重复返回原完成事实，任何缺页不能形成未识别结果；不写People、Arca、Event、Effect或Outbox",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_us_adult_match_completions"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_us_adult_match_completions"
+    ],
+    "readTables": [
+      "libra_runs",
+      "libra_us_adult_analysis_bases"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": false,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "us-adult-match-completion",
+        "faultInjectionPoints": "exact Run/Basis and full durable Match Result validation, completion row, before and after COMMIT",
+        "requiredInvariant": "Completion is immutable and all-or-none; absent or failed pages never become an unmatched decision; no cross-Owner or execution writes",
+        "source": {
+          "section": "8.9.7",
+          "line": 8821
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8845,
+      "lineDigest": "353a755e29fc728c09a908faa5765754f715adcf13a7e18c9ac7285eea3b1d57"
+    }
+  }
+}

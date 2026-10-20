@@ -1,5 +1,6 @@
 'use strict';
 const {packageContentProfile}=require('../model/product-content-profile');
+const {hasRequiredUsAdultActor}=require('../../../contracts/us-adult-actor-package');
 const { readControlProjections } = require('../persistence/read-control-projections');
 const {createInventoryVerificationStore,resolveInventoryVerification}=require('../persistence/inventory-verification-store');
 const {createStagedManifestStore,resolveStagedResult}=require('../persistence/staged-manifest-store');
@@ -68,6 +69,7 @@ function packageRequirementSnapshot(c){const value=c.packageValue?.productionPro
   return Object.freeze({value,stale:value.shelfStandardRevision!==c.shelf.currentStandardRevision||
     value.shelfStandardDigest!==c.shelf.standard.digest});}
 function dimensionDisposition(c,kind,gaps){const manifest=c.packageValue.productionAttestation?.authorizedDefectManifest;
+  if(kind==='metadata'&&!hasRequiredUsAdultActor(c.packageValue))return false;
   if(kind==='metadata'&&(!acceptsMetadataFields(manifest,missingMetadataFields(c.packageValue,packageRequirementSnapshot(c).value.requirements.metadata))||!acceptsArtifactKinds(manifest,packageMissingArtifactKinds(c.packageValue,packageRequirementSnapshot(c).value.requirements))))return false;
   return manifest?canonicalJson(gaps)===canonicalJson(GAP_CODES_BY_CHECK[kind].filter((item)=>manifest.waivedRequirementCodes.includes(item))):gaps.length===0;}
 function gapReason(kind){return {identity:'identity_requirement_unmet',structure:'structure_requirement_unmet',metadata:'metadata_requirement_unmet',
@@ -103,7 +105,7 @@ function metadataGaps(c,requirement){const facts=c.packageValue.productFactManif
     if(code==='season_number')return !identities.some((item)=>item.namespace==='tmdb_series'&&item.seasonNumber!=null);
     if(code==='episode_number')return !(c.packageValue.productMaterialManifest?.members||[]).some((item)=>item.episodeClaims?.length);
     return !nonempty(descriptive.get(code));}),gaps=[],verifiedKinds=new Set(artifacts.map((item)=>item.artifactKind));
-  if(missingField)gaps.push('metadata_field_unmet');
+  if(missingField||!hasRequiredUsAdultActor(c.packageValue))gaps.push('metadata_field_unmet');
   if(requirement.requiredArtifactKinds.some((kind)=>!verifiedKinds.has(kind)))gaps.push('metadata_artifact_unmet');
   if(requirement.requireRenderableSidecar&&!verifiedKinds.has('nfo'))gaps.push('sidecar_unrenderable');
   if(requirement.requireDecodableImages&&requirement.requiredArtifactKinds.filter((kind)=>kind==='poster'||kind==='fanart')

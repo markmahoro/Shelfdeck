@@ -2007,6 +2007,89 @@
         "expectedTitle",
         "expectedCoverDigest"
       ]
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "intentId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "libraRunId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "subjectId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "runExecutionBasisDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "contentProfile": {
+          "const": "western_adult"
+        },
+        "sourceKind": {
+          "const": "internal_source"
+        },
+        "internalIdentity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "originalName": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "us-adult-original-name@1"
+            },
+            "originalFileName": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1024
+            },
+            "provenanceDigest": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "schema",
+            "originalFileName",
+            "provenanceDigest"
+          ]
+        },
+        "sourceHandleDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "intentDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "intentId",
+        "libraRunId",
+        "subjectId",
+        "runExecutionBasisDigest",
+        "contentProfile",
+        "sourceKind",
+        "internalIdentity",
+        "originalName",
+        "sourceHandleDigest",
+        "intentDigest"
+      ]
     }
   ]
 }

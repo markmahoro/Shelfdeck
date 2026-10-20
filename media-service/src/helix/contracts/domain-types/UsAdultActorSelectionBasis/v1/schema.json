@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultActorSelectionBasis/v1",
+  "title": "UsAdultActorSelectionBasis@1",
+  "x-helix-ssotRefs": [
+    "8.6.13",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultActorSelectionBasis/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "selectionId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "libraRunId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "runExecutionBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "resolvedIdentityDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "analysisId": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "analysisBasisDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "selectionOrigin": {
+      "type": "string",
+      "enum": [
+        "user_choice",
+        "automatic_match"
+      ]
+    },
+    "actorChoiceRecord": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/domain-types/UsAdultActorChoiceRecord/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "matchCompletion": {
+      "anyOf": [
+        {
+          "$ref": "helix://contracts/domain-types/UsAdultMatchCompletion/v1"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "referenceAssetId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "selectionDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "selectionId",
+    "libraRunId",
+    "subjectId",
+    "runExecutionBasisDigest",
+    "resolvedIdentityDigest",
+    "analysisId",
+    "analysisBasisDigest",
+    "selectionOrigin",
+    "actorChoiceRecord",
+    "matchCompletion",
+    "referenceAssetId",
+    "selectionDigest"
+  ],
+  "x-helix-maxCanonicalBytes": 1048576,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "selectionOrigin": {
+            "const": "user_choice"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "actorChoiceRecord": {
+            "$ref": "helix://contracts/domain-types/UsAdultActorChoiceRecord/v1"
+          },
+          "matchCompletion": {
+            "type": "null"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "actorChoiceRecord": {
+            "type": "null"
+          },
+          "matchCompletion": {
+            "$ref": "helix://contracts/domain-types/UsAdultMatchCompletion/v1"
+          }
+        }
+      }
+    }
+  ]
+}

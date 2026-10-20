@@ -15,6 +15,14 @@ function title(value, code) {
   const text = clean(value, 1024).replace(new RegExp('^' + code + '(?:\\s+|$)'), '').trim();
   return text && text !== code ? text : null;
 }
+function javMenuTitle(value, code) {
+  // Remove known site decorations only at the end of JavMenu's primary title.
+  // The same words inside a film title, and other sites' titles, remain intact.
+  const text = clean(value, 1024)
+    .replace(/\s*[|｜]\s*JAV(?:目錄|目录)大全\s*[|｜]\s*每日更新\s*$/i, '')
+    .replace(/\s+(?:免費|免费)\s*(?:AV\s*)?(?:在線|在线)看\s*$/i, '');
+  return title(text, code);
+}
 function validDate(value) {
   const normalized = clean(value).replace(/\//g, '-');
   const match = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
@@ -52,14 +60,21 @@ function parseJavSourcePage(siteRef, code, page, origin) {
     cover = $('img.video-cover').first().attr('src');
     fields = { release_date: validDate(value('日期')), studio: value('片商'), genre: value('類別') };
     people = blocks.toArray().filter(node => clean($(node).find('strong').first().text()).replace(/[:：\s]/g, '') === '演員')
-      .flatMap(node => $(node).find('.value a').toArray().map(actor => clean($(actor).text(), 256)));
+      .flatMap(node => $(node).find('.value a').toArray().map(actor => {
+        const displayName=clean($(actor).text(),256),providerIdentities=[];
+        try{const url=new URL($(actor).attr('href'),origin),match=url.pathname.match(/^\/actors\/([A-Za-z0-9_-]{1,128})$/);
+          if(identityVerified&&url.origin==='https://javdb.com'&&!url.search&&!url.hash&&!url.username&&!url.password&&match)
+            providerIdentities.push({provider:'javdb',namespace:'javdb_actor',providerKey:match[1]});
+        }catch{/* A display name alone remains weak Evidence. */}
+        return {displayName,role:'actor',providerIdentities};
+      }));
     creditRole = 'studio';
   } else if (siteRef === 'javmenu') {
     const main = $('.col-md-9').filter((_, node) => $(node).find('h1.display-5').length === 1).first();
     const card = main.find('.left-wrapper > .card > .card-body').first(), key = card.find('.code').first();
     observedCode = key.children('a').first().text().trim() + key.children('span').last().text().trim();
     identityVerified = sameCode(observedCode, code) && main.find('.single-video').length > 0;
-    displayTitle = title(main.find('h1 strong').first().text(), code);
+    displayTitle = javMenuTitle(main.find('h1 strong').first().text(), code);
     const videos = main.find('.single-video video');
     const primary = main.find('#seo-main-video video, video#seo-main-video').first();
     const video = primary.length ? primary : videos.length === 1 ? videos.first() : videos.slice(0, 0);
@@ -67,6 +82,8 @@ function parseJavSourcePage(siteRef, code, page, origin) {
     const date = card.children('div').filter((_, node) => /^(公開日時|發佈於|日期)[:：]/.test($(node).children('span').first().text().trim())).first();
     fields = { release_date: validDate(date.children('span').eq(1).text()), studio: clean(card.find('.maker a').first().text()),
       genre: card.find('a.genre').toArray().map(node => clean($(node).text(), 256)).filter(Boolean).join(', ') };
+    const actorRows = card.children('div').filter((_, node) => /^(女優|女优|演員|演员|出演者)[:：]?$/.test(clean($(node).children('span').first().text(), 128)));
+    people = actorRows.find('a').toArray().map(node => ({ displayName: clean($(node).text(), 256), role: 'actor', providerIdentities: [] }));
     creditRole = 'maker';
   } else if (siteRef === 'fc2_official') {
     const digits = code.slice(4), main = $('.items_article_left').first();
@@ -136,7 +153,7 @@ function parseJavSourcePage(siteRef, code, page, origin) {
   if (fields.studio && creditRole) descriptiveEntries.push({ key: 'studio_credit_role', value: creditRole });
   descriptiveEntries.sort((left, right) => Buffer.compare(Buffer.from(left.key), Buffer.from(right.key)));
   return { identityVerified, observedCode, canonicalResourceUrl: canonical || null, title: displayTitle, coverUrl: cover ? new URL(cover, origin).toString() : null,
-    descriptiveEntries, peopleHints: [...new Set(people.filter(Boolean))].slice(0, 64).map(displayName => ({ displayName, role: 'actor', providerIdentities: [] })) };
+    descriptiveEntries, peopleHints:[...new Map(people.filter(item=>item.displayName).map(item=>[JSON.stringify(item),item])).values()].slice(0,64) };
 }
 
 module.exports = Object.freeze({ document, javDbCandidates, parseJavSourcePage });

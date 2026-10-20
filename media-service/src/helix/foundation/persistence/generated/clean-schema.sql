@@ -1137,6 +1137,38 @@ CREATE TABLE "arca_staged_manifest_records" (
   CHECK (length(CAST("record_json" AS BLOB)) <= 65536)
 );
 
+CREATE TABLE "arca_us_actor_refresh_intents" (
+  "intent_id" TEXT PRIMARY KEY,
+  "aftercare_case_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "payload_schema_ref" TEXT,
+  "payload_json" TEXT,
+  "payload_digest" TEXT CHECK (length("payload_digest") = 64 AND "payload_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("aftercare_case_id"),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("payload_json")),
+  CHECK (length(CAST("payload_json" AS BLOB)) <= 262144),
+  FOREIGN KEY ("aftercare_case_id") REFERENCES "arca_aftercare_cases" ("aftercare_case_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_us_actor_refresh_intents_hot_01" ON "arca_us_actor_refresh_intents" ("shelf_entry_id", "created_at_ms");
+
+CREATE TABLE "arca_us_actor_refresh_pages" (
+  "intent_id" TEXT,
+  "page_ordinal" INTEGER CHECK ("page_ordinal" >= 0),
+  "page_schema_ref" TEXT,
+  "page_json" TEXT,
+  "page_digest" TEXT CHECK (length("page_digest") = 64 AND "page_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("intent_id", "page_ordinal"),
+  CHECK (json_valid("page_json")),
+  CHECK (length(CAST("page_json" AS BLOB)) <= 524288),
+  FOREIGN KEY ("intent_id") REFERENCES "arca_us_actor_refresh_intents" ("intent_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "fx_artifact_references" (
   "artifact_handle_id" TEXT,
   "consumer_domain" TEXT,
@@ -2077,7 +2109,7 @@ CREATE TABLE "libra_product_fact_revisions" (
   "episode_metadata_json" TEXT,
   "fact_digest" TEXT CHECK (length("fact_digest") = 64 AND "fact_digest" NOT GLOB '*[^0-9a-f]*'),
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
-  "source_basis_kind" TEXT CHECK ("source_basis_kind" IN ('decision_evidence', 'metadata_observation', 'western_analysis', 'western_match')),
+  "source_basis_kind" TEXT CHECK ("source_basis_kind" IN ('decision_evidence', 'metadata_observation', 'western_analysis', 'western_match', 'us_adult_actor')),
   "source_basis_id" TEXT,
   "source_basis_digest" TEXT CHECK (length("source_basis_digest") = 64 AND "source_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "source_ref_count" INTEGER CHECK ("source_ref_count" >= 0),
@@ -2107,7 +2139,7 @@ CREATE INDEX "idx_libra_product_fact_revisions_hot_01" ON "libra_product_fact_re
 CREATE TABLE "libra_product_fact_source_refs" (
   "product_fact_id" TEXT,
   "ordinal" INTEGER CHECK ("ordinal" >= 0),
-  "source_basis_kind" TEXT CHECK ("source_basis_kind" IN ('decision_evidence', 'metadata_observation', 'western_analysis', 'western_match')),
+  "source_basis_kind" TEXT CHECK ("source_basis_kind" IN ('decision_evidence', 'metadata_observation', 'western_analysis', 'western_match', 'us_adult_actor')),
   "work_id" TEXT,
   "attempt_id" TEXT,
   "plan_id" TEXT,
@@ -2704,6 +2736,87 @@ CREATE TABLE "libra_subjects" (
 );
 CREATE INDEX "idx_libra_subjects_hot_01" ON "libra_subjects" ("status", "subject_id");
 
+CREATE TABLE "libra_us_adult_actor_choice_heads" (
+  "subject_id" TEXT PRIMARY KEY,
+  "current_revision" INTEGER CHECK ("current_revision" >= 1),
+  "intent_id" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("intent_id") REFERENCES "libra_us_adult_actor_choice_intents" ("intent_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id", "current_revision") REFERENCES "libra_us_adult_actor_choice_intents" ("subject_id", "choice_revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_us_adult_actor_choice_intents" (
+  "intent_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "choice_revision" INTEGER CHECK ("choice_revision" >= 1),
+  "person_id" TEXT,
+  "person_revision" INTEGER CHECK ("person_revision" >= 1),
+  "reference_revision" INTEGER CHECK ("reference_revision" >= 1),
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT,
+  "record_json" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("subject_id", "choice_revision"),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 262144),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_us_adult_analysis_bases" (
+  "analysis_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "workspace_id" TEXT,
+  "basis_schema_ref" TEXT,
+  "basis_json" TEXT,
+  "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("libra_run_id"),
+  CHECK (json_valid("basis_json")),
+  CHECK (length(CAST("basis_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_us_adult_match_completions" (
+  "analysis_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "completion_schema_ref" TEXT,
+  "completion_json" TEXT,
+  "completion_digest" TEXT CHECK (length("completion_digest") = 64 AND "completion_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("libra_run_id"),
+  CHECK (json_valid("completion_json")),
+  CHECK (length(CAST("completion_json" AS BLOB)) <= 262144),
+  FOREIGN KEY ("analysis_id") REFERENCES "libra_us_adult_analysis_bases" ("analysis_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_us_adult_reference_pages" (
+  "analysis_id" TEXT,
+  "page_ordinal" INTEGER CHECK ("page_ordinal" >= 0),
+  "page_schema_ref" TEXT,
+  "page_json" TEXT,
+  "page_payload_digest" TEXT CHECK (length("page_payload_digest") = 64 AND "page_payload_digest" NOT GLOB '*[^0-9a-f]*'),
+  "item_count" INTEGER CHECK ("item_count" >= 0),
+  "first_person_id" TEXT,
+  "last_person_id" TEXT,
+  PRIMARY KEY ("analysis_id", "page_ordinal"),
+  CHECK (json_valid("page_json")),
+  CHECK (length(CAST("page_json" AS BLOB)) <= 1048576),
+  FOREIGN KEY ("analysis_id") REFERENCES "libra_us_adult_analysis_bases" ("analysis_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_workshop_placements" (
   "subject_id" TEXT PRIMARY KEY,
   "transferred_at_ms" INTEGER CHECK ("transferred_at_ms" >= 0),
@@ -2868,6 +2981,30 @@ CREATE TABLE "people_aliases" (
 );
 CREATE INDEX "idx_people_aliases_hot_01" ON "people_aliases" ("alias_normalized");
 
+CREATE TABLE "people_image_operations" (
+  "operation_id" TEXT PRIMARY KEY,
+  "person_id" TEXT,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "payload_schema_ref" TEXT,
+  "payload_json" TEXT,
+  "payload_digest" TEXT CHECK (length("payload_digest") = 64 AND "payload_digest" NOT GLOB '*[^0-9a-f]*'),
+  "state" TEXT CHECK ("state" IN ('preparing', 'completed', 'failed')),
+  "result_schema_ref" TEXT,
+  "result_json" TEXT,
+  "result_digest" TEXT CHECK (length("result_digest") = 64 AND "result_digest" NOT GLOB '*[^0-9a-f]*'),
+  "failure_code" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("payload_json")),
+  CHECK (length(CAST("payload_json" AS BLOB)) <= 16384),
+  CHECK ("result_json" IS NULL OR json_valid("result_json")),
+  CHECK ("result_json" IS NULL OR length(CAST("result_json" AS BLOB)) <= 16384)
+);
+CREATE INDEX "idx_people_image_operations_hot_01" ON "people_image_operations" ("state", "operation_id");
+
 CREATE TABLE "people_merge_candidate_revisions" (
   "merge_candidate_id" TEXT,
   "revision" INTEGER CHECK ("revision" >= 1),
@@ -2951,6 +3088,7 @@ CREATE TABLE "people_person_revisions" (
 
 CREATE TABLE "people_persons" (
   "person_id" TEXT PRIMARY KEY,
+  "library_kind" TEXT CHECK ("library_kind" IN ('normal', 'jav', 'us_adult')),
   "status" TEXT CHECK ("status" IN ('active', 'merged')),
   "current_revision" INTEGER CHECK ("current_revision" >= 1),
   "current_preference_revision" INTEGER CHECK ("current_preference_revision" >= 1),
@@ -2963,7 +3101,7 @@ CREATE TABLE "people_persons" (
   FOREIGN KEY ("person_id", "current_revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
   FOREIGN KEY ("person_id", "current_preference_revision") REFERENCES "people_preference_revisions" ("person_id", "revision") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
-CREATE INDEX "idx_people_persons_hot_01" ON "people_persons" ("status", "person_id");
+CREATE INDEX "idx_people_persons_hot_01" ON "people_persons" ("library_kind", "status", "person_id");
 
 CREATE TABLE "people_preference_revisions" (
   "person_id" TEXT,
@@ -2980,6 +3118,7 @@ CREATE TABLE "people_preference_revisions" (
 CREATE TABLE "people_provider_identities" (
   "person_id" TEXT,
   "revision" INTEGER CHECK ("revision" >= 1),
+  "library_kind" TEXT CHECK ("library_kind" IN ('normal', 'jav', 'us_adult')),
   "provider" TEXT,
   "namespace" TEXT,
   "provider_key" TEXT,
@@ -2988,7 +3127,7 @@ CREATE TABLE "people_provider_identities" (
   PRIMARY KEY ("person_id", "revision", "provider", "namespace", "provider_key"),
   FOREIGN KEY ("person_id", "revision") REFERENCES "people_person_revisions" ("person_id", "revision") ON DELETE RESTRICT
 );
-CREATE UNIQUE INDEX "uidx_people_provider_identities_partial_01" ON "people_provider_identities" ("provider", "namespace", "provider_key") WHERE "active_guard" = 1;
+CREATE UNIQUE INDEX "uidx_people_provider_identities_partial_01" ON "people_provider_identities" ("library_kind", "provider", "namespace", "provider_key") WHERE "active_guard" = 1;
 
 CREATE TABLE "people_reference_assets" (
   "reference_asset_id" TEXT PRIMARY KEY,
@@ -3029,7 +3168,7 @@ CREATE TABLE "people_reference_faces" (
 CREATE TABLE "people_reference_revisions" (
   "person_id" TEXT,
   "revision" INTEGER CHECK ("revision" >= 1),
-  "operation_kind" TEXT CHECK ("operation_kind" IN ('add_image', 'release_image')),
+  "operation_kind" TEXT CHECK ("operation_kind" IN ('add_image', 'release_image', 'replace_image')),
   "reference_asset_id" TEXT,
   "reference_face_id" TEXT,
   "active_asset_set_digest" TEXT CHECK (length("active_asset_set_digest") = 64 AND "active_asset_set_digest" NOT GLOB '*[^0-9a-f]*'),
@@ -3076,6 +3215,98 @@ CREATE TABLE "people_registration_candidates" (
 CREATE INDEX "idx_people_registration_candidates_hot_01" ON "people_registration_candidates" ("current_state", "created_at_ms");
 CREATE UNIQUE INDEX "uidx_people_registration_candidates_partial_01" ON "people_registration_candidates" ("evidence_digest") WHERE "current_state" = 'open';
 
+CREATE TABLE "people_us_recommendation_claims" (
+  "claim_id" TEXT PRIMARY KEY,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "source_id" TEXT,
+  "active_source_id" TEXT,
+  "state" TEXT CHECK ("state" IN ('preparing_person', 'confirming_source', 'completed', 'conflict', 'person_failed')),
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "payload_schema_ref" TEXT,
+  "payload_json" TEXT,
+  "payload_digest" TEXT CHECK (length("payload_digest") = 64 AND "payload_digest" NOT GLOB '*[^0-9a-f]*'),
+  "person_schema_ref" TEXT,
+  "person_json" TEXT,
+  "person_digest" TEXT CHECK (length("person_digest") = 64 AND "person_digest" NOT GLOB '*[^0-9a-f]*'),
+  "receipt_schema_ref" TEXT,
+  "receipt_json" TEXT,
+  "receipt_digest" TEXT CHECK (length("receipt_digest") = 64 AND "receipt_digest" NOT GLOB '*[^0-9a-f]*'),
+  "last_failure_code" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("active_source_id"),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("payload_json")),
+  CHECK (length(CAST("payload_json" AS BLOB)) <= 131072),
+  CHECK ("person_json" IS NULL OR json_valid("person_json")),
+  CHECK ("person_json" IS NULL OR length(CAST("person_json" AS BLOB)) <= 16384),
+  CHECK ("receipt_json" IS NULL OR json_valid("receipt_json")),
+  CHECK ("receipt_json" IS NULL OR length(CAST("receipt_json" AS BLOB)) <= 16384)
+);
+CREATE INDEX "idx_people_us_recommendation_claims_hot_01" ON "people_us_recommendation_claims" ("state", "claim_id");
+
+CREATE TABLE "people_us_recommendation_cycles" (
+  "cycle_id" TEXT PRIMARY KEY,
+  "state" TEXT CHECK ("state" IN ('active', 'complete')),
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "progress_schema_ref" TEXT,
+  "progress_json" TEXT,
+  "progress_digest" TEXT CHECK (length("progress_digest") = 64 AND "progress_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  CHECK (json_valid("progress_json")),
+  CHECK (length(CAST("progress_json" AS BLOB)) <= 16384)
+);
+CREATE INDEX "idx_people_us_recommendation_cycles_hot_01" ON "people_us_recommendation_cycles" ("state", "cycle_id");
+
+CREATE TABLE "people_us_recommendation_groups" (
+  "cycle_id" TEXT,
+  "group_id" TEXT,
+  "representative_source_id" TEXT,
+  "coverage_count" INTEGER CHECK ("coverage_count" >= 0),
+  "quality_score" REAL,
+  "rank_pass_id" TEXT,
+  "rank_coverage_count" INTEGER CHECK ("rank_coverage_count" >= 0),
+  "rank_representative_source_id" TEXT,
+  "rank_quality_score" REAL,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  PRIMARY KEY ("cycle_id", "group_id"),
+  FOREIGN KEY ("cycle_id") REFERENCES "people_us_recommendation_cycles" ("cycle_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_people_us_recommendation_groups_hot_01" ON "people_us_recommendation_groups" ("cycle_id", "group_id");
+
+CREATE TABLE "people_us_recommendation_publications" (
+  "window_key" INTEGER PRIMARY KEY,
+  "cycle_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "snapshot_schema_ref" TEXT,
+  "snapshot_json" TEXT,
+  "snapshot_digest" TEXT CHECK (length("snapshot_digest") = 64 AND "snapshot_digest" NOT GLOB '*[^0-9a-f]*'),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  CHECK (json_valid("snapshot_json")),
+  CHECK (length(CAST("snapshot_json" AS BLOB)) <= 1048576),
+  FOREIGN KEY ("cycle_id") REFERENCES "people_us_recommendation_cycles" ("cycle_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "people_us_recommendation_sources" (
+  "cycle_id" TEXT,
+  "source_id" TEXT,
+  "libra_run_id" TEXT,
+  "group_id" TEXT,
+  "observation_schema_ref" TEXT,
+  "observation_json" TEXT,
+  "observation_digest" TEXT CHECK (length("observation_digest") = 64 AND "observation_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  PRIMARY KEY ("cycle_id", "source_id"),
+  UNIQUE ("cycle_id", "libra_run_id"),
+  CHECK (json_valid("observation_json")),
+  CHECK (length(CAST("observation_json" AS BLOB)) <= 131072),
+  FOREIGN KEY ("cycle_id") REFERENCES "people_us_recommendation_cycles" ("cycle_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_people_us_recommendation_sources_hot_01" ON "people_us_recommendation_sources" ("cycle_id", "group_id", "source_id");
+
 CREATE TABLE "perception_acquisition_commits" (
   "acquisition_commit_receipt_id" TEXT PRIMARY KEY,
   "perception_acquisition_id" TEXT,
@@ -3096,6 +3327,19 @@ CREATE TABLE "perception_acquisition_commits" (
   FOREIGN KEY ("perception_acquisition_id") REFERENCES "perception_acquisitions" ("perception_acquisition_id") ON DELETE RESTRICT,
   FOREIGN KEY ("perception_source_id") REFERENCES "perception_sources" ("perception_source_id") ON DELETE RESTRICT
 );
+
+CREATE TABLE "perception_acquisition_resume_intents" (
+  "intent_id" TEXT PRIMARY KEY,
+  "perception_acquisition_id" TEXT,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "scope_digest" TEXT CHECK (length("scope_digest") = 64 AND "scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("actor_id", "idempotency_key"),
+  FOREIGN KEY ("perception_acquisition_id") REFERENCES "perception_acquisitions" ("perception_acquisition_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_perception_acquisition_resume_intents_hot_01" ON "perception_acquisition_resume_intents" ("perception_acquisition_id", "intent_id");
 
 CREATE TABLE "perception_acquisitions" (
   "perception_acquisition_id" TEXT PRIMARY KEY,

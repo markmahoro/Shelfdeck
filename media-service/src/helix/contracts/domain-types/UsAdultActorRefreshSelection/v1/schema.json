@@ -1,0 +1,375 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/UsAdultActorRefreshSelection/v1",
+  "title": "UsAdultActorRefreshSelection@1",
+  "x-helix-ssotRefs": [
+    "6.6.8",
+    "8.6.18"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 262144,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/UsAdultActorRefreshSelection/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "shelfEntryId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "aftercareCaseId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "intentId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "intentDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "inventoryRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "representationDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "canonicalIdentityKey": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "canonicalIdentityRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "canonicalIdentityDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "deckFactRevision": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "originalName": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "us-adult-original-name@1"
+        },
+        "originalFileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4096
+        },
+        "provenanceDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "originalFileName",
+        "provenanceDigest"
+      ]
+    },
+    "rendererVersion": {
+      "const": "us-adult-presentation@3"
+    },
+    "selectionOrigin": {
+      "enum": [
+        "specified",
+        "automatic_match"
+      ]
+    },
+    "personSnapshot": {
+      "$ref": "helix://contracts/domain-types/UsAdultPersonSnapshot/v1"
+    },
+    "referenceAssetId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "sourceResultRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "workId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "attemptId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "planId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "eventId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resultId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "capabilityRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resultSchemaRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "resultDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "inputBindingDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "workId",
+        "attemptId",
+        "planId",
+        "eventId",
+        "resultId",
+        "capabilityRef",
+        "resultSchemaRef",
+        "resultDigest",
+        "inputBindingDigest"
+      ]
+    },
+    "matchCompletion": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "completionDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "resultSetDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "completedPageCount": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "match": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "personId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "personRevision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "referenceRevision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "projectionRevision": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "projectionDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "referenceAssetId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "artifactDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "faceGroupId": {
+                  "type": "string",
+                  "pattern": "^arca-face-[a-f0-9]{64}$"
+                },
+                "score": {
+                  "type": "number",
+                  "minimum": 0.363,
+                  "maximum": 1
+                },
+                "threshold": {
+                  "const": 0.363
+                },
+                "faceModelRefDigest": {
+                  "const": "ef00e17ea63c0aae5fbd42a9125d0b7cfe9e0c74f67678c0c318b32d4eb3a3a0"
+                },
+                "referenceModelRefDigest": {
+                  "const": "772663cc3727798d8b9b6a5133cb44267b38312910a9f2dccd0ebe1a8c629a3a"
+                },
+                "confidenceClass": {
+                  "const": "strong"
+                },
+                "matchDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "personId",
+                "personRevision",
+                "referenceRevision",
+                "projectionRevision",
+                "projectionDigest",
+                "referenceAssetId",
+                "artifactDigest",
+                "faceGroupId",
+                "score",
+                "threshold",
+                "faceModelRefDigest",
+                "referenceModelRefDigest",
+                "confidenceClass",
+                "matchDigest"
+              ]
+            },
+            "matchResultRef": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "workId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "attemptId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "planId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "eventId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "resultId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "capabilityRef": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "resultSchemaRef": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "resultDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "inputBindingDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "pageOrdinal": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "pageDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "workId",
+                "attemptId",
+                "planId",
+                "eventId",
+                "resultId",
+                "capabilityRef",
+                "resultSchemaRef",
+                "resultDigest",
+                "inputBindingDigest",
+                "pageOrdinal",
+                "pageDigest"
+              ]
+            }
+          },
+          "required": [
+            "completionDigest",
+            "resultSetDigest",
+            "completedPageCount",
+            "match",
+            "matchResultRef"
+          ]
+        }
+      ]
+    },
+    "selectionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "shelfEntryId",
+    "aftercareCaseId",
+    "intentId",
+    "intentDigest",
+    "inventoryRevision",
+    "representationDigest",
+    "canonicalIdentityKey",
+    "canonicalIdentityRevision",
+    "canonicalIdentityDigest",
+    "deckFactRevision",
+    "originalName",
+    "rendererVersion",
+    "selectionOrigin",
+    "personSnapshot",
+    "referenceAssetId",
+    "sourceResultRef",
+    "matchCompletion",
+    "selectionDigest"
+  ]
+}

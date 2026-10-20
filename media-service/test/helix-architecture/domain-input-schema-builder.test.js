@@ -6,10 +6,10 @@ const { buildDomainInputSchemas } = require('../../scripts/helix-architecture/do
 
 const schemas = buildDomainInputSchemas();
 
-test('builds exactly the 123 formal domain input contracts', () => {
-  assert.equal(Object.keys(schemas).length, 123);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 25);
-  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 98);
+test('builds exactly the 145 formal domain input contracts', () => {
+  assert.equal(Object.keys(schemas).length, 145);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'bounded-contract').length, 26);
+  assert.equal(Object.values(schemas).filter((schema) => schema['x-helix-role'] === 'accepted-business-dto').length, 119);
 });
 
 test('freezes bounded Shelf Acceptance source and Product read authority', () => {
@@ -77,10 +77,10 @@ test('materializes the exact service-local Western analysis construction inputs'
 });
 
 test('freezes product fact source basis variants and exact artifact manifest inputs', () => {
-  const mediaCastBasis = schemas.LibraMediaCastSourceBasisMetadataObservationWesternMatch;
+  const mediaCastBasis = schemas.LibraMediaCastSourceBasis;
   const metadataBasis = schemas.LibraProductMetadataSourceBasisMetadataObservationWesternAnalysis;
   assert.deepEqual(mediaCastBasis.oneOf.map((branch) => branch.properties.sourceBasisKind.const),
-    ['metadata_observation', 'western_match']);
+    ['metadata_observation', 'western_match','us_adult_actor']);
   assert.deepEqual(metadataBasis.oneOf.map((branch) => branch.properties.sourceBasisKind.const),
     ['metadata_observation', 'western_analysis']);
   assert.equal(metadataBasis.oneOf[0].properties.selection.properties.items.minItems, 1);

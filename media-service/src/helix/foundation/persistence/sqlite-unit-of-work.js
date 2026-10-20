@@ -69,10 +69,23 @@ function createSqliteUnitOfWork(options) {
   if (!options || !options.kernel || typeof options.kernel.runPrimitive !== 'function') {
     fail('P3_UOW_INVALID_KERNEL', 'A clean SQLite Kernel is required.');
   }
+  const readFences=new WeakMap();
   return Object.freeze({
-    execute(participants) {
+    captureReadFence(){
+      if(typeof options.kernel.captureReadVersion!=='function')fail('P3_UOW_READ_FENCE_UNAVAILABLE','Kernel must provide its technical read version.');
+      const token=Object.freeze({});readFences.set(token,options.kernel.captureReadVersion());return token;
+    },
+    assertReadFence(readFence){const expected=readFence&&typeof readFence==='object'?readFences.get(readFence):null;
+      if(!expected||typeof options.kernel.readVersionMatches!=='function'||!options.kernel.readVersionMatches(expected))
+        fail('P3_UOW_READ_FENCE_CHANGED','Technical read view changed before this single-owner write.');
+    },
+    execute(participants,{readFence=null}={}) {
       validateParticipants(participants);
       return options.kernel.runPrimitive((transaction) => {
+        if(readFence!==null){const expected=readFence&&typeof readFence==='object'?readFences.get(readFence):null;
+          if(!expected||expected.externalVersion!==transaction.readVersion?.externalVersion||expected.schemaVersion!==transaction.readVersion?.schemaVersion||expected.connectionChanges!==transaction.readVersion?.connectionChanges)
+            fail('P3_UOW_READ_FENCE_CHANGED','Technical read view changed before this single-owner transaction.');
+        }
         const results = Object.create(null);
         for (const participant of participants) {
           let active = true;
@@ -100,7 +113,7 @@ function createSqliteUnitOfWork(options) {
           }
         }
         return Object.freeze(results);
-      });
+      },{readVersionRequested:readFence!==null});
     }
   });
 }

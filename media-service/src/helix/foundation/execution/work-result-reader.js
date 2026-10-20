@@ -95,7 +95,7 @@ function createWorkResultReader(options){if(!options?.schemaManifest||!options.u
         return Object.freeze({eventId:event.event_id,capabilityRef:event.capability_ref,inputBindings:Object.freeze(inputBindings)});
       }));
     }}]).work_bindings_read;},
-    readFailures(workId){return options.unitOfWork.execute([{participantId:'work_failure_read',owner:'execution-foundation',repositories:[repository],execute(context){
+    readFailures(workId,request={}){return options.unitOfWork.execute([{participantId:'work_failure_read',owner:'execution-foundation',repositories:[repository],execute(context){
       const repo=context.repository(repository.repositoryId);
       return Object.freeze(repo.invoke('list_events',{work_id:workId}).filter(event=>event.state==='failed').flatMap(event=>{
         const failed=repo.invoke('list_event_attempts',{event_id:event.event_id}).filter(item=>item.outcome_kind==='failed')
@@ -107,7 +107,7 @@ function createWorkResultReader(options){if(!options?.schemaManifest||!options.u
           catch{diagnosticsUnavailable=true;}
         }
         return [Object.freeze({eventId:event.event_id,code:failed.failure_code,
-          diagnostics:evidence?.diagnostics||null,diagnosticsUnavailable})];
+          diagnostics:evidence?.diagnostics||null,diagnosticsUnavailable,...(request.includeEvidence===true?{evidenceDigest:failed.evidence_digest,evidence}: {})})];
       }));
     }}]).work_failure_read;},
     read(workId){return options.unitOfWork.execute([{participantId:'work_result_read',owner:'execution-foundation',repositories:[repository],execute(context){

@@ -141,6 +141,8 @@ async function main(argv = process.argv.slice(2)) {
       'build',
       '--platform',
       'linux/amd64',
+      '--label',
+      `org.opencontainers.image.revision=${execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()}`,
       '-f',
       dockerfile,
       '-t',

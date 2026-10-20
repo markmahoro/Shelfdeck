@@ -78,6 +78,26 @@ function addDependentPlan(repository, projections, id, dependencyKind, predecess
   repository.invoke('edge', { plan_id: 'plan-' + id, from_node_id: 'node-source', to_node_id: 'node-target', dependency_kind: dependencyKind });
 }
 
+for (const targetType of ['work', 'event']) test('target admission filters ' + targetType + ' before queue ordering and preserves paused work', () => {
+  let maintenanceOnly = true;
+  const observed = [];
+  fixture(({ scheduler, seedRows, projections }) => {
+    seedRows(repository => {
+      const add = targetType === 'work' ? addWork : addEventGraph;
+      add(repository, projections, 'normal', { createdAtMs: 1000, localPriority: 100 });
+      add(repository, projections, 'maintenance', { createdAtMs: 1001 });
+    });
+    const first = scheduler.acquire({ targetType });
+    assert.equal(first.lease.targetId, targetType + '-maintenance');
+    assert.equal(first.executionScope.processId, 'process-maintenance');
+    scheduler.release(first.lease);
+    maintenanceOnly = false;
+    const resumed = scheduler.acquire({ targetType });
+    assert.equal(resumed.lease.targetId, targetType + '-normal');
+    assert.ok(observed.every(scope => scope.targetType === targetType && scope.ownerDomain === 'libra' && scope.workKind === 'fixture_work'));
+  }, { targetEligibilityProvider: { check(scope) { observed.push(scope); return !maintenanceOnly || scope.processId === 'process-maintenance'; } } });
+});
+
 test('Scheduler selects only admitted Work by strict class, local aging, and FIFO ordering', () => {
   fixture(({ scheduler, seedRows, projections }) => {
     seedRows((repository) => {

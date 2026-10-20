@@ -14,6 +14,8 @@ const {providerRecoveryDigest,computeRecoveryDigest}=require('./helix/platform/a
 const { createHelixApplication } = require('./helix/composition/createHelixApplication');
 const { createCleanFacades } = require('./helix/composition/create-clean-facades');
 const { createRuntimeOperations } = require('./clean-runtime-operations');
+const { createMaintenanceWindow } = require('./clean-maintenance-window');
+const { reconcilerCategory, workCategory, maintenanceTaskTitle, maintenanceExecutionTitle } = require('./helix/composition/maintenance-admission-policy');
 const { createUserFormationResetWorkerPort } = require('./clean-formation-reset-port');
 const { createOverviewProjectionHost } = require('./helix/projections/overview-projection-host');
 const { createSetupReadinessQuery } = require('./helix/projections/setup-readiness-query');
@@ -564,7 +566,9 @@ function createPlatformIntegrationServices(options) {
         ? moviePilotLandingAccessAdapter
         : undefined,
     });
-    const adapter = profile.siteRef
+    const adapter = profile.kind === 'stashbox'
+      ? require('./helix/integrations/stashbox-provider-adapter').createStashBoxProviderAdapter({ runtime, fetchImpl: networkFetch, now: options.now })
+      : profile.siteRef
       ? require('./helix/integrations/jav-source-provider-adapter').createJavSourceProviderAdapter({ runtime, networkPolicy, fetchImpl: networkFetch, now: options.now })
       : profile.kind === 'tmdb'
       ? createTmdbProviderAdapter({
@@ -609,6 +613,12 @@ function createPlatformIntegrationServices(options) {
   const tmdbRuntime = runtimes.get('tmdb');
   const tmdbAdapter = adapters.get('tmdb');
   const javRuntime = runtimes.get('adult-provider');
+  const stashBoxAdapter = adapters.get('stashbox');
+  const peopleImageSearch = require('./helix/integrations/people-image-search').createPeopleImageSearch({
+    fetchImpl: networkFetch, readNetworkRoute: () => networkPolicy.route(),
+    readStashBoxConfiguration: stashBoxAdapter.configuration, withStashBoxCredential: stashBoxAdapter.withCredential,
+    tokenKey: crypto.createHmac('sha256', options.secretRoot).update('shelfdeck.people-image-selection@1').digest(), now: options.now,
+  });
   const javProductAdapter = createJavProductProviderAdapter({
     runtime: javRuntime,
     fetchImpl: networkFetch,
@@ -928,6 +938,8 @@ function createPlatformIntegrationServices(options) {
         timeoutMs: 10_000,
       });
     },
+    searchPeopleImages: name => peopleImageSearch.search(name),
+    readSelectedPersonImage: token => peopleImageSearch.readSelectedImage(token),
     async fetchJavProviderMetadata(request) {
       return javProductAdapter.fetchProviderMetadata(request);
     },
@@ -1057,7 +1069,7 @@ function createPlatformIntegrationServices(options) {
     readRecoveryCondition(kind) {
       if(!['tmdb','moviepilot'].includes(kind)&&getIntegrationProfile(kind)?.integrationType!=='jav_source')
         throw new TypeError('Unknown provider recovery condition.');
-      return Object.freeze({conditionKind:kind,snapshotDigest:providerRecoveryDigest(runtimeFor(kind)?.readCurrent())});
+      return Object.freeze({conditionKind:kind,snapshotDigest:providerRecoveryDigest(runtimeFor(kind)?.readCurrent(),networkPolicy.route())});
     },
     async acquirePerceptionProvider(request) {
       return this.executeProvider('douban', { operationId:'perception.source.acquire@1', effectClass:'pure_observation',
@@ -1105,6 +1117,8 @@ function clearSessionCookie() {
 function errorResponse(error, correlationId) {
   let status = 500;
   if (AUTH_ERROR_CODES.has(error.code)) status = 401;
+  else if (['MAINTENANCE_INPUT_INVALID', 'MAINTENANCE_TIME_INVALID', 'MAINTENANCE_CONFIG_INVALID'].includes(error.code)) status = 400;
+  else if (['MAINTENANCE_REVISION_CONFLICT', 'MAINTENANCE_COMMAND_CONFLICT'].includes(error.code)) status = 409;
   else if(error.code==='RUNTIME_OPERATION_INPUT_INVALID'||error.code==='RUNTIME_RESET_CONFIRMATION_REQUIRED')status=400;
   else if(typeof error.code==='string'&&error.code.startsWith('RUNTIME_'))status=error.statusCode||409;
   else if (error.code === 'OVERVIEW_PROJECTION_REBUILDING') status = 503;
@@ -1126,6 +1140,11 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_AUTOMATION_COMMAND_REJECTED' || error.code === 'ADMIN_AUTOMATION_PROJECTION_UNAVAILABLE') status = 400;
   else if (error.code === 'ADMIN_RULE_TEMPLATE_NOT_FOUND') status = 404;
   else if (error.code === 'ARCA_SHELF_ENTRY_NOT_FOUND' || error.code === 'PERCEPTION_TARGET_NOT_FOUND') status = 404;
+  else if (typeof error.code==='string'&&error.code.startsWith('ARCA_US_ADULT_')) {
+    if(error.code.endsWith('_NOT_FOUND'))status=404;
+    else if(error.code==='ARCA_US_ADULT_REFRESH_REQUEST_INVALID')status=400;
+    else status=409;
+  }
   else if (typeof error.code === 'string' && error.code.startsWith('ARCA_JAV_CORRECTION_')) {
     if(error.code==='ARCA_JAV_CORRECTION_NOT_FOUND')status=404;
     else if(error.code==='ARCA_JAV_CORRECTION_INPUT_INVALID'||error.code==='ARCA_JAV_CORRECTION_PREVIEW_TOO_LARGE')status=400;
@@ -1139,7 +1158,8 @@ function errorResponse(error, correlationId) {
   }
   else if (['PERCEPTION_RATING_COMMAND_INVALID','PERCEPTION_WATCHED_COMMAND_INVALID','PERCEPTION_ACQUISITION_COMMAND_INVALID','PERCEPTION_DOUBAN_NOT_CONFIGURED',
     'PERCEPTION_DIRECT_RATING_NOT_FOUND','PERCEPTION_DIRECT_WATCHED_NOT_FOUND'].includes(error.code)) status = 400;
-  else if (['PERCEPTION_RATING_REVISION_CONFLICT','PERCEPTION_WATCHED_REVISION_CONFLICT','PERCEPTION_SOURCE_REVISION_CONFLICT','PERCEPTION_DIRECT_INPUT_IDEMPOTENCY_CONFLICT'].includes(error.code)) status = 409;
+  else if (['PERCEPTION_RATING_REVISION_CONFLICT','PERCEPTION_WATCHED_REVISION_CONFLICT','PERCEPTION_SOURCE_REVISION_CONFLICT','PERCEPTION_DIRECT_INPUT_IDEMPOTENCY_CONFLICT',
+    'PERCEPTION_RESUME_COMMAND_CONFLICT','PERCEPTION_RESUME_BASIS_CONFLICT','P3_COMMAND_IDEMPOTENCY_CONFLICT'].includes(error.code)) status = 409;
   else if (
     error.code === 'ADMIN_RULE_TEMPLATE_COMMAND_REJECTED' ||
     error.code === 'ADMIN_RULE_TEMPLATE_TARGET_MISMATCH'
@@ -1153,12 +1173,22 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'ADMIN_ROUTING_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_ROUTING_MANUAL_INPUT_INVALID') status = 400;
   else if (error.code === 'FORMATION_SUBJECT_NOT_FOUND') status = 404;
+  else if(error.code==='US_ADULT_RECOMMENDATION_SOURCE_STALE')status=409;
+  else if(['PEOPLE_RECOMMENDATION_INPUT_INVALID','PEOPLE_RECOMMENDATION_CLAIM_INVALID'].includes(error.code))status=400;
+  else if(['PEOPLE_RECOMMENDATION_NOT_FOUND','PEOPLE_RECOMMENDATION_CLAIM_NOT_FOUND'].includes(error.code))status=404;
+  else if(['PEOPLE_RECOMMENDATION_REVISION_CONFLICT','PEOPLE_RECOMMENDATION_WINDOW_CLOSED','PEOPLE_RECOMMENDATION_CLAIM_REVISION_CONFLICT','PEOPLE_RECOMMENDATION_CLAIM_COMMAND_CONFLICT','PEOPLE_RECOMMENDATION_CLAIM_IN_PROGRESS','PEOPLE_US_ACTOR_SNAPSHOT_STALE'].includes(error.code))status=409;
+  else if(['PEOPLE_RECOMMENDATION_RECORD_INVALID','PEOPLE_RECOMMENDATION_EVIDENCE_INVALID','PEOPLE_RECOMMENDATION_CLAIM_CORRUPT'].includes(error.code))status=500;
+  else if (['PEOPLE_IMAGE_SEARCH_INPUT_INVALID', 'PEOPLE_IMAGE_SELECTION_INVALID', 'PEOPLE_REGISTRATION_INPUT_INVALID', 'PEOPLE_IMAGE_UPLOAD_INVALID', 'PEOPLE_IMAGE_BYTES_INVALID','PEOPLE_PROFILE_INPUT_INVALID'].includes(error.code)) status = 400;
+  else if (['PEOPLE_IMAGE_SELECTION_STALE', 'PEOPLE_IMAGE_SOURCE_CHANGED', 'PEOPLE_LIBRARY_READ_ONLY', 'PEOPLE_IMAGE_OPERATION_COMMAND_CONFLICT', 'PEOPLE_IMAGE_OPERATION_STALE','PEOPLE_PROFILE_REVISION_CONFLICT','PEOPLE_LAST_REFERENCE_REQUIRED','PEOPLE_REFERENCE_IMAGE_EXISTS','PEOPLE_REFERENCE_IMAGE_LIMIT','PEOPLE_REFERENCE_PROJECTION_TOO_LARGE','PEOPLE_REFERENCE_LIBRARY_CHANGED'].includes(error.code)) status = 409;
+  else if (['PEOPLE_IMAGE_SOURCE_INVALID', 'PEOPLE_IMAGE_SOURCE_UNAVAILABLE'].includes(error.code)) status = 502;
   else if (typeof error.code === 'string' && error.code.startsWith('PEOPLE_')) status = 404;
   else if (error.code === 'ADMIN_ROUTING_MANUAL_STATE_CONFLICT' || error.code === 'ADMIN_ROUTING_MANUAL_HEAD_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_FIELD_COMMAND_REJECTED' || error.code === 'ADMIN_FIELD_TARGET_MISMATCH' ||
     error.code === 'ADMIN_MEDIA_PROFILE_UNSUPPORTED') status = 400;
   else if (error.code === 'ADMIN_FIELD_IDEMPOTENCY_CONFLICT') status = 409;
   else if (error.code === 'ADMIN_FIELD_CONFLICT') status = 409;
+  else if(error.code==='US_ADULT_ACTOR_CHOICE_INVALID')status=400;
+  else if(['US_ADULT_ACTOR_CHOICE_STALE','US_ADULT_ACTOR_HANDOFF_CONFLICT'].includes(error.code))status=409;
   else if (typeof error.code === 'string' && error.code.startsWith('ARCA_OFFDECK_')) {
     if (error.code.endsWith('_NOT_FOUND')) status = 404;
     else if (/(?:_STALE|_CONFLICT|_NOT_OPEN|_NOT_ACTIVE|_NOT_READY|_NOT_CANCELLABLE)$/.test(error.code)) status = 409;
@@ -1230,7 +1260,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 149) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 162) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1353,6 +1383,12 @@ async function createCleanServiceHost(options) {
   const locationRegistryRepository = createLocationRegistryRepository(
     constructed.applicationDependencies,
   );
+  const peopleImagePort = require('./clean-people-image-port').createCleanPeopleImagePort({
+    ...constructed.applicationDependencies, locationRegistryRepository, rootPath: path.join(options.dataDir, 'artifacts', 'people'), now: options.now || Date.now,
+    afterPhysicalEffect: options.afterPeopleImagePhysicalEffect,afterReclamationPhysicalEffect:options.afterPeopleReferenceReclamationPhysicalEffect,
+  });
+  const localFaceModel = require('./helix/integrations/local-face-model').createLocalFaceModel({ modelRoot: options.faceModelRoot });
+  const peopleReferencePreparation = require('./helix/integrations/people-reference-preparation').createPeopleReferencePreparation({ imagePort: peopleImagePort, faceModel: localFaceModel });
   const durableLibraWorkspaceRoot=locationRegistryRepository.getWorkspaceRoot('service-libra-production-workspace');
   const libraWorkspaceRoot=path.resolve(durableLibraWorkspaceRoot?.resolvedRoot||options.libraWorkspaceRoot||
     path.join(options.dataDir,'workspaces','libra'));
@@ -1572,6 +1608,23 @@ async function createCleanServiceHost(options) {
         ((request) => platformIntegrations.resolveCurrentProductHandle(request)),
     });
   const ffmpegProcessRegistry = options.ffmpegProcessRegistry || createFfmpegProcessRegistry();
+  const usAdultFrameExtractor=require('./clean-us-adult-frame-extractor').createCleanUsAdultFrameExtractor({
+    mediaProbe,ffmpegPath:options.ffmpegPath,ffmpegProcessRegistry});
+  const usAdultReferenceCache=new Map();
+  function createUsAdultAnalysisPort({context,basis,actorPresentation}){
+    const runtimeEffectAuthority=Object.freeze({effectClass:'workspace_write',eventAttemptId:context.eventAttemptId,
+      idempotencyKey:context.idempotencyKey,recoveryDecision:context.recoveryDecision});
+    const scopedWorkspacePort=Object.freeze({
+      materializeArtifact:request=>workspaceProductPort.materializeArtifact({...request,runtimeEffectAuthority}),
+      openFrameCompositeSink:request=>workspaceProductPort.openFrameCompositeSink({...request,runtimeEffectAuthority}),
+      recoverMaterializedArtifact:request=>workspaceProductPort.recoverMaterializedArtifact({...request,runtimeEffectAuthority}),
+      readArtifactBytes:handle=>workspaceProductPort.readArtifactBytes(handle),
+    });
+    const engine=require('./helix/integrations/us-adult-analysis-engine').createUsAdultAnalysisEngine({context,actorPresentation,
+      frameExtractor:usAdultFrameExtractor,faceModel:localFaceModel,referencePort:peopleImagePort,referenceCache:usAdultReferenceCache});
+    return require('./clean-western-analysis-port').createCleanWesternAnalysisPort({workspaceProductPort:scopedWorkspacePort,engine,
+      configuration:{faceModelRef:basis.faceModelRef,clusterParameters:basis.clusterParameters},now:options.now||Date.now});
+  }
   const arcaMediaAcceptanceScratchRoot = path.join(
     path.resolve(options.dataDir), 'runtime', 'arca-acceptance-observation');
   fs.rmSync(arcaMediaAcceptanceScratchRoot, { recursive:true, force:true });
@@ -1607,7 +1660,7 @@ async function createCleanServiceHost(options) {
   });
   let formationRatingReader = () => new Map(), formationAcceptanceReader = () => null,
     formationAcceptanceAttention = () => [], formationArcaStatusReader = () => new Map(), formationProjectionHost = null,
-    procurementExecution = null;
+    procurementExecution = null, maintenanceWindow = null;
   const formationProjectionStore = createFormationProjectionStore(constructed.applicationDependencies);
   const formationRunHistoryStore = createFormationRunHistoryStore(constructed.applicationDependencies);
   const executionProgressProjectionReader = createExecutionProgressProjectionReader(constructed.applicationDependencies);
@@ -1634,11 +1687,34 @@ async function createCleanServiceHost(options) {
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
   procurementExecution = createHelixExecutionRuntime({
+    captureUsAdultInventorySource:({assertAuthority,...request})=>require('./helix/integrations/us-adult-inventory-source')
+      .createUsAdultInventorySource({assertAuthority,now:options.now||Date.now}).issueReadHandle(request),
+    createUsAdultInventoryAnalysisPort:request=>require('./clean-us-adult-inventory-analysis-port').createCleanUsAdultInventoryAnalysisPort({
+      ...request,aftercareWorkspaceRoot,frameExtractor:usAdultFrameExtractor,faceModel:localFaceModel,referencePort:peopleImagePort,
+      referenceCache:usAdultReferenceCache,mediaProbe,now:options.now||Date.now}),
+    createUsAdultAnalysisPort,
+    createUsAdultRecommendationImagePort:sourceQuery=>require('./clean-us-adult-recommendation-image-port').createCleanUsAdultRecommendationImagePort({
+      sourceQuery,workspaceProductPort,
+    }),
+    peopleImagePort, peopleReferencePreparation,
+    readSelectedPersonImage: token => platformIntegrations.readSelectedPersonImage(token),
+    afterRegistrationCommit: options.afterPeopleRegistrationCommit,
+    afterRecommendationSourceConfirmation:options.afterRecommendationSourceConfirmation,
+    onRecommendationClaimFailure:options.onRecommendationClaimFailure,
     onHistoricalCatalogRejected: options.onHistoricalCatalogRejected,
     recycleTick:()=>arcaRecycle?.tick(),
+    recycleExpiryTick:()=>arcaRecycle?.expire(),
+    maintenanceWindowKey:()=>maintenanceWindow?.snapshot().windowEndAtMs || null,
+    maintenanceBatchAllowed:()=>Boolean(maintenanceWindow?.allows('maintenance')),
+    executionEligibilityProvider:{check:scope=>!maintenanceWindow||maintenanceWindow.allows(workCategory(scope,
+      acquisitionId=>procurementExecution.perception.acquisitionSchedulingClass(acquisitionId)))},
+    reconcileEligibilityProvider:{check:scope=>!maintenanceWindow||maintenanceWindow.allows(reconcilerCategory(scope))},
+    onReconcileScopeStarted:scope=>maintenanceWindow?.beginScope(maintenanceTaskTitle(scope)),
+    onExecutionScopeStarted:scope=>maintenanceWindow?.beginScope(maintenanceExecutionTitle(scope)),
     onCorrectionCleanupCompleted:()=>executionRuntimeHost.wakeBackground({ownerDomain:'arca',reconcilerKey:'recycle-maintenance'}),
     failureEvidenceStore:createFailureEvidenceStore(path.join(options.dataDir, 'diagnostics', 'execution-failures')),
     ...constructed.applicationDependencies,
+    now: options.now || Date.now,
     materialFieldStore,
     pageObserverFactory: createFieldPageObserver,
     enumerator: fieldEnumerator,
@@ -1761,6 +1837,7 @@ async function createCleanServiceHost(options) {
     procurementAutomation: procurementExecution.procurementAutomation,
     routingCoordinator: procurementExecution.routingCoordinator,
     perceptionCoordinator: procurementExecution.perception,
+    peopleCoordinator: procurementExecution.people,
     arcaCoordinator: procurementExecution.arcaCoordinator,
     handoffBOutcomeConsumer,
     wakeWorkspaceReclaimer: () => procurementExecution.wakeWorkspaceReclaimer(),
@@ -1774,7 +1851,7 @@ async function createCleanServiceHost(options) {
   const executionRuntimeHost = Object.freeze({
     async start() {
       if(runtimeOperations.shouldStartStopped()){
-        const execution=await procurementExecution.host.start({quiesced:true});await refreshStoppedViews();runtimeOperations.started();return execution;
+        const execution=await procurementExecution.host.start({quiesced:true});await refreshStoppedViews();runtimeOperations.started();await maintenanceWindow.start();return execution;
       }
       await outboxDispatcher.recoverCommittedRetryIntents();
       const execution = await procurementExecution.host.start();
@@ -1783,6 +1860,7 @@ async function createCleanServiceHost(options) {
         await formationProjectionHost.start();
         void overviewQuery.start().catch(error=>options.onExecutionRuntimeError?.(error));
         runtimeOperations.started();
+        await maintenanceWindow.start();
         return execution;
       } catch (error) {
         await outboxDispatcher.stop().catch(() => {});
@@ -1812,7 +1890,7 @@ async function createCleanServiceHost(options) {
       // Stop dispatch synchronously before waiting for observers or child processes.
       const executionStop=procurementExecution.host.stop();
       try {
-        const [result]=await Promise.all([executionStop,formationProjectionHost.stop(),overviewQuery.stop(),outboxDispatcher.stop()]);
+        const [result]=await Promise.all([executionStop,formationProjectionHost.stop(),overviewQuery.stop(),outboxDispatcher.stop(),maintenanceWindow.stop()]);
         return result;
       } finally {
         await ffmpegProcessRegistry.close();
@@ -1895,6 +1973,11 @@ async function createCleanServiceHost(options) {
     retry(offerId) { const result=procurementExecution.arcaCoordinator.retryAcceptance(offerId);
       executionRuntimeHost.wake(); return result; },
   });
+  const usAdultActorChoice=Object.freeze({choose(libraRunId,body,actorId){
+    const result=procurementExecution.usAdultActorChoice.choose(libraRunId,body,actorId);
+    formationProjectionHost.enqueue(formationProjectionSource.findSubjectByRun(libraRunId));
+    executionRuntimeHost.wake();return result;
+  }});
   const perceptionAdmin = Object.freeze({
     createRecord(body) { const result=procurementExecution.perception.createRecord(body); if(body?.targetType==='subject')formationProjectionHost.enqueue(body.targetId); executionRuntimeHost.wake(); return result; },
     listRecords(query) { const result=procurementExecution.perception.listRecords(query);
@@ -1902,7 +1985,7 @@ async function createCleanServiceHost(options) {
       return Object.freeze({...result,currentRating:procurementExecution.perception.readCurrentRating(query.targetType,query.targetId),
         currentWatched:procurementExecution.perception.readCurrentWatched(query.targetType,query.targetId)}); },
     listAcquisitions() { return procurementExecution.perception.listAcquisitions(); },
-    requestAcquisition(body) { const result=procurementExecution.perception.requestAcquisition(body); executionRuntimeHost.wake(); return result; },
+    requestAcquisition(body,actor) { const result=procurementExecution.perception.requestAcquisition(body,{actorId:actor?.credentialId||'admin'}); executionRuntimeHost.wake(); return result; },
     syncState() { return procurementExecution.perception.syncState(); },
   });
   const fieldAccessProbe = createCleanFieldAccessBindingProbe();
@@ -1953,6 +2036,7 @@ async function createCleanServiceHost(options) {
   });
   const peopleAvatarQuery = createPeopleAvatarQuery({
     store: procurementExecution.people.store,
+    readReferenceAvatar: input => peopleImagePort.readReferenceImage(input),
     readProviderAvatar: (identity) => platformIntegrations.readPersonAvatar(identity),
   });
   setupReadinessQuery = createSetupReadinessQuery({
@@ -1988,9 +2072,19 @@ async function createCleanServiceHost(options) {
     now: options.now || Date.now,
   });
   const peopleAdmin = Object.freeze({
+    recommendations:()=>procurementExecution.people.recommendationQuery.current(),
+    recommendationImage:id=>procurementExecution.people.recommendationQuery.image(id),
+    claimRecommendation:(id,body,actor)=>procurementExecution.people.recommendationClaims.begin(id,body,actor?.credentialId||'admin'),
+    recommendationClaim:id=>procurementExecution.people.recommendationClaims.get(id),
+    searchImages: name => platformIntegrations.searchPeopleImages(name),
+    previewImage: token => platformIntegrations.readSelectedPersonImage(token),
     register(body, actor) {
       return procurementExecution.people.registerPerson(body, actor?.credentialId || 'admin');
     },
+    imageOperation: operationId => procurementExecution.people.imageOperations.get(operationId),
+    updateProfile:(personId,body,actor)=>procurementExecution.people.updateProfile(personId,body,actor?.credentialId||'admin'),
+    addReference:(personId,body,actor)=>procurementExecution.people.addReference(personId,body,actor?.credentialId||'admin'),
+    releaseReference:(personId,assetId,body,actor)=>procurementExecution.people.releaseReference(personId,assetId,body,actor?.credentialId||'admin'),
     accept(body, actor) {
       return procurementExecution.people.acceptRegistration(body, actor?.credentialId || 'admin');
     },
@@ -2006,14 +2100,26 @@ async function createCleanServiceHost(options) {
       fs.accessSync(libraWorkspaceRoot,fs.constants.R_OK|fs.constants.W_OK);
     }});
   runtimeOperations=createRuntimeOperations({dataDir:options.dataDir,
+    onDesiredModeChanged:()=>maintenanceWindow?.tick(),
+    normalSupplyAllowed:()=>maintenanceWindow?.normalSupplyAllowed()!==false,
+    readMaintenance:()=>maintenanceWindow?.snapshot() || null,
     activity:()=>procurementExecution.host.activity(),quiesce:()=>executionRuntimeHost.quiesce(),resume:()=>executionRuntimeHost.resume(),
     previewReset:()=>userReset.preview(),reset:async(preview,beforeApply)=>{
       const result=await userReset.apply(preview,beforeApply);
       if(!transportClosing){for(const runId of result.removedRunIds||[])procurementExecution.libraRunExecutionProjection.invalidate(runId);
         await refreshStoppedViews();}return result;
     },onError:options.onExecutionRuntimeError});
+  maintenanceWindow=createMaintenanceWindow({dataDir:options.dataDir,now:options.now||Date.now,
+    desiredMode:()=>runtimeOperations.desiredMode(),
+    setAdmission:()=>procurementExecution.host.wake(),
+    isDrained:()=>{const activity=runtimeOperations.snapshot().activity;
+      return !activity.inFlightEvents&&!activity.inFlightPlanning&&!activity.inFlightRecoveries&&!activity.inFlightOwnerReconciliations&&
+        !activity.deferredRecoveryActions&&!activity.inFlightAdminCommands;},
+    onError:options.onExecutionRuntimeError,
+  });
   const facades = createCleanFacades({
     runtimeOperations,
+    maintenanceWindow,
     sessionTokens,
     readiness,
     credentialMetadata: runtime.readActiveCredential,
@@ -2029,6 +2135,7 @@ async function createCleanServiceHost(options) {
     libraFieldIntakeAdmissionAdmin,
     formationQuery,
     arcaCollectionQuery,
+    arcaUsAdultActorRefresh:procurementExecution.arcaUsAdultActorRefresh,
     arcaJavCorrectionAdmin:{list:query=>procurementExecution.arcaJavCorrection.workQuery.list(query),preview:procurementExecution.arcaJavCorrection.admin.preview,status:procurementExecution.arcaJavCorrection.admin.status,
       latest:shelfEntryId=>procurementExecution.arcaJavCorrection.admin.latest(shelfEntryId),
       cancel(...args){const result=procurementExecution.arcaJavCorrection.admin.cancel(...args);executionRuntimeHost.wake();return result;},
@@ -2041,6 +2148,8 @@ async function createCleanServiceHost(options) {
     routingManualSelection,
     libraRunAdmin,
     productIdentitySelection,
+    usAdultActorChoice,
+    usAdultActorSelectionQuery:procurementExecution.usAdultActorSelectionQuery,
     arcaAcceptanceRecovery,
     platformIntegrationAdmin: platformIntegrations.admin,
     workspaceRootAdmin,
@@ -2068,6 +2177,8 @@ async function createCleanServiceHost(options) {
     server.route({
       method: route.method,
       url: route.path,
+      ...(route.method === 'POST' && (route.path === '/v1/admin/people'||route.path === '/v1/admin/people/:personId/reference-assets'||
+        route.path==='/v1/admin/people/recommendations/:recommendationId/actions/claim') ? { bodyLimit: 14 * 1024 * 1024 } : {}),
       handler: async (request, reply) => {
         const correlationId = request.headers['x-correlation-id'] || crypto.randomUUID();
         let response;
@@ -2134,6 +2245,8 @@ async function createCleanServiceHost(options) {
       try {
         await server.close();
         await platformIntegrations.close();
+        peopleReferencePreparation.clearCache();
+        await localFaceModel.close();
       } finally {
         constructed.close();
       }

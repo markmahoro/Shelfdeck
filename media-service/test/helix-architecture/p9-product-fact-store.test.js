@@ -84,7 +84,7 @@ test('registers exact Product Fact variants and writes reconstructable Libra Own
     find_result:{result_id:'result-source',event_id:'event-source',result_schema_ref:'helix://contracts/capabilities/libra.product_metadata.fetch/v1/result',result_json:JSON.stringify(value.result),result_digest:canonicalDigest(value.result),
       evidence_schema_ref:'helix://contracts/types/MetadataObservation/v1',evidence_json:JSON.stringify(value.result),evidence_digest:canonicalDigest(value.result)}};
     assert.ok(parameters);return rows[statement];}};
-  const owner={invoke(statement,parameters){if(statement==='find_run')return {libra_run_id:'run-1',subject_id:'subject-1',state:'active',state_revision:1,state_digest:d('state')};
+  const owner={invoke(statement,parameters){if(statement==='find_actor_subject')return {subject_id:'subject-1',content_profile:'movie'};if(statement==='find_run')return {libra_run_id:'run-1',subject_id:'subject-1',state:'active',state_revision:1,state_digest:d('state')};
     if(statement==='find_fact')return undefined;if(statement==='insert_fact'){inserted.facts.push(parameters);return {changes:1};}
     if(statement==='insert_source'){inserted.sources.push(parameters);return {changes:1};}throw new Error(statement);}};
   participant.readParticipants[0].execute({repository:()=>foundation});
@@ -130,7 +130,7 @@ test('persists Product Metadata only after the explicit Requirement, Artifact, P
       digest_hex:value.artifactHandle.digestHex,size_bytes:value.artifactHandle.sizeBytes,
       media_type:value.artifactHandle.mediaType,provenance_ref:JSON.stringify(value.artifactHandle.provenanceRef),
       reference_revision:value.artifactHandle.referenceRevision,state:'active'};throw new Error(statement);}};
-  const owner={invoke(statement,parameters){if(statement==='find_run')return {libra_run_id:'run-1',subject_id:'subject-1',state:'active',state_revision:1,state_digest:d('state')};
+  const owner={invoke(statement,parameters){if(statement==='find_actor_subject')return {subject_id:'subject-1',content_profile:'movie'};if(statement==='find_run')return {libra_run_id:'run-1',subject_id:'subject-1',state:'active',state_revision:1,state_digest:d('state')};
     if(statement==='find_fact')return undefined;if(statement==='find_fact_by_id')return {product_fact_id:mediaFact.factId,libra_run_id:'run-1',fact_kind:'media_cast',
       fact_revision:mediaFact.revision,schema_ref:mediaFact.schemaRef,fact_json:JSON.stringify(mediaFact),fact_digest:mediaFact.factDigest,
       commit_marker:mediaFact.commitMarker,result_digest:canonicalDigest(mediaFact)};

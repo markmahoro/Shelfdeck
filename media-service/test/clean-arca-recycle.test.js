@@ -152,7 +152,7 @@ test('restore cannot overwrite a new original directory, and purge waits for ret
     fs.mkdirSync(f.source);fs.writeFileSync(path.join(f.source,'new.txt'),'keep');
     await assert.rejects(app.restore(row.id),{code:'ARCA_RECYCLE_TARGET_EXISTS'});
     assert.equal((await app.tick()).kind,'idle');assert.equal(f.store.get(row.id).state,'archived');
-    f.setTime(100000000+RETENTION_MS+1);assert.equal((await app.tick()).kind,'completed');
+    f.setTime(100000000+RETENTION_MS+1);assert.equal((await app.tick()).kind,'idle');assert.equal((await app.expire()).kind,'completed');
     assert.equal(f.store.get(row.id).state,'purged');assert.equal(fs.readFileSync(path.join(f.source,'new.txt'),'utf8'),'keep');
   }finally{f.close();}
 });
@@ -160,7 +160,7 @@ test('restore cannot overwrite a new original directory, and purge waits for ret
 test('expiry does not delete an added archive file and keeps the entry recoverable for investigation',async()=>{
   const f=fixture();try{const app=f.makeApp(),row=await enqueue(app,f.source);await app.tick();
     const archive=f.store.get(row.id).archive_location;fs.writeFileSync(path.join(archive,'unknown.txt'),'keep');
-    f.setTime(100000000+RETENTION_MS+1);assert.equal((await app.tick()).kind,'blocked');
+    f.setTime(100000000+RETENTION_MS+1);assert.equal((await app.tick()).kind,'idle');assert.equal((await app.expire()).kind,'blocked');
     assert.equal(fs.readFileSync(path.join(archive,'unknown.txt'),'utf8'),'keep');
     assert.equal(fs.readFileSync(path.join(archive,'poster.jpg'),'utf8'),'historical artwork');
   }finally{f.close();}

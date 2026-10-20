@@ -48,6 +48,7 @@ function recordDefinition(schemaManifest) {
     find_anchors: { kind: 'select-all', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'], keyColumns: ['perception_id'] },
     find_anchors_many: { kind:'select-in', tableId:'perception_identity_anchors', keyColumn:'perception_id', maxItems:500,
       columns:['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'] },
+    read_record_heads: {kind:'select-all',tableId:'perception_sources',columns:['perception_source_id','current_cursor_revision'],keyColumns:[]},
     find_anchors_by_kind: { kind: 'select-all', tableId: 'perception_identity_anchors', columns: ['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'], keyColumns: ['anchor_kind'] },
     find_anchor_targets: { kind:'select-in', tableId:'perception_identity_anchors', keyColumn:'anchor_value', fixedKeyColumns:['anchor_kind'], maxItems:500,
       columns:['perception_id','anchor_kind','anchor_value','confidence_class','evidence_digest'] },
@@ -78,6 +79,11 @@ function resolutionDefinition(schemaManifest) {
 
 function createPerceptionStore(options) {
   if (!options || !options.schemaManifest || !options.unitOfWork || typeof options.unitOfWork.execute !== 'function') fail('P6_PERCEPTION_STORE_DEPENDENCIES', 'Schema manifest and Unit of Work are required.');
+  // This bounded Owner-local lookup stores only candidate IDs, never decisions.
+  // Every Record insertion atomically advances its Source cursor in commitPage.
+  // Read heads in the same transaction as selection; unrelated runtime writes
+  // cannot invalidate the lookup, and a new Source/page cannot leave it stale.
+  const candidateLookups=new Map();let candidateHeads=null;
   const records = recordDefinition(options.schemaManifest); const resolutions = resolutionDefinition(options.schemaManifest);
   const execute = (repositories, body) => options.unitOfWork.execute([{ participantId: 'perception_store', owner: 'perception', repositories, execute: body }]).perception_store;
   const repositoryManifest = Object.freeze({ components: Object.freeze([
@@ -241,10 +247,17 @@ function createPerceptionStore(options) {
       }));
     }); },
     readResolutionCandidates(query, ruleSnapshot) { return execute([records], (context) => {
-      const repo=context.repository(records.repositoryId); const ids=new Set();
+      const repo=context.repository(records.repositoryId); const ids=new Set(),pendingLookups=[];
+      const usesLookup=clause=>['title','title_year'].includes(clause.anchorKind)||clause.lookupMode==='normalized_exact';
+      if(ruleSnapshot.candidateRetrievalClauses.some(clause=>usesLookup(clause)&&query.identityEvidence.some(item=>item.anchorKind===clause.anchorKind))){
+        const heads=canonicalJson(repo.invoke('read_record_heads',{}).sort((a,b)=>a.perception_source_id.localeCompare(b.perception_source_id)));
+        if(heads!==candidateHeads){candidateLookups.clear();candidateHeads=heads;}
+      }
       for(const clause of ruleSnapshot.candidateRetrievalClauses){
         const evidence=query.identityEvidence.filter((item)=>item.anchorKind===clause.anchorKind);
         if(evidence.length===0) continue;
+        const lookupKey=usesLookup(clause)?canonicalJson({clause,evidence}):null,cached=lookupKey===null?undefined:candidateLookups.get(lookupKey);
+        if(cached){for(const id of cached)ids.add(id);continue;}
         const candidates=clause.anchorKind==='title'
           ? [...repo.invoke('find_anchors_by_kind',{anchor_kind:'title'}),
             ...repo.invoke('find_anchors_by_kind',{anchor_kind:'title_year'})]
@@ -274,11 +287,17 @@ function createPerceptionStore(options) {
         const clauseIds=[...new Set(matches.map((item)=>item.perception_id))].sort();
         if(clauseIds.length>clause.maxCandidates) fail('P6_PERCEPTION_CANDIDATE_CLAUSE_OVERFLOW','Candidate retrieval clause exceeded its declared bound.');
         clauseIds.forEach((id)=>ids.add(id));
+        if(lookupKey!==null)
+          pendingLookups.push([lookupKey,Object.freeze(clauseIds)]);
       }
       if(ids.size>ruleSnapshot.maxCandidateRecords) fail('P6_PERCEPTION_CANDIDATE_SET_OVERFLOW','Candidate Record set exceeded the frozen Rule bound.');
       const values=[...ids].sort().map((id)=>mapRecord(repo,id));
       const related=ids.size?repo.invoke('list_relations').filter((row)=>ids.has(row.source_perception_id)||ids.has(row.target_perception_id)).map(mapRelationRow):[];
       if(related.length>1024) fail('P6_PERCEPTION_RELATION_SET_OVERFLOW','Candidate relation set exceeded 1024.');
+      for(const [key,value] of pendingLookups){
+        if(candidateLookups.size>=256)candidateLookups.delete(candidateLookups.keys().next().value);
+        candidateLookups.set(key,value);
+      }
       return Object.freeze({ records:Object.freeze(values), relations:Object.freeze(related) });
     }); },
     createResolutionCommitParticipant(handle, draft) {

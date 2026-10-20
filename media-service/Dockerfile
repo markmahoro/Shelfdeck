@@ -1,5 +1,6 @@
 # Build the frozen Admin Web.
-FROM node:20-bookworm AS web-builder
+FROM node:20-bookworm AS node-runtime
+FROM node-runtime AS web-builder
 WORKDIR /build/web
 COPY media-service/web/package.json media-service/web/package-lock.json ./
 RUN npm ci
@@ -12,12 +13,14 @@ RUN npm run build
 FROM linuxserver/ffmpeg:latest AS service-base
 WORKDIR /app
 
+# Use the same official Node runtime as the web build. Installing from an
+# optional apt repository can silently choose the distribution's older Node.
+COPY --from=node-runtime /usr/local/ /usr/local/
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl gnupg \
-    && curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
+    && apt-get install -y --no-install-recommends \
       intel-media-va-driver mesa-va-drivers libvulkan1 mesa-vulkan-drivers \
-      intel-opencl-icd \
+      intel-opencl-icd fonts-dejavu-core fonts-noto-cjk \
+    && node -e "if(Number(process.versions.node.split('.')[0])!==20)throw new Error('Node 20 runtime required');" \
     && rm -rf /var/lib/apt/lists/*
 
 # better-sqlite3 currently needs node-gyp fallback on Node 20.  Compile all
@@ -30,10 +33,22 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY media-service/package.json media-service/package-lock.json ./
-RUN npm ci --omit=dev
+RUN ONNXRUNTIME_NODE_INSTALL=skip npm ci --omit=dev
+COPY media-service/resources/face-models ./resources/face-models
+COPY media-service/src/helix/contracts/us-adult-face-model-pack.json ./src/helix/contracts/us-adult-face-model-pack.json
+COPY media-service/scripts/install-face-models.js ./scripts/install-face-models.js
+RUN node scripts/install-face-models.js
 
 FROM service-base AS service-runtime
 WORKDIR /app
+
+# Sharp's bundled text renderer still needs the system Fontconfig configuration
+# to discover the installed Latin and CJK fonts.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends fontconfig \
+    && fc-cache -f \
+    && rm -rf /var/lib/apt/lists/*
+ENV FONTCONFIG_FILE=/etc/fonts/fonts.conf
 
 # The FFmpeg base carries a distro Python interpreter even though this service
 # does not.  Native modules were already compiled in service-dependencies, so
@@ -45,6 +60,7 @@ RUN rm -f /usr/bin/python /usr/bin/python3 /usr/bin/python3.* \
 
 COPY media-service/package.json media-service/package-lock.json ./
 COPY --from=service-dependencies /app/node_modules ./node_modules
+COPY --from=service-dependencies /app/resources/face-models ./resources/face-models
 # Use the lockfile-pinned service probe on both supported platforms. The base
 # FFprobe 8.1 omits HEVC VUI primaries/transfer that the pinned artifact observes.
 # Keep the configured executable path and preserve unknown-media rejection.
@@ -54,6 +70,11 @@ COPY media-service/src/admin-credential-secret-store.js ./src/admin-credential-s
 COPY media-service/src/clean-service-host.js ./src/clean-service-host.js
 COPY media-service/src/clean-admin-static.js ./src/clean-admin-static.js
 COPY media-service/src/clean-runtime-operations.js ./src/clean-runtime-operations.js
+COPY media-service/src/clean-maintenance-window.js ./src/clean-maintenance-window.js
+COPY media-service/src/clean-people-image-port.js ./src/clean-people-image-port.js
+COPY media-service/src/clean-people-artifact-reclamation-port.js ./src/clean-people-artifact-reclamation-port.js
+COPY media-service/src/clean-us-adult-frame-extractor.js ./src/clean-us-adult-frame-extractor.js
+COPY media-service/src/clean-us-adult-inventory-analysis-port.js ./src/clean-us-adult-inventory-analysis-port.js
 COPY media-service/src/clean-formation-reset-port.js ./src/clean-formation-reset-port.js
 COPY media-service/src/clean-arca-inventory-port.js ./src/clean-arca-inventory-port.js
 COPY media-service/src/clean-arca-recycle-port.js ./src/clean-arca-recycle-port.js
@@ -70,12 +91,16 @@ COPY media-service/src/clean-offdeck-deletion-port.js ./src/clean-offdeck-deleti
 COPY media-service/src/clean-product-production-port.js ./src/clean-product-production-port.js
 COPY media-service/src/clean-shelf-target-folder-probe.js ./src/clean-shelf-target-folder-probe.js
 COPY media-service/src/clean-western-analysis-port.js ./src/clean-western-analysis-port.js
+COPY media-service/src/clean-us-adult-recommendation-image-port.js ./src/clean-us-adult-recommendation-image-port.js
 COPY media-service/src/clean-workspace-product-port.js ./src/clean-workspace-product-port.js
 COPY media-service/src/clean-workspace-root-admin.js ./src/clean-workspace-root-admin.js
 COPY media-service/src/helix ./src/helix
 COPY media-service/scripts/helix-clean-init.js ./scripts/helix-clean-init.js
 COPY media-service/scripts/helix-jav-schema-copy.js ./scripts/helix-jav-schema-copy.js
 COPY media-service/scripts/helix-libra-schema-copy.js ./scripts/helix-libra-schema-copy.js
+COPY media-service/scripts/helix-us-adult-schema-copy.js ./scripts/helix-us-adult-schema-copy.js
+COPY media-service/scripts/helix-architecture/us-adult-schema-copy.js ./scripts/helix-architecture/us-adult-schema-copy.js
+COPY media-service/scripts/helix-architecture/paused-release-batch-proof.js ./scripts/helix-architecture/paused-release-batch-proof.js
 COPY media-service/scripts/helix-architecture/libra-workshop-schema-copy.js ./scripts/helix-architecture/libra-workshop-schema-copy.js
 COPY media-service/scripts/helix-architecture/jav-release-schema-copy.js ./scripts/helix-architecture/jav-release-schema-copy.js
 COPY media-service/scripts/helix-architecture/jav-release-effect-history-proof.js ./scripts/helix-architecture/jav-release-effect-history-proof.js

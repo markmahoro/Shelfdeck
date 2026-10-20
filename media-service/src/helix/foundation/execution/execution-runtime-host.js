@@ -66,6 +66,7 @@ function createExecutionRuntimeHost(options) {
   let lastRecovery = null;
   let firstFault = null;
   const inFlightEvents = new Map();
+  let inFlightPlanning = 0;
   const inFlightRecoveries = new Map();
   const deferredRecoveries = new Map();
   const completionRetries = new Map();
@@ -142,7 +143,10 @@ function createExecutionRuntimeHost(options) {
   async function drainOneWork() {
     const scheduled = options.scheduler.acquire({ targetType: 'work' });
     if (scheduled.kind !== 'leased') return scheduled;
+    inFlightPlanning++;
+    let finishScope;
     try {
+      finishScope = options.onExecutionScopeStarted?.(scheduled.executionScope);
       return await withWorkLeaseHeartbeat(scheduled.lease, async () => {
         const activation = options.workLifecycle.ensurePlanningAttempt(scheduled.lease.targetId);
         const registration = options.plannerRegistry.resolve(activation.work.owner_domain, activation.work.work_kind);
@@ -185,7 +189,8 @@ function createExecutionRuntimeHost(options) {
       if (typeof options.onError === 'function') options.onError(error);
       return Object.freeze({ kind: 'work_faulted', workId: scheduled.lease.targetId, error });
     } finally {
-      options.scheduler.release(scheduled.lease);
+      inFlightPlanning--;
+        try { finishScope?.(); } finally { options.scheduler.release(scheduled.lease); }
     }
   }
 
@@ -194,8 +199,9 @@ function createExecutionRuntimeHost(options) {
     const scheduled = options.scheduler.acquire({ targetType: 'event' });
     if (scheduled.kind !== 'leased') return scheduled;
     const eventId=scheduled.lease.targetId;
-    let wakeAfterCompletion=false;
+    let wakeAfterCompletion=false,finishScope;
     const operation=(async()=>{
+      finishScope=options.onExecutionScopeStarted?.(scheduled.executionScope);
       const outcome=await options.eventRuntime.run({schedulerLease:scheduled.lease});
       if(outcome?.kind==='effect_recovery_required'){
         deferredRecoveries.set(eventId,{
@@ -243,8 +249,10 @@ function createExecutionRuntimeHost(options) {
       }
       return Object.freeze({kind:'event_faulted',eventId,error});
     }).finally(()=>{
-      inFlightEvents.delete(eventId);
-      if(wakeAfterCompletion&&['ready','draining'].includes(state))wake();
+        try { finishScope?.(); } finally {
+          inFlightEvents.delete(eventId);
+          if(wakeAfterCompletion&&['ready','draining'].includes(state))wake();
+        }
     });
     inFlightEvents.set(eventId,operation);
     return Object.freeze({kind:'event_launched',eventId,inFlight:inFlightEvents.size});
@@ -599,7 +607,7 @@ function createExecutionRuntimeHost(options) {
       stopping=Promise.race([drain,deadline]).finally(()=>clearTimeout(deadlineTimer));
       return stopping;
     },
-    activity(){return Object.freeze({state,inFlightEvents:inFlightEvents.size,inFlightRecoveries:inFlightRecoveries.size,maxInFlightEvents,
+    activity(){return Object.freeze({state,inFlightEvents:inFlightEvents.size,inFlightPlanning,inFlightRecoveries:inFlightRecoveries.size,maxInFlightEvents,
       inFlightOwnerReconciliations:inFlightOwnerReconciliations.size,
       deferredRecoveryActions:deferredRecoveries.size+completionRetries.size,faulted:firstFault!==null});},
   });

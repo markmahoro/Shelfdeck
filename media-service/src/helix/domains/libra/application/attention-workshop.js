@@ -18,6 +18,7 @@ function createAttentionWorkshop(options){
   bindings:{kind:'select-all',tableId:'libra_material_bindings',columns:['material_key','binding_revision','authority_kind','current'],keyColumns:['subject_id']},
   selection:{kind:'select-filtered-page',tableId:'libra_product_identity_selection_intents',columns:['intent_revision','intent_digest'],
     fixedKeyColumns:['libra_run_id'],orderBy:[{column:'intent_revision',direction:'desc'}],maxItems:1},
+  actor_choice:{kind:'select-one',tableId:'libra_us_adult_actor_choice_heads',columns:['current_revision','intent_id','record_digest'],keyColumns:['subject_id']},
  }});
  const observations=new Map();
  function read(repo,subjectId){
@@ -32,6 +33,7 @@ function createAttentionWorkshop(options){
   const pendingResponsibility=unfinished.length>0&&bindings.some(row=>!assigned.has(row.material_key));
   const facts={subject,token,head:repo.invoke('head',{subject_id:subjectId})||null,policy:repo.invoke('policy',{field_id:token.source_field_id})||null,runs,
    selections:unfinished.map(run=>repo.invoke('selection',{libra_run_id:run.libra_run_id,offset:0,limit:1})[0]||null),
+   actorChoice:repo.invoke('actor_choice',{subject_id:subjectId})||null,
    accepted:scopes.filter(scope=>scope.accepted).map(scope=>scope.runId).sort(),bindings};
   return {subjectId,digest:canonicalDigest(facts),sourceProcessId:token.source_process_id,
    runIds:unfinished.map(row=>row.libra_run_id),hasRuns:unfinished.length>0,pendingResponsibility};

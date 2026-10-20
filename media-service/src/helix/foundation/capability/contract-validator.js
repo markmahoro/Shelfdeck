@@ -20,7 +20,9 @@ function createCapabilityContractValidator(options) {
   if (!options || !Array.isArray(options.schemas) || options.schemas.length === 0) {
     fail('P4_CAPABILITY_SCHEMA_SET_REQUIRED', 'A non-empty frozen schema set is required.');
   }
-  const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: true, coerceTypes: false, useDefaults: false });
+  // Compile shared nominal refs once instead of duplicating their generated code
+  // inside each Capability. Cold compilation must not monopolize the HTTP loop.
+  const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: true, coerceTypes: false, useDefaults: false, inlineRefs: false });
   addFormats(ajv);
   const ids = new Set();
   for (const schema of options.schemas) {

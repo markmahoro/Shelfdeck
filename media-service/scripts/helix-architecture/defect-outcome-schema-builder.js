@@ -47,7 +47,7 @@ function libraSchemas() {
     LibraRunOutcome:root('LibraRunOutcome',{oneOf:[object({...common,outcome:{enum:['on_deck','on_deck_with_defects']},reasonCode:{enum:['requirements_met','accepted_defects']},
       onDeckCommitReceipt:onDeck,authorizedDefectManifest:nullable({$ref:typeId('AuthorizedDefectManifest')})}),
       object({...common,outcome:{const:'unable_to_on_deck'},reasonCode:{enum:['user_cancelled','processing_failed']},terminalEvidenceDigest:digest(),
-        terminalReasons:array(object({failureClass:id(),failureCode:id(),capabilityRef:id()})),
+        terminalReasons:array({oneOf:[object({failureClass:id(),failureCode:id(),capabilityRef:id()}),require('./terminal-planning-schema').terminalPlanningSchema()]}),
         terminalProductEvidence:nullable(object({libraRunId:id(),runStateRevision:integer(1),runStateDigest:digest(),
           verificationId:id(),verificationDigest:digest(),reasonCodes:array(id(),32)})),
         recoveryConditions:array(object({conditionKind:{enum:['moviepilot','tmdb','media_compute']},snapshotDigest:digest()}),8),

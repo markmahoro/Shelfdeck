@@ -12,6 +12,27 @@ const { METADATA_PEOPLE_HINTS_MAX, parseRelatedNfoPeopleHints } =
   require('../../src/clean-product-production-port');
 
 const d = (value) => canonicalDigest({ value });
+test('JAV has an actor result through a proven reserved Person when its single source supplies no cast',()=>{
+  const subjectId='jav-subject',sourceBasis={sourceBasisKind:'metadata_observation',sourceBasisDigest:d('jav-basis'),
+    observationSet:{contentProfile:'jav',setDigest:d('observation-set'),observations:[{peopleHints:[],payloadDigest:d('observed'),sourceRef:'jav:javmenu'}]}};
+  const relations=buildMetadataMediaCastRelations({subjectId,sourceBasis});
+  assert.equal(relations.length,1);assert.equal(relations[0].displayName,'未知演员');
+  assert.equal(relations[0].personId,'person-jav-unknown-actor');assert.deepEqual(relations[0].providerIdentities,[]);
+  assert.deepEqual(sourceBasis.observationSet.observations[0].peopleHints,[]);
+  assert.throws(()=>buildMediaCastDraft({subjectId,sourceBasis,relations,producedAtMs:1}),{code:'P9_MEDIA_CAST_PERSON_PROJECTION'});
+  const draft=buildMediaCastDraft({subjectId,sourceBasis,relations,producedAtMs:1,
+    personProjection:{items:[{personId:'person-jav-unknown-actor',projectionDigest:d('formal-people-projection')}]}});
+  assert.equal(buildMediaCastFact({libraRunId:'jav-run',subjectId,sourceBasis,mediaCastDraft:draft,expectedRevision:0,
+    commitMarker:'jav-actor-marker',committedAtMs:2}).relationCount,1);
+  assert.throws(()=>buildMediaCastDraft({subjectId,sourceBasis,relations:[],producedAtMs:1}),{code:'P9_JAV_ACTOR_REQUIRED'});
+  const empty={...draft,relations:[]};empty.draftDigest=canonicalDigest(Object.fromEntries(Object.entries(empty).filter(([key])=>key!=='draftDigest')));
+  assert.throws(()=>buildMediaCastFact({subjectId,sourceBasis,mediaCastDraft:empty}),{code:'P9_JAV_ACTOR_REQUIRED'});
+  const knownBasis=structuredClone(sourceBasis);knownBasis.observationSet.observations[0].peopleHints=[{displayName:'Source Actor',role:'actor',providerIdentities:[]}];
+  const known=buildMetadataMediaCastRelations({subjectId,sourceBasis:knownBasis});
+  assert.deepEqual(known.map(item=>item.displayName),['Source Actor']);assert.equal(known[0].personId,null);
+  const movieBasis=structuredClone(sourceBasis);movieBasis.observationSet.contentProfile='movie';
+  assert.deepEqual(buildMetadataMediaCastRelations({subjectId,sourceBasis:movieBasis}),[]);
+});
 function providerIdentity(provider = 'tmdb', namespace = 'tmdb_movie',
   providerKey = '101', seasonNumber = null) {
   const value = { provider, namespace, providerKey, seasonNumber };

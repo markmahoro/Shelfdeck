@@ -10,7 +10,7 @@ test('UAT-214 observes NFO actor identity as provider evidence, never as local P
   assert.equal(result.usable, true);
   assert.deepEqual(result.actors, [{ ordinal:0, displayName:'张三 & 李四', displayNameNormalized:'张三 & 李四',
     role:'actor', character:'主角', identityConflict:false,
-    providerIdentities:[{provider:'tmdb',namespace:'person',providerKey:'123'}] }]);
+    providerIdentities:[{provider:'tmdb',namespace:'tmdb_person',providerKey:'123'}] }]);
   assert.equal(Object.hasOwn(result.actors[0], 'personId'), false);
 });
 
@@ -36,7 +36,7 @@ test('UAT-214 Arca observation fences Inventory changes and never reads primary 
   const {createOnDeckNfoPersonEvidence} = require('../../src/helix/domains/arca/application/on-deck-nfo-person-evidence');
   let revision=1, reads=0;
   const projection=createOnDeckNfoPersonEvidence({contextReader:{store:{currentNfoContext:()=>({
-    entry:{status:'active',current_inventory_revision:revision},shelf:{status:'active'},
+    contentProfile:'movie',entry:{status:'active',current_inventory_revision:revision},shelf:{status:'active'},
     materials:[{ordinal:0,role:'primary_payload',location:'/movie.mkv'}, {ordinal:1,role:'metadata_sidecar',location:'/movie.nfo'}]})}},
     readBoundedFileSnapshotSync:location=>{assert.equal(location,'/movie.nfo');reads++;revision++;
       return {bytes:Buffer.from('<movie><actor><name>A</name></actor></movie>'),contentFingerprint:'a'.repeat(64)};}});

@@ -4,7 +4,7 @@ const { canonicalDigest } = require('./canonical-json');
 
 const JAV_SOURCE_TRANSPORTS = Object.freeze(Object.fromEntries(Object.entries({
   javdb: { endpoints: ['https://javdb.com'], assets: ['c0.jdbstatic.com'], charset: 'utf-8' },
-  javmenu: { endpoints: ['https://javmenu.com', 'https://mrzyx.xyz'], assets: ['c0.jdbstatic.com', '666.9989641.xyz', 'pics.dmm.co.jp'], charset: 'utf-8' },
+  javmenu: { endpoints: ['https://javmenu.com', 'https://mrzyx.xyz'], assets: ['c0.jdbstatic.com', '666.9989641.xyz', 'pics.dmm.co.jp', 'fmtu.sl2025p.com'], charset: 'utf-8' },
   fc2_official: { endpoints: ['https://adult.contents.fc2.com'], assets: ['contents-thumbnail2.fc2.com'], charset: 'utf-8' },
   heydouga_official: { endpoints: ['https://www.heydouga.com'], assets: ['image01-www.heydouga.com'], charset: 'utf-8' },
   caribbeancom_official: { endpoints: ['https://www.caribbeancom.com'], assets: ['www.caribbeancom.com'], charset: 'euc-jp' },

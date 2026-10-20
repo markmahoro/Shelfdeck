@@ -5,29 +5,17 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
-    "peopleWorkspaceHandleList": {
-      "$ref": "#/$defs/peopleWorkspaceHandleList"
-    },
-    "referenceEvidence": {
-      "$ref": "#/$defs/referenceEvidence"
+    "peopleArtifactReferenceEvidence": {
+      "$ref": "#/$defs/peopleArtifactReferenceEvidence"
     }
   },
   "required": [
-    "peopleWorkspaceHandleList",
-    "referenceEvidence"
+    "peopleArtifactReferenceEvidence"
   ],
   "$defs": {
-    "peopleWorkspaceHandleList": {
-      "type": "array",
-      "items": {
-        "$ref": "helix://contracts/types/WorkspaceMaterialHandle/v1"
-      },
-      "maxItems": 1024,
-      "x-helix-typeExpression": "People Workspace handles"
-    },
-    "referenceEvidence": {
-      "$ref": "helix://contracts/domain-types/ReferenceEvidence/v1",
-      "x-helix-typeExpression": "ReferenceEvidence"
+    "peopleArtifactReferenceEvidence": {
+      "$ref": "helix://contracts/types/PeopleArtifactReferenceEvidence/v1",
+      "x-helix-typeExpression": "PeopleArtifactReferenceEvidence"
     }
   }
 }

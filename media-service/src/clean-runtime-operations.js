@@ -45,7 +45,9 @@ function createRuntimeOperations(options) {
   let checking=false;
   function persist(patch){const next={...intent,...patch,revision:intent.revision+1};writeAtomic(file,next);intent=next;}
   function snapshot(){return Object.freeze({mode,desiredMode:intent.desiredMode,revision:intent.revision,
-    normalSupplyAllowed:mode==='running',activity:{...options.activity(),inFlightAdminCommands:activeCommands},operation:lastOperation,error,recoveryBackup:intent.pendingReset?.backupId||null});}
+    normalSupplyAllowed:mode==='running'&&(!options.normalSupplyAllowed||options.normalSupplyAllowed()),
+    ...(options.readMaintenance?{maintenance:options.readMaintenance()}:{}),
+    activity:{...options.activity(),inFlightAdminCommands:activeCommands},operation:lastOperation,error,recoveryBackup:intent.pendingReset?.backupId||null});}
   function identity(kind,body,actor){
     if(!body||typeof body.idempotencyKey!=='string'||!body.idempotencyKey||body.idempotencyKey.length>128)
       fail('RUNTIME_OPERATION_INPUT_INVALID','操作标识无效。');
@@ -77,9 +79,11 @@ function createRuntimeOperations(options) {
   }
   return Object.freeze({
     snapshot,
+    desiredMode:()=>intent.desiredMode,
     waitForBusinessCommands,
     beginBusinessCommand(){
       if(mode!=='running')fail('RUNTIME_BUSINESS_WRITES_DISABLED','服务已停止后台运行，请先在概览恢复运行。');
+      if(options.normalSupplyAllowed&&!options.normalSupplyAllowed())fail('RUNTIME_MAINTENANCE_WRITES_DISABLED','系统正在维护，请在维护结束后操作。');
       activeCommands++;let released=false;
       return ()=>{if(released)return;released=true;activeCommands--;if(!activeCommands){for(const resolve of commandWaiters)resolve();commandWaiters.clear();}};
     },
@@ -91,14 +95,14 @@ function createRuntimeOperations(options) {
       persist({desiredMode:'stopped'});mode='stopping';error=null;
       let drained;
       try{drained=options.quiesce();}catch(cause){mode='error';error={code:cause.code||'RUNTIME_OPERATION_FAILED',message:cause.message};throw cause;}
-      try {return launch('stop',request,async()=>{await Promise.all([drained,waitForBusinessCommands()]);mode='stopped';return {mode};});}
+      try {return launch('stop',request,async()=>{await Promise.all([drained,waitForBusinessCommands()]);await options.onDesiredModeChanged?.();mode='stopped';return {mode};});}
       catch(cause){mode='error';void Promise.resolve(drained).catch(options.onError);throw cause;}},
     resume(body,actor){const request=identity('resume',body,actor);if(request.existing)return request.existing;
       if(operation||checking)fail('RUNTIME_OPERATION_BUSY','上一项运行操作尚未完成。');
       if(intent.pendingReset)fail('RUNTIME_RESET_INTERRUPTED','须先核查被中断的Reset。');
       if(mode!=='stopped')fail('RUNTIME_RESUME_STATE_INVALID','服务须先安全停机。');
       mode='resuming';error=null;
-      try{return launch('resume',request,async()=>{try{await options.resume();persist({desiredMode:'running'});mode='running';return {mode};}
+      try{return launch('resume',request,async()=>{try{await options.resume();persist({desiredMode:'running'});await options.onDesiredModeChanged?.();mode='running';return {mode};}
         catch(cause){await options.quiesce();persist({desiredMode:'stopped'});throw cause;}});}catch(cause){mode='stopped';throw cause;}},
     async previewReset(){if(mode!=='stopped'||operation||checking||intent.pendingReset)fail('RUNTIME_RESET_REQUIRES_STOPPED','请先完成安全停机。');
       const preview=await options.previewReset();if(mode!=='stopped'||operation||checking)fail('RUNTIME_RESET_PREVIEW_STALE','运行状态已变化，请重新核对清单。');return preview;},

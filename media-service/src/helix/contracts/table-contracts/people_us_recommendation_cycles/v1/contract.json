@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/people_us_recommendation_cycles/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "people_us_recommendation_cycles",
+    "owner": "people",
+    "prefix": "people_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "cycle_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active",
+          "complete"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "progress_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "progress_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "progress_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "cycle_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "state",
+        "cycle_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "complete"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "progress_json",
+        "schemaRefColumn": "progress_schema_ref",
+        "maxBytes": 16384,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`INDEX(state,cycle_id)`",
+      "进度schema固定`people.us-adult-recommendation-progress@1`，closed字段`schema,policy,stage,sourceCursor,sourceExhausted,pendingSourceId,groupCursor,bestGroup,rankSourceCursor,rankGroupCursor,leaders,windowKey,assignedSinceRank,rankPassId`，最多`16 KiB`并按JCS digest校验",
+      "revision CAS",
+      "policy固定版本、64组分页及最多五位，不持有Person身份或跨域写权限",
+      "stage为source_scan/group_scan/refresh_sources/rank_groups",
+      "leaders最多五个有界排名摘要"
+    ],
+    "rawContract": {
+      "columns": "`cycle_id PK, state(active|complete), revision INTEGER, progress_schema_ref, progress_json, progress_digest, created_at_ms, updated_at_ms`",
+      "constraints": "`INDEX(state,cycle_id)`；进度schema固定`people.us-adult-recommendation-progress@1`，closed字段`schema,policy,stage,sourceCursor,sourceExhausted,pendingSourceId,groupCursor,bestGroup,rankSourceCursor,rankGroupCursor,leaders,windowKey,assignedSinceRank,rankPassId`，最多`16 KiB`并按JCS digest校验；revision CAS；policy固定版本、64组分页及最多五位，不持有Person身份或跨域写权限；stage为source_scan/group_scan/refresh_sources/rank_groups；leaders最多五个有界排名摘要"
+    },
+    "source": {
+      "section": "8.5.13",
+      "line": 9692,
+      "lineDigest": "268c0e69218a587a1e98e870bda52c852f61c7695d9f917bc155bad1bad25376"
+    },
+    "foreignKeys": []
+  }
+}

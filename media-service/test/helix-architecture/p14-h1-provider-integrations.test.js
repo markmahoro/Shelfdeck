@@ -43,6 +43,59 @@ const secrets = Object.freeze({
 });
 const roots = [];
 
+test('StashBox real adapter passes Platform proof validation and preserves authenticated search after restart', async () => {
+  const value = fixture(), key = 'stashbox-test-secret-never-public', endpoint = 'https://api.theporndb.net/graphql';
+  let deny = false, accountCalls = 0, searchCalls = 0;
+  const fetchImpl = async (url, init) => {
+    assert.equal(String(url), endpoint);
+    assert.equal(init.headers.ApiKey, key);
+    const query = JSON.parse(init.body).query;
+    if (query === '{ me { id } }') {
+      accountCalls++;
+      return Response.json(deny ? {errors:[{message:'denied'}]} : {data:{me:{id:'user-1'}}});
+    }
+    searchCalls++;
+    assert.match(query,/searchPerformer\(term: \$term, limit: 10\)/);
+    return Response.json({data:{searchPerformer:[{id:'actor-1',name:'Sample Actor',aliases:[],
+      images:[{id:'image-1',url:'https://images.test/actor.jpg',width:600,height:900}]}]}});
+  };
+  const open = () => createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,secretRoot,integrationFetch:fetchImpl});
+  let host = await open();
+  const headers = {'x-api-key':value.initialized.adminApiKey};
+  try {
+    const route = '/v1/admin/settings/integrations/stashbox';
+    const testBody = {kind:'stashbox',endpoint,credential:{kind:'api_key',value:key},idempotencyKey:'box-test'};
+    const wrongEndpoint = await host.inject({method:'POST',url:route+'/actions/test',headers,
+      payload:{...testBody,endpoint:'https://other.example/graphql',idempotencyKey:'box-wrong-endpoint'}});
+    assert.equal(wrongEndpoint.statusCode,400,wrongEndpoint.body);
+    assert.equal(wrongEndpoint.json().error.code,'PLATFORM_INTEGRATION_ENDPOINT_INVALID');
+    assert.equal(accountCalls,0,'Credentials are not sent to an alternate endpoint.');
+    deny = true;
+    const rejected = await host.inject({method:'POST',url:route+'/actions/test',headers,payload:{...testBody,idempotencyKey:'box-denied'}});
+    assert.equal(rejected.statusCode,502,rejected.body);
+    assert.equal(rejected.json().error.code,'PLATFORM_INTEGRATION_RESPONSE_INVALID');
+    assert.equal((await host.inject({method:'GET',url:route,headers})).json().configured,false);
+    deny = false;
+    const proof = await host.inject({method:'POST',url:route+'/actions/test',headers,payload:testBody});
+    assert.equal(proof.statusCode,200,proof.body);
+    assert.deepEqual(proof.json().capabilityCodes,['people']);
+    const configured = await host.inject({method:'PATCH',url:route,headers,payload:{kind:'stashbox',
+      expectedConfigRevision:0,connectionProofId:proof.json().connectionProofId,idempotencyKey:'box-save'}});
+    assert.equal(configured.statusCode,200,configured.body);
+    assert.equal(configured.json().configured,true);
+    await host.close(); host = await open();
+    const current = await host.inject({method:'GET',url:route,headers});
+    assert.equal(current.json().configured,true);
+    const searched = await host.inject({method:'GET',url:'/v1/admin/people/image-search?name=Sample%20Actor',headers});
+    assert.equal(searched.statusCode,200,searched.body);
+    assert.equal(searched.json().sources[0].state,'available');
+    assert.equal(searched.json().sources[0].items.length,1);
+    assert.equal(searched.json().sources.length,1);
+    assert.equal(accountCalls,2); assert.equal(searchCalls,1);
+    assert.ok(![proof.body,configured.body,current.body,searched.body].some(body=>body.includes(key)));
+  } finally {await host.close();}
+});
+
 function fixture() {
   const root = fs.mkdtempSync(
     path.join(os.tmpdir(), 'helix-h1-providers-'),
@@ -2126,7 +2179,7 @@ test('H1.2 official response projections accept bounded documented extras and so
       'emby' + 'service',
       'douban' + 'service',
       'fallback',
-      '/graph' + 'ql',
+      ...(relative.endsWith('/integration-profile-catalog.js')?[]:['/graph'+'ql']),
       'find' + 'scenes',
       'find' + 'scene(',
       'search' + 'performer',

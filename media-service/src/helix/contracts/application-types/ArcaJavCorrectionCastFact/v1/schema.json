@@ -83,25 +83,20 @@
           },
           "providerIdentities": {
             "type": "array",
-            "maxItems": 0,
+            "maxItems": 1,
             "items": {
               "type": "object",
               "additionalProperties": false,
               "properties": {
                 "provider": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 256
+                  "const": "javdb"
                 },
                 "namespace": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 256
+                  "const": "javdb_actor"
                 },
                 "providerKey": {
                   "type": "string",
-                  "minLength": 1,
-                  "maxLength": 256
+                  "pattern": "^[A-Za-z0-9_-]{1,128}$"
                 }
               },
               "required": [

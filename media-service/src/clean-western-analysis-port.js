@@ -1,8 +1,11 @@
 'use strict';
+const {restoreFrameAnalysis}=require('./helix/contracts/us-adult-frame-geometry');
+const {faceModelReference}=require('./helix/contracts/us-adult-face-model');
 
 const { createHash } = require('node:crypto');
 const { canonicalDigest, canonicalJson } =
   require('./helix/contracts/canonical-json');
+const {US_ADULT_PRESENTATION_VERSION}=require('./helix/contracts/us-adult-presentation');
 
 class CleanWesternAnalysisPortError extends Error {
   constructor(code, message, details = {}) {
@@ -251,7 +254,17 @@ function createCleanWesternAnalysisPort(options) {
       'The service-local Western engine is incomplete.');
   }
   const now = typeof options.now === 'function' ? options.now : Date.now;
-  const configuration = modelConfiguration(options.modelPack);
+  const configuration = options.configuration || modelConfiguration(options.modelPack);
+  for (const [key, value] of Object.entries(configuration)) {
+    if (!['faceModelRef', 'clusterParameters'].includes(key) || !value ||
+        value.digest !== canonicalDigest(Object.fromEntries(Object.entries(value).filter(([field]) => field !== 'digest')))) {
+      fail('CLEAN_WESTERN_MODEL_PACK_INVALID', 'Analysis configuration must freeze exact model and clustering contracts.');
+    }
+  }
+  if (!configuration.faceModelRef || !configuration.clusterParameters ||
+      configuration.clusterParameters.modelRefDigest !== configuration.faceModelRef.digest) {
+    fail('CLEAN_WESTERN_MODEL_PACK_INVALID', 'Clustering and embedding require the same frozen model.');
+  }
   const workspacePort = options.workspaceProductPort;
 
   function materialize(value) {
@@ -438,10 +451,7 @@ function createCleanWesternAnalysisPort(options) {
         schema: 'shared.face-embedding-set@1',
         dimension: raw.dimension,
         vectors: Object.freeze(raw.vectors),
-      });
-      materialized = materialize({
-        ...materializeRequest,
-        bytes: Buffer.from(canonicalJson(payload), 'utf8'),
+        ...(raw.frameGeometry?{frameGeometry:raw.frameGeometry}:{}),
       });
     }
     if (payload?.schema !== 'shared.face-embedding-set@1' ||
@@ -450,6 +460,13 @@ function createCleanWesternAnalysisPort(options) {
       fail('CLEAN_WESTERN_EMBEDDING_RESULT_INVALID',
         'Recovered embedding set does not match the frozen contract.');
     }
+    if(model.modelId===faceModelReference('western_frame_set').modelId){
+      const analysis=restoreFrameAnalysis(payload);
+      if(analysis.frameMembers.length!==framePayload.members.length||analysis.frameMembers.some((member,ordinal)=>
+        member.timestampMs!==framePayload.members[ordinal].timestampMs||member.imageDigest!==framePayload.members[ordinal].contentDigest))
+        fail('CLEAN_WESTERN_EMBEDDING_RESULT_INVALID','US Adult face geometry no longer matches its complete source frame composite.');
+    }
+    if(!materialized)materialized=materialize({...materializeRequest,bytes:Buffer.from(canonicalJson(payload),'utf8')});
     const vectorCount = payload.vectors.length;
     const basis = {
       schemaRef: 'helix://contracts/types/FaceEmbeddingSetHandle/v1',
@@ -530,7 +547,7 @@ function createCleanWesternAnalysisPort(options) {
       }));
       rawClusters = raw?.clusters;
     }
-    if (!Array.isArray(rawClusters) || rawClusters.length > 1024) {
+    if (!Array.isArray(rawClusters) || rawClusters.length > 1280) {
       fail('CLEAN_WESTERN_CLUSTER_RESULT_INVALID',
         'Cluster engine returned an invalid bounded cluster set.');
     }
@@ -800,7 +817,13 @@ function createCleanWesternAnalysisPort(options) {
       const projection = byPerson.get(item.personId);
       if (!projection || !clusterIds.includes(item.clusterId) ||
           seenClusters.has(item.clusterId) ||
-          !['exact', 'strong', 'weak'].includes(item.confidenceClass)) {
+          !['exact', 'strong', 'weak'].includes(item.confidenceClass) ||
+          !Number.isFinite(item.score) || item.score < -1 || item.score > 1 ||
+          !Number.isFinite(item.threshold) || item.score < item.threshold ||
+          item.faceModelRefDigest !== clusters.faceModelRefDigest ||
+          !projection.contributions.some(contribution => contribution.ownerPersonId === projection.personId &&
+            contribution.activeAssets.some(asset => asset.referenceAssetId === item.referenceAssetId && asset.artifactDigest === item.artifactDigest) &&
+            contribution.activeFaces.some(face => face.referenceAssetId === item.referenceAssetId && face.modelRef === item.referenceModelRefDigest))) {
         fail('CLEAN_WESTERN_MATCH_RESULT_INVALID',
           'Reference Match result is outside its frozen input projections.');
       }
@@ -812,6 +835,12 @@ function createCleanWesternAnalysisPort(options) {
         projectionRevision: projection.projectionRevision,
         projectionDigest: projection.projectionDigest,
         confidenceClass: item.confidenceClass,
+        score: item.score,
+        threshold: item.threshold,
+        referenceAssetId: item.referenceAssetId,
+        artifactDigest: item.artifactDigest,
+        faceModelRefDigest: item.faceModelRefDigest,
+        referenceModelRefDigest: item.referenceModelRefDigest,
       };
       return Object.freeze({
         ...value,
@@ -856,12 +885,13 @@ function createCleanWesternAnalysisPort(options) {
 
   async function renderPoster(request) {
     const frameSet = request?.frameArtifactSet;
-    const match = request?.personMatchEvidence;
-    if (!frameSet || !match ||
+    const selection = request?.actorSelectionBasis;
+    if (!frameSet || !selection || selection.schemaRef!=='helix://contracts/domain-types/UsAdultActorSelectionBasis/v1'||
+        selection.libraRunId!==frameSet.libraRunId||frameSet.frameSetArtifactHandle?.ownerScope?.scopeId!==frameSet.libraRunId||
         frameSet.frameSetArtifactHandle?.artifactKind !==
           'western_frame_set') {
       fail('CLEAN_WESTERN_POSTER_INPUT_INVALID',
-        'Western Poster render requires exact Frame and Match Results.');
+        'US Adult poster rendering requires the exact same-Run frames and frozen actor selection.');
     }
     const materializeRequest = {
       libraRunId: frameSet.libraRunId,
@@ -870,12 +900,13 @@ function createCleanWesternAnalysisPort(options) {
       artifactKind: 'poster',
       mediaType: 'image/jpeg',
       provenanceRef: {
-        objectType: 'western_poster_render',
-        objectId: match.evidenceId,
+        objectType: 'us_adult_poster_render',
+        objectId: selection.selectionId,
         revision: 1,
         digest: canonicalDigest({
-          personMatchEvidenceDigest: match.payloadDigest,
+          actorSelectionDigest: selection.selectionDigest,
           frameArtifactSetDigest: frameSet.manifestDigest,
+          presentationVersion:US_ADULT_PRESENTATION_VERSION,
         }),
       },
     };
@@ -890,7 +921,7 @@ function createCleanWesternAnalysisPort(options) {
     const bytes = await options.engine.renderPoster(Object.freeze({
       frameArtifactSet: frameSet,
       frameComposite: framePayload,
-      personMatchEvidence: match,
+      actorSelectionBasis: selection,
     }));
     if (!Buffer.isBuffer(bytes) || !bytes.length) {
       fail('CLEAN_WESTERN_POSTER_RESULT_INVALID',

@@ -4,6 +4,7 @@ const catalog = require('../../../contracts/ports/p6-horizontal-domain-public-co
 const { packageId } = require('./package.boundary.json');
 const { createPerceptionCapabilityPorts } = require('../capabilities/perception-capability-ports');
 const { createPerceptionCapabilityRegistrations } = require('../capabilities/perception-capability-registrations');
+const {createAcquisitionResumeIntent}=require('../capabilities/acquisition-resume-intent');
 const { createPerceptionProcessServices } = require('../application/perception-process-services');
 const { createPerceptionPlanners, createPerceptionProjections } = require('../planning/perception-planners');
 
@@ -46,7 +47,7 @@ function createExecutionRegistration() {
         return createPerceptionCapabilityRegistrations({ ...registrationOptions, ports });
       } });
     },
-    createProcessServices(options) { return createPerceptionProcessServices(options); },
+    createProcessServices(options) { return createPerceptionProcessServices({...options,acquisitionResumeIntent:createAcquisitionResumeIntent(options)}); },
     createPlanningRegistration(options) {
       return Object.freeze({ planners: createPerceptionPlanners(options), bindingProjections: createPerceptionProjections(options) });
     },

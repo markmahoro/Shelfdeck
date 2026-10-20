@@ -461,8 +461,9 @@ function createLibraRunAdminService(options) {
       const snapshot = current(libraRunId);
       const terminalRow=snapshot.revisions.find(row=>Number(row.state_revision)===Number(snapshot.run.state_revision));
       const terminal=JSON.parse(terminalRow.transition_evidence_json);
-      const pathResults=(terminal.blockedWorks||[]).map(item=>({workId:item.workId,capabilityRef:item.capabilityRef,
-        failureClass:item.failureClass,failureCode:item.failureCode,evidenceDigest:item.terminalEvidenceDigest}));
+      const pathResults=(terminal.blockedWorks||[]).map(item=>item.blockerSource==='plan_rejection'?
+        require('../model/terminal-planning-evidence').validatePlanningMember(item):{workId:item.workId,capabilityRef:item.capabilityRef,
+          failureClass:item.failureClass,failureCode:item.failureCode,evidenceDigest:item.terminalEvidenceDigest});
       let candidate;
       try {candidate=defectCandidate(libraRunId,snapshot);}catch(error) {
         if(error.code==='P9_DEFECT_ADMISSION_EVIDENCE_PENDING')return Object.freeze({eligibility:'evidence_pending',libraRunId,
