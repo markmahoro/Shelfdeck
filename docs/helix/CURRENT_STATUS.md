@@ -1,5 +1,9 @@
 # ShelfDeck 当前状态
 
+2026-10-20 发布候选`64d1b067024b98e51b9fa75942e465e8958b0a9c`已标准构建/上传，tag `helix-beta-20261020-64d1b06702`，tar SHA256 `1edf357198efd8c3c7384e786481ab6198b4ebe8648165d55e3ecaf1ddc8799a`，NAS校验及标准dry run通过。2634个镜像文件与Source/本地资产逐项一致；Service648 PASS/29既有skip，Linux受影响252个唯一用例最终通过（首轮P2 CLI夹具目录缺失单项失败，补齐测试布局后3项重跑通过，未改Runtime），具体版本UI负责人宽窄12/12及3份中性海报PASS。独立固定checkout完整Architecture Gate仍在运行，不能计PASS；真实媒体准确率按用户决定停止统计。
+
+生产升级尚未执行：一致数据库副本检查`eligible=false`，30,941个人物归属全部明确，唯一阻挡为10个未完成Libra Run及其执行责任。显式10 Subject的标准Reset只读预览ready、无blocker；会丢弃这10项整理过程，生产动作尚无授权，未执行。按Playbook §3.4不得擅自加跨迭代兼容或把部署授权当成Reset授权，已请用户选择等待完成或清理后重整。当前生产image/启动时间保持；未停服、改库、改媒体或复制一次性测试凭据，未完成完整冷备/候选生产副本Host/回退资格。
+
 2026-10-20 最新生产升级授权与来源收敛：用户确认改完直接生产部署，US Adult辅助搜图只保留ThePornDB。已移除Wikimedia查询/页面入口/新选图来源，固定官方GraphQL地址，设置仅保留API Key；不将一次性验收凭据复制到生产。受影响Service30 PASS、Web14 PASS，Web原43文件242 PASS及build后新增失败状态用例已定向复验；四项静态Gate/P2通过，aggregate `1b9df5e2fd2ffe41a64382f2159c8d8537b037fb47c15a30222086c173b5f2ba`。完整候选/UI及生产数据升级资格正在核验，生产尚未切换；只读数据库副本检查不等同完整备份或Host验收。
 
 2026-10-20 海报排版v3本地完成：用户确认中性示例后，正式共享Renderer改为暖白底/顶部演员名/四帧2×2居中裁切铺满/页脚原名及小肖像，保持1000×1500。SSOT及冻结Renderer合同升为us-adult-presentation@3，首次Libra生产和Arca刷新复用原唯一组件。Windows受影响55 PASS/1既有opt-in skip，Linux31 PASS/1同项skip及四项静态Gate通过；正式Renderer中性预览已检查。未重建或部署NAS镜像、未重生成已有封面，原完整版本资格不自动覆盖本增量；详见既有US Adult Evidence。

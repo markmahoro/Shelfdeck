@@ -2,6 +2,20 @@
 
 ## 2026-10-20 最终候选准备：ThePornDB唯一来源
 
+### 最终候选、适用审核及实际升级阻挡
+
+冻结候选commit `64d1b067024b98e51b9fa75942e465e8958b0a9c`，包含当前生产`5367179429`完整祖先链。标准`build-image.js`构建`helix-beta-20261020-64d1b06702`，771.3MiB tar的SHA256为`1edf357198efd8c3c7384e786481ab6198b4ebe8648165d55e3ecaf1ddc8799a`；标准upload完成NAS逐字节校验，标准deploy dry run通过，没有apply或生产停服。第一次构建手填短hash末位错误被构建器拒绝，正确精确10位后完成；第一次dry run因当前worktree无本地Secret文件被拒绝，随后只在子进程环境使用主checkout既有Secret，未生成/轮换Secret或复制到文档/命令参数。完整镜像2634个Runtime/脚本/资源/模型/资产文件与源码逐项SHA256一致，无源码覆盖挂载；Web JS为`index-DP-CFWjn.js`、SHA256 `3a0fe1d8b451359882e51a3c8fe9d9e20e979b4a46fe2f4017b3688299abe3d8`，CSS保持原接受字节。
+
+本轮完整Service677 total/648 PASS/29既有skip/0fail；最终Linux镜像15个受影响文件252个唯一用例，首轮251 PASS/1fail，失败为P2 CLI用例预期repositoryRoot/media-service目录而测试镜像只提供/app的夹具布局，不是Runtime失败。补齐只读CLI脚本仍因根布局不完整失败；随后用一次性tmpfs内目录映射补齐完整repository布局，原P2三项均PASS，不修改源码、镜像或Oracle，也不把初轮计作PASS。其余251项不因夹具修正重复执行，不重复累加数量。完整Architecture Gate已在独立checkout固定该commit运行，4183个tracked输入预先摘要为`2c0245319b51bdac20298cc56c650407c1784fb73580715d2518e57003fc9f94`；目前尚未结束，后续必须核对退出码/全部夹具及前后摘要，不能继承旧完整Gate。
+
+UI负责人按同一冻结commit接受80份源码、9项资产，宽窄12/12 PASS；受控API验证固定地址、仅Key字段、失败重试/读取恢复、成功清空凭据、保留草稿新标签定位、唯一来源空/失败结果及明确选图；三份非真人合成海报验证1000×1500、暖白底、四格cover裁切及宽文字边界。报告为`E:/my_project/helix-git-consolidation-20261008/us-adult-ui-review-64d1b0670-20261020/owner-review.json`，SHA256 `30ac9d0714f25ba95eb61bf813fd79abdca1f4652937d88e0f15c96cdf987fa6`；没有调用真实身份识别或外部Provider。
+
+实际生产数据库一致快照在独立应用子目录`production-preflight-20261020-064000`生成，原生产目录只读挂载，资源限定1CPU/768MiB/network none；快照库约3.8GB。当前离线operator返回eligible=false：30,941 Person全部可靠归库，无缺失/冲突；阻挡为libra_runs10、fx_supporting_works10、fx_work_attempts10、fx_workflow_events22、fx_event_attempts1、fx_effect_journal1个未完成责任。未改升级guard。仅捕获数据库与加密管理员文件，不是完整冷备/完整Host或回退证明；生产health检查成功、image/StartedAt/RestartCount保持。
+
+当前公开Formation为3 Movie/7 Series；其中一个电影仍转码，其余等待资源。按确切10个Subject运行标准`formation-reset-nas.js --subject-ids ...`只读预览，ready=true/blockers为空：10 Runs、10 Workspaces、653个历史/活动Supporting Works（活动10）、248 Controlled Materials、259 Artifacts，Packages/Custody/On-deck Run均0；607条已Commit收藏属于保护集合。此预览不授权删除。Playbook §3.4明确当前迭代不能给未Commit整理自行增加通用兼容，且生产Reset要单独授权；已向用户发出“保留进度待完成/允许清理这10项后重整”选择，等待回答。未执行Reset/停止生产/数据库升级；未改变原片或既有成品，也未把测试API Key投入生产。即使取得清理授权，实际执行前仍须重新核对现场、精确副本演练及完整备份，不能沿用可能已完成的旧清单。
+
+私有日志在ignored目录：`release-service.txt`、`release-web*.txt`、`tpdb-only-web-final.txt`、`release-linux.txt`及两次P2夹具重跑日志、`release-image-build*.txt`、`release-upload.txt`、`release-image-audit.json`/files、`release-deploy-dry-run*.txt`、`production-schema-inspection.txt`、`production-reset-preview*.json/txt`和`release-gate-64d1b06702*`。未将生产导出、真实标签或凭据纳入提交。
+
 用户确认US Adult不需要Wikimedia，只保留ThePornDB，并要求改完直接生产升级。已同步SSOT姓名辅助搜图合同：固定`https://api.theporndb.net/graphql`，用户只填写API Key，继续全站网络策略和用户明确选图。移除Commons请求及来源展示，来源失败/未配置/空结果均明确返回唯一来源状态，不隐藏切源。内部沿用既有`stashbox`协议标识及Platform proof/CAS/Secret保存；新配置拒绝其他地址，旧非TPDB配置及已签名的Wikimedia选择在取图前拒绝。手工上传及已存参考图保持，不执行批量人物修改。
 
 新选图合同`PeopleSelectedImageHandle`与构建器/Registry同步移除Wikimedia。Source-map仅传播SSOT文档摘要，检查原counts/categoryDigests/aggregateDigest一致；P2新总摘要`1b9df5e2fd2ffe41a64382f2159c8d8537b037fb47c15a30222086c173b5f2ba`，131/110/224/58/145及243 references保持。四项静态Gate通过。

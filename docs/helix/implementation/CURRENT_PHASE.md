@@ -2,6 +2,8 @@
 
 日期：2026-10-20。状态：`BASELINE QUALIFIED / QUERY INCREMENT LOCALLY VERIFIED / IDENTITY ACCURACY UNASSESSED`。
 
+发布检查点：精确候选`64d1b06702`的镜像已标准构建/上传并校验，dry run及当前UI负责人审核通过，Service和Linux增量验证通过；固定checkout完整Gate尚在运行。生产副本10个未完成Run阻挡210→224升级；标准显式10 Subject Reset仅完成只读预览。依Playbook §3.4等待新的生产数据处理决定，不擅自Reset或加兼容。生产尚未切换，冷备/完整Host/回退资格未完成；详见既有US Adult Evidence最新补记。
+
 最新授权覆盖下方早期仅本地范围：用户要求改完直接生产升级，并将US Adult搜图收敛为唯一ThePornDB来源、固定地址及API Key设置。沿用同一活动Phase处理候选整合、UI与生产副本升级/回退证明及标准部署；不新增清库、Reset、旧任务终结或一次性测试凭据进入生产的授权。准确率统计按用户决定停止。
 
 海报新排版补记：用户确认暖白底、顶部演员名、四帧2×2裁切铺满及页脚小肖像/原名的中性预览。唯一共享Renderer和冻结合同升级为us-adult-presentation@3；Windows55 PASS/1既有opt-in skip、Linux31 PASS/1同项skip、四项静态Gate通过。局部本地完成，未更新NAS镜像或已有成品，不继承原完整版本资格。用户已停止准确率统计，身份准确性状态继续保持未完成，不再主动收集统计；详见既有US Adult Evidence最新节。
