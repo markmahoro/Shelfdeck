@@ -100,6 +100,7 @@ COPY media-service/scripts/helix-jav-schema-copy.js ./scripts/helix-jav-schema-c
 COPY media-service/scripts/helix-libra-schema-copy.js ./scripts/helix-libra-schema-copy.js
 COPY media-service/scripts/helix-us-adult-schema-copy.js ./scripts/helix-us-adult-schema-copy.js
 COPY media-service/scripts/helix-architecture/us-adult-schema-copy.js ./scripts/helix-architecture/us-adult-schema-copy.js
+COPY media-service/scripts/helix-architecture/paused-release-batch-proof.js ./scripts/helix-architecture/paused-release-batch-proof.js
 COPY media-service/scripts/helix-architecture/libra-workshop-schema-copy.js ./scripts/helix-architecture/libra-workshop-schema-copy.js
 COPY media-service/scripts/helix-architecture/jav-release-schema-copy.js ./scripts/helix-architecture/jav-release-schema-copy.js
 COPY media-service/scripts/helix-architecture/jav-release-effect-history-proof.js ./scripts/helix-architecture/jav-release-effect-history-proof.js

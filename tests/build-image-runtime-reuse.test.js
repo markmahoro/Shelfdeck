@@ -21,7 +21,8 @@ test('runtime reuse retains all canonical copy destinations with bounded added l
   const copies=recipe.split(/\r?\n/).filter(line=>line.startsWith('COPY ')&&!line.startsWith('COPY --from='));
   const consolidated=consolidateRuntimeCopies(root,copies);
   assert.deepEqual(destinations(consolidated),destinations(copies));
-  assert.equal(consolidated.length,4);
+  // Package files, Root sources, the Helix tree and two script destinations.
+  assert.equal(consolidated.length,5);
   assert.ok(consolidated.includes('COPY media-service/src/helix ./src/helix'));
 });
 

@@ -10,7 +10,7 @@
 
 非终态证明仅限Procurement field_observation、Perception acquisition_page、Arca offdeck_duplicate_detection三个精确Owner/process/work kind及六个Capability。当前manifest（除源码定位）、完整Schema closure、retry/timeout/compensation必须与冻结旧版完全相同；技术图、绑定及Result/证据摘要沿既有Bounded Verifier复查，拒绝executing Event/Attempt、未决Effect和其他Capability。Root与只读Copy共用证明，原Catalog、Work、Attempt、Result及Domain cursor不变，不注册旧executor、不清理后台批次。Libra/Formation无兼容例外，仍限用户授权的精确10项Reset。
 
-三个本地测试文件94/94 PASS，实际空数据完整Host构造/关闭通过。新固定提交完整Gate、生产副本Reset/升级/回退与完整Host资格、新镜像及标准部署仍待通过；64d1资格不冒充新增代码PASS。私有记录：`production-safe-stop-completed.json`、`production-safe-stop.jsonl`、`production-safe-cold-prepare.txt`、`canonical-nas-preflight.txt`、`source-catalog-audit.json`、`paused-batch-local-tests.txt`、`paused-batch-empty-host.txt`。
+三个本地测试文件94/94 PASS，另25项Startup回归及四个静态Gate通过，实际空数据完整Host构造/关闭通过。固定c726完整Gate运行中。首个c726镜像Linux119项中的脚本文件未装入导致111通过/1文件失败，未计PASS；补canonical Dockerfile COPY后须重建，Root/Helix源码及UI保持。构建器回归的旧四层断言未包含现有第五个script destination，保留完整destination一致断言并更正五组边界。首轮隔离Reset遇disk I/O error，生产未操作；隔离库仍10 active Run/611 Entry，正补SQLite可写临时目录验证，不能先记成功。生产副本升级/回退、完整Host资格、新镜像及标准部署仍待通过。私有记录：`production-safe-stop-completed.json`、`production-safe-stop.jsonl`、`production-safe-cold-prepare.txt`、`canonical-nas-preflight.txt`、`source-catalog-audit.json`、`paused-batch-local-tests.txt`、`paused-batch-empty-host.txt`、`paused-batch-linux-tests.txt`及`isolated-reset*.txt`。
 
 ### 补充清理授权、完整Gate结束与安全停机纠正
 
