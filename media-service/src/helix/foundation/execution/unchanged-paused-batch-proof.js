@@ -6,6 +6,7 @@ const { createExecutionPolicyRegistry } = require('./execution-policy');
 const { executionCatalogDigest } = require('./workflow-plan');
 const { schemaClosure } = require('./catalog-schema-closure');
 const { createBoundedCatalogTransition } = require('./bounded-catalog-transition');
+const { validateSupportingWorkDefinition } = require('./runtime-contracts');
 
 // A paused technical batch retains its immutable graph and cursor. Historical
 // executors are never registered; every executable contract must be unchanged.
@@ -50,9 +51,12 @@ function createUnchangedPausedBatchProof(options) {
     if (!facts || facts.plan.catalog_digest !== archive.catalogDigest) throw new Error('Unknown paused batch Catalog.');
     const scope = allowed.get([facts.work.owner_domain, facts.work.process_type, facts.work.work_kind].join('\0'));
     const refs = facts.nodes.map(node => node.capability_ref).sort();
+    const definition = validateSupportingWorkDefinition(JSON.parse(facts.work.definition_json));
     if (!scope || !equal(refs, scope.capabilityRefs.slice().sort()) ||
-        canonicalDigest(JSON.parse(facts.work.definition_json)) !== facts.work.definition_digest ||
-        facts.events.some(event => !['pending', 'ready', 'succeeded', 'skipped', 'failed', 'cancelled'].includes(event.state)) ||
+        canonicalDigest(definition) !== facts.work.definition_digest || Buffer.byteLength(facts.work.definition_json) > 256 * 1024 ||
+        !Object.entries({ workId: 'work_id', ownerDomain: 'owner_domain', processType: 'process_type',
+          processId: 'process_id', workKind: 'work_kind' }).every(([field, column]) => definition[field] === facts.work[column]) ||
+        facts.events.some(event => !['pending', 'ready', 'waiting_for_resource', 'succeeded', 'skipped', 'failed', 'cancelled'].includes(event.state)) ||
         facts.attempts.some(attempt => attempt.state !== 'completed') ||
         facts.effects.some(effect => !['committed', 'failed'].includes(effect.state)))
       throw new Error('Batch is not an unchanged, safely paused scope.');
@@ -87,7 +91,11 @@ function createUnchangedPausedBatchProof(options) {
     },
     verify(snapshot) { return this.supports(snapshot) && proof.verify(snapshot); },
     inspect(snapshot) {
-      if (!this.supports(snapshot)) return null;
+      // A batch can be ready between pages with a closed previous Attempt.
+      // Prove that original graph too; the next Plan uses the current Catalog.
+      if (snapshot?.plan?.catalog_digest !== archive.catalogDigest ||
+          !['admitted', 'ready', 'running', 'blocked'].includes(snapshot.work?.state) ||
+          !allowed.has([snapshot.work?.owner_domain, snapshot.work?.process_type, snapshot.work?.work_kind].join('\0'))) return null;
       captured = new Map();
       try { return proof.verify(snapshot) ? [...captured.values()] : null; }
       finally { captured = null; }

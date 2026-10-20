@@ -4,6 +4,8 @@
 
 ### 安全停机完成及暂停批次保护补充
 
+实际副本初检eligible=false，精确剩余4 Work/3 Attempt/3 Event：两个Field和一个Perception处于waiting_for_resource，另一个Field已完成上一Attempt、Work为ready等待下一页。无executing或未决Effect，属于安全停机应保留的持久责任。证明补充仅允许无执行的资源等待，并检查活动Work的已关闭前页；外部等待仍拒绝。复用Foundation正式SupportingWorkDefinition校验、摘要/大小及Owner/process/work metadata一致性，不接受仅改hash的跨域定义。真实副本12个后台图（7重复检测、4观察图、1豆瓣图）在只读私有技术fixture中全部通过当前证明；未执行Domain投影、不是正式Host资格。最新局部29项通过；c726固定Gate已不含此增量，不能当成最终PASS，最终固定代码须重跑。
+
 打包补齐后的e37镜像Linux四文件119/119 PASS，2638文件摘要全部与源码一致，审核UI JS/CSS保持。标准完整构建此前继承上游FFmpeg的OCI revision，不能当作ShelfDeck提交；已在标准构建参数统一显式写入当前Git revision，最终镜像须复核标签和字节身份。隔离Reset补/tmp后实际Exit0，10 active Run归零、611 Entry保持；首轮disk I/O只属于只读测试容器缺少SQLite临时写入空间，不能算旧Reset业务失败或生产变更。新副本继续Schema/Host资格，尚未生产部署。
 
 正式stop操作于08:29:24.650 UTC受理，09:12:47.808 UTC完成（本地17:12:47），mode/desiredMode均stopped、operation completed、normalSupplyAllowed=false，Events/Recoveries/Owner/Admin四个在途通道及deferred recovery均0，faulted=false。只读/proc确认FFmpeg退出；受理后新增Event Attempt及Work Attempt均0。10个未完成Run、11个暂停后台Work与611条收藏保持，证明当前执行收敛，不表示排队Work全部完成。随后Compose stop正常退出，新完整冷备`/vol1/1000/docker/shelfdeck/backups/us-adult-20261020T091400Z`的64文件共3,842,413,191 bytes逐文件摘要及mode/uid/gid一致，compose/secret摘要一致，根700、receipt600。081900备份只保留先前现场。生产尚未Reset、迁移或换版。

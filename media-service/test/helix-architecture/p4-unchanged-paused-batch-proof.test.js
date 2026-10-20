@@ -25,11 +25,17 @@ function fixture() {
     effectClass: 'pure_observation', executorVersion: 1, executionContractDigest: D(manifest) }], resolve: () => ({ manifest }) };
   const archive = { sourceCommit: 'f'.repeat(40), catalogDigest: executionCatalogDigest(registry, createExecutionPolicyRegistry(policy)),
     policy: structuredClone(policy), manifests: [structuredClone(manifest)], schemas: structuredClone([...schemas.values()]) };
+  const definition = { schemaRef: 'helix://foundation/types/SupportingWorkDefinition/v1', schemaVersion: 1,
+    workId: 'work', ownerDomain: 'procurement', processType: 'field', processId: 'field-1', workKind: 'observation',
+    workObjectiveTypeRef: 'helix://fixture/work/Observation/v1', workObjectiveVersion: 1,
+    executionBasisId: 'basis', executionBasisDigest: D('basis'), dependencyRefs: [], priorityClass: 'background_observation',
+    priorityRevision: 1, capabilityCatalogScope: 'procurement', workspaceMaterialScope: [], idempotencyKey: 'key',
+    concurrencyScope: 'field-1', outputContractRef: prefix + 'result' };
   const facts = { plan: { plan_id: 'plan', attempt_id: 'attempt', catalog_digest: archive.catalogDigest,
     graph_digest: D('graph'), basis_digest: D('basis'), state: 'planned' },
     workAttempt: { attempt_id: 'attempt', work_id: 'work', ordinal: 1, basis_digest: D('basis'), state: 'running' },
     work: { work_id: 'work', owner_domain: 'procurement', process_type: 'field', process_id: 'field-1', work_kind: 'observation',
-      state: 'running', definition_json: '{}', definition_digest: D({}) },
+      state: 'running', definition_json: JSON.stringify(definition), definition_digest: D(definition) },
     nodes: [{ plan_id: 'plan', node_id: 'node', capability_ref: ref, contract_version: 1, effect_class: 'pure_observation',
       input_binding_schema_ref: prefix + 'inputs', input_bindings_json: JSON.stringify({
         schemaRef: 'helix://foundation/types/EventInputBindingSet/v1', schemaVersion: 1,
@@ -56,6 +62,19 @@ test('unchanged paused graph is proven without changing its original cursor or c
   assert.equal(JSON.stringify(f.facts), before);
 });
 
+test('durable resource wait has no executing Attempt and remains paused', () => {
+  const f = fixture(); f.facts.events[0].state = 'waiting_for_resource';
+  const proof = f.create(); assert.equal(proof.verify(f.facts), true);
+  f.facts.attempts.push({ state: 'executing' }); assert.equal(proof.verify(f.facts), false);
+});
+
+test('a ready batch retains its closed prior page without making that Attempt executable', () => {
+  const f = fixture(); f.facts.work.state = 'ready'; f.facts.workAttempt.state = 'cancelled';
+  f.facts.events[0].state = 'skipped';
+  const proof = f.create(); assert.equal(proof.supports(f.facts), false); assert.equal(proof.inspect(f.facts).length, 1);
+  f.facts.work.state = 'succeeded'; assert.equal(proof.inspect(f.facts), null);
+});
+
 for (const [name, mutate] of [
   ['owner', f => { f.facts.work.owner_domain = 'libra'; }],
   ['process', f => { f.facts.work.process_type = 'libra_run'; }],
@@ -63,9 +82,12 @@ for (const [name, mutate] of [
   ['catalog', f => { f.facts.plan.catalog_digest = D('foreign'); }],
   ['extra capability', f => { f.facts.nodes.push({ ...f.facts.nodes[0], capability_ref: 'procurement.foreign@1' }); }],
   ['executing event', f => { f.facts.events[0].state = 'executing'; }],
+  ['external observation wait', f => { f.facts.events[0].state = 'waiting_for_external'; }],
   ['executing attempt', f => { f.facts.attempts.push({ state: 'executing' }); }],
   ['unresolved effect', f => { f.facts.effects.push({ state: 'intended' }); }],
   ['changed work definition', f => { f.facts.work.definition_json = '{"cursor":9}'; }],
+  ['foreign definition Owner', f => { const value = JSON.parse(f.facts.work.definition_json); value.processId = 'foreign';
+    f.facts.work.definition_json = JSON.stringify(value); f.facts.work.definition_digest = D(value); }],
   ['invalid parameters', f => { f.facts.nodes[0].parameters_json = '9'; }],
   ['foreign event', f => { f.facts.events[0].work_id = 'foreign'; }],
 ]) test('paused proof rejects ' + name, () => {

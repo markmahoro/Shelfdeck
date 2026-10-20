@@ -12,7 +12,8 @@ const { createReadonlyProofProjectionRegistry } = require('./readonly-history-pr
 function provePausedReleaseBatches(database, schemaManifest) {
   if (!database.inTransaction) throw new Error('Paused batch proof requires a read snapshot.');
   const rows = database.prepare(`SELECT p.plan_id FROM fx_workflow_plans p JOIN fx_work_attempts a ON a.attempt_id=p.attempt_id
-    WHERE a.state NOT IN ('succeeded','failed','cancelled') ORDER BY p.plan_id LIMIT 101`).all();
+    JOIN fx_supporting_works w ON w.work_id=a.work_id
+    WHERE w.state IN ('admitted','ready','running','blocked') ORDER BY p.plan_id LIMIT 101`).all();
   const protectedIds = { fx_supporting_works: [], fx_work_attempts: [], fx_workflow_events: [] };
   if (!rows.length || rows.length > 100) return protectedIds;
   const schemas = new Map(), manifests = {};
