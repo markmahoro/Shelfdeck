@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+19:37检查点：获授权的精确10项标准Reset已完成、保持停服；清理后66文件完整备份及权限校验通过。生产新库只在独立release目录准备，未覆盖原210表数据库或切换镜像。af2257正常周期后13组历史事实再次逐项摘要保护通过；最终固定完整Gate继续运行。前段“Reset进入apply”保留为此前检查点。
+
 19:18检查点：af2257候选已在完整隔离生产副本中验证health200、normalSupplyAllowed=true及放行后常规字段协调（4来源、errors0）、安全关闭；原Workspace挂载身份只读保留，生产DB路径遮挡。13组历史事实表不变。生产正式安全停机已完成，精确10项标准Reset已备份并进入apply；未换库或切换镜像。d485完整Gate3158/3132 PASS/26 skip已结束，af2257全量独立Gate仍运行，不能以旧基线代替。最终切换须等候选资格及生产新库准备完成。
 
 日期：2026-10-20。状态：`BASELINE QUALIFIED / QUERY INCREMENT LOCALLY VERIFIED / IDENTITY ACCURACY UNASSESSED`。

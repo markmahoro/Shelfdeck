@@ -4,6 +4,8 @@
 
 ### 安全停机完成及暂停批次保护补充
 
+19:37检查点：标准生产Reset已Exit0，范围仅获授权当前10个Subject，`--keep-stopped`生效。标准备份为`backups/formation-reset-20261020T111211Z/data`；清理后另做完整冷备`backups/us-adult-post-reset-20261020T111412Z`，66文件/3,842,445,959 bytes逐项SHA256、mode/uid/gid一致，compose/secret摘要保持。生产224表准备仅写入`releases/us-adult-af2257c423-prepared`，原210表主库尚未替换。原镜像完整Host/候选严格正常周期后，再核对13组收藏、库存、人物旧列摘要完全一致（私有记录`protected-facts-after-origin-normal-cycle.json`）。准备好的原子换库工具仅在Linux生成夹具验证：dry run无业务修改、来源漂移拒绝、同卷原子安装、重复执行不覆盖及rename后Receipt前中断恢复全部通过；未运行生产apply。最终af2257固定完整Gate仍在运行。
+
 最新af2257c423复验：31个旧provider Scope均由唯一旧周期请求身份证明，24项Windows及Linux定向PASS；精确镜像2639文件SHA256与源一致，UI JS/CSS保持已审核字节。完整副本Host第一轮只覆盖放行前completion循环，不作为完整普通调度依据；第二轮在mode=running后观察active-material-fields协调4来源，health200、normalSupplyAllowed=true、errors0、Catalog rejects0并安全停止/关闭，原始记录`full-copy-upgraded-origin-normal-cycle.txt`。13组收藏/身份/库存/人物表旧列摘要与冻结源完全一致；旧536完整Host直接读取224表候选数据明确拒绝P3_SQLITE_SCHEMA_GENERATION_MISMATCH，禁止直接旧镜像回退。条件式Schema rollback在新业务运行前209表一致时通过，不宣称放行后可无损倒回旧格式；保留原版及完整停机备份，未来恢复须先核验无新增事实。
 
 d485固定完整Gate388文件3158 total/3132 PASS/26既有或opt-in skip/0fail、四组件PASS，完整输入摘要前后相同。af2257新增Owner证明独立全量仍运行。生产按最新--keep-stopped预览再次确认10个Subject/Run/active Work与授权完全相同；首次预览忘记keep-stopped导致镜像解析拒绝，未清理，正确参数后ready=true。19:12开始标准Formation Reset --apply/FORMATION_RESET_V2/--keep-stopped/精确10 IDs；完整data备份后进入apply，当前未得完成结果，未换库或部署新镜像。受控清理仅本线程已拒绝候选的NAS staging tar、本地精确文件仍保留；缺少未上传00080 tar的首轮检查在删除前拒绝，修正清单后继续，不涉及生产/原版tar、镜像或媒体。

@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-20 19:37 Asia/Shanghai检查点：标准Formation Reset已按精确10项授权完成并保持停服，原611条收藏保护；清理后再次完整备份66文件/3,842,445,959 bytes，内容及mode/uid/gid逐项一致。生产210表仍为旧镜像停止状态，新224表在独立release目录准备及验证，尚未发布到生产数据库路径。af2257完整副本放行后正常周期已通过，13组历史收藏/库存/人物事实在该周期后再次核对摘要不变。最终固定完整Gate仍运行，不将旧基线计为新版本PASS。
+
 2026-10-20 19:18 Asia/Shanghai检查点：生产正式安全停机已完成，旧镜像保持停止；已按用户10项精确授权启动标准Formation Reset，工具已完成完整data备份并进入apply，尚未记录清理完成或数据换版。af2257c423候选在独立完整生产副本中health200、normalSupplyAllowed=true，并在放行后完成active-material-fields常规协调4来源、无runtime error、无历史Catalog拒绝，安全关闭。13组历史收藏/身份/库存/人物保护表保持。完整Architecture基线d485已3158 total/3132 PASS/26 skip/0fail；含Perception旧周期来源证明的af2257独立完整Gate仍运行，不继承为最终PASS。生产未切换新镜像。
 
 2026-10-20 09:12:47 UTC更新：正式安全停机成功，mode/desiredMode=stopped、operation completed、所有在途通道及deferred recovery=0，FFmpeg退出，受理后新增Attempt=0；611条收藏保持。原容器随后正常停止，新完整冷备64文件/3,842,413,191 bytes及权限逐项一致。生产未Reset/迁移/换版；现补最新Catalog历史及三种合同完全不变的暂停后台批次证明，不扩大10项清理授权。94项局部回归和空Host通过，生产副本及新固定Gate仍待验。下文停机pending为此前检查点。
