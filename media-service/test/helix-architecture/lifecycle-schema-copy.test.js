@@ -6,6 +6,30 @@ const {SOURCE_DIGEST,TARGET_DIGEST,inspectLifecycleSchemaSource,prepareLifecycle
 const archive=path.resolve(__dirname,'../../src/helix/foundation/persistence/release-schemas');
 const schema=digest=>({schemaDdl:zlib.gunzipSync(fs.readFileSync(path.join(archive,digest+'.sql.gz'))).toString('utf8'),schemaManifest:JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(archive,digest+'.manifest.json.gz'))))});
 const hash=file=>crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
+const {publishPreparedDatabase}=require('../../../scripts/lifecycle-schema-cutover');
+
+test('offline lifecycle cutover rejects drift and recovers atomic rename without replacing newer facts',async()=>{
+ const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-lifecycle-cutover-')),dataDir=path.join(root,'data'),preparedDir=path.join(root,'prepared');
+ fs.mkdirSync(dataDir);fs.mkdirSync(preparedDir);
+ const live=path.join(dataDir,'shelfdeck.db'),sourcePath=path.join(preparedDir,'source.sqlite'),targetPath=path.join(preparedDir,'prepared.sqlite');
+ try{
+   openSqliteKernel({Database,databasePath:live,...schema(SOURCE_DIGEST)}).close();fs.copyFileSync(live,sourcePath);
+   const copy=prepareLifecycleSchemaCopy({Database,sourcePath,targetPath});
+   const rollback=prepareLifecycleSchemaCopy({Database,sourcePath:targetPath,targetPath:path.join(preparedDir,'rollback.sqlite'),rollback:true});
+   fs.writeFileSync(path.join(preparedDir,'copy-receipt.json'),JSON.stringify(copy));fs.writeFileSync(path.join(preparedDir,'rollback-receipt.json'),JSON.stringify(rollback));
+   const options={Database,dataDir,preparedDir},before=hash(live);
+   assert.equal((await publishPreparedDatabase(options)).applied,false);assert.equal(hash(live),before);assert.equal(fs.existsSync(path.join(preparedDir,'cutover.json')),false);
+   const drift=new Database(live);drift.pragma('user_version=7');drift.close();
+   await assert.rejects(()=>publishPreparedDatabase({...options,apply:true}),{code:'CUTOVER_SOURCE_DRIFT'});assert.equal(fs.existsSync(targetPath),true);
+   fs.copyFileSync(sourcePath,live);
+   await assert.rejects(()=>publishPreparedDatabase({...options,apply:true,afterRename(){throw Error('fixture_crash_after_rename');}}),/fixture_crash_after_rename/);
+   const installed=hash(live);assert.notEqual(installed,before);assert.equal(hash(sourcePath),before);
+   assert.equal((await publishPreparedDatabase(options)).applied,false);
+   assert.equal((await publishPreparedDatabase({...options,apply:true})).recovered,true);assert.equal(hash(live),installed);
+   const newer=new Database(live);newer.prepare("INSERT INTO libra_subjects(subject_id,status) VALUES('new-fact','active')").run();newer.pragma('journal_mode=DELETE');newer.close();const preserved=hash(live);
+   await assert.rejects(()=>publishPreparedDatabase({...options,apply:true}));assert.equal(hash(live),preserved);
+ }finally{fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
+});
 test('lifecycle upgrade preserves all existing tables and rollback preserves changes made after upgrade',()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-lifecycle-schema-')),sourcePath=path.join(root,'old.db'),targetPath=path.join(root,'new.db');
  try{
