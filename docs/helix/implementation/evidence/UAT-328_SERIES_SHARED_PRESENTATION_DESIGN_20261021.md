@@ -297,3 +297,5 @@ TMDB官方接口核对（2026-10-21）：[整剧详情](https://developer.themov
 仍需完成：Supporting Work/Planner及Effect reality observer接线；正式共享Control/Ready提交及Workspace回收；Accepted pending和On-deck Own的同事务引用/围栏；健康组合、跨季/新集复用、修复/刷新、退出和原任务恢复；本地祖先资料的范围资格及明确用户补充资料的入口；完整剧级描述/演员呈现规则；生产旧缺口只读修复清单；17情境完整旅程、跨平台及具体版本UI负责人验收。不得据基础组件测试关闭本项，也不得发布半接通功能或直接补生产文件。
 
 目前组合342项定向回归和两项隔离JAV Host通过；最后受影响范围77项通过，包含本项8项共享组件/真实文件验证及4项TMDB图片scope叶端验证。P2/Manifest/包边界/禁止语义静态检查通过。完整长时门禁STOPPED、未作本版本发布资格；无生产变更。
+
+首批产品提交：`85ab5c7e1`。对应唯一CURRENT_PHASE中的JAV-STABLE-SOURCE-RECOVERY、PROCUREMENT-COMPLETE-GROUP-SLICING、SERIES-SHARED-PRESENTATION；三项UAT均保持开放。本提交为本地开发检查点，未推送、合并或部署。

@@ -1,6 +1,6 @@
 # ShelfDeck 当前计划
 
-2026-10-21三项UAT已进入开发。326/327首批修复与定向回归通过；328基础文本Basis/Provider、共享持久组件和文件层已开发，Supporting Work、正式Control/Commit及原条目恢复等运行链路尚未接通。沿用唯一CURRENT_PHASE，继续完整旅程与具体版本UI验收；未发布，生产保持6c74939646，无生产Reset或既有剧根补文件授权。下方此前待审文字为历史记录。
+2026-10-21三项UAT已进入开发，首批产品提交`85ab5c7e1`。326/327首批修复与定向回归通过；328基础文本Basis/Provider、共享持久组件和文件层已开发，Supporting Work、正式Control/Commit及原条目恢复等运行链路尚未接通。沿用唯一CURRENT_PHASE，继续完整旅程与具体版本UI验收；未发布，生产保持6c74939646，无生产Reset或既有剧根补文件授权。下方此前待审文字为历史记录。
 
 2026-10-21当前承接：UAT-326/327处理方向已获用户确认，继续保留实施授权；用户新增UAT-328完整设计，已确认剧根tvshow.nfo、poster、fanart三项均必需。完整设计草案覆盖Provider剧/季/集scope、首次任意季、跨季/同季复用、Arca共享责任建议、并发恢复、维护退出及既有收藏修复。该职责/Handoff/Commit扩展尚待设计确认，未回写SSOT或改产品/生产；见[设计草案](implementation/evidence/UAT-328_SERIES_SHARED_PRESENTATION_DESIGN_20261021.md)，沿用唯一CURRENT_PHASE。
 

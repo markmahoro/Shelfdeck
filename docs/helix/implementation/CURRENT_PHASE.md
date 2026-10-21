@@ -2,7 +2,7 @@
 
 2026-10-21用户已确认UAT-328完整设计并要求326/327/328全部开始开发。当前执行顺序为：326稳定来源资格与执行期短期授权；327共享本地完整分组及确定性Run分批；328 Arca剧级公共呈现及三层Provider合同、首次/跨季/新集与维护闭环。先回写SSOT，再实施和定向回归、具体版本UI审核；不继承先前版本资格，不将开发授权视为生产旧任务Reset或现存剧根补文件授权。下方待审描述保留为历史时点。
 
-首批开发检查点：326的Identity/Metadata/Artifact使用稳定JavSourceQualification，执行时重签短期Handle，并保存Metadata真实核准时刻，避免长查询跨TTL后误判来源；327采用共享本地完整分组、Triage Rule revision 3及local_media_group，分类目录可分批而真实1024上限保留；328已实现基础剧级文本Basis、Provider图片scope及稳定缓存key、共享登记/CAS/版本引用组件和精确文件IO。组合342项定向测试、2项隔离JAV Host及最后受影响范围77项通过；P2合同、Manifest、包边界和语义静态检查通过。328尚未接通Supporting Work、正式Control/Ready提交、Accepted/On-deck/维护退出、原条目恢复及本地补充资料完整入口，三项均未完成最终验收/发布。完整长时门禁曾提前启动后停止，记STOPPED，不计PASS；后续固定完整增量再执行。
+首批开发检查点（产品提交`85ab5c7e1`）：326的Identity/Metadata/Artifact使用稳定JavSourceQualification，执行时重签短期Handle，并保存Metadata真实核准时刻，避免长查询跨TTL后误判来源；327采用共享本地完整分组、Triage Rule revision 3及local_media_group，分类目录可分批而真实1024上限保留；328已实现基础剧级文本Basis、Provider图片scope及稳定缓存key、共享登记/CAS/版本引用组件和精确文件IO。组合342项定向测试、2项隔离JAV Host及最后受影响范围77项通过；P2合同、Manifest、包边界和语义静态检查通过。328尚未接通Supporting Work、正式Control/Ready提交、Accepted/On-deck/维护退出、原条目恢复及本地补充资料完整入口，三项均未完成最终验收/发布。完整长时门禁曾提前启动后停止，记STOPPED，不计PASS；后续固定完整增量再执行。
 
 2026-10-21新增UAT-328设计评审里程碑：[剧级公共呈现完整生命周期草案](evidence/UAT-328_SERIES_SHARED_PRESENTATION_DESIGN_20261021.md)已完成。用户已确认三项剧级文件均必需及首次/跨季/新集复用目标；Arca共享呈现职责和Handoff/Commit扩展、来源及维护细则为待审建议，非已实施合同。设计包含Provider精确三层接口、共享登记/引用、首次S03及并发/崩溃/缺损/退出与现场修复验收矩阵。326/327既有方案已确认，实施授权持续；无本轮产品或生产修改。
 

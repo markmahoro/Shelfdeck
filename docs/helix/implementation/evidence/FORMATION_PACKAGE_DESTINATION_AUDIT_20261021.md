@@ -530,3 +530,5 @@ UI 第二轮确认三项已修复，剩余取消窗口键盘路径未通过。�
 测试证据：首轮324项定向回归PASS；补规则冻结反例及Provider范围测试后，组合342项PASS、0fail/skip；两项隔离JAV Host真实HEVC/H.264分段旅程PASS。最后剧级原语言及NFO范围/格式修订后，77项受影响范围回归PASS。三组均为Windows本地/隔离或组件验证，不冒充NAS、Linux、具体版本UI或完整UAT业务验收。日志分别位于系统TEMP的shelfdeck-uat-326-328-checkpoint.tap、shelfdeck-uat-326-328-checkpoint-host.tap、shelfdeck-uat-328-final-scopes.tap，未把运行数据加入仓库。
 
 P2合同、Manifest、包边界及禁止语义静态检查PASS。完整长时architecture-verify门禁曾在开发尚未接完时提前启动，随后停止本任务可精确辨识的测试进程；状态STOPPED，不计PASS，后续完整候选需重新运行。无生产数据/文件修改、部署、Reset或历史补文件；生产保持6c74939646。
+
+首批产品提交：`85ab5c7e1`。对应唯一CURRENT_PHASE中的JAV-STABLE-SOURCE-RECOVERY、PROCUREMENT-COMPLETE-GROUP-SLICING、SERIES-SHARED-PRESENTATION；三项UAT均保持开放。本提交为本地开发检查点，未推送、合并或部署。
