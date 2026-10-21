@@ -1,5 +1,7 @@
 # “死包”专项：Formation 全生命周期归宿审视
 
+2026-10-21 UTC07:21 最终固定资格完成：c66d55b4a 的标准 Architecture Gate 全部395文件与四项静态检查 PASS、进程 exit 0；标准报告在成功时不保留逐测试 stdout，因此不从旧轮次推算本轮逐项计数。Service 677 total / 648 PASS / 29既有skip / 0 fail，Web44文件247 PASS、build PASS。4220份 tracked 输入前后摘要均为0352da4d8dd80ef5357cac4bef8ef1469174eca13c3e88c4c7c2a2a08024b813。原始日志及exits/before/after已保存至本机同名release证据目录。结合已接受的演练例外，其余发布检查已完成；正式Runtime stop已受理，等待安全收敛，尚未停止容器、安装结构或换版。
+
 2026-10-21 用户答复：“接受本次例外，其余检查通过后上线”。本次例外仅覆盖已说明的完整副本 Host 演练限制：只读挂载阻止现有转码和 Workspace 清理，旧镜像/旧版回退另有原优先级重启缺陷。原始 FAIL 记录保持；已验证的新镜像启动、正常协调、结构复制及历史保护不扩大为完整演练 PASS。最终固定完整门禁、安全停机、冷备校验、离线结构安装和标准部署后的核验仍须完成；没有生产 Reset 授权。
 
 验证工作区整理补记：归档旧验证工作区时，归档操作沿依赖 junction 清空了实施工作区的 Service/Web/tools 依赖，未影响 tracked 文件或生产。已确认主工作区与实施工作区三个锁文件一致，从主工作区已完成 npm ci 的依赖恢复，SQLite/ONNX/Vite/ssh2 加载检查通过。活动全量验证的 Service 依赖原为独立物理副本；Web/tools junction 已改成相同锁版本的物理副本。该环境修复不冒充依赖文件全程哈希冻结；tracked 输入继续前后核验。
