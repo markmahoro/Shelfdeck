@@ -1,5 +1,7 @@
 # “死包”专项：Formation 全生命周期归宿审视
 
+2026-10-21 17:25发布检查点：UAT-325最终候选6c7493964674eea2d944e915654dc3c64abf8929已构建上传并校验；镜像markmahoro/shelfdeck:helix-beta-20261021-6c74939646，ID sha256:ad0f738f2969439d555e46833ad0e197f38b3e3babd265af66252fef622ca1fe，tar SHA256 67165d579798f3ee9db0673c0edefcb3f409f7514fae6bdc207e4a3fb1b17f86。UI负责人同版22/22浏览器及26相关单测PASS，Web全248 PASS/build，后端字节继承438的Service648/29既有skip、Windows/Linux各24及四项静态PASS，2655产品/资源/资产文件一致。未新跑一小时完整Architecture Gate或完整生产媒体E2E；前轮完整副本Host FAIL及用户接受例外保留。本版未上线：生产408已受理stop（operation12a6711ec5538bd6c9a68a566b8d2080a51d40f39dbd6d497e2489aeb128bb6e），当前转码约2%、估计剩余约2小时40分，安全停机仍pending。尚未停容器、备份或切换，等待用户选择保留进度自然完成，或授权标准重启换版并由系统恢复。没有Reset/媒体删除/手工SQL。
+
 ## 2026-10-21 上线后反馈与修正（UAT-325）
 
 修正版438822156初次UI复验未通过：31条已接收/未接收混合页第二页重复12条，POST受理但响应丢失后进度已变而旧错误仍留。前者为items/intakeItems拼接未还原共同排序、分页skip与消费顺序不一致；现按同一比较器排序后消费。后者按Owner当前retryWorkId前进清除旧提示，并拒绝旧响应迟发错误覆盖新状态。18项交互回归及构建通过，等待后继精确资产复验；438镜像未部署。原Windows/Linux24、Service648/29既有skip、Web246及四项静态门禁通过，实际候选2655文件一致；后继仅UI及本Evidence改动，后台资格按字节继承，不冒充新跑全量。生产readonly+query_only修正版Reader已返回155历史/首26条，生产数据未改。
