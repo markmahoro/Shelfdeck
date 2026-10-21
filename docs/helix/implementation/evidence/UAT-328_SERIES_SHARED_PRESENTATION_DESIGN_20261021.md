@@ -383,3 +383,14 @@ TMDB官方接口核对（2026-10-21）：[整剧详情](https://developer.themov
 Service全量2e000eb9e：677 total/647 PASS/29 skip/1 FAIL，失败为已完成Formation条目也查询当前Work，违反既有完成态保护测试。2631f4ee0修复：非in_progress条目只读其原committed reservation对应的历史sharedBuildId；既有保护测试复验PASS。不能将该首轮记为全绿。固定2e000和2631的长时Architecture运行因追加修复主动停止，均保留STOPPED、不作最终资格。
 
 UI负责人对2e000/2631的独立真实页面补测又发现两项遗漏：Formation父级load吞掉GET异常，导致已受理重试被弹窗清除；提交按钮disabled后浏览器焦点跌出modal。已改为原Series重试回调显式要求本轮读成功，Formation及Collection列表的失败/过期响应会向弹窗传播，其他普通刷新仍使用原错误处理；accepted命令保持，只允许刷新。busy阶段同步把焦点交给对话框，并阻止外层focusin夺焦点。新增两项真实页面组件测试（含工作区关闭重开仍为刷新、收藏Care读取成功但wall读取失败），加忙碌焦点反例通过；本轮专项27+13 PASS，Web build PASS，尚待负责人冻结新候选并复跑浏览器，不以单测代替该项。
+
+
+## 22. 回收原子提交后进程退出的恢复缺陷（2026-10-22）
+
+新增真实process.exit(78)边界：`arca_series_reclaimed_commit`事务完成，Workspace/Material reclaimed、Artifact deleted及Result/Commit Marker均已提交，但Event仍executing且Effect journal尚未结算。原5eaf代码在重启时复现`P4_EVENT_RECOVERY_INPUT_DRIFT`，日志`shelfdeck-328-reclaim-commit-restart.tap`；不能把此前workspace/publish/command三类进程演练视作已覆盖此边界。5eaf完整Gate因该新增已复现产品缺陷主动停止，记STOPPED，不能计最终PASS。
+
+根因为snapshot把回收后live Artifact revision 2投影进原revision 1的ReclamationBasis。修复保留原登记revision，同时强校验live修订等于原登记加唯一回收增量；登记两种Handle修订必须一致。不放宽Foundation输入摘要、不改变旧Attempt、不增加跨Owner事实。恢复worker现在等待全部共享Event成功，不能因Registry已reclaimed就提前通过。定向重启、完整Gate与平台增量复验继续。
+
+5eaf固定候选已有Service 648 PASS/29既有skip（src与2631相同）、Web 258 PASS/45文件、真实视频完整浏览器旅程1 PASS、UI负责人38/38宽窄页面PASS、独立Windows打包及打包Node Host smoke PASS、Linux 17/17 PASS；追加修复后的运行代码仍须重新绑定资格，不直接继承完整Gate。
+
+生产副本精确225→231结构复制及空新事实反向复制均PASS，224原业务表逐列逐行保护。真实旧三剧根全Host补齐演练未通过：原始namespace mount identity防护正确拒绝Aftercare Root冲突；只在隔离副本重新注册测试namespace根后，Startup Recovery仍拒绝正常供给，未发出共享修复Work。两轮FAIL保留，不能称完整生产Host升级PASS；未修改生产/原件，未Reset旧Formation历史、未放宽Root或Recovery fence。旧收藏原维护链的隔离legacy-shape Host测试PASS不替代本次完整副本结果。

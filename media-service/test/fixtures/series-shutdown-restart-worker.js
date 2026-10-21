@@ -22,12 +22,13 @@ function handle({operationId}) { return {schemaRef:'helix://contracts/types/Inte
     do {
       if(runtimeError)throw runtimeError;
       entry=db.prepare('SELECT * FROM arca_shelf_entries').get();
-      if(entry?.status==='active'&&(!shared||db.prepare("SELECT count(*) n FROM fx_workspace_registry WHERE process_type='series_presentation' AND state<>'reclaimed'").get().n===0))break;
+      if(entry?.status==='active'&&(!shared||db.prepare("SELECT count(*) n FROM fx_workspace_registry WHERE process_type='series_presentation' AND state<>'reclaimed'").get().n===0&&db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref LIKE 'arca.series_presentation.%' AND state NOT IN ('succeeded','failed','cancelled','skipped')").get().n===0))break;
       await new Promise(resolve=>setTimeout(resolve,100));
     }while(Date.now()<until);
     if(!entry||entry.status!=='active')throw new Error(JSON.stringify({entry,
       failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
-    const summary={sharedVersions:shared?db.prepare('SELECT scope_id,revision,manifest_digest FROM arca_series_presentation_versions').all():[],sharedReferences:shared?db.prepare('SELECT * FROM arca_series_presentation_references').all():[],entry,materials:db.prepare('SELECT * FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=? ORDER BY material_key').all(entry.shelf_entry_id,entry.current_inventory_revision),
+    const sharedPendingEvents=shared?db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref LIKE 'arca.series_presentation.%' AND state NOT IN ('succeeded','failed','cancelled','skipped')").get().n:0,sharedFailedEvents=shared?db.prepare("SELECT count(*) n FROM fx_workflow_events WHERE capability_ref LIKE 'arca.series_presentation.%' AND state='failed'").get().n:0;
+    const summary={sharedPendingEvents,sharedFailedEvents,sharedVersions:shared?db.prepare('SELECT scope_id,revision,manifest_digest FROM arca_series_presentation_versions').all():[],sharedReferences:shared?db.prepare('SELECT * FROM arca_series_presentation_references').all():[],entry,materials:db.prepare('SELECT * FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=? ORDER BY material_key').all(entry.shelf_entry_id,entry.current_inventory_revision),
       commits:db.prepare('SELECT * FROM arca_ondeck_commit_receipts ORDER BY rowid').all(),
       offload:db.prepare('SELECT * FROM libra_offload_context_materials').all(),
       produced:db.prepare("SELECT r.result_json FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref='libra.media.transcode@1' ORDER BY e.event_id").all(),

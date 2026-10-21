@@ -56,7 +56,7 @@ function createSeriesPresentationWorkspaceStore(options){
     options.contractValidator.validate(handle.schemaRef,handle);options.contractValidator.validate(artifact.schemaRef,artifact);
     if(handle.workspaceId!==workspaceId(scope)||handle.processId!==scope.objectId||handle.ownerDomain!=='arca'||handle.rootHandleRef!==root.rootHandleRef||
         artifact.ownerDomain!=='arca'||artifact.ownerScope.scopeType!=='series_presentation'||artifact.ownerScope.scopeId!==scope.objectId||
-        artifact.provenanceRef.digest!==scope.digest||artifact.digestHex!==handle.digestHex||artifact.sizeBytes!==handle.sizeBytes)
+        artifact.provenanceRef.digest!==scope.digest||artifact.digestHex!==handle.digestHex||artifact.sizeBytes!==handle.sizeBytes||artifact.referenceRevision!==handle.referenceRevision)
       fail('Series Workspace Material and Artifact do not conserve their owner and source.');
     return execute(scope,(r,at)=>{
       ensureUsing(r,scope,at);
@@ -92,12 +92,13 @@ function createSeriesPresentationWorkspaceStore(options){
         fail('Series recovery Material differs from its immutable registration.');return handle;
     })};
   });}
+  // Reclamation advances the live Artifact revision once; recovery keeps the original registration basis.
   function snapshot(scope){return options.unitOfWork.execute([rootParticipant(),{participantId:'arca_series_workspace_snapshot',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[repo],execute:c=>{
     const r=c.repository(repo.repositoryId),registry=r.invoke('registry',{workspace_id:workspaceId(scope)}),rows=r.invoke('materials',{workspace_id:workspaceId(scope)}),artifacts=r.invoke('artifacts',{owner_domain:'arca',owner_scope_type:'series_presentation',owner_scope_id:scope.objectId});
     if(rows.length>3||artifacts.length!==rows.length||registry&&(registry.owner_domain!=='arca'||registry.process_id!==scope.objectId||registry.root_handle_ref!==root.rootHandleRef))fail('Recovery registration differs from the exact bounded build.');
     return {registry,artifacts:rows.map(row=>{const handle=JSON.parse(row.handle_json),a=artifacts.find(item=>item.digest_hex===handle.digestHex&&item.storage_ref.split('\\').join('/').endsWith('/'+handle.relativePath.split('\\').join('/')));
-      if(row.handle_digest!==canonicalDigest(handle)||handle.processId!==scope.objectId||!a||!(row.state==='active'&&a.state==='active'||row.state==='reclaimed'&&a.state==='deleted'))fail('Recovery registration is not an exact Material/Artifact pair.');
-      return {artifactKind:a.artifact_kind,workspaceMaterialHandle:handle,artifactHandle:{schemaRef:'helix://contracts/types/ArtifactHandle/v1',schemaVersion:1,artifactHandleId:a.artifact_handle_id,artifactKind:a.artifact_kind,ownerDomain:a.owner_domain,ownerScope:{scopeType:a.owner_scope_type,scopeId:a.owner_scope_id},storageRef:a.storage_ref,digestAlgorithm:a.digest_algorithm,digestHex:a.digest_hex,sizeBytes:Number(a.size_bytes),mediaType:a.media_type,provenanceRef:JSON.parse(a.provenance_ref),referenceRevision:Number(a.reference_revision)}};
+      if(row.handle_digest!==canonicalDigest(handle)||handle.processId!==scope.objectId||!a||Number(a.reference_revision)!==handle.referenceRevision+(row.state==='reclaimed'?1:0)||!(row.state==='active'&&a.state==='active'||row.state==='reclaimed'&&a.state==='deleted'))fail('Recovery registration is not an exact Material/Artifact pair.');
+      return {artifactKind:a.artifact_kind,workspaceMaterialHandle:handle,artifactHandle:{schemaRef:'helix://contracts/types/ArtifactHandle/v1',schemaVersion:1,artifactHandleId:a.artifact_handle_id,artifactKind:a.artifact_kind,ownerDomain:a.owner_domain,ownerScope:{scopeType:a.owner_scope_type,scopeId:a.owner_scope_id},storageRef:a.storage_ref,digestAlgorithm:a.digest_algorithm,digestHex:a.digest_hex,sizeBytes:Number(a.size_bytes),mediaType:a.media_type,provenanceRef:JSON.parse(a.provenance_ref),referenceRevision:handle.referenceRevision}};
     })};
   }}]).arca_series_workspace_snapshot;}
   return Object.freeze({listActive:()=>options.unitOfWork.execute([{participantId:'arca_series_active_workspaces',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[repo],
