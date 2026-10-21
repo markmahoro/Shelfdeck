@@ -96,7 +96,7 @@ export default function CollectionPage() {
   const currentPage = useRef(0);
   const loadVersion = useRef(0);
   const dialog = useModalFocus<HTMLElement>(Boolean(selected), () => setSelected(null), checking || exiting);
-  const load = useCallback(async (cursor?: string, targetPage = currentPage.current) => {
+  const load = useCallback(async (cursor?: string, targetPage = currentPage.current, requireResult = false) => {
     const requestCursor = targetPage === 0 ? undefined : cursor ?? pageCursors.current[targetPage];
     const version = ++loadVersion.current;
     setLoading(true); setError('');
@@ -110,7 +110,7 @@ export default function CollectionPage() {
         cursor: requestCursor,
         limit: 48,
       });
-      if (version !== loadVersion.current) return;
+      if (version !== loadVersion.current) { if (requireResult) throw new Error('当前页面状态已变化，请刷新后重试。'); return; }
       setItems(result.items);
       setHasResult(true);
       currentPage.current = targetPage;
@@ -124,8 +124,9 @@ export default function CollectionPage() {
       setNextCursor(result.nextCursor || null);
     }
     catch (cause) {
-      if (version !== loadVersion.current) return;
+      if (version !== loadVersion.current) { if (requireResult) throw cause; return; }
       if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '收藏读取失败。');
+      if (requireResult) throw cause;
     }
     finally { if (version === loadVersion.current) setLoading(false); }
   }, [expire, shelfId, healthFilter, search, sort]);
@@ -284,6 +285,6 @@ export default function CollectionPage() {
     </div>}
     {actorItem&&<UsAdultInventoryActorDialog item={actorItem} onClose={()=>setActorItem(null)} onChanged={actorChanged} onUnauthorized={expire}/>}
     {correctionItem&&<JavCorrectionDialog item={correctionItem} onClose={()=>setCorrectionItem(null)} onChanged={()=>void load()} onUnauthorized={expire}/>}
-    {seriesRetry&&<SeriesPresentationRetryDialog entry={seriesRetry} canSupplyImages={care?.sharedPresentation?.canSupplyImages} onClose={()=>{setSelected(seriesRetry);setSeriesRetry(null);}} onComplete={async()=>{setCare(await helixAdminApi.getCare(seriesRetry.shelfEntryId));await load();}}/>}
+    {seriesRetry&&<SeriesPresentationRetryDialog entry={seriesRetry} canSupplyImages={care?.sharedPresentation?.canSupplyImages} onClose={()=>{setSelected(seriesRetry);setSeriesRetry(null);}} onComplete={async()=>{setCare(await helixAdminApi.getCare(seriesRetry.shelfEntryId));await load(undefined,currentPage.current,true);}}/>}
   </section>;
 }

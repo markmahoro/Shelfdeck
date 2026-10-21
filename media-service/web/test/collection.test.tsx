@@ -43,6 +43,17 @@ function renderCollection(url='/collection') {
 describe('Arca collection poster wall', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('keeps the accepted shared retry when the actual collection wall reload fails',async()=>{
+    let failReads=false;
+    const season={...entry,shelfEntryId:'series-collection-parent',structureKind:'season' as const,series:{seasonNumber:1,episodeCount:0,physicalFileCount:0,episodes:[]}},
+      care={shelfEntryId:season.shelfEntryId,health:{state:'attention_required'},basis:{inventoryRevision:1,standardRevision:1,placementRevision:1,careBasisDigest:'d'},history:{assessments:[],findings:[],cases:[],commits:[]},sharedPresentation:{state:'attention_required',canRetry:true,canSupplyImages:false,reasonCode:'series_shared_preparation_failed'}};
+    vi.spyOn(helixAdminApi,'listCollection').mockImplementation(async()=>{if(failReads)throw new Error('GET failed');return {items:[season]};});vi.spyOn(helixAdminApi,'listPerceptionRecords').mockResolvedValue({items:[],nextCursor:null,currentRating:null});vi.spyOn(helixAdminApi,'getCare').mockResolvedValue(care as never);
+    const post=vi.spyOn(helixAdminApi,'checkCare').mockImplementation(async()=>{failReads=true;return {} as never;});renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 The Shawshank Redemption 详情/}));
+    fireEvent.click(await screen.findByRole('button',{name:'重试任务',exact:true}));const retry=screen.getByRole('dialog',{name:'重试任务'});fireEvent.click(within(retry).getByRole('button',{name:'重试任务',exact:true}));
+    expect(await within(retry).findByRole('alert')).toHaveTextContent('任务已受理，状态读取失败');expect(post).toHaveBeenCalledTimes(1);failReads=false;
+    fireEvent.click(within(retry).getByRole('button',{name:'刷新状态',exact:true}));await waitFor(()=>expect(screen.queryByRole('dialog',{name:'重试任务'})).not.toBeInTheDocument());expect(post).toHaveBeenCalledTimes(1);
+  });
+
   it('updates the Actor dialog from the exact current Entry after refresh even when the wall no longer contains it',async()=>{
     const original={...entry,provider:'internal',identityKind:'internal_identity',displayIdentity:'Old Actor Original source'},
       updated={...original,displayIdentity:'New Actor Original source',currentInventoryRevision:2};

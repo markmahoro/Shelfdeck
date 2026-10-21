@@ -1,4 +1,4 @@
-import {useEffect,useRef,useState} from 'react';
+import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {Dialog} from '../components/ui';
 import {Button} from './chrome';
 import {AdminApiError,helixAdminApi,type FormationSubject} from './api';
@@ -28,6 +28,7 @@ export default function SeriesPresentationRetryDialog({item,entry,canSupplyImage
     [phase,setPhase]=useState<'editing'|'unknown'|'accepted'>(()=>pendingCommands.get(target)?.phase||'editing');
   const dialog=useRef<HTMLElement>(null),origin=useRef<HTMLElement|null>(document.activeElement instanceof HTMLElement?document.activeElement:null),busyRef=useRef(false),close=useRef(onClose);
   close.current=onClose;busyRef.current=busy;
+  useLayoutEffect(()=>{if(busy)dialog.current?.focus();},[busy]);
   useEffect(()=>{
     const node=dialog.current;if(!node)return;document.body.classList.add('modal-open');node.focus();
     const keys=(event:KeyboardEvent)=>{
@@ -39,8 +40,9 @@ export default function SeriesPresentationRetryDialog({item,entry,canSupplyImage
       else if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
       else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
     };
-    document.addEventListener('keydown',keys,true);
-    return()=>{document.removeEventListener('keydown',keys,true);document.body.classList.remove('modal-open');requestAnimationFrame(()=>{
+    const keepFocus=(event:FocusEvent)=>{if(busyRef.current&&event.target instanceof Node&&!node.contains(event.target))node.focus();};
+    document.addEventListener('keydown',keys,true);document.addEventListener('focusin',keepFocus,true);
+    return()=>{document.removeEventListener('keydown',keys,true);document.removeEventListener('focusin',keepFocus,true);document.body.classList.remove('modal-open');requestAnimationFrame(()=>{
       if(node.isConnected)return;
       if(origin.current?.isConnected)origin.current.focus();
       else document.querySelector<HTMLElement>('[role="dialog"]')?.focus();

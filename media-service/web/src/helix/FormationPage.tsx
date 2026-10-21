@@ -162,7 +162,7 @@ export default function FormationPage() {
   const [discardError,setDiscardError]=useState(''),[discardNotice,setDiscardNotice]=useState('');
   const [selectedEnded,setSelectedEnded]=useState<FormationRunHistory|null>(null);
   const [readPending,setReadPending]=useState(true);
-  const load=useCallback(async(background=false,targetPage=currentPage.current)=>{
+  const load=useCallback(async(background=false,targetPage=currentPage.current,requireResult=false)=>{
     setReadPending(true);
     const generation=++loadGeneration.current,live=()=>generation===loadGeneration.current;
     if(!background){setLoading(true);setPageLoading(true);setError('');}
@@ -214,7 +214,7 @@ export default function FormationPage() {
       const id=(row:LedgerRow)=>row.kind==='ended'?row.item.historyId:row.kind==='intake'?row.item.formationViewId:row.kind==='care'?row.item.aftercareCaseId:row.kind==='correction'?row.item.correctionId:row.item.subjectId;
       const result=await readWorkbenchPage(readers,positions.current[targetPage],(a,b)=>rank(a)-rank(b)||timestamp(b)-timestamp(a)||id(a).localeCompare(id(b)),
         !background&&targetPage===0&&!hasLoadedPage.current?applyRows:undefined);
-      if(!live())return;
+      if(!live()){if(requireResult)throw new Error('当前页面状态已变化，请刷新后重试。');return;}
       applyRows(result.items);hasLoadedPage.current=true;currentPage.current=targetPage;setPageIndex(targetPage);setHasNext(Boolean(result.nextCursor));
       positions.current=positions.current.slice(0,targetPage+1);
       if(result.nextCursor)positions.current.push(result.nextCursor);
@@ -223,11 +223,11 @@ export default function FormationPage() {
         const currentDetail=()=>live()&&detailRequest===detailGeneration.current&&selectedFormationId.current===id;
         try{const detail=await helixAdminApi.getFormation(id);
           if(currentDetail()){setSelected(detail);setDetailError('');setDetailLoading(false);}}
-        catch(cause){if(currentDetail()){setDetailLoading(false);if(isUnauthorized(cause))expire();else setDetailError('整理过程读取失败，请关闭后重试。');}}
+        catch(cause){if(currentDetail()){setDetailLoading(false);if(isUnauthorized(cause))expire();else setDetailError('整理过程读取失败，请关闭后重试。');}if(requireResult)throw cause;}
       }
       if(selectedCareId.current){const id=selectedCareId.current,result=await helixAdminApi.listCareWork(undefined,id);
         if(live())setSelectedCare(current=>current?.aftercareCaseId===id?result.items[0]||null:current);}
-    }catch(cause){if(live()){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'媒体整理读取失败。');}}
+    }catch(cause){if(live()){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'媒体整理读取失败。');}if(requireResult)throw cause;}
     finally{if(live()){setLoading(false);setPageLoading(false);setReadPending(false);}}
   },[expire,filter,q,shelfFilter,linkedCorrectionId]);
   useEffect(()=>{
@@ -370,7 +370,7 @@ export default function FormationPage() {
         {discardNotice&&<p className="form-notice" role="status">{discardNotice}</p>}
       </div>}
     </Dialog>
-    {seriesRetry&&<SeriesPresentationRetryDialog item={seriesRetry} canSupplyImages={seriesRetry.executorIssue?.canSupplyImages===true} onClose={()=>setSeriesRetry(null)} onComplete={async()=>{setNotice('已提交重试任务');await load();}}/>}
+    {seriesRetry&&<SeriesPresentationRetryDialog item={seriesRetry} canSupplyImages={seriesRetry.executorIssue?.canSupplyImages===true} onClose={()=>setSeriesRetry(null)} onComplete={async()=>{setNotice('已提交重试任务');await load(false,currentPage.current,true);}}/>}
     <Dialog open={!!defectDialog} title="确认接受瑕疵入库" onClose={()=>setDefectDialog(null)} actions={<>
       <Button type="button" disabled={loading} onClick={()=>setDefectDialog(null)}>取消</Button>
       <Button type="button" variant="primary" disabled={loading} onClick={()=>{void (async()=>{

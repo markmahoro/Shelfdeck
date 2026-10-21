@@ -61,6 +61,21 @@ function completedSubject(): FormationSubject {
 describe('Helix primary copy and workbench structure', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('retains an acknowledged Series retry across an actual workbench read failure and reopening',async()=>{
+    let failReads=false;
+    const item={...completedSubject(),subjectId:'series-parent-refresh',formationViewId:'series-parent-refresh',displayIdentity:'Series parent refresh',contentProfile:'series' as const,structureKind:'season' as const,classification:'attention_required' as const,completedAtMs:null,
+      executorIssue:{phase:'series_presentation',owner:'arca',canRetry:true,canSupplyImages:false,offerId:'series-parent-offer',errorCode:'ARCA_SERIES_REQUIRED_ASSET_UNAVAILABLE',recoveryState:'attention_required'}} as FormationSubject;
+    const summary={totalCount:1,inProgressCount:0,attentionRequiredCount:1,completedCount:0},projection={status:'ready' as const,asOfMs:1};
+    vi.spyOn(helixAdminApi,'listFormation').mockImplementation(async section=>{if(failReads)throw new Error('GET failed');return {items:section==='active'?[item]:[],summary,nextCursor:null,projection};});
+    vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+    const post=vi.spyOn(helixAdminApi,'retryAcceptance').mockImplementation(async()=>{failReads=true;return {} as never;});
+    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);fireEvent.click(await screen.findByRole('button',{name:'重试任务',exact:true}));
+    let dialog=screen.getByRole('dialog',{name:'重试任务'});fireEvent.click(within(dialog).getByRole('button',{name:'重试任务',exact:true}));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('任务已受理，状态读取失败');expect(post).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(dialog).getByRole('button',{name:'返回',exact:true}));fireEvent.click(screen.getByRole('button',{name:'重试任务',exact:true}));dialog=screen.getByRole('dialog',{name:'重试任务'});
+    failReads=false;fireEvent.click(within(dialog).getByRole('button',{name:'刷新状态',exact:true}));await waitFor(()=>expect(screen.queryByRole('dialog',{name:'重试任务'})).not.toBeInTheDocument());expect(post).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps an Intake task in the same list through retry and Subject acceptance',async()=>{
     let stage='failed';
     const summary={totalCount:1,inProgressCount:0,attentionRequiredCount:1,completedCount:0};

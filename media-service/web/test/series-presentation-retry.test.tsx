@@ -43,7 +43,7 @@ it('takes focus, traps Tab, and restores the original trigger on idle Escape wit
 });
 it('guards Escape and return while a command is pending',async()=>{
   let resolve!:(value:never)=>void;vi.spyOn(helixAdminApi,'checkCare').mockImplementation(()=>new Promise(done=>{resolve=done;}));const cb=mount('entry');
-  fireEvent.click(screen.getByRole('button',{name:'重试任务',exact:true}));await waitFor(()=>expect(screen.getByRole('button',{name:'返回',exact:true})).toBeDisabled());
+  const submit=screen.getByRole('button',{name:'重试任务',exact:true});submit.focus();fireEvent.click(submit);await waitFor(()=>expect(screen.getByRole('button',{name:'返回',exact:true})).toBeDisabled());expect(screen.getByRole('dialog')).toHaveFocus();
   fireEvent.keyDown(screen.getByRole('dialog'),{key:'Escape'});fireEvent.click(screen.getByRole('button',{name:'关闭',exact:true}));expect(cb.onClose).not.toHaveBeenCalled();
   resolve({} as never);await waitFor(()=>expect(cb.onClose).toHaveBeenCalledTimes(1));
 });

@@ -376,3 +376,10 @@ TMDB官方接口核对（2026-10-21）：[整剧详情](https://developer.themov
 §10的显式换海报/语言/根目录/剧身份仍属于独立已有或后续维护意图；本次普通加季与重试不获得覆盖合法现存三项的权力。外部改写、别剧NFO、不可读/不合法现存文件保持明确冲突，须先修正资料或经对应明确纠正意图；不能借“重试”无条件覆盖用户字节。该边界与缺项修复不同，不把未来refresh能力列为本次已实现。
 
 仍在执行：固定候选全量Architecture Gate、适用Service/Windows/Linux、具体版本UI复核和完整生产副本资格。上述定向日志不冒充最终固定版本总体PASS，三项UAT未按开发提交直接关闭；未发布。
+
+
+## 21. 具体版本复验发现的追加问题（2026-10-22）
+
+Service全量2e000eb9e：677 total/647 PASS/29 skip/1 FAIL，失败为已完成Formation条目也查询当前Work，违反既有完成态保护测试。2631f4ee0修复：非in_progress条目只读其原committed reservation对应的历史sharedBuildId；既有保护测试复验PASS。不能将该首轮记为全绿。固定2e000和2631的长时Architecture运行因追加修复主动停止，均保留STOPPED、不作最终资格。
+
+UI负责人对2e000/2631的独立真实页面补测又发现两项遗漏：Formation父级load吞掉GET异常，导致已受理重试被弹窗清除；提交按钮disabled后浏览器焦点跌出modal。已改为原Series重试回调显式要求本轮读成功，Formation及Collection列表的失败/过期响应会向弹窗传播，其他普通刷新仍使用原错误处理；accepted命令保持，只允许刷新。busy阶段同步把焦点交给对话框，并阻止外层focusin夺焦点。新增两项真实页面组件测试（含工作区关闭重开仍为刷新、收藏Care读取成功但wall读取失败），加忙碌焦点反例通过；本轮专项27+13 PASS，Web build PASS，尚待负责人冻结新候选并复跑浏览器，不以单测代替该项。
