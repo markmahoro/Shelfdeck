@@ -180,7 +180,8 @@ export default function FormationPage() {
           const result=await helixAdminApi.listFormation('active',cursor,{...filters,...(filter==='all'?{}:{classification:filter})});
           if(live())setSummary(result.summary);
           return {...result,items:[...result.items.map(item=>({kind:'formation' as const,item})),
-            ...(result.intakeItems||[]).map(item=>({kind:'intake' as const,item}))]};
+            ...(result.intakeItems||[]).map(item=>({kind:'intake' as const,item}))]
+            .sort((a,b)=>rank(a)-rank(b)||timestamp(b)-timestamp(a)||id(a).localeCompare(id(b)))};
         },
         async cursor=>{
           if(linkedCorrectionId||filter!=='all'&&filter!=='ended')return empty;
@@ -405,12 +406,15 @@ export default function FormationPage() {
 function IntakeTaskRow({item,onChanged}:{item:FormationIntakeTask;onChanged:()=>void}){
   const {expire}=useSession();
   const [busy,setBusy]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
+  const current=useRef(item);current.current=item;
+  useEffect(()=>{setError('');setNotice('');},[item.retryWorkId]);
   async function retry(){
     if(!item.retryWorkId||busy)return;
+    const workId=item.retryWorkId;
     setBusy(true);setError('');setNotice('');
-    try{const result=await helixAdminApi.retryPreparation(item.retryWorkId);
+    try{const result=await helixAdminApi.retryPreparation(workId);
       setNotice(result.kind==='deferred'?'当前资源忙，请稍后重试。':'已提交重试任务');onChanged();
-    }catch(cause){if(isUnauthorized(cause))expire();else setError('尚未确认重试结果，请刷新后重试。');}
+    }catch(cause){if(isUnauthorized(cause))expire();else if(current.current.retryWorkId===workId)setError('尚未确认重试结果，请刷新后重试。');}
     finally{setBusy(false);}
   }
   return <tr className="formation-stub-media-row" data-classification={item.classification}>

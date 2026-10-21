@@ -2,6 +2,8 @@
 
 ## 2026-10-21 上线后反馈与修正（UAT-325）
 
+修正版438822156初次UI复验未通过：31条已接收/未接收混合页第二页重复12条，POST受理但响应丢失后进度已变而旧错误仍留。前者为items/intakeItems拼接未还原共同排序、分页skip与消费顺序不一致；现按同一比较器排序后消费。后者按Owner当前retryWorkId前进清除旧提示，并拒绝旧响应迟发错误覆盖新状态。18项交互回归及构建通过，等待后继精确资产复验；438镜像未部署。原Windows/Linux24、Service648/29既有skip、Web246及四项静态门禁通过，实际候选2655文件一致；后继仅UI及本Evidence改动，后台资格按字节继承，不冒充新跑全量。生产readonly+query_only修正版Reader已返回155历史/首26条，生产数据未改。
+
 40861e877已于北京时间16:19启动，16:26正式Resume完成，生产正常供给；先前安装中记录为历史时点。镜像markmahoro/shelfdeck:helix-beta-20261021-40861e8771，image ID sha256:0a377c859d2956a98d9915ca1c9293488caa4fc8d22874ae580a2df6de4edcdc，tar SHA256 b56ea0317a80753e74c5459552336bddcdc99c4a0e77d884bf325eb545a91643。停止/恢复后80组保护表通过，646原收藏保持，15无关容器保持，标准部署及实际Web资产核验通过；完整副本Host的既有FAIL及用户接受的例外保持。资格与切换原始记录保存在E:/my_project/helix-git-consolidation-20261008/formation-lifecycle-release-20261021。
 
 用户随后反馈工作区红框，并明确拒绝独立“准备异常”入口，统一用户意图为“重试任务”。只读生产GET确认active/completed/preparation-failures/care/jav-corrections均200，ended为500。独立readonly+query_only连接执行当前Owner历史Reader，精确复现listDiscarded的Array.shift试图修改Object.freeze数组；无历史损坏、无数据写入。修复只复制用于合并的页数组，保留原不可变历史及校验。

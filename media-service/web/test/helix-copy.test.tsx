@@ -111,6 +111,45 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.getByRole('button',{name:'取消整理任务'})).toBeInTheDocument();
   });
 
+  it('consumes mixed Subject and Intake pages once in the same chronological order',async()=>{
+    const summary={totalCount:31,inProgressCount:0,attentionRequiredCount:31,completedCount:0},projection={status:'ready' as const,asOfMs:1};
+    const rows=Array.from({length:31},(_,i)=>i%2?{...completedSubject(),formationViewId:'view-'+i,subjectId:'view-'+i,
+      displayIdentity:'Mixed '+i,classification:'attention_required' as const,completedAtMs:null,addedAtMs:100-i}:
+      {kind:'intake' as const,formationViewId:'view-'+i,displayIdentity:'Mixed '+i,classification:'attention_required' as const,
+        targetShelfId:null,addedAtMs:100-i,label:'接收材料失败',retryWorkId:'work-'+i,failureCode:null});
+    vi.spyOn(helixAdminApi,'listFormation').mockImplementation(async(section,cursor)=>{
+      const page=section==='active'?rows.slice(cursor?25:0,cursor?31:25):[];
+      return {items:page.filter((item):item is FormationSubject=>'subjectId' in item),
+        intakeItems:page.filter((item):item is Extract<typeof item,{kind:'intake'}>=>'kind' in item),summary,projection,
+        nextCursor:section==='active'&&!cursor?'page-2':null};
+    });
+    vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+    vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
+    await screen.findByText('Mixed 0');
+    expect(screen.getAllByText(/^Mixed \d+$/).map(node=>node.textContent)).toEqual(rows.slice(0,25).map(r=>r.displayIdentity));
+    fireEvent.click(screen.getByRole('button',{name:'下一页'}));await screen.findByText('Mixed 30');
+    expect(screen.getAllByText(/^Mixed \d+$/).map(node=>node.textContent)).toEqual(rows.slice(25).map(r=>r.displayIdentity));
+    fireEvent.click(screen.getByRole('button',{name:'上一页'}));await screen.findByText('Mixed 0');
+    expect(screen.getAllByText(/^Mixed \d+$/)).toHaveLength(25);
+  });
+
+  it('clears an uncertain retry error when refreshed Owner facts show the Intake is running',async()=>{
+    let running=false;
+    const summary={totalCount:1,inProgressCount:0,attentionRequiredCount:1,completedCount:0},projection={status:'ready' as const,asOfMs:1};
+    vi.spyOn(helixAdminApi,'listFormation').mockImplementation(async section=>({items:[],intakeItems:section==='active'?[{
+      kind:'intake' as const,formationViewId:'view',displayIdentity:'Response Lost',classification:running?'in_progress' as const:'attention_required' as const,
+      targetShelfId:null,addedAtMs:1,label:running?'正在接收材料':'接收材料失败',retryWorkId:running?null:'work',failureCode:null}]:[],
+      summary,nextCursor:null,projection}));
+    vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+    vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+    vi.spyOn(helixAdminApi,'retryPreparation').mockImplementation(async()=>{running=true;throw Error('response lost');});
+    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button',{name:'重试任务'}));await screen.findByRole('alert');
+    fireEvent.click(screen.getByRole('button',{name:'刷新',exact:true}));await screen.findByText('正在接收材料');
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'重试任务'})).not.toBeInTheDocument();
+  });
+
   it('refreshes an open Formation detail and ignores a response after closing', async () => {
     let poll!:()=>void;
     const scheduleInterval=window.setInterval.bind(window);
