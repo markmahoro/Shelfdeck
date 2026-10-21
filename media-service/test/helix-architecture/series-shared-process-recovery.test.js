@@ -6,13 +6,13 @@ function child(args,env,timeoutMs=150000){return new Promise((resolve,reject)=>{
   const timer=setTimeout(()=>{processHandle.kill();reject(new Error('Series recovery child timed out: '+output));},timeoutMs);
   processHandle.on('error',reject);processHandle.on('close',status=>{clearTimeout(timer);resolve({status,output});});
 });}
-for(const phase of ['workspace','publish'])test('Series shared '+phase+' process loss resumes exact files and commits one shared version',{timeout:300000},async()=>{
+for(const phase of ['workspace','publish','command'])test('Series shared '+phase+' process loss resumes exact files and commits one shared version',{timeout:300000},async()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-shared-'));
   try{
     const crash=await child(['--test-name-pattern=^Isolated Host schedules 2 Episodes through metadata and Direct On-deck Commit$',path.join(__dirname,'series-routing-run.test.js')],
-      {HELIX_SERIES_SHARED_CRASH_ROOT:root,HELIX_SERIES_SHARED_CRASH_PHASE:phase});assert.equal(crash.status,78,crash.output);
+      {HELIX_SERIES_SHARED_CRASH_ROOT:root,HELIX_SERIES_SHARED_CRASH_PHASE:phase,...(phase==='command'?{HELIX_SERIES_SHARED_RETRY:'1'}:{})});assert.equal(crash.status,78,crash.output);
     const boundary=JSON.parse(fs.readFileSync(path.join(root,'shared-crash-boundary.json'),'utf8'));
-    assert.ok(boundary.events.some(row=>row.state==='executing'));assert.ok(fs.existsSync(boundary.location));
+    if(phase==='command'){assert.equal(boundary.receipts,1);assert.equal(boundary.builds,2);assert.equal(boundary.works,1);}else{assert.ok(boundary.events.some(row=>row.state==='executing'));assert.ok(fs.existsSync(boundary.location));}
     const worker=path.join(__dirname,'../fixtures/series-shutdown-restart-worker.js'),restarted=await child([worker,root,'shared'],{});
     assert.equal(restarted.status,0,restarted.output);
     const parse=value=>JSON.parse(value.output.split(/\r?\n/).find(line=>line.startsWith('SERIES_EXTERNAL_RESTART_RESULT=')).slice('SERIES_EXTERNAL_RESTART_RESULT='.length)),result=parse(restarted);

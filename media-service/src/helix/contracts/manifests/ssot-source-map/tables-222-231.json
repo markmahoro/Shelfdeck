@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(authorization_id,revision)`；immutable；revision为正整数",
       "source": {
         "section": "8.9.9",
-        "line": 16059,
+        "line": 16061,
         "lineDigest": "8508fbbc000e32d4ee694d07ecb38e1ed718c02d1012fca2ddfde1962e7622a5"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "current pointer显式复合FK；CAS revision",
       "source": {
         "section": "8.9.9",
-        "line": 16060,
+        "line": 16062,
         "lineDigest": "bce49ca70aa8369999f80da9113bbbd8fbf4082ab42977bf8732b90ae344fa2e"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`INDEX(subject_id,committed_at_ms)`；`INDEX(stable_input_digest,requirements_digest,conditions_digest)`；immutable；typed JSON上限`64 KiB`",
       "source": {
         "section": "8.9.9",
-        "line": 16061,
+        "line": 16063,
         "lineDigest": "bc588a5a37ac833eae68c9adbbc154aeae0f6b3c878de7c3d9805f5bdbc2c4a8"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`UNIQUE(actor_id,idempotency_key)`；`INDEX(stable_input_digest,issued_at_ms)`；immutable",
       "source": {
         "section": "8.9.9",
-        "line": 16062,
+        "line": 16064,
         "lineDigest": "c47fabd82f60de2f5c222d73758c9a24a15dc351d5576935e7070c49c87c1d96"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`UNIQUE(libra_run_id)`；`UNIQUE(actor_id,idempotency_key)`；`INDEX(state,subject_id)`；Libra持久取消意图，request immutable且JSON上限1 MiB；状态以revision CAS推进",
       "source": {
         "section": "8.9.9",
-        "line": 16063,
+        "line": 16065,
         "lineDigest": "8feee9c41e8811c9b2f0b7298af35e963fa533428aecd66e9e948c56396cca3b"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`PK(libra_run_id,strategy_kind,condition_digest,check_ordinal)`；immutable；check_ordinal为0至5；typed JSON上限`4 KiB`",
       "source": {
         "section": "8.9.9",
-        "line": 16064,
+        "line": 16066,
         "lineDigest": "efdec0f21af0d8ca4cf71e5a40de13d93b4aacfbb24fb0ea743ed7ea824789fc"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`PK(shelf_entry_id,revision)`；`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；immutable；typed JSON上限`64 KiB`",
       "source": {
         "section": "8.9.9",
-        "line": 16065,
+        "line": 16067,
         "lineDigest": "88ec71a2d280751908ce94814f60ebb63cd00aa089e7f015bfa82ed65fb99f69"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "current pointer显式复合FK；CAS revision",
       "source": {
         "section": "8.9.9",
-        "line": 16066,
+        "line": 16068,
         "lineDigest": "c2993d2fdd186a34ad68f9000cd181f0ab8502959b2bf8c033cf96d16b1c24e5"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；`UNIQUE(aftercare_case_id)`；immutable",
       "source": {
         "section": "8.9.9",
-        "line": 16067,
+        "line": 16069,
         "lineDigest": "6b01388fbace394628b73d88d23d73a671f05497789ee6e897a75ee25bdad4d2"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "immutable；evidence JSON上限`256 KiB`；record JSON上限`4 KiB`；`INDEX(libra_run_id,record_id)`",
       "source": {
         "section": "8.9.9",
-        "line": 16463,
+        "line": 16465,
         "lineDigest": "49d3449f5bd4106b74bd219582db8e12c7ed799be946420e9f057b86e3807b48"
       }
     }

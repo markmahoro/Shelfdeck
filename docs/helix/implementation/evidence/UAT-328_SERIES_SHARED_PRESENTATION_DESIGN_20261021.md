@@ -347,3 +347,32 @@ TMDB官方接口核对（2026-10-21）：[整剧详情](https://developer.themov
 原来源资料已增加独立只读候选引用：最近明确Season目录的共同父剧根、Field内最多三项、真正tvshow NFO确认整剧ID、完整SHA及Physical Identity；不加入exclusive Related/Control转移或输入删除范围。匹配来源Host最终1 PASS，别剧来源Host1 PASS，原件保留；PNG→JPEG及失配/漂移边界叶端1 PASS。发现并修正Windows斜杠归一化比较误把文件当父目录的缺陷。
 
 健康新增共享head证据；Root准备/版本变化不会改Season Inventory或Care Case业务依据，但使旧共享健康检查失效，错过完成回调时可由正常协调重新检查。进行中/失败由Owner真实Work组合当前健康，不把后台健康通知当作用户主动重试。该最后增量尚须最终回归。当前136 Capability/115 Result family/231表/61 canonical transaction；三项UAT仍未关闭，尚无本轮生产变更。
+
+
+## 19. 来源重评与后续入藏补查（继续实施）
+
+强证明的空Workspace来源重评Host已通过：维护仅缺fanart，Source选定后Assets下载失败且没有字节/Material/Artifact；人工重试在固定Source Reassessment UoW结束旧空Registry并建立新build。新图片资格configRevision2、原Libra文字Source configRevision1均保持，最终共享version2及全部Workspace回收。首轮因Foundation Attempt实际终态为completed/outcome_kind=failed而非state=failed导致沿旧配方重试（6次而非7次）未通过，修正精确终态读取后复验1 PASS，原失败不改记成功。
+
+新增只读当前文件验证用于后续加季准入：共享登记的Ready不能永久代替实际文件存在。已有版本三项当前字节/Identity缺失或冲突，必须先进入同一共享准备/修复Work，不能让新季反复在Fulfillment失败。其跨季缺图反例正在验证。
+
+继续实施的来源恢复收口：Assets应先取得并验证本次全部字节再写Workspace，避免NFO先写导致图片暂时失效也变成“已有物理效果”。若已有Assets物化但从未开始正式Publish，人工重试可由Arca在Foundation终态/无Publish Attempt强围栏下建立新Source代际，保留/复用已成功产生的确切Workspace成果；新scope须明确supersedesBuildId和最多三项有完整Source/Identity/SHA的只读成果引用，不能伪造旧Assets成功Result、不能改旧Scope/Observation、不能丢弃未决Effect。旧Workspace在同一共享范围获得新Ready且不再有活跃引用后走正式回收；不新增“重新整理”或技术维护入口。正式Publish已开始时，完整Assets已持久化，继续原配方，不换已发布字节。此段是实施中的收口选择，尚未完成代码或验收，不能据此关闭UAT。
+
+当前最新本地检查点ab5f610ae已提交，UI负责人正在按同版审查；后续增量不自动继承其资格。未推送或部署。
+
+
+## 20. 2026-10-22 完整恢复与退出收口（最终资格继续）
+
+本轮继续完成运行链，不再停于基础组件：
+
+- Source/Assets重评：全部字节先取得并验证后再写Workspace；Assets已写NFO/海报、fanart来源永久失效时，原任务上传fanart，新Scope引用原成功Source recipe与实际完整成果，原始失败历史不改。真实Host 1 PASS，两个build、复用两项、旧登记一项，两个Workspace和全部Material/Artifact正式终结，恰一次入藏。日志`shelfdeck-328-closeout-partial-source.tap`。
+- 原任务/当前收藏重试命令按目标、幂等键和精确上传字节记录Owner Command Receipt；同一命令晚到重放先于当前状态和已回收输入检查。请求未知后不能换图片或键，成功POST后的GET失败只能刷新。当前收藏维护补图/回收后晚到重放1 PASS（`shelfdeck-328-maintenance-command-replay.tap`）；命令事务后、Work admission前真实进程退出及两次重启1 PASS（`shelfdeck-328-command-admission-restart.tap`）；Receipt回滚/键冲突单测PASS。
+- 原ab5f610ae具体版本UI负责人结论为CHANGES_REQUIRED，8/20通过，不能改记PASS。已补未知响应和成功后刷新失败两种写入保护、焦点/Tab/Escape/返回焦点、中文语义错误及样式。新增8项UI反例通过；最新Web 256 PASS/45文件，build通过。当前真实视频宽窄旅程再次通过（`shelfdeck-328-ui-recovery-real.tap`），新候选仍须负责人复验。
+- 无引用退出：两季在同一批次退出，原预览未包含共享三项，文件字节/inode全保留，Season引用和共享Control归零；实际Host 1 PASS（`shelfdeck-328-batch-retirement.tap`）。最后一季在共享维护Publish写出文件后失败时仍能正常Off-deck；Arca按terminal Work/settled Effect收束builder，保留未获删除授权根文件并正式回收私有Workspace，1 PASS（`shelfdeck-328-closeout-retirement.tap`）。retained-root head、Control和Command Receipt注入事务末尾失败全部回滚，不伪造Ready。
+- 新增closed `SeriesPresentationReclamationBasis`，上限128 KiB/至多三项登记，支持实际committed、superseded和retired三类；回收不伪造旧Assets成功、不删除正式根或外来文件。当前136 Capability/115 Result family/231 tables/61 canonical transactions/149 domain inputs。
+- 提供精确225→231离线结构复制工具`scripts/helix-series-presentation-schema-copy.js`，只添加六张共享表、三张表的五列及327的local_media_group CHECK取值。224原业务表逐列/逐行保护；未产生新事实时反向复制通过，有新共享、来源、健康或分组事实时拒绝旧版回退；两项测试PASS。它不清理旧Libra/Formation、不修改历史输入摘要，也不是生产apply。
+
+最新生产只读预览（2026-10-22 00:46前后本地时区，准确时间以TEMP日志为准）：生产仍225表，659条历史Entry、13条active Season、16个非终态Libra Run；原ABF-153 Event仍executing。三部新剧根三项全缺，另三部既有剧根仅缺fanart；因此不能继续沿用旧“10季/三部”数量或直接套旧修复名单。未写生产目录、未Reset、未停服/部署。完整缺口明细仅在本机TEMP`shelfdeck-328-production-root-preview.json`，正式补写仍先按精确预览取得生产数据授权。
+
+§10的显式换海报/语言/根目录/剧身份仍属于独立已有或后续维护意图；本次普通加季与重试不获得覆盖合法现存三项的权力。外部改写、别剧NFO、不可读/不合法现存文件保持明确冲突，须先修正资料或经对应明确纠正意图；不能借“重试”无条件覆盖用户字节。该边界与缺项修复不同，不把未来refresh能力列为本次已实现。
+
+仍在执行：固定候选全量Architecture Gate、适用Service/Windows/Linux、具体版本UI复核和完整生产副本资格。上述定向日志不冒充最终固定版本总体PASS，三项UAT未按开发提交直接关闭；未发布。

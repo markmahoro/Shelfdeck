@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-22恢复与退出收口：326跨TTL真实进程恢复、327真实1081媒体/65包/2Run继续有效；328完整上架/原任务补图重试/当前收藏缺项维护、部分Assets来源失效复用及旧Workspace回收、命令受理后admission前进程退出、最后季维护失败退出及批量全季退出均有实际Host证据。Web256 PASS，核心12 PASS；ab5f UI审查CHANGES_REQUIRED已修，等待新候选复验。精确225→231逐表保护/有损回退拒绝工具已补。当前136/115/231/61、149 inputs；最终固定Gate/平台/UI继续，未关闭UAT或发布。生产只读新预览为659历史Entry/13 active Season，三根三项全缺、另三根缺fanart；未补写生产，旧ABF-153仍executing。详见既有UAT-328 Evidence §20。
+
 2026-10-21追加运行链检查点：原任务重试/双图上传/真实视频上架、当前收藏缺图重试/单图上传/健康的完整浏览器旅程通过；两类写文件后人工重试、旧已Commit Season隔离软件修复、合格原来源只读复制与别剧资料拒用均有定向证据。新增共享健康head失效与空Workspace来源重评继续验证，当前136/115/231/61。沿用三项工作项；未关闭UAT、未发布、未改生产历史文件，最终资格与Source物化后的失败恢复收口仍继续。详见既有UAT-328设计Evidence §18。
 
 2026-10-21继续实施（尚未完成最终资格）：UAT-326新增真实进程退出后跨60秒Handle TTL恢复同一Identity Event、一次上架及再次重启不重复Commit演练通过；UAT-327真实Host对4star分类目录1081媒体形成65个完整季包和2个Run，文件/成员不重不漏。UAT-328已接通共享Supporting Work/Provider资格/字节配方/正式Control与Ready原子提交、Accepted预留与On-deck版本引用、原任务重试及上传、健康缺项修复/维护补图和Workspace回收；初始S03、跨季复用、同季加集、Workspace/正式文件真实进程退出、来源无图人工补图及真实N:M最后一季退出均取得定向证据。最后引用退出纳入原确认范围的三项共享文件，以持久retirement围栏阻止竞争准入；其他引用/Accepted预留保护共享文件。当前136 Capability/115 Result family/231表/60事务。最新追加代码仍在回归；三项UAT未关闭、未发布，旧生产收藏补齐预览/正式恢复、来源祖先资料资格、显式刷新及最终平台/UI/完整Gate仍继续。
@@ -82,9 +84,9 @@
 
 | 工作项 | 可验收结果 | 当前状态 |
 | --- | --- | --- |
-| `JAV-STABLE-SOURCE-RECOVERY`（UAT-326） | 无业务变化的JAV观察/元数据/图片Event跨TTL和重启可恢复，配置变化仍拒绝；旧在途事件不靠改摘要修复 | 首批代码和定向回归通过；真实进程恢复及生产旧条目收口待验，不关闭UAT |
-| `PROCUREMENT-COMPLETE-GROUP-SLICING`（UAT-327） | 分类目录下多剧多季完整分组后确定性分批；所有材料无重无漏；真实完整组1024上限不变 | 首批代码和1081视频/22剧/跨子目录模拟、既有P7回归通过；真实业务链及具体版本UI待验 |
-| `SERIES-SHARED-PRESENTATION`（UAT-328） | 剧根三项真实完整、跨季/新集复用、共享归属/维护/退出全生命周期可达 | 基础合同、文本Basis/Provider、共享持久组件和文件层已开发；完整运行链路接线及17场景验收未完成 |
+| `JAV-STABLE-SOURCE-RECOVERY`（UAT-326） | 无业务变化的JAV观察/元数据/图片Event跨TTL和重启可恢复，配置变化仍拒绝；旧在途事件不靠改摘要修复 | 三条稳定来源路径及跨TTL真实进程恢复/一次Commit通过；旧生产条目收束与最终发布资格未完成，不关闭UAT |
+| `PROCUREMENT-COMPLETE-GROUP-SLICING`（UAT-327） | 分类目录下多剧多季完整分组后确定性分批；所有材料无重无漏；真实完整组1024上限不变 | 真实Procurement Host 1081媒体/22剧/65完整季包/2Run及既有P7回归通过；最终资格与生产验收继续 |
+| `SERIES-SHARED-PRESENTATION`（UAT-328） | 剧根三项真实完整、跨季/新集复用、共享归属/维护/退出全生命周期可达 | 上架、重试补图、来源代际、维护、共享Control/历史引用及两类退出已接正式Host；定向证据见§20，最终固定Gate/平台/具体版本UI与生产旧根验收继续 |
 | `JAV-ACTOR-COMPLETENESS` | 来源演员保留；缺失时统一真实未知演员；Cast/NFO/收藏/相关作品一致，无伪造来源身份 | 本地开发及适用Windows/浏览器PASS；产品7b318具体版本UI负责人8/8接受，未发布 |
 | `US-CONTRACT-BASELINE` | 五个议题映射至 Owner、命令、事实、Effect、恢复和验收；SSOT 与派生合同一致，负例与 Architecture Gate 通过 | PASS：SSOT及派生合同、Owner/Effect/恢复负例及固定0c82ee862原始完整Gate通过 |
 | `US-PEOPLE` | 三库独立；普通/JAV 零用户介入；US Adult 有图手动/辅助建档、编辑、每轮最多五位推荐；认领来源影片无二次确认 | 本地实现及适用工程资格PASS；范围限制见下文 |

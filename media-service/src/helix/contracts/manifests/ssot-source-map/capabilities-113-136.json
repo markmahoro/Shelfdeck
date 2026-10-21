@@ -14,7 +14,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10588,
+        "line": 10590,
         "lineDigest": "559a208f769e2519dfee71d43d41db96ad39f3f3b8a8229f64fc061c449aea11"
       }
     },
@@ -27,7 +27,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10589,
+        "line": 10591,
         "lineDigest": "b8305dff13defc656f24822f21e1559c6374caa39f1d066bead227ec67fbaae6"
       }
     },
@@ -40,7 +40,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.12",
-        "line": 10590,
+        "line": 10592,
         "lineDigest": "5f1aba6f365de4e1b6b78c9151fd81b7c47c80410c917f93ac0493fbebb9507d"
       }
     },
@@ -53,7 +53,7 @@
       "effectClass": "destructive_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10591,
+        "line": 10593,
         "lineDigest": "be9f81655da84bd5289a21e8bb09a6dc5aab08401128db57cfafef0d1941c169"
       }
     },
@@ -66,7 +66,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10592,
+        "line": 10594,
         "lineDigest": "40a6ec979c4677dec5e91765de272e25ad86d1543d417eaefa1c9c13365d6bc6"
       }
     },
@@ -79,7 +79,7 @@
       "effectClass": "destructive_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10593,
+        "line": 10595,
         "lineDigest": "259ecabd7e68ad332ee3833cc96cbda41dc6f89e6f85c64a76c6c4f0bdf0cf1d"
       }
     },
@@ -92,7 +92,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.12",
-        "line": 10594,
+        "line": 10596,
         "lineDigest": "de79a37a739e145a8e12e793ebf68b5fe6c08bb496a7bf67d011f3cf727f0ac0"
       }
     },
@@ -105,7 +105,7 @@
       "effectClass": "responsibility_control_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10595,
+        "line": 10597,
         "lineDigest": "3afab25b8905eba49d060b38b1472e150705b9e1554dea24cf1ddadbaf9e4e0c"
       }
     },
@@ -118,7 +118,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.12",
-        "line": 10596,
+        "line": 10598,
         "lineDigest": "28fc5bb6077c6e4f46d115156a5891718f27888dbb1f6438b6d6e3e6369bd2f2"
       }
     },
@@ -131,7 +131,7 @@
       "effectClass": "responsibility_control_commit",
       "source": {
         "section": "8.6.12",
-        "line": 10597,
+        "line": 10599,
         "lineDigest": "9c301d5222bd9c93668549c59405df7a5b23f7860077b775c48b55eeca9d4a03"
       }
     },
@@ -144,7 +144,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.13",
-        "line": 10623,
+        "line": 10625,
         "lineDigest": "b5aa853f6a29eb3fd38bf0e74583a7b0427b368d9d53d38ff982faa92e1e134b"
       }
     },
@@ -157,7 +157,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.13",
-        "line": 10624,
+        "line": 10626,
         "lineDigest": "2206f66ff49af564eb60aa0c359f124ff84f7dcce9a60df89ec053576f9e5a60"
       }
     },
@@ -170,7 +170,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.13",
-        "line": 10625,
+        "line": 10627,
         "lineDigest": "bc448a188fb69e96f1288e2a5c24dfc40438b5d4de4551268fbdfef7da1b102c"
       }
     },
@@ -183,7 +183,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.13",
-        "line": 10626,
+        "line": 10628,
         "lineDigest": "c6978b0ba2609a2f6567244097c26ef09b61ca9e75aa5e798cf81dc1cd449938"
       }
     },
@@ -196,7 +196,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.13",
-        "line": 10627,
+        "line": 10629,
         "lineDigest": "a5f366f08e4b9b6012657fa5f8b69ddf661f6be0c05135b837c5be2e693b6153"
       }
     },
@@ -209,7 +209,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.14",
-        "line": 10644,
+        "line": 10646,
         "lineDigest": "c676c7178e8b473e53bde4b2ef443161e1a6b892a01f53427e2cf24afd5ea0cc"
       }
     },
@@ -222,7 +222,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.14",
-        "line": 10645,
+        "line": 10647,
         "lineDigest": "81d0f07a966a5fbfe8d73652f33c43a34d28f516c2b0db5f27ba074b49e3165e"
       }
     },
@@ -235,7 +235,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.14",
-        "line": 10646,
+        "line": 10648,
         "lineDigest": "685bdb0074fce95a1b9cc4ee9b06b7383b3561bb57c249b4f206016357f636f5"
       }
     },
@@ -248,7 +248,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.14",
-        "line": 10647,
+        "line": 10649,
         "lineDigest": "c2c72913fb62f7a4f34313e68b475a5ae63b37aae17bec54b0fa5cdd543576a3"
       }
     },
@@ -261,7 +261,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.14",
-        "line": 10648,
+        "line": 10650,
         "lineDigest": "5b802677e93c5bf5f0716d5c3f0949d0940337b1c0b04be2e598dec0a2270a44"
       }
     },
@@ -274,7 +274,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.14",
-        "line": 10649,
+        "line": 10651,
         "lineDigest": "0f57cc3035a38feb0a59cf729c6f3dd4eea9738ad70fb6ae128de208499621e8"
       }
     },
@@ -287,7 +287,7 @@
       "effectClass": "domain_fact_commit",
       "source": {
         "section": "8.6.14",
-        "line": 10650,
+        "line": 10652,
         "lineDigest": "4ae0cbd3463df67c1ae83084d30ae44a5dd54aa9fedd41c732561a07ffe2343b"
       }
     },
@@ -300,7 +300,7 @@
       "effectClass": "pure_observation",
       "source": {
         "section": "8.6.14",
-        "line": 10651,
+        "line": 10653,
         "lineDigest": "8b6b81935a3fdb846d00812fb6271848ca610adb86520877778ebe98005bb69c"
       }
     },
@@ -313,7 +313,7 @@
       "effectClass": "workspace_write",
       "source": {
         "section": "8.6.14",
-        "line": 10652,
+        "line": 10654,
         "lineDigest": "956799d8f2b2542239aeee8b888a26a3de9001efcb50f93f034f72816c12bd61"
       }
     }

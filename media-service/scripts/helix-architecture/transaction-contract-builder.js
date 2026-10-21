@@ -69,8 +69,8 @@ const crashFixtures = Object.freeze({
 
 const definitions = Object.freeze({
   'Series Presentation Source Reassessment':{
-    commitClass:'domain_unit_of_work',commitMarkerRequired:false,writeTables:['arca_series_presentation_scopes','arca_series_presentation_builds','fx_workspace_registry'],
-    readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_series_presentation_commit_links','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_workspace_registry','fx_workspace_materials','fx_artifact_registry'],fixtureRefs:['series-presentation-commit'],hasOutbox:false,
+    commitClass:'domain_unit_of_work',commitMarkerRequired:false,writeTables:['arca_series_presentation_scopes','arca_series_presentation_builds','fx_workspace_registry','fx_command_receipts'],
+    readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_series_presentation_commit_links','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_workspace_registry','fx_workspace_materials','fx_artifact_registry','fx_command_receipts'],fixtureRefs:['series-presentation-commit'],hasOutbox:false,
   },
   'Series Presentation Commit':{
     commitClass:'responsibility_control_commit',
@@ -78,11 +78,16 @@ const definitions = Object.freeze({
     readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations',
       'arca_series_presentation_references','arca_series_presentation_commit_links','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings'],
     fixtureRefs:['series-presentation-commit'],hasOutbox:false,
+    variants:[{variantId:'retained_root_retirement@1',exactOverride:true,selector:{selectorKind:'owner_command_exact',commandContract:'arca.series-presentation.retained-retirement@1'},
+      writeTables:['arca_series_presentation_scopes','fx_command_receipts','fx_material_controls','fx_material_control_revisions'],
+      readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_series_presentation_commit_links','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_command_receipts'],
+      materialControlCasRequired:true,commitMarkerRequired:false,hasOutbox:false,dynamicTableRequirements:[],
+      rollbackInvariant:'No active collection reference, pending acceptance or current Season may remain; terminal Work and reconciled Effects, retained-root head, exact Control release and immutable retirement receipt commit atomically. No file deletion or fabricated Ready.',fixtureRefs:['series-presentation-commit']}],
   },
   'Series Presentation Workspace Reclaim':{
     commitClass:'workspace_write',writeTables:['fx_workspace_registry','fx_workspace_materials','fx_artifact_registry','fx_event_result_bindings','fx_commit_markers'],
     readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_series_presentation_commit_links',
-      'platform_workspace_roots','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings'],
+      'platform_workspace_roots','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings','fx_command_receipts'],
     fixtureRefs:['series-presentation-commit'],hasOutbox:false,
   },
   'Domain Fact Commit': {

@@ -46,7 +46,8 @@
       "fx_workflow_events",
       "fx_event_attempts",
       "fx_effect_journal",
-      "fx_event_result_bindings"
+      "fx_event_result_bindings",
+      "fx_command_receipts"
     ],
     "variants": [],
     "dynamicTableRequirements": [],

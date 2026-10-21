@@ -60,6 +60,12 @@ function createSeriesPresentationStore(options){
     const result=r.invoke('advance',{scope_id:current.scope_id,expected_revision:Number(current.state_revision),expected_digest:current.state_digest,
       current_version:values.currentVersion,active_build_id:values.activeBuildId,retirement_scope_id:values.retirementScopeId===undefined?(current.retirement_scope_id??null):values.retirementScopeId,state_revision:revision,state_digest:digest,updated_at_ms:at});
     if(result.changes!==1)fail('ARCA_SERIES_SCOPE_STALE','Shared presentation changed concurrently.');}
+  function unusedUsing(r,current){return !r.invoke('references',{scope_id:current.scope_id}).some(row=>row.state==='active')&&!r.invoke('reservations',{scope_id:current.scope_id}).some(row=>row.state==='pending')&&!otherSeasons(r,current,null);}
+  function unused(scopeId){return options.unitOfWork.execute([participant('arca_series_unused_read',r=>{const current=r.invoke('scope',{scope_id:scopeId});return Boolean(current&&!current.retirement_scope_id&&unusedUsing(r,current));})]).arca_series_unused_read;}
+  function retainedRetirementParticipant(current){return participant('arca_series_retained_retirement',(r,c)=>{const fresh=r.invoke('scope',{scope_id:current.scope_id});
+    if(fresh?.state_digest!==current.state_digest||fresh.retirement_scope_id||!unusedUsing(r,fresh))fail('ARCA_SERIES_RETIREMENT_STALE','Retained root acquired another collection obligation.');
+    advance(r,fresh,{currentVersion:Number(fresh.current_version),activeBuildId:null},c.commitTimeMs);
+  });}
 
   function maintenanceFence(r,basis){
     if(basis.schema!=='shelfdeck.series-presentation-maintenance@1')return;
@@ -101,6 +107,14 @@ function createSeriesPresentationStore(options){
         fail('ARCA_SERIES_COMMIT_MISSING','Workspace reclamation requires the exact immutable committed build.');
     });
   }
+  function reclamationScopeParticipant(scope,basis){return participant('arca_series_reclamation_basis_fence',r=>{
+    const version=r.invoke('version',{scope_id:scope.scopeId,revision:scope.expectedVersion+1}),frozen=r.invoke('build',{build_id:scope.objectId}),current=r.invoke('scope',{scope_id:scope.scopeId});
+    if(basis.kind==='retired'){if(frozen?.scope_digest!==scope.digest||current.active_build_id===scope.objectId||basis.retirementReceipt?.scopeDigest!==scope.digest||basis.retirementReceipt.buildId!==scope.objectId)fail('ARCA_SERIES_RETIREMENT_STALE','Reclamation lost its exact retired build.');return;}
+    if(frozen?.scope_digest!==scope.digest||!version||version.build_id!==basis.ready.buildId||version.manifest_digest!==basis.ready.manifestDigest||current.active_build_id===scope.objectId)fail('ARCA_SERIES_COMMIT_MISSING','Reclamation lost its exact committed successor.');
+    let row=r.invoke('build',{build_id:version.build_id});const seen=new Set();
+    while(row&&row.build_id!==scope.objectId){const value=JSON.parse(row.scope_json);if(seen.has(row.build_id)||value.scopeId!==scope.scopeId||!value.reassessmentProofDigest)fail('ARCA_SERIES_REASSESSMENT_CONTRACT','Superseded reclamation has invalid immutable lineage.');seen.add(row.build_id);row=value.supersedesBuildId&&r.invoke('build',{build_id:value.supersedesBuildId});}
+    if(!row)fail('ARCA_SERIES_COMMIT_MISSING','Reclamation is outside the committed Source lineage.');
+  });}
 
   function reservationParticipant(request){
     const basis=packageSeriesBasis(request.package);if(!basis)return null;
@@ -125,25 +139,26 @@ function createSeriesPresentationStore(options){
     });
   }
 
-  function admitBuild({scopeId,basis,existingMembers,replaceFailedBuildId=null,reassessmentFence=null,imageSourceQualification=null,supplementalSources=[]}){
-    const participants=[...(reassessmentFence?[reassessmentFence]:[]),participant('arca_series_build_admit',(r,c)=>{
+  function admitBuild({scopeId,basis,existingMembers,replaceFailedBuildId=null,reassessmentFence=null,imageSourceQualification=null,supplementalSources=[],sourceWorkspaceFiles=[],command=null}){
+    let admitted;const participants=[...(reassessmentFence?[reassessmentFence]:[]),participant('arca_series_build_admit',(r,c)=>{
       const current=r.invoke('scope',{scope_id:scopeId});if(!current)fail('ARCA_SERIES_SCOPE_MISSING','Shared scope has no accepted responsibility.');
       if(current.retirement_scope_id)fail('ARCA_SERIES_RETIREMENT_IN_PROGRESS','Shared presentation has an active authorized retirement.');
       if(current.active_build_id&&current.active_build_id===replaceFailedBuildId&&
           !reassessmentFence)
         fail('ARCA_SERIES_BUILD_RECOVERY_NOT_VERIFIED','Replacing a failed builder requires verified terminal Effects and an explicit recovery basis.');
-      if(current.active_build_id&&current.active_build_id!==replaceFailedBuildId)return JSON.parse(r.invoke('build',{build_id:current.active_build_id}).scope_json);
+      if(current.active_build_id&&current.active_build_id!==replaceFailedBuildId){if(command)fail('ARCA_SERIES_RETRY_IN_PROGRESS','Another shared retry is already active.');return JSON.parse(r.invoke('build',{build_id:current.active_build_id}).scope_json);}
       const revision=Number(current.state_revision),
         buildId=stable('arca-series-build-',{scopeId,revision,expectedVersion:Number(current.current_version),basisDigest:basis.basisDigest}),
         scope=buildSeriesScope({buildId,scopeId,shelfId:current.shelf_id,revision,expectedVersion:Number(current.current_version),
-          endpointId:current.endpoint_id,mountScopeId:current.mount_scope_id,shelfRoot:current.shelf_root,rootLocation:current.root_location,basis,imageSourceQualification,supplementalSources,existingMembers,reassessmentProofDigest:reassessmentFence?.proofDigest||null});
+          endpointId:current.endpoint_id,mountScopeId:current.mount_scope_id,shelfRoot:current.shelf_root,rootLocation:current.root_location,basis,imageSourceQualification,supplementalSources,existingMembers,reassessmentProofDigest:reassessmentFence?.proofDigest||null,
+          supersedesBuildId:replaceFailedBuildId,sourceWorkspaceFiles});
       options.contractValidator.validate(scope.schemaRef,scope);
       r.invoke('insert_builds',{build_id:buildId,scope_id:scopeId,revision,expected_version:scope.expectedVersion,
         basis_schema_ref:'shelfdeck.series-presentation-basis@1',basis_json:canonicalJson(basis),basis_digest:basis.basisDigest,
         scope_schema_ref:scope.schemaRef,scope_json:canonicalJson(scope),scope_digest:scope.digest,created_at_ms:c.commitTimeMs});
-      advance(r,current,{currentVersion:scope.expectedVersion,activeBuildId:buildId},c.commitTimeMs);return scope;
-    })];
-    if(reassessmentFence){const contract=require('../../../contracts/transaction-contracts/helix.transaction.series-presentation-source-reassessment/v1/contract.json').contract,declared=new Set([...contract.readTables,...contract.writeTables]);
+      advance(r,current,{currentVersion:scope.expectedVersion,activeBuildId:buildId},c.commitTimeMs);admitted=scope;return scope;
+    }),...(command?[command.participant(()=>admitted,1)]:[])];
+    if(reassessmentFence||command){const contract=require('../../../contracts/transaction-contracts/helix.transaction.series-presentation-source-reassessment/v1/contract.json').contract,declared=new Set([...contract.readTables,...contract.writeTables]);
       if(participants.some(p=>p.repositories.some(repository=>repository.tableIds.some(table=>!declared.has(table)))))fail('ARCA_SERIES_REASSESSMENT_CONTRACT','Source reassessment escaped its canonical transaction.');}
     return options.unitOfWork.execute(participants).arca_series_build_admit;
   }
@@ -297,7 +312,7 @@ function createSeriesPresentationStore(options){
 
   return Object.freeze({repository,participant,read,readScope:scopeId=>read('scope',{scope_id:scopeId}),
     findByIdentity:(shelfId,providerKey)=>read('identity',{shelf_id:shelfId,provider:'tmdb',provider_key:providerKey}),
-    build,manifest,registerMaintenance,scopeParticipant,committedScopeParticipant,reservationParticipant,admitBuild,versionParticipant,commitReferenceParticipant,commitControlParticipant,releaseReferencesParticipant,releaseShelfParticipants,lastReferenceMembers,retirementParticipant,assertRetirement,sharedMaterialDigest});
+    build,manifest,registerMaintenance,scopeParticipant,committedScopeParticipant,reclamationScopeParticipant,unused,retainedRetirementParticipant,reservationParticipant,admitBuild,versionParticipant,commitReferenceParticipant,commitControlParticipant,releaseReferencesParticipant,releaseShelfParticipants,lastReferenceMembers,retirementParticipant,assertRetirement,sharedMaterialDigest});
 }
 
 module.exports=Object.freeze({columns,definition,createSeriesPresentationStore});

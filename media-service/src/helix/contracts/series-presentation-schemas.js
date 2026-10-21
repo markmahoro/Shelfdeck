@@ -15,10 +15,14 @@ function memberSchema(){return object({artifactKind:kind(),endpointId:text(256),
   width:nullable(integer(1)),height:nullable(integer(1)),nfoProviderKey:nullable(text(128)),sourceDigest:digest()});}
 
 function supplementSchema(){return object({schema:{const:'arca.series-supplement@1'},scopeId:text(256),uploadId:digest(),artifactKind:{enum:['poster','fanart']},byteDigest:digest(),sizeBytes:integer(1),width:integer(1),height:integer(1),physicalIdentity:type('PhysicalMaterialIdentity',2),qualificationDigest:digest()});}
+function workspaceSourceSchema(){return object({artifactKind:kind(),originBuildId:text(256),originScopeDigest:digest(),sourceObservedDigest:digest(),recipe:recipeSchema(),physicalIdentity:type('PhysicalMaterialIdentity',2)});}
 function scopeSchema(){return object({schemaRef:{const:'helix://contracts/domain-types/SeriesPresentationScope/v1'},schemaVersion:{const:1},
   objectId:text(256),revision:integer(1),scopeId:text(256),shelfId:text(256),endpointId:text(256),mountScopeId:text(256),
   shelfRoot:text(4096),rootLocation:text(4096),expectedVersion:integer(0),basis:seriesPresentationBasisSchema(),imageSourceQualification:require('./series-image-source').imageSourceSchema(),supplementalSources:array(supplementSchema()),
-  reassessmentProofDigest:nullable(digest()),existingMembers:array(memberSchema()),missingKinds:array(kind()),digest:digest()});}
+  reassessmentProofDigest:nullable(digest()),supersedesBuildId:nullable(text(256)),sourceWorkspaceFiles:array(workspaceSourceSchema()),existingMembers:array(memberSchema()),missingKinds:array(kind()),digest:digest()});}
+
+function retirementSchema(){return object({schema:{const:'arca.series-retained-retirement@1'},scopeId:text(256),buildId:nullable(text(256)),scopeDigest:nullable(digest()),headDigest:digest(),sharedVersion:integer(0),retainedRootLocation:text(4096),controlSetDigest:digest(),receiptDigest:digest()});}
+function reclamationSchema(){return object({schemaRef:{const:'helix://contracts/domain-types/SeriesPresentationReclamationBasis/v1'},schemaVersion:{const:1},objectId:text(256),revision:integer(1),scopeDigest:digest(),kind:{enum:['committed','superseded','retired']},retirementReceipt:nullable(retirementSchema()),sourceObserved:nullable(type('SeriesPresentationSourceObserved')),prepared:nullable(type('SeriesPresentationAssetsPrepared')),ready:nullable(type('SeriesPresentationReady')),registeredArtifacts:array(object({artifactKind:kind(),workspaceMaterialHandle:type('WorkspaceMaterialHandle'),artifactHandle:type('ArtifactHandle')})),digest:digest()});}
 
 function manifestSchema(){return object({schemaRef:{const:'helix://contracts/domain-types/SeriesPresentationManifest/v1'},schemaVersion:{const:1},
   objectId:text(256),revision:integer(1),scopeId:text(256),buildId:text(256),providerKey:text(128),rootLocation:text(4096),
@@ -33,9 +37,9 @@ function resultProperties(name){
   if(name==='SeriesPresentationAssetsPrepared')return {...common,recipeDigest:digest(),retainedMembers:array(memberSchema()),artifacts:array(object({artifactKind:kind(),
     workspaceMaterialHandle:type('WorkspaceMaterialHandle'),artifactHandle:type('ArtifactHandle')}))};
   if(name==='SeriesPresentationFilesPublished')return {...common,manifest:manifestSchema()};
-  if(name==='SeriesPresentationWorkspaceReclaimed')return {buildId:text(256),handleSetDigest:digest(),reclaimedCount:integer(0),reclaimedBytes:integer(0)};
+  if(name==='SeriesPresentationWorkspaceReclaimed')return {buildId:text(256),reclamationBasisDigest:digest(),handleSetDigest:digest(),reclaimedCount:integer(0),reclaimedBytes:integer(0)};
   if(name==='SeriesPresentationReady')return {...common,sharedVersion:integer(1),manifestDigest:digest(),verificationDigest:digest()};
   throw new TypeError('Unknown Series presentation Result.');
 }
 
-module.exports=Object.freeze({memberSchema,supplementSchema,scopeSchema,manifestSchema,recipeSchema,resultProperties});
+module.exports=Object.freeze({memberSchema,supplementSchema,scopeSchema,manifestSchema,recipeSchema,reclamationSchema,resultProperties});

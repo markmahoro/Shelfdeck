@@ -136,7 +136,7 @@ function createFormationStatusProjection(options) {
         else if(reservation?.committed_version){const version=seriesStore.manifest(reservation.scope_id,Number(reservation.committed_version));if(version)result.set(offerId,Object.freeze({...status,sharedBuildId:version.value.buildId}));}
         if(status.stage!=='in_progress')continue;
         if(sharedStatus&&!sharedStatus.open&&sharedStatus.latestState==='failed'){
-          let canSupplyImages=false;try{options.unitOfWork.execute([createSeriesSourceReassessmentFence(options,shared.active_build_id)]);canSupplyImages=true;}catch(error){if(error.code!=='ARCA_SERIES_SOURCE_REASSESSMENT_UNSAFE')throw error;}
+          let canSupplyImages=false;if(options.series)canSupplyImages=options.series.canReassess(shared.active_build_id);else try{options.unitOfWork.execute([createSeriesSourceReassessmentFence(options,shared.active_build_id)]);canSupplyImages=true;}catch(error){if(error.code!=='ARCA_SERIES_SOURCE_REASSESSMENT_UNSAFE')throw error;}
           result.set(offerId,Object.freeze({...status,stage:'attention_required',reasonCode:sharedStatus.failureCode||'ARCA_SERIES_PRESENTATION_FAILED',retryAvailable:true,canSupplyImages,blockedPhase:'series_presentation',sharedBuildId:shared.active_build_id}));continue;
         }
         if (!work.open && work.latestState === 'failed') {

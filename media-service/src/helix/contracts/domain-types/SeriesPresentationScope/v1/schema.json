@@ -792,6 +792,148 @@
         }
       ]
     },
+    "supersedesBuildId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceWorkspaceFiles": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifactKind": {
+            "enum": [
+              "nfo",
+              "poster",
+              "fanart"
+            ]
+          },
+          "originBuildId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "originScopeDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "sourceObservedDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "recipe": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "artifactKind": {
+                "enum": [
+                  "nfo",
+                  "poster",
+                  "fanart"
+                ]
+              },
+              "sourcePath": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2048
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "sourceByteDigest": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "byteDigest": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "sizeBytes": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "width": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "height": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "nfoProviderKey": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "artifactKind",
+              "sourcePath",
+              "sourceByteDigest",
+              "byteDigest",
+              "sizeBytes",
+              "width",
+              "height",
+              "nfoProviderKey"
+            ]
+          },
+          "physicalIdentity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+          }
+        },
+        "required": [
+          "artifactKind",
+          "originBuildId",
+          "originScopeDigest",
+          "sourceObservedDigest",
+          "recipe",
+          "physicalIdentity"
+        ]
+      }
+    },
     "existingMembers": {
       "type": "array",
       "minItems": 0,
@@ -914,6 +1056,8 @@
     "imageSourceQualification",
     "supplementalSources",
     "reassessmentProofDigest",
+    "supersedesBuildId",
+    "sourceWorkspaceFiles",
     "existingMembers",
     "missingKinds",
     "digest"

@@ -387,6 +387,7 @@ function createProcurementExecutionRuntime(options) {
     ?perceptionProcessServices.ensureResolution('shelf_entry',shelfEntryId)
     :Object.freeze({kind:'pending'});
   const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,contractValidator,
+    cancelProcessWorks:scope=>workLifecycle.cancelProcess(scope),
     resolveMediaCastReference:input=>peopleProcessServices.mediaCastReferenceQuery.resolve(input),
     materialControlProjectionPort,createSeriesPresentationIo:args=>require('../integrations/series-presentation-io').createSeriesPresentationIo({...args,afterPhysicalEffect:options.afterSeriesPhysicalEffect}),deriveJavCoverBytes,createJavCorrectionWorkspaceIo,createJavCorrectionFormalFiles,createJavCorrectionFormalRetirement,createJavCorrectionWorkspaceReclaim,createJavCorrectionRecoveryScene,
     registry:currentServiceCatalog,

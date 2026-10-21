@@ -22,6 +22,7 @@ function createSeriesPresentationWorkspaceStore(options){
     material:{kind:'select-one',tableId:'fx_workspace_materials',columns:materialColumns,keyColumns:['workspace_id','material_handle_id'],safeIntegers:true},
     materials:{kind:'select-all',tableId:'fx_workspace_materials',columns:materialColumns,keyColumns:['workspace_id'],safeIntegers:true},
     artifact:{kind:'select-one',tableId:'fx_artifact_registry',columns:artifactColumns,keyColumns:['artifact_handle_id'],safeIntegers:true},
+    artifacts:{kind:'select-all',tableId:'fx_artifact_registry',columns:artifactColumns,keyColumns:['owner_domain','owner_scope_type','owner_scope_id'],safeIntegers:true},
     insert_registry:{kind:'insert',tableId:'fx_workspace_registry',columns:registryColumns},
     insert_material:{kind:'insert',tableId:'fx_workspace_materials',columns:materialColumns},
     insert_artifact:{kind:'insert',tableId:'fx_artifact_registry',columns:artifactColumns},
@@ -91,7 +92,15 @@ function createSeriesPresentationWorkspaceStore(options){
         fail('Series recovery Material differs from its immutable registration.');return handle;
     })};
   });}
+  function snapshot(scope){return options.unitOfWork.execute([rootParticipant(),{participantId:'arca_series_workspace_snapshot',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[repo],execute:c=>{
+    const r=c.repository(repo.repositoryId),registry=r.invoke('registry',{workspace_id:workspaceId(scope)}),rows=r.invoke('materials',{workspace_id:workspaceId(scope)}),artifacts=r.invoke('artifacts',{owner_domain:'arca',owner_scope_type:'series_presentation',owner_scope_id:scope.objectId});
+    if(rows.length>3||artifacts.length!==rows.length||registry&&(registry.owner_domain!=='arca'||registry.process_id!==scope.objectId||registry.root_handle_ref!==root.rootHandleRef))fail('Recovery registration differs from the exact bounded build.');
+    return {registry,artifacts:rows.map(row=>{const handle=JSON.parse(row.handle_json),a=artifacts.find(item=>item.digest_hex===handle.digestHex&&item.storage_ref.split('\\').join('/').endsWith('/'+handle.relativePath.split('\\').join('/')));
+      if(row.handle_digest!==canonicalDigest(handle)||handle.processId!==scope.objectId||!a||!(row.state==='active'&&a.state==='active'||row.state==='reclaimed'&&a.state==='deleted'))fail('Recovery registration is not an exact Material/Artifact pair.');
+      return {artifactKind:a.artifact_kind,workspaceMaterialHandle:handle,artifactHandle:{schemaRef:'helix://contracts/types/ArtifactHandle/v1',schemaVersion:1,artifactHandleId:a.artifact_handle_id,artifactKind:a.artifact_kind,ownerDomain:a.owner_domain,ownerScope:{scopeType:a.owner_scope_type,scopeId:a.owner_scope_id},storageRef:a.storage_ref,digestAlgorithm:a.digest_algorithm,digestHex:a.digest_hex,sizeBytes:Number(a.size_bytes),mediaType:a.media_type,provenanceRef:JSON.parse(a.provenance_ref),referenceRevision:Number(a.reference_revision)}};
+    })};
+  }}]).arca_series_workspace_snapshot;}
   return Object.freeze({listActive:()=>options.unitOfWork.execute([{participantId:'arca_series_active_workspaces',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[repo],
-    execute:c=>c.repository(repo.repositoryId).invoke('active_registries',{owner_domain:'arca',process_type:'series_presentation',state:'active'})}]).arca_series_active_workspaces,rootParticipant,assertRoot:()=>options.unitOfWork.execute([rootParticipant()]),ensure:scope=>execute(scope,(r,at)=>ensureUsing(r,scope,at)),register,resolve,inspect});
+    execute:c=>c.repository(repo.repositoryId).invoke('active_registries',{owner_domain:'arca',process_type:'series_presentation',state:'active'})}]).arca_series_active_workspaces,rootParticipant,assertRoot:()=>options.unitOfWork.execute([rootParticipant()]),ensure:scope=>execute(scope,(r,at)=>ensureUsing(r,scope,at)),register,resolve,inspect,snapshot});
 }
 module.exports=Object.freeze({createSeriesPresentationWorkspaceStore,registryColumns,materialColumns,artifactColumns});

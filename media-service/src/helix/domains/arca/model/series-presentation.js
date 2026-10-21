@@ -42,9 +42,14 @@ function buildSeriesScope(value){
   if(new Set(existingMembers.map(member=>member.artifactKind)).size!==existingMembers.length||
       existingMembers.some(member=>!KINDS.includes(member.artifactKind)||member.location!==path.join(rootLocation,fileName(member.artifactKind))))
     fail('ARCA_SERIES_SCOPE_INVALID','Shared existing members do not cover unique exact root roles.');
+  const files=value.sourceWorkspaceFiles||[];
+  if(files.length>3||new Set(files.map(row=>row.artifactKind)).size!==files.length||files.some(row=>row.originBuildId===value.buildId||row.recipe.artifactKind!==row.artifactKind)||
+      (files.length&&!value.supersedesBuildId)||value.supersedesBuildId===value.buildId)
+    fail('ARCA_SERIES_SCOPE_INVALID','Recovery sources require bounded immutable predecessor files.');
   const body={schemaRef:SCHEMA,schemaVersion:1,objectId:value.buildId,revision:value.revision,scopeId:value.scopeId,
     shelfId:value.shelfId,endpointId:value.endpointId,mountScopeId:value.mountScopeId,shelfRoot:path.resolve(value.shelfRoot),
-    rootLocation,expectedVersion:value.expectedVersion,basis,imageSourceQualification,supplementalSources,reassessmentProofDigest:value.reassessmentProofDigest??null,existingMembers,
+    rootLocation,expectedVersion:value.expectedVersion,basis,imageSourceQualification,supplementalSources,reassessmentProofDigest:value.reassessmentProofDigest??null,
+    supersedesBuildId:value.supersedesBuildId??null,sourceWorkspaceFiles:value.sourceWorkspaceFiles||[],existingMembers,
     missingKinds:KINDS.filter(kind=>!existingMembers.some(member=>member.artifactKind===kind))};
   return Object.freeze({...body,digest:canonicalDigest(body)});
 }

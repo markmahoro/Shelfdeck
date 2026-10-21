@@ -256,3 +256,10 @@ v3.0 回滚分两层：
 当前完整历史启动可能超过3分钟，标准部署health轮询上限调整为180次，间隔5秒、单次HTTP上限5秒；不得在旧3分钟阈值误判后反复重启。完整副本Host通过仍是apply前置条件。
 
 secondary_target结构发布的离线回退由`media-service/src/helix/foundation/persistence/secondary-target-schema-rollback.js`提供`rollbackSecondaryTargetSchema({Database,databasePath,baselinePath,apply})`。仅在服务已停止、使用经校验的完整升级前副本时调用；默认dry run。它验证精确新旧schema/实际DDL、197表集合、全部业务表逐行比对与FK；只有全部事实等于升级前基线才原子还原原CHECK、索引及对应marker，业务行始终保留。任何新Revision、Work、Result或其他事实变化均拒绝，不能覆盖恢复来绕过。正常供给产生新事实后应保留当前数据并向前修复；若确需备份覆盖恢复须另行明确范围及授权。本轮没有授权重置生产，也不修复旧已瑕疵上架条目。
+
+
+### UAT-326/327/328 候选的结构复制（2026-10-22，尚未发布）
+
+225表`b8c36a0bfc04e7789ca1e49e2639a749c1fe90b52cb80a8a6bb8ecf9b592232b`到231表`4549671e37bedb285feb0bb6dc08d9e431aa040136bd9ee668de248a2f0782a6`使用候选镜像内`node scripts/helix-series-presentation-schema-copy.js --source <standalone-snapshot> --target <new-prepared-snapshot>`。原225表除schema marker外224张业务表全部原列/原行必须逐表摘要相同；新增六张Arca共享表、共享健康head/Off-deck共享范围/Procurement只读来源共五列，327的完整local_media_group CHECK取值扩展保持1024上限。此工具只准备独立副本，无in-place或Reset，既有Formation不获得兼容权益。
+
+未产生任何新增Owner/来源/健康/分组事实时可加`--rollback`准备逆向副本；已经有新事实则明确拒绝丢数据回退，只能修复前进。结构复制成功不等于完整Host启动/原任务恢复资格。上线仍需完整生产副本、精确镜像UI与Gate、Runtime安全停机和完整冷备，再通过既有cutover/标准deploy完成，不直接SQL或替换旧输入摘要。旧剧根内容补齐是独立的Arca维护数据动作，须先列精确预览，不随代码部署自动补写历史收藏。

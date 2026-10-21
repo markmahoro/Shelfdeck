@@ -65,6 +65,10 @@
       "minLength": 1,
       "maxLength": 256
     },
+    "reclamationBasisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
     "handleSetDigest": {
       "type": "string",
       "pattern": "^[a-f0-9]{64}$"
@@ -90,6 +94,7 @@
     "effectReceiptRef",
     "committedAtMs",
     "buildId",
+    "reclamationBasisDigest",
     "handleSetDigest",
     "reclaimedCount",
     "reclaimedBytes"

@@ -8,30 +8,22 @@
     "seriesPresentationScope": {
       "$ref": "#/$defs/seriesPresentationScope"
     },
-    "seriesPresentationAssetsPrepared": {
-      "$ref": "#/$defs/seriesPresentationAssetsPrepared"
-    },
-    "seriesPresentationReady": {
-      "$ref": "#/$defs/seriesPresentationReady"
+    "seriesPresentationReclamationBasis": {
+      "$ref": "#/$defs/seriesPresentationReclamationBasis"
     }
   },
   "required": [
     "seriesPresentationScope",
-    "seriesPresentationAssetsPrepared",
-    "seriesPresentationReady"
+    "seriesPresentationReclamationBasis"
   ],
   "$defs": {
     "seriesPresentationScope": {
       "$ref": "helix://contracts/domain-types/SeriesPresentationScope/v1",
       "x-helix-typeExpression": "SeriesPresentationScope"
     },
-    "seriesPresentationAssetsPrepared": {
-      "$ref": "helix://contracts/types/SeriesPresentationAssetsPrepared/v1",
-      "x-helix-typeExpression": "SeriesPresentationAssetsPrepared"
-    },
-    "seriesPresentationReady": {
-      "$ref": "helix://contracts/types/SeriesPresentationReady/v1",
-      "x-helix-typeExpression": "SeriesPresentationReady"
+    "seriesPresentationReclamationBasis": {
+      "$ref": "helix://contracts/domain-types/SeriesPresentationReclamationBasis/v1",
+      "x-helix-typeExpression": "SeriesPresentationReclamationBasis"
     }
   }
 }

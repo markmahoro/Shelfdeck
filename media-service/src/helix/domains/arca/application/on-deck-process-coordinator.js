@@ -243,14 +243,14 @@ function createOnDeckProcessCoordinator(options) {
     return Object.freeze({ kind:succeeded(options.workResultReader.status(onDeck.workId)) ? 'terminal' : 'on_deck_pending',
       processId, onDeckRunId:responsibility.onDeckRunId, workId:onDeck.workId });
   }
-  function continueAccepted(onDeckRunId,{retry=false,supplementalSources=[]}={}) {
+  function continueAccepted(onDeckRunId,{retry=false,supplementalSources=[],command=null}={}) {
     const responsibility=options.contextReader.acceptance.readRunResponsibility(onDeckRunId);
     if(!responsibility)return {kind:'not_found',onDeckRunId};
     const rows=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:responsibility.offerId,workKind:'acceptance_commit'});
     const accepted=rows.find(row=>row.state==='succeeded'&&options.workResultReader.read(row.work_id).some(item=>item.outcomeKind==='succeeded'&&item.result?.receiptKind==='handoff_b_accepted'));
     if(!accepted)throw new Error('Shared preparation lost the actual successful Acceptance Work.');
     const definition=options.workResultReader.readDefinition(accepted.work_id).definition,refs=refsFromWorkDefinition(accepted.work_id),context=options.contextReader.readAccepted(onDeckRunId,refs),
-      shared=options.series.ensure(context,{retry,supplementalSources});
+      shared=options.series.ensure(context,{retry,supplementalSources,command});
     if(shared.kind!=='ready')return {...shared,onDeckRunId,subjectId:context.offer.subjectId};
     const work=onDeckWork(onDeckRunId,refs,definition);submit(work);
     options.onFormationSubjectChanged?.(context.offer.subjectId);
@@ -375,11 +375,15 @@ function createOnDeckProcessCoordinator(options) {
       return Object.freeze(results);
     },
     async retryAcceptanceWithSupplements(offerId,body={}) {
-      if(!body.supplementalImages?.length)return this.retryAcceptance(offerId);
+      const command=options.series?.retryCommand('acceptance',offerId,body),replayed=options.series?.replayRetry(command);if(replayed)return replayed;
+      if(!body.supplementalImages?.length){const prior=recovery.read(offerId),existing=prior?.recoveryState==='resolved'&&options.contextReader.onDeck.findRunByOffer(offerId);
+        if(!existing||!options.series||orderedOnDeckWorks(existing.onDeckRunId).length)return this.retryAcceptance(offerId);}
       const item=recovery.read(offerId),run=options.contextReader.onDeck.findRunByOffer(offerId);
       if(item?.recoveryState!=='resolved'||!run||!options.series)throw new TypeError('Only an accepted show task can receive supplemental images.');
-      const refs=refsFromWorkDefinition(item.activeWorkId),context=options.contextReader.readAccepted(run.onDeckRunId,refs),sources=await options.series.prepareSupplements(context,body);
-      return continueAccepted(run.onDeckRunId,{retry:true,supplementalSources:sources});
+      const refs=refsFromWorkDefinition(item.activeWorkId),context=options.contextReader.readAccepted(run.onDeckRunId,refs);
+      if(context.packageValue.productStructureSnapshot?.structureKind!=='season')return this.retryAcceptance(offerId);
+      const sources=body.supplementalImages?.length?await options.series.prepareSupplements(context,body):[];
+      return continueAccepted(run.onDeckRunId,{retry:true,supplementalSources:sources,command});
     },
     retryAcceptance(offerId) {
       const item = recovery.read(offerId);

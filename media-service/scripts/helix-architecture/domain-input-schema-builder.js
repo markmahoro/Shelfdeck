@@ -199,6 +199,7 @@ const boundedContracts = {
 
 const dtoContracts = {
   SeriesPresentationScope: '',
+  SeriesPresentationReclamationBasis: '',
   SeriesPresentationManifest: '',
   JavSourceQualification: '',
   JavCorrectionScope: '',
@@ -339,10 +340,10 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
-  if(name==='SeriesPresentationScope'||name==='SeriesPresentationManifest'){
-    const value=require('../../src/helix/contracts/series-presentation-schemas')[name==='SeriesPresentationScope'?'scopeSchema':'manifestSchema']();
+  if(['SeriesPresentationScope','SeriesPresentationManifest','SeriesPresentationReclamationBasis'].includes(name)){
+    const value=require('../../src/helix/contracts/series-presentation-schemas')[name==='SeriesPresentationScope'?'scopeSchema':name==='SeriesPresentationManifest'?'manifestSchema':'reclamationSchema']();
     return {$schema:DRAFT,$id:domainTypeId(name),title:name+'@1','x-helix-ssotRefs':['8.5.12'],
-      'x-helix-role':role,'x-helix-maxCanonicalBytes':65536,...value};
+      'x-helix-role':role,'x-helix-maxCanonicalBytes':name==='SeriesPresentationReclamationBasis'?131072:65536,...value};
   }
   if(name==='JavSourceQualification')return exactDomainSchema(name,{
     schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},siteRef:enumText(...require('../../src/helix/contracts/jav-source-contracts').JAV_SITE_REFS),

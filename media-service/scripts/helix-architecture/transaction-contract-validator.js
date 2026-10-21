@@ -92,6 +92,7 @@ function validateTransactionContracts(options) {
       const commandSelector = selector.selectorKind === 'owner_command_exact' &&
         ((entry.id === 'helix.transaction.inventory-record-refresh-commit' &&
           selector.commandContract === 'arca.inventory.person-records.refresh@1') ||
+         (entry.id === 'helix.transaction.series-presentation-commit' && variant.variantId === 'retained_root_retirement@1' && selector.commandContract === 'arca.series-presentation.retained-retirement@1') ||
          (entry.id === 'helix.transaction.aftercare-case-creation' &&
           selector.commandContract === 'arca.repair-accepted-defects@1') ||
          (entry.id === 'helix.transaction.libra-subject-abandon-commit' && variant.variantId === 'admin_subject_cancellation@1' &&

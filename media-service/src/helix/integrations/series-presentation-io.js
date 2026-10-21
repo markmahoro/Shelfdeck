@@ -202,6 +202,28 @@ function createSeriesPresentationIo({rootSnapshot,afterPhysicalEffect}){
       fail('ARCA_SERIES_TARGET_CONFLICT','Published Series bytes differ from their exact prepared Artifact.');
     return {members,memberSetDigest:canonicalDigest(members)};
   }
+  function readPreparedBytes(scope,recipe){const location=workspaceLocation(scope,recipe.artifactKind).location;assertParents(workspaceRoot,location);
+    try{fs.lstatSync(location);}catch(error){if(error.code==='ENOENT')return null;throw error;}const value=readBoundedFileSnapshotSync(location,limit(recipe.artifactKind),{requireStableSnapshot:true});
+    if(sha(value.bytes)!==recipe.byteDigest||value.bytes.length!==recipe.sizeBytes)fail('ARCA_SERIES_WORKSPACE_CONFLICT','Prepared Workspace bytes differ from the frozen Source recipe.');return value.bytes;}
+  function capturePrepared(scope,source){return source.recipe.flatMap(recipe=>{
+    const bytes=readPreparedBytes(scope,recipe);if(!bytes)return [];
+    const snapshot=readBoundedFileSnapshotSync(workspaceLocation(scope,recipe.artifactKind).location,limit(recipe.artifactKind),{requireStableSnapshot:true});
+    if(sha(snapshot.bytes)!==recipe.byteDigest)fail('ARCA_SERIES_WORKSPACE_CONFLICT','Recovery source changed during capture.');
+    return [{artifactKind:recipe.artifactKind,originBuildId:scope.objectId,originScopeDigest:scope.digest,sourceObservedDigest:canonicalDigest(source),recipe,physicalIdentity:physicalIdentity(snapshot,rootSnapshot.mountScopeId)}];
+  });}
+  function readRecoverySource(origin,ref){
+    if(origin.objectId!==ref.originBuildId||origin.digest!==ref.originScopeDigest)fail('ARCA_SERIES_WORKSPACE_CONFLICT','Recovery source lost its immutable original build.');
+    const location=workspaceLocation(origin,ref.artifactKind).location;assertParents(workspaceRoot,location);
+    const snapshot=readBoundedFileSnapshotSync(location,limit(ref.artifactKind),{requireStableSnapshot:true});
+    if(sha(snapshot.bytes)!==ref.recipe.byteDigest||snapshot.bytes.length!==ref.recipe.sizeBytes||physicalIdentity(snapshot,rootSnapshot.mountScopeId).materialKey!==ref.physicalIdentity.materialKey)
+      fail('ARCA_SERIES_WORKSPACE_CONFLICT','Recovery source no longer has its exact produced bytes.');
+    return snapshot.bytes;
+  }
+  function currentManifestState(scope,manifest){let missing=false;for(const member of manifest.members){
+    assertParents(scope.shelfRoot,member.location);let stat;try{stat=fs.lstatSync(member.location);}catch(error){if(error.code==='ENOENT'){missing=true;continue;}throw error;}
+    if(!stat.isFile()||stat.isSymbolicLink())return 'conflict';const value=readBoundedFileSnapshotSync(member.location,limit(member.artifactKind),{requireStableSnapshot:true});
+    if(sha(value.bytes)!==member.byteDigest||physicalIdentity(value,scope.mountScopeId).materialKey!==member.physicalIdentity.materialKey)return 'conflict';}
+    return missing?'missing':'healthy';}
   async function verifyManifest(scope,manifest){
     const members=await inspectRoot(scope,scope.basis,manifest);
     if(canonicalDigest(members)!==canonicalDigest(manifest.members))fail('ARCA_SERIES_FINAL_VERIFICATION_CHANGED','Shared Series bytes changed after publication.');
@@ -259,6 +281,23 @@ function createSeriesPresentationIo({rootSnapshot,afterPhysicalEffect}){
   function verifyUnmaterialized(scope,recipe){const paths=[];for(const item of recipe){const target=workspaceLocation(scope,item.artifactKind).location;for(const location of [target,target+'.shelfdeck-'+item.byteDigest+'.partial']){
     assertParents(workspaceRoot,location);try{fs.lstatSync(location);}catch(error){if(error.code==='ENOENT'){paths.push(location);continue;}throw error;}fail('ARCA_SERIES_SOURCE_REASSESSMENT_UNSAFE','The old Workspace has physical output requiring recovery.');}}
     return canonicalDigest({schema:'arca.series-unmaterialized-workspace@1',scopeDigest:scope.digest,recipeDigest:canonicalDigest(recipe),paths});}
+  function reclaimSuperseded(scope,basis,execution,{observeOnly=false}={}){
+    const artifacts=basis.registeredArtifacts,observations=[];
+    for(const recipe of basis.sourceObserved?.recipe||[]){if(artifacts.some(row=>row.artifactKind===recipe.artifactKind))continue;
+      const target=workspaceLocation(scope,recipe.artifactKind).location;
+      for(const [location,temporary] of [[target,false],[target+'.shelfdeck-'+recipe.byteDigest+'.partial',true]]){
+        assertParents(workspaceRoot,location);let stat;try{stat=fs.lstatSync(location);}catch(error){if(error.code==='ENOENT')continue;throw error;}
+        if(!stat.isFile()||stat.isSymbolicLink()||stat.size>recipe.sizeBytes)fail('ARCA_SERIES_WORKSPACE_CONFLICT','Superseded output is outside its private Source recipe.');
+        const snapshot=readBoundedFileSnapshotSync(location,recipe.sizeBytes,{requireStableSnapshot:true});
+        if((!temporary||snapshot.bytes.length===recipe.sizeBytes)&&sha(snapshot.bytes)!==recipe.byteDigest)fail('ARCA_SERIES_WORKSPACE_CONFLICT','Superseded output differs from its exact recipe.');
+        observations.push({location,digest:sha(snapshot.bytes),identity:physicalIdentity(snapshot,rootSnapshot.mountScopeId)});
+      }
+    }
+    if(!observeOnly)for(const row of observations){continuation(execution);assertParents(workspaceRoot,row.location);const snapshot=readBoundedFileSnapshotSync(row.location,16*1024*1024,{requireStableSnapshot:true});
+      if(physicalIdentity(snapshot,rootSnapshot.mountScopeId).materialKey!==row.identity.materialKey||sha(snapshot.bytes)!==row.digest)fail('ARCA_SERIES_WORKSPACE_CONFLICT','Superseded output changed after preflight.');fs.unlinkSync(row.location);afterPhysicalEffect?.({location:row.location,eventId:execution.eventId,reclaimed:true});}
+    const registered=reclaim(scope,artifacts,execution,{observeOnly});return {...registered,evidenceDigest:canonicalDigest({registered:registered.evidenceDigest,observations})};
+  }
+  function verifySupersededReclaimed(scope,basis){verifyReclaimed(scope,basis.registeredArtifacts);verifyUnmaterialized(scope,basis.sourceObserved?.recipe||[]);return canonicalDigest({scopeDigest:scope.digest,reclamationBasisDigest:basis.digest});}
   function verifyReclaimed(scope,artifacts){
     for(const item of artifacts){const location=workspaceLocation(scope,item.artifactKind).location;
       for(const target of [location,location+'.shelfdeck-'+item.workspaceMaterialHandle.digestHex+'.partial']){
@@ -269,6 +308,6 @@ function createSeriesPresentationIo({rootSnapshot,afterPhysicalEffect}){
       try{fs.lstatSync(location);}catch(error){if(error.code==='ENOENT')continue;throw error;}fail('ARCA_SERIES_WORKSPACE_NOT_RECLAIMED','A staged user input remains after reclamation.');}
     return canonicalDigest({schema:'arca.series-workspace-declared-files-absent@1',scopeDigest:scope.digest,handles:artifacts.map(item=>item.workspaceMaterialHandle)});
   }
-  return Object.freeze({rootSnapshot,workspaceLocation,inspectRoot,writeWorkspace,publish,verifyManifest,imageBytes,nfoIdentity,readLocalSource,observeWrites,reclaim,verifyReclaimed,verifyUnmaterialized,stageSupplement,readSupplement});
+  return Object.freeze({rootSnapshot,workspaceLocation,inspectRoot,writeWorkspace,publish,verifyManifest,readPreparedBytes,capturePrepared,readRecoverySource,currentManifestState,imageBytes,nfoIdentity,readLocalSource,observeWrites,reclaim,verifyReclaimed,reclaimSuperseded,verifySupersededReclaimed,verifyUnmaterialized,stageSupplement,readSupplement});
 }
 module.exports=Object.freeze({createSeriesPresentationIo,assertParents,nfoIdentity,imageBytes,physicalIdentity});

@@ -18,7 +18,7 @@ function createSeriesPresentationPlanner(options,reclaim=false){
       const ref=CAPS[stage],manifest=options.registry.resolve(ref,'arca').manifest,policy=options.policyRegistry.bindingFor(ref,manifest.effectClass),
         eventId='series-'+stage+'-'+canonicalDigest(request.workAttemptId).slice(0,24),bindings=[{portName:'seriesPresentationScope',bindingKind:'projected_owner_facts',
           ownerDomain:'arca',processType:request.processType,processId:request.processId,projectionRef:SCOPE,parameters:{expectedScopeDigest:scope.digest}}];
-      if(reclaim)for(const name of ['AssetsPrepared','Ready'])bindings.push({portName:'seriesPresentation'+name,bindingKind:'projected_owner_facts',
+      if(reclaim)for(const name of ['ReclamationBasis'])bindings.push({portName:'seriesPresentation'+name,bindingKind:'projected_owner_facts',
         ownerDomain:'arca',processType:request.processType,processId:request.processId,projectionRef:RESULT+'/'+name,parameters:{expectedScopeDigest:scope.digest}});
       if(input){const prior=nodes.at(-1);bindings.push({portName:'seriesPresentation'+input,bindingKind:'projected_event_result',eventId:prior.eventId,
         resultSchemaRef:prior.outputContractRef,projectionRef:RESULT,parameters:{expectedScopeDigest:scope.digest}});}
@@ -38,7 +38,7 @@ function createSeriesPresentationProjections(options){
   function scopeFor(input){const owner=input.ownerScope,scope=options.series.seriesStore.build(owner.processId);
     if(owner.ownerDomain!=='arca'||owner.processType!=='arca_series_presentation'||scope?.digest!==input.parameters?.expectedScopeDigest)
       throw Object.assign(new Error('Shared presentation projection changed.'),{code:'ARCA_SERIES_SCOPE_STALE'});return scope;}
-  return [...['AssetsPrepared','Ready'].map(name=>({projectionRef:RESULT+'/'+name,projection:{project(input){const scope=scopeFor(input),
+  return [{projectionRef:RESULT+'/ReclamationBasis',projection:{project:input=>options.series.reclamationBasis(scopeFor(input))}},...['AssetsPrepared','Ready'].map(name=>({projectionRef:RESULT+'/'+name,projection:{project(input){const scope=scopeFor(input),
     refs=options.series.readReferences(scope).filter(row=>row.result.schemaRef==='helix://contracts/types/SeriesPresentation'+name+'/v1');
     if(refs.length!==1)throw new Error('Reclamation requires one exact successful build result.');return refs[0].result;}}})),{projectionRef:SCOPE,projection:{project:scopeFor}},{projectionRef:RESULT,projection:{project(input){const scope=scopeFor(input),value=input.sourceResult;
     if(value?.scopeDigest!==scope.digest||value.buildId!==scope.objectId)throw new Error('Shared result belongs to another build.');
