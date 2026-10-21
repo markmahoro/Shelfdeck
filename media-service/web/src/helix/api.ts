@@ -59,6 +59,7 @@ export type MaterialField = {
   };
   policy: { policy: ExtractionPolicyValue };
   procurementStatus: {
+    selectionIssues?: {total:number;items:Array<{scopeKey:string;location:string;memberCount:number;maximum:number;reasonCode:string}>};
     stage: 'not_started' | 'procurement_run_active' | 'candidate_published' | 'handoff_a_ready' | 'handoff_a_accepted' | 'handoff_a_rejected';
     observationScan: {
       state: 'waiting' | 'scanning' | 'completed' | 'failed';
@@ -341,8 +342,8 @@ export type FormationSubject = {
   completedAtMs: number | null;
 };
 
-export type FormationRunHistory = { historyId:string; libraRunId:string; subjectId:string; displayIdentity:string;
-  outcome:'user_abandoned'|'unable_to_on_deck'; label:'已结束 · 用户放弃'|'无法上架'; endedAtMs:number; stateRevision:number; stateDigest:string; evidenceDigest:string };
+export type FormationRunHistory = { historyId:string; libraRunId:string|null; subjectId:string; displayIdentity:string;
+  outcome:'user_abandoned'|'unable_to_on_deck'; label:'已取消整理任务'|'无法上架'; endedAtMs:number; stateRevision:number|null; stateDigest:string|null; evidenceDigest:string };
 
 export type PerceptionRecord = {
   perceptionId: string;
@@ -782,6 +783,8 @@ export const helixAdminApi = {
   getFormation(formationViewId:string) {
     return request<FormationSubject>(`/v1/admin/formation/${encodeURIComponent(formationViewId)}`);
   },
+  listPreparationFailures(cursor?:string){return request<{items:Array<{workId:string;subjectId:string|null;title:string;phase:string;failureCode:string}>;nextCursor:string|null}>(`/v1/admin/formation/preparation-failures${cursor?'?cursor='+encodeURIComponent(cursor):''}`);},
+  retryPreparation(workId:string){return request<{kind:string}>(`/v1/admin/formation/preparation-failures/${encodeURIComponent(workId)}/actions/retry`,{method:'POST',body:'{}'});},
   listFormationHistory(cursor?:string,filters?:{q?:string;shelfId?:string}) {
     const query=new URLSearchParams({section:'ended',limit:'25'});if(cursor)query.set('cursor',cursor);
     if(filters?.q)query.set('q',filters.q);if(filters?.shelfId)query.set('shelfId',filters.shelfId);
@@ -930,7 +933,9 @@ export const helixAdminApi = {
         }),
       });
   },
-  discardRun(subject:FormationSubject,idempotencyKey:string){if(!subject.currentRun)throw new Error('当前媒体没有可放弃的整理任务。');const run=subject.currentRun;return request<{resultKind:'discarded'|'closure_pending'|'not_found'|'stale'|'invalid_state'|'conflict'|'integrity_error';libraRunId:string;reasonCode?:string;replayed?:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/discard`,{method:'POST',body:JSON.stringify({expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest,idempotencyKey})});},
+  getMaterialExclusions(fieldId:string){return request<{extractionPolicy:{extractionPolicyId:string;revision:number;policySchemaRef:string;policy:ExtractionPolicyValue};excludedMaterials:Array<{materialKey:string;location:string|null}>}>(`/v1/admin/material-fields/${encodeURIComponent(fieldId)}/extraction-policy`);},
+  async revokeMaterialExclusion(fieldId:string,snapshot:{extractionPolicyId:string;revision:number;policySchemaRef:string;policy:ExtractionPolicyValue},materialKey:string){const policy={...snapshot.policy,excludedMaterialKeys:snapshot.policy.excludedMaterialKeys.filter(key=>key!==materialKey)},revision=snapshot.revision+1;return request(`/v1/admin/material-fields/${encodeURIComponent(fieldId)}/extraction-policy`,{method:'PATCH',body:JSON.stringify({fieldId,idempotencyKey:newOpaqueId('revoke-exclusion-'),expectedPolicyId:snapshot.extractionPolicyId,expectedPolicyRevision:snapshot.revision,policy:{extractionPolicyId:snapshot.extractionPolicyId,revision,policySchemaRef:snapshot.policySchemaRef,policy,policyDigest:await canonicalDigest({extractionPolicyId:snapshot.extractionPolicyId,revision,...policy})}})});},
+  discardRun(subject:FormationSubject,idempotencyKey:string,excludeSourceFiles=false){const run=subject.currentRun;const url=run?`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/discard`:`/v1/admin/formation/subjects/${encodeURIComponent(subject.subjectId)}/actions/abandon`;return request<{resultKind:'discarded'|'abandoned'|'closure_pending'|'not_found'|'stale'|'invalid_state'|'conflict'|'integrity_error';libraRunId?:string;subjectId?:string;reasonCode?:string;replayed?:boolean}>(url,{method:'POST',body:JSON.stringify({...(run?{expectedRunStateRevision:run.stateRevision,expectedRunStateDigest:run.stateDigest}:{}),idempotencyKey,excludeSourceFiles})});},
   previewDefectAdmission(subject:FormationSubject){if(!subject.currentRun)throw new Error('当前媒体没有可操作的整理任务。');return request<DefectAdmissionPreview>(`/v1/admin/formation/runs/${encodeURIComponent(subject.currentRun.libraRunId)}/defect-admission-candidate`);},
   readRunOutcome(libraRunId:string){return request<{outcome:LibraRunOutcome|null}>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/outcome`);},
   reprocessRun(outcome:LibraRunOutcome,idempotencyKey:string){return request<{intentId:string;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(outcome.libraRunId)}/actions/reprocess`,{method:'POST',body:JSON.stringify({expectedOutcomeDigest:outcome.outcomeDigest,idempotencyKey})});},

@@ -658,6 +658,7 @@ function createLibraRunCoordinator(options){
     return null;
   }
   function reconcile(libraRunId){
+    if(options.taskCancellations?.getForRun(libraRunId)?.state==='pending')return {kind:'cancelling',libraRunId};
     let snapshot;
     try { snapshot=typeof options.movieProductionReader.readRunSnapshot==='function'
       ?options.movieProductionReader.readRunSnapshot(libraRunId):options.movieProductionReader.readRun(libraRunId); }

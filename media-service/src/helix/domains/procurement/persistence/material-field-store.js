@@ -22,6 +22,7 @@ function exact(value, keys, code) {
 
 function definition(schemaManifest) {
   return createRepositoryDefinition({ repositoryId: 'material_field_repository', owner: 'procurement', schemaManifest, statements: {
+    material_label:{kind:'select-one',tableId:'proc_field_materials',columns:['material_key','current_location'],keyColumns:['field_id','material_key']},
     insert_policy: { kind: 'insert', tableId: 'proc_extraction_policy_revisions', columns: [
       'extraction_policy_id','revision','policy_schema_ref','policy_json','policy_digest','effective_at_ms'
     ] },
@@ -197,13 +198,67 @@ function createMaterialFieldStore(options) {
     return Object.freeze({ ...committed.receipt.resultRef, replayed: committed.replayed });
   }
 
+  function validateSourceExclusions({members}) {
+    return execute(context=>{
+      const repo=context.repository(fields.repositoryId),groups=new Map();
+      for(const item of members){if(!groups.has(item.fieldId))groups.set(item.fieldId,new Set());groups.get(item.fieldId).add(item.materialKey);}
+      for(const [fieldId,keys] of groups){
+        const field=readField(repo,fieldId);
+        if(!field)fail('PROCUREMENT_EXCLUSION_FIELD_MISSING','Exclusion source Field was not found.');
+        const current=field.policy,policy={...current.policy,excludedMaterialKeys:[...new Set([...current.policy.excludedMaterialKeys,...keys])].sort()};
+        const revision=current.revision+1;
+        createExtractionPolicy({...current,revision,policy,policyDigest:canonicalDigest({extractionPolicyId:current.extractionPolicyId,revision,...policy})});
+        if(Buffer.byteLength(canonicalJson(policy))>16384)fail('P7_EXTRACTION_POLICY_TOO_LARGE','Extraction Policy exceeds 16 KiB.');
+      }
+      return {valid:true};
+    });
+  }
+  function excludeSourceMaterials({intentId,members}) {
+    if(typeof intentId!=='string'||!intentId||!Array.isArray(members)||!members.length||members.length>1024||
+        members.some(item=>!item.fieldId||!/^[a-f0-9]{64}$/.test(item.materialKey||'')))
+      fail('PROCUREMENT_EXCLUSION_INPUT','Exclusion requires exact source materials and a durable intent identity.');
+    const scope=[...members].sort((a,b)=>a.fieldId.localeCompare(b.fieldId)||a.materialKey.localeCompare(b.materialKey));
+    const requestDigest=canonicalDigest({intentId,members:scope}),marker='procurement-exclusion-'+requestDigest;
+    return commandCommit.execute({command:{commandReceiptId:marker,ownerDomain:'procurement',commandContract:'procurement.material-exclusion@1',
+      callerScope:'admin',idempotencyKey:intentId,requestDigest,targetType:'material_exclusion',targetId:intentId},
+      domainParticipant:{participantId:'procurement_material_exclusion',owner:'procurement',repositories:[fields],execute(context){
+        const repo=context.repository(fields.repositoryId),groups=new Map();
+        for(const item of scope){if(!groups.has(item.fieldId))groups.set(item.fieldId,new Set());groups.get(item.fieldId).add(item.materialKey);}
+        for(const [fieldId,keys] of groups){
+          const field=repo.invoke('find_field',{field_id:fieldId});
+          if(!field)fail('PROCUREMENT_EXCLUSION_FIELD_MISSING','Exclusion source Field was not found.');
+          const current=repo.invoke('find_policy',{extraction_policy_id:field.extraction_policy_id,revision:field.extraction_policy_revision});
+          if(!current)fail('PROCUREMENT_EXCLUSION_POLICY_MISSING','Current Extraction Policy was not found.');
+          const policy=JSON.parse(current.policy_json),excludedMaterialKeys=[...new Set([...policy.excludedMaterialKeys,...keys])].sort();
+          if(excludedMaterialKeys.length===policy.excludedMaterialKeys.length)continue;
+          const value={...policy,excludedMaterialKeys},next={extractionPolicyId:field.extraction_policy_id,revision:Number(field.extraction_policy_revision)+1,
+            policySchemaRef:current.policy_schema_ref,policy:value};
+          next.policyDigest=canonicalDigest({extractionPolicyId:next.extractionPolicyId,revision:next.revision,...value});
+          repo.invoke('insert_policy',policyRow(next,validatePolicy(next),context.commitTimeMs));
+          if(repo.invoke('advance_policy_head',{field_id:fieldId,extraction_policy_id:next.extractionPolicyId,extraction_policy_revision:next.revision,
+            updated_at_ms:context.commitTimeMs,expected_policy_id:field.extraction_policy_id,expected_policy_revision:field.extraction_policy_revision,
+            expected_status:field.status}).changes!==1)fail('PROCUREMENT_EXCLUSION_STALE','Extraction Policy changed before exclusion.');
+        }
+        return {intentId,excludedCount:scope.length,scopeDigest:canonicalDigest(scope)};
+      }},commitMarker:{commitMarker:marker,scopeType:'material_exclusion',scopeId:intentId,commitDigest:requestDigest},
+      auditRecords:[{auditId:marker+'-audit',actorType:'admin',actorId:'admin',action:'exclude_source_materials',scopeType:'material_exclusion',scopeId:intentId,evidenceDigest:requestDigest}],
+      resultEnvelope:result=>({resultSchemaRef:'helix://contracts/application-types/ProcurementMaterialExclusionReceipt/v1',resultRef:result}),
+    }).receipt.resultRef;
+  }
+
   return Object.freeze({ repositoryManifest,
     registerMaterialField(input) { return execute((context) => write.register(input, context, 'system:material-field-store')); },
     reviseFieldAccess(input) { return execute((context) => write.revise_access(input, context)); },
     reviseFieldProfileHint(input) { return execute((context) => write.revise_profile_hint(input, context, 'system:material-field-store')); },
     publishExtractionPolicy(input) { return execute((context) => write.publish_policy(input, context)); },
     deregisterMaterialField(input) { return execute((context) => write.deregister(input, context)); },
-    commitAdminCommand,
+    commitAdminCommand,excludeSourceMaterials,validateSourceExclusions,
+    excludedMaterials(fieldId){return execute(context=>{
+      const repo=context.repository(fields.repositoryId),field=readField(repo,fieldId);
+      if(!field)return [];
+      return field.policy.policy.excludedMaterialKeys.map(materialKey=>({materialKey,
+        location:repo.invoke('material_label',{field_id:fieldId,material_key:materialKey})?.current_location||null}));
+    });},
     getMaterialField(fieldId) { return execute((context) => readField(context.repository(fields.repositoryId), fieldId)); },
     listMaterialFields() { return execute((context) => context.repository(fields.repositoryId).invoke('list_fields').map((row) => readField(context.repository(fields.repositoryId), row.field_id))); },
     overviewFields(){return execute(context=>{const repo=context.repository(fields.repositoryId);return repo.invoke('list_fields',{}).map(row=>{

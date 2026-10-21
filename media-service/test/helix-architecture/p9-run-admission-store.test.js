@@ -41,3 +41,94 @@ test('admission persists a typed compact Evidence and rejects tampered replay',(
   db.close();
   assert.throws(()=>store.admit(request),error=>error.code==='P9_RUN_ADMISSION_RECORD_DIGEST');
 }));
+
+
+test('superseded cleanup trigger proves the immutable old Run and its mutual replacement',()=>fixture(input=>{
+ const store=createRunAdmissionStore({schemaManifest,unitOfWork:input.unitOfWork});
+ const first=store.admit({decision:decision(input),commitMarker:'first',resultId:'first'}).result;
+ const next=store.admit({decision:replacementDecision(input,first),commitMarker:'next',resultId:'next'}).result;
+ const cleanup=require('../../src/helix/domains/libra/persistence/workspace-cleanup-store').createWorkspaceCleanupStore({schemaManifest,unitOfWork:input.unitOfWork});
+ const trigger=cleanup.readSuperseded(first.libraRunId);
+ assert.equal(trigger.replacementRunId,next.libraRunId);
+ assert.equal(trigger.terminalRevision,2);
+ const db=new Database(input.databasePath);
+ try{db.prepare('UPDATE libra_runs SET supersedes_run_id=NULL WHERE libra_run_id=?').run(next.libraRunId);
+ assert.throws(()=>cleanup.readSuperseded(first.libraRunId),{code:'P14_CLEANUP_SUPERSEDED_INVALID'});
+ }finally{db.close();}
+}));
+
+test('no-Run cancellation rolls back every participant and verifies the committed terminal receipt',()=>fixture(input=>{
+ const {createSubjectAbandonStore}=require('../../src/helix/domains/libra/persistence/subject-abandon-store');
+ const {createTaskCancellationStore}=require('../../src/helix/domains/libra/persistence/task-cancellation-store');
+ const options={schemaManifest,unitOfWork:input.unitOfWork},cancellations=createTaskCancellationStore(options);
+ const intent=cancellations.request('subject-1',null,{idempotencyKey:'cancel-subject'}),store=createSubjectAbandonStore(options);
+ const crashing={execute(participants){return input.unitOfWork.execute(participants.map(p=>p.participantId!=='commit_foundation'?p:
+   {...p,execute(context){p.execute(context);throw new Error('cancel-crash');}}));}};
+ const db=new Database(input.databasePath);
+ try{
+   assert.throws(()=>createSubjectAbandonStore({...options,unitOfWork:crashing}).commit('subject-1',intent),/cancel-crash/);
+   assert.equal(db.prepare('SELECT status FROM libra_subjects').get().status,'active');
+   assert.equal(db.prepare('SELECT state FROM fx_material_controls').get().state,'controlled');
+   for(const table of ['libra_subject_abandon_decisions','libra_subject_abandon_receipts','fx_command_receipts','fx_outbox','fx_audit_records'])
+     assert.equal(db.prepare('SELECT count(*) n FROM '+table).get().n,0,table);
+   assert.equal(cancellations.get('subject-1').state,'pending');
+   assert.equal(store.commit('subject-1',intent).resultKind,'abandoned');
+   assert.ok(createSubjectAbandonStore(options).completed('subject-1'));
+   cancellations.complete('subject-1');assert.equal(cancellations.get('subject-1').state,'completed');
+   db.prepare("UPDATE fx_commit_markers SET commit_digest=? WHERE scope_type='subject'").run(D('corrupt-marker'));
+   assert.throws(()=>store.completed('subject-1'),{code:'LIBRA_SUBJECT_ABANDON_CORRUPT'});
+ }finally{db.close();}
+}));
+
+test('superseded Workspace cleanup admits atomically, survives reconstruction and preserves the replacement',()=>fixture(input=>{
+ const {buildReferenceSnapshot,referenceSetDigest,workspaceStateDigest}=require('../../src/helix/domains/libra/model/workspace-material-reference-contracts');
+ const {createWorkspaceCleanupStore}=require('../../src/helix/domains/libra/persistence/workspace-cleanup-store');
+ const {buildSupersededAdmission,buildObservation,CYCLE_MS}=require('../../src/helix/domains/libra/model/workspace-cleanup-contracts');
+ const store=createRunAdmissionStore({schemaManifest,unitOfWork:input.unitOfWork});
+ const first=store.admit({decision:decision(input),commitMarker:'first',resultId:'first'}).result;
+ const next=store.admit({decision:replacementDecision(input,first),commitMarker:'next',resultId:'next'}).result;
+ const workspaceId=D('old-workspace'),identity={...input.identity,inode:'99',contentFingerprint:D('workspace-output')};
+ const materialKey=canonicalDigest({schema:'physical-material-identity@2',...identity});
+ const handle={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:D('output-handle'),
+   workspaceId,ownerDomain:'libra',processId:first.libraRunId,endpointId:'endpoint-1',materialKey,physicalIdentity:identity,
+   rootHandleRef:'root-1',relativePath:'output.mkv',digestAlgorithm:'middle-256k-sha256',digestHex:identity.contentFingerprint,
+   sizeBytes:100,referenceRevision:1,accessScope:'workspace_material_read',fenceDigest:D('output-fence')};
+ const ref=buildReferenceSnapshot({workspaceId,libraRunId:first.libraRunId,workspaceMaterialHandle:handle,referenceRevision:1,committedWorkspaceRevision:1,previousReferenceRevision:null,
+   state:'working',episodeClaims:[],episodeScopeDigest:canonicalDigest({schema:'libra.production-episode-scope@1',items:[]}),productVerificationRef:null});
+ const setDigest=referenceSetDigest(workspaceId,[ref]),state={workspaceId,workspaceRevision:1,state:'active',workspaceMaterialReferenceSetDigest:setDigest,
+   transitionKind:'admitted',transitionEvidenceDigest:D('workspace-admission')};
+ const db=new Database(input.databasePath);db.pragma('foreign_keys=OFF');
+ try{
+   db.prepare('INSERT INTO libra_workspaces (workspace_id,libra_run_id,current_revision,state,state_digest) VALUES (?,?,1,?,?)')
+     .run(workspaceId,first.libraRunId,'active',workspaceStateDigest(state));
+   db.prepare('INSERT INTO libra_workspace_revisions (workspace_id,workspace_revision,state,material_reference_set_digest,transition_kind,transition_evidence_digest,revision_digest,committed_at_ms) VALUES (?,1,?,?,?,?,?,1)')
+     .run(workspaceId,'active',setDigest,'admitted',state.transitionEvidenceDigest,D('revision'));
+   db.prepare('INSERT INTO libra_workspace_material_refs (workspace_id,libra_run_id,reference_id,material_handle_id,material_key,workspace_handle_schema_ref,workspace_handle_json,workspace_handle_digest,reference_revision,reference_state,episode_claims_schema_ref,episode_claims_json,episode_scope_digest,committed_workspace_revision,reference_digest) VALUES (?,?,?,?,?,?,?,?,1,?,?,?,?,1,?)')
+     .run(workspaceId,first.libraRunId,ref.referenceId,handle.handleId,materialKey,handle.schemaRef,canonicalJson(handle),canonicalDigest(handle),
+       'working','ProductionEpisodeClaims@1','[]',ref.episodeScopeDigest,ref.referenceDigest);
+   const cleanup=createWorkspaceCleanupStore({schemaManifest,unitOfWork:input.unitOfWork}),snapshot=cleanup.inspect(first.libraRunId),
+     observation=at=>buildObservation({workspaceId,observedAtMs:at,otherReferences:[],controls:snapshot.controls}),
+     command=buildSupersededAdmission({triggerSnapshot:cleanup.readSuperseded(first.libraRunId),libraRunRef:snapshot.run,workspaceRef:Object.fromEntries(Object.entries(snapshot.workspace).filter(([key])=>key!=='state')),
+       references:snapshot.references,controls:snapshot.controls,observation1:observation(100),observation2:observation(100+CYCLE_MS)}),
+     request={decision:command,commitMarker:'cleanup-marker',resultId:'cleanup-result'};
+   db.prepare("INSERT INTO fx_supporting_works (work_id,owner_domain,process_type,process_id,state) VALUES ('old-work','libra','libra_run',?,'running')").run(first.libraRunId);
+   assert.throws(()=>cleanup.admit(request),{code:'P14_CLEANUP_EXECUTION_PENDING'});
+   db.prepare("UPDATE fx_supporting_works SET state='failed' WHERE work_id='old-work'").run();
+   db.prepare("INSERT INTO fx_workflow_events (event_id,work_id) VALUES ('old-event','old-work')").run();
+   db.prepare("INSERT INTO fx_event_attempts (event_attempt_id,event_id) VALUES ('old-attempt','old-event')").run();
+   db.prepare("INSERT INTO fx_effect_journal (effect_id,event_attempt_id,state) VALUES ('old-effect','old-attempt','reconcile_required')").run();
+   assert.throws(()=>cleanup.admit(request),{code:'P14_CLEANUP_EXECUTION_PENDING'});
+   db.prepare("UPDATE fx_effect_journal SET state='failed' WHERE effect_id='old-effect'").run();
+   assert.equal(db.prepare('SELECT count(*) n FROM libra_workspace_cleanup_scopes').get().n,0);
+   const crashing={execute(participants){return input.unitOfWork.execute(participants.map(p=>p.participantId!=='cleanup_admission_foundation'?p:
+     {...p,execute(context){p.execute(context);throw new Error('cleanup-crash');}}));}};
+   assert.throws(()=>createWorkspaceCleanupStore({schemaManifest,unitOfWork:crashing}).admit(request),/cleanup-crash/);
+   assert.equal(db.prepare('SELECT count(*) n FROM libra_workspace_cleanup_scopes').get().n,0);
+   assert.equal(db.prepare('SELECT current_revision FROM libra_workspaces').get().current_revision,1);
+   const admitted=cleanup.admit(request);assert.equal(admitted.replayed,false);
+   assert.equal(createWorkspaceCleanupStore({schemaManifest,unitOfWork:input.unitOfWork}).admit(request).replayed,true);
+   assert.equal(db.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(next.libraRunId).state,'active');
+   assert.equal(db.prepare('SELECT owner_scope_id FROM fx_material_controls WHERE material_key=?').get(input.materialKey).owner_scope_id,'subject-1');
+   assert.equal(db.prepare('SELECT trigger_kind FROM libra_workspace_cleanup_scopes').get().trigger_kind,'run_superseded');
+ }finally{db.close();}
+}));

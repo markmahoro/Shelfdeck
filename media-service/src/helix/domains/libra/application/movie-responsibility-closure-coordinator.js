@@ -13,6 +13,7 @@ const {
   buildEffectIntent,
   buildObservation,
   buildOffloadAdmission,
+  buildSupersededAdmission,
 } = require('../model/workspace-cleanup-contracts');
 const {
   createRunLifecycleStore,
@@ -677,6 +678,29 @@ function createMovieResponsibilityClosureCoordinator(options) {
     }]).movie_discarded_workspace_read;
     const activeScope=(snapshot.scopes||[]).find((item)=>item.state==='active');
     if(activeScope)return drainCleanupScope(activeScope.cleanup_scope_id,1);
+    if(scope.runState==='superseded'&&currentNonReleasedReferences(snapshot.references).length){
+      const inspected=cleanup.inspect(scope.libraRunId),triggerSnapshot=cleanup.readSuperseded(scope.libraRunId);
+      const key='superseded:'+scope.libraRunId,nowMs=(options.now||Date.now)();
+      const observed=buildObservation({workspaceId:scope.workspaceId,observedAtMs:nowMs,
+        otherReferences:inspected.otherReferences,controls:inspected.controls});
+      if(observed.activeReferenceCount||inspected.controls.some(item=>item.controlDisposition==='other_owned')){
+        cleanupAudits.delete(key);
+        return {stage:'workspace_referenced',workspaceId:scope.workspaceId};
+      }
+      const first=cleanupAudits.get(key);
+      if(!first){cleanupAudits.set(key,{observation:observed});return pendingAudit(observed);}
+      if(nowMs<first.observation.observedAtMs+CYCLE_MS)return pendingAudit(first.observation);
+      const decision=buildSupersededAdmission({triggerSnapshot,libraRunRef:inspected.run,
+        workspaceRef:{workspaceId:inspected.workspace.workspaceId,workspaceRevision:inspected.workspace.workspaceRevision,
+          workspaceStateDigest:inspected.workspace.workspaceStateDigest,materialReferenceSetDigest:inspected.workspace.materialReferenceSetDigest},
+        references:inspected.references,controls:inspected.controls,observation1:first.observation,observation2:observed});
+      try{cleanup.admit({decision,
+        commitMarker:canonicalDigest({schema:'libra.workspace-cleanup-admission-marker@1',cleanupScopeId:decision.cleanupScopeId,decisionDigest:decision.decisionDigest}),
+        resultId:canonicalDigest({schema:'libra.workspace-cleanup-admission-result-id@1',cleanupScopeId:decision.cleanupScopeId})});}
+      catch(error){cleanupAudits.delete(key);if(error.code==='P14_CLEANUP_EXECUTION_PENDING')return {stage:'execution_pending'};throw error;}
+      cleanupAudits.delete(key);
+      return drainCleanupScope(decision.cleanupScopeId,1);
+    }
     if(currentNonReleasedReferences(snapshot.references).length)
       return Object.freeze({stage:'has_workspace_references',workspaceId:scope.workspaceId});
     if(typeof options.workspaceProductPort?.reclaimUnreferencedWorkspace!=='function')

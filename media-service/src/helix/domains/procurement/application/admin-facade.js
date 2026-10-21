@@ -298,7 +298,7 @@ function createProcurementAdminApplication(options) {
       if (!field) {
         throw new ProcurementAdminApplicationError('ADMIN_FIELD_NOT_FOUND', 'Material Field不存在。', { fieldId });
       }
-      return Object.freeze({ extractionPolicy: queries.getExtractionPolicy({
+      return Object.freeze({ excludedMaterials:store.excludedMaterials(fieldId),extractionPolicy: queries.getExtractionPolicy({
         extractionPolicyId: field.extractionPolicyId,
         revision: field.extractionPolicyRevision,
       }) });
@@ -323,6 +323,7 @@ function createProcurementAdminApplication(options) {
     publishExtractionPolicy(fieldId, body) {
       return Object.freeze({ materialField: invokeCommand(() => commands.publishExtractionPolicy(commandEnvelope(body, fieldId))).materialField });
     },
+    excludeSourceMaterials:request=>store.excludeSourceMaterials(request),
     deregisterMaterialField(fieldId, body) {
       return Object.freeze({ materialField: invokeCommand(() => commands.deregisterMaterialField(commandEnvelope(body, fieldId))).materialField });
     },

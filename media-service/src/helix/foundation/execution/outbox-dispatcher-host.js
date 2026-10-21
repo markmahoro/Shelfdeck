@@ -172,6 +172,14 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
       inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});
       options.routingCoordinator.reconcileField(payload.fieldId,100);options.executionRuntimeHost.wake();return;
     }
+    if(item.message.message_kind==='libra.subject-abandoned@1'&&item.delivery.consumer_domain==='libra'){
+      const resultDigest=canonicalDigest({schema:'libra.subject-abandon-wake-consumption@1',messageId:item.message.message_id,
+        subjectId:payload.subjectId,decisionDigest:payload.decisionDigest});
+      inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'libra'},resultDigest,
+        domainParticipant:{participantId:'libra_subject_abandon_wake_receipt',owner:'libra',repositories:[libraReceiptRepository],execute:()=>payload}});
+      inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});
+      options.executionRuntimeHost.wake();return;
+    }
     if(item.message.message_kind==='libra.workspace-cleanup.requested@1'&&item.delivery.consumer_domain==='libra'){
       const resultDigest=canonicalDigest({schema:'libra.workspace-cleanup-request-consumption@1',messageId:item.message.message_id,
         libraRunId:payload.libraRunId,cleanupScopeId:payload.cleanupScopeId||null,triggerDigest:payload.triggerDigest||null});

@@ -73,6 +73,21 @@ test('revision change creates one automatic generation and later failures wait f
   assert.deepEqual({ generation:user.recoveryGeneration, state:user.recoveryState }, { generation:3, state:'user_retrying' });
 }));
 
+test('manual acceptance recovery remains available after the automatic generation ceiling', () => fixture(({ recovery }) => {
+  recovery.admit({offerId:'offer-exhausted',onDeckPackageId:'package-exhausted',packageDigest:hex('a'),
+    workId:'work-1',workKind:'acceptance_assessment',recoveryTriggerDigest:hex('b')});
+  for(let generation=1;generation<=33;generation++){
+    recovery.recordFailure('offer-exhausted',{workId:'work-'+generation,failurePhase:'acceptance_assessment',
+      errorCode:'EXECUTOR_DOWN',terminalAttemptCount:3,incidentKey:null});
+    if(generation>=32)assert.throws(()=>recovery.startGeneration('offer-exhausted',{mode:'automatic',
+      workId:'automatic-'+generation,recoveryTriggerDigest:hex('c')}),{code:'ARCA_ACCEPTANCE_RECOVERY_LIMIT'});
+    const next=recovery.startGeneration('offer-exhausted',{mode:'user',workId:'work-'+(generation+1),recoveryTriggerDigest:hex('c')});
+    assert.equal(next.recoveryGeneration,generation+1);
+    assert.equal(next.recoveryState,'user_retrying');
+  }
+  assert.equal(recovery.resolve('offer-exhausted','accepted',hex('d')).recoveryState,'resolved');
+}));
+
 test('paged acceptance recovery advances the selected case past an unchanged first case', () => fixture(({ unitOfWork, recovery }) => {
   const trigger = canonicalDigest({ schema:'arca.acceptance-recovery-trigger@1',
     executionContractRevision:'arca.acceptance.executor@2', connectionRevision:'none' });

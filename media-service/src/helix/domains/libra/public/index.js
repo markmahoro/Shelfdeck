@@ -1,6 +1,7 @@
 'use strict';
 const {createSourceFairness}=require('../application/source-fairness');
 const {createAttentionWorkshop}=require('../application/attention-workshop');
+const {createTaskCancellationStore}=require('../persistence/task-cancellation-store');
 
 const catalog = require('../../../contracts/ports/p8-libra-intake-public-contracts.json');
 const productionCatalog = require('../../../contracts/ports/p9-libra-production-public-contracts.json');
@@ -243,6 +244,8 @@ function createExecutionRegistration() {
       }});
     },
     createProcessServices(options) {
+      const taskCancellations=createTaskCancellationStore(options);
+      options={...options,taskCancellations};
       const offerReader=options.offerReader || createIntakeOfferReader(options);
       const decisionResolver=createIntakeDecisionResolver(options);
       const intakeStore=options.intakeStore || createLibraIntakeStore(options);
@@ -267,6 +270,7 @@ function createExecutionRegistration() {
         onReadinessObserved:options.onWorkshopReadinessObserved});
       const routingProcess=createRoutingProcessCoordinator({...options,contextReader:routingContextReader});
       const routingCoordinator=Object.freeze({...routingProcess,reconcile(subjectId){
+        if(taskCancellations.get(subjectId)?.state==='pending')return {kind:'cancelling',subjectId};
         return attentionWorkshop.reconcileRouting(subjectId,()=>routingProcess.reconcile(subjectId));
       }});
       const acceptanceSpecContextReader=createAcceptanceSpecContextReader({...options,routingContextReader});
@@ -299,13 +303,17 @@ function createExecutionRegistration() {
           return context.kind==='ready'?Object.freeze({kind:'ready',spec:context.spec}):context;
         }});
       const libraRunCoordinator=Object.freeze({...runCoordinator,reconcile(runId){
+        const cancellation=taskCancellations.getForRun(runId);
+        if(cancellation?.state==='pending')return libraRunAdminService.reconcileCancellation(cancellation.subjectId);
         const result=attentionWorkshop.reconcileRun(runId,()=>runCoordinator.reconcile(runId));
         const eligible=result.kind==='pending'&&Boolean(result.workId);
         sourceFairness.setEligible(runId,eligible);
         if(eligible)sourceFairness.refresh(runId);
         return result;
       }});
-      return Object.freeze({sourceFairness,offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
+      const preparationRecovery=require('../application/preparation-recovery-admin').createPreparationRecoveryAdmin({...options,
+        offerReader,intakeStore,intakeCoordinator:coordinator,routingCoordinator,acceptanceSpecCoordinator});
+      return Object.freeze({preparationRecovery,sourceFairness,offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
         libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore,usAdultAnalysisStore,
         usAdultActorChoiceStore,usAdultActorChoice,usAdultActorSelectionQuery,usAdultRecommendationQuery,usAdultRecommendationCommand,usAdultMatchCompletionStore});

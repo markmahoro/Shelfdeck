@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-21第二批实施检查点：DESTINATION-IMPLEMENTATION上述取消/排除/撤销、前置失败恢复、退休来源释放及用户确认D07已实现，UAT-322补既有superseded Cleanup Scope路径；SSOT/225表/164路由已同步。当前仍在发布资格阶段，不继承前序版本UI/完整Gate/跨平台PASS；不授权生产Reset或专项旧Workspace手工删除。具体本地证据见本专项Evidence最新节。
+
 2026-10-21本地检查点：生产容量清理完成，两次人物照片建档自动完成。DESTINATION-IMPLEMENTATION首批已修改Libra历史失败拒收、Run公平初始轮次/包发布时间、Procurement技术失败下一Observation资格及Arca恢复分页首项阻塞；46项定向回归和3项隔离Host通过，未发布。持久取消、无Run退出、排除/撤销、退休Field闲置Control及其用户入口尚未完成；完整Gate/跨平台与具体版本UI资格不继承。
 
 ## 2026-10-21 实施授权与当前顺序

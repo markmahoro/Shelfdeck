@@ -2736,6 +2736,28 @@ CREATE TABLE "libra_subjects" (
 );
 CREATE INDEX "idx_libra_subjects_hot_01" ON "libra_subjects" ("status", "subject_id");
 
+CREATE TABLE "libra_task_cancellations" (
+  "cancellation_id" TEXT PRIMARY KEY,
+  "subject_id" TEXT,
+  "libra_run_id" TEXT,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_schema_ref" TEXT,
+  "request_json" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "state" TEXT CHECK ("state" IN ('pending', 'completed', 'handoff_accepted')),
+  "state_revision" INTEGER CHECK ("state_revision" >= 1),
+  "requested_at_ms" INTEGER CHECK ("requested_at_ms" >= 0),
+  "completed_at_ms" INTEGER CHECK ("completed_at_ms" >= 0),
+  UNIQUE ("libra_run_id"),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("request_json")),
+  CHECK (length(CAST("request_json" AS BLOB)) <= 1048576),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_libra_task_cancellations_hot_01" ON "libra_task_cancellations" ("state", "subject_id");
+
 CREATE TABLE "libra_us_adult_actor_choice_heads" (
   "subject_id" TEXT PRIMARY KEY,
   "current_revision" INTEGER CHECK ("current_revision" >= 1),

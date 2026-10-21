@@ -7,14 +7,14 @@ function terminalPresentation(outcome,decision,receipt) {
   if(outcome?.outcome==='unable_to_on_deck'&&outcome.reason_code==='processing_failed')
     return {outcome:'unable_to_on_deck',label:'无法上架'};
   if(outcome?.outcome==='unable_to_on_deck'&&outcome.reason_code==='user_cancelled')
-    return {outcome:'user_abandoned',label:'已结束 · 用户放弃'};
+    return {outcome:'user_abandoned',label:'已取消整理任务'};
   // Previously committed explicit admin Discard decisions remain historical
   // facts. Verify their original evidence; never manufacture a new outcome.
   if(outcome===undefined && decision?.actorId==='admin' && receipt &&
       decision.libraRunId===receipt.libra_run_id && decision.discardDecisionId===receipt.discard_decision_id &&
       decision.expectedRunStateRevision+1===Number(receipt.committed_run_state_revision) &&
       canonicalDigest(Object.fromEntries(Object.entries(decision).filter(([key])=>key!=='decisionDigest')))===decision.decisionDigest)
-    return {outcome:'user_abandoned',label:'已结束 · 用户放弃'};
+    return {outcome:'user_abandoned',label:'已取消整理任务'};
   throw Object.assign(new Error('Terminal history lacks an explicit business outcome.'),{code:'FORMATION_DISCARD_HISTORY_INTEGRITY'});
 }
 
@@ -25,6 +25,13 @@ function createFormationRunHistoryStore(options) {
   const repository = createRepositoryDefinition({
     repositoryId: 'libra_formation_run_history', owner: 'libra', schemaManifest: options.schemaManifest,
     statements: {
+      abandoned_count:{kind:'select-summary',tableId:'libra_subject_abandon_receipts',summaries:[{operator:'count',output:'total'}]},
+      abandoned_page:{kind:'select-joined-page',tableId:'libra_subject_abandon_receipts',maxItems:101,
+        joins:[{tableId:'libra_formation_projections',alias:'display',on:[{column:'subject_id',otherAlias:'base',otherColumn:'subject_id'}]}],
+        filters:[{alias:'display',column:'target_shelf_id',kind:'equals',parameter:'shelf',optional:true},
+          {alias:'display',column:'display_identity',kind:'contains',parameter:'query',optional:true}],
+        orderBy:[{column:'committed_at_ms',direction:'desc'},{column:'receipt_id',direction:'asc'}],
+        columns:['receipt_id','subject_id','commit_digest','committed_at_ms'],safeIntegers:true},
       counts:{kind:'count-grouped',tableId:'libra_run_discard_receipts',groupColumn:'committed_run_state_revision'},
       discarded_page: {
         kind: 'select-joined-page', tableId: 'libra_run_discard_receipts', maxItems: 101,
@@ -47,7 +54,7 @@ function createFormationRunHistoryStore(options) {
     },
   });
 
-  function listDiscarded(offset, limit, filters={}) {
+  function listRunDiscarded(offset, limit, filters={}) {
     return options.unitOfWork.execute([{
       participantId: 'libra_formation_run_history_read', owner: 'libra', repositories: [repository], execute(context) {
         const repo = context.repository(repository.repositoryId);
@@ -83,8 +90,26 @@ function createFormationRunHistoryStore(options) {
     }]).libra_formation_run_history_read;
   }
 
+  function subjectPage(offset,limit,filters){return options.unitOfWork.execute([{participantId:'libra_subject_history',owner:'libra',repositories:[repository],
+    execute:context=>context.repository(repository.repositoryId).invoke('abandoned_page',{offset,limit,shelf:filters.shelfId||'',query:String(filters.q||'').trim()})
+      .map(row=>({historyId:row.receipt_id,libraRunId:null,subjectId:row.subject_id,outcome:'user_abandoned',label:'已取消整理任务',
+        endedAtMs:Number(row.committed_at_ms),stateRevision:null,stateDigest:null,evidenceDigest:row.commit_digest}))}]).libra_subject_history;}
+  function listDiscarded(offset,limit,filters={}) {
+    const streams=[listRunDiscarded,subjectPage].map(read=>({read,offset:0,rows:[],done:false})),result=[];
+    for(let index=0;index<offset+limit;index++){
+      for(const stream of streams)if(!stream.rows.length&&!stream.done){
+        stream.rows=stream.read(stream.offset,100,filters);stream.offset+=stream.rows.length;stream.done=stream.rows.length<100;
+      }
+      const stream=streams.filter(item=>item.rows.length).sort((a,b)=>b.rows[0].endedAtMs-a.rows[0].endedAtMs||
+        a.rows[0].historyId.localeCompare(b.rows[0].historyId))[0];
+      if(!stream)break;
+      const row=stream.rows.shift();if(index>=offset)result.push(row);
+    }
+    return Object.freeze(result);
+  }
   function count(){return options.unitOfWork.execute([{participantId:'libra_history_count',owner:'libra',repositories:[repository],execute(context){
-    return context.repository(repository.repositoryId).invoke('counts',{}).reduce((sum,row)=>sum+Number(row.row_count),0);
+    const repo=context.repository(repository.repositoryId);
+    return repo.invoke('counts',{}).reduce((sum,row)=>sum+Number(row.row_count),0)+Number(repo.invoke('abandoned_count',{}).total);
   }}]).libra_history_count;}
   return Object.freeze({ listDiscarded,count });
 }

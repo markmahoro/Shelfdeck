@@ -91,7 +91,9 @@ function createAcceptanceRecoveryStore(options) {
       const current = read(offerId);
       if (!current || current.recoveryState !== 'attention_required') throw Object.assign(
         new Error('Acceptance Recovery Case is not waiting for recovery.'), { code:'ARCA_ACCEPTANCE_RETRY_NOT_ALLOWED' });
-      if (current.recoveryGeneration >= MAX_GENERATION) throw Object.assign(
+      if (!['automatic','user'].includes(request.mode)) throw Object.assign(
+        new Error('Acceptance recovery requires an explicit recovery mode.'), { code:'ARCA_ACCEPTANCE_RECOVERY_MODE' });
+      if (request.mode === 'automatic' && current.recoveryGeneration >= MAX_GENERATION) throw Object.assign(
         new Error('Acceptance recovery generation limit was reached.'), { code:'ARCA_ACCEPTANCE_RECOVERY_LIMIT' });
       if (request.mode === 'automatic' && (current.automaticRecoveryUsed || current.failedTriggerDigest === request.recoveryTriggerDigest)) return current;
       return advance(current, { ...current, activeWorkId:request.workId, failurePhase:null, errorCode:null,

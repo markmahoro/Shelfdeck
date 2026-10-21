@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-21 生命周期第二批本地实现：持久取消/无Run退出、文件排除与撤销、退休Field闲置Control释放、三类Libra前置准备失败人工恢复、Arca人工恢复不受累计32代限制、旧superseded Workspace正式清理及未成包容量原因均已接线。33项Owner/隔离Host组合、额外取消/清理原子回滚及Arca接收竞争、容量Projection与225表离线副本回退测试通过；Web243及新增3项交互测试、构建通过。真实浏览器已走通无Run取消、勾选排除、来源撤销后不立即重试，并发现复选框样式问题已修正待最终同版复验。尚未冻结完整Gate、UI负责人审核、Linux/完整生产副本Host或部署。生产只读preflight仍为af2257c423/restart0/health正常，数据卷101GiB可用；未修改生产数据库/来源。
+
 2026-10-21 生命周期首批本地修复：移除Libra按未变化失败历史拒收；新Run以当前公平轮次注册、以已接收Candidate发布时间作同轮排序；技术性准备失败允许下一轮普通Observation重新开采；Arca恢复改为处理分页选中的Offer。46项Owner/调度回归及3项隔离Host旅程通过，包含取消后原文件再开采、技术恢复及未变非法媒体不重试；尚未完整Gate/跨平台/UI验收或部署。退休Field闲置Control、持久取消/无Run取消及排除撤销仍待实现，不能记本专项完成。
 
 2026-10-21 生产清理完成：按用户明确授权删除ShelfDeck测试、历史备份、旧镜像归档和停用测试/构建容器；数据卷可用101 GiB（42%使用），转码卷可用358 GiB（25%使用）。只保留在用生产镜像0434b691b4da；生产未重启，health正常，fnOS HTTP200。两次上传照片建档已自动completed、无失败码。没有手工改库/Reset/正式来源删除；生命周期功能仍待实施，详见[本专项Evidence](implementation/evidence/FORMATION_PACKAGE_DESTINATION_AUDIT_20261021.md)。以下“进行中”为历史时点。

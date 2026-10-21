@@ -4,6 +4,7 @@ import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader } from './chrome';
 import { observationScanLabels } from './labels';
 import RoutingPolicyPanel from './RoutingPolicyPanel';
+import MaterialExclusions from './MaterialExclusions';
 import { isUnauthorized, useSession } from './session';
 import { useSearchParams } from 'react-router-dom';
 
@@ -253,6 +254,13 @@ export default function MaterialFieldsPage() {
             </> : field.status === 'active' ? <p className="ui-state">席位状态暂不可用</p> : null}
           </section>
         </div>
+        {!!field.procurementStatus.selectionIssues?.total && <section className="source-flow-panel" aria-label={`${field.name} 未能生成包`}>
+          <h3>未能生成包 · {field.procurementStatus.selectionIssues.total} 个目录</h3>
+          {field.procurementStatus.selectionIssues.items.map(issue=><div className="stack" key={issue.scopeKey}>
+            <strong>{issue.location}</strong><p role="status">同组文件 {issue.memberCount} 个，超过 {issue.maximum} 个的上限。请调整来源中的目录或排除范围后重新扫描。</p>
+          </div>)}
+        </section>}
+        {field.status === 'active' && <MaterialExclusions field={field} onChanged={()=>void loadFields(true)} />}
         {field.status === 'active' && <RoutingPolicyPanel field={field} shelves={shelves} initiallyOpen={searchParams.get('configureRouting') === field.fieldId} />}
       </article>;
       })}

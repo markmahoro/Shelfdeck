@@ -564,6 +564,7 @@ function createProcurementExecutionRuntime(options) {
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
     nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal });
   libraProcessServices=libraConstruction.createProcessServices({...libraOptions,peopleReferenceQuery,now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
+    onTaskCancellationChanged:subjectId=>options.onFormationSubjectChanged?.(subjectId),
     onRecommendationActorConfirmed:receipt=>{options.onFormationSubjectChanged?.(receipt.subjectId);host?.wake();},
     onWorkshopTransferred:(subjectId)=>{
       fillPredeckIntakeSeats();options.onFormationSubjectChanged?.(subjectId);host?.wake();
@@ -1274,6 +1275,9 @@ function createProcurementExecutionRuntime(options) {
           finishedWindow:result.nextCursor===null?window:null,optimizedWindow:window})});
         return {kind:'audited'};
       },
+    }),Object.freeze({ownerDomain:'libra',reconcilerKey:'task-cancellations',
+      listPage:page=>libraProcessServices.libraRunAdminService.listPendingCancellations(page),
+      reconcile:({subjectId})=>libraProcessServices.libraRunAdminService.reconcileCancellation(subjectId),
     }),Object.freeze({ownerDomain:'people',reconcilerKey:'image-operations',
       listPage:page=>peopleProcessServices.imageOperations.listPendingPage(page),
       reconcile:({operationId})=>peopleProcessServices.imageOperations.reconcile(operationId),
@@ -1286,6 +1290,9 @@ function createProcurementExecutionRuntime(options) {
     ownerDomain:'procurement',reconcilerKey:'active-procurement-runs',
     listPage:({cursor,limit})=>triageReader.listActiveRunPage(cursor,limit),
     reconcile:({procurementRunId})=>runCoordinator.reconcile(procurementRunId),
+  }),Object.freeze({ownerDomain:'procurement',reconcilerKey:'retired-field-control',
+    listPage:page=>processServices.retiredFieldControl.listPage(page),
+    reconcile:({fieldId})=>processServices.retiredFieldControl.reconcile(fieldId),
   }),Object.freeze({
     ownerDomain:'procurement',reconcilerKey:'active-material-fields',
     listPage:({cursor,limit})=>fieldObservationAutomation
@@ -1499,6 +1506,7 @@ function createProcurementExecutionRuntime(options) {
     acceptanceSpecCoordinator:libraProcessServices.acceptanceSpecCoordinator,
     libraRunCreator:libraProcessServices.libraRunCreator,libraRunContextReader:libraProcessServices.libraRunContextReader,
     libraRunCoordinator:libraProcessServices.libraRunCoordinator,movieProductionReader:libraProcessServices.movieProductionReader,
+    libraPreparationRecovery:libraProcessServices.preparationRecovery,
     libraRunExecutionProjection:libraProcessServices.libraRunExecutionProjection,
     productIdentitySelection:libraProcessServices.productIdentitySelection,
     pipelineAdmission:libraProcessServices.pipelineAdmission,

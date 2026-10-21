@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraSubjectAbandonReceipt/v1",
+  "title": "LibraSubjectAbandonReceipt@1",
+  "x-helix-ssotRefs": [
+    "8.5.12"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "resultKind": {
+      "const": "abandoned"
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "receiptId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "decisionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "releasedControlSetDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "resultKind",
+    "subjectId",
+    "receiptId",
+    "decisionDigest",
+    "releasedControlSetDigest"
+  ]
+}

@@ -696,8 +696,8 @@ button, input, select, textarea { font: inherit; }
 .jav-correction-paths dd { margin:4px 0 0; display:grid; gap:4px; }
 .jav-correction-paths code { overflow-wrap:anywhere; font-size:12px; }
 .jav-correction-paths dd span { color:var(--muted); }
-.jav-correction-consent { display:flex; align-items:flex-start; gap:8px; font-size:14px; }
-.jav-correction-consent input[type="checkbox"] { flex:0 0 auto; width:18px; height:18px; min-height:0; margin:2px 0 0; padding:0; }
+.jav-correction-consent, .task-cancellation-exclusion { display:flex; align-items:flex-start; gap:8px; font-size:14px; }
+.jav-correction-consent input[type="checkbox"], .task-cancellation-exclusion input[type="checkbox"] { flex:0 0 auto; width:18px; height:18px; min-height:0; margin:2px 0 0; padding:0; }
 .identity-picker-input input { min-height:36px; border:1px solid var(--line); border-radius:6px; padding:6px 10px; }
 
 .formation-inline-action .identity-picker-trigger { font-size:14px; min-height:36px; border-radius:6px; max-width:100%; white-space:normal; }

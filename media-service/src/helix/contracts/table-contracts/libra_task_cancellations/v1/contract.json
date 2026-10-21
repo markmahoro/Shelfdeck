@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_task_cancellations/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_task_cancellations",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "cancellation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 4,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "idempotency_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "request_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "request_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "request_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "pending",
+          "completed",
+          "handoff_accepted"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "requested_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "completed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      }
+    ],
+    "primaryKey": [
+      "cancellation_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "subject_id",
+      "libra_run_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "libra_run_id"
+      ],
+      [
+        "actor_id",
+        "idempotency_key"
+      ]
+    ],
+    "hotIndexes": [
+      [
+        "state",
+        "subject_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "pending",
+          "completed",
+          "handoff_accepted"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "state_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "request_json",
+        "schemaRefColumn": "request_schema_ref",
+        "maxBytes": 1048576,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": [
+        "Libra持久取消意图，request immutable且JSON上限1 MiB"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(libra_run_id)`",
+      "`UNIQUE(actor_id,idempotency_key)`",
+      "`INDEX(state,subject_id)`",
+      "Libra持久取消意图，request immutable且JSON上限1 MiB",
+      "状态以revision CAS推进"
+    ],
+    "rawContract": {
+      "columns": "`cancellation_id PK, subject_id FK, libra_run_id FK NULL, actor_id, idempotency_key, request_schema_ref, request_json, request_digest, state, state_revision, requested_at_ms, completed_at_ms NULL`",
+      "constraints": "`UNIQUE(libra_run_id)`；`UNIQUE(actor_id,idempotency_key)`；`INDEX(state,subject_id)`；Libra持久取消意图，request immutable且JSON上限1 MiB；状态以revision CAS推进"
+    },
+    "source": {
+      "section": "8.9.9",
+      "line": 16047,
+      "lineDigest": "8feee9c41e8811c9b2f0b7298af35e963fa533428aecd66e9e948c56396cca3b"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "libra_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

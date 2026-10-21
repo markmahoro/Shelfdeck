@@ -18,7 +18,8 @@ const MAINTENANCE = Object.freeze({
   'arca:recycle-expiry': '清理到期回收站',
   'execution-foundation:storage-maintenance': '维护内部数据库',
 });
-const SAFETY = new Set(['arca:recycle-maintenance', 'libra:active-workspace-cleanup-scopes']);
+const SAFETY = new Set(['arca:recycle-maintenance', 'libra:active-workspace-cleanup-scopes',
+  'libra:task-cancellations', 'procurement:retired-field-control']);
 const NORMAL = new Set([
   'people:image-operations',
   'people:us-adult-recommendation-claims',

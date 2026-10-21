@@ -28,6 +28,17 @@
           "fx_event_result_bindings",
           "fx_commit_markers"
         ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "read",
+        "tables": [
+          "fx_supporting_works",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_effect_journal"
+        ]
       }
     ],
     "writeTables": [
@@ -51,7 +62,11 @@
       "libra_workspaces",
       "libra_workspace_revisions",
       "fx_event_result_bindings",
-      "fx_commit_markers"
+      "fx_commit_markers",
+      "fx_supporting_works",
+      "fx_workflow_events",
+      "fx_event_attempts",
+      "fx_effect_journal"
     ],
     "variants": [],
     "dynamicTableRequirements": [],

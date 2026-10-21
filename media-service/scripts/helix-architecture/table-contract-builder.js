@@ -32,6 +32,7 @@ const MUTABLE_LIFECYCLE_TABLES = new Set([
   'proc_candidate_deliveries',
   'libra_run_admission_heads',
   'libra_runs',
+  'libra_task_cancellations',
   'libra_formation_projections',
   'libra_workspaces',
   'libra_workspace_cleanup_scopes',
@@ -49,6 +50,7 @@ const MUTABLE_LIFECYCLE_TABLES = new Set([
 // Level 6/7 lifecycles are preserved verbatim; unnamed technical projections
 // use the smallest Foundation/Platform lifecycle needed by those contracts.
 const ENUM_OVERRIDES = Object.freeze({
+  'libra_task_cancellations.state': ['pending', 'completed', 'handoff_accepted'],
   'fx_supporting_works.state': ['admitted', 'ready', 'running', 'blocked', 'succeeded', 'failed', 'cancelled'],
   'fx_work_attempts.state': ['ready', 'running', 'blocked', 'succeeded', 'failed', 'cancelled'],
   'fx_workflow_plans.state': ['planned', 'no_effect_required', 'temporarily_unplannable', 'contract_unplannable'],
@@ -316,6 +318,7 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'libra_task_cancellations.request_json':1024*1024,
   'arca_us_actor_refresh_intents.payload_json':256*1024,
   'arca_us_actor_refresh_pages.page_json':512*1024,
   'people_us_recommendation_claims.payload_json':128*1024,

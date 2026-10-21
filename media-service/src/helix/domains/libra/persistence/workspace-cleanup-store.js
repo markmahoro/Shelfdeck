@@ -2,6 +2,7 @@
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const {stateDigest:runStateDigest}=require('./run-admission-store');
 const {
   controlScopeDigest,
   createMaterialControlParticipant,
@@ -46,6 +47,12 @@ class Replay extends Error {
 function fail(code, message, details) {
   throw new WorkspaceCleanupStoreError(code, message, details);
 }
+function triggerKey(decision) {
+  const trigger=decision.triggerSnapshot;
+  return decision.triggerKind==='run_superseded'
+    ?{trigger_ref:trigger.libraRunId,trigger_revision:trigger.terminalRevision,trigger_digest:trigger.terminalDigest}
+    :{trigger_ref:trigger.offloadCompletionFact.factId,trigger_revision:trigger.projectionRevision,trigger_digest:trigger.projectionDigest};
+}
 
 function libraDefinition(schemaManifest) {
   return createRepositoryDefinition({
@@ -57,10 +64,12 @@ function libraDefinition(schemaManifest) {
         kind: 'select-one', tableId: 'libra_runs',
         columns: [
           'libra_run_id', 'state', 'state_revision', 'state_digest',
-          'execution_basis_digest',
+          'execution_basis_digest','supersedes_run_id','superseded_by_run_id',
         ],
         keyColumns: ['libra_run_id'], safeIntegers: true,
       },
+      run_revision:{kind:'select-one',tableId:'libra_run_revisions',columns:['transition_kind','transition_evidence_json',
+        'transition_evidence_digest','state','acceptance_spec_id','execution_basis_digest','run_scope_digest','priority_class','priority_intent_digest'],keyColumns:['libra_run_id','state_revision']},
       find_workspace: {
         kind: 'select-one', tableId: 'libra_workspaces',
         columns: [
@@ -265,6 +274,10 @@ function foundationDefinition(schemaManifest) {
     owner: 'execution-foundation',
     schemaManifest,
     statements: {
+      works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','state'],keyColumns:['owner_domain','process_type','process_id']},
+      events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id'],keyColumns:['work_id']},
+      attempts:{kind:'select-all',tableId:'fx_event_attempts',columns:['event_attempt_id'],keyColumns:['event_id']},
+      effects:{kind:'select-all',tableId:'fx_effect_journal',columns:['state'],keyColumns:['event_attempt_id']},
       find_marker: {
         kind: 'select-one', tableId: 'fx_commit_markers',
         columns: [
@@ -462,6 +475,29 @@ function createWorkspaceCleanupStore(options) {
   const foundation = foundationDefinition(options.schemaManifest);
   const control = controlDefinition(options.schemaManifest);
 
+  function supersededFrom(repo,libraRunId) {
+    const run=repo.invoke('find_run',{libra_run_id:libraRunId});
+    const next=run?.superseded_by_run_id&&repo.invoke('find_run',{libra_run_id:run.superseded_by_run_id});
+    const revision=run&&repo.invoke('run_revision',{libra_run_id:libraRunId,state_revision:Number(run.state_revision)});
+    if(run?.state!=='superseded'||next?.supersedes_run_id!==libraRunId||revision?.transition_kind!=='superseded'||revision.state!=='superseded'||
+        runStateDigest({libraRunId,stateRevision:Number(run.state_revision),state:revision.state,acceptanceSpecId:revision.acceptance_spec_id,
+          executionBasisDigest:revision.execution_basis_digest,runScopeDigest:revision.run_scope_digest,priorityClass:revision.priority_class,
+          priorityIntentDigest:revision.priority_intent_digest,transitionKind:revision.transition_kind,
+          transitionEvidenceDigest:revision.transition_evidence_digest})!==run.state_digest)
+      fail('P14_CLEANUP_SUPERSEDED_INVALID','Superseded Run requires an immutable terminal revision and mutual replacement relation.');
+    const evidence=JSON.parse(revision.transition_evidence_json);
+    if(evidence.decisionDigest!==revision.transition_evidence_digest ||
+        canonicalDigest(Object.fromEntries(Object.entries(evidence).filter(([key])=>key!=='decisionDigest')))!==evidence.decisionDigest ||
+        evidence.libraRunId!==next.libra_run_id || evidence.replacementOfRunRef?.libraRunId!==libraRunId)
+      fail('P14_CLEANUP_SUPERSEDED_INVALID','Replacement admission evidence is inconsistent.');
+    return {resultKind:'superseded',libraRunId,terminalRevision:Number(run.state_revision),terminalDigest:run.state_digest,
+      replacementRunId:next.libra_run_id,replacementAdmissionDigest:revision.transition_evidence_digest};
+  }
+  function readSuperseded(libraRunId) {
+    return options.unitOfWork.execute([{participantId:'cleanup_superseded_read',owner:'libra',repositories:[libra],
+      execute:context=>supersededFrom(context.repository(libra.repositoryId),libraRunId)}]).cleanup_superseded_read;
+  }
+
   function readLibraSnapshot(repo, libraRunId) {
     const run = repo.invoke('find_run', { libra_run_id: libraRunId });
     if (!run) fail('P14_CLEANUP_RUN_MISSING', 'Libra Run is absent.');
@@ -610,6 +646,16 @@ function createWorkspaceCleanupStore(options) {
       boundBusinessOwner: 'libra',
       repositories: [foundation],
       execute(context) {
+        const execution=context.repository(foundation.repositoryId);
+        if(decision.triggerKind==='run_superseded'){
+          for(const work of execution.invoke('works',{owner_domain:'libra',process_type:'libra_run',process_id:decision.libraRunRef.libraRunId})){
+            if(!['succeeded','failed','cancelled'].includes(work.state))fail('P14_CLEANUP_EXECUTION_PENDING','Superseded Run still has unfinished Work.');
+            for(const event of execution.invoke('events',{work_id:work.work_id}))
+              for(const attempt of execution.invoke('attempts',{event_id:event.event_id}))
+                if(execution.invoke('effects',{event_attempt_id:attempt.event_attempt_id}).some(effect=>!['committed','failed'].includes(effect.state)))
+                  fail('P14_CLEANUP_EXECUTION_PENDING','Superseded Run still has an unresolved Effect.');
+          }
+        }
         const replay = replayResult(
           context.repository(foundation.repositoryId),
           marker, decision.decisionDigest, ADMISSION_RESULT);
@@ -623,6 +669,8 @@ function createWorkspaceCleanupStore(options) {
         admissionSnapshot = readLibraSnapshot(
           context.repository(libra.repositoryId),
           decision.libraRunRef.libraRunId);
+        if(decision.triggerKind==='run_superseded' && canonicalJson(supersededFrom(context.repository(libra.repositoryId),decision.libraRunRef.libraRunId))!==canonicalJson(decision.triggerSnapshot))
+          fail('P14_CLEANUP_SUPERSEDED_INVALID','Superseded trigger changed before cleanup admission.');
         if (canonicalJson(admissionSnapshot.run) !==
               canonicalJson(decision.libraRunRef) ||
             canonicalJson({
@@ -657,9 +705,7 @@ function createWorkspaceCleanupStore(options) {
         const repo = context.repository(libra.repositoryId);
         const existing = repo.invoke('find_trigger_scope', {
           trigger_kind: decision.triggerKind,
-          trigger_ref: decision.triggerSnapshot.offloadCompletionFact.factId,
-          trigger_revision: decision.triggerSnapshot.projectionRevision,
-          trigger_digest: decision.triggerSnapshot.projectionDigest,
+          ...triggerKey(decision),
         });
         if (existing) {
           fail('P14_CLEANUP_TRIGGER_CONFLICT',
@@ -681,9 +727,7 @@ function createWorkspaceCleanupStore(options) {
           libra_run_id: decision.libraRunRef.libraRunId,
           workspace_id: decision.workspaceRef.workspaceId,
           trigger_kind: decision.triggerKind,
-          trigger_ref: decision.triggerSnapshot.offloadCompletionFact.factId,
-          trigger_revision: decision.triggerSnapshot.projectionRevision,
-          trigger_digest: decision.triggerSnapshot.projectionDigest,
+          ...triggerKey(decision),
           admission_record_schema_ref: ADMISSION_RECORD,
           admission_record_json: canonicalJson(record),
           admission_decision_digest: decision.decisionDigest,
@@ -1367,6 +1411,7 @@ function createWorkspaceCleanupStore(options) {
   }
 
   return Object.freeze({
+    readSuperseded,
     admit,
     commit,
     currentWorkspace,

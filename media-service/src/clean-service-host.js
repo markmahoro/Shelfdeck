@@ -57,7 +57,7 @@ const {
 } = require(
   './helix/platform/persistence/integration-command-receipt-repository'
 );
-const { createProcurementAdminApplication } = require('./helix/domains/procurement/public/admin-application');
+const { createProcurementAdminApplication,createMaterialExclusionCommandPort } = require('./helix/domains/procurement/public/admin-application');
 const { CandidateDeliveryPort } = require('./helix/domains/procurement/public');
 const {
   createCandidateDeliveryService,
@@ -1260,7 +1260,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 162) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 164) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1716,6 +1716,8 @@ async function createCleanServiceHost(options) {
     ...constructed.applicationDependencies,
     now: options.now || Date.now,
     materialFieldStore,
+    validateCancellationExclusions:request=>createMaterialExclusionCommandPort({materialFieldStore}).validateSourceExclusions(request),
+    applyCancellationExclusions:request=>createMaterialExclusionCommandPort({materialFieldStore}).excludeSourceMaterials(request),
     pageObserverFactory: createFieldPageObserver,
     enumerator: fieldEnumerator,
     inspectFieldRoot: inspectObservationRootSync,
@@ -1932,6 +1934,9 @@ async function createCleanServiceHost(options) {
     wake:()=>executionRuntimeHost.wake(),now:options.now||Date.now});
   const libraRunAdminService = createLibraRunAdminService({
     ...constructed.applicationDependencies,
+    readArcaFormationStatus:offerIds=>formationArcaStatusReader(offerIds),
+    validateCancellationExclusions:request=>createMaterialExclusionCommandPort({materialFieldStore}).validateSourceExclusions(request),
+    applyCancellationExclusions:request=>createMaterialExclusionCommandPort({materialFieldStore}).excludeSourceMaterials(request),
     cancelProcessWorks: procurementExecution.cancelProcessWorks,
     libraRunExecutionProjection: procurementExecution.libraRunExecutionProjection,
     pipelineAdmission: procurementExecution.pipelineAdmission,
@@ -1942,6 +1947,7 @@ async function createCleanServiceHost(options) {
     now: options.now || Date.now,
   });
   const libraRunAdmin = Object.freeze({
+    abandonSubject(subjectId,body){const result=libraRunAdminService.abandonSubject(subjectId,body);formationProjectionHost.enqueue(subjectId);return result;},
     readOutcome:libraRunAdminService.readOutcome,
     reprocessSourceFieldIds:libraRunAdminService.reprocessSourceFieldIds,
     requestReprocess:libraRunAdminService.requestReprocess,
@@ -2129,6 +2135,7 @@ async function createCleanServiceHost(options) {
     peopleAvatarQuery,
     peopleAdmin,
     procurementAdmin,
+    libraPreparationRecovery:{list:procurementExecution.libraPreparationRecovery.list,retry(workId){const result=procurementExecution.libraPreparationRecovery.retry(workId);executionRuntimeHost.wake();return result;}},
     arcaShelfAdmin,
     arcaRuleTemplateAdmin,
     libraRoutingAdmin,

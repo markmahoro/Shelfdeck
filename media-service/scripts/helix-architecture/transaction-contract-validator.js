@@ -94,6 +94,8 @@ function validateTransactionContracts(options) {
           selector.commandContract === 'arca.inventory.person-records.refresh@1') ||
          (entry.id === 'helix.transaction.aftercare-case-creation' &&
           selector.commandContract === 'arca.repair-accepted-defects@1') ||
+         (entry.id === 'helix.transaction.libra-subject-abandon-commit' && variant.variantId === 'admin_subject_cancellation@1' &&
+          selector.commandContract === 'libra.subject-abandon@1') ||
          (entry.id === 'helix.transaction.aftercare-inventory-commit' && variant.variantId === 'arca_us_adult_actor_inventory@1' &&
           selector.commandContract === 'arca.us_adult.inventory.commit@1') ||
          (entry.id === 'helix.transaction.people-reference-artifact-reclamation' && variant.variantId === 'people_reference_artifact_claim@1' &&

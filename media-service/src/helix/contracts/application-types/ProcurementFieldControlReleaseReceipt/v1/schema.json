@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/ProcurementFieldControlReleaseReceipt/v1",
+  "title": "ProcurementFieldControlReleaseReceipt@1",
+  "x-helix-ssotRefs": ["8.5.10"],
+  "x-helix-maxCanonicalBytes": 16384,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "fieldId": {"type":"string","minLength":1,"maxLength":256},
+    "releasedCount": {"type":"integer","minimum":1,"maximum":128},
+    "scopeDigest": {"type":"string","pattern":"^[a-f0-9]{64}$"}
+  },
+  "required": ["fieldId","releasedCount","scopeDigest"]
+}

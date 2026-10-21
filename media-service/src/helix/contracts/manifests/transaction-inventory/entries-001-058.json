@@ -981,11 +981,11 @@
         "transactionId": "helix.transaction.libra-subject-abandon-commit",
         "ownerScope": "libra",
         "contractRef": "helix://contracts/transactions/helix.transaction.libra-subject-abandon-commit/v1",
-        "contractDigest": "8906d093568ded69b763618a998f62412a7c16b1d3ae48030a05de586340c38a"
+        "contractDigest": "0f7f8e39b70eadb02e14e796e8a6bc953f7ac0fc09e29d73f52e96d4c9b10cc4"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "514fceea7254f536c596b921c6fed44f37684a39d2376262157a5585bfd58fb9"
+        "value": "b7c290870b50da20fce6f2f95522908c287377dee1caa32768c119f951513725"
       }
     },
     {
@@ -1155,11 +1155,11 @@
         "transactionId": "helix.transaction.libra-workspace-cleanup-scope-admission",
         "ownerScope": "libra",
         "contractRef": "helix://contracts/transactions/helix.transaction.libra-workspace-cleanup-scope-admission/v1",
-        "contractDigest": "e5bb533867f08b17bf919702d3241cfeef0da79089ec840a5520ac42df6bd797"
+        "contractDigest": "99fc3d7e2d48df8a5430dd566d15b60f8e01fa113535e9103fc099a257c71df4"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "2ee9d1a7c75e8e67e52d7f3784ad3b7204ca8c950085f01cae9e997fe0af28bc"
+        "value": "d5af97ae406d6a5c27721c627755e99d8dee2a9692991674899431d111790284"
       }
     },
     {

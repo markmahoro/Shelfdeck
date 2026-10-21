@@ -173,8 +173,6 @@ function createRunOutcomeStore(options) {
         .sort((a,b)=>Number(b.committed_at_ms)-Number(a.committed_at_ms)||b.libra_run_id.localeCompare(a.libra_run_id))[0];
       if(latest?.outcome_digest!==previous.outcomeDigest)
         fail('LIBRA_REPROCESS_INTENT_STALE','A newer result already exists for these physical inputs.');
-      if(repo.invoke('intents',{stable_input_digest:previous.stableInputDigest}).some(intent=>intent.previous_outcome_digest===previous.outcomeDigest))
-        fail('LIBRA_REPROCESS_ALREADY_REQUESTED','A new attempt has already been requested for this result.');
       repo.invoke('insert_intent',{intent_id:intentDigest,stable_input_digest:previous.stableInputDigest,
         previous_outcome_digest:previous.outcomeDigest,actor_id:request.actorId,idempotency_key:request.idempotencyKey,
         intent_digest:intentDigest,issued_at_ms:context.commitTimeMs});

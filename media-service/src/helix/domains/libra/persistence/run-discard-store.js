@@ -20,6 +20,7 @@ const {
   buildDiscardReceipt,
   buildResult,
   buildRunDiscardDecision,
+  buildRunDiscardCommand,
   cleanupAdmissionRecord,
   cleanupMemberInitialState,
   initialCleanupState,
@@ -628,7 +629,16 @@ function createRunDiscardStore(options) {
     try{options.unitOfWork.execute(participants);return result;}catch(error){if(error instanceof Replay)return inspect(command);throw error;}
   }
 
-  return Object.freeze({inspect,commit,transactionId:TRANSACTION_ID});
+  function readCommitted(actorId,idempotencyKey) {
+    const repository=libraDefinition(options.schemaManifest);
+    const row=options.unitOfWork.execute([{participantId:'discard_committed_read',owner:'libra',repositories:[repository],
+      execute:context=>context.repository(repository.repositoryId).invoke('find_decision_by_key',{
+        actor_id:actorId,idempotency_key:idempotencyKey})}]).discard_committed_read;
+    if(!row)return null;
+    return inspect(buildRunDiscardCommand({libraRunId:row.libra_run_id,actorId,idempotencyKey,
+      expectedRunStateRevision:Number(row.expected_run_state_revision),expectedRunStateDigest:row.expected_run_state_digest}));
+  }
+  return Object.freeze({inspect,commit,readCommitted,transactionId:TRANSACTION_ID});
 }
 
 module.exports=Object.freeze({LibraRunDiscardStoreError,createRunDiscardStore});

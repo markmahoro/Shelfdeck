@@ -23,6 +23,7 @@ export default function RunOutcomeDetail({item,onChanged}:{item:FormationRunHist
   useEffect(()=>{if(!confirming)return;trigger.current=document.activeElement instanceof HTMLElement?document.activeElement:null;
     dialog.current?.showModal();return()=>{dialog.current?.close();trigger.current?.focus();};},[confirming]);
   const load=useCallback(async()=>{
+    if(!item.libraRunId){setLoading(false);return;}
     const current=++generation.current;setLoading(true);setError('');setOutcome(null);
     try {const result=await helixAdminApi.readRunOutcome(item.libraRunId);
       if(current!==generation.current)return;

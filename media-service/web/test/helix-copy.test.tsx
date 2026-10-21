@@ -265,7 +265,7 @@ describe('Helix primary copy and workbench structure', () => {
     expect(screen.getByRole('button', { name: '示例电影 (2024)无需加急' })).toBeDisabled();
   });
 
-  it('keeps the discard confirmation open until the Run is actually ended', async () => {
+  it('accepts cancellation once and reports durable background closure', async () => {
     const current:FormationSubject={...completedSubject(),displayIdentity:'局内人 (2006) 1080p DTS-sample',
       classification:'attention_required',completedAtMs:null,
       productIdentityIssue:{result:'not_found',reasonCode:'provider_no_match',candidateSetDigest:'candidate-set',candidates:[]},
@@ -280,16 +280,13 @@ describe('Helix primary copy and workbench structure', () => {
       .mockResolvedValueOnce({resultKind:'closure_pending',libraRunId:'sample-run'})
       .mockResolvedValueOnce({resultKind:'discarded',libraRunId:'sample-run'});
     render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole('button',{name:'放弃整理'}));
-    const dialog=screen.getByRole('dialog',{name:'确认放弃整理'});
-    fireEvent.click(within(dialog).getByRole('button',{name:'确认放弃'}));
-    expect(await within(dialog).findByRole('status')).toHaveTextContent('正在结束当前处理');
-    expect(dialog).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole('button',{name:'确认放弃'}));
+    fireEvent.click(await screen.findByRole('button',{name:'取消整理任务'}));
+    const dialog=screen.getByRole('dialog',{name:'确认取消整理任务'});
+    fireEvent.click(within(dialog).getByRole('button',{name:'确认取消任务'}));
     await waitFor(()=>expect(dialog).not.toBeInTheDocument());
-    expect(discard).toHaveBeenCalledTimes(2);
-    expect(discard.mock.calls[0][1]).toBe(discard.mock.calls[1][1]);
-    expect(screen.getByRole('status')).toHaveTextContent('本次整理已结束');
+    expect(discard).toHaveBeenCalledTimes(1);
+    expect(discard.mock.calls[0][2]).toBe(false);
+    expect(screen.getByRole('status')).toHaveTextContent('正在取消整理任务');
   });
 
   it('blocks stale discard retries and hides technical errors from the confirmation', async () => {
@@ -308,19 +305,19 @@ describe('Helix primary copy and workbench structure', () => {
       .mockRejectedValueOnce(new Error('P9_DISCARD_EFFECT_PENDING internal stack'))
       .mockResolvedValueOnce({resultKind:'discarded',libraRunId:'sample-run'});
     render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole('button',{name:'放弃整理'}));
-    let dialog=screen.getByRole('dialog',{name:'确认放弃整理'});
-    fireEvent.click(within(dialog).getByRole('button',{name:'确认放弃'}));
+    fireEvent.click(await screen.findByRole('button',{name:'取消整理任务'}));
+    let dialog=screen.getByRole('dialog',{name:'确认取消整理任务'});
+    fireEvent.click(within(dialog).getByRole('button',{name:'确认取消任务'}));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('请关闭窗口并刷新列表后重试');
-    expect(within(dialog).getByRole('button',{name:'确认放弃'})).toBeDisabled();
+    expect(within(dialog).getByRole('button',{name:'确认取消任务'})).toBeDisabled();
     fireEvent.click(within(dialog).getByRole('button',{name:'取消'}));
-    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'确认放弃整理'})).not.toBeInTheDocument());
-    fireEvent.click(screen.getByRole('button',{name:'放弃整理'}));
-    dialog=screen.getByRole('dialog',{name:'确认放弃整理'});
-    fireEvent.click(within(dialog).getByRole('button',{name:'确认放弃'}));
+    await waitFor(()=>expect(screen.queryByRole('dialog',{name:'确认取消整理任务'})).not.toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button',{name:'取消整理任务'}));
+    dialog=screen.getByRole('dialog',{name:'确认取消整理任务'});
+    fireEvent.click(within(dialog).getByRole('button',{name:'确认取消任务'}));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('暂未确认本次整理是否结束');
     expect(within(dialog).queryByText(/P9_DISCARD|internal stack/)).not.toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole('button',{name:'确认放弃'}));
+    fireEvent.click(within(dialog).getByRole('button',{name:'确认取消任务'}));
     await waitFor(()=>expect(dialog).not.toBeInTheDocument());
     expect(discard.mock.calls[0][1]).not.toBe(discard.mock.calls[1][1]);
     expect(discard.mock.calls[1][1]).toBe(discard.mock.calls[2][1]);

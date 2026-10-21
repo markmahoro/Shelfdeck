@@ -36,6 +36,7 @@ function definition(kind, subjectId, basisDigest, dependencyRefs = []) {
 }
 
 function createRoutingProcessCoordinator(options) {
+  const recovery=require('./preparation-work-recovery').createPreparationWorkRecovery(options);
   if (!options?.contextReader || !options.workResultReader) throw new TypeError('Routing Coordinator requires Owner context and Foundation results.');
   const admission = createWorkAdmission({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork, limits: LIMITS,
     eligibilityProvider: { check: (request) => Object.freeze({ eligible: request.ownerDomain === 'libra' && request.processType === 'libra_routing',
@@ -80,11 +81,11 @@ function createRoutingProcessCoordinator(options) {
   }
   function factWork(kind, context, factKinds, dependencies) {
     const sourceKind = kind === 'routing_nfo_facts' ? 'related_nfo' : 'provider';
-    return definition(kind, context.subject.subjectId, canonicalDigest({ schema: 'libra.routing-fact-work-basis@1',
-      subjectSnapshotDigest: context.subject.snapshotDigest, policyDigest: context.policy.policyDigest, sourceKind, factKinds }), dependencies);
+    return recovery.current(definition(kind, context.subject.subjectId, canonicalDigest({ schema: 'libra.routing-fact-work-basis@1',
+      subjectSnapshotDigest: context.subject.snapshotDigest, policyDigest: context.policy.policyDigest, sourceKind, factKinds }), dependencies));
   }
   function pending(work, admissionResult, stage) {
-    return Object.freeze({ kind: stage + '_pending', subjectId: work.processId, workId: work.workId, replayed: admissionResult.replayed });
+    return recovery.failure(work,options.workResultReader.status(work.workId)) || Object.freeze({ kind: stage + '_pending', subjectId: work.processId, workId: work.workId, replayed: admissionResult.replayed });
   }
 
   function reconcile(subjectId) {
@@ -120,9 +121,9 @@ function createRoutingProcessCoordinator(options) {
     }
 
     const inputSet = options.contextReader.buildInputSet(subjectId, observations);
-    const basisWork = definition('routing_basis', subjectId, canonicalDigest({ schema: 'libra.routing-basis-work@1',
+    const basisWork = recovery.current(definition('routing_basis', subjectId, canonicalDigest({ schema: 'libra.routing-basis-work@1',
       subjectSnapshotDigest: context.subject.snapshotDigest, policyDigest: context.policy.policyDigest,
-      inputFacts: inputSet.decisionFacts.map((fact) => fact.factDigest) }), lastDependency);
+      inputFacts: inputSet.decisionFacts.map((fact) => fact.factDigest) }), lastDependency));
     const basisAdmission = submit(basisWork), basisStatus = options.workResultReader.status(basisWork.workId);
     if (!succeeded(basisStatus)) return pending(basisWork, basisAdmission, 'decision_basis');
     const basis = options.workResultReader.read(basisWork.workId).find((item) =>

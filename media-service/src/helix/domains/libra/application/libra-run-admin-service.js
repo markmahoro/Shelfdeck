@@ -18,6 +18,8 @@ const { createWorkResultReader } = require('../../../foundation/execution/work-r
 const {metadataResultItems,observedFieldKeys,observedMediaCastRoles}=require('../planning/product-metadata-work');
 const {WAIVABLE_MEDIA_CODES}=require('../model/defect-admission-contracts');
 const {createStrategyAvailabilityStore}=require('../persistence/strategy-availability-store');
+const {createTaskCancellationStore}=require('../persistence/task-cancellation-store');
+const {createSubjectAbandonStore}=require('../persistence/subject-abandon-store');
 
 class LibraRunAdminError extends Error {
   constructor(code, message, details = {}) {
@@ -43,6 +45,8 @@ function createLibraRunAdminService(options) {
   const outcomes = createRunOutcomeStore(options);
   const strategyAvailability=createStrategyAvailabilityStore(options);
   const discardStore = createRunDiscardStore(options);
+  const cancellations = options.taskCancellations || createTaskCancellationStore(options);
+  const subjectAbandon=createSubjectAbandonStore(options);
   const workResultReader = options.workResultReader || createWorkResultReader(options);
   const repository = createRepositoryDefinition({
     repositoryId: 'libra_run_admin_read',
@@ -81,8 +85,27 @@ function createLibraRunAdminService(options) {
         columns: ['acceptance_spec_id', 'spec_json'],
         keyColumns: ['acceptance_spec_id'],
       },
+      offers:{kind:'select-all',tableId:'libra_product_packages',columns:['offer_id'],keyColumns:['libra_run_id']},
     },
   });
+
+  function acceptedByArca(libraRunId) {
+    if(!options.readArcaFormationStatus)return false;
+    const offers=options.unitOfWork.execute([{participantId:'cancellation_offer_read',owner:'libra',repositories:[repository],
+      execute:context=>context.repository(repository.repositoryId).invoke('offers',{libra_run_id:libraRunId})}]).cancellation_offer_read;
+    for(let offset=0;offset<offers.length;offset+=100){
+      const statuses=options.readArcaFormationStatus(offers.slice(offset,offset+100).map(item=>item.offer_id));
+      if([...statuses.values()].some(item=>item.onDeckRunId||item.reasonCode==='ARCA_ONDECK_RESPONSIBILITY_INCOMPLETE'))return true;
+    }
+    return false;
+  }
+
+  function validateExclusion(subjectId,libraRunId,body){
+    if(!body?.excludeSourceFiles)return;
+    if(!options.validateCancellationExclusions||!options.applyCancellationExclusions)
+      fail('LIBRA_EXCLUSION_UNAVAILABLE','Source exclusion command port is unavailable.');
+    options.validateCancellationExclusions({members:cancellations.sourceMaterials(subjectId,libraRunId)});
+  }
 
   function current(libraRunId) {
     return options.unitOfWork.execute([{
@@ -419,7 +442,59 @@ function createLibraRunAdminService(options) {
     cancelExpedite(libraRunId, body) {
       return setPriority(libraRunId, body, 'normal');
     },
-    discard(libraRunId, body, terminalReason = 'user_cancelled', productEvidence = null) {
+    listPendingCancellations: cancellations.listPendingPage,
+    cancellationForRun: cancellations.getForRun,
+    cancellationForSubject: cancellations.get,
+    abandonSubject(subjectId,body) {
+      const previous=cancellations.get(subjectId);
+      if(!previous){
+        const readFence=options.unitOfWork.captureReadFence();
+        subjectAbandon.inspect(subjectId);
+        validateExclusion(subjectId,null,body);
+        cancellations.request(subjectId,null,body,readFence);
+      } else cancellations.request(subjectId,null,body);
+      options.wake?.();
+      return service.reconcileCancellation(subjectId);
+    },
+    reconcileCancellation(subjectId) {
+      const intent=cancellations.get(subjectId);
+      if(!intent)return {kind:'terminal',subjectId};
+      if(intent.state==='handoff_accepted')return {resultKind:'invalid_state',subjectId,reasonCode:'handoff_b_already_accepted'};
+      if(intent.state==='pending'&&intent.libraRunId&&acceptedByArca(intent.libraRunId)){
+        cancellations.handoffAccepted(subjectId);options.onTaskCancellationChanged?.(subjectId);
+        return {resultKind:'invalid_state',subjectId,reasonCode:'handoff_b_already_accepted'};
+      }
+      if(intent.request.body.excludeSourceFiles){
+        if(!options.applyCancellationExclusions)fail('LIBRA_EXCLUSION_UNAVAILABLE','Source exclusion command port is unavailable.');
+        options.applyCancellationExclusions({intentId:intent.cancellationId,members:intent.request.sourceMaterials});
+      }
+      if(!intent.libraRunId){
+        if(subjectAbandon.completed(subjectId)){
+          cancellations.complete(subjectId);
+          const released=options.pipelineAdmission?.releaseForSubject(subjectId);
+          if(released?.released)options.onPipelineSeatReleased?.(released);
+          options.onTaskCancellationChanged?.(subjectId);
+          return {resultKind:'abandoned',subjectId};
+        }
+        for(const processType of ['libra_routing','libra_acceptance_spec'])
+          options.cancelProcessWorks?.({ownerDomain:'libra',processType,processId:subjectId,reasonCode:'LIBRA_SUBJECT_CANCELLED'});
+        try{subjectAbandon.commit(subjectId,intent);}
+        catch(error){if(error.code==='LIBRA_SUBJECT_EXECUTION_PENDING')return {resultKind:'closure_pending',subjectId};throw error;}
+        return service.reconcileCancellation(subjectId);
+      }
+      const committed=discardStore.readCommitted('admin',intent.request.body.idempotencyKey);
+      if(committed?.resultKind==='discarded'){
+        cancellations.complete(subjectId);
+        const released=options.pipelineAdmission?.releaseForSubject(subjectId);
+        if(released?.released)options.onPipelineSeatReleased?.(released);
+        options.onTaskCancellationChanged?.(subjectId);
+        return committed;
+      }
+      const run=current(intent.libraRunId).run;
+      return service.discard(intent.libraRunId,{...intent.request.body,
+        expectedRunStateRevision:Number(run.state_revision),expectedRunStateDigest:run.state_digest},'user_cancelled',null,true);
+    },
+    discard(libraRunId, body, terminalReason = 'user_cancelled', productEvidence = null, acceptedCancellation = false) {
       if (!body || typeof body.idempotencyKey !== 'string' ||
           !body.idempotencyKey ||
           !Number.isSafeInteger(body.expectedRunStateRevision) ||
@@ -435,8 +510,21 @@ function createLibraRunAdminService(options) {
         idempotencyKey: body.idempotencyKey,
       });
       const subjectId = current(libraRunId).run.subject_id;
+      const existingCancellation=terminalReason==='user_cancelled'?cancellations.getForRun(libraRunId):null;
+      if(existingCancellation && !acceptedCancellation) {
+        cancellations.request(subjectId,libraRunId,body);
+        return service.reconcileCancellation(subjectId);
+      }
+      const readFence=options.unitOfWork.captureReadFence();
+      if(acceptedByArca(libraRunId))return {resultKind:'invalid_state',libraRunId,reasonCode:'handoff_b_already_accepted'};
       const inspected = discardStore.inspect(command);
       if(inspected.kind==='ready') {
+        if(terminalReason==='user_cancelled'&&!acceptedCancellation) {
+          validateExclusion(subjectId,libraRunId,body);
+          cancellations.request(subjectId,libraRunId,body,readFence);
+          options.wake?.();
+          return service.reconcileCancellation(subjectId);
+        }
         const cancelled=options.cancelProcessWorks?.({ownerDomain:'libra',processType:'libra_run',processId:libraRunId,reasonCode:'LIBRA_RUN_TERMINAL_CLOSURE'});
         if(Number(cancelled?.drainingWorks || 0)>0)return Object.freeze({resultKind:'closure_pending',libraRunId});
       }
@@ -445,15 +533,24 @@ function createLibraRunAdminService(options) {
         result = inspected.kind === 'ready'
           ? discardStore.commit(inspected,terminalReason,productEvidence) : inspected;
       } catch (error) {
+        if(acceptedCancellation&&error.code==='P9_DISCARD_HANDOFF_ACCEPTED'){
+          cancellations.handoffAccepted(subjectId);options.onTaskCancellationChanged?.(subjectId);
+          return {resultKind:'invalid_state',subjectId,reasonCode:'handoff_b_already_accepted'};
+        }
         if (['P9_DISCARD_EXECUTION_PENDING','P9_DISCARD_EFFECT_PENDING'].includes(error.code))
           return Object.freeze({resultKind:'closure_pending',libraRunId,reasonCode:error.code});
         throw error;
       }
       if (result.resultKind === 'discarded') {
+        if(terminalReason==='user_cancelled')cancellations.complete(subjectId);
         const released = options.pipelineAdmission?.releaseForSubject(subjectId) || null;
         if (released?.released) options.onPipelineSeatReleased?.(released);
         options.libraRunExecutionProjection.invalidate(libraRunId);
         options.wake?.();
+        options.onTaskCancellationChanged?.(subjectId);
+      }
+      if(acceptedCancellation&&result.resultKind==='invalid_state'&&result.reasonCode==='handoff_b_already_accepted'){
+        cancellations.handoffAccepted(subjectId);options.onTaskCancellationChanged?.(subjectId);
       }
       return result;
     },

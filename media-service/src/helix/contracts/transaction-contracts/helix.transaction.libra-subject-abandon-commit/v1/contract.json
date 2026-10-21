@@ -53,7 +53,102 @@
       "libra_runs",
       "libra_material_bindings"
     ],
-    "variants": [],
+    "variants": [
+      {
+        "variantId": "admin_subject_cancellation@1",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "libra",
+            "access": "write",
+            "tables": [
+              "libra_subject_abandon_decisions",
+              "libra_subjects",
+              "libra_subject_continuity_heads",
+              "libra_subject_abandon_receipts"
+            ]
+          },
+          {
+            "participantKind": "material-control",
+            "owner": "material-control-authority",
+            "access": "write",
+            "tables": [
+              "fx_material_controls",
+              "fx_material_control_revisions"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_command_receipts",
+              "fx_commit_markers",
+              "fx_audit_records",
+              "fx_outbox",
+              "fx_outbox_deliveries"
+            ]
+          }
+        ],
+        "writeTables": [
+          "libra_subject_abandon_decisions",
+          "libra_subjects",
+          "libra_subject_continuity_heads",
+          "libra_subject_abandon_receipts",
+          "fx_material_controls",
+          "fx_material_control_revisions",
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records",
+          "fx_outbox",
+          "fx_outbox_deliveries"
+        ],
+        "readTables": [
+          "libra_task_cancellations",
+          "libra_subjects",
+          "libra_subject_continuity_heads",
+          "libra_runs",
+          "libra_material_bindings",
+          "fx_supporting_works",
+          "fx_workflow_events",
+          "fx_event_attempts",
+          "fx_effect_journal",
+          "fx_material_controls"
+        ],
+        "selector": {
+          "selectorKind": "owner_command_exact",
+          "commandContract": "libra.subject-abandon@1"
+        },
+        "dynamicTableRequirements": [],
+        "fenceContract": {
+          "domainRevisionFenceRequired": true,
+          "materialControlCasRequired": true,
+          "commitMarkerRequired": true,
+          "outboxRequired": true
+        },
+        "rollbackInvariant": "The exact no-Run Subject, terminal preparation Works and Effects, Primary binding set and Control CAS are revalidated atomically; any failure leaves no terminal Subject, continuity advance, control release, receipt, marker, audit or outbox.",
+        "crashFixtures": [
+          {
+            "fixtureId": "libra-subject-abandon",
+            "faultInjectionPoints": "Decision前、Subject terminal后、Primary Control release前后、Receipt/Outbox前",
+            "requiredInvariant": "要么Subject仍active且Control不变，要么abandoned/Primary released/Receipt全部成立；已有Run时Command稳定拒绝",
+            "source": {
+              "section": "8.9.7",
+              "line": 8415
+            }
+          },
+          {
+            "fixtureId": "command-idempotency",
+            "faultInjectionPoints": "Owner业务修改后响应前崩溃、相同key同payload重试、相同key不同payload重试",
+            "requiredInvariant": "Receipt与Owner修改同事务；同payload返回原result ref；不同payload稳定拒绝；不重复创建对象或推进revision",
+            "source": {
+              "section": "8.9.7",
+              "line": 8428
+            }
+          }
+        ]
+      }
+    ],
     "dynamicTableRequirements": [],
     "forbiddenWriteTables": [],
     "forbiddenWritePrefixes": [],

@@ -303,7 +303,15 @@ function createCleanFacades(options) {
       body: options.routingManualSelection.choose(input.params.subjectId, input.body),
     });
   }
+  if(options.libraPreparationRecovery){
+    facades.LibraFormationFacade.get_formation_preparation_failures=async input=>({body:options.libraPreparationRecovery.list(input.query)});
+    facades.LibraFormationFacade.post_formation_preparation_failures_workid_actions_retry=async input=>({status:202,
+      body:options.libraPreparationRecovery.retry(input.params.workId)});
+  }
   if (options.libraRunAdmin) {
+    facades.LibraFormationFacade.post_formation_subjects_subjectid_actions_abandon = async input => ({
+      body:options.libraRunAdmin.abandonSubject(input.params.subjectId,input.body),
+    });
     facades.LibraFormationFacade.get_formation_defect_authorization = async () => ({
       body:{authorization:options.libraRunAdmin.readAutomaticAuthorization()},
     });

@@ -89,6 +89,23 @@ function buildOffloadAdmission(value) {
     fail('P14_CLEANUP_TRIGGER_INVALID',
       'Cleanup admission requires the exact found Off-load Completion projection.');
   }
+  return buildAdmission(value, 'offload_completed', found.offloadCompletionFact.factId,
+    found.projectionRevision, found.projectionDigest, found.offloadCompletionFact.committedAtMs);
+}
+
+function buildSupersededAdmission(value) {
+  const found=value.triggerSnapshot;
+  if(!found || found.resultKind!=='superseded' || found.libraRunId!==value.libraRunRef.libraRunId ||
+      found.terminalRevision!==value.libraRunRef.stateRevision || found.terminalDigest!==value.libraRunRef.stateDigest ||
+      !found.replacementRunId || !found.replacementAdmissionDigest)
+    fail('P14_CLEANUP_TRIGGER_INVALID','Cleanup requires a verified superseded Run and its replacement relation.');
+  if(value.controls.some(item=>item.controlDisposition==='other_owned'))
+    fail('P14_CLEANUP_CONTROL_OWNED','Superseded Workspace still has material controlled by another Owner.');
+  return buildAdmission(value,'run_superseded',found.libraRunId,found.terminalRevision,found.terminalDigest,0);
+}
+
+function buildAdmission(value,triggerKind,triggerRef,triggerRevision,triggerDigest,graceDeadlineMs) {
+  const found=value.triggerSnapshot;
   if (value.observation2.observedAtMs - value.observation1.observedAtMs < CYCLE_MS ||
       value.observation1.activeReferenceCount !== 0 ||
       value.observation2.activeReferenceCount !== 0) {
@@ -110,14 +127,9 @@ function buildOffloadAdmission(value) {
     schema: 'libra.workspace-cleanup-members@1',
     items: members,
   });
-  const fact = found.offloadCompletionFact;
-  const graceDeadlineMs = fact.committedAtMs;
-  const triggerRef = fact.factId;
-  const triggerRevision = found.projectionRevision;
-  const triggerDigest = found.projectionDigest;
   const cleanupScopeId = canonicalDigest({
     schema: 'libra.workspace-cleanup-scope-id@1',
-    triggerKind: 'offload_completed',
+    triggerKind,
     triggerRef,
     triggerRevision,
     triggerDigest,
@@ -129,7 +141,7 @@ function buildOffloadAdmission(value) {
   };
   const eligibilityEvidenceDigest = canonicalDigest({
     schema: 'libra.workspace-cleanup-eligibility@1',
-    triggerKind: 'offload_completed',
+    triggerKind,
     triggerSnapshot: found,
     libraRunRef: value.libraRunRef,
     workspaceRef: value.workspaceRef,
@@ -146,7 +158,7 @@ function buildOffloadAdmission(value) {
   });
   const decision = {
     decisionId,
-    triggerKind: 'offload_completed',
+    triggerKind,
     triggerSnapshot: found,
     libraRunRef: value.libraRunRef,
     workspaceRef: value.workspaceRef,
@@ -286,6 +298,7 @@ module.exports = Object.freeze({
   buildEffectIntent,
   buildObservation,
   buildOffloadAdmission,
+  buildSupersededAdmission,
   controlItem,
   digestWithout,
   memberFromReference,

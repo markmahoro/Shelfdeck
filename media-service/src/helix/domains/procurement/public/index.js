@@ -21,6 +21,7 @@ const {
 } = require('../application/field-observation-automation');
 const { createFieldObservationRetention } = require('../application/field-observation-retention');
 const { createProcurementRunCoordinator } = require('../application/procurement-run-coordinator');
+const {createRetiredFieldControlStore}=require('../persistence/retired-field-control-store');
 const { PROBE_BATCH_PROJECTION,BDMV_ASSESS_INPUT_PROJECTION,STRUCTURE_INPUT_PROJECTION,createEvidenceAssessmentPlanner,createProbeBatchProjection,createBdmvAssessmentInputProjection,createStructureInputProjection } = require('../planning/evidence-assessment-planner');
 const { DRAFT_PROJECTION,COMMIT_HANDLE_PROJECTION,IDENTITY_INPUT_PROJECTION,MANIFEST_INPUT_PROJECTION,
   createCandidateAssemblyPlanner,createCandidateDraftProjection,createCandidateCommitHandleProjection,
@@ -104,7 +105,7 @@ function createExecutionRegistration() {
           metrics:options.procurementMetrics,
         })
         : null;
-      return Object.freeze({ triageReader, triageRuleRegistry, progressReader, procurementAutomation, runCoordinator,
+      return Object.freeze({ retiredFieldControl:createRetiredFieldControlStore(options),triageReader, triageRuleRegistry, progressReader, procurementAutomation, runCoordinator,
         evidenceIndex, candidateContextReader, observationAdmin, fieldObservationAutomation, fieldObservationRetention });
     },
     createPlanningRegistration(options) {

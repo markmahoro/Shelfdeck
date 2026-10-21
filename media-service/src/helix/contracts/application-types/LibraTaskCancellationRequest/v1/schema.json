@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/application-types/LibraTaskCancellationRequest/v1",
+  "title": "LibraTaskCancellationRequest@1",
+  "x-helix-ssotRefs": [
+    "8.5.12"
+  ],
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/application-types/LibraTaskCancellationRequest/v1"
+    },
+    "subjectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "libraRunId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "body": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "expectedRunStateRevision": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "expectedRunStateDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "excludeSourceFiles": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "idempotencyKey"
+      ]
+    },
+    "sourceMaterials": {
+      "type": "array",
+      "maxItems": 1024,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "fieldId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "materialKey": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "fieldId",
+          "materialKey"
+        ]
+      }
+    }
+  },
+  "required": [
+    "schemaRef",
+    "subjectId",
+    "libraRunId",
+    "body",
+    "sourceMaterials"
+  ]
+}

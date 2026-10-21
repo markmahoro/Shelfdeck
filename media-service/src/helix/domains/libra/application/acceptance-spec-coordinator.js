@@ -14,17 +14,20 @@ function definition(subjectId,basisDigest,scopeRef=null){return Object.freeze({s
   dependencyRefs:Object.freeze(scopeRef?[scopeRef]:[]),priorityClass:'normal_foreground',priorityRevision:1,capabilityCatalogScope:'libra',workspaceMaterialScope:Object.freeze([]),
   idempotencyKey:stable('libra-acceptance-spec-key-',{subjectId,basisDigest,...(scopeRef?{scopeRunId:scopeRef.objectId,scopeBasisDigest:scopeRef.digest}:{})}),concurrencyScope:subjectId+'/acceptance-spec',outputContractRef:BASIS_RESULT});}
 function createAcceptanceSpecCoordinator(options){if(!options?.contextReader||!options.workResultReader)throw new TypeError('Acceptance Spec Coordinator requires Owner context and Foundation results.');
+  const recovery=require('./preparation-work-recovery').createPreparationWorkRecovery(options);
   const admission=createWorkAdmission({schemaManifest:options.schemaManifest,unitOfWork:options.unitOfWork,limits:LIMITS,eligibilityProvider:{check:(request)=>Object.freeze({eligible:request.ownerDomain==='libra'&&request.processType==='libra_acceptance_spec',basisDigest:request.executionBasisDigest,reasonCode:'LIBRA_ACCEPTANCE_SPEC_BASIS_STALE'})}}),
     basisStore=createDecisionBasisStore(options),specStore=createAcceptanceSpecStore(options),now=options.now||Date.now;
   function submit(work){return admission.replay(work)||admission.submit(work);}function succeeded(status){return status?.state==='succeeded'||status?.latestAttempt?.state==='succeeded';}
   function publish(subjectId,inputSet,basis,workId=null){const identity={subjectId,decisionBasisId:basis.decisionBasisId,inputSetDigest:inputSet.inputSetDigest};
     const published=specStore.publish({decisionInputSet:inputSet,decisionBasis:basis,producedAtMs:now(),commitMarker:stable('libra-acceptance-spec-marker-',identity),resultId:stable('libra-acceptance-spec-result-',identity)});
     return Object.freeze({kind:'terminal',subjectId,workId,spec:published.result,replayed:published.replayed});}
-  function reconcile(subjectId,scopeRunId=null){const context=options.contextReader.read(subjectId,scopeRunId);if(context.kind==='current')return Object.freeze({kind:'terminal',subjectId,
+  function reconcile(subjectId,scopeRunId=null){
+    if(options.taskCancellations?.get(subjectId)?.state==='pending')return {kind:'cancelling',subjectId};
+    const context=options.contextReader.read(subjectId,scopeRunId);if(context.kind==='current')return Object.freeze({kind:'terminal',subjectId,
       acceptanceSpecId:context.acceptanceSpecId,decisionBasisId:context.decisionBasisId,replayed:true});
     if(context.kind==='basis_ready')return publish(subjectId,context.inputSet,context.basis);
     if(context.kind!=='ready')return Object.freeze({...context,subjectId});
-    const work=definition(subjectId,context.inputSet.inputSetDigest,scopeRunId?options.contextReader.readScopeRef(subjectId,scopeRunId):null),submitted=submit(work),status=options.workResultReader.status(work.workId);if(!succeeded(status))return Object.freeze({kind:'pending',subjectId,workId:work.workId,replayed:submitted.replayed});
+    const work=recovery.current(definition(subjectId,context.inputSet.inputSetDigest,scopeRunId?options.contextReader.readScopeRef(subjectId,scopeRunId):null)),submitted=submit(work),status=options.workResultReader.status(work.workId);if(!succeeded(status))return recovery.failure(work,status)||Object.freeze({kind:'pending',subjectId,workId:work.workId,replayed:submitted.replayed});
     const basis=options.workResultReader.read(work.workId).find((item)=>item.outcomeKind==='succeeded'&&item.result?.schemaRef===BASIS_RESULT)?.result;
     if(!basis)throw new Error('Terminal Acceptance Spec Basis Work has no DecisionBasisRevision Result.');const persisted=basisStore.readInputSet(basis.decisionBasisId);
     if(!persisted||persisted.inputSet.inputSetDigest!==context.inputSet.inputSetDigest)throw new Error('Acceptance Spec Basis inputs are unavailable.');

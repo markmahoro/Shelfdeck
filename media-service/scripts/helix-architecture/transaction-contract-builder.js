@@ -390,7 +390,15 @@ const definitions = Object.freeze({
   'Libra Subject Abandon Commit': {
     commitClass: 'responsibility_control_commit',
     writeTables: ['libra_subject_abandon_decisions', 'libra_subjects', 'libra_subject_abandon_receipts', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['libra_runs', 'libra_material_bindings'], fixtureRefs: ['libra-subject-abandon'], hasOutbox: true
+    readTables: ['libra_runs', 'libra_material_bindings'], fixtureRefs: ['libra-subject-abandon'], hasOutbox: true,
+    variants:[{variantId:'admin_subject_cancellation@1',exactOverride:true,
+      selector:{selectorKind:'owner_command_exact',commandContract:'libra.subject-abandon@1'},
+      writeTables:['libra_subject_abandon_decisions','libra_subjects','libra_subject_continuity_heads','libra_subject_abandon_receipts',
+        'fx_material_controls','fx_material_control_revisions','fx_command_receipts','fx_commit_markers','fx_audit_records','fx_outbox','fx_outbox_deliveries'],
+      readTables:['libra_task_cancellations','libra_subjects','libra_subject_continuity_heads','libra_runs','libra_material_bindings',
+        'fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_material_controls'],
+      dynamicTableRequirements:[],hasOutbox:true,materialControlCasRequired:true,fixtureRefs:['libra-subject-abandon','command-idempotency'],
+      rollbackInvariant:'The exact no-Run Subject, terminal preparation Works and Effects, Primary binding set and Control CAS are revalidated atomically; any failure leaves no terminal Subject, continuity advance, control release, receipt, marker, audit or outbox.'}]
   },
   'Handoff B Accepted': {
     commitClass: 'responsibility_control_commit',
@@ -458,10 +466,13 @@ const definitions = Object.freeze({
     commitClass: 'domain_fact_commit',
     writeTables: ['libra_workspace_cleanup_scopes', 'libra_workspace_cleanup_members',
       'libra_workspaces', 'libra_workspace_revisions', 'fx_event_result_bindings', 'fx_commit_markers'],
+    readParticipants:[{participantKind:'foundation',owner:'execution-foundation',access:'read',
+      tables:['fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal']}],
     readTables: ['libra_runs', 'libra_run_revisions', 'libra_workspace_material_refs',
       'libra_product_packages', 'libra_delivery_receipts', 'fx_material_controls',
       'fx_material_control_revisions', 'libra_workspace_cleanup_scopes', 'libra_workspace_cleanup_members',
-      'libra_workspaces', 'libra_workspace_revisions', 'fx_event_result_bindings', 'fx_commit_markers'],
+      'libra_workspaces', 'libra_workspace_revisions', 'fx_event_result_bindings', 'fx_commit_markers',
+      'fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal'],
     fixtureRefs: ['libra-workspace-cleanup-scope-admission'], hasOutbox: false,
     forbiddenWritePrefixes: ['proc_', 'arca_']
   },

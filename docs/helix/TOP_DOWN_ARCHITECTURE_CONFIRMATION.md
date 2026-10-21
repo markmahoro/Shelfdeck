@@ -13817,6 +13817,8 @@ GET  /v1/admin/formation/runs/:libraRunId/actor-selection
 GET  /v1/admin/formation/:formationViewId
 POST /v1/admin/formation/subjects/:subjectId/actions/choose-shelf
 POST /v1/admin/formation/subjects/:subjectId/actions/abandon
+GET /v1/admin/formation/preparation-failures
+POST /v1/admin/formation/preparation-failures/:workId/actions/retry
 GET /v1/admin/formation/defect-authorization
 PATCH /v1/admin/formation/defect-authorization
 GET /v1/admin/formation/runs/:libraRunId/outcome
@@ -16042,6 +16044,7 @@ Provider Artifact获取的技术异常只在写入Owner证明精确目标不存�
 | `libra_defect_authorization_head` | `singleton_key PK, current_authorization_id, current_revision, updated_at_ms` | current pointer显式复合FK；CAS revision |
 | `libra_run_outcomes` | `libra_run_id PK/FK, subject_id FK, outcome(on_deck|on_deck_with_defects|unable_to_on_deck), reason_code, stable_input_digest, requirements_digest, conditions_digest, outcome_schema_ref, outcome_json, outcome_digest, committed_at_ms` | `INDEX(subject_id,committed_at_ms)`；`INDEX(stable_input_digest,requirements_digest,conditions_digest)`；immutable；typed JSON上限`64 KiB` |
 | `libra_reprocess_intents` | `intent_id PK, stable_input_digest, previous_outcome_digest, actor_id, idempotency_key, intent_digest, issued_at_ms` | `UNIQUE(actor_id,idempotency_key)`；`INDEX(stable_input_digest,issued_at_ms)`；immutable |
+| `libra_task_cancellations` | `cancellation_id PK, subject_id FK, libra_run_id FK NULL, actor_id, idempotency_key, request_schema_ref, request_json, request_digest, state, state_revision, requested_at_ms, completed_at_ms NULL` | `UNIQUE(libra_run_id)`；`UNIQUE(actor_id,idempotency_key)`；`INDEX(state,subject_id)`；Libra持久取消意图，request immutable且JSON上限1 MiB；状态以revision CAS推进 |
 | `libra_strategy_availability` | `libra_run_id FK, strategy_kind(moviepilot|tmdb), condition_digest, check_ordinal(0|1|2|3|4|5), evidence_schema_ref, evidence_json, evidence_digest, checked_at_ms` | `PK(libra_run_id,strategy_kind,condition_digest,check_ordinal)`；immutable；check_ordinal为0至5；typed JSON上限`4 KiB` |
 | `arca_defect_admissions` | `shelf_entry_id FK, revision, inventory_revision, care_basis_digest, gap_set_digest, authorization_schema_ref, authorization_json, authorization_digest, actor_id, idempotency_key, decided_at_ms` | `PK(shelf_entry_id,revision)`；`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；immutable；typed JSON上限`64 KiB` |
 | `arca_defect_admission_heads` | `shelf_entry_id PK/FK, current_revision, updated_at_ms` | current pointer显式复合FK；CAS revision |
@@ -16504,3 +16507,17 @@ Arca的JAV身份纠正同样依据新单站演员或系统未知演员规则重�
 “公平竞争机制”专指Libra Run内部优先级。新Run注册到当前公平轮次，以当时全局turn_sequence初始化自己的last_turn_sequence，不能用0获得历史未获服务加分；同来源同轮次按该Subject路由锚定Intake所保存Candidate的publishedAtMs先后、再按Run ID稳定排序。真实执行机会继续推进来源/Run轮转，重启不能重置；发布时间只从Libra已接收的不可变Handoff A Snapshot读取并缓存，不查询历史失败或重复读取Procurement内部数据。来源公平、有界加分、加急、收尾优先和Foundation aging保留；不保证尚未Intake的包参与竞争，不保证固定延迟或等所有旧电影完成。
 
 用户操作改为“取消整理任务”，默认只结束当前尝试；默认不勾选“以后不再整理本任务关联的来源文件”。勾选另行表达Procurement的文件排除意图；撤销排除只恢复正常开采资格，不恢复旧Run、不立即触发一次处理。取消命令须持久接受并在安全Work/Effect收尾后完成，用户无需再次点击或留在页面。无Run Subject按既有Subject Abandon事务释放精确Primary责任；Arca Handoff B Accepted后不允许取消，责任必须保留并通过合法恢复完成上架。技术性准备失败后新一轮普通开采不得因旧失败类别而永久禁止；未变化的不合格材料、同一Observation重放及活跃Selection/Control仍受正常边界约束。
+
+取消意图归Libra，以`LibraTaskCancellationRequest/v1`冻结Subject、可空Run、原命令及显式排除的来源Field/materialKey集合（最多1024成员，未勾选排除时为空）。同Run及幂等键保持唯一，同Subject最多一个pending意图；状态为`pending/completed/handoff_accepted`，最后一项仅表示Arca已接收导致取消不可执行，不表示已取消或已入藏。后台首先通过Arca公开状态复核Accepted；底层Control CAS及正式Delivery Receipt再次保护所有权。排除在受理前通过Procurement公开命令端口验证现有Policy容量，按持久意图幂等发布，后续重放不能重新应用用户已经撤销的排除。排除容量不足须拒绝本次命令，不能先持久受理再无限等待。每份取消只结束冻结Run，不取消其他Run；只有Subject无剩余Primary Control且所有Run均discarded/superseded时才终结Subject。
+
+无Run取消使用`Libra Subject Abandon Commit`的`admin_subject_cancellation@1`命令变体：同UOW复验Subject/intake revision、完整Primary绑定/Control集合、Routing/Spec准备Work均终态且无未决Effect，再原子提交Subject/continuity head、Abandon Decision/Receipt、Material Control release、Command Receipt、marker、audit及Libra内部Outbox。它不伪造Event Result；执行类旧变体保留原合同。取消意图的completed及席位释放允许在该事务之后幂等续办，故崩溃不要求用户再点一次；重放须核对Abandon Receipt与commit marker。
+
+接收材料、Routing与Acceptance Spec准备的技术终态失败必须返回`preparation_failed`及精确Work身份，不能继续伪装pending。用户从媒体整理页“准备异常”显式重试，Libra在原process/业务范围、冻结basis与dependency下准入新的Supporting Work，旧失败历史不改写。每个失败Work对应一个确定性后继Work，重复点击/重启使用同一后继；后继再次失败允许新的人工恢复。普通后台协调只跟随已准入后继，不自动生成新尝试。存在未决Effect、已有业务终局/取消或业务Basis已经变化时拒绝过期重试；GET只查询，不准入Work。原Run终局的显式reprocess仅请求正常观察，旧观察意图不能永久消耗后续用户请求；正常Selection/Control/席位继续防重复。
+
+退休Material Field由Procurement后台有界释放其自己仍持有、无活跃Run Selection且无未结Candidate Delivery的精确Control。每批最多128成员，提交重验Field已注销、所有相关占用已结束和Control revision；只产生责任释放及命令Receipt/marker/audit，不删除文件，不转移其他Owner责任。仍在途的成员保持原归属，待原责任正式收尾后再判断。
+
+用户确认D07：Arca验收自动恢复继续受既有次数/触发条件限制；用户主动重试不受同Offer累计32代上限限制。每次人工重试仍验证当前验收失败状态、范围、幂等及有效恢复条件，不回写旧失败执行。Accepted之后沿原On-deck恢复合同继续，不能撤回Accepted或假造入藏。
+
+Procurement不可分Scope的1024成员上限保留。来源公开状态从当前完整Observation及最新Policy下eligible材料按同一Run Creator分组规则给出`selectionIssues`（总数及最多100组目录/成员数/上限），没有包或Run也能在来源页发现原因；修正目录或排除范围后正常观察重评。该只读投影不制造失败Run，不把旧观察材料算作当前阻塞。
+
+既有superseded Workspace清理合同实施时，同UOW必须补验旧Run的不可变superseded revision、互相对应的replacement关系、旧Run所有Work终态及无未决Effect；两次实际Reference/Control观察及正式Cleanup Scope/Receipt保持。其他Owner仍持有目标材料时不新建superseded清理Scope，不触碰replacement Workspace或原输入；失败回滚全部Scope/Workspace/Result/marker写入。

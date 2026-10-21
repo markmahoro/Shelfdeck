@@ -3,6 +3,7 @@
 const {
   createRepositoryDefinition,
 } = require('../../../foundation/persistence/owner-repository');
+const {selectionCapacityIssues}=require('../model/selection-capacity-issues');
 
 const OPEN_WORK_STATES = new Set(['admitted', 'ready', 'running', 'blocked']);
 const ROOT_FAILURE_CODES = new Set([
@@ -81,9 +82,13 @@ function createProcurementFieldStatusQuery(options) {
         kind: 'select-one',
         tableId: 'proc_material_fields',
         safeIntegers: true,
-        columns: ['field_id', 'status', 'current_observation_revision'],
+        columns: ['field_id', 'status', 'current_observation_revision','current_access_revision','current_profile_hint_revision','extraction_policy_revision'],
         keyColumns: ['field_id'],
       },
+      access:{kind:'select-one',tableId:'proc_field_access_revisions',columns:['root_location'],keyColumns:['field_id','revision']},
+      profile:{kind:'select-one',tableId:'proc_field_profile_hint_revisions',columns:['content_profile_hint'],keyColumns:['field_id','revision']},
+      eligible_materials:{kind:'select-all',tableId:'proc_field_materials',columns:['current_location','last_observation_id','eligibility_policy_revision'],
+        keyColumns:['field_id','eligibility_state','eligibility_field_status']},
       list_observation_pages: {
         kind: 'select-all',
         tableId: 'proc_field_observations',
@@ -221,6 +226,12 @@ function createProcurementFieldStatusQuery(options) {
         const rejectedPackageCount = deliveries.filter((delivery) => delivery.state === 'rejected').length;
         const waitingAcceptanceCount = candidates.length - acceptedPackageCount - rejectedPackageCount;
         const runSummary = Object.freeze({
+          selectionIssues:field?.status==='active'&&scan.state==='completed'?selectionCapacityIssues({
+            rootLocation:store.invoke('access',{field_id:fieldId,revision:field.current_access_revision})?.root_location||'',
+            profileHint:store.invoke('profile',{field_id:fieldId,revision:field.current_profile_hint_revision})?.content_profile_hint||'movie',
+            materials:store.invoke('eligible_materials',{field_id:fieldId,eligibility_state:'eligible',eligibility_field_status:'active'})
+              .filter(item=>Number(item.eligibility_policy_revision)===Number(field.extraction_policy_revision)&&pages.some(page=>page.observation_id===item.last_observation_id)),
+          }):{total:0,items:[]},
           observationScan: scan,
           runCount: runs.length,
           activeRunCount: runs.filter((run) => ['active', 'waiting'].includes(run.state)).length,

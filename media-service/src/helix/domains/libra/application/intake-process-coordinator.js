@@ -23,6 +23,7 @@ function definition(kind, processId, basis, dependencyRefs = []) {
 }
 
 function createIntakeProcessCoordinator(options) {
+  const recovery=require('./preparation-work-recovery').createPreparationWorkRecovery(options);
   const deferredProcesses = new Set();
   let durableCursor = null;
   const pipelineAdmission = options.pipelineAdmission;
@@ -60,7 +61,7 @@ function createIntakeProcessCoordinator(options) {
   }
   function succeeded(status) { return status?.state === 'succeeded' || status?.latestAttempt?.state === 'succeeded'; }
   function existingEvidence(processId) {
-    const work = evidence(processId);
+    const work = recovery.current(evidence(processId));
     if (!work) return null;
     return options.workResultReader.status(work.workId) || admission.replay(work) ? work : null;
   }
@@ -101,7 +102,7 @@ function createIntakeProcessCoordinator(options) {
     admitOffer(offer) {
       const source = options.offerReader.remember?.(offer);
       const processId = source?.processId || options.offerReader.decisionId(offer.offerId);
-      const work = evidence(processId);
+      const work = recovery.current(evidence(processId));
       if (!work) throw new Error('Offered Candidate Snapshot is unavailable.');
       const subjectId = subjectIdForProcess(processId);
       const fieldId = fieldIdForProcess(processId);
@@ -137,7 +138,7 @@ function createIntakeProcessCoordinator(options) {
         deferredProcesses.add(processId);
         return seatWaitResult(processId);
       }
-      const evidenceWork = evidence(processId);
+      const evidenceWork = recovery.current(evidence(processId));
       const seatBlock = acquireSeatIfNeeded(processId);
       if (seatBlock) {
         if (seatBlock.kind === 'deferred') return seatBlock;
@@ -147,6 +148,7 @@ function createIntakeProcessCoordinator(options) {
       const evidenceAdmission = submit(evidenceWork);
       const status = options.workResultReader.status(evidenceWork.workId);
       if (!succeeded(status)) {
+        const failed=recovery.failure(evidenceWork,status);if(failed)return failed;
         return Object.freeze({ kind: 'evidence_pending', processId, workId: evidenceWork.workId, replayed: evidenceAdmission.replayed });
       }
       const bindings = options.workResultReader.read(evidenceWork.workId).filter((item) => item.outcomeKind === 'succeeded');
@@ -166,7 +168,7 @@ function createIntakeProcessCoordinator(options) {
         ownerDomain: 'libra', objectType: 'supporting_work', objectId: evidenceWork.workId, revision: 1,
         digest: evidenceWork.executionBasisDigest,
       });
-      const next = definition(kind, processId, basis, [dependency]);
+      const next = recovery.current(definition(kind, processId, basis, [dependency]));
       const nextResult = submit(next);
       if (nextResult?.kind === 'deferred') {
         deferredProcesses.add(processId);
@@ -178,6 +180,7 @@ function createIntakeProcessCoordinator(options) {
       deferredProcesses.delete(processId);
       const nextStatus = options.workResultReader.status(next.workId);
       const terminal = succeeded(nextStatus);
+      const failed=recovery.failure(next,nextStatus);if(failed)return failed;
       if (terminal && !accepted) {
         const subjectId = subjectIdForProcess(processId);
         if (subjectId) pipelineAdmission.releaseForSubject(subjectId);

@@ -266,7 +266,13 @@ test('user can end an active Run after Work and Effect closure, with a durable r
   assert.equal(before.prepare('SELECT COUNT(*) n FROM libra_run_outcomes').get().n,0);
   before.close();
   draining=false;
-  const result=admin.discard(input.libraRunId,command);
+  const resumed=require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService({
+    schemaManifest,unitOfWork:input.unitOfWork,libraRunExecutionProjection:{invalidate(){}},
+    cancelProcessWorks:()=>({drainingWorks:0}),
+  });
+  const pendingPage=resumed.listPendingCancellations({cursor:null,limit:10});
+  assert.equal(pendingPage.length,1);
+  const result=resumed.reconcileCancellation(pendingPage[0].scope.subjectId);
   assert.equal(result.resultKind,'discarded');
   assert.deepEqual(admin.discard(input.libraRunId,command),result);
   const after=new Database(input.databasePath,{readonly:true});
@@ -274,6 +280,8 @@ test('user can end an active Run after Work and Effect closure, with a durable r
   assert.equal(after.prepare('SELECT state FROM fx_material_controls').get().state,'released');
   assert.equal(after.prepare('SELECT COUNT(*) n FROM libra_run_discard_receipts').get().n,1);
   assert.equal(after.prepare('SELECT COUNT(*) n FROM libra_run_outcomes').get().n,1);
+  assert.equal(after.prepare('SELECT state FROM libra_task_cancellations').get().state,'completed');
+  assert.equal(after.prepare('SELECT status FROM libra_subjects').get().status,'abandoned');
   assert.equal(admin.readOutcome(input.libraRunId).reasonCode,'user_cancelled');
   after.close();
 }));
@@ -293,6 +301,26 @@ test('active Run discard stays pending while a Work is unfinished',()=>fixture((
   db.prepare("UPDATE fx_supporting_works SET state='cancelled' WHERE work_id='open-work'").run();
   assert.equal(admin.discard(input.libraRunId,command).resultKind,'discarded');
   db.close();
+}));
+
+test('Arca acceptance wins cancellation even before Libra consumes the delivery receipt',()=>fixture(input=>{
+  const db=new Database(input.databasePath),offerId='accepted-before-receipt';
+  try{
+    db.prepare('INSERT INTO libra_product_packages (on_deck_package_id,offer_id,package_revision,libra_run_id,package_digest,state,published_at_ms) VALUES (?,?,1,?,?,?,2)')
+      .run('accepted-package',offerId,input.libraRunId,D('accepted-package'),'published');
+    const options={schemaManifest,unitOfWork:input.unitOfWork,libraRunExecutionProjection:{invalidate(){}},
+      readArcaFormationStatus:()=>new Map([[offerId,{stage:'in_progress',onDeckRunId:'arca-run'}]])};
+    const createAdmin=require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService;
+    const body={expectedRunStateRevision:input.admitted.stateRevision,expectedRunStateDigest:input.admitted.stateDigest,idempotencyKey:'cancel-accepted'};
+    assert.equal(createAdmin(options).discard(input.libraRunId,body).reasonCode,'handoff_b_already_accepted');
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_task_cancellations').get().n,0);
+    const cancellations=require('../../src/helix/domains/libra/persistence/task-cancellation-store').createTaskCancellationStore(options);
+    cancellations.request('subject-1',input.libraRunId,body);
+    assert.equal(createAdmin(options).reconcileCancellation('subject-1').reasonCode,'handoff_b_already_accepted');
+    assert.equal(cancellations.get('subject-1').state,'handoff_accepted');
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_run_discard_decisions').get().n,0);
+    assert.equal(db.prepare('SELECT state FROM fx_material_controls').get().state,'controlled');
+  }finally{db.close();}
 }));
 
 test('discard is an atomic exit that releases original input Control without deleting files',()=>fixture((input)=>{
@@ -346,8 +374,8 @@ test('discard is an atomic exit that releases original input Control without del
   const intent=outcomes.requestReprocess(input.libraRunId,{expectedOutcomeDigest:outcome.outcomeDigest,actorId:'admin',idempotencyKey:'retry-1'});
   assert.equal(intent.replayed,false);
   assert.equal(outcomes.requestReprocess(input.libraRunId,{expectedOutcomeDigest:outcome.outcomeDigest,actorId:'admin',idempotencyKey:'retry-1'}).replayed,true);
-  assert.throws(()=>outcomes.requestReprocess(input.libraRunId,{expectedOutcomeDigest:outcome.outcomeDigest,actorId:'admin',idempotencyKey:'retry-2'}),
-    {code:'LIBRA_REPROCESS_ALREADY_REQUESTED'});
+  const nextIntent=outcomes.requestReprocess(input.libraRunId,{expectedOutcomeDigest:outcome.outcomeDigest,actorId:'admin',idempotencyKey:'retry-2'});
+  assert.notEqual(nextIntent.intentId,intent.intentId,'an earlier observation request cannot permanently consume recovery');
   assert.deepEqual(outcomes.sourceFieldIds(input.libraRunId),['field-1']);
   assert.equal(check.prepare('SELECT COUNT(*) n FROM libra_workspace_cleanup_scopes').get().n,0);
   assert.equal(check.prepare("SELECT COUNT(*) n FROM fx_outbox WHERE message_kind='libra.workspace-cleanup.requested@1'").get().n,1);
