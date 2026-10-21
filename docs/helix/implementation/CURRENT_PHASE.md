@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-22最终历史验真收口：回收原子提交后退出的输入漂移已修，4类真实重启、Service648/29 skip、Linux18、Windows独立Host均通过。生产副本定位6c当前Catalog未入终态档案：沿用Frozen Catalog History精确归档120执行合同/1324 Schema，仅验真终态，不允许旧在途继续；历史证明与Owner/active/篡改负例71 PASS。16个未Commit Subject的限定Reset只在独立副本预览ready，生产未执行；原样全副本启动FAIL保留。最终固定Gate及平台/UI资格继续，三UAT尚未关闭或发布。详见UAT-328 Evidence §23。
+
 2026-10-22最终资格追加：328真实上架、补图重试、缺项维护、跨季复用与共享退出均已接通；5eaf具体版本UI负责人38/38、Web258、Linux17、Windows包及真实浏览器通过。新增回收原子提交后进程退出复现输入漂移，正在以原登记修订稳定投影修复并重新冻结最终Gate。完整旧生产副本Host启动未通过，结构前向/反向复制及224业务表保护通过；不将隔离legacy-shape维护测试冒充完整生产副本资格。三项UAT开放，未部署/未Reset/未补写生产。详见UAT-328设计Evidence §22。
 
 2026-10-22恢复与退出收口：326跨TTL真实进程恢复、327真实1081媒体/65包/2Run继续有效；328完整上架/原任务补图重试/当前收藏缺项维护、部分Assets来源失效复用及旧Workspace回收、命令受理后admission前进程退出、最后季维护失败退出及批量全季退出均有实际Host证据。Web256 PASS，核心12 PASS；ab5f UI审查CHANGES_REQUIRED已修，等待新候选复验。精确225→231逐表保护/有损回退拒绝工具已补。当前136/115/231/61、149 inputs；最终固定Gate/平台/UI继续，未关闭UAT或发布。生产只读新预览为659历史Entry/13 active Season，三根三项全缺、另三根缺fanart；未补写生产，旧ABF-153仍executing。详见既有UAT-328 Evidence §20。

@@ -28,7 +28,7 @@ function createFrozenCatalogHistory(options) {
     }),
     resolve(ref, owner) {
       const manifest = manifests.get(ref);
-      if (!manifest || !['libra', 'arca', 'procurement', 'perception'].includes(owner) ||
+      if (!manifest || !['libra', 'arca', 'procurement', 'perception', 'people'].includes(owner) ||
           ![owner, 'execution-foundation'].includes(manifest.ownerScope)) throw new Error('Historical Owner mismatch.');
       return { manifest };
     },
@@ -78,7 +78,7 @@ function createFrozenCatalogHistory(options) {
       }),
       resolve(ref, owner) {
         const manifest = extraManifests.get(ref);
-        if (!manifest || !['libra', 'arca', 'procurement', 'perception'].includes(owner) ||
+        if (!manifest || !['libra', 'arca', 'procurement', 'perception', 'people'].includes(owner) ||
             ![owner, 'execution-foundation'].includes(manifest.ownerScope)) throw new Error('Additional historical Owner mismatch.');
         return { manifest };
       },

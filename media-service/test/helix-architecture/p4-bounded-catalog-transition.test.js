@@ -309,7 +309,9 @@ test('historical witness stays immutable and cannot authorize changed secondary-
     'arca.acceptance.metadata.verify@1','arca.acceptance.space.verify@1','arca.acceptance.structure.verify@1',
     'arca.aftercare.artifact.materialize@1','arca.aftercare.binary_artifact.acquire@1',
     'arca.aftercare.conformance.observe@1','arca.aftercare.input_settlement.delete@1','arca.aftercare.media.remux@1','arca.aftercare.media.transcode@1','arca.aftercare.media.verify@1',
+    'arca.aftercare.presentation.observe@1',
     'arca.inventory.final_product.verify@1','arca.inventory.product.stage@1','arca.inventory.staged.verify@1',
+    'arca.offdeck.deletion.verify@1','arca.offdeck.destruction_scope.verify@1',
     'arca.ondeck.commit@1','arca.ondeck.fulfillment.verify@1','arca.ondeck.input_settlement.delete@1',
     'libra.external_material.acquire.observe@1','libra.external_material.acquire.request@1','libra.external_material.candidate.select@1',
     'libra.external_material.identity.verify@1',
@@ -527,10 +529,13 @@ test('production Movie contract archive has exact provenance and cannot authoriz
   assert.throws(() => createFrozenCatalogHistory({ ...options, archive: corrupt }), /provenance/);
 });
 
-test('published release archive reconstructs its exact Catalog without mutating archives or accepting active history', () => {
+for(const releasedArchive of [
+  {file:'published-terminal-contracts-20261015.json',digest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d'},
+  {file:'published-terminal-contracts-20261021.json',digest:'214b8cf2272f740034ae8fe68d3b18e493c720bb7fd6dac7d5b692d58db03ed6'},
+])test('published '+releasedArchive.file+' reconstructs its exact Catalog without mutating archives or accepting active history', () => {
   const { createFrozenCatalogHistory } = require('../../src/helix/foundation/execution/frozen-catalog-history');
-  const additional = Object.freeze({archive:require('../../src/helix/composition/catalog-transitions/published-terminal-contracts-20261015.json'),
-    archiveDigest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d'});
+  const additional = Object.freeze({archive:require('../../src/helix/composition/catalog-transitions/'+releasedArchive.file),
+    archiveDigest:releasedArchive.digest});
   const f=fixture({terminalOnly:true}),reasons=[];
   f.facts.plan.catalog_digest=additional.archive.catalogDigest;f.facts.plan.state='no_effect_required';
   for(const key of ['nodes','events','attempts','results'])f.facts[key]=[];
@@ -547,6 +552,30 @@ test('published release archive reconstructs its exact Catalog without mutating 
   assert.deepEqual(history.verifyBatch([f.facts]),[false]);
   const corrupt=structuredClone(additional.archive);corrupt.schemas[0].description='tampered';
   assert.throws(()=>createFrozenCatalogHistory({...options,additionalArchives:[{...additional,archive:corrupt}]}),/provenance/);
+});
+
+test('frozen terminal history preserves People ownership and still rejects foreign Owner or active replay',()=>{
+  const {createFrozenCatalogHistory}=require('../../src/helix/foundation/execution/frozen-catalog-history');
+  const {createExecutionPolicyRegistry}=require('../../src/helix/foundation/execution/execution-policy');
+  const f=fixture({owner:'people',terminalOnly:true}),archive=structuredClone(require('../../src/helix/composition/catalog-transitions/published-terminal-contracts-20261021.json')),
+    ref='people.registration_evidence.observe@1',manifest={...f.registry.resolve('libra.fixture@1','people').manifest,capabilityRef:ref};
+  assert.ok(archive.manifests.some(value=>value.capabilityRef===ref));
+  archive.manifests=archive.manifests.map(value=>value.capabilityRef===ref?manifest:value);
+  archive.schemas.push(...f.schemas.values());
+  const snapshot=archive.manifests.slice().sort((a,b)=>a.capabilityRef<b.capabilityRef?-1:1).map(value=>({capabilityRef:value.capabilityRef,contractVersion:value.contractVersion,
+    ownerScope:value.ownerScope,effectClass:value.effectClass,executorVersion:1,executionContractDigest:canonicalDigest(value)}));
+  archive.catalogDigest=executionCatalogDigest({snapshot},createExecutionPolicyRegistry(archive.policy));
+  f.facts.plan.catalog_digest=archive.catalogDigest;f.facts.nodes[0].capability_ref=f.facts.events[0].capability_ref=ref;
+  const history=createFrozenCatalogHistory({archive:require('../../src/helix/composition/catalog-transitions/movie-terminal-contracts-20260930.json'),
+    archiveDigest:'369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
+    priorArchive:require('../../src/helix/composition/catalog-transitions/secondary-acceptance-history-20260928.json'),
+    priorArchiveDigest:'1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
+    witness:require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json'),
+    additionalArchives:[{archive,archiveDigest:canonicalDigest(archive)}],onRejected:reason=>f.reasons.push(reason),
+    proofReader:{verify:callback=>callback({prefetch(){},read:()=>f.facts})}});
+  assert.equal(history.verify(f.facts),true,JSON.stringify(f.reasons));
+  f.facts.work.owner_domain='arca';assert.equal(history.verify(f.facts),false);
+  f.facts.work.owner_domain='people';f.facts.workAttempt.state='running';assert.equal(history.verify(f.facts),false);
 });
 
 function fullResultEvidenceFixture(){
