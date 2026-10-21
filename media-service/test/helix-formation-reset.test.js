@@ -1227,7 +1227,7 @@ test('the frozen-manifest verifier catches an Artifact omitted by discovery', ()
       .run(DIGEST);
     const emptyGraph = { workIds:[],attemptIds:[],planIds:[],eventIds:[],eventAttemptIds:[],resultIds:[],
       markerIds:[],messageIds:[],auditIds:[],commandReceiptIds:[] };
-    const scope = { disposableSubjectIds:[],intakeDecisionIds:[],runIds:[],workspaceIds:[],packageIds:[],
+    const scope = { usAdultAnalysisIds:[],usAdultActorChoiceIntentIds:[],usAdultActorChoiceHeadSubjectIds:[],disposableSubjectIds:[],intakeDecisionIds:[],runIds:[],workspaceIds:[],packageIds:[],
       acceptanceAttemptIds:[],acceptanceDecisionIds:[],custodyIds:[],onDeckRunIds:[],artifactIds:[],
       processScopes:[],factScopes:[],materialKeys:[],handoffAOfferIds:[],
       phantomLibraAdmissionReceiptIds:[],orphanPipelineAdmissionReceiptIds:[],
@@ -1328,4 +1328,45 @@ test('scoped Reset removes selected Run outcomes and preserves outcomes outside 
     applyReset({...value,subjectIds,transcodeDir:null,nowMs:7001});
     assert.deepEqual(value.database.prepare('SELECT * FROM libra_run_outcomes').all(),[before]);
   }finally{close(value);}
+});
+
+
+test('scoped Reset removes frozen US Adult analysis and actor choice leaves while protecting unrelated history',()=>{
+  const f=fixture('reset-us-adult-leaves');
+  try{
+    const chosen=seedSubjectRun(f.database,'chosen-us-adult'),history=seedSubjectRun(f.database,'preserved-us-adult','discarded'),
+      tables=['libra_us_adult_analysis_bases','libra_us_adult_match_completions','libra_us_adult_actor_choice_intents','libra_us_adult_actor_choice_heads'];
+    for(const item of [chosen,history]){
+      f.database.prepare('INSERT INTO libra_us_adult_analysis_bases(analysis_id,libra_run_id,subject_id,workspace_id) VALUES(?,?,?,?)').run('analysis-'+item.runId,item.runId,item.subjectId,item.workspaceId);
+      f.database.prepare('INSERT INTO libra_us_adult_reference_pages(analysis_id,page_ordinal) VALUES(?,0)').run('analysis-'+item.runId);
+      f.database.prepare('INSERT INTO libra_us_adult_match_completions(analysis_id,libra_run_id,subject_id) VALUES(?,?,?)').run('analysis-'+item.runId,item.runId,item.subjectId);
+      f.database.prepare('INSERT INTO libra_us_adult_actor_choice_intents(intent_id,libra_run_id,subject_id,choice_revision) VALUES(?,?,?,1)').run('choice-'+item.runId,item.runId,item.subjectId);
+      f.database.prepare('INSERT INTO libra_us_adult_actor_choice_heads(subject_id,current_revision,intent_id) VALUES(?,1,?)').run(item.subjectId,'choice-'+item.runId);
+    }
+    const pages=f.database.prepare('SELECT * FROM libra_us_adult_reference_pages WHERE analysis_id=?').all('analysis-'+history.runId);
+    const before=tables.map(table=>f.database.prepare('SELECT * FROM '+table+' WHERE subject_id=?').all(history.subjectId)),plan=inspectPlan(f.database,{subjectIds:[chosen.subjectId]});
+    assert.equal(plan.ready,true);assert.deepEqual(plan.scope.usAdultAnalysisIds,['analysis-'+chosen.runId]);
+    assert.deepEqual(plan.scope.usAdultActorChoiceIntentIds,['choice-'+chosen.runId]);
+    const result=applyReset({database:f.database,dataDir:f.dataDir,transcodeDir:f.transcodeDir,subjectIds:[chosen.subjectId]});
+    assert.equal(f.database.prepare('SELECT count(*) n FROM libra_us_adult_reference_pages WHERE analysis_id=?').get('analysis-'+chosen.runId).n,0);
+    assert.deepEqual(f.database.prepare('SELECT * FROM libra_us_adult_reference_pages WHERE analysis_id=?').all('analysis-'+history.runId),pages);
+    assert.equal(result.result.deletedRuns,1);assert.deepEqual(f.database.pragma('foreign_key_check'),[]);
+    for(const [index,table] of tables.entries()){
+      assert.equal(f.database.prepare('SELECT count(*) n FROM '+table+' WHERE subject_id=?').get(chosen.subjectId).n,0);
+      assert.deepEqual(f.database.prepare('SELECT * FROM '+table+' WHERE subject_id=?').all(history.subjectId),before[index]);
+    }
+    f.database.prepare('INSERT INTO libra_us_adult_analysis_bases(analysis_id) VALUES(?)').run('analysis-'+chosen.runId);
+    assert.throws(()=>verifyFrozenManifest(f.database,{scope:plan.scope,graph:{workIds:[],attemptIds:[],planIds:[],eventIds:[],eventAttemptIds:[],resultIds:[],markerIds:[],messageIds:[],auditIds:[],commandReceiptIds:[],recoveryReservations:[]}}),error=>error.message==='FORMATION_RESET_RESIDUAL'&&error.details.libra_us_adult_analysis_bases.length===1);
+  }finally{close(f);}
+});
+
+test('scoped Reset refuses US Adult leaves claiming another Subject',()=>{
+  const f=fixture('reset-us-adult-foreign-owner');
+  try{
+    const chosen=seedSubjectRun(f.database,'selected'),other=seedSubjectRun(f.database,'foreign');
+    f.database.prepare('INSERT INTO libra_us_adult_analysis_bases(analysis_id,libra_run_id,subject_id,workspace_id) VALUES(?,?,?,?)').run('cross-owner',chosen.runId,other.subjectId,other.workspaceId);
+    assert.ok(inspectPlan(f.database,{subjectIds:[chosen.subjectId]}).blockers.some(row=>row.code==='US_ADULT_RESET_SCOPE_CONFLICT'));
+    assert.throws(()=>applyReset({database:f.database,dataDir:f.dataDir,subjectIds:[chosen.subjectId]}),/FORMATION_RESET_BLOCKED/);
+    assert.equal(f.database.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
+  }finally{close(f);}
 });

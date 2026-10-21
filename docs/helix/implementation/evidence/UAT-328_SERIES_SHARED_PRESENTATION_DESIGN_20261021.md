@@ -405,3 +405,12 @@ UI负责人对2e000/2631的独立真实页面补测又发现两项遗漏：Forma
 原始全副本启动FAIL和namespace-profile重试FAIL均保留。进一步仅为旧收藏维护演练准备的隔离副本：既有Reset工具按16个明确未Commit Subject限定预览ready=true、无blocker；默认全库Reset预览因保留历史关联而被正确拒绝，未执行。可以对独立host-data执行该16项fixture Reset并通过Libra Owner配置席位0，然后验证既有Arca收藏的三剧根补齐。此结果只证明经显式测试清场后的旧收藏维护，不称原样全Host升级PASS；生产未Reset、未补图、未部署。生产原ABF-153仍未恢复，真实在途整理的处置需要独立明确授权，不能偷偷加旧Attempt兼容层。
 
 最终固定候选完整Gate、适用平台和同版UI收口继续。Windows初次打包因旧输出存在拒绝、独立smoke因临时Secret不足32字节拒绝，均为夹具设置错误；新目录及有效随机测试Secret后通过，不涉及生产密钥。
+
+
+## 24. 隔离副本Reset资格发现与修复（2026-10-22）
+
+限定16个未Commit Subject的旧工具预览ready，但apply在foreign_key_check发现US Adult分析/人工Actor选择四表遗漏，整笔回滚；补齐直接父关系后第二次又发现analysis的reference_pages子表遗漏，再次整笔回滚。完整FK依赖枚举最终确定五张Libra表（analysis_bases、reference_pages、match_completions、actor_choice_intents、actor_choice_heads），无People主档删除。失败日志分别shelfdeck-328-copy-reset.log和copy-reset-fixed.log；均为私有host-data，无生产操作，不能记PASS。
+
+修复以选定run集合发现并冻结analysis IDs、choice intent IDs和对应head Subject IDs，检查Subject/Workspace及completion均属于既定清场范围，子表先于父表删除。独立Frozen Manifest verifier按冻结ID逐表验证清零，不从已删除父对象重建Scope；范围外历史、共享人物和正式收藏保持。现有完整Reset40项PASS；含reference_pages的新增两项定向复验PASS（选定清零/另一Subject历史逐行保护、跨Subject伪归属拒绝、故意残留由独立verifier拒绝）。原第一轮38/40的失败为旧测试手写manifest缺新增必需冻结字段及新测试误写错误码，修正夹具后保留失败并复验，不放宽产品verifier。真实完整副本该16项精确清场及后续旧根维护还在验证。
+
+444230441固定Service仍648 PASS/29既有skip，完整Gate因上述工具缺陷追加修复而主动停止，不计最终资格。之后冻结新候选再做全量Gate及适用平台，不继续叠加无关功能。
