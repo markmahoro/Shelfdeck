@@ -6,7 +6,7 @@ const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 
 test('terminal history identifies user cancellation only from its explicit durable result',()=>{
   assert.deepEqual(terminalPresentation({outcome:'unable_to_on_deck',reason_code:'user_cancelled'}),
-    {outcome:'user_abandoned',label:'已结束 · 用户放弃'});
+    {outcome:'user_abandoned',label:'已取消整理任务'});
   assert.deepEqual(terminalPresentation({outcome:'unable_to_on_deck',reason_code:'processing_failed'}),
     {outcome:'unable_to_on_deck',label:'无法上架'});
   for(const value of [null,{}, {outcome:'unable_to_on_deck',reason_code:'unknown'},

@@ -139,6 +139,7 @@ test('Rejection Planner projects the exact Evidence Work id, commits rejection, 
       },
     });
     const coordinator = createIntakeProcessCoordinator({
+      schemaManifest, unitOfWork: createSqliteUnitOfWork({ kernel }),
       offerReader: {
         read: () => source,
         decisionId: () => processId,

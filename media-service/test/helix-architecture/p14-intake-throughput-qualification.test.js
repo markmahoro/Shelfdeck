@@ -57,6 +57,8 @@ function mockPipelineAdmission(seats = 32) {
 }
 function coordinatorDependencies(offerReader, mode, seats = 32) {
   return {
+    schemaManifest,
+    unitOfWork: { execute() { throw new Error('This admission-only fixture must not execute recovery writes.'); } },
     offerReader,
     pipelineAdmission:mockPipelineAdmission(seats),
     subjectIdForProcess:(processId)=>`subject-${processId}`,

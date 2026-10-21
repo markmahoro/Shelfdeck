@@ -29,9 +29,9 @@ function access(revision, root = `/field/${revision}`) { const basis = { fieldId
   mountScopeId: 'mount-1', mountScopeRevision: revision, accessSchemaRef: 'helix://fixtures/field-access/v1' }; return { ...basis, accessDigest: canonicalDigest(basis) }; }
 function registration(overrides = {}) { return { fieldId: 'field-1', name: 'Incoming', policy: policy(1), access: access(1), contentProfileHint:'mixed', ...overrides }; }
 
-test('binds MaterialFieldRepository to the four PBF-22 Procurement owner tables', () => fixture(({ store }) => {
+test('binds MaterialFieldRepository to the Field policy and material projection owner tables', () => fixture(({ store }) => {
   assert.equal(store.repositoryManifest.component, 'MaterialFieldRepository');
-  assert.deepEqual(store.repositoryManifest.tableIds, ['proc_extraction_policy_revisions','proc_field_access_revisions','proc_field_profile_hint_revisions','proc_material_fields']);
+  assert.deepEqual(store.repositoryManifest.tableIds, ['proc_extraction_policy_revisions','proc_field_access_revisions','proc_field_materials','proc_field_profile_hint_revisions','proc_material_fields']);
 }));
 
 test('registers Policy, Field and Access atomically with resolved non-null heads', () => fixture(({ store }) => {

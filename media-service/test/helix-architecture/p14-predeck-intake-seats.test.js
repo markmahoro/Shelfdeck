@@ -62,7 +62,7 @@ function memoryRuntime() {
   const kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => 1 });
   const unitOfWork = createSqliteUnitOfWork({ kernel });
   const store = createPredeckPipelineAdmissionStore({ schemaManifest, unitOfWork, now: () => 1 });
-  return Object.freeze({ store, close: () => kernel.close() });
+  return Object.freeze({ store, unitOfWork, close: () => kernel.close() });
 }
 
 test('default Pre-deck pipeline seats are three per field', () => {
@@ -94,6 +94,7 @@ test('Intake waits when a Material Field pipeline is full', () => {
     },
   });
   const coordinator = createIntakeProcessCoordinator({
+    schemaManifest, unitOfWork: runtime.unitOfWork,
     offerReader: durableOfferReader(offers),
     pipelineAdmission,
     subjectIdForProcess: (processId) => subjectIds.get(processId) || null,
@@ -124,6 +125,7 @@ test('Intake admits only as many new processes as each field has free seats', ()
     },
   });
   const coordinator = createIntakeProcessCoordinator({
+    schemaManifest, unitOfWork: runtime.unitOfWork,
     offerReader: durableOfferReader(offers),
     pipelineAdmission,
     subjectIdForProcess: (processId) => subjectIds.get(processId) || null,
@@ -165,6 +167,7 @@ test('succeeded historical Intake evidence must reacquire a pipeline seat before
     },
   });
   const coordinator = createIntakeProcessCoordinator({
+    schemaManifest, unitOfWork: runtime.unitOfWork,
     offerReader: durableOfferReader(offers), pipelineAdmission,
     subjectIdForProcess: () => subjectId, workAdmission: fakeAdmission(),
     workResultReader: { status: () => Object.freeze({ state:'succeeded' }), read: () => [] },

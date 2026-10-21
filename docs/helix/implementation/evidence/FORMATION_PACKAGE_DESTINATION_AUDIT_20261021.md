@@ -1,5 +1,19 @@
 # “死包”专项：Formation 全生命周期归宿审视
 
+## 2026-10-21 发布资格进展（候选已上传，尚未部署）
+
+产品候选为 `40861e87712d8a82d4c116f03f348623c82fc60a`；随后 `60931fe43` 仅校正新增表/API的测试基线，未修改产品。镜像 `helix-beta-20261021-40861e8771`，Image ID `sha256:0a377c859d2956a98d9915ca1c9293488caa4fc8d22874ae580a2df6de4edcdc`，tar SHA256 `b56ea0317a80753e74c5459552336bddcdc99c4a0e77d884bf325eb545a91643`；标准 build-image/upload-nas-image 已完成且远端 checksum 一致。生产仍为 `af2257c423`，本轮未切换、未 Reset。
+
+- UI负责人接受固定 `5febebf91`：18项相关单测、18项宽窄屏/键盘浏览器检查通过，四项发现关闭。此后 Web 输入未变；Web全量247项及构建通过。报告为 `formation-lifecycle-ui-review-5febebf91-20261021/owner-review.json`，源码清单 SHA256 `59d3b932d360947c939b201655851a631462e3a08118a5d0eee5303d56f505e4`。
+- 候选完整 Linux 镜像86项相关测试通过；实际QSV HEVC、固定FFprobe、Sharp及ONNX模型加载通过。26项Owner/Host/恢复及23项公平/Governor回归通过；四项静态Gate零finding。Windows独立分发原生依赖/启动检查通过，测试中旧224表/162路由断言已按正式225表/164路由同步，补充readiness六项通过；原失败日志保留，不改写为PASS。
+- 初始固定 `862af7b68` 全量门禁：395文件、3200项、3151 PASS/23 FAIL/26 skip；Service647 PASS/1 FAIL/29 skip，Web247 PASS。3605份Service tracked输入前后摘要相同。失败包括尚未同步的表/API/文案断言、测试夹具漏传新增恢复依赖，以及验证checkout的依赖junction无法作为独立Windows分发复制。67项相关架构复验及Admin合同测试通过；此前已修正的8份表/API基线测试另有通过记录。未削弱产品边界或删除断言。
+- `60931fe43` 的下一轮在收到完整失败清单后主动取消，原始输入4220份、摘要 `506b069ea515875071e52888d9e7514a5039a9ce4dfcb5d21ca079bddcb09bf2`；不记PASS。新验证checkout已换为独立物理Service依赖，固定模型齐全；补齐剩余夹具后重新冻结版本执行完整门禁。
+- 完整一致生产副本包含224表数据库及133份伴随文件，原库4092846080字节、SHA256 `629ad0014baae3ab15182fa3d3f594d3f4c51df4e304e6ec1d56dd7c5761c07f`，sidecar逐文件前后校验、FK和integrity通过。候选结构复制完成，223张旧业务表逐列逐行一致，仅新增取消意图表。
+- 旧镜像完整Host达health200、running/normalSupplyAllowed，但只读Workspace的EROFS/ENOENT及已独立修复的优先级revision错误使严格演练失败。旧Host后80张受保护历史/收藏/未决Effect身份表保持。
+- 候选完整Host于UTC06:13:36达health200、164路由、running/normalSupplyAllowed，Catalog无拒绝，并完成一轮正常Procurement协调；优先级错误未再出现。仍有转码partial清理、转码目录创建及superseded Workspace回收触发只读挂载错误，严格演练为FAIL，不能把启动成功写成完整资格PASS。生产Workspace保持只读、没有清理或改动。候选保护核对、基于候选最新事实的逆向复制/旧镜像回退演练继续。
+
+本机原始日志使用系统TEMP的 `shelfdeck-lifecycle-*` 前缀，NAS受限演练根为 `releases/lifecycle-20261021`。本段是检查点，完整门禁/回退与发布仍开放，不关闭600文件实盘核账或既有业务UAT。
+
 ## 第二批本地实现与发布资格（2026-10-21，尚未部署）
 
 用户确认D07人工重试不受累计上限限制，自动恢复原预算保留。F07无Run取消、F08三类准备失败显式恢复、F09退休Field精确闲置Control释放、F10旧观察请求不能消耗后续请求、F11持久取消及F13人工恢复上限已实施；F12沿用首批分页修复。取消与排除独立，撤销只恢复正常资格；Arca已Accepted时不释放，包含Libra尚未消费回执的竞争窗口。F14沿既有1024容量边界增加当前完整观察的只读原因投影；不造失败Run或修改容量规则。UAT-322以正式superseded Cleanup Scope补既有双轮审计/事务/回收链，不执行旧生产残留手工清理。
