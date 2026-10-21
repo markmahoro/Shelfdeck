@@ -1680,6 +1680,8 @@ async function createCleanServiceHost(options) {
     now: options.now || Date.now,
     readAcceptanceRecovery:(offerId)=>formationAcceptanceReader(offerId),
     readProcessFailures:(scope)=>procurementExecution?.readProcessFailures(scope)||[],
+    readPreparationFailure:subjectId=>procurementExecution?.libraPreparationRecovery.readSubject(subjectId)||null,
+    readIntakeTasks:()=>procurementExecution?.libraPreparationRecovery.readIntakeTasks()||[],
     listAcceptanceAttention:(limit)=>formationAcceptanceAttention(limit),
     readPipelineSubjectIds:()=>procurementExecution?.pipelineAdmission.tokenSubjectIds() || new Set(),
     state: () => formationProjectionHost?.state() || Object.freeze({ status: 'rebuilding', asOfMs: (options.now || Date.now)() }) });

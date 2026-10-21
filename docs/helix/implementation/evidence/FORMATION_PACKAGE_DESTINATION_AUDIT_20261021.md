@@ -1,5 +1,19 @@
 # “死包”专项：Formation 全生命周期归宿审视
 
+## 2026-10-21 上线后反馈与修正（UAT-325）
+
+40861e877已于北京时间16:19启动，16:26正式Resume完成，生产正常供给；先前安装中记录为历史时点。镜像markmahoro/shelfdeck:helix-beta-20261021-40861e8771，image ID sha256:0a377c859d2956a98d9915ca1c9293488caa4fc8d22874ae580a2df6de4edcdc，tar SHA256 b56ea0317a80753e74c5459552336bddcdc99c4a0e77d884bf325eb545a91643。停止/恢复后80组保护表通过，646原收藏保持，15无关容器保持，标准部署及实际Web资产核验通过；完整副本Host的既有FAIL及用户接受的例外保持。资格与切换原始记录保存在E:/my_project/helix-git-consolidation-20261008/formation-lifecycle-release-20261021。
+
+用户随后反馈工作区红框，并明确拒绝独立“准备异常”入口，统一用户意图为“重试任务”。只读生产GET确认active/completed/preparation-failures/care/jav-corrections均200，ended为500。独立readonly+query_only连接执行当前Owner历史Reader，精确复现listDiscarded的Array.shift试图修改Object.freeze数组；无历史损坏、无数据写入。修复只复制用于合并的页数组，保留原不可变历史及校验。
+
+UI旅程：工作区原行显示失败阶段，原位“重试任务”；已接收者不重复成行，尚未接收者读现有席位和精确Process，无全历史失败扫描；重试中保持条目，Receipt建立后接续Subject。普通等待/缺配置/取消/已完成不扩大重试资格；仍经各Owner原恢复命令。历史详情“重新整理”及验收/上架按钮统一用词，原重查来源的后果确认保留。正在实施和验证，尚未发布修正版；本节不冒充具体版本UI验收。
+
+UTC08:14 发布前缺口已补齐并完成安装：UI负责人已接受精确40861e877的UAT-323/324补充范围，41项后端专项及22项宽窄浏览器PASS，产品文件未修改。报告`E:/my_project/helix-git-consolidation-20261008/jav-source-title-ui-review-40861e877-20261021/owner-review.json` SHA2569059953fe1d1b049c94a346d213ee3ebb7bf60d300888252f545e8f9a94cb3c6。另有既有P3 `EXISTING-JAV-PREVIEW-QUERY-FOCUS`：查询按钮busy后焦点可能离开窗口，导致预览后的Escape不能关闭；可见“稍后处理”仍可用。来源代码与既有基线一致，负责人判为本次范围外非阻断，单独保持开放，不标已修复或分配开发UAT号。反向复制已完成且与正向223表2,718,952行证明完全一致；安装dry run及apply通过，生产数据库SHA256为76d2f2075e226f9e0c07c2b48ab97770881b348b4c7fc978bde1d2e1c7dfa345，原源库及冷备保留。标准镜像deploy apply运行中，尚未记恢复正常供给。
+
+UTC07:59 发布范围复核发现遗漏：7b318ef956的未知演员UI审核明确排除JAV标题UAT，5febebf91审核仅覆盖生命周期UI，不能据此称全部合并增量UI已验收。按用户提供AGENTS的指定UI负责人规则，已向原UI负责人补送精确40861e877的UAT-324标题及UAT-323连接测试结果呈现审核，要求仓库外隔离fixture、冻结backend/资产且不访问生产。下文“其余发布检查已完成”为当时范围判断，现修正为等待该补充审核；完整自动化测试PASS仍有效。结构反向复制继续，生产新库及镜像仍未安装。
+
+UTC07:55 安装前检查点：正式stop于07:30:45.374完成，所有执行/恢复/Owner/Admin在途数归零；容器07:31:29.733正常退出、exit0。最新完整data冷备135文件、4,105,394,076 bytes，源/副本/源复验一致，数据库4097859584 bytes、SHA256115ec27687d80109929e100049fa27d4290017c87871f663dda8d93b85a969fd，FK/integrity通过。224→225结构副本已通过：223张旧业务表、2,718,952行逐列逐行摘要一致。反向复制正在运行，尚未安装或启动新镜像；没有Reset或手工媒体操作。安全停机等待了一个实际QSV转码完成，没有强杀或伪造停止状态。
+
 2026-10-21 UTC07:21 最终固定资格完成：c66d55b4a 的标准 Architecture Gate 全部395文件与四项静态检查 PASS、进程 exit 0；标准报告在成功时不保留逐测试 stdout，因此不从旧轮次推算本轮逐项计数。Service 677 total / 648 PASS / 29既有skip / 0 fail，Web44文件247 PASS、build PASS。4220份 tracked 输入前后摘要均为0352da4d8dd80ef5357cac4bef8ef1469174eca13c3e88c4c7c2a2a08024b813。原始日志及exits/before/after已保存至本机同名release证据目录。结合已接受的演练例外，其余发布检查已完成；正式Runtime stop已受理，等待安全收敛，尚未停止容器、安装结构或换版。
 
 2026-10-21 用户答复：“接受本次例外，其余检查通过后上线”。本次例外仅覆盖已说明的完整副本 Host 演练限制：只读挂载阻止现有转码和 Workspace 清理，旧镜像/旧版回退另有原优先级重启缺陷。原始 FAIL 记录保持；已验证的新镜像启动、正常协调、结构复制及历史保护不扩大为完整演练 PASS。最终固定完整门禁、安全停机、冷备校验、离线结构安装和标准部署后的核验仍须完成；没有生产 Reset 授权。

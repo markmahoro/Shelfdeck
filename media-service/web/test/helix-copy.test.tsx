@@ -61,6 +61,56 @@ function completedSubject(): FormationSubject {
 describe('Helix primary copy and workbench structure', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('keeps an Intake task in the same list through retry and Subject acceptance',async()=>{
+    let stage='failed';
+    const summary={totalCount:1,inProgressCount:0,attentionRequiredCount:1,completedCount:0};
+    const projection={status:'ready' as const,asOfMs:1};
+    const subject={...completedSubject(),subjectId:'task',formationViewId:'task',displayIdentity:'Retry Movie',
+      classification:'in_progress' as const,completedAtMs:null,nextAction:{label:'正在确认整理要求',state:'pending',progress:null}};
+    const list=vi.spyOn(helixAdminApi,'listFormation').mockImplementation(async section=>({
+      items:section==='active'&&stage==='accepted'?[subject]:[],
+      intakeItems:section==='active'&&stage!=='accepted'?[{kind:'intake' as const,formationViewId:'task',displayIdentity:'Retry Movie',
+        classification:stage==='failed'?'attention_required' as const:'in_progress' as const,targetShelfId:null,addedAtMs:1,
+        label:stage==='failed'?'接收材料失败':'正在接收材料',retryWorkId:stage==='failed'?'failed-work':null,failureCode:null}]:[],
+      summary:stage==='failed'?summary:{...summary,inProgressCount:1,attentionRequiredCount:0},nextCursor:null,projection}));
+    vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+    vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+    const retry=vi.spyOn(helixAdminApi,'retryPreparation').mockResolvedValueOnce({kind:'deferred'})
+      .mockRejectedValueOnce(new Error('response lost')).mockImplementation(async()=>{stage='running';return {kind:'admitted'};});
+    const oldList=vi.spyOn(helixAdminApi,'listPreparationFailures');
+    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
+    const button=await screen.findByRole('button',{name:'重试任务'});
+    expect(screen.queryByRole('button',{name:'准备异常'})).not.toBeInTheDocument();
+    fireEvent.click(button);expect(await screen.findByText('当前资源忙，请稍后重试。')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button',{name:'重试任务'}));expect(await screen.findByRole('alert')).toHaveTextContent('尚未确认');
+    fireEvent.click(screen.getByRole('button',{name:'重试任务'}));
+    expect(await screen.findByText('正在接收材料')).toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'重试任务'})).not.toBeInTheDocument();
+    expect(screen.getAllByText('Retry Movie')).toHaveLength(1);
+    expect(retry.mock.calls).toEqual([['failed-work'],['failed-work'],['failed-work']]);
+    stage='accepted';fireEvent.click(screen.getByRole('button',{name:'刷新',exact:true}));
+    await screen.findByRole('button',{name:'查看过程'});expect(screen.getAllByText('Retry Movie')).toHaveLength(1);
+    expect(oldList).not.toHaveBeenCalled();expect(list).toHaveBeenCalled();
+  });
+
+  it('retries pre-Run preparation on the original Subject row and preserves cancellation',async()=>{
+    let recovered=false;
+    const item={...completedSubject(),classification:'attention_required' as const,completedAtMs:null,
+      preparationFailure:{workId:'routing-work',phase:'确定收藏去向',failureCode:'TEMPORARY_FAILURE'}};
+    const summary={totalCount:1,inProgressCount:0,attentionRequiredCount:1,completedCount:0},projection={status:'ready' as const,asOfMs:1};
+    vi.spyOn(helixAdminApi,'listFormation').mockImplementation(async section=>({items:section==='active'?
+      [{...item,preparationFailure:recovered?null:item.preparationFailure}]:[],summary,nextCursor:null,projection}));
+    vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});
+    vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+    const retry=vi.spyOn(helixAdminApi,'retryPreparation').mockImplementation(async()=>{recovered=true;return {kind:'admitted'};});
+    const arca=vi.spyOn(helixAdminApi,'retryAcceptance');
+    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button',{name:'重试任务'}));
+    await screen.findByText('已提交重试任务');expect(retry).toHaveBeenCalledWith('routing-work');expect(arca).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button',{name:'重试任务'})).not.toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'取消整理任务'})).toBeInTheDocument();
+  });
+
   it('refreshes an open Formation detail and ignores a response after closing', async () => {
     let poll!:()=>void;
     const scheduleInterval=window.setInterval.bind(window);
@@ -337,24 +387,6 @@ describe('Helix primary copy and workbench structure', () => {
     expect(discard.mock.calls[1][1]).toBe(discard.mock.calls[2][1]);
     expect(discard.mock.calls[1][2]).toBe(true);
     expect(discard.mock.calls[2][2]).toBe(true);
-  });
-
-  it('preserves preparation retry feedback while an empty workbench refreshes',async()=>{
-    const summary={totalCount:0,inProgressCount:0,attentionRequiredCount:0,completedCount:0};
-    const empty={items:[],summary,nextCursor:null,projection:{status:'ready' as const,asOfMs:1}};
-    const formation=vi.spyOn(helixAdminApi,'listFormation').mockResolvedValue(empty);
-    vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue(empty);
-    vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
-    vi.spyOn(helixAdminApi,'listPreparationFailures').mockResolvedValueOnce({items:[{workId:'failed-intake',subjectId:null,title:'Movie.mkv',phase:'接收材料',failureCode:'FAILED'}],nextCursor:null}).mockResolvedValue({items:[],nextCursor:null});
-    vi.spyOn(helixAdminApi,'retryPreparation').mockResolvedValue({kind:'admitted',workId:'replacement'});
-    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole('button',{name:'准备异常'}));
-    const before=formation.mock.calls.length;
-    fireEvent.click(await screen.findByRole('button',{name:'重试准备'}));
-    await waitFor(()=>expect(formation.mock.calls.length).toBeGreaterThan(before));
-    expect(await screen.findByText('已提交重试')).toBeInTheDocument();
-    expect(screen.getByRole('button',{name:'准备异常'})).toHaveAttribute('aria-expanded','true');
-    expect(screen.getByText('没有准备异常')).toBeInTheDocument();
   });
 
   it('renders current media as stacked steps, progress, user actions, and expedite', async () => {

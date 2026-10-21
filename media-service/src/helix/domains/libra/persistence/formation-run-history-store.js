@@ -98,7 +98,7 @@ function createFormationRunHistoryStore(options) {
     const streams=[listRunDiscarded,subjectPage].map(read=>({read,offset:0,rows:[],done:false})),result=[];
     for(let index=0;index<offset+limit;index++){
       for(const stream of streams)if(!stream.rows.length&&!stream.done){
-        stream.rows=stream.read(stream.offset,100,filters);stream.offset+=stream.rows.length;stream.done=stream.rows.length<100;
+        stream.rows=[...stream.read(stream.offset,100,filters)];stream.offset+=stream.rows.length;stream.done=stream.rows.length<100;
       }
       const stream=streams.filter(item=>item.rows.length).sort((a,b)=>b.rows[0].endedAtMs-a.rows[0].endedAtMs||
         a.rows[0].historyId.localeCompare(b.rows[0].historyId))[0];

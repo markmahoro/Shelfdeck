@@ -312,7 +312,7 @@ function createExecutionRegistration() {
         return result;
       }});
       const preparationRecovery=require('../application/preparation-recovery-admin').createPreparationRecoveryAdmin({...options,
-        offerReader,intakeStore,intakeCoordinator:coordinator,routingCoordinator,acceptanceSpecCoordinator});
+        offerReader,intakeStore,pipelineAdmission,intakeCoordinator:coordinator,routingCoordinator,acceptanceSpecCoordinator});
       return Object.freeze({preparationRecovery,sourceFairness,offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
         libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore,usAdultAnalysisStore,

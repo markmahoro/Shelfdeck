@@ -9,6 +9,7 @@ UAT-267为冻结On-deck依据、268为active放弃、274为外部可信别名；
 状态说明：历史已关闭保留当时证据，不宣称本次重测；已实现/已部署不等于已关闭；阶段文档关闭不等于功能验收关闭。每次只根据对应项的现行合同及Evidence更新。
 | UAT编号 | 问题 / 历史事项 | 分类 | 当前状态 | 历史编号 | 实现提交 | 验收/部署证据 | 剩余工作或关闭条件 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| UAT-325 | 媒体整理工作区已结束查询500及多余准备异常入口 | LIBRA / FORMATION_QUERY / UI | 已只读复现根因；修正版实施验证中，未发布 | 2026-10-21用户生产反馈 | 待提交 | [Evidence](implementation/evidence/FORMATION_PACKAGE_DESTINATION_AUDIT_20261021.md) | 历史合并不能修改只读数组；原任务统一重试，未接收/重试中/接收后连续展示，筛选分页计数及具体版本UI待验。 |
 | UAT-324 | JavMenu标题夹带“免費AV在線看”等站点广告 | LIBRA / JAV_SOURCE_TITLE | 本地修正及专项通过，未部署/未关闭 | 2026-10-21用户反馈 | 未提交 | [Evidence](implementation/evidence/JAV_SOURCE_STABILITY_TITLE_20261021.md) | 新标题只在JavMenu解析边界清理已知尾缀；精确版本呈现/新整理及正式旧收藏修复范围仍待验，不改写历史Fact。 |
 | UAT-323 | JAV来源连接失败，含新封面Host被拒及瞬时测试失败 | INTEGRATION / JAV_SOURCE_CONNECTION | 已复现ABF-047封面Host遗漏；本地精确Host/有界测试重试通过，未部署 | 2026-10-21用户反馈 | 未提交 | [Evidence](implementation/evidence/JAV_SOURCE_STABILITY_TITLE_20261021.md) | 继续其他站点精确失败/稳定性证据及候选平台验收；保持HTTPS/Host/route/预算/单站资格，不以短样本成功宣称全部稳定。 |
 | UAT-322 | Workspace旧Run已superseded但材料引用未释放，积压约70.16 GiB | LIBRA / WORKSPACE_CLEANUP | 待修复：2026-10-21用户确认要改，本轮先记录；根因已复现，未修复/清理 | 2026-10-18用户现场排查 | 无 | [Evidence](implementation/evidence/UAT-322_WORKSPACE_RESIDUE_AUDIT_20261018.md) | 在Libra Owner内补齐superseded Scope准入与正式清理；验证Reference/Control/Effect闭包和新Run不再产生同类残留。生产精确清理另需授权；不删除历史保留备份、外部Landing或活跃Workspace。 |

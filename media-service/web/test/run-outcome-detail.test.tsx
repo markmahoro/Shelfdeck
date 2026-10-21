@@ -22,7 +22,7 @@ it('read failure cannot expose reprocessing and can be retried',async()=>{
   const mutate=vi.spyOn(helixAdminApi,'reprocessRun');
   render(<RunOutcomeDetail item={item} onChanged={()=>{}}/>);
   expect(await screen.findByRole('alert')).toHaveTextContent('读取失败');
-  expect(screen.queryByRole('button',{name:'重新整理'})).toBeNull();
+  expect(screen.queryByRole('button',{name:'重试任务'})).toBeNull();
   fireEvent.click(screen.getByRole('button',{name:'重新读取'}));
   expect(await screen.findByText('成品未通过播放检查')).toBeTruthy();
   expect(mutate).not.toHaveBeenCalled();
@@ -32,15 +32,15 @@ it('cancel has no effect and an uncertain submit reuses the exact request key',a
   vi.spyOn(helixAdminApi,'readRunOutcome').mockResolvedValue({outcome});
   const mutate=vi.spyOn(helixAdminApi,'reprocessRun').mockRejectedValueOnce(new Error('response lost')).mockResolvedValue({intentId:'intent',replayed:true});
   const changed=vi.fn();render(<RunOutcomeDetail item={item} onChanged={changed}/>);
-  fireEvent.click(await screen.findByRole('button',{name:'重新整理'}));
+  fireEvent.click(await screen.findByRole('button',{name:'重试任务'}));
   fireEvent.click(screen.getByRole('button',{name:'取消'}));expect(mutate).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole('button',{name:'重新整理'}));
-  fireEvent.click(screen.getByRole('button',{name:'确认重新整理'}));
+  fireEvent.click(screen.getByRole('button',{name:'重试任务'}));
+  fireEvent.click(screen.getByRole('button',{name:'确认重试任务'}));
   expect(await screen.findByRole('alert')).toHaveTextContent('未确认成功');
-  fireEvent.click(screen.getByRole('button',{name:'确认重新整理'}));
+  fireEvent.click(screen.getByRole('button',{name:'确认重试任务'}));
   await waitFor(()=>expect(changed).toHaveBeenCalledOnce());
   expect(mutate.mock.calls[1]).toEqual(mutate.mock.calls[0]);
-  expect(screen.getByText('已提交重新整理')).toBeTruthy();
+  expect(screen.getByText('已提交重试任务')).toBeTruthy();
 });
 
 it('nested Escape cancellation stays inside the confirmation and returns focus',async()=>{
@@ -48,7 +48,7 @@ it('nested Escape cancellation stays inside the confirmation and returns focus',
   const mutate=vi.spyOn(helixAdminApi,'reprocessRun'),escaped=vi.fn();document.addEventListener('keydown',escaped);
   try{
     render(<RunOutcomeDetail item={item} onChanged={()=>{}}/>);
-    const trigger=await screen.findByRole('button',{name:'重新整理'});trigger.focus();fireEvent.click(trigger);
+    const trigger=await screen.findByRole('button',{name:'重试任务'});trigger.focus();fireEvent.click(trigger);
     const dialog=screen.getByRole('dialog');fireEvent.keyDown(dialog,{key:'Escape'});
     expect(escaped).not.toHaveBeenCalled();fireEvent(dialog,new Event('cancel',{cancelable:true}));
     expect(screen.queryByRole('dialog')).toBeNull();expect(trigger).toHaveFocus();expect(mutate).not.toHaveBeenCalled();

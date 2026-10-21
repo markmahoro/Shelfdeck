@@ -851,6 +851,9 @@ function createFormationQuery(options) {
     return '媒体整理完成，收藏架验收或上架失败';
   }
   function technicalIssue(item) {
+    const preparationFailure=!item.currentRun&&!item.handoffB&&options.readPreparationFailure?.(item.subjectId);
+    if(preparationFailure)return Object.freeze({...item,classification:'attention_required',preparationFailure,
+      nextAction:Object.freeze({label:preparationFailure.phase+'失败',state:'attention_required',progress:null}),executorIssue:null});
     const processId=item.arcaStatus?.onDeckRunId||item.currentRun?.libraRunId;
     const arca=Boolean(item.arcaStatus?.onDeckRunId);
     const kinds=arca?['on_deck_execution']:['product_identity','product_metadata_observation','artifact_production'];
@@ -932,6 +935,10 @@ function createFormationQuery(options) {
       if (change.to === 'in_progress') result.inProgressCount += 1;
       else if (change.to === 'attention_required') result.attentionRequiredCount += 1;
       else if (change.to === 'completed') result.completedCount += 1;
+    }
+    for(const item of options.readIntakeTasks?.()||[]){
+      if(item.classification==='attention_required')result.attentionRequiredCount++;
+      else result.inProgressCount++;
     }
     result.totalCount = Math.max(0, result.inProgressCount) + Math.max(0, result.attentionRequiredCount) + Math.max(0, result.completedCount);
     return Object.freeze(result);
@@ -1045,7 +1052,7 @@ function createFormationQuery(options) {
     const admitted = options.readPipelineSubjectIds?.() || new Set();
     let items;
     let changes = [];
-    const requiresFullScan = Boolean(options.readPipelineSubjectIds || options.detailSource?.getMany) || hasActiveFilters(filters) || attention.length > 0;
+    const requiresFullScan = Boolean(options.readPipelineSubjectIds || options.detailSource?.getMany || options.readIntakeTasks) || hasActiveFilters(filters) || attention.length > 0;
     if (requiresFullScan) {
       const snapshot = readScope ? (readScope.active ||= activeSnapshot(attention)) : activeSnapshot(attention);
       items = snapshot.items;
@@ -1055,10 +1062,17 @@ function createFormationQuery(options) {
       const rows = options.store.listActive(offset, limit + 1);
       items = rows.map(projectionItem).map(technicalIssue).filter((item) => !isIdleAfterUserAbandon(item));
     }
+    const intakeTasks=options.readIntakeTasks?.()||[];
+    if(intakeTasks.length){
+      items=[...items,...intakeTasks.filter(item=>matchesActiveItem(item,filters))].sort((a,b)=>
+        b.addedAtMs-a.addedAtMs||String(a.formationViewId||a.subjectId).localeCompare(String(b.formationViewId||b.subjectId)));
+    }
     const windowed = requiresFullScan ? items.slice(offset) : items;
     const hasMore = windowed.length > limit, selected = hasMore ? windowed.slice(0, limit) : windowed;
-    const selectedWithCurrentFacts=requiresFullScan ? selected : currentFacts(selected);
+    const selectedSubjects=selected.filter(item=>item.kind!=='intake');
+    const selectedWithCurrentFacts=requiresFullScan ? selectedSubjects : currentFacts(selectedSubjects);
     return Object.freeze({ items: Object.freeze(currentProcessFacts(selectedWithCurrentFacts)), summary: summary(changes, requiresFullScan ? changes : null),
+      intakeItems:Object.freeze(selected.filter(item=>item.kind==='intake')),
       nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
   }
   function get(subjectId) {

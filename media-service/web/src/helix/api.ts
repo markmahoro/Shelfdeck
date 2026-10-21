@@ -249,7 +249,12 @@ export type Shelf = {
   };
 };
 
+export type FormationIntakeTask = {
+  kind:'intake';formationViewId:string;displayIdentity:string;classification:'in_progress'|'attention_required';
+  targetShelfId:null;addedAtMs:number;label:string;retryWorkId:string|null;failureCode:string|null;
+};
 export type FormationSubject = {
+  preparationFailure?:{workId:string;phase:string;failureCode:string}|null;
   seriesDelivery?: { libraRunId:string; seasonNumber:number; episodeKeys:string[]; physicalFileCount:number } | null;
   formationViewId: string;
   subjectId: string;
@@ -778,7 +783,7 @@ export const helixAdminApi = {
       if(filters.expedited)query.set('expedited','1');
       if(filters.q)query.set('q',filters.q);
     }
-    return request<{ items: FormationSubject[]; summary: FormationSummary; nextCursor:string|null; projection:{status:'ready'|'rebuilding'|'stale';asOfMs:number} }>(`/v1/admin/formation?${query}`);
+    return request<{ items: FormationSubject[]; intakeItems?:FormationIntakeTask[]; summary: FormationSummary; nextCursor:string|null; projection:{status:'ready'|'rebuilding'|'stale';asOfMs:number} }>(`/v1/admin/formation?${query}`);
   },
   getFormation(formationViewId:string) {
     return request<FormationSubject>(`/v1/admin/formation/${encodeURIComponent(formationViewId)}`);

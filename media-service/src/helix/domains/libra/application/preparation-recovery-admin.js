@@ -22,6 +22,37 @@ function createPreparationRecoveryAdmin(options){
     const state=subject(definition.processId);
     return state.subject?.status==='active'&&!state.runs.length&&!options.taskCancellations.get(definition.processId);
   }
+  function processFailure(processType,processId){
+    for(const workKind of KINDS[processType]){
+      const rows=reader.listWorks({ownerDomain:'libra',processType,processId,workKind});
+      const latest=[...rows].sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)||b.work_id.localeCompare(a.work_id))[0];
+      if(!latest)continue;
+      const definition=reader.readDefinition(latest.work_id)?.definition;
+      const current=definition&&recovery.current(definition);
+      if(current&&reader.status(current.workId)?.state==='failed')return Object.freeze({workId:current.workId,
+        phase:phases[processType],failureCode:reader.status(current.workId)?.latestAttempt?.failure_code||'PREPARATION_FAILED'});
+    }
+    return null;
+  }
+  function readSubject(subjectId){
+    const state=subject(subjectId);
+    if(state.subject?.status!=='active'||state.runs.length||options.taskCancellations.get(subjectId))return null;
+    return processFailure('libra_routing',subjectId)||processFailure('libra_acceptance_spec',subjectId);
+  }
+  function readIntakeTasks(){
+    // Only current occupied seats are read; historical failures are not scanned.
+    return options.pipelineAdmission.listTokens().flatMap(token=>{
+      if(options.intakeStore.getReceipt(token.processId))return [];
+      const source=options.offerReader.read(token.processId);if(!source)return [];
+      const failure=processFailure('libra_intake',token.processId);
+      const pkg=source.snapshot.candidatePackage;
+      return [Object.freeze({kind:'intake',formationViewId:token.subjectId,
+        displayIdentity:pkg.displayIdentity||pkg.identityClaim?.claimedDisplayIdentity||'待接收的媒体',
+        classification:failure?'attention_required':'in_progress',targetShelfId:null,
+        addedAtMs:token.acquiredAtMs,label:failure?'接收材料失败':'正在接收材料',
+        retryWorkId:failure?.workId||null,failureCode:failure?.failureCode||null})];
+    });
+  }
   function list({cursor=null}={}){
     let [index,key]=cursor?String(cursor).split('|'):[0,null];index=Number(index);
     if(!Number.isInteger(index)||index<0||index>=kinds.length||key?.length>256)fail('LIBRA_PREPARATION_CURSOR','Invalid preparation cursor.');
@@ -59,6 +90,6 @@ function createPreparationRecoveryAdmin(options){
     }
     return recovery.retry(workId);
   }
-  return Object.freeze({list,retry});
+  return Object.freeze({list,retry,readSubject,readIntakeTasks});
 }
 module.exports=Object.freeze({createPreparationRecoveryAdmin});

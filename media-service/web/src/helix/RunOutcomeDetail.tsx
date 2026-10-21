@@ -39,22 +39,22 @@ export default function RunOutcomeDetail({item,onChanged}:{item:FormationRunHist
     catch(cause){if(isUnauthorized(cause))expire();else setError(
       cause instanceof AdminApiError&&cause.status===409&&cause.code==='ADMIN_FIELD_CONFLICT'&&
         cause.details.reasonCode==='FIELD_OBSERVATION_WORK_DEFERRED'
-        ? '来源扫描尚未结束，稍后再试。' : '重新整理未确认成功，请重试。');}
+        ? '来源扫描尚未结束，稍后再试。' : '重试任务未确认成功，请重试。');}
     finally{setBusy(false);}
   }
   return <article className="formation-run-outcome">
     {loading?<p role="status">正在读取整理结果…</p>:outcome?<>
       <h3>无法上架</h3>
       <ul>{terminalReasonLabels(outcome.terminalReasons).map(reason=><li key={reason}>{reason}</li>)}</ul>
-      {submitted?<p role="status">已提交重新整理</p>:<Button type="button" onClick={()=>{setError('');setConfirming(true);}}>重新整理</Button>}
+      {submitted?<p role="status">已提交重试任务</p>:<Button type="button" onClick={()=>{setError('');setConfirming(true);}}>重试任务</Button>}
     </>:<Button type="button" onClick={()=>void load()}>重新读取</Button>}
     {error&&!confirming&&<p className="form-error" role="alert">{error}</p>}
     {confirming&&<dialog ref={dialog} className="shelf-deregister-dialog" aria-labelledby="reprocess-confirm-title"
       onKeyDown={event=>event.stopPropagation()} onCancel={event=>{event.preventDefault();event.stopPropagation();if(!busy)setConfirming(false);}}>
-      <div className="dialog"><div className="dialog-head"><h2 id="reprocess-confirm-title">确认重新整理</h2></div>
+      <div className="dialog"><div className="dialog-head"><h2 id="reprocess-confirm-title">确认重试任务</h2></div>
         <div className="dialog-body"><p>{item.displayIdentity}</p><p>将从原文件来源重新检查并尝试整理一次，原始媒体保留。</p>{error&&<p className="form-error" role="alert">{error}</p>}</div>
         <div className="dialog-actions"><Button type="button" disabled={busy} onClick={()=>setConfirming(false)}>取消</Button>
-          <Button type="button" variant="primary" disabled={busy} onClick={()=>void submit()}>{busy?'正在提交…':'确认重新整理'}</Button></div>
+          <Button type="button" variant="primary" disabled={busy} onClick={()=>void submit()}>{busy?'正在提交…':'确认重试任务'}</Button></div>
       </div>
     </dialog>}
   </article>;
