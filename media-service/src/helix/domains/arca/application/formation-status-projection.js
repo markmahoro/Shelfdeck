@@ -125,16 +125,17 @@ function createFormationStatusProjection(options) {
     if (typeof options.workResultReader?.scopedWorkStatus === 'function') {
       for (const [offerId, status] of result) {
         if (!status.onDeckRunId) continue;
-        const work = options.workResultReader.scopedWorkStatus({
-          ownerDomain:'arca', processType:'arca_ondeck_run', processId:status.onDeckRunId,
-          workKind:'on_deck_execution',
-        });
         const seriesStore=createSeriesPresentationStore(options),reservation=seriesStore.read('run_reservation',{on_deck_run_id:status.onDeckRunId}),
-          shared=reservation&&seriesStore.readScope(reservation.scope_id),sharedStatus=shared?.active_build_id?options.workResultReader.scopedWorkStatus({
+          shared=reservation&&seriesStore.readScope(reservation.scope_id);
+        if(status.stage!=='in_progress'){
+          if(reservation?.committed_version){const version=seriesStore.manifest(reservation.scope_id,Number(reservation.committed_version));if(version)result.set(offerId,Object.freeze({...status,sharedBuildId:version.value.buildId}));}
+          continue;
+        }
+        const work=options.workResultReader.scopedWorkStatus({ownerDomain:'arca',processType:'arca_ondeck_run',processId:status.onDeckRunId,workKind:'on_deck_execution'}),
+          sharedStatus=shared?.active_build_id?options.workResultReader.scopedWorkStatus({
             ownerDomain:'arca',processType:'arca_series_presentation',processId:shared.active_build_id,workKind:'series_presentation'}):null;
         if(shared?.active_build_id){result.set(offerId,Object.freeze({...status,sharedBuildId:shared.active_build_id}));}
         else if(reservation?.committed_version){const version=seriesStore.manifest(reservation.scope_id,Number(reservation.committed_version));if(version)result.set(offerId,Object.freeze({...status,sharedBuildId:version.value.buildId}));}
-        if(status.stage!=='in_progress')continue;
         if(sharedStatus&&!sharedStatus.open&&sharedStatus.latestState==='failed'){
           let canSupplyImages=false;if(options.series)canSupplyImages=options.series.canReassess(shared.active_build_id);else try{options.unitOfWork.execute([createSeriesSourceReassessmentFence(options,shared.active_build_id)]);canSupplyImages=true;}catch(error){if(error.code!=='ARCA_SERIES_SOURCE_REASSESSMENT_UNSAFE')throw error;}
           result.set(offerId,Object.freeze({...status,stage:'attention_required',reasonCode:sharedStatus.failureCode||'ARCA_SERIES_PRESENTATION_FAILED',retryAvailable:true,canSupplyImages,blockedPhase:'series_presentation',sharedBuildId:shared.active_build_id}));continue;
