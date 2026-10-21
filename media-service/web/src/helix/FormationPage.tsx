@@ -235,10 +235,12 @@ export default function FormationPage() {
   },[discardDialog]);
   useEffect(()=>{
     const dialog=discardElement.current;if(!discardDialog||!dialog)return;
+    const focusable=()=>Array.from(dialog.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),a[href]'));
+    if(!focusable().includes(document.activeElement as HTMLElement))focusable()[0]?.focus();
     const keydown=(event:KeyboardEvent)=>{
       if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(!discardBusy){setDiscardDialog(null);if(discardNeedsRefresh)void load();}}
       if(event.key==='Tab'){
-        const controls=Array.from(dialog.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),a[href]'));
+        const controls=focusable();
         const first=controls[0],last=controls[controls.length-1];
         if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
         else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}

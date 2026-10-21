@@ -276,8 +276,9 @@ describe('Helix primary copy and workbench structure', () => {
       items:section==='active'?[current]:[],summary,nextCursor:null,projection:{status:'ready',asOfMs:1}}));
     vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection:{status:'ready',asOfMs:1}});
     vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+    let finish!:()=>void;
     const discard=vi.spyOn(helixAdminApi,'discardRun')
-      .mockResolvedValueOnce({resultKind:'closure_pending',libraRunId:'sample-run'})
+      .mockImplementationOnce(()=>new Promise(resolve=>{finish=()=>resolve({resultKind:'closure_pending',libraRunId:'sample-run'});}))
       .mockResolvedValueOnce({resultKind:'discarded',libraRunId:'sample-run'});
     render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
     const trigger=await screen.findByRole('button',{name:'取消整理任务'});trigger.focus();fireEvent.click(trigger);
@@ -288,7 +289,11 @@ describe('Helix primary copy and workbench structure', () => {
     fireEvent.keyDown(closeButton,{key:'Escape'});expect(initialDialog).not.toBeInTheDocument();expect(trigger).toHaveFocus();expect(discard).not.toHaveBeenCalled();
     fireEvent.click(trigger);
     const dialog=screen.getByRole('dialog',{name:'确认取消整理任务'});
-    fireEvent.click(within(dialog).getByRole('button',{name:'确认取消任务'}));
+    const confirm=within(dialog).getByRole('button',{name:'确认取消任务'});confirm.focus();fireEvent.click(confirm);
+    const busyClose=within(dialog).getByRole('button',{name:'关闭'});expect(busyClose).toHaveFocus();
+    fireEvent.keyDown(busyClose,{key:'Tab'});expect(busyClose).toHaveFocus();
+    fireEvent.keyDown(busyClose,{key:'Escape'});expect(dialog).toBeInTheDocument();
+    await act(async()=>finish());
     await waitFor(()=>expect(dialog).not.toBeInTheDocument());
     expect(discard).toHaveBeenCalledTimes(1);
     expect(discard.mock.calls[0][2]).toBe(false);
