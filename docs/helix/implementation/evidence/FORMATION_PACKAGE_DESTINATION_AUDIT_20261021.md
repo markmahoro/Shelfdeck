@@ -14,6 +14,12 @@
 
 本机原始日志使用系统TEMP的 `shelfdeck-lifecycle-*` 前缀，NAS受限演练根为 `releases/lifecycle-20261021`。本段是检查点，完整门禁/回退与发布仍开放，不关闭600文件实盘核账或既有业务UAT。
 
+UTC06:44后续：本地及远端main已同步c66d55b4a，锁定依赖、固定模型与Web构建更新；该固定版本完整门禁重新开始，4220份输入摘要0352da4d8dd80ef5357cac4bef8ef1469174eca13c3e88c4c7c2a2a08024b813。Windows独立物理依赖checkout打包1项通过。另以公开非生产人像完成真实模型/图片端口/人物Host建档及重启重放，Windows7项、精确Linux镜像7项均通过，无skip。未判断真实成人媒体身份准确性。
+
+候选后80张历史保护表保持；基于其最新事实的225→224逆向复制223表全部一致。旧镜像在回退副本上health200、running/normalSupplyAllowed并完成正常Owner周期，Catalog无拒绝；因EROFS/ENOENT和其原有P4_RESOURCE_PRIORITY_UPDATE_INVALID，严格演练FAIL。回退Host后80张历史保护仍保持。完整旧/候选/回退演练日志、初始失败全量及输入摘要已保存于本机`E:/my_project/helix-git-consolidation-20261008/formation-lifecycle-release-20261021`（后续新增日志在TEMP，最终继续汇入）；没有用Reset、可写生产挂载、过滤执行轨或删除失败断言换取PASS。
+
+标准deploy dry run通过但未apply；完整冷备/结构准备脚本已通过POSIX语法检查并受精确旧镜像/停止状态/真实路径/无非空WAL等保护，尚未执行。用户已被明确询问本次完整副本演练的发布例外，等待答复；最终全量也仍未完成，不能提前上线。旧生产镜像tar暂留作本次切换材料，SHA2565854ca0349a0d7a764f7fe182b31f18ffa7236ab96a08c738d49047d9b49b64d；该镜像本身不等于数据回退授权。初始已完成验证worktree已提交归档请求，活动验证checkout继续冻结。
+
 ## 第二批本地实现与发布资格（2026-10-21，尚未部署）
 
 用户确认D07人工重试不受累计上限限制，自动恢复原预算保留。F07无Run取消、F08三类准备失败显式恢复、F09退休Field精确闲置Control释放、F10旧观察请求不能消耗后续请求、F11持久取消及F13人工恢复上限已实施；F12沿用首批分页修复。取消与排除独立，撤销只恢复正常资格；Arca已Accepted时不释放，包含Libra尚未消费回执的竞争窗口。F14沿既有1024容量边界增加当前完整观察的只读原因投影；不造失败Run或修改容量规则。UAT-322以正式superseded Cleanup Scope补既有双轮审计/事务/回收链，不执行旧生产残留手工清理。

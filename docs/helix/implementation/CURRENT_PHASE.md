@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-21 FORMATION-PACKAGE-DESTINATION发布检查点：实现、未上线增量及主线整合已完成，固定c66d55b4a全量资格仍运行；UI负责人接受、Windows/Linux相关验证与实际照片建档通过。225表升级和保留候选新增事实的224表回退复制通过，完整Host达到正常供给但演练含只读物理操作错误，仍为FAIL；旧版另有已修复的优先级版本号问题。发布例外待用户决定，生产保持af2257c423，无Reset。下一步为完整门禁结果、例外决定及标准安全切换，详见唯一专项Evidence，不新增并行Phase。
+
 2026-10-21第二批实施检查点：DESTINATION-IMPLEMENTATION上述取消/排除/撤销、前置失败恢复、退休来源释放及用户确认D07已实现，UAT-322补既有superseded Cleanup Scope路径；SSOT/225表/164路由已同步。当前仍在发布资格阶段，不继承前序版本UI/完整Gate/跨平台PASS；不授权生产Reset或专项旧Workspace手工删除。具体本地证据见本专项Evidence最新节。
 
 2026-10-21本地检查点：生产容量清理完成，两次人物照片建档自动完成。DESTINATION-IMPLEMENTATION首批已修改Libra历史失败拒收、Run公平初始轮次/包发布时间、Procurement技术失败下一Observation资格及Arca恢复分页首项阻塞；46项定向回归和3项隔离Host通过，未发布。持久取消、无Run退出、排除/撤销、退休Field闲置Control及其用户入口尚未完成；完整Gate/跨平台与具体版本UI资格不继承。
