@@ -1219,6 +1219,8 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     db.transaction(()=>{for(const member of sharedManifest.members){db.prepare('DELETE FROM fx_material_control_revisions WHERE material_key=?').run(member.physicalIdentity.materialKey);db.prepare('DELETE FROM fx_material_controls WHERE material_key=?').run(member.physicalIdentity.materialKey);}
       for(const table of ['arca_series_presentation_commit_links','arca_series_presentation_references','arca_series_presentation_reservations','arca_series_presentation_versions','arca_series_presentation_builds','arca_series_presentation_scopes'])db.prepare('DELETE FROM '+table).run();})();
     for(const member of sharedManifest.members)fs.unlinkSync(member.location);
+    let legacyVideoProbeCalls=0;
+    hostOptions.mediaProbe={async probe(){if(db.prepare('SELECT count(*) n FROM arca_series_presentation_versions').get().n===0)legacyVideoProbeCalls++;throw Object.assign(new Error('Unrelated Season video probing must not block show metadata maintenance'),{code:'FIXTURE_LEGACY_VIDEO_PROBE_UNAVAILABLE'});}};
     assert.equal(protectedSnapshot(),before);db.close();db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});host=await createCleanServiceHost(hostOptions);
     const relogin=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}});assert.equal(relogin.statusCode,204);cookie=relogin.headers['set-cookie'];
     const beforeQueries=adapter.calls.length;
@@ -1230,12 +1232,17 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
       JSON.stringify(db.prepare("SELECT work_kind,state FROM fx_supporting_works WHERE owner_domain='arca'").all()));
     assert.equal(protectedSnapshot(),before);assert.equal(db.prepare('SELECT count(*) n FROM arca_series_presentation_commit_links').get().n,0);
     assert.equal(db.prepare('SELECT count(*) n FROM arca_aftercare_cases').get().n,0);
+    const beforeReplay=canonicalDigest({builds:db.prepare('SELECT count(*) n FROM arca_series_presentation_builds').get().n,versions:db.prepare('SELECT count(*) n FROM arca_series_presentation_versions').get().n,
+      receipts:db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.series-presentation.retry@1'").get().n});
+    const replay=(await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',{idempotencyKey:'legacy-shared-repair'})).json();assert.equal(replay.replayed,true);
+    assert.equal(canonicalDigest({builds:db.prepare('SELECT count(*) n FROM arca_series_presentation_builds').get().n,versions:db.prepare('SELECT count(*) n FROM arca_series_presentation_versions').get().n,
+      receipts:db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.series-presentation.retry@1'").get().n}),beforeReplay);
     const requests=adapter.calls.slice(beforeQueries);assert.ok(requests.some(url=>url.pathname==='/3/tv/1399'));
     assert.ok(requests.every(url=>!url.pathname.includes('/search/')&&!url.pathname.includes('/season/')));
     const source=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'series-source-%' ORDER BY committed_at_ms DESC").get();
     assert.equal(JSON.parse(source.result_json).observedBasis.schema,'shelfdeck.series-presentation-observed@1');
     for(const role of ['tvshow.nfo','poster.jpg','fanart.jpg'])assert.ok(fs.existsSync(path.join(sharedScope.root_location,role)));
-    assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(),[]);t.diagnostic(JSON.stringify({legacySharedRepair:true,protectedSeasonFacts:protectedTables.length,historyLinksInvented:0}));
+    assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(),[]);assert.equal(legacyVideoProbeCalls,0);t.diagnostic(JSON.stringify({legacySharedRepair:true,protectedSeasonFacts:protectedTables.length,historyLinksInvented:0,unrelatedVideoProbeCalls:legacyVideoProbeCalls}));
   }
   if(['1','supplement','assets'].includes(process.env.HELIX_SERIES_SHARED_MAINTENANCE)){
     const entry=db.prepare('SELECT * FROM arca_shelf_entries').get(),beforeFiles=sharedManifest.members.filter(row=>row.artifactKind!=='fanart').map(row=>({row,bytes:fs.readFileSync(row.location),inode:fs.statSync(row.location).ino})),

@@ -166,8 +166,14 @@ function createAftercareProcessCoordinator(options){
   function reconcile(shelfEntryId,request={}){
     const origin=request.sharedPresentationChanged===true?'series:'+request.idempotencyKey:request.periodic===true?'periodic':typeof request.idempotencyKey==='string'&&request.idempotencyKey?'manual:'+request.idempotencyKey:null;
     const readContext=()=>{const value=reader.read(shelfEntryId);return value&&origin?{...value,assessmentRequestOrigin:origin}:value;};
+    const periodic=request.periodic===true,manual=request.sharedPresentationChanged!==true&&typeof request.idempotencyKey==='string'&&request.idempotencyKey.length>0;
     let c=readContext();if(!c)return Object.freeze({kind:'not_found',shelfEntryId});
     if(c.raw?.correctionGate)return Object.freeze({kind:'identity_correction_pending',shelfEntryId,correctionId:c.raw.correctionGate.correction_id});
+    // The three mandatory show files do not depend on Season video conformance or a rating resolution.
+    if(manual&&options.series?.needsRegistration(c)){
+      if(modificationBlocked(c))return Object.freeze({kind:'modification_fenced',shelfEntryId});
+      return Object.freeze({...options.series.maintainEntry(c,{retry:true,command:options.series.retryCommand('entry',shelfEntryId,{idempotencyKey:request.idempotencyKey})}),shelfEntryId});
+    }
     if(c.raw?.perceptionRating?.state==='pending'&&typeof options.ensurePerceptionRatingResolution==='function'){
       const resolution=options.ensurePerceptionRatingResolution(shelfEntryId);
       if(resolution?.kind!=='terminal')return Object.freeze({kind:'rating_resolution_pending',shelfEntryId,workId:resolution?.workId||null});
@@ -175,7 +181,6 @@ function createAftercareProcessCoordinator(options){
       if(c?.raw?.perceptionRating?.state==='pending')return Object.freeze({kind:'rating_resolution_pending',shelfEntryId,workId:null});
     }
     let history=store.history(shelfEntryId),active=history.cases.find((item)=>['queued','active'].includes(item.state));
-    const periodic=request.periodic===true,manual=request.sharedPresentationChanged!==true&&typeof request.idempotencyKey==='string'&&request.idempotencyKey.length>0;
     if(active&&periodic)return Object.freeze({kind:'case_deferred_to_normal_supply',shelfEntryId,aftercareCaseId:active.aftercareCaseId});
     if(!active&&!periodic&&!manual&&!request.sharedPresentationChanged)return Object.freeze({kind:'no_active_case',shelfEntryId});
     if(active?.state!=='active'&&typeof options.refreshPersonRecords==='function'){

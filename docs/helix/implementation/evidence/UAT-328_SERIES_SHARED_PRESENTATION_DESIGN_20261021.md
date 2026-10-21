@@ -414,3 +414,14 @@ UI负责人对2e000/2631的独立真实页面补测又发现两项遗漏：Forma
 修复以选定run集合发现并冻结analysis IDs、choice intent IDs和对应head Subject IDs，检查Subject/Workspace及completion均属于既定清场范围，子表先于父表删除。独立Frozen Manifest verifier按冻结ID逐表验证清零，不从已删除父对象重建Scope；范围外历史、共享人物和正式收藏保持。现有完整Reset40项PASS；含reference_pages的新增两项定向复验PASS（选定清零/另一Subject历史逐行保护、跨Subject伪归属拒绝、故意残留由独立verifier拒绝）。原第一轮38/40的失败为旧测试手写manifest缺新增必需冻结字段及新测试误写错误码，修正夹具后保留失败并复验，不放宽产品verifier。真实完整副本该16项精确清场及后续旧根维护还在验证。
 
 444230441固定Service仍648 PASS/29既有skip，完整Gate因上述工具缺陷追加修复而主动停止，不计最终资格。之后冻结新候选再做全量Gate及适用平台，不继续叠加无关功能。
+
+
+## 25. 真实旧收藏维护被整季视频检查阻塞（2026-10-22）
+
+47a212127已有Service 650 PASS/29既有skip、最终Linux129/129 PASS、Windows包及packaged Node Host PASS，UI负责人具体版本PASS。129包括三项UAT核心18、Frozen Catalog71和Reset40。原样生产副本仍不称升级PASS；其逐表结构保护有效，限定16个未Commit Subject的副本Reset已通过，七类原正式收藏事实完整hash保持、零FK问题，Original DB未改。此后原有Admin Secret Store只保存API Key摘要，演练脚本误读apiKey导致登录失败，属于夹具错误；改用已有Owner Session Token Service的issueAuthenticated测试会话，不能宣称本演练验证过API Key登录。
+
+实际三部旧剧根检查通过既有public care/check受理，但四分钟内未建立任何Series Work；三个普通health_assessment仍在检查整季视频，多项等待volume_read，Breaking Bad存在ARCA_AFTERCARE_MEDIA_TIMEOUT。根因确认：coordinator只有在全部普通健康评估完成后才会进入shared findings维护，独立必需的tvshow.nfo/poster/fanart因此受无关视频探测结果阻挡。不是Provider无图或Shared Capabilities未注册。该轮FAIL保留，shutdown已closed；不能用基础组件PASS掩盖。
+
+修复在Arca既有Owner内：明确手动检查、active Season尚无active共享引用时，直接进入共享维护Work；仍检查身份纠正、Shelf及修改预留，Source/正式发布继续全部原围栏；周期任务不自动改旧根。没有跨Owner写入、没有略过实际Source或改变原视频健康结果。初次build也携带原子Command Receipt，原目标/key/字节晚到重放先于当前状态。
+
+新增独立性/fence回归58项PASS；包括pending Rating不妨碍显式共享维护、周期请求保持原评估路径、修改/纠正围栏拒绝。真实legacy-shape Host在视频Probe禁止成功的条件下完成三项补齐，七类原Season事实保持，历史Commit link不补造，初次命令在Ready后重放replayed=true且build/version/Receipt不增加，1 PASS（shelfdeck-328-legacy-video-independent-command.tap）。47a212127长时Gate仍固定在独立checkout执行；其结果只属于旧版，不自动作为新行为资格。修复后的最终完整Gate、真实副本及具体版本UI复验继续。

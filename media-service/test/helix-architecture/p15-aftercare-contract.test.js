@@ -175,6 +175,24 @@ test('Aftercare pulls a stale Shelf Entry rating Resolution before applying its 
   }
 });
 
+test('explicit legacy show registration is independent of pending rating and video health while retaining modification and correction fences',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'arca-show-independent-')),kernel=openSqliteKernel({Database,databasePath:path.join(root,'shelfdeck.db'),schemaDdl,schemaManifest});
+  try{
+    for(const mode of ['manual','periodic','fenced','correction']){
+      let submitted=0,resolutions=0;const command=Object.freeze({fixture:'owner-command'}),reader={store:{history(){throw new Error('Unrelated Season health must not gate explicit show registration');}},
+        read(shelfEntryId){return {shelfEntryId,basis:{digest:digest('a')},raw:{entry:{status:'active',structure_kind:'season'},identity:{provider:'tmdb'},
+          shelf:{status:mode==='fenced'?'deregistering':'active'},reservations:[],perceptionRating:{state:'pending'},...(mode==='correction'?{correctionGate:{correction_id:'correction'}}:{})}};}},
+        coordinator=createAftercareProcessCoordinator({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel}),contextReader:reader,workResultReader:{status(){return null;},read(){return [];}},
+          ensurePerceptionRatingResolution(){resolutions++;return {kind:'pending',workId:'rating'};},series:{needsRegistration(){return true;},
+            retryCommand(kind,id,body){assert.equal(kind,'entry');assert.equal(id,'entry');assert.deepEqual(body,{idempotencyKey:'manual-check'});return command;},
+            maintainEntry(c,request){assert.equal(c.raw.perceptionRating.state,'pending');assert.equal(request.retry,true);assert.equal(request.command,command);submitted++;return {kind:'series_presentation_pending',workId:'show-work'};}}});
+      const result=coordinator.reconcile('entry',mode==='periodic'?{periodic:true}:{idempotencyKey:'manual-check'});
+      assert.equal(result.kind,{manual:'series_presentation_pending',periodic:'rating_resolution_pending',fenced:'modification_fenced',correction:'identity_correction_pending'}[mode]);
+      assert.equal(submitted,mode==='manual'?1:0);assert.equal(resolutions,mode==='periodic'?1:0);
+    }
+  }finally{kernel.close();assert.equal(path.dirname(root),path.resolve(os.tmpdir()));fs.rmSync(root,{recursive:true,force:true});}
+});
+
 test('Aftercare assessment identity advances after the PROD-064 NFO idempotence repair', () => {
   const coordinator = fs.readFileSync(path.join(__dirname,
     '../../src/helix/domains/arca/application/aftercare-process-coordinator.js'), 'utf8');

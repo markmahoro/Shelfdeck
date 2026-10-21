@@ -118,13 +118,14 @@ function createSeriesPresentationServices(options){
       return {state:members.length===3?'healthy':'degraded',scopeId:current.scope_id,reasonCode:members.length===3?null:'series_shared_missing'};
     }catch(error){return {state:'attention_required',scopeId:current.scope_id,reasonCode:'series_shared_conflict',conflictCode:error.code||'ARCA_SERIES_CONFLICT'};}
   }
+  function needsRegistration(context){return context?.raw.entry.status==='active'&&context.raw.entry.structure_kind==='season'&&context.raw.identity.provider==='tmdb'&&!seriesStore.read('entry_references',{shelf_entry_id:context.shelfEntryId}).some(row=>row.state==='active');}
   function maintainEntry(context,{retry=false,supplementalSources=[],command=null}={}){
     let current=entryScope(context.shelfEntryId);if(!current){if(context.raw.entry.structure_kind!=='season'||context.raw.identity.provider!=='tmdb')return {kind:'not_applicable'};
       current=seriesStore.registerMaintenance(maintenanceBasis(context));}
     const stored=Number(current.current_version)?seriesStore.manifest(current.scope_id,Number(current.current_version)):null;
     const cleanup=failedCleanup(current);if(cleanup)return {kind:'series_presentation_cleanup_pending',workId:reclaim(cleanup.process_id,{retry,command}).workId};
     const prior=stored&&seriesStore.build(stored.value.buildId),basis=prior&&prior.basis.schema!==MAINTENANCE&&seriesStore.read('entry_references',{shelf_entry_id:context.shelfEntryId}).some(row=>row.state==='active')?prior.basis:maintenanceBasis(context),
-      scope=current.active_build_id?seriesStore.build(current.active_build_id):seriesStore.admitBuild({scopeId:current.scope_id,basis,existingMembers:stored?.value.members||[]}),
+      scope=current.active_build_id?seriesStore.build(current.active_build_id):seriesStore.admitBuild({scopeId:current.scope_id,basis,existingMembers:stored?.value.members||[],command}),
       rows=works(scope.objectId),latest=rows.at(-1);
     if(latest&&['failed','cancelled'].includes(latest.state)&&!retry)return {kind:'attention_required',scopeId:current.scope_id,workId:latest.work_id};
     if(latest&&!['failed','cancelled'].includes(latest.state)){if(command)recordCommand(command,scope,rows.length);return {kind:'series_presentation_pending',scopeId:current.scope_id,workId:latest.work_id};}
@@ -184,6 +185,6 @@ function createSeriesPresentationServices(options){
     if(!scope?.basis.entryBinding)return null;const context=legacyContext(scope.basis.entryBinding.shelfEntryId);return context?maintainEntry(context):null;}
   function reclaimPage(cursor=null,limit=100){const ids=new Set(seriesWorkspaceStore.listActive().map(row=>row.process_id));for(const current of seriesStore.read('scopes'))for(const row of seriesStore.read('builds',{scope_id:current.scope_id}))if(JSON.parse(row.scope_json).supplementalSources.length||retirementStore.read(row.build_id))ids.add(row.build_id);
     return [...ids].filter(id=>id>(cursor||'')&&reclaimWorks(id).at(-1)?.state!=='succeeded').sort().filter(id=>{const scope=seriesStore.build(id);if(!scope||seriesStore.readScope(scope.scopeId)?.active_build_id===id)return false;try{reclamationBasis(scope);return true;}catch(error){if(error.code==='ARCA_SERIES_RECLAMATION_NOT_READY')return false;throw error;}}).slice(0,limit).map(id=>({cursor:id,scope:{buildId:id}}));}
-  return Object.freeze({rootSnapshot,seriesStore,seriesWorkspaceStore,seriesIo,seriesCommitStore,seriesReclaimStore,retirementStore,readReferences,reclamationBasis,reclaim,prepareSupplements,issueForEntry,headForEntry,retryCommand,replayRetry,pendingPage,reclaimPage,reconcileMaintenanceScope,reclaimWorks,works,ensure,verifyReady,entryScope,assessEntry,maintainEntry,canReassess:buildId=>Boolean(reassessmentFence(seriesStore.build(buildId)))});
+  return Object.freeze({rootSnapshot,seriesStore,seriesWorkspaceStore,seriesIo,seriesCommitStore,seriesReclaimStore,retirementStore,readReferences,reclamationBasis,reclaim,prepareSupplements,issueForEntry,headForEntry,needsRegistration,retryCommand,replayRetry,pendingPage,reclaimPage,reconcileMaintenanceScope,reclaimWorks,works,ensure,verifyReady,entryScope,assessEntry,maintainEntry,canReassess:buildId=>Boolean(reassessmentFence(seriesStore.build(buildId)))});
 }
 module.exports=Object.freeze({createSeriesPresentationServices});
