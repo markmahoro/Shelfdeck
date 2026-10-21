@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-2026-10-21新增开放UAT-328：三部新目标剧集母目录缺少整剧NFO/海报，季目录内season.nfo/poster/逐集资料存在；半泽直树、绝命毒师原5star剧根资料仍在。已定位剧级公共资料产出/落位/验收闭环缺失，未改生产。用户已确认326/327方案，可继续实施，当前尚无相关新产品提交；详见生命周期Evidence。
+2026-10-21 UAT-328完整设计草案完成，用户明确tvshow.nfo、poster、fanart均为剧级必需。新增核对：TMDB文字已读取show+season但结果scope依附Season；图片获取统一用整剧images，没有季级图片范围。设计覆盖Provider三层精确查询与复用、共享剧根及完整生命周期；职责扩展仍待确认，未实施/未改SSOT/未修改生产。[设计草案](implementation/evidence/UAT-328_SERIES_SHARED_PRESENTATION_DESIGN_20261021.md)。UAT-326/327方向已确认但尚无修复产品提交，生产保持6c74939646。
 
 2026-10-21新增开放UAT-327：剧集4star分类目录下22部剧、1081 eligible视频被第一层目录规则合为一个不可拆Scope而告警；最大单季目录仅30视频。只读诊断确认现实现符合旧Scope合同，属于需讨论修订的分组设计限制；无产品/SSOT或生产修改，未扩大1024上限。详见生命周期Evidence。
 

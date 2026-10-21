@@ -1,5 +1,7 @@
 # “死包”专项：Formation 全生命周期归宿审视
 
+2026-10-21 UAT-328后继完整设计见[剧级公共呈现设计草案](UAT-328_SERIES_SHARED_PRESENTATION_DESIGN_20261021.md)。用户已明确剧根tvshow.nfo、poster、fanart三项均必需；已确认首次任意季建立剧根、后续新季/新集复用的目标。Provider查询与产出scope、Arca共享责任/Handoff/Commit建议、恢复/维护/退出及现场修复完整列出；设计建议不冒充SSOT确认或产品实现。当前未改功能和生产。
+
 ## 2026-10-21 UAT-328：已上架Series缺少剧集母目录公共资料
 
 用户要求对照原剧集文件结构与近期已上架Season。本轮只读查询10个现有Season Entry的当前Inventory并检查目标/原目录，未改生产文件或数据。已确认新目标/media/Series/半泽直树 (2013)、/media/Series/绝命毒师 (2008)、/media/chn_series/3 Body Problem (2024)的根目录均无文件，只有Season 01或Season 03子目录；季内存在season.nfo、poster.jpg及逐集媒体/NFO。原/media/Series/5star/半泽直树 (2013)仍有tvshow.nfo、poster.jpg、fanart.jpg、banner.jpg；原5star/绝命毒师 (2008)仍有tvshow.nfo、poster/fanart、banner/clearlogo/landscape与season01至season05-poster。缺口是目标新剧集根目录未承接/生成整剧资料，不是这些原文件已被删除。
