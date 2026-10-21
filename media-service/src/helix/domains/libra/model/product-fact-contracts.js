@@ -201,14 +201,27 @@ function buildMetadataObservation(value) {
     descriptiveFacts:Object.freeze(descriptiveFacts), providerIdentitySet:Object.freeze(providerIdentitySet),
     peopleHints:Object.freeze([...(value?.peopleHints || [])].slice(0, 64)), artifactHints:Object.freeze([]) };
   if (intent.episodeScope) result.episodeScope = intent.episodeScope;
+  if(value.seriesPresentationSource){
+    const source=require('../../../contracts/series-presentation-basis').assertSource(value.seriesPresentationSource);
+    if(intent.contentProfile!=='series'||intent.sourceKind!=='provider'||intent.episodeScope||
+        source.providerKey!==intent.resolvedProviderIdentity.providerKey||
+        source.seasonIdentityAnchorDigest!==intent.resolvedProviderIdentity.identityAnchorDigest||
+        source.integrationId!==intent.integrationId||source.configRevision!==intent.configRevision)
+      fail('P9_SERIES_PRESENTATION_SOURCE','Series presentation facts differ from the frozen Provider intent.');
+    result.seriesPresentationSource=source;
+  }
   if(intent.contentProfile==='jav') {
     result.javSelectedSource=intent.javSelectedSource;
     if(!value.sourceIntegrationHandle || value.sourceIntegrationHandle.integrationType!=='jav_source')
       fail('P9_JAV_METADATA_SOURCE_HANDLE','JAV metadata requires the exact observed Integration Handle provenance.');
     result.sourceIntegrationHandle=value.sourceIntegrationHandle;
+    result.sourceAuthorizedAtMs=integer(value.sourceAuthorizedAtMs,'sourceAuthorizedAtMs');
+    if(result.sourceAuthorizedAtMs>result.observedAtMs||result.sourceIntegrationHandle.expiresAtMs<result.sourceAuthorizedAtMs)
+      fail('P9_JAV_METADATA_SOURCE_AUTHORIZATION','JAV metadata requires its actual valid execution authorization point.');
   }
   result.evidenceId = canonicalDigest({ schema:'libra.metadata-observation-evidence-id@1',
     fetchIntentDigest:result.fetchIntentDigest, sourceNfoSemanticsDigest:result.sourceNfoSemantics?.recordDigest || null, descriptiveFactsDigest:descriptiveFacts.recordDigest,
+    ...(result.seriesPresentationSource?{seriesPresentationSourceDigest:result.seriesPresentationSource.sourceDigest}:{}),
     providerIdentitySetDigest:providerIdentitySet.recordDigest });
   result.payloadDigest = canonicalDigest(Object.fromEntries(Object.entries(result).filter(([key]) => key !== 'payloadDigest')));
   return Object.freeze(bytes(result, 64 * 1024, 'P9_METADATA_OBSERVATION_SIZE'));
@@ -610,6 +623,10 @@ function buildProductMetadataDraft(value) {
       recordKind:'descriptive-facts', recordDigest:'', entries:[...winners].map(([key, itemValue]) => ({ key, value:itemValue })).sort((a,b)=>compare(a.key,b.key)) },
     providerIdentities:[...(value.providerIdentities || [])], artifactRequirements };
   if(jav)draft.javSelectedSource=require('../../../contracts/jav-selected-source').assertJavSelectedSource(basis.observationSet.observations[0].javSelectedSource);
+  if(basis.observationSet.contentProfile==='series'&&!episodeScope){
+    const source=basis.observationSet.observations.find(item=>item.seriesPresentationSource&&!item.episodeScope);
+    if(source)draft.seriesPresentationBasis=require('../../../contracts/series-presentation-basis').buildSeriesPresentationBasis(source);
+  }
   if (episodeScope) {
     const numbers = new Map(draft.descriptiveFacts.entries.map(item => [item.key, item.value]));
     if (numbers.get('season_number') !== episodeScope.seasonNumber || numbers.get('episode_number') !== episodeScope.episodeNumber)
@@ -1076,6 +1093,8 @@ function buildProductMetadataFact(value) {
     providerIdentities:[...draft.providerIdentities], mediaCastFactRef,
     verifiedArtifactManifestDigest:digest(manifest.manifestDigest, 'verifiedArtifactManifestDigest') };
   if(draft.javSelectedSource)body.javSelectedSource=require('../../../contracts/jav-selected-source').assertJavSelectedSource(draft.javSelectedSource);
+  if(draft.seriesPresentationBasis)body.seriesPresentationBasis=require('../../../contracts/series-presentation-basis').assertSeriesPresentationBasis(
+    draft.seriesPresentationBasis,draft.providerIdentities.find(item=>item.namespace==='tmdb_series'));
   if(draft.episodeMetadata){
     if(basis.sourceBasisKind!=='metadata_observation'||basis.observationSet.contentProfile!=='series')
       fail('P9_METADATA_EPISODE_FACT_SCOPE','Episode Metadata requires a Series Observation basis.');

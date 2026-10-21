@@ -6,13 +6,79 @@
   "endOrdinal": 169,
   "entries": [
     {
+      "id": "arca_offdeck_duplicate_groups",
+      "owner": "arca",
+      "columnsContract": "`duplicate_group_id PK, canonical_identity_digest, member_set_digest, state, detected_at_ms, superseded_at_ms`",
+      "constraintsContract": "`UNIQUE(canonical_identity_digest,member_set_digest)`；Group是Off-deck Evidence aggregate，不选择保留成员",
+      "source": {
+        "section": "8.5.12",
+        "line": 9663,
+        "lineDigest": "2ea29ec1242d920e488cfa644865edf2eadbfd2c9a47f89520e5b3c52995081d"
+      }
+    },
+    {
+      "id": "arca_offdeck_duplicate_group_members",
+      "owner": "arca",
+      "columnsContract": "`duplicate_group_id FK, shelf_entry_id FK, inventory_revision, member_digest`",
+      "constraintsContract": "`PK(duplicate_group_id,shelf_entry_id)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 9664,
+        "lineDigest": "ecc853bb09c6cec484bca73f98a35dd59f67b481466ce9bb51300fd99d5b5955"
+      }
+    },
+    {
+      "id": "arca_offdeck_duplicate_whitelists",
+      "owner": "arca",
+      "columnsContract": "`whitelist_id PK, duplicate_group_id FK, member_set_digest, state(active|revoked|stale), actor_id, created_at_ms, revoked_at_ms`",
+      "constraintsContract": "当前Group/member set至多一份active；成员或Identity变化后旧Whitelist为stale",
+      "source": {
+        "section": "8.5.12",
+        "line": 9665,
+        "lineDigest": "756bfc233aee57e11d4135953ceea853fc9063ba4681f6cd400ab61cced3829f"
+      }
+    },
+    {
+      "id": "arca_offdeck_reviews",
+      "owner": "arca",
+      "columnsContract": "`review_id PK, origin_kind(candidate|duplicate_group|direct_intent|batch|reauthorization), origin_ref, state(preparing|open|selection_confirmed|awaiting_escalation|authorized|cancelled|stale), actor_id, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "创建时先原子建立Review与每Entry Reservation；只有已有Aftercare Case在安全边界停下后才进入open并冻结Scope；Authorization前取消只终结Review并释放Reservation；`INDEX(state,created_at_ms)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 9666,
+        "lineDigest": "31bbedcaa13d47f99b41dd816871d4ae3953bfa797abda46c8cbbb4a063c0ee4"
+      }
+    },
+    {
+      "id": "arca_offdeck_reservations",
+      "owner": "arca",
+      "columnsContract": "`reservation_id PK, review_id FK, shelf_entry_id FK, inventory_revision, control_scope_digest, state(active|released|consumed|stale), created_at_ms, released_at_ms`",
+      "constraintsContract": "同一Shelf Entry至多一个active Off-deck Reservation；`INDEX(state,created_at_ms)`",
+      "source": {
+        "section": "8.5.12",
+        "line": 9667,
+        "lineDigest": "d9ec380f97236575796baeeb3e5ebdce5a3a60d11c825419eb07e7327a4b87c6"
+      }
+    },
+    {
+      "id": "arca_offdeck_scopes",
+      "owner": "arca",
+      "columnsContract": "`destruction_scope_id PK, reservation_id FK, shelf_entry_id FK, inventory_revision, member_count, scope_digest, state(draft|confirmed|authorized|stale|completed), created_at_ms`",
+      "constraintsContract": "`member_count=1..1024`且逐字节等于material rows；`UNIQUE(reservation_id,scope_digest)`；pre-authorization immutable Scope由Reservation拥有，不依赖Case，准备Scope期间不占Resource Permit",
+      "source": {
+        "section": "8.5.12",
+        "line": 9668,
+        "lineDigest": "38bfcadff57970b766e542947b984c55415df931c7d580ae736d8265d7de9f28"
+      }
+    },
+    {
       "id": "arca_offdeck_scope_materials",
       "owner": "arca",
       "columnsContract": "`destruction_scope_id FK, ordinal, material_key, material_role, physical_identity_schema_ref, physical_identity_json, physical_identity_digest, endpoint_id, endpoint_relative_location, size_bytes, related_reference_id NULL, binding_revision, control_revision, control_projection_digest, delete_condition, member_digest`",
       "constraintsContract": "`PK(destruction_scope_id,ordinal)`及`UNIQUE(destruction_scope_id,material_key,material_role)`；逐项冻结完整`PhysicalMaterialIdentity@2`、Endpoint-relative location、Binding/Control fence及Related reference；JSON上限`4 KiB`；只允许删除该授权Identity，路径出现替代Identity时必须保留",
       "source": {
         "section": "8.5.12",
-        "line": 9664,
+        "line": 9669,
         "lineDigest": "d19eef8428db6bd39e5189af5d617a98bd282494c9f7b0db6b419fdf938280f8"
       }
     },
@@ -23,7 +89,7 @@
       "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；服务端按当前Scope集合计算，不信任客户端阈值；shelf_coverage_json为确认时各Shelf覆盖率的immutable快照，与shelf_coverage_digest一致，最多64 KiB；旧记录缺证保留NULL，禁止按当前数量倒填",
       "source": {
         "section": "8.5.12",
-        "line": 9665,
+        "line": 9670,
         "lineDigest": "b914c7167571f17229012ceb422ff08330e936bef5e14821dfb3ea626020f8db"
       }
     },
@@ -34,7 +100,7 @@
       "constraintsContract": "`UNIQUE(selection_receipt_id)`；只在high-volume时生成且必须来自独立第二次操作",
       "source": {
         "section": "8.5.12",
-        "line": 9666,
+        "line": 9671,
         "lineDigest": "63661ab1e465cec55b486f8361793d31c5f38bf14b10b4f541dd19f3fae16945"
       }
     },
@@ -45,7 +111,7 @@
       "constraintsContract": "`UNIQUE(review_id,scope_set_digest)`；high-volume时escalation receipt必填；Batch只是一份Envelope",
       "source": {
         "section": "8.5.12",
-        "line": 9667,
+        "line": 9672,
         "lineDigest": "6f6a4f74e1e04cf563db3b897b459abc2d5c4cf59729dc0719c36067a4db059a"
       }
     },
@@ -56,7 +122,7 @@
       "constraintsContract": "`UNIQUE(destruction_scope_id,scope_digest)`；授权后不可取消或改Scope；Scope变化只允许旧Authorization进入stale，不存在revoked语义",
       "source": {
         "section": "8.5.12",
-        "line": 9668,
+        "line": 9673,
         "lineDigest": "991c684bc36dc8767aea825c39abdcf1fe80fe1bddc315c0053eff7f48122d68"
       }
     },
@@ -67,7 +133,7 @@
       "constraintsContract": "`UNIQUE(initial_authorization_id)`；只在首次Authorization事务中创建；环境暂不可达时以CAS写入blocked原因、下一次有界恢复时间并增加`recovery_revision`，恢复时使用同一Case和Authorization签发新的immutable Work；Scope失效后同一Case通过新的current Authorization恢复，不创建第二个Case；Direct Intent不要求Candidate",
       "source": {
         "section": "8.5.12",
-        "line": 9669,
+        "line": 9674,
         "lineDigest": "f438d928961903bd4d0dbf14ab3631cd931b883b70d1d7a4dd8f161a45b160ed"
       }
     },
@@ -78,74 +144,8 @@
       "constraintsContract": "`PK(destruction_scope_id,material_key)`；append-only completion evidence；Primary只允许deleted或精确absence，Related可在仍有active reference时保留",
       "source": {
         "section": "8.5.12",
-        "line": 9670,
+        "line": 9675,
         "lineDigest": "4cef5c0f93965fc6b765103fdca9cb0a6821da01e81fcac2f04384a6fd88bc65"
-      }
-    },
-    {
-      "id": "arca_offdeck_terminal_receipts",
-      "owner": "arca",
-      "columnsContract": "`receipt_id PK, offdeck_case_id FK, shelf_entry_id FK, terminal_deck_fact_revision, released_control_set_digest, committed_at_ms`",
-      "constraintsContract": "`UNIQUE(offdeck_case_id)`；与Deck Fact terminal和Control release同事务成立",
-      "source": {
-        "section": "8.5.12",
-        "line": 9671,
-        "lineDigest": "c9422a9dd022288f5e55118613cabb0d1961f91f3e93cd97d92a17f367ce1dca"
-      }
-    },
-    {
-      "id": "arca_deregistrations",
-      "owner": "arca",
-      "columnsContract": "`deregistration_id PK, shelf_id FK, state(active|committed), phase(waiting_responsibility|freezing_manifest|verifying|ready_to_commit|attention_required|completed), manifest_revision NULL, release_manifest_digest NULL, control_revision_set_digest NULL, entry_count, member_count, page_count, blocking_reason NULL, created_at_ms, committed_at_ms NULL`",
-      "constraintsContract": "`UNIQUE(shelf_id)`；Manifest列在Intent Admission时为NULL/0，freeze后以CAS整体更新；每个Shelf最多一个Deregistration；Supporting Work通过Foundation反向关联；不得引用Deletion Capability",
-      "source": {
-        "section": "8.5.12",
-        "line": 9672,
-        "lineDigest": "d1c5463c67a3e3c16f9d5b6f6869099360b31cee6452cecc5839a22183056119"
-      }
-    },
-    {
-      "id": "arca_deregistration_releases",
-      "owner": "arca",
-      "columnsContract": "`deregistration_id FK, manifest_revision, member_ordinal, page_ordinal, page_member_ordinal, shelf_entry_id FK, inventory_revision, inventory_member_ordinal, member_kind(controlled_material|reference_evidence), material_key, physical_identity_schema_ref, physical_identity_json, physical_identity_digest, reference_evidence_digest NULL, control_revision NULL, control_projection_digest NULL, member_digest, release_result NULL, committed_at_ms NULL`",
-      "constraintsContract": "`PK(deregistration_id,manifest_revision,member_ordinal)`；每页最多100项；identity JSON上限`4 KiB`；terminal commit只写controlled_material的release_result/committed_at_ms，旧revision仍作为历史成员清单保留；reference_evidence的Control列和release_result必须为NULL",
-      "source": {
-        "section": "8.5.12",
-        "line": 9673,
-        "lineDigest": "0ca623598c6d9ce1d89c37865e9c8dd53d8265d433f194e10c28b90f3c16fef1"
-      }
-    },
-    {
-      "id": "arca_deregistration_receipts",
-      "owner": "arca",
-      "columnsContract": "`receipt_id PK, deregistration_id FK, shelf_id FK, released_control_set_digest, terminal_fact_digest, committed_at_ms`",
-      "constraintsContract": "`UNIQUE(deregistration_id)`；与Shelf administrative terminal commit同事务成立",
-      "source": {
-        "section": "8.5.12",
-        "line": 9674,
-        "lineDigest": "ece31b95a4de939548e814885196b887f9a0f38c6507ec76e9eb2165896b7d33"
-      }
-    },
-    {
-      "id": "perception_sources",
-      "owner": "perception",
-      "columnsContract": "`perception_source_id PK, source_kind, integration_id, status, config_revision, current_cursor_revision NULL, created_at_ms, updated_at_ms`",
-      "constraintsContract": "`current_cursor_revision IS NULL`表示尚无cursor row；`FOREIGN KEY(perception_source_id,current_cursor_revision) REFERENCES perception_source_cursors(perception_source_id,revision)`，SQLite以NULL跳过尚不存在的optional pointer校验；`INDEX(status,source_kind,perception_source_id)`；Integration ID为opaque platform reference",
-      "source": {
-        "section": "8.5.13",
-        "line": 9680,
-        "lineDigest": "34bdf0c016622b6e972c4799b9a649b5fc923d7277a94298de102e9ece3182a5"
-      }
-    },
-    {
-      "id": "perception_acquisitions",
-      "owner": "perception",
-      "columnsContract": "`perception_acquisition_id PK, perception_source_id FK, source_config_revision, scope_schema_ref, scope_json, scope_digest, initial_cursor_revision, initial_cursor_value, state(active|completed|failed), created_at_ms, terminal_at_ms`",
-      "constraintsContract": "一次Acquisition只属于一个Source/config revision；Scope JSON上限`16 KiB`；`UNIQUE(perception_source_id) WHERE state='active'`；`initial_cursor_revision=0`只是“创建时不存在cursor row”的逻辑CAS sentinel，不是FK pointer；Process历史不覆盖",
-      "source": {
-        "section": "8.5.13",
-        "line": 9681,
-        "lineDigest": "d4bfdbe0156ddb39ce060728f319fffe67e356241e77aed250f6fbb046790f3b"
       }
     }
   ]

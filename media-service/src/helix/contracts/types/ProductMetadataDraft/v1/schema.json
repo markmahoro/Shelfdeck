@@ -342,6 +342,154 @@
       "maxItems": 256,
       "minItems": 1
     },
+    "seriesPresentationBasis": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "shelfdeck.series-presentation-basis@1"
+        },
+        "sourceObservation": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "shelfdeck.series-presentation-source@1"
+            },
+            "provider": {
+              "const": "tmdb"
+            },
+            "namespace": {
+              "const": "tmdb_series"
+            },
+            "providerKey": {
+              "type": "string",
+              "pattern": "^[0-9]+$"
+            },
+            "seasonIdentityAnchorDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "integrationId": {
+              "type": "string",
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "configRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "language": {
+              "type": "string",
+              "maxLength": 32,
+              "minLength": 1
+            },
+            "sourceRef": {
+              "type": "string",
+              "maxLength": 256,
+              "minLength": 1
+            },
+            "title": {
+              "type": "string",
+              "maxLength": 1024,
+              "minLength": 1
+            },
+            "originalTitle": {
+              "type": "string",
+              "maxLength": 1024
+            },
+            "originalLanguage": {
+              "type": "string",
+              "maxLength": 16
+            },
+            "firstAirDate": {
+              "type": "string",
+              "maxLength": 32
+            },
+            "plot": {
+              "type": "string",
+              "maxLength": 16384
+            },
+            "genres": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "maxItems": 64
+            },
+            "sourceDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "schema",
+            "provider",
+            "namespace",
+            "providerKey",
+            "seasonIdentityAnchorDigest",
+            "integrationId",
+            "configRevision",
+            "language",
+            "sourceRef",
+            "title",
+            "originalTitle",
+            "originalLanguage",
+            "firstAirDate",
+            "plot",
+            "genres",
+            "sourceDigest"
+          ]
+        },
+        "metadataEvidenceId": {
+          "type": "string",
+          "maxLength": 256,
+          "minLength": 1
+        },
+        "metadataObservationDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requiredArtifactKinds": {
+          "type": "array",
+          "prefixItems": [
+            {
+              "const": "nfo"
+            },
+            {
+              "const": "poster"
+            },
+            {
+              "const": "fanart"
+            }
+          ],
+          "items": false,
+          "minItems": 3,
+          "maxItems": 3
+        },
+        "imageSelectionRevision": {
+          "const": 1
+        },
+        "renderRevision": {
+          "const": 1
+        },
+        "basisDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "sourceObservation",
+        "metadataEvidenceId",
+        "metadataObservationDigest",
+        "requiredArtifactKinds",
+        "imageSelectionRevision",
+        "renderRevision",
+        "basisDigest"
+      ]
+    },
     "javSelectedSource": {
       "type": "object",
       "additionalProperties": false,

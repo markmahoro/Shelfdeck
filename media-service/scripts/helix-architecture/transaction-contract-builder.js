@@ -3,6 +3,8 @@
 const crypto = require('crypto');
 
 const crashFixtures = Object.freeze({
+  'series-presentation-commit':['exact active build, expected shared version, source and final verification, each Control CAS, version/head/Result/marker, before and after COMMIT',
+    'Shared version, head, Control and Ready result are all present or all absent; old Season Own and historical Commit links remain unchanged; exact Event replay cannot publish a second version',8866],
   'actor-prepublication-failure':['Owner terminal CAS before and after exact Foundation failure proof, before COMMIT and response','Only a completely failed no-write publication may close unresolved; uncertain Effects and changed Inventory reject with zero Case writes; failed execution and unrelated Findings remain unchanged',8821],
   'us-adult-match-completion':['exact Run/Basis and full durable Match Result validation, completion row, before and after COMMIT','Completion is immutable and all-or-none; absent or failed pages never become an unmatched decision; no cross-Owner or execution writes',8821],
   'us-adult-actor-choice':['Run/Subject/choice revision validation, immutable Intent and head CAS, Command Receipt/marker/audit, before and after COMMIT','The explicit actor choice and durable receipt are all-or-none; replay precedes later Run/People changes; no People or Arca mutation',8821],
@@ -66,6 +68,13 @@ const crashFixtures = Object.freeze({
 });
 
 const definitions = Object.freeze({
+  'Series Presentation Commit':{
+    commitClass:'responsibility_control_commit',
+    writeTables:['arca_series_presentation_scopes','arca_series_presentation_versions','fx_material_controls','fx_material_control_revisions','fx_event_result_bindings','fx_commit_markers'],
+    readTables:['arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations',
+      'arca_series_presentation_references','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings'],
+    fixtureRefs:['series-presentation-commit'],hasOutbox:false,
+  },
   'Domain Fact Commit': {
     commitClass: 'domain_fact_commit',
     writeTables: ['fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],

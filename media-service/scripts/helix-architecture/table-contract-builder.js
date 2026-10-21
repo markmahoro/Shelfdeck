@@ -22,6 +22,7 @@ const PARTIAL_UNIQUE_EXCLUDED_TABLES = new Set(['libra_workspaces', 'libra_works
 // explicit lifecycle CAS transitions. A prose occurrence of "immutable" must
 // not turn the whole relation into an append-only table.
 const MUTABLE_LIFECYCLE_TABLES = new Set([
+  'arca_series_presentation_scopes','arca_series_presentation_reservations','arca_series_presentation_references',
   'fx_supporting_works',
   'fx_workspace_registry',
   'fx_workspace_materials',
@@ -134,6 +135,9 @@ const ENUM_OVERRIDES = Object.freeze({
   'platform_workers.status': ['active', 'offline', 'disabled']
 });
 const INTEGER_COLUMN_OVERRIDES = new Set([
+  'arca_series_presentation_scopes.current_version','arca_series_presentation_builds.expected_version',
+  'arca_series_presentation_reservations.committed_version','arca_series_presentation_references.first_committed_version',
+  'arca_series_presentation_commit_links.shared_version',
   'fx_workflow_plans.planner_version',
   'fx_workflow_plans.work_objective_version',
   'fx_plan_nodes.contract_version',
@@ -187,6 +191,14 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'libra_subject_episode_scopes.first_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id']
 });
 const EXPLICIT_FOREIGN_KEYS = Object.freeze({
+  arca_series_presentation_builds:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']}],
+  arca_series_presentation_versions:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']},
+    {columns:['build_id'],targetTable:'arca_series_presentation_builds',targetColumns:['build_id']}],
+  arca_series_presentation_reservations:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']},
+    {columns:['on_deck_run_id'],targetTable:'arca_ondeck_runs',targetColumns:['on_deck_run_id']}],
+  arca_series_presentation_references:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']},
+    {columns:['shelf_entry_id'],targetTable:'arca_shelf_entries',targetColumns:['shelf_entry_id']}],
+  arca_series_presentation_commit_links:[{columns:['scope_id','shared_version'],targetTable:'arca_series_presentation_versions',targetColumns:['scope_id','revision']}],
   libra_acquisition_candidate_evidence: [
     {columns:['libra_run_id'],targetTable:'libra_runs',targetColumns:['libra_run_id']},
     {columns:['search_work_id'],targetTable:'fx_supporting_works',targetColumns:['work_id']},

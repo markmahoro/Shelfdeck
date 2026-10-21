@@ -3,6 +3,7 @@ const {explicitSeriesContinuityClaims,mergeExplicitSeriesContinuityClaims}=requi
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const {identifyJavFilename}=require('./jav-filename-identity');
+const {episodeToken,seriesTitleFrom,localSeriesGroup}=require('./local-media-groups');
 const {groupJavNamedParts}=require('./jav-part-groups');
 const {assertJavPartSet}=require('../../../contracts/jav-part-set');
 const { validateTriageRuleSnapshot } = require('./procurement-run-contracts');
@@ -131,19 +132,6 @@ function inspectPlayability(batch, rule, options = {}) {
   return freeze(value);
 }
 
-function episodeToken(name) {
-  const patterns = [/(?:^|[ ._-])S(\d{1,2})E(\d{1,3})(?:E|-)?(\d{1,3})?(?=$|[ ._-])/i,
-    /(?:^|[ ._-])(\d{1,2})x(\d{1,3})(?:-(\d{1,3}))?(?=$|[ ._-])/i,
-    /(?:^|[ ._-])第(\d{1,3})集(?=$|[ ._-])/i];
-  for (let index=0; index<patterns.length; index++) {
-    const match = name.match(patterns[index]); if (!match) continue;
-    const season = index === 2 ? null : Number(match[1]); const start = Number(index === 2 ? match[1] : match[2]);
-    const end = Number(index === 2 ? match[1] : match[3] || match[2]);
-    if (end < start || end - start + 1 > 32) return null;
-    return { season, episodes:Array.from({ length:end-start+1 }, (_, offset) => start + offset) };
-  }
-  return null;
-}
 function javCode(name) {
   const result=identifyJavFilename(name);
   return result.javCode;
@@ -151,14 +139,6 @@ function javCode(name) {
 function titleFrom(context, temporaryLabel) {
   const fileStem = String(context.baseName || '').replace(/\.[^.]+$/, '').trim();
   return (context.directoryTitle || fileStem || temporaryLabel).trim() || temporaryLabel;
-}
-function seriesTitleFrom(context, temporaryLabel) {
-  const stem = context.baseName.replace(/\.[^.]+$/, '');
-  const match = stem.match(/(?:^|[ ._-])(?:S\d{1,2}E\d{1,3}(?:E|-)?\d{0,3}|\d{1,2}x\d{1,3}(?:-\d{1,3})?)(?=$|[ ._-])/i);
-  const title = (match ? stem.slice(0, match.index) : stem)
-    .replace(/[ ._-]+$/g, '')
-    .trim();
-  return title || titleFrom(context, temporaryLabel);
 }
 function contextMap(input) { return new Map(input.materialFieldContext.memberContexts.map((item) => [item.materialKey, item])); }
 function probeMap(input) { return new Map(input.probeBatches.flatMap((batch) => batch.members).filter((item) => item.inputKind !== 'bdmv_container').map((item) => [item.materialKey, item])); }
@@ -904,8 +884,7 @@ function inspectStructureUnits(input, rule) {
       else if (conserveUnitBound(unit, unassigned)) units.push(unit);
       continue;
     }
-    const groupKey = digest({ schema:'procurement.series-candidate-group@1', claimedTitle:unit.identityMetadata.claimedTitle,
-      seasonClaimDigest:unit.identityMetadata.seasonClaim.claimDigest });
+    const groupKey = localSeriesGroup(context).groupDigest;
     if (!seriesGroups.has(groupKey)) seriesGroups.set(groupKey, []);
     seriesGroups.get(groupKey).push(unit);
   }

@@ -847,7 +847,7 @@ test('Triage module and explicit continuity parser depend only on declared pure 
     '../../src/helix/domains/procurement/model/',file),'utf8').matchAll(/require\(['"]([^'"]+)['"]\)/g)].map(match=>match[1]).sort();
   assert.deepEqual(dependencies('triage-contracts.js'),[
     '../../../contracts/canonical-json','../../../contracts/jav-part-set','./bdmv-scope','./field-profile-hint-contracts','./jav-filename-identity','./jav-part-groups',
-    './procurement-run-contracts','./related-artwork-role','./series-continuity-claims',
+    './local-media-groups','./procurement-run-contracts','./related-artwork-role','./series-continuity-claims',
   ].sort());
   assert.deepEqual(dependencies('series-continuity-claims.js'),['../../../contracts/canonical-json']);
 });

@@ -164,7 +164,11 @@ test('Reconcile selects E01 then E02 from frozen delivery and cannot let E01 clo
   assert.equal(first.source.intent.episodeScope,undefined);
   assert.deepEqual(first.source.intent.requestedFields,['season_number','series_title']);
   records.push(buildMetadataObservation({intent:first.source.intent,descriptiveEntries:[
-    {key:'series_title',value:'Show'},{key:'season_number',value:1}],providerIdentities:[identity],observedAtMs:10}));
+    {key:'series_title',value:'Show'},{key:'season_number',value:1}],providerIdentities:[identity],observedAtMs:10,
+    seriesPresentationSource:require('../../src/helix/contracts/series-presentation-basis').buildSeriesPresentationSource({
+      provider:'tmdb',namespace:'tmdb_series',providerKey:identity.providerKey,seasonIdentityAnchorDigest:identity.identityAnchorDigest,
+      integrationId:first.source.intent.integrationId,configRevision:first.source.intent.configRevision,language:'zh-CN',
+      sourceRef:'tmdb:tv:'+identity.providerKey,title:'Show',originalTitle:'Show',firstAirDate:'2024-01-01',plot:'Series plot',genres:[]})}));
   const second=nextMetadataStage(options,snapshot,resolved);
   assert.deepEqual(second.source.intent.episodeScope,scope(1));
   records.push(buildMetadataObservation({intent:second.source.intent,descriptiveEntries:episodeEntries(1),providerIdentities:[identity],observedAtMs:10}));

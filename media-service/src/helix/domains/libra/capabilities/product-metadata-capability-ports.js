@@ -89,9 +89,12 @@ function createProductMetadataCapabilityPorts(options) {
     },
     async execute(context) {
       const intent = buildMetadataFetchIntent(context.namedInputs.metadataFetchIntent);
-      const handle = context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle;
+      let handle = context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle;
       let source;
       try {
+      if(intent.contentProfile==='jav')handle=require('../../../contracts/jav-source-qualification').resolveJavQualifiedHandle(
+        handle,intent.javSelectedSource,CAPABILITY,options.resolveJavSourceHandle);
+      const sourceAuthorizedAtMs=now();
       if (intent.episodeScope) {
         const snapshot = options.movieProductionReader.readRunSnapshot(context.ownerScope.processId);
         if (intent.libraRunId !== context.ownerScope.processId || snapshot?.spec?.contentProfile !== 'series' ||
@@ -139,18 +142,20 @@ function createProductMetadataCapabilityPorts(options) {
           providerIdentities: provider.providerIdentities,
           peopleHints: provider.peopleHints,
           artifactHints: Object.freeze([]),
+          ...(provider.seriesPresentationSource?{seriesPresentationSource:provider.seriesPresentationSource}:{}),
         });
       } else {
         throw new TypeError('Product Metadata source kind is unsupported.');
       }
       return outcome(buildMetadataObservation({
         intent,
-        ...(intent.contentProfile==='jav'?{sourceIntegrationHandle:handle}:{}),
+        ...(intent.contentProfile==='jav'?{sourceIntegrationHandle:handle,sourceAuthorizedAtMs}:{}),
         descriptiveEntries: source.descriptiveEntries,
         sourceNfoSemantics:source.sourceNfoSemantics || null,sourceNfoSnapshotDigest:source.sourceNfoSnapshotDigest || null,
         providerIdentities: source.providerIdentities,
         peopleHints: source.peopleHints,
         artifactHints: source.artifactHints,
+        ...(source.seriesPresentationSource?{seriesPresentationSource:source.seriesPresentationSource}:{}),
         observedAtMs: now(),
       }));
       } catch (error) {

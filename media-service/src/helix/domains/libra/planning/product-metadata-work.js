@@ -208,7 +208,8 @@ function metadataScopeStage(options, snapshot, identity, allResults, results, re
   const missingCastRoles = requiredCastRoles.filter((role) =>
     !observedCastRoles.has(role));
   if (results.length > 0 && missingFields.length === 0 &&
-      missingCastRoles.length === 0) {
+      missingCastRoles.length === 0 && (snapshot.spec.contentProfile!=='series'||episodeScope||
+        results.some(item=>item.result.seriesPresentationSource))) {
     return Object.freeze({ kind:'ready', requiredFields, missingFields,
       requiredCastRoles, missingCastRoles, results });
   }
@@ -229,6 +230,8 @@ function metadataScopeStage(options, snapshot, identity, allResults, results, re
     return Object.freeze({ kind:'unresolved',
       reasonCode:missingFields.length > 0
         ? 'product_metadata_required_fields_missing'
+        :snapshot.spec.contentProfile==='series'&&!episodeScope&&!results.some(item=>item.result.seriesPresentationSource)
+          ? 'series_presentation_basis_missing'
         : 'product_metadata_required_cast_missing',
       requiredFields, missingFields, requiredCastRoles, missingCastRoles,
       results });

@@ -27,6 +27,54 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "selectionScopeRule": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "revision": {
+              "const": 3
+            },
+            "categoryDirectories": {
+              "const": "containers"
+            },
+            "seriesKey": {
+              "const": "local_claimed_title_and_season"
+            },
+            "provisionalSeasonBoundary": {
+              "const": "direct_parent"
+            },
+            "ordinaryPayload": {
+              "const": "independent"
+            },
+            "javNamedParts": {
+              "const": "direct_parent_and_canonical_code"
+            },
+            "bdmv": {
+              "const": "whole_container_with_certificate"
+            },
+            "dvd": {
+              "const": "whole_video_ts_container"
+            },
+            "ordering": {
+              "const": "canonical_utf8"
+            },
+            "packing": {
+              "const": "sequential_complete_groups"
+            }
+          },
+          "required": [
+            "revision",
+            "categoryDirectories",
+            "seriesKey",
+            "provisionalSeasonBoundary",
+            "ordinaryPayload",
+            "javNamedParts",
+            "bdmv",
+            "dvd",
+            "ordering",
+            "packing"
+          ]
+        },
         "contractRefs": {
           "type": "array",
           "items": {
@@ -195,6 +243,7 @@
         }
       },
       "required": [
+        "selectionScopeRule",
         "contractRefs",
         "recallPriority",
         "maxRunPhysicalMembers",

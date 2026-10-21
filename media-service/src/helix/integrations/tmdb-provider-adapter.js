@@ -17,6 +17,8 @@ const SUPPORTED_OPERATIONS = new Set([
   'libra.product_metadata.fetch@1',
   'libra.product_artifact.acquire@1',
   'arca.aftercare.binary_artifact.acquire@1',
+  'arca.series_presentation.source.observe@1',
+  'arca.series_presentation.assets.prepare@1',
 ]);
 const JSON_RESPONSE_MAX_BYTES = 1024 * 1024;
 const SERIES_METADATA_CACHE_TTL_MS = 5 * 60 * 1000;
@@ -496,6 +498,7 @@ function validateImagesResponse(value) {
   for (const collection of [
     value.posters || [],
     value.backdrops || [],
+    value.stills || [],
   ]) {
     if (!Array.isArray(collection) || collection.length > 512) {
       fail(
@@ -1199,7 +1202,7 @@ function createTmdbProviderAdapter(options) {
           return body;
         };
         const shared = series ? await seriesMetadata(canonicalDigest({
-          integrationHandle: request.integrationHandle, endpoint: snapshot.endpoint,
+          integrationId:snapshot.integrationId,configRevision:snapshot.configRevision,endpoint: snapshot.endpoint,
           secretRef: snapshot.secretRef, language, proxyServer: proxyServer || null,
           identity: resolved, timeoutMs: timeout(request.timeoutMs),
         }), async () => {
@@ -1327,6 +1330,13 @@ function createTmdbProviderAdapter(options) {
             ':' + resolved.providerKey + (series ? ':season:' + resolved.seasonNumber : '') +
             (episodeScope ? ':episode:' + episodeScope.episodeNumber : ''),
           ...(episodeScope ? { episodeScope } : {}),
+          ...(series&&!episodeScope?{seriesPresentationSource:require('../contracts/series-presentation-basis').buildSeriesPresentationSource({
+            provider:'tmdb',namespace:'tmdb_series',providerKey:resolved.providerKey,seasonIdentityAnchorDigest:resolved.identityAnchorDigest,
+            integrationId:snapshot.integrationId,configRevision:snapshot.configRevision,language,sourceRef:'tmdb:tv:'+resolved.providerKey,
+            title:String(body.name||''),originalTitle:String(body.original_name||''),originalLanguage:String(body.original_language||''),
+            firstAirDate:String(body.first_air_date||''),plot:String(body.overview||''),
+            genres:(body.genres||[]).map(item=>item.name).filter(value=>typeof value==='string').sort((a,b)=>Buffer.from(a).compare(Buffer.from(b))),
+          })}:{}),
           descriptiveEntries: Object.freeze(descriptiveEntries),
           providerIdentities: Object.freeze([
             Object.freeze({ ...resolved }),
@@ -1335,14 +1345,26 @@ function createTmdbProviderAdapter(options) {
         });
       }
 
+      const sharedPresentation=['arca.series_presentation.source.observe@1','arca.series_presentation.assets.prepare@1'].includes(request.operationId);
+      let artifactInput=request.input;
+      if(sharedPresentation){
+        const acquire=request.operationId==='arca.series_presentation.assets.prepare@1';
+        exact(request.input,['seriesPresentationSource','artifactKind',...(acquire?['imagePath']:[])],'PLATFORM_TMDB_SERIES_PRESENTATION_SHAPE');
+        const source=require('../contracts/series-presentation-basis').assertSource(request.input.seriesPresentationSource);
+        if(source.integrationId!==snapshot.integrationId||source.configRevision!==snapshot.configRevision||
+            (acquire&&!/^\/[A-Za-z0-9._-]+$/.test(request.input.imagePath||'')))
+          fail('PLATFORM_TMDB_SERIES_PRESENTATION_STALE','Series presentation source no longer matches its exact configuration or image locator.');
+        artifactInput={artifactKind:request.input.artifactKind,resolvedProviderIdentity:{provider:'tmdb',namespace:'tmdb_series',providerKey:source.providerKey},
+          artifactScope:{scopeKind:'series'}};
+      }
       exact(
-        request.input,
-        ['artifactKind', 'resolvedProviderIdentity'],
+        artifactInput,
+        ['artifactKind', 'resolvedProviderIdentity',...(Object.hasOwn(artifactInput||{},'artifactScope')?['artifactScope']:[])],
         'PLATFORM_TMDB_ARTIFACT_SHAPE',
       );
-      const artifactKind = request.input.artifactKind;
-      const resolved = request.input.resolvedProviderIdentity;
-      if (!['poster', 'fanart'].includes(artifactKind) ||
+      const artifactKind = artifactInput.artifactKind;
+      const resolved = artifactInput.resolvedProviderIdentity;
+      if (!['poster', 'fanart','still'].includes(artifactKind) ||
           resolved?.provider !== 'tmdb' ||
           !['tmdb_movie', 'tmdb_series'].includes(resolved.namespace) ||
           !/^[0-9]+$/.test(resolved.providerKey || '')) {
@@ -1352,12 +1374,28 @@ function createTmdbProviderAdapter(options) {
         );
       }
       const series = resolved.namespace === 'tmdb_series';
-      const images = await fetchJson(
+      const artifactScope=artifactInput.artifactScope;
+      if((series&&!artifactScope)||(artifactKind==='still'&&(!series||artifactScope?.scopeKind!=='episode')))
+        fail('PLATFORM_TMDB_ARTIFACT_SCOPE_INVALID','Series image retrieval requires its explicit exact image scope.');
+      if(artifactScope){
+        exact(artifactScope,artifactScope.scopeKind==='series'?['scopeKind']:artifactScope.scopeKind==='season'?['scopeKind','seasonNumber']:
+          ['scopeKind','seasonNumber','episodeNumber'],'PLATFORM_TMDB_ARTIFACT_SCOPE_INVALID');
+        if(!series||!['series','season','episode'].includes(artifactScope.scopeKind)||
+          (artifactScope.scopeKind!=='series'&&(!Number.isSafeInteger(artifactScope.seasonNumber)||artifactScope.seasonNumber<1||artifactScope.seasonNumber!==resolved.seasonNumber))||
+          (artifactScope.scopeKind==='episode'&&(!Number.isSafeInteger(artifactScope.episodeNumber)||artifactScope.episodeNumber<1))||
+          (artifactScope.scopeKind==='season'&&artifactKind!=='poster')||
+          (artifactScope.scopeKind==='episode'&&artifactKind!=='still'))
+          fail('PLATFORM_TMDB_ARTIFACT_SCOPE_INVALID','TMDB image role does not match its exact Series scope.');
+      }
+      const imageSuffix=artifactScope?.scopeKind==='season'?'/season/'+artifactScope.seasonNumber:
+        artifactScope?.scopeKind==='episode'?'/season/'+artifactScope.seasonNumber+'/episode/'+artifactScope.episodeNumber:'';
+      const exactImagePath=sharedPresentation&&request.operationId==='arca.series_presentation.assets.prepare@1'?request.input.imagePath:null;
+      const images = exactImagePath?{}:await fetchJson(
         snapshot.endpoint,
         snapshot.secretKind,
         secretBytes,
         '/' + (series ? 'tv' : 'movie') +
-          '/' + resolved.providerKey + '/images',
+          '/' + resolved.providerKey + imageSuffix + '/images',
         {
           timeoutMs: timeout(request.timeoutMs),
           query: {},
@@ -1365,13 +1403,17 @@ function createTmdbProviderAdapter(options) {
         },
       );
       validateImagesResponse(images);
-      const collection = artifactKind === 'poster'
+      if(images.id!==undefined&&String(images.id)!==resolved.providerKey&&(!artifactScope||artifactScope.scopeKind==='series'))
+        fail('PLATFORM_TMDB_IDENTITY_MISMATCH','TMDB images belong to a foreign Series identity.');
+      const collection = artifactScope?.scopeKind==='episode'?images.stills:artifactKind === 'poster'
         ? images.posters
         : images.backdrops;
-      const imagePath = Array.isArray(collection)
+      const imagePath = exactImagePath||(series?require('../contracts/tmdb-image-selection').selectTmdbImage(collection||[],{
+        artifactKind:artifactScope?.scopeKind==='episode'?'still':artifactKind,language,
+        originalLanguage:sharedPresentation?request.input.seriesPresentationSource.originalLanguage:null})?.file_path:Array.isArray(collection)
         ? collection.find((item) =>
           typeof item.file_path === 'string')?.file_path
-        : undefined;
+        : undefined);
       if (!imagePath) {
         return Object.freeze({
           resultKind: 'not_available',
@@ -1432,6 +1474,7 @@ function createTmdbProviderAdapter(options) {
         configRevision: snapshot.configRevision,
         resolvedProviderIdentity: Object.freeze({ ...resolved }),
         mediaType: 'image/jpeg',
+        ...(sharedPresentation?{imagePath,sourceDigest:request.input.seriesPresentationSource.sourceDigest}:{}),
         bytes,
       });
     });
@@ -1440,7 +1483,7 @@ function createTmdbProviderAdapter(options) {
   const observationPort = ExternalProviderObservationPort({
     execute(request) {
       if (['libra.product_artifact.acquire@1',
-        'arca.aftercare.binary_artifact.acquire@1'].includes(request?.operationId)) {
+        'arca.aftercare.binary_artifact.acquire@1','arca.series_presentation.assets.prepare@1'].includes(request?.operationId)) {
         fail(
           'PLATFORM_TMDB_EFFECT_CLASS_MISMATCH',
           'TMDB Artifact acquisition requires the workspace-write port.',
@@ -1452,7 +1495,7 @@ function createTmdbProviderAdapter(options) {
   const artifactPort = ExternalProviderArtifactPort({
     execute(request) {
       if (!['libra.product_artifact.acquire@1',
-        'arca.aftercare.binary_artifact.acquire@1'].includes(request?.operationId)) {
+        'arca.aftercare.binary_artifact.acquire@1','arca.series_presentation.assets.prepare@1'].includes(request?.operationId)) {
         fail(
           'PLATFORM_TMDB_EFFECT_CLASS_MISMATCH',
           'TMDB Artifact port accepts only workspace-write artifact operations.',

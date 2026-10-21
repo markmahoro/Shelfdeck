@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_series_presentation_commit_links/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_series_presentation_commit_links",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "commit_link_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "on_deck_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "shared_version",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "manifest_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "verification_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "commit_link_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [
+      [
+        "on_deck_run_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(on_deck_run_id)`",
+      "immutable",
+      "与On-deck Commit同事务固定当时共享版本及验证",
+      "当前健康另取共享head，禁止改写历史链接"
+    ],
+    "rawContract": {
+      "columns": "`commit_link_id PK, on_deck_run_id, scope_id, shared_version, manifest_digest, verification_digest, committed_at_ms`",
+      "constraints": "`UNIQUE(on_deck_run_id)`；immutable；与On-deck Commit同事务固定当时共享版本及验证；当前健康另取共享head，禁止改写历史链接"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9613,
+      "lineDigest": "1f19a8bb145d741907b85dda2897f2a83d98c75c1705f892d93de42bff373afe"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "scope_id",
+          "shared_version"
+        ],
+        "targetTable": "arca_series_presentation_versions",
+        "targetColumns": [
+          "scope_id",
+          "revision"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

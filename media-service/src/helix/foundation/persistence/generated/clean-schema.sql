@@ -1028,6 +1028,104 @@ CREATE TABLE "arca_rule_templates" (
 );
 CREATE INDEX "idx_arca_rule_templates_hot_01" ON "arca_rule_templates" ("status", "owner_kind", "rule_template_id");
 
+CREATE TABLE "arca_series_presentation_builds" (
+  "build_id" TEXT PRIMARY KEY,
+  "scope_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "expected_version" INTEGER,
+  "basis_schema_ref" TEXT,
+  "basis_json" TEXT,
+  "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "scope_schema_ref" TEXT,
+  "scope_json" TEXT,
+  "scope_digest" TEXT CHECK (length("scope_digest") = 64 AND "scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("scope_id", "revision"),
+  CHECK (json_valid("basis_json")),
+  CHECK (length(CAST("basis_json" AS BLOB)) <= 65536),
+  CHECK (json_valid("scope_json")),
+  CHECK (length(CAST("scope_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("scope_id") REFERENCES "arca_series_presentation_scopes" ("scope_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_series_presentation_commit_links" (
+  "commit_link_id" TEXT PRIMARY KEY,
+  "on_deck_run_id" TEXT,
+  "scope_id" TEXT,
+  "shared_version" INTEGER,
+  "manifest_digest" TEXT CHECK (length("manifest_digest") = 64 AND "manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "verification_digest" TEXT CHECK (length("verification_digest") = 64 AND "verification_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("on_deck_run_id"),
+  FOREIGN KEY ("scope_id", "shared_version") REFERENCES "arca_series_presentation_versions" ("scope_id", "revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_series_presentation_references" (
+  "scope_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "first_committed_version" INTEGER,
+  "state" TEXT CHECK ("state" IN ('active', 'released')),
+  "reference_revision" INTEGER CHECK ("reference_revision" >= 1),
+  "reference_digest" TEXT CHECK (length("reference_digest") = 64 AND "reference_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "released_at_ms" INTEGER CHECK ("released_at_ms" >= 0),
+  PRIMARY KEY ("scope_id", "shelf_entry_id"),
+  FOREIGN KEY ("scope_id") REFERENCES "arca_series_presentation_scopes" ("scope_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_series_presentation_reservations" (
+  "scope_id" TEXT,
+  "on_deck_run_id" TEXT,
+  "custody_id" TEXT,
+  "state" TEXT CHECK ("state" IN ('pending', 'committed', 'released')),
+  "committed_version" INTEGER,
+  "target_binding_digest" TEXT CHECK (length("target_binding_digest") = 64 AND "target_binding_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  PRIMARY KEY ("scope_id", "on_deck_run_id"),
+  FOREIGN KEY ("scope_id") REFERENCES "arca_series_presentation_scopes" ("scope_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("on_deck_run_id") REFERENCES "arca_ondeck_runs" ("on_deck_run_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_series_presentation_scopes" (
+  "scope_id" TEXT PRIMARY KEY,
+  "shelf_id" TEXT,
+  "provider" TEXT CHECK ("provider" IN ('tmdb')),
+  "provider_key" TEXT,
+  "endpoint_id" TEXT,
+  "mount_scope_id" TEXT,
+  "shelf_root" TEXT,
+  "root_location" TEXT,
+  "placement_revision" INTEGER CHECK ("placement_revision" >= 1),
+  "current_version" INTEGER,
+  "active_build_id" TEXT,
+  "state_revision" INTEGER CHECK ("state_revision" >= 1),
+  "state_digest" TEXT CHECK (length("state_digest") = 64 AND "state_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("shelf_id", "provider", "provider_key"),
+  UNIQUE ("endpoint_id", "root_location"),
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_series_presentation_versions" (
+  "scope_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "build_id" TEXT,
+  "manifest_schema_ref" TEXT,
+  "manifest_json" TEXT,
+  "manifest_digest" TEXT CHECK (length("manifest_digest") = 64 AND "manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "verification_digest" TEXT CHECK (length("verification_digest") = 64 AND "verification_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("scope_id", "revision"),
+  UNIQUE ("build_id"),
+  CHECK (json_valid("manifest_json")),
+  CHECK (length(CAST("manifest_json" AS BLOB)) <= 16384),
+  FOREIGN KEY ("scope_id") REFERENCES "arca_series_presentation_scopes" ("scope_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("build_id") REFERENCES "arca_series_presentation_builds" ("build_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "arca_shelf_entries" (
   "shelf_entry_id" TEXT PRIMARY KEY,
   "shelf_id" TEXT,
@@ -4137,7 +4235,7 @@ CREATE TABLE "proc_run_materials" (
   "material_key" TEXT,
   "selection_role" TEXT,
   "field_relative_location" TEXT,
-  "selection_scope_kind" TEXT CHECK ("selection_scope_kind" IN ('standalone_file', 'ordinary_directory', 'bdmv_container')),
+  "selection_scope_kind" TEXT CHECK ("selection_scope_kind" IN ('standalone_file', 'ordinary_directory', 'bdmv_container', 'local_media_group')),
   "selection_scope_key" TEXT,
   "selection_scope_root_relative_location" TEXT,
   "selection_scope_ordinal" INTEGER CHECK ("selection_scope_ordinal" >= 0),

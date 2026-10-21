@@ -336,7 +336,8 @@ const PROFILES = Object.freeze([
     }),
     identityNamespaces: Object.freeze(['tmdb_movie']),
     artifactKinds: Object.freeze(['poster', 'fanart']),
-    extraOperations: Object.freeze(['shared.integration.search@1', 'libra.routing.fact.observe@1']),
+    extraOperations: Object.freeze(['shared.integration.search@1', 'libra.routing.fact.observe@1',
+      'arca.series_presentation.source.observe@1','arca.series_presentation.assets.prepare@1']),
   }),
   profile({
     kind: 'douban',

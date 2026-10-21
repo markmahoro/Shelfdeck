@@ -517,3 +517,16 @@ UI 负责人复验发现取消请求结果未知时仍可切换排除范围、�
 UI 第二轮确认三项已修复，剩余取消窗口键盘路径未通过。补齐取消窗口初始焦点、Tab/Shift-Tab 限定、Escape 安全关闭与触发按钮焦点恢复；18项回归通过，窗口关闭未发送取消命令。等待负责人具体版本复验。
 
 完整生产副本的旧镜像 Host 已完成构造并进入 running/normalSupplyAllowed，但普通后台报 EROFS/ENOENT 和 P4_RESOURCE_PRIORITY_UPDATE_INVALID，严格资格失败，未部署。资源优先级另以实际 SQLite 夹具独立复现：重启时公平资格集合/bonus 尚未重建，却沿用已有 durable waiter 的 revision，改变了同 revision 的优先级。修复由 Libra 在重新构造内存资格时发布新 Owner revision，真实机会账本和轮次不变，不放宽 Foundation 的同 revision 校验。23项公平/Governor回归通过；候选完整副本仍待复验，隔离文件错误不能冒充通过。
+
+
+### 2026-10-21 UAT-326/327/328首批开发检查点（未发布）
+
+用户已确认UAT-328完整设计并要求三项全部开始开发。实现与合同沿唯一CURRENT_PHASE推进，不据此关闭UAT或修改生产。
+
+- UAT-326：新增稳定JavSourceQualification闭合DTO，Identity、Metadata及Artifact的Event输入冻结来源/config/route/profile与操作范围；执行入口通过Platform公开端口重签短期Handle。保持Foundation完整输入摘要与物理Effect恢复约束。Metadata还记录sourceAuthorizedAtMs，以实际核准点验证历史短期凭据，长查询完成时超过TTL不误伤。当前旧ABF-153没有直接修改摘要、状态或Reset；实际进程丢失/恢复的完整专项验收仍未完成。
+- UAT-327：撤销分类目录整体不可拆；Run Creator与Triage复用纯本地Episode/title/season规则。JAV同目录同号实际分段、完整BDMV/CERTIFICATE、VIDEO_TS结构保留。local_media_group与revision 3的完整selectionScopeRule进入冻结Basis；旧revision 2不得按新规则解释。1081视频/22剧、同季跨子目录、确定性重放、守恒、真实超限与原P7路径已定向验证。未运行生产重新开采。
+- UAT-328：基础文本Basis/Provider、Arca共享登记/唯一builder CAS/版本及引用组件、公共根绑定只读查询、精确文件IO已进入代码。文件层只返回物理观察，由Arca模型构造共享Manifest，未把领域决定搬入Adapter。正式Supporting Work、Control/Ready原子提交、Accepted/On-deck/维护退出及原条目恢复尚未接通。详情见既有UAT-328设计Evidence开发节。
+
+测试证据：首轮324项定向回归PASS；补规则冻结反例及Provider范围测试后，组合342项PASS、0fail/skip；两项隔离JAV Host真实HEVC/H.264分段旅程PASS。最后剧级原语言及NFO范围/格式修订后，77项受影响范围回归PASS。三组均为Windows本地/隔离或组件验证，不冒充NAS、Linux、具体版本UI或完整UAT业务验收。日志分别位于系统TEMP的shelfdeck-uat-326-328-checkpoint.tap、shelfdeck-uat-326-328-checkpoint-host.tap、shelfdeck-uat-328-final-scopes.tap，未把运行数据加入仓库。
+
+P2合同、Manifest、包边界及禁止语义静态检查PASS。完整长时architecture-verify门禁曾在开发尚未接完时提前启动，随后停止本任务可精确辨识的测试进程；状态STOPPED，不计PASS，后续完整候选需重新运行。无生产数据/文件修改、部署、Reset或历史补文件；生产保持6c74939646。

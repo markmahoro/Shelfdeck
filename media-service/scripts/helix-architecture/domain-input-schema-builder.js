@@ -194,6 +194,9 @@ const boundedContracts = {
 };
 
 const dtoContracts = {
+  SeriesPresentationScope: '',
+  SeriesPresentationManifest: '',
+  JavSourceQualification: '',
   JavCorrectionScope: '',
   JavCorrectionRetirementScope: '',
   JavCorrectionWorkspaceReclaimScope: '',
@@ -332,6 +335,16 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if(name==='SeriesPresentationScope'||name==='SeriesPresentationManifest'){
+    const value=require('../../src/helix/contracts/series-presentation-schemas')[name==='SeriesPresentationScope'?'scopeSchema':'manifestSchema']();
+    return {$schema:DRAFT,$id:domainTypeId(name),title:name+'@1','x-helix-ssotRefs':['8.5.12'],
+      'x-helix-role':role,'x-helix-maxCanonicalBytes':65536,...value};
+  }
+  if(name==='JavSourceQualification')return exactDomainSchema(name,{
+    schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},siteRef:enumText(...require('../../src/helix/contracts/jav-source-contracts').JAV_SITE_REFS),
+    integrationId:id(),configRevision:positiveInteger(),authMode:{const:'anonymous'},endpointProfileDigest:digest(),networkRouteDigest:digest(),
+    allowedOperation:enumText('libra.product_identity.evidence.observe@1','libra.product_metadata.fetch@1','libra.product_artifact.acquire@1'),
+    artifactKind:nullable(enumText('poster','fanart')),sourceFenceDigest:digest()});
   if(name==='JavCorrectionScope')return require('../../src/helix/domains/arca/model/jav-correction-execution-contract').javCorrectionScopeSchema();
   if(name==='JavCorrectionRetirementScope')return require('../../src/helix/domains/arca/model/jav-correction-retirement-contract').retirementScopeSchema();
   if(name==='JavCorrectionWorkspaceReclaimScope')return require('../../src/helix/domains/arca/model/jav-correction-workspace-reclaim-contract').workspaceReclaimScopeSchema();
@@ -484,7 +497,7 @@ function selectedFieldMaterialSetSchema() {
     basisMemberDigest: digest()
   });
   const selectionScope = object({ scopeOrdinal:nonNegativeInteger(),
-    scopeKind:enumText('standalone_file','ordinary_directory','bdmv_container'), scopeKey:id(),
+    scopeKind:enumText('standalone_file','ordinary_directory','bdmv_container','local_media_group'), scopeKey:id(),
     scopeRootRelativeLocation:text(), memberCount:positiveInteger(), memberSetDigest:digest(), scopeDigest:digest() });
   return exactDomainSchema('SelectedFieldMaterialSet', {
     procurementRunId:id(), fieldId:id(), physicalMemberCount:positiveInteger(), selectionScopeCount:positiveInteger(),
@@ -661,6 +674,9 @@ const triageUnit = () => {
 
 function procurementTriageRuleSnapshotSchema() {
   const rulePayload = object({
+    selectionScopeRule:object({revision:{const:3},categoryDirectories:{const:'containers'},seriesKey:{const:'local_claimed_title_and_season'},
+      provisionalSeasonBoundary:{const:'direct_parent'},ordinaryPayload:{const:'independent'},javNamedParts:{const:'direct_parent_and_canonical_code'},
+      bdmv:{const:'whole_container_with_certificate'},dvd:{const:'whole_video_ts_container'},ordering:{const:'canonical_utf8'},packing:{const:'sequential_complete_groups'}}),
     contractRefs: arrayOf(text(), 32), recallPriority: { const: true }, maxRunPhysicalMembers: { const: PROCUREMENT_RUN_MEMBER_LIMIT },
     maxSelectionScopeMembers:{ const:PROCUREMENT_RUN_MEMBER_LIMIT }, maxCandidateManifestMembers:{ const:PROCUREMENT_RUN_MEMBER_LIMIT },
     probeBatchSize: { const: 100 }, playabilityRule: object({ minimumDurationMs: { const: 1 }, minimumVideoStreamCount: { const: 1 },
@@ -704,7 +720,7 @@ function materialFieldContextSchema() {
     profileHintSnapshot: applicationRef('MaterialFieldProfileHintSnapshot'),
     memberContexts: { ...arrayOf(object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(), fieldRelativeLocation: text(),
       baseName:text(), extension:text(), parentSegments:arrayOf(text(),32),
-      selectionScopeKind:enumText('standalone_file','ordinary_directory','bdmv_container'), selectionScopeKey:id(),
+      selectionScopeKind:enumText('standalone_file','ordinary_directory','bdmv_container','local_media_group'), selectionScopeKey:id(),
       selectionScopeRootRelativeLocation:text(), scopeOrdinal:nonNegativeInteger(), scopeMemberOrdinal:nonNegativeInteger(),
       layoutEvidenceRefs: arrayOf(object({ evidenceId: id(),
       payloadDigest: digest(), boundedScopeDigest: digest() }), 16) }), PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT), minItems: 1 }, contextDigest: digest() });

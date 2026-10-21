@@ -916,6 +916,8 @@ function createPlatformIntegrationServices(options) {
           artifactKind: request.artifactKind,
           resolvedProviderIdentity:
             request.resolvedProviderIdentity,
+          ...(request.resolvedProviderIdentity?.namespace==='tmdb_series'?{artifactScope:request.artifactScope||
+            (request.artifactKind==='poster'?{scopeKind:'season',seasonNumber:request.resolvedProviderIdentity.seasonNumber}:{scopeKind:'series'})}:{}),
         },
         timeoutMs: 20_000,
       });
@@ -1583,6 +1585,7 @@ async function createCleanServiceHost(options) {
   ));
   const arcaInventoryPort = options.arcaInventoryPort || createCleanArcaInventoryPort({
     ...constructed.applicationDependencies,
+    readSeriesRootBinding:require('./helix/domains/arca/public').createSeriesPresentationQuery(constructed.applicationDependencies).readRootBinding,
     workspaceRoot: workspaceProductPort.rootPath,
     now: options.now || Date.now,
     statfsSync: options.arcaStatfsSync,

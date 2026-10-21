@@ -1,6 +1,6 @@
 # UAT-328：Series 剧级公共资料完整生命周期设计
 
-状态：设计草案；不是已批准的架构 SSOT，也不是实施完成记录。归属唯一 CURRENT_PHASE 的 UAT-328，不建立平行开发计划。
+状态：2026-10-21用户确认本设计并授权与UAT-326/327一起开发；首批基础组件已开发，完整运行链路未接通，未验收、未发布。正式合同已回写唯一架构SSOT，归属唯一CURRENT_PHASE，不建立平行开发计划。开发证据见文末。
 
 ## 1. 已确认的用户目标与范围
 
@@ -8,7 +8,7 @@
 
 2026-10-21用户另行明确：剧级 tvshow.nfo、poster、fanart 三项均为必需项。默认文件名分别为 tvshow.nfo、poster.jpg、fanart.jpg；具体格式、命名和位置仍必须在 Arca Placement 合同中精确表达，不能只验三个 artifact kind 的任意目录文件。
 
-本设计覆盖首次建立、后续新季、同季新集、原目录资料利用、缺失修复、并发、崩溃恢复、资料刷新、退出、现有已入藏缺口与验收。用户本次要求设计，尚未授权本设计提出的新增职责合同或生产补文件。UAT-326/327此前已确认的处理方向继续有效。
+本设计覆盖首次建立、后续新季、同季新集、原目录资料利用、缺失修复、并发、崩溃恢复、资料刷新、退出、现有已入藏缺口与验收。用户已授权新增职责合同与开发；生产补文件仍需具体只读预览及对应写入授权。UAT-326/327此前已确认的处理方向继续有效。
 
 ## 2. 现状与真实缺口
 
@@ -51,7 +51,7 @@ Provider也有范围缺口：现有TMDB文字查询已读取整剧详情与季�
 
 Season仍是Subject和Shelf Entry主体；不新增用户可上架、取消、评分或退出的整剧Shelf Entry，也不引入全局媒体ID。
 
-## 4. 职责与新增合同：推荐方案，待确认
+## 4. 已确认的职责与新增合同
 
 建议让 Arca 管理剧级公共呈现这一份共享的正式成果。Libra继续负责身份确认、产品事实及季/集生产，并通过Handoff B提供已确认的剧级事实与素材依据；Arca负责共享成果建立、复用、正式位置、登记、健康、引用和退出。
 
@@ -281,3 +281,19 @@ UAT-326的凭据/冻结依据分离是同类原则的依赖，不能新引入另
 TMDB官方接口核对（2026-10-21）：[整剧详情](https://developer.themoviedb.org/reference/tv-series-details)、[整剧图片](https://developer.themoviedb.org/reference/tv-series-images)、[季详情](https://developer.themoviedb.org/reference/tv-season-details)、[季图片](https://developer.themoviedb.org/reference/tv-season-images)、[集详情](https://developer.themoviedb.org/reference/tv-episode-details)、[集图片](https://developer.themoviedb.org/reference/tv-episode-images)、[图片语言](https://developer.themoviedb.org/docs/image-languages)、[图片URL构成](https://developer.themoviedb.org/docs/image-basics)、[合并子请求](https://developer.themoviedb.org/docs/append-to-response)。接口事实与本设计的选图/复用政策分别记录；官方存在这些接口不代表当前Adapter或权限允许列表已接入。
 
 已经确认的是用户生命周期和三项必需。仍需用户审阅确认的是§4推荐的Arca共享呈现职责及其Handoff/Commit扩展；本设计也建议普通加季只补缺、已有合法文件不覆盖、显式刷新独立、共享删除遵循最后引用及明确授权。确认后再回写SSOT并传播机器合同；本文件本身不修改Owner权力或宣告所有建议已获批准。
+
+
+## 16. 首批开发证据与当前界限（2026-10-21）
+
+已回写SSOT并生成135 Capability / 114 Result family / 231 Table / 59 canonical transaction合同；数量是开发中的新结构，不是生产现状或实现覆盖率。新增四个剧级Capability当前尚未接入执行注册/Supporting Work，Series Presentation Commit合同尚未接入完整Control/Ready原子实现。
+
+已开发基础：
+
+1. Libra正式Metadata Observation持有精确整剧文本Source，包含原语言与来源配置；Draft/Product Fact携带Series Presentation Basis。非Episode的Series metadata准备不能仅凭Related NFO宣布资料已全。tvshow.nfo按剧事实确定渲染，不依赖第一季。
+2. TMDB请求明确剧/季/集scope；季poster查询对应Season images，剧图查询show images，Episode still仅按自身scope返回；Series缺失scope直接拒绝。图片选择规范化语言，剧poster可按原语言及无语言回退，fanart按背景形态选择；缓存key不含短期Handle expiry。根图Source观察和按精确locator重新取得是两个独立操作，后者不再重新选择图片。Episode图片目前只完成Adapter叶端验证，未据此声称生产图像旅程已启用。
+3. Arca共享scope、build、version、pending reservation、Season reference及历史Commit link组件，以及跨季固定根绑定查询。真实SQLite组件反例验证单builder、Version/head回滚、reference/link/reservation原子变化及旧Ready的版本围栏。尚未把这些participant接入真实Handoff B/On-deck/Off-deck事务。
+4. 有界文件IO验证NFO身份/层级、图像解码/JPEG格式/角色与完整SHA256；只写确切Workspace和根三项，拒绝覆盖不同现存字节、跨根/符号链接、别剧NFO与季NFO改名。部分发布后的Adapter重建沿冻结字节继续，完成的临时文件可精确清理。此为文件层恢复证明，不是完整Foundation进程恢复证明。
+
+仍需完成：Supporting Work/Planner及Effect reality observer接线；正式共享Control/Ready提交及Workspace回收；Accepted pending和On-deck Own的同事务引用/围栏；健康组合、跨季/新集复用、修复/刷新、退出和原任务恢复；本地祖先资料的范围资格及明确用户补充资料的入口；完整剧级描述/演员呈现规则；生产旧缺口只读修复清单；17情境完整旅程、跨平台及具体版本UI负责人验收。不得据基础组件测试关闭本项，也不得发布半接通功能或直接补生产文件。
+
+目前组合342项定向回归和两项隔离JAV Host通过；最后受影响范围77项通过，包含本项8项共享组件/真实文件验证及4项TMDB图片scope叶端验证。P2/Manifest/包边界/禁止语义静态检查通过。完整长时门禁STOPPED、未作本版本发布资格；无生产变更。

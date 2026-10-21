@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.series_presentation.files.publish/v1/inputs",
+  "title": "arca.series_presentation.files.publish@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "seriesPresentationScope": {
+      "$ref": "#/$defs/seriesPresentationScope"
+    },
+    "seriesPresentationAssetsPrepared": {
+      "$ref": "#/$defs/seriesPresentationAssetsPrepared"
+    }
+  },
+  "required": [
+    "seriesPresentationScope",
+    "seriesPresentationAssetsPrepared"
+  ],
+  "$defs": {
+    "seriesPresentationScope": {
+      "$ref": "helix://contracts/domain-types/SeriesPresentationScope/v1",
+      "x-helix-typeExpression": "SeriesPresentationScope"
+    },
+    "seriesPresentationAssetsPrepared": {
+      "$ref": "helix://contracts/types/SeriesPresentationAssetsPrepared/v1",
+      "x-helix-typeExpression": "SeriesPresentationAssetsPrepared"
+    }
+  }
+}

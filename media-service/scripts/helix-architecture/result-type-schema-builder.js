@@ -634,6 +634,10 @@ const contracts = {
   ArcaUsAdultPageMatch:['EvidenceEnvelope','shelfEntryId,aftercareCaseId,intentId,intentDigest,pageOrdinal,pageDigest,libraryDigest,sourceResultDigest,analysisDigest,matches'],
   ArcaUsAdultSourcePrepared:['EvidenceEnvelope','shelfEntryId,aftercareCaseId,intentId,intentDigest,sourceHandle,sourceProbeDigest,durationMs,container,frameCount,detectedFaceCount,analysisDigest,faceModelRefDigest,referenceModelRefDigest,frameManifestHandle,featuresHandle'],
   JavCorrectionSourceVerified:['EvidenceEnvelope','correctionId,admissionDigest,scopeDigest,confirmedProposalDigest,actualProposalDigest,qualification'],
+  SeriesPresentationSourceObserved:['EvidenceEnvelope','scopeId,buildId,scopeDigest,recipe,recipeDigest'],
+  SeriesPresentationAssetsPrepared:['EvidenceEnvelope','scopeId,buildId,scopeDigest,recipeDigest,artifacts'],
+  SeriesPresentationFilesPublished:['EvidenceEnvelope','scopeId,buildId,scopeDigest,manifest'],
+  SeriesPresentationReady:['DomainFactEnvelope','scopeId,buildId,scopeDigest,sharedVersion,manifestDigest,verificationDigest'],
   JavCorrectionAssetsPrepared:['EvidenceEnvelope','correctionId,admissionDigest,confirmedProposalDigest,actualProposalDigest,sourceObservationDigest,metadataFactDigest,metadataHandle,artifacts'],
   JavCorrectionCommitReceipt:['ReceiptEnvelope','correctionId,shelfEntryId,previousCanonicalIdentityRevision,newCanonicalIdentityRevision,previousInventoryRevision,newInventoryRevision,canonicalIdentityDigest,canonicalIdentityKey,inventoryDigest,verificationDigest,controlChangeDigest,changeDigest,originalCommitDigest'],
   JavCorrectionFormalRetirementReceipt:['ReceiptEnvelope','correctionId,shelfEntryId,committedContextDigest,commitReceiptDigest,retirementPlanDigest,guardDigest,finalMaterialSetDigest,retiredAliasSetDigest,retiredAliasCount,stageDisposition,realityDigest'],
@@ -769,6 +773,8 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 }), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if(name.startsWith('SeriesPresentation'))return resultSchema(name,base,
+    require('../../src/helix/contracts/series-presentation-schemas').resultProperties(name),{'x-helix-maxCanonicalBytes':65536});
   if(name==='PeopleArtifactReferenceEvidence')return require('../../src/helix/contracts/people-artifact-reclamation').evidenceSchema();
   if(name==='PeopleArtifactReclamationReceipt')return require('../../src/helix/contracts/people-artifact-reclamation').receiptSchema();
   if(name==='ArcaUsAdultAssetsPrepared')return require('../../src/helix/contracts/us-adult-actor-file-contracts').assetsSchema();
@@ -1118,8 +1124,10 @@ function metadataObservationSchema() {
   schema.properties.episodeScope = require('../../src/helix/contracts/episode-metadata-scope').episodeMetadataScopeSchema();
   schema.properties.javSelectedSource=require('../../src/helix/contracts/jav-selected-source').javSelectedSourceSchema();
   schema.properties.sourceIntegrationHandle=ref('IntegrationHandle');
-  schema.allOf=[{if:{properties:{contentProfile:{const:'jav'}},required:['contentProfile']},then:{required:['javSelectedSource','sourceIntegrationHandle']},
-    else:{not:{anyOf:[{required:['javSelectedSource']},{required:['sourceIntegrationHandle']}]}}}];
+  schema.properties.sourceAuthorizedAtMs=nonNegativeInteger();
+  schema.properties.seriesPresentationSource=require('../../src/helix/contracts/series-presentation-basis').sourceSchema();
+  schema.allOf=[{if:{properties:{contentProfile:{const:'jav'}},required:['contentProfile']},then:{required:['javSelectedSource','sourceIntegrationHandle','sourceAuthorizedAtMs']},
+    else:{not:{anyOf:[{required:['javSelectedSource']},{required:['sourceIntegrationHandle']},{required:['sourceAuthorizedAtMs']}]}}}];
   return schema;
 }
 
@@ -1274,6 +1282,7 @@ function productMetadataDraftSchema() {
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
   schema.properties.episodeScope = require('../../src/helix/contracts/episode-metadata-scope').episodeMetadataScopeSchema();
   schema.properties.episodeMetadata = episodeMetadataSchema();
+  schema.properties.seriesPresentationBasis=require('../../src/helix/contracts/series-presentation-basis').seriesPresentationBasisSchema();
   schema.properties.javSelectedSource=require('../../src/helix/contracts/jav-selected-source').javSelectedSourceSchema();
   schema['x-helix-maxCanonicalBytes'] = 16 * 1024 * 1024;
   return schema;
@@ -1312,6 +1321,7 @@ function productMetadataFactSchema() {
     verifiedArtifactManifestDigest: digest(), productMetadataDigest: digest()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
   schema.properties.episodeMetadata=episodeMetadataSchema();
+  schema.properties.seriesPresentationBasis=require('../../src/helix/contracts/series-presentation-basis').seriesPresentationBasisSchema();
   schema.properties.javSelectedSource=require('../../src/helix/contracts/jav-selected-source').javSelectedSourceSchema();
   schema.properties.episodeMetadataRef=object({recordCount:{type:'integer',minimum:1,maximum:256},recordsDigest:digest()});
   schema.not={required:['episodeMetadata','episodeMetadataRef']};

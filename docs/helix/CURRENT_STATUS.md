@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-21首批开发检查点：UAT-326三条JAV来源路径、UAT-327完整组分批已修改；UAT-328基础合同/Basis/Provider、共享持久组件及精确文件IO已修改，尚未接通完整运行链路。组合342项定向测试、2项隔离JAV Host及最后受影响范围77项通过；P2/Manifest/包边界/语义静态检查通过；完整长时门禁提前启动后停止，不计PASS。未进行UI验收、完整发布资格或生产变更，三项UAT均开放，生产仍6c74939646。
+
 2026-10-21 UAT-328完整设计草案完成，用户明确tvshow.nfo、poster、fanart均为剧级必需。新增核对：TMDB文字已读取show+season但结果scope依附Season；图片获取统一用整剧images，没有季级图片范围。设计覆盖Provider三层精确查询与复用、共享剧根及完整生命周期；职责扩展仍待确认，未实施/未改SSOT/未修改生产。[设计草案](implementation/evidence/UAT-328_SERIES_SHARED_PRESENTATION_DESIGN_20261021.md)。UAT-326/327方向已确认但尚无修复产品提交，生产保持6c74939646。
 
 2026-10-21新增开放UAT-327：剧集4star分类目录下22部剧、1081 eligible视频被第一层目录规则合为一个不可拆Scope而告警；最大单季目录仅30视频。只读诊断确认现实现符合旧Scope合同，属于需讨论修订的分组设计限制；无产品/SSOT或生产修改，未扩大1024上限。详见生命周期Evidence。

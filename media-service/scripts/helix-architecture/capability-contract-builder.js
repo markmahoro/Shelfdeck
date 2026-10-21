@@ -225,6 +225,11 @@ function expressionSchema(expression) {
 }
 
 function uniquePortName(expression, used) {
+  if(expression.includes('JavSourceQualification')) {
+    const name=expression.includes('PhysicalMaterialReadHandle')?'physicalMaterialReadHandleOrIntegrationHandle':'integrationHandle';
+    if(used.has(name))throw new Error('Duplicate source binding port: '+name);
+    used.add(name);return name;
+  }
   const base = camel(expression
     .replace(/\|/g, ' Or ')
     .replace(/\[(?:\d+\.\.\d+)?\]/g, ' List')

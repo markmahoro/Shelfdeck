@@ -22,8 +22,15 @@
       "x-helix-typeExpression": "ProductMetadataDraft"
     },
     "integrationHandle": {
-      "$ref": "helix://contracts/types/IntegrationHandle/v1",
-      "x-helix-typeExpression": "IntegrationHandle"
+      "oneOf": [
+        {
+          "$ref": "helix://contracts/types/IntegrationHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/domain-types/JavSourceQualification/v1"
+        }
+      ],
+      "x-helix-typeExpression": "(IntegrationHandle | JavSourceQualification)"
     }
   }
 }

@@ -1,0 +1,159 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/SeriesPresentationManifest/v1",
+  "title": "SeriesPresentationManifest@1",
+  "x-helix-ssotRefs": [
+    "8.5.12"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 65536,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/SeriesPresentationManifest/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "objectId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "revision": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "scopeId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "buildId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "providerKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "rootLocation": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4096
+    },
+    "basisDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "members": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "artifactKind": {
+            "enum": [
+              "nfo",
+              "poster",
+              "fanart"
+            ]
+          },
+          "endpointId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "location": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4096
+          },
+          "physicalIdentity": {
+            "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+          },
+          "byteDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "width": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "height": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "nfoProviderKey": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sourceDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "artifactKind",
+          "endpointId",
+          "location",
+          "physicalIdentity",
+          "byteDigest",
+          "sizeBytes",
+          "width",
+          "height",
+          "nfoProviderKey",
+          "sourceDigest"
+        ]
+      }
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "objectId",
+    "revision",
+    "scopeId",
+    "buildId",
+    "providerKey",
+    "rootLocation",
+    "basisDigest",
+    "members",
+    "digest"
+  ]
+}

@@ -155,6 +155,7 @@ function validateDomainInputSchemas(options) {
       AnalysisSpec: ['specId', 'revision', 'schemaRef', 'libraRunId', 'runExecutionBasisDigest', 'frameArtifactSetDigest',
         'faceModelRefDigest', 'clusterParameterDigest', 'outputContractRef', 'outputContractDigest', 'typedParameters', 'specDigest'],
       ResolvedProviderIdentity: ['provider', 'namespace', 'providerKey', 'identityAnchorDigest'],
+      JavSourceQualification: ['integrationId', 'configRevision', 'allowedOperation', 'sourceFenceDigest'],
       ProductStructureSnapshot: ['structureKind', 'contentProfile', 'productScopeDigest', 'episodeScopeDigest', 'productStructureDigest'],
       ProductConformanceFactSnapshot: ['schemaRef', 'productFactId', 'factKind', 'factRevision', 'factDigest', 'referenceDigest'],
       ProductionMaterialManifest: ['manifestId', 'manifestRevision', 'libraRunId', 'memberSetDigest', 'manifestDigest'],
@@ -225,7 +226,7 @@ function validateDomainInputSchemas(options) {
     if (!ids.has(name)) findings.push(finding('MISSING_DOMAIN_INPUT_TYPE', 'Catalog input reference has no schema.', { entryId: name }));
   }
   const facadeOnlyTypes = new Set(['UsAdultActorRefreshIntent','UsAdultInventoryPresentation','UsAdultRecommendationConfirmation','UsAdultRecommendationPageQuery','UsAdultRecommendationSource','UsAdultRecommendationSourcePage','UsAdultActorSelectionBasis','UsAdultMatchCompletion','UsAdultActorChoiceReceipt','UsAdultActorChoiceRecord','UsAdultActorChoiceDecision','UsAdultAnalysisBasis','UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
-    'ResolvedProviderIdentity', 'ProductStructureSnapshot', 'ProductConformanceFactSnapshot', 'ProductionMaterialManifest',
+    'SeriesPresentationManifest', 'ResolvedProviderIdentity', 'ProductStructureSnapshot', 'ProductConformanceFactSnapshot', 'ProductionMaterialManifest',
     'ArtifactManifest', 'ArtifactConformanceVerificationSnapshot', 'ProductInventoryConformanceSnapshot',
     'WorkspaceArtifactOutputTarget', 'ShelfAcceptancePrimaryReadSet',
     'AcceptanceRequirementSnapshot']);

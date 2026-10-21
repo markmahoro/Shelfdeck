@@ -66,8 +66,10 @@ function createArtifactProductionCapabilityPorts(options) {
       validateInputs(context) { requireNamed(context, ['productMetadataDraft', 'integrationHandle']); },
       async execute(context) {
         const draft = context.namedInputs.productMetadataDraft;
-        const handle = context.namedInputs.integrationHandle;
+        let handle = context.namedInputs.integrationHandle;
         const artifactKind = context.parameters?.artifactKind;
+        if(draft.javSelectedSource)handle=require('../../../contracts/jav-source-qualification').resolveJavQualifiedHandle(
+          handle,draft.javSelectedSource,ACQUIRE,options.resolveJavSourceHandle,artifactKind);
         const snapshot = typeof options.movieProductionReader.readRunSnapshot === 'function'
           ? options.movieProductionReader.readRunSnapshot(context.ownerScope.processId)
           : options.movieProductionReader.readRun(context.ownerScope.processId);

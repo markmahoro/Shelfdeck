@@ -545,7 +545,12 @@ function createCleanArcaInventoryPort(options) {
     if(request.inventoryArtifactScopes!==undefined&&!request.aftercareCaseId)
       fail('CLEAN_ARCA_INVENTORY_INPUT','Registered Inventory Artifact scopes require an Aftercare Case.');
     const series=seriesPlacementContext(packageValue,request.inventoryArtifactScopes);
-    const targetDirectory = series ? path.resolve(targetRoot,folder,'Season '+String(series.seasonNumber).padStart(2,'0')) : path.resolve(targetRoot, folder);
+    const rootBinding=series&&options.readSeriesRootBinding?.({shelfId:shelf.shelfId,
+      providerKey:(packageValue.resolvedIdentitySnapshot.factValue.resolvedProductIdentity||packageValue.resolvedIdentitySnapshot.factValue)
+        .providerIdentities.find(item=>item.namespace==='tmdb_series').providerKey});
+    if(rootBinding&&(rootBinding.endpointId!==shelf.target.endpointId||rootBinding.mountScopeId!==shelf.target.mountScopeId))
+      fail('CLEAN_ARCA_SERIES_ROOT_BINDING_STALE','Shared Series root no longer matches this Shelf target.');
+    const targetDirectory = series ? path.resolve(rootBinding?.rootLocation||path.join(targetRoot,folder),'Season '+String(series.seasonNumber).padStart(2,'0')) : path.resolve(targetRoot, folder);
     if (!contained(targetRoot, targetDirectory)) {
       fail('CLEAN_ARCA_TARGET_ESCAPE',
         'Final Inventory directory escaped the Shelf Target.');
