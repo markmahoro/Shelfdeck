@@ -280,7 +280,13 @@ describe('Helix primary copy and workbench structure', () => {
       .mockResolvedValueOnce({resultKind:'closure_pending',libraRunId:'sample-run'})
       .mockResolvedValueOnce({resultKind:'discarded',libraRunId:'sample-run'});
     render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole('button',{name:'取消整理任务'}));
+    const trigger=await screen.findByRole('button',{name:'取消整理任务'});trigger.focus();fireEvent.click(trigger);
+    const initialDialog=screen.getByRole('dialog',{name:'确认取消整理任务'}),closeButton=within(initialDialog).getByRole('button',{name:'关闭'});
+    expect(closeButton).toHaveFocus();fireEvent.keyDown(closeButton,{key:'Tab',shiftKey:true});
+    expect(within(initialDialog).getByRole('button',{name:'确认取消任务'})).toHaveFocus();
+    fireEvent.keyDown(document.activeElement!,{key:'Tab'});expect(closeButton).toHaveFocus();
+    fireEvent.keyDown(closeButton,{key:'Escape'});expect(initialDialog).not.toBeInTheDocument();expect(trigger).toHaveFocus();expect(discard).not.toHaveBeenCalled();
+    fireEvent.click(trigger);
     const dialog=screen.getByRole('dialog',{name:'确认取消整理任务'});
     fireEvent.click(within(dialog).getByRole('button',{name:'确认取消任务'}));
     await waitFor(()=>expect(dialog).not.toBeInTheDocument());

@@ -154,6 +154,7 @@ export default function FormationPage() {
     return()=>{cancelled=true;};
   },[selectedCare?.aftercareCaseId,expire]);
   const [discardDialog,setDiscardDialog]=useState<{item:FormationSubject;idempotencyKey:string}|null>(null);
+  const discardElement=useRef<HTMLElement>(null);
   const [excludeSourceFiles,setExcludeSourceFiles]=useState(false);
   const [discardSubmitted,setDiscardSubmitted]=useState(false);
   const [discardBusy,setDiscardBusy]=useState(false),[discardNeedsRefresh,setDiscardNeedsRefresh]=useState(false);
@@ -226,6 +227,24 @@ export default function FormationPage() {
     }catch(cause){if(live()){if(isUnauthorized(cause))expire();else setError(cause instanceof Error?cause.message:'媒体整理读取失败。');}}
     finally{if(live()){setLoading(false);setPageLoading(false);setReadPending(false);}}
   },[expire,filter,q,shelfFilter,linkedCorrectionId]);
+  useEffect(()=>{
+    if(!discardDialog)return;
+    const trigger=document.activeElement instanceof HTMLElement?document.activeElement:null;
+    discardElement.current?.querySelector<HTMLButtonElement>('button')?.focus();
+    return()=>{if(trigger?.isConnected)trigger.focus();};
+  },[discardDialog]);
+  useEffect(()=>{
+    const dialog=discardElement.current;if(!discardDialog||!dialog)return;
+    const keydown=(event:KeyboardEvent)=>{
+      if(event.key==='Escape'){event.preventDefault();event.stopPropagation();if(!discardBusy){setDiscardDialog(null);if(discardNeedsRefresh)void load();}}
+      if(event.key==='Tab'){
+        const controls=Array.from(dialog.querySelectorAll<HTMLElement>('button:not(:disabled),input:not(:disabled),a[href]'));
+        const first=controls[0],last=controls[controls.length-1];
+        if(event.shiftKey&&document.activeElement===first){event.preventDefault();last?.focus();}
+        else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first?.focus();}
+      }
+    };dialog.addEventListener('keydown',keydown);return()=>dialog.removeEventListener('keydown',keydown);
+  },[discardDialog,discardBusy,discardNeedsRefresh,load]);
   useEffect(()=>{
     loadGeneration.current++;hasLoadedPage.current=false;positions.current=[undefined];currentPage.current=0;setPageIndex(0);setHasNext(false);
     const timer=q.trim()?window.setTimeout(()=>void load(false,0),350):null;
@@ -302,7 +321,7 @@ export default function FormationPage() {
     {identityDialog&&identityDialog.item.contentProfile==='western_adult'&&<UsAdultActorDialog item={identityDialog.item} onClose={()=>{identityDialog.trigger.focus();setIdentityDialog(null);}} onSelected={()=>{identityDialog.trigger.focus();setIdentityDialog(null);setNotice('已确认演员，正在继续整理。');void load();}} onRefresh={()=>void load()} onUnauthorized={expire}/>}
     {identityDialog&&identityDialog.item.contentProfile!=='jav'&&identityDialog.item.contentProfile!=='western_adult'&&<ManualIdentityDialog item={identityDialog.item} onClose={()=>{identityDialog.trigger.focus();setIdentityDialog(null);}}
       onSelected={()=>{identityDialog.trigger.focus();setIdentityDialog(null);setNotice(identityDialog.item.contentProfile === 'series' ? '已提交剧集身份，正在核验。' : '已提交影片身份，正在核验。');void load();}} onRefresh={()=>void load()} onUnauthorized={expire}/>}
-    <Dialog open={!!discardDialog} title="确认取消整理任务" onClose={()=>{if(!discardBusy){setDiscardDialog(null);if(discardNeedsRefresh)void load();}}} actions={<>
+    <Dialog dialogRef={discardElement} open={!!discardDialog} title="确认取消整理任务" onClose={()=>{if(!discardBusy){setDiscardDialog(null);if(discardNeedsRefresh)void load();}}} actions={<>
       <Button type="button" disabled={discardBusy} onClick={()=>{setDiscardDialog(null);if(discardNeedsRefresh)void load();}}>取消</Button>
       <Button type="button" variant="danger" disabled={discardBusy||discardNeedsRefresh} onClick={()=>{void (async()=>{
         if(!discardDialog)return;
