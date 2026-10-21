@@ -1,5 +1,13 @@
 # “死包”专项：Formation 全生命周期归宿审视
 
+## 2026-10-21 UAT-328：已上架Series缺少剧集母目录公共资料
+
+用户要求对照原剧集文件结构与近期已上架Season。本轮只读查询10个现有Season Entry的当前Inventory并检查目标/原目录，未改生产文件或数据。已确认新目标/media/Series/半泽直树 (2013)、/media/Series/绝命毒师 (2008)、/media/chn_series/3 Body Problem (2024)的根目录均无文件，只有Season 01或Season 03子目录；季内存在season.nfo、poster.jpg及逐集媒体/NFO。原/media/Series/5star/半泽直树 (2013)仍有tvshow.nfo、poster.jpg、fanart.jpg、banner.jpg；原5star/绝命毒师 (2008)仍有tvshow.nfo、poster/fanart、banner/clearlogo/landscape与season01至season05-poster。缺口是目标新剧集根目录未承接/生成整剧资料，不是这些原文件已被删除。
+
+其他7个Season所在母目录保有既有tvshow.nfo/poster等，不能据其存在宣称当前Pipeline会生成：10个Entry的当前Inventory均表现为Season/逐集范围，本次直接核对的Libra movie-production-coordinator metadata路径固定product/season.nfo或product/poster.jpg；Arca series-artifact-targets/series-placement仅区分Season NFO与Episode NFO并按季目录落位。缺少整剧级产出、交付、落位及完成验收的闭环。SSOT §5相关材料共享规则已允许同Series不同Season引用Series级poster/fanart/tvshow.nfo，并规定最后引用释放才可删除；修复不得绕过Arca正式位置与共享引用责任，也不能直接把季海报/season.nfo改名冒充剧海报/tvshow.nfo。
+
+UAT-328保持开放，当前仅完成对比与定位，未假定全部艺术素材都为必需项、未改Acceptance Spec/SSOT、未直接补生产文件。后续需明确剧级必需文件与季/集三层产出及共享责任，在首次目标剧目录建立、追加另一季、并发季入藏、已有剧级文件保留/冲突和最后一季退出上验证；不能以存在Season poster或Emby在线补刮替代ShelfDeck产出完成。原始只读日志保存在本机series-root-layout-20261021证据目录。
+
 ## 2026-10-21 UAT-326/327处理方案审视（未实施、未改SSOT）
 
 用户要求两项均看如何处理。本轮只读代码/合同审视，无新生产操作。326已有同仓可复用的正式模式：SSOT JAV Correction恢复细化明确Event只冻结Scope/前置Result中的站点、config revision、endpoint profile、network route，短期Handle在网络执行时由Platform公开端口重新签发且逐字段核验。Arca jav-correction-capability-ports.sourceHandle已实现此模式，Libra identity Evidence Source却把now()+60000的Handle装进冻结namedInputs。建议把相同分离应用到Libra JAV识别，并核查metadata/artifact等共享访问路径；短期有效期、配置停用/修改、操作权限、来源/profile/route fence继续由Platform/Adapter每次校验，不把JAV改为永久Handle，不从Event摘要白名单删除字段，不泛化未知Workspace/网络副作用的自动重放。非纯Observation仍按原Effect reality分类。验收覆盖跨TTL及真实Host重启输入稳定、配置/route改变拒绝、同一查询原意图保持、来源Result不被后来的查询覆盖；已卡住ABF-153单独验证正式恢复路径，不能以新fixture通过或直接改Attempt摘要/Reset冒充恢复。既有在途Attempt的原input digest不能直接换成新式输入；旧条目如何通过正式Owner恢复收束须在实现前明确，不添加泛化兼容层。

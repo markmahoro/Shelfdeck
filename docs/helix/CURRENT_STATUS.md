@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-21新增开放UAT-328：三部新目标剧集母目录缺少整剧NFO/海报，季目录内season.nfo/poster/逐集资料存在；半泽直树、绝命毒师原5star剧根资料仍在。已定位剧级公共资料产出/落位/验收闭环缺失，未改生产。用户已确认326/327方案，可继续实施，当前尚无相关新产品提交；详见生命周期Evidence。
+
 2026-10-21新增开放UAT-327：剧集4star分类目录下22部剧、1081 eligible视频被第一层目录规则合为一个不可拆Scope而告警；最大单季目录仅30视频。只读诊断确认现实现符合旧Scope合同，属于需讨论修订的分组设计限制；无产品/SSOT或生产修改，未扩大1024上限。详见生命周期Evidence。
 
 2026-10-21 17:50发布完成：UAT-325修正版6c7493964674eea2d944e915654dc3c64abf8929已通过标准部署，生产镜像markmahoro/shelfdeck:helix-beta-20261021-6c74939646，image ID sha256:ad0f738f2969439d555e46833ad0e197f38b3e3babd265af66252fef622ca1fe，tar SHA256 67165d579798f3ee9db0673c0edefcb3f409f7514fae6bdc207e4a3fb1b17f86。17:41:08启动，17:47:53正式Resume完成，running/normalSupplyAllowed且无fault；被中断的原QSV转码已恢复，输出持续增长。原ended查询500已变200，active/completed等八项接口通过，线上JS/CSS与UI负责人已验收版本完全一致。切换前后80组历史/收藏/人物/未决Effect身份保护通过，649原收藏和31,238人物保持。UI同版22/22、相关单测26、Web248/build及受影响后端资格通过；完整生产媒体E2E未新增，前轮完整副本Host FAIL与用户接受例外保留。详见本专项Evidence。
