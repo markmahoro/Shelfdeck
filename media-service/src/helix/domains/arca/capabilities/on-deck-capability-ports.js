@@ -407,11 +407,12 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     return committedOutcome(execution,C.settlement,completed,at,'destructive_commit');}catch(error){const failed=settlementPreconditionFailureOutcome(error);if(failed)return failed;throw error;}},validateResult(_c,o){if(!o?.result?.materialKey)throw new TypeError('Settlement Evidence is invalid.');}});
   ports[C.fulfillment]=Object.freeze({validateInputs(x){requireNamed(x,['finalReality','finalInventoryDecision','shelfStandard']);},async execute(execution){const c=ctx(execution),n=execution.namedInputs,at=now(),
     reality=await options.inventoryPort.readFinalAsync(finalReadRequest(execution,c,at)),finalRealityDigest=reality.realityDigest,
+    seriesPresentationRef=options.series?await options.series.verifyReady(c):null,
     basisDigest=canonicalDigest({decision:n.finalInventoryDecision,priorFinalRealityDigest:n.finalReality.realityDigest,finalRealityDigest,standard:n.shelfStandard}),
     result=Object.freeze({schemaRef:'helix://contracts/types/FulfillmentVerification/v1',schemaVersion:1,verificationId:stable('arca-fulfillment-',{run:c.responsibility.onDeckRunId,basisDigest}),
       verificationKind:'on_deck_fulfillment',basisDigest,result:'passed',reasonCodes:Object.freeze([]),evidenceRefs:Object.freeze([n.finalReality.objectId]),verifiedAtMs:at,
       finalInventoryDecisionDigest:n.finalInventoryDecision.decisionDigest,shelfStandardRevision:c.shelf.currentStandardRevision,finalRealityDigest,
-      memberEvidence:finalMemberEvidence(reality)});return outcome(C.fulfillment,result,at);},validateResult(_c,o){if(o?.result?.result!=='passed'||!o.result.finalRealityDigest)throw new TypeError('Fulfillment Verification is invalid.');}});
+      memberEvidence:finalMemberEvidence(reality),...(seriesPresentationRef?{seriesPresentationRef}:{})});return outcome(C.fulfillment,result,at);},validateResult(_c,o){if(o?.result?.result!=='passed'||!o.result.finalRealityDigest)throw new TypeError('Fulfillment Verification is invalid.');}});
   ports[C.commit]=Object.freeze({validateInputs(c){requireNamed(c,['fulfillmentResult','responsibilityControlCommitHandle']);},async execute(execution){const c=ctx(execution),fulfillment=execution.namedInputs.fulfillmentResult,
     staged=await options.inventoryPort.readFinalAsync(finalReadRequest(execution,c,effectAt(execution))),settlementOutcomes=options.workResultReader.read(execution.workId)
         .filter((item)=>item.capabilityRef===C.settlement&&item.outcomeKind==='succeeded').map((item)=>item.result),

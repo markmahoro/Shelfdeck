@@ -110,6 +110,7 @@ CREATE TABLE "arca_aftercare_assessments" (
   "assessment_kind" TEXT,
   "result" TEXT,
   "incident_key" TEXT,
+  "series_presentation_head_digest" TEXT CHECK (length("series_presentation_head_digest") = 64 AND "series_presentation_head_digest" NOT GLOB '*[^0-9a-f]*'),
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "assessed_at_ms" INTEGER CHECK ("assessed_at_ms" >= 0),
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
@@ -805,6 +806,8 @@ CREATE TABLE "arca_offdeck_scope_materials" (
   "ordinal" INTEGER CHECK ("ordinal" >= 0),
   "material_key" TEXT,
   "material_role" TEXT,
+  "shared_scope_id" TEXT,
+  "shared_version" INTEGER,
   "physical_identity_schema_ref" TEXT,
   "physical_identity_json" TEXT,
   "physical_identity_digest" TEXT CHECK (length("physical_identity_digest") = 64 AND "physical_identity_digest" NOT GLOB '*[^0-9a-f]*'),
@@ -821,7 +824,8 @@ CREATE TABLE "arca_offdeck_scope_materials" (
   UNIQUE ("destruction_scope_id", "material_key", "material_role"),
   CHECK (json_valid("physical_identity_json")),
   CHECK (length(CAST("physical_identity_json" AS BLOB)) <= 4096),
-  FOREIGN KEY ("destruction_scope_id") REFERENCES "arca_offdeck_scopes" ("destruction_scope_id") ON DELETE RESTRICT
+  FOREIGN KEY ("destruction_scope_id") REFERENCES "arca_offdeck_scopes" ("destruction_scope_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shared_scope_id", "shared_version") REFERENCES "arca_series_presentation_versions" ("scope_id", "revision") ON DELETE RESTRICT
 );
 
 CREATE TABLE "arca_offdeck_scopes" (
@@ -1100,13 +1104,15 @@ CREATE TABLE "arca_series_presentation_scopes" (
   "placement_revision" INTEGER CHECK ("placement_revision" >= 1),
   "current_version" INTEGER,
   "active_build_id" TEXT,
+  "retirement_scope_id" TEXT,
   "state_revision" INTEGER CHECK ("state_revision" >= 1),
   "state_digest" TEXT CHECK (length("state_digest") = 64 AND "state_digest" NOT GLOB '*[^0-9a-f]*'),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
   UNIQUE ("shelf_id", "provider", "provider_key"),
   UNIQUE ("endpoint_id", "root_location"),
-  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("retirement_scope_id") REFERENCES "arca_offdeck_scopes" ("destruction_scope_id") ON DELETE RESTRICT
 );
 
 CREATE TABLE "arca_series_presentation_versions" (
@@ -3822,6 +3828,8 @@ CREATE TABLE "proc_candidate_packages" (
   "material_input_form" TEXT CHECK ("material_input_form" IN ('stream_file', 'bdmv', 'dvd', 'iso', 'jav_named_parts')),
   "jav_part_set_schema_ref" TEXT,
   "jav_part_set_json" TEXT,
+  "series_source_refs_schema_ref" TEXT,
+  "series_source_refs_json" TEXT,
   "structure_kind" TEXT CHECK ("structure_kind" IN ('single', 'season')),
   "display_identity" TEXT,
   "identity_metadata_schema_ref" TEXT,
@@ -3848,6 +3856,8 @@ CREATE TABLE "proc_candidate_packages" (
   UNIQUE ("procurement_run_id", "package_revision"),
   CHECK ("jav_part_set_json" IS NULL OR json_valid("jav_part_set_json")),
   CHECK ("jav_part_set_json" IS NULL OR length(CAST("jav_part_set_json" AS BLOB)) <= 16384),
+  CHECK ("series_source_refs_json" IS NULL OR json_valid("series_source_refs_json")),
+  CHECK ("series_source_refs_json" IS NULL OR length(CAST("series_source_refs_json" AS BLOB)) <= 16384),
   CHECK (json_valid("identity_metadata_json")),
   CHECK (length(CAST("identity_metadata_json" AS BLOB)) <= 65536),
   CHECK (json_valid("identity_claim_json")),

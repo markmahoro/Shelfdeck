@@ -1,4 +1,5 @@
 'use strict';
+const {createSeriesPresentationStore}=require('./series-presentation-store');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const { createCommandCommitCoordinator } = require('../../../foundation/persistence/commit-foundation');
@@ -106,6 +107,8 @@ function createShelfDeregistrationStore(options) {
     }
     const outbox=messages.length===0?null:createOutboxParticipant({schemaManifest:options.schemaManifest,producerDomain:'arca',participantId:'arca_shelf_deregistration_control_release_signal',messages});
     const participants=[domain,...(controlParticipant?[controlParticipant]:[]),...(outbox?[outbox]:[])];
+    participants.push(...[createSeriesPresentationStore(options).releaseReferencesParticipant([...new Set(items.map(row=>row.shelf_entry_id))])].filter(Boolean));
+    participants.push(...createSeriesPresentationStore(options).releaseShelfParticipants(p.shelf_id,[...new Set(items.map(row=>row.shelf_entry_id))]));
     return options.unitOfWork.execute(participants).arca_shelf_deregistration_terminal;}
   function receipt(id){return execute('arca_shelf_deregistration_receipt',(ctx)=>ctx.repository(repo.repositoryId).invoke('find_receipt',{deregistration_id:id}));}
   function summary(shelfId){return execute('arca_shelf_deregistration_summary',(ctx)=>{const r=ctx.repository(repo.repositoryId),entries=r.invoke('list_entries',{shelf_id:shelfId}).filter(x=>x.status==='active');let controlledMaterialCount=0,primaryCount=0;for(const e of entries)for(const m of r.invoke('list_materials',{shelf_entry_id:e.shelf_entry_id,inventory_revision:e.current_inventory_revision})){controlledMaterialCount++;if(m.role==='primary_payload')primaryCount++;}const entryIds=new Set(entries.map(x=>x.shelf_entry_id)),decisions=new Map(r.invoke('list_acceptance_decisions').map(x=>[x.acceptance_decision_id,x])),custodies=new Map(r.invoke('list_custodies').map(x=>[x.custody_id,x])),responsibilityCounts=Object.freeze({onDeck:r.invoke('list_ondeck').filter(x=>{const d=decisions.get(custodies.get(x.custody_id)?.acceptance_decision_id);return d?.shelf_id===shelfId&&x.state!=='committed';}).length,offdeck:r.invoke('list_offdeck_cases').filter(x=>entryIds.has(x.shelf_entry_id)&&x.state!=='completed').length,aftercare:r.invoke('list_aftercare').filter(x=>entryIds.has(x.shelf_entry_id)&&x.state==='active').length,reservations:r.invoke('list_reservations').filter(x=>entryIds.has(x.shelf_entry_id)&&x.state==='active').length}),process=r.invoke('find_process_by_shelf',{shelf_id:shelfId});return Object.freeze({entryCount:entries.length,primaryCount,controlledMaterialCount,responsibilityCounts,process:publicProcess(process)});});}

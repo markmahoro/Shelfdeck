@@ -267,6 +267,11 @@ function approvalAuthorization(capabilityRef) {
 }
 
 function resourceKinds(capability) {
+  if(capability.id==='arca.series_presentation.workspace.reclaim@1')return ['cpu','disk_io'];
+  if(capability.id==='arca.series_presentation.source.observe@1')return ['cpu','network'];
+  if(capability.id==='arca.series_presentation.assets.prepare@1')return ['cpu','disk_io','network'];
+  if(capability.id==='arca.series_presentation.files.publish@1')return ['disk_io'];
+  if(capability.id==='arca.series_presentation.inventory.commit@1')return ['cpu'];
   if (['arca.us_adult.source.prepare@1','arca.us_adult.references.match@1','arca.us_adult.assets.prepare@1'].includes(capability.id)) return ['cpu','disk_io'];
   if (['arca.us_adult.files.stage@1','arca.us_adult.files.publish@1','arca.us_adult.files.verify@1','arca.us_adult.files.retire@1'].includes(capability.id)) return ['disk_io'];
   if (['arca.us_adult.inventory.commit@1','arca.us_adult.case.commit@1','people.reference_fact.commit@1','people.candidate.commit@1','people.person.commit@1'].includes(capability.id)) return ['sqlite_write'];
@@ -328,6 +333,7 @@ function buildCapabilityPackage(capability) {
     };
   }
 
+  if(capability.id==='arca.offdeck.deletion.verify@1')inputDefinitions.deletionEvidenceList.maxItems=1027;
   const schemas = {
     'inputs.schema.json': {
       $schema: DRAFT, $id: capabilitySchemaId(capability.id, 'inputs'),

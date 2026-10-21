@@ -130,7 +130,8 @@ const ARCA_DEREGISTRATION_ENABLED=Object.freeze([
   'arca.shelf_deregistration.release_manifest.verify@1',
   'arca.shelf_deregistration.commit@1',
 ]);
-const ARCA_ALL_ENABLED=Object.freeze([...ARCA_ENABLED,...ARCA_OFFDECK_ENABLED,...ARCA_DEREGISTRATION_ENABLED]);
+const ARCA_SERIES_ENABLED=Object.freeze(['arca.series_presentation.source.observe@1','arca.series_presentation.assets.prepare@1','arca.series_presentation.files.publish@1','arca.series_presentation.inventory.commit@1','arca.series_presentation.workspace.reclaim@1']);
+const ARCA_ALL_ENABLED=Object.freeze([...ARCA_SERIES_ENABLED,...ARCA_ENABLED,...ARCA_OFFDECK_ENABLED,...ARCA_DEREGISTRATION_ENABLED]);
 const PEOPLE_IMAGE_ENABLED = Object.freeze(['people.reference_asset.import@1', 'shared.face.embedding.compute@1','people.reference_fact.commit@1']);
 const PEOPLE_REFERENCE_ENABLED=Object.freeze(['people.reference_usage.audit@1','people.workspace.reclaim@1']);
 const PEOPLE_SYSTEM_ENABLED=Object.freeze(['people.registration_evidence.observe@1','people.merge_evidence.resolve@1','people.candidate.commit@1','people.person.commit@1']);
@@ -355,6 +356,7 @@ function createProcurementExecutionRuntime(options) {
     readExternalMaterialLandingBinding: options.readExternalMaterialLandingBinding || (() => undefined),
     executeExternalProvider: options.executeExternalProvider ||
       (async () => { throw new Error('External Material Provider adapter is unavailable.'); }),
+    qualifySeriesLocalSource:require('../integrations/series-local-source-io').qualifyReferences,
     productProductionPort: options.productProductionPort,
     mediaEffectPort: options.mediaEffectPort });
   const capabilityRegistration = procurementConstruction.createCapabilityRegistration({ ...options, now });
@@ -386,7 +388,7 @@ function createProcurementExecutionRuntime(options) {
     :Object.freeze({kind:'pending'});
   const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,contractValidator,
     resolveMediaCastReference:input=>peopleProcessServices.mediaCastReferenceQuery.resolve(input),
-    materialControlProjectionPort,deriveJavCoverBytes,createJavCorrectionWorkspaceIo,createJavCorrectionFormalFiles,createJavCorrectionFormalRetirement,createJavCorrectionWorkspaceReclaim,createJavCorrectionRecoveryScene,
+    materialControlProjectionPort,createSeriesPresentationIo:args=>require('../integrations/series-presentation-io').createSeriesPresentationIo({...args,afterPhysicalEffect:options.afterSeriesPhysicalEffect}),deriveJavCoverBytes,createJavCorrectionWorkspaceIo,createJavCorrectionFormalFiles,createJavCorrectionFormalRetirement,createJavCorrectionWorkspaceReclaim,createJavCorrectionRecoveryScene,
     registry:currentServiceCatalog,
     buildRatingTargetIdentity:LibraExecutionRegistration.buildRatingTargetIdentity,
     compileFfmpegPipeline, compileFfmpegPassArgs,
@@ -488,6 +490,7 @@ function createProcurementExecutionRuntime(options) {
   function recoveryReality(effectClass) {
     const observed = (context) => effectJournal.observeRecovery(context.effect.effect_id);
     if (effectClass === 'workspace_write') return { async observe(context) {
+      if(['arca.series_presentation.assets.prepare@1','arca.series_presentation.workspace.reclaim@1'].includes(context.event?.capability_ref))return arcaCapabilityRegistration.ports[context.event.capability_ref].observeEffectReality(context);
       if(context.event?.capability_ref==='people.workspace.reclaim@1')return peopleImageExecution.artifactReclamation.ports['people.workspace.reclaim@1'].observeEffectReality(context);
       if(context.event?.capability_ref==='arca.jav_correction.workspace.reclaim@1')return arcaCapabilityRegistration.ports['arca.jav_correction.workspace.reclaim@1'].observeEffectReality(context);
       if(context.event?.capability_ref==='arca.jav_correction.assets.prepare@1')
@@ -534,6 +537,7 @@ function createProcurementExecutionRuntime(options) {
       return { status: committed ? 'whole_established' : 'whole_absent', fenceValid: true, evidenceDigest: canonicalDigest(value) };
     } };
     if (effectClass === 'material_commit') return { async observe(context) {
+      if(context.event?.capability_ref==='arca.series_presentation.files.publish@1')return arcaCapabilityRegistration.ports[context.event.capability_ref].observeEffectReality(context);
       if(context.event?.capability_ref==='arca.jav_correction.formal_retirement.execute@1')return arcaCapabilityRegistration.ports['arca.jav_correction.formal_retirement.execute@1'].observeEffectReality(context);
       const value = observed(context), committed = value.markers.length === 1;
       if(!committed&&['arca.us_adult.files.stage@1','arca.us_adult.files.publish@1','arca.us_adult.files.retire@1'].includes(context.event?.capability_ref))
@@ -602,7 +606,7 @@ function createProcurementExecutionRuntime(options) {
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
   const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
-  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,contractValidator,correction:arcaCapabilityRegistration.correction,actorPipelineQuery:arcaCapabilityRegistration.actorPipelineQuery,actorRefreshSource:arcaCapabilityRegistration.actorRefreshSource,peopleReferenceQuery,
+  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,contractValidator,series:arcaCapabilityRegistration.series,correction:arcaCapabilityRegistration.correction,actorPipelineQuery:arcaCapabilityRegistration.actorPipelineQuery,actorRefreshSource:arcaCapabilityRegistration.actorRefreshSource,peopleReferenceQuery,
     onActorRefreshAdmitted:()=>host?.wakeBackground({ownerDomain:'arca',reconcilerKey:'active-aftercare-cases'}),
     resolveMediaCastReference:input=>peopleProcessServices.mediaCastReferenceQuery.resolve(input),
     computeBoundedMaterialFingerprintSync,
@@ -629,7 +633,7 @@ function createProcurementExecutionRuntime(options) {
   const arcaPlanningRegistration=arcaConstruction.createPlanningRegistration({...options,registry,policyRegistry,contractValidator,workResultReader,
     actorRefreshSource:arcaCapabilityRegistration.actorRefreshSource,
     actorMatchQuery:arcaCapabilityRegistration.actorMatchQuery,
-    correction:arcaCapabilityRegistration.correction,actorPipelineQuery:arcaCapabilityRegistration.actorPipelineQuery,
+    series:arcaCapabilityRegistration.series,correction:arcaCapabilityRegistration.correction,actorPipelineQuery:arcaCapabilityRegistration.actorPipelineQuery,
     contextReader:arcaProcessServices.contextReader,aftercareContextReader:arcaProcessServices.aftercareContextReader,
     offdeckContextReader:arcaProcessServices.offdeckContextReader,
     shelfDeregistrationContextReader:arcaProcessServices.shelfDeregistrationContextReader,
@@ -789,6 +793,17 @@ function createProcurementExecutionRuntime(options) {
         // already validated by the input/Fence path; do not re-read ratings just
         // to declare the fixed SQLite write resource.
         else if(capability==='arca.aftercare.assessment.commit@1')resources.push({resourceKey:'sqlite_write',units:1});
+        else if(capability.startsWith('arca.series_presentation.')){
+          const scope=inputs.namedInputs.seriesPresentationScope,series=arcaCapabilityRegistration.series,workspaceMount=series.rootSnapshot.mountScopeId;
+          if(scope?.digest!==series.seriesStore.build(snapshot.work.process_id)?.digest)throw new Error('P4_TYPED_SERIES_SCOPE_UNRESOLVED');
+          for(const mount of new Set([scope.mountScopeId,workspaceMount])){validatedVolumeKeys.add(mount);resources.push({resourceKey:'volume_read:'+mount,units:1});}
+          if(['arca.series_presentation.source.observe@1','arca.series_presentation.assets.prepare@1'].includes(capability)&&(scope.supplementalSources.length<2||scope.basis.schema==='shelfdeck.series-presentation-maintenance@1')){
+            const integrationId=scope.imageSourceQualification.integrationId;validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1});
+          }
+          if(['arca.series_presentation.assets.prepare@1','arca.series_presentation.workspace.reclaim@1'].includes(capability))resources.push({resourceKey:'volume_write:'+workspaceMount,units:1});
+          if(capability==='arca.series_presentation.files.publish@1')resources.push({resourceKey:'volume_write:'+scope.mountScopeId,units:1},{resourceKey:'volume_mutation:'+scope.mountScopeId,units:1});
+          if(capability==='arca.series_presentation.inventory.commit@1')resources.push({resourceKey:'sqlite_write',units:1},{resourceKey:'control_commit',units:1});
+        }
         else {
         const refs=workResultReader.readBindings(snapshot.work.work_id).flatMap((item)=>item.inputBindings?.bindings||[])
           .find((item)=>Array.isArray(item.parameters?.dependencyRefs))?.parameters.dependencyRefs||[];
@@ -919,7 +934,7 @@ function createProcurementExecutionRuntime(options) {
     'product_identity','product_metadata_observation','artifact_production','product_fact_assembly','workspace_media_production',
     'product_conformance','deliverable_promotion','us_adult_analysis','us_adult_product'];
   const perceptionPlannerKinds=['acquisition_page','resolution'];
-  const arcaPlannerKinds=['us_adult_actor_source','us_adult_actor_match','us_adult_actor_assets','us_adult_actor_stage','us_adult_actor_publish','us_adult_actor_verify','us_adult_actor_commit','us_adult_actor_retire','us_adult_actor_close','us_adult_actor_discard','acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','periodic_health_assessment','periodic_custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','care_workspace_reclaim','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit','jav_correction_assets','jav_correction_files','jav_correction_publish','jav_correction_verify','jav_correction_commit','jav_correction_formal_retirement','jav_correction_workspace_reclaim'];
+  const arcaPlannerKinds=['series_presentation','series_presentation_reclaim','us_adult_actor_source','us_adult_actor_match','us_adult_actor_assets','us_adult_actor_stage','us_adult_actor_publish','us_adult_actor_verify','us_adult_actor_commit','us_adult_actor_retire','us_adult_actor_close','us_adult_actor_discard','acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','periodic_health_assessment','periodic_custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','care_workspace_reclaim','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit','jav_correction_assets','jav_correction_files','jav_correction_publish','jav_correction_verify','jav_correction_commit','jav_correction_formal_retirement','jav_correction_workspace_reclaim'];
   const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({
     ownerDomain: 'procurement', workKind: plannerKinds[index], plannerContractRef: planner.plannerContractRef,
     plannerVersion: planner.plannerVersion, planner
@@ -1134,6 +1149,19 @@ function createProcurementExecutionRuntime(options) {
       else if(['failed','blocked','cancelled'].includes(request.workAttemptState))
         arcaProcessServices.coordinator.recordTerminalFailure({processId:request.processId,workId:request.workId,
           workKind:request.workKind,errorCode:request.workAttemptFailureCode,incidentRef:request.incidentRefs?.[0]||null});
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
+    if(request.ownerDomain==='arca'&&request.processType==='arca_series_presentation'){
+      if(['succeeded','failed','cancelled'].includes(request.workAttemptState)){
+        if(request.workKind!=='series_presentation_reclaim'){
+          if(request.workAttemptState==='succeeded')arcaCapabilityRegistration.series.reclaim(request.processId);
+          arcaProcessServices.coordinator.reconcileSeries(request.processId);
+        }
+        const store=arcaCapabilityRegistration.series.seriesStore,scope=store.build(request.processId);
+        const ids=new Set(store.read('references',{scope_id:scope.scopeId}).filter(row=>row.state==='active').map(row=>row.shelf_entry_id));
+        if(scope.basis.entryBinding)ids.add(scope.basis.entryBinding.shelfEntryId);
+        for(const entryId of ids)arcaProcessServices.aftercareCoordinator.sharedPresentationChanged(entryId,'series-shared:'+request.processId+':'+request.workAttemptState);
+      }
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='arca'&&request.processType==='arca_ondeck_run'){
@@ -1481,6 +1509,12 @@ function createProcurementExecutionRuntime(options) {
         (cursor===null||item.offdeckCaseId>cursor)).sort((a,b)=>a.offdeckCaseId.localeCompare(b.offdeckCaseId)).slice(0,limit)
         .map((item)=>Object.freeze({cursor:item.offdeckCaseId,scope:item})),
       reconcile:({offdeckCaseId})=>arcaProcessServices.offdeckCoordinator.reconcile(offdeckCaseId),
+    }),Object.freeze({ownerDomain:'arca',reconcilerKey:'series-pending-reservations',
+      listPage:({cursor,limit})=>arcaCapabilityRegistration.series.pendingPage(cursor,limit),
+      reconcile:({scopeId})=>{arcaCapabilityRegistration.series.reconcileMaintenanceScope(scopeId);return arcaProcessServices.coordinator.reconcileSeriesScope(scopeId);},
+    }),Object.freeze({ownerDomain:'arca',reconcilerKey:'series-committed-workspace-reclamation',
+      listPage:({cursor,limit})=>arcaCapabilityRegistration.series.reclaimPage(cursor,limit),
+      reconcile:({buildId})=>arcaCapabilityRegistration.series.reclaim(buildId),
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'active-shelf-deregistrations',
       listPage:({cursor,limit})=>arcaProcessServices.shelfDeregistrationContextReader.listActivePage(cursor,limit),

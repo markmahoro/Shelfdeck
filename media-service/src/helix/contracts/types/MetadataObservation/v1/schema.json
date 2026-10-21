@@ -863,6 +863,122 @@
       "type": "integer",
       "minimum": 0
     },
+    "seriesQualifiedLocalSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "shelfdeck.series-qualified-local-source@1"
+        },
+        "providerKey": {
+          "type": "string",
+          "pattern": "^[0-9]+$"
+        },
+        "referenceSet": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "schema": {
+              "const": "shelfdeck.series-source-references@1"
+            },
+            "fieldId": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "accessRevision": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "fieldRoot": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "sourceRoot": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096
+            },
+            "observationDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "references": {
+              "type": "array",
+              "maxItems": 3,
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "artifactKind": {
+                    "enum": [
+                      "nfo",
+                      "poster",
+                      "fanart"
+                    ]
+                  },
+                  "endpointId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 256
+                  },
+                  "location": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096
+                  },
+                  "physicalIdentity": {
+                    "$ref": "helix://contracts/types/PhysicalMaterialIdentity/v2"
+                  },
+                  "entryDigest": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                },
+                "required": [
+                  "artifactKind",
+                  "endpointId",
+                  "location",
+                  "physicalIdentity",
+                  "entryDigest"
+                ]
+              }
+            },
+            "sourceSetDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          },
+          "required": [
+            "schema",
+            "fieldId",
+            "accessRevision",
+            "fieldRoot",
+            "sourceRoot",
+            "observationDigest",
+            "references",
+            "sourceSetDigest"
+          ]
+        },
+        "nfoByteDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "qualificationDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "required": [
+        "schema",
+        "providerKey",
+        "referenceSet",
+        "nfoByteDigest",
+        "qualificationDigest"
+      ]
+    },
     "seriesPresentationSource": {
       "type": "object",
       "additionalProperties": false,
@@ -932,6 +1048,39 @@
           },
           "maxItems": 64
         },
+        "cast": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "providerKey": {
+                "type": "string",
+                "pattern": "^[0-9]+$"
+              },
+              "name": {
+                "type": "string",
+                "maxLength": 256,
+                "minLength": 1
+              },
+              "role": {
+                "type": "string",
+                "maxLength": 256
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "providerKey",
+              "name",
+              "role",
+              "order"
+            ]
+          }
+        },
         "sourceDigest": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
@@ -953,6 +1102,7 @@
         "firstAirDate",
         "plot",
         "genres",
+        "cast",
         "sourceDigest"
       ]
     }

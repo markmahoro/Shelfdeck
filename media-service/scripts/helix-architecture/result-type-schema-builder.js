@@ -339,6 +339,7 @@ const special = {
   'CandidatePackage.seasonContinuityClaims': arrayOf(seasonContinuityClaim(), 64),
   'CandidatePackage.seasonContinuityClaimSetDigest': digest(),
   'CandidatePackage.primaryInputManifestRef': object({ manifestId: id(), manifestDigest: digest(), memberCount: positiveInteger() }),
+  'CandidatePackage.seriesPresentationSourceRefs':require('../../src/helix/contracts/series-local-source').referenceSetSchema(),
   'CandidatePackage.relatedReferences': arrayOf(triageRelatedReference(), 1024),
   'CandidatePublicationReceipt.packageRevision': positiveInteger(),
   'RelatedMaterialReference.identity': ref('PhysicalMaterialIdentity'),
@@ -527,6 +528,7 @@ const special = {
   'ConformanceAssessmentEvidence.assessmentState': text(),
   'CustodyAssessmentEvidence.incidentKey': nullable(text()),
   'PresentationAssessmentEvidence.incidentKey': nullable(text()),
+  'PresentationAssessmentEvidence.seriesPresentationHeadDigest':digest(),
   'ConformanceAssessmentEvidence.incidentKey': nullable(text()),
   'ConformanceAssessmentEvidence.mediaRepairStrategy': nullable(domainRef('AftercareMediaRepairStrategy')),
   'ConformanceAssessmentEvidence.memberScope': object({materialKey:digest(),spaceBasisDigest:digest(),
@@ -637,6 +639,7 @@ const contracts = {
   SeriesPresentationSourceObserved:['EvidenceEnvelope','scopeId,buildId,scopeDigest,recipe,recipeDigest'],
   SeriesPresentationAssetsPrepared:['EvidenceEnvelope','scopeId,buildId,scopeDigest,recipeDigest,artifacts'],
   SeriesPresentationFilesPublished:['EvidenceEnvelope','scopeId,buildId,scopeDigest,manifest'],
+  SeriesPresentationWorkspaceReclaimed:['ReceiptEnvelope','buildId,handleSetDigest,reclaimedCount,reclaimedBytes'],
   SeriesPresentationReady:['DomainFactEnvelope','scopeId,buildId,scopeDigest,sharedVersion,manifestDigest,verificationDigest'],
   JavCorrectionAssetsPrepared:['EvidenceEnvelope','correctionId,admissionDigest,confirmedProposalDigest,actualProposalDigest,sourceObservationDigest,metadataFactDigest,metadataHandle,artifacts'],
   JavCorrectionCommitReceipt:['ReceiptEnvelope','correctionId,shelfEntryId,previousCanonicalIdentityRevision,newCanonicalIdentityRevision,previousInventoryRevision,newInventoryRevision,canonicalIdentityDigest,canonicalIdentityKey,inventoryDigest,verificationDigest,controlChangeDigest,changeDigest,originalCommitDigest'],
@@ -661,7 +664,7 @@ const contracts = {
   IdentityClaim: ['DraftEnvelope', 'claimKind,mediaType,contentProfile,claimedTitle,displayIdentity,claimedYear?,seasonClaim?,javCode?,identityMetadataDigest,structureUnitDigest,sourceHints,claimDigest'],
   PrimaryInputManifestDraft: ['DraftEnvelope', 'preallocatedManifestId,procurementRunId,runBasisDigest,structureEvidencePayloadDigest,unitId,structureKind,memberCount,members,membersDigest,memberSourceDigest,manifestDraftDigest'],
   PrimaryInputManifest: ['ManifestEnvelope', 'structureKind,members'],
-  CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,materialInputForm,javPartSet?,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,relatedDispositionScopeDigest,memberControlEvidenceSetDigest,packageDigest'],
+  CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,materialInputForm,javPartSet?,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,seriesPresentationSourceRefs?,relatedReferences,relatedReferenceSetDigest,relatedDispositionScopeDigest,memberControlEvidenceSetDigest,packageDigest'],
   CandidatePublicationReceipt: ['ReceiptEnvelope', 'candidateDraftDigest,candidatePackageId,packageRevision,packageDigest,primaryInputManifestDigest,relatedReferenceSetDigest,relatedDispositionScopeDigest,memberControlEvidenceSetDigest,acceptanceBasisDigest,offerId,receiptDigest'],
   RelatedMaterialReference: [null, 'referenceId,primaryMaterialKey,role,identity,endpointId,location,fingerprintAlgorithm,fingerprintVersion,contentFingerprint,associationKind,dispositionRequired,associationEvidenceDigest,dispositionBasisDigest,referenceDigest'],
   SeasonContinuityClaim: [null, 'claimKind,claimNamespace,claimKey,claimDigest,evidenceDigest'],
@@ -720,12 +723,12 @@ const contracts = {
   SettlementDeletionEvidence: ['EvidenceEnvelope', 'authorizationOrApprovalRef,materialKey,preDeleteIdentityDigest,postDeleteReality,effectReceiptId'],
   DeletionEvidence: ['EvidenceEnvelope', 'authorizationOrApprovalRef,materialKey,preDeleteIdentityDigest,disposition,postDeleteReality,referenceReleaseResultDigest,effectReceiptId'],
   FulfillmentVerificationRecord: [null, ''],
-  FulfillmentVerification: ['VerificationEnvelope', 'finalInventoryDecisionDigest,shelfStandardRevision,finalRealityDigest,memberEvidence'],
+  FulfillmentVerification: ['VerificationEnvelope', 'finalInventoryDecisionDigest,shelfStandardRevision,finalRealityDigest,memberEvidence,seriesPresentationRef?'],
   OnDeckCommitResult: [null, 'onDeckCommitReceipt,offloadCompletionFact'],
   OnDeckCommitReceipt: ['ReceiptEnvelope', 'shelfEntryId,inventoryRevision,deckFactRevision,controlRevisionSetDigest,relatedDispositionCompletionDigest'],
   OffloadCompletionFact: ['DomainFactEnvelope', 'onDeckRunId,shelfEntryId,inventoryRevision,packageId,completionDigest'],
   CustodyAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey'],
-  PresentationAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey'],
+  PresentationAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey,seriesPresentationHeadDigest?'],
   ConformanceAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey,mediaRepairStrategy,memberScope?,memberAssessmentSet?'],
   AssessmentRevision: ['DomainFactEnvelope', 'shelfEntryId,careBasisDigest,professionalAssessmentSetDigest'],
   MaterialEffectReceipt: ['ReceiptEnvelope', 'targetBindingDigest,materialEffectKind,effectReceiptId,finalRealityDigest,finalMaterialIdentity,targetEndpointId,targetLocation,retiredMaterials,artifactKind?,supersededLocation?,supersededMaterialIdentity?'],
@@ -760,6 +763,8 @@ special['OnDeckCommitResult.onDeckCommitReceipt'] = ref('OnDeckCommitReceipt');
 special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact');
 special['FinalProductVerification.memberEvidence'] = arrayOf(finalMaterialEvidence(),1024);
 special['FulfillmentVerification.memberEvidence'] = arrayOf(finalMaterialEvidence(),1024);
+special['FulfillmentVerification.seriesPresentationRef'] = object({scopeId:id(),sharedVersion:positiveInteger(),manifestDigest:digest(),verificationDigest:digest(),
+  controls:arrayOf(object({materialKey:digest(),controlRevision:positiveInteger(),projectionDigest:digest()}),3)});
 special['MaterialEffectReceipt.finalMaterialIdentity'] = ref('PhysicalMaterialIdentity');
 special['MaterialEffectReceipt.artifactKind'] = {enum:['nfo','poster','fanart']};
 special['MaterialEffectReceipt.targetEndpointId'] = id();
@@ -1125,6 +1130,7 @@ function metadataObservationSchema() {
   schema.properties.javSelectedSource=require('../../src/helix/contracts/jav-selected-source').javSelectedSourceSchema();
   schema.properties.sourceIntegrationHandle=ref('IntegrationHandle');
   schema.properties.sourceAuthorizedAtMs=nonNegativeInteger();
+  schema.properties.seriesQualifiedLocalSource=require('../../src/helix/contracts/series-local-source').qualifiedSchema();
   schema.properties.seriesPresentationSource=require('../../src/helix/contracts/series-presentation-basis').sourceSchema();
   schema.allOf=[{if:{properties:{contentProfile:{const:'jav'}},required:['contentProfile']},then:{required:['javSelectedSource','sourceIntegrationHandle','sourceAuthorizedAtMs']},
     else:{not:{anyOf:[{required:['javSelectedSource']},{required:['sourceIntegrationHandle']},{required:['sourceAuthorizedAtMs']}]}}}];

@@ -572,6 +572,7 @@ function createFormationProjectionSource(options) {
     const arcaStatuses = new Map(offerIds.length ? chunks(offerIds, 100).flatMap((ids) =>
       [...(options.readArcaFormationStatuses?.(ids) || new Map()).entries()]) : []);
     const onDeckRunIds = unique([...arcaStatuses.values()].map((item) => item.onDeckRunId).filter(Boolean));
+    const sharedBuildIds=unique([...arcaStatuses.values()].map(item=>item.sharedBuildId).filter(Boolean));
     const recoveries = new Map(offerIds.length ? chunks(offerIds, 100).flatMap((ids) =>
       [...(options.readAcceptanceRecoveries?.(ids) || new Map()).entries()]) : []);
     const prepared = subjects.map((subject) => {
@@ -600,7 +601,7 @@ function createFormationProjectionSource(options) {
     const actualPlanProcessIds = includeActualPlans ? unique([
       ...(buildOptions.includeProcessDetail === true ? prepared.map((item)=>item.snapshot?.candidatePackage?.procurementRunId) : []),
       ...value.decisions.map((item)=>item.intake_decision_id), ...subjects.map((item)=>item.subject_id),
-      ...runIds, ...offerIds, ...onDeckRunIds,
+      ...runIds, ...offerIds, ...onDeckRunIds, ...sharedBuildIds,
     ]) : [];
     const actualPlanWorks = actualPlanProcessIds.length
       ? chunks(actualPlanProcessIds).flatMap((ids)=>options.progressProjectionReader?.read(ids, { includePlans:true, ...resultReadOptions }) || []) : [];
@@ -686,6 +687,7 @@ function createFormationProjectionSource(options) {
         arcaScopes:[
           ...(pkg ? [{ processType:'arca_acceptance', processId:pkg.offer_id }] : []),
           ...(arcaStatus?.onDeckRunId ? [{ processType:'arca_ondeck_run', processId:arcaStatus.onDeckRunId }] : []),
+          ...(arcaStatus?.sharedBuildId?[{processType:'arca_series_presentation',processId:arcaStatus.sharedBuildId}]:[]),
         ],
       }) : undefined;
       return Object.freeze({ formationViewId: subject.subject_id, subjectId: subject.subject_id, displayIdentity, contentProfile: subject.content_profile, structureKind: subject.structure_kind, status: subject.status, classification, myRating: rating?.rating ?? null, myRatingSource: rating?.sourceKind || null, myRatingRevision: (rating?.expectedRevision || 0) > 0 ? rating.expectedRevision : null, ratingState:rating?.state || 'pending', ratingResolutionStatus:rating?.resolutionStatus || null, ratingReasonCode:rating?.reasonCode || null, productIdentityIssue: issue, acceptanceRecovery: recovery, arcaStatus,
@@ -861,6 +863,11 @@ function createFormationQuery(options) {
       processType:arca?'arca_ondeck_run':'libra_run',processId,workKind})).slice(0,16):[];
     if(failures.length)item={...item,failureDiagnostics:failures};
     const value = item.handoffB?.offerId ? options.readAcceptanceRecovery?.(item.handoffB.offerId) : null;
+    if(item.handoffB?.offerId&&item.arcaStatus?.retryAvailable===true&&item.arcaStatus.blockedPhase==='series_presentation'){
+      return Object.freeze({...item,classification:'attention_required',nextAction:Object.freeze({label:'剧集资料准备失败',state:'attention_required',progress:null}),
+        executorIssue:Object.freeze({phase:'series_presentation',canSupplyImages:item.arcaStatus.canSupplyImages===true,errorCode:item.arcaStatus.reasonCode,attemptCount:null,owner:'arca',recoveryState:'attention_required',
+          recoveryGeneration:null,automaticRecoveryUsed:true,canRetry:true,offerId:item.handoffB.offerId,onDeckRunId:item.arcaStatus.onDeckRunId})});
+    }
     if (item.handoffB?.offerId && item.arcaStatus?.reasonCode === 'ARCA_ONDECK_BLOCKED' && item.arcaStatus.onDeckRunId) {
       return Object.freeze({ ...item, classification:'attention_required',
         nextAction:Object.freeze({label:'上架自动恢复已停止，需要处理',state:'attention_required',progress:null}),

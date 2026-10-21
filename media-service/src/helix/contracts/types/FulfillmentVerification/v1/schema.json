@@ -124,6 +124,67 @@
         ]
       },
       "maxItems": 1024
+    },
+    "seriesPresentationRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "scopeId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sharedVersion": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "manifestDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "verificationDigest": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "controls": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "materialKey": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "controlRevision": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "projectionDigest": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-f0-9]{64}$"
+              }
+            },
+            "required": [
+              "materialKey",
+              "controlRevision",
+              "projectionDigest"
+            ]
+          },
+          "maxItems": 3
+        }
+      },
+      "required": [
+        "scopeId",
+        "sharedVersion",
+        "manifestDigest",
+        "verificationDigest",
+        "controls"
+      ]
     }
   },
   "required": [

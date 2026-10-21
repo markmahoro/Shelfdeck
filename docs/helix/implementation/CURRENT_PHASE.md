@@ -1,5 +1,10 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-21追加运行链检查点：原任务重试/双图上传/真实视频上架、当前收藏缺图重试/单图上传/健康的完整浏览器旅程通过；两类写文件后人工重试、旧已Commit Season隔离软件修复、合格原来源只读复制与别剧资料拒用均有定向证据。新增共享健康head失效与空Workspace来源重评继续验证，当前136/115/231/61。沿用三项工作项；未关闭UAT、未发布、未改生产历史文件，最终资格与Source物化后的失败恢复收口仍继续。详见既有UAT-328设计Evidence §18。
+
+2026-10-21继续实施（尚未完成最终资格）：UAT-326新增真实进程退出后跨60秒Handle TTL恢复同一Identity Event、一次上架及再次重启不重复Commit演练通过；UAT-327真实Host对4star分类目录1081媒体形成65个完整季包和2个Run，文件/成员不重不漏。UAT-328已接通共享Supporting Work/Provider资格/字节配方/正式Control与Ready原子提交、Accepted预留与On-deck版本引用、原任务重试及上传、健康缺项修复/维护补图和Workspace回收；初始S03、跨季复用、同季加集、Workspace/正式文件真实进程退出、来源无图人工补图及真实N:M最后一季退出均取得定向证据。最后引用退出纳入原确认范围的三项共享文件，以持久retirement围栏阻止竞争准入；其他引用/Accepted预留保护共享文件。当前136 Capability/115 Result family/231表/60事务。最新追加代码仍在回归；三项UAT未关闭、未发布，旧生产收藏补齐预览/正式恢复、来源祖先资料资格、显式刷新及最终平台/UI/完整Gate仍继续。
+
+
 2026-10-21用户已确认UAT-328完整设计并要求326/327/328全部开始开发。当前执行顺序为：326稳定来源资格与执行期短期授权；327共享本地完整分组及确定性Run分批；328 Arca剧级公共呈现及三层Provider合同、首次/跨季/新集与维护闭环。先回写SSOT，再实施和定向回归、具体版本UI审核；不继承先前版本资格，不将开发授权视为生产旧任务Reset或现存剧根补文件授权。下方待审描述保留为历史时点。
 
 首批开发检查点（产品提交`85ab5c7e1`）：326的Identity/Metadata/Artifact使用稳定JavSourceQualification，执行时重签短期Handle，并保存Metadata真实核准时刻，避免长查询跨TTL后误判来源；327采用共享本地完整分组、Triage Rule revision 3及local_media_group，分类目录可分批而真实1024上限保留；328已实现基础剧级文本Basis、Provider图片scope及稳定缓存key、共享登记/CAS/版本引用组件和精确文件IO。组合342项定向测试、2项隔离JAV Host及最后受影响范围77项通过；P2合同、Manifest、包边界和语义静态检查通过。328尚未接通Supporting Work、正式Control/Ready提交、Accepted/On-deck/维护退出、原条目恢复及本地补充资料完整入口，三项均未完成最终验收/发布。完整长时门禁曾提前启动后停止，记STOPPED，不计PASS；后续固定完整增量再执行。

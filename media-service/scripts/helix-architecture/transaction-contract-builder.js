@@ -68,11 +68,21 @@ const crashFixtures = Object.freeze({
 });
 
 const definitions = Object.freeze({
+  'Series Presentation Source Reassessment':{
+    commitClass:'domain_unit_of_work',commitMarkerRequired:false,writeTables:['arca_series_presentation_scopes','arca_series_presentation_builds','fx_workspace_registry'],
+    readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_series_presentation_commit_links','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_workspace_registry','fx_workspace_materials','fx_artifact_registry'],fixtureRefs:['series-presentation-commit'],hasOutbox:false,
+  },
   'Series Presentation Commit':{
     commitClass:'responsibility_control_commit',
-    writeTables:['arca_series_presentation_scopes','arca_series_presentation_versions','fx_material_controls','fx_material_control_revisions','fx_event_result_bindings','fx_commit_markers'],
-    readTables:['arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations',
-      'arca_series_presentation_references','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings'],
+    writeTables:['arca_series_presentation_scopes','arca_series_presentation_versions','arca_series_presentation_references','fx_material_controls','fx_material_control_revisions','fx_event_result_bindings','fx_commit_markers'],
+    readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations',
+      'arca_series_presentation_references','arca_series_presentation_commit_links','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings'],
+    fixtureRefs:['series-presentation-commit'],hasOutbox:false,
+  },
+  'Series Presentation Workspace Reclaim':{
+    commitClass:'workspace_write',writeTables:['fx_workspace_registry','fx_workspace_materials','fx_artifact_registry','fx_event_result_bindings','fx_commit_markers'],
+    readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_series_presentation_commit_links',
+      'platform_workspace_roots','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings'],
     fixtureRefs:['series-presentation-commit'],hasOutbox:false,
   },
   'Domain Fact Commit': {
@@ -411,12 +421,12 @@ const definitions = Object.freeze({
   },
   'Handoff B Accepted': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['arca_acceptance_attempts', 'arca_acceptance_decisions',
+    writeTables: ['arca_series_presentation_scopes','arca_series_presentation_reservations','arca_acceptance_attempts', 'arca_acceptance_decisions',
       'arca_final_inventory_decisions', 'arca_ondeck_runs',
       'arca_ondeck_custodies', 'arca_material_bindings',
       'arca_handoff_b_receipts', 'fx_material_controls',
       'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['arca_acceptance_attempts', 'arca_acceptance_checks',
+    readTables: ['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_commit_links','arca_series_presentation_scopes','arca_series_presentation_reservations','arca_acceptance_attempts', 'arca_acceptance_checks',
       'arca_shelves', 'arca_shelf_standard_revisions',
       'arca_placement_policy_revisions'],
     fixtureRefs: ['handoff-b-accepted'], hasOutbox: true,
@@ -498,8 +508,8 @@ const definitions = Object.freeze({
   },
   'On-deck Commit': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['arca_source_cleanup_checks', 'arca_shelf_entries', 'arca_canonical_identity_revisions', 'arca_inventory_representations', 'arca_inventory_materials', 'arca_inventory_related_references', 'arca_inventory_product_facts', 'arca_inventory_person_relations', 'arca_deck_fact_revisions', 'arca_ondeck_commit_receipts', 'arca_offload_completions', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['arca_final_inventory_decisions', 'arca_ondeck_runs'], fixtureRefs: ['ondeck-fixed-transaction'], hasOutbox: true
+    writeTables: ['arca_series_presentation_reservations','arca_series_presentation_references','arca_series_presentation_commit_links','arca_source_cleanup_checks', 'arca_shelf_entries', 'arca_canonical_identity_revisions', 'arca_inventory_representations', 'arca_inventory_materials', 'arca_inventory_related_references', 'arca_inventory_product_facts', 'arca_inventory_person_relations', 'arca_deck_fact_revisions', 'arca_ondeck_commit_receipts', 'arca_offload_completions', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
+    readTables: ['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_commit_links','arca_series_presentation_scopes','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_final_inventory_decisions', 'arca_ondeck_runs'], fixtureRefs: ['ondeck-fixed-transaction'], hasOutbox: true
   },
   'Aftercare Actor Publication Failure Closure': {
     commitClass:'domain_unit_of_work',writeTables:['arca_aftercare_cases','arca_aftercare_settlement_approvals'],
@@ -648,17 +658,17 @@ const definitions = Object.freeze({
   },
   'Off-deck per-Entry Authorization/Case': {
     commitClass: 'domain_unit_of_work',
-    writeTables: ['arca_offdeck_authorizations', 'arca_offdeck_cases', 'arca_offdeck_reviews', 'arca_offdeck_reservations', 'arca_offdeck_scopes', 'arca_shelf_entries', 'fx_commit_markers'],
+    writeTables: ['arca_series_presentation_scopes','arca_series_presentation_references','arca_offdeck_authorizations', 'arca_offdeck_cases', 'arca_offdeck_reviews', 'arca_offdeck_reservations', 'arca_offdeck_scopes', 'arca_shelf_entries', 'fx_commit_markers'],
     readTables:['arca_jav_identity_corrections','arca_offdeck_authorization_batches', 'arca_offdeck_selection_receipts'], fixtureRefs: ['offdeck-review-authorization'], hasOutbox: false
   },
   'Off-deck terminal': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['arca_deck_fact_revisions', 'arca_shelf_entries', 'arca_offdeck_scopes', 'arca_offdeck_cases', 'arca_offdeck_terminal_receipts', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers'],
-    readTables: ['arca_offdeck_deletion_evidence', 'arca_offdeck_authorizations'], fixtureRefs: ['offdeck-destruction'], hasOutbox: false
+    writeTables: ['arca_series_presentation_scopes','arca_series_presentation_references','arca_deck_fact_revisions', 'arca_shelf_entries', 'arca_offdeck_scopes', 'arca_offdeck_cases', 'arca_offdeck_terminal_receipts', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers'],
+    readTables: ['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_commit_links','arca_series_presentation_scopes','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_offdeck_deletion_evidence', 'arca_offdeck_authorizations'], fixtureRefs: ['offdeck-destruction'], hasOutbox: false
   },
   'Shelf Deregistration Commit': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['arca_deregistrations', 'arca_deregistration_releases', 'arca_deregistration_receipts', 'arca_shelves', 'arca_shelf_entries', 'arca_inventory_materials', 'arca_deck_fact_revisions', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox', 'fx_outbox_deliveries'],
+    writeTables: ['arca_series_presentation_scopes','arca_series_presentation_references','arca_deregistrations', 'arca_deregistration_releases', 'arca_deregistration_receipts', 'arca_shelves', 'arca_shelf_entries', 'arca_inventory_materials', 'arca_deck_fact_revisions', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox', 'fx_outbox_deliveries'],
     readTables:['arca_jav_identity_corrections','arca_inventory_materials'], fixtureRefs: ['shelf-deregistration'], hasOutbox: true,
     forbiddenWriteTables: ['arca_offdeck_deletion_evidence'],
     forbiddenCapabilities: ['arca.offdeck.primary_material.delete@1', 'arca.offdeck.unreferenced_related.delete@1']

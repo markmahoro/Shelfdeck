@@ -3,10 +3,10 @@
 const crypto = require('crypto');
 
 const EXPECTED_COUNTS = Object.freeze({
-  capabilities: 135,
-  resultFamilies: 114,
+  capabilities: 136,
+  resultFamilies: 115,
   tables: 231,
-  transactions: 59
+  transactions: 61
 });
 
 const RETIRED_RESULT_FAMILIES = new Set(['FieldObservationPage', 'ObservationCommitResult', 'LayoutEvidence']);

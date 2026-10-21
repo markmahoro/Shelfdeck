@@ -252,13 +252,28 @@ function createProcurementCandidateContextReader(options) {
       }
       const relatedReferences = reconstructRelatedReferences({ basis, scope:relatedScope, candidateMembers,
         observed:observed || [], observationRevision:relatedScope.observationProjectionRevision });
+      let seriesPresentationSourceRefs=null;
+      if(entry.unit.contentProfile==='series'&&typeof options.triageReader.listObservedMaterialsInScope==='function'){
+        const roots=[...new Set(candidateMembers.filter(member=>member.role==='primary_payload').map(member=>{
+          const relative=basis.members.find(row=>row.material_key===member.materialKey)?.field_relative_location||'',parts=normalizedLocation(relative).split('/'),
+            season=parts.findIndex(part=>/^(season[ ._-]*[0-9]+|s[0-9]{1,2}|第[0-9]+季)$/i.test(part));
+          return season<0?null:parts.slice(0,season).join('/')||'.';}))];
+        if(roots.length===1&&roots[0]!==null){const sourceRoot=roots[0],entries=options.triageReader.listObservedMaterialsInScope(request.runId,sourceRoot),references=[];
+          for(const artifactKind of ['nfo','poster','fanart']){const names=artifactKind==='nfo'?['tvshow.nfo']:['jpg','jpeg','png','webp'].map(ext=>artifactKind+'.'+ext),
+            candidates=entries.filter(row=>names.includes(baseName(row.relativeLocation||row.location).toLowerCase())&&row.identity),
+            item=candidates.sort((a,b)=>names.indexOf(baseName(a.relativeLocation||a.location).toLowerCase())-names.indexOf(baseName(b.relativeLocation||b.location).toLowerCase()))[0];
+            if(item)references.push({artifactKind,endpointId:item.endpointId,location:item.location,physicalIdentity:item.identity,entryDigest:item.entryDigest});}
+          if(references.some(row=>row.artifactKind==='nfo'))seriesPresentationSourceRefs=require('../../../contracts/series-local-source').buildReferenceSet({fieldId:basis.run.field_id,accessRevision:Number(basis.run.access_revision),
+            fieldRoot:basis.access.root_location,sourceRoot:sourceRoot==='.'?basis.access.root_location:normalizedLocation(basis.access.root_location)+'/'+sourceRoot,observationDigest:entry.payloadDigest,references});
+        }
+      }
       const context = Object.freeze({
         snapshot:Object.freeze({ run:snapshot.run, access:snapshot.access, selectionScopes:snapshot.selectionScopes,
           candidateMaterials:snapshot.candidateMaterials }),
         structure:entry.structure,
         unit:entry.unit,
         candidateMembers,
-        relatedReferences,
+        relatedReferences,seriesPresentationSourceRefs,
         ordinal:entry.ordinal,
         evidenceId:entry.evidenceId,
         evidencePayloadDigest:entry.payloadDigest,

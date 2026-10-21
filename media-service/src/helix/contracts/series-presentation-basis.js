@@ -16,12 +16,14 @@ function sourceSchema(){return object({schema:{const:OBSERVATION},provider:{cons
   providerKey:{type:'string',pattern:'^[0-9]+$'},seasonIdentityAnchorDigest:digest,integrationId:{...text(256),minLength:1},
   configRevision:{type:'integer',minimum:1},language:{...text(32),minLength:1},sourceRef:{...text(256),minLength:1},
   title:{...text(1024),minLength:1},originalTitle:text(1024),originalLanguage:text(16),firstAirDate:text(32),plot:text(16384),
-  genres:{type:'array',items:text(256),maxItems:64},sourceDigest:digest});}
+  genres:{type:'array',items:text(256),maxItems:64},cast:{type:'array',maxItems:64,items:object({providerKey:{type:'string',pattern:'^[0-9]+$'},name:{...text(256),minLength:1},role:text(256),order:{type:'integer',minimum:0}})},sourceDigest:digest});}
 
-function seriesPresentationBasisSchema(){return object({schema:{const:BASIS},sourceObservation:sourceSchema(),
+function libraBasisSchema(){const value=object({schema:{const:BASIS},sourceObservation:sourceSchema(),
   metadataEvidenceId:{...text(256),minLength:1},metadataObservationDigest:digest,
   requiredArtifactKinds:{type:'array',prefixItems:KINDS.map(kind=>({const:kind})),items:false,minItems:3,maxItems:3},
-  imageSelectionRevision:{const:1},renderRevision:{const:1},basisDigest:digest});}
+  imageSelectionRevision:{const:1},renderRevision:{const:1},basisDigest:digest});value.properties.localSource=require('./series-local-source').qualifiedSchema();return value;}
+
+function seriesPresentationBasisSchema(){const m=require('./series-maintenance-basis');return {oneOf:[libraBasisSchema(),m.requestSchema(),m.observedSchema(sourceSchema)]};}
 
 function assertSource(value){
   const keys=Object.keys(sourceSchema().properties);
@@ -32,13 +34,14 @@ function assertSource(value){
       typeof value.originalLanguage!=='string'||value.originalLanguage.length>16||
       typeof value.plot!=='string'||value.plot.length>16384||typeof value.firstAirDate!=='string'||value.firstAirDate.length>32||
       !Array.isArray(value.genres)||value.genres.length>64||value.genres.some(item=>typeof item!=='string'||item.length>256)||
+      !Array.isArray(value.cast)||value.cast.length>64||value.cast.some(actor=>Object.keys(actor).sort().join(',')!=='name,order,providerKey,role'||!/^\d+$/.test(actor.providerKey)||typeof actor.name!=='string'||!actor.name||actor.name.length>256||typeof actor.role!=='string'||actor.role.length>256||!Number.isSafeInteger(actor.order)||actor.order<0)||
       !/^[a-f0-9]{64}$/.test(value.seasonIdentityAnchorDigest)||value.sourceRef!=='tmdb:tv:'+value.providerKey||
       value.sourceDigest!==canonicalDigest(without(value,'sourceDigest'))||Buffer.byteLength(canonicalJson(value))>32768)
     fail('Series presentation source must preserve exact show facts and qualified Season provenance.');
   return value;
 }
 
-function buildSeriesPresentationSource(value){const source={originalLanguage:'',...value,schema:OBSERVATION};
+function buildSeriesPresentationSource(value){const source={originalLanguage:'',cast:[],...value,schema:OBSERVATION};
   return Object.freeze(assertSource({...source,sourceDigest:canonicalDigest(source)}));}
 
 function buildSeriesPresentationBasis(observation){
@@ -49,28 +52,33 @@ function buildSeriesPresentationBasis(observation){
       !observation.evidenceId||!/^[a-f0-9]{64}$/.test(observation.payloadDigest))
     fail('Series presentation basis requires its exact formal non-Episode metadata Observation.');
   const basis={schema:BASIS,sourceObservation:source,metadataEvidenceId:observation.evidenceId,
-    metadataObservationDigest:observation.payloadDigest,requiredArtifactKinds:KINDS,imageSelectionRevision:1,renderRevision:1};
+    metadataObservationDigest:observation.payloadDigest,requiredArtifactKinds:KINDS,imageSelectionRevision:1,renderRevision:1,...(observation.seriesQualifiedLocalSource?{localSource:observation.seriesQualifiedLocalSource}:{})};
   return Object.freeze({...basis,basisDigest:canonicalDigest(basis)});
 }
 
 function assertSeriesPresentationBasis(value,identity){
-  if(!value||canonicalJson(Object.keys(value).sort())!==canonicalJson(Object.keys(seriesPresentationBasisSchema().properties).sort())||
+  const m=require('./series-maintenance-basis');
+  if(value?.schema===m.REQUEST){if(identity)fail('Handoff requires a formal Libra metadata basis.');return m.assertMaintenanceBasis(value);}
+  if(value?.schema===m.OBSERVED){if(identity)fail('Handoff requires a formal Libra metadata basis.');assertSource(value.sourceObservation);if(value.basisDigest!==canonicalDigest(without(value,'basisDigest'))||!/^[a-f0-9]{64}$/.test(value.requestDigest)||Object.keys(value).sort().join(',')!=='basisDigest,requestDigest,schema,sourceObservation')fail('Observed maintenance basis changed.');return value;}
+  if(!value||canonicalJson(Object.keys(value).sort())!==canonicalJson([...libraBasisSchema().required,...(value?.localSource?['localSource']:[])].sort())||
       value.schema!==BASIS||canonicalJson(value.requiredArtifactKinds)!==canonicalJson(KINDS)||
       value.imageSelectionRevision!==1||value.renderRevision!==1||value.basisDigest!==canonicalDigest(without(value,'basisDigest'))||
       !value.metadataEvidenceId||!/^[a-f0-9]{64}$/.test(value.metadataObservationDigest))fail('Series presentation basis is invalid.');
   const source=assertSource(value.sourceObservation);
+  if(value.localSource&&require('./series-local-source').assertQualified(value.localSource).providerKey!==source.providerKey)fail('Qualified local source belongs to another show.');
   if(identity&&(identity.provider!=='tmdb'||identity.namespace!=='tmdb_series'||identity.providerKey!==source.providerKey||
       identity.identityAnchorDigest!==source.seasonIdentityAnchorDigest))fail('Series presentation source belongs to a foreign Season identity.');
   return value;
 }
 
 function renderSeriesNfo(basis){
-  const source=assertSeriesPresentationBasis(basis).sourceObservation;
+  const source=assertSource(assertSeriesPresentationBasis(basis).sourceObservation);
   const xml=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&apos;'}[c]));
   const elements=[['title',source.title],['originaltitle',source.originalTitle],['premiered',source.firstAirDate],
     ['year',source.firstAirDate.slice(0,4)],['plot',source.plot],...source.genres.map(value=>['genre',value])];
   return Buffer.from('<?xml version="1.0" encoding="UTF-8"?>\n<tvshow>\n'+
     elements.filter(([,value])=>value).map(([key,value])=>'  <'+key+'>'+xml(value)+'</'+key+'>').join('\n')+
+    source.cast.map(actor=>'\n  <actor><name>'+xml(actor.name)+'</name><role>'+xml(actor.role)+'</role><order>'+actor.order+'</order><uniqueid type="tmdb">'+xml(actor.providerKey)+'</uniqueid></actor>').join('')+
     '\n  <uniqueid type="tmdb" default="true">'+xml(source.providerKey)+'</uniqueid>\n</tvshow>\n');
 }
 

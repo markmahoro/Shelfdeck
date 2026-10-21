@@ -121,6 +121,11 @@
           "type": "null"
         }
       ]
+    },
+    "seriesPresentationHeadDigest": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[a-f0-9]{64}$"
     }
   },
   "required": [

@@ -1,4 +1,5 @@
 'use strict';
+const {createSeriesPresentationStore}=require('./series-presentation-store');
 const {assertRequiredUsAdultActor}=require('../../../contracts/us-adult-actor-package');
 const { readControlProjections } = require('../persistence/read-control-projections');
 const {inventoryMappingFact,FACT_SCHEMA}=require('../../../contracts/related-primary-mappings');
@@ -1507,7 +1508,9 @@ function createOnDeckStore(options) {
     };
     try {
       options.unitOfWork.execute([
-        replay, verify, ...retainedControlChecks, control, domain, foundationWrite,
+        replay, verify, ...retainedControlChecks,
+        ...[createSeriesPresentationStore(options).commitControlParticipant(request)].filter(Boolean), control, domain,
+        ...[createSeriesPresentationStore(options).commitReferenceParticipant(request,shelfEntryId)].filter(Boolean), foundationWrite,
       ]);
       return Object.freeze({ replayed: false, result, commitDigest });
     } catch (error) {

@@ -100,12 +100,14 @@ const special = {
   'FinalReality.memberEvidence': arrayOf(finalMaterialEvidence(), 4096),
   'CareBasis.canonicalIdentityDigest': digest(),
   'CareBasis.acceptedProductFactSetDigest': digest(),
+  'Scope.materialKeys':arrayOf(snapshot('material-key'),1027),
   'CurrentInventoryControl.materials': arrayOf(object({ materialKey: digest(), inventoryRevision: positiveInteger(), controlRevision: positiveInteger() }), 4096),
   'DecisionEvidence.queryResults': arrayOf(typeRef('VersionedQueryResult'), 256),
   'DecisionInputSet.inputs': arrayOf(snapshot('decision-input'), 256),
   'DestructionScope.materials': arrayOf(object({
     ordinal: nonNegativeInteger(),
     materialKey: digest(),
+    sharedScopeId:id(),sharedVersion:positiveInteger(),
     materialRole: enumText('primary_payload', 'structural_dependency', 'metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'),
     physicalIdentity: typeRef('PhysicalMaterialIdentity'),
     physicalIdentityDigest: digest(),
@@ -116,9 +118,11 @@ const special = {
     bindingRevision: positiveInteger(),
     controlRevision: positiveInteger(),
     controlProjectionDigest: digest(),
-    deleteCondition: enumText('exclusive_primary', 'release_related_then_delete_if_unreferenced'),
+    deleteCondition: enumText('exclusive_primary', 'release_related_then_delete_if_unreferenced','series_last_reference'),
     memberDigest: digest(),
-  }), 1024),
+  },['ordinal','materialKey','materialRole','physicalIdentity','physicalIdentityDigest','endpointId','endpointRelativeLocation','sizeBytes','relatedReferenceId','bindingRevision','controlRevision','controlProjectionDigest','deleteCondition','memberDigest'],
+    {allOf:[{if:{properties:{deleteCondition:{const:'series_last_reference'}},required:['deleteCondition']},then:{required:['sharedScopeId','sharedVersion']},
+      else:{not:{anyOf:[{required:['sharedScopeId']},{required:['sharedVersion']}]}}}]}), 1027),
   'FinalBindings.bindings': arrayOf(snapshot('arca-material-binding'), 4096),
   'FinalInventoryDecision.members': arrayOf(object({
     objectId: id(),
@@ -769,6 +773,7 @@ function candidateDraftSchema() {
     relatedReferenceSetDigest: digest(), relatedDispositionScopeDigest:digest(),
     memberControlEvidenceSetDigest: digest(), candidateDraftDigest: digest()
   });
+  schema.properties.seriesPresentationSourceRefs=require('../../src/helix/contracts/series-local-source').referenceSetSchema();
   schema.allOf = [{ if:{ properties:{ contentProfile:{ const:'series' } } }, then:{},
     else:{ properties:{ identityMetadata:{ properties:{ sourceHints:{ maxItems:256 } } } } } }];
   return schema;

@@ -872,6 +872,24 @@ function createPlatformIntegrationServices(options) {
         timeoutMs: 10_000,
       });
     },
+    resolveSeriesImageSource(source) {
+      const snapshot=runtimeFor('tmdb')?.readCurrent(),integration=snapshot?.integration;
+      if(integration?.state!=='active')throw new CleanServiceHostError('PLATFORM_INTEGRATION_NOT_CONFIGURED','Show image provider is not configured.');
+      return require('./helix/contracts/series-image-source').buildImageSource({...source,integrationId:integration.integrationId,configRevision:integration.configRevision,language:integration.settings?.language||source.language});
+    },
+    async fetchSeriesPresentationMetadata(basis) {
+      const source=basis.sourceObservation,operationId='arca.series_presentation.source.observe@1',handle=handleFor('tmdb',operationId);
+      if(!handle||handle.integrationId!==source.integrationId||handle.configRevision!==source.configRevision)
+        throw new CleanServiceHostError('ARCA_SERIES_SOURCE_STALE','Shared metadata integration changed.');
+      return tmdbAdapter.observationPort.execute({operationId,integrationHandle:handle,input:{metadataRequest:basis},timeoutMs:20000});
+    },
+    async fetchSeriesPresentationArtifact(request) {
+      const source=request.source,handle=handleFor('tmdb',request.operationId,request.artifactKind);
+      if(!handle||handle.integrationId!==source.integrationId||handle.configRevision!==source.configRevision)
+        throw new CleanServiceHostError('ARCA_SERIES_SOURCE_STALE','Show presentation integration changed.');
+      return tmdbAdapter.artifactPort.execute({operationId:request.operationId,integrationHandle:handle,
+        input:{seriesPresentationSource:source,artifactKind:request.artifactKind,...(request.imagePath?{imagePath:request.imagePath}:{})},timeoutMs:20000});
+    },
     async fetchProviderArtifact(request) {
       if(request.operationId==='arca.aftercare.binary_artifact.acquire@1'&&request.javSelectedSource) {
         const binding=request.javSelectedSource;
@@ -1152,6 +1170,9 @@ function errorResponse(error, correlationId) {
     else if(error.code==='ARCA_JAV_CORRECTION_INPUT_INVALID'||error.code==='ARCA_JAV_CORRECTION_PREVIEW_TOO_LARGE')status=400;
     else if(error.code==='ARCA_JAV_CORRECTION_PREVIEW_TIMEOUT')status=504;
     else status=409;
+  }
+  else if(typeof error.code==='string'&&error.code.startsWith('ARCA_SERIES_')) {
+    status=/SUPPLEMENT_INVALID|IMAGE_BOUND|IMAGE_UNDECODABLE|IMAGE_ROLE_INVALID/.test(error.code)?400:409;
   }
   else if (typeof error.code === 'string' && error.code.startsWith('ARCA_RECYCLE_')) {
     if (error.code.endsWith('_NOT_FOUND')) status = 404;
@@ -1770,6 +1791,10 @@ async function createCleanServiceHost(options) {
     offdeckDeletionPort: options.offdeckDeletionPort || createCleanOffdeckDeletionPort({
       afterPhysicalEffect: options.afterOffdeckPhysicalEffect,
     }),
+    resolveSeriesImageSource:options.seriesImageSourceResolver||platformIntegrations.resolveSeriesImageSource,
+    afterSeriesPhysicalEffect:options.afterSeriesPhysicalEffect,
+    fetchSeriesPresentationMetadata:options.fetchSeriesPresentationMetadata||platformIntegrations.fetchSeriesPresentationMetadata,
+    fetchSeriesPresentationArtifact: options.fetchSeriesPresentationArtifact || platformIntegrations.fetchSeriesPresentationArtifact,
     fetchAftercareArtifact: options.aftercareArtifactFetch || options.productProviderArtifactFetch ||
       platformIntegrations.fetchProviderArtifact,
     aftercarePlaybackRunner:options.aftercarePlaybackRunner,
@@ -1981,7 +2006,7 @@ async function createCleanServiceHost(options) {
     },
   });
   const arcaAcceptanceRecovery = Object.freeze({
-    retry(offerId) { const result=procurementExecution.arcaCoordinator.retryAcceptance(offerId);
+    async retry(offerId,body) { const result=await procurementExecution.arcaCoordinator.retryAcceptanceWithSupplements(offerId,body);
       executionRuntimeHost.wake(); return result; },
   });
   const usAdultActorChoice=Object.freeze({choose(libraRunId,body,actorId){
@@ -2190,7 +2215,7 @@ async function createCleanServiceHost(options) {
       method: route.method,
       url: route.path,
       ...(route.method === 'POST' && (route.path === '/v1/admin/people'||route.path === '/v1/admin/people/:personId/reference-assets'||
-        route.path==='/v1/admin/people/recommendations/:recommendationId/actions/claim') ? { bodyLimit: 14 * 1024 * 1024 } : {}),
+        route.path==='/v1/admin/people/recommendations/:recommendationId/actions/claim') ? { bodyLimit: 14 * 1024 * 1024 } : ['/v1/admin/formation/acceptance/:offerId/actions/retry','/v1/admin/care/:shelfEntryId/actions/check'].includes(route.path)?{bodyLimit:24*1024*1024}:{}),
       handler: async (request, reply) => {
         const correlationId = request.headers['x-correlation-id'] || crypto.randomUUID();
         let response;

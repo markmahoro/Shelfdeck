@@ -128,6 +128,7 @@ function reconstruct(rows) {
     if (pkg.content_profile !== 'jav' || pkg.media_type !== 'single' || pkg.structure_kind !== 'single' || javPartSet.parts.length !== 2 || manifestMembers.length !== 2 || identityMetadata.javCode !== javPartSet.javCode ||
         manifestMembers.some(member=>member.role !== 'primary_payload' || !javPartSet.parts.some(part=>part.materialKey===member.materialKey))) fail('P8_CANDIDATE_DELIVERY_PART_SET', 'JAV part set does not conserve its exact primary inputs.');
   } else if (pkg.jav_part_set_schema_ref != null || pkg.jav_part_set_json != null) fail('P8_CANDIDATE_DELIVERY_PART_SET', 'Ordinary inputs cannot carry a JAV part set.');
+  if((pkg.series_source_refs_json!=null)!==(pkg.series_source_refs_schema_ref==='helix://contracts/records/series-source-references/v1'))fail('P8_CANDIDATE_DELIVERY_SHARED_SOURCE','Shared source schema tuple is invalid.');
   const candidatePackage = { schemaRef:PACKAGE_SCHEMA, schemaVersion:1, manifestId:pkg.candidate_package_id,
     manifestKind:'candidate_package', ownerDomain:'procurement', memberCount:manifestMembers.length, membersDigest,
     manifestDigest:pkg.package_digest, publishedAtMs:Number(pkg.published_at_ms), candidatePackageId:pkg.candidate_package_id,
@@ -139,6 +140,7 @@ function reconstruct(rows) {
       unitId:pkg.structure_unit_id, unitDigest:pkg.structure_unit_digest }, seasonContinuityClaims:continuity,
     seasonContinuityClaimSetDigest:continuityDigest,
     primaryInputManifestRef:{ manifestId:manifest.manifestId, manifestDigest:manifest.manifestDigest, memberCount:manifest.memberCount },
+    ...(pkg.series_source_refs_json?{seriesPresentationSourceRefs:require('../../../contracts/series-local-source').assertReferenceSet(JSON.parse(pkg.series_source_refs_json))}:{}),
     relatedReferences:related, relatedReferenceSetDigest,relatedDispositionScopeDigest, memberControlEvidenceSetDigest:pkg.member_control_evidence_set_digest,
     ...(javPartSet ? { javPartSet } : {}), packageDigest:pkg.package_digest };
   if (canonicalDigest(without(candidatePackage, 'manifestDigest', 'packageDigest')) !== candidatePackage.packageDigest) {

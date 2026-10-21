@@ -3,8 +3,9 @@
 const path=require('node:path');
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
 const {KINDS,assertSeriesPresentationBasis,seriesPresentationFileName:fileName}=require('../../../contracts/series-presentation-basis');
+const {buildImageSource,assertImageSource}=require('../../../contracts/series-image-source');
 const CAPS=Object.freeze({source:'arca.series_presentation.source.observe@1',assets:'arca.series_presentation.assets.prepare@1',
-  publish:'arca.series_presentation.files.publish@1',commit:'arca.series_presentation.inventory.commit@1'});
+  publish:'arca.series_presentation.files.publish@1',commit:'arca.series_presentation.inventory.commit@1',reclaim:'arca.series_presentation.workspace.reclaim@1'});
 const SCHEMA='helix://contracts/domain-types/SeriesPresentationScope/v1';
 const MANIFEST_SCHEMA='helix://contracts/domain-types/SeriesPresentationManifest/v1';
 const fail=(code,message)=>{throw Object.assign(new Error(message),{code});};
@@ -30,7 +31,9 @@ function assertRootBinding({shelfRoot,rootLocation}){
 }
 
 function buildSeriesScope(value){
-  const basis=assertSeriesPresentationBasis(value.basis),rootLocation=assertRootBinding(value);
+  const basis=assertSeriesPresentationBasis(value.basis),rootLocation=assertRootBinding(value),imageSourceQualification=assertImageSource(value.imageSourceQualification||basis.imageSourceQualification||buildImageSource(basis.sourceObservation)),supplementalSources=value.supplementalSources||[];
+  if(imageSourceQualification.providerKey!==basis.sourceObservation.providerKey||supplementalSources.length>2||new Set(supplementalSources.map(item=>item.artifactKind)).size!==supplementalSources.length||supplementalSources.some(item=>item.scopeId!==value.scopeId))
+    fail('ARCA_SERIES_SCOPE_INVALID','Shared image qualification changed its exact show or role.');
   if(value.scopeId!==seriesScopeId(value.shelfId,basis.sourceObservation.providerKey)||!value.buildId||
       !Number.isSafeInteger(value.revision)||value.revision<1||!Number.isSafeInteger(value.expectedVersion)||value.expectedVersion<0||
       !value.endpointId||!value.mountScopeId||!Array.isArray(value.existingMembers)||value.existingMembers.length>3)
@@ -41,7 +44,7 @@ function buildSeriesScope(value){
     fail('ARCA_SERIES_SCOPE_INVALID','Shared existing members do not cover unique exact root roles.');
   const body={schemaRef:SCHEMA,schemaVersion:1,objectId:value.buildId,revision:value.revision,scopeId:value.scopeId,
     shelfId:value.shelfId,endpointId:value.endpointId,mountScopeId:value.mountScopeId,shelfRoot:path.resolve(value.shelfRoot),
-    rootLocation,expectedVersion:value.expectedVersion,basis,existingMembers,
+    rootLocation,expectedVersion:value.expectedVersion,basis,imageSourceQualification,supplementalSources,reassessmentProofDigest:value.reassessmentProofDigest??null,existingMembers,
     missingKinds:KINDS.filter(kind=>!existingMembers.some(member=>member.artifactKind===kind))};
   return Object.freeze({...body,digest:canonicalDigest(body)});
 }

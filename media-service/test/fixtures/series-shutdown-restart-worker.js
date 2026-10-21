@@ -8,9 +8,13 @@ function handle({operationId}) { return {schemaRef:'helix://contracts/types/Inte
   expiresAtMs:Number.MAX_SAFE_INTEGER,fenceDigest:canonicalDigest({value:operationId})}; }
 
 (async()=>{
+  const shared=process.argv[3]==='shared',sharp=require('sharp'),poster=shared?await sharp({create:{width:4,height:6,channels:3,background:'#224466'}}).jpeg().toBuffer():null,
+    fanart=shared?await sharp({create:{width:120,height:80,channels:3,background:'#334455'}}).jpeg().toBuffer():null;
   let runtimeError;let integrationCalls=0;
   const host=await createCleanServiceHost({dataDir,adminDistDir:path.join(root,'admin'),secretRoot:'disposable-series-routing-secret',
     routingIntegrationHandleResolver:handle,productIntegrationHandleResolver:handle,currentProductIntegrationHandleResolver:handle,
+    ...(shared?{fetchSeriesPresentationArtifact:async request=>({resultKind:'acquired',imagePath:'/'+request.artifactKind+'.jpg',bytes:request.artifactKind==='poster'?poster:fanart}),
+      mediaProbe:{async probe(readHandle){const body={resultKind:'probed',sourceHandleDigest:canonicalDigest(readHandle),durationMs:1000,videoStreams:[{streamIndex:0,codec:'hevc',dispositionDefault:true,width:1920,height:1080}],audioStreams:[],subtitleStreams:[],discTopology:null};return {...body,payloadDigest:canonicalDigest(body)};}}}:{}),
     integrationFetch:async()=>{integrationCalls++;throw new Error('Committed external acquisition must not repeat during restart');},
     onExecutionRuntimeError(error){runtimeError=error;}}),db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});
   try {
@@ -18,16 +22,16 @@ function handle({operationId}) { return {schemaRef:'helix://contracts/types/Inte
     do {
       if(runtimeError)throw runtimeError;
       entry=db.prepare('SELECT * FROM arca_shelf_entries').get();
-      if(entry?.status==='active')break;
+      if(entry?.status==='active'&&(!shared||db.prepare("SELECT count(*) n FROM fx_workspace_registry WHERE process_type='series_presentation' AND state<>'reclaimed'").get().n===0))break;
       await new Promise(resolve=>setTimeout(resolve,100));
     }while(Date.now()<until);
     if(!entry||entry.status!=='active')throw new Error(JSON.stringify({entry,
       failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
-    const summary={entry,materials:db.prepare('SELECT * FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=? ORDER BY material_key').all(entry.shelf_entry_id,entry.current_inventory_revision),
+    const summary={sharedVersions:shared?db.prepare('SELECT scope_id,revision,manifest_digest FROM arca_series_presentation_versions').all():[],sharedReferences:shared?db.prepare('SELECT * FROM arca_series_presentation_references').all():[],entry,materials:db.prepare('SELECT * FROM arca_inventory_materials WHERE shelf_entry_id=? AND inventory_revision=? ORDER BY material_key').all(entry.shelf_entry_id,entry.current_inventory_revision),
       commits:db.prepare('SELECT * FROM arca_ondeck_commit_receipts ORDER BY rowid').all(),
       offload:db.prepare('SELECT * FROM libra_offload_context_materials').all(),
       produced:db.prepare("SELECT r.result_json FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref='libra.media.transcode@1' ORDER BY e.event_id").all(),
       integrationCalls,foreignKeys:db.pragma('foreign_key_check'),integrity:db.pragma('integrity_check')[0].integrity_check};
     process.stdout.write('\nSERIES_EXTERNAL_RESTART_RESULT='+JSON.stringify(summary)+'\n');
   } finally {await host.close();db.close();}
-})().catch(error=>{process.stderr.write(String(error.stack||error));process.exitCode=1;});
+})().catch(error=>{process.stderr.write(String(error.stack||error)+'\n'+JSON.stringify(error.details||{}));process.exitCode=1;});

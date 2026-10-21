@@ -137,7 +137,7 @@ const ENUM_OVERRIDES = Object.freeze({
 const INTEGER_COLUMN_OVERRIDES = new Set([
   'arca_series_presentation_scopes.current_version','arca_series_presentation_builds.expected_version',
   'arca_series_presentation_reservations.committed_version','arca_series_presentation_references.first_committed_version',
-  'arca_series_presentation_commit_links.shared_version',
+  'arca_series_presentation_commit_links.shared_version','arca_offdeck_scope_materials.shared_version',
   'fx_workflow_plans.planner_version',
   'fx_workflow_plans.work_objective_version',
   'fx_plan_nodes.contract_version',
@@ -191,6 +191,9 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'libra_subject_episode_scopes.first_intake_decision_id': ['libra_intake_decisions', 'intake_decision_id']
 });
 const EXPLICIT_FOREIGN_KEYS = Object.freeze({
+  arca_offdeck_scope_materials:[{columns:['destruction_scope_id'],targetTable:'arca_offdeck_scopes',targetColumns:['destruction_scope_id']},
+    {columns:['shared_scope_id','shared_version'],targetTable:'arca_series_presentation_versions',targetColumns:['scope_id','revision']}],
+  arca_series_presentation_scopes:[{columns:['retirement_scope_id'],targetTable:'arca_offdeck_scopes',targetColumns:['destruction_scope_id']}],
   arca_series_presentation_builds:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']}],
   arca_series_presentation_versions:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']},
     {columns:['build_id'],targetTable:'arca_series_presentation_builds',targetColumns:['build_id']}],

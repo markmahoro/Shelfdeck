@@ -26,7 +26,7 @@
       "items": {
         "$ref": "helix://contracts/types/DeletionEvidence/v1"
       },
-      "maxItems": 1024,
+      "maxItems": 1027,
       "x-helix-typeExpression": "Deletion Evidence[]"
     }
   }

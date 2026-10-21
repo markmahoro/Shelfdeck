@@ -1,4 +1,5 @@
 import { useModalFocus } from './useModalFocus';
+import SeriesPresentationRetryDialog from './SeriesPresentationRetryDialog';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link,useSearchParams } from 'react-router-dom';
 import { helixAdminApi, type CareDetail, type CollectionEntry, type HealthState } from './api';
@@ -76,6 +77,7 @@ export default function CollectionPage() {
   const [loading, setLoading] = useState(true);
   const [hasResult, setHasResult] = useState(false);
   const [error, setError] = useState('');
+  const [seriesRetry,setSeriesRetry]=useState<CollectionEntry|null>(null);
   const [selected, setSelected] = useState<CollectionEntry | null>(null);
   const [correctionItem, setCorrectionItem] = useState<CollectionEntry | null>(null);
   const [actorItem,setActorItem]=useState<CollectionEntry|null>(null);
@@ -252,10 +254,11 @@ export default function CollectionPage() {
           <div className="collection-rating"><span>观看状态</span><WatchedControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
           <section className="collection-health" aria-labelledby="collection-health-heading">
             <div className="collection-health-heading"><div><h3 id="collection-health-heading">收藏健康</h3></div>
-              <Button type="button" onClick={() => void checkHealth()} disabled={checking}>{checking ? '已开始检查…' : '立即检查健康'}</Button>
+              {care?.sharedPresentation?.canRetry&&<Button type="button" disabled={checking} onClick={()=>{setSeriesRetry(selected);setSelected(null);}}>重试任务</Button>}
+              {!care?.sharedPresentation?.canRetry&&<Button type="button" onClick={() => void checkHealth()} disabled={checking||care?.sharedPresentation?.state==='in_progress'}>{checking ? '已开始检查…' : '立即检查健康'}</Button>}
             </div>
             {!care ? <p className="health-loading">正在读取健康详情…</p> : (() => {
-              const lamp = foldedHealth(care.health.state);
+              const lamp = care.sharedPresentation?.state==='in_progress'?'repairing':foldedHealth(care.health.state);
               return <>
                 <p className={`health-lamp ${lamp}`}>
                   <span className="health-lamp-copy">
@@ -281,5 +284,6 @@ export default function CollectionPage() {
     </div>}
     {actorItem&&<UsAdultInventoryActorDialog item={actorItem} onClose={()=>setActorItem(null)} onChanged={actorChanged} onUnauthorized={expire}/>}
     {correctionItem&&<JavCorrectionDialog item={correctionItem} onClose={()=>setCorrectionItem(null)} onChanged={()=>void load()} onUnauthorized={expire}/>}
+    {seriesRetry&&<SeriesPresentationRetryDialog entry={seriesRetry} canSupplyImages={care?.sharedPresentation?.canSupplyImages} onClose={()=>{setSelected(seriesRetry);setSeriesRetry(null);}} onComplete={async()=>{setCare(await helixAdminApi.getCare(seriesRetry.shelfEntryId));await load();}}/>}
   </section>;
 }

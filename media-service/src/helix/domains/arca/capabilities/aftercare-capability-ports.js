@@ -78,6 +78,7 @@ function assessment(kind,context,findings,at,state=findings.length?'degraded':'h
     shelfEntryId:context.shelfEntryId,inventoryRevision:basis.inventoryRevision,standardRevision:basis.standardRevision,
     placementRevision:basis.placementRevision,decisionFactSetDigest:basis.decisionFactSetDigest,careBasisDigest:basis.digest,
     assessmentState:state,findingDrafts:Object.freeze(scopedFindings),incidentKey,
+    ...(kind==='presentation'&&extras.seriesPresentationHeadDigest?{seriesPresentationHeadDigest:extras.seriesPresentationHeadDigest}:{}),
     ...(kind==='conformance'?{mediaRepairStrategy:extras.mediaRepairStrategy||null,
       ...(extras.memberScope?{memberScope:extras.memberScope}:{}),
       ...(extras.memberAssessmentSet?{memberAssessmentSet:extras.memberAssessmentSet}:{})}:{})};
@@ -720,7 +721,9 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   });
   ports[C.presentation]=Object.freeze({validateInputs(c){requireNamed(c,['careBasis','inventoryMetadataArtifactRefs','standard']);},async execute(execution){const c=context(execution),at=now(),custody=resultFor(execution,C.custody);
     if(custodyBlocksDependentAssessment(custody))return outcome(C.presentation,assessment('presentation',c,[],at,'not_assessable',execution.workId,custody.incidentKey),at);
-    const posters=existingMaterials(c.raw.materials,isPosterMaterial),findings=nfoInventoryFindings(c);
+    const sharedHead=c.raw.entry.structure_kind==='season'?options.series?.headForEntry(c.shelfEntryId):null,posters=existingMaterials(c.raw.materials,isPosterMaterial),findings=nfoInventoryFindings(c);
+    if(options.series){const shared=await options.series.assessEntry(c);if(shared&&shared.state!=='healthy')
+      findings.push(finding('presentation',shared.reasonCode,'warning',shared.state==='degraded'&&!shared.requiresIntent?'auto_repair':'attention_required',shared.scopeId));}
     let hasValidPoster=false;for(const poster of posters){if(await validImage(poster.location)){hasValidPoster=true;break;}}
     if(posters.length===0)findings.push(finding('presentation','poster_missing','warning',
       c.raw.identity.provider&&c.raw.identity.provider_key&&providerHandle(c)?'auto_repair':'attention_required',c.shelfEntryId));
@@ -732,7 +735,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
       if(!valid)findings.push(finding('presentation',fanarts.length?'fanart_corrupt':'fanart_missing','warning',
         c.raw.identity.provider==='jav'&&providerHandle(c,'fanart')?'auto_repair':'attention_required',c.shelfEntryId));
     }
-    return outcome(C.presentation,assessment('presentation',c,findings,at,undefined,execution.workId),at);},validateResult(_c,o){if(!o?.result)throw new TypeError('Presentation Assessment Result is absent.');}});
+    return outcome(C.presentation,assessment('presentation',c,findings,at,undefined,execution.workId,null,{seriesPresentationHeadDigest:sharedHead}),at);},validateResult(_c,o){if(!o?.result)throw new TypeError('Presentation Assessment Result is absent.');}});
   ports[C.conformance]=Object.freeze({validateInputs(c){requireNamed(c,['careBasis','inventoryRevision','knownBindings','standard','placement']);},async execute(execution){const c=context(execution),at=now(),custody=resultFor(execution,C.custody);
     if(execution.parameters?.materialKey!==undefined)return outcome(C.conformance,
       await assessSeriesMediaMember(options,c,execution.parameters.materialKey,at,execution.workId,custody),at);
@@ -970,7 +973,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     const committedSet=store.commitAssessmentSet({shelfEntryId:c.shelfEntryId,inventoryRevision:c.basis.inventoryRevision,standardRevision:c.basis.standardRevision,
       placementRevision:c.basis.placementRevision,decisionFactSetDigest:c.basis.decisionFactSetDigest,careBasisDigest:c.basis.digest,
       assessments:rows.map((item)=>({assessmentId:item.evidenceId,assessmentKind:item.evidenceKind.replace('arca_aftercare_',''),result:item.assessmentState,incidentKey:item.incidentKey,
-        evidenceDigest:item.payloadDigest,findings:item.findingDrafts.map(decodeFinding).filter(Boolean)}))});
+        evidenceDigest:item.payloadDigest,seriesPresentationHeadDigest:item.seriesPresentationHeadDigest||null,findings:item.findingDrafts.map(decodeFinding).filter(Boolean)}))});
     const setDigest=canonicalDigest(committedSet.assessments.map((item)=>item.evidenceDigest).sort()),base={schemaRef:'helix://contracts/types/AssessmentRevision/v1',schemaVersion:1,
       factId:stable('arca-assessment-revision-',{shelfEntryId:c.shelfEntryId,careBasisDigest:c.basis.digest}),ownerDomain:'arca',aggregateType:'shelf_entry',aggregateId:c.shelfEntryId,
       revision:1,factSchemaRef:'helix://arca/facts/AftercareAssessmentRevision/v1',commitMarker:stable('arca-assessment-marker-',{shelfEntryId:c.shelfEntryId,careBasisDigest:c.basis.digest}),

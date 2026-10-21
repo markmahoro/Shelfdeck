@@ -69,6 +69,13 @@ export function networkErrorLabel(code: string) {
 
 export function processFailureLabel(code: string, message?: string) {
   const known: Record<string, string> = {
+    ARCA_SERIES_REQUIRED_ASSET_UNAVAILABLE:'缺少可用的剧集图片',
+    ARCA_SERIES_ASSET_SOURCE_CHANGED:'本次选中的剧集资料已变化',
+    ARCA_SERIES_EXTERNAL_CHANGE:'剧集资料被其他程序修改',
+    ARCA_SERIES_IDENTITY_CONFLICT:'现有剧集资料属于另一部剧',
+    ARCA_SERIES_LOCAL_IDENTITY_UNPROVEN:'现有剧集图片缺少可核验的剧集信息',
+    ARCA_SERIES_TARGET_CONFLICT:'目标位置已有不同的剧集资料',
+    ARCA_SERIES_SOURCE_STALE:'剧集资料来源配置已变化',
     P4_OBSERVATION_RESULT_STORAGE_BOUND_EXCEEDED: '返回的信息超出处理上限',
     RECOVERY_EXECUTION_BUDGET_EXHAUSTED: '恢复处理超过允许时长',
     CLEAN_ARCA_STAGE_TARGET_OCCUPIED: '写入目标已被占用',

@@ -209,6 +209,7 @@ function buildMetadataObservation(value) {
         source.integrationId!==intent.integrationId||source.configRevision!==intent.configRevision)
       fail('P9_SERIES_PRESENTATION_SOURCE','Series presentation facts differ from the frozen Provider intent.');
     result.seriesPresentationSource=source;
+    if(value.seriesQualifiedLocalSource){const local=require('../../../contracts/series-local-source').assertQualified(value.seriesQualifiedLocalSource);if(local.providerKey!==source.providerKey)fail('P9_SERIES_PRESENTATION_SOURCE','Local show source belongs to another show.');result.seriesQualifiedLocalSource=local;}
   }
   if(intent.contentProfile==='jav') {
     result.javSelectedSource=intent.javSelectedSource;
@@ -222,6 +223,7 @@ function buildMetadataObservation(value) {
   result.evidenceId = canonicalDigest({ schema:'libra.metadata-observation-evidence-id@1',
     fetchIntentDigest:result.fetchIntentDigest, sourceNfoSemanticsDigest:result.sourceNfoSemantics?.recordDigest || null, descriptiveFactsDigest:descriptiveFacts.recordDigest,
     ...(result.seriesPresentationSource?{seriesPresentationSourceDigest:result.seriesPresentationSource.sourceDigest}:{}),
+    ...(result.seriesQualifiedLocalSource?{seriesQualifiedLocalSourceDigest:result.seriesQualifiedLocalSource.qualificationDigest}:{}),
     providerIdentitySetDigest:providerIdentitySet.recordDigest });
   result.payloadDigest = canonicalDigest(Object.fromEntries(Object.entries(result).filter(([key]) => key !== 'payloadDigest')));
   return Object.freeze(bytes(result, 64 * 1024, 'P9_METADATA_OBSERVATION_SIZE'));

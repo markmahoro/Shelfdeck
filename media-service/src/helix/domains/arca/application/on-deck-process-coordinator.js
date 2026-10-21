@@ -233,14 +233,33 @@ function createOnDeckProcessCoordinator(options) {
     if (responsibility.onDeckRunId !== frozen.onDeckRunId) {
       throw new Error('Accepted Handoff B Run no longer matches its frozen Decision.');
     }
+    if(options.series){
+      const shared=options.series.ensure(options.contextReader.readAccepted(responsibility.onDeckRunId,refs));
+      if(shared.kind!=='ready')return Object.freeze({...shared,kind:shared.kind==='attention_required'?'series_attention_required':'series_pending',
+        processId,onDeckRunId:responsibility.onDeckRunId});
+    }
     const onDeck = onDeckWork(responsibility.onDeckRunId, refs, commit);
     submit(onDeck);
     return Object.freeze({ kind:succeeded(options.workResultReader.status(onDeck.workId)) ? 'terminal' : 'on_deck_pending',
       processId, onDeckRunId:responsibility.onDeckRunId, workId:onDeck.workId });
   }
+  function continueAccepted(onDeckRunId,{retry=false,supplementalSources=[]}={}) {
+    const responsibility=options.contextReader.acceptance.readRunResponsibility(onDeckRunId);
+    if(!responsibility)return {kind:'not_found',onDeckRunId};
+    const rows=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:responsibility.offerId,workKind:'acceptance_commit'});
+    const accepted=rows.find(row=>row.state==='succeeded'&&options.workResultReader.read(row.work_id).some(item=>item.outcomeKind==='succeeded'&&item.result?.receiptKind==='handoff_b_accepted'));
+    if(!accepted)throw new Error('Shared preparation lost the actual successful Acceptance Work.');
+    const definition=options.workResultReader.readDefinition(accepted.work_id).definition,refs=refsFromWorkDefinition(accepted.work_id),context=options.contextReader.readAccepted(onDeckRunId,refs),
+      shared=options.series.ensure(context,{retry,supplementalSources});
+    if(shared.kind!=='ready')return {...shared,onDeckRunId,subjectId:context.offer.subjectId};
+    const work=onDeckWork(onDeckRunId,refs,definition);submit(work);
+    options.onFormationSubjectChanged?.(context.offer.subjectId);
+    return {kind:'on_deck_pending',onDeckRunId,workId:work.workId,subjectId:context.offer.subjectId};
+  }
   function recoverOnDeck(onDeckRunId, maxGenerations = 3, mode = 'automatic') {
     if (!['automatic','user'].includes(mode)) throw new TypeError('On-deck recovery mode is invalid.');
     const rows = orderedOnDeckWorks(onDeckRunId);
+    if (!rows.length && options.series && mode==='user')return continueAccepted(onDeckRunId,{retry:true});
     if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
     const latest = rows.at(-1);
     if (!['failed','cancelled'].includes(latest.state)) {
@@ -355,6 +374,13 @@ function createOnDeckProcessCoordinator(options) {
       }
       return Object.freeze(results);
     },
+    async retryAcceptanceWithSupplements(offerId,body={}) {
+      if(!body.supplementalImages?.length)return this.retryAcceptance(offerId);
+      const item=recovery.read(offerId),run=options.contextReader.onDeck.findRunByOffer(offerId);
+      if(item?.recoveryState!=='resolved'||!run||!options.series)throw new TypeError('Only an accepted show task can receive supplemental images.');
+      const refs=refsFromWorkDefinition(item.activeWorkId),context=options.contextReader.readAccepted(run.onDeckRunId,refs),sources=await options.series.prepareSupplements(context,body);
+      return continueAccepted(run.onDeckRunId,{retry:true,supplementalSources:sources});
+    },
     retryAcceptance(offerId) {
       const item = recovery.read(offerId);
       if (!item) throw Object.assign(new Error('Acceptance Recovery Case was not found.'), { code:'ARCA_ACCEPTANCE_RECOVERY_NOT_FOUND' });
@@ -372,6 +398,14 @@ function createOnDeckProcessCoordinator(options) {
     listAcceptanceAttention: recovery.listAttention,
     listRecoverableOnDeck, listPendingSettlementApprovals, reconcileSettlementApprovals,
     reconcileAcceptance,
+    reconcileSeriesScope(scopeId){return options.series.seriesStore.read('reservations',{scope_id:scopeId}).filter(row=>row.state==='pending').map(row=>continueAccepted(row.on_deck_run_id));},
+    reconcileSeries(buildId){
+      const scope=options.series.seriesStore.build(buildId);if(!scope)return [];
+      return options.series.seriesStore.read('reservations',{scope_id:scope.scopeId}).filter(row=>row.state==='pending').map(row=>{
+        const responsibility=options.contextReader.acceptance.readRunResponsibility(row.on_deck_run_id);
+        const result=continueAccepted(row.on_deck_run_id);if(result.subjectId)options.onFormationSubjectChanged?.(result.subjectId);return result;
+      });
+    },
     reconcileOnDeck(onDeckRunId) {
       const rows = orderedOnDeckWorks(onDeckRunId);
       if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });

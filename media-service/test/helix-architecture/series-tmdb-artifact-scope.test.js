@@ -3,7 +3,7 @@
 const test=require('node:test'),assert=require('node:assert/strict');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const {createTmdbProviderAdapter}=require('../../src/helix/integrations/tmdb-provider-adapter');
-const {buildSeriesPresentationSource}=require('../../src/helix/contracts/series-presentation-basis');
+const {buildImageSource:buildSeriesPresentationSource}=require('../../src/helix/contracts/series-image-source');
 const D=value=>canonicalDigest({value});
 const identity={provider:'tmdb',namespace:'tmdb_series',providerKey:'1399',seasonNumber:3};identity.identityAnchorDigest=canonicalDigest(identity);
 const source=buildSeriesPresentationSource({provider:'tmdb',namespace:'tmdb_series',providerKey:'1399',seasonIdentityAnchorDigest:identity.identityAnchorDigest,
@@ -42,7 +42,7 @@ test('Season poster and show poster use distinct exact TMDB image endpoints',asy
 test('shared preparation reacquires only its frozen show image locator without repeating image selection',async()=>{
   const h=harness(),observed=await h.execute('arca.series_presentation.source.observe@1',
     {artifactKind:'fanart',seriesPresentationSource:source},'observationPort');
-  assert.equal(observed.imagePath,'/show-wide.jpg');assert.equal(observed.sourceDigest,source.sourceDigest);
+  assert.equal(observed.imagePath,'/show-wide.jpg');assert.equal(observed.sourceDigest,source.qualificationDigest);
   const prepared=await h.execute('arca.series_presentation.assets.prepare@1',
     {artifactKind:'fanart',seriesPresentationSource:source,imagePath:observed.imagePath});
   assert.deepEqual(prepared.bytes,h.bytes);
@@ -55,7 +55,7 @@ test('unscoped Series images, foreign Seasons and configuration substitution are
     {artifactKind:'poster',resolvedProviderIdentity:identity,artifactScope:{scopeKind:'season',seasonNumber:4}},
     {artifactKind:'poster',resolvedProviderIdentity:identity,artifactScope:{scopeKind:'episode',seasonNumber:3,episodeNumber:1}}])
     await assert.rejects(h.execute('libra.product_artifact.acquire@1',input),{code:'PLATFORM_TMDB_ARTIFACT_SCOPE_INVALID'});
-  const {sourceDigest,...raw}=source,changed=buildSeriesPresentationSource({...raw,configRevision:3});
+  const {qualificationDigest,...raw}=source,changed=buildSeriesPresentationSource({...raw,configRevision:3});
   await assert.rejects(h.execute('arca.series_presentation.source.observe@1',{artifactKind:'poster',seriesPresentationSource:changed},'observationPort'),
     {code:'PLATFORM_TMDB_SERIES_PRESENTATION_STALE'});
   assert.equal(h.calls.length,0);

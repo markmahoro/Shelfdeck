@@ -180,5 +180,26 @@ test('real SQLite admits one shared builder for two Seasons and atomically pins 
     assert.throws(()=>unitOfWork.execute([store.commitReferenceParticipant({...requests[1],fulfillmentVerification:request.fulfillmentVerification},'season-3')]),
       {code:'ARCA_SERIES_COMMIT_FENCE_STALE'});
     assert.equal(store.manifest(scopeId,1).value.digest,manifest.digest);
+    const repaired=buildSharedManifest(repair,members);unitOfWork.execute([store.versionParticipant(repair,repaired,D('repair-verification'))]);
+    assert.equal(store.lastReferenceMembers('season-3').length,0,'An accepted pending Season protects the common files.');
+    db.prepare('INSERT INTO arca_shelf_entries(shelf_entry_id,shelf_id) VALUES(?,?)').run('season-4','shelf');
+    const secondCommit={...requests[1],fulfillmentVerification:{seriesPresentationRef:{scopeId,sharedVersion:2,manifestDigest:repaired.digest,verificationDigest:D('repair-verification')}}};
+    unitOfWork.execute([store.commitReferenceParticipant(secondCommit,'season-4')]);
+    assert.equal(store.lastReferenceMembers('season-3').length,0,'Another committed Season protects the common files.');
+    unitOfWork.execute([store.releaseReferencesParticipant(['season-4'])]);
+    const last=store.lastReferenceMembers('season-3').map(member=>({...member,materialKey:member.physicalIdentity.materialKey,physicalIdentityDigest:canonicalDigest(member.physicalIdentity)}));
+    assert.equal(last.length,3);db.prepare('INSERT INTO arca_offdeck_scopes(destruction_scope_id) VALUES(?)').run('destruction-last');
+    assert.throws(()=>unitOfWork.execute([store.retirementParticipant({destructionScopeId:'destruction-last',shelfEntryId:'season-3',members:last.slice(0,2)})]),{code:'ARCA_SERIES_RETIREMENT_STALE'});
+    unitOfWork.execute([store.retirementParticipant({destructionScopeId:'destruction-last',shelfEntryId:'season-3',members:last})]);
+    assert.equal(store.readScope(scopeId).retirement_scope_id,'destruction-last');
+    assert.throws(()=>store.admitBuild({scopeId,basis:requests[0].basis,existingMembers:members}),{code:'ARCA_SERIES_RETIREMENT_IN_PROGRESS'});
+    db.prepare('INSERT INTO arca_ondeck_custodies(custody_id) VALUES(?)').run('custody-5');db.prepare('INSERT INTO arca_ondeck_runs(on_deck_run_id,custody_id,state) VALUES(?,?,?)').run('run-5','custody-5','ready');
+    assert.throws(()=>unitOfWork.execute([store.reservationParticipant({...requests[0],onDeckRunId:'run-5',custodyId:'custody-5'})]),{code:'ARCA_SERIES_RETIREMENT_IN_PROGRESS'});
+    assert.equal(store.read('run_reservation',{on_deck_run_id:'run-5'}),undefined);
+    assert.equal(store.assertRetirement({destructionScopeId:'destruction-last',shelfEntryId:'season-3',members:last}),true);
+    unitOfWork.execute([store.releaseReferencesParticipant(['season-3']),store.retirementParticipant({destructionScopeId:'destruction-last',shelfEntryId:'season-3',members:last,complete:true})]);
+    assert.equal(store.readScope(scopeId).retirement_scope_id,null);assert.equal(store.manifest(scopeId,1).value.digest,manifest.digest);
+    assert.equal(store.read('commit_link',{on_deck_run_id:request.onDeckRunId}).shared_version,1n);
+
   }finally{db.close();kernel.close();assert.equal(path.dirname(path.resolve(temporary)),path.resolve(os.tmpdir()));assert.ok(path.basename(temporary).startsWith('helix-series-store-'));fs.rmSync(temporary,{recursive:true,force:true});}
 });

@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.series-presentation-source-reassessment/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.series-presentation-source-reassessment",
+    "displayName": "Series Presentation Source Reassessment",
+    "ownerScope": "arca",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "仅用户明确重试、旧build全部Work终态失败/取消；纯Source失败可重新冻结资格。若曾进入Assets，必须同事务验证全部非纯Attempt仅为已终态失败且Effect failed的Assets、无Publish/Commit Attempt、零Material/Artifact登记，按成功Source配方逐项证明Workspace目标及自身临时文件均不存在；空Registry终结与新immutable build/head CAS同事务。存在任一物理文件、未决Effect、物化登记或发布尝试均不得换来源，继续原配方恢复；不删除任何文件，不清理历史Work/Result，不改Metadata Observation或Season Own",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_series_presentation_scopes",
+          "arca_series_presentation_builds"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_workspace_registry"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_series_presentation_scopes",
+      "arca_series_presentation_builds",
+      "fx_workspace_registry"
+    ],
+    "readTables": [
+      "arca_shelf_entries",
+      "arca_shelves",
+      "arca_canonical_identity_revisions",
+      "arca_inventory_representations",
+      "arca_inventory_materials",
+      "arca_series_presentation_scopes",
+      "arca_series_presentation_builds",
+      "arca_series_presentation_versions",
+      "arca_series_presentation_reservations",
+      "arca_series_presentation_references",
+      "arca_series_presentation_commit_links",
+      "fx_supporting_works",
+      "fx_workflow_events",
+      "fx_event_attempts",
+      "fx_effect_journal",
+      "fx_workspace_registry",
+      "fx_workspace_materials",
+      "fx_artifact_registry"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": false,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "series-presentation-commit",
+        "faultInjectionPoints": "exact active build, expected shared version, source and final verification, each Control CAS, version/head/Result/marker, before and after COMMIT",
+        "requiredInvariant": "Shared version, head, Control and Ready result are all present or all absent; old Season Own and historical Commit links remain unchanged; exact Event replay cannot publish a second version",
+        "source": {
+          "section": "8.9.7",
+          "line": 8866
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8868,
+      "lineDigest": "68e2cd52e347b1c301b09acbeaa37234f8d6638ede2732c04f682146a4b6079d"
+    }
+  }
+}

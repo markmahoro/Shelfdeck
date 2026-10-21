@@ -271,7 +271,7 @@ export type FormationSubject = {
   ratingReasonCode?: string|null;
   productIdentityIssue: null | { contentProfile?:'jav'|'western_adult'; sourceLocation?:string|null; claimedCode?:string|null; result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string|null; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
   failureDiagnostics?: Array<{eventId:string;code:string;diagnosticsUnavailable?:boolean;diagnostics:{sourceDirectory?:string;unknownNames?:string[];unknownMemberCount?:number;truncated?:boolean;field?:string;reasonCode?:string;networkCode?:string;stage?:string;timeout?:boolean}|null}>;
-  executorIssue: null | { phase:string; errorCode:string; attemptCount:number|null; owner:string; recoveryState:string;
+  executorIssue: null | { canSupplyImages?:boolean;phase:string; errorCode:string; attemptCount:number|null; owner:string; recoveryState:string;
     recoveryGeneration:number|null; automaticRecoveryUsed:boolean; canRetry:boolean; offerId:string; onDeckRunId?:string };
   primaryMaterialCount: number;
   addedAtMs: number;
@@ -432,7 +432,7 @@ export type CareWorkItem = { currentHealth?:HealthSummary|null; caseEvidence?:{o
   processDetail?:{contract:'aftercare_process_actual_plans@1';stages:Array<Omit<NonNullable<FormationSubject['processDetail']>['stages'][number],'key'>&{key:string}>}|null;
   state:string;classification:'queued'|'in_progress'|'attention_required'|'completed'|'ended';goals:string[];createdAtMs:number;terminalAtMs:number|null;
   reasonCode:string|null;progress:CareDetail['activeCaseProgress'] };
-export type CareDetail = { shelfEntryId:string; health:HealthSummary; basis:{inventoryRevision:number;standardRevision:number;placementRevision:number;careBasisDigest:string};
+export type CareDetail = { sharedPresentation?:{state:'in_progress'|'attention_required';canRetry:boolean;canSupplyImages:boolean;reasonCode:string|null}|null;shelfEntryId:string; health:HealthSummary; basis:{inventoryRevision:number;standardRevision:number;placementRevision:number;careBasisDigest:string};
   activeCaseProgress:{aftercareCaseId:string;stage:string;currentAction?:(Omit<NonNullable<FormationSubject['currentPlan']>,'stageKey'|'state'>&{stageKey:string;state:string})|null;progressPercent:number|null;progress?:{mode:string;currentValue:number;totalValue:number;unit:string;rate:number|null;etaMs:number|null;terminal:boolean}|null;goals:string[]}|null;
   history:{assessments:Array<{assessmentId:string;assessmentKind:string;result:string;assessedAtMs:number}>;findings:CareFinding[];cases:CareCase[];commits:Array<{inventoryCommitId:string;previousInventoryRevision:number;newInventoryRevision:number;committedAtMs:number}>} };
 export type OffdeckPolicy={policyId:string;revision:number;status:'active'|'disabled';duplicateScheduleEnabled:boolean;entryRules:Array<{ruleId:string;ordinal:number;shelfScope:'all'|'selected';shelfIds:string[];condition:JsonValue}>;policyDigest:string};
@@ -840,7 +840,7 @@ export const helixAdminApi = {
   previewRecycle(shelfEntryId:string){return request<{items:RecyclePreview[]}>(`/v1/admin/care-recycle/${encodeURIComponent(shelfEntryId)}/preview`);},
   archiveRecycle(value:RecyclePreview){return request<RecycleEntry>(`/v1/admin/care-recycle/${encodeURIComponent(value.shelfEntryId)}/actions/archive`,{method:'POST',body:JSON.stringify({idempotencyKey:newOpaqueId(),sourceLocation:value.sourceLocation,manifestDigest:value.manifestDigest,confirmManifestDigest:value.manifestDigest})});},
   restoreRecycle(id:string){return request<RecycleEntry>(`/v1/admin/care-recycle/${encodeURIComponent(id)}/actions/restore`,{method:'POST',body:'{}'});},
-  checkCare(shelfEntryId:string){return request<{operationRef:string;state:string;shelfEntryId:string}>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}/actions/check`,{method:'POST',body:JSON.stringify({idempotencyKey:`care-check:${shelfEntryId}:${newOpaqueId()}`})});},
+  checkCare(shelfEntryId:string,supplementalImages?:Array<{artifactKind:'poster'|'fanart';bytesBase64:string}>){return request<{operationRef:string;state:string;shelfEntryId:string}>(`/v1/admin/care/${encodeURIComponent(shelfEntryId)}/actions/check`,{method:'POST',body:JSON.stringify({...(supplementalImages?.length?{supplementalImages}:{}),idempotencyKey:`care-check:${shelfEntryId}:${newOpaqueId()}`})});},
   getOffdeckPolicy(){return request<OffdeckPolicy>('/v1/admin/offdeck/policies');},
   publishOffdeckPolicy(body:JsonValue){return request<OffdeckPolicy>('/v1/admin/offdeck/policies',{method:'PATCH',body:JSON.stringify(body)});},
   listOffdeckCandidates(){return request<{candidates:OffdeckCandidate[];duplicateGroups:OffdeckDuplicateGroup[];suppressions:JsonValue[];whitelists:JsonValue[]}>('/v1/admin/offdeck/candidates');},
@@ -965,7 +965,7 @@ export const helixAdminApi = {
   readUsAdultActorSelection(libraRunId:string){return request<UsAdultActorSelection>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actor-selection`);},
   chooseUsAdultActor(libraRunId:string,body:UsAdultActorChoice){return request<{replayed:boolean;receipt:{resultRef:{personId:string;choiceRevision:number}}}>(
     `/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actions/choose-us-adult-actor`,{method:'POST',body:JSON.stringify(body)});},
-  retryAcceptance(subject:FormationSubject){if(!subject.executorIssue?.canRetry)throw new Error('当前接纳或上架故障不能重试。');const offerId=subject.executorIssue.offerId;return request(`/v1/admin/formation/acceptance/${encodeURIComponent(offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({idempotencyKey:`acceptance-retry:${offerId}:${newOpaqueId()}`})});},
+  retryAcceptance(subject:FormationSubject,supplementalImages?:Array<{artifactKind:'poster'|'fanart';bytesBase64:string}>){if(!subject.executorIssue?.canRetry)throw new Error('当前接纳或上架故障不能重试。');const offerId=subject.executorIssue.offerId;return request(`/v1/admin/formation/acceptance/${encodeURIComponent(offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({idempotencyKey:`acceptance-retry:${offerId}:${newOpaqueId()}`,...(supplementalImages?.length?{supplementalImages}:{})})});},
   createShelf(body: JsonValue) {
     return request<{ shelf: Shelf; replayed: boolean }>('/v1/admin/shelves', {
       method: 'POST',

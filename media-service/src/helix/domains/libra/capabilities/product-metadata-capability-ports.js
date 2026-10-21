@@ -137,7 +137,9 @@ function createProductMetadataCapabilityPorts(options) {
         });
       } else if (intent.sourceKind === 'provider') {
         const provider = await options.productProductionPort.fetchProvider(intent, handle);
+        const local=provider.seriesPresentationSource&&options.qualifySeriesLocalSource?.(options.movieProductionReader.readRunSnapshot(context.ownerScope.processId).candidatePackage?.seriesPresentationSourceRefs,provider.seriesPresentationSource.providerKey);
         source = Object.freeze({
+          ...(local?{seriesQualifiedLocalSource:local}:{}),
           descriptiveEntries: provider.descriptiveEntries,
           providerIdentities: provider.providerIdentities,
           peopleHints: provider.peopleHints,
@@ -155,6 +157,7 @@ function createProductMetadataCapabilityPorts(options) {
         providerIdentities: source.providerIdentities,
         peopleHints: source.peopleHints,
         artifactHints: source.artifactHints,
+        ...(source.seriesQualifiedLocalSource?{seriesQualifiedLocalSource:source.seriesQualifiedLocalSource}:{}),
         ...(source.seriesPresentationSource?{seriesPresentationSource:source.seriesPresentationSource}:{}),
         observedAtMs: now(),
       }));

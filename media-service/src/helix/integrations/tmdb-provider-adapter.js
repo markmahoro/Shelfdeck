@@ -1145,6 +1145,22 @@ function createTmdbProviderAdapter(options) {
         })));
       }
 
+      if(request.operationId==='arca.series_presentation.source.observe@1'&&request.input?.metadataRequest){
+        exact(request.input,['metadataRequest'],'PLATFORM_TMDB_SERIES_PRESENTATION_SHAPE');
+        const basis=require('../contracts/series-maintenance-basis').assertMaintenanceBasis(request.input.metadataRequest),source=basis.sourceObservation;
+        if(source.integrationId!==snapshot.integrationId||source.configRevision!==snapshot.configRevision||source.language!==language)
+          fail('PLATFORM_TMDB_SERIES_PRESENTATION_STALE','Shared metadata qualification changed.');
+        const body=await fetchJson(snapshot.endpoint,snapshot.secretKind,secretBytes,'/tv/'+source.providerKey,
+          {timeoutMs:timeout(request.timeoutMs),query:{language,append_to_response:'credits'},proxyServer});
+        validateMetadataResponse(body,'series');
+        if(String(body.id)!==source.providerKey)fail('PLATFORM_TMDB_IDENTITY_MISMATCH','Shared metadata belongs to another show.');
+        return require('../contracts/series-presentation-basis').buildSeriesPresentationSource({provider:'tmdb',namespace:'tmdb_series',providerKey:source.providerKey,
+          seasonIdentityAnchorDigest:source.seasonIdentityAnchorDigest,integrationId:snapshot.integrationId,configRevision:snapshot.configRevision,language,sourceRef:'tmdb:tv:'+source.providerKey,
+          title:String(body.name||''),originalTitle:String(body.original_name||''),originalLanguage:String(body.original_language||''),firstAirDate:String(body.first_air_date||''),plot:String(body.overview||''),
+          genres:(body.genres||[]).map(item=>item.name).filter(value=>typeof value==='string').sort((a,b)=>Buffer.from(a).compare(Buffer.from(b))),
+          cast:(body.credits?.cast||[]).filter(actor=>Number.isSafeInteger(actor.id)&&actor.id>0&&typeof actor.name==='string'&&actor.name).slice(0,64)
+            .map((actor,index)=>({providerKey:String(actor.id),name:actor.name,role:typeof actor.character==='string'?actor.character:'',order:Number.isSafeInteger(actor.order)&&actor.order>=0?actor.order:index}))});
+      }
       if (request.operationId === 'libra.product_metadata.fetch@1') {
         exact(
           request.input,
@@ -1335,6 +1351,8 @@ function createTmdbProviderAdapter(options) {
             integrationId:snapshot.integrationId,configRevision:snapshot.configRevision,language,sourceRef:'tmdb:tv:'+resolved.providerKey,
             title:String(body.name||''),originalTitle:String(body.original_name||''),originalLanguage:String(body.original_language||''),
             firstAirDate:String(body.first_air_date||''),plot:String(body.overview||''),
+            cast:(body.credits?.cast||[]).filter(actor=>Number.isSafeInteger(actor.id)&&actor.id>0&&typeof actor.name==='string'&&actor.name).slice(0,64)
+              .map((actor,index)=>({providerKey:String(actor.id),name:actor.name,role:typeof actor.character==='string'?actor.character:'',order:Number.isSafeInteger(actor.order)&&actor.order>=0?actor.order:index})),
             genres:(body.genres||[]).map(item=>item.name).filter(value=>typeof value==='string').sort((a,b)=>Buffer.from(a).compare(Buffer.from(b))),
           })}:{}),
           descriptiveEntries: Object.freeze(descriptiveEntries),
@@ -1350,7 +1368,7 @@ function createTmdbProviderAdapter(options) {
       if(sharedPresentation){
         const acquire=request.operationId==='arca.series_presentation.assets.prepare@1';
         exact(request.input,['seriesPresentationSource','artifactKind',...(acquire?['imagePath']:[])],'PLATFORM_TMDB_SERIES_PRESENTATION_SHAPE');
-        const source=require('../contracts/series-presentation-basis').assertSource(request.input.seriesPresentationSource);
+        const source=require('../contracts/series-image-source').assertImageSource(request.input.seriesPresentationSource);
         if(source.integrationId!==snapshot.integrationId||source.configRevision!==snapshot.configRevision||
             (acquire&&!/^\/[A-Za-z0-9._-]+$/.test(request.input.imagePath||'')))
           fail('PLATFORM_TMDB_SERIES_PRESENTATION_STALE','Series presentation source no longer matches its exact configuration or image locator.');
@@ -1474,7 +1492,7 @@ function createTmdbProviderAdapter(options) {
         configRevision: snapshot.configRevision,
         resolvedProviderIdentity: Object.freeze({ ...resolved }),
         mediaType: 'image/jpeg',
-        ...(sharedPresentation?{imagePath,sourceDigest:request.input.seriesPresentationSource.sourceDigest}:{}),
+        ...(sharedPresentation?{imagePath,sourceDigest:request.input.seriesPresentationSource.qualificationDigest}:{}),
         bytes,
       });
     });

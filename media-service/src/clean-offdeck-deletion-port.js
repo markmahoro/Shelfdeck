@@ -2,8 +2,9 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
-const { computeBoundedMaterialFingerprintSync } = require('./helix/integrations/bounded-material-fingerprint');
+const { computeBoundedMaterialFingerprintSync,readBoundedFileSnapshotSync } = require('./helix/integrations/bounded-material-fingerprint');
 
 class CleanOffdeckDeletionPortError extends Error {
   constructor(code, message) { super(message); this.name = 'CleanOffdeckDeletionPortError'; this.code = code; }
@@ -67,7 +68,16 @@ function createCleanOffdeckDeletionPort(options = {}) {
       }
       throw error;
     }
-    const matches = String(observed.stat.ino) === String(handle.identity.inode) &&
+    let fullDigestMatches=true;
+    if(request.expectedByteDigest!==undefined){
+      if(!/^[a-f0-9]{64}$/.test(request.expectedByteDigest))fail('ARCA_OFFDECK_SCOPE_HANDLE_INVALID','Shared member requires its complete immutable byte digest.');
+      let current=root;for(const segment of path.relative(root,path.dirname(target)).split(path.sep).filter(Boolean)){
+        current=path.join(current,segment);const stat=fs.lstatSync(current);if(!stat.isDirectory()||stat.isSymbolicLink())return Object.freeze({disposition:'authorized_identity_replaced',reasonCode:'authorized_identity_replaced'});
+      }
+      const snapshot=readBoundedFileSnapshotSync(target,16*1024*1024,{requireStableSnapshot:true});
+      fullDigestMatches=crypto.createHash('sha256').update(snapshot.bytes).digest('hex')===request.expectedByteDigest;
+    }
+    const matches = fullDigestMatches && String(observed.stat.ino) === String(handle.identity.inode) &&
       Number(observed.stat.size) === Number(handle.identity.sizeBytes) &&
       observed.contentFingerprint === handle.identity.contentFingerprint;
     return Object.freeze(matches

@@ -299,3 +299,51 @@ TMDB官方接口核对（2026-10-21）：[整剧详情](https://developer.themov
 目前组合342项定向回归和两项隔离JAV Host通过；最后受影响范围77项通过，包含本项8项共享组件/真实文件验证及4项TMDB图片scope叶端验证。P2/Manifest/包边界/禁止语义静态检查通过。完整长时门禁STOPPED、未作本版本发布资格；无生产变更。
 
 首批产品提交：`85ab5c7e1`。对应唯一CURRENT_PHASE中的JAV-STABLE-SOURCE-RECOVERY、PROCUREMENT-COMPLETE-GROUP-SLICING、SERIES-SHARED-PRESENTATION；三项UAT均保持开放。本提交为本地开发检查点，未推送、合并或部署。
+
+## 17. 运行链路集成检查点（2026-10-21，持续实施）
+
+本轮接通实际Arca路径，不以首批基础组件代替完成：
+
+- 4阶段共享准备Work（Source、Assets、Publish、Ready）及独立Workspace Reclaim Work已注册；读写/网络/Control资源、执行围栏、Source/Assets Result及Effect现场观察均接运行。Source冻结精确图片locator/原始及转换字节摘要；恢复不重选已成功的来源。Provider短期Handle仍仅在执行阶段生成，独立图片资格不重写Libra文字Observation。
+- Accepted同事务创建pending reservation；共享Ready以canonical transaction同时建立三项正式Material Control/版本/head/Result/marker；Season Fulfillment记录精确共享版本及三项Control证明，Commit同事务追加/复用Season reference、固定历史Commit link。当前健康另读current共享版本。
+- 共享准备失败在原Formation条目标成需处理，动作仍是“重试任务”；纯查询终态且没有任何非纯Event Attempt才可新Scope重评来源，可能已有物理效果者继续原配方。上传通过原重试对话框提供至多poster/fanart两张8MiB图片，校验真实尺寸/可解码性/物理Identity/SHA，作为有界Arca user ingress来源；不用People人物上传或反向Handoff。
+- 新增持久协调覆盖Work admission容量defer后无回调、进程退出漏发的共享准备/Workspace回收，防止形成新钉子户。Source失败不会由协调器无限自动创建新尝试。
+- 现有共享版本的missing-only维护接原健康检查；来源已消失时可从当前收藏条目的重试补图，保留其他健康字节、历史Commit及Season Inventory，不伪造Aftercare Case。维护失败/进行中由Arca当前事实输出，不靠解释文案补入口。
+- Off-deck仅最后引用且无Accepted预留时把三项共享文件纳入原确认范围；授权同事务取得retirement_scope_id，每次物理Effect重验，终态原子释放Season引用、共享Control和retirement围栏；未知文件保留。普通Season Control与共享Control各用有界Authority Handle。原Season/Related的1024上限保持，闭合范围可额外表达固定三项公共文件。
+- Shelf注销释放共享引用和Control而不删除字节。共享引用/版本的SQLite断点验证覆盖pending保护、另一季保护、真实最后引用、授权后新Accepted/新builder拒绝及历史链接不变。
+
+本轮已取得的定向证据（OS TEMP内日志，不能当最终固定版本资格）：
+
+| 范围 | 结果 |
+| --- | --- |
+| JAV真实进程退出、超过原Handle有效期恢复、完整上架、再次重启 | 1 PASS，原Event恢复succeeded，恰1 Commit，无Input Drift；`shelfdeck-326-ttl-host.tap` |
+| 1081视频/22剧/65完整季组的真实Procurement Host | 1 PASS，65包、2 Run、1081唯一成员及来源保留；`shelfdeck-327-category-host.tap` |
+| 首个S03完整上架 | 1 PASS；`shelfdeck-328-s03.tap` |
+| 跨季与同季加集 | 各1 PASS；跨季首轮因人物后台等待时点未通过，相同Oracle单独复验通过，未删除原失败记录 |
+| 首次必需图片无来源，原任务人工重试 | 1 PASS；`shelfdeck-328-retry.tap` |
+| Provider完全无图，原任务上传两张图片后上架 | 1 PASS；`shelfdeck-328-supplement.tap` |
+| 实际浏览器失败行→重试→错误方向就地拒绝→上传→键盘提交→收藏结果，1920/390px | 1 PASS，图片在`shelfdeck-328-browser/`；后续取消可达性/清理校验及收藏维护UI增量仍需同版复验和UI负责人审核 |
+| 已上架fanart缺失且Provider已无来源，从原收藏维护补图 | 1 PASS；`shelfdeck-328-maintenance-supplement.tap` |
+| Workspace写入后真实进程退出并恢复 | 1 PASS；`shelfdeck-328-process.tap` |
+| 正式文件首次发布后真实进程退出并恢复 | 初轮FAIL（material_commit观察返回了workspace形状），修正为forward_required/rollbackDeclared后1 PASS；`shelfdeck-328-publish-recovery.tap` |
+| 真实N:M视频的最后季Off-deck，额外三项共享文件，未知sentinel保留 | 1 PASS；`shelfdeck-328-offdeck.tap`；后续Control分组/1027技术上限及完整字节证明增量须重验 |
+| Off-deck和大规模Shelf注销既有回归 | 25 PASS；`shelfdeck-328-exit-regressions.tap` |
+| 共享引用/retirement围栏及Off-deck组件组合 | 30 PASS；`shelfdeck-328-reference-guards.tap` |
+| 当前Contract/边界/语义静态检查检查点 | PASS；最终source-map/生成合同和完整门禁仍须固定后执行 |
+
+三项保持开放。仍需完成/核对：既有无shared登记的生产Season只读修复预览及正式软件路径（未获生产数据补写授权）；来源祖先资料有界资格；显式刷新与冲突/所有引用维护收口；最终完整回归、Windows/Linux相关覆盖和具体版本UI审核。当前未改生产，不把未跑或被停止的完整门禁改为PASS，不以任何Reset修复旧收藏。
+
+
+## 18. 完整运行链与追加反例（2026-10-21，继续实施）
+
+最新已验证：326/327与328两处进程退出组合4 PASS（JAV跨TTL、1081媒体/65包/2Run、Workspace及正式发布中断）；Service 648 PASS/29既有skip；Web 248 PASS。上述为测试运行时工作区，不冒充后续增量或固定发布版本资格。
+
+328真实视频浏览器旅程`shared-task-attention → 原任务双图补充 → 上架 → 我的收藏缺fanart → 原收藏重试单图 → 健康`通过，包含1920/390px、错误方向校验、清除就地错误、键盘提交及禁止Accepted后取消；截图在本机TEMP的`shelfdeck-328-browser-qualification/`。早期占位媒体走查不能达到整体健康的FAIL保留：Presentation已健康，但真实FFmpeg正确报告占位视频不能解码，后续换真实视频复验通过，没有放宽健康Oracle。
+
+工作区写入后失败、正式根首次文件写入后失败，原任务人工重试各1 PASS；修正了“仅看成功Result就推测未进入非纯Attempt”导致人工恢复也被错误拒绝的风险。Sources纯查询失败可重评；物化后继续原配方，不借新Provider输入摘要掩盖Effect。追加空Workspace强证明的来源重评事务仍在验证。
+
+既有无共享登记的Season本地Host修复1 PASS：按当前已Commit剧身份和唯一根形成Arca维护请求，Source只查精确整剧详情，三项补齐后登记当前引用；7组原Season/视频/身份/Inventory/入藏历史逐行摘要保持，不补造历史共享Commit link、不创建Aftercare Case。此为隔离legacy形状重建，不是生产副本实修资格。旧生产无登记项只能先报告缺口，须用户主动检查/已批准修复，不能在部署后借周期维护自动补写历史收藏。
+
+原来源资料已增加独立只读候选引用：最近明确Season目录的共同父剧根、Field内最多三项、真正tvshow NFO确认整剧ID、完整SHA及Physical Identity；不加入exclusive Related/Control转移或输入删除范围。匹配来源Host最终1 PASS，别剧来源Host1 PASS，原件保留；PNG→JPEG及失配/漂移边界叶端1 PASS。发现并修正Windows斜杠归一化比较误把文件当父目录的缺陷。
+
+健康新增共享head证据；Root准备/版本变化不会改Season Inventory或Care Case业务依据，但使旧共享健康检查失效，错过完成回调时可由正常协调重新检查。进行中/失败由Owner真实Work组合当前健康，不把后台健康通知当作用户主动重试。该最后增量尚须最终回归。当前136 Capability/115 Result family/231表/61 canonical transaction；三项UAT仍未关闭，尚无本轮生产变更。

@@ -15,7 +15,8 @@
         "access": "write",
         "tables": [
           "arca_series_presentation_scopes",
-          "arca_series_presentation_versions"
+          "arca_series_presentation_versions",
+          "arca_series_presentation_references"
         ]
       },
       {
@@ -40,17 +41,24 @@
     "writeTables": [
       "arca_series_presentation_scopes",
       "arca_series_presentation_versions",
+      "arca_series_presentation_references",
       "fx_material_controls",
       "fx_material_control_revisions",
       "fx_event_result_bindings",
       "fx_commit_markers"
     ],
     "readTables": [
+      "arca_shelf_entries",
+      "arca_shelves",
+      "arca_canonical_identity_revisions",
+      "arca_inventory_representations",
+      "arca_inventory_materials",
       "arca_series_presentation_scopes",
       "arca_series_presentation_builds",
       "arca_series_presentation_versions",
       "arca_series_presentation_reservations",
       "arca_series_presentation_references",
+      "arca_series_presentation_commit_links",
       "fx_supporting_works",
       "fx_workflow_events",
       "fx_event_attempts",

@@ -17,6 +17,7 @@ function createSeriesPresentationWorkspaceStore(options){
       keyColumns:['root_id'],safeIntegers:true},
   }});
   const repo=createRepositoryDefinition({repositoryId:'arca_series_workspace',owner:'execution-foundation',schemaManifest:options.schemaManifest,statements:{
+    active_registries:{kind:'select-all',tableId:'fx_workspace_registry',columns:registryColumns,keyColumns:['owner_domain','process_type','state'],safeIntegers:true},
     registry:{kind:'select-one',tableId:'fx_workspace_registry',columns:registryColumns,keyColumns:['workspace_id'],safeIntegers:true},
     material:{kind:'select-one',tableId:'fx_workspace_materials',columns:materialColumns,keyColumns:['workspace_id','material_handle_id'],safeIntegers:true},
     materials:{kind:'select-all',tableId:'fx_workspace_materials',columns:materialColumns,keyColumns:['workspace_id'],safeIntegers:true},
@@ -25,17 +26,18 @@ function createSeriesPresentationWorkspaceStore(options){
     insert_material:{kind:'insert',tableId:'fx_workspace_materials',columns:materialColumns},
     insert_artifact:{kind:'insert',tableId:'fx_artifact_registry',columns:artifactColumns},
   }});
-  function execute(scope,operation){
-    const frozen=store.build(scope.objectId);
-    if(!frozen||frozen.digest!==scope.digest)fail('Series Workspace requires its exact immutable build.');
-    return options.unitOfWork.execute([store.scopeParticipant(scope),{
+  function rootParticipant(){return {
       participantId:'arca_series_workspace_root',owner:'platform-settings',boundBusinessOwner:'arca',repositories:[platform],execute:c=>{
         const row=c.repository(platform.repositoryId).invoke('find',{root_id:root.rootId});
         if(!row||row.owner_scope!=='arca'||row.state!=='active'||row.root_handle_ref!==root.rootHandleRef||Number(row.config_revision)!==root.configRevision||
             row.endpoint_id!==root.endpointId||row.mount_scope_id!==root.mountScopeId||row.resolved_root!==root.resolvedRoot||row.snapshot_digest!==root.snapshotDigest)
           fail('Series Workspace no longer has its exact configured root.');
       },
-    },{
+    };}
+  function execute(scope,operation){
+    const frozen=store.build(scope.objectId);
+    if(!frozen||frozen.digest!==scope.digest)fail('Series Workspace requires its exact immutable build.');
+    return options.unitOfWork.execute([store.scopeParticipant(scope),rootParticipant(),{
       participantId:'arca_series_workspace',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[repo],
       execute:c=>operation(c.repository(repo.repositoryId),c.commitTimeMs),
     }]).arca_series_workspace;
@@ -89,6 +91,7 @@ function createSeriesPresentationWorkspaceStore(options){
         fail('Series recovery Material differs from its immutable registration.');return handle;
     })};
   });}
-  return Object.freeze({ensure:scope=>execute(scope,(r,at)=>ensureUsing(r,scope,at)),register,resolve,inspect});
+  return Object.freeze({listActive:()=>options.unitOfWork.execute([{participantId:'arca_series_active_workspaces',owner:'execution-foundation',boundBusinessOwner:'arca',repositories:[repo],
+    execute:c=>c.repository(repo.repositoryId).invoke('active_registries',{owner_domain:'arca',process_type:'series_presentation',state:'active'})}]).arca_series_active_workspaces,rootParticipant,assertRoot:()=>options.unitOfWork.execute([rootParticipant()]),ensure:scope=>execute(scope,(r,at)=>ensureUsing(r,scope,at)),register,resolve,inspect});
 }
 module.exports=Object.freeze({createSeriesPresentationWorkspaceStore,registryColumns,materialColumns,artifactColumns});
