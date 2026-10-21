@@ -1,5 +1,13 @@
 # “死包”专项：Formation 全生命周期归宿审视
 
+## 2026-10-21 UAT-327：分类目录被当成不可拆分Scope
+
+用户在剧集来源看到4star共1081文件超过1024的提示。本次仅只读诊断，无产品代码、SSOT、来源目录或生产数据变更。生产镜像仍为6c74939646且RestartCount0。Field为media-field-f238ed0b-e35b-4198-bd90-6fbf3f571d53，root=/media/Series；current proc_field_materials中4star共3882文件，其中eligible1081、policy_extension_not_allowed2801。1081恰为798 mkv +270 mp4 +13 ts；图片、NFO、字幕未被误计入该值。它们分属22部剧，最大单剧214个视频，最大单季目录30个视频。
+
+scopeFor以Field相对路径第一段形成ordinary-directory:4star，无视其下剧名与Season层级；selectionCapacityIssues与Run Creator复用该规则。createProcurementRunSlices将大于1024的不可拆Scope记为procurement_selection_scope_too_large，不生成该Scope的Run。SSOT Mixed Movie Field amendment及Procurement Run Creator正文明确pre-triage profile-neutral、第一层目录不可拆、每Scope/Run1024物理成员，故当前实现符合现合同，问题是现有设计把用户分类目录等同于不可拆整理范围。不能以单独提高1024、按固定文件数截断、先做Series身份判断或改用户目录绕过合同。后续需明确可独立开采范围如何从Observation确定且保持同季/BDMV等真实不可拆边界，再取得对应合同决定并实施；本次未擅自改规则。
+
+告警查询从eligible材料计算，不能仅凭1081告警断言1081文件全部未被整理或当前全部受阻；还需区分当前Control和历史Selection准入。已确认的误归组及与真实单剧/单季规模的落差不依赖该后续核账。此问题属于死包专项第二类：正常材料因过粗的系统开采边界被限制；登记UAT-327开放，不以正常1024物理上限或要求用户排除有效剧集作为关闭依据。
+
 ## 2026-10-21 UAT-325最终发布与恢复
 
 2026-10-21 17:50发布完成：UAT-325修正版6c7493964674eea2d944e915654dc3c64abf8929已通过标准部署，生产镜像markmahoro/shelfdeck:helix-beta-20261021-6c74939646，image ID sha256:ad0f738f2969439d555e46833ad0e197f38b3e3babd265af66252fef622ca1fe，tar SHA256 67165d579798f3ee9db0673c0edefcb3f409f7514fae6bdc207e4a3fb1b17f86。17:41:08启动，17:47:53正式Resume完成，running/normalSupplyAllowed且无fault；被中断的原QSV转码已恢复，输出持续增长。原ended查询500已变200，active/completed等八项接口通过，线上JS/CSS与UI负责人已验收版本完全一致。切换前后80组历史/收藏/人物/未决Effect身份保护通过，649原收藏和31,238人物保持。UI同版22/22、相关单测26、Web248/build及受影响后端资格通过；完整生产媒体E2E未新增，前轮完整副本Host FAIL与用户接受例外保留。详见本专项Evidence。
