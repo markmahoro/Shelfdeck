@@ -314,13 +314,36 @@ describe('Helix primary copy and workbench structure', () => {
     await waitFor(()=>expect(screen.queryByRole('dialog',{name:'确认取消整理任务'})).not.toBeInTheDocument());
     fireEvent.click(screen.getByRole('button',{name:'取消整理任务'}));
     dialog=screen.getByRole('dialog',{name:'确认取消整理任务'});
+    fireEvent.click(within(dialog).getByRole('checkbox'));
     fireEvent.click(within(dialog).getByRole('button',{name:'确认取消任务'}));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('暂未确认本次整理是否结束');
+    expect(within(dialog).getByRole('checkbox')).toBeDisabled();
+    expect(within(dialog).getByRole('checkbox')).toBeChecked();
     expect(within(dialog).queryByText(/P9_DISCARD|internal stack/)).not.toBeInTheDocument();
     fireEvent.click(within(dialog).getByRole('button',{name:'确认取消任务'}));
     await waitFor(()=>expect(dialog).not.toBeInTheDocument());
     expect(discard.mock.calls[0][1]).not.toBe(discard.mock.calls[1][1]);
     expect(discard.mock.calls[1][1]).toBe(discard.mock.calls[2][1]);
+    expect(discard.mock.calls[1][2]).toBe(true);
+    expect(discard.mock.calls[2][2]).toBe(true);
+  });
+
+  it('preserves preparation retry feedback while an empty workbench refreshes',async()=>{
+    const summary={totalCount:0,inProgressCount:0,attentionRequiredCount:0,completedCount:0};
+    const empty={items:[],summary,nextCursor:null,projection:{status:'ready' as const,asOfMs:1}};
+    const formation=vi.spyOn(helixAdminApi,'listFormation').mockResolvedValue(empty);
+    vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue(empty);
+    vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
+    vi.spyOn(helixAdminApi,'listPreparationFailures').mockResolvedValueOnce({items:[{workId:'failed-intake',subjectId:null,title:'Movie.mkv',phase:'接收材料',failureCode:'FAILED'}],nextCursor:null}).mockResolvedValue({items:[],nextCursor:null});
+    vi.spyOn(helixAdminApi,'retryPreparation').mockResolvedValue({kind:'admitted',workId:'replacement'});
+    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button',{name:'准备异常'}));
+    const before=formation.mock.calls.length;
+    fireEvent.click(await screen.findByRole('button',{name:'重试准备'}));
+    await waitFor(()=>expect(formation.mock.calls.length).toBeGreaterThan(before));
+    expect(await screen.findByText('已提交重试')).toBeInTheDocument();
+    expect(screen.getByRole('button',{name:'准备异常'})).toHaveAttribute('aria-expanded','true');
+    expect(screen.getByText('没有准备异常')).toBeInTheDocument();
   });
 
   it('renders current media as stacked steps, progress, user actions, and expedite', async () => {

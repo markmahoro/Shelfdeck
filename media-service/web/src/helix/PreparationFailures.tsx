@@ -19,7 +19,7 @@ export default function PreparationFailures({onChanged}:{onChanged:()=>void}){
     <Button type="button" aria-expanded={open} onClick={()=>{setOpen(!open);if(!open)void load();}}>准备异常</Button>
     {open&&<div>
       <Button type="button" disabled={busy} onClick={()=>void load()}>刷新异常列表</Button>
-      {busy&&<p role="status">正在读取…</p>}{error&&<p role="alert">{error}</p>}{notice&&<p role="status">{notice}</p>}
+      {busy&&<p role="status">正在读取…</p>}{error&&<p className="form-error" role="alert">{error}</p>}{notice&&<p className="form-notice" role="status">{notice}</p>}
       {!busy&&!error&&page?.items.length===0&&!page.nextCursor&&<p>没有准备异常</p>}
       {page?.items.map(item=><div className="source-stop-confirm" key={item.workId}><span><strong>{item.title}</strong> · {item.phase}失败</span>
         <Button type="button" disabled={busy} onClick={()=>void retry(item.workId)}>重试准备</Button></div>)}

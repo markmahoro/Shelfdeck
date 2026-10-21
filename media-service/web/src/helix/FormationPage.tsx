@@ -155,6 +155,7 @@ export default function FormationPage() {
   },[selectedCare?.aftercareCaseId,expire]);
   const [discardDialog,setDiscardDialog]=useState<{item:FormationSubject;idempotencyKey:string}|null>(null);
   const [excludeSourceFiles,setExcludeSourceFiles]=useState(false);
+  const [discardSubmitted,setDiscardSubmitted]=useState(false);
   const [discardBusy,setDiscardBusy]=useState(false),[discardNeedsRefresh,setDiscardNeedsRefresh]=useState(false);
   const [discardError,setDiscardError]=useState(''),[discardNotice,setDiscardNotice]=useState('');
   const [selectedEnded,setSelectedEnded]=useState<FormationRunHistory|null>(null);
@@ -254,7 +255,7 @@ export default function FormationPage() {
     finally{if(generation===detailGeneration.current)setDetailLoading(false);}
   };
   const action=async(item:FormationSubject,kind:'expedite'|'discard'|'admitDefects'|'retry'|'chooseShelf'|'chooseIdentity',value?:boolean|string)=>{
-    if(kind==='discard'){setExcludeSourceFiles(false);setDiscardError('');setDiscardNotice('');setDiscardNeedsRefresh(false);setDiscardDialog({item,idempotencyKey:`discard:${item.currentRun?.libraRunId||item.subjectId}:${item.currentRun?.stateRevision||0}:${newOpaqueId()}`});return;}
+    if(kind==='discard'){setDiscardSubmitted(false);setExcludeSourceFiles(false);setDiscardError('');setDiscardNotice('');setDiscardNeedsRefresh(false);setDiscardDialog({item,idempotencyKey:`discard:${item.currentRun?.libraRunId||item.subjectId}:${item.currentRun?.stateRevision||0}:${newOpaqueId()}`});return;}
     setLoading(true);setError('');
     try{
       if(kind==='expedite')await helixAdminApi.setRunExpedited(item,Boolean(value));
@@ -271,7 +272,7 @@ export default function FormationPage() {
       await load();
     }catch(cause){setError(cause instanceof Error?cause.message:'操作失败。');setLoading(false);}
   };
-  if(!active.length&&!completed.length&&!ended.length&&!careItems.length&&!pageRows.some(row=>row.kind==='correction')&&loading&&!error)return <LoadingState skeleton="rows">正在读取媒体整理工作区…</LoadingState>;
+  if(!hasLoadedPage.current&&!active.length&&!completed.length&&!ended.length&&!careItems.length&&!pageRows.some(row=>row.kind==='correction')&&loading&&!error)return <LoadingState skeleton="rows">正在读取媒体整理工作区…</LoadingState>;
   const counts:Record<Filter,number>={all:summary.totalCount+(summary.endedCount||0)+Object.values(careCounts).reduce((a,b)=>a+b,0)+Object.values(correctionCounts).reduce((a,b)=>a+b,0),in_progress:summary.inProgressCount+(careCounts.in_progress||0)+(careCounts.queued||0)+(correctionCounts.in_progress||0),attention_required:summary.attentionRequiredCount+(careCounts.attention_required||0)+(correctionCounts.attention_required||0),ended:summary.completedCount+(careCounts.completed||0)+(summary.endedCount||0)+(careCounts.ended||0)+(correctionCounts.completed||0)+(correctionCounts.ended||0)};
   return <section className="source-page workbench formation-page"><PageHeader title="媒体整理工作区" actions={<Button type="button" onClick={()=>void load()} disabled={loading}>{loading?'正在刷新…':'刷新'}</Button>} />
     <PreparationFailures onChanged={()=>void load()}/>
@@ -305,7 +306,7 @@ export default function FormationPage() {
       <Button type="button" disabled={discardBusy} onClick={()=>{setDiscardDialog(null);if(discardNeedsRefresh)void load();}}>取消</Button>
       <Button type="button" variant="danger" disabled={discardBusy||discardNeedsRefresh} onClick={()=>{void (async()=>{
         if(!discardDialog)return;
-        setDiscardBusy(true);setDiscardError('');setDiscardNotice('');
+        setDiscardSubmitted(true);setDiscardBusy(true);setDiscardError('');setDiscardNotice('');
         try{
           const result=await helixAdminApi.discardRun(discardDialog.item,discardDialog.idempotencyKey,excludeSourceFiles);
           if(result.resultKind==='discarded'||result.resultKind==='abandoned'){
@@ -334,7 +335,7 @@ export default function FormationPage() {
     </>}>
       {discardDialog&&<div className="stack">
         <p>{discardDialog.item.displayIdentity}</p>
-        <p>结束本次任务并清理临时文件，保留原始媒体。未排除的文件仍可在后续扫描中整理。</p><label className="task-cancellation-exclusion"><input type="checkbox" checked={excludeSourceFiles} disabled={discardBusy} onChange={event=>setExcludeSourceFiles(event.target.checked)}/><span>以后不再整理本任务关联的来源文件</span></label>
+        <p>结束本次任务并清理临时文件，保留原始媒体。未排除的文件仍可在后续扫描中整理。</p><label className="task-cancellation-exclusion"><input type="checkbox" checked={excludeSourceFiles} disabled={discardSubmitted} onChange={event=>setExcludeSourceFiles(event.target.checked)}/><span>以后不再整理本任务关联的来源文件</span></label>
         {discardError&&<p className="form-error" role="alert">{discardError}</p>}
         {discardNotice&&<p className="form-notice" role="status">{discardNotice}</p>}
       </div>}

@@ -425,3 +425,7 @@ node --test test/helix-architecture/p14-uat019-executor-terminal-closure.test.js
 - 释放部分空间后，两次建档请求均自动进入 completed、failure_code=null（`1792533397118`、`1792533398463`）；对应阻塞中的Arca验收Event后来failed。此证据确认生产空间/资源阻塞消退后人物流程可自行完成，不证明Arca失败和生命周期其他缺陷已修复。
 - 清理完成：主应用 backups/tests/releases/data/backups、16个镜像tar、旧调试脚本；独立 shelfdeck-test/backups/releases/us-adult-qualification；两处独立测试转码/下载目录与转码盘 .prod065-preserved-20260907/.upgrade-backups。删除13个已退出测试容器及1个经package.json确认的ShelfDeck失败构建容器，移除21个未被使用的ShelfDeck旧镜像Tag及该失败构建中间镜像；仅保留当前0434b691b4da镜像的生产Tag和latest。
 - 最终现场 df：数据卷175 GiB，总使用71 GiB、可用101 GiB、42%；转码卷477 GiB，使用118 GiB、可用358 GiB、25%。生产health=ok、normalSupplyAllowed=true，StartedAt与清理前一致、RestartCount=0；fnOS HTTP200，应用/系统根权限保持。既有文档中的NAS备份/测试路径现为历史记录，不再是可用恢复副本；本轮未创建替代备份。
+
+### 2026-10-21 候选 UI 复核修正（尚未发布）
+
+UI 负责人复验发现取消请求结果未知时仍可切换排除范围、空工作区刷新导致准备重试反馈消失、准备异常未采用统一错误样式。现将取消请求的排除选择冻结到本次幂等请求，已加载页面刷新保持准备异常组件，错误与反馈采用既有样式。18 项相关 Web 回归通过，包含未知结果下相同请求/排除范围重试、尚无 Subject 时成功反馈跨刷新保留。完整门禁、精确版本 UI 复验、生产副本资格及发布继续，不能将早期候选结果冒充修正版资格。
