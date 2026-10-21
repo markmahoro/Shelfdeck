@@ -1,6 +1,8 @@
 # ShelfDeck 当前状态
 
-2026-10-21 17:25发布检查点：UAT-325最终候选6c7493964674eea2d944e915654dc3c64abf8929已构建上传并校验；镜像markmahoro/shelfdeck:helix-beta-20261021-6c74939646，ID sha256:ad0f738f2969439d555e46833ad0e197f38b3e3babd265af66252fef622ca1fe，tar SHA256 67165d579798f3ee9db0673c0edefcb3f409f7514fae6bdc207e4a3fb1b17f86。UI负责人同版22/22浏览器及26相关单测PASS，Web全248 PASS/build，后端字节继承438的Service648/29既有skip、Windows/Linux各24及四项静态PASS，2655产品/资源/资产文件一致。未新跑一小时完整Architecture Gate或完整生产媒体E2E；前轮完整副本Host FAIL及用户接受例外保留。本版未上线：生产408已受理stop（operation12a6711ec5538bd6c9a68a566b8d2080a51d40f39dbd6d497e2489aeb128bb6e），当前转码约2%、估计剩余约2小时40分，安全停机仍pending。尚未停容器、备份或切换，等待用户选择保留进度自然完成，或授权标准重启换版并由系统恢复。没有Reset/媒体删除/手工SQL。
+2026-10-21 17:50发布完成：UAT-325修正版6c7493964674eea2d944e915654dc3c64abf8929已通过标准部署，生产镜像markmahoro/shelfdeck:helix-beta-20261021-6c74939646，image ID sha256:ad0f738f2969439d555e46833ad0e197f38b3e3babd265af66252fef622ca1fe，tar SHA256 67165d579798f3ee9db0673c0edefcb3f409f7514fae6bdc207e4a3fb1b17f86。17:41:08启动，17:47:53正式Resume完成，running/normalSupplyAllowed且无fault；被中断的原QSV转码已恢复，输出持续增长。原ended查询500已变200，active/completed等八项接口通过，线上JS/CSS与UI负责人已验收版本完全一致。切换前后80组历史/收藏/人物/未决Effect身份保护通过，649原收藏和31,238人物保持。UI同版22/22、相关单测26、Web248/build及受影响后端资格通过；完整生产媒体E2E未新增，前轮完整副本Host FAIL与用户接受例外保留。详见本专项Evidence。
+
+新增开放UAT-326：ABF-153的JAV识别Event重启后因短期Handle到期时间变化导致输入摘要漂移，重复恢复被拒；本次只定位记录，尚未修复。相关代码与408旧版相同；实际转码恢复和本次UAT-325修复通过不等于全部任务已恢复。详见同一生命周期Evidence。
 
 2026-10-21 当前承接：生命周期与合并增量已标准部署40861e877并恢复正常供给。用户上线后反馈UAT-325：已结束任务查询500，以及独立“准备异常”入口不符合用户旅程。根因已定位为历史分页修改只读数组；继续本Phase修正，恢复统一为原任务“重试任务”，未接收成功者纳入同一列表且不伪造Subject/Run。修正版验证与发布继续；先前待部署快照按历史保留。
 

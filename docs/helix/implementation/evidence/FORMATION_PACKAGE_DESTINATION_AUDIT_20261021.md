@@ -1,5 +1,19 @@
 # “死包”专项：Formation 全生命周期归宿审视
 
+## 2026-10-21 UAT-325最终发布与恢复
+
+2026-10-21 17:50发布完成：UAT-325修正版6c7493964674eea2d944e915654dc3c64abf8929已通过标准部署，生产镜像markmahoro/shelfdeck:helix-beta-20261021-6c74939646，image ID sha256:ad0f738f2969439d555e46833ad0e197f38b3e3babd265af66252fef622ca1fe，tar SHA256 67165d579798f3ee9db0673c0edefcb3f409f7514fae6bdc207e4a3fb1b17f86。17:41:08启动，17:47:53正式Resume完成，running/normalSupplyAllowed且无fault；被中断的原QSV转码已恢复，输出持续增长。原ended查询500已变200，active/completed等八项接口通过，线上JS/CSS与UI负责人已验收版本完全一致。切换前后80组历史/收藏/人物/未决Effect身份保护通过，649原收藏和31,238人物保持。UI同版22/22、相关单测26、Web248/build及受影响后端资格通过；完整生产媒体E2E未新增，前轮完整副本Host FAIL与用户接受例外保留。详见本专项Evidence。
+
+用户明确授权标准容器重启换版并接受当前转码可能从头开始，覆盖本次等待长转码自然完成的原停机安排。标准75秒grace触发既有P4_SHUTDOWN_CHECKPOINT_TIMEOUT并exit1；未把该退出记为安全停机成功。停机后完整复制data及WAL/SHM、Compose和secret，145文件源/副本/源摘要一致，integrity/FK通过；没有删除WAL、Reset、媒体删除、手工SQL或结构替换。冷备位于/vol1/1000/docker/shelfdeck/releases/uat325-20261021/cold，保留旧408镜像与tar；无结构变更，必要时走旧408标准deploy回退，数据恢复须另行核查。
+
+正式Resume operation a0c3252eedbf17034ecd27a1b06df2b1b3f963e9681fc23afd53b3db2802cbe0于09:46:02.934Z受理、09:47:53.127Z完成。HTTP响应超时按未知结果处理，通过持久Receipt及公开status确认完成，未重复提交新意图。原transcode event 9f091ee3d141f27aacbbc1796f9ee60695da6cd5已恢复，新ffmpeg输出从10 MiB增长至64 MiB；这不代表整部转码/上架已完成。15无关容器身份保持，fnOS HTTP200和根目录权限正常。清理了中间438 tar及本次Linux测试副本/归档，关闭本任务Docker转发；当前回退资料保留。
+
+最终证据目录：E:/my_project/helix-git-consolidation-20261008/formation-task-retry-6c7493964-20261021；含构建/上传/部署、UI精确版本报告、2655文件同一性、完整冷备和前后80表保护证明、线上API/资产及恢复Receipt。438初次UI审核FAIL、后续6c修复PASS分别保留，不覆盖初次失败。UAT-325按本项接口、用户旅程及具体版本验收关闭，其他UAT不随本项批量关闭。
+
+上线后独立发现UAT-326（开放、未修复）：ABF-153的JAV product_identity纯观察Event在重启恢复时重复P4_EVENT_RECOVERY_INPUT_DRIFT，仍executing；具体Run 88246654238fce5a61a4992d41de68e630a36bdc5d92ffc46f078855088ffbd8，Event libra-product-identity-fact-event-77276c61a0209011940058a0dbc15938a864bf0d。Owner当前JAV Intent来自冻结Plan且Run revision仍2；source handle由Platform每次使用now()+60000签发，expiresAtMs和fenceDigest变化进入namedInputs完整摘要，因此与原Event Attempt摘要不同。实际Handle builder隔离演示确认仅改变到期时间就改变输入摘要；生产未改。408→6c的上述Owner projection、Platform handle签发与Foundation恢复代码逐字节相同，故回退本次UI/查询修正版不能修复该机制。不能据running/normalSupplyAllowed及转码恢复宣称全部任务恢复成功。后续需在Owner输入/短期访问授权和原Attempt不可变合同内解决，不跳过完整摘要、不延长凭据有效期掩盖、不直接改生产记录。
+
+以下为按当时时点保存的历史检查点，未部署/待确认不代表当前状态。
+
 2026-10-21 17:25发布检查点：UAT-325最终候选6c7493964674eea2d944e915654dc3c64abf8929已构建上传并校验；镜像markmahoro/shelfdeck:helix-beta-20261021-6c74939646，ID sha256:ad0f738f2969439d555e46833ad0e197f38b3e3babd265af66252fef622ca1fe，tar SHA256 67165d579798f3ee9db0673c0edefcb3f409f7514fae6bdc207e4a3fb1b17f86。UI负责人同版22/22浏览器及26相关单测PASS，Web全248 PASS/build，后端字节继承438的Service648/29既有skip、Windows/Linux各24及四项静态PASS，2655产品/资源/资产文件一致。未新跑一小时完整Architecture Gate或完整生产媒体E2E；前轮完整副本Host FAIL及用户接受例外保留。本版未上线：生产408已受理stop（operation12a6711ec5538bd6c9a68a566b8d2080a51d40f39dbd6d497e2489aeb128bb6e），当前转码约2%、估计剩余约2小时40分，安全停机仍pending。尚未停容器、备份或切换，等待用户选择保留进度自然完成，或授权标准重启换版并由系统恢复。没有Reset/媒体删除/手工SQL。
 
 ## 2026-10-21 上线后反馈与修正（UAT-325）
