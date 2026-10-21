@@ -431,3 +431,5 @@ node --test test/helix-architecture/p14-uat019-executor-terminal-closure.test.js
 UI 负责人复验发现取消请求结果未知时仍可切换排除范围、空工作区刷新导致准备重试反馈消失、准备异常未采用统一错误样式。现将取消请求的排除选择冻结到本次幂等请求，已加载页面刷新保持准备异常组件，错误与反馈采用既有样式。18 项相关 Web 回归通过，包含未知结果下相同请求/排除范围重试、尚无 Subject 时成功反馈跨刷新保留。完整门禁、精确版本 UI 复验、生产副本资格及发布继续，不能将早期候选结果冒充修正版资格。
 
 UI 第二轮确认三项已修复，剩余取消窗口键盘路径未通过。补齐取消窗口初始焦点、Tab/Shift-Tab 限定、Escape 安全关闭与触发按钮焦点恢复；18项回归通过，窗口关闭未发送取消命令。等待负责人具体版本复验。
+
+完整生产副本的旧镜像 Host 已完成构造并进入 running/normalSupplyAllowed，但普通后台报 EROFS/ENOENT 和 P4_RESOURCE_PRIORITY_UPDATE_INVALID，严格资格失败，未部署。资源优先级另以实际 SQLite 夹具独立复现：重启时公平资格集合/bonus 尚未重建，却沿用已有 durable waiter 的 revision，改变了同 revision 的优先级。修复由 Libra 在重新构造内存资格时发布新 Owner revision，真实机会账本和轮次不变，不放宽 Foundation 的同 revision 校验。23项公平/Governor回归通过；候选完整副本仍待复验，隔离文件错误不能冒充通过。

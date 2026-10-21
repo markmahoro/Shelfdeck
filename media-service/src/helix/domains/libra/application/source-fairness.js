@@ -13,6 +13,10 @@ function qualifiedOpportunity(summary){
 }
 function createSourceFairness(options){
  const store=options.store||createSourceFairnessStore(options),registered=new Set(),eligible=new Set(),lastScans=new Map(),packageTimes=new Map();
+ // Eligibility and bonuses are rebuilt in memory after restart. Publish their
+ // initial projection under a new Owner revision before recovery reacquires
+ // durable resource waits; the actual opportunity ledger remains untouched.
+ store.advancePriorityRevision();
  let snapshot=store.snapshot([]),bonuses=new Map();
  function rebuild(){
   snapshot=store.snapshot([...eligible]);bonuses=new Map();

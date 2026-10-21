@@ -75,6 +75,20 @@ test('late registration joins the current round and uses publication time before
  assert.ok(fairness.read('a2').localPriorityBonus>fairness.read('a1').localPriorityBonus);
 });
 
+test('restart publishes a new priority revision before rebuilding ephemeral eligibility without charging an opportunity',t=>{
+ const {createSourceFairness}=require('../../src/helix/domains/libra/application/source-fairness');
+ const options=fixture(t),store=createSourceFairnessStore(options),first=createSourceFairness({...options,store});
+ first.setEligible('a1',true);first.setEligible('b1',true);
+ const waiting=first.read('a1'),ledger=store.snapshot();assert.ok(waiting.localPriorityBonus>0);
+ const restarted=createSourceFairness({...options,store:createSourceFairnessStore(options)}),initial=restarted.read('a1');
+ assert.equal(initial.localPriorityBonus,0);
+ assert.ok(initial.priorityRevision>waiting.priorityRevision,'A changed restart projection cannot reuse a durable waiter revision.');
+ assert.deepEqual(store.snapshot().runs,ledger.runs);assert.deepEqual(store.snapshot().sources,ledger.sources);
+ restarted.setEligible('a1',true);restarted.setEligible('b1',true);
+ assert.equal(restarted.read('a1').localPriorityBonus,waiting.localPriorityBonus);
+ assert.ok(restarted.read('a1').priorityRevision>initial.priorityRevision);
+});
+
 test('a new attempt gets no zero-turn advantage over an existing Run and still rotates after service',t=>{
  const {createSourceFairness}=require('../../src/helix/domains/libra/application/source-fairness');
  const options=fixture(t),store=createSourceFairnessStore(options);
