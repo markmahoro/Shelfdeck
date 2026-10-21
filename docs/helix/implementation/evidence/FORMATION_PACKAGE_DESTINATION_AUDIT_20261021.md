@@ -1,5 +1,13 @@
 # “死包”专项：Formation 全生命周期归宿审视
 
+## 2026-10-21 UAT-326/327处理方案审视（未实施、未改SSOT）
+
+用户要求两项均看如何处理。本轮只读代码/合同审视，无新生产操作。326已有同仓可复用的正式模式：SSOT JAV Correction恢复细化明确Event只冻结Scope/前置Result中的站点、config revision、endpoint profile、network route，短期Handle在网络执行时由Platform公开端口重新签发且逐字段核验。Arca jav-correction-capability-ports.sourceHandle已实现此模式，Libra identity Evidence Source却把now()+60000的Handle装进冻结namedInputs。建议把相同分离应用到Libra JAV识别，并核查metadata/artifact等共享访问路径；短期有效期、配置停用/修改、操作权限、来源/profile/route fence继续由Platform/Adapter每次校验，不把JAV改为永久Handle，不从Event摘要白名单删除字段，不泛化未知Workspace/网络副作用的自动重放。非纯Observation仍按原Effect reality分类。验收覆盖跨TTL及真实Host重启输入稳定、配置/route改变拒绝、同一查询原意图保持、来源Result不被后来的查询覆盖；已卡住ABF-153单独验证正式恢复路径，不能以新fixture通过或直接改Attempt摘要/Reset冒充恢复。既有在途Attempt的原input digest不能直接换成新式输入；旧条目如何通过正式Owner恢复收束须在实现前明确，不添加泛化兼容层。
+
+327当前合同明确Run Creator pre-triage profile-neutral，第一层目录不可拆；因此仅把scopeFor改为按季猜组会越过现合同，需先确认此分组合同调整。建议方向：分类目录只作导航容器，不因层级相同强制合组；复用同一套Procurement本地文件名/目录结构规则形成待开采的完整材料组（不确认Provider身份、不调用TMDB/JAV站点、不抢Libra身份权），Series同一claimed title/同一季保完整、BDMV整盘和JAV命名分段保完整，完整组之间确定排序分批；每个原子组和Run仍最多1024物理成员。4star作为22部剧的分类层不应整块拒绝。单纯改为direct parent也不充分：现Structure按claimedTitle+seasonClaimDigest合并Series，不同父目录的同季成员可能在Run边界分离；局部1024截断或只在超限时切目录均不能证明完整性。需要将既有本地group identity规则抽为共享纯规则并冻结Observation分组Evidence，Run Creator与后续Triage校验同一分组，不维护两套近似解析器；歧义及真实单个完整组超限分别保留精确可处理原因。
+
+327验收须包含4star真实路径fixture/完整1081 eligible成员守恒及无遗漏重复、分类目录嵌套/命名变更、同剧跨季与同季跨子目录、混合根目录、BDMV/CERTIFICATE、JAV命名分段、未知/冲突线索、不超过/恰好/超过1024、输入乱序重放确定性，以及Movie/Series/JAV/Western Adult回归。Related仍不计Selection、不取得Control。已有Run/Package Basis不被重算；当前未成包材料必须经普通Observation/开采自然进入新规则，生产Reset/挪目录/排除有效文件不是修复前提。326/327均保持开放，方案不冒充产品实现或用户合同确认。
+
 ## 2026-10-21 UAT-327：分类目录被当成不可拆分Scope
 
 用户在剧集来源看到4star共1081文件超过1024的提示。本次仅只读诊断，无产品代码、SSOT、来源目录或生产数据变更。生产镜像仍为6c74939646且RestartCount0。Field为media-field-f238ed0b-e35b-4198-bd90-6fbf3f571d53，root=/media/Series；current proc_field_materials中4star共3882文件，其中eligible1081、policy_extension_not_allowed2801。1081恰为798 mkv +270 mp4 +13 ts；图片、NFO、字幕未被误计入该值。它们分属22部剧，最大单剧214个视频，最大单季目录30个视频。
