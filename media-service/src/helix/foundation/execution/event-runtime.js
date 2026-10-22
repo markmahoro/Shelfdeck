@@ -653,6 +653,19 @@ function createEventRuntime(options) {
         'P4_EVENT_RECOVERY_INPUT_DRIFT', 'Recovery inputs differ from the durable Event Attempt snapshot.'
       );
     } catch (error) {
+      if (error?.code === 'P4_EVENT_RECOVERY_INPUT_DRIFT' &&
+          ['destructive_commit','workspace_write','pure_observation'].includes(entry.manifest.effectClass)) {
+        // A recovered file or observation Effect cannot be replayed from
+        // reconstructed inputs. Retrying would reproduce the same deterministic
+        // drift forever. Fail the Event with explicit evidence and retain any
+        // unresolved Effect for audit.
+        const effect = request.effectId && options.effectJournal?.read ? options.effectJournal.read(request.effectId) : null,
+          outcome = Object.freeze({kind:'failed',failureClass:'input_projection',code:'P4_EVENT_RECOVERY_INPUT_DRIFT',
+            message:'Recovery inputs differ from the durable Event Attempt snapshot.',retryDirective:'never',
+            evidence:Object.freeze({effectId:effect?.effect_id||null,effectState:effect?.state||null,
+              originalInputDigest:attempt.input_snapshot_digest,dispatchStarted:effect?.state==='intended'?false:null})});
+        return complete(snapshot,attempt.event_attempt_id,outcome,Object.freeze({decision:'terminal'}));
+      }
       if(entry.manifest.effectClass==='pure_observation'&&request.decision==='safe_retry'&&isExecutionInputSuperseded(error)) {
         const outcome=Object.freeze({kind:'failed',failureClass:'input_projection',code:error.code,
           message:error.message,retryDirective:'never',evidence:Object.freeze({
