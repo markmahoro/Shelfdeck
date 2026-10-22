@@ -143,10 +143,15 @@ const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79
 const PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST = 'b39d36350b09fbc0236fd47f7d0ea6c43125c82260b9740d6b4cc5737c091e74';
 const PRE_PREDECK_PIPELINE_EXECUTION_CATALOG_DIGEST = 'a30cf21aebd17902cc977490388a2ef15849e422519ff0f5f653ae03065815ba';
 const PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST = '37264ba7abffb70a9d44264856816e992d0f05674a471fd4496d2bf3cc06ecca';
+// 2026-10-22 production still carried Plans from the movie 3.0 catalog.
+// Terminal Plans are accepted as history; active Plans are re-proved against
+// the current capability contracts before they may resume.
+const PRODUCTION_MOVIE_3_0_EXECUTION_CATALOG_DIGEST = 'b7e4d607f2684ef6e061e47215aea6607d408fdaf148be3c4b79e7eb0a7ec714';
 const COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS = new Set([
   UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
   PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
   PRE_PREDECK_PIPELINE_EXECUTION_CATALOG_DIGEST,
+  PRODUCTION_MOVIE_3_0_EXECUTION_CATALOG_DIGEST,
 ]);
 const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
 const TERMINAL_ATTEMPT_STATES = new Set(['succeeded', 'failed', 'cancelled']);
@@ -240,6 +245,34 @@ function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, poli
   if (!snapshot || !snapshot.plan) return false;
   if (verifyFailedPreparationRetryPlan(snapshot)) return true;
   if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
+  if (COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS.has(snapshot.plan.catalog_digest)) {
+    if (TERMINAL_ATTEMPT_STATES.has(snapshot.workAttempt?.state) &&
+        Array.isArray(snapshot.events) && snapshot.events.every((event) => TERMINAL_EVENT_STATES.has(event.state))) return true;
+    if (!snapshot.work || !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.events) ||
+        snapshot.nodes.length === 0 || snapshot.nodes.length !== snapshot.events.length) return false;
+    const compatibleEvents = new Map();
+    for (const event of snapshot.events) {
+      const key = event.plan_id + '\0' + event.node_id;
+      if (compatibleEvents.has(key)) return false;
+      compatibleEvents.set(key, event);
+    }
+    try {
+      for (const node of snapshot.nodes) {
+        const event = compatibleEvents.get(node.plan_id + '\0' + node.node_id);
+        if (!event || event.owner_domain !== snapshot.work.owner_domain ||
+            event.capability_ref !== node.capability_ref) return false;
+        const entry = registry.resolve(node.capability_ref, snapshot.work.owner_domain);
+        if (entry.manifest.contractVersion !== node.contract_version ||
+            entry.manifest.effectClass !== node.effect_class) return false;
+        policyRegistry.bindingFor(node.capability_ref, node.effect_class);
+        const bindingSet = JSON.parse(node.input_bindings_json);
+        for (const binding of bindingSet.bindings || []) {
+          if (binding.projectionRef) bindingProjectionRegistry.resolve(binding.projectionRef);
+        }
+      }
+      return true;
+    } catch { return false; }
+  }
   if (pausedBatches?.supports(snapshot)) return pausedBatches.verify(snapshot);
   if (terminalHistory?.supports(snapshot.plan.catalog_digest)) return terminalHistory.verify(snapshot);
   if (snapshot.plan.catalog_digest === boundedTransition?.previousCatalogDigest) return boundedTransition.verify(snapshot);
@@ -977,6 +1010,8 @@ function createProcurementExecutionRuntime(options) {
       for (let index = 0; index < snapshots.length; index += 1) {
         const snapshot = snapshots[index];
         if (pausedBatches.supports(snapshot)) results[index] = pausedBatches.verify(snapshot);
+        else if (COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS.has(snapshot.plan.catalog_digest)) results[index] = verifyStartupPlanCatalog(snapshot, catalogDigest, registry, policyRegistry,
+          bindingProjectionRegistry, boundedTransition, terminalHistory, pausedBatches);
         else if (terminalHistory.supports(snapshot.plan.catalog_digest)) pending.push({ index, snapshot });
         else results[index] = verifyStartupPlanCatalog(snapshot, catalogDigest, registry, policyRegistry,
           bindingProjectionRegistry, boundedTransition, terminalHistory, pausedBatches);
