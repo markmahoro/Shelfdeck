@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-22 17:25 3.1.0生产部署尝试与回滚：候选镜像`3.1.0`（git `23abf7705`，tar SHA256 `fff29cccedc0d1c78cd180b9f43e629dce3a9f312adc390700dce87785689d2c`）完成构建/上传/冷备/225→231逐表复制，231库readiness通过（231表、无findings）；但真实启动在`createSeriesPresentationServices`调用`ensureAftercareWorkspaceRoot`时命中`ARCA_AFTERCARE_WORKSPACE_ROOT_BUSY`，Aftercare namespace mount identity与旧存储根冲突，health持续reset。按UAT-328已记录的生产Host阻塞处理，未做未验收的root改写；已回滚到`helix-beta-20261021-6c74939646`（tar SHA256 `67165d579798f3ee9db0673c0edefcb3f409f7514fae6bdc207e4a3fb1b17f86`）并恢复原225库，health ok、`normalSupplyAllowed=true`，shelf 677/people 31,241/runs 908/events 120,648。冷备`/vol1/1000/docker/shelfdeck/backups/pre-3.1.0-20261022-1614`（189文件、DB SHA256 `a87471e6f6ee7ef04cac97093057e532c2243ec351412c9d45e75a0e4d5d2f20`）保留；3.1.0未部署，UAT-328 Host升级仍为发布阻塞。详见#4评论。
+
 2026-10-22最终历史验真收口：回收原子提交后退出的输入漂移已修，4类真实重启、Service648/29 skip、Linux18、Windows独立Host均通过。生产副本定位6c当前Catalog未入终态档案：沿用Frozen Catalog History精确归档120执行合同/1324 Schema，仅验真终态，不允许旧在途继续；历史证明与Owner/active/篡改负例71 PASS。16个未Commit Subject的限定Reset只在独立副本预览ready，生产未执行；原样全副本启动FAIL保留。最终固定Gate及平台/UI资格继续，三UAT尚未关闭或发布。详见UAT-328 Evidence §23。
 
 2026-10-22最终资格追加：328真实上架、补图重试、缺项维护、跨季复用与共享退出均已接通；5eaf具体版本UI负责人38/38、Web258、Linux17、Windows包及真实浏览器通过。新增回收原子提交后进程退出复现输入漂移，正在以原登记修订稳定投影修复并重新冻结最终Gate。完整旧生产副本Host启动未通过，结构前向/反向复制及224业务表保护通过；不将隔离legacy-shape维护测试冒充完整生产副本资格。三项UAT开放，未部署/未Reset/未补写生产。详见UAT-328设计Evidence §22。
