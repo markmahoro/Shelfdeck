@@ -50,7 +50,7 @@ test('each Domain exposes one frozen public package identity', () => {
   const expectedExports = {
     procurement: ['PACKAGE_ID', 'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade'],
     libra: ['PACKAGE_ID', 'LibraExecutionRegistration', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort', 'UsAdultRecommendationQueryFacade', 'UsAdultRecommendationCommandFacade', 'createLibraArtifactAuditSource'],
-    arca: ['PACKAGE_ID', 'ArcaExecutionRegistration', 'createArcaArtifactAuditSource'],
+    arca: ['PACKAGE_ID', 'ArcaExecutionRegistration', 'createArcaArtifactAuditSource', 'createSeriesPresentationQuery'],
     perception: ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionExecutionRegistration', 'PerceptionResolutionFacade'],
     people: ['PACKAGE_ID', 'PeopleCommandFacade', 'PersonReferenceQueryFacade', 'createPeopleImageExecutionRegistration', 'createPeopleProcessServices']
   };
