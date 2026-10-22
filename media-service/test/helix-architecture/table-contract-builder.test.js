@@ -150,7 +150,7 @@ test('keeps the Handoff B-created On-deck Run lifecycle mutable after its atomic
   const run = contracts.find((contract) => contract.tableId === 'arca_ondeck_runs');
   assert.equal(run.immutability.immutable, false);
   assert.deepEqual(run.columns.find((column) => column.name === 'state').enumValues,
-    ['ready', 'offloading', 'blocked', 'committed']);
+    ['ready', 'offloading', 'blocked', 'committed', 'administratively_retired']);
 });
 
 test('binds every Field Observation revision to its durable Foundation commit marker', () => {

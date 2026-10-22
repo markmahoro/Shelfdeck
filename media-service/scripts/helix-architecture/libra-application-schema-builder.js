@@ -40,7 +40,7 @@ function deliveryFence() {
       'run_not_active', 'spec_not_current', 'package_not_current', 'delivery_already_terminal', 'control_not_libra'
     ] },
     libraRunId: id(),
-    runState: { type: 'string', enum: ['active', 'suspended', 'superseded', 'frozen', 'completed', 'discarded'] },
+    runState: { type: 'string', enum: ['active', 'suspended', 'superseded', 'frozen', 'completed', 'discarded', 'administratively_retired'] },
     runStateRevision: positive(),
     runStateDigest: digest(),
     acceptanceSpecId: id(),
@@ -128,7 +128,7 @@ function workspaceCleanupScopeProjection() {
     ...object({
       cleanupScopeId: id(),
       libraRunId: id(),
-      triggerKind: { type: 'string', enum: ['offload_completed', 'run_superseded', 'run_discarded'] },
+      triggerKind: { type: 'string', enum: ['offload_completed', 'run_superseded', 'run_discarded', 'run_administratively_retired'] },
       state: { type: 'string', enum: ['active', 'completed', 'blocked'] },
       stateRevision: positive(),
       stateDigest: digest(),

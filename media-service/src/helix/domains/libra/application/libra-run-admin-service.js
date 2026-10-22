@@ -303,7 +303,9 @@ function createLibraRunAdminService(options) {
         failureClass:'strategy_unavailable',capabilityRef:terminalEvidence.strategyKind==='tmdb'?'libra.product_metadata.fetch@1':'libra.product_media.verify@1',
         terminalEvidenceDigest:terminalEvidence.evidenceDigest}];
     }
-    if(verification.libraRunId!==libraRunId || (verification.reasonCodes || []).some(code=>!WAIVABLE_MEDIA_CODES.has(code)))
+    if(verification.libraRunId!==libraRunId)
+      fail('P9_DEFECT_ADMISSION_INELIGIBLE','Product verification belongs to another Run.');
+    if((verification.reasonCodes || []).some(code=>!WAIVABLE_MEDIA_CODES.has(code)))
       fail('P9_DEFECT_ADMISSION_NONWAIVABLE','Product evidence contains a non-waivable safety or identity failure.', {
         productEvidence: {libraRunId,runStateRevision:Number(snapshot.run.state_revision),
           runStateDigest:snapshot.run.state_digest,verificationId:verification.verificationId,
@@ -414,6 +416,18 @@ function createLibraRunAdminService(options) {
         if(error.code==='P9_DEFECT_ADMISSION_EVIDENCE_PENDING')return Object.freeze({kind:'evidence_pending',libraRunId});
         if (['P9_DEFECT_ADMISSION_INELIGIBLE','P9_DEFECT_ADMISSION_NONWAIVABLE'].includes(error.code)) {
           const snapshot=current(libraRunId);
+          const revision=snapshot.revisions.find(row=>Number(row.state_revision)===Number(snapshot.run.state_revision));
+          const terminalEvidence=JSON.parse(revision.transition_evidence_json);
+          // Defect admission answers whether a requirement may be waived. Its
+          // refusal is not evidence that this business attempt must be ended.
+          // Preserve the established finite Freshness terminal contract and
+          // exact product verification failures; technical exhaustion remains
+          // visible for recovery and keeps its Run, Control and pipeline token.
+          const verifiedProductTerminal=error.details?.productEvidence && terminalEvidence.blockerKind==='product_unachievable' &&
+            terminalEvidence.blockedWorks?.length>0 && terminalEvidence.blockedWorks.every(work=>
+              work.failureClass==='business_unachievable' && work.capabilityRef==='libra.product_media.verify@1');
+          if (!terminalEvidence.assessmentId && !verifiedProductTerminal)
+            return Object.freeze({kind:'attention_required',libraRunId,reasonCode:error.code});
           try {
             const result=service.discard(libraRunId,{expectedRunStateRevision:Number(snapshot.run.state_revision),
               expectedRunStateDigest:snapshot.run.state_digest,idempotencyKey:'terminal:'+libraRunId+':'+snapshot.run.state_revision},'processing_failed',error.details?.productEvidence);

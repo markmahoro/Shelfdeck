@@ -157,6 +157,7 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/server.js' ||
         relative === 'src/clean-service-host.js' ||
         relative === 'src/clean-admin-static.js' ||
+        relative === 'src/clean-poster-renderer.js' ||
         relative === 'src/clean-runtime-operations.js' ||
         relative === 'src/clean-formation-reset-port.js' ||
         relative === 'src/clean-arca-recycle-port.js' ||
@@ -2078,6 +2079,11 @@ test('Windows and Docker artifacts select the service-only clean entrypoint', ()
 
   const windows = fs.readFileSync(path.join(serviceRoot, 'scripts', 'package-win.js'), 'utf8');
   assert.match(windows, /CLEAN_RUNTIME_FILES/);
+  for(const file of ['src/clean-poster-renderer.js','scripts/formation-retirement-plan.js',
+    'scripts/formation-retirement-operator.js','scripts/formation-retirement-journal.js','scripts/formation-retirement-history.js']) {
+    assert.ok(windows.includes("'"+file+"'"),'Windows package omits '+file);
+    assert.ok(docker.includes('COPY media-service/'+file+' ./'+file),'Docker image omits '+file);
+  }
   assert.match(windows,/src\/clean-us-adult-inventory-analysis-port\.js/);
   assert.match(docker,/COPY media-service\/src\/clean-us-adult-inventory-analysis-port\.js \.\/src\/clean-us-adult-inventory-analysis-port\.js/);
   assert.match(windows, /cleanHelixSource/);

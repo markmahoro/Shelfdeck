@@ -724,10 +724,10 @@ function createFormationProjectionSource(options) {
 }
 
 function isIdleAfterUserAbandon(item) {
-  return item.status==='abandoned'||!item.currentRun && item.nextAction?.label === '等待重新入库';
+  return ['abandoned','administratively_retired','ended'].includes(item.status);
 }
 function isIdleAfterUserAbandonRow(row) {
-  return row.subject_status==='abandoned'||!row.current_libra_run_id && row.next_action_label === '等待重新入库';
+  return ['abandoned','administratively_retired','ended'].includes(row.subject_status);
 }
 function attentionFor(item) {
   if (item.classification === 'attention_required') {
@@ -929,7 +929,7 @@ function createFormationQuery(options) {
     }
     return hidden;
   }
-  function summary(changes = [], activeChanges = null) {
+  function summaryBase() {
     const result = { totalCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0,endedCount:options.historyStore?.count?.()||0 };
     for (const row of options.store.counts()) {
       const count = Number(row.row_count);
@@ -940,9 +940,16 @@ function createFormationQuery(options) {
     const hidden = countHiddenActive();
     result.inProgressCount = Math.max(0, result.inProgressCount - hidden.in_progress);
     result.attentionRequiredCount = Math.max(0, result.attentionRequiredCount - hidden.attention_required);
+    return Object.freeze(result);
+  }
+  function intakeTasksFor(readScope) {
+    return readScope ? (readScope.intakeTasks ||= options.readIntakeTasks?.() || []) : options.readIntakeTasks?.() || [];
+  }
+  function summary(changes = [], activeChanges = null, readScope = null) {
+    const result = { ...(readScope ? (readScope.summaryBase ||= summaryBase()) : summaryBase()) };
     // Every section reports the same current active population. Page-local
     // overlays must not resurrect terminal Runs when another section loads.
-    const currentChanges = activeChanges || activeSnapshot([], false).changes;
+    const currentChanges = activeChanges || readScope?.active?.changes || activeSnapshot([], false).changes;
     const mergedChanges = new Map([...currentChanges, ...changes].map((change)=>[change.subjectId,change]));
     for (const change of mergedChanges.values()) {
       if (!change || change.from === change.to) continue;
@@ -953,7 +960,7 @@ function createFormationQuery(options) {
       else if (change.to === 'attention_required') result.attentionRequiredCount += 1;
       else if (change.to === 'completed') result.completedCount += 1;
     }
-    for(const item of options.readIntakeTasks?.()||[]){
+    for(const item of intakeTasksFor(readScope)){
       if(item.classification==='attention_required')result.attentionRequiredCount++;
       else result.inProgressCount++;
     }
@@ -999,7 +1006,7 @@ function createFormationQuery(options) {
   function isVisibleActiveItem(item, admitted) {
     if (item.status==='abandoned'||isIdleAfterUserAbandon(item)) return false;
     if (admitted.has(item.subjectId)) return true;
-    return Boolean(item.currentRun || item.handoffB);
+    return item.status==='active' || Boolean(item.currentRun || item.handoffB);
   }
   function matchesActiveItem(item, filters) {
     if (filters.classification && item.classification !== filters.classification) return false;
@@ -1045,7 +1052,7 @@ function createFormationQuery(options) {
       return Object.freeze({ items:Object.freeze(selected.map((item) => {
         const subject = options.store.find(item.subjectId);
         return Object.freeze({ ...item, displayIdentity:subject?.display_identity || item.subjectId });
-      })), summary:summary(), nextCursor:hasMore ? cursorFor(offset + limit) : null,
+      })), summary:summary([], null, readScope), nextCursor:hasMore ? cursorFor(offset + limit) : null,
       projection:Object.freeze({ status:state.status, asOfMs:state.asOfMs }) });
     }
     const readAttention=()=> (options.listAcceptanceAttention?.(100) || []).map((item)=>options.store.findByOffer?.(item.offerId)).filter(Boolean);
@@ -1062,7 +1069,7 @@ function createFormationQuery(options) {
           changes.push(Object.freeze({subjectId:row.subject_id,from:row.classification,to:'attention_required'}));
         }
       }
-      return Object.freeze({ items: Object.freeze(currentProcessFacts(fresh.filter((item)=>item.classification === 'completed'))), summary: summary(changes),
+      return Object.freeze({ items: Object.freeze(currentProcessFacts(fresh.filter((item)=>item.classification === 'completed'))), summary: summary(changes, null, readScope),
         nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
     }
     const filters = activeFilters(query);
@@ -1079,7 +1086,7 @@ function createFormationQuery(options) {
       const rows = options.store.listActive(offset, limit + 1);
       items = rows.map(projectionItem).map(technicalIssue).filter((item) => !isIdleAfterUserAbandon(item));
     }
-    const intakeTasks=options.readIntakeTasks?.()||[];
+    const intakeTasks=intakeTasksFor(readScope);
     if(intakeTasks.length){
       items=[...items,...intakeTasks.filter(item=>matchesActiveItem(item,filters))].sort((a,b)=>
         b.addedAtMs-a.addedAtMs||String(a.formationViewId||a.subjectId).localeCompare(String(b.formationViewId||b.subjectId)));
@@ -1088,7 +1095,7 @@ function createFormationQuery(options) {
     const hasMore = windowed.length > limit, selected = hasMore ? windowed.slice(0, limit) : windowed;
     const selectedSubjects=selected.filter(item=>item.kind!=='intake');
     const selectedWithCurrentFacts=requiresFullScan ? selectedSubjects : currentFacts(selectedSubjects);
-    return Object.freeze({ items: Object.freeze(currentProcessFacts(selectedWithCurrentFacts)), summary: summary(changes, requiresFullScan ? changes : null),
+    return Object.freeze({ items: Object.freeze(currentProcessFacts(selectedWithCurrentFacts)), summary: summary(changes, requiresFullScan ? changes : null, readScope),
       intakeItems:Object.freeze(selected.filter(item=>item.kind==='intake')),
       nextCursor: hasMore ? cursorFor(offset + limit) : null, projection: Object.freeze({ status: state.status, asOfMs: state.asOfMs }) });
   }

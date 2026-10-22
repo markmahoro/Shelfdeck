@@ -78,3 +78,28 @@ for(const [name,mutate] of [
   ['ambiguous successor',f=>f.options.readTechnicalWork=()=>[f.next,structuredClone(f.next)]],
   ['foreign immutable package',f=>f.options.productDeliveryPort.readPackage=()=>({resultKind:'not_found'})],
 ]) test('Owner history rejects '+name,()=>{const f=fixture();mutate(f);assert.throws(()=>f.observe());});
+
+
+test('Formation retirement preserves completed history only with exact original intent and later committed Effect',()=>{
+  const {verifyEffectProof}=require('../../scripts/formation-retirement-history');
+  const f=fixture(),proof=f.observe()[0];
+  for(const [facts,input,time] of [[f.old,proof.inputDigest,1],[f.next,proof.sourceInputDigest,2]]) {
+    const event=facts.events[0],attempt=facts.attempts[0];event.contract_version=1;
+    Object.assign(attempt,{input_snapshot_digest:input,fence_snapshot_digest:H,started_at_ms:time});
+    facts.effects[0].intent_digest=canonicalDigest({eventId:event.event_id,capabilityRef:C,contractVersion:1,
+      inputSnapshotDigest:input,fenceSnapshotDigest:H});
+  }
+  const before=JSON.stringify([f.old,f.next]);
+  assert.deepEqual(verifyEffectProof(f.old,proof,f.next),proof);
+  assert.equal(JSON.stringify([f.old,f.next]),before);
+  for(const mutate of [
+    (old,next)=>{old.effects[0].intent_digest='b'.repeat(64);},
+    (old,next)=>{next.effects[0].state='intended';},
+    (old,next)=>{next.attempts[0].started_at_ms=null;},
+    (old,next)=>{next.attempts[0].started_at_ms=1;},
+    (old,next)=>{next.work.process_id='another-run';},
+    (old,next)=>{next.results=next.results.filter(row=>row.result_id!==proof.sourceCommitResultId);},
+    (old,next)=>{old.work.state='running';},
+  ]) {const [old,next]=structuredClone([f.old,f.next]);mutate(old,next);
+    assert.throws(()=>verifyEffectProof(old,proof,next),{code:'RESET_HISTORICAL_EFFECT_UNPROVEN'});}
+});

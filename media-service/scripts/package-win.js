@@ -79,6 +79,14 @@ for (const name of INCLUDE) {
 }
 
 const CLEAN_RUNTIME_FILES = [
+  'src/clean-poster-renderer.js',
+  'scripts/formation-retirement-history.js',
+  'scripts/formation-retirement-journal.js',
+  'scripts/formation-retirement-operator.js',
+  'scripts/formation-retirement-plan.js',
+  'scripts/helix-formation-retirement-schema-copy.js',
+  'scripts/helix-architecture/formation-retirement-schema-copy.js',
+  'scripts/helix-architecture/paused-release-batch-proof.js',
   'src/server.js',
   'src/clean-service-host.js',
   'src/clean-admin-static.js',

@@ -30,15 +30,18 @@ it('requires the reset confirmation phrase and stays stopped after Reset complet
   vi.spyOn(helixAdminApi,'getRuntimeStatus').mockResolvedValue(stopped);
   vi.spyOn(helixAdminApi,'previewFormationReset').mockResolvedValue(preview);
   const reset=vi.spyOn(helixAdminApi,'resetFormation').mockImplementation(async()=>{
-    vi.mocked(helixAdminApi.getRuntimeStatus).mockResolvedValue({...stopped,operation:{operationId:'reset',kind:'reset',state:'completed',result:{removedSubjects:1}}});
+    vi.mocked(helixAdminApi.getRuntimeStatus).mockResolvedValue({...stopped,operation:{operationId:'reset',kind:'reset',state:'completed',result:{retiredSubjects:1}}});
     return {operationId:'reset',kind:'reset',state:'pending'};});
-  show();await screen.findByText('已安全停机');fireEvent.click(screen.getByRole('button',{name:'重置工作台'}));
-  await screen.findByText(/将清理 1 项/);expect(screen.getByRole('button',{name:'确认重置'})).toBeDisabled();
+  const client=show(),invalidated=vi.spyOn(client,'invalidateQueries');
+  await screen.findByText('已安全停机');fireEvent.click(screen.getByRole('button',{name:'重置工作台'}));
+  await screen.findByText(/将结束 1 项/);expect(screen.getByRole('button',{name:'确认重置'})).toBeDisabled();
   expect(screen.getByText(/保留 8 条收藏/)).toBeVisible();
   fireEvent.change(screen.getByLabelText('确认词'),{target:{value:'重置工作台'}});
   fireEvent.click(screen.getByRole('button',{name:'确认重置'}));
-  await screen.findByText('已清理 1 项整理，服务保持停机。');expect(reset).toHaveBeenCalledWith(preview.previewDigest,expect.any(String));
+  await screen.findByText('已重置工作台，服务保持停机。');expect(reset).toHaveBeenCalledWith(preview.previewDigest,expect.any(String));
   expect(screen.getByRole('button',{name:'恢复运行'})).toBeEnabled();expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  expect(invalidated).toHaveBeenCalledWith({queryKey:['overview']});
+  await client.refetchQueries({queryKey:['runtime-operations']});expect(invalidated).toHaveBeenCalledTimes(1);
 });
 
 it('shows blockers even when the selected list is empty',async()=>{
@@ -61,14 +64,14 @@ it('does not apply a late preview to a reopened confirmation dialog',async()=>{
   vi.spyOn(helixAdminApi,'previewFormationReset').mockReturnValueOnce(new Promise(resolve=>{release=resolve;})).mockResolvedValueOnce({...preview,counts:{...preview.counts,subjects:2}});
   show();await screen.findByText('已安全停机');fireEvent.click(screen.getByRole('button',{name:'重置工作台'}));
   fireEvent.click(screen.getByRole('button',{name:'取消'}));fireEvent.click(screen.getByRole('button',{name:'重置工作台'}));
-  await screen.findByText(/将清理 2 项/);release(preview);await waitFor(()=>expect(screen.queryByText(/将清理 1 项/)).not.toBeInTheDocument());
+  await screen.findByText(/将结束 2 项/);release(preview);await waitFor(()=>expect(screen.queryByText(/将结束 1 项/)).not.toBeInTheDocument());
 });
 
 it('invalidates an open confirmation when another session resumes and stops the service',async()=>{
   const read=vi.spyOn(helixAdminApi,'getRuntimeStatus').mockResolvedValue(stopped);
   const inspect=vi.spyOn(helixAdminApi,'previewFormationReset').mockResolvedValue(preview);
   const reset=vi.spyOn(helixAdminApi,'resetFormation');const client=show();await screen.findByText('已安全停机');
-  fireEvent.click(screen.getByRole('button',{name:'重置工作台'}));await screen.findByText(/将清理 1 项/);fireEvent.change(screen.getByLabelText('确认词'),{target:{value:'重置工作台'}});
+  fireEvent.click(screen.getByRole('button',{name:'重置工作台'}));await screen.findByText(/将结束 1 项/);fireEvent.change(screen.getByLabelText('确认词'),{target:{value:'重置工作台'}});
   read.mockResolvedValue({...stopped,mode:'running',revision:2,normalSupplyAllowed:true});await client.refetchQueries({queryKey:['runtime-operations']});
   await waitFor(()=>expect(screen.getByRole('button',{name:'确认重置'})).toBeDisabled());expect(screen.getByLabelText('确认词')).toBeDisabled();
   read.mockResolvedValue({...stopped,revision:3});await client.refetchQueries({queryKey:['runtime-operations']});

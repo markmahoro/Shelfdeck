@@ -1,5 +1,9 @@
 # ShelfDeck 当前计划
 
+2026-10-23 用户已授权开始本轮实施，并要求先安全停机冻结生产。当前范围按最新会话替代下方接手建议：①剧集Handle/NFO修复与当前同类故障验证；②三段重试映射；③整体工作台Reset重新设计开发（不新增单片入口，不把运维scoped脚本当线上功能）；④生命周期终局/Projection根因；⑤高达/凡人歌隔离验证，等待自然采购的真实入藏不阻塞本轮交付且保持开放；⑥独立性能诊断与迭代，覆盖4K资源竞争、overview/Formation/收藏/海报，不沿用前序agent的诊断或P1–P4；⑦固定候选资格、发布与生产验收。生产Reset尚未执行；整体Reset若后续获准执行，范围包含当时所有符合条件的工作台条目，不能承诺保留其他active任务。先修可复现缺陷再处理旧数据。具体执行见唯一CURRENT_PHASE。
+
+2026-10-23 接手计划（只读诊断后建议，尚未实施/部署/Reset）：恢复原主线 `SERIES-PRESENTATION-HANDLE`、`RETRY-ACTION-MAPPING`、`FORMATION-RESET-WORKBENCH`。生产02:18–02:25核验仍为hostfix4，attention已变为14（12条剧集公共资料依赖、2条目标冲突）；先补齐Reset的ended历史保护交集并固定候选，再完成剧集/三段重试生产验收，仅为高达和凡人歌准备精确两项Reset及正常重采。`FORMATION-TERMINAL-CLOSURE`单列推进根因与新任务验收，不将旧198概括为材料全停摆或先全量清场：实时为197个active残留Subject，937个去重Primary/结构材料中660个在至少一个对应旧Run终态后有新Selection；旧组仍在Libra的41个材料已属其他Subject。197项历史处置待逐项闭包/保留证据后另定，保留14个active Run、其他attention、收藏及源文件。性能P1–P4与既有剧根离线补文件继续不纳入。执行顺序和退出条件见唯一[CURRENT_PHASE](implementation/CURRENT_PHASE.md)及[接手Evidence](implementation/evidence/FORMATION_TERMINAL_CLOSURE_DIAGNOSIS_20261023.md)。
+
 2026-10-22最终历史验真收口：回收原子提交后退出的输入漂移已修，4类真实重启、Service648/29 skip、Linux18、Windows独立Host均通过。生产副本定位6c当前Catalog未入终态档案：沿用Frozen Catalog History精确归档120执行合同/1324 Schema，仅验真终态，不允许旧在途继续；历史证明与Owner/active/篡改负例71 PASS。16个未Commit Subject的限定Reset只在独立副本预览ready，生产未执行；原样全副本启动FAIL保留。最终固定Gate及平台/UI资格继续，三UAT尚未关闭或发布。详见UAT-328 Evidence §23。
 
 2026-10-22最终资格追加：328真实上架、补图重试、缺项维护、跨季复用与共享退出均已接通；5eaf具体版本UI负责人38/38、Web258、Linux17、Windows包及真实浏览器通过。新增回收原子提交后进程退出复现输入漂移，正在以原登记修订稳定投影修复并重新冻结最终Gate。完整旧生产副本Host启动未通过，结构前向/反向复制及224业务表保护通过；不将隔离legacy-shape维护测试冒充完整生产副本资格。三项UAT开放，未部署/未Reset/未补写生产。详见UAT-328设计Evidence §22。

@@ -8,6 +8,7 @@ const {boundedSettlementContext}=require('./on-deck-context-reader');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const { createAcceptanceRecoveryStore } = require('../persistence/acceptance-recovery-store');
+const { createArcaFormationRetirementStore } = require('../persistence/formation-retirement-store');
 
 const LIMITS = Object.freeze({ globalOpenWorks:256, ownerOpenWorks:256, openEvents:256 });
 
@@ -74,6 +75,15 @@ function exactOffer(message) {
 
 function createOnDeckProcessCoordinator(options) {
   const recovery = createAcceptanceRecoveryStore(options);
+  const retirement = createArcaFormationRetirementStore(options);
+  const retired = scope => Object.freeze({ kind:'administratively_retired', ...scope });
+  function isOfferRetired(offerId, current = recovery.read(offerId)) {
+    return current ? current.recoveryState === 'administratively_retired' : Boolean(retirement.readReceipt(offerId));
+  }
+  function assertOfferCurrent(offerId) {
+    if (isOfferRetired(offerId)) throw Object.assign(new Error('This Offer was administratively retired.'),
+      { code:'ARCA_FORMATION_RETIRED', statusCode:409 });
+  }
   const executionContractRevision = options.acceptanceExecutionContractRevision || 'arca.acceptance.executor@2';
   function recoveryTriggerDigest() {
     return canonicalDigest({ schema:'arca.acceptance-recovery-trigger@1', executionContractRevision,
@@ -171,6 +181,7 @@ function createOnDeckProcessCoordinator(options) {
     return Object.freeze({ workId:ref.objectId, executionBasisDigest:ref.digest });
   }
   function recordTerminalFailure(request) {
+    if (isOfferRetired(request.processId)) return retired({ processId:request.processId });
     const status = options.workResultReader.status(request.workId);
     const errorCode = request.errorCode || status?.latestAttempt?.failure_code || 'ARCA_ACCEPTANCE_EXECUTOR_FAILED';
     const incident=request.incidentRef||options.executorIncidentProjection?.projectionForWork({ownerDomain:'arca',processType:'arca_acceptance',
@@ -183,6 +194,7 @@ function createOnDeckProcessCoordinator(options) {
   function reconcileAcceptance(processId, dependencyRefs = null) {
     let refs = dependencyRefs;
     const recoveryCase = recovery.read(processId);
+    if (isOfferRetired(processId,recoveryCase)) return retired({ processId });
     let assessment = refs ? assessmentWork(processId, refs, recoveryCase?.recoveryGeneration || 1,
       recoveryCase?.recoveryTriggerDigest || recoveryTriggerDigest()) : null;
     if (!assessment) {
@@ -244,6 +256,7 @@ function createOnDeckProcessCoordinator(options) {
       processId, onDeckRunId:responsibility.onDeckRunId, workId:onDeck.workId });
   }
   function continueAccepted(onDeckRunId,{retry=false,supplementalSources=[],command=null}={}) {
+    if (retirement.isRunRetired(onDeckRunId)) return retired({ onDeckRunId });
     const responsibility=options.contextReader.acceptance.readRunResponsibility(onDeckRunId);
     if(!responsibility)return {kind:'not_found',onDeckRunId};
     const rows=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:responsibility.offerId,workKind:'acceptance_commit'});
@@ -258,6 +271,7 @@ function createOnDeckProcessCoordinator(options) {
   }
   function recoverOnDeck(onDeckRunId, maxGenerations = 3, mode = 'automatic') {
     if (!['automatic','user'].includes(mode)) throw new TypeError('On-deck recovery mode is invalid.');
+    if (retirement.isRunRetired(onDeckRunId)) return retired({ onDeckRunId });
     const rows = orderedOnDeckWorks(onDeckRunId);
     if (!rows.length && options.series && mode==='user')return continueAccepted(onDeckRunId,{retry:true});
     if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
@@ -355,6 +369,11 @@ function createOnDeckProcessCoordinator(options) {
   return Object.freeze({
     admitOffer(message) {
       const offer = exactOffer(message), refs = refsFromOffer(offer);
+      if (isOfferRetired(offer.offerId)) {
+        const closed=retirement.retiredAdmission(offer);
+        if(!closed)throw Object.assign(new Error('Retired Offer has no durable administrative receipt.'),{code:'ARCA_RETIREMENT_RECEIPT_CORRUPT'});
+        return closed;
+      }
       const triggerDigest = recoveryTriggerDigest();
       const provisional = assessmentWork(offer.offerId, refs, 1, triggerDigest);
       const recoveryCase = recovery.admit({ offerId:offer.offerId, onDeckPackageId:offer.onDeckPackageId,
@@ -375,6 +394,7 @@ function createOnDeckProcessCoordinator(options) {
       return Object.freeze(results);
     },
     async retryAcceptanceWithSupplements(offerId,body={}) {
+      assertOfferCurrent(offerId);
       const command=options.series?.retryCommand('acceptance',offerId,body),replayed=options.series?.replayRetry(command);if(replayed)return replayed;
       if(!body.supplementalImages?.length){const prior=recovery.read(offerId),existing=prior?.recoveryState==='resolved'&&options.contextReader.onDeck.findRunByOffer(offerId);
         if(!existing||!options.series||orderedOnDeckWorks(existing.onDeckRunId).length)return this.retryAcceptance(offerId);}
@@ -386,6 +406,7 @@ function createOnDeckProcessCoordinator(options) {
       return continueAccepted(run.onDeckRunId,{retry:true,supplementalSources:sources,command});
     },
     retryAcceptance(offerId) {
+      assertOfferCurrent(offerId);
       const item = recovery.read(offerId);
       if (!item) throw Object.assign(new Error('Acceptance Recovery Case was not found.'), { code:'ARCA_ACCEPTANCE_RECOVERY_NOT_FOUND' });
       if (item.recoveryState === 'resolved') {
@@ -411,6 +432,7 @@ function createOnDeckProcessCoordinator(options) {
       });
     },
     reconcileOnDeck(onDeckRunId) {
+      if (retirement.isRunRetired(onDeckRunId)) return retired({ onDeckRunId });
       const rows = orderedOnDeckWorks(onDeckRunId);
       if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
       const row = rows.slice().reverse().find((item)=>succeeded(options.workResultReader.status(item.work_id)));
@@ -423,6 +445,7 @@ function createOnDeckProcessCoordinator(options) {
       return Object.freeze({ kind:'terminal', onDeckRunId, subjectId:context.offer.subjectId, result:commit.result });
     },
     blockOnDeck(onDeckRunId) {
+      if (retirement.isRunRetired(onDeckRunId)) return retired({ onDeckRunId });
       const rows = orderedOnDeckWorks(onDeckRunId);
       if (!rows.length) return Object.freeze({ kind:'not_found', onDeckRunId });
       const latest = rows.at(-1), refs = refsFromWorkDefinition(latest.work_id);

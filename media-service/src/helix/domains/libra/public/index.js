@@ -245,7 +245,8 @@ function createExecutionRegistration() {
     },
     createProcessServices(options) {
       const taskCancellations=createTaskCancellationStore(options);
-      options={...options,taskCancellations};
+      const intakeRetirement=require('../persistence/intake-retirement-store').createIntakeRetirementStore(options);
+      options={...options,taskCancellations,intakeRetirement};
       const offerReader=options.offerReader || createIntakeOfferReader(options);
       const decisionResolver=createIntakeDecisionResolver(options);
       const intakeStore=options.intakeStore || createLibraIntakeStore(options);
@@ -263,7 +264,7 @@ function createExecutionRegistration() {
         subjectResolver:{subjectIdForProcess},
       });
       const coordinator=createIntakeProcessCoordinator({
-        ...options,offerReader,decisionResolver,pipelineAdmission,subjectIdForProcess,
+        ...options,offerReader,decisionResolver,pipelineAdmission,subjectIdForProcess,intakeStore,
       });
       const routingContextReader=createRoutingContextReader(options);
       const attentionWorkshop=createAttentionWorkshop({...options,pipelineAdmission,onTransferred:options.onWorkshopTransferred,
@@ -359,6 +360,9 @@ Object.defineProperties(createExecutionRegistration, {
 });
 
 module.exports = Object.freeze({ createLibraArtifactAuditSource(options){const source=require('../persistence/reference-artifact-audit-source').createLibraArtifactAuditSource(options);return Object.freeze({sourceId:source.sourceId,epoch:source.epoch,page:source.page});},
+  createFormationRetirementStore:require('../persistence/formation-retirement-store').createFormationRetirementStore,
+  createProductDeliveryReader:require('../persistence/product-delivery-reader').createProductDeliveryReader,
+  createIntakeRetirementStore:require('../persistence/intake-retirement-store').createIntakeRetirementStore,
   PACKAGE_ID:packageId,
   LibraIntakeFacade:bind,
   ProductDeliveryPort:bindProductDelivery,

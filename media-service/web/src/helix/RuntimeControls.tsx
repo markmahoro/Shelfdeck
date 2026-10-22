@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {useQuery} from '@tanstack/react-query';
+import {useQuery,useQueryClient} from '@tanstack/react-query';
 import {helixAdminApi,type FormationResetPreview} from './api';
 import {Button,LoadingState} from './chrome';
 import {isUnauthorized,useSession} from './session';
@@ -10,7 +10,8 @@ import './runtime-controls.css';
 const labels={starting:'正在启动',running:'后台运行中',stopping:'正在安全停机',stopped:'已安全停机',resuming:'正在恢复运行',resetting:'正在 Reset',error:'运行操作未完成'};
 
 export default function RuntimeControls(){
-  const {expire}=useSession();
+  const {expire}=useSession(),queryClient=useQueryClient();
+  const completedReset=useRef<string|null>(null);
   const status=useQuery({queryKey:['runtime-operations'],queryFn:()=>helixAdminApi.getRuntimeStatus(),
     refetchInterval:query=>query.state.data?.maintenance?.maintenanceActive||['stopping','resuming','resetting'].includes(query.state.data?.mode||'')?1000:5000});
   const [submitting,setSubmitting]=useState(false),[error,setError]=useState(''),[notice,setNotice]=useState('');
@@ -53,8 +54,14 @@ export default function RuntimeControls(){
     catch(cause){report(cause);setConfirmation('');}finally{setSubmitting(false);}
   }
   useEffect(()=>{const operation=status.data?.operation;
-    if(operation?.kind==='reset'&&operation.state==='completed')setNotice(`已清理 ${operation.result?.removedSubjects||0} 项整理，服务保持停机。`);
-  },[status.data?.operation]);
+    if(operation?.kind==='reset'&&operation.state==='completed'){
+      setNotice('已重置工作台，服务保持停机。');
+      if(completedReset.current!==operation.operationId){
+        completedReset.current=operation.operationId;
+        void queryClient.invalidateQueries({queryKey:['overview']});
+      }
+    }
+  },[status.data?.operation,queryClient]);
   const activity=status.data?.activity;
   const maintenance=mode==='running'&&status.data?.maintenance?.maintenanceActive?status.data.maintenance:null;
   const maintenanceLabel=maintenance?.phase==='settling'?'维护收尾中':maintenance?.phase==='entering'||maintenance?.phase==='recovering'?'正在安全进入维护':'维护中';
@@ -81,7 +88,7 @@ export default function RuntimeControls(){
       <h2 id="runtime-reset-title">重置整理工作台</h2>
       {checking?<LoadingState>正在核对清理范围…</LoadingState>:preview?<>
         {preview.empty?<p>{preview.blockers.length?'未找到可直接清理的整理任务。':'没有可重置的当前整理任务。'}</p>:<>
-          <p>将清理 {preview.counts.subjects} 项当前整理任务，并释放对应的工作区、保管与上架目标预留。</p>
+          <p>将结束 {preview.counts.subjects} 项当前整理任务，并释放对应的保管与上架目标预留。</p>
           <p>保留 {preview.protected.collectionCount} 条收藏、已完成/已结束历史、Aftercare 和文件来源配置。完成后仍保持停机。</p>
           {preview.ready&&<label className="runtime-reset-confirm">输入“重置工作台”以确认<input aria-label="确认词" autoComplete="off" disabled={stateChanged||submitting} value={confirmation} onChange={e=>setConfirmation(e.target.value)} /></label>}
         </>}

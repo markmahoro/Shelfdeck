@@ -14,6 +14,7 @@ const {
   buildObservation,
   buildOffloadAdmission,
   buildSupersededAdmission,
+  buildAdministrativeAdmission,
 } = require('../model/workspace-cleanup-contracts');
 const {
   createRunLifecycleStore,
@@ -646,7 +647,7 @@ function createMovieResponsibilityClosureCoordinator(options) {
         const repo=context.repository(stateRepository.repositoryId);
         return Object.freeze(repo.invoke('page_active_workspaces',{state:'active',cursor:cursor||null,limit}).map((workspace)=>{
           const run=repo.invoke('find_run',{libra_run_id:workspace.libra_run_id});
-          if(!run||!['discarded','superseded'].includes(run.state))
+          if(!run||!['discarded','superseded','administratively_retired'].includes(run.state))
             return Object.freeze({cursor:workspace.workspace_id,scope:Object.freeze({skipped:true})});
           return Object.freeze({cursor:workspace.workspace_id,scope:Object.freeze({
             workspaceId:workspace.workspace_id,libraRunId:workspace.libra_run_id,runState:run.state})});
@@ -678,9 +679,10 @@ function createMovieResponsibilityClosureCoordinator(options) {
     }]).movie_discarded_workspace_read;
     const activeScope=(snapshot.scopes||[]).find((item)=>item.state==='active');
     if(activeScope)return drainCleanupScope(activeScope.cleanup_scope_id,1);
-    if(scope.runState==='superseded'&&currentNonReleasedReferences(snapshot.references).length){
-      const inspected=cleanup.inspect(scope.libraRunId),triggerSnapshot=cleanup.readSuperseded(scope.libraRunId);
-      const key='superseded:'+scope.libraRunId,nowMs=(options.now||Date.now)();
+    if(['superseded','administratively_retired'].includes(scope.runState)&&currentNonReleasedReferences(snapshot.references).length){
+      const administrative=scope.runState==='administratively_retired';
+      const inspected=cleanup.inspect(scope.libraRunId),triggerSnapshot=administrative?cleanup.readAdministrative(scope.libraRunId):cleanup.readSuperseded(scope.libraRunId);
+      const key=scope.runState+':'+scope.libraRunId,nowMs=(options.now||Date.now)();
       const observed=buildObservation({workspaceId:scope.workspaceId,observedAtMs:nowMs,
         otherReferences:inspected.otherReferences,controls:inspected.controls});
       if(observed.activeReferenceCount||inspected.controls.some(item=>item.controlDisposition==='other_owned')){
@@ -690,7 +692,7 @@ function createMovieResponsibilityClosureCoordinator(options) {
       const first=cleanupAudits.get(key);
       if(!first){cleanupAudits.set(key,{observation:observed});return pendingAudit(observed);}
       if(nowMs<first.observation.observedAtMs+CYCLE_MS)return pendingAudit(first.observation);
-      const decision=buildSupersededAdmission({triggerSnapshot,libraRunRef:inspected.run,
+      const decision=(administrative?buildAdministrativeAdmission:buildSupersededAdmission)({triggerSnapshot,libraRunRef:inspected.run,
         workspaceRef:{workspaceId:inspected.workspace.workspaceId,workspaceRevision:inspected.workspace.workspaceRevision,
           workspaceStateDigest:inspected.workspace.workspaceStateDigest,materialReferenceSetDigest:inspected.workspace.materialReferenceSetDigest},
         references:inspected.references,controls:inspected.controls,observation1:first.observation,observation2:observed});
@@ -703,6 +705,8 @@ function createMovieResponsibilityClosureCoordinator(options) {
     }
     if(currentNonReleasedReferences(snapshot.references).length)
       return Object.freeze({stage:'has_workspace_references',workspaceId:scope.workspaceId});
+    if(scope.runState==='administratively_retired')
+      return Object.freeze({stage:'unreferenced_retirement_workspace_retained',workspaceId:scope.workspaceId});
     if(typeof options.workspaceProductPort?.reclaimUnreferencedWorkspace!=='function')
       return Object.freeze({stage:'unreferenced_reclaim_unavailable',workspaceId:scope.workspaceId});
     const reclaimed=options.workspaceProductPort.reclaimUnreferencedWorkspace(scope.workspaceId);

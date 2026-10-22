@@ -60,7 +60,7 @@ export type MaterialField = {
   policy: { policy: ExtractionPolicyValue };
   procurementStatus: {
     selectionIssues?: {total:number;items:Array<{scopeKey:string;location:string;memberCount:number;maximum:number;reasonCode:string}>};
-    stage: 'not_started' | 'procurement_run_active' | 'candidate_published' | 'handoff_a_ready' | 'handoff_a_accepted' | 'handoff_a_rejected';
+    stage: 'not_started' | 'procurement_run_active' | 'candidate_published' | 'handoff_a_ready' | 'handoff_a_accepted' | 'handoff_a_rejected' | 'administratively_retired';
     observationScan: {
       state: 'waiting' | 'scanning' | 'completed' | 'failed';
       pageCount: number;
@@ -349,7 +349,7 @@ export type FormationSubject = {
 };
 
 export type FormationRunHistory = { historyId:string; libraRunId:string|null; subjectId:string; displayIdentity:string;
-  outcome:'user_abandoned'|'unable_to_on_deck'; label:'已取消整理任务'|'无法上架'; endedAtMs:number; stateRevision:number|null; stateDigest:string|null; evidenceDigest:string };
+  outcome:'user_abandoned'|'unable_to_on_deck'|'administratively_retired'; label:'已取消整理任务'|'无法上架'|'已重置整理任务'; endedAtMs:number; stateRevision:number|null; stateDigest:string|null; evidenceDigest:string };
 
 export type PerceptionRecord = {
   perceptionId: string;
@@ -497,7 +497,7 @@ export type OverviewProjection = {
 };
 
 export type RuntimeOperation = {operationId:string;kind:'stop'|'resume'|'reset';state:'pending'|'completed'|'failed';
-  result?:{backupId?:string;removedSubjects?:number};error?:{code:string;message:string}};
+  result?:{backupId?:string;retiredSubjects?:number;retiredIntakes?:number;retainedWorkspaces?:number};error?:{code:string;message:string}};
 export type MaintenanceWindowSettings = {weekday:number;startTime:string;endTime:string;timeZone:'Asia/Shanghai'};
 export type MaintenanceConfiguration = {revision:number;settings:MaintenanceWindowSettings;pendingSettings:{settings:MaintenanceWindowSettings;effectiveAtMs:number}|null};
 export type RuntimeStatus = {mode:'starting'|'running'|'stopping'|'stopped'|'resuming'|'resetting'|'error';desiredMode:'running'|'stopped';

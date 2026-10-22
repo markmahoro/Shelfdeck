@@ -62,6 +62,17 @@ function createSeriesPresentationStore(options){
     if(result.changes!==1)fail('ARCA_SERIES_SCOPE_STALE','Shared presentation changed concurrently.');}
   function unusedUsing(r,current){return !r.invoke('references',{scope_id:current.scope_id}).some(row=>row.state==='active')&&!r.invoke('reservations',{scope_id:current.scope_id}).some(row=>row.state==='pending')&&!otherSeasons(r,current,null);}
   function unused(scopeId){return options.unitOfWork.execute([participant('arca_series_unused_read',r=>{const current=r.invoke('scope',{scope_id:scopeId});return Boolean(current&&!current.retirement_scope_id&&unusedUsing(r,current));})]).arca_series_unused_read;}
+  function formationRetirementPreview(scopeId, retiringOnDeckIds = []) {
+    const ids = new Set(retiringOnDeckIds);
+    return options.unitOfWork.execute([participant('arca_series_formation_retirement_preview', r => {
+      const current = r.invoke('scope', { scope_id: scopeId });
+      if (!current || current.retirement_scope_id) fail('ARCA_SERIES_RETIREMENT_STALE', 'Shared presentation is missing or under Off-deck retirement.');
+      const references = r.invoke('references', { scope_id: scopeId }).filter(row => row.state === 'active');
+      const reservations = r.invoke('reservations', { scope_id: scopeId }).filter(row => row.state === 'pending' && !ids.has(row.on_deck_run_id));
+      const hasSeason = otherSeasons(r, current, null);
+      return { current, retire: !references.length && !reservations.length && !hasSeason };
+    })]).arca_series_formation_retirement_preview;
+  }
   function retainedRetirementParticipant(current){return participant('arca_series_retained_retirement',(r,c)=>{const fresh=r.invoke('scope',{scope_id:current.scope_id});
     if(fresh?.state_digest!==current.state_digest||fresh.retirement_scope_id||!unusedUsing(r,fresh))fail('ARCA_SERIES_RETIREMENT_STALE','Retained root acquired another collection obligation.');
     advance(r,fresh,{currentVersion:Number(fresh.current_version),activeBuildId:null},c.commitTimeMs);
@@ -312,7 +323,7 @@ function createSeriesPresentationStore(options){
 
   return Object.freeze({repository,participant,read,readScope:scopeId=>read('scope',{scope_id:scopeId}),
     findByIdentity:(shelfId,providerKey)=>read('identity',{shelf_id:shelfId,provider:'tmdb',provider_key:providerKey}),
-    build,manifest,registerMaintenance,scopeParticipant,committedScopeParticipant,reclamationScopeParticipant,unused,retainedRetirementParticipant,reservationParticipant,admitBuild,versionParticipant,commitReferenceParticipant,commitControlParticipant,releaseReferencesParticipant,releaseShelfParticipants,lastReferenceMembers,retirementParticipant,assertRetirement,sharedMaterialDigest});
+    build,manifest,registerMaintenance,scopeParticipant,committedScopeParticipant,reclamationScopeParticipant,unused,formationRetirementPreview,retainedRetirementParticipant,reservationParticipant,admitBuild,versionParticipant,commitReferenceParticipant,commitControlParticipant,releaseReferencesParticipant,releaseShelfParticipants,lastReferenceMembers,retirementParticipant,assertRetirement,sharedMaterialDigest});
 }
 
 module.exports=Object.freeze({columns,definition,createSeriesPresentationStore});

@@ -21,6 +21,7 @@ test('Series transcode shutdown retains its Effect and restart commits once', {t
       {HELIX_SERIES_REAL_MEDIA:'1',HELIX_SERIES_SHUTDOWN_ROOT:root},180000);
     assert.equal(seeded.status,74,seeded.stdout+seeded.stderr);
     const boundary=JSON.parse(fs.readFileSync(path.join(root,'shutdown-boundary.json'),'utf8'));
+    assert.equal(boundary.shutdownCompleted,true);assert.ok(boundary.shutdownMs<10000);
     assert.equal(boundary.children,0);assert.equal(boundary.commits,0);
     assert.ok(boundary.events.some(event=>event.state==='executing'&&event.effect_state==='intended'));
     assert.ok(boundary.events.every(event=>event.failure_code===null&&event.outcome_kind===null));

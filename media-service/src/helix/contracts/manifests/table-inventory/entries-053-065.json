@@ -219,11 +219,11 @@
         "tableId": "libra_formation_projections",
         "owner": "libra",
         "contractRef": "helix://contracts/tables/libra_formation_projections/v1",
-        "contractDigest": "fdaca2a6d728712196cf825c1a15a5631f0533918b1fb66f524384c2a696d3ba"
+        "contractDigest": "d434729131614910a9a177fec7d93cfc67fd3170650df155cf6bfb7c463625a3"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "90a398d8ec024472659f2f195ddcff986d7866421534f5e34c10a9cb7fa5728e"
+        "value": "05eabba8961548924a3b426f12d8c4370affb2f4d643db2d6be657541a1961b1"
       }
     },
     {

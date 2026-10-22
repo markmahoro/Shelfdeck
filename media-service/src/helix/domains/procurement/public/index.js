@@ -139,6 +139,8 @@ function createExecutionRegistration() {
 }
 
 module.exports = Object.freeze({
+  createCandidateAcceptanceConsumer:require('../application/candidate-acceptance-consumer').createCandidateAcceptanceConsumer,
+  createCandidateRetirementStore:require('../persistence/candidate-retirement-store').createCandidateRetirementStore,
   PACKAGE_ID: packageId,
   ProcurementCommandFacade: (implementation) => bind('ProcurementCommandFacade', implementation),
   ProcurementQueryFacade: (implementation) => bind('ProcurementQueryFacade', implementation),

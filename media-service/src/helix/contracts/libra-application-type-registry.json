@@ -604,7 +604,7 @@
       "relativePath": "application-types/ProductDeliveryReadResult/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "9becb974626b59dc63aaee21b34af1891fa35e323c59bb08170bcf7e42bfefa1"
+        "value": "ca7992ffad488b506b639c19996bb9c5dffa8c22497c93f593e5b58b43dbc8bb"
       },
       "ssotRefs": [
         "8.2.2",
@@ -650,7 +650,7 @@
       "relativePath": "application-types/WorkspaceCleanupScopeProjection/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "56900ccfddd1b5cab120cb13db25990642fddb1ccb61faa5bf141a7aabf1bacb"
+        "value": "cd9b2a87490c2f1958ffc848aed405a6163e901d4432ab7dc10260cfedd5dc9f"
       },
       "ssotRefs": [
         "8.6.21"

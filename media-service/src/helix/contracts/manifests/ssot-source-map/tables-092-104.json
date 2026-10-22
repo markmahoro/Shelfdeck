@@ -30,12 +30,12 @@
     {
       "id": "libra_workspace_cleanup_scopes",
       "owner": "libra",
-      "columnsContract": "`cleanup_scope_id PK, libra_run_id FK, workspace_id FK, trigger_kind(offload_completed|run_superseded|run_discarded), trigger_ref, trigger_revision, trigger_digest, admission_record_schema_ref, admission_record_json, admission_decision_digest, eligibility_evidence_digest, member_set_digest, state(active|completed|blocked), state_revision, state_digest, created_at_ms, completed_at_ms NULL`",
+      "columnsContract": "`cleanup_scope_id PK, libra_run_id FK, workspace_id FK, trigger_kind(offload_completed|run_superseded|run_discarded|run_administratively_retired), trigger_ref, trigger_revision, trigger_digest, admission_record_schema_ref, admission_record_json, admission_decision_digest, eligibility_evidence_digest, member_set_digest, state(active|completed|blocked), state_revision, state_digest, created_at_ms, completed_at_ms NULL`",
       "constraintsContract": "`UNIQUE(trigger_kind,trigger_ref,trigger_revision,trigger_digest)`；Admission Record typed JSON≤`64 KiB`保存除relationized members外的完整Decision，和member rows合并后必须重建同一Decision/digest；current row为`cas_lifecycle`，active/blocked的completed time为NULL；只由Discard或Cleanup Scope Admission事务建立；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.11",
         "line": 9596,
-        "lineDigest": "6e0cf4a3c872b370760263842583303ac45dfccd5b1e512fed514d038db53062"
+        "lineDigest": "d80abdb4cc5a9cf74fa62345002180ae284614e91a4701a0f453fe890c4cc348"
       }
     },
     {

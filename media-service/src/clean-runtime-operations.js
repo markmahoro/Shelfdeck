@@ -88,7 +88,21 @@ function createRuntimeOperations(options) {
       return ()=>{if(released)return;released=true;activeCommands--;if(!activeCommands){for(const resolve of commandWaiters)resolve();commandWaiters.clear();}};
     },
     shouldStartStopped:()=>intent.desiredMode==='stopped'||Boolean(intent.pendingReset),
-    started(){if(!intent.pendingReset)mode=intent.desiredMode==='stopped'?'stopped':'running';},
+    started(){
+      if(!intent.pendingReset){mode=intent.desiredMode==='stopped'?'stopped':'running';return;}
+      if(operation||!intent.pendingReset.resetId||!options.recoverReset)return;
+      const pending=intent.pendingReset;
+      if(!/^[a-f0-9]{64}$/.test(pending.operationId))fail('RUNTIME_RESET_INTERRUPTED','重置操作记录无效，保持停机。');
+      const receiptFile=path.join(root,pending.operationId+'.json'),previous=readRecord(receiptFile);
+      if(previous.kind!=='reset'||previous.operationId!==pending.operationId||!previous.requestDigest)
+        fail('RUNTIME_RESET_INTERRUPTED','重置操作记录不匹配，保持停机。');
+      mode='resetting';error=null;
+      launch('reset',{id:pending.operationId,requestDigest:previous.requestDigest,receiptFile},async()=>{
+        const result=await options.recoverReset(pending.resetId);
+        persist({pendingReset:null});mode='stopped';return result;
+      });
+      return operation;
+    },
     stop(body,actor){const request=identity('stop',body,actor);if(request.existing)return request.existing;
       if(operation||checking)fail('RUNTIME_OPERATION_BUSY','上一项运行操作尚未完成。');
       if(intent.pendingReset)fail('RUNTIME_RESET_INTERRUPTED','须先核查被中断的Reset。');

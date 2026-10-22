@@ -55,7 +55,7 @@ function createIntakeOfferReader(options) {
     }
     return Object.freeze({processId,offer:item.offer,messageId:item.row?.message_id||null,dedupKey:item.row?.dedup_key||null,snapshot:delivery.snapshot});
   }
-  function terminalIds(){return new Set(completionReader.listTerminalIntakeDecisionIds());}
+  function terminalIds(){return new Set([...completionReader.listTerminalIntakeDecisionIds(),...(options.intakeRetirement?.listProcessIds()||[])]);}
   function rebuild(){const next=new Map(),terminal=terminalIds();for(const item of list().map(envelope)){const processId=decisionId(item.offer.offerId);
       // Receipt is Libra's durable terminal Intake fact.  A Decision without
       // a Receipt remains pending so a crash between decision and commit is

@@ -8,23 +8,23 @@
     {
       "id": "arca_acceptance_attempts",
       "owner": "arca",
-      "columnsContract": "`acceptance_attempt_id PK, offer_id, on_deck_package_id, package_digest, related_disposition_set_digest, shelf_id FK, standard_revision, placement_revision, state(active|accepted|rejected), created_at_ms, finished_at_ms NULL`",
+      "columnsContract": "`acceptance_attempt_id PK, offer_id, on_deck_package_id, package_digest, related_disposition_set_digest, shelf_id FK, standard_revision, placement_revision, state(active|accepted|rejected|administratively_retired), created_at_ms, finished_at_ms NULL`",
       "constraintsContract": "同一Offer至多一个Attempt且相同`package_digest+standard+placement`至多一个active attempt；Related disposition set必须逐字节等于Package；accepted/rejected只允许从active以Decision事务CAS一次；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
         "line": 9632,
-        "lineDigest": "85631065bfc7dd1279d5ee8ba5deec58cb1c327359abd07c6f01f161833e3eb8"
+        "lineDigest": "ac8e0dc05730a33237c0a8a3649633c072fc55233f04842480bcb1ab2b3d641e"
       }
     },
     {
       "id": "arca_acceptance_recovery_cases",
       "owner": "arca",
-      "columnsContract": "`offer_id PK, on_deck_package_id, package_digest, acceptance_attempt_id NULL, active_work_id, work_kind, failure_phase NULL, error_code NULL, terminal_attempt_count, owner_domain, recovery_state(active|attention_required|automatic_recovering|user_retrying|resolved), recovery_generation, automatic_recovery_used, recovery_trigger_digest, failed_trigger_digest NULL, incident_key NULL, updated_at_ms, resolved_at_ms NULL`",
+      "columnsContract": "`offer_id PK, on_deck_package_id, package_digest, acceptance_attempt_id NULL, active_work_id, work_kind, failure_phase NULL, error_code NULL, terminal_attempt_count, owner_domain, recovery_state(active|attention_required|automatic_recovering|user_retrying|resolved|administratively_retired), recovery_generation, automatic_recovery_used, recovery_trigger_digest, failed_trigger_digest NULL, incident_key NULL, updated_at_ms, resolved_at_ms NULL`",
       "constraintsContract": "一份Offer恰有一个current Recovery Case；`recovery_generation`从1单调递增且每个generation派生不同Supporting Work ID，历史Work/Event/Attempt不修改；技术失败只允许`active|automatic_recovering|user_retrying → attention_required`，不得建立Acceptance Decision；trigger变化最多一次`attention_required → automatic_recovering`，用户Retry一次只创建一个`user_retrying` generation；Accepted/Rejected后才`resolved`；`INDEX(recovery_state,updated_at_ms)`",
       "source": {
         "section": "8.5.12",
         "line": 9633,
-        "lineDigest": "e799b560fb844b702d580f8a2e01d86817e1155cdd3b1342e4eb4f092d9e461a"
+        "lineDigest": "0b586d60447c0c11b54fd2af1b7d5b15505d5ef2823a4a1899e082205cf5c45a"
       }
     },
     {
@@ -118,12 +118,12 @@
     {
       "id": "arca_ondeck_runs",
       "owner": "arca",
-      "columnsContract": "`on_deck_run_id PK, custody_id FK, final_inventory_decision_digest, state(ready|offloading|blocked|committed), created_at_ms, terminal_at_ms, target_reserved_at_ms NULL`",
+      "columnsContract": "`on_deck_run_id PK, custody_id FK, final_inventory_decision_digest, state(ready|offloading|blocked|committed|administratively_retired), created_at_ms, terminal_at_ms, target_reserved_at_ms NULL`",
       "constraintsContract": "只允许Handoff B Accepted transaction与immutable Final Inventory Decision同事务首次建立；同一Custody一个non-terminal Run；`blocked`在自动预算未耗尽时可恢复，耗尽后是零资源且投影为`attention_required`的稳定业务暂停态，只有显式用户Retry可把同一Run恢复为`offloading`；只有`committed`为terminal且写`terminal_at_ms`；`target_reserved_at_ms`只在Arca同事务重验Final Decision目标无其他未Commit持有者后、首次进入offloading时写入，blocked保留；未取得预约的blocked不得阻塞其他Run，恢复须重新竞争；committed后预约失效但保留历史时间；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
         "line": 9642,
-        "lineDigest": "b2d3a8034aafd509edbbb4485a4c3a3ad573df3ea0c6f7f6daa46b4f41f6b0af"
+        "lineDigest": "3e44fffe0728c373d951f66b43197c5fa09f94e9e8dea4c4fc9f30c81570c295"
       }
     },
     {

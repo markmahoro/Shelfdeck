@@ -80,13 +80,13 @@ test('no-Run cancellation rolls back every participant and verifies the committe
  }finally{db.close();}
 }));
 
-test('superseded Workspace cleanup admits atomically, survives reconstruction and preserves the replacement',()=>fixture(input=>{
+for(const administrative of [false,true])test((administrative?'administratively retired':'superseded')+' Workspace cleanup admits atomically and preserves terminal history',()=>fixture(input=>{
  const {buildReferenceSnapshot,referenceSetDigest,workspaceStateDigest}=require('../../src/helix/domains/libra/model/workspace-material-reference-contracts');
  const {createWorkspaceCleanupStore}=require('../../src/helix/domains/libra/persistence/workspace-cleanup-store');
- const {buildSupersededAdmission,buildObservation,CYCLE_MS}=require('../../src/helix/domains/libra/model/workspace-cleanup-contracts');
+ const {buildSupersededAdmission,buildAdministrativeAdmission,buildObservation,CYCLE_MS}=require('../../src/helix/domains/libra/model/workspace-cleanup-contracts');
  const store=createRunAdmissionStore({schemaManifest,unitOfWork:input.unitOfWork});
  const first=store.admit({decision:decision(input),commitMarker:'first',resultId:'first'}).result;
- const next=store.admit({decision:replacementDecision(input,first),commitMarker:'next',resultId:'next'}).result;
+ const next=administrative?null:store.admit({decision:replacementDecision(input,first),commitMarker:'next',resultId:'next'}).result;
  const workspaceId=D('old-workspace'),identity={...input.identity,inode:'99',contentFingerprint:D('workspace-output')};
  const materialKey=canonicalDigest({schema:'physical-material-identity@2',...identity});
  const handle={schemaRef:'helix://contracts/types/WorkspaceMaterialHandle/v1',schemaVersion:1,handleId:D('output-handle'),
@@ -106,9 +106,15 @@ test('superseded Workspace cleanup admits atomically, survives reconstruction an
    db.prepare('INSERT INTO libra_workspace_material_refs (workspace_id,libra_run_id,reference_id,material_handle_id,material_key,workspace_handle_schema_ref,workspace_handle_json,workspace_handle_digest,reference_revision,reference_state,episode_claims_schema_ref,episode_claims_json,episode_scope_digest,committed_workspace_revision,reference_digest) VALUES (?,?,?,?,?,?,?,?,1,?,?,?,?,1,?)')
      .run(workspaceId,first.libraRunId,ref.referenceId,handle.handleId,materialKey,handle.schemaRef,canonicalJson(handle),canonicalDigest(handle),
        'working','ProductionEpisodeClaims@1','[]',ref.episodeScopeDigest,ref.referenceDigest);
+   if(administrative){
+     const retirement=require('../../src/helix/domains/libra/persistence/formation-retirement-store').createFormationRetirementStore({schemaManifest,unitOfWork:input.unitOfWork});
+     retirement.commit({retirementId:'reset-cleanup',subjectId:'subject-1',expectedSnapshotDigest:retirement.inspect('subject-1').snapshotDigest,
+       backupDigest:D('backup'),manifestDigest:D('manifest'),retiringRunIds:[first.libraRunId],
+       expectedControls:db.prepare("SELECT * FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='subject' AND owner_scope_id='subject-1' AND state='controlled'").all()});
+   }
    const cleanup=createWorkspaceCleanupStore({schemaManifest,unitOfWork:input.unitOfWork}),snapshot=cleanup.inspect(first.libraRunId),
      observation=at=>buildObservation({workspaceId,observedAtMs:at,otherReferences:[],controls:snapshot.controls}),
-     command=buildSupersededAdmission({triggerSnapshot:cleanup.readSuperseded(first.libraRunId),libraRunRef:snapshot.run,workspaceRef:Object.fromEntries(Object.entries(snapshot.workspace).filter(([key])=>key!=='state')),
+     command=(administrative?buildAdministrativeAdmission:buildSupersededAdmission)({triggerSnapshot:administrative?cleanup.readAdministrative(first.libraRunId):cleanup.readSuperseded(first.libraRunId),libraRunRef:snapshot.run,workspaceRef:Object.fromEntries(Object.entries(snapshot.workspace).filter(([key])=>key!=='state')),
        references:snapshot.references,controls:snapshot.controls,observation1:observation(100),observation2:observation(100+CYCLE_MS)}),
      request={decision:command,commitMarker:'cleanup-marker',resultId:'cleanup-result'};
    db.prepare("INSERT INTO fx_supporting_works (work_id,owner_domain,process_type,process_id,state) VALUES ('old-work','libra','libra_run',?,'running')").run(first.libraRunId);
@@ -127,8 +133,8 @@ test('superseded Workspace cleanup admits atomically, survives reconstruction an
    assert.equal(db.prepare('SELECT current_revision FROM libra_workspaces').get().current_revision,1);
    const admitted=cleanup.admit(request);assert.equal(admitted.replayed,false);
    assert.equal(createWorkspaceCleanupStore({schemaManifest,unitOfWork:input.unitOfWork}).admit(request).replayed,true);
-   assert.equal(db.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(next.libraRunId).state,'active');
-   assert.equal(db.prepare('SELECT owner_scope_id FROM fx_material_controls WHERE material_key=?').get(input.materialKey).owner_scope_id,'subject-1');
-   assert.equal(db.prepare('SELECT trigger_kind FROM libra_workspace_cleanup_scopes').get().trigger_kind,'run_superseded');
+   assert.equal(db.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(administrative?first.libraRunId:next.libraRunId).state,administrative?'administratively_retired':'active');
+   assert.equal(db.prepare('SELECT owner_scope_id FROM fx_material_controls WHERE material_key=?').get(input.materialKey).owner_scope_id,administrative?null:'subject-1');
+   assert.equal(db.prepare('SELECT trigger_kind FROM libra_workspace_cleanup_scopes').get().trigger_kind,administrative?'run_administratively_retired':'run_superseded');
  }finally{db.close();}
 }));

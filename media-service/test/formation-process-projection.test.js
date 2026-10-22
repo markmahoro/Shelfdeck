@@ -588,6 +588,41 @@ test('list Result scope preserves the current action and headers while leaving f
 });
 
 
+test('progress batches keep Work and Plan associations with linear event membership reads',()=>{
+  const rows={works:[],attempts:[],plans:[],nodes:[],events:[],edges:[]};
+  let membershipReads=0;
+  for(let index=0;index<128;index++){
+    const workId='work-'+index,attemptId='attempt-'+index,planId='plan-'+index;
+    rows.works.push({work_id:workId,owner_domain:'libra',process_type:'libra_run',process_id:'run',
+      work_kind:'source_media_observation',state:'running',created_at_ms:1,updated_at_ms:2});
+    rows.attempts.push({attempt_id:attemptId,work_id:workId});
+    rows.plans.push({plan_id:planId,attempt_id:attemptId,planner_ref:'planner',planner_version:1,state:'planned',created_at_ms:index});
+    rows.edges.push({plan_id:planId,from_node_id:'probe',to_node_id:'verify',dependency_kind:'success'});
+    for(const nodeId of ['probe','verify']){
+      rows.nodes.push({plan_id:planId,node_id:nodeId,capability_ref:'shared.material.media.probe@1',
+        input_bindings_json:canonicalJson({bindings:[]}),parameters_json:canonicalJson({index})});
+      rows.events.push({event_id:planId+'-'+nodeId,plan_id:planId,node_id:nodeId,
+        get work_id(){membershipReads++;return workId;},capability_ref:'shared.material.media.probe@1',state:'ready'});
+    }
+  }
+  const unitOfWork={execute(parts){return Object.fromEntries(parts.map(part=>[part.participantId,
+    part.execute({repository:()=>({invoke:name=>rows[name]||[]})})]));}};
+  const reader=createExecutionProgressProjectionReader({schemaManifest,unitOfWork});
+  const projected=reader.read(['run'],{includePlans:true});
+  assert.equal(projected.length,128);
+  for(let index=0;index<128;index++){
+    const item=projected[index];
+    assert.equal(item.workId,'work-'+index);
+    assert.deepEqual(item.plans.map(plan=>plan.planId),['plan-'+index]);
+    assert.deepEqual(item.events.map(event=>event.eventId),['plan-'+index+'-probe','plan-'+index+'-verify']);
+    assert.equal(item.events[0].parameters.index,index);
+    assert.deepEqual(item.plans[0].edges,[{fromNodeId:'probe',toNodeId:'verify',dependencyKind:'success'}]);
+  }
+  assert.ok(membershipReads<=rows.events.length*2,'Each event must not be rescanned for every Work.');
+  rows.nodes.pop();
+  assert.throws(()=>reader.read(['run'],{includePlans:true}),{code:'EXECUTION_PROGRESS_PLAN_INVALID'});
+});
+
 test('Formation Series delivery follows the selected frozen Run instead of the routing anchor',()=>{
   const subject={subject_id:'subject-series',status:'active',structure_kind:'season',content_profile:'series',routing_anchor_intake_decision_id:'old-intake',created_at_ms:1};
   const rows={find_runs:[{subject_id:subject.subject_id,libra_run_id:'old-run',state:'completed',created_at_ms:1},

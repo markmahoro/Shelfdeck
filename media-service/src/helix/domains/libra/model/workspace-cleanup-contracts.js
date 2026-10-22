@@ -104,6 +104,17 @@ function buildSupersededAdmission(value) {
   return buildAdmission(value,'run_superseded',found.libraRunId,found.terminalRevision,found.terminalDigest,0);
 }
 
+function buildAdministrativeAdmission(value) {
+  const found=value.triggerSnapshot;
+  if(!found || found.resultKind!=='administratively_retired' || found.libraRunId!==value.libraRunRef.libraRunId ||
+      found.terminalRevision!==value.libraRunRef.stateRevision || found.terminalDigest!==value.libraRunRef.stateDigest ||
+      !/^[a-f0-9]{64}$/.test(found.receiptDigest||'') || !found.receiptId)
+    fail('P14_CLEANUP_TRIGGER_INVALID','Administrative cleanup requires the exact terminal Run and Owner command receipt.');
+  if(value.controls.some(item=>item.controlDisposition==='other_owned'))
+    fail('P14_CLEANUP_CONTROL_OWNED','Retired Workspace still has material controlled by another Owner.');
+  return buildAdmission(value,'run_administratively_retired',found.libraRunId,found.terminalRevision,found.terminalDigest,0);
+}
+
 function buildAdmission(value,triggerKind,triggerRef,triggerRevision,triggerDigest,graceDeadlineMs) {
   const found=value.triggerSnapshot;
   if (value.observation2.observedAtMs - value.observation1.observedAtMs < CYCLE_MS ||
@@ -299,6 +310,7 @@ module.exports = Object.freeze({
   buildObservation,
   buildOffloadAdmission,
   buildSupersededAdmission,
+  buildAdministrativeAdmission,
   controlItem,
   digestWithout,
   memberFromReference,

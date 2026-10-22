@@ -203,7 +203,7 @@ function mediaProbe(external=false) {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck,external,manualIdentity,multiSeason} of [...(process.env.HELIX_SERIES_PROCUREMENT_ONLY==='1'?[{episodeCount:95,procurementOnly:true}]:[]),...(process.env.HELIX_SERIES_MANUAL_IDENTITY==='1'?[{episodeCount:2,mixed:process.env.HELIX_SERIES_BROWSER_COLD!=='1',manualIdentity:true,append:process.env.HELIX_SERIES_BROWSER_APPEND==='1',repair:process.env.HELIX_SERIES_BROWSER_CARE==='1',offdeck:process.env.HELIX_SERIES_BROWSER_OFFDECK==='1'}]:[]),...(process.env.HELIX_SERIES_EXTERNAL==='1'?[{episodeCount:2,shared:true,external:true,real:process.env.HELIX_SERIES_EXTERNAL_REAL==='1'},{episodeCount:2,shared:true,external:'rejected'},{episodeCount:2,shared:true,external:'exhausted'},{episodeCount:2,shared:true,external:'technical'}]:[]),...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true},{episodeCount:2,real:true,mediaRepair:true,mediaBound:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,multiSeason:true},{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},...(process.env.HELIX_SERIES_LARGE_SCOPE==='1'?[{episodeCount:47},{episodeCount:77}]:[]),...(process.env.HELIX_SERIES_NFO_GAP==='1'?[{episodeCount:17}]:[]),{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test((procurementOnly?'Isolated Host publishes '+episodeCount+' Episode members as one Season Candidate':'Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit')+(multiSeason?' with separate same-title Seasons':manualIdentity?' with manual Series identity':external?(external==='technical'?' with technical failure before external search':external==='exhausted'?' with exhausted local strategies then external search':external==='rejected'?' with rejected external shared-file search':' with external shared-file replacement'):offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?(nm?' with bounded real N:M media Aftercare':' with bounded real media Aftercare'):nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:episodeCount===77&&process.env.HELIX_SERIES_SETTLEMENT_DIAGNOSTICS==='1'?4800000:episodeCount>=17&&process.env.HELIX_SERIES_RELATED==='1'?2400000:real&&process.env.HELIX_SERIES_LONG_MEDIA==='1'?900000:episodeCount>47?1200000:real||repair||migrate||episodeCount>32?300000:180000},async t=>{
+for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck,external,manualIdentity,multiSeason,sourcePoster} of [...(process.env.HELIX_SERIES_PROCUREMENT_ONLY==='1'?[{episodeCount:95,procurementOnly:true}]:[]),...(process.env.HELIX_SERIES_MANUAL_IDENTITY==='1'?[{episodeCount:2,mixed:process.env.HELIX_SERIES_BROWSER_COLD!=='1',manualIdentity:true,append:process.env.HELIX_SERIES_BROWSER_APPEND==='1',repair:process.env.HELIX_SERIES_BROWSER_CARE==='1',offdeck:process.env.HELIX_SERIES_BROWSER_OFFDECK==='1'}]:[]),...(process.env.HELIX_SERIES_EXTERNAL==='1'?[{episodeCount:2,shared:true,external:true,real:process.env.HELIX_SERIES_EXTERNAL_REAL==='1'},{episodeCount:2,shared:true,external:'rejected'},{episodeCount:2,shared:true,external:'exhausted'},{episodeCount:2,shared:true,external:'technical'}]:[]),...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true},{episodeCount:2,real:true,mediaRepair:true,mediaBound:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,sourcePoster:true},{episodeCount:2,multiSeason:true},{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},...(process.env.HELIX_SERIES_LARGE_SCOPE==='1'?[{episodeCount:47},{episodeCount:77}]:[]),...(process.env.HELIX_SERIES_NFO_GAP==='1'?[{episodeCount:17}]:[]),{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test((procurementOnly?'Isolated Host publishes '+episodeCount+' Episode members as one Season Candidate':'Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit')+(sourcePoster?' with a fresh package replacing its existing Season poster':multiSeason?' with separate same-title Seasons':manualIdentity?' with manual Series identity':external?(external==='technical'?' with technical failure before external search':external==='exhausted'?' with exhausted local strategies then external search':external==='rejected'?' with rejected external shared-file search':' with external shared-file replacement'):offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?(nm?' with bounded real N:M media Aftercare':' with bounded real media Aftercare'):nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:episodeCount===77&&process.env.HELIX_SERIES_SETTLEMENT_DIAGNOSTICS==='1'?4800000:episodeCount>=17&&process.env.HELIX_SERIES_RELATED==='1'?2400000:real&&process.env.HELIX_SERIES_LONG_MEDIA==='1'?900000:episodeCount>47?1200000:real||repair||migrate||episodeCount>32?300000:180000},async t=>{
   const browserJourney=(manualIdentity||multiSeason)&&process.env.HELIX_SERIES_BROWSER==='1';
   const externalBrowser=external&&process.env.HELIX_SERIES_EXTERNAL_BROWSER==='1';
   const coldBrowser=browserJourney&&process.env.HELIX_SERIES_BROWSER_COLD==='1';
@@ -219,7 +219,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   const externalMultipart=external&&process.env.HELIX_SERIES_EXTERNAL_MULTIPART==='1',externalEpisodeCap=4*1024*1024;
   const externalProvider=external?require('../fixtures/series-external-host-provider').fixture(root,{rejectSearch:typeof external==='string',real,remux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1',transcode:process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1',multipart:externalMultipart}):null;
   const initialSeason=process.env.HELIX_SERIES_FIRST_S03==='1'?3:1,seasonToken='S'+String(initialSeason).padStart(2,'0'),seasonDirectory='Season '+String(initialSeason).padStart(2,'0');
-  const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)',process.env.HELIX_SERIES_RELATED==='1'?'Season '+initialSeason:seasonDirectory);
+  const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':sourcePoster?'Demo Show':'Demo Show (2020)',process.env.HELIX_SERIES_RELATED==='1'?'Season '+initialSeason:seasonDirectory);
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
   if(browserJourney||externalBrowser||process.env.HELIX_SERIES_SHARED_BROWSER==='1') {
     const builtAdmin=path.resolve(__dirname,'../../dist/admin');
@@ -283,6 +283,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   const largePlot=episodeCount===24?'Complete episode narrative. '.repeat(200):undefined;
   const adapter=harness({episodePlot:largePlot}),providerCalls=[],artifactCalls=[],sharedArtifactCalls=[],appendCommitAudits=[],repairCommitAudits=[],offdeckCommitAudits=[];let unitOfWork,runtimeError,db,sharedRetryAttempted=false,sharedMaintenanceUnavailable=false,sharedRetirementFailure=false;
   const poster=await sharp({create:{width:4,height:6,channels:3,background:'#224466'}}).jpeg().toBuffer();
+  if(sourcePoster)fs.writeFileSync(path.join(source,'poster.jpg'),poster);
   let injectedDeleteFailures=0;
   let browserMediaPort;
   const nativeBrowserMedia=()=>{
@@ -303,19 +304,18 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   const deletionPort=require('../../src/clean-offdeck-deletion-port').createCleanOffdeckDeletionPort();
   let shutdownTriggered=false;
   const shutdownRegistry=require('../../src/clean-ffmpeg-process-registry').createFfmpegProcessRegistry();
-  const shutdownOptions=shutdownRoot?{shutdownTimeoutMs:1,ffmpegProcessRegistry:{...shutdownRegistry,register(child){
+  const shutdownOptions=shutdownRoot?{shutdownTimeoutMs:10000,ffmpegProcessRegistry:{...shutdownRegistry,register(child){
     const result=shutdownRegistry.register(child);
     if(!shutdownTriggered&&child.spawnargs.some(arg=>['libx265','hevc_nvenc','hevc_qsv','hevc_vaapi'].includes(arg))&&child.spawnargs.includes('-progress')){
       shutdownTriggered=true;
       setImmediate(async()=>{
-        try{await host.close();throw new Error('Active encode unexpectedly drained before checkpoint deadline');}
-        catch(error){
-          if(error.code!=='P4_SHUTDOWN_CHECKPOINT_TIMEOUT'){console.error(error);process.exit(75);}
+        try {
+          const started=Date.now();await host.close();
           await new Promise(resolve=>setImmediate(resolve));
           const events=db.prepare("SELECT e.event_id,e.state,a.failure_code,a.outcome_kind,j.state effect_state FROM fx_workflow_events e JOIN fx_event_attempts a ON a.event_id=e.event_id LEFT JOIN fx_effect_journal j ON j.event_attempt_id=a.event_attempt_id WHERE e.capability_ref='libra.media.transcode@1'").all();
-          fs.writeFileSync(path.join(root,'shutdown-boundary.json'),JSON.stringify({events,children:shutdownRegistry.size(),commits:db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n}));
+          fs.writeFileSync(path.join(root,'shutdown-boundary.json'),JSON.stringify({shutdownCompleted:true,shutdownMs:Date.now()-started,events,children:shutdownRegistry.size(),commits:db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n}));
           process.exit(74);
-        }
+        } catch(error) {console.error(error);process.exit(75);}
       });
     }
     return result;
@@ -547,7 +547,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   }
   const crossDevice=process.env.HELIX_SERIES_CROSS_DEVICE==='1';
   if(crossDevice)assert.equal(process.platform,'linux','Cross-device Host fixture requires Linux tmpfs.');
-  const target=crossDevice?fs.mkdtempSync('/dev/shm/helix-series-target-'):path.join(root,'shelf');
+  const target=crossDevice?fs.mkdtempSync('/dev/shm/helix-series-target-'):path.join(root,sourcePoster?'source':'shelf');
   if(crossDevice){
     t.after(()=>{
       assert.equal(path.dirname(fs.realpathSync(target)),'/dev/shm');
@@ -556,7 +556,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     });
     assert.notEqual(fs.statSync(root).dev,fs.statSync(target).dev,'Source/Workspace and Shelf must be on different filesystems.');
     t.diagnostic(JSON.stringify({crossDevice:true,sourceDevice:fs.statSync(root).dev,targetDevice:fs.statSync(target).dev}));
-  }else fs.mkdirSync(target);
+  }else fs.mkdirSync(target,{recursive:true});
   const sourceShelfId=browserJourney?await browserFlow.createShelf(target,ruleTemplateId):'series-shelf';
   if(!browserJourney)await request('POST','/v1/admin/shelves',{idempotencyKey:'series-shelf',shelfId:'series-shelf',name:'Series fixture',
     targetRootLocation:target,ruleTemplateId,expectedTemplateRevision,
@@ -1099,6 +1099,13 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   }
   assert.equal(db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n,1);
   assert.equal(new Set(inventory.map(item=>item.location)).size,inventory.length);
+  if(sourcePoster){
+    const placed=inventory.filter(item=>item.role==='poster');assert.equal(placed.length,1);
+    assert.equal(path.resolve(placed[0].location),path.join(source,'poster.jpg'));
+    assert.deepEqual(fs.readFileSync(placed[0].location),poster);
+    assert.ok(sourceSnapshot.relatedReferences.some(item=>item.role==='poster'));
+    assert.equal(collection.length,1);assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1);
+  }
   const inventoryPrimary=inventory.filter(item=>item.role==='primary_payload');
   assert.equal(inventoryPrimary.length,physicalCount);
   for(const item of inventoryPrimary) {

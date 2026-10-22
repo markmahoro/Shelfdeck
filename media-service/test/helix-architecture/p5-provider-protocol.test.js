@@ -142,6 +142,8 @@ const inputs = Object.freeze({
   'libra.external_material.search@1': Object.freeze({ acquisitionQuery: acquisitionQuery(), limit: 25 }),
   'libra.external_material.acquire.observe@1': Object.freeze({ externalJobReceipt: jobReceipt(), phase: 'download' }),
   'libra.external_material.stability.observe@1': Object.freeze({ externalMaterialHandle: externalMaterialHandle(), quietWindowMs: 60_000 }),
+  'arca.series_presentation.source.observe@1': Object.freeze({ sourceRef: ref('provider-asset'), workspaceTargetRef: ref('workspace-target') }),
+  'arca.series_presentation.assets.prepare@1': Object.freeze({ sourceRef: ref('provider-asset'), workspaceTargetRef: ref('workspace-target') }),
   'libra.product_artifact.acquire@1': Object.freeze({ sourceRef: ref('provider-asset'), workspaceTargetRef: ref('workspace-target') }),
   'arca.aftercare.binary_artifact.acquire@1': Object.freeze({ sourceRef: ref('provider-asset'), workspaceTargetRef: ref('workspace-target') }),
   'libra.external_material.acquire.request@1': Object.freeze({ acquisitionQuery: acquisitionQuery(), selectedCandidate: selectedCandidate() })
@@ -234,7 +236,7 @@ function fixture(operation, overrides = {}) {
   };
 }
 
-test('operation catalog exactly traces all twelve IntegrationHandle Capability contracts and their Effect Classes', () => {
+test('operation catalog exactly traces IntegrationHandle and Owner-resolved Series Capability contracts and their Effect Classes', () => {
   const manifestRoot = path.resolve(__dirname, '../../src/helix/contracts/capabilities');
   const manifests = [];
   (function walk(root) {
@@ -243,7 +245,8 @@ test('operation catalog exactly traces all twelve IntegrationHandle Capability c
       if (entry.isDirectory()) walk(target);
       else if (entry.name === 'manifest.json') {
         const manifest = JSON.parse(fs.readFileSync(target, 'utf8'));
-        if (Object.keys(manifest.inputPorts || {}).some((name) => name.toLowerCase().includes('integrationhandle'))) manifests.push(manifest);
+        if (Object.keys(manifest.inputPorts || {}).some((name) => name.toLowerCase().includes('integrationhandle')) ||
+            ['arca.series_presentation.source.observe@1','arca.series_presentation.assets.prepare@1'].includes(manifest.capabilityRef)) manifests.push(manifest);
       }
     }
   })(manifestRoot);

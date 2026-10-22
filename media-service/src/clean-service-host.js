@@ -7,7 +7,7 @@ const path = require('node:path');
 const Database = require('better-sqlite3');
 const Fastify = require('fastify');
 const {registerAdminStatic} = require('./clean-admin-static');
-const sharp = require('sharp');
+const { createCleanPosterRenderer } = require('./clean-poster-renderer');
 const routeRegistry = require('./helix/composition/admin-route-registry');
 const { canonicalDigest } = require('./helix/contracts/canonical-json');
 const {providerRecoveryDigest,computeRecoveryDigest}=require('./helix/platform/application/failure-recovery-projection');
@@ -1524,6 +1524,7 @@ async function createCleanServiceHost(options) {
   const candidateAcceptance = createCandidateAcceptanceConsumer(constructed.applicationDependencies);
   const arcaRoutingTargets = createShelfRoutingTargetProjection(constructed.applicationDependencies);
   let arcaCare = null, arcaRecycle = null, collectionContractValidator=null;
+  const posterRenderer = createCleanPosterRenderer();
   const arcaCollectionQuery = createArcaCollectionQuery({
     ...constructed.applicationDependencies,
     contractValidator:{validate(schemaRef,value){
@@ -1560,13 +1561,10 @@ async function createCleanServiceHost(options) {
         throw new Error('Shelf Entry poster changed during its bounded read.');
       }
       const extension = path.extname(target).toLowerCase();
-      const variant = query.size === 'wall' ? Object.freeze({ width: 360, height: 540 })
-        : query.size === 'detail' ? Object.freeze({ width: 720, height: 1080 }) : null;
-      const bytes = variant
-        ? await sharp(originalBytes).rotate().resize(variant.width, variant.height, { fit: 'cover', position: 'centre', withoutEnlargement: true }).webp({ quality: 82 }).toBuffer()
-        : originalBytes;
+      const variant = query.size === 'wall' || query.size === 'detail';
+      const bytes = await posterRenderer.render(originalBytes, query.size);
       const contentType = variant ? 'image/webp' : extension === '.png' ? 'image/png' : extension === '.webp' ? 'image/webp' : 'image/jpeg';
-      const etag = `\"${crypto.createHash('sha256').update(`${reference.materialKey}:${query.size || 'original'}`).digest('hex')}\"`;
+      const etag = `"${crypto.createHash('sha256').update(bytes).digest('hex')}"`;
       return Object.freeze({ contentType, bytes, headers: Object.freeze({
         'Cache-Control': query.revision ? 'private, max-age=31536000, immutable' : 'private, max-age=300',
         ETag: etag,
@@ -1891,7 +1889,7 @@ async function createCleanServiceHost(options) {
   const executionRuntimeHost = Object.freeze({
     async start() {
       if(runtimeOperations.shouldStartStopped()){
-        const execution=await procurementExecution.host.start({quiesced:true});await refreshStoppedViews();runtimeOperations.started();await maintenanceWindow.start();return execution;
+        const execution=await procurementExecution.host.start({quiesced:true});await refreshStoppedViews();await runtimeOperations.started();await maintenanceWindow.start();return execution;
       }
       await outboxDispatcher.recoverCommittedRetryIntents();
       const execution = await procurementExecution.host.start();
@@ -1930,7 +1928,11 @@ async function createCleanServiceHost(options) {
       // Stop dispatch synchronously before waiting for observers or child processes.
       const executionStop=procurementExecution.host.stop();
       try {
-        const [result]=await Promise.all([executionStop,formationProjectionHost.stop(),overviewQuery.stop(),outboxDispatcher.stop(),maintenanceWindow.stop()]);
+        // Interrupt owned media processes after dispatch stops, before awaiting
+        // their Event promises. Waiting first makes long encodes consume the
+        // entire shutdown budget and prevents their durable recovery checkpoint.
+        const [result]=await Promise.all([executionStop,ffmpegProcessRegistry.close(),mediaEffectPort.close?.(),
+          formationProjectionHost.stop(),overviewQuery.stop(),outboxDispatcher.stop(),maintenanceWindow.stop()]);
         return result;
       } finally {
         await ffmpegProcessRegistry.close();
@@ -2150,7 +2152,11 @@ async function createCleanServiceHost(options) {
     activity:()=>procurementExecution.host.activity(),quiesce:()=>executionRuntimeHost.quiesce(),resume:()=>executionRuntimeHost.resume(),
     previewReset:()=>userReset.preview(),reset:async(preview,beforeApply)=>{
       const result=await userReset.apply(preview,beforeApply);
-      if(!transportClosing){for(const runId of result.removedRunIds||[])procurementExecution.libraRunExecutionProjection.invalidate(runId);
+      if(!transportClosing){for(const runId of result.retiredRunIds||[])procurementExecution.libraRunExecutionProjection.invalidate(runId);
+        await refreshStoppedViews();}return result;
+    },recoverReset:async(resetId)=>{
+      const result=await userReset.recover(resetId);
+      if(!transportClosing){for(const runId of result.retiredRunIds||[])procurementExecution.libraRunExecutionProjection.invalidate(runId);
         await refreshStoppedViews();}return result;
     },onError:options.onExecutionRuntimeError});
   maintenanceWindow=createMaintenanceWindow({dataDir:options.dataDir,now:options.now||Date.now,

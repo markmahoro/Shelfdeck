@@ -13,6 +13,72 @@ const { emptyReferenceSetDigest, workspaceStateDigest } = require('../src/helix/
 const { applyReset, assertSafeTranscodeRoot, inspectPlan, verifyFrozenManifest } = require('../scripts/helix-formation-reset');
 const {createUserFormationReset}=require('../scripts/user-formation-reset');
 const {createUserFormationResetWorkerPort}=require('../src/clean-formation-reset-port');
+const {inspectRetirementPlan}=require('../scripts/formation-retirement-plan');
+const {openSqliteKernel}=require('../src/helix/foundation/persistence/sqlite-kernel');
+const {writeAtomic}=require('../src/clean-runtime-operations');
+const schemaManifest=require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+
+function authorizeReset(f,preview,saved){
+  const directory=path.join(f.dataDir,'operator-runtime');fs.mkdirSync(directory,{recursive:true});
+  writeAtomic(path.join(directory,'intent.json'),{schema:'shelfdeck.runtime-intent@1',desiredMode:'stopped',revision:1,
+    pendingReset:{operationId:'test-operation',previewDigest:preview.previewDigest,...saved}});
+}
+
+test('administrative retirement selects current occupancy and preserves terminal Run history',()=>{
+  for(const state of ['discarded','superseded','completed']){
+    const f=fixture('retirement-history');
+    try{
+      const history=seedSubjectRun(f.database,'history',state);
+      f.database.prepare(`INSERT INTO libra_formation_projections(subject_id,classification,subject_status,
+        display_identity,next_action_label,next_action_state,attention_state,added_at_ms,updated_at_ms)
+        VALUES (?,'in_progress','active','History','Waiting','pending','none',1,1)`).run(history.subjectId);
+      const before=f.database.prepare('SELECT * FROM libra_runs').all();
+      const plan=inspectRetirementPlan(f.database);
+      assert.equal(plan.subjects.length,1);
+      assert.deepEqual(plan.runs,[]);
+      assert.deepEqual(plan.workspaces,[]);
+      assert.deepEqual(plan.preserved.runs,before);
+      assert.deepEqual(plan.blockers,[]);
+      assert.deepEqual(f.database.prepare('SELECT * FROM libra_runs').all(),before);
+      assert.equal(inspectRetirementPlan(f.database).planDigest,plan.planDigest);
+      assert.equal(f.database.inTransaction,false);
+    }finally{close(f);}
+  }
+});
+
+test('administrative retirement uses present typed Control ownership, not old bindings or matching IDs',()=>{
+  const f=fixture('retirement-controls');
+  try{
+    const target=seedSubjectRun(f.database,'target');
+    for(const [material,owner,type,id] of [
+      ['own','libra','subject',target.subjectId],
+      ['new-owner','libra','subject','later-subject'],
+      ['collision','arca','on_deck_custody',target.subjectId],
+      ['returned','procurement','field','field'],
+    ]) f.database.prepare(`INSERT INTO fx_material_controls(material_key,owner_domain,owner_scope_type,
+      owner_scope_id,control_revision,state,updated_at_ms) VALUES (?,?,?,?,2,'controlled',2)`).run(material,owner,type,id);
+    f.database.prepare(`INSERT INTO libra_material_bindings(subject_id,material_key,role,binding_revision,health_state,current)
+      VALUES (?,'new-owner','primary',1,'active',1)`).run(target.subjectId);
+    const plan=inspectRetirementPlan(f.database);
+    assert.deepEqual(plan.controls.map(row=>row.material_key),['own']);
+    const before=plan.planDigest;
+    f.database.prepare("UPDATE fx_material_controls SET control_revision=3 WHERE material_key='own'").run();
+    assert.notEqual(inspectRetirementPlan(f.database).planDigest,before);
+  }finally{close(f);}
+});
+
+test('administrative retirement blocks undrained Events even when their Effects are pure',()=>{
+  const f=fixture('retirement-undrained');
+  try{
+    const target=seedSubjectRun(f.database,'target');
+    const graph=seedExecution(f.database,'libra','libra_run',target.runId,'target');
+    f.database.prepare("UPDATE fx_effect_journal SET effect_class='pure'").run();
+    const plan=inspectRetirementPlan(f.database);
+    assert.deepEqual(plan.works.map(row=>row.work_id),[graph.workId]);
+    assert.ok(plan.blockers.some(row=>row.code==='RESET_EXECUTION_NOT_DRAINED'));
+    assert.equal(plan.blockers.some(row=>row.code==='RESET_UNRESOLVED_EFFECT'),false);
+  }finally{close(f);}
+});
 
 test('user Reset selects current workbench and excludes terminal-only history',()=>{
   const f=fixture('user-reset-protection');
@@ -30,7 +96,7 @@ test('user Reset selects current workbench and excludes terminal-only history',(
   }finally{close(f);}
 });
 
-test('user Reset lists and clears pre-Subject Intake occupancy without erasing ended history',async()=>{
+test('user Reset refuses unproven pre-Subject Intake occupancy instead of deleting its evidence',async()=>{
   const f=fixture('user-reset-pre-subject');
   try{
     const token=seedOrphanPipelineToken(f.database,'user');
@@ -38,12 +104,35 @@ test('user Reset lists and clears pre-Subject Intake occupancy without erasing e
     f.database.prepare("UPDATE fx_effect_journal SET effect_class='pure' WHERE event_attempt_id=?").run(token.eventAttemptId);
     seedSubjectRun(f.database,'ended','discarded');
     const port=createUserFormationReset({dataDir:f.dataDir,workspaceRoot:f.transcodeDir});
-    const preview=port.preview();assert.equal(preview.ready,true,JSON.stringify(preview));assert.equal(preview.items[0].subjectId,token.subjectId);
+    const preview=port.preview();assert.equal(preview.ready,false,JSON.stringify(preview));assert.equal(preview.items[0].subjectId,token.subjectId);
     assert.equal(preview.items[0].displayIdentity,'待识别媒体');
-    await port.apply(preview,()=>{});
-    assert.equal(f.database.prepare('SELECT count(*) n FROM libra_predeck_pipeline_tokens').get().n,0);
+    assert.ok(preview.blockers.some(row=>row.code==='RESET_INTAKE_OFFER_MISSING'));
+    await assert.rejects(port.apply(preview,()=>assert.fail('Unproven Intake cannot apply')),{code:'RUNTIME_RESET_PREVIEW_STALE'});
+    assert.equal(f.database.prepare('SELECT count(*) n FROM libra_predeck_pipeline_tokens').get().n,1);
     assert.equal(f.database.prepare('SELECT count(*) n FROM libra_runs').get().n,1);
   }finally{close(f);}
+});
+
+test('user Reset retires the current Subject while preserving all selected terminal Run history',async()=>{
+  for(const classification of ['in_progress','attention_required'])for(const state of ['discarded','superseded']){
+    const f=fixture('user-reset-history-overlap');
+    try{
+      const ended=seedSubjectRun(f.database,'overlap',state);
+      f.database.prepare(`INSERT INTO libra_formation_projections(subject_id,classification,subject_status,
+        display_identity,next_action_label,next_action_state,attention_state,added_at_ms,updated_at_ms)
+        VALUES (?,?,'active','History overlap','Waiting','pending','none',1,1)`).run(ended.subjectId,classification);
+      const before=f.database.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(ended.runId);
+      const port=createUserFormationReset({dataDir:f.dataDir,workspaceRoot:f.transcodeDir});
+      const preview=port.preview();
+      assert.equal(preview.items.length,1);
+      assert.equal(preview.protected.endedRunCount,1);
+      assert.equal(preview.ready,true);
+      await port.apply(preview,saved=>authorizeReset(f,preview,saved));
+      assert.deepEqual(f.database.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(ended.runId),before);
+      assert.equal(f.database.prepare('SELECT status FROM libra_subjects WHERE subject_id=?').get(ended.subjectId).status,'administratively_retired');
+      assert.equal(fs.existsSync(path.join(f.dataDir,'operator-backups')),true);
+    }finally{close(f);}
+  }
 });
 
 test('user Reset backs up selected workspaces and preserves ended history and source media',async()=>{
@@ -55,16 +144,31 @@ test('user Reset backs up selected workspaces and preserves ended history and so
     const original=path.join(f.root,'source-original.mkv');fs.writeFileSync(original,'preserve');
     const port=createUserFormationReset({dataDir:f.dataDir,workspaceRoot:f.transcodeDir});
     const preview=port.preview();assert.equal(preview.ready,true);assert.equal(preview.items.length,1);assert.equal(preview.protected.endedRunCount,1);
-    let authorized=false;const result=await port.apply(preview,()=>{authorized=true;});
-    assert.equal(authorized,true);assert.equal(fs.existsSync(dir),false);assert.equal(fs.readFileSync(original,'utf8'),'preserve');
+    let authorized=false;const result=await port.apply(preview,saved=>{authorized=true;authorizeReset(f,preview,saved);});
+    assert.equal(authorized,true);assert.equal(result.retainedWorkspaces,1);assert.equal(fs.existsSync(dir),true);assert.equal(fs.readFileSync(original,'utf8'),'preserve');
     assert.deepEqual(f.database.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(ended.runId),history);
     const backup=path.join(f.dataDir,'operator-backups',result.backupId);
     assert.equal(fs.readFileSync(path.join(backup,'workspaces',active.workspaceId,'partial.mkv'),'utf8'),'workspace');
     assert.ok(fs.existsSync(path.join(backup,'receipt.json')));
     const resetReceipt=path.join(f.dataDir,'reset-receipts',result.resetId+'.json');
-    assert.ok(fs.existsSync(resetReceipt));assert.equal(JSON.parse(fs.readFileSync(resetReceipt,'utf8')).removedSubjects,1);
+    assert.ok(fs.existsSync(resetReceipt));assert.equal(JSON.parse(fs.readFileSync(resetReceipt,'utf8')).retiredSubjects,1);
     assert.equal(port.preview().empty,true);
   }finally{close(f);}
+});
+
+test('user Reset rejects filesystem roots, data ancestors and Workspace aliases before backup or retirement',async()=>{
+  const f=fixture('user-reset-root-safety');
+  try {
+    seedSubjectRun(f.database,'root-safety');
+    const alias=path.join(f.root,'workspace-alias');
+    fs.symlinkSync(f.transcodeDir,alias,process.platform==='win32'?'junction':'dir');
+    for(const workspaceRoot of [path.parse(f.root).root,f.dataDir,f.root,alias]) {
+      const port=createUserFormationReset({dataDir:f.dataDir,workspaceRoot}),preview=port.preview();
+      await assert.rejects(port.apply(preview,()=>assert.fail('Unsafe root cannot authorize retirement')),{code:'RESET_WORKSPACE_ROOT_UNSAFE'});
+    }
+    assert.equal(fs.existsSync(path.join(f.dataDir,'operator-backups')),false);
+    assert.equal(f.database.prepare("SELECT status FROM libra_subjects WHERE subject_id='subject-root-safety'").get().status,'active');
+  } finally {close(f);}
 });
 
 test('user Reset refuses a changed preview and any unresolved non-pure Effect',async()=>{
@@ -85,8 +189,41 @@ test('user Reset executes through the isolated Operator worker and requires pare
     seedSubjectRun(f.database,'worker');let checked=0,authorized=false;
     const port=createUserFormationResetWorkerPort({dataDir:f.dataDir,workspaceRoot:f.transcodeDir,assertWorkspaceAvailable(){checked++;}});
     const preview=await port.preview();assert.equal(preview.ready,true);
-    const result=await port.apply(preview,()=>{authorized=true;});
-    assert.equal(authorized,true);assert.equal(checked,2);assert.equal(result.removedSubjects,1);assert.equal((await port.preview()).empty,true);
+    const result=await port.apply(preview,saved=>{authorized=true;authorizeReset(f,preview,saved);});
+    assert.equal(authorized,true);assert.equal(checked,2);assert.equal(result.retiredSubjects,1);assert.equal((await port.preview()).empty,true);
+  }finally{close(f);}
+});
+
+test('Operator worker retires pending Intake with verified backup and rejects corrupted backup during recovery',async()=>{
+  const f=fixture('user-reset-pending-worker');
+  try {
+    const processId=require('../src/helix/domains/libra/persistence/intake-offer-reader').decisionId('pending-offer');
+    const db=f.database;
+    db.prepare("INSERT INTO proc_procurement_runs(procurement_run_id,state) VALUES ('pending-proc','sealed')").run();
+    db.prepare("INSERT INTO proc_candidate_packages(candidate_package_id,procurement_run_id,package_digest) VALUES ('pending-package','pending-proc',?)").run(DIGEST);
+    db.prepare("INSERT INTO proc_candidate_deliveries(offer_id,candidate_package_id,package_revision,package_digest,acceptance_basis_digest,state,offered_at_ms) VALUES ('pending-offer','pending-package',1,?,?,'open',1)").run(DIGEST,DIGEST);
+    db.prepare("INSERT INTO proc_candidate_primary_materials(candidate_package_id,ordinal,material_key) VALUES ('pending-package',0,'pending-material')").run();
+    db.prepare("INSERT INTO proc_run_materials(procurement_run_id,ordinal,material_key,selection_state,candidate_package_id) VALUES ('pending-proc',0,'pending-material','candidate_delivery','pending-package')").run();
+    db.prepare("INSERT INTO libra_predeck_pipeline_tokens VALUES ('pending-subject','field',?,1)").run(processId);
+    const offer={offerId:'pending-offer',candidatePackageId:'pending-package',packageRevision:1,packageDigest:DIGEST,acceptanceBasisDigest:DIGEST};
+    db.prepare("INSERT INTO fx_outbox(message_id,producer_domain,message_kind,payload_json,payload_digest,consumer_set_digest,intended_consumer_count,state) VALUES ('pending-message','procurement','procurement_candidate_offer_available',?,?,?,1,'pending')")
+      .run(JSON.stringify(offer),canonicalDigest(offer),canonicalDigest(['libra']));
+    db.prepare("INSERT INTO fx_outbox_deliveries(message_id,consumer_domain,state,attempt_count,next_attempt_at_ms) VALUES ('pending-message','libra','pending',0,0)").run();
+    const candidate=db.prepare('SELECT * FROM proc_candidate_packages').get();
+    const port=createUserFormationResetWorkerPort({dataDir:f.dataDir,workspaceRoot:f.transcodeDir,assertWorkspaceAvailable(){}});
+    const preview=await port.preview();assert.equal(preview.ready,true);assert.equal(preview.counts.intakes,1);
+    const result=await port.apply(preview,saved=>authorizeReset(f,preview,saved));
+    assert.equal(result.retiredIntakes,1);assert.equal(result.retiredSubjects,0);
+    assert.equal(db.prepare('SELECT state FROM proc_candidate_deliveries').get().state,'administratively_retired');
+    assert.deepEqual(db.prepare('SELECT * FROM proc_candidate_packages').get(),candidate);
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_intake_decisions').get().n,0);
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_predeck_pipeline_tokens').get().n,0);
+    assert.equal((await port.preview()).empty,true);
+    assert.deepEqual(await port.recover(result.resetId),result);
+    const backupDb=path.join(f.dataDir,'operator-backups',result.backupId,'data','shelfdeck.db');
+    const fd=fs.openSync(backupDb,'r+');try{fs.writeSync(fd,Buffer.from('changed'),0,7,128);}finally{fs.closeSync(fd);}
+    await assert.rejects(port.recover(result.resetId),{code:'RESET_BACKUP_INTEGRITY_FAILED'});
+    assert.equal(JSON.parse(fs.readFileSync(path.join(f.dataDir,'operator-runtime','intent.json'),'utf8')).desiredMode,'stopped');
   }finally{close(f);}
 });
 
@@ -107,8 +244,8 @@ function fixture(name) {
       line.split(' ')[4] === '/transcode' && line.includes(' - tmpfs ')), 'Reset tests require a disposable tmpfs mount.');
     assert.deepEqual(fs.readdirSync(transcodeDir), [], 'The test mount must be empty before each fixture.');
   } else fs.mkdirSync(transcodeDir);
+  openSqliteKernel({Database,databasePath:path.join(dataDir,'shelfdeck.db'),schemaDdl,schemaManifest,now:()=>1}).close();
   const database = new Database(path.join(dataDir, 'shelfdeck.db'));
-  database.exec(schemaDdl);
   database.pragma('foreign_keys = ON');
   return { root, dataDir, transcodeDir, database, isolatedLinuxMount };
 }
@@ -1197,6 +1334,13 @@ test('Formation Reset removes a new unfinished Intake and Run without deleting t
     const plan = inspectPlan(value.database);
     assert.deepEqual(plan.scope.runIds, [newRunId]);
     assert.equal(plan.scope.intakeDecisionIds.includes(intakeDecisionId), true);
+    const retirement=inspectRetirementPlan(value.database);
+    assert.deepEqual(retirement.subjects.map(row=>row.subject_id),[kept.subjectId]);
+    assert.deepEqual(retirement.runs.map(row=>row.libra_run_id),[newRunId]);
+    assert.deepEqual(retirement.preserved.runs.map(row=>row.libra_run_id),[kept.runId]);
+    assert.deepEqual(retirement.preserved.committedPackages.map(row=>row.on_deck_package_id),[keptPackage]);
+    assert.deepEqual(retirement.custodies,[]);
+    assert.deepEqual(retirement.onDeckRuns,[]);
     applyReset({ database:value.database, dataDir:value.dataDir, transcodeDir:value.transcodeDir, nowMs:5200 });
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_runs WHERE libra_run_id=?').get(newRunId).count, 0);
     assert.equal(value.database.prepare('SELECT COUNT(*) count FROM libra_intake_decisions WHERE intake_decision_id=?')

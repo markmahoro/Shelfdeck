@@ -79,16 +79,22 @@ async function journey(t,{operations=null,manual=false,manualFilenameStem=null,n
   let deadline=Date.now()+20000;
   if(incompatible) {
     const second=fs.readFileSync(secondVideoPath);
-    while(Date.now()<deadline&&!runtimeError&&!db.prepare("SELECT libra_run_id FROM libra_run_outcomes WHERE outcome='unable_to_on_deck'").get())await new Promise(resolve=>setTimeout(resolve,100));
-    assert.equal(runtimeError,null,diagnostics());assert.ok(db.prepare("SELECT libra_run_id FROM libra_run_outcomes WHERE outcome='unable_to_on_deck'").get(),diagnostics());
+    while(Date.now()<deadline&&!runtimeError&&!db.prepare("SELECT libra_run_id FROM libra_runs WHERE state='frozen'").get())await new Promise(resolve=>setTimeout(resolve,100));
+    assert.equal(runtimeError,null,diagnostics());
+    const frozen=db.prepare("SELECT libra_run_id,subject_id FROM libra_runs WHERE state='frozen'").get();assert.ok(frozen,diagnostics());
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_run_outcomes').get().n,0);
+    assert.equal(db.prepare('SELECT status FROM libra_subjects WHERE subject_id=?').get(frozen.subject_id).status,'active');
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_predeck_pipeline_tokens WHERE subject_id=?').get(frozen.subject_id).n,1);
+    assert.equal(db.prepare("SELECT count(*) n FROM fx_material_controls WHERE owner_domain='libra' AND owner_scope_type='subject' AND owner_scope_id=? AND state='controlled'").get(frozen.subject_id).n,2);
+    const attention=await request('GET','/v1/admin/formation/'+frozen.subject_id);
+    assert.equal(attention.classification,'attention_required');
     assert.deepEqual(fs.readFileSync(videoPath),video);assert.deepEqual(fs.readFileSync(secondVideoPath),second);
     assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,0);
     const rejected=db.prepare("SELECT work_id FROM fx_work_attempts WHERE failure_code='jav_part_copy_incompatible'").get();assert.ok(rejected);
     assert.equal(db.prepare('SELECT count(*) n FROM fx_workflow_events WHERE work_id=?').get(rejected.work_id).n,0);
     const evidence=JSON.parse(db.prepare("SELECT transition_evidence_json FROM libra_run_revisions WHERE json_extract(transition_evidence_json,'$.blockedWorks[0].blockerSource')='plan_rejection' ORDER BY state_revision DESC LIMIT 1").get().transition_evidence_json);
     assert.equal(evidence.blockedWorks[0].blockerSource,'plan_rejection');assert.equal(evidence.blockedWorks[0].failureCode,'jav_part_copy_incompatible');
-    const outcome=JSON.parse(db.prepare('SELECT outcome_json FROM libra_run_outcomes').get().outcome_json);
-    assert.deepEqual(outcome.terminalReasons,[evidence.blockedWorks[0]]);assert.equal(Object.hasOwn(outcome.terminalReasons[0],'capabilityRef'),false);
+    assert.equal(Object.hasOwn(evidence.blockedWorks[0],'capabilityRef'),false);
     return;
   }
   let selection=null,confirmation=null,originalCandidateClaim=null;
@@ -847,7 +853,7 @@ test('unrecognized JAV input accepts an exact FC2 official manual preview and ke
 test('JAV A/B actual inputs form one Package, remux in order and establish exactly one Arca Commit',{timeout:120000},t=>journey(t,{parts:true}));
 test('one actual JAV B input remains a single-file journey and reaches Commit without an A requirement',{timeout:120000},t=>journey(t,{soloPart:'B'}));
 test('one actual JAV A input remains a single-file journey and reaches Commit without a B requirement',{timeout:120000},t=>journey(t,{soloPart:'A'}));
-test('incompatible JAV actual parts freeze with genuine rejected-Plan evidence and retain both sources without a fake Event',{timeout:60000},t=>journey(t,{parts:true,incompatible:true}));
+test('incompatible JAV actual parts require attention with genuine rejected-Plan evidence and retain responsibility without a fake Outcome',{timeout:60000},t=>journey(t,{parts:true,incompatible:true}));
 test('JAV H.264 A/B inputs merge before a real HEVC Transcode and one final Arca Commit',{timeout:120000},t=>journey(t,{parts:true,inputCodec:'h264'}));
 test('owned real JAV Entry admits an independent correction atomically, rolls stale Control back and replays without preview cache',{timeout:120000},t=>journey(t,{correctionAdmission:true}));
 test('admitted JAV correction resumes through formal source verification and Workspace asset Work while preserving the original collection',{timeout:120000},t=>journey(t,{correctionWork:true}));

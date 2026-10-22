@@ -14,6 +14,7 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
   if([...deferredDeliveryKeys].some((item)=>typeof item!=='string'||!item.includes('->')))throw new TypeError('Deferred Outbox delivery keys are invalid.');
   const libraReceiptRepository=createRepositoryDefinition({repositoryId:'libra_intake_delivery_receipt',owner:'libra',schemaManifest:options.schemaManifest,
     statements:{read_head:{kind:'select-one',tableId:'libra_subject_continuity_heads',columns:['head_id'],keyColumns:['head_id']},
+      intake_receipt:{kind:'select-one',tableId:'libra_handoff_a_receipts',columns:['receipt_id','receipt_digest','offer_id','candidate_package_id','package_digest'],keyColumns:['intake_decision_id']},
       read_product_package:{kind:'select-one',tableId:'libra_product_packages',columns:['on_deck_package_id','package_digest'],keyColumns:['on_deck_package_id']}}});
   const libraRoutingSignalRepository=createRepositoryDefinition({repositoryId:'libra_routing_policy_signal',owner:'libra',readOnly:true,schemaManifest:options.schemaManifest,
     statements:{find_head:{kind:'select-one',tableId:'libra_field_routing_heads',columns:['field_id','current_routing_policy_id','current_policy_revision'],keyColumns:['field_id']}}});
@@ -85,7 +86,28 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
       inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'read-model'});return;
     }
     if(item.message.message_kind==='procurement_candidate_offer_available'&&item.delivery.consumer_domain==='libra'){
-      const admitted=options.intakeCoordinator.admitOffer(payload),resultDigest=canonicalDigest({schema:'libra.intake-offer-consumption@1',
+      const admitted=options.intakeCoordinator.admitOffer(payload);
+      if(admitted.kind==='administratively_retired'){
+        const resultDigest=canonicalDigest({schema:'libra.retired-intake-consumption@1',processId:admitted.processId,
+          retirementReceiptId:admitted.retirementReceipt.receiptId,retirementReceiptDigest:admitted.retirementReceipt.receiptDigest});
+        inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'libra'},resultDigest,
+          domainParticipant:admitted.admissionParticipant});
+        inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});return;
+      }
+      if(admitted.kind==='terminal'){
+        const receipt=admitted.terminalReceipt,resultDigest=canonicalDigest({schema:'libra.terminal-intake-consumption@1',
+          processId:admitted.processId,receiptId:receipt.receipt_id,receiptDigest:receipt.receipt_digest});
+        inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'libra'},resultDigest,
+          domainParticipant:{participantId:'libra_terminal_intake_consumption',owner:'libra',repositories:[libraReceiptRepository],execute(context){
+            const current=context.repository(libraReceiptRepository.repositoryId).invoke('intake_receipt',{intake_decision_id:admitted.processId});
+            if(!current||current.receipt_id!==receipt.receipt_id||current.receipt_digest!==receipt.receipt_digest||
+              current.offer_id!==payload.offerId||current.candidate_package_id!==payload.candidatePackageId||current.package_digest!==payload.packageDigest)
+              throw new Error('Terminal Intake Receipt changed before consumption.');
+            return {receiptId:current.receipt_id};
+          }}});
+        inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});return;
+      }
+      const resultDigest=canonicalDigest({schema:'libra.intake-offer-consumption@1',
         processId:admitted.processId,workId:admitted.work.workId,basisDigest:admitted.work.executionBasisDigest});
       inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'libra'},resultDigest,
         domainParticipant:{participantId:'libra_intake_offer_admission_receipt',owner:'libra',repositories:[libraReceiptRepository],
@@ -93,7 +115,15 @@ function createOutboxDispatcherHost(options){const repo=repository(options.schem
       inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'libra'});options.executionRuntimeHost.wake();return;
     }
     if(item.message.message_kind==='libra.product-offer.available@1'&&item.delivery.consumer_domain==='arca'){
-      const admitted=options.arcaCoordinator.admitOffer(payload),resultDigest=canonicalDigest({
+      const admitted=options.arcaCoordinator.admitOffer(payload);
+      if(admitted.kind==='administratively_retired'){
+        const resultDigest=canonicalDigest({schema:'arca.retired-offer-consumption@1',offerId:admitted.processId,
+          retirementReceiptId:admitted.retirementReceipt.receiptId,retirementReceiptDigest:admitted.retirementReceipt.receiptDigest});
+        inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'arca'},
+          resultDigest,domainParticipant:admitted.admissionParticipant});
+        inbox.acknowledge({messageId:item.message.message_id,consumerDomain:'arca'});return;
+      }
+      const resultDigest=canonicalDigest({
         schema:'arca.handoff-b-offer-admission@1',offerId:admitted.processId,workId:admitted.work.workId,
         basisDigest:admitted.work.executionBasisDigest,recoveryGeneration:admitted.recovery.recoveryGeneration});
       inbox.consume({message:{messageId:item.message.message_id,dedupKey:item.message.dedup_key,consumerDomain:'arca'},

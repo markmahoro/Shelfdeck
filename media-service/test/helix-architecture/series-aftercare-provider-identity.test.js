@@ -85,7 +85,7 @@ for(const kind of ['series','movie'])test('TMDB Adapter requests the '+kind+' im
     secretLeaseConsumer:{consumeAsync:async(_lease,consume)=>consume(Buffer.from('disposable-secret'))},
     fetchImpl:async url=>{calls.push(new URL(url).pathname);return new Response(JSON.stringify({id:1399,posters:[],backdrops:[]}));}});
   const result=await adapter.artifactPort.execute({operationId:C.binaryAcquire,integrationHandle:handle,timeoutMs:1000,
-    input:{artifactKind:'poster',resolvedProviderIdentity:aftercareProviderIdentity(f.context,f.stable)}});
+    input:{artifactKind:'poster',resolvedProviderIdentity:aftercareProviderIdentity(f.context,f.stable),...(kind==='series'?{artifactScope:{scopeKind:'season',seasonNumber:2}}:{})}});
   assert.equal(result.resultKind,'not_available');
-  assert.deepEqual(calls,[kind==='series'?'/3/tv/1399/images':'/3/movie/1399/images']);
+  assert.deepEqual(calls,[kind==='series'?'/3/tv/1399/season/2/images':'/3/movie/1399/images']);
 });

@@ -1,5 +1,34 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-23 06:08 候选收口（未部署、生产保持停止）：新版历史保留 Reset 已完成 Owner 管理退役、精确 Control 释放、原 Handoff A 接纳回执收尾与独立完成核验；真实浏览器验证停机→确认→完成→重启仍停机→普通观察创建新 Subject，原历史及源文件保持。最新 Service695项/666PASS/29skip、Web262PASS、Linux53PASS、Windows独立包Host及空预检PASS；NAS最终结构副本230表摘要/FK/完整性与stopped Host通过。完整架构首跑3278项/3224PASS/28FAIL/26skip，20项失败在接手基线复现；已修正其中19项旧fixture/合同清单及本轮预期，17文件重跑129PASS，另有定向PASS，不能记完整Gate全绿。已有Series根目录迁移失败在原基线与当前均存在，未放宽断言或擅改共享根合同。两片对应新包旅程PASS，真实生产自然重采仍开放。性能已取得Formation/收藏查询局部改善及海报缓存回归，未解决4K忙载吞吐。只读生产Reset范围225 Subject/14 Run/11共享scope，20条历史Effect已证明后继履行，仅中断转码的1 Effect/1executing Event继续阻挡。06:07复核生产exited/RestartCount0、其他15容器运行、无诊断容器残留。Docker候选、精确版本UI review及生产处置尚未完成；无生产Reset/部署授权。
+
+2026-10-23 05:35 开发检查点（未部署、生产保持停机）：新版 Reset 保留历史、追加各 Owner 管理退役，完成核验直接反查冻结 Scope、Control release revision、保护历史及本次备份/清单对应 Receipt；正式 Host API 的停机→Reset→重启保持停机→普通观察新 Subject 旅程通过。只读生产范围225 Subject/14 Run/11共享scope；20条旧 Arca Effect已获正式Owner后继履行证明，保留原历史，仅1条中断转码Effect及其executing Event继续阻挡Reset。最终12处CHECK结构副本已通过230表逐行摘要/FK/完整性（18.8分钟），候选NAS Host验证进行中。Service694项/665 PASS/29skip/0fail；Windows独立分发Host及空Reset预检通过，首轮发现并补齐打包文件遗漏；Linux最终定向和完整架构测试继续，后者三项旧fixture/旧终局预期已定向修正，不能记完整PASS。真实转码停机及重启一次Commit通过。NAS收藏标题页中位451→213ms；海报增加有界字节派生缓存，保留每次Owner/文件校验。4K处理路径已确认但没有并发性能修复结论。高达/凡人歌生产自然重采、完整新包、最终同版UI及发布资格仍开放；无生产Reset或发布授权。
+
+2026-10-23 04:29 开发检查点：新版历史保留 Reset 已接入用户入口与 worker；pending intake 分别经 Libra/Procurement Owner 命令终结，不伪造 Handoff；持久日志支持 commit 后中断重放，恢复保持停止。退役 intake 的低层席位准入也有同事务门禁。未被 Arca 观察的已发布 Offer 已接入真实 ProductDeliveryReader 验证，保留旧 Package。Reset/Runtime/intake 70项、真实 Promotion/退役29项、Web262项和Web build通过；完整Service首跑689项中657通过/29skip/3失败，发现并修复终态短路跳过拒绝席位释放，另一失败为旧隐藏规则断言；三个失败文件重跑6项通过，完整Service尚待重跑，不能记全绿。新增精确231→231结构副本仅扩展11处状态CHECK，230个事实/执行表逐行保留，副本/回退保护2项通过，尚未做生产副本Host资格。共享builder和Workspace物理回收仍未完成；当前回执明确保留Workspace字节。04:29只读复核生产仍为hostfix4 exited、RestartCount0，无Reset/部署。性能后续诊断、两片新包旅程、完整Gate和同版UI资格仍开放。
+
+2026-10-23 02:38 实施开始：用户确认本轮七项工作并授权先安全停机。Runtime stop已持久desiredMode=stopped/revision23；唯一生产容器于02:38:23退出，其他15容器保持运行。因恢复中FFmpeg未在60秒内排空，日志为P4_SHUTDOWN_CHECKPOINT_TIMEOUT/exit1，未记优雅排空PASS；无Reset、部署或源文件改动。data冷备196文件逐文件SHA256一致；完整Host隔离副本随后通过外键/完整性检查并以stopped启动，未恢复供给。停机前单次CPU357.95%、内存2.088GiB，Node/FFmpeg均有消耗；这只是采样，不构成性能根因结论。
+
+当前实施顺序取代下面“建议”中的两项scoped Reset及性能排除：
+
+03:06检查点：Reset先补实际删除闭包的ended历史阻挡，41项通过。用户随后确认采用“保留历史记录、追加管理性退役、旧 Subject 不再调度”，现进入重做实现；该确认不等于本次生产 Reset 授权。overview同次读取复用及progress线性关联已修，三文件145项回归通过；隔离Host对照Formation中位1063.9→830.7ms，完整性能/发布资格未完成。Season poster真实port中断→重试→替换→settle用例通过，不替代两片完整新包或生产验收。详见接手Evidence最新节。
+
+1. SERIES-PRESENTATION-HANDLE：真实Handle/NFO和实际文件边界；当前11剧根/12条记录，生产运行时复验。
+2. RETRY-ACTION-MAPPING：三段动作、状态/命令/结果一致性，删除冲突入口。
+3. FORMATION-RESET-WORKBENCH：重新设计整体工作台兜底；不新增单片UI，不能用运维scope代替用户入口；明确历史、共享引用、其他新Owner、源文件、未知Effect保护；完整备份和中断恢复须实际验收。
+4. FORMATION-TERMINAL-CLOSURE：明确自动终局资格，按single/Series闭合Subject/Run/Control/token及正式审计，修Projection误分类；6条历史审计缺口单独取证。
+5. TARGET-CONFLICT-REENTRY：高达双独立收藏、凡人歌单Season及poster替换的隔离新包旅程；生产自然重采时间不可保证，现场问题保持开放，不为验收改变采购顺序。
+6. PERFORMANCE-DIAGNOSIS-ITERATION：独立从请求/SQL/事件循环/资源/文件IO建立基线，诊断4K及overview/Formation/收藏/海报；按证据确定修复和同条件对照，不继承旧agent优先级或结论。
+7. RELEASE-QUALIFICATION：固定候选受影响测试/完整Host与具体版本UI、平台/副本验证，然后按生产边界完成发布；Reset具体执行需独立范围授权。统一离线补剧根文件、Subject-scoped Control改造仍不纳入。
+
+2026-10-23 接手诊断已补生产只读核账（02:18–02:25，基线ee0c4786b未上线），不改产品或生产。原问题已扩至14条attention：11个剧根共享资料失败影响12条记录，加高达/凡人歌2条target occupied。原198快照现为197个active残留Subject；其937个去重Primary/结构材料的Control分别为Procurement380/released435/其他Libra Subject41/Arca On-deck81，无Control仍属对应旧Subject。不能按旧绑定释放新流程责任，也不能以旧Subject数推断材料全停摆。隔离复现的系统Subject终局缺口、UI按文案隐藏及Reset误删protected ended历史仍成立；6个discarded Run缺Decision/Receipt/Outcome仍待追根。详见[诊断与验收条件](evidence/FORMATION_TERMINAL_CLOSURE_DIAGNOSIS_20261023.md)。
+
+接手早期建议（已由上方七项执行范围取代，不作为当前生产 Reset 授权）：
+
+1. `SERIES-PRESENTATION-HANDLE` / `RETRY-ACTION-MAPPING`：保留ee0c中的真实Handle/NFO修复与三段动作；将生产验收范围更新为当前12条共享资料attention。固定候选的真实Handle/真实文件、受影响Service/Web/Host旅程及同版UI检查通过后，按发布授权进入标准部署，随后走原条目“重试上架”验收正式三项共享资料、Season Commit及无重复收藏。不可将共享Work故障误归为Libra无Run异常。
+2. `FORMATION-RESET-WORKBENCH`：在同一候选发布前解决删除闭包与ended历史保护矛盾，增加含终态历史/跨Subject同材料/共享资料引用的副本保护测试。现场仅先为高达、凡人歌两个未Commit Subject准备精确scope、备份/receipt及保护集合；不Reset其他12条共享资料失败、14个active Run或197个历史残留。取得具体生产执行授权后以新镜像停机scoped Reset并启动，经普通新Observation/新Candidate/新Package验收高达两条独立收藏与凡人歌一条Season及poster替换。源文件不手改、无反向Handoff。
+3. `FORMATION-TERMINAL-CLOSURE`：单独修正系统自动终局资格、single/Series责任收敛及Projection事实分类，保持现行Owner模型；temporary failure与真正终局的typed分类需明确定义。新任务验证系统/用户终局、其他Run/Episode保留、token及Control精确revision保护、崩溃重放；不能以Reset掩盖新增缺陷。追查6条缺审计链及未见后续Selection材料，不先假定缺TTL或5项release漏提交。
+4. 原14条现场收口与生命周期新任务验收分别记证据。197项旧数据的选择/保留/清理另按精确闭包决定，不延用198/225数字执行，也不新增兼容层修补旧在途。该早期性能排除建议已被用户后续追加的性能诊断及迭代取代；统一离线补剧根文件仍排除。
+
 2026-10-23本轮修复与兜底Reset检查点：用户确认本轮修5个剧集呈现缺陷、重试UI映射和Formation Reset范围扩展，性能留待后续。已实现：剧集`source.observe`/`assets.prepare`的合法Integration Handle artifact操作、`tvshow.nfo` `-1`占位不误判（20项定向PASS）；媒体整理行改为“重试接收/重试整理/重试上架”，移除“处理冲突”（49项Web定向PASS）；Reset按当前工作台`in_progress|attention_required`+pending intake选择，覆盖Accepted未Commit，保留收藏/历史/Aftercare/源文件，增加全量备份与durable receipt，概览按钮改为“重置工作台”并只要求一次确认词（Reset 40项PASS、Runtime UI 6项PASS）。尚未执行生产Reset、未部署；完整服务/Web Gate与副本演练待跑。
 
 2026-10-22最终历史验真收口：回收原子提交后退出的输入漂移已修，4类真实重启、Service648/29 skip、Linux18、Windows独立Host均通过。生产副本定位6c当前Catalog未入终态档案：沿用Frozen Catalog History精确归档120执行合同/1324 Schema，仅验真终态，不允许旧在途继续；历史证明与Owner/active/篡改负例71 PASS。16个未Commit Subject的限定Reset只在独立副本预览ready，生产未执行；原样全副本启动FAIL保留。最终固定Gate及平台/UI资格继续，三UAT尚未关闭或发布。详见UAT-328 Evidence §23。

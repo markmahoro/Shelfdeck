@@ -104,7 +104,9 @@
         "enumValues": [
           "active",
           "abandoned",
-          "completed"
+          "completed",
+          "administratively_retired",
+          "ended"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -476,7 +478,8 @@
           "superseded",
           "frozen",
           "discarded",
-          "completed"
+          "completed",
+          "administratively_retired"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -653,7 +656,9 @@
         "enumValues": [
           "active",
           "abandoned",
-          "completed"
+          "completed",
+          "administratively_retired",
+          "ended"
         ]
       },
       {
@@ -701,7 +706,8 @@
           "superseded",
           "frozen",
           "discarded",
-          "completed"
+          "completed",
+          "administratively_retired"
         ]
       }
     ],

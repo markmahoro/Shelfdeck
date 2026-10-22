@@ -322,7 +322,7 @@
       "sourceLocator": {
         "section": "8.5.11",
         "line": 9538,
-        "lineDigest": "c7aea65981e360251731a282c43e73a0d80874c47489c22814a00ce3bcdf7ac2"
+        "lineDigest": "78920f5e79c78e219f12c1b70812d268b816145ee89cbeff9d30982df74ccb9a"
       },
       "targetLocator": {
         "path": "table-contracts/proc_run_materials/v1/contract.json"
@@ -331,11 +331,11 @@
         "tableId": "proc_run_materials",
         "owner": "procurement",
         "contractRef": "helix://contracts/tables/proc_run_materials/v1",
-        "contractDigest": "3018b748c3d176f4c5769cdfa51d7e92be14c152c5c0c355cb703190e0fef11c"
+        "contractDigest": "6853880ff7233b307368359da5701987859372521f1ac4e086bec112f6af7540"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "d2d283e0775f66df626b3bb8be3d98d023c774be960884714b291ffd6faccf34"
+        "value": "d13da03740e899f5099b4e2191929e1208d35230f8ec7969681a129468480b89"
       }
     },
     {

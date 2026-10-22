@@ -7,7 +7,7 @@ const { createDefectAuthorizationStore } = require('./defect-authorization-store
 
 // Production 3.0 metadata Runs predate the current business-terminal reason
 // vocabulary. Their exact terminal Result digest and execution history still
-// prove the blocker, so only reason-code membership is relaxed for this catalog.
+// prove the blocker, so only reason-code vocabulary is relaxed for this catalog.
 const LEGACY_BUSINESS_TERMINAL_CATALOG_DIGEST = 'b7e4d607f2684ef6e061e47215aea6607d408fdaf148be3c4b79e7eb0a7ec714';
 
 const {

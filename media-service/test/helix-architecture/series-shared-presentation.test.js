@@ -210,3 +210,57 @@ test('real SQLite admits one shared builder for two Seasons and atomically pins 
 
   }finally{db.close();kernel.close();assert.equal(path.dirname(path.resolve(temporary)),path.resolve(os.tmpdir()));assert.ok(path.basename(temporary).startsWith('helix-series-store-'));fs.rmSync(temporary,{recursive:true,force:true});}
 });
+
+
+test('Formation retirement preserves a shared builder for another Season then closes the final unused builder atomically',()=>{
+  const fs=require('node:fs'),Database=require('better-sqlite3');
+  const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-kernel');
+  const {createSqliteUnitOfWork}=require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
+  const {createSeriesPresentationStore}=require('../../src/helix/domains/arca/persistence/series-presentation-store');
+  const {createArcaFormationRetirementStore,createFormationSharedRetirement}=require('../../src/helix/domains/arca/public');
+  const schemaManifest=require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+  const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'helix-shared-retirement-')),databasePath=path.join(temporary,'test.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaManifest,schemaDdl:fs.readFileSync(path.resolve(__dirname,'../../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8')});
+  const db=new Database(databasePath),unitOfWork=createSqliteUnitOfWork({kernel}),deps={schemaManifest,unitOfWork,
+    contractValidator:require('../../src/helix/foundation/capability/contract-validator').createCapabilityContractValidator({schemas:[
+      require('../../src/helix/contracts/domain-types/SeriesPresentationScope/v1/schema.json'),
+      require('../../src/helix/contracts/domain-types/SeriesPresentationManifest/v1/schema.json'),
+      require('../../src/helix/contracts/types/PhysicalMaterialIdentity/v2/schema.json')]})};
+  try {
+    const store=createSeriesPresentationStore(deps),arca=createArcaFormationRetirementStore(deps),shared=createFormationSharedRetirement(deps);
+    db.prepare("INSERT INTO arca_shelves(shelf_id) VALUES ('shelf')").run();
+    const shelfRoot=path.join(temporary,'shelf'),shelf={shelfId:'shelf',currentPlacementRevision:1,target:{endpointId:'target',mountScopeId:'mount',rootLocation:shelfRoot}};
+    const commands=[3,4].map(season=>{
+      const onDeckRunId='run-'+season,custodyId='custody-'+season,packageId='package-'+season,offerId='offer-'+season,value=basis(season);
+      db.prepare("INSERT INTO arca_ondeck_custodies(custody_id,on_deck_package_id,package_digest,state) VALUES (?,?,?,'active')").run(custodyId,packageId,D(packageId));
+      db.prepare("INSERT INTO arca_ondeck_runs(on_deck_run_id,custody_id,state) VALUES (?,?,'ready')").run(onDeckRunId,custodyId);
+      const request={shelf,onDeckRunId,custodyId,targetLocation:path.join(shelfRoot,'Show','Season '+season),
+        package:{productStructureSnapshot:{structureKind:'season'},resolvedIdentitySnapshot:{factValue:{providerIdentities:[value.identity]}},
+          productFactManifest:{items:[{factKind:'product_metadata',factValue:{seriesPresentationBasis:value.value}}]}}};
+      unitOfWork.execute([store.reservationParticipant(request)]);
+      return {offerId,packageId,packageDigest:D(packageId),retirementId:'reset-'+season,backupDigest:D('backup'),manifestDigest:D('manifest')};
+    });
+    const scopeId=seriesScopeId('shelf','1399'),build=store.admitBuild({scopeId,basis:basis().value,existingMembers:[]});
+    const protectedScope=shared.inspect(scopeId,['run-3']);assert.equal(protectedScope.retire,false);
+    arca.commit({...commands[0],expectedSnapshotDigest:arca.inspect(commands[0].offerId,commands[0].packageId).snapshotDigest});
+    const protectedResult=shared.execute(protectedScope);
+    assert.equal(protectedResult.disposition,'protected');
+    assert.deepEqual(shared.verify(protectedScope,protectedResult),protectedResult);
+    assert.equal(store.readScope(scopeId).active_build_id,build.objectId);
+    const orphan=shared.inspect(scopeId,['run-4']);assert.equal(orphan.retire,true);
+    arca.commit({...commands[1],expectedSnapshotDigest:arca.inspect(commands[1].offerId,commands[1].packageId).snapshotDigest});
+    db.exec("CREATE TRIGGER reject_shared_retirement BEFORE INSERT ON fx_command_receipts WHEN NEW.command_contract='arca.series-presentation.retained-retirement@1' BEGIN SELECT RAISE(ABORT, 'shared receipt crash'); END");
+    assert.throws(()=>shared.execute(orphan),/shared receipt crash/);
+    assert.equal(store.readScope(scopeId).active_build_id,build.objectId);
+    db.exec('DROP TRIGGER reject_shared_retirement');
+    const result=shared.execute(orphan);assert.equal(result.disposition,'retained_root_retirement');
+    assert.deepEqual(shared.execute(orphan),result);
+    const changesBefore=db.prepare('SELECT total_changes() n').get().n;
+    assert.deepEqual(shared.verify(orphan,result),result);
+    assert.equal(db.prepare('SELECT total_changes() n').get().n,changesBefore);
+    assert.throws(()=>shared.verify(orphan,{...result,receipt:{...result.receipt,headDigest:D('wrong')}}),{code:'ARCA_FORMATION_SHARED_STALE'});
+    assert.equal(store.readScope(scopeId).active_build_id,null);
+    assert.equal(store.build(build.objectId).digest,build.digest,'Immutable shared build history survives');
+    assert.equal(db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.series-presentation.retained-retirement@1'").get().n,1);
+  } finally {db.close();kernel.close();fs.rmSync(temporary,{recursive:true,force:true});}
+});

@@ -11,6 +11,7 @@ test('ended history merges immutable Run and no-Run pages across page boundaries
   const abandoned=Array.from({length:103},(_,i)=>({receipt_id:'subject-'+i,subject_id:'subject-'+i,
     commit_digest:'digest',committed_at_ms:999-i*2}));
   const unitOfWork={execute(participants){return Object.fromEntries(participants.map(p=>[p.participantId,p.execute({repository:()=>({invoke(name,args){
+    if(name==='retired_page')return Object.freeze([]);
     if(name==='discarded_page'||name==='abandoned_page')return Object.freeze((name==='discarded_page'?runs:abandoned).slice(args.offset,args.offset+args.limit));
     if(name==='runs')return args.values.map(id=>({libra_run_id:id,subject_id:id,state:'discarded',state_revision:2,state_digest:'state'}));
     if(name==='outcomes')return args.values.map(id=>({libra_run_id:id,outcome:'unable_to_on_deck',reason_code:'user_cancelled'}));

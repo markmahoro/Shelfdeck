@@ -78,6 +78,37 @@ test('Formation extracts Product Identity issues from the business result contra
   });
 });
 
+test('one overview reads shared counts and active Owner facts once and refreshes the next request',()=>{
+  const initial=[item(0),item(1,'attention_required'),item(2,'completed')];
+  const rows=initial.map(value=>buildFormationProjectionRow(value,1000));
+  const current=new Map(initial.map(value=>[value.subjectId,value]));
+  let countReads=0,historyReads=0;const ownerReads=[];
+  const store={
+    counts(){countReads++;return ['in_progress','attention_required','completed'].map(group_value=>({group_value,row_count:1}));},
+    listActiveScan(offset,limit){return rows.filter(row=>row.classification!=='completed').slice(offset,offset+limit);},
+    listCompleted(offset,limit){return rows.filter(row=>row.classification==='completed').slice(offset,offset+limit);},
+  };
+  const query=createFormationQuery({store,historyStore:{count(){historyReads++;return 7;}},
+    readPipelineSubjectIds:()=>new Set(initial.map(value=>value.subjectId)),
+    detailSource:{getMany(ids){ownerReads.push([...ids]);return ids.map(id=>current.get(id));}},now:()=>2000});
+  const first=query.overview();
+  assert.deepEqual(first.summary,{totalCount:3,inProgressCount:1,attentionRequiredCount:1,completedCount:1,endedCount:7});
+  assert.equal(first.attentionItems[0].subjectId,initial[1].subjectId);
+  assert.equal(first.completedItems[0].subjectId,initial[2].subjectId);
+  assert.equal(countReads,1,'Four overview sections share one grouped-count read.');
+  assert.equal(historyReads,1);
+  assert.equal(ownerReads.filter(ids=>ids.includes(initial[0].subjectId)).length,1,
+    'The completed section must not rebuild the active population for its summary.');
+  current.set(initial[0].subjectId,{...initial[0],classification:'attention_required',
+    nextAction:{label:'Action required',state:'attention_required',progress:null}});
+  const second=query.overview();
+  assert.equal(second.summary.inProgressCount,0);
+  assert.equal(second.summary.attentionRequiredCount,2);
+  assert.equal(second.attentionItems.length,2);
+  assert.equal(countReads,2,'A later request reads fresh Owner facts rather than a persistent cache.');
+  assert.equal(historyReads,2);
+});
+
 test('Formation explains Handoff B rejection without prescribing discard and repeat',()=>{
   assert.equal(frozenRunLabel([], { blockedWorks:[{ failureCode:'handoff_b_rejected' }] }),
     '收藏架验收未通过，本次整理未完成，请查看具体原因');
@@ -576,7 +607,7 @@ test('Formation never asks Perception to rate a cancelled Subject',()=>{
   assert.deepEqual(ratingCalls,[activeId]);
 });
 
-test('Formation active queue shows only pipeline-admitted Subjects without a Run',()=>{
+test('Formation keeps accepted active Subjects visible even without a pipeline token or Run',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-admission-')),databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
   try{
@@ -588,8 +619,8 @@ test('Formation active queue shows only pipeline-admitted Subjects without a Run
     store.upsert(buildFormationProjectionRow({...item(1,'in_progress'),currentRun:null},3001));
     const query=createFormationQuery({store,readPipelineSubjectIds:()=>new Set(['subject-001']),now:()=>4000,state:()=>({status:'ready',asOfMs:3999})});
     const active=query.list({section:'active',limit:25});
-    assert.deepEqual(active.items.map((row)=>row.subjectId),['subject-001']);
-    assert.deepEqual(active.summary,{totalCount:1,inProgressCount:1,attentionRequiredCount:0,completedCount:0,endedCount:0});
+    assert.deepEqual(active.items.map((row)=>row.subjectId),['subject-001','subject-000']);
+    assert.deepEqual(active.summary,{totalCount:2,inProgressCount:2,attentionRequiredCount:0,completedCount:0,endedCount:0});
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
@@ -665,7 +696,7 @@ test('Formation shelves as a checklist and names the write step while On-deck is
   assert.ok(done.every((item)=>item.state==='done'));
 });
 
-test('Formation hides discarded Subjects waiting for re-intake from the active list',()=>{
+test('Formation cannot hide an active Subject just because its last Run was discarded',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-abandon-')),databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});
   try{
@@ -682,13 +713,13 @@ test('Formation hides discarded Subjects waiting for re-intake from the active l
     store.upsert(buildFormationProjectionRow(item(1,'in_progress'),3001));
     const query=createFormationQuery({store,now:()=>4000,state:()=>({status:'ready',asOfMs:3999})});
     const active=query.list({section:'active'});
-    assert.deepEqual(active.items.map((row)=>row.subjectId),['subject-001']);
-    assert.equal(active.summary.inProgressCount,1);
-    assert.equal(active.summary.totalCount,1);
+    assert.deepEqual(active.items.map((row)=>row.subjectId),['subject-001','subject-000']);
+    assert.equal(active.summary.inProgressCount,2);
+    assert.equal(active.summary.totalCount,2);
   }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50});}
 });
 
-test('fresh discarded Runs leave active pages and counts while their history remains accessible', () => {
+test('formally ended Subjects leave active pages and counts while their system discard history remains accessible', () => {
   const rows = [3, 2, 1, 0].map((index) => buildFormationProjectionRow(item(index), 3000+index));
   const history = [{subjectId:'subject-003',libraRunId:'run-3',outcome:'system_discarded'}];
   const store = {
@@ -699,7 +730,7 @@ test('fresh discarded Runs leave active pages and counts while their history rem
   };
   const detailSource = {getMany:(ids) => ids.map((id) => {
     const index = Number(id.slice(-3));
-    return index >= 2 ? {...item(index), currentRun:null, handoffB:null,
+    return index >= 2 ? {...item(index), status:'ended', currentRun:null, handoffB:null,
       nextAction:{label:'等待重新入库',state:'pending',progress:null}} : item(index);
   })};
   let planReads = 0;

@@ -66,6 +66,13 @@ COPY --from=service-dependencies /app/resources/face-models ./resources/face-mod
 # Keep the configured executable path and preserve unknown-media rejection.
 RUN node -e "const fs=require('fs'),source=require('@ffprobe-installer/ffprobe').path,target='/usr/local/bin/ffprobe'; fs.unlinkSync(target); fs.copyFileSync(source,target); fs.chmodSync(target,0o755);"
 COPY media-service/src/server.js ./src/server.js
+COPY media-service/src/clean-poster-renderer.js ./src/clean-poster-renderer.js
+COPY media-service/scripts/formation-retirement-history.js ./scripts/formation-retirement-history.js
+COPY media-service/scripts/formation-retirement-journal.js ./scripts/formation-retirement-journal.js
+COPY media-service/scripts/formation-retirement-operator.js ./scripts/formation-retirement-operator.js
+COPY media-service/scripts/formation-retirement-plan.js ./scripts/formation-retirement-plan.js
+COPY media-service/scripts/helix-formation-retirement-schema-copy.js ./scripts/helix-formation-retirement-schema-copy.js
+COPY media-service/scripts/helix-architecture/formation-retirement-schema-copy.js ./scripts/helix-architecture/formation-retirement-schema-copy.js
 COPY media-service/src/admin-credential-secret-store.js ./src/admin-credential-secret-store.js
 COPY media-service/src/clean-service-host.js ./src/clean-service-host.js
 COPY media-service/src/clean-admin-static.js ./src/clean-admin-static.js

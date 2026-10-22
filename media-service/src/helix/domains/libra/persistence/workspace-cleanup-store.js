@@ -49,7 +49,7 @@ function fail(code, message, details) {
 }
 function triggerKey(decision) {
   const trigger=decision.triggerSnapshot;
-  return decision.triggerKind==='run_superseded'
+  return ['run_superseded','run_administratively_retired'].includes(decision.triggerKind)
     ?{trigger_ref:trigger.libraRunId,trigger_revision:trigger.terminalRevision,trigger_digest:trigger.terminalDigest}
     :{trigger_ref:trigger.offloadCompletionFact.factId,trigger_revision:trigger.projectionRevision,trigger_digest:trigger.projectionDigest};
 }
@@ -63,12 +63,12 @@ function libraDefinition(schemaManifest) {
       find_run: {
         kind: 'select-one', tableId: 'libra_runs',
         columns: [
-          'libra_run_id', 'state', 'state_revision', 'state_digest',
+          'libra_run_id', 'subject_id', 'state', 'state_revision', 'state_digest',
           'execution_basis_digest','supersedes_run_id','superseded_by_run_id',
         ],
         keyColumns: ['libra_run_id'], safeIntegers: true,
       },
-      run_revision:{kind:'select-one',tableId:'libra_run_revisions',columns:['transition_kind','transition_evidence_json',
+      run_revision:{kind:'select-one',tableId:'libra_run_revisions',columns:['transition_kind','transition_evidence_json','transition_decision_id','transition_decision_digest',
         'transition_evidence_digest','state','acceptance_spec_id','execution_basis_digest','run_scope_digest','priority_class','priority_intent_digest'],keyColumns:['libra_run_id','state_revision']},
       find_workspace: {
         kind: 'select-one', tableId: 'libra_workspaces',
@@ -274,6 +274,8 @@ function foundationDefinition(schemaManifest) {
     owner: 'execution-foundation',
     schemaManifest,
     statements: {
+      administrative_receipt:{kind:'select-one',tableId:'fx_command_receipts',keyColumns:['command_receipt_id'],
+        columns:['command_receipt_id','owner_domain','command_contract','target_type','target_id','request_digest','result_schema_ref','result_ref_json','result_digest']},
       works:{kind:'select-all',tableId:'fx_supporting_works',columns:['work_id','state'],keyColumns:['owner_domain','process_type','process_id']},
       events:{kind:'select-all',tableId:'fx_workflow_events',columns:['event_id'],keyColumns:['work_id']},
       attempts:{kind:'select-all',tableId:'fx_event_attempts',columns:['event_attempt_id'],keyColumns:['event_id']},
@@ -498,6 +500,43 @@ function createWorkspaceCleanupStore(options) {
       execute:context=>supersededFrom(context.repository(libra.repositoryId),libraRunId)}]).cleanup_superseded_read;
   }
 
+  function administrativeBasis(repo,libraRunId) {
+    const run=repo.invoke('find_run',{libra_run_id:libraRunId}),revision=run&&repo.invoke('run_revision',{libra_run_id:libraRunId,state_revision:Number(run.state_revision)});
+    if(run?.state!=='administratively_retired'||revision?.state!==run.state||revision.transition_kind!==run.state ||
+        runStateDigest({libraRunId,stateRevision:Number(run.state_revision),state:revision.state,acceptanceSpecId:revision.acceptance_spec_id,
+          executionBasisDigest:revision.execution_basis_digest,runScopeDigest:revision.run_scope_digest,priorityClass:revision.priority_class,
+          priorityIntentDigest:revision.priority_intent_digest,transitionKind:revision.transition_kind,
+          transitionEvidenceDigest:revision.transition_evidence_digest})!==run.state_digest)
+      fail('P14_CLEANUP_RETIREMENT_INVALID','Administrative cleanup requires the exact immutable terminal Run revision.');
+    const evidence=JSON.parse(revision.transition_evidence_json);
+    if(evidence.schema!=='libra.formation-retirement@1'||canonicalDigest(evidence)!==revision.transition_evidence_digest||
+        evidence.libraRunId!==libraRunId||evidence.subjectId!==run.subject_id||
+        canonicalDigest({contract:evidence.schema,retirementId:evidence.retirementId,subjectId:run.subject_id})!==revision.transition_decision_id)
+      fail('P14_CLEANUP_RETIREMENT_INVALID','Administrative cleanup lost its owning retirement evidence.');
+    return {resultKind:'administratively_retired',libraRunId,terminalRevision:Number(run.state_revision),terminalDigest:run.state_digest,
+      subjectId:run.subject_id,receiptId:revision.transition_decision_id,requestDigest:revision.transition_decision_digest,
+      backupDigest:evidence.backupDigest,manifestDigest:evidence.manifestDigest};
+  }
+  function administrativeReceipt(repo,basis) {
+    const row=repo.invoke('administrative_receipt',{command_receipt_id:basis.receiptId}),marker=repo.invoke('find_marker',{commit_marker:basis.receiptId});
+    const result=row&&JSON.parse(row.result_ref_json);
+    if(!row||row.owner_domain!=='libra'||row.command_contract!=='libra.formation-retirement@1'||row.target_type!=='subject'||row.target_id!==basis.subjectId||
+        row.request_digest!==basis.requestDigest||row.result_schema_ref!=='libra.formation-retirement-receipt@1'||
+        canonicalDigest(result)!==row.result_digest||result.resultKind!=='administratively_retired'||result.subjectId!==basis.subjectId||
+        result.backupDigest!==basis.backupDigest||result.manifestDigest!==basis.manifestDigest||
+        !marker||marker.owner_domain!=='libra'||marker.scope_type!=='subject'||marker.scope_id!==basis.subjectId||marker.commit_digest!==row.request_digest)
+      fail('P14_CLEANUP_RETIREMENT_INVALID','Administrative cleanup requires a verified Owner command receipt and commit marker.');
+    return {...basis,receiptDigest:row.result_digest};
+  }
+  function readAdministrative(libraRunId) {
+    let basis;
+    return options.unitOfWork.execute([
+      {participantId:'cleanup_retirement_basis',owner:'libra',repositories:[libra],execute:context=>{basis=administrativeBasis(context.repository(libra.repositoryId),libraRunId);}},
+      {participantId:'cleanup_retirement_receipt',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],
+        execute:context=>administrativeReceipt(context.repository(foundation.repositoryId),basis)},
+    ]).cleanup_retirement_receipt;
+  }
+
   function readLibraSnapshot(repo, libraRunId) {
     const run = repo.invoke('find_run', { libra_run_id: libraRunId });
     if (!run) fail('P14_CLEANUP_RUN_MISSING', 'Libra Run is absent.');
@@ -647,7 +686,7 @@ function createWorkspaceCleanupStore(options) {
       repositories: [foundation],
       execute(context) {
         const execution=context.repository(foundation.repositoryId);
-        if(decision.triggerKind==='run_superseded'){
+        if(['run_superseded','run_administratively_retired'].includes(decision.triggerKind)){
           for(const work of execution.invoke('works',{owner_domain:'libra',process_type:'libra_run',process_id:decision.libraRunRef.libraRunId})){
             if(!['succeeded','failed','cancelled'].includes(work.state))fail('P14_CLEANUP_EXECUTION_PENDING','Superseded Run still has unfinished Work.');
             for(const event of execution.invoke('events',{work_id:work.work_id}))
@@ -655,6 +694,11 @@ function createWorkspaceCleanupStore(options) {
                 if(execution.invoke('effects',{event_attempt_id:attempt.event_attempt_id}).some(effect=>!['committed','failed'].includes(effect.state)))
                   fail('P14_CLEANUP_EXECUTION_PENDING','Superseded Run still has an unresolved Effect.');
           }
+        }
+        if(decision.triggerKind==='run_administratively_retired') {
+          const {receiptDigest,...basis}=decision.triggerSnapshot;
+          if(administrativeReceipt(execution,basis).receiptDigest!==receiptDigest)
+            fail('P14_CLEANUP_RETIREMENT_INVALID','Administrative cleanup receipt changed.');
         }
         const replay = replayResult(
           context.repository(foundation.repositoryId),
@@ -671,6 +715,11 @@ function createWorkspaceCleanupStore(options) {
           decision.libraRunRef.libraRunId);
         if(decision.triggerKind==='run_superseded' && canonicalJson(supersededFrom(context.repository(libra.repositoryId),decision.libraRunRef.libraRunId))!==canonicalJson(decision.triggerSnapshot))
           fail('P14_CLEANUP_SUPERSEDED_INVALID','Superseded trigger changed before cleanup admission.');
+        if(decision.triggerKind==='run_administratively_retired') {
+          const {receiptDigest,...basis}=decision.triggerSnapshot;
+          if(canonicalJson(administrativeBasis(context.repository(libra.repositoryId),decision.libraRunRef.libraRunId))!==canonicalJson(basis))
+            fail('P14_CLEANUP_RETIREMENT_INVALID','Administrative Run trigger changed before cleanup admission.');
+        }
         if (canonicalJson(admissionSnapshot.run) !==
               canonicalJson(decision.libraRunRef) ||
             canonicalJson({
@@ -1412,6 +1461,7 @@ function createWorkspaceCleanupStore(options) {
 
   return Object.freeze({
     readSuperseded,
+    readAdministrative,
     admit,
     commit,
     currentWorkspace,
