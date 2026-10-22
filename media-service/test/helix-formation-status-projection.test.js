@@ -30,10 +30,13 @@ test('Arca Formation completion requires one On-deck Commit, Shelf Entry, and ma
     null,null,digest(2),'mandatory_media_failed',digest(3),digest(4),digest(5),10);
   receipt.run('receipt-pending','decision-pending','accepted','offer-pending','custody-pending','package-pending',digest(6),
     digest(7),digest(8),digest(9),null,digest(10),null,digest(11),11);
+  receipt.run('receipt-blocked','decision-blocked','accepted','offer-blocked','custody-blocked','package-blocked',digest(25),
+    digest(26),digest(27),digest(28),null,digest(29),null,digest(30),13);
   receipt.run('receipt-complete','decision-complete','accepted','offer-complete','custody-complete','package-complete',digest(12),
     digest(13),digest(14),digest(15),null,digest(16),null,digest(17),12);
   const run = database.prepare('INSERT INTO arca_ondeck_runs(on_deck_run_id,custody_id,final_inventory_decision_digest,state,created_at_ms,terminal_at_ms) VALUES(?,?,?,?,?,?)');
   run.run('run-pending','custody-pending',digest(18),'offloading',20,20);
+  run.run('run-blocked','custody-blocked',digest(31),'blocked',22,22);
   run.run('run-complete','custody-complete',digest(19),'committed',21,30);
   database.prepare('INSERT INTO arca_shelf_entries(shelf_entry_id,shelf_id,structure_kind,status,canonical_identity_revision,canonical_identity_key,current_inventory_revision,current_deck_fact_revision,created_at_ms,terminal_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)')
     .run('entry-complete','shelf','single','active',1,digest(20),1,1,30,null);
@@ -45,15 +48,26 @@ test('Arca Formation completion requires one On-deck Commit, Shelf Entry, and ma
   try {
     let workState = { open:false, latestState:'failed', failureCode:'P4_EVENT_INPUT_PREPARATION_FAILED' };
     const projection = createFormationStatusProjection({ schemaManifest, unitOfWork:createSqliteUnitOfWork({ kernel }),
-      workResultReader:{ scopedWorkStatus(scope) {
+      workResultReader:{ listWorks(scope) {
+        assert.equal(scope.processId, 'run-blocked');
+        return [{ work_id:'work-blocked', created_at_ms:1 }];
+      }, readFailures(workId) {
+        assert.equal(workId, 'work-blocked');
+        return [{ code:'CLEAN_ARCA_STAGE_TARGET_OCCUPIED', diagnostics:{ target:'occupied' } }];
+      }, scopedWorkStatus(scope) {
         assert.equal(scope.processId, 'run-pending');
         return workState;
       } },
     });
-    const result = projection.read(['offer-rejected', 'offer-pending', 'offer-complete', 'offer-without-receipt']);
+    const result = projection.read(['offer-rejected', 'offer-pending', 'offer-blocked', 'offer-complete', 'offer-without-receipt']);
     assert.equal(result.get('offer-rejected').stage, 'attention_required');
     assert.equal(result.get('offer-pending').stage, 'attention_required');
     assert.equal(result.get('offer-pending').reasonCode, 'P4_EVENT_INPUT_PREPARATION_FAILED');
+    assert.equal(result.get('offer-blocked').stage, 'attention_required');
+    assert.equal(result.get('offer-blocked').reasonCode, 'ARCA_ONDECK_BLOCKED');
+    assert.equal(result.get('offer-blocked').failureCode, 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED');
+    assert.equal(result.get('offer-blocked').retryAvailable, false);
+    assert.equal(result.get('offer-blocked').canRecheck, true);
     assert.equal(result.get('offer-complete').stage, 'completed');
     assert.equal(result.get('offer-complete').onDeckCommitReceipt.receiptId, 'commit-complete');
     assert.equal(result.has('offer-without-receipt'), false);

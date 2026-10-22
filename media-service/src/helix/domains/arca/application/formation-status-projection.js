@@ -69,6 +69,7 @@ function createFormationStatusProjection(options) {
     const ids = [...new Set((offerIds || []).filter((value) => typeof value === 'string' && value))].sort();
     if (ids.length > MAX_ITEMS) throw new RangeError('Arca Formation status projection page exceeds its bound.');
     if (!ids.length) return new Map();
+    const blockedRuns = [];
     const result = options.unitOfWork.execute([{
       participantId: 'arca_formation_status_read', owner: 'arca', repositories: [repository], execute(context) {
         const repo = context.repository(repository.repositoryId);
@@ -112,14 +113,7 @@ function createFormationStatusProjection(options) {
           }
           const run = acceptedRuns[0];
           if (run.state === 'blocked') {
-            const failure = blockedFailure(run.on_deck_run_id), failureCode = failure?.failureCode || null;
-            result.set(receipt.offer_id, Object.freeze({
-              stage: 'attention_required', reasonCode: 'ARCA_ONDECK_BLOCKED',
-              completedAtMs: null, shelfEntryId: null, onDeckRunId:run.on_deck_run_id,
-              failureCode, diagnostics:failure?.diagnostics || null,
-              retryAvailable: failureCode ? !NON_RETRYABLE.has(failureCode) : true,
-              canRecheck: failureCode ? RECHECKABLE.has(failureCode) : false,
-            }));
+            blockedRuns.push({ offerId: receipt.offer_id, onDeckRunId: run.on_deck_run_id });
             continue;
           }
           const commit = commits.find((row) => row.on_deck_run_id === run.on_deck_run_id);
@@ -147,6 +141,16 @@ function createFormationStatusProjection(options) {
         return result;
       },
     }]).arca_formation_status_read;
+    for (const blocked of blockedRuns) {
+      const failure = blockedFailure(blocked.onDeckRunId), failureCode = failure?.failureCode || null;
+      result.set(blocked.offerId, Object.freeze({
+        stage: 'attention_required', reasonCode: 'ARCA_ONDECK_BLOCKED',
+        completedAtMs: null, shelfEntryId: null, onDeckRunId: blocked.onDeckRunId,
+        failureCode, diagnostics: failure?.diagnostics || null,
+        retryAvailable: failureCode ? !NON_RETRYABLE.has(failureCode) : true,
+        canRecheck: failureCode ? RECHECKABLE.has(failureCode) : false,
+      }));
+    }
     if (typeof options.workResultReader?.scopedWorkStatus === 'function') {
       for (const [offerId, status] of result) {
         if (!status.onDeckRunId) continue;
