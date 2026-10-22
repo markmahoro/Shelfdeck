@@ -13,6 +13,15 @@ function fail(code, message, details) {
   throw new ExecutionRuntimeHostError(code, message, details);
 }
 
+function withRecoveryContext(error, eventId, effectId) {
+  if (!error || typeof error !== 'object') return error;
+  try {
+    return Object.assign(error, { details: { ...(error.details || {}), eventId: eventId || null, effectId: effectId || null } });
+  } catch {
+    return error;
+  }
+}
+
 function deferRecoveryUntilReady(action) {
   if (!action || typeof action.decision !== 'string') return false;
   if (action.decision === 'safe_retry_before_intent') return true;
@@ -347,7 +356,8 @@ function createExecutionRuntimeHost(options) {
       // A failed non-pure recovery may have changed physical reality before it
       // threw. Never replay a cached decision; observe the exact Effect again.
       if (pending.effectId) pending.action=null;
-      if (typeof options.onError === 'function') options.onError(error);
+      if (typeof options.onError === 'function') options.onError(withRecoveryContext(error,
+        pendingEventId, pending.effectId));
       return Object.freeze({ kind:'recovery_deferred', eventId:pendingEventId, error });
     }).finally(()=>{
       inFlightRecoveries.delete(pendingEventId);
@@ -528,7 +538,7 @@ function createExecutionRuntimeHost(options) {
               effectId:action.effectId||null, action:action.effectId?null:action,
               retryAtMs:Date.now() + recoveryRetryMs });
             deferred = true;
-            if (typeof options.onError === 'function') options.onError(error);
+            if (typeof options.onError === 'function') options.onError(withRecoveryContext(error, action.eventId, action.effectId));
           }
         }
         if (deferred) {
