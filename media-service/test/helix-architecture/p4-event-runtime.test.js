@@ -648,6 +648,20 @@ test('non-pure Executor crash enters exact online Effect recovery while releasin
   }, { effectClass:'external_request', dispatchError: new Error('executor crash') });
 });
 
+test('pure observation input drift retries with a fresh attempt instead of failing the Event', async () => {
+  await fixture(async ({ runtime, databasePath }) => {
+    const result = await runtime.recover({ eventId:'event', decision:'safe_retry' });
+    assert.equal(result.kind, 'failed'); assert.equal(result.eventState, 'ready');
+    const facts = databaseFacts(databasePath);
+    assert.equal(facts.event.state, 'ready');
+    assert.ok(facts.event.retry_at_ms > 0);
+    assert.equal(facts.attempt.state, 'completed'); assert.equal(facts.attempt.outcome_kind, 'failed');
+    assert.equal(facts.attempt.failure_code, 'P4_EVENT_RECOVERY_INPUT_DRIFT');
+    assert.equal(facts.results, 0);
+  }, { effectClass:'pure_observation', initialEventState:'executing', seedExecutingAttempt:true,
+    namedInputs:{ changed:'after-attempt' } });
+});
+
 test('unreconstructable recovery inputs fail the Event once instead of retrying forever', async () => {
   await fixture(async ({ runtime, databasePath, state }) => {
     const result = await runtime.recover({ eventId:'event', effectId:'effect', decision:'safe_retry' });
