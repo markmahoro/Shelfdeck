@@ -79,6 +79,7 @@ export function processFailureLabel(code: string, message?: string) {
     P4_OBSERVATION_RESULT_STORAGE_BOUND_EXCEEDED: '返回的信息超出处理上限',
     RECOVERY_EXECUTION_BUDGET_EXHAUSTED: '恢复处理超过允许时长',
     CLEAN_ARCA_STAGE_TARGET_OCCUPIED: '写入目标已被占用',
+    PRODUCT_IDENTITY_EDITION_REQUIRED:'无法从来源确定版本名，请手动指定版本名',
   };
   return known[code] || networkErrors[code] || recycleErrors[code]
     || (message && /[\u3400-\u9fff]/.test(message) && !message.includes(code) ? message : '具体失败原因暂不可用');

@@ -194,6 +194,22 @@ test('source edition tags distinguish same title-year inventory folders without 
   assert.equal(editionFromSourceDisplay('养蜂人 (2024) - 2160p HEVC Atmos TrueHD5.1', '养蜂人', 2024),
     '2160p HEVC Atmos TrueHD5.1');
   assert.equal(editionFromSourceDisplay('养蜂人 (2024)', '养蜂人', 2024), null);
+  assert.equal(editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015)/Movie (2015) - 1080p DTS.mkv']}), '1080p DTS');
+  assert.equal(editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015) [1080p FLAC]/Movie (2015).mkv']}), '1080p FLAC');
+  assert.equal(editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015) - GROUP/Movie (2015).mkv']}), 'GROUP');
+  assert.equal(editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015)/Movie (2015).mkv']}), null);
+  assert.equal(editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015) - GROUP (1)/Movie (2015).mkv']}), null);
+  assert.equal(editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015) - ' + 'a'.repeat(64) + '/Movie (2015).mkv']}), null);
+  const firstEdition=editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015) - 1080p DTS/Movie.mkv']});
+  assert.equal(firstEdition,editionFromSourceDisplay('Movie (2015)', 'Movie', 2015, {sourceLocations:[
+    '/media/Film/Movie (2015) - 1080p DTS/Movie.mkv']}));
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'clean-arca-edition-folder-'));
   try {
     const port = createCleanArcaInventoryPort({
