@@ -134,7 +134,8 @@ export default function FormationPage() {
   const selectedCareId=useRef<string|null>(null);
   const [pageRows,setPageRows]=useState<LedgerRow[]>([]),[pageIndex,setPageIndex]=useState(0),[hasNext,setHasNext]=useState(false),[pageLoading,setPageLoading]=useState(false);
   const positions=useRef<Array<WorkbenchCursor|undefined>>([undefined]),currentPage=useRef(0);
-  const hasLoadedPage=useRef(false);
+  // The full-page skeleton belongs to the first load only; filter switches keep the page shell.
+  const hasLoadedPage=useRef(false),hasEverLoaded=useRef(false);
   selectedCareId.current=selectedCare?.aftercareCaseId||null;
   useEffect(()=>{
     if(!linkedCaseId)return;
@@ -169,6 +170,7 @@ export default function FormationPage() {
     const filters={q:q.trim(),shelfId:shelfFilter},empty={items:[],nextCursor:null};
     const applyRows=(items:LedgerRow[])=>{
       if(!live())return;
+      hasEverLoaded.current=true;
       setPageRows(items);setLoading(false);
       setActive(items.flatMap(row=>row.kind==='formation'&&row.item.classification!=='completed'?[row.item]:[]));
       setCompleted(items.flatMap(row=>row.kind==='formation'&&row.item.classification==='completed'?[row.item]:[]));
@@ -303,7 +305,7 @@ export default function FormationPage() {
       await load();
     }catch(cause){setError(cause instanceof Error?cause.message:'操作失败。');}finally{setLoading(false);}
   };
-  if(!hasLoadedPage.current&&!active.length&&!completed.length&&!ended.length&&!careItems.length&&!pageRows.some(row=>row.kind==='correction')&&loading&&!error)return <LoadingState skeleton="rows">正在读取媒体整理工作区…</LoadingState>;
+  if(!hasEverLoaded.current&&!active.length&&!completed.length&&!ended.length&&!careItems.length&&!pageRows.some(row=>row.kind==='correction')&&loading&&!error)return <LoadingState skeleton="rows">正在读取媒体整理工作区…</LoadingState>;
   const counts:Record<Filter,number>={all:summary.totalCount+(summary.endedCount||0)+Object.values(careCounts).reduce((a,b)=>a+b,0)+Object.values(correctionCounts).reduce((a,b)=>a+b,0),in_progress:summary.inProgressCount+(careCounts.in_progress||0)+(careCounts.queued||0)+(correctionCounts.in_progress||0),attention_required:summary.attentionRequiredCount+(careCounts.attention_required||0)+(correctionCounts.attention_required||0),ended:summary.completedCount+(careCounts.completed||0)+(summary.endedCount||0)+(careCounts.ended||0)+(correctionCounts.completed||0)+(correctionCounts.ended||0)};
   return <section className="source-page workbench formation-page"><PageHeader title="媒体整理工作区" actions={<Button type="button" onClick={()=>void load()} disabled={loading}>{loading?'正在刷新…':'刷新'}</Button>} />
     {linkedCorrectionId&&<Button type="button" onClick={()=>setSearchParams({})}>显示全部任务</Button>}
