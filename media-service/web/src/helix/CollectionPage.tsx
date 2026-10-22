@@ -77,7 +77,7 @@ export default function CollectionPage() {
   const [loading, setLoading] = useState(true);
   const [hasResult, setHasResult] = useState(false);
   const [error, setError] = useState('');
-  const [seriesRetry,setSeriesRetry]=useState<CollectionEntry|null>(null);
+  const [seriesRetry,setSeriesRetry]=useState<{entry:CollectionEntry;canSupplyImages:boolean}|null>(null);
   const [selected, setSelected] = useState<CollectionEntry | null>(null);
   const [correctionItem, setCorrectionItem] = useState<CollectionEntry | null>(null);
   const [actorItem,setActorItem]=useState<CollectionEntry|null>(null);
@@ -255,7 +255,7 @@ export default function CollectionPage() {
           <div className="collection-rating"><span>观看状态</span><WatchedControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
           <section className="collection-health" aria-labelledby="collection-health-heading">
             <div className="collection-health-heading"><div><h3 id="collection-health-heading">收藏健康</h3></div>
-              {care?.sharedPresentation?.canRetry&&<Button type="button" disabled={checking} onClick={()=>{setSeriesRetry(selected);setSelected(null);}}>重试任务</Button>}
+              {care?.sharedPresentation?.canRetry&&<Button type="button" disabled={checking} onClick={()=>{setSeriesRetry({entry:selected,canSupplyImages:care?.sharedPresentation?.canSupplyImages===true});setSelected(null);}}>重试任务</Button>}
               {!care?.sharedPresentation?.canRetry&&<Button type="button" onClick={() => void checkHealth()} disabled={checking||care?.sharedPresentation?.state==='in_progress'}>{checking ? '已开始检查…' : '立即检查健康'}</Button>}
             </div>
             {!care ? <p className="health-loading">正在读取健康详情…</p> : (() => {
@@ -285,6 +285,6 @@ export default function CollectionPage() {
     </div>}
     {actorItem&&<UsAdultInventoryActorDialog item={actorItem} onClose={()=>setActorItem(null)} onChanged={actorChanged} onUnauthorized={expire}/>}
     {correctionItem&&<JavCorrectionDialog item={correctionItem} onClose={()=>setCorrectionItem(null)} onChanged={()=>void load()} onUnauthorized={expire}/>}
-    {seriesRetry&&<SeriesPresentationRetryDialog entry={seriesRetry} canSupplyImages={care?.sharedPresentation?.canSupplyImages} onClose={()=>{setSelected(seriesRetry);setSeriesRetry(null);}} onComplete={async()=>{setCare(await helixAdminApi.getCare(seriesRetry.shelfEntryId));await load(undefined,currentPage.current,true);}}/>}
+    {seriesRetry&&<SeriesPresentationRetryDialog entry={seriesRetry.entry} canSupplyImages={seriesRetry.canSupplyImages} onClose={()=>{setSelected(seriesRetry.entry);setSeriesRetry(null);}} onComplete={async()=>{setCare(await helixAdminApi.getCare(seriesRetry.entry.shelfEntryId));await load(undefined,currentPage.current,true);}}/>}
   </section>;
 }

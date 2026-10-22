@@ -277,4 +277,29 @@ describe('Arca collection poster wall', () => {
     expect(within(dialog).queryByText('entry-1')).not.toBeInTheDocument();
     expect(within(dialog).queryByText('最近一次自动修复未完成')).not.toBeInTheDocument();
   });
+
+  it('keeps the Owner image-supplement prohibition across the Collection retry transition', async () => {
+    const season={...entry,shelfEntryId:'series-collection-prohibited',structureKind:'season' as const,series:{seasonNumber:1,episodeCount:0,physicalFileCount:0,episodes:[]}},
+      care={shelfEntryId:season.shelfEntryId,health:{state:'attention_required'},basis:{inventoryRevision:1,standardRevision:1,placementRevision:1,careBasisDigest:'d'},history:{assessments:[],findings:[],cases:[],commits:[]},sharedPresentation:{state:'attention_required',canRetry:true,canSupplyImages:false,reasonCode:'series_shared_preparation_failed'}};
+    vi.spyOn(helixAdminApi,'listCollection').mockResolvedValue({items:[season]} as never);
+    vi.spyOn(helixAdminApi,'getCare').mockResolvedValue(care as never);
+    renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 The Shawshank Redemption 详情/}));
+    fireEvent.click(await screen.findByRole('button',{name:'重试任务',exact:true}));
+    const retry=await screen.findByRole('dialog',{name:'重试任务'});
+    expect(within(retry).queryByLabelText(/剧集海报/)).not.toBeInTheDocument();
+    expect(within(retry).queryByLabelText(/剧集背景/)).not.toBeInTheDocument();
+    expect(within(retry).getByRole('button',{name:'重试任务',exact:true})).toBeEnabled();
+  });
+
+  it('keeps image supplementation when the Owner allows it', async () => {
+    const season={...entry,shelfEntryId:'series-collection-allowed',structureKind:'season' as const,series:{seasonNumber:1,episodeCount:0,physicalFileCount:0,episodes:[]}},
+      care={shelfEntryId:season.shelfEntryId,health:{state:'attention_required'},basis:{inventoryRevision:1,standardRevision:1,placementRevision:1,careBasisDigest:'d'},history:{assessments:[],findings:[],cases:[],commits:[]},sharedPresentation:{state:'attention_required',canRetry:true,canSupplyImages:true,reasonCode:'series_shared_preparation_failed'}};
+    vi.spyOn(helixAdminApi,'listCollection').mockResolvedValue({items:[season]} as never);
+    vi.spyOn(helixAdminApi,'getCare').mockResolvedValue(care as never);
+    renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 The Shawshank Redemption 详情/}));
+    fireEvent.click(await screen.findByRole('button',{name:'重试任务',exact:true}));
+    const retry=await screen.findByRole('dialog',{name:'重试任务'});
+    expect(within(retry).getByLabelText(/剧集海报/)).toBeEnabled();
+    expect(within(retry).getByLabelText(/剧集背景/)).toBeEnabled();
+  });
 });
