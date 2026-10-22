@@ -207,6 +207,10 @@ class CleanServiceHostError extends Error {
   }
 }
 
+function resolveAftercareWorkspaceRoot({ explicitRoot, durableRoot, dataDir } = {}) {
+  return path.resolve(explicitRoot || durableRoot || path.join(dataDir, 'workspaces', 'aftercare'));
+}
+
 function assertAftercareWorkspaceRootAvailable(aftercareWorkspaceRoot, reservedRoots) {
   const authority = createPathAuthority(path);
   const canonicalize = (candidate) => {
@@ -1420,8 +1424,12 @@ async function createCleanServiceHost(options) {
     inspectRoot: (rootLocation) => localMountProbe.inspectRoot(rootLocation),
     now: options.now || Date.now,
   });
-  let aftercareWorkspaceRoot = path.resolve(options.aftercareWorkspaceRoot ||
-    path.join(options.dataDir, 'workspaces', 'aftercare'));
+  const durableAftercareWorkspaceRoot = locationRegistryRepository.getWorkspaceRoot('service-arca-aftercare-workspace');
+  let aftercareWorkspaceRoot = resolveAftercareWorkspaceRoot({
+    explicitRoot: options.aftercareWorkspaceRoot,
+    durableRoot: durableAftercareWorkspaceRoot?.resolvedRoot,
+    dataDir: options.dataDir,
+  });
   let platformIntegrations = null;
   let shelfDeregistrationExecution = null;
   let setupReadinessQuery = null;
@@ -2297,6 +2305,7 @@ module.exports = Object.freeze({
   createCleanServiceHost,
   createIntegrationSecretStore,
   createPlatformIntegrationServices,
+  resolveAftercareWorkspaceRoot,
   assertAftercareWorkspaceRootAvailable,
   normalizePerceptionSourceId,
   inspectCleanRuntimeReadiness,

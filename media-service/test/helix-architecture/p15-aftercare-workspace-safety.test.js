@@ -7,7 +7,21 @@ const path = require('node:path');
 const test = require('node:test');
 const {
   assertAftercareWorkspaceRootAvailable,
+  resolveAftercareWorkspaceRoot,
 } = require('../../src/clean-service-host');
+
+test('Aftercare Workspace root prefers its durable platform root over a different data-dir alias', () => {
+  assert.equal(resolveAftercareWorkspaceRoot({
+    durableRoot:'/srv/shelfdeck/aftercare', dataDir:'/var/lib/shelfdeck/data',
+  }), path.resolve('/srv/shelfdeck/aftercare'));
+  assert.equal(resolveAftercareWorkspaceRoot({
+    explicitRoot:'/srv/shelfdeck/aftercare-explicit',
+    durableRoot:'/srv/shelfdeck/aftercare', dataDir:'/var/lib/shelfdeck/data',
+  }), path.resolve('/srv/shelfdeck/aftercare-explicit'));
+  assert.equal(resolveAftercareWorkspaceRoot({
+    dataDir:'/var/lib/shelfdeck/data',
+  }), path.resolve('/var/lib/shelfdeck/data/workspaces/aftercare'));
+});
 
 test('Aftercare Workspace startup gate rejects overlap with any owner-projected active root', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'aftercare-root-gate-'));
