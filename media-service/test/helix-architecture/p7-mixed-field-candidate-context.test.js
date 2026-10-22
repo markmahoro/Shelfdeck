@@ -35,7 +35,7 @@ function relatedScope(parentRelativeLocation, stemKey, associationMode, relatedR
   return { ...value, scopeDigest:canonicalDigest({ schema:'procurement.related-scope@1', ...value }) };
 }
 
-function fixture({ primaryLocation, scopeRoot, scopeKind, associationMode, observed, relatedRuleRevision = 2, relatedScopeKind = 'ordinary_parent', relatedParentLocation = null, extraPrimaryLocation = null }) {
+function fixture({ primaryLocation, scopeRoot, scopeKind, associationMode, observed, relatedRuleRevision = 2, relatedScopeKind = 'ordinary_parent', relatedParentLocation = null, extraPrimaryLocation = null, contentProfile = null }) {
   const primaryIdentity = identity('primary', 1);
   const scopeKey = scopeKind === 'standalone_file'
     ? `standalone-file:${primaryLocation}`
@@ -137,6 +137,7 @@ function fixture({ primaryLocation, scopeRoot, scopeKind, associationMode, obser
   const entry = {
     unit:{
       unitId:'unit-1',
+      ...(contentProfile ? { contentProfile } : {}),
       relatedScope:scopeValueForUnit,
       members:[{
         materialKey:primaryIdentity.materialKey,
@@ -207,6 +208,18 @@ test('merged Candidate parent scope resolves physical directories and carries Ep
       observed('Other/Season 1/'+stem+'-thumb.jpg','foreign',4)]});
   assert.deepEqual(value.queriedScopes,[['run-1','Show/Season 1']]);
   assert.deepEqual(value.context.relatedReferences.map(item=>item.role).sort(),['nfo','sidecar']);
+});
+test('Series Season display files become exclusive related references anchored to one Primary',()=>{
+  const value=fixture({primaryLocation:'Show/Season 1/Show S01E01.mkv',extraPrimaryLocation:'Show/Season 1/Show S01E02.mkv',
+    scopeRoot:'Show/Season 1',scopeKind:'ordinary_directory',associationMode:'multi_movie_directory',relatedParentLocation:'@candidate',
+    contentProfile:'series',relatedRuleRevision:3,observed:[observed('Show/Season 1/poster.jpg','season-poster',2),
+      observed('Show/Season 1/season.nfo','season-nfo',3),observed('Show/Season 1/fanart.png','season-fanart',4),
+      observed('Show/Season 1/ignore.txt','season-ignore',5)]});
+  const references=value.context.relatedReferences;
+  assert.deepEqual(references.map(item=>item.role).sort(),['fanart','nfo','poster']);
+  assert.equal(new Set(references.map(item=>item.primaryMaterialKey)).size,1);
+  assert.equal(references.some(item=>item.location.endsWith('ignore.txt')),false);
+  assert.equal(references.every(item=>item.associationKind==='exclusive'&&item.dispositionRequired===true),true);
 });
 test('Episode sidecars bind their matching Primary rather than the first file in the Season',()=>{
   const result=fixture({primaryLocation:'Show/Season 1/Show.S01E01.mkv',extraPrimaryLocation:'Show/Season 1/Show.S01E02.mkv',

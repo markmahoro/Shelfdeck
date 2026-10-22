@@ -216,7 +216,7 @@ rather than an independently controlled Candidate member. Once an exclusive asso
 that Reference also establishes a Primary-dependent disposition obligation; it is not an exemption that may remain
 in the Field forever. The projection is partitioned by ordinary directory, BDMV root and BDMV external parent so a sidecar from one directory
 cannot be associated with a different Candidate; BDMV internal Playlist/Clipinfo/Stream/index/MovieObject entries are
-structural members only and are filtered from Related Material.
+structural members only and are filtered from Related Material. Related rule revision 3 additionally admits only a Season directory's generic `poster.<ext>`, `fanart.<ext>` and `season.nfo` as exclusive Season display references anchored to that Season's stable first Episode Primary; episode-scoped or arbitrary artwork is not admitted by this rule.
 
 ### Incremental Eligibility amendment (2026-08-10)
 
