@@ -9,9 +9,8 @@ const {writeAtomic}=require('../src/clean-runtime-operations');
 const {inspectPlan,applyReset,assertSafeTranscodeRoot}=require('./helix-formation-reset');
 
 function fail(code,message){throw Object.assign(new Error(message),{code,statusCode:409});}
-const activeStates=new Set(['active','suspended','frozen']);
 const blockerLabels={FORMATION_RESET_COMMITTED_SUBJECT_REFUSED:'整理关联已有正式收藏，不能以Reset清除。',
-  RESET_ENDED_HISTORY_OVERLAP:'这些整理关联已结束的历史，不能清理。',RESET_UNRESOLVED_EFFECT:'存在尚未确认的文件操作，不能清除。',
+  RESET_ENDED_HISTORY_OVERLAP:'已完成/已结束历史不能清理。',RESET_UNRESOLVED_EFFECT:'存在尚未确认的文件操作，不能清除。',
   RESET_UNSCOPED_RESPONSIBILITY:'存在无法归属到清单的整理残留，须先核查，不能清理。'};
 
 function createUserFormationReset(options){
@@ -21,16 +20,18 @@ function createUserFormationReset(options){
     try {
       const selected=db.prepare(`SELECT s.subject_id,s.content_profile,p.display_identity
         FROM libra_subjects s LEFT JOIN libra_formation_projections p ON p.subject_id=s.subject_id
-        WHERE s.status='active' AND (EXISTS(SELECT 1 FROM libra_runs r WHERE r.subject_id=s.subject_id AND r.state IN ('active','suspended','frozen'))
-          OR NOT EXISTS(SELECT 1 FROM libra_runs r WHERE r.subject_id=s.subject_id))
+        WHERE s.status='active' AND (
+          p.classification IN ('in_progress','attention_required')
+          OR (p.subject_id IS NULL AND (EXISTS(SELECT 1 FROM libra_runs r WHERE r.subject_id=s.subject_id AND r.state IN ('active','suspended','frozen'))
+            OR NOT EXISTS(SELECT 1 FROM libra_runs r WHERE r.subject_id=s.subject_id))))
         UNION ALL SELECT token.subject_id,'unknown',NULL FROM libra_predeck_pipeline_tokens token
           LEFT JOIN libra_subjects s ON s.subject_id=token.subject_id WHERE s.subject_id IS NULL
         ORDER BY 1`).all();
       const ids=selected.map(row=>row.subject_id);let plan=null,blockers=[];
       if(ids.length){try{plan=inspectPlan(db,{subjectIds:ids});blockers=[...plan.blockers];}
         catch(error){if(error.message==='FORMATION_RESET_COMMITTED_SUBJECT_REFUSED')blockers.push({code:error.message});else throw error;}}
-      if(plan){const runs=db.prepare('SELECT libra_run_id,state FROM libra_runs').all();
-        if(runs.some(row=>plan.scope.runIds.includes(row.libra_run_id)&&!activeStates.has(row.state)))blockers.push({code:'RESET_ENDED_HISTORY_OVERLAP'});}
+      const completedSubjects=new Set(db.prepare("SELECT subject_id FROM libra_formation_projections WHERE classification='completed'").all().map(row=>row.subject_id));
+      if(ids.some(id=>completedSubjects.has(id)))blockers.push({code:'RESET_ENDED_HISTORY_OVERLAP'});
       const unresolved=db.prepare("SELECT count(*) n FROM fx_effect_journal WHERE effect_class!='pure' AND state IN ('intended','effect_observed','reconcile_required')").get().n;
       if(unresolved)blockers.push({code:'RESET_UNRESOLVED_EFFECT'});
       const includedWorks=new Set((plan?.scope.works||[]).map(row=>row.work_id));
@@ -132,7 +133,16 @@ function createUserFormationReset(options){
       if(captured.value.previewDigest!==preview.previewDigest||!captured.value.ready)fail('RUNTIME_RESET_PREVIEW_STALE','备份后清理范围发生变化，未执行Reset。');
       await beforeApply(saved);const db=new Database(databasePath);
       try{const result=applyReset({database:db,dataDir:options.dataDir,transcodeDir:options.workspaceRoot,subjectIds:captured.subjectIds});
-        return {...saved,removedSubjects:captured.value.counts.subjects,removedRunIds:captured.plan.scope.runIds,verification:result.verification};
+        const resetId='formation-reset-'+crypto.randomUUID();
+        const receipt={schema:'shelfdeck.user-formation-reset-receipt@1',resetId,backupId:saved.backupId,
+          previewDigest:preview.previewDigest,scopeDigest:captured.value.scopeDigest,
+          removedSubjects:captured.value.counts.subjects,removedRuns:captured.plan.scope.runIds.length,
+          removedWorkspaces:captured.plan.scope.workspaceIds.length,counts:captured.value.counts,
+          protected:captured.value.protected,verification:result.verification,createdAt:new Date().toISOString()};
+        const receiptDirectory=path.join(options.dataDir,'reset-receipts');
+        await fs.promises.mkdir(receiptDirectory,{recursive:true,mode:0o700});
+        writeAtomic(path.join(receiptDirectory,resetId+'.json'),receipt);
+        return {...saved,resetId,receipt,removedSubjects:captured.value.counts.subjects,removedRunIds:captured.plan.scope.runIds,verification:result.verification};
       }finally{db.close();}
     },
   });

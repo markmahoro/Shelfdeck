@@ -49,9 +49,9 @@ describe('Arca collection poster wall', () => {
       care={shelfEntryId:season.shelfEntryId,health:{state:'attention_required'},basis:{inventoryRevision:1,standardRevision:1,placementRevision:1,careBasisDigest:'d'},history:{assessments:[],findings:[],cases:[],commits:[]},sharedPresentation:{state:'attention_required',canRetry:true,canSupplyImages:false,reasonCode:'series_shared_preparation_failed'}};
     vi.spyOn(helixAdminApi,'listCollection').mockImplementation(async()=>{if(failReads)throw new Error('GET failed');return {items:[season]};});vi.spyOn(helixAdminApi,'listPerceptionRecords').mockResolvedValue({items:[],nextCursor:null,currentRating:null});vi.spyOn(helixAdminApi,'getCare').mockResolvedValue(care as never);
     const post=vi.spyOn(helixAdminApi,'checkCare').mockImplementation(async()=>{failReads=true;return {} as never;});renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 The Shawshank Redemption 详情/}));
-    fireEvent.click(await screen.findByRole('button',{name:'重试任务',exact:true}));const retry=screen.getByRole('dialog',{name:'重试任务'});fireEvent.click(within(retry).getByRole('button',{name:'重试任务',exact:true}));
+    fireEvent.click(await screen.findByRole('button',{name:'重试上架',exact:true}));const retry=screen.getByRole('dialog',{name:'重试上架'});fireEvent.click(within(retry).getByRole('button',{name:'重试上架',exact:true}));
     expect(await within(retry).findByRole('alert')).toHaveTextContent('任务已受理，状态读取失败');expect(post).toHaveBeenCalledTimes(1);failReads=false;
-    fireEvent.click(within(retry).getByRole('button',{name:'刷新状态',exact:true}));await waitFor(()=>expect(screen.queryByRole('dialog',{name:'重试任务'})).not.toBeInTheDocument());expect(post).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(retry).getByRole('button',{name:'刷新状态',exact:true}));await waitFor(()=>expect(screen.queryByRole('dialog',{name:'重试上架'})).not.toBeInTheDocument());expect(post).toHaveBeenCalledTimes(1);
   });
 
   it('updates the Actor dialog from the exact current Entry after refresh even when the wall no longer contains it',async()=>{
@@ -284,11 +284,11 @@ describe('Arca collection poster wall', () => {
     vi.spyOn(helixAdminApi,'listCollection').mockResolvedValue({items:[season]} as never);
     vi.spyOn(helixAdminApi,'getCare').mockResolvedValue(care as never);
     renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 The Shawshank Redemption 详情/}));
-    fireEvent.click(await screen.findByRole('button',{name:'重试任务',exact:true}));
-    const retry=await screen.findByRole('dialog',{name:'重试任务'});
+    fireEvent.click(await screen.findByRole('button',{name:'重试上架',exact:true}));
+    const retry=await screen.findByRole('dialog',{name:'重试上架'});
     expect(within(retry).queryByLabelText(/剧集海报/)).not.toBeInTheDocument();
     expect(within(retry).queryByLabelText(/剧集背景/)).not.toBeInTheDocument();
-    expect(within(retry).getByRole('button',{name:'重试任务',exact:true})).toBeEnabled();
+    expect(within(retry).getByRole('button',{name:'重试上架',exact:true})).toBeEnabled();
   });
 
   it('keeps image supplementation when the Owner allows it', async () => {
@@ -297,8 +297,8 @@ describe('Arca collection poster wall', () => {
     vi.spyOn(helixAdminApi,'listCollection').mockResolvedValue({items:[season]} as never);
     vi.spyOn(helixAdminApi,'getCare').mockResolvedValue(care as never);
     renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 The Shawshank Redemption 详情/}));
-    fireEvent.click(await screen.findByRole('button',{name:'重试任务',exact:true}));
-    const retry=await screen.findByRole('dialog',{name:'重试任务'});
+    fireEvent.click(await screen.findByRole('button',{name:'重试上架',exact:true}));
+    const retry=await screen.findByRole('dialog',{name:'重试上架'});
     expect(within(retry).getByLabelText(/剧集海报/)).toBeEnabled();
     expect(within(retry).getByLabelText(/剧集背景/)).toBeEnabled();
   });

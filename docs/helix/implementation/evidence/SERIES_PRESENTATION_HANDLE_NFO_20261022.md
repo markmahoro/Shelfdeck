@@ -67,3 +67,15 @@
 ## 状态
 
 OPEN。等待修复提交、回归、生产重试验收；两条目标冲突按独立操作项处理。
+
+## 2026-10-23 代码修复与定向回归
+
+已按上述方向实施：
+
+1. `integration-profile-catalog` 的 tmdb profile 增加 `artifactOperations`，明确声明 `arca.series_presentation.source.observe@1` 与 `assets.prepare@1` 可携带 `artifactKind`；`integration-runtime` 对声明操作允许 `null` 或 `poster|fanart`，未声明操作仍要求 `null`，`*.artifact.acquire@1` 仍要求非空合法 kind。未在 resolver 硬编码 Series 特例。
+2. `series-presentation-io.nfoIdentity` 允许 `season`/`episode` 及其 `_number` 变体的 `-1` 占位；真实季/集值、`episodedetails` 仍拒绝。
+3. 回归新增真实 `integration-runtime` Handle 用例（source/assets + poster/fanart + 非 artifact 操作拒收）和 NFO `-1` 正例、`episodedetails` 负例。
+
+定向结果：`series-shared-presentation.test.js` + `p14-h1-tmdb-integration.test.js` 共 **20/20 PASS**。本轮后续将随 Form 工作台 Reset 扩展一并部署；部署后对 5 条现有条目以新代码重试验收，若仍失败则保留 OPEN，不以 Reset 掩盖。
+
+状态更新：`FIXED IN CODE / VERIFICATION PENDING DEPLOYMENT`；生产尚未变更。

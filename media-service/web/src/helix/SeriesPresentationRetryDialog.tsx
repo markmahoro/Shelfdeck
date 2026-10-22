@@ -74,9 +74,9 @@ export default function SeriesPresentationRetryDialog({item,entry,canSupplyImage
     }finally{busyRef.current=false;setBusy(false);}
   }
   const locked=busy||phase!=='editing';
-  return <Dialog dialogRef={dialog} open title="重试任务" onClose={()=>{if(!busyRef.current)onClose();}} actions={<>
+  return <Dialog dialogRef={dialog} open title="重试上架" onClose={()=>{if(!busyRef.current)onClose();}} actions={<>
     <Button type="button" variant="text" disabled={busy} onClick={onClose}>返回</Button>
-    <Button type="button" disabled={busy} onClick={()=>void submit()}>{busy?'正在提交…':phase==='accepted'?'刷新状态':phase==='unknown'?'确认提交结果':'重试任务'}</Button>
+    <Button type="button" disabled={busy} onClick={()=>void submit()}>{busy?'正在提交…':phase==='accepted'?'刷新状态':phase==='unknown'?'确认提交结果':'重试上架'}</Button>
   </>}>
     <div className="stack" aria-busy={busy}><p>{item?.displayIdentity||entry?.displayIdentity}</p>
       {canSupplyImages&&<>

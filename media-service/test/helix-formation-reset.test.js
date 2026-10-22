@@ -14,17 +14,19 @@ const { applyReset, assertSafeTranscodeRoot, inspectPlan, verifyFrozenManifest }
 const {createUserFormationReset}=require('../scripts/user-formation-reset');
 const {createUserFormationResetWorkerPort}=require('../src/clean-formation-reset-port');
 
-test('user Reset refuses protected ended Run overlap and unscoped detached responsibility',()=>{
+test('user Reset selects current workbench and excludes terminal-only history',()=>{
   const f=fixture('user-reset-protection');
   try{
     const active=seedSubjectRun(f.database,'active'),ended=seedSubjectRun(f.database,'history','discarded');
-    f.database.prepare('UPDATE libra_runs SET subject_id=?,admission_revision=2 WHERE libra_run_id=?').run(active.subjectId,ended.runId);
     const port=createUserFormationReset({dataDir:f.dataDir,workspaceRoot:f.transcodeDir});
-    assert.ok(port.preview().blockers.some(row=>row.code==='RESET_ENDED_HISTORY_OVERLAP'));
+    const preview=port.preview();assert.equal(preview.ready,true,JSON.stringify(preview));
+    assert.deepEqual(preview.items.map(row=>row.subjectId),[active.subjectId]);
+    assert.equal(preview.protected.endedRunCount,1);
     const work=seedExecution(f.database,'libra','libra_run','missing-run','detached');
     f.database.prepare("UPDATE fx_effect_journal SET effect_class='pure' WHERE event_attempt_id=?").run(work.eventAttemptId);
-    const preview=port.preview();assert.equal(preview.ready,false);assert.ok(preview.blockers.some(row=>row.code==='RESET_UNSCOPED_RESPONSIBILITY'));
+    const blocked=port.preview();assert.equal(blocked.ready,false);assert.ok(blocked.blockers.some(row=>row.code==='RESET_UNSCOPED_RESPONSIBILITY'));
     assert.equal(f.database.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
+    assert.ok(f.database.prepare('SELECT 1 FROM libra_runs WHERE libra_run_id=?').get(ended.runId));
   }finally{close(f);}
 });
 
@@ -58,7 +60,10 @@ test('user Reset backs up selected workspaces and preserves ended history and so
     assert.deepEqual(f.database.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(ended.runId),history);
     const backup=path.join(f.dataDir,'operator-backups',result.backupId);
     assert.equal(fs.readFileSync(path.join(backup,'workspaces',active.workspaceId,'partial.mkv'),'utf8'),'workspace');
-    assert.ok(fs.existsSync(path.join(backup,'receipt.json')));assert.equal(port.preview().empty,true);
+    assert.ok(fs.existsSync(path.join(backup,'receipt.json')));
+    const resetReceipt=path.join(f.dataDir,'reset-receipts',result.resetId+'.json');
+    assert.ok(fs.existsSync(resetReceipt));assert.equal(JSON.parse(fs.readFileSync(resetReceipt,'utf8')).removedSubjects,1);
+    assert.equal(port.preview().empty,true);
   }finally{close(f);}
 });
 

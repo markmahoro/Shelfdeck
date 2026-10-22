@@ -7,7 +7,8 @@
 .runtime-reset-dialog h2 { margin:0 0 16px; }
 .runtime-reset-items { max-height:260px;overflow:auto;padding-left:24px; }
 .runtime-reset-items li { padding:5px 0; }
-.runtime-reset-confirm { display:flex;align-items:flex-start;gap:8px;margin:18px 0; }
+.runtime-reset-confirm { display:grid;gap:8px;margin:18px 0; }
+.runtime-reset-confirm input { width:min(100%,240px); }
 .runtime-reset-actions { justify-content:flex-end;margin-top:20px; }
 @media(max-width:600px){.runtime-controls { align-items:stretch;flex-direction:column; }.runtime-control-actions .btn { flex:1; }.runtime-reset-dialog { padding:18px; }}
 @media(prefers-reduced-motion:reduce){.runtime-controls[aria-busy="true"] .runtime-control-state strong { animation:none; }}

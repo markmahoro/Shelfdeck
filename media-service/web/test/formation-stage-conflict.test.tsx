@@ -6,7 +6,7 @@ import { helixAdminApi, type FormationSubject } from '../src/helix/api';
 
 afterEach(() => vi.restoreAllMocks());
 
-it('shows a conflict action instead of retry for a deterministic stage collision', async () => {
+it('offers one direct retry for a deterministic stage collision', async () => {
   const summary = { totalCount: 1, inProgressCount: 0, attentionRequiredCount: 1, completedCount: 0, endedCount: 0 };
   const projection = { status: 'ready' as const, asOfMs: 100 };
   const item = {
@@ -32,9 +32,10 @@ it('shows a conflict action instead of retry for a deterministic stage collision
 
   render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
   expect(await screen.findByText('冲突影片 (2024)')).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: '处理冲突' })).not.toBeInTheDocument();
   expect(screen.queryByRole('button', { name: '重试任务' })).not.toBeInTheDocument();
-  fireEvent.click(screen.getByRole('button', { name: '处理冲突' }));
-  expect(await screen.findByRole('dialog', { name: '处理目标位置冲突' })).toBeInTheDocument();
-  expect(screen.getByText('/media/Film/冲突影片 (2024)/冲突影片.mkv')).toBeInTheDocument();
-  await waitFor(() => expect(screen.getByRole('button', { name: '重新检查' })).toBeDisabled());
+  const retry = vi.spyOn(helixAdminApi, 'retryAcceptance').mockResolvedValue({} as never);
+  fireEvent.click(screen.getByRole('button', { name: '重试上架' }));
+  await waitFor(() => expect(retry).toHaveBeenCalledWith(item));
+  expect(screen.queryByRole('dialog', { name: '处理目标位置冲突' })).not.toBeInTheDocument();
 });

@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-23本轮修复与兜底Reset检查点：用户确认本轮修5个剧集呈现缺陷、重试UI映射和Formation Reset范围扩展，性能留待后续。已实现：剧集`source.observe`/`assets.prepare`的合法Integration Handle artifact操作、`tvshow.nfo` `-1`占位不误判（20项定向PASS）；媒体整理行改为“重试接收/重试整理/重试上架”，移除“处理冲突”（49项Web定向PASS）；Reset按当前工作台`in_progress|attention_required`+pending intake选择，覆盖Accepted未Commit，保留收藏/历史/Aftercare/源文件，增加全量备份与durable receipt，概览按钮改为“重置工作台”并只要求一次确认词（Reset 40项PASS、Runtime UI 6项PASS）。尚未执行生产Reset、未部署；完整服务/Web Gate与副本演练待跑。
+
 2026-10-22最终历史验真收口：回收原子提交后退出的输入漂移已修，4类真实重启、Service648/29 skip、Linux18、Windows独立Host均通过。生产副本定位6c当前Catalog未入终态档案：沿用Frozen Catalog History精确归档120执行合同/1324 Schema，仅验真终态，不允许旧在途继续；历史证明与Owner/active/篡改负例71 PASS。16个未Commit Subject的限定Reset只在独立副本预览ready，生产未执行；原样全副本启动FAIL保留。最终固定Gate及平台/UI资格继续，三UAT尚未关闭或发布。详见UAT-328 Evidence §23。
 
 2026-10-22最终资格追加：328真实上架、补图重试、缺项维护、跨季复用与共享退出均已接通；5eaf具体版本UI负责人38/38、Web258、Linux17、Windows包及真实浏览器通过。新增回收原子提交后进程退出复现输入漂移，正在以原登记修订稳定投影修复并重新冻结最终Gate。完整旧生产副本Host启动未通过，结构前向/反向复制及224业务表保护通过；不将隔离legacy-shape维护测试冒充完整生产副本资格。三项UAT开放，未部署/未Reset/未补写生产。详见UAT-328设计Evidence §22。
@@ -91,7 +93,9 @@
 | `JAV-STABLE-SOURCE-RECOVERY`（UAT-326） | 无业务变化的JAV观察/元数据/图片Event跨TTL和重启可恢复，配置变化仍拒绝；旧在途事件不靠改摘要修复 | 三条稳定来源路径及跨TTL真实进程恢复/一次Commit通过；旧生产条目收束与最终发布资格未完成，不关闭UAT |
 | `PROCUREMENT-COMPLETE-GROUP-SLICING`（UAT-327） | 分类目录下多剧多季完整分组后确定性分批；所有材料无重无漏；真实完整组1024上限不变 | 真实Procurement Host 1081媒体/22剧/65完整季包/2Run及既有P7回归通过；最终资格与生产验收继续 |
 | `SERIES-SHARED-PRESENTATION`（UAT-328） | 剧根三项真实完整、跨季/新集复用、共享归属/维护/退出全生命周期可达 | 上架、重试补图、来源代际、维护、共享Control/历史引用及两类退出已接正式Host；定向证据见§20，最终固定Gate/平台/具体版本UI与生产旧根验收继续 |
-| `SERIES-PRESENTATION-HANDLE`（隶属 `SERIES-SHARED-PRESENTATION`） | 剧集公共资料取图使用合法 Integration Handle；既有 tvshow.nfo 的 `-1` 占位不被误判；真实 Handle 校验回归 | 开放：2026-10-22 生产 5 条失败，根因已定位；[Evidence](evidence/SERIES_PRESENTATION_HANDLE_NFO_20261022.md) |
+| `SERIES-PRESENTATION-HANDLE`（隶属 `SERIES-SHARED-PRESENTATION`） | 剧集公共资料取图使用合法 Integration Handle；既有 tvshow.nfo 的 `-1` 占位不被误判；真实 Handle 校验回归 | 代码修复完成：profile `artifactOperations` + NFO `-1` 接受；20项定向PASS；待全量Gate/发布 |
+| `RETRY-ACTION-MAPPING` | 媒体整理行按阶段显示“重试接收/重试整理/重试上架”；删除“处理冲突”对话框，失败原因留在查看过程 | 已实现；Web定向49项PASS；待全量/发布 |
+| `FORMATION-RESET-WORKBENCH` | 当前工作台兜底Reset：`in_progress` + `attention_required` + pending intake，含Accepted未Commit；保留收藏/历史/Aftercare/源文件，释放Arca custody/on-deck/target | 已实现scope/receipt/UI；Reset 40项、Runtime UI 6项PASS；待副本演练/生产授权 |
 | `JAV-ACTOR-COMPLETENESS` | 来源演员保留；缺失时统一真实未知演员；Cast/NFO/收藏/相关作品一致，无伪造来源身份 | 本地开发及适用Windows/浏览器PASS；产品7b318具体版本UI负责人8/8接受，未发布 |
 | `US-CONTRACT-BASELINE` | 五个议题映射至 Owner、命令、事实、Effect、恢复和验收；SSOT 与派生合同一致，负例与 Architecture Gate 通过 | PASS：SSOT及派生合同、Owner/Effect/恢复负例及固定0c82ee862原始完整Gate通过 |
 | `US-PEOPLE` | 三库独立；普通/JAV 零用户介入；US Adult 有图手动/辅助建档、编辑、每轮最多五位推荐；认领来源影片无二次确认 | 本地实现及适用工程资格PASS；范围限制见下文 |

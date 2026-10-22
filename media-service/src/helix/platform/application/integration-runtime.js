@@ -22,6 +22,16 @@ const HANDLE_OPERATIONS = new Set(TMDB_PROFILE.allowedOperations);
 const SECRET_LOCATOR =
   /^integration-envelope:[0-9a-f-]{36}:([0-9a-f]{64})$/;
 
+function artifactKindAllowed(profile, operationId, artifactKind) {
+  if (operationId.endsWith('artifact.acquire@1')) {
+    return profile.artifactKinds.includes(artifactKind);
+  }
+  if ((profile.artifactOperations || []).includes(operationId)) {
+    return artifactKind === null || profile.artifactKinds.includes(artifactKind);
+  }
+  return artifactKind === null;
+}
+
 class IntegrationRuntimeError extends Error {
   constructor(code, message, details = {}) {
     super(message);
@@ -297,11 +307,7 @@ function createIntegrationRuntime(options) {
           !Number.isSafeInteger(input.configRevision) ||
           input.configRevision < 1 ||
           !operationSet.has(input.allowedOperation) ||
-          (input.allowedOperation.endsWith(
-            'artifact.acquire@1',
-          )
-            ? !profile.artifactKinds.includes(input.artifactKind)
-            : input.artifactKind !== null)) {
+          !artifactKindAllowed(profile, input.allowedOperation, input.artifactKind)) {
         fail(
           'PLATFORM_INTEGRATION_HANDLE_INVALID',
           'Integration Handle request is invalid.',

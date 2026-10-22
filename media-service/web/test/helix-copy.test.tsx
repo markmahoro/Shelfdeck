@@ -69,11 +69,11 @@ describe('Helix primary copy and workbench structure', () => {
     vi.spyOn(helixAdminApi,'listFormation').mockImplementation(async section=>{if(failReads)throw new Error('GET failed');return {items:section==='active'?[item]:[],summary,nextCursor:null,projection};});
     vi.spyOn(helixAdminApi,'listFormationHistory').mockResolvedValue({items:[],summary,nextCursor:null,projection});vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
     const post=vi.spyOn(helixAdminApi,'retryAcceptance').mockImplementation(async()=>{failReads=true;return {} as never;});
-    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);fireEvent.click(await screen.findByRole('button',{name:'重试任务',exact:true}));
-    let dialog=screen.getByRole('dialog',{name:'重试任务'});fireEvent.click(within(dialog).getByRole('button',{name:'重试任务',exact:true}));
+    render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);fireEvent.click(await screen.findByRole('button',{name:'重试上架',exact:true}));
+    let dialog=screen.getByRole('dialog',{name:'重试上架'});fireEvent.click(within(dialog).getByRole('button',{name:'重试上架',exact:true}));
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('任务已受理，状态读取失败');expect(post).toHaveBeenCalledTimes(1);
-    fireEvent.click(within(dialog).getByRole('button',{name:'返回',exact:true}));fireEvent.click(screen.getByRole('button',{name:'重试任务',exact:true}));dialog=screen.getByRole('dialog',{name:'重试任务'});
-    failReads=false;fireEvent.click(within(dialog).getByRole('button',{name:'刷新状态',exact:true}));await waitFor(()=>expect(screen.queryByRole('dialog',{name:'重试任务'})).not.toBeInTheDocument());expect(post).toHaveBeenCalledTimes(1);
+    fireEvent.click(within(dialog).getByRole('button',{name:'返回',exact:true}));fireEvent.click(screen.getByRole('button',{name:'重试上架',exact:true}));dialog=screen.getByRole('dialog',{name:'重试上架'});
+    failReads=false;fireEvent.click(within(dialog).getByRole('button',{name:'刷新状态',exact:true}));await waitFor(()=>expect(screen.queryByRole('dialog',{name:'重试上架'})).not.toBeInTheDocument());expect(post).toHaveBeenCalledTimes(1);
   });
 
   it('keeps an Intake task in the same list through retry and Subject acceptance',async()=>{
@@ -94,13 +94,13 @@ describe('Helix primary copy and workbench structure', () => {
       .mockRejectedValueOnce(new Error('response lost')).mockImplementation(async()=>{stage='running';return {kind:'admitted'};});
     const oldList=vi.spyOn(helixAdminApi,'listPreparationFailures');
     render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
-    const button=await screen.findByRole('button',{name:'重试任务'});
+    const button=await screen.findByRole('button',{name:'重试接收'});
     expect(screen.queryByRole('button',{name:'准备异常'})).not.toBeInTheDocument();
     fireEvent.click(button);expect(await screen.findByText('当前资源忙，请稍后重试。')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button',{name:'重试任务'}));expect(await screen.findByRole('alert')).toHaveTextContent('尚未确认');
-    fireEvent.click(screen.getByRole('button',{name:'重试任务'}));
+    fireEvent.click(screen.getByRole('button',{name:'重试接收'}));expect(await screen.findByRole('alert')).toHaveTextContent('尚未确认');
+    fireEvent.click(screen.getByRole('button',{name:'重试接收'}));
     expect(await screen.findByText('正在接收材料')).toBeInTheDocument();
-    expect(screen.queryByRole('button',{name:'重试任务'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'重试接收'})).not.toBeInTheDocument();
     expect(screen.getAllByText('Retry Movie')).toHaveLength(1);
     expect(retry.mock.calls).toEqual([['failed-work'],['failed-work'],['failed-work']]);
     stage='accepted';fireEvent.click(screen.getByRole('button',{name:'刷新',exact:true}));
@@ -120,9 +120,9 @@ describe('Helix primary copy and workbench structure', () => {
     const retry=vi.spyOn(helixAdminApi,'retryPreparation').mockImplementation(async()=>{recovered=true;return {kind:'admitted'};});
     const arca=vi.spyOn(helixAdminApi,'retryAcceptance');
     render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole('button',{name:'重试任务'}));
-    await screen.findByText('已提交重试任务');expect(retry).toHaveBeenCalledWith('routing-work');expect(arca).not.toHaveBeenCalled();
-    expect(screen.queryByRole('button',{name:'重试任务'})).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button',{name:'重试整理'}));
+    await screen.findByText('已提交重试整理');expect(retry).toHaveBeenCalledWith('routing-work');expect(arca).not.toHaveBeenCalled();
+    expect(screen.queryByRole('button',{name:'重试整理'})).not.toBeInTheDocument();
     expect(screen.getByRole('button',{name:'取消整理任务'})).toBeInTheDocument();
   });
 
@@ -160,9 +160,9 @@ describe('Helix primary copy and workbench structure', () => {
     vi.spyOn(helixAdminApi,'listShelves').mockResolvedValue({items:[]});
     vi.spyOn(helixAdminApi,'retryPreparation').mockImplementation(async()=>{running=true;throw Error('response lost');});
     render(<MemoryRouter initialEntries={['/formation']}><App /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole('button',{name:'重试任务'}));await screen.findByRole('alert');
+    fireEvent.click(await screen.findByRole('button',{name:'重试接收'}));await screen.findByRole('alert');
     fireEvent.click(screen.getByRole('button',{name:'刷新',exact:true}));await screen.findByText('正在接收材料');
-    expect(screen.queryByRole('alert')).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'重试任务'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'重试接收'})).not.toBeInTheDocument();
   });
 
   it('refreshes an open Formation detail and ignores a response after closing', async () => {

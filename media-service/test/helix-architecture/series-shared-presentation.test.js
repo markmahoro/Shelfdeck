@@ -58,6 +58,13 @@ test('a Season NFO renamed to tvshow.nfo cannot satisfy the shared Series docume
   const {nfoIdentity}=require('../../src/helix/integrations/series-presentation-io');
   assert.throws(()=>nfoIdentity(Buffer.from('<tvshow><title>Show</title><season>3</season><uniqueid type="tmdb">1399</uniqueid></tvshow>')),
     {code:'ARCA_SERIES_NFO_SCOPE_INVALID'});
+  assert.throws(()=>nfoIdentity(Buffer.from('<tvshow><title>Show</title><episodedetails><title>Episode</title></episodedetails><uniqueid type="tmdb">1399</uniqueid></tvshow>')),
+    {code:'ARCA_SERIES_NFO_SCOPE_INVALID'});
+});
+
+test('a tvshow NFO with -1 season and episode placeholders remains a shared Series document',()=>{
+  const {nfoIdentity}=require('../../src/helix/integrations/series-presentation-io');
+  assert.equal(nfoIdentity(Buffer.from('<tvshow><title>Show</title><season>-1</season><episode>-1</episode><uniqueid type="tmdb">1399</uniqueid></tvshow>')),'1399');
 });
 
 test('a shared Inventory requires all three exact root roles and rejects a Season poster or foreign NFO',()=>{

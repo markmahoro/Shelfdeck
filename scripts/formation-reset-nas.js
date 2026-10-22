@@ -164,6 +164,11 @@ async function main(argv = process.argv.slice(2)) {
     await step(connection, 'Inspect the offline Formation Reset plan', resetCommand(image, false, parsed.subjectIds, parsed.orphanCustodyIds, parsed.supersededOfferIds));
     await step(connection, 'Apply Formation Reset', resetCommand(image, true, parsed.subjectIds, parsed.orphanCustodyIds, parsed.supersededOfferIds));
     await step(connection, 'Verify the reset is idempotent', resetCommand(image, false, parsed.subjectIds, parsed.orphanCustodyIds, parsed.supersededOfferIds));
+    const resetReceipt={schema:'shelfdeck.formation-reset-nas-receipt@1',image,backupDir,
+      subjectIds:parsed.subjectIds||null,orphanCustodyIds:parsed.orphanCustodyIds||null,
+      supersededOfferIds:parsed.supersededOfferIds||null,createdAt:new Date().toISOString()};
+    const receiptPath=`${backupDir}/reset-receipt.json`;
+    await step(connection,'Write reset audit receipt',`printf '%s\\n' ${shellQuote(JSON.stringify(resetReceipt))} > ${shellQuote(receiptPath)} && test -s ${shellQuote(receiptPath)}`);
     if (parsed.keepStopped) {
       await step(connection, 'Verify ShelfDeck remains stopped', `cd ${shellQuote(COMPOSE_DIR)} && test -z "$(docker compose ps -q --status running ${SERVICE})"`);
       process.stdout.write(`\nFormation Reset complete; ShelfDeck remains stopped. Rollback data: ${backupDir}/data\n`);

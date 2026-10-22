@@ -21,10 +21,14 @@ function assertParents(root,target){
   }
 }
 
+const scopeNodeNames=new Set(['season','season_number','seasonnumber','episode','episode_number','episodenumber']);
+
 function nfoIdentity(bytes){
   const document=analyzeNfoDocument(bytes,'tvshow');
   if(!document.usable||!directText(document,'title'))fail('ARCA_SERIES_NFO_INVALID','Series NFO must be a complete tvshow document with a title.');
-  if(document.directChildren.some(node=>['episodedetails','season','season_number','seasonnumber','episode','episode_number','episodenumber'].includes(node.name)))
+  const scopeNode=document.directChildren.find(node=>node.name==='episodedetails' ||
+    (scopeNodeNames.has(node.name)&&String(childText(document,node)||'').trim()!=='-1'));
+  if(scopeNode)
     fail('ARCA_SERIES_NFO_SCOPE_INVALID','Season or Episode NFO cannot be adopted as the shared show document.');
   const ids=document.directChildren.filter(node=>node.name==='tmdbid'||node.name==='uniqueid'&&attribute(node,'type')==='tmdb')
     .map(node=>childText(document,node));

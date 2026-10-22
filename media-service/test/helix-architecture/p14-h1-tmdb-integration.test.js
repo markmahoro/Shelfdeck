@@ -956,6 +956,41 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
       state.calls.every((call) => call.usesProxy));
     assert.ok(state.imageCalls.length > 0 &&
       state.imageCalls.every((call) => call.usesProxy));
+    const seriesObservationHandle = runtime.integrationHandleResolverPort.resolve({
+      integrationId: 'tmdb-main',
+      integrationType: 'tmdb',
+      configRevision: 1,
+      allowedOperation: 'arca.series_presentation.source.observe@1',
+      artifactKind: null,
+    });
+    assert.equal(seriesObservationHandle.allowedOperation, 'arca.series_presentation.source.observe@1');
+    const seriesSourceArtifactHandle = runtime.integrationHandleResolverPort.resolve({
+      integrationId: 'tmdb-main',
+      integrationType: 'tmdb',
+      configRevision: 1,
+      allowedOperation: 'arca.series_presentation.source.observe@1',
+      artifactKind: 'poster',
+    });
+    assert.equal(seriesSourceArtifactHandle.allowedOperation, 'arca.series_presentation.source.observe@1');
+    assert.notEqual(seriesSourceArtifactHandle.handleId, seriesObservationHandle.handleId);
+    const seriesAssetsArtifactHandle = runtime.integrationHandleResolverPort.resolve({
+      integrationId: 'tmdb-main',
+      integrationType: 'tmdb',
+      configRevision: 1,
+      allowedOperation: 'arca.series_presentation.assets.prepare@1',
+      artifactKind: 'fanart',
+    });
+    assert.equal(seriesAssetsArtifactHandle.allowedOperation, 'arca.series_presentation.assets.prepare@1');
+    assert.throws(
+      () => runtime.integrationHandleResolverPort.resolve({
+        integrationId: 'tmdb-main',
+        integrationType: 'tmdb',
+        configRevision: 1,
+        allowedOperation: 'libra.product_metadata.fetch@1',
+        artifactKind: 'poster',
+      }),
+      (error) => error.code === 'PLATFORM_INTEGRATION_HANDLE_INVALID',
+    );
     assert.throws(
       () => runtime.integrationHandleResolverPort.resolve({
         integrationId: 'tmdb-main',

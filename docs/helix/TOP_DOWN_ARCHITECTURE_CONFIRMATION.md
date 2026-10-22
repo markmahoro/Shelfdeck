@@ -16536,6 +16536,14 @@ Arca的JAV身份纠正同样依据新单站演员或系统未知演员规则重�
 
 用户确认D07：Arca验收自动恢复继续受既有次数/触发条件限制；用户主动重试不受同Offer累计32代上限限制。每次人工重试仍验证当前验收失败状态、范围、幂等及有效恢复条件，不回写旧失败执行。Accepted之后沿原On-deck恢复合同继续，不能撤回Accepted或假造入藏。
 
+#### Administrative Formation Reset（2026-10-23 用户决定）
+
+用户确认新增管理性 Formation Reset，作为当前整理工作台的兜底退役能力。它不是用户取消、`放弃整理`、Rejected 或撤回 Accepted 业务事实；不改变历史 Accepted/Decision/Receipt，也不伪造业务终态。它只清除未 Commit 的当前工作台运行时占用：`libra_formation_projections.classification in (in_progress, attention_required)` 的 Subject 及 pending intake token，覆盖所有 profile/shelf；包括 Handoff B Accepted 但尚未 On-deck Commit 的 custody、on-deck、acceptance、offer、package 与 target reservation。保留已入藏 Shelf Entry/Inventory/正式收藏、completed/ended 历史、Aftercare/Off-deck、源文件、shared references 与 People。Reset 后材料可由 Procurement 重新观察并形成新的 Candidate/Product Package；不保证自动重采。
+
+Reset 是 admin-only 兜底，不做普通用户 cancel；执行前必须有 offline full data backup、cold backup checksum、durable reset receipt（scope、counts、IDs、前后 digest）和一次确认词；不做逐条预览 UI。Reset 不得掩盖新条目仍复现的缺陷；若新包仍失败，停止而不是继续 reset。
+
+上一条“Accepted 后不允许取消”仍适用于 cancel；Reset 不是 cancel，是管理性退役未提交运行时占用。
+
 Procurement不可分Scope的1024成员上限保留。来源公开状态从当前完整Observation及最新Policy下eligible材料按同一Run Creator分组规则给出`selectionIssues`（总数及最多100组目录/成员数/上限），没有包或Run也能在来源页发现原因；修正目录或排除范围后正常观察重评。该只读投影不制造失败Run，不把旧观察材料算作当前阻塞。
 
 既有superseded Workspace清理合同实施时，同UOW必须补验旧Run的不可变superseded revision、互相对应的replacement关系、旧Run所有Work终态及无未决Effect；两次实际Reference/Control观察及正式Cleanup Scope/Receipt保持。其他Owner仍持有目标材料时不新建superseded清理Scope，不触碰replacement Workspace或原输入；失败回滚全部Scope/Workspace/Result/marker写入。

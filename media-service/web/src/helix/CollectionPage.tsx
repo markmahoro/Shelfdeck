@@ -255,7 +255,7 @@ export default function CollectionPage() {
           <div className="collection-rating"><span>观看状态</span><WatchedControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
           <section className="collection-health" aria-labelledby="collection-health-heading">
             <div className="collection-health-heading"><div><h3 id="collection-health-heading">收藏健康</h3></div>
-              {care?.sharedPresentation?.canRetry&&<Button type="button" disabled={checking} onClick={()=>{setSeriesRetry({entry:selected,canSupplyImages:care?.sharedPresentation?.canSupplyImages===true});setSelected(null);}}>重试任务</Button>}
+              {care?.sharedPresentation?.canRetry&&<Button type="button" disabled={checking} onClick={()=>{setSeriesRetry({entry:selected,canSupplyImages:care?.sharedPresentation?.canSupplyImages===true});setSelected(null);}}>重试上架</Button>}
               {!care?.sharedPresentation?.canRetry&&<Button type="button" onClick={() => void checkHealth()} disabled={checking||care?.sharedPresentation?.state==='in_progress'}>{checking ? '已开始检查…' : '立即检查健康'}</Button>}
             </div>
             {!care ? <p className="health-loading">正在读取健康详情…</p> : (() => {
