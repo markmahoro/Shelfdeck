@@ -525,6 +525,57 @@ test('Formation bounds Subject batches and expanded historical Run revisions wit
   } finally { kernel.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:50}); }
 });
 
+test('Formation never asks Perception to rate a cancelled Subject',()=>{
+  const activeId='subject-active',cancelledId='subject-cancelled';
+  const subject=(id,status)=>({subject_id:id,structure_kind:'single',content_profile:'movie',routing_anchor_intake_decision_id:'intake-'+id,
+    status,intake_revision:1,current_identity_revision:null,created_at_ms:100,updated_at_ms:100});
+  const snapshot=JSON.stringify({candidatePackage:{displayIdentity:'已取消影片'}});
+  const rows={
+    subjects:[subject(activeId,'active'),subject(cancelledId,'abandoned')],
+    decisions:[activeId,cancelledId].map((id)=>({intake_decision_id:'intake-'+id,target_subject_id:id,source_field_id:'field-1',
+      candidate_delivery_snapshot_json:snapshot,decided_at_ms:100})),
+    routingDecisions:[activeId,cancelledId].map((id)=>({subject_id:id,decision_revision:1,decision:'resolved',shelf_id:'shelf-1',
+      unresolved_reason_code:null,routing_policy_id:'policy-1',routing_policy_revision:1,decision_digest:hex(11)})),
+    routingPolicies:[{routing_policy_id:'policy-1',revision:1,mode:'direct'}],
+    fieldRoutingHeads:[{field_id:'field-1',current_routing_policy_id:'policy-1'}],
+    runs:[{libra_run_id:'run-active',subject_id:activeId,state:'active',state_revision:1,state_digest:hex(12),priority_class:'normal',package_revision_head:0,created_at_ms:100},
+      {libra_run_id:'run-cancelled',subject_id:cancelledId,state:'discarded',state_revision:3,state_digest:hex(13),priority_class:'normal',package_revision_head:0,created_at_ms:100}],
+    runRevisions:[{libra_run_id:'run-active',state_revision:1,transition_evidence_json:'{}'}],
+    cancellations:[{subject_id:cancelledId,state:'completed'}],
+  };
+  const statementKeys={find_decisions:['decisions','target_subject_id'],find_bindings:['bindings','subject_id'],
+    find_identities:['identities','subject_id'],find_routing_decisions:['routingDecisions','subject_id'],
+    find_routing_policies:['routingPolicies','routing_policy_id'],find_field_routing_heads:['fieldRoutingHeads','field_id'],
+    find_decision_heads:['decisionHeads','subject_id'],find_acceptance_specs:['specs','subject_id'],
+    find_runs:['runs','subject_id'],find_run_revisions:['runRevisions','libra_run_id'],find_packages:['packages','libra_run_id'],
+    find_identity_intents:['identityIntents','libra_run_id'],find_us_completions:['usCompletions','libra_run_id'],
+    find_us_actor_choices:['usChoices','subject_id'],find_cancellations:['cancellations','subject_id']};
+  const repo={invoke(statement,params={}){
+    if(statement==='find_subject')return rows.subjects.find((row)=>row.subject_id===params.subject_id)||null;
+    const [key,keyColumn]=statementKeys[statement]||[];
+    if(!key)throw new Error('Unexpected formation statement '+statement);
+    const values=new Set(params.values||[]);
+    return (rows[key]||[]).filter((row)=>values.has(row[keyColumn]));
+  }};
+  const ratingCalls=[];
+  const source=createFormationProjectionSource({schemaManifest,
+    unitOfWork:{execute(participants){return Object.fromEntries(participants.map((participant)=>
+      [participant.participantId,participant.execute({repository:()=>repo})]));}},
+    readPerceptionRatings(subjectIds){
+      ratingCalls.push(...subjectIds);
+      // The routing context reader rejects a cancelled Subject with this exact guard.
+      if(subjectIds.includes(cancelledId))throw new Error('Routing requires an active accepted Subject.');
+      return new Map(subjectIds.map((id)=>[id,{state:'ready',rating:4,sourceKind:'douban',expectedRevision:0}]));
+    }});
+  assert.doesNotThrow(()=>source.buildBatch([rows.subjects[1]]),'the projection host must keep sweeping after a cancellation');
+  const cancelled=source.get(cancelledId);
+  assert.equal(cancelled.status,'abandoned');
+  assert.equal(cancelled.myRating,null);
+  const active=source.get(activeId);
+  assert.equal(active.myRating,4);
+  assert.deepEqual(ratingCalls,[activeId]);
+});
+
 test('Formation active queue shows only pipeline-admitted Subjects without a Run',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-formation-admission-')),databasePath=path.join(root,'shelfdeck.db');
   const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>100});

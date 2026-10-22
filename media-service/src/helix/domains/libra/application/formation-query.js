@@ -590,7 +590,10 @@ function createFormationProjectionSource(options) {
       }
       return { subject, decisions, displayIdentity, snapshot, sourceFieldId: anchor?.source_field_id || null };
     });
-    const ratings = options.readPerceptionRatings?.(subjects.map((item) => item.subject_id)) || new Map();
+    // A cancelled Subject is no longer an accepted rating target. Asking Perception for it
+    // throws in the routing context reader and would fail the whole Formation page.
+    const ratedSubjectIds = subjects.filter((item) => item.status === 'active').map((item) => item.subject_id);
+    const ratings = ratedSubjectIds.length ? (options.readPerceptionRatings?.(ratedSubjectIds) || new Map()) : new Map();
     const shelfNames = new Map((options.readShelfTargets?.() || []).map((item) => [item.shelfId, item.name]));
     const externalIntegrationReady = typeof options.isExternalMaterialIntegrationReady === 'function'
       ? options.isExternalMaterialIntegrationReady() === true : null;
