@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-23 06:11 固定候选 `44b725e6a` 已提交，未发布。标准Docker构建因本机Docker Desktop启动崩溃而阻塞，未产生镜像/tar；已通过的Windows包和Linux源码覆盖不能替代镜像资格。完整架构Gate的既有Series根迁移FAIL、精确版本UI负责人验收、生产中断转码Effect恢复仍开放。生产保持停止，无Reset/部署。详见接手Evidence末节。
+
 2026-10-23 06:08 候选收口（未部署、生产保持停止）：新版历史保留 Reset 已完成 Owner 管理退役、精确 Control 释放、原 Handoff A 接纳回执收尾与独立完成核验；真实浏览器验证停机→确认→完成→重启仍停机→普通观察创建新 Subject，原历史及源文件保持。最新 Service695项/666PASS/29skip、Web262PASS、Linux53PASS、Windows独立包Host及空预检PASS；NAS最终结构副本230表摘要/FK/完整性与stopped Host通过。完整架构首跑3278项/3224PASS/28FAIL/26skip，20项失败在接手基线复现；已修正其中19项旧fixture/合同清单及本轮预期，17文件重跑129PASS，另有定向PASS，不能记完整Gate全绿。已有Series根目录迁移失败在原基线与当前均存在，未放宽断言或擅改共享根合同。两片对应新包旅程PASS，真实生产自然重采仍开放。性能已取得Formation/收藏查询局部改善及海报缓存回归，未解决4K忙载吞吐。只读生产Reset范围225 Subject/14 Run/11共享scope，20条历史Effect已证明后继履行，仅中断转码的1 Effect/1executing Event继续阻挡。06:07复核生产exited/RestartCount0、其他15容器运行、无诊断容器残留。Docker候选、精确版本UI review及生产处置尚未完成；无生产Reset/部署授权。
 
 2026-10-23 05:35 开发检查点（未部署、生产保持停机）：新版 Reset 保留历史、追加各 Owner 管理退役，完成核验直接反查冻结 Scope、Control release revision、保护历史及本次备份/清单对应 Receipt；正式 Host API 的停机→Reset→重启保持停机→普通观察新 Subject 旅程通过。只读生产范围225 Subject/14 Run/11共享scope；20条旧 Arca Effect已获正式Owner后继履行证明，保留原历史，仅1条中断转码Effect及其executing Event继续阻挡Reset。最终12处CHECK结构副本已通过230表逐行摘要/FK/完整性（18.8分钟），候选NAS Host验证进行中。Service694项/665 PASS/29skip/0fail；Windows独立分发Host及空Reset预检通过，首轮发现并补齐打包文件遗漏；Linux最终定向和完整架构测试继续，后者三项旧fixture/旧终局预期已定向修正，不能记完整PASS。真实转码停机及重启一次Commit通过。NAS收藏标题页中位451→213ms；海报增加有界字节派生缓存，保留每次Owner/文件校验。4K处理路径已确认但没有并发性能修复结论。高达/凡人歌生产自然重采、完整新包、最终同版UI及发布资格仍开放；无生产Reset或发布授权。
