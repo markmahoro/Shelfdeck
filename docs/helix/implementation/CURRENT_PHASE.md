@@ -91,6 +91,7 @@
 | `JAV-STABLE-SOURCE-RECOVERY`（UAT-326） | 无业务变化的JAV观察/元数据/图片Event跨TTL和重启可恢复，配置变化仍拒绝；旧在途事件不靠改摘要修复 | 三条稳定来源路径及跨TTL真实进程恢复/一次Commit通过；旧生产条目收束与最终发布资格未完成，不关闭UAT |
 | `PROCUREMENT-COMPLETE-GROUP-SLICING`（UAT-327） | 分类目录下多剧多季完整分组后确定性分批；所有材料无重无漏；真实完整组1024上限不变 | 真实Procurement Host 1081媒体/22剧/65完整季包/2Run及既有P7回归通过；最终资格与生产验收继续 |
 | `SERIES-SHARED-PRESENTATION`（UAT-328） | 剧根三项真实完整、跨季/新集复用、共享归属/维护/退出全生命周期可达 | 上架、重试补图、来源代际、维护、共享Control/历史引用及两类退出已接正式Host；定向证据见§20，最终固定Gate/平台/具体版本UI与生产旧根验收继续 |
+| `SERIES-PRESENTATION-HANDLE`（隶属 `SERIES-SHARED-PRESENTATION`） | 剧集公共资料取图使用合法 Integration Handle；既有 tvshow.nfo 的 `-1` 占位不被误判；真实 Handle 校验回归 | 开放：2026-10-22 生产 5 条失败，根因已定位；[Evidence](evidence/SERIES_PRESENTATION_HANDLE_NFO_20261022.md) |
 | `JAV-ACTOR-COMPLETENESS` | 来源演员保留；缺失时统一真实未知演员；Cast/NFO/收藏/相关作品一致，无伪造来源身份 | 本地开发及适用Windows/浏览器PASS；产品7b318具体版本UI负责人8/8接受，未发布 |
 | `US-CONTRACT-BASELINE` | 五个议题映射至 Owner、命令、事实、Effect、恢复和验收；SSOT 与派生合同一致，负例与 Architecture Gate 通过 | PASS：SSOT及派生合同、Owner/Effect/恢复负例及固定0c82ee862原始完整Gate通过 |
 | `US-PEOPLE` | 三库独立；普通/JAV 零用户介入；US Adult 有图手动/辅助建档、编辑、每轮最多五位推荐；认领来源影片无二次确认 | 本地实现及适用工程资格PASS；范围限制见下文 |
