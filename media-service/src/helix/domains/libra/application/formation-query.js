@@ -869,11 +869,18 @@ function createFormationQuery(options) {
           recoveryGeneration:null,automaticRecoveryUsed:true,canRetry:true,offerId:item.handoffB.offerId,onDeckRunId:item.arcaStatus.onDeckRunId})});
     }
     if (item.handoffB?.offerId && item.arcaStatus?.reasonCode === 'ARCA_ONDECK_BLOCKED' && item.arcaStatus.onDeckRunId) {
+      const failureCode = item.arcaStatus.failureCode || 'ARCA_ONDECK_BLOCKED',
+        canRetry = item.arcaStatus.retryAvailable !== false,
+        canRecheck = item.arcaStatus.canRecheck === true,
+        label = failureCode === 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED' ? '目标位置存在冲突，已停止上架'
+          : failureCode === 'CLEAN_ARCA_TARGET_OCCUPIED' ? '目标位置已被占用，已停止上架'
+            : '上架自动恢复已停止，需要处理';
       return Object.freeze({ ...item, classification:'attention_required',
-        nextAction:Object.freeze({label:'上架自动恢复已停止，需要处理',state:'attention_required',progress:null}),
-        executorIssue:Object.freeze({phase:'on_deck_execution',errorCode:'ARCA_ONDECK_BLOCKED',
+        nextAction:Object.freeze({label,state:'attention_required',progress:null}),
+        executorIssue:Object.freeze({phase:'on_deck_execution',errorCode:failureCode,canRetry,canRecheck,
+          details:item.arcaStatus.diagnostics || null,
           attemptCount:null,owner:'arca',recoveryState:'attention_required',recoveryGeneration:null,
-          automaticRecoveryUsed:true,canRetry:true,offerId:item.handoffB.offerId,onDeckRunId:item.arcaStatus.onDeckRunId})});
+          automaticRecoveryUsed:true,offerId:item.handoffB.offerId,onDeckRunId:item.arcaStatus.onDeckRunId})});
     }
     if (!value || value.recoveryState !== 'attention_required') return Object.freeze({ ...item, executorIssue:null });
     return Object.freeze({ ...item, classification:'attention_required',

@@ -272,7 +272,8 @@ export type FormationSubject = {
   productIdentityIssue: null | { contentProfile?:'jav'|'western_adult'; sourceLocation?:string|null; claimedCode?:string|null; result:'not_found'|'ambiguous'|'conflicting'; reasonCode:string; candidateSetDigest:string|null; candidates:Array<{ providerKey:string; displayTitle:string; originalTitle:string|null; releaseYear:number|null }> };
   failureDiagnostics?: Array<{eventId:string;code:string;diagnosticsUnavailable?:boolean;diagnostics:{sourceDirectory?:string;unknownNames?:string[];unknownMemberCount?:number;truncated?:boolean;field?:string;reasonCode?:string;networkCode?:string;stage?:string;timeout?:boolean}|null}>;
   executorIssue: null | { canSupplyImages?:boolean;phase:string; errorCode:string; attemptCount:number|null; owner:string; recoveryState:string;
-    recoveryGeneration:number|null; automaticRecoveryUsed:boolean; canRetry:boolean; offerId:string; onDeckRunId?:string };
+    recoveryGeneration:number|null; automaticRecoveryUsed:boolean; canRetry:boolean; canRecheck?:boolean; offerId:string; onDeckRunId?:string;
+    details?:{conflicts?:Array<{target:string;name?:string|null}>;sourceDirectory?:string;unknownNames?:string[];conflictCount?:number;truncated?:boolean}|null };
   primaryMaterialCount: number;
   addedAtMs: number;
   organizingRequirement: string;
@@ -965,7 +966,7 @@ export const helixAdminApi = {
   readUsAdultActorSelection(libraRunId:string){return request<UsAdultActorSelection>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actor-selection`);},
   chooseUsAdultActor(libraRunId:string,body:UsAdultActorChoice){return request<{replayed:boolean;receipt:{resultRef:{personId:string;choiceRevision:number}}}>(
     `/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actions/choose-us-adult-actor`,{method:'POST',body:JSON.stringify(body)});},
-  retryAcceptance(subject:FormationSubject,supplementalImages?:Array<{artifactKind:'poster'|'fanart';bytesBase64:string}>,commandKey?:string){if(!subject.executorIssue?.canRetry)throw new Error('当前接纳或上架故障不能重试。');const offerId=subject.executorIssue.offerId;return request(`/v1/admin/formation/acceptance/${encodeURIComponent(offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({idempotencyKey:commandKey||`acceptance-retry:${offerId}:${newOpaqueId()}`,...(supplementalImages?.length?{supplementalImages}:{})})});},
+  retryAcceptance(subject:FormationSubject,supplementalImages?:Array<{artifactKind:'poster'|'fanart';bytesBase64:string}>,commandKey?:string){if(!subject.executorIssue?.canRetry&&!subject.executorIssue?.canRecheck)throw new Error('当前接纳或上架故障不能重试。');const offerId=subject.executorIssue.offerId;return request(`/v1/admin/formation/acceptance/${encodeURIComponent(offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({idempotencyKey:commandKey||`acceptance-retry:${offerId}:${newOpaqueId()}`,...(supplementalImages?.length?{supplementalImages}:{})})});},
   createShelf(body: JsonValue) {
     return request<{ shelf: Shelf; replayed: boolean }>('/v1/admin/shelves', {
       method: 'POST',

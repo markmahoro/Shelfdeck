@@ -16,6 +16,12 @@ test('unknown materials remain distinguishable and bounded without copying arbit
   assert.equal(bounded.unknownNames.length,16);
   assert.equal(bounded.unknownMemberCount,100);
   assert.equal(bounded.truncated,true);
+  const conflicts=failureDiagnostics({details:{conflicts:[{target:'/media/a/one.mkv',name:'one.mkv'},
+    {target:'/media/b/two.nfo',name:'two.nfo'}],conflictCount:2}});
+  assert.deepEqual(conflicts.conflicts,[{target:'/media/a/one.mkv',name:'one.mkv'},{target:'/media/b/two.nfo',name:'two.nfo'}]);
+  assert.equal(conflicts.conflictCount,2);
+  const boundedConflicts=failureDiagnostics({details:{conflicts:Array(100).fill({target:'/media/x'}),conflictCount:100}});
+  assert.equal(boundedConflicts.conflicts.length,16);assert.equal(boundedConflicts.truncated,true);
 });
 test('network diagnostics retain safe cause codes but never transport messages or URLs',()=>{
   const diagnostics=failureDiagnostics({message:'https://secret@proxy/?token=SECRET',cause:{code:'ENOTFOUND'}});

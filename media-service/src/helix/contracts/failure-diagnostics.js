@@ -23,6 +23,15 @@ function failureDiagnostics(error) {
     result.unknownMemberCount = names.length;
     result.truncated = names.length > 16 || names.some((name) => name.length > 192);
   }
+  if (Array.isArray(details.conflicts)) {
+    const conflicts = details.conflicts.filter((item) => item && typeof item.target === 'string').slice(0, 16)
+      .map((item) => ({ target: clean(item.target, 512), name: clean(item.name, 192) }));
+    if (conflicts.length) {
+      result.conflicts = conflicts;
+      result.conflictCount = Number.isSafeInteger(details.conflictCount) ? details.conflictCount : conflicts.length;
+      result.truncated = result.truncated === true || result.conflictCount > conflicts.length;
+    }
+  }
   if (['json_request','image_request'].includes(details.stage)) result.stage = details.stage;
   if (error?.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT') {
     if (details.stage === 'playback_decode') result.stage = details.stage;

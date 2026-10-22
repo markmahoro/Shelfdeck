@@ -1145,6 +1145,8 @@ function createCleanArcaInventoryPort(options) {
     }
     // Resolve target conflicts before creating or changing any staged material.
     // A known occupied target is a terminal precondition, not an uncertain copy.
+    // Collect every conflicting target so the user can resolve them in one pass.
+    const conflicts = [];
     for (const plan of built.plans) {
       requireContinuation(request);
       if (!fs.existsSync(plan.target)) continue;
@@ -1152,11 +1154,15 @@ function createCleanArcaInventoryPort(options) {
       if (!fingerprintsMatchPlan(observed, plan) &&
           !priorPlacementCoversTarget(request, plan, handle) &&
           !isManagedSourceLocation(request, plan.target)) {
-        fail('CLEAN_ARCA_STAGE_TARGET_OCCUPIED',
-          'Final Inventory target contains conflicting bytes before staging.', {
-            sourceDirectory:path.dirname(plan.target), unknownNames:[path.basename(plan.target)],
-          });
+        conflicts.push(Object.freeze({ target: plan.target, name: plan.name }));
       }
+    }
+    if (conflicts.length) {
+      fail('CLEAN_ARCA_STAGE_TARGET_OCCUPIED',
+        'Final Inventory target contains conflicting bytes before staging.', {
+          sourceDirectory:path.dirname(conflicts[0].target), unknownNames:[path.basename(conflicts[0].target)],
+          conflicts:conflicts.slice(0, 16), conflictCount:conflicts.length,
+        });
     }
     prepareSlot(request);
     const stagedMembers = [];

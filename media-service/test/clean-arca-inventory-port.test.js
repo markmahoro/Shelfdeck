@@ -1749,6 +1749,8 @@ test('Stage target preflight produces a typed terminal outcome before any copy o
     assert.equal(result.kind, 'failed'); assert.equal(result.code, 'CLEAN_ARCA_STAGE_TARGET_OCCUPIED');
     assert.equal(result.retryDirective, 'never'); assert.equal(result.failureClass, 'stage_precondition');
     assert.deepEqual(result.evidence.diagnostics.unknownNames, [path.basename(fixture.finalMember.targetLocation)]);
+    assert.equal(result.evidence.diagnostics.conflictCount, 1);
+    assert.deepEqual(result.evidence.diagnostics.conflicts, [{target:fixture.finalMember.targetLocation,name:path.basename(fixture.finalMember.targetLocation)}]);
     assert.equal(fs.existsSync(slot.slotDirectory), false);
     assert.equal(fs.readFileSync(fixture.finalMember.targetLocation, 'utf8'), 'unrelated occupied target');
     assert.equal(fs.existsSync(fixture.source), true);

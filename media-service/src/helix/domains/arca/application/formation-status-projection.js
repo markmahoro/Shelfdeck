@@ -5,10 +5,31 @@ const { createRepositoryDefinition } = require('../../../foundation/persistence/
 const {createSeriesPresentationStore}=require('../persistence/series-presentation-store');
 const {createSeriesSourceReassessmentFence}=require('../persistence/series-source-reassessment-fence');
 const MAX_ITEMS = 100;
+const NON_RETRYABLE = new Set([
+  'CLEAN_ARCA_STAGE_TARGET_OCCUPIED', 'CLEAN_ARCA_TARGET_OCCUPIED', 'CLEAN_ARCA_PLACEMENT_UNVERIFIED',
+  'CLEAN_ARCA_STAGE_SLOT_INVALID', 'CLEAN_ARCA_STAGE_SLOT_DRIFT', 'CLEAN_ARCA_TARGET_ESCAPE',
+  'CLEAN_ARCA_SETTLEMENT_REALITY_DRIFT', 'CLEAN_ARCA_SETTLEMENT_UNKNOWN_MEMBER',
+  'CLEAN_ARCA_SETTLEMENT_MAPPING_INVALID', 'CLEAN_ARCA_SETTLEMENT_MAPPING_DRIFT',
+  'CLEAN_ARCA_SETTLEMENT_HANDLE_INVALID', 'ARCA_ONDECK_SETTLEMENT_APPROVAL_STALE',
+  'CLEAN_ARCA_FINAL_NFO_SEMANTIC_DRIFT', 'CLEAN_ARCA_FINAL_NFO_BASIS_MISSING',
+]);
+const RECHECKABLE = new Set(['CLEAN_ARCA_STAGE_TARGET_OCCUPIED', 'CLEAN_ARCA_TARGET_OCCUPIED']);
 
 function createFormationStatusProjection(options) {
   if (!options?.schemaManifest || !options.unitOfWork) {
     throw new TypeError('Arca Formation status projection requires clean persistence.');
+  }
+  function blockedFailure(onDeckRunId) {
+    const reader = options.workResultReader;
+    if (typeof reader?.listWorks !== 'function' || typeof reader.readFailures !== 'function') return null;
+    const works = reader.listWorks({ownerDomain:'arca',processType:'arca_ondeck_run',processId:onDeckRunId,workKind:'on_deck_execution'});
+    const ordered = works.slice().sort((left,right)=>Number(left.created_at_ms)-Number(right.created_at_ms) ||
+      String(left.work_id).localeCompare(String(right.work_id))).reverse();
+    for (const work of ordered) {
+      const failure = reader.readFailures(work.work_id)[0];
+      if (failure) return Object.freeze({workId:work.work_id,failureCode:failure.code||null,diagnostics:failure.diagnostics||null});
+    }
+    return null;
   }
   const repository = createRepositoryDefinition({
     repositoryId: 'arca_formation_status_projection',
@@ -91,9 +112,13 @@ function createFormationStatusProjection(options) {
           }
           const run = acceptedRuns[0];
           if (run.state === 'blocked') {
+            const failure = blockedFailure(run.on_deck_run_id), failureCode = failure?.failureCode || null;
             result.set(receipt.offer_id, Object.freeze({
               stage: 'attention_required', reasonCode: 'ARCA_ONDECK_BLOCKED',
               completedAtMs: null, shelfEntryId: null, onDeckRunId:run.on_deck_run_id,
+              failureCode, diagnostics:failure?.diagnostics || null,
+              retryAvailable: failureCode ? !NON_RETRYABLE.has(failureCode) : true,
+              canRecheck: failureCode ? RECHECKABLE.has(failureCode) : false,
             }));
             continue;
           }
