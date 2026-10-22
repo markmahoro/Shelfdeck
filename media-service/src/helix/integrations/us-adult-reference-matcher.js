@@ -2,7 +2,7 @@
 
 const {createHash} = require('node:crypto');
 const {canonicalDigest, canonicalJson} = require('../contracts/canonical-json');
-const {faceModelReference, referenceFeatureCacheKey} = require('../contracts/us-adult-face-model');
+const {faceModelReference, referenceFeatureCacheKey, CURRENT_MATCH_THRESHOLD} = require('../contracts/us-adult-face-model');
 const {normalizeVector} = require('./local-face-math');
 const pack = require('../contracts/us-adult-face-model-pack.json');
 
@@ -63,10 +63,11 @@ function createUsAdultReferenceMatcher(options) {
     return {asset, feature};
   }
 
-  return Object.freeze({async matchPage({faceModelRefDigest, faces:inputFaces, personReferenceProjections}) {
+  return Object.freeze({async matchPage({faceModelRefDigest, faces:inputFaces, personReferenceProjections, threshold = CURRENT_MATCH_THRESHOLD}) {
     if (faceModelRefDigest !== frameModel.digest || !Array.isArray(inputFaces) || inputFaces.length > 1280 ||
-        !Array.isArray(personReferenceProjections) || personReferenceProjections.length > 256) {
-      fail('US_ADULT_ANALYSIS_CHANGED', 'Matching exceeds its frozen model or reference page.');
+        !Array.isArray(personReferenceProjections) || personReferenceProjections.length > 256 ||
+        typeof threshold !== 'number' || !Number.isFinite(threshold) || threshold < 0 || threshold > 1) {
+      fail('US_ADULT_ANALYSIS_CHANGED', 'Matching exceeds its frozen model, reference page or match threshold.');
     }
     const faces = inputFaces.map(face => {
       if (typeof face?.faceGroupId !== 'string' || !face.faceGroupId || face.faceGroupId.length > 256) {
@@ -82,9 +83,9 @@ function createUsAdultReferenceMatcher(options) {
           const {asset, feature} = referenceVector(projection, contribution, face);
           for (const detected of faces) {
             const score = similarity(detected.feature, feature);
-            if (score < pack.matchThreshold) continue;
+            if (score < threshold) continue;
             const candidate = {personId:projection.personId, faceGroupId:detected.faceGroupId, score, referenceAssetId:asset.referenceAssetId,
-              artifactDigest:asset.artifactDigest, threshold:pack.matchThreshold, faceModelRefDigest:frameModel.digest,
+              artifactDigest:asset.artifactDigest, threshold, faceModelRefDigest:frameModel.digest,
               referenceModelRefDigest:referenceModel.digest, confidenceClass:'strong'};
             if (!winner || candidate.score > winner.score || candidate.score === winner.score &&
                 (ordered(candidate.personId, winner.personId) || ordered(candidate.referenceAssetId, winner.referenceAssetId) ||

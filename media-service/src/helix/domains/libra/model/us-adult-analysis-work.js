@@ -1,6 +1,6 @@
 'use strict';
 const {canonicalDigest} = require('../../../contracts/canonical-json');
-const {assertUsAdultAnalysisBasis} = require('./us-adult-analysis-basis');
+const {assertUsAdultAnalysisBasis,matchThresholdFor} = require('./us-adult-analysis-basis');
 const REFERENCE_PROJECTION_REF='helix://libra/input-projections/UsAdultAnalysisReferences/v1';
 const FRAME = 'libra.media.frames.extract@1', EMBED = 'shared.face.embedding.compute@1', CLUSTER = 'shared.face.cluster.compute@1', MATCH = 'shared.face.reference.match@1';
 const resultRef = ref => 'helix://contracts/capabilities/' + ref.replace('@1', '/v1/result');
@@ -45,6 +45,7 @@ function pickCompleteMatch({basis, pages, results, clusterResult}) {
   assertUsAdultAnalysisBasis(basis,pages);
   if (pages.length !== basis.pageCount || results.length !== basis.pageCount) throw new Error('US Adult matching cannot finish with missing reference pages.');
   let winner = null;
+  const threshold = matchThresholdFor(basis);
   for (const [ordinal, record] of results.entries()) {
     const page = pages[ordinal], result = record.result, matches = result?.matches,
       binding = record.inputBindings?.bindings?.find(item => item.portName === 'personReferenceProjectionList');
@@ -70,8 +71,8 @@ function pickCompleteMatch({basis, pages, results, clusterResult}) {
       {evidenceDigest, ...matchBody} = match;
     if (!person || match.personRevision !== person.personRevision || match.projectionDigest !== projection.projectionDigest ||
         match.projectionRevision !== projection.projectionRevision || match.faceModelRefDigest !== basis.faceModelRef.digest ||
-        match.referenceModelRefDigest !== basis.referenceModelRefDigest || !Number.isFinite(match.score) || match.score < match.threshold ||
-        match.threshold !== basis.faceModelRef.typedParameters.find(item => item.parameter === 'match_threshold')?.value ||
+        match.referenceModelRefDigest !== basis.referenceModelRefDigest || !Number.isFinite(match.score) || match.score < threshold ||
+        match.threshold !== threshold ||
         canonicalDigest({schema:'shared.face-reference-match-evidence@1', ...matchBody}) !== evidenceDigest ||
         !projection.contributions.some(item => item.ownerPersonId === person.personId && item.activeAssets.some(asset =>
           asset.referenceAssetId === match.referenceAssetId && asset.artifactDigest === match.artifactDigest) &&

@@ -3407,7 +3407,7 @@
       "relativePath": "domain-types/UsAdultActorRefreshSelection/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "9073555b565e24fe1b8b22303e6ca5e6b74f3ea93f6d18e8fee4383d1eec5358"
+        "value": "a2511b7a8190ab7271d02492ef867bbbd92f32cf94ac9ff8317caeee1f20b0bb"
       },
       "usedBy": [
         {
@@ -3469,7 +3469,7 @@
       "relativePath": "domain-types/UsAdultAnalysisBasis/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "7eb17d53137c406028cf05f770dd6e676c39c6f6499b079eeb358a3e54995e1f"
+        "value": "cbafccf88ac4dc6580a65e01db1b10a93b7874e22d31f2c9654ba55d43449c2e"
       },
       "usedBy": []
     },

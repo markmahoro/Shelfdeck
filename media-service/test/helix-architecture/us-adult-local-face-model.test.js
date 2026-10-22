@@ -16,6 +16,10 @@ test('chooses one highest valid actor across frames and resolves exact ties dete
   assert.equal(bestActorMatch([], references), null);
   assert.equal(bestActorMatch([[1, 0]], []), null);
   assert.equal(bestActorMatch([[-1, 0]], references), null);
+  const borderline = 0.367, borderlineRef = { libraryKind: 'us_adult', personId: 'actor-borderline', referenceRevision: 1,
+    vector: [borderline, Math.sqrt(1 - borderline * borderline)] };
+  assert.equal(bestActorMatch([[1, 0]], [borderlineRef], 0.42), null);
+  assert.equal(bestActorMatch([[1, 0]], [borderlineRef], 0.363).personId, 'actor-borderline');
   assert.throws(() => bestActorMatch([[1, 0]], [{ ...references[0], libraryKind: 'normal' }]), { code: 'FACE_REFERENCE_LIBRARY_INVALID' });
   assert.throws(() => normalizeVector([0, 0]), { code: 'FACE_VECTOR_INVALID' });
   assert.throws(() => cosineSimilarity([1, NaN], [1, 0]), { code: 'FACE_VECTOR_INVALID' });
