@@ -24,7 +24,7 @@ function createRetirementJournal(options) {
         !Array.isArray(value.steps) || !Array.isArray(value.completed) || value.completed.length > value.steps.length ||
         !['prepared', 'executing', 'completed'].includes(value.state) ||
         value.manifestDigest !== canonicalDigest(value.manifest) ||
-        value.steps.some((step, index) => step.ordinal !== index || !['execution', 'arca', 'libra', 'intake', 'procurement', 'procurement_acceptance', 'arca_shared'].includes(step.owner)) ||
+        value.steps.some((step, index) => step.ordinal !== index || !['execution_termination', 'execution', 'arca', 'libra', 'intake', 'procurement', 'procurement_acceptance', 'arca_shared'].includes(step.owner)) ||
         value.completed.some((step, index) => step.ordinal !== index || !/^[a-f0-9]{64}$/.test(step.requestDigest || '') ||
           step.resultDigest !== canonicalDigest(step.result)) ||
         value.currentRequest && (value.state !== 'executing' || value.currentRequest.ordinal !== value.completed.length ||

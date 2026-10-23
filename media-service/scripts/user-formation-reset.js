@@ -30,7 +30,7 @@ function createUserFormationReset(options){
   function inspect(){
     const db=new Database(databasePath,{readonly:true,fileMustExist:true});
     try {
-      const plan=inspectRetirementPlan(db);
+      const plan=inspectRetirementPlan(db,{workspaceRoot:options.workspaceRoot});
       const selected=plan.subjects.map(row=>({subjectId:row.subject_id,contentProfile:row.content_profile,
         displayIdentity:db.prepare('SELECT display_identity FROM libra_formation_projections WHERE subject_id=?').get(row.subject_id)?.display_identity||'待识别媒体'}));
       const selectedIds=new Set(selected.map(row=>row.subjectId));

@@ -8,6 +8,8 @@ const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { openSqliteKernel } = require('../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createWorkLifecycle } = require('../src/helix/foundation/execution/work-lifecycle');
+const { createStoppedExecutionTerminationStore } = require('../src/helix/foundation/execution/stopped-execution-termination');
+const { observeStoppedTranscode } = require('./formation-stopped-transcode');
 const { createFormationRetirementStore, createIntakeRetirementStore, createProductDeliveryReader } = require('../src/helix/domains/libra/public');
 const { createCandidateRetirementStore, createCandidateAcceptanceConsumer } = require('../src/helix/domains/procurement/public');
 const { createArcaFormationRetirementStore, createFormationSharedRetirement } = require('../src/helix/domains/arca/public');
@@ -55,6 +57,11 @@ function createFormationRetirementOperator(options) {
       verifyBackup: options.verifyBackup,
       prepareRequest(step, record) {
         const common = { retirementId: record.resetId, backupDigest: record.backup.backupDigest, manifestDigest: record.manifestDigest };
+        if (step.owner === 'execution_termination') {
+          const value = record.manifest.plan.terminations.find(row => row.eventId === step.eventId);
+          if (!value) fail('RESET_JOURNAL_SCOPE_INVALID', 'Execution termination is outside the frozen manifest.');
+          return {...common, eventId:value.eventId, snapshotDigest:value.snapshotDigest, realityDigest:value.realityDigest};
+        }
         if(step.owner==='procurement_acceptance'){
           const value=record.manifest.plan.acceptanceClosures.find(row=>row.envelope.messageId===step.messageId);
           if(!value)fail('RESET_JOURNAL_SCOPE_INVALID','Acceptance acknowledgement is outside the frozen manifest.');
@@ -99,7 +106,11 @@ function createFormationRetirementOperator(options) {
           retiringRunIds: value.snapshot.runs.filter(row => ['active','suspended','frozen'].includes(row.state)).map(row => row.libra_run_id),
           expectedArcaProofDigest: canonicalDigest(proof), expectedControls: value.controls };
       },
-      commitStep(step, request) {
+      commitStep(step, request, record) {
+        if (step.owner === 'execution_termination') return createStoppedExecutionTerminationStore({...dependencies,
+          assertStopped:() => assertAuthorized(record),
+          observeWorkspace:snapshot => query(db => observeStoppedTranscode(db, options.workspaceRoot, snapshot)),
+        }).commit(request);
         if(step.owner==='procurement_acceptance')return acceptance.consume(request);
         if(step.owner==='arca_shared')return shared.execute(request);
         if (step.owner === 'execution') {
@@ -113,6 +124,15 @@ function createFormationRetirementOperator(options) {
       },
       afterCommit: options.afterCommit,
       verifyCompleted(record) {
+        for (const step of record.steps.filter(row => row.owner === 'execution_termination')) {
+          const frozen = record.manifest.plan.terminations.find(row => row.eventId === step.eventId);
+          const result = createStoppedExecutionTerminationStore({...dependencies, assertStopped:() => assertAuthorized(record),
+            observeWorkspace:() => fail('RESET_CLOSURE_INCOMPLETE', 'Completed termination must have a durable receipt.'),
+          }).commit({retirementId:record.resetId, manifestDigest:record.manifestDigest, backupDigest:record.backup.backupDigest,
+            eventId:step.eventId, snapshotDigest:frozen.snapshotDigest, realityDigest:frozen.realityDigest});
+          if (canonicalDigest(result.receipt) !== canonicalDigest(record.completed[step.ordinal].result.receipt))
+            fail('RESET_CLOSURE_INCOMPLETE', 'Execution termination does not match its frozen receipt.');
+        }
         for(const value of record.manifest.shared) {
           const step=record.steps.find(row=>row.owner==='arca_shared' && row.scopeId===value.current.scope_id);
           shared.verify(value,record.completed[step.ordinal].result);
@@ -201,7 +221,7 @@ function createFormationRetirementOperator(options) {
     });
     return Object.freeze({
       prepare({ resetId, expectedPlanDigest, previewDigest, backup }) {
-        const plan = query(inspectRetirementPlan);
+        const plan = query(db => inspectRetirementPlan(db,{workspaceRoot:options.workspaceRoot}));
         if (plan.planDigest !== expectedPlanDigest || plan.blockers.length)
           fail('RUNTIME_RESET_PREVIEW_STALE', 'Reset scope changed or is blocked.');
         const intakeItems=plan.pendingIntakes.map(value=>({...value,intake:intake.inspect(value.processId),candidate:procurement.inspect(value.offer.offerId)}));
@@ -236,6 +256,7 @@ function createFormationRetirementOperator(options) {
              row.owner_scope_type === 'on_deck_package' && packageIds.has(row.owner_scope_id))) };
         });
         return journal.prepare({ resetId, backup, manifest: { previewDigest, plan, arca: arcaItems, libra: libraItems,intakes:intakeItems,shared:sharedItems }, steps: [
+          ...plan.terminations.map(row => ({owner:'execution_termination', eventId:row.eventId})),
           ...plan.processScopes.map(scope => ({ owner: 'execution', scope })),
           ...sharedItems.filter(row=>row.retire && row.current.active_build_id).map(row=>({owner:'execution',scope:{ownerDomain:'arca',processType:'arca_series_presentation',processId:row.current.active_build_id}})),
           ...plan.acceptanceClosures.map(row=>({owner:'procurement_acceptance',messageId:row.envelope.messageId})),

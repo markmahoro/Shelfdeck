@@ -290,3 +290,21 @@ Season poster新隔离用例把真实Inventory port的prepare→stage（注入�
 5. clean-workspace-product-port.materializeMedia先清理精确producer partial；缺少已登记/最终产物时按原Intent重新produce，再rename与正式记录。故中断转码可能从头重做，不能声称续接50%编码进度，也不能用临时文件存在证明成功。恢复机制不得重签不同Intent或补写终态规避校验。
 
 已向用户请求确认是否把“整剧共享根迁移”和“停止态仅恢复既有执行”两条合同纳入本轮。该请求不等于生产恢复/Reset/发布授权。在答复前继续保留生产停机，未实现依赖新合同的修改。
+
+
+## 2026-10-23 转码终止方向澄清
+
+用户指出FFmpeg不提供本项目所需的断点续转，并明确认为Reset无需等待转码完成。撤回上一节把“停止态恢复原执行并完成转码”作为Reset前置的建议；前述范围问题不能再视为当前待批准方案。Reset目标是结束未完成条目，重新完整转码只为取得成功结果没有必要。后续核查应聚焦精确执行终止、Workspace实际写入结果与未决Effect收尾，再由Owner完成行政退役。
+
+当前代码核对：Foundation `work-lifecycle.cancelProcess` 遇到executing Event，会保留该Work为draining；现有用户取消合同亦要求未决Effect安全收尾后才能释放Control。这说明“安全收尾”仍须具备真实依据，但不等于“媒体必须转码成功”。尚未确认停机后精确中止的完整实现，不能直接改终态、虚构Outcome或把残留文件视为已清理。本次仅调整计划/Evidence，未改产品或生产，整剧共享根迁移范围也未获确认。
+
+
+## 2026-10-23 追加范围确认与停止态终止实现
+
+用户已确认将整剧共享根迁移、停止态既有执行收尾一并纳入本轮。停止态条目按随后澄清：Reset无需等待或重跑转码。SSOT已记录该规则及整剧迁移边界；该确认仍不构成生产Reset、媒体迁移或部署授权。
+
+`STOPPED-EXECUTION-CLOSURE`已接入新Reset的冻结清单、完整备份和durable journal：仅精确选中的未提交Libra转码可终止。验证原Work/Plan/Event/Attempt/Intent、全部literal输入、当前Workspace/root登记、目标及临时文件实际身份；成功Result/Commit Marker、已登记输出、其他能力、范围外或不明责任仍阻断。原Event为cancelled、原Attempt为completed/cancelled、Effect为failed，与含文件现实/清单/备份摘要的管理终止Receipt在Foundation同事务提交；不生成Libra业务失败、不生成新的Attempt、不执行FFmpeg、不删除字节。后续原Owner分别退役。Host前置校验quiesced且没有在途执行/规划/恢复/Owner reconcile及FFmpeg子进程；停止意图与pending Reset身份每次验证。已提交未写journal ack可按同Receipt重放。
+
+验证：Reset相关组合77/77 PASS；新增终止测试4/4（包含运行态拒绝、文件/执行漂移、事务回滚、journal ack前中断重放、硬链接/异域/异能力拒绝）。真实Series Host启动FFmpeg后关闭服务，使用新Reset完整备份/退役，1/1 PASS、11.68秒；子进程归零、原Attempt数量不增加、未产生On-deck Commit、未决Effect归零、FK/integrity通过、停止意图保持。该项是实际终止路径，不是转码完成/续转演练。日志：本地忽略目录`stopped-termination-tests-final.log`、`stopped-transcode-host.log`。增加最后的Receipt闭形/尺寸检查后4/4复验通过。尚未完成新固定候选完整资格、Docker/Windows包、具体版本UI审查或生产操作。
+
+`SERIES-ROOT-PLACEMENT`仍进行中：当前仅新增按现行规则读取期望根的纯查询，正常入库继续服从durable binding；整剧冻结计划及物理移动模块已通过18项相关隔离测试（其中8项为新整剧边界）。两季+三份共享文件同移、物理rename后重入、未知文件/目录、占用目标、文件漂移、漏季/异Provider/其他维护及Accepted reservation拒绝已测。Arca持久占用、真实Work/Effect及全季Inventory/共享版本原子提交尚未接通；这些模块尚不能作为生产迁移工具，原Aftercare假healthy问题仍未完成修复。

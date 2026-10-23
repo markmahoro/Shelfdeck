@@ -19,7 +19,7 @@ function rowsFor(db, table, column, ids) {
   return rows.sort((a, b) => canonicalDigest(a).localeCompare(canonicalDigest(b)));
 }
 
-function inspectRetirementPlan(db) {
+function inspectRetirementPlan(db, options = {}) {
   // Pin all reads to one snapshot, including preview callers outside a UOW.
   const ownedTransaction = !db.inTransaction;
   if (ownedTransaction) db.exec('BEGIN');
@@ -165,9 +165,13 @@ function inspectRetirementPlan(db) {
       ?require('./formation-retirement-history').readCompletedHistoricalEffects(db):{proofs:[],rejected:[]};
     const historicalIds=new Set(history.proofs.map(row=>row.effectId));
     const unresolvedEffects=recordedEffects.filter(row=>!historicalIds.has(row.effect_id));
-    if (unresolvedEffects.length) blockers.push({ code: 'RESET_UNRESOLVED_EFFECT', count: unresolvedEffects.length });
     const executingEvents = db.prepare("SELECT event_id,work_id,attempt_id FROM fx_workflow_events WHERE state='executing' ORDER BY event_id").all();
-    if (executingEvents.length) blockers.push({ code: 'RESET_EXECUTION_NOT_DRAINED', count: executingEvents.length });
+    const terminations = require('./formation-stopped-transcode').inspectStoppedTranscodes(db, options.workspaceRoot, currentRuns, executingEvents);
+    const terminableEffects = new Set(terminations.map(row => row.effectId)), terminableEvents = new Set(terminations.map(row => row.eventId));
+    const blockedEffects = unresolvedEffects.filter(row => !terminableEffects.has(row.effect_id));
+    const blockedEvents = executingEvents.filter(row => !terminableEvents.has(row.event_id));
+    if (blockedEffects.length) blockers.push({ code: 'RESET_UNRESOLVED_EFFECT', count: blockedEffects.length });
+    if (blockedEvents.length) blockers.push({ code: 'RESET_EXECUTION_NOT_DRAINED', count: blockedEvents.length });
     // Arca decides whether a shared builder survives the selected reservations.
     // The Operator must sequence its exact public closure before finishing Reset.
     if (sharedScopes.some(row => row.retirement_scope_id)) blockers.push({ code: 'RESET_SHARED_OFFDECK_PENDING' });
@@ -180,7 +184,7 @@ function inspectRetirementPlan(db) {
       schema: 'shelfdeck.formation-retirement-plan@1',
       subjects, tokens, pendingIntakes, acceptanceClosures, runs: currentRuns, packages: currentPackages, custodies: currentCustodies,
       onDeckRuns: currentOnDeckRuns, acceptanceAttempts: currentAttempts, workspaces,
-      processScopes, ownerScopes, works, events, workAttempts, controls, sharedReservations, sharedScopes,
+      processScopes, ownerScopes, works, events, workAttempts, controls, sharedReservations, sharedScopes, terminations,
       preserved: { runs: preservedRuns, commits, committedPackages: packages.filter(row => committedPackageIds.has(row.on_deck_package_id)) },
       guards: { unresolvedEffects, executingEvents, completedHistoricalEffects:history.proofs, historicalProofRejections:history.rejected }, blockers,
     };

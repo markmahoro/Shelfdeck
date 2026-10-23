@@ -2140,6 +2140,9 @@ async function createCleanServiceHost(options) {
   });
   const userReset=createUserFormationResetWorkerPort({dataDir:options.dataDir,workspaceRoot:libraWorkspaceRoot,
     assertWorkspaceAvailable(){const root=locationRegistryRepository.getWorkspaceRoot('service-libra-production-workspace');
+      const activity=procurementExecution.host.activity();
+      if(activity.state!=='quiesced'||activity.inFlightEvents||activity.inFlightPlanning||activity.inFlightRecoveries||activity.inFlightOwnerReconciliations||ffmpegProcessRegistry.size())
+        throw Object.assign(new Error('执行器尚未停止，暂不能重置工作台。'),{code:'RESET_EXECUTION_NOT_DRAINED'});
       if(!root)throw Object.assign(new Error('生产工作区未注册。'),{code:'RESET_WORKSPACE_UNAVAILABLE'});
       localMountScopeResolver.validateReference({endpointId:root.endpointId,rootLocation:root.resolvedRoot,
         mountScopeId:root.mountScopeId,mountScopeRevision:root.mountScopeRevision});

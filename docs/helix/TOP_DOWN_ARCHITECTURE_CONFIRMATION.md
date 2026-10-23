@@ -16536,6 +16536,14 @@ Arca的JAV身份纠正同样依据新单站演员或系统未知演员规则重�
 
 用户确认D07：Arca验收自动恢复继续受既有次数/触发条件限制；用户主动重试不受同Offer累计32代上限限制。每次人工重试仍验证当前验收失败状态、范围、幂等及有效恢复条件，不回写旧失败执行。Accepted之后沿原On-deck恢复合同继续，不能撤回Accepted或假造入藏。
 
+
+#### 停止态执行收尾与整剧 Placement 迁移（2026-10-23 用户确认）
+
+停止态仅允许对冻结清单内既有 Event/Attempt/Effect进行有界收尾；全程关闭采购、普通调度、Owner新计划和Outbox供给，结束后仍停机。收尾不意味着FFmpeg断点续转，也不要求准备退役的影片完成转码。对于Administrative Formation Reset选中的未Commit Libra Run，允许在执行进程已终止、完整备份及精确停止意图成立时，由Foundation管理命令终止原`libra.media.transcode@1`执行：重验原Work/Plan/Event/Attempt/Intent、受控Workspace目标及实际文件、没有成功Result/Commit Marker或外部成果承接；保留实际剩余字节和登记，原Event/Attempt记为cancelled，未提交Effect记为failed并以管理终止Receipt说明原因，不能伪造Capability成功或Libra业务失败。Receipt绑定原执行完整快照、文件现实证据、Reset清单与备份；上述Foundation状态和Receipt同事务提交，可精确重放。其他能力、已提交Effect、未知目标/链接/归属冲突仍阻断，不能套用该终止规则。之后由原Owner完成各自退役；Workspace回收仍按独立引用/Control核验执行，不借取消授权递归删除文件。
+
+Series的Placement变更由Arca按整个共享剧根处理。Aftercare须比较当前规则算出的期望根与durable root binding，不能以旧绑定覆盖期望值并宣称healthy。迁移冻结同Shelf/Provider剧scope下所有当前Season Inventory heads、当前共享版本及全部正式材料/Binding/Control；统一迁移全部季与共享文件，验证完整集合后原子推进当前scope根、共享版本/引用和各季Inventory。保留Shelf Entry、Canonical Identity、Deck Fact及历史Commit/Inventory。存在Accepted pending reservation、共享builder、其他维护/退出/身份纠正、目标冲突或未知目录成员时明确阻断/等待；不得只迁一个Season、合并另一剧根、擅自覆盖或递归搬走未知文件。物理操作继续使用既有material_commit/Effect恢复纪律，部分执行不能宣称完成，重启必须沿冻结范围收尾；开发授权不等于生产迁移授权。
+
+
 #### Administrative Formation Reset（2026-10-23 用户决定）
 
 pending Intake 的管理退役不伪造 Handoff A Rejected：Libra 在精确 Intake process 没有 Decision/Receipt、执行全部收口后，追加 `libra.intake-retirement@1` Command Receipt并释放该 process 的 token；迟到 Offer 消费该管理事实，不能重新准入。Procurement 随后以此不可变公开 Receipt 关闭仍 open 的同一 Candidate Delivery 为 `administratively_retired`，其精确 `candidate_delivery` Selection 变为 released、`terminal_disposition=administratively_retired`，Evidence绑定上述 Receipt。Accepted/Rejected Delivery 不得重写；原包/原观察/原Run成员的身份与依据列、所有 Handoff 字段保持不变；不释放或改写 Procurement 持有的 Material Field Control。该管理终态是本段新增的唯一普通 accepted/rejected 之外的 Delivery 终态，不产生新的 Handoff 消息。下一次正常 Observation 依实际 Selection/Control 重评采购资格。两 Owner 分别提交并由 Operator journal 串联；中断期间继续停供给，不能因只完成其中一步而恢复。
