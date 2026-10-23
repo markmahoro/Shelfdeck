@@ -345,3 +345,16 @@ Arca已新增持久`arca_series_root_relocations`，冻结同剧全部当前Seas
 - 本轮后续源码：Service696 total/667PASS/29既有skip，Web264PASS，受影响合同/入口/Reset/部署75PASS/2skip，四项静态检查PASS。P2仍138/117/232/62/150，aggregate `07bb897d8657031067ff42e9e693f472762a67970f55637b4d4338e1295ff459`。将冻结新候选重跑完整Gate及镜像/UI；当前不称发布资格完成。
 
 原始日志保留在ignored `formation-diagnosis-20261023`：`gate-2c5204186.json`、`image-2c5204186-relocation.log`、`relocation-ordinary-repair-retest.log`、`qualification-fixes-*`、`schema-232-rehearsal.log`、`reset-232-rehearsal.log`与`reset-232-volume2.log`。所有生产操作仍停留在已授权停机状态。
+
+
+## 2026-10-23 13:09 已Commit历史证明的真实副本缺陷
+
+26ce2a6b8固定候选具体版本UI负责人PASS，独立浏览器14/14、Web264/264、真实隔离Host迁移1/1，0开放UI问题；记录在`formation-ui-review-26ce2a6b8-20261023/owner-review.json`。标准镜像revision为26ce2a6b8e3b18942437d17e25547128277c7b71，image ID `sha256:9db06db3ec6776c7f37a1587547e1006d02f65f66d30a2d68f4471cd84de0fe9`，tar SHA256 `44ebaaf8e40ec120dba8891953419df1e3c14da923e32ea87e714d4f694ab8ff`。实际镜像的Series迁移/两类真实退出恢复/停止态转码终止32项及新版Reset22项PASS。额外旧Reset测试25项因漏设既有`HELIX_TEST_ISOLATED_TRANSCODE=1`而正确拒绝/tmp路径，保留54PASS/25FAIL原报告；启用已挂载独立/transcode的fixture配置后该文件47/47 PASS，未降低产品挂载守卫。
+
+NAS完整备份约35分钟后，Operator.prepare以`ARCA_RETIREMENT_PROOF_PENDING`拒绝，尚未写journal或调用beforeApply，未提交管理退役。独立核账发现选中14个当前Package之外有6个历史包，全部为Libra discarded、Arca正式Run committed、有Commit Receipt、recovery resolved、Custody仍active。这是既有正式On-deck finalize的实际输出；Reset新证明函数错误假设Custody必须committed，原微型fixture也手写该状态而掩盖缺陷。不能因此扩大Reset范围或把6个收藏退役。
+
+修正保留Arca Owner边界，使用已有`readCommittedByPackage`核对原Completion、Final Decision、Shelf与不可变Inventory/Deck历史；还要求每个Custody都有对应已Commit Run、无active/waiting验收及未关闭recovery。Custody标记不能代替正式提交证据，历史状态/Control不改。NAS6包实际证明全部通过；真实Host入藏后的active Custody正例、破坏Inventory来源的负例及恢复后证明一致通过。Libra混合历史单元测试明确仅测试公开Arca证明消费，新增Arca伪Commit行/无Inventory反例；组合65项PASS。真实Host首次负例误用只读测试连接，记FAIL后修为独立fixture写连接，原运行断言不放宽。
+
+原26ce完整Gate因这一候选被副本缺陷淘汰而停止（不是因耗时停止），STOPPED不计PASS；原414文件完整2c失败报告继续保留。最终新候选将重新固定并完成全量资格。
+
+副本后续沿用已完成的同一完整备份：新旧previewDigest必须完全相等，真实Operator.prepare生成journal，真实userReset.recover重新hash全部备份数据/Workspace后再执行同一Owner退役链。不提供产品“忽略备份/强制继续”入口，也不删除或复写原备份。这是分段隔离演练，不能冒充一次成功的原API调用或Runtime崩溃恢复。实际生产仍须新完整备份与正式用户Reset入口。后续停止态Host测试只在实际退役receipt通过后结束诊断fixture的外层pending标记，生产原Workspace一直只读；该夹具操作不构成生产修复，也不计为完整Host pending-reset恢复证据。Runtime/Owner中断重放另由真实隔离回归覆盖。

@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-23 13:09 副本Reset资格缺陷修正（未部署）：26ce2a6b8具体版本UI负责人PASS（浏览器14/Web264/真实Host1），实际镜像Series/停止态32项及新版Reset22项通过；另25个旧Reset测试首轮缺隔离mount开关失败，按既有fixture配置复验47/47通过。NAS完整备份成功后，Operator准备被6个已Commit历史包的Custody状态假设拦住，退役尚未提交。已改由Arca既有readCommittedByPackage核验正式Inventory历史，6包副本证明通过、真实Host正反例及定向65项通过；范围仍225Subject/14Run，不扩大到6个历史包。复用同一冻结预览的完整备份演练真实journal收尾中，所有备份SHA仍重验。26ce完整Gate因候选淘汰停止，未记PASS；将固定新候选重跑。生产保持停机，无Reset/部署。
+
 2026-10-23 12:47 资格修正检查点（未部署）：固定2c5204186完整Architecture为3321 total/3290 PASS/5 FAIL/26 skip，四项静态检查通过；原报告保留。已修复整剧目标预检误触发完整文件验证、阻断普通NFO修复的回归，两个真实Host修复场景及两季冲突重试通过；三项静态断言同步。补齐停止态脚本的Docker/Windows打包，Windows独立包含Reset预检通过；Web264、Service667PASS/29skip、定向75PASS/2skip及四项静态通过。真实副本备份需求约93.3GB，原数据卷容量不足已正确拒绝；新增独立备份卷部署配置与不读取媒体的容量预检，NAS隔离副本正在完整备份/Reset。新固定全量Gate、镜像、最终UI及副本收口仍待；生产保持停止，未Reset/迁移/部署。
 
 2026-10-23 追加范围开发检查点。停止态转码行政终止已接入新Reset，真实FFmpeg中断后退役通过，无需重跑转码。整剧迁移已接入持久围栏、全季原子提交与现有检查入口的显式重试：两季迁移/冲突重试、rename及原子提交后真实进程退出恢复/二次重启通过，原入藏事实和Control保持。恢复时误读精简Work投影、手动检查刷新人物后提前返回及批量健康Projection遗漏均已修复。最新Web263/263及build通过，Arca445PASS/4skip；最终固定候选完整资格、平台/UI负责人及生产副本仍待完成。生产保持停机，未Reset/迁移/部署。详见本轮接手Evidence末节。

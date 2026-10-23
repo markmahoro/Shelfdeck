@@ -1075,6 +1075,26 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   assert.ok(state.works.some(work=>work.work_kind==='routing_provider_facts'&&work.state==='succeeded'));
   assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1);
   const inventory=db.prepare('SELECT * FROM arca_inventory_materials').all();
+  if(episodeCount===2&&!sourcePoster&&!multiSeason&&!manualIdentity&&!external&&!offdeck&&!mediaRepair&&!migrate&&!repair&&!real&&!mixed&&!parts&&!shared&&!bounded&&!concurrent&&!append){
+    const retirement=require('../../src/helix/domains/arca/persistence/formation-retirement-store').createArcaFormationRetirementStore({schemaManifest,unitOfWork});
+    const packages=db.prepare('SELECT * FROM libra_product_packages').all();
+    const references=packages.map(row=>({offerId:row.offer_id,packageId:row.on_deck_package_id,packageDigest:row.package_digest}));
+    const protectedTables=['arca_ondeck_custodies','arca_ondeck_runs','arca_ondeck_commit_receipts','arca_shelf_entries','arca_inventory_representations','fx_material_controls'];
+    const snapshot=()=>canonicalDigest(protectedTables.map(table=>[table,db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all()]));
+    const before=snapshot();
+    assert.ok(db.prepare("SELECT count(*) n FROM arca_ondeck_custodies WHERE state='active'").get().n>0);
+    const proof=retirement.readRetirementProof(references);
+    assert.equal(proof.length,packages.length);assert.ok(proof.every(row=>row.disposition==='committed'));
+    assert.equal(snapshot(),before);
+    const mutation=new Database(path.join(dataDir,'shelfdeck.db'));
+    const originals=mutation.prepare('SELECT rowid,source_package_id FROM arca_inventory_representations').all();
+    try{
+      mutation.prepare("UPDATE arca_inventory_representations SET source_package_id='foreign-package'").run();
+      assert.throws(()=>retirement.readRetirementProof(references));
+    }finally{for(const row of originals)mutation.prepare('UPDATE arca_inventory_representations SET source_package_id=? WHERE rowid=?').run(row.source_package_id,row.rowid);mutation.close();}
+    assert.deepEqual(retirement.readRetirementProof(references),proof);assert.equal(snapshot(),before);
+  }
+
   const collection=JSON.parse((await request('GET','/v1/admin/collection?status=current')).body).items;
   const formationSubject=db.prepare('SELECT subject_id FROM libra_runs WHERE libra_run_id=?').get(state.runs[0].libra_run_id).subject_id;
   const formationDetail=JSON.parse((await request('GET','/v1/admin/formation/'+formationSubject)).body);

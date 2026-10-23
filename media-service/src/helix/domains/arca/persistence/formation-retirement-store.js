@@ -6,6 +6,8 @@ const { createCommandCommitCoordinator } = require('../../../foundation/persiste
 const { createExecutionStateReader } = require('../../../foundation/persistence/execution-state-reader');
 const { createScopedControlRelease } = require('../../../foundation/persistence/scoped-control-release');
 
+const { createOnDeckStore } = require('./on-deck-store');
+
 const STATE = 'administratively_retired';
 const CONTRACT = 'arca.formation-retirement@1';
 const RESULT = 'arca.formation-retirement-receipt@1';
@@ -194,9 +196,23 @@ function createArcaFormationRetirementStore(options) {
             current.recovery && current.recovery.recovery_state !== STATE)
           fail('ARCA_RETIREMENT_RECEIPT_CORRUPT', 'Retirement proof still has current responsibility.');
         disposition=STATE;evidenceDigest=receipt.receiptDigest;
-      } else if(current.commits.length && current.runs.every(run=>run.state==='committed'&&current.commits.some(row=>row.on_deck_run_id===run.on_deck_run_id)) &&
-          current.custodies.every(row=>row.state==='committed')) {
-        disposition='committed';evidenceDigest=canonicalDigest(current.commits);
+      } else if(current.commits.length && current.runs.length &&
+          current.runs.every(run=>run.state==='committed'&&current.commits.some(row=>row.on_deck_run_id===run.on_deck_run_id)) &&
+          current.custodies.every(custody=>current.runs.some(run=>run.custody_id===custody.custody_id)) &&
+          current.attempts.every(row=>!['active','waiting'].includes(row.state)) && (!current.recovery||current.recovery.recovery_state==='resolved')) {
+        // Custody is the Accepted record; ordinary On-deck finalization does not
+        // change its state. Prove closure from exact committed Inventory history.
+        const onDeck=createOnDeckStore(options);
+        const committed=current.custodies.map(custody=>{
+          const decision=current.decisions.find(row=>row.acceptance_decision_id===custody.acceptance_decision_id&&row.result==='accepted');
+          if(!decision)fail('ARCA_RETIREMENT_PROOF_PENDING','Committed custody lacks its Accepted decision.');
+          const proof=onDeck.readCommittedByPackage({onDeckPackageId:reference.packageId,packageDigest:reference.packageDigest,
+            custodyId:custody.custody_id,shelfId:decision.shelf_id});
+          if(!proof||!current.runs.some(run=>run.on_deck_run_id===proof.onDeckRunId&&run.custody_id===proof.custodyId))
+            fail('ARCA_RETIREMENT_PROOF_PENDING','Offer lacks exact committed package history.');
+          return proof;
+        });
+        disposition='committed';evidenceDigest=canonicalDigest(committed);
       } else if(current.decisions.length&&current.decisions.every(row=>row.result==='rejected')&&current.attempts.length&&
           current.attempts.every(row=>row.state==='rejected')&&!current.custodies.length&&!current.runs.length) {
         disposition='historical_rejected';evidenceDigest=canonicalDigest(current.decisions);

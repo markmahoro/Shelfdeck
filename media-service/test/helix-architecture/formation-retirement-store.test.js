@@ -430,9 +430,9 @@ test('a Subject with a committed Season and an unfinished Run retires only the u
       VALUES ('commit','on-deck','entry',1,1,?,2)`).run(D);
     const protectedTables=['arca_ondeck_runs','arca_ondeck_custodies','arca_ondeck_commit_receipts','arca_shelf_entries','libra_product_packages'];
     const protectedRows=Object.fromEntries(protectedTables.map(table=>[table,f.db.prepare('SELECT * FROM '+table).all()]));
-    const store=createFormationRetirementStore({schemaManifest,unitOfWork:f.unitOfWork,readArcaRetirementProof:arca.store.readRetirementProof});
-    const proof=arca.store.readRetirementProof([{offerId:'offer',packageId:'package',packageDigest:D}]);
-    assert.equal(proof[0].disposition,'committed');
+    const proof=[{offerId:'offer',packageId:'package',packageDigest:D,disposition:'committed',evidenceDigest:D}];
+    const store=createFormationRetirementStore({schemaManifest,unitOfWork:f.unitOfWork,readArcaRetirementProof(packages){
+      assert.deepEqual(packages,[{offerId:'offer',packageId:'package',packageDigest:D}]);return proof;}});
     const result=store.commit({...request(f),expectedArcaProofDigest:canonicalDigest(proof)});
     assert.equal(result.receipt.resultRef.retiredRunCount,1);
     assert.equal(f.db.prepare("SELECT state FROM libra_runs WHERE libra_run_id='collected'").get().state,'completed');
@@ -496,4 +496,17 @@ test('Reset acknowledges an existing Handoff A through Procurement and replays a
     db.prepare("UPDATE proc_run_materials SET terminal_evidence_digest=?").run('b'.repeat(64));
     await assert.rejects(operator.execute(resetId),{code:'RESET_CLOSURE_INCOMPLETE'});
   }catch(error){assert.fail(error.stack||error.message);}finally{operator?.close();f.close();}
+});
+
+
+test('Arca retirement proof refuses a custody flag and Commit row without actual Inventory history',()=>{
+  const f=fixture();try{
+    const arca=seedArca(f);
+    f.db.prepare("UPDATE arca_ondeck_runs SET state='committed'").run();
+    f.db.prepare("UPDATE arca_ondeck_custodies SET state='committed'").run();
+    f.db.prepare("INSERT INTO arca_shelf_entries(shelf_entry_id,status,created_at_ms) VALUES ('entry','active',1)").run();
+    f.db.prepare("INSERT INTO arca_ondeck_commit_receipts(receipt_id,on_deck_run_id,shelf_entry_id,inventory_revision,deck_fact_revision,commit_digest,committed_at_ms) VALUES ('commit','on-deck','entry',1,1,?,2)").run(D);
+    assert.throws(()=>arca.store.readRetirementProof([{offerId:'offer',packageId:'package',packageDigest:D}]),{code:'ARCA_RETIREMENT_PROOF_PENDING'});
+    assert.equal(f.db.prepare('SELECT count(*) n FROM fx_command_receipts').get().n,0);
+  }finally{f.close();}
 });
