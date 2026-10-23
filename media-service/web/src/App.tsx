@@ -60,7 +60,7 @@ function RailStatus() {
   const runtime=useQuery({queryKey:['runtime-operations'],queryFn:()=>helixAdminApi.getRuntimeStatus(),enabled:ready,
     refetchInterval:query=>['stopping','resuming','resetting'].includes(query.state.data?.mode||'')?1000:5000});
   useEffect(()=>{if(runtime.error&&isUnauthorized(runtime.error))expire();},[expire,runtime.error]);
-  const runtimeLabels={starting:'正在启动',stopping:'正在安全停机',stopped:'已安全停机',resuming:'正在恢复运行',resetting:'正在 Reset',error:'运行操作未完成'};
+  const runtimeLabels={starting:'正在启动',stopping:'正在安全停机',stopped:'已安全停机',resuming:'正在恢复运行',resetting:'正在重置工作台',error:'运行操作未完成'};
   if(!runtime.error&&runtime.data?.mode&&runtime.data.mode!=='running')return <p className="rail-status" data-kind={runtime.data.mode==='error'?'faulted':'maintenance'}>{runtimeLabels[runtime.data.mode]}</p>;
   if(runtime.error)return <p className="rail-status" data-kind="unknown">状态读取失败</p>;
   if(!runtime.data?.mode)return <p className="rail-status" data-kind="unknown">正在读取运行状态…</p>;
