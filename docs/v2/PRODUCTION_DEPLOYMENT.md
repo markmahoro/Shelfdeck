@@ -1,5 +1,16 @@
 # PRODUCTION_DEPLOYMENT - 生产部署固定入口
 
+## 2026-10-23 Formation retirement 结构切换
+
+当前231→232结构使用候选镜像内`helix-formation-retirement-schema-copy.js`准备独立一致源快照、新库及反向副本，逐行证明230张原事实/执行表保持。不能复用旧`lifecycle-schema-cutover.js`的223表与旧digest常量。
+
+完整停机冷备必须保留main DB及存在的WAL/SHM/journal、全部伴随文件、Compose及Secret；来源和备份逐文件SHA一致。准备目录包含`source.sqlite`、`prepared.sqlite`、`copy-receipt.json`、`rollback-receipt.json`和`source-files.json`。后者使用`shelfdeck.frozen-sqlite-files@1`，记录`source.sqlite`的`snapshotSha256`及原始SQLite物理文件的`name/bytes/sha256`；源快照读取前后重新核对冻结文件不变。
+
+使用`scripts/formation-retirement-schema-cutover.js <data-dir> <prepared-dir>`先dry-run，再加`--apply`同卷切换。包装必须确认唯一生产容器已停止、镜像及目录身份精确。工具验证目标/反向证明、原始main/WAL/SHM完整集合和字节；非空WAL保持于`retained-source-wal`，不能仅因它非空而丢弃。持久cutover marker支持保留旧辅助文件后及新库rename后的继续执行。新库准备和切换不执行Reset、不更改媒体。
+
+新镜像以持久停止意图启动，管理接口可用且`normalSupplyAllowed=false`。用户明确授权Reset后经正式Runtime API执行，完成仍停止；不能用历史物理删除CLI替代。发生行政退役、停止态终止Receipt或Series迁移后，旧结构回退必须拒绝，不用冷备覆盖新增事实。本轮停止态资格与通常正常供给资格分别记录，不把停止态PASS称为恢复供给成功。
+
+
 本文是 ShelfDeck 当前唯一生产部署入口。当前生产部署方式固定为：本机 build image -> 导出 tar -> `upload-nas-image.js` 上传并校验 -> `deploy-nas.js` dry run -> `deploy-nas.js --apply`。Codex 处理任何“上线、部署、升级 NAS、发布 Docker、生产环境”相关任务时，必须先读本文，再读 `scripts/build-image.js`、`scripts/upload-nas-image.js` 和 `scripts/deploy-nas.js`。
 
 UAT-304：标准Compose的`stop_grace_period`为75秒。Service收到停止信号立即停止供给，最多60秒等待执行checkpoint，再回收自身FFmpeg进程；超预算保留未决执行，按既有Effect合同在重启时恢复，不将技术停机记录成媒体加工失败。

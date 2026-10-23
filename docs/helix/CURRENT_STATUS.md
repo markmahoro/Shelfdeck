@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-23 14:28 固定候选f280e6bd4完整Architecture Gate通过：414测试文件退出0，四项静态检查均PASS；成功报告未保留逐项计数，不推算总测试数。Service667PASS/29skip，实际镜像98PASS及真实入藏历史正反例1PASS；具体版本UI按171源码/9资源同指纹继承PASS。NAS225Subject/14Run隔离Reset最终通过，10组收藏事实及158424个Attempt保持，14Workspace字节保留、1条停止态终止Receipt；实际镜像Worker回执重放通过，停止态/资源上限等最后核验继续。用户已明确授权生产部署后执行新版整体Reset，已完成196文件新冷备及标准deploy dry-run，原生产仍停止且尚未切库/部署/Reset。4K忙载吞吐按用户新决定延后，不再作为本轮发布阻塞。
+
 2026-10-23 13:25 Reset副本性能修正（未部署）：013aec7ce实际镜像定向97/97和真实入藏证明1PASS通过，Service667PASS/29skip，具体版本UI依据171源码/9资源同指纹继承PASS。生产规模journal发现992步中741个execution取消只有14个范围含open Work，约30MB清单空步骤重复序列化造成明显延迟。现仅冻结含open Work的取消步骤，全部Owner/最终scope核验保留；新增遗漏scope中新Work必须阻断负例，组合66/66通过。旧副本已停止并完整保留其冻结journal/部分退役证据，另从原始232库新建副本重演，不改写已有journal。013完整Gate因候选替换记STOPPED；最终候选仍待完整资格。原生产保持停机，无业务变更。
 
 2026-10-23 13:09 副本Reset资格缺陷修正（未部署）：26ce2a6b8具体版本UI负责人PASS（浏览器14/Web264/真实Host1），实际镜像Series/停止态32项及新版Reset22项通过；另25个旧Reset测试首轮缺隔离mount开关失败，按既有fixture配置复验47/47通过。NAS完整备份成功后，Operator准备被6个已Commit历史包的Custody状态假设拦住，退役尚未提交。已改由Arca既有readCommittedByPackage核验正式Inventory历史，6包副本证明通过、真实Host正反例及定向65项通过；范围仍225Subject/14Run，不扩大到6个历史包。复用同一冻结预览的完整备份演练真实journal收尾中，所有备份SHA仍重验。26ce完整Gate因候选淘汰停止，未记PASS；将固定新候选重跑。生产保持停机，无Reset/部署。
