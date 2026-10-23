@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-23 13:25 Reset副本性能修正（未部署）：013aec7ce实际镜像定向97/97和真实入藏证明1PASS通过，Service667PASS/29skip，具体版本UI依据171源码/9资源同指纹继承PASS。生产规模journal发现992步中741个execution取消只有14个范围含open Work，约30MB清单空步骤重复序列化造成明显延迟。现仅冻结含open Work的取消步骤，全部Owner/最终scope核验保留；新增遗漏scope中新Work必须阻断负例，组合66/66通过。旧副本已停止并完整保留其冻结journal/部分退役证据，另从原始232库新建副本重演，不改写已有journal。013完整Gate因候选替换记STOPPED；最终候选仍待完整资格。原生产保持停机，无业务变更。
+
 2026-10-23 13:09 副本Reset资格缺陷修正（未部署）：26ce2a6b8具体版本UI负责人PASS（浏览器14/Web264/真实Host1），实际镜像Series/停止态32项及新版Reset22项通过；另25个旧Reset测试首轮缺隔离mount开关失败，按既有fixture配置复验47/47通过。NAS完整备份成功后，Operator准备被6个已Commit历史包的Custody状态假设拦住，退役尚未提交。已改由Arca既有readCommittedByPackage核验正式Inventory历史，6包副本证明通过、真实Host正反例及定向65项通过；范围仍225Subject/14Run，不扩大到6个历史包。复用同一冻结预览的完整备份演练真实journal收尾中，所有备份SHA仍重验。26ce完整Gate因候选淘汰停止，未记PASS；将固定新候选重跑。生产保持停机，无Reset/部署。
 
 2026-10-23 12:47 资格修正检查点（未部署）：固定2c5204186完整Architecture为3321 total/3290 PASS/5 FAIL/26 skip，四项静态检查通过；原报告保留。已修复整剧目标预检误触发完整文件验证、阻断普通NFO修复的回归，两个真实Host修复场景及两季冲突重试通过；三项静态断言同步。补齐停止态脚本的Docker/Windows打包，Windows独立包含Reset预检通过；Web264、Service667PASS/29skip、定向75PASS/2skip及四项静态通过。真实副本备份需求约93.3GB，原数据卷容量不足已正确拒绝；新增独立备份卷部署配置与不读取媒体的容量预检，NAS隔离副本正在完整备份/Reset。新固定全量Gate、镜像、最终UI及副本收口仍待；生产保持停止，未Reset/迁移/部署。

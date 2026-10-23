@@ -255,9 +255,13 @@ function createFormationRetirementOperator(options) {
              ['workspace','libra_workspace'].includes(row.owner_scope_type) && workspaceIds.has(row.owner_scope_id) ||
              row.owner_scope_type === 'on_deck_package' && packageIds.has(row.owner_scope_id))) };
         });
+        // Persist cancellation only for scopes with open Work in the frozen
+        // snapshot. Owner commits and final verification still fence every scope.
+        const openScopeKeys=new Set(plan.works.map(row=>JSON.stringify([row.owner_domain,row.process_type,row.process_id])));
+        const executionScopes=plan.processScopes.filter(scope=>openScopeKeys.has(JSON.stringify([scope.ownerDomain,scope.processType,scope.processId])));
         return journal.prepare({ resetId, backup, manifest: { previewDigest, plan, arca: arcaItems, libra: libraItems,intakes:intakeItems,shared:sharedItems }, steps: [
           ...plan.terminations.map(row => ({owner:'execution_termination', eventId:row.eventId})),
-          ...plan.processScopes.map(scope => ({ owner: 'execution', scope })),
+          ...executionScopes.map(scope => ({ owner: 'execution', scope })),
           ...sharedItems.filter(row=>row.retire && row.current.active_build_id).map(row=>({owner:'execution',scope:{ownerDomain:'arca',processType:'arca_series_presentation',processId:row.current.active_build_id}})),
           ...plan.acceptanceClosures.map(row=>({owner:'procurement_acceptance',messageId:row.envelope.messageId})),
           ...intakeItems.flatMap(row=>[{owner:'intake',processId:row.processId},{owner:'procurement',processId:row.processId}]),

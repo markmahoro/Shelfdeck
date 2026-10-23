@@ -358,3 +358,14 @@ NAS完整备份约35分钟后，Operator.prepare以`ARCA_RETIREMENT_PROOF_PENDIN
 原26ce完整Gate因这一候选被副本缺陷淘汰而停止（不是因耗时停止），STOPPED不计PASS；原414文件完整2c失败报告继续保留。最终新候选将重新固定并完成全量资格。
 
 副本后续沿用已完成的同一完整备份：新旧previewDigest必须完全相等，真实Operator.prepare生成journal，真实userReset.recover重新hash全部备份数据/Workspace后再执行同一Owner退役链。不提供产品“忽略备份/强制继续”入口，也不删除或复写原备份。这是分段隔离演练，不能冒充一次成功的原API调用或Runtime崩溃恢复。实际生产仍须新完整备份与正式用户Reset入口。后续停止态Host测试只在实际退役receipt通过后结束诊断fixture的外层pending标记，生产原Workspace一直只读；该夹具操作不构成生产修复，也不计为完整Host pending-reset恢复证据。Runtime/Owner中断重放另由真实隔离回归覆盖。
+
+
+## 2026-10-23 13:25 Reset空执行步骤性能修正
+
+013aec7ce标准镜像image ID `sha256:02d8e3267f78094e2e3293a8ce732ea42ad208175dead4cfb8a2905a766e72f2`、tar独立SHA256 `744bcfec417f68523c4e0647d754ed012a1963edbaaedd7936846960a73e7440`；实际镜像Series/真实进程恢复/停止态转码/新旧Reset/Arca退役97/97 PASS、278809ms，真实Host已Commit历史正反例1PASS/29名称过滤skip。后者首轮/tmp只配2GiB，低于既定`1.2×输入+5GiB`准入，未创建Run而等待超时；扩大隔离tmpfs为8GiB后37.2s通过，不降低产品守卫。Service696 total/667PASS/29既有skip；UI负责人核对171前端文件和9资源一致，将26ce证据限定继承至013，未冒充重新跑UI。
+
+NAS在完整备份重验后进入真实Owner退役，原停止转码已新增1个正式终止Receipt。journal共992步（execution_termination1、execution741、arca14、arca_shared11、libra225），其中execution仅14个scope在冻结plan中有open Work。13:19:56至13:20:43只从71步推进到83步；每步重复校验/持久化约30,168,268-byte清单，多数取消没有实际Work，存在可复现的管理Reset性能浪费。
+
+修正仅在journal.prepare时选取冻结plan.works对应的processScopes；仍保留全量manifest.plan.processScopes、各Owner执行状态门禁和完成时逐scope核验。shared Builder仍按Arca既定判断收尾，不重写任何已存在journal或兼容旧运行时。新增回归证明只取消实际open Work，若被省略scope后来出现新Work，正式Owner仍拒绝退役、Subject保持active、日志保持executing；与原Reset/重放/保护组合66/66 PASS。
+
+旧慢速演练容器已明确停止，保留output/data及原992步journal和partial管理终止证据；新`output-fast/data`从原prepared.sqlite与冷备伴随文件重新建立，不删除现场或回改旧journal。重用同一冻结previewDigest的已验证完整备份，真实recover继续全量字节SHA核验。该诊断性能修正使候选变更，013完整架构Gate按STOPPED保留、不计PASS；将对新固定版本重跑。生产shelfdeck始终exited，未Reset、部署或恢复供给。

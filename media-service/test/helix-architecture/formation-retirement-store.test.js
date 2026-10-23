@@ -510,3 +510,28 @@ test('Arca retirement proof refuses a custody flag and Commit row without actual
     assert.equal(f.db.prepare('SELECT count(*) n FROM fx_command_receipts').get().n,0);
   }finally{f.close();}
 });
+
+
+test('Operator cancels only frozen open Work and still rejects a new responsibility in an omitted scope',async()=>{
+  const f=fixture();let operator;
+  try{
+    run(f,'history','discarded');
+    f.db.prepare("INSERT INTO libra_formation_projections(subject_id,classification,subject_status,display_identity,next_action_label,next_action_state,attention_state,added_at_ms,updated_at_ms) VALUES ('subject','in_progress','active','History','Waiting','pending','none',1,1)").run();
+    f.db.prepare("INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,definition_json,state) VALUES ('open-routing','libra','libra_routing','subject','{}','blocked')").run();
+    const plan=inspectRetirementPlan(f.db),resetId='formation-reset-open-work-only';
+    assert.ok(plan.processScopes.length>plan.works.length);
+    operator=createFormationRetirementOperator({dataDir:f.root,verifyBackup(){}});
+    const record=operator.prepare({resetId,expectedPlanDigest:plan.planDigest,previewDigest:D,backup:{backupId:'backup',backupDigest:D}});
+    assert.deepEqual(record.steps.filter(row=>row.owner==='execution').map(row=>row.scope),[{ownerDomain:'libra',processType:'libra_routing',processId:'subject'}]);
+    assert.deepEqual(record.manifest.plan.processScopes,plan.processScopes);
+    f.db.prepare("INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,definition_json,state) VALUES ('late-spec','libra','libra_acceptance_spec','subject','{}','blocked')").run();
+    fs.mkdirSync(path.join(f.root,'operator-runtime'));
+    writeAtomic(path.join(f.root,'operator-runtime','intent.json'),{schema:'shelfdeck.runtime-intent@1',desiredMode:'stopped',revision:1,
+      pendingReset:{operationId:'operation',resetId,previewDigest:D,backupId:'backup',backupDigest:D}});
+    await assert.rejects(operator.execute(resetId),{code:'LIBRA_RETIREMENT_EXECUTION_PENDING'});
+    assert.equal(f.db.prepare("SELECT state FROM fx_supporting_works WHERE work_id='open-routing'").get().state,'cancelled');
+    assert.equal(f.db.prepare("SELECT state FROM fx_supporting_works WHERE work_id='late-spec'").get().state,'blocked');
+    assert.equal(f.db.prepare("SELECT status FROM libra_subjects WHERE subject_id='subject'").get().status,'active');
+    assert.equal(operator.read(resetId).state,'executing');
+  }finally{operator?.close();f.close();}
+});
