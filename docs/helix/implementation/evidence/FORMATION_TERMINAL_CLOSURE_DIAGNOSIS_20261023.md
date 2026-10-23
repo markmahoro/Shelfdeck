@@ -279,3 +279,14 @@ Season poster新隔离用例把真实Inventory port的prepare→stage（注入�
 - 本轮结束时本地任务诊断容器均退出。生产只读检查仍为原hostfix4 stopped/exited1、RestartCount0，其余15容器运行。没有生产Reset、结构切换、源媒体写入或恢复供给。
 
 仍开放：已有Series根目录迁移FAIL（基线与候选均存在，未skip或放宽断言），完整固定架构Gate尚未通过；生产1条中断转码Effect/1executing Event尚需正式恢复核验，Reset继续拒绝。4K忙载吞吐及启动耗时未解决，Workspace管理退役新trigger的完整物理崩溃旅程仍无新增证据。高达/凡人歌真实自然重采验收按约定后验，不将隔离通过等同现场收口。
+
+
+## 2026-10-23 后续独立合同核查（方案待确认，未改产品）
+
+1. Series迁移不是单纯旧测试断言：SSOT §2.5附近明确Placement revision变化须被识别为Aftercare Placement Conformance Gap；共享Series补充又要求同Shelf/剧身份唯一正式根。当前clean-arca-inventory-port.resolveTargetLocation在计算新folder后直接采用旧rootBinding.rootLocation；Aftercare conformance与placementMatchesInventory共用该解析结果，导致新模板被忽略、健康评估为healthy。Series scope保存placement_revision，但当前解析未比较此值；既有Store只有创建/版本/预约/引用，无整剧根迁移事务。不能通过简单忽略rootBinding让单季迁走，那会使共享文件与其他季分离。
+2. 建议补齐的Arca合同：冻结同shared scope全部active Season、当前Inventory/head、共享版本/Control及目标；存在pending Accepted预约、builder、Aftercare/Off-deck/身份纠正竞争时延后，不偷改其冻结目标。共享文件与各季成员按精确集合执行、验证，使用可恢复Effect与持久Receipt推进Arca当前根绑定及各Inventory，旧Commit/Identity/Deck Fact保持。未知目录文件不搬、不删；冲突保持明确待处理。先修当前布局差异被隐藏，再完成共享迁移；不得把auto_repair降为healthy或skip既有测试来取得资格。此跨季合同尚待用户确认，未写入SSOT/实现。
+3. 运行恢复核查：clean-service-host在desiredMode=stopped时调用ExecutionHost.start({quiesced:true})，Foundation只分类恢复动作并保持normalSupplyAllowed=false，不执行它们。普通resume/start则会启动fallback reconciler，drainOnce同轮恢复、新Work、新Event及Owner reconcile全部推进，因此普通恢复运行不能作为“只处理既有Effect”的替代。
+4. 冷备只读查询再次确认唯一executing项：libra.media.transcode@1，Event libra-transcode-media-event-8aad245ef3023e69b22e557adc4eb9ad1b15d3c6，原Run 8ecba91fddbf9286cbbfac859fa7eff098e06f21f9d3cf6c75563d30907989cc。查询只列白名单字段，未改生产。建议增加显式管理性停止态恢复：冻结精确Event/Attempt/Effect清单，经Foundation原reality分类及replay，保持原身份与供给门禁；只允许既有技术执行和Work结果聚合，不运行新Plan/Owner reconcile/Outbox采购。结束仍stopped，重新分类无未知Effect后才可另行Reset；不能把resume→立即stop的竞争窗口当成隔离保证。
+5. clean-workspace-product-port.materializeMedia先清理精确producer partial；缺少已登记/最终产物时按原Intent重新produce，再rename与正式记录。故中断转码可能从头重做，不能声称续接50%编码进度，也不能用临时文件存在证明成功。恢复机制不得重签不同Intent或补写终态规避校验。
+
+已向用户请求确认是否把“整剧共享根迁移”和“停止态仅恢复既有执行”两条合同纳入本轮。该请求不等于生产恢复/Reset/发布授权。在答复前继续保留生产停机，未实现依赖新合同的修改。

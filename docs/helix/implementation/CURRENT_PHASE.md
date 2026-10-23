@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-23 后续合同核查：已有Series根绑定遮蔽新Placement规则，Aftercare错误评为healthy；停机启动只分类未决执行，普通resume会同时放开新供给。已形成整剧共享根迁移与停止态仅恢复原Event/Effect的方案，并请求用户确认范围；未改SSOT/产品、未执行生产恢复。详见接手Evidence末节。
+
 2026-10-23 09:11 候选d4b5c00b8标准镜像构建/导出/独立SHA256复核及具体版本UI负责人验收通过（0开放UI问题）。镜像内Reset/取消/重采53PASS、两片新包2PASS、转码停机重启一次Commit1PASS；测试空间/PIDs不足的首轮失败保留，调整隔离资源后通过，未改产品规则。候选仅就UI文案增加b9/d4，证据按精确diff继承。生产仍原版本停止，无上传/部署/Reset。已有Series根迁移FAIL及生产中断转码Effect恢复仍开放，整体发布资格未通过；详见接手Evidence末节。
 
 2026-10-23 06:11 固定候选 `44b725e6a` 已提交，未发布。标准Docker构建因本机Docker Desktop启动崩溃而阻塞，未产生镜像/tar；已通过的Windows包和Linux源码覆盖不能替代镜像资格。完整架构Gate的既有Series根迁移FAIL、精确版本UI负责人验收、生产中断转码Effect恢复仍开放。生产保持停止，无Reset/部署。详见接手Evidence末节。
