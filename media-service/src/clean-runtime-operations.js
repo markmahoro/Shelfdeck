@@ -37,7 +37,7 @@ function createRuntimeOperations(options) {
           typeof intent.pendingReset.backupId!=='string')))fail('RUNTIME_INTENT_INVALID','运行控制记录损坏，不能自动运行。');
   }
   let mode=intent.pendingReset?'error':intent.desiredMode==='stopped'?'stopped':'starting';
-  let error=intent.pendingReset?{code:'RUNTIME_RESET_INTERRUPTED',message:'Reset被中断，须核查备份和工作区后才能恢复运行。'}:null;
+  let error=intent.pendingReset?{code:'RUNTIME_RESET_INTERRUPTED',message:'重置被中断，须核查备份和工作区后才能恢复运行。'}:null;
   let operation=null,lastOperation=null;
   let activeCommands=0;
   const commandWaiters=new Set();
@@ -105,7 +105,7 @@ function createRuntimeOperations(options) {
     },
     stop(body,actor){const request=identity('stop',body,actor);if(request.existing)return request.existing;
       if(operation||checking)fail('RUNTIME_OPERATION_BUSY','上一项运行操作尚未完成。');
-      if(intent.pendingReset)fail('RUNTIME_RESET_INTERRUPTED','须先核查被中断的Reset。');
+      if(intent.pendingReset)fail('RUNTIME_RESET_INTERRUPTED','须先核查被中断的重置操作。');
       persist({desiredMode:'stopped'});mode='stopping';error=null;
       let drained;
       try{drained=options.quiesce();}catch(cause){mode='error';error={code:cause.code||'RUNTIME_OPERATION_FAILED',message:cause.message};throw cause;}
@@ -113,7 +113,7 @@ function createRuntimeOperations(options) {
       catch(cause){mode='error';void Promise.resolve(drained).catch(options.onError);throw cause;}},
     resume(body,actor){const request=identity('resume',body,actor);if(request.existing)return request.existing;
       if(operation||checking)fail('RUNTIME_OPERATION_BUSY','上一项运行操作尚未完成。');
-      if(intent.pendingReset)fail('RUNTIME_RESET_INTERRUPTED','须先核查被中断的Reset。');
+      if(intent.pendingReset)fail('RUNTIME_RESET_INTERRUPTED','须先核查被中断的重置操作。');
       if(mode!=='stopped')fail('RUNTIME_RESUME_STATE_INVALID','服务须先安全停机。');
       mode='resuming';error=null;
       try{return launch('resume',request,async()=>{try{await options.resume();persist({desiredMode:'running'});await options.onDesiredModeChanged?.();mode='running';return {mode};}
@@ -122,12 +122,12 @@ function createRuntimeOperations(options) {
       const preview=await options.previewReset();if(mode!=='stopped'||operation||checking)fail('RUNTIME_RESET_PREVIEW_STALE','运行状态已变化，请重新核对清单。');return preview;},
     async reset(body,actor){const request=identity('reset',body,actor);if(request.existing)return request.existing;
       if(mode!=='stopped'||operation||checking||intent.pendingReset)fail('RUNTIME_RESET_REQUIRES_STOPPED','请先完成安全停机。');
-      if(body.confirmed!==true||typeof body.previewDigest!=='string')fail('RUNTIME_RESET_CONFIRMATION_REQUIRED','请核对清单并确认Reset后果。');
+      if(body.confirmed!==true||typeof body.previewDigest!=='string')fail('RUNTIME_RESET_CONFIRMATION_REQUIRED','请核对清单并确认重置后果。');
       checking=true;
       let preview;
       try{preview=await options.previewReset();}finally{checking=false;}
       if(preview.previewDigest!==body.previewDigest)fail('RUNTIME_RESET_PREVIEW_STALE','清理范围已变化，请重新核对清单。');
-      if(!preview.ready)fail('RUNTIME_RESET_BLOCKED','当前整理不能安全Reset。',{blockers:preview.blockers});
+      if(!preview.ready)fail('RUNTIME_RESET_BLOCKED','当前整理不能安全重置。',{blockers:preview.blockers});
       mode='resetting';error=null;
       try{return launch('reset',request,async()=>{
         const result=await options.reset(preview,backup=>persist({pendingReset:{operationId:request.id,previewDigest:preview.previewDigest,...backup}}));

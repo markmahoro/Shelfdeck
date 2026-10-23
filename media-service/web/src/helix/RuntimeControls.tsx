@@ -7,7 +7,7 @@ import {useModalFocus} from './useModalFocus';
 import {newOpaqueId} from './id';
 import './runtime-controls.css';
 
-const labels={starting:'正在启动',running:'后台运行中',stopping:'正在安全停机',stopped:'已安全停机',resuming:'正在恢复运行',resetting:'正在 Reset',error:'运行操作未完成'};
+const labels={starting:'正在启动',running:'后台运行中',stopping:'正在安全停机',stopped:'已安全停机',resuming:'正在恢复运行',resetting:'正在重置工作台',error:'运行操作未完成'};
 
 export default function RuntimeControls(){
   const {expire}=useSession(),queryClient=useQueryClient();
@@ -89,7 +89,7 @@ export default function RuntimeControls(){
       {checking?<LoadingState>正在核对清理范围…</LoadingState>:preview?<>
         {preview.empty?<p>{preview.blockers.length?'未找到可直接清理的整理任务。':'没有可重置的当前整理任务。'}</p>:<>
           <p>将结束 {preview.counts.subjects} 项当前整理任务，并释放对应的保管与上架目标预留。</p>
-          <p>保留 {preview.protected.collectionCount} 条收藏、已完成/已结束历史、Aftercare 和文件来源配置。完成后仍保持停机。</p>
+          <p>保留 {preview.protected.collectionCount} 条收藏、已完成/已结束历史、收藏维护和文件来源配置。完成后仍保持停机。</p>
           {preview.ready&&<label className="runtime-reset-confirm">输入“重置工作台”以确认<input aria-label="确认词" autoComplete="off" disabled={stateChanged||submitting} value={confirmation} onChange={e=>setConfirmation(e.target.value)} /></label>}
         </>}
         {preview.blockers.map(blocker=><p className="form-error" role="alert" key={blocker.code}>{blocker.message}</p>)}
