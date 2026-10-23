@@ -73,7 +73,8 @@
           "fx_supporting_works",
           "fx_workflow_events",
           "fx_event_attempts",
-          "fx_event_result_bindings"
+          "fx_event_result_bindings",
+          "arca_series_root_relocations"
         ],
         "selector": {
           "selectorKind": "domain_fact_handle_exact",

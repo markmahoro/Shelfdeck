@@ -1,4 +1,11 @@
 const recycleErrors: Record<string, string> = {
+  ARCA_SERIES_RELOCATION_BUSY: '整剧目录移动尚未完成，请先在收藏中检查处理',
+  ARCA_SERIES_RELOCATION_MEMBER_BUSY: '同剧其他季仍有维护或退出任务',
+  ARCA_SERIES_RELOCATION_UNKNOWN_MEMBER: '剧集目录中有未登记的文件或文件夹',
+  ARCA_SERIES_RELOCATION_TARGET_CONFLICT: '目标目录已被占用或原目录不可用',
+  ARCA_SERIES_RELOCATION_PHYSICAL_DRIFT: '剧集文件已变化，暂时无法移动',
+  ARCA_SERIES_RELOCATION_UNSAFE_PATH: '目录包含链接或无法确认的路径',
+  ARCA_SERIES_RELOCATION_CROSS_VOLUME: '整剧目录移动需要位于同一文件系统',
   ARCA_JAV_CORRECTION_BUSY: '影片身份正在纠正，请稍后再检查目录',
   ARCA_JAV_CORRECTION_DIRECTORY_NOT_READY: '影片纠正尚未完成清理，请稍后再试',
   ARCA_JAV_DIRECTORY_CHECK_SCOPE_CHANGED: '影片目录范围已变化，请重新检查',

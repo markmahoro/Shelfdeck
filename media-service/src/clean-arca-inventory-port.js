@@ -514,7 +514,7 @@ function createCleanArcaInventoryPort(options) {
         contentFingerprint:bounded.contentFingerprint }) });
   }
 
-  function resolveTargetLocation(request) {
+  function resolveTargetLocation(request, policyOnly = false) {
     const targetRoot = path.resolve(request?.shelf?.target?.rootLocation || '');
     const shelf = request?.shelf;
     const packageValue = request?.onDeckProductPackage;
@@ -545,7 +545,7 @@ function createCleanArcaInventoryPort(options) {
     if(request.inventoryArtifactScopes!==undefined&&!request.aftercareCaseId)
       fail('CLEAN_ARCA_INVENTORY_INPUT','Registered Inventory Artifact scopes require an Aftercare Case.');
     const series=seriesPlacementContext(packageValue,request.inventoryArtifactScopes);
-    const rootBinding=series&&options.readSeriesRootBinding?.({shelfId:shelf.shelfId,
+    const rootBinding=!policyOnly&&series&&options.readSeriesRootBinding?.({shelfId:shelf.shelfId,
       providerKey:(packageValue.resolvedIdentitySnapshot.factValue.resolvedProductIdentity||packageValue.resolvedIdentitySnapshot.factValue)
         .providerIdentities.find(item=>item.namespace==='tmdb_series').providerKey});
     if(rootBinding&&(rootBinding.endpointId!==shelf.target.endpointId||rootBinding.mountScopeId!==shelf.target.mountScopeId))
@@ -1906,7 +1906,7 @@ function createCleanArcaInventoryPort(options) {
       targetEndpointId:request.shelf.target.endpointId,targetDirectory,observations})});
   }
 
-  return Object.freeze({ assess, resolveTargetLocation, prepare, inspectJavCorrectionPlacement, materialize, slotHandle, prepareSlot, observeEmptyStageSlot,
+  return Object.freeze({ assess, resolveTargetLocation, resolvePolicyTargetLocation:request=>resolveTargetLocation(request,true), prepare, inspectJavCorrectionPlacement, materialize, slotHandle, prepareSlot, observeEmptyStageSlot,
     stage, verifyStaged, switchPlacement, readFinal, readFinalAsync, settleInput, settleInputAsync });
 }
 

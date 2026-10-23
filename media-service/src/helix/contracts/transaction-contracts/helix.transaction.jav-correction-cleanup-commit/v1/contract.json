@@ -65,7 +65,8 @@
       "fx_workspace_materials",
       "fx_artifact_registry",
       "fx_material_controls",
-      "fx_material_control_revisions"
+      "fx_material_control_revisions",
+      "arca_series_root_relocations"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -92,7 +93,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8878,
+      "line": 8879,
       "lineDigest": "e5f6f15f1ec9e72ec654cd7b2fc12b311a26ab1e983fd0d870ec43acf9e8f66f"
     }
   }

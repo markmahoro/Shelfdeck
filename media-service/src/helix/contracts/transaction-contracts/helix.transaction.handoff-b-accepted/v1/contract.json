@@ -74,9 +74,9 @@
       "arca_series_presentation_reservations",
       "arca_acceptance_attempts",
       "arca_acceptance_checks",
-      "arca_shelves",
       "arca_shelf_standard_revisions",
-      "arca_placement_policy_revisions"
+      "arca_placement_policy_revisions",
+      "arca_series_root_relocations"
     ],
     "variants": [],
     "dynamicTableRequirements": [],

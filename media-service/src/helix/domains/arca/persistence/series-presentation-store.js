@@ -1,6 +1,7 @@
 'use strict';
 
 const path=require('node:path');
+const relocationGate=require('./series-root-relocation-gate');
 const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json');
 const {createRepositoryDefinition}=require('../../../foundation/persistence/owner-repository');
 const {createMaterialControlAdmissionReadParticipant,createMaterialControlParticipant,createMaterialControlProjectionPort,controlScopeDigest}=require('../../../foundation/persistence/material-control');
@@ -21,6 +22,7 @@ const columns=Object.freeze({
 function definition(schemaManifest){
   const source=require('./inventory-context-statements');
   const statements=Object.fromEntries(['find_entry','find_shelf','find_identity','find_inventory','list_materials'].map(key=>[key,source[key]]));
+  Object.assign(statements,relocationGate.statements);
   statements.shelf_entries={kind:'select-all',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision'],keyColumns:['shelf_id'],safeIntegers:true};
   for(const [name,fields] of Object.entries(columns))statements['insert_'+name]={kind:'insert',tableId:'arca_series_presentation_'+name,columns:fields};
   const find=(name,table,keys,many=false)=>{statements[name]={kind:many?'select-all':'select-one',tableId:'arca_series_presentation_'+table,
@@ -91,7 +93,7 @@ function createSeriesPresentationStore(options){
     (()=>{const identity=r.invoke('find_identity',{shelf_entry_id:entry.shelf_entry_id,revision:Number(entry.canonical_identity_revision)});return identity?.provider==='tmdb'&&String(identity.provider_key)===current.provider_key;})());}
   function registerMaintenance(basis){
     const b=basis.entryBinding,scopeId=seriesScopeId(b.shelfId,basis.sourceObservation.providerKey);
-    return options.unitOfWork.execute([participant('arca_series_maintenance_admit',(r,c)=>{maintenanceFence(r,basis);
+    return options.unitOfWork.execute([participant('arca_series_maintenance_admit',(r,c)=>{relocationGate.assertNoSeriesRelocation(r,scopeId);maintenanceFence(r,basis);
       const shelf=r.invoke('find_shelf',{shelf_id:b.shelfId}),current=r.invoke('scope',{scope_id:scopeId});
       assertRootBinding({shelfRoot:shelf.target_root_location,rootLocation:b.rootLocation});
       if(current){if(current.root_location!==b.rootLocation||current.retirement_scope_id)fail('ARCA_SERIES_PLACEMENT_CONFLICT','Shared maintenance has another root or authorized retirement.');return current;}
@@ -133,6 +135,7 @@ function createSeriesPresentationStore(options){
       root=assertRootBinding({shelfRoot:target.rootLocation,rootLocation:path.dirname(request.targetLocation)}),
       targetDigest=canonicalDigest({endpointId:target.endpointId,mountScopeId:target.mountScopeId,rootLocation:root});
     return participant('arca_series_reservation',(r,c)=>{
+      relocationGate.assertNoSeriesRelocation(r,scopeId);
       let current=r.invoke('scope',{scope_id:scopeId});
       if(current?.retirement_scope_id)fail('ARCA_SERIES_RETIREMENT_IN_PROGRESS','Shared presentation is under an exact authorized retirement.');
       if(current&&(current.endpoint_id!==target.endpointId||current.mount_scope_id!==target.mountScopeId||current.root_location!==root))
@@ -152,6 +155,7 @@ function createSeriesPresentationStore(options){
 
   function admitBuild({scopeId,basis,existingMembers,replaceFailedBuildId=null,reassessmentFence=null,imageSourceQualification=null,supplementalSources=[],sourceWorkspaceFiles=[],command=null}){
     let admitted;const participants=[...(reassessmentFence?[reassessmentFence]:[]),participant('arca_series_build_admit',(r,c)=>{
+      relocationGate.assertNoSeriesRelocation(r,scopeId);
       const current=r.invoke('scope',{scope_id:scopeId});if(!current)fail('ARCA_SERIES_SCOPE_MISSING','Shared scope has no accepted responsibility.');
       if(current.retirement_scope_id)fail('ARCA_SERIES_RETIREMENT_IN_PROGRESS','Shared presentation has an active authorized retirement.');
       if(current.active_build_id&&current.active_build_id===replaceFailedBuildId&&
@@ -199,6 +203,7 @@ function createSeriesPresentationStore(options){
     if(!reference)fail('ARCA_SERIES_PRESENTATION_NOT_READY','Season Commit requires exact verified shared presentation.');
     const scopeId=seriesScopeId(request.shelf.shelfId,basis.sourceObservation.providerKey);
     return participant('arca_series_commit_reference',(r,c)=>{
+      relocationGate.assertNoSeriesRelocation(r,scopeId);
       const current=r.invoke('scope',{scope_id:scopeId}),version=r.invoke('version',{scope_id:scopeId,revision:reference.sharedVersion}),
         reservation=r.invoke('reservation',{scope_id:scopeId,on_deck_run_id:request.onDeckRunId});
       if(reference.scopeId!==scopeId||!current||current.active_build_id!==null||Number(current.current_version)!==reference.sharedVersion||
@@ -238,6 +243,7 @@ function createSeriesPresentationStore(options){
     return participant('arca_series_release_references',(r,c)=>{
       for(const entryId of ids)for(const row of r.invoke('entry_references',{shelf_entry_id:entryId})){
         if(row.state==='released')continue;
+        relocationGate.assertNoSeriesRelocation(r,row.scope_id);
         const revision=Number(row.reference_revision)+1,digest=canonicalDigest({schema:'arca.series-reference-release@1',
           scopeId:row.scope_id,shelfEntryId:entryId,previousDigest:row.reference_digest,revision});
         if(r.invoke('release_reference',{scope_id:row.scope_id,shelf_entry_id:entryId,expected_revision:Number(row.reference_revision),expected_digest:row.reference_digest,
@@ -292,7 +298,7 @@ function createSeriesPresentationStore(options){
     const scopes=[...new Set(members.map(row=>row.shared_scope_id||row.sharedScopeId).filter(Boolean))].sort();
     if(!scopes.length)return null;
     return participant(complete?'arca_series_retirement_complete':'arca_series_retirement_admit',(r,c)=>{
-      for(const scopeId of scopes){const current=r.invoke('scope',{scope_id:scopeId}),version=Number(members.find(row=>(row.shared_scope_id||row.sharedScopeId)===scopeId).shared_version||members.find(row=>row.sharedScopeId===scopeId)?.sharedVersion),
+      for(const scopeId of scopes){relocationGate.assertNoSeriesRelocation(r,scopeId);const current=r.invoke('scope',{scope_id:scopeId}),version=Number(members.find(row=>(row.shared_scope_id||row.sharedScopeId)===scopeId).shared_version||members.find(row=>row.sharedScopeId===scopeId)?.sharedVersion),
           references=r.invoke('references',{scope_id:scopeId}).filter(row=>row.state==='active'),reservations=r.invoke('reservations',{scope_id:scopeId});
         if(!current||otherSeasons(r,current,shelfEntryId)||current.active_build_id||Number(current.current_version)!==version||reservations.some(row=>row.state==='pending')||
             references.some(row=>row.shelf_entry_id!==shelfEntryId)||!complete&&!references.some(row=>row.shelf_entry_id===shelfEntryId)||

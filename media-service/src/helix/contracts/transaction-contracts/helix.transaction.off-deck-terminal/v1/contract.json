@@ -65,11 +65,11 @@
       "arca_series_presentation_versions",
       "arca_series_presentation_commit_links",
       "arca_series_presentation_scopes",
-      "arca_series_presentation_versions",
       "arca_series_presentation_reservations",
       "arca_series_presentation_references",
       "arca_offdeck_deletion_evidence",
-      "arca_offdeck_authorizations"
+      "arca_offdeck_authorizations",
+      "arca_series_root_relocations"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -96,7 +96,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8885,
+      "line": 8886,
       "lineDigest": "7dd0033bbb591666aee306f1ac5ec4ea1a987112608dc13ab5e84d5eb1cf0332"
     }
   }

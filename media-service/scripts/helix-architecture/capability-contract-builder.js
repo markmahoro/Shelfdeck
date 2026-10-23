@@ -267,6 +267,8 @@ function approvalAuthorization(capabilityRef) {
 }
 
 function resourceKinds(capability) {
+  if(capability.id==='arca.series_root.files.relocate@1')return ['disk_io'];
+  if(capability.id==='arca.series_root.inventory.commit@1')return ['sqlite_write'];
   if(capability.id==='arca.series_presentation.workspace.reclaim@1')return ['cpu','disk_io'];
   if(capability.id==='arca.series_presentation.source.observe@1')return ['cpu','network'];
   if(capability.id==='arca.series_presentation.assets.prepare@1')return ['cpu','disk_io','network'];

@@ -43,6 +43,26 @@ function renderCollection(url='/collection') {
 describe('Arca collection poster wall', () => {
   afterEach(() => vi.restoreAllMocks());
 
+  it('shows whole-Series scope and conflict, then retries through the existing check action',async()=>{
+    const season={...entry,structureKind:'season' as const,series:{seasonNumber:1,episodeCount:0,physicalFileCount:0,episodes:[]}};
+    let moving=false;
+    vi.spyOn(helixAdminApi,'listCollection').mockResolvedValue({items:[season]} as never);
+    vi.spyOn(helixAdminApi,'listPerceptionRecords').mockResolvedValue({items:[],nextCursor:null,currentRating:null});
+    vi.spyOn(helixAdminApi,'getCare').mockImplementation(async()=>({shelfEntryId:season.shelfEntryId,
+      health:{state:moving?'repairing':'attention_required'},basis:{inventoryRevision:1,standardRevision:1,placementRevision:2,careBasisDigest:'d'},
+      history:{assessments:[],findings:[],cases:[],commits:[]},
+      seriesRelocation:{state:moving?'in_progress':'attention_required',seasonCount:2,reasonCode:moving?null:'ARCA_SERIES_RELOCATION_UNKNOWN_MEMBER'}} as never));
+    const check=vi.spyOn(helixAdminApi,'checkCare').mockImplementation(async()=>{moving=true;return {} as never;});
+    renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 The Shawshank Redemption 详情/}));
+    expect(await screen.findByText(/整剧目录移动未完成 · 2 季/)).toHaveTextContent('剧集目录中有未登记的文件或文件夹');
+    expect(screen.getByRole('button',{name:'退出收藏',exact:true})).toBeDisabled();
+    fireEvent.click(screen.getByRole('button',{name:'立即检查健康'}));
+    expect(await screen.findByText('正在移动整剧目录 · 2 季')).toBeInTheDocument();
+    expect(check).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('button',{name:'立即检查健康'})).toBeDisabled();
+    expect(screen.queryByText(/整剧目录移动未完成/)).not.toBeInTheDocument();
+  });
+
   it('keeps the accepted shared retry when the actual collection wall reload fails',async()=>{
     let failReads=false;
     const season={...entry,shelfEntryId:'series-collection-parent',structureKind:'season' as const,series:{seasonNumber:1,episodeCount:0,physicalFileCount:0,episodes:[]}},

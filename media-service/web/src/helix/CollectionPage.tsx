@@ -6,6 +6,7 @@ import { helixAdminApi, type CareDetail, type CollectionEntry, type HealthState 
 import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader, ReadProgress } from './chrome';
 import { healthLabels } from './labels';
+import { processFailureLabel } from './error-labels';
 import RatingControl from './RatingControl';
 import WatchedControl from './WatchedControl';
 import CollectionDefects from './CollectionDefects';
@@ -165,7 +166,7 @@ export default function CollectionPage() {
         const next = await helixAdminApi.getCare(selected.shelfEntryId);
         if (!cancelled) {
           setCare(next);
-          nextDelayMs = next.activeCaseProgress ? 2_000 : 15_000;
+          nextDelayMs = next.activeCaseProgress || next.seriesRelocation?.state==='in_progress' ? 2_000 : 15_000;
         }
       } catch (cause) {
         if (cancelled) return;
@@ -256,7 +257,7 @@ export default function CollectionPage() {
           <section className="collection-health" aria-labelledby="collection-health-heading">
             <div className="collection-health-heading"><div><h3 id="collection-health-heading">收藏健康</h3></div>
               {care?.sharedPresentation?.canRetry&&<Button type="button" disabled={checking} onClick={()=>{setSeriesRetry({entry:selected,canSupplyImages:care?.sharedPresentation?.canSupplyImages===true});setSelected(null);}}>重试上架</Button>}
-              {!care?.sharedPresentation?.canRetry&&<Button type="button" onClick={() => void checkHealth()} disabled={checking||care?.sharedPresentation?.state==='in_progress'}>{checking ? '已开始检查…' : '立即检查健康'}</Button>}
+              {!care?.sharedPresentation?.canRetry&&<Button type="button" onClick={() => void checkHealth()} disabled={checking||care?.sharedPresentation?.state==='in_progress'||care?.seriesRelocation?.state==='in_progress'}>{checking ? '已开始检查…' : '立即检查健康'}</Button>}
             </div>
             {!care ? <p className="health-loading">正在读取健康详情…</p> : (() => {
               const lamp = care.sharedPresentation?.state==='in_progress'?'repairing':foldedHealth(care.health.state);
@@ -264,11 +265,12 @@ export default function CollectionPage() {
                 <p className={`health-lamp ${lamp}`}>
                   <span className="health-lamp-copy">
                     <strong>{foldedHealthLabels[lamp]}</strong>
-                    {lamp === 'repairing' && <small>{repairCopy(care.activeCaseProgress)}</small>}
+                    {lamp === 'repairing' && <small>{care.seriesRelocation?`正在移动整剧目录 · ${care.seriesRelocation.seasonCount} 季`:repairCopy(care.activeCaseProgress)}</small>}
                     {care.health.maintenanceState==='active'&&care.health.maintenanceCaseId&&
                       <Link to={`/formation?aftercareCaseId=${encodeURIComponent(care.health.maintenanceCaseId)}`}>查看维护任务</Link>}
                   </span>
                 </p>
+                {care.seriesRelocation?.state==='attention_required'&&<p role="alert">整剧目录移动未完成 · {care.seriesRelocation.seasonCount} 季：{processFailureLabel(care.seriesRelocation.reasonCode||'')}</p>}
                 {lamp === 'repairing' && care.activeCaseProgress?.progressPercent != null &&
                   <progress className="health-repair-progress" max="100" value={care.activeCaseProgress.progressPercent} aria-label={`自动修复进度 ${care.activeCaseProgress.progressPercent}%`} />}
               </>;
@@ -278,7 +280,7 @@ export default function CollectionPage() {
           <div className="collection-exit">
             {selected.provider==='jav'&&selected.identityKind==='jav_code'&&<Button type="button" disabled={checking||exiting} onClick={()=>{setCorrectionItem(selected);setSelected(null);}}>核对影片</Button>}
             {selected.identityKind==='internal_identity'&&<Button type="button" disabled={checking||exiting} onClick={()=>{setActorItem(selected);setSelected(null);}}>刷新演员</Button>}
-            <Button variant="danger" type="button" onClick={() => void exitCollection()} disabled={exiting}>{exiting ? '正在准备退出…' : '退出收藏'}</Button>
+            <Button variant="danger" type="button" onClick={() => void exitCollection()} disabled={exiting||Boolean(care?.seriesRelocation)}>{exiting ? '正在准备退出…' : '退出收藏'}</Button>
           </div>
         </div>
       </section>

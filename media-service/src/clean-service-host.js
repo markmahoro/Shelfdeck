@@ -1794,6 +1794,7 @@ async function createCleanServiceHost(options) {
       :platformIntegrations.readRecoveryCondition(kind))),
     productDeliveryPort,
     inventoryPort: arcaInventoryPort,
+    createSeriesRootRelocationIo:()=>require('./clean-series-root-relocation-port').createCleanSeriesRootRelocationPort({afterRename:options.afterSeriesRootRename}),
     offdeckDeletionPort: options.offdeckDeletionPort || createCleanOffdeckDeletionPort({
       afterPhysicalEffect: options.afterOffdeckPhysicalEffect,
     }),

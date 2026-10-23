@@ -1,4 +1,8 @@
 'use strict';
+const {createSeriesRootRelocationServices}=require('../application/series-root-relocation-services');
+const {createSeriesRootRelocationPorts}=require('../capabilities/series-root-relocation-ports');
+const {createSeriesRootRelocationPlanner,createSeriesRootRelocationProjections}=require('../planning/series-root-relocation-planner');
+const ROOT_REFS=Object.values(require('../model/series-root-relocation-contract').CAPS);
 const {createSeriesPresentationServices}=require('../application/series-presentation-services');
 const {createSeriesPresentationCapabilityPorts}=require('../capabilities/series-presentation-capability-ports');
 const {createSeriesPresentationPlanner,createSeriesPresentationReclaimPlanner,createSeriesPresentationProjections}=require('../planning/series-presentation-planner');
@@ -90,6 +94,8 @@ function createArcaExecutionRegistration() {
       const shelfDeregistrationContextReader=options.shelfDeregistrationContextReader||createShelfDeregistrationContextReader(options);
       const series=options.createSeriesPresentationIo?createSeriesPresentationServices({...options,aftercareContextReader}):null,
         seriesPorts=series?createSeriesPresentationCapabilityPorts({...options,...series}):{};
+      const relocation=options.createSeriesRootRelocationIo?createSeriesRootRelocationServices({...options,series}):null,
+        relocationPorts=relocation?createSeriesRootRelocationPorts({...options,...relocation}):{};
       const ports=createOnDeckCapabilityPorts({...options,series,contextReader,aftercareContextReader});
       const aftercarePorts=createAftercareCapabilityPorts({...options,series,contextReader:aftercareContextReader});
       const actorRefreshSource=createUsAdultActorRefreshSource({...options,aftercareContextReader}),
@@ -103,14 +109,19 @@ function createArcaExecutionRegistration() {
       const correction=options.acquireJavCover?createJavCorrectionServices({...options,aftercareContextReader}):null,
         correctionPorts=correction?createJavCorrectionCapabilityPorts({...options,...correction,
           assertCurrentCorrectionScope:correction.correctionContextReader.assertCurrent}):{};
-      return Object.freeze({contextReader,aftercareContextReader,offdeckContextReader,shelfDeregistrationContextReader,series,correction,actorRefreshSource,actorMatchQuery,actorPipelineQuery,
-        ports:Object.freeze({...seriesPorts,...ports,...aftercarePorts,...offdeckPorts,...shelfDeregistrationPorts,...correctionPorts,...actorPhasePorts,[ACTOR_SOURCE]:actorSourcePort,[ACTOR_MATCH]:actorMatchPort}),createRegistrations(registrationOptions){
+      return Object.freeze({contextReader,aftercareContextReader,offdeckContextReader,shelfDeregistrationContextReader,series,relocation,correction,actorRefreshSource,actorMatchQuery,actorPipelineQuery,
+        ports:Object.freeze({...relocationPorts,...seriesPorts,...ports,...aftercarePorts,...offdeckPorts,...shelfDeregistrationPorts,...correctionPorts,...actorPhasePorts,[ACTOR_SOURCE]:actorSourcePort,[ACTOR_MATCH]:actorMatchPort}),createRegistrations(registrationOptions){
         const assessment=registrationOptions.enabledCapabilityRefs.filter((ref)=>AFTERCARE_REFS.includes(ref));
         const offdeck=registrationOptions.enabledCapabilityRefs.filter((ref)=>OFFDECK_REFS.includes(ref));
         const deregistration=registrationOptions.enabledCapabilityRefs.filter((ref)=>DEREGISTRATION_REFS.includes(ref));
         const corrected=registrationOptions.enabledCapabilityRefs.filter(ref=>CORRECTION_REFS.includes(ref));
-        const onDeck=registrationOptions.enabledCapabilityRefs.filter((ref)=>!SERIES_REFS.includes(ref)&&!ACTOR_REFS.includes(ref)&&!AFTERCARE_REFS.includes(ref)&&!OFFDECK_REFS.includes(ref)&&!DEREGISTRATION_REFS.includes(ref)&&!CORRECTION_REFS.includes(ref));
+        const onDeck=registrationOptions.enabledCapabilityRefs.filter((ref)=>!ROOT_REFS.includes(ref)&&!SERIES_REFS.includes(ref)&&!ACTOR_REFS.includes(ref)&&!AFTERCARE_REFS.includes(ref)&&!OFFDECK_REFS.includes(ref)&&!DEREGISTRATION_REFS.includes(ref)&&!CORRECTION_REFS.includes(ref));
         return Object.freeze([
+          ...registrationOptions.enabledCapabilityRefs.filter(ref=>ROOT_REFS.includes(ref)).map(ref=>{
+            const manifest=registrationOptions.manifests[ref],port=relocationPorts[ref];
+            if(!port)throw new TypeError('Series relocation runtime is unavailable.');
+            return {manifest,executor:{version:1,execute:port.execute},semanticValidator:{ref:manifest.semanticValidatorRef,validateInputs:port.validateInputs,validateResult:port.validateResult}};
+          }),
           ...registrationOptions.enabledCapabilityRefs.filter(ref=>SERIES_REFS.includes(ref)).map(ref=>{
             const manifest=registrationOptions.manifests[ref],port=seriesPorts[ref];
             if(!port)throw new TypeError('Shared presentation runtime is unavailable.');
@@ -161,7 +172,7 @@ function createArcaExecutionRegistration() {
       const aftercareContextReader=options.aftercareContextReader||createAftercareContextReader(options);
       const offdeckContextReader=options.offdeckContextReader||createOffdeckContextReader(options);
       const shelfDeregistrationContextReader=options.shelfDeregistrationContextReader||createShelfDeregistrationContextReader(options);
-      return Object.freeze({planners:Object.freeze([...(options.series?[createSeriesPresentationPlanner(options),createSeriesPresentationReclaimPlanner(options)]:[]),...(options.actorRefreshSource?[createUsAdultActorSourcePlanner(options)]:[]),
+      return Object.freeze({planners:Object.freeze([...(options.relocation?[createSeriesRootRelocationPlanner(options)]:[]),...(options.series?[createSeriesPresentationPlanner(options),createSeriesPresentationReclaimPlanner(options)]:[]),...(options.actorRefreshSource?[createUsAdultActorSourcePlanner(options)]:[]),
         ...(options.actorMatchQuery?[createUsAdultActorMatchPlanner(options)]:[]),
         ...(options.actorPipelineQuery?createUsAdultActorPipelinePlanners({...options,aftercareContextReader}):[]),createAcceptanceAssessmentPlanner(options),
         createAcceptanceCommitPlanner(options),createAcceptanceRejectionPlanner(options),
@@ -182,7 +193,7 @@ function createArcaExecutionRegistration() {
         createManifestVerificationPlanner({...options,contextReader:shelfDeregistrationContextReader}),
         createDeregistrationCommitPlanner({...options,contextReader:shelfDeregistrationContextReader}),
         ...(options.correction?[createJavCorrectionAssetsPlanner({...options,...options.correction}),createJavCorrectionFilesPlanner({...options,...options.correction}),createJavCorrectionPublishPlanner({...options,...options.correction}),createJavCorrectionVerifyPlanner({...options,...options.correction}),createJavCorrectionCommitPlanner({...options,...options.correction}),createJavCorrectionRetirementPlanner({...options,...options.correction}),createJavCorrectionWorkspaceReclaimPlanner({...options,...options.correction})]:[])]),
-      bindingProjections:Object.freeze([...(options.series?createSeriesPresentationProjections(options):[]),...(options.actorRefreshSource?createUsAdultActorSourceProjections(options):[]),
+      bindingProjections:Object.freeze([...(options.relocation?createSeriesRootRelocationProjections(options):[]),...(options.series?createSeriesPresentationProjections(options):[]),...(options.actorRefreshSource?createUsAdultActorSourceProjections(options):[]),
         ...(options.actorMatchQuery?createUsAdultActorMatchProjections(options):[]),
         ...(options.actorPipelineQuery?createUsAdultActorPipelineProjections({...options,aftercareContextReader}):[]),...createOnDeckProjections(options),...createAftercareProjections({...options,contextReader:aftercareContextReader}),
         ...createOffdeckAutomationProjections({...options,contextReader:offdeckContextReader}),

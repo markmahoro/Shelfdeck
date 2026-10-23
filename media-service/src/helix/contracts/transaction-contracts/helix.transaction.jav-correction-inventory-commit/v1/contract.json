@@ -80,7 +80,8 @@
       "fx_workflow_events",
       "fx_event_attempts",
       "fx_event_result_bindings",
-      "fx_commit_markers"
+      "fx_commit_markers",
+      "arca_series_root_relocations"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -107,7 +108,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8875,
+      "line": 8876,
       "lineDigest": "2039c3722c869026616b3451c5ae0cd6ade4771b704dbb14529ee5a9e09250af"
     }
   }

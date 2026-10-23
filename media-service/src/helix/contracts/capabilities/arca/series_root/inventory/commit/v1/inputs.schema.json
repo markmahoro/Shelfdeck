@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.series_root.inventory.commit/v1/inputs",
+  "title": "arca.series_root.inventory.commit@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "seriesRootRelocationReference": {
+      "$ref": "#/$defs/seriesRootRelocationReference"
+    },
+    "seriesRootRelocationFilesVerified": {
+      "$ref": "#/$defs/seriesRootRelocationFilesVerified"
+    }
+  },
+  "required": [
+    "seriesRootRelocationReference",
+    "seriesRootRelocationFilesVerified"
+  ],
+  "$defs": {
+    "seriesRootRelocationReference": {
+      "$ref": "helix://contracts/domain-types/SeriesRootRelocationReference/v1",
+      "x-helix-typeExpression": "SeriesRootRelocationReference"
+    },
+    "seriesRootRelocationFilesVerified": {
+      "$ref": "helix://contracts/types/SeriesRootRelocationFilesVerified/v1",
+      "x-helix-typeExpression": "SeriesRootRelocationFilesVerified"
+    }
+  }
+}

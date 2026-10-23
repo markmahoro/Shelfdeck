@@ -84,6 +84,7 @@ COPY media-service/src/clean-us-adult-frame-extractor.js ./src/clean-us-adult-fr
 COPY media-service/src/clean-us-adult-inventory-analysis-port.js ./src/clean-us-adult-inventory-analysis-port.js
 COPY media-service/src/clean-formation-reset-port.js ./src/clean-formation-reset-port.js
 COPY media-service/src/clean-arca-inventory-port.js ./src/clean-arca-inventory-port.js
+COPY media-service/src/clean-series-root-relocation-port.js ./src/clean-series-root-relocation-port.js
 COPY media-service/src/clean-arca-recycle-port.js ./src/clean-arca-recycle-port.js
 COPY media-service/src/clean-arca-target-commit-slot.js ./src/clean-arca-target-commit-slot.js
 COPY media-service/src/clean-compute-device-runtime.js ./src/clean-compute-device-runtime.js

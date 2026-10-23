@@ -22,6 +22,7 @@ const PARTIAL_UNIQUE_EXCLUDED_TABLES = new Set(['libra_workspaces', 'libra_works
 // explicit lifecycle CAS transitions. A prose occurrence of "immutable" must
 // not turn the whole relation into an append-only table.
 const MUTABLE_LIFECYCLE_TABLES = new Set([
+  'arca_series_root_relocations',
   'arca_series_presentation_scopes','arca_series_presentation_reservations','arca_series_presentation_references',
   'fx_supporting_works',
   'fx_workspace_registry',
@@ -195,6 +196,7 @@ const EXPLICIT_FOREIGN_KEYS = Object.freeze({
   arca_offdeck_scope_materials:[{columns:['destruction_scope_id'],targetTable:'arca_offdeck_scopes',targetColumns:['destruction_scope_id']},
     {columns:['shared_scope_id','shared_version'],targetTable:'arca_series_presentation_versions',targetColumns:['scope_id','revision']}],
   arca_series_presentation_scopes:[{columns:['retirement_scope_id'],targetTable:'arca_offdeck_scopes',targetColumns:['destruction_scope_id']}],
+  arca_series_root_relocations:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']},{columns:['shelf_id'],targetTable:'arca_shelves',targetColumns:['shelf_id']}],
   arca_series_presentation_builds:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']}],
   arca_series_presentation_versions:[{columns:['scope_id'],targetTable:'arca_series_presentation_scopes',targetColumns:['scope_id']},
     {columns:['build_id'],targetTable:'arca_series_presentation_builds',targetColumns:['build_id']}],
@@ -334,6 +336,7 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'arca_series_root_relocations.plan_json':4*1024*1024,
   'libra_task_cancellations.request_json':1024*1024,
   'arca_us_actor_refresh_intents.payload_json':256*1024,
   'arca_us_actor_refresh_pages.page_json':512*1024,

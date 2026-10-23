@@ -92,8 +92,8 @@ function validateCapabilityContracts(options) {
   }
 
   const actualManifestPaths = new Set(allFiles.filter((filePath) => path.basename(filePath) === 'manifest.json').map((filePath) => path.resolve(filePath)));
-  if (actualManifestPaths.size !== 136) findings.push(finding('CAPABILITY_PACKAGE_COUNT_MISMATCH', 'Exactly 136 Capability packages are required.', {
-    actualCount: actualManifestPaths.size, targetCount: 136
+  if (actualManifestPaths.size !== 138) findings.push(finding('CAPABILITY_PACKAGE_COUNT_MISMATCH', 'Exactly 138 Capability packages are required.', {
+    actualCount: actualManifestPaths.size, targetCount: 138
   }));
 
   for (const expected of expectedPackages) {

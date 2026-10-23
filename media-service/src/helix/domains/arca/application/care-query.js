@@ -4,7 +4,7 @@ const { careFindingCodes } = require('../model/care-objective');
 function createArcaCareApplication(options){if(!options?.contextReader||!options.coordinator)throw new TypeError('Arca Care application requires Aftercare services.');
   const store=options.contextReader.store;
   function detail(shelfEntryId){const context=options.contextReader.read(shelfEntryId);if(!context)return null;return Object.freeze({
-    shelfEntryId,sharedPresentation:options.coordinator.sharedPresentationIssue?.(shelfEntryId)||null,health:options.coordinator.project(shelfEntryId),activeCaseProgress:options.coordinator.caseProgress(shelfEntryId),history:store.history(shelfEntryId),
+    shelfEntryId,seriesRelocation:options.coordinator.seriesRelocationIssue?.(shelfEntryId)||null,sharedPresentation:options.coordinator.sharedPresentationIssue?.(shelfEntryId)||null,health:options.coordinator.project(shelfEntryId),activeCaseProgress:options.coordinator.caseProgress(shelfEntryId),history:store.history(shelfEntryId),
     basis:Object.freeze({inventoryRevision:context.basis.inventoryRevision,standardRevision:context.basis.standardRevision,
       placementRevision:context.basis.placementRevision,decisionFactSetDigest:context.basis.decisionFactSetDigest,
       careBasisDigest:context.basis.digest}),

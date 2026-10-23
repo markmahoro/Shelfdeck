@@ -21,6 +21,7 @@ const MAINTENANCE = Object.freeze({
 const SAFETY = new Set(['arca:recycle-maintenance', 'libra:active-workspace-cleanup-scopes',
   'libra:task-cancellations', 'procurement:retired-field-control']);
 const NORMAL = new Set([
+  'arca:series-root-relocations',
   'arca:series-pending-reservations','arca:series-committed-workspace-reclamation',
   'people:image-operations',
   'people:us-adult-recommendation-claims',

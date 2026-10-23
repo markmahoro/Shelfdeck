@@ -12,7 +12,7 @@
     "8.5.12",
     "8.5.13"
   ],
-  "targetCount": 231,
+  "targetCount": 232,
   "entryFiles": [
     "table-inventory/entries-001-013.json",
     "table-inventory/entries-014-026.json",
@@ -31,6 +31,6 @@
     "table-inventory/entries-183-195.json",
     "table-inventory/entries-196-208.json",
     "table-inventory/entries-209-221.json",
-    "table-inventory/entries-222-231.json"
+    "table-inventory/entries-222-232.json"
   ]
 }

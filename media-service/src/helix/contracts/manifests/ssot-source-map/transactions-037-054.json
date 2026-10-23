@@ -76,12 +76,22 @@
       }
     },
     {
+      "id": "Series Root Relocation Commit",
+      "owner": "arca",
+      "atomicFactSet": "整剧不可变Plan、当前全部Season Inventory/Canonical/Deck head、共享版本及Material Control只读围栏；同一Arca事务追加全部季Inventory和Binding、共享根/版本、迁移committed及精确Execution Result/marker；不改变Control Owner、入藏Receipt或历史记录。任一季漂移则全部回滚；物理rename完成但事务未提交时只允许原Plan继续验证，迁移占用保持",
+      "source": {
+        "section": "8.5.4",
+        "line": 8867,
+        "lineDigest": "f616fa5ef94a9ea866f772b2b28ad1174f7ee6f5189fa2e3f9fea40356ffa2c9"
+      }
+    },
+    {
       "id": "Series Presentation Workspace Reclaim",
       "owner": "arca",
       "atomicFactSet": "只在精确Ready version/成功Assets Result及Work/Effect围栏下删除本build的注册Workspace字节；逐项原Identity/完整摘要验证、缺失可继续、外来文件不删；Workspace Registry/Material/Artifact终态、Reclaimed Result/marker同事务；不改正式共享Inventory、Season Own或来源",
       "source": {
         "section": "8.5.4",
-        "line": 8867,
+        "line": 8868,
         "lineDigest": "1e294cad6f7cf93463210fa4f76eeb11d5f0ea07fd1d01a1be2d3df8b742fe9c"
       }
     },
@@ -91,7 +101,7 @@
       "atomicFactSet": "仅用户明确重试、旧build全部Work终态失败/取消；纯Source失败可重新冻结资格。若曾进入Assets，须全部非纯Attempt仅为已终态失败且Effect failed的Assets、无Publish/Commit Attempt。零物化时按Source配方证明目标及私有临时文件全无并终结空Registry；已有私有成果时冻结精确Source/Registry/Physical Identity/SHA proof与只读sourceWorkspaceFiles，保留旧Registry到后继Ready后正式回收。新immutable build/head CAS、supersedes链与重试Command Receipt同事务，不改旧Source或Metadata Observation；任何未决Effect或正式发布尝试均继续原配方，不删除正式文件",
       "source": {
         "section": "8.5.4",
-        "line": 8868,
+        "line": 8869,
         "lineDigest": "3b7b53f5b3dd6b32534d0bad33f36be7aee52112b173d90ade30b65b5f1a736d"
       }
     },
@@ -101,7 +111,7 @@
       "atomicFactSet": "Arca按持久无写入Evidence及原Case精确stage discard成功Result作出失败收口决定；单事务expected-state CAS更新原Actor Case为unresolved及stale该Case审批；Foundation只读重验exact Work Definition/failed Event/completed failed Attempt/failed material_commit Effect，Owner重验原Inventory head；证据、revision或Effect状态变化则全回滚；不写执行历史、Event Result、成功marker或其他影片，不自动新建Case。terminal head/Evidence digest提供精确重放",
       "source": {
         "section": "8.5.4",
-        "line": 8871,
+        "line": 8872,
         "lineDigest": "c10db6ccad091c50d6f55944239c0cb37b43b239446885e7e138e41ac352b1f2"
       }
     },
@@ -111,7 +121,7 @@
       "atomicFactSet": "real actionable repair Findings + immutable Care Basis + relationized Basis inputs + explicit physical Care Requirement Set + Case queued + Outbox；取得Arca处理席位后才可active并建立处理Work，单纯资料记录同步不得创建Case",
       "source": {
         "section": "8.5.4",
-        "line": 8872,
+        "line": 8873,
         "lineDigest": "cf5ea0c843bac236e760a30451c5c46b3fa1420f0c77bbe39f72bd957c60e9e9"
       }
     },
@@ -121,7 +131,7 @@
       "atomicFactSet": "Arca immutable用户Intent/完整preview proof + 当前Entry/Shelf/Canonical/Inventory/Standard/Placement/Control精确重验 + 独立Correction admitted/gate + Foundation Command Receipt/marker/audit；同Entry无其他nonterminal Correction/Care Case/active Off-deck Reservation；Control只读，不转移，不写旧On-deck/Libra/People/Perception事实，不产生Effect或Outbox；相同输入先重放Receipt，无Receipt才重验当前Basis",
       "source": {
         "section": "8.5.4",
-        "line": 8873,
+        "line": 8874,
         "lineDigest": "55ae399514d68825b73bc0c092905eb5e49634ee625dd137a4e8a5952e67b064"
       }
     },
@@ -131,7 +141,7 @@
       "atomicFactSet": "Arca显式继续原Correction的用户命令；当前attention或committed/cleanup attention、原Admission/上一恢复Receipt/实际终态失败执行及当前Owner/Control/现场证明同UOW重验；新closed Recovery Intent Receipt、原Correction的有界恢复lineage及业务状态CAS，与Foundation Command Receipt/marker/audit原子。原failed Work/Event/Effect/Result、Source/文件计划、Entry/视频和原On-deck均不改写；无Effect/Outbox，实际后续写入只由新Supporting Work/Event/Effect执行。Unknown conflict或未决执行拒绝；相同命令先重放Receipt，cleanup恢复不改变已提交身份",
       "source": {
         "section": "8.5.4",
-        "line": 8874,
+        "line": 8875,
         "lineDigest": "973e92298a2f0a528b35e00604c1730f399babe93bd6c593d892a674fd48e261"
       }
     },
@@ -141,7 +151,7 @@
       "atomicFactSet": "同Scope完整成功Work/Result、Manifest/最终Verification、actual active Admission、当前完整Basis与逐Material Control重验；新Arca Canonical/Metadata/Cast/Inventory、Entry双head、精确Control changes、Correction committed/terminal Evidence及Foundation Receipt Result/marker全有或全无；原视频字节、原On-deck Receipt/来源结算、People/Perception事实不改写；无Outbox，失败全回滚，精确Event已有Receipt先重放",
       "source": {
         "section": "8.5.4",
-        "line": 8875,
+        "line": 8876,
         "lineDigest": "2039c3722c869026616b3451c5ae0cd6ade4771b704dbb14529ee5a9e09250af"
       }
     },
@@ -151,7 +161,7 @@
       "atomicFactSet": "People frozen双轮audit Result、actual Work/Event/Attempt/workspace_write Effect、当前People引用及Platform root只读guard、Libra/Arca formal Projection epoch及Foundation技术read-view fence；Foundation Registry精确active→gc_eligible claim或gc_eligible→deleted/active settlement，settlement Receipt/Result/marker原子；claim无成功marker，无Outbox，无跨Owner事实改写",
       "source": {
         "section": "8.5.4",
-        "line": 8876,
+        "line": 8877,
         "lineDigest": "78f95c5fc6cf89d8b1f599d59450401187b76aafdd937bfe137453393cb065ca"
       }
     },
@@ -161,7 +171,7 @@
       "atomicFactSet": "同committed context及未完成cleanup门禁、Platform root、原Assets/正式清理成功Result和实际Work/Event/Attempt重验；四Workspace Material reclaimed、三Artifact deleted/revision、Registry reclaimed、精确Reclaim Receipt Result/marker全有或全无；文件副作用先完成并独立核验；原Identity/Inventory/Control不写，无Outbox，不释放cleanup门禁",
       "source": {
         "section": "8.5.4",
-        "line": 8877,
+        "line": 8878,
         "lineDigest": "82b925a61973f4405a02e5716c05c92cf3a8615b85d0edd1e6d2174e7f6ecdb2"
       }
     },
@@ -171,18 +181,8 @@
       "atomicFactSet": "Arca同一committed context、原Identity Commit、当前Entry/双head与逐材料Control、两项实际成功清理Work/Result/marker及精确Registry/Artifact生命周期重验；cleanup_state=completed、closed Cleanup Receipt/schema/digest及updated时点与独立 pending 旧目录检查责任原子，随后门禁释放；无新文件副作用、Foundation Result/marker或Outbox，不改core terminal/原入藏事实；完成重放仅核验原持久证据，不要求当前head仍是纠正时revision",
       "source": {
         "section": "8.5.4",
-        "line": 8878,
-        "lineDigest": "e5f6f15f1ec9e72ec654cd7b2fc12b311a26ab1e983fd0d870ec43acf9e8f66f"
-      }
-    },
-    {
-      "id": "JAV Correction No Effect Cancel",
-      "owner": "arca",
-      "atomicFactSet": "Arca只允许当前attention_required且原Basis/逐材料Control不变、原Assets Work及逐次Recovery Intent明确授权的新Assets Work均为Source核验终结失败/Assets未执行、全部关联Effect/Result/Workspace Registry/Material/Artifact为空的精确用户命令；同UOW先只读重验，再CAS cancelled/state revision/terminal Receipt digest/time，与closed Command Receipt/marker/audit原子；原Entry/Canonical/Inventory/视频/原On-deck Commit不变，既有执行历史保持；不创建Effect/Outbox，不释放或转移Control，不允许有写入副作用的取消；精确重放先返回同一Receipt",
-      "source": {
-        "section": "8.5.4",
         "line": 8879,
-        "lineDigest": "607a1ebdc4f3ec555a06788de2c6e27d4310eba9d6ec7001204bd5fcd6a5fd13"
+        "lineDigest": "e5f6f15f1ec9e72ec654cd7b2fc12b311a26ab1e983fd0d870ec43acf9e8f66f"
       }
     }
   ]

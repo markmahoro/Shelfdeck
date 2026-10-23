@@ -66,6 +66,7 @@ const SUPPORT_COLUMNS = Object.freeze({
 });
 
 const PARTIAL_UNIQUE = Object.freeze({
+  arca_series_root_relocations: [{columns:['scope_id'],where:'"state" = \'active\''}],
   arca_acceptance_attempts: [{ columns: ['package_digest', 'standard_revision', 'placement_revision'], where: '"finished_at_ms" IS NULL' }],
   arca_aftercare_cases: [
     { columns: ['care_basis_digest', 'finding_set_digest', 'care_requirement_digest'], where: '"terminal_at_ms" IS NULL' },
@@ -349,7 +350,7 @@ function compileTable(contract, allContracts) {
   }
   for (const json of contract.jsonContracts) {
     requireColumns(contract, [json.column], contract.tableId + ':json');
-    const episodeRecordSet = contract.tableId === 'arca_final_inventory_decisions' && json.column === 'decision_json' && json.maxBytes === 8 * 1024 * 1024 || ['libra_product_fact_revisions','arca_inventory_product_facts'].includes(contract.tableId) &&
+    const episodeRecordSet = contract.tableId === 'arca_series_root_relocations' && json.column === 'plan_json' && json.maxBytes === 4 * 1024 * 1024 || contract.tableId === 'arca_final_inventory_decisions' && json.column === 'decision_json' && json.maxBytes === 8 * 1024 * 1024 || ['libra_product_fact_revisions','arca_inventory_product_facts'].includes(contract.tableId) &&
       json.column === 'episode_metadata_json' && json.maxBytes === 16 * 1024 * 1024 ||
       contract.tableId === 'arca_us_actor_refresh_pages' && json.column === 'page_json' && json.maxBytes === 512 * 1024 ||
       contract.tableId === 'arca_acceptance_check_evidence' && json.column === 'evidence_json' && json.maxBytes === 2 * 1024 * 1024 ||

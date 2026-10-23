@@ -198,6 +198,7 @@ const boundedContracts = {
 };
 
 const dtoContracts = {
+  SeriesRootRelocationReference:'',
   SeriesPresentationScope: '',
   SeriesPresentationReclamationBasis: '',
   SeriesPresentationManifest: '',
@@ -340,6 +341,7 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if(name==='SeriesRootRelocationReference')return exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},revision:{const:1},digest:digest(),relocationId:id(),scopeId:id(),planDigest:digest()});
   if(['SeriesPresentationScope','SeriesPresentationManifest','SeriesPresentationReclamationBasis'].includes(name)){
     const value=require('../../src/helix/contracts/series-presentation-schemas')[name==='SeriesPresentationScope'?'scopeSchema':name==='SeriesPresentationManifest'?'manifestSchema':'reclamationSchema']();
     return {$schema:DRAFT,$id:domainTypeId(name),title:name+'@1','x-helix-ssotRefs':['8.5.12'],

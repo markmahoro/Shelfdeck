@@ -26,12 +26,26 @@ test('exact schema copy preserves every table and original file, supports pre-us
     assert.equal(prepared.copiedTableCount, 230); assert.equal(prepared.applied, false);
     assert.equal(hash(f.sourcePath), originalHash);
     assert.equal(prepared.tableProofs.find(row => row.tableId === 'libra_subjects').rowCount, 1);
+    const upgraded=new Database(f.targetPath,{readonly:true});
+    assert.equal(upgraded.prepare('SELECT count(*) n FROM arca_series_root_relocations').get().n,0);upgraded.close();
     openSqliteKernel({ Database, databasePath: f.targetPath, ...schemas().target }).close();
     const reverted = copy({ Database, sourcePath: f.targetPath, targetPath: path.join(f.root, 'rollback.sqlite'), rollback: true });
     assert.deepEqual(reverted.tableProofs, prepared.tableProofs);
     assert.throws(() => copy({ Database, ...f }), { code: 'RESET_SCHEMA_TARGET_UNSAFE' });
     assert.equal(hash(f.sourcePath), originalHash);
   } finally { f.close(); }
+});
+
+test('schema rollback refuses a frozen Series relocation even before it moves any file',()=>{
+  const f=fixture();
+  try {
+    copy({Database,...f});const db=new Database(f.targetPath);
+    db.prepare("INSERT INTO arca_shelves(shelf_id) VALUES ('shelf')").run();
+    db.prepare("INSERT INTO arca_series_presentation_scopes(scope_id,shelf_id) VALUES ('scope','shelf')").run();
+    db.prepare("INSERT INTO arca_series_root_relocations(relocation_id,scope_id,shelf_id,state,plan_schema_ref,plan_json,plan_digest,state_revision,created_at_ms) VALUES ('relocation','scope','shelf','active','fixture','{}',?,1,1)").run('a'.repeat(64));db.close();
+    assert.throws(()=>copy({Database,sourcePath:f.targetPath,targetPath:path.join(f.root,'rejected.sqlite'),rollback:true}),{code:'RESET_SCHEMA_ROLLBACK_NEW_FACTS'});
+    assert.equal(fs.existsSync(path.join(f.root,'rejected.sqlite')),false);
+  }finally{f.close();}
 });
 test('schema rollback refuses both new Subject terminal facts and pending-Intake-only retirement receipts', () => {
   const f = fixture();

@@ -1132,6 +1132,27 @@ CREATE TABLE "arca_series_presentation_versions" (
   FOREIGN KEY ("build_id") REFERENCES "arca_series_presentation_builds" ("build_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "arca_series_root_relocations" (
+  "relocation_id" TEXT PRIMARY KEY,
+  "scope_id" TEXT,
+  "shelf_id" TEXT,
+  "plan_schema_ref" TEXT,
+  "plan_json" TEXT,
+  "plan_digest" TEXT CHECK (length("plan_digest") = 64 AND "plan_digest" NOT GLOB '*[^0-9a-f]*'),
+  "state" TEXT CHECK ("state" IN ('active', 'committed')),
+  "state_revision" INTEGER CHECK ("state_revision" >= 1),
+  "inventory_set_digest" TEXT CHECK (length("inventory_set_digest") = 64 AND "inventory_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "commit_marker" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  CHECK (json_valid("plan_json")),
+  CHECK (length(CAST("plan_json" AS BLOB)) <= 4194304),
+  FOREIGN KEY ("scope_id") REFERENCES "arca_series_presentation_scopes" ("scope_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_series_root_relocations_hot_01" ON "arca_series_root_relocations" ("shelf_id", "state");
+CREATE UNIQUE INDEX "uidx_arca_series_root_relocations_partial_01" ON "arca_series_root_relocations" ("scope_id") WHERE "state" = 'active';
+
 CREATE TABLE "arca_shelf_entries" (
   "shelf_entry_id" TEXT PRIMARY KEY,
   "shelf_id" TEXT,

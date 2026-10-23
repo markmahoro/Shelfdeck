@@ -1,4 +1,5 @@
 'use strict';
+const {representationMember}=require('../model/inventory-representation-member');
 const {aftercareJavSource,aftercareArtifactSourceIntent,aftercareJavAcquisitionSource,aftercareJavCoverProvenance}=require('../model/aftercare-artifact-source');
 const {assertJavCoverDerivation}=require('../../../contracts/jav-cover-derivation');
 const {remapInventoryMappingFacts}=require('../../../contracts/related-primary-mappings');
@@ -380,32 +381,6 @@ function nfoInventoryFindings(context) {
 async function inspectImageBytes(bytes){try{if(!Buffer.isBuffer(bytes)||bytes.length<12||bytes.length>16*1024*1024)return null;const image=sharp(bytes,{failOn:'error',limitInputPixels:100_000_000,sequentialRead:true}),metadata=await image.metadata();if(!['jpeg','png','webp'].includes(metadata.format)||Number(metadata.width)<=0||Number(metadata.height)<=0)return null;await sharp(bytes,{failOn:'error',limitInputPixels:100_000_000,sequentialRead:true}).stats();return Object.freeze({format:metadata.format,width:Number(metadata.width),height:Number(metadata.height),mediaType:'image/'+metadata.format});}catch{return null;}}
 async function validImageBytes(bytes){return Boolean(await inspectImageBytes(bytes));}
 async function validImage(location){try{const bytes=boundedBytes(location);return Boolean(bytes&&await validImageBytes(bytes));}catch{return false;}}
-function representationMember(item, ordinal) {
-  const artifactScope=readInventoryArtifactScope(item);
-  return Object.freeze({
-    ...(artifactScope?{artifactScope}:{}),
-    ordinal,
-    materialKey: item.material_key,
-    role: item.role,
-    episodeClaims: JSON.parse(item.episode_claims_json),
-    endpointId: item.endpoint_id,
-    location: item.location,
-    bindingRevision: Number(item.binding_revision),
-    physicalIdentity: Object.freeze({
-      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
-      schemaVersion: 2,
-      materialKey: item.material_key,
-      mountScopeId: item.mount_scope_id,
-      inode: item.inode,
-      sizeBytes: Number(item.size_bytes),
-      fingerprintAlgorithm: item.fingerprint_algorithm,
-      fingerprintVersion: Number(item.fingerprint_version),
-      contentFingerprint: item.content_fingerprint,
-    }),
-    digestHex: item.digest_hex,
-    sizeBytes: Number(item.size_bytes),
-  });
-}
 function aftercareMediaProbeEvidence(raw,handle,sizeBytes,observedAtMs){
   const base={schemaRef:'helix://contracts/types/MediaProbeEvidence/v1',schemaVersion:1,
     evidenceId:stable('arca-care-media-probe-',{handle,raw}),evidenceKind:'media_probe',producerRef:'shared.material.media.probe@1',
@@ -744,7 +719,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     const {findings,mediaRepairStrategy,memberAssessmentSet}=c.raw.entry.structure_kind==='season'
       ?aggregateSeriesMediaConformance(options,c,execution):await assessInventoryMediaConformance(options,c,at);
     for(const field of missingFields(c))findings.push(finding('conformance','metadata_field_missing__'+field,'warning','attention_required',canonicalDigest({field,requiredValueDigest:requirementGapValueDigest(effectiveRequirements(c),'metadata_field_unmet',field)})));
-    const placementState=classifyAcceptedPlacement(c),placementRequest=placementState.state==='recompute'?buildAftercareInventoryRequest(c,options.inventoryPort,at,stable('arca-care-assessment-placement-',{entry:c.shelfEntryId,basis:c.basis.digest})):null,desired=placementRequest?options.inventoryPort.resolveTargetLocation(placementRequest):null,placementUnmet=Boolean(placementRequest)&&!placementMatchesInventory(c,placementRequest);
+    const placementState=classifyAcceptedPlacement(c),placementRequest=placementState.state==='recompute'?buildAftercareInventoryRequest(c,options.inventoryPort,at,stable('arca-care-assessment-placement-',{entry:c.shelfEntryId,basis:c.basis.digest})):null,desired=placementRequest?(c.raw.entry.structure_kind==='season'?options.inventoryPort.resolvePolicyTargetLocation(placementRequest):options.inventoryPort.resolveTargetLocation(placementRequest)):null,placementUnmet=Boolean(placementRequest)&&(!placementMatchesInventory(c,placementRequest)||c.raw.entry.structure_kind==='season'&&desired.targetDirectory!==options.inventoryPort.resolveTargetLocation(placementRequest).targetDirectory);
     if(placementState.state==='not_assessable')findings.push(finding('conformance','placement_basis_unavailable','critical','attention_required',canonicalDigest({shelfEntryId:c.shelfEntryId,placementRevision:c.basis.placementRevision,reasonCode:placementState.reasonCode})));
     if(placementUnmet)findings.push(finding('conformance','placement_unmet','critical','auto_repair',canonicalDigest({endpointId:c.raw.shelf.target_endpoint_id,targetDirectory:desired.targetDirectory,placementRevision:c.basis.placementRevision})));
     for(const observed of observeKnownOldBindings(c.raw,fingerprint)){

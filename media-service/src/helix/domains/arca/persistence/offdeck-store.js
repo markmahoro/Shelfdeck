@@ -1,4 +1,5 @@
 'use strict';
+const relocationGate=require('./series-root-relocation-gate');
 const {createSeriesPresentationStore}=require('./series-presentation-store');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
@@ -40,6 +41,7 @@ function createOffdeckStore(options) {
   const now = options.now || Date.now;
   const repo = createRepositoryDefinition({ repositoryId:'arca_offdeck_store', owner:'arca', schemaManifest:options.schemaManifest, statements:{
     ...javCorrectionGate.statements,
+    ...relocationGate.statements,
     find_policy_head:{kind:'select-one',tableId:'arca_offdeck_policy_heads',columns:['policy_id','current_revision','status','updated_at_ms'],keyColumns:['policy_id'],safeIntegers:true},
     find_policy_revision:{kind:'select-one',tableId:'arca_offdeck_policy_revisions',columns:['policy_id','revision','condition_group_schema_ref','condition_group_json','policy_digest','effective_at_ms'],keyColumns:['policy_id','revision'],safeIntegers:true},
     insert_policy_revision:{kind:'insert',tableId:'arca_offdeck_policy_revisions',columns:['policy_id','revision','condition_group_schema_ref','condition_group_json','policy_digest','effective_at_ms']},
@@ -374,6 +376,7 @@ function createOffdeckStore(options) {
       r.invoke('insert_review', { review_id:reviewId, origin_kind:originKind, origin_ref:input.originRef || input.idempotencyKey,
         state:reviewPreparing ? 'preparing' : 'open', actor_id:input.actorId || 'admin', created_at_ms:createdAtMs, terminal_at_ms:null });
       for (const record of records) {
+        relocationGate.assertNoEntrySeriesRelocation(r,record.snapshot.entry.shelf_entry_id);
         r.invoke('insert_reservation', { reservation_id:record.reservationId, review_id:reviewId, shelf_entry_id:record.snapshot.entry.shelf_entry_id,
           inventory_revision:Number(record.snapshot.entry.current_inventory_revision), control_scope_digest:reviewPreparing ? canonicalDigest({schema:'arca.offdeck-pending-scope@1',reviewId,shelfEntryId:record.snapshot.entry.shelf_entry_id,inventoryRevision:Number(record.snapshot.entry.current_inventory_revision)}) : record.scope.controlRevisionSetDigest,
           state:'active', created_at_ms:createdAtMs, released_at_ms:null });

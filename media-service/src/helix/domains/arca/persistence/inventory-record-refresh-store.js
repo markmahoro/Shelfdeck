@@ -1,4 +1,5 @@
 'use strict';
+const {assertNoEntrySeriesRelocation}=require('./series-root-relocation-gate');
 
 const {canonicalDigest}=require('../../../contracts/canonical-json');
 const {createCommandCommitCoordinator}=require('../../../foundation/persistence/commit-foundation');
@@ -29,7 +30,7 @@ function createInventoryRecordRefreshStore(options,repository){
       domainParticipant:{participantId:'arca_inventory_record_refresh',owner:'arca',repositories:[repository],execute(context){
         const repo=context.repository(repository.repositoryId),entry=repo.invoke('find_entry',{shelf_entry_id:shelfEntryId}),
           shelf=entry&&repo.invoke('find_shelf',{shelf_id:entry.shelf_id});
-        assertNoJavCorrection(repo,shelfEntryId);
+        assertNoJavCorrection(repo,shelfEntryId);assertNoEntrySeriesRelocation(repo,shelfEntryId);
         if(!entry||entry.status!=='active'||!shelf||shelf.status!=='active'||
           Number(entry.current_inventory_revision)!==expectedInventoryRevision||
           Number(entry.canonical_identity_revision)!==request.canonicalIdentityRevision||

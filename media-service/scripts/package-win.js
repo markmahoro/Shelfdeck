@@ -114,6 +114,7 @@ const CLEAN_RUNTIME_FILES = [
   'src/clean-western-analysis-port.js',
   'src/clean-us-adult-recommendation-image-port.js',
   'src/clean-workspace-product-port.js',
+  'src/clean-series-root-relocation-port.js',
   'src/clean-workspace-root-admin.js',
   'scripts/helix-formation-reset.js',
   'scripts/user-formation-reset.js',

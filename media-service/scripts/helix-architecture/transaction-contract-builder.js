@@ -68,6 +68,14 @@ const crashFixtures = Object.freeze({
 });
 
 const definitions = Object.freeze({
+  'Series Root Relocation Commit':{
+    readParticipants:[{participantKind:'material-control-authority',owner:'material-control-authority',access:'read',tables:['fx_material_controls']}],
+    commitClass:'domain_fact_commit',
+    writeTables:['arca_series_root_relocations','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_shelf_entries','arca_inventory_representations','arca_inventory_materials','arca_inventory_related_references','arca_inventory_product_facts','arca_inventory_person_relations','fx_event_result_bindings','fx_commit_markers'],
+    readTables:['arca_series_root_relocations','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_references','arca_series_presentation_reservations','arca_shelves','arca_shelf_entries','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_inventory_related_references','arca_inventory_product_facts','arca_inventory_person_relations','arca_shelf_standard_revisions','arca_placement_policy_revisions','arca_ondeck_commit_receipts','arca_aftercare_cases','arca_offdeck_reservations','arca_jav_identity_corrections','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings','fx_commit_markers','fx_material_controls','fx_material_control_revisions'],
+    fixtureRefs:['series-presentation-commit'],hasOutbox:false,
+  },
+
   'Series Presentation Source Reassessment':{
     commitClass:'domain_unit_of_work',commitMarkerRequired:false,writeTables:['arca_series_presentation_scopes','arca_series_presentation_builds','fx_workspace_registry','fx_command_receipts'],
     readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_series_presentation_commit_links','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_workspace_registry','fx_workspace_materials','fx_artifact_registry','fx_command_receipts'],fixtureRefs:['series-presentation-commit'],hasOutbox:false,
@@ -729,6 +737,7 @@ function buildVariants(owner, baseWriteTables, baseReadTables, variants = []) {
       : [...new Set([...baseWriteTables, ...(variant.additionalWriteTables || [])])];
     const readTables = variant.exactOverride ? [...variant.readTables]
       : [...new Set([...baseReadTables, ...(variant.additionalReadTables || [])])];
+    if(readTables.includes('arca_shelf_entries')&&!readTables.includes('arca_series_root_relocations'))readTables.push('arca_series_root_relocations');
     const built = {
       variantId: variant.variantId,
       participants: [...participantsFor(owner, writeTables),...(variant.readParticipants||[])],
@@ -785,7 +794,7 @@ function buildTransactionContracts(entries) {
       atomicFactSet: entry.atomicFactSet,
       participants,
       writeTables,
-      readTables: definition.readTables,
+      readTables: definition.readTables.includes('arca_shelf_entries')?[...new Set([...definition.readTables,'arca_series_root_relocations'])]:definition.readTables,
       variants: buildVariants(entry.owner, writeTables, definition.readTables, definition.variants),
       dynamicTableRequirements: definition.dynamicTableRequirements || [],
       forbiddenWriteTables: definition.forbiddenWriteTables || [],

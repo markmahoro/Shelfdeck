@@ -7,7 +7,7 @@ const zlib = require('node:zlib');
 const { digest } = require('../../src/helix/foundation/persistence/ddl-compiler');
 const { openSqliteKernel, verifyReadOnlySqliteSnapshot } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const SOURCE_DIGEST = '4549671e37bedb285feb0bb6dc08d9e431aa040136bd9ee668de248a2f0782a6';
-const TARGET_DIGEST = '40dfcbb6a6a64294098c72093ba03ce61e6696c5fb8d162b76a3272af73f409c';
+const TARGET_DIGEST = '14ba9e5ab6833fedf39adc6d4dd492d18ea6c9387a3e0a1671a3d1338b999d53';
 const RETIRED = ['administratively_retired'];
 const EXTENSIONS = Object.freeze({
   arca_acceptance_attempts: { state: RETIRED },
@@ -55,9 +55,15 @@ function schemas() {
     if (!line.endsWith(')),') || !line.includes(' IN (')) fail('RESET_SCHEMA_SCOPE_DRIFT', 'Declared CHECK shape changed.');
     return line.slice(0, -3) + added.map(value => ", '" + value + "'").join('') + ')),';
   }).join('\n');
-  if (expected !== target.schemaDdl || found.size !== Object.values(EXTENSIONS).reduce((n, item) => n + Object.keys(item).length, 0) ||
-      schemaManifest.tableCount !== 231 || target.schemaManifest.tableCount !== 231)
-    fail('RESET_SCHEMA_SCOPE_DRIFT', 'Only the declared terminal-state CHECK extensions may change.');
+  const extra=target.schemaManifest.tables.filter(row=>!schemaManifest.tables.some(old=>old.tableId===row.tableId));
+  if(extra.length!==1||extra[0].tableId!=='arca_series_root_relocations'||extra[0].owner!=='arca')
+    fail('RESET_SCHEMA_SCOPE_DRIFT','Only the declared Arca Series relocation table may be added.');
+  const newStatements=target.schemaDdl.match(/CREATE TABLE "arca_series_root_relocations" \([\s\S]*?\n\);\n(?:CREATE [^\n]+\n)*\n/);
+  if(!newStatements)fail('RESET_SCHEMA_SCOPE_DRIFT','The declared relocation table and indexes are missing.');
+  const preservedDdl=target.schemaDdl.replace(newStatements[0],'');
+  if (expected !== preservedDdl || found.size !== Object.values(EXTENSIONS).reduce((n, item) => n + Object.keys(item).length, 0) ||
+      schemaManifest.tableCount !== 231 || target.schemaManifest.tableCount !== 232)
+    fail('RESET_SCHEMA_SCOPE_DRIFT', 'Only the declared terminal-state CHECK extensions and empty Arca relocation table may change.');
   for (const old of schemaManifest.tables) {
     const next = target.schemaManifest.tables.find(row => row.tableId === old.tableId);
     if (!next || JSON.stringify(old.columns) !== JSON.stringify(next.columns) || JSON.stringify(old.indexes) !== JSON.stringify(next.indexes) ||
@@ -96,10 +102,12 @@ function prepareFormationRetirementSchemaCopy({ Database, sourcePath, targetPath
   let db, temporary;
   try {
     if (rollback) {
+      if(original.db.prepare('SELECT 1 FROM arca_series_root_relocations LIMIT 1').get())
+        fail('RESET_SCHEMA_ROLLBACK_NEW_FACTS','An admitted or committed Series relocation prohibits rollback.');
       for (const [table, fields] of Object.entries(EXTENSIONS)) for (const [column, values] of Object.entries(fields))
         if (original.db.prepare('SELECT 1 FROM ' + quote(table) + ' WHERE ' + quote(column) + ' IN (' + values.map(() => '?').join(',') + ') LIMIT 1').get(...values))
           fail('RESET_SCHEMA_ROLLBACK_NEW_FACTS', 'New terminal facts prohibit rollback.', { tableId: table, column });
-      if (original.db.prepare("SELECT 1 FROM fx_command_receipts WHERE command_contract IN ('libra.formation-retirement@1','arca.formation-retirement@1','libra.intake-retirement@1','procurement.candidate-retirement@1') LIMIT 1").get())
+      if (original.db.prepare("SELECT 1 FROM fx_command_receipts WHERE command_contract IN ('libra.formation-retirement@1','arca.formation-retirement@1','libra.intake-retirement@1','procurement.candidate-retirement@1','foundation.stopped-execution-termination@1') LIMIT 1").get())
         fail('RESET_SCHEMA_ROLLBACK_NEW_FACTS', 'Administrative command receipts require their retirement gates.');
     }
     const target = rollback ? frozen.source : frozen.target;

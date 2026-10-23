@@ -308,3 +308,25 @@ Season poster新隔离用例把真实Inventory port的prepare→stage（注入�
 验证：Reset相关组合77/77 PASS；新增终止测试4/4（包含运行态拒绝、文件/执行漂移、事务回滚、journal ack前中断重放、硬链接/异域/异能力拒绝）。真实Series Host启动FFmpeg后关闭服务，使用新Reset完整备份/退役，1/1 PASS、11.68秒；子进程归零、原Attempt数量不增加、未产生On-deck Commit、未决Effect归零、FK/integrity通过、停止意图保持。该项是实际终止路径，不是转码完成/续转演练。日志：本地忽略目录`stopped-termination-tests-final.log`、`stopped-transcode-host.log`。增加最后的Receipt闭形/尺寸检查后4/4复验通过。尚未完成新固定候选完整资格、Docker/Windows包、具体版本UI审查或生产操作。
 
 `SERIES-ROOT-PLACEMENT`仍进行中：当前仅新增按现行规则读取期望根的纯查询，正常入库继续服从durable binding；整剧冻结计划及物理移动模块已通过18项相关隔离测试（其中8项为新整剧边界）。两季+三份共享文件同移、物理rename后重入、未知文件/目录、占用目标、文件漂移、漏季/异Provider/其他维护及Accepted reservation拒绝已测。Arca持久占用、真实Work/Effect及全季Inventory/共享版本原子提交尚未接通；这些模块尚不能作为生产迁移工具，原Aftercare假healthy问题仍未完成修复。
+
+
+## 2026-10-23 整剧迁移运行链检查点（尚未固定候选）
+
+Arca已新增持久`arca_series_root_relocations`，冻结同剧全部当前Season、共享版本、材料物理身份与Control责任；Accepted预约、共享Builder、维护/退出/身份纠正及漏季阻断。活动迁移围栏阻止相关新增入藏、共享重建、Inventory刷新及Shelf变更。专用两阶段Work先核验并移动整根，再验证真实文件及原Effect/前序Result，以一个正式Owner事务推进各季Inventory、共享根与新版本，连同Foundation Result/Commit Marker原子提交。旧Canonical/Deck/入藏Receipt和Control责任保持；未决迁移不自动释放围栏。合同为138 Capability、117 Result family、232表、62事务、150 Domain Inputs，四项静态检查已通过。
+
+精确旧231表到新232表结构复制仅允许既定12处终态CHECK扩展及新增空Arca迁移表/索引；230个原事实表逐行保护，已存在迁移或行政终止事实时拒绝有损回退。旧225→231工具继续使用原冻结目标档案，不改变历史结构路径。
+
+定向验证：Windows计划/物理/双季数据库事务及结构复制15/15，Linux源码挂载隔离容器12/12；不是新镜像构建资格。单季真实Host完整迁移1/1，36.45秒。两季Host首次因前置检查不继续而超时；保留隔离数据库后证明手动检查更新人物关联并提前返回，没有启动健康检查。已修为同请求重新读取新Inventory后继续；Owner状态机与旧结构副本组合19/19，新增测试确认只点一次且新Assessment使用更新后的basis。再次两季Host迁移/全部文件与旧事实保护断言通过，末尾原共享版本计数仍预期1而实际为2，整体该次仍记FAIL（97.85秒）；已将断言按迁移新增版本修正，待重跑。
+
+真实进程退出回归覆盖rename之后、Inventory+Result原子提交之后及二次重启。首轮测试误用外层`node --test`，导致注入79退出码被runner改写为1，未进入恢复；已沿既有进程退出测试方式修正。跨重启须保持同一隔离虚拟时钟，不能把前置维护窗口测试的未来时间换回真实时间。当前仍回归，未记PASS，未新增生产操作或发布资格。
+
+
+## 2026-10-23 整剧迁移恢复、冲突重试与Projection回归
+
+真实进程退出测试在修正测试启动方式后暴露产品缺陷：StartupRecovery的Work投影不含basis_digest，迁移Observer错误把缺失字段当成输入漂移，导致P4_EVENT_RECOVERY_REALITY_CONFLICT。修复为通过声明的Foundation只读Participant重验持久Work basis、原Event/Attempt/Effect；保留精确Owner和Intent围栏。两处真实进程退出及每处二次重启均通过（rename后112.92秒、Inventory/Result原子提交后105.61秒），原计划/两条入藏Receipt/Control/Identity/Deck保持，共享版本只新增一次。原失败日志保留，不追记PASS。
+
+迁移文件冲突按明确失败结果返回，持久整剧围栏保留。现有“立即检查健康”入口用新幂等键触发重试，原键重放不新增Work；复核所有旧Work已终态、原Attempt已停止、精确输入摘要/Effect intent、完整物理集合及Control后，才提交同一冻结计划的新Work。未知旧Effect不直接改终态或伪造成功，实际文件执行仍重复核验。真实两季Host注入未登记文件→明确失败→原键重放→移除测试文件→新键重试→完整迁移通过（97.57秒）；补验两季收藏列表与详情同源的阻塞状态/真实季数/失败码后再次通过（97.54秒）。两季原有共享版本计数断言同步为迁移新增一版。
+
+当前定向结果：迁移计划/Store/恢复与人工重试围栏24/24；Arca受影响449项中445PASS、4既有skip、0FAIL；Service695项中666PASS、29既有skip、0FAIL（在后续人工重试/UI增量前，最终固定候选仍须复验）。Web新增整剧冲突→同入口重试状态测试，完整263/263和build通过。四项静态检查通过。Linux先前12/12仅为当时源码覆盖，不视为当前新镜像资格。Docker/Windows打包清单已加入新根目录IO模块。
+
+当前合同台账固定为138/117/232/62，150 Domain Inputs、254 referenced types；相应当前基线测试更新精确计数，旧225→231历史结构复制测试保持。完整新固定候选架构门禁、独立分发/镜像、真实UI负责人验收及停止态生产副本核验仍待完成。本轮无新增NAS操作；生产仍应保持停机，未Reset、迁移、升级或恢复供给。

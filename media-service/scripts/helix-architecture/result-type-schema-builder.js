@@ -226,6 +226,9 @@ const triageUnit = () => {
 };
 
 const special = {
+  'SeriesRootRelocationCommitted.sharedVersion':positiveInteger(),
+  'SeriesRootRelocationFilesVerified.fileCount':{type:'integer',minimum:1,maximum:8192},
+  'SeriesRootRelocationFilesVerified.rootLocation':{type:'string',minLength:1,maxLength:4096},
   'FilesystemIdentityEvidence.identity': ref('PhysicalMaterialIdentity'),
   'BoundedContentFingerprintEvidence.identity': ref('PhysicalMaterialIdentity'),
   'BoundedContentFingerprintEvidence.fingerprintProfileRef': { const: 'middle-256k-sha256@1' },
@@ -629,6 +632,8 @@ function inferredField(resultName, fieldName) {
 }
 
 const contracts = {
+  SeriesRootRelocationFilesVerified:['EvidenceEnvelope','relocationId,scopeId,planDigest,rootLocation,fileCount,realityDigest'],
+  SeriesRootRelocationCommitted:['DomainFactEnvelope','relocationId,scopeId,planDigest,sharedVersion,manifestDigest,inventorySetDigest'],
   PeopleArtifactReferenceEvidence:['EvidenceEnvelope','artifactHandle,policyDigest,bootId,rootFenceDigest,sourceEpochs,round,sourceIndex,cursor,status,firstPassCompletedAtMs,pageCount,chainDigest'],
   PeopleArtifactReclamationReceipt:['ReceiptEnvelope','artifactHandleId,artifactDigest,previousReferenceRevision,referenceRevision,disposition,reasonCode,reclaimedBytes,auditResultDigest,physicalEvidenceDigest,executionReference,receiptDigest'],
   ArcaUsAdultAssetsPrepared:['EvidenceEnvelope','aftercareCaseId,shelfEntryId,intentId,intentDigest,selectionDigest,sourceResultDigest,factsHandle,nfoHandle,posterHandle,planHandle,planDigest'],
