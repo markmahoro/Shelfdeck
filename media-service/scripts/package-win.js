@@ -84,6 +84,7 @@ const CLEAN_RUNTIME_FILES = [
   'scripts/formation-retirement-journal.js',
   'scripts/formation-retirement-operator.js',
   'scripts/formation-retirement-plan.js',
+  'scripts/formation-stopped-transcode.js',
   'scripts/helix-formation-retirement-schema-copy.js',
   'scripts/helix-architecture/formation-retirement-schema-copy.js',
   'scripts/helix-architecture/paused-release-batch-proof.js',

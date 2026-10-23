@@ -53,14 +53,14 @@ function createUserFormationReset(options){
     for(const entry of await fs.promises.readdir(root,{withFileTypes:true}))if(entry.isDirectory())await syncDirectories(path.join(root,entry.name));
     const fd=fs.openSync(root,'r');try{fs.fsyncSync(fd);}finally{fs.closeSync(fd);}
   }
-  async function files(root,relative='',exclude=new Set()){
+  async function files(root,relative='',exclude=new Set(),includeDigests=true){
     const list=[];
     for(const entry of await fs.promises.readdir(path.join(root,relative),{withFileTypes:true})){
       if(!relative&&exclude.has(entry.name))continue;
       const key=path.join(relative,entry.name),absolute=path.join(root,key);
       if(entry.isSymbolicLink())fail('RESET_BACKUP_SYMLINK_REFUSED','备份中发现符号链接，已停止清理。');
-      if(entry.isDirectory())list.push(...await files(root,key));
-      else if(entry.isFile())list.push({path:key,bytes:(await fs.promises.stat(absolute)).size,sha256:await digest(absolute)});
+      if(entry.isDirectory())list.push(...await files(root,key,exclude,includeDigests));
+      else if(entry.isFile())list.push({path:key,bytes:(await fs.promises.stat(absolute)).size,...(includeDigests?{sha256:await digest(absolute)}:{})});
       else fail('RESET_BACKUP_FILE_UNSUPPORTED','备份中发现不支持的文件。');
     }
     return list.sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
@@ -88,7 +88,7 @@ function createUserFormationReset(options){
       if(!/^[a-f0-9]{64}$/i.test(id))fail('RESET_WORKSPACE_ID_INVALID','工作区标识无效。');
       const source=path.join(options.workspaceRoot,id);if(fs.existsSync(source)){
         if(fs.lstatSync(source).isSymbolicLink())fail('RESET_BACKUP_SYMLINK_REFUSED','工作区备份包含符号链接。');
-        required+=(await files(source)).reduce((total,item)=>total+BigInt(item.bytes),0n);
+        required+=(await files(source,'',new Set(),false)).reduce((total,item)=>total+BigInt(item.bytes),0n);
       }
     }
     const space=fs.statfsSync(backupRoot,{bigint:true});

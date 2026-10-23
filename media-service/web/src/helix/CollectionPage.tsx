@@ -96,6 +96,7 @@ export default function CollectionPage() {
   const pageCursors = useRef<Array<string | undefined>>([undefined]);
   const currentPage = useRef(0);
   const loadVersion = useRef(0);
+  const healthHeading = useRef<HTMLHeadingElement>(null);
   const dialog = useModalFocus<HTMLElement>(Boolean(selected), () => setSelected(null), checking || exiting);
   const load = useCallback(async (cursor?: string, targetPage = currentPage.current, requireResult = false) => {
     const requestCursor = targetPage === 0 ? undefined : cursor ?? pageCursors.current[targetPage];
@@ -160,12 +161,16 @@ export default function CollectionPage() {
     if (!selected) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let previousProjection: string | undefined;
     const refresh = async () => {
       let nextDelayMs = 15_000;
       try {
         const next = await helixAdminApi.getCare(selected.shelfEntryId);
         if (!cancelled) {
           setCare(next);
+          const projection = JSON.stringify([next.health.state, next.basis.inventoryRevision, next.seriesRelocation?.state]);
+          if (previousProjection !== undefined && previousProjection !== projection) void load();
+          previousProjection = projection;
           nextDelayMs = next.activeCaseProgress || next.seriesRelocation?.state==='in_progress' ? 2_000 : 15_000;
         }
       } catch (cause) {
@@ -178,10 +183,11 @@ export default function CollectionPage() {
     };
     void refresh();
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [expire, selected]);
+  }, [expire, selected, load]);
   const selectedShelf = shelves.find((item) => item.shelfId === shelfId);
   async function checkHealth() {
     if (!selected) return;
+    if (dialog.current?.contains(document.activeElement)) healthHeading.current?.focus();
     setChecking(true); setError('');
     try { await helixAdminApi.checkCare(selected.shelfEntryId); setCare(await helixAdminApi.getCare(selected.shelfEntryId)); await load(); }
     catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '健康检查未能开始。'); }
@@ -255,7 +261,7 @@ export default function CollectionPage() {
           <div className="collection-rating"><span>我的评分</span><RatingControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
           <div className="collection-rating"><span>观看状态</span><WatchedControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
           <section className="collection-health" aria-labelledby="collection-health-heading">
-            <div className="collection-health-heading"><div><h3 id="collection-health-heading">收藏健康</h3></div>
+            <div className="collection-health-heading"><div><h3 id="collection-health-heading" ref={healthHeading} tabIndex={-1}>收藏健康</h3></div>
               {care?.sharedPresentation?.canRetry&&<Button type="button" disabled={checking} onClick={()=>{setSeriesRetry({entry:selected,canSupplyImages:care?.sharedPresentation?.canSupplyImages===true});setSelected(null);}}>重试上架</Button>}
               {!care?.sharedPresentation?.canRetry&&<Button type="button" onClick={() => void checkHealth()} disabled={checking||care?.sharedPresentation?.state==='in_progress'||care?.seriesRelocation?.state==='in_progress'}>{checking ? '已开始检查…' : '立即检查健康'}</Button>}
             </div>

@@ -156,6 +156,21 @@ test('user Reset backs up selected workspaces and preserves ended history and so
   }finally{close(f);}
 });
 
+test('user Reset refuses insufficient backup space without reading Workspace payloads',async()=>{
+  const f=fixture('user-reset-space'),statfs=fs.statfsSync,readStream=fs.createReadStream;
+  try {
+    const active=seedSubjectRun(f.database,'space-active');
+    const dir=path.join(f.transcodeDir,active.workspaceId);fs.mkdirSync(dir);fs.writeFileSync(path.join(dir,'partial.mkv'),'retained bytes');
+    const port=createUserFormationReset({dataDir:f.dataDir,workspaceRoot:f.transcodeDir}),preview=port.preview();
+    const before=f.database.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(active.runId);
+    fs.statfsSync=()=>({bavail:0n,bsize:4096n});
+    fs.createReadStream=function(file,...args){assert.equal(path.resolve(String(file)).startsWith(path.resolve(dir)+path.sep),false,'Capacity refusal must not read media bytes');return readStream.call(this,file,...args);};
+    await assert.rejects(port.apply(preview,()=>assert.fail('No authorization before backup')),{code:'RESET_BACKUP_SPACE_INSUFFICIENT'});
+    assert.deepEqual(f.database.prepare('SELECT * FROM libra_runs WHERE libra_run_id=?').get(active.runId),before);
+    assert.deepEqual(fs.readdirSync(path.join(f.dataDir,'operator-backups')),[]);
+  }finally{fs.statfsSync=statfs;fs.createReadStream=readStream;close(f);}
+});
+
 test('user Reset rejects filesystem roots, data ancestors and Workspace aliases before backup or retirement',async()=>{
   const f=fixture('user-reset-root-safety');
   try {

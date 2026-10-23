@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import CollectionPage from '../src/helix/CollectionPage';
 import { helixAdminApi, type CollectionEntry } from '../src/helix/api';
@@ -56,11 +56,42 @@ describe('Arca collection poster wall', () => {
     renderCollection();fireEvent.click(await screen.findByRole('button',{name:/查看 The Shawshank Redemption 详情/}));
     expect(await screen.findByText(/整剧目录移动未完成 · 2 季/)).toHaveTextContent('剧集目录中有未登记的文件或文件夹');
     expect(screen.getByRole('button',{name:'退出收藏',exact:true})).toBeDisabled();
+    screen.getByRole('button',{name:'立即检查健康'}).focus();
     fireEvent.click(screen.getByRole('button',{name:'立即检查健康'}));
+    expect(screen.getByRole('heading',{name:'收藏健康'})).toHaveFocus();
     expect(await screen.findByText('正在移动整剧目录 · 2 季')).toBeInTheDocument();
     expect(check).toHaveBeenCalledTimes(1);
     expect(screen.getByRole('button',{name:'立即检查健康'})).toBeDisabled();
     expect(screen.queryByText(/整剧目录移动未完成/)).not.toBeInTheDocument();
+  });
+
+  it('refreshes all Season badges when the polled relocation completes without reloading unchanged state',async()=>{
+    vi.useFakeTimers();
+    try {
+      let complete=false;
+      const seasons=[1,2].map(number=>({...entry,shelfEntryId:`season-${number}`,displayIdentity:`Series Season ${number}`}));
+      const list=vi.spyOn(helixAdminApi,'listCollection').mockImplementation(async()=>({items:seasons.map(season=>({...season,health:{state:complete?'healthy':'repairing'}}))} as never));
+      vi.spyOn(helixAdminApi,'listPerceptionRecords').mockResolvedValue({items:[],nextCursor:null,currentRating:null});
+      vi.spyOn(helixAdminApi,'getCare').mockImplementation(async()=>({shelfEntryId:'season-1',health:{state:complete?'healthy':'repairing'},
+        basis:{inventoryRevision:complete?2:1,standardRevision:1,placementRevision:2,careBasisDigest:'d'},
+        history:{assessments:[],findings:[],cases:[],commits:[]},
+        seriesRelocation:complete?null:{state:'in_progress',seasonCount:2,reasonCode:null}} as never));
+      const {container,unmount}=renderCollection();
+      await act(async()=>{});
+      fireEvent.click(screen.getByRole('button',{name:/查看 Series Season 1 详情/}));
+      await act(async()=>{});
+      expect(container.querySelectorAll('.health-seal.repairing')).toHaveLength(2);
+      await act(async()=>{await vi.advanceTimersByTimeAsync(2000);});
+      expect(list).toHaveBeenCalledTimes(1);
+      complete=true;
+      await act(async()=>{await vi.advanceTimersByTimeAsync(2000);});
+      expect(within(screen.getByRole('dialog')).getByText('健康')).toBeInTheDocument();
+      expect(container.querySelectorAll('.health-seal.healthy')).toHaveLength(2);
+      expect(list).toHaveBeenCalledTimes(2);
+      await act(async()=>{await vi.advanceTimersByTimeAsync(15000);});
+      expect(list).toHaveBeenCalledTimes(2);
+      unmount();
+    } finally {vi.useRealTimers();}
   });
 
   it('keeps the accepted shared retry when the actual collection wall reload fails',async()=>{

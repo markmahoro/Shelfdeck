@@ -30,6 +30,7 @@ test('Windows distribution boots independently with its own native dependencies 
           for(const binary of [require('ffmpeg-static'),require('@ffprobe-installer/ffprobe').path])
             assert.equal(require('node:child_process').spawnSync(binary,['-version'],{windowsHide:true,timeout:10000}).status,0);
           assert.equal(Object.keys(require.cache).filter(file=>{const rel=path.relative(output,file);return rel.startsWith('..'+path.sep)||path.isAbsolute(rel);}).length,0);
+          assert.equal(require('./scripts/user-formation-reset').createUserFormationReset({dataDir}).preview().empty,true);
           console.log(JSON.stringify({ok:true,tableCount:initialized.tableCount,routeCount:host.routeCount}));
         }finally{await host.close();}
       })().catch(error=>{console.error(error);process.exitCode=1;});`;

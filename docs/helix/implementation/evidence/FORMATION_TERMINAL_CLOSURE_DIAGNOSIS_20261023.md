@@ -330,3 +330,18 @@ Arca已新增持久`arca_series_root_relocations`，冻结同剧全部当前Seas
 当前定向结果：迁移计划/Store/恢复与人工重试围栏24/24；Arca受影响449项中445PASS、4既有skip、0FAIL；Service695项中666PASS、29既有skip、0FAIL（在后续人工重试/UI增量前，最终固定候选仍须复验）。Web新增整剧冲突→同入口重试状态测试，完整263/263和build通过。四项静态检查通过。Linux先前12/12仅为当时源码覆盖，不视为当前新镜像资格。Docker/Windows打包清单已加入新根目录IO模块。
 
 当前合同台账固定为138/117/232/62，150 Domain Inputs、254 referenced types；相应当前基线测试更新精确计数，旧225→231历史结构复制测试保持。完整新固定候选架构门禁、独立分发/镜像、真实UI负责人验收及停止态生产副本核验仍待完成。本轮无新增NAS操作；生产仍应保持停机，未Reset、迁移、升级或恢复供给。
+
+
+## 2026-10-23 12:47 固定候选资格发现与修正
+
+- 固定 `2c520418669977ac9a2429fc5020b9e47bad1e58`、干净源码完整Architecture实际完成，414文件、3321 total/3290 PASS/5 FAIL/26 skip，3686101ms；四项静态检查PASS。三项FAIL为Root IO白名单、138个Capability及115个输出family的精确断言未同步；另外两个是真实Host普通NFO/NFO+poster修复被新增Series迁移预检挡住。保留原失败，不把此轮算全绿。
+- 根因是判断新规则的期望目录时调用了完整Inventory prepare，先对待修复的旧文件做不可变字节验证。已将Arca持有的Placement测算Basis与实际prepare分开；Series预检仅测算目标，迁移及正常修复执行时仍各自完整验证。没有放宽物理身份、漂移或Owner守卫。两个原失败Host用例重新通过（95.43s、124.78s），两季冲突→同Plan显式新Work重试→完整迁移亦PASS（98.84s）。
+- 标准2c镜像构建成功，image `sha256:b835d8803a35b554f87c61baf9ee7ad17b0d9f524fcd60e80c2e65a0d664ff1a`，tar独立SHA256 `8f2b1648dd31556e41be6e120e41401f98e168cb2d33860d83ce6da6c6737ed9`。镜像内迁移/真实进程退出恢复26项PASS，但停止态脚本缺失导致1FAIL；此镜像不可发布。已同步Docker/Windows打包清单，补充真实分发包内空工作台Reset预检；新Windows独立启动、原生依赖与Reset预检1PASS。仅补挂该脚本的Linux实际FFmpeg停止→行政终止预演3PASS/3过滤skip，不代替新镜像资格。
+- UI负责人2c具体版本审核为10PASS/4FAIL，桌面/窄屏均复现迁移完成后列表不刷新、检查按钮禁用后焦点掉到body。修正为详情状态变化后重读整个当前页，保持不变不重复加载；检查前将焦点移到弹窗健康标题。Web264PASS/build PASS，实施方复用负责人浏览器场景14PASS；最终新提交负责人复验仍待。原负责人报告保留在本机独立review目录，不混同真实Host证据。
+- 新232结构在NAS原冻结库副本实际完成，1140939ms；230个原事实/执行表逐行摘要一致、FK/完整性通过，新迁移表为空。原库与Workspace只读。旧21个未决Effect中20个保留后继履行证明，唯一中断转码的14,193,262,592-byte partial具备精确停止态终止证明；带实际Workspace的只读预览blockers为空。
+- 完整Reset演练范围225Subject/14Run/14Work/14Workspace/0pendingIntake，保护682收藏记录与927已结束Run。首次完整备份被`RESET_BACKUP_SPACE_INSUFFICIENT`正确拒绝，未进入退役：14个Workspace共88,669,733,359 bytes，数据库4,614,053,888 bytes，数据卷仅余约56GiB；另一卷余约386GiB。先前只看14.2GB中断产物不足以估计整体工作台备份。
+- 容量预检原本先完整hash Workspace，导致空间不足也需数分钟。现仅容量统计使用无摘要枚举，正式备份来源前后、副本和恢复时的完整SHA校验不变。新增容量不足时不得读取媒体、不得授权或改变Run回归；Reset47PASS。未降低空间条件、未删除现场或备份。
+- 新标准NAS部署增加专用`/vol2/1000/shelfdeck_backups:/app/data/operator-backups`，校验精确父根/路径、拒绝以挂载隐藏非空旧备份目录；部署dry-run合同3PASS。生产目录/Compose未改变。实际演练在独立`/vol2/1000/shelfdeck_diagnostics/formation-reset-232-2c5204186`进行，以单文件精确预检补丁覆盖固定2c脚本；原冻结源码保留。完整备份/Reset和随后停止态Host仍在进行。
+- 本轮后续源码：Service696 total/667PASS/29既有skip，Web264PASS，受影响合同/入口/Reset/部署75PASS/2skip，四项静态检查PASS。P2仍138/117/232/62/150，aggregate `07bb897d8657031067ff42e9e693f472762a67970f55637b4d4338e1295ff459`。将冻结新候选重跑完整Gate及镜像/UI；当前不称发布资格完成。
+
+原始日志保留在ignored `formation-diagnosis-20261023`：`gate-2c5204186.json`、`image-2c5204186-relocation.log`、`relocation-ordinary-repair-retest.log`、`qualification-fixes-*`、`schema-232-rehearsal.log`、`reset-232-rehearsal.log`与`reset-232-volume2.log`。所有生产操作仍停留在已授权停机状态。

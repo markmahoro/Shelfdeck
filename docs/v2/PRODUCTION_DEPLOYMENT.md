@@ -4,6 +4,12 @@
 
 UAT-304：标准Compose的`stop_grace_period`为75秒。Service收到停止信号立即停止供给，最多60秒等待执行checkpoint，再回收自身FFmpeg进程；超预算保留未决执行，按既有Effect合同在重启时恢复，不将技术停机记录成媒体加工失败。
 
+## Formation Reset 的备份卷（2026-10-23 新标准，生产采用情况见 CURRENT_STATUS）
+
+新版工作台 Reset 保留历史，并完整备份选中 Workspace；转码/待上架成品可能远大于数据库。NAS 标准 Compose 新增 `/vol2/1000/shelfdeck_backups:/app/data/operator-backups`，与 `/transcode` 分离；不能只按数据库大小判断容量。容量预检只遍历大小，正式备份仍完整核对来源前后及副本 SHA256，空间不足不得开始退役。
+
+部署入口只在固定父根验证后创建精确备份目录。若原 `data/operator-backups` 非空或路径是链接，直接拒绝覆盖挂载；保留旧备份并取得明确的迁移范围后另行处理。该卷必须跨升级/回退保留，停机 Reset 恢复会重新验证它；盘点和恢复清单必须包含这个外部备份卷，不能把单独的 data 冷备称为所有备份均已保存。新增配置不等于已修改当前生产，亦不构成 Reset 或迁移授权。
+
 ## 当前生产环境
 
 Helix-beta 已于 2026-08-28 在飞牛 NAS 上线。下列是 **当前生产配置快照**（不含凭据）。升级必须保留这些绑定，禁止 `--helix-clean-init`，除非 Product Owner 明确要求清库。

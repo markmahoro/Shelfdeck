@@ -26,6 +26,7 @@ const SECRET_FILE = `${COMPOSE_DIR}/secret.env`;
 const MEDIA_HOST = '/vol02/1000-0-c5b736af';
 const UPGRADE_HOST = '/vol2/1000/shelfdeck_upgrade';
 const TRANSCODE_HOST = '/vol2/1000/shelfdeck_transcode';
+const OPERATOR_BACKUP_HOST = '/vol2/1000/shelfdeck_backups';
 const ADULT_HOST = '/vol02/1000-0-24018892';
 const IMAGE_NAME = 'markmahoro/shelfdeck';
 const LOCAL_SECRET_FILE = path.join(__dirname, '..', 'tests', '.env.nas-secret');
@@ -116,6 +117,7 @@ function composeYaml(targetImage) {
     '      - LIBVA_DRIVER_NAME=iHD',
     '    volumes:',
     `      - ${DATA_DIR}:/app/data`,
+    `      - ${OPERATOR_BACKUP_HOST}:/app/data/operator-backups`,
     `      - ${TRANSCODE_HOST}:/transcode`,
     `      - ${UPGRADE_HOST}:/upgrade`,
     `      - ${MEDIA_HOST}:/media`,
@@ -210,6 +212,15 @@ async function main() {
       `test -d ${shellQuote(ADULT_HOST)}`,
       'test -e /dev/dri/renderD128',
     ].join(' && ')],
+    ['Prepare dedicated operator backup volume', [
+      'test "$(readlink -f /vol2/1000)" = /vol2/1000',
+      `test ! -L ${shellQuote(OPERATOR_BACKUP_HOST)}`,
+      `if [ ! -e ${shellQuote(OPERATOR_BACKUP_HOST)} ]; then mkdir -m 700 ${shellQuote(OPERATOR_BACKUP_HOST)}; fi`,
+      `test "$(readlink -f ${shellQuote(OPERATOR_BACKUP_HOST)})" = ${shellQuote(OPERATOR_BACKUP_HOST)}`,
+      `test -d ${shellQuote(OPERATOR_BACKUP_HOST)}`,
+      `test ! -L ${shellQuote(DATA_DIR + '/operator-backups')}`,
+      `if [ -e ${shellQuote(DATA_DIR + '/operator-backups')} ]; then test -d ${shellQuote(DATA_DIR + '/operator-backups')} && test -z "$(find ${shellQuote(DATA_DIR + '/operator-backups')} -mindepth 1 -maxdepth 1 -print -quit)" || { echo 'Existing in-data operator backups must be preserved and explicitly relocated before adding the backup mount.' >&2; exit 1; }; fi`,
+    ].join(' && ')],
     ['Check compose file', `docker compose -f ${shellQuote(COMPOSE_FILE)} config >/dev/null`],
     ['Load image', `docker load -i ${shellQuote(tarball)}`],
     ...(helixCleanInit
@@ -255,6 +266,7 @@ async function main() {
     ['Verify compose still binds required hosts', [
       `grep -F ${shellQuote(`${MEDIA_HOST}:/media`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -F ${shellQuote(`${UPGRADE_HOST}:/upgrade`)} ${shellQuote(COMPOSE_FILE)}`,
+      `grep -F ${shellQuote(`${OPERATOR_BACKUP_HOST}:/app/data/operator-backups`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -Fx ${shellQuote(`      - ${ADULT_HOST}:/adult_media`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -Fx ${shellQuote(`      - ${ADULT_HOST}:/adult`)} ${shellQuote(COMPOSE_FILE)}`,
       `grep -F '/dev/dri:/dev/dri' ${shellQuote(COMPOSE_FILE)}`,
@@ -273,6 +285,7 @@ async function main() {
   console.log(`media   : ${MEDIA_HOST} -> /media`);
   console.log(`upgrade : ${UPGRADE_HOST} -> /upgrade`);
   console.log(`transcode: ${TRANSCODE_HOST} -> /transcode`);
+  console.log(`backups : ${OPERATOR_BACKUP_HOST} -> /app/data/operator-backups`);
   console.log(`adult   : ${ADULT_HOST} -> /adult_media`);
   console.log(`adult   : ${ADULT_HOST} -> /adult`);
   console.log('qsv     : /dev/dri -> /dev/dri');

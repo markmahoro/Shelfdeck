@@ -4,7 +4,7 @@ const {canonicalDigest}=require('../../../contracts/canonical-json');
 const {createWorkAdmission}=require('../../../foundation/execution/work-admission');
 const {createSeriesRootRelocationStore}=require('../persistence/series-root-relocation-store');
 const {createSeriesRootRelocationExecution}=require('../persistence/series-root-relocation-execution');
-const {buildAftercareInventoryRequest}=require('../model/aftercare-placement');
+const {buildAftercarePlacementBasis}=require('../model/aftercare-placement');
 const {seriesScopeId}=require('../model/series-presentation');
 const {PROCESS,OBJECTIVE,RESULT}=require('../model/series-root-relocation-contract');
 function createSeriesRootRelocationServices(options) {
@@ -46,7 +46,7 @@ function createSeriesRootRelocationServices(options) {
     const scopeId=scopeFor(context);if(!scopeId)return null;
     const active=relocationStore.active(scopeId);if(active)return reconcile(active.relocation_id,command);
     const current=options.series.seriesStore.readScope(scopeId);if(!current||!Number(current.current_version))return null;
-    const request=buildAftercareInventoryRequest(context,options.inventoryPort,1,'series-root-placement');
+    const request=buildAftercarePlacementBasis(context,1,'series-root-placement');
     const target=options.inventoryPort.resolvePolicyTargetLocation(request),root=path.dirname(target.targetDirectory);
     if(root===current.root_location)return null;
     const row=relocationStore.admit({scopeId,targetRoot:root,placementRevision:context.raw.shelf.current_placement_revision});
