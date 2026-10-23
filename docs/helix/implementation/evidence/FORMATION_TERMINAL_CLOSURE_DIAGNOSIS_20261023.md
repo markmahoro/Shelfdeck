@@ -265,3 +265,17 @@ Season poster新隔离用例把真实Inventory port的prepare→stage（注入�
 产品候选提交为 `44b725e6a`（126文件，包含合同/实现/回归/Evidence）。提交后工作树干净。标准入口 `node scripts/build-image.js 44b725e6a` 在desktop-linux context启动构建前失败：本机Docker Desktop Linux Engine pipe不存在。启动本机Docker Desktop后，backend在Inference manager初始化时因dockerInference监听文件无法访问而崩溃；未进入镜像build、未产生image/tar/SHA256，未上传NAS。没有执行Docker恢复出厂、清理镜像/volume或修改系统设置。Windows v3独立包与最新Linux53项源码回归不能替代最终Docker镜像资格。
 
 当前不能申请生产Reset/发布：除镜像阻塞外，完整固定架构Gate仍未通过（既有Series根目录迁移FAIL保留），跨层UI尚无本候选负责人结论，生产1条中断转码Effect/1executing Event尚需正式恢复/核验。高达/凡人歌生产自然重采可按本轮约定后验，不将其提前宣布通过。生产保持02:38的停止状态；没有本轮数据Reset或部署授权。
+
+
+## 2026-10-23 09:11 Docker候选与精确版本UI收口（未发布）
+
+用户恢复本机Docker并授权继续，另明确授权将候选发送给既有UI负责人。生产授权范围未扩大。
+
+- 标准构建入口先完成694d3b429，再按UI修正完成b9c033573及最终d4b5c00b8。最终镜像`markmahoro/shelfdeck:d4b5c00b8`绑定完整提交`d4b5c00b8509cc8b6e49ae09c2e873729e3d601e`，本机image ID `sha256:451738b8254f9804aa03fb4601b0241c669f5404733b2a6d676bf4c94405aa7d`。导出`dist-image/shelfdeck-d4b5c00b8.tar`约771.8MiB，SHA256 `3a2c2434dfecfdb0a0d27491eda3820c70a0e2156a343c26221e19bb08a925b1`，独立Get-FileHash一致。未上传、未部署，无Git release tag。
+- 镜像内资格不覆盖src/scripts，仅挂载测试：694d镜像Reset/取消/重采53/53 PASS（84.9秒）；真实Host使用镜像自带dist完成配置Workspace Root、启动health、正式停机、空Reset preview，694d及b9均PASS。两片对应新包旅程在694d镜像2 PASS；真实转码停机→原Effect保留→重启一次Commit→二次重启不重复，在b9镜像1 PASS（49.6秒）。b9相对694d只改前后端提示，d4相对b9只改侧栏一个字符串；不把这些继承证据标成最终镜像所有测试重跑。
+- 首轮媒体FAIL保留：测试tmpfs `/transcode`仅512MiB、`/tmp`1GiB，不满足现有`1.2×输入+5GiB`空间准入。仅扩大隔离挂载为8GiB后两片旅程通过，未放宽准入或测试超时。停机测试另触发256 PIDs上限：4个并行FFmpeg设备能力探测耗尽253线程/进程，docker exec也被拒；采集docker top/stats后停止该任务容器，改隔离PIDs上限1024后通过。此为测试资源约束下的实证，未修改产品探测并发策略，也不据此宣称生产4K性能已修复。诊断脚本首次缺少预建shutdown根目录的ENOENT单独保留，不与产品失败混淆。
+- UI负责人对694d完成真实隔离Host重置闭环、三段重试/历史浏览器核验，要求去除Aftercare/正在Reset内部术语。b9修为收藏维护/正在重置工作台，并同步中断/确认/阻挡错误提示；Runtime9、前端定向6 PASS。b9复验指出App侧栏遗漏同一字符串，d4单行修正后两个视口2/2 PASS、0未决UI问题。精确候选最终结论PASS，其他业务行为证据按验证过的差异继承。
+- 负责人任务`01a0912a-0086-74e2-88ab-536c59d3862a`；最终记录本机`E:/my_project/helix-git-consolidation-20261008/formation-ui-review-d4b5c00b8-20261023/owner-review.json`，报告SHA256 `c9848f0c140a03cb70c4eafe795f736ae7453884d46adabf381290da09f9e8a1`。记录绑定171个冻结Web输入，包含构建/截图/原版失败和修正版通过证据。不是整体发布许可。
+- 本轮结束时本地任务诊断容器均退出。生产只读检查仍为原hostfix4 stopped/exited1、RestartCount0，其余15容器运行。没有生产Reset、结构切换、源媒体写入或恢复供给。
+
+仍开放：已有Series根目录迁移FAIL（基线与候选均存在，未skip或放宽断言），完整固定架构Gate尚未通过；生产1条中断转码Effect/1executing Event尚需正式恢复核验，Reset继续拒绝。4K忙载吞吐及启动耗时未解决，Workspace管理退役新trigger的完整物理崩溃旅程仍无新增证据。高达/凡人歌真实自然重采验收按约定后验，不将隔离通过等同现场收口。

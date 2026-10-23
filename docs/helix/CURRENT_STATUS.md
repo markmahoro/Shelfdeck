@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-23 09:11 候选d4b5c00b8标准镜像构建/导出/独立SHA256复核及具体版本UI负责人验收通过（0开放UI问题）。镜像内Reset/取消/重采53PASS、两片新包2PASS、转码停机重启一次Commit1PASS；测试空间/PIDs不足的首轮失败保留，调整隔离资源后通过，未改产品规则。候选仅就UI文案增加b9/d4，证据按精确diff继承。生产仍原版本停止，无上传/部署/Reset。已有Series根迁移FAIL及生产中断转码Effect恢复仍开放，整体发布资格未通过；详见接手Evidence末节。
+
 2026-10-23 06:11 固定候选 `44b725e6a` 已提交，未发布。标准Docker构建因本机Docker Desktop启动崩溃而阻塞，未产生镜像/tar；已通过的Windows包和Linux源码覆盖不能替代镜像资格。完整架构Gate的既有Series根迁移FAIL、精确版本UI负责人验收、生产中断转码Effect恢复仍开放。生产保持停止，无Reset/部署。详见接手Evidence末节。
 
 2026-10-23 06:08 候选收口（未部署、生产保持停止）：新版历史保留 Reset 已完成 Owner 管理退役、精确 Control 释放、原 Handoff A 接纳回执收尾与独立完成核验；真实浏览器验证停机→确认→完成→重启仍停机→普通观察创建新 Subject，原历史及源文件保持。最新 Service695项/666PASS/29skip、Web262PASS、Linux53PASS、Windows独立包Host及空预检PASS；NAS最终结构副本230表摘要/FK/完整性与stopped Host通过。完整架构首跑3278项/3224PASS/28FAIL/26skip，20项失败在接手基线复现；已修正其中19项旧fixture/合同清单及本轮预期，17文件重跑129PASS，另有定向PASS，不能记完整Gate全绿。已有Series根目录迁移失败在原基线与当前均存在，未放宽断言或擅改共享根合同。两片对应新包旅程PASS，真实生产自然重采仍开放。性能已取得Formation/收藏查询局部改善及海报缓存回归，未解决4K忙载吞吐。只读生产Reset范围225 Subject/14 Run/11共享scope，20条历史Effect已证明后继履行，仅中断转码的1 Effect/1executing Event继续阻挡。06:07复核生产exited/RestartCount0、其他15容器运行、无诊断容器残留。Docker候选、精确版本UI review及生产处置尚未完成；无生产Reset/部署授权。
