@@ -160,3 +160,17 @@ test('startup releases a closed reservation even if Incident state update was in
   assert.equal(observer.reconcileRecoveryReservations().reopened,1);
   assert.equal(registry.read(registry.incidentKey(mediaScope)).incident_state,'open');
 }));
+
+for (const interrupted of [false,true]) test('release preserves the Circuit opening cause among multiple Incidents; interrupted='+interrupted,()=>fixture(({database,registry,observer,breaker,seedWork})=>{
+ const older={...mediaScope,errorCode:'OLDER_DIFFERENT_ERROR',occurrenceId:'older-single-occurrence'};
+ registry.recordFailure(older);
+ seedWork({...mediaScope,workId:'owner',workState:'cancelled',eventState:'cancelled',outcomeKind:'cancelled'});
+ reserveMedia(registry,observer,'owner');
+ if(interrupted)database.prepare("UPDATE fx_executor_incidents SET incident_state='open'").run();
+ const olderBefore=registry.read(registry.incidentKey(older));
+ assert.equal(observer.reconcileRecoveryReservations().reopened,1);
+ assert.equal(breaker.read(registry.scopeKey(mediaScope)).reason_code,mediaScope.errorCode);
+ assert.equal(registry.read(registry.incidentKey(mediaScope)).incident_state,'open');
+ assert.deepEqual(registry.read(registry.incidentKey(older)),olderBefore);
+ assert.equal(registry.read(registry.incidentKey(mediaScope)).occurrence_count,3n);
+}));

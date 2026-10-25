@@ -596,3 +596,11 @@ NAS为7.6 GiB物理内存；两个验证容器并行时出现交换区压力，�
 - 完整真实Host首轮Reset旅程FAIL：独立Operator另建WorkLifecycle，在线composition接线不覆盖它。补齐该生产入口后，同断言完整旅程PASS（47.7s）：真实媒体产生被阻塞Work→正式Runtime Stop/Reset→验证Work取消且Circuit重新open、未冒充resolved→注入通知中断→重建Host保持stopped→正式Resume→正常重采→真实媒体处理与Arca Commit→实际成功关闭Circuit。首轮失败日志与修正复验均保留。
 - 当前小组合23 PASS及Host回归33 PASS；扩大定向、Service、完整架构门禁、Windows打包和Linux实际镜像资格继续。生产未部署、未新Reset、未手动改任何Incident或Candidate。
 - 修复只约束新Candidate路径；既有不可变错误包不静默修补。高达/凡人歌及原五剧仍须以自然新包/实际执行结果验收，不能把这个隔离旅程称作全部生产媒体通过。
+
+
+### 2026-10-26 01:40 发布前复核与最终候选重固
+
+- ba75692d4生产副本资格通过：当前唯一recovering媒体Circuit由真实Foundation重新open，保留原LIBRA_MEDIA_FFMPEG_TIMEOUT原因与9次发生证据；全库235表中只有fx_circuit_states/fx_executor_incidents改变，另外233表逐行摘要一致，682收藏保持，FK/integrity通过。首次只读冷备开库因WAL数据库需要SHM报SQLITE_CANTOPEN，未执行修复；改为完整物理SQLite集合复制到可写隔离目录后通过，原冷备始终只读。
+- 发布前自检发现另一个可复现边界：同一Circuit有多条非resolved Incident时，取消可能选中较旧错误。新增回归先FAIL，现按Circuit实际reason_code选择错误归属，同时将同scope仍recovering的Incident收回open；所有次数/错误/evidence不变。15项observer正反例PASS，包括Incident状态更新中断。
+- 最终代码比ba75692d4只收紧该Foundation收尾条件，未改SourceRoot、UI、schema或依赖。ba的长门禁在开发目录执行，不符合独立固定checkout要求，且期间有以上开发修改，因此不计最终候选完整资格。最终候选使用独立固定验证checkout，长旅程可按完整注册用例名单分片，每个用例恰好覆盖一次，并运行同四项架构静态门禁；保留全部原始输出，不修改测试断言或产品时间限制。
+- 生产已于17:16:12Z停止并正常退出；201文件冷备于17:17:53Z校验完成，清单SHA256 46d5b36ed903bbd82e42f1c78f6c66eaaa6cb841dbc112cc7ebad13d3a923fb7。目录/vol2/1000/shelfdeck_backups/pre-ba75692d4-20261026。尚未部署或再次Reset。

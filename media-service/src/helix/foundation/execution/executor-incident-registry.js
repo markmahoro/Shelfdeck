@@ -203,10 +203,14 @@ function createExecutorIncidentRegistry(options) {
       for(const row of rows.filter((item)=>item.incident_state!=='resolved')){
         const circuit=options.circuitBreaker.read(row.circuit_key),reservation=canonicalDigest({
           schema:'foundation.executor-incident-recovery-work@1',circuitKey:row.circuit_key,workId});
-        if(circuit?.state!=='recovering'||circuit.evidence_digest!==reservation)continue;
+        if(circuit?.state!=='recovering'||circuit.evidence_digest!==reservation||circuit.reason_code!==row.error_code)continue;
+        // Several failure codes may share one Circuit; preserve its actual opening cause.
         options.circuitBreaker.open({circuitKey:row.circuit_key,reasonCode:row.error_code,evidenceDigest:circuitEvidence(row.incident_key)});
-        update(row,{occurrenceCount:Number(row.occurrence_count),incidentState:'open',evidenceDigest:row.evidence_digest,
-          lastSeenAtMs:now(),resolvedAtMs:null});
+        for(const current of rows.filter(item=>item.circuit_key===row.circuit_key&&
+          (item.incident_key===row.incident_key||item.incident_state==='recovering'))){
+          update(current,{occurrenceCount:Number(current.occurrence_count),incidentState:'open',evidenceDigest:current.evidence_digest,
+            lastSeenAtMs:now(),resolvedAtMs:null});
+        }
         reopened+=1;
       }
       return reopened;
