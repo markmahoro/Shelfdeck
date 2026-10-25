@@ -639,3 +639,15 @@ NAS为7.6 GiB物理内存；两个验证容器并行时出现交换区压力，�
 - 修正自动化仍引用c91未修缺陷的过时提示，保留既有周期和原created_at=1792924332930；固定观察截止2026-10-26T10:32:12.930Z，不因更新或发布延长。此次通知仅针对attention实质变化/人工确认，既有地狱尖兵、旧包及监听器问题不重复报警。
 
 证据位于ignored目录的heartbeat-20261025T1835-api.log/progress.json/sources.log/host.log/failures.json、两条任务详情JSON及本次带时间戳容器日志。未执行Reset、改库、配置变更、媒体操作或任务重试。
+
+
+### 2026-10-26 02:47 获授权的《走向共和》单条线上取消
+
+- 用户对明确问题答复“允许，仅处理《走向共和》这一条”。目标固定为Subject `libra-subject-ec2f99a679ef3c2cd6412b7eb2bbc547c9d58169`、旧Run `e2e307359a9883a1f335b32fee058bf23be68836de9b7676664b3aae315bae93`、Candidate `candidate-package-d25744b21f5687c1965fa43200bd18b01aa42889`。当前版本e78dbd82f正常running，未接受Handoff B。
+- 第一次读取Run为active/revision2；取消前只读证据发现其已正常收口为frozen/revision3，重新读取最新version/digest后提交，没有绕过版本CAS。只调用现有POST `/v1/admin/formation/runs/{libraRunId}/actions/discard`，参数excludeSourceFiles=false，幂等键 `user-approved-republic-old-package-cancel-20261026-e78dbd82f`。没有调用Reset、材料排除、重试、重采命令或其他影片取消入口。
+- 正式结果discarded，18:46:48.665Z提交，revision4；Decision `86ba05605b0d8708b23bb5b6d71079f40db842c17e21d5d0864f8c4ba462ba8f`，Receipt `b2166510e5b712b1ac230bfcf977b5a1879278d30ee9f142abef8382b27b1e76`，cleanupMemberCount0。复核取消state completed、Subject abandoned、Run discarded，全部原Run Work为succeeded/failed/cancelled，流水线token归零，原59个材料Control全部released且不再由Libra持有。释放状态合法，不等于已经产生新采购任务。
+- 操作前后实际来源根 `/media/chn_series/走向共和 (2003)` 的182个文件相对路径/inode/size/mtimeNs清单完全一致；这是完整stat清单核对，不声称做过全部视频字节SHA。旧Candidate完整行摘要相同，错误冻结包留作原历史，不改写sourceRoot。
+- 18:47:09Z保护核验：原22组记录missing=[]/changes=[]，682收藏保持，原941 ended Run及修订保持。总endedRuns943及其他新增正常事实不算原历史被改写；本次增加一个discard Decision/Receipt/Outcome，未覆盖旧行。详情UI显示“已取消整理任务”。
+- 本次目标已收口，后续只等待正常观察/采购创建新的正确包，不保证第一时间选中，不强制调度。既有监控提示已更新为该单条取消完成，避免重复确认或重复执行，原24小时截止仍2026-10-26T10:32:12.930Z。新包自然验收仍开放，其他影片未获得本次取消授权。
+
+ignored证据：`republic-cancel-prepared.json`、`republic-cancel-result.json`、`republic-cancel-before.json`、`republic-cancel-after.json`、对应status详情及`republic-cancel-history-preserve.log`；辅助脚本仅使用正式HTTP命令与统一SSH只读核验，未直接改生产数据库。
