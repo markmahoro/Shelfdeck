@@ -1,5 +1,8 @@
 # ShelfDeck 当前状态
 
+2026-10-25 18:18（Asia/Shanghai）生产发布及新版整工作台Reset完成：镜像 `markmahoro/shelfdeck:f280e6bd4`，source `f280e6bd495e8bb75f4185d532adc18e0f1b0071`，NAS image ID `sha256:6f57fec925c007f810ab23af323a75f3dd3499259e6f18b8acbb56186a78e723`，tar SHA256 `192445c85c44a26f38cb1490a30f5b7b29a8ab48b8e24732861a017a545c107c`。正式Runtime Reset于10:13:54.769Z完成，275步退役225Subject/14Run，14Workspace保留；工作台范围归零。22组收藏/历史逐行摘要完全一致：682 Entry、927既有ended Run及修订、既有Decision/Receipt/Outcome保持，Attempt仍158424；1个停止态执行以正式Receipt终止，executing归零。结束Run总数941含新增14个行政退役，不能误算成历史改变。FK/integrity、health/Formation/collection、fnOS与15个无关容器通过。Runtime `stopped`、desired `stopped`、normalSupplyAllowed=false、error=null，容器restartCount0；未Resume。完整Architecture Gate414文件/四项静态、Service667PASS/29skip、实际镜像98项、具体版本UI和NAS副本资格通过；真实自然重采媒体验收未完成，4K忙载吞吐按用户要求延后。正式Reset及备份ID、证据和回退边界见FORMATION_TERMINAL_CLOSURE_DIAGNOSIS_20261023 Evidence。
+
+
 2026-10-23 14:28 固定候选f280e6bd4完整Architecture Gate通过：414测试文件退出0，四项静态检查均PASS；成功报告未保留逐项计数，不推算总测试数。Service667PASS/29skip，实际镜像98PASS及真实入藏历史正反例1PASS；具体版本UI按171源码/9资源同指纹继承PASS。NAS225Subject/14Run隔离Reset最终通过，10组收藏事实及158424个Attempt保持，14Workspace字节保留、1条停止态终止Receipt；实际镜像Worker回执重放通过，停止态/资源上限等最后核验继续。用户已明确授权生产部署后执行新版整体Reset，已完成196文件新冷备及标准deploy dry-run，原生产仍停止且尚未切库/部署/Reset。4K忙载吞吐按用户新决定延后，不再作为本轮发布阻塞。
 
 2026-10-23 13:25 Reset副本性能修正（未部署）：013aec7ce实际镜像定向97/97和真实入藏证明1PASS通过，Service667PASS/29skip，具体版本UI依据171源码/9资源同指纹继承PASS。生产规模journal发现992步中741个execution取消只有14个范围含open Work，约30MB清单空步骤重复序列化造成明显延迟。现仅冻结含open Work的取消步骤，全部Owner/最终scope核验保留；新增遗漏scope中新Work必须阻断负例，组合66/66通过。旧副本已停止并完整保留其冻结journal/部分退役证据，另从原始232库新建副本重演，不改写已有journal。013完整Gate因候选替换记STOPPED；最终候选仍待完整资格。原生产保持停机，无业务变更。

@@ -384,3 +384,38 @@ NAS在完整备份重验后进入真实Owner退役，原停止转码已新增1�
 用户明确授权生产部署后执行新版整体Reset；另外明确4K忙载吞吐延后、不阻塞发布。新冷备`backups/pre-f280e6bd4-20261023/data`于05:56:05Z校验196文件一致，清单SHA256为7e115a1b966f5f9c947d455d4aa60a832facd580c02093296026644bf2260d1a，另保存Compose/Secret，原事故冷备保留。生产原库仍未切换。准备新一致快照及正反向结构副本，首次部署辅助fixture误假设镜像内包含只供部署包装加载的create-readiness-snapshot.js，未开始捕获即失败；改为只读挂载同提交的既有辅助脚本后继续，没有修改镜像或产品规则。
 
 新增专用formation-retirement-schema-cutover工具，避免旧223表/旧schema发布器误用；严格绑定230表正反向证明、独立源快照SHA及原main/WAL/SHM物理集合，保留非空WAL并进行持久同卷切换。真实WAL含已提交Subject的正例、WAL漂移/缺失、反向事实证明漂移及两处中断继续共6项，Windows与实际Linux镜像各PASS。该工具属于部署辅助，不改变f280产品镜像；生产前仍执行dry-run及完整门禁。正式deploy-nas dry-run已通过，尚未apply。
+
+
+## 2026-10-25 生产操作前最终资格核对
+
+用户再次明确要求部署并执行新版Reset，完成后保持停止，核对收藏与历史。原生产仍为d94bc/hostfix4、exited、restartCount0，15个其他容器运行；fnOS只读preflight和部署Secret一致性复核通过。标准deploy dry-run再次通过。
+
+补记已完成但14:28检查点尚未结束的资格：实际候选Reset后停止态Host 725874ms PASS；旧镜像在反向副本完整停止态Host 713539ms PASS，原158424 Attempt/682 Entry/1 executing保持。256MiB Worker prepare修正fixture Reset ID格式后437245ms PASS，保留plan 7185665 bytes，heapUsed216278880；首轮ID守卫拒绝记录保留，不修改产品守卫。新生产冷备的正向230表结构复制及反向还原于2026-10-23T06:59:30.916Z全部验证通过。
+
+2026-10-25T09:03:44.900Z生产cutover dry-run通过，原main/WAL/SHM与冻结物理集合完全一致，源一致快照SHA256 `56cf17a43327a0b533fb8a92e2ff90a2e10f1652d17deaf76b2765692d709ecc`，目标SHA256 `cc3f026824919c3d3b7ea6fa5821b611a9b4ef939b8b9a0acd4b0a85262cbca4`。正在执行切换；本节不宣称部署或生产Reset成功。
+
+
+2026-10-25生产切换与部署：cutover apply成功，目标SHA与预检一致，原冷备及WAL/SHM保留。标准deploy-nas --apply完成，镜像 `markmahoro/shelfdeck:f280e6bd4`，source `f280e6bd495e8bb75f4185d532adc18e0f1b0071`，NAS image ID `sha256:6f57fec925c007f810ab23af323a75f3dd3499259e6f18b8acbb56186a78e723`，tar SHA256 `192445c85c44a26f38cb1490a30f5b7b29a8ab48b8e24732861a017a545c107c`。StartedAt `2026-10-25T09:11:22.486206343Z`，启动约5分钟后health/Admin/挂载/镜像身份全部通过；启动前连接重置属于监听前轮询，未重启容器，restartCount0。Runtime stopped/desiredMode stopped/normalSupplyAllowed false、error null。
+
+生产Reset前只读基线22组摘要保存于冷备verification/protected-before.json：10张Arca收藏表、10张Libra Decision/Receipt/Outcome历史表、927个既有ended Run及其Revision；682 Shelf Entry、158424 Attempt、1 executing Event、0停止态终止Receipt。相比先前12组验证，增加历史表核账只改变只读诊断脚本，不改产品镜像。
+
+正式Runtime Reset API于 `2026-10-25T09:17:40.244Z`受理 operation `35f56422b3e3f8f2dc52d539bae7a261427637c0a9daa95352b94fef49c35454`，范围225Subject/14Run/14Work/14Workspace、pending Intake0、无blocker。使用同一幂等键，未重复提交。当前resetting/desired stopped/normalSupplyAllowed false，备份ID `formation-reset-8d5c2351-dcbb-4174-962c-163d98f2bd39`，位于 `/vol2/1000/shelfdeck_backups/`；本检查点尚未完成Reset，不宣称后置核对通过。
+
+
+## 2026-10-25 正式生产Reset完成及独立保护核验
+
+本次实际通过正式Runtime API执行，非隔离副本或分段重放。operation `35f56422b3e3f8f2dc52d539bae7a261427637c0a9daa95352b94fef49c35454` 于09:17:40.244Z受理、10:13:54.769Z完成；reset ID `formation-reset-ffd78384-295c-4bdb-9736-215035e4a4fa`，275/275步骤完成，225Subject/14Run行政退役、pending Intake0、14Workspace保留。原1个停止态转码执行正式终止，新增1条Foundation停止态终止Receipt，executing=0，未重跑转码。API后置preview subjects/intakes/runs/works/workspaces全部0、无blocker；Runtime stopped/desired stopped/normalSupplyAllowed false/error null/recoveryBackup null，未Resume。
+
+完整备份于09:45:36.033Z生成回执，目录 `/vol2/1000/shelfdeck_backups/formation-reset-8d5c2351-dcbb-4174-962c-163d98f2bd39`；backupDigest `df162e66ae9b65da163df7d383acb9b0344ab0f23ab2eb182c6de91ac5a3b309`，一致数据库SHA256 `606b9bd3309f1925a496a1cfbf60c8b267702cf8f096bb6973bbfd20c2c11218`。现存Workspace 88,669,733,359 bytes，14项中2项原目录不存在、按absent记录；含数据库/伴随文件逻辑总量约93.3GB。提交前再次全量SHA复核通过；不把reflink逻辑字节等同新增物理占用。原升级前196文件冷备及精确结构切换证据另保留。
+
+独立只读前后核验22组事实完全一致，涵盖：
+
+- Arca的Shelf Entry、Canonical Identity revisions、Deck Fact revisions、Inventory materials/person relations/product facts/related references/representations/verification records、On-deck Commit receipts，共10张表；682条Shelf Entry保持。
+- Libra既有discard decisions/receipts、Run outcomes、Handoff A receipts、intake decisions、delivery receipts、Subject abandon decisions/receipts、decision basis inputs/revisions，共10张表。
+- 原927条已结束Run及其Run revisions逐行摘要保持；结束总数941是原927加本次14条administratively_retired，不删除或改写原终局。158424条Attempt总数保持；原未完成执行的状态改变由新增正式终止Receipt说明，不冒充全部Execution字节不变。
+
+foreign_key_check为空、integrity_check=ok。后置检查初始隔离1GiB/1CPU产生11004次memory.max回收、没有OOM；只把读数据容器提升到3GiB/2CPU后完成，所有生产数据与媒体挂载均readonly，仅verification证据目录可写，未改生产资源配置。辅助容器自动退出；只剩正式ShelfDeck容器运行且业务stopped。health/runtime/Formation/collection通过，fnOS HTTP200，15个无关容器持续运行；正式容器restartCount0/OOMfalse。
+
+正式回执位于 `/vol1/1000/docker/shelfdeck/data/reset-receipts/formation-reset-ffd78384-295c-4bdb-9736-215035e4a4fa.json`；journalDigest `8d8f7aa1871c432ce75f85ef2d49eb66ee5822982e46251b5b56d71ba7cdeb50`。前后摘要位于 `/vol1/1000/docker/shelfdeck/backups/pre-f280e6bd4-20261023/verification/protected-before.json` 与`protected-after.json`。本地ignored目录保存标准deploy日志、API受理/最终结果、冷备/Reset回执及前后摘要，不提交原始生产数据。
+
+本次已产生正式管理退役新事实，不能仅切回旧镜像或覆盖旧数据库；反向结构复制仅证明无新增事实时可回退。冷备保留作事故恢复材料，本次没有执行回退。未重新遍历全收藏媒体字节，保护结论以正式收藏事实/历史摘要、Reset正式边界及上述证据为准。原剧集问题、高达/凡人歌的正常新流程媒体验收继续开放；不以Reset或隔离测试代替自然重采验收。4K忙载吞吐继续延后。
