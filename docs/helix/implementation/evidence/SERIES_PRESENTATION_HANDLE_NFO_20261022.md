@@ -79,3 +79,11 @@ OPEN。等待修复提交、回归、生产重试验收；两条目标冲突按�
 定向结果：`series-shared-presentation.test.js` + `p14-h1-tmdb-integration.test.js` 共 **20/20 PASS**。本轮后续将随 Form 工作台 Reset 扩展一并部署；部署后对 5 条现有条目以新代码重试验收，若仍失败则保留 OPEN，不以 Reset 掩盖。
 
 状态更新：`FIXED IN CODE / VERIFICATION PENDING DEPLOYMENT`；生产尚未变更。
+
+## 2026-10-26 生产接线遗漏的独立复现
+
+ee0c4786b确实修复了Handle的artifactKind资格和NFO占位，但同提交中的clean-service-host.fetchSeriesPresentationArtifact仍无条件调用tmdbAdapter.artifactPort。source.observe的pure_observation合同及adapter Observation端口本来正确，生产接线错误在通过Handle后才暴露为PLATFORM_TMDB_EFFECT_CLASS_MISMATCH。最新失败的五部是辐射、黑镜、棋士、沙丘：预言、越狱，不把它们写成最初五部已完成验收。
+
+前次新增测试只签发/比较真实Handle，没有调用Host的fetchSeriesPresentationArtifact；series-tmdb-artifact-scope测试手选正确Observation端口，完整Series Host旅程又注入fetchSeriesPresentationArtifact。三种测试各自通过，未覆盖生产连接点。此次增强原Platform真实服务测试：配置持久Integration、经真正Handle和Secret broker调用该Host方法，poster/fanart各经过Source→冻结locator→Assets并取得可解码JPEG，仅HTTP传输为隔离fixture。原代码稳定失败，错误与生产相同；按operation正确选择端口后通过，另保留Source走Artifact及Assets走Observation的双向负例。
+
+26项相关回归通过。该结果不等于新镜像已部署或五部实际入藏；现场重试与后续正式Commit继续开放。详见FORMATION_TERMINAL_CLOSURE_DIAGNOSIS_20261023.md本轮13条诊断节。

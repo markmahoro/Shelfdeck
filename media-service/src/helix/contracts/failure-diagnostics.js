@@ -33,6 +33,8 @@ function failureDiagnostics(error) {
     }
   }
   if (['json_request','image_request'].includes(details.stage)) result.stage = details.stage;
+  if (Number.isInteger(details.statusCode) && details.statusCode >= 100 && details.statusCode <= 599)
+    result.statusCode = details.statusCode;
   if (error?.code === 'LIBRA_MEDIA_FFMPEG_TIMEOUT') {
     if (details.stage === 'playback_decode') result.stage = details.stage;
     for (const key of ['elapsedMs','timeoutMs','stallTimeoutMs','stderrBytes']) {

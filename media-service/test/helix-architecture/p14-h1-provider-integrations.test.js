@@ -313,6 +313,8 @@ function providerFetch(state) {
         } });
       }
       if (url.pathname === '/api/v1/search/title') {
+        const override=state.moviepilotSearchResponses?.[url.searchParams.get('keyword')];
+        if(override)return response(override.status,override.body);
         const defaultRow={
           meta_info: { name:Object.hasOwn(state, 'moviepilotMetaTitle')
             ? state.moviepilotMetaTitle : 'Movie', year:'2024' },
@@ -989,6 +991,28 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
       call.path === '/api/v1/search/title' && call.searchKeyword === 'Original Movie'));
     assert.equal(state.calls.some((call) =>
       call.path === '/api/v1/search/title' && call.searchKeyword === '100'), false);
+
+    const noResources={status:200,body:{success:false,message:'\u672a\u641c\u7d22\u5230\u4efb\u4f55\u8d44\u6e90',data:{}}};
+    const searchAgain=key=>opened.services.executeProvider('moviepilot',{
+      operationId:'libra.external_material.search@1',effectClass:'pure_observation',idempotencyKey:key,
+      timeoutMs:5000,input:{acquisitionQuery:acquisitionQuery(),limit:25},
+    });
+    state.moviepilotSearchResponses={'Original Movie':noResources};
+    const partialSearch=await searchAgain('moviepilot-empty-alias');
+    assert.equal(partialSearch.result.candidates.length,1,'An empty alias cannot discard another title result.');
+    state.moviepilotSearchResponses={Movie:noResources};
+    assert.equal((await searchAgain('moviepilot-empty-first-title')).result.candidates.length,1);
+    state.moviepilotSearchResponses={Movie:noResources,'Original Movie':noResources};
+    assert.equal((await searchAgain('moviepilot-all-titles-empty')).result.candidates.length,0);
+    for(const [index,override] of [
+      {status:200,body:{success:false,message:'Search service unavailable',data:{}}},
+      {status:200,body:{...noResources.body,data:{unexpected:true}}},
+      {status:503,body:noResources.body},
+    ].entries()){
+      state.moviepilotSearchResponses={'Original Movie':override};
+      await assert.rejects(searchAgain('moviepilot-real-failure-'+index),{code:'P5_PROVIDER_TRANSPORT_FAILED'});
+    }
+    delete state.moviepilotSearchResponses;
 
     state.moviepilotTmdbId = 999;
     const mismatchedMoviepilot = await opened.services.executeProvider(

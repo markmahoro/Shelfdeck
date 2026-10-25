@@ -1,4 +1,5 @@
 'use strict';
+const { failureDiagnostics } = require('../../../contracts/failure-diagnostics');
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { buildMetadataFetchIntent, buildMetadataObservation } = require('../model/product-fact-contracts');
@@ -72,6 +73,7 @@ function metadataFetchFailed(error) {
     evidence: Object.freeze({
       errorName: String(error.name || 'Error'),
       errorCode: cause,
+      diagnostics: failureDiagnostics(error),
     }),
   });
 }

@@ -5,6 +5,13 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {failureDiagnostics} = require('../src/helix/contracts/failure-diagnostics');
+
+test('HTTP diagnostics retain only a bounded numeric status',()=>{
+  assert.deepEqual(failureDiagnostics({details:{statusCode:429,stage:'json_request',url:'https://secret',body:'SECRET'}}),
+    {stage:'json_request',statusCode:429});
+  for(const statusCode of [0,99,600,Infinity,404.5,'404','SECRET'])
+    assert.deepEqual(failureDiagnostics({details:{statusCode}}),{});
+});
 const {createFailureEvidenceStore} = require('../src/helix/integrations/failure-evidence-store');
 const {settlementPreconditionFailureOutcome} = require('../src/helix/domains/arca/capabilities/on-deck-capability-ports');
 test('unknown materials remain distinguishable and bounded without copying arbitrary error details',()=>{

@@ -115,7 +115,7 @@ function tmdbFetch(state = {}) {
         pathname: url.pathname,
         usesProxy: Boolean(init?.dispatcher),
       });
-      return response(200, null, [0xff, 0xd8, 0xff, 0xd9]);
+      return response(200, null, state.imageBytes?.[url.pathname] || [0xff, 0xd8, 0xff, 0xd9]);
     }
     if (!authorized) return response(401, { status_code: 7 });
     state.calls ||= [];
@@ -137,7 +137,7 @@ function tmdbFetch(state = {}) {
         results: [{ id: 550, title: 'Fight Club' }],
       });
     }
-    if (url.pathname === '/3/movie/550/images') {
+    if (url.pathname === '/3/movie/550/images' || url.pathname === '/3/tv/1399/images') {
       return response(200, {
         posters: [{
           aspect_ratio: 0.667,
@@ -981,6 +981,32 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
       artifactKind: 'fanart',
     });
     assert.equal(seriesAssetsArtifactHandle.allowedOperation, 'arca.series_presentation.assets.prepare@1');
+    // Exercise the production Host composition, not just Handle issuance or
+    // an adapter port selected by the test. Only HTTP transport is controlled.
+    const sharp = require('sharp');
+    const source = runtime.resolveSeriesImageSource({providerKey:'1399',language:'zh-CN'});
+    for (const artifactKind of ['poster', 'fanart']) {
+      const imagePath = '/' + artifactKind + '.jpg';
+      const bytes = await sharp({create:{width:artifactKind==='poster'?80:120,
+        height:artifactKind==='poster'?120:80,channels:3,background:'#334455'}}).jpeg().toBuffer();
+      state.imageBytes ||= {};
+      state.imageBytes['/t/p/original' + imagePath] = bytes;
+      const jsonBefore = state.calls.length, imagesBefore = state.imageCalls.length;
+      const observed = await runtime.fetchSeriesPresentationArtifact({
+        operationId:'arca.series_presentation.source.observe@1',source,artifactKind,
+      });
+      assert.equal(observed.imagePath, imagePath);
+      assert.equal(observed.sourceDigest, source.qualificationDigest);
+      assert.deepEqual(observed.bytes, bytes);
+      const prepared = await runtime.fetchSeriesPresentationArtifact({
+        operationId:'arca.series_presentation.assets.prepare@1',source,artifactKind,imagePath:observed.imagePath,
+      });
+      assert.deepEqual(prepared.bytes, bytes);
+      assert.equal((await sharp(prepared.bytes).metadata()).format, 'jpeg');
+      assert.deepEqual(state.calls.slice(jsonBefore).map(call=>call.pathname), ['/3/tv/1399/images']);
+      assert.deepEqual(state.imageCalls.slice(imagesBefore).map(call=>call.pathname),
+        ['/t/p/original' + imagePath, '/t/p/original' + imagePath]);
+    }
     assert.throws(
       () => runtime.integrationHandleResolverPort.resolve({
         integrationId: 'tmdb-main',

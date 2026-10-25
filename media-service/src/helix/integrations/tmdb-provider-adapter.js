@@ -759,7 +759,7 @@ function createTmdbProviderAdapter(options) {
           ? 'PLATFORM_INTEGRATION_CREDENTIAL_REJECTED'
           : 'PLATFORM_INTEGRATION_HTTP_FAILED',
         'TMDB rejected the bounded request.',
-        { statusCode: response.status },
+        { stage:'json_request', statusCode: response.status },
       );
     }
     let responseBytes;

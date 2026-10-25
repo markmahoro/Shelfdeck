@@ -891,7 +891,9 @@ function createPlatformIntegrationServices(options) {
       const source=request.source,handle=handleFor('tmdb',request.operationId,request.artifactKind);
       if(!handle||handle.integrationId!==source.integrationId||handle.configRevision!==source.configRevision)
         throw new CleanServiceHostError('ARCA_SERIES_SOURCE_STALE','Show presentation integration changed.');
-      return tmdbAdapter.artifactPort.execute({operationId:request.operationId,integrationHandle:handle,
+      const port=request.operationId==='arca.series_presentation.source.observe@1'
+        ?tmdbAdapter.observationPort:tmdbAdapter.artifactPort;
+      return port.execute({operationId:request.operationId,integrationHandle:handle,
         input:{seriesPresentationSource:source,artifactKind:request.artifactKind,...(request.imagePath?{imagePath:request.imagePath}:{})},timeoutMs:20000});
     },
     async fetchProviderArtifact(request) {

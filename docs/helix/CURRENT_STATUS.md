@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-26 03:55（Asia/Shanghai）13条attention根因修复进行中，生产仍e78dbd82f、未部署/重试/取消/Reset。五条共享资料失败已由真实Host接线红绿回归定位并修正：Source误用Artifact端口，ee0c只修Handle未覆盖该层。地狱尖兵复现为第三个别名零候选被误判整个搜索失败，已修；HTTP状态经Secret/Metadata证据链丢失已补。唐顿S02/S06第9集、暗算S01第11集对应TMDB404，本地/Provider编目差异待设计；琅琊榜/庆余年均使用修复前冻结包，未改写输入或越权覆盖poster。Service682 PASS/29 skip、定向26+24+65及Owner恢复15 PASS，四项静态PASS；Linux资格进行中。Desktop旧测试启动失败、40用例未执行，保留FAIL，不记平台全绿。
+
 2026-10-26 03:31（Asia/Shanghai）只读观察确认修复后首条正式入藏：ABF-153于19:29:47.799Z完成On-deck Commit，收藏总数682→683（API current682/history1）。API8进行中/13 attention，原13条原因未变化，业务仍未全部正常；媒体成功Event979→988，原Circuit持续closed。五来源可读且本轮扫描完成，无新孤儿/FK异常/重启/OOM；内存3.011→2.601GiB。本次未重试、取消、Reset或修复，既有观察截止不变。
 
 2026-10-26 03:20（Asia/Shanghai）用户询问运行状态后的只读核验：尚不能称业务正常，API当前9进行中/13 attention。新增5条剧集公共资料失败（辐射、黑镜、棋士、沙丘：预言、越狱）均为PLATFORM_TMDB_EFFECT_CLASS_MISMATCH；庆余年S02 poster.jpg目标冲突；另有4条资料任务、地狱尖兵外部检索失败及2条演员确认。旧Circuit仍closed，媒体成功Event累计979；682收藏、五来源可读且本轮完整扫描均完成，无新孤儿/重启/OOM。走向共和已自然生成新包candidate-package-0334a510eadd34ec93ce07800c20899385873c21，sourceRoot绝对路径正确，但尚未宣称完成入藏。此次仅诊断，不部署/Reset/取消或重试。

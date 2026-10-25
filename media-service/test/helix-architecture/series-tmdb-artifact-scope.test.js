@@ -49,6 +49,16 @@ test('shared preparation reacquires only its frozen show image locator without r
   assert.deepEqual(h.calls,['/3/tv/1399/images','/t/p/original/show-wide.jpg','/t/p/original/show-wide.jpg']);
 });
 
+test('Series source observation and workspace acquisition reject the opposite effect port',async()=>{
+  const h=harness();
+  await assert.rejects(h.execute('arca.series_presentation.source.observe@1',
+    {artifactKind:'poster',seriesPresentationSource:source},'artifactPort'),{code:'PLATFORM_TMDB_EFFECT_CLASS_MISMATCH'});
+  await assert.rejects(h.execute('arca.series_presentation.assets.prepare@1',
+    {artifactKind:'poster',seriesPresentationSource:source,imagePath:'/show.jpg'},'observationPort'),
+    {code:'PLATFORM_TMDB_EFFECT_CLASS_MISMATCH'});
+  assert.equal(h.calls.length,0);
+});
+
 test('unscoped Series images, foreign Seasons and configuration substitution are rejected before transport',async()=>{
   const h=harness();
   for(const input of [{artifactKind:'poster',resolvedProviderIdentity:identity},

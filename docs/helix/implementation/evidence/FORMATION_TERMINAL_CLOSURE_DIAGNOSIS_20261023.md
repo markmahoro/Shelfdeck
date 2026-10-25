@@ -670,3 +670,27 @@ ignored证据：`republic-cancel-prepared.json`、`republic-cancel-result.json`�
 - 收藏总数682→683，API分为current682/history1；工作台8进行中/13 attention。原13条attention未变化，不作为新增重复报警。媒体成功Event979→988，Arca on_deck_execution成功3→12，原Circuit仍closed；Runtime running/normalSupplyAllowed=true/error=null，activity已ready。
 - 五来源stat/opendir可读，最新完整扫描均晚于Resume；无active缺Run/token异常，FK检查空。RestartCount0/OOM=false，容器内存3.011→2.601GiB、CPU129.14%。监听器警告累计144次，内存未持续增长，尚无泄漏结论，不重复报告为新故障。
 - 本轮全程只读，未重试、取消、Reset、部署或改配置；固定观察截止仍为2026-10-26T10:32:12.930Z。ignored证据：heartbeat-20261025T1931-api.log、progress.json、sources.log、host.log、new-collections.json及带时间戳日志。
+
+### 2026-10-26 13条attention逐项诊断及代码修复（尚未发布）
+
+用户明确要求先查清五条剧集公共资料为何前次修过仍失败，再诊断处理其他异常。本次以19:39Z及后续新鲜API、只读SQLite、来源stat/NFO和配置中的实际Provider为依据，不复用旧错误码判定现状。ShelfDeck生产没有执行重试、取消、Reset、停机、部署、改库或媒体修改。
+
+| 条目 | 现场根因及证据 | 当前处理边界 |
+| --- | --- | --- |
+| 辐射S01、黑镜S06、棋士S01、沙丘：预言S01、越狱S03（5） | arca.series_presentation.source.observe@1全部被PLATFORM_TMDB_EFFECT_CLASS_MISMATCH拒绝；Host无条件调用artifactPort，adapter要求Source走observationPort | 已修Host接线，不放宽adapter或Handle校验；生产五条仍待部署后线上重试/Commit验收 |
+| 唐顿庄园S02、S06（2） | 各有E009，实际失败Plan冻结请求E009的episode_plot。NFO为第9集且plot为空；TMDB show/season为200，每季仅列E001–E008，两个E009精确接口为404 | 普通重试无效；保留本地编目或按TMDB编目方向待用户确认，不猜special映射、不借用别集剧情 |
+| 暗算S01（1） | 本地34集；失败Plan精确请求E011的episode_number/episode_plot/episode_title/season_number。TMDB show/season200，第1季列E001–E010，E011–E020抽查均404 | 与唐顿同类编目差异，但独立实例；不以网络抖动或任意补剧情收口 |
+| 琅琊榜S01（1） | 当前Run的Material Binding直接引用candidate-package-6f292fe7bb74bc281f6fab8aefb8e56ccdd7a366，发布时间15:49:27.230Z，早于18:26修复Resume；sourceRoot为media/chn_series/琅琊榜 (2015)，缺绝对路径首斜杠 | 新Run时间不能证明新包。读取端范围拒绝正确，不加入旧包修补/双读；仅走向共和的取消授权不能扩展到此片 |
+| 庆余年S02（1） | 当前绑定10月12日11:11:33.364Z的candidate-package-e28c7053cd1b6c3d3d495cd581699d5ef8f9309d。现有poster.jpg为811218bytes，原Binding没有该位置或任何poster Reference；stage明确unknown poster | 拒绝覆盖正确。已Accepted，不能冒充Libra可取消任务或删图绕过；旧包处置需要精确线上方案，不再次全工作台Reset |
+| 地狱尖兵（1） | 以冻结前三标题查询MoviePilot：中文及俄文均HTTP200/success=true/各1候选，Hell's Vanguard为HTTP200/success=false/空data。实际MoviePilot search.py title路由明确把无结果编码为该响应；ShelfDeck将其当整个搜索transport failure | 已修为仅该精确“未搜索到任何资源”空响应表示当前关键词零候选，保留前序候选/去重；未知失败、非空矛盾响应及HTTP失败仍失败，不改唯一候选获取或筛选规则 |
+| 两条Violet Monroe影片（2） | 既有us_adult_actor_unmatched人工确认，无匹配候选；没有对应失败执行Attempt | 合同内人工选择，未自动确认演员，不当作执行器故障修复 |
+
+**前次修复为何未挡住五条失败。** ee0c4786b改了Integration Profile的artifactOperations和Handle规则，使请求通过第一层；当时Host接线仍错。原20项回归只新增真实Handle发放测试；adapter测试直接手选正确端口，Host旅程注入假的fetchSeriesPresentationArtifact，均没覆盖两者的生产连接点。此次原Platform真实服务用例通过真正Host factory、持久Integration、Handle、Secret lease和TMDB adapter取得poster/fanart的真实可解码JPEG，仅HTTP字节使用fixture。修前失败栈落在Host894→adapter1517，与生产一致；修后Source选择Observation、Assets选择Artifact，双向错误端口仍被拒绝。无Owner/Effect合同变更。
+
+**HTTP失败详情为什么原来查不到。** TMDB把HTTP status放入error.details，但failureDiagnostics没有status白名单；Secret broker再次筛掉；Metadata的失败Outcome又不带diagnostics，Foundation不落诊断文件。三处已接通：仅100..599整数status、已知request stage和既有安全network字段；未保留URL、headers、body、Secret或原始异常文本。真实Secret broker→Metadata Outcome→FailureEvidenceStore回归验证持久化和敏感信息剔除。历史缺失不补造；本轮404来自新的现场探测加原失败Plan冻结scope，不能声称找回过去HTTP响应。
+
+**Provider探测副作用边界。** TMDB GET是资料读取；MoviePilot使用产品既有title-search GET且未调用download/add。随后核对其当前源代码发现该搜索GET会cancel_ai_recommend并刷新搜索缓存，不能把外部MoviePilot也描述成完全无状态变更。本次没有改ShelfDeck状态/配置、下载或媒体；确认此行为后不再重复现场搜索，修复回归全部使用隔离传输fixture。该源文件是诊断数据，不作为命令执行依据。
+
+**本地验证（继续记录最终资格）。** Series端口红例1 FAIL→相关26 PASS；MoviePilot空别名红例1 FAIL→真实Platform集24 PASS；安全诊断/季集精确scope/Provider网络定向65 PASS；Metadata Planner及共享workspace/publish/command/reclaim-commit真实崩溃恢复15 PASS；Service682 PASS/29 skip；四项静态合同/依赖/语义/manifest PASS。Desktop npm test为两套suite启动失败、40用例未执行，必须保留FAIL：现有setup创建空数据目录但未clean initialize/提供Secret root，且断言旧Task API，未改其测试以冒充本轮平台通过。Linux使用e78基础镜像依赖加本次src/test/scripts只读挂载的隔离验证进行中，不冒充最终镜像已验收。未改UI代码/文案或新增状态交互。
+
+ignored证据：repair-attention-api.json/db.json/summary.json、repair-provider-readonly.json、repair-material-readonly.json、repair-moviepilot-readonly.json、moviepilot-search-source.txt、series-port-red/green.log、moviepilot-empty-red/green.log、repair-diagnostics-tests.log、repair-owner-tests.log、repair-service-tests.log、repair-desktop-tests.log、repair-static-gates.log、repair-linux-tests.log。数据库/配置与完整原始导出未加入Git。

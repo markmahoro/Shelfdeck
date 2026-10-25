@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-26 用户要求继续修复13条attention：优先SERIES-PRESENTATION-PORT-WIRING，随后PROVIDER-EMPTY-SEARCH与PROVIDER-FAILURE-EVIDENCE；已完成现场诊断和红绿回归，继续固定候选资格。唐顿庄园S02/S06、暗算S01的本地/TMDB分集编号差异进入SERIES-EPISODE-NUMBERING待确认设计，不猜跨季映射或放宽缺剧情验收；琅琊榜和庆余年旧包处置单独确定，不复用走向共和的单条取消授权，不再全量Reset。此次未部署或修改生产任务。
+
 2026-10-26 02:47 《走向共和》唯一获准的旧包取消已通过线上入口完成，历史、源文件状态和收藏保护复核通过；等待正常重采的新包验收，不强制调度或扩大到其他影片。
 
 2026-10-26 修复收口：EXECUTION-RECOVERY-RESERVATION-CLOSURE已在e78dbd82f生产真实执行验证，原Circuit解除且业务继续；SERIES-SOURCE-ABSOLUTE-ROOT已部署并通过真实NFO隔离回归，尚无修复后自然生成Series包的生产验收证据。旧冻结包处置需单独确认，新增外部检索失败及既有资料请求阻塞保留开放；不追加Reset，不关闭整轮真实媒体验收或4K吞吐事项。

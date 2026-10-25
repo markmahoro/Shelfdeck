@@ -1,5 +1,15 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-26 恢复后13条attention修复工作项（用户已授权诊断与实施，未新增UAT编号）：
+
+- `SERIES-PRESENTATION-PORT-WIRING`：真实Host composition按operation分派Source到Observation、Assets到Artifact；真实Handle/Secret/adapter仅隔离HTTP传输的poster/fanart回归先红后绿，保留反向端口拒绝。前次ee0c仅覆盖Handle发放，不能作为生产接线正确的证据。待固定候选及五条线上验收。
+- `PROVIDER-EMPTY-SEARCH`：MoviePilot明确“未搜索到任何资源”且空data为该关键词零候选，保留其他关键词候选及去重；未知失败/非空矛盾响应/HTTP失败仍拒绝。真实Platform端口回归先红后绿；不改变唯一候选获取或身份/质量筛选。
+- `PROVIDER-FAILURE-EVIDENCE`：TMDB JSON HTTP stage/status经Secret broker安全白名单及Metadata failed Outcome持久保留；不回填缺失历史证据，不新增UI文案或业务权限。
+- `SERIES-EPISODE-NUMBERING`：唐顿S02E09/S06E09、暗算S01E11精确接口404已现场复现，本地NFO缺所需剧情；当前合同禁止拿别季/别集或整剧剧情替代。用户对保留本地编号/采用TMDB编目的方向待答复，未实现映射、放宽Spec或改媒体。
+- `FROZEN-PACKAGE-DISPOSITION`：琅琊榜旧包15:49Z冻结错误相对根；庆余年旧包10月12日缺season poster Reference，Arca无覆盖资格。普通重试不重建冻结输入；分别按未Accepted/已Accepted责任边界提出有界线上方案，不以新兼容逻辑改旧包、不再次全量Reset。
+
+现场证据、测试覆盖与限制见[本轮Evidence最新节](evidence/FORMATION_TERMINAL_CLOSURE_DIAGNOSIS_20261023.md)。两条演员确认保持用户选择，不自动代选。
+
 2026-10-26 02:47（Asia/Shanghai）按用户明确授权，仅通过线上discard取消《走向共和》旧Run e2e307359a9883a1f335b32fee058bf23be68836de9b7676664b3aae315bae93，18:46:48.665Z完成：Run discarded、Subject abandoned、59个Control released、token释放、取消Receipt完成。182个来源文件stat清单及旧Candidate全文摘要前后相同；22组既有历史原行无缺失/改写、682收藏不变。未Reset或强制重新采购；等待正常采购新包，单条取消不再待确认。
 
 2026-10-26 02:33（Asia/Shanghai）修复镜像e78dbd82f已标准部署，18:26:15.819Z正式Resume完成：running/normalSupplyAllowed=true/error=null。旧取消Work的媒体Circuit资格已由Foundation正常释放，随后真实成功执行使Circuit closed/INVARIANT_RESTORED；18:32Z媒体生产Event成功288次，来源观察成功3次，无active且无Run/token异常。部署前后及恢复后22组原记录无丢失/改写，682收藏/941 ended Run保留，未再次Reset。UI当前13进行中/1 attention：新增《地狱尖兵》外部素材检索P5_PROVIDER_TRANSPORT_FAILED三次重试耗尽；《走向共和》旧冻结包取消/重采等待明确确认，唐顿庄园/暗算既有资料请求阻塞仍开放。不可称全部媒体验收通过。详见本轮Evidence末节。
