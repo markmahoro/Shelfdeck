@@ -532,6 +532,7 @@ test('production Movie contract archive has exact provenance and cannot authoriz
 for(const releasedArchive of [
   {file:'published-terminal-contracts-20261015.json',digest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d'},
   {file:'published-terminal-contracts-20261021.json',digest:'214b8cf2272f740034ae8fe68d3b18e493c720bb7fd6dac7d5b692d58db03ed6'},
+  {file:'published-terminal-contracts-20261022.json',digest:'51dca4f218fdeae45ec2a72c53056afe3fb0486b056e5a794117658fa6c1046b'},
 ])test('published '+releasedArchive.file+' reconstructs its exact Catalog without mutating archives or accepting active history', () => {
   const { createFrozenCatalogHistory } = require('../../src/helix/foundation/execution/frozen-catalog-history');
   const additional = Object.freeze({archive:require('../../src/helix/composition/catalog-transitions/'+releasedArchive.file),

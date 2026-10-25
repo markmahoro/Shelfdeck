@@ -419,3 +419,14 @@ foreign_key_check为空、integrity_check=ok。后置检查初始隔离1GiB/1CPU
 正式回执位于 `/vol1/1000/docker/shelfdeck/data/reset-receipts/formation-reset-ffd78384-295c-4bdb-9736-215035e4a4fa.json`；journalDigest `8d8f7aa1871c432ce75f85ef2d49eb66ee5822982e46251b5b56d71ba7cdeb50`。前后摘要位于 `/vol1/1000/docker/shelfdeck/backups/pre-f280e6bd4-20261023/verification/protected-before.json` 与`protected-after.json`。本地ignored目录保存标准deploy日志、API受理/最终结果、冷备/Reset回执及前后摘要，不提交原始生产数据。
 
 本次已产生正式管理退役新事实，不能仅切回旧镜像或覆盖旧数据库；反向结构复制仅证明无新增事实时可回退。冷备保留作事故恢复材料，本次没有执行回退。未重新遍历全收藏媒体字节，保护结论以正式收藏事实/历史摘要、Reset正式边界及上述证据为准。原剧集问题、高达/凡人歌的正常新流程媒体验收继续开放；不以Reset或隔离测试代替自然重采验收。4K忙载吞吐继续延后。
+
+
+## 2026-10-25 Resume 阻断与来源目录提示
+
+Reset 完成后的用户授权 Resume 在 10:21:42.470Z 创建 operation `08c21ab53416aa594dd461a3c6c5aeec61ae305e437fee50951f949ac2f72126`，10:23:46.265Z 失败，`P4_EXECUTION_HOST_RECOVERY_BLOCKED`。HTTP 客户端超时不代表请求未受理；未重复投递。Runtime error / desired stopped / normalSupplyAllowed=false，容器无重启/OOM。此前完整副本验证只证明 stopped Host，不包含正常 Resume，这是本次资格遗漏。
+
+五个真实来源 `/media/Film`、`/media/chn_series`、`/media/Series`、`/adult/JAV/toscrape`、`/adult/US` 均通过 stat/opendir 且非空。最新 Field Observation 的 ROOT_UNAVAILABLE 来自 2026-10-22T11:52:23–36Z；overview 优先投影该历史失败，不能由提示推断当前挂载失效。未清除旧记录或修改路径。后续需恢复供给并等待正式新观察证明，而非伪造成功。
+
+未改动镜像 f280e6bd4 的完整生产副本正式 Resume 恰好得到 1707 个 `PLAN_CATALOG_DRIFT`，无其他类型 finding。这些 Plan 全部对应 hostfix4 Catalog `8f5dded28a5fea846f45a7c7b715109f1cf92ef36473d7a1b7f67cc68b4208db`，所属 Work 全部终态；8 个范围外保留非终态 Work 不是本次阻挡原因。两次前置诊断因副本挂载身份与持久 Aftercare root 不匹配而中止，属于 fixture 配置错误，已保留失败日志；使用生产 `/app/data` 只读保留原物理身份、独立 `/diagnostic/data` 写入副本后复现成立。
+
+修复沿 SSOT 既有 Frozen Catalog History：从不可变旧镜像 `sha256:d94bcda0875bc51059dfa601f5fec3b0f220d9b0925029fadd75886c649a886e`、revision `b70a9f6f6dde90654fbdef70e226b11f25f709f5` 的空隔离 Host 提取 125 Capability / 1368 Schema 及原策略与完整 Result 证据闭包。新增 `published-terminal-contracts-20261022.json`，canonical SHA256 `51dca4f218fdeae45ec2a72c53056afe3fb0486b056e5a794117658fa6c1046b`。只读验真终态 DAG/Owner/Result/Effect，不注册旧执行器、不增加 Catalog 白名单、不修改历史、无数据结构迁移。定向历史合同/暂停批次/启动恢复 118/118 PASS，含活动 Attempt 与篡改拒绝。新鲜生产副本正常恢复、Service 与修复镜像资格仍在执行；本节不是发布成功声明。

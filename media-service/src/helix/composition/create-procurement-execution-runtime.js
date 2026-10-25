@@ -35,6 +35,7 @@ const movieTerminalContracts = require('./catalog-transitions/movie-terminal-con
 const publishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261015.json');
 const latestPublishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261018.json');
 const lifecyclePublishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261021.json');
+const seriesPublishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261022.json');
 const { createPausedReleaseBatchProof } = require('./paused-release-batches');
 const { createTimeoutController } = require('../foundation/execution/timeout-controller');
 const { createCooperativeExecutionIsolation } = require('../foundation/execution/cooperative-execution-isolation');
@@ -1000,7 +1001,8 @@ function createProcurementExecutionRuntime(options) {
   const terminalHistory = createFrozenCatalogHistory({ archive: movieTerminalContracts,
     additionalArchives: [{archive:publishedTerminalContracts,archiveDigest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d'},
       {archive:latestPublishedTerminalContracts,archiveDigest:'02c61b170e4209eb07f6abb1172eece6e598ed06ab9ad9fa227a5fea32803a6c'},
-      {archive:lifecyclePublishedTerminalContracts,archiveDigest:'214b8cf2272f740034ae8fe68d3b18e493c720bb7fd6dac7d5b692d58db03ed6'}],
+      {archive:lifecyclePublishedTerminalContracts,archiveDigest:'214b8cf2272f740034ae8fe68d3b18e493c720bb7fd6dac7d5b692d58db03ed6'},
+      {archive:seriesPublishedTerminalContracts,archiveDigest:'51dca4f218fdeae45ec2a72c53056afe3fb0486b056e5a794117658fa6c1046b'}],
     archiveDigest: '369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
     priorArchive: secondaryAcceptanceHistory,
     priorArchiveDigest: '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',

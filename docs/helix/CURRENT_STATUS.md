@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-25 恢复运行诊断：用户已授权 Resume 与运行监控。正式 Resume 于 10:21:42Z 受理、10:23:46Z 因 `P4_EXECUTION_HOST_RECOVERY_BLOCKED` 失败，Runtime error / desired stopped / normalSupplyAllowed=false，未恢复供给。五个来源目录现场 stat/opendir 均成功；界面不可用来自 10-22 的失败 Observation，不是当前挂载失效。完整生产副本复现恰好 1707 个 PLAN_CATALOG_DRIFT：hostfix4 的终态 Catalog 8f5dded2 缺少 frozen archive。已从 b70a9f6f6 原镜像提取精确合同并接入只读历史验真，定向118/118通过；修复副本正常 Resume 资格进行中，尚未部署。此前 stopped Host 资格不等同正常恢复资格；不重做 Reset，不改历史记录、不放行旧执行器。
+
 2026-10-25 18:18（Asia/Shanghai）生产发布及新版整工作台Reset完成：镜像 `markmahoro/shelfdeck:f280e6bd4`，source `f280e6bd495e8bb75f4185d532adc18e0f1b0071`，NAS image ID `sha256:6f57fec925c007f810ab23af323a75f3dd3499259e6f18b8acbb56186a78e723`，tar SHA256 `192445c85c44a26f38cb1490a30f5b7b29a8ab48b8e24732861a017a545c107c`。正式Runtime Reset于10:13:54.769Z完成，275步退役225Subject/14Run，14Workspace保留；工作台范围归零。22组收藏/历史逐行摘要完全一致：682 Entry、927既有ended Run及修订、既有Decision/Receipt/Outcome保持，Attempt仍158424；1个停止态执行以正式Receipt终止，executing归零。结束Run总数941含新增14个行政退役，不能误算成历史改变。FK/integrity、health/Formation/collection、fnOS与15个无关容器通过。Runtime `stopped`、desired `stopped`、normalSupplyAllowed=false、error=null，容器restartCount0；未Resume。完整Architecture Gate414文件/四项静态、Service667PASS/29skip、实际镜像98项、具体版本UI和NAS副本资格通过；真实自然重采媒体验收未完成，4K忙载吞吐按用户要求延后。正式Reset及备份ID、证据和回退边界见FORMATION_TERMINAL_CLOSURE_DIAGNOSIS_20261023 Evidence。
 
 
