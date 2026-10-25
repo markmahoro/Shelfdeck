@@ -629,3 +629,13 @@ NAS为7.6 GiB物理内存；两个验证容器并行时出现交换区压力，�
 - 既有24小时只读观察窗口继续，起点/截止不因这次发布延长；以本节新版本和UTC Resume边界为准，保留新增外部检索故障及旧包待确认，27个旧终态Plan证据不足不当作新启动阻断。未打Git release tag或批量关闭UAT。
 
 本节ignored证据：`e78dbd82f-final-qualification.json`、`e78dbd82f-runtime-image-identity.json`、`e78dbd82f-linux.log`、`e2cc23c81-production-copy.log`、`e78dbd82f-deploy-apply.log`、`e78dbd82f-facts-exact.log`、`e78dbd82f-facts-preserve-final.log`、`e78dbd82f-production-resume.json`、`e78dbd82f-monitor.log`及带时间戳的progress/failures/host日志。恢复后已有新事实，禁止直接用冷备覆盖当前数据库。
+
+
+### 2026-10-26 02:36 只读监控：两项新attention变化
+
+- Runtime/health及六项API均成功，生产仍e78dbd82f，running/normalSupplyAllowed=true/error=null。相对18:32样本，媒体成功Event288→385，field_observation成功3→5，并出现deliverable_promotion、acceptance等成功步骤；原媒体Circuit持续closed/INVARIANT_RESTORED。收藏仍682，无新Arca Commit验收声明；FK检查空、active且缺Run/token异常为空。五来源stat/opendir均可读，JAV已完成本轮扫描，国产剧/剧集/媒体文件来源有新观察，其他扫描仍在进行，不能把页观察成功次数等同全部扫描完成。
+- API summary为12进行中/3 attention。新进入需要处理的一条Violet Monroe影片是us_adult_actor_unmatched，候选为空，当前Run仍active，抽帧/embedding/聚类/参考比对均完成，需用户确认演员，不是Executor错误。唐顿庄园原有PLATFORM_INTEGRATION_HTTP_FAILED现收口为Run frozen，详细失败诊断不可用；本次增量查询没有新增该HTTP失败Attempt，不应报告为新网络故障。地狱尖兵三次外部检索失败仍是同一Event的已知失败。
+- 走向共和单条取消确认仍待答复，本监控未执行取消或任何生产变更。容器RestartCount0/OOM=false、其他15容器运行；CPU338.17%，容器内存3.73GiB（前样本3.32），包含媒体/AI子进程。AbortSignal警告累计4次，尚无泄漏或功能故障证据，单纯增长不重复提醒同一警告。
+- 修正自动化仍引用c91未修缺陷的过时提示，保留既有周期和原created_at=1792924332930；固定观察截止2026-10-26T10:32:12.930Z，不因更新或发布延长。此次通知仅针对attention实质变化/人工确认，既有地狱尖兵、旧包及监听器问题不重复报警。
+
+证据位于ignored目录的heartbeat-20261025T1835-api.log/progress.json/sources.log/host.log/failures.json、两条任务详情JSON及本次带时间戳容器日志。未执行Reset、改库、配置变更、媒体操作或任务重试。

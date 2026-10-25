@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-26 02:36（Asia/Shanghai）只读观察：e78dbd82f running，媒体成功Event288→385，来源观察成功5次，Circuit仍closed；五来源可读，682收藏、FK正常，无新孤儿/重启/OOM。当前API12进行中/3 attention：新增Violet Monroe影片人工演员确认（us_adult_actor_unmatched，无候选）；唐顿庄园既有资料HTTP错误现收口为frozen；地狱尖兵已知三次外部检索失败不变。本次无新增失败Attempt，未执行取消/Reset/修复。24小时监控固定截止2026-10-26T10:32:12.930Z，已更新自动化过时基线，不延长窗口。
+
 2026-10-26 02:33（Asia/Shanghai）修复镜像e78dbd82f已标准部署，18:26:15.819Z正式Resume完成：running/normalSupplyAllowed=true/error=null。旧取消Work的媒体Circuit资格已由Foundation正常释放，随后真实成功执行使Circuit closed/INVARIANT_RESTORED；18:32Z媒体生产Event成功288次，来源观察成功3次，无active且无Run/token异常。部署前后及恢复后22组原记录无丢失/改写，682收藏/941 ended Run保留，未再次Reset。UI当前13进行中/1 attention：新增《地狱尖兵》外部素材检索P5_PROVIDER_TRANSPORT_FAILED三次重试耗尽；《走向共和》旧冻结包取消/重采等待明确确认，唐顿庄园/暗算既有资料请求阻塞仍开放。不可称全部媒体验收通过。详见本轮Evidence末节。
 
 2026-10-26 02:07（Asia/Shanghai）修复发布资格：最终运行代码e2cc23c81，待部署镜像e78dbd82f仅追加SSOT来源摘要及node:path依赖声明，运行JS/Schema/测试字节相同。真实NAS副本235表验证通过：仅Circuit/Incident两表预期变化，233表完全一致，682收藏/941 ended Run及22组保护基线保存；Windows独立包、Linux候选56项、四项静态及合同派生复验通过。完整分片Architecture长旅程继续；生产仍c91fbed63停机，未部署、未再次Reset。
