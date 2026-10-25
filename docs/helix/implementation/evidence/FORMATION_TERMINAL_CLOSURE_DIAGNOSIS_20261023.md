@@ -500,3 +500,66 @@ Reset 完成后的用户授权 Resume 在 10:21:42.470Z 创建 operation `08c21a
 固定76724153e镜像已标准构建及上传，仅用于NAS隔离诊断：tar SHA256 `fb70783d5c546e87292d3ba8bfabecb5c5b6ea805c11bcb960ee8d78e85b8d4a`，NAS image ID `sha256:ccf311034f84204fd51514b0aef911bac6b42201739ef907928295ab04be0e5f`。232→235副本导入扫描51273个Plan，其中51246 imported、27 unverified；导入后231张原表逐行摘要保持，FK/integrity检查通过。27项均为终态且Effect已committed：4项成功Event缺Result、20项旧生产者缺可证明的prebound Evidence声明、3项旧Result缺其冻结Schema要求字段。保留原事实及持久失败审计，不补造证据；它们不因此获得执行权。
 
 767副本首次正常Host启动因演练漏复制加密凭据失败，补齐后由于将副本挂到`/app/data`改变原Workspace mount身份再次失败。演练改为副本数据库位于`/diagnostic/data`、原Workspace及媒体只读挂载以保留真实物理身份，正常Resume/Stop及22组收藏历史保护继续验证。两次演练配置失败保留，不记PASS。当前生产仍f280e6bd4且供给关闭，本段没有生产部署或Reset；最终新候选门禁/镜像/副本恢复资格待完成。
+
+
+### 最终镜像 c91fbed63 与新冷备（2026-10-25，资格进行中）
+
+候选 `c91fbed637b99a80611a30f4601a8e2acf74410b`，镜像 `markmahoro/shelfdeck:c91fbed63`。标准build/upload已完成，tar SHA256 `b322c4d163fae4a62e28ed7b7b6e0349a8e6c8eacb97d4144e021deef35af394`；NAS image ID `sha256:0a85ab1aaf13d554871013c1cc9973a09412d7869780f6d0e705a011c7721e02`，本机containerd ID `sha256:83e9b4bfb63ea1b63a35c70be1707f26d1518d7d53baecf87228189579ecf11c`。完整Gate在真实detached Git worktree运行，避免先前archive checkout缺Git历史导致P6/P7资格环境失败；尚未结束。
+
+- Service710项：681 PASS / 29既有skip / 0 fail；Web build PASS。UI/Projection源码与生产f280对应范围无差异，不新增UI资格声明。
+- 实际最终镜像合同/证据/导入100 PASS。实际整剧rename/commit进程退出恢复及两项资料修复4 PASS；JAV correction原子Receipt、reclaim Receipt、cast维护窗口及Series shared reclaim进程恢复4 PASS。
+- Windows独立分发、原生依赖、包内Host、打包工具完整性及覆盖拒绝1 PASS。资格工作树使用node_modules junction导致旧完整运行package-win复制junction报EPERM；相同c91输入在有实体依赖的主工作区完整复验通过，不能把环境失败记为原运行PASS。
+- 实际镜像切换/同步命令/media组合33项：30 PASS / 2 FAIL / 1 live BDAV fixture缺失skip。两项FAIL为ISO concat输入触发FFprobe SIGSEGV；f280生产镜像以相同测试复现2/2失败，FFprobe、clean-media-probe及输入预算源码SHA完全相同。该既有ISO问题不归为本次合同机制回归，不记PASS或声称已修，4K忙载吞吐仍延后。日志 `probe-baseline-f280e6bd4.log`、`probe-baseline-hashes.log`。
+- Docker测试首次缺测试专用builder的MODULE_NOT_FOUND和中断重配记录保留；只补只读测试夹具，不覆盖镜像运行源码或将测试builder加入生产包。最终上述4项JAV/shared旅程日志 `docker-c91fbed63-jav-final.log`。
+- 767前候选NAS副本Resume→running→Stop→重开stopped通过，22组保护摘要不变，errors/rejected均空。该前候选记录不替代c91最终镜像副本；c91从同一冻结232源重新复制/导入，231原表逐行保护已通过，正常Resume资格继续。
+
+生产操作：本轮只做标准升级准备，尚未切换。14:03Z前后正常停止原f280容器，exit0/RestartCount0，持久intent desiredMode=stopped/revision26/pendingReset=null。14:05:09Z冷备198文件逐项SHA前后/副本一致，清单SHA `eadf6bca1c485e60679e10055f48845c79b8f3c4151f072e1b258a87be3b37bc`，位置 `/vol2/1000/shelfdeck_backups/pre-c91fbed63-20261025`，含完整data/Compose/Secret；既有Reset外部备份卷继续保留，未复制其全部历史备份。准备源物理集合仅主DB一文件，无WAL/SHM/journal；冷备没有被打开写入。
+
+独立准备目录 `/vol1/1000/docker/shelfdeck/backups/history-cutover-c91fbed63-20261025`。加性结构生成与证据导入的临时目标放在上述专用备份卷的preparation子目录，减少vol1峰值空间；关闭后复制到同卷prepared.sqlite并核对SHA，再由正式cutover工具二次核验原表与原始物理字节。部署仍必须使用标准deploy入口，且以最终副本和测试资格为前提，不重复Reset。22组保护基线保存原记录主键及逐行SHA，682收藏/941 ended Run；原始只读WAL模式主库检查因辅助文件缺失被SQLite拒绝，已改为读取相同字节的准备源副本，未修改冷备或生产原库。
+
+容量记录：本轮完成的767隔离副本data已按精确路径清除，冻结源、导入/恢复报告、冷备及生产数据保留；未清理Docker私有目录、无关容器或历史生产备份。后续部署前继续核对可用空间。
+
+
+22:48资格追加（同一c91候选，产品输入未变）：完整Architecture首跑3351项，3322 PASS / 3 FAIL / 26 skip，四项静态门禁PASS。失败为formal HTTP入口30秒启动超时、Windows包构建90秒超时、1081媒体采购已完成65包但发现1条带failure_code的Attempt。最后一项原测试没有输出具体失败码且清理了fixture，不能宣称已证实其根因。相同候选、原断言、独立串行复验HTTP入口及完整1081媒体采购2/2 PASS，Windows实体依赖独立包此前1/1 PASS；组合3325 PASS / 26 skip / 0剩余失败，首跑记录不改记PASS。JAV及Series完整流程已在首跑完成。日志`gate-c91fbed63.json`、`gate-c91fbed63-failed-fixtures-rerun.log`、`windows-c91fbed63-qualified.log`。
+
+最终NAS副本已完成51,273条旧Plan检查，51,246导入/27 unverified；与767前候选的27个Plan ID及失败类别逐条一致。导入后231张原表逐行保护通过，verifierDigest `5611043165290541c59fbc0fc9a71fe90367ff74246095180c158a2ba4f84132`。14:41:59.543Z正式Resume达到running/normalSupplyAllowed=true/error=null，Stop→重开及最终保护复查仍在运行，尚未宣称完整副本资格结束。
+
+生产冷备来源准备副本于14:33:12.517Z通过独立结构复制及231表保护，继续证据导入；原生产容器保持exited0，原库尚未替换。本次复制目标跨备份卷生成后，进入同卷cutover之前还须对已核对SHA的prepared.sqlite及父目录执行fsync，随后正式工具dry/apply分别核验字节与原表；不因等待时间取消任何保护检查。
+
+
+14:50:09.310Z最终c91镜像副本资格结束：Resume=running、Stop=stopped、重开=stopped，errors/rejected均空，682收藏/941 ended Run及22组逐行摘要保持，FK/integrity通过。总耗时694369ms含大库读取；不把0.8秒Resume状态切换当作整个冷启动耗时。结果已保存`history-c91fbed63-resume-qualified.json`与`qualification-c91fbed63.json`。
+
+NAS为7.6 GiB物理内存；两个验证容器并行时出现交换区压力，准备容器曾短暂pause后恢复，未修改生产资源配置。其4GiB限制累计触发16903次memory.max事件、约2125万次文件页重读，OOM/oom_kill均0。其他验证已退出后，仅将准备及后续单独cutover校验容器提高到6GiB（同值memory-swap、2 CPU），继续完整校验；原生产保持exited0。生产准备副本也完成51246导入/27失败审计，尚待最终原表保护结束及发布。
+
+
+### 2026-10-25 23:19 生产准备库最终关闭与交付
+
+最终准备库完成 checkpoint 并关闭日志模式，复制到同卷 prepared.sqlite、同步文件及父目录，复制前后 SHA256 为 `f416d76fb1acd52eb38c0182c021f4f48576d738770c71cf98e54ab75e89c91f`。来源快照 SHA256 为 `44ed9880bb7867bb701458b334afdb5cc8ef2ca131ec4e08c278392226e2f6cd`，原生产物理文件集合再次保持。准备阶段先前因只读验证产生空 WAL/SHM 而拒绝交付的记录保留；仅对准备库正式 checkpoint/close，没有修改原生产库或业务事实。
+
+生产准备导入 51246、未证明 27，231 原表保护通过；27 项记录与最终 c91 隔离资格报告逐项完全相等。ready.json 与导入、结构 Receipt 已取回；正式切换 dry run 正在独立复核，尚未宣称安装或恢复。证据为 ignored `production-c91fbed63-finalize.log`、`production-c91fbed63-ready.json`、`production-c91fbed63-import-report.jsonl`。
+
+
+23:30 切换阶段：正式dry run于15:26:18.590Z通过。首次apply完成全部保护核验后，因运维包装分别bind data/prepared两个目录，Linux在rename返回EXDEV；marker保持qualified，原生产SHA `44ed9880...2f6cd`、prepared SHA `f416d76f...c91f`完全不变，生产仍旧镜像exited。改为共同应用父目录单一bind mount，复用同一正式cutover工具的幂等恢复及完整验证重试，不手工mv、不删marker、不改产品源码。失败日志及独立SHA确认分别为`production-c91fbed63-cutover-apply.log`、`production-c91fbed63-cutover-exdev-state.log`，部署标准补明挂载边界。
+
+
+15:34:26.866Z 正式cutover安装成功，schema235，installed=true/applied=true/sourceRetained=true；目标SHA保持`f416d76fb1acd52eb38c0182c021f4f48576d738770c71cf98e54ab75e89c91f`。共同父目录挂载重试保留原记录并重新完整验证；实际源main/WAL/SHM/journal集合无漂移。回执`production-c91fbed63-cutover.json`已取回。标准`deploy-nas.js ... --sha256 b322c4d1... --apply`随后开始；部署/Resume结果尚待，不重复Reset。
+
+
+### 2026-10-25 23:41 标准部署与正式恢复成功
+
+标准deploy完成readiness、镜像身份、API/Admin Web及所有既有媒体/Workspace/备份/QSV挂载检查，15:39:15.565Z启动c91镜像，RestartCount0/OOM=false；15:40:59Z Runtime stopped/error=null/供给关闭。15:41:07.819Z恢复前22组记录精确比较missing=[]/changes=[]，682 Entry/941 ended Run/3221 ended Run revisions、所有原Decision/Receipt/Inventory逐行原样保持。日志`deploy-c91fbed63-apply.log`、`production-c91fbed63-facts-exact.log`。
+
+15:41:28.209Z通过正式Runtime Resume入口受理，15:41:29.688Z完成，revision27、running/normalSupplyAllowed=true/error=null；operation db56931ab4e885c7b0bf8b6cd8e4d64644d10483910e82fab9b9e67fb2c99d93。首次五来源stat/opendir可读，观察时间仍为旧记录，继续等待正式自动扫描，不能据health200宣布完整业务验收通过。没有再次Reset，没有手工修改来源或指定媒体优先采购。
+
+
+### 2026-10-25 23:46 恢复后业务与历史核对
+
+- 15:41:40–15:44:45Z 七轮、42次health/Runtime/来源/overview/Formation/collection请求全部成功，持续running/normalSupplyAllowed=true/error=null。Formation请求65–123ms（中位94ms），collection207–417ms（中位253ms）；只代表短时本机样本，不是4K忙载吞吐验收。
+- 五来源stat/opendir可读并已正式自动扫描；23:46 API中国产剧新21页扫描完成、JAV新1页完成，其余扫描仍进行。工作台12 in_progress/0 attention/676 completed；raw旧Projection缓存含行政退役项，不能把其classification计数当作当前工作台结果。23:45按active Subject+无current Run+无token筛选为空。
+- 15:43:49.324Z恢复后原22组记录missing=[]/changes=[]，682原收藏与941原ended Run保持。Handoff A/Intake Receipt从930增至936及Decision增加来自本次正常新接纳，未覆盖旧行。没有人为优先重采、移动或替换两部目标影片，真实自然媒体验收继续开放。
+- 一条新Attempt失败`P8_ACCEPTANCE_CONTINUITY_BASIS_STALE`由Owner既有终态处理返回replan，ordinal2成功，当前acceptance Work=succeeded。失败记录保留，不记服务故障或伪造首次成功；资源等待media probe从687降至592，队列在推进，仍不可据此作吞吐结论。
+- 容器RestartCount0/OOM=false，15个无关容器保持，fnOS HTTP200；应用/用户目录权限不变。readiness临时容器释放后vol1可用约9.4 GiB，vol2约368 GiB。
+- 日志出现`MaxListenersExceededWarning`（共享AbortSignal超过10个监听器）；尚无泄漏/功能失败证据，保留为观察项，不靠调高监听器阈值掩盖。两项既有ISO FFprobe故障、27项旧证据不足及4K忙载吞吐延后边界保持。
+- 既有`shelfdeck-2`只读24小时heartbeat已更新为c91运行状态，保留原周期和窗口，不延长；仅变化/故障通知，不自动Reset/部署/重启/改媒体。
+
+证据：`production-c91fbed63-monitor.log`、`production-c91fbed63-facts-preserve.log`、`production-c91fbed63-source-final.log`、`production-c91fbed63-new-failures.jsonl`、`production-c91fbed63-host-final.log`、`qualification-c91fbed63.json`。恢复供给后已有新事实，回退禁止直接覆盖冷备；须先停机、冻结当前事实并使用经保护验证的回退方案，旧f280镜像也不能直接启动235结构。

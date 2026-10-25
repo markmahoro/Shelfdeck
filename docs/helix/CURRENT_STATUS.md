@@ -1,6 +1,10 @@
 # ShelfDeck 当前状态
 
-2026-10-25 历史机制完整门禁追加：修复原子Owner提交中断窗口、Evidence引用/完整Record声明及多Owner依赖证明；100项合同回归及真实Series/JAV恢复通过，最终固定门禁仍待完成。767实际镜像副本导入51246 Plan、27项保留失败审计，231张原表保持；正常Resume演练继续。生产仍f280e6bd4、供给关闭，无本次部署/Reset。详见既有生命周期Evidence最新节。
+2026-10-25 23:46（Asia/Shanghai）恢复观察：7轮/42次API请求全部成功、running且无Runtime错误；五来源可读，国产剧21页及JAV1页新扫描完成，其余扫描进行中。工作台12进行中/0 attention，已核对无active且无Run/token异常。恢复后22组原记录仍missing=[]/changes=[]，新增Handoff/Decision正常保留；RestartCount0/OOM=false，其他15容器与fnOS正常。一次continuity basis过期已由Owner重规划成功。AbortSignal监听器数量警告保留观察，尚未证实泄漏；不得据短采样宣称吞吐、全部媒体验收或所有历史证据通过。既有24小时只读监控继续。
+
+2026-10-25 23:41（Asia/Shanghai）历史机制候选 `c91fbed63` 已标准部署，15:41:29.688Z Resume完成，running / normalSupplyAllowed=true / error=null。232→235原子切换及231原表保护通过；恢复前22组逐行历史完全相等，682收藏/941 ended Run不变。51,246 Plan证据迁入、27项保留明确失败审计，未重复Reset。五来源现场可读，新的常规观察及业务推进正在监控；真实自然重采验收和4K忙载吞吐仍开放。完整发布身份、门禁与残余见本轮Evidence。
+
+2026-10-25 23:11（Asia/Shanghai）历史机制候选 `c91fbed63` 已取得最终镜像副本资格：51246 Plan证据导入/27项保留失败审计、231原表保护，Resume→Stop→重开均通过，682收藏/941 ended Run及22组记录不变。Architecture首跑3351项含3失败，原断言同候选复验3项通过，组合3325 PASS/26 skip，四项静态PASS；Service681 PASS/29 skip、Windows包、实际镜像100项合同及8项恢复旅程通过。原首跑失败与既有ISO FFprobe故障保留记录。生产仍f280已退出，198文件冷备完成，来自新冷备的准备副本已导入51246/27并进行最终原表复查；尚未切库/部署/Resume，不重复Reset。
 
 2026-10-25 历史机制清理开发检查点（未部署）：新Plan原子保存实际执行合同；启动只读当前责任和依赖闭包，闭合历史进入独立持久审计。运行目录不装载按日期历史档案；一次性导入使用精确来源验真，失败立即留审计Receipt。232→235增加三张证据/审计表及三个查询索引，231张原事实表逐行保护；目标导入Kernel只允许读取及追加三张新表。终态封存仍须为未决Effect取得当前Owner证明。固定230a的Service673 PASS/29 skip；最新定向40 PASS/1快照未配置skip，Windows独立包与切换中断/WAL保护通过；JAV新任务真实视频旅程1 PASS。Docker已恢复。完整固定门禁、最终镜像、NAS新副本迁入/恢复和标准发布未完成；生产仍f280e6bd4、供给关闭，不重复Reset。
 
