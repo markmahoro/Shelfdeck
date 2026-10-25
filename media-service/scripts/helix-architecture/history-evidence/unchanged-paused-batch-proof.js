@@ -1,12 +1,12 @@
 'use strict';
 
-const { canonicalDigest } = require('../../contracts/canonical-json');
-const { createCapabilityContractValidator } = require('../capability/contract-validator');
-const { createExecutionPolicyRegistry } = require('./execution-policy');
-const { executionCatalogDigest } = require('./workflow-plan');
-const { schemaClosure } = require('./catalog-schema-closure');
-const { createBoundedCatalogTransition } = require('./bounded-catalog-transition');
-const { validateSupportingWorkDefinition } = require('./runtime-contracts');
+const { canonicalDigest } = require('../../../src/helix/contracts/canonical-json');
+const { createCapabilityContractValidator } = require('../../../src/helix/foundation/capability/contract-validator');
+const { createExecutionPolicyRegistry } = require('../../../src/helix/foundation/execution/execution-policy');
+const { executionCatalogDigest } = require('../../../src/helix/foundation/execution/workflow-plan');
+const { schemaClosure } = require('../../../src/helix/foundation/execution/catalog-schema-closure');
+const { createBoundedCatalogTransition } = require('../../../src/helix/foundation/execution/bounded-catalog-transition');
+const { validateSupportingWorkDefinition } = require('../../../src/helix/foundation/execution/runtime-contracts');
 
 // A paused technical batch retains its immutable graph and cursor. Historical
 // executors are never registered; every executable contract must be unchanged.

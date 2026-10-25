@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
-  "tableCount": 232,
-  "tableContractAggregateDigest": "14b7bd6756c0dbaebb8cb80a427d8975881d56b617fed099a82d8d6508bdf930",
-  "ddlDigest": "14ba9e5ab6833fedf39adc6d4dd492d18ea6c9387a3e0a1671a3d1338b999d53",
+  "tableCount": 235,
+  "tableContractAggregateDigest": "fccebf662f4c05404fa64c280b12b1fcfad1d061e8293bded4a3245c7f615cdc",
+  "ddlDigest": "e0f2cbf49c0f6b390e4ee56db33baff23a8baaeafd11d71a510575009b3e7701",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -2204,6 +2204,23 @@
       ]
     },
     {
+      "tableId": "fx_execution_contracts",
+      "owner": "execution-foundation",
+      "contractId": "helix://contracts/tables/fx_execution_contracts/v1",
+      "contractDigest": "5d23c4f5ed8cf3a3987f3e42ac0d6d5d04bdeeb5f19c9671745e39419226972f",
+      "sqlDigest": "34c52d47dcf38157fab7f3c772e73a40fcc443a2e907abd084097f6fcca4cb64",
+      "columns": [
+        "contract_digest",
+        "format_version",
+        "contract_schema_ref",
+        "contract_json",
+        "created_at_ms"
+      ],
+      "immutable": true,
+      "supportColumns": [],
+      "indexes": []
+    },
+    {
       "tableId": "fx_executor_incidents",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_executor_incidents/v1",
@@ -2359,6 +2376,25 @@
       ]
     },
     {
+      "tableId": "fx_plan_contracts",
+      "owner": "execution-foundation",
+      "contractId": "helix://contracts/tables/fx_plan_contracts/v1",
+      "contractDigest": "4b88f8479ba46bc23536b742750f70ea9bfc3b7f5ad1ceb801f71dd732fce00d",
+      "sqlDigest": "eca408e345e7e8c8b32de79fff03420daf0d5966eac81fcf59c37bc91fd2ee9b",
+      "columns": [
+        "plan_id",
+        "contract_digest",
+        "graph_digest",
+        "catalog_digest",
+        "provenance_schema_ref",
+        "provenance_json",
+        "created_at_ms"
+      ],
+      "immutable": true,
+      "supportColumns": [],
+      "indexes": []
+    },
+    {
       "tableId": "fx_plan_edges",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_plan_edges/v1",
@@ -2373,6 +2409,29 @@
       "immutable": false,
       "supportColumns": [],
       "indexes": []
+    },
+    {
+      "tableId": "fx_plan_history_audits",
+      "owner": "execution-foundation",
+      "contractId": "helix://contracts/tables/fx_plan_history_audits/v1",
+      "contractDigest": "6fdfe046b6d01cce8d442d30f2022f02ba412e47fd70a0d26d9a32ff67e8ae9d",
+      "sqlDigest": "066db3aa9c954d75ca1a75061f9f3d0202ec765a7999bf2dc5731115f196e39f",
+      "columns": [
+        "audit_id",
+        "plan_id",
+        "audit_schema_ref",
+        "audit_json",
+        "created_at_ms"
+      ],
+      "immutable": true,
+      "supportColumns": [],
+      "indexes": [
+        {
+          "kind": "hot",
+          "name": "idx_fx_plan_history_audits_hot_01",
+          "sqlDigest": "10a2e1d88e3407829dd3aad91dcfd66e6b73a897a9c964afa10d02aa3ce50994"
+        }
+      ]
     },
     {
       "tableId": "fx_plan_nodes",

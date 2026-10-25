@@ -244,14 +244,14 @@
       },
       "contract": {
         "packagePath": "capabilities/libra/media_cast/commit/v1",
-        "packageDigest": "d36ec3dd990b9638796a23ddbe3c9ff23a7b5ca5c5f3fc4457c58eda3c8d44f5",
+        "packageDigest": "1e2a50ada857b95098c9925a44788337822366be6d87e5256929a2a3f205cff9",
         "effectClass": "domain_fact_commit",
         "inputSummary": "LibraMediaCastSourceBasis + MediaCastDraft + DomainFactCommitHandle",
         "outputFamily": "MediaCastFact"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "7ca39aa327f608df3eff5fd7d0051684c888d4dd29d00a786c944aa4e84ca0f8"
+        "value": "d012da6004179772b5d936d63fa20a43acfffbffe25362543b7c5f9f73d58753"
       }
     },
     {
@@ -328,14 +328,14 @@
       },
       "contract": {
         "packagePath": "capabilities/libra/product_metadata/commit/v1",
-        "packageDigest": "d15d517f5239ec55d979ab8daf632c5124b9fe34ae517d6921268b5f494ac604",
+        "packageDigest": "474525bb14e51ea92210ba32e740d5ffdc2d25963fdf9e4d80e977669d1b4751",
         "effectClass": "domain_fact_commit",
         "inputSummary": "LibraProductMetadataSourceBasis(metadata_observation|western_analysis) + ProductMetadataDraft + VerifiedArtifactManifest + mediaCastFactRef?{productFactId,factRevision,factDigest} + DomainFactCommitHandle",
         "outputFamily": "ProductMetadataFact"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "ef8e98330d9c82059f1212a2e8b0e1dd6ef8aef54bfb3c8634b9df27143ad441"
+        "value": "be7930a05b8904c465b1a69b2e551e6e172dd350f02e291047b4f230dd9182ab"
       }
     },
     {

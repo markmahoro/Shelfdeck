@@ -31,7 +31,7 @@
       "manifestId": "helix.inventory.tables",
       "kind": "table-inventory",
       "relativePath": "table-inventory.json",
-      "targetCount": 232
+      "targetCount": 235
     },
     {
       "manifestId": "helix.inventory.routes",

@@ -3,7 +3,7 @@
   "mapId": "helix.ssot-contract-source-map",
   "category": "tables",
   "startOrdinal": 222,
-  "endOrdinal": 232,
+  "endOrdinal": 234,
   "entries": [
     {
       "id": "arca_jav_correction_directory_checks",
@@ -124,6 +124,28 @@
         "section": "8.9.9",
         "line": 16469,
         "lineDigest": "49d3449f5bd4106b74bd219582db8e12c7ed799be946420e9f057b86e3807b48"
+      }
+    },
+    {
+      "id": "fx_execution_contracts",
+      "owner": "execution-foundation",
+      "columnsContract": "`contract_digest PK, format_version INTEGER, contract_schema_ref, contract_json, created_at_ms`",
+      "constraintsContract": "immutable；`contract_json`最大1 MiB；按canonical SHA256去重，不能更新旧合同",
+      "source": {
+        "section": "8.9.9",
+        "line": 16620,
+        "lineDigest": "0cd919d3d31944e2ec4fd80c5d58296602fb6be6549d7b3999711174a821ba65"
+      }
+    },
+    {
+      "id": "fx_plan_contracts",
+      "owner": "execution-foundation",
+      "columnsContract": "`plan_id PK FK, contract_digest FK, graph_digest, catalog_digest, provenance_schema_ref, provenance_json, created_at_ms`",
+      "constraintsContract": "immutable；`provenance_json`最大64 KiB；与Plan同事务发布，精确绑定原graph/catalog，禁止缺失证据fallback",
+      "source": {
+        "section": "8.9.9",
+        "line": 16621,
+        "lineDigest": "c151953863ade595b24c6a48c49f935b31fe7e6a15bea5fef49bd182b3795a85"
       }
     }
   ]

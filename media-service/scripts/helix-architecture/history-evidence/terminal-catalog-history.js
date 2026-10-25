@@ -1,8 +1,8 @@
 'use strict';
 
-const { canonicalDigest } = require('../../contracts/canonical-json');
-const { createCapabilityContractValidator } = require('../capability/contract-validator');
-const { createBoundedCatalogTransition } = require('./bounded-catalog-transition');
+const { canonicalDigest } = require('../../../src/helix/contracts/canonical-json');
+const { createCapabilityContractValidator } = require('../../../src/helix/foundation/capability/contract-validator');
+const { createBoundedCatalogTransition } = require('../../../src/helix/foundation/execution/bounded-catalog-transition');
 
 // This view has no executors or semantic validators and never enters the live
 // registry. The original transition proof remains authoritative for its older

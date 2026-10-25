@@ -26,17 +26,9 @@ const { createPlannerRegistry } = require('../foundation/execution/planner-regis
 const { createResourceGovernor } = require('../foundation/execution/resource-governor');
 const { createResourceProfileMapper } = require('../foundation/execution/resource-profile-mapper');
 const { createStartupRecovery } = require('../foundation/execution/startup-recovery');
-const { createBoundedCatalogTransition } = require('../foundation/execution/bounded-catalog-transition');
+const { createStoredPlanContractVerifier } = require('../foundation/execution/stored-plan-contract-verifier');
+const { createPlanHistoryAudit } = require('../foundation/execution/plan-history-audit');
 const { createCatalogPlanProofReader } = require('../foundation/execution/catalog-plan-proof-reader');
-const intakeControlCatalogTransition = require('./catalog-transitions/intake-control-20260912.json');
-const secondaryAcceptanceHistory = require('./catalog-transitions/secondary-acceptance-history-20260928.json');
-const { createFrozenCatalogHistory } = require('../foundation/execution/frozen-catalog-history');
-const movieTerminalContracts = require('./catalog-transitions/movie-terminal-contracts-20260930.json');
-const publishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261015.json');
-const latestPublishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261018.json');
-const lifecyclePublishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261021.json');
-const seriesPublishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261022.json');
-const { createPausedReleaseBatchProof } = require('./paused-release-batches');
 const { createTimeoutController } = require('../foundation/execution/timeout-controller');
 const { createCooperativeExecutionIsolation } = require('../foundation/execution/cooperative-execution-isolation');
 const { createWorkLifecycle } = require('../foundation/execution/work-lifecycle');
@@ -53,7 +45,6 @@ const {createJavCorrectionWorkspaceReclaim}=require('../integrations/jav-correct
 const {createJavCorrectionRecoveryScene}=require('../integrations/jav-correction-recovery-scene');
 const { createDomainReconcileRunner } = require('../foundation/execution/domain-reconcile-runner');
 const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foundation/execution/workflow-plan');
-const { PRE_PROJECTION_PLAN_REPLAN_CODE } = require('../foundation/persistence/uat-identity-selection-migration');
 const { compileFfmpegPipeline, compileFfmpegPassArgs } = require('../integrations/ffmpeg-pipeline');
 
 function volumeReadUnitsForCapability(capability) {
@@ -138,32 +129,7 @@ const PEOPLE_IMAGE_ENABLED = Object.freeze(['people.reference_asset.import@1', '
 const PEOPLE_REFERENCE_ENABLED=Object.freeze(['people.reference_usage.audit@1','people.workspace.reclaim@1']);
 const PEOPLE_SYSTEM_ENABLED=Object.freeze(['people.registration_evidence.observe@1','people.merge_evidence.resolve@1','people.candidate.commit@1','people.person.commit@1']);
 const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED, ...PEOPLE_IMAGE_ENABLED,...PEOPLE_SYSTEM_ENABLED,...PEOPLE_REFERENCE_ENABLED]);
-const UAT_SOURCE_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
-const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
-const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79c362d01844af0853bc1c2c37442041acda1821d';
-const PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST = 'b39d36350b09fbc0236fd47f7d0ea6c43125c82260b9740d6b4cc5737c091e74';
-const PRE_PREDECK_PIPELINE_EXECUTION_CATALOG_DIGEST = 'a30cf21aebd17902cc977490388a2ef15849e422519ff0f5f653ae03065815ba';
-const PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST = '37264ba7abffb70a9d44264856816e992d0f05674a471fd4496d2bf3cc06ecca';
-// 2026-10-22 production still carried Plans from the movie 3.0 catalog.
-// Terminal Plans are accepted as history; active Plans are re-proved against
-// the current capability contracts before they may resume.
-const PRODUCTION_MOVIE_3_0_EXECUTION_CATALOG_DIGEST = 'b7e4d607f2684ef6e061e47215aea6607d408fdaf148be3c4b79e7eb0a7ec714';
-const COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS = new Set([
-  UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
-  PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
-  PRE_PREDECK_PIPELINE_EXECUTION_CATALOG_DIGEST,
-  PRODUCTION_MOVIE_3_0_EXECUTION_CATALOG_DIGEST,
-]);
-const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
-const TERMINAL_ATTEMPT_STATES = new Set(['succeeded', 'failed', 'cancelled']);
 const LOCAL_MEDIA_ENCODE_TIMEOUT_MS = 48 * 60 * 60 * 1000;
-const FAILED_PREPARATION_RETRY_CATALOG_DIGEST = canonicalDigest({
-  schema: 'procurement.failed-preparation-retry-catalog@1',
-  capabilities: [
-    'procurement.retry.intent.create@1',
-    'procurement.retry.admit@1',
-  ],
-});
 
 function createHelixExecutionPolicyRegistry(manifests) {
   const retryPolicies = [
@@ -213,103 +179,6 @@ function createHelixExecutionPolicyRegistry(manifests) {
           manifests[capabilityRef].effectClass === 'material_commit' ? retryPolicies[6].ref :
           manifests[capabilityRef].effectClass === 'destructive_commit' ? retryPolicies[7].ref : retryPolicies[2].ref,
       timeoutPolicyRef: timeoutPolicyFor(capabilityRef), compensationContractRefs: [] })) });
-}
-
-function verifyFailedPreparationRetryPlan(snapshot) {
-  if (snapshot?.plan?.catalog_digest !== FAILED_PREPARATION_RETRY_CATALOG_DIGEST ||
-      snapshot.plan.state !== 'planned' ||
-      snapshot.work?.owner_domain !== 'procurement' ||
-      snapshot.work?.work_kind !== 'failed_preparation_retry' ||
-      !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.events) ||
-      snapshot.nodes.length !== 2 || snapshot.events.length !== 2) return false;
-  const expectedCapabilities = new Set([
-    'procurement.retry.intent.create@1',
-    'procurement.retry.admit@1',
-  ]);
-  const events = new Map(snapshot.events.map((event) => [
-    event.plan_id + '\0' + event.node_id,
-    event,
-  ]));
-  if (events.size !== 2) return false;
-  for (const node of snapshot.nodes) {
-    const event = events.get(node.plan_id + '\0' + node.node_id);
-    if (!event || !expectedCapabilities.delete(node.capability_ref) ||
-        event.owner_domain !== 'procurement' ||
-        event.capability_ref !== node.capability_ref ||
-        node.contract_version !== 1 ||
-        node.effect_class !== 'domain_fact_commit') return false;
-  }
-  return expectedCapabilities.size === 0;
-}
-
-function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition, terminalHistory, pausedBatches) {
-  if (!snapshot || !snapshot.plan) return false;
-  if (verifyFailedPreparationRetryPlan(snapshot)) return true;
-  if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
-  if (COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS.has(snapshot.plan.catalog_digest)) {
-    if (TERMINAL_ATTEMPT_STATES.has(snapshot.workAttempt?.state) &&
-        Array.isArray(snapshot.events) && snapshot.events.every((event) => TERMINAL_EVENT_STATES.has(event.state))) return true;
-    if (!snapshot.work || !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.events) ||
-        snapshot.nodes.length === 0 || snapshot.nodes.length !== snapshot.events.length) return false;
-    const compatibleEvents = new Map();
-    for (const event of snapshot.events) {
-      const key = event.plan_id + '\0' + event.node_id;
-      if (compatibleEvents.has(key)) return false;
-      compatibleEvents.set(key, event);
-    }
-    try {
-      for (const node of snapshot.nodes) {
-        const event = compatibleEvents.get(node.plan_id + '\0' + node.node_id);
-        if (!event || event.owner_domain !== snapshot.work.owner_domain ||
-            event.capability_ref !== node.capability_ref) return false;
-        const entry = registry.resolve(node.capability_ref, snapshot.work.owner_domain);
-        if (entry.manifest.contractVersion !== node.contract_version ||
-            entry.manifest.effectClass !== node.effect_class) return false;
-        policyRegistry.bindingFor(node.capability_ref, node.effect_class);
-        const bindingSet = JSON.parse(node.input_bindings_json);
-        for (const binding of bindingSet.bindings || []) {
-          if (binding.projectionRef) bindingProjectionRegistry.resolve(binding.projectionRef);
-        }
-      }
-      return true;
-    } catch { return false; }
-  }
-  if (pausedBatches?.supports(snapshot)) return pausedBatches.verify(snapshot);
-  if (terminalHistory?.supports(snapshot.plan.catalog_digest)) return terminalHistory.verify(snapshot);
-  if (snapshot.plan.catalog_digest === boundedTransition?.previousCatalogDigest) return boundedTransition.verify(snapshot);
-  const previousCatalog = [PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
-    PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
-    PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST].includes(snapshot.plan.catalog_digest) ||
-    COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS.has(snapshot.plan.catalog_digest);
-  if (previousCatalog && TERMINAL_ATTEMPT_STATES.has(snapshot.workAttempt?.state) &&
-      Array.isArray(snapshot.events) && snapshot.events.every((event) => TERMINAL_EVENT_STATES.has(event.state))) return true;
-  if (!COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS.has(snapshot.plan.catalog_digest) ||
-      !snapshot.work || !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.events) ||
-      snapshot.nodes.length === 0 || snapshot.nodes.length !== snapshot.events.length) return false;
-  const events = new Map();
-  for (const event of snapshot.events) {
-    const key = event.plan_id + '\0' + event.node_id;
-    if (events.has(key)) return false;
-    events.set(key, event);
-  }
-  try {
-    for (const node of snapshot.nodes) {
-      const event = events.get(node.plan_id + '\0' + node.node_id);
-      if (!event || event.owner_domain !== snapshot.work.owner_domain ||
-          event.capability_ref !== node.capability_ref) return false;
-      const entry = registry.resolve(node.capability_ref, snapshot.work.owner_domain);
-      if (entry.manifest.contractVersion !== node.contract_version ||
-          entry.manifest.effectClass !== node.effect_class) return false;
-      policyRegistry.bindingFor(node.capability_ref, node.effect_class);
-      const bindingSet=JSON.parse(node.input_bindings_json);
-      for(const binding of bindingSet.bindings||[]){
-        if(binding.projectionRef)bindingProjectionRegistry.resolve(binding.projectionRef);
-      }
-    }
-    return true;
-  } catch (error) {
-    return false;
-  }
 }
 
 function collectSchemas(root) {
@@ -994,48 +863,14 @@ function createProcurementExecutionRuntime(options) {
   const terminalEffectObserver = arcaConstruction.createTerminalEffectHistoryObserver({ ...options, workResultReader,
     stageHistoryLibraBindingReader:LibraExecutionRegistration.createMaterialBindingScopeReader(options),
     readTechnicalWork:workId => catalogProofReader.verify(reader => reader.workPlanIds(workId).map(id => reader.read(id))) });
-  const boundedTransition = createBoundedCatalogTransition({ witness: intakeControlCatalogTransition,
-    registry, policyRegistry, schemas: new Map(runtimeSchemas.map(schema => [schema.$id, schema])),
-    contractValidator, bindingProjectionRegistry,
-    proofReader:catalogProofReader, terminalEffectObserver });
-  const terminalHistory = createFrozenCatalogHistory({ archive: movieTerminalContracts,
-    additionalArchives: [{archive:publishedTerminalContracts,archiveDigest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d'},
-      {archive:latestPublishedTerminalContracts,archiveDigest:'02c61b170e4209eb07f6abb1172eece6e598ed06ab9ad9fa227a5fea32803a6c'},
-      {archive:lifecyclePublishedTerminalContracts,archiveDigest:'214b8cf2272f740034ae8fe68d3b18e493c720bb7fd6dac7d5b692d58db03ed6'},
-      {archive:seriesPublishedTerminalContracts,archiveDigest:'51dca4f218fdeae45ec2a72c53056afe3fb0486b056e5a794117658fa6c1046b'}],
-    archiveDigest: '369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
-    priorArchive: secondaryAcceptanceHistory,
-    priorArchiveDigest: '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
-    onRejected: options.onHistoricalCatalogRejected,
-    witness: intakeControlCatalogTransition,
-    bindingProjectionRegistry, proofReader: catalogProofReader, terminalEffectObserver });
-  const pausedBatches = createPausedReleaseBatchProof({ registry, policyRegistry,
-    schemas: new Map(runtimeSchemas.map(schema => [schema.$id, schema])),
-    bindingProjectionRegistry, proofReader: catalogProofReader, onRejected: options.onHistoricalCatalogRejected });
+  const catalogVerifier = createStoredPlanContractVerifier({ registry, policyRegistry, contractValidator,
+    ownerCommandContracts: [require('../domains/procurement/public').retryCommandExecutionContract],
+    bindingProjectionRegistry, proofReader: catalogProofReader, terminalEffectObserver,
+    onRejected: options.onHistoricalCatalogRejected });
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
-    standaloneEffectClasses:Object.freeze(['libra_workspace_material_reclaim','arca_recycle_move','arca_recycle_restore','arca_recycle_purge']),
+    standaloneEffectClasses: Object.freeze(['libra_workspace_material_reclaim', 'arca_recycle_move', 'arca_recycle_restore', 'arca_recycle_purge']),
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
-    catalogVerifier: { verifyBatch(snapshots) {
-      const results = [], pending = [];
-      for (let index = 0; index < snapshots.length; index += 1) {
-        const snapshot = snapshots[index];
-        if (pausedBatches.supports(snapshot)) results[index] = pausedBatches.verify(snapshot);
-        else if (COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS.has(snapshot.plan.catalog_digest)) results[index] = verifyStartupPlanCatalog(snapshot, catalogDigest, registry, policyRegistry,
-          bindingProjectionRegistry, boundedTransition, terminalHistory, pausedBatches);
-        else if (terminalHistory.supports(snapshot.plan.catalog_digest)) pending.push({ index, snapshot });
-        else results[index] = verifyStartupPlanCatalog(snapshot, catalogDigest, registry, policyRegistry,
-          bindingProjectionRegistry, boundedTransition, terminalHistory, pausedBatches);
-      }
-      for (let offset = 0; offset < pending.length; offset += 100) {
-        const batch = pending.slice(offset, offset + 100);
-        const verified = terminalHistory.verifyBatch(batch.map(item => item.snapshot));
-        batch.forEach((item, index) => { results[item.index] = verified[index]; });
-      }
-      return results;
-    }, verify: (snapshot) => verifyStartupPlanCatalog(
-      snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition, terminalHistory, pausedBatches,
-    ) },
-    effectReconciler, effectJournal });
+    catalogVerifier, effectReconciler, effectJournal });
   function fillPredeckIntakeSeats() {
     libraProcessServices.coordinator.reconcilePending({ admissionLimit: DEFAULT_PREDECK_PIPELINE_SEATS });
   }
@@ -1121,12 +956,7 @@ function createProcurementExecutionRuntime(options) {
   const domainReconciler = { async reconcile(request) {
     if(request.reconcilePhase==='attempt_terminal'){
       if(request.ownerDomain==='libra'&&request.processType==='libra_intake'&&request.workKind==='acceptance'&&
-          request.workAttemptState==='failed'&&['P8_ACCEPTANCE_CONTINUITY_BASIS_STALE',
-            'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED',PRE_PROJECTION_PLAN_REPLAN_CODE].includes(request.workAttemptFailureCode)){
-        return {workId:request.workId,disposition:'replan'};
-      }
-      if(request.ownerDomain==='perception'&&request.processType==='perception_resolution'&&
-          request.workAttemptState==='failed'&&request.workAttemptFailureCode===PRE_PROJECTION_PLAN_REPLAN_CODE){
+          request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'){
         return {workId:request.workId,disposition:'replan'};
       }
       if(request.ownerDomain==='procurement'&&request.processType==='procurement_run'&&
@@ -1332,6 +1162,10 @@ function createProcurementExecutionRuntime(options) {
     return { workId: request.workId, disposition: 'succeeded' };
   } };
   const cursorStore=createReconcileCursorStore({schemaManifest:options.schemaManifest,unitOfWork:options.unitOfWork,now});
+  const planHistoryAudit = createPlanHistoryAudit({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
+    proofReader: catalogProofReader, verifier: catalogVerifier, cursorStore, now,
+    onFinding: finding => options.onError?.(Object.assign(new Error('Historical Plan audit requires attention.'),
+      { code: finding.findingCode, details: finding })) });
   const workspaceReclaimer=createMovieResponsibilityClosureCoordinator({...options,now,
     offloadCompletionPort:createOffloadCompletionPort(options),workspaceProductPort:libraOptions.workspaceProductPort,
     offloadWakeVisible:false});
@@ -1346,7 +1180,8 @@ function createProcurementExecutionRuntime(options) {
     reconcileEligibilityProvider:options.reconcileEligibilityProvider,onReconcileScopeStarted:options.onReconcileScopeStarted,
     registrations:[Object.freeze({ownerDomain:'execution-foundation',reconcilerKey:'storage-maintenance',
       listPage:()=>options.storageMaintenance&&options.maintenanceWindowKey?.()?[{cursor:'storage',scope:{}}]:[],
-      reconcile:()=>{
+      reconcile:async()=>{
+        await planHistoryAudit.scan();
         const key={ownerDomain:'execution-foundation',reconcilerKey:'storage-reference-audit-progress'},head=cursorStore.read(key),
           progress=head.cursor?JSON.parse(head.cursor):{cursor:null,finishedWindow:null,optimizedWindow:null},window=options.maintenanceWindowKey();
         if(progress.finishedWindow===window)return {kind:'complete'};
@@ -1589,7 +1424,8 @@ function createProcurementExecutionRuntime(options) {
     eventRuntime, domainReconciler, fallbackReconciler, incidentObserver:executorIncidentObserver,
     onExecutionScopeStarted:options.onExecutionScopeStarted,
     onError: options.onError,maxInFlightEvents:16,shutdownTimeoutMs:options.shutdownTimeoutMs });
-  return Object.freeze({ host, registry, policyRegistry, contractValidator, progressReader, procurementAutomation,
+  return Object.freeze({ host, registry, policyRegistry, contractValidator, bindingProjectionRegistry, terminalEffectObserver,
+    catalogProofReader, catalogVerifier, planHistoryAudit, progressReader, procurementAutomation,
     readProcessFailures(scope){return workResultReader.listWorks(scope).slice().sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)).slice(0,3)
       .flatMap(w=>workResultReader.readFailures(w.work_id)).slice(0,16);},triageReader,runCoordinator,
     intakeCoordinator:libraProcessServices.coordinator,intakeOfferReader:libraProcessServices.offerReader,
@@ -1622,15 +1458,9 @@ function createProcurementExecutionRuntime(options) {
 }
 
 module.exports = Object.freeze({
-  UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
-  PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
-  PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
-  PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
-  PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST,
   createProcurementExecutionRuntime,
   createHelixExecutionRuntime:createProcurementExecutionRuntime,
   volumeReadUnitsForCapability,
   mergeResourceDemands,
-  verifyStartupPlanCatalog,
   createHelixExecutionPolicyRegistry,
 });

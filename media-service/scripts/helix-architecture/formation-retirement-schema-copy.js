@@ -38,8 +38,8 @@ function schemas() {
   const root = path.resolve(__dirname, '../../src/helix/foundation/persistence');
   const schemaDdl = zlib.gunzipSync(fs.readFileSync(path.join(root, 'release-schemas', SOURCE_DIGEST + '.sql.gz'))).toString('utf8');
   const schemaManifest = JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(root, 'release-schemas', SOURCE_DIGEST + '.manifest.json.gz'))));
-  const target = { schemaDdl: fs.readFileSync(path.join(root, 'generated/clean-schema.sql'), 'utf8'),
-    schemaManifest: JSON.parse(fs.readFileSync(path.join(root, 'generated/clean-schema.manifest.json'), 'utf8')) };
+  const target = { schemaDdl: zlib.gunzipSync(fs.readFileSync(path.join(root, 'release-schemas', TARGET_DIGEST + '.sql.gz'))).toString('utf8'),
+    schemaManifest: JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(root, 'release-schemas', TARGET_DIGEST + '.manifest.json.gz')))) };
   if (digest(schemaDdl) !== SOURCE_DIGEST || schemaManifest.ddlDigest !== SOURCE_DIGEST ||
       digest(target.schemaDdl) !== TARGET_DIGEST || target.schemaManifest.ddlDigest !== TARGET_DIGEST)
     fail('RESET_SCHEMA_ARCHIVE_DRIFT', 'The exact qualified source and target schema are required.');

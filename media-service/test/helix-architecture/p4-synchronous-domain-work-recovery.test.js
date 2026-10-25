@@ -8,6 +8,9 @@ const test = require('node:test');
 const Database = require('better-sqlite3');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
 const { createSynchronousDomainWork } = require('../../src/helix/foundation/execution/synchronous-domain-work');
+const { COMMAND_FORMAT } = require('../../src/helix/foundation/execution/plan-contract-evidence');
+const { createCatalogPlanProofReader } = require('../../src/helix/foundation/execution/catalog-plan-proof-reader');
+const { createStoredPlanContractVerifier } = require('../../src/helix/foundation/execution/stored-plan-contract-verifier');
 const { createWorkAdmission } = require('../../src/helix/foundation/execution/work-admission');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
@@ -52,7 +55,7 @@ test('synchronous Work recovers an exact ready first Attempt claimed before its 
     const runtime = createSynchronousDomainWork({ schemaManifest, unitOfWork });
     const input = Object.freeze({ retry: true });
     const demand = Object.freeze({ resourceKinds: Object.freeze(['cpu']) });
-    const activated = runtime.activate({
+    const request = {
       workId, ownerDomain: 'procurement', basisDigest,
       plannerRef: 'procurement.failed-preparation-retry-planner@1',
       catalogDigest: canonicalDigest({ capability: 'procurement.retry.intent.create@1' }),
@@ -67,11 +70,28 @@ test('synchronous Work recovers an exact ready first Attempt claimed before its 
         resourceDemandSchemaRef: 'helix://fixtures/retry/demand/v1',
         resourceDemand: Object.freeze({ ...demand, demandDigest: canonicalDigest(demand) }),
       })],
-    });
+    };
+    const step = request.steps[0];
+    const executionContract = { schemaRef: COMMAND_FORMAT, schemaVersion: 1, ownerDomain: 'procurement',
+      workKind: 'failed_preparation_retry', plannerRef: request.plannerRef,
+      steps: [{ capabilityRef: step.capabilityRef, contractVersion: 1, effectClass: 'domain_fact_commit',
+        inputSchemaRef: step.inputSchemaRef, parametersSchemaRef: step.parametersSchemaRef, fenceSchemaRef: step.fenceSchemaRef,
+        resourceDemandSchemaRef: step.resourceDemandSchemaRef, resultSchemaRef: 'helix://fixtures/retry/result/v1' }],
+      schemas: [step.inputSchemaRef, step.parametersSchemaRef, step.fenceSchemaRef, step.resourceDemandSchemaRef,
+        'helix://fixtures/retry/result/v1'].map($id => ({ $id, type: 'object' })) };
+    request.executionContract = executionContract;
+    const activated = runtime.activate(request);
     assert.equal(activated.replayed, false);
     assert.equal(activated.snapshot.work.state, 'running');
     assert.equal(activated.snapshot.attempt.state, 'running');
     assert.equal(activated.snapshot.events.length, 1);
+    const proofReader = createCatalogPlanProofReader({ schemaManifest, unitOfWork });
+    const facts = proofReader.verify(reader => reader.read(activated.snapshot.plan.plan_id));
+    const verifier = createStoredPlanContractVerifier({ proofReader, ownerCommandContracts: [executionContract] });
+    assert.equal(verifier.verify(facts), true);
+    assert.equal(createStoredPlanContractVerifier({ proofReader, ownerCommandContracts: [] }).verify(facts), false);
+    kernel.runPrimitive(db => db.prepare("UPDATE fx_plan_nodes SET parameters_json='{\"changed\":true}' WHERE plan_id=?").run(facts.plan.plan_id));
+    assert.equal(verifier.verify(facts), false);
   } finally {
     kernel.close();
     fs.rmSync(root, { recursive: true, force: true });

@@ -415,6 +415,27 @@ function buildCapabilityPackage(capability) {
     executorCompatibility: { minimumVersion: 1 },
     sourceLocator: capability.source
   };
+  // These are current producer contracts for atomically prebound Results, not
+  // release-specific exceptions. They travel with each published Plan.
+  const domainEvidence = {
+    'procurement.candidate.publish@1': 'TriageStructureEvidence',
+    'libra.product_identity.resolve@1': 'LibraProductFactEvidence',
+    'libra.media_cast.commit@1': 'LibraProductFactEvidence',
+    'libra.product_metadata.commit@1': 'LibraProductFactEvidence',
+  }[capability.id];
+  const fullResultEvidence = {
+    'arca.acceptance.identity.verify@1': 'AcceptanceCheckRecord',
+    'arca.acceptance.mandatory_media.verify@1': 'AcceptanceCheckRecord',
+    'arca.acceptance.metadata.verify@1': 'AcceptanceCheckRecord',
+    'arca.acceptance.space.verify@1': 'AcceptanceCheckRecord',
+    'arca.acceptance.structure.verify@1': 'AcceptanceCheckRecord',
+    'arca.inventory.final_product.verify@1': 'FinalProductVerificationRecord',
+    'arca.ondeck.fulfillment.verify@1': 'FulfillmentVerificationRecord',
+  }[capability.id];
+  if (domainEvidence || fullResultEvidence) manifest.preboundEvidenceContracts = [{
+    schemaRef: 'helix://contracts/types/' + (domainEvidence || fullResultEvidence) + '/v1',
+    representation: fullResultEvidence ? 'full_result' : 'domain_evidence',
+  }];
 
   return {
     capabilityRef: capability.id,

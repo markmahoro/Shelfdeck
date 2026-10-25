@@ -9,6 +9,7 @@ const { validateSharedTypeSchemas } = require('./shared-type-schema-validator');
 const { validateSsotSourceMap } = require('./ssot-source-map-validator');
 const { validateTableContracts } = require('./table-contract-validator');
 const { validateTransactionContracts } = require('./transaction-contract-validator');
+const { EXPECTED_COUNTS } = require('./ssot-contract-extractor');
 
 function validateP2ContractBaseline(options) {
   const repositoryRoot = path.resolve(options.repositoryRoot);
@@ -28,10 +29,10 @@ function validateP2ContractBaseline(options) {
   for (const [component, result] of Object.entries(components)) {
     if (!result.ok) findings.push(...result.findings.map((item) => ({ component, ...item })));
   }
-  const exactCounts = sourceMap.counts && sourceMap.counts.capabilities === 138 && sourceMap.counts.resultFamilies === 117 &&
-    sourceMap.counts.tables === 232 && sourceMap.counts.transactions === 62 && capabilities.packageCount === 138 &&
-    resultTypes.catalogResultCount + 1 === 117 && tables.tableCount === 232 && transactions.transactionCount === 62;
-  if (!exactCounts) findings.push({ code: 'P2_CARDINALITY_MISMATCH', message: 'P2 baseline must close 138/117/232/62 exactly.' });
+  const exactCounts = sourceMap.counts && Object.entries(EXPECTED_COUNTS).every(([key, count]) => sourceMap.counts[key] === count) &&
+    capabilities.packageCount === EXPECTED_COUNTS.capabilities && resultTypes.catalogResultCount + 1 === EXPECTED_COUNTS.resultFamilies &&
+    tables.tableCount === EXPECTED_COUNTS.tables && transactions.transactionCount === EXPECTED_COUNTS.transactions;
+  if (!exactCounts) findings.push({ code: 'P2_CARDINALITY_MISMATCH', message: 'P2 baseline must match the current SSOT cardinalities exactly.' });
   if (capabilities.unresolvedTypeRefCount !== 0) findings.push({
     code: 'P2_UNRESOLVED_TYPE_GRAPH', message: 'P2 Capability type graph must have zero unresolved refs.',
     refs: capabilities.unresolvedTypeRefs

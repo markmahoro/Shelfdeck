@@ -139,6 +139,7 @@ function createExecutionRegistration() {
 }
 
 module.exports = Object.freeze({
+  retryCommandExecutionContract: require('../model/retry-command-execution-contract').executionContract,
   createCandidateAcceptanceConsumer:require('../application/candidate-acceptance-consumer').createCandidateAcceptanceConsumer,
   createCandidateRetirementStore:require('../persistence/candidate-retirement-store').createCandidateRetirementStore,
   PACKAGE_ID: packageId,

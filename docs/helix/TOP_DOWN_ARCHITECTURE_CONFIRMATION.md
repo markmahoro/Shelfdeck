@@ -16601,3 +16601,33 @@ UAT-328物化前来源恢复收口（2026-10-22）：只有原build全部Work终
 回收输入SeriesPresentationReclamationBasis为closed bounded domain input（最大128 KiB，最多三项实际登记，独立承载成功Source与可空Assets/Ready或retirement Receipt），区分committed与superseded，冻结真实Source/可空Assets成功Result、实际registeredArtifacts子集及同剧同version的真实Ready。superseded必须可沿不可变supersedes链追溯，且新Ready已建立；同一Workspace Reclaim能力只退出精确旧私有recipe产物、原登记和用户ingress，允许具名producer partial的精确清理，未知文件不删。原子回收Receipt额外绑定reclamationBasisDigest，逐项原登记/Artifact terminal、Result/marker一起提交；不存在的旧Registry只允许零登记闭合，不造旧Assets成功。共享根正式文件不在此回收范围。 Recovery投影保持回收前Material/Artifact登记修订；回收原子事务仅将live Artifact revision精确推进一次，不能把该terminal revision重新作为旧Attempt输入。登记时两种Handle修订必须一致，恢复时live修订必须与原登记及唯一终结增量相符。
 
 UAT-328无人使用的共享责任闭合（2026-10-22）：Series Presentation Commit的retained_root_retirement@1命令变体用于已无active Season、active reference、pending reservation的共享scope；它不是新的删除授权。Arca先经Foundation精确process cancellation等待全部Work终态及Effect committed/failed，再同UOW CAS清空active builder、释放已登记共享Control并记录不可变retained-retirement Command Receipt。未进入原Off-deck确认范围的正式根文件保留，不伪造Ready/季历史，不递归清理。旧builder私有Workspace经retired类型ReclamationBasis及该Receipt走正式回收，之后即使新季准入也不重新占用旧Workspace。批量退出各季在预览时未授权共享三项删除，终态后仍须完成这条保留字节/释放责任路径，不能留下ghost Control。
+
+
+### 8.5.10.1 Execution Contract Evidence 与历史审计（2026-10-25，用户确认方向）
+
+本条取代按发布版本累积Catalog白名单、源码内终态档案及全历史Catalog阻断正常启动的规则；旧UAT条款保留为历史记录，不再新增同类运行分支。Foundation继续拥有执行合同证据及技术验真，Domain Owner继续拥有业务事实、Control及Effect责任；不建立跨域业务Store。
+
+新Plan发布必须在同一Foundation事务保存其实际使用的Capability Manifest、输入/参数/Result/Evidence及引用Schema传递闭包、重试/超时/补偿策略的不可变证据和Plan引用。证据按canonical SHA256去重，与业务数据共同备份；缺失、格式不支持或摘要不符即拒绝，不从当前合同猜测旧合同。来源代码位置不属于执行语义。Plan现有全局catalog_digest保留为发布来源信息，不再凭它决定不同Plan的运行兼容性。空Plan也必须有明确的空合同集合证据。
+
+合同证据不是Executor。未完成Plan仅在所用合同与当前可执行合同精确相等时有资格继续；具体Owner的退役/禁止恢复规则仍优先。不同合同必须回到Owner处置，不能改写旧Plan或启动旧实现。历史终态证据和迁入验真Receipt不授权旧执行，也不自动成为新Plan的合法输入；新消费必须重新验证当前消费合同、生产者身份与引用摘要。
+
+正常启动检查当前责任、活跃执行、未决Effect和其实际依赖闭包，不再因完全闭合且无当前引用的历史缺档拒绝所有新工作。无法确定影响Scope、Control/提交责任不明或共享完整性损坏仍全局阻断；缺失证据不能被terminal字段掩盖。完整历史审计采用有界分页、可持久恢复进度和明确失败记录；不得静默忽略篡改或借后台审计改变历史事实。
+
+既有历史通过独立、可复验的一次性工具导入精确旧合同或终态验真证据；来源必须有原镜像/源码/合同摘要及完整证明。该工具的旧版本适配不进入服务正常启动路径，不为未完成Formation赋予兼容权；无法证明的历史保持可见失败，不补造成功。原Plan、Result、Receipt和收藏事实原样保留。发布前对生产副本验证事实保护、原子导入、断点重放、正常启动、多次后续合同变化及损坏拒绝；生产迁入仍由获授权的标准升级流程执行。
+
+| Table | Primary/core columns | Required uniqueness and hot indexes |
+| --- | --- | --- |
+| `fx_execution_contracts` | `contract_digest PK, format_version INTEGER, contract_schema_ref, contract_json, created_at_ms` | immutable；`contract_json`最大1 MiB；按canonical SHA256去重，不能更新旧合同 |
+| `fx_plan_contracts` | `plan_id PK FK, contract_digest FK, graph_digest, catalog_digest, provenance_schema_ref, provenance_json, created_at_ms` | immutable；`provenance_json`最大64 KiB；与Plan同事务发布，精确绑定原graph/catalog，禁止缺失证据fallback |
+| `fx_plan_history_audits` | `audit_id PK, plan_id FK, audit_schema_ref, audit_json, created_at_ms` | immutable；`INDEX(plan_id)`；同Plan/事实摘要/验真器版本/结论去重，保留失败及后续不同结论；`audit_json`最大64 KiB |
+
+证据格式使用显式版本，解析器只支持有定义且通过验收的格式；增加格式支持不得成为隐式旧执行器。历史格式的只读保存成本不能承诺为零，但每次产品合同变更不应要求新增发布版本分支或修改旧证据。
+
+历史审计Receipt只记录技术检查结论，不改写业务历史、不授权执行或重试。Foundation按Plan游标有界巡检，逐项保存事实摘要及明确finding code，并在项间让出事件循环；失败项保留后继续独立项，不因坏记录永久饥饿后续历史。进度沿用Foundation reconcile cursor；崩溃后允许重复验真，以内容寻址Receipt去重。活跃Plan由启动/运行路径负责，独立审计不与执行争抢恢复责任。
+
+现有Owner管理的同步命令Work同样原子保存合同证据，使用独立`SynchronousCommandContracts/v1`格式，冻结Owner、Work kind、Planner、顺序步骤及其输入/参数/Fence/资源/Result Schema闭包。该格式不伪造Executor、Event Attempt或Effect；验真必须证明原Owner事务的Result/Evidence及Commit Marker，未完成命令只交回原Owner恢复。其当前注册以合同身份和摘要匹配，不依赖发布Catalog白名单，也不改变采购重试的业务决定或用户交互。
+
+一次性迁入可用`VerifiedTerminalPlan/v1`保存已通过原精确合同完整验真的终态证明：记录原Catalog、源码提交、档案摘要、验真器实现摘要及完整读取闭包中每个Plan的事实摘要。生成前必须通过旧合同的Owner/图/Result/Effect/Commit链验真；写入事务重新检查整个闭包未变，不能仅据终态字段签发。正常读取按内容摘要重验全部已证明事实，任何未决执行或事实变化均拒绝；该格式没有恢复执行权限。Work的可变聚合state不属于已经结束Attempt的证明摘要，其余已读取身份/图/Attempt/Result/Effect/Marker不省略。新消费者仍以自己的冻结Schema验证实际引用的旧Result；终态证明不能代替当前输入资格。
+
+
+原子预绑定Result的Evidence表示必须成为当前Capability Manifest的显式`preboundEvidenceContracts`，每项冻结`schemaRef`与`domain_evidence|full_result`表示。当前Candidate publish使用TriageStructureEvidence，Libra identity/media-cast/metadata commit使用LibraProductFactEvidence；Arca五种Acceptance verify使用AcceptanceCheckRecord、final-product verify使用FinalProductVerificationRecord、fulfillment verify使用FulfillmentVerificationRecord。所引用Schema进入Plan合同闭包。该声明只允许原Owner的同Result Commit Marker链，full_result必须与完整Result相等；不能仅以EvidenceEnvelope宽泛类型接受任意Evidence，也不能省略形状/摘要验真。

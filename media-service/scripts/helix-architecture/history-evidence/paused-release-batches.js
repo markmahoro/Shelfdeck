@@ -1,6 +1,6 @@
 'use strict';
 
-const { createUnchangedPausedBatchProof } = require('../foundation/execution/unchanged-paused-batch-proof');
+const { createUnchangedPausedBatchProof } = require('./unchanged-paused-batch-proof');
 const archive = require('./catalog-transitions/published-terminal-contracts-20261018.json');
 const archiveDigest = '02c61b170e4209eb07f6abb1172eece6e598ed06ab9ad9fa227a5fea32803a6c';
 const scopes = Object.freeze([

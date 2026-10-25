@@ -1,8 +1,10 @@
 'use strict';
 
 const { createRepositoryDefinition } = require('../persistence/owner-repository');
+const { createPlanContractEvidenceStore } = require('./plan-contract-evidence');
 
 function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
+  const contractEvidence = createPlanContractEvidenceStore({ schemaManifest, unitOfWork });
   const select = (tableId, columns, keyColumns, one = false) => ({
     kind: one ? 'select-one' : 'select-all', tableId, columns, keyColumns,
   });
@@ -12,7 +14,7 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
   const repositoryDefinition = {
     repositoryId: 'catalog_plan_proof', owner: 'execution-foundation', schemaManifest,
     statements: {
-      plan: select('fx_workflow_plans', ['plan_id', 'attempt_id', 'catalog_digest', 'basis_digest', 'graph_digest', 'state'], ['plan_id'], true),
+      plan: select('fx_workflow_plans', ['plan_id', 'attempt_id', 'planner_ref', 'catalog_digest', 'basis_digest', 'graph_digest', 'state'], ['plan_id'], true),
       work_attempt: select('fx_work_attempts', ['attempt_id', 'work_id', 'ordinal', 'basis_digest', 'state'], ['attempt_id'], true),
       work: select('fx_supporting_works', ['work_id', 'owner_domain', 'process_type', 'process_id', 'work_kind', 'state',
         'definition_json', 'definition_digest'], ['work_id'], true),
@@ -29,21 +31,16 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
         'intent_digest', 'idempotency_key', 'external_receipt_ref'], 'event_attempt_id'),
       result: select('fx_event_result_bindings', ['result_id', 'event_id', 'outcome_kind', 'result_schema_ref',
         'result_json', 'result_digest', 'evidence_schema_ref', 'evidence_json', 'evidence_digest', 'effect_receipt_id'], ['event_id'], true),
-      markers: selectMany('fx_commit_markers', ['commit_marker', 'commit_digest', 'effect_id', 'result_id', 'result_schema_ref', 'result_digest', 'owner_domain'], 'effect_id'),
+      markers: selectMany('fx_commit_markers', ['commit_marker', 'commit_digest', 'effect_id', 'result_id', 'result_schema_ref', 'result_digest', 'owner_domain', 'scope_type', 'scope_id'], 'effect_id'),
     },
   };
+  repositoryDefinition.statements.result_markers = { ...repositoryDefinition.statements.markers, keyColumn: 'result_id' };
   for (const name of ['plan', 'work_attempt', 'work', 'nodes', 'edges', 'events', 'attempts', 'result']) {
     const statement = repositoryDefinition.statements[name];
     repositoryDefinition.statements[name + '_batch'] = selectMany(statement.tableId, statement.columns, statement.keyColumns[0]);
   }
   const repository = createRepositoryDefinition(repositoryDefinition);
-  return Object.freeze({
-    verify(callback) {
-      // Read each graph and its cross-Work sources inside one read transaction.
-      // Result payloads are never added to the process-wide startup snapshot.
-      return unitOfWork.execute([{
-        participantId: 'catalog_plan_proof_read', owner: 'execution-foundation', repositories: [repository],
-        execute(context) {
+  function withReaderInTransaction(context, callback) {
           const repo = context.repository(repository.repositoryId);
           const factsByPlan = new Map(), planIdsByWork = new Map();
           function readMany(statement, identities) {
@@ -70,7 +67,9 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
             const allAttempts = readMany('attempts_batch', allEvents.map(e => e.event_id)), attempts = by(allAttempts, 'event_id');
             const allEffects = readMany('effects', allAttempts.map(a => a.event_attempt_id)), effects = by(allEffects, 'event_attempt_id');
             const results = by(readMany('result_batch', allEvents.map(e => e.event_id)), 'event_id');
-            const markers = by(readMany('markers', allEffects.map(e => e.effect_id)), 'effect_id');
+            const allMarkers = new Map([...readMany('markers', allEffects.map(e => e.effect_id)),
+              ...readMany('result_markers', [...results.values()].flat().map(r => r.result_id))].map(m => [m.commit_marker, m]));
+            const markers = by([...allMarkers.values()], 'effect_id'), resultMarkers = by([...allMarkers.values()], 'result_id');
             for (const id of missing) factsByPlan.set(id, null);
             for (const plan of plans) {
               const workAttempt = workAttempts.get(plan.attempt_id), planEvents = events.get(plan.plan_id) || [];
@@ -80,10 +79,13 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
                 nodes: nodes.get(plan.plan_id) || [], edges: edges.get(plan.plan_id) || [], events: planEvents,
                 attempts: planAttempts, effects: planEffects,
                 results: planEvents.flatMap(e => results.get(e.event_id) || []),
-                markers: planEffects.flatMap(e => markers.get(e.effect_id) || []) });
+                markers: [...new Map([...planEffects.flatMap(e => markers.get(e.effect_id) || []),
+                  ...planEvents.flatMap(e => (results.get(e.event_id) || []).flatMap(r => resultMarkers.get(r.result_id) || []))]
+                  .map(m => [m.commit_marker, m])).values()] });
             }
           }
           return callback({
+            readContract: planId => contractEvidence.readInTransaction(context, planId),
             prefetch,
             workPlanIds(workId) {
               if (planIdsByWork.has(workId)) return planIdsByWork.get(workId);
@@ -98,7 +100,15 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
               return factsByPlan.get(planId);
             },
           });
-        },
+  }
+  return Object.freeze({
+    repositories: [repository, ...contractEvidence.repositories], withReaderInTransaction,
+    verify(callback) {
+      // Read each graph and its cross-Work sources inside one read transaction.
+      // Result payloads are never added to the process-wide startup snapshot.
+      return unitOfWork.execute([{
+        participantId: 'catalog_plan_proof_read', owner: 'execution-foundation', repositories: [repository, ...contractEvidence.repositories],
+        execute: context => withReaderInTransaction(context, callback),
       }]).catalog_plan_proof_read;
     },
   });

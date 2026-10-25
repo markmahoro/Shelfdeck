@@ -1476,6 +1476,16 @@ CREATE TABLE "fx_event_result_bindings" (
 );
 CREATE UNIQUE INDEX "uidx_fx_event_result_bindings_partial_01" ON "fx_event_result_bindings" ("event_id");
 
+CREATE TABLE "fx_execution_contracts" (
+  "contract_digest" TEXT PRIMARY KEY CHECK (length("contract_digest") = 64 AND "contract_digest" NOT GLOB '*[^0-9a-f]*'),
+  "format_version" INTEGER,
+  "contract_schema_ref" TEXT,
+  "contract_json" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  CHECK (json_valid("contract_json")),
+  CHECK (length(CAST("contract_json" AS BLOB)) <= 1048576)
+);
+
 CREATE TABLE "fx_executor_incidents" (
   "incident_key" TEXT PRIMARY KEY,
   "owner_domain" TEXT,
@@ -1572,6 +1582,20 @@ CREATE TABLE "fx_outbox_deliveries" (
 );
 CREATE INDEX "idx_fx_outbox_deliveries_hot_01" ON "fx_outbox_deliveries" ("state", "next_attempt_at_ms", "message_id");
 
+CREATE TABLE "fx_plan_contracts" (
+  "plan_id" TEXT PRIMARY KEY,
+  "contract_digest" TEXT CHECK (length("contract_digest") = 64 AND "contract_digest" NOT GLOB '*[^0-9a-f]*'),
+  "graph_digest" TEXT CHECK (length("graph_digest") = 64 AND "graph_digest" NOT GLOB '*[^0-9a-f]*'),
+  "catalog_digest" TEXT CHECK (length("catalog_digest") = 64 AND "catalog_digest" NOT GLOB '*[^0-9a-f]*'),
+  "provenance_schema_ref" TEXT,
+  "provenance_json" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  CHECK (json_valid("provenance_json")),
+  CHECK (length(CAST("provenance_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("contract_digest") REFERENCES "fx_execution_contracts" ("contract_digest") ON DELETE RESTRICT
+);
+
 CREATE TABLE "fx_plan_edges" (
   "plan_id" TEXT,
   "from_node_id" TEXT,
@@ -1580,6 +1604,18 @@ CREATE TABLE "fx_plan_edges" (
   PRIMARY KEY ("plan_id", "from_node_id", "to_node_id"),
   FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT
 );
+
+CREATE TABLE "fx_plan_history_audits" (
+  "audit_id" TEXT PRIMARY KEY,
+  "plan_id" TEXT,
+  "audit_schema_ref" TEXT,
+  "audit_json" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  CHECK (json_valid("audit_json")),
+  CHECK (length(CAST("audit_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_fx_plan_history_audits_hot_01" ON "fx_plan_history_audits" ("plan_id");
 
 CREATE TABLE "fx_plan_nodes" (
   "plan_id" TEXT,

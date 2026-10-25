@@ -7,14 +7,6 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const { createStartupRecovery } = require('../../src/helix/foundation/execution/startup-recovery');
-const {
-  UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
-  PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
-  PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
-  PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
-  PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST,
-  verifyStartupPlanCatalog,
-} = require('../../src/helix/composition/create-procurement-execution-runtime');
 const { openSqliteKernel } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
@@ -67,6 +59,7 @@ function fixture(run, settings = {}) {
         settings.standaloneEffectState === 'committed' ? 'receipt' : null,
         settings.standaloneEffectState === 'committed' ? HASH : null);
   });
+  settings.setup?.(kernel);
   const recovery = createStartupRecovery({
     schemaManifest,
     unitOfWork: createSqliteUnitOfWork({ kernel }),
@@ -97,6 +90,52 @@ test('empty durable runtime becomes ready while bootstrapping never supplies nor
   });
 }, { seedEvent: false }));
 
+test('closed unrelated history is excluded from startup contract verification', async () => {
+  let inspected = 0;
+  await fixture(async recovery => {
+    const result = await recovery.recover();
+    assert.equal(result.state, 'ready');
+    assert.equal(inspected, 0);
+  }, { workState: 'succeeded', workAttemptState: 'succeeded', eventState: 'succeeded',
+    journal: true, effectState: 'committed', catalog: false, onCatalogSnapshot: () => inspected++ });
+});
+
+test('an active Work does not pull every closed prior Attempt into startup without a dependency', async () => {
+  const inspected = [];
+  await fixture(async recovery => {
+    await recovery.recover();
+    assert.deepEqual(inspected, ['plan']);
+  }, { eventState: 'ready', onCatalogSnapshot: snapshot => inspected.push(snapshot.plan.plan_id), setup(kernel) {
+    kernel.runPrimitive(db => {
+      db.prepare("UPDATE fx_work_attempts SET ordinal=2 WHERE attempt_id='work-attempt'").run();
+      db.prepare("INSERT INTO fx_work_attempts(attempt_id,work_id,ordinal,state) VALUES('old-attempt','work',1,'failed')").run();
+      db.prepare("INSERT INTO fx_workflow_plans(plan_id,attempt_id,state) VALUES('old-plan','old-attempt','contract_unplannable')").run();
+    });
+  } });
+});
+
+test('terminal Work with an unresolved Effect remains a startup responsibility root', async () => {
+  let inspected = 0;
+  await fixture(async recovery => {
+    const result = await recovery.recover();
+    assert.equal(result.state, 'faulted');
+    assert.ok(result.findings.includes('PLAN_CATALOG_DRIFT:plan'));
+    assert.equal(inspected, 1);
+  }, { workState: 'failed', workAttemptState: 'failed', eventState: 'failed',
+    journal: true, effectState: 'reconcile_required', catalog: false, onCatalogSnapshot: () => inspected++ });
+});
+
+test('ready Event remains a startup responsibility even when its parent claims terminal', async () => {
+  let inspected = 0;
+  await fixture(async recovery => {
+    const result = await recovery.recover();
+    assert.equal(result.state, 'faulted');
+    assert.ok(result.findings.includes('PLAN_CATALOG_DRIFT:plan'));
+    assert.equal(inspected, 1);
+  }, { workState: 'succeeded', workAttemptState: 'succeeded', eventState: 'ready',
+    catalog: false, onCatalogSnapshot: () => inspected++ });
+});
+
 test('startup Effect membership remains linear in retained Event Attempt history', async () => {
   const count=1000;
   let inspected=0;
@@ -112,7 +151,7 @@ test('startup Effect membership remains linear in retained Event Attempt history
       work_id:'work',attempt_id:'work-attempt',state:'succeeded'})),attempts,
     effects:Array.from({length:count},(_,index)=>({effect_id:'effect-'+index,event_attempt_id:'attempt-'+index,
       effect_class:'workspace_write',state:'committed'})),defers:[],circuits:[]};
-  const recovery=createStartupRecovery({schemaManifest,unitOfWork:{execute:()=>({startup_snapshot:facts})},
+  const recovery=createStartupRecovery({schemaManifest,unitOfWork:{execute:()=>({startup_responsibility_snapshot:facts})},
     registry:{resolve:()=>({})},policyRegistry:{bindingFor:()=>({})},integrityVerifier:{verify:()=>({ok:true})},
     catalogVerifier:{verify:()=>true},effectReconciler:{reconcile(){throw Error('Terminal history must not be replayed.');}}});
   const result=await recovery.recover();
@@ -175,159 +214,13 @@ test('startup batch verification requires an explicit decision for every Plan', 
     catalog:false, verifyBatch:snapshots => snapshots.map(() => true)});
 });
 
-test('the exact UAT source Catalog continues only when every immutable node still resolves exactly', () => {
-  const current = 'c'.repeat(64);
-  const node = Object.freeze({ plan_id: 'plan', node_id: 'node', capability_ref: 'libra.fixture@1',
-    contract_version: 1, effect_class: 'pure_observation', input_bindings_json: JSON.stringify({bindings:[{
-      projectionRef:'helix://libra/input-projections/Fixture/v1',
-    }]}) });
-  const event = Object.freeze({ plan_id: 'plan', node_id: 'node', owner_domain: 'libra', capability_ref: 'libra.fixture@1' });
-  const base = Object.freeze({ plan: Object.freeze({ catalog_digest: UAT_SOURCE_EXECUTION_CATALOG_DIGEST }),
-    work: Object.freeze({ owner_domain: 'libra' }), nodes: Object.freeze([node]), events: Object.freeze([event]) });
-  const registry = { resolve(ref, owner) {
-    assert.equal(ref, 'libra.fixture@1'); assert.equal(owner, 'libra');
-    return { manifest: { contractVersion: 1, effectClass: 'pure_observation' } };
-  } };
-  const policyRegistry = { bindingFor: () => ({ retryPolicyRef: 'retry', timeoutPolicyRef: 'timeout' }) };
-  const projections = { resolve: (ref) => ref === 'helix://libra/input-projections/Fixture/v1' ? {} : (()=>{throw new Error('unknown');})() };
-  assert.equal(verifyStartupPlanCatalog(base, current, registry, policyRegistry,projections), true);
-  assert.equal(verifyStartupPlanCatalog({ ...base, plan: { catalog_digest: current } }, current, registry, policyRegistry,projections), true);
-  assert.equal(verifyStartupPlanCatalog({ ...base, nodes: [{ ...node, effect_class: 'workspace_write' }] },
-    current, registry, policyRegistry,projections), false);
-  assert.equal(verifyStartupPlanCatalog({ ...base, events: [] }, current, registry, policyRegistry,projections), false);
-  assert.equal(verifyStartupPlanCatalog({ ...base, nodes:[{...node,input_bindings_json:JSON.stringify({bindings:[{
-    projectionRef:'helix://libra/input-projections/Missing/v1'}]})}]},current,registry,policyRegistry,projections),false);
-});
-
-test('the pre-local-encode-timeout Catalog continues when every immutable node still resolves exactly', () => {
-  const current = 'c'.repeat(64);
-  const node = Object.freeze({ plan_id: 'plan', node_id: 'node', capability_ref: 'libra.media.transcode@1',
-    contract_version: 1, effect_class: 'workspace_write', input_bindings_json: JSON.stringify({bindings:[]}) });
-  const event = Object.freeze({ plan_id: 'plan', node_id: 'node', owner_domain: 'libra', capability_ref: 'libra.media.transcode@1' });
-  const base = Object.freeze({ plan: Object.freeze({ catalog_digest: PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST }),
-    work: Object.freeze({ owner_domain: 'libra' }), nodes: Object.freeze([node]), events: Object.freeze([event]) });
-  const registry = { resolve(ref, owner) {
-    assert.equal(ref, 'libra.media.transcode@1'); assert.equal(owner, 'libra');
-    return { manifest: { contractVersion: 1, effectClass: 'workspace_write' } };
-  } };
-  const policyRegistry = { bindingFor: () => ({ retryPolicyRef: 'retry', timeoutPolicyRef: 'timeout' }) };
-  const projections = { resolve: () => ({}) };
-  assert.equal(verifyStartupPlanCatalog(base, current, registry, policyRegistry, projections), true);
-  assert.equal(verifyStartupPlanCatalog({ ...base, nodes: [{ ...node, effect_class: 'pure_observation' }] },
-    current, registry, policyRegistry, projections), false);
-});
-
-test('the pre-local-encode-timeout Catalog accepts terminal zero-node unplannable Plans', () => {
-  const current = 'c'.repeat(64);
-  const empty = Object.freeze([]);
-  const base = Object.freeze({
-    plan: Object.freeze({
-      catalog_digest: PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
-      state: 'temporarily_unplannable',
-    }),
-    workAttempt: Object.freeze({ state: 'cancelled' }),
-    work: Object.freeze({ owner_domain: 'libra' }),
-    nodes: empty,
-    events: empty,
-  });
-  assert.equal(verifyStartupPlanCatalog(base, current, {}, {}), true);
-  assert.equal(verifyStartupPlanCatalog({
-    ...base,
-    plan: { catalog_digest: PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST, state: 'contract_unplannable' },
-    workAttempt: { state: 'failed' },
-  }, current, {}, {}), true);
-  assert.equal(verifyStartupPlanCatalog({ ...base, workAttempt: { state: 'running' } }, current, {}, {}), false);
-});
-
-test('the externally managed failed-preparation retry Catalog is accepted only for its exact Owner-local graph', () => {
-  const current = 'c'.repeat(64);
-  const catalogDigest = canonicalDigest({
-    schema: 'procurement.failed-preparation-retry-catalog@1',
-    capabilities: [
-      'procurement.retry.intent.create@1',
-      'procurement.retry.admit@1',
-    ],
-  });
-  const capabilities = [
-    'procurement.retry.intent.create@1',
-    'procurement.retry.admit@1',
-  ];
-  const nodes = capabilities.map((capabilityRef, index) => ({
-    plan_id: 'retry-plan',
-    node_id: 'node-' + index,
-    capability_ref: capabilityRef,
-    contract_version: 1,
-    effect_class: 'domain_fact_commit',
-  }));
-  const events = capabilities.map((capabilityRef, index) => ({
-    plan_id: 'retry-plan',
-    node_id: 'node-' + index,
-    owner_domain: 'procurement',
-    capability_ref: capabilityRef,
-    state: index === 0 ? 'succeeded' : 'executing',
-  }));
-  const base = {
-    plan: { catalog_digest: catalogDigest, state: 'planned' },
-    work: { owner_domain: 'procurement', work_kind: 'failed_preparation_retry' },
-    workAttempt: { state: 'running' },
-    nodes,
-    events,
-  };
-  assert.equal(verifyStartupPlanCatalog(base, current, {}, {}), true);
-  assert.equal(verifyStartupPlanCatalog({
-    ...base,
-    work: { ...base.work, work_kind: 'evidence_assessment' },
-  }, current, {}, {}), false);
-  assert.equal(verifyStartupPlanCatalog({
-    ...base,
-    nodes: [{ ...nodes[0], effect_class: 'workspace_write' }, nodes[1]],
-  }, current, {}, {}), false);
-  assert.equal(verifyStartupPlanCatalog({
-    ...base,
-    events: [events[0], { ...events[1], capability_ref: capabilities[0] }],
-  }, current, {}, {}), false);
-});
-
-test('a retired pre-projection Catalog is accepted only for terminal immutable Attempts', () => {
-  const current = 'c'.repeat(64);
-  const terminalEvent = Object.freeze({ plan_id:'old-plan',node_id:'node',state:'failed' });
-  const base = Object.freeze({
-    plan:Object.freeze({catalog_digest:PRE_PROJECTION_EXECUTION_CATALOG_DIGEST}),
-    workAttempt:Object.freeze({state:'failed'}),
-    events:Object.freeze([terminalEvent]),
-  });
-  assert.equal(verifyStartupPlanCatalog(base,current,{},{}),true);
-  assert.equal(verifyStartupPlanCatalog({...base,workAttempt:{state:'running'}},current,{},{}),false);
-  assert.equal(verifyStartupPlanCatalog({...base,events:[{...terminalEvent,state:'ready'}]},current,{},{}),false);
-});
-
-test('the known pre-actor-completion Catalog is accepted only after all durable execution is terminal', () => {
-  const current = 'c'.repeat(64);
-  const terminalEvent = Object.freeze({ plan_id:'old-plan',node_id:'node',state:'succeeded' });
-  const base = Object.freeze({
-    plan:Object.freeze({catalog_digest:PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST}),
-    workAttempt:Object.freeze({state:'succeeded'}),
-    events:Object.freeze([terminalEvent]),
-  });
-  assert.equal(verifyStartupPlanCatalog(base,current,{},{}),true);
-  assert.equal(verifyStartupPlanCatalog({...base,workAttempt:{state:'running'}},current,{},{}),false);
-  assert.equal(verifyStartupPlanCatalog({...base,events:[{...terminalEvent,state:'waiting_for_external'}]},current,{},{}),false);
-  assert.equal(verifyStartupPlanCatalog({...base,plan:{catalog_digest:'d'.repeat(64)}},current,{},{}),false);
-});
-
-test('the pre-semantic execution Catalog is accepted only after all durable execution is terminal', () => {
-  assert.equal(PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST,
-    '37264ba7abffb70a9d44264856816e992d0f05674a471fd4496d2bf3cc06ecca');
-  const current = 'c'.repeat(64);
-  const terminalEvent = Object.freeze({ plan_id:'old-plan',node_id:'node',state:'cancelled' });
-  const base = Object.freeze({
-    plan:Object.freeze({catalog_digest:PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST}),
-    workAttempt:Object.freeze({state:'cancelled'}),
-    events:Object.freeze([terminalEvent]),
-  });
-  assert.equal(verifyStartupPlanCatalog(base,current,{},{}),true);
-  assert.equal(verifyStartupPlanCatalog({...base,workAttempt:{state:'running'}},current,{},{}),false);
-  assert.equal(verifyStartupPlanCatalog({...base,events:[{...terminalEvent,state:'ready'}]},current,{},{}),false);
+test('normal runtime contains no dated Catalog archives or release-specific recovery allowlist', () => {
+  const source = fs.readFileSync(path.resolve(__dirname, '../../src/helix/composition/create-procurement-execution-runtime.js'), 'utf8');
+  for (const forbidden of ['catalog-transitions/', 'COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS',
+    'verifyStartupPlanCatalog', 'PRE_PROJECTION_PLAN_REPLAN_CODE', 'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED'])
+    assert.equal(source.includes(forbidden), false, forbidden);
+  assert.ok(source.includes('createStoredPlanContractVerifier'));
+  assert.ok(source.includes('createPlanHistoryAudit'));
 });
 
 test('pure crash is classified safe_retry but readiness remains recovering until action converges', async () => fixture(async (recovery) => {

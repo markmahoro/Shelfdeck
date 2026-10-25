@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "mapId": "helix.ssot-contract-source-map",
+  "category": "tables",
+  "startOrdinal": 235,
+  "endOrdinal": 235,
+  "entries": [
+    {
+      "id": "fx_plan_history_audits",
+      "owner": "execution-foundation",
+      "columnsContract": "`audit_id PK, plan_id FK, audit_schema_ref, audit_json, created_at_ms`",
+      "constraintsContract": "immutable；`INDEX(plan_id)`；同Plan/事实摘要/验真器版本/结论去重，保留失败及后续不同结论；`audit_json`最大64 KiB",
+      "source": {
+        "section": "8.9.9",
+        "line": 16622,
+        "lineDigest": "5ebc8562f4a94562c66a23b50a7af71106fd5f056882dfc31ebd7dab64664b15"
+      }
+    }
+  ]
+}

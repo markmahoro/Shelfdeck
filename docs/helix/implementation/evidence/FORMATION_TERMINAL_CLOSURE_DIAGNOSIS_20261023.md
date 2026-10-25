@@ -446,3 +446,28 @@ Reset 完成后的用户授权 Resume 在 10:21:42.470Z 创建 operation `08c21a
 既有历史只允许一次性从可证明的原镜像/合同建立精确证据引用，原事实不改写、不复活已退役Formation；无法证明的历史显式报告，不猜Schema。验收必须覆盖：无关Capability升级无需旧版本分支；多次合同升级及无旧镜像环境仍能启动；历史篡改被发现；有未决Effect或当前依赖时仍严格拒绝；断电发布不形成无合同Plan；备份恢复及既有收藏/历史保持。
 
 这涉及启动门禁及持久合同，需要先确认新SSOT再实施。当前补档案候选暂停部署，生产保持供给关闭，不再Reset。Windows Service复验673 PASS/29 skip/0 fail；定向118 PASS仍只证明现有补档案方案，不作为新机制通过证据。
+
+
+## 2026-10-25 历史合同机制清理开发检查点
+
+用户已确认按机制清理，不单独上线678687b8e补档案候选。SSOT §8.5.10.1及三个Phase工作项已同步。本节为开发证据，不是部署或生产恢复完成声明。
+
+- 新Plan保存实际使用的Capability manifest、schema传递闭包、执行策略和结构绑定，两个证据表与Plan同事务；同步Owner命令单独采用其正式合同，不伪造Executor或Effect。
+- 启动根为当前Work/Attempt/Event、未决Effect、资源等待和Circuit，按实际关系展开；终态Work的未决Effect仍必须验真。闭合无关历史不再构成整机启动前置条件。
+- 历史审计纳入既有存储维护：每批8项、时间预算、持久cursor及内容寻址审计Receipt。缺失或错误证据有明确finding，不能静默视为通过。
+- 原日期档案和专用旧版本证明移至`scripts/helix-architecture/history-evidence`。一次性迁入仅接受精确来源及原严格验证；终态封存原图与依赖图摘要，不产生旧执行权。实际依赖仍必须校验，未知来源记unverified。尚未证明生产所有历史均可迁入。
+- 精确232→235结构复制只增加`fx_execution_contracts`、`fx_plan_contracts`、`fx_plan_history_audits`，逐表核对231张原事实/执行表。旧232目标工具冻结其原DDL，避免未来版本重新改变旧工具语义。
+- 新增原表前后校验抓到正常Host初始化会写系统Rule Template，因此导入改为临时空Host仅捕获合同，目标使用SQL受限Kernel，只能SELECT及INSERT两张证据表。修复后真实进程回归通过，旧表全部保持；该失败及修复日志保留。
+
+开发证据（ignored日志位于`.codex/formation-diagnosis-20261023`）：
+
+| 检查 | 实际结果/边界 |
+| --- | --- |
+| 完整Service上一检查点 | 702 total / 673 PASS / 29 skip / 0 fail，`history-mechanism-service-2.log`；不代表此后追加修改已完整复测 |
+| Clean Host | 15 PASS / 2 skip，`history-mechanism-clean-host.log` |
+| Owner重试 | 26 PASS，`history-mechanism-owner-command.log` |
+| 责任根/合同证明/导入 | 34 PASS，`history-mechanism-roots-proof.log` |
+| 最新隔离导入 | 1 PASS，`history-mechanism-import-protection-4.log`，含原表保护 |
+| 静态模块/语义/manifest/合同门禁 | 全部通过；旧版本移出运行目录后的完整固定门禁待执行 |
+
+当前生产容器仍为f280e6bd4，业务供给关闭。旧Reset已经完成，不重复执行。下一步固定候选完整门禁、NAS生产副本逐表保护与历史迁入、正常Resume及适用平台资格；完成后才沿标准发布入口恢复生产。Docker Desktop当前命令超时，尚无新镜像，不以源代码overlay演练替代最终镜像资格。

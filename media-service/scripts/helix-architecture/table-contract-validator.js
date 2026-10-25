@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const { OWNER_PREFIXES, allowedForeignKey, buildTableContracts, digestValue } = require('./table-contract-builder');
 const { readTableSourceEntries } = require('./table-contract-materializer');
+const { EXPECTED_COUNTS } = require('./ssot-contract-extractor');
 
 const normalize = (value) => value.split(path.sep).join('/');
 const finding = (code, message, details = {}) => ({ code, message, ...details });
@@ -19,8 +20,8 @@ function readJson(filePath, findings) {
 
 function readInventoryEntries(contractsRoot, findings) {
   const manifest = readJson(path.join(contractsRoot, 'manifests', 'table-inventory.json'), findings);
-    if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 232 || !Array.isArray(manifest.entryFiles)) {
-      findings.push(finding('INVALID_TABLE_INVENTORY_MANIFEST', 'Table inventory must be active with 232 sharded entries.'));
+    if (!manifest || manifest.status !== 'active' || manifest.targetCount !== EXPECTED_COUNTS.tables || !Array.isArray(manifest.entryFiles)) {
+      findings.push(finding('INVALID_TABLE_INVENTORY_MANIFEST', 'Table inventory must match the current SSOT cardinality.'));
     return [];
   }
   return manifest.entryFiles.flatMap((relativePath) => {

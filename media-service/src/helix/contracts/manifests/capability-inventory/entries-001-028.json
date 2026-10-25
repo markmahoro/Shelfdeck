@@ -524,14 +524,14 @@
       },
       "contract": {
         "packagePath": "capabilities/procurement/candidate/publish/v1",
-        "packageDigest": "3f7dbcc171acf4e828512302c1c3b30b6b655cf01ef7ab4748597089189ee5f1",
+        "packageDigest": "0dd13c05ad56701994688fe5b80c0a5d5db9a7fe9d9cebd9ae8ed041584d9315",
         "effectClass": "domain_fact_commit",
         "inputSummary": "CandidateDraft + DomainFactCommitHandle",
         "outputFamily": "CandidatePublicationReceipt"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "81fcfd14a48d083756c6c5c0e5dc2a0595c09715a99a185b43c47db2492c9ad1"
+        "value": "c15a206572d731aec13c7bd571caa30e0c6e2fd11a7dc21040e772919b1f5585"
       }
     },
     {
@@ -776,14 +776,14 @@
       },
       "contract": {
         "packagePath": "capabilities/libra/product_identity/resolve/v1",
-        "packageDigest": "e59be0c17f725d2bd36ba4e2bcf737cbb8a7188c5f9ddf1d53f5d0c1d9fc78a6",
+        "packageDigest": "16f608e236ba4d6bb79250f0d1f30bf692e00fc023e39375db24224da970f2e6",
         "effectClass": "domain_fact_commit",
         "inputSummary": "IdentityClaim + Decision Evidence + ProductStructure + DomainFactCommitHandle",
         "outputFamily": "ResolvedProductIdentity"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "6ce3283e6b15018d645ce7b928e8a60fb4f8657faf1db7695f78c4fcaf049ce4"
+        "value": "0041eef0e398556b4e9c564c0a16503f6f14c5a60446c22f4dc167e99ee5271a"
       }
     }
   ]

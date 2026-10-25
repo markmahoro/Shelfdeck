@@ -163,6 +163,13 @@ const NULLABLE_COLUMN_OVERRIDES = new Set([
   'libra_intake_decisions.expected_target_status'
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
+  'fx_plan_edges.plan_id': ['fx_workflow_plans', 'plan_id'],
+  'fx_plan_nodes.plan_id': ['fx_workflow_plans', 'plan_id'],
+  'fx_workflow_events.plan_id': ['fx_workflow_plans', 'plan_id'],
+  'libra_product_fact_source_refs.plan_id': ['fx_workflow_plans', 'plan_id'],
+  'fx_plan_contracts.plan_id': ['fx_workflow_plans', 'plan_id'],
+  'fx_plan_contracts.contract_digest': ['fx_execution_contracts', 'contract_digest'],
+  'fx_plan_history_audits.plan_id': ['fx_workflow_plans', 'plan_id'],
   'arca_us_actor_refresh_pages.intent_id':['arca_us_actor_refresh_intents','intent_id'],
   'libra_us_adult_reference_pages.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
   'libra_us_adult_match_completions.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
@@ -336,6 +343,7 @@ const JSON_SCHEMA_COLUMN_OVERRIDES = Object.freeze({
   'libra_product_fact_revisions.fact_json': 'schema_ref'
 });
 const JSON_LIMIT_OVERRIDES = Object.freeze({
+  'fx_execution_contracts.contract_json': 1024 * 1024,
   'arca_series_root_relocations.plan_json':4*1024*1024,
   'libra_task_cancellations.request_json':1024*1024,
   'arca_us_actor_refresh_intents.payload_json':256*1024,

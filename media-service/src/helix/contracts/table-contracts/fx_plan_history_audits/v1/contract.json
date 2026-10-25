@@ -1,0 +1,129 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_plan_history_audits/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_plan_history_audits",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "audit_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "plan_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "audit_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "audit_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "audit_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "plan_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "plan_id"
+      ]
+    ],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "audit_json",
+        "schemaRefColumn": "audit_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "immutable",
+      "`INDEX(plan_id)`",
+      "同Plan/事实摘要/验真器版本/结论去重，保留失败及后续不同结论",
+      "`audit_json`最大64 KiB"
+    ],
+    "rawContract": {
+      "columns": "`audit_id PK, plan_id FK, audit_schema_ref, audit_json, created_at_ms`",
+      "constraints": "immutable；`INDEX(plan_id)`；同Plan/事实摘要/验真器版本/结论去重，保留失败及后续不同结论；`audit_json`最大64 KiB"
+    },
+    "source": {
+      "section": "8.9.9",
+      "line": 16622,
+      "lineDigest": "5ebc8562f4a94562c66a23b50a7af71106fd5f056882dfc31ebd7dab64664b15"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "plan_id"
+        ],
+        "targetTable": "fx_workflow_plans",
+        "targetColumns": [
+          "plan_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

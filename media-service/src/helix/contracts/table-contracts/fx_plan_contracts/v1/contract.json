@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/fx_plan_contracts/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "fx_plan_contracts",
+    "owner": "execution-foundation",
+    "prefix": "fx_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "plan_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "contract_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "graph_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "catalog_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "provenance_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "provenance_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "plan_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "plan_id",
+      "contract_digest"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "provenance_json",
+        "schemaRefColumn": "provenance_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "immutable",
+      "`provenance_json`最大64 KiB",
+      "与Plan同事务发布，精确绑定原graph/catalog，禁止缺失证据fallback"
+    ],
+    "rawContract": {
+      "columns": "`plan_id PK FK, contract_digest FK, graph_digest, catalog_digest, provenance_schema_ref, provenance_json, created_at_ms`",
+      "constraints": "immutable；`provenance_json`最大64 KiB；与Plan同事务发布，精确绑定原graph/catalog，禁止缺失证据fallback"
+    },
+    "source": {
+      "section": "8.9.9",
+      "line": 16621,
+      "lineDigest": "c151953863ade595b24c6a48c49f935b31fe7e6a15bea5fef49bd182b3795a85"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "plan_id"
+        ],
+        "targetTable": "fx_workflow_plans",
+        "targetColumns": [
+          "plan_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "contract_digest"
+        ],
+        "targetTable": "fx_execution_contracts",
+        "targetColumns": [
+          "contract_digest"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

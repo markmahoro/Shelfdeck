@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "manifestId": "helix.inventory.tables",
+  "entries": [
+    {
+      "id": "fx_plan_history_audits",
+      "version": 1,
+      "owner": "execution-foundation",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.5.9",
+        "8.9.9"
+      ],
+      "sourceLocator": {
+        "section": "8.9.9",
+        "line": 16622,
+        "lineDigest": "5ebc8562f4a94562c66a23b50a7af71106fd5f056882dfc31ebd7dab64664b15"
+      },
+      "targetLocator": {
+        "path": "table-contracts/fx_plan_history_audits/v1/contract.json"
+      },
+      "contract": {
+        "tableId": "fx_plan_history_audits",
+        "owner": "execution-foundation",
+        "contractRef": "helix://contracts/tables/fx_plan_history_audits/v1",
+        "contractDigest": "6fdfe046b6d01cce8d442d30f2022f02ba412e47fd70a0d26d9a32ff67e8ae9d"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "47b37ead926f3af98e64a983b314c6a9fbbcf7b22e7e711e7524ef14814789a6"
+      }
+    }
+  ]
+}

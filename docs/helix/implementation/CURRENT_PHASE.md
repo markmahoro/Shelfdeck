@@ -1,5 +1,9 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-25 EXECUTION-CONTRACT-EVIDENCE / STARTUP-RESPONSIBILITY-RECOVERY / HISTORICAL-AUDIT-CUTOVER开发检查点：原子合同与责任快照、独立历史审计及一次性证据导入已实现；旧日期档案移至离线工具。复制/导入严格保护原表，未知来源明确记unverified，不以终态白名单补造证明。开始固定候选完整门禁和生产副本资格；未部署/未Resume，不重复Reset。
+
+2026-10-25 用户确认实施 EXECUTION-CONTRACT-EVIDENCE / STARTUP-RESPONSIBILITY-RECOVERY / HISTORICAL-AUDIT-CUTOVER：清理按版本累积的运行兼容分支，合同证据随数据保存，启动按当前责任闭包验证，独立历史审计；保留收藏/历史且不重复Reset。按合同→原子保存→当前恢复/历史审计→一次性迁入→副本及发布资格顺序实施。补档案候选不单独部署。
+
 2026-10-25 用户要求审视逐次升级累积历史兼容的机制。678687b8e补档案候选暂停发布；已确认全局Catalog绑定、全历史启动验真与全局阻断的耦合。下一步先确认持久合同证据、当前责任恢复与独立历史审计的边界，再实施机制修订；不擅自跳过验真或扩充兼容白名单。生产仍未恢复供给，既有Reset不重复。详见本轮Evidence最新节。
 
 2026-10-25 恢复运行诊断：用户已授权 Resume 与运行监控。正式 Resume 于 10:21:42Z 受理、10:23:46Z 因 `P4_EXECUTION_HOST_RECOVERY_BLOCKED` 失败，Runtime error / desired stopped / normalSupplyAllowed=false，未恢复供给。五个来源目录现场 stat/opendir 均成功；界面不可用来自 10-22 的失败 Observation，不是当前挂载失效。完整生产副本复现恰好 1707 个 PLAN_CATALOG_DRIFT：hostfix4 的终态 Catalog 8f5dded2 缺少 frozen archive。已从 b70a9f6f6 原镜像提取精确合同并接入只读历史验真，定向118/118通过；修复副本正常 Resume 资格进行中，尚未部署。此前 stopped Host 资格不等同正常恢复资格；不重做 Reset，不改历史记录、不放行旧执行器。

@@ -284,7 +284,7 @@ test('same-Work pagination proves only earlier terminal Attempts and rejects fut
 
 test('historical witness stays immutable and cannot authorize changed secondary-acceptance or Series contracts', () => {
   const root = path.resolve(__dirname, '../../src/helix/contracts');
-  const witness = require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json');
+  const witness = require('../../scripts/helix-architecture/history-evidence/catalog-transitions/intake-control-20260912.json');
   const schemas = new Map();
   function walk(directory) {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -417,9 +417,9 @@ test('read-only historical verification rejects active cross-Work dependencies',
 });
 
 test('frozen historical archive reconstructs the original witness without registering an executor', () => {
-  const { createTerminalCatalogHistory } = require('../../src/helix/foundation/execution/terminal-catalog-history');
-  const archive = require('../../src/helix/composition/catalog-transitions/secondary-acceptance-history-20260928.json');
-  const witness = require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json');
+  const { createTerminalCatalogHistory } = require('../../scripts/helix-architecture/history-evidence/terminal-catalog-history');
+  const archive = require('../../scripts/helix-architecture/history-evidence/catalog-transitions/secondary-acceptance-history-20260928.json');
+  const witness = require('../../scripts/helix-architecture/history-evidence/catalog-transitions/intake-control-20260912.json');
   const archiveDigest = '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6';
   assert.equal(canonicalDigest(archive), archiveDigest);
   assert.equal(archive.sourceCommit, '69a82f2a5d776a0bde3ae1bc34ff5fd97c80dfb0');
@@ -506,15 +506,15 @@ test('cross-Catalog terminal proof preserves typed validation and detects depend
 });
 
 test('production Movie contract archive has exact provenance and cannot authorize active history', () => {
-  const { createFrozenCatalogHistory } = require('../../src/helix/foundation/execution/frozen-catalog-history');
-  const archive = require('../../src/helix/composition/catalog-transitions/movie-terminal-contracts-20260930.json');
+  const { createFrozenCatalogHistory } = require('../../scripts/helix-architecture/history-evidence/frozen-catalog-history');
+  const archive = require('../../scripts/helix-architecture/history-evidence/catalog-transitions/movie-terminal-contracts-20260930.json');
   const reasons = [], f = fixture({ terminalOnly: true });
   f.facts.plan.catalog_digest = archive.catalogDigest; f.facts.plan.state = 'no_effect_required';
   for (const key of ['nodes', 'events', 'attempts', 'results']) f.facts[key] = [];
   const options = { archive, archiveDigest: '369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
-    priorArchive: require('../../src/helix/composition/catalog-transitions/secondary-acceptance-history-20260928.json'),
+    priorArchive: require('../../scripts/helix-architecture/history-evidence/catalog-transitions/secondary-acceptance-history-20260928.json'),
     priorArchiveDigest: '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
-    witness: require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json'),
+    witness: require('../../scripts/helix-architecture/history-evidence/catalog-transitions/intake-control-20260912.json'),
     onRejected: reason => reasons.push(reason), proofReader: { verify: fn => fn({ prefetch() {}, read: () => f.facts }) } };
   const history = createFrozenCatalogHistory(options);
   assert.deepEqual(reasons, []);
@@ -534,17 +534,17 @@ for(const releasedArchive of [
   {file:'published-terminal-contracts-20261021.json',digest:'214b8cf2272f740034ae8fe68d3b18e493c720bb7fd6dac7d5b692d58db03ed6'},
   {file:'published-terminal-contracts-20261022.json',digest:'51dca4f218fdeae45ec2a72c53056afe3fb0486b056e5a794117658fa6c1046b'},
 ])test('published '+releasedArchive.file+' reconstructs its exact Catalog without mutating archives or accepting active history', () => {
-  const { createFrozenCatalogHistory } = require('../../src/helix/foundation/execution/frozen-catalog-history');
-  const additional = Object.freeze({archive:require('../../src/helix/composition/catalog-transitions/'+releasedArchive.file),
+  const { createFrozenCatalogHistory } = require('../../scripts/helix-architecture/history-evidence/frozen-catalog-history');
+  const additional = Object.freeze({archive:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/'+releasedArchive.file),
     archiveDigest:releasedArchive.digest});
   const f=fixture({terminalOnly:true}),reasons=[];
   f.facts.plan.catalog_digest=additional.archive.catalogDigest;f.facts.plan.state='no_effect_required';
   for(const key of ['nodes','events','attempts','results'])f.facts[key]=[];
-  const options={archive:require('../../src/helix/composition/catalog-transitions/movie-terminal-contracts-20260930.json'),
+  const options={archive:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/movie-terminal-contracts-20260930.json'),
     archiveDigest:'369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
-    priorArchive:require('../../src/helix/composition/catalog-transitions/secondary-acceptance-history-20260928.json'),
+    priorArchive:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/secondary-acceptance-history-20260928.json'),
     priorArchiveDigest:'1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
-    witness:require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json'),additionalArchives:Object.freeze([additional]),
+    witness:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/intake-control-20260912.json'),additionalArchives:Object.freeze([additional]),
     onRejected:reason=>reasons.push(reason),proofReader:{verify:fn=>fn({prefetch(){},read:()=>f.facts})}};
   const before=canonicalDigest(additional),history=createFrozenCatalogHistory(options);
   assert.deepEqual(reasons,[]);assert.equal(history.supports(additional.archive.catalogDigest),true);
@@ -556,9 +556,9 @@ for(const releasedArchive of [
 });
 
 test('frozen terminal history preserves People ownership and still rejects foreign Owner or active replay',()=>{
-  const {createFrozenCatalogHistory}=require('../../src/helix/foundation/execution/frozen-catalog-history');
+  const {createFrozenCatalogHistory}=require('../../scripts/helix-architecture/history-evidence/frozen-catalog-history');
   const {createExecutionPolicyRegistry}=require('../../src/helix/foundation/execution/execution-policy');
-  const f=fixture({owner:'people',terminalOnly:true}),archive=structuredClone(require('../../src/helix/composition/catalog-transitions/published-terminal-contracts-20261021.json')),
+  const f=fixture({owner:'people',terminalOnly:true}),archive=structuredClone(require('../../scripts/helix-architecture/history-evidence/catalog-transitions/published-terminal-contracts-20261021.json')),
     ref='people.registration_evidence.observe@1',manifest={...f.registry.resolve('libra.fixture@1','people').manifest,capabilityRef:ref};
   assert.ok(archive.manifests.some(value=>value.capabilityRef===ref));
   archive.manifests=archive.manifests.map(value=>value.capabilityRef===ref?manifest:value);
@@ -567,11 +567,11 @@ test('frozen terminal history preserves People ownership and still rejects forei
     ownerScope:value.ownerScope,effectClass:value.effectClass,executorVersion:1,executionContractDigest:canonicalDigest(value)}));
   archive.catalogDigest=executionCatalogDigest({snapshot},createExecutionPolicyRegistry(archive.policy));
   f.facts.plan.catalog_digest=archive.catalogDigest;f.facts.nodes[0].capability_ref=f.facts.events[0].capability_ref=ref;
-  const history=createFrozenCatalogHistory({archive:require('../../src/helix/composition/catalog-transitions/movie-terminal-contracts-20260930.json'),
+  const history=createFrozenCatalogHistory({archive:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/movie-terminal-contracts-20260930.json'),
     archiveDigest:'369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
-    priorArchive:require('../../src/helix/composition/catalog-transitions/secondary-acceptance-history-20260928.json'),
+    priorArchive:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/secondary-acceptance-history-20260928.json'),
     priorArchiveDigest:'1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
-    witness:require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json'),
+    witness:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/intake-control-20260912.json'),
     additionalArchives:[{archive,archiveDigest:canonicalDigest(archive)}],onRejected:reason=>f.reasons.push(reason),
     proofReader:{verify:callback=>callback({prefetch(){},read:()=>f.facts})}});
   assert.equal(history.verify(f.facts),true,JSON.stringify(f.reasons));

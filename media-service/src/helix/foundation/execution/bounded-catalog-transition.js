@@ -8,7 +8,7 @@ const { PLAN_RESOLUTIONS } = require('./runtime-contracts');
 const HASH = /^[a-f0-9]{64}$/;
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);
 const TERMINAL_EVENT = new Set([...TERMINAL, 'skipped']);
-const EVENT_STATES = new Set([...TERMINAL_EVENT, 'pending', 'ready', 'executing', 'waiting_for_external', 'waiting_for_resource']);
+const EVENT_STATES = new Set([...TERMINAL_EVENT, 'pending', 'ready', 'executing', 'waiting_for_external', 'waiting_for_resource', 'waiting_for_approval']);
 const BINDING_SET = 'helix://foundation/types/EventInputBindingSet/v1';
 
 function requireProof(value, reason) { if (!value) throw new Error(reason); }
@@ -26,7 +26,7 @@ function payload(json, digest) {
 
 function createBoundedCatalogTransition({ witness, registry, policyRegistry, schemas, contractValidator,
   bindingProjectionRegistry, proofReader, terminalEffectObserver, onRejected, terminalOnly = false,
-  historicalProofResolver }) {
+  historicalProofResolver, planEvidence, planProofResolver }) {
   const records = new Map(witness.capabilities.map(record => [record.capabilityRef, record]));
   const affected = new Set(witness.capabilities.filter(record =>
     record.previousContractDigest !== record.currentContractDigest ||
@@ -83,6 +83,11 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
   } catch (error) { onRejected?.(error.message); }
 
   function prove(reader, planId, requireUnaffected, visiting, proven, resolution) {
+    if (planEvidence && planId !== planEvidence.planId) {
+      const resolve = planProofResolver?.(reader, planId);
+      requireProof(resolve, 'Referenced Plan contract evidence is missing.');
+      return resolve(reader, planId, requireUnaffected, visiting, proven, resolution);
+    }
     const key = planId + ':' + requireUnaffected;
     if (proven.has(key)) return proven.get(key);
     requireProof(!visiting.has(planId), 'Cyclic cross-Work Result dependency.');
@@ -97,17 +102,19 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
       return external(reader, planId, false, visiting, proven, resolution);
     }
     const { plan, workAttempt, work, nodes, events, edges, attempts, effects, results, markers } = facts;
+    if (planEvidence) requireProof(planEvidence.verify(reader, facts, requireUnaffected) === true,
+      'Stored Plan contract evidence rejected its graph.');
     requireProof(plan.plan_id === planId && PLAN_RESOLUTIONS.includes(plan.state) && workAttempt && work &&
       plan.attempt_id === workAttempt.attempt_id && workAttempt.work_id === work.work_id &&
       HASH.test(plan.graph_digest) && HASH.test(plan.basis_digest) && plan.basis_digest === workAttempt.basis_digest,
     'Plan/Work/Attempt envelope mismatch.');
     const previous = plan.catalog_digest === witness.previousCatalogDigest &&
       witness.previousCatalogDigest !== witness.currentCatalogDigest;
-    requireProof(previous || plan.catalog_digest === witness.currentCatalogDigest, 'Unknown referenced Catalog.');
+    requireProof(planEvidence || previous || plan.catalog_digest === witness.currentCatalogDigest, 'Unknown referenced Catalog.');
     const terminal = TERMINAL.has(workAttempt.state);
     requireProof(!terminalOnly || terminal, 'Historical contract cannot authorize an active Attempt.');
     requireProof(terminal || ['ready', 'running', 'blocked'].includes(workAttempt.state), 'Unknown Work Attempt state.');
-    const unaffected = requireUnaffected || !terminal;
+    const unaffected = (!planEvidence && requireUnaffected) || !terminal;
     if (!terminal) requireProof(!witness.excludedActiveProcessTypes.includes(work.process_type), 'Excluded active process.');
     requireProof(nodes.length === events.length, 'Incomplete Plan graph.');
     if (nodes.length === 0) {
@@ -273,12 +280,12 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
           committed.length === 1 && committed[0].output_digest === result.result_digest, 'Result has no exact committed Effect.');
       } else requireProof(result.effect_receipt_id === null, 'Pure Result has an Effect Receipt.');
       // Changed terminal payloads are historical evidence, never executable input.
-      if (unaffected || (terminalOnly && !previous)) {
+      if (planEvidence || unaffected || (terminalOnly && !previous)) {
         contractValidator.validate(result.result_schema_ref, resultValue);
         // A terminal prebound domain Evidence reference is not the complete
         // observation payload. Its original witness and Commit chain above
         // remain authoritative; never reinterpret it as a full observation.
-        if (directEvidence || unaffected) contractValidator.validate(result.evidence_schema_ref, evidenceValue);
+        if (planEvidence || directEvidence || unaffected) contractValidator.validate(result.evidence_schema_ref, evidenceValue);
       }
       for (const marker of markers.filter(item => item.result_id === result.result_id)) {
         requireProof(marker.owner_domain === work.owner_domain && marker.result_schema_ref === result.result_schema_ref &&
@@ -293,12 +300,15 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
       const event = byEvent.get(node.eventId);
       const consumes = event.state === 'succeeded' || event.state === 'executing';
       for (const binding of node.inputBindings.bindings) {
-        if (binding.projectionRef) bindingProjectionRegistry.resolve(binding.projectionRef);
+        if (binding.projectionRef && (!planEvidence || !terminal)) bindingProjectionRegistry.resolve(binding.projectionRef);
         const refs = binding.eventResults || (binding.eventId ? [{ eventId: binding.eventId, resultSchemaRef: binding.resultSchemaRef }] : []);
         for (const ref of refs) {
           const source = byEvent.get(ref.eventId), result = byResult.get(ref.eventId);
           requireProof(source && (!consumes || (source.state === 'succeeded' && result)), 'Unresolved consumed Event Result.');
-          if (result) requireProof(schemaAlias(ref.resultSchemaRef, result.result_schema_ref), 'Referenced Result contract mismatch.');
+          if (result) {
+            requireProof(schemaAlias(ref.resultSchemaRef, result.result_schema_ref), 'Referenced Result contract mismatch.');
+            if (planEvidence) contractValidator.validate(ref.resultSchemaRef, payload(result.result_json, result.result_digest));
+          }
         }
         if (binding.bindingKind !== 'projected_work_results') continue;
         if (binding.sourceWorkId === work.work_id) {
@@ -319,6 +329,9 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
             requireProof(earlier.length > 0 && earlier.every(source => TERMINAL.has(source.workAttempt.state)) &&
               earlier.some(source => source.results.some(result => binding.resultSchemaRefs.some(ref => schemaAlias(ref, result.result_schema_ref)))),
             'Missing typed earlier Attempt Result.');
+            if (planEvidence) for (const source of earlier) for (const result of source.results)
+              for (const ref of binding.resultSchemaRefs.filter(ref => schemaAlias(ref, result.result_schema_ref)))
+                contractValidator.validate(ref, payload(result.result_json, result.result_digest));
           }
           continue;
         }
@@ -327,9 +340,15 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
         const sources = planIds.map(id => prove(reader, id, unaffected, visiting, proven, resolution));
         requireProof(sources.every(source => source.work.work_id === binding.sourceWorkId &&
           source.work.owner_domain === work.owner_domain), 'Foreign source Work.');
-        for (const ref of binding.resultSchemaRefs) requireProof(sources.some(source => source.results.some(result =>
-          schemaAlias(ref, result.result_schema_ref) && source.events.some(item => item.event_id === result.event_id && item.state === 'succeeded'))),
-        'Missing typed source Work Result.');
+        for (const ref of binding.resultSchemaRefs) {
+          const consumed = sources.flatMap(source => source.results.filter(result =>
+            schemaAlias(ref, result.result_schema_ref) && source.events.some(item => item.event_id === result.event_id && item.state === 'succeeded')));
+          requireProof(consumed.length > 0, 'Missing typed source Work Result.');
+          // A historical producer is verified against its own frozen contract.
+          // The consumer separately checks every selected value against its
+          // input contract; unrelated producer policies need not stay installed.
+          if (planEvidence) for (const result of consumed) contractValidator.validate(ref, payload(result.result_json, result.result_digest));
+        }
       }
     }
     visiting.delete(planId);
@@ -343,9 +362,13 @@ function createBoundedCatalogTransition({ witness, registry, policyRegistry, sch
       requireProof(witnessValid && terminalOnly && !requireUnaffected, 'Historical proof is not executable.');
       return prove(reader, planId, false, visiting, proven, resolution);
     },
+    proveStored(reader, planId, requireUnaffected, visiting, proven, resolution) {
+      requireProof(witnessValid && planEvidence, 'Stored Plan proof is unavailable.');
+      return prove(reader, planId, requireUnaffected, visiting, proven, resolution);
+    },
     verify(snapshot) {
-      if (!witnessValid || (snapshot?.plan?.catalog_digest !== witness.previousCatalogDigest &&
-          !(terminalOnly && snapshot?.plan?.catalog_digest === witness.currentCatalogDigest))) return false;
+      if (!witnessValid || !snapshot?.plan || (planEvidence ? snapshot.plan.plan_id !== planEvidence.planId : (snapshot.plan.catalog_digest !== witness.previousCatalogDigest &&
+          !(terminalOnly && snapshot.plan.catalog_digest === witness.currentCatalogDigest)))) return false;
       const resolution = { proofs:new Map(), pending:null };
       const verify = () => proofReader.verify(reader => {
         const facts = prove(reader, snapshot.plan.plan_id, false, new Set(), new Map(), resolution);

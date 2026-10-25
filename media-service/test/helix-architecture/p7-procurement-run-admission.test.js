@@ -20,6 +20,8 @@ const { createSingleScopeSelection } = require('./helpers/procurement-selection-
 const { createSynchronousDomainWork } = require('../../src/helix/foundation/execution/synchronous-domain-work');
 const { createFailedPreparationRetryAdminService } = require('../../src/helix/domains/procurement/application/failed-preparation-retry-admin-service');
 const { createOutboxDispatcherHost } = require('../../src/helix/foundation/execution/outbox-dispatcher-host');
+const { createCatalogPlanProofReader } = require('../../src/helix/foundation/execution/catalog-plan-proof-reader');
+const { createStoredPlanContractVerifier } = require('../../src/helix/foundation/execution/stored-plan-contract-verifier');
 
 const generatedRoot = path.resolve(__dirname, '../../src/helix/foundation/persistence/generated');
 const schemaDdl = fs.readFileSync(path.join(generatedRoot, 'clean-schema.sql'), 'utf8');
@@ -179,6 +181,10 @@ for(const count of [1,574,601,1024]) test('bounded Retry Plan admits and replays
     const controlBefore=f.database.prepare('SELECT * FROM fx_material_control_revisions ORDER BY material_key,revision').all();
     const result=f.service().retry(f.request);
     assert.equal(result.retryAdmissionResult.resultKind,'created');
+    const proofReader = createCatalogPlanProofReader(f.options), reasons = [];
+    const planFacts = proofReader.verify(reader => reader.read(result.workId + ':plan:1'));
+    assert.equal(createStoredPlanContractVerifier({ proofReader, onRejected: reason => reasons.push(reason) }).verify(planFacts),
+      true, reasons.join('\n'));
     assert.deepEqual(f.service().retry(f.request).retryAdmissionResult,result.retryAdmissionResult);
     const sizes=f.database.prepare("SELECT length(CAST(input_bindings_json AS BLOB)) bytes FROM fx_plan_nodes WHERE plan_id LIKE 'failed-preparation-retry-%'").all();
     assert.equal(sizes.length,2);assert(sizes.every(row=>row.bytes<16384));

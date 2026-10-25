@@ -69,12 +69,12 @@ test('maintenance reference auditing reads bounded key samples and rejects missi
   });
 });
 
-test('creates and reopens the current clean 232-table WAL generation with hard startup gates', () => {
+test('creates and reopens the current clean 235-table WAL generation with hard startup gates', () => {
   temporaryDatabase((databasePath) => {
     let firstGeneration;
     {
       const first = open(databasePath, { now: () => 1700000000000 });
-      assert.equal(first.generation.tableCount,232);
+      assert.equal(first.generation.tableCount,235);
       assert.equal(first.generation.indexCount, 117);
       assert.equal(first.generation.partialUniqueCount, 24);
       assert.equal(first.generation.schemaDigest, schemaManifest.ddlDigest);
