@@ -179,12 +179,28 @@ function createExecutorIncidentRegistry(options) {
       }
       return Object.freeze({allowed:true,recoveryCircuits:Object.freeze(checks.map((item)=>item.incident.circuit_key).sort())});
     },
+    recoveryReservations() {
+      const rows = options.unitOfWork.execute([{ participantId:'executor_incident_reservations', owner:'execution-foundation',
+        repositories:[repository], execute:(context)=>context.repository(repository.repositoryId).invoke('list', {})
+      }]).executor_incident_reservations;
+      const reservations = new Map();
+      // Circuit state is authoritative even if the process exited before updating the Incident.
+      for (const row of rows.filter((item)=>item.incident_state !== 'resolved')) {
+        if (reservations.has(row.circuit_key)) continue;
+        const circuit = options.circuitBreaker.read(row.circuit_key);
+        if (circuit?.state === 'recovering') reservations.set(row.circuit_key, Object.freeze({
+          ownerDomain:row.owner_domain, processType:row.process_type, workKind:row.work_kind,
+          circuitKey:row.circuit_key, evidenceDigest:circuit.evidence_digest,
+        }));
+      }
+      return Object.freeze([...reservations.values()]);
+    },
     abandonExecution(workId) {
       if(typeof workId!=='string'||!workId)throw new TypeError('Executor Incident recovery Work identity is invalid.');
       const rows=options.unitOfWork.execute([{participantId:'executor_incident_abandon_execution',owner:'execution-foundation',
         repositories:[repository],execute:(context)=>context.repository(repository.repositoryId).invoke('list',{})}]).executor_incident_abandon_execution;
       let reopened=0;
-      for(const row of rows.filter((item)=>item.incident_state==='recovering')){
+      for(const row of rows.filter((item)=>item.incident_state!=='resolved')){
         const circuit=options.circuitBreaker.read(row.circuit_key),reservation=canonicalDigest({
           schema:'foundation.executor-incident-recovery-work@1',circuitKey:row.circuit_key,workId});
         if(circuit?.state!=='recovering'||circuit.evidence_digest!==reservation)continue;

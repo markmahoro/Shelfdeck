@@ -557,6 +557,7 @@ function createExecutionRuntimeHost(options) {
         });
       }
       requireRecovery();
+      options.incidentObserver?.reconcileRecoveryReservations?.();
       state = 'ready';
       firstFault = null;
       await options.fallbackReconciler.start();

@@ -35,7 +35,7 @@ function relatedScope(parentRelativeLocation, stemKey, associationMode, relatedR
   return { ...value, scopeDigest:canonicalDigest({ schema:'procurement.related-scope@1', ...value }) };
 }
 
-function fixture({ primaryLocation, scopeRoot, scopeKind, associationMode, observed, relatedRuleRevision = 2, relatedScopeKind = 'ordinary_parent', relatedParentLocation = null, extraPrimaryLocation = null, contentProfile = null }) {
+function fixture({ primaryLocation, scopeRoot, scopeKind, associationMode, observed, relatedRuleRevision = 2, relatedScopeKind = 'ordinary_parent', relatedParentLocation = null, extraPrimaryLocation = null, contentProfile = null, fieldRoot = '.' }) {
   const primaryIdentity = identity('primary', 1);
   const scopeKey = scopeKind === 'standalone_file'
     ? `standalone-file:${primaryLocation}`
@@ -119,12 +119,13 @@ function fixture({ primaryLocation, scopeRoot, scopeKind, associationMode, obser
   const run = {
     procurement_run_id:'run-1',
     field_id:'field-1',
+    access_revision:1,
     selected_material_count:1,
     selection_scope_count:1,
     selection_scope_set_digest:scopeSetDigest,
     run_basis_digest:D('run-basis'),
   };
-  const access = { root_location:'.' };
+  const access = { root_location:fieldRoot };
   const materialContext = { member, identity:primaryIdentity, current:null };
   const queriedScopes = [];
   const scopeValueForUnit = relatedScope(
@@ -407,4 +408,29 @@ test('UAT-138 Related rule revision 2 includes Thumbs.db only from a BDMV extern
     current.context.relatedReferences.map((item) => [item.location, item.role]),
     [['Disc/Thumbs.db', 'sidecar']],
   );
+});
+
+for (const showRelativeRoot of ['Shows/走向共和 (2003)', '.']) test('Series candidate preserves absolute source root through real local NFO qualification: '+showRelativeRoot,()=>{
+  const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+  const {readBoundedFileSnapshotSync}=require('../../src/helix/integrations/bounded-material-fingerprint');
+  const {physicalIdentity}=require('../../src/helix/integrations/series-presentation-io');
+  const {qualifyReferences,readQualified}=require('../../src/helix/integrations/series-local-source-io');
+  const {buildReferenceSet}=require('../../src/helix/contracts/series-local-source');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'series-candidate-root-')),show=path.join(root,showRelativeRoot);
+  try {
+    fs.mkdirSync(show,{recursive:true});const location=path.join(show,'tvshow.nfo');
+    const bytes=Buffer.from('<tvshow><title>Show</title><season>-1</season><episode>-1</episode><uniqueid type="tmdb">1399</uniqueid></tvshow>');
+    fs.writeFileSync(location,bytes);
+    const reference={...observed(path.posix.join(showRelativeRoot,'tvshow.nfo'),'nfo',2),location,
+      identity:physicalIdentity(readBoundedFileSnapshotSync(location,256*1024,{requireStableSnapshot:true}),'mount-1')};
+    const season=path.posix.join(showRelativeRoot,'Season 01');
+    const {context}=fixture({primaryLocation:season+'/Show.S01E01.mkv',scopeRoot:season,scopeKind:'ordinary_directory',
+      associationMode:'multi_movie_directory',contentProfile:'series',fieldRoot:root,observed:[reference]});
+    const set=context.seriesPresentationSourceRefs;
+    assert.equal(set.fieldRoot,root);assert.equal(set.sourceRoot,show);assert.ok(path.isAbsolute(set.sourceRoot));
+    assert.deepEqual(readQualified(qualifyReferences(set,'1399'),'nfo').bytes,bytes);
+    const {sourceSetDigest,...body}=set;
+    assert.throws(()=>qualifyReferences(buildReferenceSet({...body,sourceRoot:path.relative(root,show)||'.'}),'1399'),{code:'SERIES_LOCAL_SOURCE_SCOPE_INVALID'});
+    assert.deepEqual(fs.readFileSync(location),bytes);
+  } finally { fs.rmSync(root,{recursive:true,force:true}); }
 });

@@ -1,5 +1,6 @@
 'use strict';
 
+const path = require('node:path');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { activeTriageRule } = require('../model/procurement-run-contracts');
 const { relatedArtworkRole } = require('../model/related-artwork-role');
@@ -275,7 +276,7 @@ function createProcurementCandidateContextReader(options) {
             item=candidates.sort((a,b)=>names.indexOf(baseName(a.relativeLocation||a.location).toLowerCase())-names.indexOf(baseName(b.relativeLocation||b.location).toLowerCase()))[0];
             if(item)references.push({artifactKind,endpointId:item.endpointId,location:item.location,physicalIdentity:item.identity,entryDigest:item.entryDigest});}
           if(references.some(row=>row.artifactKind==='nfo'))seriesPresentationSourceRefs=require('../../../contracts/series-local-source').buildReferenceSet({fieldId:basis.run.field_id,accessRevision:Number(basis.run.access_revision),
-            fieldRoot:basis.access.root_location,sourceRoot:sourceRoot==='.'?basis.access.root_location:normalizedLocation(basis.access.root_location)+'/'+sourceRoot,observationDigest:entry.payloadDigest,references});
+            fieldRoot:basis.access.root_location,sourceRoot:sourceRoot==='.'?basis.access.root_location:path.join(basis.access.root_location,sourceRoot),observationDigest:entry.payloadDigest,references});
         }
       }
       const context = Object.freeze({

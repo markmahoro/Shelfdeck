@@ -472,7 +472,8 @@ function createProcurementExecutionRuntime(options) {
     evidenceIndex, candidateContextReader, materialFieldStore: options.materialFieldStore, now,
     inspectFieldRoot: options.inspectFieldRoot });
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
-    nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal });
+    nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal,
+    onProcessCancelled: (scope) => executorIncidentObserver.reconcileRecoveryReservations(scope) });
   libraProcessServices=libraConstruction.createProcessServices({...libraOptions,peopleReferenceQuery,now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
     onTaskCancellationChanged:subjectId=>options.onFormationSubjectChanged?.(subjectId),
     onRecommendationActorConfirmed:receipt=>{options.onFormationSubjectChanged?.(receipt.subjectId);host?.wake();},

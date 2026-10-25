@@ -7,6 +7,7 @@ const path = require('node:path');
 const test = require('node:test');
 const Database = require('better-sqlite3');
 const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
+const { createWorkLifecycle } = require('../../src/helix/foundation/execution/work-lifecycle');
 const { createCircuitBreaker } = require('../../src/helix/foundation/diagnostics/pressure-guard');
 const { createExecutorIncidentObserver } = require('../../src/helix/foundation/execution/executor-incident-observer');
 const { createExecutorIncidentRegistry, OPEN_THRESHOLD } = require('../../src/helix/foundation/execution/executor-incident-registry');
@@ -48,7 +49,7 @@ function fixture(run) {
     return Object.freeze({ ownerDomain, processType, workKind, workId, workAttemptId:attemptId,
       workAttemptFailureCode:failureCode, workState });
   }
-  try { return run({ database, breaker, registry, observer, seedWork }); }
+  try { return run({ database, breaker, registry, observer, seedWork, unitOfWork }); }
   finally { database.close(); kernel.close(); fs.rmSync(root, { recursive:true, force:true }); }
 }
 
@@ -111,4 +112,51 @@ test('unattributable technical failures remain process-local and Libra business 
   assert.doesNotMatch(row.circuit_key,/\/resource\//);
   assert.equal(database.prepare("SELECT count(*) count FROM fx_executor_incidents WHERE owner_domain='libra'").get().count,1);
   for(const [table,count] of Object.entries(before))assert.equal(database.prepare('SELECT count(*) count FROM '+table).get().count,count);
+}));
+
+const mediaScope={ownerDomain:'libra',processType:'libra_run',workKind:'workspace_media_production',errorCode:'LIBRA_MEDIA_FFMPEG_TIMEOUT'};
+function reserveMedia(registry, observer, workId) {
+  for(let i=0;i<OPEN_THRESHOLD;i++)registry.recordFailure({...mediaScope,occurrenceId:'media-failure-'+i});
+  assert.equal(observer.prepareExecution({...mediaScope,resourceKeys:[],workId}).allowed,true);
+}
+for (const notification of ['delivered','interrupted']) test('direct cancellation releases recovery responsibility: '+notification,()=>fixture(({database,registry,observer,breaker,seedWork,unitOfWork})=>{
+  const work=seedWork({...mediaScope,workId:'cancelled-media',workState:'running',eventState:'ready',outcomeKind:'succeeded'});
+  reserveMedia(registry,observer,work.workId);
+  const lifecycle=createWorkLifecycle({schemaManifest,unitOfWork,nextWorkAttemptId:()=>assert.fail('unexpected attempt'),
+    ...(notification==='delivered'?{onProcessCancelled:scope=>observer.reconcileRecoveryReservations(scope)}:{})});
+  const result=lifecycle.cancelProcess({...mediaScope,processId:'process-1',reasonCode:'administrative_formation_retirement'});
+  assert.equal(result.cancelledWorks,1);
+  assert.deepEqual(lifecycle.pendingOwnerReconciliations(),[]);
+  if(notification==='interrupted') {
+    assert.equal(observer.prepareExecution({...mediaScope,resourceKeys:[],workId:'new-media'}).allowed,false);
+    // Reconstruct the observer over durable facts, as startup does after a lost notification.
+    const restarted=createExecutorIncidentObserver({schemaManifest,unitOfWork,registry});
+    assert.equal(restarted.reconcileRecoveryReservations().reopened,1);
+  }
+  assert.equal(breaker.read(registry.scopeKey(mediaScope)).state,'open');
+  assert.equal(registry.read(registry.incidentKey(mediaScope)).occurrence_count,3n);
+  assert.equal(registry.scopeStatus(mediaScope).blocked,true);
+  assert.equal(observer.reconcileRecoveryReservations().reopened,0);
+  assert.equal(observer.prepareExecution({...mediaScope,resourceKeys:[],workId:'new-media'}).allowed,true);
+  assert.equal(database.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(work.workId).state,'cancelled');
+}));
+for (const residual of ['active_work','active_attempt','executing_event','executing_attempt','unresolved_effect','unknown_owner'])
+ test('reservation reconciliation preserves unclosed responsibility: '+residual,()=>fixture(({database,registry,observer,breaker,seedWork})=>{
+  if(residual!=='unknown_owner')seedWork({...mediaScope,workId:'owner',workState:residual==='active_work'?'running':'cancelled',
+    eventState:residual==='executing_event'?'executing':'cancelled',outcomeKind:'cancelled'});
+  if(residual==='active_attempt')database.prepare("UPDATE fx_work_attempts SET state='running'").run();
+  if(residual==='executing_attempt')database.prepare("UPDATE fx_event_attempts SET state='executing'").run();
+  if(residual==='unresolved_effect')database.prepare("INSERT INTO fx_effect_journal(effect_id,event_attempt_id,effect_class,idempotency_key,intent_digest,state,updated_at_ms) VALUES(?,?,?,?,?,'reconcile_required',10000)")
+    .run('effect','owner:event:1:attempt:1','workspace_write','effect',digest('intent'));
+  reserveMedia(registry,observer,'owner');
+  assert.equal(observer.reconcileRecoveryReservations().reopened,0);
+  assert.equal(breaker.read(registry.scopeKey(mediaScope)).state,'recovering');
+  assert.equal(observer.prepareExecution({...mediaScope,resourceKeys:[],workId:'next'}).allowed,false);
+}));
+test('startup releases a closed reservation even if Incident state update was interrupted',()=>fixture(({database,registry,observer,seedWork})=>{
+  seedWork({...mediaScope,workId:'owner',workState:'cancelled',eventState:'cancelled',outcomeKind:'cancelled'});
+  reserveMedia(registry,observer,'owner');
+  database.prepare("UPDATE fx_executor_incidents SET incident_state='open'").run();
+  assert.equal(observer.reconcileRecoveryReservations().reopened,1);
+  assert.equal(registry.read(registry.incidentKey(mediaScope)).incident_state,'open');
 }));

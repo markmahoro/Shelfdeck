@@ -7,6 +7,9 @@ const Database = require('better-sqlite3');
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { openSqliteKernel } = require('../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/sqlite-unit-of-work');
+const { createCircuitBreaker } = require('../src/helix/foundation/diagnostics/pressure-guard');
+const { createExecutorIncidentRegistry } = require('../src/helix/foundation/execution/executor-incident-registry');
+const { createExecutorIncidentObserver } = require('../src/helix/foundation/execution/executor-incident-observer');
 const { createWorkLifecycle } = require('../src/helix/foundation/execution/work-lifecycle');
 const { createStoppedExecutionTerminationStore } = require('../src/helix/foundation/execution/stopped-execution-termination');
 const { observeStoppedTranscode } = require('./formation-stopped-transcode');
@@ -37,7 +40,11 @@ function createFormationRetirementOperator(options) {
         require('../src/helix/contracts/domain-types/SeriesPresentationManifest/v1/schema.json'),
         require('../src/helix/contracts/types/PhysicalMaterialIdentity/v2/schema.json')]})});
     const libra = createFormationRetirementStore({ ...dependencies, readArcaRetirementProof: arca.readRetirementProof });
-    const execution = createWorkLifecycle({ ...dependencies, nextWorkAttemptId: () => crypto.randomUUID() });
+    const circuitBreaker = createCircuitBreaker(dependencies);
+    const registry = createExecutorIncidentRegistry({ ...dependencies, circuitBreaker });
+    const incidentObserver = createExecutorIncidentObserver({ ...dependencies, registry });
+    const execution = createWorkLifecycle({ ...dependencies, nextWorkAttemptId: () => crypto.randomUUID(),
+      onProcessCancelled: (scope) => incidentObserver.reconcileRecoveryReservations(scope) });
     function query(read) {
       const db = new Database(databasePath, { readonly: true, fileMustExist: true });
       try { return read(db); } finally { db.close(); }

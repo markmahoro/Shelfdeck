@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-26 EXECUTION-RECOVERY-RESERVATION-CLOSURE / SERIES-SOURCE-ABSOLUTE-ROOT 修复资格进行中：在线取消及独立Reset Operator在提交后交由Foundation核对恢复占用；普通启动/Resume补查当前recovering责任，只对精确匹配、Work/Attempt/Event均终态且无未决Effect/等待者的占用重新开放Circuit，保留Incident及发生次数，不伪造成功。采购构建Series sourceRoot改用物理路径join，保留读取端绝对路径/containment校验。真实Host已通过“阻塞媒体→正式Reset→仍停止→模拟通知丢失→重启→Resume→正常重采→真实FFmpeg探测和入藏→Circuit关闭”；首轮暴露独立Operator漏接，修正后通过。生产仍c91fbed63，未部署或再次Reset；完整门禁和镜像资格待完成。
+
 2026-10-26 00:53（Asia/Shanghai）只读诊断确认恢复后媒体探测阻塞根因：已被Reset取消的旧Work仍独占Foundation Circuit recovering资格，14个新Work/194个ready Event被挡；实际取消入口与终态扫描存在收尾缺口，临时SQLite复现。另《走向共和》新包sourceRoot丢失Linux绝对路径首斜杠，触发正确的范围校验。两项未修，未改生产；7个Arca维护事件等待合法，调度器并非整体死亡。HTTP失败/P7记录漂移另行承接，见Evidence最新节。
 
 2026-10-25 23:46（Asia/Shanghai）恢复观察：7轮/42次API请求全部成功、running且无Runtime错误；五来源可读，国产剧21页及JAV1页新扫描完成，其余扫描进行中。工作台12进行中/0 attention，已核对无active且无Run/token异常。恢复后22组原记录仍missing=[]/changes=[]，新增Handoff/Decision正常保留；RestartCount0/OOM=false，其他15容器与fnOS正常。一次continuity basis过期已由Owner重规划成功。AbortSignal监听器数量警告保留观察，尚未证实泄漏；不得据短采样宣称吞吐、全部媒体验收或所有历史证据通过。既有24小时只读监控继续。

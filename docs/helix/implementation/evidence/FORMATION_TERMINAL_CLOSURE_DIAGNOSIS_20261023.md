@@ -586,3 +586,13 @@ NAS为7.6 GiB物理内存；两个验证容器并行时出现交换区压力，�
 其他事实：唐顿庄园及新一次暗算资料请求出现PLATFORM_INTEGRATION_HTTP_FAILED；当前持久失败仅保留通用码，尚无具体HTTP status证据，不能直接归因为网络或凭据。15:57Z P7_TRIAGE_UNIT_RECORD_DRIFT及Procurement探测失败继续独立调查，不能用它们解释已证实的恢复占用阻塞。监听器警告144次，但内存样本2.62→2.386 GiB，无OOM/restart，尚未证实泄漏。五来源新扫描完成，682收藏记录保持，无active且无Run/token异常。
 
 只读现场证据（ignored）：`stall-gates.jsonl`、`stall-reservation-owner.jsonl`、`stall-series-source-scope.jsonl`、`heartbeat-20261025T1644-*`、`diagnose-stall-api.log`；生产无写入。后续发布资格须增加“Reset/取消持有恢复资格的Work→重启→普通新任务实际完成媒体探测”的完整旅程。
+
+
+### 2026-10-26 恢复占用与Series根路径修复资格（未部署）
+
+- 根因修复均留在既有Owner：Foundation负责取消后的Circuit reservation收尾；Procurement负责新Candidate的物理sourceRoot构造。没有结构迁移、旧包改写、Circuit全清或版本白名单。
+- 在线cancelProcess及独立formation-retirement-operator均在取消事务提交后核对当前责任；普通Host start/Resume在供给开放前补查。以当前recovering Circuit为入口分页寻找exact reservation Work，要求全部Work/Attempt/Event闭合、Event Attempt completed、Effect committed/failed、无waiting defer；无法证明则保留占用。重新open保留故障与次数，只有后续实际成功路径才能resolved/close。
+- 定向新增正反例覆盖通知正常/丢失、Incident状态更新中断、活跃Work/Attempt/Event、执行中Attempt、未决Effect、未知持有者，以及嵌套剧根与Field即剧根的真实NFO qualification。保留-1占位、错误相对路径拒绝及来源字节不变断言。
+- 完整真实Host首轮Reset旅程FAIL：独立Operator另建WorkLifecycle，在线composition接线不覆盖它。补齐该生产入口后，同断言完整旅程PASS（47.7s）：真实媒体产生被阻塞Work→正式Runtime Stop/Reset→验证Work取消且Circuit重新open、未冒充resolved→注入通知中断→重建Host保持stopped→正式Resume→正常重采→真实媒体处理与Arca Commit→实际成功关闭Circuit。首轮失败日志与修正复验均保留。
+- 当前小组合23 PASS及Host回归33 PASS；扩大定向、Service、完整架构门禁、Windows打包和Linux实际镜像资格继续。生产未部署、未新Reset、未手动改任何Incident或Candidate。
+- 修复只约束新Candidate路径；既有不可变错误包不静默修补。高达/凡人歌及原五剧仍须以自然新包/实际执行结果验收，不能把这个隔离旅程称作全部生产媒体通过。
