@@ -604,3 +604,11 @@ NAS为7.6 GiB物理内存；两个验证容器并行时出现交换区压力，�
 - 发布前自检发现另一个可复现边界：同一Circuit有多条非resolved Incident时，取消可能选中较旧错误。新增回归先FAIL，现按Circuit实际reason_code选择错误归属，同时将同scope仍recovering的Incident收回open；所有次数/错误/evidence不变。15项observer正反例PASS，包括Incident状态更新中断。
 - 最终代码比ba75692d4只收紧该Foundation收尾条件，未改SourceRoot、UI、schema或依赖。ba的长门禁在开发目录执行，不符合独立固定checkout要求，且期间有以上开发修改，因此不计最终候选完整资格。最终候选使用独立固定验证checkout，长旅程可按完整注册用例名单分片，每个用例恰好覆盖一次，并运行同四项架构静态门禁；保留全部原始输出，不修改测试断言或产品时间限制。
 - 生产已于17:16:12Z停止并正常退出；201文件冷备于17:17:53Z校验完成，清单SHA256 46d5b36ed903bbd82e42f1c78f6c66eaaa6cb841dbc112cc7ebad13d3a923fb7。目录/vol2/1000/shelfdeck_backups/pre-ba75692d4-20261026。尚未部署或再次Reset。
+
+
+### 2026-10-26 02:07 最终副本与派生门禁复核（仍未部署）
+
+- 固定e2cc23c81实际Linux镜像与Windows独立包各56 PASS；NAS冷备完整副本重新验证于18:05:46Z完成：examined1/reopened1，235表中仅fx_circuit_states、fx_executor_incidents改变，233表摘要完全一致；682收藏不变，完整Kernel integrity、全库FK及两张变更表写后integrity通过。22组保护基线包含682收藏、941 ended Run。
+- 419普通文件首跑3261项：3231 PASS、4 FAIL、26 skip。两项来自SSOT行为条款误放物理表约束行且派生摘要漏同步；将行为放独立SSOT条款并生成source map，表/执行合同摘要保持，P2与source-map原断言通过。另整剧commit中断旅程在并行负载时等待已有任务收口超时，原用例独立复验PASS（102.4s）；Windows打包被验证checkout的node_modules junction触发EPERM，用实际依赖副本同用例PASS。原失败均保留，不改断言、timeout或产品门槛。长JAV/Series分片尚未结束，不提前称完整架构PASS。
+- 静态门禁发现本轮Procurement新增node:path未声明，按已有包粒度仅给domains.procurement.persistence声明该纯路径工具依赖，未放宽跨Owner调用或文件读写权限；四项静态全部PASS，boundary正反例和合同/来源定向19 PASS。
+- e78dbd82f相对e2cc23c81仅SSOT、来源摘要及依赖策略三个文件；运行JS、数据库Schema、测试均相同，继承上述真实副本/平台证据，最终镜像另作运行回归。e78dbd82f标准build/upload及独立SHA通过，tar SHA256 83dcf92ab2012e651fa3cb6034489e81d3660704392e9225712c29794cd3fadf；NAS加载镜像ID sha256:e3b2241a86f09f2a21adc459a25a38691349f6ee447d5ee4da8f299aec5952c4，正式deploy dry run已完成。生产仍c91停止，无Reset/手工改库/媒体改写。

@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-26 02:07（Asia/Shanghai）修复发布资格：最终运行代码e2cc23c81，待部署镜像e78dbd82f仅追加SSOT来源摘要及node:path依赖声明，运行JS/Schema/测试字节相同。真实NAS副本235表验证通过：仅Circuit/Incident两表预期变化，233表完全一致，682收藏/941 ended Run及22组保护基线保存；Windows独立包、Linux候选56项、四项静态及合同派生复验通过。完整分片Architecture长旅程继续；生产仍c91fbed63停机，未部署、未再次Reset。
+
 2026-10-26 01:16（Asia/Shanghai）修复候选ba75692d4资格：Service681 PASS/29 skip；Windows定向79 PASS、实际Reset→重启→自然重采→真实媒体入藏1 PASS、独立Windows包启动/停机/Reset预检PASS。Linux镜像79项PASS，首轮两媒体旅程因隔离盘小于5GiB安全余量失败；保留原断言、调整隔离空间后同镜像两项PASS，未改产品门槛。完整Architecture尚在执行。生产已正式Stop并正常退出，供给关闭；201文件冷备源/副本SHA一致，备份清单digest 46d5b36ed903bbd82e42f1c78f6c66eaaa6cb841dbc112cc7ebad13d3a923fb7。新镜像已标准构建/上传、tar SHA660b66696fb73e93bce9b83ac560e682c68933559acc8b1403b4634a8a56f846核验，NAS只加载未部署；副本逐表验证进行中。此次不重复Reset。
 
 2026-10-26 EXECUTION-RECOVERY-RESERVATION-CLOSURE / SERIES-SOURCE-ABSOLUTE-ROOT 修复资格进行中：在线取消及独立Reset Operator在提交后交由Foundation核对恢复占用；普通启动/Resume补查当前recovering责任，只对精确匹配、Work/Attempt/Event均终态且无未决Effect/等待者的占用重新开放Circuit，保留Incident及发生次数，不伪造成功。采购构建Series sourceRoot改用物理路径join，保留读取端绝对路径/containment校验。真实Host已通过“阻塞媒体→正式Reset→仍停止→模拟通知丢失→重启→Resume→正常重采→真实FFmpeg探测和入藏→Circuit关闭”；首轮暴露独立Operator漏接，修正后通过。生产仍c91fbed63，未部署或再次Reset；完整门禁和镜像资格待完成。
