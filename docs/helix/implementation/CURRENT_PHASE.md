@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-26 00:53（Asia/Shanghai）只读诊断确认恢复后媒体探测阻塞根因：已被Reset取消的旧Work仍独占Foundation Circuit recovering资格，14个新Work/194个ready Event被挡；实际取消入口与终态扫描存在收尾缺口，临时SQLite复现。另《走向共和》新包sourceRoot丢失Linux绝对路径首斜杠，触发正确的范围校验。两项未修，未改生产；7个Arca维护事件等待合法，调度器并非整体死亡。HTTP失败/P7记录漂移另行承接，见Evidence最新节。
+
 2026-10-25 23:46（Asia/Shanghai）恢复观察：7轮/42次API请求全部成功、running且无Runtime错误；五来源可读，国产剧21页及JAV1页新扫描完成，其余扫描进行中。工作台12进行中/0 attention，已核对无active且无Run/token异常。恢复后22组原记录仍missing=[]/changes=[]，新增Handoff/Decision正常保留；RestartCount0/OOM=false，其他15容器与fnOS正常。一次continuity basis过期已由Owner重规划成功。AbortSignal监听器数量警告保留观察，尚未证实泄漏；不得据短采样宣称吞吐、全部媒体验收或所有历史证据通过。既有24小时只读监控继续。
 
 2026-10-25 23:41（Asia/Shanghai）历史机制候选 `c91fbed63` 已标准部署，15:41:29.688Z Resume完成，running / normalSupplyAllowed=true / error=null。232→235原子切换及231原表保护通过；恢复前22组逐行历史完全相等，682收藏/941 ended Run不变。51,246 Plan证据迁入、27项保留明确失败审计，未重复Reset。五来源现场可读，新的常规观察及业务推进正在监控；真实自然重采验收和4K忙载吞吐仍开放。完整发布身份、门禁与残余见本轮Evidence。

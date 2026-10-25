@@ -563,3 +563,26 @@ NAS为7.6 GiB物理内存；两个验证容器并行时出现交换区压力，�
 - 既有`shelfdeck-2`只读24小时heartbeat已更新为c91运行状态，保留原周期和窗口，不延长；仅变化/故障通知，不自动Reset/部署/重启/改媒体。
 
 证据：`production-c91fbed63-monitor.log`、`production-c91fbed63-facts-preserve.log`、`production-c91fbed63-source-final.log`、`production-c91fbed63-new-failures.jsonl`、`production-c91fbed63-host-final.log`、`qualification-c91fbed63.json`。恢复供给后已有新事实，回退禁止直接覆盖冷备；须先停机、冻结当前事实并使用经保护验证的回退方案，旧f280镜像也不能直接启动235结构。
+
+
+### 2026-10-26 00:53 恢复后停滞：只读诊断确认两项缺陷
+
+用户要求“查一下”，本次未重启、Reset、改库、部署或修改媒体。产品仍c91fbed63。00:45观测167 ready且最近15分钟无Attempt，00:47又有Libra身份/资料执行，因此准确结论是媒体生产类别被持续阻塞，不能称整个调度器死亡。7个Arca duplicate事件归维护类别，当前不在维护窗口，等待本身合法。
+
+**EXECUTION-RECOVERY-RESERVATION-CLOSURE（根因确认、未修）**
+
+- `owner/libra/libra_run/workspace_media_production` Circuit仍为recovering，旧reason `LIBRA_MEDIA_FFMPEG_TIMEOUT`，incident occurrence_count=9。其evidence_digest `e14c694f92961f25c0e740b5fb9f3f34c400a9b0af0e02272183038c02c88c3a`精确等于按正式canonicalDigest算法为旧Work `libra-workspace-media-transcode_2_selection-work-fef144ddcf3c0adb3aa63416ae59da68e15a6ac5`计算的恢复占用摘要；不是仅凭名称猜测。
+- 占用者Run `88246654238fce5a61a4992d41de68e630a36bdc5d92ffc46f078855088ffbd8`与Subject均administratively_retired；Work/Attempt及4个Event已cancelled，Attempt reason为administrative_formation_retirement。恢复资格仍指向这个已取消Work。
+- Foundation `prepareExecution`会拒绝任何workId摘要不同的请求，返回resource_recovery_in_progress；00:49共14个新workspace_media_production Work/194个ready Event受该类别门禁影响，无未满足的图依赖，不是FFmpeg正在占满CPU。
+- `work-lifecycle.cancelProcess`直接结束Work，但没有通知Incident Observer；`pendingOwnerReconciliations`仅查running Work，永远不会重新找到该cancelled Work。正常Host终态路径才调用`observeTerminalWork → abandonExecution`。由此Reset/直接取消遗漏技术占用收尾。
+- 临时真实SQLite+实际Foundation Registry/Observer/WorkLifecycle复现：取得恢复资格→真实cancelProcess→Work cancelled、pending scan为空→新Work被拒；在临时库显式做cancelled终态观察后新Work可取得资格，原Incident没有被伪造为resolved。`stall-cancellation-repro.test.cjs`及同名log：1 PASS（断言缺陷存在与受控对照，不是修复PASS）。
+- 修复归Foundation，既要覆盖正常取消/行政退役，也要对持久恢复占用的Owner终态作可重放收尾。应只释放失效的恢复占用，保留Incident和历史失败，由新任务真实执行决定是否恢复；不能清空全部Circuit、伪造成功或再次Reset。前次副本Resume/记录保护资格没有覆盖Reset后实际媒体执行的这项技术责任，验收遗漏成立。
+
+**SERIES-SOURCE-ABSOLUTE-ROOT（根因确认、未修）**
+
+- 《走向共和》本次新包 `candidate-package-d25744b21f5687c1965fa43200bd18b01aa42889`冻结fieldRoot=`/media/chn_series`，却冻结sourceRoot=`media/chn_series/走向共和 (2003)`，缺开头`/`。三项实际reference均位于正确绝对剧根下。
+- Procurement `procurement-candidate-context-reader`使用本来用于相对Scope的`normalizedLocation(fieldRoot)`拼接绝对sourceRoot；所调用`bdmv-scope.normalized`明确删除首尾斜杠。对实际Linux路径调用该函数已复现缺失`/`。资料读取端`series-local-source-io.readReference`要求绝对路径，因此正确报SERIES_LOCAL_SOURCE_SCOPE_INVALID。这是新包生成缺陷，不是目录不可用，不能放宽下游路径安全校验掩盖。
+
+其他事实：唐顿庄园及新一次暗算资料请求出现PLATFORM_INTEGRATION_HTTP_FAILED；当前持久失败仅保留通用码，尚无具体HTTP status证据，不能直接归因为网络或凭据。15:57Z P7_TRIAGE_UNIT_RECORD_DRIFT及Procurement探测失败继续独立调查，不能用它们解释已证实的恢复占用阻塞。监听器警告144次，但内存样本2.62→2.386 GiB，无OOM/restart，尚未证实泄漏。五来源新扫描完成，682收藏记录保持，无active且无Run/token异常。
+
+只读现场证据（ignored）：`stall-gates.jsonl`、`stall-reservation-owner.jsonl`、`stall-series-source-scope.jsonl`、`heartbeat-20261025T1644-*`、`diagnose-stall-api.log`；生产无写入。后续发布资格须增加“Reset/取消持有恢复资格的Work→重启→普通新任务实际完成媒体探测”的完整旅程。

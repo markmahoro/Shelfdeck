@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-26 恢复监控新增两项已诊断缺陷：EXECUTION-RECOVERY-RESERVATION-CLOSURE（取消/Reset漏释放Foundation恢复占用）与SERIES-SOURCE-ABSOLUTE-ROOT（新包绝对路径被相对Scope规范化剥去首斜杠）。当前仅完成只读证据与隔离复现，尚未实施修复或生产处置；沿唯一Phase承接，保持收藏/历史，不用再次Reset代替根因修复。
+
 2026-10-25 历史合同机制三项已完成实现、固定候选资格和生产切换，c91fbed63已部署并正式Resume。接续工作是恢复后业务监控、自然采购的剧集/高达/凡人歌验收及27项明确旧证据不足的审计承接；不再执行Reset，不扩充按发布版本的运行兼容分支。4K忙载吞吐按用户决定延后。
 
 2026-10-25 用户确认实施 EXECUTION-CONTRACT-EVIDENCE / STARTUP-RESPONSIBILITY-RECOVERY / HISTORICAL-AUDIT-CUTOVER：清理按版本累积的运行兼容分支，合同证据随数据保存，启动按当前责任闭包验证，独立历史审计；保留收藏/历史且不重复Reset。按合同→原子保存→当前恢复/历史审计→一次性迁入→副本及发布资格顺序实施。补档案候选不单独部署。
