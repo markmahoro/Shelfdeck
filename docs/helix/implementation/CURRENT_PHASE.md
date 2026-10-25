@@ -8,7 +8,7 @@
 - `SERIES-EPISODE-NUMBERING`：唐顿S02E09/S06E09、暗算S01E11精确接口404已现场复现，本地NFO缺所需剧情；当前合同禁止拿别季/别集或整剧剧情替代。用户对保留本地编号/采用TMDB编目的方向待答复，未实现映射、放宽Spec或改媒体。
 - `FROZEN-PACKAGE-DISPOSITION`：琅琊榜旧包15:49Z冻结错误相对根；庆余年旧包10月12日缺season poster Reference，Arca无覆盖资格。普通重试不重建冻结输入；分别按未Accepted/已Accepted责任边界提出有界线上方案，不以新兼容逻辑改旧包、不再次全量Reset。
 - `PROCUREMENT-TERMINAL-FAILURE-QUERY`：已sealed且Candidate全部成功的旧采购，不应为判定技术失败重建其旧Structure。先读取精确Owner/Process的Work终态，确有Candidate失败才重建归属证据；保留真正失败的证据拒绝。真实SQLite红例2 FAIL→相关15 PASS，生产只读三组旧事实红绿验证通过；未写生产、未引入旧规则解释器。
-- `MEDIA-PROBE-TS-CRASH`：解除好友2：暗网的TS由固定Linux FFprobe N-66595-gc2b38619c0-static触发SIGSEGV，最简format及去掉data hash均复现；不是席位/目录/网络故障。替换探测二进制需覆盖现有HEVC色彩事实及ISO/TS，不降低探测预算、忽略崩溃或宣称源文件损坏。
+- `MEDIA-PROBE-TS-CRASH`：固定Linux FFprobe对现场TS及全新生成TS均SIGSEGV。John Van Sickle 7.0.2同样失败，BtbN8.1.3虽读TS但丢HEVC色彩、原三条真实验收失败，均不采用。Ubuntu24.04的7:6.1.1-3ubuntu5对现场8MiB只读样本及29项媒体验收通过；Docker固定该Probe并保留原FFmpeg，Compute自测同步尊重FFPROBE_PATH。Windows32 PASS/2既有平台或外部fixture skip；最终镜像ISO/TS/色彩及配置/自测资格待完成，不降低探测预算或验收标准。
 
 现场证据、测试覆盖与限制见[本轮Evidence最新节](evidence/FORMATION_TERMINAL_CLOSURE_DIAGNOSIS_20261023.md)。两条演员确认保持用户选择，不自动代选。
 

@@ -44,8 +44,9 @@ WORKDIR /app
 
 # Sharp's bundled text renderer still needs the system Fontconfig configuration
 # to discover the installed Latin and CJK fonts.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends fontconfig \
+RUN sed -i 's|http://archive.ubuntu.com|https://archive.ubuntu.com|g' /etc/apt/sources.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends fontconfig 'ffmpeg=7:6.1.1-3ubuntu5' \
     && fc-cache -f \
     && rm -rf /var/lib/apt/lists/*
 ENV FONTCONFIG_FILE=/etc/fonts/fonts.conf
@@ -61,10 +62,10 @@ RUN rm -f /usr/bin/python /usr/bin/python3 /usr/bin/python3.* \
 COPY media-service/package.json media-service/package-lock.json ./
 COPY --from=service-dependencies /app/node_modules ./node_modules
 COPY --from=service-dependencies /app/resources/face-models ./resources/face-models
-# Use the lockfile-pinned service probe on both supported platforms. The base
-# FFprobe 8.1 omits HEVC VUI primaries/transfer that the pinned artifact observes.
-# Keep the configured executable path and preserve unknown-media rejection.
-RUN node -e "const fs=require('fs'),source=require('@ffprobe-installer/ffprobe').path,target='/usr/local/bin/ffprobe'; fs.unlinkSync(target); fs.copyFileSync(source,target); fs.chmodSync(target,0o755);"
+# The npm Linux static probe crashes on valid MPEG-TS. The base 8.1 probe loses
+# declared HEVC color facts. Use the qualified Ubuntu probe without replacing
+# the base FFmpeg encoder or changing the configured service executable path.
+RUN node -e "const fs=require('fs'),target='/usr/local/bin/ffprobe'; fs.unlinkSync(target); fs.symlinkSync('/usr/bin/ffprobe',target);"
 COPY media-service/src/server.js ./src/server.js
 COPY media-service/src/clean-poster-renderer.js ./src/clean-poster-renderer.js
 COPY media-service/scripts/formation-retirement-history.js ./scripts/formation-retirement-history.js

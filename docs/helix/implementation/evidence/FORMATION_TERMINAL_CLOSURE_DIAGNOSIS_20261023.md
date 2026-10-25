@@ -704,3 +704,14 @@ ignored证据：repair-attention-api.json/db.json/summary.json、repair-provider
 - 0438334a4标准构建完成：image markmahoro/shelfdeck:0438334a4，image ID sha256:d2799144489ab2db28a269c4b6b8647315099e05468ad73839ec0479c993548e，tar SHA256 e70fc9ccfae94be3acf2c0aa911edf81235718f39051519440d9d9f4ecdd1297。Linux隔离111 PASS；该实际镜像只挂测试/文档的两条真实Platform连接回归2 PASS/33按名称过滤skip；Windows独立package自身Node25.9.0及native依赖clean initialize→Host→health200→close通过。完整Architecture固定在043冻结checkout继续运行；该结果不覆盖随后采购查询增量，不记完整PASS。Desktop旧测试FAIL保留。没有上传/部署该候选。
 
 新增ignored证据：repair-other-failures.json、repair-triage-readonly.json/log、repair-probe-readonly.json、triage-history-red/green.log、0438334a4-build.log/image-tests.log/windows-build.log/windows-smoke.log/architecture-tests.log。原始数据不入Git。
+
+### 2026-10-26 04:31 固定Linux FFprobe缺陷及替代资格
+
+- 为避免依赖用户影视，新增运行时测试通过当前FFmpeg生成1秒HEVC BT.709 MPEG-TS/Matroska，再调用实际配置的CleanMediaProbe。7d48b0c7c Linux镜像TS直接SIGSEGV、Matroska通过；Windows同一测试通过。这把故障缩小到固定Linux静态artifact，不是来源影片损坏、Libra规则或源目录权限。原Probe把进程崩溃作为技术失败而非not_media的负例继续保留。
+- 从NAS仅只读提取原TS前8MiB到ignored本地诊断目录，未复制完整4.2GB影片或改媒体。原artifact及John Van Sickle官方7.0.2构建（下载MD5匹配官方记录）对同一片段均exit139；基础镜像8.1以及BtbN n8.1.3-24-g92611900bb能读TS。但BtbN候选执行原真实媒体测试为26 PASS/3 FAIL，三个源的HEVC VUI primaries/transfer变unknown，原本独立原始探测为BT.709；不得放宽验收或推断缺失色彩来接受它。
+- BtbN archive源为FFmpeg官方download页链接的构建项目，固定autobuild-2026-10-25-13-00资产及GitHub发布SHA256 3300aa8c1d68e79e20d22117d3748a6121a49fe09b7eece3dcc38b84a1104e71一致；未安装到生产或产品镜像。相关来源：https://ffmpeg.org/download.html 、https://github.com/BtbN/FFmpeg-Builds/releases/tag/autobuild-2026-10-25-13-00 、https://johnvansickle.com/ffmpeg/ 。这些下载只用于隔离资格，不作为采用结论。
+- Ubuntu24.04签名软件源的ffmpeg包7:6.1.1-3ubuntu5所含/usr/bin/ffprobe读取现场TS样本成功，原29项媒体验收全部PASS（含三个真实HEVC色彩/源损坏/产物损坏场景）。第一次HTTP apt下载因archive连接失败未完成；改用同一官方源HTTPS后成功，未禁用签名/TLS检查。Docker候选固定该包，并把原/usr/local/bin/ffprobe位置链接到/usr/bin/ffprobe；原/usr/local/bin/ffmpeg、编码器、预算、配置路径及媒体准入标准不改。约206MB安装体积需接受为当前方案成本，不声称解决忙载吞吐。
+- 另发现Compute自测忽略FFPROBE_PATH、总用npm默认Probe。新增“明确配置不存在的Probe不能发布成功自测”真实CPU红例，修前错误通过、修后正确失败；有正常Probe的完整CPU管线仍通过。只尊重已有环境配置，不增加配置项或备用Probe路径。Windows相关34项为32 PASS/2 skip（平台signal用例及外部live fixture），最终Linux镜像资格待完成。
+- 7d48b0c7c中间候选标准构建：image ID sha256:d5b6a56f5552b77429f13c0764b2decf2c1c77e40464ee6dae3eaa165572d095，tar SHA256 3a200aba9a68ee9fd15feabef1ed9075a3364b043c396144a088495d1d83cbc5；镜像自身Source实际关键回归7 PASS，Windows独立包health200，采购增量Linux15 PASS。该中间候选不含Probe修复，不作为最终发布身份。043完整Architecture仍在固定checkout执行，采购/Probe增量单独资格，不把旧候选门禁结果直接改名。
+
+新增ignored日志：probe-format-red.log、probe-format-windows.log、probe-config-red.log、probe-windows-green.log、probe-ts-{pinned,base,7.0.2,btbn-8.1}.log、probe-btbn-color-qualification.log、probe-ubuntu[-https]-qualification.log；私有8MiB样本及下载artifact不入Git。全程无新增生产数据操作。

@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-26 04:31（Asia/Shanghai）TS探测根因已由全新合成TS复现为固定Linux artifact缺陷，不是用户视频损坏。两个替代构建分别TS崩溃/HEVC色彩验收失败；Ubuntu24.04固定7:6.1.1-3ubuntu5通过现场8MiB样本及29项媒体测试，Docker替换Probe候选待最终镜像资格，原FFmpeg保持。Compute自测忽略FFPROBE_PATH的独立红例也已修复；Windows相关32 PASS/2 skip。采购查询增量Linux15 PASS，7d48b0c7c实际镜像关键7 PASS、Windows独立包health200，但它不含本次Probe增量，不是最终发布版本。生产仍e78dbd82f，未部署/重试/取消/Reset。
+
 2026-10-26 04:14（Asia/Shanghai）补查并修复采购历史查询误重建：三组旧sealed Run的Candidate均succeeded，查询技术失败却用当前规则重建旧Series结果，触发P7_TRIAGE_UNIT_RECORD_DRIFT。改为先读实际Candidate失败资格，无失败即不解释无关旧Structure；真实只读生产数据三组红绿通过、写入计数0，隔离回归15 PASS。未加入旧规则兼容、未改生产任务。0438334a4镜像/Windows独立包已构建；Linux隔离111 PASS、实际镜像关键连接2 PASS，完整Architecture仍运行在043冻结checkout。采购增量另定位《解除好友2：暗网》为固定FFprobe进程SIGSEGV，最简format探测亦复现，暂不混入换二进制的广泛媒体变更。新代码候选待整合，生产仍e78dbd82f。
 
 2026-10-26 03:55（Asia/Shanghai）13条attention根因修复进行中，生产仍e78dbd82f、未部署/重试/取消/Reset。五条共享资料失败已由真实Host接线红绿回归定位并修正：Source误用Artifact端口，ee0c只修Handle未覆盖该层。地狱尖兵复现为第三个别名零候选被误判整个搜索失败，已修；HTTP状态经Secret/Metadata证据链丢失已补。唐顿S02/S06第9集、暗算S01第11集对应TMDB404，本地/Provider编目差异待设计；琅琊榜/庆余年均使用修复前冻结包，未改写输入或越权覆盖poster。Service682 PASS/29 skip、定向26+24+65及Owner恢复15 PASS，四项静态PASS；Linux资格进行中。Desktop旧测试启动失败、40用例未执行，保留FAIL，不记平台全绿。

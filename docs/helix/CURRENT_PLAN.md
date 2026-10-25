@@ -1,6 +1,6 @@
 # ShelfDeck 当前计划
 
-2026-10-26 用户要求继续修复13条attention：优先SERIES-PRESENTATION-PORT-WIRING，随后PROVIDER-EMPTY-SEARCH与PROVIDER-FAILURE-EVIDENCE；已完成现场诊断和红绿回归，继续固定候选资格。补查PROCUREMENT-TERMINAL-FAILURE-QUERY，消除无技术失败历史对当前采购的错误重建依赖，不加旧规则兼容。唐顿庄园S02/S06、暗算S01的本地/TMDB分集编号差异进入SERIES-EPISODE-NUMBERING待确认设计，不猜跨季映射或放宽缺剧情验收；琅琊榜和庆余年旧包处置单独确定，不复用走向共和的单条取消授权，不再全量Reset。MEDIA-PROBE-TS-CRASH已复现FFprobe SIGSEGV，二进制替换须单独覆盖HEVC色彩/ISO/TS资格，不能以重试收口。此次未部署或修改生产任务。
+2026-10-26 用户要求继续修复13条attention：优先SERIES-PRESENTATION-PORT-WIRING，随后PROVIDER-EMPTY-SEARCH与PROVIDER-FAILURE-EVIDENCE；已完成现场诊断和红绿回归，继续固定候选资格。补查PROCUREMENT-TERMINAL-FAILURE-QUERY，消除无技术失败历史对当前采购的错误重建依赖，不加旧规则兼容。唐顿庄园S02/S06、暗算S01的本地/TMDB分集编号差异进入SERIES-EPISODE-NUMBERING待确认设计，不猜跨季映射或放宽缺剧情验收；琅琊榜和庆余年旧包处置单独确定，不复用走向共和的单条取消授权，不再全量Reset。MEDIA-PROBE-TS-CRASH已复现到无用户内容的全新TS；拒绝两个不合格替代artifact，固定Ubuntu Probe候选继续HEVC色彩/ISO/TS资格，不改变转码器、预算或验收标准。此次未部署或修改生产任务。
 
 2026-10-26 02:47 《走向共和》唯一获准的旧包取消已通过线上入口完成，历史、源文件状态和收藏保护复核通过；等待正常重采的新包验收，不强制调度或扩大到其他影片。
 
