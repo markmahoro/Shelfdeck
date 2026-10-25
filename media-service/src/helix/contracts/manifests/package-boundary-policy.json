@@ -47,6 +47,10 @@
       "allow": ["node:path", "node:util"]
     },
     {
+      "source": "domains.procurement.persistence",
+      "allow": ["node:path"]
+    },
+    {
       "source": "domains.arca.persistence",
       "allow": ["node:fs", "node:os", "node:path"]
     },
