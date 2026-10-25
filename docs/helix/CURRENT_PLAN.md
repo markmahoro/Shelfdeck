@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-26 修复收口：EXECUTION-RECOVERY-RESERVATION-CLOSURE已在e78dbd82f生产真实执行验证，原Circuit解除且业务继续；SERIES-SOURCE-ABSOLUTE-ROOT已部署并通过真实NFO隔离回归，尚无修复后自然生成Series包的生产验收证据。旧冻结包处置需单独确认，新增外部检索失败及既有资料请求阻塞保留开放；不追加Reset，不关闭整轮真实媒体验收或4K吞吐事项。
+
 2026-10-26 EXECUTION-RECOVERY-RESERVATION-CLOSURE / SERIES-SOURCE-ABSOLUTE-ROOT 修复资格进行中：在线取消及独立Reset Operator在提交后交由Foundation核对恢复占用；普通启动/Resume补查当前recovering责任，只对精确匹配、Work/Attempt/Event均终态且无未决Effect/等待者的占用重新开放Circuit，保留Incident及发生次数，不伪造成功。采购构建Series sourceRoot改用物理路径join，保留读取端绝对路径/containment校验。真实Host已通过“阻塞媒体→正式Reset→仍停止→模拟通知丢失→重启→Resume→正常重采→真实FFmpeg探测和入藏→Circuit关闭”；首轮暴露独立Operator漏接，修正后通过。生产仍c91fbed63，未部署或再次Reset；完整门禁和镜像资格待完成。
 
 2026-10-26 恢复监控新增两项已诊断缺陷：EXECUTION-RECOVERY-RESERVATION-CLOSURE（取消/Reset漏释放Foundation恢复占用）与SERIES-SOURCE-ABSOLUTE-ROOT（新包绝对路径被相对Scope规范化剥去首斜杠）。当前仅完成只读证据与隔离复现，尚未实施修复或生产处置；沿唯一Phase承接，保持收藏/历史，不用再次Reset代替根因修复。

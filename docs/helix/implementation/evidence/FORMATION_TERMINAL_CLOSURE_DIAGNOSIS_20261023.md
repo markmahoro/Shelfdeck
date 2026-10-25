@@ -612,3 +612,20 @@ NAS为7.6 GiB物理内存；两个验证容器并行时出现交换区压力，�
 - 419普通文件首跑3261项：3231 PASS、4 FAIL、26 skip。两项来自SSOT行为条款误放物理表约束行且派生摘要漏同步；将行为放独立SSOT条款并生成source map，表/执行合同摘要保持，P2与source-map原断言通过。另整剧commit中断旅程在并行负载时等待已有任务收口超时，原用例独立复验PASS（102.4s）；Windows打包被验证checkout的node_modules junction触发EPERM，用实际依赖副本同用例PASS。原失败均保留，不改断言、timeout或产品门槛。长JAV/Series分片尚未结束，不提前称完整架构PASS。
 - 静态门禁发现本轮Procurement新增node:path未声明，按已有包粒度仅给domains.procurement.persistence声明该纯路径工具依赖，未放宽跨Owner调用或文件读写权限；四项静态全部PASS，boundary正反例和合同/来源定向19 PASS。
 - e78dbd82f相对e2cc23c81仅SSOT、来源摘要及依赖策略三个文件；运行JS、数据库Schema、测试均相同，继承上述真实副本/平台证据，最终镜像另作运行回归。e78dbd82f标准build/upload及独立SHA通过，tar SHA256 83dcf92ab2012e651fa3cb6034489e81d3660704392e9225712c29794cd3fadf；NAS加载镜像ID sha256:e3b2241a86f09f2a21adc459a25a38691349f6ee447d5ee4da8f299aec5952c4，正式deploy dry run已完成。生产仍c91停止，无Reset/手工改库/媒体改写。
+
+
+### 2026-10-26 02:33 标准发布与真实执行验证
+
+- 最终镜像 `markmahoro/shelfdeck:e78dbd82f`，source `e78dbd82fcb1d99fe76855f8d3951fdcc30b7ad6`；NAS image ID `sha256:e3b2241a86f09f2a21adc459a25a38691349f6ee447d5ee4da8f299aec5952c4`，tar SHA256 `83dcf92ab2012e651fa3cb6034489e81d3660704392e9225712c29794cd3fadf`。e2cc23c81与最终镜像内802个运行JS逐项SHA完全相同，清单digest `60eae5e7a604087254757fb1b62effde9ecddcc0bb18765cb190be1f419abf77`；最终版本仅补SSOT派生摘要和node:path依赖声明，未改变执行/表合同或UI。
+- 固定checkout完整421测试文件覆盖：普通419文件首轮3231 PASS/4 FAIL/26 skip；JAV74、Series30全部PASS。四项原失败分别经SSOT来源修正、实际依赖副本打包、原整剧commit中断用例独立复验收口；最终四项静态全部PASS。组合3365项/3339 PASS/26 skip/0未解决失败；原e2报告中boundary/contracts FAIL保留，不能将其原始报告改写为PASS。最终候选定向19 PASS、实际Linux最终镜像56 PASS（含真实媒体和Reset恢复）、同运行代码Windows独立包56 PASS及独立打包用例PASS。Service681 PASS/29 skip属于ba候选，后续仅Foundation实际opening cause收紧另有15项正反例和完整架构覆盖，未伪称重跑最终Service全套。
+- 生产17:16:12Z正式Stop后201文件冷备逐项SHA一致；最终部署前再次核对全部生产文件与该冷备完全一致。真实完整副本235表仅Circuit/Incident两表预期变化、233表完全一致，682收藏保留，Kernel全库integrity、FK及写后变更表integrity通过。没有再Reset、清库、改旧包或移动媒体。
+- 标准build/upload、独立SHA、deploy dry run、readiness、apply完成；18:22:26.920Z容器启动，运行意图仍stopped。18:26:06Z恢复前22组历史逐行完全相等。正式Resume操作从18:26:14.688Z至18:26:15.819Z完成，running/normalSupplyAllowed=true/error=null。18:27:34及18:30:09Z再次检查22组原行missing=[]/changes=[]，682收藏、941 ended Run及其3221修订保留。
+- Foundation先按终态证据重新open原恢复占用，真实媒体Work成功后于18:26:16.346Z将原Circuit closed，reason INVARIANT_RESTORED；没有人为伪造恢复成功。真实媒体生产Event成功数64→137→238→288，18:32:04Z仍closed；另US分析7、conformance1、Procurement观察3次成功。不存在active且无Run/token的异常Subject，FK正常。此为Event次数，不是新入藏影片数；采样时仍682收藏，没有新Arca Commit的验收声明。
+- 7轮/42次健康、Runtime、Field、overview、Formation和collection请求全部成功；五个来源实际stat/opendir可读，JAV新完整扫描完成，其他新观察继续。原始Formation projection含225个行政退役投影及旧attention，必须按当前Subject/业务资格过滤，不能报为新孤儿或当前attention。18:32当前API summary为13进行中/1 attention/676 completed。
+- 新attention是《地狱尖兵 (2022)》的 `libra.external_material.search@1`，18:29:41Z起连续三次 `P5_PROVIDER_TRANSPORT_FAILED` 后Work failed、Run frozen；诊断载荷为空，尚不能把原因认定为网络、凭据或Provider服务器错误。其他媒体仍继续、原Circuit仍closed。这是新失败，保留明确开放项，不能称全业务正常。唐顿庄园/暗算既有资料请求blocked继续开放。
+- 《走向共和》当前Run仍为e2e307359a9883a1f335b32fee058bf23be68836de9b7676664b3aae315bae93，旧不可变包仍含错误sourceRoot。已向用户提出仅通过现有线上入口取消此一任务、保留历史并等待正常重采的明确确认；截至本记录未收到同意，未执行。其他历史包也不静默改写。修复后尚无新Series Candidate进入本次样本，故真实NFO资格回归PASS不等于自然重采生产验收完成。高达/凡人歌未强制采购。
+- 首次监控辅助脚本经PowerShell DateTime转换丢失UTC偏移，错误把采样起点提前8小时，输出中的旧失败和16个旧Series包不得算作本次新增。已改为Node直接解析原JSON的UTC createdAt并拒绝不匹配边界；所有本节恢复后增量使用1792952774688。原错误样本保留用于审计，未据此改变生产。
+- 容器RestartCount0/OOM=false，其他15个容器保持。运行负载CPU约328–337%、容器内存3.703→3.32 GiB，包含真实媒体/AI子进程；AbortSignal监听器警告2次，尚无泄漏结论。4K忙载吞吐仍按用户要求延后。已清理本轮被最终版本替代的三个NAS tar（逐个精确SHA和路径核验），备份/数据库/媒体不动；vol1恢复约8.3GiB可用。两个本地验证checkout删除被自动审批以blocked by policy拒绝，未执行，继续保留，不重试绕过。
+- 既有24小时只读观察窗口继续，起点/截止不因这次发布延长；以本节新版本和UTC Resume边界为准，保留新增外部检索故障及旧包待确认，27个旧终态Plan证据不足不当作新启动阻断。未打Git release tag或批量关闭UAT。
+
+本节ignored证据：`e78dbd82f-final-qualification.json`、`e78dbd82f-runtime-image-identity.json`、`e78dbd82f-linux.log`、`e2cc23c81-production-copy.log`、`e78dbd82f-deploy-apply.log`、`e78dbd82f-facts-exact.log`、`e78dbd82f-facts-preserve-final.log`、`e78dbd82f-production-resume.json`、`e78dbd82f-monitor.log`及带时间戳的progress/failures/host日志。恢复后已有新事实，禁止直接用冷备覆盖当前数据库。
