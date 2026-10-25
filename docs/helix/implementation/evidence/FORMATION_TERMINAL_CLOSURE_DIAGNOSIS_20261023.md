@@ -715,3 +715,41 @@ ignored证据：repair-attention-api.json/db.json/summary.json、repair-provider
 - 7d48b0c7c中间候选标准构建：image ID sha256:d5b6a56f5552b77429f13c0764b2decf2c1c77e40464ee6dae3eaa165572d095，tar SHA256 3a200aba9a68ee9fd15feabef1ed9075a3364b043c396144a088495d1d83cbc5；镜像自身Source实际关键回归7 PASS，Windows独立包health200，采购增量Linux15 PASS。该中间候选不含Probe修复，不作为最终发布身份。043完整Architecture仍在固定checkout执行，采购/Probe增量单独资格，不把旧候选门禁结果直接改名。
 
 新增ignored日志：probe-format-red.log、probe-format-windows.log、probe-config-red.log、probe-windows-green.log、probe-ts-{pinned,base,7.0.2,btbn-8.1}.log、probe-btbn-color-qualification.log、probe-ubuntu[-https]-qualification.log；私有8MiB样本及下载artifact不入Git。全程无新增生产数据操作。
+
+### 2026-10-26 04:46 最终修复镜像资格与剩余处置
+
+本轮实现由0438334a45a46e6084edb33a0d4db978bc3fd9e8（真实Host端口、空搜索及安全HTTP证据）、7d48b0c7c3ee3891ee27b5f39cda4bfda34ba11a（采购终态失败查询）、b2dac98fca63f45b673616c36b322a031f687c4b（Linux Probe及配置自测）组成。没有新增Schema、Owner权限、旧包兼容或UI交互。
+
+- 最终镜像：`markmahoro/shelfdeck:b2dac98fc`，revision `b2dac98fca63f45b673616c36b322a031f687c4b`，image ID `sha256:336b657d165ff051f1db143092ee58d90b583d7bcd693c568cecf9910cc18e5f`；标准build-image.js产物tar 824.2MiB，独立Get-FileHash复核SHA256 `27171b1e74958d65cc4d7b8dbd7acf4a7f01e78bc8c0a7d0a566915cac22ed5d`。没有上传或部署。
+- 原FFmpeg SHA256仍为`d840b4874847a49142dc86977db727758203360eca6cbb3eb8e7e8fd3d229d69`；新Probe SHA256为`272f6ebc634a63d9c8b4ca68e964119d980f25154e5aa2c35e5487da48e9a58f`。本轮不改变编码器或宣称解决4K吞吐。
+- 最终Service：713 total / 684 PASS / 29 skip / 0 FAIL。实际最终Linux镜像只挂测试及文档、不覆盖src或二进制：103 total / 102 PASS / 1 skip / 0 FAIL，覆盖TS、ISO remux与产物解码、三条真实HEVC色彩与损坏负例、Compute明确Probe配置、采购失败查询、TMDB及MoviePilot连接。唯一skip为未配置外部live BDAV fixture；现场8MiB TS片段可读仅证明Probe不再崩溃，不等于整部影片入藏验收。
+- Windows相关Probe/ISO/Compute为32 PASS / 2平台或外部fixture skip；最终Windows独立包自身Node25.9.0及native依赖初始化→Host→health200→close通过。最终Linux镜像network none、只读根、临时data的冷启动health200通过。四项静态边界/语义/manifest/合同全部PASS。Desktop既有两套启动失败、40用例未执行仍为FAIL，未把独立包smoke替代该套测试。
+- 完整Architecture仍在固定0438334a4 checkout执行真实长旅程；采购与Probe增量另有相关回归及最终镜像资格，不能把043结果直接标成b2全量结果。最终结果在完成后追加。
+
+20:38:36.142Z生产GET快照：running、normalSupplyAllowed=true、error=null；Formation 8进行中/14 attention（其completed数不是收藏Own数量）。相对最初13条多出一条Lia Ponce无演员候选人工确认，当前共三条此类确认，未自动代选。03:45保存的快照已经包含这第14条，不能把它说成此次20:38请求中新产生的故障。生产仍e78dbd82f，本轮没有重试、取消、Reset、部署或源文件改动；缺陷仍待上线验收。
+
+20:37:24.498Z新的TMDB只读事实补充：暗算68670的S1听风10集、S2看风12集、S3捕风12集，另有S4第4季34集；唐顿Specials包含S00E02（2011圣诞特别篇，2011-12-25）及S00E11（2015圣诞特别篇大结局，2015-12-25），两者有剧情。它们是可供核对的资料候选，不证明本地S02E09/S06E09或暗算34集必然对应，不能自动借用剧情、改季集号或降低验收。用户关于保留本地编号/采用Provider编目的方向尚待答复。
+
+旧包逐条处置边界：琅琊榜尚未Accepted，可在取得该条明确授权后使用既有线上取消，再等待正常采购生成正确绝对根的新包；不复用走向共和授权。庆余年S02已Accepted且旧包缺poster Reference，普通重试/recheck不能获得覆盖资格；当前SSOT与新管理入口仅定义整工作台Reset，禁止把旧physical-delete CLI的subject-ids当成新功能。该条保持开放；如需限定管理退役，必须先确认其范围合同、共享责任闭包与历史保护，不先改实现或执行全量Reset。
+
+最终ignored证据：b2dac98fc-build.log、b2dac98fc-service-tests.log、b2dac98fc-image-qualification.log、b2dac98fc-static.log、b2dac98fc-windows-build.log、b2dac98fc-windows-smoke.log、b2dac98fc-linux-smoke.log、b2dac98fc-binary-identity.log、b2dac98fc-production-sample-probe.log、repair-series-numbering-readonly.json、repair-final-production-*。原始资料与媒体片段不入Git。
+
+### 2026-10-26 04:55 庆余年旧包为何在Reset后首次进入Libra
+
+不能止于“旧冻结包”结论。20:53–20:54Z只读溯源确认：Candidate e28c7053…与Offer 3409c049…于10月12日11:11:33.364Z发布/发出，原Offer直到10月25日15:55:49.548Z才形成首次accepted_resolution，并创建Subject 3e88f54c…；15:57:10.464Z创建本轮Run。没有旧Subject重启或旧Accepted Decision回卷。正式10月25日Reset预览/Receipt是225 Subject、0 pending Intake，该Offer及包不在退役范围。
+
+`formation-retirement-plan.js`仅从工作台Subject、pre-deck token及非终态libra_intake Work发现pending process，再匹配其Offer；尚未进入Libra执行的Procurement open Delivery不在该范围。SSOT当前Administrative Formation Reset保持Procurement事实/Field Control，未定义任意待接纳旧Offer的退役资格。这是“清理整理工作台”与“重新形成所有采购包”之间的范围缺口，不能以普通重试或再次相同Reset证明解决，也不能擅自把旧physical-delete CLI当替代。
+
+20:54:28.450Z现场open Delivery计数：Movie258、Series129、Western Adult689；129个Series中114个series_source_refs_json为NULL、15个非NULL。该数是排队包数，不是新增attention、影片数或必然失败数，NULL不等于已证明每包都会冲突。庆余年的精确因果已证明；其他待接纳包需要独立按当前输入要求识别，不能按发布日期直接判坏或删除。readonly/query_only查询total_changes=0，证据`repair-old-package-lineage.json`及原Reset Receipt均保留。
+
+新增唯一Phase工作项PROCUREMENT-QUEUED-OFFER-RETIREMENT为Design：拟在停止态冻结未Accepted/Rejected的精确Offer及当前Selection，先证明无Handoff A接纳与未决执行，由现有Owner分别追加管理退役Receipt，仅释放精确Selection，保留Candidate/观察/Run与Procurement Field Control，迟到Offer消费同一退役事实；随后只允许正常观察重评，不强制采购。现有合同只定义已进入Libra pending Intake的该链路，向未准入队列扩展仍需用户确认；未实施或执行生产退役。本项也不自动解决已Accepted的庆余年单条处置。
+
+### 2026-10-26 04:58 完整门禁首跑与定向收口
+
+固定0438334a4 checkout的完整Architecture用时3447821ms，3367 total / 3338 PASS / 3 FAIL / 26 skip，原始日志与退出1保留。采购查询及Probe后续增量按前述定向/实际b2镜像资格单独证明，不把完整门禁改名为b2一次全绿。
+
+1. `p4-contract-dispatcher`精确清单断言漏了已在生产e78dbd82f中声明的`domains.procurement.persistence -> node:path`（绝对路径修复所需）。只同步该断言，未扩展运行权限、删除负例或修改manifest；相关7项PASS。
+2. `windows-service-package`在冻结checkout中复制junction型node_modules导致Windows EPERM；不是独立包Host失败。相同测试原断言在真实依赖目录运行，完整构建、native依赖、独立启动、API/模型/二进制及禁止覆盖/越界路径负例通过；不是仅复用前述health smoke。
+3. `procurement-category-host`首跑在65个包/1081材料与两个sealed completed Run均已满足后，因存在一个failed Attempt违反零失败断言。原测试没有输出该Attempt明细且fixture已清理，不能声称确定为资源竞争或产品缺陷。原代码/原断言复验PASS；随后仅把同一零失败断言补成输出最多10条event_id/failure_code/evidence_digest，二次运行仍PASS，未放宽任何成功/材料守恒条件。根因证据不足作为本次资格限制保留，未来复现可直接定位。
+
+新增定向日志：`final-architecture-rechecks.log`（采购及Windows2 PASS）、`final-boundary-expectation.log`（7 PASS）、`final-category-diagnostic-check.log`（1 PASS）。此次最终追加仅涉及测试和记录，b2dac98fc运行源码、Schema、依赖及镜像字节不变。Desktop旧套件启动失败限制继续保留。原24小时监控截止不变，自动化基线已同步为生产14 attention和旧队列诊断，仍只读且禁止自动实施修复。

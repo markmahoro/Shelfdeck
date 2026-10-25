@@ -1,16 +1,17 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
-2026-10-26 恢复后13条attention修复工作项（用户已授权诊断与实施，未新增UAT编号）：
+2026-10-26 恢复后13条attention修复工作项（20:38Z已为14条，多出一条演员人工确认；用户已授权诊断与实施，未新增UAT编号）：
 
-- `SERIES-PRESENTATION-PORT-WIRING`：真实Host composition按operation分派Source到Observation、Assets到Artifact；真实Handle/Secret/adapter仅隔离HTTP传输的poster/fanart回归先红后绿，保留反向端口拒绝。前次ee0c仅覆盖Handle发放，不能作为生产接线正确的证据。待固定候选及五条线上验收。
+- `SERIES-PRESENTATION-PORT-WIRING`：真实Host composition按operation分派Source到Observation、Assets到Artifact；真实Handle/Secret/adapter仅隔离HTTP传输的poster/fanart回归先红后绿，保留反向端口拒绝。前次ee0c仅覆盖Handle发放，不能作为生产接线正确的证据。候选b2dac98fc实际镜像回归通过，五条线上验收仍待部署。
 - `PROVIDER-EMPTY-SEARCH`：MoviePilot明确“未搜索到任何资源”且空data为该关键词零候选，保留其他关键词候选及去重；未知失败/非空矛盾响应/HTTP失败仍拒绝。真实Platform端口回归先红后绿；不改变唯一候选获取或身份/质量筛选。
 - `PROVIDER-FAILURE-EVIDENCE`：TMDB JSON HTTP stage/status经Secret broker安全白名单及Metadata failed Outcome持久保留；不回填缺失历史证据，不新增UI文案或业务权限。
 - `SERIES-EPISODE-NUMBERING`：唐顿S02E09/S06E09、暗算S01E11精确接口404已现场复现，本地NFO缺所需剧情；当前合同禁止拿别季/别集或整剧剧情替代。用户对保留本地编号/采用TMDB编目的方向待答复，未实现映射、放宽Spec或改媒体。
 - `FROZEN-PACKAGE-DISPOSITION`：琅琊榜旧包15:49Z冻结错误相对根；庆余年旧包10月12日缺season poster Reference，Arca无覆盖资格。普通重试不重建冻结输入；分别按未Accepted/已Accepted责任边界提出有界线上方案，不以新兼容逻辑改旧包、不再次全量Reset。
+- `PROCUREMENT-QUEUED-OFFER-RETIREMENT`（Design，未授权合同扩展）：庆余年10月12日发布的同一Offer在10月25日15:55Z才首次Accepted，说明工作台Reset后新Subject仍可来自旧采购队列。20:54Z共有129个open Series Offer，其中114个包无seriesSourceRefs；不能把它们全计为失败，但不能承诺Reset等于重新采集全部包。现有Reset从Subject/token/open Intake Work发现范围，不覆盖尚无Libra责任的待接纳Offer。拟定停止态、精确旧Offer范围、跨Owner分别留退役Receipt、仅释放该Selection及自然重新观察的保留历史方案；需确认合同后才实施，不增加版本兼容或直接改库。
 - `PROCUREMENT-TERMINAL-FAILURE-QUERY`：已sealed且Candidate全部成功的旧采购，不应为判定技术失败重建其旧Structure。先读取精确Owner/Process的Work终态，确有Candidate失败才重建归属证据；保留真正失败的证据拒绝。真实SQLite红例2 FAIL→相关15 PASS，生产只读三组旧事实红绿验证通过；未写生产、未引入旧规则解释器。
-- `MEDIA-PROBE-TS-CRASH`：固定Linux FFprobe对现场TS及全新生成TS均SIGSEGV。John Van Sickle 7.0.2同样失败，BtbN8.1.3虽读TS但丢HEVC色彩、原三条真实验收失败，均不采用。Ubuntu24.04的7:6.1.1-3ubuntu5对现场8MiB只读样本及29项媒体验收通过；Docker固定该Probe并保留原FFmpeg，Compute自测同步尊重FFPROBE_PATH。Windows32 PASS/2既有平台或外部fixture skip；最终镜像ISO/TS/色彩及配置/自测资格待完成，不降低探测预算或验收标准。
+- `MEDIA-PROBE-TS-CRASH`：固定Linux FFprobe对现场TS及全新生成TS均SIGSEGV。John Van Sickle 7.0.2同样失败，BtbN8.1.3虽读TS但丢HEVC色彩、原三条真实验收失败，均不采用。Ubuntu24.04的7:6.1.1-3ubuntu5对现场8MiB只读样本及29项媒体验收通过；Docker固定该Probe并保留原FFmpeg，Compute自测同步尊重FFPROBE_PATH。Windows32 PASS/2既有平台或外部fixture skip；最终镜像ISO/TS/色彩及配置/自测已纳入102 PASS/1外部fixture skip的资格，不降低探测预算或验收标准，完整影片生产验收仍开放。
 
-现场证据、测试覆盖与限制见[本轮Evidence最新节](evidence/FORMATION_TERMINAL_CLOSURE_DIAGNOSIS_20261023.md)。两条演员确认保持用户选择，不自动代选。
+最终实现候选b2dac98fc的实际Linux镜像102 PASS/1外部fixture skip，Service684 PASS/29 skip、四项静态及Windows/Linux独立启动通过；0438334a4完整Architecture首跑3338 PASS/3 FAIL/26 skip，三项同步断言/隔离环境复验通过，采购首跑一次失败原因未保留明细，补明细后原严格门槛再验通过。采购/Probe增量分开记录，不能宣称b2全量一次通过。生产未部署，五条线上验收未完成。现场证据、测试覆盖与限制见[本轮Evidence最新节](evidence/FORMATION_TERMINAL_CLOSURE_DIAGNOSIS_20261023.md)。当前三条演员确认保持用户选择，不自动代选。
 
 2026-10-26 02:47（Asia/Shanghai）按用户明确授权，仅通过线上discard取消《走向共和》旧Run e2e307359a9883a1f335b32fee058bf23be68836de9b7676664b3aae315bae93，18:46:48.665Z完成：Run discarded、Subject abandoned、59个Control released、token释放、取消Receipt完成。182个来源文件stat清单及旧Candidate全文摘要前后相同；22组既有历史原行无缺失/改写、682收藏不变。未Reset或强制重新采购；等待正常采购新包，单条取消不再待确认。
 

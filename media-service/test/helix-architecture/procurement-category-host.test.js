@@ -36,7 +36,8 @@ test('Procurement Host conserves 1081 category videos across complete Season gro
     assert.equal(packages.length,65);assert.equal(members.length,1081);assert.equal(new Set(members.map(row=>row.material_key)).size,1081);
     assert.ok(packages.every(row=>row.structure_kind==='season'&&row.content_profile==='series'));
     const sizes=db.prepare('SELECT procurement_run_id,count(*) n FROM proc_run_materials GROUP BY procurement_run_id').all();assert.ok(sizes.every(row=>row.n<=1024));
-    assert.equal(db.prepare('SELECT count(*) n FROM fx_event_attempts WHERE failure_code IS NOT NULL').get().n,0);
+    const failedAttempts=db.prepare('SELECT event_id,failure_code,evidence_digest FROM fx_event_attempts WHERE failure_code IS NOT NULL').all();
+    assert.equal(failedAttempts.length,0,JSON.stringify(failedAttempts.slice(0,10)));
     for(const file of files)assert.ok(fs.existsSync(file));assert.deepEqual(db.pragma('foreign_key_check'),[]);assert.equal(db.pragma('integrity_check')[0].integrity_check,'ok');
   }finally{await host.close();db.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
 });

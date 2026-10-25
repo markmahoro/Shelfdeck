@@ -1,5 +1,9 @@
 # ShelfDeck 当前计划
 
+2026-10-26 04:58 已完成五条共享资料、搜索、诊断证据、采购查询与Probe的本地修复资格；生产发布与六条线上重试仍待该范围授权。完整Architecture首跑及三项修正/复验均保留，不宣称一次全绿；候选运行代码/镜像b2dac98fc不变。补查确认庆余年来自Reset后才首次接纳的旧采购Offer，新增PROCUREMENT-QUEUED-OFFER-RETIREMENT Design，用户是否纳入本轮的合同方向待答复；当前129个排队Series包中114无新版引用，不等同114个已失败条目，不执行队列清理或再次Reset。
+
+2026-10-26 04:46 本轮实现冻结在b2dac98fc，镜像及Windows包资格已完成；完整Architecture基线0438334a4继续运行，采购/Probe增量独立验证。等待本轮具体生产发布/重试范围授权后才执行标准部署及五条剧集、地狱尖兵线上验收；当前不修改生产。唐顿/暗算季集映射待用户方向，琅琊榜需单条取消授权，庆余年已Accepted旧包没有现成安全单片Reset入口，不调用旧物理删除CLI或再次全量Reset。当前新增的第三条演员确认仍为人工选择。
+
 2026-10-26 用户要求继续修复13条attention：优先SERIES-PRESENTATION-PORT-WIRING，随后PROVIDER-EMPTY-SEARCH与PROVIDER-FAILURE-EVIDENCE；已完成现场诊断和红绿回归，继续固定候选资格。补查PROCUREMENT-TERMINAL-FAILURE-QUERY，消除无技术失败历史对当前采购的错误重建依赖，不加旧规则兼容。唐顿庄园S02/S06、暗算S01的本地/TMDB分集编号差异进入SERIES-EPISODE-NUMBERING待确认设计，不猜跨季映射或放宽缺剧情验收；琅琊榜和庆余年旧包处置单独确定，不复用走向共和的单条取消授权，不再全量Reset。MEDIA-PROBE-TS-CRASH已复现到无用户内容的全新TS；拒绝两个不合格替代artifact，固定Ubuntu Probe候选继续HEVC色彩/ISO/TS资格，不改变转码器、预算或验收标准。此次未部署或修改生产任务。
 
 2026-10-26 02:47 《走向共和》唯一获准的旧包取消已通过线上入口完成，历史、源文件状态和收藏保护复核通过；等待正常重采的新包验收，不强制调度或扩大到其他影片。
