@@ -64,7 +64,7 @@ function fixture(settings = {}) {
       workPlanIds: workId => [...graphs.values()].filter(graph => graph.work.work_id === workId).map(graph => graph.plan.plan_id) }); } },
     terminalOnly:settings.terminalOnly, terminalEffectObserver:settings.terminalEffectObserver,
     historicalProofResolver: settings.historicalProofResolver, onRejected: reason => reasons.push(reason) }); }
-  return { facts, witness, schemas, registry, graphs, reasons, verifier, verify: () => verifier().verify(facts), prefix };
+  return { facts, witness, schemas, registry, graphs, reasons, verifier, settings, verify: () => verifier().verify(facts), prefix };
 }
 
 function effectHistoryFixture() {
@@ -623,4 +623,35 @@ test('a single frozen Catalog rejects a different payload shape even with a vali
   f.facts.results[0].result_json = JSON.stringify({ frozenField: true });
   f.facts.results[0].result_digest = canonicalDigest({ frozenField: true });
   assert.equal(f.verify(), true, f.reasons.join('\n'));
+});
+
+
+test('dependency proof observes every terminal Owner graph outside the proof transaction', () => {
+  const f = stageHistoryFixture();
+  const ids = new Set(['plan', 'attempt', 'work', 'node', 'slot', 'event', 'slot-event', 'execution',
+    'slot-attempt', 'slot-result', 'stage-effect', 'slot-effect', 'slot-receipt']);
+  function rename(value) {
+    if (Array.isArray(value)) return value.map(rename);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, rename(child)]));
+    return typeof value === 'string' && ids.has(value) ? 'source-' + value : value;
+  }
+  const source = rename(f.facts), receipt = rename(f.receipt);
+  source.effects[0].intent_digest = canonicalDigest({ eventId: 'source-event', capabilityRef: 'libra.fixture@1',
+    contractVersion: 1, inputSnapshotDigest: HASH, fenceSnapshotDigest: HASH });
+  f.graphs.set('source-plan', source);
+  const input = JSON.parse(f.facts.nodes[1].input_bindings_json);
+  input.bindings[0] = { portName: 'value', bindingKind: 'projected_work_results', sourceWorkId: 'source-work',
+    projectionRef: 'projection@1', resultSchemaRefs: [f.prefix + 'result'], parameters: {} };
+  f.facts.nodes[1].input_bindings_json = JSON.stringify(input);
+  const calls = [];
+  f.settings.terminalEffectObserver.observe = graph => {
+    calls.push(graph.plan.plan_id);
+    return [graph.plan.plan_id === 'plan' ? f.receipt : receipt];
+  };
+  const before = JSON.stringify([...f.graphs]);
+  assert.equal(f.verify(), true, f.reasons.join('\n'));
+  assert.deepEqual(calls, ['plan', 'source-plan']);
+  assert.equal(JSON.stringify([...f.graphs]), before);
+  f.settings.terminalEffectObserver.observe = () => [f.receipt];
+  assert.equal(f.verify(), false, 'A root receipt cannot cover a foreign dependency Effect.');
 });

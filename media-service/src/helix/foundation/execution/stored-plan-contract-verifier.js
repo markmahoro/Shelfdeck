@@ -51,11 +51,13 @@ function createStoredPlanContractVerifier(options) {
     const catalogDigest = executionCatalogDigest(registry, policyRegistry);
     const preboundEvidenceSchemas = {};
     for (const [ref, value] of byRef) for (const declared of value.manifest.preboundEvidenceContracts || []) {
-      if (!['domain_evidence', 'full_result'].includes(declared.representation)) throw new Error('Unknown Evidence representation.');
+      if (!['domain_evidence', 'full_result', 'evidence_reference'].includes(declared.representation)) throw new Error('Unknown Evidence representation.');
       const closure = canonicalDigest(schemaClosure({ inputPorts: { evidence: { schemaRef: declared.schemaRef } } }, schemas));
       const entry = preboundEvidenceSchemas[declared.schemaRef] ||= { capabilityRefs: [], previousSchemaDigest: closure,
-        currentSchemaDigest: closure, ...(declared.representation === 'full_result' ? { fullResultRecord: true } : {}) };
-      if (Boolean(entry.fullResultRecord) !== (declared.representation === 'full_result')) throw new Error('Conflicting Evidence representation.');
+        currentSchemaDigest: closure, ...(declared.representation === 'full_result' ? { fullResultRecord: true } : {}),
+        ...(declared.representation === 'evidence_reference' ? { referenceRecord: true } : {}) };
+      if (Boolean(entry.fullResultRecord) !== (declared.representation === 'full_result') ||
+          Boolean(entry.referenceRecord) !== (declared.representation === 'evidence_reference')) throw new Error('Conflicting Evidence representation.');
       entry.capabilityRefs.push(ref);
     }
     const witness = { policyDigest: policyRegistry.digest, previousCatalogDigest: catalogDigest, currentCatalogDigest: catalogDigest,

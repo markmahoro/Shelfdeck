@@ -720,14 +720,14 @@
       },
       "contract": {
         "packagePath": "capabilities/arca/jav_correction/files/verify/v1",
-        "packageDigest": "ea6972fe890f3e9ab55c138588a1753040eb663f34174cb7037c6af87cc699c1",
+        "packageDigest": "80d2fea22f3f50321deb9b7c1612808bed3ba9ec54d0b066ff3b26012758c8b3",
         "effectClass": "domain_fact_commit",
         "inputSummary": "JavCorrectionScope",
         "outputFamily": "FinalProductVerificationRecord"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "2bb6ba6f00821da70ea108b75665d03abd512689a19547b41e5959a4e78d4f64"
+        "value": "ea3916d37d17ac0db1f9af4352bc19248389e75888dcea9c333ce9b305c2618a"
       }
     },
     {

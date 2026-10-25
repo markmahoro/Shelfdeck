@@ -48,7 +48,7 @@ test('clean package IDs exactly match the accepted P1 physical skeleton', () => 
 
 test('each Domain exposes one frozen public package identity', () => {
   const expectedExports = {
-    procurement: ['PACKAGE_ID', 'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade', 'createCandidateAcceptanceConsumer', 'createCandidateRetirementStore'],
+    procurement: ['PACKAGE_ID', 'CandidateDeliveryPort', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade', 'createCandidateAcceptanceConsumer', 'createCandidateRetirementStore', 'retryCommandExecutionContract'],
     libra: ['PACKAGE_ID', 'LibraExecutionRegistration', 'LibraIntakeFacade', 'ProductDeliveryPort', 'WorkspaceReclamationPort', 'UsAdultRecommendationQueryFacade', 'UsAdultRecommendationCommandFacade', 'createLibraArtifactAuditSource', 'createFormationRetirementStore', 'createIntakeRetirementStore', 'createProductDeliveryReader'],
     arca: ['PACKAGE_ID', 'ArcaExecutionRegistration', 'createArcaArtifactAuditSource', 'createSeriesPresentationQuery', 'createArcaFormationRetirementStore', 'createFormationSharedRetirement'],
     perception: ['PACKAGE_ID', 'PerceptionCommandFacade', 'PerceptionExecutionRegistration', 'PerceptionResolutionFacade'],
@@ -58,8 +58,13 @@ test('each Domain exposes one frozen public package identity', () => {
     const entry = require(path.join(helixRoot, 'domains', domain, 'public'));
     assert.equal(entry.PACKAGE_ID, `domains.${domain}.public`);
     assert.deepEqual(Object.keys(entry).sort(), expectedExports[domain].sort());
-    for (const exportName of expectedExports[domain].filter((name) => name !== 'PACKAGE_ID')) {
+    for (const exportName of expectedExports[domain].filter((name) => !['PACKAGE_ID', 'retryCommandExecutionContract'].includes(name))) {
       assert.equal(typeof entry[exportName], 'function');
+    }
+    if (domain === 'procurement') {
+      assert.equal(Object.isFrozen(entry.retryCommandExecutionContract), true);
+      assert.equal(entry.retryCommandExecutionContract.ownerDomain, 'procurement');
+      assert.equal(entry.retryCommandExecutionContract.schemaRef, 'helix://foundation/evidence/SynchronousCommandContracts/v1');
     }
     assert.equal(Object.isFrozen(entry), true);
   }

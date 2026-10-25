@@ -30,8 +30,8 @@ function createCatalogPlanProofReader({ schemaManifest, unitOfWork }) {
       effects: selectMany('fx_effect_journal', ['effect_id', 'event_attempt_id', 'effect_class', 'state', 'output_digest',
         'intent_digest', 'idempotency_key', 'external_receipt_ref'], 'event_attempt_id'),
       result: select('fx_event_result_bindings', ['result_id', 'event_id', 'outcome_kind', 'result_schema_ref',
-        'result_json', 'result_digest', 'evidence_schema_ref', 'evidence_json', 'evidence_digest', 'effect_receipt_id'], ['event_id'], true),
-      markers: selectMany('fx_commit_markers', ['commit_marker', 'commit_digest', 'effect_id', 'result_id', 'result_schema_ref', 'result_digest', 'owner_domain', 'scope_type', 'scope_id'], 'effect_id'),
+        'result_json', 'result_digest', 'evidence_schema_ref', 'evidence_json', 'evidence_digest', 'effect_receipt_id', 'committed_at_ms'], ['event_id'], true),
+      markers: selectMany('fx_commit_markers', ['commit_marker', 'commit_digest', 'effect_id', 'result_id', 'result_schema_ref', 'result_digest', 'owner_domain', 'scope_type', 'scope_id', 'committed_at_ms'], 'effect_id'),
     },
   };
   repositoryDefinition.statements.result_markers = { ...repositoryDefinition.statements.markers, keyColumn: 'result_id' };

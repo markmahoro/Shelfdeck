@@ -484,3 +484,19 @@ Reset 完成后的用户授权 Resume 在 10:21:42.470Z 创建 operation `08c21a
 
 - 最新组合`history-mechanism-final-targeted.log`：41项，40 PASS/1历史快照未配置skip/0 FAIL，覆盖两个P3持久化门禁、旧JAV复制/验真、合同导入/加性复制、终态Owner证明、Windows独立分发与切换工具。两个过期索引总数断言改为对照当前manifest；精确索引查询计划仍独立检查。
 - `history-current-jav-first.log`：新建真实HEVC JAV完整入藏1 PASS（约44秒）；输入清理等待是fixture主动验证授权前不删除，授权后正常完成，并非已证实的运行回归。完整Gate仍待结果。
+
+
+### 2026-10-25 完整门禁发现的机制缺口及副本导入结果
+
+固定230a完整Architecture结果为3346项：3296 PASS / 24 FAIL / 26 skip，四项静态通过。失败日志保留，不作为发布资格。除旧fixture断言、归档checkout缺Git历史外，确认了以下真实缺口并补回归：
+
+- Owner原子写入Result/Commit Marker后、Event Journal收尾前退出，是合法恢复窗口。当前Plan仍须使用未变合同，并精确证明Event/Attempt/Intent、Marker/Result摘要、Owner及Scope和提交时序；Receipt与DomainFact两种既有typed提交合同分别核对。不会直接将Effect改成committed。
+- Procurement的Triage Evidence引用不是完整观察对象；新增显式`evidence_reference`序列化声明，严格四字段及摘要/Marker检查。JAV资料修正的验证Record按实际生产者声明为`full_result`，不从字段形状推断合同。
+- 一个依赖闭包可涉及多个终态Owner观察，逐图取得精确未决Effect集合并重验整图；限制100轮，外来/缺失/不推进证明继续拒绝。
+- 维护窗口旅程暴露Host注入时钟未传到文件观察和FFmpeg Event deadline。统一使用同一执行时钟，实际进程本地时限/停滞保护继续使用原规则，不调整4K吞吐或时限。
+
+定向证据：合同/历史/Owner正反例及P2基线100 PASS；静态fixture23 PASS；Git历史及文件观察11 PASS；媒体Effect24 PASS/1现场BDAV fixture未配置skip。真实同名多季入藏、整剧rename后退出恢复、整剧原子Commit后退出恢复、JAV原子修正/回收退出恢复、维护窗口人物建档均通过。定向通过不代替最终固定版本完整门禁。
+
+固定76724153e镜像已标准构建及上传，仅用于NAS隔离诊断：tar SHA256 `fb70783d5c546e87292d3ba8bfabecb5c5b6ea805c11bcb960ee8d78e85b8d4a`，NAS image ID `sha256:ccf311034f84204fd51514b0aef911bac6b42201739ef907928295ab04be0e5f`。232→235副本导入扫描51273个Plan，其中51246 imported、27 unverified；导入后231张原表逐行摘要保持，FK/integrity检查通过。27项均为终态且Effect已committed：4项成功Event缺Result、20项旧生产者缺可证明的prebound Evidence声明、3项旧Result缺其冻结Schema要求字段。保留原事实及持久失败审计，不补造证据；它们不因此获得执行权。
+
+767副本首次正常Host启动因演练漏复制加密凭据失败，补齐后由于将副本挂到`/app/data`改变原Workspace mount身份再次失败。演练改为副本数据库位于`/diagnostic/data`、原Workspace及媒体只读挂载以保留真实物理身份，正常Resume/Stop及22组收藏历史保护继续验证。两次演练配置失败保留，不记PASS。当前生产仍f280e6bd4且供给关闭，本段没有生产部署或Reset；最终新候选门禁/镜像/副本恢复资格待完成。

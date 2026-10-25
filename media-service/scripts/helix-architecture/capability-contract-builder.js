@@ -430,11 +430,12 @@ function buildCapabilityPackage(capability) {
     'arca.acceptance.space.verify@1': 'AcceptanceCheckRecord',
     'arca.acceptance.structure.verify@1': 'AcceptanceCheckRecord',
     'arca.inventory.final_product.verify@1': 'FinalProductVerificationRecord',
+    'arca.jav_correction.files.verify@1': 'FinalProductVerificationRecord',
     'arca.ondeck.fulfillment.verify@1': 'FulfillmentVerificationRecord',
   }[capability.id];
   if (domainEvidence || fullResultEvidence) manifest.preboundEvidenceContracts = [{
     schemaRef: 'helix://contracts/types/' + (domainEvidence || fullResultEvidence) + '/v1',
-    representation: fullResultEvidence ? 'full_result' : 'domain_evidence',
+    representation: fullResultEvidence ? 'full_result' : capability.id === 'procurement.candidate.publish@1' ? 'evidence_reference' : 'domain_evidence',
   }];
 
   return {

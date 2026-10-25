@@ -524,14 +524,14 @@
       },
       "contract": {
         "packagePath": "capabilities/procurement/candidate/publish/v1",
-        "packageDigest": "0dd13c05ad56701994688fe5b80c0a5d5db9a7fe9d9cebd9ae8ed041584d9315",
+        "packageDigest": "07013a39bbf546ea93a70fcc9dda357f0550ad4d422393a9d755536aea664a73",
         "effectClass": "domain_fact_commit",
         "inputSummary": "CandidateDraft + DomainFactCommitHandle",
         "outputFamily": "CandidatePublicationReceipt"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "c15a206572d731aec13c7bd571caa30e0c6e2fd11a7dc21040e772919b1f5585"
+        "value": "d8109131fe4ddf84d259107383e9e392201d634f323bcc66cbe4289794ecbbc8"
       }
     },
     {

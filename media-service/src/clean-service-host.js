@@ -1661,6 +1661,7 @@ async function createCleanServiceHost(options) {
   fs.mkdirSync(arcaMediaAcceptanceScratchRoot, { recursive:true });
   const mediaEffectPort = options.mediaProductionEffectPort ||
     createCleanMediaProductionEffectPort({
+      now: options.now || Date.now,
       workspaceProductPort,
       ffmpegPath: options.ffmpegPath,
       ffmpegProcessRegistry,
@@ -1716,6 +1717,7 @@ async function createCleanServiceHost(options) {
     readPipelineSubjectIds:()=>procurementExecution?.pipelineAdmission.tokenSubjectIds() || new Set(),
     state: () => formationProjectionHost?.state() || Object.freeze({ status: 'rebuilding', asOfMs: (options.now || Date.now)() }) });
   const fieldEnumerator = options.fieldObservationEnumerator || createCleanFieldObservationEnumerator({
+    now: options.now || Date.now,
     onFingerprintRead: options.onPhysicalMaterialFingerprintRead,
   });
   procurementExecution = createHelixExecutionRuntime({

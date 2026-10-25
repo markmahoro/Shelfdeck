@@ -35,7 +35,7 @@
   "preboundEvidenceContracts": [
     {
       "schemaRef": "helix://contracts/types/TriageStructureEvidence/v1",
-      "representation": "domain_evidence"
+      "representation": "evidence_reference"
     }
   ]
 }
