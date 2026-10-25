@@ -651,3 +651,15 @@ NAS为7.6 GiB物理内存；两个验证容器并行时出现交换区压力，�
 - 本次目标已收口，后续只等待正常观察/采购创建新的正确包，不保证第一时间选中，不强制调度。既有监控提示已更新为该单条取消完成，避免重复确认或重复执行，原24小时截止仍2026-10-26T10:32:12.930Z。新包自然验收仍开放，其他影片未获得本次取消授权。
 
 ignored证据：`republic-cancel-prepared.json`、`republic-cancel-result.json`、`republic-cancel-before.json`、`republic-cancel-after.json`、对应status详情及`republic-cancel-history-preserve.log`；辅助脚本仅使用正式HTTP命令与统一SSH只读核验，未直接改生产数据库。
+
+
+### 2026-10-26 03:20 用户状态询问：业务异常扩大，非全绿
+
+- 新鲜API summary为9进行中/13 attention/676 completed。13条分为：5条Arca剧集共享资料、1条目标冲突、4条Libra资料失败（唐顿庄园两条独立任务、暗算、琅琊榜）、1条地狱尖兵外部检索失败、2条人工演员确认。演员确认是正常业务选择，不能把13条全部称Executor bug，也不能据服务running声称业务正常。
+- 辐射、黑镜、棋士、沙丘：预言、越狱的Arca Status逐条确认reasonCode=PLATFORM_TMDB_EFFECT_CLASS_MISMATCH、blockedPhase=series_presentation；Foundation失败事件均为arca.series_presentation.source.observe@1。TMDB adapter的Observation/Artifact端口按operationId校验effect class，这属于本地操作类型校验拒绝，不应泛称网络失败；具体调用接线和修复尚未开展。前次artifactKind及恢复占用修复不能作为此路径已通过的证据。
+- 庆余年Season 02三次stage失败均指向既存poster.jpg，CLEAN_ARCA_STAGE_TARGET_OCCUPIED；未替换或删文件。琅琊榜本轮触发SERIES_LOCAL_SOURCE_SCOPE_INVALID，须核对其旧冻结包，不能直接宣称新生成路径修复失效。新唐顿庄园有本轮三次HTTP_FAILED；没有具体HTTP状态证据。5次P8_ACCEPTANCE_CONTINUITY_BASIS_STALE所对应Work均最终succeeded，不报为仍未解决的五项故障。新增Procurement媒体probe失败尚需看后续状态，未据单次Attempt下最终结论。
+- 原workspace_media_production Circuit仍closed/INVARIANT_RESTORED。恢复后媒体成功Event385→979，Procurement观察145、组包3等继续；Arca acceptance_commit成功6次表示Handoff接纳，不能当作新收藏Own。当前收藏仍682。五来源实际stat/opendir正常，本次完整扫描时间均在Resume后；FK检查空，无active缺Run/token异常，容器RestartCount0/OOM=false，内存约3.011GiB、CPU166%。Runtime running/normalSupplyAllowed=true/error=null，采样activity.state=draining且2个inFlight Event，未推断全局卡死或擅自重启。
+- 已取消的走向共和自然生成新Candidate candidate-package-0334a510eadd34ec93ce07800c20899385873c21，publishedAt=1792955571530，sourceRoot=/media/chn_series/走向共和 (2003)，绝对路径正确。只证明正常重采和新包路径，尚无新Run完整上架验收。
+- 本轮仅只读检查，未因用户状态问题擅自扩大修复/取消/Reset。新状态已告知用户，下一轮监控不将相同13条重复作为新增故障通知。
+
+证据：ignored current-health-api.log、current-health-progress.json、current-health-formation.json、current-health-runtime.json、current-health-failures.json、current-health-sources.log及current-health-host.log。首次尝试从最新monitor文件读取时仍是18:36旧样本，未以该旧样本作当前统计；最终以19:20新鲜直接API为准。
