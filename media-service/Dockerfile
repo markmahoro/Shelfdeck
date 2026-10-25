@@ -74,6 +74,13 @@ COPY media-service/scripts/formation-retirement-plan.js ./scripts/formation-reti
 COPY media-service/scripts/formation-stopped-transcode.js ./scripts/formation-stopped-transcode.js
 COPY media-service/scripts/helix-formation-retirement-schema-copy.js ./scripts/helix-formation-retirement-schema-copy.js
 COPY media-service/scripts/helix-architecture/formation-retirement-schema-copy.js ./scripts/helix-architecture/formation-retirement-schema-copy.js
+COPY media-service/scripts/helix-plan-contract-schema-copy.js ./scripts/helix-plan-contract-schema-copy.js
+COPY media-service/scripts/helix-plan-contract-cutover.js ./scripts/helix-plan-contract-cutover.js
+COPY media-service/scripts/helix-import-plan-contracts.js ./scripts/helix-import-plan-contracts.js
+COPY media-service/scripts/helix-architecture/plan-contract-schema-copy.js ./scripts/helix-architecture/plan-contract-schema-copy.js
+COPY media-service/scripts/helix-architecture/plan-contract-import.js ./scripts/helix-architecture/plan-contract-import.js
+COPY media-service/scripts/helix-architecture/history-import-bundle.js ./scripts/helix-architecture/history-import-bundle.js
+COPY media-service/scripts/helix-architecture/history-evidence ./scripts/helix-architecture/history-evidence
 COPY media-service/src/admin-credential-secret-store.js ./src/admin-credential-secret-store.js
 COPY media-service/src/clean-service-host.js ./src/clean-service-host.js
 COPY media-service/src/clean-admin-static.js ./src/clean-admin-static.js

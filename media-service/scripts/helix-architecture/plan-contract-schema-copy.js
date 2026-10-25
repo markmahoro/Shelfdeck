@@ -6,6 +6,11 @@ const crypto = require('node:crypto');
 const { canonicalJson } = require('../../src/helix/contracts/canonical-json');
 const { openSqliteKernel, verifyReadOnlySqliteSnapshot } = require('../../src/helix/foundation/persistence/sqlite-kernel');
 const ADDED_TABLES = Object.freeze(['fx_execution_contracts', 'fx_plan_contracts', 'fx_plan_history_audits']);
+const ADDED_INDEXES = Object.freeze([
+  { tableId: 'fx_commit_markers', name: 'idx_fx_commit_markers_hot_01', columns: ['effect_id', 'commit_marker'] },
+  { tableId: 'fx_commit_markers', name: 'idx_fx_commit_markers_hot_02', columns: ['result_id', 'commit_marker'] },
+  { tableId: 'fx_effect_journal', name: 'idx_fx_effect_journal_hot_02', columns: ['event_attempt_id', 'effect_id'] },
+]);
 function check(value, code) { if (!value) throw Object.assign(new Error(code), { code }); }
 function quote(value) { check(/^[a-z][a-z0-9_]*$/.test(value), 'CONTRACT_COPY_IDENTIFIER'); return '"' + value + '"'; }
 function realFile(file) {
@@ -31,9 +36,26 @@ function assertAddition(source, target) {
   const before = new Map(source.schemaManifest.tables.map(table => [table.tableId, table]));
   const added = target.schemaManifest.tables.filter(table => !before.has(table.tableId));
   check(canonicalJson(added.map(table => table.tableId).sort()) === canonicalJson([...ADDED_TABLES].sort()), 'CONTRACT_COPY_SCOPE_DRIFT');
-  for (const old of before.values()) check(canonicalJson(old) === canonicalJson(target.schemaManifest.tables.find(table => table.tableId === old.tableId)),
-    'CONTRACT_COPY_OLD_TABLE_CHANGED');
+  for (const old of before.values()) {
+    const current = target.schemaManifest.tables.find(table => table.tableId === old.tableId);
+    check(current, 'CONTRACT_COPY_OLD_TABLE_CHANGED');
+    const allowed = ADDED_INDEXES.filter(index => index.tableId === old.tableId);
+    if (!allowed.length) check(canonicalJson(old) === canonicalJson(current), 'CONTRACT_COPY_OLD_TABLE_CHANGED');
+    else {
+      const withoutNewIndexes = value => {
+        const { contractDigest, sqlDigest, ...rest } = value;
+        return { ...rest, indexes: value.indexes.filter(index => !allowed.some(item => item.name === index.name)) };
+      };
+      check(allowed.every(index => !old.indexes.some(item => item.name === index.name) && current.indexes.some(item => item.name === index.name)) &&
+        canonicalJson(withoutNewIndexes(old)) === canonicalJson(withoutNewIndexes(current)), 'CONTRACT_COPY_OLD_TABLE_CHANGED');
+    }
+  }
   let remaining = target.schemaDdl.replaceAll('\r\n', '\n');
+  for (const index of ADDED_INDEXES) {
+    const line = 'CREATE INDEX ' + quote(index.name) + ' ON ' + quote(index.tableId) + ' (' + index.columns.map(quote).join(', ') + ');\n';
+    check(remaining.split(line).length === 2, 'CONTRACT_COPY_INDEX_SCOPE_CHANGED');
+    remaining = remaining.replace(line, '');
+  }
   for (const table of ADDED_TABLES) {
     const expression = new RegExp('CREATE TABLE "' + table + '" \\([\\s\\S]*?\\n\\);\\n(?:CREATE [^\\n]+\\n)*\\n');
     check(expression.test(remaining), 'CONTRACT_COPY_NEW_DDL_MISSING');
@@ -45,7 +67,8 @@ function assertAddition(source, target) {
 function verifyPreparedCopy({ Database, databasePath, receipt, targetSchema }) {
   check(receipt?.schemaRef === 'shelfdeck.plan-contract-schema-copy@1' && receipt.prepared === true && receipt.applied === false &&
     receipt.target?.schemaDigest === targetSchema.schemaManifest.ddlDigest &&
-    canonicalJson(receipt.addedTables) === canonicalJson(ADDED_TABLES), 'CONTRACT_COPY_RECEIPT_INVALID');
+    canonicalJson(receipt.addedTables) === canonicalJson(ADDED_TABLES) &&
+    canonicalJson(receipt.addedIndexes) === canonicalJson(ADDED_INDEXES), 'CONTRACT_COPY_RECEIPT_INVALID');
   const expected = targetSchema.schemaManifest.tables.filter(table => table.tableId !== 'platform_schema_marker' && !ADDED_TABLES.includes(table.tableId));
   check(Array.isArray(receipt.tables) && receipt.tables.length === expected.length &&
     new Set(receipt.tables.map(row => row.tableId)).size === expected.length, 'CONTRACT_COPY_RECEIPT_SCOPE');
@@ -93,7 +116,7 @@ function preparePlanContractSchemaCopy({ Database, sourcePath, targetPath, sourc
     fs.linkSync(temporary, targetPath);
     if (process.platform === 'linux') { const fd = fs.openSync(path.dirname(targetPath), 'r'); try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); } }
     return { schemaRef: 'shelfdeck.plan-contract-schema-copy@1', prepared: true, applied: false,
-      source, target, addedTables: ADDED_TABLES, tables };
+      source, target, addedTables: ADDED_TABLES, addedIndexes: ADDED_INDEXES, tables };
   } finally {
     if (output?.inTransaction) output.exec('ROLLBACK');
     output?.close(); original.close();
@@ -101,4 +124,4 @@ function preparePlanContractSchemaCopy({ Database, sourcePath, targetPath, sourc
   }
 }
 
-module.exports = Object.freeze({ ADDED_TABLES, assertAddition, rowsDigest, verifyPreparedCopy, preparePlanContractSchemaCopy });
+module.exports = Object.freeze({ ADDED_TABLES, ADDED_INDEXES, assertAddition, rowsDigest, verifyPreparedCopy, preparePlanContractSchemaCopy });

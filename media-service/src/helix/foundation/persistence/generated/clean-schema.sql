@@ -1383,6 +1383,8 @@ CREATE TABLE "fx_commit_markers" (
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   FOREIGN KEY ("result_id") REFERENCES "fx_event_result_bindings" ("result_id") ON DELETE RESTRICT
 );
+CREATE INDEX "idx_fx_commit_markers_hot_01" ON "fx_commit_markers" ("effect_id", "commit_marker");
+CREATE INDEX "idx_fx_commit_markers_hot_02" ON "fx_commit_markers" ("result_id", "commit_marker");
 
 CREATE TABLE "fx_effect_journal" (
   "effect_id" TEXT PRIMARY KEY,
@@ -1399,6 +1401,7 @@ CREATE TABLE "fx_effect_journal" (
   FOREIGN KEY ("event_attempt_id") REFERENCES "fx_event_attempts" ("event_attempt_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_fx_effect_journal_hot_01" ON "fx_effect_journal" ("state", "updated_at_ms", "effect_id");
+CREATE INDEX "idx_fx_effect_journal_hot_02" ON "fx_effect_journal" ("event_attempt_id", "effect_id");
 
 CREATE TABLE "fx_event_attempts" (
   "event_attempt_id" TEXT PRIMARY KEY,

@@ -3,8 +3,9 @@
 // Offline evidence import only. This module is never loaded by the service.
 // Its caller supplies exact archived contracts and a qualified historical
 // verifier; no Catalog/state allowlist can authorize a write.
-const { canonicalDigest } = require('../../src/helix/contracts/canonical-json');
-const { createPlanContractEvidenceStore, capturePlanContracts, planFromFacts } = require('../../src/helix/foundation/execution/plan-contract-evidence');
+const { canonicalDigest, canonicalJson } = require('../../src/helix/contracts/canonical-json');
+const { createRepositoryDefinition } = require('../../src/helix/foundation/persistence/owner-repository');
+const { createPlanContractEvidenceStore, capturePlanContracts, planFromFacts, verifyPlanContractBinding } = require('../../src/helix/foundation/execution/plan-contract-evidence');
 const { FORMAT, terminalFactsDigest, proveTerminalAttestation } = require('../../src/helix/foundation/execution/terminal-plan-attestation');
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);
 
@@ -12,6 +13,25 @@ function createPlanContractImporter(options) {
   const { proofReader, unitOfWork, schemaManifest, sourceForCatalog, verifierDigest } = options;
   if (!/^[a-f0-9]{64}$/.test(verifierDigest)) throw new Error('Importer implementation provenance is required.');
   const store = createPlanContractEvidenceStore({ schemaManifest, unitOfWork });
+  const audits = createRepositoryDefinition({ repositoryId: 'plan_import_audits', owner: 'execution-foundation', schemaManifest,
+    statements: {
+      find: { kind: 'select-one', tableId: 'fx_plan_history_audits', columns: ['audit_json'], keyColumns: ['audit_id'] },
+      insert: { kind: 'insert', tableId: 'fx_plan_history_audits', columns: ['audit_id', 'plan_id', 'audit_schema_ref', 'audit_json', 'created_at_ms'] },
+    } });
+  function recordFailure(result) {
+    const facts = proofReader.verify(reader => reader.read(result.planId));
+    const receipt = { schemaRef: 'helix://foundation/evidence/PlanHistoryAudit/v1', schemaVersion: 1,
+      verifier: 'contract-import@1:' + verifierDigest, planId: result.planId, contractDigest: null,
+      factsDigest: canonicalDigest(facts), verdict: 'failed', findingCode: result.reason };
+    const auditId = canonicalDigest(receipt), json = canonicalJson(receipt);
+    unitOfWork.execute([{ participantId: 'plan_import_audit', owner: 'execution-foundation', repositories: [audits], execute(context) {
+      const repository = context.repository(audits.repositoryId), existing = repository.invoke('find', { audit_id: auditId });
+      if (existing && existing.audit_json !== json) throw new Error('Import audit receipt collision.');
+      if (!existing) repository.invoke('insert', { audit_id: auditId, plan_id: result.planId, audit_schema_ref: receipt.schemaRef,
+        audit_json: json, created_at_ms: context.commitTimeMs });
+    } }]);
+    return { ...result, auditId };
+  }
   let footprint = null;
   const collectingReader = { verify(callback) {
     return proofReader.verify(reader => callback({ ...reader, read(planId) {
@@ -21,11 +41,15 @@ function createPlanContractImporter(options) {
     } }));
   } };
   const verifier = options.createHistoricalVerifier(collectingReader);
-  return Object.freeze({ importPlan(planId) {
+  function importPlan(planId) {
     const facts = proofReader.verify(reader => reader.read(planId));
     if (!facts?.work || !facts.workAttempt) return { planId, kind: 'unverified', reason: 'PLAN_OWNER_CHAIN_MISSING' };
     const existing = store.read(planId);
-    if (existing) return { planId, kind: 'already_present', contractDigest: existing.binding.contract_digest };
+    if (existing) {
+      verifyPlanContractBinding(existing, facts);
+      if (existing.evidence.schemaRef === FORMAT) proofReader.verify(reader => proveTerminalAttestation(reader, planId, existing.evidence));
+      return { planId, kind: 'already_present', contractDigest: existing.binding.contract_digest };
+    }
     const source = sourceForCatalog(facts.plan.catalog_digest);
     if (!source || !/^[a-f0-9]{40}$/.test(source.sourceCommit) || !/^[a-f0-9]{64}$/.test(source.archiveDigest))
       return { planId, kind: 'unverified', reason: 'EXACT_SOURCE_CONTRACT_UNAVAILABLE' };
@@ -67,6 +91,10 @@ function createPlanContractImporter(options) {
         });
       } }]).plan_contract_import;
     return result;
+  }
+  return Object.freeze({ importPlan(planId) {
+    const result = importPlan(planId);
+    return result.kind === 'unverified' ? recordFailure(result) : result;
   } });
 }
 

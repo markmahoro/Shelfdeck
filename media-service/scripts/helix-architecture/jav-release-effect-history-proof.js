@@ -5,7 +5,7 @@ const root = path.resolve(__dirname, '../..');
 const load = relative => require(path.join(root, relative));
 const { canonicalDigest } = load('src/helix/contracts/canonical-json');
 const { createSqliteUnitOfWork } = load('src/helix/foundation/persistence/sqlite-unit-of-work');
-const { createCatalogPlanProofReader } = load('src/helix/foundation/execution/catalog-plan-proof-reader');
+const { createCatalogPlanProofReader } = load('scripts/helix-architecture/history-evidence/catalog-plan-proof-reader');
 const { createFrozenCatalogHistory } = load('scripts/helix-architecture/history-evidence/frozen-catalog-history');
 const { createWorkResultReader } = load('src/helix/foundation/execution/work-result-reader');
 const { createProductDeliveryReader } = load('src/helix/domains/libra/persistence/product-delivery-reader');

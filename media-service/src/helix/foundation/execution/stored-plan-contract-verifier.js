@@ -9,6 +9,7 @@ const { createBoundedCatalogTransition } = require('./bounded-catalog-transition
 const { capturePlanContracts, planFromFacts, verifyPlanContractBinding, validateContractDocument, COMMAND_FORMAT } = require('./plan-contract-evidence');
 const { proveSynchronousPlan } = require('./synchronous-plan-contract');
 const { FORMAT: TERMINAL_FORMAT, proveTerminalAttestation } = require('./terminal-plan-attestation');
+const { verifyTerminalEffectReceipt } = require('./terminal-effect-proof');
 const { PLAN_RESOLUTIONS } = require('./runtime-contracts');
 
 const TERMINAL = new Set(['succeeded', 'failed', 'cancelled']);
@@ -77,15 +78,45 @@ function createStoredPlanContractVerifier(options) {
       if (!saved) throw new Error('Missing immutable Plan contract evidence.');
       validateContractDocument(saved.evidence, saved.binding.contract_digest);
       if (saved.evidence.schemaRef === TERMINAL_FORMAT) {
-        const prove = (currentReader, id) => {
+        const observed = new Map();
+        const prove = (currentReader, id, _requireUnchanged, _visiting, _proven, resolution) => {
           const current = currentReader.readContract(id);
           if (!current || current.binding.contract_digest !== saved.binding.contract_digest) throw new Error('Terminal evidence changed.');
           validateContractDocument(current.evidence, current.binding.contract_digest);
           const facts = proveTerminalAttestation(currentReader, id, current.evidence);
           verifyPlanContractBinding(current, facts);
+          for (const item of current.evidence.footprint) {
+            const graph = currentReader.read(item.planId);
+            for (const effect of graph.effects.filter(value => !['committed', 'failed'].includes(value.state))) {
+              const receipt = observed.get(effect.effect_id) || resolution?.proofs.get(effect.effect_id);
+              if (!receipt) {
+                if (resolution) resolution.pending = graph;
+                throw Object.assign(new Error('Terminal Effect still requires current Owner proof.'), { pendingGraph: graph });
+              }
+              verifyTerminalEffectReceipt({ facts: graph, effect, receipt, proveSource(sourceId) {
+                if (!current.evidence.footprint.some(value => value.planId === sourceId)) throw new Error('Owner proof escaped attested dependency graph.');
+                return currentReader.read(sourceId);
+              } });
+            }
+          }
           return facts;
         };
-        const proof = { proveStored: prove, verify: () => options.proofReader.verify(currentReader => Boolean(prove(currentReader, planId))) };
+        const proof = { proveStored: prove, verify() {
+          for (let count = 0; count < 100; count++) {
+            try { return options.proofReader.verify(currentReader => Boolean(prove(currentReader, planId))); }
+            catch (error) {
+              if (!error.pendingGraph || !options.terminalEffectObserver) throw error;
+              const receipts = options.terminalEffectObserver.observe(error.pendingGraph);
+              const unresolved = error.pendingGraph.effects.filter(value => !['committed', 'failed'].includes(value.state));
+              if (!Array.isArray(receipts) || receipts.length !== unresolved.length ||
+                new Set(receipts.map(value => value.effectId)).size !== receipts.length ||
+                receipts.some(value => !unresolved.some(effect => effect.effect_id === value.effectId)))
+                throw new Error('Owner proof does not cover the exact unresolved Effect set.');
+              for (const receipt of receipts) observed.set(receipt.effectId, receipt);
+            }
+          }
+          throw new Error('Terminal Owner proof exceeded its bounded dependency closure.');
+        } };
         proofs.set(planId, proof);
         return prove;
       }

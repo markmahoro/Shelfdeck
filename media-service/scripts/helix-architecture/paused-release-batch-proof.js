@@ -4,7 +4,7 @@ const fs = require('node:fs'), path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const load = relative => require(path.join(root, relative));
 const { createSqliteUnitOfWork } = load('src/helix/foundation/persistence/sqlite-unit-of-work');
-const { createCatalogPlanProofReader } = load('src/helix/foundation/execution/catalog-plan-proof-reader');
+const { createCatalogPlanProofReader } = load('scripts/helix-architecture/history-evidence/catalog-plan-proof-reader');
 const { createHelixExecutionPolicyRegistry } = load('src/helix/composition/create-procurement-execution-runtime');
 const { createPausedReleaseBatchProof } = load('scripts/helix-architecture/history-evidence/paused-release-batches');
 const { createReadonlyProofProjectionRegistry } = require('./readonly-history-projections');

@@ -9,11 +9,11 @@
       "id": "fx_commit_markers",
       "owner": "execution-foundation",
       "columnsContract": "`commit_marker PK, effect_id, owner_domain, scope_type, scope_id, commit_digest, result_id FK, result_schema_ref, result_digest, committed_at_ms`",
-      "constraintsContract": "`commit_marker`全局唯一；Event驱动的`domain_fact_commit|responsibility_control_commit`其result字段必填并与对应`fx_event_result_bindings`同事务写入；唯一例外是非Event的Procurement Run Admission，其result字段为NULL，完整`ProcurementControlReceipt`由同事务`fx_command_receipts`承载并以marker scope/digest交叉验证；不能更新或删除",
+      "constraintsContract": "`commit_marker`全局唯一；Event驱动的`domain_fact_commit|responsibility_control_commit`其result字段必填并与对应`fx_event_result_bindings`同事务写入；唯一例外是非Event的Procurement Run Admission，其result字段为NULL，完整`ProcurementControlReceipt`由同事务`fx_command_receipts`承载并以marker scope/digest交叉验证；不能更新或删除；`INDEX(effect_id,commit_marker)`；`INDEX(result_id,commit_marker)`供Plan证据闭包查询",
       "source": {
         "section": "8.5.10",
         "line": 9507,
-        "lineDigest": "56b133ab904024a736896f6d0e985d7c4105e535fa2315f25a1885385d893195"
+        "lineDigest": "66cf66f11267bd378083f8229ad227d0f2d1cd3a1bc48e02ab4b359345c65c8a"
       }
     },
     {

@@ -18,6 +18,9 @@ const SOURCES = Object.freeze([
   ['published-terminal-contracts-20261018.json', '02c61b170e4209eb07f6abb1172eece6e598ed06ab9ad9fa227a5fea32803a6c'],
   ['published-terminal-contracts-20261021.json', '214b8cf2272f740034ae8fe68d3b18e493c720bb7fd6dac7d5b692d58db03ed6'],
   ['published-terminal-contracts-20261022.json', '51dca4f218fdeae45ec2a72c53056afe3fb0486b056e5a794117658fa6c1046b'],
+  ['import-source-b06b70ba10.json', '35b0bb78c6642bbffaeefd5d9607be2ef6662812950b93d228dacdbb6f86ea17'],
+  ['import-source-999a94fa8.json', '9131d24fa982aef7b4491f28c7c7f28be2451f6eb8f0257950d8fcb6bb24e560'],
+  ['import-source-04bf24190.json', '999a72c8866e3d9c5739b315844a79e219c6bfdffcaa00f709fd41f57c45838d'],
 ]);
 
 function decodeArchive(archive) {
@@ -55,7 +58,9 @@ function createHistoryImportBundle(options) {
   const verifierFiles = ['history-import-bundle.js', 'plan-contract-import.js'].map(file => path.join(__dirname, file)).concat(
     ['frozen-catalog-history.js', 'terminal-catalog-history.js', 'unchanged-paused-batch-proof.js', 'paused-release-batches.js']
       .map(file => path.join(__dirname, 'history-evidence', file)),
-    path.resolve(__dirname, '../../src/helix/foundation/execution/bounded-catalog-transition.js'));
+    ['bounded-catalog-transition.js', 'terminal-effect-proof.js', 'terminal-plan-attestation.js', 'plan-contract-evidence.js',
+      'catalog-plan-proof-reader.js', 'catalog-schema-closure.js', 'workflow-plan.js', 'runtime-contracts.js']
+      .map(file => path.resolve(__dirname, '../../src/helix/foundation/execution', file)));
   const verifierDigest = canonicalDigest(verifierFiles.map(file => ({ file: path.basename(file), bytes: fs.readFileSync(file, 'utf8').replaceAll('\r\n', '\n') })));
   return { verifierDigest, sourceForCatalog: catalog => sources.get(catalog), createHistoricalVerifier(proofReader) {
     const shared = { ...options, proofReader };

@@ -30,6 +30,14 @@ test('additive evidence copy preserves every existing fact and rejects target ov
   const target = openSqliteKernel({ Database, databasePath: targetPath, ...targetSchema });
   assert.equal(target.runPrimitive(db => db.prepare("SELECT status FROM libra_subjects WHERE subject_id='history'").get().status), 'ended');
   assert.equal(target.runPrimitive(db => db.prepare('SELECT COUNT(*) n FROM fx_plan_contracts').get().n), 0);
+  target.runPrimitive(db => {
+    for (const [table, column, index] of [['fx_effect_journal', 'event_attempt_id', 'idx_fx_effect_journal_hot_02'],
+      ['fx_commit_markers', 'effect_id', 'idx_fx_commit_markers_hot_01'], ['fx_commit_markers', 'result_id', 'idx_fx_commit_markers_hot_02']]) {
+      const steps = db.prepare('EXPLAIN QUERY PLAN SELECT * FROM ' + table + ' WHERE ' + column + ' IN (?,?)').all('first', 'second');
+      assert.ok(steps.some(step => step.detail.includes(index)), JSON.stringify(steps));
+      assert.ok(!steps.some(step => step.detail.startsWith('SCAN ')), JSON.stringify(steps));
+    }
+  });
   target.close();
   assert.equal(verifyPreparedCopy({ Database, databasePath: targetPath, receipt: proof, targetSchema }).verified, true);
   const changedReceipt = structuredClone(proof);

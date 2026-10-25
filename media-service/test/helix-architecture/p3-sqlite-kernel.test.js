@@ -75,7 +75,7 @@ test('creates and reopens the current clean 235-table WAL generation with hard s
     {
       const first = open(databasePath, { now: () => 1700000000000 });
       assert.equal(first.generation.tableCount,235);
-      assert.equal(first.generation.indexCount, 117);
+      assert.equal(first.generation.indexCount, schemaManifest.tables.reduce((count, table) => count + table.indexes.length, 0));
       assert.equal(first.generation.partialUniqueCount, 24);
       assert.equal(first.generation.schemaDigest, schemaManifest.ddlDigest);
       assert.deepEqual(first.diagnostics(), { foreignKeys: 1, journalMode: 'wal', synchronous: 1, busyTimeout: 5000 });

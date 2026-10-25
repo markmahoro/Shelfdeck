@@ -53,7 +53,7 @@ async function importPreparedHistory({ dataDir, adminDistDir, receiptPath, repor
       databasePath: path.join(dataDir, 'shelfdeck.db'), ...targetSchema });
     const restrictedKernel = { runPrimitive(operation) { return kernel.runPrimitive(transaction => operation({ ...transaction,
       prepare(sql) {
-        if (!/^SELECT\b/i.test(sql.trim()) && !/^INSERT INTO "?fx_(execution_contracts|plan_contracts)"?\s*\(/i.test(sql.trim()))
+        if (!/^SELECT\b/i.test(sql.trim()) && !/^INSERT INTO "?fx_(execution_contracts|plan_contracts|plan_history_audits)"?\s*\(/i.test(sql.trim()))
           throw new Error('Evidence import cannot write existing facts.');
         return transaction.prepare(sql);
       } })); } };

@@ -14,7 +14,7 @@
       "sourceLocator": {
         "section": "8.5.10",
         "line": 9507,
-        "lineDigest": "56b133ab904024a736896f6d0e985d7c4105e535fa2315f25a1885385d893195"
+        "lineDigest": "66cf66f11267bd378083f8229ad227d0f2d1cd3a1bc48e02ab4b359345c65c8a"
       },
       "targetLocator": {
         "path": "table-contracts/fx_commit_markers/v1/contract.json"
@@ -23,11 +23,11 @@
         "tableId": "fx_commit_markers",
         "owner": "execution-foundation",
         "contractRef": "helix://contracts/tables/fx_commit_markers/v1",
-        "contractDigest": "3b71d49353bd87cce1db22e033d5d167dcdaa1c170ac97854596e869cb0839ac"
+        "contractDigest": "a5275e4427a37dedfcdd64827db41a249fa4686d47836432bb19699cf21c88bf"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "435caa6ac20aadc3561ebf955af5ee36a5226bd5549aac660b214bd028d1762a"
+        "value": "b344999eb6b6e0fe4d57fbecf385d64714d774de118b7459aff7342339083170"
       }
     },
     {

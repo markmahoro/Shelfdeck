@@ -89,7 +89,11 @@ function createFrozenCatalogHistory(options) {
       previousCatalogDigest: value.catalogDigest, currentCatalogDigest: value.catalogDigest,
       // Preserve the original producer/provenance witness; bind its current
       // schema side to this exact frozen release, never to live schemas.
-      preboundEvidenceSchemas: Object.fromEntries(Object.entries(frozenWitness.preboundEvidenceSchemas).map(([ref, evidence]) =>
+      // A later nominal declaration cannot grant evidence authority to an
+      // earlier release that did not publish that schema. Such a Result must
+      // fail its own proof; unrelated graphs need not load an absent schema.
+      preboundEvidenceSchemas: Object.fromEntries(Object.entries(frozenWitness.preboundEvidenceSchemas)
+        .filter(([ref]) => extraSchemas.has(ref)).map(([ref, evidence]) =>
         [ref, { ...evidence, currentSchemaDigest: canonicalDigest(schemaClosure({ inputPorts: { evidence: { schemaRef: ref } } }, extraSchemas)) }])
         .concat(Object.entries(value.preboundEvidenceSchemas || {}))),
       capabilities: extraRegistry.snapshot.map(entry => ({ ...entry,

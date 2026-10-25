@@ -141,11 +141,11 @@
       "id": "fx_effect_journal",
       "owner": "execution-foundation",
       "columnsContract": "`effect_id PK, event_attempt_id FK, effect_class, idempotency_key, intent_digest, state, external_receipt_ref, output_digest, verified_at_ms, updated_at_ms`",
-      "constraintsContract": "`UNIQUE(effect_class,idempotency_key)`；`INDEX(state,updated_at_ms,effect_id)`供Effect Reconcile",
+      "constraintsContract": "`UNIQUE(effect_class,idempotency_key)`；`INDEX(state,updated_at_ms,effect_id)`供Effect Reconcile；`INDEX(event_attempt_id,effect_id)`供当前责任与Plan证据闭包查询",
       "source": {
         "section": "8.5.10",
         "line": 9506,
-        "lineDigest": "ab2bd36a36914142370c9e85292a017d085b0de7ba78dbc338bef61890079e80"
+        "lineDigest": "fa6a26fba3c828135cd46d33f375e117535fe7ed1c9927dbab1857e204fd39b4"
       }
     }
   ]

@@ -350,7 +350,7 @@
       "sourceLocator": {
         "section": "8.5.10",
         "line": 9506,
-        "lineDigest": "ab2bd36a36914142370c9e85292a017d085b0de7ba78dbc338bef61890079e80"
+        "lineDigest": "fa6a26fba3c828135cd46d33f375e117535fe7ed1c9927dbab1857e204fd39b4"
       },
       "targetLocator": {
         "path": "table-contracts/fx_effect_journal/v1/contract.json"
@@ -359,11 +359,11 @@
         "tableId": "fx_effect_journal",
         "owner": "execution-foundation",
         "contractRef": "helix://contracts/tables/fx_effect_journal/v1",
-        "contractDigest": "a9e5d4c3060d07f828f5a0cd7c1fe5c60d5ecc529b200bdd4488bea77d86dc06"
+        "contractDigest": "b6113ce6f7642c0f5c88cb369a42ced2bcf29f4f7e02317738b308df93981116"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "de4354960a5f411c7a42809e1559b6586c98fc1dfd5f73781be809593aa2e8fc"
+        "value": "e2408d2662aebb7372e23e0b7008f8562624f3b9d901eb35c7b39c1a406bda8a"
       }
     }
   ]

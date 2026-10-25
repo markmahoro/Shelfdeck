@@ -12,6 +12,9 @@ test('Windows distribution boots independently with its own native dependencies 
     const code=String.raw`
       const assert=require('node:assert/strict'),path=require('node:path');
       (async()=>{assert.equal(typeof require('./scripts/helix-architecture/jav-release-schema-copy').inspectJavSchemaSource,'function');
+        assert.equal(typeof require('./scripts/helix-plan-contract-schema-copy').main,'function');
+        assert.equal(typeof require('./scripts/helix-plan-contract-cutover').publishPreparedDatabase,'function');
+        assert.equal(typeof require('./scripts/helix-import-plan-contracts').main,'function');
         assert.equal(typeof require('./src/clean-us-adult-inventory-analysis-port').createCleanUsAdultInventoryAnalysisPort,'function');
         const output=process.cwd(),secretRoot=process.env.SHELFDECK_SECRET_ROOT,dataDir=process.env.PACKAGE_TEST_DATA,
         initialized=require('./scripts/helix-operational-safety').initializeCleanData({dataDir,secretRoot,confirmation:'INITIALIZE_HELIX_CLEAN_V1'}),

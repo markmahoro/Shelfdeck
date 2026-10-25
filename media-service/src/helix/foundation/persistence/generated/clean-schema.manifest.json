@@ -3,8 +3,8 @@
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
   "tableCount": 235,
-  "tableContractAggregateDigest": "fccebf662f4c05404fa64c280b12b1fcfad1d061e8293bded4a3245c7f615cdc",
-  "ddlDigest": "e0f2cbf49c0f6b390e4ee56db33baff23a8baaeafd11d71a510575009b3e7701",
+  "tableContractAggregateDigest": "0b923c6d618f39b39582670331040cb9a9b1e73c0cd8b8d95c04c2f9c2377713",
+  "ddlDigest": "6a5e8a3de408545fc01cef3d839607621f979a4d886c039fdddd8533b8a6527e",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -2041,8 +2041,8 @@
       "tableId": "fx_commit_markers",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_commit_markers/v1",
-      "contractDigest": "3b71d49353bd87cce1db22e033d5d167dcdaa1c170ac97854596e869cb0839ac",
-      "sqlDigest": "1cb8b3a143c0dabab3eca1c0d0d7a200709cf393ae5ce2e48094a79cfa054b2e",
+      "contractDigest": "a5275e4427a37dedfcdd64827db41a249fa4686d47836432bb19699cf21c88bf",
+      "sqlDigest": "cdf2590779867bacd15efd0173368b390cfd5379ed889e74d49ab1c45e4ce82e",
       "columns": [
         "commit_marker",
         "effect_id",
@@ -2057,14 +2057,25 @@
       ],
       "immutable": true,
       "supportColumns": [],
-      "indexes": []
+      "indexes": [
+        {
+          "kind": "hot",
+          "name": "idx_fx_commit_markers_hot_01",
+          "sqlDigest": "db19a4064b60616990b629335e0dc99307dedb701a01f28f14e26ed3eba058dc"
+        },
+        {
+          "kind": "hot",
+          "name": "idx_fx_commit_markers_hot_02",
+          "sqlDigest": "90cf7a1ef502363b077a1b35e8a3158352ee6eac527142d2ce9eb88c01a5f7aa"
+        }
+      ]
     },
     {
       "tableId": "fx_effect_journal",
       "owner": "execution-foundation",
       "contractId": "helix://contracts/tables/fx_effect_journal/v1",
-      "contractDigest": "a9e5d4c3060d07f828f5a0cd7c1fe5c60d5ecc529b200bdd4488bea77d86dc06",
-      "sqlDigest": "50342fc816fcec208aee762b314fc085148f221b9199cab7a3fda29dd3968148",
+      "contractDigest": "b6113ce6f7642c0f5c88cb369a42ced2bcf29f4f7e02317738b308df93981116",
+      "sqlDigest": "b301df619b6ccd649a16855aa7fc8c4b88505f538f649ffe0543ce46c9f2e4e4",
       "columns": [
         "effect_id",
         "event_attempt_id",
@@ -2084,6 +2095,11 @@
           "kind": "hot",
           "name": "idx_fx_effect_journal_hot_01",
           "sqlDigest": "82dbfec705aaef7c9f334aad03052ee255988a1c49cda305629666e7974b3ec8"
+        },
+        {
+          "kind": "hot",
+          "name": "idx_fx_effect_journal_hot_02",
+          "sqlDigest": "53672e95af4cf6eb218172133f869a3a3e6db89643e9bb51ab7af6c4ebcd8849"
         }
       ]
     },

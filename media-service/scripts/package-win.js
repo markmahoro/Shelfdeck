@@ -87,6 +87,12 @@ const CLEAN_RUNTIME_FILES = [
   'scripts/formation-stopped-transcode.js',
   'scripts/helix-formation-retirement-schema-copy.js',
   'scripts/helix-architecture/formation-retirement-schema-copy.js',
+  'scripts/helix-plan-contract-schema-copy.js',
+  'scripts/helix-plan-contract-cutover.js',
+  'scripts/helix-import-plan-contracts.js',
+  'scripts/helix-architecture/plan-contract-schema-copy.js',
+  'scripts/helix-architecture/plan-contract-import.js',
+  'scripts/helix-architecture/history-import-bundle.js',
   'scripts/helix-architecture/paused-release-batch-proof.js',
   'src/server.js',
   'src/clean-service-host.js',
@@ -145,6 +151,8 @@ for (const name of CLEAN_RUNTIME_FILES) {
 const cleanHelixSource = path.join(ROOT, 'src', 'helix');
 const cleanHelixTarget = path.join(OUT, 'src', 'helix');
 fs.cpSync(cleanHelixSource, cleanHelixTarget, { recursive: true, errorOnExist: true, force: false });
+fs.cpSync(path.join(ROOT, 'scripts/helix-architecture/history-evidence'), path.join(OUT, 'scripts/helix-architecture/history-evidence'),
+  { recursive: true, errorOnExist: true, force: false });
 
 // ── clean runtime data (fresh start for user) ──────────────────────────────────
 

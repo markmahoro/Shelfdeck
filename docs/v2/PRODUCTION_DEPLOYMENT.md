@@ -1,5 +1,12 @@
 # PRODUCTION_DEPLOYMENT - 生产部署固定入口
 
+
+## 2026-10-25 Plan 合同证据加性切换
+
+采用新镜像中的`helix-plan-contract-schema-copy.js --source <frozen.sqlite> --target <new.sqlite> --source-schema <exact-digest>`，只新增三张证据/审计表及三个Foundation查询索引，231张原事实表逐行核对，禁止改旧约束。`helix-import-plan-contracts.js`只操作持久停止意图的准备副本，临时空Host用于捕获当前合同，目标Kernel只允许读取和追加三张新表；原表前后摘要必须一致。无法验真的历史保留明确持久失败，不增运行兼容白名单。
+
+标准停机、完整冷备和冻结SQLite物理文件集合仍必需；准备目录保存`source.sqlite`、已导入的`prepared.sqlite`、`copy-receipt.json`、导入报告和`shelfdeck.frozen-sqlite-files@1`的`source-files.json`。`helix-plan-contract-cutover.js <data-dir> <prepared-dir>`先dry-run再`--apply`，原表保护及原始main/WAL/SHM/journal全量字节一致才可同卷替换。非空WAL保留，cutover marker支持中断恢复；不执行Reset。生产启动/Resume必须以同候选完整副本资格为前提。供给恢复后不得用旧冷备覆盖新事实；任何回退先核对原表是否仍等于切换时保护清单。
+
 ## 2026-10-23 Formation retirement 结构切换
 
 当前231→232结构使用候选镜像内`helix-formation-retirement-schema-copy.js`准备独立一致源快照、新库及反向副本，逐行证明230张原事实/执行表保持。不能复用旧`lifecycle-schema-cutover.js`的223表与旧digest常量。

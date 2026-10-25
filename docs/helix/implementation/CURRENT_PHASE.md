@@ -1,6 +1,6 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
-2026-10-25 EXECUTION-CONTRACT-EVIDENCE / STARTUP-RESPONSIBILITY-RECOVERY / HISTORICAL-AUDIT-CUTOVER开发检查点：原子合同与责任快照、独立历史审计及一次性证据导入已实现；旧日期档案移至离线工具。复制/导入严格保护原表，未知来源明确记unverified，不以终态白名单补造证明。开始固定候选完整门禁和生产副本资格；未部署/未Resume，不重复Reset。
+2026-10-25 EXECUTION-CONTRACT-EVIDENCE / STARTUP-RESPONSIBILITY-RECOVERY / HISTORICAL-AUDIT-CUTOVER开发检查点：原子合同与责任快照、独立历史审计及一次性证据导入已实现；旧日期档案移至离线工具。复制/导入严格保护原表，未知来源明确记unverified，不以终态白名单补造证明。已追加当前Owner未决Effect证明、持久导入失败审计、三个有合同索引及原子切换工具；定向40 PASS/1历史快照skip、Windows独立包与JAV基础新任务旅程通过。继续固定候选完整门禁和实际镜像生产副本资格；未部署/未Resume，不重复Reset。
 
 2026-10-25 用户确认实施 EXECUTION-CONTRACT-EVIDENCE / STARTUP-RESPONSIBILITY-RECOVERY / HISTORICAL-AUDIT-CUTOVER：清理按版本累积的运行兼容分支，合同证据随数据保存，启动按当前责任闭包验证，独立历史审计；保留收藏/历史且不重复Reset。按合同→原子保存→当前恢复/历史审计→一次性迁入→副本及发布资格顺序实施。补档案候选不单独部署。
 

@@ -53,6 +53,8 @@ test('verified terminal import survives without the old verifier or registry and
 test('unknown provenance and failed original proof never manufacture terminal evidence', t => {
   const f = fixture(t);
   assert.equal(createPlanContractImporter({ ...f.options, sourceForCatalog: () => null }).importPlan('plan').kind, 'unverified');
+  assert.equal(createPlanContractImporter({ ...f.options, sourceForCatalog: () => null }).importPlan('plan').kind, 'unverified');
+  assert.equal(f.kernel.runPrimitive(db => db.prepare('SELECT COUNT(*) n FROM fx_plan_history_audits').get().n), 1);
   f.kernel.runPrimitive(db => db.prepare("UPDATE fx_work_attempts SET state='running' WHERE attempt_id='attempt'").run());
   assert.equal(createPlanContractImporter(f.options).importPlan('plan').kind, 'unverified');
   assert.equal(f.count(), 0);
