@@ -663,3 +663,10 @@ ignored证据：`republic-cancel-prepared.json`、`republic-cancel-result.json`�
 - 本轮仅只读检查，未因用户状态问题擅自扩大修复/取消/Reset。新状态已告知用户，下一轮监控不将相同13条重复作为新增故障通知。
 
 证据：ignored current-health-api.log、current-health-progress.json、current-health-formation.json、current-health-runtime.json、current-health-failures.json、current-health-sources.log及current-health-host.log。首次尝试从最新monitor文件读取时仍是18:36旧样本，未以该旧样本作当前统计；最终以19:20新鲜直接API为准。
+
+### 2026-10-26 03:31 只读观察：首条真实入藏
+
+- ABF-153的Arca正式收藏记录、Canonical Identity和On-deck Commit Receipt三者一致：shelf_entry_id=e80017fbdd902ed1781c076f7e877f965db8f6b635006dd931928ad9eb68ddb8，receipt_id=9ef674ecd7e5ddef06d0b95fcdc09ffe68274721c6170e2ee51ce231b6f5566f，committed_at_ms=1792956587799（19:29:47.799Z），inventory/deck revision均为1。这是正式Own证据，区别于先前仅Handoff接纳；未宣称全部媒体质量或Series验收通过。
+- 收藏总数682→683，API分为current682/history1；工作台8进行中/13 attention。原13条attention未变化，不作为新增重复报警。媒体成功Event979→988，Arca on_deck_execution成功3→12，原Circuit仍closed；Runtime running/normalSupplyAllowed=true/error=null，activity已ready。
+- 五来源stat/opendir可读，最新完整扫描均晚于Resume；无active缺Run/token异常，FK检查空。RestartCount0/OOM=false，容器内存3.011→2.601GiB、CPU129.14%。监听器警告累计144次，内存未持续增长，尚无泄漏结论，不重复报告为新故障。
+- 本轮全程只读，未重试、取消、Reset、部署或改配置；固定观察截止仍为2026-10-26T10:32:12.930Z。ignored证据：heartbeat-20261025T1931-api.log、progress.json、sources.log、host.log、new-collections.json及带时间戳日志。

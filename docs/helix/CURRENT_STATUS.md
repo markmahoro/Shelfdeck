@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-26 03:31（Asia/Shanghai）只读观察确认修复后首条正式入藏：ABF-153于19:29:47.799Z完成On-deck Commit，收藏总数682→683（API current682/history1）。API8进行中/13 attention，原13条原因未变化，业务仍未全部正常；媒体成功Event979→988，原Circuit持续closed。五来源可读且本轮扫描完成，无新孤儿/FK异常/重启/OOM；内存3.011→2.601GiB。本次未重试、取消、Reset或修复，既有观察截止不变。
+
 2026-10-26 03:20（Asia/Shanghai）用户询问运行状态后的只读核验：尚不能称业务正常，API当前9进行中/13 attention。新增5条剧集公共资料失败（辐射、黑镜、棋士、沙丘：预言、越狱）均为PLATFORM_TMDB_EFFECT_CLASS_MISMATCH；庆余年S02 poster.jpg目标冲突；另有4条资料任务、地狱尖兵外部检索失败及2条演员确认。旧Circuit仍closed，媒体成功Event累计979；682收藏、五来源可读且本轮完整扫描均完成，无新孤儿/重启/OOM。走向共和已自然生成新包candidate-package-0334a510eadd34ec93ce07800c20899385873c21，sourceRoot绝对路径正确，但尚未宣称完成入藏。此次仅诊断，不部署/Reset/取消或重试。
 
 2026-10-26 02:47（Asia/Shanghai）按用户明确授权，仅通过线上discard取消《走向共和》旧Run e2e307359a9883a1f335b32fee058bf23be68836de9b7676664b3aae315bae93，18:46:48.665Z完成：Run discarded、Subject abandoned、59个Control released、token释放、取消Receipt完成。182个来源文件stat清单及旧Candidate全文摘要前后相同；22组既有历史原行无缺失/改写、682收藏不变。未Reset或强制重新采购；等待正常采购新包，单条取消不再待确认。
