@@ -430,3 +430,19 @@ Reset 完成后的用户授权 Resume 在 10:21:42.470Z 创建 operation `08c21a
 未改动镜像 f280e6bd4 的完整生产副本正式 Resume 恰好得到 1707 个 `PLAN_CATALOG_DRIFT`，无其他类型 finding。这些 Plan 全部对应 hostfix4 Catalog `8f5dded28a5fea846f45a7c7b715109f1cf92ef36473d7a1b7f67cc68b4208db`，所属 Work 全部终态；8 个范围外保留非终态 Work 不是本次阻挡原因。两次前置诊断因副本挂载身份与持久 Aftercare root 不匹配而中止，属于 fixture 配置错误，已保留失败日志；使用生产 `/app/data` 只读保留原物理身份、独立 `/diagnostic/data` 写入副本后复现成立。
 
 修复沿 SSOT 既有 Frozen Catalog History：从不可变旧镜像 `sha256:d94bcda0875bc51059dfa601f5fec3b0f220d9b0925029fadd75886c649a886e`、revision `b70a9f6f6dde90654fbdef70e226b11f25f709f5` 的空隔离 Host 提取 125 Capability / 1368 Schema 及原策略与完整 Result 证据闭包。新增 `published-terminal-contracts-20261022.json`，canonical SHA256 `51dca4f218fdeae45ec2a72c53056afe3fb0486b056e5a794117658fa6c1046b`。只读验真终态 DAG/Owner/Result/Effect，不注册旧执行器、不增加 Catalog 白名单、不修改历史、无数据结构迁移。定向历史合同/暂停批次/启动恢复 118/118 PASS，含活动 Attempt 与篡改拒绝。新鲜生产副本正常恢复、Service 与修复镜像资格仍在执行；本节不是发布成功声明。
+
+
+## 2026-10-25 历史兼容累积机制审视（设计待确认，候选暂停发布）
+
+用户明确担心逐次升级叠加兼容补丁。复核实现与 Git 历史后，不能把本次问题仅定性为漏带文件：
+
+- `workflow-plan.js:executionCatalogDigest` 对全部注册 Capability 与完整 Policy digest 求摘要，Plan 持久化该全局标识；与某 Plan 无关的能力变化也可能改变 Catalog。
+- `startup-recovery.js` 的 snapshot 全读执行表，逐一把全部历史 Plan 送入 Catalog verifier；`PLAN_CATALOG_DRIFT` 属 hard finding，任何一项均令全局 normalSupplyAllowed=false。缺档与当前实际责任风险在该门禁中没有区分。
+- 9月以来多个提交持续扩充 transition/history；现有五份 terminal contract archives 合计约8.4MB，包含本次未部署档案。附加档案有最多8份的硬上限；该上限不是退出机制，不能以扩大上限解决增长。
+- 既有 SSOT UAT-251/274、UAT-293 允许完整原合同只读验真，禁止旧 Executor 和活动 Attempt；本次678687b8e符合这一现有机制，但不消除机制本身的发布耦合。§10.3原有按责任Scope恢复/隔离与后续全局历史Catalog阻断规则需统一，不应擅自把历史全部跳过。
+
+建议的新合同方向（尚未批准或实现）：Foundation在发布新Plan时原子冻结其实际使用的合同及Schema/Policy闭包，以不可变内容摘要保存且去重；历史合同作为随数据备份的证据，不再按发布日硬编码加入服务源码。正常启动验证当前责任与未决Effect及其必需依赖闭包；已经闭合且不被当前责任引用的历史审计独立有界执行。缺失依赖必须阻断受影响操作，无法证明风险Scope时仍全局阻断；不能仅凭terminal字段认定无责任。历史审计结果不能授权执行，引用旧Result须通过明确的当前消费合同。需要定义证据版本支持边界、完整性/来源信任、备份恢复、缺失/篡改行为，不能把新的存储层变成通用兼容执行器。
+
+既有历史只允许一次性从可证明的原镜像/合同建立精确证据引用，原事实不改写、不复活已退役Formation；无法证明的历史显式报告，不猜Schema。验收必须覆盖：无关Capability升级无需旧版本分支；多次合同升级及无旧镜像环境仍能启动；历史篡改被发现；有未决Effect或当前依赖时仍严格拒绝；断电发布不形成无合同Plan；备份恢复及既有收藏/历史保持。
+
+这涉及启动门禁及持久合同，需要先确认新SSOT再实施。当前补档案候选暂停部署，生产保持供给关闭，不再Reset。Windows Service复验673 PASS/29 skip/0 fail；定向118 PASS仍只证明现有补档案方案，不作为新机制通过证据。
