@@ -24,7 +24,7 @@ test('SSOT source map materializer emits deterministic complete shards accepted 
       fs.readFileSync(path.join(manifestRoot, 'ssot-source-map', name), 'utf8'));
     const second = materializeSsotSourceMap({ sourcePath: path.join(docsRoot, 'TOP_DOWN_ARCHITECTURE_CONFIRMATION.md'),
       sourceRelativePath: 'docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md', outputRoot: path.join(manifestRoot, 'ssot-source-map') });
-    assert.deepEqual(first.manifest.counts, { capabilities: 138, resultFamilies: 117, tables:235, transactions: 62 });
+    assert.deepEqual(first.manifest.counts, { capabilities: 138, resultFamilies: 117, tables:239, transactions: 62 });
     assert.equal(first.manifest.aggregateDigest, second.manifest.aggregateDigest);
     assert.deepEqual(snapshot, fs.readdirSync(path.join(manifestRoot, 'ssot-source-map')).sort().map((name) =>
       fs.readFileSync(path.join(manifestRoot, 'ssot-source-map', name), 'utf8')));

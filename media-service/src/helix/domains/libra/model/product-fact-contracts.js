@@ -155,6 +155,13 @@ function buildMetadataFetchIntent(value) {
   }
   if (common.requestedFields.some(field => field.startsWith('episode_')) && !common.episodeScope)
     fail('P9_METADATA_EPISODE_SCOPE', 'Episode fields require an explicit Episode scope.');
+  if (value.episodeMapping !== undefined) {
+    if (!common.episodeScope || common.sourceKind !== 'provider' || common.providerKind !== 'tmdb')
+      fail('P9_METADATA_EPISODE_MAPPING', 'A confirmed mapping requires a scoped Provider Episode request.');
+    common.episodeMapping = require('../../../contracts/episode-metadata-query').buildEpisodeMetadataQuery(value.episodeMapping);
+    if (common.episodeMapping.providerEpisode.providerKey !== common.resolvedProviderIdentity.providerKey)
+      fail('P9_METADATA_EPISODE_MAPPING', 'Episode mapping belongs to another show.');
+  }
   common.intentDigest = canonicalDigest(Object.fromEntries(Object.entries(common).filter(([key]) => key !== 'intentId')));
   common.intentId = canonicalDigest({ schema:'libra.metadata-fetch-intent-id@1', libraRunId:common.libraRunId,
     runExecutionBasisDigest:common.runExecutionBasisDigest, sourcePriority:common.sourcePriority, intentDigest:common.intentDigest });
@@ -743,6 +750,14 @@ function buildMediaCastDraft(value) {
   return Object.freeze(bytes(draft, 64 * 1024, 'P9_MEDIA_CAST_DRAFT_SIZE'));
 }
 
+function selectSeriesMediaCastObservation(observations) {
+  const candidates = observations.filter((item) => item.episodeScope && item.peopleHints?.length);
+  for (const item of candidates) buildEpisodeMetadataScope(item.episodeScope);
+  candidates.sort((left, right) => left.episodeScope.episodeNumber - right.episodeScope.episodeNumber ||
+    left.sourcePriority - right.sourcePriority || compare(left.evidenceId, right.evidenceId));
+  return candidates[0] || null;
+}
+
 function buildMetadataMediaCastRelations(value) {
   const subjectId = text(value?.subjectId, 'subjectId');
   let observations = value?.sourceBasis?.observationSet?.observations;
@@ -752,11 +767,8 @@ function buildMetadataMediaCastRelations(value) {
   }
   if (value.sourceBasis.observationSet.contentProfile === 'series') {
     // A Season cast is represented by one Episode source, not a union of all Episodes.
-    const candidates = observations.filter((item) => item.episodeScope && item.peopleHints?.length);
-    for (const item of candidates) buildEpisodeMetadataScope(item.episodeScope);
-    candidates.sort((left, right) => left.episodeScope.episodeNumber - right.episodeScope.episodeNumber ||
-      left.sourcePriority - right.sourcePriority || compare(left.evidenceId, right.evidenceId));
-    observations = candidates.length ? [candidates[0]] : [];
+    const selected = selectSeriesMediaCastObservation(observations);
+    observations = selected ? [selected] : [];
   }
   const relations = [];
   const claimedProviderIdentities = new Set();
@@ -1135,7 +1147,7 @@ function buildProductFactEvidence(value) {
     eventFenceDigest:digest(value?.eventFenceDigest, 'eventFenceDigest') });
 }
 
-module.exports = Object.freeze({ ProductFactContractError, buildArtifactManifestVerification, buildMediaCastDraft, buildMetadataMediaCastRelations, buildMediaCastFact, buildMetadataFetchIntent,
+module.exports = Object.freeze({ ProductFactContractError, buildArtifactManifestVerification, buildMediaCastDraft, buildMetadataMediaCastRelations, selectSeriesMediaCastObservation, buildMediaCastFact, buildMetadataFetchIntent,
   buildMetadataObservation, buildMetadataObservationBasis, buildProductFactHandle, buildProductFactSourceRefs, buildProductMetadataDraft, metadataObservationWorkIdempotencyKey,
   buildProductMetadataFact, buildProductFactEvidence, buildResolvedProductIdentity, buildWesternProductMetadataDraft, metadataSourceRef, selectMetadataObservations,
   validateArtifactRequirement, validateVerifiedArtifactManifest, validateEpisodeMetadata });

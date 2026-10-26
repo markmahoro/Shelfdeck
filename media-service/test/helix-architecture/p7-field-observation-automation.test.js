@@ -32,6 +32,7 @@ function createHarness(overrides = {}) {
   const automation = createFieldObservationAutomation({
     now: () => nowMs,
     materialFieldStore: {
+      getResetBarrier: () => overrides.resetBarrier || null,
       listMaterialFields: () => [...fields.values()],
       getMaterialField: (fieldId) => fields.get(fieldId) || null,
     },
@@ -64,6 +65,16 @@ function createHarness(overrides = {}) {
     now: () => nowMs,
   });
 }
+
+test('Reset ignores retained old failed scan TTL and old open Work for the first fresh sweep', () => {
+  const resetBarrier = { reset_id: 'a'.repeat(64), minimum_observation_revision: 7 };
+  const h = createHarness({ resetBarrier, fields: [field({ currentObservationRevision: 7 })],
+    works: [['field-a', [{ work_id: 'old-open', state: 'running' }, { work_id: 'old-failed', state: 'failed', created_at_ms: 1_700_000_000_000 }]]] });
+  assert.equal(h.automation.reconcile({ fieldId: 'field-a' }).kind, 'issued');
+  assert.equal(h.issued[0].expectedObservationRevision, 7);
+  h.works.set('field-a', [{ work_id: 'field-observation-work-' + resetBarrier.reset_id + '-new', state: 'running', created_at_ms: h.now() }]);
+  assert.equal(h.automation.reconcile({ fieldId: 'field-a' }).kind, 'in_progress');
+});
 
 for (const contentProfileHint of ['movie', 'series']) test(`first sweep issues Observation for active ${contentProfileHint} Fields immediately, then waits 12 hours`, () => {
   const harness = createHarness({

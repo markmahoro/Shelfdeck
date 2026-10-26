@@ -34,12 +34,29 @@ test('Windows distribution boots independently with its own native dependencies 
             assert.equal(require('node:child_process').spawnSync(binary,['-version'],{windowsHide:true,timeout:10000}).status,0);
           assert.equal(Object.keys(require.cache).filter(file=>{const rel=path.relative(output,file);return rel.startsWith('..'+path.sep)||path.isAbsolute(rel);}).length,0);
           assert.equal(require('./scripts/user-formation-reset').createUserFormationReset({dataDir}).preview().empty,true);
+          const stopped=await host.inject({method:'POST',url:'/v1/admin/runtime/actions/stop',headers:{cookie:login.headers['set-cookie']},
+            payload:{idempotencyKey:'package-preflight-stop'}});assert.equal(stopped.statusCode,202,stopped.body);
+          let state,deadline=Date.now()+10000;
+          do{state=(await host.inject({method:'GET',url:'/v1/admin/runtime',headers:{cookie:login.headers['set-cookie']}})).json();
+            if(state.mode==='stopped')break;await new Promise(resolve=>setTimeout(resolve,25));}while(Date.now()<deadline);
+          assert.equal(state.mode,'stopped');
+          const fs=require('node:fs'),parent=path.dirname(dataDir),directories={};
+          for(const name of ['reset-operations','reset-archives','reset-private','reset-sources']){
+            directories[name]=path.join(parent,name);fs.mkdirSync(directories[name]);}
+          const inspection=await require('./scripts/formation-reset-process').runFreshResetProcess({action:'inspect',spec:{dataDir,
+            generationId:'d'.repeat(64),expectedRuntimeRevision:state.revision,
+            operationRoot:directories['reset-operations'],backupParent:directories['reset-archives'],
+            backupSourceOptions:{roots:[{id:'data',path:dataDir},{id:'workspace',path:directories['reset-private']}]},
+            storage:{roots:[directories['reset-private']],protectedDirectories:[directories['reset-sources']]}}});
+          assert.equal(inspection.ready,true);assert.equal(inspection.counts.length,239);
+          assert.equal(inspection.protectedSummary.collectionCount,0);
+          assert.equal((await host.inject({method:'GET',url:'/v1/health'})).json().normalSupplyAllowed,false);
           console.log(JSON.stringify({ok:true,tableCount:initialized.tableCount,routeCount:host.routeCount}));
         }finally{await host.close();}
       })().catch(error=>{console.error(error);process.exitCode=1;});`;
     const result=spawnSync(path.join(output,'node.exe'),['-e',code],{cwd:output,encoding:'utf8',windowsHide:true,timeout:45000,
       env:{...process.env,NODE_PATH:'',NODE_OPTIONS:'',SHELFDECK_SECRET_ROOT:crypto.randomBytes(48).toString('base64url'),PACKAGE_TEST_DATA:dataDir}});
-    assert.equal(result.status,0,result.stderr);assert.deepEqual(JSON.parse(result.stdout),{ok:true,tableCount:235,routeCount:164});
+    assert.equal(result.status,0,result.stderr);assert.deepEqual(JSON.parse(result.stdout),{ok:true,tableCount:239,routeCount:168});
     const entryHash=crypto.createHash('sha256').update(fs.readFileSync(path.join(output,'src','server.js'))).digest('hex'),
       again=spawnSync(process.execPath,['scripts/package-win.js','--output',output],{cwd:serviceRoot,encoding:'utf8',windowsHide:true,timeout:10000});
     assert.notEqual(again.status,0);assert.match(again.stderr,/output already exists/);

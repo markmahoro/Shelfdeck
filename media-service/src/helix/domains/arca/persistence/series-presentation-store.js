@@ -80,6 +80,38 @@ function createSeriesPresentationStore(options){
     advance(r,fresh,{currentVersion:Number(fresh.current_version),activeBuildId:null},c.commitTimeMs);
   });}
 
+  function normalizeFreshResetHeads(description) {
+    const { digest, ...body } = description || {};
+    if (body.schemaRef !== 'arca.fresh-reset-series-retention@1' || canonicalDigest(body) !== digest ||
+        !Array.isArray(body.droppedHeads) || !Array.isArray(body.preservedBuilders))
+      fail('ARCA_RESET_SERIES_DESCRIPTION_INVALID', 'Reset lost its frozen Arca retention decision.');
+    return options.unitOfWork.execute([participant('arca_fresh_reset_series_heads', (r, c) => {
+      for (const kept of body.preservedBuilders) {
+        const current = r.invoke('scope', { scope_id: kept.scopeId }), row = r.invoke('build', { build_id: kept.buildId });
+        if (current?.active_build_id !== kept.buildId || row?.scope_digest !== kept.scopeDigest)
+          fail('ARCA_RESET_MAINTENANCE_LOST', 'Collection maintenance must survive the retained generation.');
+      }
+      const results = [];
+      for (const dropped of body.droppedHeads) {
+        const current = r.invoke('scope', { scope_id: dropped.scopeId });
+        if (!current) continue;
+        if (r.invoke('build', { build_id: dropped.buildId }) ||
+            r.invoke('reservations', { scope_id: dropped.scopeId }).some(row => row.state === 'pending'))
+          fail('ARCA_RESET_UNCOMMITTED_SERIES_RETAINED', 'An incoming Series build or reservation remains online.');
+        if (current.active_build_id !== dropped.buildId || current.state_digest !== dropped.headDigest ||
+            Number(current.current_version) !== dropped.currentVersion)
+          fail('ARCA_RESET_SERIES_HEAD_CHANGED', 'The retained Series head changed after the reset snapshot.');
+        // Keep committed versions, root bindings, references, Control and any
+        // Off-deck retirement. Only the discarded incoming builder is detached.
+        advance(r, current, { currentVersion: Number(current.current_version), activeBuildId: null,
+          retirementScopeId: current.retirement_scope_id ?? null }, c.commitTimeMs);
+        results.push({ scopeId: dropped.scopeId, oldHeadDigest: dropped.headDigest,
+          newHeadDigest: r.invoke('scope', { scope_id: dropped.scopeId }).state_digest });
+      }
+      return { descriptionDigest: digest, normalized: results, preservedBuilders: body.preservedBuilders };
+    })]).arca_fresh_reset_series_heads;
+  }
+
   function maintenanceFence(r,basis){
     if(basis.schema!=='shelfdeck.series-presentation-maintenance@1')return;
     const b=basis.entryBinding,entry=r.invoke('find_entry',{shelf_entry_id:b.shelfEntryId}),identity=entry&&r.invoke('find_identity',{shelf_entry_id:b.shelfEntryId,revision:Number(entry.canonical_identity_revision)}),
@@ -329,7 +361,7 @@ function createSeriesPresentationStore(options){
 
   return Object.freeze({repository,participant,read,readScope:scopeId=>read('scope',{scope_id:scopeId}),
     findByIdentity:(shelfId,providerKey)=>read('identity',{shelf_id:shelfId,provider:'tmdb',provider_key:providerKey}),
-    build,manifest,registerMaintenance,scopeParticipant,committedScopeParticipant,reclamationScopeParticipant,unused,formationRetirementPreview,retainedRetirementParticipant,reservationParticipant,admitBuild,versionParticipant,commitReferenceParticipant,commitControlParticipant,releaseReferencesParticipant,releaseShelfParticipants,lastReferenceMembers,retirementParticipant,assertRetirement,sharedMaterialDigest});
+    build,manifest,registerMaintenance,scopeParticipant,committedScopeParticipant,reclamationScopeParticipant,unused,formationRetirementPreview,retainedRetirementParticipant,normalizeFreshResetHeads,reservationParticipant,admitBuild,versionParticipant,commitReferenceParticipant,commitControlParticipant,releaseReferencesParticipant,releaseShelfParticipants,lastReferenceMembers,retirementParticipant,assertRetirement,sharedMaterialDigest});
 }
 
 module.exports=Object.freeze({columns,definition,createSeriesPresentationStore});

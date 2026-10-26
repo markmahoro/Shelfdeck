@@ -60,6 +60,8 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === '--apply') parsed.apply = true;
     else if (arg === '--helix-clean-init') parsed.helixCleanInit = true;
+    else if (arg === '--fresh-reset-config') { parsed.freshResetConfig = argv[++i]; if (!parsed.freshResetConfig) throw new Error('Fresh Reset configuration file is required.'); }
+    else if (arg === '--capacity-plan') { parsed.capacityPlan = argv[++i]; if (!parsed.capacityPlan) throw new Error('Capacity plan file is required.'); }
     else if (arg === '--sha256') {
       parsed.expectedSha256 = argv[i + 1] || '';
       i += 1;
@@ -71,6 +73,8 @@ function parseArgs(argv) {
   if (parsed.expectedSha256 && !/^[a-f0-9]{64}$/i.test(parsed.expectedSha256)) {
     throw new Error('Expected SHA-256 must be a 64-character hex string.');
   }
+  if (parsed.freshResetConfig && (parsed.helixCleanInit || !parsed.expectedSha256 || !parsed.capacityPlan))
+    throw new Error('Fresh Reset deployment requires SHA-256 and capacity plan, and cannot initialize clean data.');
   return parsed;
 }
 
@@ -98,7 +102,7 @@ function loadOrCreateSecretRoot({ allowCreate = false } = {}) {
   return generated;
 }
 
-function composeYaml(targetImage) {
+function composeYaml(targetImage, resetConfiguration) {
   return [
     'services:',
     '  shelfdeck:',
@@ -115,9 +119,13 @@ function composeYaml(targetImage) {
     '      - FFMPEG_PATH=/usr/local/bin/ffmpeg',
     '      - FFPROBE_PATH=/usr/local/bin/ffprobe',
     '      - LIBVA_DRIVER_NAME=iHD',
+    ...(resetConfiguration ? ['      - SHELFDECK_RESET_CONFIG_FILE=/run/shelfdeck-reset/config.json',
+      `      - SHELFDECK_RESET_BOOTSTRAP_FILE=${resetConfiguration.operationRoot}/deployment-bootstrap.json`] : []),
     '    volumes:',
     `      - ${DATA_DIR}:/app/data`,
     `      - ${OPERATOR_BACKUP_HOST}:/app/data/operator-backups`,
+    ...(resetConfiguration ? [`      - ${OPERATOR_BACKUP_HOST}:/operator-backups`,
+      `      - ${COMPOSE_DIR}/reset-config.json:/run/shelfdeck-reset/config.json:ro`] : []),
     `      - ${TRANSCODE_HOST}:/transcode`,
     `      - ${UPGRADE_HOST}:/upgrade`,
     `      - ${MEDIA_HOST}:/media`,
@@ -189,14 +197,15 @@ async function execStep(conn, label, cmd) {
 }
 
 async function main() {
-  const { tarball, apply, expectedSha256, helixCleanInit } = parseArgs(process.argv.slice(2));
+  const { tarball, apply, expectedSha256, helixCleanInit, freshResetConfig, capacityPlan } = parseArgs(process.argv.slice(2));
   if (!tarball) {
     console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--helix-clean-init] [--apply]');
     process.exit(2);
   }
   const targetImage = imageFromTarball(tarball);
   const secretRoot = loadOrCreateSecretRoot({ allowCreate: helixCleanInit });
-  const yaml = composeYaml(targetImage);
+  const resetConfiguration = freshResetConfig ? require('./nas-reset-bootstrap').configurationForNas(JSON.parse(fs.readFileSync(freshResetConfig, 'utf8'))) : null;
+  const yaml = composeYaml(targetImage, resetConfiguration);
   const secretEnv = `SHELFDECK_SECRET_ROOT=${secretRoot}\n`;
 
   const steps = [
@@ -236,7 +245,7 @@ async function main() {
           '--confirm',
           CLEAN_INIT_CONFIRM,
         ].join(' ')]]
-      : [['Helix runtime readiness', [
+      : resetConfiguration ? [['Prepare cold Reset management', 'Explicit stopped deployment proof; no business Host and no automatic Reset.']] : [['Helix runtime readiness', [
           'docker run --rm',
           `--env-file ${shellQuote(SECRET_FILE)}`,
           `-v ${shellQuote(`${DATA_DIR}:/run/shelfdeck-readiness-source:ro`)}`,
@@ -256,7 +265,8 @@ async function main() {
       'for i in $(seq 1 180); do',
       'body=$(curl --max-time 5 -fsS http://127.0.0.1:18080/v1/health) || { sleep 5; continue; };',
       'echo "$body";',
-      'printf "%s" "$body" | grep -q \'"status":"ok"\' && exit 0;',
+      resetConfiguration ? 'printf "%s" "$body" | grep -q \'"status":"maintenance"\' && printf "%s" "$body" | grep -q \'"normalSupplyAllowed":false\' && exit 0;' :
+        'printf "%s" "$body" | grep -q \'"status":"ok"\' && exit 0;',
       'sleep 5;',
       'done;',
       'exit 1',
@@ -306,13 +316,44 @@ async function main() {
 
   const conn = await connect();
   try {
+    const execute = async command => {
+      const result = await run(conn, command);
+      if (result.code !== 0) throw new Error('Cold Reset deployment check failed.');
+      return result.out.replace(/^Could not chdir to home directory.*\r?\n/, '').trim();
+    };
+    if (resetConfiguration) {
+      const plan = JSON.parse(fs.readFileSync(capacityPlan, 'utf8'));
+      if (plan.schema !== 'shelfdeck.deployment-capacity@1' || !Array.isArray(plan.volumes) || plan.volumes.length !== 2 ||
+          plan.volumes.map(row => row.path).sort().join(',') !== '/vol1,/vol2' ||
+          plan.volumes.some(row => !/^[1-9][0-9]*$/.test(row.requiredAvailableBytes))) throw new Error('Explicit two-volume peak capacity plan is required.');
+      // Check before the first production write, including Compose or secrets.
+      for (const volume of plan.volumes) {
+        const available = await execute(`df -B1 --output=avail -- ${shellQuote(volume.path)} | tail -n 1`);
+        if (!/^[0-9]+$/.test(available) || BigInt(available) < BigInt(volume.requiredAvailableBytes)) throw new Error('Deployment peak capacity is insufficient.');
+      }
+    }
     console.log('\n>>> Upload secret.env and canonical compose');
     await uploadText(conn, SECRET_FILE, secretEnv, 0o600);
     await uploadText(conn, COMPOSE_FILE, yaml, 0o644);
+    if (resetConfiguration) await uploadText(conn, `${COMPOSE_DIR}/reset-config.json`, JSON.stringify(resetConfiguration), 0o600);
     const chmod = await run(conn, `chmod 600 ${shellQuote(SECRET_FILE)}`);
     if (chmod.code !== 0) throw new Error('Protecting secret.env failed');
 
     for (const [label, cmd] of steps) {
+      if (label === 'Prepare cold Reset management') {
+        const result = await require('./nas-reset-bootstrap').prepareNasResetManagement({ execute,
+          upload: (file, contents) => uploadText(conn, file, contents, 0o600), configuration: resetConfiguration,
+          dataDir: DATA_DIR, backupHost: OPERATOR_BACKUP_HOST, secretFile: SECRET_FILE, targetImage,
+          async readRuntime() {
+            const key = readEnvFile(LOCAL_ADMIN_KEY_FILE, 'SHELFDECK_ADMIN_API_KEY');
+            if (!key) throw new Error('Admin API credential is required for the safe Stop proof.');
+            const response = await fetch('http://192.168.12.230:18080/v1/admin/runtime', { headers: { 'X-Api-Key': key }, signal: AbortSignal.timeout(15000) });
+            if (!response.ok) throw new Error('Runtime safe Stop proof is unavailable.');
+            return response.json();
+          } });
+        console.log('Cold management closure proof:', result.closureDigest);
+        continue;
+      }
       const result = await execStep(conn, label, cmd);
       if (label === 'Helix clean initialization') persistAdminApiKey(result.out);
     }
@@ -326,7 +367,8 @@ async function main() {
   }
 }
 
-main().catch((err) => {
+if (require.main === module) main().catch((err) => {
   console.error(`\nDEPLOY BLOCKED: ${err.message}`);
   process.exit(1);
 });
+module.exports = Object.freeze({ parseArgs, composeYaml });

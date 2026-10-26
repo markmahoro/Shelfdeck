@@ -297,7 +297,7 @@ function runExecutionBasis() {
     role: { type: 'string', enum: ['nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'] },
     materialKey: digest(), associationEvidenceDigest: digest(), dispositionBasisDigest: digest()
   });
-  return {
+  const schema = {
     $schema: DRAFT, $id: typeId('LibraRunExecutionBasis'), title: 'LibraRunExecutionBasis@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024,
     ...object({
@@ -313,6 +313,8 @@ function runExecutionBasis() {
       executionBasisDigest: digest()
     })
   };
+  schema.properties.episodeMetadataMappingRef = require('../../src/helix/contracts/episode-metadata-mapping-reference').episodeMetadataMappingReferenceSchema();
+  return schema;
 }
 
 function runExecutionBasisRecord() {
@@ -328,7 +330,7 @@ function runExecutionBasisRecord() {
   });
   return { $schema: DRAFT, $id: typeId('LibraRunExecutionBasisRecord'), title: 'LibraRunExecutionBasisRecord@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 1024 * 1024,
-    ...object(properties) };
+    ...object(properties, Object.keys(properties).filter(key => key !== 'episodeMetadataMappingRef')) };
 }
 
 function runAdmissionDecision() {

@@ -2,10 +2,13 @@ import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it } from 'vitest';
 import App from '../src/App';
+import {mockRunningRuntime} from './fixtures/runtime';
 
 describe('Helix Admin navigation', () => {
-  it('contains exactly the eight official pages', () => {
+  it('contains exactly the eight official pages', async () => {
+    mockRunningRuntime();
     render(<MemoryRouter><App /></MemoryRouter>);
+    await screen.findByRole('navigation');
     const links = screen.getAllByRole('link').filter((link) => {
       const href = link.getAttribute('href');
       return href !== '#main' && link.closest('nav');

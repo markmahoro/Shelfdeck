@@ -2,11 +2,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
+import {mockRunningRuntime} from './fixtures/runtime';
 import { helixAdminApi, type FormationSubject } from '../src/helix/api';
 
 afterEach(() => vi.restoreAllMocks());
 
 it('offers one direct retry for a deterministic stage collision', async () => {
+  mockRunningRuntime();
   const summary = { totalCount: 1, inProgressCount: 0, attentionRequiredCount: 1, completedCount: 0, endedCount: 0 };
   const projection = { status: 'ready' as const, asOfMs: 100 };
   const item = {

@@ -269,6 +269,7 @@ function libraDefinition(schemaManifest) {
           "admission_revision",
           "acceptance_spec_id",
           "run_material_manifest_id",
+          "episode_metadata_mapping_intent_id",
           "execution_basis_schema_ref",
           "execution_basis_record_json",
           "execution_basis_digest",
@@ -735,6 +736,10 @@ function createRunAdmissionStore(options) {
           "Run admission marker and Result identity are required.",
         );
       const commitDigest = decision.decisionDigest;
+      let authorizedEpisodeMapping = null;
+      const mappingValidation = decision.runExecutionBasis.episodeMetadataMappingRef
+        ? require('./episode-metadata-mapping-store').createEpisodeMetadataMappingStore(options).admissionValidation(
+          decision.runExecutionBasis, decision.replacementOfRunRef?.libraRunId, record => { authorizedEpisodeMapping = record; }) : null;
       let result,
         replayed = false,
         controls = [];
@@ -836,7 +841,7 @@ function createRunAdmissionStore(options) {
             );
             if (
               !old ||
-              !["active", "suspended"].includes(old.state) ||
+              !(["active", "suspended"].includes(old.state) || old.state === 'frozen' && authorizedEpisodeMapping?.libraRunId === old.libra_run_id) ||
               number(old.state_revision) !==
                 decision.replacementOfRunRef.stateRevision ||
               old.state_digest !== decision.replacementOfRunRef.stateDigest ||
@@ -986,6 +991,7 @@ function createRunAdmissionStore(options) {
             run_material_manifest_id: manifest.manifestId,
             execution_basis_schema_ref: BASIS_SCHEMA,
             execution_basis_record_json: canonicalJson(record),
+            episode_metadata_mapping_intent_id: record.episodeMetadataMappingRef?.intentId || null,
             execution_basis_digest: newState.executionBasisDigest,
             run_scope_digest: newState.runScopeDigest,
             state: "active",
@@ -1173,7 +1179,7 @@ function createRunAdmissionStore(options) {
         },
       };
       try {
-        options.unitOfWork.execute([preflight, control, apply, finish]);
+        options.unitOfWork.execute([preflight, ...(mappingValidation ? [mappingValidation] : []), control, apply, finish]);
       } catch (error) {
         if (error instanceof Replay)
           return Object.freeze({ result: error.result, replayed: true });

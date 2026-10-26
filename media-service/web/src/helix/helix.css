@@ -680,6 +680,11 @@ button, input, select, textarea { font: inherit; }
 .identity-picker form { display:grid; gap:8px; }
 .identity-picker-input { display:flex; gap:8px; }
 .identity-picker-input input { min-width:0; flex:1; }
+.dialog.dialog-wide.episode-metadata-dialog { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: min(840px, calc(100vw - 40px)); min-width: 0; overflow: hidden; }
+.episode-metadata-dialog .dialog-body { min-height: 0; overflow-y: auto; }
+.episode-metadata-dialog .dialog-body > *, .episode-metadata-dialog select { min-width: 0; max-width: 100%; }
+.episode-metadata-dialog .episode-metadata-confirmation { display: flex; flex-flow: row nowrap; align-items: flex-start; gap: 8px; }
+.episode-metadata-confirmation input[type="checkbox"] { flex: none; width: 16px; height: 16px; min-height: 16px; margin: 3px 0; }
 .identity-picker-error { color:var(--danger); margin:0; }
 .identity-picker-preview { display:flex; gap:16px; align-items:center; padding:16px; border:1px solid var(--line); border-radius:8px; }
 .identity-picker-preview > div { min-width:0; }

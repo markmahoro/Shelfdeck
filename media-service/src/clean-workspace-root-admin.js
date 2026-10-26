@@ -139,7 +139,21 @@ function createCleanWorkspaceRootAdmin(options){
     return view();
   }
 
-  return Object.freeze({get:view,probe,configure});
+  function initialize(){
+    const existing=options.locationRegistryRepository.getWorkspaceRoot(ROOT_ID);
+    if(existing)return existing;
+    const occupied=options.unitOfWork.execute([{participantId:'clean_workspace_root_initialization',owner:'libra',repositories:[activity],execute(context){
+      const repo=context.repository(activity.repositoryId);
+      return repo.invoke('list_workspaces',{}).length>0||repo.invoke('list_cleanup_scopes',{}).length>0;
+    }}]).clean_workspace_root_initialization;
+    if(occupied)fail('CLEAN_WORKSPACE_ROOT_MISSING','Existing Workspace history has no registered Platform root.');
+    const checked=probe({rootPath:options.effectiveRootPath});
+    return locationRegistry.publishWorkspaceRoot({rootId:ROOT_ID,rootKind:'production-workspace',endpointId:checked.endpointId,
+      mountScopeId:checked.mountScopeId,mountScopeRevision:checked.mountScopeRevision,requestedRoot:checked.rootPath,
+      expectedConfigRevision:null,updatedAtMs:now()});
+  }
+
+  return Object.freeze({get:view,probe,configure,initialize});
 }
 
 module.exports=Object.freeze({CleanWorkspaceRootAdminError,createCleanWorkspaceRootAdmin});

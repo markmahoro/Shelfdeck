@@ -507,6 +507,7 @@ function createProcurementExecutionRuntime(options) {
     productIdentitySelection:libraProcessServices.productIdentitySelection,
     usAdultAnalysisStore:libraProcessServices.usAdultAnalysisStore,
     usAdultActorChoiceStore:libraProcessServices.usAdultActorChoiceStore,
+    episodeMetadataMappingStore:libraProcessServices.episodeMetadataMappingStore,
     usAdultMatchCompletionStore:libraProcessServices.usAdultMatchCompletionStore,
     productProductionPort:libraOptions.productProductionPort,workspaceProductPort:libraOptions.workspaceProductPort,
     platformComputeRuntime:libraOptions.platformComputeRuntime,now});
@@ -1439,6 +1440,7 @@ function createProcurementExecutionRuntime(options) {
     productIdentitySelection:libraProcessServices.productIdentitySelection,
     pipelineAdmission:libraProcessServices.pipelineAdmission,
     usAdultActorChoice:libraProcessServices.usAdultActorChoice,
+    episodeMetadataMapping:libraProcessServices.episodeMetadataMapping,
     usAdultActorSelectionQuery:libraProcessServices.usAdultActorSelectionQuery,
     usAdultRecommendationSources:libraProcessServices.usAdultRecommendationQuery,
     arcaCoordinator:arcaProcessServices.coordinator,arcaContextReader:arcaProcessServices.contextReader,

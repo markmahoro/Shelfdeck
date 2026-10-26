@@ -2,6 +2,7 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
+const { observationPrefix } = require('../model/field-reset-barrier');
 
 class FieldObservationAdminServiceError extends Error {
   constructor(code, message, details = {}) {
@@ -57,7 +58,9 @@ function createFieldObservationAdminService(options) {
     const field = options.materialFieldStore.getMaterialField(input.fieldId);
     if (!field) fail('P7_MATERIAL_FIELD_NOT_FOUND', 'Material Field does not exist.');
     if (field.status !== 'active') fail('P7_MATERIAL_FIELD_DEREGISTERED', 'Deregistered Material Field cannot be observed.');
-    const workId = stableId('field-observation-work-', { fieldId: input.fieldId, idempotencyKey: input.idempotencyKey });
+    const barrier = options.materialFieldStore.getResetBarrier(input.fieldId);
+    const effectiveInput = barrier ? { ...input, idempotencyKey: barrier.reset_id + ':' + input.idempotencyKey } : input;
+    const workId = stableId(observationPrefix(barrier), { fieldId: input.fieldId, idempotencyKey: effectiveInput.idempotencyKey });
     const basisDigest = canonicalDigest({ schema: 'procurement.admin-field-observation-basis@2', fieldId: field.fieldId,
       access: field.access, profileHintSnapshot: field.currentProfileHintSnapshot,
       expectedObservationRevision: input.expectedObservationRevision, pageBudget: input.pageBudget });
@@ -66,7 +69,7 @@ function createFieldObservationAdminService(options) {
         eligible: request.ownerDomain === 'procurement' && request.processId === field.fieldId &&
           request.executionBasisDigest === basisDigest, basisDigest, reasonCode: 'FIELD_OBSERVATION_BASIS_STALE',
       }) }, limits: Object.freeze({ globalOpenWorks: 1_000, ownerOpenWorks: 500, openEvents: 100_000 }) });
-    const definition = workDefinition(field, input, workId, basisDigest);
+    const definition = workDefinition(field, effectiveInput, workId, basisDigest);
     const replayed = admission.replay(definition);
     if (!replayed && (field.currentAccessRevision !== input.expectedAccessRevision ||
         (field.currentObservationRevision || 0) !== input.expectedObservationRevision)) {

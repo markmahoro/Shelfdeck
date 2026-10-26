@@ -6,6 +6,14 @@ const os = require('node:os');
 const path = require('node:path');
 const {failureDiagnostics} = require('../src/helix/contracts/failure-diagnostics');
 
+test('Secret invocation wrapper retains only recognized underlying failure codes', () => {
+  assert.deepEqual(failureDiagnostics({code:'P5_SECRET_LEASE_INVOCATION_FAILED',
+    details:{causeCode:'PLATFORM_TMDB_ARTIFACT_INVALID',message:'secret',body:'secret'}}),
+  {causeCode:'PLATFORM_TMDB_ARTIFACT_INVALID'});
+  for (const causeCode of ['SECRET_TOKEN_VALUE', 'PLATFORM_TMDB_SECRET_TOKEN_VALUE', 'https://secret', ''])
+    assert.deepEqual(failureDiagnostics({details:{causeCode}}), {});
+});
+
 test('HTTP diagnostics retain only a bounded numeric status',()=>{
   assert.deepEqual(failureDiagnostics({details:{statusCode:429,stage:'json_request',url:'https://secret',body:'SECRET'}}),
     {stage:'json_request',statusCode:429});

@@ -16,7 +16,6 @@ const { createCleanFacades } = require('./helix/composition/create-clean-facades
 const { createRuntimeOperations } = require('./clean-runtime-operations');
 const { createMaintenanceWindow } = require('./clean-maintenance-window');
 const { reconcilerCategory, workCategory, maintenanceTaskTitle, maintenanceExecutionTitle } = require('./helix/composition/maintenance-admission-policy');
-const { createUserFormationResetWorkerPort } = require('./clean-formation-reset-port');
 const { createOverviewProjectionHost } = require('./helix/projections/overview-projection-host');
 const { createSetupReadinessQuery } = require('./helix/projections/setup-readiness-query');
 const { createInputSettlementAuthorizationStore } = require('./helix/domains/arca/persistence/input-settlement-authorization-store');
@@ -186,7 +185,7 @@ const schemaDdl = fs.readFileSync(
   path.join(__dirname, 'helix/foundation/persistence/generated/clean-schema.sql'),
   'utf8',
 );
-const SESSION_COOKIE = 'shelfdeck_admin_session';
+const { SESSION_COOKIE, cookieValue, sessionCookie, clearSessionCookie } = require('./clean-session-cookies');
 const AUTH_ERROR_CODES = new Set([
   'ADMIN_CREDENTIAL_INVALID',
   'ADMIN_SESSION_INVALID',
@@ -855,6 +854,11 @@ function createPlatformIntegrationServices(options) {
       }
       return javProductAdapter.searchProviderIdentity(request);
     },
+    async observeEpisodeMetadataCandidates(input) {
+      const operationId = 'libra.episode_metadata.candidates.observe@1', handle = handleFor('tmdb', operationId);
+      if (!handle) throw new CleanServiceHostError('PLATFORM_INTEGRATION_NOT_CONFIGURED', 'TMDB integration is not configured.');
+      return tmdbAdapter.observationPort.execute({ operationId, integrationHandle: handle, input, timeoutMs: 10000 });
+    },
     async fetchProviderMetadata(request) {
       if(request.metadataFetchIntent.contentProfile==='jav') {
         const binding=request.metadataFetchIntent.javSelectedSource;
@@ -872,6 +876,7 @@ function createPlatformIntegrationServices(options) {
           requestedFields:
             request.metadataFetchIntent.requestedFields,
           ...(request.metadataFetchIntent.episodeScope ? { episodeScope:request.metadataFetchIntent.episodeScope } : {}),
+          ...(request.metadataFetchIntent.episodeMapping ? { providerEpisodeReference: request.metadataFetchIntent.episodeMapping.providerEpisode } : {}),
         },
         timeoutMs: 10_000,
       });
@@ -1116,30 +1121,6 @@ async function readBoundedRoutingNfo(handle) {
   return snapshot.bytes.toString('utf8');
 }
 
-function cookieValue(header, name) {
-  for (const item of String(header || '').split(';')) {
-    const separator = item.indexOf('=');
-    if (separator < 0) continue;
-    if (item.slice(0, separator).trim() === name) {
-      return decodeURIComponent(item.slice(separator + 1).trim());
-    }
-  }
-  return undefined;
-}
-
-function sessionCookie(token) {
-  return [
-    SESSION_COOKIE,
-    '=',
-    encodeURIComponent(token),
-    '; Path=/; HttpOnly; SameSite=Strict; Max-Age=28800',
-  ].join('');
-}
-
-function clearSessionCookie() {
-  return SESSION_COOKIE + '=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0';
-}
-
 function errorResponse(error, correlationId) {
   let status = 500;
   if (AUTH_ERROR_CODES.has(error.code)) status = 401;
@@ -1147,6 +1128,10 @@ function errorResponse(error, correlationId) {
   else if (['MAINTENANCE_REVISION_CONFLICT', 'MAINTENANCE_COMMAND_CONFLICT'].includes(error.code)) status = 409;
   else if(error.code==='RUNTIME_OPERATION_INPUT_INVALID'||error.code==='RUNTIME_RESET_CONFIRMATION_REQUIRED')status=400;
   else if(typeof error.code==='string'&&error.code.startsWith('RUNTIME_'))status=error.statusCode||409;
+  else if(typeof error.code==='string'&&/^RESET_[A-Z0-9_]+$/.test(error.code))status=409;
+  else if(typeof error.code==='string'&&error.code.startsWith('LIBRA_EPISODE_')) {
+    status=error.code.endsWith('_NOT_FOUND')?404:/(?:_INPUT|_INVALID|_SELECTION_REQUIRED|_MULTIPART_UNSUPPORTED)$/.test(error.code)?400:409;
+  }
   else if (error.code === 'OVERVIEW_PROJECTION_REBUILDING') status = 503;
   else if (['LIBRA_REPROCESS_INTENT_STALE','LIBRA_REPROCESS_ALREADY_REQUESTED','LIBRA_DEFECT_AUTHORIZATION_STALE',
     'ARCA_DEFECT_AUTHORIZATION_STALE','ARCA_DEFECT_BASIS_STALE','ARCA_DEFECT_PREVIEW_STALE','ARCA_DEFECT_CONTROL_CHANGED',
@@ -1268,7 +1253,7 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'HELIX_NOT_READY') status = 503;
   if (error.code?.startsWith('PLATFORM_NETWORK_')) status = error.code.endsWith('_CORRUPT') ? 500 : 400;
   const code = status === 500 ? 'CLEAN_SERVICE_INTERNAL_ERROR' : error.code;
-  const message = status === 500 ? 'Clean Service请求处理失败。' : error.message;
+  const message = status === 500 ? 'Clean Service请求处理失败。' : code?.startsWith('RESET_') ? require('./clean-reset-error-copy').resetErrorMessage(code) : error.message;
   return {
     status,
     body: {
@@ -1289,7 +1274,7 @@ function createRuntime(options) {
   if (!fs.existsSync(path.join(options.adminDistDir, 'index.html'))) {
     findings.push('ADMIN_WEB_BUILD_MISSING');
   }
-  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 164) {
+  if (routeManifest.status !== 'active' || routeManifest.entries.length !== 168) {
     findings.push('ROUTE_INVENTORY_INCOMPLETE');
   }
   if (uiManifest.status !== 'active' || uiManifest.entries.length !== 17) {
@@ -1384,6 +1369,7 @@ async function createCleanServiceHost(options) {
   if (!options || typeof options.dataDir !== 'string' || typeof options.adminDistDir !== 'string') {
     throw new TypeError('Clean service data and Admin Web roots are required.');
   }
+  require('./clean-reset-generation-fence').assertBusinessGenerationOpenAllowed(options.dataDir);
   const constructed = createRuntime(options);
   if (constructed.findings.length) {
     throw new CleanServiceHostError(
@@ -1588,7 +1574,6 @@ async function createCleanServiceHost(options) {
       afterMediaEffectCommit: options.workspaceAfterMediaEffectCommit,
       afterCleanupPhysicalEffect: options.workspaceAfterCleanupPhysicalEffect,
     });
-  workspaceProductPort.rootSnapshot();
   const workspaceRootAdmin=createCleanWorkspaceRootAdmin({
     ...constructed.applicationDependencies,locationRegistryRepository,mountScopeResolver:localMountScopeResolver,
     effectiveRootPath:workspaceProductPort.rootPath,statfsSync:options.workspaceStatfsSync,now:options.now||Date.now,
@@ -1609,6 +1594,8 @@ async function createCleanServiceHost(options) {
       ];
     },
   });
+  workspaceRootAdmin.initialize();
+  workspaceProductPort.rootSnapshot();
   const productDeliveryPort = ProductDeliveryPort(createProductDeliveryReader(
     constructed.applicationDependencies,
   ));
@@ -1789,6 +1776,7 @@ async function createCleanServiceHost(options) {
     }),
     workspaceProductPort,
     productProductionPort,
+    observeEpisodeMetadataCandidates: options.observeEpisodeMetadataCandidates || platformIntegrations.observeEpisodeMetadataCandidates,
     mediaEffectPort,
     ffmpegProcessRegistry,
     progressProjectionReader: executionProgressProjectionReader,
@@ -1915,10 +1903,11 @@ async function createCleanServiceHost(options) {
     wakeBackground(request){return procurementExecution.host.wakeBackground(request);},
     async quiesce() {
       const execution=procurementExecution.host.quiesce();
-      await Promise.all([execution,formationProjectionHost.stop(),overviewQuery.stop(),outboxDispatcher.stop(),runtimeOperations.waitForBusinessCommands()]);
+      await Promise.all([execution,ffmpegProcessRegistry.quiesce?.(),formationProjectionHost.stop(),overviewQuery.stop(),outboxDispatcher.stop(),runtimeOperations.waitForBusinessCommands()]);
       if(!transportClosing)await refreshStoppedViews();
     },
     async resume() {
+      ffmpegProcessRegistry.resume?.();
       await outboxDispatcher.recoverCommittedRetryIntents();
       try {
         await procurementExecution.host.start();await outboxDispatcher.start();await formationProjectionHost.start();
@@ -2143,7 +2132,12 @@ async function createCleanServiceHost(options) {
       return procurementExecution.people.dismissRegistration(body, actor?.credentialId || 'admin');
     },
   });
-  const userReset=createUserFormationResetWorkerPort({dataDir:options.dataDir,workspaceRoot:libraWorkspaceRoot,
+  const userReset=(options.createFormationResetPort || (()=>{
+    const unavailable=()=>{throw Object.assign(new Error('重置管理进程尚未配置，请先完成作业配置。'),{code:'RESET_SUPERVISOR_REQUIRED',statusCode:409});};
+    return {preview:unavailable,apply:unavailable,recover:unavailable};
+  }))({dataDir:options.dataDir,workspaceRoot:libraWorkspaceRoot,
+    readRuntime:()=>runtimeOperations.snapshot(),
+    captureResetManagementCredential:runtime.captureResetManagementCredential,
     assertWorkspaceAvailable(){const root=locationRegistryRepository.getWorkspaceRoot('service-libra-production-workspace');
       const activity=procurementExecution.host.activity();
       if(activity.state!=='quiesced'||activity.inFlightEvents||activity.inFlightPlanning||activity.inFlightRecoveries||activity.inFlightOwnerReconciliations||ffmpegProcessRegistry.size())
@@ -2152,8 +2146,11 @@ async function createCleanServiceHost(options) {
       localMountScopeResolver.validateReference({endpointId:root.endpointId,rootLocation:root.resolvedRoot,
         mountScopeId:root.mountScopeId,mountScopeRevision:root.mountScopeRevision});
       fs.accessSync(libraWorkspaceRoot,fs.constants.R_OK|fs.constants.W_OK);
+      return Object.freeze({allFileWritersStopped:true,runtimeRevision:runtimeOperations.snapshot().revision});
     }});
   runtimeOperations=createRuntimeOperations({dataDir:options.dataDir,
+    initialOperation:options.runtimeInitialOperation,
+    onOperationSettled:options.onRuntimeOperationSettled,
     onDesiredModeChanged:()=>maintenanceWindow?.tick(),
     normalSupplyAllowed:()=>maintenanceWindow?.normalSupplyAllowed()!==false,
     readMaintenance:()=>maintenanceWindow?.snapshot() || null,
@@ -2208,6 +2205,7 @@ async function createCleanServiceHost(options) {
     libraRunAdmin,
     productIdentitySelection,
     usAdultActorChoice,
+    episodeMetadataMappingService: procurementExecution.episodeMetadataMapping,
     usAdultActorSelectionQuery:procurementExecution.usAdultActorSelectionQuery,
     arcaAcceptanceRecovery,
     platformIntegrationAdmin: platformIntegrations.admin,
@@ -2289,27 +2287,59 @@ async function createCleanServiceHost(options) {
     throw error;
   }
 
-  let closed = false;
-  return Object.freeze({
-    generation: application.generation,
-    routeCount: application.routeCount,
-    readiness: () => application.readiness(),
-    inject: (request) => server.inject(request),
-    listen: (address) => server.listen(address),
-    async close() {
-      if (closed) return;
-      closed = true;
-      transportClosing=true;
-      await Promise.all([application.stop(),runtimeOperations.waitForShutdown(options.shutdownTimeoutMs||60000)]);
+  let closingPromise = null;
+  let resetGenerationId = null;
+  let resetRuntimeRevision = null;
+  function closeGeneration(waitForOperation) {
+    if (closingPromise) return closingPromise;
+    transportClosing = true;
+    closingPromise = (async () => {
+      await Promise.all([application.stop(), ...(waitForOperation
+        ? [runtimeOperations.waitForShutdown(options.shutdownTimeoutMs || 60000)] : [])]);
+      // Fastify must finish every authenticated read as well as business writes
+      // before its shared Kernel is closed. Old ports keep the closed Kernel;
+      // they must never be rebound to the next database generation.
+      await server.close();
       try {
-        await server.close();
         await platformIntegrations.close();
         peopleReferencePreparation.clearCache();
         await localFaceModel.close();
       } finally {
         constructed.close();
       }
+    })();
+    return closingPromise;
+  }
+  return Object.freeze({
+    generation: application.generation,
+    routeCount: application.routeCount,
+    readiness: () => application.readiness(),
+    inject: (request) => server.inject(request),
+    listen: (address) => server.listen(address),
+    // Operator-only transport lifecycle port; this is not an Admin HTTP action.
+    // A reset cannot await its own pending Runtime operation while closing the
+    // business generation. Its durable receipt is finalized outside that DB.
+    async closeDatabaseGeneration({ generationId, expectedRuntimeRevision }) {
+      if (!/^[a-f0-9]{64}$/.test(generationId) || !Number.isSafeInteger(expectedRuntimeRevision))
+        throw Object.assign(new Error('Invalid stopped-generation fence.'), { code: 'RESET_HOST_FENCE_INVALID' });
+      if (resetGenerationId === generationId && closingPromise) {
+        if (resetRuntimeRevision !== expectedRuntimeRevision)
+          throw Object.assign(new Error('Stopped-generation replay changed its runtime fence.'), { code: 'RESET_HOST_FENCE_INVALID' });
+        await closingPromise;
+        return Object.freeze({ generationId, allBusinessConnectionsClosed: true });
+      }
+      const state = runtimeOperations.snapshot(), activity = state.activity;
+      if (closingPromise || state.desiredMode !== 'stopped' || !['stopped', 'resetting'].includes(state.mode) ||
+          state.revision !== expectedRuntimeRevision || activity.state !== 'quiesced' ||
+          activity.inFlightEvents || activity.inFlightPlanning || activity.inFlightRecoveries ||
+          activity.inFlightOwnerReconciliations || activity.inFlightAdminCommands || ffmpegProcessRegistry.size())
+        throw Object.assign(new Error('Reset requires the exact drained runtime generation.'), { code: 'RESET_HOST_NOT_DRAINED' });
+      resetGenerationId = generationId;
+      resetRuntimeRevision = expectedRuntimeRevision;
+      await closeGeneration(false);
+      return Object.freeze({ generationId, allBusinessConnectionsClosed: true });
     },
+    close: () => closeGeneration(true),
   });
 }
 

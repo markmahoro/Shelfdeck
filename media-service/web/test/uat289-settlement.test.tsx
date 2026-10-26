@@ -2,6 +2,8 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
+import {mockRunningRuntime} from './fixtures/runtime';
+beforeEach(()=>{mockRunningRuntime();});
 import InputSettlementAuthorization from '../src/helix/InputSettlementAuthorization';
 import { SessionProvider } from '../src/helix/session';
 import { helixAdminApi, type FormationSubject, type SetupReadinessProjection } from '../src/helix/api';

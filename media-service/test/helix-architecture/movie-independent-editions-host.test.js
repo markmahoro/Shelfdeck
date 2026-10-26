@@ -31,7 +31,9 @@ for (const scenario of ['independent_editions','reset_recovery']) test('real med
    else throw new Error('Unexpected TMDB fixture route '+url.pathname);
    return new Response(JSON.stringify(body),{headers:{'content-type':'application/json'}});
   }};
-  host=await createCleanServiceHost(hostOptions);
+  async function openHost(){return scenario==='reset_recovery'?require('../helpers/fresh-reset-supervisor').createFreshResetTestHost(hostOptions,{
+    workspaceRoots:[path.join(root,'workspace'),path.join(root,'configured-workspace')],protectedDirectories:[source,target]}):createCleanServiceHost(hostOptions);}
+  host=await openHost();
   db=new Database(path.join(dataDir,'shelfdeck.db'));
   const auth=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}});assert.equal(auth.statusCode,204);let cookie=auth.headers['set-cookie'];
   async function request(method,url,payload){const response=await host.inject({method,url,headers:{cookie},payload});assert.ok(response.statusCode>=200&&response.statusCode<300,response.body);return response.json();}
@@ -50,7 +52,7 @@ for (const scenario of ['independent_editions','reset_recovery']) test('real med
    assert.fail(JSON.stringify({errors,calls,runs:db.prepare('SELECT state FROM libra_runs').all(),attempts:db.prepare("SELECT failure_code FROM fx_work_attempts WHERE state='failed'").all(),formation:await request('GET','/v1/admin/formation?limit=25')}));}
   if(scenario==='reset_recovery') {
    await request('PATCH','/v1/admin/settings/workspaces',{rootPath:path.join(root,'configured-workspace'),expectedConfigRevision:1,idempotencyKey:'configure-workspace'});
-   await host.close();host=await createCleanServiceHost(hostOptions);
+   await host.close();host=await openHost();
    cookie=(await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}})).headers['set-cookie'];
    const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-kernel');
    const {createSqliteUnitOfWork}=require('../../src/helix/foundation/persistence/sqlite-unit-of-work');
@@ -74,23 +76,21 @@ for (const scenario of ['independent_editions','reset_recovery']) test('real med
    await waitRuntime('stopped');
    assert.equal(registry.abandonExecution('fixture-reservation-gate'),1);
    assert.equal(registry.prepareExecution([scope],work.work_id).allowed,true);
+   incidentKernel.close();incidentKernel=null;db.close();db=null;
    const preview=await request('GET','/v1/admin/runtime/reset-preview');assert.equal(preview.ready,true,JSON.stringify(preview.blockers));
    await request('POST','/v1/admin/runtime/actions/reset',{idempotencyKey:'reset-recovery-owner',previewDigest:preview.previewDigest,confirmed:true});
    await waitRuntime('stopped',true);
-   assert.equal(db.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(work.work_id).state,'cancelled');
-   assert.equal(breaker.read(registry.scopeKey(scope)).state,'open','Reset must release the actual cancelled Work reservation');
-   assert.equal(registry.read(registry.incidentKey(scope)).incident_state,'open','Reset is not successful recovery evidence');
+   db=new Database(path.join(dataDir,'shelfdeck.db'));
+   assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works WHERE work_id=?').get(work.work_id).n,0);
+   assert.equal(db.prepare('SELECT count(*) n FROM fx_executor_incidents').get().n,0,'unrelated incident history leaves the online generation');
    assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,0);
-   // Inject an exit before notification to qualify startup replay over the same durable cancellation.
-   registry.prepareExecution([scope],work.work_id);
-   await host.close();host=await createCleanServiceHost(hostOptions);
+   db.close();db=null;await host.close();host=await openHost();db=new Database(path.join(dataDir,'shelfdeck.db'));
    cookie=(await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}})).headers['set-cookie'];
    assert.equal((await request('GET','/v1/admin/runtime')).mode,'stopped');
-   assert.equal(breaker.read(registry.scopeKey(scope)).state,'recovering','Stopped startup must not start ordinary recovery');
+   assert.equal(db.prepare('SELECT count(*) n FROM proc_candidate_packages').get().n,0,'stopped startup cannot repopulate procurement');
    await request('POST','/v1/admin/runtime/actions/resume',{idempotencyKey:'resume-after-reset'});await waitRuntime('running');
    await scan('after-reset');await commitCount(1);
-   assert.equal(breaker.read(registry.scopeKey(scope)).state,'closed','Actual new media success must close the exact Circuit');
-   assert.equal(registry.read(registry.incidentKey(scope)).occurrence_count,3n);
+   assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1,'only a new real media Commit proves recovery');
    assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events e JOIN fx_supporting_works w USING(work_id) WHERE w.work_kind='workspace_media_production' AND w.work_id<>? AND e.state='succeeded'").get(work.work_id).n>0,true);
    assert.deepEqual(db.pragma('foreign_key_check'),[]);
    return;

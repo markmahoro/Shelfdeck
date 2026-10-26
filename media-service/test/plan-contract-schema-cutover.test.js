@@ -5,7 +5,7 @@ const Database=require(path.join(service,'node_modules/better-sqlite3'));
 const {openSqliteKernel}=require(path.join(service,'src/helix/foundation/persistence/sqlite-kernel'));
 const {schemas}=require(path.join(service,'scripts/helix-architecture/formation-retirement-schema-copy'));
 const {preparePlanContractSchemaCopy}=require(path.join(service,'scripts/helix-architecture/plan-contract-schema-copy'));
-const targetSchema={schemaManifest:require(path.join(service,'src/helix/foundation/persistence/generated/clean-schema.manifest.json')),schemaDdl:fs.readFileSync(path.join(service,'src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8')};
+const targetSchema=require('./helpers/plan-contract-target-schema');
 const copy=options=>preparePlanContractSchemaCopy({...options,sourceSchema:schemas().target,targetSchema});
 const {publishPreparedDatabase:publish}=require('../scripts/helix-plan-contract-cutover');
 const hash=f=>crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex');
@@ -24,7 +24,7 @@ async function fixture(){
  fs.writeFileSync(path.join(preparedDir,'copy-receipt.json'),JSON.stringify(receipt));
  const files=['shelfdeck.db','shelfdeck.db-wal','shelfdeck.db-shm'].filter(n=>fs.existsSync(path.join(dataDir,n))).map(name=>({name,bytes:fs.statSync(path.join(dataDir,name)).size,sha256:hash(path.join(dataDir,name))}));
  fs.writeFileSync(path.join(preparedDir,'source-files.json'),JSON.stringify({schema:'shelfdeck.frozen-sqlite-files@1',snapshotSha256:hash(source),files}));
- return {root,dataDir,preparedDir,Database,files,close(){fs.rmSync(root,{recursive:true,force:true});}};
+ return {root,dataDir,preparedDir,Database,files,targetSchema,close(){fs.rmSync(root,{recursive:true,force:true});}};
 }
 test('exact physical WAL source stays unchanged during preview and all committed facts survive atomic cutover',async()=>{const f=await fixture();try{
  const dry=await publish(f);assert.equal(dry.applied,false);for(const v of f.files)assert.equal(hash(path.join(f.dataDir,v.name)),v.sha256);

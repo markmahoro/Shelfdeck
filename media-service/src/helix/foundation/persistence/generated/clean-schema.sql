@@ -1935,6 +1935,64 @@ CREATE TABLE "libra_delivery_receipts" (
 );
 CREATE INDEX "idx_libra_delivery_receipts_hot_01" ON "libra_delivery_receipts" ("result", "received_at_ms");
 
+CREATE TABLE "libra_episode_metadata_mapping_heads" (
+  "subject_id" TEXT PRIMARY KEY,
+  "current_revision" INTEGER CHECK ("current_revision" >= 1),
+  "intent_id" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("intent_id") REFERENCES "libra_episode_metadata_mapping_intents" ("intent_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id", "current_revision") REFERENCES "libra_episode_metadata_mapping_intents" ("subject_id", "mapping_revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_episode_metadata_mapping_intents" (
+  "intent_id" TEXT PRIMARY KEY,
+  "review_id" TEXT,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "mapping_revision" INTEGER CHECK ("mapping_revision" >= 1),
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT,
+  "record_json" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("subject_id", "mapping_revision"),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 1048576),
+  CHECK ("record_schema_ref" = 'libra.episode-metadata-mapping-record@1'),
+  CHECK (json_extract("record_json", '$.recordId') = "intent_id"),
+  CHECK (json_extract("record_json", '$.reviewId') = "review_id"),
+  CHECK (json_extract("record_json", '$.mapping.revision') = "mapping_revision"),
+  CHECK (json_extract("record_json", '$.recordDigest') = "record_digest"),
+  FOREIGN KEY ("review_id") REFERENCES "libra_episode_metadata_reviews" ("review_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_episode_metadata_reviews" (
+  "review_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT,
+  "record_json" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 3145728),
+  CHECK ("record_schema_ref" = 'libra.episode-metadata-review-record@1'),
+  CHECK (json_extract("record_json", '$.recordId') = "review_id"),
+  CHECK (json_extract("record_json", '$.recordDigest') = "record_digest"),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_fairness_clocks" (
   "clock_id" TEXT PRIMARY KEY,
   "turn_sequence" INTEGER,
@@ -2762,6 +2820,7 @@ CREATE TABLE "libra_runs" (
   "admission_revision" INTEGER CHECK ("admission_revision" >= 1),
   "acceptance_spec_id" TEXT,
   "run_material_manifest_id" TEXT,
+  "episode_metadata_mapping_intent_id" TEXT,
   "execution_basis_schema_ref" TEXT,
   "execution_basis_record_json" TEXT,
   "execution_basis_digest" TEXT CHECK (length("execution_basis_digest") = 64 AND "execution_basis_digest" NOT GLOB '*[^0-9a-f]*'),
@@ -2787,9 +2846,12 @@ CREATE TABLE "libra_runs" (
   UNIQUE ("subject_id", "acceptance_spec_id", "run_scope_digest", "admission_revision"),
   CHECK (json_valid("execution_basis_record_json")),
   CHECK (length(CAST("execution_basis_record_json" AS BLOB)) <= 1048576),
+  CHECK (("episode_metadata_mapping_intent_id" IS NULL AND json_type("execution_basis_record_json", '$.episodeMetadataMappingRef') IS NULL) OR
+     ("episode_metadata_mapping_intent_id" IS NOT NULL AND COALESCE(json_extract("execution_basis_record_json", '$.episodeMetadataMappingRef.intentId') = "episode_metadata_mapping_intent_id", 0))),
   FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
   FOREIGN KEY ("acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT,
   FOREIGN KEY ("run_material_manifest_id") REFERENCES "libra_run_material_manifests" ("run_material_manifest_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY ("episode_metadata_mapping_intent_id") REFERENCES "libra_episode_metadata_mapping_intents" ("intent_id") ON DELETE RESTRICT,
   FOREIGN KEY ("supersedes_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
   FOREIGN KEY ("superseded_by_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
 );
@@ -4143,6 +4205,14 @@ CREATE TABLE "proc_field_profile_hint_revisions" (
   FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_proc_field_profile_hint_revisions_hot_01" ON "proc_field_profile_hint_revisions" ("content_profile_hint", "field_id", "revision");
+
+CREATE TABLE "proc_field_reset_barriers" (
+  "field_id" TEXT PRIMARY KEY,
+  "reset_id" TEXT,
+  "minimum_observation_revision" INTEGER CHECK ("minimum_observation_revision" >= 0),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT
+);
 
 CREATE TABLE "proc_material_fields" (
   "field_id" TEXT PRIMARY KEY,

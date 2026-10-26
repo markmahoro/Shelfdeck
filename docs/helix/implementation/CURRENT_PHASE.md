@@ -1,5 +1,28 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-27 冷态首次升级与生产副本检查点（开发中、未发布）：新生产只读快照包含 691 个正式 Commit，SHA256 `1789531be27e6b68079f94cf29ad16893f6c44541af75f5208fd01f7c85ae8bd`，5,126,340,608 bytes。239 表隔离保留库保留 1,332,064 行、移除 1,962,627 行，685 个保留 Subject 结束旧准入；691 个 Commit/Package、十组保护摘要、两组共享剧资料及两个精确资料依赖通过 Owner Reader、完整 FK/integrity 核验（约 1,055 秒）。这是隔离副本，不是生产 Reset，也不是完整恢复备份。
+
+真实混合 Series 旅程证明一季 Commit/另一季 Accepted 未 Commit 时，保留前者及共享资料、清除后者责任，10 个来源/正式/共享文件字节保持。真实资料失败后 frozen Run 的显式跨 Provider Season 0/2 映射、重新执行与正式 Commit 旅程通过；本地 S01E01/E02 编号保持。四视口 Reset/映射浏览器最新 32 PASS；早期窄屏横向溢出 FAIL、修正及截图均保留，尚非固定版本 UI 负责人验收。
+
+首次 schema 升级不能先启动新业务 Host 再 Reset，已新增显式部署关闭证明与冷态管理入口：旧 235 表仅开放原 Runtime 预检/确认，独立切换 239 表后重开 stopped；真实 SQLite 入口及源变化拒绝 2 PASS，组合 14 项首跑 13 PASS/1 FAIL（父根挂载重叠遗漏），修正后部署约束 4 PASS。标准 deploy 新模式和 Windows/Docker 打包接线仍须完整资格，生产未执行。当前完整 Architecture 长跑基于变化中的开发树，只作为开发诊断；最终长门禁必须固定 commit/独立 checkout，不能挪用。
+
+进击的巨人三次原始 MoviePilot 日志均对应首标题“未搜索到资源”，支持零候选被误报为技术失败的独立原因；没有完整 HTTP 响应，不能声称其他别名必有候选。风骚律师旧海报失败的底层 HTTP 状态仍不可恢复；已补 TMDB image HTTP stage/status 诊断贯穿真实 Host/Handle/Secret 的 503 红绿例，不回填历史或宣称其具体网络根因已证实。生产未部署、Reset、删除备份或修改媒体，自动观察保持取消。
+
+2026-10-27 季集映射与冷态 Reset 增量（开发中，未发布）：已新增 Libra 持久 Review / Mapping Intent / head，以及新 Run 冻结 mapping ref；当前目标 239 表、168 路由。真实 Host 隔离旅程完成显式跨 Provider Season 0/2 选择 → 新 Run → 真实媒体处理 → 一次正式 On-deck Commit，本地 S01E01/E02 与 NFO 编号保持，完整 FK/integrity 通过。首跑路由计数不同步失败、第二/三跑因新身份证据改变完整摘要而失效，均保留；已分离原确认 identityDigest 和精确身份范围 identityScopeDigest，未修改旧身份事实。映射模型/原生 SQLite/执行适用性 16 PASS，Web 交互 5 PASS，Run Admission 既有回归 16 PASS；真实 Handle/Secret/TMDB 候选查询定向已通过，最新增量仍须全量复验。UI 初版尚未完成固定候选浏览器及 UI 负责人验收。唐顿特别篇与暗算 34 集的生产逐项资料核实、两项独立失败诊断、生产新副本/共享剧混合 Reset 验证、最终镜像/完整架构门禁仍开放。
+
+Reset 持久 pending intent 与 workflow 已改为同一次原子写入，完成 Receipt 先于清除 pending；新 Reset 不会误认前一代 complete fence。Windows 中断与管理入口定向 11 PASS；Linux 第二轮 13 PASS / 1 FAIL（容器加载了 startup 修正前源码），修正后原失败定向 1 PASS / 5 filtered skip；这是本地源码覆盖旧依赖镜像，不能替代最终镜像资格。完整旧版本 Series Routing/metadata 批次 60 PASS（约 15 分钟）发生在最新映射接入之前，不能当作最终候选全量验收。生产本轮未部署、未 Reset、未删除备份；观察保持已取消，最终生产动作仍须具体方案授权。
+
+2026-10-27 当前实施：RESET-FRESH-GENERATION 已接正式 server Supervisor，裸 Host 禁止旧 Reset 回落；管理鉴权与原请求继续不重开业务库，原生生命周期租约与持久写入退出证明共同处理关闭阶段中断。Owner 配置保护边界已派生；真实冷态 HTTP、重采及 FFmpeg 正式 Commit 隔离旅程通过。Service 第八轮 837/808 PASS/29 skip，Web 第三轮 266 PASS，浏览器第二轮四视口 16 PASS，首跑保留。继续实现季集映射持久确认及精确生产容量清单，补混合收藏副本、最终平台/完整架构/版本 UI 验收；本轮仍未形成发布候选，未执行生产处置。下方早期默认旧 Worker/未接入口记录保留为历史。
+
+2026-10-26 当前实现检查点：独立 Operator 全链路已含完整备份、切换、清理、回执和中断重试；冷恢复组合 27 PASS，Linux 源码隔离 29 PASS，真正鉴权 HTTP 经注入新 adapter 完成冷切换和新 Host stopped 重开 1 PASS。新 Host Workspace 初始根改由已有 Platform 登记真实挂载，旧配置不修写。默认 Reset 仍走旧 Worker；默认 Supervisor/管理界面、配置保护边界派生、季集映射持久确认和最终跨平台/媒体/UI验收未完成。Service 第七轮 826/797 PASS/29 skip；Architecture 首跑 3389/3344 PASS/19 FAIL/26 skip，受影响修复复验见 CURRENT_STATUS/Evidence，不将定向通过写成最终完整 Gate PASS。生产精确容量清理清单继续核证，尚未执行任何生产处置。
+
+2026-10-26 用户确认并要求实施“彻底Reset+本轮故障修复”：替换旧工作台退役为安全停机下的新数据库代际，在线仅保留正式收藏及Owner定义的必要依赖、配置；无关任务历史仅留经校验离线备份。清空未入藏Procurement队列至Arca未提交责任及专用临时空间，按当前来源文件重新观察，不回滚正式文件。季集差异本轮处理，保留本地编目，新增Libra持有的显式Provider资料映射。容量清理先列精确清单，生产删除/部署/Reset待具体材料确认；完成后保持停止，启动风暴独立讨论，自动观察已终止。
+
+当前活动工作项：RESET-FRESH-GENERATION（Implement）、RESET-STORAGE-BUDGET（Implement）、SERIES-EPISODE-METADATA-MAPPING（Implement）、PROVIDER-FAILURE-ROOT-CAUSE（Diagnose）、RELEASE-QUALIFICATION（Pending）。验收必须包含收藏依赖闭包、新包真实入藏、旧队列/回执隔离、路径与容量负例、切换中断恢复、Windows/Linux和具体版本UI；已同意的历史清空取代下方旧历史保护范围，旧记录仅为时点Evidence。
+
+实施检查点：Operator 原生子进程/独立 SQLite 临时卷、冷关闭与持久代际屏障、Arca 共享剧资料维护依赖分类、Procurement 观察代际屏障已落地并隔离验证；旧冷备第 07 轮完整依赖核验通过。尚未接通新 Runtime 主入口与冷启动恢复，不能部署或生产 Reset。资料映射模型及 Adapter→Libra 编号投影已落地，Store/API/确认 UI 与最终完整资格仍待；历史测试失败和冷备局限详见 Evidence 当前节。
+
+
 2026-10-26 恢复后13条attention修复工作项（20:38Z已为14条，多出一条演员人工确认；用户已授权诊断与实施，未新增UAT编号）：
 
 - `SERIES-PRESENTATION-PORT-WIRING`：真实Host composition按operation分派Source到Observation、Assets到Artifact；真实Handle/Secret/adapter仅隔离HTTP传输的poster/fanart回归先红后绿，保留反向端口拒绝。前次ee0c仅覆盖Handle发放，不能作为生产接线正确的证据。候选b2dac98fc实际镜像回归通过，五条线上验收仍待部署。

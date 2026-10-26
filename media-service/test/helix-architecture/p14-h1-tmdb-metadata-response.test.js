@@ -56,7 +56,7 @@ test('TMDB metadata HTTP/timeout wrapped by a Secret lease is retryable', () => 
     details: { causeCode: 'PLATFORM_INTEGRATION_HTTP_FAILED', stage:'json_request',statusCode:404,url:'https://private/?token=SECRET' },
   }));
   assert.equal(http.failureClass, 'integration');
-  assert.deepEqual(http.evidence.diagnostics,{stage:'json_request',statusCode:404});
+  assert.deepEqual(http.evidence.diagnostics,{causeCode:'PLATFORM_INTEGRATION_HTTP_FAILED',stage:'json_request',statusCode:404});
   assert.equal(JSON.stringify(http).includes('SECRET'),false);
   assert.throws(() => metadataFetchFailed(Object.assign(new Error('schema'), {
     code: 'P4_CAPABILITY_SCHEMA_REJECTED',

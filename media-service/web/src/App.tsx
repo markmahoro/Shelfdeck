@@ -12,6 +12,7 @@ import SettingsPage from './helix/SettingsPage';
 import OffdeckPage from './helix/OffdeckPage';
 import OverviewPage from './helix/OverviewPage';
 import PeoplePage from './helix/PeoplePage';
+import ResetBoundary from './helix/ResetBoundary';
 import { helixAdminApi } from './helix/api';
 import { isUnauthorized, SessionProvider, useSession } from './helix/session';
 import './helix/helix.css';
@@ -72,7 +73,7 @@ function RailStatus() {
 
 export default function App() {
   const [queryClient] = useState(createQueryClient);
-  return <QueryClientProvider client={queryClient}><SessionProvider>
+  return <QueryClientProvider client={queryClient}><SessionProvider><ResetBoundary>
     <div className="helix-shell">
       <a className="skip-link" href="#main">跳到主要内容</a>
       <aside className="helix-rail" aria-label="ShelfDeck 主导航">
@@ -91,5 +92,5 @@ export default function App() {
         </Routes>
       </main>
     </div>
-  </SessionProvider></QueryClientProvider>;
+  </ResetBoundary></SessionProvider></QueryClientProvider>;
 }

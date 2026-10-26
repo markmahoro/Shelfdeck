@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../src/App';
+import {mockRunningRuntime} from './fixtures/runtime';
+beforeEach(()=>{mockRunningRuntime();});
 import { helixAdminApi, type FormationSubject } from '../src/helix/api';
 
 beforeEach(()=>{vi.spyOn(helixAdminApi,'listCareWork').mockResolvedValue({items:[],counts:{},nextCursor:null});vi.spyOn(helixAdminApi,'listJavCorrectionWork').mockResolvedValue({items:[],counts:{},nextCursor:null});});

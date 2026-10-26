@@ -104,6 +104,15 @@ function createProductMetadataCapabilityPorts(options) {
             !snapshot.spec.productScope.episodeKeys.includes(intent.episodeScope.episodeKey) ||
             !snapshot.episodeClaims.some(claim => claim.episodeKey === intent.episodeScope.episodeKey))
           throw new TypeError('Episode metadata is outside the frozen Run delivery scope.');
+        if (intent.episodeMapping && !snapshot.members.some(member => member.materialKey === intent.episodeMapping.materialKey &&
+            member.episodeClaims.some(claim => claim.episodeKey === intent.episodeScope.episodeKey)))
+          throw new TypeError('Confirmed Episode mapping is outside its exact frozen material scope.');
+        if (intent.episodeMapping || snapshot.run.episodeMetadataMappingRef) {
+          const identity = options.movieProductionReader.readFact(context.ownerScope.processId, 'resolved_identity', 1);
+          const expected = require('../model/episode-metadata-selection').resolveEpisodeMetadataQuery(options, snapshot, identity, intent.episodeScope);
+          if ((expected || intent.episodeMapping) && (!expected || !intent.episodeMapping || canonicalDigest(expected) !== canonicalDigest(intent.episodeMapping)))
+            throw Object.assign(new Error('Episode query differs from its persisted confirmation.'), { code: 'LIBRA_EPISODE_MAPPING_AUTHORITY_REQUIRED' });
+        }
       }
       if (intent.sourceKind === 'related_nfo') {
         const snapshot = typeof options.movieProductionReader.readRunSnapshot === 'function'
@@ -139,10 +148,13 @@ function createProductMetadataCapabilityPorts(options) {
         });
       } else if (intent.sourceKind === 'provider') {
         const provider = await options.productProductionPort.fetchProvider(intent, handle);
+        const entries = intent.episodeMapping ? require('../model/episode-metadata-mapping').projectMappedEpisode({
+          localScope: intent.episodeScope, providerEpisode: intent.episodeMapping.providerEpisode,
+        }, { providerEpisode: provider.providerEpisodeReference, descriptiveEntries: provider.descriptiveEntries }) : provider.descriptiveEntries;
         const local=provider.seriesPresentationSource&&options.qualifySeriesLocalSource?.(options.movieProductionReader.readRunSnapshot(context.ownerScope.processId).candidatePackage?.seriesPresentationSourceRefs,provider.seriesPresentationSource.providerKey);
         source = Object.freeze({
           ...(local?{seriesQualifiedLocalSource:local}:{}),
-          descriptiveEntries: provider.descriptiveEntries,
+          descriptiveEntries: entries,
           providerIdentities: provider.providerIdentities,
           peopleHints: provider.peopleHints,
           artifactHints: Object.freeze([]),

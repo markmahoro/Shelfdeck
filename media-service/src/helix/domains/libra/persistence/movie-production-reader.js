@@ -580,6 +580,7 @@ function createMovieProductionReader(options) {
           subjectId: run.subject_id,
           acceptanceSpecId: run.acceptance_spec_id,
           executionBasisDigest: run.execution_basis_digest,
+          ...(executionBasisRecord.episodeMetadataMappingRef ? { episodeMetadataMappingRef: executionBasisRecord.episodeMetadataMappingRef } : {}),
           runScopeDigest: run.run_scope_digest,
           state: run.state,
           stateRevision: Number(run.state_revision),

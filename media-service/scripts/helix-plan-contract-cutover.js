@@ -12,7 +12,8 @@ function syncDirectory(directory){if(process.platform!=='linux')return;const fd=
 
 // The deployment wrapper must stop the sole service before invoking this offline
 // operator. Both preparation and the complete cold backup remain beside data.
-async function publishPreparedDatabase({Database,dataDir,preparedDir,apply=false,afterRename}){
+async function publishPreparedDatabase({Database,dataDir,preparedDir,apply=false,afterRename,targetSchema: qualifiedSchema=targetSchema}){
+ const targetSchema=qualifiedSchema;
  dataDir=path.resolve(dataDir);preparedDir=path.resolve(preparedDir);
  for(const dir of [dataDir,preparedDir])assert(path.resolve(fs.realpathSync(dir))===dir&&!fs.lstatSync(dir).isSymbolicLink(),'CUTOVER_DIRECTORY_UNSAFE');
  assert(dataDir!==preparedDir,'CUTOVER_DIRECTORY_CONFLICT');

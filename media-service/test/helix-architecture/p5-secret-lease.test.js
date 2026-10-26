@@ -194,7 +194,7 @@ test('Secret lease keeps numeric HTTP diagnostics through metadata failure evide
     }), error => {
       const {metadataFetchFailed}=require('../../src/helix/domains/libra/capabilities/product-metadata-capability-ports');
       const evidence=metadataFetchFailed(error).evidence;
-      assert.deepEqual(evidence.diagnostics,{stage:'json_request',statusCode:404});
+      assert.deepEqual(evidence.diagnostics,{causeCode:'PLATFORM_INTEGRATION_HTTP_FAILED',stage:'json_request',statusCode:404});
       const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
       const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-http-evidence-'));
       try {

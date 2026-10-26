@@ -3,6 +3,7 @@ const {createSeriesPresentationStore}=require('./series-presentation-store');
 const {assertRequiredUsAdultActor}=require('../../../contracts/us-adult-actor-package');
 const { readControlProjections } = require('../persistence/read-control-projections');
 const {inventoryMappingFact,FACT_SCHEMA}=require('../../../contracts/related-primary-mappings');
+const {committedRelatedMappings}=require('../model/committed-related-mappings');
 const {createInventoryVerificationStore}=require('./inventory-verification-store');
 const { splitEpisodeMetadata } = require('../../../contracts/episode-metadata-records');
 const {acceptedInventoryArtifactScopes,readInventoryArtifactScope}=require('../model/inventory-artifact-scope');
@@ -593,12 +594,22 @@ function createOnDeckStore(options) {
         sizeBytes: Number(row.size_bytes),
       });
     });
+    const mappingFacts = repo.invoke('list_facts', { shelf_entry_id: shelfEntryId, inventory_revision: inventoryRevision })
+      .filter(row => row.fact_kind === 'related_primary_mapping' && row.source_package_id === representation?.source_package_id);
+    let relatedPrimaryMappings = [];
+    if (mappingFacts.length) {
+      const completion = repo.invoke('find_completion_by_package', { package_id: representation.source_package_id });
+      const decision = completion && parseDecision(repo.invoke('find_decision', { on_deck_run_id: completion.on_deck_run_id }));
+      relatedPrimaryMappings = committedRelatedMappings({ facts: mappingFacts, materials: rows, decision,
+        sourcePackageId: representation.source_package_id, packageDigest });
+    }
     const digestValue = canonicalDigest({
       schema: 'arca.inventory-representation@1',
       shelfEntryId,
       inventoryRevision,
       sourcePackageId: representation?.source_package_id,
       members,
+      ...(relatedPrimaryMappings.length ? { relatedPrimaryMappings } : {}),
     });
     if (!representation ||
         representation.representation_digest !== digestValue) {

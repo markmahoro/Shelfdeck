@@ -1077,7 +1077,9 @@ function metadataFetchIntentSchema() {
     'x-helix-maxCanonicalBytes': 16 * 1024, oneOf: [
       object({ ...common,contentProfile:enumText('movie','series'), episodeScope, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(), relatedReferenceDigest: digest(), expectedChecksum: digest() },
         [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedChecksum']),
-      object({ ...common,contentProfile:enumText('movie','series'), episodeScope, sourceKind: { const: 'provider' }, providerKind: {const:'tmdb'},
+      object({ ...common,contentProfile:enumText('movie','series'), episodeScope,
+        episodeMapping: require('../../src/helix/contracts/episode-metadata-query').episodeMetadataQuerySchema(),
+        sourceKind: { const: 'provider' }, providerKind: {const:'tmdb'},
         resolvedProviderIdentity: domainRef('ResolvedProviderIdentity'), integrationId: id(), configRevision: positiveInteger() },
         [...Object.keys(common), 'providerKind', 'resolvedProviderIdentity', 'integrationId', 'configRevision']),
       object({ ...common,contentProfile:{const:'jav'},sourceKind:{const:'provider'},providerKind:{const:'jav'},

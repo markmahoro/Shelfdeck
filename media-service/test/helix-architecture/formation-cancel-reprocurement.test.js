@@ -20,14 +20,16 @@ for (const scenario of ['normal','technical_failure','invalid_material','no_run'
  const errors=[];let host,browser,page,browserBase,fixtureError,probeAvailable=!failPreparationFirst;
  function sql(query,...args){const db=new Database(databasePath,{readonly:true});try{return db.prepare(query).all(...args);}finally{db.close();}}
  const options={dataDir,secretRoot,adminDistDir,libraWorkspaceRoot:path.join(root,'workspace'),onExecutionRuntimeError:e=>errors.push({code:e.code,message:e.message}),mediaProbe:{async probe(handle){if(!probeAvailable)throw Object.assign(new Error('Fixture probe temporarily unavailable'),{code:'EHOSTUNREACH'});const value={resultKind:scenario==='invalid_material'?'not_media':'probed',sourceHandleDigest:canonicalDigest(handle),durationMs:1000,videoStreams:scenario==='invalid_material'?[]:[{streamIndex:0,codec:'hevc',dispositionDefault:true,width:1920,height:1080}],audioStreams:[],subtitleStreams:[],discTopology:null};return {...value,payloadDigest:canonicalDigest(value)};}}};
+ async function openHost(){return scenario==='reset'?req('test/helpers/fresh-reset-supervisor').createFreshResetTestHost(options,{
+  workspaceRoots:[path.join(root,'workspace'),path.join(root,'configured-workspace')],protectedDirectories:[source,shelf]}):createCleanServiceHost(options);}
  try{
- host=await createCleanServiceHost(options);
+ host=await openHost();
  const auth=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}});assert.equal(auth.statusCode,204,auth.body);let cookie=auth.headers['set-cookie'];
  async function request(method,url,payload){const r=await host.inject({method,url,headers:{cookie},payload});assert.ok(r.statusCode>=200&&r.statusCode<300,url+' '+r.body);return r.json();}
  async function until(fn,label){const deadline=Date.now()+45000;while(Date.now()<deadline){const v=await fn();if(v)return v;await new Promise(r=>setTimeout(r,50));}throw Error(label+' '+JSON.stringify({errors,runs:sql('SELECT state FROM libra_runs'),packages:sql('SELECT state FROM proc_candidate_deliveries')}));}
  if(scenario==='reset') {
   await request('PATCH','/v1/admin/settings/workspaces',{rootPath:path.join(root,'configured-workspace'),expectedConfigRevision:1,idempotencyKey:'configure-reset-workspace'});
-  await host.close();host=await createCleanServiceHost(options);
+  await host.close();host=await openHost();
   const login=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}});
   assert.equal(login.statusCode,204);cookie=login.headers['set-cookie'];
  }
@@ -56,11 +58,11 @@ for (const scenario of ['normal','technical_failure','invalid_material','no_run'
  if(scenario==='reset') {
   const subject=await until(()=>sql("SELECT subject_id FROM libra_subjects WHERE status='active'")[0],'accepted subject');
   assert.equal(sql('SELECT count(*) n FROM libra_runs')[0].n,0);
-  const historical=Object.fromEntries(['proc_candidate_packages','libra_intake_decisions','libra_handoff_a_receipts'].map(table=>[table,sql('SELECT * FROM '+table)]));
+  const clearedTables=['proc_candidate_packages','libra_intake_decisions','libra_handoff_a_receipts'];
   await request('POST','/v1/admin/runtime/actions/stop',{idempotencyKey:'stop-for-reset'});
   await until(async()=>(await request('GET','/v1/admin/runtime')).mode==='stopped','safe stop');
   const preview=await request('GET','/v1/admin/runtime/reset-preview');
-  assert.equal(preview.ready,true,JSON.stringify(preview.blockers)); assert.equal(preview.counts.subjects,1);
+  assert.equal(preview.ready,true,JSON.stringify(preview.blockers)); assert.equal(preview.counts.find(row=>row.table==='libra_subjects').removed,1);
   if(browserEnabled){
     const {chromium,expect}=req('web/node_modules/@playwright/test');
     browserBase=await host.listen({host:'127.0.0.1',port:0});browser=await chromium.launch({headless:true});
@@ -68,7 +70,7 @@ for (const scenario of ['normal','technical_failure','invalid_material','no_run'
     const login=await page.request.post(browserBase+'/v1/admin/session',{headers:{'X-Api-Key':initialized.adminApiKey}});assert.equal(login.status(),204);
     await page.goto(browserBase+'/');await page.getByRole('button',{name:'重置工作台',exact:true}).click();
     const dialog=page.getByRole('dialog',{name:'重置整理工作台'}),confirm=dialog.getByRole('button',{name:'确认重置',exact:true});
-    await expect(dialog.getByText(/将结束 1 项/)).toBeVisible();await expect(confirm).toBeDisabled();
+    await expect(dialog.getByText(/将清除 1 个/)).toBeVisible();await expect(confirm).toBeDisabled();
     await dialog.getByLabel('确认词').fill('wrong');await expect(confirm).toBeDisabled();
     const output=process.env.HELIX_LIFECYCLE_BROWSER_OUTPUT;assert.ok(output&&path.isAbsolute(output));fs.mkdirSync(output,{recursive:true});
     await page.screenshot({path:path.join(output,'reset-confirm-wide.png'),fullPage:true});
@@ -81,32 +83,30 @@ for (const scenario of ['normal','technical_failure','invalid_material','no_run'
     await expect(page.getByText(/等待进入整理 [1-9]/)).toHaveCount(0);
     await page.screenshot({path:path.join(output,'reset-completed-stopped.png'),fullPage:true});
     await page.getByRole('button',{name:'重置工作台',exact:true}).click();
-    await expect(page.getByText('没有可重置的当前整理任务。',{exact:true})).toBeVisible();
+    await expect(page.getByText(/将清除 0 个/)).toBeVisible();
     await expect(confirm).toBeDisabled();await page.keyboard.press('Escape');await expect(dialog).toBeHidden();
   }else await request('POST','/v1/admin/runtime/actions/reset',{idempotencyKey:'retire-workbench',previewDigest:preview.previewDigest,confirmed:true});
   const reset=await until(async()=>{const state=await request('GET','/v1/admin/runtime');
     assert.notEqual(state.operation?.state,'failed',JSON.stringify(state.error));assert.notEqual(state.mode,'error',JSON.stringify(state.error));return state.operation?.state==='completed'&&state;},'reset completed');
-  assert.equal(sql('SELECT state FROM proc_candidate_deliveries')[0].state,'accepted');
+  assert.equal(sql('SELECT count(*) n FROM proc_candidate_deliveries')[0].n,0);
   assert.equal((await request('GET','/v1/admin/overview')).pipeline.waitingAcceptanceCount,0);
   assert.equal(reset.mode,'stopped');assert.equal(reset.normalSupplyAllowed,false);
-  assert.equal(sql('SELECT status FROM libra_subjects WHERE subject_id=?',subject.subject_id)[0].status,'administratively_retired');
+  assert.equal(sql('SELECT count(*) n FROM libra_subjects')[0].n,0);
   assert.equal(sql('SELECT count(*) n FROM libra_predeck_pipeline_tokens')[0].n,0);
-  for(const [table,rows] of Object.entries(historical))assert.deepEqual(sql('SELECT * FROM '+table),rows);
+  for(const table of clearedTables)assert.deepEqual(sql('SELECT * FROM '+table),[]);
   assert.equal((await request('GET','/v1/admin/formation?section=active&limit=25')).items.length,0);
   const history=await request('GET','/v1/admin/formation?section=ended&limit=25');
-  assert.ok(history.items.some(item=>item.subjectId===subject.subject_id&&item.label==='已重置整理任务'));
-  await host.close();host=await createCleanServiceHost(options);
+  assert.equal(history.items.length,0,'unrelated task history exists only in the verified offline backup');
+  await host.close();host=await openHost();
   const login=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}});assert.equal(login.statusCode,204);cookie=login.headers['set-cookie'];
   assert.equal((await request('GET','/v1/admin/runtime')).mode,'stopped');
-  assert.equal(sql('SELECT count(*) n FROM proc_candidate_packages')[0].n,1,'Reset and startup must not procure');
+  assert.equal(sql('SELECT count(*) n FROM proc_candidate_packages')[0].n,0,'Reset and startup must not procure');
   await request('POST','/v1/admin/runtime/actions/resume',{idempotencyKey:'resume-after-reset'});
   await until(async()=>(await request('GET','/v1/admin/runtime')).mode==='running','resume');
   await scan('normal-observation-after-reset');
   await until(()=>sql("SELECT count(*) n FROM libra_subjects WHERE status='active'")[0].n===1,'new accepted subject');
-  assert.equal(sql('SELECT count(*) n FROM libra_subjects')[0].n,2);
-  assert.equal(sql('SELECT count(*) n FROM proc_candidate_packages')[0].n,2);
-  assert.equal(sql('SELECT status FROM libra_subjects WHERE subject_id=?',subject.subject_id)[0].status,'administratively_retired');
-  assert.equal(sql('SELECT count(*) n FROM libra_predeck_pipeline_tokens WHERE subject_id=?',subject.subject_id)[0].n,0);
+  assert.equal(sql('SELECT count(*) n FROM libra_subjects')[0].n,1);
+  assert.equal(sql('SELECT count(*) n FROM proc_candidate_packages')[0].n,1);
   const stat=fs.statSync(file,{bigint:true});assert.equal(stat.ino,originalStat.ino);assert.equal(stat.mtimeNs,originalStat.mtimeNs);
   assert.equal(canonicalDigest(fs.readFileSync(file).toString('hex')),originalHash);
   return;

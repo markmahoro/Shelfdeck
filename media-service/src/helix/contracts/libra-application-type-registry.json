@@ -323,7 +323,7 @@
       "relativePath": "application-types/LibraRunExecutionBasis/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "5ac6864920f81117c4060c48724c0123303d90aa465ce9e3a20d72da80be678b"
+        "value": "e3393d11fc4b1e88eba607fe6b089f7c653dbc00545885a7a590f030ba7f30c1"
       },
       "ssotRefs": [
         "8.6.21"
@@ -338,7 +338,7 @@
       "relativePath": "application-types/LibraRunExecutionBasisRecord/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "0d7fcb8b9986ce8864bcbe34a48ddd5b894b331d172ce4b5480471c90891641c"
+        "value": "3481b09893b125a804f7de3a491adc60f04ebf0a7371dc4278e1a7ab9d8eab35"
       },
       "ssotRefs": [
         "8.6.21"

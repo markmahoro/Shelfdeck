@@ -337,6 +337,24 @@ test('admits complete Run Basis, Selection, Control, receipt, and marker in one 
   assert.equal(check.prepare("SELECT COUNT(*) count FROM fx_outbox").get().count,0); check.close();
 }));
 
+test('Reset barrier rejects retained observation admission without acquiring Control or producing a Run',()=>fixture(({databasePath,unitOfWork})=>{
+  const registry=createDefaultTriageRuleRegistry(), material=identity(), control=controlSnapshot(material), runBasis=basis(registry,material,control);
+  const database=new Database(databasePath);
+  try {
+    seed(database,material,control);
+    database.prepare('INSERT INTO proc_field_reset_barriers VALUES(?,?,?,?)').run('field-1','a'.repeat(64),runBasis.terminalObservation.revision,1);
+    const protectedTables = ['proc_procurement_runs','fx_material_controls','fx_commit_markers'];
+    const before = protectedTables.map(table => database.prepare('SELECT * FROM '+table).all());
+    const store=createProcurementRunAdmissionStore({schemaManifest,unitOfWork,triageRegistry:registry});
+    const request={basis:runBasis,controlHandle:handle(runBasis),commitMarker:{commitMarker:'run-marker-1',commitDigest:D('run-commit')}};
+    assert.throws(()=>store.admit(request),{code:'P7_RUN_ADMISSION_RESET_BARRIER'});
+    // Even a larger revision cannot make a previous generation's Work fresh.
+    database.exec('UPDATE proc_field_reset_barriers SET minimum_observation_revision=0');
+    assert.throws(()=>store.admit(request),{code:'P7_RUN_ADMISSION_RESET_BARRIER'});
+    protectedTables.forEach((table, index) => assert.deepEqual(database.prepare('SELECT * FROM '+table).all(),before[index]));
+  } finally {database.close();}
+}));
+
 test('stale Field head rolls back Run, Control, Result, and marker together',()=>fixture(({databasePath,unitOfWork})=>{
   const registry=createDefaultTriageRuleRegistry(); const material=identity(); const control=controlSnapshot(material); const runBasis=basis(registry,material,control);
   const database=new Database(databasePath); seed(database,material,control); database.prepare("UPDATE proc_material_fields SET status='deregistered'").run(); database.close();

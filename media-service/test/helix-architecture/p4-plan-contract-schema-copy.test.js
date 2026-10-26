@@ -9,8 +9,7 @@ const base = path.resolve(__dirname, '../../src/helix/foundation/persistence');
 const sourceDigest = '14ba9e5ab6833fedf39adc6d4dd492d18ea6c9387a3e0a1671a3d1338b999d53';
 const sourceSchema = { schemaDdl: zlib.gunzipSync(fs.readFileSync(path.join(base, 'release-schemas', sourceDigest + '.sql.gz'))).toString(),
   schemaManifest: JSON.parse(zlib.gunzipSync(fs.readFileSync(path.join(base, 'release-schemas', sourceDigest + '.manifest.json.gz')))) };
-const targetSchema = { schemaDdl: fs.readFileSync(path.join(base, 'generated/clean-schema.sql'), 'utf8'),
-  schemaManifest: JSON.parse(fs.readFileSync(path.join(base, 'generated/clean-schema.manifest.json'), 'utf8')) };
+const targetSchema = require('../helpers/plan-contract-target-schema');
 
 test('additive evidence copy preserves every existing fact and rejects target overwrite', t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-contract-copy-'));

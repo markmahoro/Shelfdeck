@@ -11,6 +11,7 @@ const LOGICAL_TYPES = Object.freeze({
 });
 const NON_NEGATIVE_REVISION_COLUMNS = new Set([
   'proc_run_materials.expected_control_revision',
+  'proc_field_reset_barriers.minimum_observation_revision',
   'proc_procurement_retry_intent_materials.expected_control_revision',
   'libra_workspace_cleanup_members.expected_control_revision',
   'libra_subject_continuity_heads.current_revision',
@@ -114,6 +115,22 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
 });
 
 const TABLE_CHECKS = Object.freeze({
+  libra_runs: [
+    `("episode_metadata_mapping_intent_id" IS NULL AND json_type("execution_basis_record_json", '$.episodeMetadataMappingRef') IS NULL) OR
+     ("episode_metadata_mapping_intent_id" IS NOT NULL AND COALESCE(json_extract("execution_basis_record_json", '$.episodeMetadataMappingRef.intentId') = "episode_metadata_mapping_intent_id", 0))`,
+  ],
+  libra_episode_metadata_reviews: [
+    `"record_schema_ref" = 'libra.episode-metadata-review-record@1'`,
+    `json_extract("record_json", '$.recordId') = "review_id"`,
+    `json_extract("record_json", '$.recordDigest') = "record_digest"`,
+  ],
+  libra_episode_metadata_mapping_intents: [
+    `"record_schema_ref" = 'libra.episode-metadata-mapping-record@1'`,
+    `json_extract("record_json", '$.recordId') = "intent_id"`,
+    `json_extract("record_json", '$.reviewId') = "review_id"`,
+    `json_extract("record_json", '$.mapping.revision') = "mapping_revision"`,
+    `json_extract("record_json", '$.recordDigest') = "record_digest"`,
+  ],
   arca_jav_correction_recovery_intents:[
     '"receipt_schema_ref" = \'helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1\'',
     '"observation_schema_ref" = \'helix://contracts/application-types/ArcaJavCorrectionRecoveryObservation/v1\''
@@ -352,6 +369,7 @@ function compileTable(contract, allContracts) {
     requireColumns(contract, [json.column], contract.tableId + ':json');
     const episodeRecordSet = contract.tableId === 'arca_series_root_relocations' && json.column === 'plan_json' && json.maxBytes === 4 * 1024 * 1024 || contract.tableId === 'arca_final_inventory_decisions' && json.column === 'decision_json' && json.maxBytes === 8 * 1024 * 1024 || ['libra_product_fact_revisions','arca_inventory_product_facts'].includes(contract.tableId) &&
       json.column === 'episode_metadata_json' && json.maxBytes === 16 * 1024 * 1024 ||
+      contract.tableId === 'libra_episode_metadata_reviews' && json.column === 'record_json' && json.maxBytes === 3 * 1024 * 1024 ||
       contract.tableId === 'arca_us_actor_refresh_pages' && json.column === 'page_json' && json.maxBytes === 512 * 1024 ||
       contract.tableId === 'arca_acceptance_check_evidence' && json.column === 'evidence_json' && json.maxBytes === 2 * 1024 * 1024 ||
       contract.tableId === 'arca_jav_identity_corrections' && json.column === 'preview_proof_json' && json.maxBytes === 2 * 1024 * 1024 ||

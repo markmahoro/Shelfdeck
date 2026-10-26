@@ -41,6 +41,8 @@ const { createProductIdentitySelectionService } = require('../application/produc
 const { createMovieProductionReader } = require('../persistence/movie-production-reader');
 const {createUsAdultAnalysisStore} = require('../persistence/us-adult-analysis-store');
 const {createUsAdultActorChoiceStore} = require('../persistence/us-adult-actor-choice-store');
+const {createEpisodeMetadataMappingStore} = require('../persistence/episode-metadata-mapping-store');
+const {createEpisodeMetadataMappingService} = require('../application/episode-metadata-mapping-service');
 const {createUsAdultMatchCompletionStore} = require('../persistence/us-adult-match-completion-store');
 const {createUsAdultActorChoiceCommand} = require('../capabilities/us-adult-actor-choice-command');
 const {createUsAdultAnalysisPlanner, createUsAdultAnalysisProjections} = require('../planning/us-adult-analysis-planner');
@@ -188,7 +190,7 @@ function createExecutionRegistration() {
       const productIdentitySelection=createProductIdentitySelectionService({...options,movieProductionReader});
       const domainCommitCoordinator=createProductFactDomainCommitCoordinator(options);
       const productFactPorts=createProductFactCapabilityPorts({...options,movieProductionReader,domainCommitCoordinator});
-      const productMetadataPorts=createProductMetadataCapabilityPorts({...options,movieProductionReader});
+      const productMetadataPorts=createProductMetadataCapabilityPorts({...options,movieProductionReader,episodeMetadataMappingStore:createEpisodeMetadataMappingStore(options)});
       const artifactPorts=createArtifactProductionCapabilityPorts({...options,movieProductionReader});
       const sourceScopeResolver=createProductionSourceScopeResolver({movieProductionReader,workResultReader:options.workResultReader,
         productionPort:options.productProductionPort});
@@ -277,12 +279,15 @@ function createExecutionRegistration() {
       const acceptanceSpecContextReader=createAcceptanceSpecContextReader({...options,routingContextReader});
       const acceptanceSpecCoordinator=createAcceptanceSpecCoordinator({...options,contextReader:acceptanceSpecContextReader});
       const libraRunContextReader=createLibraRunContextReader(options);
-      const libraRunCreator=createLibraRunCreator({...options,contextReader:libraRunContextReader,pipelineAdmission});
+      const episodeMetadataMappingStore=createEpisodeMetadataMappingStore(options);
+      const libraRunCreator=createLibraRunCreator({...options,contextReader:libraRunContextReader,pipelineAdmission,episodeMetadataMappingStore});
       const sourceFairness=createSourceFairness({...options,onPriorityChanged:options.onLibraPriorityChanged,
         onWaitingExecutionsObserved:options.onLibraWaitingExecutionsObserved});
       const libraRunExecutionProjection=createLibraRunExecutionProjection({...options,sourceFairness});
       const libraRunLifecycleService=createLibraRunLifecycleService({...options,libraRunExecutionProjection});
       const movieProductionReader=options.movieProductionReader||createMovieProductionReader(options);
+      const episodeMetadataMapping=createEpisodeMetadataMappingService({...options,movieProductionReader,episodeMetadataMappingStore,
+        afterConfirmation:record=>runCoordinator.reconcile(record.libraRunId)});
       const usAdultAnalysisStore=createUsAdultAnalysisStore(options);
       const productIdentitySelection=createProductIdentitySelectionService({...options,movieProductionReader});
       const libraRunAdminService=createLibraRunAdminService({...options,libraRunExecutionProjection,pipelineAdmission});
@@ -293,7 +298,7 @@ function createExecutionRegistration() {
       const usAdultRecommendationQuery=bindUsAdultRecommendationQuery(createUsAdultRecommendationQuery(options));
       const usAdultRecommendationCommand=bindUsAdultRecommendationCommand(createUsAdultRecommendationConfirmation({...options,
         usAdultActorChoiceStore,usAdultActorChoice,usAdultRecommendationQuery}));
-      const runCoordinator=createLibraRunCoordinator({...options,libraRunCreator,movieProductionReader,usAdultAnalysisStore,usAdultActorChoiceStore,usAdultMatchCompletionStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
+      const runCoordinator=createLibraRunCoordinator({...options,libraRunCreator,movieProductionReader,episodeMetadataMappingStore,usAdultAnalysisStore,usAdultActorChoiceStore,usAdultMatchCompletionStore,libraRunLifecycleService,productIdentitySelection,routingContextReader,
         resolveFrozenRun:libraRunAdminService.reconcileFrozen,
         resolveRejectedRun:libraRunAdminService.reconcileRejected,
         waitUnavailableStrategy:libraRunAdminService.waitUnavailableStrategy,
@@ -317,7 +322,7 @@ function createExecutionRegistration() {
       return Object.freeze({preparationRecovery,sourceFairness,offerReader,decisionResolver,coordinator,routingContextReader,routingCoordinator,acceptanceSpecContextReader,
         acceptanceSpecCoordinator,libraRunContextReader,libraRunCreator,movieProductionReader,libraRunCoordinator,
         libraRunExecutionProjection,libraRunLifecycleService,libraRunAdminService,productIdentitySelection,pipelineAdmission,intakeStore,usAdultAnalysisStore,
-        usAdultActorChoiceStore,usAdultActorChoice,usAdultActorSelectionQuery,usAdultRecommendationQuery,usAdultRecommendationCommand,usAdultMatchCompletionStore});
+        episodeMetadataMappingStore,episodeMetadataMapping,usAdultActorChoiceStore,usAdultActorChoice,usAdultActorSelectionQuery,usAdultRecommendationQuery,usAdultRecommendationCommand,usAdultMatchCompletionStore});
     },
     createPlanningRegistration(options) {
       const productDeliveryAssembler=options.productDeliveryAssembler||createProductDeliveryAssembler(options);
@@ -359,7 +364,10 @@ Object.defineProperties(createExecutionRegistration, {
   buildRatingTargetIdentity: { value: buildRatingTargetIdentity },
 });
 
-module.exports = Object.freeze({ createLibraArtifactAuditSource(options){const source=require('../persistence/reference-artifact-audit-source').createLibraArtifactAuditSource(options);return Object.freeze({sourceId:source.sourceId,epoch:source.epoch,page:source.page});},
+module.exports = Object.freeze({
+  describeFreshResetWorkspaceRetention: require('../model/fresh-reset-workspace-retention').describeFreshResetWorkspaceRetention,
+  describeFreshResetMetadataRetention: require('../model/fresh-reset-metadata-retention').describeFreshResetMetadataRetention,
+  createLibraArtifactAuditSource(options){const source=require('../persistence/reference-artifact-audit-source').createLibraArtifactAuditSource(options);return Object.freeze({sourceId:source.sourceId,epoch:source.epoch,page:source.page});},
   createFormationRetirementStore:require('../persistence/formation-retirement-store').createFormationRetirementStore,
   createProductDeliveryReader:require('../persistence/product-delivery-reader').createProductDeliveryReader,
   createIntakeRetirementStore:require('../persistence/intake-retirement-store').createIntakeRetirementStore,

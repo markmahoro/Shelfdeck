@@ -503,9 +503,12 @@ export type MaintenanceConfiguration = {revision:number;settings:MaintenanceWind
 export type RuntimeStatus = {mode:'starting'|'running'|'stopping'|'stopped'|'resuming'|'resetting'|'error';desiredMode:'running'|'stopped';
   maintenance:{maintenanceActive:boolean;phase:'entering'|'recovering'|'maintaining'|'settling'|null;currentTask:string|null;windowEndAtMs:number|null};
   revision:number;normalSupplyAllowed:boolean;activity:{inFlightEvents:number;inFlightRecoveries:number;inFlightOwnerReconciliations:number;inFlightAdminCommands?:number};
-  operation:RuntimeOperation|null;error:{code:string;message:string}|null;recoveryBackup:string|null};
-export type FormationResetPreview={previewDigest:string;ready:boolean;empty:boolean;items:Array<{subjectId:string;displayIdentity:string;contentProfile:string}>;
-  counts:{subjects:number;runs:number;works:number;workspaces:number};protected:{collectionCount:number;endedRunCount:number};blockers:Array<{code:string;message:string}>};
+  operation:RuntimeOperation|null;error:{code:string;message:string}|null;recoveryBackup:string|null;
+  resetStage?:'closing'|'closed'|'complete'|'awaiting_close_proof'|'awaiting_confirmation';resetRetry?:{previewDigest:string;idempotencyKey:string;confirmed:true}|null};
+export type FormationResetPreview={previewDigest:string;ready:boolean;contractVersion:string;runtimeRevision:number;
+  counts:Array<{table:string;retained:number;removed:number}>|null;protectedSummary:{collectionCount:number}|null;
+  expectedReleasedBytes:string|null;selectionStatus?:'not_evaluated';blockers:Array<{code:string;message?:string}>;
+  volumeBudget:{volumes:Array<{device:string;requiredBytes:string;availableBytes:string;sufficient:boolean;allocations:Array<{directory:string;purpose:string;bytes:string}>}>}};
 
 export type SetupReadinessItem = {
   key: string;
@@ -556,6 +559,16 @@ export type PersonImageSearch = { sources:Array<{
     sourcePageUrl:string;attribution:string;width:number;height:number;selectionToken:string}>;
 }> };
 export type PersonImageOperation = {operationRef:string;state:'preparing'|'completed'|'failed';personId:string|null;failureCode:string|null};
+export type EpisodeLocalScope={seasonNumber:number;episodeNumber:number;episodeKey:string};
+export type EpisodeMetadataEvidence={evidenceDigest:string;title:string;airDate:string;plot:string;
+  providerEpisode:{provider:'tmdb';providerKey:string;seasonNumber:number;episodeNumber:number;episodeId:number}};
+export type EpisodeMetadataMember={materialKey:string;localScope:EpisodeLocalScope;title:string;airDate:string};
+export type EpisodeMetadataChoice={materialKey:string;localScope:EpisodeLocalScope;evidenceDigest:string};
+export type EpisodeMetadataReview={reviewDigest:string;members:EpisodeMetadataMember[];evidence:EpisodeMetadataEvidence[]};
+export type EpisodeMetadataState={libraRunId:string;providerKey:string;runStateRevision:number;state:string;packageRevisionHead:number;
+  expectedMappingRevision:number;members:EpisodeMetadataMember[];currentMapping:{entries:EpisodeMetadataChoice[]}|null;currentReview:EpisodeMetadataReview|null};
+export type EpisodeMetadataInspect={idempotencyKey:string;expectedRunStateRevision:number;expectedMappingRevision:number;providerSeasons:number[]};
+export type EpisodeMetadataConfirm={idempotencyKey:string;reviewId:string;reviewDigest:string;choices:EpisodeMetadataChoice[]};
 export type UsAdultActorSelection = {
   libraRunId:string;subjectId:string;expectedRunStateRevision:number;expectedChoiceRevision:number;canChoose:boolean;
   analysisState:'not_started'|'analyzing'|'completed';detectedFaceCount:number|null;selectionOrigin:'user_choice'|'automatic_match'|null;
@@ -964,6 +977,11 @@ export const helixAdminApi = {
   },
   chooseProductIdentity(subject:FormationSubject,providerId:string,idempotencyKey?:string){if(!subject.currentRun)throw new Error('当前媒体没有可恢复的整理任务。');const run=subject.currentRun;return request<{selectionIntentId:string;libraRunId:string;providerKey:string;intentRevision:number;replayed:boolean}>(`/v1/admin/formation/runs/${encodeURIComponent(run.libraRunId)}/actions/choose-product-identity`,{method:'POST',body:JSON.stringify({... (subject.contentProfile === 'series' ? {tmdbSeriesId:providerId} : {tmdbMovieId:providerId}),expectedRunStateRevision:run.stateRevision,expectedIdentityRevision:run.currentIdentityRevision,candidateSetDigest:subject.productIdentityIssue?.candidateSetDigest||null,idempotencyKey:idempotencyKey||`choose-product-identity:${run.libraRunId}:${run.stateRevision}:${providerId}:${newOpaqueId()}`})});},
   readUsAdultActorSelection(libraRunId:string){return request<UsAdultActorSelection>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actor-selection`);},
+  readEpisodeMetadataMapping(libraRunId:string){return request<EpisodeMetadataState>(`/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/episode-metadata-mapping`);},
+  inspectEpisodeMetadata(libraRunId:string,body:EpisodeMetadataInspect){return request<{reviewRecord:{recordId:string;review:EpisodeMetadataReview}}>(
+    `/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actions/review-episode-metadata`,{method:'POST',body:JSON.stringify(body)});},
+  confirmEpisodeMetadata(libraRunId:string,body:EpisodeMetadataConfirm){return request<{replayed:boolean}>(
+    `/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actions/confirm-episode-metadata`,{method:'POST',body:JSON.stringify(body)});},
   chooseUsAdultActor(libraRunId:string,body:UsAdultActorChoice){return request<{replayed:boolean;receipt:{resultRef:{personId:string;choiceRevision:number}}}>(
     `/v1/admin/formation/runs/${encodeURIComponent(libraRunId)}/actions/choose-us-adult-actor`,{method:'POST',body:JSON.stringify(body)});},
   retryAcceptance(subject:FormationSubject,supplementalImages?:Array<{artifactKind:'poster'|'fanart';bytesBase64:string}>,commandKey?:string){if(!subject.executorIssue?.canRetry&&!subject.executorIssue?.canRecheck)throw new Error('当前接纳或上架故障不能重试。');const offerId=subject.executorIssue.offerId;return request(`/v1/admin/formation/acceptance/${encodeURIComponent(offerId)}/actions/retry`,{method:'POST',body:JSON.stringify({idempotencyKey:commandKey||`acceptance-retry:${offerId}:${newOpaqueId()}`,...(supplementalImages?.length?{supplementalImages}:{})})});},

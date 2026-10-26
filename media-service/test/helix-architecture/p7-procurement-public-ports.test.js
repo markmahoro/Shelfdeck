@@ -17,7 +17,7 @@ test('P7 publishes the three business ports and one typed Foundation constructio
   ]);
   assert.deepEqual(Object.keys(procurement).sort(), [
     'CandidateDeliveryPort', 'PACKAGE_ID', 'ProcurementCommandFacade', 'ProcurementExecutionRegistration', 'ProcurementQueryFacade',
-    'createCandidateAcceptanceConsumer', 'createCandidateRetirementStore', 'retryCommandExecutionContract'
+    'createCandidateAcceptanceConsumer', 'createCandidateRetirementStore', 'createFreshResetFieldNormalization', 'retryCommandExecutionContract'
   ]);
   assert.equal(Object.isFrozen(procurement), true);
   assert.deepEqual(Object.keys(procurement.ProcurementExecutionRegistration()).sort(), [

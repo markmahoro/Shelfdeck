@@ -2,11 +2,13 @@ import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
+import {mockRunningRuntime} from './fixtures/runtime';
 import { helixAdminApi } from '../src/helix/api';
 
 afterEach(() => vi.restoreAllMocks());
 
 it('keeps the status counts mounted while switching back to all is still loading', async () => {
+  mockRunningRuntime();
   const summary = { totalCount: 0, inProgressCount: 0, attentionRequiredCount: 0, completedCount: 0, endedCount: 0 };
   const projection = { status: 'ready' as const, asOfMs: 100 };
   const emptyPage = { items: [], summary, nextCursor: null, projection };

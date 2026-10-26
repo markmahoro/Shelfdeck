@@ -163,6 +163,7 @@ const NULLABLE_COLUMN_OVERRIDES = new Set([
   'libra_intake_decisions.expected_target_status'
 ]);
 const FOREIGN_KEY_OVERRIDES = Object.freeze({
+  'proc_field_reset_barriers.field_id': ['proc_material_fields', 'field_id'],
   'fx_plan_edges.plan_id': ['fx_workflow_plans', 'plan_id'],
   'fx_plan_nodes.plan_id': ['fx_workflow_plans', 'plan_id'],
   'fx_workflow_events.plan_id': ['fx_workflow_plans', 'plan_id'],
@@ -174,6 +175,9 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
   'libra_us_adult_reference_pages.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
   'libra_us_adult_match_completions.analysis_id':['libra_us_adult_analysis_bases','analysis_id'],
   'libra_us_adult_actor_choice_heads.intent_id':['libra_us_adult_actor_choice_intents','intent_id'],
+  'libra_episode_metadata_mapping_heads.intent_id':['libra_episode_metadata_mapping_intents','intent_id'],
+  'libra_episode_metadata_mapping_intents.review_id':['libra_episode_metadata_reviews','review_id'],
+  'libra_runs.episode_metadata_mapping_intent_id':['libra_episode_metadata_mapping_intents','intent_id'],
   'arca_jav_correction_recovery_intents.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
   'arca_jav_correction_directory_checks.correction_id': ['arca_jav_identity_corrections', 'correction_id'],
   'fx_plan_nodes.compensation_for_event_id': ['fx_workflow_events', 'event_id'],
@@ -356,6 +360,8 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
   'people_us_recommendation_publications.snapshot_json':1024*1024,
   'libra_us_adult_reference_pages.page_json':1024*1024,
   'libra_us_adult_actor_choice_intents.record_json':256*1024,
+  'libra_episode_metadata_reviews.record_json':3*1024*1024,
+  'libra_episode_metadata_mapping_intents.record_json':1024*1024,
   'libra_us_adult_match_completions.completion_json':256*1024,
   'libra_acquisition_candidate_evidence.evidence_json':262144,
   'libra_acquisition_candidate_evidence.record_json':4096,
@@ -391,6 +397,7 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
 });
 const CURRENT_POINTER_TARGETS = Object.freeze({
   libra_us_adult_actor_choice_heads: [[['subject_id','current_revision'],'libra_us_adult_actor_choice_intents',['subject_id','choice_revision']]],
+  libra_episode_metadata_mapping_heads: [[['subject_id','current_revision'],'libra_episode_metadata_mapping_intents',['subject_id','mapping_revision']]],
   libra_defect_authorization_head: [[['current_authorization_id','current_revision'],'libra_defect_authorizations',['authorization_id','revision']]],
   arca_defect_admission_heads: [[['shelf_entry_id','current_revision'],'arca_defect_admissions',['shelf_entry_id','revision']]],
   fx_workflow_events: [[['event_id', 'current_progress_revision'], 'fx_event_progress', ['event_id', 'revision']]],
@@ -664,6 +671,7 @@ function resolveForeignKeys(rows) {
       const sameOwner = candidates.filter((candidate) => candidate.owner === row.owner);
       if (sameOwner.length > 0) candidates = sameOwner;
       if (column === 'subject_id') candidates = candidates.filter((candidate) => candidate.tableId === 'libra_subjects');
+      if (column === 'field_id') candidates = candidates.filter((candidate) => candidate.tableId === 'proc_material_fields');
       if (column === 'libra_run_id') candidates = candidates.filter((candidate) => candidate.tableId === 'libra_runs');
       if (column === 'shelf_entry_id') candidates = candidates.filter((candidate) => candidate.tableId === 'arca_shelf_entries');
       if (column === 'rule_template_id') candidates = candidates.filter((candidate) => candidate.tableId === 'arca_rule_templates');

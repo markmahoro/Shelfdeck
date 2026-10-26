@@ -1,5 +1,15 @@
 # PRODUCTION_DEPLOYMENT - 生产部署固定入口
 
+## 2026-10-27 Fresh Reset 冷态发布入口（候选实现，资格以 CURRENT_STATUS 为准）
+
+首次235→239结构切换不先打开新业务Host，也不为保留旧未入藏流程运行加性迁移。仍走标准build/upload/deploy入口；在已完成Runtime安全停机、完整恢复基线及容量清单获准后，使用`deploy-nas.js <tar> --sha256 <digest> --fresh-reset-config <本机配置JSON> --capacity-plan <本机容量JSON>`先dry-run，取得具体发布授权后才加`--apply`。这只部署停止态管理入口，不代表已授权或自动执行Reset。
+
+配置schema为`shelfdeck.reset-configuration@1`，包含明确的`operationRoot`、`backupParent`、`backupSourceOptions`和`storage`；两个作业目录必须互不包含，位于容器`/operator-backups/`下，对应NAS`/vol2/1000/shelfdeck_backups/`中已审查且预先准备的精确目录。标准Compose保留原嵌套备份挂载并增加直接挂载；备份来源必须显式排除旧归档，不能递归备份嵌套备份卷。容量JSON采用`shelfdeck.deployment-capacity@1`，`volumes`精确列出`/vol1`和`/vol2`及十进制字符串`requiredAvailableBytes`；数值来自本次镜像加载、完整备份、数据库新代际及SQLite工作空间峰值，不抵扣尚未执行的删除。首次生产写入Compose/Secret之前先核对空间，Operator预检及每个后续阶段仍独立复核。
+
+部署控制器核对已完成Stop回执、Runtime revision与quiesced活动计数，检查原容器成功退出、无OOM且已移除，再核对全部容器没有其他业务数据挂载。独立冷态程序验证精确源结构、数据库/WAL摘要、停止记录和Platform凭据事实，输出绑定这些证据的管理授权。管理面沿原Runtime预检/一次确认接口，只能Reset，不能Resume或访问业务；普通部署不因schema失败自动启用该模式。确认之后复用同一持久workflow/代际Fence/幂等请求；完成后重开stopped新Host。失败保持停止，不能为了通过health而启动旧任务或跳过源结构校验。
+
+候选命令、配置示例或隔离回归不构成生产删除/停机/Reset授权。容量清理仍须逐项授权；保留原关闭证明、请求、备份和失败阶段，不能在部署中断后猜测状态重造证明。当前版本仍须取得固定候选镜像及生产副本资格后才可使用本流程。
+
 
 ## 2026-10-25 Plan 合同证据加性切换
 

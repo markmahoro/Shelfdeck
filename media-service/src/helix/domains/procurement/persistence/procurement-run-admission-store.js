@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
+const { findResetBarrier, isFreshObservation } = require('../model/field-reset-barrier');
 const { createMaterialControlParticipant } = require('../../../foundation/persistence/material-control');
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
 const { createProcurementRunExecutionBasis } = require('../model/procurement-run-contracts');
@@ -39,6 +40,7 @@ function procurementRepository(schemaManifest) {
     'candidate_package_id','terminal_disposition','terminal_evidence_digest','selected_at_ms','reservation_updated_at_ms'];
   return createRepositoryDefinition({ repositoryId:'procurement_run_admission', owner:'procurement', schemaManifest, statements:{
     find_run:{ kind:'select-one', tableId:'proc_procurement_runs', columns:['procurement_run_id','run_basis_digest','admission_commit_marker','admission_result_digest'], keyColumns:['procurement_run_id'] },
+    find_reset_barrier: findResetBarrier,
     find_field:{ kind:'select-one', tableId:'proc_material_fields', columns:['field_id','status','extraction_policy_id','extraction_policy_revision','current_access_revision','current_profile_hint_revision','current_observation_revision'], keyColumns:['field_id'] },
     find_profile_hint:{ kind:'select-one', tableId:'proc_field_profile_hint_revisions', columns:['field_id','revision','content_profile_hint','hint_schema_ref','hint_digest'], keyColumns:['field_id','revision'] },
     find_access:{ kind:'select-one', tableId:'proc_field_access_revisions', columns:['field_id','revision','access_digest'], keyColumns:['field_id','revision'] },
@@ -114,6 +116,9 @@ function createProcurementRunAdmissionStore(options) {
     } };
     const validate = { participantId:'procurement_run_validate', owner:'procurement', repositories:[procurement], execute(context) {
       const repo = context.repository(procurement.repositoryId); const field = repo.invoke('find_field', { field_id:basis.fieldId });
+      if (!isFreshObservation(basis.terminalObservation.revision, basis.terminalObservation.fieldObservationWorkId,
+        repo.invoke('find_reset_barrier', { field_id: basis.fieldId })))
+        fail('P7_RUN_ADMISSION_RESET_BARRIER', 'Retained observation evidence cannot admit new procurement.');
       if (!field || field.status !== 'active' || field.current_access_revision !== basis.fieldAccess.revision ||
           field.current_profile_hint_revision !== basis.profileHintSnapshot.revision ||
           field.current_observation_revision !== basis.terminalObservation.revision || field.extraction_policy_id !== basis.extractionPolicy.policyId ||

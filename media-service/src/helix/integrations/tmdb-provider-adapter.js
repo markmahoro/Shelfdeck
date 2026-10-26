@@ -15,6 +15,7 @@ const SUPPORTED_OPERATIONS = new Set([
   'libra.routing.fact.observe@1',
   'libra.product_identity.evidence.observe@1',
   'libra.product_metadata.fetch@1',
+  'libra.episode_metadata.candidates.observe@1',
   'libra.product_artifact.acquire@1',
   'arca.aftercare.binary_artifact.acquire@1',
   'arca.series_presentation.source.observe@1',
@@ -1161,10 +1162,56 @@ function createTmdbProviderAdapter(options) {
           cast:(body.credits?.cast||[]).filter(actor=>Number.isSafeInteger(actor.id)&&actor.id>0&&typeof actor.name==='string'&&actor.name).slice(0,64)
             .map((actor,index)=>({providerKey:String(actor.id),name:actor.name,role:typeof actor.character==='string'?actor.character:'',order:Number.isSafeInteger(actor.order)&&actor.order>=0?actor.order:index}))});
       }
+      if (request.operationId === 'libra.episode_metadata.candidates.observe@1') {
+        const deadline=performance.now()+timeout(request.timeoutMs);
+        const remaining=()=>{const budget=Math.floor(deadline-performance.now());
+          if(budget<=0)fail('PLATFORM_INTEGRATION_TIMEOUT','Episode candidate query exceeded its operation budget.');
+          return budget;};
+        exact(request.input, ['resolvedProviderIdentity', 'providerSeasons'], 'PLATFORM_TMDB_EPISODE_CANDIDATES_SHAPE');
+        const resolved = request.input.resolvedProviderIdentity, seasons = request.input.providerSeasons;
+        if (resolved?.provider !== 'tmdb' || resolved.namespace !== 'tmdb_series' ||
+            !/^[1-9][0-9]{0,14}$/.test(resolved.providerKey || '') || !Number.isSafeInteger(resolved.seasonNumber) || resolved.seasonNumber < 1 ||
+            resolved.identityAnchorDigest !== canonicalDigest({ provider: resolved.provider, namespace: resolved.namespace,
+              providerKey: resolved.providerKey, seasonNumber: resolved.seasonNumber }) ||
+            !Array.isArray(seasons) || !seasons.length || seasons.length > 16 ||
+            seasons.some(value => !Number.isSafeInteger(value) || value < 0 || value > 999) || new Set(seasons).size !== seasons.length)
+          fail('PLATFORM_TMDB_IDENTITY_INVALID', 'Episode candidates require an exact local Season identity and explicit Provider seasons.');
+        const show = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/tv/' + resolved.providerKey,
+          { timeoutMs: remaining(), query: { language }, proxyServer });
+        if (String(show?.id) !== resolved.providerKey || typeof show?.name !== 'string')
+          fail('PLATFORM_TMDB_IDENTITY_MISMATCH', 'Episode candidates belong to a foreign show.');
+        const episodes = [], ids = new Set();
+        for (const seasonNumber of seasons) {
+          // 404 and malformed seasons remain explicit failures. Neither empty
+          // aliases nor a neighboring season can substitute metadata here.
+          const season = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes, '/tv/'+resolved.providerKey+'/season/'+seasonNumber,
+            { timeoutMs: remaining(), query: { language }, proxyServer });
+          if (season?.season_number !== seasonNumber || !Array.isArray(season.episodes) || season.episodes.length > 1024)
+            fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', 'Provider Season candidates are invalid.');
+          const numbers = new Set();
+          for (const episode of season.episodes) {
+            if (!Number.isSafeInteger(episode.id) || episode.id < 1 || !Number.isSafeInteger(episode.episode_number) || episode.episode_number < 1 ||
+                episode.season_number !== seasonNumber || episode.show_id !== undefined && String(episode.show_id) !== resolved.providerKey ||
+                typeof episode.name !== 'string' || !episode.name || episode.name.length > 1024 ||
+                typeof episode.overview !== 'string' || episode.overview.length > 16384 ||
+                episode.air_date !== null && episode.air_date !== '' && (typeof episode.air_date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(episode.air_date)) ||
+                ids.has(episode.id) || numbers.has(episode.episode_number))
+              fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', 'Provider Episode evidence is invalid or duplicated.');
+            ids.add(episode.id); numbers.add(episode.episode_number);
+            episodes.push(Object.freeze({ providerEpisode: Object.freeze({ provider: 'tmdb', providerKey: resolved.providerKey,
+              seasonNumber, episodeNumber: episode.episode_number, episodeId: episode.id }),
+              title: episode.name, plot: episode.overview, airDate: episode.air_date || '', observedAtMs: now() }));
+            if (episodes.length > 1024 || Buffer.byteLength(JSON.stringify(episodes), 'utf8') > 2 * 1024 * 1024)
+              fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', 'Provider Episode candidate set exceeds the review bound.');
+          }
+        }
+        return Object.freeze({ integrationId: snapshot.integrationId, configRevision: snapshot.configRevision, language, episodes: Object.freeze(episodes) });
+      }
       if (request.operationId === 'libra.product_metadata.fetch@1') {
         exact(
           request.input,
-          ['resolvedProviderIdentity', 'requestedFields', ...(Object.hasOwn(request.input || {}, 'episodeScope') ? ['episodeScope'] : [])],
+          ['resolvedProviderIdentity', 'requestedFields', ...(Object.hasOwn(request.input || {}, 'episodeScope') ? ['episodeScope'] : []),
+            ...(Object.hasOwn(request.input || {}, 'providerEpisodeReference') ? ['providerEpisodeReference'] : [])],
           'PLATFORM_TMDB_METADATA_SHAPE',
         );
         const resolved = request.input.resolvedProviderIdentity;
@@ -1197,6 +1244,14 @@ function createTmdbProviderAdapter(options) {
         }
         if (request.input.requestedFields.some(field => field.startsWith('episode_')) && !episodeScope)
           fail('PLATFORM_TMDB_IDENTITY_INVALID', 'Episode metadata requires an explicit Episode scope.');
+        let providerEpisode;
+        if (Object.hasOwn(request.input, 'providerEpisodeReference')) {
+          providerEpisode = require('../contracts/provider-episode-reference').buildProviderEpisodeReference(request.input.providerEpisodeReference);
+          if (!episodeScope || !series || providerEpisode.providerKey !== resolved.providerKey)
+            fail('PLATFORM_TMDB_IDENTITY_INVALID', 'Provider Episode lookup must belong to the resolved show.');
+        }
+        const lookupSeason = providerEpisode ? providerEpisode.seasonNumber : resolved.seasonNumber;
+        const lookupEpisode = providerEpisode ? providerEpisode.episodeNumber : episodeScope?.episodeNumber;
         if ((series && (!Number.isSafeInteger(resolved.seasonNumber) ||
             resolved.seasonNumber < 1 || resolved.identityAnchorDigest !== canonicalDigest({
               provider: resolved.provider, namespace, providerKey: resolved.providerKey,
@@ -1220,15 +1275,15 @@ function createTmdbProviderAdapter(options) {
         const shared = series ? await seriesMetadata(canonicalDigest({
           integrationId:snapshot.integrationId,configRevision:snapshot.configRevision,endpoint: snapshot.endpoint,
           secretRef: snapshot.secretRef, language, proxyServer: proxyServer || null,
-          identity: resolved, timeoutMs: timeout(request.timeoutMs),
+          identity: resolved, lookupSeason, timeoutMs: timeout(request.timeoutMs),
         }), async () => {
           const body = await loadShow();
           const season = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes,
-            '/tv/' + resolved.providerKey + '/season/' + resolved.seasonNumber,
+            '/tv/' + resolved.providerKey + '/season/' + lookupSeason,
             { timeoutMs: timeout(request.timeoutMs), query: { language }, proxyServer });
           requireFields(season, ['id', 'season_number'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
           if (!Number.isSafeInteger(season.id) || season.id < 1 ||
-              season.season_number !== resolved.seasonNumber)
+              season.season_number !== lookupSeason)
             fail('PLATFORM_TMDB_IDENTITY_MISMATCH', 'TMDB Season metadata does not match the resolved Season identity.');
           if (season.episodes !== undefined && !Array.isArray(season.episodes))
             fail('PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID', 'TMDB Season Episodes must be an array.');
@@ -1238,7 +1293,7 @@ function createTmdbProviderAdapter(options) {
             validateMetadataResponse(episode);
             if (!Number.isSafeInteger(episode.id) || episode.id < 1 ||
                 !Number.isSafeInteger(episode.episode_number) || episode.episode_number < 1 ||
-                episode.season_number !== resolved.seasonNumber ||
+                episode.season_number !== lookupSeason ||
                 (episode.show_id !== undefined && String(episode.show_id) !== resolved.providerKey) ||
                 episodeNumbers.has(episode.episode_number))
               fail('PLATFORM_TMDB_IDENTITY_MISMATCH', 'TMDB Season Episode identities are invalid or duplicated.');
@@ -1259,7 +1314,7 @@ function createTmdbProviderAdapter(options) {
           const season = shared.season;
           values.set('season_number', season.season_number);
           if (episodeScope) {
-            const matches = (season.episodes || []).filter(item => item?.episode_number === episodeScope.episodeNumber);
+            const matches = (season.episodes || []).filter(item => item?.episode_number === lookupEpisode);
             if (matches.length > 1)
               fail('PLATFORM_TMDB_IDENTITY_MISMATCH', 'TMDB Season contains duplicate requested Episodes.');
             let episode = matches[0];
@@ -1267,7 +1322,7 @@ function createTmdbProviderAdapter(options) {
               requireFields(episode, ['id', 'season_number', 'episode_number'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
               validateMetadataResponse(episode);
               if (!Number.isSafeInteger(episode.id) || episode.id < 1 ||
-                  episode.season_number !== resolved.seasonNumber ||
+                  episode.season_number !== lookupSeason ||
                   (episode.show_id !== undefined && String(episode.show_id) !== resolved.providerKey))
                 fail('PLATFORM_TMDB_IDENTITY_MISMATCH', 'TMDB Season Episode belongs to a foreign identity.');
             }
@@ -1276,7 +1331,7 @@ function createTmdbProviderAdapter(options) {
             if (!episode || (requested.has('episode_title') && !episode.name) ||
                 (requested.has('episode_plot') && !episode.overview)) {
               const detail = await fetchJson(snapshot.endpoint, snapshot.secretKind, secretBytes,
-                '/tv/' + resolved.providerKey + '/season/' + resolved.seasonNumber + '/episode/' + episodeScope.episodeNumber,
+                '/tv/' + resolved.providerKey + '/season/' + lookupSeason + '/episode/' + lookupEpisode,
                 { timeoutMs: timeout(request.timeoutMs), query: { language }, proxyServer });
               if (episode && detail.id !== episode.id)
                 fail('PLATFORM_TMDB_IDENTITY_MISMATCH', 'TMDB Episode detail differs from its Season member.');
@@ -1285,7 +1340,9 @@ function createTmdbProviderAdapter(options) {
             requireFields(episode, ['id', 'season_number', 'episode_number'], 'PLATFORM_INTEGRATION_RESPONSE_SCHEMA_INVALID');
             validateMetadataResponse(episode);
             if (!Number.isSafeInteger(episode.id) || episode.id < 1 ||
-                episode.season_number !== episodeScope.seasonNumber || episode.episode_number !== episodeScope.episodeNumber)
+                episode.season_number !== lookupSeason || episode.episode_number !== lookupEpisode ||
+                (episode.show_id !== undefined && String(episode.show_id) !== resolved.providerKey) ||
+                (providerEpisode && episode.id !== providerEpisode.episodeId))
               fail('PLATFORM_TMDB_IDENTITY_MISMATCH', 'TMDB Episode response does not match the frozen Episode scope.');
             values.set('episode_number', episode.episode_number);
             if (episode.name) values.set('episode_title', episode.name);
@@ -1343,8 +1400,9 @@ function createTmdbProviderAdapter(options) {
           integrationId: snapshot.integrationId,
           configRevision: snapshot.configRevision,
           sourceRef: 'tmdb:' + (series ? 'tv' : 'movie') +
-            ':' + resolved.providerKey + (series ? ':season:' + resolved.seasonNumber : '') +
-            (episodeScope ? ':episode:' + episodeScope.episodeNumber : ''),
+            ':' + resolved.providerKey + (series ? ':season:' + lookupSeason : '') +
+            (episodeScope ? ':episode:' + lookupEpisode : ''),
+          ...(providerEpisode ? { providerEpisodeReference: providerEpisode } : {}),
           ...(episodeScope ? { episodeScope } : {}),
           ...(series&&!episodeScope?{seriesPresentationSource:require('../contracts/series-presentation-basis').buildSeriesPresentationSource({
             provider:'tmdb',namespace:'tmdb_series',providerKey:resolved.providerKey,seasonIdentityAnchorDigest:resolved.identityAnchorDigest,
@@ -1472,6 +1530,7 @@ function createTmdbProviderAdapter(options) {
         fail(
           'PLATFORM_INTEGRATION_HTTP_FAILED',
           'TMDB image request was rejected.',
+          { stage: 'image_request', statusCode: imageResponse?.status },
         );
       }
       const bytes = await boundedResponseBytes(

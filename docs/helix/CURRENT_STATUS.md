@@ -1,5 +1,45 @@
 # ShelfDeck 当前状态
 
+2026-10-27 后续开发核验：完整 Service 第十轮 842 项 / 813 PASS / 29 skip / 0 FAIL，完整 Web 第五轮 271 PASS，四项静态检查 PASS。首次升级中断后重启沿同一已确认 workflow 冷态完成、旧结构不进入业务Host的定向 1 PASS；Docker 默认入口依赖遍历 1 PASS，已补齐镜像遗漏的新Supervisor/Operator模块。季集核实：TMDB暗算S1/S2/S3分别10/12/12集有剧情，S4虽34集但剧情全空；本地无分集NFO。唐顿两集本地NFO只有第9集，无日期/剧情。已保存逐项Provider资料与本地证据，不能据集数或跨季偏移确认映射；真实逐项选择仍需用户确认。尚无生产操作。
+
+2026-10-27 冷态首次升级与生产副本检查点（开发中、未发布）：新生产只读快照包含 691 个正式 Commit，SHA256 `1789531be27e6b68079f94cf29ad16893f6c44541af75f5208fd01f7c85ae8bd`，5,126,340,608 bytes。239 表隔离保留库保留 1,332,064 行、移除 1,962,627 行，685 个保留 Subject 结束旧准入；691 个 Commit/Package、十组保护摘要、两组共享剧资料及两个精确资料依赖通过 Owner Reader、完整 FK/integrity 核验（约 1,055 秒）。这是隔离副本，不是生产 Reset，也不是完整恢复备份。
+
+真实混合 Series 旅程证明一季 Commit/另一季 Accepted 未 Commit 时，保留前者及共享资料、清除后者责任，10 个来源/正式/共享文件字节保持。真实资料失败后 frozen Run 的显式跨 Provider Season 0/2 映射、重新执行与正式 Commit 旅程通过；本地 S01E01/E02 编号保持。四视口 Reset/映射浏览器最新 32 PASS；早期窄屏横向溢出 FAIL、修正及截图均保留，尚非固定版本 UI 负责人验收。
+
+首次 schema 升级不能先启动新业务 Host 再 Reset，已新增显式部署关闭证明与冷态管理入口：旧 235 表仅开放原 Runtime 预检/确认，独立切换 239 表后重开 stopped；真实 SQLite 入口及源变化拒绝 2 PASS，组合 14 项首跑 13 PASS/1 FAIL（父根挂载重叠遗漏），修正后部署约束 4 PASS。标准 deploy 新模式和 Windows/Docker 打包接线仍须完整资格，生产未执行。当前完整 Architecture 长跑基于变化中的开发树，只作为开发诊断；最终长门禁必须固定 commit/独立 checkout，不能挪用。
+
+进击的巨人三次原始 MoviePilot 日志均对应首标题“未搜索到资源”，支持零候选被误报为技术失败的独立原因；没有完整 HTTP 响应，不能声称其他别名必有候选。风骚律师旧海报失败的底层 HTTP 状态仍不可恢复；已补 TMDB image HTTP stage/status 诊断贯穿真实 Host/Handle/Secret 的 503 红绿例，不回填历史或宣称其具体网络根因已证实。生产未部署、Reset、删除备份或修改媒体，自动观察保持取消。
+
+2026-10-27 季集映射与冷态 Reset 增量（开发中，未发布）：已新增 Libra 持久 Review / Mapping Intent / head，以及新 Run 冻结 mapping ref；当前目标 239 表、168 路由。真实 Host 隔离旅程完成显式跨 Provider Season 0/2 选择 → 新 Run → 真实媒体处理 → 一次正式 On-deck Commit，本地 S01E01/E02 与 NFO 编号保持，完整 FK/integrity 通过。首跑路由计数不同步失败、第二/三跑因新身份证据改变完整摘要而失效，均保留；已分离原确认 identityDigest 和精确身份范围 identityScopeDigest，未修改旧身份事实。映射模型/原生 SQLite/执行适用性 16 PASS，Web 交互 5 PASS，Run Admission 既有回归 16 PASS；真实 Handle/Secret/TMDB 候选查询定向已通过，最新增量仍须全量复验。UI 初版尚未完成固定候选浏览器及 UI 负责人验收。唐顿特别篇与暗算 34 集的生产逐项资料核实、两项独立失败诊断、生产新副本/共享剧混合 Reset 验证、最终镜像/完整架构门禁仍开放。
+
+Reset 持久 pending intent 与 workflow 已改为同一次原子写入，完成 Receipt 先于清除 pending；新 Reset 不会误认前一代 complete fence。Windows 中断与管理入口定向 11 PASS；Linux 第二轮 13 PASS / 1 FAIL（容器加载了 startup 修正前源码），修正后原失败定向 1 PASS / 5 filtered skip；这是本地源码覆盖旧依赖镜像，不能替代最终镜像资格。完整旧版本 Series Routing/metadata 批次 60 PASS（约 15 分钟）发生在最新映射接入之前，不能当作最终候选全量验收。生产本轮未部署、未 Reset、未删除备份；观察保持已取消，最终生产动作仍须具体方案授权。
+
+2026-10-27 最新开发检查点（未发布、不可执行生产 Reset）：正式 server 入口已改为 Supervisor + 独立冷态 Operator，裸 Host 不再回落到旧退役 Worker。已接停止证明、全生命周期原生租约、代际绑定管理鉴权、进度查询、原确认幂等继续及成功后 stopped 新 Host；显式作业配置必须通过路径/备份覆盖/容量预检。当前与历史来源/收藏根、People 和保留维护子树由 Owner 配置自动纳入保护。完整 Service 第八轮 837 项 / 808 PASS / 29 skip / 0 FAIL；完整 Web 第三轮 266 PASS；浏览器第二轮 16 PASS（四种视口、确认/容量/重试/状态变化及适用 a11y），首跑失败均见 Evidence。原生新 Reset→停止态重启→显式 Resume→重新观察→新包→FFmpeg→正式 Commit 隔离旅程 1 PASS，另无 Run Subject 重采 1 PASS。这不覆盖生产混合共享剧根或最新生产副本；季集映射 Store/API/确认 UI、最终 Windows/Linux/完整 Architecture/具体版本 UI 负责人验收及精确容量删除清单仍未完成。生产无部署、Reset、备份删除或媒体改动；观察不重建。
+
+以下为较早开发检查点，入口状态以本节最新记录为准。
+
+2026-10-26 最新开发检查点（未发布、仍不可生产 Reset）：完整 Service 第七轮 826 项 / 797 PASS / 29 skip / 0 FAIL。同一独立 Operator 已串联完整备份→新库→切换→临时清理→代际回执；备份/容量/中断恢复组合 27 PASS，Linux 本机只读源码隔离容器 29 PASS（早于最新 HTTP 接线）。真实 HTTP 通过注入新 Operator adapter 完成旧 Host 全连接关闭、冷切换、Runtime 回执收口及新 Host stopped 重开，第三轮 1 PASS；首跑发现全新 Host 的生产工作区初始化未登记实际 Mount Scope，现走既有 Platform 注册能力，仅作用于无既有根/Workspace 历史的初始化，不改写旧配置。默认主入口仍是旧退役 Worker，尚未切换；默认 Supervisor/管理界面、完整配置边界派生、季集映射持久确认及最终资格继续开放。
+
+Libra/Arca 分别声明保留 Workspace，预检按精确 Platform Handle 自动生成保留路径并绑定确认摘要；reclaimed 历史不因 Artifact 仍 active 而保留临时文件。未知责任/错误根路径阻断，组合第三轮 15 PASS。独立 Operator 使用原生排他锁拒绝并发操作，真实进程强杀后可重新取得锁，无需删除 PID 文件；锁与实际子进程组合 7 PASS。尚未操作生产。
+
+完整 Architecture 开发首跑 3,389 项 / 3,344 PASS / 19 FAIL / 26 skip，四项静态检查 PASS；已修正当前 schema 断言和 Windows 漏打包新屏障，受影响第二轮 102 项 / 97 PASS / 3 FAIL / 2 skip，剩余三处断言第三轮 11 PASS。Windows 独立包已复验；这不是含后续增量的固定候选完整资格。
+
+冷备 08 保留 1,317,301 / 清除 1,851,761 行，676 个保留 Subject 结束旧准入；682 个 Commit/Package 经 Owner Reader 一致，完整 FK/integrity 和十组保护摘要通过。增加的是实际收藏维护 process 闭包，不按整个 Subject 保留所有 Run；样本仍无已提交共享剧资料 scope。独立预检已在真实停止态 Host 验证不改业务行、Runtime intent 和媒体；完整逻辑快照含待清除行，WAL checkpoint 不误判，同数目内容变化拒绝旧确认，最新预检/原生进程组合 10 PASS。正式 Runtime 主入口、冷恢复 Supervisor、映射 Store/API/UI、完整新媒体与最终平台资格仍开放。
+
+容量只读证据：`/upgrade` 与 MoviePilot 共用，不能整体清理。vol1 `backups/history-cutover-c91fbed63-20261025/source.sqlite` 与 vol2 `pre-c91fbed63-20261025/data/shelfdeck.db` 同 SHA；同大小的 `diagnostics/history-contracts-230a3100a/source.sqlite` SHA 不同，不能当重复件。文件使用检查有权限盲区，尚无最终删除清单或删除授权；未删除、部署、Reset 或重新创建定时观察。详见当前 Evidence 顶部。
+
+2026-10-26 当前开发增量（未发布，仍不可生产 Reset）：独立 Operator 子进程、真实 Host 关闭连接端口及持久代际屏障已完成隔离回归。Procurement 新增 Reset 观察屏障，保留旧观察证据但取消其采购资格；Owner 正规化扫描头，新 Work 从空游标开始，拒绝旧代际页回执和旧观察准入。受影响 65 项通过。冷备第 07 轮按新 schema 保留 998,033 行、清除 2,171,029 行，676 个保留 Subject 结束旧准入，682 个 Commit/Package 逐个重建一致，完整 FK/integrity 通过；仍不是最新生产备份，也没有已提交共享剧根的生产样本。季集映射已实现 Provider Season 0/跨季查询、精确 Episode ID 校验及 Libra 本地编号投影，持久化和确认 UI 尚未完成。Runtime 新主入口及冷启动恢复编排、最终容量清理名单、全部平台/UI/真实媒体资格仍开放。
+
+最近全量 Service：771 项，735 PASS / 7 FAIL / 29 skip。7 FAIL 为旧合同证据切换测试错误引用移动中的当前 schema；已将该历史测试固定到原验收目标，相关 9 项复验 PASS，不扩大历史迁移工具范围。静态契约首跑发现 SSOT 来源定位变化后的生成物漂移，重新生成后契约检查 PASS；首跑均保留。生产没有部署、清理备份、Reset 或复机操作，自动观察未重建。
+
+2026-10-26 开发增量（未发布）：离线 Operator 已串联保留库复制、Owner 正规化、真实收藏验证、数据库切换及冻结临时清单清理；新增显式备份排除/文件校验与容量拒绝。102 项受影响组合测试 PASS。新缩略图 Series Host 已完成正式 Commit 和历史 Reader 验证；原冷备 682 Commit/Package 在结束保留 Subject 的旧准入后仍逐个重建一致。Service 首跑 760 项为 730 PASS / 1 diagnostics 旧断言 FAIL / 29 skip；断言同步后定向通过，首跑保留。Runtime 新 Reset 主入口、混合共享剧根/新观察准入、完整季集映射交互及最终平台/UI资格仍未完成，不能部署这批未冻结改动或执行新 Reset。详见 Evidence 顶部当前开发节。
+
+2026-10-26 本轮彻底 Reset 开发检查点（未发布、未执行生产处置）：已按用户新合同更新唯一 SSOT/Plan/Phase。新增离线保留库复制、逐卷容量预算、私有临时空间冻结清单/可恢复清理、数据库切换 journal、季集资料映射模型；这些 Operator 组件尚未接入 Runtime Reset 主入口，不能当作可用的新版 Reset。安全停机已接入实际 FFmpeg 终止/close 屏障，并补 Secret 包装失败的安全 causeCode 证据保留。已有 64 项定向测试通过，停止态 HTTP/真实子进程组合 14 项通过；最终全量门禁、Linux/Windows/UI/季集映射完整交互仍待。
+
+生产只读容量盘点 `/vol1` 约 7.8GB 可用、`/vol2` 约 351GB 可用；未删除任何备份。已下载既有 `pre-ba75692d4-20261026` 冷备中的 4,882,046,976-byte 数据库至本地隔离区，NAS/本地 SHA256 同为 `8817cfa34e8ef847ff5ad4dbcf3d1cc92b02b8553297cbbebee8ad1ab131f361`。该旧副本只有 682 收藏，不代表最新生产 690 收藏。保留库第 1 版虽通过 FK/integrity，却漏了无 SQL FK 的 Arca→Libra Package 依赖；第 2 版被保留 Event 的 progress FK 正确阻断；第 3 版补齐依赖后完整 integrity/FK/Kernel guards 通过，682 个 Package 经现有 Libra Reader 逐个重建与原库一致。仍需补全业务语义依赖、关闭保留 Subject 的旧准入资格及真实混合季状态验证。
+
+进一步 Owner 验真发现原始冷备也存在 `P14_ONDECK_INVENTORY_HISTORY`：On-deck 写入摘要包含 `relatedPrimaryMappings`，历史 Reader 遗漏该项。正在按 Arca 自有冻结 Placement Decision 与 Inventory mapping facts 重建原始关联，未改写历史摘要。相关新 Host 回归首跑在 Promotion 前超时，尚未抵达目标断言；保留该 FAIL，不能记成目标红绿通过。风骚律师原始失败为 `P5_SECRET_LEASE_INVOCATION_FAILED`、进击的巨人三次 `P5_PROVIDER_TRANSPORT_FAILED`，原 diagnostics 均空，尚不足以判定两者底层根因。生产仍以既有发布记录为准，本轮未部署/Reset/取消/清库/移动媒体；已取消的 `shelfdeck-2` 不重建。详见本轮 Evidence 最新节。
+
 2026-10-26 12:05（Asia/Shanghai）只读监控：生产仍e78dbd82f，2进行中/23 attention，收藏690。新增继承之战、飞天大盗两条Arca公共资料端口错误（该类由5增至7），以及风骚律师Libra海报下载LIBRA_ARTIFACT_FETCH_FAILED（diagnostics为空，根因未定）。候选b2未部署，不能将新增风骚律师失败认定为已修端口错误。另一转码5秒输出增长3,932,160bytes，五来源可读、扫描时间未变、无新孤儿/重启/OOM，Circuit closed、警告144；cgroup扣除inactive_file约1.982GiB。仅运行/收藏表有界FK检查，无生产变更，原监控截止不变。
 
 2026-10-26 11:02（Asia/Shanghai）只读监控：e78dbd82f当前3进行中/20 attention，收藏仍690。新增一条转码完成但质量保护下不能满足1GiB、等待接受体积瑕疵的条目，此类现2条；不是新增执行失败，失败码计数未变。下一条转码输出持续增长，五来源可读、无新孤儿/重启/OOM，Circuit closed，监听器警告仍144。cgroup扣除inactive_file内存约1.654GiB；docker stats仍超时，未重启服务。仅有界FK核验，无生产处置、候选未部署，原观察截止不变。

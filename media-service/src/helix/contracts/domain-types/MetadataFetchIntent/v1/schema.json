@@ -195,6 +195,72 @@
             "seasonNumber"
           ]
         },
+        "episodeMapping": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "mappingDigest",
+            "mappingRevision",
+            "materialKey",
+            "evidenceDigest",
+            "providerEpisode"
+          ],
+          "properties": {
+            "mappingDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "evidenceDigest": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "mappingRevision": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 9007199254740991
+            },
+            "materialKey": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256
+            },
+            "providerEpisode": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "provider",
+                "providerKey",
+                "seasonNumber",
+                "episodeNumber",
+                "episodeId"
+              ],
+              "properties": {
+                "provider": {
+                  "const": "tmdb"
+                },
+                "providerKey": {
+                  "type": "string",
+                  "pattern": "^[1-9][0-9]{0,14}$"
+                },
+                "seasonNumber": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                },
+                "episodeNumber": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                },
+                "episodeId": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 9007199254740991
+                }
+              }
+            }
+          }
+        },
         "providerKind": {
           "const": "tmdb"
         },
