@@ -753,3 +753,11 @@ ignored证据：repair-attention-api.json/db.json/summary.json、repair-provider
 3. `procurement-category-host`首跑在65个包/1081材料与两个sealed completed Run均已满足后，因存在一个failed Attempt违反零失败断言。原测试没有输出该Attempt明细且fixture已清理，不能声称确定为资源竞争或产品缺陷。原代码/原断言复验PASS；随后仅把同一零失败断言补成输出最多10条event_id/failure_code/evidence_digest，二次运行仍PASS，未放宽任何成功/材料守恒条件。根因证据不足作为本次资格限制保留，未来复现可直接定位。
 
 新增定向日志：`final-architecture-rechecks.log`（采购及Windows2 PASS）、`final-boundary-expectation.log`（7 PASS）、`final-category-diagnostic-check.log`（1 PASS）。此次最终追加仅涉及测试和记录，b2dac98fc运行源码、Schema、依赖及镜像字节不变。Desktop旧套件启动失败限制继续保留。原24小时监控截止不变，自动化基线已同步为生产14 attention和旧队列诊断，仍只读且禁止自动实施修复。
+
+### 2026-10-26 09:05 只读监控增量：16 attention及真实入藏继续
+
+- 01:04Z生产仍e78dbd82f，running/normalSupplyAllowed=true/error=null；API6进行中/16 attention。相对23:59Z的14新增两条：Subject 12735f12…《进击的巨人：编年史 (2020)》，Run eb85d75b…已frozen；Subject 6d8b4b52…为western_adult演员无候选确认，当前此类共4条，不自动代选。
+- 新影片精确Event `libra-external-search-event-0b88c9bf6fd3ae509d9651cb368c9dffb4a0e51a`的3个Attempt均`P5_PROVIDER_TRANSPORT_FAILED`，Work已failed；三次Evidence同digest ad1a500b…且diagnostics为空。只能确认外部素材检索失败，不能据同错误码认定MoviePilot空别名缺陷或实际网络故障。未再次调用有缓存/AI推荐副作用的外部搜索接口；该条留给修复工作承接，未生产重试。
+- 旧转码Event 66c8d660…已succeeded。23:59Z后取得4个新的Arca On-deck Commit Receipt，1条tmdb_movie(provider_key299054)、3条internal_identity；收藏总数684→688（API current687/history1）。01:04Z另有接纳强制媒体验收及新转码executing；新FFmpeg输出5秒增加4,456,448bytes，证明执行推进但不宣称全部任务完成或4K吞吐达标。走向共和仍未见本轮入藏证明。
+- 五来源stat/opendir均可读，最新完整扫描仍为Resume后的既有成功记录；无active且无Run/token异常，Circuit closed。容器RestartCount0/OOM=false；内存2.433GiB，CPU277.74%，AbortSignal监听器警告仍144次，无新增日志码。只读/query_only且total_changes=0，libra_runs及arca_shelf_entries限定FK为空。前次全量进展查询未返回完整结果后采用有界核验，本次不宣称全表FK或全历史再次逐行验证。
+- ignored证据：heartbeat-20261026T0103-{api,host,sources,log-summary,db,transcode,new-failures}及正式API快照。诊断脚本首轮引用不存在的Event updated_at_ms列被SQLite拒绝，修为只读state后通过；它不是生产服务异常。本次无部署、Reset、取消、重试或媒体改动；既有截止2026-10-26T10:32:12.930Z不变。
