@@ -761,3 +761,13 @@ ignored证据：repair-attention-api.json/db.json/summary.json、repair-provider
 - 旧转码Event 66c8d660…已succeeded。23:59Z后取得4个新的Arca On-deck Commit Receipt，1条tmdb_movie(provider_key299054)、3条internal_identity；收藏总数684→688（API current687/history1）。01:04Z另有接纳强制媒体验收及新转码executing；新FFmpeg输出5秒增加4,456,448bytes，证明执行推进但不宣称全部任务完成或4K吞吐达标。走向共和仍未见本轮入藏证明。
 - 五来源stat/opendir均可读，最新完整扫描仍为Resume后的既有成功记录；无active且无Run/token异常，Circuit closed。容器RestartCount0/OOM=false；内存2.433GiB，CPU277.74%，AbortSignal监听器警告仍144次，无新增日志码。只读/query_only且total_changes=0，libra_runs及arca_shelf_entries限定FK为空。前次全量进展查询未返回完整结果后采用有界核验，本次不宣称全表FK或全历史再次逐行验证。
 - ignored证据：heartbeat-20261026T0103-{api,host,sources,log-summary,db,transcode,new-failures}及正式API快照。诊断脚本首轮引用不存在的Event updated_at_ms列被SQLite拒绝，修为只读state后通过；它不是生产服务异常。本次无部署、Reset、取消、重试或媒体改动；既有截止2026-10-26T10:32:12.930Z不变。
+
+### 2026-10-26 10:10 只读监控增量：旧采购包继续进入工作台
+
+- 02:06Z API4进行中/19 attention（较01:04Z新增3条）、收藏690（current689/history1，较前次总数增2）。Runtime仍e78dbd82f running、normalSupplyAllowed=true/error=null；候选b2dac98fc未部署。
+- 《凡人歌》Subject a4289c56…于01:14:19.555Z新建，Run 68016b13…frozen，`SERIES_LOCAL_SOURCE_SCOPE_INVALID`。其实际绑定Candidate 6385daae…于10月25日15:49:27.026Z发布，sourceRoot仍`media/chn_series/凡人歌 (2024)`，早于18:26Z修复后的Resume；当前绑定已包含Season 01/poster.jpg。此次阻塞是旧包绝对根缺失，不是“Season海报引用修复仍失效”，也不是旧UI残留；原凡人歌生产验收继续开放。未取消、重采或重试。
+- 《边水往事》Subject 40b33bb4…于01:06:35.512Z创建，来源Candidate 27ebce11…发布于10月12日11:14:41.783Z，seriesSourceRefs为NULL、当前poster绑定为空。Arca On-deck 2e7f730d…的三次stage失败均`CLEAN_ARCA_STAGE_TARGET_OCCUPIED`，精确冲突为`Season 01/poster.jpg`，已Accepted、retryAvailable=false/canRecheck=true。这是已知旧队列范围问题的又一现场实例，不以重复recheck取得覆盖资格。
+- 另一新增Subject b032bb07…，Run 42baf129…frozen。正式Formation展示转码步骤完成，因质量保护下无法达到1GiB上限而保留较优超限成品、等待接受体积瑕疵；未出现新的FFmpeg执行失败码。该条按业务待决记录，不代替用户接受或降低上限。
+- 原五条TMDB端口失败及两条外部检索失败仍未解决。五来源可读，最新扫描仍既有Resume后完整观察；无active且无Run/token异常，限定libra_runs/arca_shelf_entries FK为空、Circuit closed。新转码5.145秒输出增加3,932,160bytes；不宣称所有业务正常或4K吞吐验收。
+- 容器inspect仍Restart0/OOM=false，日志警告144次未增加。本轮宽范围host helper在docker stats阶段停滞，精确终止的仅本机该只读探测Node进程；再次有界docker stats在10秒内未返回，未重启Docker或服务。容器内cgroup只读2秒采样CPU91.97%、memory.current 4,119,040,000bytes、inactive_file 2,125,967,360bytes，差值约1.856GiB，memory.events所有OOM项为0；该数为独立采样，不冒充同一Docker stats时间序列或整体性能结论。
+- ignored证据：heartbeat-20261026T0206-{api,db,sources,host,log-summary,transcode,package-lineage}、heartbeat-bounded-host-*、heartbeat-cgroup-resources-*；无生产写入，未扩大任务处置范围，原24小时截止不变。

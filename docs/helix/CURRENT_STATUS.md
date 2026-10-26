@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-26 10:10（Asia/Shanghai）只读监控：生产仍e78dbd82f，4进行中/19 attention，收藏690（current689/history1）。新增《凡人歌》旧包相对sourceRoot导致资料阻塞、《边水往事》旧包缺poster绑定导致Season 01/poster.jpg冲突，以及一条转码完成后等待用户接受体积瑕疵的条目。凡人歌包于10月25日15:49Z冻结、早于18:26Z路径修复上线；其新Subject于10月26日01:14Z创建，不能把新任务当新包或原问题已验收。五来源可读、无新孤儿、Circuit closed、Restart0/OOM=false；新转码输出持续增长。docker stats本次未返回，独立cgroup只读采样CPU约92%、扣除inactive_file后内存约1.856GiB，OOM计数0，不将此不同采样视为性能改善。未部署/重试/取消/Reset，截止不变。
+
 2026-10-26 09:05（Asia/Shanghai）只读监控：生产仍e78dbd82f，当前6进行中/16 attention。新增《进击的巨人：编年史 (2020)》三次外部检索P5_PROVIDER_TRANSPORT_FAILED后frozen，以及一条演员无候选确认（现共4条）；该检索诊断为空，不能直接认定与地狱尖兵同根因。旧长转码Event已succeeded，新增4条正式On-deck Commit，收藏684→688（current687/history1）；新的转码及接纳验收继续。五来源可读，无新孤儿/重启/OOM，Circuit closed；内存2.433GiB、监听器警告144未增加。仅运行条目及收藏表限定FK复核通过，不宣称本次全库FK检查。无部署/重试/取消/Reset，原监控截止不变。
 
 2026-10-26 04:58（Asia/Shanghai）修复实现/镜像仍固定b2dac98fc，未部署。完整Architecture基线043首跑3367项：3338 PASS/3 FAIL/26 skip；三项已定位为e78已声明依赖的旧断言、隔离checkout依赖junction导致Windows打包EPERM、1081采购旅程一次失败Attempt。前两项同步测试/用实际依赖目录复验通过；采购原断言及仅补失败明细后的再验均通过，首跑原因证据不足不冒称已查明。最终镜像102 PASS/1 skip、Service684 PASS/29 skip及平台资格保持，详见Evidence。另只读发现庆余年旧Offer是Reset后首次Accepted；当前129个open Series Offer中114包无新版来源引用，不能视为114个已失败任务。旧采购队列退役属于未确认合同扩展，已沿唯一Phase记录Design；现有Reset不等于重采全部包，本轮没有生产处置。
