@@ -777,3 +777,10 @@ ignored证据：repair-attention-api.json/db.json/summary.json、repair-provider
 03:01Z仍e78dbd82f running/normalSupplyAllowed=true/error=null，API3进行中/20 attention，收藏690（current689/history1）。新增Subject66d32240…/Run414b263e…已frozen，正式Formation显示转码100%完成，但质量保护下不能满足1GiB，保留较优超限成品并等待用户决定；该类现2条，未接受瑕疵或改配置。失败Attempt按码计数全部与02:06Z相同，不把业务待决报成FFmpeg失败。另一转码Event39a1b801…/Runb773088f…executing，5.012秒输出增长4,718,592bytes。
 
 五来源可读，最新扫描时间未变；无active且无Run/token异常，限定运行/收藏表FK为空，Circuit closed、Restart0/OOM=false。警告144次未增加；cgroup采样CPU177.92%、memory.current减inactive_file约1.654GiB、OOM项0。docker stats在10秒预算内再次无结果，已自动终止探测，未修改服务。ignored证据heartbeat-20261026T0301-*与API快照1792983695103；本次无部署/重试/取消/Reset，原截止不变。
+
+
+### 2026-10-26 12:05 只读监控：新增三条资料异常
+
+2026-10-26 12:05（Asia/Shanghai）只读监控：生产仍e78dbd82f，2进行中/23 attention，收藏690。新增继承之战、飞天大盗两条Arca公共资料端口错误（该类由5增至7），以及风骚律师Libra海报下载LIBRA_ARTIFACT_FETCH_FAILED（diagnostics为空，根因未定）。候选b2未部署，不能将新增风骚律师失败认定为已修端口错误。另一转码5秒输出增长3,932,160bytes，五来源可读、扫描时间未变、无新孤儿/重启/OOM，Circuit closed、警告144；cgroup扣除inactive_file约1.982GiB。仅运行/收藏表有界FK检查，无生产变更，原监控截止不变。
+
+正式API快照1792987538273：风骚律师Subject8bb564d5…/Runbef5f8eb…frozen，海报步骤blocked，Event0d27640e…诊断为空；继承之战Subject8b078467…和飞天大盗Subjectf2c33049…均Arca series_presentation失败。失败Attempt总计端口错误7、素材下载1，其余各码计数未变。新转码Runec3c7b45…执行中。docker stats再次预算内无结果，探测自动终止，未重启服务。证据保存在ignored heartbeat-20261026T0405-*及observations样本；本次不诊断外部有副作用搜索、不重试、不代替修复线程。
