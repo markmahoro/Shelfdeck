@@ -44,7 +44,7 @@ export default function EpisodeMetadataDialog({item,onClose,onSelected,onUnautho
     }
     inspectCommand.current??={idempotencyKey:newOpaqueId('episode-review-'),expectedRunStateRevision:state.runStateRevision,
       expectedMappingRevision:state.expectedMappingRevision,providerSeasons:parts.map(Number).sort((a,b)=>a-b)};
-    setBusy(true);setError('');
+    focus.current?.focus({preventScroll:true});setBusy(true);setError('');
     try{
       const value=await helixAdminApi.inspectEpisodeMetadata(runId,inspectCommand.current);
       setReview(value.reviewRecord);setChoices([]);setLocalKey('');setEvidenceKey('');setAcknowledged(false);inspectCommand.current=null;
@@ -64,7 +64,7 @@ export default function EpisodeMetadataDialog({item,onClose,onSelected,onUnautho
     if(!review||busy||stale||!allowed||(!locked&&(!choices.length||!acknowledged)))return;
     confirmCommand.current??={idempotencyKey:newOpaqueId('episode-confirm-'),reviewId:review.recordId,
       reviewDigest:review.review.reviewDigest,choices:[...choices]};
-    setBusy(true);setError('');
+    focus.current?.focus({preventScroll:true});setBusy(true);setError('');
     try{await helixAdminApi.confirmEpisodeMetadata(runId,confirmCommand.current);onSelected();}
     catch(cause){failure(cause,'确认结果尚未收到，请重试本次确认。');}
     finally{setBusy(false);}

@@ -73,3 +73,26 @@ test('a stale selection cannot be resubmitted and Escape restores focus',async({
   await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);await expect(page.getByRole('button',{name:'确认季集资料',exact:true})).toBeFocused();
   expect(f.writes).toHaveLength(2);
 });
+
+for(const action of ['query','confirm'])test(`pending ${action} keeps keyboard focus inside the dialog`,async({page})=>{
+  await fixture(page);
+  let release!:()=>void;
+  const pending=new Promise<void>(resolve=>{release=resolve;});
+  const endpoint=action==='query'?'review-episode-metadata':'confirm-episode-metadata';
+  await page.route(`**/actions/${endpoint}`,async route=>{await pending;await route.fallback();});
+  try{
+    let dialog;
+    if(action==='query'){
+      await page.goto('/formation');await page.getByRole('button',{name:'确认季集资料',exact:true}).click();
+      dialog=page.getByRole('dialog',{name:'确认季集资料'});
+      await dialog.getByRole('button',{name:'查询资料',exact:true}).click();
+    }else{
+      dialog=await select(page);await dialog.getByRole('checkbox').check();
+      await dialog.getByRole('button',{name:'确认对应并重新整理'}).click();
+    }
+    await expect(dialog).toHaveAttribute('aria-busy','true');await expect(dialog).toBeFocused();
+    await page.keyboard.press('Tab');
+    expect(await dialog.evaluate(element=>element.contains(document.activeElement))).toBe(true);
+    await page.keyboard.press('Escape');await expect(dialog).toBeVisible();
+  }finally{release();}
+});
