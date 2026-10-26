@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-27 Bootstrap后续预检增量：同一只读SQLite伴随文件风险覆盖了冷态管理面的后续inspect。显式bootstrapId路径已改为SHA验真私有源，原main/WAL集合在预检前后严格保持；普通stopped Host的一致读事务不变。缺失WAL/SHM→Bootstrap→预检→确认→完整Reset→stopped旅程，Windows/Linux最新各10PASS。e69a98bd4（仅Bootstrap修正）镜像实际Linux13PASS、Service851/822PASS/29skip，UI负责人继承复核通过；新增inspect增量须以更新固定候选、受影响门禁和精确影像收口，不提前称生产成功。生产仍停止，尚未Reset。
+
 2026-10-27 发布冷态Bootstrap阻断：完整冷备910文件/32,689,623,577 bytes已通过，verificationDigest197165d53c8879206c3577da60eedc6e41d1af5ac9fa73e2f06ee4ccdfd1c4b5；配置已写入，尚未启动新业务或Reset。首次schema资格只读打开源SQLite导致缺失WAL变为0字节WAL并生成SHM，严格物理集合守卫拒绝；原主库SHA187b57fb8d51d3e486ff71c48740e43673722471f2e401933e11708c3cc0540d与备份完全一致。真实Linux缺失伴随文件回归已复现同一行拒绝。修正为字节验真的私有源副本，不放宽原库检查；Windows/Linux Supervisor各10PASS，首轮新增实现的遗漏import/Windows只读fd fsync失败保留。标准deploy补显式continue入口，仅凭原closure/完整备份回执继续，6项含负例PASS；新的固定候选和精确副本资格继续，当前生产仍停止，不冒称已部署或Reset。
 
 2026-10-27 生产操作已获用户明确授权：部署前清理 vol1、标准部署、执行 Fresh Reset；用户随后要求成功核验后恢复正常生产，取代此前“最终保持停止”的交付约束，自动观察仍不重建。21:19:28.760Z 原 e78dbd82f Runtime Stop 完成，revision30、quiesced、全部 inFlight0。最终候选101ce2fe0完整 Architecture 428文件/3408项：3382 PASS、26 skip、0 FAIL，四项静态通过；Service850/821 PASS/29 skip/0 FAIL、Windows独立包及实际Linux17项通过，具体版本UI负责人通过。NAS 27.44GB 私有文件隔离清理、中断/重放、源摘要保护、三次 stopped 重开及完整 FK/integrity、691 Commit/Package/十组保护表与共享资料复核通过。原首跑超时/失败保留。当前生产仍旧镜像停止态；精确容量清理与完整冷备正在执行，尚未部署或 Reset。

@@ -12,6 +12,8 @@ const { verifyRetainedCollections } = require('./formation-reset-verify');
 const { inspectTemporaryStorage, assertStorageUnchanged, buildStorageBudget } = require('./formation-reset-storage');
 const { buildResetPreflight, buildCapacityBlockedPreflight } = require('./formation-reset-preflight');
 const { deriveWorkspaceStorage } = require('./formation-reset-workspace-protection');
+const { databaseFiles } = require('../src/clean-reset-bootstrap');
+const { fileDigest } = require('./formation-reset-generation');
 
 function fail(code) { throw Object.assign(new Error(code), { code }); }
 function realDirectory(directory) {
@@ -25,8 +27,9 @@ function inside(parent, child) {
 }
 
 // Invoked in the separate Operator process with its SQLite temp environment
-// already fixed. It reads the stopped business DB; every write is confined to
-// its own disposable inspection file. No intent, Offer or media is changed.
+// already fixed. Cold Bootstrap inspection reads an exact private source copy;
+// a stopped live Host supplies its normal SQLite snapshot. No intent, Offer or
+// media is changed, including SQLite sidecars in the closed source directory.
 function inspectFreshReset({ Database, spec, privateRoot }) {
   for (const directory of [spec.dataDir, spec.operationRoot, spec.backupParent, privateRoot]) realDirectory(directory);
   if (path.dirname(privateRoot) !== spec.operationRoot) fail('RESET_PREFLIGHT_PATH_UNSAFE');
@@ -69,14 +72,26 @@ function inspectFreshReset({ Database, spec, privateRoot }) {
   ], reserveBytes: 256n * 1024n * 1024n });
   if (!volumeBudget.ready) return buildCapacityBlockedPreflight({ runtimeRevision: spec.expectedRuntimeRevision,
     backupPlanDigest, storage: spec.storage, volumeBudget });
-  const owner = readResetOwnerSnapshot({ Database, sourcePath: activePath });
   const schemaManifest = require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
   const schemaDdl = fs.readFileSync(path.join(__dirname, '../src/helix/foundation/persistence/generated/clean-schema.sql'), 'utf8');
-  const policy = buildOwnerRetentionPolicy(schemaManifest, owner);
   const candidatePath = path.join(privateRoot, 'preflight-' + crypto.randomUUID() + '.db');
+  const coldSourcePath = spec.bootstrapId ? path.join(privateRoot, 'cold-source-' + crypto.randomUUID() + '.db') : null;
   let completed = false;
   try {
-    const copy = createRetainedDatabase({ Database, sourcePath: activePath, targetPath: candidatePath, policy,
+    let sourceFiles;
+    if (coldSourcePath) {
+      if (!/^[a-f0-9]{64}$/.test(spec.bootstrapId)) fail('RESET_BOOTSTRAP_PROOF_INVALID');
+      sourceFiles = databaseFiles(spec.dataDir);
+      if (sourceFiles[1].bytes > 0) fail('RESET_BOOTSTRAP_SOURCE_NOT_COLD');
+      fs.copyFileSync(activePath, coldSourcePath, fs.constants.COPYFILE_EXCL);
+      const fd = fs.openSync(coldSourcePath, 'r+'); try { fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
+      if (fileDigest(coldSourcePath) !== sourceFiles[0].sha256 ||
+          canonicalDigest(databaseFiles(spec.dataDir)) !== canonicalDigest(sourceFiles)) fail('RUNTIME_RESET_PREVIEW_STALE');
+    }
+    const sourcePath = coldSourcePath || activePath;
+    const owner = readResetOwnerSnapshot({ Database, sourcePath });
+    const policy = buildOwnerRetentionPolicy(schemaManifest, owner);
+    const copy = createRetainedDatabase({ Database, sourcePath, targetPath: candidatePath, policy,
       targetSchema: { schemaManifest, schemaDdl } });
     const evidenceDigest = canonicalDigest({ purpose: 'disposable-preflight-only', sourceSnapshot: copy.sourceSnapshot.digest });
     normalizeRetainedSubjects({ Database, targetPath: candidatePath, schemaManifest, schemaDdl,
@@ -84,7 +99,7 @@ function inspectFreshReset({ Database, spec, privateRoot }) {
       seriesRetention: owner.seriesRetention, assertIsolated(file) {
         if (file !== candidatePath || stopped() !== intentDigest) fail('RUNTIME_RESET_PREVIEW_STALE');
       } });
-    const verified = verifyRetainedCollections({ Database, sourcePath: activePath, targetPath: candidatePath, schemaManifest, schemaDdl });
+    const verified = verifyRetainedCollections({ Database, sourcePath, targetPath: candidatePath, schemaManifest, schemaDdl });
     const { storage, protection: workspaceProtection } = deriveWorkspaceStorage({ Database, targetPath: candidatePath, storage: spec.storage });
     for (const root of storage.roots) {
       if (!measured.sources.some(source => inside(source.path, root)) || measured.exclusions.some(item => inside(item.path, root)))
@@ -95,7 +110,8 @@ function inspectFreshReset({ Database, spec, privateRoot }) {
         fail('RESET_PREFLIGHT_ARCHIVE_OVERLAP');
     }
     const storageManifest = inspectTemporaryStorage(storage);
-    if (canonicalDigest(readResetOwnerSnapshot({ Database, sourcePath: activePath })) !== canonicalDigest(owner) || stopped() !== intentDigest)
+    if (canonicalDigest(readResetOwnerSnapshot({ Database, sourcePath })) !== canonicalDigest(owner) || stopped() !== intentDigest ||
+        sourceFiles && canonicalDigest(databaseFiles(spec.dataDir)) !== canonicalDigest(sourceFiles))
       fail('RUNTIME_RESET_PREVIEW_STALE');
     assertStorageUnchanged(storageManifest, storage);
     const preview = buildResetPreflight({ runtimeRevision: spec.expectedRuntimeRevision, copy, policy, storage,
@@ -108,8 +124,8 @@ function inspectFreshReset({ Database, spec, privateRoot }) {
     // A failed preflight remains evidence. A successful disposable copy is not
     // a backup or an approved switch input; remove only this process's exact
     // named regular files after all native connections above have closed.
-    if (completed) for (const suffix of ['', '-wal', '-shm', '-journal']) {
-      const file = candidatePath + suffix, stat = fs.lstatSync(file, { throwIfNoEntry: false });
+    if (completed) for (const base of [candidatePath, coldSourcePath].filter(Boolean)) for (const suffix of ['', '-wal', '-shm', '-journal']) {
+      const file = base + suffix, stat = fs.lstatSync(file, { throwIfNoEntry: false });
       if (!stat) continue;
       if (!stat.isFile() || stat.isSymbolicLink() || path.dirname(file) !== privateRoot) fail('RESET_PREFLIGHT_PATH_UNSAFE');
       fs.unlinkSync(file);

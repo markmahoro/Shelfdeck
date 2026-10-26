@@ -104,6 +104,19 @@ test('cold bootstrap validates a private copy without creating missing source SQ
   prepareColdResetBootstrap({ ...f.preparation, Database: PrivateDatabase });
   assert.deepEqual(databaseFiles(f.options.dataDir), before);
   assert.equal(fs.existsSync(current + '-shm'), false);
+  const supervisor = createRuntimeSupervisor(f.options); f.supervisors.push(supervisor); await supervisor.start();
+  const preview = await supervisor.inject({ method: 'GET', url: '/v1/admin/runtime/reset-preview', headers: f.headers });
+  assert.equal(preview.statusCode, 200, preview.body);
+  assert.deepEqual(databaseFiles(f.options.dataDir), before);
+  assert.equal(fs.existsSync(current + '-shm'), false);
+  const response = await supervisor.inject({ method: 'POST', url: '/v1/admin/runtime/actions/reset', headers: f.headers,
+    payload: { idempotencyKey: 'missing-source-sidecars-reset', previewDigest: preview.json().previewDigest, confirmed: true } });
+  assert.equal(response.statusCode, 202, response.body);
+  await until(async () => {
+    try { const state = (await supervisor.inject({ method: 'GET', url: '/v1/admin/runtime', headers: f.headers })).json();
+      return state.mode === 'stopped' && state.operation?.state === 'completed' && !state.resetStage;
+    } catch { return false; }
+  });
 });
 
 test('explicit deployment closure opens confirmation on schema 235 without a business Host and switches to stopped schema 239', async t => {
