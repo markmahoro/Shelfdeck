@@ -902,3 +902,18 @@ NAS 启动后的全量收藏摘要校验先后以隔离 1536MiB、2560MiB/1536Mi
 Service 固定 e6 849 项：820 PASS/29 skip/0 FAIL；新增实际 Linux 23 PASS，Windows 组合24 PASS。Windows 独立包补齐新备份脚本后1 PASS。静态门禁首跑3 PASS/1 SSOT源文本摘要漂移；materializer仅更新sourceDocumentDigest，8项合同回归通过，不修改基线计数或Owner合同。e6适用UI负责人核验通过，后续仅生成摘要/打包清单及证据变化仍需最终身份核对。固定af525完整Architecture仍未结束。
 
 容量精确清单及按卷逻辑字节峰值见 [发布审查材料](FRESH_RESET_RELEASE_REVIEW_20261027.md)。2026-10-26T20:15:08.684Z采样 /vol1 可用7,382,339,584 bytes，保守要求15,233,318,624；/vol2可用367,174,250,496，保守要求132,445,032,992。未提前计入清理收益。宿主fd只读补查仍受EACCES限制，删除前可见性阻断未解除。生产未变。
+
+
+### 2026-10-27 生产授权、固定候选与容量整理（执行中）
+
+用户明确授权直接部署、执行新 Reset、部署前清理 vol1，随后追加完成后恢复正常生产；这取代此前最终保持停止的交付要求。恢复前仍须完成切换/清理回执、收藏依赖和文件保护核验，失败保持停止；不重新创建自动观察。
+
+固定候选101ce2fe04a0991ded2ba705d66f9d56a8664dba：Architecture428文件、3408项（3382 PASS/26 skip/0 FAIL），四项静态全通过；Service850（821 PASS/29 skip/0 FAIL），Windows独立包1 PASS、实际Linux增量17 PASS，具体版本UI负责人PASS。NAS私有文件实际副本27,438,411,307 bytes：中断3项后续跑删除868项、释放27,436,291,513逻辑字节、保留4个Arca Workspace共2,119,794 bytes；重复回放相同，原生产文件manifest摘要不变。首次Host资格总900秒预算内两次API/FK/integrity通过、第三次被预算中断；复制I/O结束后1800秒批次三次均通过（33s/29s/27s）。691 Commit/Package/十组保护表/两组共享资料与metadata依赖复核PASS，峰值164776KiB。原失败均保留。
+
+21:19:28.760Z 原生产正式Stop完成，revision30、quiesced、所有inFlight0。停止前仍e78dbd82f，容器c114f0b088f7…、StartedAt2026-10-25T18:22:26.920343521Z、Restart0。容量整理仅ShelfDeck：两份已列明重复备份SHA重验一致后精确清除9,229,676,544逻辑字节，保留相同字节副本及manifest；实际可用先增至11.96GB，仍不足峰值要求。额外两个诊断源库SHA不同，重复删除断言拒绝且没有删除。随后将独立历史SQLite文件及WAL/SHM完整转存至vol2作业树operations/relocated-diagnostics-v2，六文件共9,229,742,080 bytes；两份主库SHA分别79bc22f714ada687490b595a6ab16521c5f334f23c43fee893aa0ea4fd98edfb、306f76a315cce5713e35d45edc1fc6946964e18fee9278c54958bcc357708e64，来源前后和副本一致后才移除vol1原文件。manifest保留原处，精确替代路径在diagnostic-relocation-receipt-v2.json。没有全局prune或其他应用清理。vol1实际可用21,192,990,720，vol2可用355,080,953,856；要求15,233,324,768/132,445,037,700 bytes，标准发布继续独立核验。
+
+宿主fd探测始终有EACCES，不能宣称完整证明无打开文件；最终删除依据是明确用途、未被容器或当前资格任务引用、前后稳定身份与保留的逐字节副本，回执保留此局限。第一个清理容器因drop-all缺少目标目录写入能力在任何删除前失败；限于精确挂载增加DAC_OVERRIDE后成功，未改宿主权限。第二次清理已完成后脚本尾部CRLF导致shell127，后续只核对已完成receipt和文件现实，没有再次删除。两份诊断源快照并非重复的失败，以及首次转存因发现伴随文件拒绝，均保存，第二次按完整SQLite物理集合转存。
+
+来源/正式文件stat基线：691收藏、6570库存路径、五来源根、39317条路径，其中91条原已缺失，其他stat错误0。摘要f61a5951a192b7e99cdd395fd01da078de84ca06e1d94d4d0578c9397e2929c5；这是路径身份/大小/时间/类型保护，不是全体媒体内容SHA。完整旧代际冷备仍由标准部署控制器在关闭旧容器后完成，不能用这个stat清单代替恢复备份。
+
+标准deploy首次使用了遗漏images/的tar路径，在ls阶段拒绝，未停止容器或发布配置；按标准upload回执修正精确路径并重新dry-run。21:33Z旧容器已干净退出并移除，独立完整冷备正在运行；新配置尚未发布、未执行Reset/Resume。本地原始证据位于ignored formation-diagnosis-20261023/production-101ce2fe0-*，NAS作业树/vol2/1000/shelfdeck_backups/fresh-reset-final-20261027。

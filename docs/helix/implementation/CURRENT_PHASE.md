@@ -1,5 +1,9 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-27 RELEASE-QUALIFICATION生产阶段发现Bootstrap资格读取原SQLite生成空WAL/SHM，保护检查正确阻断；完整冷备和旧停止证明保持，尚未Reset/Resume。新增私有源资格副本及标准发布的显式冷态continue入口，守卫不放宽，继续固定增量候选跨平台/全量门禁和真实冷备来源资格，完成后再执行既有授权的部署、Reset及Resume。
+
+2026-10-27 RELEASE-QUALIFICATION：固定101ce2fe0 Architecture428文件/3408项（3382 PASS/26 skip/0 FAIL）及四项静态、Service850（821 PASS/29 skip）、Windows/Linux、具体版本UI和NAS隔离清理/三次stopped/691收藏依赖复核已通过。用户已授权清理vol1、部署、Reset，并明确成功后恢复生产；正式Stop已完成。RESET-STORAGE-BUDGET正在精确备份去重及独立诊断SQLite完整转存，所有删除均以校验/回执为前提；冷备、部署、Reset、保护核验和Resume仍需实际执行结果，不能按候选通过提前关闭。
+
 2026-10-27 Workspace 资格增量：真实隔离保留库发现两条历史 Libra/Registry 生命周期不一致，首次文件清理预检在任何复制/删除前拒绝。新增冷态 Libra Workspace 归档回执：保留原证据，不补造回收成功；撤销已退役 Subject 下终态 Run 的当前调度/文件保留资格，实际删除仍由 Operator 清单和 Receipt 证明。695 条归档在独立副本已验真，原 Workspace 状态不改，完整 FK/integrity PASS；新归档/保护定向 16 PASS，既有相关 25 PASS，混合 Series 完整 Operator、清理及两次 stopped 重开 1 PASS。最终 NAS 文件清理及固定候选资格仍待完成。
 
 完整 af525 Architecture 首跑已结束：3404 total / 3377 PASS / 26 skip / 1 FAIL。失败位于整剧迁移崩溃夹具的 People 前置等待：正常窗口评分资料未结束即推进维护窗口。补齐正常阶段资料前提后两个真实中断场景 2 PASS；该复验不能替代最终完整 Gate，原失败保留。

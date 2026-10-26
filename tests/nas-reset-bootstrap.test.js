@@ -1,6 +1,6 @@
 'use strict';
 const test = require('node:test'), assert = require('node:assert/strict');
-const { configurationForNas, closureProof, prepareNasResetManagement } = require('../scripts/nas-reset-bootstrap');
+const { configurationForNas, closureProof, prepareNasResetManagement, continueNasResetManagement } = require('../scripts/nas-reset-bootstrap');
 const { parseArgs, composeYaml } = require('../scripts/deploy-nas');
 function facts() {
   const stop = { operationId: 'c'.repeat(64), kind: 'stop', state: 'completed', result: { mode: 'stopped' } };
@@ -19,10 +19,64 @@ test('fresh management deploy is explicit and cannot be combined with clean init
   assert.equal(parseArgs(args).freshResetConfig, 'job.json');
   assert.throws(() => parseArgs([...args, '--helix-clean-init']));
   assert.throws(() => parseArgs(['shelfdeck-candidate.tar', '--fresh-reset-config', 'job.json']));
+  assert.throws(() => parseArgs(['shelfdeck-candidate.tar', '--continue-fresh-reset']));
+  assert.equal(parseArgs([...args, '--continue-fresh-reset']).continueFreshReset, true);
   const yaml = composeYaml('shelfdeck:test', configuration);
   assert.match(yaml, /SHELFDECK_RESET_BOOTSTRAP_FILE=\/operator-backups\/job\/operations\/deployment-bootstrap.json/);
   assert.match(yaml, /reset-config.json:\/run\/shelfdeck-reset\/config.json:ro/);
   assert.doesNotMatch(composeYaml('shelfdeck:test'), /RESET_BOOTSTRAP/);
+});
+
+test('cold continuation reuses the original closure and verified backup, and never stops or invents a new source generation', async () => {
+  const { canonicalDigest } = require('../media-service/src/helix/contracts/canonical-json');
+  for (const failure of [null, 'receipt', 'configuration', 'old-container', 'shared-mount', 'backup-bytes', 'bootstrap']) {
+    const f = facts(), closure = closureProof(f), events = [], files = {};
+    const operationHost = '/archives/job/operations';
+    const original = { dataDir: '/app/data', sourceOptions: configuration.backupSourceOptions, closure };
+    const backupBody = { schema: 'shelfdeck.deployment-backup@1', closureDigest: canonicalDigest(closure),
+      manifestFile: configuration.operationRoot + '/deployment-backup-manifest.json',
+      backup: { targetRoot: configuration.backupParent + '/pre-deployment', verificationDigest: 'a'.repeat(64) } };
+    const backup = { ...backupBody, receiptDigest: canonicalDigest(backupBody) };
+    const { schema, ...spec } = { ...configuration, dataDir: '/app/data' };
+    const bootstrap = { dataDir: '/app/data', configuration: spec, closure: { ...closure, backupReceiptDigest: backup.receiptDigest },
+      outputFile: configuration.operationRoot + '/deployment-bootstrap.json', qualificationPath: configuration.operationRoot + '/first-attempt.db' };
+    if (failure === 'receipt') backup.receiptDigest = 'f'.repeat(64);
+    if (failure === 'configuration') bootstrap.configuration = { ...spec, operationRoot: '/operator-backups/other' };
+    files[operationHost + '/deployment-backup-request.json'] = original;
+    files[operationHost + '/deployment-bootstrap-request.json'] = bootstrap;
+    files[operationHost + '/deployment-backup-receipt.json'] = backup;
+    const action = continueNasResetManagement({ configuration, dataDir: '/data', transcodeDir: '/workspace',
+      backupHost: '/archives', secretFile: '/secret.env', targetImage: 'shelfdeck:fixed',
+      publishConfiguration: async () => events.push('publish'),
+      upload: async (file, content) => { events.push('request'); files[file] = JSON.parse(content); },
+      execute: async command => {
+        assert.doesNotMatch(command, /docker (?:stop|rm|exec)/);
+        if (command.startsWith('test -f ')) {
+          const file = Object.keys(files).find(file => command.endsWith("cat '" + file + "'"));
+          assert.ok(file, command); return JSON.stringify(files[file]);
+        }
+        if (command === 'docker ps -aq') return ['old-container', 'shared-mount'].includes(failure) ? 'd'.repeat(64) : '';
+        if (command.startsWith('docker inspect ')) return JSON.stringify([failure === 'old-container' ? f.old :
+          { Id: 'd'.repeat(64), Mounts: [{ Source: '/workspace/active', Destination: '/other' }] }]);
+        if (command.includes('verifyBackupFiles')) {
+          events.push('verify-backup'); assert.equal(events.includes('publish'), false);
+          if (failure === 'backup-bytes') throw Error('backup changed');
+          return JSON.stringify({ receiptDigest: backup.receiptDigest });
+        }
+        if (command.includes('node scripts/formation-reset-bootstrap.js')) {
+          events.push('bootstrap'); assert.match(command, /\/data:\/app\/data:ro/);
+          assert.equal(events.includes('publish'), false);
+          const continuation = files[operationHost + '/deployment-bootstrap-continuation-request.json'];
+          assert.deepEqual(continuation.closure, bootstrap.closure);
+          assert.equal(continuation.outputFile, bootstrap.outputFile);
+          assert.notEqual(continuation.qualificationPath, bootstrap.qualificationPath);
+          if (failure === 'bootstrap') throw Error('source changed');
+        }
+        return '';
+      } });
+    if (failure) { await assert.rejects(action); assert.equal(events.includes('publish'), false); }
+    else { await action; assert.deepEqual(events, ['verify-backup', 'request', 'bootstrap', 'publish']); }
+  }
 });
 test('only a completed safe Stop plus successful removal and exclusive data mounts is a deployment closure proof', () => {
   const f = facts(), proof = closureProof(f);

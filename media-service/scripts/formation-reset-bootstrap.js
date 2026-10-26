@@ -4,6 +4,7 @@ const fs = require('node:fs'), path = require('node:path');
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { SCHEMA, databaseFiles } = require('../src/clean-reset-bootstrap');
 const { initializeResetTarget } = require('./formation-reset-schema');
+const { fileDigest } = require('./formation-reset-generation');
 const { captureColdResetManagementCredential } = require('../src/helix/platform/public/admin-credential-runtime');
 const { createAdminCredentialSecretStore } = require('../src/admin-credential-secret-store');
 const { writeAtomic } = require('../src/clean-runtime-operations');
@@ -49,7 +50,19 @@ function prepareColdResetBootstrap({ dataDir, configuration, closure, secretRoot
   if (inventoryDigest !== canonicalDigest(manifestBody) || inventoryDigest !== backupBody.backup.inventoryDigest ||
       !sourceRoot || !backupManifest.entries.some(row => row.root === sourceRoot.id && row.relative === 'shelfdeck.db' &&
         row.sha256 === files[0].sha256 && row.bytes === String(files[0].bytes))) fail('RESET_BOOTSTRAP_BACKUP_UNVERIFIED');
-  const db = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly: true, fileMustExist: true });
+  // SQLite may create empty WAL/SHM files even for a read-only connection.
+  // Qualify a byte-verified private copy, keeping the stopped source file set
+  // unchanged instead of retrying with a newly observed physical generation.
+  const sourceCopy = qualificationPath + '.source.db';
+  if (fs.existsSync(sourceCopy) || files[1].bytes > 0) fail('RESET_BOOTSTRAP_SOURCE_NOT_COLD');
+  const budget = require('./formation-reset-storage').buildStorageBudget({ allocations: [
+    { directory: configuration.operationRoot, purpose: 'bootstrap-private-source-and-schema', bytes: BigInt(files[0].bytes) + 16n * 1024n * 1024n },
+  ], reserveBytes: 256n * 1024n * 1024n });
+  if (!budget.ready) fail('RESET_OPERATOR_SPACE_INSUFFICIENT');
+  fs.copyFileSync(path.join(dataDir, 'shelfdeck.db'), sourceCopy, fs.constants.COPYFILE_EXCL);
+  const copied = fs.openSync(sourceCopy, 'r+'); try { fs.fsyncSync(copied); } finally { fs.closeSync(copied); }
+  if (fileDigest(sourceCopy) !== files[0].sha256 || canonicalDigest(databaseFiles(dataDir)) !== canonicalDigest(files)) fail();
+  const db = new Database(sourceCopy, { readonly: true, fileMustExist: true });
   let snapshot;
   try {
     db.pragma('query_only=ON'); db.exec('BEGIN');

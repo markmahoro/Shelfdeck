@@ -1,5 +1,11 @@
 # ShelfDeck 当前状态
 
+2026-10-27 发布冷态Bootstrap阻断：完整冷备910文件/32,689,623,577 bytes已通过，verificationDigest197165d53c8879206c3577da60eedc6e41d1af5ac9fa73e2f06ee4ccdfd1c4b5；配置已写入，尚未启动新业务或Reset。首次schema资格只读打开源SQLite导致缺失WAL变为0字节WAL并生成SHM，严格物理集合守卫拒绝；原主库SHA187b57fb8d51d3e486ff71c48740e43673722471f2e401933e11708c3cc0540d与备份完全一致。真实Linux缺失伴随文件回归已复现同一行拒绝。修正为字节验真的私有源副本，不放宽原库检查；Windows/Linux Supervisor各10PASS，首轮新增实现的遗漏import/Windows只读fd fsync失败保留。标准deploy补显式continue入口，仅凭原closure/完整备份回执继续，6项含负例PASS；新的固定候选和精确副本资格继续，当前生产仍停止，不冒称已部署或Reset。
+
+2026-10-27 生产操作已获用户明确授权：部署前清理 vol1、标准部署、执行 Fresh Reset；用户随后要求成功核验后恢复正常生产，取代此前“最终保持停止”的交付约束，自动观察仍不重建。21:19:28.760Z 原 e78dbd82f Runtime Stop 完成，revision30、quiesced、全部 inFlight0。最终候选101ce2fe0完整 Architecture 428文件/3408项：3382 PASS、26 skip、0 FAIL，四项静态通过；Service850/821 PASS/29 skip/0 FAIL、Windows独立包及实际Linux17项通过，具体版本UI负责人通过。NAS 27.44GB 私有文件隔离清理、中断/重放、源摘要保护、三次 stopped 重开及完整 FK/integrity、691 Commit/Package/十组保护表与共享资料复核通过。原首跑超时/失败保留。当前生产仍旧镜像停止态；精确容量清理与完整冷备正在执行，尚未部署或 Reset。
+
+两份重复旧备份已逐字节校验后精确清除，9,229,676,544逻辑字节，保留相同字节副本及原 manifest。vol1实际可用约11.96GB，仍低于15.233GB峰值预算；两份额外诊断源库与基线SHA不同，自动拒绝重复文件删除，改为保留SQLite伴随文件的完整转存vol2流程，校验完成才移除vol1副本。没有按目录名/日期清空诊断或Docker prune。当前691收藏、6570库存路径、39317来源/正式路径stat基线已保存，91个原已缺失路径明确记录，无其他stat错误；这不是全体媒体内容SHA验证。
+
 2026-10-27 Workspace 资格增量：真实隔离保留库发现两条历史 Libra/Registry 生命周期不一致，首次文件清理预检在任何复制/删除前拒绝。新增冷态 Libra Workspace 归档回执：保留原证据，不补造回收成功；撤销已退役 Subject 下终态 Run 的当前调度/文件保留资格，实际删除仍由 Operator 清单和 Receipt 证明。695 条归档在独立副本已验真，原 Workspace 状态不改，完整 FK/integrity PASS；新归档/保护定向 16 PASS，既有相关 25 PASS，混合 Series 完整 Operator、清理及两次 stopped 重开 1 PASS。最终 NAS 文件清理及固定候选资格仍待完成。
 
 完整 af525 Architecture 首跑已结束：3404 total / 3377 PASS / 26 skip / 1 FAIL。失败位于整剧迁移崩溃夹具的 People 前置等待：正常窗口评分资料未结束即推进维护窗口。补齐正常阶段资料前提后两个真实中断场景 2 PASS；该复验不能替代最终完整 Gate，原失败保留。

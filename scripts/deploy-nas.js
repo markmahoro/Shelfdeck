@@ -59,6 +59,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--apply') parsed.apply = true;
+    else if (arg === '--continue-fresh-reset') parsed.continueFreshReset = true;
     else if (arg === '--helix-clean-init') parsed.helixCleanInit = true;
     else if (arg === '--fresh-reset-config') { parsed.freshResetConfig = argv[++i]; if (!parsed.freshResetConfig) throw new Error('Fresh Reset configuration file is required.'); }
     else if (arg === '--capacity-plan') { parsed.capacityPlan = argv[++i]; if (!parsed.capacityPlan) throw new Error('Capacity plan file is required.'); }
@@ -75,6 +76,7 @@ function parseArgs(argv) {
   }
   if (parsed.freshResetConfig && (parsed.helixCleanInit || !parsed.expectedSha256 || !parsed.capacityPlan))
     throw new Error('Fresh Reset deployment requires SHA-256 and capacity plan, and cannot initialize clean data.');
+  if (parsed.continueFreshReset && !parsed.freshResetConfig) throw new Error('Cold continuation requires explicit Fresh Reset configuration.');
   return parsed;
 }
 
@@ -197,7 +199,7 @@ async function execStep(conn, label, cmd) {
 }
 
 async function main() {
-  const { tarball, apply, expectedSha256, helixCleanInit, freshResetConfig, capacityPlan } = parseArgs(process.argv.slice(2));
+  const { tarball, apply, expectedSha256, helixCleanInit, freshResetConfig, capacityPlan, continueFreshReset } = parseArgs(process.argv.slice(2));
   if (!tarball) {
     console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--helix-clean-init] [--apply]');
     process.exit(2);
@@ -291,6 +293,7 @@ async function main() {
   console.log(`image   : ${targetImage}`);
   if (expectedSha256) console.log(`sha256 : ${expectedSha256.toLowerCase()}`);
   if (helixCleanInit) console.log('cutover: Helix clean initialization (INITIALIZE_HELIX_CLEAN_V1)');
+  if (continueFreshReset) console.log('cutover: explicit cold continuation from the original closure and verified deployment backup');
   console.log(`data dir: ${DATA_DIR}`);
   console.log(`media   : ${MEDIA_HOST} -> /media`);
   console.log(`upgrade : ${UPGRADE_HOST} -> /upgrade`);
@@ -318,7 +321,8 @@ async function main() {
   try {
     const execute = async command => {
       const result = await run(conn, command);
-      if (result.code !== 0) throw new Error('Cold Reset deployment check failed.');
+      if (result.code !== 0) throw new Error('Cold Reset deployment check failed: ' +
+        (result.errOut.match(/\bRESET_[A-Z0-9_]+\b/g)?.join(', ') || `exit ${result.code}`));
       return result.out.replace(/^Could not chdir to home directory.*\r?\n/, '').trim();
     };
     if (resetConfiguration) {
@@ -344,7 +348,12 @@ async function main() {
 
     for (const [label, cmd] of steps) {
       if (label === 'Prepare cold Reset management') {
-        const result = await require('./nas-reset-bootstrap').prepareNasResetManagement({ execute,
+        if (continueFreshReset) {
+          const expectedSecret = crypto.createHash('sha256').update(secretEnv).digest('hex');
+          await execute(`[ "$(sha256sum ${shellQuote(SECRET_FILE)} | awk '{print $1}')" = ${shellQuote(expectedSecret)} ]`);
+        }
+        const prepareManagement = require('./nas-reset-bootstrap')[continueFreshReset ? 'continueNasResetManagement' : 'prepareNasResetManagement'];
+        const result = await prepareManagement({ execute,
           upload: (file, contents) => uploadText(conn, file, contents, 0o600), configuration: resetConfiguration,
           dataDir: DATA_DIR, transcodeDir: TRANSCODE_HOST, composeFile: COMPOSE_FILE,
           backupHost: OPERATOR_BACKUP_HOST, secretFile: SECRET_FILE, targetImage, publishConfiguration,

@@ -85,6 +85,27 @@ async function bootstrapFixture(t) {
   return { ...f, preparation, options: { ...f.options, resetBootstrapFile: outputFile } };
 }
 
+test('cold bootstrap validates a private copy without creating missing source SQLite sidecars', async t => {
+  const f = await bootstrapFixture(t);
+  const { prepareColdResetBootstrap } = require('../scripts/formation-reset-bootstrap');
+  const { databaseFiles } = require('../src/clean-reset-bootstrap');
+  const current = path.join(f.options.dataDir, 'shelfdeck.db');
+  for (const suffix of ['-wal', '-shm', '-journal']) {
+    if (!fs.existsSync(current + suffix)) continue;
+    if (suffix !== '-shm') assert.equal(fs.statSync(current + suffix).size, 0);
+    fs.unlinkSync(current + suffix);
+  }
+  const before = databaseFiles(f.options.dataDir);
+  const Database = require('better-sqlite3');
+  function PrivateDatabase(file, options) {
+    assert.notEqual(file, current, 'bootstrap must not open the stopped source database');
+    return new Database(file, options);
+  }
+  prepareColdResetBootstrap({ ...f.preparation, Database: PrivateDatabase });
+  assert.deepEqual(databaseFiles(f.options.dataDir), before);
+  assert.equal(fs.existsSync(current + '-shm'), false);
+});
+
 test('explicit deployment closure opens confirmation on schema 235 without a business Host and switches to stopped schema 239', async t => {
   const f = await bootstrapFixture(t);
   const { prepareColdResetBootstrap } = require('../scripts/formation-reset-bootstrap');

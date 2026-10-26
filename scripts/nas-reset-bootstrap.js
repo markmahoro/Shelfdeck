@@ -115,4 +115,60 @@ async function prepareNasResetManagement({ execute, upload, readRuntime, publish
     q(configuration.operationRoot + '/deployment-bootstrap-request.json')].join(' '));
   return { bootstrapFile: outputFile, closureDigest: canonicalDigest(closure), backupReceiptDigest: backup.receiptDigest };
 }
-module.exports = Object.freeze({ configurationForNas, closureProof, prepareNasResetManagement });
+// Resume only the pre-management deployment phase from its original durable
+// closure and verified backup. Never recreate a Stop proof from current state.
+async function continueNasResetManagement({ execute, upload, publishConfiguration, configuration,
+  dataDir, transcodeDir, backupHost, secretFile, targetImage }) {
+  configuration = configurationForNas(configuration);
+  const translate = directory => backupHost + directory.slice('/operator-backups'.length);
+  const operationHost = translate(configuration.operationRoot);
+  for (const directory of [dataDir, transcodeDir, operationHost, translate(configuration.backupParent)])
+    await execute(`test -d ${q(directory)} && test "$(readlink -f ${q(directory)})" = ${q(directory)}`);
+  const read = async file => JSON.parse(await execute(`test -f ${q(file)} && test ! -L ${q(file)} && test "$(readlink -f ${q(file)})" = ${q(file)} && cat ${q(file)}`));
+  const original = await read(operationHost + '/deployment-backup-request.json');
+  const bootstrap = await read(operationHost + '/deployment-bootstrap-request.json');
+  const backup = await read(operationHost + '/deployment-backup-receipt.json');
+  const { receiptDigest, ...backupBody } = backup;
+  const { schema, ...expectedConfiguration } = { ...configuration, dataDir: '/app/data' };
+  if (typeof publishConfiguration !== 'function' ||
+      original.dataDir !== '/app/data' || original.closure?.schema !== 'shelfdeck.deployment-closure@1' ||
+      original.closure.oldContainerRemoved !== true || !/^[a-f0-9]{64}$/.test(original.closure.oldContainerId || '') ||
+      canonicalDigest(original.sourceOptions) !== canonicalDigest(configuration.backupSourceOptions) ||
+      backupBody.schema !== 'shelfdeck.deployment-backup@1' || canonicalDigest(backupBody) !== receiptDigest ||
+      backupBody.closureDigest !== canonicalDigest(original.closure) ||
+      !/^[a-f0-9]{64}$/.test(backupBody.backup?.verificationDigest || '') ||
+      backupBody.backup.targetRoot !== configuration.backupParent + '/pre-deployment' ||
+      backupBody.manifestFile !== configuration.operationRoot + '/deployment-backup-manifest.json' ||
+      bootstrap.dataDir !== '/app/data' || canonicalDigest(bootstrap.configuration) !== canonicalDigest(expectedConfiguration) ||
+      canonicalDigest(bootstrap.closure) !== canonicalDigest({ ...original.closure, backupReceiptDigest: receiptDigest }) ||
+      bootstrap.outputFile !== configuration.operationRoot + '/deployment-bootstrap.json') fail('RESET_DEPLOY_CONTINUATION_UNPROVEN');
+  async function exclusive() {
+    const ids = (await execute('docker ps -aq')).trim().split(/\s+/).filter(Boolean);
+    if (ids.some(id => !/^[a-f0-9]{12,64}$/.test(id))) fail('RESET_DEPLOY_CONTAINER_INVALID');
+    const containers = ids.length ? JSON.parse(await execute('docker inspect ' + ids.map(q).join(' '))) : [];
+    if (containers.some(c => c.Id === original.closure.oldContainerId)) fail('RESET_DEPLOY_REMOVAL_UNPROVEN');
+    if (containers.some(c => (c.Mounts || []).some(m => overlaps(m.Source, dataDir) || overlaps(m.Source, transcodeDir))))
+      fail('RESET_DEPLOY_DATA_MOUNT_SHARED');
+  }
+  await exclusive();
+  const verifyBackup = `const fs=require('fs'),{canonicalDigest}=require('./src/helix/contracts/canonical-json'),{verifyBackupFiles}=require('./scripts/formation-reset-backup');const b=JSON.parse(fs.readFileSync(${JSON.stringify(configuration.operationRoot + '/deployment-backup-receipt.json')},'utf8')),m=JSON.parse(fs.readFileSync(b.manifestFile,'utf8'));const verified=verifyBackupFiles({targetRoot:b.backup.targetRoot,manifest:m});if(canonicalDigest({manifest:m,verified})!==b.backup.verificationDigest)throw Error('RESET_DEPLOY_BACKUP_UNVERIFIED');console.log(JSON.stringify({receiptDigest:b.receiptDigest}));`;
+  const verified = JSON.parse(await execute(['docker run --rm --network none --read-only',
+    `-v ${q(backupHost + ':/operator-backups:ro')}`, q(targetImage), 'node -e', q(verifyBackup)].join(' ')));
+  if (verified.receiptDigest !== receiptDigest) fail('RESET_DEPLOY_BACKUP_UNVERIFIED');
+  const request = { ...bootstrap, qualificationPath: configuration.operationRoot + '/deployment-schema-continuation.db' };
+  const requestHost = operationHost + '/deployment-bootstrap-continuation-request.json';
+  const exists = await execute(`if [ -e ${q(requestHost)} ]; then printf present; fi`);
+  if (exists === 'present') {
+    if (canonicalDigest(await read(requestHost)) !== canonicalDigest(request)) fail('RESET_DEPLOY_CONTINUATION_CHANGED');
+  } else await upload(requestHost, JSON.stringify(request));
+  // The image revalidates the backed-up main DB, exact current file set,
+  // original Stop receipt, schema and credential on its own private copy.
+  await execute(['docker run --rm --network none', `--env-file ${q(secretFile)}`,
+    `-v ${q(dataDir + ':/app/data:ro')}`, `-v ${q(backupHost + ':/operator-backups')}`,
+    q(targetImage), 'node scripts/formation-reset-bootstrap.js',
+    q(configuration.operationRoot + '/deployment-bootstrap-continuation-request.json')].join(' '));
+  await exclusive();
+  await publishConfiguration();
+  return { bootstrapFile: bootstrap.outputFile, closureDigest: canonicalDigest(bootstrap.closure), backupReceiptDigest: receiptDigest };
+}
+module.exports = Object.freeze({ configurationForNas, closureProof, prepareNasResetManagement, continueNasResetManagement });
