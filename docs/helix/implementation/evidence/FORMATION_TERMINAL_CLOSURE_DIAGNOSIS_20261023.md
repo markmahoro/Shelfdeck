@@ -771,3 +771,9 @@ ignored证据：repair-attention-api.json/db.json/summary.json、repair-provider
 - 原五条TMDB端口失败及两条外部检索失败仍未解决。五来源可读，最新扫描仍既有Resume后完整观察；无active且无Run/token异常，限定libra_runs/arca_shelf_entries FK为空、Circuit closed。新转码5.145秒输出增加3,932,160bytes；不宣称所有业务正常或4K吞吐验收。
 - 容器inspect仍Restart0/OOM=false，日志警告144次未增加。本轮宽范围host helper在docker stats阶段停滞，精确终止的仅本机该只读探测Node进程；再次有界docker stats在10秒内未返回，未重启Docker或服务。容器内cgroup只读2秒采样CPU91.97%、memory.current 4,119,040,000bytes、inactive_file 2,125,967,360bytes，差值约1.856GiB，memory.events所有OOM项为0；该数为独立采样，不冒充同一Docker stats时间序列或整体性能结论。
 - ignored证据：heartbeat-20261026T0206-{api,db,sources,host,log-summary,transcode,package-lineage}、heartbeat-bounded-host-*、heartbeat-cgroup-resources-*；无生产写入，未扩大任务处置范围，原24小时截止不变。
+
+### 2026-10-26 11:02 只读监控：新增第二条体积瑕疵待决
+
+03:01Z仍e78dbd82f running/normalSupplyAllowed=true/error=null，API3进行中/20 attention，收藏690（current689/history1）。新增Subject66d32240…/Run414b263e…已frozen，正式Formation显示转码100%完成，但质量保护下不能满足1GiB，保留较优超限成品并等待用户决定；该类现2条，未接受瑕疵或改配置。失败Attempt按码计数全部与02:06Z相同，不把业务待决报成FFmpeg失败。另一转码Event39a1b801…/Runb773088f…executing，5.012秒输出增长4,718,592bytes。
+
+五来源可读，最新扫描时间未变；无active且无Run/token异常，限定运行/收藏表FK为空，Circuit closed、Restart0/OOM=false。警告144次未增加；cgroup采样CPU177.92%、memory.current减inactive_file约1.654GiB、OOM项0。docker stats在10秒预算内再次无结果，已自动终止探测，未修改服务。ignored证据heartbeat-20261026T0301-*与API快照1792983695103；本次无部署/重试/取消/Reset，原截止不变。
