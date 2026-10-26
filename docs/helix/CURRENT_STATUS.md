@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-27 最终副本资格：NAS 691 Commit/Package 与十组保护摘要完整复核 PASS（峰值163MiB）；新校验与原摘要完全一致。Service849/820PASS/29skip，Linux增量23PASS，Windows独立包1PASS。精确容量/删除/回退材料见 [发布审查](implementation/evidence/FRESH_RESET_RELEASE_REVIEW_20261027.md)。完整固定架构门禁及最终身份收口继续，未授权或执行生产处置。
+
 2026-10-27 补充资格：45b5bfe82 标准镜像 28 层，在 NAS 隔离副本三次停止态启动及完整 FK/integrity 通过，691 收藏保留库未复机；具体版本 UI 负责人已确认沿用 c2 证据。混合 Series 的完整 Operator/临时清理/两次停止态重启在 Windows 与实际 Linux 镜像各 1 PASS。NAS 收藏摘要复核两次 V8 内存失败已定位为全表物化，逐行同摘要修正及部署前完整恢复基线正在最终资格；不计为 NAS 全部通过。生产仍 e78dbd82f，本轮未 Stop/部署/Reset/删除备份。
 
 

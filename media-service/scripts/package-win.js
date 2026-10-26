@@ -144,6 +144,7 @@ const CLEAN_RUNTIME_FILES = [
   'scripts/formation-reset-normalize.js',
   'scripts/formation-reset-offline.js',
   'scripts/formation-reset-operator-lease.js',
+  'scripts/formation-reset-deployment-backup.js',
   'scripts/formation-reset-owner-policy.js',
   'scripts/formation-reset-owner-retention.json',
   'scripts/formation-reset-owner-snapshot.js',

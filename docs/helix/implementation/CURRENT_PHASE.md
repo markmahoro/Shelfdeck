@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-27 最终副本资格：NAS 691 Commit/Package 与十组保护摘要完整复核 PASS（峰值163MiB）；新校验与原摘要完全一致。Service849/820PASS/29skip，Linux增量23PASS，Windows独立包1PASS。精确容量/删除/回退材料见 [发布审查](evidence/FRESH_RESET_RELEASE_REVIEW_20261027.md)。完整固定架构门禁及最终身份收口继续，未授权或执行生产处置。
+
 2026-10-27 FORMATION-RESET-FRESH-GENERATION 继续：691 保留库 NAS 停止态重开三次通过；混合剧集完整 Operator/清理/停止态重启 Win/Linux 通过。补齐发布前数据+Workspace+原部署配置的冷备校验，配置发布后置；收藏摘要改逐行计算以消除生产副本全表物化内存失败。固定 af525 完整架构门禁仍运行，后续增量单独验证；最终镜像及全量副本摘要仍待通过，生产授权未扩展。
 
 

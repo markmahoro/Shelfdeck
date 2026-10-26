@@ -895,3 +895,10 @@ NAS 启动后的全量收藏摘要校验先后以隔离 1536MiB、2560MiB/1536Mi
 发布前基线缺口：原标准 fresh-reset 分支会先覆盖 Compose/secret，再做关闭证明。已改为退出并移除旧容器、只读备份数据及转码Workspace和原配置、逐文件校验之后才发布配置。冷态 Bootstrap 绑定备份回执及原 DB 摘要；Reset 确认后的备份另行保留。定向备份/部署顺序/内存 10 PASS，真实冷态 Supervisor 9 PASS，后续组合门禁继续。旧 pre-ba75692d4 的 201 文件 SHA PASS 仅覆盖旧 data 备份，不能称当前包含转码与外部 secret.env 的完整恢复基线。
 
 当前 /vol1 容量不足以直接开始最坏峰值作业；两个重复数据库的精确删除候选合计 9,229,676,544 bytes 尚未授权。fuser 因权限无法完整证明无其他宿主进程打开文件，仍为删除前阻断项。没有全局 prune 或按名称清理其他目录。完整架构门禁继续运行于 af525 独立 checkout，本段新增 Operator/验证工具不冒充该固定提交已覆盖。
+
+
+2026-10-27 20:13Z 资格补充：e6c817319 实际 NAS 镜像对 691 收藏的启动后摘要复核 PASS；691 Commit/Package、十组保护表、两组共享资料、两个 metadata 依赖及完整 FK/integrity 均通过，与最初本地验证的 protections/ownershipDigest/packageReadDigest/shared/controls 完全相同。峰值 RSS 166576 KiB，V8 heap 上限 768MiB；证明流式校验保留原合同且消除两次大表物化内存失败。`nas-e6-verification-first.log`、`nas-e6-after-start-verification.json` 保留证据。
+
+Service 固定 e6 849 项：820 PASS/29 skip/0 FAIL；新增实际 Linux 23 PASS，Windows 组合24 PASS。Windows 独立包补齐新备份脚本后1 PASS。静态门禁首跑3 PASS/1 SSOT源文本摘要漂移；materializer仅更新sourceDocumentDigest，8项合同回归通过，不修改基线计数或Owner合同。e6适用UI负责人核验通过，后续仅生成摘要/打包清单及证据变化仍需最终身份核对。固定af525完整Architecture仍未结束。
+
+容量精确清单及按卷逻辑字节峰值见 [发布审查材料](FRESH_RESET_RELEASE_REVIEW_20261027.md)。2026-10-26T20:15:08.684Z采样 /vol1 可用7,382,339,584 bytes，保守要求15,233,318,624；/vol2可用367,174,250,496，保守要求132,445,032,992。未提前计入清理收益。宿主fd只读补查仍受EACCES限制，删除前可见性阻断未解除。生产未变。
