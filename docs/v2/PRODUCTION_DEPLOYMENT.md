@@ -297,3 +297,8 @@ secondary_target结构发布的离线回退由`media-service/src/helix/foundatio
 225表`b8c36a0bfc04e7789ca1e49e2639a749c1fe90b52cb80a8a6bb8ecf9b592232b`到231表`4549671e37bedb285feb0bb6dc08d9e431aa040136bd9ee668de248a2f0782a6`使用候选镜像内`node scripts/helix-series-presentation-schema-copy.js --source <standalone-snapshot> --target <new-prepared-snapshot>`。原225表除schema marker外224张业务表全部原列/原行必须逐表摘要相同；新增六张Arca共享表、共享健康head/Off-deck共享范围/Procurement只读来源共五列，327的完整local_media_group CHECK取值扩展保持1024上限。此工具只准备独立副本，无in-place或Reset，既有Formation不获得兼容权益。
 
 未产生任何新增Owner/来源/健康/分组事实时可加`--rollback`准备逆向副本；已经有新事实则明确拒绝丢数据回退，只能修复前进。结构复制成功不等于完整Host启动/原任务恢复资格。上线仍需完整生产副本、精确镜像UI与Gate、Runtime安全停机和完整冷备，再通过既有cutover/标准deploy完成，不直接SQL或替换旧输入摘要。旧剧根内容补齐是独立的Arca维护数据动作，须先列精确预览，不随代码部署自动补写历史收藏。
+
+
+### 标准镜像层数预算（2026-10-27）
+
+`build-image.js` 从 canonical Dockerfile 生成构建用 recipe，仅合并同一连续 COPY 区间内的同目标目录文件，不跨 RUN 或 COPY --from 等构建边界。Dockerfile 继续保留精确源文件清单；生成 recipe 留在 dist-image，不提交。镜像导出前要求 RootFS 层数不超过 96，为 NAS overlay2 与容器可写层预留空间。Docker Desktop 构建/运行通过不能替代 NAS 实际装载资格；127 层候选的 max depth exceeded 首跑必须保留，禁止用全局 prune 清理或削弱应用文件清单绕过。

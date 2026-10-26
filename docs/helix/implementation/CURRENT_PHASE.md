@@ -1,5 +1,11 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-27 固定候选资格进行中：af525a728c Windows 独立包 PASS；实际 Linux 镜像通过新 Reset 核心、真实重新观察/新包/FFmpeg/Commit、独立收藏及资料 404 后显式映射旅程。镜像测试首跑混入仓库侧脚本和旧物理删除 CLI 的环境失败，保留原日志，不计为全量 Linux PASS。UI 负责人对 af525 的 pending 焦点问题判 FAIL；c2c07084f 修复后本任务四视口 40 PASS、负责人补充 16 PASS/定向 Web 5 PASS，具体版本 UI 已通过。完整架构门禁仍在固定 af525 独立 checkout 运行，后续仅 UI/镜像构建变化。
+
+NAS 隔离装载 c2 镜像时遇到 `max depth exceeded`：镜像 127 层，本机 containerd 可运行不代表 NAS overlay2 可装载。标准构建改为合并连续 COPY 文件且不跨 RUN/多阶段边界，导出前增加 96 层预算，定向 4 PASS；新镜像资格尚未完成。691 收藏保留库在本机 Docker 因真实挂载身份不同被正确拒绝，不能当作生产启动通过。隔离副本已准备于 /vol2；生产容器未替换、未 Stop/Reset/Resume。
+
+容量：19:28Z /vol1 可用 8,247,119,872 bytes，/vol2 可用 371,751,084,032 bytes；两个重复 DB 候选共 9,229,676,544 bytes，逐字节 SHA 与保留副本相同，尚未获准或执行删除。pre-ba75692d4 恢复基线 201 文件重新 SHA 校验通过；这是旧基线，不替代本轮停机后完整备份。
+
 2026-10-27 冷态首次升级与生产副本检查点（开发中、未发布）：新生产只读快照包含 691 个正式 Commit，SHA256 `1789531be27e6b68079f94cf29ad16893f6c44541af75f5208fd01f7c85ae8bd`，5,126,340,608 bytes。239 表隔离保留库保留 1,332,064 行、移除 1,962,627 行，685 个保留 Subject 结束旧准入；691 个 Commit/Package、十组保护摘要、两组共享剧资料及两个精确资料依赖通过 Owner Reader、完整 FK/integrity 核验（约 1,055 秒）。这是隔离副本，不是生产 Reset，也不是完整恢复备份。
 
 真实混合 Series 旅程证明一季 Commit/另一季 Accepted 未 Commit 时，保留前者及共享资料、清除后者责任，10 个来源/正式/共享文件字节保持。真实资料失败后 frozen Run 的显式跨 Provider Season 0/2 映射、重新执行与正式 Commit 旅程通过；本地 S01E01/E02 编号保持。四视口 Reset/映射浏览器最新 32 PASS；早期窄屏横向溢出 FAIL、修正及截图均保留，尚非固定版本 UI 负责人验收。

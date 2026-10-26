@@ -869,3 +869,16 @@ Reset 持久 pending intent 与 workflow 已改为同一次原子写入，完成
 进击的巨人三次原始 MoviePilot 日志均对应首标题“未搜索到资源”，支持零候选被误报为技术失败的独立原因；没有完整 HTTP 响应，不能声称其他别名必有候选。风骚律师旧海报失败的底层 HTTP 状态仍不可恢复；已补 TMDB image HTTP stage/status 诊断贯穿真实 Host/Handle/Secret 的 503 红绿例，不回填历史或宣称其具体网络根因已证实。生产未部署、Reset、删除备份或修改媒体，自动观察保持取消。
 
 证据文件位于忽略目录 `.codex/formation-diagnosis-20261023/`：`reset-generation-qualified-production-01-copy.json` / `-verify.json`、`reset-production-source-20261027-proof.json`；`series-mixed-reset-first.log`、`episode-mapping-frozen-host-second.log`、`episode-mapping-omission-first.log`、`tmdb-image-http-diagnostics-first.log` / `-second.log`、`reset-mapping-browser-fourth.log`、`reset-bootstrap-first.log` / `-second.log`、`reset-bootstrap-deploy-third.log` / `-fourth.log`。完整 Service 第九轮 839 项（810 PASS/29 skip）、Web 第四轮 271 PASS 发生在本节后续 Bootstrap/诊断增量之前，不作为最终资格。
+
+
+### 2026-10-27 固定候选、UI 焦点复验与 NAS 镜像层数失败
+
+2026-10-27 固定候选资格进行中：af525a728c Windows 独立包 PASS；实际 Linux 镜像通过新 Reset 核心、真实重新观察/新包/FFmpeg/Commit、独立收藏及资料 404 后显式映射旅程。镜像测试首跑混入仓库侧脚本和旧物理删除 CLI 的环境失败，保留原日志，不计为全量 Linux PASS。UI 负责人对 af525 的 pending 焦点问题判 FAIL；c2c07084f 修复后本任务四视口 40 PASS、负责人补充 16 PASS/定向 Web 5 PASS，具体版本 UI 已通过。完整架构门禁仍在固定 af525 独立 checkout 运行，后续仅 UI/镜像构建变化。
+
+NAS 隔离装载 c2 镜像时遇到 `max depth exceeded`：镜像 127 层，本机 containerd 可运行不代表 NAS overlay2 可装载。标准构建改为合并连续 COPY 文件且不跨 RUN/多阶段边界，导出前增加 96 层预算，定向 4 PASS；新镜像资格尚未完成。691 收藏保留库在本机 Docker 因真实挂载身份不同被正确拒绝，不能当作生产启动通过。隔离副本已准备于 /vol2；生产容器未替换、未 Stop/Reset/Resume。
+
+容量：19:28Z /vol1 可用 8,247,119,872 bytes，/vol2 可用 371,751,084,032 bytes；两个重复 DB 候选共 9,229,676,544 bytes，逐字节 SHA 与保留副本相同，尚未获准或执行删除。pre-ba75692d4 恢复基线 201 文件重新 SHA 校验通过；这是旧基线，不替代本轮停机后完整备份。
+
+证据：`fixed-af525a728c-windows-package-first.log`；Linux Reset 首跑115项/114PASS/1仓库脚本缺失，扩展批次170项/145PASS/25旧CLI固定transcode路径约束失败，`fixed-af525a728c-linux-reset-first.log`/`-second.log`。实际镜像 Host 批次17项/16PASS/1仓库scope-guard未打包，含两个真实媒体旅程和真实Handle/Secret/HTTP503诊断链；`fixed-af525a728c-linux-host-first.log`。实际镜像 Series 两旅程2PASS/29按名称未选，`fixed-af525a728c-linux-series-first.log`。c2 Provider/Handle/失败诊断补充31PASS，`fixed-c2c07084f-linux-integration-first.log`。这些是分项覆盖，不能汇总冒称全量门禁通过。
+
+UI证据保存在 `E:/my_project/helix-git-consolidation-20261008/formation-ui-review-c2c07084f-20261027/owner-review.json`；原af525负责人40通过/8焦点失败保留在对应af525目录。c2比af525仅两个Web文件变化，后端及其长门禁输入一致。
