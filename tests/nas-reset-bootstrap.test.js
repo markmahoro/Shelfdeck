@@ -12,7 +12,8 @@ function facts() {
       activity: { state: 'quiesced', inFlightEvents: 0, inFlightPlanning: 0, inFlightRecoveries: 0, inFlightOwnerReconciliations: 0, inFlightAdminCommands: 0 } } };
 }
 const configuration = { schema: 'shelfdeck.reset-configuration@1', operationRoot: '/operator-backups/job/operations',
-  backupParent: '/operator-backups/job/archives', backupSourceOptions: {}, storage: {} };
+  backupParent: '/operator-backups/job/archives', backupSourceOptions: { roots: [
+    { id: 'data', path: '/app/data' }, { id: 'workspace', path: '/transcode' }] }, storage: {} };
 test('fresh management deploy is explicit and cannot be combined with clean initialization or an unbudgeted deployment', () => {
   const args = ['shelfdeck-candidate.tar', '--fresh-reset-config', 'job.json', '--capacity-plan', 'space.json', '--sha256', 'a'.repeat(64)];
   assert.equal(parseArgs(args).freshResetConfig, 'job.json');
@@ -42,6 +43,37 @@ test('NAS work and backup roots must remain explicit disjoint paths on the decla
 test('deployment preparation cannot stop a container when Runtime Stop is absent', async () => {
   let touched = false;
   await assert.rejects(prepareNasResetManagement({ configuration, readRuntime: async () => ({ mode: 'running' }),
+    transcodeDir: '/workspace', composeFile: '/app/docker-compose.yml', publishConfiguration() { touched = true; },
     execute() { touched = true; }, upload() { touched = true; } }), { code: 'RESET_DEPLOY_STOP_UNPROVEN' });
   assert.equal(touched, false);
+});
+
+test('fresh deployment publishes configuration only after cold full-backup verification; backup failure leaves it untouched', async () => {
+  for (const backupFails of [false, true]) {
+    const f = facts(), events = []; let backupRequest, removed = false;
+    const action = prepareNasResetManagement({ configuration, dataDir: '/data', transcodeDir: '/workspace',
+      composeFile: '/app/docker-compose.yml', secretFile: '/app/secret.env', backupHost: '/archives', targetImage: 'shelfdeck:test',
+      readRuntime: async () => f.runtime,
+      publishConfiguration: async () => events.push('publish'),
+      upload: async (file, contents) => { if (file.endsWith('deployment-backup-request.json')) backupRequest = JSON.parse(contents); },
+      execute: async command => {
+        if (command === 'docker inspect shelfdeck' || command === `docker inspect '${f.old.Id}'`) return JSON.stringify([f.old]);
+        if (command.startsWith('docker exec')) return JSON.stringify({ intent: f.intent, stop: f.stop });
+        if (command === 'docker ps -aq') return removed ? '' : f.old.Id;
+        if (command.startsWith('docker stop')) { events.push('stop'); return ''; }
+        if (command.startsWith('docker rm')) { removed = true; events.push('remove'); return ''; }
+        if (command.includes('node scripts/formation-reset-deployment-backup.js')) {
+          events.push('backup'); assert.equal(events.includes('publish'), false);
+          assert.match(command, /\/data:\/app\/data:ro/); assert.match(command, /\/workspace:\/transcode:ro/);
+          assert.equal(backupRequest.configFiles.length, 2);
+          if (backupFails) throw Error('backup failed');
+          return JSON.stringify({ closureDigest: require('../media-service/src/helix/contracts/canonical-json').canonicalDigest(backupRequest.closure),
+            receiptDigest: 'c'.repeat(64), backupVerificationDigest: 'd'.repeat(64) });
+        }
+        if (command.includes('node scripts/formation-reset-bootstrap.js')) events.push('bootstrap');
+        return '';
+      } });
+    if (backupFails) { await assert.rejects(action, /backup failed/); assert.deepEqual(events, ['stop','remove','backup']); }
+    else { await action; assert.deepEqual(events, ['stop','remove','backup','publish','bootstrap']); }
+  }
 });

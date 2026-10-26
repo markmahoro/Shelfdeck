@@ -882,3 +882,16 @@ NAS 隔离装载 c2 镜像时遇到 `max depth exceeded`：镜像 127 层，本�
 证据：`fixed-af525a728c-windows-package-first.log`；Linux Reset 首跑115项/114PASS/1仓库脚本缺失，扩展批次170项/145PASS/25旧CLI固定transcode路径约束失败，`fixed-af525a728c-linux-reset-first.log`/`-second.log`。实际镜像 Host 批次17项/16PASS/1仓库scope-guard未打包，含两个真实媒体旅程和真实Handle/Secret/HTTP503诊断链；`fixed-af525a728c-linux-host-first.log`。实际镜像 Series 两旅程2PASS/29按名称未选，`fixed-af525a728c-linux-series-first.log`。c2 Provider/Handle/失败诊断补充31PASS，`fixed-c2c07084f-linux-integration-first.log`。这些是分项覆盖，不能汇总冒称全量门禁通过。
 
 UI证据保存在 `E:/my_project/helix-git-consolidation-20261008/formation-ui-review-c2c07084f-20261027/owner-review.json`；原af525负责人40通过/8焦点失败保留在对应af525目录。c2比af525仅两个Web文件变化，后端及其长门禁输入一致。
+
+
+### 2026-10-27 NAS 停止态资格、摘要内存与发布前基线
+
+45b5bfe82 标准镜像 28 层，tar SHA256 `413eb3960a18284b6bf57ac4332fd8ea2c2fdcdf8818efdd4c78a26f51c6ff84`，NAS Config image `sha256:8547f7add2c0003de6c30497a048668c0a841e5fd7d6aec17e469553ed5866e4`。Docker Desktop index identity 与 NAS Config identity 不同，已按校验 tar 的 manifest Config 核对；最初拿 index 比较失败保留。2870 个运行文件与 c2 字节一致，9 个 Web 资源匹配负责人验收；45b 适用 UI 复核通过。NAS 独立 691 保留库三次停止态启动、API 与完整 FK/integrity 通过（180s/29s/29s）；生产容器 ID、image、StartedAt、restart 未变。隔离目录、备份副本及镜像缓存有新增写入，不表述为 NAS 零修改。
+
+混合 Series 完整旅程增加独立 Operator：一季已 Commit、一季 Accepted 未 Commit，预检/确认/新库切换/清理、两次 stopped 重开与保留摘要核验；来源/正式/共享 10 文件不变、token 清空。Windows 1 PASS、45b 实际 Linux 1 PASS/29 名称未选；见 `mixed-series-full-operator-first.log` / `-linux-first.log`。
+
+NAS 启动后的全量收藏摘要校验先后以隔离 1536MiB、2560MiB/1536MiB V8 heap 失败（exit 134）。定位十组大表用 all()+JSON复制+canonical长字符串造成内存膨胀；不能仅靠提高限制称解决。改为逐行同一canonical数组字节流，保留 BigInt 编码及顺序；48MiB heap 的 30000 行压力和原摘要等价回归通过。完整 691 副本重验待最终镜像，不提前宣称 PASS。两个失败日志为 `nas-after-start-verify-first.log` / `-second.log`。
+
+发布前基线缺口：原标准 fresh-reset 分支会先覆盖 Compose/secret，再做关闭证明。已改为退出并移除旧容器、只读备份数据及转码Workspace和原配置、逐文件校验之后才发布配置。冷态 Bootstrap 绑定备份回执及原 DB 摘要；Reset 确认后的备份另行保留。定向备份/部署顺序/内存 10 PASS，真实冷态 Supervisor 9 PASS，后续组合门禁继续。旧 pre-ba75692d4 的 201 文件 SHA PASS 仅覆盖旧 data 备份，不能称当前包含转码与外部 secret.env 的完整恢复基线。
+
+当前 /vol1 容量不足以直接开始最坏峰值作业；两个重复数据库的精确删除候选合计 9,229,676,544 bytes 尚未授权。fuser 因权限无法完整证明无其他宿主进程打开文件，仍为删除前阻断项。没有全局 prune 或按名称清理其他目录。完整架构门禁继续运行于 af525 独立 checkout，本段新增 Operator/验证工具不冒充该固定提交已覆盖。

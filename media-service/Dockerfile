@@ -98,6 +98,7 @@ COPY media-service/scripts/formation-reset-backup.js ./scripts/formation-reset-b
 COPY media-service/scripts/formation-reset-bootstrap.js ./scripts/formation-reset-bootstrap.js
 COPY media-service/scripts/formation-reset-cleanup.js ./scripts/formation-reset-cleanup.js
 COPY media-service/scripts/formation-reset-cold-backup.js ./scripts/formation-reset-cold-backup.js
+COPY media-service/scripts/formation-reset-deployment-backup.js ./scripts/formation-reset-deployment-backup.js
 COPY media-service/scripts/formation-reset-copy.js ./scripts/formation-reset-copy.js
 COPY media-service/scripts/formation-reset-generation.js ./scripts/formation-reset-generation.js
 COPY media-service/scripts/formation-reset-inspect.js ./scripts/formation-reset-inspect.js

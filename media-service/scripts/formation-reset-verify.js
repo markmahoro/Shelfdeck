@@ -1,6 +1,7 @@
 'use strict';
 
-const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
+const { createHash } = require('node:crypto');
+const { canonicalDigest, canonicalJson } = require('../src/helix/contracts/canonical-json');
 const { verifyReadOnlySqliteSnapshot } = require('../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/sqlite-unit-of-work');
 const { createProductDeliveryReader } = require('../src/helix/domains/libra/persistence/product-delivery-reader');
@@ -10,9 +11,20 @@ const { readResetOwnerSnapshotDatabase } = require('./formation-reset-owner-snap
 const { verifyRetainedControls } = require('./formation-reset-responsibilities');
 
 function fail(code, details) { throw Object.assign(new Error(code), { code, details }); }
+function digestRows(rows) {
+  const hash = createHash('sha256'); let count = 0;
+  hash.update('[');
+  for (const row of rows) {
+    if (count) hash.update(',');
+    const normalized = JSON.parse(JSON.stringify(row, (_key, value) =>
+      typeof value === 'bigint' ? { sqliteInteger: value.toString() } : value));
+    hash.update(canonicalJson(normalized)); count++;
+  }
+  hash.update(']');
+  return { count, digest: hash.digest('hex') };
+}
 function exactRowDigest(rows) {
-  return canonicalDigest(JSON.parse(JSON.stringify(rows, (_key, value) =>
-    typeof value === 'bigint' ? { sqliteInteger: value.toString() } : value)));
+  return digestRows(rows).digest;
 }
 
 function verifySharedCollections(source, target) {
@@ -76,9 +88,12 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
     const protections = roots.map(table => {
       const columns = source.pragma('table_info(' + table + ')').filter(c => c.pk).sort((a, b) => a.pk - b.pk).map(c => c.name);
       const query = 'SELECT * FROM ' + table + ' ORDER BY ' + columns.join(',');
-      const before = source.prepare(query).safeIntegers().all(), after = target.prepare(query).safeIntegers().all();
-      if (exactRowDigest(before) !== exactRowDigest(after)) fail('RESET_VERIFY_COLLECTION_CHANGED', { table });
-      return { table, count: before.length, digest: exactRowDigest(before) };
+      // Compare the same canonical row-array bytes without materializing both
+      // collection histories and their serialized strings in one V8 heap.
+      const before = digestRows(source.prepare(query).safeIntegers().iterate());
+      const after = digestRows(target.prepare(query).safeIntegers().iterate());
+      if (before.count !== after.count || before.digest !== after.digest) fail('RESET_VERIFY_COLLECTION_CHANGED', { table });
+      return { table, ...before };
     });
     const shared = verifySharedCollections(source, target);
     const packages = source.prepare(`SELECT DISTINCT p.on_deck_package_id,p.offer_id,p.package_revision,p.package_digest
@@ -136,4 +151,4 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
   }
 }
 
-module.exports = Object.freeze({ verifyRetainedCollections });
+module.exports = Object.freeze({ verifyRetainedCollections, digestRows });

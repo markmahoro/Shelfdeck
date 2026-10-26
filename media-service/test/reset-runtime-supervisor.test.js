@@ -73,6 +73,12 @@ async function bootstrapFixture(t) {
     oldContainerRemoved: true, remainingDataMounts: [], inventoryDigest: canonicalDigest([]), closedAt: new Date().toISOString(),
     runtimeRevision: intent.revision, intentDigest: canonicalDigest(intent), stopOperationId: stop.operationId, stopReceiptDigest: canonicalDigest(stop) };
   const configuration = require('../src/clean-runtime-supervisor').resetConfiguration(f.options);
+  const configFiles = ['docker-compose.yml', 'secret.env'].map(name => ({ name, path: path.join(f.root, name) }));
+  for (const row of configFiles) fs.writeFileSync(row.path, 'isolated original configuration');
+  const backup = await require('../scripts/formation-reset-deployment-backup').createDeploymentBackup({
+    dataDir: f.options.dataDir, sourceOptions: configuration.backupSourceOptions, configFiles,
+    operationRoot: configuration.operationRoot, backupParent: configuration.backupParent, closure });
+  closure.backupReceiptDigest = backup.receiptDigest;
   const outputFile = path.join(configuration.operationRoot, 'bootstrap.json');
   const preparation = { dataDir: f.options.dataDir, configuration, closure, secretRoot: f.options.secretRoot,
     outputFile, qualificationPath: path.join(configuration.operationRoot, 'qualification.db') };
@@ -108,6 +114,7 @@ test('explicit deployment closure opens confirmation on schema 235 without a bus
 test('cold deployment bootstrap rejects incomplete closure and changed source instead of falling back to business startup', async t => {
   const f = await bootstrapFixture(t), { prepareColdResetBootstrap } = require('../scripts/formation-reset-bootstrap');
   assert.throws(() => prepareColdResetBootstrap({ ...f.preparation, closure: { ...f.preparation.closure, oldContainerRemoved: false } }), { code: 'RESET_BOOTSTRAP_CLOSURE_INVALID' });
+  assert.throws(() => prepareColdResetBootstrap({ ...f.preparation, closure: { ...f.preparation.closure, backupReceiptDigest: 'f'.repeat(64) } }), { code: 'RESET_BOOTSTRAP_BACKUP_UNVERIFIED' });
   prepareColdResetBootstrap(f.preparation);
   const Database = require('better-sqlite3'), db = new Database(path.join(f.options.dataDir, 'shelfdeck.db'));
   db.prepare('UPDATE platform_admin_credentials SET last_used_at_ms=123').run(); db.close();

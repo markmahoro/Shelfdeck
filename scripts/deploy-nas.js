@@ -332,18 +332,22 @@ async function main() {
         if (!/^[0-9]+$/.test(available) || BigInt(available) < BigInt(volume.requiredAvailableBytes)) throw new Error('Deployment peak capacity is insufficient.');
       }
     }
-    console.log('\n>>> Upload secret.env and canonical compose');
-    await uploadText(conn, SECRET_FILE, secretEnv, 0o600);
-    await uploadText(conn, COMPOSE_FILE, yaml, 0o644);
-    if (resetConfiguration) await uploadText(conn, `${COMPOSE_DIR}/reset-config.json`, JSON.stringify(resetConfiguration), 0o600);
-    const chmod = await run(conn, `chmod 600 ${shellQuote(SECRET_FILE)}`);
-    if (chmod.code !== 0) throw new Error('Protecting secret.env failed');
+    async function publishConfiguration() {
+      console.log('\n>>> Upload secret.env and canonical compose');
+      await uploadText(conn, SECRET_FILE, secretEnv, 0o600);
+      await uploadText(conn, COMPOSE_FILE, yaml, 0o644);
+      if (resetConfiguration) await uploadText(conn, `${COMPOSE_DIR}/reset-config.json`, JSON.stringify(resetConfiguration), 0o600);
+      const chmod = await run(conn, `chmod 600 ${shellQuote(SECRET_FILE)}`);
+      if (chmod.code !== 0) throw new Error('Protecting secret.env failed');
+    }
+    if (!resetConfiguration) await publishConfiguration();
 
     for (const [label, cmd] of steps) {
       if (label === 'Prepare cold Reset management') {
         const result = await require('./nas-reset-bootstrap').prepareNasResetManagement({ execute,
           upload: (file, contents) => uploadText(conn, file, contents, 0o600), configuration: resetConfiguration,
-          dataDir: DATA_DIR, backupHost: OPERATOR_BACKUP_HOST, secretFile: SECRET_FILE, targetImage,
+          dataDir: DATA_DIR, transcodeDir: TRANSCODE_HOST, composeFile: COMPOSE_FILE,
+          backupHost: OPERATOR_BACKUP_HOST, secretFile: SECRET_FILE, targetImage, publishConfiguration,
           async readRuntime() {
             const key = readEnvFile(LOCAL_ADMIN_KEY_FILE, 'SHELFDECK_ADMIN_API_KEY');
             if (!key) throw new Error('Admin API credential is required for the safe Stop proof.');

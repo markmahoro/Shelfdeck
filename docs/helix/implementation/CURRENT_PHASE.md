@@ -1,5 +1,8 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-27 FORMATION-RESET-FRESH-GENERATION 继续：691 保留库 NAS 停止态重开三次通过；混合剧集完整 Operator/清理/停止态重启 Win/Linux 通过。补齐发布前数据+Workspace+原部署配置的冷备校验，配置发布后置；收藏摘要改逐行计算以消除生产副本全表物化内存失败。固定 af525 完整架构门禁仍运行，后续增量单独验证；最终镜像及全量副本摘要仍待通过，生产授权未扩展。
+
+
 2026-10-27 固定候选资格进行中：af525a728c Windows 独立包 PASS；实际 Linux 镜像通过新 Reset 核心、真实重新观察/新包/FFmpeg/Commit、独立收藏及资料 404 后显式映射旅程。镜像测试首跑混入仓库侧脚本和旧物理删除 CLI 的环境失败，保留原日志，不计为全量 Linux PASS。UI 负责人对 af525 的 pending 焦点问题判 FAIL；c2c07084f 修复后本任务四视口 40 PASS、负责人补充 16 PASS/定向 Web 5 PASS，具体版本 UI 已通过。完整架构门禁仍在固定 af525 独立 checkout 运行，后续仅 UI/镜像构建变化。
 
 NAS 隔离装载 c2 镜像时遇到 `max depth exceeded`：镜像 127 层，本机 containerd 可运行不代表 NAS overlay2 可装载。标准构建改为合并连续 COPY 文件且不跨 RUN/多阶段边界，导出前增加 96 层预算，定向 4 PASS；新镜像资格尚未完成。691 收藏保留库在本机 Docker 因真实挂载身份不同被正确拒绝，不能当作生产启动通过。隔离副本已准备于 /vol2；生产容器未替换、未 Stop/Reset/Resume。

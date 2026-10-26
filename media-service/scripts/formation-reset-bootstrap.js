@@ -19,7 +19,7 @@ function prepareColdResetBootstrap({ dataDir, configuration, closure, secretRoot
       !/^sha256:[a-f0-9]{64}$/.test(closure.oldImageId || '') || closure.oldContainerRemoved !== true ||
       !Array.isArray(closure.remainingDataMounts) || closure.remainingDataMounts.length ||
       !sha(closure.intentDigest) || !sha(closure.stopOperationId) || !sha(closure.stopReceiptDigest) ||
-      !sha(closure.inventoryDigest) || !Number.isFinite(Date.parse(closure.closedAt))) fail();
+      !sha(closure.inventoryDigest) || !sha(closure.backupReceiptDigest) || !Number.isFinite(Date.parse(closure.closedAt))) fail();
   if (configuration.dataDir !== dataDir || fs.realpathSync.native(dataDir) !== dataDir ||
       fs.existsSync(outputFile) || fs.existsSync(qualificationPath)) fail();
   for (const file of [outputFile, qualificationPath]) {
@@ -30,13 +30,26 @@ function prepareColdResetBootstrap({ dataDir, configuration, closure, secretRoot
     if (fs.lstatSync(file).isSymbolicLink()) fail();
     return JSON.parse(fs.readFileSync(file, 'utf8'));
   };
+  const backupReceipt = read(path.join(configuration.operationRoot, 'deployment-backup-receipt.json'));
+  const { receiptDigest, ...backupBody } = backupReceipt;
+  const { backupReceiptDigest, ...unbackedClosure } = closure;
+  if (receiptDigest !== backupReceiptDigest || canonicalDigest(backupBody) !== receiptDigest ||
+      backupBody.schema !== 'shelfdeck.deployment-backup@1' || backupBody.closureDigest !== canonicalDigest(unbackedClosure) ||
+      !sha(backupBody.backup?.verificationDigest)) fail('RESET_BOOTSTRAP_BACKUP_UNVERIFIED');
   const intentPath = path.join(dataDir, 'operator-runtime', 'intent.json'), intent = read(intentPath);
   const stop = read(path.join(dataDir, 'operator-runtime', closure.stopOperationId + '.json'));
   if (intent.schema !== 'shelfdeck.runtime-intent@1' || intent.desiredMode !== 'stopped' || intent.pendingReset ||
       intent.revision !== closure.runtimeRevision || canonicalDigest(intent) !== closure.intentDigest ||
       stop.kind !== 'stop' || stop.operationId !== closure.stopOperationId || stop.state !== 'completed' ||
       stop.result?.mode !== 'stopped' || canonicalDigest(stop) !== closure.stopReceiptDigest) fail();
-  const files = databaseFiles(dataDir), db = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly: true, fileMustExist: true });
+  const files = databaseFiles(dataDir);
+  const backupManifest = read(backupBody.manifestFile);
+  const { inventoryDigest, ...manifestBody } = backupManifest;
+  const sourceRoot = backupManifest.sources?.find(root => root.path === dataDir);
+  if (inventoryDigest !== canonicalDigest(manifestBody) || inventoryDigest !== backupBody.backup.inventoryDigest ||
+      !sourceRoot || !backupManifest.entries.some(row => row.root === sourceRoot.id && row.relative === 'shelfdeck.db' &&
+        row.sha256 === files[0].sha256 && row.bytes === String(files[0].bytes))) fail('RESET_BOOTSTRAP_BACKUP_UNVERIFIED');
+  const db = new Database(path.join(dataDir, 'shelfdeck.db'), { readonly: true, fileMustExist: true });
   let snapshot;
   try {
     db.pragma('query_only=ON'); db.exec('BEGIN');

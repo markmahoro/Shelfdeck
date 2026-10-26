@@ -16667,6 +16667,8 @@ Reset的稳定边界为已完成Arca On-deck Commit的收藏（含历史收藏�
 
 冷态Reset结构资格补充：当前235表生产结构至239表目标结构仅允许已审阅的四张新空表，以及`libra_runs`新增nullable映射Intent引用及其约束。Operator必须核验精确源/目标catalog摘要；保留Run的原字段逐值不变，新引用为NULL，不能猜测或补造历史映射。其他结构差异阻断。这是本次独立冷态复制的结构资格，不进入正常启动或业务读写的兼容路径。
 
+部署前恢复基线必须在旧进程退出后、覆盖任何Compose/密钥/Reset配置之前完成：独立复制数据目录、系统生产Workspace和精确原部署配置，校验所有文件摘要，并绑定停止回执与关闭证明。历史备份仅按已审阅排除清单跳过。该基线与确认Reset后生成的完整备份分别留存，不用后者代替发布前恢复材料；冷态Bootstrap必须验证备份回执与源数据库摘要的关联。备份失败不发布新配置，不启动业务Host。收藏保护校验以逐行canonical摘要处理历史大表，保持原摘要字节合同，不因内存预算减少校验范围。
+
 #### Series Episode Metadata Mapping（2026-10-26 用户确认）
 
 本地收藏Season/Episode与Provider资料坐标分离。本地结构、成品与NFO季集编号保持不变；Provider查询可引用Season 0或其他Season。Libra拥有版本化、显式确认的映射，绑定精确剧身份、本地材料/集及Provider资料证据；不能改写Procurement冻结包。一个本地集仅对应一个Provider集，同一确认集合不允许两本地集指向同一Provider集；合并/拆分版留明确待处理。跨季资料映射不改变本地Season continuity身份。

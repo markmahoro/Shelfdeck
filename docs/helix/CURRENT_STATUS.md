@@ -1,5 +1,8 @@
 # ShelfDeck 当前状态
 
+2026-10-27 补充资格：45b5bfe82 标准镜像 28 层，在 NAS 隔离副本三次停止态启动及完整 FK/integrity 通过，691 收藏保留库未复机；具体版本 UI 负责人已确认沿用 c2 证据。混合 Series 的完整 Operator/临时清理/两次停止态重启在 Windows 与实际 Linux 镜像各 1 PASS。NAS 收藏摘要复核两次 V8 内存失败已定位为全表物化，逐行同摘要修正及部署前完整恢复基线正在最终资格；不计为 NAS 全部通过。生产仍 e78dbd82f，本轮未 Stop/部署/Reset/删除备份。
+
+
 2026-10-27 固定候选资格进行中：af525a728c Windows 独立包 PASS；实际 Linux 镜像通过新 Reset 核心、真实重新观察/新包/FFmpeg/Commit、独立收藏及资料 404 后显式映射旅程。镜像测试首跑混入仓库侧脚本和旧物理删除 CLI 的环境失败，保留原日志，不计为全量 Linux PASS。UI 负责人对 af525 的 pending 焦点问题判 FAIL；c2c07084f 修复后本任务四视口 40 PASS、负责人补充 16 PASS/定向 Web 5 PASS，具体版本 UI 已通过。完整架构门禁仍在固定 af525 独立 checkout 运行，后续仅 UI/镜像构建变化。
 
 NAS 隔离装载 c2 镜像时遇到 `max depth exceeded`：镜像 127 层，本机 containerd 可运行不代表 NAS overlay2 可装载。标准构建改为合并连续 COPY 文件且不跨 RUN/多阶段边界，导出前增加 96 层预算，定向 4 PASS；新镜像资格尚未完成。691 收藏保留库在本机 Docker 因真实挂载身份不同被正确拒绝，不能当作生产启动通过。隔离副本已准备于 /vol2；生产容器未替换、未 Stop/Reset/Resume。

@@ -302,3 +302,10 @@ secondary_target结构发布的离线回退由`media-service/src/helix/foundatio
 ### 标准镜像层数预算（2026-10-27）
 
 `build-image.js` 从 canonical Dockerfile 生成构建用 recipe，仅合并同一连续 COPY 区间内的同目标目录文件，不跨 RUN 或 COPY --from 等构建边界。Dockerfile 继续保留精确源文件清单；生成 recipe 留在 dist-image，不提交。镜像导出前要求 RootFS 层数不超过 96，为 NAS overlay2 与容器可写层预留空间。Docker Desktop 构建/运行通过不能替代 NAS 实际装载资格；127 层候选的 max depth exceeded 首跑必须保留，禁止用全局 prune 清理或削弱应用文件清单绕过。
+
+
+### Fresh Reset 发布前恢复基线（2026-10-27）
+
+`--fresh-reset-config` 明确要求完成 Runtime Stop，独占 data 与 transcode 挂载、退出并移除旧容器后，以只读源挂载运行 `formation-reset-deployment-backup.js`。配置需列出 `/app/data`、`/transcode` 两个来源，历史档案排除必须有审阅 inventory digest。原 Compose、secret.env 及存在的 reset-config.json 精确暂存并加入完整校验备份；不扫描整个 Compose 父目录，不打印密钥。确认备份 receipt 后才覆盖线上配置、准备冷态管理入口；失败保持停止、原配置不发布。部署前恢复基线和 Reset 自身备份位于各自独立目标，均不可递归包含旧备份。
+
+容量计划必须包含两次完整备份、数据库重建/资格副本、镜像装载与按卷余量。部署前容量检查不计未获准删除的空间；停止后仍需 Reset 预检按实际大小重算。当前仅完成隔离资格不授权生产操作。若部署准备在旧容器移除后中断，保留 closure/request/manifest/partial 文件及原配置，按具体阶段核验后继续或申请恢复；不能自动重启旧业务服务，也不能用重跑覆盖失败现场。

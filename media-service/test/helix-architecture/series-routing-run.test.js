@@ -1824,7 +1824,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     while(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n<2&&Date.now()<deadline) {
       if(process.env.HELIX_SERIES_MIXED_RESET==='1'&&db.prepare("SELECT count(*) n FROM arca_acceptance_decisions WHERE result='accepted'").get().n===2){
         await host.close();
-        t.diagnostic(JSON.stringify({mixedReset:require('../fixtures/series-mixed-reset-journey').verifyMixedReset({db,firstEntry,firstFiles:files,secondSource,sharedManifest})}));
+        t.diagnostic(JSON.stringify({mixedReset:await require('../fixtures/series-mixed-reset-journey').verifyMixedReset({db,firstEntry,firstFiles:files,secondSource,sharedManifest,hostOptions,apiKey:initialized.adminApiKey})}));
         return;
       }
       assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,50));

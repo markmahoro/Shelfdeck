@@ -39,8 +39,14 @@ function closureProof({ old, remaining, runtime, intent, stop, dataDir }) {
 
 // The standard deploy controller invokes this only for an explicitly selected
 // fresh Reset cutover. Credentials never enter shell text or logged results.
-async function prepareNasResetManagement({ execute, upload, readRuntime, configuration, dataDir, backupHost, secretFile, targetImage }) {
+async function prepareNasResetManagement({ execute, upload, readRuntime, publishConfiguration, configuration,
+  dataDir, transcodeDir, composeFile, backupHost, secretFile, targetImage }) {
   configuration = configurationForNas(configuration);
+  if (typeof publishConfiguration !== 'function' || !path.posix.isAbsolute(transcodeDir || '') ||
+      !path.posix.isAbsolute(composeFile || '')) fail('RESET_DEPLOY_BACKUP_CONFIGURATION_REQUIRED');
+  if (!Array.isArray(configuration.backupSourceOptions?.roots) ||
+      configuration.backupSourceOptions.roots.map(root => root.path).sort().join(',') !== '/app/data,/transcode')
+    fail('RESET_DEPLOY_BACKUP_CONFIGURATION_REQUIRED');
   const runtime = await readRuntime();
   if (runtime?.mode !== 'stopped' || runtime.operation?.kind !== 'stop' || runtime.operation.state !== 'completed') fail('RESET_DEPLOY_STOP_UNPROVEN');
   const original = JSON.parse(await execute('docker inspect shelfdeck'))[0];
@@ -61,13 +67,38 @@ async function prepareNasResetManagement({ execute, upload, readRuntime, configu
     if (ids.some(id => !/^[a-f0-9]{12,64}$/.test(id))) fail('RESET_DEPLOY_CONTAINER_INVALID');
     return ids.length ? JSON.parse(await execute('docker inspect ' + ids.map(q).join(' '))) : [];
   }
-  if ((await inventory()).some(c => c.Id !== original.Id && (c.Mounts || []).some(m => overlaps(m.Source, dataDir)))) fail('RESET_DEPLOY_DATA_MOUNT_SHARED');
+  if ((await inventory()).some(c => c.Id !== original.Id && (c.Mounts || []).some(m =>
+    overlaps(m.Source, dataDir) || overlaps(m.Source, transcodeDir)))) fail('RESET_DEPLOY_DATA_MOUNT_SHARED');
   await execute(`docker stop --time 75 ${q(original.Id)}`);
   const exited = JSON.parse(await execute(`docker inspect ${q(original.Id)}`))[0];
   closureProof({ old: exited, remaining: [], runtime, ...records, dataDir });
   await execute(`docker rm ${q(original.Id)}`);
   const remaining = await inventory();
+  if (remaining.some(c => (c.Mounts || []).some(m => overlaps(m.Source, transcodeDir)))) fail('RESET_DEPLOY_DATA_MOUNT_SHARED');
   const closure = closureProof({ old: exited, remaining, runtime, ...records, dataDir });
+  const configFiles = [{ name: 'docker-compose.yml', path: composeFile }, { name: 'secret.env', path: secretFile }];
+  const previousResetConfig = path.posix.join(path.posix.dirname(composeFile), 'reset-config.json');
+  if ((await execute(`if [ -e ${q(previousResetConfig)} ] || [ -L ${q(previousResetConfig)} ]; then printf present; fi`)) === 'present')
+    configFiles.push({ name: 'reset-config.json', path: previousResetConfig });
+  for (const file of configFiles) await execute(`test -f ${q(file.path)} && test ! -L ${q(file.path)} && test "$(readlink -f ${q(file.path)})" = ${q(file.path)}`);
+  const backupRequest = { dataDir: '/app/data', sourceOptions: configuration.backupSourceOptions,
+    configFiles: configFiles.map(file => ({ name: file.name, path: '/deployment-original/' + file.name })),
+    operationRoot: configuration.operationRoot, backupParent: configuration.backupParent, closure };
+  const backupRequestHost = operationHost + '/deployment-backup-request.json';
+  await execute(`test ! -e ${q(backupRequestHost)}`);
+  await upload(backupRequestHost, JSON.stringify(backupRequest));
+  const backup = JSON.parse(await execute(['docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,size=64m',
+    `-v ${q(dataDir + ':/app/data:ro')}`, `-v ${q(transcodeDir + ':/transcode:ro')}`,
+    `-v ${q(backupHost + ':/operator-backups')}`,
+    ...configFiles.map(file => `--mount ${q('type=bind,source=' + file.path + ',target=/deployment-original/' + file.name + ',readonly')}`),
+    q(targetImage), 'node scripts/formation-reset-deployment-backup.js',
+    q(configuration.operationRoot + '/deployment-backup-request.json')].join(' ')));
+  if (backup.closureDigest !== canonicalDigest(closure) || !/^[a-f0-9]{64}$/.test(backup.receiptDigest || '') ||
+      !/^[a-f0-9]{64}$/.test(backup.backupVerificationDigest || '')) fail('RESET_DEPLOY_BACKUP_UNVERIFIED');
+  // No new configuration is published until the entire stopped generation and
+  // original configuration have an independently verified recovery baseline.
+  await publishConfiguration();
+  closure.backupReceiptDigest = backup.receiptDigest;
   const spec = { ...configuration, dataDir: '/app/data' }; delete spec.schema;
   const outputFile = configuration.operationRoot + '/deployment-bootstrap.json';
   const request = { dataDir: '/app/data', configuration: spec, closure, outputFile,
@@ -82,6 +113,6 @@ async function prepareNasResetManagement({ execute, upload, readRuntime, configu
   await execute(['docker run --rm', `--env-file ${q(secretFile)}`, `-v ${q(dataDir + ':/app/data')}`,
     `-v ${q(backupHost + ':/operator-backups')}`, q(targetImage), 'node scripts/formation-reset-bootstrap.js',
     q(configuration.operationRoot + '/deployment-bootstrap-request.json')].join(' '));
-  return { bootstrapFile: outputFile, closureDigest: canonicalDigest(closure) };
+  return { bootstrapFile: outputFile, closureDigest: canonicalDigest(closure), backupReceiptDigest: backup.receiptDigest };
 }
 module.exports = Object.freeze({ configurationForNas, closureProof, prepareNasResetManagement });
