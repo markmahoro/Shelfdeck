@@ -16669,6 +16669,8 @@ Reset的稳定边界为已完成Arca On-deck Commit的收藏（含历史收藏�
 
 部署前恢复基线必须在旧进程退出后、覆盖任何Compose/密钥/Reset配置之前完成：独立复制数据目录、系统生产Workspace和精确原部署配置，校验所有文件摘要，并绑定停止回执与关闭证明。历史备份仅按已审阅排除清单跳过。该基线与确认Reset后生成的完整备份分别留存，不用后者代替发布前恢复材料；冷态Bootstrap必须验证备份回执与源数据库摘要的关联。备份失败不发布新配置，不启动业务Host。收藏保护校验以逐行canonical摘要处理历史大表，保持原摘要字节合同，不因内存预算减少校验范围。
 
+保留闭包中的终态Libra Run可以只承担收藏历史证据责任。冷态Operator由Libra为其Workspace签发`libra.fresh-reset-workspace-archive@1`不可变归档回执，绑定本次代际、备份/清单摘要、已退役Subject、终态Run及Workspace/Registry原行摘要；只撤销当前调度与文件保留资格，不改写旧Reference、生命周期或Registry，不宣称已物理回收。历史状态不一致保留在原证据与回执中，不恢复旧执行来修整它。新Host核验归档回执后不再调度这些Workspace或将其计为活动根占用；没有该回执的既有回收流程不变。来源/正式收藏路径与Arca当前维护文件仍保护，实际临时文件清理由独立冻结清单与清理回执证明，清理未完成始终禁止复机。未知Owner、身份/根关联错误、非终态Run或被改写的回执均阻断，不能以历史归档掩盖新任务缺陷。
+
 #### Series Episode Metadata Mapping（2026-10-26 用户确认）
 
 本地收藏Season/Episode与Provider资料坐标分离。本地结构、成品与NFO季集编号保持不变；Provider查询可引用Season 0或其他Season。Libra拥有版本化、显式确认的映射，绑定精确剧身份、本地材料/集及Provider资料证据；不能改写Procurement冻结包。一个本地集仅对应一个Provider集，同一确认集合不允许两本地集指向同一Provider集；合并/拆分版留明确待处理。跨季资料映射不改变本地Season continuity身份。

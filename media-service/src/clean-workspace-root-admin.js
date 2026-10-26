@@ -18,7 +18,7 @@ function fail(code,message,details){throw new CleanWorkspaceRootAdminError(code,
 function activityDefinition(schemaManifest){
   return createRepositoryDefinition({repositoryId:'clean_workspace_root_activity',owner:'libra',readOnly:true,schemaManifest,statements:{
     list_workspaces:{kind:'select-all',tableId:'libra_workspaces',columns:['workspace_id','state'],keyColumns:[]},
-    list_cleanup_scopes:{kind:'select-all',tableId:'libra_workspace_cleanup_scopes',columns:['cleanup_scope_id','state'],keyColumns:[]},
+    list_cleanup_scopes:{kind:'select-all',tableId:'libra_workspace_cleanup_scopes',columns:['cleanup_scope_id','workspace_id','state'],keyColumns:[]},
   }});
 }
 
@@ -96,10 +96,11 @@ function createCleanWorkspaceRootAdmin(options){
     }},reservedRootQuery:{list:reserved},clock:{now}});
 
   function assertSwitchIdle(){
+    const archived=require('./helix/domains/libra/public').createFreshResetWorkspaceArchive(options).readArchivedIds();
     const value=options.unitOfWork.execute([{participantId:'clean_workspace_root_activity',owner:'libra',repositories:[activity],execute(context){
       const repo=context.repository(activity.repositoryId);
-      return {workspaces:repo.invoke('list_workspaces',{}).filter((item)=>['active','reclaiming'].includes(item.state)),
-        cleanupScopes:repo.invoke('list_cleanup_scopes',{}).filter((item)=>item.state==='active')};
+      return {workspaces:repo.invoke('list_workspaces',{}).filter((item)=>['active','reclaiming'].includes(item.state)&&!archived.has(item.workspace_id)),
+        cleanupScopes:repo.invoke('list_cleanup_scopes',{}).filter((item)=>item.state==='active'&&!archived.has(item.workspace_id))};
     }}]).clean_workspace_root_activity;
     if(value.workspaces.length||value.cleanupScopes.length)fail('CLEAN_WORKSPACE_ROOT_SWITCH_BUSY',
       'Production Workspace can change only after all existing Workspaces are reclaimed.',

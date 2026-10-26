@@ -13,12 +13,13 @@ function inside(parent, child) {
 
 // Resolve only Owner-declared, selected Workspaces against exact Platform
 // handles. Historical Artifact.state is deliberately not a file retention rule.
-function readRetainedWorkspaceProtection(database) {
+function readRetainedWorkspaceProtection(database, { archivedWorkspaceIds = new Set() } = {}) {
   if (!database.readonly || !database.inTransaction) fail('RESET_VERIFY_READONLY_REQUIRED');
   const registries = database.prepare('SELECT * FROM fx_workspace_registry ORDER BY workspace_id').all();
   if (registries.some(row => !['libra', 'arca'].includes(row.owner_domain))) fail('RESET_WORKSPACE_OWNER_UNREVIEWED');
   const declarations = [
     ...libra.describeFreshResetWorkspaceRetention({
+      archivedWorkspaceIds,
       workspaces: database.prepare('SELECT * FROM libra_workspaces ORDER BY workspace_id').all(),
       registries: registries.filter(row => row.owner_domain === 'libra'),
     }),
@@ -74,10 +75,25 @@ function deriveWorkspaceStorage({ Database, targetPath, storage }) {
   const database = new Database(targetPath, { readonly: true, fileMustExist: true });
   try {
     database.pragma('query_only=ON'); database.exec('BEGIN');
-    const protection = readRetainedWorkspaceProtection(database);
+    const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/sqlite-unit-of-work');
+    const schemaManifest = require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
+    const unitOfWork = createSqliteUnitOfWork({ kernel: { runPrimitive(operation) {
+      return operation({ commitTimeMs: 0, prepare: statement => database.prepare(statement) });
+    } } });
+    const archivedWorkspaceIds = libra.createFreshResetWorkspaceArchive({ unitOfWork, schemaManifest }).readArchivedIds();
+    const protection = readRetainedWorkspaceProtection(database, { archivedWorkspaceIds });
     const registered = database.prepare('SELECT * FROM platform_workspace_roots ORDER BY root_id').all();
     const privateRoots = registered.filter(row => row.state === 'active' &&
       (row.owner_scope === 'libra' && row.root_kind === 'production-workspace' || row.owner_scope === 'arca' && row.root_kind === 'aftercare-workspace'));
+    // Actual Inventory bindings are collection facts, even in an older
+    // representation. A private-root classification cannot override them.
+    for (const table of ['arca_inventory_materials', 'arca_inventory_related_references']) {
+      for (const row of database.prepare('SELECT DISTINCT location FROM ' + table).iterate()) {
+        if (typeof row.location !== 'string' || !path.isAbsolute(row.location)) fail('RESET_COLLECTION_LOCATION_INVALID');
+        if (privateRoots.some(root => inside(root.resolved_root, path.resolve(row.location))))
+          fail('RESET_COLLECTION_FILE_INSIDE_TEMPORARY_ROOT');
+      }
+    }
     const protectedLocations = [
       ...database.prepare('SELECT root_location FROM proc_field_access_revisions').all().map(row => row.root_location),
       ...database.prepare('SELECT root_location FROM arca_shelf_target_bindings').all().map(row => row.root_location),

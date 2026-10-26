@@ -3,7 +3,7 @@
 const { canonicalDigest } = require('../src/helix/contracts/canonical-json');
 const { openSqliteKernel } = require('../src/helix/foundation/persistence/sqlite-kernel');
 const { createSqliteUnitOfWork } = require('../src/helix/foundation/persistence/sqlite-unit-of-work');
-const { createFormationRetirementStore } = require('../src/helix/domains/libra/public');
+const { createFormationRetirementStore, createFreshResetWorkspaceArchive } = require('../src/helix/domains/libra/public');
 const { createArcaFormationRetirementStore, createFreshResetSeriesNormalization } = require('../src/helix/domains/arca/public');
 const { createFreshResetFieldNormalization } = require('../src/helix/domains/procurement/public');
 
@@ -18,13 +18,14 @@ function normalizeRetainedSubjects({ Database, targetPath, schemaManifest, schem
       typeof assertIsolated !== 'function') fail('RESET_NORMALIZATION_INPUT_INVALID');
   assertIsolated(targetPath);
   const read = new Database(targetPath, { readonly: true, fileMustExist: true });
-  let subjects;
+  let subjects, workspaceIds;
   try {
     if (read.prepare("SELECT 1 FROM libra_runs WHERE state IN ('active','suspended','frozen') LIMIT 1").get())
       fail('RESET_RETAINED_UNCOMMITTED_RUN');
     if (read.prepare('SELECT 1 FROM libra_predeck_pipeline_tokens LIMIT 1').get() ||
         read.prepare('SELECT 1 FROM libra_workshop_placements LIMIT 1').get()) fail('RESET_RETAINED_ADMISSION_OCCUPANCY');
     subjects = read.prepare("SELECT subject_id FROM libra_subjects WHERE status='active' ORDER BY subject_id").all();
+    workspaceIds = read.prepare('SELECT workspace_id FROM libra_workspaces ORDER BY workspace_id').all();
   } finally { read.close(); }
   const kernel = openSqliteKernel({ Database, databasePath: targetPath, schemaManifest, schemaDdl });
   try {
@@ -47,7 +48,10 @@ function normalizeRetainedSubjects({ Database, targetPath, schemaManifest, schem
         retiringRunIds: [], expectedControls: [], expectedArcaProofDigest: canonicalDigest(proof) });
       receipts.push({ subjectId, receiptDigest: canonicalDigest(result.receipt) });
     }
-    return { schemaRef: 'formation-reset-normalization@1', generationId, retiredSubjectCount: receipts.length, receipts, shared, fields };
+    const archive = createFreshResetWorkspaceArchive({ ...dependencies, assertIsolated: () => assertIsolated(targetPath) });
+    const workspaceArchives = workspaceIds.map(({ workspace_id: workspaceId }) => ({ workspaceId,
+      receiptDigest: canonicalDigest(archive.archive({ workspaceId, generationId, backupDigest, manifestDigest }).receipt) }));
+    return { schemaRef: 'formation-reset-normalization@1', generationId, retiredSubjectCount: receipts.length, receipts, shared, fields, workspaceArchives };
   } finally { kernel.close(); }
 }
 

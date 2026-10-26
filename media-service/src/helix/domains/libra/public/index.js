@@ -365,6 +365,7 @@ Object.defineProperties(createExecutionRegistration, {
 });
 
 module.exports = Object.freeze({
+  createFreshResetWorkspaceArchive: require('../persistence/fresh-reset-workspace-archive').createFreshResetWorkspaceArchive,
   describeFreshResetWorkspaceRetention: require('../model/fresh-reset-workspace-retention').describeFreshResetWorkspaceRetention,
   describeFreshResetMetadataRetention: require('../model/fresh-reset-metadata-retention').describeFreshResetMetadataRetention,
   createLibraArtifactAuditSource(options){const source=require('../persistence/reference-artifact-audit-source').createLibraArtifactAuditSource(options);return Object.freeze({sourceId:source.sourceId,epoch:source.epoch,page:source.page});},

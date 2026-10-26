@@ -1798,12 +1798,25 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   if(multiSeason) {
     if(process.env.HELIX_SERIES_ROOT_RELOCATE==='1')console.error('RELOCATION_STAGE=first_season_ready');
     if(process.env.HELIX_SERIES_SHARED_MISSING_BEFORE_NEW_SEASON==='1')fs.unlinkSync(path.join(sharedScope.root_location,'fanart.jpg'));
+    // Perception completion runs in normal supply, while People registration
+    // and the inventory refresh run in maintenance. Finish the normal prerequisite
+    // before moving the fixture clock into the maintenance-only admission window.
+    const ratingProcess='shelf_entry:'+db.prepare('SELECT shelf_entry_id FROM arca_shelf_entries').get().shelf_entry_id;
+    const ratingDeadline=Date.now()+30000;
+    let ratingWork;
+    do {
+      assert.ifError(runtimeError);
+      ratingWork=db.prepare("SELECT state FROM fx_supporting_works WHERE process_type='perception_resolution' AND process_id=? ORDER BY rowid DESC LIMIT 1").get(ratingProcess);
+      if(ratingWork?.state==='succeeded')break;
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }while(Date.now()<ratingDeadline);
+    assert.equal(ratingWork?.state,'succeeded','Complete the normal-supply rating prerequisite before advancing to maintenance.');
     maintenanceClock=Date.parse('2026-10-31T03:00:00+08:00');maintenanceClockStart=Date.now();
     const peopleDeadline=Date.now()+30000;
     while(db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n&&Date.now()<peopleDeadline) {
       assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,50));
     }
-    assert.equal(db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n,0,JSON.stringify({works:db.prepare("SELECT work_id,work_kind,state,process_id FROM fx_supporting_works WHERE state<>'succeeded'").all(),events:db.prepare("SELECT capability_ref,state FROM fx_workflow_events WHERE state NOT IN ('succeeded','skipped')").all(),failures:db.prepare('SELECT failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n,0,JSON.stringify({runtime:(await request('GET','/v1/admin/runtime')).json(),works:db.prepare("SELECT work_id,work_kind,state,process_id FROM fx_supporting_works WHERE state<>'succeeded'").all(),events:db.prepare("SELECT capability_ref,state FROM fx_workflow_events WHERE state NOT IN ('succeeded','skipped')").all(),failures:db.prepare('SELECT failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
     maintenanceClock=Date.parse('2026-10-31T09:00:00+08:00');maintenanceClockStart=Date.now();
     const normalUntil=Date.now()+10000;while(Date.now()<normalUntil&&!JSON.parse((await request('GET','/v1/admin/runtime')).body).normalSupplyAllowed)await new Promise(resolve=>setTimeout(resolve,50));
     assert.equal(JSON.parse((await request('GET','/v1/admin/runtime')).body).normalSupplyAllowed,true);

@@ -1,5 +1,10 @@
 # ShelfDeck 当前状态
 
+2026-10-27 Workspace 资格增量：真实隔离保留库发现两条历史 Libra/Registry 生命周期不一致，首次文件清理预检在任何复制/删除前拒绝。新增冷态 Libra Workspace 归档回执：保留原证据，不补造回收成功；撤销已退役 Subject 下终态 Run 的当前调度/文件保留资格，实际删除仍由 Operator 清单和 Receipt 证明。695 条归档在独立副本已验真，原 Workspace 状态不改，完整 FK/integrity PASS；新归档/保护定向 16 PASS，既有相关 25 PASS，混合 Series 完整 Operator、清理及两次 stopped 重开 1 PASS。最终 NAS 文件清理及固定候选资格仍待完成。
+
+完整 af525 Architecture 首跑已结束：3404 total / 3377 PASS / 26 skip / 1 FAIL。失败位于整剧迁移崩溃夹具的 People 前置等待：正常窗口评分资料未结束即推进维护窗口。补齐正常阶段资料前提后两个真实中断场景 2 PASS；该复验不能替代最终完整 Gate，原失败保留。
+
+
 2026-10-27 最终副本资格：NAS 691 Commit/Package 与十组保护摘要完整复核 PASS（峰值163MiB）；新校验与原摘要完全一致。Service849/820PASS/29skip，Linux增量23PASS，Windows独立包1PASS。精确容量/删除/回退材料见 [发布审查](implementation/evidence/FRESH_RESET_RELEASE_REVIEW_20261027.md)。完整固定架构门禁及最终身份收口继续，未授权或执行生产处置。
 
 2026-10-27 补充资格：45b5bfe82 标准镜像 28 层，在 NAS 隔离副本三次停止态启动及完整 FK/integrity 通过，691 收藏保留库未复机；具体版本 UI 负责人已确认沿用 c2 证据。混合 Series 的完整 Operator/临时清理/两次停止态重启在 Windows 与实际 Linux 镜像各 1 PASS。NAS 收藏摘要复核两次 V8 内存失败已定位为全表物化，逐行同摘要修正及部署前完整恢复基线正在最终资格；不计为 NAS 全部通过。生产仍 e78dbd82f，本轮未 Stop/部署/Reset/删除备份。

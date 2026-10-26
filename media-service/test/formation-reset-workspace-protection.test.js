@@ -10,6 +10,11 @@ const { cleanTemporaryStorage } = require('../scripts/formation-reset-cleanup');
 function fixture(t) {
   const root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'reset-owner-files-')));
   const file = path.join(root, 'retained.db'), write = new Database(file);
+  const ddl = fs.readFileSync(path.join(__dirname, '../src/helix/foundation/persistence/generated/clean-schema.sql'), 'utf8');
+  for (const table of ['fx_command_receipts', 'fx_commit_markers']) {
+    const definition = ddl.match(new RegExp('CREATE TABLE "' + table + '" \\([\\s\\S]*?\\n\\);'));
+    assert.ok(definition); write.exec(definition[0]);
+  }
   t.after(() => { write.close(); fs.rmSync(root, { recursive: true, force: true }); });
   write.exec(`CREATE TABLE fx_workspace_registry(workspace_id TEXT PRIMARY KEY,owner_domain TEXT,process_type TEXT,process_id TEXT,root_handle_ref TEXT,state TEXT);
     CREATE TABLE libra_workspaces(workspace_id TEXT PRIMARY KEY,libra_run_id TEXT,root_handle_ref TEXT,state TEXT);
@@ -19,6 +24,8 @@ function fixture(t) {
     CREATE TABLE proc_field_access_revisions(root_location TEXT);
     CREATE TABLE arca_shelf_target_bindings(root_location TEXT);
     CREATE TABLE arca_shelves(target_root_location TEXT);
+    CREATE TABLE arca_inventory_materials(location TEXT);
+    CREATE TABLE arca_inventory_related_references(location TEXT);
     CREATE TABLE platform_workspace_roots(root_id TEXT PRIMARY KEY,root_handle_ref TEXT,state TEXT,owner_scope TEXT,root_kind TEXT,resolved_root TEXT);`);
   const production = path.join(root, 'production'), maintenance = path.join(root, 'maintenance'), source = path.join(root, 'source');
   for (const folder of [production, maintenance, source]) fs.mkdirSync(folder);
@@ -117,4 +124,14 @@ test('Owner source, historical target and People roots enter the frozen protecti
   verifyWorkspaceStorage({ ...options, storage: derived.storage });
   const attempted = deriveWorkspaceStorage({ ...options, storage: { ...input, roots: [...input.roots, historical] } });
   assert.throws(() => inspectTemporaryStorage(attempted.storage), { code: 'RESET_STORAGE_BOUNDARY_OVERLAP' });
+});
+
+test('a collection Inventory binding blocks a conflicting private-root cleanup, including historical locations', t => {
+  const f = fixture(t);
+  const options = { Database, targetPath: f.file, storage: f.storage };
+  f.write.prepare('INSERT INTO arca_inventory_materials VALUES(?)').run(path.join(f.production, 'owned.mkv'));
+  assert.throws(() => deriveWorkspaceStorage(options), { code: 'RESET_COLLECTION_FILE_INSIDE_TEMPORARY_ROOT' });
+  f.write.exec('DELETE FROM arca_inventory_materials');
+  f.write.prepare('INSERT INTO arca_inventory_related_references VALUES(?)').run(path.join(f.production, 'poster.jpg'));
+  assert.throws(() => deriveWorkspaceStorage(options), { code: 'RESET_COLLECTION_FILE_INSIDE_TEMPORARY_ROOT' });
 });

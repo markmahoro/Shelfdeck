@@ -66,6 +66,8 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
   // selected by Subject: the package's exact material manifest selects them.
   children('libra_subjects', 'subject_id', ['libra_product_identity_revisions']);
   children('libra_workspaces', 'workspace_id', ['libra_workspace_revisions', 'libra_workspace_material_refs']);
+  edge('libra_workspaces', 'fx_command_receipts', [['workspace_id', 'target_id']],
+    { owner_domain: 'libra', command_contract: 'libra.fresh-reset-workspace-archive@1', target_type: 'libra_workspace' });
   edge('libra_workspaces', 'fx_workspace_registry', [['workspace_id', 'workspace_id']],
     { owner_domain: 'libra', process_type: 'libra_run' });
 
