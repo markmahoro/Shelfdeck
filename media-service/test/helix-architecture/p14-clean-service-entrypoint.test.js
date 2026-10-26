@@ -159,6 +159,16 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/clean-admin-static.js' ||
         relative === 'src/clean-poster-renderer.js' ||
         relative === 'src/clean-runtime-operations.js' ||
+        relative === 'src/clean-runtime-supervisor.js' ||
+        relative === 'src/clean-generation-lease.js' ||
+        relative === 'src/clean-reset-workflow.js' ||
+        relative === 'src/clean-reset-management-host.js' ||
+        relative === 'src/clean-reset-bootstrap.js' ||
+        relative === 'src/clean-reset-error-copy.js' ||
+        relative === 'src/clean-session-cookies.js' ||
+        relative === 'scripts/formation-reset-generation.js' ||
+        relative === 'scripts/formation-reset-process.js' ||
+        relative === 'scripts/formation-reset-runtime-port.js' ||
         relative === 'src/clean-reset-generation-fence.js' ||
         relative === 'src/clean-formation-reset-port.js' ||
         relative === 'src/clean-arca-recycle-port.js' ||

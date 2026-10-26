@@ -158,6 +158,7 @@ test('Capability runtime sources contain no fallback, historical flow routing, S
   }
   const policy = JSON.parse(fs.readFileSync(path.join(serviceRoot, 'src/helix/contracts/manifests/package-boundary-policy.json'), 'utf8'));
   assert.deepEqual(policy.externalModuleRules, [
+    { source: 'platform.application', allow: ['node:crypto'] },
     { source: 'contracts', allow: ['node:crypto'] },
     { source: 'platform.public', allow: ['node:crypto'] },
     { source: 'foundation.capability', allow: ['ajv/dist/2020', 'ajv-formats'] },

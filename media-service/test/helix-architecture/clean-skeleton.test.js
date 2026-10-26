@@ -110,6 +110,9 @@ test('composition root import is side-effect free and factory requires exact cle
 
 test('formal product startup selects only the P14 clean service host', () => {
   const content = fs.readFileSync(path.resolve(__dirname, '../../src/server.js'), 'utf8');
-  assert.match(content, /createCleanServiceHost/);
+  assert.match(content, /createRuntimeSupervisor/);
+  const supervisor = fs.readFileSync(path.resolve(__dirname, '../../src/clean-runtime-supervisor.js'), 'utf8');
+  assert.match(supervisor, /createCleanServiceHost/);
+  assert.doesNotMatch(supervisor, /require\(['"]\.\/app['"]\)|helixRuntimePreflight|transcodeService|tray/);
   assert.doesNotMatch(content, /require\(['"]\.\/app['"]\)|helixRuntimePreflight|transcodeService|tray/);
 });
