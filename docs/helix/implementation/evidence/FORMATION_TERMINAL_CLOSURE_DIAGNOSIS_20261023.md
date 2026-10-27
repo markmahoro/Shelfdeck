@@ -941,3 +941,11 @@ Service 固定 e6 849 项：820 PASS/29 skip/0 FAIL；新增实际 Linux 23 PASS
 来源/正式文件stat基线：691收藏、6570库存路径、五来源根、39317条路径，其中91条原已缺失，其他stat错误0。摘要f61a5951a192b7e99cdd395fd01da078de84ca06e1d94d4d0578c9397e2929c5；这是路径身份/大小/时间/类型保护，不是全体媒体内容SHA。完整旧代际冷备仍由标准部署控制器在关闭旧容器后完成，不能用这个stat清单代替恢复备份。
 
 标准deploy首次使用了遗漏images/的tar路径，在ls阶段拒绝，未停止容器或发布配置；按标准upload回执修正精确路径并重新dry-run。21:33Z旧容器已干净退出并移除，独立完整冷备正在运行；新配置尚未发布、未执行Reset/Resume。本地原始证据位于ignored formation-diagnosis-20261023/production-101ce2fe0-*，NAS作业树/vol2/1000/shelfdeck_backups/fresh-reset-final-20261027。
+
+## 2026-10-27 People 闭包纠正资格与最终反馈修正
+
+7fee9650865e35f0bacfbbfd2540ddba3b043980 的 Service 862项（833 PASS/29 skip）、实际Linux镜像19项、NAS生产停止态一致副本资格均通过。NAS只补回18条原登记，其余238表及Registry原有行摘要不变；18图与18特征经真实People端口可读。proofDigest=8d115b9e4c34f054821262f04800a075cacd51601f29997962c259aa221ffd54。此为隔离副本，不是生产补回。
+
+该候选完整Architecture首跑FAIL：两项精确公共接口清单没有登记新增的People Owner依赖描述出口；其余全部测试及四项静态检查通过。现同步两个清单，保留原失败日志与报告。不是删除断言或开放跨Owner实现访问。UI负责人对7fee判FAIL（一项P2，两种People阻断原因×四视口）；原12安全/交互PASS、8反馈FAIL不改写。修正真实GET预检阶段的原因文案，确认后的POST和执行失败保持实际阶段；通用Owner错误不被误称People。预检在构建副本前先核验People必需登记与真实字节，给出Owner明确错误。
+
+新增定向首跑31 PASS/1 FAIL为测试清理顺序：fixture先删目录，Host尚未关闭导致Windows EPERM；改为finally先关闭Host。功能断言当时均通过，首跑日志保留。新精确候选须重新完成定向、完整门禁、平台及UI资格，之后才通过标准部署包装作停止态完整冷备、18条依赖纠正和恢复供给。生产仍b0/revision34/stopped，未再次Reset。

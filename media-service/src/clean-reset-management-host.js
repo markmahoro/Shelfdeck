@@ -37,9 +37,11 @@ async function createResetManagementHost({ readCredential, readStatus, retryRese
       return reject(reply, 401, 'ADMIN_SESSION_INVALID', '请重新登录。');
     }
   });
-  server.setErrorHandler((error, _request, reply) => {
+  server.setErrorHandler((error, request, reply) => {
     const code = /^[A-Z][A-Z0-9_]{1,100}$/.test(error.code || '') ? error.code : 'RESET_MANAGEMENT_UNAVAILABLE';
-    return reject(reply, [400, 401, 403, 409].includes(error.statusCode) ? error.statusCode : 503, code, require('./clean-reset-error-copy').resetErrorMessage(code));
+    const preflight = request.method === 'GET' && request.url.split('?')[0] === '/v1/admin/runtime/reset-preview';
+    return reject(reply, [400, 401, 403, 409].includes(error.statusCode) ? error.statusCode : 503, code,
+      require('./clean-reset-error-copy').resetErrorMessage(code, { preflight }));
   });
   server.get('/v1/health', async () => ({ status: 'maintenance', normalSupplyAllowed: false, runtimeMode: status().mode }));
   server.get('/v1/admin/runtime', async () => status());

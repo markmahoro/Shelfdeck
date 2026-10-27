@@ -14,6 +14,7 @@ const { buildResetPreflight, buildCapacityBlockedPreflight } = require('./format
 const { deriveWorkspaceStorage } = require('./formation-reset-workspace-protection');
 const { databaseFiles } = require('../src/clean-reset-bootstrap');
 const { fileDigest } = require('./formation-reset-generation');
+const { verifyRetainedPeopleReferences } = require('./formation-reset-people-references');
 
 function fail(code) { throw Object.assign(new Error(code), { code }); }
 function realDirectory(directory) {
@@ -89,6 +90,11 @@ function inspectFreshReset({ Database, spec, privateRoot }) {
           canonicalDigest(databaseFiles(spec.dataDir)) !== canonicalDigest(sourceFiles)) fail('RUNTIME_RESET_PREVIEW_STALE');
     }
     const sourcePath = coldSourcePath || activePath;
+    const peopleSource = new Database(sourcePath, { readonly: true, fileMustExist: true });
+    try {
+      peopleSource.pragma('query_only=ON'); peopleSource.exec('BEGIN');
+      verifyRetainedPeopleReferences(peopleSource, peopleSource);
+    } finally { if (peopleSource.inTransaction) peopleSource.exec('ROLLBACK'); peopleSource.close(); }
     const owner = readResetOwnerSnapshot({ Database, sourcePath });
     const policy = buildOwnerRetentionPolicy(schemaManifest, owner);
     const copy = createRetainedDatabase({ Database, sourcePath, targetPath: candidatePath, policy,

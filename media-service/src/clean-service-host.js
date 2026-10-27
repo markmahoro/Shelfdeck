@@ -1121,7 +1121,7 @@ async function readBoundedRoutingNfo(handle) {
   return snapshot.bytes.toString('utf8');
 }
 
-function errorResponse(error, correlationId) {
+function errorResponse(error, correlationId, context = {}) {
   let status = 500;
   if (AUTH_ERROR_CODES.has(error.code)) status = 401;
   else if (['MAINTENANCE_INPUT_INVALID', 'MAINTENANCE_TIME_INVALID', 'MAINTENANCE_CONFIG_INVALID'].includes(error.code)) status = 400;
@@ -1253,7 +1253,8 @@ function errorResponse(error, correlationId) {
   else if (error.code === 'HELIX_NOT_READY') status = 503;
   if (error.code?.startsWith('PLATFORM_NETWORK_')) status = error.code.endsWith('_CORRUPT') ? 500 : 400;
   const code = status === 500 ? 'CLEAN_SERVICE_INTERNAL_ERROR' : error.code;
-  const message = status === 500 ? 'Clean Service请求处理失败。' : code?.startsWith('RESET_') ? require('./clean-reset-error-copy').resetErrorMessage(code) : error.message;
+  const message = status === 500 ? 'Clean Service请求处理失败。' : code?.startsWith('RESET_') ? require('./clean-reset-error-copy').resetErrorMessage(code,
+    { preflight: context.method === 'GET' && context.path === '/v1/admin/runtime/reset-preview' }) : error.message;
   return {
     status,
     body: {
@@ -2256,7 +2257,7 @@ async function createCleanServiceHost(options) {
             path: request.url.split('?')[0],
             correlationId,
           }));
-          response = errorResponse(error, correlationId);
+          response = errorResponse(error, correlationId, { method: request.method, path: request.url.split('?')[0] });
         }
         if (response.sessionToken) reply.header('set-cookie', sessionCookie(response.sessionToken));
         if (response.clearSession) reply.header('set-cookie', clearSessionCookie());

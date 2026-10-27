@@ -62,6 +62,28 @@ async function approvedColdFixture(t) {
   return { ...f, spec, fence };
 }
 
+test('normal Host People errors use the actual GET preview phase and keep execution errors distinct', async t => {
+  const f = await fixture(t, { preflight: true });
+  let code = 'RESET_VERIFY_PEOPLE_REFERENCE_STORAGE_INVALID';
+  const fail = () => { throw Object.assign(new Error('private storage details'), { code }); };
+  const host = await createCleanServiceHost({ dataDir: f.spec.dataDir, secretRoot: f.secretRoot,
+    adminDistDir: path.join(f.root, 'admin'), createFormationResetPort: () => ({ preview: fail, apply: fail, recover: fail }) });
+  try {
+  const headers = { 'x-api-key': f.apiKey };
+  const preview = await host.inject({ method: 'GET', url: '/v1/admin/runtime/reset-preview', headers });
+  assert.equal(preview.statusCode, 409, preview.body);
+  assert.match(preview.json().error.message, /^预检未通过：人物参考资料无法读取/);
+  assert.doesNotMatch(preview.body, /private storage|重置未完成/);
+  const apply = await host.inject({ method: 'POST', url: '/v1/admin/runtime/actions/reset', headers,
+    payload: { idempotencyKey: 'failed-confirm', confirmed: true, previewDigest: 'a'.repeat(64) } });
+  assert.equal(apply.statusCode, 409, apply.body);
+  assert.match(apply.json().error.message, /^重置无法继续：/);
+  code = 'RESET_COPY_OWNER_REFERENCE_MISSING';
+  const otherOwner = await host.inject({ method: 'GET', url: '/v1/admin/runtime/reset-preview', headers });
+  assert.match(otherOwner.json().error.message, /^预检未通过/); assert.doesNotMatch(otherOwner.body, /人物/);
+  } finally { await host.close(); }
+});
+
 test('isolated Operator process uses the approved temp volume and switches a native schema while stopped', async t => {
   const f = await fixture(t), previousTemp = process.env.SQLITE_TMPDIR;
   const preview = await runFreshResetProcess({ spec: f.spec, action: 'prepare' });

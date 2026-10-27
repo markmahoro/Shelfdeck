@@ -9,10 +9,15 @@ const { createCleanPeopleImagePort } = require('../src/clean-people-image-port')
 function fail(code, artifactHandleId) { throw Object.assign(new Error(code), { code, details: { artifactHandleId } }); }
 function describe(database) {
   if (!database.readonly || !database.inTransaction) fail('RESET_VERIFY_READONLY_REQUIRED');
-  return describeFreshResetReferenceRetention({
-    assets: database.prepare('SELECT * FROM people_reference_assets ORDER BY reference_asset_id').all(),
-    faces: database.prepare('SELECT * FROM people_reference_faces ORDER BY reference_face_id').all(),
-  });
+  try {
+    return describeFreshResetReferenceRetention({
+      assets: database.prepare('SELECT * FROM people_reference_assets ORDER BY reference_asset_id').all(),
+      faces: database.prepare('SELECT * FROM people_reference_faces ORDER BY reference_face_id').all(),
+    });
+  } catch (error) {
+    if (error.code === 'PEOPLE_RESET_REFERENCE_INVALID') fail('RESET_VERIFY_PEOPLE_REFERENCE_FACTS_INVALID');
+    throw error;
+  }
 }
 function assertArtifact(record, dependency) {
   if (!record || record.artifact_handle_id !== dependency.artifactHandleId || record.owner_domain !== 'people' ||

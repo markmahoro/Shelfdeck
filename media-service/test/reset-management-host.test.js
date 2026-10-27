@@ -60,3 +60,25 @@ test('cold status cannot claim normal supply and errors do not return raw diagno
   const response = await host.inject({ method: 'GET', url: '/v1/admin/runtime', headers: { 'x-api-key': 'invalid' } });
   assert.equal(response.statusCode, 401); assert.equal(response.body.includes(secret), false);
 });
+
+test('cold preflight errors identify People blockers without implying that Reset has begun', async t => {
+  const apiKey = 'isolated-people-error-copy-key';
+  let code;
+  const fail = () => { throw Object.assign(new Error('private details must not escape'), { code, statusCode: 409 }); };
+  const host = await createResetManagementHost({ readCredential: () => ({ credentialId: 'admin-primary', revision: 1,
+    apiKeyDigest: apiKeyDigest(apiKey), signingSecret: 'isolated-people-error-copy-signing-secret' }),
+    readStatus: () => ({ mode: 'stopped', desiredMode: 'stopped', normalSupplyAllowed: false }), previewReset: fail, retryReset: fail });
+  t.after(() => host.close());
+  for (code of ['RESET_VERIFY_PEOPLE_REFERENCE_ARTIFACT_INVALID', 'RESET_VERIFY_PEOPLE_REFERENCE_STORAGE_INVALID']) {
+    const response = await host.inject({ method: 'GET', url: '/v1/admin/runtime/reset-preview?fresh=true', headers: { 'x-api-key': apiKey } });
+    assert.equal(response.statusCode, 409); assert.equal(response.json().error.code, code);
+    assert.match(response.json().error.message, /^预检未通过：人物参考资料/);
+    assert.doesNotMatch(response.body, /重置未完成|private details/);
+    const execute = await host.inject({ method: 'POST', url: '/v1/admin/runtime/actions/reset', headers: { 'x-api-key': apiKey }, payload: {} });
+    assert.match(execute.json().error.message, /^重置无法继续：/);
+    assert.doesNotMatch(execute.body, /预检未通过/);
+  }
+  code = 'RESET_COPY_OWNER_REFERENCE_MISSING';
+  const generic = await host.inject({ method: 'GET', url: '/v1/admin/runtime/reset-preview', headers: { 'x-api-key': apiKey } });
+  assert.match(generic.json().error.message, /^预检未通过/); assert.doesNotMatch(generic.body, /人物/);
+});

@@ -99,6 +99,26 @@ test('a registered active reference with missing physical bytes cannot pass Rese
   assert.throws(() => verify(f), { code: 'RESET_VERIFY_PEOPLE_REFERENCE_STORAGE_INVALID' });
 });
 
+test('actual preflight reports the People dependency before generic Owner copy failure', t => {
+  for (const missing of ['registration', 'physical']) {
+    const f = fixture(t), dataDir = path.join(f.root, 'data'), operationRoot = path.join(f.root, 'operations');
+    for (const dir of [dataDir, operationRoot, path.join(f.root, 'archives'), path.join(dataDir, 'operator-runtime')]) fs.mkdirSync(dir);
+    const privateRoot = path.join(operationRoot, 'inspection'); fs.mkdirSync(privateRoot);
+    fs.renameSync(f.sourcePath, path.join(dataDir, 'shelfdeck.db'));
+    fs.writeFileSync(path.join(dataDir, 'operator-runtime/intent.json'), JSON.stringify({ schema: 'shelfdeck.runtime-intent@1',
+      desiredMode: 'stopped', revision: 1, pendingReset: null }));
+    if (missing === 'registration') {
+      const source = new Database(path.join(dataDir, 'shelfdeck.db'));
+      source.prepare('DELETE FROM fx_artifact_registry WHERE artifact_handle_id=?').run(f.feature.artifactHandleId); source.close();
+    } else fs.unlinkSync(path.join(f.rootPath, f.feature.artifactHandleId));
+    assert.throws(() => require('../scripts/formation-reset-inspect').inspectFreshReset({ Database, privateRoot,
+      spec: { dataDir, operationRoot, backupParent: path.join(f.root, 'archives'), expectedRuntimeRevision: 1,
+        backupSourceOptions: { roots: [{ id: 'data', path: dataDir }] }, storage: { roots: [], protectedDirectories: [] } } }),
+      { code: missing === 'registration' ? 'RESET_VERIFY_PEOPLE_REFERENCE_ARTIFACT_INVALID' : 'RESET_VERIFY_PEOPLE_REFERENCE_STORAGE_INVALID' });
+    assert.equal(fs.readdirSync(privateRoot).length, 0, 'the blocked preflight never builds a candidate');
+  }
+});
+
 test('a foreign, changed or inactive feature is rejected even when all SQLite references are valid', t => {
   for (const [column, value] of [['owner_scope_id', 'another-person'], ['digest_hex', '1'.repeat(64)], ['state', 'deleted']]) {
     const f = fixture(t), source = new Database(f.sourcePath);
