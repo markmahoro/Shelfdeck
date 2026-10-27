@@ -1,6 +1,8 @@
 # ShelfDeck 当前计划
 
-当前追加工作项RESET-PEOPLE-REFERENCE-CLOSURE：根因修复、精确保留事实纠正及保护负例已实现，完成固定候选全量/平台/NAS资格后，按既有恢复目标部署并补回18条原登记，核验新事实与收藏保护，再Resume及通过现有重试入口处理3条本轮新技术失败。生产保持停止，不再次Reset或增加日常兼容分支。
+本轮部署、Fresh Reset、People闭包纠正及恢复供给已执行并核验，新Series/US实际推进；生产保持running，不再Reset或重建观察。FORMATION-HISTORICAL-SERIES-PROJECTION作为明确未关闭项承接：历史展示读取不可变事实，不恢复旧在途责任，不弱化执行Reader。Actor/Provider映射/体积由用户决定，高达/凡人歌等待自然采购；不宣称整体Phase Exit。详见最新Status/Evidence。
+
+当前追加工作项RESET-PEOPLE-REFERENCE-CLOSURE：根因修复、精确保留事实纠正及保护负例已实现，完成固定候选全量/平台/NAS资格后，按既有恢复目标部署并补回18条原登记，核验新事实与收藏保护，按用户追加授权仅取消这3条技术失败并保留历史，等待正常重采，再Resume验证真实新流程。生产保持停止，不再次Reset或增加日常兼容分支。
 
 2026-10-27 01:48Z 新生产回归阻断（覆盖上方/下方恢复成功检查点）：恢复后3个新US任务均frozen，失败码PEOPLE_IMAGE_ARTIFACT_CHANGED。只读前后对比证实：Reset前18个active people_reference_faces均有active embedding Artifact，Reset后这18条Registry行缺失；图片Artifact仍18条正常。Owner保留策略只声明people_reference_assets.artifact_handle_id，遗漏people_reference_faces.embedding_handle_id，而原库没有People fx_artifact_references记录，FK检查无法发现该opaque引用遗漏。18个物理特征文件/48,996字节SHA全部与原备份一致，691收藏保护仍通过。此为本轮Reset缺陷，不能记为全面恢复正常或业务待确认。01:44:55.318Z正式Stop完成：revision34/stopped/quiesced/所有inFlight0/error=null，operation3b4ac11e5c4270be038b2540c5bdaf0b36202866bc3192b546029d005d046133。继续补People所需的必选Artifact闭包和负例验证，并准备从校验备份精确恢复18条登记的停止态副本方案；不再次清空已生成的新任务，不直接编辑运行库，不重建自动观察。修复及恢复后仍须正常Resume与真实新任务验证，目标尚未完成。
 

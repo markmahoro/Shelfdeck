@@ -3,7 +3,7 @@
 const test = require('node:test'), assert = require('node:assert/strict');
 const { canonicalDigest } = require('../media-service/src/helix/contracts/canonical-json');
 const { recoveryScope, prepareNasPeopleReferenceRecovery } = require('../scripts/nas-people-reference-recovery');
-const { parseArgs, composeYaml } = require('../scripts/deploy-nas');
+const { parseArgs, composeYaml, healthExpectation, selectVerificationSteps } = require('../scripts/deploy-nas');
 const configuration = { schema: 'shelfdeck.reset-configuration@1', operationRoot: '/operator-backups/job/operations',
   backupParent: '/operator-backups/job/archives', backupSourceOptions: { roots: [{ id: 'data', path: '/app/data' }, { id: 'workspace', path: '/transcode' }] },
   storage: { roots: ['/transcode'], protectedDirectories: ['/media'] } };
@@ -11,6 +11,23 @@ const scope = { schema: 'shelfdeck.people-reference-recovery@1', resetGeneration
   expectedCount: 18, expectedHandlesDigest: 'c'.repeat(64), expectedReferenceDigest: 'd'.repeat(64),
   originalManifestFile: '/operator-backups/original/manifest.json', originalBackupRoot: '/operator-backups/original/archive' };
 const closure = { schema: 'shelfdeck.deployment-closure@1', oldContainerRemoved: true, oldContainerId: 'e'.repeat(64) };
+
+test('a recovered normal stopped Host must report ok with supply disabled, rather than cold-management maintenance', () => {
+  assert.deepEqual(healthExpectation({ resetConfiguration: configuration, peopleRecoveryScope: scope }), { status: 'ok', stopped: true });
+  assert.deepEqual(healthExpectation({ resetConfiguration: configuration }), { status: 'maintenance', stopped: true });
+  assert.deepEqual(healthExpectation({}), { status: 'ok', stopped: false });
+});
+
+test('read-only completion cannot replay backup, recovery, configuration publication or container recreation', () => {
+  assert.equal(parseArgs(['shelfdeck-candidate.tar', '--sha256', '1'.repeat(64), '--verify-only']).verifyOnly, true);
+  for (const extra of [['--apply'], ['--helix-clean-init'], ['--continue-fresh-reset'], ['--continue-people-reference-recovery']])
+    assert.throws(() => parseArgs(['shelfdeck-candidate.tar', '--sha256', '1'.repeat(64), '--verify-only', ...extra]));
+  assert.throws(() => parseArgs(['shelfdeck-candidate.tar', '--verify-only']));
+  const labels = ['Check image tarball', 'Verify image tarball SHA-256', 'Load image', 'Prepare cold People reference recovery',
+    'Upload secret.env', 'Recreate through compose', 'Verify health', 'Verify Admin Web', 'Verify media mount'];
+  assert.deepEqual(selectVerificationSteps(labels.map(label => [label, label])).map(([label]) => label),
+    ['Check image tarball', 'Verify image tarball SHA-256', 'Verify health', 'Verify Admin Web', 'Verify media mount']);
+});
 
 test('dependency recovery is an explicit deployment action and retains Reset config without requesting another Bootstrap', () => {
   const args = ['shelfdeck-candidate.tar', '--sha256', '1'.repeat(64), '--capacity-plan', 'capacity.json',

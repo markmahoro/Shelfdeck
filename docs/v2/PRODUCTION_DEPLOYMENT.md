@@ -1,5 +1,11 @@
 # PRODUCTION_DEPLOYMENT - 生产部署固定入口
 
+## 2026-10-27 停止态纠正后的只读发布复核
+
+Fresh Reset Bootstrap冷态管理的health为`maintenance/normalSupplyAllowed=false`；People依赖纠正完成后启动的是普通停止态Host，正确health为`ok/normalSupplyAllowed=false`。标准deploy按实际Host类型核对，不能把后者误判为未启动，也不能只以HTTP200通过。
+
+已完成数据库发布而最终只读校验中断时，可在原tar、SHA、配置与scope参数后使用`--verify-only`，仅运行精确白名单中的tar校验、Compose验证、health、Admin Web、挂载和镜像检查，不上传配置、加载镜像、执行备份/纠正、重建容器或Resume。它要求SHA，拒绝`--apply`及继续变更选项。先前变更仍以原回执为准；该模式不重新宣称数据纠正或Reset已执行。每个首次失败及补验结果须独立保留。
+
 ## 2026-10-27 Fresh Reset 冷态发布入口（候选实现，资格以 CURRENT_STATUS 为准）
 
 首次235→239结构切换不先打开新业务Host，也不为保留旧未入藏流程运行加性迁移。仍走标准build/upload/deploy入口；在已完成Runtime安全停机、完整恢复基线及容量清单获准后，使用`deploy-nas.js <tar> --sha256 <digest> --fresh-reset-config <本机配置JSON> --capacity-plan <本机容量JSON>`先dry-run，取得具体发布授权后才加`--apply`。这只部署停止态管理入口，不代表已授权或自动执行Reset。

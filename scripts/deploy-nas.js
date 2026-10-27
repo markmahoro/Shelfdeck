@@ -59,6 +59,7 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--apply') parsed.apply = true;
+    else if (arg === '--verify-only') parsed.verifyOnly = true;
     else if (arg === '--continue-people-reference-recovery') parsed.continuePeopleRecovery = true;
     else if (arg === '--recover-people-references') { parsed.peopleRecoveryFile = argv[++i]; if (!parsed.peopleRecoveryFile) throw new Error('People recovery scope file is required.'); }
     else if (arg === '--continue-fresh-reset') parsed.continueFreshReset = true;
@@ -82,7 +83,19 @@ function parseArgs(argv) {
   if (parsed.peopleRecoveryFile && (!parsed.freshResetConfig || parsed.continueFreshReset || parsed.helixCleanInit))
     throw new Error('People recovery requires the explicit stopped configuration and cannot be combined with Reset or initialization.');
   if (parsed.continuePeopleRecovery && !parsed.peopleRecoveryFile) throw new Error('People recovery continuation requires its original scope.');
+  if (parsed.verifyOnly && (parsed.apply || !parsed.expectedSha256 || parsed.helixCleanInit || parsed.continueFreshReset || parsed.continuePeopleRecovery))
+    throw new Error('Read-only verification requires SHA-256 and cannot apply or continue a mutation.');
   return parsed;
+}
+
+function healthExpectation({ resetConfiguration, peopleRecoveryScope }) {
+  return { status: resetConfiguration && !peopleRecoveryScope ? 'maintenance' : 'ok', stopped: Boolean(resetConfiguration) };
+}
+function selectVerificationSteps(steps) {
+  const allowed = new Set(['Check image tarball', 'Verify image tarball SHA-256', 'Check compose file',
+    'Verify health', 'Verify Admin Web', 'Verify media mount', 'Verify compose still binds required hosts',
+    'Verify running image tag', 'Verify code comes from image']);
+  return steps.filter(([label]) => allowed.has(label));
 }
 
 function readEnvFile(filePath, key) {
@@ -205,9 +218,9 @@ async function execStep(conn, label, cmd) {
 
 async function main() {
   const { tarball, apply, expectedSha256, helixCleanInit, freshResetConfig, capacityPlan, continueFreshReset,
-    peopleRecoveryFile, continuePeopleRecovery } = parseArgs(process.argv.slice(2));
+    peopleRecoveryFile, continuePeopleRecovery, verifyOnly } = parseArgs(process.argv.slice(2));
   if (!tarball) {
-    console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--helix-clean-init] [--apply]');
+    console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--helix-clean-init] [--apply | --verify-only]');
     process.exit(2);
   }
   const targetImage = imageFromTarball(tarball);
@@ -216,6 +229,7 @@ async function main() {
   const peopleRecoveryScope = peopleRecoveryFile ? require('./nas-people-reference-recovery')
     .recoveryScope(JSON.parse(fs.readFileSync(peopleRecoveryFile, 'utf8'))) : null;
   const yaml = composeYaml(targetImage, resetConfiguration, { coldBootstrap: !peopleRecoveryScope });
+  const expectedHealth = healthExpectation({ resetConfiguration, peopleRecoveryScope });
   const secretEnv = `SHELFDECK_SECRET_ROOT=${secretRoot}\n`;
 
   const steps = [
@@ -276,8 +290,8 @@ async function main() {
       'for i in $(seq 1 180); do',
       'body=$(curl --max-time 5 -fsS http://127.0.0.1:18080/v1/health) || { sleep 5; continue; };',
       'echo "$body";',
-      resetConfiguration ? 'printf "%s" "$body" | grep -q \'"status":"maintenance"\' && printf "%s" "$body" | grep -q \'"normalSupplyAllowed":false\' && exit 0;' :
-        'printf "%s" "$body" | grep -q \'"status":"ok"\' && exit 0;',
+      `printf "%s" "$body" | grep -q '${'"status":"' + expectedHealth.status + '"'}' && ` +
+        (expectedHealth.stopped ? 'printf "%s" "$body" | grep -q \'"normalSupplyAllowed":false\' && ' : '') + 'exit 0;',
       'sleep 5;',
       'done;',
       'exit 1',
@@ -296,7 +310,7 @@ async function main() {
     ['Verify code comes from image', 'docker inspect shelfdeck --format "{{json .Mounts}}" | grep -v "shelfdeck-releases"'],
   ];
 
-  console.log(`ShelfDeck NAS deploy (${apply ? 'APPLY' : 'DRY RUN'})`);
+  console.log(`ShelfDeck NAS deploy (${verifyOnly ? 'VERIFY ONLY' : apply ? 'APPLY' : 'DRY RUN'})`);
   console.log(`compose : ${COMPOSE_FILE}`);
   console.log(`tarball : ${tarball}`);
   console.log(`image   : ${targetImage}`);
@@ -313,7 +327,7 @@ async function main() {
   console.log('qsv     : /dev/dri -> /dev/dri');
   console.log('secret  : env_file secret.env (not printed)');
 
-  if (!apply) {
+  if (!apply && !verifyOnly) {
     console.log('\nCompose to write:\n');
     process.stdout.write(yaml);
     for (const [label, cmd] of steps) {
@@ -353,9 +367,9 @@ async function main() {
       const chmod = await run(conn, `chmod 600 ${shellQuote(SECRET_FILE)}`);
       if (chmod.code !== 0) throw new Error('Protecting secret.env failed');
     }
-    if (!resetConfiguration) await publishConfiguration();
+    if (!resetConfiguration && !verifyOnly) await publishConfiguration();
 
-    for (const [label, cmd] of steps) {
+    for (const [label, cmd] of verifyOnly ? selectVerificationSteps(steps) : steps) {
       if (label === 'Prepare cold Reset management' || label === 'Prepare cold People reference recovery') {
         if (continueFreshReset || continuePeopleRecovery) {
           const expectedSecret = crypto.createHash('sha256').update(secretEnv).digest('hex');
@@ -385,8 +399,8 @@ async function main() {
     conn.end();
   }
 
-  console.log('\nDeploy complete.');
-  if (fs.existsSync(LOCAL_ADMIN_KEY_FILE)) {
+  console.log(verifyOnly ? '\nRead-only deployment verification complete; no production changes.' : '\nDeploy complete.');
+  if (!verifyOnly && fs.existsSync(LOCAL_ADMIN_KEY_FILE)) {
     console.log('Admin API key saved to tests/.env.nas-admin (gitignored).');
   }
 }
@@ -395,4 +409,4 @@ if (require.main === module) main().catch((err) => {
   console.error(`\nDEPLOY BLOCKED: ${err.message}`);
   process.exit(1);
 });
-module.exports = Object.freeze({ parseArgs, composeYaml });
+module.exports = Object.freeze({ parseArgs, composeYaml, healthExpectation, selectVerificationSteps });

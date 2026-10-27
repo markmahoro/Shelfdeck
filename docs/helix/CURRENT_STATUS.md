@@ -1,5 +1,13 @@
 # ShelfDeck 当前状态
 
+2026-10-27 04:51Z生产已恢复供给：Runtime镜像6ad98f1f6（完整git6ad98f1f60f9d7717414caf379ae3fcbd72da394，tar SHA c2c1f834813881899706f63bec425211c14c498318ace0dd084773a4656054f2，NAS image d07b930e5804b1528a43eb2688992996b8eb4087b4397a1fed98c2376759db56）。04:39:06.288Z正式Resume，revision35/running/normalSupplyAllowed=true/error=null。People18登记精确补回；完整当前冷备、238表/Registry原有行保持、691收藏/10保护表、36参考Artifact和39,317来源/正式stat核验通过。按用户追加授权，仅三条本轮冻结任务经线上取消且历史/文件备份保留，无再次Reset；原代际13f保持。新Series3/US4 Run已推进，原Circuit由真实US分析成功closed；6进行中/1演员确认，无新孤儿、Restart0/OOM=false，尚无恢复后的新正式Commit。
+
+本轮运行修复/纠正交付不等于全Phase收口：FORMATION-HISTORICAL-SERIES-PROJECTION仍开放，19旧completed+1 superseded剧集Run的历史展示误用活跃材料执行Reader，重复P14绑定告警；7个新Run可读、Arca收藏证据保持。不得恢复旧责任或加历史包兼容来掩盖。AbortSignal警告53次样本尚无泄漏证据。高达/凡人歌自然验收、人工映射/演员/体积与4K/启动风暴保持原边界；未重建自动观察。完整身份、验证、原失败及健康阶段校验器修正见本轮Evidence最新节；下方停止/未部署为历史检查点。
+
+2026-10-27 最终纠正候选6ad98f1f60f9d7717414caf379ae3fcbd72da394（尚未部署）：Service复验865项/836PASS/29skip/0FAIL；实际Linux25PASS；Windows独立包启动/停止/预检反馈通过；UI负责人36浏览器/28组实际镜像HTTP/4项原生阶段复验通过，7fee原FAIL保留。NAS副本只补18登记、其余238表与Registry旧行不变，36参考Artifact真实可读，完整239表FK/integrity通过。Architecture全量仍在固定clean checkout运行，完成前不apply。生产仍b0/revision34/stopped。
+
+用户追加明确批准：修复上线后仅取消本轮People登记遗漏导致frozen的Arielle Aquinas、Cherie Deville、TTIA-152三条，保留历史及完整当前文件备份，释放占用并等待正常采购。当前重试整理入口只支持Run前准备失败（GET preparation-failures为空），不把它误用在Run frozen。先前“三条使用现有重试入口”是尚未核实的计划，现按真实Owner入口更正；不改库解冻、不再次Reset、不扩大取消范围。
+
 2026-10-27 RESET-PEOPLE-REFERENCE-CLOSURE修复候选（未部署）：People公开声明图片/embedding两条必选Artifact边；预检、保留库验证及protectedSummary增加People参考事实/登记/真实Image Port读取核验，缺失、错属、摘要变化、文件损坏明确拒绝。独立保留依赖纠正工具只从原完成Reset回执绑定的完整档案恢复仍被当前People要求的缺失embedding登记，精确数量/Handle及参考事实摘要绑定；已有不同登记不覆盖。先完整备份当前停止态，再在全量副本补回原始行，239表除Registry允许18行之外逐表摘要完全不变，旧失败和新采购历史保持。双备份验真、原生生命周期租约、已完成Stop revision、独占挂载和原子切换journal均接标准deploy；原Reset marker/回执不改写，恢复后仍stopped，原请求可续跑。原档案在Operator容器中额外只读挂载，工作目录与原档案重叠在停机前拒绝。Windows/Docker均已列入新脚本。
 
 本轮增量验证：完整Service862/833PASS/29skip/0FAIL（concurrency4、原90秒断言未放宽）；受影响Reset/Supervisor138PASS；最新People原生Handle/端口/缺失源/物理文件/错属/新事实保护/备份及Stop/lease/切换中断/重放11PASS；标准NAS控制器含旧Bootstrap11PASS。首轮policy夹具修改frozen对象、冷工具函数泄露临时环境及Compose断言路径错误均保留日志后修正；SSOT source-map首轮drift已重新生成，capability138/result117/table239/transaction62未改变。完整固定候选Architecture、Linux实际镜像和NAS生产副本纠正资格仍待完成；生产仍b0c32d0e9、stopped/revision34，无生产登记恢复/再次Reset/新Resume。
