@@ -7,7 +7,6 @@ const { formationProjectionDigest } = require('../model/formation-projection-con
 const { buildFormationProcessDetail, currentPlanSummary } = require('./formation-process-projection');
 
 const { createMovieProductionReader } = require('../persistence/movie-production-reader');
-const { frozenSeriesSeasonNumber } = require('../model/series-identity-contracts');
 const { routingPreparationReadiness } = require('../model/routing-readiness');
 
 const PAGE_SIZE = 100;
@@ -478,10 +477,7 @@ function createFormationProjectionSource(options) {
   function seriesDelivery(subject, run) {
     if (subject.content_profile !== 'series' || !run) return null;
     productionReader ||= createMovieProductionReader(options);
-    const snapshot = productionReader.readRunSnapshot(run.libra_run_id);
-    return Object.freeze({ libraRunId:run.libra_run_id, seasonNumber:frozenSeriesSeasonNumber(snapshot),
-      episodeKeys:Object.freeze(snapshot.episodeClaims.map(claim=>claim.episodeKey)),
-      physicalFileCount:snapshot.members.filter(member=>member.role === 'primary_payload').length });
+    return productionReader.readDeliveryPresentation(run.libra_run_id);
   }
   const repository = createRepositoryDefinition({ repositoryId: 'libra_formation_query', owner: 'libra', schemaManifest: options.schemaManifest, statements: {
     find_cancellations:{kind:'select-in',tableId:'libra_task_cancellations',keyColumn:'subject_id',maxItems:PAGE_SIZE,columns:['subject_id','state']},

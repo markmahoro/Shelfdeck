@@ -16,6 +16,29 @@ test('a recovered normal stopped Host must report ok with supply disabled, rathe
   assert.deepEqual(healthExpectation({ resetConfiguration: configuration, peopleRecoveryScope: scope }), { status: 'ok', stopped: true });
   assert.deepEqual(healthExpectation({ resetConfiguration: configuration }), { status: 'maintenance', stopped: true });
   assert.deepEqual(healthExpectation({}), { status: 'ok', stopped: false });
+  assert.deepEqual(healthExpectation({ resetConfiguration: configuration, runtimeResetConfig: 'config.json' }), { status: 'ok', stopped: true });
+});
+
+test('ordinary upgrades preserve the runtime Reset configuration without bootstrapping or recovering data', () => {
+  const args=['shelfdeck-candidate.tar','--sha256','1'.repeat(64),'--capacity-plan','capacity.json','--runtime-reset-config','runtime.json'];
+  assert.equal(parseArgs(args).runtimeResetConfig,'runtime.json');
+  for(const extra of [['--helix-clean-init'],['--fresh-reset-config','fresh.json'],['--recover-people-references','scope.json'],['--continue-fresh-reset']])
+    assert.throws(()=>parseArgs([...args,...extra]));
+  assert.throws(()=>parseArgs(['shelfdeck-candidate.tar','--runtime-reset-config','runtime.json']));
+  assert.doesNotMatch(composeYaml('shelfdeck:candidate',configuration,{coldBootstrap:false}),/RESET_BOOTSTRAP_FILE/);
+});
+
+test('the actual ordinary upgrade dry run retains Reset management and selects normal readiness only', t => {
+  const fs=require('node:fs'),path=require('node:path'),os=require('node:os'),{execFileSync}=require('node:child_process');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'stopped-deploy-config-'));
+  t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
+  const file=path.join(root,'config.json');fs.writeFileSync(file,JSON.stringify(configuration));
+  const output=execFileSync(process.execPath,[path.resolve(__dirname,'../scripts/deploy-nas.js'),'shelfdeck-candidate.tar',
+    '--sha256','1'.repeat(64),'--capacity-plan','capacity.json','--runtime-reset-config',file],
+    {encoding:'utf8',env:{...process.env,SHELFDECK_SECRET_ROOT:'isolated-stopped-upgrade-contract-test-only'}});
+  assert.match(output,/SHELFDECK_RESET_CONFIG_FILE=/);assert.match(output,/Helix runtime readiness/);
+  assert.doesNotMatch(output,/SHELFDECK_RESET_BOOTSTRAP_FILE|Prepare cold Reset management|Prepare cold People reference recovery/);
+  assert.match(output,/"status":"ok"/);assert.match(output,/"normalSupplyAllowed":false/);
 });
 
 test('read-only completion cannot replay backup, recovery, configuration publication or container recreation', () => {

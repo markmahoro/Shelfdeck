@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+当前实施FORMATION-HISTORICAL-SERIES-PROJECTION：GET formation?section=completed&limit=25真实500/correlation6653edf9-bf3b-4803-838f-d485fe2cf406；active/ended/care/corrections均200。历史seriesDelivery误读执行Snapshot，阻断页面合并列表。展示改为同Owner不可变事实读取，不授予权限、不恢复旧Control、不弱化Execution Reader；以正式Commit后撤去Related当前资格的真实隔离Host复现，补冻结身份/来源/claims篡改负例、NAS停止态副本与具体版本UI，随后标准发布并恢复供给。现生产继续运行，不再次Reset。
+
 2026-10-27 04:51Z生产已恢复供给：Runtime镜像6ad98f1f6（完整git6ad98f1f60f9d7717414caf379ae3fcbd72da394，tar SHA c2c1f834813881899706f63bec425211c14c498318ace0dd084773a4656054f2，NAS image d07b930e5804b1528a43eb2688992996b8eb4087b4397a1fed98c2376759db56）。04:39:06.288Z正式Resume，revision35/running/normalSupplyAllowed=true/error=null。People18登记精确补回；完整当前冷备、238表/Registry原有行保持、691收藏/10保护表、36参考Artifact和39,317来源/正式stat核验通过。按用户追加授权，仅三条本轮冻结任务经线上取消且历史/文件备份保留，无再次Reset；原代际13f保持。新Series3/US4 Run已推进，原Circuit由真实US分析成功closed；6进行中/1演员确认，无新孤儿、Restart0/OOM=false，尚无恢复后的新正式Commit。
 
 本轮运行修复/纠正交付不等于全Phase收口：FORMATION-HISTORICAL-SERIES-PROJECTION仍开放，19旧completed+1 superseded剧集Run的历史展示误用活跃材料执行Reader，重复P14绑定告警；7个新Run可读、Arca收藏证据保持。不得恢复旧责任或加历史包兼容来掩盖。AbortSignal警告53次样本尚无泄漏证据。高达/凡人歌自然验收、人工映射/演员/体积与4K/启动风暴保持原边界；未重建自动观察。完整身份、验证、原失败及健康阶段校验器修正见本轮Evidence最新节；下方停止/未部署为历史检查点。

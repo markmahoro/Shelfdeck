@@ -736,18 +736,24 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   assert.equal(sourceWork?.state,'succeeded',JSON.stringify(state.works));
   const sourceSnapshot=createMovieProductionReader({schemaManifest,unitOfWork}).readRunSnapshot(state.runs[0].libra_run_id);
   if (episodeCount === 2 && !append && !anchored && !mixed && !bounded && !migrate && !repair && !multiSeason && !external && !real && !manualIdentity) {
-    let intakeReads = 0, mutation = null, firstIntake = null;
+    let intakeReads = 0, authorityReads = 0, mutation = null, firstIntake = null;
     const observedUnitOfWork = { execute(participants) {
       return unitOfWork.execute(participants.map(participant => ({ ...participant, execute(context) {
         return participant.execute({ ...context, repository(id) {
           const repository = context.repository(id);
           return { invoke(statement, values) {
+            if(statement==='list_bindings')authorityReads++;
             let result = statement === 'find_intake' && values.intake_decision_id === 'second-intake'
               ? { ...firstIntake } : repository.invoke(statement, values);
             if (statement === 'find_intake') {
               intakeReads += 1;
               firstIntake = result;
               if (mutation === 'delivery') result = { ...result, candidate_delivery_snapshot_json:'{}' };
+              if (mutation === 'season') {
+                const delivery=JSON.parse(result.candidate_delivery_snapshot_json);
+                delivery.candidatePackage.identityClaim.seasonClaim.seasonNumber+=1;
+                result={...result,candidate_delivery_snapshot_json:JSON.stringify(delivery)};
+              }
               if (mutation === 'different-package' && values.intake_decision_id === 'second-intake') {
                 const delivery = JSON.parse(result.candidate_delivery_snapshot_json);
                 delivery.candidatePackage.displayIdentity = 'Different package';
@@ -760,6 +766,8 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
               index === 1 ? { ...row, origin_offer_id:'foreign-offer' } : row);
             if (statement === 'list_members' && mutation === 'primary') result = result.map((row, index) =>
               index === 1 ? { ...row, location:'foreign-location' } : row);
+            if(statement==='list_claims'&&mutation==='episode')result=result.map((row,index)=>index===0?{...row,episode_key:'E999'}:row);
+            if(statement==='find_run'&&mutation==='subject')result={...result,subject_id:'foreign-subject'};
             return result;
           } };
         } });
@@ -770,18 +778,32 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     assert.equal(intakeReads, 1, 'A shared accepted Handoff A is read once within one snapshot.');
     reader.readRunSnapshot(state.runs[0].libra_run_id);
     assert.equal(intakeReads, 2, 'A later snapshot must read current persisted facts again.');
+    const priorAuthorityReads=authorityReads;
+    assert.deepEqual(reader.readDeliveryPresentation(state.runs[0].libra_run_id),{libraRunId:state.runs[0].libra_run_id,
+      seasonNumber:initialSeason,episodeKeys:sourceSnapshot.episodeClaims.map(item=>item.episodeKey),physicalFileCount:sources.length});
+    assert.equal(authorityReads,priorAuthorityReads,'Presentation must not read current execution qualifications');
     mutation = 'origin';
     assert.throws(() => reader.readRunSnapshot(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
+    assert.throws(() => reader.readDeliveryPresentation(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
     mutation = 'primary';
     assert.throws(() => reader.readRunSnapshot(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_PRIMARY_DRIFT' });
+    assert.throws(() => reader.readDeliveryPresentation(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_PRIMARY_DRIFT' });
     mutation = 'delivery';
     assert.throws(() => reader.readRunSnapshot(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
+    assert.throws(() => reader.readDeliveryPresentation(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
     mutation = 'different-intake';
     intakeReads = 0;
     reader.readRunSnapshot(state.runs[0].libra_run_id);
     assert.equal(intakeReads, 2, 'Distinct Intake decisions must be read and compared independently.');
     mutation = 'different-package';
     assert.throws(() => reader.readRunSnapshot(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
+    assert.throws(() => reader.readDeliveryPresentation(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
+    mutation='episode';
+    assert.throws(()=>reader.readDeliveryPresentation(state.runs[0].libra_run_id),{code:'P14_MOVIE_PRODUCTION_EPISODE_DRIFT'});
+    mutation='subject';
+    assert.throws(()=>reader.readDeliveryPresentation(state.runs[0].libra_run_id),{code:'P14_MOVIE_PRODUCTION_RUN_DRIFT'});
+    mutation='season';
+    assert.throws(()=>reader.readDeliveryPresentation(state.runs[0].libra_run_id),/exact frozen/);
   }
   const directWork=state.works.find(work=>work.work_id.startsWith('libra-workspace-media-direct_selection-work-'));
   assert.equal(directWork?.state,'succeeded',JSON.stringify({works:state.works,events:db.prepare(
@@ -1111,6 +1133,36 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   const formationSubject=db.prepare('SELECT subject_id FROM libra_runs WHERE libra_run_id=?').get(state.runs[0].libra_run_id).subject_id;
   const formationDetail=JSON.parse((await request('GET','/v1/admin/formation/'+formationSubject)).body);
   assert.deepEqual(formationDetail.seriesDelivery,{libraRunId:state.runs[0].libra_run_id,seasonNumber:initialSeason,episodeKeys,physicalFileCount:physicalCount});
+  if(sourcePoster){
+    const stopped=await request('POST','/v1/admin/runtime/actions/stop',{idempotencyKey:'historical-presentation-stop'});
+    assert.equal(stopped.statusCode,202);
+    const until=Date.now()+30000;
+    while((await request('GET','/v1/admin/runtime')).json().mode!=='stopped'){
+      assert.ok(Date.now()<until,'Historical display fixture must stop writers first');
+      await new Promise(resolve=>setTimeout(resolve,25));
+    }
+    const runId=state.runs[0].libra_run_id,subjectId=state.runs[0].subject_id;
+    const prior=db.prepare("SELECT material_key,binding_revision,current FROM libra_material_bindings WHERE subject_id=? AND authority_kind='related_derived'").all(subjectId);
+    assert.ok(prior.some(row=>row.current===1),'This native fixture must have a real Related authority');
+    // Only this disposable fixture loses current execution qualification.
+    // Accepted inputs, Run Manifest, formal media and Commit remain intact.
+    const mutation=new Database(path.join(dataDir,'shelfdeck.db'));
+    mutation.prepare("UPDATE libra_material_bindings SET current=0 WHERE subject_id=? AND authority_kind='related_derived'").run(subjectId);
+    try{
+      const production=createMovieProductionReader({schemaManifest,unitOfWork});
+      assert.throws(()=>production.readRunSnapshot(runId),{code:'P14_MOVIE_PRODUCTION_RELATED_BINDING_DRIFT'});
+      const detail=await request('GET','/v1/admin/formation/'+subjectId);
+      assert.deepEqual(detail.json().seriesDelivery,formationDetail.seriesDelivery);
+      const completed=await request('GET','/v1/admin/formation?section=completed&limit=25');
+      assert.deepEqual(completed.json().items.find(item=>item.subjectId===subjectId).seriesDelivery,formationDetail.seriesDelivery);
+      assert.equal(db.prepare("SELECT count(*) n FROM libra_material_bindings WHERE subject_id=? AND authority_kind='related_derived' AND current=1").get(subjectId).n,0);
+      assert.equal((await request('GET','/v1/admin/runtime')).json().mode,'stopped');
+    }finally{
+      for(const row of prior)mutation.prepare('UPDATE libra_material_bindings SET current=? WHERE subject_id=? AND material_key=? AND binding_revision=?')
+        .run(row.current,subjectId,row.material_key,row.binding_revision);
+      mutation.close();
+    }
+  }
   assert.equal(collection.length,1);
   if(browserFlow)await browserFlow.verifyCollection(collection[0]);
   assert.equal(collection[0].series.seasonNumber,initialSeason);

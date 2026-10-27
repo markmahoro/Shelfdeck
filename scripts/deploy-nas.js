@@ -60,6 +60,7 @@ function parseArgs(argv) {
     const arg = argv[i];
     if (arg === '--apply') parsed.apply = true;
     else if (arg === '--verify-only') parsed.verifyOnly = true;
+    else if (arg === '--runtime-reset-config') { parsed.runtimeResetConfig = argv[++i]; if (!parsed.runtimeResetConfig) throw new Error('Runtime Reset configuration file is required.'); }
     else if (arg === '--continue-people-reference-recovery') parsed.continuePeopleRecovery = true;
     else if (arg === '--recover-people-references') { parsed.peopleRecoveryFile = argv[++i]; if (!parsed.peopleRecoveryFile) throw new Error('People recovery scope file is required.'); }
     else if (arg === '--continue-fresh-reset') parsed.continueFreshReset = true;
@@ -79,6 +80,9 @@ function parseArgs(argv) {
   }
   if (parsed.freshResetConfig && (parsed.helixCleanInit || !parsed.expectedSha256 || !parsed.capacityPlan))
     throw new Error('Fresh Reset deployment requires SHA-256 and capacity plan, and cannot initialize clean data.');
+  if (parsed.runtimeResetConfig && (parsed.freshResetConfig || parsed.helixCleanInit || parsed.peopleRecoveryFile ||
+      parsed.continueFreshReset || parsed.continuePeopleRecovery || !parsed.expectedSha256 || !parsed.capacityPlan))
+    throw new Error('Ordinary stopped upgrades require SHA-256 and capacity, and cannot run Reset or dependency recovery.');
   if (parsed.continueFreshReset && !parsed.freshResetConfig) throw new Error('Cold continuation requires explicit Fresh Reset configuration.');
   if (parsed.peopleRecoveryFile && (!parsed.freshResetConfig || parsed.continueFreshReset || parsed.helixCleanInit))
     throw new Error('People recovery requires the explicit stopped configuration and cannot be combined with Reset or initialization.');
@@ -88,8 +92,8 @@ function parseArgs(argv) {
   return parsed;
 }
 
-function healthExpectation({ resetConfiguration, peopleRecoveryScope }) {
-  return { status: resetConfiguration && !peopleRecoveryScope ? 'maintenance' : 'ok', stopped: Boolean(resetConfiguration) };
+function healthExpectation({ resetConfiguration, peopleRecoveryScope, runtimeResetConfig }) {
+  return { status: resetConfiguration && !peopleRecoveryScope && !runtimeResetConfig ? 'maintenance' : 'ok', stopped: Boolean(resetConfiguration) };
 }
 function selectVerificationSteps(steps) {
   const allowed = new Set(['Check image tarball', 'Verify image tarball SHA-256', 'Check compose file',
@@ -218,18 +222,19 @@ async function execStep(conn, label, cmd) {
 
 async function main() {
   const { tarball, apply, expectedSha256, helixCleanInit, freshResetConfig, capacityPlan, continueFreshReset,
-    peopleRecoveryFile, continuePeopleRecovery, verifyOnly } = parseArgs(process.argv.slice(2));
+    peopleRecoveryFile, continuePeopleRecovery, verifyOnly, runtimeResetConfig } = parseArgs(process.argv.slice(2));
   if (!tarball) {
     console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--helix-clean-init] [--apply | --verify-only]');
     process.exit(2);
   }
   const targetImage = imageFromTarball(tarball);
   const secretRoot = loadOrCreateSecretRoot({ allowCreate: helixCleanInit });
-  const resetConfiguration = freshResetConfig ? require('./nas-reset-bootstrap').configurationForNas(JSON.parse(fs.readFileSync(freshResetConfig, 'utf8'))) : null;
+  const configurationFile = freshResetConfig || runtimeResetConfig;
+  const resetConfiguration = configurationFile ? require('./nas-reset-bootstrap').configurationForNas(JSON.parse(fs.readFileSync(configurationFile, 'utf8'))) : null;
   const peopleRecoveryScope = peopleRecoveryFile ? require('./nas-people-reference-recovery')
     .recoveryScope(JSON.parse(fs.readFileSync(peopleRecoveryFile, 'utf8'))) : null;
-  const yaml = composeYaml(targetImage, resetConfiguration, { coldBootstrap: !peopleRecoveryScope });
-  const expectedHealth = healthExpectation({ resetConfiguration, peopleRecoveryScope });
+  const yaml = composeYaml(targetImage, resetConfiguration, { coldBootstrap: Boolean(freshResetConfig) && !peopleRecoveryScope });
+  const expectedHealth = healthExpectation({ resetConfiguration, peopleRecoveryScope, runtimeResetConfig });
   const secretEnv = `SHELFDECK_SECRET_ROOT=${secretRoot}\n`;
 
   const steps = [
@@ -269,7 +274,7 @@ async function main() {
           '--confirm',
           CLEAN_INIT_CONFIRM,
         ].join(' ')]]
-      : resetConfiguration ? [[peopleRecoveryScope ? 'Prepare cold People reference recovery' : 'Prepare cold Reset management',
+      : freshResetConfig ? [[peopleRecoveryScope ? 'Prepare cold People reference recovery' : 'Prepare cold Reset management',
         'Explicit stopped deployment proof and verified backup; no automatic Resume.']] : [['Helix runtime readiness', [
           'docker run --rm',
           `--env-file ${shellQuote(SECRET_FILE)}`,
@@ -367,7 +372,7 @@ async function main() {
       const chmod = await run(conn, `chmod 600 ${shellQuote(SECRET_FILE)}`);
       if (chmod.code !== 0) throw new Error('Protecting secret.env failed');
     }
-    if (!resetConfiguration && !verifyOnly) await publishConfiguration();
+    if ((!resetConfiguration || runtimeResetConfig) && !verifyOnly) await publishConfiguration();
 
     for (const [label, cmd] of verifyOnly ? selectVerificationSteps(steps) : steps) {
       if (label === 'Prepare cold Reset management' || label === 'Prepare cold People reference recovery') {

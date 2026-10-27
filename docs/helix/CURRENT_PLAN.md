@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-27 当前执行FORMATION-HISTORICAL-SERIES-PROJECTION：生产真实completed列表500已复现，其余四个工作区数据入口正常。修正Libra不可变展示读取与当前执行资格的边界，保留执行强校验；完成真实Host/缺权限/冻结证据负例、具体UI与固定候选资格后沿标准停止态备份发布，不再次Reset或改生产任务。
+
 本轮部署、Fresh Reset、People闭包纠正及恢复供给已执行并核验，新Series/US实际推进；生产保持running，不再Reset或重建观察。FORMATION-HISTORICAL-SERIES-PROJECTION作为明确未关闭项承接：历史展示读取不可变事实，不恢复旧在途责任，不弱化执行Reader。Actor/Provider映射/体积由用户决定，高达/凡人歌等待自然采购；不宣称整体Phase Exit。详见最新Status/Evidence。
 
 当前追加工作项RESET-PEOPLE-REFERENCE-CLOSURE：根因修复、精确保留事实纠正及保护负例已实现，完成固定候选全量/平台/NAS资格后，按既有恢复目标部署并补回18条原登记，核验新事实与收藏保护，按用户追加授权仅取消这3条技术失败并保留历史，等待正常重采，再Resume验证真实新流程。生产保持停止，不再次Reset或增加日常兼容分支。

@@ -973,3 +973,11 @@ Service 固定 e6 849 项：820 PASS/29 skip/0 FAIL；新增实际 Linux 23 PASS
 
 
 最终交付前补样：04:56:17Z三条获准取消项均Subject abandoned/Run discarded revision4，旧token0/旧Libra Control0/收藏691，readonly total_changes0。04:57:02Z Runtime仍running/normalSupplyAllowed=true/error=null；Libra新Work succeeded213，新Series3/US4 active，当前6进行中/1演员确认，Event末2000样本内无本次Resume后失败，Circuit仍closed，18 embedding登记无缺，无新孤儿，尚无新的正式Commit。新Run真实Owner Reader7/7可读，旧失败实际为19 completed+1 superseded，共20个历史Run，前述口头“19旧终态”只覆盖completed数量。Root部署工具修正与发布记录提交1a24f7d58934fc5b1f3b0daacc94ed02725626ee，仅部署工具/测试/文档，不改变已验收运行镜像6ad98f1f6；本次不再部署、不重建观察。
+
+## 2026-10-27 工作区泛化500的真实复现与读取边界修正
+
+用户再次报告媒体整理工作区Clean Service请求处理失败。05:10Z只读核验：runtime/active/ended/care/corrections均200，GET /v1/admin/formation?section=completed&limit=25为500，correlation6653edf9-bf3b-4803-838f-d485fe2cf406。页面all同时读取多个入口，已完成列表500可在进行中数据仍可见时显示横幅；不是新增一个失败媒体，也不能以health200判定页面正常。
+
+原seriesDelivery使用生产执行readRunSnapshot读取展示；该Reader正确要求当前Related authority，Fresh Reset则按合同已撤去旧责任。当前修改共用原不可变输入验真内核，另提供只返回既有seriesDelivery DTO的readDeliveryPresentation；列表/详情统一使用该展示端口，不按版本/Run状态回退，不补旧绑定，不授予执行权。readRun/readRunSnapshot的当前权限校验和错误保持。展示仍严格校验Run/Spec/Manifest/Accepted来源、Primary、Episode声明与本地Season，不用当前Head填历史。
+
+真实隔离Host先完成2集正式Commit，再停止写入并仅在夹具中撤去当前Related资格；原生产Reader拒绝不变，历史详情及completed列表从500转200，未恢复资格、未启动任务。首跑夹具错误使用只读DB写入，未触发目标缺陷；修正夹具连接后真实500红例和修复后的绿例都保留。相关26项投影测试、两条Native Host（含来源/Primary/Episode/Subject/Season负例）及18项部署控制器资格通过。生产尚未发布，后续固定版本完整门禁/UI/NAS证据待追加。

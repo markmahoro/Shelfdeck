@@ -2,6 +2,8 @@
 
 ## 2026-10-27 停止态纠正后的只读发布复核
 
+普通软件升级若已配置Fresh Reset管理，使用`--runtime-reset-config <原配置或本次明确作业配置>`保留该管理入口；同时指定SHA与两卷容量计划。它走正常readiness与Compose升级，普通停止态health为ok/供给关闭，不执行Bootstrap、Reset、依赖纠正或自动Resume，不能与对应变更选项混用。旧进程安全Stop、关闭连接后的完整恢复备份仍须先完成，使用同一`prepareNasStoppedBackup`包装；资格副本和实际发布分别记证，不能把配置保留参数当成数据处理授权。
+
 Fresh Reset Bootstrap冷态管理的health为`maintenance/normalSupplyAllowed=false`；People依赖纠正完成后启动的是普通停止态Host，正确health为`ok/normalSupplyAllowed=false`。标准deploy按实际Host类型核对，不能把后者误判为未启动，也不能只以HTTP200通过。
 
 已完成数据库发布而最终只读校验中断时，可在原tar、SHA、配置与scope参数后使用`--verify-only`，仅运行精确白名单中的tar校验、Compose验证、health、Admin Web、挂载和镜像检查，不上传配置、加载镜像、执行备份/纠正、重建容器或Resume。它要求SHA，拒绝`--apply`及继续变更选项。先前变更仍以原回执为准；该模式不重新宣称数据纠正或Reset已执行。每个首次失败及补验结果须独立保留。
