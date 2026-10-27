@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-27 06:34:51Z补充最终有限样本：a2bf2d6fd仍running/revision37，前端真实五入口及health/runtime均200。工作区11进行中/10 attention；原8条保持，新增《啊，荒野》前篇/后篇2条“暂未找到匹配的媒体身份”（Run active，尚无身份修订），不能自动认定为执行器故障或代选身份。694收藏/原保护结论保持，未再次Reset。本次部署核验结束，不创建自动观察。
+
 2026-10-27 06:31Z FORMATION-HISTORICAL-SERIES-PROJECTION已上线验收收口：markmahoro/shelfdeck:a2bf2d6fd，git a2bf2d6fd3271dc3a3741e28ed42f533a59d99d4，tar SHA256 cfe80143a74bba30f3cb92c9db4f3a03017701358cf8424fa81ce3b3a1770c03，NAS image sha256:894a07fd5c178536bebecc4d3dfb3951c9d225d217c62c2c2db2c49f8f4696df。原completed列表500变为200，19个历史剧集详情及前端真实五类列表入口均200。06:25:06.105Z正式Resume完成，running/revision37/normalSupplyAllowed=true/error=null。完整当前冷备507文件/10,898,810,820字节通过；694收藏、12组保护表及39,346路径stat保持，239表完整FK/integrity通过，236表逐行一致，另3表仅精确核验的既有启动投影/设备探测变化。原Reset代际/屏障保持，没有再次Reset、People纠正、取消任务、清理媒体或重建观察。恢复后Procurement与Libra实际推进，无新孤儿/重启/OOM；原有8条attention身份与原因保持（5个共享剧资料恢复冲突、2个frozen Series、1演员确认），整体业务仍有开放项，不能称全Phase通过。首跑EPERM及其他资格/辅助审计失败保留，见最新Evidence。
 
 2026-10-27 06:03Z FORMATION-HISTORICAL-SERIES-PROJECTION发布中：固定a2bf2d6fd已完成适用Service/Windows/Linux/真实Host/NAS只读/UI资格。Architecture首轮3381PASS/1 EPERM/26skip，失败场景原断言两次及整个文件7PASS复验通过，未记首跑全绿，瞬时EPERM原因未证实。原位普通升级不执行Reset/Bootstrap/People纠正。正式Stop revision36/quiesced/所有inFlight0/error=null；停机前694收藏及12组保护摘要、39,346路径stat已取样，完整冷备正在校验。生产镜像仍6ad98f1f6，未部署a2bf、未Resume。
