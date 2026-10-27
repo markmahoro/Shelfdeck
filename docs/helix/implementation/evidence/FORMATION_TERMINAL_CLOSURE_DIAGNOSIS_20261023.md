@@ -970,3 +970,6 @@ Service 固定 e6 849 项：820 PASS/29 skip/0 FAIL；新增实际 Linux 23 PASS
 仍开放FORMATION-HISTORICAL-SERIES-PROJECTION：启动及运行日志重复P14_MOVIE_PRODUCTION_RELATED_BINDING_DRIFT（04:45Z后Resume日志样本67次）；真实只读Owner Reader定位全部7个当前新Run可读，19个旧completed Series Run及1个superseded Run失败。Formation seriesDelivery当前使用生产执行Reader，需要活跃Related authority；Reset已按合同清掉旧非收藏责任，历史展示不能继续借用当前执行资格。未恢复旧Control、未补旧authority、未削弱执行校验；后续应从不可变历史事实构造展示，保留本项开放。691 Arca收藏事实及完整证据核验通过不等于Libra历史详情展示也已修复，不能将整体Phase判Exit或宣称零缺陷。
 
 另观察到本容器Resume后53次AbortSignal监听器警告（04:45Z样本），当前未证明泄漏；现有内存样本含页缓存，不能跨不同采样法声称性能改善。4K忙载吞吐、启动风暴继续延后。高达/凡人歌自然生产入藏验收、未确认Provider季集映射及人工演员/体积决定仍各自开放。未恢复已取消的定时观察，未新增Git release tag。
+
+
+最终交付前补样：04:56:17Z三条获准取消项均Subject abandoned/Run discarded revision4，旧token0/旧Libra Control0/收藏691，readonly total_changes0。04:57:02Z Runtime仍running/normalSupplyAllowed=true/error=null；Libra新Work succeeded213，新Series3/US4 active，当前6进行中/1演员确认，Event末2000样本内无本次Resume后失败，Circuit仍closed，18 embedding登记无缺，无新孤儿，尚无新的正式Commit。新Run真实Owner Reader7/7可读，旧失败实际为19 completed+1 superseded，共20个历史Run，前述口头“19旧终态”只覆盖completed数量。Root部署工具修正与发布记录提交1a24f7d58934fc5b1f3b0daacc94ed02725626ee，仅部署工具/测试/文档，不改变已验收运行镜像6ad98f1f6；本次不再部署、不重建观察。
