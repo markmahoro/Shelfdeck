@@ -312,6 +312,8 @@ secondary_target结构发布的离线回退由`media-service/src/helix/foundatio
 
 ### Fresh Reset 发布前恢复基线（2026-10-27）
 
+People保留依赖纠正沿用标准build/upload/deploy入口：在正常停止证明与全量当前备份的基础上，显式提供 `--recover-people-references <scope.json>`、`--fresh-reset-config <job.json>`、SHA及两卷容量计划。此模式保留Runtime Reset配置但不创建另一轮Bootstrap/Reset，补回登记在完整隔离库通过真实People端口和全库事实保护核验后才原子发布。原档案必须绑定现有完成Reset回执，scope限定精确缺失Handle集合、数量和参考事实摘要；不能覆盖已存在的不同登记。切换前后的持久阶段和原库副本保留，`--continue-people-reference-recovery`只能复用原关闭/备份/请求，不补造新Stop或丢弃新任务。任何阶段失败不启动业务；成功先以stopped Host核验，再按用户授权Resume。该纠正不重写旧Reset回执，不迁移媒体、不重新选图或清除本轮新采购。
+
 `--fresh-reset-config` 明确要求完成 Runtime Stop，独占 data 与 transcode 挂载、退出并移除旧容器后，以只读源挂载运行 `formation-reset-deployment-backup.js`。配置需列出 `/app/data`、`/transcode` 两个来源，历史档案排除必须有审阅 inventory digest。原 Compose、secret.env 及存在的 reset-config.json 精确暂存并加入完整校验备份；不扫描整个 Compose 父目录，不打印密钥。确认备份 receipt 后才覆盖线上配置、准备冷态管理入口；失败保持停止、原配置不发布。部署前恢复基线和 Reset 自身备份位于各自独立目标，均不可递归包含旧备份。
 
 容量计划必须包含两次完整备份、数据库重建/资格副本、镜像装载与按卷余量。部署前容量检查不计未获准删除的空间；停止后仍需 Reset 预检按实际大小重算。当前仅完成隔离资格不授权生产操作。若部署准备在旧容器移除后中断，保留 closure/request/manifest/partial 文件及原配置，按具体阶段核验后继续或申请恢复；不能自动重启旧业务服务，也不能用重跑覆盖失败现场。

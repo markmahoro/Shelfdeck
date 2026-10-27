@@ -1,5 +1,35 @@
 # ShelfDeck 当前状态
 
+2026-10-27 RESET-PEOPLE-REFERENCE-CLOSURE修复候选（未部署）：People公开声明图片/embedding两条必选Artifact边；预检、保留库验证及protectedSummary增加People参考事实/登记/真实Image Port读取核验，缺失、错属、摘要变化、文件损坏明确拒绝。独立保留依赖纠正工具只从原完成Reset回执绑定的完整档案恢复仍被当前People要求的缺失embedding登记，精确数量/Handle及参考事实摘要绑定；已有不同登记不覆盖。先完整备份当前停止态，再在全量副本补回原始行，239表除Registry允许18行之外逐表摘要完全不变，旧失败和新采购历史保持。双备份验真、原生生命周期租约、已完成Stop revision、独占挂载和原子切换journal均接标准deploy；原Reset marker/回执不改写，恢复后仍stopped，原请求可续跑。原档案在Operator容器中额外只读挂载，工作目录与原档案重叠在停机前拒绝。Windows/Docker均已列入新脚本。
+
+本轮增量验证：完整Service862/833PASS/29skip/0FAIL（concurrency4、原90秒断言未放宽）；受影响Reset/Supervisor138PASS；最新People原生Handle/端口/缺失源/物理文件/错属/新事实保护/备份及Stop/lease/切换中断/重放11PASS；标准NAS控制器含旧Bootstrap11PASS。首轮policy夹具修改frozen对象、冷工具函数泄露临时环境及Compose断言路径错误均保留日志后修正；SSOT source-map首轮drift已重新生成，capability138/result117/table239/transaction62未改变。完整固定候选Architecture、Linux实际镜像和NAS生产副本纠正资格仍待完成；生产仍b0c32d0e9、stopped/revision34，无生产登记恢复/再次Reset/新Resume。
+
+2026-10-27 01:48Z 新生产回归阻断（覆盖上方/下方恢复成功检查点）：恢复后3个新US任务均frozen，失败码PEOPLE_IMAGE_ARTIFACT_CHANGED。只读前后对比证实：Reset前18个active people_reference_faces均有active embedding Artifact，Reset后这18条Registry行缺失；图片Artifact仍18条正常。Owner保留策略只声明people_reference_assets.artifact_handle_id，遗漏people_reference_faces.embedding_handle_id，而原库没有People fx_artifact_references记录，FK检查无法发现该opaque引用遗漏。18个物理特征文件/48,996字节SHA全部与原备份一致，691收藏保护仍通过。此为本轮Reset缺陷，不能记为全面恢复正常或业务待确认。01:44:55.318Z正式Stop完成：revision34/stopped/quiesced/所有inFlight0/error=null，operation3b4ac11e5c4270be038b2540c5bdaf0b36202866bc3192b546029d005d046133。继续补People所需的必选Artifact闭包和负例验证，并准备从校验备份精确恢复18条登记的停止态副本方案；不再次清空已生成的新任务，不直接编辑运行库，不重建自动观察。修复及恢复后仍须正常Resume与真实新任务验证，目标尚未完成。
+
+2026-10-27 01:37Z恢复后第五份有限样本：五来源仍可读、JAV/US完整新扫描已完成，国产剧/剧集/电影继续推进；已自然生成691个western_adult新包，API为3进行中/0 attention，Libra身份、依据、接纳和一次媒体生产已有真实成功，当前691收藏/0个本次新Commit，无新孤儿。01:38Z Restart0/OOM=false，vol1实际可用19,065,085,952、vol2 335,631,990,784字节。最新新容器日志累计66次AbortSignal警告；同一cgroup样本memory.current4,939,501,568、扣除inactive_file2,839,191,552、anon382,468,096字节，oom计数0；不同指标不作性能改善或泄漏结论。未扩展4K吞吐/启动风暴实施，不重建自动观察；自然入藏与人工确认项继续开放。
+
+## 2026-10-27 正式 Reset 与恢复生产
+
+最终运行镜像为 markmahoro/shelfdeck:b0c32d0e9，来源b0c32d0e9bdc4f86103d8d2d8dcae92d315e5ad6，NAS image sha256:86c43ced7ad713b263763f4bd86d000efdcb6984c89624546df1bffbee2cb949。Reset于01:23:00.036Z完成，独立收藏和文件保护核验通过后，Resume于01:26:22.293Z完成：running/revision33/normalSupplyAllowed=true/error=null。自动观察保持取消。
+
+Reset迁入1,332,064行必要依赖，移除2,002,021行旧状态（该迁入数不含随后新增的Reset收口审计）；685个历史Subject结束准入、695个Workspace归档。868项临时文件/目录清理完成，逻辑27,436,291,513字节；4个Arca维护Workspace的39项/2,119,794字节保留。没有回滚来源或正式目录的物理变化。
+
+独立复核691 Commit/691交付包、10组保护表、两组共享剧资料及两项精确资料依赖一致；239表完整FK/integrity通过，恢复备份SHA保持。39,317个来源/正式路径stat零变化（含6570库存路径、91个原缺失，未进行全体媒体内容SHA）。停止态open Offer/active Subject/unfinished Run/token/未入藏active custody/旧扫描条目均0，五来源均有新代际重观察屏障。辅助审计首跑误把691个有Commit的active custody视为未入藏，失败日志保留；改用Commit事实后通过，无生产改库。
+
+01:31Z有限分时核验：五来源可读且已开始全新扫描，JAV/US完整扫描已完成，其余三项推进；161次新的采购材料评估成功，691收藏保持、0 attention、无新孤儿、Restart0/OOM=false，暂未有新包或正式新Commit。01:29Z实际可用vol1 19,206,656,000/vol2 335,631,990,784字节，不以临时清理逻辑字节冒充实际释放量。新容器恢复后日志样本有42次AbortSignal监听器警告，仍无泄漏或功能停滞结论，保留为开放观察事实，不重建定时任务。高达/凡人歌等待自然采购；演员、体积瑕疵与未确认季集映射不代选。详见本轮发布审查和诊断Evidence。
+
+以下为此前执行检查点，均不覆盖本节最新生产身份与结果。
+
+2026-10-27 00:31Z Reset专属完整备份verified/complete：32,689,656,630字节、1196个清单项（含目录），inventoryDigeste718312ea0102e7a0d1a6868044b5d91ba74993942480ae8c4dcd0f7f5764da6；离线档案位于vol2本轮作业archives/reset-13fcd0d3…-attempt-1。开始独立保留库准备，尚未切库/清理/Resume。原910文件部署恢复基线继续单独保留。
+
+2026-10-27 00:13:49Z 正式确认返回202，Reset operation07aba5a6e80a4ee4c808279a1ac7550b49996a84f827663f9620630ce27d9ddf；revision31/mode=resetting/normalSupplyAllowed=false/error=null/fence=closed。同一确认请求复核通过后开始完整备份与独立Operator，不重复创建请求。尚无切库/清理成功回执，Resume仍须等待完整保护核验。
+
+2026-10-27 00:07Z 正式 Reset 首轮预检已通过（HTTP200/ready=true/blockers=[]）：691正式收藏全部保留，在线保留1,332,064行、清除2,002,021行；库存材料50,608行不变，清除16个pre-deck token。预检摘要65ea3dc26e745b0a42f7702823d348a60ab0836c269f7a4bc81769e7a788dae4；确认请求fresh-reset-b0c32d0e9-20261027已提交，正在同一请求内再次核验，尚未开始切库/物理清理。清理仅覆盖/transcode与Aftercare专用根并保留4个Arca维护Workspace，逻辑27,436,291,513字节不等于实际卷释放量。Runtime仍stopped/revision30/normalSupplyAllowed=false/error=null；完成后先独立验证691收藏依赖及39,317来源/正式路径stat，再执行已授权Resume。不能把待执行计数记为实际清除成果。
+
+2026-10-27 生产已标准继续部署 `b0c32d0e9`，NAS image `sha256:86c43ced7ad713b263763f4bd86d000efdcb6984c89624546df1bffbee2cb949`，容器 `0eae75863dcea892516080fbb8d404775f27c1e7f093e25bddb5db4c74061efb`，Restart0/OOM=false。health为maintenance、normalSupplyAllowed=false，管理模式stopped/revision30/awaiting_confirmation；尚未执行Reset或Resume。原closure、910文件32.69GB完整冷备已重新验真，继续入口closureDigest3f3b3b9477f7aa438e0b399d41bf8dc25cf49508be8c45d68762ba1b3e0d78fe。当前正在正式预检的私有保留库重建，实际清除计数及最终保护摘要未返回，不按界面或预计数宣称完成。
+
+最终b0资格：完整Architecture428文件/3408项（3382 PASS/26 skip/0 FAIL），四项静态全部通过，固定源码前后clean。Service首跑851项中一条非Bootstrap Supervisor旅程90秒等待超时；未保留足够状态以认定根因，原失败保留。增加仅测试状态诊断后全量复验851/822 PASS/29 skip/0 FAIL，随后同文件三轮各10 PASS、门槛未放宽；短暂FST_ERR_REOPENED_CLOSE_SERVER发生于运输层切换且随后完成，不据此推断首跑根因。实际b0 Linux13 PASS，具体版本UI负责人确认176输入/9页面资源一致且补充冷态Reset回归通过。e69中间版本完整Gate因候选更新主动终止，记incomplete而非PASS。NAS真实当前冷备Bootstrap资格PASS且WAL仍缺失；b0/e69的2863个运行文件仅inspect模块不同，Bootstrap及其依赖字节相同；新inspect完整冷态旅程已单独跨平台覆盖。
+
 2026-10-27 Bootstrap后续预检增量：同一只读SQLite伴随文件风险覆盖了冷态管理面的后续inspect。显式bootstrapId路径已改为SHA验真私有源，原main/WAL集合在预检前后严格保持；普通stopped Host的一致读事务不变。缺失WAL/SHM→Bootstrap→预检→确认→完整Reset→stopped旅程，Windows/Linux最新各10PASS。e69a98bd4（仅Bootstrap修正）镜像实际Linux13PASS、Service851/822PASS/29skip，UI负责人继承复核通过；新增inspect增量须以更新固定候选、受影响门禁和精确影像收口，不提前称生产成功。生产仍停止，尚未Reset。
 
 2026-10-27 发布冷态Bootstrap阻断：完整冷备910文件/32,689,623,577 bytes已通过，verificationDigest197165d53c8879206c3577da60eedc6e41d1af5ac9fa73e2f06ee4ccdfd1c4b5；配置已写入，尚未启动新业务或Reset。首次schema资格只读打开源SQLite导致缺失WAL变为0字节WAL并生成SHM，严格物理集合守卫拒绝；原主库SHA187b57fb8d51d3e486ff71c48740e43673722471f2e401933e11708c3cc0540d与备份完全一致。真实Linux缺失伴随文件回归已复现同一行拒绝。修正为字节验真的私有源副本，不放宽原库检查；Windows/Linux Supervisor各10PASS，首轮新增实现的遗漏import/Windows只读fd fsync失败保留。标准deploy补显式continue入口，仅凭原closure/完整备份回执继续，6项含负例PASS；新的固定候选和精确副本资格继续，当前生产仍停止，不冒称已部署或Reset。

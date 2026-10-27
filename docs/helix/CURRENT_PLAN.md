@@ -1,5 +1,13 @@
 # ShelfDeck 当前计划
 
+当前追加工作项RESET-PEOPLE-REFERENCE-CLOSURE：根因修复、精确保留事实纠正及保护负例已实现，完成固定候选全量/平台/NAS资格后，按既有恢复目标部署并补回18条原登记，核验新事实与收藏保护，再Resume及通过现有重试入口处理3条本轮新技术失败。生产保持停止，不再次Reset或增加日常兼容分支。
+
+2026-10-27 01:48Z 新生产回归阻断（覆盖上方/下方恢复成功检查点）：恢复后3个新US任务均frozen，失败码PEOPLE_IMAGE_ARTIFACT_CHANGED。只读前后对比证实：Reset前18个active people_reference_faces均有active embedding Artifact，Reset后这18条Registry行缺失；图片Artifact仍18条正常。Owner保留策略只声明people_reference_assets.artifact_handle_id，遗漏people_reference_faces.embedding_handle_id，而原库没有People fx_artifact_references记录，FK检查无法发现该opaque引用遗漏。18个物理特征文件/48,996字节SHA全部与原备份一致，691收藏保护仍通过。此为本轮Reset缺陷，不能记为全面恢复正常或业务待确认。01:44:55.318Z正式Stop完成：revision34/stopped/quiesced/所有inFlight0/error=null，operation3b4ac11e5c4270be038b2540c5bdaf0b36202866bc3192b546029d005d046133。继续补People所需的必选Artifact闭包和负例验证，并准备从校验备份精确恢复18条登记的停止态副本方案；不再次清空已生成的新任务，不直接编辑运行库，不重建自动观察。修复及恢复后仍须正常Resume与真实新任务验证，目标尚未完成。
+
+2026-10-27 本轮生产部署、Fresh-generation Reset和恢复供给均已执行，独立691收藏/完整依赖/文件保护通过。当前完成有限分时运行核验和交付记录；未确认Provider映射、演员选择、体积瑕疵及高达/凡人歌自然采购验收继续开放，不以清空工作台关闭业务验收。4K忙载吞吐和启动风暴仍独立承接，定时观察不恢复。最新实际结果见CURRENT_STATUS；下方未部署/未Reset/最终保持停止均为历史检查点。
+
+2026-10-27 最终候选b0c32d0e9已通过完整门禁并完成标准生产部署，停在冷态管理模式。当前执行授权范围内的正式Reset预检→确认→新代际切换/清理→收藏和文件保护核验→正式Resume→实际业务推进核验。Actor/体积瑕疵及未确认季集映射不代选；高达/凡人歌不强制采购，定时观察不恢复。具体状态见CURRENT_STATUS；代码和发布门禁通过不能代替生产Reset/Resume完成。
+
 2026-10-27 用户已授权 vol1清理、生产部署及 Fresh Reset，并追加成功后恢复正常生产。固定101ce2fe0全量门禁、具体版本UI及NAS隔离资格已通过；按精确容量整理→安全Stop→完整冷备→标准部署冷态管理→正式Reset→收藏/文件保护核验→正式Resume→实际业务推进检查执行。Resume前必须完成核验；自动观察不重建。下方“授权待定/最终保持停止”均为此前时点，不再是本次最终交付约束。
 
 本轮 Reset 实施补齐：终态 Libra Workspace 以 Owner 冷态归档回执区分历史证据与当前占用；原状态不改写，物理清理另凭真实 Receipt。生产副本首次清理预检已正确阻断历史状态不一致，最终文件演练和候选全量资格仍开放，详见 CURRENT_STATUS 与发布审查材料。

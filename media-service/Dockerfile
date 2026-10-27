@@ -106,6 +106,9 @@ COPY media-service/scripts/formation-reset-normalize.js ./scripts/formation-rese
 COPY media-service/scripts/formation-reset-offline.js ./scripts/formation-reset-offline.js
 COPY media-service/scripts/formation-reset-operator-lease.js ./scripts/formation-reset-operator-lease.js
 COPY media-service/scripts/formation-reset-owner-policy.js ./scripts/formation-reset-owner-policy.js
+COPY media-service/scripts/formation-reset-people-references.js ./scripts/formation-reset-people-references.js
+COPY media-service/scripts/formation-reset-people-recovery.js ./scripts/formation-reset-people-recovery.js
+COPY media-service/scripts/formation-reset-people-recovery-run.js ./scripts/formation-reset-people-recovery-run.js
 COPY media-service/scripts/formation-reset-owner-retention.json ./scripts/formation-reset-owner-retention.json
 COPY media-service/scripts/formation-reset-owner-snapshot.js ./scripts/formation-reset-owner-snapshot.js
 COPY media-service/scripts/formation-reset-preflight.js ./scripts/formation-reset-preflight.js

@@ -9,6 +9,7 @@ const { createOnDeckStore } = require('../src/helix/domains/arca/persistence/on-
 const { describeFreshResetSeriesRetention } = require('../src/helix/domains/arca/public');
 const { readResetOwnerSnapshotDatabase } = require('./formation-reset-owner-snapshot');
 const { verifyRetainedControls } = require('./formation-reset-responsibilities');
+const { verifyRetainedPeopleReferences } = require('./formation-reset-people-references');
 
 function fail(code, details) { throw Object.assign(new Error(code), { code, details }); }
 function digestRows(rows) {
@@ -79,6 +80,7 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
     source.exec('BEGIN'); target.exec('BEGIN');
     const integrity = verifyReadOnlySqliteSnapshot({ database: target, schemaManifest, schemaDdl });
     const controls = verifyRetainedControls(target);
+    const peopleReferences = verifyRetainedPeopleReferences(source, target);
     // Collection identity, current and historical representation and file /
     // Person associations are all protected, not merely the two root counts.
     const roots = ['arca_shelf_entries', 'arca_ondeck_commit_receipts',
@@ -140,7 +142,7 @@ function verifyRetainedCollections({ Database, sourcePath, targetPath, schemaMan
         fail('RESET_VERIFY_PACKAGE_CHANGED', { packageId: row.on_deck_package_id });
       reconstructed.push({ packageId: row.on_deck_package_id, digest: canonicalDigest(after) });
     }
-    return { schemaRef: 'formation-reset-collection-verification@1', integrity, controls, protections, shared,
+    return { schemaRef: 'formation-reset-collection-verification@1', integrity, controls, protections, shared, peopleReferences,
       reconstructedCommits: ownership.length, ownershipDigest: canonicalDigest(ownership),
       reconstructedPackages: reconstructed.length, packageReadDigest: canonicalDigest(reconstructed) };
   } finally {

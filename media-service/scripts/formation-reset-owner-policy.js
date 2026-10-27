@@ -152,8 +152,10 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
     ['arca_series_presentation_scopes', 'scope_id', 'series_presentation']]) {
     edge(parent, 'fx_material_controls', [[key, 'owner_scope_id']], { owner_domain: 'arca', owner_scope_type: scope });
   }
-  for (const parent of ['libra_product_package_artifact_refs', 'people_reference_assets'])
+  for (const parent of ['libra_product_package_artifact_refs'])
     edge(parent, 'fx_artifact_registry', [['artifact_handle_id', 'artifact_handle_id']]);
+  for (const dependency of require('../src/helix/domains/people/public').freshResetReferenceArtifactDependencies())
+    edge(dependency.table, 'fx_artifact_registry', [[dependency.column, 'artifact_handle_id']], undefined, true);
   // A shared Artifact does not make every unrelated consumer collectible.
   // Reference retention follows the selected consumer, not the Artifact root.
   for (const [parent, id, owner, scope] of [

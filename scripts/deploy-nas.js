@@ -59,6 +59,8 @@ function parseArgs(argv) {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--apply') parsed.apply = true;
+    else if (arg === '--continue-people-reference-recovery') parsed.continuePeopleRecovery = true;
+    else if (arg === '--recover-people-references') { parsed.peopleRecoveryFile = argv[++i]; if (!parsed.peopleRecoveryFile) throw new Error('People recovery scope file is required.'); }
     else if (arg === '--continue-fresh-reset') parsed.continueFreshReset = true;
     else if (arg === '--helix-clean-init') parsed.helixCleanInit = true;
     else if (arg === '--fresh-reset-config') { parsed.freshResetConfig = argv[++i]; if (!parsed.freshResetConfig) throw new Error('Fresh Reset configuration file is required.'); }
@@ -77,6 +79,9 @@ function parseArgs(argv) {
   if (parsed.freshResetConfig && (parsed.helixCleanInit || !parsed.expectedSha256 || !parsed.capacityPlan))
     throw new Error('Fresh Reset deployment requires SHA-256 and capacity plan, and cannot initialize clean data.');
   if (parsed.continueFreshReset && !parsed.freshResetConfig) throw new Error('Cold continuation requires explicit Fresh Reset configuration.');
+  if (parsed.peopleRecoveryFile && (!parsed.freshResetConfig || parsed.continueFreshReset || parsed.helixCleanInit))
+    throw new Error('People recovery requires the explicit stopped configuration and cannot be combined with Reset or initialization.');
+  if (parsed.continuePeopleRecovery && !parsed.peopleRecoveryFile) throw new Error('People recovery continuation requires its original scope.');
   return parsed;
 }
 
@@ -104,7 +109,7 @@ function loadOrCreateSecretRoot({ allowCreate = false } = {}) {
   return generated;
 }
 
-function composeYaml(targetImage, resetConfiguration) {
+function composeYaml(targetImage, resetConfiguration, { coldBootstrap = true } = {}) {
   return [
     'services:',
     '  shelfdeck:',
@@ -122,7 +127,7 @@ function composeYaml(targetImage, resetConfiguration) {
     '      - FFPROBE_PATH=/usr/local/bin/ffprobe',
     '      - LIBVA_DRIVER_NAME=iHD',
     ...(resetConfiguration ? ['      - SHELFDECK_RESET_CONFIG_FILE=/run/shelfdeck-reset/config.json',
-      `      - SHELFDECK_RESET_BOOTSTRAP_FILE=${resetConfiguration.operationRoot}/deployment-bootstrap.json`] : []),
+      ...(coldBootstrap ? [`      - SHELFDECK_RESET_BOOTSTRAP_FILE=${resetConfiguration.operationRoot}/deployment-bootstrap.json`] : [])] : []),
     '    volumes:',
     `      - ${DATA_DIR}:/app/data`,
     `      - ${OPERATOR_BACKUP_HOST}:/app/data/operator-backups`,
@@ -199,7 +204,8 @@ async function execStep(conn, label, cmd) {
 }
 
 async function main() {
-  const { tarball, apply, expectedSha256, helixCleanInit, freshResetConfig, capacityPlan, continueFreshReset } = parseArgs(process.argv.slice(2));
+  const { tarball, apply, expectedSha256, helixCleanInit, freshResetConfig, capacityPlan, continueFreshReset,
+    peopleRecoveryFile, continuePeopleRecovery } = parseArgs(process.argv.slice(2));
   if (!tarball) {
     console.error('Usage: node scripts/deploy-nas.js <tarball-on-nas> [--sha256 <hash>] [--helix-clean-init] [--apply]');
     process.exit(2);
@@ -207,7 +213,9 @@ async function main() {
   const targetImage = imageFromTarball(tarball);
   const secretRoot = loadOrCreateSecretRoot({ allowCreate: helixCleanInit });
   const resetConfiguration = freshResetConfig ? require('./nas-reset-bootstrap').configurationForNas(JSON.parse(fs.readFileSync(freshResetConfig, 'utf8'))) : null;
-  const yaml = composeYaml(targetImage, resetConfiguration);
+  const peopleRecoveryScope = peopleRecoveryFile ? require('./nas-people-reference-recovery')
+    .recoveryScope(JSON.parse(fs.readFileSync(peopleRecoveryFile, 'utf8'))) : null;
+  const yaml = composeYaml(targetImage, resetConfiguration, { coldBootstrap: !peopleRecoveryScope });
   const secretEnv = `SHELFDECK_SECRET_ROOT=${secretRoot}\n`;
 
   const steps = [
@@ -247,7 +255,8 @@ async function main() {
           '--confirm',
           CLEAN_INIT_CONFIRM,
         ].join(' ')]]
-      : resetConfiguration ? [['Prepare cold Reset management', 'Explicit stopped deployment proof; no business Host and no automatic Reset.']] : [['Helix runtime readiness', [
+      : resetConfiguration ? [[peopleRecoveryScope ? 'Prepare cold People reference recovery' : 'Prepare cold Reset management',
+        'Explicit stopped deployment proof and verified backup; no automatic Resume.']] : [['Helix runtime readiness', [
           'docker run --rm',
           `--env-file ${shellQuote(SECRET_FILE)}`,
           `-v ${shellQuote(`${DATA_DIR}:/run/shelfdeck-readiness-source:ro`)}`,
@@ -322,7 +331,7 @@ async function main() {
     const execute = async command => {
       const result = await run(conn, command);
       if (result.code !== 0) throw new Error('Cold Reset deployment check failed: ' +
-        (result.errOut.match(/\bRESET_[A-Z0-9_]+\b/g)?.join(', ') || `exit ${result.code}`));
+        ((result.errOut + '\n' + result.out).match(/\b(?:RESET|PEOPLE_RECOVERY)_[A-Z0-9_]+\b/g)?.join(', ') || `exit ${result.code}`));
       return result.out.replace(/^Could not chdir to home directory.*\r?\n/, '').trim();
     };
     if (resetConfiguration) {
@@ -347,16 +356,18 @@ async function main() {
     if (!resetConfiguration) await publishConfiguration();
 
     for (const [label, cmd] of steps) {
-      if (label === 'Prepare cold Reset management') {
-        if (continueFreshReset) {
+      if (label === 'Prepare cold Reset management' || label === 'Prepare cold People reference recovery') {
+        if (continueFreshReset || continuePeopleRecovery) {
           const expectedSecret = crypto.createHash('sha256').update(secretEnv).digest('hex');
           await execute(`[ "$(sha256sum ${shellQuote(SECRET_FILE)} | awk '{print $1}')" = ${shellQuote(expectedSecret)} ]`);
         }
-        const prepareManagement = require('./nas-reset-bootstrap')[continueFreshReset ? 'continueNasResetManagement' : 'prepareNasResetManagement'];
+        const prepareManagement = peopleRecoveryScope ? require('./nas-people-reference-recovery').prepareNasPeopleReferenceRecovery :
+          require('./nas-reset-bootstrap')[continueFreshReset ? 'continueNasResetManagement' : 'prepareNasResetManagement'];
         const result = await prepareManagement({ execute,
           upload: (file, contents) => uploadText(conn, file, contents, 0o600), configuration: resetConfiguration,
           dataDir: DATA_DIR, transcodeDir: TRANSCODE_HOST, composeFile: COMPOSE_FILE,
           backupHost: OPERATOR_BACKUP_HOST, secretFile: SECRET_FILE, targetImage, publishConfiguration,
+          ...(peopleRecoveryScope ? { recoveryScope: peopleRecoveryScope, continueRecovery: continuePeopleRecovery } : {}),
           async readRuntime() {
             const key = readEnvFile(LOCAL_ADMIN_KEY_FILE, 'SHELFDECK_ADMIN_API_KEY');
             if (!key) throw new Error('Admin API credential is required for the safe Stop proof.');

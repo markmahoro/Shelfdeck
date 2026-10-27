@@ -1,5 +1,13 @@
 # Fresh Reset 发布审查材料
 
+2026-10-27 01:48Z 新生产回归阻断（覆盖上方/下方恢复成功检查点）：恢复后3个新US任务均frozen，失败码PEOPLE_IMAGE_ARTIFACT_CHANGED。只读前后对比证实：Reset前18个active people_reference_faces均有active embedding Artifact，Reset后这18条Registry行缺失；图片Artifact仍18条正常。Owner保留策略只声明people_reference_assets.artifact_handle_id，遗漏people_reference_faces.embedding_handle_id，而原库没有People fx_artifact_references记录，FK检查无法发现该opaque引用遗漏。18个物理特征文件/48,996字节SHA全部与原备份一致，691收藏保护仍通过。此为本轮Reset缺陷，不能记为全面恢复正常或业务待确认。01:44:55.318Z正式Stop完成：revision34/stopped/quiesced/所有inFlight0/error=null，operation3b4ac11e5c4270be038b2540c5bdaf0b36202866bc3192b546029d005d046133。继续补People所需的必选Artifact闭包和负例验证，并准备从校验备份精确恢复18条登记的停止态副本方案；不再次清空已生成的新任务，不直接编辑运行库，不重建自动观察。修复及恢复后仍须正常Resume与真实新任务验证，目标尚未完成。
+
+## 2026-10-27 最终生产结果
+
+固定b0c32d0e9已标准部署，01:23:00Z完成Fresh Reset、01:26:22Z经独立保护核验后Resume。清除2,002,021行旧状态和868项临时条目，691 Commit/Package、10组保护表、共享资料及39,317来源/正式路径stat完整保持；239表FK/integrity通过。两份完整恢复档案和精确容量整理回执保留，自动观察不恢复。完整身份、备份/代际/回执摘要、独立核验及首跑失败统一见[生产执行Evidence](FORMATION_TERMINAL_CLOSURE_DIAGNOSIS_20261023.md#2026-10-27-生产执行与独立保护验证已完成-reset-和-resume)，分时运行事实以CURRENT_STATUS最新节为准。恢复后回退须先停止并保存新基线、检查新Commit和物理变化，禁止自动用旧库覆盖新收藏事实。下方为此前发布检查点。
+
+最新生产检查点：最终来源 `b0c32d0e9bdc4f86103d8d2d8dcae92d315e5ad6`，镜像 `markmahoro/shelfdeck:b0c32d0e9`，tar 864237056 bytes / SHA256 `8cc3be32fa7ca9e04e8cdc3ff075347d6d7e2a6e6e0cca16e181ef72b36f15cd`，NAS image `sha256:86c43ced7ad713b263763f4bd86d000efdcb6984c89624546df1bffbee2cb949`。标准build/upload/dry-run/continue-apply完成，未执行Reset/Resume，正在冷态管理预检。最终门禁、首跑超时和复验局限见CURRENT_STATUS；以下101/e69及最初待授权状态均保留为阶段证据。
+
 2026-10-27 最新决定：用户明确授权部署前vol1清理、生产部署和Reset；随后追加成功核验后恢复正常生产。原“完成后仍停止”仅保留为此前决定，执行中任何失败仍保持停止。下方候选资格/容量/待授权状态为历史检查点，最新实际操作以CURRENT_STATUS和本轮事故Evidence追加记录为准。
 
 固定候选 `101ce2fe04a0991ded2ba705d66f9d56a8664dba`，镜像 `markmahoro/shelfdeck:101ce2fe0`，tar SHA256 `0b6160ff2b0435397653f89effd54aebdb9ce8198bae8e18a2e3f89ea449a2fb`，NAS image ID `sha256:e468b02f65ddc577d1efca7e210c7620b511c7c999bdb6a52fffc6d9dcc29077`，28层。最终完整Architecture428文件/3408项：3382 PASS、26 skip、0 FAIL；Service850/821 PASS/29 skip/0 FAIL；Windows独立包、Linux增量17、具体版本UI负责人通过。NAS691收藏依赖和完整FK/integrity、三次停止态启动、27.44GB真实私有文件副本中断/续跑/重放及原文件保护通过。首次NAS启动批次在两次通过后触及900秒总预算；文件复制结束后1800秒预算三次重验通过，不隐去原超时。

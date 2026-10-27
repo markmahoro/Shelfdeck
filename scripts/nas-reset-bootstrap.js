@@ -37,12 +37,12 @@ function closureProof({ old, remaining, runtime, intent, stop, dataDir }) {
     stopOperationId: stop.operationId, stopReceiptDigest: canonicalDigest(stop) };
 }
 
-// The standard deploy controller invokes this only for an explicitly selected
-// fresh Reset cutover. Credentials never enter shell text or logged results.
-async function prepareNasResetManagement({ execute, upload, readRuntime, publishConfiguration, configuration,
+// Shared closed-generation backup for explicit Reset or dependency recovery.
+// Credentials never enter shell text or logged results.
+async function prepareNasStoppedBackup({ execute, upload, readRuntime, configuration,
   dataDir, transcodeDir, composeFile, backupHost, secretFile, targetImage }) {
   configuration = configurationForNas(configuration);
-  if (typeof publishConfiguration !== 'function' || !path.posix.isAbsolute(transcodeDir || '') ||
+  if (!path.posix.isAbsolute(transcodeDir || '') ||
       !path.posix.isAbsolute(composeFile || '')) fail('RESET_DEPLOY_BACKUP_CONFIGURATION_REQUIRED');
   if (!Array.isArray(configuration.backupSourceOptions?.roots) ||
       configuration.backupSourceOptions.roots.map(root => root.path).sort().join(',') !== '/app/data,/transcode')
@@ -95,6 +95,12 @@ async function prepareNasResetManagement({ execute, upload, readRuntime, publish
     q(configuration.operationRoot + '/deployment-backup-request.json')].join(' ')));
   if (backup.closureDigest !== canonicalDigest(closure) || !/^[a-f0-9]{64}$/.test(backup.receiptDigest || '') ||
       !/^[a-f0-9]{64}$/.test(backup.backupVerificationDigest || '')) fail('RESET_DEPLOY_BACKUP_UNVERIFIED');
+  return { closure, backup, configuration, operationHost, backupParentHost, translate };
+}
+async function prepareNasResetManagement(options) {
+  const { publishConfiguration, execute, upload, dataDir, backupHost, secretFile, targetImage } = options;
+  if (typeof publishConfiguration !== 'function') fail('RESET_DEPLOY_BACKUP_CONFIGURATION_REQUIRED');
+  const { closure, backup, configuration, operationHost, backupParentHost, translate } = await prepareNasStoppedBackup(options);
   // No new configuration is published until the entire stopped generation and
   // original configuration have an independently verified recovery baseline.
   await publishConfiguration();
@@ -171,4 +177,4 @@ async function continueNasResetManagement({ execute, upload, publishConfiguratio
   await publishConfiguration();
   return { bootstrapFile: bootstrap.outputFile, closureDigest: canonicalDigest(bootstrap.closure), backupReceiptDigest: receiptDigest };
 }
-module.exports = Object.freeze({ configurationForNas, closureProof, prepareNasResetManagement, continueNasResetManagement });
+module.exports = Object.freeze({ configurationForNas, closureProof, prepareNasStoppedBackup, prepareNasResetManagement, continueNasResetManagement });

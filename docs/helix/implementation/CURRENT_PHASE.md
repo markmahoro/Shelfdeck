@@ -1,5 +1,17 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-27 RESET-PEOPLE-REFERENCE-CLOSURE修复候选（未部署）：People公开声明图片/embedding两条必选Artifact边；预检、保留库验证及protectedSummary增加People参考事实/登记/真实Image Port读取核验，缺失、错属、摘要变化、文件损坏明确拒绝。独立保留依赖纠正工具只从原完成Reset回执绑定的完整档案恢复仍被当前People要求的缺失embedding登记，精确数量/Handle及参考事实摘要绑定；已有不同登记不覆盖。先完整备份当前停止态，再在全量副本补回原始行，239表除Registry允许18行之外逐表摘要完全不变，旧失败和新采购历史保持。双备份验真、原生生命周期租约、已完成Stop revision、独占挂载和原子切换journal均接标准deploy；原Reset marker/回执不改写，恢复后仍stopped，原请求可续跑。原档案在Operator容器中额外只读挂载，工作目录与原档案重叠在停机前拒绝。Windows/Docker均已列入新脚本。
+
+本轮增量验证：完整Service862/833PASS/29skip/0FAIL（concurrency4、原90秒断言未放宽）；受影响Reset/Supervisor138PASS；最新People原生Handle/端口/缺失源/物理文件/错属/新事实保护/备份及Stop/lease/切换中断/重放11PASS；标准NAS控制器含旧Bootstrap11PASS。首轮policy夹具修改frozen对象、冷工具函数泄露临时环境及Compose断言路径错误均保留日志后修正；SSOT source-map首轮drift已重新生成，capability138/result117/table239/transaction62未改变。完整固定候选Architecture、Linux实际镜像和NAS生产副本纠正资格仍待完成；生产仍b0c32d0e9、stopped/revision34，无生产登记恢复/再次Reset/新Resume。
+
+2026-10-27 01:48Z 新生产回归阻断（覆盖上方/下方恢复成功检查点）：恢复后3个新US任务均frozen，失败码PEOPLE_IMAGE_ARTIFACT_CHANGED。只读前后对比证实：Reset前18个active people_reference_faces均有active embedding Artifact，Reset后这18条Registry行缺失；图片Artifact仍18条正常。Owner保留策略只声明people_reference_assets.artifact_handle_id，遗漏people_reference_faces.embedding_handle_id，而原库没有People fx_artifact_references记录，FK检查无法发现该opaque引用遗漏。18个物理特征文件/48,996字节SHA全部与原备份一致，691收藏保护仍通过。此为本轮Reset缺陷，不能记为全面恢复正常或业务待确认。01:44:55.318Z正式Stop完成：revision34/stopped/quiesced/所有inFlight0/error=null，operation3b4ac11e5c4270be038b2540c5bdaf0b36202866bc3192b546029d005d046133。继续补People所需的必选Artifact闭包和负例验证，并准备从校验备份精确恢复18条登记的停止态副本方案；不再次清空已生成的新任务，不直接编辑运行库，不重建自动观察。修复及恢复后仍须正常Resume与真实新任务验证，目标尚未完成。
+
+2026-10-27 RESET-FRESH-GENERATION/RESET-STORAGE-BUDGET/RELEASE-QUALIFICATION生产交付：固定b0c32d0e9已标准部署，01:23:00Z新代际切换及868项临时清理完成，独立691 Commit/Package、10组保护摘要、共享资料、239表FK/integrity和39,317路径stat通过；无旧open Offer/未结束Run/token/未入藏custody重入。01:26:22Z按最新用户授权完成Resume，真实来源扫描和采购评估已推进，继续有限分时核验。未把自然媒体验收、未确认映射或既有开放UAT批量关闭，Phase不据部署自动Exit。完整首跑/辅助审计失败及观察局限见Evidence，自动观察不重建。
+
+2026-10-27 RESET-FRESH-GENERATION生产执行中：正式预检691收藏保护通过，确认复核后operation07aba5a6…于00:13:49Z返回202，generation13fcd0d3…/closed屏障。32.69GB Reset专属完整备份已verified，独立保留库preparation=building，尚未切库/清理/Resume。成功后按最新用户授权完成独立保护验证再恢复正常生产；观察不重建。
+
+2026-10-27 RELEASE-QUALIFICATION最终b0c32d0e9通过：Architecture428文件/3408项3382 PASS/26skip/0FAIL、四项静态、Service复验851/822PASS/29skip、三轮Supervisor各10PASS、实际Linux13PASS及具体版本UI。原851首跑单项等待超时原因未定，完整保存，不记一次全绿。生产标准continue入口已复验原完整冷备及closure后部署b0，停在awaiting_confirmation；RESET-FRESH-GENERATION正式预检正在执行。后续必须凭真实回执完成切换/清理/保护核验、Resume与业务推进后才收口，性能忙载和自然媒体验收仍按原边界。
+
 2026-10-27 RELEASE-QUALIFICATION生产阶段发现Bootstrap资格读取原SQLite生成空WAL/SHM，保护检查正确阻断；完整冷备和旧停止证明保持，尚未Reset/Resume。新增私有源资格副本及标准发布的显式冷态continue入口，守卫不放宽，继续固定增量候选跨平台/全量门禁和真实冷备来源资格，完成后再执行既有授权的部署、Reset及Resume。
 
 2026-10-27 RELEASE-QUALIFICATION：固定101ce2fe0 Architecture428文件/3408项（3382 PASS/26 skip/0 FAIL）及四项静态、Service850（821 PASS/29 skip）、Windows/Linux、具体版本UI和NAS隔离清理/三次stopped/691收藏依赖复核已通过。用户已授权清理vol1、部署、Reset，并明确成功后恢复生产；正式Stop已完成。RESET-STORAGE-BUDGET正在精确备份去重及独立诊断SQLite完整转存，所有删除均以校验/回执为前提；冷备、部署、Reset、保护核验和Resume仍需实际执行结果，不能按候选通过提前关闭。
