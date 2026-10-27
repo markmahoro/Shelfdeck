@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-27 当前完成FORMATION-HISTORICAL-SERIES-PROJECTION：a2bf2d6fd标准普通升级、694收藏/文件/历史保护及真实五类列表/19历史详情通过，已Resume至revision37；不再次Reset。下一待诊断FORMATION-SERIES-PRESENTATION-RECOVERY为升级前已存在的5条P4_EVENT_RECOVERY_REALITY_CONFLICT（假如…？、真探、亿万、越狱、继承之战），须读取各自恢复分类/实际文件证据，不按同码认定同根因，不自动重试或处置。欲望都市、大宅门2两条Run frozen原因继续独立诊断，演员1条由用户决定。该页面500工作项收口不等于清空8条attention或Phase Exit。
+
 2026-10-27 当前执行FORMATION-HISTORICAL-SERIES-PROJECTION：生产真实completed列表500已复现，其余四个工作区数据入口正常。修正Libra不可变展示读取与当前执行资格的边界，保留执行强校验；完成真实Host/缺权限/冻结证据负例、具体UI与固定候选资格后沿标准停止态备份发布，不再次Reset或改生产任务。
 
 本轮部署、Fresh Reset、People闭包纠正及恢复供给已执行并核验，新Series/US实际推进；生产保持running，不再Reset或重建观察。FORMATION-HISTORICAL-SERIES-PROJECTION作为明确未关闭项承接：历史展示读取不可变事实，不恢复旧在途责任，不弱化执行Reader。Actor/Provider映射/体积由用户决定，高达/凡人歌等待自然采购；不宣称整体Phase Exit。详见最新Status/Evidence。

@@ -1,5 +1,7 @@
 # ShelfDeck v3 / Kairox Historical Status
 
+2026-10-27 14:31（Asia/Shanghai）当前生产：markmahoro/shelfdeck:a2bf2d6fd，git a2bf2d6fd3271dc3a3741e28ed42f533a59d99d4，tar SHA256 cfe80143a74bba30f3cb92c9db4f3a03017701358cf8424fa81ce3b3a1770c03，NAS image sha256:894a07fd5c178536bebecc4d3dfb3951c9d225d217c62c2c2db2c49f8f4696df。标准build/upload/checksum/dry-run/ordinary apply通过；完成Stop36、完整冷备、保护核验后14:25:06恢复running/revision37。E2E：固定Architecture428文件/3408项首轮3381PASS/1 EPERM/26skip，原场景两次及整份7项复验PASS；四静态PASS，Service865/836PASS/29skip，Windows/Linux真实Host及具体UI PASS。生产历史completed500消失；694收藏/12保护摘要/39,346路径stat保持，236表完全一致、3个既有启动差异逐字段验真，完整239表FK/integrity通过。原8条待处理不变；无再次Reset/自动观察或Git release tag。详见Helix最新Evidence。
+
 2026-10-27 04:51Z生产已恢复供给：Runtime镜像6ad98f1f6（完整git6ad98f1f60f9d7717414caf379ae3fcbd72da394，tar SHA c2c1f834813881899706f63bec425211c14c498318ace0dd084773a4656054f2，NAS image d07b930e5804b1528a43eb2688992996b8eb4087b4397a1fed98c2376759db56）。04:39:06.288Z正式Resume，revision35/running/normalSupplyAllowed=true/error=null。People18登记精确补回；完整当前冷备、238表/Registry原有行保持、691收藏/10保护表、36参考Artifact和39,317来源/正式stat核验通过。按用户追加授权，仅三条本轮冻结任务经线上取消且历史/文件备份保留，无再次Reset；原代际13f保持。新Series3/US4 Run已推进，原Circuit由真实US分析成功closed；6进行中/1演员确认，无新孤儿、Restart0/OOM=false，尚无恢复后的新正式Commit。
 
 本轮运行修复/纠正交付不等于全Phase收口：FORMATION-HISTORICAL-SERIES-PROJECTION仍开放，19旧completed+1 superseded剧集Run的历史展示误用活跃材料执行Reader，重复P14绑定告警；7个新Run可读、Arca收藏证据保持。不得恢复旧责任或加历史包兼容来掩盖。AbortSignal警告53次样本尚无泄漏证据。高达/凡人歌自然验收、人工映射/演员/体积与4K/启动风暴保持原边界；未重建自动观察。完整身份、验证、原失败及健康阶段校验器修正见本轮Evidence最新节；下方停止/未部署为历史检查点。
