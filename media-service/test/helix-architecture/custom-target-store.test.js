@@ -13,11 +13,11 @@ const tables=['libra_custom_target_previews','libra_custom_target_intents','libr
 
 function harness(callback){return fixture(input=>{
   const db=new Database(input.databasePath),basis={subjectId:'subject',libraRunId:'run-1',runState:'frozen',runStateRevision:1,
-    runStateDigest:D('run-state'),runExecutionBasisDigest:D('basis'),baseAcceptanceSpecId:'five-star-spec',
+    runStateDigest:D('run-state'),runPackageRevisionHead:0,runExecutionBasisDigest:D('basis'),baseAcceptanceSpecId:'five-star-spec',
     runAcceptanceSpecId:'five-star-spec',runSpecRecordDigest:D('spec-record'),runSpecDigest:D('spec'),
     baseSpecRecordDigest:D('spec-record'),baseSpecDigest:D('spec'),decisionHeadDigest:D('head'),decisionHeadAcceptanceSpecId:'five-star-spec',shelfId:'shelf',
     shelfStandardDigest:D('standard'),shelfStandardRevision:1,productScopeDigest:D('scope'),materialSetDigest:D('member-set'),
-    identityDigest:D('identity'),customTargetRevision:0,handoffState:'no_offer',contentProfile:'movie',structureKind:'single'};
+    identityDigest:D('identity'),gapEvidenceSetDigest:D('gaps'),customTargetRevision:0,handoffState:'no_offer',contentProfile:'movie',structureKind:'single'};
   try{
     db.exec("INSERT INTO libra_subjects(subject_id,status,content_profile,structure_kind) VALUES('subject','active','movie','single')");
     db.prepare('INSERT INTO libra_acceptance_specs(acceptance_spec_id,subject_id,shelf_id,shelf_standard_revision,shelf_standard_digest,product_scope_digest,spec_digest,record_digest,spec_json) VALUES(?,?,?,?,?,?,?,?,?)')
@@ -87,6 +87,7 @@ test('freshness checks reject related Owner drift even with a newly captured tec
   const preview=h.preview();h.commit('preview',preview);const intent=h.confirm(preview),before=h.counts();
   for(const [change,restore]of[
     ["UPDATE libra_runs SET state_revision=2","UPDATE libra_runs SET state_revision=1"],
+    ["UPDATE libra_runs SET package_revision_head=1","UPDATE libra_runs SET package_revision_head=0"],
     ["UPDATE libra_acceptance_specs SET spec_digest='"+D('other')+"'","UPDATE libra_acceptance_specs SET spec_digest='"+h.basis.baseSpecDigest+"'"],
     ["UPDATE libra_subject_decision_heads SET head_digest='"+D('other')+"'","UPDATE libra_subject_decision_heads SET head_digest='"+h.basis.decisionHeadDigest+"'"],
     ["UPDATE libra_run_material_manifests SET member_set_digest='"+D('other')+"'","UPDATE libra_run_material_manifests SET member_set_digest='"+h.basis.materialSetDigest+"'"],

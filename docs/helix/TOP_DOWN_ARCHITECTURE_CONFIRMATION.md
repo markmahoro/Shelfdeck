@@ -16050,6 +16050,8 @@ UAT-212：Libra Run与Aftercare Case的当前进展都取实际动作、动作�
 
 `Libra Custom Acceptance Spec Publish`是独立Canonical Transaction，不扩宽普通四表Acceptance Spec Publish的ready Basis规则。其Domain write set为`libra_acceptance_specs/libra_subject_decision_heads`，Foundation write set为`fx_command_receipts/fx_commit_markers/fx_audit_records`；只读追加上述三张Custom Target表、`libra_subjects/libra_runs/libra_run_material_manifests/libra_product_fact_revisions`。完整目标确认在Publication之前持久化；Publication要求当前目标head仍指向精确Intent，跨Owner Projection必须在事务外重新查询。Spec revision取同Subject最大值加1，无32代等人为历史上限；Spec、decision head和回执必须全有或全无。Supporting Work与Run replacement由Libra各自流程继续，禁止把数据库方法直接当成全部目标变更旅程。普通标准Spec的Basis查询必须明确区分目标variant，不能任意取同Basis的第一行custom Spec重建为标准Spec。
 
+确认前的Basis还必须绑定`runPackageRevisionHead`及Libra完整当前差距上下文的`gapEvidenceSetDigest`。确认API不得接受客户端构造Basis或差距事实；服务器从当前Owner材料/资料/产品事实、相关用户选择与实际路径结果重建，比较原预览完整差距上下文，不能只校验预览中被选的一条旧Result。原标准与当前规则/评分不符时须等待标准目标更新或重新预览，不能借旧Spec确认。确认后Intent已是独立持久用户决定：旧执行取消引起的合法active/suspended/frozen及revision/digest变化、后续观察差距变化不撤销该决定；Publication用新的当前Snapshot逐项验证这些技术状态与Owner行一致，保留原确认Basis原样。Subject/产品范围、原标准/当前Run Spec、Decision Head、材料/身份、Package revision、当前目标head及Handoff责任仍须相同；终结/交给Arca或语义基线变化不得沿旧Intent继续。新Run Admission仍需自己的完整当前安全资格，不能以这项执行状态容许规则跳过Control、未决Effect或来源验证。
+
 #### UAT-251 已确认决定的typed实施约束（2026-09-09）
 
 以下把本节已确认结果落实为有界合同，不增加Business Domain、Business Handoff或跨域业务ID；实现与逐场景验收仍由UAT-251记录。

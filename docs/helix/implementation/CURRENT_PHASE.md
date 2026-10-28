@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-29确认后生命周期：Basis已绑定Package head/完整差距上下文，确认严格新鲜；Publication不再把安全取消旧执行产生的合法状态变化误判为用户决定失效，仍读取并验证当前Owner行，语义基线/交接变化拒绝。source-24 Linux93PASS/0skip及四项静态PASS。继续旧Offer收尾及新Run，不将内部发布接口开放给用户，生产未变更。
+
 2026-10-29目标提交屏障：Libra同事务Head检查已保护旧Promotion；公开Delivery Fence对未接纳旧Offer返回target_not_current，历史读取与已提交Receipt重放不变。Arca两条现有接纳调用链均在准备性写入之后、重新公开查询之前捕获opaque token；接纳Store在Receipt replay之后、attempt terminal之前强制验证，没有可缺省的新Accepted路径，也没有Libra Repo进入Arca UOW。source-23实际Linux84PASS/3既有真实媒体skip，普通独立收藏Host及介入提交后零部分写入Host各PASS，Reset名称过滤。调度收尾仍未闭合：旧Offer不得在失效后重复耗尽并制造新attention，确认后旧执行取消/安全收尾与Supporting Work/new Run须一起接通；新API继续禁止开放。尚未完成完整自定义确认→替代Run→Arca/Aftercare/保留闭包旅程。
 
 2026-10-29 USER-CUSTOM-ACCEPTANCE-SPEC：新增完整custom Spec模型与独立Publication Store，实际SQLite完成Spec/decision head/Receipt/marker/Audit原子写入及历史只读重建；Current Run Spec、原始标准Spec、Decision Head当前Spec各有独立引用与新鲜度Fence。普通Spec按明确variant读取同Basis记录，SQLite逆序返回custom第一行时仍选择原标准，不按行顺序猜。SSOT/Catalog新增Custom Target Commit（Preview/Confirmation variants）和Custom Acceptance Spec Publish，两者仍只含Libra及Foundation技术回执；不扩宽普通四表Spec Publish。source-22四项静态PASS，受影响91PASS，新增事务7PASS/202名称过滤skip。尚未发布或接用户流程。

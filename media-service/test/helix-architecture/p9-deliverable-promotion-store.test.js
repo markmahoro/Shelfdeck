@@ -950,11 +950,11 @@ function seedCommittedCustomTarget(value){
       requirements=require('../../src/helix/domains/arca/model/rule-template-contracts').BETA_RECOMMENDED_RULES.profileRuleSets
         .find(row=>row.contentProfile==='movie').decisionBranches.find(row=>row.rating===5).requirements,
       basis={subjectId:run.subject_id,libraRunId:run.libra_run_id,runState:run.state,runStateRevision:run.state_revision,
-        runStateDigest:run.state_digest,runExecutionBasisDigest:run.execution_basis_digest,runAcceptanceSpecId:spec.acceptance_spec_id,
+        runStateDigest:run.state_digest,runPackageRevisionHead:run.package_revision_head,runExecutionBasisDigest:run.execution_basis_digest,runAcceptanceSpecId:spec.acceptance_spec_id,
         runSpecRecordDigest:spec.record_digest,runSpecDigest:spec.spec_digest,baseAcceptanceSpecId:spec.acceptance_spec_id,
         baseSpecRecordDigest:spec.record_digest,baseSpecDigest:spec.spec_digest,decisionHeadDigest:D('head'),decisionHeadAcceptanceSpecId:spec.acceptance_spec_id,
         shelfId:spec.shelf_id,shelfStandardDigest:spec.shelf_standard_digest,shelfStandardRevision:spec.shelf_standard_revision,
-        productScopeDigest:spec.product_scope_digest,materialSetDigest:D('members'),identityDigest:D('identity'),customTargetRevision:0,
+        productScopeDigest:spec.product_scope_digest,materialSetDigest:D('members'),identityDigest:D('identity'),gapEvidenceSetDigest:D('gaps'),customTargetRevision:0,
         handoffState:db.prepare('SELECT count(*) n FROM libra_product_packages').get().n?'not_accepted':'no_offer',contentProfile:'movie',structureKind:'single'},
       {buildCustomTargetPreview,confirmCustomTarget}=require('../../src/helix/domains/libra/model/custom-target-records'),
       preview=buildCustomTargetPreview({basis,requirements,actorId:'admin',createdAtMs:NOW,

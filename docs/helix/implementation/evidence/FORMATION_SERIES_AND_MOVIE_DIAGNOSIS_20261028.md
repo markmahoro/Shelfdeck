@@ -201,3 +201,9 @@ Handoff B新接纳必须使用Foundation opaque read fence：Arca完成Assessmen
 - Source及Dependency镜像只读、network none、独立NAS scratch与CPU/内存限额。容器自动退出；原档案和失败日志保留。已有副本工具仍applied=false；生产不挂载到资格容器，不部署、重试或取消生产任务。
 
 当前P2 aggregate `fd6010474f130bba4a91ea2c6ec106e3ceaa1c1c5ae06f4554ec03ab0dd01b39`；138/117/242/64/150保持，DDL仍`9c6af0d89160d0b061dff9f86c7bdaf43151adb164eba558d0433933ff58577e`。新阶段仍须实现失效Offer的Owner调度收尾、旧Work安全取消、Supporting Work/新Run、完整元资料/Arca/Aftercare/精确保留、API/UI/实际停止态升级，以及Stash链路和最终资格。不能把“旧提交已拒绝”记作整个新目标旅程成功。
+
+## 确认后执行状态与语义基线分离（2026-10-29）
+
+确认前的Basis追加冻结runPackageRevisionHead与完整gapEvidenceSetDigest，避免只校验被选的旧失败结果。确认后的Publication保留原Intent原样，用最新Snapshot校验Owner行，允许active/suspended/frozen及其revision/digest和差距观察变化；终结、材料/身份/Spec/Decision Head/Package/目标head/Handoff变化仍拒绝。这仅支持持久用户决定继续，不跳过新Run的Control或未决Effect准入。
+
+source-24归档10,299,793 bytes，SHA `6bf899ba259e3b9ab44936b09e1528061d81389f5a96b869ffe3451469b4e959`。实际Linux12文件93PASS/0skip/0FAIL（32.5秒），四项静态门禁PASS；P2 aggregate `099088335657608b2b76b5aa0cc4f967c94c5ef80a2a1297a3634e5a94635701`。242表/64事务及DDL9c6af0d…保持。未实施生产操作，完整旧Offer关闭/新Run/API/UI/Arca连续性及Stash集成仍开放。

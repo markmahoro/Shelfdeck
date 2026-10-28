@@ -93,3 +93,22 @@ test('the immutable custom Spec Reader rejects drift in relational placement and
   h.db.prepare('UPDATE libra_acceptance_specs SET shelf_id=? WHERE acceptance_spec_id=?').run('other-shelf',id);
   assert.throws(()=>h.publisher.read(id),{code:'LIBRA_CUSTOM_SPEC_RECORD_INVALID'});
 }));
+
+test('post-confirmation execution suspension uses its fresh state without changing the durable user target',()=>harness(h=>{
+  const confirmed=h.chosen.intent,revision=2,stateDigest=D('suspended-after-confirmation');
+  h.db.prepare('UPDATE libra_runs SET state=?,state_revision=?,state_digest=?').run('suspended',revision,stateDigest);
+  const published=h.publish({currentBasis:{...h.currentBasis,runState:'suspended',runStateRevision:revision,runStateDigest:stateDigest,
+    gapEvidenceSetDigest:D('observations-after-confirmation')}}),
+    spec=h.publisher.read(published.receipt.resultRef.acceptanceSpecId);
+  assert.equal(spec.customTargetRef.intentDigest,confirmed.intentDigest);
+  assert.equal(h.db.prepare('SELECT state FROM libra_runs').get().state,'suspended');
+  assert.equal(JSON.parse(h.db.prepare('SELECT record_json FROM libra_custom_target_intents').get().record_json).basis.runState,'frozen');
+}));
+
+test('post-confirmation terminalization or another Package revision still forbids new Spec publication',()=>harness(h=>{
+  h.db.prepare('UPDATE libra_runs SET package_revision_head=1').run();
+  assert.throws(()=>h.publish({currentBasis:{...h.currentBasis,runPackageRevisionHead:1}}),{code:'LIBRA_CUSTOM_TARGET_PREVIEW_STALE'});
+  h.db.prepare('UPDATE libra_runs SET package_revision_head=0,state=?').run('discarded');
+  assert.throws(()=>h.publish({currentBasis:{...h.currentBasis,runState:'discarded'}}),{code:'LIBRA_CUSTOM_TARGET_SCOPE'});
+  assert.deepEqual(h.counts(),[1,1,2,2,2]);
+}));

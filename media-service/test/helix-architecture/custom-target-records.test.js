@@ -12,11 +12,11 @@ function fixture(profile = 'movie') {
   const requirements = BETA_RECOMMENDED_RULES.profileRuleSets.find(row => row.contentProfile === profile)
     .decisionBranches.find(row => row.rating === 5).requirements;
   const basis = { subjectId: 'subject', libraRunId: 'old-run', runState: 'frozen', runStateRevision: 3,
-    runStateDigest: hash('frozen'), runExecutionBasisDigest: hash('basis'), baseAcceptanceSpecId: 'five-star-spec',
+    runStateDigest: hash('frozen'),runPackageRevisionHead:0,runExecutionBasisDigest: hash('basis'), baseAcceptanceSpecId: 'five-star-spec',
     runAcceptanceSpecId:'five-star-spec',runSpecRecordDigest:hash('record'),runSpecDigest:hash('five-star-semantics'),
     baseSpecRecordDigest: hash('record'), baseSpecDigest: hash('five-star-semantics'), decisionHeadDigest: hash('decision'),decisionHeadAcceptanceSpecId:'five-star-spec',
     shelfId: 'shelf', shelfStandardDigest: hash('standard'), shelfStandardRevision: 2, productScopeDigest: hash('scope'),
-    materialSetDigest: hash('material'), identityDigest: hash('identity'), customTargetRevision: 0, handoffState: 'no_offer',
+    materialSetDigest: hash('material'), identityDigest: hash('identity'),gapEvidenceSetDigest:hash('gaps'), customTargetRevision: 0, handoffState: 'no_offer',
     contentProfile: profile, structureKind: profile === 'series' ? 'season' : 'single' };
   const episodeScopes = profile === 'series' ? [{ episodeKey: 'E001', seasonNumber: 1, episodeNumber: 1 },
     { episodeKey: 'E002', seasonNumber: 1, episodeNumber: 2 }] : [];
@@ -58,10 +58,10 @@ test('a custom target decision preserves the original five-star basis and explic
 test('confirmation fences every original Run, decision, Shelf, material, identity and target revision', () => {
   const f = fixture(), preview = f.preview();
   for (const field of ['runStateDigest', 'runExecutionBasisDigest', 'runSpecRecordDigest','runSpecDigest','baseSpecRecordDigest', 'baseSpecDigest', 'decisionHeadDigest',
-    'shelfStandardDigest', 'productScopeDigest', 'materialSetDigest', 'identityDigest'])
+    'shelfStandardDigest', 'productScopeDigest', 'materialSetDigest', 'identityDigest','gapEvidenceSetDigest'])
     assert.throws(() => f.confirm(preview, { currentBasis: { ...f.basis, [field]: hash('changed-' + field) } }),
       { code: 'LIBRA_CUSTOM_TARGET_PREVIEW_STALE' }, field);
-  for (const field of ['runStateRevision', 'shelfStandardRevision', 'customTargetRevision'])
+  for (const field of ['runStateRevision', 'runPackageRevisionHead','shelfStandardRevision', 'customTargetRevision'])
     assert.throws(() => f.confirm(preview, { currentBasis: { ...f.basis, [field]: f.basis[field] + 1 } }),
       { code: 'LIBRA_CUSTOM_TARGET_PREVIEW_STALE' }, field);
   for(const field of ['runAcceptanceSpecId','baseAcceptanceSpecId','decisionHeadAcceptanceSpecId'])

@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-29 source-24实际Linux93PASS/0skip/0FAIL，四项静态门禁通过。确认前新增runPackageRevisionHead/gapEvidenceSetDigest绑定；确认后的Publication保留原Intent，允许经当前Owner验证的执行状态/观察变化，拒绝终结、Package或语义责任变化。P2 aggregate09908833…，242表/64事务/DDL9c6af0d…保持；内部资格不等同新Run或用户旅程完成，生产仍a2bf2d6fd未变更。
+
 2026-10-29目标屏障已通过source-23实际Linux：定向87项84PASS/3真实媒体环境skip/0FAIL，Host两项PASS/1 Reset名称过滤skip；普通两条独立影片正式Commit，另在Arca接纳BEGIN之前插入Libra绑定的技术Audit提交，P3_UOW_READ_FENCE_CHANGED且十组责任/Control/Outbox/marker摘要完全不变。此并发注入不是完整自定义确认API旅程。Libra旧Promotion和未Accepted Offer资格屏障保持历史只读；Arca事务无Libra Repository。尚未实现旧Offer调度收尾/新Run/完整用户流程，未部署生产。当前P2 fd601047…，DDL9c6af0d…/242表/64事务，生产仍旧239表。
 
 2026-10-29 custom Spec内部Publication完成增量：source-22 Linux91PASS/0skip及新增事务崩溃测试7PASS/202名称过滤skip；四项静态PASS。新Spec完整保留originalTarget、closed customTargetRef、targetInputDigest和逐集例外；实际SQLite发布一次Spec、head CAS、Receipt/marker/Audit全有或全无，Run及原Spec不变。模型/Store尚未接用户入口或运行调度；确认后旧Run最终提交资格屏障、Supporting Work/Run替代与Arca/Aftercare仍是开放阻断项。当前242表/64 Canonical Transaction，DDL仍9c6af0d…；生产仍a2bf2d6fd/239表，未部署或处置任务。

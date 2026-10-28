@@ -36,11 +36,11 @@ function fixture(profile='movie',libraRunId='old-run',basisOverrides={}){
       shelfStandardProjection:signed({shelfId:'shelf',status:'active',routingProjectionRevision:1,projectionDigest:routeProjection.projectionDigest,standard},'projectionResultDigest'),
       productScope:scope,decisionFacts:[],queryResults:[]}),basis=buildDecisionBasisRevision(inputSet,2,200,'spec-marker'),
     baseSpec=resolveAcceptanceSpec({inputSet,decisionBasis:basis,specRevision:1,producedAtMs:201,publishedAtMs:202}),
-    targetBasis={subjectId:subject.subjectId,libraRunId,runState:'frozen',runStateRevision:3,runStateDigest:D('frozen'),
+    targetBasis={subjectId:subject.subjectId,libraRunId,runState:'frozen',runStateRevision:3,runStateDigest:D('frozen'),runPackageRevisionHead:0,
       runExecutionBasisDigest:D('execution'),baseAcceptanceSpecId:baseSpec.acceptanceSpecId,baseSpecRecordDigest:baseSpec.recordDigest,
       runAcceptanceSpecId:baseSpec.acceptanceSpecId,runSpecRecordDigest:baseSpec.recordDigest,runSpecDigest:baseSpec.specDigest,
       baseSpecDigest:baseSpec.specDigest,decisionHeadDigest:D('current-head'),decisionHeadAcceptanceSpecId:baseSpec.acceptanceSpecId,shelfId:'shelf',shelfStandardDigest:standard.standardDigest,
-      shelfStandardRevision:1,productScopeDigest:scope.scopeDigest,materialSetDigest:D('members'),identityDigest:D('identity'),
+      shelfStandardRevision:1,productScopeDigest:scope.scopeDigest,materialSetDigest:D('members'),identityDigest:D('identity'),gapEvidenceSetDigest:D('gaps'),
       customTargetRevision:0,handoffState:'no_offer',contentProfile:profile,structureKind:subject.structureKind,...basisOverrides};
   function target(changes,actorId='admin'){
     const preview=buildCustomTargetPreview({basis:targetBasis,requirements,episodeScopes,actorId,createdAtMs:1000,

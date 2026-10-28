@@ -31,7 +31,7 @@ function createCustomTargetStore(options) {
       keyColumns:['subject_id','product_scope_digest'],compareColumns:[{column:'current_revision',parameter:'expected_revision'},
         {column:'intent_id',parameter:'expected_intent_id'},{column:'record_digest',parameter:'expected_digest'}]},
     run:{kind:'select-one',tableId:'libra_runs',keyColumns:['libra_run_id'],columns:['libra_run_id','subject_id','state','state_revision',
-      'state_digest','execution_basis_digest','acceptance_spec_id','run_material_manifest_id']},
+      'state_digest','package_revision_head','execution_basis_digest','acceptance_spec_id','run_material_manifest_id']},
     subject:{kind:'select-one',tableId:'libra_subjects',keyColumns:['subject_id'],columns:['subject_id','status','content_profile','structure_kind']},
     spec:{kind:'select-one',tableId:'libra_acceptance_specs',keyColumns:['acceptance_spec_id'],columns:['acceptance_spec_id','subject_id',
       'shelf_id','shelf_standard_revision','shelf_standard_digest','product_scope_digest','spec_digest','record_digest','spec_json']},
@@ -79,6 +79,7 @@ function createCustomTargetStore(options) {
     if (!run || !subject || subject.status !== 'active' || subject.content_profile !== basis.contentProfile || subject.structure_kind !== basis.structureKind ||
         run.subject_id !== basis.subjectId || run.state !== basis.runState || run.state_revision !== basis.runStateRevision ||
         run.state_digest !== basis.runStateDigest || run.execution_basis_digest !== basis.runExecutionBasisDigest ||
+        run.package_revision_head!==basis.runPackageRevisionHead||
         run.acceptance_spec_id !== basis.runAcceptanceSpecId || !runSpec || runSpec.subject_id !== basis.subjectId ||
         runSpec.record_digest!==basis.runSpecRecordDigest || runSpec.spec_digest!==basis.runSpecDigest ||runSpec.product_scope_digest!==basis.productScopeDigest||
         !spec || spec.subject_id !== basis.subjectId || spec.shelf_id !== basis.shelfId ||
@@ -113,9 +114,10 @@ function createCustomTargetStore(options) {
       if(typeof onValidated!=='function'||!SHA256.test(intentId||'')||!SHA256.test(intentDigest||''))fail('LIBRA_CUSTOM_TARGET_COMMAND_INVALID');
       return {participantId:'custom_target_publication_validation',owner:'libra',repositories:[validationRepository],execute(context){
         const repo=context.repository(validationRepository.repositoryId),evidence=intentEvidence(repo,intentId),{intent,preview}=evidence,
-          basis=validateBasis(currentBasis),expected={...intent.basis,customTargetRevision:intent.revision};
+          basis=validateBasis(currentBasis),expected={...intent.basis,customTargetRevision:intent.revision,
+            runState:basis.runState,runStateRevision:basis.runStateRevision,runStateDigest:basis.runStateDigest,gapEvidenceSetDigest:basis.gapEvidenceSetDigest};
         if(intent.intentDigest!==intentDigest||canonicalJson(basis)!==canonicalJson(expected))fail('LIBRA_CUSTOM_TARGET_PREVIEW_STALE');
-        assertOwnerBasis(repo,intent.basis,preview,intent.revision);
+        assertOwnerBasis(repo,basis,preview,intent.revision);
         const selected=current(repo,basis.subjectId,basis.productScopeDigest);
         if(selected?.intentId!==intentId||selected.intentDigest!==intentDigest)fail('LIBRA_CUSTOM_TARGET_PREVIEW_STALE');
         onValidated(evidence);return {intentId,intentDigest};

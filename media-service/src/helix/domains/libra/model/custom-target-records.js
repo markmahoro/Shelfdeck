@@ -8,10 +8,10 @@ const { validateRequirements } = require('./acceptance-spec-contracts');
 const PREVIEW_SCHEMA = 'libra.custom-target-preview@1';
 const INTENT_SCHEMA = 'libra.custom-target-intent@1';
 const DIGEST = /^[a-f0-9]{64}$/;
-const BASIS_KEYS = ['subjectId', 'libraRunId', 'runState', 'runStateRevision', 'runStateDigest', 'runExecutionBasisDigest',
+const BASIS_KEYS = ['subjectId', 'libraRunId', 'runState', 'runStateRevision', 'runStateDigest', 'runPackageRevisionHead', 'runExecutionBasisDigest',
   'runAcceptanceSpecId', 'runSpecRecordDigest', 'runSpecDigest', 'baseAcceptanceSpecId', 'baseSpecRecordDigest', 'baseSpecDigest',
   'decisionHeadDigest', 'decisionHeadAcceptanceSpecId', 'shelfId', 'shelfStandardDigest',
-  'shelfStandardRevision', 'productScopeDigest', 'materialSetDigest', 'identityDigest', 'customTargetRevision', 'handoffState',
+  'shelfStandardRevision', 'productScopeDigest', 'materialSetDigest', 'identityDigest', 'gapEvidenceSetDigest', 'customTargetRevision', 'handoffState',
   'contentProfile', 'structureKind'];
 const compare = (a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b));
 function fail(code, message) { throw Object.assign(new Error(message), { code }); }
@@ -46,7 +46,7 @@ function validateBasis(input) {
   exact(input, BASIS_KEYS);
   for (const key of ['subjectId', 'libraRunId', 'runAcceptanceSpecId', 'baseAcceptanceSpecId', 'decisionHeadAcceptanceSpecId', 'shelfId']) text(input[key]);
   for (const key of BASIS_KEYS.filter(key => key.endsWith('Digest'))) digest(input[key]);
-  integer(input.runStateRevision, 1); integer(input.shelfStandardRevision, 1); integer(input.customTargetRevision);
+  integer(input.runStateRevision, 1); integer(input.runPackageRevisionHead);integer(input.shelfStandardRevision, 1); integer(input.customTargetRevision);
   integer(input.customTargetRevision + 1, 1);
   if (!['active', 'suspended', 'frozen'].includes(input.runState) ||
       !['movie', 'series', 'jav', 'western_adult'].includes(input.contentProfile) ||
