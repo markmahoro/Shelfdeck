@@ -1,5 +1,7 @@
 # DEVELOPMENT_WORKFLOW - 开发命令
 
+2026-10-28用户确定：ShelfDeck只交付和部署Linux Docker。以下命令用于开发反馈或Linux Docker资格，不再要求Windows运行支持、Windows/Electron构建与发布验收；历史本机路径示例不构成其他部署平台承诺。生产仍使用标准镜像构建、上传和NAS部署工具。
+
 本文件只保留开发时最常用的命令和平台规则。架构事实见 `docs/v2/ARCH_OVERVIEW.md`。
 
 ## 命令
@@ -9,11 +11,6 @@
 cd media-service && npm install
 cd media-service && npm test
 cd media-service && npm run build:web
-
-# desktop
-cd media-desktop && npm install
-cd media-desktop && npm test
-cd media-desktop && npm run dist:win
 
 # worker node（转码补充节点；欧美成人 AI 默认不依赖 worker）
 cd media-worker && npm install
@@ -35,7 +32,8 @@ docker compose -f media-service/docker-compose.example.yml up -d
 
 | 术语 | 含义 |
 | --- | --- |
-| 测试环境 | 本机 Windows 环境 |
+| 开发反馈环境 | 本机逻辑测试，不替代Linux Docker运行资格 |
+| 运行验收环境 | 独立Linux Docker及必要的NAS同构存储环境 |
 | 生产环境 | NAS 上的 ShelfDeck Docker |
 
 普通切片默认先在本机测试环境验证，不需要每次部署 NAS 生产。需要生产同构配置或生产数据规模时，先同步 NAS runtime 数据到 ignored 目录：

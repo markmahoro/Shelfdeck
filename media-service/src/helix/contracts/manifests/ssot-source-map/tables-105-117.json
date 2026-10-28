@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,product_fact_id,fact_revision)`；按factKind/id/revision排序；必须逐项引用同Run immutable Product Fact；历史Package读取以该relation连接`libra_product_fact_revisions`并展开同一typed `fact_json`，完整Product Fact Manifest不依赖current row或另一Domain Store",
       "source": {
         "section": "8.5.11",
-        "line": 9608,
+        "line": 9614,
         "lineDigest": "9dd954abffef9d834c6263741ceaaa7714a33415f6028cf7c65523e09f7c8515"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,artifact_handle_id,artifact_revision)`；按kind/handle/revision排序；只保存typed immutable Artifact Handle ref，不保存大bytes；完整Artifact Manifest由relation重建",
       "source": {
         "section": "8.5.11",
-        "line": 9609,
+        "line": 9615,
         "lineDigest": "32d168641de734faba91e91219a37c082bf076ef79a68d45c4be429deb1bb44a"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`PK(on_deck_package_id,ordinal)`及`UNIQUE(on_deck_package_id,material_key,context_role)`；Primary/structural variant要求Control pair并禁止Related fields；related variant要求source reference/derived authority且Control pair为NULL。每个Run Basis Related必须恰有一row并映射到同Package Product member：carried要求source/final materialKey相同且`replace_or_move`，replaced要求不同且`remove_after_place`；按materialKey/contextRole排序并进入offload及Related disposition set digest，单目标列与多目标JSON列必须恰好一者非NULL；JSON固定schemaRef为`helix://contracts/application-types/LibraOffloadProductMaterialKeys/v1`（仅该array），为2..1024个UTF-8排序唯一materialKey、≤128 KiB，只允许original_input/replaced_and_settled/remove_after_place，原source仍恰好一row；完整目标集合进入member/set/manifest摘要，不构成Arca动作选择或删除授权",
       "source": {
         "section": "8.5.11",
-        "line": 9610,
+        "line": 9616,
         "lineDigest": "20dc09a6c609e1b8ab89a9efbb89247eccbdaad912e859b07fe8cac56597b39c"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`receipt_id=SHA-256(JCS({schema:\"libra.product-delivery-receipt-id@1\",offerId}))`，offer逐字节等于Package row且`UNIQUE(offer_id)`；accepted要求Custody/Binding/Control列非NULL、rejection/closure列NULL，并逐项无损保存`ArcaProductAcceptedMessage@1` Receipt；rejected要求Custody/Binding/Control列NULL且decision/receipt/rejection/closure digest逐项等于`ArcaProductRejectedMessage@1`与`LibraProductRejectionClosureResult@1`；terminal后immutable，相反终态稳定拒绝；`INDEX(result,received_at_ms)`",
       "source": {
         "section": "8.5.11",
-        "line": 9611,
+        "line": 9617,
         "lineDigest": "8e8f2c4cad18bcfd0002929692d725234f35e17ab99583f0539a5541044d661d"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "`rowMutability=cas_lifecycle`；`UNIQUE(shelf_id,provider,provider_key)`；`UNIQUE(endpoint_id,root_location)`；目标与身份冻结，current_version与active_build_id按state_revision/state_digest CAS；未有Commit引用不等于Own；引用存在时不删除scope",
       "source": {
         "section": "8.5.12",
-        "line": 9621,
+        "line": 9627,
         "lineDigest": "9629f1141d913ded62e5ce9ea74ac90d261e8567e8887ba03fa24e92d49a89da"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`UNIQUE(scope_id,revision)`；Basis和Scope JSON上限`64 KiB`，精确SeriesPresentationBasis及SeriesPresentationScope；immutable；新build不得重写失败build的Basis/Source Result",
       "source": {
         "section": "8.5.12",
-        "line": 9622,
+        "line": 9628,
         "lineDigest": "450d07909387a710492021a095ce4d3619899d8c33191142689e066b39bcdf37"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`UNIQUE(scope_id) WHERE state='active'`；`INDEX(shelf_id,state)`；Plan JSON上限`4 MiB`，完整冻结所有季head、正式材料及共享版本；Plan不可改写；active涵盖失败/恢复待处理，不能因Work失败释放迁移占用；committed仅由真实物理验证及全组Inventory提交建立",
       "source": {
         "section": "8.5.12",
-        "line": 9623,
+        "line": 9629,
         "lineDigest": "115a375d190b322ab54aae9afdc51417cef0c933e8fbb662ad34a0c3651c138a"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "`PK(scope_id,revision)`；`UNIQUE(build_id)`；Manifest JSON上限`16 KiB`，精确SeriesPresentationManifest，恰三项当前物理Identity/角色/位置/完整字节摘要；immutable；版本与head CAS及Control同Owner事务",
       "source": {
         "section": "8.5.12",
-        "line": 9624,
+        "line": 9630,
         "lineDigest": "2c45edbfcfa5a092dbb28c914e7672d87b720f14f94ed537413ad38cb7dd3f87"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "`PK(scope_id,on_deck_run_id)`；`rowMutability=cas_lifecycle`；与Handoff B Accepted同事务pending，与On-deck Commit同事务committed；pending不是Own；不能因首个Season失败而丢掉其他pending责任",
       "source": {
         "section": "8.5.12",
-        "line": 9625,
+        "line": 9631,
         "lineDigest": "f410d67b3bde8e66554c684d45e5382311e373d7a3d75239a70edc1107cb57a8"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "`PK(scope_id,shelf_entry_id)`；`rowMutability=cas_lifecycle`；同一Season追加Episode不新增引用；Off-deck/注销与本Entry终态同事务释放；有active或pending引用不删除公共文件，最后引用释放不替代用户删除授权",
       "source": {
         "section": "8.5.12",
-        "line": 9626,
+        "line": 9632,
         "lineDigest": "3906c925c22bd6b64d0250079e41c7c0447a5fe83c26874f61845a1921b60ae5"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "`UNIQUE(on_deck_run_id)`；immutable；与On-deck Commit同事务固定当时共享版本及验证；当前健康另取共享head，禁止改写历史链接",
       "source": {
         "section": "8.5.12",
-        "line": 9627,
+        "line": 9633,
         "lineDigest": "1f19a8bb145d741907b85dda2897f2a83d98c75c1705f892d93de42bff373afe"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "mount scope pair是Platform opaque technical ref；active Shelf name不作为identity；Shelf创建时routing projection revision=1，任何后续`status/current_standard_revision`变化都对该revision执行CAS并加1，再按`ShelfRoutingTargetProjection@1`公式重算digest；`INDEX(status,shelf_id)`；不得保存Libra Routing Priority",
       "source": {
         "section": "8.5.12",
-        "line": 9631,
+        "line": 9637,
         "lineDigest": "fb0d7dd2f0060eb79bacd13ded477487737287361b1f6acf01b597e26f233c18"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "system template不能archive或创建draft；current revision显式FK；`INDEX(status,owner_kind,rule_template_id)`",
       "source": {
         "section": "8.5.12",
-        "line": 9632,
+        "line": 9638,
         "lineDigest": "bd5c979d8217bbe4ac7c7562b1b9edf0fc2732ef5d8cccbc27f1d01f79fbe829"
       }
     }

@@ -1,5 +1,49 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+资格更新：独立Linux source-10新增78PASS/0skip/0FAIL，MoviePilot实际端口3PASS/22名称过滤skip；四项实际静态门禁全部通过。source-9的两个Manifest环境失败已通过携带精确浅层基线Git对象及测试专用Git镜像修正，不向生产镜像加入Git、不弱化Guard。Stash私有姓名传输绑定Image Artifact精确字节，具有有界并发/响应/取消/安全失败，7项Linux测试通过；正式配置、Work、People自动建档和Libra出演尚未接通。继续持久目标与运行链实施，未形成最终发布候选。
+
+最新开发检查点（2026-10-28）：新增同Episode多语言剧情补充，Libra冻结策略、Platform只补原资料查询，完整Linux合同298PASS及Host真实NFO/Commit通过；欲望都市S05E01生产只读证实同Episode有港台中文剧情，尚未执行生产恢复。People完整姓名库查询已接正式只读Facade，270人分页、歧义/变更/无Provider ID负例通过本机检查。自定义要求变换与预览/确认模型11PASS，基线/用户/具体字段/本地Episode/Arca责任边界闭合；持久化、新Spec/Run、Arca连续性和UI未接，禁止据此开放用户入口。Linux新增71项首跑69PASS/2FAIL，失败为隔离容器没有Git及reuse基线对象，正在补齐资格环境；不放宽Guard。MoviePilot缺失做种数被JavaScript转换为0已由真实Host/Handle端口用例先红后绿修正，尚须Linux复验；不能推断为三部影片全部异常的根因。生产未发布、未重试、未Reset。
+
+当前增量：SERIES-SEASON-POSTER-REUSE已实现冻结正常来源策略（精确本季→合格同剧本地→同剧Provider）及闭合的原图/输出proof，source漂移和技术故障不伪装无图。真实Linux合同30PASS；Provider与Local两条完整Host→Commit各PASS。FORMATION-SERIES-PRESENTATION-RECOVERY另完成alias恢复、三次暂不可观察后恢复、人工重新上架三条Host→Commit旅程；七条生产只读alias资格全部成立，未做生产重试。USER-CUSTOM-ACCEPTANCE-SPEC SSOT详细合同已补齐，持久Intent/Spec/API/UI与跨Owner实作继续。上述均未发布，完整架构、具体版本UI、真实生产7条/大宅门2等仍开放。
+
+2026-10-28 FORMATION-SERIES-PRESENTATION-RECOVERY开发中：已按SSOT修订区分暂不可观察与真实冲突；仅重查原Effect，不重复写入，沿原持久预算耗尽后终结技术Attempt并保留Owner待处理责任。已正确发布且SHA/大小吻合的正式文件与精确producer temporary具有同dev/ino/size/mtime/ctime时，可证明冗余硬链接；删除前重验Scope/执行资格和物理快照。Linux隔离IO首跑3项1PASS/2FAIL，修正后完整15PASS；恢复分类、Journal、Event、Host与Observer批次旧版152项144PASS/8FAIL，修复版152PASS，无skip。真实Host中断→共享资料→正式Commit及人工重试旅程继续验证；尚非固定发布候选或生产恢复。本条取代下方“尚无源码变化”的早期检查点，其他8项仍按表开放。
+
+2026-10-28 DEPLOYMENT-RESIDUE-CLEANUP完成：原99文件清单收尾、本次41项实际unlink及1项pending恢复记账；另删已核验安装的Stash运输包2个、无容器引用的退役候选镜像7个。4758保留文件/全部完整备份、732条入藏回执和17容器保护通过；两卷净Available增加18.36GB，vol1/vol2剩73.14/293.31GB。原子回执改随机临时名，旧失败保留；首次额外子卷设备号预检拒绝后以实际应用子卷核验通过，未放宽文件stamp/SHA。未动生产数据/媒体或Stop/Reset；Linux业务修复前置完成。下一步先进入7条剧集恢复合同与红绿回归，尚未实施业务修复。见[完整证据](evidence/DEPLOYMENT_RESIDUE_CLEANUP_20261028.md)。
+
+清理完成后已开始首项代码/合同核对：Series observeEffectReality将所有观察异常映射conflict/terminal_failure；同时writeExact即使正式目标字节已吻合，也必须重读已声明producer temporary，故持久不可读别名会再次失败。单改“可重试”不能证明7条能够上架。下一步须同时固定未知现场的无写入重查语义、精确producer临时别名的可证明恢复范围和执行预算/人工入口，再建立红绿负例；不把IO不可读当缺失，不按路径猜测删除，不改旧Event终态。当前仅完成核对，无业务源码变更或生产恢复尝试。
+
+2026-10-28验收平台收敛：只交付Linux Docker及Admin Web，不安排Windows/Electron版本或构建门禁；保留既有历史测试记录，不把它们继承为本轮义务。
+
+2026-10-28当前轮次范围总览（回顾本线程决定；设计/诊断不冒称实现）：
+
+| 工作项 | 本轮结果与当前状态 |
+| --- | --- |
+| FORMATION-SERIES-PRESENTATION-RECOVERY | 已实现严格冗余alias证明、有界观察和有效人工恢复；Linux定向及三条Host→Commit通过，生产只读七项资格成立。固定镜像/完整架构与生产验收待做，不以追究SMB最初故障为前置。 |
+| FORMATION-EXTERNAL-CANDIDATE-IDENTITY-DIAGNOSIS | 独立核实三部电影外部候选身份筛选及可用性，修复真实误排除；不与用户放宽收藏标准混为同一问题。已有冻结事实，根因判断/修复继续。 |
+| USER-CUSTOM-ACCEPTANCE-SPEC | 唯一SSOT完整三层目标合同、字段变换与不可变预览/确认模型已实现；持久Intent/Spec、新Run替代、Arca接纳/Aftercare及UI继续，未开放入口。真实评级/原基线保持，单集例外不波及同季其他集。 |
+| SERIES-EPISODE-PLOT-COMPLETION | 已实现精确同集翻译资料有界补充及proof；Linux合同与完整Host→NFO→Commit通过。欲望都市S05E01真实只读资料可补齐，仍待发布后生产验收；真正缺失保留待处理。 |
+| SERIES-SEASON-POSTER-REUSE | 正常来源策略/proof已实现；合格本地Shared只读复用和同剧Provider两条Linux Host旅程通过，缺两级图/技术故障/身份漂移负例通过。大宅门2生产验收及最终发布门禁待做。 |
+| US-ADULT-AUTO-REGISTRATION | SSOT已补外部优先/本地备用/人工优先/内部personId合同；姓名轻度模糊复用已接People单事务完整库查询。Stash正式Work、自动注册/出演/资料/人工竞争等运行链尚未接通，不能当作自动建档已完成。 |
+| US-ADULT-RECOMMENDATION-RETIREMENT | 删除推荐人脸认领的UI、聚类排名/周期快照、维护任务和专用Claim/API，保留共享抽帧/Reference/注册/选择及其他维护。用户已定方向，尚未删代码或处置历史。 |
+| STASH-SENSE-SHARED-SERVICE | 独立常驻、模型/索引预热、供多个应用调用；ShelfDeck只消费API。已完成独立安装与Skin Diamond单样本，尚未落实常驻/共享配置和ShelfDeck正式集成。 |
+| RELEASE-QUALIFICATION | 完成上述合同/实现后的真实失败恢复、三部电影目标预览、自动建档/备用/人工竞争、Linux Docker/完整架构/具体版本UI及生产逐项验收。独立单样本不替代这些门禁；已有收藏与媒体保护，不再次Reset掩盖缺陷。 |
+
+本轮边界：旧Handle/端口等修复、Fresh Reset/历史保护纠正、历史completed展示修复属于已完成基线，不重复开发或Reset；高达/凡人歌自然验收等既有未覆盖项不据此自动关闭。vol1/vol2残余清理已完成，见本页顶部2026-10-28记录。4K忙载吞吐与启动风暴延后。自动观察保持取消。本总览取代较早“仍仅双标准/季图不得复用”的设计方向描述，但不抹去当时按旧合同作出的诊断事实。
+
+2026-10-28 STASH-SENSE-SHARED-SERVICE / Design：用户决定独立常驻，供ShelfDeck及其他应用共享，不按ShelfDeck任务启停；避免冷加载的设计目标包含模型/索引持续预热（上游idle_unload_minutes=0可禁用空闲卸载）。ShelfDeck只调用受控图片识别API，服务部署/资源/数据库更新由其独立配置管理；共享调用需有界并发及明确等待、不可用和备用语义。现有测试限额CPU2/4GiB，实测约3.3GiB，不把单样本结果视为并发资格。此前停止实验容器是已完成测试事实；本次为设计决定，未启动服务或改变端口/配置。
+
+2026-10-28 US-ADULT-AUTO-REGISTRATION / Design，用户最新收敛：人物继续使用ShelfDeck生成的personId；撤回此前“TPDB ID为自动建档前提”及后续“Stash ID兜底身份”的建议，不扩展外部ID身份体系、强制绑定/迁移或跨库映射。Stash Sense提供有效识别姓名，ThePornDB按姓名提供资料；外部识别优先、本地Reference匹配备用、原人工建档/影片选演员保留。People仍拥有Person/Reference，Libra拥有Pre-deck出演决定，Arca拥有库存演员刷新；只增加自动识别到现有建档模型的业务路径，不改变人物或影片身份模型。
+
+后续设计仍须明确：按姓名及别名复用已有档案、同名歧义与并发建档幂等；TPDB资料未命中时的可用姓名/图片来源，不能再把缺Provider ID当作阻断；保持正式图片准备与发布校验，不用图片额外证明识别姓名。人工选择先行则迟到自动结果不得覆盖；无有效自动/本地结果进入原选演员链路。People建档与Libra影片确认各自持久提交、失败可继续，不重复建人；保留识别和资料来源，不要求这些来源ID成为人物主键。既有收藏不批量改演员，纠错沿单片Arca刷新。生产只读已核验当前24个US Adult Person的providerIdentities均为空，现有建档使用内部personId+姓名/别名+Reference；本轮尚未实施或修改生产。
+
+2026-10-28追加决定：本地档案查找和TPDB姓名解析采用精确/别名优先、大小写/空白/全半角规范化、轻度拼写或分隔符差异匹配；具体阈值用真实样本确定，多个近似候选不盲选、疑似已有档案不重复建人。退役“推荐人脸→用户认领/建档”整条功能：推荐页面/卡片、未知人脸聚类排名及周期快照、维护窗口中的该推荐任务、专用Claim和确认接力/API。不能只隐藏UI；删除专用功能时保留共享抽帧、People图片准备和手工注册、Libra演员选择、本地备用匹配及Arca单片演员刷新。历史Claim/事实/引用的处置须先分析真实依赖，不直接删除生产证据；不顺带退役整个每周维护窗口或其他维护任务。后续统一修订相关SSOT条款及实现，当前仅更新设计范围，尚未删除代码或变更生产。
+
+2026-10-28 US-ADULT-EXTERNAL-IDENTIFICATION-EVAL已完成授权的独立部署/单样本测试：Stash Sense 2 0.48.1、官方full DB 2026.10.09及3模型checksum/SQLite integrity通过；US Adult库Skin Diamond原图POST一次，HTTP200/1脸/首候选同名、distance0.302587、5.219秒。未预灌样本或传入姓名。初始3GiB OOM、准备脚本临时文件清理失败保留；修正为4GiB/CPU2后真实加载成功且无重启/OOM。当前独立服务验证后已停止释放约3.3GiB内存，部署与数据保留；演员事实/图片、ShelfDeck身份/运行保持。仅单样本通路通过，不代表集成、覆盖率、全数据质量或常驻负载验收；不启动其他暂停工作。见[完整证据](evidence/US_ADULT_STASH_SENSE2_EVAL_20261028.md)。
+
+2026-10-28 10:35Z FORMATION-SERIES-PRESENTATION-RECOVERY真实人工重试复现：仅飞天大盗按用户授权线上POST一次，generation2的Source/Assets成功、Publish约48ms再次P4_EVENT_RECOVERY_REALITY_CONFLICT，仍attention/canRetry=true，无Commit。需补验观察读取失败与已证实冲突分离、有界自动退避、预算耗尽后的有效人工重查、相同冻结发布范围部分完成继续、旧终态不改写及未知成员保护；不要求先证明SMB最初故障机制。本次只执行这一条重试，修复/新恢复语义尚未实施。见[Evidence末节](evidence/FORMATION_SERIES_AND_MOVIE_DIAGNOSIS_20261028.md)。
+
+2026-10-28诊断承接：FORMATION-SERIES-PRESENTATION-RECOVERY的7条真实Observer/文件核验均命中CIFS临时NFO别名open EINVAL，尚未实施；验收须覆盖相同SMB、冻结Intent/完整摘要、部分发布/中断/重试及未知文件拒绝，不能把EINVAL当缺失。FORMATION-EXTERNAL-CANDIDATE-IDENTITY-DIAGNOSIS须核对黑水1项/登堂入室4项达标且有做种但无Anchor的原始标题年份，判明误排除与真实身份不符，并保留可审查原因；目前未证明候选实际同片。欲望都市缺S05E01剧情、大宅门2缺季海报，资料资格和现行瑕疵标准不自动放宽。本次只读、不处置任务，容量清理保持用户暂停。详见[Evidence](evidence/FORMATION_SERIES_AND_MOVIE_DIAGNOSIS_20261028.md)。
+
 2026-10-27 06:34:51Z补充最终有限样本：a2bf2d6fd仍running/revision37，前端真实五入口及health/runtime均200。工作区11进行中/10 attention；原8条保持，新增《啊，荒野》前篇/后篇2条“暂未找到匹配的媒体身份”（Run active，尚无身份修订），不能自动认定为执行器故障或代选身份。694收藏/原保护结论保持，未再次Reset。本次部署核验结束，不创建自动观察。
 
 2026-10-27 06:31Z FORMATION-HISTORICAL-SERIES-PROJECTION已上线验收收口：markmahoro/shelfdeck:a2bf2d6fd，git a2bf2d6fd3271dc3a3741e28ed42f533a59d99d4，tar SHA256 cfe80143a74bba30f3cb92c9db4f3a03017701358cf8424fa81ce3b3a1770c03，NAS image sha256:894a07fd5c178536bebecc4d3dfb3951c9d225d217c62c2c2db2c49f8f4696df。原completed列表500变为200，19个历史剧集详情及前端真实五类列表入口均200。06:25:06.105Z正式Resume完成，running/revision37/normalSupplyAllowed=true/error=null。完整当前冷备507文件/10,898,810,820字节通过；694收藏、12组保护表及39,346路径stat保持，239表完整FK/integrity通过，236表逐行一致，另3表仅精确核验的既有启动投影/设备探测变化。原Reset代际/屏障保持，没有再次Reset、People纠正、取消任务、清理媒体或重建观察。恢复后Procurement与Libra实际推进，无新孤儿/重启/OOM；原有8条attention身份与原因保持（5个共享剧资料恢复冲突、2个frozen Series、1演员确认），整体业务仍有开放项，不能称全Phase通过。首跑EPERM及其他资格/辅助审计失败保留，见最新Evidence。

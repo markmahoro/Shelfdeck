@@ -90,3 +90,12 @@ test('missing destructive receipt requires reality revalidation and cannot prove
     .reconcile('destructive_commit',{});
   assert.deepEqual(result,{decision:'continue_forward',action:'revalidate_authorized_scope',evidenceDigest:DIGEST});
 });
+
+test('unobservable file reality requests observation only while an actual conflict remains terminal',async()=>{
+  for(const effectClass of ['workspace_write','material_commit']){
+    const extra=effectClass==='workspace_write'?{cleanupDeclared:false}:{rollbackDeclared:false};
+    const unknown=await registry({[effectClass]:{status:'unobservable',evidenceDigest:DIGEST,...extra}}).reconcile(effectClass,{});
+    assert.deepEqual(unknown,{decision:'observe_again',action:'reobserve_effect',evidenceDigest:DIGEST});
+    assert.equal((await registry({[effectClass]:{status:'conflict',evidenceDigest:DIGEST,...extra}}).reconcile(effectClass,{})).decision,'terminal_failure');
+  }
+});

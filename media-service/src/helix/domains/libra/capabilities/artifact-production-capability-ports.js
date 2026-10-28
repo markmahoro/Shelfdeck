@@ -137,6 +137,16 @@ function createArtifactProductionCapabilityPorts(options) {
               proof.outputDigest!==outcome.result.artifactHandle.digestHex)
             throw new TypeError('JAV Artifact Result does not conserve its single-source derivation and registered output.');
         }else if(outcome.result.javCoverDerivation)throw new TypeError('Non-JAV Artifact Result cannot claim a JAV derivation.');
+        const posterProof=outcome.result.seasonPosterSourceProof;
+        if(posterProof){
+          const proof=require('../../../contracts/series-season-poster-source').assertPosterSourceProof(posterProof),
+            draft=context.namedInputs.productMetadataDraft,
+            identity=draft.providerIdentities.find(item=>item.namespace==='tmdb_series');
+          if(context.parameters.artifactKind!=='poster'||outcome.result.resultKind!=='acquired'||
+              proof.basisDigest!==draft.seriesPresentationBasis?.basisDigest||proof.providerKey!==identity?.providerKey||
+              proof.seasonNumber!==identity?.seasonNumber||proof.outputDigest!==outcome.result.artifactHandle?.digestHex)
+            throw new TypeError('Season poster proof differs from its exact show, Season or registered output.');
+        }
       },
     }),
     [SIDECAR]: Object.freeze({

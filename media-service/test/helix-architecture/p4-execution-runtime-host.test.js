@@ -588,6 +588,37 @@ test('a transient recovery invocation failure stays in the safety lane without d
   await host.stop();
 });
 
+test('unobservable file recovery refreshes reality without blocking supply or redispatching stale decisions', async () => {
+  let classifications=0,recoveries=0;
+  const host=createExecutionRuntimeHost({
+    tickIntervalMs:60000,maxActionsPerTick:1,recoveryRetryMs:10,
+    startupRecovery:{async recover(){return {state:'recovering',normalSupplyAllowed:false,findings:[],
+      actions:[{eventId:'event',effectId:'effect',decision:'observe_again',action:'reobserve_effect'}]};}},
+    scheduler:{acquire(){return {kind:'idle'};},release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){return {
+      attemptTerminal:false,workTerminal:false,replayed:false,
+    };},settleWork(){}},
+    eventRuntime:{async classifyRecovery(request){classifications+=1;return {...request,
+      decision:classifications===1?'observe_again':'continue_forward',
+      action:classifications===1?'reobserve_effect':'finish_material_commit'};},
+      async recover(action){recoveries+=1;
+        if(recoveries<3){assert.equal(action.decision,'observe_again');return {kind:'recovery_deferred',eventId:'event',effectId:'effect'};}
+        assert.equal(action.decision,'continue_forward');return {kind:'succeeded'};
+      },async run(){}},
+    domainReconciler:{reconcile(){}},fallbackReconciler:{async start(){},async stop(){}},
+  });
+  try{
+    assert.equal((await host.start()).state,'ready');
+    await host.drainOnce();
+    assert.equal(host.activity().deferredRecoveryActions,1);
+    for(let step=0;step<2;step++){await new Promise(resolve=>setTimeout(resolve,15));await host.drainOnce();}
+    assert.equal(recoveries,3);
+    assert.equal(classifications,2);
+    assert.equal(host.activity().deferredRecoveryActions,0);
+  }finally{await host.stop();}
+});
+
 test('an in-process Event crash after Effect commit enters recovery without requiring service restart', async () => {
   let eventAvailable = true;
   let recoveries = 0;

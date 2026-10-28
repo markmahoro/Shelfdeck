@@ -1320,6 +1320,34 @@ test('terminal reality classification cannot abandon a committed or different in
   }
 });
 
+for(const effectClass of ['workspace_write','material_commit'])test('unobservable '+effectClass+' waits without dispatch and expires under its original durable budget',async()=>{
+  const settings=absentFactRecoverySettings({effectClass,inputError:new Error('observation cannot refresh execution input'),nowMs:1000});
+  settings.effectJournalRead.effect_class=effectClass;
+  await fixture(async({runtime,databasePath,state})=>{
+    const request={eventId:'event',effectId:'effect',decision:'observe_again',evidenceDigest:HASH_B};
+    assert.equal((await runtime.recover(request)).kind,'recovery_deferred');
+    assert.equal(databaseFacts(databasePath).event.state,'executing');assert.equal(state().dispatchContext,undefined);
+    assert.equal(state().recoveryAcquireCount,0);assert.equal(state().journalCalls.includes('abandon'),false);
+    settings.nowMs=3000;
+    assert.equal((await runtime.recover(request)).kind,'failed');
+    const facts=databaseFacts(databasePath);assert.equal(facts.event.state,'failed');
+    assert.equal(facts.attempt.failure_code,'P4_EVENT_RECOVERY_OBSERVATION_UNAVAILABLE');
+    assert.equal(inputSnapshotDigest(databasePath),EMPTY_INPUT_DIGEST);assert.equal(state().dispatchContext,undefined);
+    assert.equal(state().journalCalls.filter(item=>item==='abandon').length,1);
+  },settings);
+});
+
+test('observation-only recovery cannot consume another intent, a committed Effect or missing evidence',async()=>{
+  for(const change of [{state:'committed'},{intent_digest:HASH_B},null]){
+    const settings=absentFactRecoverySettings({effectClass:'material_commit'});settings.effectJournalRead.effect_class='material_commit';
+    if(change)settings.effectJournalRead={...settings.effectJournalRead,...change};
+    await fixture(async({runtime,state})=>{
+      await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'observe_again',evidenceDigest:change?HASH_B:null}),{code:'P4_EVENT_RECOVERY_EFFECT_DRIFT'});
+      assert.equal(state().journalCalls.includes('abandon'),false);assert.equal(state().dispatchContext,undefined);
+    },settings);
+  }
+});
+
 
 test('superseded input basis closes an auditable Attempt without dispatching stale Capability input',async()=>{
   await fixture(async({runtime,lease,databasePath})=>{

@@ -10,8 +10,8 @@ Main modules:
 
 | Path | Purpose |
 | --- | --- |
-| `media-service/` | Service, Admin Web, task engine, integrations, Docker/Windows runtime |
-| `media-desktop/` | Electron thin client over service HTTP APIs |
+| `media-service/` | Service, Admin Web, task engine, integrations, Linux Docker runtime |
+| `media-desktop/` | Legacy Electron client; outside the current delivery scope |
 | `media-worker/` | Passive FFmpeg/AI compute worker called by service |
 | `tests/` | Shell E2E runner and env files |
 | `docs/` | Architecture, workflow, deployment, debug, and v3 context |
@@ -30,6 +30,7 @@ Do not add generated `media-service/dist/`, root debug dumps, runtime JSON, expo
 - For runtime debugging read tests/TEST_ENV_CHECKLIST.md and docs/v2/DEBUG_WORKFLOW.md. The checklist contains private credentials; never copy them into docs, commits or replies.
 - For deployment read docs/v2/PRODUCTION_DEPLOYMENT.md; for platform commands/validation use docs/v2/DEVELOPMENT_WORKFLOW.md and TEST_ARCHITECTURE.md. Read docs/v3/VERSIONING.md only for version/release identity questions.
 - Current counts, deployment and task status belong in machine manifests/CURRENT_STATUS, not permanent AGENTS rules. User authorization persists; see Playbook §3 for contract and production boundaries.
+- Linux Docker is the sole deployment, delivery, and release-validation target, as explicitly decided by the user on 2026-10-28. Do not plan Windows runtime support, Windows/Electron packages, or Windows release gates. The development host does not define the product platform; local logic checks cannot replace required Linux Docker validation. Historical platform evidence remains historical.
 
 ## Production Safety
 
@@ -50,11 +51,6 @@ cd media-service && npm start
 cd media-service && npm test
 cd media-service && npm run build:web
 
-# Desktop
-cd media-desktop && npm install
-cd media-desktop && npm test
-cd media-desktop && npm run dist:win
-
 # Worker
 cd media-worker && npm install && npm start
 
@@ -68,7 +64,7 @@ Do not block the turn with a foreground development server. When needed, use a m
 
 - Node.js >= 20.
 - Use `process.platform === 'linux'` for Docker/Linux-specific behavior.
-- Keep Windows-only tray code behind `process.platform === 'win32'` or optional `try/catch require`.
+- Keep legacy desktop/tray code isolated from Linux container startup; this is not a Windows support obligation.
 - Use `path.join()` and configurable roots. Do not hardcode user-specific paths.
 - Windows-only packages belong in `optionalDependencies`; Docker installs may use `--omit=optional`.
 - Docker FFmpeg paths come from `FFMPEG_PATH` and `FFPROBE_PATH`.
@@ -92,6 +88,6 @@ Do not block the turn with a foreground development server. When needed, use a m
 - Helix planning documents must not multiply. Keep the concise Master Plan in `docs/helix/CURRENT_PLAN.md`, facts in `docs/helix/CURRENT_STATUS.md`, and exactly one subordinate active Phase packet in `docs/helix/implementation/CURRENT_PHASE.md`. Do not create parallel active component or Work Package plans. After Phase Exit, move the frozen packet to `docs/helix/implementation/archive/`; store audits and acceptance evidence in `docs/helix/implementation/evidence/`.
 - Plan Mode follows the active project: update docs/helix/CURRENT_PLAN.md for Helix; v3 planning paths apply only to explicitly requested legacy work.
 - Do not invent or reuse version names during implementation. For production deployments record the Docker image tag, git commit, SHA256, and E2E status in `docs/v3/CURRENT_STATUS.md`; reserve Git release tags for accepted releases.
-- Verify affected platforms according to docs/v2/DEVELOPMENT_WORKFLOW.md. Pure docs/UI text edits do not automatically require service Docker and desktop builds; record relevant coverage and omissions.
+- Verify affected behavior on the Linux Docker target according to docs/v2/DEVELOPMENT_WORKFLOW.md. Pure docs/UI text edits do not automatically require an image build; record relevant coverage and omissions. Do not add desktop or Windows build gates.
 - Passing tests are evidence, not proof; be honest about untested risk.
 - Code, code comments, and commit messages are English. Docs are Chinese with English technical terms where appropriate.

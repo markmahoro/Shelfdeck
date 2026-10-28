@@ -1189,6 +1189,39 @@ test('H1.2 provider operations execute through exact P5 ports and revision-fence
   }
 });
 
+test('MoviePilot availability preserves unknown counts and uses actual positive alternate fields', async () => {
+  const value = fixture(), state = { calls: [] }, fetchImpl = providerFetch(state);
+  const host = await createCleanServiceHost({ dataDir: value.dataDir, adminDistDir: value.adminDistDir, secretRoot,
+    integrationFetch: fetchImpl, now: () => 1_900_000_000_000 });
+  try { await configure(host, await session(host, value.initialized.adminApiKey), 'moviepilot', '-seeder-types'); }
+  finally { await host.close(); }
+  const opened = openServices(value, fetchImpl);
+  try {
+    for (const [index, fields, expectedCount] of [
+      [0, { seeders: null, seeders_count: 7 }, 7],
+      [1, { seeders: '', seeders_count: '8' }, 8],
+      [2, { seeders: false, seeders_count: 6 }, 6],
+      [3, { seeders: null }, null],
+      [4, { seeders: '  ' }, null],
+      [5, { seeders: true }, null],
+      [6, { seeders: '0x10' }, null],
+      [7, { seeders: 0, seeders_count: 20 }, 0],
+    ]) {
+      state.moviepilotSearchRows = [{ media_info: { title: 'Movie', year: '2024', tmdb_id: 100 },
+        meta_info: { name: 'Movie', year: '2024' }, torrent_info: { title: 'Movie.2024.2160p.HEVC.TrueHD',
+          enclosure: 'https://tracker.test/seeder-types-' + index, size: 1024, ...fields } }];
+      const result = await opened.services.executeProvider('moviepilot', { operationId: 'libra.external_material.search@1',
+        effectClass: 'pure_observation', idempotencyKey: 'seeder-types-' + index, timeoutMs: 5000,
+        input: { acquisitionQuery: acquisitionQuery(), limit: 25 } });
+      const candidate = result.result.candidates[0];
+      assert.equal(candidate.availabilityEvidence.seederCount, expectedCount, 'case ' + index);
+      assert.equal(candidate.availabilityEvidence.status, expectedCount === null ? 'unknown' : 'known', 'case ' + index);
+      assert.equal(candidate.availability, expectedCount > 0 ? 'available' : 'unavailable', 'case ' + index);
+    }
+    assert.equal(state.moviepilotDownloadAdds || 0, 0);
+  } finally { opened.kernel.close(); }
+});
+
 test('UAT-250 keeps all one hundred advertised candidates through the response and selection bounds',async()=>{
   const value=fixture(),state={calls:[]},fetchImpl=providerFetch(state);
   const host=await createCleanServiceHost({dataDir:value.dataDir,adminDistDir:value.adminDistDir,secretRoot,

@@ -1,5 +1,21 @@
 # ShelfDeck 当前状态
 
+2026-10-28最新Linux增量结果：source-10定向78PASS/0skip/0FAIL；MoviePilot做种类型/身份门槛/完整100候选端口回归3PASS、22名称过滤skip；包边界、禁止语义、Manifest、P2合同四项实际静态检查全部通过。前轮71项69PASS/2FAIL的缺Git/基线环境已在独立资格镜像修正，原失败保留；生产运行镜像没有增加Git。新Stash私有传输7场景在Linux通过，尚未接正式Integration配置/Work/People建档或变更常驻服务。所有生产修复上线/真实业务验收继续开放。
+
+2026-10-28 本轮开发继续，生产仍为a2bf2d6fd，未部署或生产重试。精确集多语言剧情补全已通过实际Linux合同批次298PASS和完整Host→NFO→On-deck Commit；欲望都市S05E01只读核验为简体剧情空、同Episode港台中文/英文非空，新规则可选zh-HK，不需放宽Spec。Movie三条选定Service文件共29项中7PASS/22既有环境skip/0FAIL，不能记为完整Service通过。People姓名轻度模糊模型已接正式只读Owner查询，单事务完整库分页、同名歧义和库变化守卫本机34PASS；Linux增量正在验证。自定义标准的字段变换及预览/确认记录模型11PASS，仍未接持久Intent、新Run、Arca或UI，不代表功能完成。
+
+黑水原始搜索只找回当前last-cache的19条，重放现有身份校验18通过、1条1993同名片正确拒绝；不等于找回旧HTTP union全部34条，其他被排除项仍未证实同根因。未调用有副作用搜索。全部新Linux测试使用独立qualification目录和无网络/只读源码容器；最终候选镜像、完整架构、具体版本UI和生产七条/大宅门2验收仍开放。详见[本轮诊断与开发证据](implementation/evidence/FORMATION_SERIES_AND_MOVIE_DIAGNOSIS_20261028.md)。下方记录保留各时点事实。
+
+2026-10-28本轮开发检查点：生产仍a2bf2d6fd，未部署/Reset/新增重试或文件处置。Series恢复Linux IO完整15PASS、Foundation/Observer152PASS；完整Host的不可读冗余alias、三次暂不可观察后自动恢复、明确失败后人工重新上架分别PASS，三条都到真实On-deck Commit。七部生产NFO只读全SHA/大小及稳定dev/ino/size/mtimeNs/ctimeNs均符合严格alias条件；未删除临时文件，生产结果尚未验证。季poster正常复用已实现来源策略/proof及Local/Provider选择，实际Linux合同30PASS，Provider和合格本地来源两条Host完整入藏各1PASS；没有Windows构建或发布验收。SSOT三层用户自定义标准已补Owner/目标变更/Arca连续性，尚未实现其数据库/API/UI。首跑容量门禁、预期注入夹具错误、观察旅程100秒窗口不足、本机生成器UNKNOWN及旧P2摘要断言失败均保留；生成器重试及机械摘要更新后静态合同无finding，仍非全量架构或最终镜像资格。见[实施Evidence](implementation/evidence/FORMATION_SERIES_AND_MOVIE_DIAGNOSIS_20261028.md)。
+
+2026-10-28 20:46（Asia/Shanghai）容量清理前置完成：原99文件清单全部收尾，本次实际删剩余41项并恢复1项上次pending记账；另回收Stash已安装运输包2项及明确退役的无引用候选镜像7个。原4758保留文件、全部完整备份、732条入藏回执逐行及17既有容器身份/挂载/StartedAt保持；未Stop/Reset/改库/动媒体。两卷Available从69.75/278.34GB变为73.14/293.31GB，净增18.36GB，逻辑大小不冒充物理释放量。ShelfDeck仍a2bf2d6fd/running/health ok，fnOS HTTP200，Stash实验容器仍停止。旧回执PID临时名冲突及Btrfs子卷预检拒绝均保留。见[完整清理回执](implementation/evidence/DEPLOYMENT_RESIDUE_CLEANUP_20261028.md)。容量暂停已被本次明确授权取代并完成，后续回到本轮业务合同和实现。
+
+2026-10-28 11:38Z US-ADULT-EXTERNAL-IDENTIFICATION-EVAL：NAS独立Stash Sense 2 0.48.1真实识别现有US Adult库Skin Diamond参考图成功，第一候选同名、1脸、HTTP200、5.219秒；API匹配分数0.697413不是准确率。固定官方DB2026.10.09/3模型校验通过。初始3GiB OOM及准备脚本失败保留，4GiB/CPU2容器成功加载、无重启/OOM，常驻约3.3GiB；完成后停止独立容器释放内存，安装/数据保留。ShelfDeck a2bf2d6fd及容器启动身份保持，health正常、无新增重启/OOM；Person完整响应和参考图片SHA保持。未接入ShelfDeck、不代选演员、不恢复暂停修复或自动观察。见[独立识别验证](implementation/evidence/US_ADULT_STASH_SENSE2_EVAL_20261028.md)。
+
+2026-10-28 10:35Z按用户追加授权，仅对飞天大盗通过既有线上重新上架入口重试一次：202/pending及同build generation2 Receipt成立，Source/Assets成功，新Publish约48ms后再次P4_EVENT_RECOVERY_REALITY_CONFLICT，Commit取消，任务回到attention。正式NFO摘要/mtime/身份保持，临时NFO仍open EINVAL，poster/fanart仍缺失，未入藏。已确认重试有真实新执行但恢复分类仍将“读取现场失败”一概判为conflict/never；下一步优先恢复可重查/有界自愈和真实冲突区分，不以追究SMB原因为前置。未重试其他6条、未部署/Reset/手工文件处置。详见[诊断追加](implementation/evidence/FORMATION_SERIES_AND_MOVIE_DIAGNOSIS_20261028.md)。
+
+2026-10-28 09:25Z只读诊断：生产仍a2bf2d6fd/revision37，13进行中/13 attention（7共享剧资料、2 frozen剧集、3电影寻源、1演员确认）。7条均通过真实只读Observer和逐项文件证据定位到CIFS上NFO临时hardlink别名open EINVAL：正式NFO摘要正确，poster/fanart未发布；需修Arca发布/恢复，不是旧TMDB Handle或历史展示问题。欲望都市缺S05E01剧情；大宅门2季poster返回not_available，不能无条件借用剧根共享poster。三部电影有候选，黑水/登堂入室共5个规格达标且有做种项被无ID标题/年份身份校验排除，是否误杀仍需原始证据；三峡好人无达标4K项。9月28日合同已取代寻源耗尽原片瑕疵规则，不能自动放宽像素/音轨。未改生产/重试/Reset，容量清理保持暂停，未恢复自动观察。见[本次Evidence](implementation/evidence/FORMATION_SERIES_AND_MOVIE_DIAGNOSIS_20261028.md)。
+
 2026-10-27 06:34:51Z补充最终有限样本：a2bf2d6fd仍running/revision37，前端真实五入口及health/runtime均200。工作区11进行中/10 attention；原8条保持，新增《啊，荒野》前篇/后篇2条“暂未找到匹配的媒体身份”（Run active，尚无身份修订），不能自动认定为执行器故障或代选身份。694收藏/原保护结论保持，未再次Reset。本次部署核验结束，不创建自动观察。
 
 2026-10-27 06:31Z FORMATION-HISTORICAL-SERIES-PROJECTION已上线验收收口：markmahoro/shelfdeck:a2bf2d6fd，git a2bf2d6fd3271dc3a3741e28ed42f533a59d99d4，tar SHA256 cfe80143a74bba30f3cb92c9db4f3a03017701358cf8424fa81ce3b3a1770c03，NAS image sha256:894a07fd5c178536bebecc4d3dfb3951c9d225d217c62c2c2db2c49f8f4696df。原completed列表500变为200，19个历史剧集详情及前端真实五类列表入口均200。06:25:06.105Z正式Resume完成，running/revision37/normalSupplyAllowed=true/error=null。完整当前冷备507文件/10,898,810,820字节通过；694收藏、12组保护表及39,346路径stat保持，239表完整FK/integrity通过，236表逐行一致，另3表仅精确核验的既有启动投影/设备探测变化。原Reset代际/屏障保持，没有再次Reset、People纠正、取消任务、清理媒体或重建观察。恢复后Procurement与Libra实际推进，无新孤儿/重启/OOM；原有8条attention身份与原因保持（5个共享剧资料恢复冲突、2个frozen Series、1演员确认），整体业务仍有开放项，不能称全Phase通过。首跑EPERM及其他资格/辅助审计失败保留，见最新Evidence。

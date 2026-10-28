@@ -142,6 +142,7 @@ function tmdbFetch(state = {}) {
       id: 90001, show_id: state.foreignEpisode ? 999 : 1399, season_number: 0, episode_number: 1,
       name: 'Fixture special', air_date: '2011-12-25', overview: 'Individually observed special',
     }] });
+    if(url.pathname==='/3/tv/1399/season/2/images')return response(200,{posters:[],backdrops:[]});
     if (url.pathname === '/3/movie/550/images' || url.pathname === '/3/tv/1399/images') {
       return response(200, {
         posters: [{
@@ -1046,6 +1047,14 @@ test('H1.1 Platform ports fence real TMDB identity and metadata reads across res
       assert.deepEqual(state.imageCalls.slice(imagesBefore).map(call=>call.pathname),
         ['/t/p/original' + imagePath, '/t/p/original' + imagePath]);
     }
+    const seasonPosterHandle=runtime.integrationHandleResolverPort.resolve({integrationId:'tmdb-main',integrationType:'tmdb',
+      configRevision:1,allowedOperation:'libra.product_artifact.acquire@1',artifactKind:'poster'}),
+      seasonRequest={operationId:'libra.product_artifact.acquire@1',artifactKind:'poster',resolvedProviderIdentity:localIdentity,
+        integrationHandle:seasonPosterHandle};
+    assert.equal((await runtime.fetchProviderArtifact({...seasonRequest,artifactScope:{scopeKind:'season',seasonNumber:2}})).resultKind,'not_available');
+    const reusedShowPoster=await runtime.fetchProviderArtifact({...seasonRequest,artifactScope:{scopeKind:'series'}});
+    assert.equal(reusedShowPoster.resultKind,'acquired');assert.deepEqual(reusedShowPoster.resolvedProviderIdentity,localIdentity);
+    assert.deepEqual(reusedShowPoster.bytes,state.imageBytes['/t/p/original/poster.jpg']);
     assert.throws(
       () => runtime.integrationHandleResolverPort.resolve({
         integrationId: 'tmdb-main',

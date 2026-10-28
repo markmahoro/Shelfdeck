@@ -1078,6 +1078,7 @@ function metadataFetchIntentSchema() {
       object({ ...common,contentProfile:enumText('movie','series'), episodeScope, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(), relatedReferenceDigest: digest(), expectedChecksum: digest() },
         [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedChecksum']),
       object({ ...common,contentProfile:enumText('movie','series'), episodeScope,
+        episodePlotPolicyRef:{const:require('../../src/helix/contracts/episode-plot-source').POLICY},
         episodeMapping: require('../../src/helix/contracts/episode-metadata-query').episodeMetadataQuerySchema(),
         sourceKind: { const: 'provider' }, providerKind: {const:'tmdb'},
         resolvedProviderIdentity: domainRef('ResolvedProviderIdentity'), integrationId: id(), configRevision: positiveInteger() },

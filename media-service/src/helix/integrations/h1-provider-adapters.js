@@ -1091,6 +1091,10 @@ function createProtocolTransport(profile, options) {
       ? row.torrent_info : {};
     for (const value of [torrent.seeders, torrent.seeders_count,
       row?.seeders, row?.seeders_count]) {
+      // Missing or non-numeric JSON values are unknown, not observed zero.
+      // Preserve an explicit zero; only unknown fields may use an alternate.
+      if (typeof value !== 'number' &&
+          !(typeof value === 'string' && /^\d{1,16}$/.test(value.trim()))) continue;
       const count = Number(value);
       if (Number.isSafeInteger(count) && count >= 0) return count;
     }

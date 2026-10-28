@@ -638,6 +638,98 @@
         }
       },
       "x-helix-maxCanonicalBytes": 32768
+    },
+    "seasonPosterSourceProof": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "policyRef",
+        "providerKey",
+        "seasonNumber",
+        "basisDigest",
+        "sourceKind",
+        "seasonResult",
+        "sourceQualificationDigest",
+        "sourceByteDigest",
+        "outputDigest",
+        "proofDigest"
+      ],
+      "properties": {
+        "schema": {
+          "const": "shelfdeck.series-season-poster-proof@1"
+        },
+        "policyRef": {
+          "const": "shelfdeck.series-season-poster-source@1"
+        },
+        "providerKey": {
+          "type": "string",
+          "pattern": "^\\d+$"
+        },
+        "seasonNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        },
+        "basisDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceKind": {
+          "enum": [
+            "season_provider",
+            "series_local",
+            "series_provider"
+          ]
+        },
+        "seasonResult": {
+          "enum": [
+            "acquired",
+            "not_available"
+          ]
+        },
+        "sourceQualificationDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceByteDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "outputDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "proofDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "sourceKind": {
+                "const": "season_provider"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "seasonResult": {
+                "const": "acquired"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "seasonResult": {
+                "const": "not_available"
+              }
+            }
+          }
+        }
+      ]
     }
   },
   "required": [
@@ -663,6 +755,42 @@
           },
           "artifactHandle": {
             "$ref": "helix://contracts/types/ArtifactHandle/v1"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "required": [
+          "seasonPosterSourceProof"
+        ]
+      },
+      "then": {
+        "required": [
+          "artifactHandle"
+        ],
+        "not": {
+          "required": [
+            "javCoverDerivation"
+          ]
+        },
+        "properties": {
+          "resultKind": {
+            "const": "acquired"
+          },
+          "artifactHandle": {
+            "allOf": [
+              {
+                "$ref": "helix://contracts/types/ArtifactHandle/v1"
+              },
+              {
+                "properties": {
+                  "artifactKind": {
+                    "const": "poster"
+                  }
+                }
+              }
+            ]
           }
         }
       }

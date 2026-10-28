@@ -132,6 +132,63 @@ test('exact US actor snapshots freeze both revisions, reject system libraries an
   });
 });
 
+test('public name resolution reads a complete US library past 256 people in one read-only Owner transaction', () => {
+  fixture(({ store, unitOfWork, reads, preparedSql }) => {
+    for (let index = 0; index < 270; index++)
+      store.registerDirectPerson(directDecision('actor-' + String(index).padStart(4, '0'), 'key-' + index, 'us_adult'));
+    store.registerDirectPerson(directDecision('other-library', 'other-library', 'normal'));
+    const { createPersonReferenceQuery } = require('../../src/helix/domains/people/capabilities/people-reference-lifecycle');
+    const { PersonReferenceQueryFacade } = require('../../src/helix/domains/people/public');
+    const query = PersonReferenceQueryFacade(createPersonReferenceQuery(store)), transactions = [], original = unitOfWork.execute;
+    unitOfWork.execute = participants => { transactions.push(participants); return original(participants); };
+    reads.length = 0; preparedSql.length = 0;
+    const result = query.resolveUsAdultName({ name: 'Person actor-0269', aliases: [], expectedLibraryNamesDigest: null });
+    assert.equal(result.kind, 'resolved');
+    assert.equal(result.candidates[0].personId, 'actor-0269');
+    assert.equal(result.candidates[0].personRevision, 1);
+    assert.equal(transactions.length, 1);
+    assert.equal(transactions[0].length, 1);
+    assert.equal(transactions[0][0].owner, 'people');
+    assert.equal(transactions[0][0].readOnly, true);
+    assert.deepEqual(reads.filter(item => item.statementId === 'page_people').map(item => item.rows), [100, 100, 70]);
+    assert.ok(preparedSql.length > 0 && preparedSql.every(sql => /^SELECT\b/i.test(sql)));
+    assert.equal(Object.isFrozen(result.candidates[0]), true);
+    assert.equal(query.resolveUsAdultName({ name: 'Person other-library', aliases: [], expectedLibraryNamesDigest: null }).kind, 'not_found');
+    assert.throws(() => query.resolveUsAdultName({ name: 'Person actor-0269', aliases: [], expectedLibraryNamesDigest: null, limit: 1 }),
+      { code: 'PEOPLE_NAME_QUERY_INVALID' });
+  });
+});
+
+test('name reuse exposes internal Person revision and invalidates stale snapshots without requiring Provider identities', () => {
+  fixture(({ store }) => {
+    function add(personId, canonicalName) {
+      const { decisionDigest, ...decision } = directDecision(personId, personId, 'us_adult');
+      const body = { ...decision, canonicalName, aliases: [], providerIdentities: [] };
+      store.registerDirectPerson({ ...body, decisionDigest: canonicalDigest(body) });
+    }
+    add('skin-one', 'Skin Diamond');
+    const request = { name: 'Ｓｋｉｎ Diamond', aliases: [], expectedLibraryNamesDigest: null };
+    const exact = store.resolveUsAdultName(request);
+    assert.equal(exact.candidates[0].personId, 'skin-one');
+    assert.equal(exact.candidates[0].matchKind, 'exact_name_or_alias');
+    assert.equal(store.getPerson('skin-one').revision.providerIdentities.length, 0);
+    assert.equal(store.resolveUsAdultName({ ...request, name: 'Skin Daimond' }).candidates[0].matchKind, 'light_spelling');
+    add('skin-two', 'Skin Diamond');
+    assert.throws(() => store.resolveUsAdultName({ ...request, expectedLibraryNamesDigest: exact.libraryNamesDigest }),
+      { code: 'PEOPLE_NAME_LIBRARY_CHANGED' });
+    const ambiguous = store.resolveUsAdultName(request);
+    assert.equal(ambiguous.kind, 'ambiguous');
+    assert.deepEqual(ambiguous.candidates.map(item => item.personId), ['skin-one', 'skin-two']);
+    store.revisePerson({ personId: 'skin-one', revision: 2, canonicalName: 'Different actor', aliases: [], providerIdentities: [],
+      factDigest: hash('renamed-person') }, 1);
+    const fresh = store.resolveUsAdultName(request);
+    assert.equal(fresh.kind, 'resolved');
+    assert.equal(fresh.candidates[0].personId, 'skin-two');
+    assert.notEqual(fresh.libraryNamesDigest, ambiguous.libraryNamesDigest);
+    assert.equal(exact.candidates[0].personId, 'skin-one');
+  });
+});
+
 test('publishes a US Adult Person and its initial image atomically, with no selectable identity on invalid reference evidence', () => {
   fixture(({ store }) => {
     const decision = directDecision('actor-valid', 'actor-valid', 'us_adult');
