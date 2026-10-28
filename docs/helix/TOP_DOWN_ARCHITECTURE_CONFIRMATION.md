@@ -16550,21 +16550,31 @@ Libra请求精确集的必需剧情时，TMDB首选语言的Season成员与同�
 
 ### US-ADULT-AUTO-REGISTRATION / RECOMMENDATION-RETIREMENT（2026-10-28）
 
+2026-10-29用户修订识别部署边界：借鉴Stash Sense 2的有界视频抽帧、聚类和频次统计，使用其离线目录构建ShelfDeck自己的service-local识别能力。取消本项此前独立常驻Sense、Stash API消费者及扩展Sense视频URL入口的方案；不引入Worker、External Job、Python/FastAPI服务或完整Stash应用。该修订不删除已安装实验环境，不授权生产变更。模型、目录与检索作为Composition Root注入的内部技术能力，继续沿现有Helix Capability、Artifact、Effect和Runtime资源/取消边界；Libra拥有抽样计划及出演决定，People拥有人物/Reference，Arca拥有入藏事实。技术识别组件不能自行建档、确认出演或选择文件权限。
+
+2026-10-29用户进一步确认：本轮主目录识别、自建Reference特征生成和本地备用全部统一为buffalo_l（末尾小写字母l），以固定Stash Sense 2实际方法为唯一模型/预处理对照；不保留YuNet/SFace备用执行分支。Mirex仅为已查询的历史事实，不作为设计、代码复用、接口或兼容依据。模型名相同不等于特征兼容，检测/关键点/对齐/通道/归一化与索引须经过Phase 1最小资格，未通过不得进入正式视频/自动建档链。已有人物/参考原图及历史证据保持，原128维向量不可补维或复用为512维；新Reference由People沿正式图片/特征准备与发布形成新版本，既有收藏依赖/历史模型Evidence的必要只读保留不构成旧模型继续执行的资格。生产重建/切换及保护方案必须在正式发布前完成隔离验证和对应授权。
+
+2026-10-29用户确认本项目仅自用NAS，不对外分发模型/离线数据；后续按本地受校验技术资源管理，不将它们捆绑到对外镜像，保留各自来源和使用条件。最小模型/索引/图片/Reference与资源资格已通过有限技术Phase 1；正式视频策略、Reference更新和人物业务仍须后续Phase，不把技术一致性当总体演员准确率或自动出演资格。
+
+主识别使用经过验真的离线模型/索引/人物元数据/别名与链接集合，模型预处理、向量维数、距离度量和目录generation必须配套且冻结到执行Evidence；不能用现有SFace 128维Reference直接查询buffalo_l 512维索引，也不能因同名或外部目录链接自动Merge内部Person。目录是只读外来技术数据集，不是People Registry，不以外部编号取代内部personId。视频仅经当前Owner的Physical Material Read Handle读取；不上传或复制整片，不为识别增加媒体HTTP服务/任意URL读取能力。抽帧必须有界seek，失败/不支持随机读取不能自动退化为全片下载或顺序扫描。
+
+每片最终仍只确认一位演员；多演员、聚类/频次及代表帧规则由Libra冻结的版本化识别策略明确，不把“出现最多”解释为已证明性别。人脸视觉性别预测不是本次能力；目录已有性别字段的覆盖及女演员选择规则须按唯一Phase中的设计提议完成验证和确认，未决前不开放自动出演入口。通用聚类只提供技术分组/帧覆盖和候选Evidence，不在计算组件内决定业务演员。完整视频旅程和资源资格未完成，旧Sense单图实测不继承为内置引擎PASS。
+
 推荐功能退役删除其四条Admin Route、Libra专用UsAdultRecommendation Query/Command Facade、后台聚类排名/Publication与Claim调度及UI认领/来源联动建档分支。Shared Frame/Embedding/Reference、人工注册/影片选择和Arca既有演员维护继续各自原合同。五张people_us_recommendation_*表与历史DTO暂按原Schema保留只作历史证据，不注册新Writer/后台/命令；不能借表仍存在而维持旧业务。部署前停止态预检必须证明没有preparing_person/confirming_source或active_source_id认领责任；非空时拒绝本次退役部署并明确列出责任，不在普通运行启动做全机历史阻断，不添加旧任务兼容/自动取消/恢复分支，不擅自改生产Claim。2026-10-28只读样本五表均为空不是永久豁免，发布必须重验。
 
-Stash姓名传输冻结`stash-sense.name-observation@1`：一次POST只提交已验证Image Artifact的精确字节（Handle/revision/SHA/大小，最多8MiB），不让远端自行读媒体URL；`top_k=5,max_distance=0.6,min_face_confidence=0.5`沿已验证的上游接口参数。JSON响应最多1MiB/32脸，每脸最多5候选，投影只保留姓名/可选原名别名、上游分数、脸框、源图和服务配置revision摘要、完整响应摘要，不把外部catalogue ID或返回图片URL变为人物身份/文件读取权限。无脸/未识别如实返回；选定单脸图中出现多脸或最高结果同等歧义时不得盲选。调用deadline有界且可取消，取消/超时后不接纳迟到成功；ShelfDeck调用并发有界，无隐藏无界队列，finally释放占用/监听器。配置、正式Work准入和People建档仍各由原Owner管理，纯传输返回不构成系统已建档或影片已选演员。
+此前`stash-sense.name-observation@1`图片POST Adapter仅为2026-10-28实验/实现检查点，2026-10-29起不作为正式主识别路径，不能为保留该私有实现继续部署独立服务。内置目录识别的typed I/O须完整绑定源材料、帧Artifact、模型/预处理/目录generation、分组、候选及规则摘要；无脸、无匹配、歧义、预算耗尽、读取失败与目录损坏明确区分。上游阈值只作校准起点，不直接当作本系统已验收策略。正式Work准入和People建档仍各由原Owner管理，技术结果不构成系统已建档或影片已选演员。
 
 姓名规则`people.us-adult-name-resolution@1`以NFKC/组合音调归一、大小写及非字母数字分隔符归一作精确比较；完整名称/别名优先。轻度拼写使用有界编辑距离（含相邻字母交换）：双方归一长度至少6，长度6–11至多1次，至少12至多2次；唯一最小距离才可复用，多个同等候选保留歧义，不采用任意包含。完整人物快照最多10000人、8MiB，比较步骤和返回候选亦有界；超界明确失败，不能截断后当作未找到而重复建档。该规则只解析姓名，不构成Merge权限或影片出演事实。
 
 本修订取代US Adult只能由用户建档、以本地Reference库作为主识别渠道及推荐人脸认领的相冲突限制；普通/JAV人物和已有收藏不因此改变。Person仍由People生成内部personId，不要求TPDB/Stash外部ID、不扩展跨库身份真值，也不把姓名相同解释为合并已有Person的权限。
 
-- **顺序和Owner**：Libra按冻结影片/身份/源材料范围准备有界代表帧，Platform经配置的Stash Sense 2 Adapter取得有界的姓名识别Observation；既有内部人脸库不参与该主路径的身份判定。People独立按识别姓名/别名查找当前US Adult人物；唯一合格命中复用personId，未命中时按相同姓名向ThePornDB搜索补充资料/图片，再经People正式图片准备与直接建档事务自动建立Person。Libra只消费People公开的完整Person/Reference快照，以新的`automatic_external`来源确认出演并继续生产；不能把外部结果伪装成旧本地Reference match，也不能从Libra或Integration写People表。已有`automatic_match`只代表真实完成的本地备用匹配。
+- **顺序和Owner**：Libra按冻结影片/身份/源材料范围准备有界代表帧，service-local技术组件生成特征/分组并查询离线目录，返回有界的姓名候选Observation；既有内部人脸库不参与该主路径的目录身份判定。Libra按版本化策略选定一个有资格的目录人物。People独立按其姓名/别名查找当前US Adult人物；唯一合格命中复用personId，未命中时按相同姓名向ThePornDB搜索补充资料/图片，再经People正式图片准备与直接建档事务自动建立Person。Libra只消费People公开的完整Person/Reference快照，沿正式自动出演决定继续生产；不能把目录识别伪装成旧本地Reference match，也不能从Libra或计算组件写People表。已有`automatic_match`只代表真实完成的本地备用匹配。
 - **姓名解析**：People与ThePornDB候选均采用确定性、版本化的精确/可信别名优先规则，再容忍大小写、全半角、空白/连接符/撇号等书写差异和有界轻度拼写误差；不按首名、任意包含、相似人脸或结果顺序选档。精确和模糊层次分开，同名多档或同等近似候选不能盲选、合并或另建重复Person；返回原人工选演员入口。模糊命中保留原名、匹配依据和候选摘要，不改已有演员姓名/Reference来迎合识别结果。查询与自动建档提交都校验同一当前人物集合/revision，重启、跨Run并发和重放只形成一条新档，不用Provider ID作幂等主键。
-- **无TPDB结果/服务错误**：Stash给出有效姓名而TPDB确无匹配时，不否定该姓名，也不要求用户补外部编号；可用该片已绑定识别人脸的清晰图像，经People既有单脸/解码/Reference发布校验后建档，记录截图来源。TPDB技术故障、候选歧义及无图分别保留诊断，不能假装已匹配TPDB资料。没有合格建档图片时不创建半成品Person，可继续现有人工建档/选演员；不把一张不可用图片或未完成Operation当作人物已发布。不以再次匹配新Reference来循环证明刚才的识别姓名。
-- **外部、备用与人工**：信任Stash正式有效结果及上游阈值，不追加“必须外部ID一致”或不必要的二次人脸证明。无脸、未识别、无有效姓名、服务不可用/有界预算耗尽或无法唯一复用/建档时可进入既有本地Reference备用；仍无结果才进入原人工选择。外部与本地都失败不自动推荐未知脸让用户认领。现有手工注册/改名/补图及影片选择保留，人工选择总是优先；迟到的自动结果只留Evidence，不能覆盖当前人工Choice或已消费的Cast。演员决定已经进入产品Work后，真正变更沿既有Run替代/已入藏Arca单片刷新路径，不原位改写旧Fact/NFO或批量更新已有收藏。
-- **完整证据与恢复**：外部Observation绑定Run/身份/材料/帧及图片摘要、Integration/config、Adapter/识别规则和可观测数据库版本、原始有界人脸/候选/姓名结果；不能把匹配分数叫准确率。People自动注册Operation绑定识别Evidence、姓名解析结果与图片来源，复用正式Workspace Effect、图片准备、Reference及Person原子发布；其授权来源明确为外部识别，不能伪造用户确认。Libra自动出演选择绑定该People完整快照、Registration/复用依据和当前Manual Choice Head。每段分别持久提交，失败重试不会重建人物或选择过期对象，图片字节不塞进Foundation Result。
+- **无TPDB结果/资料错误**：离线目录给出有效姓名而TPDB确无匹配时，不否定该姓名，也不要求用户补外部编号；可用该片已绑定识别人脸的清晰图像，经People既有单脸/解码/Reference发布校验后建档，记录截图来源。TPDB技术故障、候选歧义及无图分别保留诊断，不能假装已匹配TPDB资料。没有合格建档图片时不创建半成品Person，可继续现有人工建档/选演员；不把一张不可用图片或未完成Operation当作人物已发布。不以再次匹配新Reference来循环证明刚才的识别姓名。
+- **目录、备用与人工**：使用经本系统校准的有效目录结果，不追加“必须外部ID一致”或不必要的二次人脸证明。无脸、未识别、无有效姓名、模型/目录不可用、有界预算耗尽或无法唯一复用/建档时可进入既有本地Reference备用；备用须遵守同一演员资格策略，不能绕过尚未解决的男演员选择问题。仍无结果才进入原人工选择，不自动推荐未知脸让用户认领。现有手工注册/改名/补图及影片选择保留，人工选择总是优先；迟到的自动结果只留Evidence，不能覆盖当前人工Choice或已消费的Cast。演员决定已经进入产品Work后，真正变更沿既有Run替代/已入藏Arca单片刷新路径，不原位改写旧Fact/NFO或批量更新已有收藏。
+- **完整证据与恢复**：目录Observation绑定Run/身份/材料/帧及图片摘要、模型/预处理/目录generation、识别规则、原始有界人脸/分组/候选/姓名结果；不能把匹配分数叫准确率。People自动注册Operation绑定识别Evidence、姓名解析结果与图片来源，复用正式Workspace Effect、图片准备、Reference及Person原子发布；其授权来源明确为自动目录识别，不能伪造用户确认。Libra自动出演选择绑定该People完整快照、Registration/复用依据和当前Manual Choice Head。每段分别持久提交，失败重试不会重建人物或选择过期对象，图片字节不塞进Foundation Result。
 - **删除推荐认领功能**：退役推荐页面/卡片、未知脸聚类排名/周期快照发布、维护窗口中的专用推荐任务、Claim命令/API及其确认接力，不仅隐藏UI。普通/JAV维护及US Adult共享抽帧/图片准备/Reference/本地备用所需Embedding与Cluster保留。既有已提交Person/Reference或收藏依赖的Claim Evidence保留只读历史，不删除生产依赖、改写已提交来源或复活历史Claim；历史在线保留与后续归档由People明确描述真实依赖，不以旧推荐任务继续运行作为兼容方案。
-- **独立共享服务**：Stash Sense是独立常驻服务，模型/索引预热并禁用空闲卸载；ShelfDeck只调用API，不按影片管理容器生命周期。部署固定镜像/官方数据库/模型证据、资源上限和共享调用边界；多消费者不得导致ShelfDeck无界并发、长期占席或热循环。客户端区分加载中、繁忙、无结果、协议/网络错误和有效Observation；相同未变化错误按有界恢复/备用策略收口。数据库更新由独立服务运维管理，ShelfDeck不修改识别数据库或用本地人物库覆盖它。
+- **内部资源与目录维护**：模型/只读索引按ShelfDeck既有Runtime资源和停止屏障管理，加载、繁忙、无匹配、取消及故障明确区分；不按每一帧重新加载，不因数据库不存在阻挡无关业务。目录与模型作为配套的有版本技术包安装/校验，在独立暂存代际验真后发布，单次执行固定generation，不在线原地覆盖索引或把People修改回写外来库。更新不自动重判已有演员或收藏。具体CPU/内存/并发/时限、加载策略及磁盘峰值以Linux实测冻结，禁止无界任务/内部队列及用部分失败结果伪装完整成功。
 
 ### 2026-10-19 US Adult人物分库离线结构副本
 

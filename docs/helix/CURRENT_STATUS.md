@@ -1,5 +1,11 @@
 # ShelfDeck 当前状态
 
+2026-10-29 BUFFALO-CATALOGUE-FEASIBILITY有限技术Phase Exit：固定source-3实际Linux 11场景/10脸数值与有序身份、3张原编码图、5组Reference和5个空槽查询通过；5项数学及source-4补充8负例通过，首跑失败保留。最小cosine0.9998701773、最大距离差0.0007046461；1CPU/2GiB下加载4.373s，普通图5.497–7.746s、旋转13.146s、双人10.645s；RSS峰值约1.86GiB/cgroup峰值约1.24GiB（不同口径），停止290ms，1017次父进程HTTP探针0错误/最慢111.654ms。三人物完整响应/原图SHA、2模型/7目录成员SHA保持，生产容器/image/StartedAt/Restart0/OOM=false未变，Sense保持停止、无本任务容器。当前仅资格脚本，正式Runtime/Reference尚未切换；不是视频准确率、完整Host共载、最终镜像/UI或生产资格。用户确认仅自用NAS、不对外分发模型/数据，使用条件留档。当前包切为Phase 2待开始，本次没有启动其实现或任何生产处置。详见[Phase 1 Evidence](implementation/evidence/BUFFALO_CATALOGUE_FEASIBILITY_20261029.md)。
+
+2026-10-29用户要求将复杂轮次拆成六个有验收门槛的Phase，Master Plan已重排，唯一活动包现在为BUFFALO-CATALOGUE-FEASIBILITY。模型主识别/Reference/本地备用统一buffalo_l，以Sense 2方法为依据，不参考Mirex；取消此前保留SFace备用的提议。Phase 1尚无代码/图片对照/索引/资源资格PASS，未通过只阻断识别下游，不阻断独立剧集/寻源/自定义标准工作。旧Master/混合Phase完整冻结在implementation/evidence/ROUND_REPLAN_BASELINE_20261029.md，重排不代表旧项Exit。既有源码及未提交增量保持，未触碰生产/服务/媒体，监控不恢复。下方是旧检查点，执行顺序以新Master Plan和唯一活动包为准。
+
+2026-10-29识别方案设计更新，尚未实现：用户取消独立Sense/旧Worker方向，要求ShelfDeck自己整合离线目录并借鉴视频抽帧/聚类。已按固定上游源码核对输入前seek、最近质心分组、unique-frame统计及数据库gender字段；未测内置引擎、视频时延、目录性别覆盖或误识率。SSOT已改部署及Owner边界，唯一Phase保存有界抽样/补采/检索/女演员选择/资源和验证提议，数字和具体筛选规则待验证讨论。业务源码未改，既有自定义目标Run接续未提交工作保留、其余开发保持暂停；未调用生产或变更实验服务/媒体/人物，不重新创建监控。
+
 2026-10-29旧Offer关闭资格：source-26实际Linux四项静态PASS，19文件172项169PASS/3既有真实媒体环境skip/0FAIL；新增Canonical事务4PASS/208名称过滤skip；普通独立收藏与接纳前并发拒绝两个Host旅程PASS（Reset名称过滤）。source-27随后增加精确迟到Offer身份匹配，四项静态及21项PASS。原239表SQL完全一致，仅四张新表，共243表/65事务；DDL7f913e57…，P2 3abb2c85…。关闭Receipt不等于新Run或自定义收藏旅程完成；生产本轮未操作。
 
 2026-10-29 source-24实际Linux93PASS/0skip/0FAIL，四项静态门禁通过。确认前新增runPackageRevisionHead/gapEvidenceSetDigest绑定；确认后的Publication保留原Intent，允许经当前Owner验证的执行状态/观察变化，拒绝终结、Package或语义责任变化。P2 aggregate09908833…，242表/64事务/DDL9c6af0d…保持；内部资格不等同新Run或用户旅程完成，生产仍a2bf2d6fd未变更。
