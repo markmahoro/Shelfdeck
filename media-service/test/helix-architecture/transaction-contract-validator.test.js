@@ -27,9 +27,9 @@ const codes = (result) => new Set(result.findings.map((item) => item.code));
 test('validates all canonical transaction participants and crash contracts', () => {
   const result = validateTransactionContracts({ contractsRoot: actualContractsRoot });
   assert.equal(result.ok, true);
-  assert.equal(result.transactionCount, 62);
+  assert.equal(result.transactionCount, 64);
   assert.equal(result.responsibilityControlCount, 15);
-  assert.equal(result.crashFixtureBindingCount, 67);
+  assert.equal(result.crashFixtureBindingCount, 69);
 });
 
 test('rejects upstream Store writes and missing Control CAS participation', () => {
@@ -71,7 +71,7 @@ test('rejects Case creation inside batch intent and a destructive Deregistration
 test('rejects duplicate transaction inventory identities', () => {
   const root = fixture();
   try {
-    mutate(path.join(root, 'manifests', 'transaction-inventory', 'entries-001-062.json'), (shard) => {
+    mutate(path.join(root, 'manifests', 'transaction-inventory', 'entries-001-064.json'), (shard) => {
       shard.entries[1].id = shard.entries[0].id;
     });
     const result = validateTransactionContracts({ contractsRoot: root });
@@ -79,6 +79,15 @@ test('rejects duplicate transaction inventory identities', () => {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('custom target confirmation cannot substitute another Owner command selector',()=>{
+  const root=fixture();try{
+    mutate(transactionPath(root,'helix.transaction.libra-custom-target-commit'),document=>{
+      document.contract.variants.find(row=>row.variantId==='confirmation').selector.commandContract='arca.reset@1';
+    });
+    assert.ok(codes(validateTransactionContracts({contractsRoot:root})).has('INVALID_TRANSACTION_VARIANT_SELECTOR'));
+  }finally{fs.rmSync(root,{recursive:true,force:true});}
 });
 
 test('rejects Product Fact selector, Outbox, participant, and crash override drift', () => {

@@ -9,7 +9,8 @@ const PREVIEW_SCHEMA = 'libra.custom-target-preview@1';
 const INTENT_SCHEMA = 'libra.custom-target-intent@1';
 const DIGEST = /^[a-f0-9]{64}$/;
 const BASIS_KEYS = ['subjectId', 'libraRunId', 'runState', 'runStateRevision', 'runStateDigest', 'runExecutionBasisDigest',
-  'baseAcceptanceSpecId', 'baseSpecRecordDigest', 'baseSpecDigest', 'decisionHeadDigest', 'shelfId', 'shelfStandardDigest',
+  'runAcceptanceSpecId', 'runSpecRecordDigest', 'runSpecDigest', 'baseAcceptanceSpecId', 'baseSpecRecordDigest', 'baseSpecDigest',
+  'decisionHeadDigest', 'decisionHeadAcceptanceSpecId', 'shelfId', 'shelfStandardDigest',
   'shelfStandardRevision', 'productScopeDigest', 'materialSetDigest', 'identityDigest', 'customTargetRevision', 'handoffState',
   'contentProfile', 'structureKind'];
 const compare = (a, b) => Buffer.compare(Buffer.from(a), Buffer.from(b));
@@ -43,7 +44,7 @@ function limited(value) {
 }
 function validateBasis(input) {
   exact(input, BASIS_KEYS);
-  for (const key of ['subjectId', 'libraRunId', 'baseAcceptanceSpecId', 'shelfId']) text(input[key]);
+  for (const key of ['subjectId', 'libraRunId', 'runAcceptanceSpecId', 'baseAcceptanceSpecId', 'decisionHeadAcceptanceSpecId', 'shelfId']) text(input[key]);
   for (const key of BASIS_KEYS.filter(key => key.endsWith('Digest'))) digest(input[key]);
   integer(input.runStateRevision, 1); integer(input.shelfStandardRevision, 1); integer(input.customTargetRevision);
   integer(input.customTargetRevision + 1, 1);

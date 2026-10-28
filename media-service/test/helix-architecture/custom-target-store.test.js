@@ -14,7 +14,8 @@ const tables=['libra_custom_target_previews','libra_custom_target_intents','libr
 function harness(callback){return fixture(input=>{
   const db=new Database(input.databasePath),basis={subjectId:'subject',libraRunId:'run-1',runState:'frozen',runStateRevision:1,
     runStateDigest:D('run-state'),runExecutionBasisDigest:D('basis'),baseAcceptanceSpecId:'five-star-spec',
-    baseSpecRecordDigest:D('spec-record'),baseSpecDigest:D('spec'),decisionHeadDigest:D('head'),shelfId:'shelf',
+    runAcceptanceSpecId:'five-star-spec',runSpecRecordDigest:D('spec-record'),runSpecDigest:D('spec'),
+    baseSpecRecordDigest:D('spec-record'),baseSpecDigest:D('spec'),decisionHeadDigest:D('head'),decisionHeadAcceptanceSpecId:'five-star-spec',shelfId:'shelf',
     shelfStandardDigest:D('standard'),shelfStandardRevision:1,productScopeDigest:D('scope'),materialSetDigest:D('member-set'),
     identityDigest:D('identity'),customTargetRevision:0,handoffState:'no_offer',contentProfile:'movie',structureKind:'single'};
   try{
@@ -98,6 +99,20 @@ test('a valid preview cannot introduce requirements that differ from the frozen 
   stored.requirements.space.maxSizeGiB=40;h.db.prepare('UPDATE libra_acceptance_specs SET spec_json=?').run(canonicalJson(stored));
   assert.throws(()=>h.commit('preview',preview),{code:'LIBRA_CUSTOM_TARGET_PREVIEW_STALE'});
   assert.deepEqual(h.counts(),[0,0,0,0,0,0]);
+}));
+
+test('Store independently fences the frozen Run Spec, current decision pointer and original standard Spec',()=>harness(h=>{
+  const row=h.db.prepare('SELECT * FROM libra_acceptance_specs').get(),columns=Object.keys(row),custom={...row,acceptance_spec_id:'custom-run-spec',
+    spec_digest:D('custom-semantic'),record_digest:D('custom-record')};
+  h.db.prepare('INSERT INTO libra_acceptance_specs('+columns.join(',')+') VALUES('+columns.map(()=>'?').join(',')+')').run(...columns.map(column=>custom[column]));
+  h.db.prepare('UPDATE libra_runs SET acceptance_spec_id=?').run(custom.acceptance_spec_id);
+  h.db.prepare('UPDATE libra_subject_decision_heads SET current_acceptance_spec_id=?').run(custom.acceptance_spec_id);
+  Object.assign(h.basis,{runAcceptanceSpecId:custom.acceptance_spec_id,runSpecRecordDigest:custom.record_digest,runSpecDigest:custom.spec_digest,
+    decisionHeadAcceptanceSpecId:custom.acceptance_spec_id});
+  const preview=h.preview();h.commit('preview',preview);h.commit('intent',h.confirm(preview));
+  const selected=h.store.current({subjectId:h.basis.subjectId,productScopeDigest:h.basis.productScopeDigest});
+  assert.equal(selected.basis.runAcceptanceSpecId,'custom-run-spec');assert.equal(selected.basis.baseAcceptanceSpecId,'five-star-spec');
+  assert.equal(selected.target.requirements.space.maxSizeGiB,50);
 }));
 
 test('late writes reject the original read view and a failed Result rolls back the complete intent commit',()=>harness(h=>{

@@ -13,7 +13,8 @@ function fixture(profile = 'movie') {
     .decisionBranches.find(row => row.rating === 5).requirements;
   const basis = { subjectId: 'subject', libraRunId: 'old-run', runState: 'frozen', runStateRevision: 3,
     runStateDigest: hash('frozen'), runExecutionBasisDigest: hash('basis'), baseAcceptanceSpecId: 'five-star-spec',
-    baseSpecRecordDigest: hash('record'), baseSpecDigest: hash('five-star-semantics'), decisionHeadDigest: hash('decision'),
+    runAcceptanceSpecId:'five-star-spec',runSpecRecordDigest:hash('record'),runSpecDigest:hash('five-star-semantics'),
+    baseSpecRecordDigest: hash('record'), baseSpecDigest: hash('five-star-semantics'), decisionHeadDigest: hash('decision'),decisionHeadAcceptanceSpecId:'five-star-spec',
     shelfId: 'shelf', shelfStandardDigest: hash('standard'), shelfStandardRevision: 2, productScopeDigest: hash('scope'),
     materialSetDigest: hash('material'), identityDigest: hash('identity'), customTargetRevision: 0, handoffState: 'no_offer',
     contentProfile: profile, structureKind: profile === 'series' ? 'season' : 'single' };
@@ -56,13 +57,15 @@ test('a custom target decision preserves the original five-star basis and explic
 
 test('confirmation fences every original Run, decision, Shelf, material, identity and target revision', () => {
   const f = fixture(), preview = f.preview();
-  for (const field of ['runStateDigest', 'runExecutionBasisDigest', 'baseSpecRecordDigest', 'baseSpecDigest', 'decisionHeadDigest',
+  for (const field of ['runStateDigest', 'runExecutionBasisDigest', 'runSpecRecordDigest','runSpecDigest','baseSpecRecordDigest', 'baseSpecDigest', 'decisionHeadDigest',
     'shelfStandardDigest', 'productScopeDigest', 'materialSetDigest', 'identityDigest'])
     assert.throws(() => f.confirm(preview, { currentBasis: { ...f.basis, [field]: hash('changed-' + field) } }),
       { code: 'LIBRA_CUSTOM_TARGET_PREVIEW_STALE' }, field);
   for (const field of ['runStateRevision', 'shelfStandardRevision', 'customTargetRevision'])
     assert.throws(() => f.confirm(preview, { currentBasis: { ...f.basis, [field]: f.basis[field] + 1 } }),
       { code: 'LIBRA_CUSTOM_TARGET_PREVIEW_STALE' }, field);
+  for(const field of ['runAcceptanceSpecId','baseAcceptanceSpecId','decisionHeadAcceptanceSpecId'])
+    assert.throws(()=>f.confirm(preview,{currentBasis:{...f.basis,[field]:'changed-spec'}}),{code:'LIBRA_CUSTOM_TARGET_PREVIEW_STALE'},field);
   for (const overrides of [{ actorId: 'another-admin' }, { acknowledged: false }])
     assert.throws(() => f.confirm(preview, overrides), { code: 'LIBRA_CUSTOM_TARGET_CONFIRMATION_REQUIRED' });
   assert.throws(() => f.confirm(preview, { expectedPreviewDigest: hash('different-preview') }), { code: 'LIBRA_CUSTOM_TARGET_PREVIEW_STALE' });

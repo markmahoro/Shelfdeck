@@ -3,6 +3,10 @@
 const crypto = require('crypto');
 
 const crashFixtures = Object.freeze({
+  'libra-custom-target':['Exact Run, base/current Spec, target head and read fence validation; Preview/Intent, receipt, marker and audit before COMMIT',
+    'Target changes and technical receipts are atomic; stale views and concurrent confirmations leave no partial target, Spec or Run',8852],
+  'libra-custom-spec':['Exact confirmed Intent and original standard validation; custom Spec insert, decision head CAS, receipt, marker and audit before COMMIT',
+    'One immutable custom Spec, head and technical receipt are all present or absent; replay preserves revision; no foreign Owner repositories or Run admission',8853],
   'series-presentation-commit':['exact active build, expected shared version, source and final verification, each Control CAS, version/head/Result/marker, before and after COMMIT',
     'Shared version, head, Control and Ready result are all present or all absent; old Season Own and historical Commit links remain unchanged; exact Event replay cannot publish a second version',8866],
   'actor-prepublication-failure':['Owner terminal CAS before and after exact Foundation failure proof, before COMMIT and response','Only a completely failed no-write publication may close unresolved; uncertain Effects and changed Inventory reject with zero Case writes; failed execution and unrelated Findings remain unchanged',8821],
@@ -337,6 +341,24 @@ const definitions = Object.freeze({
       'libra_decision_basis_revisions', 'libra_decision_basis_inputs'],
     fixtureRefs: ['libra-acceptance-spec'], hasOutbox: false,
     forbiddenWritePrefixes: ['proc_', 'arca_']
+  },
+  'Libra Custom Target Commit': {
+    commitClass:'domain_fact_commit',writeTables:['libra_custom_target_previews','fx_command_receipts','fx_commit_markers','fx_audit_records'],
+    readTables:['libra_subjects','libra_runs','libra_acceptance_specs','libra_subject_decision_heads',
+      'libra_run_material_manifests','libra_product_fact_revisions','libra_custom_target_previews','libra_custom_target_intents','libra_custom_target_heads'],
+    variants:[{variantId:'preview'},
+      {variantId:'confirmation',exactOverride:true,writeTables:['libra_custom_target_intents','libra_custom_target_heads','fx_command_receipts','fx_commit_markers','fx_audit_records'],
+        selector:{selectorKind:'owner_command_exact',commandContract:'libra.custom-target.confirm@1'},dynamicTableRequirements:[],hasOutbox:false,
+        fixtureRefs:['libra-custom-target'],rollbackInvariant:'Intent, scoped head, receipt, marker and audit are all present or absent; stale views and competing confirmations leave zero writes.',
+        readTables:['libra_subjects','libra_runs','libra_acceptance_specs','libra_subject_decision_heads','libra_run_material_manifests',
+          'libra_product_fact_revisions','libra_custom_target_previews','libra_custom_target_intents','libra_custom_target_heads']}],
+    fixtureRefs:['libra-custom-target'],hasOutbox:false,forbiddenWritePrefixes:['proc_','arca_','perception_','people_']
+  },
+  'Libra Custom Acceptance Spec Publish': {
+    commitClass:'domain_fact_commit',writeTables:['libra_acceptance_specs','libra_subject_decision_heads','fx_command_receipts','fx_commit_markers','fx_audit_records'],
+    readTables:['libra_custom_target_previews','libra_custom_target_intents','libra_custom_target_heads','libra_subjects','libra_runs',
+      'libra_run_material_manifests','libra_product_fact_revisions'],fixtureRefs:['libra-custom-spec'],hasOutbox:false,
+    forbiddenWritePrefixes:['proc_','arca_','perception_','people_']
   },
   'Libra Product Identity Selection Intent Commit': {
     commitClass: 'domain_fact_commit',

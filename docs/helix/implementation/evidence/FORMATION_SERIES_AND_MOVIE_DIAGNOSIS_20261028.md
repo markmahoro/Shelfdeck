@@ -172,3 +172,19 @@ Foundation Command preflight在BEGIN IMMEDIATE后的Receipt检查之后、任何
 新增通用`additive-schema-snapshot.js`只接受显式新增表清单、精确源/目标DDL及所有旧表/索引定义不变。源必须是无sidecar的独立单链接快照；先容量预算（3×源大小+512MiB），复制到私有验证区后只在副本打开SQLite，原快照完整SHA及物理快照前后保持。完整源验证、逐表stream copy与行摘要比较、新库完整FK/integrity后排他发布独立目标，返回prepared=true/applied=false。Linux验证239→242、238张原数据表（marker由目标建立）、原行类型/文本不变、新表为空；既存目标、源alias/sidecar、空间不足及复制中断均拒绝且无输出/临时残留。它不是运行库升级器、Reset或切换完成证明；真实停止屏障、完整备份、租约、生产全量副本和发布切换仍需接入并验证。未加入生产镜像/执行本工具，生产239表保持。
 
 本机首次Store测试因先写Run外键再写Spec失败，调整夹具建立顺序；第二次错误预期业务校验先于Receipt幂等冲突，按既有Receipt优先规则纠正断言。未弱化FK或幂等。最新P2 aggregate `99c5fe2638335abcd1213188f71ffb4ddb5afe95b77c7c27aebd8b83088f2e94`，Capability138/Result family117/Table242/Transaction62/Domain Input150。完整固定候选/新Spec与Run/Arca/UI/实际生产副本尚未完成，不能发布此中间Schema或开放自定义入口。
+
+## Custom Spec解析与内部Publication事务（2026-10-29）
+
+预览Basis现在分别冻结当前Run Spec、原始标准Spec和Decision Head当前pointer；首轮标准→custom相同引用不再掩盖后续不同引用。模型从真实P8标准Resolver生成的Spec重建draft/semantic/record/ID闭包，拒绝未知字段、原始记录漂移或以custom Spec递归当作原标准。新variant保持六类Requirement及原Product Scope，包含targetKind=user_custom、原始要求、closed Intent/Preview引用、targetInputDigest、逐集metadata override。只取消4K+指定音轨时50GiB/HEVC保持；只取消一集剧情时全季通用episode_plot及其他集要求保持。不同用户确认的同样实际要求有相同semantic digest、不同provenance/record/Spec ID。此处是模型与Store资格，不是已完成生产。
+
+独立`custom-spec-publication-store`实际验证当前confirmed Intent/目标Head、当前Run/Spec/Decision Head/材料/身份及新鲜外域公开Projection Basis；opaque fence验证在同Owner事务写入前。新Spec、Decision Head CAS和Command Receipt/marker/Audit原子完成，原始Spec与Run不改；异常发生在全部写入后仍全回滚。相同命令在后续Run完成、Arca已接纳或原token变旧后重放同一Receipt，不再发布第二个revision；不同Intent digest仍冲突。Reader按完整关系Header及原标准/Intent重建记录，不用可变head读历史。Supporting Work和API尚未调用它。
+
+Canonical Catalog新增两项：Custom Target Commit（Preview及精确Confirmation override）与Custom Acceptance Spec Publish，合计64 Transaction；不修改普通四表Spec Publish的ready Basis规则。标准Spec查询显式筛选已声明variant；新增P8真实持久化回归用同Basis标准/custom两行及reverse_unordered_selects，确认custom先返回时标准重放仍返回原ID，不按SQLite顺序选择。
+
+- source-20：前一增量60PASS/0skip，含模型、Store、读屏障、独立副本/P2和P8原规则；SHA `235f171a97e72d082c596b3e8776c395dba73a19a2576649e8dc8005724beace`。
+- 本机事务生成首跑遗漏exact variant的fixture/selector元数据，生成器拒绝；补完整定义，没有放宽生成器。原Validator仍固定62及精确selector未登记、测试仍指向旧062 shard而失败；只新增精确Libra confirmation selector、更新当前库存，并补外域command selector负例。通用崩溃fixture只证明Preview SQL Header/原子性，完整closed业务语义另由实际Store测试覆盖，不冒充完整流程。
+- source-21首次Linux静态阶段由forbidden-semantic guard拒绝：既有精确豁免仍指旧entries-001-062.json。仅把同一豁免定位改成新entries-001-064.json，规则和允许语义不扩大，失败日志保留。
+- source-22归档10,288,877 bytes，SHA `ced418f4abe91c8f23febaaa3b8128de06e8e9666fb2860a672221031b29bedf`。实际Linux四项静态门禁PASS；12个文件91PASS/0skip/0FAIL，另Canonical新增事务/库存定向7PASS/202名称过滤skip/0FAIL（32.1秒及11.4秒）。不声称完整64事务或全量Architecture已重跑。
+- 原239表sqlDigest无变化，三个目标表DDL及总242表DDL digest仍`9c6af0d89160d0b061dff9f86c7bdaf43151adb164eba558d0433933ff58577e`。最新P2 aggregate `a52686fa2086042ae1dec0932ba1fedccb464acae7ef9f7954e824c983950197`，138/117/242/64，150 Domain Input。
+
+明确剩余：确认后的旧Run提交资格撤销/未接纳Offer失效、Supporting Work/新Run、逐集元资料与Conformance/NFO、Arca/Inventory/Aftercare、精确保留闭包、API/UI和实际停止态生产副本升级均未闭合；禁止开放内部方法为用户功能或发布本中间版本。推荐退役最终UI/停止态旧Claim责任门禁仍待收口。生产仍a2bf2d6fd，无新部署、Reset或任务处置。

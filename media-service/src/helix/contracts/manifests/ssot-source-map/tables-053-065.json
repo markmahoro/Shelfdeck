@@ -12,7 +12,7 @@
       "constraintsContract": "`PK(subject_id,claim_kind,claim_namespace,claim_key,provenance_ref)`；Handoff A复制Candidate claim；Resolved Product Identity发布`exactSeasonContinuityClaims`时以`provenance_ref={subjectId}:{identityRevision}`同事务追加；Intake只查询本关系的active Subject rows，不反解`provider_identity_set_digest`；`INDEX(claim_kind,claim_namespace,claim_key,subject_id)`允许检测0/1/N命中但不建立全局unique",
       "source": {
         "section": "8.5.11",
-        "line": 9560,
+        "line": 9562,
         "lineDigest": "88f96a79b2569ac5f29805d10d0db66aad2edd2e93bf9c42c9ca4479d478be51"
       }
     },
@@ -23,7 +23,7 @@
       "constraintsContract": "`PK(subject_id,episode_key)`；只允许Series，Episode key来自Accepted Candidate Delivery Manifest全部Primary member claim的去重并集；append-only且同Episode不能被同Subject第二次接受；该表是FA-04 overlap唯一权威来源，不从Binding JSON或Run推断",
       "source": {
         "section": "8.5.11",
-        "line": 9561,
+        "line": 9563,
         "lineDigest": "a6da2891ebfdb821bbf88db6cdbd5e14ad3793695cdf7ac429706dd6b30372c9"
       }
     },
@@ -34,7 +34,7 @@
       "constraintsContract": "`UNIQUE(subject_id)`；immutable；只允许没有任何current Libra Run且Pre-deck责任仍active的Subject建立",
       "source": {
         "section": "8.5.11",
-        "line": 9562,
+        "line": 9564,
         "lineDigest": "7bdbc6b9de101584a171ad47849cc47d061237bba3fb44ce943e2d047ece924e"
       }
     },
@@ -45,7 +45,7 @@
       "constraintsContract": "`UNIQUE(abandon_decision_id)`；与Subject terminal和精确Primary Control release同一事务成立",
       "source": {
         "section": "8.5.11",
-        "line": 9563,
+        "line": 9565,
         "lineDigest": "ae4b6b78f23821dabe8a903651002644bd555ba5aa5de2dfff90d214a0e9d185"
       }
     },
@@ -56,7 +56,7 @@
       "constraintsContract": "immutable revision以`PK(subject_id,material_key,binding_revision)`保存；完整Physical Identity必须逐字节满足materialKey公式且size为non-negative safe integer；每个`subject+material+role`只有一个current row；Handoff A为每个Primary Manifest member建立`primary_control` Binding并逐项复制`CandidatePrimaryMaterialDelivery@1`，同时为每个Related Reference建立`related_derived` Binding并逐项复制同一Delivery Snapshot的exclusive association/disposition basis；两种variant严格互斥，related variant的Primary/association/disposition列全非NULL且不得携带Control revision；不得从current Field补读或默认；不能为多Episode复制Binding或把Episode拼入字符串",
       "source": {
         "section": "8.5.11",
-        "line": 9564,
+        "line": 9566,
         "lineDigest": "494c8273af44465e3b5448570c6c78c57a57aa43b2594900dbca4a23c17e4a4c"
       }
     },
@@ -67,7 +67,7 @@
       "constraintsContract": "`PK(subject_id,material_key,binding_revision,episode_key)`并以复合FK指向`libra_material_bindings`；逐项无损复制同一Manifest member的Episode Claim；single与无Episode structural dependency为0 row；Binding set digest包含这些relation，不允许只取第一项",
       "source": {
         "section": "8.5.11",
-        "line": 9565,
+        "line": 9567,
         "lineDigest": "47921a735f544a3ccde2cdeef6ba7c1c413a1af927d5f86971e710796bb8d1fb"
       }
     },
@@ -78,7 +78,7 @@
       "constraintsContract": "`PK(subject_id,revision)`；immutable；`libra_subjects.current_identity_revision`正整数时显式指向本表；Series的exact Season Claim完整值保存在`libra_subject_season_continuity_claims`并与本revision同事务成立，digest只用于一致性校验而不是可枚举事实替代品",
       "source": {
         "section": "8.5.11",
-        "line": 9566,
+        "line": 9568,
         "lineDigest": "c12c6c8ed5039eaec90833f0bbf4f5c28a280bb8ab848c5555f5c07ef9f88900"
       }
     },
@@ -89,7 +89,7 @@
       "constraintsContract": "append-only；`UNIQUE(libra_run_id,intent_revision)`、`UNIQUE(libra_run_id,idempotency_key)`；用户选择只形成Libra-owned immutable Intent，后续仍须由`provider_exact` Evidence Work验证，不能直接发布Resolved Identity；JAV的selection_record_json冻结Source Snapshot、exact resource、qualification Observation、Subject/Run/basis/selection head及actor，不用客户端字段补造；JCS≤64 KiB；Movie/Series保持NULL",
       "source": {
         "section": "8.5.11",
-        "line": 9567,
+        "line": 9569,
         "lineDigest": "d1287a514873979841680ea44cd7ff270df790407145aaf016c9e6128a27a2da"
       }
     },
@@ -100,7 +100,7 @@
       "constraintsContract": "current technical Read Projection；每个Subject恰好至多一行且可由Libra正式事实、User Perception/Arca公开Projection及Foundation Progress Projection重建；三类current状态互斥，`completed`必须由Arca公开Projection逐项证明On-deck Commit Receipt、Shelf Entry与对应active Deck Fact均成立，Product Package published或Handoff B Accepted单独都不构成完成；`attention_required`优先覆盖technical failure、blocked、suspended、frozen及需要用户确认的合法状态；Handoff A Accepted后即为`in_progress`，直到attention或completed条件取代；Discarded Run只进入immutable历史，不得重复计数；`projection_revision>=1`且相同`basis_digest`必须no-op，不递增revision、不执行UPDATE；nullable rating、identity issue、Spec、Run、Package/Offer及progress字段各自按closed bundle同时成立；`identity_issue_json`为JCS且≤`16 KiB`并由digest保护；`projection_digest=SHA-256(JCS(完整用户行 excluding projectionDigest))`；`INDEX(attention_priority,classification,updated_at_ms,subject_id)`供active排序，`INDEX(classification,completed_at_ms,subject_id)`供completed cursor，`INDEX(classification,subject_id)`供统计；本表不授权任何命令，损坏或缺失时必须重建，不能回填或改写Owner业务事实",
       "source": {
         "section": "8.5.11",
-        "line": 9568,
+        "line": 9570,
         "lineDigest": "682225edc5d2799fae544f2ee0500bf32bd4fdd8efdafc1ebb7f06aa35897514"
       }
     },
@@ -111,7 +111,7 @@
       "constraintsContract": "Field ID是Procurement公开opaque ref、不建跨Domain FK；current pair显式FK到Policy revision；一片Field恰好至多一份current去向方案",
       "source": {
         "section": "8.5.11",
-        "line": 9569,
+        "line": 9571,
         "lineDigest": "798b380ce2cc0c6b9f83bdc869efb8494d784c4a7776e02bc3e1c35d81ec5d39"
       }
     },
@@ -122,7 +122,7 @@
       "constraintsContract": "Field ID是Procurement Material Field opaque ref、不建跨Domain FK；Libra-owned Pre-deck pipeline admission配置；`predeck_pipeline_seats`范围0..8，默认3，0表示不从该Field接收新的Handoff A Offer，既有Accepted责任继续推进；各Field席位不可借用；`policy_revision`从1递增",
       "source": {
         "section": "8.5.11",
-        "line": 9570,
+        "line": 9572,
         "lineDigest": "7645a3675fedf5e688edcf38e72cbe66371942305c4800361c1e5134326e9b8c"
       }
     },
@@ -133,7 +133,7 @@
       "constraintsContract": "`source_field_id`是Procurement Material Field opaque ref、不建跨Domain FK；每个Subject至多持有一个active Pre-deck responsibility token，且每个Handoff A Accepted Subject必须有匹配token；存在libra_workshop_placements时计二号占用，否则计该来源一号占用；Intake Evidence首次admit或历史Evidence replay恢复推进前acquire，Handoff B Accepted、用户合法终结对应Pre-deck责任或Intake Rejection时release并DELETE row；Routing、Subject Rating、Acceptance Spec与initial Run Creation的周期reconciler只推进token holder；注意态继续持有责任token，满足二号原子转入条件才改变占用位置；`acquired_at_ms`为UTC epoch ms；`INDEX(source_field_id,subject_id)`",
       "source": {
         "section": "8.5.11",
-        "line": 9571,
+        "line": 9573,
         "lineDigest": "200e64609cfcc2c53507f12550f17d09bb1790f705b6c8716d3c8c1abf766311"
       }
     },
@@ -144,7 +144,7 @@
       "constraintsContract": "Libra二号全局政策，唯一policy_id=secondary；secondary_seats为0..32，缺行默认5；0只禁止新增转入，缩容不驱逐；policy_revision从1递增；与来源一号及Arca维护容量独立",
       "source": {
         "section": "8.5.11",
-        "line": 9572,
+        "line": 9574,
         "lineDigest": "26f684959699a6e1a0052b4572a0621f428b74c688f277fad190707da56efc91"
       }
     }

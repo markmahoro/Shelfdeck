@@ -40,6 +40,8 @@ function createCustomTargetStore(options) {
     identity:{kind:'select-one',tableId:'libra_product_fact_revisions',keyColumns:['libra_run_id','fact_kind','fact_revision'],columns:['fact_digest']},
   });
   const repository = createRepositoryDefinition({ repositoryId:'libra_custom_targets',owner:'libra',schemaManifest:options.schemaManifest,statements });
+  const validationRepository=createRepositoryDefinition({repositoryId:'libra_custom_target_publication_inputs',owner:'libra',schemaManifest:options.schemaManifest,
+    statements:Object.fromEntries(Object.entries(statements).filter(([,statement])=>statement.kind.startsWith('select-')))});
   const read = callback => options.unitOfWork.execute([{participantId:'custom_target_read',owner:'libra',repositories:[repository],
     execute:context=>callback(context.repository(repository.repositoryId))}]).custom_target_read;
   function decode(repo, kind, row) {
@@ -70,16 +72,19 @@ function createCustomTargetStore(options) {
         intent.revision !== head.current_revision || intent.intentDigest !== head.record_digest) fail('LIBRA_CUSTOM_TARGET_RECORD_INVALID');
     return intent;
   }
-  function assertOwnerBasis(repo, basis, preview) {
+  function assertOwnerBasis(repo, basis, preview, expectedTargetRevision=basis.customTargetRevision) {
     const run = repo.invoke('run',{libra_run_id:basis.libraRunId}), subject = repo.invoke('subject',{subject_id:basis.subjectId}),
-      spec = repo.invoke('spec',{acceptance_spec_id:basis.baseAcceptanceSpecId}), head = repo.invoke('decision_head',{subject_id:basis.subjectId});
+      spec = repo.invoke('spec',{acceptance_spec_id:basis.baseAcceptanceSpecId}),runSpec=repo.invoke('spec',{acceptance_spec_id:basis.runAcceptanceSpecId}),
+      head = repo.invoke('decision_head',{subject_id:basis.subjectId});
     if (!run || !subject || subject.status !== 'active' || subject.content_profile !== basis.contentProfile || subject.structure_kind !== basis.structureKind ||
         run.subject_id !== basis.subjectId || run.state !== basis.runState || run.state_revision !== basis.runStateRevision ||
         run.state_digest !== basis.runStateDigest || run.execution_basis_digest !== basis.runExecutionBasisDigest ||
-        run.acceptance_spec_id !== basis.baseAcceptanceSpecId || !spec || spec.subject_id !== basis.subjectId || spec.shelf_id !== basis.shelfId ||
+        run.acceptance_spec_id !== basis.runAcceptanceSpecId || !runSpec || runSpec.subject_id !== basis.subjectId ||
+        runSpec.record_digest!==basis.runSpecRecordDigest || runSpec.spec_digest!==basis.runSpecDigest ||runSpec.product_scope_digest!==basis.productScopeDigest||
+        !spec || spec.subject_id !== basis.subjectId || spec.shelf_id !== basis.shelfId ||
         spec.shelf_standard_revision !== basis.shelfStandardRevision || spec.shelf_standard_digest !== basis.shelfStandardDigest ||
         spec.product_scope_digest !== basis.productScopeDigest || spec.record_digest !== basis.baseSpecRecordDigest || spec.spec_digest !== basis.baseSpecDigest ||
-        !head || head.head_digest !== basis.decisionHeadDigest || head.current_acceptance_spec_id !== basis.baseAcceptanceSpecId)
+        !head || head.head_digest !== basis.decisionHeadDigest || head.current_acceptance_spec_id !== basis.decisionHeadAcceptanceSpecId)
       fail('LIBRA_CUSTOM_TARGET_PREVIEW_STALE');
     let storedSpec;try{storedSpec=JSON.parse(spec.spec_json);}catch{fail('LIBRA_CUSTOM_TARGET_RECORD_INVALID');}
     if(!storedSpec||typeof storedSpec!=='object'||Array.isArray(storedSpec)||!Object.hasOwn(storedSpec,'requirements'))
@@ -89,12 +94,33 @@ function createCustomTargetStore(options) {
       identity = repo.invoke('identity',{libra_run_id:run.libra_run_id,fact_kind:'resolved_identity',fact_revision:1});
     if (!manifest || manifest.libra_run_id !== run.libra_run_id || manifest.member_set_digest !== basis.materialSetDigest ||
         !identity || identity.fact_digest !== basis.identityDigest) fail('LIBRA_CUSTOM_TARGET_PREVIEW_STALE');
-    if ((current(repo,basis.subjectId,basis.productScopeDigest)?.revision || 0) !== basis.customTargetRevision)
+    if ((current(repo,basis.subjectId,basis.productScopeDigest)?.revision || 0) !== expectedTargetRevision)
       fail('LIBRA_CUSTOM_TARGET_PREVIEW_STALE');
+  }
+  function intentEvidence(repo,intentId){
+    const intent=decode(repo,'intent',repo.invoke('intent',{intent_id:intentId}));if(!intent)fail('LIBRA_CUSTOM_TARGET_INTENT_NOT_FOUND');
+    const preview=getPreview(repo,intent.previewDigest),row=repo.invoke('spec',{acceptance_spec_id:intent.basis.baseAcceptanceSpecId});
+    let baseSpec;try{baseSpec=row&&JSON.parse(row.spec_json);}catch{fail('LIBRA_CUSTOM_TARGET_RECORD_INVALID');}
+    if(!baseSpec||baseSpec.acceptanceSpecId!==row.acceptance_spec_id||baseSpec.recordDigest!==row.record_digest||baseSpec.specDigest!==row.spec_digest)
+      fail('LIBRA_CUSTOM_TARGET_RECORD_INVALID');
+    return Object.freeze({intent,preview,baseSpec});
   }
   return Object.freeze({
     preview:previewId=>read(repo=>getPreview(repo,previewId)),
     current:({subjectId,productScopeDigest})=>read(repo=>current(repo,subjectId,productScopeDigest)),
+    intentEvidence:intentId=>read(repo=>intentEvidence(repo,intentId)),
+    publicationValidation({intentId,intentDigest,currentBasis},onValidated){
+      if(typeof onValidated!=='function'||!SHA256.test(intentId||'')||!SHA256.test(intentDigest||''))fail('LIBRA_CUSTOM_TARGET_COMMAND_INVALID');
+      return {participantId:'custom_target_publication_validation',owner:'libra',repositories:[validationRepository],execute(context){
+        const repo=context.repository(validationRepository.repositoryId),evidence=intentEvidence(repo,intentId),{intent,preview}=evidence,
+          basis=validateBasis(currentBasis),expected={...intent.basis,customTargetRevision:intent.revision};
+        if(intent.intentDigest!==intentDigest||canonicalJson(basis)!==canonicalJson(expected))fail('LIBRA_CUSTOM_TARGET_PREVIEW_STALE');
+        assertOwnerBasis(repo,intent.basis,preview,intent.revision);
+        const selected=current(repo,basis.subjectId,basis.productScopeDigest);
+        if(selected?.intentId!==intentId||selected.intentDigest!==intentDigest)fail('LIBRA_CUSTOM_TARGET_PREVIEW_STALE');
+        onValidated(evidence);return {intentId,intentDigest};
+      }};
+    },
     findCommand(kind,actorId,idempotencyKey) {
       if (!['preview','intent'].includes(kind)) fail('LIBRA_CUSTOM_TARGET_COMMAND_INVALID');
       commandIdentity(actorId,idempotencyKey,'0'.repeat(64));

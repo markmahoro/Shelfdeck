@@ -1,5 +1,9 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-29 USER-CUSTOM-ACCEPTANCE-SPEC：新增完整custom Spec模型与独立Publication Store，实际SQLite完成Spec/decision head/Receipt/marker/Audit原子写入及历史只读重建；Current Run Spec、原始标准Spec、Decision Head当前Spec各有独立引用与新鲜度Fence。普通Spec按明确variant读取同Basis记录，SQLite逆序返回custom第一行时仍选择原标准，不按行顺序猜。SSOT/Catalog新增Custom Target Commit（Preview/Confirmation variants）和Custom Acceptance Spec Publish，两者仍只含Libra及Foundation技术回执；不扩宽普通四表Spec Publish。source-22四项静态PASS，受影响91PASS，新增事务7PASS/202名称过滤skip。尚未发布或接用户流程。
+
+本项接入顺序与阻断项保持在本Phase：①确认同一事务撤销旧Run最终提交资格，Handoff未Accepted旧Offer失效与延迟消息不得重新生效；安全收尾仍可推进，不能提前释放输入。②Supporting Work调用已实现Publication，Run replacement明确验证当前Custom Intent并允许对应frozen Run正常被替代，不能用普通自动路径解冻。③Libra/Arca生产、Conformance、NFO和逐集元资料消费者完整应用精确override；Arca独立验收/Inventory/Aftercare保留真实custom目标，Reset枚举Spec→Intent→Preview/原标准必选闭包。④真实材料预览/确认API/UI、完整Stopped升级与生产副本、具体版本UI和完整镜像门禁。上述闭合前不得接可操作的custom入口。Stash正式Work/配置、自动建档/出演与常驻服务仍单独开放，未被本次Spec资格覆盖。
+
 2026-10-29 USER-CUSTOM-ACCEPTANCE-SPEC持久化：已物化Preview/Intent/subject+product scope Head三表（242表；原239表SQL完全相同），closed JSON≤64KiB、必填列、record/header绑定、唯一命令/revision与完整Head复合FK。Store原子验证当前Run/Spec/decision head/material set/identity与目标head，确认与Receipt/Audit同事务；跨Owner视图使用已有opaque技术read fence，无外域Repository。source-17实际Linux94PASS，source-19新增Store及只准备独立Schema副本11PASS；副本验证完整FK/integrity和每张原表逐行摘要，容量不足/复制中断不发布目标。尚无正式Spec variant、Run替代、Arca/Aftercare、API/UI或实际停止态升级接入；不得据Intent或本机测试宣称功能完成。原生夹具FK写入顺序、错误幂等断言、静态扫描不接受模板插值、测试自建WAL/SHM的首轮失败均保留，未放宽守卫。
 
 2026-10-29 RECOMMENDATION-RETIREMENT实现检查点：已移除四个公开路由、Libra两个专用Public端口、后台扫描/Claim推进及UI推荐/认领分支；共享抽帧、Reference、人工登记、影片选演员及Arca纠错保留。五张旧表只作历史证据，DDL不变，不自动清理旧责任。Linux source-15完整Host跨维护窗口/重启与两影片隔离选择旅程1PASS/5名称过滤skip；source-12受影响Service/Owner76PASS/2既有skip。Web首跑45套252PASS、2套加载失败，补齐父级Service源码挂载后2套14PASS，Linux构建通过。首跑缺模型许可证、旧URL被人物详情返回200/null，以及维护退出尚处settling的夹具等待失败均保留；通用人物不存在已修为404，夹具等待真实normalSupplyAllowed，没有绕过写入屏障。停止态旧Claim责任门禁、最终版本UI走查/负责人和完整固定候选仍未完成，生产未变更。

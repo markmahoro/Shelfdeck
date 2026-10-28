@@ -13,7 +13,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9707,
+        "line": 9709,
         "lineDigest": "d4bfdbe0156ddb39ce060728f319fffe67e356241e77aed250f6fbb046790f3b"
       },
       "targetLocator": {
@@ -23,11 +23,11 @@
         "tableId": "perception_acquisitions",
         "owner": "perception",
         "contractRef": "helix://contracts/tables/perception_acquisitions/v1",
-        "contractDigest": "6cda2525da3438f03cd28810e5785eed09088eaf93efa0768e3d5ac80c84b905"
+        "contractDigest": "bfaeed94703702a9850c742e40a346c28b9e580de486d727990d2e92026ec0b5"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "7d6671b0673eca0ff54333e83a7a53059687e43cba034d6f2b6973adbc3db438"
+        "value": "a498d94eb095c4e7ea2e311062842f902d7e6dc379bccd03b3d65b13284a8b30"
       }
     },
     {
@@ -41,7 +41,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9708,
+        "line": 9710,
         "lineDigest": "587cb9fabd1c864f87e79e7942a7423ace8ce52a582bca9c810e29a75a68fd25"
       },
       "targetLocator": {
@@ -51,11 +51,11 @@
         "tableId": "perception_acquisition_resume_intents",
         "owner": "perception",
         "contractRef": "helix://contracts/tables/perception_acquisition_resume_intents/v1",
-        "contractDigest": "edf38f405fc621ff42c2817ee3c17016ecb4c046c9c1f91e7f8d142d250f0cc9"
+        "contractDigest": "6fd254be561ef84c1078d2f33c10f5042ea2e425f090efd2e12ff89224ac8648"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "8b03e02f2385d6f883c69df9f5b9806f499295347b46c3c2888efa8ba23eedfd"
+        "value": "d97627a8aa78ec297b4e22da52106b6a7b9d90636dc709504d8f631cb9df55b8"
       }
     },
     {
@@ -69,7 +69,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9709,
+        "line": 9711,
         "lineDigest": "d904ca3d03d48f36f837049824d373257b78c8abafb50cbbd529238ab700d8bb"
       },
       "targetLocator": {
@@ -79,11 +79,11 @@
         "tableId": "perception_source_cursors",
         "owner": "perception",
         "contractRef": "helix://contracts/tables/perception_source_cursors/v1",
-        "contractDigest": "b7e3ea9992418451132f2fdbc78ba609d9da8800acb6dcccc70e781dc9fd1afe"
+        "contractDigest": "fe69bf7d615d2fa6b404695c7e22fd099b8946a41894532ce2fac794c0c34457"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "740e59a6c3c97bce18b026a438c34bd3eddef76bff9d1c40a29bf87ed8e59cbb"
+        "value": "4346dc12f96326cbf4201d7e13b4cf4faa37486f2bd8eb59b4b9e2dadb50e262"
       }
     },
     {
@@ -97,7 +97,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9710,
+        "line": 9712,
         "lineDigest": "fcfc7197ff64ee5d93a4cc71259da5b8142c3c10d80f1432849322ae26b9d9da"
       },
       "targetLocator": {
@@ -107,11 +107,11 @@
         "tableId": "perception_acquisition_commits",
         "owner": "perception",
         "contractRef": "helix://contracts/tables/perception_acquisition_commits/v1",
-        "contractDigest": "8e230a871fe05e47f83e1563d7b76159efaa380f1c477a12bb95a215f3eb600e"
+        "contractDigest": "716f2d24aedc5d97117d82f6d6a5d19e97601d78c002c5d40837b4abef65937a"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "4f9c71a5ac541363a365c605f22c77d452a51e3f657ab13795629c882c4021bd"
+        "value": "0e839126030eb40dd38559d58d95579a98004e4603aa6b05271be32c2ad2c3ac"
       }
     },
     {
@@ -125,7 +125,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9711,
+        "line": 9713,
         "lineDigest": "8e303ca99674a3ca75bf36adb6174757f17d8bca03407b94cbe84c5014dbfcbb"
       },
       "targetLocator": {
@@ -135,11 +135,11 @@
         "tableId": "perception_records",
         "owner": "perception",
         "contractRef": "helix://contracts/tables/perception_records/v1",
-        "contractDigest": "9f6561901b742f43e858f739381ec6582e8467d66a6fc6520dfa6d12b1160028"
+        "contractDigest": "8175e02c41610a9f4e750c678a6b36706cbbad5f90fa432dd486d3495942c82a"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "f11847ff430b85cad2db143f3098c79eeaeb233a875b3c4e8de53bca7149cbb5"
+        "value": "8a80f9d42ee2c7196d5fb2d179bf1d621c2112c5c938a66d3ee64e99839e9550"
       }
     },
     {
@@ -153,7 +153,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9712,
+        "line": 9714,
         "lineDigest": "5ba8fa35d17ba37da2917305f2d5a594609c85a4fc1975275b094524c6aa8352"
       },
       "targetLocator": {
@@ -163,11 +163,11 @@
         "tableId": "perception_identity_anchors",
         "owner": "perception",
         "contractRef": "helix://contracts/tables/perception_identity_anchors/v1",
-        "contractDigest": "16043edac524689731576e0e71c1fc86aa7b6d51470ef6fa328fa6d39510e2cb"
+        "contractDigest": "d09153cffc52552c5269db27fb10897d4e5407817b7ff6eae598f41168fbd985"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "e16d67caf48ce650b92677bdc40ce47ed69fbe6d53985bfa33949f287eb1ec88"
+        "value": "738fdba6a20d14b42abbcd336f3bbc7a1bdec30ba7756945189350f8b9444bad"
       }
     },
     {
@@ -181,7 +181,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9713,
+        "line": 9715,
         "lineDigest": "0ad399b268cd03ae3b531454bc9ae2b22e060b9e7987c882e71c99f580ce6481"
       },
       "targetLocator": {
@@ -191,11 +191,11 @@
         "tableId": "perception_record_relations",
         "owner": "perception",
         "contractRef": "helix://contracts/tables/perception_record_relations/v1",
-        "contractDigest": "1c9fc097f402b03d157ba065b087ac5f952452ecd3221375ba696f2deb6238c7"
+        "contractDigest": "debee77b3292d5c98aa782c2b665bd5a6df4e699045b4d40d2b4795689d316a8"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "05e56fd15d4feaff8fae62f319fa6353fe6923ec7b5b191f27f4f4e0a477af1a"
+        "value": "5fbe6b2b19b312ab97da1a8c3ca4bdf85655fb9787e1dddae1b9976e89f66b10"
       }
     },
     {
@@ -209,7 +209,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9714,
+        "line": 9716,
         "lineDigest": "f98a2d972824490f42e6689ac062318b46d0ef72ac2d5a24d9c4f8ab16096adf"
       },
       "targetLocator": {
@@ -219,11 +219,11 @@
         "tableId": "perception_resolution_revisions",
         "owner": "perception",
         "contractRef": "helix://contracts/tables/perception_resolution_revisions/v1",
-        "contractDigest": "1a12d31ed2cf81642770a39cf4425797d09f8a5387e1b77273c9f8f6e7e88e8c"
+        "contractDigest": "ee533219a441cc89454e4b6eeb7f412a9eb82e84a8899318842c95c9cd5bef68"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "f1008947acf61145bc9276a1ff0f5f816ecd694d726a1af1e999e22711c146f0"
+        "value": "7a1359004ad1ddd51b7e44c2adfd6a0476a4809a05e4d2af06e48371a2ba09bd"
       }
     },
     {
@@ -237,7 +237,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9715,
+        "line": 9717,
         "lineDigest": "370fe0fe0d9cc2ac7afc1ee52ccfbbd77aae3f429732328708c53ed707821c38"
       },
       "targetLocator": {
@@ -247,11 +247,11 @@
         "tableId": "perception_resolution_heads",
         "owner": "perception",
         "contractRef": "helix://contracts/tables/perception_resolution_heads/v1",
-        "contractDigest": "0746cb0596adbf88193ba1b0ba56ce24e079646dcabb9cf75c814b417b40a106"
+        "contractDigest": "3040792aa2db871df88b8a83546595f0506fccdfce3351426dd046b6344fdb43"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "a81ff9b5a307b4d1df3e7641508b2e2d605053fe63ca34ca3c5925e7bf0d52f5"
+        "value": "b873e1648abdb4a191b5e35345af054f15c246878ccff6f9b92f0ab086215764"
       }
     },
     {
@@ -265,7 +265,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9716,
+        "line": 9718,
         "lineDigest": "1f524eea5184b245976ab28e36c97cddf21435950c6f01e088051e2ac9c7660f"
       },
       "targetLocator": {
@@ -275,11 +275,11 @@
         "tableId": "people_persons",
         "owner": "people",
         "contractRef": "helix://contracts/tables/people_persons/v1",
-        "contractDigest": "0ffe0182413e726b755b9a96b9291a073ea470a29d4b580f199e5e4ec448e0fc"
+        "contractDigest": "163c6dc464a4e104e3503a203b1c94ab3a1cc4fb236b99824f2141ccad95acf5"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "41b3357dc57643825231031aa25b89dbf68c798b702d512b15cfda407acced81"
+        "value": "4e11faa427b98c37a63ad20d4d0b7a4f7d82084f3e3ab15a05fe696bb1f44042"
       }
     },
     {
@@ -293,7 +293,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9717,
+        "line": 9719,
         "lineDigest": "88709dc542d39b6ae3aefe95f8e26a8e1057e480bf412ba2bdd8dc314242aa18"
       },
       "targetLocator": {
@@ -303,11 +303,11 @@
         "tableId": "people_image_operations",
         "owner": "people",
         "contractRef": "helix://contracts/tables/people_image_operations/v1",
-        "contractDigest": "5945032e0f85e011eb27add20290dae8fd9f6f27e14f9c2e4eb13327f2b4d981"
+        "contractDigest": "f90811ff9b6af80a3d11ac2f09299a701da238116f9275589f14bec8f30fd111"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "e9412ea04d50da7efc54e0a5c7b6c7f78f2ba9b397b6455c576cef72c49abe38"
+        "value": "24271a5d6e79de54262242452fc8cde6ca5217d200988ed0ac40b3c2ec04a132"
       }
     },
     {
@@ -321,7 +321,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9718,
+        "line": 9720,
         "lineDigest": "268c0e69218a587a1e98e870bda52c852f61c7695d9f917bc155bad1bad25376"
       },
       "targetLocator": {
@@ -331,11 +331,11 @@
         "tableId": "people_us_recommendation_cycles",
         "owner": "people",
         "contractRef": "helix://contracts/tables/people_us_recommendation_cycles/v1",
-        "contractDigest": "633b577914c578fae49e53eb8a729ee14769dd43743b30abf37a3144975ac1e0"
+        "contractDigest": "f8654b10607268badf41f8662ea331926e356c399c02ae774e8fe5c900b9eeb1"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "a499307cfa574972713c96a243640875eeb243d04978132cd60744f5a5d0f115"
+        "value": "1c97a0030fef855201d97ae69cad76a7fdb2abd87e51b28396053ce6ebed4108"
       }
     },
     {
@@ -349,7 +349,7 @@
       ],
       "sourceLocator": {
         "section": "8.5.13",
-        "line": 9719,
+        "line": 9721,
         "lineDigest": "fbf043741ca6eb484906f21dc95ecc1d37540c8513f1f1ac722113ddaebac175"
       },
       "targetLocator": {
@@ -359,11 +359,11 @@
         "tableId": "people_us_recommendation_sources",
         "owner": "people",
         "contractRef": "helix://contracts/tables/people_us_recommendation_sources/v1",
-        "contractDigest": "968d50534db5ac4502c8f44342545b949dedde775ab8d172c0570c24cafc35a1"
+        "contractDigest": "b0107c1ebd430d4e49e5645aba6f19e7f50ea45c7e4edb6d3b72c5074121ed2b"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "217b13b09eae81aa693a4159fb2fba052ea05bf3e70d7a7fc6729e21b8ccd0d5"
+        "value": "7f0da414d01dfe1f0aa439aed6698e5040ea65ad34d1e5519e88b3d31336dc15"
       }
     }
   ]

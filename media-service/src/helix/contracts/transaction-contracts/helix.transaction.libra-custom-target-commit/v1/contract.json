@@ -1,0 +1,188 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.libra-custom-target-commit/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.libra-custom-target-commit",
+    "displayName": "Libra Custom Target Commit",
+    "ownerScope": "libra",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "closed Preview或明确确认的Custom Target Intent + 原始标准/当前Run Spec及当前Decision Head的独立引用 + opaque read fence + exact Subject/Run/material/identity/current target revision校验；preview variant只写immutable Preview，confirmation variant写immutable Intent与subject/product scope Head CAS；同事务Command Receipt/marker/Audit，重放先于当前资格复核；不发布Spec、创建Run、接纳或入藏，不改变Arca/Perception事实；`hasOutbox=false`",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_custom_target_previews"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_custom_target_previews",
+      "fx_command_receipts",
+      "fx_commit_markers",
+      "fx_audit_records"
+    ],
+    "readTables": [
+      "libra_subjects",
+      "libra_runs",
+      "libra_acceptance_specs",
+      "libra_subject_decision_heads",
+      "libra_run_material_manifests",
+      "libra_product_fact_revisions",
+      "libra_custom_target_previews",
+      "libra_custom_target_intents",
+      "libra_custom_target_heads"
+    ],
+    "variants": [
+      {
+        "variantId": "preview",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "libra",
+            "access": "write",
+            "tables": [
+              "libra_custom_target_previews"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_command_receipts",
+              "fx_commit_markers",
+              "fx_audit_records"
+            ]
+          }
+        ],
+        "writeTables": [
+          "libra_custom_target_previews",
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records"
+        ],
+        "readTables": [
+          "libra_subjects",
+          "libra_runs",
+          "libra_acceptance_specs",
+          "libra_subject_decision_heads",
+          "libra_run_material_manifests",
+          "libra_product_fact_revisions",
+          "libra_custom_target_previews",
+          "libra_custom_target_intents",
+          "libra_custom_target_heads"
+        ]
+      },
+      {
+        "variantId": "confirmation",
+        "participants": [
+          {
+            "participantKind": "domain",
+            "owner": "libra",
+            "access": "write",
+            "tables": [
+              "libra_custom_target_intents",
+              "libra_custom_target_heads"
+            ]
+          },
+          {
+            "participantKind": "foundation",
+            "owner": "execution-foundation",
+            "access": "write",
+            "tables": [
+              "fx_command_receipts",
+              "fx_commit_markers",
+              "fx_audit_records"
+            ]
+          }
+        ],
+        "writeTables": [
+          "libra_custom_target_intents",
+          "libra_custom_target_heads",
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records"
+        ],
+        "readTables": [
+          "libra_subjects",
+          "libra_runs",
+          "libra_acceptance_specs",
+          "libra_subject_decision_heads",
+          "libra_run_material_manifests",
+          "libra_product_fact_revisions",
+          "libra_custom_target_previews",
+          "libra_custom_target_intents",
+          "libra_custom_target_heads"
+        ],
+        "selector": {
+          "selectorKind": "owner_command_exact",
+          "commandContract": "libra.custom-target.confirm@1"
+        },
+        "dynamicTableRequirements": [],
+        "fenceContract": {
+          "domainRevisionFenceRequired": true,
+          "materialControlCasRequired": false,
+          "commitMarkerRequired": true,
+          "outboxRequired": false
+        },
+        "rollbackInvariant": "Intent, scoped head, receipt, marker and audit are all present or absent; stale views and competing confirmations leave zero writes.",
+        "crashFixtures": [
+          {
+            "fixtureId": "libra-custom-target",
+            "faultInjectionPoints": "Exact Run, base/current Spec, target head and read fence validation; Preview/Intent, receipt, marker and audit before COMMIT",
+            "requiredInvariant": "Target changes and technical receipts are atomic; stale views and concurrent confirmations leave no partial target, Spec or Run",
+            "source": {
+              "section": "8.9.7",
+              "line": 8852
+            }
+          }
+        ]
+      }
+    ],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_",
+      "arca_",
+      "perception_",
+      "people_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "libra-custom-target",
+        "faultInjectionPoints": "Exact Run, base/current Spec, target head and read fence validation; Preview/Intent, receipt, marker and audit before COMMIT",
+        "requiredInvariant": "Target changes and technical receipts are atomic; stale views and concurrent confirmations leave no partial target, Spec or Run",
+        "source": {
+          "section": "8.9.7",
+          "line": 8852
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8852,
+      "lineDigest": "38ba4aa24a2a1c2ceb02c9870cc73df77d339270974c5de2d8bf1a15dd441074"
+    }
+  }
+}

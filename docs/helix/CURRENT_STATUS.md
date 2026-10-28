@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-29 custom Spec内部Publication完成增量：source-22 Linux91PASS/0skip及新增事务崩溃测试7PASS/202名称过滤skip；四项静态PASS。新Spec完整保留originalTarget、closed customTargetRef、targetInputDigest和逐集例外；实际SQLite发布一次Spec、head CAS、Receipt/marker/Audit全有或全无，Run及原Spec不变。模型/Store尚未接用户入口或运行调度；确认后旧Run最终提交资格屏障、Supporting Work/Run替代与Arca/Aftercare仍是开放阻断项。当前242表/64 Canonical Transaction，DDL仍9c6af0d…；生产仍a2bf2d6fd/239表，未部署或处置任务。
+
 2026-10-29自定义标准开发增量：三张Libra目标表、持久化Writer及Command技术读屏障已实现；Linux source-17 94PASS/0skip，source-19后续11PASS/0skip。新Schema242表，逐表比较原239表sqlDigest无变化；通用新增表副本准备完成完整FK/integrity及原行摘要校验、容量不足/复制中断/路径冲突负例。工具只生成applied=false独立副本，尚未接实际停止态升级/切换；未改生产数据库。目标Intent仍未成为正式Spec/新Run，也未接Arca/UI，Stash自动链继续开放。完整固定版本、生产副本及UI负责人资格未完成。
 
 2026-10-29开发检查点：推荐人脸/认领功能运行链与UI已退役，Linux source-15真实Host旅程1PASS/5名称过滤skip；维护期间五张旧表均0，人工建档后只选中影片Commit，另一部未被自动确认。source-12受影响Service/Owner批次76PASS/2既有skip；Web首跑252PASS伴2套加载失败，修正隔离挂载后14项PASS且Linux构建成功，保留原失败。五张旧证据表DDL不删不改；发布前停止态责任复核、最终完整架构/镜像及具体版本UI审查仍待完成。生产仍a2bf2d6fd，本轮未部署/Reset/取消/重试。自定义标准持久化与Stash完整自动链仍未完成。

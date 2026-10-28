@@ -19,7 +19,7 @@ function fixture(run){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'helix-p8-b
   seed.prepare('INSERT INTO libra_routing_policy_revisions VALUES (?,?,?,?,?,?,?,?)').run('policy-1',1,'field-1','direct','FieldRoutingPolicySnapshot@1',canonicalJson(policy),policy.policyDigest,1);
   seed.prepare('INSERT INTO libra_routing_policy_targets VALUES (?,?,?,?,?,?,?)').run('policy-1',1,'shelf-1',1,'RoutingMatchExpression@1',canonicalJson(expression),canonicalDigest(expression));
   seed.prepare('INSERT INTO libra_field_routing_heads VALUES (?,?,?,?)').run('field-1','policy-1',1,1);seed.close();
-  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>now++}),unitOfWork=createSqliteUnitOfWork({kernel});try{return run({databasePath,unitOfWork,policy});}finally{kernel.close();fs.rmSync(dir,{recursive:true,force:true});}}
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>now++}),unitOfWork=createSqliteUnitOfWork({kernel});try{return run({databasePath,unitOfWork,policy,kernel});}finally{kernel.close();fs.rmSync(dir,{recursive:true,force:true});}}
 function input(policy){const snapshot=signed({subjectId:'subject-1',status:'active',intakeRevision:1,structureKind:'single',contentProfile:'movie',routingAnchorIntakeDecisionId:'intake-1',
   routingProvenance:{candidatePackageId:'candidate-1',sourceFieldId:'field-1',sourceFieldAccessRevision:1,sourceFieldContextDigest:D('field'),candidateIdentityClaimDigest:D('claim')},
   currentIdentityRevision:null,currentIdentityDigest:null,continuitySetDigest:D('continuity'),episodeScopeDigest:D('episodes')},'snapshotDigest');
@@ -38,7 +38,7 @@ function headSnapshot(revision,routingId,basisId,specId=null){const value={subje
 function requirements(){return {identity:{identityKind:'tmdb_movie',requiredProvider:'tmdb',requireSeasonNumber:false},structure:{structureKind:'single',primaryModel:'single_primary',requireOnePrimaryPerEpisode:false},
   metadata:{requiredFieldCodes:['title'],requiredArtifactKinds:['nfo'],requireRenderableSidecar:true,requireDecodableImages:true},mandatoryMedia:{mediaForm:'stream_file',videoCodec:'any',container:'any',fileExtension:'any',minimumRasterClass:'none',acceptedPrimaryAudioClasses:[],forbidSystemUpscaleFor4k:true},
   space:{unit:'product',maxSizeGiB:null,maxSizeBytes:null},inventory:{requireDomainBinding:true,requireChecksum:true,requiredMaterializedArtifactKinds:['nfo'],layoutModel:'single'}};}
-function standardProjection(){const profile=signed({contentProfile:'movie',decisionInputKinds:[],baseRequirements:requirements(),decisionBranches:[]},'profileRuleSetDigest'),
+function standardProjection(profileRequirements=requirements()){const profile=signed({contentProfile:'movie',decisionInputKinds:[],baseRequirements:profileRequirements,decisionBranches:[]},'profileRuleSetDigest'),
   standard=signed({shelfId:'shelf-1',standardRevision:1,ruleTemplateId:'template-1',ruleTemplateRevision:1,profileRuleSets:[profile]},'standardDigest'),routeValue={shelfId:'shelf-1',status:'active',routingProjectionRevision:1,currentStandardRevision:1,currentStandardDigest:standard.standardDigest},
   route={...routeValue,projectionDigest:canonicalDigest({schema:'arca.shelf-routing-target-projection@1',...routeValue})};return signed({shelfId:'shelf-1',status:'active',routingProjectionRevision:1,projectionDigest:route.projectionDigest,standard},'projectionResultDigest');}
 
@@ -79,3 +79,37 @@ test('publishes Acceptance Spec atomically from the exact H2 to H4 chain',()=>fi
     second=store.publish({decisionInputSet:specSet,decisionBasis:specBasis,producedAtMs:500,commitMarker:'spec-marker-2',resultId:'spec-result-2'});
   assert.equal(first.replayed,false);assert.equal(second.replayed,true);assert.equal(first.result.acceptanceSpecId,second.result.acceptanceSpecId);assert.equal(first.result.committedHeadRevision,4);
   const db=new Database(databasePath,{readonly:true});assert.equal(db.prepare('SELECT COUNT(*) n FROM libra_acceptance_specs').get().n,1);const head=db.prepare('SELECT * FROM libra_subject_decision_heads').get();assert.equal(head.head_revision,4);assert.equal(head.current_acceptance_spec_id,first.result.acceptanceSpecId);assert.equal(db.prepare("SELECT COUNT(*) n FROM fx_commit_markers WHERE scope_type='acceptance_spec'").get().n,2);db.close();}));
+
+test('standard publication replay selects its declared variant even when SQLite returns a custom Spec first',()=>fixture(({databasePath,unitOfWork,policy,kernel})=>{
+  const requirements=require('../../src/helix/domains/arca/model/rule-template-contracts').BETA_RECOMMENDED_RULES.profileRuleSets
+    .find(row=>row.contentProfile==='movie').decisionBranches.find(row=>row.rating===5).requirements,
+    routingSet=input(policy),basisStore=createDecisionBasisStore({schemaManifest,unitOfWork}),routingBasis=basisStore.commit(request(routingSet)).result,
+    routing=buildRoutingDecision(resolveRoutingAssessment({...routingSet,decisionBasisId:routingBasis.decisionBasisId}),1);
+  createRoutingDecisionStore({schemaManifest,unitOfWork}).commit({decisionInputSet:routingSet,decisionBasis:routingBasis,
+    commitMarker:'mixed-routing',resultId:'mixed-routing-result'});
+  const specSet=buildDecisionInputSet({basisKind:'acceptance_spec',subjectSnapshot:routingSet.subjectSnapshot,
+    expectedDecisionHead:headSnapshot(2,routing.routingDecisionId,routingBasis.decisionBasisId),readiness:{result:'ready'},
+    routingAuthoritySnapshot:null,shelfRoutingTargets:[],routingDecision:routing,shelfStandardProjection:standardProjection(requirements),
+    productScope:buildProductScope(routingSet.subjectSnapshot,[]),decisionFacts:[],queryResults:[]}),
+    basis=basisStore.commit(request(specSet,'mixed-spec-basis')).result,store=createAcceptanceSpecStore({schemaManifest,unitOfWork}),
+    first=store.publish({decisionInputSet:specSet,decisionBasis:basis,producedAtMs:500,commitMarker:'mixed-standard',resultId:'mixed-standard-result'}),
+    db=new Database(databasePath);
+  try{
+    const row=db.prepare('SELECT * FROM libra_acceptance_specs').get(),baseSpec=JSON.parse(row.spec_json),
+      model=require('./fixtures/custom-acceptance-spec-harness').fixture('movie'),
+      targetBasis=model.targetBasis;
+    Object.assign(targetBasis,{subjectId:baseSpec.subjectId,shelfId:baseSpec.targetShelfId,baseAcceptanceSpecId:baseSpec.acceptanceSpecId,
+      baseSpecRecordDigest:baseSpec.recordDigest,baseSpecDigest:baseSpec.specDigest,runAcceptanceSpecId:baseSpec.acceptanceSpecId,
+      runSpecRecordDigest:baseSpec.recordDigest,runSpecDigest:baseSpec.specDigest,decisionHeadAcceptanceSpecId:baseSpec.acceptanceSpecId,
+      shelfStandardRevision:baseSpec.shelfStandardRevision,shelfStandardDigest:baseSpec.shelfStandardDigest,productScopeDigest:baseSpec.productScope.scopeDigest});
+    const selected=model.target([{requirementCode:'minimum_raster_unmet',targetId:'minimumRasterClass'}]),
+      custom=require('../../src/helix/domains/libra/model/custom-acceptance-spec').buildCustomAcceptanceSpec({baseSpec,...selected,specRevision:2,producedAtMs:600,publishedAtMs:700}),
+      customRow={...row,acceptance_spec_id:custom.acceptanceSpecId,spec_revision:2,spec_json:canonicalJson(custom),spec_digest:custom.specDigest,
+        record_digest:custom.recordDigest,published_at_ms:700},columns=Object.keys(customRow);
+    db.prepare('INSERT INTO libra_acceptance_specs('+columns.join(',')+') VALUES('+columns.map(()=>'?').join(',')+')').run(...columns.map(column=>customRow[column]));
+    kernel.runPrimitive(({prepare})=>prepare('PRAGMA reverse_unordered_selects=ON').run());
+    const replay=store.publish({decisionInputSet:specSet,decisionBasis:basis,producedAtMs:900,commitMarker:'mixed-standard-replay',resultId:'mixed-standard-replay-result'});
+    assert.equal(replay.replayed,true);assert.equal(replay.result.acceptanceSpecId,first.result.acceptanceSpecId);
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_acceptance_specs').get().n,2);
+  }finally{db.close();}
+}));

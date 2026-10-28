@@ -136,6 +136,14 @@ function domainRows(contract, owner) {
     if (tableId === 'people_registration_candidates') {
       row.candidate_json = JSON.stringify({ proposedName: row.proposed_name });
     }
+    if(tableId==='libra_custom_target_previews'){
+      // This fixture proves kernel atomicity and SQL bindings only. The full
+      // closed Preview and confirmation semantics have their own Store tests.
+      row.preview_id=row.record_digest;row.subject_id='custom-fixture-subject';row.libra_run_id='custom-fixture-run';
+      row.record_schema_ref='libra.custom-target-preview@1';
+      row.record_json=JSON.stringify({schemaRef:row.record_schema_ref,previewDigest:row.record_digest,
+        basis:{subjectId:row.subject_id,libraRunId:row.libra_run_id},actorId:row.actor_id,createdAtMs:row.created_at_ms});
+    }
     if (tableId === 'people_merge_candidates') {
       row.candidate_json = JSON.stringify({
         leftPersonRef: { personId: row.left_person_id, revision: row.left_person_revision },
@@ -481,6 +489,11 @@ function fixture(contract, run, options = {}) {
   let clock = 1700000000700;
   let kernel = openSqliteKernel({ Database, databasePath, schemaDdl, schemaManifest, now: () => clock++ });
   try {
+    if(contract.writeTables.includes('libra_custom_target_previews'))kernel.runPrimitive(({prepare})=>{
+      prepare('INSERT INTO libra_subjects(subject_id) VALUES(?)').run('custom-fixture-subject');
+      prepare('INSERT INTO libra_runs(libra_run_id,subject_id,package_revision_head,recovery_attempt_ordinal) VALUES(?,?,0,0)')
+        .run('custom-fixture-run','custom-fixture-subject');
+    });
     const unitOfWork = createSqliteUnitOfWork({ kernel });
     const participants = participantsFor(contract, unitOfWork, options);
     const observedTables = [...new Set([...contract.writeTables,
@@ -496,13 +509,13 @@ function fixture(contract, run, options = {}) {
 
 const transactionContracts = contracts();
 
-test('canonical transaction inventory drives exactly 62 isolated contracts', () => {
+test('canonical transaction inventory drives exactly 64 isolated contracts', () => {
   const inventory = loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests/transaction-inventory.json'));
   const inventoryEntries = inventory.entryFiles.flatMap((file) =>
     loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests', file)).entries
   );
-  assert.equal(transactionContracts.length, 62);
-  assert.equal(inventory.targetCount, 62);
+  assert.equal(transactionContracts.length, 64);
+  assert.equal(inventory.targetCount, 64);
   assert.deepEqual(transactionContracts.map((contract) => contract.transactionId),
     [...inventoryEntries].sort((left, right) => left.id.localeCompare(right.id)).map((entry) => entry.id));
   for (const contract of transactionContracts) {
