@@ -489,7 +489,7 @@ const definitions = Object.freeze({
       'libra_product_package_material_episode_claims', 'libra_product_package_fact_refs',
       'libra_product_package_artifact_refs', 'libra_offload_context_materials', 'fx_material_controls',
       'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox', 'fx_outbox_deliveries'],
-    readTables: ['libra_run_revisions', 'libra_run_material_manifests', 'libra_run_material_members',
+    readTables: ['libra_custom_target_heads','libra_run_revisions', 'libra_run_material_manifests', 'libra_run_material_members',
       'libra_run_material_episode_claims', 'libra_workspaces', 'libra_workspace_revisions',
       'libra_workspace_material_refs', 'libra_material_bindings', 'libra_material_binding_episode_claims',
       'libra_product_fact_revisions', 'libra_acceptance_specs', 'fx_workspace_registry',

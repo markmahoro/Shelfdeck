@@ -604,7 +604,7 @@
       "relativePath": "application-types/ProductDeliveryReadResult/v1/schema.json",
       "digest": {
         "algorithm": "sha256",
-        "value": "ca7992ffad488b506b639c19996bb9c5dffa8c22497c93f593e5b58b43dbc8bb"
+        "value": "41f75e51211d43c1115431185e240724eb514eb01a45bf077438858789901b52"
       },
       "ssotRefs": [
         "8.2.2",

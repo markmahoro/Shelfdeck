@@ -564,6 +564,7 @@ function createMovieOnDeckCoordinator(options) {
       finalInventoryDecision,
     });
     if (!accepted) {
+      const readFence=options.unitOfWork.captureReadFence();
       const acceptanceFence = options.productDeliveryPort.readPackage({
         queryContract: 'libra.product-delivery@1',
         readPurpose: 'acceptance_fence',
@@ -601,6 +602,7 @@ function createMovieOnDeckCoordinator(options) {
         }
       }
       accepted = acceptance.accept({
+        readFence,
         assessment,
         offerMessage: offer,
         libraRunId: offer.libraRunId,

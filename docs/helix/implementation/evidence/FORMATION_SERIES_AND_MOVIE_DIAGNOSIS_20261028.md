@@ -188,3 +188,16 @@ Canonical Catalog新增两项：Custom Target Commit（Preview及精确Confirmat
 - 原239表sqlDigest无变化，三个目标表DDL及总242表DDL digest仍`9c6af0d89160d0b061dff9f86c7bdaf43151adb164eba558d0433933ff58577e`。最新P2 aggregate `a52686fa2086042ae1dec0932ba1fedccb464acae7ef9f7954e824c983950197`，138/117/242/64，150 Domain Input。
 
 明确剩余：确认后的旧Run提交资格撤销/未接纳Offer失效、Supporting Work/新Run、逐集元资料与Conformance/NFO、Arca/Inventory/Aftercare、精确保留闭包、API/UI和实际停止态生产副本升级均未闭合；禁止开放内部方法为用户功能或发布本中间版本。推荐退役最终UI/停止态旧Claim责任门禁仍待收口。生产仍a2bf2d6fd，无新部署、Reset或任务处置。
+
+## 目标提交与Handoff B并发屏障（2026-10-29）
+
+Libra Promotion在同一事务写Package、Control和Outbox前读取subject/product scope的Custom Target Head。无custom目标的普通Spec保持正常；已确认新目标时旧Spec不能Promote，新custom Spec必须逐项匹配同一Intent ID/digest/revision。目标authority缺失、错Subject/Scope或损坏是明确完整性错误，不当作普通资格。ProductDeliveryPort的acceptance_fence读取执行相同检查，返回closed reason target_not_current；历史Package不施加当前资格，不修改历史digest。已有Promotion Receipt重放保持同一成功结果，但不能由重放恢复旧Offer当前资格。
+
+Handoff B新接纳必须使用Foundation opaque read fence：Arca完成Assessment/Inventory准备后，在重新读取Libra公开Delivery Fence与Control之前捕获token；Receipt重放之后、任何attempt terminal/责任/Control写入之前验证。两条现有调用路径均已接，未提供token的新接纳拒绝；不存在读取Libra表的Arca Repository或额外Control revision锁。Libra确认先提交时旧Arca读取过期；Arca先提交时Libra确认自己的跨域视图过期，随后应显示Accepted责任边界。后一个完整用户确认入口仍未实现，不据技术token声称两侧用户旅程全部通过。
+
+- 本机Promotion首跑新断言错误预期全部marker为0，真实夹具已有3条历史marker；改成前后逐行完全相同，保留失败。模型与真实SQLite新旧Offer/历史回放批次18PASS；相邻Arca空间/mandatory/settlement45项42PASS/3环境skip，另公共Port/Context24PASS均只是开发反馈。
+- source-23归档10,296,984 bytes，SHA `ed5035d5aac52a9bc89840d7fbd8ed0bf5dd331699678ff84efa250a9197c6d9`。实际Linux四项静态PASS；十文件含子测试87项84PASS/3既有未启用真实FFmpeg场景skip/0FAIL，约29.8秒。
+- Linux真实Host普通independent_editions旅程95.1秒：真实合成HEVC/AAC/FLAC媒体、Handle/Secret/TMDB Adapter fixture、两条独立Subject及两次正式Commit，第一份收藏/回执/字节保持，完整FK检查通过。并发旅程15.1秒：首次Handoff B transaction之前插入独立Libra绑定Foundation Audit事务，原token拒绝为P3_UOW_READ_FENCE_CHANGED，十组Arca Attempt/Decision/Custody/Binding/Run/Own、Control/revisions、Outbox/marker摘要前后相同。介入写是技术Audit，未伪称已实现完整custom确认API。两个场景2PASS，Reset recovery仅名称过滤skip；未在本轮执行生产Reset或本测试Reset场景。
+- Source及Dependency镜像只读、network none、独立NAS scratch与CPU/内存限额。容器自动退出；原档案和失败日志保留。已有副本工具仍applied=false；生产不挂载到资格容器，不部署、重试或取消生产任务。
+
+当前P2 aggregate `fd6010474f130bba4a91ea2c6ec106e3ceaa1c1c5ae06f4554ec03ab0dd01b39`；138/117/242/64/150保持，DDL仍`9c6af0d89160d0b061dff9f86c7bdaf43151adb164eba558d0433933ff58577e`。新阶段仍须实现失效Offer的Owner调度收尾、旧Work安全取消、Supporting Work/新Run、完整元资料/Arca/Aftercare/精确保留、API/UI/实际停止态升级，以及Stash链路和最终资格。不能把“旧提交已拒绝”记作整个新目标旅程成功。

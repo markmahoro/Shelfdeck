@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-29目标提交屏障增量：Libra Promotion在事务内按当前Custom Head撤销旧Spec提交资格；未接纳Offer的当前Delivery Fence立即ineligible/target_not_current，历史Package/Receipt保持。Arca首次接纳重新读取公开Delivery并用opaque技术fence阻止读后并发提交，Receipt重放优先，未跨Owner读表。source-23 Linux84PASS/3环境skip及两条真实Host旅程PASS（普通两条独立收藏；介入提交后零部分接纳写入），Reset场景名称过滤未运行。旧Offer调度收尾、Supporting Work/新Run及完整UI/Arca连续性仍待接通，不发布内部入口；生产未改变。
+
 2026-10-29自定义Spec增量：已实现typed custom Spec解析/完整重建及独立Canonical Publication事务，保留原始标准、精确Intent与逐集例外，原子写新Spec/decision head/Receipt/Audit。当前Run Spec、当前决策pointer与原始标准分别绑定，避免二次调整混淆；普通标准Spec按variant显式选择。Linux source-22 91PASS，新增Canonical事务7PASS/202名称过滤skip，四项静态门禁通过。尚未接Supporting Work、确认后的旧提交撤销屏障、新Run/Arca/Aftercare/API/UI及生产副本升级；这些是继续实施和发布前置，不开放中间入口。
 
 2026-10-29第三层标准持久化增量：已建立Libra Preview/Intent/按产品范围Head三表及单Owner原子写入，沿Foundation既有opaque read fence校验跨域只读视图；Receipt重放先于新鲜度验证。Linux source-17合同/SQLite/基础批次94PASS，source-19存储增量及独立Schema副本准备11PASS。原239表SQL完全一致，仅增3表；新Operator只准备并验证独立副本，不修改运行库或切换代际。正式Spec发布/Run替代、Arca/Aftercare消费、API/UI和停止态发布接入继续实施，未开放用户功能，生产仍239表且未变化。

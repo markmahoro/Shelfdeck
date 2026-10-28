@@ -1,4 +1,5 @@
 'use strict';
+const {customTargetHeadStatement,readTargetCommitFence}=require('./custom-target-commit-fence');
 const {buildRelatedPrimaryMappings}=require('../../../contracts/related-primary-mappings');
 const { readStoredMetadataValue } = require('../../../contracts/episode-metadata-records');
 
@@ -66,6 +67,9 @@ function definition(schemaManifest) {
     owner: 'libra',
     schemaManifest,
     statements: {
+      find_custom_target_head:customTargetHeadStatement,
+      find_current_target_spec:{kind:'select-one',tableId:'libra_acceptance_specs',columns:['subject_id','product_scope_digest','spec_json','record_digest'],
+        keyColumns:['acceptance_spec_id']},
       find_requirement_packages: {
         kind: 'select-in', tableId: 'libra_product_packages', keyColumn: 'on_deck_package_id', maxItems: 500,
         columns: ['on_deck_package_id','package_digest','libra_run_id','shelf_id','acceptance_spec_id',
@@ -577,6 +581,13 @@ function deliveryFence(repo, row, run) {
   } else if (receipt) {
     eligibility = 'ineligible';
     reasonCode = 'delivery_already_terminal';
+  } else {
+    const spec=repo.invoke('find_current_target_spec',{acceptance_spec_id:row.acceptance_spec_id});
+    if(!spec||spec.subject_id!==row.subject_id||spec.record_digest!==row.acceptance_spec_record_digest)
+      fail('P9_PRODUCT_DELIVERY_INTEGRITY','Current target Spec cannot prove this Product Offer.');
+    if(!readTargetCommitFence(repo,{subjectId:row.subject_id,productScopeDigest:spec.product_scope_digest,specJson:spec.spec_json})){
+      eligibility='ineligible';reasonCode='target_not_current';
+    }
   }
   const value = {
     eligibility,

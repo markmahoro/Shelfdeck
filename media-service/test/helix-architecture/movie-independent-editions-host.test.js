@@ -5,7 +5,7 @@ const {initializeCleanData}=require('../../scripts/helix-operational-safety');
 const {createCleanServiceHost}=require('../../src/clean-service-host');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 
-for (const scenario of ['independent_editions','reset_recovery']) test('real media collection journey: '+scenario,{timeout:180000},async()=>{
+for (const scenario of ['independent_editions','reset_recovery','handoff_read_fence_race']) test('real media collection journey: '+scenario,{timeout:180000},async()=>{
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'shelfdeck-movie-editions-')),dataDir=path.join(root,'data'),source=path.join(root,'source'),target=path.join(root,'shelf'),adminDistDir=path.join(root,'admin');
  for(const dir of [source,target,adminDistDir])fs.mkdirSync(dir);fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div></div>');
  const secretRoot='independent-movie-editions-fixture-0123456789abcdef';
@@ -14,14 +14,33 @@ for (const scenario of ['independent_editions','reset_recovery']) test('real med
  const movie={id:550,title:'Collection Movie',original_title:'Collection Movie',release_date:'2024-01-01',overview:'Collection fixture plot',
   genres:[{id:18,name:'Drama'}],poster_path:'/poster.jpg',backdrop_path:'/fanart.jpg',
   credits:{cast:[{id:101,name:'Fixture Actor',character:'Lead',order:0}],crew:[{id:102,name:'Fixture Director',job:'Director',department:'Directing'}]}};
- const calls=[],errors=[];let host,db,incidentKernel;
+ const calls=[],errors=[];let host,db,incidentKernel,fenceProof=null,fenceInjected=false;
  function encode(filename,audioCodec){const output=path.join(source,filename),ffmpeg=process.env.FFMPEG_PATH||require('ffmpeg-static');
   const result=spawnSync(ffmpeg,['-hide_banner','-nostdin','-y','-f','lavfi','-i','color=c=black:s=1920x1080:r=24:d=3',
    '-f','lavfi','-i','sine=frequency=440:sample_rate=48000:duration=3','-c:v','libx265','-preset','ultrafast',
    '-x265-params','pools=1:frame-threads=1','-pix_fmt','yuv420p','-color_range','tv','-color_primaries','bt709','-color_trc','bt709','-colorspace','bt709','-c:a',audioCodec,output],
    {encoding:'utf8',windowsHide:true,timeout:60000});assert.equal(result.status,0,result.stderr);return output;}
  try {
-  const hostOptions={dataDir,secretRoot,adminDistDir,onExecutionRuntimeError:error=>errors.push(error.code||error.message),integrationFetch:async input=>{
+  const hostOptions={dataDir,secretRoot,adminDistDir,onExecutionRuntimeError:error=>errors.push(error.code||error.message),
+   ...(scenario==='handoff_read_fence_race'?{unitOfWorkDecorator:unit=>({...unit,execute(participants,...args){
+    if(!fenceInjected&&participants.some(row=>row.participantId==='arca_handoff_b_attempt_terminal')){
+     fenceInjected=true;
+     const {createRepositoryDefinition}=require('../../src/helix/foundation/persistence/owner-repository'),
+      schemaManifest=require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
+      audit=createRepositoryDefinition({repositoryId:'concurrent_fixture_audit',owner:'execution-foundation',schemaManifest,statements:{
+       insert:{kind:'insert',tableId:'fx_audit_records',columns:['audit_id','owner_domain','actor_type','actor_id','action','scope_type','scope_id','occurred_at_ms']}}});
+     unit.execute([{participantId:'intervening_libra_command',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[audit],execute(context){
+      context.repository(audit.repositoryId).invoke('insert',{audit_id:'intervening-commit',owner_domain:'libra',actor_type:'admin',actor_id:'fixture',
+       action:'fixture.concurrent_commit',scope_type:'subject',scope_id:'fixture-subject',occurred_at_ms:context.commitTimeMs});
+     }}]);
+     const tables=['arca_acceptance_attempts','arca_acceptance_decisions','arca_ondeck_custodies','arca_material_bindings','arca_ondeck_runs',
+       'arca_ondeck_commit_receipts','fx_material_controls','fx_material_control_revisions','fx_outbox','fx_commit_markers'],
+      snapshot=()=>canonicalDigest(tables.map(table=>[table,db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all()])),before=snapshot();
+     try{const result=unit.execute(participants,...args);fenceProof={code:'UNEXPECTED_ACCEPTANCE',before,after:snapshot()};return result;}
+     catch(error){fenceProof={code:error.code,before,after:snapshot()};throw error;}
+    }
+    return unit.execute(participants,...args);
+   }})}:{}),integrationFetch:async input=>{
    const url=new URL(input);calls.push(url.pathname);
    if(url.hostname==='image.tmdb.org')return new Response(image,{headers:{'content-type':'image/jpeg'}});
    let body;if(url.pathname.endsWith('/configuration'))body={images:{secure_base_url:'https://image.tmdb.org/t/p/'}};
@@ -94,6 +113,13 @@ for (const scenario of ['independent_editions','reset_recovery']) test('real med
    assert.equal(db.prepare("SELECT count(*) n FROM fx_workflow_events e JOIN fx_supporting_works w USING(work_id) WHERE w.work_kind='workspace_media_production' AND w.work_id<>? AND e.state='succeeded'").get(work.work_id).n>0,true);
    assert.deepEqual(db.pragma('foreign_key_check'),[]);
    return;
+  }
+  if(scenario==='handoff_read_fence_race'){
+   encode('Collection Movie (2024).mkv','aac');await scan('race');const deadline=Date.now()+60000;
+   while(!fenceProof&&Date.now()<deadline)await new Promise(resolve=>setTimeout(resolve,100));
+   assert.ok(fenceProof,JSON.stringify({errors,calls}));assert.equal(fenceProof.code,'P3_UOW_READ_FENCE_CHANGED');
+   assert.equal(fenceProof.after,fenceProof.before,'Stale cross-Owner view cannot transfer Control or create any Acceptance fact');
+   assert.deepEqual(db.pragma('foreign_key_check'),[]);return;
   }
   encode('Collection Movie (2024).mkv','aac');await scan('first');await commitCount(1);
   const first=db.prepare("SELECT m.* FROM arca_inventory_materials m JOIN arca_shelf_entries e USING(shelf_entry_id) WHERE m.inventory_revision=e.current_inventory_revision AND m.role='primary_payload'").get();

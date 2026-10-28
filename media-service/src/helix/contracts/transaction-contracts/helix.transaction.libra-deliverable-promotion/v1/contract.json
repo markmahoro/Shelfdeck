@@ -60,6 +60,7 @@
       "fx_outbox_deliveries"
     ],
     "readTables": [
+      "libra_custom_target_heads",
       "libra_run_revisions",
       "libra_run_material_manifests",
       "libra_run_material_members",
@@ -112,7 +113,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8867,
+      "line": 8868,
       "lineDigest": "15cae5f898cd5f17754b6d6a463d674e7115cf739281b7ad10ca1356eabd9b73"
     }
   }

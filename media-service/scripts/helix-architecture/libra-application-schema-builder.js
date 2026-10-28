@@ -37,7 +37,7 @@ function deliveryFence() {
   return object({
     eligibility: { type: 'string', enum: ['eligible', 'ineligible'] },
     reasonCode: { type: 'string', enum: [
-      'run_not_active', 'spec_not_current', 'package_not_current', 'delivery_already_terminal', 'control_not_libra'
+      'run_not_active', 'spec_not_current', 'package_not_current', 'delivery_already_terminal', 'control_not_libra', 'target_not_current'
     ] },
     libraRunId: id(),
     runState: { type: 'string', enum: ['active', 'suspended', 'superseded', 'frozen', 'completed', 'discarded', 'administratively_retired'] },

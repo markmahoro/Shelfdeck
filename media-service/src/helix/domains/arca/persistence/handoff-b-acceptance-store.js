@@ -858,6 +858,9 @@ function createHandoffBAcceptanceStore(options) {
       owner: 'arca',
       repositories: [arca],
       execute(context) {
+        if(!request.readFence||typeof options.unitOfWork.assertReadFence!=='function')
+          fail('P14_HANDOFF_B_READ_FENCE_REQUIRED','New Handoff B acceptance requires a fresh public delivery read fence.');
+        options.unitOfWork.assertReadFence(request.readFence);
         const repo = context.repository(arca.repositoryId);
         const attempt = repo.invoke('find_attempt', {
           acceptance_attempt_id: assessment.acceptanceAttemptId,
