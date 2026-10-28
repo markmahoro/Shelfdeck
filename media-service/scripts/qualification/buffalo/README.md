@@ -1,4 +1,6 @@
-# buffalo_l Phase 1 qualification
+# buffalo_l qualification
+
+Phase 4补充为隔离视频技术验证，尚未接入正式自动出演：`video-evidence.js`提供20首采+最多20补采点的提议、带同框排斥/组内距离保护的质心分组、独立时间区段覆盖及有界代表脸；`run-video.js`使用Arca当前Inventory材料的只读快照和同一Source身份围栏，经Service既有FFmpeg抽帧与内部图片计算查询目录。只保存任务专属实验目录，不创建Person、ActorChoice或收藏事实。阈值0.35/0.45/0.55/0.6是首次真实视频前固定的比较网格，不是已经校准的自动身份政策；gender筛选仍需用户确认。抽帧结果绑定原编码SHA、校正画布像素SHA/大小/旋转角，校正后的框不能直接套用原帧坐标。没有增加CUDA、独立识别服务或任意视频URL入口。
 
 这是隔离技术验证入口，不是正式 Runtime 接线、人物建档功能或发布安装器。主目录识别及自建参考库均使用同一 512 维模型方法；不导入 Mirex 代码，不回退到 SFace，不创建独立识别服务。
 

@@ -3,7 +3,7 @@ const fs=require('node:fs'),path=require('node:path');
 const policy=require('./parity-policy.json');
 function fail(message){throw Object.assign(new Error(message),{code:'BUFFALO_CATALOGUE_INVALID'});}
 function createCatalogue({root,usearch=require('usearch'),Database=require('better-sqlite3')}){
-  let db=null,index=null,faces=null,yaws=null,aliases=null,groups=null;
+  let db=null,index=null,faces=null,yaws=null,aliases=null,groups=null,links=new Map();
   function read(name,maxBytes){
     const file=path.join(root,name),stat=fs.lstatSync(file);
     if(!stat.isFile()||stat.isSymbolicLink()||stat.size>maxBytes)fail('An invalid catalogue member was supplied.');
@@ -21,6 +21,15 @@ function createCatalogue({root,usearch=require('usearch'),Database=require('bett
     aliases=read('aliases.json',16*1024*1024);
     groups=read('performer_links.json',8*1024*1024);
     if(!Array.isArray(faces)||!Array.isArray(yaws)||!Array.isArray(groups))fail('The catalogue mappings are invalid.');
+    const linkRoot=uid=>{let current=uid;while(links.has(current)&&links.get(current)!==current)current=links.get(current);return current;};
+    for(const group of groups){
+      if(!Array.isArray(group)||group.some(uid=>typeof uid!=='string'||!uid))fail('A catalogue identity link is invalid.');
+      for(const uid of group){
+        const a=linkRoot(group[0]),b=linkRoot(uid),first=Buffer.compare(Buffer.from(a),Buffer.from(b))<=0?a:b;
+        links.set(a,first);links.set(b,first);
+      }
+    }
+    for(const uid of links.keys())links.set(uid,linkRoot(uid));
     db=new Database(path.join(root,'performers.db'),{readonly:true,fileMustExist:true,timeout:1000});
     db.pragma('query_only=ON');
   }
@@ -67,6 +76,7 @@ function createCatalogue({root,usearch=require('usearch'),Database=require('bett
     matches=collapsed.sort((a,b)=>a.combinedDistance-b.combinedDistance).slice(0,policy.maximumResults);
     return {raw,matches,retiredSlots};
   }
-  return Object.freeze({load,search,stats:()=>({size:index?.size(),dimension:index?.dimensions()}),close(){if(db)db.close();db=null;index=null;faces=null;yaws=null;aliases=null;groups=null;}});
+  return Object.freeze({load,search,identityKey(uid){if(!index||typeof uid!=='string'||!uid)fail('A loaded catalogue identity is required.');return links.get(uid)||uid;},
+    stats:()=>({size:index?.size(),dimension:index?.dimensions()}),close(){if(db)db.close();db=null;index=null;faces=null;yaws=null;aliases=null;groups=null;links=new Map();}});
 }
 module.exports=Object.freeze({createCatalogue});

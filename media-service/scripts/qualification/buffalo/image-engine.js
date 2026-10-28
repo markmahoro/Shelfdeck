@@ -70,7 +70,14 @@ function createBuffaloImageEngine({modelRoot,ort=require('onnxruntime-node'),sha
     }
     return original;
   }
-  return Object.freeze({load,decode,analyzeRaw,async analyze(bytes,options){return analyzeRaw(await decode(bytes),options);},
+  async function analyzeEvidence(bytes,options){
+    const source=await decode(bytes),faces=await analyzeRaw(source,options),rotationDegrees=faces[0]?.rotationApplied||0;
+    if(faces.some(face=>face.rotationApplied!==rotationDegrees))fail('BUFFALO_GEOMETRY_INVALID','Face coordinates do not share one correction canvas.');
+    const canvas=rotationDegrees?math.rotateNearest(source,rotationDegrees):source;
+    return {faces,coordinateSpace:{kind:'corrected_canvas',sourceWidth:source.width,sourceHeight:source.height,
+      width:canvas.width,height:canvas.height,rotationDegrees,pixelDigest:crypto.createHash('sha256').update(canvas.data).digest('hex')}};
+  }
+  return Object.freeze({load,decode,analyzeRaw,analyzeEvidence,async analyze(bytes,options){return analyzeRaw(await decode(bytes),options);},
     async close(){closed=true;if(loading)await loading.catch(()=>{});if(recognizer)await recognizer.release();if(detector)await detector.release();recognizer=null;detector=null;}});
 }
 module.exports=Object.freeze({createBuffaloImageEngine});

@@ -7,7 +7,7 @@
 | 阶段 | 交付范围 | 退出门槛 | 当前状态 / 前置 |
 | --- | --- | --- | --- |
 | Phase 1：BUFFALO-CATALOGUE-FEASIBILITY | 在 ShelfDeck Linux Docker 技术边界内，按固定 Sense 2 方法完成图片检测/对齐/512维特征、官方离线目录检索及自建参考图样本匹配；不接自动建档或视频业务。 | 固定模型/预处理/数据包与原生索引兼容；与同输入 Sense 基准的人脸/候选/距离对照通过；内存/控制面响应/取消与依赖复用条件有证据。失败明确阻断后续识别实现，不降低标准换取通过。 | **有限技术PASS / 已Exit**，见归档和Evidence；不是视频或发布资格。 |
-| Phase 4：BUFFALO-VIDEO-IDENTIFICATION | 统一 buffalo_l 后的视频有界抽帧/补采、聚类/频次、离线目录与自建Reference备用、单演员选择、资源控制和目录更新；不创建人物。 | 多演员/男演员/未知性别/歧义/无脸负例；真实视频冷/热/1080/4K/SMB/停止取消及控制面资源资格；确定版本化策略及样本范围。 | **当前唯一活动Phase。** Phase 1已通过；先冻结选择规则和实际视频验收，再实施正式技术链，不能以单图PASS替代。 |
+| Phase 4：BUFFALO-VIDEO-IDENTIFICATION | 统一 buffalo_l 后的视频有界抽帧/补采、聚类/频次、离线目录与自建Reference备用、单演员选择、资源控制和目录更新；不创建人物。 | 多演员/男演员/未知性别/歧义/无脸负例；真实视频冷/热/1080/4K/SMB/停止取消及控制面资源资格；确定版本化策略及样本范围。 | **当前唯一活动Phase，技术切片/视频隔离资格进行中。** Phase 1已通过；选择规则待确认，尚未正式接线，不能以单图PASS替代。 |
 | Phase 5：PEOPLE-AUTOMATION-AND-RETIREMENT | 识别姓名至People唯一复用/TPDB资料/截图兜底建档，Libra单演员出演；原人工入口保留；完整退役推荐人脸认领。 | 新/已有/同名/无TPDB/无图/故障/并发/重启/人工先行的真实Host至正式Commit旅程；统一buffalo_l Reference发布/更新和保留依赖，旧Claim责任停止态预检；具体UI交互验证。 | **Phase 4通过后立即承接，先于Phase 2/3。** 姓名规则和推荐退役已有增量复用；不保留SFace备用，不恢复Mirex架构或代码。 |
 | Phase 2：FORMATION-DEFECT-CLOSURE | 7条剧集发布自愈/人工重试、三部电影外部候选身份可靠性、精确同集剧情补充、季海报复用。 | 各项根因和范围独立闭合，新任务及失败恢复真实 Host 旅程通过，SMB/来源与正式文件保护负例；三部电影不以统一错误码/一处解析修复代替逐项证据。 | **待Phase 5后承接。** 已有局部实现/定向Linux证据复用；生产验收留Phase 6，不靠Reset收口。 |
 | Phase 3：CUSTOM-ACCEPTANCE-LIFECYCLE | 标准/瑕疵/用户自定义三层目标，真实差距建议、Preview/确认、旧Run/Offer收尾、新Run、生产/Conformance/NFO、Arca/Aftercare/保留、API/UI。 | 真实确认至新Run至唯一Commit闭环；重放/崩溃/人工目标变化/恢复标准及基线变化不陷入旧custom Head；跨Owner/部分交接负例完整。 | **待Phase 2后承接。** 已有提交与未提交增量保留；新Run接续重放等缺口继续，不依赖 Phase 1。不可提前开放半成品入口。 |

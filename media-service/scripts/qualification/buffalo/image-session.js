@@ -13,6 +13,14 @@ if(!isMainThread){
       let result;
       if(request.kind==='load'){await engine.load();catalogue.load();result={stats:catalogue.stats(),memory:process.memoryUsage()};}
       else if(request.kind==='query')result=catalogue.search(request.vector);
+      else if(request.kind==='frameEvidence'){
+        const started=performance.now(),analysis=await engine.analyzeEvidence(Buffer.from(request.bytes));
+        result={...analysis,faces:analysis.faces.filter(face=>Math.trunc(face.rectangle[2])-Math.trunc(face.rectangle[0])>=40&&
+          Math.trunc(face.rectangle[3])-Math.trunc(face.rectangle[1])>=40).map(face=>{
+          const found=catalogue.search(face.vector);
+          return {...face,matches:found.matches.map(match=>({...match,identityKey:catalogue.identityKey(match.uid)})),retiredSlots:found.retiredSlots};
+        }),elapsedMs:performance.now()-started,memory:process.memoryUsage()};
+      }
       else if(request.kind==='analyze'){
         const started=performance.now();
         const faces=request.raw
@@ -75,6 +83,7 @@ if(!isMainThread){
     return Object.freeze({load:options=>send('load',{},options),
       query:(vector,options)=>send('query',{vector},options),
       analyze:(bytes,options)=>send('analyze',{bytes},options),
+      frameEvidence:(bytes,options)=>send('frameEvidence',{bytes},options),
       analyzeRaw:(image,options)=>send('analyze',{bytes:image.data,width:image.width,height:image.height,raw:true},options),stop});
   }
   module.exports=Object.freeze({createImageSession});
