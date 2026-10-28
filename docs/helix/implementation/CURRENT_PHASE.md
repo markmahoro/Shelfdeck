@@ -1,5 +1,9 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-29 RECOMMENDATION-RETIREMENT实现检查点：已移除四个公开路由、Libra两个专用Public端口、后台扫描/Claim推进及UI推荐/认领分支；共享抽帧、Reference、人工登记、影片选演员及Arca纠错保留。五张旧表只作历史证据，DDL不变，不自动清理旧责任。Linux source-15完整Host跨维护窗口/重启与两影片隔离选择旅程1PASS/5名称过滤skip；source-12受影响Service/Owner76PASS/2既有skip。Web首跑45套252PASS、2套加载失败，补齐父级Service源码挂载后2套14PASS，Linux构建通过。首跑缺模型许可证、旧URL被人物详情返回200/null，以及维护退出尚处settling的夹具等待失败均保留；通用人物不存在已修为404，夹具等待真实normalSupplyAllowed，没有绕过写入屏障。停止态旧Claim责任门禁、最终版本UI走查/负责人和完整固定候选仍未完成，生产未变更。
+
+RECOMMENDATION-RETIREMENT交互实施：人物US库首屏只展示已登记人物，保留刷新/姓名搜索/新建演员/资料与参考图维护；移除推荐人脸分区及认领/来源联动建档分支。影片原“选择影片演员”继续在原工作区入口打开，保留精确版本选择、图片可读性、幂等重试及资料变化提示。不是用解释文案替代新入口。前后端整链退役、原Claim责任预检与具体版本走查/负责人审查完成前不发布，不以删掉UI视为后台已停止。
+
 资格更新：独立Linux source-10新增78PASS/0skip/0FAIL，MoviePilot实际端口3PASS/22名称过滤skip；四项实际静态门禁全部通过。source-9的两个Manifest环境失败已通过携带精确浅层基线Git对象及测试专用Git镜像修正，不向生产镜像加入Git、不弱化Guard。Stash私有姓名传输绑定Image Artifact精确字节，具有有界并发/响应/取消/安全失败，7项Linux测试通过；正式配置、Work、People自动建档和Libra出演尚未接通。继续持久目标与运行链实施，未形成最终发布候选。
 
 最新开发检查点（2026-10-28）：新增同Episode多语言剧情补充，Libra冻结策略、Platform只补原资料查询，完整Linux合同298PASS及Host真实NFO/Commit通过；欲望都市S05E01生产只读证实同Episode有港台中文剧情，尚未执行生产恢复。People完整姓名库查询已接正式只读Facade，270人分页、歧义/变更/无Provider ID负例通过本机检查。自定义要求变换与预览/确认模型11PASS，基线/用户/具体字段/本地Episode/Arca责任边界闭合；持久化、新Spec/Run、Arca连续性和UI未接，禁止据此开放用户入口。Linux新增71项首跑69PASS/2FAIL，失败为隔离容器没有Git及reuse基线对象，正在补齐资格环境；不放宽Guard。MoviePilot缺失做种数被JavaScript转换为0已由真实Host/Handle端口用例先红后绿修正，尚须Linux复验；不能推断为三部影片全部异常的根因。生产未发布、未重试、未Reset。

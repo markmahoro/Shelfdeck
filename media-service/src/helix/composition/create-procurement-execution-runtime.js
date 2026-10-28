@@ -476,7 +476,6 @@ function createProcurementExecutionRuntime(options) {
     onProcessCancelled: (scope) => executorIncidentObserver.reconcileRecoveryReservations(scope) });
   libraProcessServices=libraConstruction.createProcessServices({...libraOptions,peopleReferenceQuery,now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
     onTaskCancellationChanged:subjectId=>options.onFormationSubjectChanged?.(subjectId),
-    onRecommendationActorConfirmed:receipt=>{options.onFormationSubjectChanged?.(receipt.subjectId);host?.wake();},
     onWorkshopTransferred:(subjectId)=>{
       fillPredeckIntakeSeats();options.onFormationSubjectChanged?.(subjectId);host?.wake();
     },
@@ -529,12 +528,6 @@ function createProcurementExecutionRuntime(options) {
     ensurePerceptionRatingResolution:ensureShelfEntryRatingResolution});
   peopleProcessServices=peopleImageExecution.createProcessServices({
     ...options, now,contractValidator,
-    recommendationPorts:typeof options.createUsAdultRecommendationImagePort==='function'?{
-      sources:libraProcessServices.usAdultRecommendationQuery,
-      images:options.createUsAdultRecommendationImagePort(libraProcessServices.usAdultRecommendationQuery),
-      confirmation:libraProcessServices.usAdultRecommendationCommand,
-    }:null,
-    wakeClaims:()=>host?.wakeBackground({ownerDomain:'people',reconcilerKey:'us-adult-recommendation-claims'}),
     onDeckPersonEvidenceProjection:arcaProcessServices.onDeckPersonEvidenceProjection,
     onDeckNfoPersonEvidence:arcaProcessServices.onDeckNfoPersonEvidence,
   });
@@ -979,7 +972,6 @@ function createProcurementExecutionRuntime(options) {
     if(request.ownerDomain==='people'&&['people_system_registration','people_system_merge'].includes(request.processType))return {workId:request.workId,disposition:request.workAttemptState};
     if(request.ownerDomain==='people'&&request.processType==='people_image_preparation'){
       peopleProcessServices.imageOperations.reconcile(request.processId);
-      host?.wakeBackground({ownerDomain:'people',reconcilerKey:'us-adult-recommendation-claims'});
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='libra'&&request.processType==='libra_intake'){
@@ -1200,9 +1192,6 @@ function createProcurementExecutionRuntime(options) {
     }),Object.freeze({ownerDomain:'people',reconcilerKey:'image-operations',
       listPage:page=>peopleProcessServices.imageOperations.listPendingPage(page),
       reconcile:({operationId})=>peopleProcessServices.imageOperations.reconcile(operationId),
-    }),Object.freeze({ownerDomain:'people',reconcilerKey:'us-adult-recommendation-claims',
-      listPage:page=>peopleProcessServices.recommendationClaims?.listPendingPage(page)||[],
-      reconcile:({claimId})=>peopleProcessServices.recommendationClaims.reconcile(claimId),
     }),Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-expiry',
       listPage:()=>options.recycleExpiryTick?[{cursor:'expiry',scope:{}}]:[],reconcile:()=>options.recycleExpiryTick(),
     }),Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-maintenance',listPage:()=>options.recycleTick?[{cursor:'recycle',scope:{}}]:[],reconcile:()=>options.recycleTick()}),Object.freeze({
@@ -1261,15 +1250,6 @@ function createProcurementExecutionRuntime(options) {
       ownerDomain:'people',reconcilerKey:'ondeck-nfo-person-evidence',
       listPage:page=>peopleProcessServices ? peopleProcessServices.listNfoPage(page) : [],
       reconcile:scope=>peopleProcessServices ? peopleProcessServices.reconcileNfoEntry(scope) : Object.freeze({kind:'unavailable'}),
-    }),Object.freeze({
-      ownerDomain:'people',reconcilerKey:'us-adult-recommendations',
-      listPage:({limit})=>{
-        const windowKey=options.maintenanceWindowKey?.();
-        return peopleProcessServices.recommendations&&windowKey?Array.from({length:Math.min(8,limit)},(_,ordinal)=>({
-          cursor:'recommendations:'+ordinal,scope:{windowKey},
-        })):[];
-      },
-      reconcile:({windowKey})=>peopleProcessServices.recommendations.reconcile(windowKey),
     }),Object.freeze({
       ownerDomain:'people',reconcilerKey:'ondeck-person-evidence',
       listPage:({cursor,limit})=>peopleProcessServices
@@ -1442,7 +1422,6 @@ function createProcurementExecutionRuntime(options) {
     usAdultActorChoice:libraProcessServices.usAdultActorChoice,
     episodeMetadataMapping:libraProcessServices.episodeMetadataMapping,
     usAdultActorSelectionQuery:libraProcessServices.usAdultActorSelectionQuery,
-    usAdultRecommendationSources:libraProcessServices.usAdultRecommendationQuery,
     arcaCoordinator:arcaProcessServices.coordinator,arcaContextReader:arcaProcessServices.contextReader,
     arcaFormationStatusProjection:arcaProcessServices.formationStatusProjection,
     arcaAcceptanceRecovery:arcaProcessServices.coordinator,

@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-29开发检查点：推荐人脸/认领功能运行链与UI已退役，Linux source-15真实Host旅程1PASS/5名称过滤skip；维护期间五张旧表均0，人工建档后只选中影片Commit，另一部未被自动确认。source-12受影响Service/Owner批次76PASS/2既有skip；Web首跑252PASS伴2套加载失败，修正隔离挂载后14项PASS且Linux构建成功，保留原失败。五张旧证据表DDL不删不改；发布前停止态责任复核、最终完整架构/镜像及具体版本UI审查仍待完成。生产仍a2bf2d6fd，本轮未部署/Reset/取消/重试。自定义标准持久化与Stash完整自动链仍未完成。
+
 2026-10-28最新Linux增量结果：source-10定向78PASS/0skip/0FAIL；MoviePilot做种类型/身份门槛/完整100候选端口回归3PASS、22名称过滤skip；包边界、禁止语义、Manifest、P2合同四项实际静态检查全部通过。前轮71项69PASS/2FAIL的缺Git/基线环境已在独立资格镜像修正，原失败保留；生产运行镜像没有增加Git。新Stash私有传输7场景在Linux通过，尚未接正式Integration配置/Work/People建档或变更常驻服务。所有生产修复上线/真实业务验收继续开放。
 
 2026-10-28 本轮开发继续，生产仍为a2bf2d6fd，未部署或生产重试。精确集多语言剧情补全已通过实际Linux合同批次298PASS和完整Host→NFO→On-deck Commit；欲望都市S05E01只读核验为简体剧情空、同Episode港台中文/英文非空，新规则可选zh-HK，不需放宽Spec。Movie三条选定Service文件共29项中7PASS/22既有环境skip/0FAIL，不能记为完整Service通过。People姓名轻度模糊模型已接正式只读Owner查询，单事务完整库分页、同名歧义和库变化守卫本机34PASS；Linux增量正在验证。自定义标准的字段变换及预览/确认记录模型11PASS，仍未接持久Intent、新Run、Arca或UI，不代表功能完成。

@@ -3,26 +3,14 @@
 const { requireLibraryKind, libraryForProfile } = require('../model/person-library');
 const { createMediaCastReferenceQuery } = require('./media-cast-reference-query');
 const { createPeopleStore } = require('../persistence/people-store');
-const {createUsAdultRecommendationStore}=require('../persistence/us-adult-recommendation-store');
-const {createUsAdultRecommendationCoordinator}=require('./us-adult-recommendation-coordinator');
-const {createUsAdultRecommendationQuery}=require('./us-adult-recommendation-query');
-const {createUsAdultRecommendationClaims}=require('./us-adult-recommendation-claims');
 
 function createPeopleProcessServices(options) {
   if (!options?.schemaManifest || !options.unitOfWork) {
     throw new TypeError('People process services require People persistence.');
   }
-  const now = options.now || Date.now;
   const store = options.peopleStore || createPeopleStore(options);
   store.ensureJavUnknownActor();
   const evidenceProjection = options.onDeckPersonEvidenceProjection;
-  let recommendationClaims=null;
-  const recommendationStore=options.recommendationPorts?createUsAdultRecommendationStore(options):null,
-    recommendations=recommendationStore?createUsAdultRecommendationCoordinator({store:recommendationStore,...options.recommendationPorts}):null,
-    recommendationQuery=recommendationStore?createUsAdultRecommendationQuery({store:recommendationStore,...options.recommendationPorts,now,
-      readActiveClaim:sourceId=>recommendationClaims?.findActive(sourceId)||null}):null;
-  if(recommendationStore)recommendationClaims=createUsAdultRecommendationClaims({...options,...options.recommendationPorts,peopleStore:store,
-    recommendationQuery,afterSourceConfirmation:options.afterRecommendationSourceConfirmation,onClaimFailure:options.onRecommendationClaimFailure});
 
   function listPage({ cursor, limit }) {
     if (!evidenceProjection || typeof evidenceProjection.listPage !== 'function') return [];
@@ -66,9 +54,6 @@ function createPeopleProcessServices(options) {
     reconcileNfoEntry,
     mediaCastReferenceQuery:createMediaCastReferenceQuery(store),
     store,
-    recommendations,
-    recommendationQuery,
-    recommendationClaims,
     listPage,
     reconcile,
     registerPerson,

@@ -8205,9 +8205,7 @@ domains/libra/
 │  ├─ LibraCommandFacade
 │  ├─ LibraQueryFacade
 │  ├─ ProductDeliveryPort
-│  ├─ WorkspaceReclamationPort
-│  ├─ UsAdultRecommendationQueryFacade
-│  └─ UsAdultRecommendationCommandFacade
+│  └─ WorkspaceReclamationPort
 ├─ model/
 │  ├─ Subject
 │  ├─ RoutingDecision
@@ -13941,10 +13939,6 @@ GET/POST  /v1/admin/people
 GET       /v1/admin/people/image-search
 GET       /v1/admin/people/image-search/preview
 GET       /v1/admin/people/operations/:operationId
-GET       /v1/admin/people/recommendations
-GET       /v1/admin/people/recommendations/:recommendationId/image
-POST      /v1/admin/people/recommendations/:recommendationId/actions/claim
-GET       /v1/admin/people/recommendation-claims/:claimId
 GET/PATCH /v1/admin/people/:personId
 GET       /v1/admin/people/:personId/avatar
 GET       /v1/admin/people/:personId/collection
@@ -16537,6 +16531,8 @@ Libra请求精确集的必需剧情时，TMDB首选语言的Season成员与同�
 冻结`tmdb.episode-plot-language@1`选择规则：首选配置locale、同语言其他locale、原始语言、英文、其他可用语言，组内按稳定locale顺序选择非空overview；无可用翻译时保留确实缺失，不生成替代剧情。每次补充均返回closed `episodePlotSourceProof`，包含policy/schema、精确Provider Episode Reference、本地Episode Scope、请求语言、selected/not_available结果、实际语言/剧情SHA（缺失时NULL）、完整翻译集合摘要和proofDigest。MetadataObservation保存该proof并将摘要纳入Evidence身份和payload digest；成功剧情实际字节必须吻合，Source与映射归属不能漂移。后续Field Provenance仍引用该完整Observation，不把新语言写成原请求语言或借助旧Observation补造。首选语言已经有剧情时不额外请求或覆盖。真正无图/剧情的用户自定义目标处置保持独立，不因补充功能扩大标准或自动接受缺项。
 
 ### US-ADULT-AUTO-REGISTRATION / RECOMMENDATION-RETIREMENT（2026-10-28）
+
+推荐功能退役删除其四条Admin Route、Libra专用UsAdultRecommendation Query/Command Facade、后台聚类排名/Publication与Claim调度及UI认领/来源联动建档分支。Shared Frame/Embedding/Reference、人工注册/影片选择和Arca既有演员维护继续各自原合同。五张people_us_recommendation_*表与历史DTO暂按原Schema保留只作历史证据，不注册新Writer/后台/命令；不能借表仍存在而维持旧业务。部署前停止态预检必须证明没有preparing_person/confirming_source或active_source_id认领责任；非空时拒绝本次退役部署并明确列出责任，不在普通运行启动做全机历史阻断，不添加旧任务兼容/自动取消/恢复分支，不擅自改生产Claim。2026-10-28只读样本五表均为空不是永久豁免，发布必须重验。
 
 Stash姓名传输冻结`stash-sense.name-observation@1`：一次POST只提交已验证Image Artifact的精确字节（Handle/revision/SHA/大小，最多8MiB），不让远端自行读媒体URL；`top_k=5,max_distance=0.6,min_face_confidence=0.5`沿已验证的上游接口参数。JSON响应最多1MiB/32脸，每脸最多5候选，投影只保留姓名/可选原名别名、上游分数、脸框、源图和服务配置revision摘要、完整响应摘要，不把外部catalogue ID或返回图片URL变为人物身份/文件读取权限。无脸/未识别如实返回；选定单脸图中出现多脸或最高结果同等歧义时不得盲选。调用deadline有界且可取消，取消/超时后不接纳迟到成功；ShelfDeck调用并发有界，无隐藏无界队列，finally释放占用/监听器。配置、正式Work准入和People建档仍各由原Owner管理，纯传输返回不构成系统已建档或影片已选演员。
 

@@ -143,3 +143,18 @@ People姓名模型已接`PersonReferenceQueryFacade.resolveUsAdultName`正式只
 - Stash私有传输7场景：源图Handle/revision/SHA/大小绑定；只POST图片字节；姓名/原名、分数/脸框、源图/服务revision及响应摘要投影；外部ID/URL不产生People身份/文件权限；无脸/无结果、歧义多脸、协议错误/超界、HTTP失败、并发占用、取消/timeout和监听器释放。上游参数沿已验证0.6/0.5阈值，无额外外部ID验证。源码尚未接正式Platform配置、Work或自动建档，不代表业务链已集成，也未启动独立Stash容器。
 
 本机生成Manifest时首跑一次Node25原生UNKNOWN/-4094 open（shared.worker.asset.upload）后原命令重试成功，原输出保留；不是Linux产品修复或门禁放宽。全部新资格日志保存在ignored`.codex/series-recovery-20261028/linux-stage9-first-*`、`linux-git-qualification-build*`、`linux-stage10-full.log`及NAS专用作业目录。仍须最终固定代码完整Architecture/Service/Web/镜像、具体UI及生产逐条验收。
+
+## 未知人脸推荐与认领退役（2026-10-29）
+
+完整移除推荐列表、推荐图、认领命令及认领查询四条路由；删除两条Libra专用Public端口、People后台推荐/Claim写入器与维护扫描、UI推荐列表/来源联动建档。保留手工建档、上传图片、姓名查询、Reference维护、影片演员选择与已入藏纠错。五张历史证据表及其DTO未删，数据库仍239表；不能以当前为空替代发布前停止态责任复核。活跃Claim preparing_person/confirming_source或active_source_id非空须阻断本项发布，不能直接放弃、自动迁移或由日常启动处理。
+
+2026-10-28T15:38:18.836Z生产只读查询五表均0、claims=[]、SQLite total_changes=0，只是现场样本，未修改生产。路由现164项（163 Admin及health），不是删表。最新P2 aggregate `3f0c172f612b748ad7cff1f94e0d1bc8cc83f24c33e84d51d465667098783c42`，138 Capability/117 Result family/239 Table/62 Transaction/150 Domain Input保持。
+
+- Linux source-12四项实际静态门禁PASS；受影响Service/Owner/模型78项，76PASS/2既有skip/0FAIL。该批次早于通用人物404与Host夹具修正，后续增量按单项记录。
+- 真实Host旅程首次缺只读源码内的YUNET许可证，补入已有跟踪许可证；source-13第二次发现退役列表URL被通用人物详情匹配，返回200/null。修正通用人物不存在为PEOPLE_PERSON_NOT_FOUND/404，并补原有认证HTTP回归，不添加旧URL兼容分支。
+- source-14第三次实际跑至维护退出后人工登记，因持久维护phase仍settling收到RUNTIME_MAINTENANCE_WRITES_DISABLED。夹具增加有界等待真实normalSupplyAllowed及maintenanceActive=false，未放宽运行屏障。source-15真实Host旅程79.5秒，1PASS/5名称过滤skip：两部真实合成视频完成分析，四个旧接口404；跨维护窗口/重启五表仍0且无自动登记；手工登记并选择第一部后仅一次On-deck Commit，第二部仍active且无演员选择head。
+- source-15源码包10,252,002 bytes，SHA `00361a2e8f78dc9d2ffb455c9849c5a4073fc4031f3931511ce8e3f318aaa893`。测试使用既有独立Git/CPU模型镜像、隔离SQLite及良性图片，无生产媒体/数据库挂载，无外网。
+- 本机四个UI定向文件33PASS；入口/Surface批次首轮27PASS/7FAIL/2skip，修正仍写168的readiness断言为164后34PASS/2既有skip。只算开发反馈。
+- Linux Web首次脚本未创建、第二次只读Vite缓存目录不可写，修正为专用有界tmpfs；第三次47套中45套/252项PASS、两套因scratch父目录没有Service源码加载失败。source-14补只读Service src挂载后仅复验这两套14PASS，tsc/Vite构建通过（既有574.20kB chunk告警）。合计47套266项已分别通过，但不宣称首次全量全绿。
+
+NAS qualification目录保留stage12/13/14/15原始失败与成功日志；源码归档均SHA校验后独立解压，不修改旧快照。具体浏览器/最终版本UI负责人、停止态责任预检自动化及全量固定候选仍待完成。此检查点不是最终发布，不改变生产a2bf2d6fd，不Reset或重试任何生产任务。
