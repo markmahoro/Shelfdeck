@@ -2,6 +2,8 @@
 
 日期：2026-10-29（Asia/Shanghai）。这是当前Phase 4的Evidence，不是第二个活动计划。主路线仍为Phase 1→4→5→2→3→6。
 
+后续用户决定（2026-10-29）：取消所有性别筛选和分流，可靠候选不分男女；性别缺失/冲突也不单独要求人工。下文“性别规则待确认”和FEMALE-only提议属于首轮时点记录，已被本决定取代。男性得到更低距离仅是观察，不再构成排除理由；多帧身份可靠性、资源及正式接线仍须验证。原始报告与首跑失败保持不变。
+
 ## 结论与边界
 
 三部现有真实影片各20帧首采完成，共60帧、84个人脸检测；固定buffalo_l/官方目录可在ShelfDeck现有Node/Linux Docker边界内处理视频帧。双女演员影片得到与保留原片名相符的Valentina Nappi和Cherry Kiss候选；另一影片的Layla Price候选，其目录别名明确包含原片名的Laela Pryce。它们是有来源的候选一致性证据，不是独立标注集准确率。
@@ -61,6 +63,26 @@ NAS产物根为上面的`video-phase4`；本机ignored副本为`E:/my_project/em
 | current-code-replay.log | 59 | 8f355d1b1cd8746be0a2420820a6597995dcc2486e81eddaba66f87374402048 |
 | final-protection.log | 1523 | ee09720c2506fa2947411b3069ac4f878d90a4073a3fe4e0ad643ef429d04330 |
 
-## 开放门槛
+## 首轮开放门槛（历史时点）
 
 待确认FEMALE-only自动候选、明确MALE排除、未知/冲突/其他标记转原人工流程的业务规则；本次没有擅自确定。还需正式typed Basis/目录与模型generation/Artifact/Effect/Runtime Permit接线、补采与代表单脸图片发布、真值充分的独立视频/无匹配/人工作主、物理冷启动/真实4K/资源共载及重启恢复。之后才能退出Phase 4并进入Phase 5人物完整发布和唯一Commit，不能由本Evidence提前宣布核心功能完成。
+
+## 用户取消性别条件后的验证
+
+用户明确取消性别判断，SSOT及唯一Phase已同步；FEMALE-only提议与上述性别待确认门槛退役，不再请求用户选择。外来gender字段可保留原始Evidence，但不参与资格、排序或人工分流；本地Reference备用也遵循相同规则。既有报告不改写，男性较低距离现在只是正常候选事实，不能据此说算法选错性别。
+
+新增Libra私有`us-adult-catalogue-assessment.js`只形成候选评估，不写任何Owner Store，不产生Person、ActorChoice、Cast或Work。它按显式完整、带digest的实验策略验证代表图/区段独立性、候选身份差距与一致性，按跨时间覆盖优先稳定选一个候选；不同可靠演员并存不当作同一人的身份歧义。原输入错误、单图重复票、组内身份矛盾、同框多脸同UID仍分别拒绝或保留未决。已有演员选择及人工优先权未改，正式typed Observation/自动出演接线仍开放。
+
+- assessment-1实际Linux 10 PASS / 0 skip；补齐姓名/UID/观测总数、帧key规范及覆盖上界后，最新assessment-2同样10 PASS / 0 skip / 0 fail。包括男性可被选中，任意gender/缺失/冲突不改变完整评估，输入乱序不变，强身份矛盾/同框非代表成员不被掩盖，冻结策略漂移、错误来源与超长姓名拒绝，结果不可变。
+- 对三部旧Evidence的12组网格，各做五种gender变化重放，共60次；评估连digest都保持一致。全部评估在隔离容器完成，不挂生产库/媒体/模型，不访问外网。没有重跑媒体推理或修改原报告。
+- 实验策略显式取最大距离0.5、不同身份差距0.05、至少2个独立代表区段、至少3个覆盖区段；**这些是Fixture数值，不是经过准确率验收的生产默认值**，模型不提供隐式默认策略。12组中若干证据不足，另若干返回Tina Fire、Layla Price、Valentina Nappi或Cherry Kiss内部候选；第一部真值仍未决，不能把`qualified_candidate`当作已证明正确身份、已建档或已确认出演。
+- 运行镜像仍为首轮相同固定SHA，0.5CPU/256MiB、network none、read-only root、无宿主端口；任务容器结束。生产container/image/StartedAt/Restart0/OOM=false保持，原Sense仍exited；未部署或改变生产责任。
+
+| 新增产物 | 字节 | SHA256 |
+| --- | --- | --- |
+| assessment-1.tar.gz | 5688 | f0d51003e912e261ee2c778a29fc8104e120cac9f61079fb2fe6df2a50ddbb37 |
+| assessment-2.tar.gz（最新模型/测试） | 5831 | d7e15a13a35b121eeef86fea1f8b51e42735a95988d580499173afc26fbaf797 |
+| assessment-2/actor-assessment.json | 5613 | 1e4a654d68b777cd8d716969e222d6e4904641c40dec00441fb9a162574e59d2 |
+| assessment-2.log | 3438 | 40eb70a1dc984de0497486fc2646095398aff492cf1331d76b4b9c038ae36495 |
+
+目录/策略/Artifact与正式Work接线、补采、代表图、准确率与资源/恢复资格仍按唯一Phase推进；本段不是Phase Exit，也不继承为完整Host或具体版本UI验收。

@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-29用户明确取消演员性别筛选：不预测、不按目录/Provider gender排除、加减分或产生人工分支，男性亦可成为唯一演员。已回写SSOT/Master/唯一Phase，FEMALE-only问题不再待确认；身份可靠性/独立时间覆盖、一片一人、人工作主不变。Libra私有候选评估模型已实现，assessment-2实际Linux 10 PASS / 0 skip及12组冻结视频网格/60次性别变更重放通过，输入乱序/重复图/同框矛盾/身份歧义负例保持。尚未接正式Runtime或形成ActorChoice/Person/Cast；样本参数不作为生产校准默认值。生产容器/image/StartedAt未变，Sense仍停止，任务容器已退出。下面首轮“性别规则待答复”是旧时点事实，已被本次决定覆盖；正式接线和其他Phase 4门槛仍开放。
+
 2026-10-29 Phase 4视频技术切片：三部真实影片首采各20帧、共84检测完成；Linux补充13项/0skip、新Evidence路径3原图+1旋转图Sense对照和12组真实分组网格重放通过。双女演员样本得到与原片名相符的两位女性候选，男性也有更低匹配距离；另一部匹配姓名的目录别名包含原片名。第一部新旧身份线索不一致且缺独立真值，保留未决，不改旧收藏。1CPU每部158–289s，父HTTP探针7273次/0错/最慢93ms；cgroup memory.peak约2GiB、max事件4348、无OOM，资源预算未闭合。三条Inventory/收藏保护字段、2模型/7目录SHA及生产容器/image/StartedAt保持，Sense仍停止，任务容器全部退出。首跑Fixture类型比较和OCI挂载失败原证据保留。正式Runtime未切模型，typed Basis/Artifact/Permit、补采/完整恢复与真值充分的识别验收仍待；性别自动选择规则已询问待答复，Phase 4未Exit/Phase 5未开始。未部署、改人物/Reference/媒体或恢复观察。见[视频Evidence](implementation/evidence/BUFFALO_VIDEO_QUALIFICATION_20261029.md)。
 
 2026-10-29用户最新优先级：先打通新增演员核心功能，顺序改为1→4→5→2→3→6，保留编号。Phase 1有限技术Exit不变；唯一活动包现为Phase 4（详细设计/资格准备），其退出后立即进入Phase 5，须以真实影片至人物复用/建档、Libra出演和Arca正式Commit证明完整功能。原Phase 2准备包冻结留证，Phase 2/3已有实现及未提交代码保留，暂不继续。当前只是文档/执行顺序调整，未新增视频或业务资格，未动生产/人物/Reference/媒体，也未恢复观察；下面此前“下一Phase 2”是旧时点记录，以最新Master Plan和活动包为准。
