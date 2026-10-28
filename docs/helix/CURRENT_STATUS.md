@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-29自定义标准开发增量：三张Libra目标表、持久化Writer及Command技术读屏障已实现；Linux source-17 94PASS/0skip，source-19后续11PASS/0skip。新Schema242表，逐表比较原239表sqlDigest无变化；通用新增表副本准备完成完整FK/integrity及原行摘要校验、容量不足/复制中断/路径冲突负例。工具只生成applied=false独立副本，尚未接实际停止态升级/切换；未改生产数据库。目标Intent仍未成为正式Spec/新Run，也未接Arca/UI，Stash自动链继续开放。完整固定版本、生产副本及UI负责人资格未完成。
+
 2026-10-29开发检查点：推荐人脸/认领功能运行链与UI已退役，Linux source-15真实Host旅程1PASS/5名称过滤skip；维护期间五张旧表均0，人工建档后只选中影片Commit，另一部未被自动确认。source-12受影响Service/Owner批次76PASS/2既有skip；Web首跑252PASS伴2套加载失败，修正隔离挂载后14项PASS且Linux构建成功，保留原失败。五张旧证据表DDL不删不改；发布前停止态责任复核、最终完整架构/镜像及具体版本UI审查仍待完成。生产仍a2bf2d6fd，本轮未部署/Reset/取消/重试。自定义标准持久化与Stash完整自动链仍未完成。
 
 2026-10-28最新Linux增量结果：source-10定向78PASS/0skip/0FAIL；MoviePilot做种类型/身份门槛/完整100候选端口回归3PASS、22名称过滤skip；包边界、禁止语义、Manifest、P2合同四项实际静态检查全部通过。前轮71项69PASS/2FAIL的缺Git/基线环境已在独立资格镜像修正，原失败保留；生产运行镜像没有增加Git。新Stash私有传输7场景在Linux通过，尚未接正式Integration配置/Work/People建档或变更常驻服务。所有生产修复上线/真实业务验收继续开放。

@@ -25,7 +25,12 @@ const REQUIRED_COLUMN_DEFAULTS = Object.freeze({
   'libra_runs.package_revision_head': '0'
 });
 const REQUIRED_COLUMNS = new Set([
-  'libra_run_revisions.expected_admission_head_revision'
+  'libra_run_revisions.expected_admission_head_revision',
+  ...['preview_id','subject_id','libra_run_id','actor_id','idempotency_key','request_digest','record_schema_ref','record_json','record_digest','created_at_ms']
+    .map(column => 'libra_custom_target_previews.' + column),
+  ...['intent_id','preview_id','subject_id','libra_run_id','product_scope_digest','target_revision','actor_id','idempotency_key','request_digest','record_schema_ref','record_json','record_digest','created_at_ms']
+    .map(column => 'libra_custom_target_intents.' + column),
+  ...['subject_id','product_scope_digest','current_revision','intent_id','record_digest'].map(column => 'libra_custom_target_heads.' + column)
 ]);
 
 // These are implementation-only projection guards. Their writers and startup
@@ -115,6 +120,21 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
 });
 
 const TABLE_CHECKS = Object.freeze({
+  libra_custom_target_previews: [
+    `"record_schema_ref" = 'libra.custom-target-preview@1'`,
+    `"preview_id" = "record_digest"`,
+    ...[['schemaRef','record_schema_ref'],['previewDigest','record_digest'],['basis.subjectId','subject_id'],
+      ['basis.libraRunId','libra_run_id'],['actorId','actor_id'],['createdAtMs','created_at_ms']]
+      .map(([field,column]) => 'COALESCE(json_extract("record_json", \'$.' + field + '\') = "' + column + '", 0)'),
+  ],
+  libra_custom_target_intents: [
+    `"record_schema_ref" = 'libra.custom-target-intent@1'`,
+    ...[['schemaRef','record_schema_ref'],['intentId','intent_id'],['previewDigest','preview_id'],
+      ['intentDigest','record_digest'],['subjectId','subject_id'],['libraRunId','libra_run_id'],
+      ['basis.productScopeDigest','product_scope_digest'],['revision','target_revision'],['actorId','actor_id'],
+      ['idempotencyKey','idempotency_key'],['requestDigest','request_digest'],['confirmedAtMs','created_at_ms']]
+      .map(([field,column]) => 'COALESCE(json_extract("record_json", \'$.' + field + '\') = "' + column + '", 0)'),
+  ],
   libra_runs: [
     `("episode_metadata_mapping_intent_id" IS NULL AND json_type("execution_basis_record_json", '$.episodeMetadataMappingRef') IS NULL) OR
      ("episode_metadata_mapping_intent_id" IS NOT NULL AND COALESCE(json_extract("execution_basis_record_json", '$.episodeMetadataMappingRef.intentId') = "episode_metadata_mapping_intent_id", 0))`,

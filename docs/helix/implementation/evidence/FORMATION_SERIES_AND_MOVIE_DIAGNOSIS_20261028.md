@@ -158,3 +158,17 @@ People姓名模型已接`PersonReferenceQueryFacade.resolveUsAdultName`正式只
 - Linux Web首次脚本未创建、第二次只读Vite缓存目录不可写，修正为专用有界tmpfs；第三次47套中45套/252项PASS、两套因scratch父目录没有Service源码加载失败。source-14补只读Service src挂载后仅复验这两套14PASS，tsc/Vite构建通过（既有574.20kB chunk告警）。合计47套266项已分别通过，但不宣称首次全量全绿。
 
 NAS qualification目录保留stage12/13/14/15原始失败与成功日志；源码归档均SHA校验后独立解压，不修改旧快照。具体浏览器/最终版本UI负责人、停止态责任预检自动化及全量固定候选仍待完成。此检查点不是最终发布，不改变生产a2bf2d6fd，不Reset或重试任何生产任务。
+
+## 自定义目标持久化及新增表副本准备（2026-10-29）
+
+Libra新增`libra_custom_target_previews/intents/heads`，完整模型、命令身份与Header绑定、64KiB上限、必填列和subject/product scope/revision/intent/digest复合FK；不可变Preview/Intent与按范围CAS Head分离。原239个表的sqlDigest与e1bd7315c逐项比较changedOldTables=[]，新表3个，未改变旧表或加运行时迁移分支。当前242表DDL digest `9c6af0d89160d0b061dff9f86c7bdaf43151adb164eba558d0433933ff58577e`，未形成最终发布身份。
+
+Foundation Command preflight在BEGIN IMMEDIATE后的Receipt检查之后、任何Owner写入前验证同UOW opaque read fence。当前view通过；同连接写入、外部SQLite提交、伪造/跨UOW token拒绝；已提交Receipt重放不受后来view变化阻断，body变化仍幂等冲突。不引入Arca/Perception Repository或全局业务revision。Store额外核对Run/state revision/state+execution digest、Spec/decision head、原始requirement JSON、material member_set_digest、resolved_identity revision1 Fact及当前目标revision；记录确认仅为Intent，绝不是Spec发布或入藏。
+
+- Linux source-17四项实际静态门禁通过，13文件94PASS/0skip/0FAIL，覆盖P2/P3/DDL/Owner contracts、原子Receipt/Audit与目标Store。归档10,266,675 bytes，SHA `0d746080c70a61195d59ec94cd8c8955e7575a85c1f2b1d93a60705932af8bc7`。首轮source-16因新增模板插值不被P1保守CommonJS扫描器接受而拒绝；改字符串拼接，SQL生成字节保持，不放宽扫描器。
+- Store新增确认基线requirement JSON与实际冻结Spec一致后，source-18该7项通过。另独立副本工具首跑3PASS/1FAIL：目标验证后测试自身readonly SQLite读取创建WAL/SHM，最终目录断言错误归因给准备器。把“准备器不留下sidecar”的断言放到测试额外打开目标之前，未改变副本准备行为；保留原失败。
+- source-19四项实际静态门禁通过，7项Store+4项副本准备=11PASS/0skip/0FAIL；归档10,270,520 bytes，SHA `f637f53fa13310e0018e1406dd51dd64f3b13d724153868b16290cff46f71b6c`。两个actor并发确认revision0只准一个；二次明确确认推进revision2、旧记录不变；真实外部写入/Owner相关变化/未展示修改/Result中断不留下目标、Receipt或Audit。
+
+新增通用`additive-schema-snapshot.js`只接受显式新增表清单、精确源/目标DDL及所有旧表/索引定义不变。源必须是无sidecar的独立单链接快照；先容量预算（3×源大小+512MiB），复制到私有验证区后只在副本打开SQLite，原快照完整SHA及物理快照前后保持。完整源验证、逐表stream copy与行摘要比较、新库完整FK/integrity后排他发布独立目标，返回prepared=true/applied=false。Linux验证239→242、238张原数据表（marker由目标建立）、原行类型/文本不变、新表为空；既存目标、源alias/sidecar、空间不足及复制中断均拒绝且无输出/临时残留。它不是运行库升级器、Reset或切换完成证明；真实停止屏障、完整备份、租约、生产全量副本和发布切换仍需接入并验证。未加入生产镜像/执行本工具，生产239表保持。
+
+本机首次Store测试因先写Run外键再写Spec失败，调整夹具建立顺序；第二次错误预期业务校验先于Receipt幂等冲突，按既有Receipt优先规则纠正断言。未弱化FK或幂等。最新P2 aggregate `99c5fe2638335abcd1213188f71ffb4ddb5afe95b77c7c27aebd8b83088f2e94`，Capability138/Result family117/Table242/Transaction62/Domain Input150。完整固定候选/新Spec与Run/Arca/UI/实际生产副本尚未完成，不能发布此中间Schema或开放自定义入口。

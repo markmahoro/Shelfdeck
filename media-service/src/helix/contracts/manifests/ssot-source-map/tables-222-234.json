@@ -6,13 +6,46 @@
   "endOrdinal": 234,
   "entries": [
     {
+      "id": "platform_compute_device_probes",
+      "owner": "platform-settings",
+      "columnsContract": "`device_id FK, revision, capability_schema_ref, capability_json, capability_digest, probe_result(passed|failed), probed_at_ms`",
+      "constraintsContract": "`PK(device_id,revision)`；Capability JSON上限`16 KiB`且至少关系化声明`supportedVideoCodecs[]/supportedRateControlModes[]`的closed typed payload；actual probe Evidence immutable，只有passed可成为ready Snapshot",
+      "source": {
+        "section": "8.5.13",
+        "line": 9748,
+        "lineDigest": "7fea41108abbfafdc75b7e3a09361786efe1fefc8cd2f18d9b97a95992d70a6a"
+      }
+    },
+    {
+      "id": "platform_workers",
+      "owner": "platform-settings",
+      "columnsContract": "`worker_id PK, name, status, current_revision, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "`INDEX(status,worker_id)`；deregister使用terminal state，不物理删除",
+      "source": {
+        "section": "8.5.13",
+        "line": 9749,
+        "lineDigest": "6bf55b189dbb45cf52eaf48ad372b60ec11d290dd8bd4127fd84ee745604365b"
+      }
+    },
+    {
+      "id": "platform_worker_revisions",
+      "owner": "platform-settings",
+      "columnsContract": "`worker_id FK, revision, endpoint, protocol_version, config_schema_ref, config_json, config_digest, secret_ref, capability_digest, effective_at_ms`",
+      "constraintsContract": "`PK(worker_id,revision)`；Config JSON上限`16 KiB`；current pointer显式FK",
+      "source": {
+        "section": "8.5.13",
+        "line": 9750,
+        "lineDigest": "ff9849acc3710deb68332088b189dc8e407b71ad9ebc2093d6045b60a50a42fe"
+      }
+    },
+    {
       "id": "platform_worker_devices",
       "owner": "platform-settings",
       "columnsContract": "`worker_id FK, worker_revision, device_key, capability_digest, enabled, max_slots`",
       "constraintsContract": "`PK(worker_id,worker_revision,device_key)`；只有probe确认的device可enabled",
       "source": {
         "section": "8.5.13",
-        "line": 9748,
+        "line": 9751,
         "lineDigest": "bc0f5d106f86d806a95451a30ad664d4367fd2ef42c0cb6003514196417e2417"
       }
     },
@@ -23,7 +56,7 @@
       "constraintsContract": "`PK(credential_id,revision)`；只有一个active Admin credential revision；Secret明文不入库",
       "source": {
         "section": "8.5.13",
-        "line": 9749,
+        "line": 9752,
         "lineDigest": "c508f77944715e61d0cb76cb13c4bb9a67ecc6e96b21fe744d802ae44636b0b3"
       }
     },
@@ -34,7 +67,7 @@
       "constraintsContract": "manifest JSON上限`64 KiB`，冻结相对目录、文件大小与SHA256，最多256项；原路径与归档路径不可变；`INDEX(state,expires_at_ms)`；修改通过state和operation_revision CAS；只有archived可请求恢复或到期清理，恢复与清理竞争同一CAS；归档成功时设30天期限，未完成移动永不进入到期删除",
       "source": {
         "section": "8.5.14",
-        "line": 9764,
+        "line": 9767,
         "lineDigest": "f3fa628b2f9ea205dbefa778d2f6c749f5560f93c6edc8785b79871507b51eb7"
       }
     },
@@ -45,7 +78,7 @@
       "constraintsContract": "On-deck Commit同事务建立一条pending收尾检查；checks JSON上限`64 KiB`、最多32个精确旧Binding父目录的检查结果；`INDEX(next_check_at_ms,on_deck_run_id)`；检查结果以check_revision CAS更新，不授予文件处置权",
       "source": {
         "section": "8.5.14",
-        "line": 9766,
+        "line": 9769,
         "lineDigest": "a025470c8606b98e39265999d627292b3a42b2acb7a625fd29452009bf905303"
       }
     },
@@ -56,7 +89,7 @@
       "constraintsContract": "JAV Correction Cleanup Commit 同事务建立独立 pending 目录检查责任；context/cleanup Receipt/Entry/created时点 immutable，不能借 on_deck_run_id；checks固定 closed ArcaJavCorrectionDirectoryChecks、JCS≤64 KiB/最多32个目录，初始空数组/check_revision=1。后续结果按 check_revision CAS 并重验同一 completed cleanup/context/Receipt 更新；`INDEX(next_check_at_ms,correction_id)`；检查结果和责任不授予文件处置权限，不重新持有纠正门禁",
       "source": {
         "section": "8.5.14",
-        "line": 9767,
+        "line": 9770,
         "lineDigest": "92a2659909858301edf33a805470143dce09fc7543a554f969fee324a65b2a6d"
       }
     },
@@ -67,7 +100,7 @@
       "constraintsContract": "`PK(authorization_id,revision)`；immutable；revision为正整数",
       "source": {
         "section": "8.9.9",
-        "line": 16086,
+        "line": 16089,
         "lineDigest": "8508fbbc000e32d4ee694d07ecb38e1ed718c02d1012fca2ddfde1962e7622a5"
       }
     },
@@ -78,7 +111,7 @@
       "constraintsContract": "current pointer显式复合FK；CAS revision",
       "source": {
         "section": "8.9.9",
-        "line": 16087,
+        "line": 16090,
         "lineDigest": "bce49ca70aa8369999f80da9113bbbd8fbf4082ab42977bf8732b90ae344fa2e"
       }
     },
@@ -89,7 +122,7 @@
       "constraintsContract": "`INDEX(subject_id,committed_at_ms)`；`INDEX(stable_input_digest,requirements_digest,conditions_digest)`；immutable；typed JSON上限`64 KiB`",
       "source": {
         "section": "8.9.9",
-        "line": 16088,
+        "line": 16091,
         "lineDigest": "bc588a5a37ac833eae68c9adbbc154aeae0f6b3c878de7c3d9805f5bdbc2c4a8"
       }
     },
@@ -100,7 +133,7 @@
       "constraintsContract": "`UNIQUE(actor_id,idempotency_key)`；`INDEX(stable_input_digest,issued_at_ms)`；immutable",
       "source": {
         "section": "8.9.9",
-        "line": 16089,
+        "line": 16092,
         "lineDigest": "c47fabd82f60de2f5c222d73758c9a24a15dc351d5576935e7070c49c87c1d96"
       }
     },
@@ -111,41 +144,8 @@
       "constraintsContract": "`UNIQUE(libra_run_id)`；`UNIQUE(actor_id,idempotency_key)`；`INDEX(state,subject_id)`；Libra持久取消意图，request immutable且JSON上限1 MiB；状态以revision CAS推进",
       "source": {
         "section": "8.9.9",
-        "line": 16090,
-        "lineDigest": "8feee9c41e8811c9b2f0b7298af35e963fa533428aecd66e9e948c56396cca3b"
-      }
-    },
-    {
-      "id": "libra_strategy_availability",
-      "owner": "libra",
-      "columnsContract": "`libra_run_id FK, strategy_kind(moviepilot|tmdb), condition_digest, check_ordinal(0|1|2|3|4|5), evidence_schema_ref, evidence_json, evidence_digest, checked_at_ms`",
-      "constraintsContract": "`PK(libra_run_id,strategy_kind,condition_digest,check_ordinal)`；immutable；check_ordinal为0至5；typed JSON上限`4 KiB`",
-      "source": {
-        "section": "8.9.9",
-        "line": 16091,
-        "lineDigest": "efdec0f21af0d8ca4cf71e5a40de13d93b4aacfbb24fb0ea743ed7ea824789fc"
-      }
-    },
-    {
-      "id": "arca_defect_admissions",
-      "owner": "arca",
-      "columnsContract": "`shelf_entry_id FK, revision, inventory_revision, care_basis_digest, gap_set_digest, authorization_schema_ref, authorization_json, authorization_digest, actor_id, idempotency_key, decided_at_ms`",
-      "constraintsContract": "`PK(shelf_entry_id,revision)`；`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；immutable；typed JSON上限`64 KiB`",
-      "source": {
-        "section": "8.9.9",
-        "line": 16092,
-        "lineDigest": "88ec71a2d280751908ce94814f60ebb63cd00aa089e7f015bfa82ed65fb99f69"
-      }
-    },
-    {
-      "id": "arca_defect_admission_heads",
-      "owner": "arca",
-      "columnsContract": "`shelf_entry_id PK/FK, current_revision, updated_at_ms`",
-      "constraintsContract": "current pointer显式复合FK；CAS revision",
-      "source": {
-        "section": "8.9.9",
         "line": 16093,
-        "lineDigest": "c2993d2fdd186a34ad68f9000cd181f0ab8502959b2bf8c033cf96d16b1c24e5"
+        "lineDigest": "8feee9c41e8811c9b2f0b7298af35e963fa533428aecd66e9e948c56396cca3b"
       }
     }
   ]

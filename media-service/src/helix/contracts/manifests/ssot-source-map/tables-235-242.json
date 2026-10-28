@@ -3,8 +3,41 @@
   "mapId": "helix.ssot-contract-source-map",
   "category": "tables",
   "startOrdinal": 235,
-  "endOrdinal": 239,
+  "endOrdinal": 242,
   "entries": [
+    {
+      "id": "libra_strategy_availability",
+      "owner": "libra",
+      "columnsContract": "`libra_run_id FK, strategy_kind(moviepilot|tmdb), condition_digest, check_ordinal(0|1|2|3|4|5), evidence_schema_ref, evidence_json, evidence_digest, checked_at_ms`",
+      "constraintsContract": "`PK(libra_run_id,strategy_kind,condition_digest,check_ordinal)`；immutable；check_ordinal为0至5；typed JSON上限`4 KiB`",
+      "source": {
+        "section": "8.9.9",
+        "line": 16094,
+        "lineDigest": "efdec0f21af0d8ca4cf71e5a40de13d93b4aacfbb24fb0ea743ed7ea824789fc"
+      }
+    },
+    {
+      "id": "arca_defect_admissions",
+      "owner": "arca",
+      "columnsContract": "`shelf_entry_id FK, revision, inventory_revision, care_basis_digest, gap_set_digest, authorization_schema_ref, authorization_json, authorization_digest, actor_id, idempotency_key, decided_at_ms`",
+      "constraintsContract": "`PK(shelf_entry_id,revision)`；`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；immutable；typed JSON上限`64 KiB`",
+      "source": {
+        "section": "8.9.9",
+        "line": 16095,
+        "lineDigest": "88ec71a2d280751908ce94814f60ebb63cd00aa089e7f015bfa82ed65fb99f69"
+      }
+    },
+    {
+      "id": "arca_defect_admission_heads",
+      "owner": "arca",
+      "columnsContract": "`shelf_entry_id PK/FK, current_revision, updated_at_ms`",
+      "constraintsContract": "current pointer显式复合FK；CAS revision",
+      "source": {
+        "section": "8.9.9",
+        "line": 16096,
+        "lineDigest": "c2993d2fdd186a34ad68f9000cd181f0ab8502959b2bf8c033cf96d16b1c24e5"
+      }
+    },
     {
       "id": "arca_defect_repair_intents",
       "owner": "arca",
@@ -12,7 +45,7 @@
       "constraintsContract": "`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；`UNIQUE(aftercare_case_id)`；immutable",
       "source": {
         "section": "8.9.9",
-        "line": 16094,
+        "line": 16097,
         "lineDigest": "6b01388fbace394628b73d88d23d73a671f05497789ee6e897a75ee25bdad4d2"
       }
     },
@@ -23,7 +56,7 @@
       "constraintsContract": "immutable；evidence JSON上限`256 KiB`；record JSON上限`4 KiB`；`INDEX(libra_run_id,record_id)`",
       "source": {
         "section": "8.9.9",
-        "line": 16490,
+        "line": 16493,
         "lineDigest": "49d3449f5bd4106b74bd219582db8e12c7ed799be946420e9f057b86e3807b48"
       }
     },
@@ -34,7 +67,7 @@
       "constraintsContract": "immutable；`contract_json`最大1 MiB；按canonical SHA256去重，不能更新旧合同",
       "source": {
         "section": "8.9.9",
-        "line": 16671,
+        "line": 16674,
         "lineDigest": "0cd919d3d31944e2ec4fd80c5d58296602fb6be6549d7b3999711174a821ba65"
       }
     },
@@ -45,7 +78,7 @@
       "constraintsContract": "immutable；`provenance_json`最大64 KiB；与Plan同事务发布，精确绑定原graph/catalog，禁止缺失证据fallback",
       "source": {
         "section": "8.9.9",
-        "line": 16672,
+        "line": 16675,
         "lineDigest": "c151953863ade595b24c6a48c49f935b31fe7e6a15bea5fef49bd182b3795a85"
       }
     },
@@ -56,7 +89,7 @@
       "constraintsContract": "immutable；`INDEX(plan_id)`；同Plan/事实摘要/验真器版本/结论去重，保留失败及后续不同结论；`audit_json`最大64 KiB",
       "source": {
         "section": "8.9.9",
-        "line": 16673,
+        "line": 16676,
         "lineDigest": "5ebc8562f4a94562c66a23b50a7af71106fd5f056882dfc31ebd7dab64664b15"
       }
     }

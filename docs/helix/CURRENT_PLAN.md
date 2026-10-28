@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-29第三层标准持久化增量：已建立Libra Preview/Intent/按产品范围Head三表及单Owner原子写入，沿Foundation既有opaque read fence校验跨域只读视图；Receipt重放先于新鲜度验证。Linux source-17合同/SQLite/基础批次94PASS，source-19存储增量及独立Schema副本准备11PASS。原239表SQL完全一致，仅增3表；新Operator只准备并验证独立副本，不修改运行库或切换代际。正式Spec发布/Run替代、Arca/Aftercare消费、API/UI和停止态发布接入继续实施，未开放用户功能，生产仍239表且未变化。
+
 2026-10-29实施检查点：未知人脸推荐/认领的UI、四个HTTP入口、后台扫描及专用写入链已移除；人工建档/影片选演员和共享Reference分析保留。Linux真实Host跨维护窗口及重启旅程通过，只对人工选择的一部影片产生一次正式Commit；另一部保持待确认。Web首跑45套/252项通过、2套因隔离目录缺父级Service源码加载失败，修正挂载后这2套14项及Linux构建通过；不改写首跑为一次全绿。发布前仍须停止态复核无旧认领责任、完整固定候选及具体版本UI负责人验收，生产未变更。第三层标准与Stash正式自动链继续实施，详见唯一Phase。
 
 2026-10-28最新检查点：当前已实现并经Linux隔离验证的运行修复为剧集发布/恢复、季图正常复用、同集多语言剧情补充及MoviePilot做种数未知值解析。新增People正式完整姓名查询、自定义目标预览/确认模型和Stash有界图片传输已完成定向资格，仍须接持久化、正式Spec/Run、Arca与UI，以及完整自动建档/出演链及推荐功能退役。source-10新增78PASS、MoviePilot端口3PASS/22名称过滤skip、四项实际静态门禁通过；不等同全轮完成、最终候选或生产验收。沿唯一Phase继续，不再次清理原保留基线、不Reset、部署或自动观察。

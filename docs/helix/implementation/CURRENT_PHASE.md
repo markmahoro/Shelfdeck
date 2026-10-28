@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-29 USER-CUSTOM-ACCEPTANCE-SPEC持久化：已物化Preview/Intent/subject+product scope Head三表（242表；原239表SQL完全相同），closed JSON≤64KiB、必填列、record/header绑定、唯一命令/revision与完整Head复合FK。Store原子验证当前Run/Spec/decision head/material set/identity与目标head，确认与Receipt/Audit同事务；跨Owner视图使用已有opaque技术read fence，无外域Repository。source-17实际Linux94PASS，source-19新增Store及只准备独立Schema副本11PASS；副本验证完整FK/integrity和每张原表逐行摘要，容量不足/复制中断不发布目标。尚无正式Spec variant、Run替代、Arca/Aftercare、API/UI或实际停止态升级接入；不得据Intent或本机测试宣称功能完成。原生夹具FK写入顺序、错误幂等断言、静态扫描不接受模板插值、测试自建WAL/SHM的首轮失败均保留，未放宽守卫。
+
 2026-10-29 RECOMMENDATION-RETIREMENT实现检查点：已移除四个公开路由、Libra两个专用Public端口、后台扫描/Claim推进及UI推荐/认领分支；共享抽帧、Reference、人工登记、影片选演员及Arca纠错保留。五张旧表只作历史证据，DDL不变，不自动清理旧责任。Linux source-15完整Host跨维护窗口/重启与两影片隔离选择旅程1PASS/5名称过滤skip；source-12受影响Service/Owner76PASS/2既有skip。Web首跑45套252PASS、2套加载失败，补齐父级Service源码挂载后2套14PASS，Linux构建通过。首跑缺模型许可证、旧URL被人物详情返回200/null，以及维护退出尚处settling的夹具等待失败均保留；通用人物不存在已修为404，夹具等待真实normalSupplyAllowed，没有绕过写入屏障。停止态旧Claim责任门禁、最终版本UI走查/负责人和完整固定候选仍未完成，生产未变更。
 
 RECOMMENDATION-RETIREMENT交互实施：人物US库首屏只展示已登记人物，保留刷新/姓名搜索/新建演员/资料与参考图维护；移除推荐人脸分区及认领/来源联动建档分支。影片原“选择影片演员”继续在原工作区入口打开，保留精确版本选择、图片可读性、幂等重试及资料变化提示。不是用解释文案替代新入口。前后端整链退役、原Claim责任预检与具体版本走查/负责人审查完成前不发布，不以删掉UI视为后台已停止。
