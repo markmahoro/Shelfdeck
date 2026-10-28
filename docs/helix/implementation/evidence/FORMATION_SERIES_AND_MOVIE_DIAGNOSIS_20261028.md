@@ -207,3 +207,18 @@ Handoff B新接纳必须使用Foundation opaque read fence：Arca完成Assessmen
 确认前的Basis追加冻结runPackageRevisionHead与完整gapEvidenceSetDigest，避免只校验被选的旧失败结果。确认后的Publication保留原Intent原样，用最新Snapshot校验Owner行，允许active/suspended/frozen及其revision/digest和差距观察变化；终结、材料/身份/Spec/Decision Head/Package/目标head/Handoff变化仍拒绝。这仅支持持久用户决定继续，不跳过新Run的Control或未决Effect准入。
 
 source-24归档10,299,793 bytes，SHA `6bf899ba259e3b9ab44936b09e1528061d81389f5a96b869ffe3451469b4e959`。实际Linux12文件93PASS/0skip/0FAIL（32.5秒），四项静态门禁PASS；P2 aggregate `099088335657608b2b76b5aa0cc4f967c94c5ef80a2a1297a3634e5a94635701`。242表/64事务及DDL9c6af0d…保持。未实施生产操作，完整旧Offer关闭/新Run/API/UI/Arca连续性及Stash集成仍开放。
+
+## 未接纳旧Offer的Owner关闭与消息连续性（2026-10-29）
+
+Arca新增immutable arca_offer_withdrawal_receipts及Canonical Arca Superseded Offer Closure。只消费精确公开target_not_current Fence，在同一事务校验opaque读token与无Accepted Attempt/Decision/Custody，写关闭Receipt、可选Recovery resolved、Command Receipt/marker/Audit。保留原失败字段和历史Assessment，不伪造质量拒绝，不转移Control或操作媒体。现有Accepted重放优先；新Accepted/Assessment/Rejected禁止越过关闭回执。公开Formation投影为offer_withdrawn及经校验的Receipt，不声称收藏完成。
+
+原Inbox第一次准入结果不可改写。Foundation增加精确消费读取及可持久delivered下一次时间；Dispatcher只重投Handoff B→Arca的delivered未ACK消息。未消费旧Offer按关闭Receipt消费，已消费旧Offer保持原Inbox；关闭后、Work取消前注入中断，经重建Coordinator/Dispatcher及重投后真实Work Lifecycle取消同一个Work并ACK，未生成新Work或新attention。此为真实SQLite/消息/Work组件旅程，公开资格来自受控fixture，不冒充完整用户确认API。迟到Offer的全部身份必须与原Receipt相同，不能只凭offerId复用关闭结果。
+
+- 原239表与e1bd7315c逐表sqlDigest完全相同，原三张Custom Target新表SQL也不变，只增Arca关闭表；当前243表/65 Canonical事务/70 fixture bindings，138 Capability/117 Result Family/150 Domain Input/31 Shared Type保持。DDL `7f913e5712b9bfdf48e38d9addd375af4488050eb8b724cc75ff3680a7529138`，P2 aggregate `3abb2c85534e8e1e6e4502b0a2a98035661416868c32f949fa58b5d39d3d07c6`。
+- 本机首跑保留：伪造token预期错误码写错（真实helper统一READ_FENCE_CHANGED）；新增JSON列计数旧115；Outbox fixture误用generic publisher携带专用dedupKey而被正确拒绝，改成与真实Promotion一致的专用Envelope；强制重投fixture误写不存在的failed状态，修正为pending；旧恢复fixture缺新的公开Delivery查询；真实Work准入已有Command Receipt，改成原计数+1而非假定全库只有1。没有放宽生产验证器或删除旧证据。
+- source-25归档SHA `afbbc7f3e721859403e0ced4ba9f613b93d62e9d2d9236ffdcad5d9cdbbe10e5`在Linux P1被拒：DDL compiler新增插值template不被fail-closed CommonJS scanner接受。改成固定白名单字符串拼接，生成SQL字节/digest不变；原日志保留，不记首跑全绿。
+- source-26归档10,311,239 bytes，SHA `80a4080498472e7a9ff920df782a6dc89c08412f4b6bdb3f1894b5859dec3344`。四项实际静态门禁PASS；19文件172项169PASS/3既有真实媒体环境skip/0FAIL（78.7秒）；新事务与库存4PASS/208名称过滤skip（6.0秒）。停止态新增表独立副本资格覆盖239→243，仍applied=false，不是生产升级。
+- source-26真实Linux Host两项PASS/1 Reset名称过滤skip（113.6秒）：普通两条独立收藏真实Commit，以及介入Libra绑定技术提交后Arca零部分接纳写入。未执行Reset场景，不冒充完整自定义确认→新Run旅程。
+- source-27后续精确Offer身份守卫增量：10,311,341 bytes，SHA `b9a64396cf080913066955dd3840070f28a6aaf6606109423dae8e1ea47ba411`；四项静态及关闭/Inbox两文件21PASS/0skip/0FAIL（9.4秒）。未无故重跑相同真实媒体旅程。
+
+所有Linux容器network none、只读源码/根文件系统、独立qualification scratch、CPU/内存限额、--rm退出，无生产数据或来源挂载。当前仅内部关闭链完成；Libra原始Primary Control归属/旧执行安全接续、新Run、自定义元资料/Arca/Aftercare/精确保留闭包、API/UI、停止态升级与Stash仍开放，最终全量/具体版本UI及生产验收未完成。本轮无生产部署、Reset、任务处置或媒体修改。

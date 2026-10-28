@@ -62,6 +62,7 @@
       "fx_outbox"
     ],
     "readTables": [
+      "arca_offer_withdrawal_receipts",
       "arca_shelf_entries",
       "arca_shelves",
       "arca_canonical_identity_revisions",
@@ -105,7 +106,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8865,
+      "line": 8866,
       "lineDigest": "08e0cbffa8a4309a5beb93f15806f00b2fe59f4c41192a7c5d023d10a77af3b5"
     }
   }

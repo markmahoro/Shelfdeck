@@ -366,6 +366,7 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
   'libra_episode_metadata_mapping_intents.record_json':1024*1024,
   'libra_custom_target_previews.record_json':64*1024,
   'libra_custom_target_intents.record_json':64*1024,
+  'arca_offer_withdrawal_receipts.receipt_json':16*1024,
   'libra_us_adult_match_completions.completion_json':256*1024,
   'libra_acquisition_candidate_evidence.evidence_json':262144,
   'libra_acquisition_candidate_evidence.record_json':4096,

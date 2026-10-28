@@ -569,7 +569,15 @@ function deliveryFence(repo, row, run) {
   const receipt = repo.invoke('find_delivery', { on_deck_package_id: row.on_deck_package_id });
   let eligibility = 'eligible';
   let reasonCode;
-  if (!run || run.state !== 'active') {
+  const spec=repo.invoke('find_current_target_spec',{acceptance_spec_id:row.acceptance_spec_id});
+  if(!spec||spec.subject_id!==row.subject_id||spec.record_digest!==row.acceptance_spec_record_digest)
+    fail('P9_PRODUCT_DELIVERY_INTEGRITY','Current target Spec cannot prove this Product Offer.');
+  if (receipt) {
+    eligibility = 'ineligible';
+    reasonCode = 'delivery_already_terminal';
+  } else if(!readTargetCommitFence(repo,{subjectId:row.subject_id,productScopeDigest:spec.product_scope_digest,specJson:spec.spec_json})){
+    eligibility='ineligible';reasonCode='target_not_current';
+  } else if (!run || run.state !== 'active') {
     eligibility = 'ineligible';
     reasonCode = 'run_not_active';
   } else if (run.acceptance_spec_id !== row.acceptance_spec_id) {
@@ -578,16 +586,6 @@ function deliveryFence(repo, row, run) {
   } else if (number(run.package_revision_head) !== number(row.package_revision)) {
     eligibility = 'ineligible';
     reasonCode = 'package_not_current';
-  } else if (receipt) {
-    eligibility = 'ineligible';
-    reasonCode = 'delivery_already_terminal';
-  } else {
-    const spec=repo.invoke('find_current_target_spec',{acceptance_spec_id:row.acceptance_spec_id});
-    if(!spec||spec.subject_id!==row.subject_id||spec.record_digest!==row.acceptance_spec_record_digest)
-      fail('P9_PRODUCT_DELIVERY_INTEGRITY','Current target Spec cannot prove this Product Offer.');
-    if(!readTargetCommitFence(repo,{subjectId:row.subject_id,productScopeDigest:spec.product_scope_digest,specJson:spec.spec_json})){
-      eligibility='ineligible';reasonCode='target_not_current';
-    }
   }
   const value = {
     eligibility,

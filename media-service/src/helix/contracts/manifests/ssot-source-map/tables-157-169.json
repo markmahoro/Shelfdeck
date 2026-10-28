@@ -6,13 +6,24 @@
   "endOrdinal": 169,
   "entries": [
     {
+      "id": "arca_jav_identity_corrections",
+      "owner": "arca",
+      "columnsContract": "`correction_id PK, shelf_entry_id FK, preview_id, preview_proof_schema_ref, preview_proof_json, basis_digest, proposal_digest, placement_preview_digest, actor_id, idempotency_key, admission_digest, state(admitted|active|attention_required|committed|cancelled), state_revision, terminal_evidence_digest NULL, committed_context_schema_ref NULL, committed_context_json NULL, committed_context_digest NULL, cleanup_state(pending|active|attention_required|completed) NULL, cleanup_receipt_schema_ref NULL, cleanup_receipt_json NULL, cleanup_receipt_digest NULL, recovery_intent_schema_ref NULL, recovery_intent_json NULL, recovery_intent_digest NULL, created_at_ms, updated_at_ms, terminal_at_ms NULL`",
+      "constraintsContract": "preview proof固定`helix://contracts/application-types/ArcaJavCorrectionPreviewProof/v1`、JCS≤2 MiB；完整Arca Basis/新Proposal/精确旧新路径/target reality不可更新，受理不发布新Canonical Fact、不产生文件副作用。`UNIQUE(shelf_entry_id,actor_id,idempotency_key)`；`UNIQUE(shelf_entry_id) WHERE terminal_at_ms IS NULL OR cleanup_state IN (pending,active,attention_required)`；`INDEX(shelf_entry_id,state)`。仅state/state_revision/terminal evidence/timestamps可expected-state/revision CAS；admitted→active/cancelled，active→attention_required/committed，attention_required→active/cancelled；已开始正式文件Effect时不得cancelled，须恢复同一scope。terminal时Evidence/timestamp整体write-once；成功事实必须由独立Correction Inventory Commit提交，禁止以状态变化冒充成功",
+      "source": {
+        "section": "8.5.12",
+        "line": 9680,
+        "lineDigest": "c9cc49a94559d3d822cca6023cf8bac05b731a23780d92a8f1b7068db035e607"
+      }
+    },
+    {
       "id": "arca_jav_correction_recovery_intents",
       "owner": "arca",
       "columnsContract": "`recovery_id PK, correction_id FK, shelf_entry_id FK, previous_intent_digest NULL, receipt_schema_ref, receipt_json, receipt_digest, observation_schema_ref, observation_json, observation_digest, created_at_ms`",
       "constraintsContract": "immutable；完整Receipt固定`helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1`、JCS≤16 KiB；完整Observation固定`helix://contracts/application-types/ArcaJavCorrectionRecoveryObservation/v1`、JCS≤1 MiB，保留实际有界执行Snapshot和逐文件/目录现场证明；摘要必须与Receipt及Correction当前指针一致。`UNIQUE(receipt_digest)`；`INDEX(correction_id,created_at_ms)`；与新Intent受理、当前指针/CAS、Command Receipt/marker/audit同事务写入；后续恢复追加历史，不覆盖旧Observation。",
       "source": {
         "section": "8.5.12",
-        "line": 9679,
+        "line": 9681,
         "lineDigest": "c0e62f8accef65a2d067a30118426a00ec065729eda98a7d2109399b5b93c003"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "`PK(aftercare_case_id,input_kind,owner_domain,aggregate_type,aggregate_id)`；关系化保存Standard/Placement/Identity/Inventory/Decision Fact/Package provenance；Case创建后immutable",
       "source": {
         "section": "8.5.12",
-        "line": 9680,
+        "line": 9682,
         "lineDigest": "9a6e19b4a4dba41dc09a9e4e01a3e8e57e4dc24cd867cfeda812fc6fd56ae111"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "`UNIQUE(aftercare_case_id,settlement_scope_digest)`；只为`auto_repair`且确定性安全的精确替代Scope派生，不新增用户Authorization",
       "source": {
         "section": "8.5.12",
-        "line": 9681,
+        "line": 9683,
         "lineDigest": "63f9a9b819ac2f8124994b0037d4976ead18d94ec13813c50a0733ba454ef2fa"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "`UNIQUE(aftercare_case_id,new_inventory_revision)`；与Inventory revision及Control acquire/release同事务成立",
       "source": {
         "section": "8.5.12",
-        "line": 9682,
+        "line": 9684,
         "lineDigest": "39a54eb54b9c4193ca09a82b33d12a9d6a6d92a1248b5e8cb4ed534c74700a46"
       }
     },
@@ -56,7 +67,7 @@
       "constraintsContract": "current revision显式FK；Automation只读head，不使用`MAX(revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 9683,
+        "line": 9685,
         "lineDigest": "535fe763445393a3f6da2bb862caf3f6fd6ba0558dc091cce994de67691f040b"
       }
     },
@@ -67,7 +78,7 @@
       "constraintsContract": "Policy JSON上限`64 KiB`；`PK(policy_id,revision)`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 9684,
+        "line": 9686,
         "lineDigest": "bb4435c564a9cbcf01820993a914b28644e31f066e085d2e56bfdd4563b63a25"
       }
     },
@@ -78,7 +89,7 @@
       "constraintsContract": "target是closed union：entry恰有`shelf_entry_id`，duplicate group恰有`duplicate_group_id`，另一列必须NULL；Condition Evidence JSON上限`16 KiB`；相同`target+policy revision+reason`至多一个open Candidate；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9685,
+        "line": 9687,
         "lineDigest": "374b650105d8da6b200797bada923eef2075d3c2d8b1dc3d2c73934d59b31ba1"
       }
     },
@@ -89,7 +100,7 @@
       "constraintsContract": "Suppression精确绑定Entry、Policy revision与reason digest；Policy或reason变化后旧Suppression不遮蔽新Candidate；`INDEX(shelf_entry_id,candidate_kind,state,expires_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9686,
+        "line": 9688,
         "lineDigest": "06f2b7d8f0f1b8e1c2d52e791ed6e38b3da1583c5f9f5f4eaff008b578343620"
       }
     },
@@ -100,7 +111,7 @@
       "constraintsContract": "`UNIQUE(canonical_identity_digest,member_set_digest)`；Group是Off-deck Evidence aggregate，不选择保留成员",
       "source": {
         "section": "8.5.12",
-        "line": 9687,
+        "line": 9689,
         "lineDigest": "2ea29ec1242d920e488cfa644865edf2eadbfd2c9a47f89520e5b3c52995081d"
       }
     },
@@ -111,7 +122,7 @@
       "constraintsContract": "`PK(duplicate_group_id,shelf_entry_id)`",
       "source": {
         "section": "8.5.12",
-        "line": 9688,
+        "line": 9690,
         "lineDigest": "ecc853bb09c6cec484bca73f98a35dd59f67b481466ce9bb51300fd99d5b5955"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "当前Group/member set至多一份active；成员或Identity变化后旧Whitelist为stale",
       "source": {
         "section": "8.5.12",
-        "line": 9689,
+        "line": 9691,
         "lineDigest": "756bfc233aee57e11d4135953ceea853fc9063ba4681f6cd400ab61cced3829f"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "创建时先原子建立Review与每Entry Reservation；只有已有Aftercare Case在安全边界停下后才进入open并冻结Scope；Authorization前取消只终结Review并释放Reservation；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9690,
+        "line": 9692,
         "lineDigest": "31bbedcaa13d47f99b41dd816871d4ae3953bfa797abda46c8cbbb4a063c0ee4"
-      }
-    },
-    {
-      "id": "arca_offdeck_reservations",
-      "owner": "arca",
-      "columnsContract": "`reservation_id PK, review_id FK, shelf_entry_id FK, inventory_revision, control_scope_digest, state(active|released|consumed|stale), created_at_ms, released_at_ms`",
-      "constraintsContract": "同一Shelf Entry至多一个active Off-deck Reservation；`INDEX(state,created_at_ms)`",
-      "source": {
-        "section": "8.5.12",
-        "line": 9691,
-        "lineDigest": "d9ec380f97236575796baeeb3e5ebdce5a3a60d11c825419eb07e7327a4b87c6"
       }
     }
   ]

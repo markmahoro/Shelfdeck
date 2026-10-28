@@ -216,6 +216,16 @@ function createInboxCoordinator(options) {
         return Object.freeze({replayed:false,messageId,resultDigest:request.resultDigest});
       }}]).projection_signal_receipt;
     },
+    readConsumption(request) {
+      const consumerDomain=text(request.consumerDomain,'consumerDomain'),messageId=text(request.messageId,'messageId'),
+        dedupKey=text(request.dedupKey,'dedupKey');
+      return options.unitOfWork.execute([{participantId:'inbox_consumption_read',owner:'execution-foundation',boundBusinessOwner:consumerDomain,
+        repositories:[repository.inbox],execute(context){
+          const row=context.repository('inbox').invoke('find_message',{consumer_domain:consumerDomain,message_id:messageId});
+          if(row&&row.dedup_key!==dedupKey)fail('P3_INBOX_DEDUP_CONFLICT','Inbox message identity does not match its immutable consumption.');
+          return row?Object.freeze({...row}):null;
+        }}]).inbox_consumption_read;
+    },
     consume(request) {
       if (!request || !request.message || !request.domainParticipant || request.domainParticipant.owner !== request.message.consumerDomain) {
         fail('P3_INBOX_INVALID_CONSUME', 'Message consumer and Domain participant Owner must match.');
@@ -282,7 +292,7 @@ function createInboxCoordinator(options) {
           if (!existing) fail('P3_DELIVERY_NOT_FOUND', 'Outbox Delivery does not exist.');
           if (existing.state === 'acked') return Object.freeze({ replayed: true, state: 'acked' });
           const delivered = request.delivered === true;
-          const nextAttemptAtMs = delivered ? context.commitTimeMs : request.nextAttemptAtMs;
+          const nextAttemptAtMs = delivered && request.nextAttemptAtMs === undefined ? context.commitTimeMs : request.nextAttemptAtMs;
           if (!Number.isSafeInteger(nextAttemptAtMs) || nextAttemptAtMs < context.commitTimeMs) fail(
             'P3_DELIVERY_INVALID_RETRY_TIME', 'Delivery retry time must not be in the past.'
           );

@@ -1,5 +1,7 @@
 # 当前 Phase：US Adult、演员库与每周维护窗口
 
+2026-10-29未接纳旧Offer收尾实现：Arca独立immutable Withdrawal Receipt与Recovery resolved同事务，保留原检查/失败；严格公开Fence+opaque token+本域无Accepted责任复核，无Control或文件副作用。新接纳/新Assessment/新Rejected均拒绝关闭的Offer；迟到消息精确比对原Offer，保留第一次Inbox结果，delivered未ACK消息有界重投以续完取消/ACK。source-26四项静态、169PASS/3既有skip、新事务4PASS/208名称过滤skip和两个真实Host旅程通过；source-27身份负例/技术消费增量21PASS。候选243表/65事务，原239 SQL无变化；旧Run安全接续/新Run准入、完整自定义Conformance/Arca/Aftercare/保留/API/UI及Stash仍待实现，不开放中间入口，不部署生产。
+
 2026-10-29确认后生命周期：Basis已绑定Package head/完整差距上下文，确认严格新鲜；Publication不再把安全取消旧执行产生的合法状态变化误判为用户决定失效，仍读取并验证当前Owner行，语义基线/交接变化拒绝。source-24 Linux93PASS/0skip及四项静态PASS。继续旧Offer收尾及新Run，不将内部发布接口开放给用户，生产未变更。
 
 2026-10-29目标提交屏障：Libra同事务Head检查已保护旧Promotion；公开Delivery Fence对未接纳旧Offer返回target_not_current，历史读取与已提交Receipt重放不变。Arca两条现有接纳调用链均在准备性写入之后、重新公开查询之前捕获opaque token；接纳Store在Receipt replay之后、attempt terminal之前强制验证，没有可缺省的新Accepted路径，也没有Libra Repo进入Arca UOW。source-23实际Linux84PASS/3既有真实媒体skip，普通独立收藏Host及介入提交后零部分写入Host各PASS，Reset名称过滤。调度收尾仍未闭合：旧Offer不得在失效后重复耗尽并制造新attention，确认后旧执行取消/安全收尾与Supporting Work/new Run须一起接通；新API继续禁止开放。尚未完成完整自定义确认→替代Run→Arca/Aftercare/保留闭包旅程。

@@ -3,6 +3,8 @@
 const crypto = require('crypto');
 
 const crashFixtures = Object.freeze({
+  'arca-offer-withdrawal':['Exact public Delivery fence and absence of Arca Accepted responsibility; immutable withdrawal, recovery projection, receipt, marker and audit before COMMIT',
+    'Withdrawal and technical closure are atomic; stale public views and Accepted responsibility leave no closure; original assessments, Control and files remain unchanged',8865],
   'libra-custom-target':['Exact Run, base/current Spec, target head and read fence validation; Preview/Intent, receipt, marker and audit before COMMIT',
     'Target changes and technical receipts are atomic; stale views and concurrent confirmations leave no partial target, Spec or Run',8852],
   'libra-custom-spec':['Exact confirmed Intent and original standard validation; custom Spec insert, decision head CAS, receipt, marker and audit before COMMIT',
@@ -342,6 +344,12 @@ const definitions = Object.freeze({
     fixtureRefs: ['libra-acceptance-spec'], hasOutbox: false,
     forbiddenWritePrefixes: ['proc_', 'arca_']
   },
+  'Arca Superseded Offer Closure': {
+    commitClass:'domain_fact_commit',writeTables:['arca_offer_withdrawal_receipts','arca_acceptance_recovery_cases',
+      'fx_command_receipts','fx_commit_markers','fx_audit_records'],
+    readTables:['arca_acceptance_attempts','arca_acceptance_decisions','arca_ondeck_custodies'],
+    fixtureRefs:['arca-offer-withdrawal'],hasOutbox:false,forbiddenWritePrefixes:['proc_','libra_','perception_','people_']
+  },
   'Libra Custom Target Commit': {
     commitClass:'domain_fact_commit',writeTables:['libra_custom_target_previews','fx_command_receipts','fx_commit_markers','fx_audit_records'],
     readTables:['libra_subjects','libra_runs','libra_acceptance_specs','libra_subject_decision_heads',
@@ -461,7 +469,7 @@ const definitions = Object.freeze({
       'arca_ondeck_custodies', 'arca_material_bindings',
       'arca_handoff_b_receipts', 'fx_material_controls',
       'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_commit_links','arca_series_presentation_scopes','arca_series_presentation_reservations','arca_acceptance_attempts', 'arca_acceptance_checks',
+    readTables: ['arca_offer_withdrawal_receipts','arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_commit_links','arca_series_presentation_scopes','arca_series_presentation_reservations','arca_acceptance_attempts', 'arca_acceptance_checks',
       'arca_shelves', 'arca_shelf_standard_revisions',
       'arca_placement_policy_revisions'],
     fixtureRefs: ['handoff-b-accepted'], hasOutbox: true,
@@ -471,7 +479,7 @@ const definitions = Object.freeze({
     commitClass: 'domain_fact_commit',
     writeTables: ['arca_acceptance_attempts', 'arca_acceptance_decisions', 'arca_handoff_b_receipts',
       'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['arca_acceptance_attempts', 'arca_acceptance_decisions', 'arca_handoff_b_receipts',
+    readTables: ['arca_offer_withdrawal_receipts','arca_acceptance_attempts', 'arca_acceptance_decisions', 'arca_handoff_b_receipts',
       'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox', 'arca_acceptance_checks'],
     fixtureRefs: ['handoff-b-rejected'], hasOutbox: true,
     forbiddenWritePrefixes: ['libra_']

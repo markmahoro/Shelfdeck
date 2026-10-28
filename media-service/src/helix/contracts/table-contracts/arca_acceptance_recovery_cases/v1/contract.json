@@ -240,17 +240,17 @@
       "`recovery_generation`从1单调递增且每个generation派生不同Supporting Work ID，历史Work/Event/Attempt不修改",
       "技术失败只允许`active|automatic_recovering|user_retrying → attention_required`，不得建立Acceptance Decision",
       "trigger变化最多一次`attention_required → automatic_recovering`，用户Retry一次只创建一个`user_retrying` generation",
-      "Accepted/Rejected后才`resolved`",
+      "Accepted/Rejected或同事务持久Offer Withdrawal后`resolved`，后者保留原失败字段且不宣称验收成功",
       "`INDEX(recovery_state,updated_at_ms)`"
     ],
     "rawContract": {
       "columns": "`offer_id PK, on_deck_package_id, package_digest, acceptance_attempt_id NULL, active_work_id, work_kind, failure_phase NULL, error_code NULL, terminal_attempt_count, owner_domain, recovery_state(active|attention_required|automatic_recovering|user_retrying|resolved|administratively_retired), recovery_generation, automatic_recovery_used, recovery_trigger_digest, failed_trigger_digest NULL, incident_key NULL, updated_at_ms, resolved_at_ms NULL`",
-      "constraints": "一份Offer恰有一个current Recovery Case；`recovery_generation`从1单调递增且每个generation派生不同Supporting Work ID，历史Work/Event/Attempt不修改；技术失败只允许`active|automatic_recovering|user_retrying → attention_required`，不得建立Acceptance Decision；trigger变化最多一次`attention_required → automatic_recovering`，用户Retry一次只创建一个`user_retrying` generation；Accepted/Rejected后才`resolved`；`INDEX(recovery_state,updated_at_ms)`"
+      "constraints": "一份Offer恰有一个current Recovery Case；`recovery_generation`从1单调递增且每个generation派生不同Supporting Work ID，历史Work/Event/Attempt不修改；技术失败只允许`active|automatic_recovering|user_retrying → attention_required`，不得建立Acceptance Decision；trigger变化最多一次`attention_required → automatic_recovering`，用户Retry一次只创建一个`user_retrying` generation；Accepted/Rejected或同事务持久Offer Withdrawal后`resolved`，后者保留原失败字段且不宣称验收成功；`INDEX(recovery_state,updated_at_ms)`"
     },
     "source": {
       "section": "8.5.12",
-      "line": 9649,
-      "lineDigest": "0b586d60447c0c11b54fd2af1b7d5b15505d5ef2823a4a1899e082205cf5c45a"
+      "line": 9650,
+      "lineDigest": "704da309eecf460b8dea2c5b7a6a67a774bbbbc896ab151a3b6175462da95a26"
     },
     "foreignKeys": []
   }

@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_offer_withdrawal_receipts/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_offer_withdrawal_receipts",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "offer_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "on_deck_package_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "package_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "package_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "receipt_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "receipt_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "receipt_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "receipt_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "closed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "offer_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [
+      [
+        "receipt_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "package_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "receipt_json",
+        "schemaRefColumn": "receipt_schema_ref",
+        "maxBytes": 16384,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "immutable",
+      "所有列NOT NULL",
+      "schema固定`arca.offer-withdrawal-receipt@1`",
+      "closed JCS JSON最大`16 KiB`，header与JSON逐项一致",
+      "只证明未Accepted旧Offer因精确公开target_not_current资格永久退出，不是Accepted/Rejected或收藏事实",
+      "无跨Owner FK、无Control及文件副作用"
+    ],
+    "rawContract": {
+      "columns": "`offer_id PK, on_deck_package_id, package_revision, package_digest, receipt_id UNIQUE, receipt_schema_ref, receipt_json, receipt_digest, closed_at_ms`",
+      "constraints": "immutable；所有列NOT NULL；schema固定`arca.offer-withdrawal-receipt@1`；closed JCS JSON最大`16 KiB`，header与JSON逐项一致；只证明未Accepted旧Offer因精确公开target_not_current资格永久退出，不是Accepted/Rejected或收藏事实；无跨Owner FK、无Control及文件副作用"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9651,
+      "lineDigest": "947996dd4ced969c0ff57e43d5b205c805309812345b250f6210596f09f0f6c4"
+    },
+    "foreignKeys": []
+  }
+}

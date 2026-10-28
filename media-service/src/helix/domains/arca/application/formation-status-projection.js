@@ -1,6 +1,7 @@
 'use strict';
 
 const { createRepositoryDefinition } = require('../../../foundation/persistence/owner-repository');
+const {COLUMNS:WITHDRAWAL_COLUMNS,decodeOfferWithdrawalRow}=require('../persistence/offer-withdrawal-store');
 
 const {createSeriesPresentationStore}=require('../persistence/series-presentation-store');
 const {createSeriesSourceReassessmentFence}=require('../persistence/series-source-reassessment-fence');
@@ -36,6 +37,8 @@ function createFormationStatusProjection(options) {
     owner: 'arca',
     schemaManifest: options.schemaManifest,
     statements: {
+      withdrawals:{kind:'select-in',tableId:'arca_offer_withdrawal_receipts',keyColumn:'offer_id',maxItems:MAX_ITEMS,
+        columns:WITHDRAWAL_COLUMNS,safeIntegers:true},
       receipts: {
         kind: 'select-in', tableId: 'arca_handoff_b_receipts', keyColumn: 'offer_id', maxItems: MAX_ITEMS,
         columns: ['offer_id', 'outcome', 'custody_id', 'on_deck_package_id', 'package_digest', 'rejection_code', 'committed_at_ms'],
@@ -137,6 +140,13 @@ function createFormationStatusProjection(options) {
             stage: 'in_progress', reasonCode: null, completedAtMs: null,
             shelfEntryId: null, onDeckRunId: run.on_deck_run_id,
           }));
+        }
+        for(const row of repo.invoke('withdrawals',{values:ids})){
+          const receipt=decodeOfferWithdrawalRow(row);
+          if(receipts.some(item=>item.offer_id===row.offer_id&&item.outcome==='accepted'))
+            throw Object.assign(new Error('A withdrawn Offer cannot also own Accepted responsibility.'),{code:'ARCA_OFFER_WITHDRAWAL_CORRUPT'});
+          result.set(row.offer_id,Object.freeze({stage:'offer_withdrawn',reasonCode:'target_not_current',completedAtMs:null,
+            shelfEntryId:null,withdrawalReceipt:receipt}));
         }
         return result;
       },

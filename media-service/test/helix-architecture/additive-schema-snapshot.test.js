@@ -6,7 +6,7 @@ const {compileSchema}=require('../../src/helix/foundation/persistence/ddl-compil
 const {openSqliteKernel}=require('../../src/helix/foundation/persistence/sqlite-kernel');
 const {readFrozenTableContracts}=require('../../scripts/helix-architecture/p3-ddl-materializer');
 const {planAdditiveSchemaExtension,prepareAdditiveSchemaSnapshot}=require('../../scripts/additive-schema-snapshot');
-const addedTables=['libra_custom_target_heads','libra_custom_target_intents','libra_custom_target_previews'],
+const addedTables=['arca_offer_withdrawal_receipts','libra_custom_target_heads','libra_custom_target_intents','libra_custom_target_previews'],
   contracts=readFrozenTableContracts(path.resolve(__dirname,'../../src/helix/contracts')),
   before=compileSchema(contracts.filter(row=>!addedTables.includes(row.tableId))),after=compileSchema(contracts),
   sourceSchema={schemaDdl:before.ddl,schemaManifest:before.manifest},targetSchema={schemaDdl:after.ddl,schemaManifest:after.manifest},
@@ -25,7 +25,7 @@ function fixture(callback){
 
 test('additive snapshot plan accepts only exact new tables and unchanged original definitions',()=>{
   const input={sourceSchema,targetSchema,extension,sourceBytes:1048576},plan=planAdditiveSchemaExtension(input);
-  assert.equal(plan.sourceTableCount,239);assert.equal(plan.targetTableCount,242);assert.deepEqual(plan.addedTables,addedTables);
+  assert.equal(plan.sourceTableCount,239);assert.equal(plan.targetTableCount,243);assert.deepEqual(plan.addedTables,addedTables);
   assert.equal(plan.requiredAvailableBytes,String(536870912+3*1048576));
   const changed=structuredClone(targetSchema);changed.schemaManifest.tables.find(row=>row.tableId==='fx_audit_records').sqlDigest='0'.repeat(64);
   assert.throws(()=>planAdditiveSchemaExtension({...input,targetSchema:changed}),{code:'ADDITIVE_SCHEMA_EXISTING_DEFINITION_CHANGED'});
@@ -38,7 +38,7 @@ test('Linux prepares all old rows, verifies the complete new database and leaves
   assert.equal(hash(h.sourcePath),h.originalHash);assert.equal(receipt.target.sha256,hash(h.targetPath));
   assert.equal(fs.existsSync(h.sourcePath+'-wal'),false);assert.equal(fs.existsSync(h.sourcePath+'-shm'),false);
   assert.deepEqual(fs.readdirSync(h.root).sort(),['source.sqlite','target.sqlite']);
-  const checked=openSqliteKernel({Database,databasePath:h.targetPath,...targetSchema});assert.equal(checked.generation.tableCount,242);checked.close();
+  const checked=openSqliteKernel({Database,databasePath:h.targetPath,...targetSchema});assert.equal(checked.generation.tableCount,243);checked.close();
   const db=new Database(h.targetPath,{readonly:true});try{
     const audit=db.prepare('SELECT actor_id,action,occurred_at_ms FROM fx_audit_records').get();
     assert.deepEqual(audit,{actor_id:'001-原始用户',action:'original.action',occurred_at_ms:1700000000000});

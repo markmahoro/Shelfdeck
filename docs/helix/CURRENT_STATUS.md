@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-29旧Offer关闭资格：source-26实际Linux四项静态PASS，19文件172项169PASS/3既有真实媒体环境skip/0FAIL；新增Canonical事务4PASS/208名称过滤skip；普通独立收藏与接纳前并发拒绝两个Host旅程PASS（Reset名称过滤）。source-27随后增加精确迟到Offer身份匹配，四项静态及21项PASS。原239表SQL完全一致，仅四张新表，共243表/65事务；DDL7f913e57…，P2 3abb2c85…。关闭Receipt不等于新Run或自定义收藏旅程完成；生产本轮未操作。
+
 2026-10-29 source-24实际Linux93PASS/0skip/0FAIL，四项静态门禁通过。确认前新增runPackageRevisionHead/gapEvidenceSetDigest绑定；确认后的Publication保留原Intent，允许经当前Owner验证的执行状态/观察变化，拒绝终结、Package或语义责任变化。P2 aggregate09908833…，242表/64事务/DDL9c6af0d…保持；内部资格不等同新Run或用户旅程完成，生产仍a2bf2d6fd未变更。
 
 2026-10-29目标屏障已通过source-23实际Linux：定向87项84PASS/3真实媒体环境skip/0FAIL，Host两项PASS/1 Reset名称过滤skip；普通两条独立影片正式Commit，另在Arca接纳BEGIN之前插入Libra绑定的技术Audit提交，P3_UOW_READ_FENCE_CHANGED且十组责任/Control/Outbox/marker摘要完全不变。此并发注入不是完整自定义确认API旅程。Libra旧Promotion和未Accepted Offer资格屏障保持历史只读；Arca事务无Libra Repository。尚未实现旧Offer调度收尾/新Run/完整用户流程，未部署生产。当前P2 fd601047…，DDL9c6af0d…/242表/64事务，生产仍旧239表。

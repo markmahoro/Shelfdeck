@@ -101,7 +101,9 @@ test('paged acceptance recovery advances the selected case past an unchanged fir
     workResultReader:{ readDefinition:workId => ({ definition:{ dependencyRefs:[{
       ownerDomain:'libra', objectType:'on_deck_package', objectId:'package-' + workId,
       revision:1, digest:hex('a'),
-    }] } }) }, contextReader:{} });
+    }] } }) }, contextReader:{onDeck:{findRunByOffer:()=>null},readOfferDelivery:refs=>({
+      offer:{offerId:refs[0].objectId.replace('package-work-','')},deliveryFence:{eligibility:'eligible'},
+    })} });
   const first = coordinator.listAcceptanceAttention(1, null)[0];
   assert.equal(first.offerId, 'a-unchanged');
   assert.equal(coordinator.recoverAttentionCase(first.offerId), null);

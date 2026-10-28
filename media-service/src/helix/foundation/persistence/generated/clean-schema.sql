@@ -889,6 +889,30 @@ CREATE TABLE "arca_offdeck_terminal_receipts" (
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "arca_offer_withdrawal_receipts" (
+  "offer_id" TEXT PRIMARY KEY NOT NULL,
+  "on_deck_package_id" TEXT NOT NULL,
+  "package_revision" INTEGER NOT NULL CHECK ("package_revision" >= 1),
+  "package_digest" TEXT NOT NULL CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
+  "receipt_id" TEXT NOT NULL,
+  "receipt_schema_ref" TEXT NOT NULL,
+  "receipt_json" TEXT NOT NULL,
+  "receipt_digest" TEXT NOT NULL CHECK (length("receipt_digest") = 64 AND "receipt_digest" NOT GLOB '*[^0-9a-f]*'),
+  "closed_at_ms" INTEGER NOT NULL CHECK ("closed_at_ms" >= 0),
+  UNIQUE ("receipt_id"),
+  CHECK (json_valid("receipt_json")),
+  CHECK (length(CAST("receipt_json" AS BLOB)) <= 16384),
+  CHECK ("receipt_schema_ref" = 'arca.offer-withdrawal-receipt@1'),
+  CHECK (COALESCE(json_extract("receipt_json", '$.schemaRef') = "receipt_schema_ref", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.receiptId') = "receipt_id", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.receiptDigest') = "receipt_digest", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.closedAtMs') = "closed_at_ms", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.offer.offerId') = "offer_id", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.offer.onDeckPackageId') = "on_deck_package_id", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.offer.packageRevision') = "package_revision", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.offer.packageDigest') = "package_digest", 0))
+);
+
 CREATE TABLE "arca_offload_completions" (
   "offload_completion_id" TEXT PRIMARY KEY,
   "on_deck_run_id" TEXT,

@@ -1,5 +1,7 @@
 # ShelfDeck 当前计划
 
+2026-10-29旧Offer生命周期增量：Arca已实现未Accepted目标失效的独立关闭回执、原子Recovery收尾、Work取消/迟到消息和保留首次Inbox结果的重投ACK；首次Accepted及新Assessment/Rejected均不能越过关闭回执。原239表SQL无变化，候选243表/65事务。source-26 Linux169PASS/3既有skip、新事务4PASS/208名称过滤skip、两个真实Host旅程PASS；source-27精确迟到Offer身份守卫增量21PASS。新Run接续、完整自定义用户流程及Stash继续实施，未发布生产。
+
 2026-10-29确认后生命周期增量：Preview/Intent Basis新增冻结Package head及完整当前差距上下文digest；确认仍要求原预览完全新鲜。持久确认后的Publication允许旧执行合法active/suspended/frozen状态变化和后续观察变化，但逐项校验新Snapshot与Owner行一致，语义/材料/身份/交接变化仍拒绝。source-24 Linux93PASS/0skip及四项静态PASS；完整用户入口/新Run尚未接通，生产不变。
 
 2026-10-29目标提交屏障增量：Libra Promotion在事务内按当前Custom Head撤销旧Spec提交资格；未接纳Offer的当前Delivery Fence立即ineligible/target_not_current，历史Package/Receipt保持。Arca首次接纳重新读取公开Delivery并用opaque技术fence阻止读后并发提交，Receipt重放优先，未跨Owner读表。source-23 Linux84PASS/3环境skip及两条真实Host旅程PASS（普通两条独立收藏；介入提交后零部分接纳写入），Reset场景名称过滤未运行。旧Offer调度收尾、Supporting Work/新Run及完整UI/Arca连续性仍待接通，不发布内部入口；生产未改变。

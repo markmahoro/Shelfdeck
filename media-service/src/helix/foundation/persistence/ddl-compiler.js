@@ -30,7 +30,9 @@ const REQUIRED_COLUMNS = new Set([
     .map(column => 'libra_custom_target_previews.' + column),
   ...['intent_id','preview_id','subject_id','libra_run_id','product_scope_digest','target_revision','actor_id','idempotency_key','request_digest','record_schema_ref','record_json','record_digest','created_at_ms']
     .map(column => 'libra_custom_target_intents.' + column),
-  ...['subject_id','product_scope_digest','current_revision','intent_id','record_digest'].map(column => 'libra_custom_target_heads.' + column)
+  ...['subject_id','product_scope_digest','current_revision','intent_id','record_digest'].map(column => 'libra_custom_target_heads.' + column),
+  ...['offer_id','on_deck_package_id','package_revision','package_digest','receipt_id','receipt_schema_ref','receipt_json','receipt_digest','closed_at_ms']
+    .map(column => 'arca_offer_withdrawal_receipts.' + column)
 ]);
 
 // These are implementation-only projection guards. Their writers and startup
@@ -120,6 +122,12 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
 });
 
 const TABLE_CHECKS = Object.freeze({
+  arca_offer_withdrawal_receipts: [
+    `"receipt_schema_ref" = 'arca.offer-withdrawal-receipt@1'`,
+    ...[['schemaRef','receipt_schema_ref'],['receiptId','receipt_id'],['receiptDigest','receipt_digest'],['closedAtMs','closed_at_ms'],
+      ['offer.offerId','offer_id'],['offer.onDeckPackageId','on_deck_package_id'],['offer.packageRevision','package_revision'],['offer.packageDigest','package_digest']]
+      .map(([jsonKey,column])=>'COALESCE(json_extract("receipt_json", \'$.'+jsonKey+'\') = "'+column+'", 0)')
+  ],
   libra_custom_target_previews: [
     `"record_schema_ref" = 'libra.custom-target-preview@1'`,
     `"preview_id" = "record_digest"`,
