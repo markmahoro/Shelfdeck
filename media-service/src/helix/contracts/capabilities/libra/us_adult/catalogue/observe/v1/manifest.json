@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "libra.us_adult.catalogue.observe@1",
+  "contractVersion": 1,
+  "ownerScope": "libra",
+  "effectClass": "workspace_write",
+  "inputPorts": {
+    "usAdultCatalogueAnalysisBasis": {
+      "schemaRef": "helix://contracts/capabilities/libra.us_adult.catalogue.observe/v1/inputs#/$defs/usAdultCatalogueAnalysisBasis",
+      "required": true,
+      "cardinality": "one"
+    },
+    "usAdultCatalogueCompletedBatchSet": {
+      "schemaRef": "helix://contracts/capabilities/libra.us_adult.catalogue.observe/v1/inputs#/$defs/usAdultCatalogueCompletedBatchSet",
+      "required": true,
+      "cardinality": "one"
+    },
+    "workspaceArtifactOutputTarget": {
+      "schemaRef": "helix://contracts/capabilities/libra.us_adult.catalogue.observe/v1/inputs#/$defs/workspaceArtifactOutputTarget",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/libra.us_adult.catalogue.observe/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/libra.us_adult.catalogue.observe/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/libra.us_adult.catalogue.observe/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/libra.us_adult.catalogue.observe/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/libra.us_adult.catalogue.observe/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/libra.us_adult.catalogue.observe/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/libra.us_adult.catalogue.observe/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.6",
+    "line": 10101,
+    "lineDigest": "6074b385aa569cfd89f228886ad92bd67cfc31d8925b3cba89035448f0cffd58"
+  }
+}

@@ -127,7 +127,6 @@ const CLEAN_RUNTIME_FILES = [
   'src/clean-product-production-port.js',
   'src/clean-shelf-target-folder-probe.js',
   'src/clean-western-analysis-port.js',
-  'src/clean-us-adult-recommendation-image-port.js',
   'src/clean-workspace-product-port.js',
   'src/clean-series-root-relocation-port.js',
   'src/clean-workspace-root-admin.js',

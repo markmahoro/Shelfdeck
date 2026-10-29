@@ -1,0 +1,365 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/domain-types/PeopleCatalogueRegistrationDecision/v1",
+  "title": "PeopleCatalogueRegistrationDecision@1",
+  "x-helix-ssotRefs": [
+    "6.4.7.1",
+    "8.6.18",
+    "8.6.20"
+  ],
+  "x-helix-role": "accepted-business-dto",
+  "x-helix-maxCanonicalBytes": 262144,
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schemaRef": {
+      "const": "helix://contracts/domain-types/PeopleCatalogueRegistrationDecision/v1"
+    },
+    "schemaVersion": {
+      "const": 1
+    },
+    "decisionId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "operationId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "newPersonId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "libraryKind": {
+      "const": "us_adult"
+    },
+    "canonicalName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "aliases": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 17,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "aliasDisplay": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "aliasNormalized": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "aliasDisplay",
+          "aliasNormalized",
+          "provenanceDigest"
+        ]
+      }
+    },
+    "providerIdentities": {
+      "type": "array",
+      "maxItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "provider": {
+            "const": "theporndb"
+          },
+          "namespace": {
+            "const": "performer"
+          },
+          "providerKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "provenanceDigest": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          }
+        },
+        "required": [
+          "provider",
+          "namespace",
+          "providerKey",
+          "provenanceDigest"
+        ]
+      }
+    },
+    "initialReference": {
+      "$ref": "helix://contracts/domain-types/PeopleReferenceMaintenanceDecision/v1"
+    },
+    "catalogueOrigin": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "schema": {
+          "const": "people.us-adult-catalogue-origin@1"
+        },
+        "catalogueDecisionInputDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceObservationDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "assessmentDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "identityKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "uid": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "selectedName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "aliases": {
+          "type": "array",
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "nameQueryDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "libraryNamesDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "nameResolutionDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "providerObservationDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "providerResolutionDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "imageSourceProofDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "imageSourceProof": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "provider"
+                },
+                "providerKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "imageId": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256
+                },
+                "urlDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "imageDigest": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              },
+              "required": [
+                "kind",
+                "providerKey",
+                "imageId",
+                "urlDigest",
+                "imageDigest"
+              ]
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "kind": {
+                  "const": "frame"
+                },
+                "proof": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "schema": {
+                      "const": "shared.buffalo-representative-image@1"
+                    },
+                    "basisDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "frameEvidenceDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "sourceImageDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "faceOrdinal": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 31
+                    },
+                    "faceEvidenceDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "modelRefDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "coordinateSpaceDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "renderingPolicyDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "rectangle": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "left": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "top": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "width": {
+                          "type": "integer",
+                          "minimum": 1
+                        },
+                        "height": {
+                          "type": "integer",
+                          "minimum": 1
+                        }
+                      },
+                      "required": [
+                        "left",
+                        "top",
+                        "width",
+                        "height"
+                      ]
+                    },
+                    "encoding": {
+                      "const": "png"
+                    },
+                    "imageDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    },
+                    "imageBytes": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 10485760
+                    },
+                    "proofDigest": {
+                      "type": "string",
+                      "pattern": "^[a-f0-9]{64}$"
+                    }
+                  },
+                  "required": [
+                    "schema",
+                    "basisDigest",
+                    "frameEvidenceDigest",
+                    "sourceImageDigest",
+                    "faceOrdinal",
+                    "faceEvidenceDigest",
+                    "modelRefDigest",
+                    "coordinateSpaceDigest",
+                    "renderingPolicyDigest",
+                    "rectangle",
+                    "encoding",
+                    "imageDigest",
+                    "imageBytes",
+                    "proofDigest"
+                  ]
+                }
+              },
+              "required": [
+                "kind",
+                "proof"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "schema",
+        "catalogueDecisionInputDigest",
+        "sourceObservationDigest",
+        "assessmentDigest",
+        "identityKey",
+        "uid",
+        "selectedName",
+        "aliases",
+        "nameQueryDigest",
+        "libraryNamesDigest",
+        "nameResolutionDigest",
+        "providerObservationDigest",
+        "providerResolutionDigest",
+        "imageSourceProofDigest",
+        "imageSourceProof"
+      ]
+    },
+    "decisionDigest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    }
+  },
+  "required": [
+    "schemaRef",
+    "schemaVersion",
+    "decisionId",
+    "operationId",
+    "newPersonId",
+    "libraryKind",
+    "canonicalName",
+    "aliases",
+    "providerIdentities",
+    "initialReference",
+    "catalogueOrigin",
+    "decisionDigest"
+  ]
+}

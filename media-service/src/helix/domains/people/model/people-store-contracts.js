@@ -97,9 +97,9 @@ function createPersonRevision(value) {
   const providerIdentities = boundedArray(value.providerIdentities, 'providerIdentities').map(createProviderIdentity);
   unique(aliases, (item) => item.aliasNormalized, 'P6_PEOPLE_ALIAS_DUPLICATE');
   unique(providerIdentities, (item) => [item.provider, item.namespace, item.providerKey].join('\u0000'), 'P6_PEOPLE_PROVIDER_IDENTITY_DUPLICATE');
-  if (!['direct', 'candidate'].includes(value.originKind) || (value.originKind === 'direct') !== (value.originDecisionRef !== null) ||
+  if (!['direct', 'candidate', 'catalogue_auto'].includes(value.originKind) || (value.originKind !== 'candidate') !== (value.originDecisionRef !== null) ||
       (value.originKind === 'candidate') !== (value.originCandidateRef !== null)) {
-    fail('P6_PEOPLE_PERSON_ORIGIN_INVALID', 'Person revision must have exactly one direct or Candidate origin.');
+    fail('P6_PEOPLE_PERSON_ORIGIN_INVALID', 'Person revision must have one exact user, Candidate or catalogue system origin.');
   }
   return freeze({ personId: text(value.personId, 'personId', 256), revision: revision(value.revision, 'revision'), personStatus: value.personStatus,
     canonicalName: text(value.canonicalName, 'canonicalName', 1024),

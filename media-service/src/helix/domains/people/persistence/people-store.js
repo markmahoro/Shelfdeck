@@ -4,7 +4,10 @@ const { createRepositoryDefinition } = require('../../../foundation/persistence/
 const { requireLibraryKind, requireSameLibrary } = require('../model/person-library');
 const { personIdentityNamespaces } = require('../model/provider-person-identity');
 const { reliablePair } = require('../model/system-merge-work');
+const { resolveUsAdultName } = require('../model/us-adult-name-resolution');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const {buildCatalogueRegistration,ORIGIN}=require('../model/us-adult-catalogue-registration');
+const {assertCatalogueImagePayload}=require('../model/prepared-catalogue-registration');
 const {
   PEOPLE_CANDIDATE_DRAFT_SCHEMA, createCandidate, createCandidateDraft, createCandidateRevision, createPerson,
   createPersonRevision, createPreference, createReferenceAsset, createReferenceFace
@@ -182,6 +185,24 @@ function personRegistryDefinition(schemaManifest) {
   });
 }
 
+function catalogueRegistrationDefinition(schemaManifest) {
+  return createRepositoryDefinition({repositoryId:'people_catalogue_registration_repository',owner:'people',schemaManifest,statements:{
+    find_catalogue_operation:{kind:'select-one',tableId:'people_image_operations',keyColumns:['operation_id'],columns:[
+      'operation_id','person_id','actor_id','idempotency_key','request_digest','payload_schema_ref','payload_json','payload_digest','state']},
+    complete_catalogue_operation:{kind:'update',tableId:'people_image_operations',
+      setColumns:['state','result_schema_ref','result_json','result_digest','failure_code','updated_at_ms'],keyColumns:['operation_id'],
+      compareColumns:[{column:'state',parameter:'expected_state'},{column:'payload_digest',parameter:'expected_payload_digest'}]},
+    insert_catalogue_origin:{kind:'insert',tableId:'people_us_adult_catalogue_registration_origins',columns:[
+      'person_id','decision_id','decision_schema_ref','decision_json','decision_digest','operation_id','origin_schema_ref','origin_json','origin_digest','observation_schema_ref',
+      'catalogue_input_schema_ref','catalogue_input_json','catalogue_input_digest','name_resolution_schema_ref','name_resolution_json','name_resolution_digest',
+      'observation_json','observation_digest','provider_observation_schema_ref','provider_observation_json','provider_observation_digest','created_at_ms']},
+    find_catalogue_origin:{kind:'select-one',tableId:'people_us_adult_catalogue_registration_origins',keyColumns:['person_id'],columns:[
+      'person_id','decision_id','decision_schema_ref','decision_json','decision_digest','operation_id','origin_schema_ref','origin_json','origin_digest','observation_schema_ref',
+      'catalogue_input_schema_ref','catalogue_input_json','catalogue_input_digest','name_resolution_schema_ref','name_resolution_json','name_resolution_digest',
+      'observation_json','observation_digest','provider_observation_schema_ref','provider_observation_json','provider_observation_digest','created_at_ms']}
+  }});
+}
+
 function candidateDefinition(schemaManifest) {
   return createRepositoryDefinition({
     repositoryId: 'people_candidate_repository', owner: 'people', schemaManifest,
@@ -246,6 +267,7 @@ function createPeopleStore(options) {
   }
   const registry = personRegistryDefinition(options.schemaManifest);
   const candidates = candidateDefinition(options.schemaManifest);
+  const catalogue = catalogueRegistrationDefinition(options.schemaManifest);
   function execute(repositories, body, participantId = 'people_store') {
     return options.unitOfWork.execute([{ participantId, owner: 'people', repositories, execute: body }])[participantId];
   }
@@ -468,9 +490,38 @@ function createPeopleStore(options) {
     },decision.initialReference).execute(context);
     return mapPerson(repository, repository.invoke('find_person', { person_id: decision.newPersonId }));
   }
+
+  // Keep the complete name snapshot on the People repository passed to the
+  // current unit of work. Catalogue registration must call this again inside
+  // its own write transaction, never trust an earlier read-only lookup.
+  function resolveCurrentUsAdultName(repository, input) {
+    const people = [];
+    let cursor = '', bytes = 0;
+    while (true) {
+      const page = repository.invoke('page_people', { cursor, status: 'active', library_kind: 'us_adult', offset: 0, limit: 100 });
+      if (people.length + page.length > 10000)
+        fail('PEOPLE_NAME_QUERY_LIMIT', 'The complete actor name library exceeds its Person bound.');
+      for (const row of page) {
+        const person = mapPerson(repository, row), value = { personId: person.personId, libraryKind: person.libraryKind,
+          status: person.status, personRevision: person.currentRevision, personFactDigest: person.revision.factDigest,
+          canonicalName: person.revision.canonicalName, aliases: person.revision.aliases.map(item => item.aliasDisplay) };
+        bytes += Buffer.byteLength(canonicalJson(value), 'utf8');
+        if (bytes > 8 * 1024 * 1024)
+          fail('PEOPLE_NAME_QUERY_LIMIT', 'The complete actor name library exceeds its byte bound.');
+        people.push(value);
+      }
+      if (page.length < 100) break;
+      cursor = page.at(-1).person_id;
+    }
+    const result = resolveUsAdultName({ name: input.name, aliases: input.aliases, people });
+    if (input.expectedLibraryNamesDigest !== null && input.expectedLibraryNamesDigest !== result.libraryNamesDigest)
+      fail('PEOPLE_NAME_LIBRARY_CHANGED', 'The actor name library changed after its frozen query.');
+    return result;
+  }
   const repositoryManifest = Object.freeze({ components: Object.freeze([
     Object.freeze({ component: 'PersonRegistryRepository', repositoryId: registry.repositoryId, tableIds: registry.tableIds }),
-    Object.freeze({ component: 'PeopleCandidateRepository', repositoryId: candidates.repositoryId, tableIds: candidates.tableIds })
+    Object.freeze({ component: 'PeopleCandidateRepository', repositoryId: candidates.repositoryId, tableIds: candidates.tableIds }),
+    Object.freeze({ component: 'PeopleCatalogueRegistrationRepository', repositoryId: catalogue.repositoryId, tableIds: catalogue.tableIds })
   ]) });
   function commitCandidate(context, input) {
     const draft = createCandidateDraft(input.draft);
@@ -554,6 +605,57 @@ function createPeopleStore(options) {
       const decision = validateDirectRegistrationDecision(input);
       return Object.freeze({ participantId: 'people_direct_registration', owner: 'people', repositories: [registry],
         execute(context) { return commitDirectRegistration(context, decision); } });
+    },
+    createCatalogueRegistrationParticipant(input, readFence) {
+      if(!readFence||typeof options.unitOfWork.assertReadFence!=='function')
+        fail('PEOPLE_CATALOGUE_READ_FENCE_REQUIRED','System registration requires the validated Libra public read fence.');
+      exactInput(input,['input','inputDigest','resolution','observation','providerObservation','imageSourceProof','initialReference'],
+        'PEOPLE_CATALOGUE_REGISTRATION_INPUT_INVALID');
+      const evidence=JSON.parse(canonicalJson(input)),decision=buildCatalogueRegistration(evidence);
+      return Object.freeze({participantId:'people_catalogue_registration',owner:'people',repositories:[registry,catalogue],execute(context){
+        options.unitOfWork.assertReadFence(readFence);
+        const repo=context.repository(registry.repositoryId),catalogueRepo=context.repository(catalogue.repositoryId),origin=decision.catalogueOrigin,
+          current=resolveCurrentUsAdultName(repo,{name:evidence.input.winner.name,aliases:evidence.input.winner.aliases,
+            expectedLibraryNamesDigest:origin.libraryNamesDigest});
+        if(current.kind!=='not_found'||current.resolutionDigest!==origin.nameResolutionDigest)
+          fail('PEOPLE_CATALOGUE_NAME_STALE','The actor name is no longer uniquely absent from the current People library.');
+        const operation=catalogueRepo.invoke('find_catalogue_operation',{operation_id:decision.operationId});
+        let payload;try{payload=JSON.parse(operation?.payload_json||'null');assertCatalogueImagePayload(payload);}
+        catch{fail('PEOPLE_CATALOGUE_OPERATION_STALE','The system image operation is absent or corrupt.');}
+        if(!operation||operation.state!=='preparing'||operation.person_id!==decision.newPersonId||
+          operation.payload_schema_ref!==payload.schema||canonicalJson(payload)!==operation.payload_json||
+          canonicalDigest(payload)!==operation.payload_digest||operation.request_digest!==operation.payload_digest||
+          operation.actor_id!==payload.actorId||operation.idempotency_key!==payload.operationId||
+          payload.catalogueDecisionInputDigest!==origin.catalogueDecisionInputDigest||payload.nameResolutionDigest!==origin.nameResolutionDigest||
+          payload.imageSourceProofDigest!==origin.imageSourceProofDigest||payload.selectedImage.digestHex!==decision.initialReference.artifactDigest||
+          payload.selectedImage.provenance.source!==(origin.imageSourceProof.kind==='frame'?'catalogue_frame':'stashbox'))
+          fail('PEOPLE_CATALOGUE_OPERATION_STALE','The system image operation no longer matches the frozen decision.');
+        const reference=validateReferenceDecision(decision.initialReference),personFact={personStatus:'active',canonicalName:decision.canonicalName,
+          mergedIntoPersonId:null,originKind:'catalogue_auto',originDecisionRef:{decisionId:decision.decisionId,decisionDigest:decision.decisionDigest},
+          originCandidateRef:null,aliases:decision.aliases,providerIdentities:decision.providerIdentities};
+        repo.invoke('insert_person',{person_id:decision.newPersonId,library_kind:'us_adult',status:'active',current_revision:1,
+          current_preference_revision:null,current_reference_revision:null,current_reference_projection_revision:1,
+          current_reference_projection_digest:initialProjectionDigest(decision.newPersonId),created_at_ms:context.commitTimeMs,terminal_at_ms:null});
+        writePersonRevision(repo,{personId:decision.newPersonId,revision:1,...personFact,factDigest:canonicalDigest(personFact)},context.commitTimeMs,false);
+        createReferenceCommitParticipant({handleId:'people-catalogue-initial-reference-'+decision.decisionId,ownerDomain:'people',
+          aggregateType:'person-reference',aggregateId:decision.newPersonId,expectedRevision:0,
+          resultSchemaRef:'helix://contracts/types/PersonReferenceRevision/v1',commitIdempotencyKey:'people-catalogue-initial-reference-'+decision.decisionId},reference).execute(context);
+        catalogueRepo.invoke('insert_catalogue_origin',{person_id:decision.newPersonId,decision_id:decision.decisionId,
+          decision_schema_ref:decision.schemaRef,decision_json:canonicalJson(decision),decision_digest:decision.decisionDigest,
+          operation_id:decision.operationId,origin_schema_ref:ORIGIN,origin_json:canonicalJson(origin),origin_digest:canonicalDigest(origin),
+          catalogue_input_schema_ref:evidence.input.schema,catalogue_input_json:canonicalJson(evidence.input),catalogue_input_digest:evidence.inputDigest,
+          name_resolution_schema_ref:evidence.resolution.schema,name_resolution_json:canonicalJson(evidence.resolution),name_resolution_digest:canonicalDigest(evidence.resolution),
+          observation_schema_ref:evidence.observation.schema,observation_json:canonicalJson(evidence.observation),
+          observation_digest:canonicalDigest(evidence.observation),provider_observation_schema_ref:evidence.providerObservation.schema,
+          provider_observation_json:canonicalJson(evidence.providerObservation),provider_observation_digest:canonicalDigest(evidence.providerObservation),
+          created_at_ms:context.commitTimeMs});
+        const result={personId:decision.newPersonId,personRevision:1,referenceRevision:1},resultJson=canonicalJson(result);
+        if(catalogueRepo.invoke('complete_catalogue_operation',{operation_id:decision.operationId,expected_state:'preparing',expected_payload_digest:operation.payload_digest,
+          state:'completed',result_schema_ref:'people.image-operation-result@1',result_json:resultJson,result_digest:canonicalDigest(result),
+          failure_code:null,updated_at_ms:context.commitTimeMs}).changes!==1)
+          fail('PEOPLE_CATALOGUE_OPERATION_STALE','The system image operation changed before publication.');
+        return mapPerson(repo,repo.invoke('find_person',{person_id:decision.newPersonId}));
+      }});
     },
     createReferenceSignalParticipant(payload){
       exactInput(payload,['personId','personRevision','referenceRevision'],'PEOPLE_REFERENCE_SIGNAL_INVALID');
@@ -739,6 +841,17 @@ function createPeopleStore(options) {
         }
         return Object.freeze(projection);
       });
+    },
+    resolveUsAdultName(input) {
+      exactInput(input, ['name', 'aliases', 'expectedLibraryNamesDigest'], 'PEOPLE_NAME_QUERY_INVALID');
+      if (input.expectedLibraryNamesDigest !== null && !/^[a-f0-9]{64}$/.test(input.expectedLibraryNamesDigest))
+        fail('PEOPLE_NAME_QUERY_INVALID', 'The expected name library digest must be explicit or null.');
+      // Validate the bounded query before reading any library facts.
+      resolveUsAdultName({ name: input.name, aliases: input.aliases, people: [] });
+      return options.unitOfWork.execute([{ participantId: 'people_name_resolution', owner: 'people', readOnly: true,
+        repositories: [registry], execute(context) {
+          return resolveCurrentUsAdultName(context.repository(registry.repositoryId), input);
+        } }]).people_name_resolution;
     },
     readUsAdultPersonSnapshot(input){
       exactInput(input,['personId','expectedPersonRevision','expectedReferenceRevision'],'PEOPLE_REFERENCE_QUERY_INVALID');
@@ -1306,7 +1419,7 @@ function mapPerson(repository, row) {
     currentReferenceProjectionDigest: row.current_reference_projection_digest, createdAtMs: row.created_at_ms, terminalAtMs: row.terminal_at_ms,
     revision: { personId: fact.person_id, revision: fact.revision, personStatus: fact.person_status, canonicalName: fact.canonical_name,
       mergedIntoPersonId: fact.merged_into_person_id, originKind: fact.origin_kind,
-      originDecisionRef: fact.origin_kind === 'direct' ? { decisionId: fact.origin_decision_id, decisionDigest: fact.origin_decision_digest } : null,
+      originDecisionRef: ['direct', 'catalogue_auto'].includes(fact.origin_kind) ? { decisionId: fact.origin_decision_id, decisionDigest: fact.origin_decision_digest } : null,
       originCandidateRef: hasOrigin ? { candidateKind: fact.origin_candidate_kind,
         candidateId: fact.origin_candidate_id, candidateRevision: fact.origin_candidate_revision,
         candidatePayloadDigest: fact.origin_candidate_payload_digest } : null, factDigest: fact.fact_digest,

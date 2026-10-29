@@ -1,6 +1,7 @@
 'use strict';
 const {restoreFrameAnalysis}=require('./helix/contracts/us-adult-frame-geometry');
 const {faceModelReference}=require('./helix/contracts/us-adult-face-model');
+const {encodeBuffaloClusterSet,restoreBuffaloClusterSet}=require('./helix/contracts/buffalo-frame-artifact');
 
 const { createHash } = require('node:crypto');
 const { canonicalDigest, canonicalJson } =
@@ -63,9 +64,19 @@ function parsedArtifact(port, handle, expectedKind) {
   return Object.freeze({ recovered, payload });
 }
 
-function frameComposite(port, handle) {
-  const parsed = parsedArtifact(port, handle, 'western_frame_set');
-  const payload = exactKeys(parsed.payload, [
+function canonicalArtifactPayload(bytes) {
+  if (!Buffer.isBuffer(bytes) || !bytes.length) fail('CLEAN_WESTERN_ARTIFACT_PAYLOAD_INVALID', 'Artifact bytes are required.');
+  let payload; try { payload = JSON.parse(bytes.toString('utf8')); } catch {
+    fail('CLEAN_WESTERN_ARTIFACT_PAYLOAD_INVALID', 'Western analysis Artifact payload is not valid canonical JSON.');
+  }
+  if (!Buffer.from(canonicalJson(payload)).equals(bytes)) {
+    fail('CLEAN_WESTERN_ARTIFACT_PAYLOAD_INVALID', 'Western analysis Artifact payload is not canonical JSON.');
+  }
+  return payload;
+}
+
+function frameCompositePayload(value) {
+  const payload = exactKeys(value, [
     'frameMemberSetDigest',
     'memberPayloads',
     'members',
@@ -119,7 +130,12 @@ function frameComposite(port, handle) {
     fail('CLEAN_WESTERN_FRAME_RESULT_INVALID',
       'Western frame member-set digest is invalid.');
   }
-  return Object.freeze({ ...parsed, payload });
+  return payload;
+}
+
+function frameComposite(port, handle) {
+  const parsed = parsedArtifact(port, handle, 'western_frame_set');
+  return Object.freeze({ ...parsed, payload:frameCompositePayload(parsed.payload) });
 }
 
 function typedParameters(values = []) {
@@ -229,7 +245,7 @@ function modelConfiguration(value) {
   });
 }
 
-function createCleanWesternAnalysisPort(options) {
+function createWesternPort(options, framesOnly) {
   if (!options?.workspaceProductPort ||
       typeof options.workspaceProductPort.materializeArtifact !== 'function' ||
       typeof options.workspaceProductPort.openFrameCompositeSink !==
@@ -245,15 +261,17 @@ function createCleanWesternAnalysisPort(options) {
     'extractFrameSet',
     'computeEmbeddings',
     'computeClusters',
-    'analyzeWestern',
-    'matchReferences',
-    'renderPoster',
+    ...(framesOnly ? ['validateFrameComposite', 'validateEmbeddingSet', 'validateClusters'] :
+      ['analyzeWestern', 'matchReferences', 'renderPoster']),
   ];
   if (requiredMethods.some((method) => typeof options.engine[method] !== 'function')) {
     fail('CLEAN_WESTERN_ENGINE_INCOMPLETE',
       'The service-local Western engine is incomplete.');
   }
   const now = typeof options.now === 'function' ? options.now : Date.now;
+  if (framesOnly && !options.configuration) {
+    fail('CLEAN_WESTERN_MODEL_PACK_INVALID', 'Frame-only analysis requires its explicit frozen configuration.');
+  }
   const configuration = options.configuration || modelConfiguration(options.modelPack);
   for (const [key, value] of Object.entries(configuration)) {
     if (!['faceModelRef', 'clusterParameters'].includes(key) || !value ||
@@ -269,6 +287,77 @@ function createCleanWesternAnalysisPort(options) {
 
   function materialize(value) {
     return workspacePort.materializeArtifact(value);
+  }
+
+  function syncValidation(value) {
+    if (value && typeof value.then === 'function') {
+      fail('CLEAN_WESTERN_RECOVERY_VALIDATOR_ASYNC', 'Catalogue Artifact recovery requires synchronous bounded validation.');
+    }
+  }
+
+  function frameRequest(target) {
+    return {libraRunId:target.libraRunId,workspaceId:target.workspaceId,relativePath:target.targetRelativePath,
+      artifactKind:'western_frame_set',mediaType:'application/vnd.shelfdeck.western-frame-set+json',
+      provenanceRef:{objectType:'western_frame_extract',objectId:target.targetId,revision:1,digest:target.targetDigest}};
+  }
+
+  function embeddingRequest(frameSet,model) {
+    const digest=canonicalDigest({frameArtifactSetDigest:frameSet.manifestDigest,faceModelRefDigest:model.digest});
+    return {libraRunId:frameSet.libraRunId,workspaceId:frameSet.workspaceId,relativePath:'analysis/embeddings/'+digest+'.json',
+      artifactKind:'face_embedding_set',mediaType:'application/vnd.shelfdeck.face-embedding-set+json',
+      provenanceRef:{objectType:'western_face_embedding',objectId:frameSet.manifestId,revision:model.modelRevision,digest}};
+  }
+
+  function clusterRequest(embedding,parameters) {
+    const digest=canonicalDigest({embeddingDigest:embedding.embeddingDigest,clusterParameterDigest:parameters.digest});
+    return {libraRunId:embedding.libraRunId,workspaceId:embedding.workspaceId,relativePath:'analysis/clusters/'+digest+'.json',
+      artifactKind:'face_cluster_set',mediaType:'application/vnd.shelfdeck.face-cluster-set+json',
+      provenanceRef:{objectType:'western_face_cluster',objectId:embedding.artifactHandleId,revision:1,digest}};
+  }
+
+  function validateFrameBytes(bytes,source,plan) {
+    const composite=frameCompositePayload(canonicalArtifactPayload(bytes));
+    syncValidation(options.engine.validateFrameComposite({frameComposite:composite,samplingPlan:plan,sourceHandle:source}));
+    return composite;
+  }
+
+  function validateEmbeddingBytes(bytes,frameSet,framePayload,model) {
+    const payload=canonicalArtifactPayload(bytes);
+    if (payload?.schema!=='shared.face-embedding-set@1'||!Number.isSafeInteger(payload.dimension)||
+        payload.dimension<1||!Array.isArray(payload.vectors)) {
+      fail('CLEAN_WESTERN_EMBEDDING_RESULT_INVALID', 'Recovered embedding bytes are invalid.');
+    }
+    syncValidation(options.engine.validateEmbeddingSet({embeddingSet:payload,frameArtifactSet:frameSet,
+      frameComposite:framePayload,faceModelRef:model}));
+    return payload;
+  }
+
+  function validateClusterBytes(bytes,embedding,embeddingPayload,parameters) {
+    const clusters=restoreBuffaloClusterSet(canonicalArtifactPayload(bytes),{
+      sourceEmbeddingDigest:embedding.embeddingDigest,clusterParameterDigest:parameters.digest});
+    syncValidation(options.engine.validateClusters({clusters,faceEmbeddingSetHandle:embedding,
+      embeddingSet:embeddingPayload,clusterParameters:parameters}));
+    return clusters;
+  }
+
+  function inspectRecovery({capabilityRef,sourceHandle,samplingPlan,outputTarget,frameArtifactSet,faceModelRef,faceEmbeddingSetHandle,clusterParameters}) {
+    if (!framesOnly || typeof workspacePort.readCatalogueFrameRecoveryCandidate!=='function') {
+      fail('CLEAN_WESTERN_RECOVERY_PORT_UNAVAILABLE', 'Catalogue frame recovery inspection is unavailable.');
+    }
+    let request,validate;
+    if(capabilityRef==='libra.media.frames.extract@1'){
+      request=frameRequest(outputTarget);validate=bytes=>validateFrameBytes(bytes,sourceHandle,samplingPlan);
+    }else if(capabilityRef==='shared.face.embedding.compute@1'){
+      const framePayload=frameComposite(workspacePort,frameArtifactSet.frameSetArtifactHandle).payload;
+      request=embeddingRequest(frameArtifactSet,faceModelRef);validate=bytes=>validateEmbeddingBytes(bytes,frameArtifactSet,framePayload,faceModelRef);
+    }else if(capabilityRef==='shared.face.cluster.compute@1'){
+      const embeddingPayload=parsedArtifact(workspacePort,faceEmbeddingSetHandle.artifactHandle,'face_embedding_set').payload;
+      request=clusterRequest(faceEmbeddingSetHandle,clusterParameters);
+      validate=bytes=>validateClusterBytes(bytes,faceEmbeddingSetHandle,embeddingPayload,clusterParameters);
+    }else fail('CLEAN_WESTERN_RECOVERY_PORT_UNAVAILABLE', 'The requested frame recovery capability is unsupported.');
+    const candidate=workspacePort.readCatalogueFrameRecoveryCandidate(request);
+    if(candidate.kind==='present')validate(candidate.bytes);
+    return candidate.kind==='present'?{kind:'matching',digestHex:candidate.digestHex}:{kind:candidate.kind};
   }
 
   async function extractFrames(request) {
@@ -287,19 +376,12 @@ function createCleanWesternAnalysisPort(options) {
       fail('CLEAN_WESTERN_FRAME_INPUT_INVALID',
         'Frame extraction input does not match its frozen Plan target.');
     }
-    const materializeRequest = {
-      libraRunId: target.libraRunId,
-      workspaceId: target.workspaceId,
-      relativePath: target.targetRelativePath,
-      artifactKind: 'western_frame_set',
-      mediaType: 'application/vnd.shelfdeck.western-frame-set+json',
-      provenanceRef: {
-        objectType: 'western_frame_extract',
-        objectId: target.targetId,
-        revision: 1,
-        digest: target.targetDigest,
-      },
-    };
+    const materializeRequest = frameRequest(target);
+    if (framesOnly) {
+      materializeRequest.validateRecoveredBytes = bytes => validateFrameBytes(bytes,source,plan);
+      materializeRequest.validateComposite = composite => syncValidation(options.engine.validateFrameComposite({
+        frameComposite:composite,samplingPlan:plan,sourceHandle:source}));
+    }
     let materialized = workspacePort.recoverMaterializedArtifact(
       materializeRequest,
     );
@@ -325,7 +407,7 @@ function createCleanWesternAnalysisPort(options) {
       exactKeys(raw, ['frameCount'],
         'CLEAN_WESTERN_FRAME_RESULT_INVALID');
       if (!Number.isSafeInteger(raw.frameCount) ||
-          raw.frameCount < 1 || raw.frameCount > plan.maxFrames) {
+          raw.frameCount < 1 || raw.frameCount > plan.maxFrames || (framesOnly && raw.frameCount !== plan.maxFrames)) {
         fail('CLEAN_WESTERN_FRAME_RESULT_INVALID',
           'Frame extraction returned an invalid bounded composite set.');
       }
@@ -349,6 +431,7 @@ function createCleanWesternAnalysisPort(options) {
       fail('CLEAN_WESTERN_FRAME_RESULT_INVALID',
         'Recovered Frame composite does not match the frozen contract.');
     }
+    if (framesOnly) await options.engine.validateFrameComposite({frameComposite:composite, samplingPlan:plan, sourceHandle:source});
     const handle = materialized.artifactHandle;
     const membersDigest = canonicalDigest({
       schema: 'libra.western-frame-artifact-set@1',
@@ -399,28 +482,8 @@ function createCleanWesternAnalysisPort(options) {
       workspacePort,
       frameSet.frameSetArtifactHandle,
     ).payload;
-    const relativePath = 'analysis/embeddings/' +
-      canonicalDigest({
-        frameArtifactSetDigest: frameSet.manifestDigest,
-        faceModelRefDigest: model.digest,
-      }) + '.json';
-    const provenanceRef = {
-      objectType: 'western_face_embedding',
-      objectId: frameSet.manifestId,
-      revision: model.modelRevision,
-      digest: canonicalDigest({
-        frameArtifactSetDigest: frameSet.manifestDigest,
-        faceModelRefDigest: model.digest,
-      }),
-    };
-    const materializeRequest = {
-      libraRunId: frameSet.libraRunId,
-      workspaceId: frameSet.workspaceId,
-      relativePath,
-      artifactKind: 'face_embedding_set',
-      mediaType: 'application/vnd.shelfdeck.face-embedding-set+json',
-      provenanceRef,
-    };
+    const materializeRequest = embeddingRequest(frameSet,model);
+    if (framesOnly) materializeRequest.validateRecoveredBytes = bytes => validateEmbeddingBytes(bytes,frameSet,framePayload,model);
     let materialized = workspacePort.recoverMaterializedArtifact(
       materializeRequest,
     );
@@ -466,6 +529,8 @@ function createCleanWesternAnalysisPort(options) {
         member.timestampMs!==framePayload.members[ordinal].timestampMs||member.imageDigest!==framePayload.members[ordinal].contentDigest))
         fail('CLEAN_WESTERN_EMBEDDING_RESULT_INVALID','US Adult face geometry no longer matches its complete source frame composite.');
     }
+    if (framesOnly) await options.engine.validateEmbeddingSet({embeddingSet:payload, frameArtifactSet:frameSet,
+      frameComposite:framePayload, faceModelRef:model});
     if(!materialized)materialized=materialize({...materializeRequest,bytes:Buffer.from(canonicalJson(payload),'utf8')});
     const vectorCount = payload.vectors.length;
     const basis = {
@@ -502,28 +567,8 @@ function createCleanWesternAnalysisPort(options) {
       embedding.artifactHandle,
       'face_embedding_set',
     ).payload;
-    const relativePath = 'analysis/clusters/' +
-      canonicalDigest({
-        embeddingDigest: embedding.embeddingDigest,
-        clusterParameterDigest: parameters.digest,
-      }) + '.json';
-    const provenanceRef = {
-      objectType: 'western_face_cluster',
-      objectId: embedding.artifactHandleId,
-      revision: 1,
-      digest: canonicalDigest({
-        embeddingDigest: embedding.embeddingDigest,
-        clusterParameterDigest: parameters.digest,
-      }),
-    };
-    const materializeRequest = {
-      libraRunId: embedding.libraRunId,
-      workspaceId: embedding.workspaceId,
-      relativePath,
-      artifactKind: 'face_cluster_set',
-      mediaType: 'application/vnd.shelfdeck.face-cluster-set+json',
-      provenanceRef,
-    };
+    const materializeRequest = clusterRequest(embedding,parameters);
+    if (framesOnly) materializeRequest.validateRecoveredBytes = bytes => validateClusterBytes(bytes,embedding,embeddingPayload,parameters);
     let materialized = workspacePort.recoverMaterializedArtifact(
       materializeRequest,
     );
@@ -534,11 +579,12 @@ function createCleanWesternAnalysisPort(options) {
         materialized.artifactHandle,
         'face_cluster_set',
       ).payload;
-      if (payload?.schema !== 'shared.face-cluster-set@1') {
+      if (framesOnly) {
+        rawClusters = restoreBuffaloClusterSet(payload,{sourceEmbeddingDigest:embedding.embeddingDigest,clusterParameterDigest:parameters.digest});
+      } else if (payload?.schema !== 'shared.face-cluster-set@1') {
         fail('CLEAN_WESTERN_CLUSTER_RESULT_INVALID',
           'Recovered cluster set has the wrong schema.');
-      }
-      rawClusters = payload.clusters;
+      } else rawClusters = payload.clusters;
     } else {
       const raw = await options.engine.computeClusters(Object.freeze({
         faceEmbeddingSetHandle: embedding,
@@ -565,8 +611,10 @@ function createCleanWesternAnalysisPort(options) {
       fail('CLEAN_WESTERN_CLUSTER_RESULT_INVALID',
         'Cluster identities must be unique.');
     }
+    if (framesOnly) await options.engine.validateClusters({clusters, faceEmbeddingSetHandle:embedding,
+      embeddingSet:embeddingPayload, clusterParameters:parameters});
     if (!materialized) {
-      const payload = Object.freeze({
+      const payload = framesOnly ? encodeBuffaloClusterSet({clusters,sourceEmbeddingDigest:embedding.embeddingDigest,clusterParameterDigest:parameters.digest}) : Object.freeze({
         schema: 'shared.face-cluster-set@1',
         clusters: Object.freeze(clusters),
       });
@@ -933,6 +981,7 @@ function createCleanWesternAnalysisPort(options) {
     }).artifactHandle;
   }
 
+  if (framesOnly) return Object.freeze({configuration:() => configuration, computeClusters, computeEmbeddings, extractFrames, inspectRecovery});
   return Object.freeze({
     configuration: () => configuration,
     computeClusters,
@@ -948,5 +997,6 @@ function createCleanWesternAnalysisPort(options) {
 
 module.exports = Object.freeze({
   CleanWesternAnalysisPortError,
-  createCleanWesternAnalysisPort,
+  createCleanWesternAnalysisPort:options => createWesternPort(options, false),
+  createCleanWesternFramePort:options => createWesternPort(options, true),
 });

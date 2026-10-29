@@ -636,6 +636,36 @@
         "algorithm": "sha256",
         "value": "d9aa439cccbc228cb825bb8c953e0142d722b77c23b5a911a4703106600f09f7"
       }
+    },
+    {
+      "id": "FaceCatalogueObservationHandle",
+      "version": 1,
+      "owner": "contracts",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.18"
+      ],
+      "sourceLocator": {
+        "section": "8.6.18",
+        "line": 10962,
+        "lineDigest": "88fb6062e1d320a43de1893f959e893243d887800e9364a956482789009f8a85"
+      },
+      "targetLocator": {
+        "path": "types/FaceCatalogueObservationHandle/v1/schema.json"
+      },
+      "contract": {
+        "resultKind": "direct-handle-result",
+        "schemaId": "helix://contracts/types/FaceCatalogueObservationHandle/v1",
+        "schemaPath": "types/FaceCatalogueObservationHandle/v1/schema.json",
+        "producedBy": [
+          "libra.us_adult.catalogue.observe@1"
+        ],
+        "sourceSection": "8.6.18"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "c9ae6440e44b5f62454bb536a6172fa62da98f91d43c20f07ca8cb833479ec6f"
+      }
     }
   ]
 }

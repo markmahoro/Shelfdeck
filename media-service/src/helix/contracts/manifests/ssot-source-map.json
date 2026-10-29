@@ -17,27 +17,27 @@
     "8.6.19"
   ],
   "sourcePath": "docs/helix/TOP_DOWN_ARCHITECTURE_CONFIRMATION.md",
-  "sourceDocumentDigest": "c7f4fbd47945e3137a00a05cd5de8705a1dbef39b046db62406720eaf9e6849e",
+  "sourceDocumentDigest": "511a5c1d79a26eb737d2ad9c79d33f23d22b19eb276b770ee029bbf235bfcf64",
   "counts": {
-    "capabilities": 138,
-    "resultFamilies": 117,
-    "tables": 239,
-    "transactions": 62
+    "capabilities": 139,
+    "resultFamilies": 118,
+    "tables": 242,
+    "transactions": 65
   },
   "categoryDigests": {
-    "capabilities": "a37f2bbe32342ba9ea1f5ce8ebf28120577bdb66d85ba380f8deac507204e29c",
-    "resultFamilies": "413643567e8db45d80a6a9127ad5a87944546ff3cf3ebd2c0da52131ef82915a",
-    "tables": "31260accdc8a67bbebf7c4d191ee3b75a31587533848a541ceaea811133b3e4b",
-    "transactions": "9cbd98a98ba0d66709e7d724d2b71f59eac9fe7b1aea0ed47c597f548b57e89f"
+    "capabilities": "82e28d05e6907b1ea4a2eadb0f332a50b255e83e798b3f6dfa8df8acd77888f0",
+    "resultFamilies": "5bd206f89d3e528484d14b3384e56db85549f2fa0c2bcc345067d9462d918b92",
+    "tables": "044a72070678687444e4545791e3c1d1d6a23f03733ae3dbdab0ac7840e359ab",
+    "transactions": "ac156f1d68783a90295f450b586663ab550bf3f336b192cb69d426113b32cfd5"
   },
-  "aggregateDigest": "b3d6a0c4c4160a715c6a80b2baccb545dc0a262969fdb3d04430808809c3f1f2",
+  "aggregateDigest": "20557d7983819dd01d428ee928b7560008e88b9973c202e41902cb2df57bf7ad",
   "entryFiles": [
     "ssot-source-map/capabilities-001-056.json",
     "ssot-source-map/capabilities-057-112.json",
-    "ssot-source-map/capabilities-113-138.json",
+    "ssot-source-map/capabilities-113-139.json",
     "ssot-source-map/result-families-001-048.json",
     "ssot-source-map/result-families-049-096.json",
-    "ssot-source-map/result-families-097-117.json",
+    "ssot-source-map/result-families-097-118.json",
     "ssot-source-map/tables-001-013.json",
     "ssot-source-map/tables-014-026.json",
     "ssot-source-map/tables-027-039.json",
@@ -56,10 +56,10 @@
     "ssot-source-map/tables-196-208.json",
     "ssot-source-map/tables-209-221.json",
     "ssot-source-map/tables-222-234.json",
-    "ssot-source-map/tables-235-239.json",
+    "ssot-source-map/tables-235-242.json",
     "ssot-source-map/transactions-001-018.json",
     "ssot-source-map/transactions-019-036.json",
     "ssot-source-map/transactions-037-054.json",
-    "ssot-source-map/transactions-055-062.json"
+    "ssot-source-map/transactions-055-065.json"
   ]
 }

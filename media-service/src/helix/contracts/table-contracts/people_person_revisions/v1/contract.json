@@ -66,7 +66,8 @@
         "logicalType": "TEXT",
         "enumValues": [
           "direct",
-          "candidate"
+          "candidate",
+          "catalogue_auto"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -176,11 +177,9 @@
         "column": "origin_kind",
         "enumValues": [
           "direct",
-          "candidate"
+          "candidate",
+          "catalogue_auto"
         ]
-      },
-      {
-        "rule": "CHECK禁止两种来源混合"
       }
     ],
     "revisionContract": {
@@ -206,19 +205,19 @@
     "semanticRules": [
       "`PK(person_id,revision)`",
       "immutable",
-      "direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL",
-      "Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload",
-      "CHECK禁止两种来源混合",
-      "library_kind在Person head冻结且不可改变，不持久化媒体`content_scope`"
+      "direct为用户Direct Registration，Candidate为Candidate acceptance，catalogue_auto为People系统建档",
+      "三者分别保存实际Decision ID/digest，非Candidate列的Candidate引用全NULL",
+      "历史direct/candidate语义和行值保持，不能将系统决定伪装成用户",
+      "library_kind在Person head冻结且不可改变"
     ],
     "rawContract": {
-      "columns": "`person_id FK, revision, person_status(active|merged), canonical_name, merged_into_person_id NULL, origin_kind(direct|candidate), origin_decision_id, origin_decision_digest, origin_candidate_kind NULL, origin_candidate_id NULL, origin_candidate_revision NULL, origin_candidate_payload_digest NULL, fact_digest, committed_at_ms`",
-      "constraints": "`PK(person_id,revision)`；immutable；direct Registration保存完整Direct Decision ID/digest且Candidate列全NULL；Candidate acceptance保存Acceptance Decision ID/digest及精确Candidate revision/payload；CHECK禁止两种来源混合；library_kind在Person head冻结且不可改变，不持久化媒体`content_scope`"
+      "columns": "`person_id FK, revision, person_status(active|merged), canonical_name, merged_into_person_id NULL, origin_kind(direct|candidate|catalogue_auto), origin_decision_id, origin_decision_digest, origin_candidate_kind NULL, origin_candidate_id NULL, origin_candidate_revision NULL, origin_candidate_payload_digest NULL, fact_digest, committed_at_ms`",
+      "constraints": "`PK(person_id,revision)`；immutable；direct为用户Direct Registration，Candidate为Candidate acceptance，catalogue_auto为People系统建档；三者分别保存实际Decision ID/digest，非Candidate列的Candidate引用全NULL；历史direct/candidate语义和行值保持，不能将系统决定伪装成用户；library_kind在Person head冻结且不可改变"
     },
     "source": {
       "section": "8.5.13",
-      "line": 9718,
-      "lineDigest": "faa31e5a6e2d54ed8329c7dc215288659d2c6570b1ac076364c02a4f983f9a2e"
+      "line": 9751,
+      "lineDigest": "e8bb78f7d3afe7326e45a6f07e62a1997619576b728329a18fbf9659635d68e3"
     },
     "foreignKeys": [
       {

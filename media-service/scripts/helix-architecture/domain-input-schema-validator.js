@@ -98,6 +98,7 @@ function validateDomainInputSchemas(options) {
       UsAdultActorChoiceReceipt:['intentId','choiceRevision','recordDigest'],
       UsAdultActorChoiceRecord:['intentId','subjectId','recordDigest'],
       UsAdultActorChoiceDecision:['decisionId','record','decisionDigest'],
+      UsAdultCatalogueCompletedBatchSet:['schemaRef','schemaVersion','analysisId','libraRunId','basisDigest','mode','batches','setDigest'],
       UsAdultAnalysisBasis:['analysisId','libraRunId','runExecutionBasisDigest','pageSetDigest','basisDigest'],
       UsAdultPersonSnapshot:['personId','personRevision','referenceProjection','snapshotDigest'],
       PeopleReferenceLibraryPage:['libraryDigest','items','nextCursor','pageDigest'],
@@ -148,6 +149,8 @@ function validateDomainInputSchemas(options) {
         'memberSetDigest', 'memberCount', 'selectedPayloadSetDigest', 'sourceReferenceDigest'],
       MediaRequirement: ['requirementId', 'revision', 'schemaRef', 'acceptanceSpecId', 'acceptanceSpecRecordDigest', 'requirementDigest'],
       SamplingPlan: ['contractId', 'revision', 'schemaRef', 'intervalMs', 'maxFrames', 'frameProfileDigest', 'typedParameters', 'digest'],
+      FaceCatalogueGeneration:['schemaRef','schemaVersion','generationId','manifestDigest','featureSpaceDigest','members','generationDigest'],
+      UsAdultCatalogueAnalysisBasis:['schemaRef','analysisId','libraRunId','sourceHandle','sourceProbeRef','catalogueGeneration','selectionPolicy','resourceBudget','basisDigest'],
       FaceModelRef: ['contractId', 'revision', 'schemaRef', 'mode', 'modelId', 'modelRevision', 'modelDigest', 'runtimeKind',
         'inputContractDigest', 'outputContractDigest', 'licenseDigest', 'typedParameters', 'digest'],
       ClusterParameters: ['parameterSetId', 'revision', 'schemaRef', 'modelRefDigest', 'distanceMetric',
@@ -213,7 +216,7 @@ function validateDomainInputSchemas(options) {
       }
     }
     const exactBoundedContracts = new Set(['AnalysisSpec', 'ArtifactRequirement', 'ClusterParameters', 'EncodeIntent',
-      'FaceModelRef', 'MediaRequirement', 'RemuxIntent', 'SamplingPlan', 'IdentityRequirement', 'AcquisitionPolicy', 'SelectionCriteria',
+      'FaceModelRef', 'FaceCatalogueGeneration', 'MediaRequirement', 'RemuxIntent', 'SamplingPlan', 'IdentityRequirement', 'AcquisitionPolicy', 'SelectionCriteria',
       'WorkspaceDeliveryContract', 'ProductionSourceScopeReference', 'MandatoryRequirement', 'PeopleSelectedImageHandle']);
     if (schema['x-helix-role'] === 'bounded-contract' && !exactBoundedContracts.has(entry.id) && !(schema.required || []).includes('typedParameters')) findings.push(finding(
       'UNBOUNDED_INTENT_PARAMETERS', 'Bounded intent/requirement contracts require typedParameters.', { entryId: entry.id }
@@ -225,7 +228,7 @@ function validateDomainInputSchemas(options) {
   for (const name of usages.keys()) {
     if (!ids.has(name)) findings.push(finding('MISSING_DOMAIN_INPUT_TYPE', 'Catalog input reference has no schema.', { entryId: name }));
   }
-  const facadeOnlyTypes = new Set(['UsAdultActorRefreshIntent','UsAdultInventoryPresentation','UsAdultRecommendationConfirmation','UsAdultRecommendationPageQuery','UsAdultRecommendationSource','UsAdultRecommendationSourcePage','UsAdultActorSelectionBasis','UsAdultMatchCompletion','UsAdultActorChoiceReceipt','UsAdultActorChoiceRecord','UsAdultActorChoiceDecision','UsAdultAnalysisBasis','UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
+  const facadeOnlyTypes = new Set(['UsAdultCatalogueAnalysisBasis','UsAdultActorRefreshIntent','UsAdultInventoryPresentation','UsAdultRecommendationConfirmation','UsAdultRecommendationPageQuery','UsAdultRecommendationSource','UsAdultRecommendationSourcePage','UsAdultActorSelectionBasis','UsAdultMatchCompletion','UsAdultActorChoiceReceipt','UsAdultActorChoiceRecord','UsAdultActorChoiceDecision','UsAdultAnalysisBasis','UsAdultPersonSnapshot','PeopleReferenceLibraryPage','DirectPersonRegistrationDecision','PeopleProfileUpdateDecision','PerceptionAcquisitionResumeDecision', 'CandidateDeliveryQuery', 'CandidateDeliveryReadResult',
     'SeriesPresentationManifest', 'ResolvedProviderIdentity', 'ProductStructureSnapshot', 'ProductConformanceFactSnapshot', 'ProductionMaterialManifest',
     'ArtifactManifest', 'ArtifactConformanceVerificationSnapshot', 'ProductInventoryConformanceSnapshot',
     'WorkspaceArtifactOutputTarget', 'ShelfAcceptancePrimaryReadSet',

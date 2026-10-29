@@ -1799,6 +1799,93 @@
         "algorithm": "sha256",
         "value": "efdd4f7257edc12efe6cbb78d4f639e636c8f286fef36920a2479ea0a0836f8f"
       }
+    },
+    {
+      "id": "helix.transaction.us-adult-catalogue-basis-freeze",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.5.4",
+        "8.5.5",
+        "8.9.7"
+      ],
+      "sourceLocator": {
+        "section": "8.5.4",
+        "line": 8858,
+        "lineDigest": "ef8d0f417a957894d2b1e80f1a7035e1dc635f45e2b686fb0604fdcf114f090b"
+      },
+      "targetLocator": {
+        "path": "transaction-contracts/helix.transaction.us-adult-catalogue-basis-freeze/v1/contract.json"
+      },
+      "contract": {
+        "transactionId": "helix.transaction.us-adult-catalogue-basis-freeze",
+        "ownerScope": "libra",
+        "contractRef": "helix://contracts/transactions/helix.transaction.us-adult-catalogue-basis-freeze/v1",
+        "contractDigest": "a7cc9ac52d2a431c63bd576afe412114285b7d67f3b74f709950a9e8dd98b868"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "1efbde4a9381bc6cce8a1cc318ca47d3bf0353afd33106cd54175e6a9566b22c"
+      }
+    },
+    {
+      "id": "helix.transaction.us-adult-catalogue-actor-decision",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.5.4",
+        "8.5.5",
+        "8.9.7"
+      ],
+      "sourceLocator": {
+        "section": "8.5.4",
+        "line": 8859,
+        "lineDigest": "d8cf4e4bdc4a497f5a017e3cbd394335181720b29d18ebe17da492135d34f8a4"
+      },
+      "targetLocator": {
+        "path": "transaction-contracts/helix.transaction.us-adult-catalogue-actor-decision/v1/contract.json"
+      },
+      "contract": {
+        "transactionId": "helix.transaction.us-adult-catalogue-actor-decision",
+        "ownerScope": "libra",
+        "contractRef": "helix://contracts/transactions/helix.transaction.us-adult-catalogue-actor-decision/v1",
+        "contractDigest": "ad1b4ef983cda1f63b623a805d4889acdecc98d14595ddd05a743ff7f3478940"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "b884378bbe5d1466721335f64537872176c9815be3fc46f70808fed952fd3392"
+      }
+    },
+    {
+      "id": "helix.transaction.people-catalogue-registration",
+      "version": 1,
+      "owner": "people",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.5.4",
+        "8.5.5",
+        "8.9.7"
+      ],
+      "sourceLocator": {
+        "section": "8.5.4",
+        "line": 8860,
+        "lineDigest": "2f2908cebafcb8c116fb470fa776e095b4534e9367c42996a8d5491a69f39f9c"
+      },
+      "targetLocator": {
+        "path": "transaction-contracts/helix.transaction.people-catalogue-registration/v1/contract.json"
+      },
+      "contract": {
+        "transactionId": "helix.transaction.people-catalogue-registration",
+        "ownerScope": "people",
+        "contractRef": "helix://contracts/transactions/helix.transaction.people-catalogue-registration/v1",
+        "contractDigest": "2d33239fd946a4d01c0b1b43793c4252478ae231ff2732f9a5081a9a3e1dd9da"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "6b3e56d69b168812e45922bbfb60103b92e4352d57dfa47bc50268ddd0d5e51c"
+      }
     }
   ]
 }

@@ -51,9 +51,15 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
   children('libra_product_packages', 'on_deck_package_id', ['libra_delivery_receipts', 'libra_product_package_artifact_refs',
     'libra_product_package_fact_refs', 'libra_product_package_materials', 'libra_product_package_material_episode_claims',
     'libra_offload_context_materials']);
+  // Only a retained Cast fact may keep its exact directory decision. A Run
+  // alone must not retain unrelated auto-decisions from discarded attempts.
+  edge('libra_product_fact_revisions','libra_us_adult_catalogue_actor_decisions',
+    [['source_basis_id','decision_id']]);
+  edge('libra_us_adult_catalogue_actor_decisions','fx_event_result_bindings',
+    [['observation_result_id','result_id']],undefined,true);
   children('libra_runs', 'libra_run_id', ['libra_run_revisions', 'libra_run_outcomes', 'libra_product_fact_revisions',
     'libra_product_identity_selection_intents', 'libra_acquisition_candidate_evidence', 'libra_us_adult_analysis_bases',
-    'libra_us_adult_match_completions', 'libra_workspaces']);
+    'libra_us_adult_match_completions', 'libra_us_adult_catalogue_bases', 'libra_workspaces']);
   children('libra_run_material_manifests', 'run_material_manifest_id', ['libra_run_material_members', 'libra_run_material_episode_claims']);
   children('libra_product_fact_revisions', 'product_fact_id', ['libra_product_fact_source_refs']);
   // Run's exact immutable mapping FK selects only its confirmation and Review.
@@ -71,13 +77,19 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
   edge('libra_workspaces', 'fx_workspace_registry', [['workspace_id', 'workspace_id']],
     { owner_domain: 'libra', process_type: 'libra_run' });
 
+  if (byName.has('arca_offer_withdrawal_receipts'))
+    edge('arca_offer_withdrawal_receipts', 'fx_command_receipts', [['offer_id', 'target_id']],
+      { owner_domain: 'arca', target_type: 'handoff_b_offer', command_contract: 'arca.offer-withdrawal@1' }, true);
+
   children('proc_candidate_packages', 'candidate_package_id', ['proc_candidate_primary_materials',
     'proc_candidate_primary_material_episode_claims', 'proc_candidate_related_references', 'proc_candidate_season_continuity_claims',
     'proc_run_materials']);
   edge('libra_handoff_a_receipts', 'proc_candidate_deliveries', [['offer_id', 'offer_id']]);
 
   children('people_persons', 'person_id', ['people_aliases', 'people_person_revisions', 'people_preference_revisions',
-    'people_provider_identities', 'people_reference_assets', 'people_reference_faces', 'people_reference_revisions', 'people_image_operations']);
+    'people_provider_identities', 'people_reference_assets', 'people_reference_faces', 'people_reference_revisions', 'people_image_operations',
+    'people_us_adult_catalogue_registration_origins']);
+  edge('people_us_adult_catalogue_registration_origins','people_image_operations', [['operation_id','operation_id']],undefined,true);
 
   // Technical execution is retained only for exact business processes and
   // source evidence selected by the Owners above, never by a global time range.
@@ -91,7 +103,15 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
     ['arca_offdeck_cases', 'offdeck_case_id', 'arca', 'arca_offdeck_case'],
     ['proc_procurement_runs', 'procurement_run_id', 'procurement', 'procurement_run'],
     ['arca_series_presentation_builds', 'build_id', 'arca', 'arca_series_presentation'],
-  ]) edge(parent, 'fx_supporting_works', [[id, 'process_id']], { owner_domain: owner, process_type: processType });
+  ]) {
+    if (parent === 'libra_runs') {
+      // A retained Run is historical provenance, not authority to resume an
+      // unfinished Work in the fresh generation. Exact fact FKs may still
+      // select a Work; normalization separately checks its execution state.
+      for (const state of ['succeeded', 'failed', 'cancelled'])
+        edge(parent, 'fx_supporting_works', [[id, 'process_id']], { owner_domain: owner, process_type: processType, state });
+    } else edge(parent, 'fx_supporting_works', [[id, 'process_id']], { owner_domain: owner, process_type: processType });
+  }
   // Retained collection maintenance still owns its workspace. Its active files
   // must be excluded from the Operator's temporary cleanup inventory.
   for (const [parent, id, processType] of [
@@ -190,7 +210,16 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
       seeds.push({ owner: 'execution-foundation', table: 'fx_event_result_bindings', key: { result_id: row.resultId } });
     }
   }
-  const policy = { tables, edges, seeds, ...(seriesRetention ? { seriesRetentionDigest: seriesRetention.digest } : {}),
+  const customTargetTables=['libra_custom_target_intents','libra_custom_target_previews'];
+  const customTargetClosure=customTargetTables.every(name=>byName.has(name))
+    ? {schemaRef:'libra.fresh-reset-custom-target-closure@1',owner:'libra'} : null;
+  if(customTargetTables.some(name=>byName.has(name))&&!customTargetClosure)
+    throw Object.assign(new Error('Custom target retention schema is incomplete.'), {code:'RESET_RETENTION_SCHEMA_UNREVIEWED'});
+  const withdrawalClosure=byName.has('arca_offer_withdrawal_receipts')
+    ? {schemaRef:'arca.fresh-reset-offer-withdrawal-closure@1',owner:'arca'} : null;
+  const policy = { tables, edges, seeds, ...(customTargetClosure ? {customTargetClosure} : {}),
+    ...(withdrawalClosure ? {withdrawalClosure} : {}),
+    ...(seriesRetention ? { seriesRetentionDigest: seriesRetention.digest } : {}),
     ...(metadataRetention ? { metadataRetentionDigest: metadataRetention.digest } : {}) };
   return Object.freeze({ ...policy, policyDigest: canonicalDigest(policy) });
 }

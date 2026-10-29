@@ -1,0 +1,172 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_us_adult_catalogue_actor_decisions/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_us_adult_catalogue_actor_decisions",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "decision_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "decision_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "decision_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "decision_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "observation_result_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "decision_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "libra_run_id",
+      "subject_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "libra_run_id",
+        "decision_digest"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "decision_json",
+        "schemaRefColumn": "decision_schema_ref",
+        "maxBytes": 262144,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "Libra-owned immutable目录演员决定，`UNIQUE(libra_run_id,decision_digest)`"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Libra-owned immutable目录演员决定，`UNIQUE(libra_run_id,decision_digest)`",
+      "JSON固定UsAdultCatalogueActorDecision且≤`256 KiB`",
+      "同Run人工Choice优先",
+      "已入藏Cast只保留精确决定及其Observation Result闭包，未入藏决定随Fresh-generation Reset离线归档后清除"
+    ],
+    "rawContract": {
+      "columns": "`decision_id PK, libra_run_id FK, subject_id FK, decision_schema_ref, decision_json, decision_digest, observation_result_id, created_at_ms`",
+      "constraints": "Libra-owned immutable目录演员决定，`UNIQUE(libra_run_id,decision_digest)`；JSON固定UsAdultCatalogueActorDecision且≤`256 KiB`；同Run人工Choice优先；已入藏Cast只保留精确决定及其Observation Result闭包，未入藏决定随Fresh-generation Reset离线归档后清除"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9620,
+      "lineDigest": "3f6fede3f08655bf4f3eb44cf3b8f10eb8388348dc76762aac09d9fcd547433e"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "libra_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

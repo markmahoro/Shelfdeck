@@ -1,6 +1,6 @@
 {
   "schemaRef": "formation-reset-owner-retention@1",
-  "schemaDigest": "906ecacce4d6de62e875d1293cec93dd198564c1c53e2f7f7979d75b2eac2d0a",
+  "schemaDigest": "572bd48d999c83c86ffd5c2ccc496e7177b14df2edfd09ebcffadf56e2706cb9",
   "tables": [
     {
       "table": "arca_acceptance_attempts",
@@ -838,6 +838,16 @@
       "disposition": "dependent"
     },
     {
+      "table": "libra_us_adult_catalogue_actor_decisions",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_us_adult_catalogue_bases",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
       "table": "libra_us_adult_match_completions",
       "owner": "libra",
       "disposition": "dependent"
@@ -949,6 +959,11 @@
     },
     {
       "table": "people_registration_candidates",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_us_adult_catalogue_registration_origins",
       "owner": "people",
       "disposition": "dependent"
     },

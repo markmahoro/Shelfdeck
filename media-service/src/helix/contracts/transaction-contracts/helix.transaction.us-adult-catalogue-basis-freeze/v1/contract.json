@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.us-adult-catalogue-basis-freeze/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.us-adult-catalogue-basis-freeze",
+    "displayName": "US Adult Catalogue Basis Freeze",
+    "ownerScope": "libra",
+    "commitClass": "domain_unit_of_work",
+    "atomicFactSet": "Libra在唯一Primary的正式Probe成功后，按current active Run/state revision/execution basis、正式resolved_identity及active同Run Workspace原子冻结UsAdultCatalogueAnalysisBasis；只写libra_us_adult_catalogue_bases，不预读/冻结People库；同Run相同完整Basis重放，不同来源/模型/目录/策略拒绝，插入中断全回滚；历史读取/幂等重放不授予执行资格，执行读取须重核active Run、相同execution basis/身份及active Workspace，单纯priority revision变化不重写Basis；不创建Event/Effect/Outbox，不写People/Arca",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "libra",
+        "access": "write",
+        "tables": [
+          "libra_us_adult_catalogue_bases"
+        ]
+      }
+    ],
+    "writeTables": [
+      "libra_us_adult_catalogue_bases"
+    ],
+    "readTables": [
+      "libra_runs",
+      "libra_product_fact_revisions",
+      "libra_workspaces"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": false,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "us-adult-catalogue-store",
+        "faultInjectionPoints": "active Run/state/execution basis, identity and Workspace fences; Basis insert; before and after COMMIT; concurrent freeze and delayed execution reads",
+        "requiredInvariant": "Exactly one complete immutable catalogue Basis; injected failure rolls back; immutable replay is separate from live execution authority; no People or execution writes",
+        "source": {
+          "section": "8.9.7",
+          "line": 12698
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8858,
+      "lineDigest": "ef8d0f417a957894d2b1e80f1a7035e1dc635f45e2b686fb0604fdcf114f090b"
+    }
+  }
+}

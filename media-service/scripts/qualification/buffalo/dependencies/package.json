@@ -1,0 +1,10 @@
+{
+  "name": "shelfdeck-buffalo-qualification-dependencies",
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "usearch": "2.25.3"
+  }
+}

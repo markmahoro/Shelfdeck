@@ -2,6 +2,7 @@
 const {canonicalDigest, canonicalJson} = require('../../../contracts/canonical-json');
 const {executionCatalogDigest} = require('../../../foundation/execution/workflow-plan');
 const {FRAME, EMBED, CLUSTER, MATCH, resultRef, frameWork, matchWork, exactResult} = require('../model/us-adult-analysis-work');
+const {buildWorkspaceFrameTarget}=require('../model/workspace-frame-target');
 const PREFIX = 'helix://libra/input-projections/UsAdultAnalysis';
 const PROJECTIONS = Object.freeze({source:PREFIX + 'Source/v1', sampling:PREFIX + 'Sampling/v1', target:PREFIX + 'FrameTarget/v1',
   model:PREFIX + 'Model/v1', cluster:PREFIX + 'Clustering/v1', frameList:PREFIX + 'FrameList/v1', clusters:PREFIX + 'Clusters/v1', references:PREFIX + 'References/v1'});
@@ -10,21 +11,11 @@ function owner(portName, request, projectionRef, parameters) {
   return {portName, bindingKind:'projected_owner_facts', ownerDomain:'libra', processType:'libra_run', processId:request.processId,
     projectionRef, parameters};
 }
-function frameTarget(options, basis) {
-  const workspace = options.movieProductionReader.readWorkspace(basis.workspaceId), rootSnapshot = options.workspaceProductPort.rootSnapshot();
-  if (!workspace || workspace.state !== 'active' || workspace.libraRunId !== basis.libraRunId) throw new Error('US Adult frame target requires its active Run Workspace.');
-  const targetRelativePath = 'analysis/frames/' + basis.analysisId + '.json', outputKind = 'frame_set',
-    sourceInputDigest = canonicalDigest({sourceHandle:basis.sourceHandle, samplingPlan:basis.samplingPlan}),
-    targetId = canonicalDigest({schema:'libra.workspace-artifact-output-target-id@1', workspaceId:basis.workspaceId, targetRelativePath, outputKind, sourceInputDigest}),
-    value = {targetId, libraRunId:basis.libraRunId, executionBasisDigest:basis.runExecutionBasisDigest, workspaceId:basis.workspaceId,
-      expectedWorkspaceRevision:workspace.currentRevision, expectedWorkspaceStateDigest:workspace.stateDigest, rootSnapshot,
-      workspaceScopeDigest:workspace.workspaceScopeDigest, targetRelativePath, outputKind, sourceInputDigest};
-  const effectScopeDigest = canonicalDigest({schema:'libra.workspace-artifact-output-effect-scope@1', targetId, libraRunId:value.libraRunId,
-    executionBasisDigest:value.executionBasisDigest, workspaceId:value.workspaceId, expectedWorkspaceRevision:value.expectedWorkspaceRevision,
-    expectedWorkspaceStateDigest:value.expectedWorkspaceStateDigest, rootSnapshotDigest:rootSnapshot.snapshotDigest,
-    workspaceScopeDigest:value.workspaceScopeDigest, outputKind, sourceInputDigest});
-  const target = {...value, effectScopeDigest}; return Object.freeze({...target, targetDigest:canonicalDigest(target)});
+function frameTarget(options,basis,parameters={}) {
+  return buildWorkspaceFrameTarget({basis,workspace:options.movieProductionReader.readWorkspace(basis.workspaceId),
+    rootSnapshot:options.workspaceProductPort.rootSnapshot(),...parameters});
 }
+
 function readBasis(options, scope, parameters) {
   const basis = options.usAdultAnalysisStore.getByRun(scope.processId), snapshot = options.movieProductionReader.readRunSnapshot(scope.processId);
   if (!basis || !snapshot || scope.ownerDomain !== 'libra' || scope.processType !== 'libra_run' ||

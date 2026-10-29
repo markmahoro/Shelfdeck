@@ -34,7 +34,7 @@ function createPeopleImagePreparationPlanner(options) {
       const value = options.context(request.processId).operation;
       if (value.payloadDigest !== request.executionBasisDigest) throw Object.assign(new Error('People image operation basis changed.'), { code: 'PEOPLE_IMAGE_OPERATION_STALE' });
       const importEvent = stable('people-image-import-', request.workAttemptId), embedEvent = stable('people-image-embedding-', request.workAttemptId);
-      const release=value.payload.operationKind==='reference_release',commitEvent=stable('people-reference-commit-',request.workAttemptId),commitNodes=value.payload.operationKind!=='registration'?
+      const release=value.payload.operationKind==='reference_release',commitEvent=stable('people-reference-commit-',request.workAttemptId),commitNodes=!['registration','catalogue_registration'].includes(value.payload.operationKind)?
         [node(request,COMMIT,commitEvent,'commit',[owner('peopleReferenceMaintenanceDecision',request,PROJECTIONS.decision),
           owner('domainFactCommitHandle',request,PROJECTIONS.handle,{commitEventId:commitEvent})],release?[]:[{eventId:embedEvent,satisfaction:'success'}])]:[];
       return Object.freeze({ schemaRef: 'helix://foundation/types/WorkflowPlanDefinition/v1', schemaVersion: 1,

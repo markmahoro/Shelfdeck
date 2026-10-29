@@ -10,9 +10,9 @@ const { readTableSourceEntries } = require('../../scripts/helix-architecture/tab
 const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
 const contracts = buildTableContracts(readTableSourceEntries(contractsRoot));
 
-test('builds all 239 sole-Owner table contracts with accepted owner counts', () => {
-  assert.equal(contracts.length, 239);
-  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 239);
+test('builds all 242 sole-Owner table contracts with accepted owner counts', () => {
+  assert.equal(contracts.length, 242);
+  assert.equal(new Set(contracts.map((contract) => contract.tableId)).size, 242);
   const counts = Object.fromEntries([...new Set(contracts.map((contract) => contract.owner))].map((owner) => [
     owner, contracts.filter((contract) => contract.owner === owner).length
   ]));
