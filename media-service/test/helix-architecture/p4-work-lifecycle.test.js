@@ -55,7 +55,7 @@ async function fixture(run) {
     return createWorkLifecycle({ schemaManifest, unitOfWork: createSqliteUnitOfWork({ kernel }),
       nextWorkAttemptId: () => 'attempt-' + (++ids) });
   };
-  try { return await run({ lifecycle, databasePath, restart }); }
+  try { return await run({ lifecycle, unitOfWork, databasePath, restart }); }
   finally { kernel.close(); fs.rmSync(root, { recursive: true, force: true }); }
 }
 
@@ -182,6 +182,22 @@ test('activation creates one ready Work Attempt and replay never replans under a
     objectId:'run-1', revision:1, digest:'b'.repeat(64) }]);
   assert.deepEqual(read(databasePath, 'SELECT state FROM fx_supporting_works WHERE work_id=?', 'work-1'), { state: 'ready' });
   assert.deepEqual(read(databasePath, 'SELECT COUNT(*) count FROM fx_work_attempts WHERE work_id=?', 'work-1'), { count: 1 });
+}));
+
+test('planning and its replay reject a stale Owner read fence without creating another Attempt',()=>fixture(({lifecycle,unitOfWork,databasePath})=>{
+  function changeOwnerView(){const database=new Database(databasePath);try{
+    database.prepare('UPDATE fx_supporting_works SET updated_at_ms=updated_at_ms+1 WHERE work_id=?').run('work-1');
+  }finally{database.close();}}
+  const stale=unitOfWork.captureReadFence();changeOwnerView();
+  assert.throws(()=>lifecycle.ensurePlanningAttempt('work-1',{readFence:stale}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.equal(read(databasePath,'SELECT count(*) n FROM fx_work_attempts').n,0);
+  assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works').state,'admitted');
+  const fresh=unitOfWork.captureReadFence(),attempt=lifecycle.ensurePlanningAttempt('work-1',{readFence:fresh});
+  assert.equal(attempt.replayed,false);
+  const staleReplay=unitOfWork.captureReadFence();changeOwnerView();
+  assert.throws(()=>lifecycle.ensurePlanningAttempt('work-1',{readFence:staleReplay}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.equal(read(databasePath,'SELECT count(*) n FROM fx_work_attempts').n,1);
+  assert.equal(read(databasePath,'SELECT state FROM fx_supporting_works').state,'ready');
 }));
 
 test('terminal Event aggregation closes only Work Attempt until Domain Owner settles Work', () => fixture(({ lifecycle, databasePath }) => {

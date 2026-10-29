@@ -430,6 +430,31 @@ test('target currency and completed drain can be checked under the same opaque r
   assert.throws(()=>reader.read(replacement.libraRunId,{readFence:readiness.readFence}),{code:'P3_UOW_READ_FENCE_CHANGED'});
 }));
 
+test('old Work cannot start a planning Attempt when target confirmation invalidates its Owner view',()=>runHarness(h=>{
+  const {createCurrentRunTargetReader}=require('../../src/helix/domains/libra/application/current-run-target-reader');
+  const old=h.chosen.intent.basis.libraRunId,head=h.db.prepare('SELECT * FROM libra_custom_target_heads').get(),
+    run=h.db.prepare('SELECT execution_basis_digest FROM libra_runs WHERE libra_run_id=?').get(old);
+  h.db.prepare('DELETE FROM libra_custom_target_heads').run();
+  h.db.prepare("UPDATE libra_runs SET state='active' WHERE libra_run_id=?").run(old);
+  const reader=createCurrentRunTargetReader(h.options),work={schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,
+    workId:'planned-old-work',ownerDomain:'libra',processType:'libra_run',processId:old,workKind:'product_gap',
+    workObjectiveTypeRef:'helix://libra/work/ProductGap/v1',workObjectiveVersion:1,executionBasisId:'old-basis',
+    executionBasisDigest:run.execution_basis_digest,dependencyRefs:[],priorityClass:'normal_foreground',priorityRevision:1,
+    capabilityCatalogScope:'libra',workspaceMaterialScope:[],idempotencyKey:'planned-old-key',concurrencyScope:old+'/product',
+    outputContractRef:'helix://libra/results/ProductGap/v1'},admission=require('../../src/helix/foundation/execution/work-admission')
+      .createWorkAdmission({...h.options,eligibilityProvider:{check:request=>({eligible:true,basisDigest:request.executionBasisDigest})},
+        limits:{globalOpenWorks:100,ownerOpenWorks:100,openEvents:100}});
+  assert.equal(admission.submit(work,{readFence:reader.read(old).readFence}).kind,'admitted');
+  const planningView=reader.read(old);assert.equal(planningView.kind,'target_current');
+  h.db.prepare('INSERT INTO libra_custom_target_heads(subject_id,product_scope_digest,current_revision,intent_id,record_digest) VALUES(?,?,?,?,?)')
+    .run(head.subject_id,head.product_scope_digest,head.current_revision,head.intent_id,head.record_digest);
+  const lifecycle=createWorkLifecycle({...h.options,nextWorkAttemptId:()=> 'planned-old-attempt'});
+  assert.throws(()=>lifecycle.ensurePlanningAttempt(work.workId,{readFence:planningView.readFence}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.equal(h.db.prepare('SELECT state FROM fx_supporting_works WHERE work_id=?').get(work.workId).state,'admitted');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM fx_work_attempts WHERE work_id=?').get(work.workId).n,0);
+  assert.equal(reader.read(old).kind,'target_not_current');
+}));
+
 test('target currency reader rejects corrupted Run and Spec identity rather than authorizing dispatch',()=>runHarness(h=>{
   const {createCurrentRunTargetReader}=require('../../src/helix/domains/libra/application/current-run-target-reader');
   const replacement=h.advance(h.unitOfWork.captureReadFence()),reader=createCurrentRunTargetReader(h.options),

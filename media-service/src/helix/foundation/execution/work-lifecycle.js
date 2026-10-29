@@ -130,14 +130,14 @@ function createWorkLifecycle(options) {
     fail('P4_WORK_LIFECYCLE_DEPENDENCIES_REQUIRED', 'Work lifecycle requires scoped persistence and a Work Attempt identity source.');
   }
   const repositories = definitions(options.schemaManifest);
-  const execute = (participantId, body) => options.unitOfWork.execute([{
+  const execute = (participantId, body, {readFence=null}={}) => options.unitOfWork.execute([{
     participantId,
     owner: 'execution-foundation',
     repositories: Object.values(repositories),
     execute: body,
-  }])[participantId];
+  }],{readFence})[participantId];
 
-  function ensurePlanningAttempt(workId) {
+  function ensurePlanningAttempt(workId, {readFence=null}={}) {
     return execute('work_lifecycle_ensure_attempt', (context) => {
       const works = context.repository('work_lifecycle_works');
       const attempts = context.repository('work_lifecycle_attempts');
@@ -171,7 +171,7 @@ function createWorkLifecycle(options) {
         attempt_id: attemptId, work_id: workId, ordinal, basis_digest: work.basis_digest, state: 'ready',
         started_at_ms: null, finished_at_ms: null, failure_code: null,
       }), replayed: false });
-    });
+    },{readFence});
   }
 
   function startPlanned(workId, attemptId, diagnosticClassification = null) {

@@ -119,3 +119,9 @@ Windows 和隔离 Linux Docker 运行 Replacement Admission、Work Admission、W
 合成测试覆盖已入藏与未入藏、同 Subject 两个已入藏版本及一个未入藏版本、无关历史即使损坏也不扩大选取、缺失原标准/Intent/Preview、篡改完整记录/版本/引用、Package 与 Run 不一致、候选库依赖损坏，以及 `database_copied` / `owners_normalized` 检查点中断后从冻结来源重试。实际模型记录用于校验，收藏及部分 Run/Package 行是受控关系夹具，不是实际媒体接纳旅程。Windows 与隔离 Linux Docker 的六个相关文件各 **64 PASS / 0 skip**；额外 48 MiB 内存测试 Windows **2 PASS**。仅在测试进程内模拟四项表分类后，People、共享 metadata 和维护 Workspace 三文件 Windows/Linux 各 **16 PASS / 0 skip**。包边界与禁止语义无新增 finding，原有全局 2 + 1 finding 保留。
 
 直接扩展运行另含既有 `formation-reset-schema.test.js` 时两平台各 **61 PASS / 4 FAIL**，四项均先被当前 239/243 schema 声明不一致挡住；仅模拟表分类后该组为 **17 PASS / 3 FAIL**，三项仍因旧来源 schema transition 未获当前目标审核而拒绝。不得修改声明或放宽 schema/FK 来掩盖；主整合须审核实际完整表集合及来源迁移合同后重新运行真实版本的 Reset 门禁。本轮没有运行生产 Reset、读取或修改 NAS，也没有证明实际收藏/生产验收。
+
+## Work 规划 Attempt 的原子读取围栏（2026-10-29）
+
+Foundation 的 `ensurePlanningAttempt` 增加可选 opaque read fence，由创建或重用 planning Attempt 的同一 Unit of Work 验证；与已提交命令回执重放不同，重用 ready Attempt 后仍会继续规划，因此陈旧读取不能绕过围栏。新增测试先复现原实现忽略 fence；修复后包括精确 Libra 目标 Head 在读取后变化、原 Work 已准入但新 Attempt 尚未创建、已存在 Attempt 的陈旧重用，均在事务前拒绝且不新增 Attempt。使用受控 SQLite 状态变化，旧 Work 保持原状态供正式取消入口处理。
+
+Windows 和隔离 Linux Docker 的 Work Lifecycle、Work Admission、Replacement Admission、Arca Withdrawal 四文件各 **76 PASS / 0 skip**。该原语尚未接入 Runtime Host，也未覆盖 Plan Publication、Workspace、Event Attempt 及实际 Scheduler 的全部准入；目前仍不能称为全局调度屏障或启用用户自定义目标。
