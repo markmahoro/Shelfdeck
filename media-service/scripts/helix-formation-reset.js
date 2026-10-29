@@ -461,12 +461,24 @@ function discoverScope(database, options = {}) {
       .map((row) => row.origin_intake_decision_id).filter(Boolean)
     : [];
   intakeDecisionIds.push(...runOriginIntakeDecisionIds, ...pipelineSourceProcessIds);
-  const finalIntakeDecisionIds = unique(intakeDecisionIds);
+  // Retained subjects keep their collection identity: the founding Intake that is the
+  // Subject routing anchor must not be deleted when uncommitted Runs/tokens merely
+  // reference it. Season-extension and disposable-subject Intakes stay clearable.
+  const retainedSubjectIds = resetSubjectIds.filter((id) => !disposableSubjectIds.includes(id));
+  const preservedRoutingAnchorIntakeIds = unique(retainedSubjectIds.length
+    ? rowsByIds(database, 'SELECT routing_anchor_intake_decision_id FROM libra_subjects WHERE subject_id IN',
+      retainedSubjectIds).map((row) => row.routing_anchor_intake_decision_id).filter(Boolean)
+    : []);
+  const preservedRoutingAnchorIntakeIdSet = new Set(preservedRoutingAnchorIntakeIds);
+  const finalIntakeDecisionIds = unique(intakeDecisionIds)
+    .filter((id) => !preservedRoutingAnchorIntakeIdSet.has(id));
+  const clearablePipelineSourceProcessIds = pipelineSourceProcessIds
+    .filter((id) => !preservedRoutingAnchorIntakeIdSet.has(id));
   const scopedHandoffAOfferIds = unique([
     ...rowsByIds(database, 'SELECT offer_id FROM libra_intake_decisions WHERE intake_decision_id IN', finalIntakeDecisionIds)
       .map((row) => row.offer_id).filter(Boolean),
     ...rowsByIds(database, `SELECT offer_id FROM proc_candidate_deliveries WHERE handoff_decision_id IN`,
-      pipelineSourceProcessIds, "AND state IN ('accepted','rejected')")
+      clearablePipelineSourceProcessIds, "AND state IN ('accepted','rejected')")
       .map((row) => row.offer_id).filter(Boolean),
   ]);
   const discoveredReverseClosures=discoverReverseHandoffAClosures(database);
@@ -545,7 +557,6 @@ function discoverScope(database, options = {}) {
     ...ownedArtifacts.map((row) => row.artifact_handle_id),
     ...orphanOwnedArtifacts.map((row) => row.artifact_handle_id),
   ]);
-  const retainedSubjectIds = resetSubjectIds.filter((id) => !disposableSubjectIds.includes(id));
   const runMaterialKeys = rowsByIds(database,
     'SELECT material_key FROM libra_run_material_members WHERE run_material_manifest_id IN', runManifestIds)
     .map((row) => row.material_key);
@@ -616,6 +627,7 @@ function discoverScope(database, options = {}) {
     orphanPipelineTokens:Object.freeze(orphanPipelineTokens.map((row) => Object.freeze({ ...row }))),
     orphanPipelineSourceProcessIds:Object.freeze(orphanPipelineSourceProcessIds),
     pipelineSourceProcessIds:Object.freeze(pipelineSourceProcessIds),
+    preservedRoutingAnchorIntakeIds:Object.freeze(preservedRoutingAnchorIntakeIds),
     orphanPipelineAdmissionReceipts:Object.freeze(orphanPipelineAdmissionReceipts.map((row) => Object.freeze({ ...row }))),
     orphanPipelineAdmissionReceiptIds:Object.freeze(orphanPipelineAdmissionReceiptIds),
     orphanPipelineAdmissionTargetIds:Object.freeze(orphanPipelineAdmissionTargetIds),
@@ -725,6 +737,8 @@ function inspectBlockers(database, scope) {
     runIds: scope.runIds.filter((id) => scope.committed.runIds.includes(id)),
   };
   if (Object.values(protectedOverlap).some((items) => items.length)) blockers.push({ code:'COMMITTED_SCOPE_OVERLAP', ...protectedOverlap });
+  // Safety net: discoverScope already excludes retained Subjects' routing-anchor
+  // Intakes from intakeDecisionIds. If one remains, deletion would orphan identity.
   const retainedSubjectIds = scope.resetSubjectIds.filter((id) => !scope.disposableSubjectIds.includes(id));
   const unsafeRetainedAnchors = rowsByIds(database,
     'SELECT subject_id,routing_anchor_intake_decision_id FROM libra_subjects WHERE subject_id IN', retainedSubjectIds)
@@ -777,6 +791,7 @@ function inspectPlan(database, options = {}) {
     orphanPipelineAdmissionReceipts:scope.orphanPipelineAdmissionReceiptIds.length,
     phantomLibraAdmissionReceipts:scope.phantomLibraAdmissionReceiptIds.length,
     preservedProcurementControls:preservedProcurementControls.length,
+    preservedRoutingAnchorIntakes:scope.preservedRoutingAnchorIntakeIds.length,
     procurementHandoffAClosures:scope.handoffAOfferIds.length,
     orphanProcurementHandoffAClosures:scope.orphanProcurementHandoffAClosures.length,
     preservedCommittedHandoffAClosures:scope.preservedCommittedHandoffAClosures.length,

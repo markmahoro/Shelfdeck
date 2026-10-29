@@ -71,6 +71,11 @@ Control误判成阻塞，也不得删除Procurement事实；Control只追加释�
 不同类型ID合并成无类型集合。Postcondition必须根据冻结的pre-reset manifest独立反查业务、Execution、Artifact、
 Workspace、消息、Receipt、Marker/Result与Control闭包，不能复用scope discovery证明自己完整。
 
+对已有Arca On-deck Commit收藏、同时又有未Commit过程态的**retained Subject**，产品安全Reset必须保留其
+`routing_anchor_intake_decision_id`所指向的创立Intake（集合身份锚点），即使未Commit Run material /
+pipeline token引用该Intake；season_extension等可回卷中间Intake仍可清除。不得用`--subject-ids`定向绕过或
+「兼容Reset」代替该全量安全路径；`RETAINED_SUBJECT_ROUTING_ANCHOR_IN_RESET`仅在删除集合仍会破坏保留锚点时挡板。
+
 Reset必须保护已经Arca On-deck Commit的Shelf Entry与Deck Fact，不得触碰`/media`，生产执行仍需用户对该次生产数据操作
 作出明确授权。用户只指定保留某个条目时，授权范围仅限该精确条目的有界迁移或恢复方案，不自动授权通用兼容层。
 
