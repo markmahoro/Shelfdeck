@@ -57,38 +57,6 @@ function readArtifactFile(target, artifactKind) {
   } finally { fs.closeSync(fd); }
 }
 
-// Frame recovery is scoped to the frozen catalogue batch. Allocate only the
-// descriptor's bounded initial size and reject a concurrently growing file.
-function readBoundedCatalogueFrameFile(target, maximumBytes) {
-  if (!Number.isSafeInteger(maximumBytes) || maximumBytes < 1 || maximumBytes > 256 * 1024 * 1024) {
-    fail('CLEAN_WORKSPACE_CATALOGUE_FRAME_SCOPE_INVALID', 'Frame recovery requires one bounded batch byte budget.');
-  }
-  const fd = fs.openSync(target, fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0));
-  try {
-    const before = fs.fstatSync(fd, { bigint:true }), size = Number(before.size);
-    if (!before.isFile() || !Number.isSafeInteger(size) || size < 1 || size > maximumBytes) {
-      fail('CLEAN_WORKSPACE_ARTIFACT_BYTE_LIMIT', 'Catalogue frame Artifact exceeds its frozen batch bound.');
-    }
-    const bytes = Buffer.allocUnsafe(size); let offset = 0;
-    while (offset < size) {
-      const count = fs.readSync(fd, bytes, offset, size - offset, null);
-      if (!count) fail('CLEAN_WORKSPACE_ARTIFACT_REALITY_DRIFT', 'Catalogue frame Artifact shrank during recovery.');
-      offset += count;
-    }
-    if (fs.readSync(fd, Buffer.allocUnsafe(1), 0, 1, null) !== 0) {
-      fail('CLEAN_WORKSPACE_ARTIFACT_REALITY_DRIFT', 'Catalogue frame Artifact grew during recovery.');
-    }
-    const after = fs.fstatSync(fd, { bigint:true }), current = fs.lstatSync(target, { bigint:true });
-    if (!current.isFile() || current.dev !== after.dev || current.ino !== after.ino ||
-        current.size !== after.size || current.mtimeNs !== after.mtimeNs || current.ctimeNs !== after.ctimeNs ||
-        after.dev !== before.dev || after.ino !== before.ino || after.size !== before.size ||
-        after.mtimeNs !== before.mtimeNs || after.ctimeNs !== before.ctimeNs) {
-      fail('CLEAN_WORKSPACE_ARTIFACT_REALITY_DRIFT', 'Catalogue frame Artifact changed during its bounded read.');
-    }
-    return bytes;
-  } finally { fs.closeSync(fd); }
-}
-
 function relative(value) {
   if (typeof value !== 'string' || !value || value.includes('\\') ||
       value.startsWith('/') || /^[A-Za-z]:/.test(value) ||
@@ -664,10 +632,9 @@ function createCleanWorkspaceProductPort(options) {
     return Object.freeze({ ...basis, evidenceDigest: canonicalDigest(basis) });
   }
 
-  function exactReality(target, expectedDigest, expectedSize, artifactKind, catalogueFrameScope = null) {
+  function exactReality(target, expectedDigest, expectedSize, artifactKind) {
     if (!fs.existsSync(target)) return false;
-    const bytes = catalogueFrameScope ? readBoundedCatalogueFrameFile(target, catalogueFrameScope.maximumBytes)
-      : readArtifactFile(target, artifactKind);
+    const bytes = readArtifactFile(target, artifactKind);
     return bytes.length === expectedSize && digestBytes(bytes) === expectedDigest;
   }
 
@@ -781,35 +748,8 @@ function createCleanWorkspaceProductPort(options) {
     );
   }
 
-  function assertCatalogueFrameScope(request) {
-    const scope = request?.catalogueFrameScope, provenance = request?.provenanceRef;
-    const definitions = {
-      'libra.media.frames.extract@1': ['western_frame_set', 'application/vnd.shelfdeck.western-frame-set+json', 'western_frame_extract'],
-      'shared.face.embedding.compute@1': ['face_embedding_set', 'application/vnd.shelfdeck.face-embedding-set+json', 'western_face_embedding'],
-      'shared.face.cluster.compute@1': ['face_cluster_set', 'application/vnd.shelfdeck.face-cluster-set+json', 'western_face_cluster'],
-    };
-    const expected = definitions[scope?.capabilityRef];
-    if (!scope || Object.keys(scope).sort().join(',') !== 'analysisId,batchDigest,capabilityRef,maximumBytes,stage' || !expected ||
-        !/^[a-f0-9]{64}$/.test(scope.analysisId || '') || !/^[a-f0-9]{64}$/.test(scope.batchDigest || '') ||
-        !['initial', 'supplement'].includes(scope.stage) || !Number.isSafeInteger(scope.maximumBytes) ||
-        scope.maximumBytes < 1 || scope.maximumBytes > 256 * 1024 * 1024 || request.artifactKind !== expected[0] ||
-        request.mediaType !== expected[1] || provenance?.objectType !== expected[2] ||
-        !/^[a-f0-9]{64}$/.test(provenance?.objectId || '') || !/^[a-f0-9]{64}$/.test(provenance?.digest || '') ||
-        !Number.isSafeInteger(provenance.revision) || provenance.revision < 1) {
-      fail('CLEAN_WORKSPACE_CATALOGUE_FRAME_SCOPE_INVALID', 'Frame Artifact requires its exact frozen catalogue batch and producer.');
-    }
-    const expectedPath = scope.capabilityRef === 'libra.media.frames.extract@1'
-      ? 'analysis/catalogue/' + scope.analysisId + '/' + scope.stage + '-' + scope.batchDigest + '.json'
-      : 'analysis/' + (scope.capabilityRef === 'shared.face.embedding.compute@1' ? 'embeddings/' : 'clusters/') + provenance.digest + '.json';
-    if (request.relativePath !== expectedPath) {
-      fail('CLEAN_WORKSPACE_CATALOGUE_FRAME_SCOPE_INVALID', 'Frame Artifact target differs from its exact batch producer.');
-    }
-    return scope;
-  }
-
   function assertCatalogueRuntimeScope(repo, request, effect, root) {
-    const capabilityRef = request.artifactKind === 'face_catalogue_observation'
-      ? 'libra.us_adult.catalogue.observe@1' : assertCatalogueFrameScope(request).capabilityRef;
+    const capabilityRef = 'libra.us_adult.catalogue.observe@1';
     const attempt = effect && repo.invoke('find_catalogue_recovery_attempt', {
       event_attempt_id: effect.event_attempt_id,
     });
@@ -843,9 +783,7 @@ function createCleanWorkspaceProductPort(options) {
       fail('CLEAN_WORKSPACE_RUNTIME_EFFECT_AUTHORITY_INVALID',
         'Runtime-managed Workspace effects require the exact Event Attempt authority.');
     }
-    const scopedCatalogue = request?.artifactKind === 'face_catalogue_observation' || request?.catalogueFrameScope !== undefined;
-    if (request?.catalogueFrameScope !== undefined) assertCatalogueFrameScope(request);
-    const root = scopedCatalogue ? ensureRoot() : null;
+    const root = request?.artifactKind === 'face_catalogue_observation' ? ensureRoot() : null;
     const effect = execute(
       'clean_workspace_runtime_effect_read',
       'execution-foundation',
@@ -924,9 +862,7 @@ function createCleanWorkspaceProductPort(options) {
     const identity = artifactEffectIdentity(request);
     const root = ensureRoot();
     const runtimeAuthority = runtimeEffectAuthority(request);
-    const scopedCatalogue = request.artifactKind === 'face_catalogue_observation' || request.catalogueFrameScope !== undefined;
-    const frameScope = request.catalogueFrameScope !== undefined ? assertCatalogueFrameScope(request) : null;
-    if (runtimeAuthority && scopedCatalogue &&
+    if (runtimeAuthority && request.artifactKind === 'face_catalogue_observation' &&
         typeof request.capturePublicationFence !== 'function') {
       fail('CLEAN_WORKSPACE_CATALOGUE_FENCE_REQUIRED',
         'Catalogue publication requires the active Owner projection and its read fence.');
@@ -939,9 +875,6 @@ function createCleanWorkspaceProductPort(options) {
         'Workspace Artifact output bytes are required.');
     }
     assertArtifactByteBound(request.artifactKind, bytes.length);
-    if (frameScope && bytes.length > frameScope.maximumBytes) {
-      fail('CLEAN_WORKSPACE_ARTIFACT_BYTE_LIMIT', 'Catalogue frame Artifact exceeds its frozen batch bound.');
-    }
     const digestHex = digestBytes(bytes);
     const prior = runtimeAuthority
       ? Object.freeze({ replayed:false, state:'intended', outputDigest:null, externalReceiptRef:null })
@@ -953,14 +886,14 @@ function createCleanWorkspaceProductPort(options) {
       );
     if (prior.state === 'committed') {
       if (prior.outputDigest !== digestHex ||
-          !exactReality(identity.target, digestHex, bytes.length, request.artifactKind, frameScope)) {
+          !exactReality(identity.target, digestHex, bytes.length, request.artifactKind)) {
         fail('CLEAN_WORKSPACE_EFFECT_REALITY_DRIFT',
           'Committed Workspace Artifact reality drifted.');
       }
     } else {
       fs.mkdirSync(path.dirname(identity.target), { recursive: true });
       if (fs.existsSync(identity.target) &&
-          !exactReality(identity.target, digestHex, bytes.length, request.artifactKind, frameScope)) {
+          !exactReality(identity.target, digestHex, bytes.length, request.artifactKind)) {
         fail('CLEAN_WORKSPACE_EFFECT_OUTPUT_DRIFT',
           'Stable Workspace Artifact effect identity produced different bytes.');
       }
@@ -1073,9 +1006,9 @@ function createCleanWorkspaceProductPort(options) {
     });
     // The Owner checks its current Run outside this Foundation transaction. Its
     // opaque fence prevents that projection changing before Registry commit.
-    const publicationFence = runtimeAuthority && scopedCatalogue
+    const publicationFence = runtimeAuthority && request.artifactKind === 'face_catalogue_observation'
       ? request.capturePublicationFence() : null;
-    if (runtimeAuthority && scopedCatalogue &&
+    if (runtimeAuthority && request.artifactKind === 'face_catalogue_observation' &&
         (!publicationFence || typeof publicationFence !== 'object')) {
       fail('CLEAN_WORKSPACE_CATALOGUE_FENCE_REQUIRED', 'The catalogue Owner read fence is unavailable.');
     }
@@ -1101,7 +1034,7 @@ function createCleanWorkspaceProductPort(options) {
           fail('CLEAN_WORKSPACE_EFFECT_MISSING',
             'Workspace Artifact intent is absent.');
         }
-        if (runtimeAuthority && scopedCatalogue) {
+        if (runtimeAuthority && request.artifactKind === 'face_catalogue_observation') {
           assertCatalogueRuntimeScope(repo, request, effect, root);
         }
         const existingMaterial = repo.invoke('find_material', {
@@ -1218,9 +1151,7 @@ function createCleanWorkspaceProductPort(options) {
 
   function recoverMaterializedArtifact(request) {
     const identity = artifactEffectIdentity(request);
-    const scopedCatalogue = request?.artifactKind === 'face_catalogue_observation' || request?.catalogueFrameScope !== undefined;
-    const frameScope = request?.catalogueFrameScope !== undefined ? assertCatalogueFrameScope(request) : null;
-    const runtimeAuthority = scopedCatalogue && request.runtimeEffectAuthority
+    const runtimeAuthority = request?.artifactKind === 'face_catalogue_observation' && request.runtimeEffectAuthority
       ? runtimeEffectAuthority(request) : null;
     const existing = runtimeAuthority ? runtimeAuthority.effect : readArtifactEffect(identity);
     if (!existing) return null;
@@ -1229,20 +1160,12 @@ function createCleanWorkspaceProductPort(options) {
       fail('CLEAN_WORKSPACE_EFFECT_CONFLICT',
         'Workspace Artifact recovery journal intent drifted.');
     }
-    let targetExists;
-    if (runtimeAuthority) {
-      try { fs.lstatSync(identity.target); targetExists = true; } catch (error) {
-        if (error?.code !== 'ENOENT') throw error;
-        targetExists = false;
-      }
-    } else targetExists = fs.existsSync(identity.target);
-    if (!targetExists) {
+    if (!fs.existsSync(identity.target)) {
       if (existing.state === 'committed') {
         fail('CLEAN_WORKSPACE_EFFECT_REALITY_DRIFT',
           'Committed Workspace Artifact physical reality is absent.');
       }
-      if (existing.state !== 'intended' && !(runtimeAuthority && existing.state === 'reconcile_required' &&
-          runtimeAuthority.authority.recoveryDecision === 'safe_retry')) {
+      if (existing.state !== 'intended') {
         fail('CLEAN_WORKSPACE_EFFECT_STATE_CONFLICT',
           'Workspace Artifact recovery state is invalid.');
       }
@@ -1256,8 +1179,7 @@ function createCleanWorkspaceProductPort(options) {
     if (runtimeAuthority && !['safe_retry','continue_forward'].includes(runtimeAuthority.authority.recoveryDecision)) {
       fail('CLEAN_WORKSPACE_RUNTIME_RECOVERY_DECISION_REQUIRED', 'Existing catalogue bytes require the classified original Event Effect.');
     }
-    const bytes = frameScope ? readBoundedCatalogueFrameFile(identity.target, frameScope.maximumBytes)
-      : readArtifactFile(identity.target, request.artifactKind);
+    const bytes = readArtifactFile(identity.target, request.artifactKind);
     if (runtimeAuthority) {
       if (typeof request.validateRecoveredBytes !== 'function') fail('CLEAN_WORKSPACE_RECOVERY_VALIDATOR_REQUIRED',
         'Catalogue recovery requires Owner validation before registering physical bytes.');
@@ -1281,20 +1203,7 @@ function createCleanWorkspaceProductPort(options) {
       !['effectId','eventAttemptId','idempotencyKey','executionBasisDigest','inputSnapshotDigest','fenceSnapshotDigest']
         .every(key=>typeof request[key]==='string'&&request[key]&&request[key].length<=256))
       fail('CLEAN_WORKSPACE_CATALOGUE_RECOVERY_SCOPE_INVALID','Catalogue recovery requires its exact typed target and Effect scope.');
-    return readScopedCatalogueRecoveryCandidate(request);
-  }
-
-  function readCatalogueFrameRecoveryCandidate(request) {
-    assertCatalogueFrameScope(request);
-    if (!['effectId','eventAttemptId','idempotencyKey','executionBasisDigest','inputSnapshotDigest','fenceSnapshotDigest']
-      .every(key=>typeof request[key]==='string'&&request[key]&&request[key].length<=256)) {
-      fail('CLEAN_WORKSPACE_CATALOGUE_FRAME_SCOPE_INVALID', 'Frame recovery requires the exact Effect and frozen input scope.');
-    }
-    return readScopedCatalogueRecoveryCandidate(request);
-  }
-
-  function readScopedCatalogueRecoveryCandidate(request) {
-    const provenance=request.provenanceRef, identity=artifactEffectIdentity(request), root=ensureRoot();
+    const identity=artifactEffectIdentity(request), root=ensureRoot();
     function readScope(){return execute('clean_catalogue_recovery_scope','execution-foundation',repositories.foundation,context=>{
       const repo=context.repository(repositories.foundation.repositoryId),effect=repo.invoke('find_effect',{
         effect_class:'workspace_write',idempotency_key:request.idempotencyKey});
@@ -1314,8 +1223,7 @@ function createCleanWorkspaceProductPort(options) {
     }throw error;}
     if(!stat.isFile()||Boolean(rows.material)!==(rows.artifacts.length===1)||rows.artifacts.length>1)
       return Object.freeze({kind:'conflict'});
-    const bytes=request.catalogueFrameScope ? readBoundedCatalogueFrameFile(identity.target,request.catalogueFrameScope.maximumBytes)
-      : readArtifactFile(identity.target,request.artifactKind),digestHex=digestBytes(bytes);
+    const bytes=readArtifactFile(identity.target,request.artifactKind),digestHex=digestBytes(bytes);
     if(rows.material){
       const material=mapMaterial(rows.material),artifact=mapArtifact(rows.artifacts[0]);
       if(rows.material.state!=='active'||rows.artifacts[0].state!=='active'||material.ownerDomain!=='libra'||
@@ -1412,7 +1320,6 @@ function createCleanWorkspaceProductPort(options) {
         memberPayloads: Object.freeze(memberPayloads),
         frameMemberSetDigest,
       });
-      if (typeof request.validateComposite === 'function') request.validateComposite(composite);
       const materialized = materializeArtifact({
         ...request,
         bytes: Buffer.from(canonicalJson(composite), 'utf8'),
@@ -1726,33 +1633,6 @@ function createCleanWorkspaceProductPort(options) {
       ...materialized,
       bytes,
     });
-  }
-
-  function readCatalogueFrameArtifactBytes(artifactHandle, scope) {
-    if (!scope || typeof scope.libraRunId !== 'string' || !scope.libraRunId ||
-        typeof scope.workspaceId !== 'string' || !scope.workspaceId || scope.workspaceId.includes('/') ||
-        scope.workspaceId.includes('\\') || scope.workspaceId === '.' || scope.workspaceId === '..' || /^[A-Za-z]:/.test(scope.workspaceId) ||
-        !Number.isSafeInteger(scope.maximumBytes) || scope.maximumBytes < 1 || scope.maximumBytes > 256 * 1024 * 1024 ||
-        !['western_frame_set','face_embedding_set','face_cluster_set'].includes(artifactHandle?.artifactKind) ||
-        artifactHandle.ownerDomain !== 'libra' || artifactHandle.ownerScope?.scopeType !== 'libra_run' ||
-        artifactHandle.ownerScope.scopeId !== scope.libraRunId ||
-        !artifactHandle.storageRef?.startsWith('workspace://' + scope.workspaceId + '/') ||
-        !Number.isSafeInteger(artifactHandle.sizeBytes) || artifactHandle.sizeBytes < 1 || artifactHandle.sizeBytes > scope.maximumBytes) {
-      fail('CLEAN_WORKSPACE_CATALOGUE_FRAME_SCOPE_INVALID', 'Catalogue frame read requires one bounded same-Run Workspace Handle.');
-    }
-    const materialized=readMaterializedArtifact(artifactHandle),
-      location=artifactHandle.storageRef.slice(('workspace://' + scope.workspaceId + '/').length),
-      target=path.resolve(absoluteRoot,scope.workspaceId,...relative(location).split('/')),
-      workspaceRoot=path.resolve(absoluteRoot,scope.workspaceId),rootRelative=path.relative(absoluteRoot,workspaceRoot);
-    if (!rootRelative || rootRelative==='..' || rootRelative.startsWith('..'+path.sep) || path.isAbsolute(rootRelative) ||
-        !target.startsWith(workspaceRoot+path.sep))
-      fail('CLEAN_WORKSPACE_PATH_ESCAPE', 'Catalogue frame read escaped its Workspace root.');
-    const bytes=readBoundedCatalogueFrameFile(target,scope.maximumBytes),stat=fs.lstatSync(target,{bigint:true});
-    if (bytes.length!==artifactHandle.sizeBytes || digestBytes(bytes)!==artifactHandle.digestHex ||
-        stat.ino.toString()!==materialized.workspaceMaterialHandle.physicalIdentity.inode) {
-      fail('CLEAN_WORKSPACE_ARTIFACT_REALITY_DRIFT', 'Catalogue frame bytes or physical association differ from the registered Handle.');
-    }
-    return Object.freeze({...materialized,bytes});
   }
 
   function reclaimMaterial(intent) {
@@ -2332,12 +2212,10 @@ function createCleanWorkspaceProductPort(options) {
     observeArtifactReality,
     recoverMaterializedArtifact,
     readArtifactBytes,
-    readCatalogueFrameArtifactBytes,
     readMaterializedArtifact,
     resolveMaterialLocation,
     observeSpace,
     readCatalogueRecoveryCandidate,
-    readCatalogueFrameRecoveryCandidate,
     reclaimEmptyWorkspace,
     reclaimUnreferencedWorkspace,
     reclaimMaterial,

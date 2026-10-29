@@ -110,7 +110,6 @@ test('Shelves configures a probed Template-derived Movie Standard without exposi
 test('Media organization workspace uses user-facing stages after Procurement handoff', () => {
   const model = read('web/src/helix/surface-model.ts');
   const page = read('web/src/helix/FormationPage.tsx');
-  const defectDialog = read('web/src/helix/DefectAdmissionDialog.tsx');
   const formation = model.split("slug: 'formation'")[1].split("slug: 'offdeck'")[0];
   assert.match(formation, /媒体整理工作区/);
   assert.doesNotMatch(page, /id:'pending',label:'待整理'/);
@@ -130,12 +129,8 @@ test('Media organization workspace uses user-facing stages after Procurement han
   assert.match(page, /function shelfName\(item:FormationSubject, shelves:Shelf\[\]\)/);
   assert.match(page, /formation-table formation-stub-table/);
   assert.match(page, /确认取消整理任务/);
-  assert.match(page, /<DefectAdmissionDialog\b/);
-  assert.match(defectDialog, /确认接受瑕疵入库/);
-  const defectDialogStart = page.indexOf('<DefectAdmissionDialog');
-  const defectCompletion = page.slice(defectDialogStart, page.indexOf('</section>', defectDialogStart));
-  assert.match(defectCompletion, /onComplete=\{async/);
-  assert.match(defectCompletion, /await load\(/);
+  assert.match(page, /确认接受瑕疵入库/);
+  assert.match(page, /function defectAdmissionCommitted/);
   assert.match(page, /瑕疵已接受，系统正在继续整理；页面已按实际状态更新。/);
   assert.doesNotMatch(page, /window\.confirm/);
   assert.doesNotMatch(page, /CompletedMediaTable/);

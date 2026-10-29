@@ -17,12 +17,6 @@ DDOB-019 的冲突目标为已有 active Shelf Entry 所控的同番号正式文
 
 演员Observation `28a6e4f43`已叠加主整合暂存代码并保留已有Artifact类型，真实Event及Workspace定向Linux 52项、四项静态检查通过；这不是正式Host或真实视频/People/Cast资格。演员线程继续前序Frame恢复和系统建档，目录来源的Selection Basis、People自动注册来源和人物独立Reset依赖仍待精确机器合同及实现。Series候选Perception同Owner模型边界修复`f253017d2`已通过Linux 45项和静态检查；JAV新路径与主整合已存在的`3e707a033`合同仍待合并及完整验收。
 
-最新合并检查点：主整合固定待提交tree `23b114916969c167f5bc186833bf2298515746a0`包含Series候选`f253017d2`、演员Observation及Reset基线；静态四项与P2定向3项通过，合并后隔离Linux Foundation/演员Observation 148项、共享Series/Perception/诊断62项通过。UI负责人对`2a58c1606`开发预检通过，最终混合版本仍须独立复核。
-
-JAV长标题`619ffc464`不是发布合格候选：真实Host的Stage回执前、Stage已提交/Verify前和Placement回执前三个进程中断窗口初版未完成Effect责任，试验性修订已恢复唯一Commit；成员写入中、完整Manifest尚未持久化的第四窗口仍停滞。Arca正在实现同Effect逐成员证据及无法证明时明确attention；须固定版本复验所有窗口，Reset不得借此删除正式根下文件。演员系统建档和电影自定义Spec仍在开发，新增People/Cast数据结构若改变目标DDL，须重新验证从实际239表源的Reset结构与精确保留闭包。
-
-演员线程阶段提交`bfc11236e`的真实Frame Effect恢复、People姓名比较和Libra人物请求输入已整合；保留主线Artifact kind，Linux 79项、Windows 25项及静态四项通过。仍使用技术fixture，实际视频/Host、系统建档、Cast和最终Reset未完成。
-
 ## 并行执行与当前阻断
 
 | 线程 / ID | 本轮交付与先后 | 整合边界 |
@@ -34,7 +28,7 @@ JAV长标题`619ffc464`不是发布合格候选：真实Host的Stage回执前、
 | ShelfDeck 电影寻源与自定义标准 01a18628-b31a-70c3-abbc-bd29b688cbce | 完成自定义标准端到端用户闭环 | 承接原增量；完整API/UI、Owner/Runtime和真实旅程仍未闭合，不开放半成品 |
 | UI负责人 01a0912a-0086-74e2-88ab-536c59d3862a | 提前复核体积及瑕疵对话框，最终核验精确合版 | 当前提前反馈不代替最终版本复核 |
 
-其他线程在各自独立工作区准备代码、专属Evidence及必要共享合同候选；主整合统一审核、合并并重新生成共享合同，互不覆盖彼此工作。NAS重型任务串行安排。本轮已授权停止态Fresh Reset和升级，不再等待真实CIFS或低I/O；保留其未测风险及停止态保护要求。
+这些线程只提交自己的代码/专属Evidence，不改SSOT/Master/本包/全局生成物；共享合同由本线程合并。NAS重型任务串行安排。本轮已授权停止态Fresh Reset和升级，不再等待真实CIFS或低I/O；保留其未测风险及停止态保护要求。
 
 ## Series候选及本轮整合检查点
 

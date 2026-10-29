@@ -156,18 +156,6 @@ test('a real interrupted Observation Effect classifies existing complete bytes a
   assert.equal(f.db.prepare("SELECT count(*) n FROM fx_artifact_registry WHERE artifact_kind='face_catalogue_observation'").get().n,1);
 });
 
-test('a genuinely absent interrupted Observation can be safely recomputed',async t=>{
-  const f=await fixture(t,{faultAfterWrite:true}),{eventLease}=startWork(f),pending=await f.runtime.run({schedulerLease:eventLease.lease});
-  assert.equal(pending.kind,'effect_recovery_required');
-  const file=path.join(f.root,'workspace-root','workspace','analysis','catalogue-observations',f.basis.analysisId,
-    'initial-'+f.fixtureObservation.completedBatches.setDigest+'.json');
-  require('node:fs').unlinkSync(file);
-  const decision=await f.runtime.classifyRecovery({eventId:pending.eventId,effectId:pending.effectId});
-  assert.equal(decision.decision,'safe_retry');const resumed=await f.runtime.recover(decision);
-  assert.equal(resumed.kind,'succeeded');assert.equal(f.proof().computes,2);
-  assert.equal(f.db.prepare("SELECT count(*) n FROM fx_artifact_registry WHERE artifact_kind='face_catalogue_observation'").get().n,1);
-});
-
 test('a real Effect interrupted after Registry publication resumes without a second observation',async t=>{
   const f=await fixture(t,{faultAfterRegistry:true,forbidSecondCompute:true}),{eventLease}=startWork(f);
   await assert.rejects(()=>f.runtime.run({schedulerLease:eventLease.lease}),{code:'AFTER_REGISTRY'});
