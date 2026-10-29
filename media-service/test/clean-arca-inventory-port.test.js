@@ -179,6 +179,27 @@ test('JAV naming preview cannot truncate an over-budget member that keeps its so
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
 
+test('JAV naming preview never presents identical short names or existing bytes as ownership proof',()=>{
+  const code='IPX-178',common=code+' '+'題'.repeat(80),f=componentBudgetFixture(common+'A',null);
+  try{
+    const identity=f.packageValue.resolvedIdentitySnapshot.factValue;
+    identity.providerIdentities=[{provider:'jav',namespace:'jav_code',providerKey:code}];
+    const first=f.port.previewJavTitle(f.request);
+    fs.mkdirSync(first.targetDirectory);
+    const primary=first.members.find(item=>item.role==='primary_payload');
+    const existing=path.join(first.targetDirectory,primary.finalName);
+    fs.copyFileSync(f.files.primary,existing);
+    identity.title=common+'B';
+    const second=f.port.previewJavTitle(f.request);
+    assert.equal(first.targetDirectory,second.targetDirectory);
+    assert.equal(second.targetCollisionChecked,false);
+    assert.equal(second.endpointComponentLimitVerified,false);
+    assert.equal(fs.readFileSync(existing,'utf8'),'synthetic media');
+    assert.equal(fs.readFileSync(f.files.primary,'utf8'),'synthetic media');
+    assert.throws(()=>f.port.prepare(f.request),{code:'CLEAN_ARCA_TARGET_SEGMENT_INVALID'});
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
 test('a prefix-only UTF-8 shortening can collapse distinct titles even while retaining the JAV code',()=>{
   const common='IPX-178 '+'題'.repeat(72),titles=[common+'A',common+'B'];
   const prefix=(value,budget)=>{
