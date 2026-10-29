@@ -33,7 +33,7 @@ function assessCatalogueActors({groups,policy:frozenPolicy}){
     groupIds.add(group.clusterId);
     for(const key of group.memberKeys){
       if(typeof key!=='string'||!/^\d{1,2}:\d{1,2}$/.test(key)||!integer(Number(key.split(':')[0]),0,39)||
-        !integer(Number(key.split(':')[1]),0,31)||key!==key.split(':').map(Number).join(':')||allFaces.has(key))fail('Group membership must conserve unique bounded frame faces.');
+        !integer(Number(key.split(':')[1]),0,31)||key!==key.split(':').map(Number).join(':')||allFaces.has(key))fail('Group member proof must conserve unique bounded frame faces.');
       allFaces.add(key);
     }
     if(group.coverageStrata.length>new Set(group.memberKeys.map(key=>Number(key.split(':')[0]))).size)fail('Temporal coverage exceeds the actual member frames.');

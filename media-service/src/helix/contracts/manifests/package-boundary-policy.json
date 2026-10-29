@@ -57,7 +57,7 @@
     },
     {
       "source": "integrations",
-      "allow": ["node:crypto", "node:fs", "node:path", "node:net", "node:worker_threads", "cheerio", "undici", "sharp", "onnxruntime-node"]
+      "allow": ["node:crypto", "node:fs", "node:path", "node:net", "node:worker_threads", "cheerio", "undici", "sharp", "onnxruntime-node", "usearch", "better-sqlite3"]
     },
     {
       "source": "projections",

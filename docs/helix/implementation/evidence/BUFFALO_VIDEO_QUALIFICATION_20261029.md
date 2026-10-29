@@ -156,3 +156,22 @@ Linux本机日志：同ignored根`store-local-linux-1.log`。NAS源码包`store-
 首跑问题保留：fixture漏Workspace revision导致FK拒绝；恢复副本fixture漏传标准targetSchema导致regeneration拒绝；validator漏32KiB及新增事务Owner的机械传播被门禁拒绝；固定SourceMap更新后Capability出处摘要未传播也被拒绝，完整生成后通过。没有省略校验或移交业务Owner来过测试。
 
 剩余：正式Work/Capability/Artifact/Effect/Permit和20+20条件补采、模型/索引共载、完整Host取消恢复与视频真值/资源资格；随后Phase 5。当前不具备生产部署或自动演员业务完成资格。
+
+
+## 2026-10-29 冻结批次 Work、Capability 与 Workspace Artifact 切片
+
+在2f9fc0702持久化基础上新增首采/补采两个独立稳定Work及正式WorkflowPlan，沿现有三项原子Capability依次抽帧、512维embedding、聚类。每Event只产生自己的Artifact，不在一个Effect中偷偷提交三份文件。短片去重后没有补采点则不构造空Work；补采准入仍由后续Owner完整初轮评估决定，本切片的Work构造器不自己启动补采。
+
+- 每批固定点、global ordinal、Sampling Plan、Model、batchDigest与原Basis关联。Nominal Work/Plan及真实runtime形状的basisRefs、abortSignal均依Foundation合同，不另造ExecutionContext字段。
+- 向量仅保存一份，closed frameGeometry保留所有采样帧（含无脸）、原图SHA、校正画布、时间/区段、face/vector对应及完整重建摘要。恢复校验不把漏帧、向量缺失、错坐标或跨batch当成成功。重复图像不增加独立区段覆盖。
+- 新frame-only Artifact Port沿现有Workspace存储/producer Effect路径，不用空桩实现冒充完整旧引擎。真实SQLite与物理文件测试产生恰好frame/embedding/cluster三份Artifact，幂等重放不再次调用抽帧/CPU、不多建Artifact；no-face批次同样保留完整帧证据。
+- 单批累计空间quota明确冻结为floor((maximumWorkspaceBytes-maximumRepresentativeImageBytes)/2)，两批均有限且为一张代表图保留空间。抽帧base64/metadata、实际Frame Artifact、embedding及cluster累计字节分别核验；超额为BUFFALO_FRAME_WORKSPACE_BUDGET_EXCEEDED，不能写成无脸/无匹配。此逻辑不替代实际进程heap/cgroup/控制面资源资格。
+- 取消后旧CPU结果不返回成功Outcome；本地测试包括Artifact已生产而Run刚被取消的竞态。正式Runtime的Effect/Permit/恢复调度和完整Host供给仍须接线验证；直接测试调用Capability边界不是已完成Supporting Work旅程。
+
+固定源码为ignored index-gate-8（Git index导出，排除18个Phase3原文件）。实际本机Linux Docker沿固定依赖镜像afb5fad462130beb66162fff081e96d089adf49ee7e2bb600e9fdac72aea0357，network none、源码只读、1CPU/768MiB、tmpfs64MiB：78项，77 PASS、1 skip、0 FAIL，20.812秒。唯一skip是此前旧模型真实图测试未提供显式模型/图片；新切片测试中CPU/FFmpeg使用确定性技术fixture，不据此声明真实buffalo视频质量或原生模型已接进Host。
+
+日志frame-local-linux-4.log SHA256 bc6e5cb51a8cae9d307e29e27ccab28db7798f9b55b59bf21b8188a8a971ce7e。packages、forbidden semantics、manifests、P2四项静态全PASS；P2仍为138/117/244/66，digest b848201c2518224a06b1c4e4dd46928f0345d26e8aef1403fdfbfc8779a5e5fe。这里没有新Capability种类、表或事务；新三Capability Adapter尚未替换正式Host注册。
+
+首跑失败保留：cluster误多声明disk_io被正式Resource Demand拒绝；测试误读Model Ref中不存在的dimension字段；新Workspace fixture误传constructor字段；静态发现Capability反向依赖Planner，现将同一Libra的纯target编译提取到Model，Planner/Capability分别读自己的公开事实；离线技术目录的USearch/只读SQLite依赖漏登记补齐到integrations allowlist，业务Store权限不变；66事务的旧shard locator机械更新，源码face-member措辞去除旧模型术语。所有首败保留，不添加宽泛语义豁免或开放跨Owner查询。
+
+当前未调用NAS模型：主整合正在真实CIFS资格，要求等独立空窗。下一步为跨首采/补采的合并分组、离线检索及完整技术Observation、Libra候选评估，再接People/演员；模型+索引共载、真实CPU/视频/控制面、Host停止恢复和Phase 5均开放。生产与主整合目录未改动，不宣称Phase 4 Exit。
