@@ -43,6 +43,18 @@ test('network diagnostics retain safe cause codes but never transport messages o
   assert.deepEqual(diagnostics,{networkCode:'ENOTFOUND'});
   assert.deepEqual(failureDiagnostics({cause:{code:'SECRET'}}),{});
 });
+
+test('JAV source failures retain only their bounded page, cover, and HTTP diagnostics',()=>{
+  const page={name:'JavSourceError',code:'JAV_SOURCE_UNAVAILABLE',
+    details:{stage:'page',status:503,siteRef:'javdb',url:'https://secret/?token=SECRET',body:'SECRET'}};
+  assert.deepEqual(failureDiagnostics(page),{stage:'page',statusCode:503});
+  const cover={name:'JavSourceError',code:'JAV_SOURCE_TIMEOUT',
+    details:{stage:'cover',networkCode:'ECONNRESET',body:'SECRET'}};
+  assert.deepEqual(failureDiagnostics(cover),{stage:'cover',networkCode:'ECONNRESET',timeout:true});
+  assert.deepEqual(failureDiagnostics({name:'Error',code:'OTHER',details:{stage:'page',status:503}}),{});
+  assert.deepEqual(failureDiagnostics({name:'JavSourceError',code:'JAV_SOURCE_UNAVAILABLE',
+    details:{stage:'SECRET',status:600,networkCode:'SECRET'}}),{});
+});
 test('failure evidence survives reopening and rejects corruption and path traversal',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'shelfdeck-diagnostics-'));
   try {
