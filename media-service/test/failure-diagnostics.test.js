@@ -17,6 +17,10 @@ test('Secret invocation wrapper retains only recognized underlying failure codes
 test('HTTP diagnostics retain only a bounded numeric status',()=>{
   assert.deepEqual(failureDiagnostics({details:{statusCode:429,stage:'json_request',url:'https://secret',body:'SECRET'}}),
     {stage:'json_request',statusCode:429});
+  assert.deepEqual(failureDiagnostics({details:{status:503,stage:'page',url:'https://secret',body:'SECRET'}}),
+    {stage:'page',statusCode:503});
+  assert.deepEqual(failureDiagnostics({details:{statusCode:403,stage:'cover'}}),
+    {stage:'cover',statusCode:403});
   for(const statusCode of [0,99,600,Infinity,404.5,'404','SECRET'])
     assert.deepEqual(failureDiagnostics({details:{statusCode}}),{});
 });
