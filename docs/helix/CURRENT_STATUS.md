@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-29主整合职责已转入本线程：统一追踪各线、固定候选门禁及生产交付；原演员线程继续Phase 4→5，电影线程继续Phase 2/3。Series恢复与资料切片已分别提交a4989adf9、878d814d3，f442a6f2f冻结证据；Linux局部与Host结果不等于最终发布资格。候选须从生产a2bf2d6fd隔离、补齐三个已确认Schema及登记摘要，完成固定镜像/架构/Service/Web/UI、真实CIFS和七条指定线上验收；截至本记录尚未部署或重试。无新UAT编号，不新建活动计划、不恢复取消的自动观察。以下较早并行职责与“当前不部署”均为旧时点记录，以本段及唯一Master/Phase为准。
+
 2026-10-29用户要求本轮多线程并行，已创建并启动“ShelfDeck 生产待处理条目分诊”“ShelfDeck 剧集上架与自愈修复”“ShelfDeck 电影寻源与自定义标准”；本线程继续Phase 4→5并负责统一合同/生成物、重门禁和整合。Series分支从生产a2bf2d6fd隔离，电影/目标分支从f24164ae0承接18个原未提交文件，逐字节SHA一致、原件保留。首次新API分诊快照33 attention/5进行中，原因仍在逐条核验，不能把全数当系统bug。可独立的生产补丁不再等待新演员功能；当前没有新增部署/Reset/重试/取消授权，监控不恢复。主线程Catalogue Basis Store已补原子冻结/历史与执行资格分离、244表/66事务及Reset保留边，6项本地测试通过；首轮生成器/Fixture失败和其他门禁仍未收口，变更未作为生产候选。最新并行分工/线程ID见唯一CURRENT_PLAN/CURRENT_PHASE，下方串行安排为旧时点记录。
 
 2026-10-29 Phase 4正式模块切片：buffalo数学/图片引擎/分组已迁入Service，新增单槽CPU线程、固定目录代际校验/查询及校正画布代表图；资格入口复用这些模块，正式Host仍未切换。Libra新typed Basis独立冻结当前来源/成功Probe、模型/目录/检索/采样/分组/代表图/身份策略与资源预算，不预冻结People全库。最新contract-6 Linux定向54 PASS/0skip，正式目录适配器4组有序候选与固定参考完全一致、最大距离差1.20e-7；contract-3四张代表图均重新检出1脸，原编码至校正/裁剪/特征证据连续。独立导出暂存源码排除原Phase 3未提交文件后，静态合同/P2为无finding，定向60 PASS/1项Linux-only skip；该项已有Linux覆盖。紧框无脸、稀疏索引误判、外部UID误当SQLite主键、Source Map未传播的首跑失败均保留，未降断言。正式Work/持久Artifact/补采恢复及资源共载、真实视频资格仍开放，Phase 4未Exit，Phase 5未开始。生产仍a2bf2d6fd及原container/StartedAt/Restart0/OOM=false；Sense保持停止、任务容器全部退出，2模型/7目录SHA保持。未动生产DB/人物/Reference/媒体，未创建观察。见[新增Evidence](implementation/evidence/BUFFALO_VIDEO_QUALIFICATION_20261029.md)。

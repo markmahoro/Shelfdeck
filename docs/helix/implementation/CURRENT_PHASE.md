@@ -1,17 +1,30 @@
 # 当前集成 Phase：本轮并行修复与 BUFFALO-VIDEO-IDENTIFICATION
 
-更新：2026-10-29。用户因生产待处理条目增加要求多线程并行：主线程继续Phase 4→5，Phase 2/3独立推进，生产自愈补丁优先；本文件仍是唯一活动集成包，各Phase编号/门槛保留。Phase 1有限技术资格已Exit，固定提交125229556及[Evidence](evidence/BUFFALO_CATALOGUE_FEASIBILITY_20261029.md)可复验。未开放自动出演或授权新的生产副作用；唯一[Master Plan](../CURRENT_PLAN.md)已更新并行责任。
+更新：2026-10-29。用户指定本线程追踪和整合本轮、负责最终门禁及生产发布；原线程专注Phase 4→5，Phase 2/3独立推进。Series恢复补丁优先，资料切片由本线程补齐三个Schema后统一完成门禁及七条原任务线上恢复验收。本文件仍是唯一活动集成包，各Phase编号/门槛保留。Phase 1有限技术资格已Exit，固定提交125229556及[Evidence](evidence/BUFFALO_CATALOGUE_FEASIBILITY_20261029.md)可复验；未开放自动出演。
 
 ## 并行执行与当前阻断
 
 | 线程 / ID | 本轮交付与先后 | 整合边界 |
 | --- | --- | --- |
-| 本线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环；处理统一合同与门禁 | 主工作区中新增244表/66事务的Store切片已6项本地测试通过，Linux/并发/Reset依赖及完整门禁未完成，不作为发布基线 |
+| 本轮整合线程 | 计划追踪、共享合同/生成物、独立Series候选及最终门禁/发布 | 自有主整合目录；不改写演员/电影worktree，不携带未完成内容进入Series候选 |
+| 演员线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环 | 244表/66事务Store切片本地通过；Linux首轮失败待排查，完整门禁未完成，不作为Series发布基线 |
 | ShelfDeck 生产待处理条目分诊 01a18626-520c-79a0-8240-066bd0a777a3 | 当前一次快照、逐条分诊与新增机制故障，给生产补丁排序 | 只读生产，不改源码/状态；首个快照33 attention/5进行中，仍在核对，不等于33个bug |
-| ShelfDeck 剧集上架与自愈修复 01a18627-6d8b-7d72-aa5a-bcb7cbf6ed0f | 优先7条Series真实重试恢复，其后季poster复用/精确剧情缺口 | 自a2bf2d6fd的独立worktree；复用/剥离已有修复，不夹带未完成新功能/Schema，专属Evidence后主线程整合 |
+| ShelfDeck 剧集上架与自愈修复 01a18627-6d8b-7d72-aa5a-bcb7cbf6ed0f | 7条Series恢复、季poster复用和精确剧情切片已提交 | a4989adf9、878d814d3、f442a6f2f基于a2bf2d6fd；三个资料Schema及登记摘要由本线程集成，固定候选/生产验收未完成 |
 | ShelfDeck 电影寻源与自定义标准 01a18628-b31a-70c3-abbc-bd29b688cbce | 电影候选身份可靠性独立排查；继续三层目标、新Run、Arca/Aftercare闭环 | 自f24164ae0的独立worktree；18文件SHA交接完成、原件保留，主线程不并行编辑此范围 |
 
-这些线程已创建并实际开始执行。各线程只提交自己的代码/专属Evidence，不改SSOT/Master/本包/全局生成物；需要共享合同变更由本线程合并。重型NAS验证只由主线程串行安排。安全可拆的生产补丁可以先于演员/自定义标准发布，但仍完成适用门禁、具体版本UI与精确授权；没有再次Reset或复机/停机授权。以下为Phase 4技术范围与既有Evidence，较早串行顺序不再约束其他线。
+这些线程只提交自己的代码/专属Evidence，不改SSOT/Master/本包/全局生成物；共享合同由本线程合并。NAS重型验证串行安排。用户要求优先交付可拆的Series补丁并完成七条指定任务验收；仍须先完成固定候选适用门禁、具体版本UI及真实CIFS资格。没有再次Reset、手工改库或扩大其他生产数据处置的授权。以下为Phase 4技术范围与既有Evidence，较早串行顺序不再约束其他线。
+
+## Series独立候选与发布阻断
+
+| 工作项 | 当前状态 / 退出条件 |
+| --- | --- |
+| 候选范围 | 从生产a2bf2d6fd整合Series三个提交及MetadataFetchIntent、MetadataObservation、ArtifactAcquisitionResult最小已确认生成合同；检查原有DDL/表不变，不携带演员/自定义目标。 |
+| 固定候选资格 | 固定提交的Linux镜像、适用架构/Service/Web及具体版本UI负责人核验；保留所有首跑失败与重验。 |
+| 真实CIFS | 使用隔离范围验证正常与冲突/不可观察行为及来源、正式文件保护；不修改生产材料。 |
+| 标准发布 | 复核生产身份、容量、备份与回退；使用build-image、upload-nas-image和deploy-nas，dry run与SHA通过后按既有用户请求执行。 |
+| 七条恢复 | 假如…？、真探、亿万、越狱、继承之战、当你沉睡时、飞天大盗：逐项冻结原Offer/build/Scope、失败/Effect、Control和文件基线，经原重试入口核验唯一Commit与历史保护；真实冲突继续attention。 |
+
+以上均未因局部Linux PASS而自动完成。
 
 最新检查点：已完成新typed Catalogue Basis、Service内置数值/CPU隔离/目录查询与代表图模块，qualification入口复用正式模块；尚未接通正式Work和Artifact持久化。contract-6 Linux54 PASS/0skip；4组目录有序身份与固定参考一致。contract-3四张代表图（含旋转）可独立检出单脸，记录紧框首败后采用显式1/4留边策略。目录代际冻结manifest及7成员/512维特征空间，实际2,715,402,822 bytes验真；检索与Libra身份资格分开。静态合同/P2从排除原Phase 3未提交文件的源码快照通过，资源共载/正式Host及Phase Exit仍未通过，详见本包[Evidence](evidence/BUFFALO_VIDEO_QUALIFICATION_20261029.md)。
 
@@ -59,7 +72,7 @@ Phase 4应提供绑定材料/帧/模型/目录/策略的识别候选及代表图
 
 Phase 2已有修复、Phase 3未提交Run接续文件和既有资格均保留，现由上述独立线程并行承接，不记验收完成。原Phase 2待开始包冻结在[重排检查点](evidence/ROUND_REPLAN_BASELINE_20261029.md)，不构成另一个活动计划。
 
-仅自用NAS，不对外分发模型/数据。当前不部署、重试、取消、Reset、改库/人物/Reference或媒体，不启停生产/原Sense服务，不恢复自动观察。必要隔离测试按精确目录、只读输入、容量/资源预检及任务专属进程执行；SSH使用tools/nas-ssh-config.js，凭据不输出。
+仅自用NAS，不对外分发模型/数据。Series按上述独立候选门禁和指定七条范围发布及重试；不Reset、改库/人物/Reference或擅自处置媒体，不启停原Sense服务，不恢复自动观察。必要隔离测试按精确目录、只读输入、容量/资源预检及任务专属进程执行；SSH使用tools/nas-ssh-config.js，凭据不输出。
 
 2026-10-29技术切片：已增加有界20+20抽样提议、带同框排斥/组内距离保护的质心分组、时间区段去重、最多三张代表脸及显式目录链接身份汇总；姓名相同不合并，gender冲突保留。Service既有Read Handle/Source校验下增加显式采样点与流式sink，旧正式20帧入口保持原策略；输入前seek并限制解码线程，取消或失败不返回部分成功。模型/目录和新视频Evidence仍是qualification代码，正式Runtime依然为旧模型，不能称已经切换或完成Phase 4。
 
