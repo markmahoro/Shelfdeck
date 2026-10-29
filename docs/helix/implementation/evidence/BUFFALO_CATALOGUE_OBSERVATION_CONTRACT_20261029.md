@@ -82,3 +82,11 @@ Artifact kind 新增 `face_catalogue_observation`，closed payload 为 `shared.b
 两份patch已在演员原工作区执行git apply --check通过，未实际apply；主整合若已追加其他合同，应按精确差异审核、重新生成/计算全局数量，不能生搬固定digest或覆盖其他线程。
 
 后续依赖该共享合同的正式Capability注册、Artifact写入与Host调度仍未实施/验收；People/Cast/停止恢复及真实数据资格均未关闭。主整合已明确要求暂留本地，NAS没有新测试。
+
+## 主整合固定树与安全限制
+
+主整合将2f/68/f0/723/3c/e7源码与Observe合同按文件核验并结合已授权JAV SSOT，生成固定提交`97c4913b96cbe6509c65a2c42ae5ee106905eb17`，Git tree `1ff0a937f2e3f3eab7b3af0ac7ac3f984e58fa46`。从index导出的Windows快照和Git archive导出的Linux只读volume分别以Git blob摘要核对4656个跟踪文件，0不一致；archive SHA256 `d7ef129ed4f8f0a6711cd54d3265d7d691d3c3fac6e42f2094156ce2c596761d`。Windows tar首尝试因含非ASCII文件名解包失败、checkout-index首尝试因参数组合错误未执行，均未作为测试；在全新空目录以Git index重新导出并验证后使用。
+
+固定树Windows/Linux各52通过/0失败/0跳过，覆盖Basis、两批Frame/Embedding/Cluster、完整Observation、Coordinator和保留边界。日志`actor-staged-windows-index.log` SHA256 `eb59d1a53d055c89c771d5a5aa6fd319bf9b288733d1674868b59241619f8c92`，`actor-staged-linux.log` `a3e03b8e9e5ef85155b3c01e5e4883fdd0d29dfd0c51ce14694c1f90c21ee408`。Linux按network none、source/root只读、1CPU/768MiB、tmpfs512MiB，使用基线镜像依赖；新增usearch和真实模型未纳入实际资格。保留规则测试明确先断言正式244表声明未审查时拒绝，之后仅在进程内模拟表分类验证Catalogue Basis被精确保留，不能把模拟结果作为Reset授权或完整闭包资格。
+
+Linux包边界、禁止语义、Manifest及P2均PASS，P2为139 Capability/118 Result/244 table/66 transaction、153 domain inputs、257 type refs、0 unresolved，digest `003aa5741300d9fbc2804601132a55db9f97dbfe169dd8e815ef7e17b4ac840f`；日志`actor-staged-static-linux-git.log` SHA256 `e3447bbfc9c4b932e5aa46b61955b8f07e1240451e3a40badda514c09b2c07eb`。首轮静态环境未挂历史Git对象导致Manifest unresolved，原日志`actor-staged-static-linux.log` `db67c35fad7c4a46603f337a0ec288c8214c064b0eea157c4e4fd39cebbcae2b`保留；只读挂载完整历史后重验。此基准用于演员线程在独立快照接线，不进入Series候选、不表示Phase Exit、自动建档或生产Reset已就绪。

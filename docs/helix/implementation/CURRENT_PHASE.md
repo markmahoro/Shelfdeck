@@ -7,7 +7,7 @@
 | 线程 / ID | 本轮交付与先后 | 整合边界 |
 | --- | --- | --- |
 | 本轮整合线程 | 计划追踪、共享合同/生成物、独立Series候选及最终门禁/发布 | 自有主整合目录；不改写演员/电影worktree，不携带未完成内容进入Series候选 |
-| 演员线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环 | Store 2f9fc0702、Artifact 68b281c33及跨批次查询f0f13680b；后者Linux 57通过/0skip。NAS验证暂停，正式Host/完整门禁未完成，不作为Series发布基线 |
+| 演员线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环 | 共享基准97c4913b9含2f/68/f0/723/3c/e7及正式合同，固定树双平台各52通过；NAS验证暂停，正式Host/真实模型/完整门禁未完成，不作为Series发布基线 |
 | ShelfDeck 生产待处理条目分诊 01a18626-520c-79a0-8240-066bd0a777a3 | 当前一次快照、逐条分诊；承接JAV路径字节预算修复 | 生产只读，独立开发工作区可修改源码；16:18快照34 attention/4进行中，不等于34个bug或Reset精确范围 |
 | ShelfDeck 剧集上架与自愈修复 01a18627-6d8b-7d72-aa5a-bcb7cbf6ed0f | 7条Series恢复、季poster复用和精确剧情切片已提交；承接具体候选UI问题修复 | a4989adf9、878d814d3、f442a6f2f基于a2bf2d6fd；三个资料Schema及登记摘要由本线程集成，固定候选/生产验收未完成 |
 | ShelfDeck 电影寻源与自定义标准 01a18628-b31a-70c3-abbc-bd29b688cbce | 电影候选与自定义标准Libra基础切片b3929e199已交付；续修US瑕疵预览 | 18文件SHA交接完成；完整API/UI、Arca责任投影和Handoff B等未闭合，Linux精确依赖镜像及真实旅程未完成，不开放半成品 |
@@ -39,7 +39,7 @@ continuity合法重规划门禁测试`92df7fa5e`挑入后，当前候选更新�
 
 普通发布只做安全停止与完整校验备份，不默认执行Reset。Fresh-generation Reset的预检须停止、冻结精确范围并核验保留依赖，可能清除在线未入藏任务和系统工作区，不能仅据工作台34条推算范围；当前无Reset授权。[只读分诊和Reset影响](evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)。
 
-演员2f/68/f0/723和目录Observe合同正由主线程结合JAV截断合同整合；重生后P2为139/118/244/66、153 domain inputs、257 refs且无未解析，包/语义/Manifest静态检查通过。初次组合的37项Windows及37项Linux局部测试在临时启用244表保留声明的实验状态通过；Linux沿旧镜像依赖，不覆盖新增usearch真实模型。发现上方Custom Spec缺口后，主整合已撤回该声明变更并实测`RESET_RETENTION_SCHEMA_UNREVIEWED`，避免错误放行；保持拒绝状态重跑其余Actor局部测试Windows/Linux各36通过/0失败。对应Reset测试待精确保留修复后重验，当前无正式合同接线或完整Actor/Reset资格。
+演员2f/68/f0/723/3c/e7与目录Observe合同结合JAV截断合同的共享基准`97c4913b96cbe6509c65a2c42ae5ee106905eb17`已固定，P2为139/118/244/66、153 domain inputs、257 refs且无未解析。固定树Windows/Linux各52通过，Linux包/语义/Manifest/P2通过；Linux沿旧镜像依赖，不覆盖新增usearch真实模型。初次组合的37项通过发生在临时启用244表保留声明的实验状态，发现Custom Spec缺口后已撤回声明并实测`RESET_RETENTION_SCHEMA_UNREVIEWED`；Actor保留正例仅在测试内模拟分类。Reset测试待精确保留和合法历史修复后重验，当前无正式Host接线或完整Actor/Reset资格。[Evidence](evidence/BUFFALO_CATALOGUE_OBSERVATION_CONTRACT_20261029.md)。
 
 真实CIFS首轮将Workspace/SQLite错误放到共享盘而失败；按生产布局重跑后8项直接文件调用仍遇 `PHYSICAL_MATERIAL_STAT_FENCE_CHANGED`。隔离探针发现首次路径stat与文件描述符时间戳不一致、后续收敛；真实Host已定位同一Series publish Effect进入reconcile_required，最初测试把该预期恢复通知视为异常而提前退出。验证原Effect恢复至唯一Commit的第三轮隔离Host在2026-10-29 14:43启动；随后NAS应用响应超时，隔离测试连接在无最终结果时断开，不能计为通过。用户说明前序其他Docker部署导致系统卡死并重启NAS；独立根因未核实。重启后确认任务容器不存在、生产仍为同一a2bf2d6fd镜像；用户重挂两个原CIFS源后原容器仍见启动时空目录，故精确核验源及容器后重启该容器恢复绑定；容器内SMB及健康已恢复，但管理状态一次超时、swap约2GiB，稳定性仍待核验。候选未部署或线上重试；NAS稳定性复核前暂停新NAS测试和发布。[候选与恢复Evidence](evidence/SERIES_INTEGRATION_GATE_20261029.md)。
 

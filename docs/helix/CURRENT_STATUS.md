@@ -1,6 +1,6 @@
 # ShelfDeck 当前状态
 
-2026-10-29自定义标准未来版本的Reset保护缺口已在隔离库复现：仅将Intent/Preview表标为dependent时，已保留Custom Spec所需Intent会遗漏。当前未证明生产受影响，原开发分支因声明与结构不符本已拒绝Reset；主整合中的新结构亦继续保留该fail-closed保护，Libra线程正在实现精确依赖与负例。演员目录Observe合同已在未提交整合副本重生并完成P2/局部验证，包含该缺口的完整Reset和Actor功能仍未获得发布资格。
+2026-10-29自定义标准未来版本的Reset保护缺口已在隔离库复现：仅将Intent/Preview表标为dependent时，已保留Custom Spec所需Intent会遗漏。当前未证明生产受影响，原开发分支因声明与结构不符本已拒绝Reset；主整合中的新结构亦继续保留该fail-closed保护，Libra线程正在实现精确依赖与负例。演员目录Observe共享基准`97c4913b96cbe6509c65a2c42ae5ee106905eb17`已在固定树完成Windows/Linux各52项及Linux静态合同检查；正式Host/真实模型、包含该缺口的完整Reset和Actor功能仍未获得发布资格。[Evidence](implementation/evidence/BUFFALO_CATALOGUE_OBSERVATION_CONTRACT_20261029.md)。
 
 精确27a首轮完整Linux架构为3411通过/3失败/27跳过；两项为前述缺历史Git对象，第三项是Series并发Host中的`Resolution Commit Handle does not fence the exact typed Resolution Draft`，原因及后继状态正在独立核查。带历史对象的完整复验仍在运行；不能把该轮记为PASS。[Evidence](implementation/evidence/SERIES_INTEGRATION_GATE_20261029.md)。
 
