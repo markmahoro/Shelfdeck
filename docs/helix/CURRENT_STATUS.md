@@ -4,6 +4,10 @@
 
 2026-10-29 用户同意恢复演员、电影、剧集和 UI 负责人既有线程并行；本线程负责整合及 Reset/发布。Series线程确认其切片已进入候选并承接JAV长名，电影与演员正式闭环仍待完成；UI正在对中间版本提前反馈，最终合版须另行复核。下方相反的发布顺序、无Reset授权和CIFS门槛均为历史时点记录。
 
+演员Observation检查点`28a6e4f43`已基于主整合既有暂存状态叠加，保留本整合的`face_catalogue_observation`类型；隔离Linux的真实Event/恢复及Workspace相关52项、四项静态检查通过。视频帧、模型和目录输入仍含fixture，正式Host、People/Cast及入藏闭环未完成。演员线程正在继续，并提出目录选择、系统建档和People Reset依赖的机器合同需求，须按既有Owner边界传播。
+
+Series候选的Perception Planner越界已在`f253017d2`收口，实际判断和错误类型不变；隔离Linux相关45项及静态检查通过。主整合已持有JAV截短SSOT `3e707a033`，系列独立候选尚未合入该合同；JAV正式实现、固定版本Host/冲突/中断证据仍在进行。
+
 US体积缺陷预览与对话框修复已入独立候选 `b7a03bb48`、`2a58c1606`；隔离Linux 56项、Web 15项及构建通过，最终合版未验收。主整合 `bfc9f0cd4` 完成239→244精确结构转换；后续已补244表保留规则、精确Withdrawal依赖及未终态旧执行的清除/阻断。隔离Linux管理流程85项、后续闭包85项和管理入口2项通过，首跑及负例失败保留。结构或测试通过不代表生产数据闭包已核验；生产未停机、Reset或部署。
 
 五条一次性只读复核：DDOB-019 与已 Commit、active 的同番号收藏目标冲突，新输入是不同物理材料，现有保护拒绝；爱死机原错误为 ECONNRESET，当前同输入 TMDB 查询成功；硅谷同输入当前复现 TMDB 备用标题 `type` 为159字节而代码限128，历史原始字段未留存；GVH-877/SORA-062 的 JAV 页当前各一次请求返回200，未下载封面，原失败阶段/状态被诊断序列化丢弃，无法倒推历史根因。生产只读事务 `query_only=1/total_changes=0`，未操作旧任务。新增两项定向修复及边界见 [Evidence](implementation/evidence/PRODUCTION_FIVE_CASES_REVIEW_20261029.md)。

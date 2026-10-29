@@ -15,6 +15,8 @@ DDOB-019 的冲突目标为已有 active Shelf Entry 所控的同番号正式文
 
 独立候选`b7a03bb48`、`2a58c1606`已整合US体积检查及对话框修复：隔离Linux服务56项、Windows Web 15项和前端构建通过；最终合版、真实媒体及具体版本UI复核仍开放。冷态Reset结构转换提交`bfc9f0cd4`对固定生产239表→当前244表进行精确目录和marker校验；后续已声明244表保留规则，补齐相关Withdrawal闭包与旧执行防重启边界。隔离Linux完整管理流程85项通过，后续闭包回归85项及管理入口2项通过；原2项缺失闭包、旧Work反例和一次声明错误失败均保留。最终整合结构、生产停止态数据闭包、校验冷备与实际Reset仍待核验。
 
+演员Observation `28a6e4f43`已叠加主整合暂存代码并保留已有Artifact类型，真实Event及Workspace定向Linux 52项、四项静态检查通过；这不是正式Host或真实视频/People/Cast资格。演员线程继续前序Frame恢复和系统建档，目录来源的Selection Basis、People自动注册来源和人物独立Reset依赖仍待精确机器合同及实现。Series候选Perception同Owner模型边界修复`f253017d2`已通过Linux 45项和静态检查；JAV新路径与主整合已存在的`3e707a033`合同仍待合并及完整验收。
+
 ## 并行执行与当前阻断
 
 | 线程 / ID | 本轮交付与先后 | 整合边界 |

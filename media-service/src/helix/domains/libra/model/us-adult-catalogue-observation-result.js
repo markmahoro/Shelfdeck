@@ -53,7 +53,7 @@ function buildCatalogueObservationHandle({basis,completedBatches,observation,art
     observationArtifactHandle:artifactHandle,outputTargetDigest:targetDigest};
   const value=JSON.parse(canonicalJson({...body,handleDigest:canonicalDigest(body)}));return freeze(assertObservationHandle(value,{validator}));
 }
-function readCatalogueObservationResult({basis,completedBatches,snapshot,validator,handle,bytes}){
+function readCatalogueObservationArtifact({basis,completedBatches,snapshot,validator,handle,bytes}){
   assertObservationHandle(handle,{validator});
   assertArtifactSource({basis,completedBatches,artifact:handle.observationArtifactHandle,outputTargetDigest:handle.outputTargetDigest});
   if(!Buffer.isBuffer(bytes)||bytes.length!==handle.observationArtifactHandle.sizeBytes)fail('The complete catalogue Artifact byte length changed.');
@@ -70,7 +70,11 @@ function readCatalogueObservationResult({basis,completedBatches,snapshot,validat
     handle.frameCount!==observation.frameEvidenceRefs.length||handle.faceCount!==observation.frameEvidenceRefs.reduce((count,frame)=>count+frame.faces.length,0)||
     handle.groupCount!==observation.groups.length||handle.queryCount!==observation.queries.length)
     fail('The catalogue Result summary is not its complete exact frozen Artifact.');
-  const owned=freeze(JSON.parse(canonicalJson(observation))),assessment=assessCatalogueActors({groups:catalogueAssessmentGroups(owned),policy:basis.selectionPolicy});
-  return Object.freeze({observation:owned,assessment});
+  return freeze(JSON.parse(canonicalJson(observation)));
 }
-module.exports=Object.freeze({catalogueObservationTarget,buildCatalogueObservationHandle,readCatalogueObservationResult});
+function readCatalogueObservationResult(input){
+  const observation=readCatalogueObservationArtifact(input),assessment=assessCatalogueActors({groups:catalogueAssessmentGroups(observation),policy:input.basis.selectionPolicy});
+  return Object.freeze({observation,assessment});
+}
+module.exports=Object.freeze({catalogueObservationTarget,assertCatalogueObservationSource:assertSource,buildCatalogueObservationHandle,
+  readCatalogueObservationArtifact,readCatalogueObservationResult});

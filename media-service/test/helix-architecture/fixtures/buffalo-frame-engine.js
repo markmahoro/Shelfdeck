@@ -40,6 +40,7 @@ function setup(t,overrides={}){
     port=createCleanWesternFramePort({workspaceProductPort:workspace,configuration,engine,now:()=>1000}),
     target={libraRunId:'run',workspaceId:'workspace',outputKind:'frame_set',sourceInputDigest:D({sourceHandle:basis.sourceHandle,samplingPlan:batch.samplingPlan}),
       targetRelativePath:'analysis/frames/initial.json',targetId:D('target'),targetDigest:D('target-digest')};
+  f.db.prepare('UPDATE fx_workspace_registry SET root_handle_ref=? WHERE workspace_id=?').run(workspace.rootSnapshot().rootHandleRef,'workspace');
   return {...f,basis,batch,workspace,engine,port,target,counters,clock,cpuSession,frameExtractor};
 }
 module.exports=Object.freeze({setup});
