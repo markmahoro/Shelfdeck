@@ -213,6 +213,7 @@ function createExecutionRuntimeHost(options) {
     const operation=(async()=>{
       finishScope=options.onExecutionScopeStarted?.(scheduled.executionScope);
       const outcome=await options.eventRuntime.run({schedulerLease:scheduled.lease});
+      if(outcome?.kind==='owner_deferred')return Object.freeze({kind:'event_owner_deferred',eventId,outcome});
       if(outcome?.kind==='effect_recovery_required'){
         deferredRecoveries.set(eventId,{
           eventId,effectId:outcome.effectId,action:null,retryAtMs:Date.now(),

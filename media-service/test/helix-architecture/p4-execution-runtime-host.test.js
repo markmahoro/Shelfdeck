@@ -194,6 +194,21 @@ test('Execution Runtime Host plans Work, delegates Event execution, aggregates t
   ]);
 });
 
+test('an Owner-deferred Event is not aggregated or reported as completed Work',async()=>{
+  let available=true,aggregations=0,reconciliations=0,errors=0;
+  const host=createExecutionRuntimeHost({tickIntervalMs:60000,
+    startupRecovery:{async recover(){return {state:'ready',normalSupplyAllowed:true};}},
+    scheduler:{acquire({targetType}){if(targetType==='event'&&available){available=false;
+      return {kind:'leased',lease:{targetType:'event',targetId:'deferred-event',leaseId:'lease'}};}return {kind:'idle'};},release(){}},
+    plannerRegistry:{resolve(){}},planPublisher:{publish(){}},
+    workLifecycle:{ensurePlanningAttempt(){},startPlanned(){},aggregateEvent(){aggregations++;},settleWork(){}},
+    eventRuntime:{async run(){return {kind:'owner_deferred',eventId:'deferred-event',reasonCode:'target_not_current'};}},
+    domainReconciler:{async reconcile(){reconciliations++;}},fallbackReconciler:{async start(){},async stop(){}},onError(){errors++;},
+  });
+  await host.start();await new Promise(resolve=>setImmediate(resolve));await host.stop();
+  assert.equal(aggregations,0);assert.equal(reconciliations,0);assert.equal(errors,0);
+});
+
 test('Execution Runtime Host repairs classified cancelled-Work Attempt residuals before normal supply', async () => {
   const calls=[];
   let pass=0;

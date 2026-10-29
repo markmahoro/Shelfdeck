@@ -225,6 +225,7 @@ function fixture(run, settings = {}) {
   let inputPreparationScope;
   const runtime = createEventRuntime({ schemaManifest, unitOfWork, scheduler, governor, failureEvidenceStore:settings.failureEvidenceStore,onDiagnosticError:settings.onDiagnosticError,
     ...(settings.incidentObserver ? { incidentObserver:settings.incidentObserver } : {}),
+    ...(settings.createDispatchGuard ? {dispatchGuard:settings.createDispatchGuard({unitOfWork,databasePath})} : {}),
     registry: { resolve: () => ({ manifest: { capabilityRef: 'libra.test.observe@1',ownerScope:'libra',resultSchemaRef: 'helix://test/result',evidenceSchemaRef:'helix://test/evidence',
       effectClass: settings.effectClass || 'pure_observation', approvalRequirementRef: settings.approvalRequirementRef },
       executor: { version: 1, cooperativeAbortSafe:settings.cooperativeAbortSafe===true } }) }, dispatcher,
@@ -331,6 +332,70 @@ function databaseFacts(databasePath) {
     };
   } finally { database.close(); }
 }
+
+test('an Owner dispatch guard can defer an Event without creating an Attempt or Effect',async()=>{
+  const calls=[];
+  await fixture(async({runtime,lease,databasePath,state})=>{
+    const result=await runtime.run({schedulerLease:lease});
+    assert.deepEqual(result,{kind:'owner_deferred',eventId:'event',reasonCode:'target_not_current'});
+    assert.equal(databaseFacts(databasePath).event.state,'ready');assert.equal(databaseFacts(databasePath).attempts,0);
+    assert.equal(state().schedulerReleased,1);assert.equal(state().governorReleased,0);
+    assert.equal(state().dispatchContext,undefined);assert.deepEqual(state().journalCalls,[]);
+    assert.deepEqual(state().dispatchOutcomes,['owner_wait']);
+    assert.deepEqual(calls,[{ownerDomain:'libra',processType:'libra_run',processId:'run',workKind:'test_work',workId:'work',eventId:'event'}]);
+  },{effectClass:'workspace_write',createDispatchGuard:()=>({check(scope){calls.push(scope);return {kind:'pending',reasonCode:'target_not_current'};}})});
+});
+
+test('a concurrent Owner change rejects Event Attempt creation under the opaque read fence',async()=>{
+  await fixture(async({runtime,lease,databasePath,state})=>{
+    const result=await runtime.run({schedulerLease:lease});
+    assert.deepEqual(result,{kind:'owner_deferred',eventId:'event',reasonCode:'owner_view_changed'});
+    assert.equal(databaseFacts(databasePath).event.state,'ready');assert.equal(databaseFacts(databasePath).attempts,0);
+    assert.equal(state().schedulerReleased,1);assert.equal(state().governorReleased,1);
+    assert.equal(state().dispatchContext,undefined);assert.deepEqual(state().journalCalls,[]);
+    assert.equal(state().dispatchOutcomes.at(-1),'owner_wait');
+  },{effectClass:'workspace_write',createDispatchGuard:({unitOfWork,databasePath})=>({check(){
+    const readFence=unitOfWork.captureReadFence(),db=new Database(databasePath);try{
+      db.prepare('UPDATE fx_supporting_works SET updated_at_ms=coalesce(updated_at_ms,0)+1 WHERE work_id=?').run('work');
+    }finally{db.close();}return {kind:'ready',readFence};
+  }})});
+});
+
+test('an Owner dispatch guard with a fresh exact view allows the existing Event flow',async()=>{
+  await fixture(async({runtime,lease,databasePath,state})=>{
+    const result=await runtime.run({schedulerLease:lease});assert.equal(result.kind,'succeeded');
+    assert.equal(databaseFacts(databasePath).attempts,1);assert.ok(state().dispatchContext);
+  },{createDispatchGuard:({unitOfWork})=>({check(){return {kind:'ready',readFence:unitOfWork.captureReadFence()};}})});
+});
+
+for(const phase of ['input_failure','first_fence_rejection','external_wait_promotion','second_fence_rejection'])
+  test('Owner change before '+phase+' cannot create a false Event outcome',async()=>{
+    const settings={effectClass:'workspace_write',createDispatchGuard:({unitOfWork,databasePath})=>{let checks=0;return {check(){
+      const readFence=unitOfWork.captureReadFence();if(++checks===2){const db=new Database(databasePath);try{
+        db.prepare('UPDATE fx_supporting_works SET updated_at_ms=coalesce(updated_at_ms,0)+1 WHERE work_id=?').run('work');
+      }finally{db.close();}}return {kind:'ready',readFence};
+    }};}};
+    if(phase==='input_failure')settings.inputError=new Error('fixture input failure');
+    if(phase==='first_fence_rejection')settings.fences=[{valid:false,actualDigest:HASH_B}];
+    if(phase==='external_wait_promotion')settings.initialEventState='waiting_for_external';
+    if(phase==='second_fence_rejection')settings.fences=[{valid:true,digest:HASH_A,snapshot:{}},{valid:false,actualDigest:HASH_B}];
+    await fixture(async({runtime,lease,databasePath,state})=>{
+      assert.deepEqual(await runtime.run({schedulerLease:lease}),{kind:'owner_deferred',eventId:'event',reasonCode:'owner_view_changed'});
+      const facts=databaseFacts(databasePath);assert.equal(facts.attempts,0);assert.equal(facts.results,0);
+      assert.equal(facts.event.state,phase==='external_wait_promotion'?'waiting_for_external':'ready');
+      assert.equal(state().dispatchContext,undefined);assert.deepEqual(state().journalCalls,[]);
+      assert.equal(state().schedulerReleased,1);
+    },settings);
+  });
+
+for(const decision of [{kind:'ready'},{kind:'pending',reasonCode:''},{kind:'not_applicable',readFence:{}},{kind:'unknown'}])
+  test('invalid Owner dispatch decision is rejected before Attempt or Effect: '+JSON.stringify(decision),async()=>{
+    await fixture(async({runtime,lease,databasePath,state})=>{
+      await assert.rejects(runtime.run({schedulerLease:lease}),{code:'P4_EVENT_OWNER_GUARD_INVALID'});
+      assert.equal(databaseFacts(databasePath).attempts,0);assert.equal(state().governorReleased,0);
+      assert.equal(state().schedulerReleased,1);assert.equal(state().dispatchContext,undefined);assert.deepEqual(state().journalCalls,[]);
+    },{effectClass:'workspace_write',createDispatchGuard:()=>({check:()=>decision})});
+  });
 
 for (const field of ['result', 'evidence']) {
   for (const recovery of [false, true]) {

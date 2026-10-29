@@ -207,6 +207,30 @@ test('a circuit-blocked queue head yields the scheduling round to a healthy peer
   });
 });
 
+test('an Owner-deferred Event yields the scheduling round to another eligible Event',()=>{
+  fixture(({scheduler,seedRows,projections})=>{
+    seedRows(repository=>{
+      addEventGraph(repository,projections,'owner-blocked',{localPriority:100,readyAtMs:100000});
+      addEventGraph(repository,projections,'healthy-peer',{localPriority:0,readyAtMs:130000});
+    });
+    const blocked=scheduler.acquire({targetType:'event'});assert.equal(blocked.lease.targetId,'event-owner-blocked');
+    assert.equal(scheduler.noteDispatchOutcome(blocked.lease,{kind:'owner_wait'}).recorded,false);
+    scheduler.release(blocked.lease);
+    const peer=scheduler.acquire({targetType:'event'});assert.equal(peer.lease.targetId,'event-healthy-peer');
+    scheduler.release(peer.lease);
+  });
+});
+
+test('an exhausted Owner wait round reports its own reason and retries on the next round',()=>{
+  fixture(({scheduler,seedRows,projections})=>{
+    seedRows(repository=>addEventGraph(repository,projections,'owner-wait',{readyAtMs:100000}));
+    const lease=scheduler.acquire({targetType:'event'}).lease;
+    scheduler.noteDispatchOutcome(lease,{kind:'owner_wait'});scheduler.release(lease);
+    assert.deepEqual(scheduler.acquire({targetType:'event'}),{kind:'idle',reasonCode:'OWNER_WAIT_ROUND_EXHAUSTED'});
+    assert.equal(scheduler.acquire({targetType:'event'}).lease.targetId,'event-owner-wait');
+  });
+});
+
 test('one due background Event gets bounded progress without starving ordinary or reserved work', () => {
   fixture(({ scheduler, seedRows, projections, setNow }) => {
     seedRows((repository) => {

@@ -145,3 +145,11 @@ Windows 与隔离 Linux Docker 运行 Plan、Work Lifecycle、Work Admission、E
 Libra Workspace Admission 接受可选 opaque read fence，并在写 Workspace、Registry、Revision、Result 和 Marker 的同一 UoW 验证；读取后发生变化时新准入零写入。已提交的精确命令先核验原 Marker/Result，Owner 后续变化不妨碍重放；若精确提交发生在第一次重放检查之后、写事务之前，stale fence 被拒绝后重新核验原回执并返回同一结果，不产生第二套记录。新增测试先复现原入口忽略 fence；最终 Windows 与隔离 Linux Docker 的 Workspace Admission、Work Admission、Work Lifecycle、Replacement Admission 四文件各 **69 PASS / 0 skip**。
 
 这是供协调层使用的可选事务原语，尚未从 Runtime 的 Workspace 创建路径传入当前目标及排空证明，不能单独形成屏障、释放材料或启用 Custom Target。真实 Owner/Arca 变化、完整 Event 调度和 UI/用户旅程仍待整合验收。
+
+## Event Attempt 的 Owner 调度检查口（2026-10-29）
+
+Foundation Event Runtime 新增可选 typed Owner 检查口，接收精确 Work/Event 范围；Owner 返回 pending 时不执行、不伪造失败，返回 ready 时由实际 Event Attempt 写事务验证 opaque read fence。输入准备失败、现有 execution fence 拒绝和外部等待转 ready 也先重新取得 Owner view，并在其各自写事务校验，避免目标变化后制造旧任务的新失败；在途 Effect 的完成/恢复仍由原 Owner 和现有恢复协议处理。Owner 等待让出当前调度轮次，使用明确的 Owner 等待原因，Host 不把它聚合成已完成 Work。该检查口可显式标识不适用的其他 Owner；错误形状直接拒绝。
+
+测试先复现未安装检查口时的旧 Event 仍启动；受控 SQLite 竞态覆盖 Attempt 写入前、输入错误、首尾 execution fence 和外部等待恢复前的 Owner 变化，均不创建错误 Attempt/Effect；fresh view 正常执行，检查口错误、资源释放、调度公平与原恢复路径也覆盖。Windows 与隔离 Linux Docker 的 Event Runtime、Work Scheduler、Execution Runtime Host、Plan、Work Lifecycle 五文件各 **180 PASS / 0 skip**。
+
+此口尚未接入实际 Libra Runtime；在 Scheduler 选择和 Resource Governor 内的技术等待/资源事务仍需同一 Owner 资格整体复核，不能宣称所有调度边界已受保护。新 Run 的完整评分/Shelf/材料和 Arca 责任读取、旧执行排空、恢复及用户入口仍须实际组合与验收。Linux 依旧使用已披露的非精确依赖镜像，没有运行生产或真实媒体。
