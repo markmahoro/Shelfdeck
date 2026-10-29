@@ -223,3 +223,11 @@ Windows 和隔离 Linux Docker 的 14 个相关文件各 **374 PASS / 0 skip**�
 新增临时 SQLite 竞态先复现 Lifecycle 及策略观察不使用 fence；修复后陈旧读取不写新 revision/marker，不可用观察前变化不写观察，观察后冻结前变化保留观察且 Run 仍 active；精确提交重放及并发先提交不会再写第二次。实际 Run Coordinator 注入变化时返回等待，不提交 freshness revision。暂停测试通过受控数据库状态变化验证两类检查的区别，尚非完整暂停/恢复旅程。首轮一个负例因测试连接未关闭导致 Windows 清理 EPERM，修正测试清理后确认原始 fence 缺陷；策略测试首轮使用无效 reasonCode，修正为正式 reason 后复现缺陷。Windows 与隔离 Linux 的 17 个相关文件各 **408 PASS / 0 skip**；静态扫描仍有既有 2 + 1 finding，Linux 非精确依赖镜像。
 
 仍未将 Guard 接入正式组合根；终止/Discard 与已拒绝 Offer 收尾、Scheduler/Resource Governor、启动接续、完整 View、标准恢复、Arca 独立接纳和 Aftercare 等须继续按各 Owner 合同闭合，不据此开放入口或宣称端到端完成。未访问生产，Fresh Reset 的旧 Offer 未 ACK 重投责任仍开放。
+
+## Runtime 精确 Work Basis 与真实 Guard 组合（2026-10-29）
+
+独立提交 `475c4c1973b9ce53b01a9a740f843b6f7f36ccaa` 将 Scheduler 的 Work Basis 传至实际 Host 和 Event 的 typed Owner scope，Work Attempt 事务复核完整 scope；Event 在同一 Owner fence 下重新核验当前 Work、Attempt 和 Plan 仍属于相同 Basis 且可执行。Plan Publication 也核对 Work/Attempt Basis，Work Start 核对 Work/Attempt/Plan 的三方 Basis，连已启动重放也不能绕过。此为 Foundation 执行身份校验，不向 Foundation 移动 Libra 目标决定。
+
+使用实际临时 SQLite、Libra Custom Guard、真实 Run Coordinator、Host 和 Work Lifecycle：Coordinator 准入后 Control revision 变化时 Host 等待且零 Attempt；Guard 读取后 Owner 变化时实际 Attempt 事务拒绝；将 Work Definition 与热列一致地改为另一 Basis 后，Host 也拒绝而不是创建 Attempt。Event 测试覆盖 Guard 捕获 fence 之前 Work Basis 已变，拒绝而非执行；Plan/Start 三项错配分别先失败后修复，均无不应有的新 Plan、Event 或运行状态。旧 Event stale 测试现在更早、在获取资源前发现变化，故资源释放计数由 1 改为 0，等待及零 Attempt/Effect 断言保持。新增生命周期复测在正式重试时间到达后从 suspended 恢复 active，使用 fence 且不创建 Work；第一次使用未到期时间得到 `not_due`，修正时钟后通过。
+
+Windows 和隔离 Linux 的 17 个相关文件各 **416 PASS / 0 skip**。中间完整运行两平台各 **412 PASS / 1 FAIL**，原因是一个 Scheduler 测试直接插入 Work 的夹具漏填新增读取的 Basis；补齐该夹具后通过，未放宽生产校验。静态扫描仍只有既有 2 + 1 finding；Linux 不是精确依赖镜像。测试中的 Scheduler lease、Provider 和大部分 Owner 基线仍是受控夹具；没有完整真实媒体、完整 Host 组合根或 Arca Commit 证据。正式 Guard 接线、Discard/拒绝收尾、资源调度、持久 Intent 自动接续、完整 Preview、标准恢复和 Arca custom 接纳仍需闭合；不开放半成品入口，不改变 Fresh Reset 的 fail-closed 状态。
