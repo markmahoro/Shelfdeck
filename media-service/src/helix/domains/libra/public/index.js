@@ -347,7 +347,6 @@ module.exports = Object.freeze({
   createFreshResetWorkspaceArchive: require('../persistence/fresh-reset-workspace-archive').createFreshResetWorkspaceArchive,
   describeFreshResetWorkspaceRetention: require('../model/fresh-reset-workspace-retention').describeFreshResetWorkspaceRetention,
   describeFreshResetMetadataRetention: require('../model/fresh-reset-metadata-retention').describeFreshResetMetadataRetention,
-  createFreshResetCustomTargetRetention: require('../persistence/fresh-reset-custom-target-retention').createFreshResetCustomTargetRetention,
   createLibraArtifactAuditSource(options){const source=require('../persistence/reference-artifact-audit-source').createLibraArtifactAuditSource(options);return Object.freeze({sourceId:source.sourceId,epoch:source.epoch,page:source.page});},
   createFormationRetirementStore:require('../persistence/formation-retirement-store').createFormationRetirementStore,
   createProductDeliveryReader:require('../persistence/product-delivery-reader').createProductDeliveryReader,
