@@ -35,3 +35,7 @@
 6. **双重 schema 围栏**：分别覆盖 239→244 cold import 和 244→244 已有 Withdrawals；在正式表分类、关联边、Owner 证据与验证器尚未审核时，分别保持 `RESET_SOURCE_SCHEMA_UNREVIEWED` 或 `RESET_RETENTION_SCHEMA_UNREVIEWED` 等明确阻断。测试夹具中的模拟分类不能被当成发布声明；恢复后重建/重放、断电重开与取消/ACK 窗口须在独立副本覆盖。
 
 正式设计应将每条 Receipt 的保留或安全清除依据、Offer 身份、相关 retained references、必要 Owner/Effect 和投递状态、源快照 digest 绑定到 Reset 的停止态预检与复核；当选择结果或 source generation 变化时重新验证。这里没有确定最终表分类、修改 Owner 声明或执行任何生产动作。
+
+## 主整合交叉复验
+
+固定提交`8c414f2ff`的完整Git archive在隔离Linux复跑当前244表的239源冷转换、Owner复制、Custom Target、People Reference、Workspace保护、offline/process及Runtime停止态管理：105 PASS/0 FAIL/0 skip，日志`reset-8c414f2ff-linux.log`。该测试覆盖合并后的Foundation和演员Frame检查点，使用合成源库，不证明生产停止态闭包；演员系统建档及JAV逐成员进度拟新增结构尚未包含，最终目标DDL仍须重新限定并复验。

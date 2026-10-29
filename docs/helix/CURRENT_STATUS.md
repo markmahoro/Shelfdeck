@@ -8,6 +8,8 @@
 
 JAV长标题候选`619ffc464`的真实Linux Host在Stage写完回执前、Stage提交后Verify前、Placement写完回执前三处中断后均未完成原责任恢复；文件保留且无On-deck Commit不等于成功。Series线程正按既有Arca边界修复并复验，当前阻断上线。演员People/Cast合同已进入独立实现，新增数据结构将要求重新审查最终Reset保留和旧生产结构转换；电影端到端仍在开发。
 
+主整合`8c414f2ff`对当前244表Reset在隔离Linux复跑105项通过，覆盖239源转换、收藏/人物/Workspace依赖与停止态管理；拟新增的演员和JAV结构仍须重新资格，未对生产执行Reset。[Evidence](implementation/evidence/ARCA_WITHDRAWN_OFFER_RESET_AUDIT_20261029.md)。
+
 主整合`f88bd096f`的Web完整隔离回归281项及TypeScript/Vite构建通过；首次导出漏了Service src的两套失败和完整复验均留证。最终合版及其UI负责人核验仍未完成。[Evidence](implementation/evidence/SERIES_INTEGRATION_GATE_20261029.md)。
 
 演员阶段`bfc11236e`的Frame/Embedding/Cluster真实Event与中断恢复、People姓名比较和Libra人物请求输入已叠加主整合，保留`face_catalogue_observation`枚举；合并后隔离Linux 79项、本机Windows 25项及四项静态检查通过。视频Probe/CPU/目录仍用fixture，正式Host、真实视频、系统建档与Cast尚未完成；新人物来源和结构变更须连同Reset闭包继续审核。
