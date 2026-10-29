@@ -517,13 +517,13 @@ function fixture(contract, run, options = {}) {
 
 const transactionContracts = contracts();
 
-test('canonical transaction inventory drives exactly 65 isolated contracts', () => {
+test('canonical transaction inventory drives exactly 66 isolated contracts', () => {
   const inventory = loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests/transaction-inventory.json'));
   const inventoryEntries = inventory.entryFiles.flatMap((file) =>
     loadJson(path.join(serviceRoot, 'src/helix/contracts/manifests', file)).entries
   );
-  assert.equal(transactionContracts.length, 65);
-  assert.equal(inventory.targetCount, 65);
+  assert.equal(transactionContracts.length, 66);
+  assert.equal(inventory.targetCount, 66);
   assert.deepEqual(transactionContracts.map((contract) => contract.transactionId),
     [...inventoryEntries].sort((left, right) => left.id.localeCompare(right.id)).map((entry) => entry.id));
   for (const contract of transactionContracts) {

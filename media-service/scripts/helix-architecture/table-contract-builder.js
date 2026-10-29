@@ -361,6 +361,7 @@ const JSON_LIMIT_OVERRIDES = Object.freeze({
   'people_us_recommendation_sources.observation_json':128*1024,
   'people_us_recommendation_publications.snapshot_json':1024*1024,
   'libra_us_adult_reference_pages.page_json':1024*1024,
+  'libra_us_adult_catalogue_bases.basis_json':32*1024,
   'libra_us_adult_actor_choice_intents.record_json':256*1024,
   'libra_episode_metadata_reviews.record_json':3*1024*1024,
   'libra_episode_metadata_mapping_intents.record_json':1024*1024,

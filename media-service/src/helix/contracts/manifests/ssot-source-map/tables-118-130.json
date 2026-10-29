@@ -6,13 +6,24 @@
   "endOrdinal": 130,
   "entries": [
     {
+      "id": "arca_series_presentation_references",
+      "owner": "arca",
+      "columnsContract": "`scope_id, shelf_entry_id, first_committed_version, state(active|released), reference_revision, reference_digest, created_at_ms, released_at_ms NULL`",
+      "constraintsContract": "`PK(scope_id,shelf_entry_id)`；`rowMutability=cas_lifecycle`；同一Season追加Episode不新增引用；Off-deck/注销与本Entry终态同事务释放；有active或pending引用不删除公共文件，最后引用释放不替代用户删除授权",
+      "source": {
+        "section": "8.5.12",
+        "line": 9639,
+        "lineDigest": "3906c925c22bd6b64d0250079e41c7c0447a5fe83c26874f61845a1921b60ae5"
+      }
+    },
+    {
       "id": "arca_series_presentation_commit_links",
       "owner": "arca",
       "columnsContract": "`commit_link_id PK, on_deck_run_id, scope_id, shared_version, manifest_digest, verification_digest, committed_at_ms`",
       "constraintsContract": "`UNIQUE(on_deck_run_id)`；immutable；与On-deck Commit同事务固定当时共享版本及验证；当前健康另取共享head，禁止改写历史链接",
       "source": {
         "section": "8.5.12",
-        "line": 9638,
+        "line": 9640,
         "lineDigest": "1f19a8bb145d741907b85dda2897f2a83d98c75c1705f892d93de42bff373afe"
       }
     },
@@ -23,7 +34,7 @@
       "constraintsContract": "mount scope pair是Platform opaque technical ref；active Shelf name不作为identity；Shelf创建时routing projection revision=1，任何后续`status/current_standard_revision`变化都对该revision执行CAS并加1，再按`ShelfRoutingTargetProjection@1`公式重算digest；`INDEX(status,shelf_id)`；不得保存Libra Routing Priority",
       "source": {
         "section": "8.5.12",
-        "line": 9642,
+        "line": 9644,
         "lineDigest": "fb0d7dd2f0060eb79bacd13ded477487737287361b1f6acf01b597e26f233c18"
       }
     },
@@ -34,7 +45,7 @@
       "constraintsContract": "system template不能archive或创建draft；current revision显式FK；`INDEX(status,owner_kind,rule_template_id)`",
       "source": {
         "section": "8.5.12",
-        "line": 9643,
+        "line": 9645,
         "lineDigest": "bd5c979d8217bbe4ac7c7562b1b9edf0fc2732ef5d8cccbc27f1d01f79fbe829"
       }
     },
@@ -45,7 +56,7 @@
       "constraintsContract": "rules JSON上限`64 KiB`；`PK(rule_template_id,revision)`；immutable",
       "source": {
         "section": "8.5.12",
-        "line": 9644,
+        "line": 9646,
         "lineDigest": "6e3e8f8aa33fe6418af146903da0d1e6e2d7f8fd094681a008803ad07f8ceb51"
       }
     },
@@ -56,7 +67,7 @@
       "constraintsContract": "只允许user template；一个Template最多一份current draft；发布以expected draft revision/digest消费但保留审计Evidence",
       "source": {
         "section": "8.5.12",
-        "line": 9645,
+        "line": 9647,
         "lineDigest": "b27ad6918fa468908a559182fd6d6cce24143d3afa39a1f4c17b0f89bbd6155c"
       }
     },
@@ -67,7 +78,7 @@
       "constraintsContract": "Standard JSON上限`64 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK；当前row中的template pair同时是Shelf current Template binding权威来源；`INDEX(rule_template_id,rule_template_revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 9646,
+        "line": 9648,
         "lineDigest": "4fc3b60852bf253ca8b4f3f3741f542f3d5f5b3468003014b525d2311ab36fdb"
       }
     },
@@ -78,7 +89,7 @@
       "constraintsContract": "Shelf创建/Target修订同事务保存实际旧、新Target Binding；同tuple幂等且不可改写，`UNIQUE(shelf_id,binding_digest)`；`INDEX(shelf_id,endpoint_id,mount_scope_id)`；仅作为Arca精确物理权限证据，历史Binding不代表当前Target、不自动授权迁移或删除",
       "source": {
         "section": "8.5.12",
-        "line": 9647,
+        "line": 9649,
         "lineDigest": "b023e58fb190fe46f2ebe906d2c739f610b6f386258a75fbaeccec0bf571d665"
       }
     },
@@ -89,7 +100,7 @@
       "constraintsContract": "Policy JSON上限`16 KiB`；`PK(shelf_id,revision)`；Shelf current pointer显式FK",
       "source": {
         "section": "8.5.12",
-        "line": 9648,
+        "line": 9650,
         "lineDigest": "f1ff9fbfeb19ff8629a2ca30d5d792300614f66d81e5d042e1baf50cb5bfd75a"
       }
     },
@@ -100,7 +111,7 @@
       "constraintsContract": "同一Offer至多一个Attempt且相同`package_digest+standard+placement`至多一个active attempt；Related disposition set必须逐字节等于Package；accepted/rejected只允许从active以Decision事务CAS一次；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9649,
+        "line": 9651,
         "lineDigest": "ac8e0dc05730a33237c0a8a3649633c072fc55233f04842480bcb1ab2b3d641e"
       }
     },
@@ -111,7 +122,7 @@
       "constraintsContract": "一份Offer恰有一个current Recovery Case；`recovery_generation`从1单调递增且每个generation派生不同Supporting Work ID，历史Work/Event/Attempt不修改；技术失败只允许`active|automatic_recovering|user_retrying → attention_required`，不得建立Acceptance Decision；trigger变化最多一次`attention_required → automatic_recovering`，用户Retry一次只创建一个`user_retrying` generation；Accepted/Rejected或同事务持久Offer Withdrawal后`resolved`，后者保留原失败字段且不宣称验收成功；`INDEX(recovery_state,updated_at_ms)`",
       "source": {
         "section": "8.5.12",
-        "line": 9650,
+        "line": 9652,
         "lineDigest": "704da309eecf460b8dea2c5b7a6a67a774bbbbc896ab151a3b6175462da95a26"
       }
     },
@@ -122,7 +133,7 @@
       "constraintsContract": "immutable；所有列NOT NULL；schema固定`arca.offer-withdrawal-receipt@1`；closed JCS JSON最大`16 KiB`，header与JSON逐项一致；只证明未Accepted旧Offer因精确公开target_not_current资格永久退出，不是Accepted/Rejected或收藏事实；无跨Owner FK、无Control及文件副作用",
       "source": {
         "section": "8.5.12",
-        "line": 9651,
+        "line": 9653,
         "lineDigest": "947996dd4ced969c0ff57e43d5b205c805309812345b250f6210596f09f0f6c4"
       }
     },
@@ -133,19 +144,8 @@
       "constraintsContract": "`PK(acceptance_attempt_id,check_kind,check_revision)`",
       "source": {
         "section": "8.5.12",
-        "line": 9652,
+        "line": 9654,
         "lineDigest": "77d3920ed642da9e59d4fd9c91e1474be0429b26f5f775356b97d12915d5b36a"
-      }
-    },
-    {
-      "id": "arca_inventory_verification_records",
-      "owner": "arca",
-      "columnsContract": "`record_id PK, work_id, event_id UNIQUE, process_type, process_id, verification_kind, verification_schema_ref, verification_json, verification_digest, record_schema_ref, record_json, record_digest, commit_marker FK UNIQUE, committed_at_ms`",
-      "constraintsContract": "Arca独占不可变最终校验Evidence；verification_json是closed FinalProductVerification或FulfillmentVerification完整值≤8 MiB；record_json为同名Record≤64 KiB；精确Event唯一，Result/marker原子；不产生Custody、Control或Own。",
-      "source": {
-        "section": "8.5.12",
-        "line": 9653,
-        "lineDigest": "2618e65bf5f7aaf319398ab874a2402dafac5a006c850a9e0eb5fb655a038a87"
       }
     }
   ]

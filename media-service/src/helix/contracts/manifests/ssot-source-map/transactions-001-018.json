@@ -136,12 +136,22 @@
       }
     },
     {
+      "id": "US Adult Catalogue Basis Freeze",
+      "owner": "libra",
+      "atomicFactSet": "Libra在唯一Primary的正式Probe成功后，按current active Run/state revision/execution basis、正式resolved_identity及active同Run Workspace原子冻结UsAdultCatalogueAnalysisBasis；只写libra_us_adult_catalogue_bases，不预读/冻结People库；同Run相同完整Basis重放，不同来源/模型/目录/策略拒绝，插入中断全回滚；历史读取/幂等重放不授予执行资格，执行读取须重核active Run、相同execution basis/身份及active Workspace，单纯priority revision变化不重写Basis；不创建Event/Effect/Outbox，不写People/Arca",
+      "source": {
+        "section": "8.5.4",
+        "line": 8842,
+        "lineDigest": "ef8d0f417a957894d2b1e80f1a7035e1dc635f45e2b686fb0604fdcf114f090b"
+      }
+    },
+    {
       "id": "US Adult Actor Choice Intent",
       "owner": "libra",
       "atomicFactSet": "用户对当前未交付US Subject指定已有演员；冻结同Run/state/execution basis、People正式单人版本快照和Subject choice head期望revision；Actor Choice Intent、head、Command Receipt、marker、audit全有或全无，重放先于当前状态/People读取；不写People或Arca，不直接更改已提交Media-Cast；提交后及同命令重放时，Libra在唤醒生产前按当前生产事实决定原位继续或经既有独立Owner准入事务合法replacement；续跑中断不得重建Intent或覆盖冻结产品事实，Handoff B Accepted后由Arca处理",
       "source": {
         "section": "8.5.4",
-        "line": 8842,
+        "line": 8843,
         "lineDigest": "fd11af495f774e322978b4ea9dc1319ee281d8ba7e6ee8a7042ee6539d1c94d1"
       }
     },
@@ -151,7 +161,7 @@
       "atomicFactSet": "Libra在完整冻结页集的全部正式Match Work成功后，重验各页Result/输入/模型/阈值/最高分并冻结有界UsAdultMatchCompletion；只写Libra不可变完成事实，Basis、来源Run与全部页数必须相等；重复返回原完成事实，任何缺页不能形成未识别结果；不写People、Arca、Event、Effect或Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 8843,
+        "line": 8844,
         "lineDigest": "353a755e29fc728c09a908faa5765754f715adcf13a7e18c9ac7285eea3b1d57"
       }
     },
@@ -161,7 +171,7 @@
       "atomicFactSet": "complete PerceptionAcquisitionResumeDecision + active Source/config/Acquisition scope fence + immutable resume Intent + command receipt/result/marker/audit；原Acquisition/Scope/页cursor/Work与历史Record不变；不签发新同步",
       "source": {
         "section": "8.5.4",
-        "line": 8844,
+        "line": 8845,
         "lineDigest": "9a959461b03af4b28e7bd28ec931791f7580547f19d565588e904c10c8f30b12"
       }
     },
@@ -171,18 +181,8 @@
       "atomicFactSet": "PeopleReferenceMaintenanceDecision + Person/reference revision CAS + Asset/唯一派生Face同时active或released + new Reference revision/head + 所有受影响Person的Reference Projection checkpoint + durable typed result + commit marker + People-internal Outbox",
       "source": {
         "section": "8.5.4",
-        "line": 8845,
-        "lineDigest": "9189e51ed83f21bc8aa73672970d80c045e3e148fab9e0dd6866b1d54b632f4e"
-      }
-    },
-    {
-      "id": "Procurement Retry Intent Commit",
-      "owner": "procurement",
-      "atomicFactSet": "complete `ProcurementRetryIntent@1` + failed sealed Run/Basis与精确released member scope + current Field/Profile Hint/Access/terminal Observation/Policy/active Triage Rule admission head + Eligibility/Binding/Selection/Control precondition + `open` intent + durable `ProcurementRetryIntentReceipt`/commit marker + 唯一`ProcurementRetryIntentAvailableMessage` Outbox；Profile Hint必须命中current revision及terminal Observation Snapshot；相同`fieldId+idempotencyKey`重放原结果",
-      "source": {
-        "section": "8.5.4",
         "line": 8846,
-        "lineDigest": "6244c2bb8301bc89619d3256d477f3d5629381424579e9139b4f8331c1ee6822"
+        "lineDigest": "9189e51ed83f21bc8aa73672970d80c045e3e148fab9e0dd6866b1d54b632f4e"
       }
     }
   ]

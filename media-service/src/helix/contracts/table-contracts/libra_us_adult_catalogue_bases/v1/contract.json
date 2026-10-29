@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_us_adult_catalogue_bases/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_us_adult_catalogue_bases",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "analysis_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": true,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "workspace_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "basis_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "basis_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "analysis_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "libra_run_id",
+      "subject_id",
+      "workspace_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "libra_run_id"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "basis_json",
+        "schemaRefColumn": "basis_schema_ref",
+        "maxBytes": 32768,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "Libra-owned immutable目录识别输入快照"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Libra-owned immutable目录识别输入快照",
+      "basis schema固定UsAdultCatalogueAnalysisBasis，数据库JSON上限`32 KiB`",
+      "analysisId/basisDigest覆盖完整value，按当前Run/身份/Workspace冻结",
+      "每个Run对应一份不可变Basis，目录更新不改已有Basis，不附带People当前库快照",
+      "保留收藏依赖Run时保留该Basis，未入藏Basis沿Fresh-generation Reset离线归档后清除",
+      "不是当前执行资格或跨域Registry"
+    ],
+    "rawContract": {
+      "columns": "`analysis_id PK, libra_run_id FK UNIQUE, subject_id FK, workspace_id FK, basis_schema_ref, basis_json, basis_digest, created_at_ms`",
+      "constraints": "Libra-owned immutable目录识别输入快照；basis schema固定UsAdultCatalogueAnalysisBasis，数据库JSON上限`32 KiB`；analysisId/basisDigest覆盖完整value，按当前Run/身份/Workspace冻结；每个Run对应一份不可变Basis，目录更新不改已有Basis，不附带People当前库快照；保留收藏依赖Run时保留该Basis，未入藏Basis沿Fresh-generation Reset离线归档后清除；不是当前执行资格或跨域Registry"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9601,
+      "lineDigest": "2ea29f75d95762fd4c89fe7458677b553b6a7373144182fc3aab10800518743c"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "libra_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "workspace_id"
+        ],
+        "targetTable": "libra_workspaces",
+        "targetColumns": [
+          "workspace_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

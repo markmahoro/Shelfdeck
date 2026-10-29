@@ -130,3 +130,29 @@ NAS私有实验根继续为`/vol1/1000/docker/shelfdeck-buffalo-qualification-20
 最终生产container/image/StartedAt与原基线一致，running/Restart0/OOM=false；Sense仍exited；本任务容器均已退出。2模型/7目录成员最终SHA与Phase 1及首轮记录一致。本次没有挂载生产DB、写People/Reference/收藏/源文件，也没有执行部署/Reset或恢复自动观察；不冒称重新逐行核验全库/全部媒体。
 
 剩余门槛：新Basis Store、正式Work/Capability/Artifact/Effect/Permit及可恢复补采，目录/模型同进程共载和真实Host停止/重启/迟到结果，独立真值充分的视频识别/4K/SMB资格；随后Phase 5人物完整发布、Reference统一更新、单演员出演及唯一Commit。当前切片不是Phase 4 Exit或核心功能完成。
+
+## 2026-10-29 Catalogue Basis 持久化切片
+
+本切片属于演员线程 Phase 4；主整合职责已经由用户移交新线程“ShelfDeck 本轮整合与生产交付”（01a18642-b03d-7ba1-9215-5405de01680e）。本证据不是新活动计划，不改变独立生产补丁优先级。
+
+- 新 Libra-owned `libra_us_adult_catalogue_bases` 每Run一份32KiB不可变Basis，独立于People Reference页面；真实UnitOfWork在首次冻结时核对active Run、精确state revision、execution basis、正式identity Fact与同Run active Workspace。相同值重放；冲突值拒绝；插入中断回滚。
+- 历史读取和冻结幂等重放不授予执行资格。`readForExecution`每次重核active Run、execution basis、identity、Workspace；取消后拒绝迟到执行；priority-only revision前进不重写Basis。
+- 两个独立SQLite连接/CPU测试线程实际并发竞争：同值汇合为一行，异值仅一个成功，其余明确冲突。测试线程不是产品Worker或独立调度服务。
+- Fresh Reset真实保留库复制：Arca依赖闭包选择的精确Run连同Basis保留；没有收藏依赖的任务Basis从在线副本清除，源库不变，FK/integrity通过。未把整个Subject的所有旧Run当保留根。
+- 当前Schema244表/66事务；DDL SHA256 `294bb8243aca2857729f70fa07fbc59b69efad5da5854a5db528386e19179bc6`，P2 digest `b848201c2518224a06b1c4e4dd46928f0345d26e8aef1403fdfbfc8779a5e5fe`。32KiB JSON限定由SSOT/生成器/validator/DDL共同承认，未放宽为无上限JSON。
+- Schema分类检查同时发现原243表声明漏四表。按现有SSOT明确分类：未Accepted Offer撤回回执及当前Custom Head为clear，精确Custom Intent/Preview为dependent；不加入Subject级扩张边。未来已Commit custom Spec的opaque精确Intent依赖仍由Phase 3/主整合验证，此处分类不是该生命周期已通过的证明。
+
+验证固定源码为ignored `E:/my_project/emby_third_party-helix/.codex/buffalo-video-phase4-20261029/index-gate-4`，从Git index导出，排除18个原Phase3未提交文件；这些文件的交接SHA全部保持。
+
+| 验证 | 结果与限制 |
+| --- | --- |
+| 本机原生Store/Reset copy/canonical transaction crash | 223 PASS/0 FAIL/0 skip；含当前66事务通用故障注入，不能代替真实产品旅程。 |
+| 独立源码P2/table/transaction静态 | 14 PASS/0 FAIL；P2上述digest及零finding。 |
+| 实际本机Linux Docker Store/Reset copy/DDL | 19 PASS/0 FAIL/0 skip，7.590秒；镜像`sha256:afb5fad462130beb66162fff081e96d089adf49ee7e2bb600e9fdac72aea0357`，只借Linux Node/SQLite依赖，不作为产品候选；源码只读、network none、1CPU/768MiB、tmpfs64MiB，无生产挂载、无模型加载。 |
+| NAS store-1首轮 | 工具exit1，日志只包含前四项完成且无总计；原因证据不足，不记PASS，也不推断OOM/timeout。原日志SHA `af44f450f4f06ac4765e025407ff894ed7dec03f8a4bd2f1fb94607306250b18`保留。 |
+
+Linux本机日志：同ignored根`store-local-linux-1.log`。NAS源码包`store-1.tar.gz`为5,642,301 bytes，SHA`b2b0ee115eb6a1413a27ffcb4dec3dd4fb0788b042073e30c07da2f5eb9538f8`；其失败不被本机新证据覆盖。最终容器均退出，生产image/StartedAt/Restart0/OOMfalse保持。
+
+首跑问题保留：fixture漏Workspace revision导致FK拒绝；恢复副本fixture漏传标准targetSchema导致regeneration拒绝；validator漏32KiB及新增事务Owner的机械传播被门禁拒绝；固定SourceMap更新后Capability出处摘要未传播也被拒绝，完整生成后通过。没有省略校验或移交业务Owner来过测试。
+
+剩余：正式Work/Capability/Artifact/Effect/Permit和20+20条件补采、模型/索引共载、完整Host取消恢复与视频真值/资源资格；随后Phase 5。当前不具备生产部署或自动演员业务完成资格。
