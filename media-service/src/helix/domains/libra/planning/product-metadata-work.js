@@ -134,6 +134,7 @@ function providerSource(options, snapshot, identity, sourcePriority,
     resolvedProviderIdentity: providerIdentity,
     requestedFields,
     ...(episodeScope ? { episodeScope } : {}),
+    ...(episodeScope&&requestedFields.includes('episode_plot')?{episodePlotPolicyRef:require('../../../contracts/episode-plot-source').POLICY}:{}),
     providerKind: providerIdentity.provider,
     ...(snapshot.spec.contentProfile==='jav'?{javSelectedSource:require('../../../contracts/jav-selected-source').buildJavSelectedSource(identity.factValue.javSourceQualification)}:{}),
   };

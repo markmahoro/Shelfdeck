@@ -528,7 +528,8 @@ function productMetadataContext(options, libraRunId, selectedEpisodeKey) {
   sources.sort((left,right)=>left.intent.sourcePriority-right.intent.sourcePriority);
   const basis=buildMetadataObservationBasis({intents:sources.map((item)=>item.intent),results,
     factKind:'product_metadata',expectedRevision:0});
-  const requirements=[...requiredArtifactKinds(snapshot)].map(kind=>artifactRequirement(kind))
+  const requirements=[...requiredArtifactKinds(snapshot)].map(kind=>artifactRequirement(kind,null,
+    snapshot.spec.contentProfile==='series'&&kind==='poster'?require('../../../contracts/series-season-poster-source').POLICY:null))
     .sort((left,right)=>Buffer.from(left.artifactKind).compare(Buffer.from(right.artifactKind))||
       Buffer.from(left.requirementId).compare(Buffer.from(right.requirementId)));
   const requiredFields=requiredMetadataFields(snapshot);

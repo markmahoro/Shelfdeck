@@ -876,6 +876,7 @@ function createPlatformIntegrationServices(options) {
           requestedFields:
             request.metadataFetchIntent.requestedFields,
           ...(request.metadataFetchIntent.episodeScope ? { episodeScope:request.metadataFetchIntent.episodeScope } : {}),
+          ...(request.metadataFetchIntent.episodePlotPolicyRef?{episodePlotPolicyRef:request.metadataFetchIntent.episodePlotPolicyRef}:{}),
           ...(request.metadataFetchIntent.episodeMapping ? { providerEpisodeReference: request.metadataFetchIntent.episodeMapping.providerEpisode } : {}),
         },
         timeoutMs: 10_000,

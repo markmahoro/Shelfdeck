@@ -34,6 +34,8 @@ function harness(overrides = {}) {
       if (overrides.error) throw overrides.error;
       if (overrides.timeout) await new Promise((_resolve, reject) =>
         init.signal.addEventListener('abort', () => reject(init.signal.reason), {once:true}));
+      if(url.pathname.endsWith('/translations'))return new Response(JSON.stringify(overrides.translations??
+        {id:(overrides.episode??episode).id,translations:[]}),{status:overrides.translationsStatus??200});
       const isSeason = url.pathname.includes('/season/');
       const isEpisode = url.pathname.includes('/episode/');
       return new Response(JSON.stringify(isEpisode ? (overrides.episode ?? episode) :
@@ -44,7 +46,9 @@ function harness(overrides = {}) {
   const fetch = (input = {}, suppliedHandle = overrides.handle || handle) => adapter.observationPort.execute({
     operationId, integrationHandle:suppliedHandle, timeoutMs:1000,
     input:{ resolvedProviderIdentity:identity(),
-      requestedFields:['genre', 'plot', 'season_number', 'series_title'], ...input },
+      requestedFields:['genre', 'plot', 'season_number', 'series_title'], ...input,
+      ...(input.episodeScope&&input.requestedFields?.includes('episode_plot')&&overrides.supplementation!==false?
+        {episodePlotPolicyRef:require('../../src/helix/contracts/episode-plot-source').POLICY}:{}), },
   });
   return { calls, fetch };
 }
@@ -211,6 +215,38 @@ test('Missing Episode title or plot remains a gap and never inherits Series plot
   const fixture = harness({ episode:{ id:63056, season_number:1, episode_number:1, name:'', overview:'' } });
   const result = await fixture.fetch({ episodeScope, requestedFields:episodeFields });
   assert.deepEqual(result.descriptiveEntries.map(item => item.key), ['episode_number', 'season_number', 'series_title', 'tmdb_series_id']);
+  assert.equal(result.episodePlotSourceProof.result,'not_available');
+});
+
+test('exact Episode translations complete a missing plot without changing local title or numbering',async()=>{
+  const f=harness({episode:{id:63056,season_number:1,episode_number:1,name:'Local preferred title',overview:''},
+    translations:{id:63056,translations:[{iso_639_1:'en',iso_3166_1:'US',data:{name:'Other-language title',overview:'Same-Episode English plot'}}]}}),
+    result=await f.fetch({episodeScope,requestedFields:episodeFields});
+  assert.equal(result.descriptiveEntries.find(row=>row.key==='episode_plot').value,'Same-Episode English plot');
+  assert.equal(result.descriptiveEntries.find(row=>row.key==='episode_title').value,'Local preferred title');
+  assert.equal(result.episodePlotSourceProof.selectedLanguage,'en-US');
+  assert.deepEqual(result.episodePlotSourceProof.localScope,episodeScope);
+  assert.equal(f.calls.at(-1).pathname,'/3/tv/1399/season/1/episode/1/translations');
+  assert.equal(f.calls.length,4);
+});
+
+test('only the explicit frozen Owner policy permits additional-language observation',async()=>{
+  const f=harness({supplementation:false,episode:{id:63056,season_number:1,episode_number:1,name:'Title',overview:''}}),
+    result=await f.fetch({episodeScope,requestedFields:episodeFields});
+  assert.equal(result.episodePlotSourceProof,undefined);assert.equal(f.calls.length,3);
+  const invalid=harness({supplementation:false});
+  await assert.rejects(invalid.fetch({episodeScope,requestedFields:episodeFields,episodePlotPolicyRef:'unapproved-policy'}),
+    {code:'PLATFORM_TMDB_METADATA_SHAPE'});
+  assert.equal(invalid.calls.length,0);
+});
+
+test('a foreign Episode translation or translation HTTP failure cannot become a missing-field observation',async()=>{
+  for(const overrides of [{translations:{id:99999,translations:[]},code:'PLATFORM_TMDB_EPISODE_TRANSLATIONS_INVALID'},
+    {translationsStatus:503,code:'PLATFORM_INTEGRATION_HTTP_FAILED'}]){
+    const f=harness({...overrides,episode:{id:63056,season_number:1,episode_number:1,name:'Title',overview:''}});
+    await assert.rejects(f.fetch({episodeScope,requestedFields:episodeFields}),{code:overrides.code});
+    assert.equal(f.calls.length,4);
+  }
 });
 function seasonWithEpisodes(count = 77) {
   return { id:3624, season_number:1, episodes:Array.from({length:count}, (_, index) => ({

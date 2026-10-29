@@ -129,6 +129,19 @@ test('Series recovery cannot infer an unreadable different inode from identical 
   assert.deepEqual(f.fs.statSync(f.temporary,{bigint:true}),before);assert.deepEqual(f.fs.readFileSync(f.target),f.bytes);
 });
 
+test('Series alias recovery preserves unknown neighboring partials and existing collection bytes',async t=>{
+  const f=await interruptedPublication(t),unknown=f.target+'.shelfdeck-'+D('unowned').slice(0,64)+'.partial',
+    retained=path.join(f.scope.rootLocation,'retained-collection.mkv'),bytes=Buffer.from('Existing collection bytes');
+  f.fs.writeFileSync(unknown,f.bytes);f.fs.writeFileSync(retained,bytes);
+  const unknownIdentity=f.fs.statSync(unknown,{bigint:true}),retainedIdentity=f.fs.statSync(retained,{bigint:true});
+  rejectAliasReads(t,f.fs,f.temporary);
+  await f.io.publish(f.scope,f.artifacts,{...f.execution,recoveryDecision:'continue_forward'});
+  assert.equal(f.fs.existsSync(f.temporary),false);
+  assert.deepEqual(f.fs.readFileSync(unknown),f.bytes);assert.deepEqual(f.fs.readFileSync(retained),bytes);
+  for(const [location,identity] of [[unknown,unknownIdentity],[retained,retainedIdentity]])
+    for(const key of ['dev','ino','size','mtimeNs','ctimeNs'])assert.equal(f.fs.statSync(location,{bigint:true})[key],identity[key]);
+});
+
 test('Series published-alias cleanup requires an active execution fence and leaves the final file intact',async t=>{
   const f=await interruptedPublication(t);rejectAliasReads(t,f.fs,f.temporary);let checks=0;
   await assert.rejects(f.io.publish(f.scope,f.artifacts,{...f.execution,recoveryDecision:'continue_forward',shouldContinue:()=>++checks===1}),{code:'ARCA_SERIES_EXECUTION_FENCED'});

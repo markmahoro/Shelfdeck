@@ -159,6 +159,7 @@ function createProductMetadataCapabilityPorts(options) {
           peopleHints: provider.peopleHints,
           artifactHints: Object.freeze([]),
           ...(provider.seriesPresentationSource?{seriesPresentationSource:provider.seriesPresentationSource}:{}),
+          ...(provider.episodePlotSourceProof?{episodePlotSourceProof:provider.episodePlotSourceProof}:{}),
         });
       } else {
         throw new TypeError('Product Metadata source kind is unsupported.');
@@ -173,6 +174,7 @@ function createProductMetadataCapabilityPorts(options) {
         artifactHints: source.artifactHints,
         ...(source.seriesQualifiedLocalSource?{seriesQualifiedLocalSource:source.seriesQualifiedLocalSource}:{}),
         ...(source.seriesPresentationSource?{seriesPresentationSource:source.seriesPresentationSource}:{}),
+        ...(source.episodePlotSourceProof?{episodePlotSourceProof:source.episodePlotSourceProof}:{}),
         observedAtMs: now(),
       }));
       } catch (error) {
