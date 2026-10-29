@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "compilerContract": "helix-p3-deterministic-sqlite-ddl/v1",
   "digestAlgorithm": "sha256",
-  "tableCount": 239,
-  "tableContractAggregateDigest": "22c51dc22dc86897a5fc8013b985742ac27c8a08a7f5083a3250f4060345af7c",
-  "ddlDigest": "906ecacce4d6de62e875d1293cec93dd198564c1c53e2f7f7979d75b2eac2d0a",
+  "tableCount": 242,
+  "tableContractAggregateDigest": "50e35f9e0029ad52d47fd9e0f25e619c8cd51f85e40eb3eef00d8f62ffc4fbee",
+  "ddlDigest": "572bd48d999c83c86ffd5c2ccc496e7177b14df2edfd09ebcffadf56e2706cb9",
   "tables": [
     {
       "tableId": "arca_acceptance_attempts",
@@ -4410,6 +4410,46 @@
       "indexes": []
     },
     {
+      "tableId": "libra_us_adult_catalogue_actor_decisions",
+      "owner": "libra",
+      "contractId": "helix://contracts/tables/libra_us_adult_catalogue_actor_decisions/v1",
+      "contractDigest": "a70cbb7f04eb1bc4484d4acb71d8e99e4bac6809396fc840a970a657a7c8b899",
+      "sqlDigest": "e3314909d52ad429c578d43b74b2cd6256ca5ee58df06327cb8bf2d660d12dbe",
+      "columns": [
+        "decision_id",
+        "libra_run_id",
+        "subject_id",
+        "decision_schema_ref",
+        "decision_json",
+        "decision_digest",
+        "observation_result_id",
+        "created_at_ms"
+      ],
+      "immutable": true,
+      "supportColumns": [],
+      "indexes": []
+    },
+    {
+      "tableId": "libra_us_adult_catalogue_bases",
+      "owner": "libra",
+      "contractId": "helix://contracts/tables/libra_us_adult_catalogue_bases/v1",
+      "contractDigest": "af5a1ef4b32c3011d93eda8fc151cc54db83a96cb94257846923aaac9aeffb97",
+      "sqlDigest": "49ec358e06665957b140d31a1aaf5f1dbe86954f3e92f99c7e69a0ca96566471",
+      "columns": [
+        "analysis_id",
+        "libra_run_id",
+        "subject_id",
+        "workspace_id",
+        "basis_schema_ref",
+        "basis_json",
+        "basis_digest",
+        "created_at_ms"
+      ],
+      "immutable": true,
+      "supportColumns": [],
+      "indexes": []
+    },
+    {
       "tableId": "libra_us_adult_match_completions",
       "owner": "libra",
       "contractId": "helix://contracts/tables/libra_us_adult_match_completions/v1",
@@ -4680,7 +4720,7 @@
       "tableId": "people_image_operations",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_image_operations/v1",
-      "contractDigest": "16ca1e0399c8ad5a195d907759c27f3eb62454d2593b7c2c23e4ca401d48b2c2",
+      "contractDigest": "bcabca780e35c4e6670fd7f0424aa6130e7538f49abd8936a0550370beb77b4e",
       "sqlDigest": "3fef64cfe3670d89f238b10431fc2bb27801fa35592b780c94ce8800c951652d",
       "columns": [
         "operation_id",
@@ -4793,8 +4833,8 @@
       "tableId": "people_person_revisions",
       "owner": "people",
       "contractId": "helix://contracts/tables/people_person_revisions/v1",
-      "contractDigest": "32d1eaf10cbc46a545b8f0b4c213600ac55dbf67772d9c0d6f447bc296fec792",
-      "sqlDigest": "0d6b844009cad95803923b7e54424bdb643620925e844d9fcb5ee33dad114029",
+      "contractDigest": "d2c1cbabb681747b02922b15429585e6415d0bde879e453feffac0ec3c4b669c",
+      "sqlDigest": "c4d5a71dbe387e59f1acbc9ca7c275d89d7c953405dc79f807b61fbaeb88143e",
       "columns": [
         "person_id",
         "revision",
@@ -5013,6 +5053,40 @@
           "sqlDigest": "604834e5138e3958070521edf9d860609da295067170894cd69a65a365fb176f"
         }
       ]
+    },
+    {
+      "tableId": "people_us_adult_catalogue_registration_origins",
+      "owner": "people",
+      "contractId": "helix://contracts/tables/people_us_adult_catalogue_registration_origins/v1",
+      "contractDigest": "cd6d055d439bd1d4c951cf24affeca391fbf893e8540cd5dbe762ab4b2514345",
+      "sqlDigest": "c7bf9c6c0dc459e709e1499a74711eb8a56ed0a65b8e6a88083a9dae5d96974f",
+      "columns": [
+        "person_id",
+        "decision_id",
+        "decision_schema_ref",
+        "decision_json",
+        "decision_digest",
+        "operation_id",
+        "origin_schema_ref",
+        "origin_json",
+        "origin_digest",
+        "catalogue_input_schema_ref",
+        "catalogue_input_json",
+        "catalogue_input_digest",
+        "name_resolution_schema_ref",
+        "name_resolution_json",
+        "name_resolution_digest",
+        "observation_schema_ref",
+        "observation_json",
+        "observation_digest",
+        "provider_observation_schema_ref",
+        "provider_observation_json",
+        "provider_observation_digest",
+        "created_at_ms"
+      ],
+      "immutable": true,
+      "supportColumns": [],
+      "indexes": []
     },
     {
       "tableId": "people_us_recommendation_claims",

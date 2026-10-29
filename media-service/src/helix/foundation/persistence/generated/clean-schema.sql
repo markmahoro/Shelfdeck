@@ -3034,6 +3034,39 @@ CREATE TABLE "libra_us_adult_analysis_bases" (
   FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "libra_us_adult_catalogue_actor_decisions" (
+  "decision_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "decision_schema_ref" TEXT,
+  "decision_json" TEXT,
+  "decision_digest" TEXT CHECK (length("decision_digest") = 64 AND "decision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "observation_result_id" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("libra_run_id", "decision_digest"),
+  CHECK (json_valid("decision_json")),
+  CHECK (length(CAST("decision_json" AS BLOB)) <= 262144),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_us_adult_catalogue_bases" (
+  "analysis_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "workspace_id" TEXT,
+  "basis_schema_ref" TEXT,
+  "basis_json" TEXT,
+  "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("libra_run_id"),
+  CHECK (json_valid("basis_json")),
+  CHECK (length(CAST("basis_json" AS BLOB)) <= 32768),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_us_adult_match_completions" (
   "analysis_id" TEXT PRIMARY KEY,
   "libra_run_id" TEXT,
@@ -3320,7 +3353,7 @@ CREATE TABLE "people_person_revisions" (
   "person_status" TEXT CHECK ("person_status" IN ('active', 'merged')),
   "canonical_name" TEXT,
   "merged_into_person_id" TEXT,
-  "origin_kind" TEXT CHECK ("origin_kind" IN ('direct', 'candidate')),
+  "origin_kind" TEXT CHECK ("origin_kind" IN ('direct', 'candidate', 'catalogue_auto')),
   "origin_decision_id" TEXT,
   "origin_decision_digest" TEXT CHECK (length("origin_decision_digest") = 64 AND "origin_decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "origin_candidate_kind" TEXT,
@@ -3330,7 +3363,7 @@ CREATE TABLE "people_person_revisions" (
   "fact_digest" TEXT CHECK (length("fact_digest") = 64 AND "fact_digest" NOT GLOB '*[^0-9a-f]*'),
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   PRIMARY KEY ("person_id", "revision"),
-  CHECK (("origin_kind" = 'direct' AND "origin_decision_id" IS NOT NULL AND "origin_decision_digest" IS NOT NULL AND "origin_candidate_kind" IS NULL AND "origin_candidate_id" IS NULL AND "origin_candidate_revision" IS NULL AND "origin_candidate_payload_digest" IS NULL) OR ("origin_kind" = 'candidate' AND "origin_decision_id" IS NULL AND "origin_decision_digest" IS NULL AND "origin_candidate_kind" IS NOT NULL AND "origin_candidate_id" IS NOT NULL AND "origin_candidate_revision" IS NOT NULL AND "origin_candidate_payload_digest" IS NOT NULL)),
+  CHECK (("origin_kind" IN ('direct', 'catalogue_auto') AND "origin_decision_id" IS NOT NULL AND "origin_decision_digest" IS NOT NULL AND "origin_candidate_kind" IS NULL AND "origin_candidate_id" IS NULL AND "origin_candidate_revision" IS NULL AND "origin_candidate_payload_digest" IS NULL) OR ("origin_kind" = 'candidate' AND "origin_decision_id" IS NULL AND "origin_decision_digest" IS NULL AND "origin_candidate_kind" IS NOT NULL AND "origin_candidate_id" IS NOT NULL AND "origin_candidate_revision" IS NOT NULL AND "origin_candidate_payload_digest" IS NOT NULL)),
   FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED
 );
 
@@ -3462,6 +3495,47 @@ CREATE TABLE "people_registration_candidates" (
 );
 CREATE INDEX "idx_people_registration_candidates_hot_01" ON "people_registration_candidates" ("current_state", "created_at_ms");
 CREATE UNIQUE INDEX "uidx_people_registration_candidates_partial_01" ON "people_registration_candidates" ("evidence_digest") WHERE "current_state" = 'open';
+
+CREATE TABLE "people_us_adult_catalogue_registration_origins" (
+  "person_id" TEXT PRIMARY KEY,
+  "decision_id" TEXT,
+  "decision_schema_ref" TEXT,
+  "decision_json" TEXT,
+  "decision_digest" TEXT CHECK (length("decision_digest") = 64 AND "decision_digest" NOT GLOB '*[^0-9a-f]*'),
+  "operation_id" TEXT,
+  "origin_schema_ref" TEXT,
+  "origin_json" TEXT,
+  "origin_digest" TEXT CHECK (length("origin_digest") = 64 AND "origin_digest" NOT GLOB '*[^0-9a-f]*'),
+  "catalogue_input_schema_ref" TEXT,
+  "catalogue_input_json" TEXT,
+  "catalogue_input_digest" TEXT CHECK (length("catalogue_input_digest") = 64 AND "catalogue_input_digest" NOT GLOB '*[^0-9a-f]*'),
+  "name_resolution_schema_ref" TEXT,
+  "name_resolution_json" TEXT,
+  "name_resolution_digest" TEXT CHECK (length("name_resolution_digest") = 64 AND "name_resolution_digest" NOT GLOB '*[^0-9a-f]*'),
+  "observation_schema_ref" TEXT,
+  "observation_json" TEXT,
+  "observation_digest" TEXT CHECK (length("observation_digest") = 64 AND "observation_digest" NOT GLOB '*[^0-9a-f]*'),
+  "provider_observation_schema_ref" TEXT,
+  "provider_observation_json" TEXT,
+  "provider_observation_digest" TEXT CHECK (length("provider_observation_digest") = 64 AND "provider_observation_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("decision_id"),
+  UNIQUE ("operation_id"),
+  CHECK (json_valid("decision_json")),
+  CHECK (length(CAST("decision_json" AS BLOB)) <= 262144),
+  CHECK (json_valid("origin_json")),
+  CHECK (length(CAST("origin_json" AS BLOB)) <= 65536),
+  CHECK (json_valid("catalogue_input_json")),
+  CHECK (length(CAST("catalogue_input_json" AS BLOB)) <= 262144),
+  CHECK (json_valid("name_resolution_json")),
+  CHECK (length(CAST("name_resolution_json" AS BLOB)) <= 65536),
+  CHECK (json_valid("observation_json")),
+  CHECK (length(CAST("observation_json" AS BLOB)) <= 8388608),
+  CHECK (json_valid("provider_observation_json")),
+  CHECK (length(CAST("provider_observation_json" AS BLOB)) <= 524288),
+  FOREIGN KEY ("person_id") REFERENCES "people_persons" ("person_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("operation_id") REFERENCES "people_image_operations" ("operation_id") ON DELETE RESTRICT
+);
 
 CREATE TABLE "people_us_recommendation_claims" (
   "claim_id" TEXT PRIMARY KEY,

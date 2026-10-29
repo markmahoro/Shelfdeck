@@ -141,6 +141,90 @@
         "algorithm": "sha256",
         "value": "b1fa973307eaa13b40762a8c3f19ccd36579de5ce67dffa7f9ffd28f0ceb53bd"
       }
+    },
+    {
+      "id": "libra_us_adult_catalogue_bases",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.5.9",
+        "8.5.11"
+      ],
+      "sourceLocator": {
+        "section": "8.5.11",
+        "line": 9619,
+        "lineDigest": "2ea29f75d95762fd4c89fe7458677b553b6a7373144182fc3aab10800518743c"
+      },
+      "targetLocator": {
+        "path": "table-contracts/libra_us_adult_catalogue_bases/v1/contract.json"
+      },
+      "contract": {
+        "tableId": "libra_us_adult_catalogue_bases",
+        "owner": "libra",
+        "contractRef": "helix://contracts/tables/libra_us_adult_catalogue_bases/v1",
+        "contractDigest": "af5a1ef4b32c3011d93eda8fc151cc54db83a96cb94257846923aaac9aeffb97"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "f10822a237c899932774f3d3b5dca22fb39a9eb8979f39a38c93093b2aa48f3d"
+      }
+    },
+    {
+      "id": "libra_us_adult_catalogue_actor_decisions",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.5.9",
+        "8.5.11"
+      ],
+      "sourceLocator": {
+        "section": "8.5.11",
+        "line": 9620,
+        "lineDigest": "3f6fede3f08655bf4f3eb44cf3b8f10eb8388348dc76762aac09d9fcd547433e"
+      },
+      "targetLocator": {
+        "path": "table-contracts/libra_us_adult_catalogue_actor_decisions/v1/contract.json"
+      },
+      "contract": {
+        "tableId": "libra_us_adult_catalogue_actor_decisions",
+        "owner": "libra",
+        "contractRef": "helix://contracts/tables/libra_us_adult_catalogue_actor_decisions/v1",
+        "contractDigest": "a70cbb7f04eb1bc4484d4acb71d8e99e4bac6809396fc840a970a657a7c8b899"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "23e365e8dd085312fd6f82f6bb2ff3ecddc6a1ca7984a1bd568c102b714b465b"
+      }
+    },
+    {
+      "id": "people_us_adult_catalogue_registration_origins",
+      "version": 1,
+      "owner": "people",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.5.9",
+        "8.5.13"
+      ],
+      "sourceLocator": {
+        "section": "8.5.13",
+        "line": 9752,
+        "lineDigest": "cd1a3a2f87957bf5f141ae10d12bf8d7bd2f0088390c5c97cf1ab02a825c3b03"
+      },
+      "targetLocator": {
+        "path": "table-contracts/people_us_adult_catalogue_registration_origins/v1/contract.json"
+      },
+      "contract": {
+        "tableId": "people_us_adult_catalogue_registration_origins",
+        "owner": "people",
+        "contractRef": "helix://contracts/tables/people_us_adult_catalogue_registration_origins/v1",
+        "contractDigest": "cd6d055d439bd1d4c951cf24affeca391fbf893e8540cd5dbe762ab4b2514345"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "9ea54ae2074f737d823b460cd966f0d0000cdb02899185a6c1ff4cfd7de3208f"
+      }
     }
   ]
 }

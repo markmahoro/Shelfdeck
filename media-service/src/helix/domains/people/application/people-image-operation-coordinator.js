@@ -35,7 +35,7 @@ function preparationWork(operation) {
     dependencyRefs: [{ ownerDomain: 'people', objectType: 'people_image_operation', objectId: operation.operationId, revision: 1, digest: operation.payloadDigest }],
     priorityClass: 'normal_foreground', priorityRevision: 1, capabilityCatalogScope: 'people', workspaceMaterialScope: [],
     idempotencyKey: stable('people-image-work-key-', operation.operationId), concurrencyScope: 'people-image/' + operation.operationId,
-    outputContractRef: operation.payload.operationKind!=='registration'?'helix://contracts/capabilities/people.reference_fact.commit/v1/result':'helix://contracts/capabilities/shared.face.embedding.compute/v1/result' });
+    outputContractRef: !['registration','catalogue_registration'].includes(operation.payload.operationKind)?'helix://contracts/capabilities/people.reference_fact.commit/v1/result':'helix://contracts/capabilities/shared.face.embedding.compute/v1/result' });
 }
 
 function createPeopleImageOperationCoordinator(options) {
@@ -76,6 +76,9 @@ function createPeopleImageOperationCoordinator(options) {
         failureCode: status.latestAttempt?.failure_code || status.latestAttempt?.failureCode || 'PEOPLE_IMAGE_PREPARATION_FAILED' });
     }
     if (status?.state !== 'succeeded') return operation;
+    // The separate system command verifies the Owner input and prepared
+    // Evidence; it must never fall through to user Direct Registration.
+    if(operation.payload.operationKind==='catalogue_registration')return operation;
     if(operation.payload.operationKind!=='registration'){
       const commits=options.workResultReader.read(work.workId).filter(item=>item.capabilityRef===COMMIT&&item.outcomeKind==='succeeded');
       if(commits.length!==1||commits[0].result.personId!==operation.personId||commits[0].result.referenceRevision!==operation.payload.expectedReferenceRevision+1)

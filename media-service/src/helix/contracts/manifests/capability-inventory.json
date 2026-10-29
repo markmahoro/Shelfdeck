@@ -13,7 +13,7 @@
     "8.6.14",
     "8.9.5"
   ],
-  "targetCount": 138,
+  "targetCount": 139,
   "entryFiles": [
     "capability-inventory/entries-001-028.json",
     "capability-inventory/entries-029-056.json",

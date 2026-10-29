@@ -729,6 +729,34 @@
         "algorithm": "sha256",
         "value": "45f28ed31b11eaba12cf78a10f38d57dc6a11e6e490aa48783a03d3ad99d3a60"
       }
+    },
+    {
+      "id": "libra.us_adult.catalogue.observe@1",
+      "version": 1,
+      "owner": "libra",
+      "status": "contracted",
+      "ssotRefs": [
+        "8.6.6"
+      ],
+      "sourceLocator": {
+        "section": "8.6.6",
+        "line": 10101,
+        "lineDigest": "6074b385aa569cfd89f228886ad92bd67cfc31d8925b3cba89035448f0cffd58"
+      },
+      "targetLocator": {
+        "path": "capabilities/libra/us_adult/catalogue/observe/v1/manifest.json"
+      },
+      "contract": {
+        "packagePath": "capabilities/libra/us_adult/catalogue/observe/v1",
+        "packageDigest": "ae25516826703f0e27bd1cf707ce42701b319b98284ceb51af0ea683628c14f7",
+        "effectClass": "workspace_write",
+        "inputSummary": "UsAdultCatalogueAnalysisBasis + UsAdultCatalogueCompletedBatchSet + WorkspaceArtifactOutputTarget",
+        "outputFamily": "FaceCatalogueObservationHandle"
+      },
+      "contractDigest": {
+        "algorithm": "sha256",
+        "value": "b29c6a38053cbcade5ee821748ce4ccaa3c697ced712a0652068b012d414d3ef"
+      }
     }
   ]
 }
