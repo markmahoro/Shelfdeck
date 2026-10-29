@@ -164,6 +164,8 @@ UI 负责人随后对 `a4d716878` 的独立开发版复核确认忙碌状态、�
 
 该版本在上述四个 Chromium 视口各执行 14 项，共 **56 PASS / 0 skip**，覆盖四种空闲关闭方式、键盘重新打开、消失的触发按钮、成功后的结果焦点、Preview 失败及不合资格、提交期间焦点和未知结果的原请求重试；三份相关 Vitest **31 PASS**，Web `tsc`/Vite build PASS。被模拟移除按钮的测试是浏览器受控 DOM 夹具，结果和请求仍是受控前端 API 夹具。该提交依次依赖 `80ea48f5e` 和 `a4d716878`，须由 UI 负责人重新复核开发版本及整合后的精确版本，不能宣称最终 UI 或生产验收通过。
 
+UI 负责人独立复核 `db824ddb3b7f1204bff5c965a9490e672bd6b542` 的开发版本 **PASS**，四视口 64 项浏览器检查、14 项 native candidate 测试和 12 项 Web 单元测试通过；负责人报告 `movie-ui-precheck-db824ddb3-20261029/owner-review.json` 的 SHA-256 为 `dd7cfb931ba0a07101ca7241a20fff90849a0fe6ff5666e0f0789e6916bdc0f5`。报告保留先前失败及修正测试夹具时的两项初跑误判。验证仍使用受控 HTTP/DOM，整合后的确切版本、镜像与生产均未由该报告验收。
+
 ## 精确 Handoff 责任与 Custom 调度组合（2026-10-29）
 
 独立提交 `814c30f42eff18159f4ff03bf068bde1a7146e8c` 增加 Libra Owner 自有精确 Run Handoff 责任读取器：验证 Run、Subject、Spec 产品范围和完整 Package revision head，按每页最多 100 项枚举本 Run 已发布 Offer，校验精确身份，再逐项调用注入的 Arca public Offer 责任投影。任何 Arca 接纳信号或 Libra accepted 回执均作为阻断信号，不宣称已重建完整 Accepted Receipt；无 Offer、未 Accepted 与不可取得投影分别返回，隐藏 Package、错误范围、错误投影和矛盾回执拒绝。读取前、分页和读取完成使用同一个 Foundation opaque fence；它只是只读事实，不单独授权工作。
@@ -181,3 +183,11 @@ UI 负责人随后对 `a4d716878` 的独立开发版复核确认忙碌状态、�
 该提交依赖 `814c30f42` 及其所列基础，仍是未接线的局部检查：不证明文件当前存在/可读、Related 的完整责任、全部旧 Effect 和每个 Scheduler/Resource Governor/Workspace/Plan/Event 边界，也不替代 Arca 的独立接纳。真实 Owner 上下文、全部边界和完整用户旅程仍须主整合验证，不能开放自定义入口或宣称全局屏障已完成。
 
 补充测试在临时数据库调用真实 Foundation Material Control Participant 和 marker 写事务，将受控输入的 revision 从 1 推进到 2 并释放；先前 fence 随即失效，新的 Guard 检查返回 `input_control_changed`，不授权新执行。这是合成 Handle/Subject、仅验证 Foundation 事务和投影的集成测试，不代表实际业务已有释放授权。该测试与 Foundation Control 文件在 Windows、隔离 Linux 各 **49 PASS / 0 skip**。
+
+## Work 规划的实际 Host 围栏（2026-10-29）
+
+确认此前 Foundation 的 Attempt、Plan 和 Work Start 原语虽然各能校验 fence，实际 Runtime Host 尚未调用 Owner Guard 或传入围栏；Owner 等待在 Work 队列也会反复占据队首。先添加的九项 Host/Scheduler 定向测试全部失败，证明旧逻辑会直接规划/启动或重复选择已等待 Work。独立提交 `09e6a7c2229964066b1550946b9ce3f6a83246b3` 为实际 Host 增加可选 typed `workDispatchGuard`：在创建/复用 Attempt 前检查，并在同一写事务核验 Scheduler 精确 Owner scope；再次捕获的 fence 覆盖规划计算及 Plan Publication，发布后重新读取 Owner 并在 Start 事务核验。pending 或 fence 变化只产生 Owner 等待，不伪造失败、终态或新 Effect。Work/Event 各自维护等待轮次，同名 ID 互不干扰；已等待 Work 让其他合格 Work 先行，整轮耗尽后才重试。
+
+受控 SQLite 测试使用实际 Host、Work Lifecycle、Plan Publisher 和 UoW：规划中或发布后启动前并发写入会阻断相应事务；停止 Host、关闭并重新打开 SQLite 后，重用同一 Attempt，已发布 Plan 按原证据重放。此为可控并发和正常重开，不宣称进程崩溃或实际媒体端到端恢复。九个相关文件在 Windows 和隔离 Linux 各 **273 PASS / 0 skip**，包括既有实际 Arca Withdrawal/Outbox/Inbox 的同代际迟到重投与 ACK 场景；这些测试不证明 Fresh-generation Reset 可以清除 Withdrawal 证据后保留重投责任。包边界和禁止语义扫描仍只有既有 2 + 1 finding；Linux 镜像与依赖限制同前。
+
+该 Host 口目前只有测试注入，没有连接实际 Libra Guard，也没有开放 Custom 用户入口；依赖既有 Attempt 围栏 `d46eb73e1`、Plan/Start 围栏 `a708064a7` 和 Scheduler Owner 等待基础 `6698071f6`。Libra Work/Workspace 的准入、真实 Owner 组合、其它 Scheduler/Resource Governor 边界与实际 Offer 未 ACK/重发责任仍待整合验证。主线程只读审计 `71a0540c8` 明确指出测试进程对 Withdrawal 表模拟 `clear` 不等于旧 Producer/Outbox/Delivery/Work 的责任已证明终结；正式 239→244、244→244 Reset 仍须 fail-closed，不据此变更声明或执行生产 Reset。
