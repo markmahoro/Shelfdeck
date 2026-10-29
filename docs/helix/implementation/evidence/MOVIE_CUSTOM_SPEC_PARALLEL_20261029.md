@@ -103,3 +103,9 @@ Foundation 的 Work Admission 新增可选 opaque read fence，并由实际写�
 新增 Arca public 内部投影，以精确 Offer ID、Package ID/digest 和完整 Offer 身份读取 Arca 自己的 Acceptance Attempt、Decision、Receipt、Custody 与 Withdrawal。查询同时检查 Offer 和 Package 两个索引方向，避免关联错误被当作记录不存在；只要任一 Accepted 状态或 Custody 存在就返回接纳证据存在，不把单条证据宣称为完整 Accepted Receipt 或入藏。Withdrawal 必须重建并与完整 Offer 一致，与接纳证据共存或身份冲突时拒绝。调用方须在跨 Owner 读取之前捕获 opaque fence，并在实际写入事务验证；测试真实 SQLite 中读取后并发写入 Custody 会拒绝后续 Libra 写入且零副作用。
 
 该投影尚未组合成覆盖 Subject/产品范围的完整责任查询，也未接入 Custom Target Baseline、用户入口或 Runtime；不能凭单个 Offer 无 Accepted 证据断言其他 Offer、已有收藏或后续接纳不存在。真实未投递/处理中/Rejected/Accepted 边界仍需要整合旅程核验，不能用该读取释放材料或替代排空。新测试先因缺少公开读取入口失败，最终投影、Withdrawal、Baseline 及 Replacement Admission 四文件在 Windows 与隔离 Linux Docker 各 **53 PASS / 0 skip**；Attempt/Decision/Custody/Receipt 为受控 Owner 数据夹具，Withdrawal 使用真实 Arca Store。包边界与禁止语义无新增 finding，原有全局 2 + 1 finding 保留；Linux 仍不是精确依赖镜像。
+
+## Run 当前目标读取与迟到准入（2026-10-29）
+
+新增未接线的 Libra Run 目标读取：在同一 opaque fence 下读取 Run、其精确 Spec 与该 Subject/产品范围 Target Head，核对 Basis、Spec、Scope 和持久 Head 的引用。旧标准 Run 在新的 Custom Head 确认后即为 `target_not_current`，不等待 replacement Run；终态 Run 返回 `run_not_active`。测试模拟读取旧 Head 后并发确认，随后 Foundation Work Admission 验证同一 fence，陈旧准入被原子拒绝且不留下 Work/回执；也验证可在 Replacement 排空证明上使用同一 fence 检查当前目标。目标匹配仅是局部事实，不能证明旧 Work/Effect 已排空、评分和 Shelf 基线新鲜、Material Control 或 Arca 责任安全，也不是调度许可。
+
+Windows 和隔离 Linux Docker 运行 Replacement Admission、Work Admission、Work Lifecycle、Arca Offer 责任四文件，各 **76 PASS / 0 skip**；目标确认并发使用受控 SQLite 状态变化。新读取器包边界与禁止语义无新增 finding，原有全局 2 + 1 finding 保留。该读取器及围栏尚未接入所有 Run 协调、Workspace/Plan/Event 准入和 Scheduler，尚未形成全局屏障，也未启用用户入口。

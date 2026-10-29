@@ -382,3 +382,60 @@ test('a stale replacement readiness fence cannot admit new Work after an old Eff
   assert.equal(admission.submit(work,{readFence:fresh.readFence}).kind,'admitted');
   assert.equal(h.db.prepare('SELECT count(*) n FROM fx_supporting_works WHERE work_id=?').get('replacement-work').n,1);
 }));
+
+test('an old standard Run loses target currency immediately at confirmation and its stale fence cannot admit Work',()=>runHarness(h=>{
+  const {createCurrentRunTargetReader}=require('../../src/helix/domains/libra/application/current-run-target-reader');
+  const old=h.chosen.intent.basis.libraRunId,head=h.db.prepare('SELECT * FROM libra_custom_target_heads').get(),
+    run=h.db.prepare('SELECT execution_basis_digest FROM libra_runs WHERE libra_run_id=?').get(old);
+  // Model the two sides of target confirmation using the exact stored head.
+  h.db.prepare('DELETE FROM libra_custom_target_heads').run();
+  h.db.prepare("UPDATE libra_runs SET state='active' WHERE libra_run_id=?").run(old);
+  const reader=createCurrentRunTargetReader(h.options),before=reader.read(old);
+  assert.equal(before.kind,'target_current');assert.ok(before.readFence);
+  h.db.prepare('INSERT INTO libra_custom_target_heads(subject_id,product_scope_digest,current_revision,intent_id,record_digest) VALUES(?,?,?,?,?)')
+    .run(head.subject_id,head.product_scope_digest,head.current_revision,head.intent_id,head.record_digest);
+  assert.equal(reader.read(old).kind,'target_not_current');
+  const work={schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,workId:'old-late-work',ownerDomain:'libra',
+    processType:'libra_run',processId:old,workKind:'product_gap',workObjectiveTypeRef:'helix://libra/work/ProductGap/v1',
+    workObjectiveVersion:1,executionBasisId:'old-basis',executionBasisDigest:run.execution_basis_digest,dependencyRefs:[],
+    priorityClass:'normal_foreground',priorityRevision:1,capabilityCatalogScope:'libra',workspaceMaterialScope:[],
+    idempotencyKey:'old-late-key',concurrencyScope:old+'/product',outputContractRef:'helix://libra/results/ProductGap/v1'},
+    admission=require('../../src/helix/foundation/execution/work-admission').createWorkAdmission({...h.options,
+      eligibilityProvider:{check:request=>({eligible:true,basisDigest:request.executionBasisDigest})},
+      limits:{globalOpenWorks:100,ownerOpenWorks:100,openEvents:100}});
+  assert.throws(()=>admission.submit(work,{readFence:before.readFence}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.equal(h.db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE work_id='old-late-work'").get().n,0);
+  assert.equal(h.db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE target_id='old-late-work'").get().n,0);
+}));
+
+test('target currency alone never proves prior Work drained or a new custom Run ready',()=>runHarness(h=>{
+  const {createCurrentRunTargetReader}=require('../../src/helix/domains/libra/application/current-run-target-reader');
+  const old=h.chosen.intent.basis.libraRunId;seedDrainingRun(h,old);
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),reader=createCurrentRunTargetReader(h.options),
+    target=reader.read(replacement.libraRunId);
+  assert.equal(target.kind,'target_current');assert.equal(target.targetKind,'user_custom');
+  assert.equal(replacementReadiness(h).check(replacement.libraRunId).reasonCode,'prior_execution_draining');
+  assert.equal(reader.read(old).kind,'run_not_active');
+  h.db.prepare('DELETE FROM libra_custom_target_heads').run();
+  assert.throws(()=>reader.read(replacement.libraRunId));
+}));
+
+test('target currency and completed drain can be checked under the same opaque read fence',()=>runHarness(h=>{
+  const {createCurrentRunTargetReader}=require('../../src/helix/domains/libra/application/current-run-target-reader');
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),readiness=replacementReadiness(h).check(replacement.libraRunId),
+    reader=createCurrentRunTargetReader(h.options);
+  assert.equal(readiness.kind,'ready');
+  assert.equal(reader.read(replacement.libraRunId,{readFence:readiness.readFence}).readFence,readiness.readFence);
+  h.db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1').run();
+  assert.throws(()=>reader.read(replacement.libraRunId,{readFence:readiness.readFence}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+}));
+
+test('target currency reader rejects corrupted Run and Spec identity rather than authorizing dispatch',()=>runHarness(h=>{
+  const {createCurrentRunTargetReader}=require('../../src/helix/domains/libra/application/current-run-target-reader');
+  const replacement=h.advance(h.unitOfWork.captureReadFence()),reader=createCurrentRunTargetReader(h.options),
+    row=h.db.prepare('SELECT execution_basis_record_json FROM libra_runs WHERE libra_run_id=?').get(replacement.libraRunId),
+    basis=JSON.parse(row.execution_basis_record_json);
+  basis.acceptanceSpec.productScopeDigest=D('wrong-scope');
+  h.db.prepare('UPDATE libra_runs SET execution_basis_record_json=? WHERE libra_run_id=?').run(canonicalJson(basis),replacement.libraRunId);
+  assert.throws(()=>reader.read(replacement.libraRunId),{code:'LIBRA_RUN_TARGET_EVIDENCE_INVALID'});
+}));
