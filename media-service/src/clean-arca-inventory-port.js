@@ -176,6 +176,11 @@ function observationDigest(observed) {
     fingerprintVersion:observed.fingerprintVersion,contentFingerprint:observed.contentFingerprint});
 }
 
+// Reserve the longest current sibling and file suffixes before freezing paths.
+const MAX_COMPONENT_BYTES = 255;
+const STAGE_DIRECTORY_SUFFIX = '.shelfdeck-stage-' + '0'.repeat(16);
+const PRESENTATION_RESTORE_SUFFIX = '.restore-' + '0'.repeat(16);
+
 function safeSegment(value) {
   const segment = String(value || '').trim()
     .replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_')
@@ -184,7 +189,31 @@ function safeSegment(value) {
     fail('CLEAN_ARCA_TARGET_SEGMENT_INVALID',
       'Final Inventory path contains an invalid segment.');
   }
-  return segment.slice(0, 180);
+  if (Array.from(segment).some((character) => {
+    const point = character.codePointAt(0);
+    return point >= 0xd800 && point <= 0xdfff;
+  })) {
+    fail('CLEAN_ARCA_TARGET_SEGMENT_INVALID', 'Final Inventory path contains invalid Unicode.');
+  }
+  return segment;
+}
+
+function assertComponentBudget(value, suffix, usAdult = false) {
+  const maxBytes = MAX_COMPONENT_BYTES - Buffer.byteLength(suffix, 'utf8');
+  const actualBytes = Buffer.byteLength(value, 'utf8');
+  if (actualBytes > maxBytes) {
+    fail(usAdult ? 'US_ADULT_NAME_UNSUPPORTED' : 'CLEAN_ARCA_TARGET_SEGMENT_INVALID',
+      'Final Inventory path cannot fit the target component and its required temporary suffix.',
+      { actualBytes, maxBytes });
+  }
+}
+
+function assertPathComponents(value) {
+  const resolved = path.resolve(value);
+  const remainder = resolved.slice(path.parse(resolved).root.length);
+  for (const component of remainder.split(path.sep).filter(Boolean)) {
+    assertComponentBudget(component, '');
+  }
 }
 
 function displayIdentityEntry(identityFact, key) {
@@ -197,7 +226,8 @@ function displayIdentityEntry(identityFact, key) {
 }
 function exactUsAdultSegment(value){
   if(typeof value!=='string'||!value||value!==value.trim()||/[<>:"/\\|?*\u0000-\u001f]/.test(value)||/[. ]$/.test(value)||
-    ['.','..'].includes(value)||/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(value)||Buffer.byteLength(value,'utf8')>255)
+    ['.','..'].includes(value)||/^(?:CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\.|$)/i.test(value)||Buffer.byteLength(value,'utf8')>255||
+    Array.from(value).some(character=>{const point=character.codePointAt(0);return point>=0xd800&&point<=0xdfff;}))
     fail('US_ADULT_NAME_UNSUPPORTED','US Adult names must fit the target filesystem without rewriting or truncation.');
   return value;
 }
@@ -516,6 +546,7 @@ function createCleanArcaInventoryPort(options) {
 
   function resolveTargetLocation(request, policyOnly = false) {
     const targetRoot = path.resolve(request?.shelf?.target?.rootLocation || '');
+    assertPathComponents(targetRoot);
     const shelf = request?.shelf;
     const packageValue = request?.onDeckProductPackage;
     if (!shelf || shelf.status !== 'active' || !packageValue ||
@@ -551,11 +582,18 @@ function createCleanArcaInventoryPort(options) {
     if(rootBinding&&(rootBinding.endpointId!==shelf.target.endpointId||rootBinding.mountScopeId!==shelf.target.mountScopeId))
       fail('CLEAN_ARCA_SERIES_ROOT_BINDING_STALE','Shared Series root no longer matches this Shelf target.');
     const targetDirectory = series ? path.resolve(rootBinding?.rootLocation||path.join(targetRoot,folder),'Season '+String(series.seasonNumber).padStart(2,'0')) : path.resolve(targetRoot, folder);
+    assertPathComponents(targetDirectory);
+    assertComponentBudget(path.basename(targetDirectory), STAGE_DIRECTORY_SUFFIX, Boolean(identity.usAdultNaming));
     if (!contained(targetRoot, targetDirectory)) {
       fail('CLEAN_ARCA_TARGET_ESCAPE',
         'Final Inventory directory escaped the Shelf Target.');
     }
     return Object.freeze({ targetRoot, targetDirectory, identity, placement, series });
+  }
+
+  function assertFinalName(name, identity) {
+    assertComponentBudget(name, PRESENTATION_RESTORE_SUFFIX, Boolean(identity.usAdultNaming));
+    return name;
   }
 
   function buildPlan(request) {
@@ -571,13 +609,13 @@ function createCleanArcaInventoryPort(options) {
     const contentProfile = packageContentProfile(packageValue);
     const draftPlans = packageValue.productMaterialManifest.members.map((member) => {
       const source = sourcePath(member);
-      const name = finalMemberName(member, source, identity, placement, series);
+      const name = assertFinalName(finalMemberName(member, source, identity, placement, series), identity);
       return Object.freeze({ member, source, name });
     });
     const uniquified = draftPlans.map((item) => {
       const colliding = draftPlans.filter((other) => other.name === item.name).length > 1;
       if (!colliding || item.member.role !== 'subtitle') return item;
-      return Object.freeze({ ...item, name: safeSegment(path.basename(item.source)) });
+      return Object.freeze({ ...item, name: assertFinalName(safeSegment(path.basename(item.source)), identity) });
     });
     const duplicateNames = new Set(uniquified.map((item) => item.name)
       .filter((name, index, values) => values.indexOf(name) !== index));
@@ -588,9 +626,9 @@ function createCleanArcaInventoryPort(options) {
         });
     }
     const plans = uniquified.map(({ member, source, name: proposedName }) => {
-      const name = duplicateNames.has(proposedName)
+      const name = assertFinalName(duplicateNames.has(proposedName)
         ? suffixName(proposedName, member.materialKey)
-        : proposedName;
+        : proposedName, identity);
       const target = path.resolve(targetDirectory, name);
       if (!contained(targetRoot, target)) {
         fail('CLEAN_ARCA_TARGET_ESCAPE',
@@ -637,13 +675,13 @@ function createCleanArcaInventoryPort(options) {
     const contentProfile = packageContentProfile(packageValue);
     const draftPlans = packageValue.productMaterialManifest.members.map((member) => {
       const source = sourcePath(member);
-      const name = finalMemberName(member, source, identity, placement, series);
+      const name = assertFinalName(finalMemberName(member, source, identity, placement, series), identity);
       return Object.freeze({ member, source, name });
     });
     const uniquified = draftPlans.map((item) => {
       const colliding = draftPlans.filter((other) => other.name === item.name).length > 1;
       if (!colliding || item.member.role !== 'subtitle') return item;
-      return Object.freeze({ ...item, name: safeSegment(path.basename(item.source)) });
+      return Object.freeze({ ...item, name: assertFinalName(safeSegment(path.basename(item.source)), identity) });
     });
     const duplicateNames = new Set(uniquified.map((item) => item.name)
       .filter((name, index, values) => values.indexOf(name) !== index));
@@ -655,9 +693,9 @@ function createCleanArcaInventoryPort(options) {
     }
     const plans = [];
     for (const { member, source, name:proposedName } of uniquified) {
-      const name = duplicateNames.has(proposedName)
+      const name = assertFinalName(duplicateNames.has(proposedName)
         ? suffixName(proposedName, member.materialKey)
-        : proposedName;
+        : proposedName, identity);
       const target = path.resolve(targetDirectory, name);
       if (!contained(targetRoot, target)) {
         fail('CLEAN_ARCA_TARGET_ESCAPE',

@@ -28,12 +28,136 @@ const { editionFromSourceDisplay } = require('../src/helix/domains/libra/model/p
 const { computeBoundedMaterialFingerprintSync } = require('../src/helix/integrations/bounded-material-fingerprint');
 const { CAPABILITY_REFS } = require('../src/helix/domains/arca/model/on-deck-contract');
 const { priorOnDeckPlacementReceipt } = require('../src/helix/domains/arca/capabilities/on-deck-capability-ports');
+const { fromProductMember } = require('../src/helix/domains/arca/model/material-episode-claims');
 const schemaManifest = require('../src/helix/foundation/persistence/generated/clean-schema.manifest.json');
 
 const EMPTY_CLAIMS = Object.freeze([]);
 const { observeNfoReferenceSemantics } = require('../src/helix/contracts/nfo-reference-semantics');
 const EMPTY_CLAIMS_DIGEST = canonicalDigest({
   schema:'libra.production-material-episode-claims@1', items:EMPTY_CLAIMS,
+});
+
+function componentBudgetFixture(title, year) {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'arca-component-budget-'));
+  const targetRoot=path.join(root,'shelf'),sourceRoot=path.join(root,'source');
+  fs.mkdirSync(targetRoot);fs.mkdirSync(sourceRoot);
+  const files={primary:path.join(sourceRoot,'input.mkv'),nfo:path.join(sourceRoot,'input.nfo'),poster:path.join(sourceRoot,'input.jpg')};
+  fs.writeFileSync(files.primary,'synthetic media');
+  fs.writeFileSync(files.nfo,'<movie><title>synthetic</title></movie>');
+  fs.writeFileSync(files.poster,'synthetic poster');
+  const mountScopeId='synthetic-mount',port=createCleanArcaInventoryPort({schemaManifest,unitOfWork:{},workspaceRoot:path.join(root,'.workspace')});
+  const shelf={shelfId:'synthetic-shelf',status:'active',currentPlacementRevision:1,
+    target:{endpointId:'synthetic',rootLocation:targetRoot,mountScopeId,mountScopeRevision:1},
+    placement:{value:{folderTemplate:'{title}'}}};
+  const packageValue={onDeckPackageId:'synthetic-package',shelfId:shelf.shelfId,
+    resolvedIdentitySnapshot:{factValue:{contentProfile:'jav',structureKind:'single',identityKind:'jav_code',title,year}},
+    productStructureSnapshot:{structureKind:'single'},productMaterialManifest:{manifestDigest:'synthetic-manifest',members:[
+      member(files.primary,'primary_payload',mountScopeId),member(files.nfo,'metadata_sidecar',mountScopeId),
+      member(files.poster,'poster',mountScopeId)]},offloadContextManifest:{manifestDigest:'synthetic-offload',members:[]}};
+  const request={onDeckRunId:'synthetic-run',custodyId:'synthetic-custody',shelf,onDeckProductPackage:packageValue,observedAtMs:10};
+  return {root,targetRoot,files,port,shelf,packageValue,request};
+}
+
+for(const [label,title,year] of [
+  ['a filename at the restore suffix limit','語'.repeat(73),2026],
+  ['a directory at the legacy slot suffix limit','😀'.repeat(55)+'ab',null],
+]) test(`UTF-8 component boundary preserves exact names and completes placement: ${label}`,async()=>{
+  const f=componentBudgetFixture(title,year);
+  try {
+    const decision=f.port.prepare(f.request),suffix=year===null?'':` (${year})`;
+    assert.deepEqual(f.port.prepare(f.request),decision);
+    const movie=decision.members.find(item=>item.role==='primary_payload'),nfo=decision.members.find(item=>item.role==='metadata_sidecar');
+    assert.equal(movie.finalName,`${title}${suffix}.mkv`);assert.equal(nfo.finalName,`${title}${suffix}.nfo`);
+    assert.ok(Buffer.byteLength(path.basename(path.dirname(movie.targetLocation))+'.shelfdeck-stage-'+'0'.repeat(16))<=255);
+    for(const item of decision.members)assert.ok(Buffer.byteLength(item.finalName+'.restore-'+'0'.repeat(16))<=255);
+    const handle=f.port.prepareSlot({...f.request,finalInventoryDecision:decision});
+    const staged=await f.port.stage({...f.request,finalInventoryDecision:decision,targetCommitSlotHandle:handle});
+    const stagedNfo=path.join(handle.slotDirectory,nfo.finalName);fs.writeFileSync(stagedNfo,'<movie><title>changed</title></movie>');
+    const verified=await f.port.verifyStaged({...f.request,finalInventoryDecision:decision,stagedInventoryManifest:staged});
+    assert.equal(fs.readFileSync(stagedNfo,'utf8'),'<movie><title>synthetic</title></movie>');
+    await f.port.switchPlacement({...f.request,finalInventoryDecision:decision,stagedInventoryVerification:verified,
+      targetBindings:{bindingSetDigest:'bindings'},replacedInputSetDigest:'inputs'});
+    assert.equal(fs.readFileSync(movie.targetLocation,'utf8'),'synthetic media');
+    assert.equal(fs.readFileSync(nfo.targetLocation,'utf8'),'<movie><title>synthetic</title></movie>');
+    assert.equal(fs.existsSync(handle.slotDirectory),false);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+for(const [label,title,year,actualBytes,maxBytes] of [
+  ['filename plus temporary suffix','語'.repeat(73)+'x',2026,231,230],
+  ['directory plus legacy slot suffix','語'.repeat(75),null,225,222],
+  ['directory itself','語'.repeat(88),null,264,255],
+]) test(`UTF-8 component budget rejects ${label} before any write`,()=>{
+  const f=componentBudgetFixture(title,year);
+  try{
+    assert.throws(()=>f.port.prepare(f.request),error=>error.code==='CLEAN_ARCA_TARGET_SEGMENT_INVALID'&&
+      error.details.actualBytes===actualBytes&&error.details.maxBytes===maxBytes);
+    assert.deepEqual(fs.readdirSync(f.targetRoot),[]);
+    assert.equal(fs.readFileSync(f.files.primary,'utf8'),'synthetic media');
+    assert.equal(fs.readFileSync(f.files.nfo,'utf8'),'<movie><title>synthetic</title></movie>');
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('a previously frozen Decision is not silently rewritten when historical truncation differs',()=>{
+  const title='a'.repeat(175),f=componentBudgetFixture(title,2026);
+  try{
+    f.packageValue.productMaterialManifest.members=f.packageValue.productMaterialManifest.members.filter(item=>item.role!=='metadata_sidecar');
+    const current=f.port.prepare(f.request),oldDirectory=path.join(f.targetRoot,title),oldStem=`${title} (2026)`.slice(0,180);
+    const members=current.members.map(item=>{
+      const source=f.packageValue.productMaterialManifest.members.find(value=>value.materialKey===item.sourceMaterialKey);
+      const finalName=item.role==='poster'?'poster.jpg':(oldStem+'.mkv').slice(0,180),targetLocation=path.join(oldDirectory,finalName);
+      const physical=source.physicalIdentity,digestHex=canonicalDigest({schema:'physical-material-bounded-fingerprint-evidence@1',
+        sizeBytes:source.sizeBytes,fingerprintAlgorithm:physical.fingerprintAlgorithm,fingerprintVersion:physical.fingerprintVersion,
+        contentFingerprint:physical.contentFingerprint});
+      const digest=canonicalDigest({schema:'arca.final-inventory-member@1',sourceMaterialKey:item.sourceMaterialKey,role:item.role,
+        finalName,targetEndpointId:item.targetEndpointId,targetLocation,digestHex,sizeBytes:source.sizeBytes,
+        episodeClaims:fromProductMember(source,'jav')});
+      return {...item,finalName,targetLocation,digest};
+    });
+    const {digest:_digest,decisionDigest:_decisionDigest,...base}=current,oldBase={...base,members};
+    const oldDigest=canonicalDigest({schema:'arca.final-inventory-decision@1',...oldBase,targetEndpointId:f.shelf.target.endpointId,
+      targetLocation:oldDirectory,productManifestDigest:f.packageValue.productMaterialManifest.manifestDigest,
+      offloadContextDigest:f.packageValue.offloadContextManifest.manifestDigest});
+    assert.throws(()=>f.port.prepareSlot({...f.request,finalInventoryDecision:{...oldBase,digest:oldDigest,decisionDigest:oldDigest}}),
+      {code:'CLEAN_ARCA_FINAL_DECISION_DRIFT'});
+    assert.deepEqual(fs.readdirSync(f.targetRoot),[]);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('pure Inventory Feasibility reports an overlong target as terminal and leaves unknown errors alone',()=>{
+  const {createOnDeckCapabilityPorts}=require('../src/helix/domains/arca/capabilities/on-deck-capability-ports');
+  const f=componentBudgetFixture('語'.repeat(73)+'x',2026);
+  try{
+    const options={schemaManifest,unitOfWork:{execute(){throw new Error('unexpected custody write');}},
+      contextReader:{readOffer:()=>({offer:{offerId:'synthetic-offer'},shelf:f.shelf,packageValue:f.packageValue})},
+      workResultReader:{readBindings:()=>[]},inventoryPort:f.port};
+    const execution={ownerScope:{processType:'arca_acceptance',processId:'synthetic-offer'},workId:'feasibility-work',
+      namedInputs:{offLoadContext:{},placementPolicy:{},targetEndpoint:{}}};
+    const result=createOnDeckCapabilityPorts(options)[CAPABILITY_REFS.feasibility].execute(execution);
+    assert.equal(result.kind,'failed');assert.equal(result.failureClass,'contract');
+    assert.equal(result.code,'CLEAN_ARCA_TARGET_SEGMENT_INVALID');assert.equal(result.retryDirective,'never');
+    assert.deepEqual(result.evidence.diagnostics,{actualBytes:231,maxBytes:230});
+    assert.deepEqual(fs.readdirSync(f.targetRoot),[]);
+    const unknown=Object.assign(new Error('target observation failed'),{code:'EIO'});
+    const uncertain=createOnDeckCapabilityPorts({...options,inventoryPort:{assess(){throw unknown;}}});
+    assert.throws(()=>uncertain[CAPABILITY_REFS.feasibility].execute(execution),error=>error===unknown);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('a component error from a material Effect is not treated as proof that no write occurred',async()=>{
+  const {createOnDeckCapabilityPorts}=require('../src/helix/domains/arca/capabilities/on-deck-capability-ports');
+  const f=componentBudgetFixture('Movie',2026);
+  try{
+    const failure=Object.assign(new Error('effect outcome is unknown'),{code:'CLEAN_ARCA_TARGET_SEGMENT_INVALID'});
+    const ports=createOnDeckCapabilityPorts({schemaManifest,unitOfWork:{execute(){throw new Error('unexpected custody write');}},
+      contextReader:{readAccepted:()=>({shelf:f.shelf,packageValue:f.packageValue,
+        responsibility:{onDeckRunId:'synthetic-run',custodyId:'synthetic-custody'}})},
+      workResultReader:{readBindings:()=>[],listWorks:()=>[]},inventoryPort:{stage:async()=>{throw failure;}}});
+    const execution={ownerScope:{processType:'arca_ondeck_run',processId:'synthetic-run'},workId:'stage-work',
+      namedInputs:{productMaterialHandleList:{},targetCommitSlotHandle:{slotId:'slot'}}};
+    await assert.rejects(ports[CAPABILITY_REFS.stage].execute(execution),error=>error===failure);
+    assert.deepEqual(fs.readdirSync(f.targetRoot),[]);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
 
 function identity(location, mountScopeId) {
@@ -126,6 +250,33 @@ test('target folder uses the resolved display title and derives its year without
   }
 });
 
+test('component checks preserve normalized collisions and never hide overlong duplicate names',()=>{
+  const f=componentBudgetFixture('Movie',null);
+  try{
+    const second=path.join(path.dirname(f.files.poster),'another.jpg');fs.writeFileSync(second,'other poster');
+    f.packageValue.productMaterialManifest.members.push(member(second,'poster','synthetic-mount'));
+    f.shelf.placement.value.posterTemplate='封'.repeat(73)+'{ext}';
+    f.shelf.placement.value.collisionPolicy='reject';
+    assert.throws(()=>f.port.prepare(f.request),{code:'CLEAN_ARCA_TARGET_COLLISION'});
+    f.shelf.placement.value.collisionPolicy='suffix';
+    assert.throws(()=>f.port.prepare(f.request),error=>error.code==='CLEAN_ARCA_TARGET_SEGMENT_INVALID'&&
+      error.details.actualBytes===232&&error.details.maxBytes===230);
+    f.shelf.placement.value.posterTemplate='封'.repeat(70)+'{ext}';
+    const decision=f.port.prepare(f.request),posters=decision.members.filter(item=>item.role==='poster');
+    assert.equal(new Set(posters.map(item=>item.finalName)).size,2);
+    for(const item of posters)assert.match(item.finalName,/-[a-f0-9]{8}\.jpg$/);
+    assert.deepEqual(fs.readdirSync(f.targetRoot),[]);
+    assert.equal(fs.readFileSync(second,'utf8'),'other poster');
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('unpaired UTF-16 surrogates are rejected before path observation or creation',()=>{
+  const f=componentBudgetFixture('invalid\uD800',null);
+  try{assert.throws(()=>f.port.prepare(f.request),{code:'CLEAN_ARCA_TARGET_SEGMENT_INVALID'});
+    assert.deepEqual(fs.readdirSync(f.targetRoot),[]);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
 test('US Inventory preserves its frozen original name beyond the old segment limit and rejects duplicate targets',()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'clean-arca-us-name-'));
   try{
@@ -149,6 +300,13 @@ test('US Inventory preserves its frozen original name beyond the old segment lim
     assert.equal(path.basename(path.dirname(plan.members[0].targetLocation)),expected);assert.equal(plan.members[0].finalName,expected+'.mkv');
     packageValue.productMaterialManifest.members.push(member(poster1,'poster','mount'),member(poster2,'poster','mount'));
     assert.throws(()=>port.prepare(request),{code:'CLEAN_ARCA_TARGET_COLLISION'});
+    packageValue.productMaterialManifest.members.splice(1);
+    const longOriginal='a'.repeat(219)+'.mp4',longProof=require('../src/helix/contracts/us-adult-presentation').originalNameProvenance(longOriginal);
+    const entries=packageValue.resolvedIdentitySnapshot.factValue.displayIdentity.entries;
+    entries.find(item=>item.key==='original_file_name').value=longOriginal;
+    entries.find(item=>item.key==='original_file_name_digest').value=longProof.provenanceDigest;
+    assert.throws(()=>port.prepare(request),{code:'US_ADULT_NAME_UNSUPPORTED'});
+    assert.equal(fs.readFileSync(primary,'utf8'),'isolated-input');
     packageValue.mediaCastSnapshot.relations=[];
     assert.throws(()=>port.prepare(request),{code:'US_ADULT_ACTOR_REQUIRED'});
   }finally{fs.rmSync(root,{recursive:true,force:true});}

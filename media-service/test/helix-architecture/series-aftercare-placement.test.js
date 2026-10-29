@@ -41,6 +41,46 @@ test('Series Aftercare plans current Inventory across batches and shared Episode
   assert.deepEqual(fs.readdirSync(f.target),[]);
   assert.throws(()=>f.port.prepare({...r,aftercareCaseId:null}),{code:'CLEAN_ARCA_INVENTORY_INPUT'});
 });
+test('Series component checks preserve Episode markers and mapped thumbnails or reject the complete name',t=>{
+  const f=fixture(t),metadata=f.c.raw.facts.find(item=>item.fact_kind==='product_metadata');
+  const title='劇'.repeat(60);metadata.value.descriptiveFacts.entries.find(item=>item.key==='series_title').value=title;
+  const r=f.request(),shared=r.onDeckProductPackage.productMaterialManifest.members.find(item=>
+    item.role==='primary_payload'&&item.episodeClaims.length===2);
+  const before=r.finalInventoryDecision.members.find(item=>item.sourceMaterialKey===shared.materialKey);
+  assert.equal(before.finalName,title+' - S02E01-E02.mkv');
+  assert.ok(r.finalInventoryDecision.members.some(item=>item.finalName===title+' - S02E03-part01.mkv'));
+  assert.ok(r.finalInventoryDecision.members.some(item=>item.finalName===title+' - S02E01.nfo'));
+  const thumbPath=path.join(f.root,'thumb.jpg');fs.writeFileSync(thumbPath,'thumbnail');
+  const observed=fingerprint(thumbPath),tuple={mountScopeId:'mount',inode:String(observed.stat.ino),
+    sizeBytes:Number(observed.stat.size),fingerprintAlgorithm:observed.fingerprintAlgorithm,
+    fingerprintVersion:observed.fingerprintVersion,contentFingerprint:observed.contentFingerprint};
+  const materialKey=D({schema:'physical-material-identity@2',...tuple}),empty=[];
+  const thumb={materialKey,role:'sidecar',sizeBytes:tuple.sizeBytes,
+    physicalIdentity:{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,...tuple,materialKey},
+    location:{locationKind:'physical_path',endpointId:'endpoint',location:thumbPath},
+    episodeClaims:empty,episodeClaimSetDigest:D({schema:'libra.production-material-episode-claims@1',items:empty})};
+  const pkg=r.onDeckProductPackage,expanded={...pkg,relatedPrimaryMappings:[{relatedMaterialKey:materialKey,
+    finalPrimaryMaterialKey:shared.materialKey,namingKind:'episode_thumb'}],productMaterialManifest:{...pkg.productMaterialManifest,
+      members:[...pkg.productMaterialManifest.members,thumb]}};
+  const result=f.port.prepare({...r,onDeckProductPackage:expanded});
+  const primary=result.members.find(item=>item.sourceMaterialKey===shared.materialKey),related=result.members.find(item=>item.sourceMaterialKey===materialKey);
+  assert.equal(primary.finalName,before.finalName);
+  assert.equal(related.finalName,path.basename(primary.finalName,'.mkv')+'-thumb.jpg');
+  const many=structuredClone(pkg),manyPrimary=many.productMaterialManifest.members.find(item=>item.materialKey===shared.materialKey),
+    firstMetadata=many.productFactManifest.items.find(item=>item.factKind==='product_metadata'&&item.sourcePackageId==='first');
+  for(let number=4;number<=32;number++)firstMetadata.factValue.episodeMetadata.push({episodeScope:{seasonNumber:2,
+    episodeNumber:number,episodeKey:'E'+String(number).padStart(3,'0')}});
+  manyPrimary.episodeClaims=Array.from({length:32},(_unused,index)=>{
+    const episodeKey='E'+String(index+1).padStart(3,'0'),seasonClaimDigest=D('season');
+    return {episodeKey,seasonClaimDigest,claimDigest:D({schema:'libra.production-material-episode-claim@1',episodeKey,seasonClaimDigest})};
+  });
+  manyPrimary.episodeClaimSetDigest=D({schema:'libra.production-material-episode-claims@1',items:manyPrimary.episodeClaims});
+  assert.throws(()=>f.port.prepare({...r,onDeckProductPackage:many}),{code:'CLEAN_ARCA_TARGET_SEGMENT_INVALID'});
+  many.resolvedIdentitySnapshot.factValue.title='Short Show';
+  const shortDecision=f.port.prepare({...r,onDeckProductPackage:many});
+  assert.match(shortDecision.members.find(item=>item.sourceMaterialKey===shared.materialKey).finalName,/ - S02E01-E02-.*-E32\.mkv$/);
+  assert.deepEqual(fs.readdirSync(f.target),[]);
+});
 test('policy target observation exposes a changed Series root while normal intake keeps the durable binding',t=>{
   let binding=null;
   const f=fixture(t,{readSeriesRootBinding:()=>binding});

@@ -32,6 +32,13 @@ test('real correction preview rejects existing foreign targets and preserves eve
   assert.throws(()=>f.port.inspectJavCorrectionPlacement(f.request()),{code:'CLEAN_ARCA_TARGET_COLLISION'});
   assert.equal(fs.readFileSync(foreign,'utf8'),'Other Entry');assert.ok(fs.existsSync(f.row.location));
 });
+test('correction preview rejects an overlong target instead of truncating or suffixing',t=>{
+  const f=fixture(t),before=fs.readFileSync(f.row.location);
+  f.c.raw.facts[0].value.descriptiveFacts.entries=[{key:'title',value:'訂'.repeat(90)}];
+  assert.throws(f.request,{code:'CLEAN_ARCA_TARGET_SEGMENT_INVALID'});
+  assert.deepEqual(fs.readFileSync(f.row.location),before);
+  assert.deepEqual(fs.readdirSync(f.target),['Original film']);
+});
 test('same-directory correction rejects unknown siblings and never automatically suffixes conflicts',t=>{
   const f=fixture(t);f.c.raw.facts[0].value.descriptiveFacts.entries=[{key:'title',value:'Original film'}];
   assert.match(f.port.inspectJavCorrectionPlacement(f.request()).targetRealityDigest,/^[a-f0-9]{64}$/);

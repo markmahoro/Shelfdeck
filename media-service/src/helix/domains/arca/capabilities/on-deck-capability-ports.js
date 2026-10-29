@@ -201,6 +201,15 @@ function stagePreconditionFailureOutcome(error) {
     evidence:Object.freeze({errorCode:error.code,diagnostics:failureDiagnostics(error)})});
 }
 
+function inventoryFeasibilityFailureOutcome(error) {
+  if (!['CLEAN_ARCA_TARGET_SEGMENT_INVALID', 'US_ADULT_NAME_UNSUPPORTED', 'US_ADULT_NAME_TOO_LONG'].includes(error?.code)) return null;
+  const diagnostics={...failureDiagnostics(error)};
+  for(const key of ['actualBytes','maxBytes'])if(Number.isSafeInteger(error?.details?.[key])&&error.details[key]>=0)
+    diagnostics[key]=error.details[key];
+  return Object.freeze({kind:'failed',failureClass:'contract',code:error.code,message:error.message,retryDirective:'never',
+    evidence:Object.freeze({errorCode:error.code,diagnostics:Object.freeze(diagnostics)})});
+}
+
 function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,acceptance=createHandoffBAcceptanceStore(options),onDeck=createOnDeckStore(options),
   controls=createMaterialControlProjectionPort(options),inbox=createInboxCoordinator(options);
   const effectAt=(execution)=>Number.isSafeInteger(execution.effectOccurredAtMs)?execution.effectOccurredAtMs:now();
@@ -263,9 +272,14 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
   ports[C.space]=pure(C.space,['productManifest','spaceRequirement'],(n,c,at)=>{const snapshot=packageRequirementSnapshot(c),space=evaluatePackageSpace(c.packageValue,snapshot.value.requirements.space);return dimensionCheck(C.space,'space',{
     acceptanceAttemptId:acceptanceAttemptId(c),standardRevision:c.shelf.currentStandardRevision,packageDigest:c.packageValue.packageDigest,
     productManifest:n.productManifest,spaceRequirement:n.spaceRequirement},c,at,space.actualGapCodes,n.spaceRequirement.digest,space);});
-  ports[C.feasibility]=pure(C.feasibility,['offLoadContext','placementPolicy','targetEndpoint'],(_n,c,at)=>options.inventoryPort.assess({
-    onDeckRunId:stable('arca-ondeck-preview-',{offer:c.offer.offerId}),custodyId:stable('arca-custody-preview-',{offer:c.offer.offerId}),shelf:c.shelf,
-    onDeckProductPackage:c.packageValue,observedAtMs:at,replayCommitted:false}));
+  ports[C.feasibility]=Object.freeze({validateInputs(c){requireNamed(c,['offLoadContext','placementPolicy','targetEndpoint']);},execute(execution){
+    const c=ctx(execution),at=now();let result;
+    try { result=options.inventoryPort.assess({
+      onDeckRunId:stable('arca-ondeck-preview-',{offer:c.offer.offerId}),custodyId:stable('arca-custody-preview-',{offer:c.offer.offerId}),shelf:c.shelf,
+      onDeckProductPackage:c.packageValue,observedAtMs:at,replayCommitted:false});
+    } catch(error) {const failed=inventoryFeasibilityFailureOutcome(error);if(failed)return failed;throw error;}
+    return outcome(C.feasibility,result,now());},
+  validateResult(_c,o){if(!o?.result)throw new TypeError(C.feasibility+' Result is absent.');}});
   ports[C.accept]=Object.freeze({validateInputs(c){requireNamed(c,['acceptedPayload','responsibilityControlCommitHandle']);},execute(execution){const c=ctx(execution),
     assessmentWork=options.workResultReader.listWorks({ownerDomain:'arca',processType:'arca_acceptance',processId:c.offer.offerId,workKind:'acceptance_assessment'})
       .find((item)=>options.workResultReader.status(item.work_id)?.state==='succeeded');
