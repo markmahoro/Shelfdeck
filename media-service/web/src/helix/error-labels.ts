@@ -87,6 +87,13 @@ export function processFailureLabel(code: string, message?: string) {
     P4_EVENT_RECOVERY_OBSERVATION_UNAVAILABLE: '未能在规定时间内核对文件状态',
     RECOVERY_EXECUTION_BUDGET_EXHAUSTED: '恢复处理超过允许时长',
     CLEAN_ARCA_STAGE_TARGET_OCCUPIED: '写入目标已被占用',
+    CLEAN_ARCA_JAV_SHORT_TARGET_OCCUPIED: '目标目录已存在',
+    CLEAN_ARCA_SHORT_STAGE_UNCERTAIN: '暂存文件状态无法确认',
+    CLEAN_ARCA_JAV_CODE_REQUIRED: '影片番号无法核对',
+    CLEAN_ARCA_JAV_TITLE_UNFITTING: '影片名称无法安全缩短',
+    CLEAN_ARCA_JAV_SHORT_STEM_MISMATCH: '收藏架命名规则不匹配',
+    CLEAN_ARCA_JAV_NAME_INVALID: '上架名称包含无效字符',
+    CLEAN_ARCA_JAV_TARGET_COLLISION: '影片资料的目标名称冲突',
     PRODUCT_IDENTITY_EDITION_REQUIRED:'无法从来源确定版本名，请手动指定版本名',
   };
   return known[code] || networkErrors[code] || recycleErrors[code]
