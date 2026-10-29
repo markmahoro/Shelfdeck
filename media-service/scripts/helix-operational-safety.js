@@ -11,13 +11,33 @@ const sha=(buffer)=>crypto.createHash('sha256').update(buffer).digest('hex');
 function fileEvidence(location,buffer){
   const descriptor=fs.openSync(location,fs.constants.O_RDONLY|(process.platform==='linux'?fs.constants.O_NOFOLLOW:0));
   try{
-    const before=fs.fstatSync(descriptor,{bigint:true}),digest=crypto.createHash('sha256');let bytes=0;
+    const before=fs.fstatSync(descriptor,{bigint:true});
     if(!before.isFile())throw new Error('P13_BACKUP_FILE_UNSUPPORTED');
-    for(;;){const read=fs.readSync(descriptor,buffer,0,buffer.length,null);if(!read)break;bytes+=read;digest.update(buffer.subarray(0,read));}
-    const after=fs.fstatSync(descriptor,{bigint:true});
-    if(!Number.isSafeInteger(bytes)||BigInt(bytes)!==before.size||['dev','ino','size','mtimeNs','ctimeNs'].some(key=>before[key]!==after[key]))
-      throw new Error('P13_BACKUP_FILE_CHANGED');
-    return {bytes,digest:digest.digest('hex')};
+    const checkPath=()=>{
+      let current;
+      try{current=fs.lstatSync(location,{bigint:true});}catch(error){
+        if(error.code==='ENOENT'||error.code==='ENOTDIR')throw new Error('P13_BACKUP_FILE_CHANGED');
+        throw error;
+      }
+      if(!current.isFile()||current.dev!==before.dev||current.ino!==before.ino)throw new Error('P13_BACKUP_FILE_CHANGED');
+    };
+    checkPath();
+    const readPass=()=>{
+      const digest=crypto.createHash('sha256');let bytes=0;
+      for(;;){const read=fs.readSync(descriptor,buffer,0,buffer.length,bytes);if(!read)break;bytes+=read;
+        if(!Number.isSafeInteger(bytes))throw new Error('P13_BACKUP_FILE_CHANGED');digest.update(buffer.subarray(0,read));}
+      const after=fs.fstatSync(descriptor,{bigint:true});
+      if(BigInt(bytes)!==before.size||['dev','ino','size','mtimeNs','ctimeNs'].some(key=>before[key]!==after[key]))
+        throw new Error('P13_BACKUP_FILE_CHANGED');
+      checkPath();
+      return {bytes,digest:digest.digest('hex')};
+    };
+    // Timestamps can have coarser granularity than two writes. Compare both
+    // reads and the path identity, but still quiesce the source: the checks
+    // cannot provide an atomic filesystem snapshot.
+    const first=readPass(),second=readPass();
+    if(first.bytes!==second.bytes||first.digest!==second.digest)throw new Error('P13_BACKUP_FILE_CHANGED');
+    return second;
   }finally{fs.closeSync(descriptor);}
 }
 function files(root){const result=[];if(!fs.existsSync(root))return result;const buffer=Buffer.allocUnsafe(1024*1024);function walk(current,relative){for(const entry of fs.readdirSync(current,{withFileTypes:true}).sort((a,b)=>a.name.localeCompare(b.name))){if(entry.isSymbolicLink())throw new Error('P13_SYMLINK_REJECTED');const next=path.join(current,entry.name),rel=path.posix.join(relative,entry.name);if(entry.isDirectory())walk(next,rel);else if(entry.isFile())result.push({path:rel,...fileEvidence(next,buffer)});}}walk(root,'');return result;}
