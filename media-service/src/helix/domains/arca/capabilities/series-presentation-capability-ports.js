@@ -9,6 +9,9 @@ const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const type=name=>'helix://contracts/types/'+name+'/v1';
 const stable=(prefix,value)=>prefix+canonicalDigest(value).slice(0,40);
 const fail=(code,message)=>{throw Object.assign(new Error(message),{code});};
+const observationIoCodes=new Set(['ENOENT','EACCES','EPERM','EIO','EBUSY','EAGAIN','EINVAL','ETIMEDOUT','ESTALE','ENOTCONN',
+  'ECONNRESET','EHOSTUNREACH','ENETUNREACH','SQLITE_BUSY','SQLITE_LOCKED',
+  'PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED','PHYSICAL_MATERIAL_STAT_FENCE_CHANGED','PHYSICAL_MATERIAL_FINGERPRINT_SHORT_READ']);
 
 function createSeriesPresentationCapabilityPorts(options){
   const store=options.seriesStore,io=options.seriesIo,workspace=options.seriesWorkspaceStore,validator=options.contractValidator,now=options.now||Date.now;
@@ -155,9 +158,14 @@ function createSeriesPresentationCapabilityPorts(options){
         const value=rows[0].result;validator.validate(value.schemaRef,value);
         const expectations=formal?value.artifacts.map(item=>({artifactKind:item.artifactKind,byteDigest:item.workspaceMaterialHandle.digestHex,sizeBytes:item.workspaceMaterialHandle.sizeBytes})):value.recipe;
         const observed=io.observeWrites(scope,expectations,{formal,registry:formal?null:workspace.inspect(scope)});
-        return formal?{status:observed.status!=='conflict'||observed.cleanupDeclared?'forward_required':'conflict',rollbackDeclared:false,evidenceDigest:observed.evidenceDigest}:observed;
-      }catch(error){return {status:'conflict',...(formal?{rollbackDeclared:false}:{cleanupDeclared:false}),evidenceDigest:canonicalDigest({schema:'arca.series-recovery-conflict@1',
-        buildId:context.work?.process_id||null,eventId:context.event?.event_id||null,reasonCode:error.code||'ARCA_SERIES_RECOVERY_INVALID'})};}
+        return formal?{status:observed.status==='unobservable'?'unobservable':
+          ['matching','absent'].includes(observed.status)||observed.cleanupDeclared?'forward_required':'conflict',
+          rollbackDeclared:false,evidenceDigest:observed.evidenceDigest}:observed;
+      }catch(error){const unobservable=observationIoCodes.has(error.code);
+        return {status:unobservable?'unobservable':'conflict',...(formal?{rollbackDeclared:false}:{cleanupDeclared:false}),
+          evidenceDigest:canonicalDigest({schema:unobservable?'arca.series-recovery-unobservable@1':'arca.series-recovery-conflict@1',
+          buildId:context.work?.process_id||null,eventId:context.event?.event_id||null,reasonCode:error.code||'ARCA_SERIES_RECOVERY_INVALID',
+          ...(unobservable?{causeCode:error.details?.causeCode||error.code}:{})})};}
     };
   }
   for(const port of Object.values(ports)){const execute=port.execute;port.execute=async execution=>{try{return await execute(execution);}catch(error){

@@ -81,6 +81,77 @@ test('a shared Inventory requires all three exact root roles and rejects a Seaso
   assert.throws(()=>buildSharedManifest(scope,members.map(member=>member.artifactKind==='nfo'?{...member,nfoProviderKey:'999'}:member)));
 });
 
+async function interruptedPublication(t){
+  const fs=require('node:fs'),sharp=require('sharp'),{createSeriesPresentationIo}=require('../../src/helix/integrations/series-presentation-io');
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-alias-'));
+  t.after(()=>{assert.equal(path.dirname(path.resolve(root)),path.resolve(os.tmpdir()));assert.ok(path.basename(root).startsWith('helix-series-alias-'));fs.rmSync(root,{recursive:true,force:true});});
+  const workspace=path.join(root,'workspace'),shelfRoot=path.join(root,'shelf');fs.mkdirSync(workspace);fs.mkdirSync(shelfRoot);
+  const {value}=basis(),scope=buildSeriesScope({buildId:'arca-series-build-'+D('alias').slice(0,40),scopeId:seriesScopeId('shelf','1399'),
+    shelfId:'shelf',revision:1,expectedVersion:0,endpointId:'target',mountScopeId:'mount',shelfRoot,rootLocation:path.join(shelfRoot,'Show'),basis:value,existingMembers:[]});
+  const rootSnapshot={resolvedRoot:workspace,rootHandleRef:'root-ref',endpointId:'workspace',mountScopeId:'workspace-mount'},
+    io=createSeriesPresentationIo({rootSnapshot}),execution={eventId:'alias-event',shouldContinue:()=>true},artifacts=[];
+  for(const kind of ['nfo','poster','fanart']){
+    const bytes=kind==='nfo'?renderSeriesNfo(value):await sharp({create:{width:kind==='poster'?600:1600,height:900,channels:3,background:'#123456'}}).jpeg().toBuffer();
+    artifacts.push(io.writeWorkspace(scope,kind,bytes,execution));
+  }
+  await assert.rejects(createSeriesPresentationIo({rootSnapshot,afterPhysicalEffect(){throw new Error('interrupted after link');}}).publish(scope,artifacts,execution),/interrupted after link/);
+  const target=path.join(scope.rootLocation,'tvshow.nfo'),temporary=target+'.shelfdeck-'+artifacts[0].workspaceMaterialHandle.digestHex+'.partial';
+  return {fs,io,scope,execution,artifacts,target,temporary,bytes:fs.readFileSync(target),
+    expectations:artifacts.map(item=>({artifactKind:item.artifactKind,byteDigest:item.workspaceMaterialHandle.digestHex,sizeBytes:item.workspaceMaterialHandle.sizeBytes}))};
+}
+
+function rejectAliasReads(t,fs,temporary){
+  const open=fs.openSync;let blocked=0;
+  t.mock.method(fs,'openSync',function(location,flags,...rest){
+    if(String(location)===temporary&&flags==='r'){blocked++;throw Object.assign(new Error('SMB alias is not independently readable'),{code:'EINVAL'});}
+    return open.call(this,location,flags,...rest);
+  });
+  return ()=>blocked;
+}
+
+test('Series recovery proves an unreadable redundant producer alias through the exact published inode and completes all roles',async t=>{
+  const f=await interruptedPublication(t),reads=rejectAliasReads(t,f.fs,f.temporary),identity=f.fs.statSync(f.target,{bigint:true});
+  assert.equal(f.fs.statSync(f.temporary,{bigint:true}).ino,identity.ino);
+  assert.equal(f.io.observeWrites(f.scope,f.expectations,{formal:true}).status,'matching');
+  const published=await f.io.publish(f.scope,f.artifacts,{...f.execution,recoveryDecision:'continue_forward'});
+  assert.equal(published.members.length,3);assert.equal(reads(),0);
+  assert.equal(f.fs.existsSync(f.temporary),false);assert.deepEqual(f.fs.readFileSync(f.target),f.bytes);
+  assert.equal(f.fs.statSync(f.target,{bigint:true}).ino,identity.ino);
+  assert.deepEqual(f.fs.readdirSync(f.scope.rootLocation).sort(),['fanart.jpg','poster.jpg','tvshow.nfo']);
+});
+
+test('Series recovery cannot infer an unreadable different inode from identical final bytes',async t=>{
+  const f=await interruptedPublication(t);f.fs.unlinkSync(f.temporary);f.fs.writeFileSync(f.temporary,f.bytes);
+  assert.notEqual(f.fs.statSync(f.target,{bigint:true}).ino,f.fs.statSync(f.temporary,{bigint:true}).ino);
+  rejectAliasReads(t,f.fs,f.temporary);const before=f.fs.statSync(f.temporary,{bigint:true});
+  assert.throws(()=>f.io.observeWrites(f.scope,f.expectations,{formal:true}),{code:'PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED'});
+  await assert.rejects(f.io.publish(f.scope,f.artifacts,{...f.execution,recoveryDecision:'continue_forward'}),{code:'PHYSICAL_MATERIAL_FINGERPRINT_IO_FAILED'});
+  assert.deepEqual(f.fs.statSync(f.temporary,{bigint:true}),before);assert.deepEqual(f.fs.readFileSync(f.target),f.bytes);
+});
+
+test('Series published-alias cleanup requires an active execution fence and leaves the final file intact',async t=>{
+  const f=await interruptedPublication(t);rejectAliasReads(t,f.fs,f.temporary);let checks=0;
+  await assert.rejects(f.io.publish(f.scope,f.artifacts,{...f.execution,recoveryDecision:'continue_forward',shouldContinue:()=>++checks===1}),{code:'ARCA_SERIES_EXECUTION_FENCED'});
+  assert.equal(f.fs.existsSync(f.temporary),true);assert.deepEqual(f.fs.readFileSync(f.target),f.bytes);
+});
+
+test('Series published-alias cleanup refuses a replacement between its proof and the final execution fence',async t=>{
+  const f=await interruptedPublication(t);rejectAliasReads(t,f.fs,f.temporary);let checks=0;
+  const foreign=Buffer.from('unrelated replacement');
+  await assert.rejects(f.io.publish(f.scope,f.artifacts,{...f.execution,recoveryDecision:'continue_forward',shouldContinue:()=>{
+    if(++checks===2){f.fs.unlinkSync(f.temporary);f.fs.writeFileSync(f.temporary,foreign);}return true;
+  }}),{code:'ARCA_SERIES_TEMP_CONFLICT'});
+  t.mock.restoreAll();assert.deepEqual(f.fs.readFileSync(f.temporary),foreign);assert.deepEqual(f.fs.readFileSync(f.target),f.bytes);
+});
+
+test('Series recovery preserves a different producer file whose readable bytes conflict with the frozen recipe',async t=>{
+  const f=await interruptedPublication(t),foreign=Buffer.alloc(f.bytes.length,120);
+  f.fs.unlinkSync(f.temporary);f.fs.writeFileSync(f.temporary,foreign);
+  const observed=f.io.observeWrites(f.scope,f.expectations,{formal:true});assert.equal(observed.status,'conflict');assert.equal(observed.cleanupDeclared,false);
+  await assert.rejects(f.io.publish(f.scope,f.artifacts,{...f.execution,recoveryDecision:'continue_forward'}),{code:'ARCA_SERIES_TEMP_CONFLICT'});
+  assert.deepEqual(f.fs.readFileSync(f.temporary),foreign);assert.deepEqual(f.fs.readFileSync(f.target),f.bytes);
+});
+
 test('real Series IO publishes and verifies three root files while preserving healthy bytes on reuse',async()=>{
   const fs=require('node:fs'),sharp=require('sharp'),{createSeriesPresentationIo}=require('../../src/helix/integrations/series-presentation-io');
   const temporary=fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-shared-'));
