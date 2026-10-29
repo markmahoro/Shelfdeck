@@ -6,6 +6,8 @@ const {D}=require('./fixtures/us-adult-analysis-basis-harness');
 const {canonicalDigest,canonicalJson}=require('../../src/helix/contracts/canonical-json');
 const {createLibraRunContextReader}=require('../../src/helix/domains/libra/application/libra-run-context-reader');
 const {createLibraRunCreator}=require('../../src/helix/domains/libra/application/libra-run-creator');
+const {createCustomTargetBaselineReader}=require('../../src/helix/domains/libra/application/custom-target-baseline-reader');
+const {buildDecisionInputSet}=require('../../src/helix/domains/libra/model/decision-front-half-contracts');
 const {createRunAdmissionStore}=require('../../src/helix/domains/libra/persistence/run-admission-store');
 const {createRunLifecycleStore}=require('../../src/helix/domains/libra/persistence/run-lifecycle-store');
 const {buildRunLifecycleDecision}=require('../../src/helix/domains/libra/model/run-lifecycle-contracts');
@@ -124,6 +126,19 @@ test('changed current rating requirements or unavailable baseline prevents custo
   assert.deepEqual(h.snapshot(),before);assert.deepEqual(h.cancelled,[]);
   h.setBaseline(original);
   assert.equal(h.advance(h.unitOfWork.captureReadFence()).kind,'admitted');
+}));
+
+test('the typed current standard projection can feed the actual custom Run transaction',()=>runHarness(h=>{
+  const source=h.data.inputSet,subject={...source.subjectSnapshot,currentIdentityRevision:1,currentIdentityDigest:h.chosen.intent.basis.identityDigest};
+  subject.snapshotDigest=canonicalDigest(Object.fromEntries(Object.entries(subject).filter(([key])=>key!=='snapshotDigest')));
+  const inputSet=buildDecisionInputSet({...source,subjectSnapshot:subject}),baselineReader=createCustomTargetBaselineReader({
+    acceptanceSpecContextReader:{read:()=>({kind:'ready',inputSet})},
+    readHandoffResponsibility:request=>({kind:'ready',...request,handoffState:'no_offer'})}),
+    contextReader=createLibraRunContextReader(h.options),creator=createLibraRunCreator({...h.options,contextReader,
+      customTargetStore:h.targets,readCurrentCustomTargetBaseline:baselineReader.read,cancelProcessWorks(){return {drainingWorks:0};}});
+  const result=creator.replaceConfirmedCustomTarget(h.chosen.intent,h.unitOfWork.captureReadFence());
+  assert.equal(result.kind,'admitted');assert.equal(h.db.prepare('SELECT acceptance_spec_id FROM libra_runs WHERE libra_run_id=?')
+    .get(result.libraRunId).acceptance_spec_id,h.spec.acceptanceSpecId);
 }));
 
 test('direct custom admission also requires the current baseline inside its transaction',()=>runHarness(h=>{

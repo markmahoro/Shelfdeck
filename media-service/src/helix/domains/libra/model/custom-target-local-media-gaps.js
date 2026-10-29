@@ -19,11 +19,11 @@ function observeLocalMovieMediaGaps({libraRunId,acceptanceSpec,sourceHandleDiges
   const finish=(value)=>freeze({...base,...value,observationDigest:canonicalDigest({...base,...value})});
   if(!sourceProbeRecord)return finish({status:'evidence_pending',reasonCode:'source_probe_missing',observed:null,differences:[]});
   const record=sourceProbeRecord,bindings=record.inputBindings?.bindings,
-    sourceBindings=Array.isArray(bindings)?bindings.filter(item=>item.portName==='physicalMaterialReadHandleOrWorkspaceMaterialHandle'):[];
+    mediaPortBindings=Array.isArray(bindings)?bindings.filter(item=>item.portName==='physicalMaterialReadHandleOrWorkspaceMaterialHandle'):[];
   if(record.outcomeKind!=='succeeded'||record.capabilityRef!=='shared.material.media.probe@1'||
       typeof record.resultId!=='string'||!record.resultId||record.resultId.length>256||
-      !Array.isArray(bindings)||record.inputBindingDigest!==canonicalDigest(record.inputBindings)||sourceBindings.length!==1||
-      sourceBindings[0].ownerDomain!=='libra'||sourceBindings[0].processType!=='libra_run'||sourceBindings[0].processId!==libraRunId||
+      !Array.isArray(bindings)||record.inputBindingDigest!==canonicalDigest(record.inputBindings)||mediaPortBindings.length!==1||
+      mediaPortBindings[0].ownerDomain!=='libra'||mediaPortBindings[0].processType!=='libra_run'||mediaPortBindings[0].processId!==libraRunId||
       record.resultDigest!==canonicalDigest(record.result))
     fail('LIBRA_CUSTOM_MEDIA_GAP_EVIDENCE_INVALID','Probe Result is not bound to this Libra Run.');
   const probe=assertProbeEvidence(record.result);
