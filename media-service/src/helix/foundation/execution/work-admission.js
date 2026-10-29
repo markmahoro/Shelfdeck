@@ -67,7 +67,7 @@ function repositories(schemaManifest) {
       repositoryId: 'work_admission_receipts', owner: 'execution-foundation', schemaManifest,
       statements: {
         list_key: { kind: 'select-all', tableId: 'fx_command_receipts', columns: [
-          'request_digest', 'caller_scope', 'target_id', 'result_ref_json', 'result_digest'
+          'request_digest', 'caller_scope', 'target_type', 'target_id', 'result_schema_ref', 'result_ref_json', 'result_digest'
         ], keyColumns: ['owner_domain', 'command_contract', 'idempotency_key'] },
         list_scope: { kind: 'select-all', tableId: 'fx_command_receipts', columns: ['target_id'],
           keyColumns: ['owner_domain', 'command_contract', 'caller_scope'] },
@@ -89,10 +89,15 @@ function repositories(schemaManifest) {
   });
 }
 
-function decodeReplay(row) {
+function decodeReplay(row, definition) {
   let result;
   try { result = JSON.parse(row.result_ref_json); } catch (error) { fail('P4_WORK_ADMISSION_RECEIPT_CORRUPT', 'Stored Work Admission Result is invalid JSON.'); }
-  if (!result || digest(canonicalJson(result)) !== row.result_digest) fail('P4_WORK_ADMISSION_RECEIPT_CORRUPT', 'Stored Work Admission Result digest is invalid.');
+  const expected = { kind: 'admitted', workId: definition.workId, state: 'admitted', replayed: false };
+  if (!result || digest(canonicalJson(result)) !== row.result_digest || canonicalJson(result) !== canonicalJson(expected) ||
+      row.target_type !== 'supporting_work' || row.target_id !== definition.workId ||
+      row.caller_scope !== definition.ownerDomain + ':' + definition.concurrencyScope || row.result_schema_ref !== RESULT_SCHEMA) {
+    fail('P4_WORK_ADMISSION_RECEIPT_CORRUPT', 'Stored Work Admission Result does not match the committed Definition.');
+  }
   return Object.freeze({ ...result, replayed: true });
 }
 
@@ -126,7 +131,7 @@ function createWorkAdmission(options) {
           'P4_WORK_ADMISSION_IDEMPOTENCY_CONFLICT',
           'Work Admission idempotency key already binds a different Definition digest.',
         );
-        return decodeReplay(rows[0]);
+        return decodeReplay(rows[0], definition);
       },
     }]).work_admission_replay;
     return result ? Object.freeze(result) : null;
@@ -150,6 +155,12 @@ function createWorkAdmission(options) {
         executionBasisId: definition.executionBasisId, executionBasisDigest: definition.executionBasisDigest
       }));
       if (!eligibility || eligibility.eligible !== true || eligibility.basisDigest !== definition.executionBasisDigest) {
+        // An identical command may commit after the first receipt read while
+        // the Owner eligibility view is changing.
+        if (readFence !== null) {
+          const committed = replay(definition);
+          if (committed) return committed;
+        }
         return Object.freeze({ kind: 'invalid_contract', reasonCode: eligibility && eligibility.reasonCode || 'PROCESS_OR_BASIS_NOT_ELIGIBLE' });
       }
       const requestDigest = digest(canonicalJson(definition));
@@ -173,7 +184,7 @@ function createWorkAdmission(options) {
               if (existingReceipts[0].request_digest !== requestDigest) fail(
                 'P4_WORK_ADMISSION_IDEMPOTENCY_CONFLICT', 'Work Admission idempotency key already binds a different Definition digest.'
               );
-              throw new WorkAdmissionReplay(decodeReplay(existingReceipts[0]));
+              throw new WorkAdmissionReplay(decodeReplay(existingReceipts[0], definition));
             }
             for (const circuitKey of ['foundation/work-admission', 'owner/' + definition.ownerDomain + '/work-admission']) {
               const circuit = context.repository('work_admission_circuits').invoke('find', { circuit_key: circuitKey });
@@ -225,6 +236,10 @@ function createWorkAdmission(options) {
       } catch (error) {
         if (error instanceof WorkAdmissionReplay) return error.result;
         if (error instanceof WorkAdmissionDeferred) return Object.freeze({ kind: 'deferred', reasonCode: error.reasonCode });
+        if (readFence !== null && error?.code === 'P3_UOW_READ_FENCE_CHANGED') {
+          const committed = replay(definition);
+          if (committed) return committed;
+        }
         throw error;
       }
     }
