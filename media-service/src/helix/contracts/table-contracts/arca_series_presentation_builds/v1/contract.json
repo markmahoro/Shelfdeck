@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_series_presentation_builds/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_series_presentation_builds",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "build_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "expected_version",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "basis_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "basis_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "basis_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "scope_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "scope_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "build_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [
+      [
+        "scope_id",
+        "revision"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "basis_json",
+        "schemaRefColumn": "basis_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      },
+      {
+        "column": "scope_json",
+        "schemaRefColumn": "scope_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(scope_id,revision)`",
+      "Basis和Scope JSON上限`64 KiB`，精确SeriesPresentationBasis及SeriesPresentationScope",
+      "immutable",
+      "新build不得重写失败build的Basis/Source Result"
+    ],
+    "rawContract": {
+      "columns": "`build_id PK, scope_id, revision, expected_version, basis_schema_ref, basis_json, basis_digest, scope_schema_ref, scope_json, scope_digest, created_at_ms`",
+      "constraints": "`UNIQUE(scope_id,revision)`；Basis和Scope JSON上限`64 KiB`，精确SeriesPresentationBasis及SeriesPresentationScope；immutable；新build不得重写失败build的Basis/Source Result"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9635,
+      "lineDigest": "450d07909387a710492021a095ce4d3619899d8c33191142689e066b39bcdf37"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "scope_id"
+        ],
+        "targetTable": "arca_series_presentation_scopes",
+        "targetColumns": [
+          "scope_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

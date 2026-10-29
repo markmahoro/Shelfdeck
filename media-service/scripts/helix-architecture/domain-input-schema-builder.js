@@ -100,12 +100,14 @@ const special = {
   'FinalReality.memberEvidence': arrayOf(finalMaterialEvidence(), 4096),
   'CareBasis.canonicalIdentityDigest': digest(),
   'CareBasis.acceptedProductFactSetDigest': digest(),
+  'Scope.materialKeys':arrayOf(snapshot('material-key'),1027),
   'CurrentInventoryControl.materials': arrayOf(object({ materialKey: digest(), inventoryRevision: positiveInteger(), controlRevision: positiveInteger() }), 4096),
   'DecisionEvidence.queryResults': arrayOf(typeRef('VersionedQueryResult'), 256),
   'DecisionInputSet.inputs': arrayOf(snapshot('decision-input'), 256),
   'DestructionScope.materials': arrayOf(object({
     ordinal: nonNegativeInteger(),
     materialKey: digest(),
+    sharedScopeId:id(),sharedVersion:positiveInteger(),
     materialRole: enumText('primary_payload', 'structural_dependency', 'metadata_sidecar', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'),
     physicalIdentity: typeRef('PhysicalMaterialIdentity'),
     physicalIdentityDigest: digest(),
@@ -116,9 +118,11 @@ const special = {
     bindingRevision: positiveInteger(),
     controlRevision: positiveInteger(),
     controlProjectionDigest: digest(),
-    deleteCondition: enumText('exclusive_primary', 'release_related_then_delete_if_unreferenced'),
+    deleteCondition: enumText('exclusive_primary', 'release_related_then_delete_if_unreferenced','series_last_reference'),
     memberDigest: digest(),
-  }), 1024),
+  },['ordinal','materialKey','materialRole','physicalIdentity','physicalIdentityDigest','endpointId','endpointRelativeLocation','sizeBytes','relatedReferenceId','bindingRevision','controlRevision','controlProjectionDigest','deleteCondition','memberDigest'],
+    {allOf:[{if:{properties:{deleteCondition:{const:'series_last_reference'}},required:['deleteCondition']},then:{required:['sharedScopeId','sharedVersion']},
+      else:{not:{anyOf:[{required:['sharedScopeId']},{required:['sharedVersion']}]}}}]}), 1027),
   'FinalBindings.bindings': arrayOf(snapshot('arca-material-binding'), 4096),
   'FinalInventoryDecision.members': arrayOf(object({
     objectId: id(),
@@ -174,6 +178,7 @@ const boundedContracts = {
   ClusterParameters: '',
   EncodeIntent: '',
   FaceModelRef: '',
+  FaceCatalogueGeneration: '',
   BoundedFingerprintProfile: 'profileRef,revision,algorithm,maxSampleBytes,profileDigest',
   IdentityRequirement: '',
   MandatoryRequirement: '',
@@ -194,6 +199,11 @@ const boundedContracts = {
 };
 
 const dtoContracts = {
+  SeriesRootRelocationReference:'',
+  SeriesPresentationScope: '',
+  SeriesPresentationReclamationBasis: '',
+  SeriesPresentationManifest: '',
+  JavSourceQualification: '',
   JavCorrectionScope: '',
   JavCorrectionRetirementScope: '',
   JavCorrectionWorkspaceReclaimScope: '',
@@ -271,6 +281,8 @@ const dtoContracts = {
   PeopleProfileUpdateDecision: '',
   UsAdultPersonSnapshot:'',
   UsAdultAnalysisBasis:'',
+  UsAdultCatalogueAnalysisBasis:'',
+  UsAdultCatalogueCompletedBatchSet:'',
   UsAdultActorChoiceRecord:'',
   UsAdultActorChoiceDecision:'',
   UsAdultActorChoiceReceipt:'',
@@ -332,6 +344,20 @@ function idField(name) {
 }
 
 function buildSchema(name, role, fields) {
+  if(name==='FaceCatalogueGeneration')return require('../../src/helix/contracts/face-catalogue-generation').schema();
+  if(name==='UsAdultCatalogueCompletedBatchSet')return require('../../src/helix/contracts/us-adult-catalogue-work-types').completedBatchSetSchema();
+  if(name==='UsAdultCatalogueAnalysisBasis')return require('../../src/helix/domains/libra/model/us-adult-catalogue-analysis-basis').schema();
+  if(name==='SeriesRootRelocationReference')return exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},revision:{const:1},digest:digest(),relocationId:id(),scopeId:id(),planDigest:digest()});
+  if(['SeriesPresentationScope','SeriesPresentationManifest','SeriesPresentationReclamationBasis'].includes(name)){
+    const value=require('../../src/helix/contracts/series-presentation-schemas')[name==='SeriesPresentationScope'?'scopeSchema':name==='SeriesPresentationManifest'?'manifestSchema':'reclamationSchema']();
+    return {$schema:DRAFT,$id:domainTypeId(name),title:name+'@1','x-helix-ssotRefs':['8.5.12'],
+      'x-helix-role':role,'x-helix-maxCanonicalBytes':name==='SeriesPresentationReclamationBasis'?131072:65536,...value};
+  }
+  if(name==='JavSourceQualification')return exactDomainSchema(name,{
+    schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},siteRef:enumText(...require('../../src/helix/contracts/jav-source-contracts').JAV_SITE_REFS),
+    integrationId:id(),configRevision:positiveInteger(),authMode:{const:'anonymous'},endpointProfileDigest:digest(),networkRouteDigest:digest(),
+    allowedOperation:enumText('libra.product_identity.evidence.observe@1','libra.product_metadata.fetch@1','libra.product_artifact.acquire@1'),
+    artifactKind:nullable(enumText('poster','fanart')),sourceFenceDigest:digest()});
   if(name==='JavCorrectionScope')return require('../../src/helix/domains/arca/model/jav-correction-execution-contract').javCorrectionScopeSchema();
   if(name==='JavCorrectionRetirementScope')return require('../../src/helix/domains/arca/model/jav-correction-retirement-contract').retirementScopeSchema();
   if(name==='JavCorrectionWorkspaceReclaimScope')return require('../../src/helix/domains/arca/model/jav-correction-workspace-reclaim-contract').workspaceReclaimScopeSchema();
@@ -387,7 +413,7 @@ function buildSchema(name, role, fields) {
   if(name==='UsAdultRecommendationPageQuery')return exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},cursor:nullable(id()),limit:{type:'integer',minimum:1,maximum:32}});
   if(name==='UsAdultRecommendationSourcePage')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},items:arrayOf(domainRef('UsAdultRecommendationSource'),32),nextCursor:nullable(id()),pageDigest:digest()}),'x-helix-maxCanonicalBytes':256*1024};
   if(name==='UsAdultRecommendationSource')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},sourceId:digest(),subjectId:id(),libraRunId:id(),expectedRunStateRevision:positiveInteger(),expectedChoiceRevision:{const:0},runExecutionBasisDigest:digest(),analysisId:digest(),analysisBasisDigest:digest(),completionDigest:digest(),originalName:object({schema:{const:'us-adult-original-name@1'},originalFileName:text({maxLength:1024}),provenanceDigest:digest()}),frameArtifactSet:typeRef('FrameArtifactSet'),faceEmbeddingSetHandle:typeRef('FaceEmbeddingSetHandle'),faceClusterSetHandle:typeRef('FaceClusterSetHandle'),sourceResultRefs:{...arrayOf(object({workId:id(),attemptId:id(),planId:id(),eventId:id(),resultId:id(),capabilityRef:enumText('libra.media.frames.extract@1','shared.face.embedding.compute@1','shared.face.cluster.compute@1'),resultSchemaRef:text({maxLength:256}),resultDigest:digest(),inputBindingDigest:digest()}),3),minItems:3},sourceDigest:digest()}),'x-helix-maxCanonicalBytes':64*1024};
-  if(name==='UsAdultAnalysisBasis')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},analysisId:digest(),contentProfile:{const:'western_adult'},libraRunId:id(),subjectId:id(),expectedRunStateRevision:positiveInteger(),runExecutionBasisDigest:digest(),resolvedIdentityDigest:digest(),workspaceId:id(),sourceHandle:typeRef('PhysicalMaterialReadHandle'),sourceProbeRef:object({workId:id(),attemptId:id(),planId:id(),eventId:id(),resultId:id(),resultDigest:digest(),inputBindingDigest:digest()}),durationMs:positiveInteger(),faceModelRef:domainRef('FaceModelRef'),referenceModelRefDigest:digest(),clusterParameters:domainRef('ClusterParameters'),samplingPlan:domainRef('SamplingPlan'),referenceLibraryDigest:digest(),personCount:nonNegativeInteger(),pageCount:positiveInteger(),pageSetDigest:digest(),basisDigest:digest()}),'x-helix-maxCanonicalBytes':32*1024};
+  if(name==='UsAdultAnalysisBasis')return optionalProperty({...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},analysisId:digest(),contentProfile:{const:'western_adult'},libraRunId:id(),subjectId:id(),expectedRunStateRevision:positiveInteger(),runExecutionBasisDigest:digest(),resolvedIdentityDigest:digest(),workspaceId:id(),sourceHandle:typeRef('PhysicalMaterialReadHandle'),sourceProbeRef:object({workId:id(),attemptId:id(),planId:id(),eventId:id(),resultId:id(),resultDigest:digest(),inputBindingDigest:digest()}),durationMs:positiveInteger(),faceModelRef:domainRef('FaceModelRef'),referenceModelRefDigest:digest(),matchThreshold:{type:'number',minimum:0,maximum:1},clusterParameters:domainRef('ClusterParameters'),samplingPlan:domainRef('SamplingPlan'),referenceLibraryDigest:digest(),personCount:nonNegativeInteger(),pageCount:positiveInteger(),pageSetDigest:digest(),basisDigest:digest()}),'x-helix-maxCanonicalBytes':32*1024},'matchThreshold');
   if(name==='UsAdultActorChoiceRecord')return {...exactDomainSchema(name,{schemaRef:{const:domainTypeId(name)},schemaVersion:{const:1},intentId:digest(),libraRunId:id(),subjectId:id(),revision:positiveInteger(),expectedChoiceRevision:nonNegativeInteger(),expectedRunStateRevision:positiveInteger(),runExecutionBasisDigest:digest(),actorId:id(),idempotencyKey:text({maxLength:128}),requestDigest:digest(),personSnapshot:domainRef('UsAdultPersonSnapshot'),recordDigest:digest()}),'x-helix-maxCanonicalBytes':256*1024};
   if(name==='UsAdultActorChoiceDecision')return {...exactDomainSchema(name,{decisionId:digest(),record:domainRef('UsAdultActorChoiceRecord'),decisionDigest:digest()}),'x-helix-maxCanonicalBytes':1024*1024};
   if(name==='UsAdultActorChoiceReceipt')return exactDomainSchema(name,{intentId:digest(),subjectId:id(),libraRunId:id(),choiceRevision:positiveInteger(),personId:id(),personRevision:positiveInteger(),referenceRevision:positiveInteger(),recordDigest:digest()});
@@ -484,7 +510,7 @@ function selectedFieldMaterialSetSchema() {
     basisMemberDigest: digest()
   });
   const selectionScope = object({ scopeOrdinal:nonNegativeInteger(),
-    scopeKind:enumText('standalone_file','ordinary_directory','bdmv_container'), scopeKey:id(),
+    scopeKind:enumText('standalone_file','ordinary_directory','bdmv_container','local_media_group'), scopeKey:id(),
     scopeRootRelativeLocation:text(), memberCount:positiveInteger(), memberSetDigest:digest(), scopeDigest:digest() });
   return exactDomainSchema('SelectedFieldMaterialSet', {
     procurementRunId:id(), fieldId:id(), physicalMemberCount:positiveInteger(), selectionScopeCount:positiveInteger(),
@@ -661,6 +687,9 @@ const triageUnit = () => {
 
 function procurementTriageRuleSnapshotSchema() {
   const rulePayload = object({
+    selectionScopeRule:object({revision:{const:3},categoryDirectories:{const:'containers'},seriesKey:{const:'local_claimed_title_and_season'},
+      provisionalSeasonBoundary:{const:'direct_parent'},ordinaryPayload:{const:'independent'},javNamedParts:{const:'direct_parent_and_canonical_code'},
+      bdmv:{const:'whole_container_with_certificate'},dvd:{const:'whole_video_ts_container'},ordering:{const:'canonical_utf8'},packing:{const:'sequential_complete_groups'}}),
     contractRefs: arrayOf(text(), 32), recallPriority: { const: true }, maxRunPhysicalMembers: { const: PROCUREMENT_RUN_MEMBER_LIMIT },
     maxSelectionScopeMembers:{ const:PROCUREMENT_RUN_MEMBER_LIMIT }, maxCandidateManifestMembers:{ const:PROCUREMENT_RUN_MEMBER_LIMIT },
     probeBatchSize: { const: 100 }, playabilityRule: object({ minimumDurationMs: { const: 1 }, minimumVideoStreamCount: { const: 1 },
@@ -704,7 +733,7 @@ function materialFieldContextSchema() {
     profileHintSnapshot: applicationRef('MaterialFieldProfileHintSnapshot'),
     memberContexts: { ...arrayOf(object({ selectionOrdinal: nonNegativeInteger(), materialKey: digest(), fieldRelativeLocation: text(),
       baseName:text(), extension:text(), parentSegments:arrayOf(text(),32),
-      selectionScopeKind:enumText('standalone_file','ordinary_directory','bdmv_container'), selectionScopeKey:id(),
+      selectionScopeKind:enumText('standalone_file','ordinary_directory','bdmv_container','local_media_group'), selectionScopeKey:id(),
       selectionScopeRootRelativeLocation:text(), scopeOrdinal:nonNegativeInteger(), scopeMemberOrdinal:nonNegativeInteger(),
       layoutEvidenceRefs: arrayOf(object({ evidenceId: id(),
       payloadDigest: digest(), boundedScopeDigest: digest() }), 16) }), PROCUREMENT_RUN_PHYSICAL_MEMBER_LIMIT), minItems: 1 }, contextDigest: digest() });
@@ -753,6 +782,7 @@ function candidateDraftSchema() {
     relatedReferenceSetDigest: digest(), relatedDispositionScopeDigest:digest(),
     memberControlEvidenceSetDigest: digest(), candidateDraftDigest: digest()
   });
+  schema.properties.seriesPresentationSourceRefs=require('../../src/helix/contracts/series-local-source').referenceSetSchema();
   schema.allOf = [{ if:{ properties:{ contentProfile:{ const:'series' } } }, then:{},
     else:{ properties:{ identityMetadata:{ properties:{ sourceHints:{ maxItems:256 } } } } } }];
   return schema;
@@ -761,6 +791,10 @@ function candidateDraftSchema() {
 const identityAnchor = () => object({
   anchorKind: text(), anchorValue: text(), confidenceClass: text(), evidenceDigest: digest()
 });
+
+function optionalProperty(schema, key) {
+  return { ...schema, required: schema.required.filter((item) => item !== key) };
+}
 
 function exactDomainSchema(name, properties, required = Object.keys(properties), options = {}) {
   return {
@@ -1049,7 +1083,10 @@ function metadataFetchIntentSchema() {
     'x-helix-maxCanonicalBytes': 16 * 1024, oneOf: [
       object({ ...common,contentProfile:enumText('movie','series'), episodeScope, sourceKind: { const: 'related_nfo' }, relatedReferenceId: id(), relatedReferenceDigest: digest(), expectedChecksum: digest() },
         [...Object.keys(common), 'relatedReferenceId', 'relatedReferenceDigest', 'expectedChecksum']),
-      object({ ...common,contentProfile:enumText('movie','series'), episodeScope, sourceKind: { const: 'provider' }, providerKind: {const:'tmdb'},
+      object({ ...common,contentProfile:enumText('movie','series'), episodeScope,
+        episodePlotPolicyRef:{const:require('../../src/helix/contracts/episode-plot-source').POLICY},
+        episodeMapping: require('../../src/helix/contracts/episode-metadata-query').episodeMetadataQuerySchema(),
+        sourceKind: { const: 'provider' }, providerKind: {const:'tmdb'},
         resolvedProviderIdentity: domainRef('ResolvedProviderIdentity'), integrationId: id(), configRevision: positiveInteger() },
         [...Object.keys(common), 'providerKind', 'resolvedProviderIdentity', 'integrationId', 'configRevision']),
       object({ ...common,contentProfile:{const:'jav'},sourceKind:{const:'provider'},providerKind:{const:'jav'},
@@ -1780,7 +1817,7 @@ function workspaceArtifactOutputTargetSchema() {
       targetId: id(), libraRunId: id(), executionBasisDigest: digest(), workspaceId: id(),
       expectedWorkspaceRevision: positiveInteger(), expectedWorkspaceStateDigest: digest(),
       rootSnapshot: applicationRef('PlatformWorkspaceRootSnapshot'),
-      workspaceScopeDigest: digest(), targetRelativePath: text(), outputKind: enumText('frame_set', 'western_analysis'),
+      workspaceScopeDigest: digest(), targetRelativePath: text(), outputKind: enumText('frame_set', 'western_analysis', 'face_catalogue_observation'),
       sourceInputDigest: digest(), effectScopeDigest: digest(), targetDigest: digest()
     }),
     'x-helix-maxCanonicalBytes': 16 * 1024

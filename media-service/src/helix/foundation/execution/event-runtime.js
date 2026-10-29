@@ -270,8 +270,16 @@ function createEventRuntime(options) {
         markers:Object.freeze(context.repository('runtime_commit_markers').invoke('list',{effect_id:effectId})),
       });}}]).event_runtime_prebound_result_read,row=binding.row;
     if(!row)return null;
-    if(row.result_schema_ref!==entry.manifest.resultSchemaRef||
-        row.evidence_schema_ref!==entry.manifest.evidenceSchemaRef)return null;
+    const resultRef=entry.manifest.resultSchemaRef;
+    let schemaRef=resultRef,domainFactEnvelope=false;
+    if(entry.manifest.effectClass==='domain_fact_commit'&&typeof options.contractValidator.readSchema==='function'){
+      const seen=new Set();
+      while(schemaRef&&!seen.has(schemaRef)&&schemaRef!==row.result_schema_ref){seen.add(schemaRef);schemaRef=options.contractValidator.readSchema(schemaRef).$ref;}
+      if(schemaRef===row.result_schema_ref){
+        domainFactEnvelope=options.contractValidator.readSchema(schemaRef)['x-helix-envelopeRef']==='helix://contracts/types/DomainFactEnvelope/v1';
+      }
+    }
+    if((row.result_schema_ref!==resultRef&&!domainFactEnvelope)||row.evidence_schema_ref!==entry.manifest.evidenceSchemaRef)return null;
     const effect=options.effectJournal?.read(effectId),marker=binding.markers.length===1?binding.markers[0]:null;
     if(!effect||effect.event_attempt_id!==attempt.event_attempt_id||effect.effect_class!==entry.manifest.effectClass||
         !['intended','effect_observed','reconcile_required','committed'].includes(effect.state)||
@@ -286,12 +294,22 @@ function createEventRuntime(options) {
     try{if(typeof row.result_json!=='string'||typeof row.evidence_json!=='string')throw new Error('non-json');result=JSON.parse(row.result_json);evidence=JSON.parse(row.evidence_json);}catch{
       fail('P4_EVENT_PREBOUND_RESULT_CORRUPT','Atomic Capability pre-bound invalid Result JSON.');
     }
-    if(row.outcome_kind!=='succeeded'||row.result_schema_ref!==entry.manifest.resultSchemaRef||
-        row.evidence_schema_ref!==entry.manifest.evidenceSchemaRef||json(result)!==row.result_json||
+    if(row.outcome_kind!=='succeeded'||row.evidence_schema_ref!==entry.manifest.evidenceSchemaRef||json(result)!==row.result_json||
         json(evidence)!==row.evidence_json||digest(row.result_json)!==row.result_digest||
-        digest(row.evidence_json)!==row.evidence_digest||result.ownerDomain!==marker.owner_domain||
-        result.scopeType!==marker.scope_type||result.scopeId!==marker.scope_id||
-        result.effectReceiptRef!==row.effect_receipt_id)
+        digest(row.evidence_json)!==row.evidence_digest||result.ownerDomain!==marker.owner_domain)
+      fail('P4_EVENT_PREBOUND_RESULT_CORRUPT','Atomic Capability pre-bound Result does not match its frozen contract.');
+    if(domainFactEnvelope){
+      const intent=valueDigest({eventId,capabilityRef:entry.manifest.capabilityRef,contractVersion:entry.manifest.contractVersion,
+        inputSnapshotDigest:attempt.input_snapshot_digest,fenceSnapshotDigest:attempt.fence_snapshot_digest});
+      if(effect.intent_digest!==intent||valueDigest([effect.effect_class,effect.idempotency_key])!==effect.effect_id||
+          result.schemaRef!==row.result_schema_ref||result.factSchemaRef!==row.result_schema_ref||
+          result.aggregateType!==marker.scope_type||result.aggregateId!==marker.scope_id||
+          result.commitMarker!==marker.commit_marker||result.committedAtMs!==marker.committed_at_ms)
+        fail('P4_EVENT_PREBOUND_RESULT_CORRUPT','Atomic Domain Fact does not bind the exact Effect, aggregate and Marker.');
+      const fields=['factId','ownerDomain','aggregateType','aggregateId','revision','factSchemaRef','factDigest','commitMarker','committedAtMs'];
+      options.contractValidator.validate('helix://contracts/types/DomainFactEnvelope/v1',Object.fromEntries(fields.map(key=>[key,result[key]])));
+      options.contractValidator.validate(row.result_schema_ref,result);
+    } else if(result.scopeType!==marker.scope_type||result.scopeId!==marker.scope_id||result.effectReceiptRef!==row.effect_receipt_id)
       fail('P4_EVENT_PREBOUND_RESULT_CORRUPT','Atomic Capability pre-bound Result does not match its frozen contract.');
     options.contractValidator.validate(entry.manifest.resultSchemaRef,result);
     options.contractValidator.validate(row.evidence_schema_ref,evidence);
@@ -592,7 +610,7 @@ function createEventRuntime(options) {
   }
 
   async function recover(request) {
-    const allowed = new Set(['safe_retry', 'safe_retry_before_intent', 'continue_forward', 'already_committed', 'already_failed', 'terminal_failure']);
+    const allowed = new Set(['safe_retry', 'safe_retry_before_intent', 'continue_forward', 'observe_again', 'already_committed', 'already_failed', 'terminal_failure']);
     if (!request || typeof request !== 'object' || Array.isArray(request) ||
         typeof request.eventId !== 'string' || !allowed.has(request.decision)) fail(
       'P4_EVENT_RECOVERY_REQUEST_INVALID', 'Event recovery requires one classified recoverable action.'
@@ -608,6 +626,28 @@ function createEventRuntime(options) {
     if(request.decision==='already_committed'){
       const prebound=readPreboundCommittedOutcome(request.eventId,request.effectId,attempt,entry);
       if(prebound){await options.effectJournal.settle(Object.freeze({effectId:request.effectId,receipt:prebound.outcome.effectReceipt,scope:prebound.scope}));return completeCommittedEffect(snapshot,attempt.event_attempt_id,prebound.outcome);}
+    }
+    if(request.decision==='observe_again') {
+      const effect=options.effectJournal.read(request.effectId),expectedIntent=valueDigest({eventId:request.eventId,capabilityRef:snapshot.event.capability_ref,
+        contractVersion:snapshot.event.contract_version,inputSnapshotDigest:attempt.input_snapshot_digest,fenceSnapshotDigest:attempt.fence_snapshot_digest});
+      if(!/^[a-f0-9]{64}$/.test(request.evidenceDigest||'')||!effect||effect.event_attempt_id!==attempt.event_attempt_id||
+          effect.effect_class!==entry.manifest.effectClass||effect.intent_digest!==expectedIntent||
+          !['workspace_write','material_commit'].includes(effect.effect_class)||
+          !['intended','effect_observed','reconcile_required'].includes(effect.state))
+        fail('P4_EVENT_RECOVERY_EFFECT_DRIFT','Observation-only recovery requires the exact active file Effect and immutable evidence.');
+      const budget=options.effectJournal.beginRecoveryExecution(effect.effect_id),startedAtMs=Number(budget?.verified_at_ms);
+      if(budget?.effect_id!==effect.effect_id||budget.event_attempt_id!==attempt.event_attempt_id||budget.effect_class!==effect.effect_class||
+          budget.verified_at_ms===null||budget.verified_at_ms===undefined||!Number.isSafeInteger(startedAtMs)||startedAtMs<0)
+        fail('P4_EVENT_RECOVERY_BUDGET_DRIFT','Observation-only recovery cannot change or renew its original durable budget.');
+      const timing=options.attemptPolicy.prepare({capabilityRef:snapshot.event.capability_ref,effectClass:effect.effect_class,
+        retryPolicyRef:policyBinding.retryPolicyRef,timeoutPolicyRef:policyBinding.timeoutPolicyRef,startedAtMs});
+      if(options.now()<timing.deadlineAtMs)return Object.freeze({kind:'recovery_deferred',eventId:request.eventId,effectId:effect.effect_id});
+      const outcome=Object.freeze({kind:'failed',failureClass:'integration',code:'P4_EVENT_RECOVERY_OBSERVATION_UNAVAILABLE',
+        message:'File reality could not be observed within the original recovery budget.',retryDirective:'never',
+        evidence:Object.freeze({effectId:effect.effect_id,recoveryEvidenceDigest:request.evidenceDigest,
+          realityStatus:'unobservable',dispatchStarted:false,recoveryStartedAtMs:startedAtMs,deadlineAtMs:timing.deadlineAtMs})});
+      options.effectJournal.abandonUncommitted(effect.effect_id);
+      return complete(snapshot,attempt.event_attempt_id,outcome,Object.freeze({decision:'terminal_failure'}));
     }
     if(request.decision==='terminal_failure') {
       const effect=options.effectJournal.read(request.effectId),expectedIntent=valueDigest({eventId:request.eventId,capabilityRef:snapshot.event.capability_ref,
@@ -653,6 +693,28 @@ function createEventRuntime(options) {
         'P4_EVENT_RECOVERY_INPUT_DRIFT', 'Recovery inputs differ from the durable Event Attempt snapshot.'
       );
     } catch (error) {
+      if (error?.code === 'P4_EVENT_RECOVERY_INPUT_DRIFT' && entry.manifest.effectClass === 'pure_observation') {
+        // Pure observation has no physical Effect to preserve. Re-prepare its
+        // inputs on a new Attempt so a short-lived Platform Handle can rotate
+        // across a restart/TTL without becoming a terminal identity failure.
+        const outcome = Object.freeze({kind:'failed',failureClass:'input_projection',code:'P4_EVENT_RECOVERY_INPUT_DRIFT',
+          message:'Recovery inputs differ from the durable Event Attempt snapshot.',retryDirective:'contract_policy',
+          evidence:Object.freeze({originalInputDigest:attempt.input_snapshot_digest,dispatchStarted:false})});
+        return complete(snapshot,attempt.event_attempt_id,outcome,Object.freeze({decision:'retry',retryAtMs:options.now()+30_000}));
+      }
+      if (error?.code === 'P4_EVENT_RECOVERY_INPUT_DRIFT' &&
+          ['destructive_commit','workspace_write'].includes(entry.manifest.effectClass)) {
+        // A recovered file or observation Effect cannot be replayed from
+        // reconstructed inputs. Retrying would reproduce the same deterministic
+        // drift forever. Fail the Event with explicit evidence and retain any
+        // unresolved Effect for audit.
+        const effect = request.effectId && options.effectJournal?.read ? options.effectJournal.read(request.effectId) : null,
+          outcome = Object.freeze({kind:'failed',failureClass:'input_projection',code:'P4_EVENT_RECOVERY_INPUT_DRIFT',
+            message:'Recovery inputs differ from the durable Event Attempt snapshot.',retryDirective:'never',
+            evidence:Object.freeze({effectId:effect?.effect_id||null,effectState:effect?.state||null,
+              originalInputDigest:attempt.input_snapshot_digest,dispatchStarted:effect?.state==='intended'?false:null})});
+        return complete(snapshot,attempt.event_attempt_id,outcome,Object.freeze({decision:'terminal'}));
+      }
       if(entry.manifest.effectClass==='pure_observation'&&request.decision==='safe_retry'&&isExecutionInputSuperseded(error)) {
         const outcome=Object.freeze({kind:'failed',failureClass:'input_projection',code:error.code,
           message:error.message,retryDirective:'never',evidence:Object.freeze({

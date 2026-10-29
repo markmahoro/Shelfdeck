@@ -6,11 +6,11 @@ const {initializeCleanData}=req('scripts/helix-operational-safety');
 const {createCleanServiceHost}=req('src/clean-service-host');
 const {canonicalDigest}=req('src/helix/contracts/canonical-json');
 const {SYSTEM_TEMPLATE_ID}=req('src/helix/domains/arca/model/rule-template-contracts');
-for (const scenario of ['normal','technical_failure','invalid_material','no_run','excluded','retired_field']) require('node:test')('ordinary procurement retry and cancellation: '+scenario, {timeout:120000}, async()=>{
+for (const scenario of ['normal','technical_failure','invalid_material','no_run','reset','excluded','retired_field']) require('node:test')('ordinary procurement retry and cancellation: '+scenario, {timeout:120000}, async()=>{
  const failPreparationFirst=['technical_failure','retired_field'].includes(scenario);
  const root=fs.mkdtempSync(path.join(os.tmpdir(),'shelfdeck-discard-audit-')),dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source'),shelf=path.join(root,'shelf');
  for(const dir of [adminDistDir,source,shelf])fs.mkdirSync(dir);
- const browserEnabled=process.env.HELIX_LIFECYCLE_BROWSER==='1'&&['no_run','excluded'].includes(scenario);
+ const browserEnabled=process.env.HELIX_LIFECYCLE_BROWSER==='1'&&['no_run','reset','excluded'].includes(scenario);
  if(browserEnabled)fs.cpSync(path.join(service,'dist/admin'),adminDistDir,{recursive:true});
  else fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div></div>');
  const file=path.join(source,'Unresolved.Movie.2024.mkv');fs.writeFileSync(file,'same original physical input for discard audit');
@@ -20,16 +20,24 @@ for (const scenario of ['normal','technical_failure','invalid_material','no_run'
  const errors=[];let host,browser,page,browserBase,fixtureError,probeAvailable=!failPreparationFirst;
  function sql(query,...args){const db=new Database(databasePath,{readonly:true});try{return db.prepare(query).all(...args);}finally{db.close();}}
  const options={dataDir,secretRoot,adminDistDir,libraWorkspaceRoot:path.join(root,'workspace'),onExecutionRuntimeError:e=>errors.push({code:e.code,message:e.message}),mediaProbe:{async probe(handle){if(!probeAvailable)throw Object.assign(new Error('Fixture probe temporarily unavailable'),{code:'EHOSTUNREACH'});const value={resultKind:scenario==='invalid_material'?'not_media':'probed',sourceHandleDigest:canonicalDigest(handle),durationMs:1000,videoStreams:scenario==='invalid_material'?[]:[{streamIndex:0,codec:'hevc',dispositionDefault:true,width:1920,height:1080}],audioStreams:[],subtitleStreams:[],discTopology:null};return {...value,payloadDigest:canonicalDigest(value)};}}};
+ async function openHost(){return scenario==='reset'?req('test/helpers/fresh-reset-supervisor').createFreshResetTestHost(options,{
+  workspaceRoots:[path.join(root,'workspace'),path.join(root,'configured-workspace')],protectedDirectories:[source,shelf]}):createCleanServiceHost(options);}
  try{
- host=await createCleanServiceHost(options);
+ host=await openHost();
  const auth=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}});assert.equal(auth.statusCode,204,auth.body);let cookie=auth.headers['set-cookie'];
  async function request(method,url,payload){const r=await host.inject({method,url,headers:{cookie},payload});assert.ok(r.statusCode>=200&&r.statusCode<300,url+' '+r.body);return r.json();}
  async function until(fn,label){const deadline=Date.now()+45000;while(Date.now()<deadline){const v=await fn();if(v)return v;await new Promise(r=>setTimeout(r,50));}throw Error(label+' '+JSON.stringify({errors,runs:sql('SELECT state FROM libra_runs'),packages:sql('SELECT state FROM proc_candidate_deliveries')}));}
+ if(scenario==='reset') {
+  await request('PATCH','/v1/admin/settings/workspaces',{rootPath:path.join(root,'configured-workspace'),expectedConfigRevision:1,idempotencyKey:'configure-reset-workspace'});
+  await host.close();host=await openHost();
+  const login=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}});
+  assert.equal(login.statusCode,204);cookie=login.headers['set-cookie'];
+ }
  const template=SYSTEM_TEMPLATE_ID||'system-movie-default';
  await request('POST','/v1/admin/shelves',{idempotencyKey:'shelf',shelfId:'audit-shelf',name:'Audit',targetRootLocation:shelf,ruleTemplateId:template,expectedTemplateRevision:1,placementPolicy:{folderTemplate:'{title} ({year})',primaryTemplate:'{stem}{ext}',nfoTemplate:'{stem}.nfo',subtitleTemplate:'{stem}{language}{forced}{sdh}{ext}',posterTemplate:'poster{ext}',fanartTemplate:'fanart{ext}',collisionPolicy:'reject'}});
  const fieldId='audit-field',policy={includedDirectories:[],excludedDirectories:[],allowedExtensions:['.mkv'],minimumSizeBytes:0,excludedMaterialKeys:[]},access={fieldId,revision:1,endpointId:'audit-endpoint',rootLocation:source,mountScopeId:'audit-mount',mountScopeRevision:1,accessSchemaRef:'helix://fixtures/audit-access/v1'};
  await request('POST','/v1/admin/material-fields',{idempotencyKey:'field',fieldId,name:'Audit',contentProfileHint:'movie',policy:{extractionPolicyId:'audit-policy',revision:1,policySchemaRef:'helix://contracts/domain-types/ExtractionPolicy/v1',policy,policyDigest:canonicalDigest({extractionPolicyId:'audit-policy',revision:1,...policy})},access:{...access,accessDigest:canonicalDigest(access)}});
- if(scenario!=='no_run')await request('PATCH','/v1/admin/routing/material-fields/'+fieldId,{idempotencyKey:'routing',fieldId,expectedPolicyId:null,expectedRevision:0,policy:{routingPolicyId:'audit-routing',mode:'direct',targets:[{shelfId:'audit-shelf',rank:1,matchExpression:{nodeKind:'always'}}]}});
+ if(!['no_run','reset'].includes(scenario))await request('PATCH','/v1/admin/routing/material-fields/'+fieldId,{idempotencyKey:'routing',fieldId,expectedPolicyId:null,expectedRevision:0,policy:{routingPolicyId:'audit-routing',mode:'direct',targets:[{shelfId:'audit-shelf',rank:1,matchExpression:{nodeKind:'always'}}]}});
  async function scan(key){const field=(await request('GET','/v1/admin/material-fields')).items.find(x=>x.fieldId===fieldId);const r=await request('POST','/v1/admin/material-fields/'+fieldId+'/actions/observe',{idempotencyKey:key,fieldId,expectedAccessRevision:1,expectedObservationRevision:field.currentObservationRevision||0,pageBudget:8});await until(()=>sql('SELECT state FROM fx_supporting_works WHERE work_id=?',r.observation.observationWorkId)[0]?.state==='succeeded','scan complete');return r;}
  await scan('first');
  async function cancelThroughBrowser(excludeSourceFiles){
@@ -46,6 +54,62 @@ for (const scenario of ['normal','technical_failure','invalid_material','no_run'
   await page.setViewportSize({width:980,height:900});await page.screenshot({path:path.join(output,scenario+'-cancel-narrow.png'),fullPage:true});
   await dialog.getByRole('button',{name:'确认取消任务'}).click();await expect(dialog).toBeHidden();
   return {resultKind:'closure_pending'};
+ }
+ if(scenario==='reset') {
+  const subject=await until(()=>sql("SELECT subject_id FROM libra_subjects WHERE status='active'")[0],'accepted subject');
+  assert.equal(sql('SELECT count(*) n FROM libra_runs')[0].n,0);
+  const clearedTables=['proc_candidate_packages','libra_intake_decisions','libra_handoff_a_receipts'];
+  await request('POST','/v1/admin/runtime/actions/stop',{idempotencyKey:'stop-for-reset'});
+  await until(async()=>(await request('GET','/v1/admin/runtime')).mode==='stopped','safe stop');
+  const preview=await request('GET','/v1/admin/runtime/reset-preview');
+  assert.equal(preview.ready,true,JSON.stringify(preview.blockers)); assert.equal(preview.counts.find(row=>row.table==='libra_subjects').removed,1);
+  if(browserEnabled){
+    const {chromium,expect}=req('web/node_modules/@playwright/test');
+    browserBase=await host.listen({host:'127.0.0.1',port:0});browser=await chromium.launch({headless:true});
+    page=await browser.newPage({viewport:{width:1440,height:1000}});
+    const login=await page.request.post(browserBase+'/v1/admin/session',{headers:{'X-Api-Key':initialized.adminApiKey}});assert.equal(login.status(),204);
+    await page.goto(browserBase+'/');await page.getByRole('button',{name:'重置工作台',exact:true}).click();
+    const dialog=page.getByRole('dialog',{name:'重置整理工作台'}),confirm=dialog.getByRole('button',{name:'确认重置',exact:true});
+    await expect(dialog.getByText(/将清除 1 个/)).toBeVisible();await expect(confirm).toBeDisabled();
+    await dialog.getByLabel('确认词').fill('wrong');await expect(confirm).toBeDisabled();
+    const output=process.env.HELIX_LIFECYCLE_BROWSER_OUTPUT;assert.ok(output&&path.isAbsolute(output));fs.mkdirSync(output,{recursive:true});
+    await page.screenshot({path:path.join(output,'reset-confirm-wide.png'),fullPage:true});
+    await page.setViewportSize({width:980,height:900});await page.screenshot({path:path.join(output,'reset-confirm-narrow.png'),fullPage:true});
+    await dialog.getByLabel('确认词').fill('重置工作台');await expect(confirm).toBeEnabled();
+    await confirm.focus();await page.keyboard.press('Enter');await expect(dialog).toBeHidden();
+    await expect(page.getByText('已重置工作台，服务保持停机。',{exact:true})).toBeVisible({timeout:45000});
+    await expect(page.getByRole('button',{name:'恢复运行',exact:true})).toBeEnabled();
+    await expect(page.getByText('暂无待办',{exact:true})).toBeVisible();
+    await expect(page.getByText(/等待进入整理 [1-9]/)).toHaveCount(0);
+    await page.screenshot({path:path.join(output,'reset-completed-stopped.png'),fullPage:true});
+    await page.getByRole('button',{name:'重置工作台',exact:true}).click();
+    await expect(page.getByText(/将清除 0 个/)).toBeVisible();
+    await expect(confirm).toBeDisabled();await page.keyboard.press('Escape');await expect(dialog).toBeHidden();
+  }else await request('POST','/v1/admin/runtime/actions/reset',{idempotencyKey:'retire-workbench',previewDigest:preview.previewDigest,confirmed:true});
+  const reset=await until(async()=>{const state=await request('GET','/v1/admin/runtime');
+    assert.notEqual(state.operation?.state,'failed',JSON.stringify(state.error));assert.notEqual(state.mode,'error',JSON.stringify(state.error));return state.operation?.state==='completed'&&state;},'reset completed');
+  assert.equal(sql('SELECT count(*) n FROM proc_candidate_deliveries')[0].n,0);
+  assert.equal((await request('GET','/v1/admin/overview')).pipeline.waitingAcceptanceCount,0);
+  assert.equal(reset.mode,'stopped');assert.equal(reset.normalSupplyAllowed,false);
+  assert.equal(sql('SELECT count(*) n FROM libra_subjects')[0].n,0);
+  assert.equal(sql('SELECT count(*) n FROM libra_predeck_pipeline_tokens')[0].n,0);
+  for(const table of clearedTables)assert.deepEqual(sql('SELECT * FROM '+table),[]);
+  assert.equal((await request('GET','/v1/admin/formation?section=active&limit=25')).items.length,0);
+  const history=await request('GET','/v1/admin/formation?section=ended&limit=25');
+  assert.equal(history.items.length,0,'unrelated task history exists only in the verified offline backup');
+  await host.close();host=await openHost();
+  const login=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}});assert.equal(login.statusCode,204);cookie=login.headers['set-cookie'];
+  assert.equal((await request('GET','/v1/admin/runtime')).mode,'stopped');
+  assert.equal(sql('SELECT count(*) n FROM proc_candidate_packages')[0].n,0,'Reset and startup must not procure');
+  await request('POST','/v1/admin/runtime/actions/resume',{idempotencyKey:'resume-after-reset'});
+  await until(async()=>(await request('GET','/v1/admin/runtime')).mode==='running','resume');
+  await scan('normal-observation-after-reset');
+  await until(()=>sql("SELECT count(*) n FROM libra_subjects WHERE status='active'")[0].n===1,'new accepted subject');
+  assert.equal(sql('SELECT count(*) n FROM libra_subjects')[0].n,1);
+  assert.equal(sql('SELECT count(*) n FROM proc_candidate_packages')[0].n,1);
+  const stat=fs.statSync(file,{bigint:true});assert.equal(stat.ino,originalStat.ino);assert.equal(stat.mtimeNs,originalStat.mtimeNs);
+  assert.equal(canonicalDigest(fs.readFileSync(file).toString('hex')),originalHash);
+  return;
  }
  if(scenario==='no_run'){
   const subject=await until(()=>sql("SELECT subject_id FROM libra_subjects WHERE status='active'")[0],'accepted subject');
@@ -83,8 +147,15 @@ for (const scenario of ['normal','technical_failure','invalid_material','no_run'
     policy:{extractionPolicyId:'replacement-policy',revision:1,policySchemaRef:'helix://contracts/domain-types/ExtractionPolicy/v1',policy,
       policyDigest:canonicalDigest({extractionPolicyId:'replacement-policy',revision:1,...policy})},
     access:{...replacementAccess,accessDigest:canonicalDigest(replacementAccess)}});
-  await request('POST','/v1/admin/material-fields/'+replacement+'/actions/observe',{idempotencyKey:'replacement-scan',fieldId:replacement,
-    expectedAccessRevision:1,expectedObservationRevision:0,pageBudget:8});
+  const replacementField=(await request('GET','/v1/admin/material-fields')).items.find(item=>item.fieldId===replacement);
+  const observed=await host.inject({method:'POST',url:'/v1/admin/material-fields/'+replacement+'/actions/observe',headers:{cookie},payload:{
+    idempotencyKey:'replacement-scan',fieldId:replacement,expectedAccessRevision:1,
+    expectedObservationRevision:replacementField.currentObservationRevision||0,pageBudget:8}});
+  if(observed.statusCode===409) {
+    // The ordinary startup observer may already own the new Field's first Work.
+    assert.equal(observed.json().error.details.reasonCode,'FIELD_OBSERVATION_WORK_DEFERRED',observed.body);
+    assert.ok(sql("SELECT work_id FROM fx_supporting_works WHERE owner_domain='procurement' AND process_id=? AND work_kind='field_observation'",replacement).length);
+  }else assert.ok(observed.statusCode>=200&&observed.statusCode<300,observed.body);
   await until(()=>sql('SELECT count(*) n FROM libra_subjects')[0].n===1,'same untouched material accepted from replacement field');
   assert.equal(sql('SELECT count(*) n FROM proc_candidate_packages')[0].n,1);
   return;

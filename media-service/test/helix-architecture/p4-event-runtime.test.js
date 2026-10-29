@@ -140,7 +140,7 @@ function fixture(run, settings = {}) {
         result_schema_ref:resultSchemaRef,result_json:resultJson,result_digest:resultDigest,
         evidence_schema_ref:'helix://test/evidence',evidence_json:evidenceJson,evidence_digest:require('node:crypto').createHash('sha256').update(evidenceJson).digest('hex'),
         effect_receipt_id:'atomic-receipt',committed_at_ms:1000});
-      if(settings.seedPreboundMarker!==false)repository.invoke('marker',{commit_marker:'atomic-marker',effect_id:'effect',owner_domain:'libra',
+      if(settings.seedPreboundMarker!==false)repository.invoke('marker',{commit_marker:'atomic-marker',effect_id:settings.preboundEffectId||'effect',owner_domain:'libra',
         scope_type:settings.preboundMarkerScopeType||'libra_run',scope_id:'run',commit_digest:commitDigest,result_id:'atomic-result',result_schema_ref:resultSchemaRef,
         result_digest:resultDigest,committed_at_ms:1000});
     }
@@ -225,7 +225,7 @@ function fixture(run, settings = {}) {
   let inputPreparationScope;
   const runtime = createEventRuntime({ schemaManifest, unitOfWork, scheduler, governor, failureEvidenceStore:settings.failureEvidenceStore,onDiagnosticError:settings.onDiagnosticError,
     ...(settings.incidentObserver ? { incidentObserver:settings.incidentObserver } : {}),
-    registry: { resolve: () => ({ manifest: { capabilityRef: 'libra.test.observe@1',ownerScope:'libra',resultSchemaRef: 'helix://test/result',evidenceSchemaRef:'helix://test/evidence',
+    registry: { resolve: () => ({ manifest: { capabilityRef: 'libra.test.observe@1',contractVersion:1,ownerScope:'libra',resultSchemaRef: 'helix://test/result',evidenceSchemaRef:'helix://test/evidence',
       effectClass: settings.effectClass || 'pure_observation', approvalRequirementRef: settings.approvalRequirementRef },
       executor: { version: 1, cooperativeAbortSafe:settings.cooperativeAbortSafe===true } }) }, dispatcher,
     contractValidator:settings.contractValidator||{validate:(_schemaRef,value)=>value},
@@ -646,6 +646,37 @@ test('non-pure Executor crash enters exact online Effect recovery while releasin
     assert.deepEqual(state().journalCalls,['intend','reconcile','reconcile']);
     assert.deepEqual({ schedulerReleased: state().schedulerReleased, governorReleased: state().governorReleased }, { schedulerReleased: 1, governorReleased: 1 });
   }, { effectClass:'external_request', dispatchError: new Error('executor crash') });
+});
+
+test('pure observation input drift retries with a fresh attempt instead of failing the Event', async () => {
+  await fixture(async ({ runtime, databasePath }) => {
+    const result = await runtime.recover({ eventId:'event', decision:'safe_retry' });
+    assert.equal(result.kind, 'failed'); assert.equal(result.eventState, 'ready');
+    const facts = databaseFacts(databasePath);
+    assert.equal(facts.event.state, 'ready');
+    assert.ok(facts.event.retry_at_ms > 0);
+    assert.equal(facts.attempt.state, 'completed'); assert.equal(facts.attempt.outcome_kind, 'failed');
+    assert.equal(facts.attempt.failure_code, 'P4_EVENT_RECOVERY_INPUT_DRIFT');
+    assert.equal(facts.results, 0);
+  }, { effectClass:'pure_observation', initialEventState:'executing', seedExecutingAttempt:true,
+    namedInputs:{ changed:'after-attempt' } });
+});
+
+test('unreconstructable recovery inputs fail the Event once instead of retrying forever', async () => {
+  await fixture(async ({ runtime, databasePath, state }) => {
+    const result = await runtime.recover({ eventId:'event', effectId:'effect', decision:'safe_retry' });
+    assert.equal(result.kind, 'failed'); assert.equal(result.eventState, 'failed');
+    const facts = databaseFacts(databasePath);
+    assert.equal(facts.event.state, 'failed');
+    assert.equal(facts.attempt.state, 'completed'); assert.equal(facts.attempt.outcome_kind, 'failed');
+    assert.equal(facts.attempt.failure_class, 'input_projection');
+    assert.equal(facts.attempt.failure_code, 'P4_EVENT_RECOVERY_INPUT_DRIFT');
+    assert.equal(facts.results, 0);
+    assert.equal(state().journalCalls.includes('abandon'), false);
+  }, { effectClass:'destructive_commit', initialEventState:'executing', seedExecutingAttempt:true,
+    namedInputs:{ changed:'after-attempt' },
+    effectJournalRead:{ event_attempt_id:'event-attempt', effect_class:'destructive_commit',
+      idempotency_key:'event-attempt', state:'reconcile_required' } });
 });
 
 test('abort-safe non-pure recovery hard-closes after its one durable recovery deadline', async () => {
@@ -1207,6 +1238,40 @@ test('terminal failure retains digest-bound diagnostics across evidence store re
 });
 
 const { canonicalDigest: recoveryDigest } = require('../../src/helix/contracts/canonical-json');
+function preboundDomainFactSettings(change={}) {
+  const effectId=recoveryDigest(['domain_fact_commit','domain-key']);
+  const body={aggregateId:'run',aggregateType:'libra_run',commitMarker:'atomic-marker',committedAtMs:1000,
+    factDigest:HASH_A,factId:'fact-1',factSchemaRef:'helix://test/domain-fact',ownerDomain:'libra',revision:1,
+    schemaRef:'helix://test/domain-fact',schemaVersion:1,...change.result};
+  const result=JSON.parse(require('../../src/helix/contracts/canonical-json').canonicalJson(body));
+  const schemaMap={'helix://test/result':{$ref:'helix://test/domain-fact'},'helix://test/domain-fact':{'x-helix-envelopeRef':'helix://contracts/types/DomainFactEnvelope/v1'}};
+  const validator={readSchema(ref){if(!schemaMap[ref])throw new Error('Unregistered schema '+ref);return schemaMap[ref];},
+    validate(ref,value){if(change.rejectSchema===ref)throw Object.assign(new Error('invalid result'),{code:'P4_CAPABILITY_SCHEMA_REJECTED'});return value;}};
+  return {effectId,settings:{effectClass:'domain_fact_commit',initialEventState:'executing',seedExecutingAttempt:true,
+    seedPreboundRecovery:true,preboundResult:result,preboundResultSchemaRef:'helix://test/domain-fact',preboundEffectId:effectId,
+    preboundMarkerScopeType:change.markerScope||'libra_run',inputError:executionInputSuperseded('Current Owner inputs changed.'),
+    contractValidator:validator,effectJournalRead:{effect_id:effectId,event_attempt_id:'event-attempt',effect_class:'domain_fact_commit',
+      idempotency_key:'domain-key',state:'reconcile_required',intent_digest:change.intentDigest||recoveryDigest({eventId:'event',capabilityRef:'libra.test.observe@1',
+        contractVersion:1,inputSnapshotDigest:EMPTY_INPUT_DIGEST,fenceSnapshotDigest:HASH_A})}}};
+}
+test('a registered Domain Fact alias recovers its original Marker and Result without reconstructing changed inputs',async()=>{
+  const {effectId,settings}=preboundDomainFactSettings();
+  await fixture(async({runtime,databasePath,state})=>{
+    const result=await runtime.recover({eventId:'event',effectId,decision:'already_committed'});
+    assert.equal(result.eventState,'succeeded');const facts=databaseFacts(databasePath);assert.equal(facts.event.state,'succeeded');
+    assert.equal(facts.results,1);assert.equal(state().dispatchContext,undefined);assert.deepEqual(state().journalCalls,['read','settle']);
+  },settings);
+});
+for(const change of [{result:{aggregateId:'other'}},{result:{commitMarker:'other'}},{markerScope:'other'},
+  {intentDigest:HASH_B},{rejectSchema:'helix://test/domain-fact'}])
+  test('Domain Fact recovery rejects conflicting frozen evidence '+JSON.stringify(change),async()=>{
+    const {effectId,settings}=preboundDomainFactSettings(change);
+    await fixture(async({runtime,databasePath,state})=>{
+      await assert.rejects(runtime.recover({eventId:'event',effectId,decision:'already_committed'}));
+      assert.equal(databaseFacts(databasePath).event.state,'executing');assert.equal(state().dispatchContext,undefined);
+      assert.equal(state().journalCalls.includes('settle'),false);assert.equal(state().journalCalls.includes('abandon'),false);
+    },settings);
+  });
 function absentFactRecoverySettings(extra={}) {
   return { effectClass:'domain_fact_commit', initialEventState:'executing', seedExecutingAttempt:true,
     namedInputs:{ changed:true }, failurePolicyDecision:{decision:'terminal_failure'},
@@ -1244,14 +1309,20 @@ for(const classification of ['already_committed','terminal_failure']) {
     },absentFactRecoverySettings({effectReconciler:{async reconcile(){return {decision:classification,action:'reuse_commit_marker',evidenceDigest:HASH_B};}}}));
   });
 }
-test('drift cannot abandon another intent or a file effect',async()=>{
-  for(const extra of [{effectJournalRead:{...absentFactRecoverySettings().effectJournalRead,intent_digest:HASH_B}},
-    {effectClass:'workspace_write',effectJournalRead:{...absentFactRecoverySettings().effectJournalRead,effect_class:'workspace_write'}}]) {
-    await fixture(async({runtime,state})=>{
-      await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'safe_retry'}),e=>e.code==='P4_EVENT_RECOVERY_INPUT_DRIFT');
-      assert.equal(state().journalCalls.includes('abandon'),false);
-    },absentFactRecoverySettings(extra));
-  }
+test('drift cannot abandon another intent; a file effect fails without abandoning its reality',async()=>{
+  await fixture(async({runtime,state})=>{
+    await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'safe_retry'}),
+      e=>e.code==='P4_EVENT_RECOVERY_INPUT_DRIFT');
+    assert.equal(state().journalCalls.includes('abandon'),false);
+  },absentFactRecoverySettings({effectJournalRead:{...absentFactRecoverySettings().effectJournalRead,intent_digest:HASH_B}}));
+  await fixture(async({runtime,databasePath,state})=>{
+    const result=await runtime.recover({eventId:'event',effectId:'effect',decision:'safe_retry'});
+    assert.equal(result.kind,'failed');
+    const facts=databaseFacts(databasePath);
+    assert.equal(facts.event.state,'failed');assert.equal(facts.attempt.failure_code,'P4_EVENT_RECOVERY_INPUT_DRIFT');
+    assert.equal(state().journalCalls.includes('abandon'),false);
+  },absentFactRecoverySettings({effectClass:'workspace_write',effectJournalRead:{
+    ...absentFactRecoverySettings().effectJournalRead,effect_class:'workspace_write'}}));
 });
 test('abandoned commit settles after restart even if owner projection now fails',async()=>{
   const settings=absentFactRecoverySettings();settings.effectJournalRead.state='failed';
@@ -1279,6 +1350,34 @@ test('terminal reality classification cannot abandon a committed or different in
     await fixture(async({runtime,state})=>{
       await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'terminal_failure',evidenceDigest:change?HASH_B:null}),{code:'P4_EVENT_RECOVERY_EFFECT_DRIFT'});
       assert.equal(state().journalCalls.includes('abandon'),false);
+    },settings);
+  }
+});
+
+for(const effectClass of ['workspace_write','material_commit'])test('unobservable '+effectClass+' waits without dispatch and expires under its original durable budget',async()=>{
+  const settings=absentFactRecoverySettings({effectClass,inputError:new Error('observation cannot refresh execution input'),nowMs:1000});
+  settings.effectJournalRead.effect_class=effectClass;
+  await fixture(async({runtime,databasePath,state})=>{
+    const request={eventId:'event',effectId:'effect',decision:'observe_again',evidenceDigest:HASH_B};
+    assert.equal((await runtime.recover(request)).kind,'recovery_deferred');
+    assert.equal(databaseFacts(databasePath).event.state,'executing');assert.equal(state().dispatchContext,undefined);
+    assert.equal(state().recoveryAcquireCount,0);assert.equal(state().journalCalls.includes('abandon'),false);
+    settings.nowMs=3000;
+    assert.equal((await runtime.recover(request)).kind,'failed');
+    const facts=databaseFacts(databasePath);assert.equal(facts.event.state,'failed');
+    assert.equal(facts.attempt.failure_code,'P4_EVENT_RECOVERY_OBSERVATION_UNAVAILABLE');
+    assert.equal(inputSnapshotDigest(databasePath),EMPTY_INPUT_DIGEST);assert.equal(state().dispatchContext,undefined);
+    assert.equal(state().journalCalls.filter(item=>item==='abandon').length,1);
+  },settings);
+});
+
+test('observation-only recovery cannot consume another intent, a committed Effect or missing evidence',async()=>{
+  for(const change of [{state:'committed'},{intent_digest:HASH_B},null]){
+    const settings=absentFactRecoverySettings({effectClass:'material_commit'});settings.effectJournalRead.effect_class='material_commit';
+    if(change)settings.effectJournalRead={...settings.effectJournalRead,...change};
+    await fixture(async({runtime,state})=>{
+      await assert.rejects(runtime.recover({eventId:'event',effectId:'effect',decision:'observe_again',evidenceDigest:change?HASH_B:null}),{code:'P4_EVENT_RECOVERY_EFFECT_DRIFT'});
+      assert.equal(state().journalCalls.includes('abandon'),false);assert.equal(state().dispatchContext,undefined);
     },settings);
   }
 });

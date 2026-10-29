@@ -3,6 +3,7 @@
 const { digest } = require('../persistence/ddl-compiler');
 const { createRepositoryDefinition } = require('../persistence/owner-repository');
 const { assertEffectClass, assertPlanResolution } = require('./runtime-contracts');
+const { capturePlanContracts, createPlanContractEvidenceStore } = require('./plan-contract-evidence');
 
 const PLAN_SCHEMA = 'helix://foundation/types/WorkflowPlanDefinition/v1';
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -344,14 +345,16 @@ function createWorkflowPlanPublisher(options) {
     fail('P4_PLAN_PUBLISHER_DEPENDENCIES_REQUIRED', 'P3 UoW, exact Capability/Policy Registries, and Contract Validator are required.');
   }
   const repositories = definitions(options.schemaManifest);
+  const contractEvidence = createPlanContractEvidenceStore(options);
   return Object.freeze({
     publish(rawPlan) {
       const validated = validateWorkflowPlan(rawPlan, options);
       const plan = validated.plan;
+      const captured = capturePlanContracts(plan, options);
       try {
         const results = options.unitOfWork.execute([{
           participantId: 'workflow_plan_publish', owner: 'execution-foundation',
-          repositories: Object.values(repositories),
+          repositories: [...Object.values(repositories), ...contractEvidence.repositories],
           execute(context) {
             const attempt = context.repository('plan_attempts').invoke('find', { attempt_id: plan.workAttemptId });
             if (!attempt || attempt.state !== 'ready' || attempt.basis_digest !== plan.executionBasisDigest) fail(
@@ -362,6 +365,10 @@ function createWorkflowPlanPublisher(options) {
             const existing = context.repository('plans').invoke('find_attempt', { attempt_id: plan.workAttemptId });
             if (existing) {
               if (existing.plan_id === plan.planId && existing.graph_digest === validated.graphDigest && existing.state === plan.resolution) {
+                const saved = contractEvidence.readInTransaction(context, plan.planId);
+                if (!saved || saved.binding.graph_digest !== validated.graphDigest || saved.binding.contract_digest !== captured.digest) {
+                  fail('P4_PLAN_CONTRACT_EVIDENCE_INVALID', 'Plan replay requires its original contract evidence.');
+                }
                 throw new PlanReplay(Object.freeze({ replayed: true, planId: plan.planId, graphDigest: validated.graphDigest, resolution: plan.resolution }));
               }
               fail('P4_PLAN_ATTEMPT_ALREADY_PLANNED', 'Work Attempt already owns a different immutable Plan.');
@@ -372,6 +379,7 @@ function createWorkflowPlanPublisher(options) {
               basis_digest: plan.executionBasisDigest, graph_digest: validated.graphDigest, state: plan.resolution,
               created_at_ms: context.commitTimeMs
             });
+            contractEvidence.publish(context, plan, validated.graphDigest, captured);
             const byEvent = new Map(plan.nodes.map((node) => [node.eventId, node]));
             for (const node of plan.nodes) {
               const ready = node.dependsOn.length === 0;

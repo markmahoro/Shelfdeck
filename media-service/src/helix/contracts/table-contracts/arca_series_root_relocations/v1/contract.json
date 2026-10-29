@@ -1,0 +1,224 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_series_root_relocations/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_series_root_relocations",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "relocation_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "shelf_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "plan_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "plan_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "plan_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "active",
+          "committed"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "state_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "inventory_set_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 10,
+        "name": "commit_marker",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 11,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "committed_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      }
+    ],
+    "primaryKey": [
+      "relocation_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [
+      [
+        "shelf_id",
+        "state"
+      ]
+    ],
+    "partialUniqueRules": [
+      "`UNIQUE(scope_id) WHERE state='active'`"
+    ],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "active",
+          "committed"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "state_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "plan_json",
+        "schemaRefColumn": "plan_schema_ref",
+        "maxBytes": 4194304,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`UNIQUE(scope_id) WHERE state='active'`",
+      "`INDEX(shelf_id,state)`",
+      "Plan JSON上限`4 MiB`，完整冻结所有季head、正式材料及共享版本",
+      "Plan不可改写",
+      "active涵盖失败/恢复待处理，不能因Work失败释放迁移占用",
+      "committed仅由真实物理验证及全组Inventory提交建立"
+    ],
+    "rawContract": {
+      "columns": "`relocation_id PK, scope_id, shelf_id, plan_schema_ref, plan_json, plan_digest, state(active|committed), state_revision, inventory_set_digest NULL, commit_marker NULL, created_at_ms, committed_at_ms NULL`",
+      "constraints": "`UNIQUE(scope_id) WHERE state='active'`；`INDEX(shelf_id,state)`；Plan JSON上限`4 MiB`，完整冻结所有季head、正式材料及共享版本；Plan不可改写；active涵盖失败/恢复待处理，不能因Work失败释放迁移占用；committed仅由真实物理验证及全组Inventory提交建立"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9636,
+      "lineDigest": "115a375d190b322ab54aae9afdc51417cef0c933e8fbb662ad34a0c3651c138a"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "scope_id"
+        ],
+        "targetTable": "arca_series_presentation_scopes",
+        "targetColumns": [
+          "scope_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "shelf_id"
+        ],
+        "targetTable": "arca_shelves",
+        "targetColumns": [
+          "shelf_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

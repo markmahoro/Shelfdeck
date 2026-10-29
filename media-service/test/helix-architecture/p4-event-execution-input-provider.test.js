@@ -15,6 +15,38 @@ const generated = path.resolve(__dirname, '../../src/helix/foundation/persistenc
 const schemaDdl = fs.readFileSync(path.join(generated, 'clean-schema.sql'), 'utf8');
 const schemaManifest = JSON.parse(fs.readFileSync(path.join(generated, 'clean-schema.manifest.json'), 'utf8'));
 
+test('projection Owner scope is shared only within one Event input preparation',()=>{
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-owner-projection-scope-')),databasePath=path.join(root,'shelfdeck.db');
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>10}),unitOfWork=createSqliteUnitOfWork({kernel});
+  try{
+    const database=new Database(databasePath),result={draft:'frozen'};database.pragma('foreign_keys = OFF');
+    database.prepare(`INSERT INTO fx_event_result_bindings
+      (result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,evidence_schema_ref,evidence_json,evidence_digest,committed_at_ms)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`).run('result-1','resolve','succeeded','helix://fixture/Draft/v1',canonicalJson(result),canonicalDigest(result),
+        'helix://fixture/Draft/v1',canonicalJson(result),canonicalDigest(result),1);database.close();
+    const seen=[],options={schemaManifest,unitOfWork,contractValidator:{validate:(_ref,value)=>value},
+      bindingProjectionRegistry:{resolve(){return {project({ownerScope,sourceResult}){seen.push(ownerScope);return sourceResult||{ok:true};}};}}};
+    const ownerBindings=['query','recordSet','rule'].map(portName=>({portName,bindingKind:'projected_owner_facts',ownerDomain:'perception',
+      processType:'perception_resolution',processId:'subject:fixture',projectionRef:'helix://fixture/projection/v1',parameters:{}}));
+    const resultBindings=['draft','handle'].map(portName=>({portName,bindingKind:'projected_event_result',eventId:'resolve',
+      resultSchemaRef:'helix://fixture/Draft/v1',projectionRef:'helix://fixture/projection/v1',parameters:{}}));
+    const snapshot=(eventId,bindings,workAttemptId='attempt-1')=>({node:{input_bindings_json:canonicalJson({schemaRef:'helix://foundation/types/EventInputBindingSet/v1',schemaVersion:1,bindings}),
+      input_binding_schema_ref:'helix://fixture/Inputs/v1'},event:{event_id:eventId},work:{work_id:'work-1',owner_domain:'perception',
+      process_type:'perception_resolution',process_id:'subject:fixture',basis_digest:'a'.repeat(64)},workAttempt:{attempt_id:workAttemptId},plan:{plan_id:'plan-1'}});
+    const provider=createEventExecutionInputProvider(options),samePreparationScope=Object.freeze({});
+    provider.prepare({snapshot:snapshot('resolve',ownerBindings),preparationScope:samePreparationScope});
+    assert.equal(seen[0],seen[1]);assert.equal(seen[1],seen[2]);
+    provider.prepare({snapshot:snapshot('commit',resultBindings),preparationScope:samePreparationScope});
+    assert.equal(seen[3],seen[4]);assert.notEqual(seen[0],seen[3]);
+    provider.prepare({snapshot:snapshot('commit',resultBindings),preparationScope:samePreparationScope});
+    assert.equal(seen[5],seen[6]);assert.notEqual(seen[3],seen[5]);
+    provider.prepare({snapshot:snapshot('commit',resultBindings,'attempt-2'),preparationScope:samePreparationScope});
+    assert.notEqual(seen[5],seen[7]);
+    createEventExecutionInputProvider(options).prepare({snapshot:snapshot('commit',resultBindings),preparationScope:samePreparationScope});
+    assert.notEqual(seen[7],seen[9]);assert.equal(new Set([seen[0],seen[3],seen[5],seen[7],seen[9]]).size,5);
+  }finally{kernel.close();fs.rmSync(root,{recursive:true,force:true});}
+});
+
 test('Event input provider resolves predecessor typed Result plus literal ports from durable bindings', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'helix-event-input-'));
   const databasePath = path.join(root, 'shelfdeck.db');

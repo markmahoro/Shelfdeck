@@ -14,6 +14,7 @@ const {
   buildObservation,
   buildOffloadAdmission,
   buildSupersededAdmission,
+  buildAdministrativeAdmission,
 } = require('../model/workspace-cleanup-contracts');
 const {
   createRunLifecycleStore,
@@ -161,6 +162,13 @@ function createMovieResponsibilityClosureCoordinator(options) {
   }
   const messageRepository = messageDefinition(options.schemaManifest);
   const stateRepository = stateDefinition(options.schemaManifest);
+  // Archives are created only while the business Host is closed. A new Host
+  // therefore reads one immutable generation set, never a mutable skip list.
+  let archivedWorkspaceIds;
+  function archives() {
+    return archivedWorkspaceIds ||= require('../persistence/fresh-reset-workspace-archive')
+      .createFreshResetWorkspaceArchive(options).readArchivedIds();
+  }
   const inbox = createInboxCoordinator(options);
   const lifecycle = createRunLifecycleStore(options);
   const cleanup = createWorkspaceCleanupStore(options);
@@ -614,10 +622,12 @@ function createMovieResponsibilityClosureCoordinator(options) {
   }
 
   function listCompletedWorkspacePage(cursor, limit) {
+    const archived = archives();
     return options.unitOfWork.execute([{
       participantId:'movie_completed_workspace_page',owner:'libra',repositories:[stateRepository],execute(context){
         const repo=context.repository(stateRepository.repositoryId);
         return Object.freeze(repo.invoke('page_active_workspaces',{state:'active',cursor:cursor||null,limit}).map((workspace)=>{
+          if(archived.has(workspace.workspace_id))return Object.freeze({cursor:workspace.workspace_id,scope:Object.freeze({skipped:true})});
           const run=repo.invoke('find_run',{libra_run_id:workspace.libra_run_id});
           if(!run||run.state!=='completed')return Object.freeze({cursor:workspace.workspace_id,scope:Object.freeze({skipped:true})});
           const packages=repo.invoke('list_run_packages',{libra_run_id:workspace.libra_run_id}).filter((item)=>item.state==='published');
@@ -631,22 +641,26 @@ function createMovieResponsibilityClosureCoordinator(options) {
   }
 
   function listActiveCleanupScopePage(cursor, limit) {
+    const archived = archives();
     return options.unitOfWork.execute([{
       participantId:'movie_active_cleanup_scope_page',owner:'libra',repositories:[stateRepository],execute(context){
         const repo=context.repository(stateRepository.repositoryId);
         return Object.freeze(repo.invoke('page_active_cleanup_scopes',{state:'active',cursor:cursor||null,limit})
-          .map((scope)=>Object.freeze({cursor:scope.cleanup_scope_id,scope:Object.freeze({cleanupScopeId:scope.cleanup_scope_id})})));
+          .map((scope)=>Object.freeze({cursor:scope.cleanup_scope_id,scope:Object.freeze(archived.has(scope.workspace_id)?
+            {skipped:true}:{cleanupScopeId:scope.cleanup_scope_id})})));
       },
     }]).movie_active_cleanup_scope_page;
   }
 
   function listDiscardedLeftoverWorkspacePage(cursor, limit) {
+    const archived = archives();
     return options.unitOfWork.execute([{
       participantId:'movie_discarded_workspace_page',owner:'libra',repositories:[stateRepository],execute(context){
         const repo=context.repository(stateRepository.repositoryId);
         return Object.freeze(repo.invoke('page_active_workspaces',{state:'active',cursor:cursor||null,limit}).map((workspace)=>{
+          if(archived.has(workspace.workspace_id))return Object.freeze({cursor:workspace.workspace_id,scope:Object.freeze({skipped:true})});
           const run=repo.invoke('find_run',{libra_run_id:workspace.libra_run_id});
-          if(!run||!['discarded','superseded'].includes(run.state))
+          if(!run||!['discarded','superseded','administratively_retired'].includes(run.state))
             return Object.freeze({cursor:workspace.workspace_id,scope:Object.freeze({skipped:true})});
           return Object.freeze({cursor:workspace.workspace_id,scope:Object.freeze({
             workspaceId:workspace.workspace_id,libraRunId:workspace.libra_run_id,runState:run.state})});
@@ -678,9 +692,10 @@ function createMovieResponsibilityClosureCoordinator(options) {
     }]).movie_discarded_workspace_read;
     const activeScope=(snapshot.scopes||[]).find((item)=>item.state==='active');
     if(activeScope)return drainCleanupScope(activeScope.cleanup_scope_id,1);
-    if(scope.runState==='superseded'&&currentNonReleasedReferences(snapshot.references).length){
-      const inspected=cleanup.inspect(scope.libraRunId),triggerSnapshot=cleanup.readSuperseded(scope.libraRunId);
-      const key='superseded:'+scope.libraRunId,nowMs=(options.now||Date.now)();
+    if(['superseded','administratively_retired'].includes(scope.runState)&&currentNonReleasedReferences(snapshot.references).length){
+      const administrative=scope.runState==='administratively_retired';
+      const inspected=cleanup.inspect(scope.libraRunId),triggerSnapshot=administrative?cleanup.readAdministrative(scope.libraRunId):cleanup.readSuperseded(scope.libraRunId);
+      const key=scope.runState+':'+scope.libraRunId,nowMs=(options.now||Date.now)();
       const observed=buildObservation({workspaceId:scope.workspaceId,observedAtMs:nowMs,
         otherReferences:inspected.otherReferences,controls:inspected.controls});
       if(observed.activeReferenceCount||inspected.controls.some(item=>item.controlDisposition==='other_owned')){
@@ -690,7 +705,7 @@ function createMovieResponsibilityClosureCoordinator(options) {
       const first=cleanupAudits.get(key);
       if(!first){cleanupAudits.set(key,{observation:observed});return pendingAudit(observed);}
       if(nowMs<first.observation.observedAtMs+CYCLE_MS)return pendingAudit(first.observation);
-      const decision=buildSupersededAdmission({triggerSnapshot,libraRunRef:inspected.run,
+      const decision=(administrative?buildAdministrativeAdmission:buildSupersededAdmission)({triggerSnapshot,libraRunRef:inspected.run,
         workspaceRef:{workspaceId:inspected.workspace.workspaceId,workspaceRevision:inspected.workspace.workspaceRevision,
           workspaceStateDigest:inspected.workspace.workspaceStateDigest,materialReferenceSetDigest:inspected.workspace.materialReferenceSetDigest},
         references:inspected.references,controls:inspected.controls,observation1:first.observation,observation2:observed});
@@ -703,6 +718,8 @@ function createMovieResponsibilityClosureCoordinator(options) {
     }
     if(currentNonReleasedReferences(snapshot.references).length)
       return Object.freeze({stage:'has_workspace_references',workspaceId:scope.workspaceId});
+    if(scope.runState==='administratively_retired')
+      return Object.freeze({stage:'unreferenced_retirement_workspace_retained',workspaceId:scope.workspaceId});
     if(typeof options.workspaceProductPort?.reclaimUnreferencedWorkspace!=='function')
       return Object.freeze({stage:'unreferenced_reclaim_unavailable',workspaceId:scope.workspaceId});
     const reclaimed=options.workspaceProductPort.reclaimUnreferencedWorkspace(scope.workspaceId);
@@ -718,7 +735,7 @@ function createMovieResponsibilityClosureCoordinator(options) {
 
   return Object.freeze({ advance, findCompletedRun, listCompletedWorkspacePage, listActiveCleanupScopePage,
     listDiscardedLeftoverWorkspacePage, reconcileDiscardedLeftoverWorkspace,
-    reconcileCompletedWorkspace, reconcileCleanupScope:({cleanupScopeId})=>drainCleanupScope(cleanupScopeId,1) });
+    reconcileCompletedWorkspace, reconcileCleanupScope:scope=>scope.skipped?Object.freeze({stage:'skipped'}):drainCleanupScope(scope.cleanupScopeId,1) });
 }
 
 module.exports = Object.freeze({

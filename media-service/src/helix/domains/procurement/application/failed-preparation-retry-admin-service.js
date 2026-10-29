@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { executionContract } = require('../model/retry-command-execution-contract');
 const { INPUT_SET, PLANNER_REF, REFERENCE_SCHEMA, bindingSet, readReference, requestBasisDigest } =
   require('../model/retry-command-plan-reference');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
@@ -1085,6 +1086,7 @@ function createFailedPreparationRetryAdminService(options) {
       );
     }
     const activated = options.workRuntime.activate({
+      executionContract,
       workId,
       ownerDomain: 'procurement',
       basisDigest,

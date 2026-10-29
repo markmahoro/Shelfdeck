@@ -38,7 +38,8 @@
       "arca_jav_identity_corrections",
       "arca_aftercare_assessments",
       "arca_aftercare_findings",
-      "arca_shelf_entries"
+      "arca_shelf_entries",
+      "arca_series_root_relocations"
     ],
     "variants": [
       {
@@ -100,7 +101,8 @@
           "arca_defect_repair_intents",
           "arca_inventory_materials",
           "arca_offdeck_reservations",
-          "arca_shelves"
+          "arca_shelves",
+          "arca_series_root_relocations"
         ],
         "selector": {
           "selectorKind": "owner_command_exact",
@@ -160,7 +162,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8874,
+      "line": 8882,
       "lineDigest": "cf5ea0c843bac236e760a30451c5c46b3fa1420f0c77bbe39f72bd957c60e9e9"
     }
   }

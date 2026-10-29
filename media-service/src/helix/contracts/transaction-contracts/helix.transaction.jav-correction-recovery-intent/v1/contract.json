@@ -98,7 +98,8 @@
       "platform_workspace_roots",
       "fx_workspace_registry",
       "fx_workspace_materials",
-      "fx_artifact_registry"
+      "fx_artifact_registry",
+      "arca_series_root_relocations"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -134,7 +135,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8876,
+      "line": 8884,
       "lineDigest": "973e92298a2f0a528b35e00604c1730f399babe93bd6c593d892a674fd48e261"
     }
   }

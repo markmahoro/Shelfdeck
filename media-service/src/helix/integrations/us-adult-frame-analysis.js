@@ -1,7 +1,7 @@
 'use strict';
 const {createHash}=require('node:crypto');
 const {canonicalDigest}=require('../contracts/canonical-json');
-const {faceModelReference}=require('../contracts/us-adult-face-model');
+const {faceModelReference,CURRENT_MATCH_THRESHOLD}=require('../contracts/us-adult-face-model');
 const {bestActorMatch}=require('./local-face-math');
 const pack=require('../contracts/us-adult-face-model-pack.json');
 const {FRAME_ANALYSIS_VERSION:ANALYSIS_VERSION}=require('../contracts/us-adult-frame-geometry');
@@ -36,11 +36,12 @@ function createUsAdultFrameAnalysis(options){
       posterFrameOrdinals:Object.freeze(Array.from({length:4},(_,index)=>Math.min(frames.length-1,Math.floor((index+1)*frames.length/5))))};
     return Object.freeze({...value,analysisDigest:canonicalDigest(value)});
   }
-  function match(analysis,references){
+  function match(analysis,references,threshold=CURRENT_MATCH_THRESHOLD){
     const {analysisDigest,...value}=analysis||{};
     if(analysis?.schema!==ANALYSIS_VERSION||canonicalDigest(value)!==analysisDigest||
-      analysis.modelRef.digest!==faceModelReference('western_frame_set').digest||analysis.referenceModelRefDigest!==faceModelReference('single_reference_face').digest)
-      throw Object.assign(new Error('Frame analysis model or digest changed.'),{code:'US_ADULT_ANALYSIS_CHANGED'});
+      analysis.modelRef.digest!==faceModelReference('western_frame_set').digest||analysis.referenceModelRefDigest!==faceModelReference('single_reference_face').digest||
+      typeof threshold!=='number'||!Number.isFinite(threshold)||threshold<0||threshold>1)
+      throw Object.assign(new Error('Frame analysis model, digest or match threshold changed.'),{code:'US_ADULT_ANALYSIS_CHANGED'});
     if(!Array.isArray(references)||references.length>65536||references.some(reference=>reference.modelRefDigest!==analysis.referenceModelRefDigest))
       throw Object.assign(new Error('Reference feature model differs from the pinned feature space.'),{code:'US_ADULT_REFERENCE_MODEL_CHANGED'});
     if(references.some(reference=>!Number.isSafeInteger(reference.personRevision)||reference.personRevision<1||!Number.isSafeInteger(reference.referenceRevision)||reference.referenceRevision<1||
@@ -48,13 +49,13 @@ function createUsAdultFrameAnalysis(options){
       throw Object.assign(new Error('Reference features require their exact Person, image and Projection versions.'),{code:'US_ADULT_REFERENCE_VERSION_REQUIRED'});
     const vectors=analysis.faces.map(face=>face.vector);let winner=null;
     for(const reference of references){
-      const candidate=bestActorMatch(vectors,[reference],pack.matchThreshold);if(!candidate)continue;
+      const candidate=bestActorMatch(vectors,[reference],threshold);if(!candidate)continue;
       const compare=winner&&(Buffer.compare(Buffer.from(candidate.personId),Buffer.from(winner.personId))||
         Buffer.compare(Buffer.from(reference.referenceAssetId),Buffer.from(winner.referenceAssetId)));
       if(!winner||candidate.score>winner.score||candidate.score===winner.score&&compare<0)winner={...candidate,personRevision:reference.personRevision,
         referenceAssetId:reference.referenceAssetId,artifactDigest:reference.artifactDigest,referenceProjectionDigest:reference.referenceProjectionDigest};
     }
-    return winner&&Object.freeze({...winner,analysisDigest,modelRefDigest:analysis.modelRef.digest,referenceModelRefDigest:analysis.referenceModelRefDigest,threshold:pack.matchThreshold});
+    return winner&&Object.freeze({...winner,analysisDigest,modelRefDigest:analysis.modelRef.digest,referenceModelRefDigest:analysis.referenceModelRefDigest,threshold});
   }
   return Object.freeze({analyze,match});
 }

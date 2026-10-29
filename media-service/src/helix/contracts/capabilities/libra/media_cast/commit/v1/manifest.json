@@ -34,7 +34,13 @@
   },
   "sourceLocator": {
     "section": "8.6.6",
-    "line": 10053,
+    "line": 10087,
     "lineDigest": "ae8502b8df87fdfbfeed5531ba79906b85efc3240dcaa501f288d0d97eb557b4"
-  }
+  },
+  "preboundEvidenceContracts": [
+    {
+      "schemaRef": "helix://contracts/types/LibraProductFactEvidence/v1",
+      "representation": "domain_evidence"
+    }
+  ]
 }

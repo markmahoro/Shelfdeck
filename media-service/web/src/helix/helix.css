@@ -190,14 +190,6 @@ button, input, select, textarea { font: inherit; }
 .people-card dt { color: var(--muted); font-size: 11px; font-weight: 700; }
 .people-card dd { margin: 3px 0 0; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
 .people-library-note { color: var(--muted); font-size: 13px; }
-.people-recommendations { margin: 24px 0; }
-.people-recommendation-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
-.people-recommendation-photo { position: relative; aspect-ratio: 1; background: #e9ede7; }
-.people-recommendation-photo img { display: block; width: 100%; height: 100%; object-fit: contain; }
-.people-recommendation-photo p { position: absolute; inset: auto 12px 12px; margin: 0; padding: 10px; background: var(--paper); color: var(--muted); font-size: 12px; }
-.people-recommendation-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
-.people-recommendation-progress { margin: 16px 0; padding: 16px; border-left: 3px solid var(--accent); background: #e9f0eb; }
-.people-recommendation-progress p { margin: 6px 0; overflow-wrap: anywhere; }
 .people-filter, .people-image-tools { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
 .people-filter input { width: min(320px, 70vw); }
 .people-registration fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
@@ -295,6 +287,9 @@ button, input, select, textarea { font: inherit; }
 .formation-chips { display: flex; flex: 1 1 auto; flex-wrap: wrap; gap: 6px; margin: 0; }
 .formation-chips .btn { min-height: 30px; padding: 0 10px; border-color: var(--line); background: transparent; color: var(--muted); font-size: 11px; font-weight: 600; }
 .formation-chips .btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.target-conflict-list { display: grid; gap: 8px; margin: 0; padding-left: 18px; max-height: 240px; overflow: auto; }
+.target-conflict-list code { display: block; overflow-wrap: anywhere; word-break: break-word; font-size: 12px; }
+.target-conflict-list small { display: block; margin-top: 2px; color: var(--muted); font-size: 11px; }
 .formation-secondary { display: flex; flex: 0 1 auto; flex-wrap: wrap; gap: 12px 16px; align-items: end; margin: 0; }
 .formation-secondary label { display: grid; gap: 4px; color: var(--muted); font-size: 12px; font-weight: 700; }
 .formation-secondary select, .formation-secondary input[type="search"] { min-width: 180px; min-height: var(--btn-height); padding: 0 10px; border: 1px solid var(--line); background: #fff; }
@@ -677,6 +672,11 @@ button, input, select, textarea { font: inherit; }
 .identity-picker form { display:grid; gap:8px; }
 .identity-picker-input { display:flex; gap:8px; }
 .identity-picker-input input { min-width:0; flex:1; }
+.dialog.dialog-wide.episode-metadata-dialog { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; width: min(840px, calc(100vw - 40px)); min-width: 0; overflow: hidden; }
+.episode-metadata-dialog .dialog-body { min-height: 0; overflow-y: auto; }
+.episode-metadata-dialog .dialog-body > *, .episode-metadata-dialog select { min-width: 0; max-width: 100%; }
+.episode-metadata-dialog .episode-metadata-confirmation { display: flex; flex-flow: row nowrap; align-items: flex-start; gap: 8px; }
+.episode-metadata-confirmation input[type="checkbox"] { flex: none; width: 16px; height: 16px; min-height: 16px; margin: 3px 0; }
 .identity-picker-error { color:var(--danger); margin:0; }
 .identity-picker-preview { display:flex; gap:16px; align-items:center; padding:16px; border:1px solid var(--line); border-radius:8px; }
 .identity-picker-preview > div { min-width:0; }

@@ -668,6 +668,11 @@ function createLibraRunCoordinator(options){
       if(published && options.movieProductionReader.readDeliveryReceipt(published.offerId)?.result==='rejected')
         return options.resolveRejectedRun(libraRunId);
     }
+    if(snapshot.spec.contentProfile==='series' && ['active','suspended','frozen'].includes(snapshot.run.state) && snapshot.run.packageRevisionHead===0) {
+      const mapping=options.episodeMetadataMappingStore?.current(snapshot.run.subjectId);
+      if(mapping?.libraRunId===libraRunId && snapshot.run.episodeMetadataMappingRef?.intentId!==mapping.recordId)
+        return options.libraRunCreator.replaceConfirmedEpisodeMetadata(mapping);
+    }
     if(snapshot.run.state==='frozen' && options.resolveFrozenRun) {
       const resolution=options.resolveFrozenRun(libraRunId);
       return resolution?.kind==='defect_admitted'?reconcile(libraRunId):resolution;

@@ -5,8 +5,8 @@ const root = path.resolve(__dirname, '../..');
 const load = relative => require(path.join(root, relative));
 const { canonicalDigest } = load('src/helix/contracts/canonical-json');
 const { createSqliteUnitOfWork } = load('src/helix/foundation/persistence/sqlite-unit-of-work');
-const { createCatalogPlanProofReader } = load('src/helix/foundation/execution/catalog-plan-proof-reader');
-const { createFrozenCatalogHistory } = load('src/helix/foundation/execution/frozen-catalog-history');
+const { createCatalogPlanProofReader } = load('scripts/helix-architecture/history-evidence/catalog-plan-proof-reader');
+const { createFrozenCatalogHistory } = load('scripts/helix-architecture/history-evidence/frozen-catalog-history');
 const { createWorkResultReader } = load('src/helix/foundation/execution/work-result-reader');
 const { createProductDeliveryReader } = load('src/helix/domains/libra/persistence/product-delivery-reader');
 const { createTerminalEffectHistoryObserver } = load('src/helix/domains/arca/application/terminal-effect-history-observer');
@@ -35,14 +35,14 @@ function proveReleaseEffectHistory(database, schemaManifest) {
   options.readTechnicalWork = workId => proofReader.verify(reader => reader.workPlanIds(workId).map(id => reader.read(id)));
   const owner = createTerminalEffectHistoryObserver(options), observed = new Map();
   const history = createFrozenCatalogHistory({
-    archive:load('src/helix/composition/catalog-transitions/movie-terminal-contracts-20260930.json'),
+    archive:load('scripts/helix-architecture/history-evidence/catalog-transitions/movie-terminal-contracts-20260930.json'),
     archiveDigest:'369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
-    priorArchive:load('src/helix/composition/catalog-transitions/secondary-acceptance-history-20260928.json'),
+    priorArchive:load('scripts/helix-architecture/history-evidence/catalog-transitions/secondary-acceptance-history-20260928.json'),
     priorArchiveDigest:'1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
-    witness:load('src/helix/composition/catalog-transitions/intake-control-20260912.json'),
-    additionalArchives:[{ archive:load('src/helix/composition/catalog-transitions/published-terminal-contracts-20261015.json'),
+    witness:load('scripts/helix-architecture/history-evidence/catalog-transitions/intake-control-20260912.json'),
+    additionalArchives:[{ archive:load('scripts/helix-architecture/history-evidence/catalog-transitions/published-terminal-contracts-20261015.json'),
       archiveDigest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d' },
-      { archive:load('src/helix/composition/catalog-transitions/published-terminal-contracts-20261018.json'),
+      { archive:load('scripts/helix-architecture/history-evidence/catalog-transitions/published-terminal-contracts-20261018.json'),
         archiveDigest:'02c61b170e4209eb07f6abb1172eece6e598ed06ab9ad9fa227a5fea32803a6c' }],
     bindingProjectionRegistry:createReadonlyProofProjectionRegistry(load).registry,
     proofReader,

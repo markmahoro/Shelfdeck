@@ -182,6 +182,31 @@ test('Secret lease retains only bounded network diagnostics on provider failure'
   });
 });
 
+test('Secret lease keeps numeric HTTP diagnostics through metadata failure evidence', async () => {
+  await fixture(async ({broker, repository}) => {
+    repository.save(activeReference);
+    const handle = broker.issue(exactRequest);
+    await assert.rejects(() => broker.consumeAsync(handle, async (bytes) => {
+      throw Object.assign(new Error(bytes.toString('utf8')), {
+        code:'PLATFORM_INTEGRATION_HTTP_FAILED',
+        details:{stage:'json_request',statusCode:404,url:'https://private/?token='+bytes.toString('utf8'),body:bytes.toString('utf8')},
+      });
+    }), error => {
+      const {metadataFetchFailed}=require('../../src/helix/domains/libra/capabilities/product-metadata-capability-ports');
+      const evidence=metadataFetchFailed(error).evidence;
+      assert.deepEqual(evidence.diagnostics,{causeCode:'PLATFORM_INTEGRATION_HTTP_FAILED',stage:'json_request',statusCode:404});
+      const fs=require('node:fs'),os=require('node:os'),path=require('node:path');
+      const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-http-evidence-'));
+      try {
+        const store=require('../../src/helix/integrations/failure-evidence-store').createFailureEvidenceStore(root);
+        assert.deepEqual(store.read(store.write(evidence)),evidence);
+        assert.equal(JSON.stringify(evidence).includes('synthetic-secret'),false);
+      } finally { fs.rmSync(root,{recursive:true,force:true}); }
+      return true;
+    });
+  });
+});
+
 test('implementation has no ambient environment access or secret serialization field', () => {
   const sources = [
     path.resolve(__dirname, '../../src/helix/platform/application/secret-lease-broker.js'),

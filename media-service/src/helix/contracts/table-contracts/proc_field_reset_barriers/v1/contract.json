@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/proc_field_reset_barriers/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "proc_field_reset_barriers",
+    "owner": "procurement",
+    "prefix": "proc_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "field_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "reset_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "minimum_observation_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "field_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "field_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "minimum_observation_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "每个保留Field恰一行，Reset后immutable，下一次Reset在新库重建"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "Procurement拥有的当前数据库代际观察屏障",
+      "每个保留Field恰一行，Reset后immutable，下一次Reset在新库重建",
+      "`minimum_observation_revision>=0`为保留Observation证据的revision上界，不是新采购资格",
+      "新Observation必须使用包含reset_id的Work identity并从null cursor开始",
+      "Run admission同事务拒绝不超过屏障的terminal Observation。不修改冻结包或历史Observation，不在Foundation Receipt里存业务屏障",
+      "不把reset_id加入Material物理Identity"
+    ],
+    "rawContract": {
+      "columns": "`field_id PK FK, reset_id, minimum_observation_revision, created_at_ms`",
+      "constraints": "Procurement拥有的当前数据库代际观察屏障；每个保留Field恰一行，Reset后immutable，下一次Reset在新库重建；`minimum_observation_revision>=0`为保留Observation证据的revision上界，不是新采购资格；新Observation必须使用包含reset_id的Work identity并从null cursor开始；Run admission同事务拒绝不超过屏障的terminal Observation。不修改冻结包或历史Observation，不在Foundation Receipt里存业务屏障；不把reset_id加入Material物理Identity"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9539,
+      "lineDigest": "472b9b9b407f91e8414276fb67f193c4bcbdd8beec588dc7bf64c9c97d0fdb60"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "field_id"
+        ],
+        "targetTable": "proc_material_fields",
+        "targetColumns": [
+          "field_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

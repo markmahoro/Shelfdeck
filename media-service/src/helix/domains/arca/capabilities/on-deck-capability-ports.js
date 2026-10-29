@@ -286,6 +286,12 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       finalInventoryDecision=options.inventoryPort.prepare({onDeckRunId:responsibility.onDeckRunId,custodyId:responsibility.custodyId,shelf:c.shelf,
         onDeckProductPackage:c.packageValue,observedAtMs:now(),replayCommitted:false}),targetLocation=options.inventoryPort.resolveTargetLocation({
         shelf:c.shelf,onDeckProductPackage:c.packageValue}).targetDirectory;
+    let accepted=acceptance.readAccepted({acceptanceAttemptId:assessmentId,offerMessage:c.offer,libraRunId:c.offer.libraRunId,
+      onDeckRunId:responsibility.onDeckRunId,finalInventoryDecision});
+    if(!accepted){
+    const readFence=options.unitOfWork.captureReadFence(),current=ctx(execution);
+    if(current.deliveryFence?.eligibility!=='eligible')throw Object.assign(new Error('Product Offer is no longer eligible for first acceptance.'),
+      {code:'P14_HANDOFF_B_DELIVERY_INELIGIBLE',details:{reasonCode:current.deliveryFence?.reasonCode||'delivery_unavailable'}});
     const controlled=handoffBControlMembers(c.packageValue),byKey=new Map(controlled.map(m=>[m.materialKey,m])),
       keys=[...byKey.keys()].sort(),projections=readControlProjections(controls,keys),
       contentProfile=packageContentProfile(c.packageValue);
@@ -293,13 +299,13 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
       expectedDigest=member.committedControlProjectionDigest??member.admittedControlProjectionDigest;
       if(p.resultKind!=='available'||p.controlState!=='controlled'||p.ownerDomain!=='libra'||p.controlRevision!==expectedRevision||
           p.projectionDigest!==expectedDigest)throw new Error('Arca Handoff B Product Control fence is stale for '+p.materialKey);}
-    const accepted=acceptance.readAccepted({acceptanceAttemptId:assessmentId,offerMessage:c.offer,libraRunId:c.offer.libraRunId,onDeckRunId:responsibility.onDeckRunId,
-      finalInventoryDecision})||acceptance.accept({assessment,offerMessage:c.offer,libraRunId:c.offer.libraRunId,shelf:c.shelf,package:c.packageValue,
+    accepted=acceptance.accept({readFence,assessment,offerMessage:c.offer,libraRunId:c.offer.libraRunId,shelf:c.shelf,package:c.packageValue,
       onDeckRunId:responsibility.onDeckRunId,finalInventoryDecision,targetLocation,gapDecision,
       acceptanceChecks:gapDecision.acceptanceChecks,bindings:[
         ...c.packageValue.productMaterialManifest.members.map(m=>bindingFromProduct(m,contentProfile)),...c.packageValue.offloadContextManifest.members.map(bindingFromContext)]
         .sort((a,b)=>a.materialKey.localeCompare(b.materialKey)||a.role.localeCompare(b.role)),controlTransfers:projections.map(p=>({materialKey:p.materialKey,
           expectedRevision:p.controlRevision,expectedProjectionDigest:p.projectionDigest,fromScope:{ownerDomain:p.ownerDomain,scopeType:p.ownerScopeType,scopeId:p.ownerScopeId}}))});
+    }
     inbox.acknowledge({messageId:c.offer.messageId,consumerDomain:'arca'});return committedOutcome(execution,C.accept,accepted.receipt,effectAt(execution),'responsibility_control_commit');},
     validateResult(_c,o){if(o?.result?.receiptKind!=='handoff_b_accepted')throw new TypeError('Arca Acceptance Receipt is invalid.');}});
   ports[C.reject]=Object.freeze({validateInputs(c){requireNamed(c,['arcaAcceptanceRejectionDecision','domainFactCommitHandle']);},execute(execution){const c=ctx(execution),d=execution.namedInputs.arcaAcceptanceRejectionDecision,
@@ -407,11 +413,12 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     return committedOutcome(execution,C.settlement,completed,at,'destructive_commit');}catch(error){const failed=settlementPreconditionFailureOutcome(error);if(failed)return failed;throw error;}},validateResult(_c,o){if(!o?.result?.materialKey)throw new TypeError('Settlement Evidence is invalid.');}});
   ports[C.fulfillment]=Object.freeze({validateInputs(x){requireNamed(x,['finalReality','finalInventoryDecision','shelfStandard']);},async execute(execution){const c=ctx(execution),n=execution.namedInputs,at=now(),
     reality=await options.inventoryPort.readFinalAsync(finalReadRequest(execution,c,at)),finalRealityDigest=reality.realityDigest,
+    seriesPresentationRef=options.series?await options.series.verifyReady(c):null,
     basisDigest=canonicalDigest({decision:n.finalInventoryDecision,priorFinalRealityDigest:n.finalReality.realityDigest,finalRealityDigest,standard:n.shelfStandard}),
     result=Object.freeze({schemaRef:'helix://contracts/types/FulfillmentVerification/v1',schemaVersion:1,verificationId:stable('arca-fulfillment-',{run:c.responsibility.onDeckRunId,basisDigest}),
       verificationKind:'on_deck_fulfillment',basisDigest,result:'passed',reasonCodes:Object.freeze([]),evidenceRefs:Object.freeze([n.finalReality.objectId]),verifiedAtMs:at,
       finalInventoryDecisionDigest:n.finalInventoryDecision.decisionDigest,shelfStandardRevision:c.shelf.currentStandardRevision,finalRealityDigest,
-      memberEvidence:finalMemberEvidence(reality)});return outcome(C.fulfillment,result,at);},validateResult(_c,o){if(o?.result?.result!=='passed'||!o.result.finalRealityDigest)throw new TypeError('Fulfillment Verification is invalid.');}});
+      memberEvidence:finalMemberEvidence(reality),...(seriesPresentationRef?{seriesPresentationRef}:{})});return outcome(C.fulfillment,result,at);},validateResult(_c,o){if(o?.result?.result!=='passed'||!o.result.finalRealityDigest)throw new TypeError('Fulfillment Verification is invalid.');}});
   ports[C.commit]=Object.freeze({validateInputs(c){requireNamed(c,['fulfillmentResult','responsibilityControlCommitHandle']);},async execute(execution){const c=ctx(execution),fulfillment=execution.namedInputs.fulfillmentResult,
     staged=await options.inventoryPort.readFinalAsync(finalReadRequest(execution,c,effectAt(execution))),settlementOutcomes=options.workResultReader.read(execution.workId)
         .filter((item)=>item.capabilityRef===C.settlement&&item.outcomeKind==='succeeded').map((item)=>item.result),

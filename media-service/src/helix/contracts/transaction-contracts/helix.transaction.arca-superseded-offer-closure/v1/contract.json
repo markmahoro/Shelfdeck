@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/transactions/helix.transaction.arca-superseded-offer-closure/v1",
+  "contractVersion": 1,
+  "contract": {
+    "transactionId": "helix.transaction.arca-superseded-offer-closure",
+    "displayName": "Arca Superseded Offer Closure",
+    "ownerScope": "arca",
+    "commitClass": "domain_fact_commit",
+    "atomicFactSet": "精确公开Delivery Fence的target_not_current + opaque read fence + Arca域内无Accepted Decision/Attempt/Custody复核 + immutable Offer Withdrawal Receipt + 可选当前Recovery Case停止调度投影 + Command Receipt/marker/Audit；不伪造Acceptance Rejection、不转移或释放Control、不修改历史Assessment或Libra包；重复消息消费同一Receipt，已Accepted责任禁止关闭；`hasOutbox=false`",
+    "participants": [
+      {
+        "participantKind": "domain",
+        "owner": "arca",
+        "access": "write",
+        "tables": [
+          "arca_offer_withdrawal_receipts",
+          "arca_acceptance_recovery_cases"
+        ]
+      },
+      {
+        "participantKind": "foundation",
+        "owner": "execution-foundation",
+        "access": "write",
+        "tables": [
+          "fx_command_receipts",
+          "fx_commit_markers",
+          "fx_audit_records"
+        ]
+      }
+    ],
+    "writeTables": [
+      "arca_offer_withdrawal_receipts",
+      "arca_acceptance_recovery_cases",
+      "fx_command_receipts",
+      "fx_commit_markers",
+      "fx_audit_records"
+    ],
+    "readTables": [
+      "arca_acceptance_attempts",
+      "arca_acceptance_decisions",
+      "arca_ondeck_custodies"
+    ],
+    "variants": [],
+    "dynamicTableRequirements": [],
+    "forbiddenWriteTables": [],
+    "forbiddenWritePrefixes": [
+      "proc_",
+      "libra_",
+      "perception_",
+      "people_"
+    ],
+    "forbiddenCapabilities": [],
+    "fenceContract": {
+      "domainRevisionFenceRequired": true,
+      "materialControlCasRequired": false,
+      "commitMarkerRequired": true,
+      "outboxRequired": false
+    },
+    "rollbackInvariant": "Any participant, revision fence, digest, or CAS failure leaves zero transaction writes visible; no commit marker, receipt, or outbox may survive alone.",
+    "crashFixtures": [
+      {
+        "fixtureId": "arca-offer-withdrawal",
+        "faultInjectionPoints": "Exact public Delivery fence and absence of Arca Accepted responsibility; immutable withdrawal, recovery projection, receipt, marker and audit before COMMIT",
+        "requiredInvariant": "Withdrawal and technical closure are atomic; stale public views and Accepted responsibility leave no closure; original assessments, Control and files remain unchanged",
+        "source": {
+          "section": "8.9.7",
+          "line": 8865
+        }
+      }
+    ],
+    "source": {
+      "section": "8.5.4",
+      "line": 8866,
+      "lineDigest": "9182d88d1c4342cec31932479eab36f8cf56edb07e33c018818eb42bebcf40a6"
+    }
+  }
+}

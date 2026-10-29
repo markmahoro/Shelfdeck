@@ -64,7 +64,7 @@ function fixture(settings = {}) {
       workPlanIds: workId => [...graphs.values()].filter(graph => graph.work.work_id === workId).map(graph => graph.plan.plan_id) }); } },
     terminalOnly:settings.terminalOnly, terminalEffectObserver:settings.terminalEffectObserver,
     historicalProofResolver: settings.historicalProofResolver, onRejected: reason => reasons.push(reason) }); }
-  return { facts, witness, schemas, registry, graphs, reasons, verifier, verify: () => verifier().verify(facts), prefix };
+  return { facts, witness, schemas, registry, graphs, reasons, verifier, settings, verify: () => verifier().verify(facts), prefix };
 }
 
 function effectHistoryFixture() {
@@ -284,7 +284,7 @@ test('same-Work pagination proves only earlier terminal Attempts and rejects fut
 
 test('historical witness stays immutable and cannot authorize changed secondary-acceptance or Series contracts', () => {
   const root = path.resolve(__dirname, '../../src/helix/contracts');
-  const witness = require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json');
+  const witness = require('../../scripts/helix-architecture/history-evidence/catalog-transitions/intake-control-20260912.json');
   const schemas = new Map();
   function walk(directory) {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
@@ -309,7 +309,9 @@ test('historical witness stays immutable and cannot authorize changed secondary-
     'arca.acceptance.metadata.verify@1','arca.acceptance.space.verify@1','arca.acceptance.structure.verify@1',
     'arca.aftercare.artifact.materialize@1','arca.aftercare.binary_artifact.acquire@1',
     'arca.aftercare.conformance.observe@1','arca.aftercare.input_settlement.delete@1','arca.aftercare.media.remux@1','arca.aftercare.media.transcode@1','arca.aftercare.media.verify@1',
+    'arca.aftercare.presentation.observe@1',
     'arca.inventory.final_product.verify@1','arca.inventory.product.stage@1','arca.inventory.staged.verify@1',
+    'arca.offdeck.deletion.verify@1','arca.offdeck.destruction_scope.verify@1',
     'arca.ondeck.commit@1','arca.ondeck.fulfillment.verify@1','arca.ondeck.input_settlement.delete@1',
     'libra.external_material.acquire.observe@1','libra.external_material.acquire.request@1','libra.external_material.candidate.select@1',
     'libra.external_material.identity.verify@1',
@@ -415,9 +417,9 @@ test('read-only historical verification rejects active cross-Work dependencies',
 });
 
 test('frozen historical archive reconstructs the original witness without registering an executor', () => {
-  const { createTerminalCatalogHistory } = require('../../src/helix/foundation/execution/terminal-catalog-history');
-  const archive = require('../../src/helix/composition/catalog-transitions/secondary-acceptance-history-20260928.json');
-  const witness = require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json');
+  const { createTerminalCatalogHistory } = require('../../scripts/helix-architecture/history-evidence/terminal-catalog-history');
+  const archive = require('../../scripts/helix-architecture/history-evidence/catalog-transitions/secondary-acceptance-history-20260928.json');
+  const witness = require('../../scripts/helix-architecture/history-evidence/catalog-transitions/intake-control-20260912.json');
   const archiveDigest = '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6';
   assert.equal(canonicalDigest(archive), archiveDigest);
   assert.equal(archive.sourceCommit, '69a82f2a5d776a0bde3ae1bc34ff5fd97c80dfb0');
@@ -504,15 +506,15 @@ test('cross-Catalog terminal proof preserves typed validation and detects depend
 });
 
 test('production Movie contract archive has exact provenance and cannot authorize active history', () => {
-  const { createFrozenCatalogHistory } = require('../../src/helix/foundation/execution/frozen-catalog-history');
-  const archive = require('../../src/helix/composition/catalog-transitions/movie-terminal-contracts-20260930.json');
+  const { createFrozenCatalogHistory } = require('../../scripts/helix-architecture/history-evidence/frozen-catalog-history');
+  const archive = require('../../scripts/helix-architecture/history-evidence/catalog-transitions/movie-terminal-contracts-20260930.json');
   const reasons = [], f = fixture({ terminalOnly: true });
   f.facts.plan.catalog_digest = archive.catalogDigest; f.facts.plan.state = 'no_effect_required';
   for (const key of ['nodes', 'events', 'attempts', 'results']) f.facts[key] = [];
   const options = { archive, archiveDigest: '369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
-    priorArchive: require('../../src/helix/composition/catalog-transitions/secondary-acceptance-history-20260928.json'),
+    priorArchive: require('../../scripts/helix-architecture/history-evidence/catalog-transitions/secondary-acceptance-history-20260928.json'),
     priorArchiveDigest: '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
-    witness: require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json'),
+    witness: require('../../scripts/helix-architecture/history-evidence/catalog-transitions/intake-control-20260912.json'),
     onRejected: reason => reasons.push(reason), proofReader: { verify: fn => fn({ prefetch() {}, read: () => f.facts }) } };
   const history = createFrozenCatalogHistory(options);
   assert.deepEqual(reasons, []);
@@ -527,18 +529,22 @@ test('production Movie contract archive has exact provenance and cannot authoriz
   assert.throws(() => createFrozenCatalogHistory({ ...options, archive: corrupt }), /provenance/);
 });
 
-test('published release archive reconstructs its exact Catalog without mutating archives or accepting active history', () => {
-  const { createFrozenCatalogHistory } = require('../../src/helix/foundation/execution/frozen-catalog-history');
-  const additional = Object.freeze({archive:require('../../src/helix/composition/catalog-transitions/published-terminal-contracts-20261015.json'),
-    archiveDigest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d'});
+for(const releasedArchive of [
+  {file:'published-terminal-contracts-20261015.json',digest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d'},
+  {file:'published-terminal-contracts-20261021.json',digest:'214b8cf2272f740034ae8fe68d3b18e493c720bb7fd6dac7d5b692d58db03ed6'},
+  {file:'published-terminal-contracts-20261022.json',digest:'51dca4f218fdeae45ec2a72c53056afe3fb0486b056e5a794117658fa6c1046b'},
+])test('published '+releasedArchive.file+' reconstructs its exact Catalog without mutating archives or accepting active history', () => {
+  const { createFrozenCatalogHistory } = require('../../scripts/helix-architecture/history-evidence/frozen-catalog-history');
+  const additional = Object.freeze({archive:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/'+releasedArchive.file),
+    archiveDigest:releasedArchive.digest});
   const f=fixture({terminalOnly:true}),reasons=[];
   f.facts.plan.catalog_digest=additional.archive.catalogDigest;f.facts.plan.state='no_effect_required';
   for(const key of ['nodes','events','attempts','results'])f.facts[key]=[];
-  const options={archive:require('../../src/helix/composition/catalog-transitions/movie-terminal-contracts-20260930.json'),
+  const options={archive:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/movie-terminal-contracts-20260930.json'),
     archiveDigest:'369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
-    priorArchive:require('../../src/helix/composition/catalog-transitions/secondary-acceptance-history-20260928.json'),
+    priorArchive:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/secondary-acceptance-history-20260928.json'),
     priorArchiveDigest:'1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
-    witness:require('../../src/helix/composition/catalog-transitions/intake-control-20260912.json'),additionalArchives:Object.freeze([additional]),
+    witness:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/intake-control-20260912.json'),additionalArchives:Object.freeze([additional]),
     onRejected:reason=>reasons.push(reason),proofReader:{verify:fn=>fn({prefetch(){},read:()=>f.facts})}};
   const before=canonicalDigest(additional),history=createFrozenCatalogHistory(options);
   assert.deepEqual(reasons,[]);assert.equal(history.supports(additional.archive.catalogDigest),true);
@@ -547,6 +553,30 @@ test('published release archive reconstructs its exact Catalog without mutating 
   assert.deepEqual(history.verifyBatch([f.facts]),[false]);
   const corrupt=structuredClone(additional.archive);corrupt.schemas[0].description='tampered';
   assert.throws(()=>createFrozenCatalogHistory({...options,additionalArchives:[{...additional,archive:corrupt}]}),/provenance/);
+});
+
+test('frozen terminal history preserves People ownership and still rejects foreign Owner or active replay',()=>{
+  const {createFrozenCatalogHistory}=require('../../scripts/helix-architecture/history-evidence/frozen-catalog-history');
+  const {createExecutionPolicyRegistry}=require('../../src/helix/foundation/execution/execution-policy');
+  const f=fixture({owner:'people',terminalOnly:true}),archive=structuredClone(require('../../scripts/helix-architecture/history-evidence/catalog-transitions/published-terminal-contracts-20261021.json')),
+    ref='people.registration_evidence.observe@1',manifest={...f.registry.resolve('libra.fixture@1','people').manifest,capabilityRef:ref};
+  assert.ok(archive.manifests.some(value=>value.capabilityRef===ref));
+  archive.manifests=archive.manifests.map(value=>value.capabilityRef===ref?manifest:value);
+  archive.schemas.push(...f.schemas.values());
+  const snapshot=archive.manifests.slice().sort((a,b)=>a.capabilityRef<b.capabilityRef?-1:1).map(value=>({capabilityRef:value.capabilityRef,contractVersion:value.contractVersion,
+    ownerScope:value.ownerScope,effectClass:value.effectClass,executorVersion:1,executionContractDigest:canonicalDigest(value)}));
+  archive.catalogDigest=executionCatalogDigest({snapshot},createExecutionPolicyRegistry(archive.policy));
+  f.facts.plan.catalog_digest=archive.catalogDigest;f.facts.nodes[0].capability_ref=f.facts.events[0].capability_ref=ref;
+  const history=createFrozenCatalogHistory({archive:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/movie-terminal-contracts-20260930.json'),
+    archiveDigest:'369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
+    priorArchive:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/secondary-acceptance-history-20260928.json'),
+    priorArchiveDigest:'1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
+    witness:require('../../scripts/helix-architecture/history-evidence/catalog-transitions/intake-control-20260912.json'),
+    additionalArchives:[{archive,archiveDigest:canonicalDigest(archive)}],onRejected:reason=>f.reasons.push(reason),
+    proofReader:{verify:callback=>callback({prefetch(){},read:()=>f.facts})}});
+  assert.equal(history.verify(f.facts),true,JSON.stringify(f.reasons));
+  f.facts.work.owner_domain='arca';assert.equal(history.verify(f.facts),false);
+  f.facts.work.owner_domain='people';f.facts.workAttempt.state='running';assert.equal(history.verify(f.facts),false);
 });
 
 function fullResultEvidenceFixture(){
@@ -593,4 +623,35 @@ test('a single frozen Catalog rejects a different payload shape even with a vali
   f.facts.results[0].result_json = JSON.stringify({ frozenField: true });
   f.facts.results[0].result_digest = canonicalDigest({ frozenField: true });
   assert.equal(f.verify(), true, f.reasons.join('\n'));
+});
+
+
+test('dependency proof observes every terminal Owner graph outside the proof transaction', () => {
+  const f = stageHistoryFixture();
+  const ids = new Set(['plan', 'attempt', 'work', 'node', 'slot', 'event', 'slot-event', 'execution',
+    'slot-attempt', 'slot-result', 'stage-effect', 'slot-effect', 'slot-receipt']);
+  function rename(value) {
+    if (Array.isArray(value)) return value.map(rename);
+    if (value && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([key, child]) => [key, rename(child)]));
+    return typeof value === 'string' && ids.has(value) ? 'source-' + value : value;
+  }
+  const source = rename(f.facts), receipt = rename(f.receipt);
+  source.effects[0].intent_digest = canonicalDigest({ eventId: 'source-event', capabilityRef: 'libra.fixture@1',
+    contractVersion: 1, inputSnapshotDigest: HASH, fenceSnapshotDigest: HASH });
+  f.graphs.set('source-plan', source);
+  const input = JSON.parse(f.facts.nodes[1].input_bindings_json);
+  input.bindings[0] = { portName: 'value', bindingKind: 'projected_work_results', sourceWorkId: 'source-work',
+    projectionRef: 'projection@1', resultSchemaRefs: [f.prefix + 'result'], parameters: {} };
+  f.facts.nodes[1].input_bindings_json = JSON.stringify(input);
+  const calls = [];
+  f.settings.terminalEffectObserver.observe = graph => {
+    calls.push(graph.plan.plan_id);
+    return [graph.plan.plan_id === 'plan' ? f.receipt : receipt];
+  };
+  const before = JSON.stringify([...f.graphs]);
+  assert.equal(f.verify(), true, f.reasons.join('\n'));
+  assert.deepEqual(calls, ['plan', 'source-plan']);
+  assert.equal(JSON.stringify([...f.graphs]), before);
+  f.settings.terminalEffectObserver.observe = () => [f.receipt];
+  assert.equal(f.verify(), false, 'A root receipt cannot cover a foreign dependency Effect.');
 });

@@ -117,6 +117,10 @@ function compileStatement(statementId, statement, table) {
   if(statement.kind==='select-page-after'){
     requireColumns(table,statement.columns,statementId);requireColumns(table,[statement.keyColumn],statementId);
     const fixedKeyColumns=statement.fixedKeyColumns||[];if(fixedKeyColumns.length>0)requireColumns(table,fixedKeyColumns,statementId);
+    const nullKeyColumns=statement.nullKeyColumns||[];
+    if(nullKeyColumns.length)requireColumns(table,nullKeyColumns,statementId);
+    if(new Set(nullKeyColumns).size!==nullKeyColumns.length||nullKeyColumns.some(column=>fixedKeyColumns.includes(column)))
+      fail('P3_REPOSITORY_INVALID_COLUMNS','Null and equality predicates must be distinct.',{statementId});
     if(!Number.isSafeInteger(statement.maxItems)||statement.maxItems<1||statement.maxItems>500){
       fail('P3_REPOSITORY_INVALID_COLUMNS','select-page-after requires a bounded maxItems.',{statementId});
     }
@@ -124,6 +128,7 @@ function compileStatement(statementId, statement, table) {
       safeIntegers:statement.safeIntegers===true,maxItems:statement.maxItems,
       sql:'SELECT '+statement.columns.map(quote).join(', ')+' FROM '+tableName+' WHERE '+
         (fixedKeyColumns.length?fixedKeyColumns.map((column)=>quote(column)+'=@'+column).join(' AND ')+' AND ':'')+
+        (nullKeyColumns.length?nullKeyColumns.map(column=>quote(column)+' IS NULL').join(' AND ')+' AND ':'')+
         '(@cursor IS NULL OR '+quote(statement.keyColumn)+'>@cursor) ORDER BY '+quote(statement.keyColumn)+' LIMIT @limit'};
   }
   if(statement.kind==='select-range'){

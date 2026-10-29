@@ -1,6 +1,11 @@
 'use strict';
 
 const CAPABILITY_COPY = Object.freeze({
+  'arca.series_presentation.source.observe@1':['取得剧集资料','剧集公共资料的来源已确认。'],
+  'arca.series_presentation.assets.prepare@1':['准备剧集资料文件','剧集资料文件已准备完成。'],
+  'arca.series_presentation.files.publish@1':['写入剧集资料','剧集资料已写入收藏目录。'],
+  'arca.series_presentation.inventory.commit@1':['确认剧集资料完整','剧集公共资料已验收登记。'],
+  'arca.series_presentation.workspace.reclaim@1':['清理剧集临时资料','剧集临时资料已清理。'],
   'procurement.triage.bdmv.assess@1':['检查光盘结构','已完成光盘结构检查。'],
   'procurement.triage.playability.inspect@1':['检查媒体是否可播放','已确认媒体可以进入后续整理。'],
   'procurement.triage.structure.inspect@1':['检查材料结构','已确认材料结构可以进入后续整理。'],
@@ -69,6 +74,7 @@ const WORK_TITLES = Object.freeze({
   product_fact_assembly:'整理演职员和影片信息', source_media_observation:'检查原始媒体',
   product_conformance:'检查最终媒体产品',
   deliverable_promotion:'将媒体产品交给收藏架', acceptance_assessment:'检查媒体产品是否可以上架',
+  series_presentation:'补齐剧集资料',series_presentation_reclaim:'清理剧集临时资料',
   acceptance_commit:'接收媒体产品', acceptance_rejection:'记录验收未通过',
   on_deck_execution:'将媒体写入收藏架',
 });

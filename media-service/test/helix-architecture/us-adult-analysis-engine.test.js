@@ -47,6 +47,17 @@ test('the shared matcher accepts Owner-local face groups without Libra handles a
   h.cancel();await assert.rejects(matcher.matchPage(request),{code:'FIXTURE_CANCELLED'});
 });
 
+test('rejects a borderline 0.367 face at the raised matching threshold', async () => {
+  const borderline = 0.367, h = harness([reference('actor-borderline', V(borderline, Math.sqrt(1 - borderline * borderline)))]),
+    matcher = createUsAdultReferenceMatcher(h.options), request = {faceModelRefDigest:model.digest,
+      faces:[{faceGroupId:'borderline-face',vector:V(1)}], personReferenceProjections:h.references.map(item=>item.projection)};
+  const raised = await matcher.matchPage({...request, threshold:0.42});
+  assert.deepEqual(raised.matches, []);
+  const legacy = await matcher.matchPage({...request, threshold:0.363});
+  assert.equal(legacy.matches.length, 1); assert.equal(legacy.matches[0].personId, 'actor-borderline');
+  assert.ok(Math.abs(legacy.matches[0].score - borderline) < 1e-12);
+});
+
 test('clustering preserves member vectors and matching selects the highest face score with stable actor tie ordering', async() => {
   const h = harness(), clustered = await h.engine.computeClusters({embeddingSet:{dimension:128, vectors:[V(1), V(0.8, 0.6), V(0, 1)]},
     clusterParameters:clusterParameters(model)});
@@ -55,7 +66,7 @@ test('clustering preserves member vectors and matching selects the highest face 
     personReferenceProjections:h.references.map(item => item.projection)};
   const result = await h.engine.matchReferences(request);
   assert.equal(result.matches.length, 1); assert.equal(result.matches[0].personId, 'actor-a'); assert.equal(result.matches[0].score, 1);
-  assert.equal(result.matches[0].threshold, 0.363); assert.equal(result.matches[0].referenceAssetId, 'photo-actor-a');
+  assert.equal(result.matches[0].threshold, 0.42); assert.equal(result.matches[0].referenceAssetId, 'photo-actor-a');
   assert.equal(h.reads(), 2); await h.engine.matchReferences(request); assert.equal(h.reads(), 4, 'Cached vectors still require current Artifact ownership and byte verification.');
   assert.deepEqual(await h.engine.matchReferences({...request, personReferenceProjections:[]}), {matches:[]});
   assert.deepEqual(await h.engine.matchReferences({...request, clusters:[]}), {matches:[]});

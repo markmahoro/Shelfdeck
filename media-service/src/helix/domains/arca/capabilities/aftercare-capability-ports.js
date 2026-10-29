@@ -1,4 +1,5 @@
 'use strict';
+const {representationMember}=require('../model/inventory-representation-member');
 const {aftercareJavSource,aftercareArtifactSourceIntent,aftercareJavAcquisitionSource,aftercareJavCoverProvenance}=require('../model/aftercare-artifact-source');
 const {assertJavCoverDerivation}=require('../../../contracts/jav-cover-derivation');
 const {remapInventoryMappingFacts}=require('../../../contracts/related-primary-mappings');
@@ -78,6 +79,7 @@ function assessment(kind,context,findings,at,state=findings.length?'degraded':'h
     shelfEntryId:context.shelfEntryId,inventoryRevision:basis.inventoryRevision,standardRevision:basis.standardRevision,
     placementRevision:basis.placementRevision,decisionFactSetDigest:basis.decisionFactSetDigest,careBasisDigest:basis.digest,
     assessmentState:state,findingDrafts:Object.freeze(scopedFindings),incidentKey,
+    ...(kind==='presentation'&&extras.seriesPresentationHeadDigest?{seriesPresentationHeadDigest:extras.seriesPresentationHeadDigest}:{}),
     ...(kind==='conformance'?{mediaRepairStrategy:extras.mediaRepairStrategy||null,
       ...(extras.memberScope?{memberScope:extras.memberScope}:{}),
       ...(extras.memberAssessmentSet?{memberAssessmentSet:extras.memberAssessmentSet}:{})}:{})};
@@ -379,32 +381,6 @@ function nfoInventoryFindings(context) {
 async function inspectImageBytes(bytes){try{if(!Buffer.isBuffer(bytes)||bytes.length<12||bytes.length>16*1024*1024)return null;const image=sharp(bytes,{failOn:'error',limitInputPixels:100_000_000,sequentialRead:true}),metadata=await image.metadata();if(!['jpeg','png','webp'].includes(metadata.format)||Number(metadata.width)<=0||Number(metadata.height)<=0)return null;await sharp(bytes,{failOn:'error',limitInputPixels:100_000_000,sequentialRead:true}).stats();return Object.freeze({format:metadata.format,width:Number(metadata.width),height:Number(metadata.height),mediaType:'image/'+metadata.format});}catch{return null;}}
 async function validImageBytes(bytes){return Boolean(await inspectImageBytes(bytes));}
 async function validImage(location){try{const bytes=boundedBytes(location);return Boolean(bytes&&await validImageBytes(bytes));}catch{return false;}}
-function representationMember(item, ordinal) {
-  const artifactScope=readInventoryArtifactScope(item);
-  return Object.freeze({
-    ...(artifactScope?{artifactScope}:{}),
-    ordinal,
-    materialKey: item.material_key,
-    role: item.role,
-    episodeClaims: JSON.parse(item.episode_claims_json),
-    endpointId: item.endpoint_id,
-    location: item.location,
-    bindingRevision: Number(item.binding_revision),
-    physicalIdentity: Object.freeze({
-      schemaRef: 'helix://contracts/types/PhysicalMaterialIdentity/v2',
-      schemaVersion: 2,
-      materialKey: item.material_key,
-      mountScopeId: item.mount_scope_id,
-      inode: item.inode,
-      sizeBytes: Number(item.size_bytes),
-      fingerprintAlgorithm: item.fingerprint_algorithm,
-      fingerprintVersion: Number(item.fingerprint_version),
-      contentFingerprint: item.content_fingerprint,
-    }),
-    digestHex: item.digest_hex,
-    sizeBytes: Number(item.size_bytes),
-  });
-}
 function aftercareMediaProbeEvidence(raw,handle,sizeBytes,observedAtMs){
   const base={schemaRef:'helix://contracts/types/MediaProbeEvidence/v1',schemaVersion:1,
     evidenceId:stable('arca-care-media-probe-',{handle,raw}),evidenceKind:'media_probe',producerRef:'shared.material.media.probe@1',
@@ -720,7 +696,9 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
   });
   ports[C.presentation]=Object.freeze({validateInputs(c){requireNamed(c,['careBasis','inventoryMetadataArtifactRefs','standard']);},async execute(execution){const c=context(execution),at=now(),custody=resultFor(execution,C.custody);
     if(custodyBlocksDependentAssessment(custody))return outcome(C.presentation,assessment('presentation',c,[],at,'not_assessable',execution.workId,custody.incidentKey),at);
-    const posters=existingMaterials(c.raw.materials,isPosterMaterial),findings=nfoInventoryFindings(c);
+    const sharedHead=c.raw.entry.structure_kind==='season'?options.series?.headForEntry(c.shelfEntryId):null,posters=existingMaterials(c.raw.materials,isPosterMaterial),findings=nfoInventoryFindings(c);
+    if(options.series){const shared=await options.series.assessEntry(c);if(shared&&shared.state!=='healthy')
+      findings.push(finding('presentation',shared.reasonCode,'warning',shared.state==='degraded'&&!shared.requiresIntent?'auto_repair':'attention_required',shared.scopeId));}
     let hasValidPoster=false;for(const poster of posters){if(await validImage(poster.location)){hasValidPoster=true;break;}}
     if(posters.length===0)findings.push(finding('presentation','poster_missing','warning',
       c.raw.identity.provider&&c.raw.identity.provider_key&&providerHandle(c)?'auto_repair':'attention_required',c.shelfEntryId));
@@ -732,7 +710,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
       if(!valid)findings.push(finding('presentation',fanarts.length?'fanart_corrupt':'fanart_missing','warning',
         c.raw.identity.provider==='jav'&&providerHandle(c,'fanart')?'auto_repair':'attention_required',c.shelfEntryId));
     }
-    return outcome(C.presentation,assessment('presentation',c,findings,at,undefined,execution.workId),at);},validateResult(_c,o){if(!o?.result)throw new TypeError('Presentation Assessment Result is absent.');}});
+    return outcome(C.presentation,assessment('presentation',c,findings,at,undefined,execution.workId,null,{seriesPresentationHeadDigest:sharedHead}),at);},validateResult(_c,o){if(!o?.result)throw new TypeError('Presentation Assessment Result is absent.');}});
   ports[C.conformance]=Object.freeze({validateInputs(c){requireNamed(c,['careBasis','inventoryRevision','knownBindings','standard','placement']);},async execute(execution){const c=context(execution),at=now(),custody=resultFor(execution,C.custody);
     if(execution.parameters?.materialKey!==undefined)return outcome(C.conformance,
       await assessSeriesMediaMember(options,c,execution.parameters.materialKey,at,execution.workId,custody),at);
@@ -741,7 +719,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     const {findings,mediaRepairStrategy,memberAssessmentSet}=c.raw.entry.structure_kind==='season'
       ?aggregateSeriesMediaConformance(options,c,execution):await assessInventoryMediaConformance(options,c,at);
     for(const field of missingFields(c))findings.push(finding('conformance','metadata_field_missing__'+field,'warning','attention_required',canonicalDigest({field,requiredValueDigest:requirementGapValueDigest(effectiveRequirements(c),'metadata_field_unmet',field)})));
-    const placementState=classifyAcceptedPlacement(c),placementRequest=placementState.state==='recompute'?buildAftercareInventoryRequest(c,options.inventoryPort,at,stable('arca-care-assessment-placement-',{entry:c.shelfEntryId,basis:c.basis.digest})):null,desired=placementRequest?options.inventoryPort.resolveTargetLocation(placementRequest):null,placementUnmet=Boolean(placementRequest)&&!placementMatchesInventory(c,placementRequest);
+    const placementState=classifyAcceptedPlacement(c),placementRequest=placementState.state==='recompute'?buildAftercareInventoryRequest(c,options.inventoryPort,at,stable('arca-care-assessment-placement-',{entry:c.shelfEntryId,basis:c.basis.digest})):null,desired=placementRequest?(c.raw.entry.structure_kind==='season'?options.inventoryPort.resolvePolicyTargetLocation(placementRequest):options.inventoryPort.resolveTargetLocation(placementRequest)):null,placementUnmet=Boolean(placementRequest)&&(!placementMatchesInventory(c,placementRequest)||c.raw.entry.structure_kind==='season'&&desired.targetDirectory!==options.inventoryPort.resolveTargetLocation(placementRequest).targetDirectory);
     if(placementState.state==='not_assessable')findings.push(finding('conformance','placement_basis_unavailable','critical','attention_required',canonicalDigest({shelfEntryId:c.shelfEntryId,placementRevision:c.basis.placementRevision,reasonCode:placementState.reasonCode})));
     if(placementUnmet)findings.push(finding('conformance','placement_unmet','critical','auto_repair',canonicalDigest({endpointId:c.raw.shelf.target_endpoint_id,targetDirectory:desired.targetDirectory,placementRevision:c.basis.placementRevision})));
     for(const observed of observeKnownOldBindings(c.raw,fingerprint)){
@@ -970,7 +948,7 @@ function createAftercareCapabilityPorts(options){const now=options.now||Date.now
     const committedSet=store.commitAssessmentSet({shelfEntryId:c.shelfEntryId,inventoryRevision:c.basis.inventoryRevision,standardRevision:c.basis.standardRevision,
       placementRevision:c.basis.placementRevision,decisionFactSetDigest:c.basis.decisionFactSetDigest,careBasisDigest:c.basis.digest,
       assessments:rows.map((item)=>({assessmentId:item.evidenceId,assessmentKind:item.evidenceKind.replace('arca_aftercare_',''),result:item.assessmentState,incidentKey:item.incidentKey,
-        evidenceDigest:item.payloadDigest,findings:item.findingDrafts.map(decodeFinding).filter(Boolean)}))});
+        evidenceDigest:item.payloadDigest,seriesPresentationHeadDigest:item.seriesPresentationHeadDigest||null,findings:item.findingDrafts.map(decodeFinding).filter(Boolean)}))});
     const setDigest=canonicalDigest(committedSet.assessments.map((item)=>item.evidenceDigest).sort()),base={schemaRef:'helix://contracts/types/AssessmentRevision/v1',schemaVersion:1,
       factId:stable('arca-assessment-revision-',{shelfEntryId:c.shelfEntryId,careBasisDigest:c.basis.digest}),ownerDomain:'arca',aggregateType:'shelf_entry',aggregateId:c.shelfEntryId,
       revision:1,factSchemaRef:'helix://arca/facts/AftercareAssessmentRevision/v1',commitMarker:stable('arca-assessment-marker-',{shelfEntryId:c.shelfEntryId,careBasisDigest:c.basis.digest}),

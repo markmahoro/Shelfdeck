@@ -160,7 +160,17 @@ function createCommandCommitCoordinator(options) {
                 caller_scope: command.callerScope,
                 idempotency_key: command.idempotencyKey
               });
-              if (!existing) return;
+              if (!existing) {
+                // Fence public projections without admitting another Owner repository.
+                // Receipt replay remains independent of later projection changes.
+                if (request.readFence !== undefined && request.readFence !== null) {
+                  if (typeof options.unitOfWork.assertReadFence !== 'function') fail(
+                    'P3_UOW_READ_FENCE_UNAVAILABLE', 'Command read fences require a validating Unit of Work.'
+                  );
+                  options.unitOfWork.assertReadFence(request.readFence);
+                }
+                return;
+              }
               if (existing.request_digest !== command.requestDigest) fail(
                 'P3_COMMAND_IDEMPOTENCY_CONFLICT', 'Idempotency key already exists with a different request digest.'
               );

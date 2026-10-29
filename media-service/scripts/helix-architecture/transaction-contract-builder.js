@@ -3,6 +3,14 @@
 const crypto = require('crypto');
 
 const crashFixtures = Object.freeze({
+  'arca-offer-withdrawal':['Exact public Delivery fence and absence of Arca Accepted responsibility; immutable withdrawal, recovery projection, receipt, marker and audit before COMMIT',
+    'Withdrawal and technical closure are atomic; stale public views and Accepted responsibility leave no closure; original assessments, Control and files remain unchanged',8865],
+  'libra-custom-target':['Exact Run, base/current Spec, target head and read fence validation; Preview/Intent, receipt, marker and audit before COMMIT',
+    'Target changes and technical receipts are atomic; stale views and concurrent confirmations leave no partial target, Spec or Run',8852],
+  'libra-custom-spec':['Exact confirmed Intent and original standard validation; custom Spec insert, decision head CAS, receipt, marker and audit before COMMIT',
+    'One immutable custom Spec, head and technical receipt are all present or absent; replay preserves revision; no foreign Owner repositories or Run admission',8853],
+  'series-presentation-commit':['exact active build, expected shared version, source and final verification, each Control CAS, version/head/Result/marker, before and after COMMIT',
+    'Shared version, head, Control and Ready result are all present or all absent; old Season Own and historical Commit links remain unchanged; exact Event replay cannot publish a second version',8866],
   'actor-prepublication-failure':['Owner terminal CAS before and after exact Foundation failure proof, before COMMIT and response','Only a completely failed no-write publication may close unresolved; uncertain Effects and changed Inventory reject with zero Case writes; failed execution and unrelated Findings remain unchanged',8821],
   'us-adult-match-completion':['exact Run/Basis and full durable Match Result validation, completion row, before and after COMMIT','Completion is immutable and all-or-none; absent or failed pages never become an unmatched decision; no cross-Owner or execution writes',8821],
   'us-adult-actor-choice':['Run/Subject/choice revision validation, immutable Intent and head CAS, Command Receipt/marker/audit, before and after COMMIT','The explicit actor choice and durable receipt are all-or-none; replay precedes later Run/People changes; no People or Arca mutation',8821],
@@ -30,6 +38,8 @@ const crashFixtures = Object.freeze({
   'perception-resolution': ['Query Handle验证、候选检索前后、Record/Relation snapshot后、pure Resolver前后、Resolution/head/duplicate relation participant后、typed Result/marker前后', 'Handle携带可读取typed query；Assembler只读Perception Store并按Rule取得完整候选超集，不决定winner；Executor不旁读Store；被retracted/superseded或缺少请求kind的Record不能获胜；最高strength同值稳定found、同tier冲突稳定not_found；fuzzy match不生成duplicate；任一query/record-set/rule digest变化形成新revision；同三重digest重放返回同一typed Resolution', 8643],
   'people-candidate': ['typed Evidence恢复、Resolver产出complete Draft、Candidate head/open revision/typed Result/marker各边界；用户或strong rule接受前后；Registration Person/alias/provider identity与Merge target/source/preference/correlation提交各边界', 'CommitParticipant不旁读Foundation/Provider；Candidate payload digest可重算；重启不丢open Candidate；candidate revision或任一Person/Preference revision变化时整体CAS失败；接受成功时Candidate terminal与全部Person facts同时成立，同marker重放返回同一typed Result；弱Identity未经用户确认不建立Person，Preference冲突不得strong-rule自动接受', 8584],
   'us-adult-analysis-basis':['active Run/identity/Workspace fences, immutable Basis and each page insert, before and after COMMIT','Basis and all complete pages are all-or-none; replay returns the same snapshot; no cross-Owner writes, Event, Effect or Outbox',8809],
+  'us-adult-catalogue-store':['active Run/state/execution basis, identity and Workspace fences; Basis insert; before and after COMMIT; concurrent freeze and delayed execution reads',
+    'Exactly one complete immutable catalogue Basis; injected failure rolls back; immutable replay is separate from live execution authority; no People or execution writes',12698],
   'people-profile-update': ['revision fence, immutable revision/alias/identity writes, command receipt/marker/audit, before and after COMMIT', 'Profile revision and durable command result are all-or-none; replay returns the original result after later edits; no Media-Cast or Arca writes', 8809],
   'perception-acquisition-resume': ['active Source/config/Acquisition fence, Intent and command receipt/marker/audit, before and after COMMIT', 'Resume Intent is all-or-none with its command result; original Scope/cursor/Work unchanged; retry precedes terminal/current configuration checks', 8805],
   'direct-person-registration': ['Direct Person Registration提交前、Person/Identity/初始Projection checkpoint写入后、command receipt/Outbox前后、响应前崩溃', 'Person首revision、Alias/Provider Identity、初始Reference Projection checkpoint、durable result、command receipt和Outbox必须全有或全无；US Adult初始Reference与Person同事务成立；重放返回同一结果且不经过Candidate', 11228],
@@ -66,6 +76,36 @@ const crashFixtures = Object.freeze({
 });
 
 const definitions = Object.freeze({
+  'Series Root Relocation Commit':{
+    readParticipants:[{participantKind:'material-control-authority',owner:'material-control-authority',access:'read',tables:['fx_material_controls']}],
+    commitClass:'domain_fact_commit',
+    writeTables:['arca_series_root_relocations','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_shelf_entries','arca_inventory_representations','arca_inventory_materials','arca_inventory_related_references','arca_inventory_product_facts','arca_inventory_person_relations','fx_event_result_bindings','fx_commit_markers'],
+    readTables:['arca_series_root_relocations','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_references','arca_series_presentation_reservations','arca_shelves','arca_shelf_entries','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_inventory_related_references','arca_inventory_product_facts','arca_inventory_person_relations','arca_shelf_standard_revisions','arca_placement_policy_revisions','arca_ondeck_commit_receipts','arca_aftercare_cases','arca_offdeck_reservations','arca_jav_identity_corrections','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings','fx_commit_markers','fx_material_controls','fx_material_control_revisions'],
+    fixtureRefs:['series-presentation-commit'],hasOutbox:false,
+  },
+
+  'Series Presentation Source Reassessment':{
+    commitClass:'domain_unit_of_work',commitMarkerRequired:false,writeTables:['arca_series_presentation_scopes','arca_series_presentation_builds','fx_workspace_registry','fx_command_receipts'],
+    readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_series_presentation_commit_links','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_workspace_registry','fx_workspace_materials','fx_artifact_registry','fx_command_receipts'],fixtureRefs:['series-presentation-commit'],hasOutbox:false,
+  },
+  'Series Presentation Commit':{
+    commitClass:'responsibility_control_commit',
+    writeTables:['arca_series_presentation_scopes','arca_series_presentation_versions','arca_series_presentation_references','fx_material_controls','fx_material_control_revisions','fx_event_result_bindings','fx_commit_markers'],
+    readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations',
+      'arca_series_presentation_references','arca_series_presentation_commit_links','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings'],
+    fixtureRefs:['series-presentation-commit'],hasOutbox:false,
+    variants:[{variantId:'retained_root_retirement@1',exactOverride:true,selector:{selectorKind:'owner_command_exact',commandContract:'arca.series-presentation.retained-retirement@1'},
+      writeTables:['arca_series_presentation_scopes','fx_command_receipts','fx_material_controls','fx_material_control_revisions'],
+      readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_series_presentation_commit_links','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_command_receipts'],
+      materialControlCasRequired:true,commitMarkerRequired:false,hasOutbox:false,dynamicTableRequirements:[],
+      rollbackInvariant:'No active collection reference, pending acceptance or current Season may remain; terminal Work and reconciled Effects, retained-root head, exact Control release and immutable retirement receipt commit atomically. No file deletion or fabricated Ready.',fixtureRefs:['series-presentation-commit']}],
+  },
+  'Series Presentation Workspace Reclaim':{
+    commitClass:'workspace_write',writeTables:['fx_workspace_registry','fx_workspace_materials','fx_artifact_registry','fx_event_result_bindings','fx_commit_markers'],
+    readTables:['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_scopes','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_series_presentation_commit_links',
+      'platform_workspace_roots','fx_supporting_works','fx_workflow_events','fx_event_attempts','fx_effect_journal','fx_event_result_bindings','fx_command_receipts'],
+    fixtureRefs:['series-presentation-commit'],hasOutbox:false,
+  },
   'Domain Fact Commit': {
     commitClass: 'domain_fact_commit',
     writeTables: ['fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
@@ -210,6 +250,7 @@ const definitions = Object.freeze({
     fixtureRefs: ['people-candidate'], hasOutbox: true
   },
   'US Adult Analysis Basis Freeze':{commitClass:'domain_unit_of_work',writeTables:['libra_us_adult_analysis_bases','libra_us_adult_reference_pages'],readTables:['libra_runs','libra_product_fact_revisions','libra_workspaces'],fixtureRefs:['us-adult-analysis-basis'],hasOutbox:false,commitMarkerRequired:false},
+  'US Adult Catalogue Basis Freeze':{commitClass:'domain_unit_of_work',writeTables:['libra_us_adult_catalogue_bases'],readTables:['libra_runs','libra_product_fact_revisions','libra_workspaces'],fixtureRefs:['us-adult-catalogue-store'],hasOutbox:false,commitMarkerRequired:false},
   'US Adult Actor Choice Intent':{commitClass:'domain_unit_of_work',writeTables:['libra_us_adult_actor_choice_intents','libra_us_adult_actor_choice_heads','fx_command_receipts','fx_commit_markers','fx_audit_records'],readTables:['libra_runs','libra_subjects'],fixtureRefs:['us-adult-actor-choice'],hasOutbox:false},
   'US Adult Match Completion Freeze':{commitClass:'domain_unit_of_work',writeTables:['libra_us_adult_match_completions'],readTables:['libra_runs','libra_us_adult_analysis_bases'],fixtureRefs:['us-adult-match-completion'],hasOutbox:false,commitMarkerRequired:false},
   'People Profile Update': {commitClass:'domain_unit_of_work',writeTables:['people_persons','people_person_revisions','people_aliases','people_provider_identities','fx_command_receipts','fx_commit_markers','fx_audit_records'],readTables:['people_persons','people_person_revisions'],fixtureRefs:['people-profile-update'],hasOutbox:false},
@@ -305,6 +346,30 @@ const definitions = Object.freeze({
       'libra_decision_basis_revisions', 'libra_decision_basis_inputs'],
     fixtureRefs: ['libra-acceptance-spec'], hasOutbox: false,
     forbiddenWritePrefixes: ['proc_', 'arca_']
+  },
+  'Arca Superseded Offer Closure': {
+    commitClass:'domain_fact_commit',writeTables:['arca_offer_withdrawal_receipts','arca_acceptance_recovery_cases',
+      'fx_command_receipts','fx_commit_markers','fx_audit_records'],
+    readTables:['arca_acceptance_attempts','arca_acceptance_decisions','arca_ondeck_custodies'],
+    fixtureRefs:['arca-offer-withdrawal'],hasOutbox:false,forbiddenWritePrefixes:['proc_','libra_','perception_','people_']
+  },
+  'Libra Custom Target Commit': {
+    commitClass:'domain_fact_commit',writeTables:['libra_custom_target_previews','fx_command_receipts','fx_commit_markers','fx_audit_records'],
+    readTables:['libra_subjects','libra_runs','libra_acceptance_specs','libra_subject_decision_heads',
+      'libra_run_material_manifests','libra_product_fact_revisions','libra_custom_target_previews','libra_custom_target_intents','libra_custom_target_heads'],
+    variants:[{variantId:'preview'},
+      {variantId:'confirmation',exactOverride:true,writeTables:['libra_custom_target_intents','libra_custom_target_heads','fx_command_receipts','fx_commit_markers','fx_audit_records'],
+        selector:{selectorKind:'owner_command_exact',commandContract:'libra.custom-target.confirm@1'},dynamicTableRequirements:[],hasOutbox:false,
+        fixtureRefs:['libra-custom-target'],rollbackInvariant:'Intent, scoped head, receipt, marker and audit are all present or absent; stale views and competing confirmations leave zero writes.',
+        readTables:['libra_subjects','libra_runs','libra_acceptance_specs','libra_subject_decision_heads','libra_run_material_manifests',
+          'libra_product_fact_revisions','libra_custom_target_previews','libra_custom_target_intents','libra_custom_target_heads']}],
+    fixtureRefs:['libra-custom-target'],hasOutbox:false,forbiddenWritePrefixes:['proc_','arca_','perception_','people_']
+  },
+  'Libra Custom Acceptance Spec Publish': {
+    commitClass:'domain_fact_commit',writeTables:['libra_acceptance_specs','libra_subject_decision_heads','fx_command_receipts','fx_commit_markers','fx_audit_records'],
+    readTables:['libra_custom_target_previews','libra_custom_target_intents','libra_custom_target_heads','libra_subjects','libra_runs',
+      'libra_run_material_manifests','libra_product_fact_revisions'],fixtureRefs:['libra-custom-spec'],hasOutbox:false,
+    forbiddenWritePrefixes:['proc_','arca_','perception_','people_']
   },
   'Libra Product Identity Selection Intent Commit': {
     commitClass: 'domain_fact_commit',
@@ -402,12 +467,12 @@ const definitions = Object.freeze({
   },
   'Handoff B Accepted': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['arca_acceptance_attempts', 'arca_acceptance_decisions',
+    writeTables: ['arca_series_presentation_scopes','arca_series_presentation_reservations','arca_acceptance_attempts', 'arca_acceptance_decisions',
       'arca_final_inventory_decisions', 'arca_ondeck_runs',
       'arca_ondeck_custodies', 'arca_material_bindings',
       'arca_handoff_b_receipts', 'fx_material_controls',
       'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['arca_acceptance_attempts', 'arca_acceptance_checks',
+    readTables: ['arca_offer_withdrawal_receipts','arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_commit_links','arca_series_presentation_scopes','arca_series_presentation_reservations','arca_acceptance_attempts', 'arca_acceptance_checks',
       'arca_shelves', 'arca_shelf_standard_revisions',
       'arca_placement_policy_revisions'],
     fixtureRefs: ['handoff-b-accepted'], hasOutbox: true,
@@ -417,7 +482,7 @@ const definitions = Object.freeze({
     commitClass: 'domain_fact_commit',
     writeTables: ['arca_acceptance_attempts', 'arca_acceptance_decisions', 'arca_handoff_b_receipts',
       'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['arca_acceptance_attempts', 'arca_acceptance_decisions', 'arca_handoff_b_receipts',
+    readTables: ['arca_offer_withdrawal_receipts','arca_acceptance_attempts', 'arca_acceptance_decisions', 'arca_handoff_b_receipts',
       'fx_event_result_bindings', 'fx_commit_markers', 'fx_outbox', 'arca_acceptance_checks'],
     fixtureRefs: ['handoff-b-rejected'], hasOutbox: true,
     forbiddenWritePrefixes: ['libra_']
@@ -435,7 +500,7 @@ const definitions = Object.freeze({
       'libra_product_package_material_episode_claims', 'libra_product_package_fact_refs',
       'libra_product_package_artifact_refs', 'libra_offload_context_materials', 'fx_material_controls',
       'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox', 'fx_outbox_deliveries'],
-    readTables: ['libra_run_revisions', 'libra_run_material_manifests', 'libra_run_material_members',
+    readTables: ['libra_custom_target_heads','libra_run_revisions', 'libra_run_material_manifests', 'libra_run_material_members',
       'libra_run_material_episode_claims', 'libra_workspaces', 'libra_workspace_revisions',
       'libra_workspace_material_refs', 'libra_material_bindings', 'libra_material_binding_episode_claims',
       'libra_product_fact_revisions', 'libra_acceptance_specs', 'fx_workspace_registry',
@@ -489,8 +554,8 @@ const definitions = Object.freeze({
   },
   'On-deck Commit': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['arca_source_cleanup_checks', 'arca_shelf_entries', 'arca_canonical_identity_revisions', 'arca_inventory_representations', 'arca_inventory_materials', 'arca_inventory_related_references', 'arca_inventory_product_facts', 'arca_inventory_person_relations', 'arca_deck_fact_revisions', 'arca_ondeck_commit_receipts', 'arca_offload_completions', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
-    readTables: ['arca_final_inventory_decisions', 'arca_ondeck_runs'], fixtureRefs: ['ondeck-fixed-transaction'], hasOutbox: true
+    writeTables: ['arca_series_presentation_reservations','arca_series_presentation_references','arca_series_presentation_commit_links','arca_source_cleanup_checks', 'arca_shelf_entries', 'arca_canonical_identity_revisions', 'arca_inventory_representations', 'arca_inventory_materials', 'arca_inventory_related_references', 'arca_inventory_product_facts', 'arca_inventory_person_relations', 'arca_deck_fact_revisions', 'arca_ondeck_commit_receipts', 'arca_offload_completions', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox'],
+    readTables: ['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_commit_links','arca_series_presentation_scopes','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_final_inventory_decisions', 'arca_ondeck_runs'], fixtureRefs: ['ondeck-fixed-transaction'], hasOutbox: true
   },
   'Aftercare Actor Publication Failure Closure': {
     commitClass:'domain_unit_of_work',writeTables:['arca_aftercare_cases','arca_aftercare_settlement_approvals'],
@@ -639,17 +704,17 @@ const definitions = Object.freeze({
   },
   'Off-deck per-Entry Authorization/Case': {
     commitClass: 'domain_unit_of_work',
-    writeTables: ['arca_offdeck_authorizations', 'arca_offdeck_cases', 'arca_offdeck_reviews', 'arca_offdeck_reservations', 'arca_offdeck_scopes', 'arca_shelf_entries', 'fx_commit_markers'],
+    writeTables: ['arca_series_presentation_scopes','arca_series_presentation_references','arca_offdeck_authorizations', 'arca_offdeck_cases', 'arca_offdeck_reviews', 'arca_offdeck_reservations', 'arca_offdeck_scopes', 'arca_shelf_entries', 'fx_commit_markers'],
     readTables:['arca_jav_identity_corrections','arca_offdeck_authorization_batches', 'arca_offdeck_selection_receipts'], fixtureRefs: ['offdeck-review-authorization'], hasOutbox: false
   },
   'Off-deck terminal': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['arca_deck_fact_revisions', 'arca_shelf_entries', 'arca_offdeck_scopes', 'arca_offdeck_cases', 'arca_offdeck_terminal_receipts', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers'],
-    readTables: ['arca_offdeck_deletion_evidence', 'arca_offdeck_authorizations'], fixtureRefs: ['offdeck-destruction'], hasOutbox: false
+    writeTables: ['arca_series_presentation_scopes','arca_series_presentation_references','arca_deck_fact_revisions', 'arca_shelf_entries', 'arca_offdeck_scopes', 'arca_offdeck_cases', 'arca_offdeck_terminal_receipts', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers'],
+    readTables: ['arca_shelf_entries','arca_shelves','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_series_presentation_builds','arca_series_presentation_versions','arca_series_presentation_commit_links','arca_series_presentation_scopes','arca_series_presentation_versions','arca_series_presentation_reservations','arca_series_presentation_references','arca_offdeck_deletion_evidence', 'arca_offdeck_authorizations'], fixtureRefs: ['offdeck-destruction'], hasOutbox: false
   },
   'Shelf Deregistration Commit': {
     commitClass: 'responsibility_control_commit',
-    writeTables: ['arca_deregistrations', 'arca_deregistration_releases', 'arca_deregistration_receipts', 'arca_shelves', 'arca_shelf_entries', 'arca_inventory_materials', 'arca_deck_fact_revisions', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox', 'fx_outbox_deliveries'],
+    writeTables: ['arca_series_presentation_scopes','arca_series_presentation_references','arca_deregistrations', 'arca_deregistration_releases', 'arca_deregistration_receipts', 'arca_shelves', 'arca_shelf_entries', 'arca_inventory_materials', 'arca_deck_fact_revisions', 'fx_material_controls', 'fx_material_control_revisions', 'fx_commit_markers', 'fx_outbox', 'fx_outbox_deliveries'],
     readTables:['arca_jav_identity_corrections','arca_inventory_materials'], fixtureRefs: ['shelf-deregistration'], hasOutbox: true,
     forbiddenWriteTables: ['arca_offdeck_deletion_evidence'],
     forbiddenCapabilities: ['arca.offdeck.primary_material.delete@1', 'arca.offdeck.unreferenced_related.delete@1']
@@ -705,6 +770,7 @@ function buildVariants(owner, baseWriteTables, baseReadTables, variants = []) {
       : [...new Set([...baseWriteTables, ...(variant.additionalWriteTables || [])])];
     const readTables = variant.exactOverride ? [...variant.readTables]
       : [...new Set([...baseReadTables, ...(variant.additionalReadTables || [])])];
+    if(readTables.includes('arca_shelf_entries')&&!readTables.includes('arca_series_root_relocations'))readTables.push('arca_series_root_relocations');
     const built = {
       variantId: variant.variantId,
       participants: [...participantsFor(owner, writeTables),...(variant.readParticipants||[])],
@@ -761,7 +827,7 @@ function buildTransactionContracts(entries) {
       atomicFactSet: entry.atomicFactSet,
       participants,
       writeTables,
-      readTables: definition.readTables,
+      readTables: definition.readTables.includes('arca_shelf_entries')?[...new Set([...definition.readTables,'arca_series_root_relocations'])]:definition.readTables,
       variants: buildVariants(entry.owner, writeTables, definition.readTables, definition.variants),
       dynamicTableRequirements: definition.dynamicTableRequirements || [],
       forbiddenWriteTables: definition.forbiddenWriteTables || [],

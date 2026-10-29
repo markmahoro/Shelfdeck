@@ -4,6 +4,8 @@ const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const { DEFAULT_PREDECK_PIPELINE_SEATS, fieldIdFromOfferSource } = require('./libra-pipeline-admission');
 const { intakeControlEvidenceRef } = require('../model/intake-control-contracts');
+const { createIntakeRetirementStore } = require('../persistence/intake-retirement-store');
+const { createLibraIntakeStore } = require('../persistence/libra-intake-store');
 
 const LIMITS = Object.freeze({ globalOpenWorks: 256, ownerOpenWorks: 256, openEvents: 256, reservedOpenWorks: 16 });
 const SEAT_WAIT = Object.freeze({ kind: 'seat_wait', reasonCode: 'PREDECK_PIPELINE_FULL' });
@@ -23,6 +25,8 @@ function definition(kind, processId, basis, dependencyRefs = []) {
 }
 
 function createIntakeProcessCoordinator(options) {
+  const retirement=options.intakeRetirement || createIntakeRetirementStore(options);
+  const intakeStore=options.intakeStore || createLibraIntakeStore(options);
   const recovery=require('./preparation-work-recovery').createPreparationWorkRecovery(options);
   const deferredProcesses = new Set();
   let durableCursor = null;
@@ -100,6 +104,16 @@ function createIntakeProcessCoordinator(options) {
   }
   return Object.freeze({
     admitOffer(offer) {
+      const retired=retirement.retiredAdmission(offer);
+      if(retired)return retired;
+      const knownProcessId=options.offerReader.decisionId(offer.offerId),receipt=intakeStore.getReceipt(knownProcessId);
+      if(receipt){
+        if(receipt.offer_id!==offer.offerId||receipt.candidate_package_id!==offer.candidatePackageId||
+            Number(receipt.package_revision)!==offer.packageRevision||receipt.package_digest!==offer.packageDigest)
+          throw Object.assign(new Error('Terminal Intake Offer does not match its Receipt.'),{code:'LIBRA_INTAKE_OFFER_MISMATCH'});
+        if(receipt.outcome==='rejected')pipelineAdmission.releaseForProcess(knownProcessId);
+        return {kind:'terminal',processId:knownProcessId,terminalReceipt:receipt};
+      }
       const source = options.offerReader.remember?.(offer);
       const processId = source?.processId || options.offerReader.decisionId(offer.offerId);
       const work = recovery.current(evidence(processId));
@@ -132,6 +146,12 @@ function createIntakeProcessCoordinator(options) {
       return Object.freeze({ processId, work, result });
     },
     reconcile(processId) {
+      if(retirement.readReceipt(processId)){deferredProcesses.delete(processId);return {kind:'administratively_retired',processId};}
+      const receipt=intakeStore.getReceipt(processId);
+      if(receipt){
+        if(receipt.outcome==='rejected')pipelineAdmission.releaseForProcess(processId);
+        deferredProcesses.delete(processId);return {kind:'terminal',processId,outcome:receipt.outcome};
+      }
       const source = readSource(processId);
       if (!source) return Object.freeze({ kind: 'not_found', processId });
       if (!mayStartNewIntake(processId)) {

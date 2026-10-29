@@ -41,37 +41,6 @@
         "readCleanupScope": "helix://contracts/application-types/WorkspaceCleanupScopeReadResult/v1",
         "discardFrozenRun": "helix://contracts/application-types/LibraRunDiscardCommandResult/v1"
       }
-    },
-    {
-      "exportName": "UsAdultRecommendationQueryFacade",
-      "packageId": "domains.libra.public",
-      "kind": "owner-read-projection-port",
-      "methods": [
-        "listSources",
-        "readSource"
-      ],
-      "inputSchemaRefs": {
-        "listSources": "helix://contracts/domain-types/UsAdultRecommendationPageQuery/v1",
-        "readSource": "helix://contracts/domain-types/UsAdultRecommendationSource/v1"
-      },
-      "outputSchemaRefs": {
-        "listSources": "helix://contracts/domain-types/UsAdultRecommendationSourcePage/v1",
-        "readSource": "helix://contracts/domain-types/UsAdultRecommendationSource/v1"
-      }
-    },
-    {
-      "exportName": "UsAdultRecommendationCommandFacade",
-      "packageId": "domains.libra.public",
-      "kind": "owner-command-port",
-      "methods": [
-        "confirmSource"
-      ],
-      "inputSchemaRefs": {
-        "confirmSource": "helix://contracts/domain-types/UsAdultRecommendationConfirmation/v1"
-      },
-      "outputSchemaRefs": {
-        "confirmSource": "helix://contracts/domain-types/UsAdultActorChoiceReceipt/v1"
-      }
     }
   ]
 }

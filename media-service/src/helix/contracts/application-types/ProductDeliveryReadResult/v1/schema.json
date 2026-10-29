@@ -38,7 +38,8 @@
                     "spec_not_current",
                     "package_not_current",
                     "delivery_already_terminal",
-                    "control_not_libra"
+                    "control_not_libra",
+                    "target_not_current"
                   ]
                 },
                 "libraRunId": {
@@ -54,7 +55,8 @@
                     "superseded",
                     "frozen",
                     "completed",
-                    "discarded"
+                    "discarded",
+                    "administratively_retired"
                   ]
                 },
                 "runStateRevision": {

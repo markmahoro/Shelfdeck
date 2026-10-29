@@ -199,7 +199,7 @@ function identityObservationFailed(error) {
   if(/^JAV_SOURCE_(?:UNAVAILABLE|TIMEOUT|ACCESS_DENIED|RESPONSE_INVALID|RESPONSE_TOO_LARGE|REDIRECT_DENIED|URL_DENIED|CHARSET_INVALID)$/.test(cause)) {
     return Object.freeze({kind:'failed',failureClass:cause==='JAV_SOURCE_TIMEOUT'?'timeout':'integration',code:cause,
       message:'JAV source observation failed.',retryDirective:['JAV_SOURCE_TIMEOUT','JAV_SOURCE_UNAVAILABLE'].includes(cause)?'contract_policy':'never',
-      evidence:Object.freeze({errorCode:cause})});
+      evidence:Object.freeze({errorCode:cause,diagnostics:failureDiagnostics(error)})});
   }
   if (cause === 'PLATFORM_INTEGRATION_TIMEOUT') {
     return Object.freeze({
@@ -287,6 +287,8 @@ async function observeProductIdentity(options, intent, handle) {
   if(intent.contentProfile==='jav') {
     const {javIdentityObservation}=require('../model/jav-product-identity');
     const source=intent.sourceSnapshot.sources[intent.sourceOrdinal];
+    handle=require('../../../contracts/jav-source-qualification').resolveJavQualifiedHandle(handle,source,
+      IDENTITY_EVIDENCE_REF,options.resolveJavSourceHandle);
     const observed=await options.observeJavSource({siteRef:source.siteRef,integrationHandle:handle,
       operationId:IDENTITY_EVIDENCE_REF,input:{queryAnchor:intent.sourceSnapshot.queryAnchor,...(intent.resourceKey?{resourceKey:intent.resourceKey}:{})}});
     return javIdentityObservation(intent,observed);

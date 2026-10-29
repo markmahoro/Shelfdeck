@@ -186,7 +186,7 @@ function createOnDeckContextReader(options) {
   const acceptance = createHandoffBAcceptanceStore(options);
   const onDeck = createOnDeckStore(options);
 
-  function readOffer(dependencyRefs, { allowDeregistering = false } = {}) {
+  function readOfferDelivery(dependencyRefs) {
     const offer = messageFromRefs(dependencyRefs);
     const delivery = options.productDeliveryPort.readPackage({
       queryContract: 'libra.product-delivery@1',
@@ -202,13 +202,17 @@ function createOnDeckContextReader(options) {
       throw error;
     }
     const packageValue = delivery.onDeckProductPackage;
+    return Object.freeze({ offer, packageValue, deliveryFence:delivery.deliveryFence });
+  }
+  function readOffer(dependencyRefs, { allowDeregistering = false } = {}) {
+    const {offer,packageValue,deliveryFence}=readOfferDelivery(dependencyRefs);
     const shelf = shelves.getShelf(offer.shelfId);
     if (!shelf || (shelf.status !== 'active' && !(allowDeregistering && shelf.status === 'deregistering'))) {
       const error = new Error('Handoff B target Shelf is unavailable.');
       error.code = 'ARCA_TARGET_SHELF_UNAVAILABLE';
       throw error;
     }
-    return Object.freeze({ offer, packageValue, shelf, deliveryFence: delivery.deliveryFence });
+    return Object.freeze({ offer, packageValue, shelf, deliveryFence });
   }
 
   function readAccepted(onDeckRunId, dependencyRefs) {
@@ -262,7 +266,7 @@ function createOnDeckContextReader(options) {
     return boundedSettlementContext(context, responsibility, verified, materialKey);
   }
 
-  return Object.freeze({ messageFromRefs, readOffer, readAccepted,
+  return Object.freeze({ messageFromRefs, readOfferDelivery, readOffer, readAccepted,
     readSettlement:createSettlementPreparationReader(readSettlement),
     acceptance, onDeck, settlementAuthorizations, settlementApprovals });
 }

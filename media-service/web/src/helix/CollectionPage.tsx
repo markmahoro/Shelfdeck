@@ -1,10 +1,12 @@
 import { useModalFocus } from './useModalFocus';
+import SeriesPresentationRetryDialog from './SeriesPresentationRetryDialog';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link,useSearchParams } from 'react-router-dom';
 import { helixAdminApi, type CareDetail, type CollectionEntry, type HealthState } from './api';
 import { newOpaqueId } from './id';
 import { Button, LoadingState, PageHeader, ReadProgress } from './chrome';
 import { healthLabels } from './labels';
+import { processFailureLabel } from './error-labels';
 import RatingControl from './RatingControl';
 import WatchedControl from './WatchedControl';
 import CollectionDefects from './CollectionDefects';
@@ -76,6 +78,7 @@ export default function CollectionPage() {
   const [loading, setLoading] = useState(true);
   const [hasResult, setHasResult] = useState(false);
   const [error, setError] = useState('');
+  const [seriesRetry,setSeriesRetry]=useState<{entry:CollectionEntry;canSupplyImages:boolean}|null>(null);
   const [selected, setSelected] = useState<CollectionEntry | null>(null);
   const [correctionItem, setCorrectionItem] = useState<CollectionEntry | null>(null);
   const [actorItem,setActorItem]=useState<CollectionEntry|null>(null);
@@ -93,8 +96,9 @@ export default function CollectionPage() {
   const pageCursors = useRef<Array<string | undefined>>([undefined]);
   const currentPage = useRef(0);
   const loadVersion = useRef(0);
+  const healthHeading = useRef<HTMLHeadingElement>(null);
   const dialog = useModalFocus<HTMLElement>(Boolean(selected), () => setSelected(null), checking || exiting);
-  const load = useCallback(async (cursor?: string, targetPage = currentPage.current) => {
+  const load = useCallback(async (cursor?: string, targetPage = currentPage.current, requireResult = false) => {
     const requestCursor = targetPage === 0 ? undefined : cursor ?? pageCursors.current[targetPage];
     const version = ++loadVersion.current;
     setLoading(true); setError('');
@@ -108,7 +112,7 @@ export default function CollectionPage() {
         cursor: requestCursor,
         limit: 48,
       });
-      if (version !== loadVersion.current) return;
+      if (version !== loadVersion.current) { if (requireResult) throw new Error('当前页面状态已变化，请刷新后重试。'); return; }
       setItems(result.items);
       setHasResult(true);
       currentPage.current = targetPage;
@@ -122,8 +126,9 @@ export default function CollectionPage() {
       setNextCursor(result.nextCursor || null);
     }
     catch (cause) {
-      if (version !== loadVersion.current) return;
+      if (version !== loadVersion.current) { if (requireResult) throw cause; return; }
       if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '收藏读取失败。');
+      if (requireResult) throw cause;
     }
     finally { if (version === loadVersion.current) setLoading(false); }
   }, [expire, shelfId, healthFilter, search, sort]);
@@ -156,13 +161,17 @@ export default function CollectionPage() {
     if (!selected) return;
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    let previousProjection: string | undefined;
     const refresh = async () => {
       let nextDelayMs = 15_000;
       try {
         const next = await helixAdminApi.getCare(selected.shelfEntryId);
         if (!cancelled) {
           setCare(next);
-          nextDelayMs = next.activeCaseProgress ? 2_000 : 15_000;
+          const projection = JSON.stringify([next.health.state, next.basis.inventoryRevision, next.seriesRelocation?.state]);
+          if (previousProjection !== undefined && previousProjection !== projection) void load();
+          previousProjection = projection;
+          nextDelayMs = next.activeCaseProgress || next.seriesRelocation?.state==='in_progress' ? 2_000 : 15_000;
         }
       } catch (cause) {
         if (cancelled) return;
@@ -174,10 +183,11 @@ export default function CollectionPage() {
     };
     void refresh();
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [expire, selected]);
+  }, [expire, selected, load]);
   const selectedShelf = shelves.find((item) => item.shelfId === shelfId);
   async function checkHealth() {
     if (!selected) return;
+    if (dialog.current?.contains(document.activeElement)) healthHeading.current?.focus();
     setChecking(true); setError('');
     try { await helixAdminApi.checkCare(selected.shelfEntryId); setCare(await helixAdminApi.getCare(selected.shelfEntryId)); await load(); }
     catch (cause) { if (isUnauthorized(cause)) expire(); else setError(cause instanceof Error ? cause.message : '健康检查未能开始。'); }
@@ -251,20 +261,22 @@ export default function CollectionPage() {
           <div className="collection-rating"><span>我的评分</span><RatingControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
           <div className="collection-rating"><span>观看状态</span><WatchedControl targetType="shelf_entry" targetId={selected.shelfEntryId} label={selected.displayIdentity} /></div>
           <section className="collection-health" aria-labelledby="collection-health-heading">
-            <div className="collection-health-heading"><div><h3 id="collection-health-heading">收藏健康</h3></div>
-              <Button type="button" onClick={() => void checkHealth()} disabled={checking}>{checking ? '已开始检查…' : '立即检查健康'}</Button>
+            <div className="collection-health-heading"><div><h3 id="collection-health-heading" ref={healthHeading} tabIndex={-1}>收藏健康</h3></div>
+              {care?.sharedPresentation?.canRetry&&<Button type="button" disabled={checking} onClick={()=>{setSeriesRetry({entry:selected,canSupplyImages:care?.sharedPresentation?.canSupplyImages===true});setSelected(null);}}>重试上架</Button>}
+              {!care?.sharedPresentation?.canRetry&&<Button type="button" onClick={() => void checkHealth()} disabled={checking||care?.sharedPresentation?.state==='in_progress'||care?.seriesRelocation?.state==='in_progress'}>{checking ? '已开始检查…' : '立即检查健康'}</Button>}
             </div>
             {!care ? <p className="health-loading">正在读取健康详情…</p> : (() => {
-              const lamp = foldedHealth(care.health.state);
+              const lamp = care.sharedPresentation?.state==='in_progress'?'repairing':foldedHealth(care.health.state);
               return <>
                 <p className={`health-lamp ${lamp}`}>
                   <span className="health-lamp-copy">
                     <strong>{foldedHealthLabels[lamp]}</strong>
-                    {lamp === 'repairing' && <small>{repairCopy(care.activeCaseProgress)}</small>}
+                    {lamp === 'repairing' && <small>{care.seriesRelocation?`正在移动整剧目录 · ${care.seriesRelocation.seasonCount} 季`:repairCopy(care.activeCaseProgress)}</small>}
                     {care.health.maintenanceState==='active'&&care.health.maintenanceCaseId&&
                       <Link to={`/formation?aftercareCaseId=${encodeURIComponent(care.health.maintenanceCaseId)}`}>查看维护任务</Link>}
                   </span>
                 </p>
+                {care.seriesRelocation?.state==='attention_required'&&<p role="alert">整剧目录移动未完成 · {care.seriesRelocation.seasonCount} 季：{processFailureLabel(care.seriesRelocation.reasonCode||'')}</p>}
                 {lamp === 'repairing' && care.activeCaseProgress?.progressPercent != null &&
                   <progress className="health-repair-progress" max="100" value={care.activeCaseProgress.progressPercent} aria-label={`自动修复进度 ${care.activeCaseProgress.progressPercent}%`} />}
               </>;
@@ -274,12 +286,13 @@ export default function CollectionPage() {
           <div className="collection-exit">
             {selected.provider==='jav'&&selected.identityKind==='jav_code'&&<Button type="button" disabled={checking||exiting} onClick={()=>{setCorrectionItem(selected);setSelected(null);}}>核对影片</Button>}
             {selected.identityKind==='internal_identity'&&<Button type="button" disabled={checking||exiting} onClick={()=>{setActorItem(selected);setSelected(null);}}>刷新演员</Button>}
-            <Button variant="danger" type="button" onClick={() => void exitCollection()} disabled={exiting}>{exiting ? '正在准备退出…' : '退出收藏'}</Button>
+            <Button variant="danger" type="button" onClick={() => void exitCollection()} disabled={exiting||Boolean(care?.seriesRelocation)}>{exiting ? '正在准备退出…' : '退出收藏'}</Button>
           </div>
         </div>
       </section>
     </div>}
     {actorItem&&<UsAdultInventoryActorDialog item={actorItem} onClose={()=>setActorItem(null)} onChanged={actorChanged} onUnauthorized={expire}/>}
     {correctionItem&&<JavCorrectionDialog item={correctionItem} onClose={()=>setCorrectionItem(null)} onChanged={()=>void load()} onUnauthorized={expire}/>}
+    {seriesRetry&&<SeriesPresentationRetryDialog entry={seriesRetry.entry} canSupplyImages={seriesRetry.canSupplyImages} onClose={()=>{setSelected(seriesRetry.entry);setSeriesRetry(null);}} onComplete={async()=>{setCare(await helixAdminApi.getCare(seriesRetry.entry.shelfEntryId));await load(undefined,currentPage.current,true);}}/>}
   </section>;
 }

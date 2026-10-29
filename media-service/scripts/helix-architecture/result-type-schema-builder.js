@@ -226,6 +226,9 @@ const triageUnit = () => {
 };
 
 const special = {
+  'SeriesRootRelocationCommitted.sharedVersion':positiveInteger(),
+  'SeriesRootRelocationFilesVerified.fileCount':{type:'integer',minimum:1,maximum:8192},
+  'SeriesRootRelocationFilesVerified.rootLocation':{type:'string',minLength:1,maxLength:4096},
   'FilesystemIdentityEvidence.identity': ref('PhysicalMaterialIdentity'),
   'BoundedContentFingerprintEvidence.identity': ref('PhysicalMaterialIdentity'),
   'BoundedContentFingerprintEvidence.fingerprintProfileRef': { const: 'middle-256k-sha256@1' },
@@ -339,6 +342,7 @@ const special = {
   'CandidatePackage.seasonContinuityClaims': arrayOf(seasonContinuityClaim(), 64),
   'CandidatePackage.seasonContinuityClaimSetDigest': digest(),
   'CandidatePackage.primaryInputManifestRef': object({ manifestId: id(), manifestDigest: digest(), memberCount: positiveInteger() }),
+  'CandidatePackage.seriesPresentationSourceRefs':require('../../src/helix/contracts/series-local-source').referenceSetSchema(),
   'CandidatePackage.relatedReferences': arrayOf(triageRelatedReference(), 1024),
   'CandidatePublicationReceipt.packageRevision': positiveInteger(),
   'RelatedMaterialReference.identity': ref('PhysicalMaterialIdentity'),
@@ -527,6 +531,7 @@ const special = {
   'ConformanceAssessmentEvidence.assessmentState': text(),
   'CustodyAssessmentEvidence.incidentKey': nullable(text()),
   'PresentationAssessmentEvidence.incidentKey': nullable(text()),
+  'PresentationAssessmentEvidence.seriesPresentationHeadDigest':digest(),
   'ConformanceAssessmentEvidence.incidentKey': nullable(text()),
   'ConformanceAssessmentEvidence.mediaRepairStrategy': nullable(domainRef('AftercareMediaRepairStrategy')),
   'ConformanceAssessmentEvidence.memberScope': object({materialKey:digest(),spaceBasisDigest:digest(),
@@ -627,6 +632,8 @@ function inferredField(resultName, fieldName) {
 }
 
 const contracts = {
+  SeriesRootRelocationFilesVerified:['EvidenceEnvelope','relocationId,scopeId,planDigest,rootLocation,fileCount,realityDigest'],
+  SeriesRootRelocationCommitted:['DomainFactEnvelope','relocationId,scopeId,planDigest,sharedVersion,manifestDigest,inventorySetDigest'],
   PeopleArtifactReferenceEvidence:['EvidenceEnvelope','artifactHandle,policyDigest,bootId,rootFenceDigest,sourceEpochs,round,sourceIndex,cursor,status,firstPassCompletedAtMs,pageCount,chainDigest'],
   PeopleArtifactReclamationReceipt:['ReceiptEnvelope','artifactHandleId,artifactDigest,previousReferenceRevision,referenceRevision,disposition,reasonCode,reclaimedBytes,auditResultDigest,physicalEvidenceDigest,executionReference,receiptDigest'],
   ArcaUsAdultAssetsPrepared:['EvidenceEnvelope','aftercareCaseId,shelfEntryId,intentId,intentDigest,selectionDigest,sourceResultDigest,factsHandle,nfoHandle,posterHandle,planHandle,planDigest'],
@@ -634,6 +641,11 @@ const contracts = {
   ArcaUsAdultPageMatch:['EvidenceEnvelope','shelfEntryId,aftercareCaseId,intentId,intentDigest,pageOrdinal,pageDigest,libraryDigest,sourceResultDigest,analysisDigest,matches'],
   ArcaUsAdultSourcePrepared:['EvidenceEnvelope','shelfEntryId,aftercareCaseId,intentId,intentDigest,sourceHandle,sourceProbeDigest,durationMs,container,frameCount,detectedFaceCount,analysisDigest,faceModelRefDigest,referenceModelRefDigest,frameManifestHandle,featuresHandle'],
   JavCorrectionSourceVerified:['EvidenceEnvelope','correctionId,admissionDigest,scopeDigest,confirmedProposalDigest,actualProposalDigest,qualification'],
+  SeriesPresentationSourceObserved:['EvidenceEnvelope','scopeId,buildId,scopeDigest,recipe,recipeDigest'],
+  SeriesPresentationAssetsPrepared:['EvidenceEnvelope','scopeId,buildId,scopeDigest,recipeDigest,artifacts'],
+  SeriesPresentationFilesPublished:['EvidenceEnvelope','scopeId,buildId,scopeDigest,manifest'],
+  SeriesPresentationWorkspaceReclaimed:['ReceiptEnvelope','buildId,handleSetDigest,reclaimedCount,reclaimedBytes'],
+  SeriesPresentationReady:['DomainFactEnvelope','scopeId,buildId,scopeDigest,sharedVersion,manifestDigest,verificationDigest'],
   JavCorrectionAssetsPrepared:['EvidenceEnvelope','correctionId,admissionDigest,confirmedProposalDigest,actualProposalDigest,sourceObservationDigest,metadataFactDigest,metadataHandle,artifacts'],
   JavCorrectionCommitReceipt:['ReceiptEnvelope','correctionId,shelfEntryId,previousCanonicalIdentityRevision,newCanonicalIdentityRevision,previousInventoryRevision,newInventoryRevision,canonicalIdentityDigest,canonicalIdentityKey,inventoryDigest,verificationDigest,controlChangeDigest,changeDigest,originalCommitDigest'],
   JavCorrectionFormalRetirementReceipt:['ReceiptEnvelope','correctionId,shelfEntryId,committedContextDigest,commitReceiptDigest,retirementPlanDigest,guardDigest,finalMaterialSetDigest,retiredAliasSetDigest,retiredAliasCount,stageDisposition,realityDigest'],
@@ -657,7 +669,7 @@ const contracts = {
   IdentityClaim: ['DraftEnvelope', 'claimKind,mediaType,contentProfile,claimedTitle,displayIdentity,claimedYear?,seasonClaim?,javCode?,identityMetadataDigest,structureUnitDigest,sourceHints,claimDigest'],
   PrimaryInputManifestDraft: ['DraftEnvelope', 'preallocatedManifestId,procurementRunId,runBasisDigest,structureEvidencePayloadDigest,unitId,structureKind,memberCount,members,membersDigest,memberSourceDigest,manifestDraftDigest'],
   PrimaryInputManifest: ['ManifestEnvelope', 'structureKind,members'],
-  CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,materialInputForm,javPartSet?,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,relatedReferences,relatedReferenceSetDigest,relatedDispositionScopeDigest,memberControlEvidenceSetDigest,packageDigest'],
+  CandidatePackage: ['ManifestEnvelope', 'candidatePackageId,packageRevision,procurementRunId,runBasisDigest,triageRule,materialFieldContextRef,mediaType,contentProfile,materialInputForm,javPartSet?,displayIdentity,identityMetadata,identityClaim,structureEvidenceRef,seasonContinuityClaims,seasonContinuityClaimSetDigest,primaryInputManifestRef,seriesPresentationSourceRefs?,relatedReferences,relatedReferenceSetDigest,relatedDispositionScopeDigest,memberControlEvidenceSetDigest,packageDigest'],
   CandidatePublicationReceipt: ['ReceiptEnvelope', 'candidateDraftDigest,candidatePackageId,packageRevision,packageDigest,primaryInputManifestDigest,relatedReferenceSetDigest,relatedDispositionScopeDigest,memberControlEvidenceSetDigest,acceptanceBasisDigest,offerId,receiptDigest'],
   RelatedMaterialReference: [null, 'referenceId,primaryMaterialKey,role,identity,endpointId,location,fingerprintAlgorithm,fingerprintVersion,contentFingerprint,associationKind,dispositionRequired,associationEvidenceDigest,dispositionBasisDigest,referenceDigest'],
   SeasonContinuityClaim: [null, 'claimKind,claimNamespace,claimKey,claimDigest,evidenceDigest'],
@@ -680,6 +692,7 @@ const contracts = {
   ProductIdentityEvidenceObservation: [null, 'observationId,intentId,libraRunId,subjectId,sourceKind,result,reasonCode,candidates,candidateMatchCount,verifiedIdentity,sourceAssociationDigest,evidenceDigest,observationDigest'],
   RoutingFactObservation: [null, 'observationId,intentId,subjectId,sourceKind,sourceRef,result,reasonCode?,facts,candidateMatchCount,evidenceDigest,observationDigest'],
   DecisionBasisRevision: ['DomainFactEnvelope', 'subjectId,queryResultSetDigest,routingInputDigest,specInputDigest'],
+  FaceCatalogueObservationHandle: [null,'analysisId,libraRunId,workspaceId,runExecutionBasisDigest,basisDigest,mode,completedBatchSetDigest,observationSourceSetDigest,modelRefDigest,catalogueGenerationDigest,searchPolicyDigest,clusterParameterDigest,resultKind,frameCount,faceCount,groupCount,queryCount,observationDigest,observationArtifactHandle,outputTargetDigest,handleDigest'],
   FrameArtifactSet: ['ManifestEnvelope', 'libraRunId,workspaceId,sourceMaterialDigest,samplingPlanDigest,outputTargetDigest,frameCount,frameMemberSetDigest,frameSetArtifactHandle'],
   WesternAnalysisResult: ['EvidenceEnvelope', 'libraRunId,runExecutionBasisDigest,frameArtifactSetDigest,embeddingSetDigest,clusterSetDigest,analysisSpecDigest,analysisVariantRef,resultArtifactHandle,resultDigest'],
   ArtifactAcquisitionResult: [null, 'resultKind,artifactHandle?,reasonCode?,evidence'],
@@ -716,12 +729,12 @@ const contracts = {
   SettlementDeletionEvidence: ['EvidenceEnvelope', 'authorizationOrApprovalRef,materialKey,preDeleteIdentityDigest,postDeleteReality,effectReceiptId'],
   DeletionEvidence: ['EvidenceEnvelope', 'authorizationOrApprovalRef,materialKey,preDeleteIdentityDigest,disposition,postDeleteReality,referenceReleaseResultDigest,effectReceiptId'],
   FulfillmentVerificationRecord: [null, ''],
-  FulfillmentVerification: ['VerificationEnvelope', 'finalInventoryDecisionDigest,shelfStandardRevision,finalRealityDigest,memberEvidence'],
+  FulfillmentVerification: ['VerificationEnvelope', 'finalInventoryDecisionDigest,shelfStandardRevision,finalRealityDigest,memberEvidence,seriesPresentationRef?'],
   OnDeckCommitResult: [null, 'onDeckCommitReceipt,offloadCompletionFact'],
   OnDeckCommitReceipt: ['ReceiptEnvelope', 'shelfEntryId,inventoryRevision,deckFactRevision,controlRevisionSetDigest,relatedDispositionCompletionDigest'],
   OffloadCompletionFact: ['DomainFactEnvelope', 'onDeckRunId,shelfEntryId,inventoryRevision,packageId,completionDigest'],
   CustodyAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey'],
-  PresentationAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey'],
+  PresentationAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey,seriesPresentationHeadDigest?'],
   ConformanceAssessmentEvidence: ['EvidenceEnvelope', 'shelfEntryId,inventoryRevision,standardRevision,placementRevision,decisionFactSetDigest,careBasisDigest,assessmentState,findingDrafts,incidentKey,mediaRepairStrategy,memberScope?,memberAssessmentSet?'],
   AssessmentRevision: ['DomainFactEnvelope', 'shelfEntryId,careBasisDigest,professionalAssessmentSetDigest'],
   MaterialEffectReceipt: ['ReceiptEnvelope', 'targetBindingDigest,materialEffectKind,effectReceiptId,finalRealityDigest,finalMaterialIdentity,targetEndpointId,targetLocation,retiredMaterials,artifactKind?,supersededLocation?,supersededMaterialIdentity?'],
@@ -756,6 +769,8 @@ special['OnDeckCommitResult.onDeckCommitReceipt'] = ref('OnDeckCommitReceipt');
 special['OnDeckCommitResult.offloadCompletionFact'] = ref('OffloadCompletionFact');
 special['FinalProductVerification.memberEvidence'] = arrayOf(finalMaterialEvidence(),1024);
 special['FulfillmentVerification.memberEvidence'] = arrayOf(finalMaterialEvidence(),1024);
+special['FulfillmentVerification.seriesPresentationRef'] = object({scopeId:id(),sharedVersion:positiveInteger(),manifestDigest:digest(),verificationDigest:digest(),
+  controls:arrayOf(object({materialKey:digest(),controlRevision:positiveInteger(),projectionDigest:digest()}),3)});
 special['MaterialEffectReceipt.finalMaterialIdentity'] = ref('PhysicalMaterialIdentity');
 special['MaterialEffectReceipt.artifactKind'] = {enum:['nfo','poster','fanart']};
 special['MaterialEffectReceipt.targetEndpointId'] = id();
@@ -769,6 +784,8 @@ special['MaterialEffectReceipt.retiredMaterials'] = arrayOf(object({
 }), 1024);
 
 function buildResultTypeSchema(name, [base, fieldList]) {
+  if(name.startsWith('SeriesPresentation'))return resultSchema(name,base,
+    require('../../src/helix/contracts/series-presentation-schemas').resultProperties(name),{'x-helix-maxCanonicalBytes':65536});
   if(name==='PeopleArtifactReferenceEvidence')return require('../../src/helix/contracts/people-artifact-reclamation').evidenceSchema();
   if(name==='PeopleArtifactReclamationReceipt')return require('../../src/helix/contracts/people-artifact-reclamation').receiptSchema();
   if(name==='ArcaUsAdultAssetsPrepared')return require('../../src/helix/contracts/us-adult-actor-file-contracts').assetsSchema();
@@ -808,6 +825,7 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   if (name === 'ProductIdentityEvidenceObservation') return productIdentityEvidenceObservationSchema();
   if (name === 'RoutingFactObservation') return routingFactObservationSchema();
   if (name === 'DecisionBasisRevision') return decisionBasisRevisionSchema();
+  if (name === 'FaceCatalogueObservationHandle') return require('../../src/helix/contracts/us-adult-catalogue-work-types').observationHandleSchema();
   if (name === 'FrameArtifactSet') return frameArtifactSetSchema();
   if (name === 'WesternAnalysisResult') return westernAnalysisResultSchema();
   if (name === 'ProductMetadataDraft') return productMetadataDraftSchema();
@@ -871,8 +889,11 @@ function buildResultTypeSchema(name, [base, fieldList]) {
   }
   if(name==='ArtifactAcquisitionResult') {
     result.properties.javCoverDerivation=require('../../src/helix/contracts/jav-cover-derivation').javCoverDerivationSchema();
+    result.properties.seasonPosterSourceProof=require('../../src/helix/contracts/series-season-poster-source').posterSourceProofSchema();
     result.allOf=[{if:{required:['javCoverDerivation']},then:{required:['artifactHandle'],properties:{resultKind:{const:'acquired'},
       artifactHandle:ref('ArtifactHandle')}}}];
+    result.allOf.push({if:{required:['seasonPosterSourceProof']},then:{required:['artifactHandle'],not:{required:['javCoverDerivation']},properties:{
+      resultKind:{const:'acquired'},artifactHandle:{allOf:[ref('ArtifactHandle'),{properties:{artifactKind:{const:'poster'}}}]}}}});
     result['x-helix-maxCanonicalBytes']=64*1024;
   }
   if (name === 'BdmvAssessmentEvidence') result['x-helix-maxCanonicalBytes'] = 64 * 1024;
@@ -1118,8 +1139,14 @@ function metadataObservationSchema() {
   schema.properties.episodeScope = require('../../src/helix/contracts/episode-metadata-scope').episodeMetadataScopeSchema();
   schema.properties.javSelectedSource=require('../../src/helix/contracts/jav-selected-source').javSelectedSourceSchema();
   schema.properties.sourceIntegrationHandle=ref('IntegrationHandle');
-  schema.allOf=[{if:{properties:{contentProfile:{const:'jav'}},required:['contentProfile']},then:{required:['javSelectedSource','sourceIntegrationHandle']},
-    else:{not:{anyOf:[{required:['javSelectedSource']},{required:['sourceIntegrationHandle']}]}}}];
+  schema.properties.sourceAuthorizedAtMs=nonNegativeInteger();
+  schema.properties.seriesQualifiedLocalSource=require('../../src/helix/contracts/series-local-source').qualifiedSchema();
+  schema.properties.seriesPresentationSource=require('../../src/helix/contracts/series-presentation-basis').sourceSchema();
+  schema.properties.episodePlotSourceProof=require('../../src/helix/contracts/episode-plot-source').episodePlotSourceSchema();
+  schema.allOf=[{if:{properties:{contentProfile:{const:'jav'}},required:['contentProfile']},then:{required:['javSelectedSource','sourceIntegrationHandle','sourceAuthorizedAtMs']},
+    else:{not:{anyOf:[{required:['javSelectedSource']},{required:['sourceIntegrationHandle']},{required:['sourceAuthorizedAtMs']}]}}}];
+  schema.allOf.push({if:{required:['episodePlotSourceProof']},then:{required:['episodeScope'],
+    properties:{contentProfile:{const:'series'},sourceKind:{const:'provider'}}}});
   return schema;
 }
 
@@ -1274,6 +1301,7 @@ function productMetadataDraftSchema() {
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
   schema.properties.episodeScope = require('../../src/helix/contracts/episode-metadata-scope').episodeMetadataScopeSchema();
   schema.properties.episodeMetadata = episodeMetadataSchema();
+  schema.properties.seriesPresentationBasis=require('../../src/helix/contracts/series-presentation-basis').seriesPresentationBasisSchema();
   schema.properties.javSelectedSource=require('../../src/helix/contracts/jav-selected-source').javSelectedSourceSchema();
   schema['x-helix-maxCanonicalBytes'] = 16 * 1024 * 1024;
   return schema;
@@ -1312,6 +1340,7 @@ function productMetadataFactSchema() {
     verifiedArtifactManifestDigest: digest(), productMetadataDigest: digest()
   }, { 'x-helix-maxCanonicalBytes': 64 * 1024 });
   schema.properties.episodeMetadata=episodeMetadataSchema();
+  schema.properties.seriesPresentationBasis=require('../../src/helix/contracts/series-presentation-basis').seriesPresentationBasisSchema();
   schema.properties.javSelectedSource=require('../../src/helix/contracts/jav-selected-source').javSelectedSourceSchema();
   schema.properties.episodeMetadataRef=object({recordCount:{type:'integer',minimum:1,maximum:256},recordsDigest:digest()});
   schema.not={required:['episodeMetadata','episodeMetadataRef']};

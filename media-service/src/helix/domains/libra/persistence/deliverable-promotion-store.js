@@ -1,4 +1,5 @@
 'use strict';
+const {customTargetHeadStatement,readTargetCommitFence}=require('./custom-target-commit-fence');
 const { readStoredMetadataValue } = require('../../../contracts/episode-metadata-records');
 
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
@@ -57,6 +58,7 @@ function libraDefinition(schemaManifest) {
     owner: 'libra',
     schemaManifest,
     statements: {
+      find_custom_target_head:customTargetHeadStatement,
       find_run: {
         kind: 'select-one',
         tableId: 'libra_runs',
@@ -90,7 +92,7 @@ function libraDefinition(schemaManifest) {
         tableId: 'libra_acceptance_specs',
         columns: [
           'acceptance_spec_id', 'subject_id', 'shelf_id', 'spec_revision',
-          'spec_json', 'spec_digest', 'record_digest',
+          'spec_json', 'spec_digest', 'record_digest', 'product_scope_digest',
         ],
         keyColumns: ['acceptance_spec_id'],
         safeIntegers: true,
@@ -359,6 +361,8 @@ function assertLibraSnapshot(repo, decision) {
       spec.record_digest !== decision.acceptanceSpecRef.recordDigest) {
     fail('P9_PROMOTION_SPEC_STALE', 'Acceptance Spec differs from the Promotion Decision.');
   }
+  if(!readTargetCommitFence(repo,{subjectId:run.subject_id,productScopeDigest:spec.product_scope_digest,specJson:spec.spec_json}))
+    fail('P9_PROMOTION_TARGET_SUPERSEDED','A confirmed custom target revoked this Run final publication eligibility.');
   const runManifest = repo.invoke('find_run_manifest', {
     run_material_manifest_id: decision.runMaterialManifestRef.manifestId,
   });

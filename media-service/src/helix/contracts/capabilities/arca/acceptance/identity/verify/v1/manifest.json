@@ -29,7 +29,13 @@
   },
   "sourceLocator": {
     "section": "8.6.9",
-    "line": 10429,
+    "line": 10463,
     "lineDigest": "ae8fd636af7e54629f9fd7249f3f925624a416f4893aeaa9fa5359bf7a8bff84"
-  }
+  },
+  "preboundEvidenceContracts": [
+    {
+      "schemaRef": "helix://contracts/types/AcceptanceCheckRecord/v1",
+      "representation": "full_result"
+    }
+  ]
 }

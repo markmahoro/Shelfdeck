@@ -37,10 +37,10 @@ function deliveryFence() {
   return object({
     eligibility: { type: 'string', enum: ['eligible', 'ineligible'] },
     reasonCode: { type: 'string', enum: [
-      'run_not_active', 'spec_not_current', 'package_not_current', 'delivery_already_terminal', 'control_not_libra'
+      'run_not_active', 'spec_not_current', 'package_not_current', 'delivery_already_terminal', 'control_not_libra', 'target_not_current'
     ] },
     libraRunId: id(),
-    runState: { type: 'string', enum: ['active', 'suspended', 'superseded', 'frozen', 'completed', 'discarded'] },
+    runState: { type: 'string', enum: ['active', 'suspended', 'superseded', 'frozen', 'completed', 'discarded', 'administratively_retired'] },
     runStateRevision: positive(),
     runStateDigest: digest(),
     acceptanceSpecId: id(),
@@ -128,7 +128,7 @@ function workspaceCleanupScopeProjection() {
     ...object({
       cleanupScopeId: id(),
       libraRunId: id(),
-      triggerKind: { type: 'string', enum: ['offload_completed', 'run_superseded', 'run_discarded'] },
+      triggerKind: { type: 'string', enum: ['offload_completed', 'run_superseded', 'run_discarded', 'run_administratively_retired'] },
       state: { type: 'string', enum: ['active', 'completed', 'blocked'] },
       stateRevision: positive(),
       stateDigest: digest(),
@@ -297,7 +297,7 @@ function runExecutionBasis() {
     role: { type: 'string', enum: ['nfo', 'poster', 'fanart', 'subtitle', 'external_audio', 'chapter', 'sidecar'] },
     materialKey: digest(), associationEvidenceDigest: digest(), dispositionBasisDigest: digest()
   });
-  return {
+  const schema = {
     $schema: DRAFT, $id: typeId('LibraRunExecutionBasis'), title: 'LibraRunExecutionBasis@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 8 * 1024 * 1024,
     ...object({
@@ -313,6 +313,8 @@ function runExecutionBasis() {
       executionBasisDigest: digest()
     })
   };
+  schema.properties.episodeMetadataMappingRef = require('../../src/helix/contracts/episode-metadata-mapping-reference').episodeMetadataMappingReferenceSchema();
+  return schema;
 }
 
 function runExecutionBasisRecord() {
@@ -328,7 +330,7 @@ function runExecutionBasisRecord() {
   });
   return { $schema: DRAFT, $id: typeId('LibraRunExecutionBasisRecord'), title: 'LibraRunExecutionBasisRecord@1',
     'x-helix-ssotRefs': ['8.6.21'], 'x-helix-maxCanonicalBytes': 1024 * 1024,
-    ...object(properties) };
+    ...object(properties, Object.keys(properties).filter(key => key !== 'episodeMetadataMappingRef')) };
 }
 
 function runAdmissionDecision() {

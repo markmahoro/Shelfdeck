@@ -16,6 +16,7 @@ describe('Admin auth copy', () => {
   });
 
   it('shows Chinese login copy instead of ADMIN_CREDENTIAL_INVALID', async () => {
+    vi.spyOn(helixAdminApi, 'getRuntimeStatus').mockRejectedValue(new AdminApiError(401, 'ADMIN_SESSION_INVALID', 'ADMIN_SESSION_INVALID'));
     vi.spyOn(helixAdminApi, 'getOverview').mockRejectedValue(
       new AdminApiError(401, 'ADMIN_SESSION_INVALID', 'ADMIN_SESSION_INVALID'),
     );

@@ -252,6 +252,18 @@ test('source timeout is bounded and never switches to another site', async () =>
   assert.equal(requests.length, 1);
 });
 
+test('JAV source transport failures preserve safe diagnostics without leaking transport details', async () => {
+  const { failureDiagnostics } = require('../../src/helix/contracts/failure-diagnostics');
+  const client = createJavSourceClient({ siteRef:'javdb', endpoint:'https://javdb.com',
+    fetchImpl:async()=>{ throw Object.assign(new Error('private URL and token'), { cause:{ code:'ECONNRESET' } }); } });
+  await assert.rejects(client.observe({ queryAnchor:buildJavQueryAnchor('jav_code','IPX-177') }), error=>{
+    assert.equal(error.code,'JAV_SOURCE_UNAVAILABLE');
+    assert.deepEqual(failureDiagnostics(error),{stage:'page',networkCode:'ECONNRESET'});
+    assert.equal(JSON.stringify(error).includes('private URL and token'),false);
+    return true;
+  });
+});
+
 test('changed cover bytes cannot be adopted from an earlier qualified observation', async () => {
   let picture = await image();
   const fake = transport(picture, { override: target => target.hostname === 'c0.jdbstatic.com'

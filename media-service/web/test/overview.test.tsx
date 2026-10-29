@@ -9,13 +9,13 @@ describe('Helix Overview product semantics', () => {
     activity:{inFlightEvents:0,inFlightRecoveries:0,inFlightOwnerReconciliations:0},operation:null,error:null,recoveryBackup:null});});
   afterEach(() => vi.restoreAllMocks());
 
-  it('keeps rail runtime unknown until the independent operational state is read',async()=>{
+  it('waits for Runtime authority before mounting any ordinary business page',async()=>{
     let release!:(value:Awaited<ReturnType<typeof helixAdminApi.getRuntimeStatus>>)=>void;
     vi.mocked(helixAdminApi.getRuntimeStatus).mockReturnValue(new Promise(resolve=>{release=resolve;}));
     vi.spyOn(helixAdminApi,'getOverview').mockResolvedValue({generatedAt:new Date().toISOString(),systemState:{kind:'running',label:'正常运行',href:'/'},
       metrics:[],todos:[],ledger:[],pipeline:{waitingAcceptanceCount:0,organizingCount:0},setup:{activeMaterialFieldCount:1,activeShelfCount:1},backgroundOperations:null});
-    render(<MemoryRouter><App/></MemoryRouter>);await screen.findByRole('heading',{name:'概览',exact:true});
-    expect(document.querySelector('.rail-status')).toHaveTextContent('正在读取运行状态');expect(screen.queryByText('正常运行')).not.toBeInTheDocument();
+    render(<MemoryRouter><App/></MemoryRouter>);await screen.findByText('正在读取运行状态…');
+    expect(screen.queryByRole('navigation')).not.toBeInTheDocument();expect(helixAdminApi.getOverview).not.toHaveBeenCalled();
     release({mode:'stopped',desiredMode:'stopped',revision:1,normalSupplyAllowed:false,activity:{inFlightEvents:0,inFlightRecoveries:0,inFlightOwnerReconciliations:0},operation:null,error:null,recoveryBackup:null});
     await waitFor(()=>expect(document.querySelector('.rail-status')).toHaveTextContent('已安全停机'));
   });

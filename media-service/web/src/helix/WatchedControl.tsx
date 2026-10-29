@@ -11,6 +11,8 @@ export default function WatchedControl({targetType,targetId,label}:Props){
   useEffect(()=>{const token=++generation.current;setLoading(true);setPending(false);setError('');setValue(null);setSource(null);setRevision(0);
     void (async()=>{const deadline=Date.now()+30_000;while(token===generation.current){const result=await helixAdminApi.listPerceptionRecords({targetType,targetId,limit:1});
       if(token!==generation.current)return;if(result.currentWatched?.state==='ready'){apply(result.currentWatched);return;}
+      if(result.currentWatched?.state==='failed'||result.currentWatched?.state==='cancelled')
+        throw new Error(result.currentWatched.state==='failed'?'已看状态匹配失败。':'已看状态匹配已取消。');
       if(Date.now()>=deadline)throw new Error('暂未读取到已看状态，请重新打开影片。');
       await new Promise(resolve=>window.setTimeout(resolve,300));
     }})()
@@ -22,6 +24,8 @@ export default function WatchedControl({targetType,targetId,label}:Props){
     while(token===generation.current&&Date.now()<deadline){const result=await helixAdminApi.listPerceptionRecords({targetType,targetId,limit:1});
       if(token!==generation.current)return;const current=result.currentWatched;
       if(current?.state==='ready'&&current.expectedRevision>=accepted.expectedResultRevision){apply(current);return;}
+      if((current?.state==='failed'||current?.state==='cancelled')&&current.expectedRevision>=accepted.expectedResultRevision)
+        throw new Error(current.state==='failed'?'已看状态匹配失败。':'已看状态匹配已取消。');
       await new Promise(resolve=>window.setTimeout(resolve,300));
     }
     if(token===generation.current)throw new Error('已提交，暂未读取到已看结果。');

@@ -17,7 +17,7 @@ const SHA256 = /^[0-9a-f]{64}$/;
 // Run Control scope larger than this bound.
 const MAX_RUN_PHYSICAL_MEMBERS = 1024;
 const MAX_SELECTION_SCOPE_MEMBERS = 1024;
-const SELECTION_SCOPE_KINDS = new Set(['standalone_file','ordinary_directory','bdmv_container']);
+const SELECTION_SCOPE_KINDS = new Set(['standalone_file','ordinary_directory','bdmv_container','local_media_group']);
 const TRIAGE_PAYLOAD = Object.freeze({
   contractRefs: Object.freeze([
     'helix.procurement.candidate-readiness@1', 'helix.procurement.profile-claim-baseline@1',
@@ -26,6 +26,9 @@ const TRIAGE_PAYLOAD = Object.freeze({
   recallPriority: true, maxRunPhysicalMembers: MAX_RUN_PHYSICAL_MEMBERS,
   maxSelectionScopeMembers: MAX_SELECTION_SCOPE_MEMBERS, maxCandidateManifestMembers: MAX_RUN_PHYSICAL_MEMBERS,
   probeBatchSize: 100,
+  selectionScopeRule:Object.freeze({revision:3,categoryDirectories:'containers',seriesKey:'local_claimed_title_and_season',
+    provisionalSeasonBoundary:'direct_parent',ordinaryPayload:'independent',javNamedParts:'direct_parent_and_canonical_code',
+    bdmv:'whole_container_with_certificate',dvd:'whole_video_ts_container',ordering:'canonical_utf8',packing:'sequential_complete_groups'}),
   playabilityRule: Object.freeze({ minimumDurationMs:1, minimumVideoStreamCount:1,
     reasonPrecedence:Object.freeze(['probe_not_media','no_video_stream','non_positive_duration']) }),
   profileResolutionRule: Object.freeze({ mixedPrecedence:Object.freeze(['series_episode_token','jav_code','movie_fallback']),
@@ -75,7 +78,7 @@ function validateTriageRuleSnapshot(rule) {
   return rule;
 }
 function createDefaultTriageRuleRegistry() {
-  const base = { ruleRef:'procurement.triage.default', revision:2, ruleSchemaRef:TRIAGE_RULE_SCHEMA, rulePayload:TRIAGE_PAYLOAD };
+  const base = { ruleRef:'procurement.triage.default', revision:3, ruleSchemaRef:TRIAGE_RULE_SCHEMA, rulePayload:TRIAGE_PAYLOAD };
   const signed = { ...base, ruleDigest:ruleDigestFor(base) };
   const entry = deepFreeze({ ...signed, authorityDigest:authorityDigestFor(signed) });
   const registry = { registrySchemaRef:TRIAGE_REGISTRY_SCHEMA, registryVersion:1, activeRuleRef:entry.ruleRef,

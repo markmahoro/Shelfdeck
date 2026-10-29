@@ -66,8 +66,10 @@ function createArtifactProductionCapabilityPorts(options) {
       validateInputs(context) { requireNamed(context, ['productMetadataDraft', 'integrationHandle']); },
       async execute(context) {
         const draft = context.namedInputs.productMetadataDraft;
-        const handle = context.namedInputs.integrationHandle;
+        let handle = context.namedInputs.integrationHandle;
         const artifactKind = context.parameters?.artifactKind;
+        if(draft.javSelectedSource)handle=require('../../../contracts/jav-source-qualification').resolveJavQualifiedHandle(
+          handle,draft.javSelectedSource,ACQUIRE,options.resolveJavSourceHandle,artifactKind);
         const snapshot = typeof options.movieProductionReader.readRunSnapshot === 'function'
           ? options.movieProductionReader.readRunSnapshot(context.ownerScope.processId)
           : options.movieProductionReader.readRun(context.ownerScope.processId);
@@ -135,6 +137,16 @@ function createArtifactProductionCapabilityPorts(options) {
               proof.outputDigest!==outcome.result.artifactHandle.digestHex)
             throw new TypeError('JAV Artifact Result does not conserve its single-source derivation and registered output.');
         }else if(outcome.result.javCoverDerivation)throw new TypeError('Non-JAV Artifact Result cannot claim a JAV derivation.');
+        const posterProof=outcome.result.seasonPosterSourceProof;
+        if(posterProof){
+          const proof=require('../../../contracts/series-season-poster-source').assertPosterSourceProof(posterProof),
+            draft=context.namedInputs.productMetadataDraft,
+            identity=draft.providerIdentities.find(item=>item.namespace==='tmdb_series');
+          if(context.parameters.artifactKind!=='poster'||outcome.result.resultKind!=='acquired'||
+              proof.basisDigest!==draft.seriesPresentationBasis?.basisDigest||proof.providerKey!==identity?.providerKey||
+              proof.seasonNumber!==identity?.seasonNumber||proof.outputDigest!==outcome.result.artifactHandle?.digestHex)
+            throw new TypeError('Season poster proof differs from its exact show, Season or registered output.');
+        }
       },
     }),
     [SIDECAR]: Object.freeze({

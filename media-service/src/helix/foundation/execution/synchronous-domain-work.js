@@ -2,6 +2,8 @@
 
 const { canonicalDigest, canonicalJson } = require('../../contracts/canonical-json');
 const { createRepositoryDefinition } = require('../persistence/owner-repository');
+const { createPlanContractEvidenceStore } = require('./plan-contract-evidence');
+const { synchronousPlan, captureSynchronousContract } = require('./synchronous-plan-contract');
 
 class SynchronousDomainWorkError extends Error {
   constructor(code, message, details = {}) {
@@ -26,7 +28,7 @@ function definitions(schemaManifest) {
         find: {
           kind: 'select-one',
           tableId: 'fx_supporting_works',
-          columns: ['work_id', 'owner_domain', 'basis_digest', 'state'],
+          columns: ['work_id', 'owner_domain', 'work_kind', 'basis_digest', 'state'],
           keyColumns: ['work_id'],
         },
         transition: {
@@ -192,10 +194,11 @@ function createSynchronousDomainWork(options) {
     fail('SYNCHRONOUS_WORK_DEPENDENCIES_REQUIRED', 'Synchronous Work requires clean Foundation persistence.');
   }
   const repositories = definitions(options.schemaManifest);
+  const evidenceStore = createPlanContractEvidenceStore(options);
   const execute = (participantId, body) => options.unitOfWork.execute([{
     participantId,
     owner: 'execution-foundation',
-    repositories: Object.values(repositories),
+    repositories: [...Object.values(repositories), ...evidenceStore.repositories],
     execute: body,
   }])[participantId];
 
@@ -234,6 +237,8 @@ function createSynchronousDomainWork(options) {
     if (!request || !Array.isArray(request.steps) || request.steps.length < 1) {
       fail('SYNCHRONOUS_WORK_PLAN_INVALID', 'Synchronous Work requires at least one frozen step.');
     }
+    const captured = captureSynchronousContract(request);
+    const publishedPlan = synchronousPlan(request);
     const graphDigest = canonicalDigest({
       schema: 'helix.foundation.synchronous-domain-work-graph@1',
       workId: request.workId,
@@ -242,6 +247,9 @@ function createSynchronousDomainWork(options) {
     });
     const existing = snapshot(request.workId);
     if (existing?.plan) {
+      const saved = evidenceStore.read(existing.plan.plan_id);
+      if (!saved || saved.binding.contract_digest !== captured.digest)
+        fail('SYNCHRONOUS_WORK_CONTRACT_DRIFT', 'Synchronous replay requires its immutable contract evidence.');
       if (existing.work.basis_digest !== request.basisDigest ||
           existing.plan.graph_digest !== graphDigest) {
         fail('SYNCHRONOUS_WORK_PLAN_CONFLICT', 'Supporting Work already owns a different frozen graph.');
@@ -252,7 +260,7 @@ function createSynchronousDomainWork(options) {
       const works = context.repository(repositories.works.repositoryId);
       const attempts = context.repository(repositories.attempts.repositoryId);
       const work = works.invoke('find', { work_id: request.workId });
-      if (!work || work.owner_domain !== request.ownerDomain ||
+      if (!work || work.owner_domain !== request.ownerDomain || work.work_kind !== captured.evidence.workKind ||
           work.basis_digest !== request.basisDigest || !['admitted','ready'].includes(work.state)) {
         fail('SYNCHRONOUS_WORK_ADMISSION_FENCE', 'Supporting Work is absent or no longer admitted on the same Basis.');
       }
@@ -280,6 +288,7 @@ function createSynchronousDomainWork(options) {
         state: 'planned',
         created_at_ms: context.commitTimeMs,
       });
+      evidenceStore.publish(context, publishedPlan, graphDigest, captured);
       request.steps.forEach((step, ordinal) => {
         const nodeId = String(ordinal).padStart(6, '0') + ':' + step.nodeId;
         context.repository(repositories.nodes.repositoryId).invoke('insert', {

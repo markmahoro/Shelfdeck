@@ -224,7 +224,8 @@ function createProcurementFieldStatusQuery(options) {
         const deliveryByCandidateId = new Map(deliveries.map((delivery) => [delivery.candidate_package_id, delivery]));
         const acceptedPackageCount = deliveries.filter((delivery) => delivery.state === 'accepted').length;
         const rejectedPackageCount = deliveries.filter((delivery) => delivery.state === 'rejected').length;
-        const waitingAcceptanceCount = candidates.length - acceptedPackageCount - rejectedPackageCount;
+        const retiredPackageCount = deliveries.filter(delivery=>delivery.state==='administratively_retired').length;
+        const waitingAcceptanceCount = candidates.length - acceptedPackageCount - rejectedPackageCount - retiredPackageCount;
         const runSummary = Object.freeze({
           selectionIssues:field?.status==='active'&&scan.state==='completed'?selectionCapacityIssues({
             rootLocation:store.invoke('access',{field_id:fieldId,revision:field.current_access_revision})?.root_location||'',
@@ -250,7 +251,7 @@ function createProcurementFieldStatusQuery(options) {
               ? 'handoff_a_accepted'
               : delivery?.state === 'rejected'
                 ? 'handoff_a_rejected'
-                : 'candidate_published';
+                : delivery?.state === 'administratively_retired' ? 'administratively_retired' : 'candidate_published';
           return Object.freeze({
             stage,
             ...runSummary,
@@ -291,7 +292,7 @@ function createProcurementFieldStatusQuery(options) {
     overviewWaitingCount(){return options.unitOfWork.execute([{participantId:'procurement_overview_count',owner:'procurement',repositories:[repository],
       execute(context){const repo=context.repository(repository.repositoryId);
         const packages=repo.invoke('overview_packages',{}).reduce((sum,row)=>sum+Number(row.row_count),0);
-        const terminal=repo.invoke('overview_deliveries',{}).filter(row=>['accepted','rejected'].includes(row.group_value))
+        const terminal=repo.invoke('overview_deliveries',{}).filter(row=>['accepted','rejected','administratively_retired'].includes(row.group_value))
           .reduce((sum,row)=>sum+Number(row.row_count),0);
         return packages-terminal;
       }}]).procurement_overview_count;},

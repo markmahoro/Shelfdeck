@@ -157,7 +157,19 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/server.js' ||
         relative === 'src/clean-service-host.js' ||
         relative === 'src/clean-admin-static.js' ||
+        relative === 'src/clean-poster-renderer.js' ||
         relative === 'src/clean-runtime-operations.js' ||
+        relative === 'src/clean-runtime-supervisor.js' ||
+        relative === 'src/clean-generation-lease.js' ||
+        relative === 'src/clean-reset-workflow.js' ||
+        relative === 'src/clean-reset-management-host.js' ||
+        relative === 'src/clean-reset-bootstrap.js' ||
+        relative === 'src/clean-reset-error-copy.js' ||
+        relative === 'src/clean-session-cookies.js' ||
+        relative === 'scripts/formation-reset-generation.js' ||
+        relative === 'scripts/formation-reset-process.js' ||
+        relative === 'scripts/formation-reset-runtime-port.js' ||
+        relative === 'src/clean-reset-generation-fence.js' ||
         relative === 'src/clean-formation-reset-port.js' ||
         relative === 'src/clean-arca-recycle-port.js' ||
         relative === 'src/clean-local-filesystem-mount-probe.js' ||
@@ -174,12 +186,12 @@ test('formal server dependency graph reaches only the clean Helix root', () => {
         relative === 'src/clean-workspace-root-admin.js' ||
         relative === 'src/clean-western-analysis-port.js' ||
         relative === 'src/clean-us-adult-inventory-analysis-port.js' ||
-        relative === 'src/clean-us-adult-recommendation-image-port.js' ||
         relative === 'src/clean-us-adult-frame-extractor.js' ||
         relative === 'src/clean-people-image-port.js' ||
         relative === 'src/clean-people-artifact-reclamation-port.js' ||
         relative === 'src/clean-maintenance-window.js' ||
         relative === 'src/clean-arca-inventory-port.js' ||
+        relative === 'src/clean-series-root-relocation-port.js' ||
         relative === 'src/clean-arca-target-commit-slot.js' ||
         relative === 'src/clean-offdeck-deletion-port.js' ||
         relative === 'src/admin-credential-secret-store.js' ||
@@ -385,6 +397,10 @@ test('clean host serves public health and Admin UI, then requires API key or Htt
     assert.match(cookie, /shelfdeck_admin_session=/);
     assert.match(cookie, /HttpOnly/);
     assert.match(cookie, /SameSite=Strict/);
+
+    const missingPerson = await host.inject({ method: 'GET', url: '/v1/admin/people/missing-person', headers: { cookie } });
+    assert.equal(missingPerson.statusCode, 404);
+    assert.equal(missingPerson.json().error.code, 'PEOPLE_PERSON_NOT_FOUND');
 
     const security = await host.inject({
       method: 'GET',
@@ -2078,6 +2094,11 @@ test('Windows and Docker artifacts select the service-only clean entrypoint', ()
 
   const windows = fs.readFileSync(path.join(serviceRoot, 'scripts', 'package-win.js'), 'utf8');
   assert.match(windows, /CLEAN_RUNTIME_FILES/);
+  for(const file of ['src/clean-poster-renderer.js','scripts/formation-retirement-plan.js',
+    'scripts/formation-retirement-operator.js','scripts/formation-retirement-journal.js','scripts/formation-retirement-history.js']) {
+    assert.ok(windows.includes("'"+file+"'"),'Windows package omits '+file);
+    assert.ok(docker.includes('COPY media-service/'+file+' ./'+file),'Docker image omits '+file);
+  }
   assert.match(windows,/src\/clean-us-adult-inventory-analysis-port\.js/);
   assert.match(docker,/COPY media-service\/src\/clean-us-adult-inventory-analysis-port\.js \.\/src\/clean-us-adult-inventory-analysis-port\.js/);
   assert.match(windows, /cleanHelixSource/);

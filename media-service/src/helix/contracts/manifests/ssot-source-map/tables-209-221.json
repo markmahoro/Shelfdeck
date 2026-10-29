@@ -6,146 +6,146 @@
   "endOrdinal": 221,
   "entries": [
     {
-      "id": "platform_workers",
-      "owner": "platform-settings",
-      "columnsContract": "`worker_id PK, name, status, current_revision, created_at_ms, terminal_at_ms`",
-      "constraintsContract": "`INDEX(status,worker_id)`；deregister使用terminal state，不物理删除",
+      "id": "people_registration_candidate_revisions",
+      "owner": "people",
+      "columnsContract": "`registration_candidate_id FK, revision, state(open|accepted|dismissed|superseded), decision_origin NULL, decision_ref NULL, decision_digest NULL, committed_at_ms`",
+      "constraintsContract": "`PK(registration_candidate_id,revision)`加`UNIQUE(registration_candidate_id,revision,state)`供head复合FK；到head的FK同样deferred；revision 1固定为open；只允许`open → accepted|dismissed|superseded`一次terminal CAS；terminal revision保存正式Decision ID/digest；immutable",
       "source": {
         "section": "8.5.13",
-        "line": 9723,
-        "lineDigest": "6bf55b189dbb45cf52eaf48ad372b60ec11d290dd8bd4127fd84ee745604365b"
+        "line": 9740,
+        "lineDigest": "a969b59ee206686028ad9e30b7c9e1f86fd9fee14e5e76cbec4c4d6fb50899e1"
       }
     },
     {
-      "id": "platform_worker_revisions",
-      "owner": "platform-settings",
-      "columnsContract": "`worker_id FK, revision, endpoint, protocol_version, config_schema_ref, config_json, config_digest, secret_ref, capability_digest, effective_at_ms`",
-      "constraintsContract": "`PK(worker_id,revision)`；Config JSON上限`16 KiB`；current pointer显式FK",
+      "id": "people_merge_candidates",
+      "owner": "people",
+      "columnsContract": "`merge_candidate_id PK, current_revision, current_state, left_person_id FK, left_person_revision, right_person_id FK, right_person_revision, evidence_digest, candidate_schema_ref, candidate_json, candidate_payload_digest, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "`candidate_json`保存Draft中精确Merge `candidatePayload`，JCS digest匹配`candidate_payload_digest`，四个Person热字段以DDL CHECK匹配payload refs；Person pair按ID规范化；两个`(person_id,revision)`复合FK冻结精确Person revision，payload与该snapshot immutable；Candidate current复合FK `DEFERRABLE INITIALLY DEFERRED`；`UNIQUE(left_person_id,right_person_id) WHERE current_state='open'`；`INDEX(current_state,created_at_ms)`",
       "source": {
         "section": "8.5.13",
-        "line": 9724,
-        "lineDigest": "ff9849acc3710deb68332088b189dc8e407b71ad9ebc2093d6045b60a50a42fe"
-      }
-    },
-    {
-      "id": "platform_worker_devices",
-      "owner": "platform-settings",
-      "columnsContract": "`worker_id FK, worker_revision, device_key, capability_digest, enabled, max_slots`",
-      "constraintsContract": "`PK(worker_id,worker_revision,device_key)`；只有probe确认的device可enabled",
-      "source": {
-        "section": "8.5.13",
-        "line": 9725,
-        "lineDigest": "bc0f5d106f86d806a95451a30ad664d4367fd2ef42c0cb6003514196417e2417"
-      }
-    },
-    {
-      "id": "platform_admin_credentials",
-      "owner": "platform-settings",
-      "columnsContract": "`credential_id, revision, secret_ref, state(active|rotated|revoked), created_at_ms, last_used_at_ms, terminal_at_ms`",
-      "constraintsContract": "`PK(credential_id,revision)`；只有一个active Admin credential revision；Secret明文不入库",
-      "source": {
-        "section": "8.5.13",
-        "line": 9726,
-        "lineDigest": "c508f77944715e61d0cb76cb13c4bb9a67ecc6e96b21fe744d802ae44636b0b3"
-      }
-    },
-    {
-      "id": "arca_recycle_entries",
-      "owner": "arca",
-      "columnsContract": "`recycle_entry_id PK, shelf_entry_id FK, source_location, archive_location, manifest_schema_ref, manifest_json, manifest_digest, reason_code, state(pending|moving|archived|restoring|restored|purging|purged), operation_revision INTEGER, created_at_ms, archived_at_ms NULL, expires_at_ms NULL, updated_at_ms, last_error NULL`",
-      "constraintsContract": "manifest JSON上限`64 KiB`，冻结相对目录、文件大小与SHA256，最多256项；原路径与归档路径不可变；`INDEX(state,expires_at_ms)`；修改通过state和operation_revision CAS；只有archived可请求恢复或到期清理，恢复与清理竞争同一CAS；归档成功时设30天期限，未完成移动永不进入到期删除",
-      "source": {
-        "section": "8.5.14",
         "line": 9741,
-        "lineDigest": "f3fa628b2f9ea205dbefa778d2f6c749f5560f93c6edc8785b79871507b51eb7"
+        "lineDigest": "73d1ef0e5baeb5a12fd4429b23e6392a8f6ae2c490808a95111a0f5b283f408a"
       }
     },
     {
-      "id": "arca_source_cleanup_checks",
-      "owner": "arca",
-      "columnsContract": "`cleanup_id PK, on_deck_run_id FK UNIQUE, shelf_entry_id FK, state(pending|attention|completed), check_revision INTEGER, checks_schema_ref, checks_json, created_at_ms, updated_at_ms, next_check_at_ms`",
-      "constraintsContract": "On-deck Commit同事务建立一条pending收尾检查；checks JSON上限`64 KiB`、最多32个精确旧Binding父目录的检查结果；`INDEX(next_check_at_ms,on_deck_run_id)`；检查结果以check_revision CAS更新，不授予文件处置权",
+      "id": "people_merge_candidate_revisions",
+      "owner": "people",
+      "columnsContract": "`merge_candidate_id FK, revision, state(open|accepted|dismissed|superseded), decision_origin NULL, decision_ref NULL, decision_digest NULL, committed_at_ms`",
+      "constraintsContract": "`PK(merge_candidate_id,revision)`加`UNIQUE(merge_candidate_id,revision,state)`供head复合FK；到head的FK同样deferred；revision 1固定为open；只允许`open → accepted|dismissed|superseded`一次terminal CAS；terminal revision保存正式Decision ID/digest；immutable",
       "source": {
-        "section": "8.5.14",
+        "section": "8.5.13",
+        "line": 9742,
+        "lineDigest": "281a3977f0be22c06852ef188c92aa3f33404c73b511a6a309f2aabdfac3290e"
+      }
+    },
+    {
+      "id": "people_merge_records",
+      "owner": "people",
+      "columnsContract": "`merge_record_id PK, merge_candidate_id FK, merge_candidate_revision, source_person_id FK, previous_source_person_revision, committed_source_person_revision, target_person_id FK, previous_target_person_revision, committed_target_person_revision, preference_resolution_digest, decision_digest, committed_at_ms`",
+      "constraintsContract": "Candidate及source/target的previous/committed revision均有显式复合FK；一个source Person最多一个terminal merge target；Candidate、source/target revision和Preference选择都可从record追溯",
+      "source": {
+        "section": "8.5.13",
         "line": 9743,
-        "lineDigest": "a025470c8606b98e39265999d627292b3a42b2acb7a625fd29452009bf905303"
+        "lineDigest": "7f79630c8d883454f8e6d96375d6cec01673e6b2bbb00d7462f8cca8951e9a8d"
       }
     },
     {
-      "id": "arca_jav_correction_directory_checks",
-      "owner": "arca",
-      "columnsContract": "`correction_id FK PK, shelf_entry_id FK, committed_context_digest, cleanup_receipt_digest, state(pending|attention|completed), check_revision INTEGER, checks_schema_ref, checks_json, checks_scope_digest NULL, last_error_code NULL, created_at_ms, updated_at_ms, next_check_at_ms`",
-      "constraintsContract": "JAV Correction Cleanup Commit 同事务建立独立 pending 目录检查责任；context/cleanup Receipt/Entry/created时点 immutable，不能借 on_deck_run_id；checks固定 closed ArcaJavCorrectionDirectoryChecks、JCS≤64 KiB/最多32个目录，初始空数组/check_revision=1。后续结果按 check_revision CAS 并重验同一 completed cleanup/context/Receipt 更新；`INDEX(next_check_at_ms,correction_id)`；检查结果和责任不授予文件处置权限，不重新持有纠正门禁",
+      "id": "platform_schema_marker",
+      "owner": "platform-settings",
+      "columnsContract": "`schema_name PK, generation, schema_digest, catalog_digest, applied_at_ms`",
+      "constraintsContract": "clean generation唯一；旧/clean混合时拒绝可写启动",
       "source": {
-        "section": "8.5.14",
+        "section": "8.5.13",
         "line": 9744,
-        "lineDigest": "92a2659909858301edf33a805470143dce09fc7543a554f969fee324a65b2a6d"
+        "lineDigest": "d06a8cd33af03f954c384b2771fd441577baf04a88ab5ae33924af8161ebd711"
       }
     },
     {
-      "id": "libra_defect_authorizations",
-      "owner": "libra",
-      "columnsContract": "`authorization_id, revision, state(enabled|revoked), actor_id, authorization_digest, effective_at_ms, revoked_at_ms`",
-      "constraintsContract": "`PK(authorization_id,revision)`；immutable；revision为正整数",
+      "id": "platform_mount_scopes",
+      "owner": "platform-settings",
+      "columnsContract": "`mount_scope_id PK, status, current_revision, created_at_ms, terminal_at_ms`",
+      "constraintsContract": "mount scope是Platform技术identity，不是Business Object；current revision显式FK；`INDEX(status,mount_scope_id)`",
       "source": {
-        "section": "8.9.9",
-        "line": 16043,
-        "lineDigest": "8508fbbc000e32d4ee694d07ecb38e1ed718c02d1012fca2ddfde1962e7622a5"
+        "section": "8.5.13",
+        "line": 9745,
+        "lineDigest": "6162e30b94f589f833a32257144132c84e1a911f602e2bc460e04c391f5079e5"
       }
     },
     {
-      "id": "libra_defect_authorization_head",
-      "owner": "libra",
-      "columnsContract": "`singleton_key PK, current_authorization_id, current_revision, updated_at_ms`",
-      "constraintsContract": "current pointer显式复合FK；CAS revision",
+      "id": "platform_mount_scope_revisions",
+      "owner": "platform-settings",
+      "columnsContract": "`mount_scope_id FK, revision, endpoint_id, mount_boundary, filesystem_type, stable_mount_fingerprint, inode_capability_digest, probe_evidence_digest, effective_at_ms`",
+      "constraintsContract": "`PK(mount_scope_id,revision)`；active fingerprint唯一；replacement发布新revision但在显式验证前不继承旧Identity资格",
       "source": {
-        "section": "8.9.9",
-        "line": 16044,
-        "lineDigest": "bce49ca70aa8369999f80da9113bbbd8fbf4082ab42977bf8732b90ae344fa2e"
+        "section": "8.5.13",
+        "line": 9746,
+        "lineDigest": "273b56bfaa99425c128ab7407e2cbcd975c26901c46c0fe245e414472a8c35cb"
       }
     },
     {
-      "id": "libra_run_outcomes",
-      "owner": "libra",
-      "columnsContract": "`libra_run_id PK/FK, subject_id FK, outcome(on_deck|on_deck_with_defects|unable_to_on_deck), reason_code, stable_input_digest, requirements_digest, conditions_digest, outcome_schema_ref, outcome_json, outcome_digest, committed_at_ms`",
-      "constraintsContract": "`INDEX(subject_id,committed_at_ms)`；`INDEX(stable_input_digest,requirements_digest,conditions_digest)`；immutable；typed JSON上限`64 KiB`",
+      "id": "platform_integrations",
+      "owner": "platform-settings",
+      "columnsContract": "`integration_id PK, integration_type, endpoint, config_revision, config_schema_ref, config_json, config_digest, state, updated_at_ms`",
+      "constraintsContract": "Config JSON上限`16 KiB`；`UNIQUE(integration_type,integration_id)`；secret不入本表",
       "source": {
-        "section": "8.9.9",
-        "line": 16045,
-        "lineDigest": "bc588a5a37ac833eae68c9adbbc154aeae0f6b3c878de7c3d9805f5bdbc2c4a8"
+        "section": "8.5.13",
+        "line": 9747,
+        "lineDigest": "0688c64548eb44c4a44de73420e30f27e153014f9b0d59eeddcb04962666b87f"
       }
     },
     {
-      "id": "libra_reprocess_intents",
-      "owner": "libra",
-      "columnsContract": "`intent_id PK, stable_input_digest, previous_outcome_digest, actor_id, idempotency_key, intent_digest, issued_at_ms`",
-      "constraintsContract": "`UNIQUE(actor_id,idempotency_key)`；`INDEX(stable_input_digest,issued_at_ms)`；immutable",
+      "id": "platform_secret_refs",
+      "owner": "platform-settings",
+      "columnsContract": "`secret_ref PK, owner_scope_type(integration|worker|admin_credential), owner_scope_id, secret_kind, encrypted_ref, revision, state, updated_at_ms`",
+      "constraintsContract": "`UNIQUE(owner_scope_type,owner_scope_id,secret_kind,revision)`；secret value不进入Event/Audit/Projection",
       "source": {
-        "section": "8.9.9",
-        "line": 16046,
-        "lineDigest": "c47fabd82f60de2f5c222d73758c9a24a15dc351d5576935e7070c49c87c1d96"
+        "section": "8.5.13",
+        "line": 9748,
+        "lineDigest": "927e8c74f5298fef1192786a55a6f9519e19d8d3baa18bdd84ab28b2f6d7f8d4"
       }
     },
     {
-      "id": "libra_task_cancellations",
-      "owner": "libra",
-      "columnsContract": "`cancellation_id PK, subject_id FK, libra_run_id FK NULL, actor_id, idempotency_key, request_schema_ref, request_json, request_digest, state, state_revision, requested_at_ms, completed_at_ms NULL`",
-      "constraintsContract": "`UNIQUE(libra_run_id)`；`UNIQUE(actor_id,idempotency_key)`；`INDEX(state,subject_id)`；Libra持久取消意图，request immutable且JSON上限1 MiB；状态以revision CAS推进",
+      "id": "platform_workspace_roots",
+      "owner": "platform-settings",
+      "columnsContract": "`root_id PK, owner_scope, root_kind, endpoint_id, mount_scope_id, mount_scope_revision, resolved_root, config_revision, capability_digest, state(active|inactive|faulted), root_handle_ref, snapshot_digest, updated_at_ms`",
+      "constraintsContract": "endpoint/mount scope引用Platform current Registry；root overlap/containment用normalized path unique与保存时probe验证；`root_handle_ref`与`snapshot_digest`按8.6.21唯一公式由不含`resolved_root`的公开字段计算并在每次config/state revision切换时原子更新；`resolved_root`只供Platform内部containment/statvfs使用，typed runtime port不得返回",
       "source": {
-        "section": "8.9.9",
-        "line": 16047,
-        "lineDigest": "8feee9c41e8811c9b2f0b7298af35e963fa533428aecd66e9e948c56396cca3b"
+        "section": "8.5.13",
+        "line": 9749,
+        "lineDigest": "29d80ab4fe6dfe7073903a8f6cd30d8160d8d2c8a37f5d6881ff82edd813c431"
       }
     },
     {
-      "id": "libra_strategy_availability",
-      "owner": "libra",
-      "columnsContract": "`libra_run_id FK, strategy_kind(moviepilot|tmdb), condition_digest, check_ordinal(0|1|2|3|4|5), evidence_schema_ref, evidence_json, evidence_digest, checked_at_ms`",
-      "constraintsContract": "`PK(libra_run_id,strategy_kind,condition_digest,check_ordinal)`；immutable；check_ordinal为0至5；typed JSON上限`4 KiB`",
+      "id": "platform_resource_profiles",
+      "owner": "platform-settings",
+      "columnsContract": "`profile_id PK, profile_key(default|full), name, current_revision, status, created_at_ms, updated_at_ms`",
+      "constraintsContract": "`UNIQUE(profile_key)`；两个system Profile不可删除；current revision显式FK",
       "source": {
-        "section": "8.9.9",
-        "line": 16048,
-        "lineDigest": "efdec0f21af0d8ca4cf71e5a40de13d93b4aacfbb24fb0ea743ed7ea824789fc"
+        "section": "8.5.13",
+        "line": 9750,
+        "lineDigest": "585280528c1f4fd1872be0c1f875b3c97439a4f27a38fcfb57a6f13e1fd69ebd"
+      }
+    },
+    {
+      "id": "platform_resource_profile_revisions",
+      "owner": "platform-settings",
+      "columnsContract": "`profile_id FK, revision, profile_schema_ref, profile_json, profile_digest, published_at_ms`",
+      "constraintsContract": "Profile JSON上限`16 KiB`；`PK(profile_id,revision)`；immutable",
+      "source": {
+        "section": "8.5.13",
+        "line": 9751,
+        "lineDigest": "d9a1be68e01ece24c9a8fcb098e44fbf9e61dbb5dda1374d104dd82bce803272"
+      }
+    },
+    {
+      "id": "platform_resource_operating_policy",
+      "owner": "platform-settings",
+      "columnsContract": "`singleton_key PK, current_revision, updated_at_ms`",
+      "constraintsContract": "singleton key固定；current revision显式FK，不把Schedule塞入Profile aggregate",
+      "source": {
+        "section": "8.5.13",
+        "line": 9752,
+        "lineDigest": "de4cd86e837d3cec416ea326a154c369357b37681dce277031300f2a920664f2"
       }
     }
   ]

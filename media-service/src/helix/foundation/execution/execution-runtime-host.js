@@ -13,9 +13,19 @@ function fail(code, message, details) {
   throw new ExecutionRuntimeHostError(code, message, details);
 }
 
+function withRecoveryContext(error, eventId, effectId) {
+  if (!error || typeof error !== 'object') return error;
+  try {
+    return Object.assign(error, { details: { ...(error.details || {}), eventId: eventId || null, effectId: effectId || null } });
+  } catch {
+    return error;
+  }
+}
+
 function deferRecoveryUntilReady(action) {
   if (!action || typeof action.decision !== 'string') return false;
   if (action.decision === 'safe_retry_before_intent') return true;
+  if (action.decision === 'observe_again') return true;
   if (action.decision === 'continue_forward' && action.action === 'reuse_existing') return true;
   if (action.decision === 'safe_retry' &&
       (action.action === 'rebuild_workspace_output' || action.action === 'cleanup_then_rebuild')) {
@@ -336,9 +346,11 @@ function createExecutionRuntimeHost(options) {
         });
       }
       const recovered = await options.eventRuntime.recover(pending.action);
-      if (!recovered || recovered.kind === 'recovery_deferred') return Object.freeze({
-        kind:'recovery_deferred', eventId:pending.action.eventId,
-      });
+      if (!recovered || recovered.kind === 'recovery_deferred') {
+        const eventId=pending.action.eventId;
+        if(pending.effectId)pending.action=null;
+        return Object.freeze({kind:'recovery_deferred',eventId});
+      }
       deferredRecoveries.delete(pending.action.eventId);
       const aggregation = options.workLifecycle.aggregateEvent(pending.action.eventId);
       await reconcileTerminal(aggregation);
@@ -347,7 +359,8 @@ function createExecutionRuntimeHost(options) {
       // A failed non-pure recovery may have changed physical reality before it
       // threw. Never replay a cached decision; observe the exact Effect again.
       if (pending.effectId) pending.action=null;
-      if (typeof options.onError === 'function') options.onError(error);
+      if (typeof options.onError === 'function') options.onError(withRecoveryContext(error,
+        pendingEventId, pending.effectId));
       return Object.freeze({ kind:'recovery_deferred', eventId:pendingEventId, error });
     }).finally(()=>{
       inFlightRecoveries.delete(pendingEventId);
@@ -528,7 +541,7 @@ function createExecutionRuntimeHost(options) {
               effectId:action.effectId||null, action:action.effectId?null:action,
               retryAtMs:Date.now() + recoveryRetryMs });
             deferred = true;
-            if (typeof options.onError === 'function') options.onError(error);
+            if (typeof options.onError === 'function') options.onError(withRecoveryContext(error, action.eventId, action.effectId));
           }
         }
         if (deferred) {
@@ -547,6 +560,7 @@ function createExecutionRuntimeHost(options) {
         });
       }
       requireRecovery();
+      options.incidentObserver?.reconcileRecoveryReservations?.();
       state = 'ready';
       firstFault = null;
       await options.fallbackReconciler.start();

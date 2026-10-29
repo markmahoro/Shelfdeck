@@ -1,0 +1,169 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_series_presentation_reservations/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_series_presentation_reservations",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "scope_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "on_deck_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "custody_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "state",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "pending",
+          "committed",
+          "released"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "committed_version",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": true
+      },
+      {
+        "ordinal": 6,
+        "name": "target_binding_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "updated_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "scope_id",
+      "on_deck_run_id"
+    ],
+    "declaredForeignKeyColumns": [],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "state",
+        "enumValues": [
+          "pending",
+          "committed",
+          "released"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "`PK(scope_id,on_deck_run_id)`",
+      "`rowMutability=cas_lifecycle`",
+      "与Handoff B Accepted同事务pending，与On-deck Commit同事务committed",
+      "pending不是Own",
+      "不能因首个Season失败而丢掉其他pending责任"
+    ],
+    "rawContract": {
+      "columns": "`scope_id, on_deck_run_id, custody_id, state(pending|committed|released), committed_version NULL, target_binding_digest, created_at_ms, updated_at_ms`",
+      "constraints": "`PK(scope_id,on_deck_run_id)`；`rowMutability=cas_lifecycle`；与Handoff B Accepted同事务pending，与On-deck Commit同事务committed；pending不是Own；不能因首个Season失败而丢掉其他pending责任"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9638,
+      "lineDigest": "f410d67b3bde8e66554c684d45e5382311e373d7a3d75239a70edc1107cb57a8"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "scope_id"
+        ],
+        "targetTable": "arca_series_presentation_scopes",
+        "targetColumns": [
+          "scope_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "on_deck_run_id"
+        ],
+        "targetTable": "arca_ondeck_runs",
+        "targetColumns": [
+          "on_deck_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

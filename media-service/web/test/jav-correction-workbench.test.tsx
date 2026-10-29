@@ -2,6 +2,8 @@ import {fireEvent,render,screen,waitFor,within} from '@testing-library/react';
 import {MemoryRouter} from 'react-router-dom';
 import {afterEach,beforeEach,expect,it,vi} from 'vitest';
 import App from '../src/App';
+import {mockRunningRuntime} from './fixtures/runtime';
+beforeEach(()=>{mockRunningRuntime();});
 import {AdminApiError,helixAdminApi,type JavCorrectionWorkItem} from '../src/helix/api';
 import {JavCorrectionWorkRow} from '../src/helix/JavCorrectionWorkRow';
 const item:JavCorrectionWorkItem={taskType:'jav_identity_correction',correctionId:'correction-1',shelfEntryId:'entry',state:'attention_required',cleanupState:null,stateRevision:2,admissionDigest:'admission',

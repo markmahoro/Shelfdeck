@@ -8,7 +8,6 @@ const MAINTENANCE = Object.freeze({
   'people:ondeck-person-evidence': '完善演员身份',
   'people:reference-artifact-reclamation': '清理无引用演员参考图',
   'people:reliable-person-merge': '归并可靠演员身份',
-  'people:us-adult-recommendations': '整理演员推荐',
   'arca:due-aftercare-shelf-entries': '检查收藏健康',
   'arca:aftercare-workspace-lifecycle': '清理到期维护工作区',
   'libra:completed-workspace-reclamation': '清理到期整理工作区',
@@ -21,8 +20,9 @@ const MAINTENANCE = Object.freeze({
 const SAFETY = new Set(['arca:recycle-maintenance', 'libra:active-workspace-cleanup-scopes',
   'libra:task-cancellations', 'procurement:retired-field-control']);
 const NORMAL = new Set([
+  'arca:series-root-relocations',
+  'arca:series-pending-reservations','arca:series-committed-workspace-reclamation',
   'people:image-operations',
-  'people:us-adult-recommendation-claims',
   'procurement:active-procurement-runs', 'procurement:active-material-fields', 'libra:pending-intake-offers',
   'libra:active-routing-subjects', 'perception:active-acquisitions', 'perception:active-subject-rating-resolutions',
   'perception:active-shelf-entry-rating-resolutions', 'arca:jav-identity-corrections', 'arca:failed-acceptance-assessments',

@@ -1,0 +1,24 @@
+{
+  "schema": "shelfdeck.buffalo-model-pack@1",
+  "modelId": "insightface-buffalo_l@1",
+  "runtimeVersion": "1.30.0",
+  "preprocessingVersion": "sense2-rgb-array-scrfd-opencv-pil-affine@1",
+  "senseCommit": "7a690aa80c390a69d64934c6201076ae05f94e59",
+  "dimension": 512,
+  "detectorSize": 640,
+  "recognitionSize": 112,
+  "minimumDetectionConfidence": 0.5,
+  "minimumFaceSize": 40,
+  "maximumFaces": 32,
+  "maximumImageBytes": 16777216,
+  "maximumImagePixels": 16777216,
+  "usage": {
+    "source": "https://github.com/deepinsight/insightface/tree/master/model_zoo",
+    "weightsCondition": "non-commercial-research",
+    "distribution": "local-verified-assets-only"
+  },
+  "models": [
+    {"role": "detector", "file": "det_10g.onnx", "bytes": 16923827, "sha256": "5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91"},
+    {"role": "recognizer", "file": "w600k_r50.onnx", "bytes": 174383860, "sha256": "4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43"}
+  ]
+}

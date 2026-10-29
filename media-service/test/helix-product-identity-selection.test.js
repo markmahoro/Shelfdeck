@@ -151,11 +151,23 @@ test('TMDB timeout wrapped by a Secret lease is a retryable timeout Outcome', ()
       url:'https://example.test/?api_key=synthetic-secret' },
   });
   assert.equal(identityObservationFailed(network).failureClass, 'integration');
-  assert.deepEqual(identityObservationFailed(network).evidence.diagnostics, {networkCode:'ECONNRESET',stage:'json_request'});
+  assert.deepEqual(identityObservationFailed(network).evidence.diagnostics, {causeCode:'PLATFORM_INTEGRATION_NETWORK_FAILED',networkCode:'ECONNRESET',stage:'json_request'});
   assert.equal(JSON.stringify(identityObservationFailed(network)).includes('synthetic-secret'), false);
   assert.throws(() => identityObservationFailed(Object.assign(new Error('schema'), {
     code: 'P4_CAPABILITY_SCHEMA_REJECTED',
   })), (thrown) => thrown.code === 'P4_CAPABILITY_SCHEMA_REJECTED');
+});
+
+test('JAV identity failures retain safe source diagnostics in their persisted evidence', () => {
+  const error = Object.assign(new Error('private source detail'), {
+    name:'JavSourceError', code:'JAV_SOURCE_UNAVAILABLE',
+    details:{stage:'page',status:503,url:'https://example.test/?token=secret'},
+  });
+  const outcome=identityObservationFailed(error);
+  assert.deepEqual(outcome.evidence,{errorCode:'JAV_SOURCE_UNAVAILABLE',diagnostics:{stage:'page',statusCode:503}});
+  assert.equal(JSON.stringify(outcome).includes('secret'),false);
+  const timeout=Object.assign(new Error('private'),{name:'JavSourceError',code:'JAV_SOURCE_TIMEOUT',details:{stage:'cover'}});
+  assert.deepEqual(identityObservationFailed(timeout).evidence.diagnostics,{stage:'cover',timeout:true});
 });
 
 test('provider-local alias provenance is normalized before Product Identity evidence leaves Libra', async () => {

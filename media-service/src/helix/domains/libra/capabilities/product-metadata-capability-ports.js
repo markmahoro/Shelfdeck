@@ -1,4 +1,5 @@
 'use strict';
+const { failureDiagnostics } = require('../../../contracts/failure-diagnostics');
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { buildMetadataFetchIntent, buildMetadataObservation } = require('../model/product-fact-contracts');
@@ -72,6 +73,7 @@ function metadataFetchFailed(error) {
     evidence: Object.freeze({
       errorName: String(error.name || 'Error'),
       errorCode: cause,
+      diagnostics: failureDiagnostics(error),
     }),
   });
 }
@@ -89,9 +91,12 @@ function createProductMetadataCapabilityPorts(options) {
     },
     async execute(context) {
       const intent = buildMetadataFetchIntent(context.namedInputs.metadataFetchIntent);
-      const handle = context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle;
+      let handle = context.namedInputs.physicalMaterialReadHandleOrIntegrationHandle;
       let source;
       try {
+      if(intent.contentProfile==='jav')handle=require('../../../contracts/jav-source-qualification').resolveJavQualifiedHandle(
+        handle,intent.javSelectedSource,CAPABILITY,options.resolveJavSourceHandle);
+      const sourceAuthorizedAtMs=now();
       if (intent.episodeScope) {
         const snapshot = options.movieProductionReader.readRunSnapshot(context.ownerScope.processId);
         if (intent.libraRunId !== context.ownerScope.processId || snapshot?.spec?.contentProfile !== 'series' ||
@@ -99,6 +104,15 @@ function createProductMetadataCapabilityPorts(options) {
             !snapshot.spec.productScope.episodeKeys.includes(intent.episodeScope.episodeKey) ||
             !snapshot.episodeClaims.some(claim => claim.episodeKey === intent.episodeScope.episodeKey))
           throw new TypeError('Episode metadata is outside the frozen Run delivery scope.');
+        if (intent.episodeMapping && !snapshot.members.some(member => member.materialKey === intent.episodeMapping.materialKey &&
+            member.episodeClaims.some(claim => claim.episodeKey === intent.episodeScope.episodeKey)))
+          throw new TypeError('Confirmed Episode mapping is outside its exact frozen material scope.');
+        if (intent.episodeMapping || snapshot.run.episodeMetadataMappingRef) {
+          const identity = options.movieProductionReader.readFact(context.ownerScope.processId, 'resolved_identity', 1);
+          const expected = require('../model/episode-metadata-selection').resolveEpisodeMetadataQuery(options, snapshot, identity, intent.episodeScope);
+          if ((expected || intent.episodeMapping) && (!expected || !intent.episodeMapping || canonicalDigest(expected) !== canonicalDigest(intent.episodeMapping)))
+            throw Object.assign(new Error('Episode query differs from its persisted confirmation.'), { code: 'LIBRA_EPISODE_MAPPING_AUTHORITY_REQUIRED' });
+        }
       }
       if (intent.sourceKind === 'related_nfo') {
         const snapshot = typeof options.movieProductionReader.readRunSnapshot === 'function'
@@ -134,23 +148,33 @@ function createProductMetadataCapabilityPorts(options) {
         });
       } else if (intent.sourceKind === 'provider') {
         const provider = await options.productProductionPort.fetchProvider(intent, handle);
+        const entries = intent.episodeMapping ? require('../model/episode-metadata-mapping').projectMappedEpisode({
+          localScope: intent.episodeScope, providerEpisode: intent.episodeMapping.providerEpisode,
+        }, { providerEpisode: provider.providerEpisodeReference, descriptiveEntries: provider.descriptiveEntries }) : provider.descriptiveEntries;
+        const local=provider.seriesPresentationSource&&options.qualifySeriesLocalSource?.(options.movieProductionReader.readRunSnapshot(context.ownerScope.processId).candidatePackage?.seriesPresentationSourceRefs,provider.seriesPresentationSource.providerKey);
         source = Object.freeze({
-          descriptiveEntries: provider.descriptiveEntries,
+          ...(local?{seriesQualifiedLocalSource:local}:{}),
+          descriptiveEntries: entries,
           providerIdentities: provider.providerIdentities,
           peopleHints: provider.peopleHints,
           artifactHints: Object.freeze([]),
+          ...(provider.seriesPresentationSource?{seriesPresentationSource:provider.seriesPresentationSource}:{}),
+          ...(provider.episodePlotSourceProof?{episodePlotSourceProof:provider.episodePlotSourceProof}:{}),
         });
       } else {
         throw new TypeError('Product Metadata source kind is unsupported.');
       }
       return outcome(buildMetadataObservation({
         intent,
-        ...(intent.contentProfile==='jav'?{sourceIntegrationHandle:handle}:{}),
+        ...(intent.contentProfile==='jav'?{sourceIntegrationHandle:handle,sourceAuthorizedAtMs}:{}),
         descriptiveEntries: source.descriptiveEntries,
         sourceNfoSemantics:source.sourceNfoSemantics || null,sourceNfoSnapshotDigest:source.sourceNfoSnapshotDigest || null,
         providerIdentities: source.providerIdentities,
         peopleHints: source.peopleHints,
         artifactHints: source.artifactHints,
+        ...(source.seriesQualifiedLocalSource?{seriesQualifiedLocalSource:source.seriesQualifiedLocalSource}:{}),
+        ...(source.seriesPresentationSource?{seriesPresentationSource:source.seriesPresentationSource}:{}),
+        ...(source.episodePlotSourceProof?{episodePlotSourceProof:source.episodePlotSourceProof}:{}),
         observedAtMs: now(),
       }));
       } catch (error) {

@@ -1,218 +1,146 @@
-# 当前 Phase：US Adult、演员库与每周维护窗口
+# 当前集成 Phase：本轮并行修复与 BUFFALO-VIDEO-IDENTIFICATION
 
-2026-10-21新增UAT-328设计评审里程碑：[剧级公共呈现完整生命周期草案](evidence/UAT-328_SERIES_SHARED_PRESENTATION_DESIGN_20261021.md)已完成。用户已确认三项剧级文件均必需及首次/跨季/新集复用目标；Arca共享呈现职责和Handoff/Commit扩展、来源及维护细则为待审建议，非已实施合同。设计包含Provider精确三层接口、共享登记/引用、首次S03及并发/崩溃/缺损/退出与现场修复验收矩阵。326/327既有方案已确认，实施授权持续；无本轮产品或生产修改。
+2026-10-29 用户因额度不足要求安全停止全部本轮线程及轮询；所有相关线程已停止，定时跟进保持暂停。功能和最终验证均未完成，完整架构回归有 30 项失败；生产尚未执行本轮 Stop、Reset 或部署。工作现场、备份、阻断和恢复顺序见 [暂停交接](evidence/HANDOFF_20261029_2206.md)。用户要求恢复前不得续跑。
 
-2026-10-21 UAT-326/327处理方案审视完成：326优先复用Arca已有“冻结来源资格、执行时签短期Handle”的模式，并单独落实旧在途纯查询的正式收束/恢复；327需讨论撤销第一层目录不可拆，以共享本地完整分组规则及确定性分批替代，保留1024原子上限。当前无产品/SSOT或生产修改，未将方案记为确认；实施范围和验收见既有生命周期Evidence。
+2026-10-29 最新用户决定覆盖下方旧的 Series 独立发版/七条逐项恢复顺序：先检查五条原因未明项并只加入必要的修复，再完成电影自定义 Spec、US Adult 演员识别与自动建档及已有积压根因修复；随后安全停机、执行已授权的 Fresh-generation Formation Reset，最后标准部署同一版本。旧未入藏任务不做兼容、自愈或逐条恢复；用户已授权跳过真实 CIFS 验证，不再等待低 I/O；不能将未验证部分记为通过。按已授权的精确停止态预检、保留依赖验证、备份和标准发布入口执行；不恢复定时轮询。
 
-2026-10-21 UAT-325已完成：移除独立准备异常入口，原任务统一“重试任务”，历史只读数组导致的500修复。精确6c7493964经UI负责人验收及标准生产部署，17:47:53恢复正常供给，原转码重启推进，八项接口与前后80组事实保护通过。本次用户明确允许标准重启中断当前转码；原完整副本Host FAIL例外保持。该UAT按自身证据关闭，当前Phase继续承接其他开放问题，不替代Phase Exit。
+五条针对性复核新增两项本轮工作，具体案例、证据边界与最小修复方向见 [PRODUCTION_FIVE_CASES_REVIEW_20261029](evidence/PRODUCTION_FIVE_CASES_REVIEW_20261029.md)：
 
-新增开放UAT-326：ABF-153的JAV识别Event重启后因短期Handle到期时间变化导致输入摘要漂移，重复恢复被拒；本次只定位记录，尚未修复。相关代码与408旧版相同；实际转码恢复和本次UAT-325修复通过不等于全部任务已恢复。详见同一生命周期Evidence。
+- **TMDB-ALIAS-TYPE-BOUND**：硅谷 S04 的同输入、同生产 Adapter 当前可复现；TMDB 合法 `alternative_titles[].type` 描述为 159 UTF-8 bytes，旧代码按 128 bytes 整体拒绝。该字段不属于 Alias Evidence；在保持完整响应、实际标题和身份边界有界的前提下修正协议校验，覆盖原反例及无效类型、总体过界负例。历史第一次错误未保留字段级证据，不伪称精确历史因果。
+- **JAV-SOURCE-FAILURE-DIAGNOSTICS**：GVH-877、SORA-062 的来源错误持久诊断缺少阶段和 HTTP 状态；按现有 failure evidence 合同保留白名单字段并限制底层网络码，不暴露 Secret、URL 或响应正文。不改变源选择、重试或旧 Run。历史失败的精确网络根因仍未知，当前只验证精确页面可访问，未取得封面。
 
-2026-10-21 当前承接：生命周期与合并增量已标准部署40861e877并恢复正常供给。用户上线后反馈UAT-325：已结束任务查询500，以及独立“准备异常”入口不符合用户旅程。根因已定位为历史分页修改只读数组；继续本Phase修正，恢复统一为原任务“重试任务”，未接收成功者纳入同一列表且不伪造Subject/Run。修正版验证与发布继续；先前待部署快照按历史保留。
+两项代码分别提交 `9a271d317`、`9ae7c1aa6`：隔离 Linux 定向64项及后续身份/诊断22项通过，真实 Host 的页面503失败 Evidence 定向通过。既有完整 FC2 503→备站→入藏测试首两轮因误设1 GiB临时卷、低于Workspace至少5 GiB准入而未进入入藏；改用空间充足的隔离匿名卷后原断言及新增持久诊断断言通过。首两次失败保留。详见五条复核 Evidence，最终集成和正式验收未完成。
 
-2026-10-21 用户已接受本次完整副本 Host 演练例外，保留 FAIL 及原因记录；其余检查通过后直接继续已授权的标准上线，不再等待该项决定。固定全量资格、安全停机、冷备/结构安装及部署后核验仍须完成，无生产 Reset 授权。
+DDOB-019 的冲突目标为已有 active Shelf Entry 所控的同番号正式文件，新任务输入为不同物理材料；保护性拒绝保留，不因相同番号认定可合并、覆盖或自动替换。爱死机原始三次均为连接重置，当前相同来源查询已成功，无法证明原始连接重置的外部位置；不追加猜测性恢复代码。
 
-2026-10-21 FORMATION-PACKAGE-DESTINATION发布检查点：实现、未上线增量及主线整合已完成，固定c66d55b4a全量资格仍运行；UI负责人接受、Windows/Linux相关验证与实际照片建档通过。225表升级和保留候选新增事实的224表回退复制通过，完整Host达到正常供给但演练含只读物理操作错误，仍为FAIL；旧版另有已修复的优先级版本号问题。发布例外待用户决定，生产保持af2257c423，无Reset。下一步为完整门禁结果、例外决定及标准安全切换，详见唯一专项Evidence，不新增并行Phase。
+更新：2026-10-29。用户同意恢复演员、电影、剧集及UI负责人线程并行，本线程追踪和整合、负责Reset与发布；不恢复定时轮询。Series、电影自定义Spec及演员识别统一发版，旧七条不逐条恢复。本文件仍是唯一活动集成包。Phase 1有限技术资格已Exit，固定提交125229556及[Evidence](evidence/BUFFALO_CATALOGUE_FEASIBILITY_20261029.md)可复验；未开放自动出演。
 
-2026-10-21第二批实施检查点：DESTINATION-IMPLEMENTATION上述取消/排除/撤销、前置失败恢复、退休来源释放及用户确认D07已实现，UAT-322补既有superseded Cleanup Scope路径；SSOT/225表/164路由已同步。当前仍在发布资格阶段，不继承前序版本UI/完整Gate/跨平台PASS；不授权生产Reset或专项旧Workspace手工删除。具体本地证据见本专项Evidence最新节。
+独立候选`b7a03bb48`、`2a58c1606`已整合US体积检查及对话框修复：隔离Linux服务56项、Windows Web 15项和前端构建通过；最终合版、真实媒体及具体版本UI复核仍开放。冷态Reset结构转换提交`bfc9f0cd4`对固定生产239表→当前244表进行精确目录和marker校验；后续已声明244表保留规则，补齐相关Withdrawal闭包与旧执行防重启边界。隔离Linux完整管理流程85项通过，后续闭包回归85项及管理入口2项通过；原2项缺失闭包、旧Work反例和一次声明错误失败均保留。最终整合结构、生产停止态数据闭包、校验冷备与实际Reset仍待核验。
 
-2026-10-21本地检查点：生产容量清理完成，两次人物照片建档自动完成。DESTINATION-IMPLEMENTATION首批已修改Libra历史失败拒收、Run公平初始轮次/包发布时间、Procurement技术失败下一Observation资格及Arca恢复分页首项阻塞；46项定向回归和3项隔离Host通过，未发布。持久取消、无Run退出、排除/撤销、退休Field闲置Control及其用户入口尚未完成；完整Gate/跨平台与具体版本UI资格不继承。
+演员Observation `28a6e4f43`已叠加主整合暂存代码并保留已有Artifact类型，真实Event及Workspace定向Linux 52项、四项静态检查通过；这不是正式Host或真实视频/People/Cast资格。演员线程继续前序Frame恢复和系统建档，目录来源的Selection Basis、People自动注册来源和人物独立Reset依赖仍待精确机器合同及实现。Series候选Perception同Owner模型边界修复`f253017d2`已通过Linux 45项和静态检查；JAV新路径与主整合已存在的`3e707a033`合同仍待合并及完整验收。
 
-## 2026-10-21 实施授权与当前顺序
+最新合并检查点：主整合固定待提交tree `23b114916969c167f5bc186833bf2298515746a0`包含Series候选`f253017d2`、演员Observation及Reset基线；静态四项与P2定向3项通过，合并后隔离Linux Foundation/演员Observation 148项、共享Series/Perception/诊断62项通过。UI负责人对`2a58c1606`开发预检通过，最终混合版本仍须独立复核。
 
-用户已授权整合工作区/远端/生产、交付未上线增量、修复本专项及生产人物建档问题。既有审查记录的“仅审查、未授权实施”描述为历史时点。当前工作项：WORKSPACE-CONSOLIDATION（已合并 US Adult 与 JAV 增量，尚未推送/部署）；PRODUCTION-CAPACITY（已确认 SQLITE_FULL/ENOSPC，按用户明确授权清理测试/历史备份/无使用旧镜像）；DESTINATION-IMPLEMENTATION（按审查中的已确认决定修复；新合同缺口不擅自决定）；PEOPLE-REGISTRATION-RECOVERY（两次 preparing 请求在 import 资源等待，验收 ISO scratch 与同卷不足链仍在核查）。产品改动、精确版本 UI 与平台资格、生产部署分别记证据，不复用旧版验收。
+JAV长标题`619ffc464`不是发布合格候选：真实Host的Stage回执前、Stage已提交/Verify前和Placement回执前三个进程中断窗口初版未完成Effect责任，试验性修订已恢复唯一Commit；成员写入中、完整Manifest尚未持久化的第四窗口仍停滞。Arca正在实现同Effect逐成员证据及无法证明时明确attention；须固定版本复验所有窗口，Reset不得借此删除正式根下文件。演员系统建档和电影自定义Spec仍在开发，新增People/Cast数据结构若改变目标DDL，须重新验证从实际239表源的Reset结构与精确保留闭包。
 
-## FORMATION-PACKAGE-DESTINATION / “死包”专项（2026-10-21，当前优先）
+演员线程阶段提交`bfc11236e`的真实Frame Effect恢复、People姓名比较和Libra人物请求输入已整合；保留主线Artifact kind，Linux 79项、Windows 25项及静态四项通过。仍使用技术fixture，实际视频/Host、系统建档、Cast和最终Reset未完成。
 
-用户要求在进一步性能优化及 UI polish 前完成全生命周期归宿审视，已恢复完整排查。起点为来源中的媒体文件，包含从未成包者；核心是控制责任不能收敛、以及错误准入限制，UI/入口为第二层。覆盖观察/资格/Triage、A、Libra、B、Arca Commit/合法非入藏、替代和再进入。600 包为目标示例，非已读取的生产清单；结束本次尝试与排除材料是两个独立意图。
+## 并行执行与当前阻断
 
-- **DESTINATION-AUDIT**：本轮业务分支审查完成，B01–B37 补全未成包范围及实际出口；证据：[Evidence](evidence/FORMATION_PACKAGE_DESTINATION_AUDIT_20261021.md)。三条新增 Host 复现无 Run 放弃缺实现、退休 Field Control 阻断新来源、重试 Offer 拒收消耗资格；五项 Coordinator/Store fixture 确认前置 Work 失败持续 pending 与 Arca 两类恢复问题。F07–F14 区分实现问题/有人工出口/合同待决，不将合法等待一律判死。
-- **DESTINATION-CONTRACT**：待逐项讨论 D01–D07：尝试结束与排除/撤销、重试何时消耗资格、退休 Field 闲置责任、Arca Accepted 后永久无法 Commit 的收口、等待边界、持久放弃意图、人工与自动恢复预算。尚未确认新合同，不用 Retry/Reset/反向交接代替设计。
-- **DESTINATION-SURFACE**：方案需让用户从正常入口发现所有未入藏材料，看到当前原因、责任与有效动作，并能确认结果；已有系统失败重新整理局部入口不等于完整维护窗口。不预设新页面，按 Playbook §11.1/§12.3 与 Beta §7.1 验收。
-- **DESTINATION-QUALIFICATION**：后续修复以冻结来源物理范围为分母，含未成包材料，逐项核对 Commit/合法非入藏/明确在途/错误阻塞，不重不漏。本轮 120 定向测试通过，加原再开采/激活和三条新增 Host、五项组件验证；无全路径实景/浏览器/生产专项 PASS，不能将已完成审查视为已修复。
-
-本次仅审视和方案记录，不授权部署、生产扫描/激活/排除/删除/Reset；保留既有发布与 UAT 历史，不以新专项关闭旧项。涉及 Owner/终局/副作用权限的合同调整先取得用户确认，再实施。
-
-2026-10-18 最新授权及结果：用户要求部署上线，已标准发布 `helix-beta-20261018-5367179429`（source `5367179429d6e6785c1adf8c8da363bc21def9bd`）；完整副本候选/使用后旧版回退、冷备、精确镜像及生产健康/历史保护通过。包含统一代理、空间不足转二号与UAT-318本轮热点优化，先前“未部署/暂停发布”仅为历史状态；未授权生产清理。未追加性能硬门槛或大批等价试验，未跑完整生产媒体E2E，UAT-318及其他未闭业务验收保持开放。详情见既有UAT-318 Evidence最新发布节。
-2026-10-21 新增用户确认工作项 `JAV-ACTOR-COMPLETENESS`：补JavMenu同站演员提取；JAV演员结果必有，缺失时关联People管理的统一“未知演员”档案，覆盖首次Cast/NFO/入藏及Arca纠正，不伪造来源字段或外部人物ID，不改其他库。按SSOT同日合同实施、隔离验证和精确版本UI验收；未授权部署/生产历史修复。既有UAT-323/324和UAT-322各自保持独立状态。
-
-本项本地代码与受影响Windows/浏览器验证完成；Service648 PASS/29既有skip、核心54、来源/Cast48、Owner回归93、真实Host3及宽窄UI2项通过。五项静态检查通过，SSOT摘要已按正式materializer更新；UI负责人已接受具体产品提交`7b318ef956`，宽窄8/8，无阻断项；后续仅测试/文档变更，92份产品源码/9资产相同，Linux/独立分发及发布资格不继承。UI旅程沿用人物→JAV演员→未知演员→相关作品→收藏详情，首屏真实登记数和姓名即为结果，无人工确认待办或新增说明文案。详见[JAV演员Evidence](evidence/JAV_ACTOR_COMPLETENESS_20261021.md)。
-
-20:14生产发布完成：标准部署精确af2257c423，正式Resume已持久完成，health/Admin/正常供给与正常Owner周期、611原收藏/13组历史保护、15无关容器及fnOS通过。获授权的10项旧整理已清理，新整理按正常调度推进（复验9项进行中）；维护默认周六03:00–09:00上海时区，US辅助只保留ThePornDB，测试Key未进入生产。当前承接使用反馈，不把原固定全量环境失败改成一次全绿，不将未统计身份准确率或完整生产媒体E2E记为PASS，不批量关闭既有UAT或代替正式Phase Exit Audit。精确身份、备份与回退限制见CURRENT_STATUS及本项Evidence。
-
-20:05检查点：生产新224表主库原子发布并验证摘要成功，13组历史事实/611原收藏保护通过。标准af2257部署apply进行中，未记正常供给完成。最终组合资格3145 PASS/26既有或opt-in skip/0剩余失败、四项静态检查PASS；全量首轮唯一Windows打包项因漏Web依赖失败，相同锁文件补齐后定向复验PASS，4190 tracked输入四次摘要完全相同，首轮ok=false记录保持。首个分离bind mount换库EXDEV未替换原库；单一父目录挂载经NAS隔离验证后成功。细节见既有US Adult Evidence。
-
-19:37检查点：获授权的精确10项标准Reset已完成、保持停服；清理后66文件完整备份及权限校验通过。生产新库只在独立release目录准备，未覆盖原210表数据库或切换镜像。af2257正常周期后13组历史事实再次逐项摘要保护通过；最终固定完整Gate继续运行。前段“Reset进入apply”保留为此前检查点。
-
-19:18检查点：af2257候选已在完整隔离生产副本中验证health200、normalSupplyAllowed=true及放行后常规字段协调（4来源、errors0）、安全关闭；原Workspace挂载身份只读保留，生产DB路径遮挡。13组历史事实表不变。生产正式安全停机已完成，精确10项标准Reset已备份并进入apply；未换库或切换镜像。d485完整Gate3158/3132 PASS/26 skip已结束，af2257全量独立Gate仍运行，不能以旧基线代替。最终切换须等候选资格及生产新库准备完成。
-
-日期：2026-10-20。状态：`BASELINE QUALIFIED / QUERY INCREMENT LOCALLY VERIFIED / IDENTITY ACCURACY UNASSESSED`。
-
-最新执行顺序：用户已授权当前10项未上架整理清理（含补入1项），611条收藏保护。正式安全停机09:12:47 UTC成功：四个在途通道/deferred recovery均0、FFmpeg退出、受理后无新增Attempt。随后容器正常停止，新完整冷备64文件/3,842,413,191 bytes逐文件内容/权限一致。正在补齐最新生产终态历史及三类合同完全不变的暂停后台批次证明，拒绝Formation兼容/未决Effect，不扩大清理范围；局部94项及空Host通过，具体副本及新固定Gate仍待验。旧64d1完整Gate3137 total/3111 pass/26 skip不替代新增代码资格。生产未Reset/迁移/升级，准确率统计停止。
-
-发布检查点：精确候选`64d1b06702`的镜像已标准构建/上传并校验，dry run及当前UI负责人审核通过，Service和Linux增量验证通过；固定checkout完整Gate尚在运行。生产副本10个未完成Run阻挡210→224升级；标准显式10 Subject Reset仅完成只读预览。依Playbook §3.4等待新的生产数据处理决定，不擅自Reset或加兼容。生产尚未切换，冷备/完整Host/回退资格未完成；详见既有US Adult Evidence最新补记。
-
-最新授权覆盖下方早期仅本地范围：用户要求改完直接生产升级，并将US Adult搜图收敛为唯一ThePornDB来源、固定地址及API Key设置。沿用同一活动Phase处理候选整合、UI与生产副本升级/回退证明及标准部署；不新增清库、Reset、旧任务终结或一次性测试凭据进入生产的授权。准确率统计按用户决定停止。
-
-海报新排版补记：用户确认暖白底、顶部演员名、四帧2×2裁切铺满及页脚小肖像/原名的中性预览。唯一共享Renderer和冻结合同升级为us-adult-presentation@3；Windows55 PASS/1既有opt-in skip、Linux31 PASS/1同项skip、四项静态Gate通过。局部本地完成，未更新NAS镜像或已有成品，不继承原完整版本资格。用户已停止准确率统计，身份准确性状态继续保持未完成，不再主动收集统计；详见既有US Adult Evidence最新节。
-
-真实辅助建档补记：用户提供仅用于本轮隔离验收的临时TPDB凭据。两处适配缺陷已修复并通过Windows29项、Linux相关6项及四项静态Gate；原验收镜像加两处只读适配修复后，正式连接/保存/搜图API和浏览器图片加载通过。来源候选数量不是身份正确率；旧Wikimedia缺陷随最新唯一来源决定退出当前范围，未追认旧结果。生产未改，无新增完整发布资格；证据见既有US Adult Evidence最新节。
-
-## 1. 基线与授权
-
-- 2026-10-20用户恢复开发，先完成ONNX worker thread改造，再复验实际N95隔离环境性能和整体验证。昨日暂停、未通过的性能预算及已取消Gate均保留为历史，不能计PASS；已确认业务决定沿用，无生产部署授权。
-
-- 分支 `codex/us-adult` 从同步后的 `main@ac278f33e644f0fe52f93043bfa1ac0f2eb40b18` 建立；GitHub 默认分支已改为 main。
-- 用户已确认五个议题并要求本地开发；[产品决定与开工取证](evidence/US_ADULT_DECISION_BASELINE_20261018.md)不是第二份架构。
-- 沿用 Playbook §3.3：本任务先记录并回写已确认合同，再传播机器门禁、实现与测试；不为已确认决定重复申请授权。
-- 本地代码、合同/单元/隔离 fixture 与构建在范围内；NAS 部署、停机、Reset、生产数据或真实媒体改动不在本次授权内。
-- 前一开发包保留在 [历史交付快照](archive/JAV_AND_RUNTIME_DELIVERY_AC278F33E_20261018.md)。原未关闭 UAT、精确收藏保护与验收限制不变。
-- 本次工作区忽略资料移存只用于保护本地文件，不新增 ShelfDeck 备份产品功能。
-
-## 2. 顺序与当前工作
-
-| 工作项 | 可验收结果 | 当前状态 |
+| 线程 / ID | 本轮交付与先后 | 整合边界 |
 | --- | --- | --- |
-| `JAV-ACTOR-COMPLETENESS` | 来源演员保留；缺失时统一真实未知演员；Cast/NFO/收藏/相关作品一致，无伪造来源身份 | 本地开发及适用Windows/浏览器PASS；产品7b318具体版本UI负责人8/8接受，未发布 |
-| `US-CONTRACT-BASELINE` | 五个议题映射至 Owner、命令、事实、Effect、恢复和验收；SSOT 与派生合同一致，负例与 Architecture Gate 通过 | PASS：SSOT及派生合同、Owner/Effect/恢复负例及固定0c82ee862原始完整Gate通过 |
-| `US-PEOPLE` | 三库独立；普通/JAV 零用户介入；US Adult 有图手动/辅助建档、编辑、每轮最多五位推荐；认领来源影片无二次确认 | 本地实现及适用工程资格PASS；范围限制见下文 |
-| `US-FORMATION` | 真实 service-local 抽帧/人脸匹配，唯一最高有效演员；未识别进入既有暂存车间，确认后原位继续，有演员才可上架 | 本地实现及适用工程资格PASS；范围限制见下文 |
-| `US-PRESENTATION` | 初次生产和 Arca 刷新共用正式 Renderer；四张 2×2 大截图；演员名加冻结原名；无展示用自建番号 | 本地实现及适用工程资格PASS；范围限制见下文 |
-| `US-ARCA-REFRESH` | 仅用户单片手动指定/自动刷新创建本类 Aftercare Case；演员、NFO、海报、相关命名一致更新，收藏身份不变 | PASS：正式链路/真实进程恢复/UI、Windows/Linux及N95单片指定刷新；身份连续 |
-| `SYSTEM-MAINTENANCE-WINDOW` | 每周配置、安全进入/退出、游标续跑和任务分类；概览只显示维护状态与当前任务 | 本地实现及适用工程资格PASS；范围限制见下文 |
-| `US-QUALIFICATION` | 正式 Host 旅程、恢复反例、适用跨平台验证和具体版本 UI 审核有 Evidence | 工程资格PASS：完整Gate、Windows/Linux/N95通过；真实出演身份准确性未评估，整体业务验收保持开放 |
+| 本轮整合线程 | 计划追踪、共享合同/生成物、Reset与最终合版门禁/发布 | 自有主整合与独立候选目录；保护其他线程及已有暂存工作 |
+| 演员线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环 | 共享基准97c4913b9含2f/68/f0/723/3c/e7及正式合同，固定树双平台各52通过；NAS验证暂停，正式Host/真实模型/完整门禁未完成，不作为Series发布基线 |
+| ShelfDeck 生产待处理条目分诊 01a18626-520c-79a0-8240-066bd0a777a3 | 生产快照与逐条分诊已完成；JAV长名原型已留证 | 本轮未重新启动，16:18快照不等于Reset精确范围 |
+| ShelfDeck 剧集上架与自愈修复 01a18627-6d8b-7d72-aa5a-bcb7cbf6ed0f | Series新任务修复核对，并承接JAV长名正式实现 | 在独立工作区开发；不逐条重试旧任务，不操作生产 |
+| ShelfDeck 电影寻源与自定义标准 01a18628-b31a-70c3-abbc-bd29b688cbce | 完成自定义标准端到端用户闭环 | 承接原增量；完整API/UI、Owner/Runtime和真实旅程仍未闭合，不开放半成品 |
+| UI负责人 01a0912a-0086-74e2-88ab-536c59d3862a | 提前复核体积及瑕疵对话框，最终核验精确合版 | 当前提前反馈不代替最终版本复核 |
 
-本 Phase 滚动细化当前工作项；不另建活动计划，不分配开发用 UAT。缺失真实模型/适配器不能由旧 Face HTTP 服务、Mirex Store、mock Result 或空演员关系替代。
+其他线程在各自独立工作区准备代码、专属Evidence及必要共享合同候选；主整合统一审核、合并并重新生成共享合同，互不覆盖彼此工作。NAS重型任务串行安排。本轮已授权停止态Fresh Reset和升级，不再等待真实CIFS或低I/O；保留其未测风险及停止态保护要求。
 
-## 3. 验收门禁
+## Series候选及本轮整合检查点
 
-- People：跨库同人可独立建档、唯一性/查询按库隔离；普通/JAV 无用户写操作/确认待办；不按同名强行归并。
-- US Adult：姓名和有效单人参考图必需；无效图不发布可用演员；修改姓名/图片不广播改写已上架影片；无合并/停用/删除。
-- 推荐：每轮最多五位且聚合人物；用户认领只作用于明确来源 A，Owner 命令幂等生效；跨域交互不伪装成共享 Store 或跨域原子事务。
-- Formation：覆盖最高匹配、无匹配、无脸、空库、人工改选、暂存原位继续、单演员验收、重启和重复命令；沿用席位/公平与责任边界。
-- Arca：本类 Case 仅由用户 Intent 创建；无结果保留原演员；命名冲突不覆盖；提交前后崩溃可恢复，Shelf Entry/Deck Fact/Canonical Identity 连续。
-- 产物：预览可看清 2×2 截图，姓名/标题不遮图；原名冻结，刷新不重复追加演员前缀；不以文件名替代内部身份。
-- 窗口：默认周六 03:00–09:00 Asia/Shanghai；跨重启、配置修订、手动停机、长转码错过进入、到点退出和单任务失败均有反例。
-- 调度：周期健康检查只签发 Case，Case 与 Run 在正常模式执行；维护及安全收尾所需的 Foundation/消息能力不被全局 stop 误停。
-- 数据：已入藏事实/引用保留；旧普通/JAV 确认项只经 Owner 有界再解析，不盲目接受、同名合并或硬删除。
-- 执行适用 Service/Web/Architecture 检查，Windows/Linux 原生依赖按影响验证；未测项明示，fixture 不冒充真实模型或媒体验收。
-- 本轮为跨层开发，UI 按 Playbook §12.3 接受具体版本审核，后续 UI diff 重验受影响路径。
+| 工作项 | 当前状态 / 退出条件 |
+| --- | --- |
+| 候选范围 | 从生产a2bf2d6fd整合Series三个提交及MetadataFetchIntent、MetadataObservation、ArtifactAcquisitionResult最小已确认生成合同；检查原有DDL/表不变，不携带演员/自定义目标。 |
+| 固定候选资格 | 固定提交的Linux镜像、适用架构/Service/Web及具体版本UI负责人核验；保留所有首跑失败与重验。 |
+| 真实CIFS | 用户明确跳过；未实测风险如实记录，不能称通过。 |
+| 标准发布 | 复核生产身份、容量、备份与回退；使用build-image、upload-nas-image和deploy-nas，dry run与SHA通过后按既有用户请求执行。 |
+| 旧七条 | 不逐条恢复；停止态Fresh Reset按全范围合同清除未入藏在线状态并保留来源与正式收藏文件。 |
+| CUSTOM-TARGET-RESET-RETENTION | 隔离模拟证实仅作dependent表分类会遗漏已保留Custom Spec的精确Intent/Preview；Libra按实际保留Spec提供Owner依赖闭包，验证同Subject多版本、未入藏、缺失/篡改与中断恢复。原开发Schema因声明不匹配保持fail-closed；不能仅靠FK通过放行Reset。 |
+| JAV-AFTERCARE-REPLACEMENT-IDENTITY | 隔离环境发现的额外文件归属风险，未证明为本轮积压根因；按用户决定不作为本轮独立专项，现有保护不削弱。 |
+| ON-DECK-FOREIGN-STAGE-OWNERSHIP | 同字节外来Stage是隔离反例，未证明与现有积压有关；不作为本轮独立专项。若新长名实现复用相关路径，仍按其现行Owner/冲突合同处理。[Evidence](evidence/ARCA_TARGET_EXCLUSION_RECOVERY_20261029.md) |
+| WITHDRAWN-OFFER-RESET-DEPENDENCY | 已实现244表精确保留：当前保留Run、Work、Package或Outbox仍可能关联旧Offer时保留Arca Withdrawal及原Command/Marker/Audit；无关记录清除，证明缺失/Accepted矛盾阻断。隔离待投递和已投递未ACK重投、缺证、伪造及独立核验测试通过；目标结构变化或生产停止态事实不同须重核。[Audit与后继证据](evidence/ARCA_WITHDRAWN_OFFER_RESET_AUDIT_20261029.md) |
+| FRESH-RESET-OLD-EXECUTION | 隔离复现历史Run带入无依赖ready Work；只按终态Work选择历史，确有保留证据依赖的未终态Work/Attempt/Event/Effect在规范化时阻断，不能恢复旧执行或伪造终态。覆盖上述各层负例；生产实际范围未知。 |
+| SERIES-RESOLUTION-COMMIT-FENCE | 精确27a并发Series Host自然复现：Draft冻结后当前Query变化导致Commit Handle不匹配，Effect已reconcile_required但无Marker/Result；生产基线的受控输入亦复现。150秒持续版本变化的合成观察未收敛，不能外推首次门禁或线上状态。独立实现须保全同一Effect责任、冻结Query/Record Set/Rule、后继Work与冲突负例，不得放宽fence。[隔离调查](evidence/SERIES_RESOLUTION_COMMIT_FENCE_INVESTIGATION_20261029.md) |
+| P13-BACKUP-DIGEST-CONSISTENCY | 27a完整架构第二轮中哈希时文件改变未拒绝；Linux tmpfs受控复现stat时间戳相同且接受混合摘要。独立修复须覆盖原负例、时间戳不变、正常文件/有限内存及Windows/Linux；仍须真实停止、独占与完整冷备，不能把单次复验或双读称为原子快照。[Evidence](evidence/SERIES_INTEGRATION_GATE_20261029.md) |
 
-## 4. 停线与完成
+2026-10-29固定Series候选：`1d8a45843f9c8982c91bb0a367eb0adfa1c5c310`，基于a2bf2d6fd，三个Schema与既有Linux验证副本字节一致、239表/62事务不变。本机合同13项通过；标准镜像首次下载既有模型失败，核验本机生产基线模型SHA后重建成功并上传校验，tar SHA256 `b57b0de41449109adbeb39f4d12ca6ab81a66d1a9ca6062c5d964b4b3271ca8d`。首个固定检出因Windows路径过长失败，第二个因换行不一致不合格，第三个与构建输入4541文件逐字节一致；独立Linux完整架构门禁仍在执行。
 
-未确认新业务边界只暂停依赖工作，纯工程选择由实施方处理。不得跨 Owner 写入、引入旧 Runtime、隐藏来源失败或擅自清理生产。
-全部工作项具备具体实现与适用验收证据后才能称本版开发完成；本文件当前记录本地开发进度。实际发布、数据升级与真实媒体效果需要相应精确授权。
+UI修复提交`60f123a71`、浏览器回归`567ad89ca`及专属Evidence `7265d4b5e`已直接快进至新候选`7265d4b5ec4077cb21152219a9a53e85a97ac3f9`；标准镜像tar SHA256 `42ba2e2497b2db51d4a2889599895f337779f5dc30203f545e06100159cb3697`。实现线程报告Linux Web 274通过及四视口44通过，UI负责人正在针对新镜像独立复验，尚无最终UI PASS。两版Service主体不变，但最终候选及所有后续变更仍须完成适用固定版本门禁。
 
-## 5. 2026-10-19 本地开发检查点（未交付）
+在7265上单独挑入测试工具安全修复后，当前固定候选为`bc4f5c952849ed6079baedde159ddaa5ce1d39c1`，标准镜像tar SHA256 `59bcd40c566af686da84d861ea9b4d8f1cb9c785b3586172320e568e9237a3d6`。4544个跟踪文件与构建输入逐字节一致，Service依赖4995文件与该实际镜像一致；Linux Web 274通过、Service 846通过/28 skip/0失败，跳过包括专用真实媒体与浏览器fixture。UI负责人对bc4镜像适用验收PASS，依据见本包Evidence。上一段7265 UI复验中状态为旧检查点。
 
-- People：三库隔离、普通/JAV零用户确认、US上传/搜图建档、姓名/别名编辑、补图已接正式链路；深度系统维护、参考图释放/图库和关联作品仍待完成。
-- Formation：service-local真实CPU固定模型、20点抽帧、最高有效单演员、无脸/空库转二号、原Run人工确认、NFO/共享2×2 Poster、精确Actor加原名与初次On-deck已贯通；Formation现有演员选择无建档快捷入口。
-- 推荐：维护内持久化扫描、分组与排名，窗口结束后最多五位可见；用户认领/新建经持久Claim及Owner命令自动确认明确来源A。两片聚合、真实截图建档、ACK丢失跨重启、只确认A而B仍暂存的CPU Host通过。UI已接，尚未做浏览器及具体版本负责人验收。
-- 维护：独立准入、安全进入/收尾、配置及概览、既有任务分类/持久cursor已接。手动豆瓣沿原Acquisition/cursor转普通调度已验证；残留清扫及完整截止/重启资格仍开放。
-- Arca刷新基础：精确Arca物理作用域、共享匹配器、当前库存Actor/原名与目标规划、单演员NFO替换及独立20帧CPU/海报引擎通过局部验证。用户Intent、完整同版参考分页与Case已接Owner原子准入，数据库重开、迟发回滚、篡改与库存CAS反例通过；Arca源准备已有正式Supporting Work/Planner、workspace_write Capability和Root真实读取/CPU适配器；全部20帧及特征逐项注册，跨数据库重开可读，局部中断/链接/改字节围栏通过。后续匹配/文件Effect/库存提交和HTTP仍未完成。
-- 当前合同：122 Capability /105 Result families /224表 /56事务 /141 Domain inputs /160路由，P2通过。一次完整Architecture在后置汇总被开发中SSOT修订打断，未获得可用完整结果，不算PASS；固定提交`64e2649d4`的隔离checkout完整门禁及匹配阶段Service回归已按用户暂停指令取消，均无PASS；恢复后需在新固定提交重跑。
-- 最新已完成本地验证：上个提交Service648 pass/29既有skip/0 fail；源准备接线后的全Service648 pass/29既有skip/0 fail，首次启动暴露的Planner种类索引未同步已修复。Arca合同/事务/DDL等82项通过，P2及包边界通过；Web218项及构建为前序UI检查点。真实CPU Host证据单列，不把合成Result fixture当成推理证据。
-- 继续实现Arca单片演员刷新Case。离线升级副本、适用跨平台、实际进程中断恢复及具体版本UI资格仍开放。未部署、未操作生产或真实媒体。
+continuity合法重规划门禁测试`92df7fa5e`挑入后，当前候选更新为`27a0f68af3599a3422b21853632fc8a01878b750`，标准镜像tar SHA256 `e87f6628edc20732df35889aa7195bd7de1e52ba6753984635a7e39f95a3166e`。4547个跟踪文件与构建工作区逐字节一致；该版本Linux Service 846通过/28 skip/0失败、Web 274通过，UI负责人对具体镜像适用验收PASS。完整架构和真实CIFS待完成，未部署。上述bc4为前一候选。
 
-具体历史、失败记录与验收限制见[本地实施Evidence](evidence/US_ADULT_LOCAL_IMPLEMENTATION_20261018.md)。全部五议题及适用验收闭合前不称开发完成。
+后继Series修复在独立工作区`C:/Users/markm/.codex/worktrees/shelfdeck-series-fenced-20261029/emby_third_party-helix`的`codex/series-fenced-20261029`准备：在27a上按序挑入Foundation原Effect/Marker/Result恢复、Perception冻结依据和Owner后继Work、提交窗口验证及P13摘要修复；固定HEAD `4774a7e9056f644c29b8034ea07baeb4f578c4f6`已完成标准本机镜像构建，tar SHA256 `1a280a3efea6f67b97019552d8fd76ed7c8fe655bf5aa52998686c559b6b3023`。完整架构、Service、Web和具体版本UI在执行，真实CIFS、实际生产副本/冷备和七条恢复仍开放，未上传或部署。
 
-## 2026-10-19 暂停记录及本轮NAS验收授权
+4774的具体版本UI复核 **FAIL**：受控注入评分Resolution重试耗尽终态时，后端决策返回失败，评分读取仍为pending，页面继续显示“正在匹配豆瓣评分”。真实调度链是否同样触发仍需Host复现，不能推断已影响生产。Perception线程按Owner责任修复状态传播并验证新依据恢复，后继精确版本须重新完成UI验收；4774不可部署。
 
-- 开发继续暂停；`codex/us-adult@461d8805d`已保存，工作区干净，正在运行的完整Architecture验证进程已按用户要求停止，不记PASS。恢复开发后先核验当前提交及原始完整Gate结果，不能使用已撤销的分组执行资格。
-- 用户追加两项发布前验收，纳入现有`US-QUALIFICATION`，不另建活动计划。仅本节记录不会恢复开发或启动NAS进程；下一轮恢复开发时执行。此前“本轮仅本地”限制在以下精确NAS隔离测试范围内被最新授权扩展，不构成生产发布或数据修改授权。
-- **N95性能资格**：在实际NAS核验CPU、内存及当前可用资源后建立独立容器、端口、数据目录、Workspace和输出；为测试容器设置CPU/内存及并发边界，监测共机生产服务，不停生产或接入其数据库。先建立空载基线，再运行实际模型冷/热启动、20点抽帧、参考特征缓存、识别与海报、单片刷新及维护批次；从单任务逐步增加有界并发。记录每片/阶段耗时、吞吐、CPU、内存峰值、swap/OOM、磁盘I/O/iowait、测试API响应及共机生产健康/响应变化。若出现持续无响应、资源失控或生产明显退化，立即停止测试供给并安全收尾，记录失败，不为追求压力继续加载。验收须给出实际N95可用并发/资源配置、瓶颈及剩余风险；有卡死、OOM、无界积压或无法安全退出时不得认为性能达标，修正后复验。交互可用性数值预算在执行前结合基线明确记录，不能事后凭主观“不卡”判PASS。
-- **真实媒体E2E资格**：从用户指定`/vol02/1000-0-24018892/US/scraped`有界挑选少量具有不同画质、镜头及人脸条件的影片，冻结测试清单、大小/摘要及选择理由；只读挂载原目录，并将选中材料复制到独立测试输入，避免来源结算、重命名或删除作用于原件。记录复制与空间成本，不扫描/复制全库、不提交影片/人脸图像或人物隐私资料到Git。测试数据与产物只保存在隔离目录。
-- 以可核实演员身份及用户确认的独立参考图建立真值；不能把算法最高分或文件名当真值，也不能从同一测试片取参考图来证明跨片可靠性。若无法可靠核实某片演员，报告未标注，不虚报准确率；新的确证信息需要用户判断时才讨论。记录逐片真值、帧/人脸检出、最高匹配及次高差距、阈值/模型/参考图版本、耗时、自动命中/误认/暂存，以及人工确认结果。小样本结果明确分母和局限，不外推全库准确率；不为凑通过而对测试集调阈值。
-- 实际E2E覆盖隔离Field→Libra识别/未识别暂存→已有演员人工确认→NFO/2×2海报/命名→Arca唯一上架，并覆盖单片指定/自动刷新及身份连续性；无脸/空库等场景可补独立对照，缺少自然样本时明确其fixture性质。验收后复核原件未变、生产数据未接入、测试进程安全退出。NAS环境、精确代码/镜像、资源限制、测试清单及性能/识别结果存入现有Evidence，不能用本机Linux或合成媒体证据替代。
-- 以上与尚未通过的最终完整Architecture Gate共同构成本轮剩余资格；Windows/本机Linux及UI既有PASS按精确版本保留，新代码修改按影响补验。生产正式部署、生产数据升级及原媒体改动仍需对应授权。
+前候选1d8a完整架构3402通过/5失败/27跳过，四项缺少依赖路径后定向通过；1081视频Host并发收敛核查见专项Evidence。bc4完整架构3410通过/3失败/27跳过：两项缺历史Git对象，精确27a相同测试补只读对象后6项通过；另一JAV Aftercare海报失败已找到可复现的相同现象，首跑因果仍未证实。精确27a首轮3411通过/3失败/27跳过：两项同样缺历史对象，第三项Series Resolution Commit Handle异常已在隔离Host调查；带完整历史的第二轮3413通过/1失败/27跳过，唯一失败为上述P13备份摘要缺口。两次原失败均保留，不能用定向结果冒充全量通过。
 
-用户后续已明确恢复开发；以上暂停为历史状态。原始完整Gate正在独立`72388341e`验证checkout重跑，不分组或筛选测试。实际NAS性能及用户指定路径的隔离媒体验收已开始准备，精确环境、预算和范围限制见现有Evidence最新节；真实人物身份准确性不由本轮自动人脸比对判定，保留人工验收，不能用检出率替代身份准确率。
+本轮已获Fresh-generation Reset授权；预检须停止、冻结精确范围并核验保留依赖，可能清除在线未入藏任务和系统工作区，不能仅据历史34条快照推算范围。[只读分诊和Reset影响](evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)。
 
-用户随后再次要求暂停：`72388341e`完整Gate已取消，不记PASS；本机所属验证进程已停止，NAS隔离测试容器已正常退出且无运行的本轮测试容器，生产身份/StartedAt/RestartCount保持。实际N95四片20点检出、两片技术标签E2E及单片指定刷新、维护截止/手动停机/下一窗口原Work续跑已取得证据。独立5 Hz探针482次请求零错误，但p95约511 ms、最大2.58秒，未达到预设500 ms预算；profile及本地ONNX backend源码证明推理Promise内仍同步调用native。已开始将模型计算移入service-local worker thread，三个Integration文件的未提交修改保留，尚未运行测试、打包或NAS复验，不视为已修复。恢复时先审查线程生命周期/队列/异常及真实模型一致性，再重建精确镜像和Windows包、复验N95预算及最终完整Gate。真实演员身份准确性仍须人工验收。
+演员2f/68/f0/723/3c/e7与目录Observe合同结合JAV截断合同的共享基准`97c4913b96cbe6509c65a2c42ae5ee106905eb17`已固定，P2为139/118/244/66、153 domain inputs、257 refs且无未解析。固定树Windows/Linux各52通过，Linux包/语义/Manifest/P2通过；Linux沿旧镜像依赖，不覆盖新增usearch真实模型。初次组合的37项通过发生在临时启用244表保留声明的实验状态，发现Custom Spec缺口后已撤回声明并实测`RESET_RETENTION_SCHEMA_UNREVIEWED`；Actor保留正例仅在测试内模拟分类。Reset测试待精确保留和合法历史修复后重验，当前无正式Host接线或完整Actor/Reset资格。[Evidence](evidence/BUFFALO_CATALOGUE_OBSERVATION_CONTRACT_20261029.md)。
 
+真实CIFS首轮将Workspace/SQLite错误放到共享盘而失败；按生产布局重跑后8项直接文件调用仍遇 `PHYSICAL_MATERIAL_STAT_FENCE_CHANGED`。隔离探针发现首次路径stat与文件描述符时间戳不一致、后续收敛；真实Host已定位同一Series publish Effect进入reconcile_required，最初测试把该预期恢复通知视为异常而提前退出。验证原Effect恢复至唯一Commit的第三轮隔离Host在2026-10-29 14:43启动；随后NAS应用响应超时，隔离测试连接在无最终结果时断开，不能计为通过。用户说明前序其他Docker部署导致系统卡死并重启NAS；独立根因未核实。重启后确认任务容器不存在、生产仍为同一a2bf2d6fd镜像；用户重挂两个原CIFS源后原容器仍见启动时空目录，故精确核验源及容器后重启该容器恢复绑定；容器内SMB及健康已恢复，但管理状态一次超时、swap约2GiB，稳定性仍待核验。候选未部署或线上重试；NAS稳定性复核前暂停新NAS测试和发布。[候选与恢复Evidence](evidence/SERIES_INTEGRATION_GATE_20261029.md)。
 
-## 6. 2026-10-19 恢复开发检查点
+UI负责人对前一固定候选的独立走查发现两项阻断：文件状态核对超时仅显示通用失败原因，整理过程弹窗键盘焦点可逃到背景。浏览器28通过/8失败（两项各四视口）；Series线程修复后新候选负责人复验中。前版独立Linux Web 271项通过；Service首轮32失败主要因依赖和隔离/tmpfs配置不完整。补齐环境后835通过/2失败/28跳过：Event deadline定向及八次诊断重放通过但失败原因尚未确定，电影测试工具的Linux路径安全断言为生产基线既有问题，电影线程已独立提交db539e9df，仅覆盖盘符/UNC字符串、不宣称识别已挂载SMB；不抹除完整门禁失败。
 
-用户恢复本地开发，优先Arca单片演员刷新；既有决定沿用。Arca指定/自动Actor的Source→匹配/选择→海报/NFO/Plan→stage/publish/verify→Inventory/Control原子提交→退役→Case结案已接正式Work、调度、HTTP和收藏页。有脸/无脸/同名/跨Host重启及真实UOW迟发失败回滚恢复通过；Shelf Entry/Deck/Canonical与无关健康Finding保持。当前130/108/224/56/144、162路由，P2通过；Web222项和构建通过；Aftercare69项、当前合同22项、文件进程退出等局部证据见现有Evidence最新节。Service648 pass/29既有skip/0fail为本轮检查点，仍须最终固定版本全量资格。先前暂停的Gate/Service不记PASS。
+## 生产分诊新增阻断
 
-下一步在固定提交checkout跑完整Architecture；继续People深度维护/参考图/关联作品、离线副本升级、维护剩余项和整体验证。Arca正式Host异常进程退出与并发冲突、适用平台和具体版本UI资格仍开放。没有生产操作或发布，本版尚未完成。
+- ARCA-PATH-COMPONENT-BUDGET：HALT-094和EMLB-094原冻结Decision超长；已有缩短预览但正式接线未完成，现由剧集线程承接。旧任务按本轮Reset处理，不改写冻结Decision。
+- US-SIZE-DEFECT-PREVIEW：后端与对话框修复已入独立候选并通过上述定向测试；最终合版UI与生产验收仍开放。
+- SERIES-PRESENTATION-EXPANSION：13个build/15个Season Subject是13:36快照；新任务修复按同版验证，旧任务不逐条恢复。其他来源错误和正常人工待决分别承接。
 
+以上均未因局部Linux PASS而自动完成。
 
-### Arca异常退出与当前库存读取增量
+最新检查点：已完成新typed Catalogue Basis、Service内置数值/CPU隔离/目录查询与代表图模块，qualification入口复用正式模块；尚未接通正式Work和Artifact持久化。contract-6 Linux54 PASS/0skip；4组目录有序身份与固定参考一致。contract-3四张代表图（含旋转）可独立检出单脸，记录紧框首败后采用显式1/4留边策略。目录代际冻结manifest及7成员/512维特征空间，实际2,715,402,822 bytes验真；检索与Libra身份资格分开。静态合同/P2从排除原Phase 3未提交文件的源码快照通过，资源共载/正式Host及Phase Exit仍未通过，详见本包[Evidence](evidence/BUFFALO_VIDEO_QUALIFICATION_20261029.md)。
 
-真实固定CPU Host在Inventory提交前/后实际进程退出均已恢复原Case，外来目标冲突保持当前收藏和外来字节且精确报告；独立文件恢复8项通过。人物当前作品查询/分页及Collection深链、刷新期间retained旧海报读取已接通。正式HTTP相关作品复验、最终全量Gate/版本UI仍继续。失败Case用户恢复、People系统深度维护/图库生命周期、离线升级和维护剩余资格未关闭；具体日志及未测范围见既有Evidence最新节。
+## 本轮优先Outcome
 
+先完成真实视频识别，再立即接Phase 5人物复用/自动建档和出演确认。共同终点是“真实影片→可靠选定一位演员→完整人物→正式出演→生产→Arca唯一Commit”，演员/NFO/海报一致。不能仅凭图片姓名、一个聚类或中间Choice就称整项核心功能完成。
 
-### US参考图片生命周期增量
+本Phase交付视频读取/抽样/特征/分组/目录和本地Reference检索及Libra单演员选择资格，不写People Person，不提前接自动注册；后者由Phase 5完成并真实入藏验证。真实演员准确性、自动归属和人工兜底分别验收，不能用Phase 1技术一致性代替。
 
-图库/current Reference图片读取、补图/释放及原子replace_image已接正式Work/Effect/Owner事务；保留US最后有效图片，替换失败回滚和无脸保留旧图、重放跨重启由真实模型Host验证。Web231项及构建、Owner/合同27项通过，P2保持130/108/224/56/144（aggregate见Evidence）。普通/JAV系统维护正式链、Reference审计/无引用GC及具体版本浏览器/UI资格继续；Service补齐本地tools依赖后的全量648 PASS/29既有skip/0 fail。没有生产操作。
+## 已确定合同与Owner
 
+- Linux Docker内置能力，无Worker、独立Sense/Stash/Python服务；Mirex不作为设计/实现来源。方法基于固定Sense 2及Phase 1已资格的Node实现。
+- 全部模型计算统一buffalo_l；主目录检索与自建Reference备用用同一特征体系，不保留SFace备用，不混用原128维特征。
+- 一部影片一位演员；A/B均可靠识别时可选其中一位，不扩展多演员关系。2026-10-29用户取消性别条件：不预测、不按gender筛选/加减分/分流，缺失或冲突不单独产生人工待决，男性也可被选中；仍按身份可靠性和独立时间覆盖判断，不把频次解释为已证明主演。
+- Libra拥有冻结的影片/材料/采样策略及单演员决定；共享计算只给技术分组/特征/候选；People拥有Person/Reference准备与发布；Arca拥有正式入藏和库存纠错。外来目录不是People Registry，内部personId保持。
+- 物理读取只经当前Owner的Read Handle及源身份校验；不整片上传/复制，不增加任意视频URL服务。Frame/Embedding/Cluster/代表图使用现有Workspace/Artifact/Effect及取消围栏，不能把帧字节塞进业务Result。
 
-### 系统People及Actor失败重新提交增量
+## 首先冻结的设计与待定项
 
-普通/JAV已走正式Evidence Supporting Work→Candidate→可靠身份Person Commit，弱线索内部保留、无用户确认；Arca精确来源Projection及可靠JavDB Actor ID接通，维护后当前出演关系由Arca自行更新。真实JAV强/弱线索Host2项、Series维护人物/修复Host3项通过。Actor无写入发布失败可严格证明后原子收口unresolved，用户从原入口显式新Intent完成；实际提交前/后进程退出及冲突后再提交1项通过，未知/部分效果不能采用此收口。新增失败收口Canonical事务，当前130/108/224/57/144、162路由；P2 aggregate与具体资格见既有Evidence最新节。Service648 PASS/29既有skip，Web232 PASS及build通过。
+性别条件已按用户决定取消。下列采样/数值细节仍须根据实际视频冻结后才进入正式策略；不能把本包激活当作已经完成资格：
 
-继续失败Actor stage精确清扫、系统People深度维护/Reference审计GC、离线副本升级与维护剩余资格；随后完成新固定版本全量Gate、独立依赖Windows分发、Linux及实际浏览器/具体版本UI审核。前一完整Gate33失败已逐项修复/局部复验但新整合未跑；本checkout Windows打包因共享依赖junction失败，非分发PASS。未操作生产，本版未完成。
+| 项目 | 提议/要求 | 冻结前需要的证据或决定 |
+| --- | --- | --- |
+| 有界抽样 | 首批约20个跨时间点，必要时补最多20个未采点；输入前seek，不随片长线性扫描，短片去重。 | 实际视频中抽样足够性、失败与部分完成语义、读取量/时限/并发/空间；新Sampling/Model Ref及typed输入闭合，禁止旧Run兼容分支。 |
+| 分组和代表脸 | 复用已生成512维特征，确定性分组；按独立时间区段计数，重复截图不加票；每组少量清晰/多角度代表脸。 | 同人不同角度、相似不同人、A+B同框、近邻burst与片头重复、组污染负例；不能靠相同候选姓名合并未知脸。 |
+| 名字与选择 | 全库检索后按身份可靠性和独立时间覆盖选一位，不分性别；身份歧义与多个可靠演员分别处理。 | 姓名候选相近、同框不同人、弱匹配与局部重复不能形成虚假资格；gender值变化/缺失/冲突不得改变排序或触发人工。不得用TPDB反复试名替代决定。 |
+| 坐标/代表图 | 原帧、校正画布、脸框、代表图及embedding必须连续绑定；提供People可验证的单脸原始来源。 | Phase 1旋转框属于校正画布；正式提取须验证变换/裁剪Artifact，不能用原帧坐标直接套用。 |
+| 缓存与资源 | 复用模型/只读索引及同一资格图像结果，绑定模型/数据generation；沿Runtime既有Permit和停止屏障，不能组件私藏队列。 | Phase 1仅证明单图隔离进程；真实视频/整机共载、冷/热、mmap与RSS口径、超时/取消/停止及回收实测后确定预算。 |
 
+## 实施与资格工作项
 
-### Actor stage精确清扫与Source期限增量
+| 工作项 | 范围 | 验收门槛 |
+| --- | --- | --- |
+| BUFFALO-VIDEO-CONTRACT | 先对照SSOT及现有正式Frame/Embedding/Cluster/Analysis Basis，冻结技术输入输出、策略版本、坐标/来源、资源及失败语义。 | 不跨Owner，不暗中确定未决业务规则；现有Source/Workspace/Model/Artifact/Spec/digest/fence保护不弱化。 |
+| BUFFALO-VIDEO-PIPELINE | 将已资格的模型/目录方法接入真实受控抽帧与分组、补采/代表图和进度，保持结果可恢复。 | 独立真实视频有界执行，零整片上传/全片扫描退化；失败/取消/预算耗尽不伪装无脸或无匹配。 |
+| BUFFALO-SINGLE-ACTOR | Libra根据真实候选和已确认策略产生单演员识别依据，本地Reference备用亦用buffalo_l。 | 多演员A/B、男性覆盖更多、gender任意/缺失/冲突不影响资格、模糊/侧脸、无脸、库无匹配、身份歧义分别验证；无合格结果进入原人工路径，人工先行不被迟到自动结果覆盖。 |
+| BUFFALO-RESOURCE-AND-DATA | 有版本模型/目录、缓存/暂存清理、任务上限及停止/重启/迟到结果门禁。 | 实际Linux视频冷/热/1080/4K/SMB及与正常工作共载的CPU/内存/字节/延迟；更新不能混读generation或重判已有演员。4K识别验证不扩展为转码吞吐修复。 |
+| BUFFALO-VIDEO-EXIT | 固定源码/配置/数据/样本，完整正反例与适用UI验证，反向审计及冻结包。 | 以真实视频证据退出，Phase 1原图和静态双人拼图不代替；随后立即接Phase 5，不切回Phase 2。 |
 
-首次发布无写入失败后，原Case先准入独立discard Supporting Work，复用既有retire Capability及material_commit Effect；只清理其冻结stage manifest，全部成员预检后逐项复验，不触碰原片、retained或外来目标。实际Host在删除第一项stage文件后exit 75，重启沿同Case/Effect完成清扫，Owner才原子收口unresolved；再由用户新Intent完成刷新。另两个Inventory提交前/后exit 73/74继续通过，已准备Source在历史租约过期一天后可继续消费冻结结果。当前Basis冲突由只读状态明确投影，不伪造执行或擅自取消Case。
+## Phase 5接续准备（仅依赖接口，不提前实施）
 
-真实CPU Host组合1 PASS/85.0秒；Source租约4项、最新Actor/文件/Owner/P2组合20项通过，Web233 PASS及build通过。当前130/108/224/57/144及162路由，P2 aggregate a26df8c4641a9a08b5bb3dc18daa12009acddd9fff8037af4f9ca907be3e804a。完整Architecture正在独立固定c04641bab运行，不覆盖本增量；Service和剩余人物/维护/升级/平台/UI资格继续，尚未交付。
+Phase 4应提供绑定材料/帧/模型/目录/策略的识别候选及代表图来源。Phase 5由People唯一复用或TPDB补充/截图兜底建档，再由Libra消费完整Person/Reference快照确认出演；保留原人工建档/影片选择、并发幂等和人工作主。TPDB ID不作为人物主键或建档必需条件，不循环匹配新Reference来证明刚才姓名。模型/Reference正式更新、旧Evidence只读保留和推荐认领退役责任与入藏旅程都在Phase 5闭合。
 
+## 保护、授权和当前事实
 
-### 历史人物与离线升级增量
+Phase 2已有修复、Phase 3未提交Run接续文件和既有资格均保留，现由上述独立线程并行承接，不记验收完成。原Phase 2待开始包冻结在[重排检查点](evidence/ROUND_REPLAN_BASELINE_20261029.md)，不构成另一个活动计划。
 
-TMDB NFO/credits可靠人物命名空间统一查询及提交复验，跨库/多人物冲突不任取；历史头像与NFO编号保留，69项及人物页9项通过。离线main 210→224版本化结构副本已实现、归档精确DDL并接入分发清单：可靠归属填库类型，全部209个旧事实表原列逐字节保留，新14表为空，未知/冲突归属或未完成责任拒绝；旧确认仅内部保留，历史已接受来源可只读恢复。8项Operator及13项People合批通过。未操作真实生产副本或发布。72963fb39 Service648 PASS/29既有skip；最终全量/平台/UI及Reference GC、正式可靠归并等仍开放。
+仅自用NAS，不对外分发模型/数据。完成同版候选后执行已授权的安全停机、Fresh Reset和标准升级；保护收藏、来源和正式文件，不启停原Sense服务，不恢复自动观察。隔离测试按精确目录、只读输入、容量/资源预检及任务专属进程执行；SSH使用tools/nas-ssh-config.js，凭据不输出。
 
+2026-10-29技术切片：已增加有界20+20抽样提议、带同框排斥/组内距离保护的质心分组、时间区段去重、最多三张代表脸及显式目录链接身份汇总；姓名相同不合并，gender冲突保留。Service既有Read Handle/Source校验下增加显式采样点与流式sink，旧正式20帧入口保持原策略；输入前seek并限制解码线程，取消或失败不返回部分成功。模型/目录和新视频Evidence仍是qualification代码，正式Runtime依然为旧模型，不能称已经切换或完成Phase 4。
 
-### 可靠系统归并与完整Gate检查点
+实际Linux首轮数学/边界15项、最终补充13项（含真实FFmpeg取消/来源改变/停止屏障、4K良性合成解码与目录身份链接）通过；三部影片只读首采共60帧/84检测完成，新代码12组分组网格逐项重放一致，新视频Evidence路径对固定Sense的3原图/1旋转图数值及有序身份对照通过。双女演员样本同时得到与原片名相符的两位女性候选和距离更低的男性候选，不能直接取单脸最高分；另一部目录别名覆盖原片名。第一部片名/旧演员/新候选互相不一致，缺独立真值保留未决，不宣称准确率。1CPU每部首采158–289s，父HTTP探针7273次/0错误/最慢93ms；cgroup触及2GiB上限、max事件4348、无OOM，资源资格仍待。详见[首轮视频Evidence](evidence/BUFFALO_VIDEO_QUALIFICATION_20261029.md)。
 
-维护内普通/JAV可靠归并已接正式Supporting Work、typed Evidence、Candidate/Owner Merge事务及消息ACK；同名不作依据，US不参与，偏好冲突保留内部。正式Host1 PASS/49.9秒、Owner/规则/作品18项、Arca真实CPU指定刷新及HTTP作品1 PASS/63.9秒。People明确历史Merge身份Scope使当前作品在Arca普通关系刷新前连续可读，不跨Owner改关系。
+首次Inventory TEXT版本比较失败和新增测试挂载被只读父目录拒绝均保留；输入转换及隔离挂载修正后复验，不放宽身份/产品断言。三条Inventory/收藏保护字段及2模型/7目录SHA保持，生产容器身份/StartedAt不变，全部本任务容器已退出。2026-10-29用户明确否决FEMALE-only提议，取消全部性别筛选和分流；该项已定，不再等待确认。当前不能开放自动出演的剩余原因是正式执行链/资源/识别资格尚未完成。原来的常规单图资格不被这里的小样本替代或扩张。
 
-固定c04641bab独立完整Architecture为3076 total/3062 PASS/1 FAIL/13 skip，输入摘要前后一致；唯一生成DDL trace manifest漂移已重新物化，物理DDL不变，相关24项及副本8项通过。该固定版本独立Windows包含原生模型检查通过。最终新版本完整Gate及Linux/浏览器/UI负责人资格、Reference审计GC和维护剩余项继续；不能把本检查点视为五议题交付。
+尚缺正式typed Basis/策略/Artifact与资源接线、补采、真值充分的独立视频识别和4K/冷启动/完整停止恢复资格；Phase 5人物发布和唯一Commit未开始。Phase 6最终整合/镜像/完整架构及具体版本UI/生产门禁保持；本次没有增加CUDA、生产处置或自动观察。
 
+上段为首轮检查点：typed Catalogue Basis与显式策略现已新增，后续缺口为其Store/正式Work/Artifact/Runtime Permit接线、20+20补采与恢复及业务/资源资格；不能因纯模块已迁入Service就提前开启自动人物处理。原128维正式链尚未切换，Phase 5仍需统一Reference及本地备用，不允许新增SFace运行备用或未入藏旧Run兼容。
 
-### Reference GC、后期Actor续跑与UI收口
-
-正式双轮Reference审计及维护内精确Artifact回收、claim/Receipt恢复和重新发布验证接通；保持P3单Owner UOW，以Foundation opaque read fence保护跨Owner读间隔。后期人工Actor选择由Libra在唤醒生产前完成原位或合法replacement判定，真实CPU Host1项及提交后续跑重试负例通过。具体d8cff243b UI负责人8/8受影响检查通过、六项发现全部关闭；UI/Renderer后无变化。当前P2 131/110/224/58/145及162路由，物理DDL不变。最终固定提交完整Gate、Service/Windows/Linux资格继续，尚未交付；日志及准确限制见既有Evidence最新节。
-
-### 2026-10-20 固定线程版本与NAS复验
-
-`a4a673c20`完成线程客户端、原生模型/预处理、纯Pack验证及线程入口拆分；`0c82ee862`补齐共享Schema编译复用和精确Integration builtin负例基线。模型/阈值/业务Owner及持久合同不变。第一轮仅线程改造445请求p95 555ms仍FAIL；新固定版本434请求p95 410.05ms、p99 836.48ms、max 2619.84ms、零错误，达到既定p95≤500ms，偶发长尾仍存在。此结论限实际N95的1.5核/1.5GiB、两片技术标签旅程，峰值约887.6MiB、无OOM；不等于大库生产容量或实际身份准确性保证。
-
-四片各20点检出与改造前一致；1核串行总65.096s，双任务37.212s（两片），主事件循环p95约80/82ms。两片暂存→原Run确认→唯一上架→用户单片指定刷新、维护截止/手动停机/跨Host重启及下一窗口原健康Work续跑均通过；原件四份完整hash/大小/时间戳/inode未变，生产镜像/StartedAt/RestartCount保持。独立Linux最终47文件208项全通过；前序环境遗漏测试专用脚本的13失败已保留，修正测试挂载后重跑，不改产品包。新镜像2634文件逐字节与Source/资源相同，UI摘要沿用已接受版本。
-
-当前Service648 PASS/29既有skip、Web242 PASS；最终固定`0c82ee862`原始完整Gate不筛选/不分组，仍在运行。最初`a4a673c20`完整Gate因追加有证据的性能修复而中止，不计PASS。不得提前关闭Phase；具体镜像、原始日志、范围限制及最后结果以现有Evidence为准。
-
-## 最终工程验收与Phase退出检查（2026-10-20）
-
-固定0c82ee862原始完整Gate PASS：387文件、3129 total/3116 PASS/13既有skip/0fail，fixture 3493.8s。74个JAV名称（52 literal+22动态）逐名核验全部PASS；4183 tracked files前后aggregate 73c06dab33d3a59329af8f17519b7579b9c98ef0062c38317d63ae4d5f4e7a80完全相同。包边界、semantic、manifests、P2均PASS；此前取消/分组遗漏/失败轮次不计最终资格。
-
-Service/Web/Windows/Linux/N95及UI的适用工程证据已齐备，跳过和未选中项均单列。主工作区Service原E盘junction已仅移动链接对象至ignored恢复入口，换成独立物理依赖；未改外部target，ORT1.30.0及默认固定模型完整，清空NODE_PATH后22项真实CPU/线程检查通过。代码/持久合同/SSOT在资格后未改，仅更新文档。
-
-从SSOT反向检查：五议题代码、正式Owner/命令/Effect和实际恢复链均有证据；Worker仅持有图片计算/模型、不持有Domain事实，编译优化仍在Foundation Validator内，不引入跨域authority或新业务对象；无旧Runtime/双读/迁移兼容路径，无media-desktop或后续Phase耦合。原件完整hash/stat及生产image/StartedAt/RestartCount保持，测试已退出，无生产发布授权。
-
-**不关闭整体Phase**：真实出演者身份准确性仍未评估。本轮只对真实素材检出/技术标签业务链路、固定模型一致性和性能负责，不能用最高算法分、文件名或未标注样本证明真实身份准确率；500ms预算仅在已记录的小样本/资源配置通过，2.62s长尾及生产容量限制保留。所有实现工作项的工程检查PASS不替代该业务验收，也不等于生产可部署或已发布。
-
-
-### 2026-10-20 人工验收准备
-
-同一固定镜像的独立manual-uat-v1已准备四份校验副本，空演员库、席位0、无Run，等待用户独立建档和评估身份。初始化夹具排序400经原幂等命令恢复，未重置数据或修改产品。NAS生产health连续三次5秒超时，安全监控已停止测试容器（Exit0、无OOM），本机转发亦关闭。停测后生产三次health 14.369/1.107/0.252秒，image/StartedAt/RestartCount保持；不判断慢响应根因。入口与会话资格未完成，暂不交付用户操作。私有清单/受限登录文件及全部隔离数据保留；待NAS稳定继续入口资格，身份和实际效果验收未开始，Phase保持开放。详情见既有Evidence最新节。
-
-
-### 2026-10-20 超时关系核验及入口就绪
-
-已完成生产只读profile与测试启停对照：停测后12次health仍出现6.113s及4.358s；测试不整理时8次均200、最大4.528s。证明生产自身存在超过5秒的慢响应，后台同步SQL/Libra reconcile、Perception候选/摘要和概览健康计算占用主线程；不能排除首次测试冷初始化加重同机竞争，也不宣称已修复生产性能。两次Inspector均关闭，生产实例身份保持；详见既有Evidence，不改已合格候选。
-
-同一隔离数据已恢复，入口http://127.0.0.2:18125/people的health、登录session、未认证拒绝、Cookie、空人物库/席位0、页面及JS/CSS全部检查通过；未作浏览器人工身份验收。私有登录文件和清单已准备。1.5CPU/1.5GiB及原安全停测阈值保持；监控退出亦停止唯一测试容器。当前等用户独立建档、开启整理并判断匹配/海报/命名/单片刷新；Phase业务验收开放，无生产发布。
-
-
-### 2026-10-20 查询优化增量完成（本地）
-
-用户要求实施前述机会后，完成Series Direct Selection同次同步计算内的整季空间分配复用，以及Perception按完整Clause/Evidence和同事务Source cursor heads约束的256项候选ID查询索引。仅深冻结且由本模块构造的Basis可复用；逐文件Probe/Handle仍核验，scope结束/异常即失效。评分仍每次读取当前记录/关系并执行原规则；新资料使索引失效，exact路径不增加head查询。未实现新的Resolution未变快返或概览方案。
-
-最终19文件261 PASS、Linux9文件190 PASS、Service648 PASS/29既有skip、四项静态Gate零finding；运行与测试输入摘要前后保持。此前83文件过宽扩展轮已取消，不计PASS或完整Gate；Linux首次缺测试脚本的1fail保留，补齐验证挂载后通过。原0c82ee862完整Gate只证明固定旧基线，增量没有新完整Gate/分发/N95资格，NAS验收入口仍原固定镜像。
-
-本机组件5轮中位数：96成员纯Series分配58.09→0.77ms；1500记录64个重复候选查询73.45→3.64ms，输出相同，冷查83.38→81.81ms；并行干扰下曾有冷查变慢，已保留。不能当作整机CPU或生产health改善。表/API/UI/摘要规则及Owner不变，当前P2 aggregate不变。整体身份业务验收继续开放，无生产发布；实现、安全负例、原始记录及准确范围见既有US Adult Evidence最新节。
+取消性别条件后的增量：Libra私有`us-adult-catalogue-assessment`按显式冻结的距离/候选差距、独立代表及时间覆盖参数形成候选评估，完全不读取gender作决定；技术候选不等于Person、ActorChoice或Cast。资格不够、无脸、无匹配及身份歧义分开，重复截图不充当独立证据，同一组强身份冲突或同框两脸归同UID不能被高分掩盖。最新assessment-2实际Linux 10 PASS / 0 skip，三部已有Evidence的12组网格与60次gender值/缺失/冲突变更重放全部通过。参数0.5/0.05/2代表区段/3覆盖区段仅为明确的实验Fixture，不是生产校准默认值。私有模型尚未接正式Work/typed Observation，Phase 4仍开放。

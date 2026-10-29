@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_episode_metadata_mapping_heads/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_episode_metadata_mapping_heads",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "current_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "record_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "subject_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "subject_id",
+      "intent_id"
+    ],
+    "uniqueConstraints": [],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "current_revision"
+      ],
+      "currentPointerColumns": [
+        "current_revision"
+      ],
+      "pointerTargets": [
+        {
+          "sourceColumns": [
+            "subject_id",
+            "current_revision"
+          ],
+          "targetTable": "libra_episode_metadata_mapping_intents",
+          "targetColumns": [
+            "subject_id",
+            "mapping_revision"
+          ],
+          "consistencyColumns": [],
+          "deletePolicy": "RESTRICT",
+          "deferrable": false
+        }
+      ],
+      "pointerRules": []
+    },
+    "jsonContracts": [],
+    "immutability": {
+      "immutable": false,
+      "rules": []
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "每Subject当前映射head",
+      "expected revision CAS且连续递增",
+      "仅对完整identity/material basis一致的后续Run有效",
+      "不因整个Subject保留而进入Reset保留集合，只保留已入藏执行明确依赖的Intent及Review"
+    ],
+    "rawContract": {
+      "columns": "`subject_id PK FK, current_revision INTEGER, intent_id FK, record_digest`",
+      "constraints": "每Subject当前映射head；expected revision CAS且连续递增；仅对完整identity/material basis一致的后续Run有效；不因整个Subject保留而进入Reset保留集合，只保留已入藏执行明确依赖的Intent及Review"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9607,
+      "lineDigest": "994c50297c118f636ce82a45c1eb53f2b91426fa7523b9339883bb3784ce9882"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "intent_id"
+        ],
+        "targetTable": "libra_episode_metadata_mapping_intents",
+        "targetColumns": [
+          "intent_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

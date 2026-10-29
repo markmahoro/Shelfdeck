@@ -11,6 +11,7 @@ const LOGICAL_TYPES = Object.freeze({
 });
 const NON_NEGATIVE_REVISION_COLUMNS = new Set([
   'proc_run_materials.expected_control_revision',
+  'proc_field_reset_barriers.minimum_observation_revision',
   'proc_procurement_retry_intent_materials.expected_control_revision',
   'libra_workspace_cleanup_members.expected_control_revision',
   'libra_subject_continuity_heads.current_revision',
@@ -24,7 +25,14 @@ const REQUIRED_COLUMN_DEFAULTS = Object.freeze({
   'libra_runs.package_revision_head': '0'
 });
 const REQUIRED_COLUMNS = new Set([
-  'libra_run_revisions.expected_admission_head_revision'
+  'libra_run_revisions.expected_admission_head_revision',
+  ...['preview_id','subject_id','libra_run_id','actor_id','idempotency_key','request_digest','record_schema_ref','record_json','record_digest','created_at_ms']
+    .map(column => 'libra_custom_target_previews.' + column),
+  ...['intent_id','preview_id','subject_id','libra_run_id','product_scope_digest','target_revision','actor_id','idempotency_key','request_digest','record_schema_ref','record_json','record_digest','created_at_ms']
+    .map(column => 'libra_custom_target_intents.' + column),
+  ...['subject_id','product_scope_digest','current_revision','intent_id','record_digest'].map(column => 'libra_custom_target_heads.' + column),
+  ...['offer_id','on_deck_package_id','package_revision','package_digest','receipt_id','receipt_schema_ref','receipt_json','receipt_digest','closed_at_ms']
+    .map(column => 'arca_offer_withdrawal_receipts.' + column)
 ]);
 
 // These are implementation-only projection guards. Their writers and startup
@@ -66,6 +74,7 @@ const SUPPORT_COLUMNS = Object.freeze({
 });
 
 const PARTIAL_UNIQUE = Object.freeze({
+  arca_series_root_relocations: [{columns:['scope_id'],where:'"state" = \'active\''}],
   arca_acceptance_attempts: [{ columns: ['package_digest', 'standard_revision', 'placement_revision'], where: '"finished_at_ms" IS NULL' }],
   arca_aftercare_cases: [
     { columns: ['care_basis_digest', 'finding_set_digest', 'care_requirement_digest'], where: '"terminal_at_ms" IS NULL' },
@@ -113,6 +122,43 @@ const FOREIGN_KEY_OVERRIDES = Object.freeze({
 });
 
 const TABLE_CHECKS = Object.freeze({
+  arca_offer_withdrawal_receipts: [
+    `"receipt_schema_ref" = 'arca.offer-withdrawal-receipt@1'`,
+    ...[['schemaRef','receipt_schema_ref'],['receiptId','receipt_id'],['receiptDigest','receipt_digest'],['closedAtMs','closed_at_ms'],
+      ['offer.offerId','offer_id'],['offer.onDeckPackageId','on_deck_package_id'],['offer.packageRevision','package_revision'],['offer.packageDigest','package_digest']]
+      .map(([jsonKey,column])=>'COALESCE(json_extract("receipt_json", \'$.'+jsonKey+'\') = "'+column+'", 0)')
+  ],
+  libra_custom_target_previews: [
+    `"record_schema_ref" = 'libra.custom-target-preview@1'`,
+    `"preview_id" = "record_digest"`,
+    ...[['schemaRef','record_schema_ref'],['previewDigest','record_digest'],['basis.subjectId','subject_id'],
+      ['basis.libraRunId','libra_run_id'],['actorId','actor_id'],['createdAtMs','created_at_ms']]
+      .map(([field,column]) => 'COALESCE(json_extract("record_json", \'$.' + field + '\') = "' + column + '", 0)'),
+  ],
+  libra_custom_target_intents: [
+    `"record_schema_ref" = 'libra.custom-target-intent@1'`,
+    ...[['schemaRef','record_schema_ref'],['intentId','intent_id'],['previewDigest','preview_id'],
+      ['intentDigest','record_digest'],['subjectId','subject_id'],['libraRunId','libra_run_id'],
+      ['basis.productScopeDigest','product_scope_digest'],['revision','target_revision'],['actorId','actor_id'],
+      ['idempotencyKey','idempotency_key'],['requestDigest','request_digest'],['confirmedAtMs','created_at_ms']]
+      .map(([field,column]) => 'COALESCE(json_extract("record_json", \'$.' + field + '\') = "' + column + '", 0)'),
+  ],
+  libra_runs: [
+    `("episode_metadata_mapping_intent_id" IS NULL AND json_type("execution_basis_record_json", '$.episodeMetadataMappingRef') IS NULL) OR
+     ("episode_metadata_mapping_intent_id" IS NOT NULL AND COALESCE(json_extract("execution_basis_record_json", '$.episodeMetadataMappingRef.intentId') = "episode_metadata_mapping_intent_id", 0))`,
+  ],
+  libra_episode_metadata_reviews: [
+    `"record_schema_ref" = 'libra.episode-metadata-review-record@1'`,
+    `json_extract("record_json", '$.recordId') = "review_id"`,
+    `json_extract("record_json", '$.recordDigest') = "record_digest"`,
+  ],
+  libra_episode_metadata_mapping_intents: [
+    `"record_schema_ref" = 'libra.episode-metadata-mapping-record@1'`,
+    `json_extract("record_json", '$.recordId') = "intent_id"`,
+    `json_extract("record_json", '$.reviewId') = "review_id"`,
+    `json_extract("record_json", '$.mapping.revision') = "mapping_revision"`,
+    `json_extract("record_json", '$.recordDigest') = "record_digest"`,
+  ],
   arca_jav_correction_recovery_intents:[
     '"receipt_schema_ref" = \'helix://contracts/application-types/ArcaJavCorrectionRecoveryIntentReceipt/v1\'',
     '"observation_schema_ref" = \'helix://contracts/application-types/ArcaJavCorrectionRecoveryObservation/v1\''
@@ -349,15 +395,16 @@ function compileTable(contract, allContracts) {
   }
   for (const json of contract.jsonContracts) {
     requireColumns(contract, [json.column], contract.tableId + ':json');
-    const episodeRecordSet = contract.tableId === 'arca_final_inventory_decisions' && json.column === 'decision_json' && json.maxBytes === 8 * 1024 * 1024 || ['libra_product_fact_revisions','arca_inventory_product_facts'].includes(contract.tableId) &&
+    const episodeRecordSet = contract.tableId === 'arca_series_root_relocations' && json.column === 'plan_json' && json.maxBytes === 4 * 1024 * 1024 || contract.tableId === 'arca_final_inventory_decisions' && json.column === 'decision_json' && json.maxBytes === 8 * 1024 * 1024 || ['libra_product_fact_revisions','arca_inventory_product_facts'].includes(contract.tableId) &&
       json.column === 'episode_metadata_json' && json.maxBytes === 16 * 1024 * 1024 ||
+      contract.tableId === 'libra_episode_metadata_reviews' && json.column === 'record_json' && json.maxBytes === 3 * 1024 * 1024 ||
       contract.tableId === 'arca_us_actor_refresh_pages' && json.column === 'page_json' && json.maxBytes === 512 * 1024 ||
       contract.tableId === 'arca_acceptance_check_evidence' && json.column === 'evidence_json' && json.maxBytes === 2 * 1024 * 1024 ||
       contract.tableId === 'arca_jav_identity_corrections' && json.column === 'preview_proof_json' && json.maxBytes === 2 * 1024 * 1024 ||
       contract.tableId === 'arca_jav_identity_corrections' && json.column === 'committed_context_json' && json.maxBytes === 4 * 1024 * 1024 ||
         contract.tableId === 'arca_staged_manifest_records' && json.column === 'manifest_json' && json.maxBytes === 8 * 1024 * 1024 ||
         contract.tableId === 'arca_inventory_verification_records' && json.column === 'verification_json' && json.maxBytes === 8 * 1024 * 1024;
-    if (!json.requiresJsonValidCheck || (!episodeRecordSet && ![4096, 16384, 65536, 131072, 262144, 1048576].includes(json.maxBytes))) {
+    if (!json.requiresJsonValidCheck || (!episodeRecordSet && ![4096, 16384, 32768, 65536, 131072, 262144, 1048576].includes(json.maxBytes))) {
       throw new Error('P3_DDL_UNSUPPORTED_JSON_CONTRACT:' + contract.tableId + '.' + json.column);
     }
     const jsonColumn = contract.columns.find((column) => column.name === json.column);

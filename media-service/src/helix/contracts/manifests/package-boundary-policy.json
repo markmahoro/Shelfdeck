@@ -3,6 +3,7 @@
   "defaultInternalDecision": "deny",
   "defaultExternalDecision": "deny",
   "externalModuleRules": [
+    {"source":"platform.application","allow":["node:crypto"]},
     {
       "source": "contracts",
       "allow": [
@@ -47,12 +48,16 @@
       "allow": ["node:path", "node:util"]
     },
     {
+      "source": "domains.procurement.persistence",
+      "allow": ["node:path"]
+    },
+    {
       "source": "domains.arca.persistence",
       "allow": ["node:fs", "node:os", "node:path"]
     },
     {
       "source": "integrations",
-      "allow": ["node:crypto", "node:fs", "node:path", "node:net", "node:worker_threads", "cheerio", "undici", "sharp", "onnxruntime-node"]
+      "allow": ["node:crypto", "node:fs", "node:path", "node:net", "node:worker_threads", "cheerio", "undici", "sharp", "onnxruntime-node", "usearch", "better-sqlite3"]
     },
     {
       "source": "projections",

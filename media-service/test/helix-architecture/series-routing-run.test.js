@@ -66,13 +66,19 @@ function harness(overrides = {}) {
       const search=url.pathname.endsWith('/search/tv'),season=url.pathname.includes('/season/'),episode=url.pathname.includes('/episode/');
       const episodeNumber=Number(url.pathname.split('/').at(-1));
       const seasonNumber=Number(url.pathname.match(/\/season\/(\d+)/)?.[1]??1);
+      if(url.pathname.endsWith('/translations')){
+        const number=Number(url.pathname.match(/\/episode\/(\d+)/)[1]);
+        return new Response(JSON.stringify({id:63055+seasonNumber*100+number,translations:overrides.translatedEpisodePlot?
+          [{iso_639_1:'en',iso_3166_1:'US',data:{overview:'Exact translated Episode '+number+' plot'}}]:[]}));
+      }
+      if(overrides.localEpisodeMissing&&episode&&seasonNumber===1)return new Response('{}',{status:404});
       const result=search?(overrides.search??{results:[{id:1399,name:'Demo Show'}]}):episode?
         {id:63055+seasonNumber*100+episodeNumber,season_number:seasonNumber,episode_number:episodeNumber,name:'Episode '+episodeNumber,
           overview:overrides.episodePlot??('Episode '+episodeNumber+' plot'),air_date:'2020-01-01'}:season?
         (overrides.season??{id:3623+seasonNumber,season_number:seasonNumber,
           episodes:Array.from({length:77},(_,index)=>({id:63055+seasonNumber*100+index+1,show_id:1399,
             season_number:seasonNumber,episode_number:index+1,name:'Episode '+(index+1),
-            overview:overrides.episodePlot??('Episode '+(index+1)+' plot'),air_date:'2020-01-01'}))}):(overrides.show??{
+            overview:overrides.localEpisodeMissing&&seasonNumber===1?'':overrides.episodePlot??('Episode '+(index+1)+' plot'),air_date:'2020-01-01'}))}):(overrides.show??{
           id:1399,name:'Demo Show',original_name:'Demo Show',first_air_date:'2020-01-01',
           origin_country:['US'],genres:[{id:18,name:'Drama'}],overview:'Series plot',
           credits:{cast:[{id:1001,name:'Fixture Actor'}],crew:[]}});
@@ -86,8 +92,10 @@ function harness(overrides = {}) {
   const fetchMetadata=({metadataFetchIntent:value,integrationHandle})=>adapter.observationPort.execute({
     operationId:'libra.product_metadata.fetch@1',integrationHandle,timeoutMs:1000,input:{
       resolvedProviderIdentity:value.resolvedProviderIdentity,requestedFields:value.requestedFields,
-      ...(value.episodeScope?{episodeScope:value.episodeScope}:{})}});
-  return {calls,observe,fetchMetadata};
+      ...(value.episodeScope?{episodeScope:value.episodeScope}:{}),
+      ...(value.episodePlotPolicyRef?{episodePlotPolicyRef:value.episodePlotPolicyRef}:{}),
+      ...(value.episodeMapping?{providerEpisodeReference:value.episodeMapping.providerEpisode}:{})}});
+  return {calls,observe,fetchMetadata,observeCandidates:input=>adapter.observationPort.execute({operationId:'libra.episode_metadata.candidates.observe@1',integrationHandle:handle('libra.episode_metadata.candidates.observe@1'),timeoutMs:1000,input}),fetchSeriesMetadata:basis=>adapter.observationPort.execute({operationId:'arca.series_presentation.source.observe@1',integrationHandle:handle('arca.series_presentation.source.observe@1'),timeoutMs:1000,input:{metadataRequest:basis}})};
 }
 function restoreArcaResult(db,value){
   let row,full,expected;
@@ -203,31 +211,32 @@ function mediaProbe(external=false) {
     return {...body,payloadDigest:canonicalDigest(body)};
   }};
 }
-for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck,external,manualIdentity,multiSeason} of [...(process.env.HELIX_SERIES_PROCUREMENT_ONLY==='1'?[{episodeCount:95,procurementOnly:true}]:[]),...(process.env.HELIX_SERIES_MANUAL_IDENTITY==='1'?[{episodeCount:2,mixed:process.env.HELIX_SERIES_BROWSER_COLD!=='1',manualIdentity:true,append:process.env.HELIX_SERIES_BROWSER_APPEND==='1',repair:process.env.HELIX_SERIES_BROWSER_CARE==='1',offdeck:process.env.HELIX_SERIES_BROWSER_OFFDECK==='1'}]:[]),...(process.env.HELIX_SERIES_EXTERNAL==='1'?[{episodeCount:2,shared:true,external:true,real:process.env.HELIX_SERIES_EXTERNAL_REAL==='1'},{episodeCount:2,shared:true,external:'rejected'},{episodeCount:2,shared:true,external:'exhausted'},{episodeCount:2,shared:true,external:'technical'}]:[]),...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true},{episodeCount:2,real:true,mediaRepair:true,mediaBound:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,multiSeason:true},{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},...(process.env.HELIX_SERIES_LARGE_SCOPE==='1'?[{episodeCount:47},{episodeCount:77}]:[]),...(process.env.HELIX_SERIES_NFO_GAP==='1'?[{episodeCount:17}]:[]),{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test((procurementOnly?'Isolated Host publishes '+episodeCount+' Episode members as one Season Candidate':'Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit')+(multiSeason?' with separate same-title Seasons':manualIdentity?' with manual Series identity':external?(external==='technical'?' with technical failure before external search':external==='exhausted'?' with exhausted local strategies then external search':external==='rejected'?' with rejected external shared-file search':' with external shared-file replacement'):offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?(nm?' with bounded real N:M media Aftercare':' with bounded real media Aftercare'):nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:episodeCount===77&&process.env.HELIX_SERIES_SETTLEMENT_DIAGNOSTICS==='1'?4800000:episodeCount>=17&&process.env.HELIX_SERIES_RELATED==='1'?2400000:real&&process.env.HELIX_SERIES_LONG_MEDIA==='1'?900000:episodeCount>47?1200000:real||repair||migrate||episodeCount>32?300000:180000},async t=>{
+for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,shared,parts,mixed,real,nm,repair,posterRepair,migrate,mediaRepair,mediaBound,offdeck,external,manualIdentity,multiSeason,sourcePoster,episodeMapping} of [...(process.env.HELIX_SERIES_EPISODE_MAPPING==='1'?[{episodeCount:2,episodeMapping:true,real:true}]:[]),...(process.env.HELIX_SERIES_PROCUREMENT_ONLY==='1'?[{episodeCount:95,procurementOnly:true}]:[]),...(process.env.HELIX_SERIES_MANUAL_IDENTITY==='1'?[{episodeCount:2,mixed:process.env.HELIX_SERIES_BROWSER_COLD!=='1',manualIdentity:true,append:process.env.HELIX_SERIES_BROWSER_APPEND==='1',repair:process.env.HELIX_SERIES_BROWSER_CARE==='1',offdeck:process.env.HELIX_SERIES_BROWSER_OFFDECK==='1'}]:[]),...(process.env.HELIX_SERIES_EXTERNAL==='1'?[{episodeCount:2,shared:true,external:true,real:process.env.HELIX_SERIES_EXTERNAL_REAL==='1'},{episodeCount:2,shared:true,external:'rejected'},{episodeCount:2,shared:true,external:'exhausted'},{episodeCount:2,shared:true,external:'technical'}]:[]),...(process.env.HELIX_SERIES_OFFDECK==='1'?[{episodeCount:2,real:true,nm:true,mixed:true,offdeck:true}]:[]),...(process.env.HELIX_SERIES_MEDIA_REPAIR==='1'?[{episodeCount:3,real:true,mediaRepair:true},{episodeCount:2,real:true,mediaRepair:true,nm:true},{episodeCount:3,real:true,mediaRepair:true,mediaBound:true},{episodeCount:2,real:true,mediaRepair:true,mediaBound:true,nm:true}]:[]),...(process.env.HELIX_SERIES_REAL_MEDIA==='1'?[{episodeCount:3,mixed:true,real:true},{episodeCount:2,mixed:true,real:true,nm:true}]:[]),{episodeCount:2,sourcePoster:true},{episodeCount:2,multiSeason:true},{episodeCount:2,migrate:true},{episodeCount:2,migrate:'rename'},{episodeCount:2,repair:true},{episodeCount:2,repair:true,posterRepair:true},{episodeCount:2,mixed:true},{episodeCount:1,bounded:true,parts:true},{episodeCount:2,bounded:true,shared:true},{episodeCount:2,bounded:true},{episodeCount:2},{episodeCount:24},...(process.env.HELIX_SERIES_LARGE_SCOPE==='1'?[{episodeCount:47},{episodeCount:77}]:[]),...(process.env.HELIX_SERIES_NFO_GAP==='1'?[{episodeCount:17}]:[]),{episodeCount:2,append:true},{episodeCount:2,append:true,anchored:true},{episodeCount:2,anchored:true,concurrent:true}]) test((procurementOnly?'Isolated Host publishes '+episodeCount+' Episode members as one Season Candidate':'Isolated Host schedules '+episodeCount+' Episodes through metadata and Direct On-deck Commit')+(episodeMapping?' with confirmed cross-season metadata':sourcePoster?' with a fresh package replacing its existing Season poster':multiSeason?' with separate same-title Seasons':manualIdentity?' with manual Series identity':external?(external==='technical'?' with technical failure before external search':external==='exhausted'?' with exhausted local strategies then external search':external==='rejected'?' with rejected external shared-file search':' with external shared-file replacement'):offdeck?' with real N:M Off-deck':mediaRepair?(mediaBound?(nm?' with bounded real N:M media Aftercare':' with bounded real media Aftercare'):nm?' with real N:M media Aftercare':' with real media Aftercare'):migrate?(migrate==='rename'?' with same-directory placement rename':' with complete placement migration'):repair?(posterRepair?' with scoped NFO and poster repair':' with scoped NFO repair'):real?(nm?' with real N:M Remux Transcode':' with real Direct Remux Transcode'):mixed?' with mixed Direct and Remux':parts?' with bounded Episode parts':shared?' with a bounded shared Primary':bounded?' with an exact per-Episode cap':concurrent?' with concurrent non-overlapping E03':append?' and appends E03 from '+(anchored?'an explicit Series anchor':'an unanchored Candidate'):''), {timeout:episodeCount===77&&process.env.HELIX_SERIES_SETTLEMENT_DIAGNOSTICS==='1'?4800000:episodeCount>=17&&process.env.HELIX_SERIES_RELATED==='1'?2400000:real&&process.env.HELIX_SERIES_LONG_MEDIA==='1'?900000:episodeCount>47?1200000:real||repair||migrate||(multiSeason&&process.env.HELIX_SERIES_ROOT_RELOCATE==='1')||episodeCount>32?300000:180000},async t=>{
   const browserJourney=(manualIdentity||multiSeason)&&process.env.HELIX_SERIES_BROWSER==='1';
   const externalBrowser=external&&process.env.HELIX_SERIES_EXTERNAL_BROWSER==='1';
   const coldBrowser=browserJourney&&process.env.HELIX_SERIES_BROWSER_COLD==='1';
   let systemTemplateBefore;
-  let browserFlow;
+  let browserFlow,sharedBrowserFlow,sharedRetryCommand,sharedRetryOffer;
   let externalBrowserFlow;
   const observedProviderStages=new Set();
   if(browserJourney)assert.ok([append,repair,offdeck].filter(Boolean).length<=1,'Browser append, repair, and exit journeys use separate frozen inventories.');
   const shutdownRoot=real?process.env.HELIX_SERIES_SHUTDOWN_ROOT:null;
-  const crashRoot=shutdownRoot|| (external?process.env.HELIX_SERIES_EXTERNAL_CRASH_ROOT:offdeck?process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT:mediaRepair?process.env.HELIX_SERIES_AFTERCARE_CRASH_ROOT:null);
+  const crashRoot=process.env.HELIX_SERIES_ROOT_RELOCATION_CRASH_ROOT||process.env.HELIX_SERIES_SHARED_CRASH_ROOT||shutdownRoot|| (external?process.env.HELIX_SERIES_EXTERNAL_CRASH_ROOT:offdeck?process.env.HELIX_SERIES_OFFDECK_CRASH_ROOT:mediaRepair?process.env.HELIX_SERIES_AFTERCARE_CRASH_ROOT:null);
   const root=crashRoot?fs.realpathSync(crashRoot):
     fs.mkdtempSync(path.join(os.tmpdir(),'helix-series-routing-'));
   const externalMultipart=external&&process.env.HELIX_SERIES_EXTERNAL_MULTIPART==='1',externalEpisodeCap=4*1024*1024;
   const externalProvider=external?require('../fixtures/series-external-host-provider').fixture(root,{rejectSearch:typeof external==='string',real,remux:process.env.HELIX_SERIES_EXTERNAL_REMUX==='1',transcode:process.env.HELIX_SERIES_EXTERNAL_TRANSCODE==='1',multipart:externalMultipart}):null;
-  const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':'Demo Show (2020)',process.env.HELIX_SERIES_RELATED==='1'?'Season 1':'Season 01');
+  const initialSeason=process.env.HELIX_SERIES_FIRST_S03==='1'?3:1,seasonToken='S'+String(initialSeason).padStart(2,'0'),seasonDirectory='Season '+String(initialSeason).padStart(2,'0');
+  const dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),source=path.join(root,'source',anchored?'Demo Show (2020) {tmdb-series-1399}':sourcePoster?'Demo Show':'Demo Show (2020)',process.env.HELIX_SERIES_RELATED==='1'?'Season '+initialSeason:seasonDirectory);
   fs.mkdirSync(adminDistDir,{recursive:true});fs.mkdirSync(source,{recursive:true});
-  if(browserJourney||externalBrowser) {
+  if(browserJourney||externalBrowser||process.env.HELIX_SERIES_SHARED_BROWSER==='1') {
     const builtAdmin=path.resolve(__dirname,'../../dist/admin');
     assert.ok(fs.existsSync(path.join(builtAdmin,'index.html')),'Build Admin Web before the browser Host journey.');
     fs.cpSync(builtAdmin,adminDistDir,{recursive:true});
   } else fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
   const episodeNumbers=Array.from({length:episodeCount},(_,index)=>index+1);
   const episodeKeys=episodeNumbers.map(number=>'E'+String(number).padStart(3,'0'));
-  const sources=nm?[path.join(source,'Demo Show.S01E01-02.part1.mp4'),path.join(source,'Demo Show.S01E01.part2.mkv')]:parts?[1,2].map(part=>path.join(source,'Demo Show.S01E01.part'+part+'.mkv')):shared?[path.join(source,'Demo Show.S01E01-02.mkv')]:episodeNumbers.map(number=>path.join(source,(procurementOnly?'Demo Show 完整来源名称完整来源名称完整来源名称':'Demo Show')+'.S01E'+String(number).padStart(2,'0')+((mixed||mediaRepair)&&number===2?'.mp4':'.mkv')));
+  const sources=nm?[path.join(source,'Demo Show.S01E01-02.part1.mp4'),path.join(source,'Demo Show.S01E01.part2.mkv')]:parts?[1,2].map(part=>path.join(source,'Demo Show.S01E01.part'+part+'.mkv')):shared?[path.join(source,'Demo Show.S01E01-02.mkv')]:episodeNumbers.map(number=>path.join(source,(procurementOnly?'Demo Show 完整来源名称完整来源名称完整来源名称':'Demo Show')+'.S01E'+String(number).padStart(2,'0')+((mixed||mediaRepair)&&number===2?'.mp4':'.mkv'))).map(file=>file.replace('.S01E','.'+seasonToken+'E'));
   const physicalCount=sources.length,perEpisodeCap=parts?48:shared?12:24;
   const relatedFixture=process.env.HELIX_SERIES_RELATED==='1';
   const thumbnailSources=relatedFixture?sources.map(file=>file.replace(/\.[^.]+$/,'-thumb.jpg')):[];
@@ -280,8 +289,28 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   const secretRoot='disposable-series-routing-secret',initialized=initializeCleanData({
     dataDir,confirmation:'INITIALIZE_HELIX_CLEAN_V1',secretRoot});
   const largePlot=episodeCount===24?'Complete episode narrative. '.repeat(200):undefined;
-  const adapter=harness({episodePlot:largePlot}),providerCalls=[],artifactCalls=[],appendCommitAudits=[],repairCommitAudits=[],offdeckCommitAudits=[];let unitOfWork,runtimeError,db;
+  const adapter=harness({episodePlot:process.env.HELIX_SERIES_EPISODE_PLOT_TRANSLATION==='1'?'':largePlot,
+    translatedEpisodePlot:process.env.HELIX_SERIES_EPISODE_PLOT_TRANSLATION==='1',
+    localEpisodeMissing:episodeMapping&&process.env.HELIX_SERIES_MAPPING_FROZEN==='1'}),providerCalls=[],artifactCalls=[],sharedArtifactCalls=[],appendCommitAudits=[],repairCommitAudits=[],offdeckCommitAudits=[];let unitOfWork,runtimeError,db,sharedRetryAttempted=false,sharedMaintenanceUnavailable=false,sharedRetirementFailure=false;
+  let unreadableAlias=null,aliasReadAttempts=0,aliasInterruptions=0,unobservableReads=0;
+  const manualAliasRetry=process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS==='manual';
+  const aliasRecoveryJourney=['1','transient','manual'].includes(process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS);
+  let failedAliasWork=null,failedAliasAttempt=null,failedAliasEffect=null,publishedAliasIdentity=null;
+  if(aliasRecoveryJourney){
+    const originalOpen=fs.openSync;
+    t.mock.method(fs,'openSync',function(location,flags,...args){
+      if(process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS==='transient'&&unreadableAlias&&
+          String(location)===unreadableAlias.split('.shelfdeck-')[0]&&flags==='r'&&unobservableReads<3){
+        unobservableReads+=1;throw Object.assign(new Error('Injected temporary published-file read outage'),{code:'EIO'});
+      }
+      if(String(location)===unreadableAlias&&flags==='r'){
+        aliasReadAttempts+=1;throw Object.assign(new Error('Injected unreadable CIFS producer alias'),{code:'EINVAL'});
+      }
+      return originalOpen.call(this,location,flags,...args);
+    });
+  }
   const poster=await sharp({create:{width:4,height:6,channels:3,background:'#224466'}}).jpeg().toBuffer();
+  if(sourcePoster)fs.writeFileSync(path.join(source,'poster.jpg'),poster);
   let injectedDeleteFailures=0;
   let browserMediaPort;
   const nativeBrowserMedia=()=>{
@@ -302,26 +331,38 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   const deletionPort=require('../../src/clean-offdeck-deletion-port').createCleanOffdeckDeletionPort();
   let shutdownTriggered=false;
   const shutdownRegistry=require('../../src/clean-ffmpeg-process-registry').createFfmpegProcessRegistry();
-  const shutdownOptions=shutdownRoot?{shutdownTimeoutMs:1,ffmpegProcessRegistry:{...shutdownRegistry,register(child){
+  const shutdownOptions=shutdownRoot?{shutdownTimeoutMs:10000,ffmpegProcessRegistry:{...shutdownRegistry,register(child){
     const result=shutdownRegistry.register(child);
     if(!shutdownTriggered&&child.spawnargs.some(arg=>['libx265','hevc_nvenc','hevc_qsv','hevc_vaapi'].includes(arg))&&child.spawnargs.includes('-progress')){
       shutdownTriggered=true;
       setImmediate(async()=>{
-        try{await host.close();throw new Error('Active encode unexpectedly drained before checkpoint deadline');}
-        catch(error){
-          if(error.code!=='P4_SHUTDOWN_CHECKPOINT_TIMEOUT'){console.error(error);process.exit(75);}
+        try {
+          const started=Date.now();await host.close();
           await new Promise(resolve=>setImmediate(resolve));
           const events=db.prepare("SELECT e.event_id,e.state,a.failure_code,a.outcome_kind,j.state effect_state FROM fx_workflow_events e JOIN fx_event_attempts a ON a.event_id=e.event_id LEFT JOIN fx_effect_journal j ON j.event_attempt_id=a.event_attempt_id WHERE e.capability_ref='libra.media.transcode@1'").all();
-          fs.writeFileSync(path.join(root,'shutdown-boundary.json'),JSON.stringify({events,children:shutdownRegistry.size(),commits:db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n}));
+          fs.writeFileSync(path.join(root,'shutdown-boundary.json'),JSON.stringify({shutdownCompleted:true,shutdownMs:Date.now()-started,events,children:shutdownRegistry.size(),commits:db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n}));
           process.exit(74);
-        }
+        } catch(error) {console.error(error);process.exit(75);}
       });
     }
     return result;
   }}}:{};
   let maintenanceClock=null,maintenanceClockStart=Date.now();
   const now=()=>maintenanceClock===null?Date.now():maintenanceClock+Date.now()-maintenanceClockStart;
-  const hostOptions={dataDir,adminDistDir,secretRoot,now,...shutdownOptions,...(external?{integrationFetch:async(input,init)=>{
+  const hostOptions={dataDir,adminDistDir,secretRoot,now,afterSeriesRootRename:()=>{if(process.env.HELIX_SERIES_ROOT_RELOCATION_CRASH_PHASE==='rename')require('../fixtures/series-root-relocation-journey').crashBoundary(root,db,'rename',now());},afterSeriesPhysicalEffect:value=>{if(sharedRetirementFailure&&!value.reclaimed&&!value.location.replaceAll('\\','/').includes('/workspaces/aftercare/'))throw Object.assign(new Error('Injected maintenance publication failure'),{code:'EPERM'});if(process.env.HELIX_SERIES_SHARED_WRITE_FAILURE&&!sharedRetryAttempted){const workspace=value.location.replaceAll('\\','/').includes('/workspaces/aftercare/');if((process.env.HELIX_SERIES_SHARED_WRITE_FAILURE==='workspace-source-loss'?workspace&&value.location.replaceAll('\\','/').includes('/poster/'):((process.env.HELIX_SERIES_SHARED_WRITE_FAILURE==='workspace')===workspace)))throw Object.assign(new Error('Injected publication permission failure'),{code:'EPERM'});}
+    if(aliasRecoveryJourney&&!unreadableAlias&&path.basename(value.location)==='tvshow.nfo'&&!value.location.replaceAll('\\','/').includes('/workspaces/aftercare/')){
+      unreadableAlias=value.location+'.shelfdeck-'+value.byteDigest+'.partial';
+      assert.equal(fs.statSync(unreadableAlias,{bigint:true}).ino,fs.statSync(value.location,{bigint:true}).ino);
+      publishedAliasIdentity=fs.statSync(value.location,{bigint:true});
+      if(manualAliasRetry)throw Object.assign(new Error('Injected terminal publication failure before redundant alias cleanup'),{code:'EPERM'});
+      throw Object.assign(new Error('Injected interruption before redundant alias cleanup'),{code:'EIO'});
+    }
+    if(!process.env.HELIX_SERIES_SHARED_CRASH_ROOT)return;
+    const isWorkspace=value.location.replaceAll('\\','/').includes('/workspaces/aftercare/'),phase=process.env.HELIX_SERIES_SHARED_CRASH_PHASE||'publish';
+    if((phase==='workspace'&&isWorkspace)||(phase==='publish'&&!isWorkspace)){
+      fs.writeFileSync(path.join(root,'shared-crash-boundary.json'),JSON.stringify({phase,location:value.location,events:db.prepare("SELECT event_id,capability_ref,state FROM fx_workflow_events WHERE capability_ref LIKE 'arca.series_presentation.%'").all()}));process.exit(78);
+    }
+  },...shutdownOptions,...(external?{integrationFetch:async(input,init)=>{
     const pathname=new URL(input).pathname;
     if(externalBrowserFlow&&['/api/v1/search/title','/api/v1/download/add'].includes(pathname)&&!observedProviderStages.has(pathname)){
       observedProviderStages.add(pathname);await new Promise(resolve=>setTimeout(resolve,15000));
@@ -334,7 +375,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
       }
       return deletionPort.execute(request);
     }},
-  }:{}),...((repair||migrate)?{aftercarePlaybackRunner:async()=>{}}:{}),...(browserMedia?{mediaProductionEffectPort:browserMedia}:{}),...(real?{}:{mediaProbe:mediaProbe(external),
+  }:{}),...((repair||migrate||(multiSeason&&process.env.HELIX_SERIES_ROOT_RELOCATE==='1'))?{aftercarePlaybackRunner:async()=>{}}:{}),...(browserMedia?{mediaProductionEffectPort:browserMedia}:{}),...(real?{}:{mediaProbe:mediaProbe(external),
     mediaProductionEffectPort:{
       async verifyPlayback(){return {samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('fixture-decode')};},
       async executeRemux(request){
@@ -354,6 +395,9 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     }}),
     unitOfWorkDecorator(value){
       unitOfWork=Object.freeze({...value,execute(participants,...args){
+        if(participants.some(item=>item.participantId==='arca_series_retained_retirement')){const tables=['arca_series_presentation_scopes','fx_material_controls','fx_material_control_revisions','fx_command_receipts'],snapshot=()=>canonicalDigest(tables.map(table=>[table,db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all()])),before=snapshot(),domain=participants.find(item=>item.participantId==='arca_series_retained_retirement'),crash={participantId:'fixture_after_retained_retirement',owner:'arca',repositories:domain.repositories,execute(){throw new Error('Injected retained retirement commit interruption');}};assert.throws(()=>value.execute([...participants,crash],...args),/Injected retained retirement commit interruption/);assert.equal(snapshot(),before);return value.execute(participants,...args);}
+        if(process.env.HELIX_SERIES_SHARED_CRASH_PHASE==='reclaim-commit'&&participants.some(item=>item.participantId==='arca_series_reclaimed_commit')){const result=value.execute(participants,...args);fs.writeFileSync(path.join(root,'shared-crash-boundary.json'),JSON.stringify({phase:'reclaim-commit',events:db.prepare("SELECT event_id,capability_ref,state FROM fx_workflow_events WHERE capability_ref='arca.series_presentation.workspace.reclaim@1'").all(),registries:db.prepare("SELECT state FROM fx_workspace_registry WHERE process_type='series_presentation'").all(),results:db.prepare("SELECT count(*) n FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref='arca.series_presentation.workspace.reclaim@1'").get().n}));process.exit(78);return result;}
+        if(process.env.HELIX_SERIES_SHARED_CRASH_PHASE==='command'&&participants.some(item=>item.participantId==='arca_series_retry_receipt')){const result=value.execute(participants,...args);fs.writeFileSync(path.join(root,'shared-crash-boundary.json'),JSON.stringify({phase:'command',receipts:db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.series-presentation.retry@1'").get().n,builds:db.prepare('SELECT count(*) n FROM arca_series_presentation_builds').get().n,works:db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE work_kind='series_presentation'").get().n}));process.exit(78);return result;}
         if(external&&crashRoot&&participants.some(item=>item.participantId==='arca_ondeck_domain')) {
           const decision=JSON.parse(db.prepare('SELECT decision_json FROM arca_final_inventory_decisions').get().decision_json);
           const files=decision.members.map(member=>({member,sha256:require('node:crypto').createHash('sha256').update(fs.readFileSync(member.targetLocation)).digest('hex')}));
@@ -413,6 +457,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
           assert.equal(snapshot(),before);
           const result=value.execute(participants,...args);repairCommitAudits.push({rollbackVerified:true});return result;
         }
+        if(process.env.HELIX_SERIES_ROOT_RELOCATION_CRASH_PHASE==='commit'&&participants.some(item=>item.participantId==='arca_series_root_atomic_result')){value.execute(participants,...args);require('../fixtures/series-root-relocation-journey').crashBoundary(root,db,'commit',now());}
         if(!append||!participants.some(item=>item.participantId==='arca_ondeck_domain')||
             db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n!==1)return value.execute(participants,...args);
         const tables=['arca_shelf_entries','arca_inventory_materials','arca_inventory_product_facts','arca_deck_fact_revisions',
@@ -455,13 +500,31 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     routingProviderObservation:request=>{providerCalls.push(request);if(manualIdentity&&request.operationId==='libra.product_identity.evidence.observe@1'&&!request.intent.strongProviderAnchor)return [];return adapter.observe(request);},
     productIntegrationHandleResolver:request=>handle(request.operationId),
     currentProductIntegrationHandleResolver:request=>handle(request.operationId),
+    seriesImageSourceResolver:source=>require('../../src/helix/contracts/series-image-source').buildImageSource({...source,integrationId:'tmdb-main',configRevision:sharedMaintenanceUnavailable==='assets'&&sharedRetryAttempted?2:1,language:'zh-CN'}),
+    fetchSeriesPresentationMetadata:adapter.fetchSeriesMetadata,
     productProviderMetadataFetch:adapter.fetchMetadata,
-    productProviderArtifactFetch:async request=>{artifactCalls.push(request);return {resultKind:'acquired',bytes:poster,artifactKind:request.artifactKind,
+    observeEpisodeMetadataCandidates:adapter.observeCandidates,
+    fetchSeriesPresentationArtifact:async request=>{if((process.env.HELIX_SERIES_SHARED_WRITE_FAILURE==='workspace-source-loss'&&sharedRetryAttempted)||(sharedMaintenanceUnavailable&&sharedMaintenanceUnavailable!=='assets')||(sharedMaintenanceUnavailable==='assets'&&!sharedRetryAttempted&&request.operationId==='arca.series_presentation.assets.prepare@1')||(process.env.HELIX_SERIES_SHARED_RETRY==='1'&&!sharedRetryAttempted)||process.env.HELIX_SERIES_SHARED_SUPPLEMENT==='1')return {resultKind:'not_available'};sharedArtifactCalls.push({operationId:request.operationId,kind:request.artifactKind,path:request.imagePath||null});
+      return {resultKind:'acquired',imagePath:'/'+request.artifactKind+'.jpg',
+      bytes:request.artifactKind==='poster'?poster:await sharp({create:{width:120,height:80,channels:3,background:'#334455'}}).jpeg().toBuffer()};},
+    productProviderArtifactFetch:async request=>{artifactCalls.push(request);
+      if(process.env.HELIX_SERIES_SEASON_POSTER_REUSE&&request.artifactKind==='poster'&&request.artifactScope?.scopeKind==='season')
+        return {resultKind:'not_available',reasonCode:'poster_not_available'};
+      return {resultKind:'acquired',bytes:poster,artifactKind:request.artifactKind,
       integrationId:request.integrationHandle.integrationId,configRevision:request.integrationHandle.configRevision,
       mediaType:'image/jpeg',resolvedProviderIdentity:request.resolvedProviderIdentity};},
-    onExecutionRuntimeError(error){runtimeError=error;}};
+    onExecutionRuntimeError(error){
+      if(aliasRecoveryJourney&&error.code==='EIO'&&error.message==='Injected interruption before redundant alias cleanup'){
+        aliasInterruptions+=1;return;
+      }
+      runtimeError=error;
+    }};
+  const localShowFiles=[];if(process.env.HELIX_SERIES_LOCAL_SOURCE){const parent=path.dirname(source),providerKey=process.env.HELIX_SERIES_LOCAL_SOURCE==='foreign'?'999':'1399';
+    for(const [name,bytes] of [['tvshow.nfo',Buffer.from('<tvshow><title>Local Demo Show</title><uniqueid type="tmdb">'+providerKey+'</uniqueid><plot>Original whole-show notes</plot></tvshow>')],['poster.jpg',poster],['fanart.jpg',await sharp({create:{width:160,height:90,channels:3,background:'#667733'}}).jpeg().toBuffer()]]){const location=path.join(parent,name);fs.writeFileSync(location,bytes);localShowFiles.push({location,bytes});}}
   let host=await createCleanServiceHost(hostOptions);
   t.after(async()=>{
+    if(process.env.HELIX_SERIES_ROOT_RELOCATE==='1')console.error('RELOCATION_STAGE=teardown',root);
+    await sharedBrowserFlow?.close();
     await externalBrowserFlow?.close();
     await browserFlow?.close();
     await host.close();db?.close();
@@ -529,7 +592,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   }
   const crossDevice=process.env.HELIX_SERIES_CROSS_DEVICE==='1';
   if(crossDevice)assert.equal(process.platform,'linux','Cross-device Host fixture requires Linux tmpfs.');
-  const target=crossDevice?fs.mkdtempSync('/dev/shm/helix-series-target-'):path.join(root,'shelf');
+  const target=crossDevice?fs.mkdtempSync('/dev/shm/helix-series-target-'):path.join(root,sourcePoster?'source':'shelf');
   if(crossDevice){
     t.after(()=>{
       assert.equal(path.dirname(fs.realpathSync(target)),'/dev/shm');
@@ -538,7 +601,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     });
     assert.notEqual(fs.statSync(root).dev,fs.statSync(target).dev,'Source/Workspace and Shelf must be on different filesystems.');
     t.diagnostic(JSON.stringify({crossDevice:true,sourceDevice:fs.statSync(root).dev,targetDevice:fs.statSync(target).dev}));
-  }else fs.mkdirSync(target);
+  }else fs.mkdirSync(target,{recursive:true});
   const sourceShelfId=browserJourney?await browserFlow.createShelf(target,ruleTemplateId):'series-shelf';
   if(!browserJourney)await request('POST','/v1/admin/shelves',{idempotencyKey:'series-shelf',shelfId:'series-shelf',name:'Series fixture',
     targetRootLocation:target,ruleTemplateId,expectedTemplateRevision,
@@ -668,8 +731,9 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     }
     assert.deepEqual(db.prepare('SELECT execution_basis_digest,run_material_manifest_id FROM libra_runs WHERE libra_run_id=?').get(run.libraRunId),before);
   }
+  const mappingJourney=episodeMapping?require('../fixtures/series-episode-mapping-journey').createMappingJourney({db,request,confirmOnlyFrozen:process.env.HELIX_SERIES_MAPPING_FROZEN==='1'}):null;
   let state;let lastDiagnostic=0;const diagnosticStart=Date.now();
-  const deadline=Date.now()+(episodeCount===77&&process.env.HELIX_SERIES_SETTLEMENT_DIAGNOSTICS==='1'?4700000:episodeCount>=17&&relatedFixture?2300000:longMedia?800000:episodeCount>47?1100000:real||episodeCount>32?220000:100000);
+  const deadline=Date.now()+(process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS==='transient'?150000:episodeCount===77&&process.env.HELIX_SERIES_SETTLEMENT_DIAGNOSTICS==='1'?4700000:episodeCount>=17&&relatedFixture?2300000:longMedia?800000:episodeCount>47?1100000:real||episodeCount>32?220000:100000);
   do {
     state={subjects:db.prepare('SELECT * FROM libra_subjects').all(),routes:db.prepare('SELECT * FROM libra_routing_decisions').all(),
       specs:db.prepare('SELECT * FROM libra_acceptance_specs').all(),runs:db.prepare('SELECT * FROM libra_runs').all(),
@@ -681,13 +745,42 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
       const attempts=db.prepare("SELECT e.capability_ref,count(*) n,sum(a.finished_at_ms-a.started_at_ms) totalMs,max(a.finished_at_ms) lastFinishedAtMs FROM fx_event_attempts a JOIN fx_workflow_events e ON e.event_id=a.event_id WHERE a.finished_at_ms IS NOT NULL GROUP BY e.capability_ref").all();
       console.error(JSON.stringify({seriesHostProgress:{elapsedMs:Date.now()-diagnosticStart,events,attempts}}));
     }
+    if((manualAliasRetry||process.env.HELIX_SERIES_SHARED_RETRY==='1'||process.env.HELIX_SERIES_SHARED_SUPPLEMENT==='1'||process.env.HELIX_SERIES_SHARED_WRITE_FAILURE)&&!sharedRetryAttempted&&state.works.some(row=>row.work_kind==='series_presentation'&&row.state==='failed')){
+      const subject=db.prepare('SELECT subject_id FROM libra_runs').get().subject_id,detail=(await request('GET','/v1/admin/formation/'+subject)).json();
+      assert.equal(detail.classification,'attention_required');assert.equal(detail.executorIssue.canRetry,true);if(process.env.HELIX_SERIES_SHARED_WRITE_FAILURE)assert.equal(detail.executorIssue.canSupplyImages,process.env.HELIX_SERIES_SHARED_WRITE_FAILURE!=='publish');
+      assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,0);
+      if(manualAliasRetry){
+        failedAliasWork=db.prepare("SELECT * FROM fx_supporting_works WHERE work_kind='series_presentation' AND state='failed'").get();
+        failedAliasAttempt=db.prepare("SELECT a.* FROM fx_event_attempts a JOIN fx_workflow_events e ON e.event_id=a.event_id WHERE e.work_id=? AND e.capability_ref='arca.series_presentation.files.publish@1'").get(failedAliasWork.work_id);
+        assert.equal(failedAliasAttempt.outcome_kind,'failed');
+        failedAliasEffect=db.prepare('SELECT * FROM fx_effect_journal WHERE event_attempt_id=?').get(failedAliasAttempt.event_attempt_id);
+        assert.equal(failedAliasEffect.state,'failed');
+        assert.ok(sources.every(file=>fs.existsSync(file)),'Publication failure must retain the controlled sources before authorized settlement.');
+        assert.equal(fs.statSync(unreadableAlias,{bigint:true}).ino,publishedAliasIdentity.ino);
+      }
+      sharedRetryAttempted=true;const supplementalImages=process.env.HELIX_SERIES_SHARED_WRITE_FAILURE==='workspace-source-loss'?[{artifactKind:'fanart',bytesBase64:(await sharp({create:{width:120,height:80,channels:3,background:'#443322'}}).jpeg().toBuffer()).toString('base64')}]:process.env.HELIX_SERIES_SHARED_SUPPLEMENT==='1'?[{artifactKind:'poster',bytesBase64:poster.toString('base64')},
+        {artifactKind:'fanart',bytesBase64:(await sharp({create:{width:120,height:80,channels:3,background:'#443322'}}).jpeg().toBuffer()).toString('base64')}]:null;
+      if(process.env.HELIX_SERIES_SHARED_BROWSER==='1')sharedBrowserFlow=await require('../fixtures/series-shared-retry-browser').retry({host,apiKey:initialized.adminApiKey,poster,
+        fanart:Buffer.from(supplementalImages[1].bytesBase64,'base64'),output:process.env.HELIX_SERIES_BROWSER_OUTPUT});
+      else {sharedRetryOffer=detail.handoffB.offerId;sharedRetryCommand={idempotencyKey:'shared-task-retry',...(supplementalImages?{supplementalImages}:{})};await request('POST','/v1/admin/formation/acceptance/'+sharedRetryOffer+'/actions/retry',sharedRetryCommand);}
+    }
+    if(mappingJourney){
+      await mappingJourney.advance();
+      if(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n===1)break;
+      assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,25));continue;
+    }
     // Observe the complete Arca transaction, including authorized source settlement.
     if(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n===1||db.prepare("SELECT count(*) n FROM arca_acceptance_decisions WHERE result='rejected'").get().n>0||
-        (!['exhausted','technical'].includes(external)&&state.works.some(work=>work.state==='failed'))||(typeof external==='string'&&state.runs.some(run=>run.state==='frozen')))break;
+        (!['exhausted','technical'].includes(external)&&state.works.some(work=>work.state==='failed'&&!(sharedRetryAttempted&&work.work_kind==='series_presentation')))||(typeof external==='string'&&state.runs.some(run=>run.state==='frozen')))break;
     assert.ifError(runtimeError);
     await new Promise(resolve=>setTimeout(resolve,25));
   } while(Date.now()<deadline);
+  if(mappingJourney){t.diagnostic(JSON.stringify(mappingJourney.verify()));assert.ok(adapter.calls.some(url=>url.pathname.includes('/season/0')));assert.ok(adapter.calls.some(url=>url.pathname.includes('/season/2')));await host.close();t.diagnostic(JSON.stringify({coldCopy:mappingJourney.verifyColdCopy()}));return;}
   assert.equal(state.runs.length,1,JSON.stringify(state));
+  if(!state.facts.some(fact=>fact.fact_kind==='product_metadata')){
+    const diagnostic=(await request('GET','/v1/admin/formation/'+state.runs[0].subject_id)).json();
+    t.diagnostic(JSON.stringify({beforeProductMetadata:diagnostic}));
+  }
   assert.ok(state.facts.some(fact=>fact.fact_kind==='product_metadata'),JSON.stringify({
     works:state.works,attempts:db.prepare('SELECT * FROM fx_work_attempts').all(),
     incidents:db.prepare('SELECT * FROM fx_executor_incidents').all(),events:db.prepare(
@@ -696,18 +789,24 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   assert.equal(sourceWork?.state,'succeeded',JSON.stringify(state.works));
   const sourceSnapshot=createMovieProductionReader({schemaManifest,unitOfWork}).readRunSnapshot(state.runs[0].libra_run_id);
   if (episodeCount === 2 && !append && !anchored && !mixed && !bounded && !migrate && !repair && !multiSeason && !external && !real && !manualIdentity) {
-    let intakeReads = 0, mutation = null, firstIntake = null;
+    let intakeReads = 0, authorityReads = 0, mutation = null, firstIntake = null;
     const observedUnitOfWork = { execute(participants) {
       return unitOfWork.execute(participants.map(participant => ({ ...participant, execute(context) {
         return participant.execute({ ...context, repository(id) {
           const repository = context.repository(id);
           return { invoke(statement, values) {
+            if(statement==='list_bindings')authorityReads++;
             let result = statement === 'find_intake' && values.intake_decision_id === 'second-intake'
               ? { ...firstIntake } : repository.invoke(statement, values);
             if (statement === 'find_intake') {
               intakeReads += 1;
               firstIntake = result;
               if (mutation === 'delivery') result = { ...result, candidate_delivery_snapshot_json:'{}' };
+              if (mutation === 'season') {
+                const delivery=JSON.parse(result.candidate_delivery_snapshot_json);
+                delivery.candidatePackage.identityClaim.seasonClaim.seasonNumber+=1;
+                result={...result,candidate_delivery_snapshot_json:JSON.stringify(delivery)};
+              }
               if (mutation === 'different-package' && values.intake_decision_id === 'second-intake') {
                 const delivery = JSON.parse(result.candidate_delivery_snapshot_json);
                 delivery.candidatePackage.displayIdentity = 'Different package';
@@ -720,6 +819,8 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
               index === 1 ? { ...row, origin_offer_id:'foreign-offer' } : row);
             if (statement === 'list_members' && mutation === 'primary') result = result.map((row, index) =>
               index === 1 ? { ...row, location:'foreign-location' } : row);
+            if(statement==='list_claims'&&mutation==='episode')result=result.map((row,index)=>index===0?{...row,episode_key:'E999'}:row);
+            if(statement==='find_run'&&mutation==='subject')result={...result,subject_id:'foreign-subject'};
             return result;
           } };
         } });
@@ -730,18 +831,32 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     assert.equal(intakeReads, 1, 'A shared accepted Handoff A is read once within one snapshot.');
     reader.readRunSnapshot(state.runs[0].libra_run_id);
     assert.equal(intakeReads, 2, 'A later snapshot must read current persisted facts again.');
+    const priorAuthorityReads=authorityReads;
+    assert.deepEqual(reader.readDeliveryPresentation(state.runs[0].libra_run_id),{libraRunId:state.runs[0].libra_run_id,
+      seasonNumber:initialSeason,episodeKeys:sourceSnapshot.episodeClaims.map(item=>item.episodeKey),physicalFileCount:sources.length});
+    assert.equal(authorityReads,priorAuthorityReads,'Presentation must not read current execution qualifications');
     mutation = 'origin';
     assert.throws(() => reader.readRunSnapshot(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
+    assert.throws(() => reader.readDeliveryPresentation(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
     mutation = 'primary';
     assert.throws(() => reader.readRunSnapshot(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_PRIMARY_DRIFT' });
+    assert.throws(() => reader.readDeliveryPresentation(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_PRIMARY_DRIFT' });
     mutation = 'delivery';
     assert.throws(() => reader.readRunSnapshot(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
+    assert.throws(() => reader.readDeliveryPresentation(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
     mutation = 'different-intake';
     intakeReads = 0;
     reader.readRunSnapshot(state.runs[0].libra_run_id);
     assert.equal(intakeReads, 2, 'Distinct Intake decisions must be read and compared independently.');
     mutation = 'different-package';
     assert.throws(() => reader.readRunSnapshot(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
+    assert.throws(() => reader.readDeliveryPresentation(state.runs[0].libra_run_id), { code:'P14_MOVIE_PRODUCTION_HANDOFF_DRIFT' });
+    mutation='episode';
+    assert.throws(()=>reader.readDeliveryPresentation(state.runs[0].libra_run_id),{code:'P14_MOVIE_PRODUCTION_EPISODE_DRIFT'});
+    mutation='subject';
+    assert.throws(()=>reader.readDeliveryPresentation(state.runs[0].libra_run_id),{code:'P14_MOVIE_PRODUCTION_RUN_DRIFT'});
+    mutation='season';
+    assert.throws(()=>reader.readDeliveryPresentation(state.runs[0].libra_run_id),/exact frozen/);
   }
   const directWork=state.works.find(work=>work.work_id.startsWith('libra-workspace-media-direct_selection-work-'));
   assert.equal(directWork?.state,'succeeded',JSON.stringify({works:state.works,events:db.prepare(
@@ -787,6 +902,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     await discardFromBrowser();
     return;
   }
+  if(runtimeError)t.diagnostic(JSON.stringify({runtimeError:{code:runtimeError.code,message:runtimeError.message,stack:runtimeError.stack}}));
   assert.ok(state.works.some(work=>work.work_kind==='product_conformance'&&work.state==='succeeded'),JSON.stringify({works:state.works,incidents:db.prepare('SELECT * FROM fx_executor_incidents').all(),events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   assert.ok(state.works.some(work=>work.work_kind==='deliverable_promotion'&&work.state==='succeeded'),JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
   assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1,JSON.stringify({eventStates:db.prepare("SELECT event_id,capability_ref,state,retry_at_ms FROM fx_workflow_events WHERE owner_domain='arca'").all(),checks:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'accept-%'").all(),decisions:db.prepare('SELECT * FROM arca_acceptance_decisions').all(),works:state.works,events:db.prepare('SELECT * FROM fx_event_attempts WHERE failure_code IS NOT NULL').all(),attempts:db.prepare("SELECT * FROM fx_work_attempts WHERE failure_code IS NOT NULL").all()}));
@@ -990,7 +1106,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     assert.deepEqual(JSON.parse(spec.spec_json).productScope.episodeKeys,episodeKeys);
     if(browserJourney)assert.deepEqual(JSON.parse(spec.spec_json).requirements.space,{unit:'episode',maxSizeGiB:0.5,maxSizeBytes:536870912});
   }
-  assert.ok(providerCalls.some(call=>call.operationId===undefined&&call.intent.contentProfile==='series'&&call.intent.seasonNumber===1));
+  assert.ok(providerCalls.some(call=>call.operationId===undefined&&call.intent.contentProfile==='series'&&call.intent.seasonNumber===initialSeason));
   const claims=db.prepare('SELECT episode_key FROM libra_run_material_episode_claims ORDER BY episode_key').all();
   assert.deepEqual([...new Set(claims.map(claim=>claim.episode_key))],episodeKeys);
   const metadata=require('../../src/helix/contracts/episode-metadata-records').readStoredMetadataValue(state.facts.find(fact=>fact.fact_kind==='product_metadata'));
@@ -1033,7 +1149,8 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     assert.match(xml,new RegExp('<title>Episode '+number+'</title>'));
   }
   const refs=db.prepare('SELECT * FROM libra_product_fact_source_refs WHERE product_fact_id=? ORDER BY ordinal').all(metadata.factId);
-  assert.equal(refs.length,episodeCount+1+(relatedFixture?physicalCount:0)+(relatedFixture&&process.env.HELIX_SERIES_NFO_GAP==='1'?episodeCount:0));
+  const representativeCastFetch=relatedFixture&&process.env.HELIX_SERIES_NFO_GAP!=='1'&&process.env.HELIX_SERIES_DUPLICATE_CAST!=='1'?1:0;
+  assert.equal(refs.length,episodeCount+1+(relatedFixture?physicalCount:0)+(relatedFixture&&process.env.HELIX_SERIES_NFO_GAP==='1'?episodeCount:0)+representativeCastFetch);
   for(const ref of refs) {
     const result=db.prepare('SELECT * FROM fx_event_result_bindings WHERE result_id=?').get(ref.result_id);
     const node=db.prepare('SELECT node.input_bindings_json FROM fx_plan_nodes node JOIN fx_workflow_events event '+
@@ -1045,13 +1162,63 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   assert.ok(state.works.some(work=>work.work_kind==='routing_provider_facts'&&work.state==='succeeded'));
   assert.equal(db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,1);
   const inventory=db.prepare('SELECT * FROM arca_inventory_materials').all();
+  if(episodeCount===2&&!sourcePoster&&!multiSeason&&!manualIdentity&&!external&&!offdeck&&!mediaRepair&&!migrate&&!repair&&!real&&!mixed&&!parts&&!shared&&!bounded&&!concurrent&&!append){
+    const retirement=require('../../src/helix/domains/arca/persistence/formation-retirement-store').createArcaFormationRetirementStore({schemaManifest,unitOfWork});
+    const packages=db.prepare('SELECT * FROM libra_product_packages').all();
+    const references=packages.map(row=>({offerId:row.offer_id,packageId:row.on_deck_package_id,packageDigest:row.package_digest}));
+    const protectedTables=['arca_ondeck_custodies','arca_ondeck_runs','arca_ondeck_commit_receipts','arca_shelf_entries','arca_inventory_representations','fx_material_controls'];
+    const snapshot=()=>canonicalDigest(protectedTables.map(table=>[table,db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all()]));
+    const before=snapshot();
+    assert.ok(db.prepare("SELECT count(*) n FROM arca_ondeck_custodies WHERE state='active'").get().n>0);
+    const proof=retirement.readRetirementProof(references);
+    assert.equal(proof.length,packages.length);assert.ok(proof.every(row=>row.disposition==='committed'));
+    assert.equal(snapshot(),before);
+    const mutation=new Database(path.join(dataDir,'shelfdeck.db'));
+    const originals=mutation.prepare('SELECT rowid,source_package_id FROM arca_inventory_representations').all();
+    try{
+      mutation.prepare("UPDATE arca_inventory_representations SET source_package_id='foreign-package'").run();
+      assert.throws(()=>retirement.readRetirementProof(references));
+    }finally{for(const row of originals)mutation.prepare('UPDATE arca_inventory_representations SET source_package_id=? WHERE rowid=?').run(row.source_package_id,row.rowid);mutation.close();}
+    assert.deepEqual(retirement.readRetirementProof(references),proof);assert.equal(snapshot(),before);
+  }
+
   const collection=JSON.parse((await request('GET','/v1/admin/collection?status=current')).body).items;
   const formationSubject=db.prepare('SELECT subject_id FROM libra_runs WHERE libra_run_id=?').get(state.runs[0].libra_run_id).subject_id;
   const formationDetail=JSON.parse((await request('GET','/v1/admin/formation/'+formationSubject)).body);
-  assert.deepEqual(formationDetail.seriesDelivery,{libraRunId:state.runs[0].libra_run_id,seasonNumber:1,episodeKeys,physicalFileCount:physicalCount});
+  assert.deepEqual(formationDetail.seriesDelivery,{libraRunId:state.runs[0].libra_run_id,seasonNumber:initialSeason,episodeKeys,physicalFileCount:physicalCount});
+  if(sourcePoster){
+    const stopped=await request('POST','/v1/admin/runtime/actions/stop',{idempotencyKey:'historical-presentation-stop'});
+    assert.equal(stopped.statusCode,202);
+    const until=Date.now()+30000;
+    while((await request('GET','/v1/admin/runtime')).json().mode!=='stopped'){
+      assert.ok(Date.now()<until,'Historical display fixture must stop writers first');
+      await new Promise(resolve=>setTimeout(resolve,25));
+    }
+    const runId=state.runs[0].libra_run_id,subjectId=state.runs[0].subject_id;
+    const prior=db.prepare("SELECT material_key,binding_revision,current FROM libra_material_bindings WHERE subject_id=? AND authority_kind='related_derived'").all(subjectId);
+    assert.ok(prior.some(row=>row.current===1),'This native fixture must have a real Related authority');
+    // Only this disposable fixture loses current execution qualification.
+    // Accepted inputs, Run Manifest, formal media and Commit remain intact.
+    const mutation=new Database(path.join(dataDir,'shelfdeck.db'));
+    mutation.prepare("UPDATE libra_material_bindings SET current=0 WHERE subject_id=? AND authority_kind='related_derived'").run(subjectId);
+    try{
+      const production=createMovieProductionReader({schemaManifest,unitOfWork});
+      assert.throws(()=>production.readRunSnapshot(runId),{code:'P14_MOVIE_PRODUCTION_RELATED_BINDING_DRIFT'});
+      const detail=await request('GET','/v1/admin/formation/'+subjectId);
+      assert.deepEqual(detail.json().seriesDelivery,formationDetail.seriesDelivery);
+      const completed=await request('GET','/v1/admin/formation?section=completed&limit=25');
+      assert.deepEqual(completed.json().items.find(item=>item.subjectId===subjectId).seriesDelivery,formationDetail.seriesDelivery);
+      assert.equal(db.prepare("SELECT count(*) n FROM libra_material_bindings WHERE subject_id=? AND authority_kind='related_derived' AND current=1").get(subjectId).n,0);
+      assert.equal((await request('GET','/v1/admin/runtime')).json().mode,'stopped');
+    }finally{
+      for(const row of prior)mutation.prepare('UPDATE libra_material_bindings SET current=? WHERE subject_id=? AND material_key=? AND binding_revision=?')
+        .run(row.current,subjectId,row.material_key,row.binding_revision);
+      mutation.close();
+    }
+  }
   assert.equal(collection.length,1);
   if(browserFlow)await browserFlow.verifyCollection(collection[0]);
-  assert.equal(collection[0].series.seasonNumber,1);
+  assert.equal(collection[0].series.seasonNumber,initialSeason);
   assert.equal(collection[0].series.episodeCount,episodeCount);
   assert.equal(collection[0].series.physicalFileCount,physicalCount);
   assert.deepEqual(collection[0].series.episodes.map(item=>item.episodeKey),episodeKeys);
@@ -1059,6 +1226,13 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
 
   assert.equal(inventory.length,episodeCount+physicalCount+2+thumbnailSources.length);
   if(relatedFixture){
+    const committedRows=db.prepare(`SELECT p.on_deck_package_id,p.package_digest,k.custody_id,c.shelf_entry_id
+      FROM arca_ondeck_commit_receipts c JOIN arca_ondeck_runs r ON r.on_deck_run_id=c.on_deck_run_id
+      JOIN arca_ondeck_custodies k ON k.custody_id=r.custody_id
+      JOIN libra_product_packages p ON p.on_deck_package_id=k.on_deck_package_id`).all();
+    for(const row of committedRows) assert.equal(createOnDeckStore(deps).readCommittedByPackage({
+      onDeckPackageId:row.on_deck_package_id,packageDigest:row.package_digest,custodyId:row.custody_id,shelfId:sourceShelfId,
+    }).result.onDeckCommitReceipt.shelfEntryId,row.shelf_entry_id,'fresh thumbnail Commit must have reconstructable Arca ownership evidence');
     const thumbs=inventory.filter(item=>item.role==='sidecar');assert.equal(thumbs.length,physicalCount);
     const mappings=db.prepare("SELECT fact_json FROM arca_inventory_product_facts WHERE fact_kind='related_primary_mapping'").all();assert.equal(mappings.length,physicalCount);
     for(const {fact_json} of mappings){const mapping=JSON.parse(fact_json),thumb=thumbs.find(item=>item.material_key===mapping.relatedMaterialKey),primary=inventory.find(item=>item.material_key===mapping.finalPrimaryMaterialKey);
@@ -1071,6 +1245,13 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   }
   assert.equal(db.prepare('SELECT count(*) n FROM arca_deck_fact_revisions').get().n,1);
   assert.equal(new Set(inventory.map(item=>item.location)).size,inventory.length);
+  if(sourcePoster){
+    const placed=inventory.filter(item=>item.role==='poster');assert.equal(placed.length,1);
+    assert.equal(path.resolve(placed[0].location),path.join(source,'poster.jpg'));
+    assert.deepEqual(fs.readFileSync(placed[0].location),poster);
+    assert.ok(sourceSnapshot.relatedReferences.some(item=>item.role==='poster'));
+    assert.equal(collection.length,1);assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1);
+  }
   const inventoryPrimary=inventory.filter(item=>item.role==='primary_payload');
   assert.equal(inventoryPrimary.length,physicalCount);
   for(const item of inventoryPrimary) {
@@ -1098,7 +1279,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
         t.diagnostic(JSON.stringify({hdrMedia:true,episodes:JSON.parse(item.episode_claims_json).items.map(claim=>claim.episodeKey),stream}));
       }
     } else assert.equal(fs.readFileSync(item.location,'utf8'),'read-only-series-fixture');
-    assert.equal(path.basename(path.dirname(item.location)),'Season 01');
+    assert.equal(path.basename(path.dirname(item.location)),seasonDirectory);
     assert.ok(path.relative(target,item.location)&&!path.relative(target,item.location).startsWith('..'));
   }
   assert.deepEqual([...new Set(inventoryPrimary.flatMap(item=>JSON.parse(item.episode_claims_json).items.map(claim=>claim.episodeKey)))].sort(),episodeKeys);
@@ -1142,17 +1323,154 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
   assert.equal(finalNfos.length,episodeCount+1);
   const {readInventoryArtifactScope}=require('../../src/helix/domains/arca/model/inventory-artifact-scope');
   const nfoScopes=finalNfos.map(readInventoryArtifactScope);
-  assert.ok(nfoScopes.every(scope=>scope&&scope.seasonNumber===1));
+  assert.ok(nfoScopes.every(scope=>scope&&scope.seasonNumber===initialSeason));
   assert.equal(nfoScopes.filter(scope=>scope.episodeScope===null).length,1);
   assert.deepEqual(nfoScopes.filter(scope=>scope.episodeScope).map(scope=>scope.episodeScope.episodeNumber).sort((a,b)=>a-b),episodeNumbers);
   assert.ok(inventory.filter(item=>item.role!=='metadata_sidecar').every(item=>item.artifact_scope_json===null));
   for(const number of episodeNumbers) {
-    const item=finalNfos.find(item=>path.basename(item.location).endsWith('S01E'+String(number).padStart(2,'0')+'.nfo'));
+    const item=finalNfos.find(item=>path.basename(item.location).endsWith(seasonToken+'E'+String(number).padStart(2,'0')+'.nfo'));
     assert.ok(item);
     assert.match(fs.readFileSync(item.location,'utf8'),new RegExp('<episode>'+number+'</episode>'));
+    if(process.env.HELIX_SERIES_EPISODE_PLOT_TRANSLATION==='1')assert.match(fs.readFileSync(item.location,'utf8'),
+      new RegExp('<plot>Exact translated Episode '+number+' plot</plot>'));
+  }
+  if(process.env.HELIX_SERIES_EPISODE_PLOT_TRANSLATION==='1'){
+    const observations=db.prepare("SELECT result_json FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref='libra.product_metadata.fetch@1'").all()
+      .map(row=>JSON.parse(row.result_json)).filter(row=>row.episodeScope&&row.sourceKind==='provider');
+    assert.equal(observations.length,episodeCount);
+    assert.ok(observations.every(row=>row.episodePlotSourceProof.selectedLanguage==='en-US'&&row.episodePlotSourceProof.result==='selected'));
+    t.diagnostic(JSON.stringify({sameEpisodeTranslations:episodeCount,numberingPreserved:true,onDeckCommit:true}));
   }
   sources.forEach(file=>assert.equal(fs.existsSync(file),false));
+  const sharedScope=db.prepare('SELECT * FROM arca_series_presentation_scopes').get(),sharedVersion=db.prepare('SELECT * FROM arca_series_presentation_versions WHERE scope_id=? ORDER BY revision DESC').get(sharedScope.scope_id);
+  assert.equal(Number(sharedScope.current_version),1);assert.equal(sharedScope.active_build_id,null);
+  const sharedManifest=JSON.parse(sharedVersion.manifest_json);assert.deepEqual(sharedManifest.members.map(row=>row.artifactKind),['nfo','poster','fanart']);
+  if(process.env.HELIX_SERIES_SEASON_POSTER_REUSE){
+    const acquisitions=db.prepare("SELECT result_json FROM fx_event_result_bindings r JOIN fx_workflow_events e ON e.event_id=r.event_id WHERE e.capability_ref='libra.product_artifact.acquire@1'").all().map(row=>JSON.parse(row.result_json)),
+      proof=acquisitions.find(row=>row.artifactHandle?.artifactKind==='poster')?.seasonPosterSourceProof;
+    assert.ok(proof);assert.equal(proof.sourceKind,process.env.HELIX_SERIES_LOCAL_SOURCE==='1'?'series_local':'series_provider');
+    const seasonPoster=inventory.find(row=>row.role==='poster');assert.ok(seasonPoster);
+    assert.equal(require('node:crypto').createHash('sha256').update(fs.readFileSync(seasonPoster.location)).digest('hex'),proof.outputDigest);
+    assert.equal(proof.providerKey,'1399');assert.equal(proof.seasonNumber,initialSeason);
+    t.diagnostic(JSON.stringify({seasonPosterReuse:proof.sourceKind,outputVerified:true,onDeckCommit:true}));
+  }
+  for(const member of sharedManifest.members){assert.ok(fs.existsSync(member.location));assert.equal(path.dirname(member.location),sharedScope.root_location);
+    const control=db.prepare('SELECT * FROM fx_material_controls WHERE material_key=?').get(member.physicalIdentity.materialKey);
+    assert.equal(control.owner_scope_type,'series_presentation');assert.equal(control.owner_scope_id,sharedScope.scope_id);}
+  assert.equal(require('../../src/helix/integrations/series-presentation-io').nfoIdentity(fs.readFileSync(path.join(sharedScope.root_location,'tvshow.nfo'))),'1399');
+  if(aliasRecoveryJourney){
+    assert.ok(unreadableAlias);assert.equal(fs.existsSync(unreadableAlias),false);assert.equal(aliasReadAttempts,0);assert.equal(aliasInterruptions,manualAliasRetry?0:1);
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1);
+    assert.equal(db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE work_kind='series_presentation' AND state='failed'").get().n,manualAliasRetry?1:0);
+    assert.equal(fs.statSync(path.join(sharedScope.root_location,'tvshow.nfo'),{bigint:true}).ino,publishedAliasIdentity.ino);
+    if(manualAliasRetry){
+      assert.deepEqual(db.prepare('SELECT * FROM fx_supporting_works WHERE work_id=?').get(failedAliasWork.work_id),failedAliasWork);
+      assert.deepEqual(db.prepare('SELECT * FROM fx_event_attempts WHERE event_attempt_id=?').get(failedAliasAttempt.event_attempt_id),failedAliasAttempt);
+      assert.deepEqual(db.prepare('SELECT * FROM fx_effect_journal WHERE effect_id=?').get(failedAliasEffect.effect_id),failedAliasEffect);
+      assert.equal(db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.series-presentation.retry@1'").get().n,1);
+    }
+    assert.deepEqual(db.pragma('foreign_key_check'),[]);
+    assert.equal(unobservableReads,process.env.HELIX_SERIES_SHARED_UNREADABLE_ALIAS==='transient'?3:0);
+    t.diagnostic(JSON.stringify({unreadableProducerAliasRecovered:true,manualAliasRetry,failedHistoryPreserved:Boolean(failedAliasWork),aliasReadAttempts,unobservableReads,sharedRoles:3,onDeckCommits:1}));
+  }
+  assert.equal(sharedArtifactCalls.length,process.env.HELIX_SERIES_SHARED_SUPPLEMENT==='1'||process.env.HELIX_SERIES_LOCAL_SOURCE==='1'?0:process.env.HELIX_SERIES_SHARED_WRITE_FAILURE==='workspace'?8:4,process.env.HELIX_SERIES_LOCAL_SOURCE?JSON.stringify({basis:JSON.parse(db.prepare('SELECT basis_json FROM arca_series_presentation_builds LIMIT 1').get().basis_json),source:db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'series-source-%'").all().map(row=>JSON.parse(row.result_json))}):undefined);
+  if(process.env.HELIX_SERIES_LOCAL_SOURCE){for(const file of localShowFiles)assert.deepEqual(fs.readFileSync(file.location),file.bytes);
+    const published=db.prepare('SELECT series_source_refs_json FROM proc_candidate_packages').get(),sourceSet=JSON.parse(published.series_source_refs_json);
+    assert.equal(sourceSet.references.length,3);assert.equal(sourceSet.fieldRoot,access.rootLocation);
+    assert.equal(sourceSet.sourceRoot,path.dirname(source));
+    assert.ok(path.isAbsolute(sourceSet.fieldRoot)&&path.isAbsolute(sourceSet.sourceRoot));
+    assert.ok(sourceSet.references.every(ref=>path.isAbsolute(ref.location)&&path.dirname(ref.location)===sourceSet.sourceRoot));
+    const basis=JSON.parse(db.prepare('SELECT basis_json FROM arca_series_presentation_builds ORDER BY created_at_ms LIMIT 1').get().basis_json);assert.equal(Boolean(basis.localSource),process.env.HELIX_SERIES_LOCAL_SOURCE==='1');
+    if(basis.localSource){assert.equal(basis.localSource.providerKey,'1399');for(const member of sharedManifest.members){const original=localShowFiles.find(file=>path.basename(file.location)===path.basename(member.location)).bytes,expected=member.artifactKind==='nfo'?original:(await require('../../src/helix/integrations/series-presentation-io').imageBytes(original,member.artifactKind)).bytes;assert.deepEqual(fs.readFileSync(member.location),expected);}}}
+  if(sharedRetryCommand){const before=canonicalDigest({builds:db.prepare('SELECT count(*) n FROM arca_series_presentation_builds').get().n,versions:db.prepare('SELECT count(*) n FROM arca_series_presentation_versions').get().n,works:db.prepare("SELECT work_id FROM fx_supporting_works WHERE work_kind='series_presentation' ORDER BY work_id").all(),commits:db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n});
+    const replay=(await request('POST','/v1/admin/formation/acceptance/'+sharedRetryOffer+'/actions/retry',sharedRetryCommand)).json();assert.equal(replay.replayed,true);
+    assert.equal(canonicalDigest({builds:db.prepare('SELECT count(*) n FROM arca_series_presentation_builds').get().n,versions:db.prepare('SELECT count(*) n FROM arca_series_presentation_versions').get().n,works:db.prepare("SELECT work_id FROM fx_supporting_works WHERE work_kind='series_presentation' ORDER BY work_id").all(),commits:db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n}),before);
+    assert.equal(db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.series-presentation.retry@1'").get().n,1);
+    const conflict=await host.inject({method:'POST',url:'/v1/admin/formation/acceptance/'+sharedRetryOffer+'/actions/retry',headers:{cookie},payload:{...sharedRetryCommand,supplementalImages:[{artifactKind:'poster',bytesBase64:Buffer.from('different-command-bytes').toString('base64')}]}});assert.equal(conflict.statusCode,409,conflict.body);
+  }
+  if(process.env.HELIX_SERIES_SHARED_WRITE_FAILURE==='workspace-source-loss'){
+    const reclaimUntil=Date.now()+30000;while(Date.now()<reclaimUntil&&db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE process_type='arca_series_presentation' AND work_kind='series_presentation_reclaim' AND state='succeeded'").get().n<2){assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,50));}
+    const builds=db.prepare('SELECT scope_json FROM arca_series_presentation_builds ORDER BY created_at_ms').all().map(row=>JSON.parse(row.scope_json));assert.equal(builds.length,2);assert.equal(builds[1].supersedesBuildId,builds[0].objectId);assert.deepEqual(builds[1].sourceWorkspaceFiles.map(row=>row.artifactKind),['nfo','poster']);
+    assert.equal(db.prepare("SELECT count(*) n FROM fx_workspace_registry WHERE process_type='series_presentation' AND state='active'").get().n,0,JSON.stringify(db.prepare("SELECT work_id,work_kind,state FROM fx_supporting_works WHERE process_type='arca_series_presentation'").all()));
+    assert.equal(db.prepare("SELECT count(*) n FROM fx_workspace_materials WHERE process_id IN (SELECT build_id FROM arca_series_presentation_builds) AND state='active'").get().n,0);
+    assert.equal(db.prepare("SELECT count(*) n FROM fx_artifact_registry WHERE owner_scope_type='series_presentation' AND state='active'").get().n,0);
+    for(const build of builds)for(const kind of ['nfo','poster','fanart']){const name=kind==='nfo'?'tvshow.nfo':kind+'.jpg';assert.equal(fs.existsSync(path.join(dataDir,'workspaces','aftercare',build.objectId+'-assets',kind,name)),false);}
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,1);t.diagnostic(JSON.stringify({partialSourceRecovery:true,builds:2,registeredOldMaterialCount:1,recoveredFiles:2,reclaimedWorkspaces:2}));
+  }
+  await sharedBrowserFlow?.complete();
+  if(process.env.HELIX_SERIES_LEGACY_SHARED==='1'){
+    const entry=db.prepare('SELECT * FROM arca_shelf_entries').get(),protectedTables=['arca_shelf_entries','arca_canonical_identity_revisions','arca_inventory_representations','arca_inventory_materials','arca_inventory_product_facts','arca_ondeck_commit_receipts','arca_deck_fact_revisions'],
+      protectedSnapshot=()=>canonicalDigest(protectedTables.map(table=>[table,db.prepare('SELECT * FROM '+table+' ORDER BY rowid').all()]));
+    const before=protectedSnapshot(),until=Date.now()+30000;
+    while(Date.now()<until&&db.prepare("SELECT count(*) n FROM fx_supporting_works WHERE process_type='arca_series_presentation' AND state NOT IN ('succeeded','failed','cancelled')").get().n)await new Promise(resolve=>setTimeout(resolve,50));
+    await host.close();db.close();db=new Database(path.join(dataDir,'shelfdeck.db'));db.pragma('foreign_keys=ON');
+    // Reconstruct an isolated legacy collection shape: original Season facts remain byte-identical;
+    // only the new shared subsystem facts and its files are absent. This is not a production repair.
+    db.transaction(()=>{for(const member of sharedManifest.members){db.prepare('DELETE FROM fx_material_control_revisions WHERE material_key=?').run(member.physicalIdentity.materialKey);db.prepare('DELETE FROM fx_material_controls WHERE material_key=?').run(member.physicalIdentity.materialKey);}
+      for(const table of ['arca_series_presentation_commit_links','arca_series_presentation_references','arca_series_presentation_reservations','arca_series_presentation_versions','arca_series_presentation_builds','arca_series_presentation_scopes'])db.prepare('DELETE FROM '+table).run();})();
+    for(const member of sharedManifest.members)fs.unlinkSync(member.location);
+    let legacyVideoProbeCalls=0;
+    hostOptions.mediaProbe={async probe(){if(db.prepare('SELECT count(*) n FROM arca_series_presentation_versions').get().n===0)legacyVideoProbeCalls++;throw Object.assign(new Error('Unrelated Season video probing must not block show metadata maintenance'),{code:'FIXTURE_LEGACY_VIDEO_PROBE_UNAVAILABLE'});}};
+    assert.equal(protectedSnapshot(),before);db.close();db=new Database(path.join(dataDir,'shelfdeck.db'),{readonly:true});host=await createCleanServiceHost(hostOptions);
+    const relogin=await host.inject({method:'POST',url:'/v1/admin/session',headers:{'x-api-key':initialized.adminApiKey}});assert.equal(relogin.statusCode,204);cookie=relogin.headers['set-cookie'];
+    const beforeQueries=adapter.calls.length;
+    await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',{idempotencyKey:'legacy-shared-repair'});
+    const repairUntil=Date.now()+90000;while(Date.now()<repairUntil){assert.ifError(runtimeError);
+      if(db.prepare('SELECT count(*) n FROM arca_series_presentation_references WHERE shelf_entry_id=? AND state=?').get(entry.shelf_entry_id,'active').n)break;
+      await new Promise(resolve=>setTimeout(resolve,100));}
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_series_presentation_references WHERE shelf_entry_id=? AND state=?').get(entry.shelf_entry_id,'active').n,1,
+      JSON.stringify(db.prepare("SELECT work_kind,state FROM fx_supporting_works WHERE owner_domain='arca'").all()));
+    assert.equal(protectedSnapshot(),before);assert.equal(db.prepare('SELECT count(*) n FROM arca_series_presentation_commit_links').get().n,0);
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_aftercare_cases').get().n,0);
+    const beforeReplay=canonicalDigest({builds:db.prepare('SELECT count(*) n FROM arca_series_presentation_builds').get().n,versions:db.prepare('SELECT count(*) n FROM arca_series_presentation_versions').get().n,
+      receipts:db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.series-presentation.retry@1'").get().n});
+    const replay=(await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',{idempotencyKey:'legacy-shared-repair'})).json();assert.equal(replay.replayed,true);
+    assert.equal(canonicalDigest({builds:db.prepare('SELECT count(*) n FROM arca_series_presentation_builds').get().n,versions:db.prepare('SELECT count(*) n FROM arca_series_presentation_versions').get().n,
+      receipts:db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.series-presentation.retry@1'").get().n}),beforeReplay);
+    const requests=adapter.calls.slice(beforeQueries);assert.ok(requests.some(url=>url.pathname==='/3/tv/1399'));
+    assert.ok(requests.every(url=>!url.pathname.includes('/search/')&&!url.pathname.includes('/season/')));
+    const source=db.prepare("SELECT result_json FROM fx_event_result_bindings WHERE event_id LIKE 'series-source-%' ORDER BY committed_at_ms DESC").get();
+    assert.equal(JSON.parse(source.result_json).observedBasis.schema,'shelfdeck.series-presentation-observed@1');
+    for(const role of ['tvshow.nfo','poster.jpg','fanart.jpg'])assert.ok(fs.existsSync(path.join(sharedScope.root_location,role)));
+    assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(),[]);assert.equal(legacyVideoProbeCalls,0);t.diagnostic(JSON.stringify({legacySharedRepair:true,protectedSeasonFacts:protectedTables.length,historyLinksInvented:0,unrelatedVideoProbeCalls:legacyVideoProbeCalls}));
+  }
+  if(['1','supplement','assets'].includes(process.env.HELIX_SERIES_SHARED_MAINTENANCE)){
+    const entry=db.prepare('SELECT * FROM arca_shelf_entries').get(),beforeFiles=sharedManifest.members.filter(row=>row.artifactKind!=='fanart').map(row=>({row,bytes:fs.readFileSync(row.location),inode:fs.statSync(row.location).ino})),
+      historical=db.prepare('SELECT * FROM arca_series_presentation_commit_links').all(),inventoryBefore=db.prepare('SELECT * FROM arca_inventory_representations').all();
+    fs.unlinkSync(path.join(sharedScope.root_location,'fanart.jpg'));
+    sharedMaintenanceUnavailable=process.env.HELIX_SERIES_SHARED_MAINTENANCE==='assets'?'assets':process.env.HELIX_SERIES_SHARED_MAINTENANCE==='supplement';
+    await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',{idempotencyKey:'shared-fanart-repair'});
+    let maintenanceCommand=null;if(sharedMaintenanceUnavailable){const failedUntil=Date.now()+60000;let issue;
+      do{assert.ifError(runtimeError);issue=(await request('GET','/v1/admin/care/'+entry.shelf_entry_id)).json().sharedPresentation;
+        if(issue?.canRetry)break;await new Promise(resolve=>setTimeout(resolve,100));}while(Date.now()<failedUntil);
+      assert.equal(issue?.canSupplyImages,true);
+      if(sharedMaintenanceUnavailable==='assets'){sharedRetryAttempted=true;await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',{idempotencyKey:'empty-assets-source-retry'});}
+      else {const fanart=await sharp({create:{width:160,height:90,channels:3,background:'#332266'}}).jpeg().toBuffer();
+      if(sharedBrowserFlow)await sharedBrowserFlow.maintain({entry:collection[0],fanart});
+      else {maintenanceCommand={idempotencyKey:'shared-maintenance-supplement',supplementalImages:[{artifactKind:'fanart',bytesBase64:fanart.toString('base64')}]};await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',maintenanceCommand);}}
+    }
+    const until=Date.now()+90000;while(Date.now()<until){assert.ifError(runtimeError);
+      if(Number(db.prepare('SELECT current_version FROM arca_series_presentation_scopes WHERE scope_id=?').get(sharedScope.scope_id).current_version)===2)break;
+      await new Promise(resolve=>setTimeout(resolve,50));}
+    assert.equal(Number(db.prepare('SELECT current_version FROM arca_series_presentation_scopes WHERE scope_id=?').get(sharedScope.scope_id).current_version),2,
+      JSON.stringify(db.prepare("SELECT work_kind,state FROM fx_supporting_works WHERE owner_domain='arca'").all()));
+    for(const item of beforeFiles){assert.deepEqual(fs.readFileSync(item.row.location),item.bytes);assert.equal(fs.statSync(item.row.location).ino,item.inode);}
+    assert.deepEqual(db.prepare('SELECT * FROM arca_series_presentation_commit_links').all(),historical);
+    assert.deepEqual(db.prepare('SELECT * FROM arca_inventory_representations').all(),inventoryBefore);
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_aftercare_cases').get().n,0);assert.equal(sharedArtifactCalls.length,process.env.HELIX_SERIES_SHARED_SUPPLEMENT==='1'?0:sharedMaintenanceUnavailable==='assets'?7:sharedMaintenanceUnavailable?4:6);
+    if(sharedMaintenanceUnavailable==='assets'){const last=db.prepare('SELECT scope_json FROM arca_series_presentation_builds ORDER BY created_at_ms DESC LIMIT 1').get(),scope=JSON.parse(last.scope_json);assert.ok(scope.reassessmentProofDigest);assert.equal(scope.imageSourceQualification.configRevision,2);assert.equal(scope.basis.sourceObservation.configRevision,1);const reclaimUntil=Date.now()+15000;while(Date.now()<reclaimUntil&&db.prepare("SELECT count(*) n FROM fx_workspace_registry WHERE process_type='series_presentation' AND state='active'").get().n)await new Promise(resolve=>setTimeout(resolve,50));assert.equal(db.prepare("SELECT count(*) n FROM fx_workspace_registry WHERE process_type='series_presentation' AND state='active'").get().n,0);}
+    if(maintenanceCommand){const deadline=Date.now()+30000;while(Date.now()<deadline&&db.prepare("SELECT count(*) n FROM fx_workspace_registry WHERE process_type='series_presentation' AND state='active'").get().n){assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,50));}const snapshot=()=>canonicalDigest({builds:db.prepare('SELECT count(*) n FROM arca_series_presentation_builds').get().n,versions:db.prepare('SELECT count(*) n FROM arca_series_presentation_versions').get().n,works:db.prepare("SELECT work_id FROM fx_supporting_works WHERE process_type='arca_series_presentation' ORDER BY work_id").all()});const before=snapshot();assert.equal((await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',maintenanceCommand)).json().replayed,true);assert.equal(snapshot(),before);}
+    if(sharedBrowserFlow){const healthyUntil=Date.now()+60000;while(Date.now()<healthyUntil){const care=(await request('GET','/v1/admin/care/'+entry.shelf_entry_id)).json();if(care.health.state==='healthy'&&!care.sharedPresentation)break;await new Promise(resolve=>setTimeout(resolve,100));}const finalCare=(await request('GET','/v1/admin/care/'+entry.shelf_entry_id)).json();if(finalCare.health.state!=='healthy')t.diagnostic(JSON.stringify({finalCare,works:db.prepare("SELECT work_id,work_kind,state FROM fx_supporting_works WHERE owner_domain='arca'").all(),failed:db.prepare('SELECT failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));await sharedBrowserFlow.healthy(collection[0]);}
+  }
+
+  if(offdeck&&process.env.HELIX_SERIES_SHARED_EXIT_DURING_MAINTENANCE==='1'){
+    const entry=db.prepare('SELECT * FROM arca_shelf_entries').get();sharedRetirementFailure=true;fs.unlinkSync(path.join(sharedScope.root_location,'fanart.jpg'));
+    await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',{idempotencyKey:'maintenance-before-exit'});
+    const deadline=Date.now()+60000;let issue;do{assert.ifError(runtimeError);issue=(await request('GET','/v1/admin/care/'+entry.shelf_entry_id)).json().sharedPresentation;if(issue?.canRetry)break;await new Promise(resolve=>setTimeout(resolve,50));}while(Date.now()<deadline);
+    assert.equal(issue?.canRetry,true);assert.equal(issue.canSupplyImages,false);assert.ok(db.prepare('SELECT active_build_id FROM arca_series_presentation_scopes').get().active_build_id);
+  }
   if(offdeck) {
+    const retainedShared=process.env.HELIX_SERIES_SHARED_EXIT_DURING_MAINTENANCE==='1',sharedExtra=retainedShared?0:3;
     const entry=db.prepare('SELECT * FROM arca_shelf_entries').get(),sentinel=path.join(target,'outside-offdeck.keep');
     fs.writeFileSync(sentinel,'outside the authorized Series scope');
     const beforeExit=inventory.map(item=>({item,bytes:fs.readFileSync(item.location)}));
@@ -1167,8 +1485,8 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     assert.equal(review.state,'open');assert.equal(review.scopes.length,1);
     const scopeId=review.scopes[0].destructionScopeId,
       scope=db.prepare('SELECT * FROM arca_offdeck_scope_materials WHERE destruction_scope_id=? ORDER BY ordinal').all(scopeId);
-    assert.equal(scope.length,inventory.length);assert.equal(new Set(scope.map(item=>item.material_key)).size,scope.length);
-    assert.deepEqual(scope.map(item=>item.material_key).sort(),inventory.map(item=>item.material_key).sort());
+    assert.equal(scope.length,inventory.length+sharedExtra);assert.equal(new Set(scope.map(item=>item.material_key)).size,scope.length);
+    assert.deepEqual(scope.filter(item=>!item.shared_scope_id).map(item=>item.material_key).sort(),inventory.map(item=>item.material_key).sort());
     assert.equal(scope.filter(item=>item.material_role==='primary_payload').length,2);
     const confirmation=browserFlow?await browserFlow.confirmOffdeck(review.reviewId):(await request('POST','/v1/admin/offdeck/reviews/'+review.reviewId+'/actions/confirm-selection',
       {actorId:'series-fixture',idempotencyKey:'series-offdeck-confirm'})).json();
@@ -1185,10 +1503,15 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
       await new Promise(resolve=>setTimeout(resolve,50));
     }while(Date.now()<until);
     assert.equal(currentCase?.state,'completed',JSON.stringify(currentCase));
+    if(retainedShared){const deadline=Date.now()+30000;while(Date.now()<deadline&&(db.prepare('SELECT active_build_id FROM arca_series_presentation_scopes').get().active_build_id||db.prepare("SELECT count(*) n FROM fx_material_controls WHERE owner_scope_type='series_presentation' AND state='controlled'").get().n||db.prepare("SELECT count(*) n FROM fx_workspace_registry WHERE process_type='series_presentation' AND state='active'").get().n)){assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,50));}assert.equal(db.prepare('SELECT active_build_id FROM arca_series_presentation_scopes').get().active_build_id,null);assert.equal(db.prepare("SELECT count(*) n FROM fx_workspace_registry WHERE process_type='series_presentation' AND state='active'").get().n,0);assert.equal(db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.series-presentation.retained-retirement@1'").get().n,1);}
+    for(const member of sharedManifest.members)assert.equal(fs.existsSync(member.location),retainedShared);
+    assert.equal(db.prepare('SELECT state FROM arca_series_presentation_references').get().state,'released');
+    assert.equal(db.prepare('SELECT retirement_scope_id FROM arca_series_presentation_scopes').get().retirement_scope_id,null);
+    assert.ok(db.prepare("SELECT state FROM fx_material_controls WHERE owner_scope_type='series_presentation'").all().every(row=>row.state==='released'));
     const current=db.prepare('SELECT * FROM arca_shelf_entries WHERE shelf_entry_id=?').get(entry.shelf_entry_id);
     assert.equal(current.status,'offdecked');assert.equal(current.current_deck_fact_revision,entry.current_deck_fact_revision+1);
     const evidence=db.prepare('SELECT * FROM arca_offdeck_deletion_evidence WHERE destruction_scope_id=?').all(scopeId);
-    assert.equal(evidence.length,inventory.length);assert.equal(new Set(evidence.map(item=>item.material_key)).size,inventory.length);
+    assert.equal(evidence.length,inventory.length+sharedExtra);assert.equal(new Set(evidence.map(item=>item.material_key)).size,inventory.length+sharedExtra);
     for(const item of inventory)assert.equal(fs.existsSync(item.location),false);
     assert.equal(fs.readFileSync(sentinel,'utf8'),'outside the authorized Series scope');
     assert.equal(db.prepare("SELECT count(*) n FROM fx_material_controls WHERE owner_scope_id=? AND state='controlled'").get(entry.shelf_entry_id).n,0);
@@ -1339,16 +1662,25 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     await request('PATCH','/v1/admin/shelves/series-shelf/placement',{idempotencyKey:'series-migration-publish',...draft,
       expectedCurrentTargetDigest:preview.currentTargetDigest,previewId:preview.previewId,previewDigest:preview.previewDigest});
     await request('POST','/v1/admin/care/'+entry.shelf_entry_id+'/actions/check',{idempotencyKey:'series-migration-check'});
-    const until=Date.now()+120000;let care;
+    const until=Date.now()+120000;let care,relocation;
     do {
       assert.ifError(runtimeError);
       care=db.prepare('SELECT * FROM arca_aftercare_cases ORDER BY created_at_ms DESC').get();
-      if(care&&['resolved','unresolved','invalidated'].includes(care.state))break;
+      relocation=db.prepare('SELECT * FROM arca_series_root_relocations ORDER BY created_at_ms DESC').get();
+      if(migrate==='rename'?care&&['resolved','unresolved','invalidated'].includes(care.state):relocation?.state==='committed'&&(await request('GET','/v1/admin/care/'+entry.shelf_entry_id)).json().health.state==='healthy')break;
       await new Promise(resolve=>setTimeout(resolve,50));
     }while(Date.now()<until);
     const detail=(await request('GET','/v1/admin/care/'+entry.shelf_entry_id)).json();
-    assert.equal(care?.state,'resolved',JSON.stringify({detail,verifications:db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>restoreArcaResult(db,JSON.parse(row.result_json))).filter(item=>item.verificationKind==='aftercare_media'),failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));assert.equal(detail.health.state,'healthy');assert.equal(detail.basis.placementRevision,2);
-    assert.equal(repairCommitAudits.length,1);
+    assert.equal(migrate==='rename'?care?.state:relocation?.state,migrate==='rename'?'resolved':'committed',JSON.stringify({detail,verifications:db.prepare('SELECT result_json FROM fx_event_result_bindings').all().map(row=>restoreArcaResult(db,JSON.parse(row.result_json))).filter(item=>item.verificationKind==='aftercare_media'),failures:db.prepare('SELECT event_id,failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));assert.equal(detail.health.state,'healthy');assert.equal(detail.basis.placementRevision,2);
+    if(migrate==='rename')assert.equal(repairCommitAudits.length,1);
+    else {
+      assert.equal(care,undefined);
+      const plan=JSON.parse(relocation.plan_json),shared=db.prepare('SELECT * FROM arca_series_presentation_scopes WHERE scope_id=?').get(relocation.scope_id);
+      assert.equal(shared.root_location,plan.newRoot);assert.equal(shared.current_version,plan.expectedVersion+1);
+      assert.equal(db.prepare('SELECT count(*) n FROM fx_commit_markers WHERE commit_marker=?').get(relocation.commit_marker).n,1);
+      for(const member of plan.files.filter(row=>row.ownerScopeType==='series_presentation'))assert.equal(require('node:crypto').createHash('sha256').update(fs.readFileSync(path.join(plan.newRoot,member.relativePath))).digest('hex'),member.byteDigest);
+      assert.equal(fs.existsSync(plan.oldRoot),false);
+    }
     const current=db.prepare('SELECT * FROM arca_shelf_entries').get(),materials=db.prepare('SELECT * FROM arca_inventory_materials WHERE inventory_revision=?').all(current.current_inventory_revision);
     assert.equal(materials.length,original.length);
     for(const {item,bytes} of original) {
@@ -1359,7 +1691,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
       assert.equal(moved.artifact_scope_json,item.artifact_scope_json);assert.equal(moved.episode_claims_json,item.episode_claims_json);
       if(path.resolve(moved.location)!==path.resolve(item.location))assert.equal(fs.existsSync(item.location),false);
     }
-    assert.equal(db.prepare('SELECT count(*) n FROM arca_aftercare_inventory_commits').get().n,1);
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_aftercare_inventory_commits').get().n,migrate==='rename'?1:0);
     if(relatedFixture){
       const mappings=db.prepare("SELECT * FROM arca_inventory_product_facts WHERE inventory_revision=? AND fact_kind='related_primary_mapping'").all(current.current_inventory_revision);
       assert.equal(mappings.length,physicalCount);
@@ -1367,7 +1699,7 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
       for(const row of mappings){const mapping=readInventoryMapping(row),thumb=materials.find(item=>item.material_key===mapping.relatedMaterialKey),primary=materials.find(item=>item.material_key===mapping.finalPrimaryMaterialKey);
         assert.ok(thumb&&primary);assert.equal(thumb.location,primary.location.replace(/\.[^.]+$/,'-thumb.jpg'));}
     }
-    assert.equal(db.prepare("SELECT count(*) n FROM arca_aftercare_settlement_approvals WHERE state='consumed'").get().n,1);
+    assert.equal(db.prepare("SELECT count(*) n FROM arca_aftercare_settlement_approvals WHERE state='consumed'").get().n,migrate==='rename'?1:0);
     const controls=require('../../src/helix/foundation/persistence/material-control').createMaterialControlProjectionPort({schemaManifest,unitOfWork})
       .getMaterialControlProjections([...new Set([...inventory,...materials].map(item=>item.material_key))].sort());
     for(const material of materials){const control=controls.find(item=>item.materialKey===material.material_key);assert.equal(control.controlState,'controlled');assert.equal(control.ownerScopeId,entry.shelf_entry_id);}
@@ -1606,15 +1938,31 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
 
   }
   if(multiSeason) {
+    if(process.env.HELIX_SERIES_ROOT_RELOCATE==='1')console.error('RELOCATION_STAGE=first_season_ready');
+    if(process.env.HELIX_SERIES_SHARED_MISSING_BEFORE_NEW_SEASON==='1')fs.unlinkSync(path.join(sharedScope.root_location,'fanart.jpg'));
+    // Perception completion runs in normal supply, while People registration
+    // and the inventory refresh run in maintenance. Finish the normal prerequisite
+    // before moving the fixture clock into the maintenance-only admission window.
+    const ratingProcess='shelf_entry:'+db.prepare('SELECT shelf_entry_id FROM arca_shelf_entries').get().shelf_entry_id;
+    const ratingDeadline=Date.now()+30000;
+    let ratingWork;
+    do {
+      assert.ifError(runtimeError);
+      ratingWork=db.prepare("SELECT state FROM fx_supporting_works WHERE process_type='perception_resolution' AND process_id=? ORDER BY rowid DESC LIMIT 1").get(ratingProcess);
+      if(ratingWork?.state==='succeeded')break;
+      await new Promise(resolve=>setTimeout(resolve,50));
+    }while(Date.now()<ratingDeadline);
+    assert.equal(ratingWork?.state,'succeeded','Complete the normal-supply rating prerequisite before advancing to maintenance.');
     maintenanceClock=Date.parse('2026-10-31T03:00:00+08:00');maintenanceClockStart=Date.now();
     const peopleDeadline=Date.now()+30000;
     while(db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n&&Date.now()<peopleDeadline) {
       assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,50));
     }
-    assert.equal(db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n,0);
+    assert.equal(db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n,0,JSON.stringify({runtime:(await request('GET','/v1/admin/runtime')).json(),works:db.prepare("SELECT work_id,work_kind,state,process_id FROM fx_supporting_works WHERE state<>'succeeded'").all(),events:db.prepare("SELECT capability_ref,state FROM fx_workflow_events WHERE state NOT IN ('succeeded','skipped')").all(),failures:db.prepare('SELECT failure_code FROM fx_event_attempts WHERE failure_code IS NOT NULL').all()}));
     maintenanceClock=Date.parse('2026-10-31T09:00:00+08:00');maintenanceClockStart=Date.now();
     const normalUntil=Date.now()+10000;while(Date.now()<normalUntil&&!JSON.parse((await request('GET','/v1/admin/runtime')).body).normalSupplyAllowed)await new Promise(resolve=>setTimeout(resolve,50));
     assert.equal(JSON.parse((await request('GET','/v1/admin/runtime')).body).normalSupplyAllowed,true);
+    if(process.env.HELIX_SERIES_ROOT_RELOCATE==='1')console.error('RELOCATION_STAGE=normal_supply_restored');
     const firstEntry=db.prepare('SELECT * FROM arca_shelf_entries').get();
     const firstTables=['arca_inventory_materials','arca_inventory_product_facts','arca_deck_fact_revisions','arca_ondeck_commit_receipts'];
     const snapshot=()=>firstTables.map(table=>[table,db.prepare('SELECT * FROM '+table+' WHERE shelf_entry_id=? ORDER BY rowid').all(firstEntry.shelf_entry_id)]);
@@ -1626,8 +1974,14 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     else await request('POST','/v1/admin/material-fields/'+sourceFieldId+'/actions/observe',{
       idempotencyKey:'series-observe-s02',fieldId:sourceFieldId,expectedAccessRevision:1,
       expectedObservationRevision:field.currentObservationRevision,pageBudget:8});
+    if(process.env.HELIX_SERIES_ROOT_RELOCATE==='1')console.error('RELOCATION_STAGE=second_observed');
     const deadline=Date.now()+90000;
     while(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n<2&&Date.now()<deadline) {
+      if(process.env.HELIX_SERIES_MIXED_RESET==='1'&&db.prepare("SELECT count(*) n FROM arca_acceptance_decisions WHERE result='accepted'").get().n===2){
+        await host.close();
+        t.diagnostic(JSON.stringify({mixedReset:await require('../fixtures/series-mixed-reset-journey').verifyMixedReset({db,firstEntry,firstFiles:files,secondSource,sharedManifest,hostOptions,apiKey:initialized.adminApiKey})}));
+        return;
+      }
       assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,50));
     }
     assert.equal(db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n,2,JSON.stringify({
@@ -1653,6 +2007,16 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
     }
     assert.deepEqual(db.pragma('foreign_key_check'),[]);
     if(browserFlow)for(const entry of entries)await browserFlow.verifyCollection(entry,'season-'+entry.series.seasonNumber+'-');
+    if(process.env.HELIX_SERIES_ROOT_RELOCATE==='1')await require('../fixtures/series-root-relocation-journey').relocateTwoSeasons({db,request,assertRuntime:()=>assert.ifError(runtimeError)});
+    if(process.env.HELIX_SERIES_MULTI_SEASON_BATCH_EXIT==='1'){
+      const beforeRoot=sharedManifest.members.map(member=>({location:member.location,bytes:fs.readFileSync(member.location),inode:fs.statSync(member.location).ino}));
+      const review=(await request('POST','/v1/admin/offdeck/reviews',{shelfEntryIds:entries.map(row=>row.shelfEntryId),originKind:'batch',actorId:'series-fixture',idempotencyKey:'all-seasons-review'})).json();assert.equal(review.scopes.length,2);assert.ok(review.scopes.every(scope=>scope.materials.every(row=>!row.sharedScopeId)));
+      await request('POST','/v1/admin/offdeck/reviews/'+review.reviewId+'/actions/confirm-selection',{actorId:'series-fixture',idempotencyKey:'all-seasons-confirm'});
+      const authorization=(await request('POST','/v1/admin/offdeck/authorizations',{reviewId:review.reviewId,actorId:'series-fixture',idempotencyKey:'all-seasons-authorize'})).json();assert.equal(authorization.cases.length,2);
+      const deadline=Date.now()+60000;while(Date.now()<deadline&&(db.prepare("SELECT count(*) n FROM arca_shelf_entries WHERE status<>'offdecked'").get().n||db.prepare("SELECT count(*) n FROM fx_material_controls WHERE owner_scope_type='series_presentation' AND state='controlled'").get().n)){assert.ifError(runtimeError);await new Promise(resolve=>setTimeout(resolve,50));}
+      assert.equal(db.prepare("SELECT count(*) n FROM arca_shelf_entries WHERE status='offdecked'").get().n,2);assert.equal(db.prepare("SELECT count(*) n FROM arca_series_presentation_references WHERE state='active'").get().n,0);assert.equal(db.prepare("SELECT count(*) n FROM fx_material_controls WHERE owner_scope_type='series_presentation' AND state='controlled'").get().n,0);
+      for(const row of beforeRoot){assert.deepEqual(fs.readFileSync(row.location),row.bytes);assert.equal(fs.statSync(row.location).ino,row.inode);}assert.equal(db.prepare("SELECT count(*) n FROM fx_command_receipts WHERE command_contract='arca.series-presentation.retained-retirement@1'").get().n,1);assert.deepEqual(db.pragma('foreign_key_check'),[]);t.diagnostic(JSON.stringify({batchExit:2,retainedSharedFiles:3,activeSharedControls:0,activeReferences:0}));
+    }
     if(process.env.HELIX_SERIES_MULTI_SEASON_OFFDECK==='1') {
       const untilPeople=Date.now()+30000;
       const pendingPeople=()=>db.prepare('SELECT count(*) n FROM arca_inventory_person_relations p JOIN arca_shelf_entries e ON e.shelf_entry_id=p.shelf_entry_id AND e.current_inventory_revision=p.inventory_revision WHERE p.person_id IS NULL').get().n;
@@ -1690,6 +2054,8 @@ for(const {episodeCount,procurementOnly,append,anchored,concurrent,bounded,share
       if(browserFlow){await browserFlow.verifyOffdeck(second,entries.find(entry=>entry.series.seasonNumber===1));await browserFlow.verifyCollection(entries.find(entry=>entry.series.seasonNumber===1),'protected-season-');}
       t.diagnostic(JSON.stringify({offdeckSeason:2,deletedMaterials:exitMaterials.length,protectedSeason:1,protectedFiles:files.length}));
     }
+    const rootVersions=db.prepare('SELECT revision FROM arca_series_presentation_versions ORDER BY revision').all();assert.equal(rootVersions.length,1+Number(process.env.HELIX_SERIES_SHARED_MISSING_BEFORE_NEW_SEASON==='1')+Number(process.env.HELIX_SERIES_ROOT_RELOCATE==='1'));
+    if(process.env.HELIX_SERIES_SHARED_MISSING_BEFORE_NEW_SEASON==='1'){assert.ok(fs.existsSync(path.join(sharedScope.root_location,'fanart.jpg')));assert.deepEqual(db.prepare('SELECT shared_version FROM arca_series_presentation_commit_links ORDER BY committed_at_ms').all().map(row=>Number(row.shared_version)),[1,2]);assert.equal(sharedArtifactCalls.length,6);}
     t.diagnostic(JSON.stringify({seasons:entries.map(entry=>({season:entry.series.seasonNumber,episodes:entry.series.episodeCount})),protectedFirstSeasonFiles:files.length}));
   }
 

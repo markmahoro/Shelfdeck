@@ -225,6 +225,11 @@ function expressionSchema(expression) {
 }
 
 function uniquePortName(expression, used) {
+  if(expression.includes('JavSourceQualification')) {
+    const name=expression.includes('PhysicalMaterialReadHandle')?'physicalMaterialReadHandleOrIntegrationHandle':'integrationHandle';
+    if(used.has(name))throw new Error('Duplicate source binding port: '+name);
+    used.add(name);return name;
+  }
   const base = camel(expression
     .replace(/\|/g, ' Or ')
     .replace(/\[(?:\d+\.\.\d+)?\]/g, ' List')
@@ -262,6 +267,13 @@ function approvalAuthorization(capabilityRef) {
 }
 
 function resourceKinds(capability) {
+  if(capability.id==='arca.series_root.files.relocate@1')return ['disk_io'];
+  if(capability.id==='arca.series_root.inventory.commit@1')return ['sqlite_write'];
+  if(capability.id==='arca.series_presentation.workspace.reclaim@1')return ['cpu','disk_io'];
+  if(capability.id==='arca.series_presentation.source.observe@1')return ['cpu','network'];
+  if(capability.id==='arca.series_presentation.assets.prepare@1')return ['cpu','disk_io','network'];
+  if(capability.id==='arca.series_presentation.files.publish@1')return ['disk_io'];
+  if(capability.id==='arca.series_presentation.inventory.commit@1')return ['cpu'];
   if (['arca.us_adult.source.prepare@1','arca.us_adult.references.match@1','arca.us_adult.assets.prepare@1'].includes(capability.id)) return ['cpu','disk_io'];
   if (['arca.us_adult.files.stage@1','arca.us_adult.files.publish@1','arca.us_adult.files.verify@1','arca.us_adult.files.retire@1'].includes(capability.id)) return ['disk_io'];
   if (['arca.us_adult.inventory.commit@1','arca.us_adult.case.commit@1','people.reference_fact.commit@1','people.candidate.commit@1','people.person.commit@1'].includes(capability.id)) return ['sqlite_write'];
@@ -323,6 +335,7 @@ function buildCapabilityPackage(capability) {
     };
   }
 
+  if(capability.id==='arca.offdeck.deletion.verify@1')inputDefinitions.deletionEvidenceList.maxItems=1027;
   const schemas = {
     'inputs.schema.json': {
       $schema: DRAFT, $id: capabilitySchemaId(capability.id, 'inputs'),
@@ -402,6 +415,28 @@ function buildCapabilityPackage(capability) {
     executorCompatibility: { minimumVersion: 1 },
     sourceLocator: capability.source
   };
+  // These are current producer contracts for atomically prebound Results, not
+  // release-specific exceptions. They travel with each published Plan.
+  const domainEvidence = {
+    'procurement.candidate.publish@1': 'TriageStructureEvidence',
+    'libra.product_identity.resolve@1': 'LibraProductFactEvidence',
+    'libra.media_cast.commit@1': 'LibraProductFactEvidence',
+    'libra.product_metadata.commit@1': 'LibraProductFactEvidence',
+  }[capability.id];
+  const fullResultEvidence = {
+    'arca.acceptance.identity.verify@1': 'AcceptanceCheckRecord',
+    'arca.acceptance.mandatory_media.verify@1': 'AcceptanceCheckRecord',
+    'arca.acceptance.metadata.verify@1': 'AcceptanceCheckRecord',
+    'arca.acceptance.space.verify@1': 'AcceptanceCheckRecord',
+    'arca.acceptance.structure.verify@1': 'AcceptanceCheckRecord',
+    'arca.inventory.final_product.verify@1': 'FinalProductVerificationRecord',
+    'arca.jav_correction.files.verify@1': 'FinalProductVerificationRecord',
+    'arca.ondeck.fulfillment.verify@1': 'FulfillmentVerificationRecord',
+  }[capability.id];
+  if (domainEvidence || fullResultEvidence) manifest.preboundEvidenceContracts = [{
+    schemaRef: 'helix://contracts/types/' + (domainEvidence || fullResultEvidence) + '/v1',
+    representation: fullResultEvidence ? 'full_result' : capability.id === 'procurement.candidate.publish@1' ? 'evidence_reference' : 'domain_evidence',
+  }];
 
   return {
     capabilityRef: capability.id,

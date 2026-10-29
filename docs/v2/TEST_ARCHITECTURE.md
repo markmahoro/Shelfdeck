@@ -1,12 +1,13 @@
 # TEST_ARCHITECTURE - 测试入口
 
+2026-10-28平台范围：唯一发布目标为Linux Docker及其Admin Web，不设Windows或Electron构建/发行门禁。本机测试只提供相应逻辑反馈，Linux路径、权限、进程、FFmpeg和存储恢复须由实际Linux容器验证。
+
 ## 常用命令
 
 ```bash
 cd media-service && npm test
 cd media-service && node --test test/task-model.test.js test/priority-engine.test.js
 cd media-service && npm run build:web
-cd media-desktop && npm test
 bash tests/runner.sh health-check tests/env/ci.env
 bash tests/runner.sh all tests/env/docker-fn.env
 ```
@@ -15,7 +16,8 @@ bash tests/runner.sh all tests/env/docker-fn.env
 
 | 环境 | 覆盖 | 说明 |
 | --- | --- | --- |
-| local Windows | service Windows + desktop | `http://127.0.0.1:18080` |
+| 本机逻辑验证 | model/API/Web开发反馈 | 不替代Linux运行资格 |
+| 独立Linux Docker | service/媒体/文件/进程恢复 | disposable数据与受控挂载 |
 | NAS Docker | service Docker + 外部依赖 | `http://192.168.12.230:18080` |
 | transcode node | remote FFmpeg/GPU worker | 默认 `http://<node>:19000` |
 | CI | 无外部依赖 smoke | GitHub Actions |

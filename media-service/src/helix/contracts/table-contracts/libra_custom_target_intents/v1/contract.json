@@ -1,0 +1,250 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_custom_target_intents/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_custom_target_intents",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "preview_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "product_scope_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "target_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "idempotency_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "request_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "record_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "record_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "record_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 13,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "intent_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "preview_id",
+      "subject_id",
+      "libra_run_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "actor_id",
+        "idempotency_key"
+      ],
+      [
+        "subject_id",
+        "product_scope_digest",
+        "target_revision"
+      ],
+      [
+        "intent_id",
+        "subject_id",
+        "product_scope_digest",
+        "target_revision",
+        "record_digest"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "target_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "record_json",
+        "schemaRefColumn": "record_schema_ref",
+        "maxBytes": 65536,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "immutable",
+      "`UNIQUE(actor_id,idempotency_key)`及`UNIQUE(subject_id,product_scope_digest,target_revision)`及`UNIQUE(intent_id,subject_id,product_scope_digest,target_revision,record_digest)`",
+      "schema固定`libra.custom-target-intent@1`，closed JCS JSON上限`64 KiB`",
+      "target_revision从1连续",
+      "只确认preview实际展示的子集且保留全部原始基线/要求/证据。意图不是Spec发布、生产完成或Arca接纳事实",
+      "旧执行输入不得原地修改。已入藏依赖通过冻结的精确Intent与Preview闭包保留，不保留同Subject的其他历史"
+    ],
+    "rawContract": {
+      "columns": "`intent_id PK, preview_id FK, subject_id FK, libra_run_id FK, product_scope_digest, target_revision INTEGER, actor_id, idempotency_key, request_digest, record_schema_ref, record_json, record_digest, created_at_ms`",
+      "constraints": "immutable；`UNIQUE(actor_id,idempotency_key)`及`UNIQUE(subject_id,product_scope_digest,target_revision)`及`UNIQUE(intent_id,subject_id,product_scope_digest,target_revision,record_digest)`；schema固定`libra.custom-target-intent@1`，closed JCS JSON上限`64 KiB`；target_revision从1连续；只确认preview实际展示的子集且保留全部原始基线/要求/证据。意图不是Spec发布、生产完成或Arca接纳事实；旧执行输入不得原地修改。已入藏依赖通过冻结的精确Intent与Preview闭包保留，不保留同Subject的其他历史"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9609,
+      "lineDigest": "54474ca50b1adea3a2b478fd4552729bfff8e6047e2c4cfa2064225ad27a3046"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "preview_id"
+        ],
+        "targetTable": "libra_custom_target_previews",
+        "targetColumns": [
+          "preview_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "libra_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

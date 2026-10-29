@@ -26,8 +26,8 @@ function validateTransactionContracts(options) {
   const owners = new Set(ownerRegistry && ownerRegistry.owners.map((owner) => owner.id));
   const tableIds = new Set(fs.readdirSync(path.join(contractsRoot, 'table-contracts')));
   const manifest = readJson(path.join(contractsRoot, 'manifests', 'transaction-inventory.json'), findings);
-  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 58 || manifest.entryFiles.length !== 1) findings.push(finding(
-    'INVALID_TRANSACTION_INVENTORY_MANIFEST', 'Canonical transaction inventory must be active with 58 entries.'
+  if (!manifest || manifest.status !== 'active' || manifest.targetCount !== 66 || manifest.entryFiles.length !== 1) findings.push(finding(
+    'INVALID_TRANSACTION_INVENTORY_MANIFEST', 'Canonical transaction inventory must be active with 66 entries.'
   ));
   const shard = manifest && readJson(path.join(contractsRoot, 'manifests', manifest.entryFiles[0]), findings);
   const entries = shard && shard.entries || [];
@@ -92,6 +92,7 @@ function validateTransactionContracts(options) {
       const commandSelector = selector.selectorKind === 'owner_command_exact' &&
         ((entry.id === 'helix.transaction.inventory-record-refresh-commit' &&
           selector.commandContract === 'arca.inventory.person-records.refresh@1') ||
+         (entry.id === 'helix.transaction.series-presentation-commit' && variant.variantId === 'retained_root_retirement@1' && selector.commandContract === 'arca.series-presentation.retained-retirement@1') ||
          (entry.id === 'helix.transaction.aftercare-case-creation' &&
           selector.commandContract === 'arca.repair-accepted-defects@1') ||
          (entry.id === 'helix.transaction.libra-subject-abandon-commit' && variant.variantId === 'admin_subject_cancellation@1' &&
@@ -99,7 +100,9 @@ function validateTransactionContracts(options) {
          (entry.id === 'helix.transaction.aftercare-inventory-commit' && variant.variantId === 'arca_us_adult_actor_inventory@1' &&
           selector.commandContract === 'arca.us_adult.inventory.commit@1') ||
          (entry.id === 'helix.transaction.people-reference-artifact-reclamation' && variant.variantId === 'people_reference_artifact_claim@1' &&
-          selector.commandContract === 'people.reference_artifact.claim@1'));
+          selector.commandContract === 'people.reference_artifact.claim@1') ||
+         (entry.id === 'helix.transaction.libra-custom-target-commit' && variant.variantId === 'confirmation' &&
+          selector.commandContract === 'libra.custom-target.confirm@1'));
       const factSelector = selector.selectorKind === 'domain_fact_handle_exact' && selector.factType &&
         selector.factSchemaRef && selector.resultSchemaRef;
       const selectorKey = commandSelector ? selector.commandContract : [selector.factType, selector.factSchemaRef, selector.resultSchemaRef].join('|');

@@ -1,0 +1,1230 @@
+{
+  "schemaRef": "formation-reset-owner-retention@1",
+  "schemaDigest": "294bb8243aca2857729f70fa07fbc59b69efad5da5854a5db528386e19179bc6",
+  "tables": [
+    {
+      "table": "arca_acceptance_attempts",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_acceptance_check_evidence",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_acceptance_checks",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_acceptance_decisions",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_acceptance_recovery_cases",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_aftercare_assessments",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_aftercare_case_basis_inputs",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_aftercare_cases",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_aftercare_findings",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_aftercare_inventory_commits",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_aftercare_settlement_approvals",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_canonical_identity_revisions",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_deck_fact_revisions",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_defect_admission_heads",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_defect_admissions",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_defect_repair_intents",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_deregistration_receipts",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_deregistration_releases",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_deregistrations",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_final_inventory_decisions",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_handoff_b_receipts",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_input_settlement_authorization_head",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_input_settlement_authorizations",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_inventory_materials",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_inventory_person_relations",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_inventory_product_facts",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_inventory_related_references",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_inventory_representations",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_inventory_verification_records",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_jav_correction_directory_checks",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_jav_correction_recovery_intents",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_jav_identity_corrections",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_material_bindings",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_authorization_batches",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_authorizations",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_cases",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_deletion_evidence",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_duplicate_group_members",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_duplicate_groups",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_duplicate_whitelists",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_escalation_receipts",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_policy_heads",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_offdeck_policy_revisions",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_offdeck_reservations",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_review_candidates",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_reviews",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_scope_materials",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_scopes",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_selection_receipts",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_suppressions",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offdeck_terminal_receipts",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offer_withdrawal_receipts",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_offload_completions",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_ondeck_commit_receipts",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_ondeck_custodies",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_ondeck_runs",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_ondeck_settlement_approvals",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_placement_policy_revisions",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_recycle_entries",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_rule_template_drafts",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_rule_template_revisions",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_rule_templates",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_series_presentation_builds",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_series_presentation_commit_links",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_series_presentation_references",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_series_presentation_reservations",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_series_presentation_scopes",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_series_presentation_versions",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_series_root_relocations",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_shelf_entries",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_shelf_standard_revisions",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_shelf_target_bindings",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_shelves",
+      "owner": "arca",
+      "disposition": "root"
+    },
+    {
+      "table": "arca_source_cleanup_checks",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_staged_manifest_records",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_us_actor_refresh_intents",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "arca_us_actor_refresh_pages",
+      "owner": "arca",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_artifact_references",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_artifact_registry",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_audit_records",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_circuit_states",
+      "owner": "execution-foundation",
+      "disposition": "clear"
+    },
+    {
+      "table": "fx_command_receipts",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_commit_markers",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_effect_journal",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_event_attempts",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_event_progress",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_event_resource_timings",
+      "owner": "execution-foundation",
+      "disposition": "clear"
+    },
+    {
+      "table": "fx_event_result_bindings",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_execution_contracts",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_executor_incidents",
+      "owner": "execution-foundation",
+      "disposition": "clear"
+    },
+    {
+      "table": "fx_inbox",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_material_control_revisions",
+      "owner": "material-control-authority",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_material_controls",
+      "owner": "material-control-authority",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_outbox",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_outbox_deliveries",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_plan_contracts",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_plan_edges",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_plan_history_audits",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_plan_nodes",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_reconcile_cursors",
+      "owner": "execution-foundation",
+      "disposition": "clear"
+    },
+    {
+      "table": "fx_resource_defer",
+      "owner": "execution-foundation",
+      "disposition": "clear"
+    },
+    {
+      "table": "fx_supporting_works",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_work_attempts",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_workflow_events",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_workflow_plans",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_workspace_materials",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "fx_workspace_registry",
+      "owner": "execution-foundation",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_acceptance_specs",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_acquisition_candidate_evidence",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_custom_target_heads",
+      "owner": "libra",
+      "disposition": "clear"
+    },
+    {
+      "table": "libra_custom_target_intents",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_custom_target_previews",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_decision_basis_inputs",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_decision_basis_revisions",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_defect_authorization_head",
+      "owner": "libra",
+      "disposition": "root"
+    },
+    {
+      "table": "libra_defect_authorizations",
+      "owner": "libra",
+      "disposition": "root"
+    },
+    {
+      "table": "libra_delivery_receipts",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_episode_metadata_mapping_heads",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_episode_metadata_mapping_intents",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_episode_metadata_reviews",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_fairness_clocks",
+      "owner": "libra",
+      "disposition": "clear"
+    },
+    {
+      "table": "libra_fairness_events",
+      "owner": "libra",
+      "disposition": "clear"
+    },
+    {
+      "table": "libra_fairness_runs",
+      "owner": "libra",
+      "disposition": "clear"
+    },
+    {
+      "table": "libra_fairness_sources",
+      "owner": "libra",
+      "disposition": "clear"
+    },
+    {
+      "table": "libra_field_intake_admission_policies",
+      "owner": "libra",
+      "disposition": "root"
+    },
+    {
+      "table": "libra_field_routing_heads",
+      "owner": "libra",
+      "disposition": "root"
+    },
+    {
+      "table": "libra_formation_projections",
+      "owner": "libra",
+      "disposition": "clear"
+    },
+    {
+      "table": "libra_handoff_a_receipts",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_intake_decisions",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_intake_rejection_reason_evidence",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_intake_resolution_episode_overlaps",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_intake_resolution_match_witnesses",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_material_binding_episode_claims",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_material_bindings",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_offload_context_materials",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_predeck_pipeline_tokens",
+      "owner": "libra",
+      "disposition": "clear"
+    },
+    {
+      "table": "libra_product_fact_revisions",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_product_fact_source_refs",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_product_identity_revisions",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_product_identity_selection_intents",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_product_package_artifact_refs",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_product_package_fact_refs",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_product_package_material_episode_claims",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_product_package_materials",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_product_packages",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_reprocess_intents",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_routing_assessments",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_routing_decisions",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_routing_policy_revisions",
+      "owner": "libra",
+      "disposition": "root"
+    },
+    {
+      "table": "libra_routing_policy_targets",
+      "owner": "libra",
+      "disposition": "root"
+    },
+    {
+      "table": "libra_run_admission_heads",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_run_discard_decisions",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_run_discard_receipts",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_run_material_episode_claims",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_run_material_manifests",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_run_material_members",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_run_outcomes",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_run_revisions",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_runs",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_strategy_availability",
+      "owner": "libra",
+      "disposition": "root"
+    },
+    {
+      "table": "libra_subject_abandon_decisions",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_subject_abandon_receipts",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_subject_continuity_heads",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_subject_decision_heads",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_subject_episode_scopes",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_subject_season_continuity_claims",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_subjects",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_task_cancellations",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_us_adult_actor_choice_heads",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_us_adult_actor_choice_intents",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_us_adult_analysis_bases",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_us_adult_catalogue_bases",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_us_adult_match_completions",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_us_adult_reference_pages",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_workshop_placements",
+      "owner": "libra",
+      "disposition": "clear"
+    },
+    {
+      "table": "libra_workshop_policies",
+      "owner": "libra",
+      "disposition": "root"
+    },
+    {
+      "table": "libra_workspace_cleanup_members",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_workspace_cleanup_scopes",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_workspace_material_refs",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_workspace_revisions",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "libra_workspaces",
+      "owner": "libra",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_aliases",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_image_operations",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_merge_candidate_revisions",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_merge_candidates",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_merge_records",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_person_revisions",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_persons",
+      "owner": "people",
+      "disposition": "root"
+    },
+    {
+      "table": "people_preference_revisions",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_provider_identities",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_reference_assets",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_reference_faces",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_reference_revisions",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_registration_candidate_revisions",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_registration_candidates",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_us_recommendation_claims",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_us_recommendation_cycles",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_us_recommendation_groups",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_us_recommendation_publications",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "people_us_recommendation_sources",
+      "owner": "people",
+      "disposition": "dependent"
+    },
+    {
+      "table": "perception_acquisition_commits",
+      "owner": "perception",
+      "disposition": "root"
+    },
+    {
+      "table": "perception_acquisition_resume_intents",
+      "owner": "perception",
+      "disposition": "root"
+    },
+    {
+      "table": "perception_acquisitions",
+      "owner": "perception",
+      "disposition": "root"
+    },
+    {
+      "table": "perception_identity_anchors",
+      "owner": "perception",
+      "disposition": "root"
+    },
+    {
+      "table": "perception_record_relations",
+      "owner": "perception",
+      "disposition": "root"
+    },
+    {
+      "table": "perception_records",
+      "owner": "perception",
+      "disposition": "root"
+    },
+    {
+      "table": "perception_resolution_heads",
+      "owner": "perception",
+      "disposition": "root"
+    },
+    {
+      "table": "perception_resolution_revisions",
+      "owner": "perception",
+      "disposition": "root"
+    },
+    {
+      "table": "perception_source_cursors",
+      "owner": "perception",
+      "disposition": "root"
+    },
+    {
+      "table": "perception_sources",
+      "owner": "perception",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_admin_credentials",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_compute_device_probes",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_compute_devices",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_integrations",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_mount_scope_revisions",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_mount_scopes",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_resource_operating_policy",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_resource_operating_revisions",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_resource_profile_revisions",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_resource_profiles",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_schema_marker",
+      "owner": "platform-settings",
+      "disposition": "clear",
+      "regenerate": true
+    },
+    {
+      "table": "platform_secret_refs",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_worker_devices",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_worker_revisions",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_workers",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "platform_workspace_roots",
+      "owner": "platform-settings",
+      "disposition": "root"
+    },
+    {
+      "table": "proc_candidate_deliveries",
+      "owner": "procurement",
+      "disposition": "dependent"
+    },
+    {
+      "table": "proc_candidate_packages",
+      "owner": "procurement",
+      "disposition": "dependent"
+    },
+    {
+      "table": "proc_candidate_primary_material_episode_claims",
+      "owner": "procurement",
+      "disposition": "dependent"
+    },
+    {
+      "table": "proc_candidate_primary_materials",
+      "owner": "procurement",
+      "disposition": "dependent"
+    },
+    {
+      "table": "proc_candidate_related_references",
+      "owner": "procurement",
+      "disposition": "dependent"
+    },
+    {
+      "table": "proc_candidate_season_continuity_claims",
+      "owner": "procurement",
+      "disposition": "dependent"
+    },
+    {
+      "table": "proc_extraction_policy_revisions",
+      "owner": "procurement",
+      "disposition": "root"
+    },
+    {
+      "table": "proc_field_access_revisions",
+      "owner": "procurement",
+      "disposition": "root"
+    },
+    {
+      "table": "proc_field_materials",
+      "owner": "procurement",
+      "disposition": "dependent"
+    },
+    {
+      "table": "proc_field_observation_entries",
+      "owner": "procurement",
+      "disposition": "dependent"
+    },
+    {
+      "table": "proc_field_observations",
+      "owner": "procurement",
+      "disposition": "dependent"
+    },
+    {
+      "table": "proc_field_profile_hint_revisions",
+      "owner": "procurement",
+      "disposition": "root"
+    },
+    {
+      "table": "proc_field_reset_barriers",
+      "owner": "procurement",
+      "disposition": "clear"
+    },
+    {
+      "table": "proc_material_fields",
+      "owner": "procurement",
+      "disposition": "root",
+      "resetColumns": {
+        "current_observation_revision": null
+      }
+    },
+    {
+      "table": "proc_procurement_retry_intent_materials",
+      "owner": "procurement",
+      "disposition": "clear"
+    },
+    {
+      "table": "proc_procurement_retry_intents",
+      "owner": "procurement",
+      "disposition": "clear"
+    },
+    {
+      "table": "proc_procurement_runs",
+      "owner": "procurement",
+      "disposition": "dependent"
+    },
+    {
+      "table": "proc_run_materials",
+      "owner": "procurement",
+      "disposition": "dependent"
+    }
+  ]
+}

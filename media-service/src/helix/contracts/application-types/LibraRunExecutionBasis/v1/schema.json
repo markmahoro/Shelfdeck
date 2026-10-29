@@ -217,6 +217,35 @@
       "type": "string",
       "minLength": 1,
       "pattern": "^[a-f0-9]{64}$"
+    },
+    "episodeMetadataMappingRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "intentId",
+        "mappingDigest",
+        "mappingRevision",
+        "recordDigest"
+      ],
+      "properties": {
+        "intentId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "mappingDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "recordDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "mappingRevision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
     }
   },
   "required": [

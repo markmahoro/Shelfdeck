@@ -42,7 +42,7 @@ function fixture(t){
   function records(scores){return pages.map((page,pageOrdinal)=>{
     const person=page.items[0],asset=person.referenceProjection.contributions[0].activeAssets[0],score=scores[pageOrdinal],
       matches=score===null?[]:[{personId:person.personId,faceGroupId:'arca-face-'+D('unit face'),score,referenceAssetId:asset.referenceAssetId,artifactDigest:asset.artifactDigest,
-        threshold:0.363,faceModelRefDigest:intent.faceModelRef.digest,referenceModelRefDigest:intent.referenceModelRefDigest,confidenceClass:'strong'}],
+        threshold:0.42,faceModelRefDigest:intent.faceModelRef.digest,referenceModelRefDigest:intent.referenceModelRefDigest,confidenceClass:'strong'}],
       result=matching.pageMatch({intent,aftercareCaseId,pageOrdinal,page,sourceResult,matches,atMs:10000}),
       work=workModel.matchWork(intent,aftercareCaseId,pageOrdinal,page.pageDigest,sourceRecord.resultDigest),parameters={aftercareCaseId,intentId:intent.intentId,pageOrdinal,sourceResultDigest:sourceRecord.resultDigest},
       bindings=Object.entries({usAdultActorRefreshScope:workModel.PROJECTIONS.scope,usAdultActorRefreshIntent:workModel.PROJECTIONS.intent,

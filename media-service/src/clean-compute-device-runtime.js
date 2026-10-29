@@ -34,7 +34,7 @@ function resolveFfmpegPath(explicit){
   try { const bundled=require('ffmpeg-static');if(typeof bundled==='string'&&bundled)return bundled; } catch {}
   return 'ffmpeg';
 }
-function resolveFfprobePath(){try{const installed=require('@ffprobe-installer/ffprobe');return installed.path;}catch{return 'ffprobe';}}
+function resolveFfprobePath(){if(process.env.FFPROBE_PATH)return process.env.FFPROBE_PATH;try{const installed=require('@ffprobe-installer/ffprobe');return installed.path;}catch{return 'ffprobe';}}
 
 function runProbe(executable, encoder, timeoutMs) {
   return new Promise((resolve) => {

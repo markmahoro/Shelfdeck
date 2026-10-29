@@ -6,7 +6,7 @@ const digest=()=>({type:'string',pattern:'^[a-f0-9]{64}$'}),text=()=>({type:'str
   integer=(minimum=0)=>({type:'integer',minimum,maximum:Number.MAX_SAFE_INTEGER}),object=properties=>({type:'object',additionalProperties:false,properties,required:Object.keys(properties)});
 function matchSchema(){return object({personId:text(),personRevision:integer(1),referenceRevision:integer(1),projectionRevision:integer(1),projectionDigest:digest(),
   referenceAssetId:text(),artifactDigest:digest(),faceGroupId:{type:'string',pattern:'^arca-face-[a-f0-9]{64}$'},score:{type:'number',minimum:0.363,maximum:1},
-  threshold:{const:0.363},faceModelRefDigest:{const:faceModelReference('western_frame_set').digest},
+  threshold:{type:'number',minimum:0,maximum:1},faceModelRefDigest:{const:faceModelReference('western_frame_set').digest},
   referenceModelRefDigest:{const:faceModelReference('single_reference_face').digest},confidenceClass:{const:'strong'},matchDigest:digest()});}
 function pageMatchSchema(){return {$schema:'https://json-schema.org/draft/2020-12/schema',$id:RESULT,title:'ArcaUsAdultPageMatch@1',
   'x-helix-ssotRefs':['6.6.8','8.6.18'],'x-helix-envelopeRef':'helix://contracts/types/EvidenceEnvelope/v1','x-helix-maxCanonicalBytes':16384,

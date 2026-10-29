@@ -57,7 +57,7 @@
       "packageId": "domains.people.public",
       "owner": "people",
       "kind": "query",
-      "methods": ["getPersonReferenceProjection", "listPersonReferenceProjections", "readUsAdultReferencePage", "readUsAdultPersonSnapshot"],
+      "methods": ["getPersonReferenceProjection", "listPersonReferenceProjections", "readUsAdultReferencePage", "readUsAdultPersonSnapshot", "resolveUsAdultName"],
       "authority": ["person_identity_and_reference_projection_read"]
     }
   ],

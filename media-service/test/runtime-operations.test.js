@@ -62,3 +62,38 @@ test('backup failure leaves an ordinary stopped service, apply interruption fenc
   const afterCrash=createRuntimeOperations(f.options);assert.equal(afterCrash.shouldStartStopped(),true);assert.equal(afterCrash.snapshot().recoveryBackup,'recovery-backup');
   assert.throws(()=>afterCrash.resume({idempotencyKey:'resume'},actor),{code:'RUNTIME_RESET_INTERRUPTED'});
 });
+
+test('startup recovers only the previously authorized Reset journal and remains stopped',async t=>{
+  const f=fixture(t,{async reset(_preview,beforeApply){
+    beforeApply({backupId:'backup',backupDigest:'b'.repeat(64),resetId:'formation-reset-test'});
+    throw new Error('injected interruption');
+  }});
+  f.operations.stop({idempotencyKey:'stop'},actor);await f.operations.wait();
+  const pending=await f.operations.reset({idempotencyKey:'reset',previewDigest:'a'.repeat(64),confirmed:true},actor);
+  await f.operations.wait();
+  let recoveries=0;
+  const restarted=createRuntimeOperations({...f.options,async recoverReset(id){
+    assert.equal(id,'formation-reset-test');recoveries++;return {retiredSubjects:1};
+  }});
+  assert.equal(restarted.shouldStartStopped(),true);
+  await restarted.started();
+  assert.equal(recoveries,1);assert.equal(restarted.snapshot().mode,'stopped');
+  assert.equal(restarted.snapshot().normalSupplyAllowed,false);
+  assert.equal(restarted.snapshot().recoveryBackup,null);
+  assert.equal(restarted.snapshot().operation.operationId,pending.operationId);
+  assert.equal(restarted.snapshot().operation.state,'completed');
+  await restarted.started();assert.equal(recoveries,1);
+});
+
+test('failed Reset journal recovery preserves the stopped fence and never resumes supply',async t=>{
+  const f=fixture(t,{async reset(_preview,beforeApply){
+    beforeApply({backupId:'backup',backupDigest:'b'.repeat(64),resetId:'formation-reset-test'});throw new Error('interrupted');
+  }});
+  f.operations.stop({idempotencyKey:'stop'},actor);await f.operations.wait();
+  await f.operations.reset({idempotencyKey:'reset',previewDigest:'a'.repeat(64),confirmed:true},actor);await f.operations.wait();
+  const restarted=createRuntimeOperations({...f.options,async recoverReset(){throw Object.assign(new Error('backup mismatch'),{code:'RESET_BACKUP_INTEGRITY_FAILED'});}});
+  await restarted.started();
+  assert.equal(restarted.snapshot().mode,'error');assert.equal(restarted.snapshot().recoveryBackup,'backup');
+  assert.equal(restarted.snapshot().normalSupplyAllowed,false);
+  assert.throws(()=>restarted.resume({idempotencyKey:'resume'},actor),{code:'RUNTIME_RESET_INTERRUPTED'});
+});

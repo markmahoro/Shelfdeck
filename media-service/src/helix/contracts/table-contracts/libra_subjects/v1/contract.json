@@ -62,7 +62,9 @@
         "enumValues": [
           "active",
           "abandoned",
-          "completed"
+          "completed",
+          "administratively_retired",
+          "ended"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -176,7 +178,9 @@
         "enumValues": [
           "active",
           "abandoned",
-          "completed"
+          "completed",
+          "administratively_retired",
+          "ended"
         ]
       }
     ],
@@ -218,7 +222,7 @@
       "rules": []
     },
     "semanticRules": [
-      "`status`至少区分`active|abandoned|completed`",
+      "`status`至少区分`active|abandoned|completed|ended|administratively_retired`",
       "new Subject从Accepted Candidate固定`structure_kind/content_profile`、把创建它的Intake Decision固定为唯一Routing anchor且`intake_revision=1`",
       "Season extension要求structure/profile相同、CAS加1并不得改写anchor，因此后续不同Field到达的Episode仍沿用该Season Subject既有Routing责任。`series`必须对应`season`，其余Beta profile对应`single`。continuity/Episode digest由本域relation rows按8.6.18重建",
       "`current_identity_revision=NULL`是尚未发布Resolved Product Identity的唯一合法初值，正整数时显式复合FK指向`libra_product_identity_revisions(subject_id,revision)`",
@@ -227,12 +231,12 @@
     ],
     "rawContract": {
       "columns": "`subject_id PK, structure_kind(single|season), content_profile(movie|series|jav|western_adult), routing_anchor_intake_decision_id FK, status, intake_revision, current_continuity_set_digest, current_episode_scope_digest, current_identity_revision NULL, created_at_ms, updated_at_ms, terminal_at_ms`",
-      "constraints": "`status`至少区分`active|abandoned|completed`；new Subject从Accepted Candidate固定`structure_kind/content_profile`、把创建它的Intake Decision固定为唯一Routing anchor且`intake_revision=1`；Season extension要求structure/profile相同、CAS加1并不得改写anchor，因此后续不同Field到达的Episode仍沿用该Season Subject既有Routing责任。`series`必须对应`season`，其余Beta profile对应`single`。continuity/Episode digest由本域relation rows按8.6.18重建；`current_identity_revision=NULL`是尚未发布Resolved Product Identity的唯一合法初值，正整数时显式复合FK指向`libra_product_identity_revisions(subject_id,revision)`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态"
+      "constraints": "`status`至少区分`active|abandoned|completed|ended|administratively_retired`；new Subject从Accepted Candidate固定`structure_kind/content_profile`、把创建它的Intake Decision固定为唯一Routing anchor且`intake_revision=1`；Season extension要求structure/profile相同、CAS加1并不得改写anchor，因此后续不同Field到达的Episode仍沿用该Season Subject既有Routing责任。`series`必须对应`season`，其余Beta profile对应`single`。continuity/Episode digest由本域relation rows按8.6.18重建；`current_identity_revision=NULL`是尚未发布Resolved Product Identity的唯一合法初值，正整数时显式复合FK指向`libra_product_identity_revisions(subject_id,revision)`；`INDEX(status,subject_id)`；Subject不保存Arca Shelf Entry/Deck状态"
     },
     "source": {
       "section": "8.5.11",
-      "line": 9553,
-      "lineDigest": "ff21d794a9ce33a4a691841c5bf2be9fd695efd227368842422ac86efb34c526"
+      "line": 9564,
+      "lineDigest": "3c0f3c36a9930962e06c3752e8b59de6d1acd0bf5545b62c648526638e114e18"
     },
     "foreignKeys": [
       {

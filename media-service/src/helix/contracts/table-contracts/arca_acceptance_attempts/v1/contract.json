@@ -94,7 +94,8 @@
         "enumValues": [
           "active",
           "accepted",
-          "rejected"
+          "rejected",
+          "administratively_retired"
         ],
         "primaryKeyPart": false,
         "foreignKeyMarker": false,
@@ -144,7 +145,8 @@
         "enumValues": [
           "active",
           "accepted",
-          "rejected"
+          "rejected",
+          "administratively_retired"
         ]
       }
     ],
@@ -174,13 +176,13 @@
       "`INDEX(state,created_at_ms)`"
     ],
     "rawContract": {
-      "columns": "`acceptance_attempt_id PK, offer_id, on_deck_package_id, package_digest, related_disposition_set_digest, shelf_id FK, standard_revision, placement_revision, state(active|accepted|rejected), created_at_ms, finished_at_ms NULL`",
+      "columns": "`acceptance_attempt_id PK, offer_id, on_deck_package_id, package_digest, related_disposition_set_digest, shelf_id FK, standard_revision, placement_revision, state(active|accepted|rejected|administratively_retired), created_at_ms, finished_at_ms NULL`",
       "constraints": "同一Offer至多一个Attempt且相同`package_digest+standard+placement`至多一个active attempt；Related disposition set必须逐字节等于Package；accepted/rejected只允许从active以Decision事务CAS一次；Supporting Work通过Foundation反向关联；`INDEX(state,created_at_ms)`"
     },
     "source": {
       "section": "8.5.12",
-      "line": 9619,
-      "lineDigest": "85631065bfc7dd1279d5ee8ba5deec58cb1c327359abd07c6f01f161833e3eb8"
+      "line": 9651,
+      "lineDigest": "ac8e0dc05730a33237c0a8a3649633c072fc55233f04842480bcb1ab2b3d641e"
     },
     "foreignKeys": [
       {

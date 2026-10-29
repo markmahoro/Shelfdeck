@@ -7,13 +7,16 @@
     "displayName": "On-deck Commit",
     "ownerScope": "arca",
     "commitClass": "responsibility_control_commit",
-    "atomicFactSet": "Shelf Entry create/extend + Canonical Content Identity + Inventory Representation（每个物理Material一row并完整复制typed Episode Claim Set）/accepted Product Fact/完整Media-Cast relation snapshot revision + Deck Fact + required Control acquire/release + Off-load Completion Outbox",
+    "atomicFactSet": "Shelf Entry create/extend + Canonical Content Identity + Inventory Representation（每个物理Material一row并完整复制typed Episode Claim Set）/accepted Product Fact/完整Media-Cast relation snapshot revision + Deck Fact + required Control acquire/release + exact shared Series version/Control proof and atomic Season reference/immutable commit link + Off-load Completion Outbox",
     "participants": [
       {
         "participantKind": "domain",
         "owner": "arca",
         "access": "write",
         "tables": [
+          "arca_series_presentation_reservations",
+          "arca_series_presentation_references",
+          "arca_series_presentation_commit_links",
           "arca_source_cleanup_checks",
           "arca_shelf_entries",
           "arca_canonical_identity_revisions",
@@ -48,6 +51,9 @@
       }
     ],
     "writeTables": [
+      "arca_series_presentation_reservations",
+      "arca_series_presentation_references",
+      "arca_series_presentation_commit_links",
       "arca_source_cleanup_checks",
       "arca_shelf_entries",
       "arca_canonical_identity_revisions",
@@ -66,8 +72,20 @@
       "fx_outbox"
     ],
     "readTables": [
+      "arca_shelf_entries",
+      "arca_shelves",
+      "arca_canonical_identity_revisions",
+      "arca_inventory_representations",
+      "arca_inventory_materials",
+      "arca_series_presentation_builds",
+      "arca_series_presentation_versions",
+      "arca_series_presentation_commit_links",
+      "arca_series_presentation_scopes",
+      "arca_series_presentation_reservations",
+      "arca_series_presentation_references",
       "arca_final_inventory_decisions",
-      "arca_ondeck_runs"
+      "arca_ondeck_runs",
+      "arca_series_root_relocations"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -94,8 +112,8 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8872,
-      "lineDigest": "1b0282d9cf7648056e98d3ddf8c03d135d0ab22bfb10a627be3afdc7fda16579"
+      "line": 8874,
+      "lineDigest": "4b5788ea46b2715c43d564a3c74aac03d6fa1551b15b509f2a4cf85af40254b3"
     }
   }
 }

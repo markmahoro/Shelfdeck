@@ -28,9 +28,12 @@
         },
         {
           "$ref": "helix://contracts/types/IntegrationHandle/v1"
+        },
+        {
+          "$ref": "helix://contracts/domain-types/JavSourceQualification/v1"
         }
       ],
-      "x-helix-typeExpression": "(PhysicalMaterialReadHandle | IntegrationHandle)"
+      "x-helix-typeExpression": "(PhysicalMaterialReadHandle | IntegrationHandle | JavSourceQualification)"
     }
   }
 }

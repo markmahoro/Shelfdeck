@@ -25,16 +25,23 @@ function createCapabilityContractValidator(options) {
   const ajv = new Ajv2020({ allErrors: true, strict: false, validateFormats: true, coerceTypes: false, useDefaults: false, inlineRefs: false });
   addFormats(ajv);
   const ids = new Set();
+  const frozenSchemas = new Map();
   for (const schema of options.schemas) {
     if (!schema || typeof schema.$id !== 'string' || schema.$id.length === 0 || ids.has(schema.$id)) {
       fail('P4_CAPABILITY_SCHEMA_ID_INVALID', 'Every runtime schema requires one unique nominal $id.', { schemaId: schema && schema.$id });
     }
     ids.add(schema.$id);
-    ajv.addSchema(schema);
+    const frozen = structuredClone(schema);
+    frozenSchemas.set(schema.$id, frozen);
+    ajv.addSchema(frozen);
   }
   return Object.freeze({
     schemaCount: ids.size,
     has(schemaRef) { return ids.has(schemaRef); },
+    readSchema(schemaRef) {
+      if (!ids.has(schemaRef)) fail('P4_CAPABILITY_UNKNOWN_SCHEMA', 'Runtime schema is not registered.', { schemaRef });
+      return structuredClone(frozenSchemas.get(schemaRef));
+    },
     validate(schemaRef, value) {
       if (!ids.has(schemaRef)) fail('P4_CAPABILITY_UNKNOWN_SCHEMA', 'Runtime schema is not registered.', { schemaRef });
       let validate;

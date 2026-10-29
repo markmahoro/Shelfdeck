@@ -60,6 +60,8 @@ function coordinatorDependencies(offerReader, mode, seats = 32) {
     schemaManifest,
     unitOfWork: { execute() { throw new Error('This admission-only fixture must not execute recovery writes.'); } },
     offerReader,
+    intakeRetirement:{readReceipt:()=>null,retiredAdmission:()=>null},
+    intakeStore:{getReceipt:()=>null},
     pipelineAdmission:mockPipelineAdmission(seats),
     subjectIdForProcess:(processId)=>`subject-${processId}`,
     workAdmission:fakeAdmission(mode),

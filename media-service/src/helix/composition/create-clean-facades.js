@@ -97,9 +97,11 @@ function createCleanFacades(options) {
     facades.PeopleAdminFacade.get_people = async (input) => ({
       body: options.peopleAdminQuery.list(input.query || {}),
     });
-    facades.PeopleAdminFacade.get_people_personid = async (input) => ({
-      body: options.peopleAdminQuery.get(input.params.personId),
-    });
+    facades.PeopleAdminFacade.get_people_personid = async input => {
+      const person = options.peopleAdminQuery.get(input.params.personId);
+      if (!person) throw Object.assign(new Error('Person was not found.'), { code: 'PEOPLE_PERSON_NOT_FOUND' });
+      return { body: person };
+    };
     if(typeof options.arcaCollectionQuery?.relatedWorks==='function')facades.ArcaCollectionFacade.get_people_personid_collection=async input=>{
       const scope=options.peopleAdminQuery.relatedWorksScope(input.params.personId);
       if(!scope)throw Object.assign(new Error('Person was not found.'),{code:'PEOPLE_PERSON_NOT_FOUND'});
@@ -123,14 +125,6 @@ function createCleanFacades(options) {
       facades.PeopleAdminFacade.post_people_personid_reference_assets = async input=>({status:202,body:await options.peopleAdmin.addReference(input.params.personId,input.body,input.actor)});
       facades.PeopleAdminFacade.delete_people_personid_reference_assets_assetid=async input=>({status:202,body:options.peopleAdmin.releaseReference(input.params.personId,input.params.assetId,input.body,input.actor)});
       facades.PeopleAdminFacade.get_people_operations_operationid = async input => ({ body: options.peopleAdmin.imageOperation(input.params.operationId) });
-      facades.PeopleAdminFacade.get_people_recommendations = async()=>({body:options.peopleAdmin.recommendations()});
-      facades.PeopleAdminFacade.post_people_recommendations_recommendationid_actions_claim = async input=>({status:202,
-        body:await options.peopleAdmin.claimRecommendation(input.params.recommendationId,input.body,input.actor)});
-      facades.PeopleAdminFacade.get_people_recommendation_claims_claimid = async input=>({body:options.peopleAdmin.recommendationClaim(input.params.claimId)});
-      facades.PeopleAdminFacade.get_people_recommendations_recommendationid_image = async input=>{
-        const image=await options.peopleAdmin.recommendationImage(input.params.recommendationId);
-        return {body:image.bytes,contentType:image.mediaType,headers:{'Cache-Control':'private, no-store'}};
-      };
       facades.PeopleAdminFacade.get_people_image_search = async input => ({ body: await options.peopleAdmin.searchImages(input.query.name) });
       facades.PeopleAdminFacade.get_people_image_search_preview = async input => {
         const image = await options.peopleAdmin.previewImage(input.query.selectionToken);
@@ -361,9 +355,16 @@ function createCleanFacades(options) {
     facades.LibraFormationFacade.get_formation_runs_librarunid_actor_selection=async input=>({
       body:options.usAdultActorSelectionQuery.read(input.params.libraRunId)});
   }
+  if(options.episodeMetadataMappingService){
+    const app=options.episodeMetadataMappingService;
+    facades.LibraFormationFacade.get_formation_runs_librarunid_episode_metadata_mapping=async input=>({body:app.read(input.params.libraRunId)});
+    facades.LibraFormationFacade.get_formation_runs_librarunid_episode_metadata_reviews_reviewid=async input=>({body:app.readReview(input.params.libraRunId,input.params.reviewId)});
+    facades.LibraFormationFacade.post_formation_runs_librarunid_actions_review_episode_metadata=async input=>({body:await app.inspect(input.params.libraRunId,input.body,input.actor.actorId)});
+    facades.LibraFormationFacade.post_formation_runs_librarunid_actions_confirm_episode_metadata=async input=>({status:202,body:app.confirm(input.params.libraRunId,input.body,input.actor.actorId)});
+  }
   if (options.arcaAcceptanceRecovery) {
     facades.ArcaShelfAdminFacade.post_formation_acceptance_offerid_actions_retry = async (input) => ({
-      status:202, body:options.arcaAcceptanceRecovery.retry(input.params.offerId),
+      status:202, body:await options.arcaAcceptanceRecovery.retry(input.params.offerId,input.body),
     });
   }
   if (options.perceptionAdmin) {
@@ -420,7 +421,7 @@ function createCleanFacades(options) {
       const value=options.arcaCare.detail(input.params.shelfEntryId);if(!value){const error=new Error('Shelf Entry was not found.');error.code='ARCA_SHELF_ENTRY_NOT_FOUND';throw error;}return {body:value};
     };
     facades.ArcaCareFacade.post_care_shelfentryid_actions_check = async (input) => {
-      const value=options.arcaCare.check(input.params.shelfEntryId,input.body?.idempotencyKey);if(!value){const error=new Error('Shelf Entry was not found.');error.code='ARCA_SHELF_ENTRY_NOT_FOUND';throw error;}return {status:202,body:value};
+      const value=await options.arcaCare.check(input.params.shelfEntryId,input.body?.idempotencyKey,input.body);if(!value){const error=new Error('Shelf Entry was not found.');error.code='ARCA_SHELF_ENTRY_NOT_FOUND';throw error;}return {status:202,body:value};
     };
   }
   if(options.arcaOffdeck){

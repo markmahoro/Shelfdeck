@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "helix://contracts/capabilities/arca.series_presentation.workspace.reclaim/v1/inputs",
+  "title": "arca.series_presentation.workspace.reclaim@1 named inputs",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "seriesPresentationScope": {
+      "$ref": "#/$defs/seriesPresentationScope"
+    },
+    "seriesPresentationReclamationBasis": {
+      "$ref": "#/$defs/seriesPresentationReclamationBasis"
+    }
+  },
+  "required": [
+    "seriesPresentationScope",
+    "seriesPresentationReclamationBasis"
+  ],
+  "$defs": {
+    "seriesPresentationScope": {
+      "$ref": "helix://contracts/domain-types/SeriesPresentationScope/v1",
+      "x-helix-typeExpression": "SeriesPresentationScope"
+    },
+    "seriesPresentationReclamationBasis": {
+      "$ref": "helix://contracts/domain-types/SeriesPresentationReclamationBasis/v1",
+      "x-helix-typeExpression": "SeriesPresentationReclamationBasis"
+    }
+  }
+}

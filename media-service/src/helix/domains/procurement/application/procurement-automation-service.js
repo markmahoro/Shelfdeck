@@ -1,6 +1,7 @@
 'use strict';
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
+const { findResetBarrier, isFreshObservation } = require('../model/field-reset-barrier');
 const { createMaterialSelectionSnapshot, selectionGuard } = require('../model/material-selection-snapshot');
 const { createWorkAdmission } = require('../../../foundation/execution/work-admission');
 const {
@@ -65,6 +66,7 @@ function repositoryDefinition(schemaManifest) {
     owner: 'procurement',
     schemaManifest,
     statements: {
+      find_reset_barrier: findResetBarrier,
       find_field: {
         kind: 'select-one',
         tableId: 'proc_material_fields',
@@ -858,6 +860,11 @@ function createProcurementAutomationService(options) {
         'Eligibility Change Set must be a unique bounded Material Key list.');
     }
     const changedKeySet = new Set(changedMaterialKeys);
+    const barrier = options.unitOfWork.execute([{ participantId: 'procurement_reset_barrier', owner: 'procurement',
+      repositories: [repository], execute: context => context.repository(repository.repositoryId)
+        .invoke('find_reset_barrier', { field_id: observation.fieldId }) }]).procurement_reset_barrier;
+    if (!isFreshObservation(observation.terminalObservationRevision, observation.observationWorkId, barrier))
+      return Object.freeze({ stage: 'awaiting_fresh_observation', runs: Object.freeze([]), closedGroups: Object.freeze([]) });
     let current = snapshot(observation);
     if (current.materials.length === 0) return Object.freeze({ stage:'no_observed_material', runs:Object.freeze([]), closedGroups:Object.freeze([]) });
     const currentControls = readControlSnapshots(options,

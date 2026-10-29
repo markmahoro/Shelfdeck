@@ -26,15 +26,9 @@ const { createPlannerRegistry } = require('../foundation/execution/planner-regis
 const { createResourceGovernor } = require('../foundation/execution/resource-governor');
 const { createResourceProfileMapper } = require('../foundation/execution/resource-profile-mapper');
 const { createStartupRecovery } = require('../foundation/execution/startup-recovery');
-const { createBoundedCatalogTransition } = require('../foundation/execution/bounded-catalog-transition');
+const { createStoredPlanContractVerifier } = require('../foundation/execution/stored-plan-contract-verifier');
+const { createPlanHistoryAudit } = require('../foundation/execution/plan-history-audit');
 const { createCatalogPlanProofReader } = require('../foundation/execution/catalog-plan-proof-reader');
-const intakeControlCatalogTransition = require('./catalog-transitions/intake-control-20260912.json');
-const secondaryAcceptanceHistory = require('./catalog-transitions/secondary-acceptance-history-20260928.json');
-const { createFrozenCatalogHistory } = require('../foundation/execution/frozen-catalog-history');
-const movieTerminalContracts = require('./catalog-transitions/movie-terminal-contracts-20260930.json');
-const publishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261015.json');
-const latestPublishedTerminalContracts = require('./catalog-transitions/published-terminal-contracts-20261018.json');
-const { createPausedReleaseBatchProof } = require('./paused-release-batches');
 const { createTimeoutController } = require('../foundation/execution/timeout-controller');
 const { createCooperativeExecutionIsolation } = require('../foundation/execution/cooperative-execution-isolation');
 const { createWorkLifecycle } = require('../foundation/execution/work-lifecycle');
@@ -51,7 +45,6 @@ const {createJavCorrectionWorkspaceReclaim}=require('../integrations/jav-correct
 const {createJavCorrectionRecoveryScene}=require('../integrations/jav-correction-recovery-scene');
 const { createDomainReconcileRunner } = require('../foundation/execution/domain-reconcile-runner');
 const { createWorkflowPlanPublisher, executionCatalogDigest } = require('../foundation/execution/workflow-plan');
-const { PRE_PROJECTION_PLAN_REPLAN_CODE } = require('../foundation/persistence/uat-identity-selection-migration');
 const { compileFfmpegPipeline, compileFfmpegPassArgs } = require('../integrations/ffmpeg-pipeline');
 
 function volumeReadUnitsForCapability(capability) {
@@ -130,32 +123,13 @@ const ARCA_DEREGISTRATION_ENABLED=Object.freeze([
   'arca.shelf_deregistration.release_manifest.verify@1',
   'arca.shelf_deregistration.commit@1',
 ]);
-const ARCA_ALL_ENABLED=Object.freeze([...ARCA_ENABLED,...ARCA_OFFDECK_ENABLED,...ARCA_DEREGISTRATION_ENABLED]);
+const ARCA_SERIES_ENABLED=Object.freeze(['arca.series_root.files.relocate@1','arca.series_root.inventory.commit@1','arca.series_presentation.source.observe@1','arca.series_presentation.assets.prepare@1','arca.series_presentation.files.publish@1','arca.series_presentation.inventory.commit@1','arca.series_presentation.workspace.reclaim@1']);
+const ARCA_ALL_ENABLED=Object.freeze([...ARCA_SERIES_ENABLED,...ARCA_ENABLED,...ARCA_OFFDECK_ENABLED,...ARCA_DEREGISTRATION_ENABLED]);
 const PEOPLE_IMAGE_ENABLED = Object.freeze(['people.reference_asset.import@1', 'shared.face.embedding.compute@1','people.reference_fact.commit@1']);
 const PEOPLE_REFERENCE_ENABLED=Object.freeze(['people.reference_usage.audit@1','people.workspace.reclaim@1']);
 const PEOPLE_SYSTEM_ENABLED=Object.freeze(['people.registration_evidence.observe@1','people.merge_evidence.resolve@1','people.candidate.commit@1','people.person.commit@1']);
 const ENABLED = Object.freeze([...PROCUREMENT_ENABLED, ...SHARED_ENABLED, ...LIBRA_ENABLED, ...PERCEPTION_ENABLED,...ARCA_ALL_ENABLED, ...PEOPLE_IMAGE_ENABLED,...PEOPLE_SYSTEM_ENABLED,...PEOPLE_REFERENCE_ENABLED]);
-const UAT_SOURCE_EXECUTION_CATALOG_DIGEST = 'b0371a6d2793c1e381a4c2e7fc421d312a1a1e90d2de5e47f61a45022f09793b';
-const PRE_PROJECTION_EXECUTION_CATALOG_DIGEST = '13315cdbdf6ab5cbe30b32075f89bd76ae1a873d84034dc572824f4fbc3886e6';
-const PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST = '9e0e24c88512973e16d601c79c362d01844af0853bc1c2c37442041acda1821d';
-const PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST = 'b39d36350b09fbc0236fd47f7d0ea6c43125c82260b9740d6b4cc5737c091e74';
-const PRE_PREDECK_PIPELINE_EXECUTION_CATALOG_DIGEST = 'a30cf21aebd17902cc977490388a2ef15849e422519ff0f5f653ae03065815ba';
-const PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST = '37264ba7abffb70a9d44264856816e992d0f05674a471fd4496d2bf3cc06ecca';
-const COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS = new Set([
-  UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
-  PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
-  PRE_PREDECK_PIPELINE_EXECUTION_CATALOG_DIGEST,
-]);
-const TERMINAL_EVENT_STATES = new Set(['succeeded', 'skipped', 'failed', 'cancelled']);
-const TERMINAL_ATTEMPT_STATES = new Set(['succeeded', 'failed', 'cancelled']);
 const LOCAL_MEDIA_ENCODE_TIMEOUT_MS = 48 * 60 * 60 * 1000;
-const FAILED_PREPARATION_RETRY_CATALOG_DIGEST = canonicalDigest({
-  schema: 'procurement.failed-preparation-retry-catalog@1',
-  capabilities: [
-    'procurement.retry.intent.create@1',
-    'procurement.retry.admit@1',
-  ],
-});
 
 function createHelixExecutionPolicyRegistry(manifests) {
   const retryPolicies = [
@@ -205,75 +179,6 @@ function createHelixExecutionPolicyRegistry(manifests) {
           manifests[capabilityRef].effectClass === 'material_commit' ? retryPolicies[6].ref :
           manifests[capabilityRef].effectClass === 'destructive_commit' ? retryPolicies[7].ref : retryPolicies[2].ref,
       timeoutPolicyRef: timeoutPolicyFor(capabilityRef), compensationContractRefs: [] })) });
-}
-
-function verifyFailedPreparationRetryPlan(snapshot) {
-  if (snapshot?.plan?.catalog_digest !== FAILED_PREPARATION_RETRY_CATALOG_DIGEST ||
-      snapshot.plan.state !== 'planned' ||
-      snapshot.work?.owner_domain !== 'procurement' ||
-      snapshot.work?.work_kind !== 'failed_preparation_retry' ||
-      !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.events) ||
-      snapshot.nodes.length !== 2 || snapshot.events.length !== 2) return false;
-  const expectedCapabilities = new Set([
-    'procurement.retry.intent.create@1',
-    'procurement.retry.admit@1',
-  ]);
-  const events = new Map(snapshot.events.map((event) => [
-    event.plan_id + '\0' + event.node_id,
-    event,
-  ]));
-  if (events.size !== 2) return false;
-  for (const node of snapshot.nodes) {
-    const event = events.get(node.plan_id + '\0' + node.node_id);
-    if (!event || !expectedCapabilities.delete(node.capability_ref) ||
-        event.owner_domain !== 'procurement' ||
-        event.capability_ref !== node.capability_ref ||
-        node.contract_version !== 1 ||
-        node.effect_class !== 'domain_fact_commit') return false;
-  }
-  return expectedCapabilities.size === 0;
-}
-
-function verifyStartupPlanCatalog(snapshot, currentCatalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition, terminalHistory, pausedBatches) {
-  if (!snapshot || !snapshot.plan) return false;
-  if (verifyFailedPreparationRetryPlan(snapshot)) return true;
-  if (snapshot.plan.catalog_digest === currentCatalogDigest) return true;
-  if (pausedBatches?.supports(snapshot)) return pausedBatches.verify(snapshot);
-  if (terminalHistory?.supports(snapshot.plan.catalog_digest)) return terminalHistory.verify(snapshot);
-  if (snapshot.plan.catalog_digest === boundedTransition?.previousCatalogDigest) return boundedTransition.verify(snapshot);
-  const previousCatalog = [PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
-    PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
-    PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST].includes(snapshot.plan.catalog_digest) ||
-    COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS.has(snapshot.plan.catalog_digest);
-  if (previousCatalog && TERMINAL_ATTEMPT_STATES.has(snapshot.workAttempt?.state) &&
-      Array.isArray(snapshot.events) && snapshot.events.every((event) => TERMINAL_EVENT_STATES.has(event.state))) return true;
-  if (!COMPATIBLE_PREVIOUS_EXECUTION_CATALOG_DIGESTS.has(snapshot.plan.catalog_digest) ||
-      !snapshot.work || !Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.events) ||
-      snapshot.nodes.length === 0 || snapshot.nodes.length !== snapshot.events.length) return false;
-  const events = new Map();
-  for (const event of snapshot.events) {
-    const key = event.plan_id + '\0' + event.node_id;
-    if (events.has(key)) return false;
-    events.set(key, event);
-  }
-  try {
-    for (const node of snapshot.nodes) {
-      const event = events.get(node.plan_id + '\0' + node.node_id);
-      if (!event || event.owner_domain !== snapshot.work.owner_domain ||
-          event.capability_ref !== node.capability_ref) return false;
-      const entry = registry.resolve(node.capability_ref, snapshot.work.owner_domain);
-      if (entry.manifest.contractVersion !== node.contract_version ||
-          entry.manifest.effectClass !== node.effect_class) return false;
-      policyRegistry.bindingFor(node.capability_ref, node.effect_class);
-      const bindingSet=JSON.parse(node.input_bindings_json);
-      for(const binding of bindingSet.bindings||[]){
-        if(binding.projectionRef)bindingProjectionRegistry.resolve(binding.projectionRef);
-      }
-    }
-    return true;
-  } catch (error) {
-    return false;
-  }
 }
 
 function collectSchemas(root) {
@@ -355,6 +260,7 @@ function createProcurementExecutionRuntime(options) {
     readExternalMaterialLandingBinding: options.readExternalMaterialLandingBinding || (() => undefined),
     executeExternalProvider: options.executeExternalProvider ||
       (async () => { throw new Error('External Material Provider adapter is unavailable.'); }),
+    qualifySeriesLocalSource:require('../integrations/series-local-source-io').qualifyReferences,
     productProductionPort: options.productProductionPort,
     mediaEffectPort: options.mediaEffectPort });
   const capabilityRegistration = procurementConstruction.createCapabilityRegistration({ ...options, now });
@@ -385,8 +291,9 @@ function createProcurementExecutionRuntime(options) {
     ?perceptionProcessServices.ensureResolution('shelf_entry',shelfEntryId)
     :Object.freeze({kind:'pending'});
   const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,contractValidator,
+    cancelProcessWorks:scope=>workLifecycle.cancelProcess(scope),
     resolveMediaCastReference:input=>peopleProcessServices.mediaCastReferenceQuery.resolve(input),
-    materialControlProjectionPort,deriveJavCoverBytes,createJavCorrectionWorkspaceIo,createJavCorrectionFormalFiles,createJavCorrectionFormalRetirement,createJavCorrectionWorkspaceReclaim,createJavCorrectionRecoveryScene,
+    materialControlProjectionPort,createSeriesPresentationIo:args=>require('../integrations/series-presentation-io').createSeriesPresentationIo({...args,afterPhysicalEffect:options.afterSeriesPhysicalEffect}),deriveJavCoverBytes,createJavCorrectionWorkspaceIo,createJavCorrectionFormalFiles,createJavCorrectionFormalRetirement,createJavCorrectionWorkspaceReclaim,createJavCorrectionRecoveryScene,
     registry:currentServiceCatalog,
     buildRatingTargetIdentity:LibraExecutionRegistration.buildRatingTargetIdentity,
     compileFfmpegPipeline, compileFfmpegPassArgs,
@@ -488,6 +395,7 @@ function createProcurementExecutionRuntime(options) {
   function recoveryReality(effectClass) {
     const observed = (context) => effectJournal.observeRecovery(context.effect.effect_id);
     if (effectClass === 'workspace_write') return { async observe(context) {
+      if(['arca.series_presentation.assets.prepare@1','arca.series_presentation.workspace.reclaim@1'].includes(context.event?.capability_ref))return arcaCapabilityRegistration.ports[context.event.capability_ref].observeEffectReality(context);
       if(context.event?.capability_ref==='people.workspace.reclaim@1')return peopleImageExecution.artifactReclamation.ports['people.workspace.reclaim@1'].observeEffectReality(context);
       if(context.event?.capability_ref==='arca.jav_correction.workspace.reclaim@1')return arcaCapabilityRegistration.ports['arca.jav_correction.workspace.reclaim@1'].observeEffectReality(context);
       if(context.event?.capability_ref==='arca.jav_correction.assets.prepare@1')
@@ -534,6 +442,8 @@ function createProcurementExecutionRuntime(options) {
       return { status: committed ? 'whole_established' : 'whole_absent', fenceValid: true, evidenceDigest: canonicalDigest(value) };
     } };
     if (effectClass === 'material_commit') return { async observe(context) {
+      if(context.event?.capability_ref==='arca.series_root.files.relocate@1')return arcaCapabilityRegistration.ports[context.event.capability_ref].observeEffectReality(context);
+      if(context.event?.capability_ref==='arca.series_presentation.files.publish@1')return arcaCapabilityRegistration.ports[context.event.capability_ref].observeEffectReality(context);
       if(context.event?.capability_ref==='arca.jav_correction.formal_retirement.execute@1')return arcaCapabilityRegistration.ports['arca.jav_correction.formal_retirement.execute@1'].observeEffectReality(context);
       const value = observed(context), committed = value.markers.length === 1;
       if(!committed&&['arca.us_adult.files.stage@1','arca.us_adult.files.publish@1','arca.us_adult.files.retire@1'].includes(context.event?.capability_ref))
@@ -562,10 +472,14 @@ function createProcurementExecutionRuntime(options) {
     evidenceIndex, candidateContextReader, materialFieldStore: options.materialFieldStore, now,
     inspectFieldRoot: options.inspectFieldRoot });
   const workLifecycle = createWorkLifecycle({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
-    nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal });
+    nextWorkAttemptId: (workId, ordinal) => workId + ':attempt:' + ordinal,
+    onProcessCancelled: (scope) => {
+      executorIncidentObserver.reconcileRecoveryReservations(scope);
+      if(scope.ownerDomain==='perception'&&scope.processType==='perception_resolution'&&scope.processId.startsWith('subject:'))
+        options.onFormationSubjectChanged?.(scope.processId.slice('subject:'.length));
+    } });
   libraProcessServices=libraConstruction.createProcessServices({...libraOptions,peopleReferenceQuery,now,workResultReader,contractValidator,onLibraPriorityChanged:resourcePriorityBridge.refresh,
     onTaskCancellationChanged:subjectId=>options.onFormationSubjectChanged?.(subjectId),
-    onRecommendationActorConfirmed:receipt=>{options.onFormationSubjectChanged?.(receipt.subjectId);host?.wake();},
     onWorkshopTransferred:(subjectId)=>{
       fillPredeckIntakeSeats();options.onFormationSubjectChanged?.(subjectId);host?.wake();
     },
@@ -596,13 +510,14 @@ function createProcurementExecutionRuntime(options) {
     productIdentitySelection:libraProcessServices.productIdentitySelection,
     usAdultAnalysisStore:libraProcessServices.usAdultAnalysisStore,
     usAdultActorChoiceStore:libraProcessServices.usAdultActorChoiceStore,
+    episodeMetadataMappingStore:libraProcessServices.episodeMetadataMappingStore,
     usAdultMatchCompletionStore:libraProcessServices.usAdultMatchCompletionStore,
     productProductionPort:libraOptions.productProductionPort,workspaceProductPort:libraOptions.workspaceProductPort,
     platformComputeRuntime:libraOptions.platformComputeRuntime,now});
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
   const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
-  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,contractValidator,correction:arcaCapabilityRegistration.correction,actorPipelineQuery:arcaCapabilityRegistration.actorPipelineQuery,actorRefreshSource:arcaCapabilityRegistration.actorRefreshSource,peopleReferenceQuery,
+  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,contractValidator,relocation:arcaCapabilityRegistration.relocation,series:arcaCapabilityRegistration.series,correction:arcaCapabilityRegistration.correction,actorPipelineQuery:arcaCapabilityRegistration.actorPipelineQuery,actorRefreshSource:arcaCapabilityRegistration.actorRefreshSource,peopleReferenceQuery,
     onActorRefreshAdmitted:()=>host?.wakeBackground({ownerDomain:'arca',reconcilerKey:'active-aftercare-cases'}),
     resolveMediaCastReference:input=>peopleProcessServices.mediaCastReferenceQuery.resolve(input),
     computeBoundedMaterialFingerprintSync,
@@ -617,19 +532,13 @@ function createProcurementExecutionRuntime(options) {
     ensurePerceptionRatingResolution:ensureShelfEntryRatingResolution});
   peopleProcessServices=peopleImageExecution.createProcessServices({
     ...options, now,contractValidator,
-    recommendationPorts:typeof options.createUsAdultRecommendationImagePort==='function'?{
-      sources:libraProcessServices.usAdultRecommendationQuery,
-      images:options.createUsAdultRecommendationImagePort(libraProcessServices.usAdultRecommendationQuery),
-      confirmation:libraProcessServices.usAdultRecommendationCommand,
-    }:null,
-    wakeClaims:()=>host?.wakeBackground({ownerDomain:'people',reconcilerKey:'us-adult-recommendation-claims'}),
     onDeckPersonEvidenceProjection:arcaProcessServices.onDeckPersonEvidenceProjection,
     onDeckNfoPersonEvidence:arcaProcessServices.onDeckNfoPersonEvidence,
   });
   const arcaPlanningRegistration=arcaConstruction.createPlanningRegistration({...options,registry,policyRegistry,contractValidator,workResultReader,
     actorRefreshSource:arcaCapabilityRegistration.actorRefreshSource,
     actorMatchQuery:arcaCapabilityRegistration.actorMatchQuery,
-    correction:arcaCapabilityRegistration.correction,actorPipelineQuery:arcaCapabilityRegistration.actorPipelineQuery,
+    relocation:arcaCapabilityRegistration.relocation,series:arcaCapabilityRegistration.series,correction:arcaCapabilityRegistration.correction,actorPipelineQuery:arcaCapabilityRegistration.actorPipelineQuery,
     contextReader:arcaProcessServices.contextReader,aftercareContextReader:arcaProcessServices.aftercareContextReader,
     offdeckContextReader:arcaProcessServices.offdeckContextReader,
     shelfDeregistrationContextReader:arcaProcessServices.shelfDeregistrationContextReader,
@@ -789,6 +698,24 @@ function createProcurementExecutionRuntime(options) {
         // already validated by the input/Fence path; do not re-read ratings just
         // to declare the fixed SQLite write resource.
         else if(capability==='arca.aftercare.assessment.commit@1')resources.push({resourceKey:'sqlite_write',units:1});
+        else if(capability.startsWith('arca.series_root.')){
+          const ref=inputs.namedInputs.seriesRootRelocationReference,row=arcaCapabilityRegistration.relocation.relocationStore.read(snapshot.work.process_id);
+          if(row?.plan_digest!==ref?.planDigest)throw new Error('P4_TYPED_SERIES_RELOCATION_UNRESOLVED');
+          const mount=row.plan.mountScopeId;validatedVolumeKeys.add(mount);resources.push({resourceKey:'volume_read:'+mount,units:1});
+          if(capability==='arca.series_root.files.relocate@1')resources.push({resourceKey:'volume_write:'+mount,units:1},{resourceKey:'volume_mutation:'+mount,units:1});
+          else resources.push({resourceKey:'sqlite_write',units:1});
+        }
+        else if(capability.startsWith('arca.series_presentation.')){
+          const scope=inputs.namedInputs.seriesPresentationScope,series=arcaCapabilityRegistration.series,workspaceMount=series.rootSnapshot.mountScopeId;
+          if(scope?.digest!==series.seriesStore.build(snapshot.work.process_id)?.digest)throw new Error('P4_TYPED_SERIES_SCOPE_UNRESOLVED');
+          for(const mount of new Set([scope.mountScopeId,workspaceMount])){validatedVolumeKeys.add(mount);resources.push({resourceKey:'volume_read:'+mount,units:1});}
+          if(['arca.series_presentation.source.observe@1','arca.series_presentation.assets.prepare@1'].includes(capability)&&(scope.supplementalSources.length<2||scope.basis.schema==='shelfdeck.series-presentation-maintenance@1')){
+            const integrationId=scope.imageSourceQualification.integrationId;validatedIntegrationKeys.add(integrationId);resources.push({resourceKey:'integration:'+integrationId,units:1});
+          }
+          if(['arca.series_presentation.assets.prepare@1','arca.series_presentation.workspace.reclaim@1'].includes(capability))resources.push({resourceKey:'volume_write:'+workspaceMount,units:1});
+          if(capability==='arca.series_presentation.files.publish@1')resources.push({resourceKey:'volume_write:'+scope.mountScopeId,units:1},{resourceKey:'volume_mutation:'+scope.mountScopeId,units:1});
+          if(capability==='arca.series_presentation.inventory.commit@1')resources.push({resourceKey:'sqlite_write',units:1},{resourceKey:'control_commit',units:1});
+        }
         else {
         const refs=workResultReader.readBindings(snapshot.work.work_id).flatMap((item)=>item.inputBindings?.bindings||[])
           .find((item)=>Array.isArray(item.parameters?.dependencyRefs))?.parameters.dependencyRefs||[];
@@ -919,7 +846,7 @@ function createProcurementExecutionRuntime(options) {
     'product_identity','product_metadata_observation','artifact_production','product_fact_assembly','workspace_media_production',
     'product_conformance','deliverable_promotion','us_adult_analysis','us_adult_product'];
   const perceptionPlannerKinds=['acquisition_page','resolution'];
-  const arcaPlannerKinds=['us_adult_actor_source','us_adult_actor_match','us_adult_actor_assets','us_adult_actor_stage','us_adult_actor_publish','us_adult_actor_verify','us_adult_actor_commit','us_adult_actor_retire','us_adult_actor_close','us_adult_actor_discard','acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','periodic_health_assessment','periodic_custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','care_workspace_reclaim','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit','jav_correction_assets','jav_correction_files','jav_correction_publish','jav_correction_verify','jav_correction_commit','jav_correction_formal_retirement','jav_correction_workspace_reclaim'];
+  const arcaPlannerKinds=['series_root_relocation','series_presentation','series_presentation_reclaim','us_adult_actor_source','us_adult_actor_match','us_adult_actor_assets','us_adult_actor_stage','us_adult_actor_publish','us_adult_actor_verify','us_adult_actor_commit','us_adult_actor_retire','us_adult_actor_close','us_adult_actor_discard','acceptance_assessment','acceptance_commit','acceptance_rejection','on_deck_execution','health_assessment','custody_assessment','periodic_health_assessment','periodic_custody_assessment','care_repair_prepare','care_repair_commit','care_case_closure','care_deregistration_settlement','care_workspace_reclaim','offdeck_policy_evaluation','offdeck_duplicate_detection','offdeck_scope_verification','offdeck_material_destruction','offdeck_terminal_commit','shelf_deregistration_manifest_verify','shelf_deregistration_commit','jav_correction_assets','jav_correction_files','jav_correction_publish','jav_correction_verify','jav_correction_commit','jav_correction_formal_retirement','jav_correction_workspace_reclaim'];
   const plannerRegistry = createPlannerRegistry({ registrations: [...planningRegistration.planners.map((planner, index) => ({
     ownerDomain: 'procurement', workKind: plannerKinds[index], plannerContractRef: planner.plannerContractRef,
     plannerVersion: planner.plannerVersion, planner
@@ -935,44 +862,14 @@ function createProcurementExecutionRuntime(options) {
   const terminalEffectObserver = arcaConstruction.createTerminalEffectHistoryObserver({ ...options, workResultReader,
     stageHistoryLibraBindingReader:LibraExecutionRegistration.createMaterialBindingScopeReader(options),
     readTechnicalWork:workId => catalogProofReader.verify(reader => reader.workPlanIds(workId).map(id => reader.read(id))) });
-  const boundedTransition = createBoundedCatalogTransition({ witness: intakeControlCatalogTransition,
-    registry, policyRegistry, schemas: new Map(runtimeSchemas.map(schema => [schema.$id, schema])),
-    contractValidator, bindingProjectionRegistry,
-    proofReader:catalogProofReader, terminalEffectObserver });
-  const terminalHistory = createFrozenCatalogHistory({ archive: movieTerminalContracts,
-    additionalArchives: [{archive:publishedTerminalContracts,archiveDigest:'4547689c5e393cd4b3256ca98d55f45e8e18129db240308d2406217d828ece0d'},
-      {archive:latestPublishedTerminalContracts,archiveDigest:'02c61b170e4209eb07f6abb1172eece6e598ed06ab9ad9fa227a5fea32803a6c'}],
-    archiveDigest: '369f45ccf6fab87332162e90685a5cb87ceda248edfad0973df24c64fa8a0f8e',
-    priorArchive: secondaryAcceptanceHistory,
-    priorArchiveDigest: '1914bf6e798867be56b85bb541be0957cdc89cd0e173a48545d459f78dcca2b6',
-    onRejected: options.onHistoricalCatalogRejected,
-    witness: intakeControlCatalogTransition,
-    bindingProjectionRegistry, proofReader: catalogProofReader, terminalEffectObserver });
-  const pausedBatches = createPausedReleaseBatchProof({ registry, policyRegistry,
-    schemas: new Map(runtimeSchemas.map(schema => [schema.$id, schema])),
-    bindingProjectionRegistry, proofReader: catalogProofReader, onRejected: options.onHistoricalCatalogRejected });
+  const catalogVerifier = createStoredPlanContractVerifier({ registry, policyRegistry, contractValidator,
+    ownerCommandContracts: [require('../domains/procurement/public').retryCommandExecutionContract],
+    bindingProjectionRegistry, proofReader: catalogProofReader, terminalEffectObserver,
+    onRejected: options.onHistoricalCatalogRejected });
   const startupRecovery = createStartupRecovery({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
-    standaloneEffectClasses:Object.freeze(['libra_workspace_material_reclaim','arca_recycle_move','arca_recycle_restore','arca_recycle_purge']),
+    standaloneEffectClasses: Object.freeze(['libra_workspace_material_reclaim', 'arca_recycle_move', 'arca_recycle_restore', 'arca_recycle_purge']),
     registry, policyRegistry, integrityVerifier: { verify: () => ({ ok: true }) },
-    catalogVerifier: { verifyBatch(snapshots) {
-      const results = [], pending = [];
-      for (let index = 0; index < snapshots.length; index += 1) {
-        const snapshot = snapshots[index];
-        if (pausedBatches.supports(snapshot)) results[index] = pausedBatches.verify(snapshot);
-        else if (terminalHistory.supports(snapshot.plan.catalog_digest)) pending.push({ index, snapshot });
-        else results[index] = verifyStartupPlanCatalog(snapshot, catalogDigest, registry, policyRegistry,
-          bindingProjectionRegistry, boundedTransition, terminalHistory, pausedBatches);
-      }
-      for (let offset = 0; offset < pending.length; offset += 100) {
-        const batch = pending.slice(offset, offset + 100);
-        const verified = terminalHistory.verifyBatch(batch.map(item => item.snapshot));
-        batch.forEach((item, index) => { results[item.index] = verified[index]; });
-      }
-      return results;
-    }, verify: (snapshot) => verifyStartupPlanCatalog(
-      snapshot, catalogDigest, registry, policyRegistry, bindingProjectionRegistry, boundedTransition, terminalHistory, pausedBatches,
-    ) },
-    effectReconciler, effectJournal });
+    catalogVerifier, effectReconciler, effectJournal });
   function fillPredeckIntakeSeats() {
     libraProcessServices.coordinator.reconcilePending({ admissionLimit: DEFAULT_PREDECK_PIPELINE_SEATS });
   }
@@ -1057,13 +954,12 @@ function createProcurementExecutionRuntime(options) {
   }
   const domainReconciler = { async reconcile(request) {
     if(request.reconcilePhase==='attempt_terminal'){
-      if(request.ownerDomain==='libra'&&request.processType==='libra_intake'&&request.workKind==='acceptance'&&
-          request.workAttemptState==='failed'&&['P8_ACCEPTANCE_CONTINUITY_BASIS_STALE',
-            'P4_UAT_INTAKE_BINDING_RESULT_REPLAN_REQUIRED',PRE_PROJECTION_PLAN_REPLAN_CODE].includes(request.workAttemptFailureCode)){
-        return {workId:request.workId,disposition:'replan'};
-      }
       if(request.ownerDomain==='perception'&&request.processType==='perception_resolution'&&
-          request.workAttemptState==='failed'&&request.workAttemptFailureCode===PRE_PROJECTION_PLAN_REPLAN_CODE){
+          request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P4_EXECUTION_INPUT_BASIS_SUPERSEDED'){
+        return {workId:request.workId,disposition:perceptionProcessServices.supersededResolutionDisposition(request.processId,request.workId)};
+      }
+      if(request.ownerDomain==='libra'&&request.processType==='libra_intake'&&request.workKind==='acceptance'&&
+          request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P8_ACCEPTANCE_CONTINUITY_BASIS_STALE'){
         return {workId:request.workId,disposition:'replan'};
       }
       if(request.ownerDomain==='procurement'&&request.processType==='procurement_run'&&
@@ -1084,7 +980,6 @@ function createProcurementExecutionRuntime(options) {
     if(request.ownerDomain==='people'&&['people_system_registration','people_system_merge'].includes(request.processType))return {workId:request.workId,disposition:request.workAttemptState};
     if(request.ownerDomain==='people'&&request.processType==='people_image_preparation'){
       peopleProcessServices.imageOperations.reconcile(request.processId);
-      host?.wakeBackground({ownerDomain:'people',reconcilerKey:'us-adult-recommendation-claims'});
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='libra'&&request.processType==='libra_intake'){
@@ -1134,6 +1029,25 @@ function createProcurementExecutionRuntime(options) {
       else if(['failed','blocked','cancelled'].includes(request.workAttemptState))
         arcaProcessServices.coordinator.recordTerminalFailure({processId:request.processId,workId:request.workId,
           workKind:request.workKind,errorCode:request.workAttemptFailureCode,incidentRef:request.incidentRefs?.[0]||null});
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
+    if(request.ownerDomain==='arca'&&request.processType==='arca_series_root_relocation'){
+      const row=arcaCapabilityRegistration.relocation.relocationStore.read(request.processId);
+      if(request.workAttemptState==='succeeded'&&row?.state==='committed')for(const member of row.plan.seasons)
+        arcaProcessServices.aftercareCoordinator.sharedPresentationChanged(member.shelfEntryId,'series-relocation:'+request.processId);
+      return {workId:request.workId,disposition:request.workAttemptState};
+    }
+    if(request.ownerDomain==='arca'&&request.processType==='arca_series_presentation'){
+      if(['succeeded','failed','cancelled'].includes(request.workAttemptState)){
+        if(request.workKind!=='series_presentation_reclaim'){
+          if(request.workAttemptState==='succeeded')arcaCapabilityRegistration.series.reclaim(request.processId);
+          arcaProcessServices.coordinator.reconcileSeries(request.processId);
+        }
+        const store=arcaCapabilityRegistration.series.seriesStore,scope=store.build(request.processId);
+        const ids=new Set(store.read('references',{scope_id:scope.scopeId}).filter(row=>row.state==='active').map(row=>row.shelf_entry_id));
+        if(scope.basis.entryBinding)ids.add(scope.basis.entryBinding.shelfEntryId);
+        for(const entryId of ids)arcaProcessServices.aftercareCoordinator.sharedPresentationChanged(entryId,'series-shared:'+request.processId+':'+request.workAttemptState);
+      }
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='arca'&&request.processType==='arca_ondeck_run'){
@@ -1192,6 +1106,12 @@ function createProcurementExecutionRuntime(options) {
       return {workId:request.workId,disposition:request.workAttemptState};
     }
     if(request.ownerDomain==='perception'&&request.processType==='perception_resolution'){
+      if(request.workAttemptState==='failed'&&request.workAttemptFailureCode==='P4_EXECUTION_INPUT_BASIS_SUPERSEDED'){
+        perceptionProcessServices.reconcileSupersededResolution(request.processId);
+      }
+      if(['failed','cancelled'].includes(request.workAttemptState)&&request.processId.startsWith('subject:')){
+        options.onFormationSubjectChanged?.(request.processId.slice('subject:'.length));
+      }
       if(request.workAttemptState==='succeeded'){
         perceptionProcessServices.reconcileResolution(request.processId);
         if(request.processId.startsWith('subject:')){
@@ -1250,6 +1170,10 @@ function createProcurementExecutionRuntime(options) {
     return { workId: request.workId, disposition: 'succeeded' };
   } };
   const cursorStore=createReconcileCursorStore({schemaManifest:options.schemaManifest,unitOfWork:options.unitOfWork,now});
+  const planHistoryAudit = createPlanHistoryAudit({ schemaManifest: options.schemaManifest, unitOfWork: options.unitOfWork,
+    proofReader: catalogProofReader, verifier: catalogVerifier, cursorStore, now,
+    onFinding: finding => options.onError?.(Object.assign(new Error('Historical Plan audit requires attention.'),
+      { code: finding.findingCode, details: finding })) });
   const workspaceReclaimer=createMovieResponsibilityClosureCoordinator({...options,now,
     offloadCompletionPort:createOffloadCompletionPort(options),workspaceProductPort:libraOptions.workspaceProductPort,
     offloadWakeVisible:false});
@@ -1264,7 +1188,8 @@ function createProcurementExecutionRuntime(options) {
     reconcileEligibilityProvider:options.reconcileEligibilityProvider,onReconcileScopeStarted:options.onReconcileScopeStarted,
     registrations:[Object.freeze({ownerDomain:'execution-foundation',reconcilerKey:'storage-maintenance',
       listPage:()=>options.storageMaintenance&&options.maintenanceWindowKey?.()?[{cursor:'storage',scope:{}}]:[],
-      reconcile:()=>{
+      reconcile:async()=>{
+        await planHistoryAudit.scan();
         const key={ownerDomain:'execution-foundation',reconcilerKey:'storage-reference-audit-progress'},head=cursorStore.read(key),
           progress=head.cursor?JSON.parse(head.cursor):{cursor:null,finishedWindow:null,optimizedWindow:null},window=options.maintenanceWindowKey();
         if(progress.finishedWindow===window)return {kind:'complete'};
@@ -1281,9 +1206,6 @@ function createProcurementExecutionRuntime(options) {
     }),Object.freeze({ownerDomain:'people',reconcilerKey:'image-operations',
       listPage:page=>peopleProcessServices.imageOperations.listPendingPage(page),
       reconcile:({operationId})=>peopleProcessServices.imageOperations.reconcile(operationId),
-    }),Object.freeze({ownerDomain:'people',reconcilerKey:'us-adult-recommendation-claims',
-      listPage:page=>peopleProcessServices.recommendationClaims?.listPendingPage(page)||[],
-      reconcile:({claimId})=>peopleProcessServices.recommendationClaims.reconcile(claimId),
     }),Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-expiry',
       listPage:()=>options.recycleExpiryTick?[{cursor:'expiry',scope:{}}]:[],reconcile:()=>options.recycleExpiryTick(),
     }),Object.freeze({ownerDomain:'arca',reconcilerKey:'recycle-maintenance',listPage:()=>options.recycleTick?[{cursor:'recycle',scope:{}}]:[],reconcile:()=>options.recycleTick()}),Object.freeze({
@@ -1342,15 +1264,6 @@ function createProcurementExecutionRuntime(options) {
       ownerDomain:'people',reconcilerKey:'ondeck-nfo-person-evidence',
       listPage:page=>peopleProcessServices ? peopleProcessServices.listNfoPage(page) : [],
       reconcile:scope=>peopleProcessServices ? peopleProcessServices.reconcileNfoEntry(scope) : Object.freeze({kind:'unavailable'}),
-    }),Object.freeze({
-      ownerDomain:'people',reconcilerKey:'us-adult-recommendations',
-      listPage:({limit})=>{
-        const windowKey=options.maintenanceWindowKey?.();
-        return peopleProcessServices.recommendations&&windowKey?Array.from({length:Math.min(8,limit)},(_,ordinal)=>({
-          cursor:'recommendations:'+ordinal,scope:{windowKey},
-        })):[];
-      },
-      reconcile:({windowKey})=>peopleProcessServices.recommendations.reconcile(windowKey),
     }),Object.freeze({
       ownerDomain:'people',reconcilerKey:'ondeck-person-evidence',
       listPage:({cursor,limit})=>peopleProcessServices
@@ -1481,6 +1394,15 @@ function createProcurementExecutionRuntime(options) {
         (cursor===null||item.offdeckCaseId>cursor)).sort((a,b)=>a.offdeckCaseId.localeCompare(b.offdeckCaseId)).slice(0,limit)
         .map((item)=>Object.freeze({cursor:item.offdeckCaseId,scope:item})),
       reconcile:({offdeckCaseId})=>arcaProcessServices.offdeckCoordinator.reconcile(offdeckCaseId),
+    }),Object.freeze({ownerDomain:'arca',reconcilerKey:'series-root-relocations',
+      listPage:({cursor,limit})=>arcaCapabilityRegistration.relocation.page(cursor,limit),
+      reconcile:({relocationId})=>arcaCapabilityRegistration.relocation.reconcile(relocationId),
+    }),Object.freeze({ownerDomain:'arca',reconcilerKey:'series-pending-reservations',
+      listPage:({cursor,limit})=>arcaCapabilityRegistration.series.pendingPage(cursor,limit),
+      reconcile:({scopeId})=>{arcaCapabilityRegistration.series.reconcileMaintenanceScope(scopeId);return arcaProcessServices.coordinator.reconcileSeriesScope(scopeId);},
+    }),Object.freeze({ownerDomain:'arca',reconcilerKey:'series-committed-workspace-reclamation',
+      listPage:({cursor,limit})=>arcaCapabilityRegistration.series.reclaimPage(cursor,limit),
+      reconcile:({buildId})=>arcaCapabilityRegistration.series.reclaim(buildId),
     }),Object.freeze({
       ownerDomain:'arca',reconcilerKey:'active-shelf-deregistrations',
       listPage:({cursor,limit})=>arcaProcessServices.shelfDeregistrationContextReader.listActivePage(cursor,limit),
@@ -1498,7 +1420,8 @@ function createProcurementExecutionRuntime(options) {
     eventRuntime, domainReconciler, fallbackReconciler, incidentObserver:executorIncidentObserver,
     onExecutionScopeStarted:options.onExecutionScopeStarted,
     onError: options.onError,maxInFlightEvents:16,shutdownTimeoutMs:options.shutdownTimeoutMs });
-  return Object.freeze({ host, registry, policyRegistry, contractValidator, progressReader, procurementAutomation,
+  return Object.freeze({ host, registry, policyRegistry, contractValidator, bindingProjectionRegistry, terminalEffectObserver,
+    catalogProofReader, catalogVerifier, planHistoryAudit, progressReader, procurementAutomation,
     readProcessFailures(scope){return workResultReader.listWorks(scope).slice().sort((a,b)=>Number(b.created_at_ms)-Number(a.created_at_ms)).slice(0,3)
       .flatMap(w=>workResultReader.readFailures(w.work_id)).slice(0,16);},triageReader,runCoordinator,
     intakeCoordinator:libraProcessServices.coordinator,intakeOfferReader:libraProcessServices.offerReader,
@@ -1511,8 +1434,8 @@ function createProcurementExecutionRuntime(options) {
     productIdentitySelection:libraProcessServices.productIdentitySelection,
     pipelineAdmission:libraProcessServices.pipelineAdmission,
     usAdultActorChoice:libraProcessServices.usAdultActorChoice,
+    episodeMetadataMapping:libraProcessServices.episodeMetadataMapping,
     usAdultActorSelectionQuery:libraProcessServices.usAdultActorSelectionQuery,
-    usAdultRecommendationSources:libraProcessServices.usAdultRecommendationQuery,
     arcaCoordinator:arcaProcessServices.coordinator,arcaContextReader:arcaProcessServices.contextReader,
     arcaFormationStatusProjection:arcaProcessServices.formationStatusProjection,
     arcaAcceptanceRecovery:arcaProcessServices.coordinator,
@@ -1531,15 +1454,9 @@ function createProcurementExecutionRuntime(options) {
 }
 
 module.exports = Object.freeze({
-  UAT_SOURCE_EXECUTION_CATALOG_DIGEST,
-  PRE_PROJECTION_EXECUTION_CATALOG_DIGEST,
-  PRE_ACTOR_COMPLETION_EXECUTION_CATALOG_DIGEST,
-  PRE_LOCAL_ENCODE_TIMEOUT_EXECUTION_CATALOG_DIGEST,
-  PRE_SEMANTIC_EXECUTION_CATALOG_DIGEST,
   createProcurementExecutionRuntime,
   createHelixExecutionRuntime:createProcurementExecutionRuntime,
   volumeReadUnitsForCapability,
   mergeResourceDemands,
-  verifyStartupPlanCatalog,
   createHelixExecutionPolicyRegistry,
 });

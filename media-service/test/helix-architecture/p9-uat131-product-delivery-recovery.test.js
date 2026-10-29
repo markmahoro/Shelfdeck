@@ -77,24 +77,16 @@ const registry = Object.freeze({
   resolve(capabilityRef, ownerDomain) {
     assert.equal(capabilityRef, conformanceManifest.capabilityRef);
     assert.equal(ownerDomain, 'libra');
-    return Object.freeze({ manifest:conformanceManifest });
+    return Object.freeze({ manifest:conformanceManifest, executor: { version: 1 } });
   },
 });
-const policyRegistry = Object.freeze({
-  digest:canonicalDigest({ fixture:'uat-131-execution-policy' }),
-  bindingFor(capabilityRef, effectClass) {
-    assert.equal(capabilityRef, conformanceManifest.capabilityRef);
-    assert.equal(effectClass, conformanceManifest.effectClass);
-    return Object.freeze({
-      retryPolicyRef:'helix://foundation/retry-policies/pure-observation/v1',
-      timeoutPolicyRef:'helix://foundation/timeout-policies/uat-131/v1',
-      compensationContractRefs:Object.freeze([]),
-    });
-  },
-});
-const contractValidator = Object.freeze({ validate(_schemaRef, value) {
-  return value;
-} });
+const { createHelixExecutionPolicyRegistry } = require('../../src/helix/composition/create-procurement-execution-runtime');
+const { createCapabilityContractValidator } = require('../../src/helix/foundation/capability/contract-validator');
+const policyRegistry = createHelixExecutionPolicyRegistry({ [conformanceManifest.capabilityRef]: conformanceManifest });
+const contractsRoot = path.resolve(__dirname, '../../src/helix/contracts');
+const schemas = fs.readdirSync(contractsRoot, { recursive: true }).filter(name => name.endsWith('schema.json'))
+  .map(name => JSON.parse(fs.readFileSync(path.join(contractsRoot, name), 'utf8'))).filter(value => value.$id);
+const contractValidator = createCapabilityContractValidator({ schemas });
 
 function terminalEvidence(failureCode, capabilityRef) {
   const work = Object.freeze({

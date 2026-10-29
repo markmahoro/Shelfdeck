@@ -27,7 +27,7 @@ function createLibraRunContextReader(options) {
         'binding_revision','episode_key','season_claim_digest','claim_digest'],keyColumns:['subject_id']},
       find_run_head:{kind:'select-one',tableId:'libra_run_admission_heads',safeIntegers:true,columns:['subject_id','head_revision',
         'active_scope_set_digest'],keyColumns:['subject_id']},
-      list_runs:{kind:'select-all',tableId:'libra_runs',safeIntegers:true,columns:['libra_run_id','subject_id','acceptance_spec_id','state',
+      list_runs:{kind:'select-all',tableId:'libra_runs',safeIntegers:true,columns:['libra_run_id','subject_id','acceptance_spec_id','state','execution_basis_record_json',
         'state_revision','state_digest','execution_basis_digest','run_scope_digest','priority_class','priority_intent_digest'],keyColumns:['subject_id']},
       page_active_subjects:{kind:'select-page-after',tableId:'libra_subjects',keyColumn:'subject_id',fixedKeyColumns:['status'],maxItems:100,
         columns:['subject_id','status']},

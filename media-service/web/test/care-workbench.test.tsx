@@ -2,6 +2,8 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import App from '../src/App';
+import {mockRunningRuntime} from './fixtures/runtime';
+beforeEach(()=>{mockRunningRuntime();});
 import { ProcessStages } from '../src/helix/ProcessStages';
 import { CareWorkDetail } from '../src/helix/CareWorkRow';
 import { helixAdminApi } from '../src/helix/api';

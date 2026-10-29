@@ -5,6 +5,11 @@ const {buildPlanningMember,samePlanningMember}=require('../model/terminal-planni
 
 const { createDefectAuthorizationStore } = require('./defect-authorization-store');
 
+// Production 3.0 metadata Runs predate the current business-terminal reason
+// vocabulary. Their exact terminal Result digest and execution history still
+// prove the blocker, so only reason-code vocabulary is relaxed for this catalog.
+const LEGACY_BUSINESS_TERMINAL_CATALOG_DIGEST = 'b7e4d607f2684ef6e061e47215aea6607d408fdaf148be3c4b79e7eb0a7ec714';
+
 const {
   canonicalDigest,
   canonicalJson,
@@ -1533,7 +1538,8 @@ function assertTerminalEvidence(repo, decision, run, resolveRetryPolicyDigest,re
         businessResultValid = boundResult.outcome_kind === "succeeded" &&
           canonicalDigest(payload) === boundResult.result_digest &&
           boundResult.result_digest === member.terminalEvidenceDigest &&
-          (reasons.includes(member.failureCode) || actorMissing || fieldsMissing || exactSizeCapAdmission);
+          (reasons.includes(member.failureCode) || actorMissing || fieldsMissing || exactSizeCapAdmission ||
+            plan?.catalog_digest === LEGACY_BUSINESS_TERMINAL_CATALOG_DIGEST);
       } catch {
         businessResultValid = false;
       }
@@ -1922,6 +1928,12 @@ function createRunLifecycleStore(options) {
           const repo = context.repository(libra.repositoryId);
           run = repo.invoke("find_run", { libra_run_id: decision.libraRunId });
           if (!run) fail("P9_RUN_LIFECYCLE_RUN", "Run is absent.");
+          if(decision.transitionKind==='defect_admit'&&decision.transitionEvidence.standingAuthorization){
+            const spec=repo.invoke('find_spec',{acceptance_spec_id:run.acceptance_spec_id}),
+              subject=repo.invoke('find_subject',{subject_id:run.subject_id});
+            if(!spec||!subject||spec.subject_id!==run.subject_id||spec.content_profile!=='movie'||subject.content_profile!=='movie')
+              fail('LIBRA_DEFECT_AUTHORIZATION_SCOPE','Standing defect authorization applies only to Movie.');
+          }
           if(decision.transitionEvidence.availabilityId) {
             const evidence=decision.transitionEvidence;
             const observation=repo.invoke('strategy_observation',{libra_run_id:run.libra_run_id,strategy_kind:evidence.strategyKind,

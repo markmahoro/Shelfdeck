@@ -777,15 +777,22 @@ function createCleanProductProductionPort(options = {}) {
       fail('CLEAN_PRODUCT_ARTIFACT_INPUT_INVALID',
         'Product Artifact acquisition input is incomplete or unfenced.');
     }
+    const posterPolicy=require('./helix/contracts/series-season-poster-source');
+    const seasonPoster=identity.namespace==='tmdb_series'&&kind==='poster';
+    if(seasonPoster&&!request.runtimeEffectAuthority)
+      fail('CLEAN_PRODUCT_ARTIFACT_AUTHORITY_REQUIRED','Season poster acquisition requires its formal Workspace Effect authority.');
+    if(seasonPoster&&requirement.requirementPayload?.sourcePolicy!==posterPolicy.POLICY)
+      fail('SERIES_SEASON_POSTER_SOURCE_INVALID','Season poster acquisition requires its frozen source policy.');
     const input = Object.freeze({
       operationId: 'libra.product_artifact.acquire@1',
       productMetadataDraft: draft,
       artifactKind: kind,
       resolvedProviderIdentity: identity,
       integrationHandle,
+      ...(seasonPoster?{artifactScope:{scopeKind:'season',seasonNumber:identity.seasonNumber},sourcePolicy:posterPolicy.POLICY}:{}),
     });
     const basisDigest = canonicalDigest(input);
-    let javCoverDerivation=null;
+    let javCoverDerivation=null,seasonPosterSourceProof=null;
     const outcome = await options.workspaceProductPort.acquireArtifact({
       libraRunId: request.libraRunId,
       workspaceId: request.workspaceId,
@@ -810,6 +817,23 @@ function createCleanProductProductionPort(options = {}) {
             !['acquired', 'not_available'].includes(response.resultKind)) {
           fail('CLEAN_PRODUCT_ARTIFACT_RESULT_INVALID',
             'Product Artifact provider returned an invalid typed outcome.');
+        }
+        let posterSourceKind='season_provider',localPoster=null;
+        if(seasonPoster&&response.resultKind==='not_available'){
+          if(response.reasonCode!=='poster_not_available')
+            fail('SERIES_SEASON_POSTER_SOURCE_INVALID','Season poster absence requires its exact unavailable result.');
+          const basis=require('./helix/contracts/series-presentation-basis').assertSeriesPresentationBasis(draft.seriesPresentationBasis,identity);
+          if(basis.localSource)localPoster=require('./helix/integrations/series-local-source-io').readQualified(basis.localSource,'poster');
+          if(localPoster){
+            posterSourceKind='series_local';
+            response={resultKind:'acquired',bytes:localPoster.bytes,artifactKind:kind,mediaType:'image/jpeg',
+              resolvedProviderIdentity:identity,integrationId:integrationHandle.integrationId,configRevision:integrationHandle.configRevision};
+          }else{
+            posterSourceKind='series_provider';
+            response=await options.fetchProviderArtifact({...input,artifactScope:{scopeKind:'series'}});
+          }
+          if(!response||!['acquired','not_available'].includes(response.resultKind))
+            fail('CLEAN_PRODUCT_ARTIFACT_RESULT_INVALID','Same-show poster acquisition returned an invalid typed outcome.');
         }
         if (response.resultKind === 'not_available') {
           if (typeof response.reasonCode !== 'string' ||
@@ -838,6 +862,18 @@ function createCleanProductProductionPort(options = {}) {
             'Acquired Product Artifact bytes do not match the exact request fence.');
         }
         exactProviderIdentity(response.resolvedProviderIdentity, identity);
+        if(seasonPoster){
+          const basis=require('./helix/contracts/series-presentation-basis').assertSeriesPresentationBasis(draft.seriesPresentationBasis,identity),
+            sourceByteDigest=crypto.createHash('sha256').update(response.bytes).digest('hex'),
+            normalized=await require('./helix/integrations/series-presentation-io').imageBytes(response.bytes,'poster');
+          seasonPosterSourceProof=posterPolicy.buildPosterSourceProof({providerKey:identity.providerKey,seasonNumber:identity.seasonNumber,
+            basisDigest:basis.basisDigest,sourceKind:posterSourceKind,seasonResult:posterSourceKind==='season_provider'?'acquired':'not_available',
+            sourceQualificationDigest:localPoster?canonicalDigest(basis.localSource):canonicalDigest({schema:posterPolicy.POLICY,
+              integrationId:integrationHandle.integrationId,configRevision:integrationHandle.configRevision,providerKey:identity.providerKey,
+              scope:posterSourceKind==='season_provider'?input.artifactScope:{scopeKind:'series'}}),
+            sourceByteDigest,outputDigest:crypto.createHash('sha256').update(normalized.bytes).digest('hex')});
+          response={...response,bytes:normalized.bytes};
+        }
         return Object.freeze({
           resultKind: 'acquired',
           bytes: response.bytes,
@@ -863,6 +899,8 @@ function createCleanProductProductionPort(options = {}) {
       });
     }
     const materialized = outcome.materialized;
+    if(seasonPoster&&(!seasonPosterSourceProof||seasonPosterSourceProof.outputDigest!==materialized.artifactHandle.digestHex))
+      fail('SERIES_SEASON_POSTER_SOURCE_INVALID','Registered Season poster differs from its same-show source proof.');
     if(javSource) {
       assertJavCoverDerivation(javCoverDerivation);
       if(javCoverDerivation.outputDigest!==materialized.artifactHandle.digestHex)
@@ -874,6 +912,7 @@ function createCleanProductProductionPort(options = {}) {
       artifactDigest: materialized.artifactHandle.digestHex,
       requirementDigest: requirement.requirementDigest,
       ...(javSource?{derivationDigest:javCoverDerivation.derivationDigest,selectedSourceDigest:javCoverDerivation.javSelectedSource.bindingDigest}:{}),
+      ...(seasonPoster?{seasonPosterSourceProofDigest:seasonPosterSourceProof.proofDigest}:{}),
     };
     return Object.freeze({
       schemaRef: 'helix://contracts/types/ArtifactAcquisitionResult/v1',
@@ -882,6 +921,7 @@ function createCleanProductProductionPort(options = {}) {
       artifactHandle: materialized.artifactHandle,
       reasonCode: null,
       ...(javSource?{javCoverDerivation}:{}),
+      ...(seasonPoster?{seasonPosterSourceProof}:{}),
       evidence: evidenceEnvelope(
         'product_artifact_acquired',
         'libra.product_artifact.acquire@1',

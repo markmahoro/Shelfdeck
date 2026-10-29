@@ -14,6 +14,8 @@
         "owner": "arca",
         "access": "write",
         "tables": [
+          "arca_series_presentation_scopes",
+          "arca_series_presentation_references",
           "arca_deck_fact_revisions",
           "arca_shelf_entries",
           "arca_offdeck_scopes",
@@ -41,6 +43,8 @@
       }
     ],
     "writeTables": [
+      "arca_series_presentation_scopes",
+      "arca_series_presentation_references",
       "arca_deck_fact_revisions",
       "arca_shelf_entries",
       "arca_offdeck_scopes",
@@ -52,8 +56,20 @@
       "fx_commit_markers"
     ],
     "readTables": [
+      "arca_shelf_entries",
+      "arca_shelves",
+      "arca_canonical_identity_revisions",
+      "arca_inventory_representations",
+      "arca_inventory_materials",
+      "arca_series_presentation_builds",
+      "arca_series_presentation_versions",
+      "arca_series_presentation_commit_links",
+      "arca_series_presentation_scopes",
+      "arca_series_presentation_reservations",
+      "arca_series_presentation_references",
       "arca_offdeck_deletion_evidence",
-      "arca_offdeck_authorizations"
+      "arca_offdeck_authorizations",
+      "arca_series_root_relocations"
     ],
     "variants": [],
     "dynamicTableRequirements": [],
@@ -80,7 +96,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8887,
+      "line": 8895,
       "lineDigest": "7dd0033bbb591666aee306f1ac5ec4ea1a987112608dc13ab5e84d5eb1cf0332"
     }
   }

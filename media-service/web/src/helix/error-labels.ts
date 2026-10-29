@@ -1,4 +1,11 @@
 const recycleErrors: Record<string, string> = {
+  ARCA_SERIES_RELOCATION_BUSY: '整剧目录移动尚未完成，请先在收藏中检查处理',
+  ARCA_SERIES_RELOCATION_MEMBER_BUSY: '同剧其他季仍有维护或退出任务',
+  ARCA_SERIES_RELOCATION_UNKNOWN_MEMBER: '剧集目录中有未登记的文件或文件夹',
+  ARCA_SERIES_RELOCATION_TARGET_CONFLICT: '目标目录已被占用或原目录不可用',
+  ARCA_SERIES_RELOCATION_PHYSICAL_DRIFT: '剧集文件已变化，暂时无法移动',
+  ARCA_SERIES_RELOCATION_UNSAFE_PATH: '目录包含链接或无法确认的路径',
+  ARCA_SERIES_RELOCATION_CROSS_VOLUME: '整剧目录移动需要位于同一文件系统',
   ARCA_JAV_CORRECTION_BUSY: '影片身份正在纠正，请稍后再检查目录',
   ARCA_JAV_CORRECTION_DIRECTORY_NOT_READY: '影片纠正尚未完成清理，请稍后再试',
   ARCA_JAV_DIRECTORY_CHECK_SCOPE_CHANGED: '影片目录范围已变化，请重新检查',
@@ -69,9 +76,18 @@ export function networkErrorLabel(code: string) {
 
 export function processFailureLabel(code: string, message?: string) {
   const known: Record<string, string> = {
+    ARCA_SERIES_REQUIRED_ASSET_UNAVAILABLE:'缺少可用的剧集图片',
+    ARCA_SERIES_ASSET_SOURCE_CHANGED:'本次选中的剧集资料已变化',
+    ARCA_SERIES_EXTERNAL_CHANGE:'剧集资料被其他程序修改',
+    ARCA_SERIES_IDENTITY_CONFLICT:'现有剧集资料属于另一部剧',
+    ARCA_SERIES_LOCAL_IDENTITY_UNPROVEN:'现有剧集图片缺少可核验的剧集信息',
+    ARCA_SERIES_TARGET_CONFLICT:'目标位置已有不同的剧集资料',
+    ARCA_SERIES_SOURCE_STALE:'剧集资料来源配置已变化',
     P4_OBSERVATION_RESULT_STORAGE_BOUND_EXCEEDED: '返回的信息超出处理上限',
+    P4_EVENT_RECOVERY_OBSERVATION_UNAVAILABLE: '未能在规定时间内核对文件状态',
     RECOVERY_EXECUTION_BUDGET_EXHAUSTED: '恢复处理超过允许时长',
     CLEAN_ARCA_STAGE_TARGET_OCCUPIED: '写入目标已被占用',
+    PRODUCT_IDENTITY_EDITION_REQUIRED:'无法从来源确定版本名，请手动指定版本名',
   };
   return known[code] || networkErrors[code] || recycleErrors[code]
     || (message && /[\u3400-\u9fff]/.test(message) && !message.includes(code) ? message : '具体失败原因暂不可用');

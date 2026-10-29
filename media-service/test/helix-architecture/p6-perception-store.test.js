@@ -451,6 +451,206 @@ test('assembles, resolves and commits a complete typed Resolution without Facade
   });
 });
 
+test('Resolution preserves the frozen Record Set across head races, conflicts and target removal',()=>{
+  fixture(({databasePath,store,unitOfWork})=>{
+    const {createPerceptionProjections}=require('../../src/helix/domains/perception/planning/perception-planners');
+    register(store);start(store);const anchor={anchorKind:'provider_id',anchorValue:'douban:race',confidenceClass:'strong',evidenceDigest:hash('race')};
+    page(store,{records:[record('race-first',{rating:5,anchors:[anchor]})]});
+    const {queryHandle,ruleSnapshot}=resolutionBasis(anchor),assembler=createPerceptionResolutionInputAssembler({store});
+    let context=assembler.assemble({queryHandle,ruleSnapshot}),targetPresent=true;
+    const projection=createPerceptionProjections({processServices:{store,resolutionProcessContext(){
+      if(!targetPresent)throw Object.assign(new Error('Target removed.'),{code:'PERCEPTION_TARGET_NOT_FOUND'});return context;
+    }}}).find(item=>item.projectionRef.endsWith('/ResolutionCommitHandle/v1')).projection;
+    const draft=resolvePerception(context,{draftId:'draft-before-record',producedAtMs:1});
+    const scope=()=>({processId:'subject:race'}),parameters=value=>({processId:'subject:race',commitEventId:'commit-race',executionBasisDigest:value.basisDigest});
+    assert.throws(()=>projection.project({ownerScope:{processId:'subject:other'},sourceResult:draft,parameters:parameters(draft)}),{code:'P6_PERCEPTION_RESOLUTION_SCOPE_MISMATCH'});
+    const before=projection.project({ownerScope:scope(),sourceResult:draft,parameters:parameters(draft)});
+    assert.equal(before.expectedRevision,0);
+    register(store,'race-source-2');start(store,{perceptionAcquisitionId:'race-acquisition-2',perceptionSourceId:'race-source-2'});
+    page(store,{perceptionAcquisitionId:'race-acquisition-2',perceptionSourceId:'race-source-2',acquisitionCommitReceiptId:'race-commit-2',commitMarker:'race-marker-2',
+      records:[record('race-conflicting',{rating:1,anchors:[anchor]})]});
+    context=assembler.assemble({queryHandle,ruleSnapshot});
+    assert.notEqual(context.recordSet.recordSetDigest,draft.recordSetDigest);
+    assert.throws(()=>projection.project({ownerScope:scope(),sourceResult:draft,parameters:parameters(draft)}),{code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'});
+    const next=resolvePerception(context,{draftId:'draft-after-record',producedAtMs:2});assert.equal(next.reasonCode,'strongest_value_conflict');
+    const currentHandle=projection.project({ownerScope:scope(),sourceResult:next,parameters:parameters(next)});
+    unitOfWork.execute([store.createResolutionCommitParticipant(currentHandle,next)]);
+    assert.throws(()=>unitOfWork.execute([store.createResolutionCommitParticipant(before,draft)]),{code:'P6_PERCEPTION_RESOLUTION_REVISION_CONFLICT'});
+    assert.equal(store.getResolution(draft.queryContract,draft.queryInputDigest).reasonCode,'strongest_value_conflict');
+    assert.equal(count(databasePath,'perception_resolution_revisions'),1);
+    assert.throws(()=>projection.project({ownerScope:scope(),sourceResult:next,parameters:parameters(next)}),{code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'});
+    assert.equal(count(databasePath,'perception_resolution_revisions'),1);
+    assert.throws(()=>projection.project({ownerScope:scope(),sourceResult:{...next,reasonCode:'requested_fact_absent'},parameters:parameters(next)}),{code:'P6_PERCEPTION_RESOLUTION_COMMIT_MISMATCH'});
+    targetPresent=false;
+    assert.throws(()=>projection.project({ownerScope:scope(),sourceResult:next,parameters:parameters(next)}),{code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'});
+    assert.equal(count(databasePath,'perception_resolution_revisions'),1);
+  });
+});
+
+test('Resolution retries only the same still-current basis, with bounded Work Attempts and durable backoff',()=>{
+  fixture(({store,unitOfWork})=>{
+    let target={targetType:'subject',targetId:'retry-subject',targetRevision:1,title:'Retry Film',year:2024,providerIdentity:null},status=null;
+    const services=createPerceptionProcessServices({schemaManifest,unitOfWork,perceptionStore:store,workResultReader:{status:()=>status},targetProjectionReader:()=>target});
+    const context=services.resolutionProcessContext('subject:retry-subject'),basis=canonicalDigest({queryInputDigest:context.query.queryInputDigest,
+      recordSetDigest:context.recordSet.recordSetDigest,ruleDigest:context.ruleSnapshot.ruleDigest});
+    status={basis_digest:basis,latestAttempt:{ordinal:1}};
+    assert.equal(services.supersededResolutionDisposition('subject:retry-subject','work'),'replan');
+    status.latestAttempt.ordinal=3;assert.equal(services.supersededResolutionDisposition('subject:retry-subject','work'),'failed');
+    status.latestAttempt.ordinal=1;target={...target,targetRevision:2};
+    assert.equal(services.supersededResolutionDisposition('subject:retry-subject','work'),'failed');
+    target=null;assert.equal(services.supersededResolutionDisposition('subject:retry-subject','work'),'failed');
+    assert.equal(services.reconcileSupersededResolution('subject:retry-subject').kind,'target_unavailable');
+    target={targetType:'subject',targetId:'retry-subject',targetRevision:1,title:'Retry Film',year:2024,providerIdentity:null};
+    status={work_id:'failed-work',state:'failed',basis_digest:basis,latestAttempt:{ordinal:3,failure_code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'}};
+    const terminal=services.ensureResolution('subject','retry-subject');
+    assert.equal(terminal.kind,'failed');assert.equal(terminal.reasonCode,'P4_EXECUTION_INPUT_BASIS_SUPERSEDED');
+    assert.match(terminal.workId,/^perception-resolution-work-/);assert.equal(terminal.queryInputDigest,context.query.queryInputDigest);
+    const {createPerceptionPlanners,createPerceptionProjections}=require('../../src/helix/domains/perception/planning/perception-planners');
+    const registry={snapshot:[],resolve(ref){return {manifest:{effectClass:ref.includes('commit')?'domain_fact_commit':'pure_observation',
+      parametersSchemaRef:'helix://test/'+ref+'/parameters',resultSchemaRef:'helix://test/'+ref+'/result',resourceDemandSchemaRef:'helix://test/resources',fenceSchemaRef:'helix://test/fence'}};}},
+      policyRegistry={digest:hash('policies'),bindingFor:()=>({retryPolicyRef:'retry',timeoutPolicyRef:'timeout'})};
+    const reader={status:()=>({latestAttempt:{ordinal:2n},previousAttempt:{failure_code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED',finished_at_ms:100n}})};
+    const options={registry,policyRegistry,workResultReader:reader,processServices:services,now:()=>1000};
+    const planner=createPerceptionPlanners(options).find(item=>item.plannerContractRef.endsWith('/Resolution/v1')),
+      request={workId:'work',workAttemptId:'attempt-2',ownerDomain:'perception',processType:'perception_resolution',processId:'subject:retry-subject',executionBasisDigest:basis},
+      plan=planner.plan(request),binding=plan.nodes[0].inputBindings.bindings[0];
+    assert.equal(binding.parameters.notBeforeMs,1100);
+    assert.deepEqual(planner.plan(request),plan);
+    const queryProjection=createPerceptionProjections(options).find(item=>item.projectionRef.endsWith('/ResolutionQuery/v1')).projection;
+    assert.throws(()=>queryProjection.project({ownerScope:{processId:request.processId},parameters:binding.parameters}),
+      error=>error.code==='P4_EXECUTION_INPUT_TEMPORARILY_UNAVAILABLE'&&error.retryAtMs===1100);
+  });
+});
+
+for(const change of ['target','record_set'])test('current Resolution reads reject an input change after projection: '+change,()=>{
+  fixture(({store,unitOfWork})=>{
+    const {createPerceptionProjections}=require('../../src/helix/domains/perception/planning/perception-planners');
+    const targetId='post-projection-subject',anchor={anchorKind:'subject_id',anchorValue:targetId,confidenceClass:'exact',evidenceDigest:hash('post-projection-anchor')};
+    let target={targetType:'subject',targetId,targetRevision:1,title:'Post Projection',year:2024,providerIdentity:null};
+    register(store);start(store);page(store,{records:[record('post-first',{rating:5,anchors:[anchor]})]});
+    const services=createPerceptionProcessServices({schemaManifest,unitOfWork,perceptionStore:store,workResultReader:{status:()=>null,statusMany:()=>new Map()},targetProjectionReader:()=>target});
+    const scope=()=>({processId:'subject:'+targetId}),parameters=value=>({processId:'subject:'+targetId,commitEventId:'post-projection-event',executionBasisDigest:value.basisDigest});
+    const projection=createPerceptionProjections({processServices:services}).find(item=>item.projectionRef.endsWith('/ResolutionCommitHandle/v1')).projection;
+    const initial=services.resolutionProcessContext('subject:'+targetId),oldDraft=resolvePerception(initial,{draftId:'post-old',producedAtMs:1});
+    const oldHandle=projection.project({ownerScope:scope(),sourceResult:oldDraft,parameters:parameters(oldDraft)});
+    if(change==='target')target={...target,targetRevision:2};
+    else{
+      register(store,'post-source-2');start(store,{perceptionAcquisitionId:'post-acquisition-2',perceptionSourceId:'post-source-2'});
+      page(store,{perceptionAcquisitionId:'post-acquisition-2',perceptionSourceId:'post-source-2',acquisitionCommitReceiptId:'post-commit-2',commitMarker:'post-marker-2',
+        records:[record('post-conflicting',{rating:1,anchors:[anchor]})]});
+    }
+    const oldResult=unitOfWork.execute([store.createResolutionCommitParticipant(oldHandle,oldDraft)]).perception_resolution_commit;
+    assert.equal(oldResult.queryInputDigest,oldDraft.queryInputDigest);assert.equal(oldResult.recordSetDigest,oldDraft.recordSetDigest);
+    assert.equal(services.readCurrentRating('subject',targetId).state,'pending');
+    assert.deepEqual(services.readCurrentRatings('subject',[target]).get(targetId),services.readCurrentRating('subject',targetId));
+    assert.equal(services.resolveDecisionFact({targetType:'subject',targetId}).kind,'pending');
+    const current=services.resolutionProcessContext('subject:'+targetId),next=resolvePerception(current,{draftId:'post-current',producedAtMs:2}),
+      nextHandle=projection.project({ownerScope:scope(),sourceResult:next,parameters:parameters(next)});
+    assert.equal(nextHandle.expectedRevision,change==='target'?0:1);
+    unitOfWork.execute([store.createResolutionCommitParticipant(nextHandle,next)]);
+    const ready=services.readCurrentRating('subject',targetId);
+    assert.equal(ready.state,'ready');assert.equal(ready.rating,change==='target'?5:null);
+    assert.equal(ready.resolutionStatus,change==='target'?'found':'not_found');
+    assert.deepEqual(services.readCurrentRatings('subject',[target]).get(targetId),ready);
+    assert.notEqual(next.basisDigest,oldDraft.basisDigest);
+  });
+});
+
+test('current Resolution projections distinguish failure, cancellation and a new basis without creating a fact',()=>{
+  fixture(({store,unitOfWork,databasePath})=>{
+    let current={targetType:'subject',targetId:'failure-subject',targetRevision:1,title:'Failure Film',year:2024,providerIdentity:null};
+    const statuses=new Map(),reader={status:id=>statuses.get(id)||null,statusMany:ids=>new Map(ids.filter(id=>statuses.has(id)).map(id=>[id,statuses.get(id)]))};
+    const services=createPerceptionProcessServices({schemaManifest,unitOfWork,perceptionStore:store,workResultReader:reader,targetProjectionReader:()=>current});
+    const admitted=services.ensureResolution('subject',current.targetId);assert.equal(admitted.kind,'pending');
+    statuses.set(admitted.workId,{work_id:admitted.workId,state:'failed',latestAttempt:{ordinal:3,failure_code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'}});
+    const scalar=services.readCurrentRating('subject',current.targetId),batch=services.readCurrentRatings('subject',[current]).get(current.targetId);
+    assert.deepEqual(batch,scalar);assert.equal(scalar.state,'failed');assert.equal(scalar.reasonCode,'P4_EXECUTION_INPUT_BASIS_SUPERSEDED');
+    assert.equal(scalar.rating,null);assert.equal(scalar.resolutionStatus,null);assert.equal(services.resolveDecisionFact({targetType:'subject',targetId:current.targetId}).kind,'failed');
+    statuses.set(admitted.workId,{work_id:admitted.workId,state:'cancelled',latestAttempt:{ordinal:1}});
+    assert.equal(services.readCurrentRating('subject',current.targetId).state,'cancelled');
+    assert.equal(services.readCurrentRatings('subject',[current]).get(current.targetId).state,'cancelled');
+    assert.equal(services.resolveDecisionFact({targetType:'subject',targetId:current.targetId}).kind,'cancelled');
+    const watched=services.ensureResolution('subject',current.targetId,'watched');
+    statuses.set(watched.workId,{work_id:watched.workId,state:'failed',latestAttempt:{ordinal:3,failure_code:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'}});
+    assert.equal(services.readCurrentWatched('subject',current.targetId).state,'failed');
+    statuses.set(watched.workId,{work_id:watched.workId,state:'cancelled',latestAttempt:{ordinal:1}});
+    assert.equal(services.readCurrentWatched('subject',current.targetId).state,'cancelled');
+    current={...current,targetRevision:2};
+    assert.equal(services.readCurrentRating('subject',current.targetId).state,'pending');
+    assert.equal(services.readCurrentRatings('subject',[current]).get(current.targetId).state,'pending');
+    const newer=services.ensureResolution('subject',current.targetId);assert.equal(newer.kind,'pending');assert.notEqual(newer.workId,admitted.workId);
+    assert.equal(count(databasePath,'perception_resolution_revisions'),0);
+    current=null;assert.throws(()=>services.readCurrentRating('subject','failure-subject'),error=>error.code==='PERCEPTION_TARGET_NOT_FOUND');
+  });
+});
+
+test('a committed empty Record Set is a ready no-record result, not a technical failure',()=>{
+  fixture(({store,unitOfWork})=>{
+    const target={targetType:'subject',targetId:'empty-subject',targetRevision:1,title:'Empty Film',year:2024,providerIdentity:null},
+      services=createPerceptionProcessServices({schemaManifest,unitOfWork,perceptionStore:store,workResultReader:{status:()=>null,statusMany:()=>new Map()},targetProjectionReader:()=>target}),
+      context=services.resolutionProcessContext('subject:'+target.targetId),draft=resolvePerception(context,{draftId:'empty-result',producedAtMs:1}),
+      projection=require('../../src/helix/domains/perception/planning/perception-planners').createPerceptionProjections({processServices:services}).find(item=>item.projectionRef.endsWith('/ResolutionCommitHandle/v1')).projection,
+      handle=projection.project({ownerScope:{processId:'subject:'+target.targetId},sourceResult:draft,parameters:{processId:'subject:'+target.targetId,commitEventId:'empty-event',executionBasisDigest:draft.basisDigest}});
+    unitOfWork.execute([store.createResolutionCommitParticipant(handle,draft)]);
+    const scalar=services.readCurrentRating('subject',target.targetId);assert.equal(scalar.state,'ready');assert.equal(scalar.resolutionStatus,'not_found');assert.equal(scalar.rating,null);
+    assert.deepEqual(services.readCurrentRatings('subject',[target]).get(target.targetId),scalar);assert.equal(services.resolveDecisionFact({targetType:'subject',targetId:target.targetId}).kind,'not_found');
+  });
+});
+
+test('a cancelled persisted Resolution Work is read consistently through the Foundation lifecycle',()=>{
+  fixture(({store,unitOfWork,databasePath})=>{
+    const {createWorkResultReader}=require('../../src/helix/foundation/execution/work-result-reader'),{createWorkLifecycle}=require('../../src/helix/foundation/execution/work-lifecycle');
+    const target={targetType:'subject',targetId:'cancel-subject',targetRevision:1,title:'Cancelled Film',year:2024,providerIdentity:null},reader=createWorkResultReader({schemaManifest,unitOfWork}),
+      services=createPerceptionProcessServices({schemaManifest,unitOfWork,perceptionStore:store,workResultReader:reader,targetProjectionReader:()=>target}),
+      lifecycle=createWorkLifecycle({schemaManifest,unitOfWork,nextWorkAttemptId:(id,ordinal)=>id+'-'+ordinal});
+    const work=services.ensureResolution('subject',target.targetId);assert.equal(work.kind,'pending');
+    assert.equal(lifecycle.cancelProcess({ownerDomain:'perception',processType:'perception_resolution',processId:'subject:'+target.targetId,reasonCode:'FIXTURE_CANCELLED'}).cancelledWorks,1);
+    assert.equal(reader.status(work.workId).state,'cancelled');assert.deepEqual(reader.statusMany([work.workId]).get(work.workId),reader.status(work.workId));
+    const scalar=services.readCurrentRating('subject',target.targetId);assert.equal(scalar.state,'cancelled');assert.equal(scalar.resolutionStatus,null);
+    assert.deepEqual(services.readCurrentRatings('subject',[target]).get(target.targetId),scalar);assert.equal(services.resolveDecisionFact({targetType:'subject',targetId:target.targetId}).kind,'cancelled');
+    assert.equal(count(databasePath,'perception_resolution_revisions'),0);
+  });
+});
+
+test('batched current ratings share candidate scans and use bounded exact Work status batches',()=>{
+  fixture(({store,unitOfWork})=>{
+    register(store);start(store);
+    const targets=Array.from({length:100},(_,index)=>({targetType:'subject',targetId:'batch-'+index,targetRevision:1,title:'Batch Film '+index,year:2024,providerIdentity:null}));
+    const rows=Array.from({length:1350},(_,index)=>record('batch-record-'+index,{anchors:[{anchorKind:'title',anchorValue:index<100?'Batch Film '+index:'Unrelated '+index,
+      confidenceClass:'medium',evidenceDigest:hash('batch-anchor-'+index)}]}));
+    page(store,{records:rows});const calls=[];
+    const observed={execute(parts){return unitOfWork.execute(parts.map(part=>({...part,execute(context){return part.execute({...context,repository(id){const repo=context.repository(id);return {...repo,invoke(name,parameters){
+      calls.push({name,parameters});return repo.invoke(name,parameters);
+    }}}});}})));}};
+    const batches=[],reader={status:()=>null,statusMany:ids=>{batches.push(ids);return new Map();}},observedStore=createPerceptionStore({schemaManifest,unitOfWork:observed});
+    const services=createPerceptionProcessServices({schemaManifest,unitOfWork:observed,perceptionStore:observedStore,workResultReader:reader,targetProjectionReader:(_,id)=>targets.find(target=>target.targetId===id)});
+    const started=performance.now(),values=services.readCurrentRatings('subject',targets),elapsed=performance.now()-started;
+    assert.equal(values.size,100);assert.ok([...values.values()].every(value=>value.state==='pending'));
+    assert.ok(calls.filter(call=>call.name==='find_anchors_by_kind').length<=2);
+    assert.ok(calls.filter(call=>call.name==='list_relations').length<=1);
+    assert.ok(calls.filter(call=>call.parameters?.values).every(call=>call.parameters.values.length<=500));
+    assert.deepEqual(batches.map(ids=>ids.length),[100,0]);
+    for(const target of targets.slice(0,3))assert.deepEqual(values.get(target.targetId),services.readCurrentRating('subject',target.targetId));
+    console.log('P2 bounded batch: 100 targets, 1350 records, '+elapsed.toFixed(1)+' ms');
+  });
+});
+
+test('Libra preserves Perception technical terminal state without publishing a Decision Fact',()=>{
+  fixture(({unitOfWork,databasePath})=>{
+    const {createAcceptanceSpecContextReader}=require('../../src/helix/domains/libra/application/acceptance-spec-context-reader');
+    let perception={kind:'failed',workId:'w',reasonCode:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'};
+    const reader=createAcceptanceSpecContextReader({schemaManifest,unitOfWork,
+      routingContextReader:{read:()=>({}),currentRoutingDecision:()=>({result:'resolved',targetShelfId:'shelf'})},
+      readArcaShelfStandard:()=>({resultKind:'found'}),resolvePerceptionRating:()=>perception});
+    assert.deepEqual(reader.read('subject'),{kind:'perception_failed',workId:'w',reasonCode:'P4_EXECUTION_INPUT_BASIS_SUPERSEDED'});
+    perception={kind:'cancelled',workId:'w',reasonCode:'resolution_cancelled'};
+    assert.deepEqual(reader.read('subject'),{kind:'perception_cancelled',workId:'w',reasonCode:'resolution_cancelled'});
+    perception={kind:'pending',workId:'new-work'};assert.deepEqual(reader.read('subject'),{kind:'pending_perception',workId:'new-work'});
+    perception={kind:'unrecognized'};assert.throws(()=>reader.read('subject'),/public result is invalid/);
+    assert.equal(count(databasePath,'libra_acceptance_specs'),0);
+  });
+});
+
 test('projects historical title-year aliases into title-only Resolution evidence', () => {
   fixture(({ store }) => {
     register(store); start(store);
@@ -560,6 +760,32 @@ test('candidate lookup preserves multilingual title aliases, technical suffixes 
     const derived=assembled.recordSet.records[0].identityAnchors.find(a=>a.anchorKind==='title'&&a.anchorValue==='ABC');
     assert.equal(derived.evidenceDigest,canonicalDigest({schema:'perception-derived-title-alias@3',
       sourceAnchorValue:'ＡＢＣ / Other title\0'+'2001',alias:'ABC',aliasRuleRevision:3}));
+  });
+});
+
+test('batched candidate indexes preserve independent scalar alias, relation and overflow behavior',()=>{
+  fixture(({store,unitOfWork})=>{
+    register(store);start(store);
+    const anchor=(kind,value)=>({anchorKind:kind,anchorValue:value,confidenceClass:'medium',evidenceDigest:hash(kind+value)});
+    page(store,{records:[record('alias-a',{anchors:[anchor('title_year','ＡＢＣ / Other title\0'+'2001')]}),
+      record('alias-b',{anchors:[anchor('title','ABC-Film')]}),record('alias-c',{anchors:[anchor('title','abc film')]})],
+      relations:[{relationId:'alias-link',relationKind:'supersedes',sourcePerceptionId:'alias-b',targetPerceptionId:'alias-a',ruleRevision:1,evidenceDigest:hash('alias-link')}]});
+    for(const [kind,mode,profile,values] of [
+      ['title','normalized_exact','unicode_nfkc_casefold',['abc','other title','abc film','missing']],
+      ['title','normalized_exact','alphanumeric_casefold',['abc film','ABC-Film','missing']],
+      ['title','exact','unicode_nfkc_casefold',['abc film','ABC-Film','missing']],
+      ['title','bounded_fuzzy','unicode_nfkc_casefold',['abc film','missing']],
+      ['title_year','normalized_exact','unicode_nfkc_casefold',['ABC\0'+'2001','ABC\0'+'2002']],
+    ]){
+      const rule={candidateRetrievalClauses:[{anchorKind:kind,lookupMode:mode,normalizationProfileRef:profile,threshold:1,maxCandidates:256}],maxCandidateRecords:256},
+        queries=values.map(value=>({identityEvidence:[{anchorKind:kind,anchorValue:value}]}));
+      const batched=createPerceptionStore({schemaManifest,unitOfWork}).readResolutionCandidatesBatch(queries,rule),
+        scalarStore=createPerceptionStore({schemaManifest,unitOfWork});
+      assert.deepEqual(batched,queries.map(query=>scalarStore.readResolutionCandidates(query,rule)));
+    }
+    const rule={candidateRetrievalClauses:[{anchorKind:'title',lookupMode:'normalized_exact',normalizationProfileRef:'alphanumeric_casefold',maxCandidates:1}],maxCandidateRecords:256};
+    assert.throws(()=>store.readResolutionCandidatesBatch([{identityEvidence:[{anchorKind:'title',anchorValue:'abc film'}]}],rule),{code:'P6_PERCEPTION_CANDIDATE_CLAUSE_OVERFLOW'});
+    assert.throws(()=>store.readResolutionCandidatesBatch(Array(101).fill({identityEvidence:[]}),rule),{code:'P6_PERCEPTION_QUERY_BATCH_BOUND'});
   });
 });
 

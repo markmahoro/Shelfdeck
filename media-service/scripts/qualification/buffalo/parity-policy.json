@@ -1,0 +1,26 @@
+{
+  "schema": "shelfdeck.buffalo-qualification-policy@1",
+  "senseCommit": "7a690aa80c390a69d64934c6201076ae05f94e59",
+  "databaseVersion": "2026.10.09",
+  "dimension": 512,
+  "detectorSize": 640,
+  "minimumDetectionConfidence": 0.5,
+  "minimumFaceSize": 40,
+  "queryCount": 100,
+  "maximumDistance": 0.6,
+  "maximumResults": 5,
+  "maximumImageBytes": 16777216,
+  "maximumImagePixels": 16777216,
+  "maximumFaces": 32,
+  "maximumCoordinateDifferencePixels": 2,
+  "minimumEmbeddingCosine": 0.999,
+  "maximumDistanceDifference": 0.003,
+  "maximumMainLoopDelayMs": 250,
+  "maximumStopMs": 5000,
+  "maximumOperationMs": 60000,
+  "maximumContainerBytes": 2147483648,
+  "models": [
+    {"role": "detector", "file": "det_10g.onnx", "bytes": 16923827, "sha256": "5838f7fe053675b1c7a08b633df49e7af5495cee0493c7dcf6697200b85b5b91"},
+    {"role": "recognizer", "file": "w600k_r50.onnx", "bytes": 174383860, "sha256": "4c06341c33c2ca1f86781dab0e829f88ad5b64be9fba56e56bc9ebdefc619e43"}
+  ]
+}

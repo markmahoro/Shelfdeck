@@ -1,0 +1,231 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/libra_episode_metadata_mapping_intents/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "libra_episode_metadata_mapping_intents",
+    "owner": "libra",
+    "prefix": "libra_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "review_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "libra_run_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "subject_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "mapping_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "actor_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "idempotency_key",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "request_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 9,
+        "name": "record_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 10,
+        "name": "record_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 11,
+        "name": "record_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 12,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "intent_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "review_id",
+      "libra_run_id",
+      "subject_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "subject_id",
+        "mapping_revision"
+      ],
+      [
+        "actor_id",
+        "idempotency_key"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [],
+    "revisionContract": {
+      "revisionColumns": [
+        "mapping_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "record_json",
+        "schemaRefColumn": "record_schema_ref",
+        "maxBytes": 1048576,
+        "source": "8.6.19-typed-payload",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "immutable",
+      "`UNIQUE(subject_id,mapping_revision)`、`UNIQUE(actor_id,idempotency_key)`",
+      "schema固定`libra.episode-metadata-mapping-record@1`，JSON上限`1 MiB`",
+      "显式用户选择产生完整版本，条目绑定Review证据，不能直接提交Provider内容",
+      "同事务写head/Receipt/Marker/Audit，陈旧Run/identity/material/head或已交付拒绝"
+    ],
+    "rawContract": {
+      "columns": "`intent_id PK, review_id FK, libra_run_id FK, subject_id FK, mapping_revision INTEGER, actor_id, idempotency_key, request_digest, record_schema_ref, record_json, record_digest, created_at_ms`",
+      "constraints": "immutable；`UNIQUE(subject_id,mapping_revision)`、`UNIQUE(actor_id,idempotency_key)`；schema固定`libra.episode-metadata-mapping-record@1`，JSON上限`1 MiB`；显式用户选择产生完整版本，条目绑定Review证据，不能直接提交Provider内容；同事务写head/Receipt/Marker/Audit，陈旧Run/identity/material/head或已交付拒绝"
+    },
+    "source": {
+      "section": "8.5.11",
+      "line": 9606,
+      "lineDigest": "b72de5a847bff4be2d353f69839ef37ad0152982d2b11c28642d149c665068d2"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "review_id"
+        ],
+        "targetTable": "libra_episode_metadata_reviews",
+        "targetColumns": [
+          "review_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "libra_run_id"
+        ],
+        "targetTable": "libra_runs",
+        "targetColumns": [
+          "libra_run_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      },
+      {
+        "columns": [
+          "subject_id"
+        ],
+        "targetTable": "libra_subjects",
+        "targetColumns": [
+          "subject_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

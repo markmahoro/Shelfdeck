@@ -73,7 +73,8 @@
           "fx_supporting_works",
           "fx_workflow_events",
           "fx_event_attempts",
-          "fx_event_result_bindings"
+          "fx_event_result_bindings",
+          "arca_series_root_relocations"
         ],
         "selector": {
           "selectorKind": "domain_fact_handle_exact",
@@ -552,7 +553,7 @@
     ],
     "source": {
       "section": "8.5.4",
-      "line": 8831,
+      "line": 8829,
       "lineDigest": "540a8baf06b3cdd5b1ee8bda961e97781d0bc722037eacac4dc6c8aaff08ebf5"
     }
   }

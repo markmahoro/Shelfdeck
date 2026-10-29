@@ -5,7 +5,7 @@ const {initializeCleanData}=require('../../scripts/helix-operational-safety');
 const {createCleanServiceHost}=require('../../src/clean-service-host');
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const skip=!process.env.SHELFDECK_FACE_MODEL_ROOT||!process.env.SHELFDECK_FACE_TEST_IMAGE?'Explicit pinned models and benign reference image required.':false;
-async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendationAck=false,twoFilms=false,failInventoryParticipantOnce=false,registerSecondActor=false}){
+async function fixture(t,{visibleFace,registerActor=visibleFace,twoFilms=false,failInventoryParticipantOnce=false,registerSecondActor=false}){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'us-formation-host-')),dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),
     source=path.join(root,'source'),target=path.join(root,'shelf');
   for(const dir of [adminDistDir,source,target])fs.mkdirSync(dir);fs.writeFileSync(path.join(adminDistDir,'index.html'),'<div id="root"></div>');
@@ -19,7 +19,7 @@ async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendati
   const secretRoot='us-formation-host-isolated-secret-0123456789abcdef',errors=[],
     initialized=initializeCleanData({dataDir,secretRoot,confirmation:'INITIALIZE_HELIX_CLEAN_V1'});
   const epoch=Date.parse('2026-10-25T12:00:00+08:00'),clockStarted=Date.now();let clockOffset=0;
-  let host,db,lastRequestError,unitOfWork,recommendationAckLost=false,inventoryFailureInjected=false,rollbackProof=null;
+  let host,db,lastRequestError,unitOfWork,inventoryFailureInjected=false,rollbackProof=null;
   t.after(async()=>{await host?.close();db?.close();assert.equal(path.dirname(root),path.resolve(os.tmpdir()));fs.rmSync(root,{recursive:true,force:true});});
   const start=()=>createCleanServiceHost({dataDir,adminDistDir,secretRoot,faceModelRoot:process.env.SHELFDECK_FACE_MODEL_ROOT,
     unitOfWorkDecorator:value=>{unitOfWork={...value,execute(participants,...executeOptions){
@@ -36,8 +36,6 @@ async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendati
       }
       return value.execute(participants,...executeOptions);
     }};return unitOfWork;},
-    afterRecommendationSourceConfirmation(){if(loseRecommendationAck&&!recommendationAckLost){recommendationAckLost=true;
-      throw Object.assign(new Error('Isolated Source confirmation ACK interruption'),{code:'FIXTURE_ACK_LOST'});}},
     now:()=>epoch+Date.now()-clockStarted+clockOffset,onRequestError:error=>{lastRequestError=error;},
     onExecutionRuntimeError:error=>errors.push({code:error.code,message:error.message,stack:error.stack})});
   host=await start();db=new Database(path.join(dataDir,'shelfdeck.db'));
@@ -79,23 +77,7 @@ async function fixture(t,{visibleFace,registerActor=visibleFace,loseRecommendati
     return require('../../src/helix/contracts/us-adult-frame-geometry').restoreFrameAnalysis(JSON.parse(fs.readFileSync(
       path.join(workspaceRoot.resolved_root,material.workspace_id,...material.relative_path.split('/')),'utf8')));
   }
-  function recommendations(){
-    const contractsRoot=path.resolve(__dirname,'../../src/helix/contracts'),pending=[contractsRoot],schemas=[];
-    while(pending.length){const folder=pending.pop();for(const entry of fs.readdirSync(folder,{withFileTypes:true})){
-      const location=path.join(folder,entry.name);if(entry.isDirectory())pending.push(location);
-      else if(entry.isFile()&&entry.name.endsWith('schema.json')){const value=JSON.parse(fs.readFileSync(location,'utf8'));if(value.$id)schemas.push(value);}
-    }}
-    const schemaManifest=require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),
-      contractValidator=require('../../src/helix/foundation/capability/contract-validator').createCapabilityContractValidator({schemas}),
-      workResultReader=require('../../src/helix/foundation/execution/work-result-reader').createWorkResultReader({schemaManifest,unitOfWork}),
-      query=require('../../src/helix/domains/libra/public').UsAdultRecommendationQueryFacade(
-        require('../../src/helix/domains/libra/application/us-adult-recommendation-query').createUsAdultRecommendationQuery({schemaManifest,unitOfWork,contractValidator,workResultReader})),
-      rootPath=db.prepare("SELECT resolved_root FROM platform_workspace_roots WHERE owner_scope='libra'").get().resolved_root,
-      workspaceProductPort=require('../../src/clean-workspace-product-port').createCleanWorkspaceProductPort({schemaManifest,unitOfWork,rootPath}),
-      images=require('../../src/clean-us-adult-recommendation-image-port').createCleanUsAdultRecommendationImagePort({sourceQuery:query,workspaceProductPort});
-    return {query,images};
-  }
-  return {db,target,request,wait,actor,secondActor,readFrameEvidence,recommendations,rollbackProof:()=>rollbackProof,expectedRollbackErrors:()=>errors.filter(error=>error.code==='FIXTURE_ACTOR_INVENTORY_ROLLBACK'),getPerson:()=>person,diagnostics,
+  return {db,target,request,wait,actor,secondActor,readFrameEvidence,rawRequest:async(method,url,payload)=>host.inject({method,url,payload,headers:{'x-api-key':initialized.adminApiKey}}),rollbackProof:()=>rollbackProof,expectedRollbackErrors:()=>errors.filter(error=>error.code==='FIXTURE_ACTOR_INVENTORY_ROLLBACK'),getPerson:()=>person,diagnostics,
     inventoryContext(){const shelfEntryId=db.prepare('SELECT shelf_entry_id FROM arca_shelf_entries WHERE status=?').get('active').shelf_entry_id;
       const store=require('../../src/helix/domains/arca/persistence/aftercare-store').createAftercareStore({
         schemaManifest:require('../../src/helix/foundation/persistence/generated/clean-schema.manifest.json'),unitOfWork});
@@ -186,57 +168,34 @@ test('real Host selects the highest CPU match and produces one actor without man
   assert.ok(fs.existsSync(path.join(h.target,'Test Actor Original source','Test Actor Original source.mkv')));
   assert.equal(updated.progress.works.find(work=>work.phase==='match').state,'succeeded');
 });
-test('real empty-library Host groups two films, creates one recommended actor and recovers only source A confirmation across restart',{timeout:300000,skip},async t=>{
-  const h=await fixture(t,{visibleFace:true,registerActor:false,loseRecommendationAck:true,twoFilms:true});
-  assert.deepEqual((await h.request('GET','/v1/admin/people/recommendations')).items,[]);
+test('retired recommendation routes stay absent across maintenance while manual actors still unblock only their selected film',{timeout:300000,skip},async t=>{
+  const h=await fixture(t,{visibleFace:true,registerActor:false,twoFilms:true});
   await h.wait(()=>h.db.prepare('SELECT count(*) n FROM libra_us_adult_match_completions').get().n===2&&h.db.prepare('SELECT count(*) n FROM libra_workshop_placements').get().n===2);
-  let ports=h.recommendations();
-  const pageQuery={schemaRef:'helix://contracts/domain-types/UsAdultRecommendationPageQuery/v1',schemaVersion:1,cursor:null,limit:32},
-    page=ports.query.listSources(pageQuery);
-  let source=page.items[0],candidate=ports.images.readCandidate(source);
-  assert.equal(page.items.length,2);
-  const image=await ports.images.readImage({source,expectedEvidenceDigest:candidate.evidenceDigest}),
-    metadata=await sharp(image.bytes).metadata();
-  assert.equal(candidate.vector.length,128);assert.ok(candidate.clusterFaceCount>=20);assert.equal(metadata.format,'jpeg');
-  assert.ok(metadata.width>40&&metadata.height>40);assert.equal(h.db.prepare('SELECT count(*) n FROM people_persons').get().n,0);
-  h.setTime('2026-10-31T03:00:01+08:00');
-  await h.wait(()=>h.db.prepare('SELECT count(*) n FROM people_us_recommendation_publications').get().n===1);
-  const publication=JSON.parse(h.db.prepare('SELECT snapshot_json FROM people_us_recommendation_publications').get().snapshot_json);
-  assert.equal(publication.items.length,1);assert.equal(publication.items[0].coverageCount,2);
-  source=publication.items[0].representative.source;candidate=ports.images.readCandidate(source);
-  const otherSource=page.items.find(item=>item.sourceId!==source.sourceId);
-  assert.deepEqual((await h.request('GET','/v1/admin/people/recommendations')).items,[]);
-  await h.restart();ports=h.recommendations();assert.deepEqual(ports.query.readSource(source),source);
-  assert.equal(ports.images.readCandidate(source).evidenceDigest,candidate.evidenceDigest);
-  h.setTime('2026-10-31T09:00:01+08:00');
-  let runtime;const deadline=Date.now()+10000;
-  do{await new Promise(resolve=>setTimeout(resolve,100));runtime=await h.request('GET','/v1/admin/runtime');}while(!runtime.normalSupplyAllowed&&Date.now()<deadline);
-  assert.equal(runtime.normalSupplyAllowed,true);
-  const cards=await h.request('GET','/v1/admin/people/recommendations');assert.equal(cards.items.length,1);
-  const photograph=await h.requestImage(cards.items[0].imageUrl);assert.equal((await sharp(photograph.bytes).metadata()).format,'jpeg');
-  assert.match(photograph.headers['cache-control'],/no-store/);
-  const claimBody={idempotencyKey:'recommendation-create',expectedPublicationRevision:cards.publication.revision,expectedSnapshotDigest:cards.publication.snapshotDigest,
-    target:{kind:'create',canonicalName:'Recommended Actor',aliases:[],image:{kind:'recommendation'}}},
-    claimUrl='/v1/admin/people/recommendations/'+cards.items[0].recommendationId+'/actions/claim',started=await h.request('POST',claimUrl,claimBody);
-  await h.wait(()=>h.db.prepare("SELECT count(*) n FROM people_us_recommendation_claims WHERE state='confirming_source' AND last_failure_code='FIXTURE_ACK_LOST'").get().n===1);
-  assert.equal(h.db.prepare('SELECT count(*) n FROM people_persons').get().n,1);
-  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_us_adult_actor_choice_intents').get().n,1);
-  await h.restart();ports=h.recommendations();
-  const replay=await h.request('POST',claimUrl,claimBody);assert.equal(replay.replayed,true);assert.equal(replay.state,'completed');assert.equal(replay.claimRef,started.claimRef);
-  const claim=await h.request('GET','/v1/admin/people/recommendation-claims/'+started.claimRef);assert.equal(claim.sourceConfirmed,true);
-  assert.equal(h.db.prepare('SELECT count(*) n FROM people_persons').get().n,1);assert.equal(h.db.prepare('SELECT count(*) n FROM people_image_operations').get().n,1);
-  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_us_adult_actor_choice_intents').get().n,1);
-  assert.deepEqual(ports.query.readSource(otherSource),otherSource);
-  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_us_adult_actor_choice_heads WHERE subject_id=?').get(otherSource.subjectId).n,0);
-  assert.throws(()=>ports.images.readCandidate(source),{code:'US_ADULT_RECOMMENDATION_SOURCE_STALE'});
-  assert.deepEqual(ports.query.listSources(pageQuery).items,[otherSource]);
+  for(const [method,url] of [['GET','/v1/admin/people/recommendations'],['GET','/v1/admin/people/recommendations/retired/image'],
+    ['POST','/v1/admin/people/recommendations/retired/actions/claim'],['GET','/v1/admin/people/recommendation-claims/retired']])
+    assert.equal((await h.rawRequest(method,url,method==='POST'?{}:undefined)).statusCode,404,url);
+  h.setTime('2026-10-31T03:00:01+08:00');await h.restart();
+  assert.equal((await h.request('GET','/v1/admin/runtime')).normalSupplyAllowed,false);
+  for(const table of ['people_us_recommendation_cycles','people_us_recommendation_sources','people_us_recommendation_groups',
+    'people_us_recommendation_publications','people_us_recommendation_claims'])assert.equal(h.db.prepare('SELECT count(*) n FROM '+table).get().n,0,table);
+  assert.equal(h.db.prepare("SELECT count(*) n FROM people_persons WHERE library_kind='us_adult'").get().n,0);
+  h.setTime('2026-10-31T09:00:01+08:00');await h.restart();
+  const resumeDeadline=Date.now()+10000;let runtime;
+  do{runtime=await h.request('GET','/v1/admin/runtime');if(runtime.normalSupplyAllowed)break;
+    await new Promise(resolve=>setTimeout(resolve,100));}while(Date.now()<resumeDeadline);
+  assert.equal(runtime.normalSupplyAllowed,true,JSON.stringify(runtime));
+  assert.equal(runtime.maintenance.maintenanceActive,false);
+  const actor=await h.actor(),runs=h.db.prepare('SELECT libra_run_id,subject_id FROM libra_runs ORDER BY libra_run_id').all(),run=runs[0],
+    selection=await h.request('GET','/v1/admin/formation/runs/'+run.libra_run_id+'/actor-selection'),
+    body={idempotencyKey:'retirement-manual-choice',expectedRunStateRevision:selection.expectedRunStateRevision,
+      expectedChoiceRevision:selection.expectedChoiceRevision,personId:actor.personId,expectedPersonRevision:actor.currentRevision,
+      expectedReferenceRevision:actor.currentReferenceRevision};
+  await h.request('POST','/v1/admin/formation/runs/'+run.libra_run_id+'/actions/choose-us-adult-actor',body);
   await h.wait(()=>h.db.prepare('SELECT count(*) n FROM arca_ondeck_commit_receipts').get().n===1);
-  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_runs').get().n,2);
-  const stem=path.parse(source.originalName.originalFileName).name,name='Recommended Actor '+stem;
-  assert.ok(fs.existsSync(path.join(h.target,name,name+'.mkv')));
-  assert.equal(h.db.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(otherSource.libraRunId).state,'active');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_us_adult_actor_choice_intents').get().n,1);
+  assert.equal(h.db.prepare('SELECT state FROM libra_runs WHERE libra_run_id=?').get(runs[1].libra_run_id).state,'active');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM libra_us_adult_actor_choice_heads WHERE subject_id=?').get(runs[1].subject_id).n,0);
 });
-
 
 test('real Host refreshes one owned US actor through verified files and atomic Inventory without changing collection identity',{timeout:240000,skip},async t=>{
   const h=await fixture(t,{visibleFace:true,failInventoryParticipantOnce:true});

@@ -271,6 +271,7 @@ function validateDraft(draft, runBasisMembers) {
     fail('P7_CANDIDATE_MANIFEST_DRAFT_DIGEST', 'Primary Input Manifest Draft digest is invalid.');
   }
   if (unit.unitDigest !== canonicalDigest(without(unit, 'unitDigest'))) fail('P7_CANDIDATE_UNIT_DIGEST', 'Triage Unit digest is invalid.');
+  if(draft.seriesPresentationSourceRefs){if(draft.contentProfile!=='series')fail('P7_CANDIDATE_SOURCE_SCOPE','Shared sources require a Season Candidate.');require('../../../contracts/series-local-source').assertReferenceSet(draft.seriesPresentationSourceRefs);}
   const expectedDraftDigest = canonicalDigest(without(draft, 'draftDigest', 'candidateDraftDigest'));
   if (draft.candidateDraftDigest !== expectedDraftDigest || draft.draftDigest !== expectedDraftDigest) {
     fail('P7_CANDIDATE_DRAFT_DIGEST', 'Candidate Draft digest is invalid.');
@@ -335,6 +336,7 @@ function buildPublication(draft, publishedAtMs, runBasisMembers, packageRevision
       unitId:unit.unitId, unitDigest:unit.unitDigest }, seasonContinuityClaims:draft.seasonContinuityClaims,
     seasonContinuityClaimSetDigest:draft.seasonContinuityClaimSetDigest,
     primaryInputManifestRef:{ manifestId:manifest.manifestId, manifestDigest:manifest.manifestDigest, memberCount:members.length },
+    ...(draft.seriesPresentationSourceRefs?{seriesPresentationSourceRefs:draft.seriesPresentationSourceRefs}:{}),
     relatedReferences:draft.relatedReferences, relatedReferenceSetDigest:draft.relatedReferenceSetDigest,
     relatedDispositionScopeDigest:draft.relatedDispositionScopeDigest,
     memberControlEvidenceSetDigest:draft.memberControlEvidenceSetDigest,

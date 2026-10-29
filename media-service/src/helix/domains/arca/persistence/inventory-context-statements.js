@@ -1,6 +1,7 @@
 'use strict';
 
 module.exports=Object.freeze({
+    ...require('./series-root-relocation-gate').statements,
     ...require('./jav-correction-gate').statements,
     find_entry:{kind:'select-one',tableId:'arca_shelf_entries',columns:['shelf_entry_id','shelf_id','structure_kind','status','canonical_identity_revision','canonical_identity_key','current_inventory_revision','current_deck_fact_revision','created_at_ms','terminal_at_ms'],keyColumns:['shelf_entry_id'],safeIntegers:true},
     find_shelf:{kind:'select-one',tableId:'arca_shelves',columns:['shelf_id','name','target_endpoint_id','target_root_location','target_mount_scope_id','target_mount_scope_revision','status','current_standard_revision','current_placement_revision','updated_at_ms'],keyColumns:['shelf_id'],safeIntegers:true},

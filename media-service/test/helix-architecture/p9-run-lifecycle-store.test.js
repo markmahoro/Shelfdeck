@@ -8,23 +8,23 @@ const generated=path.resolve(__dirname,'../../src/helix/foundation/persistence/g
 const EMPTY_RELATED_SCOPE={relatedReferenceSetDigest:canonicalDigest({schema:'procurement.related-reference-set@1',items:[]}),relatedDispositionScopeDigest:canonicalDigest({schema:'procurement.related-disposition-scope@1',items:[]}),items:[]};
 const lifecycleTransaction=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../../src/helix/contracts/transaction-contracts/helix.transaction.libra-run-lifecycle-transition/v1/contract.json'),'utf8')).contract;
 function projection(materialKey){const value={materialKey,resultKind:'available',controlRevision:2,controlState:'controlled',ownerDomain:'libra',ownerScopeType:'subject',ownerScopeId:'subject-1',regionProjection:'production'},evidenceDigest=canonicalDigest({schema:'foundation.material-control-evidence@1',materialKey,resultKind:'available',controlRevision:2,controlState:'controlled',ownerDomain:'libra',ownerScopeType:'subject',ownerScopeId:'subject-1'});return {...value,evidenceDigest,projectionDigest:canonicalDigest({...value,evidenceDigest})};}
-function fixture(run){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'helix-p9-life-')),databasePath=path.join(dir,'db.sqlite');let now=1000;openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>now++}).close();const db=new Database(databasePath),identity={mountScopeId:'mount-1',inode:'11',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('content')},materialKey=canonicalDigest({schema:'physical-material-identity@2',...identity}),control=projection(materialKey),productScopeDigest=canonicalDigest({schema:'libra.product-scope@1',subjectId:'subject-1',scopeKind:'single',subjectIntakeRevision:1,episodeKeys:[]}),requirements={identity:{},structure:{structureKind:'single'},metadata:{},mandatoryMedia:{},space:{},inventory:{}},spec={acceptanceSpecId:'spec-1',specRevision:1,specDigest:D('spec'),recordDigest:D('record'),productScopeDigest,productScope:{subjectId:'subject-1',scopeKind:'single',subjectIntakeRevision:1,episodeKeys:[],scopeDigest:productScopeDigest},shelfId:'shelf-1',requirements},headBase={subjectId:'subject-1',headRevision:4,currentRoutingDecisionId:null,currentDecisionBasisId:'basis-1',currentAcceptanceSpecId:'spec-1'},headDigest=canonicalDigest({schema:'libra.subject-decision-head@1',...headBase});
+function fixture(run,config={}){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'helix-p9-life-')),databasePath=path.join(dir,'db.sqlite');let now=1000;const contentProfile=config.contentProfile||'movie';openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>now++}).close();const db=new Database(databasePath),identity={mountScopeId:'mount-1',inode:'11',sizeBytes:100,fingerprintAlgorithm:'middle-256k-sha256',fingerprintVersion:1,contentFingerprint:D('content')},materialKey=canonicalDigest({schema:'physical-material-identity@2',...identity}),control=projection(materialKey),productScopeDigest=canonicalDigest({schema:'libra.product-scope@1',subjectId:'subject-1',scopeKind:'single',subjectIntakeRevision:1,episodeKeys:[]}),requirements=config.requirements||{identity:{},structure:{structureKind:'single'},metadata:{},mandatoryMedia:{},space:{},inventory:{}},spec={contentProfile,structureKind:'single',subjectId:'subject-1',acceptanceSpecId:'spec-1',specRevision:1,specDigest:D('spec'),recordDigest:D('record'),productScopeDigest,productScope:{subjectId:'subject-1',scopeKind:'single',subjectIntakeRevision:1,episodeKeys:[],scopeDigest:productScopeDigest},shelfId:'shelf-1',requirements},headBase={subjectId:'subject-1',headRevision:4,currentRoutingDecisionId:null,currentDecisionBasisId:'basis-1',currentAcceptanceSpecId:'spec-1'},headDigest=canonicalDigest({schema:'libra.subject-decision-head@1',...headBase});
   Object.assign(identity,{schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,materialKey});
   db.prepare('INSERT INTO libra_intake_decisions (intake_decision_id,candidate_package_id,source_field_id,source_field_access_revision,source_field_context_digest,candidate_identity_claim_digest) VALUES (?,?,?,?,?,?)').run('intake-1','candidate-1','field-1',1,D('field'),D('claim'));
-  db.prepare('INSERT INTO libra_subjects (subject_id,structure_kind,content_profile,routing_anchor_intake_decision_id,status,intake_revision,current_continuity_set_digest,current_episode_scope_digest) VALUES (?,?,?,?,?,?,?,?)').run('subject-1','single','movie','intake-1','active',1,D('continuity'),D('episodes'));
+  db.prepare('INSERT INTO libra_subjects (subject_id,structure_kind,content_profile,routing_anchor_intake_decision_id,status,intake_revision,current_continuity_set_digest,current_episode_scope_digest) VALUES (?,?,?,?,?,?,?,?)').run('subject-1','single',contentProfile,'intake-1','active',1,D('continuity'),D('episodes'));
   db.prepare('INSERT INTO libra_decision_basis_revisions (decision_basis_id,subject_id,basis_kind,basis_revision,expected_head_revision,expected_head_snapshot_digest,routing_decision_id,query_result_set_digest,routing_input_digest,spec_input_digest,product_scope_digest,input_set_digest,status,basis_digest,committed_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('basis-1','subject-1','acceptance_spec',1,3,D('old-head'),null,D('queries'),null,D('spec-input'),productScopeDigest,D('inputs'),'ready',D('basis'),1);
-  db.prepare('INSERT INTO libra_acceptance_specs (acceptance_spec_id,subject_id,shelf_id,shelf_routing_projection_revision,shelf_projection_digest,shelf_standard_revision,shelf_standard_digest,decision_basis_id,product_scope_digest,spec_revision,spec_schema_ref,spec_json,spec_digest,record_digest,structure_kind,content_profile,published_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('spec-1','subject-1','shelf-1',1,D('projection'),1,D('standard'),'basis-1',productScopeDigest,1,'AcceptanceSpec@1',canonicalJson(spec),spec.specDigest,spec.recordDigest,'single','movie',1);
+  db.prepare('INSERT INTO libra_acceptance_specs (acceptance_spec_id,subject_id,shelf_id,shelf_routing_projection_revision,shelf_projection_digest,shelf_standard_revision,shelf_standard_digest,decision_basis_id,product_scope_digest,spec_revision,spec_schema_ref,spec_json,spec_digest,record_digest,structure_kind,content_profile,published_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('spec-1','subject-1','shelf-1',1,D('projection'),1,D('standard'),'basis-1',productScopeDigest,1,'AcceptanceSpec@1',canonicalJson(spec),spec.specDigest,spec.recordDigest,'single',contentProfile,1);
   db.prepare('INSERT INTO libra_subject_decision_heads (subject_id,head_revision,head_digest,current_routing_decision_id,current_decision_basis_id,current_acceptance_spec_id,updated_at_ms) VALUES (?,?,?,?,?,?,?)').run('subject-1',4,headDigest,null,'basis-1','spec-1',1);
   db.prepare('INSERT INTO libra_material_bindings (subject_id,material_key,role,authority_kind,primary_material_key,association_evidence_digest,disposition_basis_digest,mount_scope_id,inode,fingerprint_algorithm,fingerprint_version,content_fingerprint,size_bytes,endpoint_id,location,binding_revision,health_state,evidence_digest,origin_intake_decision_id,origin_offer_id,origin_candidate_package_id,origin_package_revision,origin_package_digest,origin_candidate_delivery_snapshot_digest,origin_related_reference_set_digest,origin_related_disposition_scope_digest,current) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)').run('subject-1',materialKey,'primary_payload','primary_control',null,null,null,identity.mountScopeId,identity.inode,identity.fingerprintAlgorithm,identity.fingerprintVersion,identity.contentFingerprint,100,'endpoint-1','/library/input.mkv',1,'active',D('binding'),'intake-1','offer-1','candidate-1',1,D('package'),D('delivery'),D('related'),D('related-scope'),1);
   db.prepare('INSERT INTO fx_material_controls VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(materialKey,identity.mountScopeId,identity.inode,identity.sizeBytes,identity.fingerprintAlgorithm,identity.fingerprintVersion,identity.contentFingerprint,'libra','subject','subject-1',2,'controlled',1);db.prepare('INSERT INTO fx_material_control_revisions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(materialKey,1,'acquire',null,null,null,'libra','subject','subject-1',D('control-1'),'control-marker-1',1);db.prepare('INSERT INTO fx_material_control_revisions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(materialKey,2,'replace_control_set','libra','subject','subject-1','libra','subject','subject-1',D('control-2'),'control-marker-2',2);db.close();
-  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>now++}),unitOfWork=createSqliteUnitOfWork({kernel}),libraRunId=canonicalDigest({schema:'libra.run-id@1',subjectId:'subject-1',admissionRevision:1}),member={materialKey,role:'primary_payload',physicalIdentity:identity,sizeBytes:100,location:{locationKind:'domain_binding',endpointId:'endpoint-1',location:'/library/input.mkv'},bindingKind:'libra_material_binding',bindingRevision:1,bindingEvidenceDigest:D('binding'),originCandidateDeliveryRef:{intakeDecisionId:'intake-1',offerId:'offer-1',candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('package'),candidateDeliverySnapshotDigest:D('delivery'),relatedReferenceSetDigest:D('related')},admittedControlRevision:2,admittedControlProjectionDigest:control.projectionDigest,episodeClaims:[]},manifest=buildProductionMaterialManifest({manifestRole:'run_input',manifestRevision:1,libraRunId,scopeKind:'single',members:[member]},spec),headSnapshot={...headBase,headState:'present',headDigest};headSnapshot.snapshotDigest=canonicalDigest({schema:'libra.subject-decision-head-snapshot@1',...headSnapshot});const basis=buildRunExecutionBasis({subjectSnapshot:{subjectId:'subject-1',intakeRevision:1,structureKind:'single',contentProfile:'movie',continuitySetDigest:D('continuity'),episodeScopeDigest:D('episodes')},decisionHeadSnapshot:headSnapshot,acceptanceSpec:spec,shelfProjection:{routingProjectionRevision:1,projectionDigest:D('projection'),standardRevision:1,standardDigest:D('standard')},productionMaterialManifest:manifest,relatedDispositionScope:EMPTY_RELATED_SCOPE}),admissionDecision=buildRunAdmissionDecision({admissionKind:'initial',subjectId:'subject-1',expectedRunAdmissionHead:{headState:'absent',headRevision:0,activeScopeSetDigest:activeRunScopeSetDigest('subject-1',[])},runExecutionBasis:basis,initialPriority:{priorityClass:'normal',priorityIntentDigest:canonicalDigest({schema:'libra.priority-intent-empty@1'})}}),admitted=createRunAdmissionStore({schemaManifest,unitOfWork}).admit({decision:admissionDecision,commitMarker:'admit-marker',resultId:'admit-result'}).result;
-  const basisSnapshot=comparable({subjectId:'subject-1',structureKind:'single',contentProfile:'movie',acceptanceSpecRef:{acceptanceSpecId:'spec-1',specRevision:1,specDigest:spec.specDigest,recordDigest:spec.recordDigest},productScopeDigest,members:[{materialKey,role:'primary_payload',physicalIdentity:identity,sizeBytes:100,bindingRevision:1,bindingEvidenceDigest:D('binding'),episodeClaimSetDigest:manifest.members[0].episodeClaimSetDigest,controlRevision:2,controlProjectionDigest:control.projectionDigest,outputRequirementDigest:manifest.members[0].outputRequirementDigest}]});try{return run({databasePath,unitOfWork,libraRunId,admitted,basisSnapshot,headSnapshot});}finally{kernel.close();fs.rmSync(dir,{recursive:true,force:true});}}
+  const kernel=openSqliteKernel({Database,databasePath,schemaDdl,schemaManifest,now:()=>now++}),unitOfWork=createSqliteUnitOfWork({kernel}),libraRunId=canonicalDigest({schema:'libra.run-id@1',subjectId:'subject-1',admissionRevision:1}),member={materialKey,role:'primary_payload',physicalIdentity:identity,sizeBytes:100,location:{locationKind:'domain_binding',endpointId:'endpoint-1',location:'/library/input.mkv'},bindingKind:'libra_material_binding',bindingRevision:1,bindingEvidenceDigest:D('binding'),originCandidateDeliveryRef:{intakeDecisionId:'intake-1',offerId:'offer-1',candidatePackageId:'candidate-1',packageRevision:1,packageDigest:D('package'),candidateDeliverySnapshotDigest:D('delivery'),relatedReferenceSetDigest:D('related')},admittedControlRevision:2,admittedControlProjectionDigest:control.projectionDigest,episodeClaims:[]},manifest=buildProductionMaterialManifest({manifestRole:'run_input',manifestRevision:1,libraRunId,scopeKind:'single',members:[member]},spec),headSnapshot={...headBase,headState:'present',headDigest};headSnapshot.snapshotDigest=canonicalDigest({schema:'libra.subject-decision-head-snapshot@1',...headSnapshot});const basis=buildRunExecutionBasis({subjectSnapshot:{subjectId:'subject-1',intakeRevision:1,structureKind:'single',contentProfile,continuitySetDigest:D('continuity'),episodeScopeDigest:D('episodes')},decisionHeadSnapshot:headSnapshot,acceptanceSpec:spec,shelfProjection:{routingProjectionRevision:1,projectionDigest:D('projection'),standardRevision:1,standardDigest:D('standard')},productionMaterialManifest:manifest,relatedDispositionScope:EMPTY_RELATED_SCOPE}),admissionDecision=buildRunAdmissionDecision({admissionKind:'initial',subjectId:'subject-1',expectedRunAdmissionHead:{headState:'absent',headRevision:0,activeScopeSetDigest:activeRunScopeSetDigest('subject-1',[])},runExecutionBasis:basis,initialPriority:{priorityClass:'normal',priorityIntentDigest:canonicalDigest({schema:'libra.priority-intent-empty@1'})}}),admitted=createRunAdmissionStore({schemaManifest,unitOfWork}).admit({decision:admissionDecision,commitMarker:'admit-marker',resultId:'admit-result'}).result;
+  const basisSnapshot=comparable({subjectId:'subject-1',structureKind:'single',contentProfile,acceptanceSpecRef:{acceptanceSpecId:'spec-1',specRevision:1,specDigest:spec.specDigest,recordDigest:spec.recordDigest},productScopeDigest,members:[{materialKey,role:'primary_payload',physicalIdentity:identity,sizeBytes:100,bindingRevision:1,bindingEvidenceDigest:D('binding'),episodeClaimSetDigest:manifest.members[0].episodeClaimSetDigest,controlRevision:2,controlProjectionDigest:control.projectionDigest,outputRequirementDigest:manifest.members[0].outputRequirementDigest}]});try{return run({databasePath,unitOfWork,libraRunId,admitted,basisSnapshot,headSnapshot,identity,materialKey});}finally{kernel.close();fs.rmSync(dir,{recursive:true,force:true});}}
 function policy(){const value={policyRef:'libra.run-recovery.beta@1',policyRevision:1,assessmentOffsetsMs:[60000,300000,900000,1800000,3600000],maxRecoveryAssessments:5,heavyPermitAllowed:false,frozenAutoResumeAllowed:false};value.policyDigest=canonicalDigest(value);return value;}
 function freshness(input,readiness='ready'){const value={libraRunId:input.libraRunId,expectedState:{state:'active',stateRevision:input.admitted.stateRevision,stateDigest:input.admitted.stateDigest},assessmentKind:'active_checkpoint',recoveryPolicy:policy(),recoveryEpisode:{attemptOrdinal:0},assessedAtMs:2000,currentDecisionHead:input.headSnapshot,originalBasis:input.basisSnapshot,readiness,unresolvedReasonCodes:readiness==='ready'?[]:['decision_basis_unresolved'],dimensionResults:['acceptance_spec','product_scope','material_binding','material_control','output_requirement'].map((dimension)=>({dimension,result:readiness==='ready'?'same':'unresolved',evidenceDigest:D(dimension)})),comparison:readiness==='ready'?'same':'unresolved'};if(readiness==='ready')value.currentBasis=input.basisSnapshot;value.assessmentId=canonicalDigest({schema:'libra.run-freshness-assessment-id@1',libraRunId:input.libraRunId,expectedStateRevision:input.admitted.stateRevision,assessmentKind:'active_checkpoint',attemptOrdinal:0,currentDecisionHeadDigest:input.headSnapshot.snapshotDigest});value.assessmentDigest=canonicalDigest(value);return value;}
 function lifecycleDecision(input,evidence,transitionKind){return buildRunLifecycleDecision({libraRunId:input.libraRunId,expectedStateRevision:input.admitted.stateRevision,expectedStateDigest:input.admitted.stateDigest,transitionKind,transitionEvidence:evidence,expectedAdmissionHeadRevision:input.admitted.committedAdmissionHeadRevision,expectedActiveScopeSetDigest:input.admitted.activeScopeSetDigest});}
-function sizeCapTerminal(input,reasonCodes){
+function sizeCapTerminal(input,reasonCodes,verification=null){
   const capabilityRef='libra.product_media.verify@1',workId='size-cap-work',planId='size-cap-plan',eventId='size-cap-event',
-    workBasisDigest=D('size-cap-basis'),retryPolicyDigest=D('size-cap-retry'),payload={result:'failed',reasonCodes},
+    workBasisDigest=D('size-cap-basis'),retryPolicyDigest=D('size-cap-retry'),payload=verification||{result:'failed',reasonCodes},
     resultDigest=canonicalDigest(payload),db=new Database(input.databasePath);
   db.prepare('INSERT INTO fx_supporting_works (work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?)')
     .run(workId,'libra','libra_run',input.libraRunId,'workspace_media_production',workBasisDigest,'normal','succeeded','size-cap-key',1,2);
@@ -44,7 +44,7 @@ function sizeCapTerminal(input,reasonCodes){
   return {store,built};
 }
 
-test('UAT-251 unavailable integration waits through five durable checks before responsibility closure',()=>fixture(input=>{
+test('unavailable integration exhausts bounded checks into attention without ending business responsibility',()=>fixture(input=>{
   let at=10000;
   const make=()=>require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService({
     schemaManifest,unitOfWork:input.unitOfWork,now:()=>at,libraRunExecutionProjection:{invalidate(){}},
@@ -60,11 +60,13 @@ test('UAT-251 unavailable integration waits through five durable checks before r
     assert.equal(service.waitUnavailableStrategy(input.libraRunId,'tmdb','product_metadata_integration_unavailable').kind,'waiting_external_integration');}
   assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'active');
   at=3610000;assert.equal(service.waitUnavailableStrategy(input.libraRunId,'tmdb','product_metadata_integration_unavailable').kind,'frozen');
-  assert.equal(service.reconcileFrozen(input.libraRunId).kind,'unable_to_on_deck');
-  assert.equal(service.readOutcome(input.libraRunId).terminalReasons[0].failureClass,'strategy_unavailable');
+  assert.equal(service.reconcileFrozen(input.libraRunId).kind,'attention_required');
+  assert.equal(service.readOutcome(input.libraRunId),null);
   assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works').get().n,0);
-  assert.equal(db.prepare('SELECT count(*) n FROM libra_run_outcomes').get().n,1);
-  assert.ok(db.prepare('SELECT state FROM fx_material_controls').all().every(row=>row.state==='released'));db.close();
+  assert.equal(db.prepare('SELECT count(*) n FROM libra_run_outcomes').get().n,0);
+  assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'frozen');
+  assert.equal(db.prepare('SELECT status FROM libra_subjects').get().status,'active');
+  assert.ok(db.prepare('SELECT state FROM fx_material_controls').all().every(row=>row.state==='controlled'));db.close();
 }));
 
 test('UAT-251 exhausted Freshness recovery closes from its actual Assessment without a failed Work',()=>fixture(input=>{
@@ -78,9 +80,20 @@ test('UAT-251 exhausted Freshness recovery closes from its actual Assessment wit
   assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'frozen');
   const admin=require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService(options);
   assert.equal(admin.previewDefects(input.libraRunId).eligibility,'ineligible');
+  const extraIdentity={...input.identity,inode:'999'},extraKey=canonicalDigest({schema:'physical-material-identity@2',...extraIdentity});
+  db.prepare('INSERT INTO fx_material_controls(material_key,mount_scope_id,inode,size_bytes,fingerprint_algorithm,fingerprint_version,content_fingerprint,owner_domain,owner_scope_type,owner_scope_id,control_revision,state,updated_at_ms) VALUES (?,?,?,?,?,?,?,\'libra\',\'subject\',\'subject-1\',1,\'controlled\',1)')
+    .run(extraKey,extraIdentity.mountScopeId,extraIdentity.inode,extraIdentity.sizeBytes,extraIdentity.fingerprintAlgorithm,String(extraIdentity.fingerprintVersion),extraIdentity.contentFingerprint);
+  assert.throws(()=>admin.reconcileFrozen(input.libraRunId),{code:'P9_DISCARD_SUBJECT_RESPONSIBILITY_PENDING'});
+  assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'frozen');
+  assert.equal(db.prepare('SELECT status FROM libra_subjects').get().status,'active');
+  assert.equal(db.prepare('SELECT count(*) n FROM libra_run_discard_receipts').get().n,0);
+  assert.equal(db.prepare('SELECT state FROM fx_material_controls WHERE material_key=?').get(input.materialKey).state,'controlled');
+  db.prepare('DELETE FROM fx_material_controls WHERE material_key=?').run(extraKey);
   assert.equal(admin.reconcileFrozen(input.libraRunId).kind,'unable_to_on_deck');
   assert.equal(admin.readOutcome(input.libraRunId).reasonCode,'processing_failed');
   assert.deepEqual(admin.readOutcome(input.libraRunId).terminalReasons,[]);
+  assert.equal(db.prepare('SELECT status FROM libra_subjects').get().status,'ended');
+  assert.equal(db.prepare('SELECT count(*) n FROM libra_task_cancellations').get().n,0);
   assert.equal(db.prepare('SELECT count(*) n FROM fx_supporting_works').get().n,0);
   }finally{db.close();}
 }));
@@ -452,3 +465,232 @@ test('terminal Result evidence reads only its exact Work events and referenced P
   const {built}=sizeCapTerminal(input,['size_cap_exceeded']);
   assert.equal(built.evidence.blockedWorks.length,1);assert.ok(reads.includes('find_plan'));assert.ok(reads.includes('find_event'));
 }));
+
+function defectRequirements(profile){
+  const rules=require('../../src/helix/domains/arca/model/rule-template-contracts').BETA_RECOMMENDED_RULES;
+  const requirements=JSON.parse(JSON.stringify(rules.profileRuleSets.find(item=>item.contentProfile===profile).baseRequirements));
+  if(profile==='movie'){
+    requirements.metadata.requiredFieldCodes=['title','tmdb_movie_id'];
+    requirements.space={unit:'product',maxSizeGiB:1,maxSizeBytes:1073741824};
+  }
+  return requirements;
+}
+function seedSucceededWork(db,libraRunId,workId,workKind,capabilityRef,result){
+  const planId=workId+'-plan',eventId=workId+'-event',resultId=workId+'-result';
+  db.prepare('INSERT INTO fx_supporting_works(work_id,owner_domain,process_type,process_id,work_kind,basis_digest,priority_class,state,idempotency_key,created_at_ms,updated_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+    .run(workId,'libra','libra_run',libraRunId,workKind,D(workId+'-basis'),'normal','succeeded',workId+'-key',1,2);
+  db.prepare('INSERT INTO fx_workflow_plans(plan_id,planner_ref,planner_version,catalog_digest,basis_digest,graph_digest,state,created_at_ms) VALUES(?,?,?,?,?,?,?,?)')
+    .run(planId,'planner',1,D('catalog'),D(workId+'-basis'),D('graph'),'planned',1);
+  db.prepare('INSERT INTO fx_plan_nodes(plan_id,node_id,capability_ref,input_bindings_json) VALUES(?,?,?,?)')
+    .run(planId,'node-1',capabilityRef,canonicalJson({bindings:[]}));
+  db.prepare('INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,owner_domain,capability_ref,contract_version,state,priority_class,result_id) VALUES(?,?,?,?,?,?,?,?,?,?)')
+    .run(eventId,planId,'node-1',workId,'libra',capabilityRef,1,'succeeded','normal',resultId);
+  db.prepare('INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state,outcome_kind,started_at_ms,finished_at_ms) VALUES(?,?,?,?,?,?,?)')
+    .run(workId+'-attempt',eventId,1,'completed','succeeded',1,2);
+  db.prepare('INSERT INTO fx_event_result_bindings(result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,committed_at_ms) VALUES(?,?,?,?,?,?,?)')
+    .run(resultId,eventId,'succeeded','fixture.result@1',canonicalJson(result),canonicalDigest(result),2);
+}
+function seedProductFacts(db,libraRunId,{profile='western_adult',title='Sample',identitySubject='subject-1',omitIdentity=false,omitMetadata=false,
+  actor=true,mismatchedIdentity=false,mismatchedCast=false}={}){
+  const identity=require('../../src/helix/domains/libra/model/product-fact-contracts').buildResolvedProductIdentity({
+    subjectId:identitySubject,contentProfile:profile,structureKind:'single',identityKind:profile==='western_adult'?'internal_identity':'tmdb_movie',
+    producerRef:'libra.product_identity.resolve@1',basisDigest:D('identity-basis'),observedAtMs:1,
+    providerIdentities:[profile==='western_adult'?{provider:'internal',namespace:'internal_identity',providerKey:'us-adult:fixture'}:
+      {provider:'tmdb',namespace:'tmdb_movie',providerKey:'123'}],displayEntries:[{key:'title',value:'Sample'}]});
+  const actorRelation={relationId:D('relation'),personId:'person-1',displayName:'Actor',displayNameNormalized:'actor',role:'actor',
+    source:profile==='western_adult'?'user_actor_choice':'provider',providerIdentities:[],originEvidenceDigest:D('actor'),confidenceClass:'user_confirmed'},
+    relations=actor?[{...actorRelation,relationDigest:canonicalDigest(actorRelation)}]:[],
+    relationsDigest=canonicalDigest({schema:'libra.media-cast-relations@1',relations}),castBody={subjectId:'subject-1',
+      sourceBasisKind:profile==='western_adult'?'us_adult_actor':'metadata_observation',sourceBasisDigest:D('cast-basis'),relations,relationsDigest,relationCount:relations.length},
+    castDigest=canonicalDigest({schema:'libra.media-cast-fact@1',...castBody}),
+    cast={schemaRef:'helix://contracts/types/MediaCastFact/v1',schemaVersion:1,
+      factId:canonicalDigest({schema:'libra.product-fact-id@1',libraRunId,factKind:'media_cast',factRevision:1}),ownerDomain:'libra',
+      aggregateType:'libra_product_fact',aggregateId:canonicalDigest({schema:'libra.product-fact-aggregate-id@1',libraRunId,factKind:'media_cast'}),
+      revision:1,factSchemaRef:'helix://contracts/types/MediaCastFact/v1',factDigest:castDigest,commitMarker:'fixture-cast-marker',committedAtMs:1,...castBody};
+  const descriptiveBody={schemaRef:'helix://contracts/records/descriptive-facts/v1',schemaVersion:1,recordKind:'descriptive-facts',
+    entries:[{key:'title',value:title}]},descriptiveFacts={...descriptiveBody,recordDigest:canonicalDigest(descriptiveBody)};
+  const metadataBody={subjectId:'subject-1',resolvedIdentityDigest:mismatchedIdentity?D('foreign-identity'):identity.identityDigest,sourceBasisKind:profile==='western_adult'?'western_analysis':'metadata_observation',
+    sourceBasisDigest:D('metadata-basis'),metadataObservationSetDigest:profile==='western_adult'?null:D('observations'),
+    westernAnalysisVariantDigest:profile==='western_adult'?D('analysis'):null,fieldProvenance:[],descriptiveFacts,providerIdentities:[],
+    mediaCastFactRef:{productFactId:cast.factId,factRevision:1,factDigest:mismatchedCast?D('foreign-cast'):cast.factDigest},verifiedArtifactManifestDigest:D('artifacts')},
+    metadataDigest=canonicalDigest({schema:'libra.product-metadata@1',...metadataBody}),
+    metadata={schemaRef:'helix://contracts/types/ProductMetadataFact/v1',schemaVersion:1,
+      factId:canonicalDigest({schema:'libra.product-fact-id@1',libraRunId,factKind:'product_metadata',factRevision:1}),ownerDomain:'libra',
+      aggregateType:'libra_product_fact',aggregateId:canonicalDigest({schema:'libra.product-fact-aggregate-id@1',libraRunId,factKind:'product_metadata'}),
+      revision:1,factSchemaRef:'helix://contracts/types/ProductMetadataFact/v1',factDigest:metadataDigest,commitMarker:'fixture-metadata-marker',
+      committedAtMs:1,productMetadataDigest:metadataDigest,...metadataBody};
+  const validator=require('../../src/helix/foundation/capability/contract-validator').createCapabilityContractValidator({schemas:[
+    require('../../src/helix/contracts/types/ProductMetadataFact/v1/schema.json'),require('../../src/helix/contracts/types/MediaCastFact/v1/schema.json'),
+    require('../../src/helix/contracts/domain-types/ResolvedProviderIdentity/v1/schema.json'),require('../../src/helix/contracts/types/PhysicalMaterialIdentity/v2/schema.json')]});
+  validator.validate(metadata.schemaRef,metadata);validator.validate(cast.schemaRef,cast);
+  const insert=db.prepare('INSERT INTO libra_product_fact_revisions(product_fact_id,libra_run_id,fact_kind,fact_revision,schema_ref,fact_json,fact_digest,evidence_digest,result_digest) VALUES(?,?,?,?,?,?,?,?,?)');
+  if(!omitIdentity)insert.run('fixture-identity',libraRunId,'resolved_identity',1,identity.schemaRef,canonicalJson(identity),identity.identityDigest,D('identity-evidence'),canonicalDigest(identity));
+  insert.run(cast.factId,libraRunId,'media_cast',1,cast.schemaRef,canonicalJson(cast),cast.factDigest,D('cast-evidence'),canonicalDigest(cast));
+  if(!omitMetadata)insert.run(metadata.factId,libraRunId,'product_metadata',1,metadata.schemaRef,canonicalJson(metadata),metadata.factDigest,D('metadata-evidence'),canonicalDigest(metadata));
+}
+function frozenSizePreview(input,{profile='western_adult',title='Sample',identitySubject='subject-1',omitIdentity=false,omitMetadata=false,
+  actor=true,missingArtifact=null,mismatchedIdentity=false,mismatchedCast=false,verificationChange={}}={}){
+  const db=new Database(input.databasePath),verification={libraRunId:input.libraRunId,candidateKind:'workspace_output',result:'failed',reasonCodes:['max_size_exceeded'],
+    verificationId:D('size-verification'),candidateBasisDigest:D('size-candidate'),productMaterialHandleId:'workspace-product-1',
+    productMaterialHandleDigest:D('workspace-product'),productMaterialFenceDigest:D('workspace-fence'),workspaceMediaHandleId:'workspace-media-1',
+    spaceSummary:{unit:'product',actualSizeBytes:1610612736,maxSizeBytes:1073741824,withinLimit:false},
+    decodeSummary:{samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('playback')},...verificationChange};
+  try{
+    seedProductFacts(db,input.libraRunId,{profile,title,identitySubject,omitIdentity,omitMetadata,actor,mismatchedIdentity,mismatchedCast});
+    for(const kind of ['nfo','poster'].filter(item=>item!==missingArtifact))
+      seedSucceededWork(db,input.libraRunId,'artifact-'+kind,'artifact_production','shared.artifact.manifest.verify@1',{result:'passed',requirement:{artifactKind:kind}});
+    if(profile==='movie')seedSucceededWork(db,input.libraRunId,'metadata-observation','product_metadata_observation','libra.product_metadata.fetch@1',
+      {sourcePriority:0,evidenceId:'metadata-evidence',descriptiveFacts:{entries:[{key:'title',value:'Sample'},{key:'tmdb_movie_id',value:'123'}]},peopleHints:[]});
+    const {store,built}=sizeCapTerminal(input,['max_size_exceeded'],verification);
+    db.prepare('INSERT INTO fx_plan_nodes(plan_id,node_id,capability_ref,input_bindings_json) VALUES(?,?,?,?)')
+      .run('size-cap-plan','node-1','libra.product_media.verify@1',canonicalJson({bindings:[]}));
+    store.transition({decision:lifecycleDecision(input,built.evidence,'freeze'),commitMarker:'size-preview-freeze',resultId:'size-preview-frozen'});
+    return {verification};
+  }finally{db.close();}
+}
+function defectAdmin(input){return require('../../src/helix/domains/libra/application/libra-run-admin-service').createLibraRunAdminService({
+  schemaManifest,unitOfWork:input.unitOfWork,now:()=>3000,libraRunExecutionProjection:{invalidate(){}}});}
+function manualDefectCommand(preview){return {expectedRunStateRevision:preview.frozenRunStateRevision,expectedRunStateDigest:preview.frozenRunStateDigest,
+  expectedDefectCandidateDigest:preview.candidateDigest,idempotencyKey:'manual-defect',acknowledged:true};}
+
+test('US size-only preview reads committed same-Run facts and supports explicit manual confirmation',()=>fixture(input=>{
+  frozenSizePreview(input);const admin=defectAdmin(input),preview=admin.previewDefects(input.libraRunId);
+  assert.equal(preview.eligibility,'eligible');assert.deepEqual(preview.defects.map(item=>item.defectCode),['size_cap_exceeded']);
+  assert.deepEqual(preview.waivedRequirementCodes,['max_size_exceeded']);assert.equal(preview.sizeForecast.measured,true);
+  const command=manualDefectCommand(preview);
+  assert.throws(()=>admin.admitWithDefects(input.libraRunId,{...command,acknowledged:false}),{code:'LIBRA_DEFECT_ADMISSION_INPUT'});
+  const accepted=admin.admitWithDefects(input.libraRunId,command);
+  assert.equal(accepted.resultKind,'defect_admitted');assert.equal(accepted.authorizedDefectManifest.authorizationSource,'manual');
+  assert.equal(admin.admitWithDefects(input.libraRunId,command).replayed,true);
+},{contentProfile:'western_adult',requirements:defectRequirements('western_adult')}));
+
+test('US manual confirmation rechecks the exact Product Facts shown by the preview',()=>fixture(input=>{
+  frozenSizePreview(input);const admin=defectAdmin(input),preview=admin.previewDefects(input.libraRunId),db=new Database(input.databasePath);
+  try{
+    assert.equal(preview.eligibility,'eligible');
+    db.prepare('DELETE FROM libra_product_fact_revisions WHERE libra_run_id=? AND fact_kind=?').run(input.libraRunId,'product_metadata');
+    const before=db.prepare('SELECT count(*) n FROM libra_run_revisions').get().n;
+    assert.throws(()=>admin.admitWithDefects(input.libraRunId,manualDefectCommand(preview)),{code:'P9_DEFECT_ADMISSION_EVIDENCE_PENDING'});
+    assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'frozen');
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_run_revisions').get().n,before);
+  }finally{db.close();}
+},{contentProfile:'western_adult',requirements:defectRequirements('western_adult')}));
+
+test('US size preview rejects corrupt persisted Product Metadata instead of treating it as a missing observation',()=>fixture(input=>{
+  frozenSizePreview(input);const db=new Database(input.databasePath);
+  try{
+    const row=db.prepare("SELECT fact_json FROM libra_product_fact_revisions WHERE fact_kind='product_metadata'").get(),value=JSON.parse(row.fact_json);
+    value.descriptiveFacts.entries[0].value='changed';
+    db.prepare("UPDATE libra_product_fact_revisions SET fact_json=? WHERE fact_kind='product_metadata'").run(canonicalJson(value));
+    assert.throws(()=>defectAdmin(input).previewDefects(input.libraRunId),{code:'P14_MOVIE_PRODUCTION_FACT_DRIFT'});
+    assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'frozen');
+  }finally{db.close();}
+},{contentProfile:'western_adult',requirements:defectRequirements('western_adult')}));
+
+test('US size preview cannot use a Spec belonging to another Subject',()=>fixture(input=>{
+  frozenSizePreview(input);const db=new Database(input.databasePath);
+  try{
+    const row=db.prepare('SELECT spec_json FROM libra_acceptance_specs').get(),spec=JSON.parse(row.spec_json);spec.subjectId='foreign-subject';
+    db.prepare('UPDATE libra_acceptance_specs SET spec_json=?').run(canonicalJson(spec));
+    assert.equal(defectAdmin(input).previewDefects(input.libraRunId).eligibility,'ineligible');
+    assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'frozen');
+  }finally{db.close();}
+},{contentProfile:'western_adult',requirements:defectRequirements('western_adult')}));
+
+test('Movie standing authorization never automatically admits a US size defect',()=>fixture(input=>{
+  frozenSizePreview(input);const admin=defectAdmin(input);
+  admin.setAutomaticAuthorization({enabled:true,expectedRevision:0,idempotencyKey:'enable-movie',acknowledged:true});
+  const before=new Database(input.databasePath,{readonly:true});
+  try{
+    const revisions=before.prepare('SELECT count(*) n FROM libra_run_revisions').get().n;
+    assert.equal(admin.reconcileFrozen(input.libraRunId).kind,'awaiting_defect_decision');
+    assert.equal(before.prepare('SELECT state FROM libra_runs').get().state,'frozen');
+    assert.equal(before.prepare('SELECT count(*) n FROM libra_run_revisions').get().n,revisions);
+  }finally{before.close();}
+},{contentProfile:'western_adult',requirements:defectRequirements('western_adult')}));
+
+test('an existing Movie standing authorization still admits its exact eligible size defect',()=>fixture(input=>{
+  frozenSizePreview(input,{profile:'movie'});const admin=defectAdmin(input);
+  admin.setAutomaticAuthorization({enabled:true,expectedRevision:0,idempotencyKey:'enable-movie',acknowledged:true});
+  const db=new Database(input.databasePath,{readonly:true}),head=db.prepare('SELECT * FROM libra_run_admission_heads').get();db.close();
+  const result=admin.reconcileFrozen(input.libraRunId);
+  assert.equal(result.kind,'defect_admitted');assert.equal(result.authorizedDefectManifest.authorizationSource,'standing');
+  assert.deepEqual(result.authorizedDefectManifest.waivedRequirementCodes,['max_size_exceeded']);
+  const manifest=result.authorizedDefectManifest,decision=buildRunLifecycleDecision({libraRunId:input.libraRunId,
+    expectedStateRevision:manifest.frozenRunRef.stateRevision,expectedStateDigest:manifest.frozenRunRef.stateDigest,
+    transitionKind:'defect_admit',transitionEvidence:manifest,expectedAdmissionHeadRevision:head.head_revision,
+    expectedActiveScopeSetDigest:head.active_scope_set_digest});
+  admin.setAutomaticAuthorization({enabled:false,expectedRevision:1,idempotencyKey:'revoke-movie'});
+  const replay=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}).transition({decision,
+    commitMarker:canonicalDigest({schema:'libra.defect-admission-marker@1',defectDecisionId:manifest.defectDecisionId,decisionDigest:decision.decisionDigest}),
+    resultId:canonicalDigest({schema:'libra.defect-admission-result-id@1',defectDecisionId:manifest.defectDecisionId})});
+  assert.equal(replay.replayed,true);assert.equal(replay.result.committedState,'active');
+},{contentProfile:'movie',requirements:defectRequirements('movie')}));
+
+test('the lifecycle transaction rejects standing authorization for US even if the coordinator is bypassed',()=>fixture(input=>{
+  frozenSizePreview(input);const admin=defectAdmin(input);
+  admin.setAutomaticAuthorization({enabled:true,expectedRevision:0,idempotencyKey:'enable-movie',acknowledged:true});
+  const preview=admin.previewDefects(input.libraRunId),standing=admin.readAutomaticAuthorization(),
+    {eligibility,missingEvidence,ineligibleReasons,pathResults,sizeForecast,...candidate}=preview;
+  assert.throws(()=>admin.admitWithDefects(input.libraRunId,manualDefectCommand(preview),standing),{code:'LIBRA_DEFECT_AUTHORIZATION_SCOPE'});
+  const manifest=require('../../src/helix/domains/libra/model/defect-admission-contracts').buildAuthorizedDefectManifest({
+    candidate,actorId:'admin',idempotencyKey:'bypass',acknowledged:true,decidedAtMs:3000,standingAuthorization:standing}),
+    db=new Database(input.databasePath,{readonly:true});
+  try{
+    const run=db.prepare('SELECT * FROM libra_runs').get(),head=db.prepare('SELECT * FROM libra_run_admission_heads').get(),
+      before=db.prepare('SELECT count(*) n FROM libra_run_revisions').get().n,
+      decision=buildRunLifecycleDecision({libraRunId:input.libraRunId,expectedStateRevision:run.state_revision,expectedStateDigest:run.state_digest,
+        transitionKind:'defect_admit',transitionEvidence:manifest,expectedAdmissionHeadRevision:head.head_revision,
+        expectedActiveScopeSetDigest:head.active_scope_set_digest});
+    assert.throws(()=>createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork}).transition({decision,
+      commitMarker:'forged-standing-marker',resultId:'forged-standing-result'}),{code:'LIBRA_DEFECT_AUTHORIZATION_SCOPE'});
+    assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'frozen');
+    assert.equal(db.prepare('SELECT count(*) n FROM libra_run_revisions').get().n,before);
+  }finally{db.close();}
+},{contentProfile:'western_adult',requirements:defectRequirements('western_adult')}));
+
+test('Movie actor-only defect keeps its existing provider evidence and requires manual confirmation',()=>{
+  const requirements=defectRequirements('movie');requirements.metadata.requiredFieldCodes=['actor','title','tmdb_movie_id'];
+  return fixture(input=>{
+    const db=new Database(input.databasePath),observation={sourceKind:'provider',sourcePriority:0,evidenceId:'actor-observation',peopleHints:[],
+      descriptiveFacts:{entries:[{key:'title',value:'Sample'},{key:'tmdb_movie_id',value:'123'}]}};
+    try{
+      seedSucceededWork(db,input.libraRunId,'metadata-observation','product_metadata_observation','libra.product_metadata.fetch@1',observation);
+      for(const kind of ['nfo','poster'])seedSucceededWork(db,input.libraRunId,'artifact-'+kind,'artifact_production',
+        'shared.artifact.manifest.verify@1',{result:'passed',requirement:{artifactKind:kind}});
+      seedSucceededWork(db,input.libraRunId,'media-proof','workspace_media_production','libra.product_media.verify@1',
+        {libraRunId:input.libraRunId,candidateKind:'direct_input',result:'passed',reasonCodes:[],verificationId:D('actor-media-proof'),
+          productMaterialHandleId:'original',decodeSummary:{samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50,95],decodeDigest:D('actor-playback')}});
+      const store=createRunLifecycleStore({schemaManifest,unitOfWork:input.unitOfWork,resolveRetryPolicyDigest:()=>D('actor-policy')}),
+        built=store.buildTerminalEvidence({libraRunId:input.libraRunId,workId:'metadata-observation',blockerKind:'product_unachievable',assessedAtMs:2000,
+          terminalResult:{eventId:'metadata-observation-event',failureClass:'business_unachievable',failureCode:'product_metadata_required_cast_missing',
+            resultDigest:canonicalDigest(observation)}});
+      store.transition({decision:lifecycleDecision(input,built.evidence,'freeze'),commitMarker:'actor-freeze',resultId:'actor-frozen'});
+      const admin=defectAdmin(input),preview=admin.previewDefects(input.libraRunId);
+      assert.equal(preview.eligibility,'eligible');assert.deepEqual(preview.defects.map(item=>item.defectCode),['actor_unavailable']);
+      assert.deepEqual(preview.defects[0].metadataFieldCodes,['actor']);
+      assert.equal(admin.reconcileFrozen(input.libraRunId).kind,'awaiting_defect_decision');
+      assert.equal(admin.admitWithDefects(input.libraRunId,manualDefectCommand(preview)).authorizedDefectManifest.authorizationSource,'manual');
+    }finally{db.close();}
+  },{contentProfile:'movie',requirements});
+});
+
+for(const [name,change,expected]of [
+  ['missing identity',{omitIdentity:true},'evidence_pending'],['missing product metadata',{omitMetadata:true},'evidence_pending'],
+  ['foreign identity',{identitySubject:'foreign-subject'},'ineligible'],['missing title',{title:''},'ineligible'],
+  ['different identity binding',{mismatchedIdentity:true},'ineligible'],['different cast binding',{mismatchedCast:true},'ineligible'],
+  ['missing actor',{actor:false},'ineligible'],['missing poster',{missingArtifact:'poster'},'ineligible'],
+  ['missing playback evidence',{verificationChange:{decodeSummary:null}},'evidence_pending'],
+  ['failed playback sample',{verificationChange:{decodeSummary:{samplePointsPercent:[5,50,95],passedSamplePointsPercent:[5,50],decodeDigest:D('failed-playback')}}},'ineligible'],
+  ['contradictory measured size',{verificationChange:{spaceSummary:{unit:'product',actualSizeBytes:512,maxSizeBytes:1073741824,withinLimit:true}}},'ineligible'],
+])test('US size preview rejects '+name,()=>fixture(input=>{
+  frozenSizePreview(input,change);const admin=defectAdmin(input),preview=admin.previewDefects(input.libraRunId);
+  assert.equal(preview.eligibility,expected);
+  const db=new Database(input.databasePath,{readonly:true});try{assert.equal(db.prepare('SELECT state FROM libra_runs').get().state,'frozen');}finally{db.close();}
+},{contentProfile:'western_adult',requirements:defectRequirements('western_adult')}));
+
+for(const reason of ['playback_decode_failed','output_handle_mismatch'])test('size-only freeze rejects file safety failure '+reason,()=>fixture(input=>{
+  const {store,built}=sizeCapTerminal(input,['max_size_exceeded',reason]);
+  assert.throws(()=>store.transition({decision:lifecycleDecision(input,built.evidence,'freeze'),commitMarker:'unsafe-'+reason,resultId:'unsafe-result-'+reason}),
+    {code:'P9_RUN_LIFECYCLE_TERMINAL'});
+},{contentProfile:'western_adult',requirements:defectRequirements('western_adult')}));

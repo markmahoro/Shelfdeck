@@ -145,7 +145,11 @@ test('duplicate delivery and consume-before-ack recover forward without duplicat
         }
       }
     };
+    assert.equal(inbox.readConsumption(consumeRequest.message),null);
     assert.equal(inbox.consume(consumeRequest).replayed, false);
+    assert.equal(inbox.readConsumption(consumeRequest.message).result_digest,consumeRequest.resultDigest);
+    assert.equal(inbox.readConsumption({...consumeRequest.message,consumerDomain:'perception'}),null);
+    assert.throws(()=>inbox.readConsumption({...consumeRequest.message,dedupKey:'other'}),{code:'P3_INBOX_DEDUP_CONFLICT'});
     assert.equal(inbox.consume({
       ...consumeRequest,
       domainParticipant: { ...consumeRequest.domainParticipant, execute() { throw new Error('must not repeat'); } }
@@ -169,6 +173,19 @@ test('duplicate delivery and consume-before-ack recover forward without duplicat
     state.database.close();
   });
 });
+
+test('delivered redelivery honors a future retry budget without changing first consumption',()=>fixture(({databasePath,inbox,unitOfWork})=>{
+  publish(unitOfWork);
+  const nextAttemptAtMs=1700000010000;
+  inbox.recordDeliveryAttempt({messageId:'message-1',consumerDomain:'arca',delivered:true,nextAttemptAtMs});
+  assert.throws(()=>inbox.recordDeliveryAttempt({messageId:'message-1',consumerDomain:'arca',delivered:true,nextAttemptAtMs:0}),
+    {code:'P3_DELIVERY_INVALID_RETRY_TIME'});
+  const db=new Database(databasePath);
+  try{const row=db.prepare("SELECT * FROM fx_outbox_deliveries WHERE consumer_domain='arca'").get();
+    assert.equal(row.state,'delivered');assert.equal(row.next_attempt_at_ms,nextAttemptAtMs);assert.equal(row.attempt_count,1);
+    assert.equal(db.prepare('SELECT count(*) n FROM fx_inbox').get().n,0);
+  }finally{db.close();}
+}));
 
 test('last durable Inbox ack closes only technical delivery state and duplicate ack is stable', () => {
   fixture(({ databasePath, inbox, kernel, unitOfWork }) => {

@@ -10,7 +10,7 @@ CREATE TABLE "arca_acceptance_attempts" (
   "shelf_id" TEXT,
   "standard_revision" INTEGER CHECK ("standard_revision" >= 1),
   "placement_revision" INTEGER CHECK ("placement_revision" >= 1),
-  "state" TEXT CHECK ("state" IN ('active', 'accepted', 'rejected')),
+  "state" TEXT CHECK ("state" IN ('active', 'accepted', 'rejected', 'administratively_retired')),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "finished_at_ms" INTEGER CHECK ("finished_at_ms" >= 0),
   FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
@@ -88,7 +88,7 @@ CREATE TABLE "arca_acceptance_recovery_cases" (
   "error_code" TEXT,
   "terminal_attempt_count" INTEGER CHECK ("terminal_attempt_count" >= 0),
   "owner_domain" TEXT,
-  "recovery_state" TEXT CHECK ("recovery_state" IN ('active', 'attention_required', 'automatic_recovering', 'user_retrying', 'resolved')),
+  "recovery_state" TEXT CHECK ("recovery_state" IN ('active', 'attention_required', 'automatic_recovering', 'user_retrying', 'resolved', 'administratively_retired')),
   "recovery_generation" TEXT,
   "automatic_recovery_used" TEXT,
   "recovery_trigger_digest" TEXT CHECK (length("recovery_trigger_digest") = 64 AND "recovery_trigger_digest" NOT GLOB '*[^0-9a-f]*'),
@@ -110,6 +110,7 @@ CREATE TABLE "arca_aftercare_assessments" (
   "assessment_kind" TEXT,
   "result" TEXT,
   "incident_key" TEXT,
+  "series_presentation_head_digest" TEXT CHECK (length("series_presentation_head_digest") = 64 AND "series_presentation_head_digest" NOT GLOB '*[^0-9a-f]*'),
   "evidence_digest" TEXT CHECK (length("evidence_digest") = 64 AND "evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "assessed_at_ms" INTEGER CHECK ("assessed_at_ms" >= 0),
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
@@ -805,6 +806,8 @@ CREATE TABLE "arca_offdeck_scope_materials" (
   "ordinal" INTEGER CHECK ("ordinal" >= 0),
   "material_key" TEXT,
   "material_role" TEXT,
+  "shared_scope_id" TEXT,
+  "shared_version" INTEGER,
   "physical_identity_schema_ref" TEXT,
   "physical_identity_json" TEXT,
   "physical_identity_digest" TEXT CHECK (length("physical_identity_digest") = 64 AND "physical_identity_digest" NOT GLOB '*[^0-9a-f]*'),
@@ -821,7 +824,8 @@ CREATE TABLE "arca_offdeck_scope_materials" (
   UNIQUE ("destruction_scope_id", "material_key", "material_role"),
   CHECK (json_valid("physical_identity_json")),
   CHECK (length(CAST("physical_identity_json" AS BLOB)) <= 4096),
-  FOREIGN KEY ("destruction_scope_id") REFERENCES "arca_offdeck_scopes" ("destruction_scope_id") ON DELETE RESTRICT
+  FOREIGN KEY ("destruction_scope_id") REFERENCES "arca_offdeck_scopes" ("destruction_scope_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shared_scope_id", "shared_version") REFERENCES "arca_series_presentation_versions" ("scope_id", "revision") ON DELETE RESTRICT
 );
 
 CREATE TABLE "arca_offdeck_scopes" (
@@ -885,6 +889,30 @@ CREATE TABLE "arca_offdeck_terminal_receipts" (
   FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
 );
 
+CREATE TABLE "arca_offer_withdrawal_receipts" (
+  "offer_id" TEXT PRIMARY KEY NOT NULL,
+  "on_deck_package_id" TEXT NOT NULL,
+  "package_revision" INTEGER NOT NULL CHECK ("package_revision" >= 1),
+  "package_digest" TEXT NOT NULL CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
+  "receipt_id" TEXT NOT NULL,
+  "receipt_schema_ref" TEXT NOT NULL,
+  "receipt_json" TEXT NOT NULL,
+  "receipt_digest" TEXT NOT NULL CHECK (length("receipt_digest") = 64 AND "receipt_digest" NOT GLOB '*[^0-9a-f]*'),
+  "closed_at_ms" INTEGER NOT NULL CHECK ("closed_at_ms" >= 0),
+  UNIQUE ("receipt_id"),
+  CHECK (json_valid("receipt_json")),
+  CHECK (length(CAST("receipt_json" AS BLOB)) <= 16384),
+  CHECK ("receipt_schema_ref" = 'arca.offer-withdrawal-receipt@1'),
+  CHECK (COALESCE(json_extract("receipt_json", '$.schemaRef') = "receipt_schema_ref", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.receiptId') = "receipt_id", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.receiptDigest') = "receipt_digest", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.closedAtMs') = "closed_at_ms", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.offer.offerId') = "offer_id", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.offer.onDeckPackageId') = "on_deck_package_id", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.offer.packageRevision') = "package_revision", 0)),
+  CHECK (COALESCE(json_extract("receipt_json", '$.offer.packageDigest') = "package_digest", 0))
+);
+
 CREATE TABLE "arca_offload_completions" (
   "offload_completion_id" TEXT PRIMARY KEY,
   "on_deck_run_id" TEXT,
@@ -930,7 +958,7 @@ CREATE TABLE "arca_ondeck_runs" (
   "on_deck_run_id" TEXT PRIMARY KEY,
   "custody_id" TEXT,
   "final_inventory_decision_digest" TEXT CHECK (length("final_inventory_decision_digest") = 64 AND "final_inventory_decision_digest" NOT GLOB '*[^0-9a-f]*'),
-  "state" TEXT CHECK ("state" IN ('ready', 'offloading', 'blocked', 'committed')),
+  "state" TEXT CHECK ("state" IN ('ready', 'offloading', 'blocked', 'committed', 'administratively_retired')),
   "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
   "terminal_at_ms" INTEGER CHECK ("terminal_at_ms" >= 0),
   "target_reserved_at_ms" INTEGER CHECK ("target_reserved_at_ms" >= 0),
@@ -1027,6 +1055,127 @@ CREATE TABLE "arca_rule_templates" (
   FOREIGN KEY ("rule_template_id", "current_revision") REFERENCES "arca_rule_template_revisions" ("rule_template_id", "revision") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_arca_rule_templates_hot_01" ON "arca_rule_templates" ("status", "owner_kind", "rule_template_id");
+
+CREATE TABLE "arca_series_presentation_builds" (
+  "build_id" TEXT PRIMARY KEY,
+  "scope_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "expected_version" INTEGER,
+  "basis_schema_ref" TEXT,
+  "basis_json" TEXT,
+  "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "scope_schema_ref" TEXT,
+  "scope_json" TEXT,
+  "scope_digest" TEXT CHECK (length("scope_digest") = 64 AND "scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("scope_id", "revision"),
+  CHECK (json_valid("basis_json")),
+  CHECK (length(CAST("basis_json" AS BLOB)) <= 65536),
+  CHECK (json_valid("scope_json")),
+  CHECK (length(CAST("scope_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("scope_id") REFERENCES "arca_series_presentation_scopes" ("scope_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_series_presentation_commit_links" (
+  "commit_link_id" TEXT PRIMARY KEY,
+  "on_deck_run_id" TEXT,
+  "scope_id" TEXT,
+  "shared_version" INTEGER,
+  "manifest_digest" TEXT CHECK (length("manifest_digest") = 64 AND "manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "verification_digest" TEXT CHECK (length("verification_digest") = 64 AND "verification_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  UNIQUE ("on_deck_run_id"),
+  FOREIGN KEY ("scope_id", "shared_version") REFERENCES "arca_series_presentation_versions" ("scope_id", "revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_series_presentation_references" (
+  "scope_id" TEXT,
+  "shelf_entry_id" TEXT,
+  "first_committed_version" INTEGER,
+  "state" TEXT CHECK ("state" IN ('active', 'released')),
+  "reference_revision" INTEGER CHECK ("reference_revision" >= 1),
+  "reference_digest" TEXT CHECK (length("reference_digest") = 64 AND "reference_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "released_at_ms" INTEGER CHECK ("released_at_ms" >= 0),
+  PRIMARY KEY ("scope_id", "shelf_entry_id"),
+  FOREIGN KEY ("scope_id") REFERENCES "arca_series_presentation_scopes" ("scope_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_series_presentation_reservations" (
+  "scope_id" TEXT,
+  "on_deck_run_id" TEXT,
+  "custody_id" TEXT,
+  "state" TEXT CHECK ("state" IN ('pending', 'committed', 'released')),
+  "committed_version" INTEGER,
+  "target_binding_digest" TEXT CHECK (length("target_binding_digest") = 64 AND "target_binding_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  PRIMARY KEY ("scope_id", "on_deck_run_id"),
+  FOREIGN KEY ("scope_id") REFERENCES "arca_series_presentation_scopes" ("scope_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("on_deck_run_id") REFERENCES "arca_ondeck_runs" ("on_deck_run_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_series_presentation_scopes" (
+  "scope_id" TEXT PRIMARY KEY,
+  "shelf_id" TEXT,
+  "provider" TEXT CHECK ("provider" IN ('tmdb')),
+  "provider_key" TEXT,
+  "endpoint_id" TEXT,
+  "mount_scope_id" TEXT,
+  "shelf_root" TEXT,
+  "root_location" TEXT,
+  "placement_revision" INTEGER CHECK ("placement_revision" >= 1),
+  "current_version" INTEGER,
+  "active_build_id" TEXT,
+  "retirement_scope_id" TEXT,
+  "state_revision" INTEGER CHECK ("state_revision" >= 1),
+  "state_digest" TEXT CHECK (length("state_digest") = 64 AND "state_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "updated_at_ms" INTEGER CHECK ("updated_at_ms" >= 0),
+  UNIQUE ("shelf_id", "provider", "provider_key"),
+  UNIQUE ("endpoint_id", "root_location"),
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("retirement_scope_id") REFERENCES "arca_offdeck_scopes" ("destruction_scope_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_series_presentation_versions" (
+  "scope_id" TEXT,
+  "revision" INTEGER CHECK ("revision" >= 1),
+  "build_id" TEXT,
+  "manifest_schema_ref" TEXT,
+  "manifest_json" TEXT,
+  "manifest_digest" TEXT CHECK (length("manifest_digest") = 64 AND "manifest_digest" NOT GLOB '*[^0-9a-f]*'),
+  "verification_digest" TEXT CHECK (length("verification_digest") = 64 AND "verification_digest" NOT GLOB '*[^0-9a-f]*'),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  PRIMARY KEY ("scope_id", "revision"),
+  UNIQUE ("build_id"),
+  CHECK (json_valid("manifest_json")),
+  CHECK (length(CAST("manifest_json" AS BLOB)) <= 16384),
+  FOREIGN KEY ("scope_id") REFERENCES "arca_series_presentation_scopes" ("scope_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("build_id") REFERENCES "arca_series_presentation_builds" ("build_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_series_root_relocations" (
+  "relocation_id" TEXT PRIMARY KEY,
+  "scope_id" TEXT,
+  "shelf_id" TEXT,
+  "plan_schema_ref" TEXT,
+  "plan_json" TEXT,
+  "plan_digest" TEXT CHECK (length("plan_digest") = 64 AND "plan_digest" NOT GLOB '*[^0-9a-f]*'),
+  "state" TEXT CHECK ("state" IN ('active', 'committed')),
+  "state_revision" INTEGER CHECK ("state_revision" >= 1),
+  "inventory_set_digest" TEXT CHECK (length("inventory_set_digest") = 64 AND "inventory_set_digest" NOT GLOB '*[^0-9a-f]*'),
+  "commit_marker" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
+  CHECK (json_valid("plan_json")),
+  CHECK (length(CAST("plan_json" AS BLOB)) <= 4194304),
+  FOREIGN KEY ("scope_id") REFERENCES "arca_series_presentation_scopes" ("scope_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_id") REFERENCES "arca_shelves" ("shelf_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_arca_series_root_relocations_hot_01" ON "arca_series_root_relocations" ("shelf_id", "state");
+CREATE UNIQUE INDEX "uidx_arca_series_root_relocations_partial_01" ON "arca_series_root_relocations" ("scope_id") WHERE "state" = 'active';
 
 CREATE TABLE "arca_shelf_entries" (
   "shelf_entry_id" TEXT PRIMARY KEY,
@@ -1258,6 +1407,8 @@ CREATE TABLE "fx_commit_markers" (
   "committed_at_ms" INTEGER CHECK ("committed_at_ms" >= 0),
   FOREIGN KEY ("result_id") REFERENCES "fx_event_result_bindings" ("result_id") ON DELETE RESTRICT
 );
+CREATE INDEX "idx_fx_commit_markers_hot_01" ON "fx_commit_markers" ("effect_id", "commit_marker");
+CREATE INDEX "idx_fx_commit_markers_hot_02" ON "fx_commit_markers" ("result_id", "commit_marker");
 
 CREATE TABLE "fx_effect_journal" (
   "effect_id" TEXT PRIMARY KEY,
@@ -1274,6 +1425,7 @@ CREATE TABLE "fx_effect_journal" (
   FOREIGN KEY ("event_attempt_id") REFERENCES "fx_event_attempts" ("event_attempt_id") ON DELETE RESTRICT
 );
 CREATE INDEX "idx_fx_effect_journal_hot_01" ON "fx_effect_journal" ("state", "updated_at_ms", "effect_id");
+CREATE INDEX "idx_fx_effect_journal_hot_02" ON "fx_effect_journal" ("event_attempt_id", "effect_id");
 
 CREATE TABLE "fx_event_attempts" (
   "event_attempt_id" TEXT PRIMARY KEY,
@@ -1350,6 +1502,16 @@ CREATE TABLE "fx_event_result_bindings" (
   FOREIGN KEY ("event_id") REFERENCES "fx_workflow_events" ("event_id") ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX "uidx_fx_event_result_bindings_partial_01" ON "fx_event_result_bindings" ("event_id");
+
+CREATE TABLE "fx_execution_contracts" (
+  "contract_digest" TEXT PRIMARY KEY CHECK (length("contract_digest") = 64 AND "contract_digest" NOT GLOB '*[^0-9a-f]*'),
+  "format_version" INTEGER,
+  "contract_schema_ref" TEXT,
+  "contract_json" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  CHECK (json_valid("contract_json")),
+  CHECK (length(CAST("contract_json" AS BLOB)) <= 1048576)
+);
 
 CREATE TABLE "fx_executor_incidents" (
   "incident_key" TEXT PRIMARY KEY,
@@ -1447,6 +1609,20 @@ CREATE TABLE "fx_outbox_deliveries" (
 );
 CREATE INDEX "idx_fx_outbox_deliveries_hot_01" ON "fx_outbox_deliveries" ("state", "next_attempt_at_ms", "message_id");
 
+CREATE TABLE "fx_plan_contracts" (
+  "plan_id" TEXT PRIMARY KEY,
+  "contract_digest" TEXT CHECK (length("contract_digest") = 64 AND "contract_digest" NOT GLOB '*[^0-9a-f]*'),
+  "graph_digest" TEXT CHECK (length("graph_digest") = 64 AND "graph_digest" NOT GLOB '*[^0-9a-f]*'),
+  "catalog_digest" TEXT CHECK (length("catalog_digest") = 64 AND "catalog_digest" NOT GLOB '*[^0-9a-f]*'),
+  "provenance_schema_ref" TEXT,
+  "provenance_json" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  CHECK (json_valid("provenance_json")),
+  CHECK (length(CAST("provenance_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("contract_digest") REFERENCES "fx_execution_contracts" ("contract_digest") ON DELETE RESTRICT
+);
+
 CREATE TABLE "fx_plan_edges" (
   "plan_id" TEXT,
   "from_node_id" TEXT,
@@ -1455,6 +1631,18 @@ CREATE TABLE "fx_plan_edges" (
   PRIMARY KEY ("plan_id", "from_node_id", "to_node_id"),
   FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT
 );
+
+CREATE TABLE "fx_plan_history_audits" (
+  "audit_id" TEXT PRIMARY KEY,
+  "plan_id" TEXT,
+  "audit_schema_ref" TEXT,
+  "audit_json" TEXT,
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  CHECK (json_valid("audit_json")),
+  CHECK (length(CAST("audit_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("plan_id") REFERENCES "fx_workflow_plans" ("plan_id") ON DELETE RESTRICT
+);
+CREATE INDEX "idx_fx_plan_history_audits_hot_01" ON "fx_plan_history_audits" ("plan_id");
 
 CREATE TABLE "fx_plan_nodes" (
   "plan_id" TEXT,
@@ -1683,6 +1871,81 @@ CREATE TABLE "libra_acquisition_candidate_evidence" (
 );
 CREATE INDEX "idx_libra_acquisition_candidate_evidence_hot_01" ON "libra_acquisition_candidate_evidence" ("libra_run_id", "record_id");
 
+CREATE TABLE "libra_custom_target_heads" (
+  "subject_id" TEXT NOT NULL,
+  "product_scope_digest" TEXT NOT NULL CHECK (length("product_scope_digest") = 64 AND "product_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "current_revision" INTEGER NOT NULL CHECK ("current_revision" >= 1),
+  "intent_id" TEXT NOT NULL,
+  "record_digest" TEXT NOT NULL CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  PRIMARY KEY ("subject_id", "product_scope_digest"),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("intent_id") REFERENCES "libra_custom_target_intents" ("intent_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("intent_id", "subject_id", "product_scope_digest", "current_revision", "record_digest") REFERENCES "libra_custom_target_intents" ("intent_id", "subject_id", "product_scope_digest", "target_revision", "record_digest") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_custom_target_intents" (
+  "intent_id" TEXT PRIMARY KEY NOT NULL,
+  "preview_id" TEXT NOT NULL,
+  "subject_id" TEXT NOT NULL,
+  "libra_run_id" TEXT NOT NULL,
+  "product_scope_digest" TEXT NOT NULL CHECK (length("product_scope_digest") = 64 AND "product_scope_digest" NOT GLOB '*[^0-9a-f]*'),
+  "target_revision" INTEGER NOT NULL CHECK ("target_revision" >= 1),
+  "actor_id" TEXT NOT NULL,
+  "idempotency_key" TEXT NOT NULL,
+  "request_digest" TEXT NOT NULL CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT NOT NULL,
+  "record_json" TEXT NOT NULL,
+  "record_digest" TEXT NOT NULL CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER NOT NULL CHECK ("created_at_ms" >= 0),
+  UNIQUE ("actor_id", "idempotency_key"),
+  UNIQUE ("subject_id", "product_scope_digest", "target_revision"),
+  UNIQUE ("intent_id", "subject_id", "product_scope_digest", "target_revision", "record_digest"),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 65536),
+  CHECK ("record_schema_ref" = 'libra.custom-target-intent@1'),
+  CHECK (COALESCE(json_extract("record_json", '$.schemaRef') = "record_schema_ref", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.intentId') = "intent_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.previewDigest') = "preview_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.intentDigest') = "record_digest", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.subjectId') = "subject_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.libraRunId') = "libra_run_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.basis.productScopeDigest') = "product_scope_digest", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.revision') = "target_revision", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.actorId') = "actor_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.idempotencyKey') = "idempotency_key", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.requestDigest') = "request_digest", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.confirmedAtMs') = "created_at_ms", 0)),
+  FOREIGN KEY ("preview_id") REFERENCES "libra_custom_target_previews" ("preview_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_custom_target_previews" (
+  "preview_id" TEXT PRIMARY KEY NOT NULL,
+  "subject_id" TEXT NOT NULL,
+  "libra_run_id" TEXT NOT NULL,
+  "actor_id" TEXT NOT NULL,
+  "idempotency_key" TEXT NOT NULL,
+  "request_digest" TEXT NOT NULL CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT NOT NULL,
+  "record_json" TEXT NOT NULL,
+  "record_digest" TEXT NOT NULL CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER NOT NULL CHECK ("created_at_ms" >= 0),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 65536),
+  CHECK ("record_schema_ref" = 'libra.custom-target-preview@1'),
+  CHECK ("preview_id" = "record_digest"),
+  CHECK (COALESCE(json_extract("record_json", '$.schemaRef') = "record_schema_ref", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.previewDigest') = "record_digest", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.basis.subjectId') = "subject_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.basis.libraRunId') = "libra_run_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.actorId') = "actor_id", 0)),
+  CHECK (COALESCE(json_extract("record_json", '$.createdAtMs') = "created_at_ms", 0)),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_decision_basis_inputs" (
   "decision_basis_id" TEXT,
   "input_ordinal" INTEGER CHECK ("input_ordinal" >= 0),
@@ -1771,6 +2034,64 @@ CREATE TABLE "libra_delivery_receipts" (
 );
 CREATE INDEX "idx_libra_delivery_receipts_hot_01" ON "libra_delivery_receipts" ("result", "received_at_ms");
 
+CREATE TABLE "libra_episode_metadata_mapping_heads" (
+  "subject_id" TEXT PRIMARY KEY,
+  "current_revision" INTEGER CHECK ("current_revision" >= 1),
+  "intent_id" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("intent_id") REFERENCES "libra_episode_metadata_mapping_intents" ("intent_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id", "current_revision") REFERENCES "libra_episode_metadata_mapping_intents" ("subject_id", "mapping_revision") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_episode_metadata_mapping_intents" (
+  "intent_id" TEXT PRIMARY KEY,
+  "review_id" TEXT,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "mapping_revision" INTEGER CHECK ("mapping_revision" >= 1),
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT,
+  "record_json" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("subject_id", "mapping_revision"),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 1048576),
+  CHECK ("record_schema_ref" = 'libra.episode-metadata-mapping-record@1'),
+  CHECK (json_extract("record_json", '$.recordId') = "intent_id"),
+  CHECK (json_extract("record_json", '$.reviewId') = "review_id"),
+  CHECK (json_extract("record_json", '$.mapping.revision') = "mapping_revision"),
+  CHECK (json_extract("record_json", '$.recordDigest') = "record_digest"),
+  FOREIGN KEY ("review_id") REFERENCES "libra_episode_metadata_reviews" ("review_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_episode_metadata_reviews" (
+  "review_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "actor_id" TEXT,
+  "idempotency_key" TEXT,
+  "request_digest" TEXT CHECK (length("request_digest") = 64 AND "request_digest" NOT GLOB '*[^0-9a-f]*'),
+  "record_schema_ref" TEXT,
+  "record_json" TEXT,
+  "record_digest" TEXT CHECK (length("record_digest") = 64 AND "record_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("actor_id", "idempotency_key"),
+  CHECK (json_valid("record_json")),
+  CHECK (length(CAST("record_json" AS BLOB)) <= 3145728),
+  CHECK ("record_schema_ref" = 'libra.episode-metadata-review-record@1'),
+  CHECK (json_extract("record_json", '$.recordId') = "review_id"),
+  CHECK (json_extract("record_json", '$.recordDigest') = "record_digest"),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "libra_fairness_clocks" (
   "clock_id" TEXT PRIMARY KEY,
   "turn_sequence" INTEGER,
@@ -1825,7 +2146,7 @@ CREATE TABLE "libra_formation_projections" (
   "display_identity" TEXT,
   "content_profile" TEXT,
   "structure_kind" TEXT,
-  "subject_status" TEXT CHECK ("subject_status" IN ('active', 'abandoned', 'completed')),
+  "subject_status" TEXT CHECK ("subject_status" IN ('active', 'abandoned', 'completed', 'administratively_retired', 'ended')),
   "my_rating" INTEGER,
   "my_rating_source" TEXT,
   "my_rating_revision" INTEGER CHECK ("my_rating_revision" >= 1),
@@ -1859,7 +2180,7 @@ CREATE TABLE "libra_formation_projections" (
   "current_acceptance_spec_revision" INTEGER CHECK ("current_acceptance_spec_revision" >= 1),
   "current_acceptance_spec_digest" TEXT CHECK (length("current_acceptance_spec_digest") = 64 AND "current_acceptance_spec_digest" NOT GLOB '*[^0-9a-f]*'),
   "current_libra_run_id" TEXT,
-  "current_libra_run_state" TEXT CHECK ("current_libra_run_state" IN ('active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed')),
+  "current_libra_run_state" TEXT CHECK ("current_libra_run_state" IN ('active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed', 'administratively_retired')),
   "current_libra_run_state_revision" INTEGER CHECK ("current_libra_run_state_revision" >= 1),
   "current_libra_run_state_digest" TEXT CHECK (length("current_libra_run_state_digest") = 64 AND "current_libra_run_state_digest" NOT GLOB '*[^0-9a-f]*'),
   "current_priority_class" TEXT,
@@ -2560,13 +2881,13 @@ CREATE INDEX "idx_libra_run_outcomes_hot_02" ON "libra_run_outcomes" ("stable_in
 CREATE TABLE "libra_run_revisions" (
   "libra_run_id" TEXT,
   "state_revision" INTEGER CHECK ("state_revision" >= 1),
-  "state" TEXT CHECK ("state" IN ('active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed')),
+  "state" TEXT CHECK ("state" IN ('active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed', 'administratively_retired')),
   "acceptance_spec_id" TEXT,
   "execution_basis_digest" TEXT CHECK (length("execution_basis_digest") = 64 AND "execution_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "run_scope_digest" TEXT CHECK (length("run_scope_digest") = 64 AND "run_scope_digest" NOT GLOB '*[^0-9a-f]*'),
   "priority_class" TEXT,
   "priority_intent_digest" TEXT CHECK (length("priority_intent_digest") = 64 AND "priority_intent_digest" NOT GLOB '*[^0-9a-f]*'),
-  "transition_kind" TEXT CHECK ("transition_kind" IN ('admitted', 'freshness_confirmed', 'suspended', 'recovery_reassessed', 'resumed', 'reprioritized', 'superseded', 'frozen', 'secondary_target', 'defect_admitted', 'discarded', 'completed')),
+  "transition_kind" TEXT CHECK ("transition_kind" IN ('admitted', 'freshness_confirmed', 'suspended', 'recovery_reassessed', 'resumed', 'reprioritized', 'superseded', 'frozen', 'secondary_target', 'defect_admitted', 'discarded', 'completed', 'administratively_retired')),
   "transition_decision_id" TEXT,
   "transition_decision_digest" TEXT CHECK (length("transition_decision_digest") = 64 AND "transition_decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "transition_evidence_schema_ref" TEXT,
@@ -2598,11 +2919,12 @@ CREATE TABLE "libra_runs" (
   "admission_revision" INTEGER CHECK ("admission_revision" >= 1),
   "acceptance_spec_id" TEXT,
   "run_material_manifest_id" TEXT,
+  "episode_metadata_mapping_intent_id" TEXT,
   "execution_basis_schema_ref" TEXT,
   "execution_basis_record_json" TEXT,
   "execution_basis_digest" TEXT CHECK (length("execution_basis_digest") = 64 AND "execution_basis_digest" NOT GLOB '*[^0-9a-f]*'),
   "run_scope_digest" TEXT CHECK (length("run_scope_digest") = 64 AND "run_scope_digest" NOT GLOB '*[^0-9a-f]*'),
-  "state" TEXT CHECK ("state" IN ('active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed')),
+  "state" TEXT CHECK ("state" IN ('active', 'suspended', 'superseded', 'frozen', 'discarded', 'completed', 'administratively_retired')),
   "state_revision" INTEGER CHECK ("state_revision" >= 1),
   "state_digest" TEXT CHECK (length("state_digest") = 64 AND "state_digest" NOT GLOB '*[^0-9a-f]*'),
   "package_revision_head" INTEGER NOT NULL DEFAULT 0 CHECK ("package_revision_head" >= 0),
@@ -2623,9 +2945,12 @@ CREATE TABLE "libra_runs" (
   UNIQUE ("subject_id", "acceptance_spec_id", "run_scope_digest", "admission_revision"),
   CHECK (json_valid("execution_basis_record_json")),
   CHECK (length(CAST("execution_basis_record_json" AS BLOB)) <= 1048576),
+  CHECK (("episode_metadata_mapping_intent_id" IS NULL AND json_type("execution_basis_record_json", '$.episodeMetadataMappingRef') IS NULL) OR
+     ("episode_metadata_mapping_intent_id" IS NOT NULL AND COALESCE(json_extract("execution_basis_record_json", '$.episodeMetadataMappingRef.intentId') = "episode_metadata_mapping_intent_id", 0))),
   FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
   FOREIGN KEY ("acceptance_spec_id") REFERENCES "libra_acceptance_specs" ("acceptance_spec_id") ON DELETE RESTRICT,
   FOREIGN KEY ("run_material_manifest_id") REFERENCES "libra_run_material_manifests" ("run_material_manifest_id") ON DELETE RESTRICT DEFERRABLE INITIALLY DEFERRED,
+  FOREIGN KEY ("episode_metadata_mapping_intent_id") REFERENCES "libra_episode_metadata_mapping_intents" ("intent_id") ON DELETE RESTRICT,
   FOREIGN KEY ("supersedes_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
   FOREIGN KEY ("superseded_by_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT
 );
@@ -2723,7 +3048,7 @@ CREATE TABLE "libra_subjects" (
   "structure_kind" TEXT CHECK ("structure_kind" IN ('single', 'season')),
   "content_profile" TEXT CHECK ("content_profile" IN ('movie', 'series', 'jav', 'western_adult')),
   "routing_anchor_intake_decision_id" TEXT,
-  "status" TEXT CHECK ("status" IN ('active', 'abandoned', 'completed')),
+  "status" TEXT CHECK ("status" IN ('active', 'abandoned', 'completed', 'administratively_retired', 'ended')),
   "intake_revision" INTEGER CHECK ("intake_revision" >= 1),
   "current_continuity_set_digest" TEXT CHECK (length("current_continuity_set_digest") = 64 AND "current_continuity_set_digest" NOT GLOB '*[^0-9a-f]*'),
   "current_episode_scope_digest" TEXT CHECK (length("current_episode_scope_digest") = 64 AND "current_episode_scope_digest" NOT GLOB '*[^0-9a-f]*'),
@@ -2803,6 +3128,23 @@ CREATE TABLE "libra_us_adult_analysis_bases" (
   UNIQUE ("libra_run_id"),
   CHECK (json_valid("basis_json")),
   CHECK (length(CAST("basis_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT
+);
+
+CREATE TABLE "libra_us_adult_catalogue_bases" (
+  "analysis_id" TEXT PRIMARY KEY,
+  "libra_run_id" TEXT,
+  "subject_id" TEXT,
+  "workspace_id" TEXT,
+  "basis_schema_ref" TEXT,
+  "basis_json" TEXT,
+  "basis_digest" TEXT CHECK (length("basis_digest") = 64 AND "basis_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  UNIQUE ("libra_run_id"),
+  CHECK (json_valid("basis_json")),
+  CHECK (length(CAST("basis_json" AS BLOB)) <= 32768),
   FOREIGN KEY ("libra_run_id") REFERENCES "libra_runs" ("libra_run_id") ON DELETE RESTRICT,
   FOREIGN KEY ("subject_id") REFERENCES "libra_subjects" ("subject_id") ON DELETE RESTRICT,
   FOREIGN KEY ("workspace_id") REFERENCES "libra_workspaces" ("workspace_id") ON DELETE RESTRICT
@@ -2889,7 +3231,7 @@ CREATE TABLE "libra_workspace_cleanup_scopes" (
   "cleanup_scope_id" TEXT PRIMARY KEY,
   "libra_run_id" TEXT,
   "workspace_id" TEXT,
-  "trigger_kind" TEXT CHECK ("trigger_kind" IN ('offload_completed', 'run_superseded', 'run_discarded')),
+  "trigger_kind" TEXT CHECK ("trigger_kind" IN ('offload_completed', 'run_superseded', 'run_discarded', 'run_administratively_retired')),
   "trigger_ref" TEXT,
   "trigger_revision" INTEGER CHECK ("trigger_revision" >= 1),
   "trigger_digest" TEXT CHECK (length("trigger_digest") = 64 AND "trigger_digest" NOT GLOB '*[^0-9a-f]*'),
@@ -3698,7 +4040,7 @@ CREATE TABLE "proc_candidate_deliveries" (
   "package_revision" INTEGER CHECK ("package_revision" >= 1),
   "package_digest" TEXT CHECK (length("package_digest") = 64 AND "package_digest" NOT GLOB '*[^0-9a-f]*'),
   "acceptance_basis_digest" TEXT CHECK (length("acceptance_basis_digest") = 64 AND "acceptance_basis_digest" NOT GLOB '*[^0-9a-f]*'),
-  "state" TEXT CHECK ("state" IN ('open', 'accepted', 'rejected')),
+  "state" TEXT CHECK ("state" IN ('open', 'accepted', 'rejected', 'administratively_retired')),
   "handoff_decision_id" TEXT,
   "handoff_decision_digest" TEXT CHECK (length("handoff_decision_digest") = 64 AND "handoff_decision_digest" NOT GLOB '*[^0-9a-f]*'),
   "handoff_receipt_id" TEXT,
@@ -3724,6 +4066,8 @@ CREATE TABLE "proc_candidate_packages" (
   "material_input_form" TEXT CHECK ("material_input_form" IN ('stream_file', 'bdmv', 'dvd', 'iso', 'jav_named_parts')),
   "jav_part_set_schema_ref" TEXT,
   "jav_part_set_json" TEXT,
+  "series_source_refs_schema_ref" TEXT,
+  "series_source_refs_json" TEXT,
   "structure_kind" TEXT CHECK ("structure_kind" IN ('single', 'season')),
   "display_identity" TEXT,
   "identity_metadata_schema_ref" TEXT,
@@ -3750,6 +4094,8 @@ CREATE TABLE "proc_candidate_packages" (
   UNIQUE ("procurement_run_id", "package_revision"),
   CHECK ("jav_part_set_json" IS NULL OR json_valid("jav_part_set_json")),
   CHECK ("jav_part_set_json" IS NULL OR length(CAST("jav_part_set_json" AS BLOB)) <= 16384),
+  CHECK ("series_source_refs_json" IS NULL OR json_valid("series_source_refs_json")),
+  CHECK ("series_source_refs_json" IS NULL OR length(CAST("series_source_refs_json" AS BLOB)) <= 16384),
   CHECK (json_valid("identity_metadata_json")),
   CHECK (length(CAST("identity_metadata_json" AS BLOB)) <= 65536),
   CHECK (json_valid("identity_claim_json")),
@@ -3976,6 +4322,14 @@ CREATE TABLE "proc_field_profile_hint_revisions" (
 );
 CREATE INDEX "idx_proc_field_profile_hint_revisions_hot_01" ON "proc_field_profile_hint_revisions" ("content_profile_hint", "field_id", "revision");
 
+CREATE TABLE "proc_field_reset_barriers" (
+  "field_id" TEXT PRIMARY KEY,
+  "reset_id" TEXT,
+  "minimum_observation_revision" INTEGER CHECK ("minimum_observation_revision" >= 0),
+  "created_at_ms" INTEGER CHECK ("created_at_ms" >= 0),
+  FOREIGN KEY ("field_id") REFERENCES "proc_material_fields" ("field_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "proc_material_fields" (
   "field_id" TEXT PRIMARY KEY,
   "name" TEXT,
@@ -4137,7 +4491,7 @@ CREATE TABLE "proc_run_materials" (
   "material_key" TEXT,
   "selection_role" TEXT,
   "field_relative_location" TEXT,
-  "selection_scope_kind" TEXT CHECK ("selection_scope_kind" IN ('standalone_file', 'ordinary_directory', 'bdmv_container')),
+  "selection_scope_kind" TEXT CHECK ("selection_scope_kind" IN ('standalone_file', 'ordinary_directory', 'bdmv_container', 'local_media_group')),
   "selection_scope_key" TEXT,
   "selection_scope_root_relative_location" TEXT,
   "selection_scope_ordinal" INTEGER CHECK ("selection_scope_ordinal" >= 0),
@@ -4174,7 +4528,7 @@ CREATE TABLE "proc_run_materials" (
   "basis_member_digest" TEXT CHECK (length("basis_member_digest") = 64 AND "basis_member_digest" NOT GLOB '*[^0-9a-f]*'),
   "selection_state" TEXT CHECK ("selection_state" IN ('run_selection', 'candidate_delivery', 'released', 'transferred')),
   "candidate_package_id" TEXT,
-  "terminal_disposition" TEXT CHECK ("terminal_disposition" IN ('completed_without_candidate', 'triage_failed', 'handoff_accepted', 'handoff_rejected')),
+  "terminal_disposition" TEXT CHECK ("terminal_disposition" IN ('completed_without_candidate', 'triage_failed', 'handoff_accepted', 'handoff_rejected', 'administratively_retired')),
   "terminal_evidence_digest" TEXT CHECK (length("terminal_evidence_digest") = 64 AND "terminal_evidence_digest" NOT GLOB '*[^0-9a-f]*'),
   "selected_at_ms" INTEGER CHECK ("selected_at_ms" >= 0),
   "reservation_updated_at_ms" INTEGER CHECK ("reservation_updated_at_ms" >= 0),

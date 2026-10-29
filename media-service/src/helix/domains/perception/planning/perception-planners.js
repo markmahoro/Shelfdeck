@@ -2,6 +2,8 @@
 
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const { executionCatalogDigest } = require('../../../foundation/execution/workflow-plan');
+const { executionInputSuperseded, executionInputUnavailable } = require('../../../foundation/execution/execution-input-readiness');
+const { resolutionBasis, matchesResolutionBasis, validateResolutionCommit } = require('../model/perception-resolution-fence');
 
 const ACQUIRE='perception.source.acquire@1',NORMALIZE='perception.record.normalize@1',COMMIT='perception.record.commit@1',RESOLVE='perception.dedup.resolve@1',RESOLUTION_COMMIT='perception.resolution.commit@1';
 const P=Object.freeze({source:'helix://perception/input-projections/SourceSnapshot/v1',integration:'helix://perception/input-projections/IntegrationHandle/v1',cursor:'helix://perception/input-projections/AcquisitionCursor/v1',
@@ -34,9 +36,15 @@ function createAcquisitionPlanner(options){const catalogDigest=executionCatalogD
   return plan({request,plannerContractRef:this.plannerContractRef,catalogDigest},'AcquisitionPage',nodes);}});}
 function createResolutionPlanner(options){const catalogDigest=executionCatalogDigest(options.registry,options.policyRegistry);return Object.freeze({plannerContractRef:'helix://perception/planners/Resolution/v1',plannerVersion:1,plan(request){
   const suffix=canonicalDigest(request.workAttemptId).slice(0,20),resolveId='perception-resolve-'+suffix,commitId='perception-resolution-commit-'+suffix,common={...options,request};
+  const status=options.workResultReader.status(request.workId),previous=status?.previousAttempt,ordinal=Number(status?.latestAttempt?.ordinal||1),finishedAtMs=Number(previous?.finished_at_ms);
+  const retrying=ordinal>1&&previous?.failure_code==='P4_EXECUTION_INPUT_BASIS_SUPERSEDED';
+  if(retrying&&(previous.finished_at_ms===null||previous.finished_at_ms===undefined||!Number.isSafeInteger(finishedAtMs)||finishedAtMs<0))
+    throw new Error('Perception Resolution retry is missing its durable prior Attempt completion time.');
+  const notBeforeMs=retrying?finishedAtMs+1000*Math.pow(2,Math.min(ordinal-2,4)):null;
+  const basisParameters={executionBasisDigest:request.executionBasisDigest,...(notBeforeMs===null?{}:{notBeforeMs})};
   return plan({request,plannerContractRef:this.plannerContractRef,catalogDigest},'Resolution',[
-    node(common,RESOLVE,'resolve',resolveId,[owner('perceptionResolutionQuery',request,P.query),owner('perceptionResolutionRecordSet',request,P.recordSet),owner('perceptionResolutionRuleSnapshot',request,P.resolutionRule)],[],['cpu']),
-    node(common,RESOLUTION_COMMIT,'commit',commitId,[projected('perceptionResolutionDraft',resolveId,options.registry.resolve(RESOLVE,'perception').manifest.resultSchemaRef,P.resolutionDraft),projected('domainFactCommitHandle',resolveId,options.registry.resolve(RESOLVE,'perception').manifest.resultSchemaRef,P.resolutionHandle,{processId:request.processId,commitEventId:commitId})],[{eventId:resolveId,satisfaction:'success'}],['cpu'])]);}});}
+    node(common,RESOLVE,'resolve',resolveId,[owner('perceptionResolutionQuery',request,P.query,basisParameters),owner('perceptionResolutionRecordSet',request,P.recordSet,basisParameters),owner('perceptionResolutionRuleSnapshot',request,P.resolutionRule,basisParameters)],[],['cpu']),
+    node(common,RESOLUTION_COMMIT,'commit',commitId,[projected('perceptionResolutionDraft',resolveId,options.registry.resolve(RESOLVE,'perception').manifest.resultSchemaRef,P.resolutionDraft),projected('domainFactCommitHandle',resolveId,options.registry.resolve(RESOLVE,'perception').manifest.resultSchemaRef,P.resolutionHandle,{processId:request.processId,commitEventId:commitId,executionBasisDigest:request.executionBasisDigest})],[{eventId:resolveId,satisfaction:'success'}],['cpu'])]);}});}
 
 function sourceSnapshot(context){const body={sourceId:context.source.perceptionSourceId,sourceKind:context.source.sourceKind,integrationId:context.source.integrationId,sourceConfigRevision:context.source.configRevision,sourceScopeDigest:context.acquisition.scopeDigest};
   return Object.freeze({schemaRef:'helix://contracts/domain-types/PerceptionSourceSnapshot/v1',schemaVersion:1,objectId:body.sourceId,revision:body.sourceConfigRevision,digest:canonicalDigest(body),...body});}
@@ -55,7 +63,14 @@ function directPage(context){const input=context.scope.directInput,entries=[['ta
     source:{sourceId:context.source.perceptionSourceId,sourceKind:context.source.sourceKind,sourceConfigRevision:context.source.configRevision},cursor:{expectedCursorRevision:context.expectedCursorRevision,cursorIn:context.cursorIn,cursorOut},observations:[observation],hasMore:false},digest=canonicalDigest(body);
   return Object.freeze({schemaRef:'helix://contracts/types/PerceptionObservationPage/v1',schemaVersion:1,evidenceId:stable('perception-direct-page-',{acquisitionId:context.acquisition.perceptionAcquisitionId}),evidenceKind:'perception_observation_page',producerRef:'shelfdeck.direct.rating@1',basisDigest:context.acquisition.scopeDigest,payloadDigest:digest,observedAtMs:observation.observedAtMs,...body,observationPageDigest:digest});}
 function createPerceptionProjections(options){function acquisition(ownerScope){const c=options.processServices.acquisitionContext(ownerScope.processId);if(!c)throw new Error('Perception Acquisition context is absent.');return c;}
-  function resolution(ownerScope){return options.processServices.resolutionProcessContext(ownerScope.processId);}
+  const contexts=new WeakMap(),now=options.now||Date.now;
+  function resolution(ownerScope,parameters){
+    if(parameters.notBeforeMs&&now()<parameters.notBeforeMs)throw executionInputUnavailable('Perception Resolution retry is waiting for its backoff.',{retryAtMs:parameters.notBeforeMs,dependencyKind:'owner_retry'});
+    let c=contexts.get(ownerScope);
+    if(!c){try{c=options.processServices.resolutionProcessContext(ownerScope.processId);}catch(error){if(error?.code==='PERCEPTION_TARGET_NOT_FOUND')throw executionInputSuperseded('Perception Resolution target is no longer available.');throw error;}contexts.set(ownerScope,c);}
+    if(!matchesResolutionBasis(resolutionBasis(c),parameters.executionBasisDigest))throw executionInputSuperseded('Perception Resolution Work basis changed before dispatch.');
+    return c;
+  }
   return Object.freeze([
     {projectionRef:P.source,projection:{project:({ownerScope})=>sourceSnapshot(acquisition(ownerScope))}},
     {projectionRef:P.integration,projection:{project:({ownerScope})=>{const c=acquisition(ownerScope),handle=options.resolvePerceptionIntegrationHandle(c.source);if(!handle)throw new Error('Perception integration is unavailable.');return handle;}}},
@@ -68,14 +83,26 @@ function createPerceptionProjections(options){function acquisition(ownerScope){c
       return Object.freeze({schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,handleId:stable('perception-record-handle-',{acquisitionId:c.acquisition.perceptionAcquisitionId,pageOrdinal:c.pageOrdinal}),ownerDomain:'perception',aggregateType:'perception-acquisition',aggregateId:c.acquisition.perceptionAcquisitionId,
         factType:'PerceptionAcquisitionCommitDraft',factSchemaRef:'helix://contracts/types/PerceptionAcquisitionCommitDraft/v1',expectedRevision:c.expectedCursorRevision,payloadDigest:canonicalDigest(sourceResult),
         resultSchemaRef:'helix://contracts/types/PerceptionRecordCommitResult/v1',commitIdempotencyKey:stable('perception-record-marker-',{acquisitionId:c.acquisition.perceptionAcquisitionId,pageOrdinal:c.pageOrdinal}),eventFenceDigest:canonicalDigest({schema:'perception.record-commit-fence@1',acquisitionId:c.acquisition.perceptionAcquisitionId,pageOrdinal:c.pageOrdinal,eventId:parameters.commitEventId})});}}},
-    {projectionRef:P.query,projection:{project:({ownerScope})=>resolution(ownerScope).query}},
-    {projectionRef:P.recordSet,projection:{project:({ownerScope})=>resolution(ownerScope).recordSet}},
-    {projectionRef:P.resolutionRule,projection:{project:({ownerScope})=>resolution(ownerScope).ruleSnapshot}},
+    {projectionRef:P.query,projection:{project:({ownerScope,parameters})=>resolution(ownerScope,parameters).query}},
+    {projectionRef:P.recordSet,projection:{project:({ownerScope,parameters})=>resolution(ownerScope,parameters).recordSet}},
+    {projectionRef:P.resolutionRule,projection:{project:({ownerScope,parameters})=>resolution(ownerScope,parameters).ruleSnapshot}},
     {projectionRef:P.resolutionDraft,projection:{project:({sourceResult})=>sourceResult}},
-    {projectionRef:P.resolutionHandle,projection:{project:({sourceResult,parameters})=>{const c=options.processServices.resolutionProcessContext(parameters.processId),current=options.processServices.store.getResolution(c.query.queryContract,c.query.queryInputDigest),expectedRevision=current?.revision||0,aggregateId='perception-resolution:'+canonicalDigest({queryContract:c.query.queryContract,queryInputDigest:c.query.queryInputDigest});
-      return Object.freeze({schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,handleId:stable('perception-resolution-handle-',{aggregateId,expectedRevision,recordSetDigest:c.recordSet.recordSetDigest}),ownerDomain:'perception',aggregateType:'perception-resolution',aggregateId,
+    {projectionRef:P.resolutionHandle,projection:{project:({sourceResult,parameters,ownerScope})=>{const current=options.processServices.store.getResolution(sourceResult.queryContract,sourceResult.queryInputDigest),expectedRevision=current?.revision||0,aggregateId='perception-resolution:'+canonicalDigest({queryContract:sourceResult.queryContract,queryInputDigest:sourceResult.queryInputDigest});
+      const handle=Object.freeze({schemaRef:'helix://contracts/types/DomainFactCommitHandle/v1',schemaVersion:1,handleId:stable('perception-resolution-handle-',{aggregateId,expectedRevision,recordSetDigest:sourceResult.recordSetDigest}),ownerDomain:'perception',aggregateType:'perception-resolution',aggregateId,
         factType:'PerceptionResolutionDraft',factSchemaRef:'helix://contracts/types/PerceptionResolutionDraft/v1',expectedRevision,payloadDigest:canonicalDigest(sourceResult),
-        resultSchemaRef:'helix://contracts/types/PerceptionResolutionRevision/v1',commitIdempotencyKey:stable('perception-resolution-marker-',{aggregateId,expectedRevision,recordSetDigest:c.recordSet.recordSetDigest}),eventFenceDigest:canonicalDigest({schema:'perception.resolution-commit-fence@1',aggregateId,expectedRevision,eventId:parameters.commitEventId})});}}},
+        resultSchemaRef:'helix://contracts/types/PerceptionResolutionRevision/v1',commitIdempotencyKey:stable('perception-resolution-marker-',{aggregateId,expectedRevision,recordSetDigest:sourceResult.recordSetDigest}),eventFenceDigest:canonicalDigest({schema:'perception.resolution-commit-fence@1',aggregateId,expectedRevision,eventId:parameters.commitEventId})});
+      validateResolutionCommit(handle,sourceResult);
+      const base={queryInputDigest:sourceResult.queryInputDigest,recordSetDigest:sourceResult.recordSetDigest,ruleDigest:sourceResult.ruleDigest};
+      if(sourceResult.basisDigest!==canonicalDigest(base))throw Object.assign(new Error('Perception Resolution Draft basis digest is invalid.'),{code:'P6_PERCEPTION_RESOLUTION_COMMIT_MISMATCH'});
+      if(parameters.processId!==ownerScope.processId)throw Object.assign(new Error('Perception Resolution projection changed its Owner process.'),{code:'P6_PERCEPTION_RESOLUTION_SCOPE_MISMATCH'});
+      if(!matchesResolutionBasis(base,parameters.executionBasisDigest))throw executionInputSuperseded('Perception Resolution Draft does not match its frozen Work basis.');
+      const c=resolution(ownerScope,parameters);
+      if(c.query.queryContract!==sourceResult.queryContract||c.query.querySchemaRef!==sourceResult.querySchemaRef||c.query.factKind!==sourceResult.factKind||
+          canonicalDigest(resolutionBasis(c))!==sourceResult.basisDigest||c.ruleSnapshot.ruleVersion!==sourceResult.ruleRevision)
+        throw executionInputSuperseded('Perception Resolution Draft was superseded before commit.');
+      if(current&&current.recordSetDigest===sourceResult.recordSetDigest&&current.ruleDigest===sourceResult.ruleDigest)
+        throw executionInputSuperseded('Perception Resolution basis is already committed.');
+      return handle;}}},
   ].map(Object.freeze));}
 
 function createPerceptionPlanners(options){return Object.freeze([createAcquisitionPlanner(options),createResolutionPlanner(options)]);}

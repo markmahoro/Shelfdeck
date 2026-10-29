@@ -4,6 +4,7 @@ const { createRepositoryDefinition } = require('../../../foundation/persistence/
 const { requireLibraryKind, requireSameLibrary } = require('../model/person-library');
 const { personIdentityNamespaces } = require('../model/provider-person-identity');
 const { reliablePair } = require('../model/system-merge-work');
+const { resolveUsAdultName } = require('../model/us-adult-name-resolution');
 const { canonicalDigest } = require('../../../contracts/canonical-json');
 const {
   PEOPLE_CANDIDATE_DRAFT_SCHEMA, createCandidate, createCandidateDraft, createCandidateRevision, createPerson,
@@ -739,6 +740,38 @@ function createPeopleStore(options) {
         }
         return Object.freeze(projection);
       });
+    },
+    resolveUsAdultName(input) {
+      exactInput(input, ['name', 'aliases', 'expectedLibraryNamesDigest'], 'PEOPLE_NAME_QUERY_INVALID');
+      if (input.expectedLibraryNamesDigest !== null && !/^[a-f0-9]{64}$/.test(input.expectedLibraryNamesDigest))
+        fail('PEOPLE_NAME_QUERY_INVALID', 'The expected name library digest must be explicit or null.');
+      // Validate the bounded query before reading any library facts.
+      resolveUsAdultName({ name: input.name, aliases: input.aliases, people: [] });
+      return options.unitOfWork.execute([{ participantId: 'people_name_resolution', owner: 'people', readOnly: true,
+        repositories: [registry], execute(context) {
+          const repository = context.repository(registry.repositoryId), people = [];
+          let cursor = '', bytes = 0;
+          while (true) {
+            const page = repository.invoke('page_people', { cursor, status: 'active', library_kind: 'us_adult', offset: 0, limit: 100 });
+            if (people.length + page.length > 10000)
+              fail('PEOPLE_NAME_QUERY_LIMIT', 'The complete actor name library exceeds its Person bound.');
+            for (const row of page) {
+              const person = mapPerson(repository, row), value = { personId: person.personId, libraryKind: person.libraryKind,
+                status: person.status, personRevision: person.currentRevision, personFactDigest: person.revision.factDigest,
+                canonicalName: person.revision.canonicalName, aliases: person.revision.aliases.map(item => item.aliasDisplay) };
+              bytes += Buffer.byteLength(canonicalJson(value), 'utf8');
+              if (bytes > 8 * 1024 * 1024)
+                fail('PEOPLE_NAME_QUERY_LIMIT', 'The complete actor name library exceeds its byte bound.');
+              people.push(value);
+            }
+            if (page.length < 100) break;
+            cursor = page.at(-1).person_id;
+          }
+          const result = resolveUsAdultName({ name: input.name, aliases: input.aliases, people });
+          if (input.expectedLibraryNamesDigest !== null && input.expectedLibraryNamesDigest !== result.libraryNamesDigest)
+            fail('PEOPLE_NAME_LIBRARY_CHANGED', 'The actor name library changed after its frozen query.');
+          return result;
+        } }]).people_name_resolution;
     },
     readUsAdultPersonSnapshot(input){
       exactInput(input,['personId','expectedPersonRevision','expectedReferenceRevision'],'PEOPLE_REFERENCE_QUERY_INVALID');

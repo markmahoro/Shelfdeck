@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "capabilityRef": "arca.series_root.files.relocate@1",
+  "contractVersion": 1,
+  "ownerScope": "arca",
+  "effectClass": "material_commit",
+  "inputPorts": {
+    "seriesRootRelocationReference": {
+      "schemaRef": "helix://contracts/capabilities/arca.series_root.files.relocate/v1/inputs#/$defs/seriesRootRelocationReference",
+      "required": true,
+      "cardinality": "one"
+    }
+  },
+  "parametersSchemaRef": "helix://contracts/capabilities/arca.series_root.files.relocate/v1/parameters",
+  "resultSchemaRef": "helix://contracts/capabilities/arca.series_root.files.relocate/v1/result",
+  "evidenceSchemaRef": "helix://contracts/capabilities/arca.series_root.files.relocate/v1/evidence",
+  "failureSchemaRef": "helix://contracts/capabilities/arca.series_root.files.relocate/v1/failure",
+  "fenceSchemaRef": "helix://contracts/capabilities/arca.series_root.files.relocate/v1/fence",
+  "resourceDemandSchemaRef": "helix://contracts/capabilities/arca.series_root.files.relocate/v1/resource-demand",
+  "idempotencyScope": "event",
+  "semanticValidatorRef": "helix://contracts/semantic-validators/arca.series_root.files.relocate/v1",
+  "executorCompatibility": {
+    "minimumVersion": 1
+  },
+  "sourceLocator": {
+    "section": "8.6.9",
+    "line": 10468,
+    "lineDigest": "74f924f3a508aa473fb6b24e17209f4fd1d9d05365db57ada541f6c8ad7c41f3"
+  }
+}
