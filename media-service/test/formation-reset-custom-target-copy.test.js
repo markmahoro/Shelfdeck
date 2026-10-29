@@ -10,6 +10,7 @@ const {createOfferWithdrawalStore}=require('../src/helix/domains/arca/persistenc
 const {createOnDeckProcessCoordinator}=require('../src/helix/domains/arca/application/on-deck-process-coordinator');
 const {createOutboxDispatcherHost}=require('../src/helix/foundation/execution/outbox-dispatcher-host');
 const {fixture:specFixture}=require('./helix-architecture/fixtures/custom-acceptance-spec-harness');
+const {decisionHeadDigest}=require('../src/helix/domains/libra/model/decision-front-half-contracts');
 const {createRetainedDatabase}=require('../scripts/formation-reset-copy');
 const {buildOwnerRetentionPolicy}=require('../scripts/formation-reset-owner-policy');
 const {readResetOwnerSnapshot}=require('../scripts/formation-reset-owner-snapshot');
@@ -23,12 +24,53 @@ const targetSchema={schemaManifest:require('../src/helix/foundation/persistence/
 
 function reviewedPolicy(owner){return buildOwnerRetentionPolicy(targetSchema.schemaManifest,owner);}
 
+function customCommandIds({preview,intent}){
+  return [D({schema:'libra.custom-target-command-receipt@1',kind:'preview',actorId:intent.actorId,
+    idempotencyKey:'preview-'+preview.actorId}),
+  D({schema:'libra.custom-target-command-receipt@1',kind:'intent',actorId:intent.actorId,idempotencyKey:intent.idempotencyKey}),
+  D({schema:'libra.custom-spec-command-id@1',intentId:intent.intentId})];
+}
+
+function seedCustomCommandProofs(db,target,spec){
+  const {preview,intent}=target,[previewId,confirmId,publishId]=customCommandIds(target),
+    previewContract='libra.custom-target.preview@1',confirmContract='libra.custom-target.confirm@1',
+    publishContract='libra.custom-target.spec.publish@1',previewKey='preview-'+preview.actorId,
+    previewRequest=D({schema:'libra.custom-target-preview-request@1',subjectId:intent.subjectId,libraRunId:intent.libraRunId}),
+    common={caller:'admin:'+intent.actorId,scopeType:'libra_run',scopeId:intent.libraRunId,actorType:'admin',actor:intent.actorId,
+      schema:'libra.custom-target-command-result@1',evidence:null},
+    proofs=[
+      {...common,id:previewId,contract:previewContract,action:previewContract,key:previewKey,request:previewRequest,
+        result:{recordId:preview.previewDigest,recordDigest:preview.previewDigest},at:preview.createdAtMs},
+      {...common,id:confirmId,contract:confirmContract,action:confirmContract,key:intent.idempotencyKey,request:intent.requestDigest,
+        result:{recordId:intent.intentId,recordDigest:intent.intentDigest},at:intent.confirmedAtMs},
+      {id:publishId,contract:publishContract,caller:'libra.custom-target-resolution',key:intent.intentId,
+        request:D({schema:publishContract,intentId:intent.intentId,intentDigest:intent.intentDigest}),
+        scopeType:'custom_target',scopeId:intent.intentId,actorType:'system',actor:'libra.custom-target-resolution',
+        action:'libra.custom_spec.publish',evidence:intent.intentDigest,schema:'libra.custom-spec-publication-result@1',
+        result:{subjectId:spec.subjectId,acceptanceSpecId:spec.acceptanceSpecId,specRevision:spec.specRevision,specDigest:spec.specDigest,
+          recordDigest:spec.recordDigest,customTargetRef:spec.customTargetRef,targetInputDigest:spec.targetInputDigest,committedHeadRevision:4},
+        at:spec.publishedAtMs},
+    ];
+  const receipt=db.prepare('INSERT INTO fx_command_receipts(command_receipt_id,owner_domain,command_contract,caller_scope,idempotency_key,request_digest,target_type,target_id,result_schema_ref,result_ref_json,result_digest,committed_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)'),
+    marker=db.prepare('INSERT INTO fx_commit_markers(commit_marker,effect_id,owner_domain,scope_type,scope_id,commit_digest,result_id,result_schema_ref,result_digest,committed_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)'),
+    audit=db.prepare('INSERT INTO fx_audit_records(audit_id,owner_domain,actor_type,actor_id,action,scope_type,scope_id,work_id,event_id,evidence_digest,occurred_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)');
+  for(const proof of proofs){
+    receipt.run(proof.id,'libra',proof.contract,proof.caller,proof.key,proof.request,proof.scopeType,proof.scopeId,
+      proof.schema,canonicalJson(proof.result),D(proof.result),proof.at);
+    marker.run(proof.id,null,'libra',proof.scopeType,proof.scopeId,proof.request,null,null,null,proof.at);
+    audit.run(proof.id,'libra',proof.actorType,proof.actor,proof.action,proof.scopeType,proof.scopeId,null,null,proof.evidence,proof.at);
+  }
+}
+
 function fixture(t){
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'reset-custom-target-'));
   t.after(()=>fs.rmSync(root,{recursive:true,force:true}));
   const sourcePath=path.join(root,'source.db'),targetPath=path.join(root,'target.db');
   openSqliteKernel({Database,databasePath:sourcePath,...targetSchema}).close();
-  const first=specFixture('movie','old-run-1'),second=specFixture('movie','old-run-2',{customTargetRevision:1}),
+  const initial=specFixture('movie','old-run-1'),headDigest=decisionHeadDigest('subject',3,
+      initial.routing.routingDecisionId,initial.baseSpec.decisionBasisId,initial.baseSpec.acceptanceSpecId),
+    first=specFixture('movie','old-run-1',{decisionHeadDigest:headDigest}),
+    second=specFixture('movie','old-run-2',{customTargetRevision:1,decisionHeadDigest:headDigest}),
     committed=first.target([{requirementCode:'minimum_raster_unmet',targetId:'minimumRasterClass'}],'alice'),
     unused=second.target([{requirementCode:'minimum_raster_unmet',targetId:'minimumRasterClass'}],'bob'),
     usedSpec=first.build(committed),unusedSpec=second.build(unused,{specRevision:3}),base=first.baseSpec;
@@ -38,8 +80,8 @@ function fixture(t){
     db.exec("INSERT INTO arca_shelves(shelf_id,status) VALUES('shelf','active');\n"+
       "INSERT INTO arca_shelf_entries(shelf_entry_id,shelf_id,status) VALUES('collection','shelf','active');\n"+
       "INSERT INTO libra_subjects(subject_id,status,content_profile,structure_kind,intake_revision) VALUES('subject','active','movie','single',1)");
-    db.prepare('INSERT INTO libra_decision_basis_revisions(decision_basis_id,subject_id,basis_kind,basis_revision,status) VALUES(?,?,?,?,?)')
-      .run(base.decisionBasisId,'subject','acceptance_spec',1,'ready');
+    db.prepare('INSERT INTO libra_decision_basis_revisions(decision_basis_id,subject_id,basis_kind,basis_revision,status,routing_decision_id) VALUES(?,?,?,?,?,?)')
+      .run(base.decisionBasisId,'subject','acceptance_spec',1,'ready',first.routing.routingDecisionId);
     const specRow=db.prepare('INSERT INTO libra_acceptance_specs(acceptance_spec_id,subject_id,shelf_id,decision_basis_id,product_scope_digest,spec_revision,spec_schema_ref,spec_json,spec_digest,record_digest,structure_kind,content_profile,published_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)');
     for(const value of [base,usedSpec,unusedSpec])specRow.run(value.acceptanceSpecId,value.subjectId,value.targetShelfId,value.decisionBasisId,
       value.productScope.scopeDigest,value.specRevision,value.schemaRef,canonicalJson(value),value.specDigest,value.recordDigest,
@@ -59,12 +101,15 @@ function fixture(t){
     db.prepare("UPDATE libra_runs SET superseded_by_run_id='committed-run' WHERE libra_run_id='old-run-1'").run();
     for(const {preview,intent} of [committed,unused]){
       db.prepare('INSERT INTO libra_custom_target_previews(preview_id,subject_id,libra_run_id,actor_id,idempotency_key,request_digest,record_schema_ref,record_json,record_digest,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)')
-        .run(preview.previewDigest,'subject',preview.basis.libraRunId,preview.actorId,'preview-'+preview.actorId,D(preview.actorId),
+        .run(preview.previewDigest,'subject',preview.basis.libraRunId,preview.actorId,'preview-'+preview.actorId,
+          D({schema:'libra.custom-target-preview-request@1',subjectId:intent.subjectId,libraRunId:intent.libraRunId}),
           preview.schemaRef,canonicalJson(preview),preview.previewDigest,preview.createdAtMs);
       db.prepare('INSERT INTO libra_custom_target_intents(intent_id,preview_id,subject_id,libra_run_id,product_scope_digest,target_revision,actor_id,idempotency_key,request_digest,record_schema_ref,record_json,record_digest,created_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')
         .run(intent.intentId,intent.previewDigest,intent.subjectId,intent.libraRunId,intent.basis.productScopeDigest,intent.revision,
           intent.actorId,intent.idempotencyKey,intent.requestDigest,intent.schemaRef,canonicalJson(intent),intent.intentDigest,intent.confirmedAtMs);
     }
+    seedCustomCommandProofs(db,committed,usedSpec);
+    seedCustomCommandProofs(db,unused,unusedSpec);
     db.prepare('INSERT INTO libra_custom_target_heads(subject_id,product_scope_digest,current_revision,intent_id,record_digest) VALUES(?,?,?,?,?)')
       .run('subject',unused.intent.basis.productScopeDigest,unused.intent.revision,unused.intent.intentId,unused.intent.intentDigest);
     for(const [runId,spec] of [['committed-run',usedSpec],['uncommitted-run',unusedSpec]]){
@@ -125,6 +170,77 @@ function seedHistoricalWork(f,id,state){
     .run(id,'libra','libra_run','old-run-1','historic_work','normal_foreground','{}',state,id);}
   finally{db.close();}
 }
+
+test('retained custom target keeps its exact three command proofs and drops unrelated target proofs',t=>{
+  const f=fixture(t),owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath});
+  createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy:reviewedPolicy(owner)});
+  const copy=new Database(f.targetPath,{readonly:true}),kept=customCommandIds(f.committed),unused=customCommandIds(f.unused);
+  try{
+    for(const [table,column] of [['fx_command_receipts','command_receipt_id'],['fx_commit_markers','commit_marker'],['fx_audit_records','audit_id']]){
+      const has=copy.prepare('SELECT count(*) n FROM '+table+' WHERE '+column+'=?');
+      for(const id of kept)assert.equal(has.get(id).n,1,table+': retained proof');
+      for(const id of unused)assert.equal(has.get(id).n,0,table+': unrelated proof');
+    }
+    assert.deepEqual(copy.pragma('foreign_key_check'),[]);
+  }finally{copy.close();}
+});
+
+for(const command of [0,1,2])for(const [table,column] of [['fx_command_receipts','command_receipt_id'],
+  ['fx_commit_markers','commit_marker'],['fx_audit_records','audit_id']])
+test('retained custom command '+command+' rejects missing '+table,t=>{
+  const f=fixture(t),db=new Database(f.sourcePath);
+  try{db.prepare('DELETE FROM '+table+' WHERE '+column+'=?').run(customCommandIds(f.committed)[command]);}finally{db.close();}
+  const owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath});
+  assert.throws(()=>createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy:reviewedPolicy(owner)}),
+    {code:'LIBRA_RESET_CUSTOM_TARGET_INVALID'});
+});
+
+for(const kind of ['preview_result','confirm_actor','publish_result','publish_marker','decision_basis'])
+test('retained custom target rejects altered '+kind+' proof',t=>{
+  const f=fixture(t),db=new Database(f.sourcePath),ids=customCommandIds(f.committed);
+  try{
+    if(kind==='preview_result'||kind==='publish_result'){
+      const id=ids[kind==='preview_result'?0:2],row=db.prepare('SELECT result_ref_json FROM fx_command_receipts WHERE command_receipt_id=?').get(id),
+        value=JSON.parse(row.result_ref_json);
+      if(kind==='preview_result')value.recordId=D('wrong-preview');else value.committedHeadRevision++;
+      db.prepare('UPDATE fx_command_receipts SET result_ref_json=?,result_digest=? WHERE command_receipt_id=?').run(canonicalJson(value),D(value),id);
+    }else if(kind==='confirm_actor')db.prepare('UPDATE fx_audit_records SET actor_id=? WHERE audit_id=?').run('other-admin',ids[1]);
+    else if(kind==='publish_marker')db.prepare('UPDATE fx_commit_markers SET commit_digest=? WHERE commit_marker=?').run(D('wrong-marker'),ids[2]);
+    else db.prepare('UPDATE libra_decision_basis_revisions SET routing_decision_id=? WHERE decision_basis_id=?').run('different-routing',f.base.decisionBasisId);
+  }finally{db.close();}
+  const owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath});
+  assert.throws(()=>createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy:reviewedPolicy(owner)}),
+    {code:'LIBRA_RESET_CUSTOM_TARGET_INVALID'});
+});
+
+test('independent custom target verification detects a missing copied command proof',t=>{
+  const f=fixture(t),owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath});
+  createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy:reviewedPolicy(owner)});
+  const changed=new Database(f.targetPath);
+  try{changed.prepare('DELETE FROM fx_audit_records WHERE audit_id=?').run(customCommandIds(f.committed)[2]);}finally{changed.close();}
+  const source=new Database(f.sourcePath,{readonly:true}),target=new Database(f.targetPath,{readonly:true});
+  try{source.exec('BEGIN');target.exec('BEGIN');assert.throws(()=>verifyRetainedCustomTargets(source,target,targetSchema.schemaManifest),
+    {code:'LIBRA_RESET_CUSTOM_TARGET_INVALID'});}
+  finally{source.exec('ROLLBACK');target.exec('ROLLBACK');source.close();target.close();}
+});
+
+test('an eventless Arca acceptance Marker keeps its exact Foundation Result',t=>{
+  const f=fixture(t),db=new Database(f.sourcePath),decision={acceptanceDecisionId:'decision',customAcceptanceBasis:{intentId:f.committed.intent.intentId}},
+    receipt={receiptId:'arca-receipt'},decisionDigest=D(decision),resultDigest=D(receipt),resultId=D('acceptance-result'),markerId=D('acceptance-marker');
+  try{
+    db.prepare('INSERT INTO fx_event_result_bindings(result_id,event_id,outcome_kind,result_schema_ref,result_json,result_digest,evidence_schema_ref,evidence_json,evidence_digest,effect_receipt_id,committed_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?,?)')
+      .run(resultId,null,'succeeded','fixture.receipt',canonicalJson(receipt),resultDigest,'fixture.decision',canonicalJson(decision),decisionDigest,'arca-receipt',1);
+    db.prepare('INSERT INTO fx_commit_markers(commit_marker,effect_id,owner_domain,scope_type,scope_id,commit_digest,result_id,result_schema_ref,result_digest,committed_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)')
+      .run(markerId,null,'arca','acceptance_decision','decision',decisionDigest,resultId,'fixture.receipt',resultDigest,1);
+  }finally{db.close();}
+  const owner=readResetOwnerSnapshot({Database,sourcePath:f.sourcePath});
+  createRetainedDatabase({Database,sourcePath:f.sourcePath,targetPath:f.targetPath,targetSchema,policy:reviewedPolicy(owner)});
+  const copy=new Database(f.targetPath,{readonly:true});
+  try{
+    assert.equal(copy.prepare('SELECT result_id FROM fx_commit_markers WHERE commit_marker=?').get(markerId).result_id,resultId);
+    assert.equal(copy.prepare('SELECT evidence_json FROM fx_event_result_bindings WHERE result_id=?').get(resultId).evidence_json,canonicalJson(decision));
+  }finally{copy.close();}
+});
 
 test('an unreferenced ready Work of a retained predecessor leaves the fresh generation',t=>{
   const f=fixture(t);seedHistoricalWork(f,'old-ready-work','ready');seedHistoricalWork(f,'old-completed-work','succeeded');

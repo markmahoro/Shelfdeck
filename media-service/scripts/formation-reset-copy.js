@@ -185,7 +185,8 @@ function retainIntoSnapshot(source, target, policy, schemaTransition, schemaMani
       if(customRetention&&table.name==='libra_acceptance_specs'){
         const closure=customRetention.describeSpec(row.acceptance_spec_id);
         if(closure)for(const [name,id] of [['libra_custom_target_intents',closure.intentId],
-          ['libra_custom_target_previews',closure.previewId],['libra_acceptance_specs',closure.baseAcceptanceSpecId]]){
+          ['libra_custom_target_previews',closure.previewId],['libra_acceptance_specs',closure.baseAcceptanceSpecId],
+          ...closure.commandReceiptIds.flatMap(id=>[['fx_command_receipts',id],['fx_commit_markers',id],['fx_audit_records',id]])]){
           const dependency=tables.get(name),selected=dependency.original.get(id);
           if(!selected)fail('RESET_COPY_OWNER_REFERENCE_MISSING',{parent:table.name,child:name});
           add(name,selected);

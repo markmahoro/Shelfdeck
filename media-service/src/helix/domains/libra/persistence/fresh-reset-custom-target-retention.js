@@ -4,6 +4,7 @@ const {canonicalDigest,canonicalJson}=require('../../../contracts/canonical-json
 const {createRepositoryDefinition}=require('../../../foundation/persistence/owner-repository');
 const {buildCollectionTargetReference}=require('../../../contracts/collection-target-reference');
 const {assertStandardAcceptanceSpec,assertCustomAcceptanceSpec}=require('../model/custom-acceptance-spec');
+const {verifyCustomTargetCommandProofs}=require('./fresh-reset-custom-target-proof');
 
 const SCHEMA='libra.fresh-reset-custom-target-closure@1';
 const HISTORICAL_ROW_SCHEMA='AcceptanceSpec@1';
@@ -24,11 +25,23 @@ function createFreshResetCustomTargetRetention(options){
         'libra_run_id','product_scope_digest','target_revision','actor_id','idempotency_key','request_digest','record_schema_ref','record_json',
         'record_digest','created_at_ms']},
       preview:{kind:'select-one',tableId:'libra_custom_target_previews',keyColumns:['preview_id'],columns:['preview_id','subject_id',
-        'libra_run_id','actor_id','record_schema_ref','record_json','record_digest','created_at_ms']},
+        'libra_run_id','actor_id','idempotency_key','request_digest','record_schema_ref','record_json','record_digest','created_at_ms']},
+      basis:{kind:'select-one',tableId:'libra_decision_basis_revisions',keyColumns:['decision_basis_id'],
+        columns:['decision_basis_id','subject_id','basis_kind','routing_decision_id']},
       run:{kind:'select-one',tableId:'libra_runs',keyColumns:['libra_run_id'],columns:['libra_run_id','subject_id','acceptance_spec_id',
         'execution_basis_digest','execution_basis_record_json']},
       package:{kind:'select-one',tableId:'libra_product_packages',keyColumns:['on_deck_package_id'],columns:['on_deck_package_id','libra_run_id',
         'subject_id','shelf_id','acceptance_spec_id','acceptance_spec_record_digest']},
+    }});
+  const foundation=createRepositoryDefinition({repositoryId:'libra_reset_custom_target_proof',owner:'execution-foundation',
+    schemaManifest:options.schemaManifest,readOnly:true,statements:{
+      receipt:{kind:'select-one',tableId:'fx_command_receipts',keyColumns:['command_receipt_id'],columns:['command_receipt_id',
+        'owner_domain','command_contract','caller_scope','idempotency_key','request_digest','target_type','target_id',
+        'result_schema_ref','result_ref_json','result_digest','committed_at_ms']},
+      marker:{kind:'select-one',tableId:'fx_commit_markers',keyColumns:['commit_marker'],columns:['commit_marker','effect_id',
+        'owner_domain','scope_type','scope_id','commit_digest','result_id','result_schema_ref','result_digest','committed_at_ms']},
+      audit:{kind:'select-one',tableId:'fx_audit_records',keyColumns:['audit_id'],columns:['audit_id','owner_domain','actor_type',
+        'actor_id','action','scope_type','scope_id','work_id','event_id','evidence_digest','occurred_at_ms']},
     }});
   function specFrom(repo,id){
     const row=repo.invoke('spec',{acceptance_spec_id:id}),value=parse(row,'spec_json');
@@ -62,10 +75,11 @@ function createFreshResetCustomTargetRetention(options){
         previewRow.actor_id!==preview.actorId||previewRow.record_schema_ref!==preview.schemaRef||
         previewRow.record_digest!==preview.previewDigest||previewRow.created_at_ms!==preview.createdAtMs)fail();
     assertCustomAcceptanceSpec({spec,baseSpec,preview,intent});
+    const decisionBasis=repo.invoke('basis',{decision_basis_id:baseSpec.decisionBasisId});
     const body={schemaRef:SCHEMA,acceptanceSpecId:spec.acceptanceSpecId,specRecordDigest:spec.recordDigest,
       subjectId:spec.subjectId,productScopeDigest:spec.productScope.scopeDigest,intentId:intent.intentId,intentDigest:intent.intentDigest,
       previewId:preview.previewDigest,baseAcceptanceSpecId:baseSpec.acceptanceSpecId,baseRecordDigest:baseSpec.recordDigest};
-    return Object.freeze({...body,digest:canonicalDigest(body)});
+    return {body,proof:{spec,intent,preview,baseSpec,previewRow,decisionBasis}};
   }
   function validateRun(repo,runId){
     const run=repo.invoke('run',{libra_run_id:runId});if(!run)fail();
@@ -85,8 +99,17 @@ function createFreshResetCustomTargetRetention(options){
         ref.targetRevision!==expected.targetRevision)fail();
     return closure;
   }
-  const read=(participantId,fn)=>options.unitOfWork.execute([{participantId,owner:'libra',repositories:[repository],
-    execute:context=>fn(context.repository(repository.repositoryId))}])[participantId];
+  function read(participantId,fn){
+    let selected;
+    return options.unitOfWork.execute([{participantId,owner:'libra',repositories:[repository],
+      execute(context){selected=fn(context.repository(repository.repositoryId));return null;}},
+    {participantId:'libra_reset_custom_proof',owner:'execution-foundation',boundBusinessOwner:'libra',repositories:[foundation],execute(context){
+      if(!selected)return null;
+      const commandReceiptIds=verifyCustomTargetCommandProofs(context.repository(foundation.repositoryId),selected.proof),
+        body={...selected.body,commandReceiptIds};
+      return Object.freeze({...body,digest:canonicalDigest(body)});
+    }}]).libra_reset_custom_proof;
+  }
   return Object.freeze({
     describeSpec:id=>read('libra_reset_custom_spec',repo=>describeSpec(repo,id)),
     validateRun:id=>read('libra_reset_custom_run',repo=>validateRun(repo,id)),

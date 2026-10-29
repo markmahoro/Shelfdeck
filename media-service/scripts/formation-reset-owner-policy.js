@@ -29,6 +29,10 @@ function buildOwnerRetentionPolicy(manifest, { seriesRetention, metadataRetentio
     'arca_series_presentation_commit_links', 'arca_series_presentation_reservations']);
   children('arca_acceptance_attempts', 'acceptance_attempt_id', ['arca_acceptance_checks', 'arca_acceptance_check_evidence']);
   children('arca_acceptance_decisions', 'acceptance_decision_id', ['arca_handoff_b_receipts']);
+  // The accepted decision can carry its exact custom-target evidence in a
+  // Foundation Result with no Event. Its Marker owns the Result reference.
+  edge('arca_acceptance_decisions', 'fx_commit_markers', [['acceptance_decision_id', 'scope_id']],
+    { owner_domain: 'arca', scope_type: 'acceptance_decision' });
   children('arca_aftercare_cases', 'aftercare_case_id', ['arca_aftercare_case_basis_inputs', 'arca_aftercare_settlement_approvals']);
   children('arca_aftercare_assessments', 'assessment_id', ['arca_aftercare_findings']);
   children('arca_offdeck_cases', 'offdeck_case_id', ['arca_offdeck_terminal_receipts']);
