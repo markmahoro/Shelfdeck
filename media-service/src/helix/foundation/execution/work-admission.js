@@ -134,10 +134,16 @@ function createWorkAdmission(options) {
 
   return Object.freeze({
     replay,
-    submit(rawDefinition) {
+    submit(rawDefinition, {readFence = null} = {}) {
       let definition;
       try { definition = validateSupportingWorkDefinition(rawDefinition); } catch (error) {
         return Object.freeze({ kind: 'invalid_contract', reasonCode: error.code || 'P4_WORK_ADMISSION_INVALID_DEFINITION' });
+      }
+      // A previously committed exact command remains replayable after later
+      // Owner changes; a new admission must validate the captured read view.
+      if (readFence !== null) {
+        const committed = replay(definition);
+        if (committed) return committed;
       }
       const eligibility = options.eligibilityProvider.check(Object.freeze({
         ownerDomain: definition.ownerDomain, processType: definition.processType, processId: definition.processId,
@@ -214,7 +220,7 @@ function createWorkAdmission(options) {
             });
             return result;
           }
-        }]);
+        }], {readFence});
         return results.work_admission;
       } catch (error) {
         if (error instanceof WorkAdmissionReplay) return error.result;

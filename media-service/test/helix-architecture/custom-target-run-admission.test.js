@@ -356,3 +356,29 @@ for(const outcome of ['accepted','rejected']) test('a '+outcome+' Libra delivery
   const result=replacementReadiness(h,undefined,()=>new Map()).check(replacement.libraRunId);
   assert.equal(result.kind,'pending');assert.equal(result.reasonCode,'prior_offer_outcome_review_required');
 }));
+
+test('a stale replacement readiness fence cannot admit new Work after an old Effect appears',()=>runHarness(h=>{
+  const old=h.chosen.intent.basis.libraRunId,replacement=h.advance(h.unitOfWork.captureReadFence()),guard=replacementReadiness(h),
+    readiness=guard.check(replacement.libraRunId),run=h.db.prepare('SELECT execution_basis_digest FROM libra_runs WHERE libra_run_id=?').get(replacement.libraRunId);
+  assert.equal(readiness.kind,'ready');
+  const work={schemaRef:'helix://foundation/types/SupportingWorkDefinition/v1',schemaVersion:1,workId:'replacement-work',ownerDomain:'libra',
+    processType:'libra_run',processId:replacement.libraRunId,workKind:'product_gap',workObjectiveTypeRef:'helix://libra/work/ProductGap/v1',
+    workObjectiveVersion:1,executionBasisId:'replacement-basis',executionBasisDigest:run.execution_basis_digest,dependencyRefs:[],
+    priorityClass:'normal_foreground',priorityRevision:1,capabilityCatalogScope:'libra',workspaceMaterialScope:[],
+    idempotencyKey:'replacement-work-key',concurrencyScope:replacement.libraRunId+'/product',outputContractRef:'helix://libra/results/ProductGap/v1'},
+    admission=require('../../src/helix/foundation/execution/work-admission').createWorkAdmission({...h.options,
+      eligibilityProvider:{check:request=>({eligible:true,basisDigest:request.executionBasisDigest})},
+      limits:{globalOpenWorks:100,ownerOpenWorks:100,openEvents:100}});
+  seedDrainingRun(h,old);
+  assert.throws(()=>admission.submit(work,{readFence:readiness.readFence}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.equal(h.db.prepare('SELECT count(*) n FROM fx_supporting_works WHERE work_id=?').get('replacement-work').n,0);
+  assert.equal(h.db.prepare('SELECT count(*) n FROM fx_command_receipts WHERE target_id=?').get('replacement-work').n,0);
+  assert.equal(guard.check(replacement.libraRunId).reasonCode,'prior_execution_draining');
+  h.db.prepare("UPDATE fx_workflow_events SET state='succeeded' WHERE event_id='draining-event'").run();
+  h.db.prepare("UPDATE fx_event_attempts SET state='completed',outcome_kind='succeeded' WHERE event_attempt_id='draining-event-attempt'").run();
+  h.db.prepare("UPDATE fx_effect_journal SET state='committed' WHERE effect_id='draining-effect'").run();
+  const fresh=guard.check(replacement.libraRunId);
+  assert.equal(fresh.kind,'ready');
+  assert.equal(admission.submit(work,{readFence:fresh.readFence}).kind,'admitted');
+  assert.equal(h.db.prepare('SELECT count(*) n FROM fx_supporting_works WHERE work_id=?').get('replacement-work').n,1);
+}));

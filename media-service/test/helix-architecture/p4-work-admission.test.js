@@ -261,3 +261,16 @@ test('Work insert failure rolls back Receipt and never creates Business Process 
     }
   });
 });
+
+test('Work Admission can atomically reject an obsolete Owner read fence without creating Work or a receipt',()=>fixture(({admission,unitOfWork,databasePath})=>{
+  const stale=unitOfWork.captureReadFence(),db=new Database(databasePath);
+  db.prepare("INSERT INTO libra_subjects(subject_id) VALUES('changed-after-read')").run();db.close();
+  assert.throws(()=>admission.submit(definition(),{readFence:stale}),{code:'P3_UOW_READ_FENCE_CHANGED'});
+  assert.deepEqual(rows(databasePath,'fx_supporting_works'),[]);
+  assert.deepEqual(rows(databasePath,'fx_command_receipts'),[]);
+  const fresh=unitOfWork.captureReadFence();
+  assert.equal(admission.submit(definition(),{readFence:fresh}).kind,'admitted');
+  assert.equal(admission.submit(definition(),{readFence:fresh}).replayed,true);
+  assert.equal(rows(databasePath,'fx_supporting_works').length,1);
+  assert.equal(rows(databasePath,'fx_command_receipts').length,1);
+}));
