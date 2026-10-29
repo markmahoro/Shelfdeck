@@ -1,31 +1,45 @@
 # 当前集成 Phase：本轮并行修复与 BUFFALO-VIDEO-IDENTIFICATION
 
-更新：2026-10-29。用户指定本线程追踪和整合本轮、负责最终门禁及生产发布；原线程专注Phase 4→5，Phase 2/3独立推进。Series恢复补丁优先，资料切片由本线程补齐三个Schema后统一完成门禁及七条原任务线上恢复验收。本文件仍是唯一活动集成包，各Phase编号/门槛保留。Phase 1有限技术资格已Exit，固定提交125229556及[Evidence](evidence/BUFFALO_CATALOGUE_FEASIBILITY_20261029.md)可复验；未开放自动出演。
+2026-10-29 最新用户决定覆盖下方旧的 Series 独立发版/七条逐项恢复顺序：先检查五条原因未明项并只加入必要的修复，再完成电影自定义 Spec、US Adult 演员识别与自动建档及已有积压根因修复；随后安全停机、执行已授权的 Fresh-generation Formation Reset，最后标准部署同一版本。旧未入藏任务不做兼容、自愈或逐条恢复；用户已授权跳过真实 CIFS 验证，不再等待低 I/O；不能将未验证部分记为通过。按已授权的精确停止态预检、保留依赖验证、备份和标准发布入口执行；不恢复定时轮询。
+
+五条针对性复核新增两项本轮工作，具体案例、证据边界与最小修复方向见 [PRODUCTION_FIVE_CASES_REVIEW_20261029](evidence/PRODUCTION_FIVE_CASES_REVIEW_20261029.md)：
+
+- **TMDB-ALIAS-TYPE-BOUND**：硅谷 S04 的同输入、同生产 Adapter 当前可复现；TMDB 合法 `alternative_titles[].type` 描述为 159 UTF-8 bytes，旧代码按 128 bytes 整体拒绝。该字段不属于 Alias Evidence；在保持完整响应、实际标题和身份边界有界的前提下修正协议校验，覆盖原反例及无效类型、总体过界负例。历史第一次错误未保留字段级证据，不伪称精确历史因果。
+- **JAV-SOURCE-FAILURE-DIAGNOSTICS**：GVH-877、SORA-062 的来源错误持久诊断缺少阶段和 HTTP 状态；按现有 failure evidence 合同保留白名单字段并限制底层网络码，不暴露 Secret、URL 或响应正文。不改变源选择、重试或旧 Run。历史失败的精确网络根因仍未知，当前只验证精确页面可访问，未取得封面。
+
+两项代码分别提交 `9a271d317`、`9ae7c1aa6`：隔离 Linux 定向64项及后续身份/诊断22项通过，真实 Host 的页面503失败 Evidence 定向通过。既有完整 FC2 503→备站→入藏测试首两轮因误设1 GiB临时卷、低于Workspace至少5 GiB准入而未进入入藏；改用空间充足的隔离匿名卷后原断言及新增持久诊断断言通过。首两次失败保留。详见五条复核 Evidence，最终集成和正式验收未完成。
+
+DDOB-019 的冲突目标为已有 active Shelf Entry 所控的同番号正式文件，新任务输入为不同物理材料；保护性拒绝保留，不因相同番号认定可合并、覆盖或自动替换。爱死机原始三次均为连接重置，当前相同来源查询已成功，无法证明原始连接重置的外部位置；不追加猜测性恢复代码。
+
+更新：2026-10-29。用户同意恢复演员、电影、剧集及UI负责人线程并行，本线程追踪和整合、负责Reset与发布；不恢复定时轮询。Series、电影自定义Spec及演员识别统一发版，旧七条不逐条恢复。本文件仍是唯一活动集成包。Phase 1有限技术资格已Exit，固定提交125229556及[Evidence](evidence/BUFFALO_CATALOGUE_FEASIBILITY_20261029.md)可复验；未开放自动出演。
+
+独立候选`b7a03bb48`、`2a58c1606`已整合US体积检查及对话框修复：隔离Linux服务56项、Windows Web 15项和前端构建通过；最终合版、真实媒体及具体版本UI复核仍开放。冷态Reset结构转换提交`bfc9f0cd4`对固定生产239表→当前244表进行精确目录和marker校验；隔离Linux 6项通过，含结构/marker负例、244原样及235→239回归。首次运行在旧实现中2失败/1通过，失败保留；正式244表Owner保留声明、Withdrawal依赖及生产Reset均仍未放行，结构通过不代表数据闭包通过。
 
 ## 并行执行与当前阻断
 
 | 线程 / ID | 本轮交付与先后 | 整合边界 |
 | --- | --- | --- |
-| 本轮整合线程 | 计划追踪、共享合同/生成物、独立Series候选及最终门禁/发布 | 自有主整合目录；不改写演员/电影worktree，不携带未完成内容进入Series候选 |
+| 本轮整合线程 | 计划追踪、共享合同/生成物、Reset与最终合版门禁/发布 | 自有主整合与独立候选目录；保护其他线程及已有暂存工作 |
 | 演员线程 01a164c5-1b9a-7312-a8ec-701ea6032526 | 继续Catalogue Basis/Work/Artifact/补采恢复及Phase 4→5闭环 | 共享基准97c4913b9含2f/68/f0/723/3c/e7及正式合同，固定树双平台各52通过；NAS验证暂停，正式Host/真实模型/完整门禁未完成，不作为Series发布基线 |
-| ShelfDeck 生产待处理条目分诊 01a18626-520c-79a0-8240-066bd0a777a3 | 当前一次快照、逐条分诊；承接JAV路径字节预算修复 | 生产只读，独立开发工作区可修改源码；16:18快照34 attention/4进行中，不等于34个bug或Reset精确范围 |
-| ShelfDeck 剧集上架与自愈修复 01a18627-6d8b-7d72-aa5a-bcb7cbf6ed0f | 7条Series恢复、季poster复用和精确剧情切片已提交；承接具体候选UI问题修复 | a4989adf9、878d814d3、f442a6f2f基于a2bf2d6fd；三个资料Schema及登记摘要由本线程集成，固定候选/生产验收未完成 |
-| ShelfDeck 电影寻源与自定义标准 01a18628-b31a-70c3-abbc-bd29b688cbce | 电影候选与自定义标准Libra基础切片b3929e199已交付；续修US瑕疵预览 | 18文件SHA交接完成；完整API/UI、Arca责任投影和Handoff B等未闭合，Linux精确依赖镜像及真实旅程未完成，不开放半成品 |
+| ShelfDeck 生产待处理条目分诊 01a18626-520c-79a0-8240-066bd0a777a3 | 生产快照与逐条分诊已完成；JAV长名原型已留证 | 本轮未重新启动，16:18快照不等于Reset精确范围 |
+| ShelfDeck 剧集上架与自愈修复 01a18627-6d8b-7d72-aa5a-bcb7cbf6ed0f | Series新任务修复核对，并承接JAV长名正式实现 | 在独立工作区开发；不逐条重试旧任务，不操作生产 |
+| ShelfDeck 电影寻源与自定义标准 01a18628-b31a-70c3-abbc-bd29b688cbce | 完成自定义标准端到端用户闭环 | 承接原增量；完整API/UI、Owner/Runtime和真实旅程仍未闭合，不开放半成品 |
+| UI负责人 01a0912a-0086-74e2-88ab-536c59d3862a | 提前复核体积及瑕疵对话框，最终核验精确合版 | 当前提前反馈不代替最终版本复核 |
 
-这些线程只提交自己的代码/专属Evidence，不改SSOT/Master/本包/全局生成物；共享合同由本线程合并。NAS重型验证串行安排。用户要求优先交付可拆的Series补丁并完成七条指定任务验收；仍须先完成固定候选适用门禁、具体版本UI及真实CIFS资格。没有再次Reset、手工改库或扩大其他生产数据处置的授权。以下为Phase 4技术范围与既有Evidence，较早串行顺序不再约束其他线。
+这些线程只提交自己的代码/专属Evidence，不改SSOT/Master/本包/全局生成物；共享合同由本线程合并。NAS重型任务串行安排。本轮已授权停止态Fresh Reset和升级，不再等待真实CIFS或低I/O；保留其未测风险及停止态保护要求。
 
-## Series独立候选与发布阻断
+## Series候选及本轮整合检查点
 
 | 工作项 | 当前状态 / 退出条件 |
 | --- | --- |
 | 候选范围 | 从生产a2bf2d6fd整合Series三个提交及MetadataFetchIntent、MetadataObservation、ArtifactAcquisitionResult最小已确认生成合同；检查原有DDL/表不变，不携带演员/自定义目标。 |
 | 固定候选资格 | 固定提交的Linux镜像、适用架构/Service/Web及具体版本UI负责人核验；保留所有首跑失败与重验。 |
-| 真实CIFS | 使用隔离范围验证正常与冲突/不可观察行为及来源、正式文件保护；不修改生产材料。 |
+| 真实CIFS | 用户明确跳过；未实测风险如实记录，不能称通过。 |
 | 标准发布 | 复核生产身份、容量、备份与回退；使用build-image、upload-nas-image和deploy-nas，dry run与SHA通过后按既有用户请求执行。 |
-| 七条恢复 | 假如…？、真探、亿万、越狱、继承之战、当你沉睡时、飞天大盗：逐项冻结原Offer/build/Scope、失败/Effect、Control和文件基线，经原重试入口核验唯一Commit与历史保护；真实冲突继续attention。 |
+| 旧七条 | 不逐条恢复；停止态Fresh Reset按全范围合同清除未入藏在线状态并保留来源与正式收藏文件。 |
 | CUSTOM-TARGET-RESET-RETENTION | 隔离模拟证实仅作dependent表分类会遗漏已保留Custom Spec的精确Intent/Preview；Libra按实际保留Spec提供Owner依赖闭包，验证同Subject多版本、未入藏、缺失/篡改与中断恢复。原开发Schema因声明不匹配保持fail-closed；不能仅靠FK通过放行Reset。 |
-| JAV-AFTERCARE-REPLACEMENT-IDENTITY | 基线及候选在可控相同inode/同字节替换时复现Effect已提交、inventory no-change及后继冲突；首次全架构现场已失，不声称其根因已确定。初版c2修复仍会把首次执行前的同字节外部目标及外部构造的Stage/目标硬链接当作自身成果，Windows/Linux各2负例失败，故不可入候选；现有Effect intent/continue_forward本身不证明文件归属。继续在Arca Owner和恢复合同内核查持久归属证据、正确重放/拒绝、真实CIFS hard link资格。 |
-| ON-DECK-FOREIGN-STAGE-OWNERSHIP | 独立分诊在实际Stage执行前放入同字节外部文件，现有Stage将其记入Manifest，隔离实验发布随后误认并移动该inode；尚未证明真实Host发生Control或Commit。继续验证正式Host、目标Slot与七条Series是否使用同一组件，不可将事后Manifest/相同inode当创建归属。[Evidence](evidence/ARCA_TARGET_EXCLUSION_RECOVERY_20261029.md) |
+| JAV-AFTERCARE-REPLACEMENT-IDENTITY | 隔离环境发现的额外文件归属风险，未证明为本轮积压根因；按用户决定不作为本轮独立专项，现有保护不削弱。 |
+| ON-DECK-FOREIGN-STAGE-OWNERSHIP | 同字节外来Stage是隔离反例，未证明与现有积压有关；不作为本轮独立专项。若新长名实现复用相关路径，仍按其现行Owner/冲突合同处理。[Evidence](evidence/ARCA_TARGET_EXCLUSION_RECOVERY_20261029.md) |
 | WITHDRAWN-OFFER-RESET-DEPENDENCY | 未Accepted Offer的Withdrawal是永久否决证据；目前尚未证明所有保留Producer/Work/Outbox/Delivery均不能重投或重建精确旧Offer。测试中模拟clear不代表正式分类，须以停止态同一快照的Owner闭包和迟到投递负例收口；239与244两道Schema围栏继续关闭。[Audit](evidence/ARCA_WITHDRAWN_OFFER_RESET_AUDIT_20261029.md) |
 | SERIES-RESOLUTION-COMMIT-FENCE | 精确27a并发Series Host自然复现：Draft冻结后当前Query变化导致Commit Handle不匹配，Effect已reconcile_required但无Marker/Result；生产基线的受控输入亦复现。150秒持续版本变化的合成观察未收敛，不能外推首次门禁或线上状态。独立实现须保全同一Effect责任、冻结Query/Record Set/Rule、后继Work与冲突负例，不得放宽fence。[隔离调查](evidence/SERIES_RESOLUTION_COMMIT_FENCE_INVESTIGATION_20261029.md) |
 | P13-BACKUP-DIGEST-CONSISTENCY | 27a完整架构第二轮中哈希时文件改变未拒绝；Linux tmpfs受控复现stat时间戳相同且接受混合摘要。独立修复须覆盖原负例、时间戳不变、正常文件/有限内存及Windows/Linux；仍须真实停止、独占与完整冷备，不能把单次复验或双读称为原子快照。[Evidence](evidence/SERIES_INTEGRATION_GATE_20261029.md) |
@@ -44,7 +58,7 @@ continuity合法重规划门禁测试`92df7fa5e`挑入后，当前候选更新�
 
 前候选1d8a完整架构3402通过/5失败/27跳过，四项缺少依赖路径后定向通过；1081视频Host并发收敛核查见专项Evidence。bc4完整架构3410通过/3失败/27跳过：两项缺历史Git对象，精确27a相同测试补只读对象后6项通过；另一JAV Aftercare海报失败已找到可复现的相同现象，首跑因果仍未证实。精确27a首轮3411通过/3失败/27跳过：两项同样缺历史对象，第三项Series Resolution Commit Handle异常已在隔离Host调查；带完整历史的第二轮3413通过/1失败/27跳过，唯一失败为上述P13备份摘要缺口。两次原失败均保留，不能用定向结果冒充全量通过。
 
-普通发布只做安全停止与完整校验备份，不默认执行Reset。Fresh-generation Reset的预检须停止、冻结精确范围并核验保留依赖，可能清除在线未入藏任务和系统工作区，不能仅据工作台34条推算范围；当前无Reset授权。[只读分诊和Reset影响](evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)。
+本轮已获Fresh-generation Reset授权；预检须停止、冻结精确范围并核验保留依赖，可能清除在线未入藏任务和系统工作区，不能仅据历史34条快照推算范围。[只读分诊和Reset影响](evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)。
 
 演员2f/68/f0/723/3c/e7与目录Observe合同结合JAV截断合同的共享基准`97c4913b96cbe6509c65a2c42ae5ee106905eb17`已固定，P2为139/118/244/66、153 domain inputs、257 refs且无未解析。固定树Windows/Linux各52通过，Linux包/语义/Manifest/P2通过；Linux沿旧镜像依赖，不覆盖新增usearch真实模型。初次组合的37项通过发生在临时启用244表保留声明的实验状态，发现Custom Spec缺口后已撤回声明并实测`RESET_RETENTION_SCHEMA_UNREVIEWED`；Actor保留正例仅在测试内模拟分类。Reset测试待精确保留和合法历史修复后重验，当前无正式Host接线或完整Actor/Reset资格。[Evidence](evidence/BUFFALO_CATALOGUE_OBSERVATION_CONTRACT_20261029.md)。
 
@@ -54,9 +68,9 @@ UI负责人对前一固定候选的独立走查发现两项阻断：文件状态
 
 ## 生产分诊新增阻断
 
-- ARCA-PATH-COMPONENT-BUDGET：HALT-094和EMLB-094的Arca路径及temporary后缀超出实际CIFS组件字节限制；六次Stage均在复制前失败，旧Final Decision不可静默改写。用户已明确授权主动截断超长名称；主整合已同步SSOT和相关来源定位生成物，本机P2通过。分诊线程在隔离分支针对新JAV Decision实现完整番号/扩展名、字节预算和真实碰撞保护；该合同不等于实现或资格通过。旧条目重试或清理仍无授权。
-- US-SIZE-DEFECT-PREVIEW：两条US瑕疵预览未读取已有产品事实；电影/自定义标准线程提交d37bc4272，Linux 78通过/0跳过但依赖镜像与分支锁文件不完全一致。UI负责人提前走查发现证据变化错误在弹窗背后、实测体积误标预计、瑕疵序号重复三项问题，电影线程承接修复；精确依赖、真实媒体及最终版本UI验收仍开放，未进行生产接受。
-- SERIES-PRESENTATION-EXPANSION：13个build/15个Season Subject是13:36快照；后续新增条目不自动纳入七条线上操作授权。其他网络/协议/来源错误和正常人工待决分别承接。
+- ARCA-PATH-COMPONENT-BUDGET：HALT-094和EMLB-094原冻结Decision超长；已有缩短预览但正式接线未完成，现由剧集线程承接。旧任务按本轮Reset处理，不改写冻结Decision。
+- US-SIZE-DEFECT-PREVIEW：后端与对话框修复已入独立候选并通过上述定向测试；最终合版UI与生产验收仍开放。
+- SERIES-PRESENTATION-EXPANSION：13个build/15个Season Subject是13:36快照；新任务修复按同版验证，旧任务不逐条恢复。其他来源错误和正常人工待决分别承接。
 
 以上均未因局部Linux PASS而自动完成。
 
@@ -106,7 +120,7 @@ Phase 4应提供绑定材料/帧/模型/目录/策略的识别候选及代表图
 
 Phase 2已有修复、Phase 3未提交Run接续文件和既有资格均保留，现由上述独立线程并行承接，不记验收完成。原Phase 2待开始包冻结在[重排检查点](evidence/ROUND_REPLAN_BASELINE_20261029.md)，不构成另一个活动计划。
 
-仅自用NAS，不对外分发模型/数据。Series按上述独立候选门禁和指定七条范围发布及重试；不Reset、改库/人物/Reference或擅自处置媒体，不启停原Sense服务，不恢复自动观察。必要隔离测试按精确目录、只读输入、容量/资源预检及任务专属进程执行；SSH使用tools/nas-ssh-config.js，凭据不输出。
+仅自用NAS，不对外分发模型/数据。完成同版候选后执行已授权的安全停机、Fresh Reset和标准升级；保护收藏、来源和正式文件，不启停原Sense服务，不恢复自动观察。隔离测试按精确目录、只读输入、容量/资源预检及任务专属进程执行；SSH使用tools/nas-ssh-config.js，凭据不输出。
 
 2026-10-29技术切片：已增加有界20+20抽样提议、带同框排斥/组内距离保护的质心分组、时间区段去重、最多三张代表脸及显式目录链接身份汇总；姓名相同不合并，gender冲突保留。Service既有Read Handle/Source校验下增加显式采样点与流式sink，旧正式20帧入口保持原策略；输入前seek并限制解码线程，取消或失败不返回部分成功。模型/目录和新视频Evidence仍是qualification代码，正式Runtime依然为旧模型，不能称已经切换或完成Phase 4。
 

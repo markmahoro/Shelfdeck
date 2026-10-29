@@ -1,5 +1,15 @@
 # ShelfDeck 当前状态
 
+2026-10-29 用户确认电影自定义 Spec、US Adult 演员识别及积压修复同版交付；先核查五条、补必要缺陷，再完成现有范围，安全停机、执行本轮生产 Fresh Reset、标准部署。旧未入藏任务不做跨迭代兼容或七条逐项恢复。用户已授权跳过真实 CIFS 验证，未实测风险需如实保留；定时轮询不重建。
+
+2026-10-29 用户同意恢复演员、电影、剧集和 UI 负责人既有线程并行；本线程负责整合及 Reset/发布。Series线程确认其切片已进入候选并承接JAV长名，电影与演员正式闭环仍待完成；UI正在对中间版本提前反馈，最终合版须另行复核。下方相反的发布顺序、无Reset授权和CIFS门槛均为历史时点记录。
+
+US体积缺陷预览与对话框修复已入独立候选 `b7a03bb48`、`2a58c1606`；隔离Linux 56项、Web 15项及构建通过，最终合版未验收。主整合 `bfc9f0cd4` 冷态精确结构转换的隔离Linux 6项通过，覆盖239→244、235→239、244原样及结构/marker负例；首次旧实现2失败/1通过保留。正式Owner保留声明与Withdrawal依赖仍未审查，结构通过不等于实际Reset可执行；生产未停机、Reset或部署。
+
+五条一次性只读复核：DDOB-019 与已 Commit、active 的同番号收藏目标冲突，新输入是不同物理材料，现有保护拒绝；爱死机原错误为 ECONNRESET，当前同输入 TMDB 查询成功；硅谷同输入当前复现 TMDB 备用标题 `type` 为159字节而代码限128，历史原始字段未留存；GVH-877/SORA-062 的 JAV 页当前各一次请求返回200，未下载封面，原失败阶段/状态被诊断序列化丢弃，无法倒推历史根因。生产只读事务 `query_only=1/total_changes=0`，未操作旧任务。新增两项定向修复及边界见 [Evidence](implementation/evidence/PRODUCTION_FIVE_CASES_REVIEW_20261029.md)。
+
+两项修复在独立候选提交 `9a271d317` 和 `9ae7c1aa6`；Linux 64项、身份/诊断22项、精确失败 Evidence Host及完整 FC2 503→备站→入藏 Host通过。该完整 Host 首两轮将临时卷误设1 GiB、低于Workspace至少5 GiB准入，停在创建Workspace前；更换空间充足的隔离匿名卷、保持原时限后通过，失败日志保留。功能整合、Reset 和生产部署尚未执行。
+
 2026-10-29 18:26只读生产快照：SSH可连接，原镜像`markmahoro/shelfdeck:a2bf2d6fd`运行且Restart 0/OOM false；34条attention、4条进行中、748条完成。NAS I/O pressure full avg10约31%、swap约2.2GiB，未证明稳定资源窗口；不在NAS运行重型CIFS/生产副本资格或部署，继续本机隔离工作。数量是该时点快照，不能将所有attention归为同一缺陷或预测自行恢复。
 
 演员Observation `9f1af5e47`与有界fd读取修订`d0381a976`已仅在主整合index暂存待验证，未进入Series候选。固定临时tree `8bc9cd0042ea76b59ae63a435b1314a5bd80cb1e`的4669跟踪文件在Linux逐blob一致；观察/Workspace/codec测试Linux 42通过，Windows 41通过/1失败：Windows对打开文件的真实rename返回EPERM，测试尚未到应用身份校验。演员线程正单独修可移植夹具，保留Linux真实重命名并新增Windows路径/fd不一致注入；静态边界/P2通过。实际Runtime/Permit/真实模型和Phase Exit仍未完成，正式Reset声明保持关闭。
