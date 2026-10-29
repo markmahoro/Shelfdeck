@@ -10,8 +10,8 @@ Main modules:
 
 | Path | Purpose |
 | --- | --- |
-| `media-service/` | Service, Admin Web, task engine, integrations, Docker/Windows runtime |
-| `media-desktop/` | Electron thin client over service HTTP APIs |
+| `media-service/` | Service, Admin Web, task engine, integrations, Docker/Linux runtime |
+| `media-desktop/` | Historical Electron client tree; **retired / not supported** (no Windows desktop or local Windows service) |
 | `media-worker/` | Passive FFmpeg/AI compute worker called by service |
 | `tests/` | Shell E2E runner and env files |
 | `docs/` | Architecture, workflow, deployment, debug, and v3 context |
@@ -44,38 +44,36 @@ Do not add generated `media-service/dist/`, root debug dumps, runtime JSON, expo
 ## Commands
 
 ```bash
-# Service
+# Service (Linux / local Node; production is NAS Docker)
 cd media-service && npm install
 cd media-service && npm start
 cd media-service && npm test
 cd media-service && npm run build:web
 
-# Desktop
-cd media-desktop && npm install
-cd media-desktop && npm test
-cd media-desktop && npm run dist:win
-
 # Worker
 cd media-worker && npm install && npm start
 
-# E2E
-bash tests/runner.sh all tests/env/docker-fn.env
+# E2E (against a running Linux/Docker service)
+bash tests/runner.sh health-check tests/env/ci.env
 ```
 
 Do not block the turn with a foreground development server. When needed, use a managed background session, record its port/session, and stop task-owned servers after verification.
+
+**Windows is out of scope:** do not CI, package, or locally deploy Windows desktop (`media-desktop` / `dist:win`) or Windows service (`package-win`). Supported runtime is Linux Docker (NAS production) and Linux/local Node for development.
 
 ## Platform And API Rules
 
 - Node.js >= 20.
 - Use `process.platform === 'linux'` for Docker/Linux-specific behavior.
-- Keep Windows-only tray code behind `process.platform === 'win32'` or optional `try/catch require`.
+- Historical Windows-only tray / optional packages may remain guarded by `process.platform === 'win32'` or `optionalDependencies`; do not expand Windows support.
 - Use `path.join()` and configurable roots. Do not hardcode user-specific paths.
-- Windows-only packages belong in `optionalDependencies`; Docker installs may use `--omit=optional`.
+- Docker installs may use `--omit=optional`.
 - Docker FFmpeg paths come from `FFMPEG_PATH` and `FFPROBE_PATH`.
 - APIs are JSON in/out; GET has no side effects; PATCH is idempotent partial update.
 - Error shape: `{ error: { code: "ERROR_CODE", message: "...", details?: {...}, correlationId: "..." } }`; never expose Secret values.
 - `GET /v1/health` is public. Non-browser API clients use `X-Api-Key`; clean Admin Web exchanges it for a same-origin HttpOnly SameSite session and never stores the plaintext key in browser storage.
-- Desktop APIs are under `/v1/*`; Admin Web APIs are under `/v1/admin/*`.
+- Admin Web APIs are under `/v1/admin/*`. Legacy desktop `/v1/*` client paths are historical only.
+
 
 ## Change Discipline
 
@@ -92,6 +90,6 @@ Do not block the turn with a foreground development server. When needed, use a m
 - Helix planning documents must not multiply. Keep the concise Master Plan in `docs/helix/CURRENT_PLAN.md`, facts in `docs/helix/CURRENT_STATUS.md`, and exactly one subordinate active Phase packet in `docs/helix/implementation/CURRENT_PHASE.md`. Do not create parallel active component or Work Package plans. After Phase Exit, move the frozen packet to `docs/helix/implementation/archive/`; store audits and acceptance evidence in `docs/helix/implementation/evidence/`.
 - Plan Mode follows the active project: update docs/helix/CURRENT_PLAN.md for Helix; v3 planning paths apply only to explicitly requested legacy work.
 - Do not invent or reuse version names during implementation. Product version and Changelog follow `docs/v3/VERSIONING.md` and root `CHANGELOG.md`. For production deployments record the Docker image tag, git commit, SHA256, and E2E status only in `docs/helix/CURRENT_STATUS.md`; reserve Git release tags for accepted releases. New branches must not use the `codex/` prefix (legacy only); prefer `sd/<topic>-YYYYMMDD` or Cloud Agent `cursor/…`.
-- Verify affected platforms according to docs/v2/DEVELOPMENT_WORKFLOW.md. Pure docs/UI text edits do not automatically require service Docker and desktop builds; record relevant coverage and omissions.
+- Verify affected platforms according to docs/v2/DEVELOPMENT_WORKFLOW.md. Pure docs/UI text edits do not automatically require Docker builds; record relevant coverage and omissions. Do not require Windows desktop/service verification.
 - Passing tests are evidence, not proof; be honest about untested risk.
 - Code, code comments, and commit messages are English. Docs are Chinese with English technical terms where appropriate.

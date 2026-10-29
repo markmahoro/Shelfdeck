@@ -2,6 +2,8 @@
 
 本文件只保留开发时最常用的命令和平台规则。架构事实见 `docs/v2/ARCH_OVERVIEW.md`。
 
+**平台范围（2026-10-29）：** Windows desktop（`media-desktop` / `dist:win`）与 Windows service 打包（`package-win`）**已退役、不再支持**。不要做 Windows 兼容修复或本机 Windows 部署。支持面是 **Linux Docker（NAS 生产）** 与 Linux/本机 Node 开发。CI 仅保留 Docker/Linux jobs。
+
 ## 命令
 
 ```bash
@@ -9,11 +11,6 @@
 cd media-service && npm install
 cd media-service && npm test
 cd media-service && npm run build:web
-
-# desktop
-cd media-desktop && npm install
-cd media-desktop && npm test
-cd media-desktop && npm run dist:win
 
 # worker node（转码补充节点；欧美成人 AI 默认不依赖 worker）
 cd media-worker && npm install
@@ -25,9 +22,9 @@ docker build -f media-service/Dockerfile -t shelfdeck .
 docker compose -f media-service/docker-compose.example.yml up -d
 ```
 
-不要在 Codex 自动执行中启动长期阻塞的 dev server。需要交互调试时，让用户手动运行。
+不要在自动执行中启动长期阻塞的 dev server。需要交互调试时，让用户手动运行。
 
-上面的 Docker service 命令只用于本地或新环境验证。当前 NAS 生产部署固定走 `docs/v2/PRODUCTION_DEPLOYMENT.md`、`scripts/build-image.sh` 和 `scripts/deploy-nas.js`；不要把 `media-service/docker-compose.example.yml` 当成生产 compose。
+上面的 Docker service 命令只用于本地或新环境验证。当前 NAS 生产部署固定走 `docs/v2/PRODUCTION_DEPLOYMENT.md`、`scripts/build-image.js`（及兼容包装 `build-image.sh`）和 `scripts/deploy-nas.js`；不要把 `media-service/docker-compose.example.yml` 当成生产 compose。
 
 ## 本机生产同构测试 Profile
 
@@ -35,7 +32,7 @@ docker compose -f media-service/docker-compose.example.yml up -d
 
 | 术语 | 含义 |
 | --- | --- |
-| 测试环境 | 本机 Windows 环境 |
+| 测试环境 | 本机 Linux / 本地 Node（或等价 Linux Docker）；**不是** Windows |
 | 生产环境 | NAS 上的 ShelfDeck Docker |
 
 普通切片默认先在本机测试环境验证，不需要每次部署 NAS 生产。需要生产同构配置或生产数据规模时，先同步 NAS runtime 数据到 ignored 目录：
@@ -62,9 +59,9 @@ node scripts/sync-nas-runtime-data.js --rewrite-local-paths
 
 本机运行时可使用：
 
-```powershell
-$env:CONTROL_PLANE_DATA_DIR=(Resolve-Path .codex\local-prod-data).Path
-$env:MEDIA_SERVICE_DATA_DIR=$env:CONTROL_PLANE_DATA_DIR
+```bash
+export CONTROL_PLANE_DATA_DIR="$(pwd)/.codex/local-prod-data"
+export MEDIA_SERVICE_DATA_DIR="$CONTROL_PLANE_DATA_DIR"
 cd media-service
 npm test
 ```
@@ -76,7 +73,6 @@ npm test
 | 范围 | 原因 |
 | --- | --- |
 | transcode 设备池 / 硬件加速 | 本机设备池和 NAS 不同，QSV/VAAPI/驱动/设备槽位不能完全复现 |
-| Linux Docker 行为 | 本机是 Windows 非 Linux Docker runtime，路径、权限、进程和 I/O 行为不同 |
 | NAS 存储与系统压力 | NAS 的 iowait、swap、overlay、SMB/NFS 挂载和磁盘压力不能由本机证明 |
 | 生产 Admin Web 最终验收 | 用户真实访问面仍是 NAS 上的服务 |
 
@@ -125,9 +121,10 @@ Libra 主存储是 `media-service/data/library.db` SQLite，Kairox Run/Task/Fact
 
 ## 平台规则
 
+- 支持面：Linux Docker + Linux/本机 Node。Windows desktop/service **retired**。
 - Docker/Linux 专用行为用 `process.platform === 'linux'`。
-- Windows tray 代码必须可选加载或由 `process.platform === 'win32'` 守卫。
-- Windows-only 依赖放入 `optionalDependencies`，Docker 安装用 `--omit=optional`。
+- 历史 Windows tray / optional 依赖可保留守卫；不要新增 Windows 支持面或 CI job。
+- Docker 安装可用 `--omit=optional`。
 - 路径使用 `path.join()` 和可配置根目录。
 - FFmpeg/FFprobe 路径优先读取环境变量。
 - runtime 配置、任务、媒体库缓存、节点配置、构建产物不入库。
@@ -136,8 +133,7 @@ Libra 主存储是 `media-service/data/library.db` SQLite，Kairox Run/Task/Fact
 
 ```bash
 cd media-service && npm test
-cd media-desktop && npm test
 bash tests/runner.sh health-check tests/env/ci.env
 ```
 
-涉及 Docker、Admin Web、转码 node、外部服务或真实媒体时，再运行对应构建或 E2E flow。
+涉及 Docker、Admin Web、转码 node、外部服务或真实媒体时，再运行对应构建或 E2E flow。不要求 Windows desktop/service 验证。

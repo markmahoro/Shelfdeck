@@ -10,28 +10,9 @@ on:
         required: true
 
 jobs:
-  # ── Job 1: Build Windows release package ──────────────────────────────────
-  build-windows:
-    name: Build Windows release
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-      - name: Install dependencies
-        run: |
-          cd media-service && npm ci
-          cd ../media-desktop && npm ci
-      - name: Build release package
-        run: node scripts/build-release.js
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ShelfDeck-Windows
-          path: dist-release/ShelfDeck-v*/
-
-  # ── Job 2: Build + Push Docker image ──────────────────────────────────────
+  # ── Job 1: Build + Push Docker image ──
+  # Windows desktop/service packaging is retired.
+  # ──────────────────────────────────────
   push-docker:
     name: Push Docker image
     runs-on: ubuntu-latest
@@ -58,10 +39,10 @@ jobs:
           docker push markmahoro/shelfdeck:${{ env.VERSION }}
           docker push markmahoro/shelfdeck:latest
 
-  # ── Job 3: Generate release announcement assets ──────────────────────────
+  # ── Job 2: Generate release announcement assets ──────────────────────────
   generate-announcements:
     name: Generate announcements
-    needs: build-windows
+    needs: push-docker
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -78,23 +59,15 @@ jobs:
           name: Release-Announcements
           path: release-notes/
 
-  # ── Job 4: Create GitHub Release ──────────────────────────────────────────
+  # ── Job 3: Create GitHub Release ──────────────────────────────────────────
   github-release:
     name: Create GitHub Release
-    needs: [build-windows, push-docker]
+    needs: [push-docker]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: ShelfDeck-Windows
-          path: release-artifacts/
-      - name: Create zip
-        run: |
-          cd release-artifacts
-          zip -r "../ShelfDeck-${GITHUB_REF#refs/tags/}-Windows.zip" .
       - name: Create GitHub Release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -103,9 +76,8 @@ jobs:
           # Extract changelog section for release notes
           RELEASE_NOTES=$(sed -n "/^## ${VERSION}/,/^## /p" CHANGELOG.md | head -n -1)
           if [ -z "$RELEASE_NOTES" ]; then
-            RELEASE_NOTES="See CHANGELOG.md for details."
+            RELEASE_NOTES="See CHANGELOG.md for details. Deployable artifact is the Docker image (Windows packages retired)."
           fi
           gh release create "$VERSION" \
-            "ShelfDeck-${VERSION}-Windows.zip" \
             --title "$VERSION" \
             --notes "$RELEASE_NOTES"
