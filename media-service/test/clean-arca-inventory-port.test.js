@@ -106,6 +106,22 @@ test('exclusive JAV publication requires the exact source Product Manifest',asyn
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
 
+test('exclusive JAV publication refuses same-byte Stage substitution with a different identity',async()=>{
+  const f=componentBudgetFixture('IPX-178 Sample',null);
+  try{
+    const input=await exclusivePublicationFixture(f),member=input.decision.members[0];
+    const stage=path.join(input.slot.slotDirectory,member.finalName),foreign=path.join(f.root,'foreign-stage-copy');
+    const expected=fs.statSync(stage,{bigint:true}).ino,bytes=fs.readFileSync(stage);
+    fs.copyFileSync(stage,foreign);
+    const different=fs.statSync(foreign,{bigint:true}).ino;assert.notEqual(different,expected);
+    fs.unlinkSync(stage);fs.renameSync(foreign,stage);
+    await assert.rejects(()=>publishJavShortTarget(input),{code:'CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'});
+    assert.equal(fs.existsSync(input.slot.targetDirectory),false);
+    assert.equal(fs.statSync(stage,{bigint:true}).ino,different);
+    assert.deepEqual(fs.readFileSync(stage),bytes);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
 test('exclusive JAV publication continues a partial Effect only with the same staged physical identities',async()=>{
   const f=componentBudgetFixture('IPX-178 Sample',2026);
   try{
@@ -149,6 +165,21 @@ test('exclusive JAV publication never repopulates a missing final member on comm
       {code:'CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'});
     assert.deepEqual(fs.readdirSync(input.slot.targetDirectory),before);
     assert.equal(fs.readdirSync(input.slot.slotDirectory).length,input.decision.members.length);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('exclusive JAV committed replay leaves exact remaining Stage links untouched',async()=>{
+  const f=componentBudgetFixture('IPX-178 Sample',null);
+  try{
+    const input=await exclusivePublicationFixture(f);
+    const initial=await publishJavShortTarget(input);
+    fs.mkdirSync(input.slot.slotDirectory);
+    for(const member of input.decision.members)fs.linkSync(member.targetLocation,path.join(input.slot.slotDirectory,member.finalName));
+    const before=fs.readdirSync(input.slot.slotDirectory).sort();let writes=0;
+    const replay=await publishJavShortTarget({...input,recoveryDecision:'already_committed',
+      afterPhysicalEffect(){writes++;}});
+    assert.deepEqual(replay,initial);assert.equal(writes,0);
+    assert.deepEqual(fs.readdirSync(input.slot.slotDirectory).sort(),before);
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
 
@@ -209,29 +240,37 @@ test('exclusive JAV publication stops when the execution fence is lost after a p
 
 let sqliteAvailable=true;
 try { require.resolve('better-sqlite3'); } catch { sqliteAvailable=false; }
+function isolatedMaterialJournal(root,verify=async()=>({verified:false,evidenceDigest:'c'.repeat(64)})) {
+  const Database=require('better-sqlite3');
+  const {openSqliteKernel}=require('../src/helix/foundation/persistence/sqlite-kernel');
+  const {createSqliteUnitOfWork}=require('../src/helix/foundation/persistence/sqlite-unit-of-work');
+  const {createEffectJournal,effectIdentity}=require('../src/helix/foundation/effects/effect-journal');
+  const ddl=fs.readFileSync(path.join(__dirname,'../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
+  const kernel=openSqliteKernel({Database,databasePath:path.join(root,'effect-test.db'),schemaDdl:ddl,schemaManifest,now:()=>1000});
+  try {
+    kernel.runPrimitive(tx=>{
+      tx.prepare("INSERT INTO fx_supporting_works(work_id,state) VALUES('work','running')").run();
+      tx.prepare("INSERT INTO fx_work_attempts(attempt_id,work_id,state) VALUES('work-attempt','work','running')").run();
+      tx.prepare("INSERT INTO fx_workflow_plans(plan_id,attempt_id,state) VALUES('plan','work-attempt','planned')").run();
+      tx.prepare("INSERT INTO fx_plan_nodes(plan_id,node_id,effect_class) VALUES('plan','node','material_commit')").run();
+      tx.prepare("INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,state) VALUES('event','plan','node','work','work-attempt','executing')").run();
+      tx.prepare("INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state) VALUES('attempt','event',1,'completed')").run();
+      tx.prepare("INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state) VALUES('other-attempt','event',2,'executing')").run();
+    });
+    const classes=['workspace_write','external_request','domain_fact_commit','responsibility_control_commit','material_commit','destructive_commit'];
+    const journal=createEffectJournal({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel}),now:()=>1001,
+      realityVerifiers:Object.fromEntries(classes.map(name=>[name,{verify}]))});
+    return {kernel,journal,effectIdentity};
+  } catch (error) { kernel.close(); throw error; }
+}
+
 test('exclusive JAV publication test guard binds a real Effect intent before recovery',
   {skip:!sqliteAvailable},async()=>{
-    const Database=require('better-sqlite3');
-    const {openSqliteKernel}=require('../src/helix/foundation/persistence/sqlite-kernel');
-    const {createSqliteUnitOfWork}=require('../src/helix/foundation/persistence/sqlite-unit-of-work');
-    const {createEffectJournal,effectIdentity}=require('../src/helix/foundation/effects/effect-journal');
     const f=componentBudgetFixture('IPX-178 Sample',null);let kernel;
     try{
       const input=await exclusivePublicationFixture(f);
-      const ddl=fs.readFileSync(path.join(__dirname,'../src/helix/foundation/persistence/generated/clean-schema.sql'),'utf8');
-      kernel=openSqliteKernel({Database,databasePath:path.join(f.root,'effect-test.db'),schemaDdl:ddl,schemaManifest,now:()=>1000});
-      kernel.runPrimitive(tx=>{
-        tx.prepare("INSERT INTO fx_supporting_works(work_id,state) VALUES('work','running')").run();
-        tx.prepare("INSERT INTO fx_work_attempts(attempt_id,work_id,state) VALUES('work-attempt','work','running')").run();
-        tx.prepare("INSERT INTO fx_workflow_plans(plan_id,attempt_id,state) VALUES('plan','work-attempt','planned')").run();
-        tx.prepare("INSERT INTO fx_plan_nodes(plan_id,node_id,effect_class) VALUES('plan','node','material_commit')").run();
-        tx.prepare("INSERT INTO fx_workflow_events(event_id,plan_id,node_id,work_id,attempt_id,state) VALUES('event','plan','node','work','work-attempt','executing')").run();
-        tx.prepare("INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state) VALUES('attempt','event',1,'completed')").run();
-        tx.prepare("INSERT INTO fx_event_attempts(event_attempt_id,event_id,ordinal,state) VALUES('other-attempt','event',2,'executing')").run();
-      });
-      const classes=['workspace_write','external_request','domain_fact_commit','responsibility_control_commit','material_commit','destructive_commit'];
-      const journal=createEffectJournal({schemaManifest,unitOfWork:createSqliteUnitOfWork({kernel}),now:()=>1001,
-        realityVerifiers:Object.fromEntries(classes.map(name=>[name,{verify:async()=>({verified:false,evidenceDigest:'c'.repeat(64)})}]))});
+      const actual=isolatedMaterialJournal(f.root);kernel=actual.kernel;
+      const {journal,effectIdentity}=actual;
       const namedInputs={verifiedStagedManifest:input.verification,targetBindings:{bindingSetDigest:'bindings'}};
       const fenceDigest=canonicalDigest({runId:input.decision.onDeckRunId,decisionDigest:input.decision.decisionDigest,slotId:input.slot.slotId});
       const intentDigest=canonicalDigest({eventId:'event',capabilityRef:CAPABILITY_REFS.placement,contractVersion:1,
@@ -264,6 +303,65 @@ test('exclusive JAV publication test guard binds a real Effect intent before rec
     }finally{kernel?.close();fs.rmSync(f.root,{recursive:true,force:true});}
   });
 
+test('committed Effect replay verifies exact targets and does not retire remaining Stage files',
+  {skip:!sqliteAvailable},async()=>{
+    const f=componentBudgetFixture('IPX-178 Sample',null);let kernel;
+    try{
+      const input=await exclusivePublicationFixture(f);
+      const evidenceDigest=canonicalDigest({schema:'test.short-publication-verified@1',
+        decisionDigest:input.decision.decisionDigest,stageDigest:input.stagedManifest.manifestDigest});
+      const verify=async ({receipt})=>({verified:receipt.verificationEvidenceDigest===evidenceDigest &&
+        input.decision.members.every(member=>{
+          const expected=input.stagedManifest.stagedMembers.find(item=>item.sourceMaterialKey===member.sourceMaterialKey)?.physicalIdentity;
+          const observed=computeBoundedMaterialFingerprintSync(member.targetLocation,{requireStableSnapshot:true});
+          return expected && String(observed.stat.ino)===expected.inode && Number(observed.stat.size)===expected.sizeBytes &&
+            observed.contentFingerprint===expected.contentFingerprint;
+        }),evidenceDigest});
+      const actual=isolatedMaterialJournal(f.root,verify);kernel=actual.kernel;
+      const {journal,effectIdentity}=actual, effectId=effectIdentity('material_commit','original-key');
+      const intentDigest=canonicalDigest({decisionDigest:input.decision.decisionDigest,stageDigest:input.stagedManifest.manifestDigest});
+      journal.intend({eventAttemptId:'attempt',effectClass:'material_commit',idempotencyKey:'original-key',intentDigest});
+      const result=await publishJavShortTarget(input);
+      const receipt={schemaRef:'helix://contracts/types/EffectReceipt/v1',schemaVersion:1,effectReceiptId:'test-receipt',
+        effectId,effectClass:'material_commit',idempotencyKey:'original-key',commitMarker:'test-marker',externalReceiptRef:null,
+        outputDigest:canonicalDigest(result),verificationEvidenceDigest:evidenceDigest,committedAtMs:1000};
+      const scope={ownerDomain:'arca',scopeType:'on_deck_run',scopeId:input.decision.onDeckRunId};
+      assert.equal((await journal.settle({effectId,receipt,scope})).state,'committed');
+      assert.equal(journal.observeRecovery(effectId).markers.length,1);
+      // Simulate stale, exact Stage links after the committed receipt. Replay
+      // may inspect them but has no separate cleanup authority.
+      fs.mkdirSync(input.slot.slotDirectory);
+      for(const member of input.decision.members)fs.linkSync(member.targetLocation,path.join(input.slot.slotDirectory,member.finalName));
+      const stageBefore=fs.readdirSync(input.slot.slotDirectory).sort();
+      const guard=()=>{
+        const value=journal.observeRecovery(effectId),marker=value.markers[0];
+        return value.effect.state==='committed' && value.effect.intent_digest===intentDigest && value.markers.length===1 &&
+          marker.effect_id===effectId && marker.owner_domain===scope.ownerDomain && marker.scope_type===scope.scopeType &&
+          marker.scope_id===scope.scopeId && marker.commit_digest===evidenceDigest;
+      };
+      let effects=0;
+      const replay=await publishJavShortTarget({...input,recoveryDecision:'already_committed',shouldContinue:guard,
+        afterPhysicalEffect(){effects++;}});
+      assert.deepEqual(replay,result);assert.equal(effects,0);
+      assert.deepEqual(fs.readdirSync(input.slot.slotDirectory).sort(),stageBefore);
+      assert.equal((await journal.settle({effectId,receipt,scope})).state,'committed');
+      await assert.rejects(()=>journal.settle({effectId,receipt,scope:{...scope,scopeId:'foreign-run'}}),
+        {code:'P4_EFFECT_COMMITTED_REPLAY_CONFLICT'});
+      assert.equal(journal.observeRecovery(effectId).markers.length,1);
+      const target=input.decision.members[0].targetLocation,replacement=path.join(f.root,'foreign-copy');
+      fs.copyFileSync(target,replacement);
+      const foreignInode=fs.statSync(replacement,{bigint:true}).ino;
+      assert.notEqual(foreignInode,fs.statSync(target,{bigint:true}).ino);
+      fs.unlinkSync(target);fs.renameSync(replacement,target);
+      await assert.rejects(()=>publishJavShortTarget({...input,recoveryDecision:'already_committed',shouldContinue:guard}),
+        {code:'CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'});
+      assert.equal(fs.statSync(target,{bigint:true}).ino,foreignInode);
+      assert.deepEqual(fs.readdirSync(input.slot.slotDirectory).sort(),stageBefore);
+      // The test verifier and guard are explicit fixtures, not the Owner's
+      // live reservation, Recovery observer, or a production Receipt.
+    }finally{kernel?.close();fs.rmSync(f.root,{recursive:true,force:true});}
+  });
+
 test('exclusive JAV publication rejects an unknown file after a partial Effect without deleting it',async()=>{
   const f=componentBudgetFixture('IPX-178 Sample',null);
   try{
@@ -274,6 +372,24 @@ test('exclusive JAV publication rejects an unknown file after a partial Effect w
     await assert.rejects(()=>publishJavShortTarget({...input,recoveryDecision:'continue_forward'}),
       {code:'CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'});
     assert.equal(fs.readFileSync(foreign,'utf8'),'foreign');
+    assert.equal(fs.readdirSync(input.slot.slotDirectory).length,input.decision.members.length);
+  }finally{fs.rmSync(f.root,{recursive:true,force:true});}
+});
+
+test('exclusive JAV publication preserves an unknown directory and its contents after interruption',async()=>{
+  const f=componentBudgetFixture('IPX-178 Sample',null);
+  try{
+    const input=await exclusivePublicationFixture(f),foreign=path.join(input.slot.targetDirectory,'foreign-directory');
+    await assert.rejects(()=>publishJavShortTarget({...input,afterPhysicalEffect(event){
+      if(event.phase==='member_published'){
+        fs.mkdirSync(foreign);fs.writeFileSync(path.join(foreign,'keep.txt'),'foreign');throw new Error('injected conflict');
+      }
+    }}),/injected conflict/);
+    const before=fs.readdirSync(input.slot.targetDirectory).sort();
+    await assert.rejects(()=>publishJavShortTarget({...input,recoveryDecision:'continue_forward'}),
+      {code:'CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'});
+    assert.deepEqual(fs.readdirSync(input.slot.targetDirectory).sort(),before);
+    assert.equal(fs.readFileSync(path.join(foreign,'keep.txt'),'utf8'),'foreign');
     assert.equal(fs.readdirSync(input.slot.slotDirectory).length,input.decision.members.length);
   }finally{fs.rmSync(f.root,{recursive:true,force:true});}
 });
@@ -386,6 +502,48 @@ test('a legacy writer can enter a partially published directory and the interrup
   }finally{fs.rmSync(first.root,{recursive:true,force:true});fs.rmSync(second.root,{recursive:true,force:true});}
 });
 
+test('two interrupted writers leave mixed target identities and no unsafe recovery or deletion',async()=>{
+  const first=componentBudgetFixture('IPX-178 Sample',null),second=componentBudgetFixture('IPX-178 Sample',null);
+  const originalRename=fs.renameSync;
+  try{
+    second.shelf.target.rootLocation=first.targetRoot;
+    second.request.onDeckRunId='interrupted-competing-run';second.request.custodyId='interrupted-competing-custody';
+    const original=await exclusivePublicationFixture(first);let firstInterrupted=false;
+    await assert.rejects(()=>publishJavShortTarget({...original,afterPhysicalEffect(event){
+      if(!firstInterrupted&&event.phase==='member_published'){firstInterrupted=true;throw new Error('first writer interrupted');}
+    }}),/first writer interrupted/);
+    const decision=second.port.prepare(second.request),request={...second.request,finalInventoryDecision:decision};
+    const slot=second.port.prepareSlot(request),staged=await second.port.stage({...request,targetCommitSlotHandle:slot});
+    const verified=await second.port.verifyStaged({...request,stagedInventoryManifest:staged});
+    let secondInterrupted=false;
+    fs.renameSync=function(source,target){
+      const result=originalRename(source,target);
+      if(!secondInterrupted&&path.dirname(source)===slot.slotDirectory){secondInterrupted=true;throw new Error('second writer interrupted');}
+      return result;
+    };
+    try{
+      await assert.rejects(()=>second.port.switchPlacement({...request,stagedInventoryVerification:verified,
+        targetBindings:{bindingSetDigest:'synthetic-bindings'},replacedInputSetDigest:'synthetic-inputs'}),/second writer interrupted/);
+    }finally{fs.renameSync=originalRename;}
+    assert.equal(firstInterrupted,true);assert.equal(secondInterrupted,true);
+    const directory=original.slot.targetDirectory,names=fs.readdirSync(directory).sort();
+    assert.equal(names.length,2);
+    const before=names.map(name=>({name,inode:String(fs.statSync(path.join(directory,name),{bigint:true}).ino),
+      bytes:fs.readFileSync(path.join(directory,name),'utf8')}));
+    await assert.rejects(()=>publishJavShortTarget({...original,recoveryDecision:'continue_forward'}),
+      {code:'CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'});
+    assert.deepEqual(fs.readdirSync(directory).sort(),names);
+    for(const item of before){assert.equal(String(fs.statSync(path.join(directory,item.name),{bigint:true}).ino),item.inode);
+      assert.equal(fs.readFileSync(path.join(directory,item.name),'utf8'),item.bytes);}
+    assert.equal(fs.readdirSync(original.slot.slotDirectory).length,original.decision.members.length);
+    assert.equal(fs.readdirSync(slot.slotDirectory).length,1);
+    // Physical fault injection only: no Owner Control or committed Result is asserted.
+  }finally{
+    fs.renameSync=originalRename;
+    fs.rmSync(first.root,{recursive:true,force:true});fs.rmSync(second.root,{recursive:true,force:true});
+  }
+});
+
 test('case-equivalent directory claims cannot both publish on a case-insensitive filesystem',async(t)=>{
   const first=componentBudgetFixture('IPX-178 Sample',null),second=componentBudgetFixture('ipx-178 sample',null);
   try{
@@ -398,6 +556,43 @@ test('case-equivalent directory claims cannot both publish on a case-insensitive
     assert.equal(results.filter(result=>result.status==='fulfilled').length,1);
     assert.equal(results.filter(result=>result.status==='rejected').length,1);
     assert.equal(results.find(result=>result.status==='rejected').reason.code,'CLEAN_ARCA_TARGET_OCCUPIED');
+  }finally{fs.rmSync(first.root,{recursive:true,force:true});fs.rmSync(second.root,{recursive:true,force:true});}
+});
+
+test('Unicode target competition follows the actual isolated filesystem equivalence',async(t)=>{
+  const first=componentBudgetFixture('IPX-178 Caf\u00e9',null),second=componentBudgetFixture('IPX-178 Cafe\u0301',null);
+  try{
+    const composed=path.join(first.targetRoot,'probe-\u00e9'),decomposed=path.join(first.targetRoot,'probe-e\u0301');
+    fs.mkdirSync(composed);
+    const equivalent=fs.existsSync(decomposed);
+    fs.rmdirSync(composed);
+    t.diagnostic(equivalent?'isolated filesystem equates this NFC/NFD pair':'isolated filesystem distinguishes this NFC/NFD pair');
+    second.shelf.target.rootLocation=first.targetRoot;
+    second.request.onDeckRunId='other-unicode-run';second.request.custodyId='other-unicode-custody';
+    const [a,b]=await Promise.all([exclusivePublicationFixture(first),exclusivePublicationFixture(second)]);
+    const results=await Promise.allSettled([publishJavShortTarget(a),publishJavShortTarget(b)]);
+    const successes=results.filter(result=>result.status==='fulfilled').length;
+    if(equivalent){
+      assert.ok(successes<=1);
+      for(const result of results.filter(item=>item.status==='rejected'))
+        assert.ok(['CLEAN_ARCA_TARGET_OCCUPIED','CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN'].includes(result.reason.code));
+    }else assert.equal(successes,2);
+  }finally{fs.rmSync(first.root,{recursive:true,force:true});fs.rmSync(second.root,{recursive:true,force:true});}
+});
+
+test('a different Endpoint label cannot make a linked Shelf root an independent target',async()=>{
+  const first=componentBudgetFixture('IPX-178 Sample',null),second=componentBudgetFixture('IPX-178 Sample',null);
+  try{
+    const alias=path.join(first.root,'shelf-alias');
+    fs.symlinkSync(first.targetRoot,alias,process.platform==='win32'?'junction':'dir');
+    second.shelf.target.rootLocation=alias;second.shelf.target.endpointId='other-endpoint';
+    second.request.onDeckRunId='aliased-run';second.request.custodyId='aliased-custody';
+    const [a,b]=await Promise.all([exclusivePublicationFixture(first),exclusivePublicationFixture(second)]);
+    await publishJavShortTarget(a);
+    const before=fs.readdirSync(a.slot.targetDirectory).sort();
+    await assert.rejects(()=>publishJavShortTarget(b),{code:'CLEAN_ARCA_SHORT_PUBLICATION_PROOF_INVALID'});
+    assert.deepEqual(fs.readdirSync(a.slot.targetDirectory).sort(),before);
+    assert.equal(fs.readdirSync(b.slot.slotDirectory).length,b.decision.members.length);
   }finally{fs.rmSync(first.root,{recursive:true,force:true});fs.rmSync(second.root,{recursive:true,force:true});}
 });
 

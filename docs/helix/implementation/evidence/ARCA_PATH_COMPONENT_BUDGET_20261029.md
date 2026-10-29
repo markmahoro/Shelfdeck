@@ -122,3 +122,5 @@ Reset 合同保留来源和正式收藏目录的当前实际文件，系统专�
 定向回归：禁网 Linux Docker、只读源码挂载、15 个相关测试文件 **303 PASS / 0 FAIL / 1 SKIP**，跳过项为大小写等价实测；包含真实 SQLite Journal 夹具、两进程竞争、Linux symlink 和混合写入反例。Windows Node 25 定向 **20 PASS / 0 FAIL / 2 SKIP**，两项分别为该环境未装 `better-sqlite3` 的 Journal 夹具及 Windows symlink 负例；Windows 真实大小写等价竞争通过。Linux 使用镜像中的 Node 20 和原生 SQLite，两个平台均使用隔离临时合成文件；这不是完整服务、真实 Host、真实 CIFS 或用户指定 UI 负责人的具体版本验收。
 
 整合前还须处理旧合同边界：早期提交 `b492e3a1a` 对一般路径取消了历史 180 UTF-16 单元静默截断并增加前置预算，这可能令其他 Profile 或既有冻结 Decision 的重建结果漂移；现有测试只是证明漂移会拒绝，并不能替代用户要求的旧 Accepted/Decision 与其他 Profile 现行合同。不得将整个分支当作已具资格的生产修复直接合并或部署，须由主整合依据当前 SSOT 逐项评估并完成真实 Host、Endpoint、Effect/Owner、UI 和发布资格。主整合 SSOT 精确提交为 `3e707a033837ca3bf2a0c6e26a65603e15678069`；本分支不提交或覆盖其全局 Registry/manifest 生成物。
+
+跨 On-deck、Aftercare、Correction、Series、Off-deck 与回收路径的实际入口盘点、候选排他/恢复证据合同及本次后续隔离负例见 [目标排他与恢复审查](ARCA_TARGET_EXCLUSION_RECOVERY_20261029.md)。该文是待审查 Evidence，不替代 SSOT 或主整合的唯一 Phase。

@@ -163,6 +163,20 @@ async function publishJavShortTarget(input) {
     fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'An empty target cannot prove that this Effect created it.');
   }
   check();
+  // Replaying a committed Effect may verify its result, but cannot start a
+  // new physical effect, including Stage cleanup. Any cleanup needs its own
+  // independently authorized and journaled scope.
+  if (input.recoveryDecision === 'already_committed') {
+    const currentRoot = inspect(root), currentTarget = inspect(targetDirectory);
+    if (!currentRoot?.isDirectory() || currentRoot.isSymbolicLink() || currentRoot.dev !== rootStat.dev ||
+        currentRoot.ino !== rootStat.ino || !currentTarget?.isDirectory() || currentTarget.isSymbolicLink() ||
+        currentTarget.dev !== targetBefore.dev || currentTarget.ino !== targetBefore.ino ||
+        fs.readdirSync(targetDirectory).some(name => !knownNames.has(name))) {
+      fail('CLEAN_ARCA_SHORT_PUBLICATION_UNCERTAIN', 'Committed short publication changed while being verified.');
+    }
+    check();
+    return Object.freeze({targetDirectory, memberCount:items.length});
+  }
   if (!targetBefore) {
     try { fs.mkdirSync(targetDirectory); }
     catch (error) {
