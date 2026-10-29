@@ -121,3 +121,5 @@ UI负责人对精确4774报告**FAIL**：受控注入同basis评分Resolution重
 首个合并回归命令意外包括整个Series全Host矩阵；在37项通过后主动停止，仅作为未完成的首轮记录，不记为完整通过。后续定向TMDB 2项通过（其余9项按名称跳过），Series人工重试的真实隔离Host 1项通过（其余29项按名称跳过），复用原失败历史并形成唯一On-deck Commit；日志分别为`merge-tmdb-focused-linux.log`和`merge-series-manual-host-linux.log`。这些不等于完整Host矩阵；最终完整功能、Reset数据闭包及生产门禁没有通过结论。JAV长标题候选的三个真实中断窗口尚未恢复，详见Series线程独立Evidence，不可将该候选作为发布合格。
 
 主整合`f88bd096f`的完整Web测试及构建在Linux固定Git archive上通过：50文件、281项通过，TypeScript及Vite build成功；依赖镜像与该提交的Web package/lock一致。首次只导出Web子树导致两套测试无法加载同仓库`media-service/src`合同（其余267项通过），并非完整快照；首轮stdout留在`web-f88bd096f-linux.log`。补齐同提交的Web和Service src后完整复验通过，日志`web-f88bd096f-linux-complete.log`。该结果不是最终具体镜像的UI负责人验收。
+
+主整合`d939cdc7a`在固定Git archive及隔离Linux运行完整Service测试：909 PASS / 0 FAIL / 28 skip；专用浏览器和真实媒体条件跳过未冒充通过，日志`service-d939cdc7a-linux-final.log`。旧静态页面合同因对话框拆分仍查原文件，已改为验证实际组件及完成后刷新。首轮`8c414f2ff`为859 PASS/32 FAIL/26 skip：包含该测试及缺少Service/SSH/Web依赖、未设置隔离`/transcode`挂载；第二轮`d939cdc7a`补齐挂载及路径后898 PASS/4 FAIL/26 skip，剩余四项为SSH/Web依赖的间接模块搜索路径；修正`NODE_PATH`后定向86 PASS/2 skip，再完整复验。所有日志保留，不把旧失败称通过或覆盖。该检查点使用基线Service依赖，`usearch`和最终混合版本仍须按最终镜像验证。

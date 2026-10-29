@@ -296,3 +296,7 @@ Libra增加从已完成的目录Observation构建人物处理输入的纯Owner�
 ## 2026-10-29 主整合阶段交叉复验
 
 以Series合并提交`c42f97569`为基础叠加演员`bfc11236e`相对父提交的代码与视频Evidence；逐文件比较演员提交，仅`clean-workspace-product-port.js`保留主线既有`face_catalogue_observation`枚举。合并后隔离Linux真实Foundation Event/Workspace与姓名、人物输入及协调器79 PASS/0 skip；本机Windows姓名、人物输入及协调器25 PASS/0 skip。日志分别为主整合ignored目录的`actor-bfc-integrated-linux.log`和`actor-bfc-integrated-windows.log`；包边界、语义、Manifest和P2静态检查通过。真实Probe/CPU/目录、正式Host、Provider请求及People/Cast仍未闭合，这些不是完整功能或生产资格。
+
+## Linux依赖构建检查点
+
+以主整合`c0ceca5d3`的Dockerfile `service-dependencies`目标和同提交锁文件在本机构建测试镜像，网络可用、无NAS操作；`npm ci --omit=dev`成功，Node v20.20.2能加载`usearch` 2.25.3的原生模块，并对一条512维向量完成写入与检索。构建日志为`deps-c0ceca5d3-linux.log`。首次smoke在检索后以`require(usearch/package.json)`读取元数据，因包的exports不开放该子路径失败；改读安装目录实际package.json后重验成功，没有修改产品代码。此项只验证依赖安装及最小原生调用，不证明真实模型、目录generation、最终镜像或整条识别链资格。
