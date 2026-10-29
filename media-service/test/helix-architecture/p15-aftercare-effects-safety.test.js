@@ -6,8 +6,9 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const test = require('node:test');
+const { spawnSync } = require('node:child_process');
 const sharp = require('sharp');
-const { readBoundedFileSnapshotSync } = require('../../src/helix/integrations/bounded-material-fingerprint');
+const { readBoundedFileSnapshotSync,computeBoundedMaterialFingerprintSync } = require('../../src/helix/integrations/bounded-material-fingerprint');
 const {
   AFTERCARE_LONG_MEDIA_TIMEOUT_MS,
   aftercareMediaProbeEvidence,
@@ -39,6 +40,23 @@ function inventoryRow(location,mountScopeId='mount-1') {
     fingerprintAlgorithm:bounded.fingerprintAlgorithm,fingerprintVersion:bounded.fingerprintVersion,
     contentFingerprint:bounded.contentFingerprint };
   return Object.freeze({ material_key:canonicalDigest({ schema:'physical-material-identity@2',...tuple }) });
+}
+
+function missingArtifactCollision(root) {
+  const source=path.join(root,'workspace.jpg'),location=path.join(root,'poster.jpg'),retiredLocation=location+'.superseded-case-1',
+    temporary=location+'.aftercare-'+canonicalDigest(retiredLocation).slice(0,40)+'.tmp';
+  fs.writeFileSync(source,'same-poster-bytes');fs.writeFileSync(temporary,'same-poster-bytes');
+  const observed=computeBoundedMaterialFingerprintSync(temporary),tuple={mountScopeId:'mount-1',inode:String(observed.stat.ino),sizeBytes:Number(observed.stat.size),
+    fingerprintAlgorithm:observed.fingerprintAlgorithm,fingerprintVersion:observed.fingerprintVersion,contentFingerprint:observed.contentFingerprint},
+    oldIdentity={schemaRef:'helix://contracts/types/PhysicalMaterialIdentity/v2',schemaVersion:2,
+      materialKey:canonicalDigest({schema:'physical-material-identity@2',...tuple}),...tuple},
+    oldMaterial={material_key:oldIdentity.materialKey,location,mount_scope_id:tuple.mountScopeId,inode:tuple.inode,
+      size_bytes:tuple.sizeBytes,fingerprint_algorithm:tuple.fingerprintAlgorithm,fingerprint_version:tuple.fingerprintVersion,
+      content_fingerprint:tuple.contentFingerprint};
+  return {source,location,retiredLocation,temporary,oldIdentity,oldMaterial};
+}
+function materializeMissingFixture(f) {
+  return materializeArtifactWithRollback({...f,mountScopeId:'mount-1',fingerprint:computeBoundedMaterialFingerprintSync,revalidate:()=>{},allowMissingOld:true});
 }
 
 test('Aftercare poster qualification decodes image bytes instead of trusting magic bytes', async () => {
@@ -327,6 +345,164 @@ test('Aftercare materializes and replays a frozen missing Artifact without fabri
     assert.equal(fs.readFileSync(location,'utf8'),'new-poster');
     assert.equal(fs.existsSync(retiredLocation),false);
   } finally { fs.rmSync(root,{recursive:true,force:true}); }
+});
+
+test('Aftercare disambiguates a same-inode same-bytes missing Artifact before publishing and Control changes', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-collision-'));
+  try {
+    const f=missingArtifactCollision(root),stageBefore=fs.statSync(f.temporary,{bigint:true});
+    assert.equal(String(stageBefore.ino),f.oldIdentity.inode);
+    const identity=materializeMissingFixture(f);
+    assert.notEqual(identity.materialKey,f.oldIdentity.materialKey);
+    assert.notEqual(identity.inode,f.oldIdentity.inode);
+    assert.equal(fs.readFileSync(f.location,'utf8'),'same-poster-bytes');
+    assert.equal(fs.existsSync(f.temporary),false);
+    assert.deepEqual(materializeMissingFixture(f),identity);
+    const changes=deriveInventoryMaterialChanges([f.oldMaterial],[{finalMaterialIdentity:identity,targetLocation:f.location,
+      retiredMaterials:[{identity:f.oldIdentity,location:f.location,requiresSettlement:false}]}]);
+    assert.deepEqual(changes.map(change=>[change.action,change.identity.materialKey]).sort(),
+      [['acquire',identity.materialKey],['release',f.oldIdentity.materialKey]].sort());
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('Aftercare never overwrites or removes an outside target created during publication', t => {
+  for(const bytes of ['outside-poster-bytes','same-poster-bytes']) {
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-foreign-'));
+    try {
+      const f=missingArtifactCollision(root),link=fs.linkSync;
+      const mocked=t.mock.method(fs,'linkSync',function(source,target){
+        fs.writeFileSync(target,bytes,{flag:'wx'});
+        return link.call(fs,source,target);
+      });
+      try {assert.throws(()=>materializeMissingFixture(f),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});}
+      finally {mocked.mock.restore();}
+      assert.equal(fs.readFileSync(f.location,'utf8'),bytes);
+      assert.equal(fs.existsSync(f.temporary),false);
+    } finally {fs.rmSync(root,{recursive:true,force:true});}
+  }
+});
+
+test('Aftercare preserves an outside replacement of a published target and an altered stage', t => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-publication-race-'));
+  try {
+    const f=missingArtifactCollision(root),link=fs.linkSync;
+    const mocked=t.mock.method(fs,'linkSync',function(source,target){
+      link.call(fs,source,target);fs.unlinkSync(target);fs.writeFileSync(target,'outside-poster',{flag:'wx'});
+    });
+    try {assert.throws(()=>materializeMissingFixture(f),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});}
+    finally {mocked.mock.restore();}
+    assert.equal(fs.readFileSync(f.location,'utf8'),'outside-poster');
+    assert.equal(fs.readFileSync(f.temporary,'utf8'),'same-poster-bytes');
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('Aftercare preserves a linked target changed externally before publication verification', t => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-linked-race-'));
+  try {
+    const f=missingArtifactCollision(root),link=fs.linkSync;
+    const mocked=t.mock.method(fs,'linkSync',function(source,target){
+      link.call(fs,source,target);fs.writeFileSync(target,'outside-written-poster');
+    });
+    try {assert.throws(()=>materializeMissingFixture(f),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});}
+    finally {mocked.mock.restore();}
+    assert.equal(fs.readFileSync(f.location,'utf8'),'outside-written-poster');
+    assert.equal(fs.readFileSync(f.temporary,'utf8'),'outside-written-poster');
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('Aftercare preserves an outside stage created during inode collision repair', t => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-stage-race-'));
+  try {
+    const f=missingArtifactCollision(root),copy=fs.copyFileSync;
+    const mocked=t.mock.method(fs,'copyFileSync',function(source,target,...args){
+      if(target===f.temporary)fs.writeFileSync(target,'outside-stage',{flag:'wx'});
+      return copy.call(fs,source,target,...args);
+    });
+    try {assert.throws(()=>materializeMissingFixture(f),{code:'EEXIST'});}
+    finally {mocked.mock.restore();}
+    assert.equal(fs.existsSync(f.location),false);
+    assert.equal(fs.readFileSync(f.temporary,'utf8'),'outside-stage');
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('Aftercare rolls back only its verified replacement if Case authority changes after publication', () => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-published-fence-'));
+  try {
+    const f=missingArtifactCollision(root);let checks=0;
+    assert.throws(()=>materializeArtifactWithRollback({...f,mountScopeId:'mount-1',fingerprint:computeBoundedMaterialFingerprintSync,
+      revalidate:()=>{if(++checks===3)throw Object.assign(new Error('fenced'),{code:'ARCA_AFTERCARE_EFFECT_FENCED'});},allowMissingOld:true}),
+      {code:'ARCA_AFTERCARE_EFFECT_FENCED'});
+    assert.equal(checks,3);assert.equal(fs.existsSync(f.location),false);assert.equal(fs.existsSync(f.temporary),false);
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('Aftercare does not remove a conflicting stage or publish when exclusive linking is unavailable', t => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-stage-conflict-'));
+  try {
+    const f=missingArtifactCollision(root);fs.writeFileSync(f.temporary,'outside-stage');
+    assert.throws(()=>materializeMissingFixture(f),{code:'ARCA_AFTERCARE_TARGET_CONFLICT'});
+    assert.equal(fs.readFileSync(f.temporary,'utf8'),'outside-stage');assert.equal(fs.existsSync(f.location),false);
+    fs.writeFileSync(f.temporary,'same-poster-bytes');
+    const mocked=t.mock.method(fs,'linkSync',()=>{throw Object.assign(new Error('unsupported'),{code:'ENOTSUP'});});
+    try {assert.throws(()=>materializeMissingFixture(f),{code:'ENOTSUP'});}
+    finally {mocked.mock.restore();}
+    assert.equal(fs.existsSync(f.location),false);
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('Aftercare does not treat an unreadable replay stage as absent', t => {
+  const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-stage-unreadable-'));
+  try {
+    const f=missingArtifactCollision(root),lstat=fs.lstatSync;
+    fs.writeFileSync(f.location,'same-poster-bytes');
+    const mocked=t.mock.method(fs,'lstatSync',function(location,...args){
+      if(location===f.temporary)throw Object.assign(new Error('unobservable'),{code:'EACCES'});
+      return lstat.call(fs,location,...args);
+    });
+    try {assert.throws(()=>materializeMissingFixture(f),{code:'EACCES'});}
+    finally {mocked.mock.restore();}
+    assert.equal(fs.readFileSync(f.location,'utf8'),'same-poster-bytes');
+    assert.equal(fs.readFileSync(f.temporary,'utf8'),'same-poster-bytes');
+  } finally {fs.rmSync(root,{recursive:true,force:true});}
+});
+
+test('Aftercare replays each missing Artifact publication crash window with one final identity', () => {
+  const child=`
+    const fs=require('node:fs'),path=require('node:path');
+    const {canonicalDigest}=require(${JSON.stringify(require.resolve('../../src/helix/contracts/canonical-json'))});
+    const {materializeArtifactWithRollback}=require(${JSON.stringify(require.resolve('../../src/helix/domains/arca/capabilities/aftercare-capability-ports'))});
+    const {computeBoundedMaterialFingerprintSync:fingerprint}=require(${JSON.stringify(require.resolve('../../src/helix/integrations/bounded-material-fingerprint'))});
+    const [root,mode]=process.argv.slice(1),source=path.join(root,'workspace.jpg'),location=path.join(root,'poster.jpg'),
+      retiredLocation=location+'.superseded-case-1',temporary=location+'.aftercare-'+canonicalDigest(retiredLocation).slice(0,40)+'.tmp';
+    fs.writeFileSync(source,'same-poster-bytes');fs.writeFileSync(temporary,'same-poster-bytes');
+    const value=fingerprint(temporary),tuple={mountScopeId:'mount-1',inode:String(value.stat.ino),sizeBytes:Number(value.stat.size),
+      fingerprintAlgorithm:value.fingerprintAlgorithm,fingerprintVersion:value.fingerprintVersion,contentFingerprint:value.contentFingerprint};
+    const oldMaterial={material_key:canonicalDigest({schema:'physical-material-identity@2',...tuple}),location,
+      mount_scope_id:tuple.mountScopeId,inode:tuple.inode,size_bytes:tuple.sizeBytes,fingerprint_algorithm:tuple.fingerprintAlgorithm,
+      fingerprint_version:tuple.fingerprintVersion,content_fingerprint:tuple.contentFingerprint};
+    fs.writeFileSync(path.join(root,'basis.json'),JSON.stringify({source,location,retiredLocation,temporary,oldMaterial}));
+    if(mode==='after-unlink-before-recopy')fs.copyFileSync=()=>process.exit(81);
+    if(mode==='after-link'){const link=fs.linkSync;fs.linkSync=(...args)=>{link(...args);process.exit(82);};}
+    if(mode==='after-stage-cleanup'){const unlink=fs.unlinkSync;fs.unlinkSync=(file)=>{unlink(file);if(file===temporary&&fs.existsSync(location))process.exit(83);};}
+    if(mode==='before-link')fs.linkSync=()=>process.exit(84);
+    materializeArtifactWithRollback({source,location,retiredLocation,oldMaterial,mountScopeId:'mount-1',fingerprint,revalidate:()=>{},allowMissingOld:true});
+    process.exit(99);`;
+  for(const [mode,exitCode] of [['after-unlink-before-recopy',81],['before-link',84],['after-link',82],['after-stage-cleanup',83]]) {
+    const root=fs.mkdtempSync(path.join(os.tmpdir(),'aftercare-artifact-crash-'));
+    try {
+      const result=spawnSync(process.execPath,['-e',child,root,mode],{encoding:'utf8'});
+      assert.equal(result.status,exitCode,result.stderr);
+      const f=JSON.parse(fs.readFileSync(path.join(root,'basis.json'),'utf8'));
+      if(['after-unlink-before-recopy','before-link'].includes(mode))assert.equal(fs.existsSync(f.location),false);
+      else assert.equal(fs.readFileSync(f.location,'utf8'),'same-poster-bytes');
+      if(['before-link','after-link'].includes(mode))assert.equal(fs.existsSync(f.temporary),true);
+      const identity=materializeMissingFixture(f);
+      assert.notEqual(identity.materialKey,f.oldMaterial.material_key);
+      assert.deepEqual(materializeMissingFixture(f),identity);
+      assert.equal(fs.readFileSync(f.location,'utf8'),'same-poster-bytes');
+      assert.equal(fs.existsSync(f.temporary),false);
+    } finally {fs.rmSync(root,{recursive:true,force:true});}
+  }
 });
 
 test('Aftercare missing Artifact authorization stays fail-closed when absent evidence is not frozen', () => {
