@@ -3,6 +3,7 @@ const test=require('node:test'),assert=require('node:assert/strict'),fs=require(
 const {canonicalDigest}=require('../../src/helix/contracts/canonical-json');
 const {initializeCleanData}=require('../../scripts/helix-operational-safety');
 const {createCleanServiceHost}=require('../../src/clean-service-host');
+const {assertRecoveredIntakeFailures}=require('./helpers/intake-failure-evidence');
 test('Procurement Host conserves 1081 category videos across complete Season groups and bounded Runs',{timeout:900000},async()=>{
   const root=fs.mkdtempSync(path.join(os.tmpdir(),'helix-procurement-category-')),source=path.join(root,'source'),dataDir=path.join(root,'data'),adminDistDir=path.join(root,'admin'),
     secretRoot='disposable-category-host-secret-01234567890123456789',files=[];
@@ -36,8 +37,10 @@ test('Procurement Host conserves 1081 category videos across complete Season gro
     assert.equal(packages.length,65);assert.equal(members.length,1081);assert.equal(new Set(members.map(row=>row.material_key)).size,1081);
     assert.ok(packages.every(row=>row.structure_kind==='season'&&row.content_profile==='series'));
     const sizes=db.prepare('SELECT procurement_run_id,count(*) n FROM proc_run_materials GROUP BY procurement_run_id').all();assert.ok(sizes.every(row=>row.n<=1024));
-    const failedAttempts=db.prepare('SELECT event_id,failure_code,evidence_digest FROM fx_event_attempts WHERE failure_code IS NOT NULL').all();
-    assert.equal(failedAttempts.length,0,JSON.stringify(failedAttempts.slice(0,10)));
-    for(const file of files)assert.ok(fs.existsSync(file));assert.deepEqual(db.pragma('foreign_key_check'),[]);assert.equal(db.pragma('integrity_check')[0].integrity_check,'ok');
+    const recoveredFailures=await assertRecoveredIntakeFailures(db,{until,checkRuntime:()=>assert.ifError(runtimeError)});
+    if(recoveredFailures.length)console.log('Recovered stale Acceptance Attempts: '+JSON.stringify(recoveredFailures.map(row=>({
+      eventId:row.event_id,workId:row.work_id,processId:row.process_id,ordinal:row.work_ordinal,evidenceDigest:row.evidence_digest}))));
+    for(let ordinal=0;ordinal<files.length;ordinal++)assert.equal(fs.readFileSync(files[ordinal],'utf8'),'fixture-'+ordinal);
+    assert.deepEqual(db.pragma('foreign_key_check'),[]);assert.equal(db.pragma('integrity_check')[0].integrity_check,'ok');
   }finally{await host.close();db.close();fs.rmSync(root,{recursive:true,force:true,maxRetries:5,retryDelay:100});}
 });
