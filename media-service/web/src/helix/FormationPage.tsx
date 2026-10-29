@@ -4,6 +4,7 @@ import EpisodeMetadataDialog from './EpisodeMetadataDialog';
 import ManualIdentityDialog from './ManualIdentityDialog';
 import JavIdentityDialog from './JavIdentityDialog';
 import {DefectAdmissionControl} from './DefectAdmissionControl';
+import DefectAdmissionDialog from './DefectAdmissionDialog';
 import RunOutcomeDetail from './RunOutcomeDetail';
 import {readWorkbenchPage,type WorkbenchCursor} from './workbench-pagination';
 import { ProcessDialog, ProcessStages, progressDetail } from './ProcessStages';
@@ -52,29 +53,6 @@ function canDiscardRejectedHandoff(item:FormationSubject) {
     && !item.productIdentityIssue;
 }
 function canChooseShelf(item:FormationSubject) { return item.routingState==='unresolved' && Number.isSafeInteger(item.routingDecisionHeadRevision) && Boolean(item.routingDecisionHeadDigest); }
-function defectAdmissionCommitted(previous:FormationSubject,current:FormationSubject) {
-  return previous.currentRun?.state==='frozen'
-    && current.currentRun?.libraRunId===previous.currentRun.libraRunId
-    && current.currentRun.state==='active'
-    && current.currentRun.stateRevision>previous.currentRun.stateRevision;
-}
-function formatGiB(bytes:number) { return `${(Number(bytes)/1073741824).toFixed(1)} GiB`; }
-function defectLabel(defect:DefectAdmissionCandidate['defects'][number], forecast:DefectAdmissionCandidate['sizeForecast']) {
-  if(defect.defectCode==='artifacts_unavailable')return `缺少${(defect.artifactKindCodes||[]).map(kind=>({nfo:'资料文件',poster:'海报',fanart:'背景图'}[kind]||kind)).join('、')}`;
-  if(defect.defectCode==='metadata_fields_unavailable') {
-    const names:Record<string,string>={actor:'演员',director:'导演',plot:'简介',genre:'类型',title:'片名',year_or_release_date:'年份或上映日期',release_date:'上映日期',studio:'制作公司'};
-    return `缺少${(defect.metadataFieldCodes||[]).map(code=>names[code]||code).join('、')}资料`;
-  }
-  if (defect.defectCode==='actor_unavailable') return '缺少演员资料';
-  if (defect.defectCode==='media_requirements_unmet') return '原始媒体可用，但未达到本次媒体要求；本次处理失败原因仍保留';
-  if (defect.defectCode==='size_cap_exceeded') {
-    if (forecast?.maxSizeBytes && forecast.predictedBytes) {
-      return `上限 ${formatGiB(forecast.maxSizeBytes)}，预计 ${formatGiB(forecast.predictedBytes)}，大约超出 ${formatGiB(forecast.overshootBytes)}。将保留无损音轨并转成 HEVC。`;
-    }
-    return '成品将超过本档体积上限。将保留无损音轨并转成 HEVC。';
-  }
-  return '外部寻源已耗尽，将保留原始媒体';
-}
 function shelfName(item:FormationSubject, shelves:Shelf[]) { return item.targetShelfName || shelves.find((shelf)=>shelf.shelfId===item.targetShelfId)?.name || '尚未选定'; }
 function ratingText(item:FormationSubject, acquisitionIncomplete:boolean) {
   if (item.myRating) return `${item.myRating} 星 · ${item.myRatingSource === 'douban' ? '豆瓣' : 'ShelfDeck'}`;
@@ -289,6 +267,7 @@ export default function FormationPage() {
     try{
       if(kind==='expedite')await helixAdminApi.setRunExpedited(item,Boolean(value));
       else if(kind==='admitDefects'){
+        setNotice('');
         const candidate=await helixAdminApi.previewDefectAdmission(item);
         setLoading(false);
         if(candidate.eligibility!=='eligible'){setError(candidate.message);return;}
@@ -376,39 +355,11 @@ export default function FormationPage() {
       </div>}
     </Dialog>
     {seriesRetry&&<SeriesPresentationRetryDialog item={seriesRetry} canSupplyImages={seriesRetry.executorIssue?.canSupplyImages===true} onClose={()=>setSeriesRetry(null)} onComplete={async()=>{setNotice('已提交重试上架');await load(false,currentPage.current,true);}}/>}
-    <Dialog open={!!defectDialog} title="确认接受瑕疵入库" onClose={()=>setDefectDialog(null)} actions={<>
-      <Button type="button" disabled={loading} onClick={()=>setDefectDialog(null)}>取消</Button>
-      <Button type="button" variant="primary" disabled={loading} onClick={()=>{void (async()=>{
-        if(!defectDialog)return;
-        const pending=defectDialog;
-        setLoading(true);setError('');setNotice('');
-        try{
-          await helixAdminApi.admitWithDefects(pending.item,pending.candidate);
-          setDefectDialog(null);
-          await load();
-        }catch(cause){
-          let committed=false;
-          try{
-            const current=await helixAdminApi.getFormation(pending.item.formationViewId);
-            committed=defectAdmissionCommitted(pending.item,current);
-          }catch(readCause){if(isUnauthorized(readCause))expire();}
-          if(committed){
-            setDefectDialog(null);
-            setNotice('瑕疵已接受，系统正在继续整理；页面已按实际状态更新。');
-            await load();
-          }else{
-            setError(cause instanceof Error?cause.message:'操作失败。');
-            setLoading(false);
-          }
-        }
-      })();}}>确认接受</Button>
-    </>}>
-      {defectDialog&&<div className="stack">
-        <p>{defectDialog.item.displayIdentity}</p>
-        <ol>{defectDialog.candidate.defects.map((defect,index)=><li key={defect.defectCode}>{index+1}. {defectLabel(defect,defectDialog.candidate.sizeForecast)}</li>)}</ol>
-        <p>本次按列明瑕疵继续上架，并保留瑕疵记录；上架仍须通过文件安全检查。</p>
-      </div>}
-    </Dialog>
+    {defectDialog&&<DefectAdmissionDialog item={defectDialog.item} candidate={defectDialog.candidate}
+      onClose={()=>setDefectDialog(null)} onUnauthorized={expire} onComplete={async()=>{
+        await load(false,currentPage.current,true);
+        setNotice('瑕疵已接受，系统正在继续整理；页面已按实际状态更新。');
+      }}/>}
   </section>;
 }
 
