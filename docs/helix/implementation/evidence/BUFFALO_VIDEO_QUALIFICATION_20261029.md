@@ -175,3 +175,20 @@ Linux本机日志：同ignored根`store-local-linux-1.log`。NAS源码包`store-
 首跑失败保留：cluster误多声明disk_io被正式Resource Demand拒绝；测试误读Model Ref中不存在的dimension字段；新Workspace fixture误传constructor字段；静态发现Capability反向依赖Planner，现将同一Libra的纯target编译提取到Model，Planner/Capability分别读自己的公开事实；离线技术目录的USearch/只读SQLite依赖漏登记补齐到integrations allowlist，业务Store权限不变；66事务的旧shard locator机械更新，源码face-member措辞去除旧模型术语。所有首败保留，不添加宽泛语义豁免或开放跨Owner查询。
 
 当前未调用NAS模型：主整合正在真实CIFS资格，要求等独立空窗。下一步为跨首采/补采的合并分组、离线检索及完整技术Observation、Libra候选评估，再接People/演员；模型+索引共载、真实CPU/视频/控制面、Host停止恢复和Phase 5均开放。生产与主整合目录未改动，不宣称Phase 4 Exit。
+
+
+## 2026-10-29 合并补采与目录技术 Observation 切片
+
+新增独立技术 Observer，将首采和补采已验真的embedding Artifact恢复后，按相同冻结参数对全部帧重新分组，再查询每组独立代表特征。不是把两批“赢家”相互投票，亦不在此创建Person或发布出演。
+
+原生和Linux负例以完整真实形状的Frame Evidence和正式CPU分组实现构造：首采两个独立区段为insufficient_evidence，补采第三个区段后合并为同一group/三个代表，Libra既有策略才得到qualified_candidate。单片仍选一位；新技术数据不含gender资格或排名规则。
+
+closed技术Observation保留完整frame/face/vector摘要、group成员、全部代表query的原始100邻居内结果、最多5候选/完整有界别名、Dataset verification proof和整份摘要，最大8MiB。没有截断成“无匹配”；合法但过大的完整Evidence明确BUDGET_EXCEEDED。保留空脸帧，漏帧、漏query、跨batch/目录、错feature和改距离均拒绝。零脸可以形成明确no_faces且不声称查询目录；有真实邻居但无阈值内候选才是no_match，空的无效检索响应/文件变化/迟到CPU回复仍失败。输入仅为受控Workspace的既有特征/帧证据，不读原始视频、无网络或片源搜索。
+
+每批空间配额为后续两份最多8MiB Observation及一张最多10MiB代表图预留空间后等分；该规则进入batchDigest，两批Artifact/两份Observation/代表图的最大空间总和不超过冻结的maximumWorkspaceBytes。不改变整体内存/控制面资格仍开放的事实。
+
+固定index-gate-9实际本机Linux Docker，沿相同1CPU/768MiB隔离条件：57 PASS/0skip/0FAIL，12.082秒；该组覆盖Observation/Artifact/批次/capability、技术分组、目录查询模块/CPU取消及Libra资格策略。目录加载和查询使用确定性技术fixture，不能写成真实数据库/模型共载或身份准确率证明。catalogue-local-linux-1.log SHA256 22a10f1fe608c7aaa84d3814898a605b85ca209226bdcf11a84ba60531bbbf4f。两个合法正交20帧批次+完整大别名响应已真正触发8MiB边界；最初测试草稿只触发向量proof错误、未触及quota，已更换为上述有效输入，不用覆盖不足的PASS冒充容量通过。
+
+下一正式合同增量已经确定：Foundation单Result JSON上限64KiB，不能把8MiB Observation塞入fx_event_result_bindings或放大其上限。目录Observe应为一项workspace_write Capability，单Event生成独立face_catalogue_observation Artifact，Result只回有界typed Handle；新增唯一Artifact/output kind、该Handle和精确completed-batch输入合同，不复用旧western_analysis payload或伪造PersonMatchEvidence。后续先补对应SSOT/生成合同，再接正式调度和恢复，本切片仅技术模块及其Owner投影，还未激活新Capability或Host路径。
+
+NAS按主整合通知保持暂停：SSH/健康超时尚未确认原因，本线程不介入生产；未启动共载测试或新容器。Phase 4/5仍开放。

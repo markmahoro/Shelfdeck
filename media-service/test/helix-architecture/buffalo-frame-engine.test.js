@@ -38,7 +38,7 @@ test('partial extraction never commits a frame Artifact or begins CPU inference'
   assert.equal(f.counters.images,0);assert.equal(f.db.prepare('SELECT count(*) n FROM fx_artifact_registry').get().n,0);
 });
 test('the cumulative frame and embedding bytes cannot overrun one frozen batch share of the Workspace quota',async t=>{
-  const f=setup(t,{workspaceBytes:10*1024*1024+40000});
+  const f=setup(t,{workspaceBytes:26*1024*1024+40000});
   await assert.rejects(()=>pipeline(f),{code:'BUFFALO_FRAME_WORKSPACE_BUDGET_EXCEEDED'});
   assert.equal(f.db.prepare('SELECT count(*) n FROM fx_artifact_registry').get().n,1);
 });

@@ -4,7 +4,7 @@ const {canonicalDigest,canonicalJson}=require('../contracts/canonical-json');
 const {buffaloModelReference,assertBuffaloModelReference,pack}=require('../contracts/buffalo-model-reference');
 const {frameEvidence}=require('../contracts/buffalo-frame-evidence');
 const {encodeBuffaloEmbeddingSet,restoreBuffaloEmbeddingSet}=require('../contracts/buffalo-frame-artifact');
-const {unit}=require('./buffalo-video-evidence');
+const {unit,frameFaces}=require('./buffalo-video-evidence');
 const bytesDigest=bytes=>createHash('sha256').update(bytes).digest('hex');
 function fail(message){throw Object.assign(new Error(message),{code:'BUFFALO_FRAME_ENGINE_INVALID'});}
 function same(value,expected){return canonicalJson(value)===canonicalJson(expected);}
@@ -79,12 +79,7 @@ function createBuffaloFrameEngine(options){
     active();return restored;
   }
   function facesFor(restored){
-    return restored.frames.flatMap(record=>record.faces.map(face=>{
-      const [x0,y0,x1,y1]=face.rectangle;
-      return {frameOrdinal:record.frame.ordinal,faceOrdinal:face.faceOrdinal,timestampMs:record.frame.timestampMs,stratum:record.frame.stratum,
-        imageDigest:record.frame.imageDigest,quality:Math.max(0,Math.min(1,face.confidence*Math.min(x1-x0,y1-y0)/160)),
-        vector:face.vector,faceEvidenceDigest:face.faceEvidenceDigest};
-    }));
+    return frameFaces(restored.frames);
   }
   function validateClusters({clusters,faceEmbeddingSetHandle:handle,embeddingSet,clusterParameters:parameters}){
     active();

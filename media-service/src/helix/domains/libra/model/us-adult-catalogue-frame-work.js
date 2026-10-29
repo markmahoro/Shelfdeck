@@ -2,6 +2,7 @@
 const {canonicalDigest}=require('../../../contracts/canonical-json');
 const {assertCatalogueAnalysisBasis}=require('./us-adult-catalogue-analysis-basis');
 const {samplingPoints}=require('./us-adult-catalogue-sampling');
+const {MAX_BYTES:CATALOGUE_OBSERVATION_BYTES}=require('../../../contracts/buffalo-catalogue-observation');
 const {CLUSTER,resultRef}=require('./us-adult-analysis-work');
 function fail(message){throw Object.assign(new TypeError(message),{code:'US_ADULT_CATALOGUE_BATCH_INVALID'});}
 function freeze(value){if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}return value;}
@@ -18,8 +19,8 @@ function catalogueFrameBatch(basis,stage){
   if(!points.length)return null;
   const offset=stage==='initial'?0:sampled.initial.length,items=points.map((point,compositeOrdinal)=>({
     ordinal:offset+compositeOrdinal,compositeOrdinal,...point}));
-  const workspaceByteBudget=Math.floor((basis.resourceBudget.maximumWorkspaceBytes-basis.representativeImagePolicy.maximumOutputBytes)/2);
-  if(workspaceByteBudget<1)fail('The Workspace budget cannot hold both bounded frame batches and one representative image.');
+  const workspaceByteBudget=Math.floor((basis.resourceBudget.maximumWorkspaceBytes-basis.representativeImagePolicy.maximumOutputBytes-2*CATALOGUE_OBSERVATION_BYTES)/2);
+  if(workspaceByteBudget<1)fail('The Workspace budget cannot hold two bounded frame/observation batches and one representative image.');
   const plan={contractId:canonicalDigest({schema:'libra.us-adult-catalogue-frame-plan-id@1',basisDigest:basis.basisDigest,stage}),revision:1,
     schemaRef:'helix://contracts/domain-types/SamplingPlan/v1',intervalMs:basis.samplingPlan.intervalMs,maxFrames:items.length,
     frameProfileDigest:basis.samplingPlan.frameProfileDigest,typedParameters:parameters({analysis_id:basis.analysisId,basis_digest:basis.basisDigest,
