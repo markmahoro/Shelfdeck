@@ -65,6 +65,7 @@ function createLibraRunCreator(options){
     return Object.freeze({relatedReferenceSetDigest,relatedDispositionScopeDigest,items:Object.freeze(related)});
   }
   function reconcileInternal(subjectId,forceReplacementOf=null,confirmedEpisodeMapping=null,confirmedCustomTarget=null,readFence=null){
+    let currentTargetBaseline=null;
     if(options.taskCancellations?.get(subjectId)?.state==='pending')return {kind:'cancelling',subjectId};
     const context=options.contextReader.read(subjectId);if(context.kind!=='ready')return context;
     const eligible=context.runs.filter((run)=>['active','suspended','frozen'].includes(run.state)&&
@@ -94,6 +95,12 @@ function createLibraRunCreator(options){
           target.intentDigest!==confirmedCustomTarget.intentDigest||target.basis.libraRunId!==forceReplacementOf||
           ref?.intentId!==target.intentId||ref.intentDigest!==target.intentDigest||ref.targetRevision!==target.revision)
         throw Object.assign(new Error('Confirmed collection target is stale or has not published its Spec.'),{code:'LIBRA_COLLECTION_TARGET_NOT_CURRENT'});
+      if(typeof options.readCurrentCustomTargetBaseline!=='function')
+        throw Object.assign(new Error('Current collection baseline is unavailable.'),{code:'LIBRA_CUSTOM_TARGET_BASELINE_UNAVAILABLE'});
+      // The caller captures the opaque read fence before these Owner projections.
+      // Admission validates that same fence after all projections have been read.
+      currentTargetBaseline=options.readCurrentCustomTargetBaseline(Object.freeze({subjectId,
+        productScopeDigest:context.spec.productScopeDigest,libraRunId:forceReplacementOf}));
     }
     if(current?.state==='frozen'&&!confirmedEpisodeMapping&&!confirmedCustomTarget)return Object.freeze({kind:'frozen',subjectId,libraRunId:current.libra_run_id});
     if(!forceReplacementOf&&current&&current.acceptance_spec_id===context.spec.acceptanceSpecId)return Object.freeze({kind:'current',subjectId,
@@ -126,7 +133,8 @@ function createLibraRunCreator(options){
       priorityIntentDigest:canonicalDigest({schema:'libra.priority-intent-empty@1'})};
     const decision=buildRunAdmissionDecision({admissionKind:current?'replacement':'initial',subjectId,expectedRunAdmissionHead:head,
       runExecutionBasis:basis,...(replacement?{replacementOfRunRef:replacement}:{}),initialPriority:priority});
-    const identity={subjectId,decisionDigest:decision.decisionDigest},admitted=store.admit({decision,...(confirmedCustomTarget?{readFence}:{}),
+    const identity={subjectId,decisionDigest:decision.decisionDigest},admitted=store.admit({decision,
+      ...(confirmedCustomTarget?{readFence,currentTargetBaseline}:{}),
       commitMarker:stable('libra-run-admission-marker-',identity),resultId:stable('libra-run-admission-result-',identity)});
     if(replacement&&typeof options.cancelProcessWorks==='function')options.cancelProcessWorks(Object.freeze({ownerDomain:'libra',
       processType:'libra_run',processId:replacement.libraRunId,reasonCode:'LIBRA_RUN_SUPERSEDED'}));

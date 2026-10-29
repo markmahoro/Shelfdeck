@@ -28,6 +28,8 @@
 
 继承增量将已发布的精确 custom Intent/Spec 绑定至新 Run 的 `collectionTargetRef`；Admission 在 Libra Owner 内校验当前目标、原始标准、目标完整重建、原 Run、物理材料/绑定/Claims、身份和新鲜 opaque read fence，然后通过既有 Run Admission 事务替代旧 Run。测试夹具确认旧 Run 保留、原始标准与 Material Control 不改、旧 Run 被标记 superseded；这不是生产完整旅程。
 
+追加 fail-closed 基线检查：新 Admission 要求在捕获 opaque fence 后读取 `readCurrentCustomTargetBaseline` 的当前标准语义 digest、Shelf revision/digest、Subject/Scope、身份和 Handoff 状态，并在同一 Admission Unit of Work 内比较已确认 Intent。调用方缺少读取器、投影不可用、评分导致标准语义变化、Shelf/身份/范围变化或 Arca 已接纳时不能新建 Run；已提交的精确重放仍先于当前新鲜度检查。当前测试使用受控基线投影，真实 Perception/Arca/Libra 公开投影的组合读取器尚未实现或接线，因此该内部入口默认拒绝，不能称真实评分变化旅程通过。
+
 本轮进一步修复一个真实可复现的中断缺陷：新 Run 已原子提交但取消旧 Work 前进程中断时，原入口因旧 Run 不再 current 而不能重放。现在显式重放先校验持久 Intent、从原标准/Preview/Intent 完整重建的 Spec、双向 Run 替代关系、初始 Admission Decision 与精确 Run Basis、Foundation marker/Result/evidence，再返回同一 Run 并重新调用原 Owner 作用域的幂等 Work 取消。篡改 Intent、Spec、Basis 或结果证据均拒绝。测试覆盖重复调用、提交后取消抛错、当前 Subject revision 后续变化、源绑定/身份变动、新鲜度冲突；Arca Accepted 场景使用受控公开投影夹具，未声称完整跨 Owner 竞态旅程通过。
 
 此路径尚未接入实际用户入口或 Runtime 自动接续。新 Run 的 Admission 先于旧 Work 取消；`cancelProcessWorks` 返回的 draining 状态目前未形成新 Run 调度屏障，调用后中断也尚无 Runtime 持久恢复入口。不能发布或开启该内部入口。已 Accepted 的 Arca 责任仍必须通过 Arca 的公开责任投影与 read fence 保护；不得用取消 Libra 旧 Run 代替该边界。
@@ -41,8 +43,8 @@
 
 ## 验证与保留的失败
 
-- 本机 Node 逻辑/真实 SQLite 定向：10 个文件 73 PASS / 0 skip；本地媒体差距观察 3 PASS / 0 skip；另 custom Spec 与 Libra application schema 2 文件 17 PASS / 0 skip。覆盖的 Accepted 是受控投影，不是实际 Arca 提交。
+- 本机 Node 逻辑/真实 SQLite 定向：13 个文件 93 PASS / 0 skip；在新基线门槛之后，Run Admission、Custom Target Store 和相邻普通 Admission 三文件再运行 29 PASS / 0 skip。覆盖的评分/Accepted 是受控投影，不是实际 Perception 修改或 Arca 提交。
 - 受控 HTTP、Host/Handle/Secret/Adapter：电影身份与做种、既有完整 Provider 边界、100 候选、Series 覆盖共 5 PASS / 0 skip；新负例在下载 POST 前拒绝，未访问真实 Provider。
 - Manifest 和 P2 contract 检查 PASS。包边界首跑 2 finding：基线 `buffalo-face-catalogue.js` 的 `usearch`、`better-sqlite3` 尚未在全局策略登记；禁止语义首跑 1 finding：基线 `us-adult-catalogue-assessment.js` 的 `membership`。这三个源码/策略路径相对 `f24164ae0` 未修改；没有改变其他线程或全局策略来遮盖 finding。完整 Architecture 未通过。
-- 保留首跑失败：Provider 三项最初因沙箱临时目录 `rename` 的 `EPERM` 全部失败，解除权限限制后同范围通过；新增电影字段测试最初发现空年份误拒、冲突年份/ID 误放行，新增类型测试最初发现剧集类型误放行；重放测试最初发现已替代 Run 拒绝重放，进一步的完整 Basis 篡改测试先红后绿。这些均未通过删断言或降低安全门槛修正。
+- 保留首跑失败：Provider 三项最初因沙箱临时目录 `rename` 的 `EPERM` 全部失败，解除权限限制后同范围通过；新增电影字段测试最初发现空年份误拒、冲突年份/ID 误放行，新增类型测试最初发现剧集类型误放行；重放测试最初发现已替代 Run 拒绝重放，进一步的完整 Basis 篡改测试先红后绿；新 Run 初次测试证明缺失当前标准投影或评分要求改变仍可准入，追加基线门槛后定向复验通过。这些均未通过删断言或降低安全门槛修正。
 - 当前本机 Docker daemon 不可用；上述结果是开发反馈，非 Linux Docker、真实下载、真实媒体生产、最终 UI 或生产验收。未部署、改库、重试/取消生产任务、Reset、启停或修改生产媒体。

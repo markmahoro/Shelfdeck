@@ -817,7 +817,7 @@ function createRunAdmissionStore(options) {
       let authorizedEpisodeMapping = null;
       let authorizedCustomTarget = null;
       const targetValidation=require('./custom-target-store').createCustomTargetStore(options).admissionValidation(
-        decision.runExecutionBasis,decision.replacementOfRunRef?.libraRunId,record=>{authorizedCustomTarget=record;});
+        decision.runExecutionBasis,decision.replacementOfRunRef?.libraRunId,record=>{authorizedCustomTarget=record;},request.currentTargetBaseline);
       const mappingValidation = decision.runExecutionBasis.episodeMetadataMappingRef
         ? require('./episode-metadata-mapping-store').createEpisodeMetadataMappingStore(options).admissionValidation(
           decision.runExecutionBasis, decision.replacementOfRunRef?.libraRunId, record => { authorizedEpisodeMapping = record; }) : null;

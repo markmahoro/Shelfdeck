@@ -13,6 +13,15 @@ function commandIdentity(actorId, idempotencyKey, requestDigest) {
   if (typeof actorId !== 'string' || !actorId.trim() || actorId.length > 256 || typeof idempotencyKey !== 'string' ||
       !idempotencyKey.trim() || idempotencyKey.length > 128 || !SHA256.test(requestDigest || '')) fail('LIBRA_CUSTOM_TARGET_COMMAND_INVALID');
 }
+function assertCurrentTargetBaseline(intent,value) {
+  if(!value||value.kind!=='ready')fail('LIBRA_CUSTOM_TARGET_BASELINE_UNAVAILABLE');
+  const basis=intent.basis;
+  if(value.subjectId!==intent.subjectId||value.productScopeDigest!==basis.productScopeDigest||
+      value.standardSpecDigest!==basis.baseSpecDigest||value.shelfId!==basis.shelfId||
+      value.shelfStandardRevision!==basis.shelfStandardRevision||value.shelfStandardDigest!==basis.shelfStandardDigest||
+      value.identityDigest!==basis.identityDigest||!['no_offer','not_accepted'].includes(value.handoffState))
+    fail('LIBRA_CUSTOM_TARGET_BASELINE_CHANGED');
+}
 
 function createCustomTargetStore(options) {
   const statements = {};
@@ -114,7 +123,7 @@ function createCustomTargetStore(options) {
     preview:previewId=>read(repo=>getPreview(repo,previewId)),
     current:({subjectId,productScopeDigest})=>read(repo=>current(repo,subjectId,productScopeDigest)),
     intentEvidence:intentId=>read(repo=>intentEvidence(repo,intentId)),
-    admissionValidation(basis,replacementRunId,onValidated){
+    admissionValidation(basis,replacementRunId,onValidated,currentTargetBaseline){
       return {participantId:'custom_target_run_admission_validation',owner:'libra',repositories:[validationRepository],execute(context){
         const repo=context.repository(validationRepository.repositoryId),row=repo.invoke('spec',{acceptance_spec_id:basis.acceptanceSpec.acceptanceSpecId});
         let spec;try{spec=row&&JSON.parse(row.spec_json);}catch{fail('LIBRA_CUSTOM_TARGET_RECORD_INVALID');}
@@ -129,6 +138,7 @@ function createCustomTargetStore(options) {
           fail('LIBRA_COLLECTION_TARGET_NOT_CURRENT');
         const evidence=intentEvidence(repo,reference.intentId),{intent,preview,baseSpec}=evidence,
           validated=require('../model/custom-acceptance-spec').assertCustomAcceptanceSpec({spec,baseSpec,preview,intent});
+        assertCurrentTargetBaseline(intent,currentTargetBaseline);
         if(validated.acceptanceSpecId!==row.acceptance_spec_id||validated.recordDigest!==row.record_digest||validated.specDigest!==row.spec_digest||
             intent.subjectId!==basis.subjectSnapshot.subjectId||intent.basis.productScopeDigest!==basis.acceptanceSpec.productScopeDigest||
             intent.basis.libraRunId!==replacementRunId||!replacementRunId||intent.basis.handoffState==='accepted')

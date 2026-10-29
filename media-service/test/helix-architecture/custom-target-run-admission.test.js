@@ -6,6 +6,7 @@ const {D}=require('./fixtures/us-adult-analysis-basis-harness');
 const {canonicalDigest,canonicalJson}=require('../../src/helix/contracts/canonical-json');
 const {createLibraRunContextReader}=require('../../src/helix/domains/libra/application/libra-run-context-reader');
 const {createLibraRunCreator}=require('../../src/helix/domains/libra/application/libra-run-creator');
+const {createRunAdmissionStore}=require('../../src/helix/domains/libra/persistence/run-admission-store');
 const {createRunLifecycleStore}=require('../../src/helix/domains/libra/persistence/run-lifecycle-store');
 const {buildRunLifecycleDecision}=require('../../src/helix/domains/libra/model/run-lifecycle-contracts');
 const {createStrategyAvailabilityStore}=require('../../src/helix/domains/libra/persistence/strategy-availability-store');
@@ -56,11 +57,18 @@ function prepareRun(h){
 function runHarness(callback){return harness(h=>{
   const published=h.publish(),spec=h.publisher.read(published.receipt.resultRef.acceptanceSpecId),contextReader=createLibraRunContextReader(h.options),
     lifecycle=createWorkLifecycle({...h.options,nextWorkAttemptId:()=> 'unused'}),cancelled=[],
-    creator=createLibraRunCreator({...h.options,contextReader,customTargetStore:h.targets,cancelProcessWorks(scope){cancelled.push(scope);return lifecycle.cancelProcess(scope);}}),
+    baseline={kind:'ready',subjectId:h.chosen.intent.subjectId,productScopeDigest:h.chosen.intent.basis.productScopeDigest,
+      standardSpecDigest:h.chosen.intent.basis.baseSpecDigest,shelfId:h.chosen.intent.basis.shelfId,
+      shelfStandardRevision:h.chosen.intent.basis.shelfStandardRevision,shelfStandardDigest:h.chosen.intent.basis.shelfStandardDigest,
+      identityDigest:h.chosen.intent.basis.identityDigest,handoffState:'no_offer'},
+    readCurrentCustomTargetBaseline=()=>Object.freeze({...baseline}),
+    setBaseline=value=>Object.assign(baseline,value),
+    creator=createLibraRunCreator({...h.options,contextReader,customTargetStore:h.targets,readCurrentCustomTargetBaseline,
+      cancelProcessWorks(scope){cancelled.push(scope);return lifecycle.cancelProcess(scope);}}),
     advance=readFence=>creator.replaceConfirmedCustomTarget(h.chosen.intent,readFence),
     snapshot=()=>Object.fromEntries(['libra_runs','libra_run_revisions','libra_run_admission_heads','libra_run_material_manifests',
       'libra_run_material_members','fx_event_result_bindings','fx_commit_markers'].map(table=>[table,h.db.prepare('SELECT * FROM '+table).all()]));
-  return callback({...h,spec,creator,cancelled,advance,snapshot});
+  return callback({...h,spec,creator,cancelled,advance,snapshot,readCurrentCustomTargetBaseline,setBaseline});
 },{prepareRun});}
 
 test('an actual frozen Run is replaced through a confirmed target, keeping identity, input and the real standard',()=>runHarness(h=>{
@@ -103,6 +111,38 @@ test('a newly selected standard Spec does not inherit the confirmed custom targe
   assert.deepEqual(h.cancelled,[]);assert.deepEqual(h.snapshot(),before);
 }));
 
+test('changed current rating requirements or unavailable baseline prevents custom Run admission',()=>runHarness(h=>{
+  const before=h.snapshot();
+  const original=h.readCurrentCustomTargetBaseline();
+  for(const change of [{standardSpecDigest:D('rating-changed')},{identityDigest:D('identity-changed')},
+    {shelfStandardRevision:original.shelfStandardRevision+1},{productScopeDigest:D('another-scope')},{handoffState:'accepted'}]){
+    h.setBaseline({...original,...change});
+    assert.throws(()=>h.advance(h.unitOfWork.captureReadFence()),{code:'LIBRA_CUSTOM_TARGET_BASELINE_CHANGED'});
+  }
+  h.setBaseline({kind:'unavailable'});
+  assert.throws(()=>h.advance(h.unitOfWork.captureReadFence()),{code:'LIBRA_CUSTOM_TARGET_BASELINE_UNAVAILABLE'});
+  assert.deepEqual(h.snapshot(),before);assert.deepEqual(h.cancelled,[]);
+  h.setBaseline(original);
+  assert.equal(h.advance(h.unitOfWork.captureReadFence()).kind,'admitted');
+}));
+
+test('direct custom admission also requires the current baseline inside its transaction',()=>runHarness(h=>{
+  const accepted=h.advance(h.unitOfWork.captureReadFence()),row=h.db.prepare(
+    'SELECT transition_evidence_json FROM libra_run_revisions WHERE libra_run_id=? AND state_revision=1').get(accepted.libraRunId),
+    decision=JSON.parse(row.transition_evidence_json),before=h.snapshot();
+  assert.throws(()=>createRunAdmissionStore(h.options).admit({decision,commitMarker:'new-marker',resultId:'new-result',
+    readFence:h.unitOfWork.captureReadFence()}),{code:'LIBRA_CUSTOM_TARGET_BASELINE_UNAVAILABLE'});
+  assert.deepEqual(h.snapshot(),before);
+}));
+
+test('a custom Run cannot be admitted without a current Owner baseline reader',()=>runHarness(h=>{
+  const contextReader=createLibraRunContextReader(h.options),creator=createLibraRunCreator({...h.options,contextReader,
+    customTargetStore:h.targets,cancelProcessWorks(){throw new Error('must not cancel');}}),before=h.snapshot();
+  assert.throws(()=>creator.replaceConfirmedCustomTarget(h.chosen.intent,h.unitOfWork.captureReadFence()),
+    {code:'LIBRA_CUSTOM_TARGET_BASELINE_UNAVAILABLE'});
+  assert.deepEqual(h.snapshot(),before);
+}));
+
 test('confirmed target cannot follow a changed source binding into a replacement Run',()=>runHarness(h=>{
   h.db.prepare('UPDATE libra_material_bindings SET location=?').run('/source/other.mkv');
   const before=h.snapshot();assert.throws(()=>h.advance(h.unitOfWork.captureReadFence()),{code:'LIBRA_CUSTOM_TARGET_ADMISSION_MATERIAL_CHANGED'});
@@ -118,7 +158,8 @@ test('changed original identity or new target authority cannot silently inherit 
 test('replacement replay returns the committed Run and resumes cancellation after interruption',()=>runHarness(h=>{
   const contextReader=createLibraRunContextReader(h.options), lifecycle=createWorkLifecycle({...h.options,nextWorkAttemptId:()=> 'unused'});
   let calls=0;
-  const creator=createLibraRunCreator({...h.options,contextReader,customTargetStore:h.targets,cancelProcessWorks(scope){
+  const creator=createLibraRunCreator({...h.options,contextReader,customTargetStore:h.targets,
+    readCurrentCustomTargetBaseline:h.readCurrentCustomTargetBaseline,cancelProcessWorks(scope){
     calls++;
     if(calls===1)throw new Error('injected after admission');
     return lifecycle.cancelProcess(scope);
@@ -126,6 +167,7 @@ test('replacement replay returns the committed Run and resumes cancellation afte
   assert.throws(()=>creator.replaceConfirmedCustomTarget(h.chosen.intent,h.unitOfWork.captureReadFence()),/injected after admission/);
   const committed=h.db.prepare("SELECT * FROM libra_runs WHERE state='active'").get(), before=h.snapshot();
   h.db.prepare('UPDATE libra_subjects SET intake_revision=intake_revision+1').run();
+  h.setBaseline({kind:'unavailable'});
   const replay=creator.replaceConfirmedCustomTarget(h.chosen.intent,null);
   assert.equal(replay.kind,'admitted');assert.equal(replay.replayed,true);assert.equal(replay.libraRunId,committed.libra_run_id);
   assert.equal(calls,2);assert.deepEqual(h.snapshot(),before);
