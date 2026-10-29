@@ -581,5 +581,6 @@ module.exports = Object.freeze({
   SYSTEM_TEMPLATE_ID,
   SYSTEM_TEMPLATE_NAME,
   buildShelfStandard,
+  validateRequirements,
   validateRuleTemplateRules,
 });

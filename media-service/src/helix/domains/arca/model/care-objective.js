@@ -1,9 +1,12 @@
 'use strict';
 const { canonicalDigest, canonicalJson } = require('../../../contracts/canonical-json');
 const {inventoryContentProfile}=require('./product-content-profile');
+const {assertCollectionCareTarget}=require('./collection-care-target');
 function acceptedRating(context){if(Number.isInteger(context.raw.perceptionRating?.rating))return context.raw.perceptionRating.rating;for(const fact of context.raw.facts){if(fact.fact_kind!=='decision_fact')continue;const value=fact.value||{};
   for(const key of ['rating','normalizedRating','ratingValue','stars'])if(Number.isInteger(value[key])&&value[key]>=1&&value[key]<=5)return value[key];}return null;}
-function effectiveRequirements(context){const contentProfile=inventoryContentProfile(context.raw.identity,context.raw.entry.structure_kind),profiles=context.raw.standard.value?.profileRuleSets||[],profile=profiles.find((item)=>item.contentProfile===contentProfile);if(!profile)return null;const rating=acceptedRating(context);if(rating===null)return profile.baseRequirements;const branch=(profile.decisionBranches||[]).find((item)=>item.predicate?.rating===rating||item.rating===rating||item.decisionValue===rating);return branch?.requirements||branch?.resultRequirements||profile.baseRequirements;}
+function effectiveRequirements(context){if(context.raw.collectionTarget)return assertCollectionCareTarget(context.raw.collectionTarget,context.shelfEntryId,
+  {shelfId:context.raw.shelf?.shelf_id,inventoryRevision:context.raw.entry?.current_inventory_revision}).requirements;
+  const contentProfile=inventoryContentProfile(context.raw.identity,context.raw.entry.structure_kind),profiles=context.raw.standard.value?.profileRuleSets||[],profile=profiles.find((item)=>item.contentProfile===contentProfile);if(!profile)return null;const rating=acceptedRating(context);if(rating===null)return profile.baseRequirements;const branch=(profile.decisionBranches||[]).find((item)=>item.predicate?.rating===rating||item.rating===rating||item.decisionValue===rating);return branch?.requirements||branch?.resultRequirements||profile.baseRequirements;}
 
 function careFindingCodes(requirement) {
   return (requirement?.typedParameters || []).filter(item =>

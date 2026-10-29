@@ -8,7 +8,7 @@ const {createLibraCustomTargetConfirmationReader}=require('../../src/helix/domai
 const {verifyArcaCustomAcceptanceTarget}=require('../../src/helix/domains/arca/model/custom-acceptance-target');
 const {buildAcceptanceRequirementSnapshot}=require('../../src/helix/domains/libra/model/acceptance-requirement-snapshot');
 const {createHandoffBAcceptanceStore}=require('../../src/helix/domains/arca/persistence/handoff-b-acceptance-store');
-const {createOnDeckStore}=require('../../src/helix/domains/arca/persistence/on-deck-store');
+const {createCollectionTargetStore}=require('../../src/helix/domains/arca/persistence/collection-target-store');
 const {finalGapDecision}=require('../../src/helix/domains/arca/model/acceptance-gap-decision');
 const {projectMaterialControlRow}=require('../../src/helix/foundation/persistence/material-control');
 const {harness}=require('./fixtures/custom-spec-publication-harness');
@@ -327,10 +327,42 @@ test('real Arca Handoff B transaction fences and records the exact confirmed cus
     onDeckRunId:responsibility.onDeckRunId,finalInventoryDecision}).decision.customAcceptanceBasis,accepted.decision.customAcceptanceBasis);
   const replay=store.accept({...request,readFence:null,customTargetConfirmation:null});
   assert.equal(replay.replayed,true);assert.equal(replay.decision.decisionDigest,accepted.decision.decisionDigest);
+  // The first three rows below stand in for the existing On-deck participant;
+  // the target participants and their Arca/Foundation checks are real.
+  db.prepare('INSERT INTO arca_shelf_entries(shelf_entry_id,shelf_id,structure_kind,status,current_inventory_revision,current_deck_fact_revision) VALUES(?,?,?,?,?,?)')
+    .run('entry',shelf.shelfId,'single','active',1,1);
+  db.prepare('INSERT INTO arca_ondeck_commit_receipts(receipt_id,on_deck_run_id,shelf_entry_id,inventory_revision,deck_fact_revision) VALUES(?,?,?,?,?)')
+    .run('ondeck-receipt',responsibility.onDeckRunId,'entry',1,1);
+  const targets=createCollectionTargetStore(h.options),commitRequest={onDeckRunId:responsibility.onDeckRunId,
+    custodyId:responsibility.custodyId,shelf,package:packageValue,acceptedDecision:accepted.decision},
+    parts=targets.onDeckParticipants({request:commitRequest,shelfEntryId:'entry',inventoryRevision:1});
+  assert.throws(()=>targets.readMany(['entry'],{readFence:h.unitOfWork.captureReadFence()}),{code:'ARCA_COLLECTION_TARGET_HEAD_MISSING'});
+  assert.throws(()=>h.unitOfWork.execute([...parts,{participantId:'target_interruption',owner:'arca',repositories:parts[0].repositories,
+    execute(){throw new Error('injected after target writes');}}]),/injected after target writes/);
+  assert.equal(db.prepare('SELECT count(*) n FROM arca_collection_target_heads').get().n,0);
+  assert.equal(db.prepare('SELECT count(*) n FROM arca_collection_target_intents').get().n,0);
+  h.unitOfWork.execute(parts);
+  const projected=targets.readMany(['entry'],{readFence:h.unitOfWork.captureReadFence()}).get('entry');
+  assert.equal(projected.targetKind,'user_custom');assert.equal(projected.requirements.mandatoryMedia.minimumRasterClass,'none');
+  assert.equal(projected.requirements.space.maxSizeGiB,50);
+  const markerId=D({schema:'arca.handoff-b-accepted-marker@1',acceptanceDecisionId:accepted.decision.acceptanceDecisionId,
+    decisionDigest:accepted.decision.decisionDigest}),marker=db.prepare('SELECT * FROM fx_commit_markers WHERE commit_marker=?').get(markerId);
+  db.prepare('DELETE FROM fx_commit_markers WHERE commit_marker=?').run(markerId);
+  assert.throws(()=>targets.readMany(['entry'],{readFence:h.unitOfWork.captureReadFence()}),{code:'ARCA_COLLECTION_TARGET_ACCEPTANCE_CORRUPT'});
+  db.prepare('INSERT INTO fx_commit_markers(commit_marker,effect_id,owner_domain,scope_type,scope_id,commit_digest,result_id,result_schema_ref,result_digest,committed_at_ms) VALUES(?,?,?,?,?,?,?,?,?,?)')
+    .run(marker.commit_marker,marker.effect_id,marker.owner_domain,marker.scope_type,marker.scope_id,marker.commit_digest,
+      marker.result_id,marker.result_schema_ref,marker.result_digest,marker.committed_at_ms);
+  const head=db.prepare('SELECT * FROM arca_collection_target_heads WHERE shelf_entry_id=?').get('entry');
+  db.prepare('DELETE FROM arca_collection_target_heads WHERE shelf_entry_id=?').run('entry');
+  assert.throws(()=>targets.readMany(['entry'],{readFence:h.unitOfWork.captureReadFence()}),{code:'ARCA_COLLECTION_TARGET_HEAD_MISSING'});
+  db.prepare('INSERT INTO arca_collection_target_heads(shelf_entry_id,current_revision,intent_id,intent_digest,updated_at_ms) VALUES(?,?,?,?,?)')
+    .run(head.shelf_entry_id,head.current_revision,head.intent_id,head.intent_digest,head.updated_at_ms);
+  db.prepare("UPDATE arca_collection_target_intents SET intent_json='{}' WHERE shelf_entry_id='entry'").run();
+  assert.throws(()=>targets.readMany(['entry'],{readFence:h.unitOfWork.captureReadFence()}),{code:'ARCA_COLLECTION_TARGET_CORRUPT'});
 }));
 
-test('custom On-deck Commit cannot bypass the missing collection-target participant',()=>applicationHarness(h=>{
-  const input=arcaTargetFixture(h),store=createOnDeckStore(h.options),before=h.db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n;
-  assert.throws(()=>store.commit({package:input.packageValue}),{code:'ARCA_CUSTOM_TARGET_COLLECTION_UNAVAILABLE'});
-  assert.equal(h.db.prepare('SELECT count(*) n FROM arca_shelf_entries').get().n,before);
+test('custom On-deck target creation cannot bypass its accepted Arca decision',()=>applicationHarness(h=>{
+  const input=arcaTargetFixture(h),store=createCollectionTargetStore(h.options);
+  assert.throws(()=>store.onDeckParticipants({request:{package:input.packageValue,shelf:input.shelf},shelfEntryId:'entry',inventoryRevision:1}),
+    {code:'ARCA_COLLECTION_TARGET_ACCEPTANCE_MISSING'});
 }));

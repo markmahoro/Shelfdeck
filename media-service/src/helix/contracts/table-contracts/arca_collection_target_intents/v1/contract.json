@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "contractId": "helix://contracts/tables/arca_collection_target_intents/v1",
+  "contractVersion": 1,
+  "contract": {
+    "tableId": "arca_collection_target_intents",
+    "owner": "arca",
+    "prefix": "arca_",
+    "columns": [
+      {
+        "ordinal": 1,
+        "name": "intent_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": true,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 2,
+        "name": "shelf_entry_id",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": true,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 3,
+        "name": "target_revision",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 4,
+        "name": "target_kind",
+        "logicalType": "TEXT",
+        "enumValues": [
+          "user_custom",
+          "standard"
+        ],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 5,
+        "name": "intent_schema_ref",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 6,
+        "name": "intent_json",
+        "logicalType": "TEXT_JSON",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 7,
+        "name": "intent_digest",
+        "logicalType": "TEXT",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      },
+      {
+        "ordinal": 8,
+        "name": "created_at_ms",
+        "logicalType": "INTEGER",
+        "enumValues": [],
+        "primaryKeyPart": false,
+        "foreignKeyMarker": false,
+        "inlineUnique": false,
+        "nullable": false
+      }
+    ],
+    "primaryKey": [
+      "intent_id"
+    ],
+    "declaredForeignKeyColumns": [
+      "shelf_entry_id"
+    ],
+    "uniqueConstraints": [
+      [
+        "shelf_entry_id",
+        "target_revision"
+      ],
+      [
+        "intent_id",
+        "shelf_entry_id",
+        "target_revision",
+        "intent_digest"
+      ]
+    ],
+    "hotIndexes": [],
+    "partialUniqueRules": [],
+    "checkRules": [
+      {
+        "column": "target_kind",
+        "enumValues": [
+          "user_custom",
+          "standard"
+        ]
+      }
+    ],
+    "revisionContract": {
+      "revisionColumns": [
+        "target_revision"
+      ],
+      "currentPointerColumns": [],
+      "pointerTargets": [],
+      "pointerRules": []
+    },
+    "jsonContracts": [
+      {
+        "column": "intent_json",
+        "schemaRefColumn": "intent_schema_ref",
+        "maxBytes": 65536,
+        "source": "table-row",
+        "requiresJsonValidCheck": true
+      }
+    ],
+    "immutability": {
+      "immutable": true,
+      "rules": [
+        "immutable"
+      ]
+    },
+    "deletion": {
+      "foreignKeyPolicy": "ON DELETE RESTRICT",
+      "rules": []
+    },
+    "semanticRules": [
+      "immutable",
+      "`UNIQUE(shelf_entry_id,target_revision)`及`UNIQUE(intent_id,shelf_entry_id,target_revision,intent_digest)`",
+      "closed canonical JSON上限`64 KiB`",
+      "首次自定义Intent由精确Accepted Decision及其自定义依据在On-deck Commit中建立，后续变更须用户显式决定并连续递增",
+      "源标准、自定义要求及原确认来源不可丢失，不能借目标变化修改Inventory事实"
+    ],
+    "rawContract": {
+      "columns": "`intent_id PK, shelf_entry_id FK, target_revision INTEGER, target_kind(user_custom|standard), intent_schema_ref, intent_json, intent_digest, created_at_ms`",
+      "constraints": "immutable；`UNIQUE(shelf_entry_id,target_revision)`及`UNIQUE(intent_id,shelf_entry_id,target_revision,intent_digest)`；closed canonical JSON上限`64 KiB`；首次自定义Intent由精确Accepted Decision及其自定义依据在On-deck Commit中建立，后续变更须用户显式决定并连续递增；源标准、自定义要求及原确认来源不可丢失，不能借目标变化修改Inventory事实"
+    },
+    "source": {
+      "section": "8.5.12",
+      "line": 9666,
+      "lineDigest": "1a6f4fd079de36750715393adb94032ded8a98e14971972c1356ba2d750214c1"
+    },
+    "foreignKeys": [
+      {
+        "columns": [
+          "shelf_entry_id"
+        ],
+        "targetTable": "arca_shelf_entries",
+        "targetColumns": [
+          "shelf_entry_id"
+        ],
+        "deletePolicy": "RESTRICT",
+        "deferrable": false
+      }
+    ]
+  }
+}

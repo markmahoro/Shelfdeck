@@ -435,7 +435,7 @@ function createOnDeckCapabilityPorts(options){const now=options.now||Date.now,ac
     custodyControls=readControlProjections(controls,keys),targetControls=readControlProjections(controls,staged.members.map(m=>m.materialKey)),
     committed=onDeck.readHistoricalCommitted({onDeckRunId:c.responsibility.onDeckRunId,custodyId:c.responsibility.custodyId,finalInventoryDecisionDigest:c.finalInventoryDecision.decisionDigest,
       onDeckPackageId:c.packageValue.onDeckPackageId,packageDigest:c.packageValue.packageDigest,shelfId:c.shelf.shelfId})||onDeck.commit({onDeckRunId:c.responsibility.onDeckRunId,
-      custodyId:c.responsibility.custodyId,shelf:c.shelf,package:c.packageValue,finalInventoryDecision:c.finalInventoryDecision,staged,
+      custodyId:c.responsibility.custodyId,shelf:c.shelf,package:c.packageValue,acceptedDecision:c.accepted?.decision,finalInventoryDecision:c.finalInventoryDecision,staged,
       stagedVerification:options.workResultReader.read(execution.workId).find((item)=>item.capabilityRef===C.stagedVerify)?.result,
       fulfillmentVerification:fulfillment,
       fulfillmentVerificationRecord:options.workResultReader.read(execution.workId)

@@ -1300,11 +1300,11 @@
         "transactionId": "helix.transaction.on-deck-commit",
         "ownerScope": "arca",
         "contractRef": "helix://contracts/transactions/helix.transaction.on-deck-commit/v1",
-        "contractDigest": "fddbca80d338e2edd9ba0a50b47193123a458009bcacafb9269b30d11de1d6c7"
+        "contractDigest": "003ead8ecaece4b010253a36ee8c51c8841169b7140116c00d2ba44e9a675470"
       },
       "contractDigest": {
         "algorithm": "sha256",
-        "value": "8e7d770bf11ffbecdf0d5554be121a7c2bb58e8e6f5f36e36353dc48db65fe2e"
+        "value": "bdfceaecfaa4a0fc03262698ec176a64d78f3762a046a467a0d4261e54b15f86"
       }
     },
     {

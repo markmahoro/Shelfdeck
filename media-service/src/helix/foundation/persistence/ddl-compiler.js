@@ -31,6 +31,10 @@ const REQUIRED_COLUMNS = new Set([
   ...['intent_id','preview_id','subject_id','libra_run_id','product_scope_digest','target_revision','actor_id','idempotency_key','request_digest','record_schema_ref','record_json','record_digest','created_at_ms']
     .map(column => 'libra_custom_target_intents.' + column),
   ...['subject_id','product_scope_digest','current_revision','intent_id','record_digest'].map(column => 'libra_custom_target_heads.' + column),
+  ...['intent_id','shelf_entry_id','target_revision','target_kind','intent_schema_ref','intent_json','intent_digest','created_at_ms']
+    .map(column => 'arca_collection_target_intents.' + column),
+  ...['shelf_entry_id','current_revision','intent_id','intent_digest','updated_at_ms']
+    .map(column => 'arca_collection_target_heads.' + column),
   ...['offer_id','on_deck_package_id','package_revision','package_digest','receipt_id','receipt_schema_ref','receipt_json','receipt_digest','closed_at_ms']
     .map(column => 'arca_offer_withdrawal_receipts.' + column)
 ]);

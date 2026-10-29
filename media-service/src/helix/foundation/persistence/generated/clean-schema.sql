@@ -213,6 +213,33 @@ CREATE TABLE "arca_canonical_identity_revisions" (
 );
 CREATE INDEX "idx_arca_canonical_identity_revisions_hot_01" ON "arca_canonical_identity_revisions" ("provider", "provider_key", "structure_kind");
 
+CREATE TABLE "arca_collection_target_heads" (
+  "shelf_entry_id" TEXT PRIMARY KEY NOT NULL,
+  "current_revision" INTEGER NOT NULL CHECK ("current_revision" >= 1),
+  "intent_id" TEXT NOT NULL,
+  "intent_digest" TEXT NOT NULL CHECK (length("intent_digest") = 64 AND "intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "updated_at_ms" INTEGER NOT NULL CHECK ("updated_at_ms" >= 0),
+  FOREIGN KEY ("intent_id") REFERENCES "arca_collection_target_intents" ("intent_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT,
+  FOREIGN KEY ("intent_id", "shelf_entry_id", "current_revision", "intent_digest") REFERENCES "arca_collection_target_intents" ("intent_id", "shelf_entry_id", "target_revision", "intent_digest") ON DELETE RESTRICT
+);
+
+CREATE TABLE "arca_collection_target_intents" (
+  "intent_id" TEXT PRIMARY KEY NOT NULL,
+  "shelf_entry_id" TEXT NOT NULL,
+  "target_revision" INTEGER NOT NULL CHECK ("target_revision" >= 1),
+  "target_kind" TEXT NOT NULL CHECK ("target_kind" IN ('user_custom', 'standard')),
+  "intent_schema_ref" TEXT NOT NULL,
+  "intent_json" TEXT NOT NULL,
+  "intent_digest" TEXT NOT NULL CHECK (length("intent_digest") = 64 AND "intent_digest" NOT GLOB '*[^0-9a-f]*'),
+  "created_at_ms" INTEGER NOT NULL CHECK ("created_at_ms" >= 0),
+  UNIQUE ("shelf_entry_id", "target_revision"),
+  UNIQUE ("intent_id", "shelf_entry_id", "target_revision", "intent_digest"),
+  CHECK (json_valid("intent_json")),
+  CHECK (length(CAST("intent_json" AS BLOB)) <= 65536),
+  FOREIGN KEY ("shelf_entry_id") REFERENCES "arca_shelf_entries" ("shelf_entry_id") ON DELETE RESTRICT
+);
+
 CREATE TABLE "arca_deck_fact_revisions" (
   "shelf_entry_id" TEXT,
   "revision" INTEGER CHECK ("revision" >= 1),

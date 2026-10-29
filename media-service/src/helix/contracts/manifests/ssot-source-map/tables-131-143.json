@@ -138,14 +138,14 @@
       }
     },
     {
-      "id": "arca_canonical_identity_revisions",
+      "id": "arca_collection_target_intents",
       "owner": "arca",
-      "columnsContract": "`shelf_entry_id FK, revision, structure_kind, identity_kind, provider, provider_key, identity_digest, committed_at_ms`",
-      "constraintsContract": "`PK(shelf_entry_id,revision)`；`INDEX(provider,provider_key,structure_kind)`仅供Duplicate Detection，禁止全局unique",
+      "columnsContract": "`intent_id PK, shelf_entry_id FK, target_revision INTEGER, target_kind(user_custom|standard), intent_schema_ref, intent_json, intent_digest, created_at_ms`",
+      "constraintsContract": "immutable；`UNIQUE(shelf_entry_id,target_revision)`及`UNIQUE(intent_id,shelf_entry_id,target_revision,intent_digest)`；closed canonical JSON上限`64 KiB`；首次自定义Intent由精确Accepted Decision及其自定义依据在On-deck Commit中建立，后续变更须用户显式决定并连续递增；源标准、自定义要求及原确认来源不可丢失，不能借目标变化修改Inventory事实",
       "source": {
         "section": "8.5.12",
         "line": 9666,
-        "lineDigest": "b6b7fb7e12bac7da8359799330c6882cb1bcca8f7968ecedda59d0d7a1254df6"
+        "lineDigest": "1a6f4fd079de36750715393adb94032ded8a98e14971972c1356ba2d750214c1"
       }
     }
   ]

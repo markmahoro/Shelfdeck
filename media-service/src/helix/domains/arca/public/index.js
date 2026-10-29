@@ -209,6 +209,8 @@ Object.defineProperty(createArcaExecutionRegistration, 'createOffloadCompletionP
 });
 
 module.exports = Object.freeze({createArcaOfferResponsibilityProjection:require('../application/offer-responsibility-projection').createArcaOfferResponsibilityProjection,
+  createArcaCollectionTargetProjection(options){const store=require('../persistence/collection-target-store').createCollectionTargetStore(options);
+    return Object.freeze({readMany:store.readMany});},
   describeFreshResetWorkspaceRetention:require('../model/fresh-reset-workspace-retention').describeFreshResetWorkspaceRetention,
   describeFreshResetSeriesRetention:require('../model/fresh-reset-series-retention').describeFreshResetSeriesRetention,
   createFreshResetSeriesNormalization(options) { return require('../persistence/series-presentation-store').createSeriesPresentationStore(options).normalizeFreshResetHeads; },

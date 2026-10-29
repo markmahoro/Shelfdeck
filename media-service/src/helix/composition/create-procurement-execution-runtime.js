@@ -68,7 +68,7 @@ const DEFAULT_PREDECK_PIPELINE_SEATS = LibraExecutionRegistration.DEFAULT_PREDEC
 const createMovieResponsibilityClosureCoordinator =
   LibraExecutionRegistration.createMovieResponsibilityClosureCoordinator;
 const { PerceptionExecutionRegistration } = require('../domains/perception/public');
-const { ArcaExecutionRegistration, createArcaOfferResponsibilityProjection } = require('../domains/arca/public');
+const { ArcaExecutionRegistration, createArcaOfferResponsibilityProjection, createArcaCollectionTargetProjection } = require('../domains/arca/public');
 const createOffloadCompletionPort = ArcaExecutionRegistration.createOffloadCompletionPort;
 const { createPeopleImageExecutionRegistration } = require('../domains/people/public');
 
@@ -294,8 +294,9 @@ function createProcurementExecutionRuntime(options) {
     :Object.freeze({kind:'pending'});
   const customTargetConfirmation=require('../domains/libra/public').createLibraCustomTargetConfirmationReader(options);
   const readLibraCustomTargetConfirmation=(...args)=>customTargetConfirmation.read(...args);
+  const collectionTargetPort=createArcaCollectionTargetProjection(options);
   const arcaCapabilityRegistration=arcaConstruction.createCapabilityRegistration({...options,now,workResultReader,contractValidator,
-    readLibraCustomTargetConfirmation,
+    readLibraCustomTargetConfirmation,collectionTargetPort,
     cancelProcessWorks:scope=>workLifecycle.cancelProcess(scope),
     resolveMediaCastReference:input=>peopleProcessServices.mediaCastReferenceQuery.resolve(input),
     materialControlProjectionPort,createSeriesPresentationIo:args=>require('../integrations/series-presentation-io').createSeriesPresentationIo({...args,afterPhysicalEffect:options.afterSeriesPhysicalEffect}),deriveJavCoverBytes,createJavCorrectionWorkspaceIo,createJavCorrectionFormalFiles,createJavCorrectionFormalRetirement,createJavCorrectionWorkspaceReclaim,createJavCorrectionRecoveryScene,
@@ -528,7 +529,7 @@ function createProcurementExecutionRuntime(options) {
   perceptionProcessServices=perceptionConstruction.createProcessServices({...perceptionOptions,now,workResultReader});
   const perceptionPlanningRegistration=perceptionConstruction.createPlanningRegistration({registry,policyRegistry,contractValidator,
     workResultReader,processServices:perceptionProcessServices,resolvePerceptionIntegrationHandle:options.resolvePerceptionIntegrationHandle,now});
-  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,contractValidator,readLibraCustomTargetConfirmation,relocation:arcaCapabilityRegistration.relocation,series:arcaCapabilityRegistration.series,correction:arcaCapabilityRegistration.correction,actorPipelineQuery:arcaCapabilityRegistration.actorPipelineQuery,actorRefreshSource:arcaCapabilityRegistration.actorRefreshSource,peopleReferenceQuery,
+  const arcaProcessServices=arcaConstruction.createProcessServices({...options,now,registry,workResultReader,contractValidator,readLibraCustomTargetConfirmation,collectionTargetPort,relocation:arcaCapabilityRegistration.relocation,series:arcaCapabilityRegistration.series,correction:arcaCapabilityRegistration.correction,actorPipelineQuery:arcaCapabilityRegistration.actorPipelineQuery,actorRefreshSource:arcaCapabilityRegistration.actorRefreshSource,peopleReferenceQuery,
     onActorRefreshAdmitted:()=>host?.wakeBackground({ownerDomain:'arca',reconcilerKey:'active-aftercare-cases'}),
     resolveMediaCastReference:input=>peopleProcessServices.mediaCastReferenceQuery.resolve(input),
     computeBoundedMaterialFingerprintSync,
