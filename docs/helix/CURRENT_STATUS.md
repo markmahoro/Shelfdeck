@@ -1,5 +1,7 @@
 # ShelfDeck 当前状态
 
+2026-10-29 UI负责人对4774具体版本给出FAIL：受控评分Resolution重试耗尽后决策已失败，评分读取仍为pending、页面误示正在匹配；未证明生产发生或真实调度链已复现。Perception独立修复进行中，4774不可发布。Linux Web 49文件/274项在为隔离依赖缓存提供临时可写目录后通过；完整架构和Service继续留证。
+
 2026-10-29后继Series固定版本`4774a7e9056f644c29b8034ea07baeb4f578c4f6`在27a上加入Resolution恢复及P13稳定摘要修复，标准本机镜像tar SHA256 `1a280a3efea6f67b97019552d8fd76ed7c8fe655bf5aa52998686c559b6b3023`；源码4550文件Git blob一致、镜像七个变更运行文件与源码一致、测试服务依赖与镜像目录逐字节一致。Linux完整架构和Service/Web重验及具体版本UI核验进行中，未上传、部署或Reset。Series Aftercare独立原型仍因同inode/同字节/同stat重建误认而失败，未入本候选，不得把原型结果记为资格。
 
 2026-10-29后继Series修复工作区已在27a之上挑入Foundation已提交Result/Marker恢复、Perception冻结依据与后继Work及相关窗口测试；当前`f0fab9a91`仍缺P13摘要修复和精确版本完整门禁，不是可部署版本。实现线程正在双平台复验，包括Target/Record Set改变后当前读取不可使用旧结果；真实CIFS及生产冷备仍待。演员Observation落盘切片尚未并入：其先stat后整文件读取的8 MiB围栏存在文件增长/替换窗口，已交实现线程验证有界读取。

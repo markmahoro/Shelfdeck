@@ -38,6 +38,8 @@ continuity合法重规划门禁测试`92df7fa5e`挑入后，当前候选更新�
 
 后继Series修复在独立工作区`C:/Users/markm/.codex/worktrees/shelfdeck-series-fenced-20261029/emby_third_party-helix`的`codex/series-fenced-20261029`准备：在27a上按序挑入Foundation原Effect/Marker/Result恢复、Perception冻结依据和Owner后继Work、提交窗口验证及P13摘要修复；固定HEAD `4774a7e9056f644c29b8034ea07baeb4f578c4f6`已完成标准本机镜像构建，tar SHA256 `1a280a3efea6f67b97019552d8fd76ed7c8fe655bf5aa52998686c559b6b3023`。完整架构、Service、Web和具体版本UI在执行，真实CIFS、实际生产副本/冷备和七条恢复仍开放，未上传或部署。
 
+4774的具体版本UI复核 **FAIL**：受控注入评分Resolution重试耗尽终态时，后端决策返回失败，评分读取仍为pending，页面继续显示“正在匹配豆瓣评分”。真实调度链是否同样触发仍需Host复现，不能推断已影响生产。Perception线程按Owner责任修复状态传播并验证新依据恢复，后继精确版本须重新完成UI验收；4774不可部署。
+
 前候选1d8a完整架构3402通过/5失败/27跳过，四项缺少依赖路径后定向通过；1081视频Host并发收敛核查见专项Evidence。bc4完整架构3410通过/3失败/27跳过：两项缺历史Git对象，精确27a相同测试补只读对象后6项通过；另一JAV Aftercare海报失败已找到可复现的相同现象，首跑因果仍未证实。精确27a首轮3411通过/3失败/27跳过：两项同样缺历史对象，第三项Series Resolution Commit Handle异常已在隔离Host调查；带完整历史的第二轮3413通过/1失败/27跳过，唯一失败为上述P13备份摘要缺口。两次原失败均保留，不能用定向结果冒充全量通过。
 
 普通发布只做安全停止与完整校验备份，不默认执行Reset。Fresh-generation Reset的预检须停止、冻结精确范围并核验保留依赖，可能清除在线未入藏任务和系统工作区，不能仅据工作台34条推算范围；当前无Reset授权。[只读分诊和Reset影响](evidence/PRODUCTION_TRIAGE_INTEGRATION_20261029.md)。
